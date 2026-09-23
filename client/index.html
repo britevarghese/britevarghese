@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>STRIKEPOINT — Conquest</title>
+  <link rel="stylesheet" href="/css/style.css" />
+  <script type="importmap">
+    { "imports": { "three": "/vendor/three/build/three.module.js", "three/addons/": "/vendor/three/examples/jsm/" } }
+  </script>
+</head>
+<body>
+  <div id="game"></div>
+
+  <!-- ===================== HUD ===================== -->
+  <div id="hud" class="hidden">
+    <div id="tickets">
+      <div class="tk us"><span class="lbl">US</span><div class="bar"><i></i></div><b id="tk-us">300</b></div>
+      <div id="flags"></div>
+      <div class="tk ru"><b id="tk-ru">300</b><div class="bar"><i></i></div><span class="lbl">RU</span></div>
+    </div>
+    <div id="capture" class="hidden"><div class="cap-title"></div><div class="cap-bar"><i></i></div></div>
+    <canvas id="minimap" width="220" height="220"></canvas>
+    <div id="killfeed"></div>
+    <div id="crosshair"><i class="t"></i><i class="b"></i><i class="l"></i><i class="r"></i><i class="dot"></i></div>
+    <div id="hitmarker"></div>
+    <div id="dmgdir"></div>
+    <div id="vitals">
+      <div class="hp"><span class="ico">+</span><div class="hpbar"><i></i></div><b id="hp">100</b></div>
+    </div>
+    <div id="ammo">
+      <div class="wname" id="wname">AR-15 Carbine</div>
+      <div class="count"><b id="mag">30</b><span>/</span><em id="reserve">150</em></div>
+      <div class="sub"><span id="nades">G x2</span> · <span id="firemode">AUTO</span> · <span id="stance">STAND</span></div>
+    </div>
+    <div id="notice"></div>
+    <div id="chatlog"></div>
+    <input id="chatinput" class="hidden" maxlength="120" placeholder="Say to all…" />
+    <div id="scoreboard" class="hidden"></div>
+    <div id="vignette"></div>
+    <div id="fps"></div>
+  </div>
+
+  <!-- ===================== Deploy / menu ===================== -->
+  <div id="menu">
+    <div class="panel">
+      <h1>STRIKEPOINT</h1>
+      <div class="sub">CONQUEST · 3 FLAGS · SERVER-AUTHORITATIVE MULTIPLAYER</div>
+      <label>Callsign <input id="name" maxlength="16" value="" placeholder="Soldier" /></label>
+      <div class="row">
+        <label>Team <select id="team"><option value="0">Auto balance</option><option value="1">US</option><option value="2">RU</option></select></label>
+        <label>Quality <select id="quality"><option value="low">LOW</option><option value="medium">MEDIUM</option></select></label>
+        <label>FOV <input id="fov" type="range" min="60" max="100" value="78" /></label>
+      </div>
+      <button id="play">JOIN BATTLE</button>
+      <div class="help">WASD move · Shift sprint · Space jump · C crouch · Z prone · RMB aim · LMB fire · R reload · 1/2 weapons · G grenade · V first/third person · Tab scoreboard · T chat · F3 asset debug</div>
+      <div id="loading"></div>
+    </div>
+  </div>
+
+  <div id="deploy" class="hidden">
+    <div class="panel wide">
+      <h2 id="deploy-title">DEPLOY</h2>
+      <div id="killcam" class="hidden"></div>
+      <div class="cols">
+        <div>
+          <h3>KIT</h3>
+          <div id="classes"></div>
+        </div>
+        <div>
+          <h3>SPAWN POINT</h3>
+          <canvas id="deploymap" width="300" height="300"></canvas>
+          <div id="spawns"></div>
+        </div>
+      </div>
+      <button id="deploybtn">DEPLOY</button>
+      <div id="respawn-timer"></div>
+    </div>
+  </div>
+
+  <div id="roundend" class="hidden"></div>
+  <div id="errors"></div>
+  <script type="module" src="/js/main.js"></script>
+</body>
+</html>

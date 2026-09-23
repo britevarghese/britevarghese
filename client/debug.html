@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>STRIKEPOINT asset debug</title>
+  <style>
+    html, body { margin: 0; height: 100%; background: #1d2024; color: #dde; font: 12px/1.4 ui-monospace, Menlo, Consolas, monospace; overflow: hidden; }
+    #info { position: fixed; top: 8px; left: 8px; max-width: 46vw; max-height: 96vh; overflow: auto; background: rgba(0,0,0,.6); padding: 8px 10px; border-radius: 6px; white-space: pre-wrap; }
+    #nav { position: fixed; top: 8px; right: 8px; background: rgba(0,0,0,.6); padding: 6px 10px; border-radius: 6px; }
+    #nav a { color: #9cf; margin-left: 8px; }
+    .err { color: #ff6b6b; font-weight: bold; }
+  </style>
+  <script type="importmap">
+    { "imports": { "three": "/vendor/three/build/three.module.js", "three/addons/": "/vendor/three/examples/jsm/" } }
+  </script>
+</head>
+<body>
+  <div id="nav">debug:<a href="/debug/character">character</a><a href="/debug/weapon">weapon</a><a href="/debug/character-weapon">character-weapon</a><a href="/debug/ads">ads</a><a href="/debug/scale">scale</a><a href="/">game</a></div>
+  <pre id="info">loading…</pre>
+  <script type="module" src="/js/debug.js"></script>
+</body>
+</html>

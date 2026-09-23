@@ -1,0 +1,5 @@
+node_modules/
+raw/
+# three.js example Soldier (Mixamo) is downloaded by `npm install`, not redistributed here
+client/assets/characters/soldier_default.glb
+*.log

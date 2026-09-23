@@ -1,0 +1,36 @@
+{
+  "name": "strikepoint",
+  "version": "0.1.0",
+  "description": "Browser multiplayer military FPS (Conquest) - Three.js + Node WebSocket authoritative server",
+  "scripts": {
+    "start": "node server/index.js",
+    "assets": "node scripts/build-assets.mjs",
+    "postinstall": "node scripts/build-assets.mjs --character-only",
+    "test": "node --test test/*.test.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/britevarghese/britevarghese.git"
+  },
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/britevarghese/britevarghese/issues"
+  },
+  "homepage": "https://github.com/britevarghese/britevarghese#readme",
+  "dependencies": {
+    "express": "^5.2.1",
+    "three": "^0.170.0",
+    "ws": "^8.21.3"
+  },
+  "devDependencies": {
+    "@gltf-transform/core": "^4.5.0",
+    "@gltf-transform/extensions": "^4.5.0",
+    "@gltf-transform/functions": "^4.5.0",
+    "meshoptimizer": "^1.2.0",
+    "playwright-core": "^1.63.0",
+    "sharp": "^0.35.4"
+  },
+  "type": "module",
+  "private": true
+}

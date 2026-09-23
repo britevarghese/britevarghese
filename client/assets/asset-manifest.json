@@ -1,0 +1,174 @@
+{
+  "_readme": "Each entry lists candidate files in priority order. Drop your own GLBs into client/assets/user/... and they override the defaults automatically. Paths are relative to /assets/.",
+  "characters": {
+    "soldier": {
+      "files": [
+        "user/characters/soldier.glb",
+        "characters/soldier_default.glb"
+      ],
+      "height": 1.8,
+      "bones": {}
+    },
+    "operator": {
+      "files": [
+        "user/characters/fsb_operator.glb",
+        "user/characters/soldier.glb",
+        "characters/soldier_default.glb"
+      ],
+      "height": 1.8,
+      "bones": {}
+    }
+  },
+  "weapons": {
+    "assault_rifle": {
+      "files": [
+        "user/weapons/ss2_v5_assault_rifle.glb",
+        "user/weapons/assault_rifle.glb",
+        "weapons/bolt_action_rifle.glb"
+      ],
+      "length": null,
+      "forward": "auto",
+      "optic": {
+        "type": "auto"
+      }
+    },
+    "bolt_rifle": {
+      "files": [
+        "weapons/bolt_action_rifle.glb"
+      ],
+      "length": 1.24,
+      "forward": "+x",
+      "optic": {
+        "type": "scope",
+        "magnification": 4,
+        "lens": "bolt_action_rifle_7_62_accesories_glass"
+      },
+      "sockets": {
+        "rightGrip": [
+          0.0,
+          -0.005,
+          0.3
+        ],
+        "leftGrip": [
+          0.0,
+          0.02,
+          0.02
+        ],
+        "stock": [
+          0.0,
+          -0.04,
+          0.6
+        ],
+        "muzzle": [
+          0.0,
+          0.045,
+          -0.62
+        ]
+      },
+      "hide": [
+        "bolt_action_rifle_7_62_bolt_b",
+        "bolt_action_rifle_7_62_bullet_54mm"
+      ]
+    },
+    "pistol": {
+      "files": [
+        "user/weapons/pistol.glb",
+        "weapons/service_pistol.glb"
+      ],
+      "forward": "+x",
+      "optic": {
+        "type": "iron"
+      },
+      "hide": [
+        "service_pistol_magazine_empty",
+        "service_pistol_pistol_b",
+        "service_pistol_slide_b",
+        "service_pistol_hammer_b",
+        "service_pistol_trigger_b",
+        "service_pistol_bullet",
+        "service_pistol_magazine_loaded"
+      ],
+      "sockets": {
+        "rightGrip": [
+          0.0,
+          -0.02,
+          0.066
+        ],
+        "leftGrip": [
+          -0.025,
+          -0.05,
+          0.06
+        ],
+        "stock": [
+          0.0,
+          -0.01,
+          0.1
+        ],
+        "muzzle": [
+          0.0,
+          0.05,
+          -0.111
+        ],
+        "opticEye": [
+          0.0,
+          0.062,
+          0.4
+        ]
+      }
+    },
+    "grenade": {
+      "files": [
+        "weapons/grenade.glb"
+      ]
+    }
+  },
+  "props": {
+    "barrier": "props/concrete_barrier.glb",
+    "barrier2": "props/concrete_barrier_02.glb",
+    "crate": "props/military_crate.glb",
+    "old_crate": "props/old_military_crate.glb",
+    "ammo": "props/ammo_box.glb",
+    "barrel": "props/barrel.glb",
+    "barrel_rusty": "props/barrel_rusty.glb",
+    "car": "props/covered_car.glb",
+    "jerrycan": "props/jerrycan.glb",
+    "cement_bag": "props/cement_bag.glb",
+    "tyre": "props/tyre.glb",
+    "utility": "props/utility_box.glb",
+    "lamp": "props/street_lamp.glb",
+    "aircon": "props/aircon.glb",
+    "trash": "props/trash_can.glb",
+    "generator": "props/generator.glb",
+    "rollershutter": "props/rollershutter_door.glb",
+    "fence": "props/chainlink_fence.glb",
+    "poles": "props/electricity_poles.glb",
+    "wheel_rim": "props/wheel_rim.glb"
+  },
+  "vegetation": {
+    "tree_lod0": "vegetation/tree_small_02_lod0.glb",
+    "tree_lod1": "vegetation/tree_small_02_lod1.glb",
+    "grass": "vegetation/grass_medium_01.glb",
+    "shrub": "vegetation/shrub.glb",
+    "fern": "vegetation/fern.glb",
+    "dead_tree": "vegetation/dead_tree_trunk.glb",
+    "rock_07": "vegetation/rock_07.glb",
+    "rock_09": "vegetation/rock_09.glb"
+  },
+  "textures": {
+    "grass": "textures/sparse_grass",
+    "dirt": "textures/dry_ground_01",
+    "rock": "textures/rocky_terrain_02",
+    "burnt": "textures/burned_ground_01",
+    "asphalt": "textures/asphalt_02",
+    "pavement": "textures/concrete_pavement",
+    "concrete": "textures/concrete_wall_008",
+    "plaster": "textures/worn_plaster_wall",
+    "brick": "textures/rough_plaster_brick",
+    "concrete_floor": "textures/concrete_floor_worn_001",
+    "corrugated": "textures/corrugated_iron_02",
+    "rusty_metal": "textures/rusty_metal_02",
+    "plywood": "textures/plywood",
+    "concrete_slab": "textures/concrete_slab_wall"
+  },
+  "hdri": "hdri/sky_1k.hdr"
+}
