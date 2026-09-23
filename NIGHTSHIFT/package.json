@@ -1,0 +1,20 @@
+{
+  "name": "nightshift",
+  "version": "1.0.0",
+  "private": true,
+  "description": "NIGHTSHIFT - browser street racing game with a zero-dependency Node.js host server",
+  "type": "commonjs",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "models": "node tools/generate-models.mjs",
+    "installer": "bash tools/build-installer.sh"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "devDependencies": {
+    "three": "0.186.0",
+    "playwright-core": "^1.50.0"
+  }
+}

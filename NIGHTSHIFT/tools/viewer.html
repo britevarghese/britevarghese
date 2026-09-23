@@ -1,0 +1,30 @@
+<!doctype html><html><body style="margin:0;background:#222">
+<script type="importmap">{"imports":{"three":"/public/vendor/three/three.module.js","three/addons/":"/public/vendor/three/addons/"}}</script>
+<script type="module">
+import * as THREE from 'three';
+import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js';
+const q=new URLSearchParams(location.search);
+const car=q.get('car')||'kestrel', view=q.get('view')||'34', lod=q.get('lod')||'lod0', rim=+(q.get('rim')||0);
+const r=new THREE.WebGLRenderer({antialias:true});r.setSize(900,560);document.body.appendChild(r.domElement);
+r.toneMapping=THREE.ACESFilmicToneMapping;
+const s=new THREE.Scene();s.background=new THREE.Color(0x404850);
+const pm=new THREE.PMREMGenerator(r);
+const env=new THREE.Scene();const g=new THREE.SphereGeometry(10,32,16);
+const m=new THREE.MeshBasicMaterial({side:THREE.BackSide,vertexColors:true});
+const c=[];const p=g.attributes.position;for(let i=0;i<p.count;i++){const y=p.getY(i)/10;const k=Math.max(0,y);c.push(0.3+k*1.5,0.32+k*1.5,0.36+k*1.6);}
+g.setAttribute('color',new THREE.Float32BufferAttribute(c,3));env.add(new THREE.Mesh(g,m));
+s.environment=pm.fromScene(env).texture;
+s.add(new THREE.DirectionalLight(0xffffff,2).translateY(5).translateX(3));
+const ground=new THREE.Mesh(new THREE.PlaneGeometry(40,40),new THREE.MeshStandardMaterial({color:0x303030,roughness:0.8}));ground.rotation.x=-Math.PI/2;s.add(ground);
+const cam=new THREE.PerspectiveCamera(35,900/560,0.1,100);
+const L=new GLTFLoader();
+const [a,w]=await Promise.all([L.loadAsync('/public/assets/models/'+car+'.glb'),L.loadAsync('/public/assets/models/wheels.glb')]);
+const root=a.scene.getObjectByName(lod);s.add(root);
+const kit=(q.get('kit')||'').split(',');root.traverse(o=>{if(/^(spoiler|hood|bumper)_\d/.test(o.name)){o.visible=kit.some(k=>k&&o.name.startsWith(k));}if(o.isMesh){[].concat(o.material).forEach(mm=>{if(mm.name==='paint'){mm.color.set(q.get('paint')||'#b01020')}})}});
+const man=await (await fetch('/public/assets/models/manifest.json')).json();
+for(const wd of man.cars[car].wheels){const e=root.getObjectByName('wheel_'+wd.id);const grp=new THREE.Group();
+ for(const n of ['tire','rim_'+rim,'brake_disc','caliper']){grp.add(w.scene.getObjectByName(n).clone());}
+ const sc=wd.r/0.34;grp.scale.set((wd.w/0.25)*(e.position.x>0?1:-1),sc,sc);e.add(grp);}
+const pos={34:[5.5,2.2,6.5],side:[8,1,0],front:[0,1.2,8],rear:[0,1.5,-8],top:[0,10,0.01],low:[4,0.6,5]}[view];
+cam.position.set(...pos);cam.lookAt(0,0.6,0);r.render(s,cam);document.title='done';
+</script></body></html>

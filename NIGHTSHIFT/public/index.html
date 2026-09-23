@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>NIGHTSHIFT</title>
+  <meta name="description" content="NIGHTSHIFT — an original open-world night street racing game that runs in your browser.">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='12' fill='%2307090d'/%3E%3Cpath d='M14 46 L26 18 L32 32 L38 18 L50 46' stroke='%23ff3d5a' stroke-width='6' fill='none' stroke-linejoin='round'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="/css/nightshift.css">
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "/vendor/three/three.module.js",
+      "three/webgpu": "/vendor/three/three.webgpu.js",
+      "three/tsl": "/vendor/three/three.tsl.js",
+      "three/addons/": "/vendor/three/addons/"
+    }
+  }
+  </script>
+</head>
+<body>
+  <div id="app">
+    <!-- 3D canvas is inserted here -->
+    <div id="ui">
+      <div id="hud" class="hidden"></div>
+      <div id="screens"></div>
+      <div id="toasts"></div>
+      <div id="dev" class="hidden"></div>
+    </div>
+
+    <div id="loading">
+      <div class="load-bg"></div>
+      <div class="load-inner">
+        <div class="logo"><span class="logo-night">NIGHT</span><span class="logo-shift">SHIFT</span></div>
+        <div class="load-sub">STREET RACING · PORT HALVERN</div>
+        <div class="load-status" id="load-status">Loading city...</div>
+        <div class="load-bar"><div class="load-fill" id="load-fill"></div></div>
+        <div class="load-tip" id="load-tip">Tip: tap SPACE mid-corner to kick the rear out, then steer into the slide.</div>
+      </div>
+      <div class="load-foot" id="load-foot"></div>
+    </div>
+
+    <div id="fatal" class="hidden">
+      <div class="fatal-box">
+        <h2 id="fatal-title">ERROR</h2>
+        <pre id="fatal-msg"></pre>
+        <button onclick="location.reload()">RELOAD</button>
+      </div>
+    </div>
+  </div>
+  <noscript>NIGHTSHIFT needs JavaScript enabled.</noscript>
+  <script>
+    // Early error surface (before modules load) — never fail silently.
+    window.addEventListener('error', function (e) {
+      var t = e.target;
+      if (t && (t.tagName === 'SCRIPT' || t.tagName === 'LINK')) {
+        var f = document.getElementById('fatal'); f.classList.remove('hidden');
+        document.getElementById('fatal-title').textContent = 'ASSET LOAD ERROR';
+        document.getElementById('fatal-msg').textContent = (t.src || t.href || 'unknown file');
+      }
+    }, true);
+    if (!window.HTMLCanvasElement || !('noModule' in HTMLScriptElement.prototype)) {
+      document.getElementById('fatal').classList.remove('hidden');
+      document.getElementById('fatal-msg').textContent = 'This browser is too old. Please use a current Chrome, Edge or Firefox.';
+    }
+  </script>
+  <script type="module" src="/src/main.js"></script>
+</body>
+</html>

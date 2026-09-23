@@ -1,0 +1,302 @@
+{
+  "cars": {
+    "kestrel": {
+      "file": "kestrel.glb",
+      "name": "Kestrel RS",
+      "class": "sports",
+      "length": 4.45,
+      "width": 1.9,
+      "wheels": [
+        {
+          "id": "FL",
+          "r": 0.34,
+          "w": 0.255
+        },
+        {
+          "id": "FR",
+          "r": 0.34,
+          "w": 0.255
+        },
+        {
+          "id": "RL",
+          "r": 0.34,
+          "w": 0.255
+        },
+        {
+          "id": "RR",
+          "r": 0.34,
+          "w": 0.255
+        }
+      ]
+    },
+    "brawler": {
+      "file": "brawler.glb",
+      "name": "Brawler 71",
+      "class": "muscle",
+      "length": 4.8,
+      "width": 1.96,
+      "wheels": [
+        {
+          "id": "FL",
+          "r": 0.36,
+          "w": 0.285
+        },
+        {
+          "id": "FR",
+          "r": 0.36,
+          "w": 0.285
+        },
+        {
+          "id": "RL",
+          "r": 0.36,
+          "w": 0.285
+        },
+        {
+          "id": "RR",
+          "r": 0.36,
+          "w": 0.285
+        }
+      ]
+    },
+    "stratos": {
+      "file": "stratos.glb",
+      "name": "Stratos V12",
+      "class": "exotic",
+      "length": 4.6,
+      "width": 2.02,
+      "wheels": [
+        {
+          "id": "FL",
+          "r": 0.35,
+          "w": 0.3
+        },
+        {
+          "id": "FR",
+          "r": 0.35,
+          "w": 0.3
+        },
+        {
+          "id": "RL",
+          "r": 0.35,
+          "w": 0.3
+        },
+        {
+          "id": "RR",
+          "r": 0.35,
+          "w": 0.3
+        }
+      ]
+    },
+    "hikari": {
+      "file": "hikari.glb",
+      "name": "Hikari R4",
+      "class": "tuner",
+      "length": 4.3,
+      "width": 1.8,
+      "wheels": [
+        {
+          "id": "FL",
+          "r": 0.33,
+          "w": 0.245
+        },
+        {
+          "id": "FR",
+          "r": 0.33,
+          "w": 0.245
+        },
+        {
+          "id": "RL",
+          "r": 0.33,
+          "w": 0.245
+        },
+        {
+          "id": "RR",
+          "r": 0.33,
+          "w": 0.245
+        }
+      ]
+    },
+    "interceptor": {
+      "file": "interceptor.glb",
+      "name": "Interceptor",
+      "class": "police",
+      "length": 4.95,
+      "width": 1.92,
+      "wheels": [
+        {
+          "id": "FL",
+          "r": 0.35,
+          "w": 0.255
+        },
+        {
+          "id": "FR",
+          "r": 0.35,
+          "w": 0.255
+        },
+        {
+          "id": "RL",
+          "r": 0.35,
+          "w": 0.255
+        },
+        {
+          "id": "RR",
+          "r": 0.35,
+          "w": 0.255
+        }
+      ]
+    },
+    "sedan": {
+      "file": "sedan.glb",
+      "name": "Sedan",
+      "class": "traffic",
+      "length": 4.7,
+      "width": 1.84,
+      "wheels": [
+        {
+          "id": "FL",
+          "r": 0.33,
+          "w": 0.225
+        },
+        {
+          "id": "FR",
+          "r": 0.33,
+          "w": 0.225
+        },
+        {
+          "id": "RL",
+          "r": 0.33,
+          "w": 0.225
+        },
+        {
+          "id": "RR",
+          "r": 0.33,
+          "w": 0.225
+        }
+      ]
+    },
+    "suv": {
+      "file": "suv.glb",
+      "name": "SUV",
+      "class": "traffic",
+      "length": 4.8,
+      "width": 1.95,
+      "wheels": [
+        {
+          "id": "FL",
+          "r": 0.38,
+          "w": 0.26
+        },
+        {
+          "id": "FR",
+          "r": 0.38,
+          "w": 0.26
+        },
+        {
+          "id": "RL",
+          "r": 0.38,
+          "w": 0.26
+        },
+        {
+          "id": "RR",
+          "r": 0.38,
+          "w": 0.26
+        }
+      ]
+    },
+    "van": {
+      "file": "van.glb",
+      "name": "Van",
+      "class": "traffic",
+      "length": 5.3,
+      "width": 2.02,
+      "wheels": [
+        {
+          "id": "FL",
+          "r": 0.36,
+          "w": 0.24
+        },
+        {
+          "id": "FR",
+          "r": 0.36,
+          "w": 0.24
+        },
+        {
+          "id": "RL",
+          "r": 0.36,
+          "w": 0.24
+        },
+        {
+          "id": "RR",
+          "r": 0.36,
+          "w": 0.24
+        }
+      ]
+    },
+    "truck": {
+      "file": "truck.glb",
+      "name": "Box Truck",
+      "class": "traffic",
+      "length": 7.4,
+      "width": 2.3,
+      "wheels": [
+        {
+          "id": "FL",
+          "r": 0.48,
+          "w": 0.28
+        },
+        {
+          "id": "FR",
+          "r": 0.48,
+          "w": 0.28
+        },
+        {
+          "id": "RL",
+          "r": 0.48,
+          "w": 0.32
+        },
+        {
+          "id": "RR",
+          "r": 0.48,
+          "w": 0.32
+        }
+      ]
+    },
+    "bus": {
+      "file": "bus.glb",
+      "name": "City Bus",
+      "class": "traffic",
+      "length": 11.5,
+      "width": 2.55,
+      "wheels": [
+        {
+          "id": "FL",
+          "r": 0.5,
+          "w": 0.3
+        },
+        {
+          "id": "FR",
+          "r": 0.5,
+          "w": 0.3
+        },
+        {
+          "id": "RL",
+          "r": 0.5,
+          "w": 0.32
+        },
+        {
+          "id": "RR",
+          "r": 0.5,
+          "w": 0.32
+        }
+      ]
+    }
+  },
+  "wheels": {
+    "file": "wheels.glb",
+    "ref": {
+      "radius": 0.34,
+      "width": 0.25
+    },
+    "rims": 5
+  }
+}
