@@ -1,5 +1,5 @@
 // Renderer + daylight lighting model: HDRI sky/IBL, directional sun with camera-following soft shadows,
-// hemisphere fill, atmospheric fog, ACES tone mapping. LOW / MEDIUM quality presets.
+// hemisphere fill, atmospheric fog, ACES tone mapping. VERY LOW … ULTRA quality presets.
 import * as THREE from 'three';
 import { ACTIVE_MAP } from '/shared/map.js';
 
@@ -9,7 +9,12 @@ export const QUALITY = {
   verylow: { pixelRatio: 0.7, shadowSize: 0, shadowRange: 0, shadowType: THREE.BasicShadowMap, antialias: false, fogFar: 300, anisotropy: 1, particles: 0.35, maxDpr: 1, shadowEvery: 0, minScale: 0.45, veg: 'verylow' },
   low: { pixelRatio: 0.85, shadowSize: 1024, shadowRange: 36, shadowType: THREE.PCFShadowMap, antialias: false, fogFar: 360, anisotropy: 2, particles: 0.5, maxDpr: 1, shadowEvery: 3, minScale: 0.5, veg: 'low' },
   medium: { pixelRatio: 1, shadowSize: 2048, shadowRange: 60, shadowType: THREE.PCFSoftShadowMap, antialias: true, fogFar: 480, anisotropy: 4, particles: 1, maxDpr: 1.25, shadowEvery: 2, minScale: 0.6, veg: 'medium' },
+  // dedicated graphics cards (NVIDIA GeForce / AMD Radeon RX / Intel Arc): sharper, farther, shadows every frame
+  high: { pixelRatio: 1, shadowSize: 4096, shadowRange: 80, shadowType: THREE.PCFSoftShadowMap, antialias: true, fogFar: 640, anisotropy: 8, particles: 1, maxDpr: 1.5, shadowEvery: 1, minScale: 0.7, veg: 'high' },
+  ultra: { pixelRatio: 1, shadowSize: 4096, shadowRange: 110, shadowType: THREE.PCFSoftShadowMap, antialias: true, fogFar: 820, anisotropy: 16, particles: 1, maxDpr: 2, shadowEvery: 1, minScale: 0.75, veg: 'ultra' },
 };
+// presets that assume a dedicated GPU (used for LOD / resolution decisions elsewhere)
+export const isHighEnd = (name) => name === 'high' || name === 'ultra';
 
 // Keeps frame time near the target by scaling the render resolution (only the 3D view; HUD stays sharp).
 export class DynamicResolution {

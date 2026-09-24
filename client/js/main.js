@@ -16,6 +16,7 @@ import { Lobby, inviteLink } from './ui/Lobby.js';
 import { TouchControls, isTouchDevice } from './ui/TouchControls.js';
 import { EYE_HEIGHT } from '/shared/world.js';
 import { RoyaleClient } from './royale/Royale.js';
+import { detectGPU, adviceFor } from './render/GPU.js';
 
 const $ = (id) => document.getElementById(id);
 const AUTO = new URLSearchParams(location.search);
@@ -41,6 +42,12 @@ class Game {
     this.qualityName = quality;
     const { renderer, q } = createRenderer($('game'), quality);
     this.renderer = renderer; this.q = q;
+    // laptops can switch GPU (or the driver resets) mid-game: rejoin the same room instead of freezing on a black screen
+    renderer.domElement.addEventListener('webglcontextlost', (e) => {
+      e.preventDefault();
+      showError('Graphics card switched / driver reset — reloading…');
+      setTimeout(() => { location.href = `/?room=${encodeURIComponent(this.room.id)}&autojoin=1`; }, 1500);
+    });
     renderer.info.autoReset = false; // count world + viewmodel + shadow passes per frame
     this.baseFov = fov;
     this.camera = new THREE.PerspectiveCamera(fov, innerWidth / innerHeight, 0.05, 1600);
@@ -436,7 +443,7 @@ class Game {
     else this.renderer.render(this.world.scene, cam);
     P.mark('render');
     this.frames++; this.fpsT += dt;
-    if (this.fpsT > 1) { this.hud.fps(`${this.frames} fps · res ${Math.round((this.dynres?.scale ?? 1) * 100)}% · ${this.renderer.info.render.calls} draws · ${(this.renderer.info.render.triangles / 1000) | 0}k tris${AUTO.has('perf') ? ` · ${P.report()}` : ''}`); this.frames = 0; this.fpsT = 0; }
+    if (this.fpsT > 1) { this.hud.fps(`${this.frames} fps · ${gpu.name.replace(/\(R\)|\(TM\)|NVIDIA |Laptop GPU/g, '').trim()} · ${this.qualityName.toUpperCase()} · res ${Math.round((this.dynres?.scale ?? 1) * 100)}% · ${this.renderer.info.render.calls} draws · ${(this.renderer.info.render.triangles / 1000) | 0}k tris${AUTO.has('perf') ? ` · ${P.report()}` : ''}`); this.frames = 0; this.fpsT = 0; }
     P.end();
   }
 }
@@ -444,7 +451,25 @@ class Game {
 // ------------------------------------------------------------------ menu / lobby
 const saved = JSON.parse(localStorage.getItem('sp_settings') || '{}');
 $('name').value = saved.name || `Soldier${(Math.random() * 900 + 100) | 0}`;
-$('quality').value = saved.quality || (isTouchDevice() ? 'verylow' : navigator.hardwareConcurrency <= 4 ? 'low' : 'medium');
+// pick the preset from the graphics card the browser actually renders with (dedicated GPU -> HIGH / ULTRA)
+const gpu = detectGPU();
+const recommendedQuality = isTouchDevice() ? 'verylow' : gpu.recommended;
+$('quality').value = saved.quality || recommendedQuality;
+showGPUInfo();
+function showGPUInfo() {
+  const el = $('gpuinfo'), adv = adviceFor(gpu);
+  const label = { dedicated: 'dedicated graphics card', integrated: 'integrated graphics', software: 'software rendering (no GPU)', mobile: 'mobile GPU' }[gpu.kind];
+  const Q = $('quality');
+  const rank = ['verylow', 'low', 'medium', 'high', 'ultra'];
+  const better = rank.indexOf(recommendedQuality) > rank.indexOf(Q.value);
+  el.className = adv?.level === 'bad' ? 'bad' : gpu.dedicated ? 'good' : '';
+  el.innerHTML = `<div><b>GPU:</b> ${esc(gpu.name)} · <span class="k">${label}</span> · recommended <b>${recommendedQuality.toUpperCase()}</b>`
+    + (better ? ` <button id="gpu-use">USE ${recommendedQuality.toUpperCase()}</button>` : '') + '</div>'
+    + (adv ? `<details${adv.level === 'bad' ? ' open' : ''}><summary>${esc(adv.title)}</summary><ol>${adv.steps.map((s) => `<li>${esc(s)}</li>`).join('')}</ol></details>` : '');
+  if (better) $('gpu-use').onclick = (e) => { e.preventDefault(); Q.value = recommendedQuality; showGPUInfo(); };
+  Q.onchange = showGPUInfo;
+}
+function esc(s) { return String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
 $('fov').value = saved.fov || 78;
 $('team').value = saved.team || '0';
 const lobby = new Lobby({ initialRoom: AUTO.get('room') });

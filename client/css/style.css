@@ -224,3 +224,8 @@ body.touch #br-top { font-size: 13px; top: 56px; } body.touch #br-sub { top: 76p
 body.touch #br-alive { top: 10px; right: 250px; }
 .room .mode { color: #ffa53d; font-weight: 800; font-size: 10px; letter-spacing: .12em; }
 body.royale.br-out #ammo, body.royale.br-out #vitals, body.royale.br-out #br-armor, body.royale.br-out #br-inv, body.royale.br-out #crosshair { display: none; }
+#gpuinfo { font-size: 11px; letter-spacing: .05em; margin: -4px 0 12px; padding: 7px 10px; background: rgba(255,255,255,.05); border-left: 3px solid #999; line-height: 1.5; }
+#gpuinfo.good { border-left-color: #5fe07a; } #gpuinfo.bad { border-left-color: #ff6b5b; background: rgba(255,80,60,.1); }
+#gpuinfo .k { opacity: .75; }
+#gpuinfo button { width: auto; display: inline-block; padding: 2px 8px; margin: 0 0 0 6px; font-size: 10px; letter-spacing: .1em; }
+#gpuinfo summary { cursor: pointer; margin-top: 4px; color: #ffd27a; } #gpuinfo ol { margin: 6px 0 2px; padding-left: 18px; } #gpuinfo li { margin-bottom: 3px; }

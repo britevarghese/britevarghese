@@ -31,7 +31,7 @@ export class RoyaleClient {
     this.canopies = new Map();
     this.drops = [];
     this.spectate = null;
-    this.lootR = game.qualityName === 'verylow' ? 26 : game.qualityName === 'low' ? 34 : 45;
+    this.lootR = { verylow: 26, low: 34, medium: 45, high: 60, ultra: 75 }[game.qualityName] || 45;
     this.#ui();
     this.ready = this.#loadProtos();
   }

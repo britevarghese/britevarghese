@@ -41,6 +41,10 @@ export class Vegetation {
       ? { lod0: 10, lod1: 40, grassR: 0, grassStep: 3, shrubR: 28 }
       : quality === 'low'
       ? { lod0: 16, lod1: 60, grassR: 20, grassStep: 2.7, shrubR: 42 }
+      : quality === 'ultra'
+      ? { lod0: 60, lod1: 200, grassR: 55, grassStep: 1.6, shrubR: 120 }
+      : quality === 'high'
+      ? { lod0: 45, lod1: 150, grassR: 44, grassStep: 1.8, shrubR: 95 }
       : { lod0: 30, lod1: 100, grassR: 34, grassStep: 2.1, shrubR: 68 };
     this.lastUpdate = -1; this.lastGrassPos = new THREE.Vector3(1e9, 0, 0);
   }
@@ -61,7 +65,7 @@ export class Vegetation {
     });
     this.lod0 = mk(lod0, trees.length, true);
     this.lod1 = mk(lod1, trees.length, true);
-    if (this.quality !== 'medium') this.lod1.forEach((m) => { m.castShadow = false; });
+    if (!['medium', 'high', 'ultra'].includes(this.quality)) this.lod1.forEach((m) => { m.castShadow = false; });
     this.impostor = this.#bakeImpostor(lod1, trees.length);
     // dead trees (static)
     const deadM = V.trees.filter((t) => t.dead).map((t) => new THREE.Matrix4().compose(new THREE.Vector3(t.x, groundHeight(t.x, t.z), t.z), new THREE.Quaternion().setFromEuler(new THREE.Euler(0, t.r, 0)), new THREE.Vector3(t.s * 1.4, t.s * 1.4, t.s * 1.4)));

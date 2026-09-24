@@ -9,7 +9,7 @@ export function buildTerrain(assets, quality) {
   group.name = 'terrain';
   // big (battle royale) islands: coarser vertices and more chunks, so the vertex count and culling stay sane
   const big = Math.max(1, Math.min(1.6, MAP_HALF / 280));
-  const res = (quality === 'verylow' ? 2.5 : quality === 'low' ? 2 : 1.25) * big;
+  const res = (quality === 'verylow' ? 2.5 : quality === 'low' ? 2 : quality === 'ultra' ? 0.9 : quality === 'high' ? 1 : 1.25) * big;
   const chunks = Math.max(8, Math.round((MAP_HALF * 2) / 90)), size = (MAP_HALF * 2) / chunks;
   const tex = ['grass', 'dirt', 'rock', 'burnt'].map((k) => assets.textureSet(k));
   const material = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 1, metalness: 0, map: tex[0].map, normalMap: tex[0].normalMap, envMapIntensity: 0.55 });

@@ -161,7 +161,7 @@ export class Viewmodel {
   renderScope(renderer, worldScene, worldCamera, baseFov) {
     const w = this.weapon;
     if (!w.scopeDisc || !w.scopeDisc.visible) return;
-    const size = this.quality === 'verylow' ? 256 : this.quality === 'low' ? 384 : 640;
+    const size = this.quality === 'verylow' ? 256 : this.quality === 'low' ? 384 : this.quality === 'high' || this.quality === 'ultra' ? 1024 : 640;
     if (!this.scopeRT) {
       this.scopeRT = new THREE.WebGLRenderTarget(size, size, { samples: 0 });
       this.scopeRT.texture.colorSpace = THREE.SRGBColorSpace;

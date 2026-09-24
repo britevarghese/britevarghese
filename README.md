@@ -124,7 +124,22 @@ Convert your own `.blend` files with `blender -b file.blend --python scripts/ble
 * Gunshots: real recordings from *The Free Firearm Sound Library* (OpenGameArt, **CC0**) — see
   `client/assets/audio/README.md`.
 
-### Performance (VERY LOW / LOW / MEDIUM presets)
+### Graphics cards (laptops with NVIDIA / AMD / Intel Arc)
+* The game asks the browser for the **high-performance GPU** and the menu shows which GPU it really got
+  (e.g. `NVIDIA GeForce RTX 3060 Laptop GPU · dedicated graphics card`).
+* The quality preset is picked from that GPU: **ULTRA** (RTX 20–50 series, Radeon RX 6600+), **HIGH** (other GeForce
+  GTX/RTX, Radeon RX, Intel Arc A/B, Apple M Pro/Max), MEDIUM (MX / Iris Xe / Radeon 680M–780M / Apple M), LOW
+  (other integrated), VERY LOW (phones, software rendering). A **USE HIGH/ULTRA** button appears if your saved
+  setting is below what the card can do.
+* HIGH / ULTRA: 4096² shadows refreshed every frame over 80 / 110 m, 640 / 820 m view distance, denser grass and
+  farther tree detail, 8× / 16× anisotropic filtering, up to 1.5× / 2× render resolution, 1024² sniper scope.
+* **Dual-GPU laptops** often run the browser on the integrated chip anyway. The menu then shows step-by-step fixes:
+  Windows *Settings → System → Display → Graphics → your browser → High performance*, NVIDIA Control Panel
+  (*Program Settings → chrome.exe → High-performance NVIDIA processor*) / AMD Adrenalin, plug in the charger,
+  restart the browser. If hardware acceleration is off it says how to turn it on.
+* If the laptop switches GPU or the driver resets mid-game, the page rejoins the same room automatically.
+
+### Performance (VERY LOW … ULTRA presets)
 Instanced props/vegetation, tree LOD0 → LOD1 → baked billboard impostors, distance-streamed grass, chunked
 terrain with frustum culling, shared materials/texture sets, single shared GLB per asset with skeleton-aware
 cloning, pooled particles/decals/tracers.
