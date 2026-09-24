@@ -5,7 +5,7 @@ import * as THREE from 'three';
 import { RACE_EVENTS, RACE_TYPE_NAMES } from './RaceEvents.js';
 import { Vehicle } from '../vehicles/Vehicle.js';
 import { AIDriver } from '../vehicles/AIDriver.js';
-import { CARS, tunedParams, PAINTS } from '../vehicles/VehicleCatalog.js';
+import { CARS, tunedParams, PAINTS, PLAYER_CAR_ORDER, TIERS } from '../vehicles/VehicleCatalog.js';
 import { VehiclePhysics } from '../physics/VehiclePhysics.js';
 import { GRID, RING } from '../world/CityLayout.js';
 import { bus } from '../core/EventBus.js';
@@ -131,17 +131,20 @@ export class RaceManager {
     this.markers.visible = false;
     // opponents on the grid behind/beside the player
     if (def.opponents) {
-      const pool = ['kestrel', 'hikari', 'brawler', 'stratos'].filter((id) => game.lib.has(id));
+      // rivals drive cars from the player's class (then the class above/below) — real cars included
+      let pool = this.rivalPool().filter((id) => game.lib.has(id));
+      if (pool.length < 2) pool = ['kestrel', 'hikari', 'brawler', 'stratos'].filter((id) => game.lib.has(id));
       const fx = Math.sin(ev.start.yaw), fz = Math.cos(ev.start.yaw), rx = -fz, rz = fx;
       const slots = [[3.2, 0], [0, -8], [3.2, -8], [0, -16], [3.2, -16]];
-      const playerRating = game.save.data.reputation;
+      const playerRating = (game.progress?.level || 1) * 40;
       for (let i = 0; i < def.opponents; i++) {
-        const carId = pool[(i + 1) % pool.length];
+        const carId = pool[i % pool.length];
         const params = tunedParams(carId, { engine: 1 + (i % 2), tires: 1, transmission: 1 });
         const v = new Vehicle({ carId, params, world: this.world, lib: game.lib, role: 'racer', carType: CARS[carId].carType, renderOpts: { headlights: 0, shadow: false, lodDistance: game.preset.carLod1Distance, sharedPaint: true } });
         const [lat, back] = slots[i];
         v.place(ev.start.x + rx * lat + fx * back, ev.start.z + rz * lat + fz * back, ev.start.yaw);
-        v.renderer.applyCustom({ paint: PAINTS[(i * 5 + 3) % PAINTS.length], paint2: '#111', vinyl: (i % 5) + 1, finish: 'metallic', wheel: i % 4, spoiler: 1 + (i % 3), hood: i % 3, bumper: i % 2, tint: 0.6, wheelColor: '#222428' });
+        if (CARS[carId].real) v.renderer.applyCustom({ paint: 'factory', finish: 'metallic', tint: 0.5 });
+        else v.renderer.applyCustom({ paint: PAINTS[(i * 5 + 3) % PAINTS.length], paint2: '#111', vinyl: (i % 5) + 1, finish: 'metallic', wheel: i % 4, spoiler: 1 + (i % 3), hood: i % 3, bumper: i % 2, tint: 0.6, wheelColor: '#222428' });
         game.scene.add(v.renderer.group);
         const ai = new AIDriver(v, { skill: 0.9 + i * 0.04 + Math.min(0.12, playerRating / 5000), maxSpeed: params.maxSpeed });
         ai.setRoute(ev.route.map((p) => [p[0], p[1]]), def.type === 'circuit');
@@ -153,6 +156,18 @@ export class RaceManager {
     if (def.type === 'escape') { game.police.clearAll(); }
     bus.emit('race:countdown', { def });
     return race;
+  }
+
+  // cars the AI rivals may drive: same class as the player's car first, then one class up/down
+  rivalPool() {
+    const cur = CARS[this.game.save.data.currentCar] || CARS.kestrel;
+    const ti = TIERS.indexOf(cur.tier || 'D');
+    const tierOf = (id) => TIERS.indexOf(CARS[id].tier || 'D');
+    const others = PLAYER_CAR_ORDER.filter((id) => id !== cur.id);
+    const pick = (d) => others.filter((id) => tierOf(id) === ti + d);
+    const seed = Math.floor(this.game.state.time || 0);
+    const shuffle = (a) => a.map((id, i) => [((i + 1) * 7919 + seed) % 97, id]).sort((x, y) => x[0] - y[0]).map((x) => x[1]);
+    return [...shuffle(pick(0)), ...shuffle(pick(1)), ...shuffle(pick(-1))].slice(0, 5);
   }
 
   _buildGates() {

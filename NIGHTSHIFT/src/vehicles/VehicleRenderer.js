@@ -4,23 +4,36 @@ import * as THREE from 'three';
 import { AssetManager } from '../assets/AssetManager.js';
 import { radialGlow, lightPool, carPaintTexture, headlightTextures, taillightTextures, tireTread } from '../renderer/Textures.js';
 import { clamp, lerp } from '../core/util.js';
+import { CARS } from './VehicleCatalog.js';
 
 const glowRed = () => radialGlow('rgba(255,60,50,1)', 'rgba(255,20,20,0.3)');
 const glowWhite = () => radialGlow('rgba(255,250,235,1)', 'rgba(220,230,255,0.35)');
 
 export class ModelLibrary {
-  constructor(assets) { this.assets = assets; this.cars = {}; this.wheels = null; this.manifest = null; }
+  constructor(assets) { this.assets = assets; this.cars = {}; this.wheels = null; this.manifest = null; this.modelOf = {}; }
+  // Which model backs a car: its imported real model (tools/import-cars.mjs), else — for a real car not
+  // imported yet — its stand-in original model scaled to the real dimensions, else the car's own GLB.
+  resolve(id) {
+    const m = this.manifest?.cars?.[id];
+    if (m?.imported) return { key: id, file: m.file, imported: true };
+    const c = CARS[id];
+    if (c?.standIn) return { key: c.standIn, file: `${c.standIn}.glb`, standIn: c.standIn };
+    return { key: id, file: `${id}.glb` };
+  }
   async load(ids, priority) {
     if (!this.manifest) this.manifest = await this.assets.loadJSON('/assets/models/manifest.json', 1);
     const jobs = [];
     if (!this.wheels) jobs.push(this.assets.loadGLTF('/assets/models/wheels.glb', priority).then((g) => { this.wheels = g.scene; }));
     for (const id of ids) {
       if (this.cars[id]) continue;
-      jobs.push(this.assets.loadGLTF(`/assets/models/${id}.glb`, priority).then((g) => { this.cars[id] = g.scene; }).catch(() => {}));
+      const r = this.resolve(id);
+      this.modelOf[id] = r;
+      jobs.push(this.assets.loadGLTF(`/assets/models/${r.file}`, priority).then((g) => { this.cars[id] = g.scene; }).catch(() => {}));
     }
     await Promise.all(jobs);
   }
   has(id) { return !!this.cars[id]; }
+  isImported(id) { return !!this.manifest?.cars?.[id]?.imported; }
 }
 
 export class VehicleRenderer {
@@ -33,9 +46,19 @@ export class VehicleRenderer {
     this.group.add(this.body);
     const src = lib.cars[carId];
     if (!src) throw new Error(`ASSET LOAD ERROR: ${carId}.glb`);
+    const res = lib.modelOf[carId] || lib.resolve(carId);
+    this.modelId = res.key; this.imported = !!res.imported; this.standIn = res.standIn || null;
     const lod0 = AssetManager.clone(src.getObjectByName('lod0'));
     const lod1 = src.getObjectByName('lod1') ? AssetManager.clone(src.getObjectByName('lod1')) : null;
     this.lod0 = lod0; this.lod1 = lod1;
+    // stand-in: stretch the original model to the real car's length/width/height
+    this.scaleV = new THREE.Vector3(1, 1, 1);
+    const spec = CARS[carId]?.spec;
+    if (this.standIn && spec) {
+      const size = new THREE.Box3().setFromObject(lod0).getSize(new THREE.Vector3());
+      this.scaleV.set(spec.wid / size.x, spec.hgt / size.y, spec.len / size.z);
+      lod0.scale.copy(this.scaleV); lod1?.scale.copy(this.scaleV);
+    }
     // per-vehicle materials (so paint/lights can differ)
     this.mats = {};
     const cloneMat = (m) => {
@@ -57,8 +80,9 @@ export class VehicleRenderer {
     this.body.add(lod0);
     if (lod1) { lod1.visible = false; this.body.add(lod1); }
     this.markers = {};
-    lod0.traverse((o) => { if (!o.isMesh && o.name) this.markers[o.name] = o; });
-    this._rigWheels();
+    // marker positions in body space (stand-ins are scaled, so store scaled copies)
+    lod0.traverse((o) => { if (!o.isMesh && o.name && !this.markers[o.name]) this.markers[o.name] = this.standIn ? { name: o.name, position: o.position.clone().multiply(this.scaleV) } : o; });
+    if (this.imported) this._rigImportedWheels(); else this._rigWheels();
     this._lights();
     this._shadowBlob();
     if (opts.police) this._policeLights();
@@ -70,7 +94,30 @@ export class VehicleRenderer {
     this.dentable = false;
   }
 
+  _swapMaterial(from, to) {
+    for (const root of [this.lod0, this.lod1]) root?.traverse((o) => { if (o.isMesh && o.material === from) o.material = to; });
+    for (const [k, v] of Object.entries(this.mats)) if (v === from) this.mats[k] = to;
+  }
+
+  _tuneImported() {
+    const m = this.mats;
+    // paint gets a clearcoat (needs MeshPhysicalMaterial); remember the factory look for 'factory' paint
+    if (m.paint && !m.paint.isMeshPhysicalMaterial) {
+      const pm = new THREE.MeshPhysicalMaterial();
+      THREE.MeshStandardMaterial.prototype.copy.call(pm, m.paint);
+      pm.clearcoat = 0.9; pm.clearcoatRoughness = 0.05;
+      this._swapMaterial(m.paint, pm);
+    }
+    if (m.paint) { m.paint.envMapIntensity = 1.2; this.factory = { color: m.paint.color.clone(), map: m.paint.map, metalness: m.paint.metalness, roughness: m.paint.roughness }; }
+    if (m.glass) { m.glass.envMapIntensity = 2; m.glass.depthWrite = false; this.factoryGlass = m.glass.opacity; }
+    for (const k of ['headlight', 'taillight']) {
+      const mm = m[k];
+      if (mm && mm.emissive && mm.emissive.getHex() === 0) mm.emissive.setHex(k === 'headlight' ? 0xfff2dc : 0xff1a0a);
+    }
+  }
+
   _tuneMaterials() {
+    if (this.imported) { this._tuneImported(); return; }
     const m = this.mats;
     if (m.paint) { m.paint.envMapIntensity = 1.25; m.paint.clearcoat = 1; m.paint.clearcoatRoughness = 0.04; }
     if (m.glass) { m.glass.envMapIntensity = 2.2; m.glass.roughness = 0.02; m.glass.metalness = 0.55; m.glass.depthWrite = false; }
@@ -101,10 +148,12 @@ export class VehicleRenderer {
     for (const id of ['FL', 'FR', 'RL', 'RR']) {
       const mk = this.markers['wheel_' + id];
       if (!mk) continue;
-      const man = this.lib.manifest?.cars?.[this.carId]?.wheels?.find((w) => w.id === id) || { r: 0.34, w: 0.25 };
+      const man = { ...(this.lib.manifest?.cars?.[this.modelId]?.wheels?.find((w) => w.id === id) || { r: 0.34, w: 0.25 }) };
+      if (this.standIn && CARS[this.carId]?.spec) { man.r = CARS[this.carId].spec.wr; man.w *= this.scaleV.x; }
       const side = mk.position.x >= 0 ? 1 : -1;
       const pivot = new THREE.Group(); // steering + suspension
       pivot.position.copy(mk.position);
+      if (this.standIn) pivot.position.y = man.r; // sit the (resized) tyre on the ground
       const spin = new THREE.Group();
       const sx = (man.w / 0.25) * side, sr = man.r / 0.34;
       spin.scale.set(sx, sr, sr);
@@ -120,7 +169,36 @@ export class VehicleRenderer {
       }
       pivot.add(spin, fixed);
       this.body.parent.add(pivot); // wheels live in the unsprung group (not pitched with body)
-      this.wheels.push({ id, pivot, spin, rim, restY: mk.position.y, front: id[0] === 'F', r: man.r });
+      this.wheels.push({ id, pivot, spin, rim, restY: pivot.position.y, front: id[0] === 'F', r: man.r });
+    }
+  }
+
+  // imported models carry their own wheels: wheel_XX groups (hub-centred) with 'spin' and 'fixed'
+  // (calipers) parts, in both LODs. Both LODs hang off one pivot; sync() toggles them.
+  _rigImportedWheels() {
+    this.wheels = [];
+    this.rimMat = null;
+    this.caliperMat = this.mats.caliper || null;
+    const man = this.lib.manifest?.cars?.[this.carId];
+    const move = (src, dst) => { if (src) for (const c of [...src.children]) dst.add(c); };
+    for (const id of ['FL', 'FR', 'RL', 'RR']) {
+      const n0 = this.lod0.getObjectByName('wheel_' + id);
+      if (!n0) continue;
+      const n1 = this.lod1?.getObjectByName('wheel_' + id);
+      const pivot = new THREE.Group();
+      pivot.position.copy(n0.position);
+      const spin = new THREE.Group(), fixed = new THREE.Group();
+      const s0 = new THREE.Group(), s1 = new THREE.Group(), f0 = new THREE.Group(), f1 = new THREE.Group();
+      move(n0.getObjectByName('spin'), s0); move(n0.getObjectByName('fixed'), f0);
+      if (n1) { move(n1.getObjectByName('spin'), s1); move(n1.getObjectByName('fixed'), f1); n1.removeFromParent(); }
+      s1.visible = f1.visible = false;
+      spin.add(s0, s1); fixed.add(f0, f1);
+      n0.removeFromParent();
+      pivot.add(spin, fixed);
+      for (const g of [s0, f0]) g.traverse((o) => { if (o.isMesh) o.castShadow = !!this.opts.shadow; });
+      this.body.parent.add(pivot);
+      const r = man?.wheels?.find((w) => w.id === id)?.r || n0.position.y;
+      this.wheels.push({ id, pivot, spin, rim: null, restY: n0.position.y, front: id[0] === 'F', r, lods: [[s0, f0], [s1, f1]] });
     }
   }
 
@@ -185,7 +263,8 @@ export class VehicleRenderer {
     g.addColorStop(0, 'rgba(0,0,0,0.85)'); g.addColorStop(0.6, 'rgba(0,0,0,0.5)'); g.addColorStop(1, 'rgba(0,0,0,0)');
     ctx.fillStyle = g; ctx.fillRect(0, 0, 64, 64);
     const t = new THREE.CanvasTexture(c);
-    const spec = this.lib.manifest?.cars?.[this.carId] || { length: 4.5, width: 1.9 };
+    const real = CARS[this.carId]?.spec;
+    const spec = real ? { length: real.len, width: real.wid } : this.lib.manifest?.cars?.[this.modelId] || { length: 4.5, width: 1.9 };
     this.blob = new THREE.Mesh(new THREE.PlaneGeometry(spec.width * 1.25, spec.length * 1.12).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ map: t, transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -3, opacity: 0.8 }));
     this.blob.position.y = 0.03;
     this.blob.renderOrder = 1;
@@ -217,26 +296,34 @@ export class VehicleRenderer {
       m.paint.sheen = finish === 'pearl' ? 1 : 0;
       if (finish === 'pearl') m.paint.sheenColor = new THREE.Color(c.paint2 || '#ffffff');
       // paint map = vinyl livery + panel shut lines/handles/window trim; grooves in the normal map
-      const panels = this.lib.manifest?.cars?.[this.carId]?.panels;
+      const panels = this.lib.manifest?.cars?.[this.modelId]?.panels;
       const key = `${c.vinyl || 0}|${c.paint}|${c.paint2}`;
-      if (key !== this._paintKey) {
+      if (this.imported) {
+        // real models keep their own detail maps; 'factory' restores the original colour/finish
+        const f = this.factory;
+        if (c.paint === 'factory' && f) { m.paint.color.copy(f.color); m.paint.map = f.map; m.paint.metalness = f.metalness; m.paint.roughness = f.roughness; }
+        else { m.paint.map = null; m.paint.color.set(c.paint); }
+        m.paint.needsUpdate = true;
+      } else if (key !== this._paintKey) {
         this._paintKey = key;
         if (!m.paint.map?.userData.shared) { m.paint.map?.dispose(); m.paint.normalMap?.dispose(); }
-        const t = carPaintTexture(c.vinyl || 0, c.paint, c.paint2 || '#111', panels, this.opts.sharedPaint ? `${this.carId}|${key}` : null);
+        const t = carPaintTexture(c.vinyl || 0, this._paintColor(c.paint), c.paint2 || '#111', panels, this.opts.sharedPaint ? `${this.modelId}|${key}` : null);
         m.paint.map = t.map; m.paint.normalMap = t.normalMap;
         m.paint.normalScale = new THREE.Vector2(0.35, 0.35);
       }
-      m.paint.color.set(c.vinyl ? 0xffffff : c.paint);
-      m.paint.needsUpdate = true;
+      if (!this.imported) { m.paint.color.set(c.vinyl ? 0xffffff : this._paintColor(c.paint)); m.paint.needsUpdate = true; }
     }
-    if (c.tint !== undefined && m.glass) { m.glass.opacity = 0.9 + c.tint * 0.09; m.glass.color.setScalar(0.035 * (1 - c.tint * 0.7)); }
-    if (c.wheel !== undefined && this.wheels) {
+    if (c.tint !== undefined && m.glass) {
+      if (this.imported) m.glass.opacity = 0.22 + c.tint * 0.6; // see-through glass shows the real interior
+      else { m.glass.opacity = 0.9 + c.tint * 0.09; m.glass.color.setScalar(0.035 * (1 - c.tint * 0.7)); }
+    }
+    if (c.wheel !== undefined && this.wheels && !this.imported) {
       const W = this.lib.wheels;
       const geo = W.getObjectByName('rim_' + c.wheel)?.geometry;
-      if (geo) for (const w of this.wheels) w.rim.geometry = geo;
+      if (geo) for (const w of this.wheels) if (w.rim) w.rim.geometry = geo;
     }
-    if (c.wheelColor) this.rimMat.color.set(c.wheelColor);
-    if (c.caliper) this.caliperMat.color.set(c.caliper);
+    if (c.wheelColor && this.rimMat) this.rimMat.color.set(c.wheelColor);
+    if (c.caliper && this.caliperMat) this.caliperMat.color.set(c.caliper);
     for (const [kind, list] of Object.entries(this.variants || {})) {
       const sel = c[kind] ?? 0;
       for (const { o, v } of list) o.visible = v === sel;
@@ -245,6 +332,8 @@ export class VehicleRenderer {
     }
     this.custom = { ...(this.custom || {}), ...c };
   }
+
+  _paintColor(p) { return p === 'factory' ? CARS[this.carId]?.factoryColor || '#b3121f' : p; }
 
   setTrafficLook(colorHex) { if (this.mats.paint) this.mats.paint.color.set(colorHex); }
 
@@ -320,7 +409,10 @@ export class VehicleRenderer {
       const far = d > (this.opts.lodDistance || 60);
       if (far !== this.isFar) {
         this.isFar = far; this.lod0.visible = !far; this.lod1.visible = far;
-        for (const w of this.wheels) w.pivot.visible = d < 250;
+        for (const w of this.wheels) {
+          w.pivot.visible = d < 250;
+          if (w.lods) { for (const g of w.lods[0]) g.visible = !far; for (const g of w.lods[1]) g.visible = far; }
+        }
       }
     }
     // lights

@@ -128,15 +128,16 @@ export class VehiclePhysics {
     if (this.shiftTimer > 0) this.shiftTimer -= dt;
     else if (!this.reverse && s.onGround) {
       const rpmNow = wheelRpm * ratio();
-      if (rpmNow > p.redline * 0.93 && s.gear < gears.length && driveIn > 0.2) { s.gear++; this.shiftTimer = 0.22; this.events.push({ type: 'gearUp' }); }
-      else if (s.gear > 1 && wheelRpm * gears[s.gear - 2] * p.finalDrive < p.redline * 0.72) { s.gear--; this.shiftTimer = 0.12; this.events.push({ type: 'gearDown' }); }
+      // shiftTime/shiftFill: manual ~0.3 s with the drive cut; dual-clutch ~0.08 s with torque fill
+      if (rpmNow > p.redline * 0.93 && s.gear < gears.length && driveIn > 0.2) { s.gear++; this.shiftTimer = p.shiftTime ?? 0.22; this.events.push({ type: 'gearUp' }); }
+      else if (s.gear > 1 && wheelRpm * gears[s.gear - 2] * p.finalDrive < p.redline * 0.72) { s.gear--; this.shiftTimer = Math.min(0.12, p.shiftTime ?? 0.12); this.events.push({ type: 'gearDown' }); }
     }
     let targetRpm = wheelRpm * ratio();
     // clutch slip at launch / wheelspin keeps revs up
     const launch = Math.max(0, 1 - Math.abs(vx) / 8) * Math.abs(driveIn);
     targetRpm = Math.max(targetRpm, p.idle + launch * p.redline * 0.55 + this.wheelspin * 1800);
     if (!s.onGround) targetRpm = lerp(s.rpm, p.idle + Math.abs(driveIn) * p.redline, 0.08);
-    if (this.shiftTimer > 0.08) targetRpm *= 0.97;
+    if (this.shiftTimer > Math.min(0.08, (p.shiftTime ?? 0.22) * 0.4)) targetRpm *= 0.97;
     s.rpm = clamp(lerp(s.rpm, targetRpm, 1 - Math.exp(-dt * 18)), p.idle * 0.9, p.redline * 1.02);
     // torque curve shape (normalized)
     const x = s.rpm / p.redline;
@@ -146,7 +147,7 @@ export class VehiclePhysics {
     if (s.onGround) {
       if (driveIn > 0) Fdrive = driveIn * power / Math.max(Math.abs(vx), 9);
       else if (driveIn < 0) Fdrive = driveIn * power * 0.45 / Math.max(Math.abs(vx), 6) * clamp((vx + 10.5) / 2, 0, 1); // reverse tops out ~36 km/h
-      if (this.shiftTimer > 0) Fdrive *= 0.25;
+      if (this.shiftTimer > 0) Fdrive *= p.shiftFill ?? 0.25;
       Fdrive = clamp(Fdrive, -m * G * 0.95, m * G * (p.launchG ?? 0.95) * (wantNitro ? 1.15 : 1));
     }
     // engine braking + rolling resistance + aero drag

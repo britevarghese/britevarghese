@@ -5,8 +5,9 @@ import * as THREE from 'three';
 import { VehicleRenderer } from '../vehicles/VehicleRenderer.js';
 import {
   CARS, PLAYER_CAR_ORDER, UPGRADE_KEYS, UPGRADE_NAMES, UPGRADE_LEVELS, UPGRADE_COST, PAINTS, RIM_NAMES, FINISHES,
-  SPOILER_NAMES, HOOD_NAMES, BUMPER_NAMES, tunedParams, ratings, PAINT_COST, PART_COST, WHEEL_COST, VINYL_COST,
+  SPOILER_NAMES, HOOD_NAMES, BUMPER_NAMES, tunedParams, ratings, PAINT_COST, PART_COST, WHEEL_COST, VINYL_COST, TIERS, TIER_NAMES,
 } from '../vehicles/VehicleCatalog.js';
+import { bus } from '../core/EventBus.js';
 import { VINYLS } from '../renderer/Textures.js';
 import { formatMoney, damp } from '../core/util.js';
 import { DEFAULT_CUSTOM, DEFAULT_UPGRADES } from '../core/SaveSystem.js';
@@ -79,7 +80,7 @@ export class Garage {
 
   get save() { return this.game.save; }
   get owned() { return this.save.owns(this.viewId); }
-  get custom() { return this.save.data.cars[this.viewId]?.custom || { ...DEFAULT_CUSTOM }; }
+  get custom() { return this.save.data.cars[this.viewId]?.custom || { ...DEFAULT_CUSTOM, ...(CARS[this.viewId]?.real ? { paint: 'factory' } : {}) }; }
   get upgrades() { return this.save.data.cars[this.viewId]?.upgrades || { ...DEFAULT_UPGRADES }; }
 
   async show() {
@@ -128,52 +129,80 @@ export class Garage {
     const s = h('div', 'screen garage');
     const left = h('div', 'garage-left');
     const right = h('div', 'garage-right');
-    left.innerHTML = `<h1>GARAGE</h1><div class="sub">${formatMoney(this.save.data.cash)} · REP ${this.save.data.reputation}</div>`;
-    // car selector
-    const sel = h('div', 'carsel');
-    for (const id of PLAYER_CAR_ORDER) {
-      const own = this.save.owns(id);
-      const b = h('button', id === this.viewId ? 'on' : '', `${CARS[id].name}${own ? '' : `<span class="lock">${formatMoney(CARS[id].price)}</span>`}`);
-      b.onclick = async () => { this.viewId = id; await this._loadCar(); this.render(); g.audio?.playEvent('uiClick'); };
-      sel.appendChild(b);
+    const P = g.progress;
+    left.innerHTML = `<h1>GARAGE</h1><div class="sub">${formatMoney(this.save.data.cash)} · DRIVER LEVEL ${P ? P.level : 1}</div>`;
+    const car = CARS[this.viewId];
+    const real = !!car.real;
+    const imported = real && g.lib.isImported(this.viewId);
+    this.tab ||= 'cars';
+    const tabs = h('div', 'gtabs');
+    for (const [id, label] of [['cars', 'CARS'], ['custom', 'CUSTOMIZE']]) {
+      const b = h('button', this.tab === id ? 'on' : '', label);
+      b.onclick = () => { this.tab = id; this.render(); g.audio?.playEvent('uiClick'); };
+      tabs.appendChild(b);
     }
-    left.appendChild(sel);
-    const c = this.custom;
-    const cat = (title) => { const d = h('div', 'gcat', `<h3>${title}</h3>`); left.appendChild(d); return d; };
-    const swatches = (parent, colors, cur, fn) => {
-      const w = h('div', 'swatches');
-      for (const col of colors) { const sw = h('div', 'swatch' + (col === cur ? ' on' : '')); sw.style.background = col; sw.onclick = () => fn(col); w.appendChild(sw); }
-      parent.appendChild(w);
-    };
-    const choices = (parent, names, cur, fn) => {
-      const o = h('div', 'opt');
-      names.forEach((n, i) => { const b = h('button', i === cur || n === cur ? 'on' : '', typeof n === 'string' ? n.toUpperCase() : n); b.onclick = () => fn(typeof cur === 'string' ? n : i); o.appendChild(b); });
-      parent.appendChild(o);
-    };
-    if (this.owned) {
-      swatches(cat(`PAINT · ${formatMoney(PAINT_COST)}`), PAINTS, c.paint, (v) => this.setCustom('paint', v, PAINT_COST));
+    left.appendChild(tabs);
+    if (this.tab === 'cars') {
+      // every car, grouped by class: owned / price / what unlocks it
+      for (const tier of TIERS) {
+        const ids = PLAYER_CAR_ORDER.filter((id) => CARS[id].tier === tier);
+        if (!ids.length) continue;
+        left.appendChild(h('div', 'gtier', TIER_NAMES[tier]));
+        for (const id of ids) {
+          const c = CARS[id];
+          const own = this.save.owns(id), open = !P || P.isUnlocked(id);
+          const status = own ? (id === this.save.data.currentCar ? '<span class="st drive">DRIVING</span>' : '<span class="st own">OWNED</span>')
+            : open ? `<span class="st price">${c.price ? formatMoney(c.price) : 'FREE'}</span>` : `<span class="st lock">🔒 ${P.unlockText(id)}</span>`;
+          const row = h('button', 'carrow' + (id === this.viewId ? ' on' : '') + (!own && !open ? ' locked' : ''), `<span class="brand">${c.brand}</span><span class="mdl">${c.model}${c.year ? ` <em>${c.year}</em>` : ''}</span>${status}`);
+          row.onclick = async () => { this.viewId = id; await this._loadCar(); this.render(); g.audio?.playEvent('uiClick'); };
+          left.appendChild(row);
+        }
+      }
+    } else if (this.owned) {
+      const c = this.custom;
+      const cat = (title) => { const d = h('div', 'gcat', `<h3>${title}</h3>`); left.appendChild(d); return d; };
+      const swatches = (parent, colors, cur, fn) => {
+        const w = h('div', 'swatches');
+        for (const col of colors) {
+          const sw = h('div', 'swatch' + (col === cur ? ' on' : '') + (col === 'factory' ? ' factory' : ''));
+          if (col === 'factory') { sw.title = 'Factory paint'; sw.style.background = car.factoryColor ? `linear-gradient(135deg, ${car.factoryColor} 55%, #fff 56%)` : '#888'; } else sw.style.background = col;
+          sw.onclick = () => fn(col); w.appendChild(sw);
+        }
+        parent.appendChild(w);
+      };
+      const choices = (parent, names, cur, fn) => {
+        const o = h('div', 'opt');
+        names.forEach((n, i) => { const b = h('button', i === cur || n === cur ? 'on' : '', typeof n === 'string' ? n.toUpperCase() : n); b.onclick = () => fn(typeof cur === 'string' ? n : i); o.appendChild(b); });
+        parent.appendChild(o);
+      };
+      swatches(cat(`PAINT · ${formatMoney(PAINT_COST)}`), real ? ['factory', ...PAINTS] : PAINTS, c.paint, (v) => this.setCustom('paint', v, PAINT_COST));
       choices(cat('FINISH'), FINISHES, c.finish, (v) => this.setCustom('finish', v, PAINT_COST));
-      swatches(cat('SECONDARY COLOR'), PAINTS, c.paint2, (v) => this.setCustom('paint2', v, PAINT_COST));
-      choices(cat(`VINYL · ${formatMoney(VINYL_COST)}`), VINYLS, c.vinyl, (v) => this.setCustom('vinyl', v, VINYL_COST));
-      choices(cat(`WHEELS · ${formatMoney(WHEEL_COST)}`), RIM_NAMES, c.wheel, (v) => this.setCustom('wheel', v, WHEEL_COST));
-      swatches(cat('WHEEL COLOR'), ['#c0c4ca', '#2a2c30', '#b08d57', '#e8e8ea', '#b3121f', '#1f4fd6', '#f2c200', '#101012'], c.wheelColor, (v) => this.setCustom('wheelColor', v, 300));
-      choices(cat(`SPOILER · ${formatMoney(PART_COST)}`), SPOILER_NAMES, c.spoiler, (v) => this.setCustom('spoiler', v, PART_COST));
-      choices(cat(`HOOD · ${formatMoney(PART_COST)}`), HOOD_NAMES, c.hood, (v) => this.setCustom('hood', v, PART_COST));
-      choices(cat(`BUMPERS · ${formatMoney(PART_COST)}`), BUMPER_NAMES, c.bumper, (v) => this.setCustom('bumper', v, PART_COST));
+      if (!imported) {
+        swatches(cat('SECONDARY COLOR'), PAINTS, c.paint2, (v) => this.setCustom('paint2', v, PAINT_COST));
+        choices(cat(`VINYL · ${formatMoney(VINYL_COST)}`), VINYLS, c.vinyl, (v) => this.setCustom('vinyl', v, VINYL_COST));
+        choices(cat(`WHEELS · ${formatMoney(WHEEL_COST)}`), RIM_NAMES, c.wheel, (v) => this.setCustom('wheel', v, WHEEL_COST));
+        swatches(cat('WHEEL COLOR'), ['#c0c4ca', '#2a2c30', '#b08d57', '#e8e8ea', '#b3121f', '#1f4fd6', '#f2c200', '#101012'], c.wheelColor, (v) => this.setCustom('wheelColor', v, 300));
+        choices(cat(`SPOILER · ${formatMoney(PART_COST)}`), SPOILER_NAMES, c.spoiler, (v) => this.setCustom('spoiler', v, PART_COST));
+        choices(cat(`HOOD · ${formatMoney(PART_COST)}`), HOOD_NAMES, c.hood, (v) => this.setCustom('hood', v, PART_COST));
+        choices(cat(`BUMPERS · ${formatMoney(PART_COST)}`), BUMPER_NAMES, c.bumper, (v) => this.setCustom('bumper', v, PART_COST));
+      }
       choices(cat('WINDOW TINT'), ['Light', 'Medium', 'Dark', 'Limo'], Math.round(c.tint * 3), (v) => this.setCustom('tint', v / 3, 200));
-      swatches(cat('BRAKE CALIPERS'), ['#c01818', '#f2c200', '#1f4fd6', '#101012', '#1f9d55', '#ff6a00'], c.caliper, (v) => this.setCustom('caliper', v, 250));
+      if (!imported || this.car?.caliperMat) swatches(cat('BRAKE CALIPERS'), ['#c01818', '#f2c200', '#1f4fd6', '#101012', '#1f9d55', '#ff6a00'], c.caliper, (v) => this.setCustom('caliper', v, 250));
     } else {
       left.appendChild(h('p', '', '<span style="color:var(--dim)">Buy this car to customize it.</span>'));
     }
-    // right: stats + upgrades
-    const car = CARS[this.viewId];
+    // right: identity, real specs, ratings, upgrades, credits
     const params = tunedParams(this.viewId, this.upgrades);
     const base = ratings(car.params), now = ratings(params);
-    right.innerHTML = `<div class="car-class">${car.class}</div><div class="car-title">${car.name}</div><div class="car-blurb">${car.blurb}</div>`;
+    right.innerHTML = `<div class="car-class">${TIER_NAMES[car.tier] || car.class}</div><div class="car-brand">${car.brand}${car.year ? ` · ${car.year}` : ''}</div><div class="car-title">${car.model}</div><div class="car-blurb">${car.blurb}</div>`;
+    if (car.spec) {
+      const sp = car.spec;
+      right.appendChild(h('div', 'specs', [[`${Math.round(sp.kw * 1.341)} HP`, 'POWER'], [`${sp.kg} KG`, 'WEIGHT'], [sp.drive, 'DRIVE'], [`${sp.t100.toFixed(1)} S`, '0-100 KM/H'], [`${sp.vmax} KM/H`, 'TOP SPEED']].map(([v, l]) => `<div><b>${v}</b><span>${l}</span></div>`).join('')));
+    }
     for (const [k, l] of [['speed', 'TOP SPEED'], ['accel', 'ACCELERATION'], ['handling', 'HANDLING'], ['braking', 'BRAKING']]) {
       right.appendChild(h('div', 'meter', `<div class="t"><span>${l}</span><span>${now[k].toFixed(1)}</span></div><div class="b" style="position:relative"><div class="f" style="width:${Math.max(4, base[k] * 10)}%"></div><div class="f2" style="position:absolute;top:0;height:100%;left:${base[k] * 10}%;width:${Math.max(0, (now[k] - base[k]) * 10)}%"></div></div>`));
     }
-    right.appendChild(h('div', 'meter', `<div class="t"><span>TOP SPEED (EST)</span><span>${Math.round(params.maxSpeed * 3.6)} KM/H · ${Math.round(params.enginePower * 1.341)} HP · ${params.drive}</span></div>`));
+    if (!car.spec) right.appendChild(h('div', 'meter', `<div class="t"><span>TOP SPEED (EST)</span><span>${Math.round(params.maxSpeed * 3.6)} KM/H · ${Math.round(params.enginePower * 1.341)} HP · ${params.drive}</span></div>`));
     if (this.owned) {
       right.appendChild(h('h3', '', '<span style="font-size:.8rem;letter-spacing:.3em;color:var(--dim)">PERFORMANCE</span>'));
       for (const k of UPGRADE_KEYS) {
@@ -185,21 +214,34 @@ export class Garage {
           if (!this._charge(UPGRADE_COST[lv + 1], UPGRADE_NAMES[k])) return;
           this.save.data.cars[this.viewId].upgrades[k] = lv + 1;
           this.save.save();
+          bus.emit('progress:upgrade', { car: this.viewId, key: k, level: lv + 1 });
           this.render();
         };
         row.appendChild(b);
         right.appendChild(row);
       }
     }
+    if (car.source) {
+      right.appendChild(h('div', 'credit', imported
+        ? `3D model: <a href="${car.source.url}" target="_blank" rel="noopener">"${car.source.title}"</a> by ${car.source.author} · CC BY 4.0 (modified)`
+        : `Preview model — the real ${car.brand} model ("${car.source.title}" by ${car.source.author}, CC BY 4.0) is installed with <code>node tools/import-cars.mjs</code>`));
+    }
     // bottom
     const bottom = h('div', 'garage-bottom');
+    const open = !P || P.isUnlocked(this.viewId);
     if (!this.owned) {
-      const buy = h('button', 'btn primary', `BUY ${formatMoney(car.price)}`);
-      buy.onclick = () => {
-        if (this.save.buyCar(this.viewId, car.price)) { g.audio?.playEvent('purchase'); g.ui.toast(`${car.name} purchased`, 'cash'); this.render(); }
-        else g.ui.toast('Not enough cash', 'err');
-      };
-      bottom.appendChild(buy);
+      if (open) {
+        const buy = h('button', 'btn primary', `BUY ${car.price ? formatMoney(car.price) : 'FREE'}`);
+        buy.onclick = () => {
+          if (this.save.buyCar(this.viewId, car.price, real)) { g.audio?.playEvent('purchase'); g.ui.toast(`${car.name} purchased`, 'cash'); bus.emit('progress:carBought', { id: this.viewId }); this.render(); }
+          else g.ui.toast('Not enough cash', 'err');
+        };
+        bottom.appendChild(buy);
+      } else {
+        const lock = h('button', 'btn locked', `🔒 LOCKED · ${P.unlockText(this.viewId)}`);
+        lock.disabled = true;
+        bottom.appendChild(lock);
+      }
     } else if (this.viewId !== this.save.data.currentCar) {
       const use = h('button', 'btn primary', 'DRIVE THIS CAR');
       use.onclick = () => { this.save.data.currentCar = this.viewId; this.save.save(); this.render(); g.ui.toast(`${car.name} selected`); };

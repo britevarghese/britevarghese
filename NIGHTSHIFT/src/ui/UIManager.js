@@ -5,6 +5,8 @@ import { QUALITY_LEVELS, QUALITY_LABELS } from '../core/QualityManager.js';
 import { formatMoney, formatTime } from '../core/util.js';
 import { RACE_TYPE_NAMES } from '../races/RaceEvents.js';
 import { SAFEHOUSES, SHOPS } from '../world/CityLayout.js';
+import { CHAPTERS, MISSIONS } from '../progression/Missions.js';
+import { CARS } from '../vehicles/VehicleCatalog.js';
 
 const h = (tag, cls, html) => { const e = document.createElement(tag); if (cls) e.className = cls; if (html !== undefined) e.innerHTML = html; return e; };
 
@@ -56,6 +58,7 @@ export class UIManager {
     const list = h('div', 'menu-list');
     const items = [
       ['PLAY', 'Free roam the city — races, pursuits, cash', () => g.play()],
+      ['CAREER', 'Driver level, missions and car unlocks', () => this.showCareer(() => this.showMainMenu())],
       ['GARAGE', 'Cars, paint, parts & performance', () => g.openGarage()],
       ['MAP', 'City map, events and safehouses', () => this.showMap(true)],
       ['SETTINGS', 'Graphics, gameplay, audio', () => this.showSettings(() => this.showMainMenu())],
@@ -64,7 +67,8 @@ export class UIManager {
     const btns = items.map(([t, sub, fn]) => { const b = h('button', 'menu-item', `${t}<small>${sub}</small>`); b.onclick = fn; list.appendChild(b); return b; });
     s.appendChild(list);
     const d = g.save.data;
-    s.appendChild(h('div', 'menu-stats', `<div class="v">${formatMoney(d.cash)}</div><div class="l">CASH</div><div class="v" style="margin-top:.8rem">${d.reputation}</div><div class="l">REPUTATION</div><div class="v" style="margin-top:.8rem">${d.raceWins}</div><div class="l">RACE WINS</div>`));
+    const L = g.progress?.info || { level: 1, into: 0, need: 1 };
+    s.appendChild(h('div', 'menu-stats', `<div class="v">${formatMoney(d.cash)}</div><div class="l">CASH</div><div class="v" style="margin-top:.8rem">${L.level}</div><div class="l">DRIVER LEVEL</div><div class="xpline"><i style="width:${L.need ? Math.round(L.into / L.need * 100) : 100}%"></i></div><div class="v" style="margin-top:.8rem">${d.raceWins}</div><div class="l">RACE WINS</div>`));
     s.appendChild(h('div', 'menu-foot', `${g.rm.backend.toUpperCase()} · ${QUALITY_LABELS[g.quality.level]} · W/S throttle-brake · A/D steer · SPACE handbrake · SHIFT nitrous · V camera · M map · ESC pause`));
     this.screens.appendChild(s);
     this.current = 'menu';
@@ -96,6 +100,7 @@ export class UIManager {
     const items = [
       ['RESUME', () => g.resume()],
       ['MAP', () => this.showMap(false)],
+      ['CAREER', () => this.showCareer(() => this.showPause())],
       ['SETTINGS', () => this.showSettings(() => this.showPause())],
       ['RESET CAR', () => { g.resetPlayer(); g.resume(); }],
     ];
@@ -108,6 +113,44 @@ export class UIManager {
     this.screens.appendChild(s);
     this.current = 'pause';
     this._menuNav(btns, () => g.resume());
+  }
+
+  // ------------------------------------------------------------------ career
+  showCareer(onBack) {
+    this.clear();
+    const g = this.game, P = g.progress;
+    const L = P.info;
+    const s = h('div', 'screen center dim-bg');
+    const box = h('div', 'panel career');
+    box.appendChild(h('h1', '', 'CAREER'));
+    box.appendChild(h('div', 'career-head', `<div class="lvbig">LEVEL ${L.level}</div><div class="xpline big"><i style="width:${L.need ? Math.round(L.into / L.need * 100) : 100}%"></i></div><div class="xptext">${L.need ? `${L.into.toLocaleString()} / ${L.need.toLocaleString()} XP to level ${L.level + 1}` : 'MAX LEVEL'} · race payouts x${P.rewardMult.toFixed(2)}</div>`));
+    // next car unlocks by level
+    const next = Object.values(CARS).filter((c) => c.unlock?.level > L.level).sort((a, b) => a.unlock.level - b.unlock.level).slice(0, 3);
+    if (next.length) box.appendChild(h('div', 'career-next', `NEXT UNLOCKS · ${next.map((c) => `<b>${c.name}</b> <span>LV ${c.unlock.level}</span>`).join(' · ')}`));
+    const list = h('div', 'career-list');
+    const done = g.save.data.missions;
+    for (const ch of CHAPTERS) {
+      const open = P.chapterOpen(ch.id);
+      const ms = MISSIONS.filter((m) => m.chapter === ch.id);
+      const n = ms.filter((m) => done[m.id]?.done).length;
+      list.appendChild(h('div', 'chapter' + (open ? '' : ' locked'), `<span>CHAPTER ${ch.id} · ${ch.name.toUpperCase()}</span><span>${open ? `${n}/${ms.length}` : `🔒 LEVEL ${ch.level} OR FINISH CHAPTER ${ch.id - 1}`}</span>`));
+      if (!open) continue;
+      for (const m of ms) {
+        const complete = !!done[m.id]?.done;
+        const prog = P.progressOf(m);
+        const pct = Math.round((prog / m.target) * 100);
+        const val = m.unit ? `${Math.floor(prog)}/${m.target} ${m.unit}` : `${Math.floor(prog)}/${m.target}`;
+        list.appendChild(h('div', 'mission' + (complete ? ' done' : '') + (m.finale ? ' finale' : ''), `<div class="mt"><b>${complete ? '✓ ' : ''}${m.name}</b><span>${complete ? 'COMPLETE' : val}</span></div><div class="md">${m.desc}</div><div class="mbar"><i style="width:${complete ? 100 : pct}%"></i></div><div class="mr">${P.rewardText(m.reward)}</div>`));
+      }
+    }
+    box.appendChild(list);
+    const back = h('button', 'menu-item', 'BACK');
+    back.onclick = () => onBack();
+    box.appendChild(back);
+    s.appendChild(box);
+    this.screens.appendChild(s);
+    this.current = 'career';
+    this._menuNav([back], onBack);
   }
 
   // ------------------------------------------------------------------ settings

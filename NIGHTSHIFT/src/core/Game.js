@@ -11,6 +11,7 @@ import { WorldManager } from '../world/WorldManager.js';
 import { SAFEHOUSES, SHOPS, lineHalfWidth } from '../world/CityLayout.js';
 import { Pedestrians } from '../world/Pedestrians.js';
 import { Debris } from '../world/Debris.js';
+import { Progression } from '../progression/Progression.js';
 import { Vehicle } from '../vehicles/Vehicle.js';
 import { CARS, tunedParams } from '../vehicles/VehicleCatalog.js';
 import { VehiclePhysics } from '../physics/VehiclePhysics.js';
@@ -91,6 +92,7 @@ export class Game {
     this.races = new RaceManager(this);
     this.peds = new Pedestrians(this.scene, this.world.layout, preset.pedestrians);
     this.audio = new AudioManager(this.settings.audio);
+    this.progress = new Progression(this);
     this.hud = new HUD(document.getElementById('hud'), this.mapRenderer, this.settings);
     this.ui = new UIManager(this);
     this.garage = new Garage(this);
@@ -248,7 +250,7 @@ export class Game {
     bus.on('race:lap', (e) => this.hud.message(`LAP ${e.lap}/${e.laps}`, '', 1.5, true));
     bus.on('race:finished', (r) => {
       this.audio.playEvent('raceFinish');
-      if (r.reward) this.save.addCash(r.reward, 'race');
+      if (r.reward) { r.reward = Math.round(r.reward * this.progress.rewardMult); this.save.addCash(r.reward, 'race'); }
       if (r.rep) this.save.addRep(r.rep);
       if (r.win) this.save.data.raceWins++;
       const best = this.save.data.racesCompleted[r.def.id];
@@ -258,6 +260,21 @@ export class Game {
       setTimeout(() => { if (this.state.mode === 'drive') { this.state.mode = 'results'; this.ui.showResults(r); this.audio.setPaused(true); } }, 1800);
     });
     bus.on('race:aborted', () => this.ui.toast('Event abandoned'));
+    // progression announcements
+    bus.on('progress:level', (e) => {
+      const cars = e.unlocked.map((id) => CARS[id]?.name).filter(Boolean);
+      this.hud.message(`LEVEL ${e.level}`, cars.length ? `NEW CAR UNLOCKED · ${cars.join(' · ').toUpperCase()}` : 'DRIVER LEVEL UP', 3.2);
+      for (const n of cars) this.ui.toast(`UNLOCKED: ${n} — buy it in the GARAGE`, 'cash', 5);
+      this.audio?.playEvent('raceFinish');
+    });
+    bus.on('mission:complete', ({ mission, reward }) => {
+      this.hud.message('MISSION COMPLETE', mission.name.toUpperCase(), 3);
+      this.ui.toast(`${mission.name}: ${this.progress.rewardText(reward)}`, 'cash', 5);
+      if (reward.car) this.ui.toast(reward.gift ? `${CARS[reward.car]?.name} is waiting in your garage` : `UNLOCKED: ${CARS[reward.car]?.name} — buy it in the GARAGE`, 'cash', 6);
+      this.audio?.playEvent('checkpoint');
+    });
+    bus.on('progress:speed', (e) => this.ui.toast(`${e.kmh} KM/H CLUB +${e.xp} XP`, '', 2.5));
+    bus.on('progress:drift', (e) => { if (e.seconds > 2) this.ui.toast(`DRIFT ${e.seconds.toFixed(1)} s +${e.xp} XP`, '', 1.6); });
     bus.on('progress:cash', (e) => { if (e.delta > 0 && e.reason) this.ui?.toast(`+${formatMoney(e.delta)}`, 'cash', 2); });
     bus.on('renderer:fallback', (e) => setTimeout(() => this.ui?.toast(`WebGPU unavailable — using WebGL2 (${e.reason.slice(0, 60)})`, '', 5), 500));
     bus.on('settings:changed', (e) => { if (e.section === 'audio') this.audio?.applySettings(this.settings.audio); });
@@ -488,6 +505,7 @@ export class Game {
       if (!s.nitroActive) s.nitro = Math.min(1, s.nitro + dt * (0.012 + (s.drifting && sp > 12 ? 0.11 : 0) + (!s.onGround ? 0.08 : 0)));
       this.state.distance += sp * dt;
       this.save.data.distanceDriven += sp * dt;
+      if (driving) this.progress.update(dt, player);
       if (mode === 'busted') this._bustedUpdate(dt);
       // world interaction prompts (events, garages)
       if (driving) this._interactions();
@@ -609,7 +627,7 @@ export class Game {
     const ev = this.races.nearbyEvent(s.x, s.z);
     if (ev && !this.police.inPursuit) {
       prompt = `<b>${ev.def.name}</b> · ${ev.def.type.toUpperCase()} · press <span class="key">E</span> / <span class="key">A</span>`;
-      if (sp < 6 && this.input.consume('event')) { this.state.mode = 'brief'; this.audio.setPaused(true); this.ui.showBriefing(ev); }
+      if (sp < 6 && this.input.consume('event')) { this.state.mode = 'brief'; this.audio.setPaused(true); this.lib.load(this.races.rivalPool(), 4); this.ui.showBriefing(ev); }
     }
     if (!prompt && !this.police.inPursuit && !this.races.active) {
       for (const g of [...SAFEHOUSES, ...SHOPS]) {

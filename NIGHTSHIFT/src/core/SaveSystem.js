@@ -22,12 +22,19 @@ const DEFAULT_SAVE = {
   escapes: 0,
   distanceDriven: 0,
   lastPosition: null,
+  // progression (see src/progression/Progression.js)
+  xp: 0,
+  stats: {},
+  missions: {},
 };
 
 export class SaveSystem {
   constructor() {
     const s = Storage.load('save', null);
     this.data = { ...structuredClone(DEFAULT_SAVE), ...(s || {}) };
+    // saves from before driver levels: turn earned reputation into XP once
+    if (s && s.xp === undefined) this.data.xp = Math.round((s.reputation || 0) * 4);
+    this.data.version = 2;
     for (const id of Object.keys(this.data.cars)) {
       const c = this.data.cars[id];
       c.custom = { ...DEFAULT_CUSTOM, ...(c.custom || {}) };
@@ -44,12 +51,17 @@ export class SaveSystem {
     this.save();
   }
   addRep(n) { this.data.reputation = Math.max(0, Math.round(this.data.reputation + n)); bus.emit('progress:rep', this.data.reputation); this.save(); }
-  buyCar(id, price) {
-    if (this.owns(id) || this.data.cash < price) return false;
-    this.data.cash -= price;
-    this.data.cars[id] = { custom: { ...DEFAULT_CUSTOM }, upgrades: { ...DEFAULT_UPGRADES } };
+  // real cars arrive in their factory colours
+  grantCar(id, real = false) {
+    if (this.owns(id)) return false;
+    this.data.cars[id] = { custom: { ...DEFAULT_CUSTOM, ...(real ? { paint: 'factory' } : {}) }, upgrades: { ...DEFAULT_UPGRADES } };
     this.save();
     return true;
+  }
+  buyCar(id, price, real = false) {
+    if (this.owns(id) || this.data.cash < price) return false;
+    this.data.cash -= price;
+    return this.grantCar(id, real);
   }
   markDirty() { this._dirty = true; }
   update(dt) { this._timer += dt; if (this._dirty && this._timer > 5) { this.save(); } }

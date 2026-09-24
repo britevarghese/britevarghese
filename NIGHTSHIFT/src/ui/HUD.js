@@ -28,7 +28,7 @@ export class HUD {
     sp.append(this.spCanvas, this.speedEl, this.unitEl, this.gearEl, this.nosEl);
     // top
     this.topCenter = h('div', 'top-center');
-    this.topRight = h('div', 'top-right', '<div class="cash">$0</div><div class="rep">REP 0</div>');
+    this.topRight = h('div', 'top-right', '<div class="cash">$0</div><div class="lvl"><span class="lv">LV 1</span><span class="xpbar"><i></i></span></div>');
     this.raceBoard = h('div', 'race-board panel hidden');
     this.centerMsg = h('div', 'center-msg hidden');
     this.pursuit = h('div', 'pursuit hidden', '<div class="lbl">PURSUIT</div><div class="bar"><div class="fill"></div></div><div class="info"></div>');
@@ -85,8 +85,16 @@ export class HUD {
     const cash = formatMoney(g.save.data.cash);
     const cashEl = this.topRight.firstChild;
     if (cashEl.textContent !== cash) cashEl.textContent = cash;
-    const rep = `REP ${g.save.data.reputation}`;
-    if (this.topRight.lastChild.textContent !== rep) this.topRight.lastChild.textContent = rep;
+    // driver level + progress to the next level
+    if (g.progress) {
+      const L = g.progress.info;
+      const lv = `LV ${L.level}`;
+      const lvEl = this.topRight.querySelector('.lv');
+      if (lvEl.textContent !== lv) lvEl.textContent = lv;
+      const w = `${L.need ? Math.round((L.into / L.need) * 100) : 100}%`;
+      const bar = this.topRight.querySelector('.xpbar i');
+      if (bar.style.width !== w) bar.style.width = w;
+    }
     // pursuit bar
     const P = g.police;
     if (P && P.inPursuit) {

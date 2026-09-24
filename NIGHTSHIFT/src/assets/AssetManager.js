@@ -3,6 +3,7 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { KTX2Loader } from 'three/addons/loaders/KTX2Loader.js';
+import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
 import * as SkeletonUtils from 'three/addons/utils/SkeletonUtils.js';
 import { bus } from '../core/EventBus.js';
 
@@ -15,6 +16,7 @@ export class AssetManager {
     this.errors = [];
     this.manager = new THREE.LoadingManager();
     this.gltf = new GLTFLoader(this.manager);
+    this.gltf.setMeshoptDecoder(MeshoptDecoder); // imported real-car models are meshopt-compressed
     this.texLoader = new THREE.TextureLoader(this.manager);
     this.ktx2 = null;
     this.pending = 0; this.done = 0;
