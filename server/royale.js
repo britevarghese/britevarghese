@@ -219,6 +219,7 @@ export class RoyaleGame extends Game {
     const why = !it ? 'gone' : !p.alive ? 'dead' : p.air ? 'in the air' : Math.hypot(it.x - p.x, it.z - p.z) > ROYALE.pickRange || Math.abs(it.y - p.y) > 2.2 ? 'out of reach' : null;
     if (why) { if (process.env.DEBUG_ROYALE) this.log(`[royale] ${p.name} pickup ${id} refused: ${why} (at ${p.x.toFixed(1)},${p.y.toFixed(1)},${p.z.toFixed(1)} item ${it ? [it.x, it.y, it.z] : '-'})`); return false; }
     const L = LOOT[it.type];
+    if (process.env.DEBUG_ROYALE && !p.bot) this.log(`[royale] ${p.name} picks ${id} ${it.type} (armor ${p.armor}, meds ${p.meds}, w ${p.weapons.map((w) => w && `${w.id}:${w.mag}/${w.reserve}`)})`);
     switch (L.kind) {
       case 'weapon': {
         const def = WEAPONS[L.w], si = def.slot, cur = p.weapons[si];

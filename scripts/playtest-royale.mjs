@@ -67,7 +67,9 @@ check('item removed from the ground', await g((id) => !__game.royale.loot.has(id
 // armor
 const armor = await g(() => {
   const s = __game.me.s; let best = null, bd = 1e9;
-  for (const it of __game.royale.loot.values()) { if (it.type !== 'armor') continue; const d = Math.hypot(it.x - s.x, it.z - s.z); if (d < bd) { bd = d; best = it; } }
+  // (skip armor a bot could grab first: bots rate armor highly)
+  const bots = [...__game.players.map.values()].filter((p) => p.alive && p.id !== __game.myId);
+  for (const it of __game.royale.loot.values()) { if (it.type !== 'armor' || bots.some((b) => Math.hypot(b.x - it.x, b.z - it.z) < 40)) continue; const d = Math.hypot(it.x - s.x, it.z - s.z); if (d < bd) { bd = d; best = it; } }
   Object.assign(s, { x: best.x + 0.6, y: best.y, z: best.z });
   return { id: best.id };
 });
