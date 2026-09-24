@@ -519,17 +519,44 @@ export class Game {
     this.fx.setLight(this.env.state.night);
     this.fx.update(simulate ? dt : 0, this.camera);
     this.debris.update(simulate ? dt : 0);
-    if (this.trafficRenderer) this.trafficRenderer.update(this.traffic.renderList, this.camera, this.env.state.night);
+    if (this.trafficRenderer) this.trafficRenderer.update(this.traffic.renderList, this.camera, this.env.state.night, this.world.lights);
+    this._wetReflections([player, ...this.police.vehicles(), ...this.races.vehicles()]);
     this.peds.update(simulate ? dt : 0, this.camera, [player, ...this.police.vehicles()], this.preset.pedestrians > 0);
     // audio
     this._audio(dt, mode);
     // render
+    this.world.lights.flushReflections(this.camera);
     this.rm.fx = this.fx2;
     this.rm.render(this.scene, this.camera, dt);
     // UI
     if (mode !== 'menu') this.hud.update(dt, this);
     this.save.update(dt);
     this._dev();
+  }
+
+  // head/tail lamps and police bars of the simulated cars reflected in wet asphalt
+  _wetReflections(vehicles) {
+    const L = this.world.lights;
+    if (!L.streaks.visible) return;
+    const cam = this.camera.position, lightsOn = this.env.state.night > 0.35;
+    for (const v of vehicles) {
+      const s = v.state, p = v.p, r = v.renderer;
+      if (!r || Math.hypot(s.x - cam.x, s.z - cam.z) > 140) continue;
+      const sn = Math.sin(s.yaw), cs = Math.cos(s.yaw);
+      const facing = (cam.x - s.x) * sn + (cam.z - s.z) * cs;
+      const hl = p.length / 2 - 0.1, lat = p.width * 0.34;
+      const at = (f, l) => [s.x + sn * f + cs * l, s.z + cs * f - sn * l];
+      for (const side of [1, -1]) {
+        if (facing > 0 && lightsOn && !r.lightsBroken?.[side > 0 ? 0 : 1]) { const [x, z] = at(hl, side * lat); L.addReflection(x, 0.7, z, 0.8, 0.74, 0.6, 0.55); }
+        if (facing < 0 && (lightsOn || r.brake > 0.1)) { const [x, z] = at(-hl, side * lat); L.addReflection(x, 0.8, z, 0.7 * (0.45 + r.brake), 0.04, 0.025, 0.45); }
+      }
+      const pol = r.police;
+      if (pol && (pol.redOn || pol.blueOn)) {
+        const [x, z] = at(-0.2, pol.redOn ? 0.35 : -0.35);
+        if (pol.redOn) L.addReflection(x, 1.6, z, 1.6, 0.1, 0.12, 1.1);
+        else L.addReflection(x, 1.6, z, 0.25, 0.4, 1.8, 1.1);
+      }
+    }
   }
 
   _playerEvents(events, dt) {

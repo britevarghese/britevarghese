@@ -99,7 +99,7 @@ export class TrafficRenderer {
   }
 
   // cars: [{type, x, y, z, yaw, pitch, roll, color(THREE.Color), brake, spin, lod}]
-  update(cars, camera, night) {
+  update(cars, camera, night, refl = null) {
     const counts = {};
     let wi = 0, gi = 0, ti = 0, bi = 0;
     const lightsOn = night > 0.35;
@@ -136,13 +136,18 @@ export class TrafficRenderer {
       }
       // light glows (billboards) and headlight beam on the ground
       if ((lightsOn || c.brake > 0.1) && c.dist < 350) {
+        // which end faces the camera (for wet-road reflections)
+        const facing = (camera.position.x - c.x) * Math.sin(c.yaw) + (camera.position.z - c.z) * Math.cos(c.yaw);
+        const reflect = refl && c.dist < 140;
         for (const sx of [1, -1]) {
           if (lightsOn) {
             _p.set(T.head.x * sx, T.head.y, T.head.z + 0.05).applyQuaternion(_q).add(_s.set(c.x, c.y, c.z));
             const hs = 0.9 + c.dist * 0.004;
             this.headGlow.setMatrixAt(gi++, _w.compose(_p, cq, _s.set(hs, hs, hs)));
+            if (reflect && facing > 0) refl.addReflection(_p.x, _p.y, _p.z, 0.8, 0.74, 0.6, 0.55);
           }
           _p.set(T.tail.x * sx, T.tail.y, T.tail.z - 0.05).applyQuaternion(_q).add(_s.set(c.x, c.y, c.z));
+          if (reflect && facing < 0) refl.addReflection(_p.x, _p.y, _p.z, 0.7 * (0.45 + c.brake), 0.04, 0.025, 0.45);
           const ts = 0.55 + c.brake * 0.5 + c.dist * 0.003;
           this.tailGlow.setMatrixAt(ti, _w.compose(_p, cq, _s.set(ts, ts, ts)));
           this.tailGlow.setColorAt(ti++, _c.setScalar(lightsOn ? 0.7 + c.brake * 0.6 : c.brake));

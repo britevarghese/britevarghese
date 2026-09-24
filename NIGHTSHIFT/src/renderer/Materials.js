@@ -103,8 +103,8 @@ export class Materials {
     const w = state.wetness;
     const wetOK = this.preset.wetReflections;
     this.road.roughnessMap = w > 0.3 ? this.asphaltTex.wetRoughnessMap : this.asphaltTex.roughnessMap;
-    this.road.roughness = lerp(1, 0.55, w);
-    this.road.color.setScalar(lerp(1, 0.62, w));
+    this.road.roughness = lerp(1, 0.5, w);
+    this.road.color.setScalar(lerp(1, 0.48, w)); // soaked asphalt is roughly half as bright
     this.road.envMapIntensity = lerp(0.35, wetOK ? 1.6 : 0.8, w);
     this.road.needsUpdate = true;
     this.sidewalk.roughness = lerp(0.92, 0.5, w); this.sidewalk.color.setHex(0xb8b4ac).multiplyScalar(lerp(1, 0.7, w));

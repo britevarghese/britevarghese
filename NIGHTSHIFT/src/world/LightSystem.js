@@ -29,6 +29,28 @@ export class LightSystem {
       if (!this.lampsByChunk.has(k)) this.lampsByChunk.set(k, []);
       for (const h of heads) this.lampsByChunk.get(k).push(h);
     }
+    // lit shop windows reflect in wet pavement: one source per storefront bay
+    this.shopsByChunk = new Map();
+    const shopCols = [0xffe2b0, 0xfff8e8, 0xffd0a0, 0xd0f0ff, 0xffe8c8, 0xc8e8ff];
+    for (const b of planner.buildings) {
+      const p0 = b.parts?.[0];
+      if (!b.storefront || !p0 || p0.y1 - p0.y0 <= 7) continue;
+      const walls = { n: [p0.x0, p0.z1, p0.x1, p0.z1], e: [p0.x1, p0.z1, p0.x1, p0.z0], s: [p0.x1, p0.z0, p0.x0, p0.z0], w: [p0.x0, p0.z0, p0.x0, p0.z1] };
+      for (const side of b.sides || []) {
+        const [ax, az, bx, bz] = walls[side];
+        const len = Math.hypot(bx - ax, bz - az), nx = -(bz - az) / len, nz = (bx - ax) / len;
+        const shops = Math.max(1, Math.round(len / 7));
+        for (let i = 0; i < shops; i++) {
+          const h = (b.id * 131 + i * 71 + side.charCodeAt(0) * 17) % 100;
+          if (h >= 80) continue; // unlit shop
+          const t = (i + 0.4) / shops;
+          const x = ax + (bx - ax) * t + nx * 0.6, z = az + (bz - az) * t + nz * 0.6;
+          const k = chunkKey(x, z);
+          if (!this.shopsByChunk.has(k)) this.shopsByChunk.set(k, []);
+          this.shopsByChunk.get(k).push({ x, z, y: layout.groundHeight(x, z) + 0.03, color: shopCols[h % shopCols.length], shop: true });
+        }
+      }
+    }
     const plane = new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2);
     this.pools = new THREE.InstancedMesh(plane, materials.lightPool, 1200);
     this.pools.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(1200 * 3), 3);
@@ -37,11 +59,16 @@ export class LightSystem {
     this.streaks = new THREE.InstancedMesh(sg, materials.streak, 800);
     this.streaks.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(800 * 3), 3);
     this.streaks.frustumCulled = false; this.streaks.count = 0; this.streaks.renderOrder = 3;
+    // per-frame wet reflections of moving lights (car head/tail lamps, police bars)
+    this.carStreaks = new THREE.InstancedMesh(sg, materials.streak, 360);
+    this.carStreaks.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(360 * 3), 3);
+    this.carStreaks.frustumCulled = false; this.carStreaks.count = 0; this.carStreaks.renderOrder = 3;
+    this.refl = new Float32Array(360 * 7); this.reflN = 0;
     const hg = new THREE.PlaneGeometry(1, 1);
     this.haloMat = new THREE.MeshBasicMaterial({ map: materials.glow.map, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false, color: 0xffd8a0, fog: true });
     this.halos = new THREE.InstancedMesh(hg, this.haloMat, 900);
     this.halos.frustumCulled = false; this.halos.count = 0; this.halos.renderOrder = 4;
-    scene.add(this.pools, this.streaks, this.halos);
+    scene.add(this.pools, this.streaks, this.carStreaks, this.halos);
     // every lamp head in the city as one additive point layer: outlines the street grid at night from
     // the highway, the hills or the air. Lamps in the near chunks are zeroed (they have real halos).
     this.farHeads = [];
@@ -107,11 +134,46 @@ export class LightSystem {
     }
   }
 
+  // queue a moving light for this frame's wet-road reflection (x, height, z, color, width)
+  addReflection(x, y, z, r, g, b, width) {
+    if (!this.streaks.visible || this.reflN >= 360) return;
+    this.refl.set([x, y, z, r, g, b, width], this.reflN++ * 7);
+  }
+
+  // draw the queued moving-light reflections (call once per frame, just before rendering)
+  flushReflections(camera) {
+    const on = this.streaks.visible;
+    let n = 0;
+    if (on && this.reflN) {
+      const cx = camera.position.x, cz = camera.position.z;
+      for (let i = 0; i < this.reflN; i++) {
+        const o = i * 7, x = this.refl[o], y = this.refl[o + 1], z = this.refl[o + 2];
+        const dx = cx - x, dz = cz - z, d = Math.hypot(dx, dz);
+        if (d < 2 || d > 150) continue;
+        // taller lights (roof bars) throw longer reflections
+        const len = Math.min(16, (1.6 + d * 0.2) * (0.7 + y * 0.35));
+        _e.set(0, Math.atan2(dx, dz), 0); _q.setFromEuler(_e);
+        // the streak texture's bright band starts ~20% in: center it so that band sits under the lamp
+        _p.set(x + dx / d * len * 0.3, 0.04, z + dz / d * len * 0.3);
+        _m.compose(_p, _q, _s.set(this.refl[o + 6], 1, len));
+        this.carStreaks.setMatrixAt(n, _m);
+        this.carStreaks.setColorAt(n, _c.setRGB(this.refl[o + 3], this.refl[o + 4], this.refl[o + 5]));
+        n++;
+      }
+    }
+    this.carStreaks.count = n;
+    this.carStreaks.visible = n > 0;
+    if (n) { this.carStreaks.instanceMatrix.needsUpdate = true; this.carStreaks.instanceColor.needsUpdate = true; }
+    this.reflN = 0;
+  }
+
   rebuild(keys, focus = this._focus) {
     if (focus) this._focus = focus;
     this.active = [];
     this.lamps = [];
+    this.shops = [];
     for (const k of keys) {
+      const sh = this.shopsByChunk.get(k); if (sh) for (const x of sh) this.shops.push(x);
       const a = this.byChunk.get(k); if (a) for (const l of a) if (!l.lamp?.broken) this.active.push(l);
       const b = this.lampsByChunk.get(k); if (b) for (const h of b) if (!h[4]?.broken) this.lamps.push(h);
     }
@@ -189,21 +251,22 @@ export class LightSystem {
       const max = this.streaks.instanceMatrix.count;
       const cf = _p.set(0, 0, -1).applyQuaternion(camera.quaternion);
       const cfx = cf.x, cfz = cf.z;
-      for (const l of this.active) {
+      const put = (l, width, gain) => {
         const dx = cx - l.x, dz = cz - l.z;
         const d = Math.hypot(dx, dz);
-        if (d > 160 || d < 8) continue;
-        if (-(dx * cfx + dz * cfz) < d * 0.3) continue; // only lamps in front of the camera reflect toward it
+        if (d > 160 || d < 6) return;
+        if (-(dx * cfx + dz * cfz) < d * 0.3) return; // only sources in front of the camera reflect toward it
         const ang = Math.atan2(dx, dz);
-        const len = Math.min(26, 5 + d * 0.28);
+        const len = Math.min(28, 5 + d * 0.3);
         _e.set(0, ang, 0); _q.setFromEuler(_e);
         _p.set(l.x + dx / d * len * 0.35, l.y + 0.01, l.z + dz / d * len * 0.35);
-        _m.compose(_p, _q, _s.set(1.6, 1, len));
+        _m.compose(_p, _q, _s.set(width, 1, len));
         this.streaks.setMatrixAt(n, _m);
-        this.streaks.setColorAt(n, _c.setHex(l.color).multiplyScalar(0.8));
+        this.streaks.setColorAt(n, _c.setHex(l.color).multiplyScalar(gain));
         n++;
-        if (n >= max) break;
-      }
+      };
+      for (const l of this.active) { if (n >= max) break; put(l, 2.2, 1.15); }
+      for (const l of this.shops) { if (n >= max) break; put(l, 3.2, 0.55); }
       this.streaks.count = n;
       this.streaks.instanceMatrix.needsUpdate = true;
       this.streaks.instanceColor.needsUpdate = true;
