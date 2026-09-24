@@ -119,6 +119,22 @@ export class UIManager {
     this._menuNav(btns, () => g.resume());
   }
 
+  // ------------------------------------------------------------------ story
+  showStoryFail(m, reason) {
+    this.clear();
+    const g = this.game;
+    g.state.mode = 'results'; g.audio.setPaused(true);
+    const s = h('div', 'screen center dim-bg');
+    const box = h('div', 'panel brief', `<div class="type">STORY · ${m.title.toUpperCase()}</div><h1 style="color:#ff3d5a">MISSION FAILED</h1><p>${reason}</p>`);
+    const row = h('div', 'row2');
+    const retry = h('button', 'btn primary', 'RETRY'); retry.onclick = () => { this.clear(); g.state.mode = 'drive'; g.audio.setPaused(false); document.getElementById('hud').classList.remove('hidden'); g.story.retry(m); };
+    const quit = h('button', 'btn', 'CONTINUE'); quit.onclick = () => g.resume();
+    row.append(retry, quit); box.appendChild(row);
+    s.appendChild(box); this.screens.appendChild(s);
+    this.current = 'results';
+    this._menuNav([retry, quit], () => g.resume());
+  }
+
   // ------------------------------------------------------------------ photo mode
   showPhoto(pm) {
     this.clear();

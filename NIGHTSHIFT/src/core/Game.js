@@ -24,6 +24,7 @@ import { PoliceManager } from '../police/PoliceManager.js';
 import { RaceManager } from '../races/RaceManager.js';
 import { StreetRivals } from '../races/StreetRivals.js';
 import { OnFoot } from '../player/OnFoot.js';
+import { Story } from '../story/Story.js';
 import { AudioManager } from '../audio/AudioManager.js';
 import { engineSoundFor } from '../audio/EngineSynth.js';
 import { MapRenderer } from '../ui/MapRenderer.js';
@@ -97,6 +98,7 @@ export class Game {
     this.races = new RaceManager(this);
     this.rivals = new StreetRivals(this);
     this.onFoot = new OnFoot(this);
+    this.story = new Story(this);
     this.peds = new Pedestrians(this.scene, this.world.layout, preset.pedestrians);
     this.audio = new AudioManager(this.settings.audio);
     this.progress = new Progression(this);
@@ -341,7 +343,7 @@ export class Game {
     this.camCtl.snap(this.player);
     document.getElementById('hud').classList.remove('hidden');
     this.audio.setPaused(false);
-    this.ui.toast('Find events on the map (M) and press E in a glowing ring. Press F to get out and walk, or to take any car on the street.', '', 6);
+    this.ui.toast(Object.keys(this.save.data.story?.done || {}).length ? 'Story missions: follow the coloured markers on the minimap. F gets you out of the car.' : 'Tully has work for you: follow the orange marker on the minimap. F gets you out of the car; races are the yellow rings.', '', 7);
   }
   pause() {
     if (this.state.mode !== 'drive') return;
@@ -357,6 +359,7 @@ export class Game {
   }
   toMainMenu() {
     this.races.abort();
+    this.story.abort();
     this.rivals.clear();
     this.police.clearAll();
     this.state.mode = 'menu';
@@ -529,7 +532,8 @@ export class Game {
       this.state.time += dt;
       // races may override controls during countdown
       this.races.update(dt);
-      this.rivals.update(dt, driving);
+      this.story.update(dt, input, driving);
+      this.rivals.update(dt, driving && !this.story.active);
       const events = player.update(dt);
       this._playerEvents(events, dt);
       // police + traffic
@@ -537,7 +541,7 @@ export class Game {
       if (this.onFoot.active && driving) this.onFoot.update(dt, input);
       this.onFoot.updateParked(dt, this.camera.position, this.env.state);
       for (const v of this.onFoot.parked) if (Math.abs(v.state.x - player.state.x) < 8 && Math.abs(v.state.z - player.state.z) < 8) VehiclePhysics.resolvePair(player.physics, v.physics);
-      const dynamic = [player, ...this.onFoot.parked, ...this.police.vehicles(), ...this.races.vehicles(), ...this.rivals.vehicles()];
+      const dynamic = [player, ...this.onFoot.parked, ...this.police.vehicles(), ...this.races.vehicles(), ...this.rivals.vehicles(), ...this.story.vehicles()];
       const fwd = { x: Math.sin(player.state.yaw), z: Math.cos(player.state.yaw) };
       this.traffic.camera = this.camera;
       const fs = this.focusState;
@@ -567,6 +571,7 @@ export class Game {
       if (mode === 'busted') this._bustedUpdate(dt);
       // world interaction prompts (events, garages)
       if (driving && !this.onFoot.active) this._interactions();
+      if (driving) this.story.late();
       if (driving) this.replay.record(dt);
       this.net.update(dt);
     }
@@ -597,6 +602,7 @@ export class Game {
     }
     if (mode === 'photo') this.photo.update(dt, input);
     if (mode === 'replay') this.replay.update(dt, input);
+    if (mode === 'cutscene') this.story.updateCutscene(dt, input);
     // sync visuals
     const camPos = this.camera.position;
     player.sync(dt, camPos, this.env.state);
@@ -621,7 +627,7 @@ export class Game {
     this.rm.render(this.scene, this.camera, dt);
     if (mode === 'photo') this.photo.afterRender();
     // UI
-    if (mode !== 'menu' && mode !== 'photo' && mode !== 'replay') this.hud.update(dt, this);
+    if (mode !== 'menu' && mode !== 'photo' && mode !== 'replay' && mode !== 'cutscene') this.hud.update(dt, this);
     this.save.update(dt);
     this._dev();
   }
@@ -702,7 +708,7 @@ export class Game {
     const sp = Math.hypot(s.vx, s.vz);
     let prompt = null;
     const ev = this.races.nearbyEvent(s.x, s.z);
-    if (ev && !this.police.inPursuit) {
+    if (ev && !this.police.inPursuit && !this.story.active) {
       prompt = `<b>${ev.def.name}</b> · ${ev.def.type.toUpperCase()} · press <span class="key">E</span> / <span class="key">A</span>`;
       if (sp < 6 && this.input.consume('event')) { this.state.mode = 'brief'; this.audio.setPaused(true); this.lib.load(this.races.rivalPool(), 4); this.ui.showBriefing(ev); }
     }
@@ -720,7 +726,7 @@ export class Game {
         }
       }
     }
-    if (this.input.consume('garage') && !this.police.inPursuit && !this.races.active && sp < 3) this.openGarage();
+    if (this.input.consume('garage') && !this.police.inPursuit && !this.races.active && !this.story.active && sp < 3) this.openGarage();
     // GPS arrival
     if (this.gps && Math.hypot(this.gps.x - s.x, this.gps.z - s.z) < 25) { this.gps = null; this.ui.toast('Destination reached'); }
     this.hud.setPrompt(prompt);
@@ -729,6 +735,7 @@ export class Game {
   _bustedUpdate(dt) {
     this.bustT += dt;
     if (this.bustT > 4.5) {
+      if (this.onFoot.active) { const own = this.player; this.onFoot.enter({ kind: this.onFoot.parked.includes(own) ? 'parked' : 'own', ref: own }); }
       this.camCtl.cinematic = null;
       this.player.state.damage = 0;
       this.player.renderer.repair();

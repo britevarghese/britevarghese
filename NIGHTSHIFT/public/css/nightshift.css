@@ -291,3 +291,26 @@ input[type=range] { width: 100%; accent-color: var(--accent); }
 .replay-btn:hover { border-color: var(--accent); }
 .replay-bar .hint { margin-top: 0.5rem; font-size: 0.66rem; }
 #hud.onfoot .speedo { display: none; }
+
+/* ---------- story missions */
+.story-ui { position: absolute; inset: 0; pointer-events: none; z-index: 5; }
+.story-ui .lb { position: absolute; left: 0; right: 0; height: 0; background: #000; transition: height 0.6s ease; }
+.story-ui .lb.top { top: 0; } .story-ui .lb.bottom { bottom: 0; }
+.story-ui.cine .lb { height: 11vh; }
+.story-sub { position: absolute; left: 50%; bottom: 17vh; transform: translateX(-50%); width: min(820px, calc(100vw - 32px)); text-align: center; font-size: 1.15rem; line-height: 1.45; color: #f2f2f2; text-shadow: 0 2px 4px #000, 0 0 12px #000; opacity: 0; transition: opacity 0.25s; }
+.story-ui.cine .story-sub { bottom: 13vh; }
+.story-sub.on { opacity: 1; }
+.story-sub .phone { color: #9dff6a; }
+.story-obj { position: absolute; left: 50%; bottom: 9.5rem; transform: translateX(-50%); width: min(760px, calc(100vw - 32px)); text-align: center; font-size: 1.05rem; color: #fff; text-shadow: 0 2px 4px #000; opacity: 0; transition: opacity 0.3s; }
+.story-obj.on { opacity: 1; }
+.story-obj b { color: #ffc53d; }
+.story-obj.flash { animation: objflash 0.9s ease-out; }
+@keyframes objflash { 0% { transform: translateX(-50%) scale(1.12); } 100% { transform: translateX(-50%) scale(1); } }
+.story-meter { position: absolute; right: 1.2rem; top: 9rem; width: 190px; font-size: 0.72rem; letter-spacing: 0.15em; color: #fff; text-shadow: 0 1px 3px #000; }
+.story-meter .bar { height: 7px; background: rgba(255,255,255,0.15); margin-top: 0.3rem; }
+.story-meter .bar i { display: block; height: 100%; background: #ffc53d; transition: width 0.2s; }
+.story-meter .bar i.danger { background: #ff3d5a; }
+.story-title { position: absolute; left: 6vw; bottom: 16vh; font-size: 2.6rem; font-weight: 800; letter-spacing: 0.08em; color: #fff; text-shadow: 0 3px 10px #000; animation: titlecard 3.2s ease forwards; }
+.story-title small { display: block; font-size: 0.8rem; letter-spacing: 0.4em; color: #ffc53d; }
+@keyframes titlecard { 0% { opacity: 0; transform: translateX(-20px); } 15%, 80% { opacity: 1; transform: none; } 100% { opacity: 0; } }
+@media (max-width: 600px) { .story-sub { font-size: 0.95rem; } .story-title { font-size: 1.7rem; } .story-meter { top: 12rem; width: 150px; } }

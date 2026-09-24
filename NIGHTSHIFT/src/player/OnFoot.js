@@ -11,13 +11,13 @@ import { bus } from '../core/EventBus.js';
 const WALK = 1.7, RUN = 6.2, RADIUS = 0.34, ENTER_DIST = 3.4;
 const _v = new THREE.Vector3();
 
-function buildCharacter() {
+export function buildCharacter(look = {}) {
   const g = new THREE.Group();
-  const jacket = new THREE.MeshStandardMaterial({ color: 0x1d2330, roughness: 0.75 });
-  const jeans = new THREE.MeshStandardMaterial({ color: 0x2b3547, roughness: 0.85 });
-  const skin = new THREE.MeshStandardMaterial({ color: 0xb58868, roughness: 0.7 });
+  const jacket = new THREE.MeshStandardMaterial({ color: look.jacket ?? 0x1d2330, roughness: 0.75 });
+  const jeans = new THREE.MeshStandardMaterial({ color: look.jeans ?? 0x2b3547, roughness: 0.85 });
+  const skin = new THREE.MeshStandardMaterial({ color: look.skin ?? 0xb58868, roughness: 0.7 });
   const shoe = new THREE.MeshStandardMaterial({ color: 0x151515, roughness: 0.6 });
-  const hair = new THREE.MeshStandardMaterial({ color: 0x1a1410, roughness: 0.9 });
+  const hair = new THREE.MeshStandardMaterial({ color: look.hair ?? 0x1a1410, roughness: 0.9 });
   const box = (w, h, d, m, y = 0) => { const geo = new THREE.BoxGeometry(w, h, d); geo.translate(0, y, 0); const mesh = new THREE.Mesh(geo, m); mesh.castShadow = true; return mesh; };
   const limb = (w, len, d, m, x, y) => { const p = new THREE.Group(); p.position.set(x, y, 0); p.add(box(w, len, d, m, -len / 2)); g.add(p); return p; };
   const torso = box(0.44, 0.6, 0.24, jacket, 1.2); g.add(torso);
@@ -256,7 +256,7 @@ export class OnFoot {
     const g = this.game, f = g.focusState;
     for (let i = this.parked.length - 1; i >= 0; i--) {
       const v = this.parked[i];
-      if (Math.hypot(v.state.x - f.x, v.state.z - f.z) > 450) { v.dispose(); this.parked.splice(i, 1); continue; }
+      if (!v.keep && Math.hypot(v.state.x - f.x, v.state.z - f.z) > 450) { v.dispose(); this.parked.splice(i, 1); continue; }
       v.update(dt);
       v.sync(dt, camPos, env);
     }
