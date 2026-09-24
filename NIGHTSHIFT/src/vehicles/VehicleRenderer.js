@@ -2,7 +2,7 @@
 // drives head/tail/brake lights, nitro flames, police light bars, customization and damage.
 import * as THREE from 'three';
 import { AssetManager } from '../assets/AssetManager.js';
-import { radialGlow, lightPool, vinylTexture, tireTread } from '../renderer/Textures.js';
+import { radialGlow, lightPool, carPaintTexture, headlightTextures, taillightTextures, tireTread } from '../renderer/Textures.js';
 import { clamp, lerp } from '../core/util.js';
 
 const glowRed = () => radialGlow('rgba(255,60,50,1)', 'rgba(255,20,20,0.3)');
@@ -73,10 +73,18 @@ export class VehicleRenderer {
   _tuneMaterials() {
     const m = this.mats;
     if (m.paint) { m.paint.envMapIntensity = 1.25; m.paint.clearcoat = 1; m.paint.clearcoatRoughness = 0.04; }
-    if (m.glass) { m.glass.envMapIntensity = 1.6; m.glass.roughness = 0.02; m.glass.metalness = 0.4; m.glass.depthWrite = false; }
+    if (m.glass) { m.glass.envMapIntensity = 2.2; m.glass.roughness = 0.02; m.glass.metalness = 0.55; m.glass.depthWrite = false; }
     if (m.chrome) m.chrome.envMapIntensity = 1.5;
-    if (m.headlight) { m.headlight.emissiveIntensity = 2.5; m.headlight.toneMapped = true; }
-    if (m.taillight) m.taillight.emissiveIntensity = 1.2;
+    if (m.headlight) {
+      const t = headlightTextures();
+      m.headlight.map = t.map; m.headlight.emissiveMap = t.emissiveMap; m.headlight.color.set(0xffffff);
+      m.headlight.emissiveIntensity = 2.5; m.headlight.roughness = 0.08; m.headlight.metalness = 0.5; m.headlight.envMapIntensity = 1.6;
+    }
+    if (m.taillight) {
+      const t = taillightTextures();
+      m.taillight.map = t.map; m.taillight.emissiveMap = t.emissiveMap; m.taillight.color.set(0xffffff);
+      m.taillight.emissiveIntensity = 1.2; m.taillight.roughness = 0.1; m.taillight.envMapIntensity = 1.4;
+    }
     if (m.lightbar_red) m.lightbar_red.emissiveIntensity = 0.2;
     if (m.lightbar_blue) m.lightbar_blue.emissiveIntensity = 0.2;
   }
@@ -208,17 +216,20 @@ export class VehicleRenderer {
       m.paint.clearcoat = finish === 'matte' ? 0 : 1;
       m.paint.sheen = finish === 'pearl' ? 1 : 0;
       if (finish === 'pearl') m.paint.sheenColor = new THREE.Color(c.paint2 || '#ffffff');
-      if (c.vinyl) {
-        m.paint.map?.dispose();
-        m.paint.map = vinylTexture(c.vinyl, c.paint, c.paint2 || '#111');
-        m.paint.color.set(0xffffff);
-      } else {
-        if (m.paint.map) { m.paint.map.dispose(); m.paint.map = null; }
-        m.paint.color.set(c.paint);
+      // paint map = vinyl livery + panel shut lines/handles/window trim; grooves in the normal map
+      const panels = this.lib.manifest?.cars?.[this.carId]?.panels;
+      const key = `${c.vinyl || 0}|${c.paint}|${c.paint2}`;
+      if (key !== this._paintKey) {
+        this._paintKey = key;
+        m.paint.map?.dispose(); m.paint.normalMap?.dispose();
+        const t = carPaintTexture(c.vinyl || 0, c.paint, c.paint2 || '#111', panels);
+        m.paint.map = t.map; m.paint.normalMap = t.normalMap;
+        m.paint.normalScale = new THREE.Vector2(0.35, 0.35);
       }
+      m.paint.color.set(c.vinyl ? 0xffffff : c.paint);
       m.paint.needsUpdate = true;
     }
-    if (c.tint !== undefined && m.glass) { m.glass.opacity = 0.84 + c.tint * 0.15; m.glass.color.setScalar(0.06 * (1 - c.tint)); }
+    if (c.tint !== undefined && m.glass) { m.glass.opacity = 0.9 + c.tint * 0.09; m.glass.color.setScalar(0.035 * (1 - c.tint * 0.7)); }
     if (c.wheel !== undefined && this.wheels) {
       const W = this.lib.wheels;
       const geo = W.getObjectByName('rim_' + c.wheel)?.geometry;

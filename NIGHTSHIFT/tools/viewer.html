@@ -5,7 +5,7 @@ import * as THREE from 'three';
 import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js';
 const q=new URLSearchParams(location.search);
 const car=q.get('car')||'kestrel', view=q.get('view')||'34', lod=q.get('lod')||'lod0', rim=+(q.get('rim')||0);
-const r=new THREE.WebGLRenderer({antialias:true});r.setSize(900,560);document.body.appendChild(r.domElement);
+const r=new THREE.WebGLRenderer({antialias:true});r.setSize(+(q.get('w')||900),+(q.get('h')||560));document.body.appendChild(r.domElement);
 r.toneMapping=THREE.ACESFilmicToneMapping;
 const s=new THREE.Scene();s.background=new THREE.Color(0x404850);
 const pm=new THREE.PMREMGenerator(r);
@@ -16,7 +16,7 @@ g.setAttribute('color',new THREE.Float32BufferAttribute(c,3));env.add(new THREE.
 s.environment=pm.fromScene(env).texture;
 s.add(new THREE.DirectionalLight(0xffffff,2).translateY(5).translateX(3));
 const ground=new THREE.Mesh(new THREE.PlaneGeometry(40,40),new THREE.MeshStandardMaterial({color:0x303030,roughness:0.8}));ground.rotation.x=-Math.PI/2;s.add(ground);
-const cam=new THREE.PerspectiveCamera(35,900/560,0.1,100);
+const cam=new THREE.PerspectiveCamera(+(q.get('fov')||35),(+(q.get('w')||900))/(+(q.get('h')||560)),0.1,100);
 const L=new GLTFLoader();
 const [a,w]=await Promise.all([L.loadAsync('/public/assets/models/'+car+'.glb'),L.loadAsync('/public/assets/models/wheels.glb')]);
 const root=a.scene.getObjectByName(lod);s.add(root);

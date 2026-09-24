@@ -7,7 +7,7 @@ import { fileURLToPath } from 'node:url';
 import * as THREE from 'three';
 import { GLTFExporter } from 'three/addons/exporters/GLTFExporter.js';
 import { CAR_SPECS } from './carbuilder/specs.mjs';
-import { buildCar, makeMaterials } from './carbuilder/build.mjs';
+import { buildCar, makeMaterials, panelLayout } from './carbuilder/build.mjs';
 import { tireGeometry, rimGeometry, brakeGeometry, WHEEL_REF } from './carbuilder/wheels.mjs';
 
 // Minimal FileReader polyfill so GLTFExporter's binary path works in Node.
@@ -40,6 +40,7 @@ for (const [id, spec] of Object.entries(CAR_SPECS)) {
   manifest.cars[id] = {
     file: id + '.glb', name: spec.name, class: spec.class, length: spec.length, width: spec.width,
     wheels: spec.wheels.map((w) => ({ id: w.id, r: w.r, w: w.w })),
+    panels: panelLayout(spec),
   };
   console.log(`${id}.glb  ${(bytes / 1024).toFixed(1)} KB`);
 }

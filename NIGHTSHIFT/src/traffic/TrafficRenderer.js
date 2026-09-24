@@ -2,7 +2,7 @@
 // one draw call per material (paint uses per-instance color), plus instanced wheels and
 // instanced light glows / headlight ground beams. Never hundreds of individual car objects.
 import * as THREE from 'three';
-import { radialGlow, lightPool } from '../renderer/Textures.js';
+import { radialGlow, lightPool, carPaintTexture, headlightTextures, taillightTextures } from '../renderer/Textures.js';
 
 const _m = new THREE.Matrix4(), _q = new THREE.Quaternion(), _p = new THREE.Vector3(), _s = new THREE.Vector3(), _e = new THREE.Euler(), _c = new THREE.Color();
 const _w = new THREE.Matrix4(), _wq = new THREE.Quaternion();
@@ -28,12 +28,12 @@ export class TrafficRenderer {
     const tireMat = W.getObjectByName('tire').material;
     const rimMat = new THREE.MeshStandardMaterial({ color: 0x9a9ea4, metalness: 0.9, roughness: 0.35 });
     this.shared = {
-      paint: new THREE.MeshPhysicalMaterial({ color: 0xffffff, metalness: 0.5, roughness: 0.35, clearcoat: 1, clearcoatRoughness: 0.08, envMapIntensity: 1.1 }),
+      paint: new THREE.MeshPhysicalMaterial({ color: 0xffffff, metalness: 0.5, roughness: 0.35, clearcoat: 1, clearcoatRoughness: 0.08, envMapIntensity: 1.1, vertexColors: true }),
       glass: new THREE.MeshStandardMaterial({ color: 0x0a0e12, metalness: 0.5, roughness: 0.05, envMapIntensity: 1.5 }),
       dark: new THREE.MeshStandardMaterial({ color: 0x0c0d0f, roughness: 0.7 }),
       chrome: new THREE.MeshStandardMaterial({ color: 0xcfd3d8, metalness: 1, roughness: 0.15 }),
-      head: new THREE.MeshBasicMaterial({ color: 0xffffff, toneMapped: false }),
-      tail: new THREE.MeshBasicMaterial({ color: 0xffffff, toneMapped: false }),
+      head: new THREE.MeshBasicMaterial({ color: 0xffffff, toneMapped: false, map: headlightTextures().emissiveMap }),
+      tail: new THREE.MeshBasicMaterial({ color: 0xffffff, toneMapped: false, map: taillightTextures().emissiveMap }),
     };
     for (const type of types) {
       const src = lib.cars[type];
@@ -53,10 +53,15 @@ export class TrafficRenderer {
           }
         });
         const meshes = {};
+        if (!entry.paintMat) {
+          entry.paintMat = this.shared.paint.clone();
+          const t = carPaintTexture(0, '#ffffff', '#111111', lib.manifest?.cars?.[type]?.panels);
+          entry.paintMat.map = t.map; entry.paintMat.normalMap = t.normalMap; entry.paintMat.normalScale = new THREE.Vector2(0.35, 0.35);
+        }
         for (const [k, list] of Object.entries(parts)) {
           if (!list.length) continue;
           const geo = list.length === 1 ? list[0] : mergeIndexed(list);
-          const mesh = new THREE.InstancedMesh(geo, this.shared[k], maxPerType);
+          const mesh = new THREE.InstancedMesh(geo, k === 'paint' ? entry.paintMat : this.shared[k], maxPerType);
           mesh.count = 0; mesh.frustumCulled = false;
           mesh.castShadow = k === 'paint' && lodName === 'lod0'; mesh.receiveShadow = false;
           if (k === 'paint' || k === 'head' || k === 'tail') mesh.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(maxPerType * 3), 3);
@@ -178,7 +183,7 @@ function mergeIndexed(list) {
     return n;
   }
   for (const g of list) { vtotal += g.attributes.position.count; total += g.index ? g.index.count : g.attributes.position.count; }
-  const pos = new Float32Array(vtotal * 3), nor = new Float32Array(vtotal * 3), uv = new Float32Array(vtotal * 2), idx = new Uint32Array(total);
+  const pos = new Float32Array(vtotal * 3), nor = new Float32Array(vtotal * 3), uv = new Float32Array(vtotal * 2), col = new Float32Array(vtotal * 3).fill(1), idx = new Uint32Array(total);
   let vo = 0, io = 0;
   for (const g of list) {
     const p = g.attributes.position, nn = g.attributes.normal, t = g.attributes.uv;
@@ -186,6 +191,8 @@ function mergeIndexed(list) {
       pos[(vo + i) * 3] = p.getX(i); pos[(vo + i) * 3 + 1] = p.getY(i); pos[(vo + i) * 3 + 2] = p.getZ(i);
       if (nn) { nor[(vo + i) * 3] = nn.getX(i); nor[(vo + i) * 3 + 1] = nn.getY(i); nor[(vo + i) * 3 + 2] = nn.getZ(i); }
       if (t) { uv[(vo + i) * 2] = t.getX(i); uv[(vo + i) * 2 + 1] = t.getY(i); }
+      const cc = g.attributes.color;
+      if (cc) { col[(vo + i) * 3] = cc.getX(i); col[(vo + i) * 3 + 1] = cc.getY(i); col[(vo + i) * 3 + 2] = cc.getZ(i); }
     }
     if (g.index) for (let i = 0; i < g.index.count; i++) idx[io++] = g.index.getX(i) + vo;
     else for (let i = 0; i < p.count; i++) idx[io++] = i + vo;
@@ -195,6 +202,7 @@ function mergeIndexed(list) {
   n.setAttribute('position', new THREE.BufferAttribute(pos, 3));
   n.setAttribute('normal', new THREE.BufferAttribute(nor, 3));
   n.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
+  n.setAttribute('color', new THREE.BufferAttribute(col, 3));
   n.setIndex(new THREE.BufferAttribute(idx, 1));
   return n;
 }

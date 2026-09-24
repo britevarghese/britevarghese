@@ -634,3 +634,87 @@ export function vinylTexture(index, base, accent) {
   t.anisotropy = ANISO;
   return t;
 }
+
+// ------------------------------------------------------------------ car detail maps
+// Paint albedo (vinyl + panel shut lines + window trim) and a matching groove normal map, drawn from
+// the per-model panel layout exported by the model generator (u = along the car, v = around it).
+export function carPaintTexture(vinyl, base, accent, panels) {
+  const w = panels?.width || 1024, h = panels?.height || 512;
+  const c = canvas(w, h), ctx = c.getContext('2d');
+  const hc = canvas(w, h), hx = hc.getContext('2d');
+  if (vinyl) ctx.drawImage(vinylTexture(vinyl, base, accent).image, 0, 0, w, h);
+  else { ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, w, h); }
+  hx.fillStyle = '#808080'; hx.fillRect(0, 0, w, h);
+  const X = (u) => u * w, Y = (v) => (1 - v) * h;
+  if (panels) {
+    const lw = Math.max(1.5, w / 600);
+    ctx.lineCap = hx.lineCap = 'round';
+    for (const [u0, v0, u1, v1] of panels.lines) {
+      ctx.strokeStyle = vinyl ? 'rgba(8,8,10,0.85)' : 'rgba(10,10,12,0.9)'; ctx.lineWidth = lw;
+      ctx.beginPath(); ctx.moveTo(X(u0), Y(v0)); ctx.lineTo(X(u1), Y(v1)); ctx.stroke();
+      hx.strokeStyle = '#000'; hx.lineWidth = lw * 2.2;
+      hx.beginPath(); hx.moveTo(X(u0), Y(v0)); hx.lineTo(X(u1), Y(v1)); hx.stroke();
+    }
+    for (const [u0, v0, u1, v1, kind] of panels.rects) {
+      if (kind === 'round') {
+        ctx.strokeStyle = 'rgba(10,10,12,0.8)'; ctx.lineWidth = lw;
+        ctx.beginPath(); ctx.ellipse((X(u0) + X(u1)) / 2, (Y(v0) + Y(v1)) / 2, Math.abs(X(u1) - X(u0)) / 2, Math.abs(Y(v1) - Y(v0)) / 2, 0, 0, Math.PI * 2); ctx.stroke();
+        hx.strokeStyle = '#000'; hx.lineWidth = lw * 2; hx.stroke();
+      } else {
+        ctx.fillStyle = 'rgba(20,20,24,0.9)'; ctx.fillRect(X(u0), Y(v1), X(u1) - X(u0), Y(v0) - Y(v1));
+        hx.fillStyle = '#303030'; hx.fillRect(X(u0), Y(v1), X(u1) - X(u0), Y(v0) - Y(v1));
+      }
+    }
+    for (const [u0, v0, u1, v1] of panels.trims) {
+      ctx.fillStyle = '#0c0d0f'; ctx.fillRect(X(u0), Y(v1), X(u1) - X(u0), Y(v0) - Y(v1));
+    }
+  }
+  const map = new THREE.CanvasTexture(c);
+  map.colorSpace = THREE.SRGBColorSpace; map.anisotropy = ANISO;
+  const normalMap = new THREE.CanvasTexture(normalFromHeight(hc, 1.6));
+  normalMap.anisotropy = ANISO;
+  return { map, normalMap };
+}
+
+// Headlight unit: dark reflector housing, two projector lenses and an LED daytime-running strip.
+export function headlightTextures() {
+  return cached('headlamp', () => {
+    const w = 256, h = 128;
+    const c = canvas(w, h), ctx = c.getContext('2d'), e = canvas(w, h), ex = e.getContext('2d');
+    const g = ctx.createLinearGradient(0, 0, 0, h); g.addColorStop(0, '#2a2f36'); g.addColorStop(1, '#0d0f12');
+    ctx.fillStyle = g; ctx.fillRect(0, 0, w, h);
+    ex.fillStyle = '#000'; ex.fillRect(0, 0, w, h);
+    for (const cx of [w * 0.3, w * 0.62]) {
+      const rg = ctx.createRadialGradient(cx, h * 0.5, 2, cx, h * 0.5, h * 0.3);
+      rg.addColorStop(0, '#f4f8ff'); rg.addColorStop(0.45, '#9aa6b4'); rg.addColorStop(0.5, '#3a4048'); rg.addColorStop(1, '#1a1d22');
+      ctx.fillStyle = rg; ctx.beginPath(); ctx.arc(cx, h * 0.5, h * 0.3, 0, 7); ctx.fill();
+      const eg = ex.createRadialGradient(cx, h * 0.5, 1, cx, h * 0.5, h * 0.26);
+      eg.addColorStop(0, '#ffffff'); eg.addColorStop(0.6, '#b8c4d8'); eg.addColorStop(1, '#000');
+      ex.fillStyle = eg; ex.beginPath(); ex.arc(cx, h * 0.5, h * 0.26, 0, 7); ex.fill();
+    }
+    // LED strip along the lower edge (u runs along the car length, v up)
+    ctx.fillStyle = '#e8eef8'; ctx.fillRect(w * 0.08, h * 0.84, w * 0.84, h * 0.07);
+    ex.fillStyle = '#ffffff'; ex.fillRect(w * 0.08, h * 0.84, w * 0.84, h * 0.07);
+    ctx.strokeStyle = '#555c66'; ctx.lineWidth = 3; ctx.strokeRect(1.5, 1.5, w - 3, h - 3);
+    const map = tex(c, { repeat: false }), emissiveMap = tex(e, { repeat: false });
+    return { map, emissiveMap };
+  });
+}
+
+// Tail light: smoked red lens with segmented light bars and an inner reflector pattern.
+export function taillightTextures() {
+  return cached('taillamp', () => {
+    const w = 256, h = 128;
+    const c = canvas(w, h), ctx = c.getContext('2d'), e = canvas(w, h), ex = e.getContext('2d');
+    ctx.fillStyle = '#3a060a'; ctx.fillRect(0, 0, w, h);
+    ex.fillStyle = '#120000'; ex.fillRect(0, 0, w, h);
+    for (let i = 0; i < 3; i++) {
+      const y = h * (0.2 + i * 0.26);
+      ctx.fillStyle = '#9a1018'; ctx.fillRect(w * 0.06, y, w * 0.88, h * 0.12);
+      ex.fillStyle = '#ffffff'; ex.fillRect(w * 0.06, y, w * 0.88, h * 0.12);
+    }
+    for (let x = 0; x < w; x += 10) { ex.fillStyle = 'rgba(0,0,0,0.35)'; ex.fillRect(x, 0, 3, h); }
+    ctx.fillStyle = 'rgba(255,255,255,0.08)'; ctx.fillRect(0, 0, w, h * 0.12);
+    return { map: tex(c, { repeat: false }), emissiveMap: tex(e, { repeat: false }) };
+  });
+}

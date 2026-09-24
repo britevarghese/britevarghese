@@ -23,6 +23,55 @@ export function makeMaterials() {
   };
 }
 
+// Panel lines, door/hood/trunk shut lines, handles and window trim in body UV space
+// (u = t along the car, v = cross-section parameter / 10). Rendered at runtime into the paint map.
+export function panelLayout(spec) {
+  const S = new CarSurface(spec);
+  const L = spec.length;
+  const gk = spec.greenhouse;
+  const firstFull = gk.find((k) => k[1] >= 1)?.[0] ?? 0.4;
+  const lastFull = [...gk].reverse().find((k) => k[1] >= 1)?.[0] ?? 0.6;
+  const slopeEnd = gk[gk.length - 1][1] === 0 ? gk[gk.length - 1][0] : 1;
+  const slopeStart = (() => { const i = gk.findIndex((k) => k[1] > 0); return i > 0 ? gk[i - 1][0] : 0; })();
+  const fw = spec.wheels.find((w) => w.id === 'FL'), rw = spec.wheels.find((w) => w.id === 'RL');
+  const ft = fw.z / L + 0.5, rt = rw.z / L + 0.5;
+  const lines = [], rects = [], trims = [];
+  const V = (v) => v / 10;
+  if (spec.cargo || spec.busWindows) {
+    // commercial vehicles: cab door + panel seams
+    const cabDoor = spec.cargo ? [spec.cargo[1] + 0.02, ft - (fw.r + 0.2) / L] : [0.9, 0.97];
+    lines.push([cabDoor[0], V(3), cabDoor[0], V(7)], [cabDoor[1], V(3), cabDoor[1], V(7)]);
+    if (spec.cargo) for (let k = 1; k < 5; k++) { const t = spec.cargo[0] + (spec.cargo[1] - spec.cargo[0]) * k / 5; lines.push([t, V(2.9), t, V(9.8)]); }
+    return { lines, rects, trims, width: 1024, height: 512 };
+  }
+  const doorF = Math.min(ft - (fw.r + 0.22) / L, slopeEnd - 0.02);
+  const doorR = spec.bPillar > 0 ? spec.bPillar : Math.max(firstFull, rt + (rw.r + 0.3) / L);
+  const fourDoor = spec.class === 'traffic' || spec.class === 'police';
+  // front door (and rear door on sedans/SUVs)
+  lines.push([doorF, V(2.9), doorF, V(6.95)], [doorR, V(2.9), doorR, V(6.95)], [doorR, V(2.9), doorF, V(2.9)]);
+  rects.push([doorR + 0.018, V(6.35), doorR + 0.045, V(6.55)]); // handle
+  if (fourDoor) {
+    const rearDoorR = Math.max(rt + (rw.r + 0.2) / L, firstFull - 0.02);
+    lines.push([rearDoorR, V(2.9), rearDoorR, V(6.95)], [rearDoorR, V(2.9), doorR, V(2.9)]);
+    rects.push([rearDoorR + 0.018, V(6.35), rearDoorR + 0.045, V(6.55)]);
+  }
+  // hood: shut line across the base of the windshield + along the fender tops
+  const hoodBack = slopeEnd + 0.01;
+  lines.push([hoodBack, V(7.15), hoodBack, V(10)], [hoodBack, V(7.15), 0.975, V(7.15)]);
+  // trunk / hatch
+  const trunkT = spec.fastback || spec.class === 'tuner' ? Math.max(0.03, slopeStart - 0.01) : Math.max(0.04, slopeStart);
+  lines.push([trunkT, V(7.1), trunkT, V(10)], [0.02, V(7.1), trunkT, V(7.1)]);
+  // front bumper / rear bumper seams
+  lines.push([0.955, V(2.9), 0.955, V(5.0)], [0.045, V(2.9), 0.045, V(5.0)]);
+  // fuel cap
+  rects.push([rt + (rw.r + 0.15) / L, V(6.05), rt + (rw.r + 0.23) / L, V(6.4), 'round']);
+  // black window surround (belt molding + roof rail) over the cabin
+  trims.push([slopeStart, V(6.85), slopeEnd, V(7.0)]);
+  if (lastFull - firstFull > 0.02) trims.push([firstFull, V(8.0), lastFull, V(8.2)]);
+  void S;
+  return { lines, rects, trims, width: 1024, height: 512 };
+}
+
 export function buildCar(spec, mats, lod = 0) {
   const S = new CarSurface(spec);
   const root = new THREE.Group();
@@ -65,7 +114,16 @@ export function buildCar(spec, mats, lod = 0) {
   };
 
   const res = lod === 0 ? { nT: spec.length > 6 ? 90 : 64, vSub: 3 } : { nT: spec.length > 6 ? 40 : 26, vSub: 1 };
-  const { geo } = buildSurface(S, { ...res, classify });
+  // baked ambient occlusion: darker toward the sills/underside and inside the wheel arches
+  const ao = (t, v, p) => {
+    let a = 0.45 + 0.55 * Math.min(1, Math.max(0, (v - 1.6) / 2.6));
+    for (const w of spec.wheels) {
+      const d = Math.hypot(p.z - w.z, p.y - w.y);
+      if (d < w.r + 0.35) a *= 0.55 + 0.45 * Math.min(1, Math.max(0, (d - w.r) / 0.35));
+    }
+    return Math.max(0.3, Math.min(1, a));
+  };
+  const { geo } = buildSurface(S, { ...res, classify, ao });
   const bodyMats = [mats.paint, mats.glass, mats.trim, mats.under, mats.chrome];
   const body = new THREE.Mesh(geo, bodyMats);
   body.name = 'body';
@@ -152,6 +210,12 @@ export function buildCar(spec, mats, lod = 0) {
       const m = new THREE.Mesh(mergeGeometries(parts), mats.chrome); m.name = 'cargo_trim'; root.add(m);
     }
   }
+  // every mesh carries vertex colors (AO) so each material has a single vertex-color variant
+  root.traverse((o) => {
+    if (!o.isMesh || o.geometry.attributes.color) return;
+    const n = o.geometry.attributes.position.count;
+    o.geometry.setAttribute('color', new THREE.Float32BufferAttribute(new Float32Array(n * 3).fill(1), 3));
+  });
   return root;
 }
 

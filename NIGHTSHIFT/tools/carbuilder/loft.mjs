@@ -147,13 +147,13 @@ export function stations(n) {
 
 // Build a mirrored mesh of the surface. `classify(t, vSeg)` returns a material index per quad.
 // Produces a BufferGeometry with groups (one per material index), UV u = t, v = v/10.
-export function buildSurface(surface, { nT = 48, vSub = 3, classify, tRange = [0, 1], vRange = [0, 10], offset = 0 }) {
+export function buildSurface(surface, { nT = 48, vSub = 3, classify, tRange = [0, 1], vRange = [0, 10], offset = 0, ao = null }) {
   const ts = stations(nT).map((t) => lerp(tRange[0], tRange[1], t));
   const nV = Math.round((vRange[1] - vRange[0]) * vSub);
   const vs = [];
   for (let j = 0; j <= nV; j++) vs.push(lerp(vRange[0], vRange[1], j / nV));
   const cols = vs.length;
-  const pos = [], uv = [];
+  const pos = [], uv = [], col = [];
   const grid = [];
   for (const side of [1, -1]) {
     const base = pos.length / 3;
@@ -168,6 +168,7 @@ export function buildSurface(surface, { nT = 48, vSub = 3, classify, tRange = [0
         }
         pos.push(p.x * side, p.y, p.z);
         uv.push(t, v / 10);
+        if (ao) { const a = ao(t, v, p); col.push(a, a, a); }
       }
     }
   }
@@ -190,6 +191,7 @@ export function buildSurface(surface, { nT = 48, vSub = 3, classify, tRange = [0
   const geo = new THREE.BufferGeometry();
   geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
   geo.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
+  if (ao) geo.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
   const index = [];
   const mats = [...byMat.keys()].sort((a, b) => a - b);
   for (const m of mats) {
