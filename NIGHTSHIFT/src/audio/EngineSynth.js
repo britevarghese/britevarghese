@@ -34,6 +34,33 @@ const PROFILES = {
   },
 };
 
+
+// Real cars: an engine layout per car on top of one of the four base characters. Firing frequency is
+// rpm/60 * cyl/2, so a two-rotor rotary (fires twice per turn) uses cyl 4; boxers and cross-plane V8s get
+// their uneven burble from a slow, deep amplitude wobble.
+const CAR_SOUNDS = {
+  bmw_m3_e30:            ['tuner',  { cyl: 4, turbo: 0, intake: 0.55, cutRpm: 5200, crackle: 0.7, amDepth: 0.1 }],          // S14 I4, NA
+  subaru_wrx_sti_gc8:    ['tuner',  { cyl: 4, turbo: 1, amDepth: 0.42, amRate: 0.5, sub: 0.3, bodyF: 150, h15: 0.5 }],   // EJ20 boxer, turbo
+  mazda_rx7_fd:          ['tuner',  { cyl: 4, harm: [0, 1, 0.9, 0.85, 0.7, 0.62, 0.5, 0.45, 0.36, 0.3, 0.24], turbo: 0.85, crackle: 1, h15: 0.1, amDepth: 0.05, cutRpm: 6200, q: 3 }], // 13B-REW rotary
+  porsche_930_turbo:     ['sports', { cyl: 6, turbo: 1, amDepth: 0.3, amRate: 0.5, sub: 0.35, bodyF: 150, intake: 0.15 }],  // flat-6, single turbo
+  nissan_skyline_r34:    ['sports', { cyl: 6, turbo: 0.95, intake: 0.4, cutRpm: 4200, crackle: 0.5 }],                      // RB26 I6, twin turbo
+  toyota_supra_mk4:      ['sports', { cyl: 6, turbo: 1, sub: 0.35, cutRpm: 3800, crackle: 0.55 }],                          // 2JZ I6, twin turbo
+  honda_nsx_na1:         ['sports', { cyl: 6, turbo: 0, intake: 0.5, cutRpm: 5200, h2: 0.4, q: 3.2 }],                      // C30A V6, VTEC
+  bmw_m4_f82:            ['sports', { cyl: 6, turbo: 0.7, crackle: 0.9, drive: 2.8, exhaust: 0.34 }],                        // S55 I6, twin turbo
+  nissan_gtr_r35:        ['sports', { cyl: 6, turbo: 0.9, sub: 0.4, bodyF: 140, crackle: 0.6, cutRpm: 3000 }],               // VR38 V6, twin turbo
+  chevrolet_corvette_c8: ['muscle', { cyl: 8, crackle: 1, cutRpm: 2600 }],                                                    // LT2 cross-plane V8
+  porsche_911_gt3:       ['exotic', { cyl: 6, harm: [0, 1, 0.9, 0.62, 0.5, 0.42, 0.34, 0.26, 0.2, 0.15], sub: 0.2, h2: 0.6, cutRpm: 7000, amDepth: 0.12, amRate: 0.5, bodyF: 260 }], // 4.0 flat-6, 9000 rpm
+  audi_r8_v10:           ['exotic', { cyl: 10, crackle: 1, intake: 0.36 }],                                                  // 5.2 V10, NA
+  ferrari_f40:           ['exotic', { cyl: 8, turbo: 1, crackle: 1, h2: 0.4, sub: 0.2, cutRpm: 5000, drive: 3.2 }],          // F120 flat-plane V8, twin turbo
+  mclaren_senna:         ['exotic', { cyl: 8, turbo: 0.8, crackle: 0.9, h2: 0.45, drive: 3 }],                               // M840TR V8, twin turbo
+  lamborghini_centenario:['exotic', { cyl: 12, harm: [0, 0.7, 1, 0.8, 0.7, 0.62, 0.55, 0.5, 0.42, 0.36, 0.3, 0.26, 0.22, 0.2, 0.16], h2: 0.65, cutRpm: 7200, crackle: 1, gain: 0.9 }], // 6.5 V12, NA
+  lamborghini_huracan_tt:['exotic', { cyl: 10, turbo: 0.8, crackle: 1, drive: 3.2, sub: 0.18 }],                             // V10, aftermarket twin turbo
+};
+for (const [id, [base, o]] of Object.entries(CAR_SOUNDS)) PROFILES[id] = { ...PROFILES[base], ...o, base };
+
+/** Engine sound key for a car: its own profile when there is one, else its type's. */
+export const engineSoundFor = (carId, carType) => (PROFILES[carId] ? carId : carType);
+
 export class EngineSynth {
   /**
    * @param ctx AudioContext
@@ -207,10 +234,11 @@ export class EngineSynth {
     this.type = type;
     const p = (this.p = PROFILES[type]);
     const t = this.ctx.currentTime;
+    const base = p.base || type;
     this.oMain.setPeriodicWave(this._wave(type));
-    this.oSub.type = type === 'muscle' ? 'triangle' : 'sine';
-    this.oH15.type = type === 'tuner' ? 'square' : 'sawtooth';
-    this.oH2.type = type === 'exotic' ? 'sawtooth' : 'square';
+    this.oSub.type = base === 'muscle' ? 'triangle' : 'sine';
+    this.oH15.type = base === 'tuner' ? 'square' : 'sawtooth';
+    this.oH2.type = base === 'exotic' ? 'sawtooth' : 'square';
     glide(this.gSub.gain, p.sub * 0.6, t, 0.05);
     glide(this.gH2.gain, p.h2 * 0.5, t, 0.05);
     glide(this.gH15.gain, p.h15 * 0.4, t, 0.05);

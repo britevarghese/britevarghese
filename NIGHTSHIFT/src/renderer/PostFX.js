@@ -12,12 +12,14 @@ const SpeedShader = {
   uniforms: {
     tDiffuse: { value: null }, uBlur: { value: 0 }, uChroma: { value: 0 }, uVignette: { value: 0.35 },
     uFlash: { value: 0 }, uTime: { value: 0 }, uGrain: { value: 0.012 }, uCenter: { value: new THREE.Vector2(0.5, 0.52) },
-    uGray: { value: 0 }, uRain: { value: 0 }, uRainSpeed: { value: 0 }, tDrops: { value: null }, uAspect: { value: 16 / 9 },
+    uGray: { value: 0 }, uSat: { value: 1 }, uContrast: { value: 1 }, uLift: { value: 0 }, uTint: { value: new THREE.Vector3(1, 1, 1) },
+    uRain: { value: 0 }, uRainSpeed: { value: 0 }, tDrops: { value: null }, uAspect: { value: 16 / 9 },
   },
   vertexShader: 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }',
   fragmentShader: `
     uniform sampler2D tDiffuse; uniform float uBlur, uChroma, uVignette, uFlash, uTime, uGrain, uGray; uniform vec2 uCenter;
     uniform sampler2D tDrops; uniform float uRain, uRainSpeed, uAspect;
+    uniform float uSat, uContrast, uLift; uniform vec3 uTint;
     varying vec2 vUv;
     float rand(vec2 co){ return fract(sin(dot(co, vec2(12.9898,78.233))) * 43758.5453); }
     // rain on the lens: droplet normal map (rg = normal, b = mask). Beads fade in/out per cell, some run
@@ -66,6 +68,9 @@ const SpeedShader = {
       col.rgb *= mix(vec3(0.93, 0.98, 1.08), vec3(1.04, 1.0, 0.95), smoothstep(0.02, 0.5, lum));
       float g = dot(col.rgb, vec3(0.299, 0.587, 0.114));
       col.rgb = mix(col.rgb, vec3(g) * vec3(0.9, 0.95, 1.1), uGray);
+      // photo-mode grade (identity unless a filter is set): saturation, tint, contrast around mid-grey, lift
+      col.rgb = max(mix(vec3(g), col.rgb, uSat) * uTint, 0.0);
+      col.rgb = pow(col.rgb / 0.18, vec3(uContrast)) * 0.18 + uLift;
       gl_FragColor = col;
     }`,
 };
@@ -137,6 +142,11 @@ export class PostFX {
     u.uGray.value = fx.busted;
     u.uRain.value = fx.lensRain || 0;
     u.uRainSpeed.value = Math.min(1, fx.lensWind || 0);
+    const ph = fx.photo;
+    u.uSat.value = ph ? ph.sat : 1; u.uContrast.value = ph ? ph.contrast : 1; u.uLift.value = ph ? ph.lift : 0;
+    u.uTint.value.fromArray(ph ? ph.tint : [1, 1, 1]);
+    u.uVignette.value = ph ? ph.vignette : 0.35;
+    u.uGrain.value = 0.012 + (ph ? ph.grain : 0);
     const sz = this.renderer.getSize(_v2);
     u.uAspect.value = sz.x / Math.max(1, sz.y);
     this.speed.enabled = blur > 0.01 || fx.nitro > 0.01 || fx.damageFlash > 0.01 || fx.busted > 0.01 || true;

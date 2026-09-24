@@ -16,11 +16,13 @@ import { Vehicle } from '../vehicles/Vehicle.js';
 import { CARS, tunedParams } from '../vehicles/VehicleCatalog.js';
 import { VehiclePhysics } from '../physics/VehiclePhysics.js';
 import { CameraController, CAMERA_MODES } from '../camera/CameraController.js';
+import { PhotoMode } from '../camera/PhotoMode.js';
 import { TrafficManager } from '../traffic/TrafficManager.js';
 import { TrafficRenderer } from '../traffic/TrafficRenderer.js';
 import { PoliceManager } from '../police/PoliceManager.js';
 import { RaceManager } from '../races/RaceManager.js';
 import { AudioManager } from '../audio/AudioManager.js';
+import { engineSoundFor } from '../audio/EngineSynth.js';
 import { MapRenderer } from '../ui/MapRenderer.js';
 import { HUD } from '../ui/HUD.js';
 import { UIManager } from '../ui/UIManager.js';
@@ -95,6 +97,7 @@ export class Game {
     this.progress = new Progression(this);
     this.hud = new HUD(document.getElementById('hud'), this.mapRenderer, this.settings);
     this.ui = new UIManager(this);
+    this.photo = new PhotoMode(this);
     this.garage = new Garage(this);
     this.net = new NetworkClient(this);
     this.net.connect().catch(() => {});
@@ -453,12 +456,14 @@ export class Game {
     if (driving) {
       if (input.consume('pause')) this.pause();
       else if (input.consume('map')) this.openMap();
+      else if (input.consume('photo') && !this.races.active) this.photo.enter();
       if (input.consume('camera')) this.ui.toast(`Camera: ${this.camCtl.next()}`, '', 1);
       if (input.consume('reset')) this.resetPlayer();
       if (input.consume('horn')) this.audio.playEvent('horn', { position: { x: this.player.state.x, y: 0.5, z: this.player.state.z } });
     } else if (mode === 'paused' || mode === 'map' || mode === 'brief' || mode === 'results' || mode === 'menu') {
       if (mode === 'map' && (input.consume('map') || input.consume('pause'))) this.closeMap();
       else if ((mode === 'paused' || mode === 'brief' || mode === 'results') && input.consume('pause')) this.resume();
+      else if (mode === 'paused' && input.consume('photo')) this.photo.enter();
       else this.ui.navigate(input);
     }
 
@@ -515,6 +520,7 @@ export class Game {
       if (this.weatherT <= 0) { this.weatherT = 180 + Math.random() * 240; const r = Math.random(); this.env.setWeather(r < 0.55 ? 'clear' : r < 0.8 ? 'cloudy' : 'rain'); }
     }
     this.env.update(simulate ? dt : 0, player.renderer.group.position, false, this.camera.position);
+    if (mode === 'photo') this.photo.applyExposure();
     this.world.update(dt, this.camera, this.env.state);
     // camera
     const nitroFx = player.state.nitroActive ? 1 : 0;
@@ -530,6 +536,7 @@ export class Game {
     if (simulate || mode === 'paused' || mode === 'map' || mode === 'brief' || mode === 'results') {
       if (simulate) this.camCtl.update(dt, player, driving ? input.controls : { lookX: 0, lookY: 0 }, this.fx2);
     }
+    if (mode === 'photo') this.photo.update(dt, input);
     // sync visuals
     const camPos = this.camera.position;
     player.sync(dt, camPos, this.env.state);
@@ -551,8 +558,9 @@ export class Game {
     this.world.lights.flushReflections(this.camera);
     this.rm.fx = this.fx2;
     this.rm.render(this.scene, this.camera, dt);
+    if (mode === 'photo') this.photo.afterRender();
     // UI
-    if (mode !== 'menu') this.hud.update(dt, this);
+    if (mode !== 'menu' && mode !== 'photo') this.hud.update(dt, this);
     this.save.update(dt);
     this._dev();
   }
@@ -673,7 +681,7 @@ export class Game {
       a.setPlayerEngine({
         rpm: s.rpm, idleRpm: p.idle, redline: p.redline, throttle: s.throttle, load: s.throttle, speed: Math.abs(s.speed), gear: s.gear,
         nitro: s.nitroActive, skid: s.drifting ? clamp(s.slip * 1.6, 0.3, 1) : this.player.physics.lastWheelspin > 0.3 ? 0.6 : (s.brake > 0.8 && Math.abs(s.speed) > 20 ? 0.5 : 0),
-        onGround: s.onGround, damage: s.damage, carType: this.player.carType,
+        onGround: s.onGround, damage: s.damage, carType: engineSoundFor(this.player.carId, this.player.carType),
       });
     }
     if (this.nitroWas !== s.nitroActive) { a.playEvent(s.nitroActive ? 'nitroStart' : 'nitroEnd'); this.nitroWas = s.nitroActive; }

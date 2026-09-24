@@ -7,6 +7,7 @@ import { RACE_TYPE_NAMES } from '../races/RaceEvents.js';
 import { SAFEHOUSES, SHOPS } from '../world/CityLayout.js';
 import { CHAPTERS, MISSIONS } from '../progression/Missions.js';
 import { CARS } from '../vehicles/VehicleCatalog.js';
+import { FILTERS } from '../camera/PhotoMode.js';
 
 const h = (tag, cls, html) => { const e = document.createElement(tag); if (cls) e.className = cls; if (html !== undefined) e.innerHTML = html; return e; };
 
@@ -100,6 +101,7 @@ export class UIManager {
     const items = [
       ['RESUME', () => g.resume()],
       ['MAP', () => this.showMap(false)],
+      ['PHOTO MODE', () => g.photo.enter()],
       ['CAREER', () => this.showCareer(() => this.showPause())],
       ['SETTINGS', () => this.showSettings(() => this.showPause())],
       ['RESET CAR', () => { g.resetPlayer(); g.resume(); }],
@@ -113,6 +115,51 @@ export class UIManager {
     this.screens.appendChild(s);
     this.current = 'pause';
     this._menuNav(btns, () => g.resume());
+  }
+
+  // ------------------------------------------------------------------ photo mode
+  showPhoto(pm) {
+    this.clear();
+    const o = pm.opts;
+    const s = h('div', 'photo-ui');
+    const panel = h('div', 'panel photo-panel', '<h2>PHOTO MODE</h2>');
+    const row = (label, key, min, max, step, fmt, onInput) => {
+      const r = h('div', 'photo-row');
+      const val = h('span', 'photo-val', fmt(o[key]));
+      const inp = h('input'); inp.type = 'range'; inp.min = min; inp.max = max; inp.step = step; inp.value = o[key];
+      inp.oninput = () => { o[key] = +inp.value; val.textContent = fmt(o[key]); onInput?.(o[key]); };
+      r.append(h('label', '', label), val, inp);
+      panel.appendChild(r);
+    };
+    row('LENS', 'fov', 15, 100, 1, (v) => `${Math.round(18 / Math.tan((v * Math.PI) / 360))} mm`);
+    row('EXPOSURE', 'ev', -2, 2, 0.1, (v) => `${v > 0 ? '+' : ''}${v.toFixed(1)} EV`);
+    row('ROLL', 'roll', -30, 30, 1, (v) => `${v}°`);
+    row('MOTION BLUR', 'blur', 0, 1, 0.05, (v) => `${Math.round(v * 100)}%`);
+    row('VIGNETTE', 'vignette', 0, 1, 0.05, (v) => `${Math.round(v * 100)}%`);
+    row('TIME', 'hour', 0, 23.9, 0.1, (v) => `${String(Math.floor(v)).padStart(2, '0')}:${String(Math.floor((v % 1) * 60)).padStart(2, '0')}`, (v) => pm.setHour(v));
+    const fl = h('div', 'photo-filters');
+    for (const [id, f] of Object.entries(FILTERS)) {
+      const b = h('button', 'photo-filter' + (o.filter === id ? ' on' : ''), f.label);
+      b.onclick = () => { o.filter = id; fl.querySelectorAll('button').forEach((x) => x.classList.toggle('on', x === b)); b.blur(); };
+      fl.appendChild(b);
+    }
+    panel.appendChild(fl);
+    const shot = h('button', 'menu-item photo-shot', 'SAVE PHOTO');
+    shot.onclick = () => { pm.capture(); shot.blur(); };
+    const back = h('button', 'menu-item', 'EXIT');
+    back.onclick = () => pm.exit();
+    panel.append(shot, back);
+    panel.appendChild(h('div', 'hint', 'DRAG orbit · RIGHT-DRAG pan · WHEEL zoom · WASD/QE move · ENTER save · H hide · ESC exit'));
+    s.appendChild(panel);
+    s.appendChild(h('div', 'photo-flash'));
+    this.screens.appendChild(s);
+    this.current = 'photo';
+  }
+  togglePhotoPanel() { this.screens.querySelector('.photo-panel')?.classList.toggle('hidden'); }
+  photoFlash() {
+    const f = this.screens.querySelector('.photo-flash');
+    if (!f) return;
+    f.classList.remove('go'); void f.offsetWidth; f.classList.add('go');
   }
 
   // ------------------------------------------------------------------ career

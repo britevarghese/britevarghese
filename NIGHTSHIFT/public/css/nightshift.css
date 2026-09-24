@@ -257,3 +257,20 @@ input[type=range] { width: 100%; accent-color: var(--accent); }
 .combo .cp { font-size: 2rem; font-weight: 800; font-style: italic; letter-spacing: 0.05em; }
 .combo .ct { width: 9rem; height: 0.2rem; margin: 0.2rem auto 0; background: rgba(255,255,255,0.15); }
 .combo .ct i { display: block; height: 100%; background: var(--gold); }
+
+/* ---------- photo mode */
+.photo-ui { position: absolute; inset: 0; pointer-events: none; }
+.photo-panel { pointer-events: auto; position: absolute; top: 1.2rem; right: 1.2rem; width: 300px; max-width: calc(100vw - 32px); padding: 1rem 1.1rem; max-height: calc(100vh - 2.4rem); overflow-y: auto; }
+.photo-panel h2 { margin: 0 0 0.6rem; letter-spacing: 0.2em; font-size: 1rem; color: var(--accent); }
+.photo-row { display: grid; grid-template-columns: 1fr auto; gap: 0.15rem 0.5rem; margin-bottom: 0.55rem; font-size: 0.78rem; letter-spacing: 0.1em; }
+.photo-row input { grid-column: 1 / -1; }
+.photo-val { color: var(--dim); font-variant-numeric: tabular-nums; }
+.photo-filters { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.3rem; margin: 0.4rem 0 0.8rem; }
+.photo-filter { background: rgba(255,255,255,0.05); border: 1px solid var(--line); color: inherit; font: inherit; font-size: 0.72rem; letter-spacing: 0.1em; padding: 0.4rem 0; cursor: pointer; }
+.photo-filter.on { border-color: var(--accent); color: var(--accent); }
+.photo-panel .menu-item { width: 100%; }
+.photo-panel .hint { font-size: 0.66rem; line-height: 1.5; }
+.photo-flash { position: absolute; inset: 0; background: #fff; opacity: 0; pointer-events: none; }
+.photo-flash.go { animation: photoflash 0.35s ease-out; }
+@keyframes photoflash { 0% { opacity: 0.55; } 100% { opacity: 0; } }
+@media (max-width: 600px) { .photo-panel { top: auto; bottom: 16px; right: 16px; left: 16px; width: auto; max-height: 45vh; } }
