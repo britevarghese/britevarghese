@@ -72,6 +72,17 @@ export class Shot {
     return this.play(s, t, buf.duration / rate + 0.05);
   }
 
+  /** Play a pre-rendered buffer with level, pitch and an optional low-pass (soft hits sound duller). */
+  sample(buf, t, { rate = 1, gain = 1, lp = null } = {}) {
+    const src = this.ctx.createBufferSource(); src.buffer = buf; src.playbackRate.value = rate;
+    const g = this.gain(gain);
+    let n = src;
+    if (lp) { const f = this.filter('lowpass', lp, 0.6); n.connect(f); n = f; }
+    n.connect(g).connect(this.out);
+    this.play(src, t, buf.duration / rate + 0.05);
+    return src;
+  }
+
   /** Oscillator tone with AD envelope and optional pitch glide. Returns the osc. */
   tone(type, f, t, a, peak, dec, fEnd, dest = this.out) {
     const o = this.osc(type, f, t, a + dec + 0.05);
@@ -147,11 +158,32 @@ function glassTinkle(s, t, amt, n = 10) {
   s.noiseHit('white', 'highpass', 5200, 0.7, t + 0.01, 0.002, 0.18 * amt, 0.22);
 }
 
+// impact type -> bank sound; intensity drives level, brightness and (slightly) pitch
+const IMPACT = { heavy: 'crash', traffic: 'crash', light: 'bump', wall: 'wall', pole: 'pole', barrier: 'barrier' };
+function playImpact(s, t, bank, name, k, extra = {}) {
+  const buf = bank.pick(name);
+  if (!buf) return false;
+  s.sample(buf, t, {
+    rate: rand(0.93, 1.07) * (1.08 - 0.16 * k),          // bigger hits: heavier, lower
+    gain: (0.22 + 0.78 * Math.pow(k, 0.8)) * (extra.gain ?? 1),
+    lp: 900 + 17000 * Math.pow(k, 1.3),                   // soft taps are dull, big hits are bright
+  });
+  return true;
+}
+
 const R = {
   collision(s, t, o, m) {
     const k = clamp(num(o.intensity, 0.6), 0, 1);
     const amt = 0.35 + 0.65 * k;
     const type = o.type || (k > 0.6 ? 'heavy' : 'light');
+    const bank = m.impacts;
+    if (bank?.ready) {
+      let name = IMPACT[type] || 'crash';
+      if (name === 'crash' && k < 0.25) name = 'bump';
+      playImpact(s, t, bank, name, k);
+      if (type === 'wall' && k > 0.45) playImpact(s, t + 0.004, bank, 'crash', k, { gain: 0.55 }); // body panels crumple too
+      return;
+    }
     switch (type) {
       case 'heavy': {
         const crunch = s.shaper(m.curves.crunch);
@@ -214,6 +246,8 @@ const R = {
 
   crackle(s, t, o, m) {
     const k = num(o.intensity, 0.6);
+    const pop = m.impacts?.ready && m.impacts.pick('backfire');
+    if (pop) { s.sample(pop, t, { rate: rand(0.85, 1.2), gain: 0.35 + 0.55 * k, lp: 3000 + 9000 * k }); return; }
     s.noiseHit('white', 'bandpass', rand(500, 1300), 1.2, t, 0.001, 0.9 * k, rand(0.02, 0.06), null, s.out, s.shaper(m.curves.crunch));
     s.tone('sine', rand(70, 110), t, 0.001, 0.5 * k, 0.05, 40);
   },
@@ -228,6 +262,8 @@ const R = {
 
   gearUp(s, t, o, m) {
     m.engine && m.engine.shiftDip(true);
+    const cl = m.impacts?.ready && m.impacts.pick('clunk');
+    if (cl) { s.sample(cl, t, { rate: rand(0.9, 1.1), gain: 0.35, lp: 5000 }); return; }
     s.noiseHit('brown', 'lowpass', 900, 1, t, 0.002, 0.35, 0.05);
     s.tone('sine', 150, t, 0.001, 0.25, 0.06, 90);
     s.noiseHit('white', 'bandpass', 3200, 6, t + 0.01, 0.001, 0.05, 0.02);
@@ -235,6 +271,8 @@ const R = {
 
   gearDown(s, t, o, m) {
     m.engine && m.engine.shiftDip(false);
+    const cl = m.impacts?.ready && m.impacts.pick('clunk');
+    if (cl) { s.sample(cl, t, { rate: rand(0.8, 0.95), gain: 0.3, lp: 4000 }); return; }
     s.noiseHit('brown', 'lowpass', 700, 1, t, 0.002, 0.35, 0.06);
     s.tone('sine', 120, t, 0.001, 0.22, 0.07, 70);
   },
@@ -259,8 +297,9 @@ const R = {
     s.noiseHit('white', 'bandpass', 3000, 8, t, 0.03, 0.15 * k, dur);
   },
 
-  landing(s, t, o) {
+  landing(s, t, o, m) {
     const k = clamp(num(o.intensity, 0.5), 0, 1);
+    if (m?.impacts?.ready && playImpact(s, t, m.impacts, 'landing', k)) { if (k > 0.6) playImpact(s, t + 0.01, m.impacts, 'bump', k * 0.6, { gain: 0.5 }); return; }
     s.tone('sine', 90, t, 0.002, 0.7 * (0.3 + k), 0.25, 38);
     s.noiseHit('brown', 'lowpass', 600, 1, t, 0.002, 0.6 * (0.3 + k), 0.18);
     s.noiseHit('white', 'bandpass', 1800, 5, t + 0.03, 0.001, 0.08 * k, 0.05);

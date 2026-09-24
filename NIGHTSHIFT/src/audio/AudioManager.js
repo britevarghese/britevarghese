@@ -9,6 +9,7 @@ import { EngineSynth } from './EngineSynth.js';
 import { SirenVoice, TrafficVoice } from './Siren.js';
 import { MusicSynth } from './MusicSynth.js';
 import { Shot, RECIPES } from './Sfx.js';
+import { ImpactBank } from './ImpactBank.js';
 
 const DEFAULT_SETTINGS = { master: 0.8, engine: 0.8, traffic: 0.7, police: 0.8, music: 0.6, environment: 0.7 };
 const MAX_ONE_SHOTS = 16;
@@ -150,6 +151,9 @@ export class AudioManager {
     this.ctx = ctx;
     this.buffers = createNoiseBuffers(ctx);
     this.curves = { crunch: makeCrunchCurve() };
+    // pre-rendered crash / impact / backfire / scrape sounds (built in small slices after start-up)
+    this.impacts = new ImpactBank(ctx);
+    this.impacts.build(() => { this._initScrape(); this.engine?.attachScreech(this.impacts.pick('screech')); });
 
     const g = (v = 1) => { const n = ctx.createGain(); n.gain.value = v; return n; };
 
@@ -444,6 +448,26 @@ export class AudioManager {
       console.warn('[audio] playEvent failed:', name, e);
       return false;
     }
+  }
+
+  // continuous grinding while the car slides along a wall / barrier (instead of a stream of thumps)
+  _initScrape() {
+    const ctx = this.ctx, buf = this.impacts.pick('scrape');
+    if (!buf || !this.carSfxGate) return;
+    const src = ctx.createBufferSource(); src.buffer = buf; src.loop = true;
+    this.scrapeLP = ctx.createBiquadFilter(); this.scrapeLP.type = 'lowpass'; this.scrapeLP.frequency.value = 2500; this.scrapeLP.Q.value = 0.6;
+    this.scrapeGain = ctx.createGain(); this.scrapeGain.gain.value = 0;
+    src.connect(this.scrapeLP).connect(this.scrapeGain).connect(this.carSfxGate);
+    src.start();
+    this.scrapeSrc = src;
+  }
+  /** level 0..1 (0 = not touching), speed m/s along the wall */
+  setScrape(level, speed = 0) {
+    if (!this.scrapeGain) return;
+    const t = this.ctx.currentTime;
+    glide(this.scrapeGain.gain, level * 0.5, t, level > 0 ? 0.02 : 0.07);
+    glide(this.scrapeLP.frequency, 1200 + Math.min(speed, 45) * 180, t, 0.05);
+    glide(this.scrapeSrc.playbackRate, 0.65 + Math.min(speed, 45) / 45 * 0.7, t, 0.08);
   }
 
   /** Engine-internal events (crackle pops, blow-off). Lower priority: skipped when busy. */

@@ -647,7 +647,12 @@ export class Game {
         this.input.rumble(e.intensity, e.intensity * 0.5, 180);
       } else if (e.type === 'collision') {
         const type = e.intensity > 0.45 ? 'heavy' : (KIND_SOUND[e.kind] || 'light');
-        this.audio.playEvent('collision', { intensity: e.intensity, type, position: { x: e.x, y: 0.5, z: e.z } });
+        // light contacts while moving = grinding along the object: a continuous scrape, not a stream of thumps
+        const sp = Math.hypot(s.vx, s.vz);
+        const grinding = e.intensity < 0.18 && sp > 4 && e.kind !== 'pole' && e.kind !== 'tree';
+        const already = this.scrapeT > 0;
+        if (grinding) { this.scrapeT = 0.22; this.scrapeSpeed = sp; }
+        if (!(grinding && already)) this.audio.playEvent('collision', { intensity: e.intensity, type, position: { x: e.x, y: 0.5, z: e.z } });
         this.fx.impact(e.x, 0.6, e.z, e.nx, e.nz, e.intensity, s.vx, s.vz);
         this.camCtl.addShake(e.intensity * 0.8);
         this.input.rumble(e.intensity, e.intensity, 150);
@@ -728,6 +733,8 @@ export class Game {
     const up = new THREE.Vector3(0, 1, 0).applyQuaternion(cam.quaternion);
     a.setListener({ position: cam.position, forward: fwd, up });
     const s = this.player.state, p = this.player.p;
+    this.scrapeT = (this.scrapeT || 0) - dt;
+    a.setScrape?.(this.scrapeT > 0 && mode === 'drive' ? clamp(0.35 + (this.scrapeSpeed || 0) / 40, 0.35, 1) : 0, this.scrapeSpeed || 0);
     if (mode !== 'garage') {
       a.setPlayerEngine({
         rpm: s.rpm, idleRpm: p.idle, redline: p.redline, throttle: s.throttle, load: s.throttle, speed: Math.abs(s.speed), gear: s.gear,

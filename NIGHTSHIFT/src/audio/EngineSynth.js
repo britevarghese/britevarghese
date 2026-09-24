@@ -227,6 +227,19 @@ export class EngineSynth {
     this.setCarType('sports');
   }
 
+  /** Swap the whistle-like skid tone for a rendered tyre-screech loop (from the impact bank). */
+  attachScreech(buf) {
+    if (!buf || this.screech) return;
+    const c = this.ctx;
+    const src = c.createBufferSource(); src.buffer = buf; src.loop = true;
+    this.screechGain = c.createGain(); this.screechGain.gain.value = 0;
+    src.connect(this.screechGain).connect(this.skidGain);
+    src.start();
+    this.screech = src;
+    this.skidToneGain.gain.value = 0;   // retire the oscillator whine
+    this.skidBP.disconnect(); const hiss = c.createGain(); hiss.gain.value = 0.3; this.skidBP.connect(hiss).connect(this.skidGain); // keep a little broadband hiss
+  }
+
   /** Load the physical engine model; until (or unless) it loads, the oscillator engine plays. */
   async initWorklet() {
     try {
@@ -401,6 +414,10 @@ export class EngineSynth {
     glide(this.skidGain.gain, Math.pow(st.skid, 1.4) * 0.35 * ground, t, 0.04);
     glide(this.skidBP.frequency, 1100 + st.skid * 500 + spN * 200, t, 0.05);
     glide(this.skidTone.frequency, 850 + st.skid * 180, t, 0.05);
+    if (this.screech) {
+      glide(this.screechGain.gain, 0.9 + st.skid * 0.4, t, 0.05);
+      glide(this.screech.playbackRate, 0.88 + st.skid * 0.14 + Math.min(spN, 1) * 0.08, t, 0.08); // harder slides squeal higher
+    }
     glide(this.roadGain.gain, clamp(spN, 0, 1) * 0.35 * ground, t, 0.08);
     glide(this.roadLP.frequency, 90 + spN * 180, t, 0.08);
     glide(this.hissGain.gain, spN * spN * 0.06 * ground, t, 0.08);
