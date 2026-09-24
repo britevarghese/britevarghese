@@ -150,7 +150,25 @@ export class Effects {
     this.sparks = new SparkPool(scene, Math.floor(220 * k) + 30);
     this.splash = new SparkPool(scene, Math.floor(160 * k) + 20);
     this.skids = new SkidMarks(scene, Math.floor(2500 * Math.max(0.5, k)));
+    this.steam = new SmokePool(scene, Math.floor(110 * k) + 20, 0xe8ecf0);
+    this.steamSources = [];
     this.scale = k;
+  }
+
+  // manholes that vent steam (city atmosphere); picked once from the planner's props
+  setSteamSources(list) { this.steamSources = list; this._steamT = 0; }
+
+  ambient(dt, camPos, env) {
+    if (!this.steamSources.length || dt <= 0) return;
+    const rate = (0.35 + (env?.night || 0) * 0.65) * (1 + (env?.rain || 0) * 0.6) * this.scale;
+    for (const v of this.steamSources) {
+      const d = Math.hypot(v.x - camPos.x, v.z - camPos.z);
+      if (d > 120) continue;
+      if (Math.random() < dt * 6 * rate) {
+        const r = () => Math.random() - 0.5;
+        this.steam.emit(v.x + r() * 0.5, 0.15, v.z + r() * 0.5, r() * 0.4, 0.9 + Math.random() * 0.8, r() * 0.4, 0.7 + Math.random() * 0.4, 3.5 + Math.random() * 1.5, 3.2, 1);
+      }
+    }
   }
 
   // tire smoke / marks for a vehicle this frame
@@ -210,11 +228,11 @@ export class Effects {
 
   setLight(night) {
     const k = 1 - night * 0.62;
-    this.smoke.setLight(k); this.dust.setLight(k); this.dark.setLight(1);
+    this.smoke.setLight(k); this.dust.setLight(k); this.dark.setLight(1); this.steam.setLight(k * 0.9);
   }
 
   update(dt, camera) {
-    this.smoke.update(dt, camera); this.dust.update(dt, camera); this.dark.update(dt, camera);
+    this.smoke.update(dt, camera); this.dust.update(dt, camera); this.dark.update(dt, camera); this.steam.update(dt, camera);
     this.sparks.update(dt, camera); this.splash.update(dt, camera);
   }
   get particleCount() { return this.smoke.count + this.dust.count + this.dark.count + this.sparks.parts.length + this.splash.parts.length; }

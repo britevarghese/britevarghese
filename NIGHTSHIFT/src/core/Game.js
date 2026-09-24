@@ -83,6 +83,8 @@ export class Game {
     this.world.lights.rebuild(this.world.chunks.nearKeys, this.world.chunks.nearPos);
     progress(0.92, 'Starting systems...');
     this.fx = new Effects(this.scene, preset);
+    // ~1 in 7 manholes vents steam (deterministic by position)
+    this.fx.setSteamSources(this.world.planner.props.filter((q) => q.type === 'manhole' && ((Math.floor(q.x * 7.31 + q.z * 3.17) % 7) + 7) % 7 === 0));
     this.debris = new Debris(this.scene, this.world.props.defs, (x, z) => this.world.layout.groundHeight(x, z), 40);
     this.police = new PoliceManager(this);
     try { this.police.prewarm(); } catch (e) { console.warn('[Game] police prewarm failed', e); }
@@ -517,6 +519,7 @@ export class Game {
     for (const v of this.races.vehicles()) this.fx.vehicle(v, dt, this.env.state);
     for (const u of this.police.units) if (u.vehicle.state.drifting) this.fx.vehicle(u.vehicle, dt, this.env.state);
     if (simulate) this.fx.rainSplashes(dt, camPos, this.env.state.rain);
+    if (simulate) this.fx.ambient(dt, camPos, this.env.state);
     this.fx.setLight(this.env.state.night);
     this.fx.update(simulate ? dt : 0, this.camera);
     this.debris.update(simulate ? dt : 0);
