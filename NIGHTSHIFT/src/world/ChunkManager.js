@@ -118,6 +118,7 @@ export class ChunkManager {
     if (sig !== this.nearKeySig) {
       this.nearKeySig = sig;
       this.nearKeys = near;
+      this.nearPos = { x: pos.x, z: pos.z };
       bus.emit('chunks:near', near);
     }
     let loaded = 0, detailed = 0;

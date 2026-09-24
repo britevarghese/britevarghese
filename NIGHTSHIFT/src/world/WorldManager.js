@@ -36,7 +36,7 @@ export class WorldManager {
     this.lights = new LightSystem(scene, materials, this.planner, this.layout);
     this.lights.setDynamicCount(preset.streetLights || 0);
     this.preset = preset;
-    bus.on('chunks:near', (keys) => { this.nearKeys = keys; this.props.rebuild(keys, this.preset.props); this.lights.rebuild(keys); });
+    bus.on('chunks:near', (keys) => { this.nearKeys = keys; this.props.rebuild(keys, this.preset.props); this.lights.rebuild(keys, this.chunks.nearPos); });
     bus.on('prop:break', ({ p }) => { if (!p) return; this.props.hide(p); if (p.type === 'lamp') this.lights.rebuild(this.nearKeys || []); });
     bus.on('prop:restore', () => { if (this.nearKeys) { this.props.rebuild(this.nearKeys, this.preset.props); this.lights.rebuild(this.nearKeys); } });
     this._buildTerrain(scene, materials);

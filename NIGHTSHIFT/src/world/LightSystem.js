@@ -42,6 +42,20 @@ export class LightSystem {
     this.halos = new THREE.InstancedMesh(hg, this.haloMat, 900);
     this.halos.frustumCulled = false; this.halos.count = 0; this.halos.renderOrder = 4;
     scene.add(this.pools, this.streaks, this.halos);
+    // every lamp head in the city as one additive point layer: outlines the street grid at night from
+    // the highway, the hills or the air. Lamps in the near chunks are zeroed (they have real halos).
+    this.farHeads = [];
+    for (const list of this.lampsByChunk.values()) for (const h of list) this.farHeads.push(h);
+    const fp = new Float32Array(this.farHeads.length * 3), fc = new Float32Array(this.farHeads.length * 3);
+    this.farHeads.forEach((h, i) => { fp.set([h[0], h[1], h[2]], i * 3); });
+    const fg = new THREE.BufferGeometry();
+    fg.setAttribute('position', new THREE.BufferAttribute(fp, 3));
+    fg.setAttribute('color', new THREE.BufferAttribute(fc, 3));
+    // no fog: lamps stay visible through night haze well past the streamed city (baked falloff instead)
+    this.farMat = new THREE.PointsMaterial({ size: 6, map: materials.glow.map, vertexColors: true, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false, fog: false, sizeAttenuation: true });
+    this.far = new THREE.Points(fg, this.farMat);
+    this.far.frustumCulled = false; this.far.renderOrder = 4;
+    scene.add(this.far);
     this.active = [];
     this.lamps = [];
     this.scene = scene;
@@ -93,7 +107,8 @@ export class LightSystem {
     }
   }
 
-  rebuild(keys) {
+  rebuild(keys, focus = this._focus) {
+    if (focus) this._focus = focus;
     this.active = [];
     this.lamps = [];
     for (const k of keys) {
@@ -111,6 +126,16 @@ export class LightSystem {
     this.poolFade = -1;
     this.pools.count = n;
     this.pools.instanceMatrix.needsUpdate = true;
+    // far lamp layer: everything outside the near set
+    const nearSet = new Set(this.lamps);
+    const fc = this.far.geometry.attributes.color;
+    const fx = this._focus?.x ?? 0, fz = this._focus?.z ?? 0;
+    this.farHeads.forEach((h, i) => {
+      if (nearSet.has(h) || h[4]?.broken) { fc.setXYZ(i, 0, 0, 0); return; }
+      const k = Math.min(1, Math.max(0.22, 1.15 - Math.hypot(h[0] - fx, h[2] - fz) / 2600)); // haze extinction
+      _c.setHex(h[3]).multiplyScalar(k); fc.setXYZ(i, _c.r, _c.g, _c.b);
+    });
+    fc.needsUpdate = true;
     this.pools.instanceColor.needsUpdate = true;
   }
 
@@ -119,6 +144,8 @@ export class LightSystem {
     this._updateDynamic(camera, night, dt);
     this.pools.visible = night > 0.32;
     this.halos.visible = night > 0.32;
+    this.far.visible = night > 0.32;
+    this.farMat.opacity = Math.min(1, (night - 0.3) * 1.5);
     this.haloMat.opacity = Math.min(1, (night - 0.3) * 1.5);
     const wet = this.M.streak.visible;
     this.streaks.visible = wet && night > 0.32;

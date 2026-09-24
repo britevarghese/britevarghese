@@ -80,7 +80,7 @@ export class Game {
     const p = this.player.state;
     await this.world.chunks.preload(new THREE.Vector3(p.x, 0, p.z), Math.min(preset.viewDistance, 520), (k) => progress(0.4 + k * 0.5, 'Loading city...'));
     this.world.props.rebuild(this.world.chunks.nearKeys, preset.props);
-    this.world.lights.rebuild(this.world.chunks.nearKeys);
+    this.world.lights.rebuild(this.world.chunks.nearKeys, this.world.chunks.nearPos);
     progress(0.92, 'Starting systems...');
     this.fx = new Effects(this.scene, preset);
     this.debris = new Debris(this.scene, this.world.props.defs, (x, z) => this.world.layout.groundHeight(x, z), 40);
