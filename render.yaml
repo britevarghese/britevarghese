@@ -1,9 +1,12 @@
-# Render.com blueprint: New + > Blueprint > pick this repo. WebSockets are supported on web services.
+# Render.com blueprint — dashboard: New + > Blueprint > pick this repo (and branch).
+# WebSockets work on Render web services. "free" sleeps after ~15 min idle (first visit then takes ~1 min to wake);
+# switch to "starter" for an always-on server.
 services:
   - type: web
     name: strikepoint
     runtime: docker
-    plan: starter        # the free plan also works but sleeps when idle (first join then takes ~30 s)
+    plan: free
+    branch: claude/sweet-shannon-f8vai1
     healthCheckPath: /api/health
     envVars:
       - key: BOTS
