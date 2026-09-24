@@ -331,7 +331,7 @@ export class VehicleRenderer {
     this.brake = lerp(this.brake, braking ? 1 : 0, 0.4);
     const m = this.mats;
     if (m.headlight) m.headlight.emissiveIntensity = hOn ? 3.2 : 0.4;
-    if (m.taillight) m.taillight.emissiveIntensity = (hOn ? 1.4 : 0.04) + this.brake * (hOn ? 4 : 2.5);
+    if (m.taillight) m.taillight.emissiveIntensity = (hOn ? 1.4 : 0.04) + this.brake * (hOn ? 4 : 1.6);
     // lamp flares: only when the lamp faces the viewer, sized by distance (no giant blobs up close)
     let facing = 1, dist = 20;
     if (camPos) {
@@ -350,8 +350,9 @@ export class VehicleRenderer {
     for (const f of this.tailFlares) {
       const on = hOn || this.brake > 0.1;
       f.visible = on && tailK > 0.01;
-      f.material.opacity = tailK * (0.45 + this.brake * 0.55);
-      f.scale.setScalar(fsize * (0.55 + this.brake * 0.4));
+      // in daylight a brake lamp reads as a lit lens, not a glowing halo
+      f.material.opacity = tailK * (0.45 + this.brake * 0.55) * (hOn ? 1 : 0.3);
+      f.scale.setScalar(fsize * (0.55 + this.brake * 0.4) * (hOn ? 1 : 0.6));
     }
     this.beam.visible = hOn && !(this.lightsBroken[0] && this.lightsBroken[1]);
     this.beam.material.opacity = (this.spots.length ? 0.18 : 0.5) * Math.min(1, night * 1.2) * (this.lightsBroken[0] || this.lightsBroken[1] ? 0.5 : 1);

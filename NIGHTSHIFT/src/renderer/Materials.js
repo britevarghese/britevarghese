@@ -58,9 +58,15 @@ export class Materials {
     this.orange = new THREE.MeshStandardMaterial({ name: 'orange', color: 0xff5a10, roughness: 0.6 });
     this.white = new THREE.MeshStandardMaterial({ name: 'white', color: 0xdddddd, roughness: 0.6 });
     this.bark = new THREE.MeshStandardMaterial({ name: 'bark', color: 0x3a2c22, roughness: 1 });
-    this.leaves = new THREE.MeshStandardMaterial({ name: 'leaves', map: TX.leaves(), alphaTest: 0.45, side: THREE.DoubleSide, roughness: 0.9, color: 0xc0d8a0 });
+    // leaf cards are emitted front+back with crown-space normals, so single-sided is correct
+    this.leaves = new THREE.MeshStandardMaterial({ name: 'leaves', map: TX.leaves(), alphaTest: 0.4, roughness: 0.85, color: 0xd4e4c0 });
     this.lampHead = new THREE.MeshBasicMaterial({ name: 'lampHead', color: 0xffe6b8, toneMapped: false });
     this.lampHeadCool = new THREE.MeshBasicMaterial({ name: 'lampHeadCool', color: 0xd8e8ff, toneMapped: false });
+    // rooftop water tanks and storefront awnings
+    this.tankWood = new THREE.MeshStandardMaterial({ name: 'tankWood', map: TX.concrete(1, 21, 120).map, roughness: 0.95, color: 0x6a4c36 });
+    this.awning = new THREE.MeshStandardMaterial({ name: 'awning', map: TX.awningAtlas(), roughness: 0.9, side: THREE.DoubleSide });
+    // aviation obstruction lights on tall roofs (blink driven by WorldManager)
+    this.beacon = new THREE.MeshBasicMaterial({ name: 'beacon', color: 0xff1a0a, toneMapped: false });
     this.glassDark = new THREE.MeshStandardMaterial({ name: 'glassDark', color: 0x0c1218, roughness: 0.05, metalness: 0.6, envMapIntensity: 1.3 });
     // additive light pools on the ground (fake street lighting)
     this.lightPool = new THREE.MeshBasicMaterial({

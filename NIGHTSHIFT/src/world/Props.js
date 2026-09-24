@@ -17,21 +17,43 @@ function decalQuad(cell, w, l) {
   return g;
 }
 
+// Canopy made of leaf-cluster cards scattered through an ellipsoid crown. Normals point away
+// from the crown center (not the card plane) so the whole crown shades like a soft volume, and
+// each card is emitted twice (front/back) with the same normal so back faces aren't flipped dark.
 function treeCanopy(seed) {
   const R = rng(seed);
-  const parts = [];
-  for (let i = 0; i < 4; i++) {
-    const g = new THREE.IcosahedronGeometry(1.3 + R() * 0.6, 1);
-    const p = g.attributes.position;
-    for (let k = 0; k < p.count; k++) { const s = 0.8 + R() * 0.45; p.setXYZ(k, p.getX(k) * s, p.getY(k) * s * 0.8, p.getZ(k) * s); }
-    g.computeVertexNormals();
-    const a = (i / 4) * Math.PI * 2;
-    g.translate(Math.cos(a) * (i ? 1.1 : 0), 4.3 + (i ? R() * 0.9 : 1.2), Math.sin(a) * (i ? 1.1 : 0));
-    parts.push(g);
+  const pos = [], nor = [], uv = [], idx = [];
+  const C = new THREE.Vector3(0, 4.9, 0), RX = 2.2, RY = 1.65;
+  const q = new THREE.Quaternion(), e = new THREE.Euler();
+  const ax = new THREE.Vector3(), ay = new THREE.Vector3(), p = new THREE.Vector3(), v = new THREE.Vector3(), n = new THREE.Vector3();
+  const cards = 44;
+  for (let i = 0; i < cards; i++) {
+    const th = 2 * Math.PI * R(), ph = Math.acos(2 * R() - 1);
+    const r = 0.45 + 0.55 * Math.cbrt(R());
+    p.set(Math.sin(ph) * Math.cos(th) * RX * r, Math.cos(ph) * RY * r, Math.sin(ph) * Math.sin(th) * RX * r).add(C);
+    const size = 1.2 + R() * 0.9;
+    e.set(R() * Math.PI, R() * Math.PI * 2, R() * Math.PI); q.setFromEuler(e);
+    ax.set(size / 2, 0, 0).applyQuaternion(q); ay.set(0, size / 2, 0).applyQuaternion(q);
+    // atlas 2x2: three sunlit cluster variants + one darker inner-foliage variant
+    const cell = r < 0.7 ? 3 : i % 3, u0 = (cell % 2) * 0.5, v0 = Math.floor(cell / 2) * 0.5;
+    for (const side of [1, -1]) {
+      const base = pos.length / 3;
+      for (const [cx, cy] of [[-1, -1], [1, -1], [1, 1], [-1, 1]]) {
+        v.copy(p).addScaledVector(ax, cx).addScaledVector(ay, cy);
+        n.copy(v).sub(C); n.y *= 1.4; n.normalize();
+        pos.push(v.x, v.y, v.z); nor.push(n.x, n.y, n.z);
+        uv.push(u0 + ((cx + 1) / 2) * 0.5, v0 + ((cy + 1) / 2) * 0.5);
+      }
+      if (side === 1) idx.push(base, base + 1, base + 2, base, base + 2, base + 3);
+      else idx.push(base, base + 2, base + 1, base, base + 3, base + 2);
+    }
   }
-  // crossed leaf cards for a fuller silhouette
-  for (let i = 0; i < 3; i++) parts.push(new THREE.PlaneGeometry(4.2, 3.4).rotateY((i / 3) * Math.PI).translate(0, 4.9, 0));
-  return merge(parts);
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  g.setAttribute('normal', new THREE.Float32BufferAttribute(nor, 3));
+  g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
+  g.setIndex(idx);
+  return g.toNonIndexed();
 }
 
 export function buildPropDefs(M) {

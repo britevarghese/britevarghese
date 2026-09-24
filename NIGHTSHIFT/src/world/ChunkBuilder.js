@@ -284,6 +284,7 @@ export class ChunkBuilder {
           gb.wall(ax, az, bx, bz, 4.4, p.y1, uScale, floors / 8 / h, uOff, vOff + (4.4 * vScale));
         } else gb.wall(ax, az, bx, bz, p.y0, p.y1, uScale, vScale, uOff, vOff);
       }
+      if (!bld.house) this._trim(B, bld, p, floors, h);
       const isTop = !bld.parts.some((q) => q !== p && q.y0 >= p.y1 - 0.01 && q.x0 >= p.x0 - 0.1 && q.x1 <= p.x1 + 0.1 && q.z0 >= p.z0 - 0.1 && q.z1 <= p.z1 + 0.1) || true;
       if (bld.roof === 'gable') this._gable(B, bld, p);
       else if (isTop) {
@@ -307,9 +308,37 @@ export class ChunkBuilder {
       const top = Math.max(...bld.parts.map((q) => q.y1));
       const cx = (bld.x0 + bld.x1) / 2, cz = (bld.z0 + bld.z1) / 2;
       B.get(M.metal).box(cx - 0.25, top, cz - 0.25, cx + 0.25, top + 24, cz + 0.25);
-      B.get(M.signalRed).box(cx - 0.35, top + 24, cz - 0.35, cx + 0.35, top + 24.7, cz + 0.35);
+      B.get(M.beacon).box(cx - 0.35, top + 24, cz - 0.35, cx + 0.35, top + 24.7, cz + 0.35);
     }
     void R;
+  }
+
+  // architectural relief on a building part: crown cornice, string courses on floor lines and
+  // corner pilasters (brick). Cheap merged geometry that gives facades real silhouettes and
+  // shadow lines instead of flat textured boxes.
+  _trim(B, bld, p, floors, h) {
+    const M = this.M;
+    const st = p.style, fh = h / floors;
+    const { x0, z0, x1, z1, y0, y1 } = p;
+    // trim reuses the stone-colored curb and concrete materials already batched in every chunk
+    if (st === FACADE.METAL) { B.get(M.concreteWall).band(x0, z0, x1, z1, y1 - 0.3, y1, 0.08); return; }
+    const glassy = st === FACADE.GLASS || st === FACADE.DARK;
+    const t = B.get(glassy ? M.concreteWall : M.curb);
+    if (p.podium && bld.parts.length > 1) { t.band(x0, z0, x1, z1, y1 - 0.6, y1, 0.5); return; }
+    if (glassy) { t.band(x0, z0, x1, z1, y1 - 1.3, y1, 0.22); return; }
+    if (st === FACADE.BRICK) {
+      t.band(x0, z0, x1, z1, y1 - 1.0, y1 - 0.4, 0.28);
+      t.band(x0, z0, x1, z1, y1 - 0.4, y1 + 0.1, 0.62);
+      for (let k = 3; k < floors - 1; k += 3) { const y = y0 + k * fh; t.band(x0, z0, x1, z1, y - 0.12, y + 0.12, 0.1); }
+      const pw = 0.6, po = 0.16, top = y1 - 1.0;
+      t.box(x0 - po, y0, z0 - po, x0 + pw, top, z0 + pw); t.box(x1 - pw, y0, z0 - po, x1 + po, top, z0 + pw);
+      t.box(x0 - po, y0, z1 - pw, x0 + pw, top, z1 + po); t.box(x1 - pw, y0, z1 - pw, x1 + po, top, z1 + po);
+      return;
+    }
+    // office / concrete
+    t.band(x0, z0, x1, z1, y1 - 0.55, y1 + 0.05, 0.36);
+    let n = 0;
+    for (let k = 4; k < floors - 1 && n < 6; k += 4, n++) { const y = y0 + k * fh; t.band(x0, z0, x1, z1, y - 0.1, y + 0.1, 0.09); }
   }
 
   _gable(B, bld, p) {
@@ -555,9 +584,19 @@ export class ChunkBuilder {
         const nx = -(bz - az) / len, nz = (bx - ax) / len;
         const shops = Math.max(1, Math.round(len / 7));
         sf.wall(ax + nx * 0.02, az + nz * 0.02, bx + nx * 0.02, bz + nz * 0.02, 0.15, 4.4, shops / 4 / len, 1 / 4.25, Math.floor(R() * 4) / 4, 0);
-        // cornice ledge
-        B.get(M.concreteWall).wall(ax + nx * 0.35, az + nz * 0.35, bx + nx * 0.35, bz + nz * 0.35, 4.4, 4.75, 1 / 4, 1 / 4);
-        B.get(M.concreteWall).quad([ax + nx * 0.35, 4.75, az + nz * 0.35], [bx + nx * 0.35, 4.75, bz + nz * 0.35], [bx, 4.75, bz], [ax, 4.75, az], [0, 1, 0], [[0, 0], [1, 0], [1, 0.1], [0, 0.1]]);
+        // cornice ledge (front, top and the underside seen from the sidewalk)
+        const cw = B.get(M.concreteWall);
+        cw.wall(ax + nx * 0.35, az + nz * 0.35, bx + nx * 0.35, bz + nz * 0.35, 4.4, 4.75, 1 / 4, 1 / 4);
+        cw.quad([ax + nx * 0.35, 4.75, az + nz * 0.35], [bx + nx * 0.35, 4.75, bz + nz * 0.35], [bx, 4.75, bz], [ax, 4.75, az], [0, 1, 0], [[0, 0], [1, 0], [1, 0.1], [0, 0.1]]);
+        cw.quad([ax, 4.4, az], [bx, 4.4, bz], [bx + nx * 0.35, 4.4, bz + nz * 0.35], [ax + nx * 0.35, 4.4, az + nz * 0.35], [0, -1, 0], [[0, 0], [1, 0], [1, 0.1], [0, 0.1]]);
+        // fabric awnings over some of the shops
+        const dx = (bx - ax) / len, dz = (bz - az) / len;
+        for (let i = 0; i < shops; i++) {
+          if (R() > 0.45) continue;
+          const s0 = (i / shops) * len + 0.7, s1 = ((i + 1) / shops) * len - 0.7;
+          if (s1 - s0 < 2) continue;
+          this._awning(B.get(M.awning), ax + dx * s0, az + dz * s0, ax + dx * s1, az + dz * s1, nx, nz, Math.floor(R() * 4), 3.38, 1.1 + R() * 0.4);
+        }
       }
     }
     // neon signs
@@ -586,6 +625,40 @@ export class ChunkBuilder {
         ng.quad(q0, q1, top(q1), top(q0), [-dx, 0, -dz], uvH);
       }
     }
+    // vertical mullion fins on glass towers, on the texture's column lines
+    if (preset.roofDetail) {
+      const fin = B.get(M.darkMetal);
+      for (const p of bld.parts) {
+        if (p.style !== FACADE.GLASS || p.podium || p.slab) continue;
+        const def = FACADE_DEF[p.style];
+        const ya = p.y0 < 1 ? 4.8 : p.y0, yb = p.y1 - 1.3;
+        if (yb - ya < 6) continue;
+        const o = 0.32, w = 0.07;
+        const nX = Math.max(1, Math.round((p.x1 - p.x0) / def.colW)), nZ = Math.max(1, Math.round((p.z1 - p.z0) / def.colW));
+        for (let k = 1; k < nX; k++) {
+          const x = p.x0 + (k / nX) * (p.x1 - p.x0);
+          fin.box(x - w, ya, p.z1, x + w, yb, p.z1 + o); fin.box(x - w, ya, p.z0 - o, x + w, yb, p.z0);
+        }
+        for (let k = 1; k < nZ; k++) {
+          const z = p.z0 + (k / nZ) * (p.z1 - p.z0);
+          fin.box(p.x1, ya, z - w, p.x1 + o, yb, z + w); fin.box(p.x0 - o, ya, z - w, p.x0, yb, z + w);
+        }
+      }
+    }
+    // red obstruction beacons on the corners of tall roofs
+    const topPart = bld.parts[bld.parts.length - 1];
+    if (!bld.deck && bld.height > 55) {
+      const bc = B.get(M.beacon), y = topPart.y1 + 0.9, e = 0.25;
+      for (const [x, z] of [[topPart.x0, topPart.z0], [topPart.x1, topPart.z0], [topPart.x0, topPart.z1], [topPart.x1, topPart.z1]]) {
+        const cx = x + Math.sign((topPart.x0 + topPart.x1) / 2 - x) * 0.2, cz = z + Math.sign((topPart.z0 + topPart.z1) / 2 - z) * 0.2;
+        bc.box(cx - e, y, cz - e, cx + e, y + 0.45, cz + e);
+      }
+    }
+    // wooden water tank on older brick roofs
+    if (preset.roofDetail && bld.roof === 'flat' && !bld.deck && topPart.style === FACADE.BRICK && R() < 0.65) {
+      const w = topPart.x1 - topPart.x0, d = topPart.z1 - topPart.z0;
+      if (w > 9 && d > 9) this._waterTank(B, topPart.x0 + 3 + R() * (w - 6), topPart.z0 + 3 + R() * (d - 6), topPart.y1, 1.5 + R() * 0.6);
+    }
     // roof equipment
     if (preset.roofDetail && bld.roof === 'flat' && !bld.deck) {
       const top = bld.parts[bld.parts.length - 1];
@@ -603,6 +676,47 @@ export class ChunkBuilder {
       }
     }
   }
+
+  // sloped fabric awning between wall points a..b (outward normal n) + front valance + side cheeks
+  _awning(g, ax, az, bx, bz, nx, nz, scheme, yTop, depth) {
+    const yLow = yTop - depth * 0.5, yHem = yLow - 0.3;
+    const len = Math.hypot(bx - ax, bz - az), uL = len / 1.6;
+    const vT = 1 - scheme / 4 - 0.01, vM = 1 - scheme / 4 - 0.25 * 0.76, vB = 1 - (scheme + 1) / 4 + 0.01;
+    const ox = nx * depth, oz = nz * depth;
+    const sl = Math.hypot(depth, yTop - yLow);
+    g.quad([ax + ox, yLow, az + oz], [bx + ox, yLow, bz + oz], [bx, yTop, bz], [ax, yTop, az], [nx * (yTop - yLow) / sl, depth / sl, nz * (yTop - yLow) / sl], [[0, vM], [uL, vM], [uL, vT], [0, vT]]);
+    g.quad([ax + ox, yHem, az + oz], [bx + ox, yHem, bz + oz], [bx + ox, yLow, bz + oz], [ax + ox, yLow, az + oz], [nx, 0, nz], [[0, vB], [uL, vB], [uL, vM], [0, vM]]);
+    const dx = (bx - ax) / len, dz = (bz - az) / len;
+    for (const [px, pz, s] of [[ax, az, -1], [bx, bz, 1]]) {
+      const i0 = g._v(px, yTop, pz, dx * s, 0, dz * s, 0, vT), i1 = g._v(px + ox, yLow, pz + oz, dx * s, 0, dz * s, 0.3, vM), i2 = g._v(px, yLow, pz, dx * s, 0, dz * s, 0, vM);
+      g.idx.push(i0, i1, i2);
+    }
+  }
+
+  _waterTank(B, x, z, y, r) {
+    r = Math.round(r * 10) / 10; // shared cached geometries
+    const M = this.M, legH = 2.2, h = 3.2;
+    const leg = B.get(M.darkMetal), e = 0.12, k = r * 0.62;
+    for (const [sx, sz] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) leg.box(x + sx * k - e, y, z + sz * k - e, x + sx * k + e, y + legH, z + sz * k + e);
+    leg.box(x - r * 0.85, y + legH - 0.18, z - r * 0.85, x + r * 0.85, y + legH, z + r * 0.85);
+    _mtx.makeTranslation(x, y + legH + h / 2, z);
+    B.get(M.tankWood).append(tankGeo(r, h), _mtx);
+    _mtx.makeTranslation(x, y + legH + h + 0.45, z);
+    B.get(M.darkMetal).append(tankRoofGeo(r), _mtx);
+  }
+}
+
+const _mtx = new THREE.Matrix4();
+const _tankCache = new Map();
+function tankGeo(r, h) {
+  const k = 't' + r.toFixed(1);
+  if (!_tankCache.has(k)) _tankCache.set(k, new THREE.CylinderGeometry(r, r * 1.04, h, 14, 1, false));
+  return _tankCache.get(k);
+}
+function tankRoofGeo(r) {
+  const k = 'r' + r.toFixed(1);
+  if (!_tankCache.has(k)) _tankCache.set(k, new THREE.ConeGeometry(r * 1.08, 0.9, 14, 1, false));
+  return _tankCache.get(k);
 }
 
 function segNormal(a, b) {

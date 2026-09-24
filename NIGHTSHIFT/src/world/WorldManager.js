@@ -91,5 +91,9 @@ export class WorldManager {
     this.chunks.update(camera.position, dt);
     this.lights.update(camera, envState, dt);
     this.props.updateSignals((id, axis) => this.signalState(id, axis), envState.night);
+    // aviation beacons: slow synchronized blink, dim steady red by day
+    const ph = (this.state.time * 0.75) % 1;
+    const on = ph < 0.18 ? 1 : ph < 0.3 ? 1 - (ph - 0.18) / 0.12 : 0;
+    this.M.beacon.color.setRGB(envState.night > 0.3 ? 0.25 + on * 3.5 : 0.35 + on * 0.5, 0.02, 0.01);
   }
 }

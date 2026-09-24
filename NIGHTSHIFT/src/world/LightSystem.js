@@ -53,7 +53,8 @@ export class LightSystem {
     for (const d of this.dyn) { this.scene.remove(d.light, d.light.target); d.light.dispose(); }
     this.dyn = [];
     for (let i = 0; i < n; i++) {
-      const light = new THREE.SpotLight(0xffd9ae, 0, 32, 1.2, 0.85, 1.5);
+      // inverse-square falloff and a moderate cone: distinct pools under each lamp, dark gaps between
+      const light = new THREE.SpotLight(0xffd9ae, 0, 30, 1.0, 0.7, 2);
       light.castShadow = false;
       this.scene.add(light, light.target);
       this.dyn.push({ light, lamp: null, k: 0 });
@@ -87,7 +88,7 @@ export class LightSystem {
         if (d.k === 0 && rest.length) { d.lamp = rest.shift(); d.light.position.set(d.lamp[0], d.lamp[1] - 0.2, d.lamp[2]); d.light.target.position.set(d.lamp[0], 0, d.lamp[2]); d.light.color.setHex(d.lamp[3]); }
         else if (d.k === 0) d.lamp = null;
       } else d.k = Math.min(1, d.k + dt * 2.5);
-      d.light.intensity = d.lamp && on ? d.k * 330 * Math.min(1, (night - 0.3) * 2) : 0;
+      d.light.intensity = d.lamp && on ? d.k * 640 * Math.min(1, (night - 0.3) * 2) : 0;
       d.light.visible = d.light.intensity > 0.5;
     }
   }
@@ -106,6 +107,8 @@ export class LightSystem {
       this.pools.setMatrixAt(i, _m);
       this.pools.setColorAt(i, _c.setHex(l.color).multiplyScalar(l.i));
     }
+    this.poolBase = this.pools.instanceColor.array.slice(0, n * 3);
+    this.poolFade = -1;
     this.pools.count = n;
     this.pools.instanceMatrix.needsUpdate = true;
     this.pools.instanceColor.needsUpdate = true;
@@ -120,6 +123,23 @@ export class LightSystem {
     const wet = this.M.streak.visible;
     this.streaks.visible = wet && night > 0.32;
     const cx = camera.position.x, cz = camera.position.z;
+    // near the camera the real spotlights light the street; the additive fake pools would double
+    // it up (and ignore albedo), so they fade in only beyond the dynamic lights' reach
+    if (this.pools.visible && this.poolBase) {
+      const dyn = this.dyn.length > 0;
+      const moved = Math.hypot(cx - (this._poolCx ?? 1e9), cz - (this._poolCz ?? 1e9)) > 1.5;
+      if (moved || this.poolFade !== (dyn ? 1 : 0)) {
+        this._poolCx = cx; this._poolCz = cz; this.poolFade = dyn ? 1 : 0;
+        const arr = this.pools.instanceColor.array, base = this.poolBase;
+        for (let i = 0, n = this.pools.count; i < n; i++) {
+          const l = this.active[i];
+          let k = 1;
+          if (dyn) { const d = Math.hypot(l.x - cx, l.z - cz); const t = Math.min(1, Math.max(0, (d - 18) / 40)); k = 0.3 + 0.7 * t * t * (3 - 2 * t); }
+          arr[i * 3] = base[i * 3] * k; arr[i * 3 + 1] = base[i * 3 + 1] * k; arr[i * 3 + 2] = base[i * 3 + 2] * k;
+        }
+        this.pools.instanceColor.needsUpdate = true;
+      }
+    }
     if (this.halos.visible) {
       // billboard halos facing the camera, nearest lamps only
       let n = 0;

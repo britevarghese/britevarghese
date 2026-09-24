@@ -55,6 +55,19 @@ export class GeoBuilder {
     if (bottom) this.quad([x0, y0, z0], [x1, y0, z0], [x1, y0, z1], [x0, y0, z1], [0, -1, 0], [[0, 0], [1, 0], [1, 1], [0, 1]]);
   }
 
+  // projecting band around a rectangle (cornice, string course): outer walls plus the top and
+  // underside frames between the wall line and the projecting edge (the underside is what you
+  // see from the street)
+  band(x0, z0, x1, z1, y0, y1, out, s = 1 / 4) {
+    const X0 = x0 - out, X1 = x1 + out, Z0 = z0 - out, Z1 = z1 + out;
+    this.ring(X0, Z0, X1, Z1, y0, y1, s, s);
+    const strips = [[X0, Z0, X1, z0], [X0, z1, X1, Z1], [X0, z0, x0, z1], [x1, z0, X1, z1]];
+    for (const [a0, b0, a1, b1] of strips) {
+      this.flat(a0, b0, a1, b1, y1, s);
+      this.quad([a0, y0, b0], [a1, y0, b0], [a1, y0, b1], [a0, y0, b1], [0, -1, 0], [[a0 * s, b0 * s], [a1 * s, b0 * s], [a1 * s, b1 * s], [a0 * s, b1 * s]]);
+    }
+  }
+
   append(geo, matrix) {
     const g = geo.index ? geo : geo;
     const p = g.attributes.position, n = g.attributes.normal, t = g.attributes.uv;

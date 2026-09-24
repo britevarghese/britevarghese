@@ -102,7 +102,7 @@ export function asphalt() {
     for (let i = 0; i < n * n; i++) {
       const g = grain[i], v = f[i];
       const speck = g > 0.86 ? (g - 0.86) * 260 : 0;
-      const base = 44 + v * 22 + speck - (g < 0.12 ? 10 : 0);
+      const base = 50 + v * 24 + speck - (g < 0.12 ? 10 : 0);
       ci.data[i * 4] = base; ci.data[i * 4 + 1] = base; ci.data[i * 4 + 2] = base + 2; ci.data[i * 4 + 3] = 255;
       const hgt = 120 + g * 90 + v * 40;
       hi.data[i * 4] = hi.data[i * 4 + 1] = hi.data[i * 4 + 2] = hgt; hi.data[i * 4 + 3] = 255;
@@ -305,45 +305,84 @@ function shade(hex, amt) {
 }
 
 // ------------------------------------------------------------------ storefronts (ground floor band)
+function mixHex(a, b, k) {
+  const A = parseInt(a.slice(1), 16), B = parseInt(b.slice(1), 16);
+  const ch = (sh) => Math.round(((A >> sh) & 255) * (1 - k) + ((B >> sh) & 255) * k).toString(16).padStart(2, '0');
+  return '#' + ch(16) + ch(8) + ch(0);
+}
+
 export function storefront() {
   return cached('storefront', () => {
     const n = SIZE, h = n / 4;
     const R = rng(555);
     const color = canvas(n, h), emis = canvas(n, h);
     const cc = color.getContext('2d'), ec = emis.getContext('2d');
-    cc.fillStyle = '#26221f'; cc.fillRect(0, 0, n, h);
+    cc.fillStyle = '#2a2622'; cc.fillRect(0, 0, n, h);
     ec.fillStyle = '#000'; ec.fillRect(0, 0, n, h);
     const shops = 4, sw = n / shops;
-    const awnings = ['#8c1d1d', '#1d4f8c', '#2d6b3a', '#6b4a1d', '#333', '#6b1d5b'];
+    // fascia boards: muted paint so the street isn't a rainbow by day
+    const boards = ['#5a1f1c', '#1f3350', '#24452e', '#4a3a22', '#2a2a2c', '#3e2a40', '#6a5a3a'];
     for (let i = 0; i < shops; i++) {
       const x = i * sw;
       // pilasters
       cc.fillStyle = '#4a4540'; cc.fillRect(x, 0, sw * 0.06, h); cc.fillRect(x + sw * 0.94, 0, sw * 0.06, h);
-      // big window
-      const wx = x + sw * 0.1, wy = h * 0.3, ww = sw * 0.55, wh = h * 0.62;
+      // stall riser under the window
+      cc.fillStyle = '#35302b'; cc.fillRect(x + sw * 0.06, h * 0.9, sw * 0.88, h * 0.1);
+      // big window: dark reflective glass by day (albedo), lit interior only in the emissive map
+      const wx = x + sw * 0.1, wy = h * 0.3, ww = sw * 0.55, wh = h * 0.6;
       const glow = R.pick(['#ffe2b0', '#fff8e8', '#ffd0a0', '#d0f0ff', '#ffe8c8', '#c8e8ff']);
       const lit = R() < 0.8;
-      // interior: bright ceiling strip fading into a darker shop floor, products, reflections
+      const gl = cc.createLinearGradient(0, wy, 0, wy + wh);
+      gl.addColorStop(0, mixHex('#1a1e22', glow, 0.14)); gl.addColorStop(1, mixHex('#101214', glow, 0.08));
+      cc.fillStyle = gl; cc.fillRect(wx, wy, ww, wh);
+      // faint interior shapes (shelves, displays) visible through the glass
+      cc.fillStyle = 'rgba(0,0,0,0.25)';
+      for (let k = 0; k < 3; k++) cc.fillRect(wx + ww * 0.05, wy + wh * (0.35 + k * 0.22), ww * 0.9, wh * 0.04);
+      // sky reflection sweep on the glass
+      cc.save(); cc.beginPath(); cc.rect(wx, wy, ww, wh); cc.clip();
+      const rf = cc.createLinearGradient(wx, wy, wx + ww, wy + wh);
+      rf.addColorStop(0, 'rgba(200,215,230,0)'); rf.addColorStop(0.35, 'rgba(200,215,230,0.13)'); rf.addColorStop(0.5, 'rgba(200,215,230,0.02)'); rf.addColorStop(0.7, 'rgba(200,215,230,0.09)'); rf.addColorStop(1, 'rgba(200,215,230,0)');
+      cc.fillStyle = rf; cc.fillRect(wx, wy, ww, wh); cc.restore();
+      // interior: bright ceiling strip fading into a darker shop floor, products
       const g = ec.createLinearGradient(0, wy, 0, wy + wh);
       g.addColorStop(0, lit ? glow : '#0a0a0a'); g.addColorStop(0.18, lit ? shade(glow, -70) : '#050505'); g.addColorStop(1, lit ? shade(glow, -150) : '#000');
       ec.fillStyle = g; ec.fillRect(wx, wy, ww, wh);
-      cc.fillStyle = lit ? shade(glow, -130) : '#15181b'; cc.fillRect(wx, wy, ww, wh);
       ec.fillStyle = 'rgba(0,0,0,0.6)';
       for (let k = 0; k < 3; k++) ec.fillRect(wx + ww * 0.05, wy + wh * (0.35 + k * 0.22), ww * 0.9, wh * 0.04);
       for (let k = 0; k < 10; k++) { ec.fillStyle = `rgba(${R() * 255 | 0},${R() * 255 | 0},${R() * 255 | 0},0.35)`; ec.fillRect(wx + ww * R() * 0.9, wy + wh * (0.2 + 0.22 * R.int(0, 2)), ww * 0.05, wh * 0.1); }
-      // window mullions
-      ec.fillStyle = '#000'; cc.fillStyle = '#1a1a1a';
+      // window frame + mullions
+      cc.strokeStyle = '#141414'; cc.lineWidth = Math.max(2, sw * 0.012); cc.strokeRect(wx, wy, ww, wh);
+      ec.fillStyle = '#000'; cc.fillStyle = '#161616';
       for (let k = 1; k < 3; k++) { ec.fillRect(wx + ww * k / 3 - 2, wy, 4, wh); cc.fillRect(wx + ww * k / 3 - 2, wy, 4, wh); }
-      // door
+      // door (glazed)
       const dx = x + sw * 0.7, dw = sw * 0.18;
-      cc.fillStyle = '#101214'; cc.fillRect(dx, h * 0.25, dw, h * 0.75);
+      cc.fillStyle = '#121416'; cc.fillRect(dx, h * 0.25, dw, h * 0.75);
+      cc.fillStyle = mixHex('#1a1e22', glow, 0.1); cc.fillRect(dx + dw * 0.12, h * 0.3, dw * 0.76, h * 0.62);
+      cc.fillStyle = '#8a8a86'; cc.fillRect(dx + dw * 0.8, h * 0.58, dw * 0.06, h * 0.08);
       ec.fillStyle = lit ? shade(glow, -60) : '#000'; ec.fillRect(dx + dw * 0.12, h * 0.3, dw * 0.76, h * 0.62);
-      // awning
-      const ac = R.pick(awnings);
-      cc.fillStyle = ac; cc.fillRect(x + sw * 0.07, h * 0.12, sw * 0.86, h * 0.13);
-      for (let k = 0; k < 10; k++) { cc.fillStyle = 'rgba(255,255,255,0.18)'; cc.fillRect(x + sw * 0.07 + k * sw * 0.086, h * 0.12, sw * 0.043, h * 0.13); }
-      // lit sign band above
-      ec.fillStyle = shade(glow, -40); ec.globalAlpha = 0.5; ec.fillRect(x + sw * 0.1, h * 0.02, sw * 0.8, h * 0.08); ec.globalAlpha = 1;
+      // fascia sign board with lettering blocks (lettering is lit at night)
+      const bc = R.pick(boards);
+      const fy = h * 0.06, fh = h * 0.17;
+      cc.fillStyle = bc; cc.fillRect(x + sw * 0.07, fy, sw * 0.86, fh);
+      cc.fillStyle = 'rgba(255,255,255,0.08)'; cc.fillRect(x + sw * 0.07, fy, sw * 0.86, fh * 0.12);
+      cc.fillStyle = 'rgba(0,0,0,0.3)'; cc.fillRect(x + sw * 0.07, fy + fh * 0.88, sw * 0.86, fh * 0.12);
+      const letters = 4 + R.int(0, 5), lw = sw * 0.05, lgap = sw * 0.018;
+      let lx = x + sw * 0.5 - (letters * (lw + lgap)) / 2;
+      const ink = R() < 0.6 ? '#e8dcc0' : '#d8b25a';
+      for (let k = 0; k < letters; k++, lx += lw + lgap) {
+        // blocky glyphs: O, U, n, E, H, I shapes cut out of a solid block
+        const ty = fy + fh * 0.28, th = fh * 0.44, kind = R.int(0, 5);
+        const w = kind === 5 ? lw * 0.35 : lw;
+        cc.fillStyle = ink; cc.fillRect(lx, ty, w, th);
+        cc.fillStyle = bc;
+        if (kind === 0) cc.fillRect(lx + lw * 0.3, ty + th * 0.25, lw * 0.4, th * 0.5);
+        else if (kind === 1) cc.fillRect(lx + lw * 0.3, ty, lw * 0.4, th * 0.7);
+        else if (kind === 2) cc.fillRect(lx + lw * 0.3, ty + th * 0.3, lw * 0.4, th * 0.7);
+        else if (kind === 3) { cc.fillRect(lx + lw * 0.3, ty + th * 0.2, lw * 0.7, th * 0.2); cc.fillRect(lx + lw * 0.3, ty + th * 0.6, lw * 0.7, th * 0.2); }
+        else if (kind === 4) { cc.fillRect(lx + lw * 0.3, ty, lw * 0.4, th * 0.38); cc.fillRect(lx + lw * 0.3, ty + th * 0.62, lw * 0.4, th * 0.38); }
+        if (lit) { ec.fillStyle = shade(glow, -30); ec.fillRect(lx, ty, w, th); }
+        if (kind === 5) lx -= lw * 0.65;
+      }
     }
     return { map: tex(color), emissiveMap: tex(emis) };
   });
@@ -572,17 +611,37 @@ export function containerTex() {
     return { map: tex(c), normalMap: tex(normalFromHeight(h, 2), { srgb: false }) };
   });
 }
+// 2x2 atlas of leaf clusters (alpha-tested cards); cell 3 is the darker inner foliage
 export function leaves() {
   return cached('leaves', () => {
-    const n = 256, c = canvas(n), ctx = c.getContext('2d');
+    const n = 512, c = canvas(n), ctx = c.getContext('2d');
     const R = rng(12);
     ctx.clearRect(0, 0, n, n);
-    for (let i = 0; i < 900; i++) {
-      const a = R() * Math.PI * 2, r = Math.sqrt(R()) * n * 0.46;
-      const x = n / 2 + Math.cos(a) * r, y = n / 2 + Math.sin(a) * r;
-      const g = 50 + R() * 70;
-      ctx.fillStyle = `rgb(${g * 0.45 | 0},${g | 0},${g * 0.35 | 0})`;
-      ctx.beginPath(); ctx.ellipse(x, y, 3 + R() * 4, 1.5 + R() * 2, R() * 3, 0, 7); ctx.fill();
+    const cs = n / 2;
+    for (let cell = 0; cell < 4; cell++) {
+      const ox = (cell % 2) * cs, oy = (1 - Math.floor(cell / 2)) * cs; // canvas y is flipped vs uv
+      const dark = cell === 3;
+      // a few sub-clusters make an irregular outline
+      const subs = [];
+      for (let k = 0; k < 5; k++) subs.push([cs / 2 + (R() - 0.5) * cs * 0.4, cs / 2 + (R() - 0.5) * cs * 0.4, cs * (0.2 + R() * 0.1)]);
+      // a few twigs under the leaves
+      ctx.strokeStyle = 'rgba(60,45,30,0.9)'; ctx.lineWidth = 1.5;
+      for (let k = 0; k < 4; k++) { ctx.beginPath(); ctx.moveTo(ox + cs / 2, oy + cs / 2); ctx.lineTo(ox + cs / 2 + (R() - 0.5) * cs * 0.6, oy + cs / 2 + (R() - 0.5) * cs * 0.6); ctx.stroke(); }
+      for (let i = 0; i < 420; i++) {
+        const [sx, sy, sr] = subs[i % subs.length];
+        const a = R() * Math.PI * 2, r = Math.sqrt(R()) * sr;
+        const x = ox + sx + Math.cos(a) * r, y = oy + sy + Math.sin(a) * r;
+        if (x < ox + 6 || x > ox + cs - 6 || y < oy + 6 || y > oy + cs - 6) continue;
+        const t = R();
+        const light = dark ? 0.45 + t * 0.3 : 0.7 + t * 0.5;
+        const rr = (46 + R() * 34) * light, gg = (92 + R() * 40) * light, bb = (30 + R() * 14) * light;
+        const ang = a + (R() - 0.5) * 1.2, L = 5 + R() * 5, W = 2.2 + R() * 1.6;
+        ctx.save(); ctx.translate(x, y); ctx.rotate(ang);
+        ctx.fillStyle = `rgb(${rr | 0},${gg | 0},${bb | 0})`;
+        ctx.beginPath(); ctx.ellipse(0, 0, L, W, 0, 0, 7); ctx.fill();
+        ctx.fillStyle = `rgba(255,255,220,${dark ? 0.04 : 0.12})`; ctx.fillRect(-L * 0.8, -0.4, L * 1.6, 0.8); // midrib sheen
+        ctx.restore();
+      }
     }
     const t = tex(c, { repeat: false, aniso: false });
     return t;
@@ -745,5 +804,29 @@ export function taillightTextures() {
     for (let x = 0; x < w; x += 10) { ex.fillStyle = 'rgba(0,0,0,0.35)'; ex.fillRect(x, 0, 3, h); }
     ctx.fillStyle = 'rgba(255,255,255,0.08)'; ctx.fillRect(0, 0, w, h * 0.12);
     return { map: tex(c, { repeat: false }), emissiveMap: tex(e, { repeat: false }) };
+  });
+}
+
+// ------------------------------------------------------------------ storefront awnings
+// 4 rows = 4 fabric schemes; u repeats every stripe pair along the awning, the lower part of each
+// row is the hanging valance with a darker hem
+export function awningAtlas() {
+  return cached('awning', () => {
+    const w = 128, h = 256, c = canvas(w, h), ctx = c.getContext('2d');
+    const schemes = [['#8a1d1a', '#e4dccb'], ['#1f4a33', '#e2d8bf'], ['#1d2b4c', '#d6d6d2'], ['#5b1b22', '#6a232b']];
+    const rh = h / 4;
+    schemes.forEach(([a, b], r) => {
+      const y0 = r * rh;
+      for (let x = 0; x < w; x += w / 4) {
+        ctx.fillStyle = (x / (w / 4)) % 2 ? b : a; ctx.fillRect(x, y0, w / 4, rh);
+      }
+      // fabric shading: folds + sun fade toward the top
+      const g = ctx.createLinearGradient(0, y0, 0, y0 + rh);
+      g.addColorStop(0, 'rgba(255,255,255,0.12)'); g.addColorStop(0.75, 'rgba(0,0,0,0)'); g.addColorStop(0.8, 'rgba(0,0,0,0.25)'); g.addColorStop(1, 'rgba(0,0,0,0.35)');
+      ctx.fillStyle = g; ctx.fillRect(0, y0, w, rh);
+      ctx.fillStyle = 'rgba(0,0,0,0.35)'; ctx.fillRect(0, y0 + rh * 0.78, w, 2);
+    });
+    const t = tex(c, { aniso: false });
+    return t;
   });
 }
