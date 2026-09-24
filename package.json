@@ -7,7 +7,8 @@
     "assets": "node scripts/build-assets.mjs",
     "postinstall": "node scripts/fetch-character.mjs",
     "test": "node --test test/*.test.js",
-    "share": "node scripts/share.mjs"
+    "share": "node scripts/share.mjs",
+    "playtest": "node scripts/playtest.mjs"
   },
   "repository": {
     "type": "git",

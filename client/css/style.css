@@ -126,3 +126,9 @@ html, body { margin: 0; height: 100%; overflow: hidden; background: #0c0f11; col
 #invite { font-size: 12px; margin: -4px 0 12px; opacity: .9; } #invite code { background: rgba(255,255,255,.08); padding: 3px 6px; user-select: all; }
 #invite button { width: auto; padding: 4px 10px; margin: 0 0 0 6px; font-size: 11px; letter-spacing: .1em; }
 #roomtag { position: fixed; top: 240px; left: 14px; font-size: 11px; letter-spacing: .12em; opacity: .75; text-shadow: 0 1px 2px #000; }
+
+#pause { position: fixed; inset: 0; display: grid; place-items: center; background: rgba(5,7,8,.55); }
+#pause .panel { width: min(420px, 90vw); }
+.panel button.alt { background: rgba(255,255,255,.1); color: #eee; }
+.panel button.alt:hover { background: rgba(255,255,255,.18); }
+h2 .leave { float: right; font-size: 11px; letter-spacing: .1em; color: #bbb; font-weight: 400; }

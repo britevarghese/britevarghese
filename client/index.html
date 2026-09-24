@@ -87,7 +87,7 @@
 
   <div id="deploy" class="hidden">
     <div class="panel wide">
-      <h2 id="deploy-title">DEPLOY</h2>
+      <h2 id="deploy-title">DEPLOY <a href="/" class="leave">leave room</a></h2>
       <div id="invite"></div>
       <div id="killcam" class="hidden"></div>
       <div class="cols">
@@ -106,6 +106,16 @@
     </div>
   </div>
 
+  <div id="pause" class="hidden">
+    <div class="panel">
+      <h2>PAUSED</h2>
+      <div id="p-room" class="sub"></div>
+      <label>Mouse sensitivity <input id="p-sens" type="range" min="5" max="60" value="22" /></label>
+      <button id="p-resume">RESUME</button>
+      <button id="p-invite" class="alt">COPY INVITE LINK</button>
+      <button id="p-leave" class="alt">LEAVE ROOM</button>
+    </div>
+  </div>
   <div id="roundend" class="hidden"></div>
   <div id="errors"></div>
   <script type="module" src="/js/main.js"></script>

@@ -54,6 +54,8 @@ class Game {
     describeGLTF('CHARACTER soldier', charLoaded.gltf, charLoaded.file);
     this.weaponLoads = {};
     for (const id of Object.keys(WEAPONS)) this.weaponLoads[id] = await this.assets.loadWeapon(WEAPONS[id].visual);
+    this.grenadeAsset = (await this.assets.loadWeapon('grenade')).gltf;
+    this.grenadeMeshes = new Map();
     for (const [id, l] of Object.entries(this.weaponLoads)) describeGLTF(`WEAPON ${id}`, l.gltf, l.file);
     this.viewmodel = new Viewmodel(this.assets, charLoaded, this.weaponLoads.ar, 'ar', renderer, { quality });
     this.hud = new HUD();
@@ -227,7 +229,29 @@ class Game {
     $('copyinvite').onclick = () => this.copyInvite();
     const kc = this.killcam;
     const killer = kc ? `KILLED BY <b>${kc.name || 'enemy'}</b> · ${WEAPONS[kc.w]?.name || kc.w}${kc.hs ? ' · HEADSHOT' : ''}` : null;
-    this.hud.deployScreen(true, { team: this.myTeam, flagsState: this.lastSnap?.f, respawnIn, killer, onDeploy: (sp, cls) => { this.audio.unlock(); this.net.send({ t: 'spawn', p: sp, cls }); } });
+    this.hud.deployScreen(true, { team: this.myTeam, flagsState: this.lastSnap?.f, respawnIn, killer, onDeploy: (sp, cls) => {
+      this.audio.unlock();
+      // the DEPLOY click is a user gesture, so the browser allows mouse capture right now
+      this.renderer.domElement.requestPointerLock?.()?.catch?.(() => {});
+      this.net.send({ t: 'spawn', p: sp, cls });
+    } });
+  }
+
+  // thrown grenades: interpolated from snapshots, tumbling in flight (real grenade GLB, pooled per id)
+  #grenades(sample, dt) {
+    if (!sample) return;
+    const { a, b, k } = sample;
+    const A = new Map((a.g || []).map((r) => [r[0], r]));
+    const live = new Set();
+    for (const rb of b.g || []) {
+      const ra = A.get(rb[0]) || rb;
+      live.add(rb[0]);
+      let m = this.grenadeMeshes.get(rb[0]);
+      if (!m) { m = this.assets.clone({ scene: this.grenadeAsset.scene }); m.scale.setScalar(1); this.world.scene.add(m); this.grenadeMeshes.set(rb[0], m); }
+      m.position.set(ra[1] + (rb[1] - ra[1]) * k, ra[2] + (rb[2] - ra[2]) * k + 0.05, ra[3] + (rb[3] - ra[3]) * k);
+      m.rotation.x += dt * 9; m.rotation.z += dt * 4;
+    }
+    for (const [id, m] of this.grenadeMeshes) if (!live.has(id)) { m.removeFromParent(); this.grenadeMeshes.delete(id); }
   }
 
   onLocalShot(eye, dir, def) {
@@ -257,6 +281,18 @@ class Game {
       if (e.code === 'F3') { e.preventDefault(); window.open('/debug/character-weapon', '_blank'); }
     });
     this.renderer.domElement.addEventListener('mousedown', () => this.audio.unlock());
+    // pause menu when the mouse is released (Esc) during play
+    const pause = $('pause');
+    document.addEventListener('pointerlockchange', () => {
+      const locked = document.pointerLockElement === this.renderer.domElement;
+      pause.classList.toggle('hidden', locked || !this.me.alive || this.chatOpen);
+    });
+    $('p-resume').onclick = () => { pause.classList.add('hidden'); this.renderer.domElement.requestPointerLock?.(); };
+    $('p-invite').onclick = () => this.copyInvite();
+    $('p-leave').onclick = () => { location.href = '/'; };
+    $('p-sens').value = Math.round(this.me.sens * 10000);
+    $('p-sens').oninput = () => { this.me.sens = +$('p-sens').value / 10000; localStorage.setItem('sp_sens', this.me.sens); };
+    $('p-room').textContent = `ROOM ${this.room.id} · ${ACTIVE_MAP.name}`;
   }
 
   // ---------------------------------------------------------------- frame
@@ -306,6 +342,7 @@ class Game {
     const sample = this.net.sample();
     const local = me.alive ? { x: me.s.x, y: me.s.y, z: me.s.z, yaw: me.yaw, pitch: me.pitch + me.recoil.p, stance: me.s.stance, vx: me.s.vx, vz: me.s.vz, alive: true, ads: me.ads, sprint: me.sprinting, onGround: me.s.onGround, weaponId: me.weaponId() } : null;
     this.players.update(dt, sample, this.myId, cam.position, me.thirdPerson, local);
+    this.#grenades(sample, dt);
     // world
     this.lighting.follow(cam.position);
     this.world.update(dt, cam, time);

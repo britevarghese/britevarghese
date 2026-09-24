@@ -104,6 +104,11 @@ terrain with frustum culling, shared materials/texture sets, single shared GLB p
 cloning, reduced-rate animation for distant soldiers, pooled particles/decals/tracers, texel-snapped shadow
 cascade around the camera (LOW: 1024² / 38 m, MEDIUM: 2048² / 70 m), LOW renders at 0.8× resolution.
 
+### Playtest
+`npm run playtest -- <map>` (server running with `DEV_TELEPORT=1 BOTS=0`) drives a real browser client plus a second
+network client through ~30 checks: movement, stances, jump, weapon switch, ADS + firing with server damage, reload, kill,
+kill feed/score, death/deploy/respawn, grenade, chat, third person, scoreboard.
+
 ### Visual test tooling
 `scripts/shot.mjs` (debug scenes) and `scripts/gameshot.mjs` (scripted in-game camera tour, run the server with
 `DEV_TELEPORT=1`) capture screenshots with headless Chromium; `docs/screenshots/` holds the latest captures.
