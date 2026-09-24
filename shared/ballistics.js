@@ -18,8 +18,10 @@ export function bulletPath(world, o, dir, def) {
     // exact for linear drag + gravity over one step
     const c = def.drag ? (1 - k) / def.drag : STEP;
     const nx = x + vx * c, nz = z + vz * c;
-    const ny = y + vy * c - (def.drag ? (GRAVITY / def.drag) * (STEP - c) : 0.5 * GRAVITY * STEP * STEP);
-    vx *= k; vz *= k; vy = vy * k - (def.drag ? (GRAVITY / def.drag) * (1 - k) : GRAVITY * STEP);
+    // (rockets: the motor carries most of the weight -> reduced effective gravity)
+    const G = GRAVITY * (def.gravityScale ?? 1);
+    const ny = y + vy * c - (def.drag ? (G / def.drag) * (STEP - c) : 0.5 * G * STEP * STEP);
+    vx *= k; vz *= k; vy = vy * k - (def.drag ? (G / def.drag) * (1 - k) : G * STEP);
     const sx = nx - x, sy = ny - y, sz = nz - z, len = Math.hypot(sx, sy, sz);
     const h = world.raycast({ x, y, z }, { x: sx / len, y: sy / len, z: sz / len }, len, true);
     if (h) {

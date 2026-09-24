@@ -4,6 +4,7 @@ import { FLAGS, BUILDINGS, ROADS, BASES, PLAY_HALF, TEAM_NAMES } from '/shared/m
 import { WEAPONS, CLASSES } from '/shared/weapons.js';
 
 const $ = (id) => document.getElementById(id);
+const VEHICLE_WEAPONS = { tank_cannon: 'Tank 120 mm', tank_mg: 'Tank MG', heli_rockets: 'Heli rockets', heli_cannon: 'Heli 30 mm', roadkill: 'Roadkill', vehicle: 'Vehicle explosion', crash: 'Crash' };
 
 export class HUD {
   constructor() {
@@ -112,7 +113,7 @@ export class HUD {
     const solo = document.body.classList.contains('royale');
     const cls = (id, p) => (p ? (solo ? (id === this.meId ? 'us' : 'ru') : p.team === this.myTeam ? 'us' : 'ru') : '');
     const d = document.createElement('div'); d.className = 'kf';
-    const wname = WEAPONS[weapon]?.name || (weapon === 'grenade' ? 'Frag grenade' : weapon);
+    const wname = WEAPONS[weapon]?.name || VEHICLE_WEAPONS[weapon] || (weapon === 'grenade' ? 'Frag grenade' : weapon);
     d.innerHTML = k && killer !== victim ? `<span class="${cls(killer, k)}">${esc(k.name)}</span><span class="w">[${esc(wname)}]</span>${hs ? '<span class="hs">HS </span>' : ''}<span class="${cls(victim, v)}">${esc(v?.name || '?')}</span>` : `<span class="${cls(victim, v)}">${esc(v?.name || '?')}</span><span class="w">[${esc(wname)}]</span>`;
     $('killfeed').prepend(d);
     while ($('killfeed').children.length > 6) $('killfeed').lastChild.remove();
@@ -150,7 +151,7 @@ export class HUD {
   }
 
   // ---------------------------------------------------------------- minimap (rotates with the player)
-  minimap(me, yaw, players, myId, flagsState, royale = null) {
+  minimap(me, yaw, players, myId, flagsState, royale = null, vehicles = null) {
     const g = this.mm, S = 220, R = royale ? 150 : 90; // metres radius shown
     const k = S / 2 / R;
     g.clearRect(0, 0, S, S);
@@ -169,8 +170,9 @@ export class HUD {
       g.fillStyle = '#fff'; g.font = 'bold 11px sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(f.id, 0, 0); g.restore();
     }
     royale?.drawMinimap(g, tx, tz, k);
+    vehicles?.drawMinimap(g, tx, tz, k, yaw);
     for (const p of players.values()) {
-      if (p.id === myId || !p.alive) continue;
+      if (p.id === myId || !p.alive || (p.flags & 128)) continue; // crews show as their vehicle
       const friendly = !royale && p.team === this.myTeam;
       if (!friendly && !(p.spottedUntil > performance.now())) continue;
       g.fillStyle = friendly ? '#6fb0ff' : '#ff5e4d';

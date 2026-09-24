@@ -108,6 +108,8 @@ export class BotBrain {
       if (!q.alive || q.air || !this.g.isEnemy(p, q)) continue;
       const d = Math.hypot(q.x - p.x, q.z - p.z);
       if (d > bestD) continue;
+      // armour: rifle rounds do almost nothing to a tank / helicopter; only engage crews up close
+      if (q.vehicle && d > 40) continue;
       const yawTo = Math.atan2(-(q.x - p.x), -(q.z - p.z));
       const inFov = Math.abs(angleDiff(fwdYaw, yawTo)) < 1.25 || d < 12 || q === this.target;
       if (!inFov) continue;

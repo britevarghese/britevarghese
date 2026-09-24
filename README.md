@@ -67,6 +67,11 @@ device with `?touch=1`.
 1/2 or wheel switch weapon · **PgUp / PgDn sight zeroing** · G grenade · **V first/third person** · Tab scoreboard · T/Enter chat · F3 asset debug ·
 battle royale: **Space** jump / open parachute · **E** pick up · **H** heal · **M** island map
 
+**Vehicles:** **E** get in / out · **1 / 2** switch seat · **V** chase / first-person view · RMB zoom (gunner sight) ·
+*tank* W/S throttle, A/D steer (pivot turns when slow), mouse aims the turret, LMB fires the 120 mm gun ·
+*helicopter* W/S nose down / up, A/D bank, mouse sets the heading, **Space** climb, **Shift** descend (it holds its
+altitude hands-off), LMB rockets · gunner seats aim freely with the mouse. Touch: **VEH** (enter/exit), **SEAT**, ▲/▼.
+
 ## Game
 * **Conquest**: flags A / B / C, capture by standing in the zone (more soldiers = faster), 300 tickets per team,
   each death costs a ticket, holding more flags bleeds the enemy. Round restarts 15 s after a team hits 0.
@@ -119,6 +124,21 @@ battle royale: **Space** jump / open parachute · **E** pick up · **H** heal ·
   close in when out of their weapon's range, fire controlled bursts, run to real cover when hurt, then peek; they
   search where they last saw you and watch approach routes while holding a flag. Line-of-sight perception, reaction
   time, converging aim error, bullet-drop hold-over and target leading, grenades.
+* **Tanks & helicopters** on the bigger Conquest maps (a tank per team on every map except Checkpoint Zulu, plus an
+  attack helicopter per team on Kestrel Airbase, Dry Valley and Kaskar Ridge), parked at each team's base and
+  respawning 25 s after being destroyed:
+  * *M-30 main battle tank* — 2 seats: driver with the 120 mm gun (HE shells with real ballistics: 560 m/s,
+    drag, drop; 4.5 s reload; 6 m blast) and a roof machine gun. Tracked driving follows the terrain (pitch / roll),
+    pivot turns, the turret and gun traverse / elevate at realistic rates toward where you look, and the reticle
+    shows where the shell will actually land. Armour shrugs off rifle fire (2 %), grenades hurt, shells and rockets
+    kill it; it runs soldiers over.
+  * *AH-7 attack helicopter* — pilot with 14 unguided rockets, gunner with a 30 mm chin cannon (small explosive
+    rounds). Flight model: thrust along the tilted rotor disc (nose down to accelerate, bank to turn / strafe),
+    drag-limited ~220 km/h, rotor wash on the ground; hard landings and crashes damage or destroy it, an abandoned
+    helicopter falls out of the sky.
+  * Occupants can't be shot directly; they die with the vehicle (credited to whoever destroyed it). Destroyed
+    vehicles leave a burning, charred wreck. Driving is client-predicted with the shared physics and validated by
+    the server, like soldier movement. Models are procedural (no Battlefield assets).
 * **AI Zone** (lobby tab): play with a soldier commanded by a **language model**. Set the provider, **base URL,
   model and API key** — *Anthropic (Claude)* uses the official Anthropic SDK (default model `claude-opus-5`),
   *OpenAI-compatible* covers OpenRouter, Groq, Together, vLLM, LM Studio and similar `/chat/completions` endpoints.
@@ -200,6 +220,8 @@ cloning, pooled particles/decals/tracers.
 ### Playtest
 `npm run playtest:royale` (server running with `DEV_TELEPORT=1 ROYALE_LOBBY=50`) plays a battle royale match in a real
 browser: lobby, plane, jump, freefall, parachute, landing, loot pickup, armor, island map, death, placement, spectating.
+`node scripts/playtest-vehicles.mjs` (server with `DEV_TELEPORT=1`) boards a tank and a helicopter in a real browser:
+enter prompt, driving, cannon / MG / rockets, seat switching, exit, climb and forward flight, and an enemy crash (20 checks).
 `npm run playtest:mobile -- <map>` does the same on an emulated phone with real multi-touch events (24 checks).
 `npm run playtest -- <map>` (server running with `DEV_TELEPORT=1 BOTS=0`) drives a real browser client plus a second
 network client through ~30 checks: movement, stances, jump, weapon switch, ADS + firing with server damage, reload, kill,

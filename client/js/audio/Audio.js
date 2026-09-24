@@ -136,10 +136,30 @@ export class GameAudio {
       f.type = 'lowpass'; f.frequency.value = 260;
       // four turboprops slightly out of tune -> slow beating drone
       for (const hz of [74, 75.3, 111, 148.6]) { const o = c.createOscillator(); o.type = 'sawtooth'; o.frequency.value = hz; const og = c.createGain(); og.gain.value = 0.12; o.connect(og).connect(f); o.start(); extra.push(o); }
+    } else if (kind === 'tank') {
+      // diesel / turbine rumble + track squeal: low detuned saws through a lowpass that opens with the revs
+      f.type = 'lowpass'; f.frequency.value = 180;
+      for (const hz of [31, 46.5, 62.3, 93]) { const o = c.createOscillator(); o.type = 'sawtooth'; o.frequency.value = hz; o.userData = hz; const og = c.createGain(); og.gain.value = 0.16; o.connect(og).connect(f); o.start(); extra.push(o); }
+    } else if (kind === 'heli') {
+      // rotor: filtered noise amplitude-modulated at the blade-passing rate ("wop-wop") + turbine whine
+      f.type = 'lowpass'; f.frequency.value = 900;
+      const am = c.createGain(); am.gain.value = 0.55;
+      const lfo = c.createOscillator(); lfo.type = 'sawtooth'; lfo.frequency.value = 17; const lg = c.createGain(); lg.gain.value = 0.45;
+      lfo.connect(lg).connect(am.gain); lfo.start(); extra.push(lfo);
+      const whine = c.createOscillator(); whine.type = 'sine'; whine.frequency.value = 2400; const wg = c.createGain(); wg.gain.value = 0.012; whine.connect(wg).connect(g); whine.start(); extra.push(whine);
+      const thump = c.createOscillator(); thump.type = 'triangle'; thump.frequency.value = 17; const tg = c.createGain(); tg.gain.value = 0.25; thump.connect(tg).connect(f); thump.start(); extra.push(thump);
+      src.connect(am).connect(f).connect(g).connect(this.master); src.start();
+      return {
+        set: (v) => g.gain.setTargetAtTime(v, c.currentTime, 0.2),
+        stop: () => { try { src.stop(); extra.forEach((o) => o.stop()); } catch {} g.disconnect(); },
+      };
     } else { f.type = 'bandpass'; f.frequency.value = 650; f.Q.value = 0.5; }
     src.connect(f).connect(g).connect(this.master); src.start();
     return {
-      set: (v, freq) => { g.gain.setTargetAtTime(v, c.currentTime, 0.2); if (freq) f.frequency.setTargetAtTime(freq, c.currentTime, 0.2); },
+      set: (v, freq, rate) => {
+        g.gain.setTargetAtTime(v, c.currentTime, 0.2); if (freq) f.frequency.setTargetAtTime(freq, c.currentTime, 0.2);
+        if (rate && kind === 'tank') for (const o of extra) o.frequency.setTargetAtTime(o.userData * rate, c.currentTime, 0.3);
+      },
       stop: () => { try { src.stop(); extra.forEach((o) => o.stop()); } catch {} g.disconnect(); },
     };
   }
@@ -160,6 +180,25 @@ export class GameAudio {
     this.#noiseBurst(g, t + delay, 1.6, 0.004, 30);
     this.#thump(g, t + delay, 70, 0.9, 1.8);
     this.#noiseBurst(g, t + delay + 0.05, 2.2, 0.2, 0, 180);
+  }
+
+  // 120 mm tank gun: supersonic blast + deep boom, heard (and felt) far away
+  cannon(pos, local = false) {
+    if (!this.ctx) return;
+    const d = local ? 0 : this.#dist(pos), t = this.ctx.currentTime, delay = d > 30 ? d / 343 : 0;
+    const g = this.#chain(local ? null : pos, local ? 2.2 : 3, Math.max(500, 12000 - d * 25), delay, local ? 0.5 : 1);
+    this.#noiseBurst(g, t + delay, 0.5, 0.001, 60);
+    this.#thump(g, t + delay, 55, 1.1, 2.2);
+    this.#noiseBurst(g, t + delay + 0.03, 1.8, 0.1, 0, 140);
+  }
+
+  // rocket motor ignition + whoosh
+  rocket(pos) {
+    if (!this.ctx) return;
+    const d = this.#dist(pos), t = this.ctx.currentTime;
+    const g = this.#chain(pos, 1.3, Math.max(700, 9000 - d * 30), d > 30 ? d / 343 : 0);
+    this.#noiseBurst(g, t, 0.08, 0.001, 300);
+    this.#noiseBurst(g, t + 0.02, 0.9, 0.05, 0, 900);
   }
 
   impact(pos, surface) {

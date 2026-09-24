@@ -99,7 +99,7 @@ export class Players {
       const isMe = p.id === myId;
       if (isMe && localState) {
         // local third-person body uses predicted state
-        Object.assign(p, { x: localState.x, y: localState.y, z: localState.z, yaw: localState.yaw, pitch: localState.pitch, stance: localState.stance, vx: localState.vx, vz: localState.vz, alive: localState.alive, flags: (localState.ads ? 1 : 0) | (localState.sprint ? 2 : 0) | (localState.onGround ? 16 : 0) | (localState.air === 1 ? 32 : 0) | (localState.air === 2 ? 64 : 0) });
+        Object.assign(p, { x: localState.x, y: localState.y, z: localState.z, yaw: localState.yaw, pitch: localState.pitch, stance: localState.stance, vx: localState.vx, vz: localState.vz, alive: localState.alive, flags: (localState.ads ? 1 : 0) | (localState.sprint ? 2 : 0) | (localState.onGround ? 16 : 0) | (localState.air === 1 ? 32 : 0) | (localState.air === 2 ? 64 : 0) | (localState.veh ? 128 : 0) });
         if (localState.weaponId) this.#weapon(p, localState.weaponId);
       } else if (!seen.has(p.id) && p.alive && sample) {
         // not in snapshot => dead (keep the body for the death animation)
@@ -107,7 +107,8 @@ export class Players {
         if (!p.rig.state.dead) p.rig.die(Math.random() < 0.5 ? 1 : -1);
       }
       const r = p.rig;
-      const visible = isMe ? thirdPerson && p.alive : true;
+      // soldiers inside a tank / helicopter are hidden (flag 128)
+      const visible = (isMe ? thirdPerson && p.alive : true) && !(p.alive && (p.flags & 128));
       r.root.visible = visible;
       if (r.weapon) r.weapon.root.visible = visible && (p.alive || r.blend.death < 1);
       if (!visible && isMe) continue;

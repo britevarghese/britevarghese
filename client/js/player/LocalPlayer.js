@@ -44,7 +44,7 @@ export class LocalPlayer {
         if (e.code === 'KeyE') R.pickup();
         if (e.code === 'KeyH') R.heal();
       }
-      if (!this.alive) return;
+      if (!this.alive || this.g.vehicles?.mine) return; // seated: the vehicle controls take these keys
       if (e.code === 'KeyC' || e.code === 'ControlLeft') this.setStance(this.s.stance === 'crouch' ? 'stand' : 'crouch');
       if (e.code === 'KeyZ') this.setStance(this.s.stance === 'prone' ? 'stand' : 'prone');
       if (e.code === 'KeyR') this.reload();
@@ -66,7 +66,7 @@ export class LocalPlayer {
       if (document.pointerLockElement !== el || !this.canLook()) return;
       this.look(e.movementX, e.movementY);
     });
-    addEventListener('wheel', () => { if (this.alive) this.switchSlot(1 - this.slot); });
+    addEventListener('wheel', () => { if (this.alive && !this.g.vehicles?.mine) this.switchSlot(1 - this.slot); });
   }
 
   // look input shared by mouse and touch (pixels of movement)
@@ -74,7 +74,7 @@ export class LocalPlayer {
   canLook() { return this.alive || !!this.g.royale?.inPlane; }
 
   // third-person camera: toggled with V, forced while falling / under the canopy
-  isTPS() { return this.thirdPerson || (this.alive && this.s.air > 0); }
+  isTPS() { return this.thirdPerson || (this.alive && (this.s.air > 0 || !!this.g.vehicles?.mine)); }
 
   look(dx, dy, k = this.sens) {
     if (!this.canLook()) return;

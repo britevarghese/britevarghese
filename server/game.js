@@ -6,6 +6,7 @@ import { NavGrid } from './nav.js';
 import { stepAir } from '../shared/royale.js';
 import { bulletPath, STEP } from '../shared/ballistics.js';
 import { BotBrain } from './bots.js';
+import { VehicleSystem } from './vehicles.js';
 
 export const TICK_HZ = 30;
 export const SNAP_HZ = 20;
@@ -37,6 +38,7 @@ export class Game {
     this.botsPerTeam = botsPerTeam;
     this.events = [];
     this.time = 0;
+    this.vehicles = new VehicleSystem(this);
     this.resetRound();
   }
 
@@ -49,6 +51,7 @@ export class Game {
     this.roundOver = null;
     this.bleedAcc = { 1: 0, 2: 0 };
     this.grenades = []; this.bullets = [];
+    this.vehicles.resetAll();
     for (const p of this.players.values()) {
       p.kills = p.deaths = p.score = 0;
       this.kill(p, null, 'reset', true);
@@ -132,6 +135,7 @@ export class Game {
 
   kill(p, killer, weapon, silent = false) {
     if (!p.alive) return;
+    if (p.vehicle) this.vehicles.exit(p, true);
     p.alive = false; p.hp = 0;
     p.respawnAt = this.now() + RESPAWN_DELAY * 1000;
     if (silent) return;
@@ -155,7 +159,7 @@ export class Game {
 
   // ------------------------------------------------------------ input from humans
   handleInput(p, m) {
-    if (!p.alive) return;
+    if (!p.alive || p.vehicle) return;
     const now = this.now();
     const dt = Math.max(0.001, (now - p.lastInput) / 1000);
     p.lastInput = now;
@@ -191,7 +195,7 @@ export class Game {
   // lag compensation; older clients fall back to an estimate from ping
   tryFire(p, origin, dir, clientTime, rt) {
     const now = this.now();
-    if (!p.alive || now < p.reloadUntil || this.roundOver) return false;
+    if (!p.alive || p.vehicle || now < p.reloadUntil || this.roundOver) return false;
     const w = p.weapons[p.slot]; if (!w) return false;
     const def = WEAPONS[w.id];
     const interval = Math.max(60000 / def.rpm, (def.bolt || 0) * 1000);
@@ -222,6 +226,33 @@ export class Game {
     return true;
   }
 
+  // vehicle weapons (shells, rockets, cannon, MG): same flight model; explosive rounds burst where they land
+  fireProjectile(p, o, d, W, v) {
+    const now = this.now();
+    const path = bulletPath(this.world, o, d, W);
+    const b = { id: nextId++, shooter: p, w: W.id, def: W, pts: path.pts, i: 0, t0: now, viewT: p.bot ? now : now - Math.min(250, p.rtt / 2 + 100), bot: !!p.bot, done: false, vehicle: v.id, worldHit: path.hit };
+    const end = path.end, wh = path.hit;
+    this.emit({ t: 'shot', id: p.id, b: b.id, w: W.id, v: v.id, o: [o.x, o.y, o.z], e: [end.x, end.y, end.z], tf: +end.t.toFixed(3), s: wh ? wh.surface : 'none', n: wh ? wh.normal : null });
+    this.bullets.push(b);
+    this.stepBullet(b, now);
+  }
+
+  // generic blast: soldiers (line of sight, no friendly fire) + vehicles
+  explodeAt(x, y, z, { radius, damage, owner = null, weapon = 'explosion', vehicleDamage = 0, kind = 'explosive', boom = true }) {
+    if (boom) this.emit({ t: 'boom', x, y, z, big: radius >= 5 ? 1 : 0 });
+    for (const q of this.players.values()) {
+      if (!q.alive || q.vehicle) continue;
+      const c = { x: q.x, y: q.y + (q.stance === 'prone' ? 0.3 : 1.0), z: q.z };
+      const dist = Math.hypot(c.x - x, c.y - y, c.z - z);
+      if (dist > radius) continue;
+      if (!this.world.lineOfSight({ x, y: y + 0.15, z }, c)) continue;
+      if (owner && q !== owner && !this.isEnemy(owner, q)) continue;
+      const f = 1 - dist / radius;
+      this.damage(q, damage * f * f + (dist < radius * 0.3 ? damage * 0.4 : 0), owner, weapon);
+    }
+    if (vehicleDamage > 0) this.vehicles.explosion(x, y, z, radius, vehicleDamage, owner, weapon, kind);
+  }
+
   stepBullet(b, now) {
     const until = (now - b.t0) / 1000 + STEP - 1e-6;
     while (!b.done && b.i < b.pts.length - 1 && b.pts[b.i].t < until) {
@@ -229,7 +260,11 @@ export class Game {
       if (hit) { b.done = true; this.#bulletHit(b, hit); return; }
       b.i++;
     }
-    if (b.i >= b.pts.length - 1) b.done = true;
+    if (b.i >= b.pts.length - 1) {
+      b.done = true;
+      // explosive round reached the ground / a wall
+      if (b.def.splash && b.worldHit) { const e = b.pts[b.pts.length - 1]; this.explodeAt(e.x, e.y + 0.3, e.z, { radius: b.def.splash, damage: b.def.damage, owner: b.shooter, weapon: b.w, vehicleDamage: b.def.vehicleDamage }); }
+    }
   }
 
   stepBullets(now) {
@@ -246,7 +281,7 @@ export class Game {
     const at = b.viewT + c.t * 1000;
     let best = len, victim = null, head = false;
     for (const q of this.players.values()) {
-      if (q === b.shooter || !q.alive || !this.isEnemy(b.shooter, q)) continue;
+      if (q === b.shooter || !q.alive || q.vehicle || !this.isEnemy(b.shooter, q)) continue;
       if (Math.hypot(q.x - mx, q.z - mz) > len / 2 + 6) continue;
       const hp = b.bot ? q : this.historyAt(q, at);
       for (const cap of hitCapsules(hp)) {
@@ -254,12 +289,25 @@ export class Game {
         if (t !== null && t < best) { best = t; victim = q; head = cap.part === 'head'; }
       }
     }
+    // vehicles (current positions: they're big and their movement is smooth)
+    const vh = this.vehicles.rayTest(o, d, best, b.shooter);
+    if (vh && vh.t < best) return { vehicle: vh.v, dist: a.d + vh.t, point: [o.x + d.x * vh.t, o.y + d.y * vh.t, o.z + d.z * vh.t] };
     return victim ? { victim, head, dist: a.d + best, point: [o.x + d.x * best, o.y + d.y * best, o.z + d.z * best] } : null;
   }
 
-  #bulletHit(b, { victim, head, dist, point }) {
+  #bulletHit(b, { victim, vehicle, head, dist, point }) {
     const p = b.shooter, def = b.def;
-    const dmg = damageAt(def, dist) * (head ? def.headMul : 1);
+    if (vehicle) {
+      this.emit({ t: 'bhit', b: b.id, p: point.map((v) => +v.toFixed(2)), vh: vehicle.id });
+      const friendly = !vehicle.seats.some((s) => s) ? vehicle.team === p.team : vehicle.seats.every((s) => !s || !this.isEnemy(p, this.players.get(s) || p));
+      if (def.splash) {
+        if (!friendly) this.vehicles.damage(vehicle, def.directHit || def.vehicleDamage, p, b.w, 'explosive');
+        this.explodeAt(point[0], point[1], point[2], { radius: def.splash, damage: def.damage, owner: p, weapon: b.w, vehicleDamage: 0 });
+      } else if (!friendly) this.vehicles.damage(vehicle, def.vehicleDamage ?? (def.range ? damageAt(def, dist) : def.damage), p, b.w, 'bullet');
+      return;
+    }
+    if (def.splash) { this.explodeAt(point[0], point[1], point[2], { radius: def.splash, damage: def.damage, owner: p, weapon: b.w, vehicleDamage: def.vehicleDamage }); }
+    const dmg = def.splash ? def.directHit || def.damage : (def.range ? damageAt(def, dist) : def.damage) * (head ? def.headMul || 1.5 : 1);
     const wasAlive = victim.alive;
     this.damage(victim, dmg, p, b.w, head);
     const killed = wasAlive && !victim.alive;
@@ -329,6 +377,7 @@ export class Game {
       const f = 1 - dist / GRENADE.radius;
       this.damage(q, GRENADE.maxDamage * f * f + (dist < 2 ? 40 : 0), owner, 'grenade');
     }
+    this.vehicles.explosion(g.x, g.y, g.z, GRENADE.radius, 160, owner, 'grenade', 'grenade');
   }
 
   historyAt(q, t) {
@@ -388,6 +437,9 @@ export class Game {
     this.time += dt;
     if (this.roundOver && now - this.roundOver.at > 15000) this.resetRound();
     this.balanceBots();
+    // the collision world is shared by every room on this map: install this room's vehicles before simulating
+    this.world.dynamic = this.vehicles.colliders; this.world.ignoreOwner = null;
+    this.vehicles.tick(dt, now);
     for (const p of this.players.values()) {
       if (!p.alive) {
         if (p.bot && now >= p.respawnAt && !this.roundOver) {
@@ -396,7 +448,10 @@ export class Game {
         }
         continue;
       }
-      if (p.bot) {
+      if (p.vehicle) {
+        // seated: position comes from the vehicle; bots in vehicles are handled by the vehicle system
+        if (p.bot && p.brain.vehicleThink) p.brain.vehicleThink(dt);
+      } else if (p.bot) {
         const input = p.brain.think(dt);
         if (p.air) stepAir(this.world, p, input, dt); else stepCharacter(this.world, p, input, dt);
         if (p.fall > 0) this.damage(p, p.fall, null, 'fall');
@@ -434,7 +489,7 @@ export class Game {
     for (const p of this.players.values()) {
       if (!p.alive) continue;
       const w = p.weapons[p.slot];
-      const flags = (p.ads ? 1 : 0) | (p.sprint ? 2 : 0) | (now < p.reloadUntil ? 4 : 0) | (now - p.lastFireFlag < 120 ? 8 : 0) | (p.onGround ? 16 : 0) | (p.air === 1 ? 32 : 0) | (p.air === 2 ? 64 : 0);
+      const flags = (p.ads ? 1 : 0) | (p.sprint ? 2 : 0) | (now < p.reloadUntil ? 4 : 0) | (now - p.lastFireFlag < 120 ? 8 : 0) | (p.onGround ? 16 : 0) | (p.air === 1 ? 32 : 0) | (p.air === 2 ? 64 : 0) | (p.vehicle ? 128 : 0);
       P.push([p.id, +p.x.toFixed(2), +p.y.toFixed(2), +p.z.toFixed(2), +p.yaw.toFixed(3), +p.pitch.toFixed(3), STANCES.indexOf(p.stance), flags, w ? w.id : '', Math.max(0, Math.round(p.hp)), +(p.vx || 0).toFixed(2), +(p.vz || 0).toFixed(2)]);
     }
     return {
@@ -442,6 +497,7 @@ export class Game {
       g: this.grenades.map((g) => [g.id, +g.x.toFixed(2), +g.y.toFixed(2), +g.z.toFixed(2)]),
       f: this.flags.map((f) => [f.id, f.owner, +f.progress.toFixed(3), f.contested ? 1 : 0]),
       tk: [this.tickets[1], this.tickets[2]],
+      veh: this.vehicles.list.length ? this.vehicles.snapshot() : undefined,
     };
   }
 

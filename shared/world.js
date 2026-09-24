@@ -22,6 +22,9 @@ export class CollisionWorld {
     this.ramps = [];
     this.buildings = [];
     this.grid = new Map();
+    // moving solids (vehicles): { min, max, surface, bullets: false, owner } — refreshed every frame / tick
+    this.dynamic = [];
+    this.ignoreOwner = null; // a vehicle doesn't collide with itself while it moves
     this.#build();
   }
 
@@ -94,6 +97,10 @@ export class CollisionWorld {
     for (let i = Math.floor(x0 / CELL); i <= Math.floor(x1 / CELL); i++) for (let j = Math.floor(z0 / CELL); j <= Math.floor(z1 / CELL); j++) {
       const arr = this.grid.get(i * 100003 + j); if (!arr) continue;
       for (const b of arr) if (!seen.has(b.id)) { seen.add(b.id); out.push(b); }
+    }
+    for (const b of this.dynamic) {
+      if (b.owner === this.ignoreOwner) continue;
+      if (b.max[0] >= x0 && b.min[0] <= x1 && b.max[2] >= z0 && b.min[2] <= z1) out.push(b);
     }
     return out;
   }

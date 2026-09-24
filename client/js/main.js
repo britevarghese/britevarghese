@@ -20,6 +20,7 @@ import { hitCapsules, rayCapsule } from '/shared/weapons.js';
 import { RoyaleClient } from './royale/Royale.js';
 import { ScopeOverlay } from './ui/ScopeOverlay.js';
 import { detectGPU, adviceFor } from './render/GPU.js';
+import { VehiclesClient } from './vehicles/Vehicles.js';
 
 const $ = (id) => document.getElementById(id);
 const AUTO = new URLSearchParams(location.search);
@@ -87,6 +88,7 @@ class Game {
     this.scope = new ScopeOverlay();
     this.players = new Players(this);
     this.me = new LocalPlayer(this);
+    this.vehicles = new VehiclesClient(this);
     this.isTouch = isTouchDevice();
     this.board = new Map();
     this.net = new Net();
@@ -170,6 +172,7 @@ class Game {
         this.me.hp = me.hp;
       }
       if (!me.alive && this.me.alive) this.#onLocalDeath();
+      this.vehicles.onSnap(m);
       if (this.royale) { this.royale.onSnap(m); return; }
       this.hud.tickets(m.tk);
       for (const [id, owner, prog] of m.f) this.world.setFlagState(id, owner, prog, this.myTeam);
@@ -196,6 +199,7 @@ class Game {
         }
         break;
       case 'shot': {
+        if (e.v) { this.vehicles.onShot(e); break; }
         if (e.id === this.myId) {
           // own shots are predicted locally (onLocalShot); pair this server bullet with the oldest predicted impact
           const h = this.localImpacts?.shift();
@@ -221,7 +225,7 @@ class Game {
         this.#cancelImpact(e.b);
         // hits on me: no blood particles inside my own camera, a red flash on the screen edges instead
         if (e.v === this.myId && this.me.alive && !this.me.isTPS()) this.hud.hurtFlash();
-        else this.effects.impact(e.p, null, 'flesh');
+        else this.effects.impact(e.p, null, e.vh ? 'metal' : 'flesh');
         break;
       }
       case 'hurt':
@@ -259,6 +263,7 @@ class Game {
       case 'correct': Object.assign(this.me.s, { x: e.x, y: e.y, z: e.z }); break;
       case 'throw': if (e.id === this.myId) this.me.grenades = e.g; break;
     }
+    this.vehicles.onEvent(e);
     this.royale?.onEvent(e);
   }
 
@@ -456,11 +461,13 @@ class Game {
     this.dynres?.frame(rawDt * 1000);
     const dt = Math.min(0.05, rawDt);
     const time = this.clock.elapsedTime;
-    const me = this.me;
-    me.update(dt);
+    const me = this.me, V = this.vehicles;
+    const seated = me.alive && !!V.mine;
+    if (seated) V.updateLocal(dt); else me.update(dt);
     const cam = this.camera;
     const fc = window.__freecam;
     if (fc) { cam.position.set(...fc.pos); cam.lookAt(...fc.look); }
+    else if (seated) V.updateCamera(cam, dt);
     else if (me.alive) me.updateCamera(cam, dt);
     else if (this.killcam && performance.now() - this.killcam.t < 2400) {
       // killcam: turn toward the killer
@@ -490,9 +497,9 @@ class Game {
     // fully aimed through a magnified scope: full-screen scope view rendered from the camera itself (reticle centre
     // = bullet direction, no picture-in-picture misalignment)
     const vw = this.viewmodel.weapon;
-    const fullScope = me.alive && !me.isTPS() && !fc && !!wdef?.scoped && vw.opticType === 'scope' && this.viewmodel.ads > 0.96 && !reloading;
+    const fullScope = !seated && me.alive && !me.isTPS() && !fc && !!wdef?.scoped && vw.opticType === 'scope' && this.viewmodel.ads > 0.96 && !reloading;
     // real optics: a 4x rifle scope shows ~7 degrees (PSO-1: 6 deg), independent of the player's FOV setting
-    cam.fov = fullScope ? 28 / (vw.magnification || 4) : this.baseFov * (me.alive && !me.isTPS() ? this.viewmodel.fovScale : me.thirdPerson && me.ads ? 0.8 : 1);
+    cam.fov = seated ? V.fov : fullScope ? 28 / (vw.magnification || 4) : this.baseFov * (me.alive && !me.isTPS() ? this.viewmodel.fovScale : me.thirdPerson && me.ads ? 0.8 : 1);
     this.scope.show(fullScope);
     if (fullScope) this.scope.update(wdef, me.zeroOf(), cam.fov);
     me.scoped = fullScope;
@@ -509,9 +516,10 @@ class Game {
     // third-person aim point: whatever the camera looks at
     // remote & local third-person bodies
     const sample = this.net.sample();
-    const local = me.alive ? { x: me.s.x, y: me.s.y, z: me.s.z, yaw: me.yaw, pitch: me.pitch + me.recoil.p, stance: me.s.stance, vx: me.s.vx, vz: me.s.vz, alive: true, ads: me.ads, sprint: me.sprinting, onGround: me.s.onGround, weaponId: me.weaponId(), air: me.s.air || 0 } : null;
+    const local = me.alive ? { x: me.s.x, y: me.s.y, z: me.s.z, yaw: me.yaw, pitch: me.pitch + me.recoil.p, stance: me.s.stance, vx: me.s.vx, vz: me.s.vz, alive: true, ads: me.ads, sprint: me.sprinting, onGround: me.s.onGround, weaponId: me.weaponId(), air: me.s.air || 0, veh: seated } : null;
     this.players.update(dt, sample, this.myId, cam.position, me.isTPS(), local, cam);
     P.mark('players');
+    V.update(dt, sample);
     this.#grenades(sample, dt);
     // world
     this.lighting.follow(cam.position, this.renderer);
@@ -529,10 +537,10 @@ class Game {
       this.hud.vitals({ hp: me.alive ? (this.meState?.hp ?? 100) : 0 }, w, me.slot, me.grenades, me.s.stance, reloading, me.zeroOf());
       if (!this.royale) this.hud.flags(this.lastSnap.f, me.alive ? me.s : null);
       if ((this.enemyCheckN = (this.enemyCheckN || 0) + 1) % 3 === 1) this.onEnemy = me.alive && wdef ? this.#enemyUnderCrosshair(cam, wdef) : false;
-      this.hud.crosshair(wdef ? me.spread(wdef) * 57.3 : 1, this.viewmodel.ads > 0.5 && !me.thirdPerson, me.alive && !me.s.air, this.onEnemy);
+      this.hud.crosshair(seated ? 0.4 : wdef ? me.spread(wdef) * 57.3 : 1, !seated && this.viewmodel.ads > 0.5 && !me.thirdPerson, me.alive && !me.s.air, this.onEnemy);
       // the minimap canvas is costly to redraw: 12 Hz is plenty
       this.mmT = (this.mmT || 0) + dt;
-      if (this.mmT > 0.083) { this.mmT = 0; this.hud.minimap(me.s, me.yaw, this.players.map, this.myId, this.lastSnap.f, this.royale); }
+      if (this.mmT > 0.083) { this.mmT = 0; this.hud.minimap(me.s, me.yaw, this.players.map, this.myId, this.lastSnap.f, this.royale, V); }
     }
     P.mark('hud');
     // render: world, then first-person viewmodel on top (or world only in third person / dead)

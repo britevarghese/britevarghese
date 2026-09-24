@@ -11,6 +11,8 @@ const BTN = [
   ['reload', 'R', 'sm'], ['nade', 'G', 'sm'], ['swap', '⇄', 'sm'], ['view', '👁', 'top'], ['score', '☰', 'top'], ['chat', '💬', 'top'], ['pause', '❚❚', 'top'],
   // battle royale only
   ['pick', 'PICK', 'sm br'], ['heal', '✚', 'sm br'], ['map', 'MAP', 'top br'],
+  // vehicles: enter / exit, switch seat, helicopter climb / descend
+  ['veh', 'VEH', 'sm veh'], ['vseat', 'SEAT', 'sm vin'], ['vup', '▲', 'sm vin heli'], ['vdown', '▼', 'sm vin heli'],
 ];
 
 export class TouchControls {
@@ -98,6 +100,10 @@ export class TouchControls {
     on('ads', () => { me.mouse.r = !me.mouse.r; document.getElementById('t-ads').classList.toggle('latched', me.mouse.r); });
     on('jump', () => { if (g.royale?.inPlane) g.royale.jump(); else me.touch.jump = true; });
     on('pick', () => g.royale?.pickup());
+    on('veh', () => g.vehicles?.toggle());
+    on('vseat', () => { const m = g.vehicles?.mine; if (m) g.net.send({ t: 'vseat', seat: 1 - m.seat }); });
+    on('vup', () => { me.touch.up = true; }, () => { me.touch.up = false; });
+    on('vdown', () => { me.touch.down = true; }, () => { me.touch.down = false; });
     on('heal', () => g.royale?.heal());
     on('map', () => { if (g.royale) g.royale.mapHeld = !g.royale.mapHeld; });
     on('crouch', () => { if (me.alive) me.setStance(me.s.stance === 'crouch' ? 'stand' : 'crouch'); });
@@ -118,6 +124,10 @@ export class TouchControls {
     this.root.classList.toggle('dead', !playing);
     this.root.classList.toggle('plane', inPlane);
     this.root.classList.toggle('air', !!(this.me.alive && this.me.s.air));
+    const V = this.g.vehicles, heli = V?.mine && V.map.get(V.mine.id)?.type === 'heli';
+    this.root.classList.toggle('invehicle', !!V?.mine);
+    this.root.classList.toggle('heli', !!heli);
+    document.getElementById('t-veh').classList.toggle('ready', !V?.mine && !document.getElementById('vprompt')?.classList.contains('hidden'));
     if (this.g.royale) document.getElementById('t-pick').classList.toggle('ready', !!this.g.royale.promptItem);
     if (!this.me.mouse.r) document.getElementById('t-ads').classList.remove('latched');
     document.getElementById('t-crouch').classList.toggle('latched', this.me.s.stance === 'crouch');

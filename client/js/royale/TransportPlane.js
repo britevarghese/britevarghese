@@ -7,7 +7,7 @@ import * as THREE from 'three';
 
 // ---------------------------------------------------------------- loft: sections (closed loops) -> skinned mesh
 // sections: [{ pts: [[x,y,z]...] }] all with the same point count; u runs around the loop, v along the sections
-function loft(sections, { closeEnds = true, uScale = 1, vFrom = 0, vTo = 1 } = {}) {
+export function loft(sections, { closeEnds = true, uScale = 1, vFrom = 0, vTo = 1 } = {}) {
   const n = sections[0].length, m = sections.length;
   const pos = [], uv = [], idx = [];
   // cumulative length along the loft for v
@@ -49,7 +49,7 @@ function loft(sections, { closeEnds = true, uScale = 1, vFrom = 0, vTo = 1 } = {
 }
 
 // superellipse ring (fuselage / nacelle cross-section). Points start at the top and go clockwise seen from the nose.
-function ring(cx, cy, z, hw, hhTop, hhBot, n = 28, e = 2.6) {
+export function ring(cx, cy, z, hw, hhTop, hhBot, n = 28, e = 2.6) {
   const pts = [];
   for (let i = 0; i < n; i++) {
     const a = (i / n) * Math.PI * 2;
@@ -62,7 +62,7 @@ function ring(cx, cy, z, hw, hhTop, hhBot, n = 28, e = 2.6) {
 }
 
 // NACA 00xx-like symmetric airfoil (chord along +Z from the leading edge), n points around
-function airfoil(chord, thick, n = 20) {
+export function airfoil(chord, thick, n = 20) {
   const pts = [];
   for (let i = 0; i < n; i++) {
     const a = (i / n) * Math.PI * 2;

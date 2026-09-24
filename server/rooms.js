@@ -63,6 +63,7 @@ export class Room {
     const p = this.clients.get(ws);
     if (!p) return;
     this.game.emit({ t: 'chat', from: 'SERVER', msg: `${p.name} left` });
+    if (p.vehicle) this.game.vehicles.exit(p, true);
     this.game.removePlayer(p.id);
     this.clients.delete(ws);
     if (!this.clients.size) {
@@ -75,6 +76,8 @@ export class Room {
   message(ws, m) {
     const p = this.clients.get(ws), g = this.game;
     if (!p) return;
+    // the collision world is shared by rooms on the same map: this room's vehicles are the solid ones right now
+    g.world.dynamic = g.vehicles.colliders; g.world.ignoreOwner = null;
     switch (m.t) {
       case 'in': g.handleInput(p, m); break;
       case 'fire': if (Array.isArray(m.d)) g.tryFire(p, m.o, m.d, m.ct, m.rt); break;
@@ -95,6 +98,11 @@ export class Room {
       case 'jump': g.jump?.(p); break;
       case 'pick': if (Number.isInteger(m.id)) g.pickup?.(p, m.id); break;
       case 'heal': g.heal?.(p); break;
+      case 'venter': if (Number.isInteger(m.id)) g.vehicles.enter(p, m.id); break;
+      case 'vexit': if (p.vehicle) g.vehicles.exit(p); break;
+      case 'vseat': if (Number.isInteger(m.seat)) g.vehicles.switchSeat(p, m.seat); break;
+      case 'vin': g.vehicles.input(p, m); break;
+      case 'vfire': g.vehicles.fire(p, m); break;
     }
   }
 
@@ -129,6 +137,7 @@ export class Room {
       const snap = g.snapshot();
       for (const [ws, p] of this.clients) {
         snap.me = { hp: Math.max(0, Math.round(p.hp)), alive: p.alive, w: p.weapons, sl: p.slot, g: p.grenades, rl: Math.max(0, p.reloadUntil - now), rs: Math.max(0, Math.min(99999, p.respawnAt - now)), sp: p.spawnPoint };
+        if (p.vehicle) { snap.me.vid = p.vehicle; snap.me.seat = p.seat; }
         if (g.meExtra) Object.assign(snap.me, g.meExtra(p, now));
         send(ws, snap);
       }

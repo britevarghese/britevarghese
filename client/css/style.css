@@ -260,3 +260,22 @@ body.scoped #tickets, body.scoped #minimap, body.scoped #roomtag, body.scoped #c
 #tab-ai button.small { width: auto; padding: 6px 12px; margin: 0; font-size: 11px; letter-spacing: .12em; }
 .tabs button { min-width: 0; }
 #menu { display: flex; overflow-y: auto; } #menu > .panel { margin: auto; } /* scrolls on short screens instead of clipping */
+
+/* ---------------------------------------------------------------- vehicles */
+#vhud { position: fixed; right: 18px; bottom: 18px; width: 300px; padding: 8px 12px; background: rgba(10,12,14,.55); border: 1px solid rgba(255,255,255,.15); border-radius: 6px; color: #e8e6df; font: 600 12px/1.45 system-ui, sans-serif; text-align: right; pointer-events: none; z-index: 6; }
+#vh-name { font-size: 13px; letter-spacing: .06em; color: #d9b54a; }
+#vh-hpbar { height: 6px; margin: 5px 0; background: rgba(255,255,255,.15); border-radius: 3px; overflow: hidden; }
+#vh-hp { height: 100%; width: 100%; background: #7fd06b; transition: width .2s; }
+#vh-weap { font-size: 14px; } #vh-info { opacity: .85; } #vh-keys { opacity: .55; font-weight: 500; font-size: 11px; margin-top: 2px; }
+#vret { position: fixed; width: 34px; height: 34px; margin: -17px 0 0 -17px; border: 2px solid rgba(255,90,60,.8); border-radius: 50%; pointer-events: none; z-index: 5; box-shadow: 0 0 0 1px rgba(0,0,0,.4); }
+#vret::after { content: ''; position: absolute; left: 50%; top: 50%; width: 4px; height: 4px; margin: -2px; background: rgba(255,90,60,.9); border-radius: 50%; }
+#vret.ready { border-color: rgba(120,230,110,.9); } #vret.ready::after { background: rgba(120,230,110,.9); }
+#vprompt { position: fixed; left: 50%; top: 62%; transform: translateX(-50%); padding: 6px 12px; background: rgba(10,12,14,.6); border-radius: 4px; color: #fff; font: 600 13px system-ui, sans-serif; letter-spacing: .04em; pointer-events: none; z-index: 6; }
+body.invehicle #weaponbox, body.invehicle #ammo, body.invehicle #stance, body.invehicle #zero { display: none !important; }
+.tbtn.veh { right: 40px; bottom: 320px; display: none; } .tbtn.veh.ready, #touch.invehicle .tbtn.veh { display: grid; }
+.tbtn.veh.ready { background: rgba(80,160,255,.5); border-color: #6fb0ff; }
+.tbtn.vin { display: none; } #touch.invehicle .tbtn.vin:not(.heli), #touch.invehicle.heli .tbtn.vin.heli { display: grid; }
+#t-vseat { right: 100px; bottom: 320px; } #t-vup { right: 132px; bottom: 150px; } #t-vdown { right: 132px; bottom: 76px; }
+#touch.invehicle > #t-ads, #touch.invehicle > #t-reload, #touch.invehicle > #t-nade, #touch.invehicle > #t-crouch, #touch.invehicle > #t-prone, #touch.invehicle > #t-jump, #touch.invehicle > #t-swap { display: none; }
+@media (max-width: 700px) { #vhud { width: 220px; right: 50%; transform: translateX(50%); bottom: 6px; padding: 4px 8px; font-size: 11px; } #vh-keys { display: none; } }
+body.touch #vhud { top: 56px; bottom: auto; right: 50%; transform: translateX(50%); width: 240px; font-size: 11px; }
