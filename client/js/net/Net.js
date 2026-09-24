@@ -18,6 +18,15 @@ export class Net {
           // server clock offset estimate (smoothed, one-way latency folded in)
           const off = m.time - performance.now();
           this.offset = this.snaps.length ? this.offset * 0.95 + off * 0.05 : off;
+          // adapt the interpolation buffer to the connection's jitter (smooth on bad Wi-Fi / mobile data)
+          const now = performance.now();
+          if (this.lastArrival) {
+            const gap = now - this.lastArrival;
+            this.gapAvg = (this.gapAvg ?? gap) * 0.95 + gap * 0.05;
+            this.jitter = (this.jitter ?? 0) * 0.95 + Math.abs(gap - this.gapAvg) * 0.05;
+            this.interpDelay = Math.max(90, Math.min(350, this.gapAvg * 1.6 + this.jitter * 3));
+          }
+          this.lastArrival = now;
           this.snaps.push(m);
           if (this.snaps.length > 40) this.snaps.shift();
         } else if (m.t === 'ping') { this.send({ t: 'pong', s: m.s }); return; }

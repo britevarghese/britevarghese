@@ -1,8 +1,26 @@
-// Spatial audio (WebAudio, HRTF panning). All sounds are synthesized at runtime (no sample files):
-// distance changes loudness, adds low-pass "muffling", and delays far shots by the speed of sound.
+// Spatial audio (WebAudio, HRTF panning). Gunshots use real recorded single shots (CC0, see README) with
+// random variant + pitch per shot; everything else is synthesized. Distance changes loudness, adds low-pass
+// "muffling", and delays far shots by the speed of sound. Synth gunshots remain as fallback until samples load.
+const SAMPLES = { ar: 6, sniper: 5, pistol: 4 };
+const MAX_VOICES = 28;
 export class GameAudio {
   constructor() {
     this.ctx = null; this.enabled = true; this.volume = 0.8;
+    this.buffers = {}; this.lastVar = {}; this.voices = 0;
+  }
+
+  async #loadSamples() {
+    const jobs = [];
+    for (const [k, n] of Object.entries(SAMPLES)) {
+      this.buffers[k] = [];
+      for (let i = 0; i < n; i++) {
+        jobs.push(fetch(`/assets/audio/${k}_${i}.wav`).then((r) => (r.ok ? r.arrayBuffer() : Promise.reject(r.status)))
+          .then((ab) => new Promise((res, rej) => this.ctx.decodeAudioData(ab, res, rej)))
+          .then((buf) => { this.buffers[k].push(buf); })
+          .catch((e) => console.warn(`[audio] gunshot sample ${k}_${i} failed (${e}); using synth`)));
+      }
+    }
+    await Promise.all(jobs);
   }
 
   unlock() {
@@ -24,6 +42,7 @@ export class GameAudio {
     this.verb.buffer = ir;
     this.verbGain = this.ctx.createGain(); this.verbGain.gain.value = 0.22;
     this.verb.connect(this.verbGain).connect(this.master);
+    this.#loadSamples();
   }
 
   setListener(pos, fwd, up) {
@@ -37,7 +56,7 @@ export class GameAudio {
     this.lp = pos;
   }
 
-  #chain(pos, gain, lowpass, delay = 0) {
+  #chain(pos, gain, lowpass, delay = 0, verbSend = 1) {
     const c = this.ctx;
     const g = c.createGain(); g.gain.value = gain;
     const f = c.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = lowpass;
@@ -50,7 +69,8 @@ export class GameAudio {
     }
     if (delay > 0) { const dl = c.createDelay(3); dl.delayTime.value = delay; out.connect(dl); out = dl; }
     out.connect(this.master);
-    out.connect(this.verb);
+    if (verbSend >= 1) out.connect(this.verb);
+    else if (verbSend > 0) { const vs = c.createGain(); vs.gain.value = verbSend; out.connect(vs).connect(this.verb); }
     return g;
   }
 
@@ -78,6 +98,25 @@ export class GameAudio {
     if (!this.ctx || !this.enabled) return;
     const d = local ? 0 : this.#dist(pos);
     const t = this.ctx.currentTime;
+    const set = this.buffers[weapon] || this.buffers.ar;
+    if (set?.length) {
+      if (!local && (this.voices >= MAX_VOICES || d > 900)) return;
+      // pick a different recording than last time + slight pitch/level variation so bursts never sound looped
+      let i = Math.floor(Math.random() * set.length);
+      if (set.length > 1 && i === this.lastVar[weapon]) i = (i + 1) % set.length;
+      this.lastVar[weapon] = i;
+      const delay = !local && d > 30 ? d / 343 : 0;
+      // far away: the crack's highs die off, the boom and the echo stay
+      const muffle = local ? 20000 : Math.max(900, 16000 * Math.exp(-d / 140));
+      const base = weapon === 'sniper' ? 1.15 : weapon === 'pistol' ? 0.7 : 0.95;
+      const g = this.#chain(local ? null : pos, base * (local ? 0.9 : 1.6) * (0.9 + Math.random() * 0.2), muffle, delay, local ? 0.15 : Math.min(1, 0.35 + d / 200));
+      const src = this.ctx.createBufferSource(); src.buffer = set[i];
+      src.playbackRate.value = 0.95 + Math.random() * 0.1;
+      src.connect(g); src.start(t + delay);
+      this.voices++; src.onended = () => { this.voices--; g.disconnect(); };
+      if (local) this.#noiseBurst(g, t + 0.004, 0.035, 0.001, 3500); // bolt carrier / action clack
+      return;
+    }
     const muffle = Math.max(500, 14000 - d * 60);
     const delay = d > 40 ? d / 343 : 0;
     const big = weapon === 'sniper', pistol = weapon === 'pistol';

@@ -37,7 +37,9 @@ export class Vegetation {
   constructor(assets, world, quality, renderer) {
     this.assets = assets; this.world = world; this.quality = quality; this.renderer = renderer;
     this.group = new THREE.Group(); this.group.name = 'vegetation';
-    this.q = quality === 'low'
+    this.q = quality === 'verylow'
+      ? { lod0: 10, lod1: 40, grassR: 0, grassStep: 3, shrubR: 28 }
+      : quality === 'low'
       ? { lod0: 16, lod1: 60, grassR: 20, grassStep: 2.7, shrubR: 42 }
       : { lod0: 30, lod1: 100, grassR: 34, grassStep: 2.1, shrubR: 68 };
     this.lastUpdate = -1; this.lastGrassPos = new THREE.Vector3(1e9, 0, 0);
@@ -59,7 +61,7 @@ export class Vegetation {
     });
     this.lod0 = mk(lod0, trees.length, true);
     this.lod1 = mk(lod1, trees.length, true);
-    if (this.quality === 'low') this.lod1.forEach((m) => { m.castShadow = false; });
+    if (this.quality !== 'medium') this.lod1.forEach((m) => { m.castShadow = false; });
     this.impostor = this.#bakeImpostor(lod1, trees.length);
     // dead trees (static)
     const deadM = V.trees.filter((t) => t.dead).map((t) => new THREE.Matrix4().compose(new THREE.Vector3(t.x, groundHeight(t.x, t.z), t.z), new THREE.Quaternion().setFromEuler(new THREE.Euler(0, t.r, 0)), new THREE.Vector3(t.s * 1.4, t.s * 1.4, t.s * 1.4)));
@@ -172,6 +174,7 @@ export class Vegetation {
   }
 
   #grass(cam) {
+    if (!this.q.grassR) return;
     const p = cam.position;
     if (p.distanceTo(this.lastGrassPos) < 3) return;
     this.lastGrassPos.copy(p);

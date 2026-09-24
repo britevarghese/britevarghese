@@ -83,7 +83,7 @@ device with `?touch=1`.
 | First-person viewmodel (same character arms + weapon), hip↔ADS interpolation to the optic eye point, scope picture-in-picture with reticle, sway/bob/recoil/reload/switch | `client/js/player/Viewmodel.js` |
 | World: PBR splat terrain + outer landscape, roads, modular buildings with interiors & stairs, instanced props, vegetation LOD0/LOD1/impostors + streamed grass, flags, skyline | `client/js/world/*` |
 | Lighting: HDRI IBL + sky, sun with texel-snapped soft shadows, hemisphere fill, fog, ACES | `client/js/render/Renderer.js` |
-| Effects (pooled particles, tracers, decals, per-surface impacts, explosions, smoke) · spatial audio (synthesized) · HUD | `client/js/fx`, `client/js/audio`, `client/js/ui` |
+| Effects (pooled particles, tracers, decals, per-surface impacts, explosions, smoke) · spatial audio (**recorded CC0 gunshots** with per-shot variation, distance muffling, speed-of-sound delay; synthesized foley) · HUD | `client/js/fx`, `client/js/audio`, `client/js/ui` |
 
 ### Debug scenes
 `/debug/character`, `/debug/weapon?w=bolt_rifle`, `/debug/character-weapon?view=side`, `/debug/ads?w=bolt_rifle`,
@@ -103,12 +103,21 @@ Convert your own `.blend` files with `blender -b file.blend --python scripts/ble
   PBR textures and the sky HDRI: **Poly Haven, CC0** — fetched and optimized by `scripts/build-assets.mjs`
   (meshoptimizer simplification, foliage thinning, opacity-map baking, WebP textures).
 * Default soldier: three.js example `Soldier.glb` (Mixamo) — downloaded at install time, not redistributed.
+* Gunshots: real recordings from *The Free Firearm Sound Library* (OpenGameArt, **CC0**) — see
+  `client/assets/audio/README.md`.
 
-### Performance (LOW / MEDIUM presets)
+### Performance (VERY LOW / LOW / MEDIUM presets)
 Instanced props/vegetation, tree LOD0 → LOD1 → baked billboard impostors, distance-streamed grass, chunked
 terrain with frustum culling, shared materials/texture sets, single shared GLB per asset with skeleton-aware
-cloning, reduced-rate animation for distant soldiers, pooled particles/decals/tracers, texel-snapped shadow
-cascade around the camera (LOW: 1024² / 38 m, MEDIUM: 2048² / 70 m), LOW renders at 0.8× resolution.
+cloning, pooled particles/decals/tracers.
+* **Dynamic resolution**: the render scale drops automatically when frames take longer than ~22 ms and recovers
+  when there is headroom (the FPS counter shows the current `res %`).
+* **Shadows**: texel-snapped cascade around the camera, re-rendered only every 2nd (MEDIUM) / 3rd (LOW) frame;
+  VERY LOW has no shadow pass, no grass and shorter fog/draw distance (default on phones).
+* **Soldiers**: frustum-culled animation (off-screen = 4 Hz), distance-based animation rate, finger IK only up close.
+* **No hitches**: all shaders are compiled during loading; the camera far plane ends at the fog; minimap at 12 Hz.
+* **Network**: adaptive interpolation buffer (grows with measured jitter), 20 Hz snapshots.
+* `?perf=1` shows per-system CPU time per frame (also `window.__perf`).
 
 ### Playtest
 `npm run playtest:mobile -- <map>` does the same on an emulated phone with real multi-touch events (24 checks).

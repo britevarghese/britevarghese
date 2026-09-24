@@ -6,6 +6,7 @@ import { WeaponModel } from '../weapons/WeaponModel.js';
 import { WEAPONS } from '/shared/weapons.js';
 
 const STANCES = ['stand', 'crouch', 'prone'];
+const _sphere = new THREE.Sphere(new THREE.Vector3(), 1.6), _m4 = new THREE.Matrix4();
 const lerpAngle = (a, b, t) => { let d = b - a; while (d > Math.PI) d -= 2 * Math.PI; while (d < -Math.PI) d += 2 * Math.PI; return a + d * t; };
 
 // team uniform tint applied to the imported materials (keeps all PBR maps; only multiplies albedo)
@@ -70,7 +71,8 @@ export class Players {
   }
 
   // apply interpolated snapshot state
-  update(dt, sample, myId, camPos, thirdPerson, localState) {
+  update(dt, sample, myId, camPos, thirdPerson, localState, camera = null) {
+    if (camera) (this.frustum || (this.frustum = new THREE.Frustum())).setFromProjectionMatrix(_m4.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse));
     const seen = new Set();
     if (sample) {
       const { a, b, k } = sample;
@@ -108,9 +110,13 @@ export class Players {
       if (r.weapon) r.weapon.root.visible = visible && (p.alive || r.blend.death < 1);
       if (!visible && isMe) continue;
       const dist = camPos ? Math.hypot(p.x - camPos.x, p.z - camPos.z) : 0;
-      // cheap LOD: far characters animate at a reduced rate
+      // cheap LOD: far or off-screen characters animate at a reduced rate, fingers only up close
       p.animAcc = (p.animAcc || 0) + dt;
-      const rate = dist > 90 ? 0.1 : dist > 45 ? 0.05 : 0;
+      _sphere.center.set(p.x, p.y + 1, p.z);
+      const onScreen = !this.frustum || isMe || this.frustum.intersectsSphere(_sphere);
+      const rate = !onScreen ? 0.25 : dist > 90 ? 0.1 : dist > 45 ? 0.05 : dist > 25 ? 0.033 : 0;
+      r.detail = dist < 14 ? 0 : 1;
+      if (!onScreen) r.root.position.set(p.x, p.y, p.z);
       if (p.animAcc < rate) continue;
       const adt = p.animAcc; p.animAcc = 0;
       r.root.position.set(p.x, p.y, p.z);

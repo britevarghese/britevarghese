@@ -1,6 +1,6 @@
 // STRIKEPOINT client entry: loads assets, builds the world, connects to the authoritative server and runs the frame loop.
 import * as THREE from 'three';
-import { createRenderer, Lighting, QUALITY } from './render/Renderer.js';
+import { createRenderer, Lighting, QUALITY, DynamicResolution } from './render/Renderer.js';
 import { AssetManager, describeGLTF } from './core/AssetManager.js';
 import { GameWorld } from './world/World.js';
 import { Viewmodel } from './player/Viewmodel.js';
@@ -20,6 +20,15 @@ const $ = (id) => document.getElementById(id);
 const AUTO = new URLSearchParams(location.search);
 const showError = (m) => { $('errors').textContent += `${m}\n`; };
 addEventListener('error', (e) => showError(`JS error: ${e.message}`));
+
+// per-system CPU time (ms, smoothed) — shown in the corner with ?perf=1, readable as window.__perf
+class FrameProfiler {
+  constructor() { this.avg = {}; window.__perf = this.avg; }
+  begin() { this.t = performance.now(); this.t0 = this.t; }
+  mark(name) { const n = performance.now(); this.avg[name] = (this.avg[name] ?? 0) * 0.95 + (n - this.t) * 0.05; this.t = n; }
+  end() { this.avg.total = (this.avg.total ?? 0) * 0.95 + (performance.now() - this.t0) * 0.05; }
+  report() { return Object.entries(this.avg).map(([k, v]) => `${k} ${v.toFixed(1)}`).join(' · '); }
+}
 
 class Game {
   async start({ name, team, quality, fov, room, password }) {
@@ -41,6 +50,10 @@ class Game {
     this.world = new GameWorld(this.assets, renderer, quality);
     this.lighting = new Lighting(this.world.scene, q);
     renderer.toneMappingExposure = this.lighting.exposure;
+    // nothing beyond the fog is visible, so don't draw it
+    this.camera.far = this.world.scene.fog.far + 60;
+    this.camera.updateProjectionMatrix();
+    this.dynres = new DynamicResolution(renderer, q);
     const hd = await this.assets.loadHDRI(renderer);
     this.lighting.setEnvironment(hd.env, hd.background);
     this.env = hd.env;
@@ -68,6 +81,12 @@ class Game {
     this.#bindNet();
     this.#bindUI();
     if (this.isTouch) this.touch = new TouchControls(this);
+    // compile every shader now instead of stuttering the first time something appears on screen
+    progress('preparing shaders');
+    try {
+      await renderer.compileAsync?.(this.world.scene, this.camera);
+      await renderer.compileAsync?.(this.viewmodel.scene, this.viewmodel.camera);
+    } catch (e) { console.warn('shader precompile', e); }
     progress('connecting');
     const proto = location.protocol === 'https:' ? 'wss' : 'ws';
     await this.net.connect(`${proto}://${location.host}/ws?room=${encodeURIComponent(this.room.id)}`);
@@ -321,9 +340,13 @@ class Game {
 
   // ---------------------------------------------------------------- frame
   #frame() {
+    const P = this.prof || (this.prof = new FrameProfiler());
+    P.begin();
     this.renderer.info.reset();
     this.touch?.update();
-    const dt = Math.min(0.05, this.clock.getDelta());
+    const rawDt = this.clock.getDelta();
+    this.dynres?.frame(rawDt * 1000);
+    const dt = Math.min(0.05, rawDt);
     const time = this.clock.elapsedTime;
     const me = this.me;
     me.update(dt);
@@ -343,6 +366,7 @@ class Game {
       const a = time * 0.03;
       cam.position.set(Math.cos(a) * 120, 70, Math.sin(a) * 120); cam.lookAt(0, 0, 0);
     }
+    P.mark('input+camera');
     const wdef = WEAPONS[me.weaponId()];
     // viewmodel
     const reloading = performance.now() < me.reloadUntil;
@@ -351,6 +375,7 @@ class Game {
       reload: reloading ? (performance.now() - me.reloadStart) / me.reloadDur : 0, crouch: me.s.stance !== 'stand', camera: cam, baseFov: this.baseFov,
       adsFov: wdef ? (wdef.scoped && this.viewmodel.weapon.opticType === 'scope' ? 0.8 : wdef.adsFov) : 0.8, adsTime: wdef?.adsTime, sunDir: this.lighting.sunDir, shade: this.shade ?? 1, env: this.env,
     });
+    P.mark('viewmodel');
     me.mouse.dx = 0; me.mouse.dy = 0;
     cam.fov = this.baseFov * (me.alive && !me.thirdPerson ? this.viewmodel.fovScale : me.thirdPerson && me.ads ? 0.8 : 1);
     cam.updateProjectionMatrix();
@@ -362,17 +387,21 @@ class Game {
       const o = cam.position.clone();
       this.shade = this.world.collision.raycast(o, this.lighting.sunDir, 120, false) ? 0.25 : 1;
     }
+    P.mark('camera+shade');
     // third-person aim point: whatever the camera looks at
     // remote & local third-person bodies
     const sample = this.net.sample();
     const local = me.alive ? { x: me.s.x, y: me.s.y, z: me.s.z, yaw: me.yaw, pitch: me.pitch + me.recoil.p, stance: me.s.stance, vx: me.s.vx, vz: me.s.vz, alive: true, ads: me.ads, sprint: me.sprinting, onGround: me.s.onGround, weaponId: me.weaponId() } : null;
-    this.players.update(dt, sample, this.myId, cam.position, me.thirdPerson, local);
+    this.players.update(dt, sample, this.myId, cam.position, me.thirdPerson, local, cam);
+    P.mark('players');
     this.#grenades(sample, dt);
     // world
-    this.lighting.follow(cam.position);
+    this.lighting.follow(cam.position, this.renderer);
     this.world.update(dt, cam, time);
+    P.mark('world');
     this.effects.camPos = cam.position;
     this.effects.update(dt);
+    P.mark('effects');
     const fwd = new THREE.Vector3(0, 0, -1).applyQuaternion(cam.quaternion);
     this.audio.setListener(cam.position, fwd, new THREE.Vector3(0, 1, 0).applyQuaternion(cam.quaternion));
     // HUD
@@ -381,20 +410,25 @@ class Game {
       this.hud.vitals({ hp: me.alive ? (this.meState?.hp ?? 100) : 0 }, w, me.slot, me.grenades, me.s.stance, reloading);
       this.hud.flags(this.lastSnap.f, me.alive ? me.s : null);
       this.hud.crosshair(wdef ? me.spread(wdef) * 57.3 : 1, this.viewmodel.ads > 0.5 && !me.thirdPerson, me.alive);
-      this.hud.minimap(me.s, me.yaw, this.players.map, this.myId, this.lastSnap.f);
+      // the minimap canvas is costly to redraw: 12 Hz is plenty
+      this.mmT = (this.mmT || 0) + dt;
+      if (this.mmT > 0.083) { this.mmT = 0; this.hud.minimap(me.s, me.yaw, this.players.map, this.myId, this.lastSnap.f); }
     }
+    P.mark('hud');
     // render: world, then first-person viewmodel on top (or world only in third person / dead)
     if (me.alive && !me.thirdPerson && !fc) this.viewmodel.render(this.renderer, this.world.scene, cam, this.baseFov * this.viewmodel.fovScale);
     else this.renderer.render(this.world.scene, cam);
+    P.mark('render');
     this.frames++; this.fpsT += dt;
-    if (this.fpsT > 1) { this.hud.fps(`${this.frames} fps · ${this.renderer.info.render.calls} draws · ${(this.renderer.info.render.triangles / 1000) | 0}k tris`); this.frames = 0; this.fpsT = 0; }
+    if (this.fpsT > 1) { this.hud.fps(`${this.frames} fps · res ${Math.round((this.dynres?.scale ?? 1) * 100)}% · ${this.renderer.info.render.calls} draws · ${(this.renderer.info.render.triangles / 1000) | 0}k tris${AUTO.has('perf') ? ` · ${P.report()}` : ''}`); this.frames = 0; this.fpsT = 0; }
+    P.end();
   }
 }
 
 // ------------------------------------------------------------------ menu / lobby
 const saved = JSON.parse(localStorage.getItem('sp_settings') || '{}');
 $('name').value = saved.name || `Soldier${(Math.random() * 900 + 100) | 0}`;
-$('quality').value = saved.quality || (isTouchDevice() || navigator.hardwareConcurrency <= 4 ? 'low' : 'medium');
+$('quality').value = saved.quality || (isTouchDevice() ? 'verylow' : navigator.hardwareConcurrency <= 4 ? 'low' : 'medium');
 $('fov').value = saved.fov || 78;
 $('team').value = saved.team || '0';
 const lobby = new Lobby({ initialRoom: AUTO.get('room') });

@@ -23,7 +23,7 @@ await page.goto(`${BASE}/`);
 await sleep(2500);
 await page.screenshot({ path: `${out}/mobile_lobby.png` });
 check('lobby usable at phone size (join button on screen)', await page.evaluate(() => { const r = document.getElementById('play').getBoundingClientRect(); return r.bottom <= innerHeight + 400 && r.width > 100; }));
-check('quality defaults to LOW on touch devices', (await page.evaluate(() => document.getElementById('quality').value)) === 'low');
+check('quality defaults to VERY LOW on touch devices', (await page.evaluate(() => document.getElementById('quality').value)) === 'verylow');
 
 await page.goto(`${BASE}/?room=${room.id}&autojoin=1&autodeploy=1&q=low`);
 await page.waitForFunction(() => document.body.dataset.ready === '1', null, { timeout: 300000 });

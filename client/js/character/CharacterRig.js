@@ -342,7 +342,7 @@ export class CharacterRig {
       if (weight > 0) {
         const cur = hand.getWorldQuaternion(new THREE.Quaternion());
         setBoneWorldQuaternion(hand, cur.slerp(handQ, weight));
-        this.#curlFingers(side, F, N, weight);
+        if (!this.detail) this.#curlFingers(side, F, N, weight);
       }
       if (this.debug) this.debug[side].copy(target);
     }

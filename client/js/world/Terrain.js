@@ -7,7 +7,7 @@ import { fbm, smoothstep } from '/shared/util.js';
 export function buildTerrain(assets, quality) {
   const group = new THREE.Group();
   group.name = 'terrain';
-  const res = quality === 'low' ? 2 : 1.25;
+  const res = quality === 'verylow' ? 2.5 : quality === 'low' ? 2 : 1.25;
   const chunks = 8, size = (MAP_HALF * 2) / chunks;
   const tex = ['grass', 'dirt', 'rock', 'burnt'].map((k) => assets.textureSet(k));
   const material = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 1, metalness: 0, map: tex[0].map, normalMap: tex[0].normalMap, envMapIntensity: 0.55 });
