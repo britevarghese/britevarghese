@@ -5,8 +5,10 @@ through the fictional city of **Port Halvern**, enter street races and lose poli
 There is nothing to install for players. They open `http://SERVER_IP:3000` in Chrome, Edge
 or Firefox.
 
-- **Engine:** Three.js. It uses the WebGPU renderer where the browser supports it and falls
-  back to WebGL2 automatically.
+- **Engine:** Three.js.
+  - The default renderer is WebGL2 (validated).
+  - WebGPU can be selected in *Settings → Renderer*. If the WebGPU device fails at runtime,
+    the game switches back to WebGL2 by itself.
 - **Assets:** everything is original.
   - Vehicles are generated GLB models, built by `tools/generate-models.mjs`.
   - Textures are generated procedurally at the resolution the quality level asks for.

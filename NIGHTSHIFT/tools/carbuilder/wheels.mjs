@@ -1,7 +1,7 @@
 // Wheel, tire, rim and brake geometry. Reference size: tire radius 0.34 m, width 0.25 m.
 // Axis of rotation is +X; the "outer" face of the wheel points towards +X.
 import * as THREE from 'three';
-import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
+import { mergeGeometries, mergeVertices } from 'three/addons/utils/BufferGeometryUtils.js';
 
 export const WHEEL_REF = { radius: 0.34, width: 0.25 };
 const R = 0.34, TW = 0.25, RI = 0.232;
@@ -97,7 +97,7 @@ export function rimGeometry(style, seg = 40) {
   }
   parts.push(hub());
   for (const p of parts) { if (p.attributes.uv) p.deleteAttribute('uv'); }
-  const g = mergeGeometries(parts);
+  const g = mergeVertices(mergeGeometries(parts), 1e-4);
   return g;
 }
 

@@ -319,7 +319,7 @@ export function storefront() {
       cc.fillStyle = '#4a4540'; cc.fillRect(x, 0, sw * 0.06, h); cc.fillRect(x + sw * 0.94, 0, sw * 0.06, h);
       // big window
       const wx = x + sw * 0.1, wy = h * 0.3, ww = sw * 0.55, wh = h * 0.62;
-      const glow = R.pick(['#ffe2b0', '#fff8e8', '#ffd0a0', '#d0f0ff', '#ffc8e8']);
+      const glow = R.pick(['#ffe2b0', '#fff8e8', '#ffd0a0', '#d0f0ff', '#ffe8c8', '#c8e8ff']);
       const lit = R() < 0.8;
       // interior: bright ceiling strip fading into a darker shop floor, products, reflections
       const g = ec.createLinearGradient(0, wy, 0, wy + wh);

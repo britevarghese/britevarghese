@@ -216,7 +216,7 @@ export class VehicleRenderer {
       }
       m.paint.needsUpdate = true;
     }
-    if (c.tint !== undefined && m.glass) { m.glass.opacity = 0.62 + c.tint * 0.35; m.glass.color.setScalar(0.06 * (1 - c.tint)); }
+    if (c.tint !== undefined && m.glass) { m.glass.opacity = 0.84 + c.tint * 0.15; m.glass.color.setScalar(0.06 * (1 - c.tint)); }
     if (c.wheel !== undefined && this.wheels) {
       const W = this.lib.wheels;
       const geo = W.getObjectByName('rim_' + c.wheel)?.geometry;
