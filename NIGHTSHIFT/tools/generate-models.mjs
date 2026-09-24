@@ -63,5 +63,10 @@ for (const [id, spec] of Object.entries(CAR_SPECS)) {
   console.log(`wheels.glb  ${(bytes / 1024).toFixed(1)} KB`);
 }
 
+// keep real cars registered by tools/import-cars.mjs
+try {
+  const prev = JSON.parse(fs.readFileSync(path.join(outDir, 'manifest.json'), 'utf8'));
+  for (const [id, c] of Object.entries(prev.cars || {})) if (c.imported) manifest.cars[id] = c;
+} catch { /* first run */ }
 fs.writeFileSync(path.join(outDir, 'manifest.json'), JSON.stringify(manifest, null, 2));
 console.log('manifest.json written');

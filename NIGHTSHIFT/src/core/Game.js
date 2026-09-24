@@ -196,7 +196,7 @@ export class Game {
         this.camCtl.addShake(clamp(e.impact / 25, 0, 0.8));
         this.input.rumble(0.8, 0.5, 200);
         this._dentPlayer(e.x, e.z, clamp(e.impact / 25, 0, 1));
-        if (e.impact > 6) this.police.reportInfraction('hitCivilian', 1);
+        if (e.impact > 6) { this.police.reportInfraction('hitCivilian', 1); this.progress.chain.crash(); }
       }
     });
     // knocked-over street furniture (any physics vehicle can do it)
@@ -216,11 +216,7 @@ export class Game {
       }
     });
     bus.on('prop:restore', (cs) => this.debris.restore(cs.map((c) => c.prop).filter(Boolean)));
-    bus.on('traffic:nearMiss', () => {
-      this.player.state.nitro = Math.min(1, this.player.state.nitro + 0.1);
-      this.save.data.cash += 25;
-      this.ui.toast('NEAR MISS +$25', 'cash', 1.2);
-    });
+    bus.on('traffic:nearMiss', () => { this.player.state.nitro = Math.min(1, this.player.state.nitro + 0.1); });
     bus.on('traffic:honk', (e) => this.audio.playEvent('horn', { position: { x: e.x, y: 0.5, z: e.z } }));
     bus.on('police:pursuit', (e) => { this.hud.message('PURSUIT', `${e.reason?.toUpperCase?.() || ''} · HEAT ${e.heat}`, 2.2, true); this.audio.playEvent('heatUp'); });
     bus.on('police:heat', (e) => { this.hud.message(`HEAT ${e.heat}`, '', 2, true); this.audio.playEvent('heatUp'); });
@@ -274,7 +270,8 @@ export class Game {
       this.audio?.playEvent('checkpoint');
     });
     bus.on('progress:speed', (e) => this.ui.toast(`${e.kmh} KM/H CLUB +${e.xp} XP`, '', 2.5));
-    bus.on('progress:drift', (e) => { if (e.seconds > 2) this.ui.toast(`DRIFT ${e.seconds.toFixed(1)} s +${e.xp} XP`, '', 1.6); });
+    bus.on('style:bank', (e) => { if (e.xp >= 5) this.ui.toast(`STYLE ${e.score.toLocaleString()} (x${e.mult}) · +${e.xp} XP${e.cash ? ` · +${formatMoney(e.cash)}` : ''}`, 'cash', 2.4); });
+    bus.on('style:lost', () => this.ui.toast('CHAIN LOST', 'err', 1.4));
     bus.on('progress:cash', (e) => { if (e.delta > 0 && e.reason) this.ui?.toast(`+${formatMoney(e.delta)}`, 'cash', 2); });
     bus.on('renderer:fallback', (e) => setTimeout(() => this.ui?.toast(`WebGPU unavailable — using WebGL2 (${e.reason.slice(0, 60)})`, '', 5), 500));
     bus.on('settings:changed', (e) => { if (e.section === 'audio') this.audio?.applySettings(this.settings.audio); });
@@ -601,6 +598,7 @@ export class Game {
         this.camCtl.addShake(e.intensity * 0.8);
         this.input.rumble(e.intensity, e.intensity, 150);
         if (e.intensity > 0.15) this._dentPlayer(e.x, e.z, e.intensity);
+        if (e.intensity > 0.3) this.progress.chain.crash();
       }
     }
     void dt;

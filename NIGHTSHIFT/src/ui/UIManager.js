@@ -331,7 +331,8 @@ export class UIManager {
     const s = h('div', 'screen center');
     const title = r.failed ? 'FAILED' : r.win ? (r.def.type === 'sprint' || r.def.type === 'circuit' ? '1ST PLACE' : 'COMPLETE') : r.position ? `${r.position}${['', 'ST', 'ND', 'RD'][r.position] || 'TH'} PLACE` : 'FINISHED';
     const box = h('div', 'panel brief', `<div class="type">${r.typeName}</div><h1>${title}</h1><p>${r.def.name}<br>${r.detail || ''}</p>
-      <div>Time: ${formatTime(r.time)}<br>Cash: <span class="reward">+${formatMoney(r.reward)}</span><br>Reputation: +${r.rep}</div>`);
+      <div>Time: ${formatTime(r.time)}<br>Cash: <span class="reward">+${formatMoney(r.reward)}</span>${g.progress && g.progress.rewardMult > 1.001 && r.reward ? ` <small style="color:var(--dim)">(level bonus x${g.progress.rewardMult.toFixed(2)})</small>` : ''}<br>XP: <span class="reward">+${(r.xp || 0).toLocaleString()}</span>${r.levelUp ? ` · <b style="color:var(--accent2)">LEVEL ${r.levelUp}!</b>` : ''}</div>`);
+    if (g.progress) { const L = g.progress.info; box.appendChild(h('div', '', `<div class="xpline big"><i style="width:${L.need ? Math.round(L.into / L.need * 100) : 100}%"></i></div><small style="color:var(--dim);letter-spacing:.15em">LEVEL ${L.level} · ${L.need ? `${(L.need - L.into).toLocaleString()} XP TO NEXT` : 'MAX'}</small>`)); }
     const ok = h('button', 'btn primary', 'CONTINUE'); ok.onclick = () => g.resume();
     const row = h('div', 'row2'); row.appendChild(ok); box.appendChild(row);
     s.appendChild(box);

@@ -33,7 +33,8 @@ export class HUD {
     this.centerMsg = h('div', 'center-msg hidden');
     this.pursuit = h('div', 'pursuit hidden', '<div class="lbl">PURSUIT</div><div class="bar"><div class="fill"></div></div><div class="info"></div>');
     this.prompt = h('div', 'prompt hidden');
-    root.append(mm, sp, this.topCenter, this.topRight, this.raceBoard, this.centerMsg, this.pursuit, this.prompt);
+    this.combo = h('div', 'combo hidden', '<div class="cl"></div><div class="cp"></div><div class="ct"><i></i></div>');
+    root.append(mm, sp, this.topCenter, this.topRight, this.raceBoard, this.centerMsg, this.pursuit, this.prompt, this.combo);
     this.disp = { speed: 0, rpm: 0, nitro: 1 };
     this.msgT = 0;
     this._resize();
@@ -85,6 +86,16 @@ export class HUD {
     const cash = formatMoney(g.save.data.cash);
     const cashEl = this.topRight.firstChild;
     if (cashEl.textContent !== cash) cashEl.textContent = cash;
+    // style chain
+    const ch = g.progress?.chain;
+    if (ch?.active) {
+      this.combo.classList.remove('hidden');
+      const [cl, cp, ct] = this.combo.children;
+      const lbl = `${ch.last} <b>x${ch.mult}</b>`;
+      if (cl.innerHTML !== lbl) cl.innerHTML = lbl;
+      cp.textContent = Math.round(ch.points * ch.mult).toLocaleString();
+      ct.firstChild.style.width = `${Math.max(0, ch.timer / 3.2) * 100}%`;
+    } else this.combo.classList.add('hidden');
     // driver level + progress to the next level
     if (g.progress) {
       const L = g.progress.info;

@@ -249,3 +249,11 @@ input[type=range] { width: 100%; accent-color: var(--accent); }
 .mission .mbar i { display: block; height: 100%; background: var(--accent); }
 .mission.done .mbar i { background: var(--ok); }
 .mission .mr { font-size: 0.66rem; letter-spacing: 0.12em; color: var(--gold); margin-top: 0.3rem; }
+
+/* style chain */
+.combo { position: absolute; top: 22%; left: 50%; transform: translateX(-50%); text-align: center; pointer-events: none; text-shadow: 0 0 12px rgba(0,0,0,0.8); }
+.combo .cl { font-size: 0.8rem; letter-spacing: 0.3em; color: var(--accent2); }
+.combo .cl b { color: var(--gold); margin-left: 0.4rem; }
+.combo .cp { font-size: 2rem; font-weight: 800; font-style: italic; letter-spacing: 0.05em; }
+.combo .ct { width: 9rem; height: 0.2rem; margin: 0.2rem auto 0; background: rgba(255,255,255,0.15); }
+.combo .ct i { display: block; height: 100%; background: var(--gold); }

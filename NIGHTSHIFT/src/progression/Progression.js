@@ -5,6 +5,7 @@ import { bus } from '../core/EventBus.js';
 import { CARS } from '../vehicles/VehicleCatalog.js';
 import { MISSIONS, MISSION_BY_ID, CHAPTERS } from './Missions.js';
 import { formatMoney } from '../core/util.js';
+import { StyleChain } from './StyleChain.js';
 
 export const MAX_LEVEL = 30;
 export const xpToNext = (level) => Math.round(150 + 80 * Math.pow(level, 1.3));
@@ -24,6 +25,7 @@ export class Progression {
     this.driftT = 0;
     this.lastLevel = this.level;
     this._checkT = 0;
+    this.chain = new StyleChain(this);
     this._wire();
     this._evaluate(true);
   }
@@ -77,19 +79,19 @@ export class Progression {
     bus.on('race:finished', (r) => {
       if (r.failed) return;
       const s = S();
-      if (r.win) {
-        s.racesWon = (s.racesWon || 0) + 1;
-        (s.wonEvents ||= {})[r.def.id] = true;
-        this.addXp(400 + (r.def.rep || 100) * 3, 'win');
-      } else this.addXp(120 + (r.def.rep || 100), 'finish');
+      const before = this.level;
+      r.xp = r.win ? 400 + (r.def.rep || 100) * 3 : 120 + (r.def.rep || 100);
+      if (r.win) { s.racesWon = (s.racesWon || 0) + 1; (s.wonEvents ||= {})[r.def.id] = true; }
+      this.addXp(r.xp, r.win ? 'win' : 'finish');
+      r.levelUp = this.level > before ? this.level : 0;
     });
     bus.on('police:escaped', (e) => { const s = S(); s.escapes = (s.escapes || 0) + 1; s.maxEscapeHeat = Math.max(s.maxEscapeHeat || 0, e.heat || 1); this.addXp(180 * (e.heat || 1), 'escape'); });
-    bus.on('police:disabled', () => { const s = S(); s.copsDisabled = (s.copsDisabled || 0) + 1; this.addXp(120, 'cop disabled'); });
-    bus.on('traffic:nearMiss', () => { const s = S(); s.nearMisses = (s.nearMisses || 0) + 1; this.addXp(20, 'near miss'); });
+    bus.on('police:disabled', () => { const s = S(); s.copsDisabled = (s.copsDisabled || 0) + 1; this.addXp(120, 'cop disabled'); this.chain.add('takedown', 'TAKEDOWN', 900); });
+    bus.on('traffic:nearMiss', () => { const s = S(); s.nearMisses = (s.nearMisses || 0) + 1; this.chain.add('near', 'NEAR MISS', 300); });
     bus.on('prop:break', (e) => {
       if (!e.p || !near(e.p.x, e.p.z)) return;
       const s = S();
-      if (e.p.type === 'lamp') { s.lampsDown = (s.lampsDown || 0) + 1; this.addXp(12, 'lamp'); } else { s.propsDown = (s.propsDown || 0) + 1; this.addXp(3, 'prop'); }
+      if (e.p.type === 'lamp') { s.lampsDown = (s.lampsDown || 0) + 1; this.chain.add('smash', 'WRECKED LAMP', 160); } else { s.propsDown = (s.propsDown || 0) + 1; this.chain.add('smash', 'SMASH', 40); }
     });
     bus.on('progress:upgrade', () => { const s = S(); s.upgrades = (s.upgrades || 0) + 1; this.addXp(100, 'upgrade'); });
     bus.on('progress:carBought', () => { this.addXp(250, 'new car'); this._evaluate(); });
@@ -102,9 +104,9 @@ export class Progression {
     if (s.drifting && kmh > 40 && s.onGround) this.driftT += dt;
     else if (this.driftT > 0) {
       if (this.driftT > (st.longestDrift || 0)) st.longestDrift = +this.driftT.toFixed(2);
-      if (this.driftT > 1) { const xp = Math.round(this.driftT * 25); this.addXp(xp, 'drift'); bus.emit('progress:drift', { seconds: this.driftT, xp }); }
       this.driftT = 0;
     }
+    this.chain.update(dt, s);
     if (kmh > (st.topSpeed || 0)) {
       const prev = st.topSpeed || 0;
       st.topSpeed = Math.round(kmh);
