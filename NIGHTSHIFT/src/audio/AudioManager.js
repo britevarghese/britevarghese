@@ -197,6 +197,7 @@ export class AudioManager {
     this.engineGate.connect(this.buses.engine);
     this.carSfxGate.connect(this.buses.sfx);
     this.engine = new EngineSynth(ctx, this.buffers, this.engineGate, this.carSfxGate, this);
+    this.engine.initWorklet();
     this.engine.start();
 
     // ---- traffic shared noise

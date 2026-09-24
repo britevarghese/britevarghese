@@ -35,26 +35,45 @@ const PROFILES = {
 };
 
 
+// Physical engine layouts for the AudioWorklet model (engine-worklet.js): firing angles over the 720 deg
+// cycle, which exhaust bank each firing feeds, per-cylinder header delay (ms; unequal headers = rumble),
+// exhaust length per bank (m), pipe feedback/damping and pulse character.
+const even = (n) => Array.from({ length: n }, (_, i) => (720 / n) * i);
+const alt = (n) => Array.from({ length: n }, (_, i) => i & 1);
+export const LAYOUTS = {
+  i4: { fire: even(4), hdr: [0, 0.12, 0.05, 0.18], pipe: [2.6, 2.6], open: 0.55, sharp: 5, turb: 0.35, intake: 0.35, pops: 0.5 },
+  boxer4: { fire: even(4), bank: [0, 0, 1, 1], hdr: [0, 1.9, 0.35, 2.3], pipe: [2.4, 2.5], open: 0.6, sharp: 4.2, turb: 0.4, jitter: 0.16, intake: 0.3, pops: 0.7 },
+  i6: { fire: even(6), hdr: [0, 0.08, 0.04, 0.1, 0.02, 0.06], pipe: [3.0, 3.0], open: 0.5, sharp: 5.5, turb: 0.3, intake: 0.35, pops: 0.5 },
+  flat6: { fire: even(6), bank: [0, 1, 0, 1, 0, 1], hdr: [0, 0.2, 0.1, 0.3, 0.05, 0.25], pipe: [2.2, 2.35], open: 0.5, sharp: 6, turb: 0.35, intake: 0.4, valve: 0.035, pops: 0.6 },
+  v6: { fire: even(6), bank: alt(6), hdr: [0, 0.15, 0.05, 0.2, 0.1, 0.25], pipe: [2.7, 2.8], open: 0.52, sharp: 5.2, turb: 0.3, intake: 0.35, pops: 0.5 },
+  v8cross: { fire: even(8), bank: [0, 1, 0, 1, 1, 0, 1, 0], hdr: [0, 0.3, 0.1, 0.4, 0.2, 0.05, 0.35, 0.15], pipe: [3.1, 3.2], open: 0.58, sharp: 4, turb: 0.4, jitter: 0.14, intake: 0.25, pops: 1 },
+  v8flat: { fire: even(8), bank: alt(8), hdr: [0, 0.1, 0.05, 0.12, 0.02, 0.08, 0.04, 0.1], pipe: [2.3, 2.3], open: 0.48, sharp: 6.5, turb: 0.35, intake: 0.4, pops: 0.9 },
+  v10: { fire: even(10), bank: alt(10), hdr: [0, 0.1, 0.05, 0.15, 0.02, 0.12, 0.07, 0.14, 0.03, 0.09], pipe: [2.4, 2.45], open: 0.46, sharp: 6.5, turb: 0.3, intake: 0.45, valve: 0.03, pops: 1 },
+  v12: { fire: even(12), bank: alt(12), hdr: Array(12).fill(0).map((_, i) => (i % 5) * 0.04), pipe: [2.5, 2.5], open: 0.44, sharp: 7, turb: 0.28, intake: 0.5, valve: 0.03, pops: 0.9 },
+  rotary: { fire: even(4), hdr: [0, 0.05, 0, 0.05], pipe: [2.0, 2.0], fb: 0.45, open: 0.8, sharp: 3, turb: 0.65, jitter: 0.08, intake: 0.2, rotary: true, pops: 1.2 },
+};
+const TYPE_LAYOUT = { muscle: 'v8cross', sports: 'i6', exotic: 'v12', tuner: 'i4' };
+
 // Real cars: an engine layout per car on top of one of the four base characters. Firing frequency is
 // rpm/60 * cyl/2, so a two-rotor rotary (fires twice per turn) uses cyl 4; boxers and cross-plane V8s get
 // their uneven burble from a slow, deep amplitude wobble.
 const CAR_SOUNDS = {
-  bmw_m3_e30:            ['tuner',  { cyl: 4, turbo: 0, intake: 0.55, cutRpm: 5200, crackle: 0.7, amDepth: 0.1 }],          // S14 I4, NA
-  subaru_wrx_sti_gc8:    ['tuner',  { cyl: 4, turbo: 1, amDepth: 0.42, amRate: 0.5, sub: 0.3, bodyF: 150, h15: 0.5 }],   // EJ20 boxer, turbo
-  mazda_rx7_fd:          ['tuner',  { cyl: 4, harm: [0, 1, 0.9, 0.85, 0.7, 0.62, 0.5, 0.45, 0.36, 0.3, 0.24], turbo: 0.85, crackle: 1, h15: 0.1, amDepth: 0.05, cutRpm: 6200, q: 3 }], // 13B-REW rotary
-  porsche_930_turbo:     ['sports', { cyl: 6, turbo: 1, amDepth: 0.3, amRate: 0.5, sub: 0.35, bodyF: 150, intake: 0.15 }],  // flat-6, single turbo
-  nissan_skyline_r34:    ['sports', { cyl: 6, turbo: 0.95, intake: 0.4, cutRpm: 4200, crackle: 0.5 }],                      // RB26 I6, twin turbo
-  toyota_supra_mk4:      ['sports', { cyl: 6, turbo: 1, sub: 0.35, cutRpm: 3800, crackle: 0.55 }],                          // 2JZ I6, twin turbo
-  honda_nsx_na1:         ['sports', { cyl: 6, turbo: 0, intake: 0.5, cutRpm: 5200, h2: 0.4, q: 3.2 }],                      // C30A V6, VTEC
-  bmw_m4_f82:            ['sports', { cyl: 6, turbo: 0.7, crackle: 0.9, drive: 2.8, exhaust: 0.34 }],                        // S55 I6, twin turbo
-  nissan_gtr_r35:        ['sports', { cyl: 6, turbo: 0.9, sub: 0.4, bodyF: 140, crackle: 0.6, cutRpm: 3000 }],               // VR38 V6, twin turbo
-  chevrolet_corvette_c8: ['muscle', { cyl: 8, crackle: 1, cutRpm: 2600 }],                                                    // LT2 cross-plane V8
-  porsche_911_gt3:       ['exotic', { cyl: 6, harm: [0, 1, 0.9, 0.62, 0.5, 0.42, 0.34, 0.26, 0.2, 0.15], sub: 0.2, h2: 0.6, cutRpm: 7000, amDepth: 0.12, amRate: 0.5, bodyF: 260 }], // 4.0 flat-6, 9000 rpm
-  audi_r8_v10:           ['exotic', { cyl: 10, crackle: 1, intake: 0.36 }],                                                  // 5.2 V10, NA
-  ferrari_f40:           ['exotic', { cyl: 8, turbo: 1, crackle: 1, h2: 0.4, sub: 0.2, cutRpm: 5000, drive: 3.2 }],          // F120 flat-plane V8, twin turbo
-  mclaren_senna:         ['exotic', { cyl: 8, turbo: 0.8, crackle: 0.9, h2: 0.45, drive: 3 }],                               // M840TR V8, twin turbo
-  lamborghini_centenario:['exotic', { cyl: 12, harm: [0, 0.7, 1, 0.8, 0.7, 0.62, 0.55, 0.5, 0.42, 0.36, 0.3, 0.26, 0.22, 0.2, 0.16], h2: 0.65, cutRpm: 7200, crackle: 1, gain: 0.9 }], // 6.5 V12, NA
-  lamborghini_huracan_tt:['exotic', { cyl: 10, turbo: 0.8, crackle: 1, drive: 3.2, sub: 0.18 }],                             // V10, aftermarket twin turbo
+  bmw_m3_e30:            ['tuner',  { layout: 'i4', cyl: 4, turbo: 0, intake: 0.55, cutRpm: 5200, crackle: 0.7, amDepth: 0.1 }],          // S14 I4, NA
+  subaru_wrx_sti_gc8:    ['tuner',  { layout: 'boxer4', cyl: 4, turbo: 1, amDepth: 0.42, amRate: 0.5, sub: 0.3, bodyF: 150, h15: 0.5 }],   // EJ20 boxer, turbo
+  mazda_rx7_fd:          ['tuner',  { layout: 'rotary', cyl: 4, harm: [0, 1, 0.9, 0.85, 0.7, 0.62, 0.5, 0.45, 0.36, 0.3, 0.24], turbo: 0.85, crackle: 1, h15: 0.1, amDepth: 0.05, cutRpm: 6200, q: 3 }], // 13B-REW rotary
+  porsche_930_turbo:     ['sports', { layout: 'flat6', cyl: 6, turbo: 1, amDepth: 0.3, amRate: 0.5, sub: 0.35, bodyF: 150, intake: 0.15 }],  // flat-6, single turbo
+  nissan_skyline_r34:    ['sports', { layout: 'i6', cyl: 6, turbo: 0.95, intake: 0.4, cutRpm: 4200, crackle: 0.5 }],                      // RB26 I6, twin turbo
+  toyota_supra_mk4:      ['sports', { layout: 'i6', cyl: 6, turbo: 1, sub: 0.35, cutRpm: 3800, crackle: 0.55 }],                          // 2JZ I6, twin turbo
+  honda_nsx_na1:         ['sports', { layout: 'v6', cyl: 6, turbo: 0, intake: 0.5, cutRpm: 5200, h2: 0.4, q: 3.2 }],                      // C30A V6, VTEC
+  bmw_m4_f82:            ['sports', { layout: 'i6', cyl: 6, turbo: 0.7, crackle: 0.9, drive: 2.8, exhaust: 0.34 }],                        // S55 I6, twin turbo
+  nissan_gtr_r35:        ['sports', { layout: 'v6', cyl: 6, turbo: 0.9, sub: 0.4, bodyF: 140, crackle: 0.6, cutRpm: 3000 }],               // VR38 V6, twin turbo
+  chevrolet_corvette_c8: ['muscle', { layout: 'v8cross', cyl: 8, crackle: 1, cutRpm: 2600 }],                                                    // LT2 cross-plane V8
+  porsche_911_gt3:       ['exotic', { layout: 'flat6', cyl: 6, harm: [0, 1, 0.9, 0.62, 0.5, 0.42, 0.34, 0.26, 0.2, 0.15], sub: 0.2, h2: 0.6, cutRpm: 7000, amDepth: 0.12, amRate: 0.5, bodyF: 260 }], // 4.0 flat-6, 9000 rpm
+  audi_r8_v10:           ['exotic', { layout: 'v10', cyl: 10, crackle: 1, intake: 0.36 }],                                                  // 5.2 V10, NA
+  ferrari_f40:           ['exotic', { layout: 'v8flat', cyl: 8, turbo: 1, crackle: 1, h2: 0.4, sub: 0.2, cutRpm: 5000, drive: 3.2 }],          // F120 flat-plane V8, twin turbo
+  mclaren_senna:         ['exotic', { layout: 'v8flat', cyl: 8, turbo: 0.8, crackle: 0.9, h2: 0.45, drive: 3 }],                               // M840TR V8, twin turbo
+  lamborghini_centenario:['exotic', { layout: 'v12', cyl: 12, harm: [0, 0.7, 1, 0.8, 0.7, 0.62, 0.55, 0.5, 0.42, 0.36, 0.3, 0.26, 0.22, 0.2, 0.16], h2: 0.65, cutRpm: 7200, crackle: 1, gain: 0.9 }], // 6.5 V12, NA
+  lamborghini_huracan_tt:['exotic', { layout: 'v10', cyl: 10, turbo: 0.8, crackle: 1, drive: 3.2, sub: 0.18 }],                             // V10, aftermarket twin turbo
 };
 for (const [id, [base, o]] of Object.entries(CAR_SOUNDS)) PROFILES[id] = { ...PROFILES[base], ...o, base };
 
@@ -208,6 +227,21 @@ export class EngineSynth {
     this.setCarType('sports');
   }
 
+  /** Load the physical engine model; until (or unless) it loads, the oscillator engine plays. */
+  async initWorklet() {
+    try {
+      if (!this.ctx.audioWorklet) return false;
+      await this.ctx.audioWorklet.addModule(new URL('./engine-worklet.js', import.meta.url));
+      const wk = new AudioWorkletNode(this.ctx, 'nightshift-engine', { numberOfInputs: 0, numberOfOutputs: 1, outputChannelCount: [1] });
+      this.wk = wk;
+      this.mix.disconnect();              // retire the oscillator core
+      wk.connect(this.preDrive);
+      this.useWorklet = true;
+      const type = this.type; this.type = null; this.setCarType(type || 'sports');
+      return true;
+    } catch (e) { console.warn('[Audio] engine worklet unavailable, using oscillator engine', e); return false; }
+  }
+
   start() {
     if (this.started) return;
     this.started = true;
@@ -246,7 +280,13 @@ export class EngineSynth {
     glide(this.body.frequency, p.bodyF, t, 0.05);
     glide(this.body.gain, p.bodyGain, t, 0.05);
     glide(this.lp.Q, p.q, t, 0.05);
-    this.shaper.curve = makeDriveCurve(p.drive);
+    this.shaper.curve = makeDriveCurve(this.useWorklet ? 1 + p.drive * 0.2 : p.drive);
+    if (this.wk) {
+      const lay = LAYOUTS[p.layout || TYPE_LAYOUT[base]] || LAYOUTS.i6;
+      this.wk.port.postMessage({ type: 'config', config: lay });
+      glide(this.lp.Q, 0.9, t, 0.05); // the pipes resonate on their own; a soft muffler filter is enough
+      glide(this.gMain.gain, 0, t, 0.05);
+    }
   }
 
   /** Brief torque-cut dip on upshift. */
@@ -298,11 +338,17 @@ export class EngineSynth {
     const cut = p.cutBase + p.cutRpm * rpmN + p.cutThr * thr * (0.4 + 0.6 * st.load) - off * rpmN * p.cutRpm * 0.35;
     glide(this.lp.frequency, clamp(cut, 120, 12000), t, 0.05);
     glide(this.lp2.frequency, clamp(cut * 2.5, 800, 16000), t, 0.05);
-    glide(this.preDrive.gain, 0.35 + 0.5 * thr + 0.25 * st.load, t, 0.05);
+    glide(this.preDrive.gain, this.wk ? 0.7 + 0.3 * thr : 0.35 + 0.5 * thr + 0.25 * st.load, t, 0.05);
     glide(this.exhGain.gain, p.exhaust * (0.35 + 0.65 * thr) * (0.7 + 0.6 * (1 - rpmN)), t, 0.05);
 
-    // --- AM firing lump: strong at idle / low rpm, smooth when revving ---
-    const lump = p.amDepth * (1 - rpmN * 0.85) * (1 - thr * 0.5);
+    if (this.wk) {
+      const P = this.wk.parameters;
+      P.get('rpm').setTargetAtTime(rpm, t, 0.02);
+      P.get('throttle').setTargetAtTime(thr, t, 0.03);
+      glide(this.lp.frequency, clamp(cut * 1.05 + 350, 300, 9000), t, 0.05); // muffler opens with rpm/throttle
+    }
+    // --- AM firing lump: strong at idle / low rpm, smooth when revving (the physical model has its own) ---
+    const lump = this.wk ? 0 : p.amDepth * (1 - rpmN * 0.85) * (1 - thr * 0.5);
     glide(this.lfoA.frequency, (rpm / 120) * p.amRate, t, 0.05);
     glide(this.lfoB.frequency, (rpm / 60) * 0.37, t, 0.05);
     glide(this.lfoADepth.gain, lump, t, 0.05);
@@ -310,10 +356,12 @@ export class EngineSynth {
     glide(this.amGain.gain, 1 - lump * 1.2, t, 0.05);
 
     // --- overrun layer ---
-    glide(this.ovGain.gain, off * rpmN * 0.6 * p.crackle, t, 0.08);
+    glide(this.ovGain.gain, off * rpmN * (this.wk ? 0.2 : 0.6) * p.crackle, t, 0.08);
 
     // --- volume law: throttle-dependent ---
-    const vol = (off > 0.5 ? 0.3 + 0.1 * rpmN : 0.3 + 0.7 * Math.pow(thr, 0.8)) * (0.55 + 0.45 * rpmN) * p.gain;
+    const vol = this.wk
+      ? (0.8 + 0.2 * Math.pow(thr, 0.7)) * (0.85 + 0.15 * rpmN) * p.gain * (1.9 - 0.9 * rpmN) // model already scales with rpm/load; keep idle ~15 dB under a full pull
+      : (off > 0.5 ? 0.3 + 0.1 * rpmN : 0.3 + 0.7 * Math.pow(thr, 0.8)) * (0.55 + 0.45 * rpmN) * p.gain;
     glide(this.out.gain, vol * 0.55, t, 0.05);
     glide(this.inGain.gain, p.intake * thr * (0.2 + rpmN) * 0.35, t, 0.05);
 
