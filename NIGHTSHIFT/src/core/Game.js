@@ -757,6 +757,7 @@ export class Game {
     this.ui.updateDev([
       `NIGHTSHIFT dev · ${this.rm.backend.toUpperCase()} · ${QUALITY_LABELS[this.quality.level]} · ${this.quality.gpu.renderer}`,
       `FPS ${this.fps.toFixed(0)}  frame ${this.frameMs.toFixed(1)} ms`,
+      `engine audio: ${this.audio?.engine?.useWorklet ? 'PHYSICAL MODEL' : 'oscillator (fallback)'}`,
       `draw calls ${i.calls}  triangles ${(i.triangles / 1000).toFixed(0)}k  textures ${i.textures}  geometries ${i.geometries}`,
       `memory ${mem}  est. GPU tex ${(i.textures * this.preset.textureSize * this.preset.textureSize * 4 / 1048576 * 0.3).toFixed(0)} MB`,
       `chunks loaded ${ch.loaded} detailed ${ch.detailed} pending ${ch.pending ?? 0}  props ${this.world.props.count()}`,

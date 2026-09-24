@@ -64,6 +64,16 @@ class EngineProcessor extends AudioWorkletProcessor {
     this.rotary = !!c.rotary;
     this.pops = c.pops ?? 0.6;      // afterfire tendency (pops per second scale)
     this.norm = 1.6 / Math.sqrt(this.fire.length);
+    // fixed per-cylinder differences (charge, timing, header): a real engine's cylinders never match, and
+    // that repeatable imbalance is what puts the half/first engine orders (the growl) between the firing
+    // harmonics. Deterministic per layout so each engine keeps its own voice.
+    const imb = c.imbalance ?? 0.18;
+    let sd = 1234 + this.fire.length * 97 + Math.round((c.pipe?.[0] || 2.8) * 100);
+    const r = () => { sd = (sd * 1664525 + 1013904223) >>> 0; return sd / 4294967296 * 2 - 1; };
+    this.cylAmp = this.fire.map(() => 1 + r() * imb);
+    this.cylTime = this.fire.map(() => r() * imb * 12);          // crank degrees
+    this.cylShape = this.fire.map(() => 1 + r() * imb * 0.8);    // blowdown duration
+    this.fireAt = this.fire.map((a, i) => (a + this.cylTime[i] + 720) % 720);
   }
 
   rand() { this.seed = (this.seed * 1664525 + 1013904223) >>> 0; return this.seed / 4294967296; }
@@ -81,8 +91,8 @@ class EngineProcessor extends AudioWorkletProcessor {
     slot.on = true; slot.intake = false;
     slot.wait = this.hdr[i] || 0;
     slot.t = 0;
-    slot.T = Math.max(8, this.open * rev * sampleRate * (this.rotary ? 0.7 : 1) * (0.85 + 0.3 * thr));
-    slot.a = load * jit * pop;
+    slot.T = Math.max(8, this.open * rev * sampleRate * (this.rotary ? 0.7 : 1) * (0.85 + 0.3 * thr) * this.cylShape[i]);
+    slot.a = load * jit * pop * this.cylAmp[i];
     slot.bank = this.bankOf[i] || 0;
     // intake pulse (inverted, weaker, stronger with open throttle)
     const s2 = this.pulses.find((p) => !p.on);
@@ -107,7 +117,7 @@ class EngineProcessor extends AudioWorkletProcessor {
       const wrapped = this.phase >= 720;
       if (wrapped) this.phase -= 720;
       for (let i = 0; i < nf; i++) {
-        const a = fire[i];
+        const a = this.fireAt[i];
         if (wrapped ? (a >= prev || a < this.phase) : (a >= prev && a < this.phase)) this.launch(i, rpm, thr);
       }
       // noise source for combustion turbulence

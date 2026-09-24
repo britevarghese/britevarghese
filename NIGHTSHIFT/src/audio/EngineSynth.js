@@ -52,7 +52,7 @@ export const LAYOUTS = {
   v12: { fire: even(12), bank: alt(12), hdr: Array(12).fill(0).map((_, i) => (i % 5) * 0.04), pipe: [2.5, 2.5], open: 0.44, sharp: 7, turb: 0.28, intake: 0.5, valve: 0.03, pops: 0.9 },
   rotary: { fire: even(4), hdr: [0, 0.05, 0, 0.05], pipe: [2.0, 2.0], fb: 0.45, open: 0.8, sharp: 3, turb: 0.65, jitter: 0.08, intake: 0.2, rotary: true, pops: 1.2 },
 };
-const TYPE_LAYOUT = { muscle: 'v8cross', sports: 'i6', exotic: 'v12', tuner: 'i4' };
+const TYPE_LAYOUT = { muscle: 'v8cross', sports: 'v6', exotic: 'v12', tuner: 'i4' };
 
 // Real cars: an engine layout per car on top of one of the four base characters. Firing frequency is
 // rpm/60 * cyl/2, so a two-rotor rotary (fires twice per turn) uses cyl 4; boxers and cross-plane V8s get
@@ -238,6 +238,7 @@ export class EngineSynth {
       wk.connect(this.preDrive);
       this.useWorklet = true;
       const type = this.type; this.type = null; this.setCarType(type || 'sports');
+      console.info('[Audio] physical engine model active');
       return true;
     } catch (e) { console.warn('[Audio] engine worklet unavailable, using oscillator engine', e); return false; }
   }
@@ -280,7 +281,7 @@ export class EngineSynth {
     glide(this.body.frequency, p.bodyF, t, 0.05);
     glide(this.body.gain, p.bodyGain, t, 0.05);
     glide(this.lp.Q, p.q, t, 0.05);
-    this.shaper.curve = makeDriveCurve(this.useWorklet ? 1 + p.drive * 0.2 : p.drive);
+    this.shaper.curve = makeDriveCurve(this.useWorklet ? 1.3 + p.drive * 0.3 : p.drive);
     if (this.wk) {
       const lay = LAYOUTS[p.layout || TYPE_LAYOUT[base]] || LAYOUTS.i6;
       this.wk.port.postMessage({ type: 'config', config: lay });
