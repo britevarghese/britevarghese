@@ -1,6 +1,6 @@
 // Battle royale playtest: a real browser client goes through lobby -> transport plane -> jump -> freefall ->
 // parachute -> landing -> loot pickup -> death / placement / spectating, against bots.
-// Server: DEV_TELEPORT=1 ROYALE_LOBBY=6 node server/index.js      then: node scripts/playtest-royale.mjs
+// Server: DEV_TELEPORT=1 ROYALE_LOBBY=20 node server/index.js      then: node scripts/playtest-royale.mjs
 // (headless software rendering runs at ~1 fps, so the long fall is skipped by teleporting to the ground)
 import { chromium } from 'playwright-core';
 import fs from 'node:fs';
@@ -63,7 +63,7 @@ await A.screenshot({ path: `${out}/royale_loot.jpg`, quality: 80 });
 await A.keyboard.press('KeyE');
 check('E picks up the weapon (server-authoritative)', await until((w) => __game.me.weapons[0]?.id === w, target.type, 30000), await g(() => __game.me.weapons.map((w) => w?.id).join('/')));
 check('picked weapon is equipped', await g((w) => __game.me.weaponId() === w, target.type));
-check('item removed from the ground', await g((id) => !__game.royale.loot.has(id), target.id));
+check('item removed from the ground', await until((id) => !__game.royale.loot.has(id), target.id, 20000));
 // armor
 // teleporting next to an arbitrary item can land against a wall and get pushed away: try up to 4 candidates
 let armor = null, near = false;
@@ -86,14 +86,14 @@ await A.keyboard.press('KeyE');
 await A.waitForTimeout(3000);
 console.log('      sent after E:', await g(() => window.__sent.join(' ') || 'nothing'), '| server pos', await g(() => JSON.stringify(__game.lastSnap.p.find((r) => r[0] === __game.myId)?.slice(1, 4))), '| client', await g(() => [__game.me.s.x, __game.me.s.y, __game.me.s.z].map((v) => v.toFixed(2)).join(',')));
 check('armor plates picked up', await until(() => __game.royale.me.ar >= 50, null, 30000), `armor ${await g(() => __game.royale.me.ar)}, alive ${await g(() => __game.me.alive)}${await g(() => (__game.royale.placed ? ` (killed, placed #${__game.royale.placed})` : ''))}`);
-check('armor shown in HUD', await g(() => +document.getElementById('br-ar').textContent >= 50));
+check('armor shown in HUD', await until(() => +document.getElementById('br-ar').textContent >= 50, null, 20000));
 check('ring of fire rendered', await g(() => __game.royale.ringWall.visible));
 check('alive counter', await g(() => +document.getElementById('br-al').textContent) >= 2, await g(() => document.getElementById('br-al').textContent));
-await A.keyboard.down('Tab'); await A.waitForTimeout(1500);
-check('scoreboard lists soldiers', await g(() => /ALIVE/.test(document.getElementById('scoreboard').textContent)));
+await A.keyboard.down('Tab');
+check('scoreboard lists soldiers', await until(() => /ALIVE/.test(document.getElementById('scoreboard').textContent), null, 20000));
 await A.keyboard.up('Tab');
-await A.keyboard.down('KeyM'); await A.waitForTimeout(1500);
-check('M shows the island map', await g(() => !document.getElementById('br-map').classList.contains('hidden')));
+await A.keyboard.down('KeyM');
+check('M shows the island map', await until(() => !document.getElementById('br-map').classList.contains('hidden'), null, 20000));
 await A.screenshot({ path: `${out}/royale_map.jpg`, quality: 80 });
 await A.keyboard.up('KeyM');
 await g(() => __game.net.send({ t: 'suicide' }));

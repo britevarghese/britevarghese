@@ -1,7 +1,8 @@
 // DOM HUD: tickets & flags, capture status, minimap, kill feed, ammo, health, hit markers, damage direction,
 // scoreboard, chat, deploy screen (kit + spawn selection) and round end.
 import { FLAGS, BUILDINGS, ROADS, BASES, PLAY_HALF, TEAM_NAMES } from '/shared/map.js';
-import { WEAPONS, CLASSES } from '/shared/weapons.js';
+import { WEAPONS, CLASSES, CLASS_INFO } from '/shared/weapons.js';
+import { kitCard, KIT_ICON } from './Lobby.js';
 
 const $ = (id) => document.getElementById(id);
 const VEHICLE_WEAPONS = { tank_cannon: 'Tank 120 mm', tank_mg: 'Tank MG', heli_rockets: 'Heli rockets', heli_cannon: 'Heli 30 mm', roadkill: 'Roadkill', vehicle: 'Vehicle explosion', crash: 'Crash' };
@@ -22,14 +23,30 @@ export class HUD {
   show(v) { this.el.classList.toggle('hidden', !v); }
 
   #buildClasses() {
-    const c = $('classes'); c.innerHTML = '';
-    for (const [id, k] of Object.entries(CLASSES)) {
-      const d = document.createElement('div');
-      d.className = `cls${id === this.selectedClass ? ' sel' : ''}`;
-      d.innerHTML = `<b>${k.name.toUpperCase()}</b><div>${WEAPONS[k.primary].name} · ${WEAPONS[k.secondary].name} · ${k.grenades}x frag</div>`;
-      d.onclick = () => { this.selectedClass = id; localStorage.setItem('sp_class', id); this.#buildClasses(); };
-      c.appendChild(d);
+    const c = $('classes');
+    if (!CLASSES[this.selectedClass]) this.selectedClass = 'assault';
+    c.innerHTML = Object.entries(CLASSES).map(([id, k]) => kitCard(id, k, id === this.selectedClass)).join('');
+    for (const el of c.querySelectorAll('.kit')) el.onclick = () => { this.selectedClass = el.dataset.kit; localStorage.setItem('sp_class', this.selectedClass); this.#buildClasses(); };
+    // loadout summary in the deploy bar
+    const k = CLASSES[this.selectedClass];
+    $('dp-kit').textContent = k.name.toUpperCase();
+    $('dp-kitw').textContent = `${WEAPONS[k.primary].name} · ${WEAPONS[k.secondary].name} · ${k.grenades} FRAG`;
+    $('dp-wsil').setAttribute('href', `#w-${k.primary}`);
+    $('dp-kicon').innerHTML = `<use href="#${KIT_ICON[this.selectedClass]}"/>`;
+  }
+
+  // heading tape: 15 degree ticks, cardinal letters, numbers every 15 degrees (north = -Z, like the minimap)
+  compass(yaw) {
+    const strip = $('compass-strip');
+    if (!this.compassBuilt) {
+      const names = { 0: 'N', 45: 'NE', 90: 'E', 135: 'SE', 180: 'S', 225: 'SW', 270: 'W', 315: 'NW' };
+      let h = '';
+      for (let d = -360; d < 720; d += 15) { const a = ((d % 360) + 360) % 360; h += `<span class="${names[a] ? (a % 90 ? 'cmi' : 'cmc') : ''}${a === 0 ? ' north' : ''}">${names[a] || a}</span>`; }
+      strip.innerHTML = h; this.compassBuilt = true;
     }
+    const deg = ((-yaw * 180 / Math.PI) % 360 + 360) % 360;
+    const px = 3; // pixels per degree (45 px per 15 degree cell)
+    strip.style.transform = `translateX(${-(deg + 360) * px}px)`;
   }
 
   tickets(t) {
@@ -70,6 +87,7 @@ export class HUD {
     if (w) {
       const def = WEAPONS[w.id];
       $('wname').textContent = def.name;
+      if (this.wsil !== w.id) { this.wsil = w.id; $('wsil').setAttribute('href', `#w-${w.id}`); }
       $('mag').textContent = reloading ? '—' : w.mag;
       $('reserve').textContent = w.reserve;
       $('ammo').classList.toggle('low', w.mag <= def.mag * 0.25);
@@ -186,41 +204,84 @@ export class HUD {
   // ---------------------------------------------------------------- deploy screen
   deployScreen(show, { team, flagsState, onDeploy, respawnIn = 0, killer = null } = {}) {
     $('deploy').classList.toggle('hidden', !show);
+    document.body.classList.toggle('deploying', show);
     if (!show) return;
+    const args = { team, flagsState, onDeploy, respawnIn, killer };
+    this.deployArgs = args;
     $('killcam').classList.toggle('hidden', !killer);
     if (killer) $('killcam').innerHTML = killer;
-    const owned = ['base', ...(flagsState || []).filter((f) => f[1] === team).map((f) => f[0])];
-    if (!owned.includes(this.selectedSpawn)) this.selectedSpawn = 'base';
-    const sp = $('spawns'); sp.innerHTML = '';
-    for (const id of owned) {
-      const b = document.createElement('div'); b.className = `sp${id === this.selectedSpawn ? ' sel' : ''}`; b.textContent = id === 'base' ? 'HQ' : id;
-      b.onclick = () => { this.selectedSpawn = id; this.deployScreen(true, { team, flagsState, onDeploy, respawnIn, killer }); };
-      sp.appendChild(b);
-    }
-    // map
-    const c = $('deploymap').getContext('2d'), S = 300, k = S / (PLAY_HALF * 2);
-    c.clearRect(0, 0, S, S);
-    const X = (x) => (x + PLAY_HALF) * k, Z = (z) => (z + PLAY_HALF) * k;
-    c.strokeStyle = 'rgba(160,160,150,.6)';
-    for (const r of ROADS) { c.lineWidth = r.w * k; c.beginPath(); c.moveTo(X(r.ax), Z(r.az)); c.lineTo(X(r.bx), Z(r.bz)); c.stroke(); }
-    c.fillStyle = 'rgba(210,210,200,.55)'; for (const b of BUILDINGS) c.fillRect(X(b.x - b.w / 2), Z(b.z - b.d / 2), b.w * k, b.d * k);
+    // roster of my team
+    const mates = (this.board || []).filter((r) => r.tm === team).sort((a, b) => b.s - a.s);
+    $('dp-teamname').textContent = `${TEAM_NAMES[team] || 'YOUR TEAM'} SQUAD`;
+    $('dp-count').textContent = `${mates.length}`;
+    $('dp-roster').innerHTML = mates.map((r, i) => `<div class="mate${r.id === this.meId ? ' me' : ''}"><i class="st${r.a ? ' on' : ''}"></i><span>${esc(r.n)}</span>${i === 0 ? '<em>Leader</em>' : r.ai ? '<em class="ai">AI</em>' : r.b ? '<em class="bot">BOT</em>' : ''}</div>`).join('');
+    $('dp-team').textContent = TEAM_NAMES[team] || '—';
+    $('dp-teamsub').textContent = `${mates.length} soldiers · ${mates.filter((r) => !r.b).length} players`;
+    // spawn points: HQ + flags we own that aren't under attack
+    const st = (id) => flagsState?.find((f) => f[0] === id);
+    const flags = FLAGS.map((f) => ({ id: f.id, owned: st(f.id)?.[1] === team, attacked: !!st(f.id)?.[3] })).filter((f) => f.owned);
+    const usable = ['base', ...flags.filter((f) => !f.attacked).map((f) => f.id)];
+    if (!usable.includes(this.selectedSpawn)) this.selectedSpawn = 'base';
+    const sp = $('spawns');
+    sp.innerHTML = `<div class="sp${this.selectedSpawn === 'base' ? ' sel' : ''}" data-sp="base"><svg class="ic"><use href="#i-house"/></svg>HQ Spawn</div>`
+      + flags.map((f) => `<div class="sp${f.id === this.selectedSpawn ? ' sel' : ''}${f.attacked ? ' off' : ''}" data-sp="${f.id}"><i class="dia">${f.id}</i>Flag ${f.id}${f.attacked ? '<small>UNDER ATTACK</small>' : ''}</div>`).join('');
+    for (const el of sp.querySelectorAll('.sp:not(.off)')) el.onclick = () => { this.selectedSpawn = el.dataset.sp; this.deployScreen(true, args); };
+    $('dp-spawn').textContent = this.selectedSpawn === 'base' ? 'HQ Spawn' : `Flag ${this.selectedSpawn}`;
+    $('dp-spawnsub').textContent = this.selectedSpawn === 'base' ? 'Safe · Team spawn' : 'Front line';
+    this.#tacticalMap(team, flagsState);
+    const btn = $('deploybtn');
+    btn.onclick = () => onDeploy(this.selectedSpawn, this.selectedClass);
+    this.deployTimer(respawnIn);
+  }
+
+  // the scoreboard arrived / changed while the deploy screen is open: refresh roster + map
+  refreshDeploy(flagsState) {
+    if (!this.deployArgs || $('deploy').classList.contains('hidden')) return;
+    this.deployScreen(true, { ...this.deployArgs, flagsState: flagsState || this.deployArgs.flagsState, respawnIn: this.lastRs ?? this.deployArgs.respawnIn });
+  }
+
+  #tacticalMap(team, flagsState) {
+    const cv = $('deploymap'), c = cv.getContext('2d'), S = cv.width, k = S / (PLAY_HALF * 2.1);
+    const X = (x) => S / 2 + x * k, Z = (z) => S / 2 + z * k;
+    c.fillStyle = '#1b231b'; c.fillRect(0, 0, S, S);
+    // subtle terrain grain + grid
+    c.strokeStyle = 'rgba(255,255,255,.04)'; c.lineWidth = 1;
+    for (let g = 0; g <= S; g += S / 12) { c.beginPath(); c.moveTo(g, 0); c.lineTo(g, S); c.moveTo(0, g); c.lineTo(S, g); c.stroke(); }
+    c.strokeStyle = 'rgba(255,90,70,.35)'; c.setLineDash([6, 5]); c.strokeRect(X(-PLAY_HALF), Z(-PLAY_HALF), PLAY_HALF * 2 * k, PLAY_HALF * 2 * k); c.setLineDash([]);
+    c.lineCap = 'round';
+    for (const r of ROADS) { c.strokeStyle = 'rgba(40,40,40,.9)'; c.lineWidth = r.w * k + 2; c.beginPath(); c.moveTo(X(r.ax), Z(r.az)); c.lineTo(X(r.bx), Z(r.bz)); c.stroke(); c.strokeStyle = 'rgba(150,150,140,.75)'; c.lineWidth = r.w * k; c.stroke(); }
+    c.fillStyle = 'rgba(205,205,195,.6)'; for (const b of BUILDINGS) c.fillRect(X(b.x - b.w / 2), Z(b.z - b.d / 2), Math.max(2, b.w * k), Math.max(2, b.d * k));
+    const diamond = (x, y, r, fill, stroke, label, sel) => {
+      c.save(); c.translate(x, y); c.rotate(Math.PI / 4);
+      c.fillStyle = fill; c.strokeStyle = stroke; c.lineWidth = sel ? 3 : 2;
+      c.fillRect(-r, -r, r * 2, r * 2); c.strokeRect(-r, -r, r * 2, r * 2); c.restore();
+      c.fillStyle = '#fff'; c.font = `700 ${Math.round(r * 1.1)}px Rajdhani, sans-serif`; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText(label, x, y + 1);
+    };
     for (const f of FLAGS) {
       const st = flagsState?.find((x) => x[0] === f.id); const o = st ? st[1] : 0;
-      c.fillStyle = o === 0 ? '#ddd' : o === team ? '#4d8fe0' : '#e0574d';
-      c.beginPath(); c.arc(X(f.x), Z(f.z), f.id === this.selectedSpawn ? 11 : 8, 0, 7); c.fill();
-      c.fillStyle = '#111'; c.font = 'bold 11px sans-serif'; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText(f.id, X(f.x), Z(f.z));
+      const col = o === 0 ? ['rgba(30,30,30,.85)', '#e8e8e8'] : o === team ? ['rgba(40,90,170,.85)', '#6fb0ff'] : ['rgba(150,35,30,.85)', '#ff6b5b'];
+      if (f.id === this.selectedSpawn) { c.strokeStyle = '#f2d21b'; c.lineWidth = 2; c.beginPath(); c.arc(X(f.x), Z(f.z), 17, 0, 7); c.stroke(); }
+      diamond(X(f.x), Z(f.z), 9, col[0], col[1], f.id, f.id === this.selectedSpawn);
     }
-    const b = BASES[team]; c.fillStyle = '#4d8fe0'; c.fillRect(X(b.x) - 7, Z(b.z) - 7, 14, 14); c.fillStyle = '#fff'; c.fillText('HQ', X(b.x), Z(b.z));
-    const btn = $('deploybtn');
-    btn.disabled = respawnIn > 0;
-    btn.textContent = respawnIn > 0 ? `DEPLOY IN ${Math.ceil(respawnIn / 1000)}` : 'DEPLOY';
-    btn.onclick = () => onDeploy(this.selectedSpawn, this.selectedClass);
+    for (const t of [1, 2]) {
+      const b = BASES[t], mine = t === team, x = X(b.x), y = Z(b.z);
+      c.fillStyle = mine ? 'rgba(242,210,27,.9)' : 'rgba(200,50,40,.8)';
+      c.beginPath(); c.arc(x, y, 12, 0, 7); c.fill();
+      if (mine && this.selectedSpawn === 'base') { c.strokeStyle = '#7dff8a'; c.lineWidth = 3; c.beginPath(); c.arc(x, y, 17, 0, 7); c.stroke(); }
+      c.fillStyle = '#111'; c.font = '700 10px Rajdhani, sans-serif'; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText('HQ', x, y + 1);
+    }
+    // north arrow
+    c.fillStyle = 'rgba(255,255,255,.8)'; c.font = '700 12px Rajdhani, sans-serif'; c.fillText('N', S - 18, 16);
+    c.beginPath(); c.moveTo(S - 18, 22); c.lineTo(S - 23, 34); c.lineTo(S - 13, 34); c.closePath(); c.fill();
   }
 
   deployTimer(rs) {
+    this.lastRs = rs;
     const btn = $('deploybtn');
     btn.disabled = rs > 0;
-    btn.textContent = rs > 0 ? `DEPLOY IN ${Math.ceil(rs / 1000)}` : 'DEPLOY';
+    btn.textContent = rs > 0 ? `DEPLOY IN ${Math.ceil(rs / 1000)}` : 'DEPLOY →';
+    $('respawn-timer').textContent = rs > 0 ? `RESPAWN IN ${Math.ceil(rs / 1000)} s` : 'READY';
+    $('respawn-timer').closest('.dpb').classList.toggle('wait', rs > 0);
   }
 
   roundEnd(text) { const r = $('roundend'); r.classList.toggle('hidden', !text); r.textContent = text || ''; }

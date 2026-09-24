@@ -12,7 +12,7 @@ import { GameAudio } from './audio/Audio.js';
 import { Net } from './net/Net.js';
 import { WEAPONS } from '/shared/weapons.js';
 import { PROPS, groundHeight, roadDistance, BUILDINGS, FLAGS, setActiveMap, ACTIVE_MAP } from '/shared/map.js';
-import { Lobby, inviteLink } from './ui/Lobby.js';
+import { Lobby, inviteLink, Stats, mapArt } from './ui/Lobby.js';
 import { TouchControls, isTouchDevice } from './ui/TouchControls.js';
 import { EYE_HEIGHT } from '/shared/world.js';
 import { bulletPath } from '/shared/ballistics.js';
@@ -36,6 +36,42 @@ class FrameProfiler {
   report() { return Object.entries(this.avg).map(([k, v]) => `${k} ${v.toFixed(1)}`).join(' · '); }
 }
 
+// full-screen loading art with a real progress bar (stages of Game.start) and tips
+const TIPS = [
+  'Keep moving! The ring of fire shrinks over time — don\'t get caught outside.',
+  'A pistol is a last resort: past 40 m its rounds drop and spread. Close in or switch weapons.',
+  'Flags under attack can\'t be spawned on. Deploy at HQ or a quiet flag instead.',
+  'Tanks shrug off rifle fire. Use grenades, the tank gun or helicopter rockets.',
+  'Motorbike riders and the jeep\'s roof gunner sit in the open — they can be shot.',
+  'Medics heal faster and patch up teammates within a few metres. Stick together.',
+  'Support soldiers carry double ammo and resupply the squad around them.',
+  'Hold SHIFT while scoped to steady your breathing. PgUp / PgDn change sight zeroing.',
+  'Bailing out of a helicopter in the air is a long fall. Land first.',
+  'The enemy HQ is a restricted area — stay out or take damage.',
+];
+class LoadScreen {
+  constructor(room) {
+    const royale = room.mode === 'royale';
+    this.el = $('loadscreen');
+    this.el.querySelector('.ls-bg').style.backgroundImage = `url(${mapArt(room.map)})`;
+    $('ls-mode').textContent = royale ? 'BATTLE ROYALE' : `CONQUEST · ${room.mapName.toUpperCase()}`;
+    $('ls-tag').textContent = royale ? 'LAND / LOOT / SURVIVE / WIN' : 'DEPLOY / CAPTURE / HOLD / WIN';
+    $('ls-slogan').textContent = royale ? 'LAST ONE STANDING' : 'HOLD THE LINE';
+    $('ls-tip').textContent = TIPS[Math.floor(Math.random() * TIPS.length)];
+    this.p = 0; this.set(4, 'Preparing the battlefield…');
+    this.el.classList.remove('hidden');
+    this.tipT = setInterval(() => ($('ls-tip').textContent = TIPS[Math.floor(Math.random() * TIPS.length)]), 6000);
+  }
+  set(p, text) { this.p = Math.max(this.p, p); $('ls-bar').style.width = `${this.p}%`; $('ls-pct').textContent = `${Math.round(this.p)}%`; if (text) $('ls-text').textContent = text; }
+  step(s) {
+    const P = { sky: 12, terrain: 22, buildings: 34, props: 44, vegetation: 56, 'soldiers & weapons': 70, 'battle royale': 80, 'preparing shaders': 88, connecting: 95 };
+    const key = Object.keys(P).find((k) => s.startsWith(k));
+    this.set(key ? P[key] : this.p + 2, `Loading ${s}…`);
+  }
+  done() { this.set(100, 'Ready'); clearInterval(this.tipT); setTimeout(() => this.el.classList.add('hidden'), 250); }
+  fail() { clearInterval(this.tipT); this.el.classList.add('hidden'); }
+}
+
 class Game {
   async start({ name, team, quality, fov, room, password }) {
     // resolve the room's map before building anything: every map is generated from shared/maps/*.js
@@ -43,6 +79,7 @@ class Game {
     if (!res.ok) throw new Error('Room not found (it may have closed). Pick another one.');
     this.room = await res.json();
     setActiveMap(this.room.map);
+    const loader = new LoadScreen(this.room);
     this.qualityName = quality;
     const { renderer, q } = createRenderer($('game'), quality);
     this.renderer = renderer; this.q = q;
@@ -57,7 +94,7 @@ class Game {
     this.camera = new THREE.PerspectiveCamera(fov, innerWidth / innerHeight, 0.05, 1600);
     this.assets = await new AssetManager(renderer).init();
     this.assets.anisotropy = q.anisotropy;
-    const progress = (s) => ($('loading').textContent = `Loading ${s}…`);
+    const progress = (s) => { $('loading').textContent = `Loading ${s}…`; loader.step(s); };
     progress('sky');
     this.world = new GameWorld(this.assets, renderer, quality);
     this.lighting = new Lighting(this.world.scene, q);
@@ -108,6 +145,9 @@ class Game {
     const joined = new Promise((resolve, reject) => { this._joinOk = resolve; this._joinFail = reject; });
     this.net.send({ t: 'join', room: this.room.id, password, name, team, cls: this.hud.selectedClass });
     await joined;
+    loader.done();
+    Stats.add({ matches: 1, xp: 25 });
+    $('hud-name').textContent = name;
     history.replaceState(null, '', `/?room=${encodeURIComponent(this.room.id)}`);
     $('roomtag').textContent = `ROOM ${this.room.id} · ${ACTIVE_MAP.name.toUpperCase()}`;
     $('menu').classList.add('hidden');
@@ -160,6 +200,7 @@ class Game {
       const me = this.board.get(this.myId); if (me) { this.myTeam = me.tm; this.hud.myTeam = me.tm; }
       for (const id of [...this.players.map.keys()]) if (!this.board.has(id)) this.players.remove(id);
       for (const p of this.players.map.values()) { const r = this.board.get(p.id); if (r) p.name = r.n; }
+      if (!this.royale) this.hud.refreshDeploy(this.lastSnap?.f);
     });
     n.on('snap', (m) => {
       this.lastSnap = m;
@@ -239,6 +280,8 @@ class Game {
         break;
       case 'hitmark': this.hud.hitmarker(e.k, e.hs, e.d, e.r); this.audio.ui(e.k ? 'kill' : e.hs ? 'headshot' : 'hit'); break;
       case 'kill': {
+        if (e.k === this.myId && e.v !== this.myId) Stats.add({ kills: 1, xp: e.hs ? 120 : 100 });
+        if (e.v === this.myId && e.w !== 'reset') Stats.add({ deaths: 1 });
         this.hud.killfeed(e.k, e.v, e.w, e.hs, new Map([...this.board].map(([id, r]) => [id, { name: r.n, team: r.tm }])));
         const p = P.info(e.v);
         if (p?.rig && e.v !== this.myId) p.rig.die(Math.random() < 0.5 ? 1 : -1);
@@ -254,6 +297,7 @@ class Game {
       case 'bounce': break;
       case 'flag': {
         const mine = e.owner === this.myTeam, lost = e.prev === this.myTeam;
+        if (mine && this.me.alive && FLAGS.some((f) => f.id === e.id && Math.hypot(f.x - this.me.s.x, f.z - this.me.s.z) < f.r)) Stats.add({ xp: 200 });
         this.hud.notice(e.owner ? `${mine ? 'WE CAPTURED' : 'ENEMY CAPTURED'} ${e.id}` : `${e.id} ${lost ? 'LOST' : 'NEUTRALIZED'}`);
         this.audio.ui('capture');
         break;
@@ -261,6 +305,7 @@ class Game {
       case 'chat': this.hud.chat(e.from, e.msg, e.tm); break;
       case 'round': if (!this.royale) { this.hud.roundEnd(`${e.name} WINS`); setTimeout(() => this.hud.roundEnd(null), 14000); } break;
       case 'correct': Object.assign(this.me.s, { x: e.x, y: e.y, z: e.z }); break;
+      case 'restricted': this.hud.notice(e.left > 0 ? `RESTRICTED AREA — ENEMY HQ · RETURN IN ${Math.ceil(e.left)}` : 'RESTRICTED AREA — RETURN TO BATTLE', 1200); break;
       case 'throw': if (e.id === this.myId) this.me.grenades = e.g; break;
     }
     this.vehicles.onEvent(e);
@@ -289,8 +334,9 @@ class Game {
   #showDeploy(respawnIn = 0) {
     if (this.me.alive) return;
     const link = inviteLink(this.room.id);
-    $('invite').innerHTML = `ROOM <b>${this.room.id}</b> · ${ACTIVE_MAP.name} — invite friends: <code>${link}</code><button id="copyinvite">COPY</button>`;
+    $('invite').innerHTML = `<span>ROOM: <b>${esc(this.room.name || this.room.id)}</b></span><span>CODE <b>${this.room.id}</b></span><span>${esc(ACTIVE_MAP.name.toUpperCase())}</span><span>MAX ${this.room.max || 16} PLAYERS</span><span class="inv">INVITE: <code>${esc(link)}</code></span><button id="copyinvite" class="copy"><svg class="ic"><use href="#i-link"/></svg>COPY</button>`;
     $('copyinvite').onclick = () => this.copyInvite();
+    $('dp-invite').onclick = (e) => { e.preventDefault(); this.copyInvite(); };
     const kc = this.killcam;
     const killer = kc ? `KILLED BY <b>${kc.name || 'enemy'}</b> · ${WEAPONS[kc.w]?.name || kc.w}${kc.hs ? ' · HEADSHOT' : ''}` : null;
     this.hud.deployScreen(true, { team: this.myTeam, flagsState: this.lastSnap?.f, respawnIn, killer, onDeploy: (sp, cls) => {
@@ -420,7 +466,9 @@ class Game {
       const v = +$('p-sens').value / 10000;
       if (this.isTouch) { if (this.touch) this.touch.lookSens = v * 2; localStorage.setItem('sp_touch_sens', v * 2); } else { this.me.sens = v; localStorage.setItem('sp_sens', v); }
     };
-    $('p-room').textContent = `ROOM ${this.room.id} · ${ACTIVE_MAP.name}`;
+    $('p-room').textContent = `${ACTIVE_MAP.name.toUpperCase()}  |  ${this.room.mode === 'royale' ? 'SOLO' : 'CONQUEST'}  |  ROOM ${this.room.id}`;
+    $('p-mapname').textContent = `${ACTIVE_MAP.name} · ${this.room.name || ''}`;
+    $('p-thumb').style.backgroundImage = `url(${mapArt(this.room.map)})`;
     // ---- graphics options (pause menu)
     const Q = $('p-quality');
     Q.value = this.qualityName;
@@ -516,8 +564,8 @@ class Game {
     // third-person aim point: whatever the camera looks at
     // remote & local third-person bodies
     const sample = this.net.sample();
-    const local = me.alive ? { x: me.s.x, y: me.s.y, z: me.s.z, yaw: me.yaw, pitch: me.pitch + me.recoil.p, stance: me.s.stance, vx: me.s.vx, vz: me.s.vz, alive: true, ads: me.ads, sprint: me.sprinting, onGround: me.s.onGround, weaponId: me.weaponId(), air: me.s.air || 0, veh: seated } : null;
-    this.players.update(dt, sample, this.myId, cam.position, me.isTPS(), local, cam);
+    const local = me.alive ? { x: me.s.x, y: me.s.y, z: me.s.z, yaw: (seated && V.riderYaw != null) ? V.riderYaw : me.yaw, pitch: me.pitch + me.recoil.p, stance: me.s.stance, vx: me.s.vx, vz: me.s.vz, alive: true, ads: me.ads, sprint: me.sprinting, onGround: me.s.onGround, weaponId: me.weaponId(), air: me.s.air || 0, veh: seated && !V.pose } : null;
+    this.players.update(dt, sample, this.myId, cam.position, me.isTPS() && !(seated && V.fpView), local, cam);
     P.mark('players');
     V.update(dt, sample);
     this.#grenades(sample, dt);
@@ -537,6 +585,7 @@ class Game {
       this.hud.vitals({ hp: me.alive ? (this.meState?.hp ?? 100) : 0 }, w, me.slot, me.grenades, me.s.stance, reloading, me.zeroOf());
       if (!this.royale) this.hud.flags(this.lastSnap.f, me.alive ? me.s : null);
       if ((this.enemyCheckN = (this.enemyCheckN || 0) + 1) % 3 === 1) this.onEnemy = me.alive && wdef ? this.#enemyUnderCrosshair(cam, wdef) : false;
+      this.hud.compass(seated && V.drive && !V.fpView ? cam.rotation.y : me.yaw);
       this.hud.crosshair(seated ? 0.4 : wdef ? me.spread(wdef) * 57.3 : 1, !seated && this.viewmodel.ads > 0.5 && !me.thirdPerson, me.alive && !me.s.air, this.onEnemy);
       // the minimap canvas is costly to redraw: 12 Hz is plenty
       this.mmT = (this.mmT || 0) + dt;
@@ -592,6 +641,7 @@ $('play').onclick = async () => {
     await game.start({ ...s, ...pick });
   } catch (e) {
     console.error(e);
+    $('loadscreen').classList.add('hidden');
     $('loading').textContent = e.message;
     // a failed start leaves a half-built renderer behind; reload keeps things simple
     if (game.renderer) { sessionStorage.setItem('sp_err', e.message); setTimeout(() => { location.href = `/?room=${encodeURIComponent(game.room?.id || AUTO.get('room') || '')}`; }, 1200); }

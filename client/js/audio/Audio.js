@@ -136,10 +136,12 @@ export class GameAudio {
       f.type = 'lowpass'; f.frequency.value = 260;
       // four turboprops slightly out of tune -> slow beating drone
       for (const hz of [74, 75.3, 111, 148.6]) { const o = c.createOscillator(); o.type = 'sawtooth'; o.frequency.value = hz; const og = c.createGain(); og.gain.value = 0.12; o.connect(og).connect(f); o.start(); extra.push(o); }
-    } else if (kind === 'tank') {
-      // diesel / turbine rumble + track squeal: low detuned saws through a lowpass that opens with the revs
+    } else if (kind === 'tank' || kind === 'jeep' || kind === 'bike') {
+      // engines: detuned saws through a lowpass that opens with the revs (tank diesel rumble, V8 turbo-diesel,
+      // single-cylinder two-stroke rasp)
       f.type = 'lowpass'; f.frequency.value = 180;
-      for (const hz of [31, 46.5, 62.3, 93]) { const o = c.createOscillator(); o.type = 'sawtooth'; o.frequency.value = hz; o.userData = hz; const og = c.createGain(); og.gain.value = 0.16; o.connect(og).connect(f); o.start(); extra.push(o); }
+      const base = kind === 'tank' ? [31, 46.5, 62.3, 93] : kind === 'jeep' ? [42, 63, 84.5, 126] : [58, 116.5, 175, 233];
+      for (const hz of base) { const o = c.createOscillator(); o.type = 'sawtooth'; o.frequency.value = hz; o.userData = hz; const og = c.createGain(); og.gain.value = 0.16; o.connect(og).connect(f); o.start(); extra.push(o); }
     } else if (kind === 'heli') {
       // rotor: filtered noise amplitude-modulated at the blade-passing rate ("wop-wop") + turbine whine
       f.type = 'lowpass'; f.frequency.value = 900;
@@ -158,7 +160,7 @@ export class GameAudio {
     return {
       set: (v, freq, rate) => {
         g.gain.setTargetAtTime(v, c.currentTime, 0.2); if (freq) f.frequency.setTargetAtTime(freq, c.currentTime, 0.2);
-        if (rate && kind === 'tank') for (const o of extra) o.frequency.setTargetAtTime(o.userData * rate, c.currentTime, 0.3);
+        if (rate && kind !== 'heli') for (const o of extra) o.frequency.setTargetAtTime(o.userData * rate, c.currentTime, 0.3);
       },
       stop: () => { try { src.stop(); extra.forEach((o) => o.stop()); } catch {} g.disconnect(); },
     };

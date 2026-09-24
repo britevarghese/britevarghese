@@ -56,6 +56,16 @@ Server hardening: per-IP connection cap (`MAX_CONN_PER_IP`, default 8), per-sock
 creation rate limit (5 per 10 min per IP, max 40 rooms), room passwords compared in constant time, sanitised names
 and chat, 16 KB max message size, gzip for all text assets.
 
+## Menus & HUD
+Home screen with mode cards (quick-join Conquest, Battle Royale, private Practice vs bots), quick stats and rank from a
+local service record (matches, kills, deaths, XP), battlefield cards per map, a server browser with ping and one-click
+JOIN, and views for Multiplayer (all rooms + join by code), Battle Royale lobbies, Create Room, AI Zone, Settings and
+Profile (default kit). Full-screen loading art with real progress and tips; deploy screen with squad roster, kit cards,
+tactical map with spawn points (flags under attack are greyed out) and a loadout bar; battle royale ready lobby
+(countdown, drop / loot / survive, match info, island map); two-column pause menu; in-game compass, player card and
+weapon panel. All artwork is rendered from the game itself (`node scripts/capture-ui-art.mjs`), fonts are Rajdhani and
+Saira Condensed (SIL OFL), self-hosted.
+
 ## Controls
 **Phones / tablets (touch, landscape):** left thumb = floating joystick (push to the top rim to sprint) · drag the
 right half of the screen to look · hold **FIRE** (drag it to aim while shooting) · **AIM** toggles sights ·

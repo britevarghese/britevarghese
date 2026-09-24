@@ -3,36 +3,89 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>STRIKEPOINT — Conquest</title>
+  <title>STRIKEPOINT — Tactical FPS</title>
+  <link rel="stylesheet" href="/assets/fonts/fonts.css" />
   <link rel="stylesheet" href="/css/style.css" />
   <script type="importmap">
     { "imports": { "three": "/vendor/three/build/three.module.js", "three/addons/": "/vendor/three/examples/jsm/" } }
   </script>
 </head>
 <body>
+  <!-- icon sprite (UI icons + weapon silhouettes) -->
+  <svg width="0" height="0" style="position:absolute" aria-hidden="true">
+    <defs>
+      <symbol id="i-home" viewBox="0 0 24 24"><path d="M3 11 12 3l9 8v10h-6v-6H9v6H3z" fill="currentColor"/></symbol>
+      <symbol id="i-users" viewBox="0 0 24 24"><g fill="currentColor"><circle cx="12" cy="7" r="3.2"/><path d="M5.5 20c0-3.6 2.9-6.5 6.5-6.5s6.5 2.9 6.5 6.5z"/><circle cx="5" cy="9" r="2.3"/><path d="M0 18.5c0-2.6 1.9-4.6 4.5-4.9-.9 1.3-1.4 2.9-1.4 4.9z"/><circle cx="19" cy="9" r="2.3"/><path d="M24 18.5c0-2.6-1.9-4.6-4.5-4.9.9 1.3 1.4 2.9 1.4 4.9z"/></g></symbol>
+      <symbol id="i-mountain" viewBox="0 0 24 24"><path d="M1 20 9 7l4 6 3-4 7 11z" fill="currentColor"/><path d="M9 7l-1.8 3 1.8-.9 1.9 1z" fill="#0b0e12"/></symbol>
+      <symbol id="i-gear" viewBox="0 0 24 24"><path fill="currentColor" d="M13.8 2l.5 2.6c.7.2 1.3.5 1.9.9l2.3-1.4 2.5 2.5-1.4 2.3c.4.6.7 1.2.9 1.9l2.6.5v3.6l-2.6.5c-.2.7-.5 1.3-.9 1.9l1.4 2.3-2.5 2.5-2.3-1.4c-.6.4-1.2.7-1.9.9l-.5 2.6h-3.6l-.5-2.6c-.7-.2-1.3-.5-1.9-.9l-2.3 1.4-2.5-2.5 1.4-2.3c-.4-.6-.7-1.2-.9-1.9L1 13.8v-3.6l2.6-.5c.2-.7.5-1.3.9-1.9L3.1 5.5l2.5-2.5 2.3 1.4c.6-.4 1.2-.7 1.9-.9L10.2 2zM12 8.2A3.8 3.8 0 1 0 12 15.8 3.8 3.8 0 0 0 12 8.2z"/></symbol>
+      <symbol id="i-user" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4.4 3.6-8 8-8s8 3.6 8 8"/></g></symbol>
+      <symbol id="i-power" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 3v8"/><path d="M6.3 6.8a8 8 0 1 0 11.4 0"/></g></symbol>
+      <symbol id="i-target" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3.2" fill="currentColor"/><path d="M12 1v5M12 18v5M1 12h5M18 12h5"/></g></symbol>
+      <symbol id="i-bell" viewBox="0 0 24 24"><path fill="currentColor" d="M12 22a2.5 2.5 0 0 0 2.5-2.5h-5A2.5 2.5 0 0 0 12 22zm7-6V11a7 7 0 0 0-5.5-6.8V3a1.5 1.5 0 0 0-3 0v1.2A7 7 0 0 0 5 11v5l-2 2v1h18v-1z"/></symbol>
+      <symbol id="i-refresh" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M20 12a8 8 0 1 1-2.4-5.7"/><path d="M20 4v5h-5"/></g></symbol>
+      <symbol id="i-pin" viewBox="0 0 24 24"><path fill="currentColor" d="M12 2a7 7 0 0 0-7 7c0 5 7 13 7 13s7-8 7-13a7 7 0 0 0-7-7zm0 9.5A2.5 2.5 0 1 1 12 6.5a2.5 2.5 0 0 1 0 5z"/></symbol>
+      <symbol id="i-lock" viewBox="0 0 24 24"><path fill="currentColor" d="M6 10V8a6 6 0 0 1 12 0v2h1v12H5V10zm3 0h6V8a3 3 0 0 0-6 0z"/></symbol>
+      <symbol id="i-plus" viewBox="0 0 24 24"><path fill="currentColor" d="M10 3h4v7h7v4h-7v7h-4v-7H3v-4h7z"/></symbol>
+      <symbol id="i-chip" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2"><rect x="6" y="6" width="12" height="12" rx="1.5"/><path d="M9 2v4M15 2v4M9 18v4M15 18v4M2 9h4M2 15h4M18 9h4M18 15h4"/></g><rect x="9.5" y="9.5" width="5" height="5" fill="currentColor"/></symbol>
+      <symbol id="i-link" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M10 14a4.5 4.5 0 0 0 6.4 0l3.2-3.2a4.5 4.5 0 0 0-6.4-6.4L12 5.6"/><path d="M14 10a4.5 4.5 0 0 0-6.4 0l-3.2 3.2a4.5 4.5 0 0 0 6.4 6.4l1.2-1.2"/></g></symbol>
+      <symbol id="i-play" viewBox="0 0 24 24"><path fill="currentColor" d="M6 3.5v17L20 12z"/></symbol>
+      <symbol id="i-exit" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 4H5v16h9"/><path d="M10 12h11M17 8l4 4-4 4"/></g></symbol>
+      <symbol id="i-monitor" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="1.5"/><path d="M8 21h8M12 17v4"/></g></symbol>
+      <symbol id="i-layers" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M12 3 2 8l10 5 10-5z"/><path d="m2 12 10 5 10-5M2 16l10 5 10-5"/></g></symbol>
+      <symbol id="i-eye" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-7.5 11-7.5S23 12 23 12s-4 7.5-11 7.5S1 12 1 12z"/><circle cx="12" cy="12" r="3.5"/></g></symbol>
+      <symbol id="i-mouse" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2"><rect x="6" y="2" width="12" height="20" rx="6"/><path d="M12 6v4"/></g></symbol>
+      <symbol id="i-check" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" d="m5 12.5 4.5 4.5L19 7.5"/></symbol>
+      <symbol id="i-skull" viewBox="0 0 24 24"><path fill="currentColor" d="M12 2C6.9 2 3 5.6 3 10.3c0 2.8 1.4 5 3.5 6.3V20a1 1 0 0 0 1 1h9a1 1 0 0 0 1-1v-3.4c2.1-1.3 3.5-3.5 3.5-6.3C21 5.6 17.1 2 12 2zM8.5 14a2 2 0 1 1 0-4 2 2 0 0 1 0 4zm7 0a2 2 0 1 1 0-4 2 2 0 0 1 0 4z"/></symbol>
+      <symbol id="i-heli" viewBox="0 0 24 24"><g fill="currentColor"><rect x="2" y="3" width="17" height="1.4"/><rect x="10" y="4" width="1.4" height="3"/><path d="M5 8h9a5 5 0 0 1 5 5v1H9a4 4 0 0 1-4-4z"/><rect x="0" y="9" width="6" height="1.4"/><path d="M8 17h10v1.4H8z"/></g></symbol>
+      <symbol id="i-parachute" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.8"><path d="M2 10a10 7 0 0 1 20 0z" fill="currentColor"/><path d="M2 10l10 9 10-9M8 10l4 9 4-9"/></g></symbol>
+      <symbol id="i-cross" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" fill="currentColor"/><path d="M10 6h4v4h4v4h-4v4h-4v-4H6v-4h4z" fill="#0b0e12"/></symbol>
+      <symbol id="i-binoc" viewBox="0 0 24 24"><g fill="currentColor"><circle cx="6" cy="15" r="5"/><circle cx="18" cy="15" r="5"/><rect x="3" y="4" width="6" height="8" rx="1.5"/><rect x="15" y="4" width="6" height="8" rx="1.5"/><rect x="9" y="8" width="6" height="4"/></g><circle cx="6" cy="15" r="2.4" fill="#0b0e12"/><circle cx="18" cy="15" r="2.4" fill="#0b0e12"/></symbol>
+      <symbol id="i-chevrons" viewBox="0 0 24 24"><g fill="currentColor"><path d="M3 9 12 4l9 5v3.5L12 7.5 3 12.5z"/><path d="M3 15l9-5 9 5v3.5l-9-5-9 5z"/></g></symbol>
+      <symbol id="i-ammo" viewBox="0 0 24 24"><g fill="currentColor"><path d="M4 9c0-3 1-5 2-6 1 1 2 3 2 6v12H4z"/><path d="M10 9c0-3 1-5 2-6 1 1 2 3 2 6v12h-4z"/><path d="M16 9c0-3 1-5 2-6 1 1 2 3 2 6v12h-4z"/></g></symbol>
+      <symbol id="i-house" viewBox="0 0 24 24"><path fill="currentColor" d="M2 12 12 3l10 9h-3v9h-5v-6h-4v6H5v-9z"/></symbol>
+      <!-- weapon silhouettes (side view, muzzle to the left) -->
+      <symbol id="w-ar" viewBox="0 0 120 40"><g fill="currentColor"><rect x="1" y="15.5" width="22" height="2.6"/><rect x="0" y="14.5" width="5" height="4.6"/><rect x="19" y="9" width="2.6" height="7"/><path d="M23 12.5h32v8.5H23z"/><rect x="24" y="11" width="31" height="1.6" opacity=".75"/><path d="M55 11h31v9H55z"/><rect x="58" y="7.5" width="24" height="3.6"/><rect x="62" y="5" width="4" height="3"/><rect x="74" y="5" width="4" height="3"/><path d="M64 20h9l2.5 13.5-8 1.2z"/><path d="M79 20h7l-1.6 12h-6.4z"/><path d="M73 20h7v1.8c0 2.5-1.5 3.8-4 3.8h-3z" opacity=".8"/><path d="M86 12h8l18 1.2 5 1.8v9.5h-9l-8.5-4H86z"/></g></symbol>
+      <symbol id="w-sniper" viewBox="0 0 120 40"><g fill="currentColor"><rect x="0" y="16" width="44" height="2.4"/><rect x="0" y="15" width="4" height="4.4"/><path d="M44 13.5h40v7H44z"/><path d="M48 7h28v5H48z"/><path d="M44 5.5h5v8h-5zM75 6h6v7h-6z"/><rect x="58" y="12" width="4" height="2"/><path d="M84 13.5h6l2 3h-8z"/><path d="M70 20.5h6l.5 6h-6z"/><path d="M84 13h10l22 1.5 3 3v8.5l-9 1.5-8-5.5H84z"/><path d="M78 20.5h6l-2 9h-5z"/><rect x="88" y="10" width="2" height="4"/><circle cx="91" cy="9.5" r="2"/><path d="M30 18.5l-7 17h2.4l7-15z"/><path d="M32 18.5l3 17h2.4l-3-17z"/></g></symbol>
+      <symbol id="w-pistol" viewBox="0 0 120 40"><g fill="currentColor"><path d="M26 7h62l2 2v9H26z"/><rect x="22" y="10" width="5" height="5"/><rect x="30" y="5.5" width="3" height="2"/><rect x="82" y="5" width="4" height="2.5"/><path d="M30 18h58v4H30z" opacity=".85"/><path d="M68 22h19l2 3-4 13H70l2-10z"/><path d="M56 22h12v3c0 4-3 6-7 6h-4v-2h3c2 0 3-1 3-3v-2h-7z"/><rect x="60" y="22" width="2.5" height="5"/></g></symbol>
+      <symbol id="w-frag" viewBox="0 0 24 24"><g fill="currentColor"><ellipse cx="12" cy="14.5" rx="6.5" ry="7.5"/><rect x="9" y="3" width="6" height="4" rx="1"/><path d="M15 4h4l1 2h-5z"/></g></symbol>
+      <symbol id="w-smoke" viewBox="0 0 24 24"><g fill="currentColor"><rect x="7" y="6" width="10" height="16" rx="2"/><rect x="9" y="2" width="6" height="4" rx="1"/></g></symbol>
+    </defs>
+  </svg>
+
   <div id="game"></div>
 
   <!-- ===================== HUD ===================== -->
   <div id="hud" class="hidden">
     <div id="tickets">
-      <div class="tk us"><span class="lbl">US</span><div class="bar"><i></i></div><b id="tk-us">300</b></div>
+      <div class="tk us"><span class="lbl"><i class="tflag us"></i>US</span><b id="tk-us">300</b><div class="bar"><i></i></div></div>
       <div id="flags"></div>
-      <div class="tk ru"><b id="tk-ru">300</b><div class="bar"><i></i></div><span class="lbl">RU</span></div>
+      <div class="tk ru"><div class="bar"><i></i></div><b id="tk-ru">300</b><span class="lbl">RU<i class="tflag ru"></i></span></div>
     </div>
+    <div id="compass"><div id="compass-strip"></div><i class="needle"></i></div>
     <div id="capture" class="hidden"><div class="cap-title"></div><div class="cap-bar"><i></i></div></div>
-    <canvas id="minimap" width="220" height="220"></canvas>
-    <div id="roomtag"></div>
+    <div id="mmframe">
+      <canvas id="minimap" width="220" height="220"></canvas>
+      <span class="cd n">N</span><span class="cd e">E</span><span class="cd s">S</span><span class="cd w">W</span>
+      <div id="roomtag"></div>
+    </div>
     <div id="killfeed"></div>
     <div id="crosshair"><i class="t"></i><i class="b"></i><i class="l"></i><i class="r"></i><i class="dot"></i></div>
     <div id="hitmarker"></div>
     <div id="dmgdir"></div>
     <div id="vitals">
-      <div class="hp"><span class="ico">+</span><div class="hpbar"><i></i></div><b id="hp">100</b></div>
+      <div class="avatar"><svg class="ic"><use href="#i-user"/></svg></div>
+      <div class="vcol">
+        <div class="pname"><span id="hud-name">Soldier</span><i class="dot"></i></div>
+        <div class="hp"><div class="hpbar"><i></i></div><b id="hp">100</b></div>
+      </div>
     </div>
     <div id="ammo">
-      <div class="wname" id="wname">AR-15 Carbine</div>
+      <svg class="wsil"><use id="wsil" href="#w-ar"/></svg>
+      <div class="winfo">
+        <div class="wname" id="wname">AR-15 Carbine</div>
+        <div class="sub"><span id="nades">G x2</span> · <span id="firemode">AUTO</span> · <span id="stance">STAND</span></div>
+      </div>
       <div class="count"><b id="mag">30</b><span>/</span><em id="reserve">150</em></div>
-      <div class="sub"><span id="nades">G x2</span> · <span id="firemode">AUTO</span> · <span id="stance">STAND</span></div>
     </div>
     <div id="notice"></div>
     <div id="chatlog"></div>
@@ -43,114 +96,285 @@
     <div id="fps"></div>
   </div>
 
-  <!-- ===================== Deploy / menu ===================== -->
+  <!-- ===================== Main menu ===================== -->
   <div id="menu">
-    <div class="panel lobby">
-      <h1>STRIKEPOINT</h1>
-      <div class="sub">CONQUEST · BATTLE ROYALE · MULTIPLAYER ROOMS · PLAY WITH FRIENDS ANYWHERE</div>
-      <div class="row">
-        <label>Callsign <input id="name" maxlength="16" value="" placeholder="Soldier" /></label>
-        <label>Team <select id="team"><option value="0">Auto balance</option><option value="1">US</option><option value="2">RU</option></select></label>
-        <label>Quality <select id="quality"><option value="verylow">VERY LOW (weak PCs/phones)</option><option value="low">LOW</option><option value="medium">MEDIUM</option><option value="high">HIGH (graphics card)</option><option value="ultra">ULTRA (strong graphics card)</option></select></label>
-        <label>FOV <input id="fov" type="range" min="60" max="100" value="78" /></label>
+    <div class="menu-bg"></div>
+    <aside class="side">
+      <div class="logo"><span class="word">STRIKEP<svg class="lo"><use href="#i-target"/></svg>INT</span><small>TACTICAL FPS &nbsp;|&nbsp; BATTLE · SURVIVE · WIN</small></div>
+      <nav id="nav">
+        <button data-view="home" class="on"><svg class="ic"><use href="#i-home"/></svg>HOME</button>
+        <button data-view="multiplayer"><svg class="ic"><use href="#i-users"/></svg>MULTIPLAYER</button>
+        <button data-view="royale"><svg class="ic"><use href="#i-mountain"/></svg>BATTLE ROYALE</button>
+        <button data-view="ai"><svg class="ic"><use href="#i-chip"/></svg>AI ZONE</button>
+        <button data-view="create"><svg class="ic"><use href="#i-plus"/></svg>CREATE ROOM</button>
+        <button data-view="settings"><svg class="ic"><use href="#i-gear"/></svg>SETTINGS</button>
+        <button data-view="profile"><svg class="ic"><use href="#i-user"/></svg>PROFILE</button>
+      </nav>
+      <div class="side-foot"><svg class="chev"><use href="#i-chevrons"/></svg><div>REAL PLAYERS<br />REAL TACTICS<br />NO LIMITS</div></div>
+    </aside>
+    <header class="userbar">
+      <div class="ubadge"><div class="uav"><svg class="ic"><use href="#i-target"/></svg></div><div><b id="u-name">Soldier</b><span class="on">Online</span></div></div>
+      <button class="ib" data-view="settings" title="Settings"><svg class="ic"><use href="#i-gear"/></svg></button>
+      <button class="ib" data-view="profile" title="Profile"><svg class="ic"><use href="#i-bell"/></svg></button>
+    </header>
+
+    <main class="views">
+      <!-- HOME -->
+      <section id="v-home" class="view">
+        <div class="hero">
+          <div class="kicker">WELCOME BACK, <span id="h-name">SOLDIER</span></div>
+          <h1 class="big">CHOOSE YOUR<br /><em>BATTLE MODE</em></h1>
+          <div class="lead">Different modes. Same mission. Dominate.</div>
+        </div>
+        <div class="home-grid">
+          <div class="modes">
+            <div class="mode sel" data-mode="conquest" style="--img:url(/assets/ui/map_outskirts.jpg)">
+              <svg class="mi"><use href="#i-users"/></svg><h3>MULTIPLAYER</h3><p>Team up. Capture. Win.</p>
+              <button class="btn y" data-act="quick">PLAY NOW →</button>
+            </div>
+            <div class="mode" data-mode="royale" style="--img:url(/assets/ui/map_firestorm.jpg)">
+              <svg class="mi"><use href="#i-mountain"/></svg><h3>BATTLE ROYALE</h3><p>Last player standing.</p>
+              <button class="btn" data-act="royale">EXPLORE MAPS →</button>
+            </div>
+            <div class="mode" data-mode="practice" style="--img:url(/assets/ui/map_compound.jpg)">
+              <svg class="mi"><use href="#i-target"/></svg><h3>PRACTICE</h3><p>Private match against bots.</p>
+              <button class="btn" data-act="practice">TRAIN NOW →</button>
+            </div>
+          </div>
+          <div class="rcol">
+            <div class="card qstats">
+              <h4>QUICK STATS</h4>
+              <div class="qs"><svg class="ic"><use href="#i-users"/></svg><span>Online players</span><b id="qs-online">—</b></div>
+              <div class="qs"><svg class="ic"><use href="#i-target"/></svg><span>Your rank</span><b id="qs-rank">Recruit</b></div>
+              <div class="xpbar"><i id="qs-xp"></i></div>
+              <div class="qs"><svg class="ic"><use href="#i-gear"/></svg><span>Total matches</span><b id="qs-matches">0</b></div>
+            </div>
+            <div class="card gear" style="--img:url(/assets/ui/hero_soldier.jpg)">
+              <h3>GEAR UP</h3><small>CUSTOMIZE YOUR LOADOUT</small>
+              <button class="btn y sm" data-view="profile">OPEN LOADOUT →</button>
+            </div>
+          </div>
+        </div>
+        <section class="card maps-sec">
+          <div class="sec-head">
+            <svg class="big-ic"><use href="#i-mountain"/></svg>
+            <div><h2>BATTLEFIELDS</h2><small>Explore. Capture. Survive.</small></div>
+            <div class="chips" id="map-filter"><button class="on" data-f="all">ALL MAPS</button><button data-f="conquest"><svg class="ic"><use href="#i-users"/></svg>CONQUEST</button><button data-f="royale"><svg class="ic"><use href="#i-user"/></svg>SOLO ROYALE</button></div>
+          </div>
+          <div id="mapcards" class="mapcards"></div>
+        </section>
+        <div class="home-bottom">
+          <section class="card browser">
+            <div class="sec-head slim"><svg class="ic y"><use href="#i-layers"/></svg><h2>SERVER BROWSER</h2><a href="#" class="refresh" id="refresh"><svg class="ic"><use href="#i-refresh"/></svg>Refresh</a></div>
+            <div class="rtable">
+              <div class="rhead"><span>ROOM NAME</span><span>MAP</span><span>MODE</span><span>PLAYERS</span><span>PING</span><span>JOIN</span></div>
+              <div id="roomlist"><div class="empty">Loading rooms…</div></div>
+            </div>
+            <div class="foot" id="roomcount"></div>
+          </section>
+          <div class="card squad" style="--img:url(/assets/ui/hero_squad.jpg)">
+            <div class="sq-t">SQUAD UP</div><div class="sq-s">STRONGER TOGETHER</div>
+            <button class="btn y sm" data-act="squad">INVITE FRIENDS →</button>
+          </div>
+        </div>
+      </section>
+
+      <!-- MULTIPLAYER -->
+      <section id="v-multiplayer" class="view hidden">
+        <div class="hero small"><div class="kicker">CONQUEST · TEAM VS TEAM</div><h1 class="big">MULTI<em>PLAYER</em></h1><div class="lead">Join a room, or enter a friend's room code.</div></div>
+        <section class="card browser">
+          <div class="sec-head slim"><svg class="ic y"><use href="#i-layers"/></svg><h2>ALL ROOMS</h2><a href="#" class="refresh" data-refresh="1"><svg class="ic"><use href="#i-refresh"/></svg>Refresh</a></div>
+          <div class="rtable"><div class="rhead"><span>ROOM NAME</span><span>MAP</span><span>MODE</span><span>PLAYERS</span><span>PING</span><span>JOIN</span></div><div id="roomlist2"></div></div>
+        </section>
+        <section class="card form">
+          <h4>JOIN BY CODE</h4>
+          <div class="row">
+            <label>Room code <input id="j-code" maxlength="12" placeholder="e.g. 4WJLBQ" style="text-transform:uppercase" /></label>
+            <label>Password <input id="j-pass" maxlength="32" placeholder="if required" /></label>
+            <button class="btn y" data-act="code">JOIN ROOM →</button>
+          </div>
+          <div id="j-info" class="desc"></div>
+        </section>
+      </section>
+
+      <!-- BATTLE ROYALE -->
+      <section id="v-royale" class="view hidden">
+        <div class="hero small" style="--img:url(/assets/ui/map_firestorm.jpg)"><div class="kicker">LAND · LOOT · SURVIVE · WIN</div><h1 class="big">BATTLE <em>ROYALE</em></h1><div class="lead">Up to 24 soldiers, one island, a shrinking ring of fire. No respawns.</div></div>
+        <div id="royalecards" class="mapcards"></div>
+        <section class="card browser">
+          <div class="sec-head slim"><svg class="ic y"><use href="#i-layers"/></svg><h2>ROYALE LOBBIES</h2></div>
+          <div class="rtable"><div class="rhead"><span>ROOM NAME</span><span>MAP</span><span>MODE</span><span>PLAYERS</span><span>PING</span><span>JOIN</span></div><div id="roomlist3"></div></div>
+        </section>
+      </section>
+
+      <!-- CREATE ROOM -->
+      <section id="v-create" class="view hidden">
+        <div class="hero small"><div class="kicker">HOST A MATCH</div><h1 class="big">CREATE <em>ROOM</em></h1><div class="lead">Your own server room: pick the map, bots and rules, then share the code.</div></div>
+        <section class="card form">
+          <label>Room name <input id="c-name" maxlength="32" placeholder="My squad" /></label>
+          <label>Map <select id="c-map"></select></label>
+          <div id="c-mapdesc" class="desc"></div>
+          <div class="row">
+            <label>Bots per team <input id="c-bots" type="number" min="0" max="16" value="4" /></label>
+            <label>Max players <input id="c-max" type="number" min="2" max="32" value="16" /></label>
+            <label>Password (optional) <input id="c-pass" maxlength="32" placeholder="none" /></label>
+          </div>
+          <div class="row checks">
+            <label class="chk"><input type="checkbox" id="c-private" checked /> Private (hidden from browser, join by code/link)</label>
+            <label class="chk"><input type="checkbox" id="c-rotation" checked /> Rotate maps after each round</label>
+          </div>
+          <button class="btn y wide" data-act="create">CREATE &amp; JOIN →</button>
+        </section>
+      </section>
+
+      <!-- AI ZONE -->
+      <section id="v-ai" class="view hidden">
+        <div class="hero small"><div class="kicker">LANGUAGE-MODEL SOLDIERS</div><h1 class="big">AI <em>ZONE</em></h1><div class="lead">Play with an AI soldier commanded by a language model: it reads the battlefield every few seconds,
+          gives itself orders (capture flags, follow you, attack, take cover) and answers you on the radio (T to chat).</div></div>
+        <section class="card form">
+          <div class="row">
+            <label>Map <select id="ai-map"></select></label>
+            <label>AI plays as <select id="ai-side"><option value="team">your teammate</option><option value="enemy">your opponent</option></select></label>
+            <label>Callsign <input id="ai-name" maxlength="14" value="Claude" /></label>
+          </div>
+          <div class="row">
+            <label>Provider <select id="ai-provider"><option value="anthropic">Anthropic (Claude)</option><option value="openai">OpenAI-compatible</option></select></label>
+            <label>Base URL <input id="ai-base" maxlength="200" placeholder="https://api.anthropic.com" /></label>
+            <label>Model <input id="ai-model" maxlength="120" placeholder="claude-opus-5" /></label>
+          </div>
+          <div class="row">
+            <label>API key <input id="ai-key" type="password" maxlength="400" autocomplete="off" placeholder="sk-…" /></label>
+            <label>Decides every <select id="ai-interval"><option value="3">3 s</option><option value="5" selected>5 s</option><option value="8">8 s</option><option value="12">12 s</option></select></label>
+            <label>Bots per team <input id="ai-bots" type="number" min="0" max="12" value="3" /></label>
+          </div>
+          <div class="row checks">
+            <label class="chk"><input type="checkbox" id="ai-remember" checked /> Remember these settings on this device</label>
+            <label class="chk"><input type="checkbox" id="ai-remember-key" /> …including the API key</label>
+          </div>
+          <div class="row"><button id="ai-test" class="btn">TEST CONNECTION</button><button class="btn y" data-act="ai">START AI MATCH →</button></div>
+          <div id="ai-status" class="desc"></div>
+          <div class="desc note">The key is sent to this game server only to call the model during your match; it is kept in memory for the
+            room's lifetime and never shown to other players. Each AI soldier makes about <span id="ai-rate">12</span> requests per minute —
+            this uses your provider credits. AI rooms are private (invite friends with the room code).</div>
+        </section>
+      </section>
+
+      <!-- SETTINGS -->
+      <section id="v-settings" class="view hidden">
+        <div class="hero small"><div class="kicker">GAME OPTIONS</div><h1 class="big"><em>SETTINGS</em></h1></div>
+        <section class="card form">
+          <div class="row">
+            <label>Callsign <input id="name" maxlength="16" value="" placeholder="Soldier" /></label>
+            <label>Team <select id="team"><option value="0">Auto balance</option><option value="1">US</option><option value="2">RU</option></select></label>
+          </div>
+          <div class="row">
+            <label>Graphics quality <select id="quality"><option value="verylow">VERY LOW (weak PCs/phones)</option><option value="low">LOW</option><option value="medium">MEDIUM</option><option value="high">HIGH (graphics card)</option><option value="ultra">ULTRA (strong graphics card)</option></select></label>
+            <label>Field of view <span class="val" id="fov-v"></span><input id="fov" type="range" min="60" max="100" value="78" /></label>
+          </div>
+          <div id="gpuinfo"></div>
+          <div class="help">WASD move · Shift sprint · Space jump · C crouch · Z prone · RMB aim · LMB fire · R reload · 1/2 weapons · G grenade · V first/third person · Tab scoreboard · T chat · I copy invite link ·
+            <b>Vehicles:</b> E enter/exit · 1/2/3 seats · W/S A/D drive · mouse aim · helicopter Space/Shift climb/descend ·
+            <b>Battle royale:</b> Space jump / parachute · E pick up · H heal · M map</div>
+        </section>
+      </section>
+
+      <!-- PROFILE / LOADOUT -->
+      <section id="v-profile" class="view hidden">
+        <div class="hero small"><div class="kicker">SERVICE RECORD</div><h1 class="big">PRO<em>FILE</em></h1></div>
+        <section class="card profile">
+          <div class="pstats">
+            <div><b id="pf-rank">Recruit</b><span>RANK</span></div>
+            <div><b id="pf-xp">0</b><span>XP</span></div>
+            <div><b id="pf-matches">0</b><span>MATCHES</span></div>
+            <div><b id="pf-kills">0</b><span>KILLS</span></div>
+            <div><b id="pf-deaths">0</b><span>DEATHS</span></div>
+            <div><b id="pf-kd">0.00</b><span>K/D</span></div>
+          </div>
+          <h4>DEFAULT KIT <small>(picked on the deploy screen too)</small></h4>
+          <div id="pf-kits" class="kits"></div>
+        </section>
+      </section>
+
+      <div class="actionbar">
+        <div id="loading"></div>
+        <button id="play" class="btn y">JOIN BATTLE →</button>
       </div>
-      <div id="gpuinfo"></div>
-      <div class="tabs"><button data-tab="browse" class="on">SERVER BROWSER</button><button data-tab="create">CREATE ROOM</button><button data-tab="code">JOIN BY CODE</button><button data-tab="ai">AI ZONE</button></div>
-      <div class="tab" id="tab-browse">
-        <div id="roomlist"><div class="empty">Loading rooms…</div></div>
-        <div class="row small"><span id="roomcount"></span><a href="#" id="refresh">↻ Refresh</a></div>
-      </div>
-      <div class="tab hidden" id="tab-create">
-        <label>Room name <input id="c-name" maxlength="32" placeholder="My squad" /></label>
-        <label>Map <select id="c-map"></select></label>
-        <div id="c-mapdesc" class="desc"></div>
-        <div class="row">
-          <label>Bots per team <input id="c-bots" type="number" min="0" max="16" value="4" /></label>
-          <label>Max players <input id="c-max" type="number" min="2" max="32" value="16" /></label>
-          <label>Password (optional) <input id="c-pass" maxlength="32" placeholder="none" /></label>
-        </div>
-        <div class="row checks">
-          <label class="chk"><input type="checkbox" id="c-private" checked /> Private (hidden from browser, join by code/link)</label>
-          <label class="chk"><input type="checkbox" id="c-rotation" checked /> Rotate maps after each round</label>
-        </div>
-      </div>
-      <div class="tab hidden" id="tab-code">
-        <div class="row">
-          <label>Room code <input id="j-code" maxlength="12" placeholder="e.g. 4WJLBQ" style="text-transform:uppercase" /></label>
-          <label>Password <input id="j-pass" maxlength="32" placeholder="if required" /></label>
-        </div>
-        <div id="j-info" class="desc"></div>
-      </div>
-      <div class="tab hidden" id="tab-ai">
-        <div class="desc">Play with an AI soldier commanded by a language model: it reads the battlefield every few seconds,
-          gives itself orders (capture flags, follow you, attack, take cover) and answers you on the radio (T to chat).</div>
-        <div class="row">
-          <label>Map <select id="ai-map"></select></label>
-          <label>AI plays as <select id="ai-side"><option value="team">your teammate</option><option value="enemy">your opponent</option></select></label>
-          <label>Callsign <input id="ai-name" maxlength="14" value="Claude" /></label>
-        </div>
-        <div class="row">
-          <label>Provider <select id="ai-provider"><option value="anthropic">Anthropic (Claude)</option><option value="openai">OpenAI-compatible</option></select></label>
-          <label>Base URL <input id="ai-base" maxlength="200" placeholder="https://api.anthropic.com" /></label>
-          <label>Model <input id="ai-model" maxlength="120" placeholder="claude-opus-5" /></label>
-        </div>
-        <div class="row">
-          <label>API key <input id="ai-key" type="password" maxlength="400" autocomplete="off" placeholder="sk-…" /></label>
-          <label>Decides every <select id="ai-interval"><option value="3">3 s</option><option value="5" selected>5 s</option><option value="8">8 s</option><option value="12">12 s</option></select></label>
-          <label>Bots per team <input id="ai-bots" type="number" min="0" max="12" value="3" /></label>
-        </div>
-        <div class="row checks">
-          <label class="chk"><input type="checkbox" id="ai-remember" checked /> Remember these settings on this device</label>
-          <label class="chk"><input type="checkbox" id="ai-remember-key" /> …including the API key</label>
-          <button id="ai-test" class="small">TEST CONNECTION</button>
-        </div>
-        <div id="ai-status" class="desc"></div>
-        <div class="desc note">The key is sent to this game server only to call the model during your match; it is kept in memory for the
-          room's lifetime and never shown to other players. Each AI soldier makes about <span id="ai-rate">12</span> requests per minute —
-          this uses your provider credits. AI rooms are private (invite friends with the room code).</div>
-      </div>
-      <button id="play">JOIN BATTLE</button>
-      <div class="help">WASD move · Shift sprint · Space jump · C crouch · Z prone · RMB aim · LMB fire · R reload · 1/2 weapons · G grenade · V first/third person · Tab scoreboard · T chat · I copy invite link · Battle royale: Space jump / parachute · E pick up · H heal · M map</div>
-      <div id="loading"></div>
-    </div>
+    </main>
   </div>
 
+  <!-- ===================== Loading screen ===================== -->
+  <div id="loadscreen" class="hidden">
+    <div class="ls-bg"></div>
+    <div class="ls-logo"><span class="word">STRIKEP<svg class="lo"><use href="#i-target"/></svg>INT</span><div class="ls-sub"><i></i><span id="ls-mode">CONQUEST</span><i></i></div></div>
+    <div class="ls-tag" id="ls-tag">CAPTURE / HOLD / WIN</div>
+    <div class="ls-slogan" id="ls-slogan">HOLD THE LINE</div>
+    <div class="ls-load">
+      <div class="ls-t"><span class="spin"></span>LOADING…</div>
+      <div class="ls-bar"><i id="ls-bar"></i></div><b id="ls-pct">0%</b>
+      <div class="ls-s" id="ls-text">Preparing the battlefield…</div>
+    </div>
+    <div class="ls-tip"><span class="bulb">💡 PRO TIP</span><span id="ls-tip"></span></div>
+  </div>
+
+  <!-- ===================== Deploy ===================== -->
   <div id="deploy" class="hidden">
-    <div class="panel wide">
-      <h2 id="deploy-title">DEPLOY <a href="/" class="leave">leave room</a></h2>
+    <div class="dp-logo logo"><span class="word">STRIKEP<svg class="lo"><use href="#i-target"/></svg>INT</span><small>T A C T I C A L &nbsp; F P S</small></div>
+    <aside class="dp-squad card">
+      <h4><span id="dp-teamname">YOUR TEAM</span><b id="dp-count"></b></h4>
+      <div id="dp-roster"></div>
+    </aside>
+    <section class="dp-main">
+      <h1 class="dp-title" id="deploy-title">DEPLOY</h1>
       <div id="invite"></div>
       <div id="killcam" class="hidden"></div>
-      <div class="cols">
-        <div>
-          <h3>KIT</h3>
-          <div id="classes"></div>
-        </div>
-        <div>
-          <h3>SPAWN POINT</h3>
-          <canvas id="deploymap" width="300" height="300"></canvas>
+      <h4 class="sec">SELECT YOUR KIT</h4>
+      <div id="classes" class="kits"></div>
+    </section>
+    <section class="dp-map card">
+      <h4 class="sec">TACTICAL MAP</h4>
+      <div class="dp-mapwrap">
+        <canvas id="deploymap" width="440" height="440"></canvas>
+        <div class="dp-side">
+          <h5>SPAWN POINTS</h5>
           <div id="spawns"></div>
+          <h5>MAP LEGEND</h5>
+          <div class="legend">
+            <div><i class="lg obj"></i>Objective</div><div><i class="lg own"></i>Friendly flag</div><div><i class="lg foe"></i>Enemy flag</div>
+            <div><i class="lg hq"></i>HQ / Deploy</div><div><i class="lg road"></i>Road</div><div><i class="lg bld"></i>Building</div>
+          </div>
         </div>
       </div>
-      <button id="deploybtn">DEPLOY</button>
-      <div id="respawn-timer"></div>
-    </div>
+    </section>
+    <footer class="dp-bar">
+      <div class="dpb"><small>YOUR LOADOUT</small><div class="dpb-row"><svg class="kic" id="dp-kicon"><use href="#i-chevrons"/></svg><div><b id="dp-kit">ASSAULT</b><span id="dp-kitw">AR-15 · 2 FRAG</span></div><svg class="wsil"><use id="dp-wsil" href="#w-ar"/></svg></div></div>
+      <div class="dpb"><small>SPAWN POINT</small><div class="dpb-row"><svg class="ic"><use href="#i-house"/></svg><div><b id="dp-spawn">HQ Spawn</b><span id="dp-spawnsub">Safe · Team spawn</span></div></div></div>
+      <div class="dpb"><small>TEAM</small><div class="dpb-row"><svg class="ic"><use href="#i-users"/></svg><div><b id="dp-team">—</b><span id="dp-teamsub"></span></div></div></div>
+      <div class="dpb ready"><svg class="okc"><use href="#i-check"/></svg><div><b id="respawn-timer">READY</b><span>Pick a kit and a spawn point</span></div></div>
+      <button id="deploybtn" class="deploybtn">DEPLOY →</button>
+    </footer>
+    <div class="dp-links"><a href="/" class="leave"><svg class="ic"><use href="#i-exit"/></svg>LEAVE ROOM</a><a href="#" id="dp-invite"><svg class="ic"><use href="#i-link"/></svg>COPY INVITE</a><span class="dp-motto">FIGHT / CAPTURE / WIN</span></div>
   </div>
 
+  <!-- ===================== Pause ===================== -->
   <div id="pause" class="hidden">
-    <div class="panel">
-      <h2>PAUSED</h2>
-      <div id="p-room" class="sub"></div>
-      <label>Mouse sensitivity <input id="p-sens" type="range" min="5" max="60" value="22" /></label>
-      <div class="gfx">
-        <label>Graphics <select id="p-quality"><option value="verylow">VERY LOW</option><option value="low">LOW</option><option value="medium">MEDIUM</option><option value="high">HIGH</option><option value="ultra">ULTRA</option></select></label>
-        <label>Render scale <select id="p-scale"><option value="auto">AUTO (keep FPS)</option><option value="0.5">50%</option><option value="0.75">75%</option><option value="1">100%</option><option value="1.25">125%</option><option value="1.5">150%</option><option value="2">200% (supersampling)</option></select></label>
-        <label>View distance <span id="p-view-v"></span><input id="p-view" type="range" min="150" max="1000" step="10" /></label>
-        <label class="chk"><input type="checkbox" id="p-fps" /> Show FPS / GPU</label>
+    <div class="pz">
+      <div class="pz-left">
+        <div class="pz-head"><span class="pz-bars"><i></i><i></i></span><div><h2>PAUSED</h2><div id="p-room" class="sub"></div></div></div>
+        <div class="pz-row"><svg class="ic"><use href="#i-monitor"/></svg><div class="pl"><b>ROOM / MAP</b><span id="p-mapname"></span></div><div class="pz-thumb" id="p-thumb"></div></div>
+        <div class="pz-row"><svg class="ic"><use href="#i-monitor"/></svg><div class="pl"><b>GRAPHICS</b><span>Rejoins the room to rebuild the world</span></div>
+          <select id="p-quality"><option value="verylow">Very low</option><option value="low">Low</option><option value="medium">Medium</option><option value="high">High</option><option value="ultra">Ultra</option></select></div>
+        <div class="pz-row"><svg class="ic"><use href="#i-layers"/></svg><div class="pl"><b>RENDER SCALE</b><span>Auto keeps the frame rate up</span></div>
+          <select id="p-scale"><option value="auto">Auto (keep FPS)</option><option value="0.5">50%</option><option value="0.75">75%</option><option value="1">100%</option><option value="1.25">125%</option><option value="1.5">150%</option><option value="2">200% (supersampling)</option></select></div>
+        <div class="pz-row"><svg class="ic"><use href="#i-eye"/></svg><div class="pl"><b>VIEW DISTANCE</b><span id="p-view-v"></span></div><input id="p-view" type="range" min="150" max="1000" step="10" /></div>
+        <div class="pz-row"><svg class="ic"><use href="#i-mouse"/></svg><div class="pl"><b>LOOK SENSITIVITY</b><span>Mouse / touch drag</span></div><input id="p-sens" type="range" min="5" max="60" value="22" /></div>
+        <label class="pz-row chk"><input type="checkbox" id="p-fps" /><div class="pl"><b>SHOW FPS / GPU</b><span>Display performance stats</span></div></label>
+        <div id="p-gpu" class="pz-gpu"></div>
       </div>
-      <div id="p-gpu" class="sub"></div>
-      <button id="p-resume">RESUME</button>
-      <button id="p-invite" class="alt">COPY INVITE LINK</button>
-      <button id="p-leave" class="alt">LEAVE ROOM</button>
+      <div class="pz-right">
+        <button id="p-resume" class="pbtn y"><svg class="ic"><use href="#i-play"/></svg>RESUME</button>
+        <button id="p-invite" class="pbtn"><svg class="ic"><use href="#i-users"/></svg>COPY INVITE LINK</button>
+        <button id="p-leave" class="pbtn"><svg class="ic"><use href="#i-exit"/></svg>LEAVE ROOM</button>
+      </div>
     </div>
   </div>
   <div id="roundend" class="hidden"></div>

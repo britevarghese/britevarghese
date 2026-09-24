@@ -4,7 +4,7 @@
 import * as THREE from 'three';
 import { ROYALE, LOOT, ringAt } from '/shared/royale.js';
 import { WEAPONS } from '/shared/weapons.js';
-import { BUILDINGS, ROADS, PLAY_HALF } from '/shared/map.js';
+import { BUILDINGS, ROADS, PLAY_HALF, ACTIVE_MAP } from '/shared/map.js';
 import { WeaponModel } from '../weapons/WeaponModel.js';
 import { buildCanopy, buildRingWall, glowTexture } from './RoyaleModels.js';
 import { buildTransportPlane } from './TransportPlane.js';
@@ -52,9 +52,18 @@ export class RoyaleClient {
       <div id="br-fire"></div><canvas id="br-map" width="360" height="360" class="hidden"></canvas><div id="br-result" class="hidden"></div>`;
     hud.appendChild(d);
     const r = document.createElement('div'); r.id = 'br-ready'; r.className = 'hidden';
-    r.innerHTML = `<div class="panel"><h2>BATTLE ROYALE</h2><div class="sub">You board the transport plane when the match starts. Press <b>SPACE</b> (or JUMP) to jump,
-      SPACE again to open your parachute. Loot weapons, armor and med kits — <b>E</b> pick up · <b>H</b> heal · <b>M</b> map.
-      Stay inside the ring of fire. No respawns: last one standing wins.</div><button id="br-go">READY</button><a href="/" class="leave">leave room</a></div>`;
+    const step = (n, t, img, txt) => `<div class="brr-step"><div class="sh"><i>${n}</i><b>${t}</b></div><div class="si" style="background-image:url(/assets/ui/${img})"></div><p>${txt}</p></div>`;
+    r.innerHTML = `<div class="brr">
+      <div class="brr-head"><svg class="ic"><use href="#i-target"/></svg><div><h2>BATTLE ROYALE</h2><small>${esc(ACTIVE_MAP.name.toUpperCase())} &nbsp;•&nbsp; SOLO</small></div></div>
+      <div class="brr-steps">${step(1, 'DROP', 'step_drop.jpg', 'Board the transport plane and choose your landing point. <kbd>SPACE</kbd> jumps, again opens the parachute.')}<span class="arr">»</span>
+        ${step(2, 'LOOT', 'step_loot.jpg', 'Find weapons, armor and medical supplies. <kbd>E</kbd> picks up, <kbd>H</kbd> heals.')}<span class="arr">»</span>
+        ${step(3, 'SURVIVE', 'step_survive.jpg', 'Stay inside the safe zone — the ring of fire closes in. Last soldier standing wins.')}</div>
+      <div class="brr-foot"><span class="rdy"><i></i>IN LOBBY · <b id="brr-count">1</b></span><button id="br-go">READY</button><a href="/" class="leave"><svg class="ic"><use href="#i-exit"/></svg>LEAVE ROOM</a></div>
+    </div>
+    <aside class="brr-info"><h4>MATCH INFO</h4>
+      <div><svg class="ic"><use href="#i-users"/></svg><b id="brr-players">—</b>&nbsp;PLAYERS</div><div><svg class="ic"><use href="#i-user"/></svg>SOLO</div>
+      <div><svg class="ic"><use href="#i-skull"/></svg>NO RESPAWNS</div><div class="g"><svg class="ic"><use href="#i-target"/></svg>SAFE ZONE ACTIVE</div></aside>
+    <div class="brr-keys"><span><kbd>SPACE</kbd>Jump / Deploy parachute</span><span><kbd>E</kbd>Pick up</span><span><kbd>H</kbd>Heal</span><span><kbd>M</kbd>Map</span></div>`;
     document.body.appendChild(r);
     $('br-go').onclick = () => { r.classList.add('hidden'); this.g.onRoyaleReady(); };
   }
@@ -324,7 +333,10 @@ export class RoyaleClient {
   #hud(rg, now) {
     const g = this.g, me = this.me;
     let top = '', sub = '';
-    if (this.phase === 'lobby') { top = this.cd ? `MATCH STARTS IN ${fmt(this.cd)}` : 'WAITING FOR PLAYERS'; sub = `${g.board.size} soldiers in the lobby`; }
+    if (this.phase === 'lobby') {
+      top = this.cd ? `MATCH STARTS IN ${fmt(this.cd)}` : 'WAITING FOR PLAYERS'; sub = `${g.board.size} SOLDIERS IN LOBBY`;
+      const pc = $('brr-count'); if (pc) { pc.textContent = g.board.size; $('brr-players').textContent = `${g.board.size}/${g.room.max || 24}`; }
+    }
     else if (this.phase === 'plane' && this.inPlane) {
       top = this.plane?.ok ? `PRESS ${g.isTouch ? 'JUMP' : 'SPACE'} TO JUMP` : 'APPROACHING THE ISLAND';
       sub = this.plane?.ok ? `forced exit in ${fmt((this.plane.until - this.plane.k) * this.totalPlaneMs())}` : 'look around — pick your landing spot on the map';
@@ -339,6 +351,7 @@ export class RoyaleClient {
     }
     if (this.phase === 'over') { const n = $('br-next'); if (n) n.textContent = `next match in ${fmt(this.cd)}`; }
     $('br-top').textContent = top; $('br-sub').innerHTML = sub;
+    document.body.classList.toggle('br-lobby', this.phase === 'lobby');
     document.body.classList.toggle('br-out', !g.me.alive);
     $('br-al').textContent = this.alive;
     $('br-k').textContent = g.board.get(g.myId)?.k ?? 0;
