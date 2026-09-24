@@ -51,7 +51,7 @@ export class CharacterRig {
     for (const [k, clip] of Object.entries(this.clips)) if (clip) { const a = this.mixer.clipAction(clip); a.play(); a.setEffectiveWeight(0); this.actions[k] = a; }
     if (!this.actions.idle) console.error(`[rig] ${this.file}: no idle clip found — animations: ${loaded.gltf.animations.map((a) => a.name).join(', ') || 'none'}`);
     this.state = { speed: 0, moveYaw: 0, aimYaw: 0, pitch: 0, stance: 'stand', ads: false, sprint: false, onGround: true, reload: 0, firing: false, dead: false, vy: 0 };
-    this.blend = { crouch: 0, prone: 0, sprint: 0, ads: 0, air: 0, death: 0, reload: 0, recoil: 0, hit: 0, land: 0 };
+    this.blend = { crouch: 0, prone: 0, sprint: 0, ads: 0, air: 0, death: 0, reload: 0, recoil: 0, hit: 0, land: 0, skydive: 0, canopy: 0 };
     this.bodyYaw = 0;
     this.legYaw = 0;
     this.aimTarget = new THREE.Vector3();
@@ -152,6 +152,8 @@ export class CharacterRig {
     B.recoil = damp(B.recoil, 0, 14, dt);
     B.hit = damp(B.hit, 0, 7, dt);
     B.land = damp(B.land, 0, 6, dt);
+    B.skydive = damp(B.skydive, s.skydive === 1 ? 1 : 0, 5, dt);
+    B.canopy = damp(B.canopy, s.skydive === 2 ? 1 : 0, 4, dt);
     if (s.firing) B.recoil = Math.min(1, B.recoil + 0.6);
 
     // ----- body yaw / leg direction
@@ -195,6 +197,7 @@ export class CharacterRig {
         this.solveArms(dt);
       }
       this.#headLook();
+      if (B.skydive > 0.01 || B.canopy > 0.01) this.#airPose();
     } else this.#deathLayer(dt);
   }
 
@@ -244,6 +247,40 @@ export class CharacterRig {
     }
     p.rotation.set((-Math.PI / 2 + slope) * pr, 0, 0);
     p.position.set(0, (0.27 + lift) * pr, 0.95 * pr * (this.height / 1.8));
+  }
+
+  // battle royale jump: stable freefall "box" (arms out and bent, knees bent, feet up) and hanging under the canopy
+  // (hands up on the steering toggles, legs relaxed). Targets are in the body's own frame, so they follow the
+  // belly-down pitch applied to the root while falling.
+  #airPose() {
+    const B = this.blend, b = this.bones;
+    if (!b.leftArm || !b.leftUpLeg) return;
+    this.root.updateMatrixWorld(true);
+    const q = this.root.getWorldQuaternion(new THREE.Quaternion());
+    const R = new THREE.Vector3(1, 0, 0).applyQuaternion(q), U = new THREE.Vector3(0, 1, 0).applyQuaternion(q), F = new THREE.Vector3(0, 0, -1).applyQuaternion(q);
+    const k = this.height / 1.8;
+    for (const [pose, w] of [['sky', B.skydive], ['chute', B.canopy]]) {
+      if (w < 0.01) continue;
+      for (const [side, s] of [['left', -1], ['right', 1]]) {
+        const sh = b[`${side}Arm`].getWorldPosition(new THREE.Vector3());
+        const hip = b[`${side}UpLeg`].getWorldPosition(new THREE.Vector3());
+        const hand = sh.clone(), elbow = sh.clone(), foot = hip.clone(), knee = hip.clone();
+        if (pose === 'sky') {
+          // arms spread wide, elbows ~90 deg, hands at head height; legs apart, knees slightly bent, feet up
+          hand.addScaledVector(R, s * 0.52 * k).addScaledVector(U, 0.24 * k).addScaledVector(F, 0.02 * k);
+          elbow.addScaledVector(R, s * 0.9).addScaledVector(U, -0.25).addScaledVector(F, -0.1);
+          foot.addScaledVector(R, s * 0.32 * k).addScaledVector(U, -0.72 * k).addScaledVector(F, -0.3 * k);
+          knee.addScaledVector(R, s * 0.35).addScaledVector(U, -0.45).addScaledVector(F, 0.5);
+        } else {
+          hand.addScaledVector(R, s * 0.14 * k).addScaledVector(U, 0.55 * k).addScaledVector(F, 0.04 * k);
+          elbow.addScaledVector(R, s * 0.7).addScaledVector(U, 0.1);
+          foot.addScaledVector(R, s * 0.08 * k).addScaledVector(U, -0.86 * k).addScaledVector(F, 0.1 * k);
+          knee.addScaledVector(U, -0.4).addScaledVector(F, 0.8);
+        }
+        solveTwoBone(b[`${side}Arm`], b[`${side}ForeArm`], b[`${side}Hand`], hand, elbow, w);
+        solveTwoBone(b[`${side}UpLeg`], b[`${side}Leg`], b[`${side}Foot`], foot, knee, w);
+      }
+    }
   }
 
   #aimSpine() {

@@ -65,21 +65,27 @@ check('E picks up the weapon (server-authoritative)', await until((w) => __game.
 check('picked weapon is equipped', await g((w) => __game.me.weaponId() === w, target.type));
 check('item removed from the ground', await g((id) => !__game.royale.loot.has(id), target.id));
 // armor
-const armor = await g(() => {
-  const s = __game.me.s; let best = null, bd = 1e9;
-  // (skip armor a bot could grab first: bots rate armor highly)
-  const bots = [...__game.players.map.values()].filter((p) => p.alive && p.id !== __game.myId);
-  for (const it of __game.royale.loot.values()) { if (it.type !== 'armor' || bots.some((b) => Math.hypot(b.x - it.x, b.z - it.z) < 40)) continue; const d = Math.hypot(it.x - s.x, it.z - s.z); if (d < bd) { bd = d; best = it; } }
-  Object.assign(s, { x: best.x + 0.6, y: best.y, z: best.z });
-  return { id: best.id };
-});
-const near = await until((id) => !!__game.royale.loot.get(id)?.obj && __game.royale.nearestLoot()?.id === id, armor.id, 60000);
-check('armor in pickup range', near, await g((id) => { const it = __game.royale.loot.get(id), s = __game.me.s; return `${it ? Math.hypot(it.x - s.x, it.z - s.z).toFixed(2) + ' m, dy ' + (it.y - s.y).toFixed(2) : 'gone'} nearest=${__game.royale.nearestLoot()?.type}`; }, armor.id));
+// teleporting next to an arbitrary item can land against a wall and get pushed away: try up to 4 candidates
+let armor = null, near = false;
+const tried = [];
+for (let attempt = 0; attempt < 4 && !near; attempt++) {
+  armor = await g((skip) => {
+    const s = __game.me.s; let best = null, bd = 1e9;
+    // (skip armor a bot could grab first: bots rate armor highly)
+    const bots = [...__game.players.map.values()].filter((p) => p.alive && p.id !== __game.myId);
+    for (const it of __game.royale.loot.values()) { if (it.type !== 'armor' || skip.includes(it.id) || bots.some((b) => Math.hypot(b.x - it.x, b.z - it.z) < 90)) continue; const d = Math.hypot(it.x - s.x, it.z - s.z); if (d < bd) { bd = d; best = it; } }
+    Object.assign(s, { x: best.x + 0.6, y: best.y, z: best.z, vx: 0, vz: 0 });
+    return { id: best.id };
+  }, tried);
+  tried.push(armor.id);
+  near = await until((id) => !!__game.royale.loot.get(id)?.obj && __game.royale.nearestLoot()?.id === id, armor.id, 40000);
+}
+check('armor in pickup range', near, `${tried.length} attempt(s) · ` + await g((id) => { const it = __game.royale.loot.get(id), s = __game.me.s; return `${it ? Math.hypot(it.x - s.x, it.z - s.z).toFixed(2) + ' m, dy ' + (it.y - s.y).toFixed(2) : 'gone'} nearest=${__game.royale.nearestLoot()?.type}`; }, armor.id));
 await g(() => { const send = __game.net.send.bind(__game.net); window.__sent = []; __game.net.send = (m) => { if (m.t !== 'in') window.__sent.push(JSON.stringify(m)); send(m); }; });
 await A.keyboard.press('KeyE');
 await A.waitForTimeout(3000);
 console.log('      sent after E:', await g(() => window.__sent.join(' ') || 'nothing'), '| server pos', await g(() => JSON.stringify(__game.lastSnap.p.find((r) => r[0] === __game.myId)?.slice(1, 4))), '| client', await g(() => [__game.me.s.x, __game.me.s.y, __game.me.s.z].map((v) => v.toFixed(2)).join(',')));
-check('armor plates picked up', await until(() => __game.royale.me.ar >= 50, null, 30000), `armor ${await g(() => __game.royale.me.ar)}`);
+check('armor plates picked up', await until(() => __game.royale.me.ar >= 50, null, 30000), `armor ${await g(() => __game.royale.me.ar)}, alive ${await g(() => __game.me.alive)}${await g(() => (__game.royale.placed ? ` (killed, placed #${__game.royale.placed})` : ''))}`);
 check('armor shown in HUD', await g(() => +document.getElementById('br-ar').textContent >= 50));
 check('ring of fire rendered', await g(() => __game.royale.ringWall.visible));
 check('alive counter', await g(() => +document.getElementById('br-al').textContent) >= 2, await g(() => document.getElementById('br-al').textContent));

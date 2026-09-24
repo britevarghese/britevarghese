@@ -23,6 +23,7 @@
   },
   "homepage": "https://github.com/britevarghese/britevarghese#readme",
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.128.0",
     "compression": "^1.8.2",
     "express": "^5.2.1",
     "three": "^0.170.0",

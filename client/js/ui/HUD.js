@@ -144,7 +144,7 @@ export class HUD {
     }
     const col = (team) => {
       const rows = this.board.filter((r) => r.tm === team).sort((a, b) => b.s - a.s);
-      return `<div class="${team === this.myTeam ? 'us' : 'ru'}"><h3>${TEAM_NAMES[team]}</h3><table><tr><th>Name</th><th>K</th><th>D</th><th>Score</th><th>Ping</th></tr>${rows.map((r) => `<tr class="${r.id === myId ? 'me' : ''} ${r.a ? '' : 'dead'}"><td>${esc(r.n)}</td><td>${r.k}</td><td>${r.d}</td><td>${r.s}</td><td>${r.b ? 'BOT' : r.png}</td></tr>`).join('')}</table></div>`;
+      return `<div class="${team === this.myTeam ? 'us' : 'ru'}"><h3>${TEAM_NAMES[team]}</h3><table><tr><th>Name</th><th>K</th><th>D</th><th>Score</th><th>Ping</th></tr>${rows.map((r) => `<tr class="${r.id === myId ? 'me' : ''} ${r.a ? '' : 'dead'}"><td>${esc(r.n)}</td><td>${r.k}</td><td>${r.d}</td><td>${r.s}</td><td>${r.ai ? 'AI' : r.b ? 'BOT' : r.png}</td></tr>`).join('')}</table></div>`;
     };
     sb.innerHTML = col(this.myTeam) + col(this.myTeam === 1 ? 2 : 1);
   }

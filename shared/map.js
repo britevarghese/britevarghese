@@ -7,13 +7,16 @@ import harbor from './maps/harbor.js';
 import valley from './maps/valley.js';
 import compound from './maps/compound.js';
 import firestorm from './maps/firestorm.js';
+import airfield from './maps/airfield.js';
+import oldtown from './maps/oldtown.js';
+import ridge from './maps/ridge.js';
 
 export const FLOOR_H = 3.2;
 export const WALL_T = 0.3;
 export const TEAMS = { US: 1, RU: 2 };
 export const TEAM_NAMES = { 1: 'US', 2: 'RU' };
 
-export const MAP_DEFS = { outskirts, harbor, valley, compound, firestorm };
+export const MAP_DEFS = { outskirts, harbor, valley, compound, airfield, oldtown, ridge, firestorm };
 export const MAP_IDS = Object.keys(MAP_DEFS);
 export const modeOf = (id) => MAP_DEFS[id]?.mode || 'conquest';
 // maps a Conquest room rotates through (battle royale maps have no flags)

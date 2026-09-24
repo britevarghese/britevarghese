@@ -32,6 +32,9 @@ npm run assets     # (optional) re-download and re-optimize all CC0 source asset
 | **Harbor Docks** | 300 m | 4 | container terminal on the water: tight container lanes, open quay, warehouse row |
 | **Dry Valley** | 384 m | 3 | big hills, winding road, farm, village and fortified hilltop — long sightlines |
 | **Checkpoint Zulu** | 184 m | 3 | small walled military compound — fast close-quarters infantry |
+| **Kestrel Airbase** | 464 m | 4 | abandoned airfield: hangar row, control tower, fuel depot, radar hill around an open runway |
+| **Old Town** | 320 m | 4 | dense historic town: narrow streets, market, church square, train station, mill — close quarters |
+| **Kaskar Ridge** | 400 m | 3 | mountain pass: hill village, quarry, fortified ridge line above a gorge road — long sightlines |
 | **Firestorm Island** | 840 m | — | **battle royale**: town, villages, farm, industrial yard, military base, radio station, checkpoint |
 
 Maps are plain data in `shared/maps/*.js` (roads, flags, bases, buildings, props, terrain relief, vegetation,
@@ -111,8 +114,20 @@ battle royale: **Space** jump / open parachute · **E** pick up · **H** heal ·
 * **Server-authoritative**: the server owns ammo, fire rate, damage, hit detection (lag-compensated hitscan
   against capsule hitboxes; walls/cover block shots; headshot multipliers; range falloff), grenades (simulated
   bounce + line-of-sight blast), capture, tickets, respawn, chat rate limiting and movement sanity checks.
-* **Bots**: A* navigation over a nav grid built from the collision world, objective selection, line-of-sight
-  perception, reaction time, converging aim error, burst fire, stance changes, grenades.
+* **Bots** play like people: A* navigation with smooth steering and turning (no snapping), sprint only on long clear
+  stretches, walk and glance around near danger; in a fight they settle into one firing position, stop to shoot at range,
+  close in when out of their weapon's range, fire controlled bursts, run to real cover when hurt, then peek; they
+  search where they last saw you and watch approach routes while holding a flag. Line-of-sight perception, reaction
+  time, converging aim error, bullet-drop hold-over and target leading, grenades.
+* **AI Zone** (lobby tab): play with a soldier commanded by a **language model**. Set the provider, **base URL,
+  model and API key** — *Anthropic (Claude)* uses the official Anthropic SDK (default model `claude-opus-5`),
+  *OpenAI-compatible* covers OpenRouter, Groq, Together, vLLM, LM Studio and similar `/chat/completions` endpoints.
+  Every few seconds the model gets a battlefield report (flags, tickets, its health/ammo, teammates, spotted
+  enemies, radio messages) and answers with orders — go to flag, move, follow a player, attack, hold, take cover,
+  change stance, say something on the radio; the bot brain executes them. Talk to it with **T** ("Claude, follow
+  me", "take B"). *TEST CONNECTION* checks the settings first. The key is kept only in the server's memory for the
+  room's lifetime; AI rooms are private. For local models on your own PC run the server with `AI_ALLOW_LOCAL=1`
+  (otherwise only public `https://` endpoints are accepted).
 
 ## Visual architecture (asset-driven — no primitive soldiers/guns)
 | Layer | File |

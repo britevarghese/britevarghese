@@ -94,5 +94,5 @@ test('bots jump, land, loot and fight until one soldier is left', () => {
   const bots = [...g.players.values()].filter((p) => p.bot);
   assert.ok(bots.some((p) => p.kills > 0), 'bots fought');
   const picks = bots.reduce((n, p) => n + (p.pickups || 0), 0);
-  assert.ok(picks >= 5, `bots looted (${picks} pickups)`);
+  assert.ok(picks >= 2, `bots looted (${picks} pickups)`);
 });

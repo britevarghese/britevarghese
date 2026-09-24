@@ -55,7 +55,7 @@
         <label>FOV <input id="fov" type="range" min="60" max="100" value="78" /></label>
       </div>
       <div id="gpuinfo"></div>
-      <div class="tabs"><button data-tab="browse" class="on">SERVER BROWSER</button><button data-tab="create">CREATE ROOM</button><button data-tab="code">JOIN BY CODE</button></div>
+      <div class="tabs"><button data-tab="browse" class="on">SERVER BROWSER</button><button data-tab="create">CREATE ROOM</button><button data-tab="code">JOIN BY CODE</button><button data-tab="ai">AI ZONE</button></div>
       <div class="tab" id="tab-browse">
         <div id="roomlist"><div class="empty">Loading rooms…</div></div>
         <div class="row small"><span id="roomcount"></span><a href="#" id="refresh">↻ Refresh</a></div>
@@ -80,6 +80,34 @@
           <label>Password <input id="j-pass" maxlength="32" placeholder="if required" /></label>
         </div>
         <div id="j-info" class="desc"></div>
+      </div>
+      <div class="tab hidden" id="tab-ai">
+        <div class="desc">Play with an AI soldier commanded by a language model: it reads the battlefield every few seconds,
+          gives itself orders (capture flags, follow you, attack, take cover) and answers you on the radio (T to chat).</div>
+        <div class="row">
+          <label>Map <select id="ai-map"></select></label>
+          <label>AI plays as <select id="ai-side"><option value="team">your teammate</option><option value="enemy">your opponent</option></select></label>
+          <label>Callsign <input id="ai-name" maxlength="14" value="Claude" /></label>
+        </div>
+        <div class="row">
+          <label>Provider <select id="ai-provider"><option value="anthropic">Anthropic (Claude)</option><option value="openai">OpenAI-compatible</option></select></label>
+          <label>Base URL <input id="ai-base" maxlength="200" placeholder="https://api.anthropic.com" /></label>
+          <label>Model <input id="ai-model" maxlength="120" placeholder="claude-opus-5" /></label>
+        </div>
+        <div class="row">
+          <label>API key <input id="ai-key" type="password" maxlength="400" autocomplete="off" placeholder="sk-…" /></label>
+          <label>Decides every <select id="ai-interval"><option value="3">3 s</option><option value="5" selected>5 s</option><option value="8">8 s</option><option value="12">12 s</option></select></label>
+          <label>Bots per team <input id="ai-bots" type="number" min="0" max="12" value="3" /></label>
+        </div>
+        <div class="row checks">
+          <label class="chk"><input type="checkbox" id="ai-remember" checked /> Remember these settings on this device</label>
+          <label class="chk"><input type="checkbox" id="ai-remember-key" /> …including the API key</label>
+          <button id="ai-test" class="small">TEST CONNECTION</button>
+        </div>
+        <div id="ai-status" class="desc"></div>
+        <div class="desc note">The key is sent to this game server only to call the model during your match; it is kept in memory for the
+          room's lifetime and never shown to other players. Each AI soldier makes about <span id="ai-rate">12</span> requests per minute —
+          this uses your provider credits. AI rooms are private (invite friends with the room code).</div>
       </div>
       <button id="play">JOIN BATTLE</button>
       <div class="help">WASD move · Shift sprint · Space jump · C crouch · Z prone · RMB aim · LMB fire · R reload · 1/2 weapons · G grenade · V first/third person · Tab scoreboard · T chat · I copy invite link · Battle royale: Space jump / parachute · E pick up · H heal · M map</div>

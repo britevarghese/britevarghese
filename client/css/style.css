@@ -252,3 +252,11 @@ body.royale.br-out #ammo, body.royale.br-out #vitals, body.royale.br-out #br-arm
 @keyframes hurtf { 0% { opacity: 1; } 100% { opacity: 0; } }
 #scope { position: fixed; inset: 0; display: none; pointer-events: none; z-index: 1; }
 body.scoped #tickets, body.scoped #minimap, body.scoped #roomtag, body.scoped #crosshair, body.scoped #br-map { visibility: hidden; }
+/* AI Zone */
+.room .mode.ai { color: #7fd4ff; }
+#tab-ai .desc { font-size: 12px; opacity: .8; margin-bottom: 10px; line-height: 1.45; }
+#tab-ai .desc.note { font-size: 11px; opacity: .6; }
+#tab-ai #ai-status.ok { color: #6fe08a; opacity: 1; } #tab-ai #ai-status.bad { color: #ff7a6b; opacity: 1; }
+#tab-ai button.small { width: auto; padding: 6px 12px; margin: 0; font-size: 11px; letter-spacing: .12em; }
+.tabs button { min-width: 0; }
+#menu { display: flex; overflow-y: auto; } #menu > .panel { margin: auto; } /* scrolls on short screens instead of clipping */

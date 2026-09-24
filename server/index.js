@@ -8,6 +8,7 @@ import { fileURLToPath } from 'node:url';
 import { WebSocketServer } from 'ws';
 import { TICK_HZ } from './game.js';
 import { RoomManager } from './rooms.js';
+import { cleanAgentConfig, testAgentConfig } from './agent.js';
 import { mapList, MAP_IDS, MAP_DEFS } from '../shared/map.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -19,7 +20,7 @@ const MAX_CONN_PER_IP = +process.env.MAX_CONN_PER_IP || 8;
 const rooms = new RoomManager();
 if (DEFAULT_ROOMS) {
   // one always-on public room per map (they sleep while empty)
-  const ids = { outskirts: 'OUTSKIRTS', harbor: 'HARBOR', valley: 'VALLEY', compound: 'ZULU', firestorm: 'FIRESTORM' };
+  const ids = { outskirts: 'OUTSKIRTS', harbor: 'HARBOR', valley: 'VALLEY', compound: 'ZULU', airfield: 'AIRBASE', oldtown: 'OLDTOWN', ridge: 'RIDGE', firestorm: 'FIRESTORM' };
   const royaleBots = process.env.ROYALE_BOTS !== undefined ? +process.env.ROYALE_BOTS : Math.min(23, BOTS * 2 + 3);
   for (const map of MAP_IDS) {
     const royale = MAP_DEFS[map].mode === 'royale';
@@ -30,7 +31,7 @@ if (DEFAULT_ROOMS) {
 const app = express();
 app.set('trust proxy', true); // correct client IPs behind Render/Fly/Cloudflare
 app.use(compression());
-app.use(express.json({ limit: '2kb' }));
+app.use(express.json({ limit: '4kb' }));
 app.use('/vendor/three', express.static(path.join(ROOT, 'node_modules/three'), { maxAge: '7d' }));
 app.use('/shared', express.static(path.join(ROOT, 'shared')));
 app.use('/assets', express.static(path.join(ROOT, 'client/assets'), { maxAge: '1h', fallthrough: false }));
@@ -56,10 +57,22 @@ app.post('/api/rooms', (req, res) => {
   if (recent.length >= 5) return res.status(429).json({ error: 'Too many rooms created, wait a few minutes' });
   const b = req.body || {};
   try {
-    const r = rooms.create({ name: b.name, map: b.map, botsPerTeam: b.bots ?? 4, maxPlayers: b.maxPlayers ?? 16, isPrivate: !!b.private, password: b.password || '', rotation: b.rotation !== false });
+    // AI Zone: up to 2 LLM-commanded soldiers (validated here; keys are kept in memory only)
+    const agents = (Array.isArray(b.ai) ? b.ai : b.ai ? [b.ai] : []).slice(0, 2).map(cleanAgentConfig);
+    if (agents.length && MAP_DEFS[b.map]?.mode === 'royale') return res.status(400).json({ error: 'AI agents play Conquest maps' });
+    const r = rooms.create({ name: b.name, map: b.map, botsPerTeam: b.bots ?? 4, maxPlayers: b.maxPlayers ?? 16, isPrivate: agents.length ? true : !!b.private, password: b.password || '', rotation: b.rotation !== false, agents });
     recent.push(now); createLog.set(ip, recent);
     res.json(r.info());
-  } catch (e) { res.status(503).json({ error: e.message }); }
+  } catch (e) { res.status(/required|valid|must/i.test(e.message) ? 400 : 503).json({ error: e.message }); }
+});
+// AI Zone: test a model connection (one tiny request) before creating the room
+const testLog = new Map();
+app.post('/api/ai/test', async (req, res) => {
+  const ip = req.ip, now = Date.now();
+  const recent = (testLog.get(ip) || []).filter((t) => now - t < 60000);
+  if (recent.length >= 6) return res.status(429).json({ error: 'Too many tests, wait a minute' });
+  recent.push(now); testLog.set(ip, recent);
+  try { res.json(await testAgentConfig(req.body || {})); } catch (e) { res.status(400).json({ error: e.message }); }
 });
 app.use(express.static(path.join(ROOT, 'client')));
 

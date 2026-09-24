@@ -502,6 +502,8 @@ class RoyaleBrain extends BotBrain {
       p.yaw += clamp(angleDiff(p.yaw, wantYaw), -2 * dt, 2 * dt);
       return { fx: d > 3 ? dx / d : 0, fz: d > 3 ? dz / d : 0, dive: p.air === 1 && d < 60 ? 1 : 0, deploy: false };
     }
+    // no rifle yet: don't go hunting someone you lost sight of, go find a gun first
+    if (!this.visible && !p.weapons[0]) { this.lastSeen = null; this.target = null; }
     if (now >= (this.nextDecide || 0)) { this.nextDecide = now + 500; this.decide(); }
     // wedged somewhere (door frames, props): give up on the current goal and step somewhere else
     if (!this.anchor || Math.hypot(p.x - this.anchor.x, p.z - this.anchor.z) > 2.5) this.anchor = { x: p.x, z: p.z, t: now };

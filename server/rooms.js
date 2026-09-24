@@ -2,6 +2,7 @@
 import crypto from 'node:crypto';
 import { Game, TICK_HZ, SNAP_HZ } from './game.js';
 import { RoyaleGame } from './royale.js';
+import { AgentController } from './agent.js';
 import { MAP_DEFS, MAP_IDS, CONQUEST_MAPS, modeOf } from '../shared/map.js';
 
 const CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
@@ -10,7 +11,8 @@ export const cleanName = (s, max = 18) => String(s ?? '').replace(/[\u0000-\u001
 const safeEqual = (a, b) => { const x = Buffer.from(String(a)), y = Buffer.from(String(b)); return x.length === y.length && crypto.timingSafeEqual(x, y); };
 
 export class Room {
-  constructor({ id, name, map, botsPerTeam = 6, maxPlayers = 24, isPrivate = false, password = '', rotation = true, persistent = false, log = () => {} }) {
+  constructor({ id, name, map, botsPerTeam = 6, maxPlayers = 24, isPrivate = false, password = '', rotation = true, persistent = false, agents = [], log = () => {} }) {
+    this.agentCfgs = agents; // AI Zone: validated LLM configs (API keys stay in memory only)
     this.id = id; this.name = name; this.botsPerTeam = botsPerTeam; this.maxPlayers = maxPlayers;
     this.isPrivate = isPrivate; this.password = password; this.rotation = rotation; this.persistent = persistent;
     this.log = log;
@@ -27,6 +29,7 @@ export class Room {
     this.game = this.mode === 'royale'
       ? new RoyaleGame({ bots: this.botsPerTeam, map: this.mapId, log: this.log, lobbyTime: +process.env.ROYALE_LOBBY || undefined })
       : new Game({ botsPerTeam: this.botsPerTeam, map: this.mapId, log: this.log });
+    if (this.mode === 'conquest') for (const c of this.agentCfgs) this.game.agents.push(new AgentController(this.game, c, this.log));
   }
 
   humans() { return this.clients.size; }
@@ -36,6 +39,7 @@ export class Room {
     return {
       id: this.id, name: this.name, map: this.mapId, mode: this.mode, mapName: MAP_DEFS[this.mapId].name, players: this.humans(), max: this.maxPlayers,
       bots: this.botsPerTeam, private: this.isPrivate, locked: !!this.password, rotation: this.rotation, tickets: [g.tickets[1], g.tickets[2]],
+      ai: this.agentCfgs.map((c) => ({ name: c.name, model: c.model, provider: c.provider, side: c.side })),
     };
   }
 
@@ -46,6 +50,8 @@ export class Room {
     const g = this.game;
     const p = g.addPlayer({ name: cleanName(m.name) || 'Soldier', team: m.team, cls: m.cls });
     this.clients.set(ws, p);
+    // AI agents join the first human's side (teammates) or the opposite one (opponents)
+    for (const a of g.agents) if (!a.aligned) { a.aligned = true; const t = a.cfg.side === 'enemy' ? (p.team === 1 ? 2 : 1) : p.team; if (a.p.team !== t) { g.kill(a.p, null, 'switch', true); a.p.team = t; a.p.respawnAt = g.now() + 1500; } }
     send(ws, { t: 'welcome', id: p.id, team: p.team, cls: p.cls, mode: this.mode, tickHz: TICK_HZ, snapHz: SNAP_HZ, room: this.info() });
     send(ws, g.scoreboard());
     const extra = g.joinPayload?.(p); if (extra) send(ws, extra);
@@ -80,7 +86,7 @@ export class Room {
         const now = Date.now();
         p.chatTokens = Math.min(3, (p.chatTokens ?? 3) + (now - (p.chatAt || now)) / 2000); p.chatAt = now;
         const msg = cleanName(m.msg, 120);
-        if (p.chatTokens >= 1 && msg) { p.chatTokens--; g.emit({ t: 'chat', from: p.name, tm: p.team, msg }); }
+        if (p.chatTokens >= 1 && msg) { p.chatTokens--; g.emit({ t: 'chat', from: p.name, tm: p.team, msg }); for (const a of g.agents) a.onChat(p, msg); }
         break;
       }
       case 'pong': if (typeof m.s === 'number') p.rtt = p.rtt * 0.7 + Math.min(1000, Date.now() - m.s) * 0.3; break;
@@ -159,6 +165,7 @@ export class RoomManager {
       password: cleanName(opts.password, 32),
       rotation: opts.rotation !== false,
       persistent: !!opts.persistent,
+      agents: opts.agents || [],
       log: this.log,
     });
     this.rooms.set(id, room);

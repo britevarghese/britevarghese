@@ -31,6 +31,7 @@ export class Game {
     this.world = shared.world;
     this.nav = shared.nav;
     this.players = new Map();
+    this.agents = [];        // LLM-commanded soldiers (AI Zone rooms)
     this.grenades = [];
     this.bullets = [];
     this.botsPerTeam = botsPerTeam;
@@ -43,6 +44,7 @@ export class Game {
 
   resetRound() {
     this.tickets = { 1: START_TICKETS, 2: START_TICKETS };
+    this.roundStart = this.now();
     this.flags = this.map.FLAGS.map((f) => ({ ...f, owner: f.owner || 0, progress: f.owner === 1 ? 1 : f.owner === 2 ? -1 : 0, contested: false }));
     this.roundOver = null;
     this.bleedAcc = { 1: 0, 2: 0 };
@@ -83,7 +85,8 @@ export class Game {
 
   balanceBots() {
     const humans = { 1: 0, 2: 0 }, bots = { 1: [], 2: [] };
-    for (const p of this.players.values()) (p.bot ? bots[p.team].push(p) : humans[p.team]++);
+    // AI-zone agents take the place of a bot on their team
+    for (const p of this.players.values()) (p.bot && !p.agent ? bots[p.team].push(p) : humans[p.team]++);
     const names = ['Reyes', 'Kowalski', 'Hansen', 'Ivanov', 'Okafor', 'Brandt', 'Novak', 'Sato', 'Moreau', 'Petrov', 'Walsh', 'Lindqvist', 'Costa', 'Bauer', 'Kaya', 'Volkov', 'Garcia', 'Duarte', 'Fischer', 'Sokolov'];
     for (const t of [1, 2]) {
       const want = Math.max(0, this.botsPerTeam - humans[t]);
@@ -411,6 +414,7 @@ export class Game {
       p.history.push({ t: now, x: p.x, y: p.y, z: p.z, yaw: p.yaw, stance: p.stance });
       while (p.history.length && p.history[0].t < now - HISTORY_MS) p.history.shift();
     }
+    for (const a of this.agents) a.tick();
     this.stepBullets(now);
     this.stepGrenades(dt);
     this.stepFlags(dt);
@@ -419,6 +423,7 @@ export class Game {
   // ------------------------------------------------------------ networking helpers
   emit(ev, only = null, alsoIds = null) {
     this.events.push({ ev, only: only ? only.id : null, ids: alsoIds });
+    for (const a of this.agents) a.onEvent(ev);
   }
 
   flushEvents() { const e = this.events; this.events = []; return e; }
@@ -443,7 +448,7 @@ export class Game {
   scoreboard() {
     return {
       t: 'board',
-      rows: [...this.players.values()].map((p) => ({ id: p.id, n: p.name, tm: p.team, k: p.kills, d: p.deaths, s: p.score, b: p.bot ? 1 : 0, png: p.bot ? 0 : Math.round(p.rtt), a: p.alive ? 1 : 0 })),
+      rows: [...this.players.values()].map((p) => ({ id: p.id, n: p.name, tm: p.team, k: p.kills, d: p.deaths, s: p.score, b: p.bot ? 1 : 0, ai: p.agent ? 1 : 0, png: p.bot ? 0 : Math.round(p.rtt), a: p.alive ? 1 : 0 })),
     };
   }
 }

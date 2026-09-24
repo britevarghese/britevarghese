@@ -124,17 +124,19 @@ export class Players {
       if (r.airPitch < -0.01 || freefall) { r.root.rotation.order = 'YXZ'; r.root.rotation.x = r.airPitch; }
       else r.root.rotation.x = 0;
       const lift = -r.airPitch * 0.75;
-      if (r.weapon) r.weapon.root.visible = r.weapon.root.visible && !freefall;
+      if (r.weapon) r.weapon.root.visible = r.weapon.root.visible && !(p.alive && (p.flags & 96)); // slung while in the air
       if (!onScreen) r.root.position.set(p.x, p.y + lift, p.z);
       if (p.animAcc < rate) { r.root.position.set(p.x, p.y + lift, p.z); continue; }
       const adt = p.animAcc; p.animAcc = 0;
       r.root.position.set(p.x, p.y + lift, p.z);
-      const speed = Math.hypot(p.vx || 0, p.vz || 0);
+      const airState = p.alive ? (p.flags & 32 ? 1 : p.flags & 64 ? 2 : 0) : 0;
+      // no running animation while falling / hanging under the canopy
+      const speed = airState ? 0 : Math.hypot(p.vx || 0, p.vz || 0);
       const reloadEnd = p.reloadEnd || 0, now = performance.now();
       r.setState({
         speed, moveYaw: Math.atan2(-(p.vx || 0), -(p.vz || 0)), aimYaw: p.yaw, pitch: p.pitch, stance: p.stance,
         ads: !!(p.flags & 1), sprint: !!(p.flags & 2), onGround: !!(p.flags & 16), firing: !!(p.flags & 8) && !isMe,
-        reload: now < reloadEnd ? 1 - (reloadEnd - now) / p.reloadDur : 0,
+        reload: now < reloadEnd ? 1 - (reloadEnd - now) / p.reloadDur : 0, skydive: airState,
       });
       if (p.alive || r.state.dead) r.update(adt);
       // footsteps for nearby soldiers
