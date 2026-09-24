@@ -173,7 +173,8 @@ export function concrete(slabs = 4, seed = 3, tone = 150) {
     const step = n / slabs;
     // slab tone variation + joints
     for (let y = 0; y < slabs; y++) for (let x = 0; x < slabs; x++) {
-      ctx.fillStyle = `rgba(${R() < 0.5 ? 0 : 255},${R() < 0.5 ? 0 : 255},${R() < 0.5 ? 0 : 255},${0.03 + R() * 0.04})`;
+      const tone = R() < 0.5 ? 0 : 255; // grayscale slab-to-slab variation
+      ctx.fillStyle = `rgba(${tone},${tone},${tone},${0.03 + R() * 0.05})`;
       ctx.fillRect(x * step, y * step, step, step);
     }
     ctx.strokeStyle = 'rgba(40,40,40,0.8)'; hctx.strokeStyle = 'rgb(60,60,60)';
@@ -296,10 +297,11 @@ export function facade(style) {
   });
 }
 
+// lighten/darken an sRGB hex color by `amt` (0..255 units) in display space
 function shade(hex, amt) {
-  const c = new THREE.Color(hex);
-  const f = amt / 255;
-  return '#' + new THREE.Color(Math.min(1, Math.max(0, c.r + f)), Math.min(1, Math.max(0, c.g + f)), Math.min(1, Math.max(0, c.b + f))).getHexString();
+  const n = parseInt(hex.replace('#', ''), 16);
+  const c = (v) => Math.max(0, Math.min(255, Math.round(v + amt))).toString(16).padStart(2, '0');
+  return '#' + c((n >> 16) & 255) + c((n >> 8) & 255) + c(n & 255);
 }
 
 // ------------------------------------------------------------------ storefronts (ground floor band)
@@ -433,12 +435,39 @@ export function markingsAtlas() {
     ctx.fillStyle = '#050505'; for (let k = 0; k < 9; k++) ctx.fillRect(x + cell * (0.14 + k * 0.08), y + cell * 0.34, cell * 0.04, cell * 0.32);
     [x, y] = cellXY(10); ctx.fillStyle = W; ctx.fillRect(x + cell * 0.42, y, cell * 0.16, cell); worn(x, y);
     [x, y] = cellXY(11); ctx.fillStyle = Y; ctx.fillRect(x + cell * 0.18, y, cell * 0.24, cell); ctx.fillRect(x + cell * 0.58, y, cell * 0.24, cell); worn(x, y);
+    // 12: lane wear — polished dark wheel tracks with a faint oily centre line (stretched along lanes)
+    [x, y] = cellXY(12);
+    {
+      const g = ctx.createLinearGradient(x, 0, x + cell, 0);
+      const stops = [[0, 0], [0.14, 0.0], [0.24, 0.42], [0.34, 0.0], [0.46, 0.0], [0.5, 0.18], [0.54, 0.0], [0.66, 0.0], [0.76, 0.42], [0.86, 0.0], [1, 0]];
+      for (const [t, a] of stops) g.addColorStop(t, `rgba(12,12,14,${a})`);
+      ctx.fillStyle = g; ctx.fillRect(x, y, cell, cell);
+    }
+    // 13: asphalt repair patch (darker, sealed edges)
+    [x, y] = cellXY(13);
+    {
+      const R2 = rng(1313);
+      ctx.fillStyle = 'rgba(18,18,20,0.55)'; ctx.fillRect(x + cell * 0.06, y + cell * 0.06, cell * 0.88, cell * 0.88);
+      ctx.strokeStyle = 'rgba(8,8,8,0.8)'; ctx.lineWidth = cell * 0.025; ctx.strokeRect(x + cell * 0.06, y + cell * 0.06, cell * 0.88, cell * 0.88);
+      for (let i = 0; i < 200; i++) { ctx.fillStyle = `rgba(255,255,255,${R2() * 0.08})`; ctx.fillRect(x + cell * (0.08 + R2() * 0.84), y + cell * (0.08 + R2() * 0.84), 2, 2); }
+    }
+    // 14: oil / fluid stain
+    [x, y] = cellXY(14);
+    {
+      const R3 = rng(1414);
+      for (let i = 0; i < 6; i++) {
+        const cx = x + cell * (0.3 + R3() * 0.4), cy = y + cell * (0.3 + R3() * 0.4), r = cell * (0.12 + R3() * 0.2);
+        const g = ctx.createRadialGradient(cx, cy, 0, cx, cy, r);
+        g.addColorStop(0, 'rgba(5,5,8,0.55)'); g.addColorStop(1, 'rgba(5,5,8,0)');
+        ctx.fillStyle = g; ctx.fillRect(cx - r, cy - r, r * 2, r * 2);
+      }
+    }
     const t = tex(c, { repeat: false });
     t.wrapS = t.wrapT = THREE.ClampToEdgeWrapping;
     return t;
   });
 }
-export const MARK = { WHITE: 0, YELLOW: 1, DASH: 2, CROSS: 3, STOP: 4, ARROW: 5, ARROW_L: 6, ARROW_R: 7, MANHOLE: 8, DRAIN: 9, STALL: 10, DOUBLE_YELLOW: 11 };
+export const MARK = { WHITE: 0, YELLOW: 1, DASH: 2, CROSS: 3, STOP: 4, ARROW: 5, ARROW_L: 6, ARROW_R: 7, MANHOLE: 8, DRAIN: 9, STALL: 10, DOUBLE_YELLOW: 11, WEAR: 12, PATCH: 13, STAIN: 14 };
 export function markUV(i) { const u0 = (i % 4) / 4, v0 = 1 - (Math.floor(i / 4) + 1) / 4; return [u0 + 0.002, v0 + 0.002, u0 + 0.248, v0 + 0.248]; }
 
 // ------------------------------------------------------------------ sprites / misc

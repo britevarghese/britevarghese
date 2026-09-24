@@ -477,7 +477,7 @@ export class Game {
       this.weatherT -= dt;
       if (this.weatherT <= 0) { this.weatherT = 180 + Math.random() * 240; const r = Math.random(); this.env.setWeather(r < 0.55 ? 'clear' : r < 0.8 ? 'cloudy' : 'rain'); }
     }
-    this.env.update(simulate ? dt : 0, player.renderer.group.position);
+    this.env.update(simulate ? dt : 0, player.renderer.group.position, false, this.camera.position);
     this.world.update(dt, this.camera, this.env.state);
     // camera
     const nitroFx = player.state.nitroActive ? 1 : 0;

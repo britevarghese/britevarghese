@@ -10,9 +10,9 @@ const KEYS = [
   { h: 0, skyTop: '#02040b', skyHor: '#161c2a', glow: '#3a2418', sun: '#8fa8e0', sunI: 0.28, hemiS: '#26334d', hemiG: '#0c0d12', hemiI: 0.8, fog: '#0a0e16', exp: 1.31, night: 1 },
   { h: 5.2, skyTop: '#060a18', skyHor: '#2a2436', glow: '#5a3020', sun: '#8fa8e0', sunI: 0.25, hemiS: '#23304a', hemiG: '#0a0a0e', hemiI: 0.6, fog: '#141824', exp: 1.25, night: 0.9 },
   { h: 6.5, skyTop: '#3a5a8a', skyHor: '#e8a070', glow: '#ff9a50', sun: '#ffb070', sunI: 1.6, hemiS: '#8aa0c0', hemiG: '#3a3028', hemiI: 0.9, fog: '#9a8a88', exp: 1.12, night: 0.35 },
-  { h: 9, skyTop: '#3a6ab0', skyHor: '#b8cce0', glow: '#fff0d0', sun: '#fff2dc', sunI: 2.6, hemiS: '#a8c4e8', hemiG: '#4a4438', hemiI: 1.1, fog: '#a8b8c8', exp: 1.06, night: 0 },
-  { h: 13, skyTop: '#2e62b0', skyHor: '#c0d4e8', glow: '#ffffff', sun: '#ffffff', sunI: 3.0, hemiS: '#b0cce8', hemiG: '#50483c', hemiI: 1.15, fog: '#b0c0d0', exp: 1.00, night: 0 },
-  { h: 17, skyTop: '#3a5c98', skyHor: '#e0c0a0', glow: '#ffc080', sun: '#ffd0a0', sunI: 2.2, hemiS: '#a0b0d0', hemiG: '#4a3c30', hemiI: 1.0, fog: '#b0a8a0', exp: 1.06, night: 0.05 },
+  { h: 9, skyTop: '#3a6ab0', skyHor: '#b8cce0', glow: '#fff0d0', sun: '#fff2dc', sunI: 2.6, hemiS: '#bccbe0', hemiG: '#7a6a56', hemiI: 1.45, fog: '#a8b8c8', exp: 1.15, night: 0 },
+  { h: 13, skyTop: '#2e62b0', skyHor: '#c0d4e8', glow: '#ffffff', sun: '#ffffff', sunI: 3.0, hemiS: '#c2d0e2', hemiG: '#806e58', hemiI: 1.5, fog: '#b0c0d0', exp: 1.15, night: 0 },
+  { h: 17, skyTop: '#3a5c98', skyHor: '#e0c0a0', glow: '#ffc080', sun: '#ffd0a0', sunI: 2.2, hemiS: '#b0b8d0', hemiG: '#6a5440', hemiI: 1.3, fog: '#b0a8a0', exp: 1.06, night: 0.05 },
   { h: 18.6, skyTop: '#2a2c58', skyHor: '#f07848', glow: '#ff6a30', sun: '#ff8a50', sunI: 1.3, hemiS: '#6a6090', hemiG: '#2a2020', hemiI: 0.8, fog: '#6a5058', exp: 1.19, night: 0.5 },
   { h: 19.8, skyTop: '#0a0e24', skyHor: '#3a2a40', glow: '#a04830', sun: '#9ab0e0', sunI: 0.35, hemiS: '#2a3450', hemiG: '#0a0a10', hemiI: 0.6, fog: '#161826', exp: 1.25, night: 0.9 },
   { h: 24, skyTop: '#02040b', skyHor: '#161c2a', glow: '#3a2418', sun: '#8fa8e0', sunI: 0.28, hemiS: '#26334d', hemiG: '#0c0d12', hemiI: 0.8, fog: '#0a0e16', exp: 1.31, night: 1 },
@@ -229,7 +229,11 @@ export class Environment {
       const n = Math.floor(N / 2);
       const pos = new Float32Array(n * 6);
       for (let i = 0; i < n; i++) {
-        const x = (R() - 0.5) * this.rainBox.w, y = R() * this.rainBox.h, z = (R() - 0.5) * this.rainBox.w;
+        let x = (R() - 0.5) * this.rainBox.w, z = (R() - 0.5) * this.rainBox.w;
+        const y = R() * this.rainBox.h;
+        // keep a clear column around the camera: drops right next to the lens read as huge slashes
+        const rr = Math.hypot(x, z);
+        if (rr < 3.5) { const k = (3.5 + R() * 2) / (rr || 1); x *= k; z *= k; }
         const len = 0.5 + R() * 0.6;
         pos.set([x, y, z, x + 0.05, y + len, z + 0.02], i * 6);
       }
@@ -245,7 +249,7 @@ export class Environment {
   }
 
   // ------------------------------------------------------------------ update
-  update(dt, focus, force = false) {
+  update(dt, focus, force = false, viewPos = null) {
     if (this.mode === 'cycle') this.hour = (this.hour + dt * (24 / (24 * 60))) % 24; // 24 minutes per day
     // weather transitions
     const targetRain = this.targetWeather === 'rain' ? 1 : 0;
@@ -308,12 +312,13 @@ export class Environment {
     this.rainGroup.visible = vis;
     if (vis) {
       this.rainMat.opacity = 0.25 * this.rain + 0.05;
-      this.rainGroup.position.set(Math.round(focus.x), focus.y - 6, Math.round(focus.z));
+      const rp = viewPos || focus;
+      this.rainGroup.position.set(rp.x, rp.y - 8, rp.z);
       this.rainTime = (this.rainTime || 0) + dt;
       for (const m of this.rainGroup.children) {
         const u = m.userData;
         const y = ((u.offset - this.rainTime * u.speed) % (this.rainBox.h * 2) + this.rainBox.h * 2) % (this.rainBox.h * 2) - this.rainBox.h;
-        m.position.set(u.layer * 7.3, y, u.layer * 3.1);
+        m.position.set(0, y, 0);
       }
     }
     this.state.rain = this.rain; this.state.wetness = this.wetness; this.state.cloud = this.cloud;

@@ -82,10 +82,11 @@ export class Materials {
   // called by Environment on time/weather change
   applyEnvironment(state) {
     const night = state.night;
-    const lit = Math.max(0.03, night);
-    for (const m of this.facades) m.emissiveIntensity = 0.05 + lit * 0.8;
-    for (const m of this.facadesFar) m.emissiveIntensity = 0.05 + lit * 0.8;
-    this.storefront.emissiveIntensity = 0.08 + lit * 0.6;
+    // interior lights are nearly invisible in daylight, glow at night
+    const lit = Math.max(0, night);
+    for (const m of this.facades) m.emissiveIntensity = 0.012 + lit * 0.8;
+    for (const m of this.facadesFar) m.emissiveIntensity = 0.012 + lit * 0.8;
+    this.storefront.emissiveIntensity = 0.03 + lit * 0.6;
     this.neon.color.setScalar(0.35 + night * 1.6);
     const lamps = night > 0.35 ? 1 : 0.15;
     this.lampHead.color.setRGB(1.0 * lamps * 2.4, 0.9 * lamps * 2.4, 0.72 * lamps * 2.4);
@@ -101,7 +102,9 @@ export class Materials {
     this.road.envMapIntensity = lerp(0.35, wetOK ? 1.6 : 0.8, w);
     this.road.needsUpdate = true;
     this.sidewalk.roughness = lerp(0.92, 0.5, w); this.sidewalk.color.setHex(0xb8b4ac).multiplyScalar(lerp(1, 0.7, w));
-    this.markings.roughness = lerp(0.6, 0.25, w);
+    this.markings.roughness = lerp(0.6, 0.42, w);
+    // road paint is far from pure white (and dims when wet) — keeps lamp-lit dashes from blowing out
+    this.markings.color.setScalar(lerp(0.78, 0.6, w));
     this.streak.opacity = wetOK ? w * Math.max(0, night - 0.3) * 0.9 : 0;
     this.streak.visible = this.streak.opacity > 0.01;
     this.glow.opacity = Math.max(0, night - 0.3) * 1.2;

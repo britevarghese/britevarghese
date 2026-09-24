@@ -331,7 +331,7 @@ export class VehicleRenderer {
     this.brake = lerp(this.brake, braking ? 1 : 0, 0.4);
     const m = this.mats;
     if (m.headlight) m.headlight.emissiveIntensity = hOn ? 3.2 : 0.4;
-    if (m.taillight) m.taillight.emissiveIntensity = (hOn ? 1.4 : 0.25) + this.brake * 4;
+    if (m.taillight) m.taillight.emissiveIntensity = (hOn ? 1.4 : 0.04) + this.brake * (hOn ? 4 : 2.5);
     // lamp flares: only when the lamp faces the viewer, sized by distance (no giant blobs up close)
     let facing = 1, dist = 20;
     if (camPos) {

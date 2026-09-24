@@ -384,6 +384,10 @@ export class ChunkBuilder {
       const nx = dz / len, nz = -dx / len;
       const mx = (a[0] + b[0]) / 2, mz = (a[1] + b[1]) / 2;
       for (const s of [-1, 1]) {
+        for (let i = 0; i < H.lanes; i++) {
+          const wo = s * (H.median / 2 + H.laneWidth * (i + 0.5));
+          mk.decal(mx + nx * wo, mz + nz * wo, H.laneWidth * 0.47, len / 2 + 0.05, ang, 0.011, markUV(MARK.WEAR));
+        }
         for (let i = 1; i < H.lanes; i++) {
           const off = s * (H.median / 2 + H.laneWidth * i);
           if ((Math.floor((mx + mz) / 9) + dashPhase) % 2 === 0) mk.decal(mx + nx * off, mz + nz * off, 0.08, len / 2 * 0.9, ang, 0.012, markUV(MARK.DASH));
@@ -430,6 +434,24 @@ export class ChunkBuilder {
     const mH = T.median / 2;
     const cross = 3.2, stopGap = 4.2;
     const s0 = a + (sigA ? stopGap + 0.6 : 1), s1 = b - (sigB ? stopGap + 0.6 : 1);
+    // lane wear (drawn first so paint lines sit on top), repair patches and oil stains
+    const R = rng(Math.round(C * 13 + a * 7 + (along ? 1 : 2)));
+    for (const dir of [1, -1]) {
+      for (let i = 0; i < T.lanes; i++) {
+        const o = dir * (mH + T.laneWidth * (i + 0.5));
+        if (!offs(o)) continue;
+        put(o, a + 0.5, b - 0.5, T.laneWidth * 0.95, MARK.WEAR);
+        if (R() < 0.55) { const s = a + 6 + R() * Math.max(1, len - 12); const l2 = 1.5 + R() * 2.5; put(o + (R() - 0.5) * 1.2, s, s + l2, 1.2 + R() * 1.6, MARK.PATCH); }
+        // stains collect where cars wait at the stop line
+        for (const [end, sig] of [[a, sigA], [b, sigB]]) {
+          if (!sig) continue;
+          const inward = end === a ? 1 : -1, travel = -inward, rightSign = along ? -travel : travel;
+          if (Math.sign(o) !== Math.sign(rightSign)) continue;
+          const sp = end + inward * (cross + 3 + R() * 6);
+          put(o + (R() - 0.5) * 0.8, sp - 1.1, sp + 1.1, 1.8, MARK.STAIN);
+        }
+      }
+    }
     // center line
     if (offs(0)) {
       if (T.median > 0) put(0, s0, s1, 0.55, MARK.DOUBLE_YELLOW);
