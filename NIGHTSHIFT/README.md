@@ -45,6 +45,19 @@ To build the Windows installer and portable zip, run `npm install` and then
 `npm run installer`. This needs `makensis` and downloads a portable Node runtime. The output
 goes to `dist/`.
 
+## Host it online (Render)
+
+The repository has a Render Blueprint (`render.yaml` at the repo root).
+
+1. Sign in at <https://render.com> and connect your GitHub account.
+2. **New → Blueprint**, pick this repository, then **Apply**. It creates a free web service that runs
+   `node server.js` from the `NIGHTSHIFT` folder on branch `claude/sharp-edison-fm66kb` (change `branch`
+   in `render.yaml` if you merge elsewhere). Nothing needs installing; Render provides `PORT`.
+3. Open the `https://nightshift-xxxx.onrender.com` address Render shows. Pushes to the branch redeploy.
+
+Free services sleep after ~15 minutes idle, so the first visit afterwards takes 30-60 s to wake up.
+Saves live in each player's browser.
+
 ## Controls
 
 | Action | Keyboard | Gamepad |

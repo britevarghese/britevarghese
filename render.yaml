@@ -1,0 +1,17 @@
+# Render Blueprint for NIGHTSHIFT (https://render.com/docs/blueprint-spec)
+# Render dashboard -> New -> Blueprint -> pick this repository. The game server has no npm
+# dependencies, so there is nothing to build; Render provides PORT and the server binds 0.0.0.0.
+services:
+  - type: web
+    name: nightshift
+    runtime: node
+    plan: free
+    rootDir: NIGHTSHIFT
+    branch: claude/sharp-edison-fm66kb
+    buildCommand: node --version
+    startCommand: node server.js
+    healthCheckPath: /
+    autoDeploy: true
+    envVars:
+      - key: NODE_VERSION
+        value: "20"
