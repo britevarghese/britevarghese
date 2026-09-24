@@ -104,7 +104,8 @@ export class Room {
     const A = this.acc;
     A.snap += dt; A.board += dt; A.ping += dt;
     if (A.snap >= 1 / SNAP_HZ) {
-      A.snap = 0;
+      // carry the remainder (resetting to 0 would drop 20 Hz snapshots to every other 30 Hz tick = 15 Hz)
+      A.snap = Math.min(A.snap - 1 / SNAP_HZ, 1 / SNAP_HZ);
       const snap = g.snapshot();
       for (const [ws, p] of this.clients) {
         snap.me = { hp: Math.max(0, Math.round(p.hp)), alive: p.alive, w: p.weapons, sl: p.slot, g: p.grenades, rl: Math.max(0, p.reloadUntil - now), rs: Math.max(0, p.respawnAt - now), sp: p.spawnPoint };
