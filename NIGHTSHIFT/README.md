@@ -133,3 +133,13 @@ teleports, and broadcasts snapshots at 20 Hz. Clients interpolate the other play
 npm install        # installs three.js (dev only)
 npm run models     # writes public/assets/models/*.glb
 ```
+
+## Screenshots
+
+These were captured with headless Chromium using software rendering (SwiftShader), so real GPUs will look smoother.
+
+![Pursuit](docs/screenshots/pursuit.png)
+![City at night](docs/screenshots/city-night.png)
+![Rain](docs/screenshots/rain.png)
+![Day](docs/screenshots/day.png)
+![Garage](docs/screenshots/garage.png)
