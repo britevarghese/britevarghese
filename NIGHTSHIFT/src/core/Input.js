@@ -12,7 +12,7 @@ const KEYMAP = {
 };
 const ACTIONS = {
   camera: ['KeyV'], map: ['KeyM'], pause: ['Escape', 'KeyP'], reset: ['KeyR'], horn: ['KeyH'],
-  dev: ['F3'], photo: ['F2'], fullscreen: ['F11'], confirm: ['Enter'], back: ['Backspace'], event: ['KeyE'], garage: ['KeyG'],
+  dev: ['F3'], photo: ['F2'], replay: ['KeyI'], fullscreen: ['F11'], confirm: ['Enter'], back: ['Backspace'], event: ['KeyE'], garage: ['KeyG'],
   up: ['ArrowUp'], down: ['ArrowDown'], leftNav: ['ArrowLeft'], rightNav: ['ArrowRight'],
 };
 

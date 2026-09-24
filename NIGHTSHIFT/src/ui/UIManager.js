@@ -8,6 +8,7 @@ import { SAFEHOUSES, SHOPS } from '../world/CityLayout.js';
 import { CHAPTERS, MISSIONS } from '../progression/Missions.js';
 import { CARS } from '../vehicles/VehicleCatalog.js';
 import { FILTERS } from '../camera/PhotoMode.js';
+import { REPLAY_CAMS } from '../replay/Replay.js';
 
 const h = (tag, cls, html) => { const e = document.createElement(tag); if (cls) e.className = cls; if (html !== undefined) e.innerHTML = html; return e; };
 
@@ -70,7 +71,7 @@ export class UIManager {
     const d = g.save.data;
     const L = g.progress?.info || { level: 1, into: 0, need: 1 };
     s.appendChild(h('div', 'menu-stats', `<div class="v">${formatMoney(d.cash)}</div><div class="l">CASH</div><div class="v" style="margin-top:.8rem">${L.level}</div><div class="l">DRIVER LEVEL</div><div class="xpline"><i style="width:${L.need ? Math.round(L.into / L.need * 100) : 100}%"></i></div><div class="v" style="margin-top:.8rem">${d.raceWins}</div><div class="l">RACE WINS</div>`));
-    s.appendChild(h('div', 'menu-foot', `${g.rm.backend.toUpperCase()} · ${QUALITY_LABELS[g.quality.level]} · W/S throttle-brake · A/D steer · SPACE handbrake · SHIFT nitrous · V camera · M map · ESC pause`));
+    s.appendChild(h('div', 'menu-foot', `${g.rm.backend.toUpperCase()} · ${QUALITY_LABELS[g.quality.level]} · W/S throttle-brake · A/D steer · SPACE handbrake · SHIFT nitrous · V camera · M map · I replay · F2 photo · ESC pause`));
     this.screens.appendChild(s);
     this.current = 'menu';
     this._menuNav(btns, null);
@@ -102,6 +103,7 @@ export class UIManager {
       ['RESUME', () => g.resume()],
       ['MAP', () => this.showMap(false)],
       ['PHOTO MODE', () => g.photo.enter()],
+      ['INSTANT REPLAY', () => { if (!g.replay.enter()) this.showPause(); }],
       ['CAREER', () => this.showCareer(() => this.showPause())],
       ['SETTINGS', () => this.showSettings(() => this.showPause())],
       ['RESET CAR', () => { g.resetPlayer(); g.resume(); }],
@@ -155,6 +157,34 @@ export class UIManager {
     this.screens.appendChild(s);
     this.current = 'photo';
   }
+  // ------------------------------------------------------------------ instant replay
+  showReplay(r) {
+    this.clear();
+    const s = h('div', 'replay-ui');
+    s.innerHTML = `<div class="replay-badge"><i></i>REPLAY</div>
+      <div class="replay-bar panel"><div class="replay-row"><button class="replay-btn" data-a="play"></button><div class="replay-track"><i></i></div><span class="replay-time"></span></div>
+      <div class="replay-row small"><button class="replay-btn" data-a="cam"></button><button class="replay-btn" data-a="speed"></button><button class="replay-btn" data-a="photo">PHOTO</button><button class="replay-btn" data-a="exit">EXIT</button></div>
+      <div class="hint">ENTER/H play-pause · ←/→ scrub · ↑/↓ speed · V camera · F2 photo · ESC back to driving</div></div>`;
+    const act = { play: () => { r.playing = !r.playing; }, cam: () => { r.cam = (r.cam + 1) % REPLAY_CAMS.length; r.track = null; }, speed: () => { r.speedIdx = (r.speedIdx + 3) % 4; }, photo: () => r.toPhoto(), exit: () => r.exit(true) };
+    s.querySelectorAll('.replay-btn').forEach((b) => { b.onclick = () => { act[b.dataset.a](); b.blur(); this.updateReplay(r); }; });
+    const track = s.querySelector('.replay-track');
+    track.onpointerdown = (e) => { const f = (e.clientX - track.getBoundingClientRect().left) / track.clientWidth; r.t = r.t0 + Math.max(0, Math.min(0.999, f)) * (r.t1 - r.t0); r.track = null; };
+    this.screens.appendChild(s);
+    this.current = 'replay';
+    this.updateReplay(r);
+  }
+  updateReplay(r) {
+    const s = this.screens.querySelector('.replay-ui');
+    if (!s) return;
+    const f = (r.t - r.t0) / Math.max(0.01, r.t1 - r.t0);
+    s.querySelector('.replay-track i').style.width = `${(f * 100).toFixed(1)}%`;
+    s.querySelector('.replay-time').textContent = `${(r.t - r.t0).toFixed(1)} / ${(r.t1 - r.t0).toFixed(1)} s`;
+    const cam = REPLAY_CAMS[r.cam];
+    s.querySelector('[data-a=cam]').textContent = cam === 'AUTO' ? `CAM: AUTO (${r.shot || ''})` : `CAM: ${cam}`;
+    s.querySelector('[data-a=speed]').textContent = `SPEED ${r.speedLabel}`;
+    s.querySelector('[data-a=play]').textContent = r.playing ? '❚❚' : '▶';
+  }
+
   togglePhotoPanel() { this.screens.querySelector('.photo-panel')?.classList.toggle('hidden'); }
   photoFlash() {
     const f = this.screens.querySelector('.photo-flash');

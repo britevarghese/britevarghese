@@ -274,3 +274,18 @@ input[type=range] { width: 100%; accent-color: var(--accent); }
 .photo-flash.go { animation: photoflash 0.35s ease-out; }
 @keyframes photoflash { 0% { opacity: 0.55; } 100% { opacity: 0; } }
 @media (max-width: 600px) { .photo-panel { top: auto; bottom: 16px; right: 16px; left: 16px; width: auto; max-height: 45vh; } }
+
+/* ---------- instant replay */
+.replay-ui { position: absolute; inset: 0; pointer-events: none; }
+.replay-badge { position: absolute; top: 1.2rem; left: 1.2rem; font-weight: 700; letter-spacing: 0.3em; font-size: 0.95rem; display: flex; align-items: center; gap: 0.5rem; text-shadow: 0 1px 4px #000; }
+.replay-badge i { width: 0.7rem; height: 0.7rem; border-radius: 50%; background: #ff3d5a; animation: replayblink 1.2s steps(2) infinite; }
+@keyframes replayblink { 50% { opacity: 0.15; } }
+.replay-bar { pointer-events: auto; position: absolute; left: 50%; bottom: 1.2rem; transform: translateX(-50%); width: min(720px, calc(100vw - 32px)); padding: 0.7rem 0.9rem; }
+.replay-row { display: flex; align-items: center; gap: 0.6rem; }
+.replay-row.small { margin-top: 0.5rem; flex-wrap: wrap; }
+.replay-track { flex: 1; height: 8px; background: rgba(255,255,255,0.12); cursor: pointer; position: relative; }
+.replay-track i { position: absolute; left: 0; top: 0; bottom: 0; background: var(--accent); }
+.replay-time { font-variant-numeric: tabular-nums; font-size: 0.8rem; color: var(--dim); min-width: 7.5em; text-align: right; }
+.replay-btn { background: rgba(255,255,255,0.06); border: 1px solid var(--line); color: inherit; font: inherit; font-size: 0.72rem; letter-spacing: 0.12em; padding: 0.35rem 0.7rem; cursor: pointer; }
+.replay-btn:hover { border-color: var(--accent); }
+.replay-bar .hint { margin-top: 0.5rem; font-size: 0.66rem; }

@@ -17,6 +17,7 @@ import { CARS, tunedParams } from '../vehicles/VehicleCatalog.js';
 import { VehiclePhysics } from '../physics/VehiclePhysics.js';
 import { CameraController, CAMERA_MODES } from '../camera/CameraController.js';
 import { PhotoMode } from '../camera/PhotoMode.js';
+import { Replay } from '../replay/Replay.js';
 import { TrafficManager } from '../traffic/TrafficManager.js';
 import { TrafficRenderer } from '../traffic/TrafficRenderer.js';
 import { PoliceManager } from '../police/PoliceManager.js';
@@ -100,6 +101,7 @@ export class Game {
     this.hud = new HUD(document.getElementById('hud'), this.mapRenderer, this.settings);
     this.ui = new UIManager(this);
     this.photo = new PhotoMode(this);
+    this.replay = new Replay(this);
     this.garage = new Garage(this);
     this.net = new NetworkClient(this);
     this.net.connect().catch(() => {});
@@ -496,6 +498,7 @@ export class Game {
       if (input.consume('pause')) this.pause();
       else if (input.consume('map')) this.openMap();
       else if (input.consume('photo') && !this.races.active) this.photo.enter();
+      else if (input.consume('replay')) this.replay.enter();
       if (input.consume('camera')) this.ui.toast(`Camera: ${this.camCtl.next()}`, '', 1);
       if (input.consume('reset')) this.resetPlayer();
       if (input.consume('horn')) this.audio.playEvent('horn', { position: { x: this.player.state.x, y: 0.5, z: this.player.state.z } });
@@ -551,6 +554,7 @@ export class Game {
       if (mode === 'busted') this._bustedUpdate(dt);
       // world interaction prompts (events, garages)
       if (driving) this._interactions();
+      if (driving) this.replay.record(dt);
       this.net.update(dt);
     }
 
@@ -577,6 +581,7 @@ export class Game {
       if (simulate) this.camCtl.update(dt, player, driving ? input.controls : { lookX: 0, lookY: 0 }, this.fx2);
     }
     if (mode === 'photo') this.photo.update(dt, input);
+    if (mode === 'replay') this.replay.update(dt, input);
     // sync visuals
     const camPos = this.camera.position;
     player.sync(dt, camPos, this.env.state);
@@ -590,7 +595,7 @@ export class Game {
     this.fx.setLight(this.env.state.night);
     this.fx.update(simulate ? dt : 0, this.camera);
     this.debris.update(simulate ? dt : 0);
-    if (this.trafficRenderer) this.trafficRenderer.update(this.traffic.renderList, this.camera, this.env.state.night, this.world.lights);
+    if (this.trafficRenderer) this.trafficRenderer.update(this.replay.active ? this.replay.trafficList : this.traffic.renderList, this.camera, this.env.state.night, this.world.lights);
     this._wetReflections([player, ...this.police.vehicles(), ...this.races.vehicles(), ...this.rivals.vehicles()]);
     this.peds.update(simulate ? dt : 0, this.camera, [player, ...this.police.vehicles()], this.preset.pedestrians > 0);
     // audio
@@ -601,7 +606,7 @@ export class Game {
     this.rm.render(this.scene, this.camera, dt);
     if (mode === 'photo') this.photo.afterRender();
     // UI
-    if (mode !== 'menu' && mode !== 'photo') this.hud.update(dt, this);
+    if (mode !== 'menu' && mode !== 'photo' && mode !== 'replay') this.hud.update(dt, this);
     this.save.update(dt);
     this._dev();
   }

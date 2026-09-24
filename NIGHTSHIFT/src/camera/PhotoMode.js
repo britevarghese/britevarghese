@@ -71,6 +71,7 @@ export class PhotoMode {
     g.env.mode = this.env0.mode; g.env.hour = this.env0.hour; g.env.envCanvasKey = '';
     g.camera.fov = this.opts.fov; g.camera.updateProjectionMatrix();
     g.ui.clear();
+    if (this.prevMode === 'replay') { g.replay.returnFromPhoto(); return; }
     g.state.mode = 'paused';
     g.ui.showPause();
   }
