@@ -119,21 +119,23 @@ class SkidMarks {
     this.last = new Map(); // wheelKey -> {l:[x,y,z], r:[x,y,z]}
   }
   add(key, x, y, z, dirX, dirZ, width, intensity) {
+    const prev = this.last.get(key);
+    // the mark runs along the tire's actual path (in a drift that's far from the car's heading)
+    if (prev) { const mx = x - prev.cx, mz = z - prev.cz, d = Math.hypot(mx, mz); if (d > 0.05) { dirX = mx / d; dirZ = mz / d; } }
     const nx = -dirZ * width / 2, nz = dirX * width / 2;
     const l = [x + nx, y, z + nz], r = [x - nx, y, z - nz];
-    const prev = this.last.get(key);
-    if (prev && Math.hypot(prev.l[0] - l[0], prev.l[2] - l[2]) < 4) {
-      if (Math.hypot(prev.l[0] - l[0], prev.l[2] - l[2]) < 0.35) return;
+    if (prev && Math.hypot(prev.cx - x, prev.cz - z) < 4) {
+      if (Math.hypot(prev.cx - x, prev.cz - z) < 0.35) return;
       const i = this.next;
       const pos = this.mesh.geometry.attributes.position, col = this.mesh.geometry.attributes.color;
       pos.array.set([...prev.l, ...prev.r, ...l, ...r], i * 12);
-      const a0 = prev.a, a1 = clamp(intensity, 0, 1) * 0.85;
+      const a0 = prev.a, a1 = clamp(intensity, 0, 1) * 0.92;
       col.array.set([1, 1, 1, a0, 1, 1, 1, a0, 1, 1, 1, a1, 1, 1, 1, a1], i * 16);
       pos.needsUpdate = true; col.needsUpdate = true;
       pos.clearUpdateRanges?.(); col.clearUpdateRanges?.();
       this.next = (this.next + 1) % this.max;
-      this.last.set(key, { l, r, a: a1 });
-    } else this.last.set(key, { l, r, a: clamp(intensity, 0, 1) * 0.85 });
+      this.last.set(key, { l, r, a: a1, cx: x, cz: z });
+    } else this.last.set(key, { l, r, a: clamp(intensity, 0, 1) * 0.92, cx: x, cz: z });
   }
   lift(key) { this.last.delete(key); }
 }
@@ -155,23 +157,26 @@ export class Effects {
   vehicle(v, dt, env) {
     const s = v.state, p = v.p;
     const slide = s.drifting || (s.handbrake > 0 && Math.abs(s.speed) > 5) || v.physics.lastWheelspin > 0.25 || (s.brake > 0.8 && Math.abs(s.speed) > 20 && s.onGround);
-    const intensity = s.drifting ? clamp(s.slip * 2, 0.3, 1) : v.physics.lastWheelspin > 0.25 ? v.physics.lastWheelspin : 0.5;
+    const intensity = s.drifting ? clamp(s.slip * 2.5, 0.55, 1) : v.physics.lastWheelspin > 0.25 ? v.physics.lastWheelspin : 0.6;
     const sn = Math.sin(s.yaw), cs = Math.cos(s.yaw);
     const wet = env?.wetness || 0;
     const speed = Math.hypot(s.vx, s.vz);
-    for (let i = 2; i < 4; i++) {
+    for (let i = 0; i < 4; i++) {
       const key = v.id + ':' + i;
       const [wx, wz] = v.physics.corners[i];
-      if (slide && s.onGround && speed > 3) {
+      const front = i < 2;
+      // fronts only scrub visibly when the car is well sideways
+      const marks = front ? s.drifting && s.slip > 0.3 && speed > 6 : slide && speed > 3;
+      if (marks && s.onGround) {
         const onRoad = s.y < 0.1;
-        this.skids.add(key, wx, (v.physics.groundH[i] || 0) + 0.02, wz, sn, cs, 0.26, intensity * (1 - wet * 0.6));
-        if (Math.random() < dt * 30 * this.scale) {
+        this.skids.add(key, wx, (v.physics.groundH[i] || 0) + 0.02, wz, sn, cs, 0.26, intensity * (front ? 0.45 : 1) * (1 - wet * 0.6));
+        if (!front && Math.random() < dt * 30 * this.scale) {
           const pool = onRoad ? this.smoke : this.dust;
           pool.emit(wx + (Math.random() - 0.5) * 0.3, 0.3, wz + (Math.random() - 0.5) * 0.3, -s.vx * 0.12 + (Math.random() - 0.5), 0.5 + Math.random() * 0.5, -s.vz * 0.12 + (Math.random() - 0.5), 0.7 + intensity * 0.6, 1.3 + intensity * 1.0, 2.3, wet > 0.5 ? 0.8 : 1);
         }
       } else this.skids.lift(key);
       // rain spray behind tires
-      if (wet > 0.4 && speed > 12 && s.onGround && Math.random() < dt * 30 * this.scale) {
+      if (!front && wet > 0.4 && speed > 12 && s.onGround && Math.random() < dt * 30 * this.scale) {
         this.smoke.emit(wx, 0.3, wz, -s.vx * 0.2, 0.8, -s.vz * 0.2, 0.6, 0.6, 3, 0.9);
       }
     }

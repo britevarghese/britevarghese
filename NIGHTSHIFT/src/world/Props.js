@@ -150,7 +150,9 @@ export class PropSystem {
       const arr = this.byChunk.get(k);
       if (!arr) continue;
       for (const p of arr) {
+        if (p.broken) continue;
         if (density < 1 && (p.type === 'tree' || p.type === 'bench' || p.type === 'bin' || p.type === 'meter' || p.type === 'bollard') && ((p.x * 13.7 + p.z * 7.3) % 1 + 1) % 1 > density) continue;
+        p._i = lists[p.type].length;
         lists[p.type].push(p);
       }
     }
@@ -188,6 +190,18 @@ export class PropSystem {
       });
     }
     this._rebuildSignals(lists.signal);
+  }
+
+  // hide one prop instance (knocked over; the debris system draws the falling copy)
+  hide(p) {
+    const meshes = this.meshes[p.type];
+    if (!meshes || p._i === undefined) return;
+    _m.makeScale(0, 0, 0);
+    for (const mesh of meshes) {
+      if (!mesh || p._i >= mesh.count) continue;
+      mesh.setMatrixAt(p._i, _m);
+      mesh.instanceMatrix.needsUpdate = true;
+    }
   }
 
   _rebuildSignals(list) {

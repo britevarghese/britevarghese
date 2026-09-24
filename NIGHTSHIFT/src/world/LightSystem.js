@@ -22,7 +22,7 @@ export class LightSystem {
       if (p.type !== 'lamp' && p.type !== 'highwayLamp' && p.type !== 'floodlight') continue;
       const heads = [];
       const c = Math.cos(p.rot), s = Math.sin(p.rot);
-      if (p.type === 'lamp') heads.push([p.x + s * 2.6, p.y + 8.3, p.z + c * 2.6, 0xffd9ae]);
+      if (p.type === 'lamp') heads.push([p.x + s * 2.6, p.y + 8.3, p.z + c * 2.6, 0xffd9ae, p]); // [4] = prop (can be knocked down)
       else if (p.type === 'floodlight') heads.push([p.x + s * 0.35, p.y + 9, p.z + c * 0.35, 0xeef4ff]);
       else { heads.push([p.x + c * 5.4, p.y + 11.6, p.z - s * 5.4, 0xffc48a]); heads.push([p.x - c * 5.4, p.y + 11.6, p.z + s * 5.4, 0xffc48a]); }
       const k = chunkKey(p.x, p.z);
@@ -97,8 +97,8 @@ export class LightSystem {
     this.active = [];
     this.lamps = [];
     for (const k of keys) {
-      const a = this.byChunk.get(k); if (a) for (const l of a) this.active.push(l);
-      const b = this.lampsByChunk.get(k); if (b) for (const h of b) this.lamps.push(h);
+      const a = this.byChunk.get(k); if (a) for (const l of a) if (!l.lamp?.broken) this.active.push(l);
+      const b = this.lampsByChunk.get(k); if (b) for (const h of b) if (!h[4]?.broken) this.lamps.push(h);
     }
     const n = Math.min(this.active.length, this.pools.instanceMatrix.count);
     for (let i = 0; i < n; i++) {

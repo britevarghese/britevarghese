@@ -115,7 +115,8 @@ export function asphalt() {
     // patches (repairs) — slightly different tone rectangles
     for (let i = 0; i < 5; i++) {
       const x = R() * n, y = R() * n, w = (60 + R() * 220) * s, h = (40 + R() * 160) * s;
-      cc.fillStyle = `rgba(${R() < 0.5 ? 20 : 70},${R() < 0.5 ? 20 : 70},${R() < 0.5 ? 22 : 72},0.28)`;
+      const tone = R() < 0.5 ? 22 : 68; // darker fresh seal or lighter aged patch (neutral gray)
+      cc.fillStyle = `rgba(${tone},${tone},${tone + 2},0.28)`;
       cc.fillRect(x, y, w, h);
       cc.strokeStyle = 'rgba(15,15,15,0.5)'; cc.lineWidth = 2 * s; cc.strokeRect(x, y, w, h);
     }
@@ -668,7 +669,12 @@ export function tireTread() {
 export function skidTex() {
   return cached('skid', () => {
     const w = 64, h = 64, c = canvas(w, h), ctx = c.getContext('2d');
-    for (let x = 0; x < w; x++) { const a = 0.5 + 0.5 * Math.sin(x * 1.3) * Math.random(); ctx.fillStyle = `rgba(0,0,0,${a})`; ctx.fillRect(x, 0, 1, h); }
+    // rubber streaks: dense core with tread-groove striations and soft edges
+    for (let x = 0; x < w; x++) {
+      const e = Math.min(1, Math.min(x, w - 1 - x) / 6);
+      const a = e * (0.72 + 0.28 * Math.sin(x * 1.3) * Math.random());
+      ctx.fillStyle = `rgba(0,0,0,${a})`; ctx.fillRect(x, 0, 1, h);
+    }
     return tex(c, { aniso: false });
   });
 }

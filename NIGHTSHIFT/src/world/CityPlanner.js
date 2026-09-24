@@ -8,6 +8,9 @@ import {
 // Facade styles (indices into the facade material library)
 export const FACADE = { GLASS: 0, OFFICE: 1, BRICK: 2, METAL: 3, DARK: 4, HOUSE: 5, CONCRETE: 6 };
 
+// half extents of knock-away street clutter
+const SMALL_PROPS = { meter: [0.15, 0.15], bin: [0.3, 0.3], bench: [0.9, 0.25], hydrant: [0.18, 0.18], bollard: [0.12, 0.12], cone: [0.2, 0.2] };
+
 export class CityPlanner {
   constructor(layout) {
     this.layout = layout;
@@ -22,7 +25,15 @@ export class CityPlanner {
     this._planRiver();
     this._planTunnel();
     this._planSpecial();
+    // street clutter gets tiny "knock-away" colliders so cars don't ghost through it
+    for (const p of this.props) {
+      const size = SMALL_PROPS[p.type];
+      if (size) this.breakable(p, this.collider(p.x, p.z, size[0], size[1], p.rot, 1.1, 'small'));
+    }
   }
+
+  // link a prop and its collider: the physics can knock it over (see VehiclePhysics._tryBreak)
+  breakable(p, c) { c.breakable = true; c.prop = p; p.collider = c; return p; }
 
   collider(cx, cz, hx, hz, angle = 0, h = 10, kind = 'building') {
     const c = { cx, cz, hx, hz, cos: Math.cos(angle), sin: Math.sin(angle), angle, h, kind };
@@ -194,10 +205,9 @@ export class CityPlanner {
         const lampStep = b.district === 'suburban' ? 36 : 30;
         for (let s = 8; s < len - 6; s += lampStep) {
           const [x, z] = at(s, 0.7);
-          this.prop('lamp', x, z, rotToRoad, { y: CURB_H });
-          this.collider(x, z, 0.18, 0.18, 0, 8, 'pole');
+          const lp = this.breakable(this.prop('lamp', x, z, rotToRoad, { y: CURB_H }), this.collider(x, z, 0.18, 0.18, 0, 8, 'pole'));
           const [px, pz] = [x + e.nx * 2.6, z + e.nz * 2.6];
-          this.lightPools.push({ x: px, z: pz, r: 9, color: b.district === 'industrial' || b.district === 'warehouse' ? 0xffa050 : 0xffd9a0, i: 1 });
+          this.lightPools.push({ x: px, z: pz, r: 9, color: b.district === 'industrial' || b.district === 'warehouse' ? 0xffa050 : 0xffd9a0, i: 1, lamp: lp });
         }
         // trees
         const treeChance = { suburban: 0.9, commercial: 0.55, downtown: 0.4, riverside: 1, industrial: 0.1, warehouse: 0.05, outskirts: 0.6 }[b.district] ?? 0.3;
@@ -370,8 +380,8 @@ export class CityPlanner {
           this.prop('stalls', (b.ix0 + b.ix1) / 2, z + 2.8, 0, { s: b.ix1 - b.ix0 - 6, y: 0.025 });
         }
         for (let x = b.ix0 + 10; x < b.ix1; x += 30) for (let z = b.iz0 + 12; z < b.iz1; z += 32) {
-          this.prop('lamp', x, z, 0, { y: 0.02 }); this.collider(x, z, 0.18, 0.18, 0, 8, 'pole');
-          this.lightPools.push({ x, z: z + 2.5, r: 10, color: 0xe8f0ff, i: 1 });
+          const lp = this.breakable(this.prop('lamp', x, z, 0, { y: 0.02 }), this.collider(x, z, 0.18, 0.18, 0, 8, 'pole'));
+          this.lightPools.push({ x, z: z + 2.5, r: 10, color: 0xe8f0ff, i: 1, lamp: lp });
         }
         if (b.special === 'parkingDeck') {
           // covered deck: roof slab on pillars (drive underneath)

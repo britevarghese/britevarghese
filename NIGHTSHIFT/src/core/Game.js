@@ -10,6 +10,7 @@ import { Effects } from '../renderer/Effects.js';
 import { WorldManager } from '../world/WorldManager.js';
 import { SAFEHOUSES, SHOPS, lineHalfWidth } from '../world/CityLayout.js';
 import { Pedestrians } from '../world/Pedestrians.js';
+import { Debris } from '../world/Debris.js';
 import { Vehicle } from '../vehicles/Vehicle.js';
 import { CARS, tunedParams } from '../vehicles/VehicleCatalog.js';
 import { VehiclePhysics } from '../physics/VehiclePhysics.js';
@@ -82,6 +83,7 @@ export class Game {
     this.world.lights.rebuild(this.world.chunks.nearKeys);
     progress(0.92, 'Starting systems...');
     this.fx = new Effects(this.scene, preset);
+    this.debris = new Debris(this.scene, this.world.props.defs, (x, z) => this.world.layout.groundHeight(x, z), 40);
     this.police = new PoliceManager(this);
     this.races = new RaceManager(this);
     this.peds = new Pedestrians(this.scene, this.world.layout, preset.pedestrians);
@@ -192,6 +194,23 @@ export class Game {
         if (e.impact > 6) this.police.reportInfraction('hitCivilian', 1);
       }
     });
+    // knocked-over street furniture (any physics vehicle can do it)
+    bus.on('prop:break', (e) => {
+      const p = e.p;
+      if (!p) return;
+      this.debris.spawn(p, e.vx, e.vz, e.speed);
+      const lamp = p.type === 'lamp';
+      const k = clamp(e.speed / 30, 0.2, 1), sp = e.speed || 1;
+      this.fx.impact(p.x, lamp ? 0.9 : 0.4, p.z, -e.vx / sp, -e.vz / sp, lamp ? k : k * 0.25, e.vx, e.vz);
+      this.audio.playEvent('collision', { intensity: k, type: lamp ? 'pole' : 'barrier', position: { x: p.x, y: 0.5, z: p.z } });
+      const s = this.player.state;
+      if (Math.hypot(p.x - s.x, p.z - s.z) < 7) {
+        this.camCtl.addShake(lamp ? 0.3 * k : 0.04);
+        this.input.rumble(lamp ? 0.6 : 0.2, 0.3, lamp ? 160 : 60);
+        if (lamp) this.police.reportInfraction('vandalism', 0.5);
+      }
+    });
+    bus.on('prop:restore', (cs) => this.debris.restore(cs.map((c) => c.prop).filter(Boolean)));
     bus.on('traffic:nearMiss', () => {
       this.player.state.nitro = Math.min(1, this.player.state.nitro + 0.1);
       this.save.data.cash += 25;
@@ -499,6 +518,7 @@ export class Game {
     if (simulate) this.fx.rainSplashes(dt, camPos, this.env.state.rain);
     this.fx.setLight(this.env.state.night);
     this.fx.update(simulate ? dt : 0, this.camera);
+    this.debris.update(simulate ? dt : 0);
     if (this.trafficRenderer) this.trafficRenderer.update(this.traffic.renderList, this.camera, this.env.state.night);
     this.peds.update(simulate ? dt : 0, this.camera, [player, ...this.police.vehicles()], this.preset.pedestrians > 0);
     // audio

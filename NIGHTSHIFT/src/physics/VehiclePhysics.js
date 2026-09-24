@@ -145,7 +145,7 @@ export class VehiclePhysics {
     let Fdrive = 0;
     if (s.onGround) {
       if (driveIn > 0) Fdrive = driveIn * power / Math.max(Math.abs(vx), 9);
-      else if (driveIn < 0) Fdrive = vx > -16 ? driveIn * power * 0.45 / Math.max(Math.abs(vx), 6) : 0;
+      else if (driveIn < 0) Fdrive = driveIn * power * 0.45 / Math.max(Math.abs(vx), 6) * clamp((vx + 10.5) / 2, 0, 1); // reverse tops out ~36 km/h
       if (this.shiftTimer > 0) Fdrive *= 0.25;
       Fdrive = clamp(Fdrive, -m * G * 0.95, m * G * (p.launchG ?? 0.95) * (wantNitro ? 1.15 : 1));
     }
@@ -364,13 +364,38 @@ export class VehiclePhysics {
     const ext = p.hz + 1;
     const list = this.world.collision.query(s.x - ext, s.z - ext, s.x + ext, s.z + ext, TMP);
     for (const c of list) {
-      if (c.kind === 'none') continue;
+      if (c.kind === 'none' || c.broken) continue;
       if (c.h < s.y + 0.25 && c.kind !== 'pole') continue; // drove over it (e.g. low barriers when airborne)
       const hit = obbOverlap(box, c);
       if (!hit) continue;
+      if (c.breakable && this._tryBreak(c, hit, box)) continue;
       this.resolveStatic(hit, c.kind, box);
       box.cx = s.x; box.cz = s.z;
     }
+  }
+
+  // Breakaway street furniture: lamp posts snap above ~18 km/h (a speed penalty and a nudge instead
+  // of a dead stop); small clutter is always knocked away. Returns false to collide as solid.
+  _tryBreak(c, hit, box) {
+    const s = this.s;
+    const sp = Math.hypot(s.vx, s.vz);
+    const vn = -(s.vx * hit.nx + s.vz * hit.nz); // closing speed along the contact normal
+    const small = c.kind === 'small';
+    if (small ? sp < 1.2 : vn < 5) return false;
+    c.broken = true;
+    const loss = small ? Math.min(sp * 0.08, 0.7) : Math.min(sp * 0.22, 3.2);
+    const k = (sp - loss) / sp;
+    s.vx *= k; s.vz *= k;
+    if (!small) {
+      // off-center hits twist the car a little
+      const [cx, cz] = contactPoint(box, hit.nx, hit.nz);
+      const torque = ((cz - s.z) * hit.nx - (cx - s.x) * hit.nz) * vn;
+      s.yawRate += clamp(torque * 0.02, -0.5, 0.5);
+      s.damage = clamp(s.damage + 0.01, 0, 1);
+    }
+    this.events.push({ type: 'break', kind: c.kind, speed: sp });
+    this.world.breakCollider?.(c, s.vx, s.vz, sp);
+    return true;
   }
 
   resolveStatic(hit, kind, box) {

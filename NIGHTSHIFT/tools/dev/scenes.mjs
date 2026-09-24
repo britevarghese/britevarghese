@@ -14,6 +14,17 @@ fs.mkdirSync(out, { recursive: true });
 const fixedCam = (px, py, pz, tx, ty, tz, fov = 50) => `G.camCtl.update = function(){ const c=this.camera; c.position.set(${px},${py},${pz}); c.lookAt(${tx},${ty},${tz}); c.fov=${fov}; c.near=0.1; c.updateProjectionMatrix(); };`;
 const drive = (x, z, yaw, cam = 1) => `G.play(); G.player.place(${x},${z},${yaw}); G.camCtl.mode=${cam}; G.camCtl.snap(G.player);`;
 
+// scripted driving: runs the game at a fixed 60 Hz step with rendering disabled (headless GL is far
+// too slow for real time), feeding each phase's controls for n steps, then keeps the last controls.
+// phases: [[steps, {throttle, brake, steer, handbrake, nitro}], ...]
+const sim = (phases) => `(() => {
+  const r = G.rm.render; G.rm.render = () => {};
+  const inp = G.input; let ctl = {};
+  inp.update = function () { Object.assign(this.controls, { throttle: 0, brake: 0, steer: 0, handbrake: 0, nitro: false }, ctl); };
+  for (const [n, c] of ${JSON.stringify(phases)}) { ctl = c; for (let i = 0; i < n; i++) { G.last = performance.now(); G._update(1 / 60); inp.endFrame(); } if (window.SIMLOG) { const s = G.player.state; console.warn('sim', n, s.x.toFixed(1), s.z.toFixed(1), (Math.hypot(s.vx, s.vz) * 3.6).toFixed(0), s.yaw.toFixed(2), s.drifting); } }
+  G.rm.render = r;
+})();`;
+
 export const GROUPS = [
   { time: 'night', weather: 'clear', views: [
     { id: 'street_night_chase', setup: drive(157.75, -250, 0), wait: 7000 },
@@ -23,6 +34,8 @@ export const GROUPS = [
     { id: 'aerial_night', setup: drive(157.75, -250, 0) + fixedCam(350, 180, -600, 0, 0, 0, 55), wait: 8000 },
     { id: 'highway_night', setup: drive(1177, 100, 0) , wait: 7000 },
     { id: 'suburb_night', setup: drive(-798.25, 500, 0), wait: 7000 },
+    { id: 'drift_night', setup: drive(-5.75, -80, Math.PI) + sim([[240, { throttle: 1 }], [18, { throttle: 1, steer: 1, handbrake: 1 }], [24, { throttle: 0.8, steer: -0.3 }]]), wait: 1200 },
+    { id: 'speed_night', setup: drive(1177, 100, 0) + sim([[420, { throttle: 1, nitro: true }]]), wait: 1200 },
   ] },
   { time: 'night', weather: 'rain', views: [
     { id: 'rain_night_chase', setup: drive(-2.25, -60, Math.PI), wait: 7000 },
@@ -30,6 +43,7 @@ export const GROUPS = [
   { time: 'day', weather: 'clear', views: [
     { id: 'street_day_chase', setup: drive(157.75, -250, 0), wait: 7000 },
     { id: 'car_day_34', setup: drive(157.75, -250, 0) + fixedCam(162.5, 1.3, -244, 157.75, 0.6, -250, 45), wait: 5000 },
+    { id: 'drift_day', setup: drive(-5.75, -80, Math.PI) + sim([[240, { throttle: 1 }], [18, { throttle: 1, steer: 1, handbrake: 1 }], [40, { throttle: 0.8, steer: -0.3 }]]) + fixedCam(-14, 7, -170, 0, 0, -150, 55), wait: 1500 },
   ] },
   { time: 'evening', weather: 'cloudy', views: [
     { id: 'industrial_evening', setup: drive(640 - 2.25, 200, Math.PI), wait: 7000 },
@@ -48,7 +62,7 @@ async function main() {
       const logs = [];
       p.on('console', (m) => { if (m.type() === 'error' || m.type() === 'warning') logs.push(`[${m.type()}] ${m.text().slice(0, 300)}`); });
       p.on('pageerror', (e) => logs.push('[pageerror] ' + e.message));
-      await p.addInitScript(`localStorage.setItem('nightshift.settings', JSON.stringify({graphics:{quality:'${quality}',detectedQuality:'${quality}',backend:'webgl2',weather:'${g.weather}',timeOfDay:'${g.time}'}}))`);
+      await p.addInitScript(`localStorage.setItem('nightshift.settings', JSON.stringify({graphics:{quality:'${quality}',detectedQuality:'${quality}',backend:'webgl2',weather:'${g.weather}',timeOfDay:'${g.time}'}}))${args.simlog ? ';window.SIMLOG=1' : ''}`);
       const t0 = Date.now();
       await p.goto(`http://localhost:${port}/`);
       await p.waitForFunction(() => (window.NIGHTSHIFT && window.NIGHTSHIFT.state.mode === 'menu') || !document.getElementById('fatal').classList.contains('hidden'), null, { timeout: 120000 });

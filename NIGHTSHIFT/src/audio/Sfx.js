@@ -177,6 +177,15 @@ const R = {
         for (let i = 0; i < 5; i++) s.noiseHit('white', 'bandpass', rand(900, 2500), 4, t + rand(0.05, 0.4), 0.001, 0.06 * amt, 0.03);
         break;
       }
+      case 'pole': {
+        // breakaway lamp post: dull thump, ringing hollow steel, the lamp head shattering
+        s.tone('sine', 78, t, 0.002, 0.7 * amt, 0.22, 40);
+        s.noiseHit('brown', 'lowpass', 520, 1, t, 0.002, 0.6 * amt, 0.14);
+        metalResonators(s, t, amt * 0.9, 5, rand(420, 560));
+        metalResonators(s, t + 0.9 + rand(0, 0.15), amt * 0.5, 4, rand(300, 380)); // it hits the ground
+        glassTinkle(s, t + 0.95, amt * 0.8, 10);
+        break;
+      }
       case 'barrier': {
         // hollow plastic bounce + clatter
         s.tone('triangle', rand(380, 460), t, 0.002, 0.25 * amt, 0.09, 300);

@@ -1,7 +1,7 @@
 // WorldManager: owns the city layout/planner (gameplay data), the collision world and the
 // streamed visual representation (chunks, props, lights, distant terrain), plus traffic signals.
 import * as THREE from 'three';
-import { CityLayout, district, DISTRICT_NAMES, RING } from './CityLayout.js';
+import { CityLayout, district, DISTRICT_NAMES, RING, RING_CORNER_R } from './CityLayout.js';
 import { CityPlanner } from './CityPlanner.js';
 import { CollisionWorld } from '../physics/Collision.js';
 import { ChunkBuilder } from './ChunkBuilder.js';
@@ -36,7 +36,9 @@ export class WorldManager {
     this.lights = new LightSystem(scene, materials, this.planner, this.layout);
     this.lights.setDynamicCount(preset.streetLights || 0);
     this.preset = preset;
-    bus.on('chunks:near', (keys) => { this.props.rebuild(keys, preset.props); this.lights.rebuild(keys); });
+    bus.on('chunks:near', (keys) => { this.nearKeys = keys; this.props.rebuild(keys, this.preset.props); this.lights.rebuild(keys); });
+    bus.on('prop:break', ({ p }) => { if (!p) return; this.props.hide(p); if (p.type === 'lamp') this.lights.rebuild(this.nearKeys || []); });
+    bus.on('prop:restore', () => { if (this.nearKeys) { this.props.rebuild(this.nearKeys, this.preset.props); this.lights.rebuild(this.nearKeys); } });
     this._buildTerrain(scene, materials);
   }
 
@@ -46,8 +48,23 @@ export class WorldManager {
   }
 
   _buildTerrain(scene, M) {
-    // distant hills ring for depth/silhouettes + a big ground plane beyond the highway
-    const ground = new THREE.Mesh(new THREE.RingGeometry(RING + 20, 5200, 64, 1).rotateX(-Math.PI / 2), M.grass);
+    // distant hills ring for depth/silhouettes + a big ground plane beyond the highway. The hole
+    // follows the ring's rounded-square outer edge (a circular hole would cover the highway's
+    // straights and the city's corner districts with grass).
+    const outer = new THREE.Shape();
+    outer.absarc(0, 0, 5200, 0, Math.PI * 2, false);
+    const H = RING + 18, Rc = RING_CORNER_R + 18, C = H - Rc;
+    const hole = new THREE.Path();
+    hole.moveTo(H, -C); hole.lineTo(H, C); hole.absarc(C, C, Rc, 0, Math.PI / 2, false);
+    hole.lineTo(-C, H); hole.absarc(-C, C, Rc, Math.PI / 2, Math.PI, false);
+    hole.lineTo(-H, -C); hole.absarc(-C, -C, Rc, Math.PI, Math.PI * 1.5, false);
+    hole.lineTo(C, -H); hole.absarc(C, -C, Rc, Math.PI * 1.5, Math.PI * 2, false);
+    outer.holes.push(hole);
+    const gg = new THREE.ShapeGeometry(outer, 24).rotateX(-Math.PI / 2);
+    // world-scaled UVs like the chunk grass
+    const uvA = gg.attributes.uv, pA = gg.attributes.position;
+    for (let i = 0; i < uvA.count; i++) uvA.setXY(i, pA.getX(i) / 16, -pA.getZ(i) / 16);
+    const ground = new THREE.Mesh(gg, M.grass);
     ground.position.y = 0.25; ground.receiveShadow = false;
     scene.add(ground);
     const R = rng(99);
@@ -83,10 +100,33 @@ export class WorldManager {
     return t >= 17 && t < 30 ? 'green' : t >= 30 && t < 33 ? 'yellow' : 'red';
   }
 
+  // called by VehiclePhysics when a breakable prop is knocked over
+  breakCollider(c, vx, vz, speed) {
+    c.broken = true;
+    c.brokenAt = this.state.time;
+    if (c.prop) c.prop.broken = true;
+    (this.broken ||= []).push(c);
+    bus.emit('prop:break', { c, p: c.prop, vx, vz, speed });
+  }
+
+  // broken props quietly come back once they've been out of the player's way for a while
+  _restoreBroken(pos) {
+    if (!this.broken?.length) return;
+    const keep = [];
+    const restored = [];
+    for (const c of this.broken) {
+      const far = !pos || Math.hypot(c.cx - pos.x, c.cz - pos.z) > 140;
+      if (this.state.time - c.brokenAt > 75 && far) { c.broken = false; if (c.prop) c.prop.broken = false; restored.push(c); } else keep.push(c);
+    }
+    this.broken = keep;
+    if (restored.length) bus.emit('prop:restore', restored);
+  }
+
   districtAt(x, z) { const d = district(x, z); return { id: d, name: DISTRICT_NAMES[d] }; }
 
   update(dt, camera, envState) {
     this.state.time += dt;
+    if ((this._restoreT = (this._restoreT || 0) - dt) <= 0) { this._restoreT = 3; this._restoreBroken(camera?.position); }
     if (!this.chunks) return;
     this.chunks.update(camera.position, dt);
     this.lights.update(camera, envState, dt);
