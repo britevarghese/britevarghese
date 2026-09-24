@@ -27,7 +27,7 @@ const g = (fn, arg) => A.evaluate(fn, arg);
 const until = (fn, arg, timeout = 60000) => A.waitForFunction(fn, arg, { timeout, polling: 200 }).then(() => true, () => false);
 const frames = (n) => g((n) => new Promise((r) => { let i = 0; const f = () => (++i >= n ? r() : requestAnimationFrame(f)); requestAnimationFrame(f); }), n);
 
-check('vehicles streamed + modelled (2 tanks, 2 helicopters)', await until(() => __game.vehicles.map.size === 4), await g(() => [...__game.vehicles.map.values()].map((v) => `${v.type}${v.team}`).join(' ')));
+check('vehicles streamed + modelled (tanks, helicopters, jeeps, bikes)', await until(() => __game.vehicles.map.size === 10), await g(() => [...__game.vehicles.map.values()].map((v) => `${v.type}${v.team}`).join(' ')));
 // walk up to our tank
 const tank = await g(() => { const v = [...__game.vehicles.map.values()].find((x) => x.type === 'tank' && x.team === __game.myTeam); Object.assign(__game.me.s, { x: v.x + 3.4, y: v.y, z: v.z, vx: 0, vz: 0 }); __game.me.yaw = Math.PI / 2; return { id: v.id, x: v.x, z: v.z }; });
 check('enter prompt shown next to the tank', await until(() => !document.getElementById('vprompt').classList.contains('hidden')), await g(() => document.getElementById('vprompt').textContent));
@@ -86,6 +86,38 @@ await g(() => { __game.me.mouse.l = true; });
 check('LMB fires rockets', await until(() => window.__vshots.includes('heli_rockets'), null, 30000));
 await g(() => { __game.me.mouse.l = false; });
 await A.screenshot({ path: `${out}/vehicle_heli_rockets.jpg`, quality: 80 });
+
+await A.keyboard.press('KeyE');
+check('E gets out of the helicopter', await until(() => !__game.vehicles.mine, null, 20000));
+// (bailing out in the air is a long fall: wait for the soldier to be down / redeployed)
+await until(() => __game.me.alive && __game.me.s.onGround && !__game.me.s.air, null, 90000);
+await sleep(2500);
+await until(() => __game.me.alive, null, 60000);
+
+// ---------------------------------------------------------------- motorbike + jeep
+const bike = await g(() => { const v = [...__game.vehicles.map.values()].find((x) => x.type === 'bike' && x.team === __game.myTeam && !x.dead); Object.assign(__game.me.s, { x: v.x + 1.6, y: v.y, z: v.z, vx: 0, vy: 0, vz: 0, onGround: true, air: 0 }); return { id: v.id, x: v.x, z: v.z }; });
+await sleep(1500);
+await A.keyboard.press('KeyE');
+check('E gets on the motorbike', await until((id) => __game.vehicles.mine?.id === id, bike.id, 20000));
+check('rider visible on the bike (exposed seat)', await until(() => { const p = __game.players.map.get(__game.myId); return !!p?.rig?.root.visible && __game.me.s.stance === 'crouch'; }, null, 10000));
+await A.keyboard.down('KeyW'); await frames(30); await A.keyboard.up('KeyW'); await sleep(800);
+const bm = await g((b) => { const r = __game.lastSnap.veh.find((x) => x[0] === b.id); return Math.hypot(r[3] - b.x, r[5] - b.z); }, bike);
+check('W rides the bike', bm > 2, `${bm.toFixed(1)} m`);
+await A.screenshot({ path: `${out}/vehicle_bike.jpg`, quality: 80 });
+await A.keyboard.press('KeyE');
+await until(() => !__game.vehicles.mine, null, 20000);
+const jeep = await g(() => { const v = [...__game.vehicles.map.values()].find((x) => x.type === 'jeep' && x.team === __game.myTeam); Object.assign(__game.me.s, { x: v.x + 2.6, y: v.y, z: v.z, vx: 0, vy: 0, vz: 0 }); return { id: v.id }; });
+await sleep(1500);
+await A.keyboard.press('KeyE');
+check('E gets in the jeep', await until((id) => __game.vehicles.mine?.id === id, jeep.id, 20000));
+await A.keyboard.press('Digit2');
+check('2 moves to the roof .50 cal', await until(() => __game.vehicles.mine?.seat === 1, null, 20000));
+await g(() => { __game.me.mouse.l = true; });
+check('.50 cal fires', await until(() => window.__vshots.includes('jeep_mg'), null, 30000));
+await g(() => { __game.me.mouse.l = false; });
+await A.keyboard.press('KeyV');
+await frames(4);
+await A.screenshot({ path: `${out}/vehicle_jeep.jpg`, quality: 80 });
 
 // ---------------------------------------------------------------- enemy helicopter crash (network client)
 const B = { events: [] };

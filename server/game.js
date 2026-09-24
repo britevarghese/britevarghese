@@ -39,6 +39,7 @@ export class Game {
     this.events = [];
     this.time = 0;
     this.vehicles = new VehicleSystem(this);
+    this.restrictedHQ = Math.min(45, this.map.PLAY_HALF * 0.3); // radius of each HQ's no-go zone for the enemy
     this.resetRound();
   }
 
@@ -95,16 +96,37 @@ export class Game {
       const want = Math.max(0, this.botsPerTeam - humans[t]);
       while (bots[t].length < want) {
         const n = names[Math.floor(Math.random() * names.length)];
-        bots[t].push(this.addPlayer({ name: `[BOT] ${n}`, bot: true, team: t, cls: Math.random() < 0.8 ? 'assault' : 'recon' }));
+        bots[t].push(this.addPlayer({ name: `[BOT] ${n}`, bot: true, team: t, cls: ((r) => (r < 0.5 ? 'assault' : r < 0.65 ? 'recon' : r < 0.85 ? 'support' : 'medic'))(Math.random()) }));
       }
       while (bots[t].length > want) this.removePlayer(bots[t].pop().id);
     }
   }
 
+  // a flag is only a spawn point while it is safe: owned, not being captured, no enemy near it
   spawnOptions(team) {
     const opts = [{ id: 'base', x: this.map.BASES[team].x, z: this.map.BASES[team].z }];
-    for (const f of this.flags) if (f.owner === team) opts.push({ id: f.id, x: f.x, z: f.z });
+    for (const f of this.flags) if (f.owner === team && !this.#flagUnderAttack(f, team)) opts.push({ id: f.id, x: f.x, z: f.z });
     return opts;
+  }
+
+  #flagUnderAttack(f, team) {
+    if (f.contested) return true;
+    for (const q of this.players.values()) if (q.alive && q.team !== team && Math.hypot(q.x - f.x, q.z - f.z) < f.r + 25) return true;
+    return false;
+  }
+
+  // how exposed a spawn spot is: enemies that could see it (closer = worse)
+  #spawnThreat(team, x, y, z) {
+    let t = 0;
+    const eye = { x, y: y + 1.5, z };
+    for (const q of this.players.values()) {
+      if (!q.alive || q.team === team) continue;
+      const d = Math.hypot(q.x - x, q.z - z);
+      if (d > 160) continue;
+      if (d < 25) { t += 10; continue; }
+      if (this.world.lineOfSight(eye, { x: q.x, y: q.y + 1.5, z: q.z })) t += 3 - d / 80;
+    }
+    return t;
   }
 
   spawn(p, pointId = 'base', cls) {
@@ -112,20 +134,25 @@ export class Game {
     if (this.now() < p.respawnAt) return false;
     if (cls && CLASSES[cls]) p.cls = cls;
     const opt = this.spawnOptions(p.team).find((o) => o.id === pointId) || this.spawnOptions(p.team)[0];
-    let x = opt.x, z = opt.z;
-    for (let tries = 0; tries < 30; tries++) {
+    // several free candidate spots; take the one fewest enemies can see (no spawning into a firefight)
+    let x = opt.x, z = opt.z, best = Infinity, found = 0;
+    for (let tries = 0; tries < 40 && found < 8; tries++) {
       const a = Math.random() * Math.PI * 2, r = opt.id === 'base' ? 3 + Math.random() * 9 : 8 + Math.random() * 10;
-      x = opt.x + Math.cos(a) * r; z = opt.z + Math.sin(a) * r;
-      const pos = { x, z };
-      const gy = this.map.groundHeight(x, z);
-      if (!this.world.resolveHorizontal(pos, gy, 1.8) && this.world.supportHeight(x, z, gy + 0.2) < gy + 0.3) break;
+      const cx = opt.x + Math.cos(a) * r, cz = opt.z + Math.sin(a) * r;
+      const pos = { x: cx, z: cz };
+      const gy = this.map.groundHeight(cx, cz);
+      if (this.world.resolveHorizontal(pos, gy, 1.8) || this.world.supportHeight(cx, cz, gy + 0.2) >= gy + 0.3) continue;
+      found++;
+      const threat = this.#spawnThreat(p.team, cx, gy, cz) + Math.random() * 0.1;
+      if (threat < best) { best = threat; x = cx; z = cz; }
+      if (threat < 0.1) break;
     }
     const c = CLASSES[p.cls];
     Object.assign(p, {
       alive: true, hp: 100, x, z, y: this.world.supportHeight(x, z, this.map.groundHeight(x, z) + 0.3), vx: 0, vy: 0, vz: 0, stance: 'stand', onGround: true,
       yaw: this.map.BASES[p.team].yaw + (Math.random() - 0.5) * 0.4, pitch: 0, slot: 0, reloadUntil: 0, nextFire: 0, grenades: c.grenades,
-      weapons: [c.primary, c.secondary].map((id) => ({ id, mag: WEAPONS[id].mag, reserve: WEAPONS[id].reserve })),
-      spawnProtect: this.now() + 2000, history: [], lastDamageFrom: null, spawnPoint: opt.id, airPeak: null,
+      weapons: [c.primary, c.secondary].map((id, i) => ({ id, mag: WEAPONS[id].mag, reserve: WEAPONS[id].reserve * (i === 0 ? c.ammoMul || 1 : 1) })),
+      spawnProtect: this.now() + 3000, history: [], lastDamageFrom: null, spawnPoint: opt.id, airPeak: null,
     });
     p.lastInput = this.now();
     if (p.brain) p.brain.onSpawn();
@@ -241,7 +268,7 @@ export class Game {
   explodeAt(x, y, z, { radius, damage, owner = null, weapon = 'explosion', vehicleDamage = 0, kind = 'explosive', boom = true }) {
     if (boom) this.emit({ t: 'boom', x, y, z, big: radius >= 5 ? 1 : 0 });
     for (const q of this.players.values()) {
-      if (!q.alive || q.vehicle) continue;
+      if (!q.alive || (q.vehicle && !q.exposed)) continue;
       const c = { x: q.x, y: q.y + (q.stance === 'prone' ? 0.3 : 1.0), z: q.z };
       const dist = Math.hypot(c.x - x, c.y - y, c.z - z);
       if (dist > radius) continue;
@@ -281,7 +308,7 @@ export class Game {
     const at = b.viewT + c.t * 1000;
     let best = len, victim = null, head = false;
     for (const q of this.players.values()) {
-      if (q === b.shooter || !q.alive || q.vehicle || !this.isEnemy(b.shooter, q)) continue;
+      if (q === b.shooter || !q.alive || (q.vehicle && !q.exposed) || !this.isEnemy(b.shooter, q)) continue;
       if (Math.hypot(q.x - mx, q.z - mz) > len / 2 + 6) continue;
       const hp = b.bot ? q : this.historyAt(q, at);
       for (const cap of hitCapsules(hp)) {
@@ -291,7 +318,8 @@ export class Game {
     }
     // vehicles (current positions: they're big and their movement is smooth)
     const vh = this.vehicles.rayTest(o, d, best, b.shooter);
-    if (vh && vh.t < best) return { vehicle: vh.v, dist: a.d + vh.t, point: [o.x + d.x * vh.t, o.y + d.y * vh.t, o.z + d.z * vh.t] };
+    // (an exposed rider in the line of fire takes the round, not the bike under them)
+    if (vh && vh.t < best && !(victim && victim.vehicle === vh.v.id)) return { vehicle: vh.v, dist: a.d + vh.t, point: [o.x + d.x * vh.t, o.y + d.y * vh.t, o.z + d.z * vh.t] };
     return victim ? { victim, head, dist: a.d + best, point: [o.x + d.x * best, o.y + d.y * best, o.z + d.z * best] } : null;
   }
 
@@ -368,7 +396,7 @@ export class Game {
     const owner = this.players.get(g.owner) || null;
     this.emit({ t: 'boom', x: g.x, y: g.y, z: g.z });
     for (const q of this.players.values()) {
-      if (!q.alive) continue;
+      if (!q.alive || (q.vehicle && !q.exposed)) continue; // armour protects the crew
       const c = { x: q.x, y: q.y + (q.stance === 'prone' ? 0.3 : 1.0), z: q.z };
       const dist = Math.hypot(c.x - g.x, c.y - g.y, c.z - g.z);
       if (dist > GRENADE.radius) continue;
@@ -390,6 +418,25 @@ export class Game {
       }
     }
     return h[0];
+  }
+
+  // health regeneration (faster for medics, who also heal teammates close by) and support ammo resupply
+  #sustain(p, dt, now) {
+    const c = CLASSES[p.cls];
+    const quiet = now - (p.lastHit || 0);
+    if (p.hp < 100 && quiet > (c?.medic ? 3000 : 6000)) p.hp = Math.min(100, p.hp + (c?.medic ? 12 : 5) * dt);
+    if (!c?.medic && !c?.resupply) return;
+    p.auraT = (p.auraT || 0) + dt;
+    if (p.auraT < 1) return;
+    p.auraT = 0;
+    for (const q of this.players.values()) {
+      if (q === p || !q.alive || q.team !== p.team || q.vehicle || Math.hypot(q.x - p.x, q.z - p.z) > 8) continue;
+      if (c.medic && q.hp < 100 && now - (q.lastHit || 0) > 1500) q.hp = Math.min(100, q.hp + 6);
+      if (c.resupply) {
+        const w = q.weapons[0], def = w && WEAPONS[w.id];
+        if (def && w.reserve < def.reserve) { w.reserve = Math.min(def.reserve * (CLASSES[q.cls]?.ammoMul || 1), w.reserve + Math.ceil(def.mag / 3)); if (!q.bot) this.emit({ t: 'ammo', w: q.weapons, g: q.grenades }, q); }
+      }
+    }
   }
 
   // ------------------------------------------------------------ conquest
@@ -465,7 +512,17 @@ export class Game {
         p.reloadUntil = 0;
         if (!p.bot) this.emit({ t: 'ammo', w: p.weapons, g: p.grenades }, p);
       }
+      this.#sustain(p, dt, now);
       if (Math.abs(p.x) > this.map.PLAY_HALF + 4 || Math.abs(p.z) > this.map.PLAY_HALF + 4) this.damage(p, 12 * dt, null, 'boundary');
+      // the enemy HQ is out of bounds (like an uncap base): warn, then hurt, so nobody camps the spawn
+      else if (this.restrictedHQ) {
+        const eb = this.map.BASES[p.team === 1 ? 2 : 1];
+        if (eb && Math.hypot(p.x - eb.x, p.z - eb.z) < this.restrictedHQ) {
+          p.inRestricted = (p.inRestricted || 0) + dt;
+          if (!p.bot && (!p.restrictedMsg || now - p.restrictedMsg > 1000)) { p.restrictedMsg = now; this.emit({ t: 'restricted', left: Math.max(0, 5 - p.inRestricted) }, p); }
+          if (p.inRestricted > 5) this.damage(p, 25 * dt, null, 'restricted');
+        } else p.inRestricted = 0;
+      }
       p.history.push({ t: now, x: p.x, y: p.y, z: p.z, yaw: p.yaw, stance: p.stance });
       while (p.history.length && p.history[0].t < now - HISTORY_MS) p.history.shift();
     }
@@ -489,7 +546,7 @@ export class Game {
     for (const p of this.players.values()) {
       if (!p.alive) continue;
       const w = p.weapons[p.slot];
-      const flags = (p.ads ? 1 : 0) | (p.sprint ? 2 : 0) | (now < p.reloadUntil ? 4 : 0) | (now - p.lastFireFlag < 120 ? 8 : 0) | (p.onGround ? 16 : 0) | (p.air === 1 ? 32 : 0) | (p.air === 2 ? 64 : 0) | (p.vehicle ? 128 : 0);
+      const flags = (p.ads ? 1 : 0) | (p.sprint ? 2 : 0) | (now < p.reloadUntil ? 4 : 0) | (now - p.lastFireFlag < 120 ? 8 : 0) | (p.onGround ? 16 : 0) | (p.air === 1 ? 32 : 0) | (p.air === 2 ? 64 : 0) | (p.vehicle && !p.exposed ? 128 : 0);
       P.push([p.id, +p.x.toFixed(2), +p.y.toFixed(2), +p.z.toFixed(2), +p.yaw.toFixed(3), +p.pitch.toFixed(3), STANCES.indexOf(p.stance), flags, w ? w.id : '', Math.max(0, Math.round(p.hp)), +(p.vx || 0).toFixed(2), +(p.vz || 0).toFixed(2)]);
     }
     return {

@@ -67,7 +67,7 @@ device with `?touch=1`.
 1/2 or wheel switch weapon · **PgUp / PgDn sight zeroing** · G grenade · **V first/third person** · Tab scoreboard · T/Enter chat · F3 asset debug ·
 battle royale: **Space** jump / open parachute · **E** pick up · **H** heal · **M** island map
 
-**Vehicles:** **E** get in / out · **1 / 2** switch seat · **V** chase / first-person view · RMB zoom (gunner sight) ·
+**Vehicles:** **E** get in / out · **1 / 2 / 3** switch seat · **V** chase / first-person view · RMB zoom (gunner sight) ·
 *tank* W/S throttle, A/D steer (pivot turns when slow), mouse aims the turret, LMB fires the 120 mm gun ·
 *helicopter* W/S nose down / up, A/D bank, mouse sets the heading, **Space** climb, **Shift** descend (it holds its
 altitude hands-off), LMB rockets · gunner seats aim freely with the mouse. Touch: **VEH** (enter/exit), **SEAT**, ▲/▼.
@@ -124,9 +124,14 @@ altitude hands-off), LMB rockets · gunner seats aim freely with the mouse. Touc
   close in when out of their weapon's range, fire controlled bursts, run to real cover when hurt, then peek; they
   search where they last saw you and watch approach routes while holding a flag. Line-of-sight perception, reaction
   time, converging aim error, bullet-drop hold-over and target leading, grenades.
-* **Tanks & helicopters** on the bigger Conquest maps (a tank per team on every map except Checkpoint Zulu, plus an
-  attack helicopter per team on Kestrel Airbase, Dry Valley and Kaskar Ridge), parked at each team's base and
-  respawning 25 s after being destroyed:
+* **Vehicles** in every Conquest room, parked in each team's motor pool and respawning 25 s after being destroyed:
+  jeep + motorbike on every map, plus a tank on the maps from Outskirts size up, plus an attack helicopter on Kestrel
+  Airbase, Dry Valley and Kaskar Ridge.
+  * *LTV-4 light utility vehicle* (jeep) — driver, roof .50 cal gunner (standing in the ring: exposed), passenger.
+    Bicycle-model steering limited by tyre grip (tight turns when slow, wide at speed), ~97 km/h, light armour,
+    wall crashes at speed damage it.
+  * *TR-450 trail motorcycle* — rider + pillion, ~119 km/h, leans into turns (tan(lean) = lateral acceleration / g);
+    both riders sit in the open and can be shot off it.
   * *M-30 main battle tank* — 2 seats: driver with the 120 mm gun (HE shells with real ballistics: 560 m/s,
     drag, drop; 4.5 s reload; 6 m blast) and a roof machine gun. Tracked driving follows the terrain (pitch / roll),
     pivot turns, the turret and gun traverse / elevate at realistic rates toward where you look, and the reticle
@@ -139,6 +144,15 @@ altitude hands-off), LMB rockets · gunner seats aim freely with the mouse. Touc
   * Occupants can't be shot directly; they die with the vehicle (credited to whoever destroyed it). Destroyed
     vehicles leave a burning, charred wreck. Driving is client-predicted with the shared physics and validated by
     the server, like soldier movement. Models are procedural (no Battlefield assets).
+* **Kits:** Assault (carbine), Recon (bolt rifle, 4x scope), Support (double ammo, 4 grenades, resupplies teammates
+  within 8 m) and Medic (heals itself fast, heals teammates within 8 m). Everyone regenerates slowly after 6 s out of
+  fire (medics after 3 s, much faster).
+* **Fair spawns:** a flag under attack (being captured or with enemies within 25 m) can't be spawned on; among free spots
+  the server picks the one fewest enemies can see; 3 s spawn protection, and bots ignore protected soldiers; each HQ is
+  a restricted area for the enemy (warning, then damage after 5 s) so bases can't be camped.
+* **Realistic bot gunfire:** bots only fire inside each weapon's practical range (pistol ~45 m, carbine ~170 m, bolt
+  rifle ~550 m) and with the weapon's real dispersion plus a human hold (a handgun wobbles far more than a shouldered
+  rifle, rapid follow-ups spread wider); out of range they close in instead of shooting.
 * **AI Zone** (lobby tab): play with a soldier commanded by a **language model**. Set the provider, **base URL,
   model and API key** — *Anthropic (Claude)* uses the official Anthropic SDK (default model `claude-opus-5`),
   *OpenAI-compatible* covers OpenRouter, Groq, Together, vLLM, LM Studio and similar `/chat/completions` endpoints.

@@ -135,3 +135,24 @@ test('bots spawn, navigate, fight and capture objectives', () => {
   const moved = [...g.players.values()].filter((p) => Math.hypot(p.x - 8, Math.abs(p.z) - 152) > 20).length;
   assert.ok(moved > 3, 'bots left their bases');
 });
+
+test('spawning avoids enemy sight lines and contested flags; bots ignore spawn-protected soldiers', async () => {
+  const { Game } = await import('../server/game.js');
+  const g = new Game({ botsPerTeam: 0, map: 'outskirts', log: () => {} });
+  const me = g.addPlayer({ name: 'Me', team: 1 });
+  const foe = g.addPlayer({ name: 'Foe', team: 2 });
+  foe.respawnAt = 0; g.spawn(foe, 'base');
+  // an enemy standing on a flag we own: that flag can't be picked
+  const f = g.flags[0]; f.owner = 1; f.progress = 1;
+  Object.assign(foe, { x: f.x + 3, z: f.z, y: g.map.groundHeight(f.x + 3, f.z) });
+  assert.ok(!g.spawnOptions(1).some((o) => o.id === f.id), 'flag under attack is not a spawn point');
+  me.respawnAt = 0; g.spawn(me, f.id);
+  assert.equal(me.spawnPoint, 'base', 'falls back to the HQ');
+  assert.ok(me.spawnProtect - g.now() >= 2900);
+  // enemy HQ is restricted
+  const eb = g.map.BASES[2];
+  Object.assign(me, { x: eb.x, z: eb.z, y: g.map.groundHeight(eb.x, eb.z), spawnProtect: 0 });
+  for (let i = 0; i < 30 * 7; i++) g.tick(1 / 30);
+  assert.ok(!me.alive || me.hp < 100, 'hurt inside the enemy HQ');
+  assert.ok(g.flushEvents().some((e) => e.ev.t === 'restricted'));
+});

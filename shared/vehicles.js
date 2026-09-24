@@ -5,7 +5,7 @@ import { clamp, angleDiff } from './util.js';
 
 export const VEHICLES = {
   tank: {
-    name: 'M-30 Main Battle Tank', hp: 1000, seats: 2,
+    name: 'M-30 Main Battle Tank', kind: 'tracked', hp: 1000, seats: 2,
     // hull half-extents (m): width, height, length; hitbox origin at the hull bottom centre
     half: [1.8, 1.2, 3.7], radius: 2.3,
     maxSpeed: 13, reverseSpeed: 5, accel: 4.5, brake: 9, turnRate: 0.8, turretRate: 0.75, gunPitch: [-0.14, 0.33],
@@ -16,10 +16,10 @@ export const VEHICLES = {
     ],
     // bullets and grenades vs armour
     armor: { bullet: 0.02, grenade: 0.5, explosive: 1 },
-    eye: [0, 3.1, -0.2],
+    eye: [0, 3.1, -0.2], seatPos: [[0, 3.1, -0.2], [0, 3.1, 1.0]],
   },
   heli: {
-    name: 'AH-7 Attack Helicopter', hp: 650, seats: 2,
+    name: 'AH-7 Attack Helicopter', kind: 'heli', hp: 650, seats: 2,
     half: [1.3, 1.45, 5.5], radius: 3.2, rotor: 7.3,
     maxSpeed: 62, climb: 11, yawRate: 1.6, pitchMax: 0.42, rollMax: 0.5,
     weapons: [
@@ -27,43 +27,83 @@ export const VEHICLES = {
       { id: 'heli_cannon', name: '30 mm cannon', rpm: 520, velocity: 800, drag: 0.15, maxRange: 1000, splash: 2, damage: 38, vehicleDamage: 40, directHit: 55, mag: 120, reload: 4 },
     ],
     armor: { bullet: 0.25, grenade: 0.8, explosive: 1 },
-    eye: [0, 1.6, -3.2],
+    eye: [0, 1.6, -3.2], seatPos: [[0, 1.6, -3.2], [0, 1.6, -4.6]],
+  },
+  // light utility vehicle (Humvee class): fast, lightly armoured, a .50 cal on the roof ring
+  jeep: {
+    name: 'LTV-4 Light Utility Vehicle', kind: 'wheeled', hp: 420, seats: 3,
+    half: [1.1, 1.0, 2.45], radius: 1.9,
+    maxSpeed: 27, reverseSpeed: 7, accel: 5.5, brake: 11, wheelbase: 3.3, maxSteer: 0.55, grip: 8.5,
+    weapons: [null, { id: 'jeep_mg', name: '.50 cal machine gun', rpm: 550, velocity: 880, drag: 0.1, maxRange: 1000, damage: 34, vehicleDamage: 9, mag: 100, reload: 5 }, null],
+    armor: { bullet: 0.3, grenade: 1, explosive: 1.2 },
+    // driver, roof gunner (standing in the ring: exposed), passenger
+    seatPos: [[-0.45, 1.5, 0.0], [0, 2.35, 0.55], [0.45, 1.5, 0.0]], exposed: { 1: 'stand' },
+  },
+  // dirt bike: the fastest way around, zero protection
+  bike: {
+    name: 'TR-450 Trail Motorcycle', kind: 'wheeled', hp: 160, seats: 2,
+    half: [0.42, 0.62, 1.1], radius: 1.0,
+    maxSpeed: 33, reverseSpeed: 3, accel: 8.5, brake: 14, wheelbase: 1.45, maxSteer: 0.6, grip: 10.5, lean: true,
+    weapons: [],
+    armor: { bullet: 0.8, grenade: 1, explosive: 1.3 },
+    seatPos: [[0, 1.35, 0.1], [0, 1.45, 0.62]], exposed: { 0: 'crouch', 1: 'crouch' },
   },
 };
+
+export const isGround = (type) => VEHICLES[type].kind !== 'heli';
 
 // which vehicles each team gets at its base on a map (bigger maps get helicopters)
 export function vehicleLoadout(map) {
   if (map.def.mode === 'royale') return [];
-  const big = map.PLAY_HALF >= 180;
-  return big ? ['tank', 'heli'] : map.PLAY_HALF >= 150 ? ['tank'] : [];
+  if (map.PLAY_HALF >= 180) return ['tank', 'heli', 'jeep', 'bike', 'bike'];
+  if (map.PLAY_HALF >= 150) return ['tank', 'jeep', 'bike', 'bike'];
+  return ['jeep', 'bike'];
 }
 
 const STEP = 1 / 120;
 
-// ---------------------------------------------------------------- tank (tracked, terrain following)
-// s: { x, y, z, yaw, pitch, roll, speed, turretYaw (world), gunPitch }
-// input: { throttle -1..1, steer -1..1, aimYaw (world), aimPitch }
-export function stepTank(world, s, input, dt) {
-  const V = VEHICLES.tank;
+// ---------------------------------------------------------------- ground vehicles (terrain following)
+// tank: tracks (pivot turns), turret + gun follow the aim; wheeled: bicycle-model steering limited by tyre grip,
+// the bike leans into turns.
+// s: { x, y, z, yaw, pitch, roll, speed, turretYaw (world), gunPitch, steer }
+// input: { throttle -1..1, steer -1..1 (+ = left), aimYaw (world), aimPitch }
+export const stepTank = (world, s, input, dt) => stepGround(world, s, input, dt, 'tank');
+
+export function stepGround(world, s, input, dt, type = 'tank') {
+  const V = VEHICLES[type], wheeled = V.kind === 'wheeled';
   world.ignoreOwner = s.id;
   const n = Math.max(1, Math.ceil(dt / STEP - 1e-6)), h = dt / n;
+  const bodyH = V.half[1] * 1.6;
+  let impact = 0, yawRate = 0;
   for (let i = 0; i < n; i++) {
     const th = clamp(input.throttle || 0, -1, 1);
     const want = th >= 0 ? th * V.maxSpeed : th * V.reverseSpeed;
     const a = Math.sign(want - s.speed) === Math.sign(s.speed) || s.speed === 0 ? V.accel : V.brake;
     s.speed += clamp(want - s.speed, -a * h, a * h);
-    // tracks: pivot turns when slow, wider arcs at speed
-    const turn = (input.steer || 0) * V.turnRate * (1 - Math.min(0.45, Math.abs(s.speed) / V.maxSpeed * 0.45));
-    s.yaw += turn * h * (s.speed < -0.2 ? -1 : 1);
+    if (wheeled) {
+      // the wheels take ~0.15 s to turn lock to lock; yaw rate = v / wheelbase * tan(steer), capped by grip
+      s.steer = (s.steer || 0) + (clamp(input.steer || 0, -1, 1) - (s.steer || 0)) * (1 - Math.exp(-9 * h));
+      const sp = Math.abs(s.speed);
+      yawRate = (s.speed / V.wheelbase) * Math.tan(s.steer * V.maxSteer * (1 - Math.min(0.5, sp / V.maxSpeed * 0.5)));
+      if (sp > 0.5) yawRate = clamp(yawRate, -V.grip / sp, V.grip / sp);
+      s.yaw += yawRate * h;
+    } else {
+      // tracks: pivot turns when slow, wider arcs at speed
+      const turn = (input.steer || 0) * V.turnRate * (1 - Math.min(0.45, Math.abs(s.speed) / V.maxSpeed * 0.45));
+      s.yaw += turn * h * (s.speed < -0.2 ? -1 : 1);
+    }
     const fx = -Math.sin(s.yaw), fz = -Math.cos(s.yaw);
     const pos = { x: s.x + fx * s.speed * h, z: s.z + fz * s.speed * h };
-    if (world.resolveHorizontal(pos, s.y + 0.6, 2.2, V.radius)) s.speed *= 0.6;
+    if (world.resolveHorizontal(pos, s.y + 0.4, bodyH, V.radius)) { impact = Math.max(impact, Math.abs(s.speed)); s.speed *= wheeled ? 0.3 : 0.6; }
     s.x = pos.x; s.z = pos.z;
-    // turret + gun follow the aim at their drive rates
-    const ty = input.aimYaw ?? s.turretYaw;
-    s.turretYaw += clamp(angleDiff(s.turretYaw, ty), -V.turretRate * h, V.turretRate * h);
-    s.gunPitch = clamp(s.gunPitch + clamp((input.aimPitch ?? s.gunPitch) - s.gunPitch, -0.4 * h, 0.4 * h), V.gunPitch[0], V.gunPitch[1]);
+    if (V.turretRate) {
+      // turret + gun follow the aim at their drive rates
+      const ty = input.aimYaw ?? s.turretYaw;
+      s.turretYaw += clamp(angleDiff(s.turretYaw, ty), -V.turretRate * h, V.turretRate * h);
+      s.gunPitch = clamp(s.gunPitch + clamp((input.aimPitch ?? s.gunPitch) - s.gunPitch, -0.4 * h, 0.4 * h), V.gunPitch[0], V.gunPitch[1]);
+    }
   }
+  s.impact = impact;
   // sit on the ground: height from the centre, pitch/roll from front/back and left/right samples
   const [hw, , hl] = V.half;
   const fx = -Math.sin(s.yaw), fz = -Math.cos(s.yaw), rx = Math.cos(s.yaw), rz = -Math.sin(s.yaw);
@@ -74,10 +114,15 @@ export function stepTank(world, s, input, dt) {
   const k = 1 - Math.exp(-12 * dt);
   s.y += (y - s.y) * k;
   s.pitch += (Math.atan2(f - b, hl * 1.6) - s.pitch) * k;
-  s.roll += (Math.atan2(l - r, hw * 2) - s.roll) * k;
+  // a motorbike banks into the turn (tan(lean) = lateral acceleration / g); cars and tanks follow the ground
+  const lean = V.lean ? -Math.atan(clamp(yawRate * s.speed, -V.grip, V.grip) / 9.81) : 0;
+  s.roll += ((V.lean ? lean : Math.atan2(l - r, hw * 2)) - s.roll) * k;
   world.ignoreOwner = null;
   return s;
 }
+
+// collision damage for wheeled vehicles hitting walls at speed (m/s at impact)
+export const groundCrashDamage = (impact) => (impact < 11 ? 0 : (impact - 11) * 22);
 
 // ---------------------------------------------------------------- helicopter
 // s: { x, y, z, vx, vy, vz, yaw, pitch, roll, landed }
@@ -137,6 +182,7 @@ export function vehicleMount(v, seat = 1) {
     const ty = v.turretYaw ?? v.yaw, c = Math.cos(ty), s = Math.sin(ty);
     return { x: v.x + c * 0.75 + s * 0.3, y: v.y + 2.9, z: v.z - s * 0.75 + c * 0.3 };
   }
+  if (v.type === 'jeep') return { x: v.x + sy * 0.55, y: v.y + 2.25, z: v.z + cy * 0.55 };
   return { x: v.x - sy * 3.6, y: v.y + 0.5, z: v.z - cy * 3.6 };
 }
 
@@ -174,12 +220,14 @@ export function rayVehicle(o, d, v, maxT) {
 
 // where a seated soldier is (for their own camera + the server's position of the occupant)
 export function seatPosition(v, seat) {
-  const V = VEHICLES[v.type], e = V.eye;
+  const e = VEHICLES[v.type].seatPos[seat] || VEHICLES[v.type].seatPos[0];
   const cy = Math.cos(v.yaw), sy = Math.sin(v.yaw);
-  const z = e[2] + (seat ? (v.type === 'heli' ? -1.4 : 1.2) : 0);
   // local frame: x right, z backward (-z = forward)
-  return { x: v.x + cy * e[0] + sy * z, y: v.y + e[1], z: v.z - sy * e[0] + cy * z };
+  return { x: v.x + cy * e[0] + sy * e[2], y: v.y + e[1], z: v.z - sy * e[0] + cy * e[2] };
 }
+
+// seats where the soldier sits in the open (bike, the jeep's roof gunner): visible and can be shot; value = pose
+export const exposedPose = (type, seat) => VEHICLES[type].exposed?.[seat] || null;
 
 // axis-aligned collider around a vehicle (soldiers can't walk through it, can stand on it)
 export function vehicleCollider(v, out = { min: [0, 0, 0], max: [0, 0, 0], surface: 'metal', bullets: false, tag: 'vehicle' }) {

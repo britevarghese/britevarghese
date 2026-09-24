@@ -106,6 +106,8 @@ export class BotBrain {
     const fwdYaw = p.yaw;
     for (const q of this.g.players.values()) {
       if (!q.alive || q.air || !this.g.isEnemy(p, q)) continue;
+      // freshly deployed soldiers are protected (and not yet a threat): don't pre-aim the spawn
+      if (now < (q.spawnProtect || 0)) continue;
       const d = Math.hypot(q.x - p.x, q.z - p.z);
       if (d > bestD) continue;
       // armour: rifle rounds do almost nothing to a tank / helicopter; only engage crews up close
@@ -181,7 +183,9 @@ export class BotBrain {
       p.stance = this.engageStance;
       // movement: out of the weapon's effective range -> close the distance (like a player with a carbine would);
       // otherwise stand still to shoot at range, short committed strafes up close
-      const effective = def.scoped ? 400 : def.id === 'pistol' ? 35 : 75;
+      const effective = def.scoped ? 400 : def.id === 'pistol' ? 30 : 75;
+      // nobody hits anything with a pistol at 100 m: beyond a weapon's practical range, hold fire and close in
+      const inRange = dist <= (def.engage || 150) * (0.8 + this.skill * 0.3);
       if (dist > effective && now - (p.lastHit || 0) > 2000) {
         const d = Math.hypot(t.x - p.x, t.z - p.z) || 1;
         input.fx = (t.x - p.x) / d; input.fz = (t.z - p.z) / d;
@@ -193,17 +197,22 @@ export class BotBrain {
       }
       // fire
       const aimed = Math.abs(angleDiff(p.yaw, wantYaw - this.aimErr.yaw)) < 0.09 + 0.6 / Math.max(dist, 3);
-      if (now > this.reactUntil && aimed && now > this.burstPauseUntil && now >= p.reloadUntil) {
+      if (!inRange && now - (p.lastHit || 0) > 2000) { p.stance = 'stand'; this.engageStance = null; }
+      if (inRange && now > this.reactUntil && aimed && now > this.burstPauseUntil && now >= p.reloadUntil) {
         if (w.mag <= 0) g.reload(p);
         else {
           // trigger discipline: long bursts only up close, short bursts / taps at range
           if (this.burstLeft <= 0) this.burstLeft = def.auto ? (dist > 60 ? Math.round(rand(1, 2)) : dist > 30 ? Math.round(rand(2, 4)) : Math.round(rand(4, 8))) : 1;
           const moving = Math.hypot(p.vx || 0, p.vz || 0) > 1;
-          const spread = (def.auto ? (p.ads ? 0.007 : 0.028) : 0.003) * (1.6 - this.skill) * (moving ? 1.8 : 1) * (p.stance === 'prone' ? 0.6 : p.stance === 'crouch' ? 0.8 : 1);
+          // real dispersion: the weapon's own cone (degrees) + a person's hold (a handgun wobbles far more than a
+          // shouldered rifle) + follow-up shots fired before the sights settle
+          const hold = def.id === 'pistol' ? 0.9 : def.scoped ? 0.05 : 0.25;
+          const cone = (p.ads ? def.spreadAds : def.spreadHip * 0.5) + hold + (this.lastShotAt && now - this.lastShotAt < 350 ? (def.id === 'pistol' ? 0.8 : 0.3) : 0);
+          const spread = (cone * Math.PI / 180) * (1.5 - this.skill * 0.7) * (moving ? 1.8 : 1) * (p.stance === 'prone' ? 0.6 : p.stance === 'crouch' ? 0.8 : 1);
           const cp = Math.cos(p.pitch);
           const d = [-Math.sin(p.yaw) * cp + rand(-spread, spread), Math.sin(p.pitch) + rand(-spread, spread), -Math.cos(p.yaw) * cp + rand(-spread, spread)];
           if (g.tryFire(p, [eye.x, eye.y, eye.z], d)) {
-            this.burstLeft--;
+            this.burstLeft--; this.lastShotAt = now;
             p.pitch += def.recoil.pitch * 0.004 * (1.2 - this.skill);
             if (this.burstLeft <= 0) this.burstPauseUntil = now + (def.auto ? (dist > 60 ? rand(350, 800) : rand(200, 550)) : rand(900, 1800));
           }

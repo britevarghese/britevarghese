@@ -1,18 +1,18 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { Game } from '../server/game.js';
-import { VEHICLES, stepTank, stepHeli, rayVehicle, vehicleLoadout } from '../shared/vehicles.js';
+import { VEHICLES, stepTank, stepHeli, stepGround, rayVehicle, vehicleLoadout } from '../shared/vehicles.js';
 import { getMap } from '../shared/map.js';
 
 const quiet = () => {};
 const soldier = (g, team, name = 'P') => { const p = g.addPlayer({ name, team }); p.respawnAt = 0; g.spawn(p, 'base'); p.spawnProtect = 0; return p; };
 
 test('loadouts: big maps get tanks + helicopters, small maps and royale none', () => {
-  assert.deepEqual(vehicleLoadout(getMap('airfield')), ['tank', 'heli']);
-  assert.deepEqual(vehicleLoadout(getMap('compound')), []);
+  assert.deepEqual(vehicleLoadout(getMap('airfield')), ['tank', 'heli', 'jeep', 'bike', 'bike']);
+  assert.deepEqual(vehicleLoadout(getMap('compound')), ['jeep', 'bike']);
   assert.deepEqual(vehicleLoadout(getMap('firestorm')), []);
   const g = new Game({ botsPerTeam: 0, map: 'airfield', log: quiet });
-  assert.equal(g.vehicles.list.length, 4);
+  assert.equal(g.vehicles.list.length, 10);
   for (const v of g.vehicles.list) assert.ok(Math.abs(v.y - g.map.groundHeight(v.x, v.z)) < 3, `${v.type} spawned on the ground`);
 });
 
@@ -109,4 +109,48 @@ test('ray vs rotated vehicle box', () => {
   assert.ok(rayVehicle({ x: -20, y: 1, z: 0 }, { x: 1, y: 0, z: 0 }, v, 50) !== null);
   assert.equal(rayVehicle({ x: -20, y: 4, z: 0 }, { x: 1, y: 0, z: 0 }, v, 50), null);
   assert.equal(rayVehicle({ x: -20, y: 1, z: 6 }, { x: 1, y: 0, z: 0 }, v, 50), null);
+});
+
+test('jeep and bike: wheeled steering limited by grip, the bike leans into turns', () => {
+  // flat, empty ground: this is about the vehicle dynamics, not the map
+  const flat = { supportHeight: () => 0, resolveHorizontal: () => false, ignoreOwner: null };
+  for (const type of ['jeep', 'bike']) {
+    const v = { id: 1, type, x: 0, y: 0, z: 0, yaw: 0, pitch: 0, roll: 0, speed: 0, steer: 0 };
+    for (let i = 0; i < 150; i++) stepGround(flat, v, { throttle: 1 }, 1 / 30, type);
+    assert.ok(v.speed > VEHICLES[type].maxSpeed * 0.8, `${type} reaches ${v.speed.toFixed(1)} m/s`);
+    const yaw0 = v.yaw;
+    let maxLat = 0;
+    for (let i = 0; i < 30; i++) { const y = v.yaw; stepGround(flat, v, { throttle: 1, steer: 1 }, 1 / 30, type); maxLat = Math.max(maxLat, Math.abs((v.yaw - y) * 30 * v.speed)); }
+    assert.ok(v.yaw > yaw0 + 0.3, 'turns left');
+    assert.ok(maxLat <= VEHICLES[type].grip + 0.01, `lateral accel ${maxLat.toFixed(1)} within grip`);
+    if (type === 'bike') assert.ok(v.roll < -0.3, `leans left ${v.roll.toFixed(2)}`);
+    // a tighter turn at walking pace than at full speed (grip limit)
+    const slow = { ...v, speed: 4, yaw: 0 };
+    for (let i = 0; i < 30; i++) stepGround(flat, slow, { throttle: 0.15, steer: 1 }, 1 / 30, type);
+    assert.ok(slow.yaw / 1 > 0.5, 'tight turn when slow');
+  }
+});
+
+test('bike riders are exposed: visible and shootable; tank crews are not', () => {
+  const g = new Game({ botsPerTeam: 0, map: 'airfield', log: quiet });
+  const rider = soldier(g, 1, 'Rider'), crew = soldier(g, 1, 'Crew'), shooter = soldier(g, 2, 'Shooter');
+  const bike = g.vehicles.list.find((x) => x.type === 'bike' && x.team === 1);
+  const tank = g.vehicles.list.find((x) => x.type === 'tank' && x.team === 1);
+  Object.assign(rider, { x: bike.x + 1, z: bike.z, y: bike.y }); g.vehicles.enter(rider, bike.id);
+  Object.assign(crew, { x: tank.x + 3, z: tank.z, y: tank.y }); g.vehicles.enter(crew, tank.id);
+  tank.x += 120; // (out of the line of fire)
+  g.tick(1 / 30);
+  const snap = g.snapshot().p;
+  assert.equal(snap.find((r) => r[0] === rider.id)[7] & 128, 0, 'rider drawn');
+  assert.equal(snap.find((r) => r[0] === crew.id)[7] & 128, 128, 'crew hidden');
+  assert.equal(rider.stance, 'crouch');
+  // shoot the rider from 20 m
+  Object.assign(shooter, { x: rider.x + 20, z: rider.z, y: g.world.supportHeight(rider.x + 20, rider.z, 500) });
+  shooter.history = [];
+  const eye = { x: shooter.x, y: shooter.y + 1.6, z: shooter.z }, tgt = { x: rider.x, y: rider.y + 0.9, z: rider.z };
+  const L = Math.hypot(tgt.x - eye.x, tgt.y - eye.y, tgt.z - eye.z);
+  let t = Date.now();
+  for (let i = 0; i < 8 && rider.alive; i++) { g.clock = t; shooter.nextFire = 0; g.tryFire(shooter, [eye.x, eye.y, eye.z], [(tgt.x - eye.x) / L, (tgt.y - eye.y) / L, (tgt.z - eye.z) / L]); t += 200; g.clock = t; g.tick(1 / 30); }
+  assert.ok(rider.hp < 100 || !rider.alive, `rider hit (${JSON.stringify(g.flushEvents().map((e) => e.ev).filter((e) => /shot|bhit|hurt|vhurt/.test(e.t)))})`);
+  delete g.clock;
 });

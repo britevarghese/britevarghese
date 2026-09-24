@@ -57,7 +57,7 @@ test('multiplayer join / spawn / snapshot / chat / shoot', async (t) => {
   const tgt = [other[1], other[2] + 1.2, other[3]];
   const d = tgt.map((v, i) => v - o[i]); const L = Math.hypot(...d);
   a.send({ t: 'fire', o, d: d.map((v) => v / L) });
-  await wait(300);
+  for (let i = 0; i < 30 && !b.events.some((e) => e.t === 'hurt' && e.v === wb.id); i++) await wait(100);
   const hurt = b.events.find((e) => e.t === 'hurt' && e.v === wb.id);
   assert.ok(hurt, 'B took damage from server-validated shot');
   assert.ok(a.events.some((e) => e.t === 'hitmark'));

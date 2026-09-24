@@ -1,7 +1,8 @@
 // Server-side vehicles: spawning at team bases, seats (enter / exit / switch), driver state validation, weapons
 // (ballistic shells, rockets, machine guns / cannon through the shared bullet system), armour and damage,
 // destruction (occupants die, credited to the attacker), respawn, run-overs, and the network snapshot.
-import { VEHICLES, vehicleLoadout, stepHeli, heliCrashDamage, rayVehicle, seatPosition, vehicleCollider, vehicleMount, GUN_H } from '../shared/vehicles.js';
+import { VEHICLES, vehicleLoadout, stepHeli, heliCrashDamage, groundCrashDamage, rayVehicle, seatPosition, vehicleCollider, vehicleMount, exposedPose, GUN_H } from '../shared/vehicles.js';
+import { EYE_HEIGHT } from '../shared/world.js';
 
 const TYPES = Object.keys(VEHICLES);
 const RESPAWN = 25000;
@@ -16,10 +17,11 @@ export class VehicleSystem {
     for (const team of [1, 2]) {
       const b = map.BASES[team];
       const fx = -Math.sin(b.yaw), fz = -Math.cos(b.yaw), rx = Math.cos(b.yaw), rz = -Math.sin(b.yaw);
-      vehicleLoadout(map).forEach((type, i) => {
-        // tanks to the right of the HQ, helicopters on a pad to the left, a little behind the front line
-        const side = type === 'heli' ? -1 : 1;
-        const spot = this.#clearSpot(b.x + rx * side * (16 + i * 4) - fx * 4, b.z + rz * side * (16 + i * 4) - fz * 4, type);
+      let bikes = 0;
+      vehicleLoadout(map).forEach((type) => {
+        // motor pool around the HQ: tank right, helicopter pad left, jeep beside the tank, bikes behind the HQ
+        const [side, back] = type === 'tank' ? [16, 4] : type === 'heli' ? [-20, 4] : type === 'jeep' ? [25, 2] : [6 + 3 * bikes++, 10];
+        const spot = this.#clearSpot(b.x + rx * side - fx * back, b.z + rz * side - fz * back, type);
         const v = { id: nextVid++, type, team, home: { x: spot.x, z: spot.z, yaw: b.yaw } };
         this.#reset(v);
         this.list.push(v);
@@ -47,7 +49,7 @@ export class VehicleSystem {
     Object.assign(v, {
       x: v.home.x, z: v.home.z, y: this.g.world.supportHeight(v.home.x, v.home.z, 500), yaw: v.home.yaw, pitch: 0, roll: 0,
       speed: 0, vx: 0, vy: 0, vz: 0, turretYaw: v.home.yaw, gunPitch: 0, hp: V.hp, dead: false, respawnAt: 0,
-      seats: new Array(V.seats).fill(null), ammo: V.weapons.map((w) => w.mag || w.salvo || 1), reloadUntil: V.weapons.map(() => 0), nextShot: V.weapons.map(() => 0),
+      seats: new Array(V.seats).fill(null), ammo: V.weapons.map((w) => (w ? w.mag || w.salvo || 1 : 0)), reloadUntil: V.weapons.map(() => 0), nextShot: V.weapons.map(() => 0), steer: 0,
       lastInput: this.g.now(), lastDamager: null,
     });
   }
@@ -76,6 +78,8 @@ export class VehicleSystem {
 
   #sit(p, v, seat) {
     v.seats[seat] = p.id; p.vehicle = v.id; p.seat = seat; p.reloadUntil = 0; p.stance = 'stand';
+    // bike riders / the jeep's roof gunner sit in the open: visible, and bullets hit them
+    p.exposed = exposedPose(v.type, seat); p.vx = p.vz = 0;
     if (seat === 0) { v.team = p.team; v.lastInput = this.g.now(); }
     this.#placeOccupant(p, v);
     this.g.emit({ t: 'venter', id: p.id, v: v.id, seat });
@@ -91,7 +95,7 @@ export class VehicleSystem {
 
   exit(p, silent = false) {
     const v = p.vehicle && this.get(p.vehicle);
-    p.vehicle = null;
+    p.vehicle = null; p.exposed = null;
     if (!v) return;
     v.seats[p.seat] = null;
     if (p.seat === 0) v.speed = 0;
@@ -107,14 +111,27 @@ export class VehicleSystem {
     if (!silent) this.g.emit({ t: 'vexit', id: p.id, v: v.id, x: p.x, y: p.y, z: p.z });
   }
 
-  #placeOccupant(p, v) { const s = seatPosition(v, p.seat); p.x = s.x; p.y = s.y - 1.6; p.z = s.z; p.onGround = true; }
+  #placeOccupant(p, v) {
+    const s = seatPosition(v, p.seat), pose = p.exposed;
+    p.x = s.x; p.z = s.z; p.onGround = true;
+    if (pose) { p.stance = pose; p.y = s.y - EYE_HEIGHT[pose]; if (p.seat === 0) p.yaw = v.yaw; }
+    else p.y = s.y - 1.6;
+  }
 
   // ---------------------------------------------------------------- driver state (client-predicted, validated here)
   input(p, m) {
     const v = p.vehicle && this.get(p.vehicle);
     if (!v || v.dead) return;
     const now = this.g.now();
-    if (p.seat !== 0) { if (Number.isFinite(m.ay)) { v.aim = v.aim || []; v.aim[p.seat] = { yaw: +m.ay, pitch: Math.max(-1.2, Math.min(0.8, +m.ap || 0)) }; } return; }
+    if (p.seat !== 0) {
+      if (Number.isFinite(m.ay)) {
+        const ap = Math.max(-1.2, Math.min(0.8, +m.ap || 0));
+        v.aim = v.aim || []; v.aim[p.seat] = { yaw: +m.ay, pitch: ap };
+        p.yaw = +m.ay; p.pitch = ap;
+        if (v.type === 'jeep' && p.seat === 1) { v.turretYaw = +m.ay; v.gunPitch = ap; } // the roof ring follows its gunner
+      }
+      return;
+    }
     const V = VEHICLES[v.type];
     const dt = Math.max(0.001, (now - v.lastInput) / 1000); v.lastInput = now;
     if (![m.x, m.y, m.z, m.yaw].every(Number.isFinite)) return;
@@ -122,8 +139,11 @@ export class VehicleSystem {
     const H = this.g.map.PLAY_HALF + 20;
     if ((moved > limit && !process.env.DEV_TELEPORT) || Math.abs(m.x) > H || Math.abs(m.z) > H) { this.g.emit({ t: 'vcorrect', v: v.id, x: v.x, y: v.y, z: v.z, yaw: v.yaw }, p); return; }
     Object.assign(v, { x: m.x, y: m.y, z: m.z, yaw: m.yaw, pitch: +m.pitch || 0, roll: +m.roll || 0 });
-    if (v.type === 'tank') { v.speed = Math.max(-V.reverseSpeed, Math.min(V.maxSpeed, +m.sp || 0)); v.turretYaw = +m.ty || 0; v.gunPitch = Math.max(V.gunPitch[0], Math.min(V.gunPitch[1], +m.gp || 0)); }
-    else { v.vx = +m.vx || 0; v.vy = +m.vy || 0; v.vz = +m.vz || 0; if (+m.imp > 6) this.damage(v, heliCrashDamage(Math.min(40, +m.imp)), v.lastDamager ? this.g.players.get(v.lastDamager) : null, 'crash'); }
+    if (V.kind !== 'heli') {
+      v.speed = Math.max(-V.reverseSpeed, Math.min(V.maxSpeed, +m.sp || 0)); v.steer = Math.max(-1, Math.min(1, +m.st || 0));
+      if (v.type === 'tank') { v.turretYaw = +m.ty || 0; v.gunPitch = Math.max(V.gunPitch[0], Math.min(V.gunPitch[1], +m.gp || 0)); }
+      if (+m.imp > 11 && V.kind === 'wheeled') this.damage(v, groundCrashDamage(Math.min(40, +m.imp)), null, 'crash', 'crash');
+    } else { v.vx = +m.vx || 0; v.vy = +m.vy || 0; v.vz = +m.vz || 0; if (+m.imp > 6) this.damage(v, heliCrashDamage(Math.min(40, +m.imp)), v.lastDamager ? this.g.players.get(v.lastDamager) : null, 'crash'); }
   }
 
   // ---------------------------------------------------------------- weapons
@@ -236,16 +256,17 @@ export class VehicleSystem {
       }
       // driver disconnected / went quiet: stop
       if (v.seats[0] && now - v.lastInput > 3000) v.speed = 0;
+      if (v.type === 'bike' && !v.seats[0]) { v.roll = 0.16; v.pitch = 0; } // parked on its side stand
       for (let i = 0; i < v.seats.length; i++) {
         const q = v.seats[i] && g.players.get(v.seats[i]);
         if (!q || !q.alive || q.vehicle !== v.id) { v.seats[i] = null; continue; }
         this.#placeOccupant(q, v);
       }
       // tanks run over soldiers in their path
-      if (v.type === 'tank' && Math.abs(v.speed) > 3 && v.seats[0]) {
+      if (VEHICLES[v.type].kind !== 'heli' && Math.abs(v.speed) > (v.type === 'tank' ? 3 : 6) && v.seats[0]) {
         const driver = g.players.get(v.seats[0]);
         for (const q of g.players.values()) {
-          if (!q.alive || q.vehicle || q.air) continue;
+          if (!q.alive || q.vehicle || q.air || q === driver) continue;
           if (Math.abs(q.y - v.y) < 2 && rayVehicle({ x: q.x, y: q.y + 0.5, z: q.z }, { x: 0, y: 1, z: 0 }, v, 0.01) !== null) g.kill(q, driver && g.isEnemy(driver, q) ? driver : null, 'roadkill');
         }
       }
@@ -256,7 +277,7 @@ export class VehicleSystem {
 
   snapshot() {
     return this.list.map((v) => [v.id, TYPES.indexOf(v.type), v.team, +v.x.toFixed(2), +v.y.toFixed(2), +v.z.toFixed(2), +v.yaw.toFixed(3), +(v.pitch || 0).toFixed(3), +(v.roll || 0).toFixed(3),
-      +v.turretYaw.toFixed(3), +v.gunPitch.toFixed(3), Math.max(0, Math.round(v.hp)), v.dead ? 1 : 0, v.seats.map((s) => s || 0), +(v.speed || Math.hypot(v.vx, v.vz) || 0).toFixed(1)]);
+      +v.turretYaw.toFixed(3), +v.gunPitch.toFixed(3), Math.max(0, Math.round(v.hp)), v.dead ? 1 : 0, v.seats.map((s) => s || 0), +(v.speed || Math.hypot(v.vx, v.vz) || 0).toFixed(1), +(v.steer || 0).toFixed(2)]);
   }
 }
 
