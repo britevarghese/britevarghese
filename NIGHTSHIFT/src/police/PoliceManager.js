@@ -356,7 +356,7 @@ export class PoliceManager {
       const red = i % 2 === 0;
       l.visible = true;
       l.position.set(s.x, s.y + 1.8, s.z);
-      l.intensity = (red ? r.police?.redOn : r.police?.blueOn) ? 40 : 0;
+      l.intensity = (red ? r.police?.redOn : r.police?.blueOn) ? 55 : 0;
     });
   }
 

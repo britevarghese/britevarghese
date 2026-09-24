@@ -230,7 +230,7 @@ export class VehicleRenderer {
       for (const p of positions) {
         // physically based intensity (candela). Mounted a little higher with a narrow cone aimed down
         // the road, so it lights 5-45 m ahead without flooding the ground right at the bumper.
-        const s = new THREE.SpotLight(0xfff0dc, n >= 2 ? 1500 : 2400, 80, 0.3, 0.6, 1.5);
+        const s = new THREE.SpotLight(0xfff0dc, n >= 2 ? 1250 : 2000, 80, 0.3, 0.6, 1.5);
         s.position.set(p.x * 0.8, p.y + 0.35, p.z - 0.3);
         s.target.position.set(p.x * 1.4, -0.9, p.z + 30);
         s.castShadow = false;
@@ -448,7 +448,15 @@ export class VehicleRenderer {
     }
     this.beam.visible = hOn && !(this.lightsBroken[0] && this.lightsBroken[1]);
     this.beam.material.opacity = (this.spots.length ? 0.18 : 0.5) * Math.min(1, night * 1.2) * (this.lightsBroken[0] || this.lightsBroken[1] ? 0.5 : 1);
-    for (let i = 0; i < this.spots.length; i++) this.spots[i].visible = hOn && !this.lightsBroken[this.spots.length === 1 ? 0 : i];
+    // seen from in front, the beams' specular glare off the asphalt blows the image out (real low beams
+    // are cut off to protect oncoming drivers): dim the spotlights as the camera moves ahead of the car
+    const glare = 1 - 0.7 * clamp((facing - 0.2) / 0.6, 0, 1);
+    for (let i = 0; i < this.spots.length; i++) {
+      const sp = this.spots[i];
+      sp.visible = hOn && !this.lightsBroken[this.spots.length === 1 ? 0 : i];
+      sp.userData.base ??= sp.intensity;
+      sp.intensity = sp.userData.base * glare;
+    }
     // nitro flames
     this.nitro = lerp(this.nitro, s.nitroActive ? 1 : 0, 0.3);
     for (const f of this.flames) {

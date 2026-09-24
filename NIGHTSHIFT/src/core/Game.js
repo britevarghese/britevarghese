@@ -526,6 +526,10 @@ export class Game {
     this.fx2.speed = damp(this.fx2.speed, Math.pow(clamp((speed - 28) / 50, 0, 1), 1.5) * 0.55 + this.fx2.nitro * 0.35, 4, dt);
     this.fx2.damageFlash = damp(this.fx2.damageFlash, 0, 3, dt);
     this.fx2.busted = damp(this.fx2.busted, mode === 'busted' ? 1 : 0, 2, dt);
+    // lens rain: builds up while it rains (not under cover), airflow sweeps it at speed
+    const covered = this.world.layout.inTunnel?.(this.camera.position.x, this.camera.position.z);
+    this.fx2.lensRain = damp(this.fx2.lensRain || 0, this.env.state.rain > 0.2 && !covered ? Math.min(1, this.env.state.rain) : 0, 0.6, dt);
+    this.fx2.lensWind = clamp((speed - 15) / 45, 0, 1);
     if (simulate || mode === 'paused' || mode === 'map' || mode === 'brief' || mode === 'results') {
       if (simulate) this.camCtl.update(dt, player, driving ? input.controls : { lookX: 0, lookY: 0 }, this.fx2);
     }
