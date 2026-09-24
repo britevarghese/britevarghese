@@ -60,7 +60,7 @@ export class Players {
     p.weaponId = wid;
     const visual = WEAPONS[wid]?.visual || wid;
     if (!p.weapons[wid]) {
-      const loaded = await this.g.assets.loadWeapon(visual);
+      const loaded = await this.g.assets.loadWeapon(visual, { tps: true });
       p.weapons[wid] = new WeaponModel(this.g.assets, loaded, { key: visual });
     }
     if (p.weaponId !== wid) return;

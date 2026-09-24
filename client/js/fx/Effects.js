@@ -60,7 +60,7 @@ export class Effects {
     const mat = new THREE.ShaderMaterial({
       uniforms: { map: { value: puffTex }, scale: { value: innerHeight / 2 }, fogColor: { value: new THREE.Color(0xb9c3c9) }, fogFar: { value: 500 } },
       vertexShader: `attribute float psize; attribute float palpha; varying float vA; varying vec3 vC; varying float vFog; uniform float scale;
-        void main(){ vC = color; vA = palpha; vec4 mv = modelViewMatrix * vec4(position,1.0); gl_PointSize = psize * scale / -mv.z; vFog = clamp(-mv.z / 450.0, 0.0, 1.0); gl_Position = projectionMatrix * mv; }`,
+        void main(){ vC = color; vA = palpha; vec4 mv = modelViewMatrix * vec4(position,1.0); gl_PointSize = min(psize * scale / max(-mv.z, 0.5), scale * 0.5); vFog = clamp(-mv.z / 450.0, 0.0, 1.0); gl_Position = projectionMatrix * mv; }`,
       fragmentShader: `uniform sampler2D map; uniform vec3 fogColor; varying float vA; varying vec3 vC; varying float vFog;
         void main(){ vec4 t = texture2D(map, gl_PointCoord); gl_FragColor = vec4(mix(vC, fogColor, vFog*0.8), t.a * vA); if (gl_FragColor.a < 0.01) discard; }`,
       transparent: true, depthWrite: false, vertexColors: true,
@@ -117,6 +117,8 @@ export class Effects {
 
   impact(point, normal, surface) {
     const s = SURF[surface]; if (!s) return;
+    // never spawn puffs inside the viewer's face (e.g. hits on the local player)
+    if (this.camPos && Math.hypot(point[0] - this.camPos.x, point[1] - this.camPos.y, point[2] - this.camPos.z) < 1.2) return;
     const [x, y, z] = point, n = normal || [0, 1, 0];
     const k = this.q.particles;
     for (let i = 0; i < Math.ceil(s.n * k); i++) {

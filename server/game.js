@@ -305,7 +305,7 @@ export class Game {
     for (const f of this.flags) if (f.owner) owned[f.owner]++;
     for (const [a, b] of [[1, 2], [2, 1]]) {
       if (owned[a] > owned[b]) {
-        this.bleedAcc[b] += dt * (owned[a] - owned[b]) * (owned[b] === 0 ? 0.55 : 0.3);
+        this.bleedAcc[b] += dt * (owned[a] - owned[b]) * (owned[b] === 0 ? 0.3 : 0.14);
         while (this.bleedAcc[b] >= 1) { this.bleedAcc[b]--; this.tickets[b] = Math.max(0, this.tickets[b] - 1); }
       }
     }

@@ -11,7 +11,7 @@ export const MODELS = [
   'concrete_road_barrier', 'concrete_road_barrier_02', 'wooden_military_crate', 'old_military_crate',
   'ammo_box', 'Barrel_01', 'barrel_03', 'covered_car', 'metal_jerrycan_green', 'cement_bag', 'old_tyre',
   'utility_box_01', 'street_lamp_01', 'exterior_aircon_unit', 'metal_trash_can', 'portable_generator',
-  'rollershutter_door', 'modular_chainlink_fence', 'modular_electricity_poles', 'rusted_wheel_rim_01',
+  'rollershutter_door', 'modular_chainlink_fence', 'rusted_wheel_rim_01',
   // nature
   'tree_small_02', 'jacaranda_tree', 'grass_medium_01', 'shrub_04', 'rock_07', 'rock_09',
   'dead_tree_trunk', 'fern_02',

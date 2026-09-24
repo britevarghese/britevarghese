@@ -5,19 +5,30 @@ import { mulberry32 } from '/shared/util.js';
 import { buildBoxGeometry } from '../render/Materials.js';
 
 // GLB scene -> InstancedMeshes for the given world matrices
-export function instanceGLB(gltf, matrices, { castShadow = true, receiveShadow = true, material = null, name = '' } = {}) {
+// Instances are bucketed into spatial cells so frustum culling (camera AND shadow passes) skips distant groups.
+export function instanceGLB(gltf, matrices, { castShadow = true, receiveShadow = true, material = null, name = '', cell = 80 } = {}) {
   const group = new THREE.Group(); group.name = name;
   if (!matrices.length) return group;
   gltf.scene.updateMatrixWorld(true);
+  const buckets = new Map();
+  const v = new THREE.Vector3();
+  for (const mat of matrices) {
+    v.setFromMatrixPosition(mat);
+    const k = `${Math.floor(v.x / cell)},${Math.floor(v.z / cell)}`;
+    (buckets.get(k) || buckets.set(k, []).get(k)).push(mat);
+  }
   gltf.scene.traverse((o) => {
     if (!o.isMesh || !o.visible) return;
-    const im = new THREE.InstancedMesh(o.geometry, material ? material(o.material) : o.material, matrices.length);
-    const m = new THREE.Matrix4();
-    matrices.forEach((mat, i) => im.setMatrixAt(i, m.multiplyMatrices(mat, o.matrixWorld)));
-    im.instanceMatrix.needsUpdate = true;
-    im.castShadow = castShadow; im.receiveShadow = receiveShadow;
-    im.computeBoundingSphere();
-    group.add(im);
+    const mtl = material ? material(o.material) : o.material;
+    for (const list of buckets.values()) {
+      const im = new THREE.InstancedMesh(o.geometry, mtl, list.length);
+      const m = new THREE.Matrix4();
+      list.forEach((mat, i) => im.setMatrixAt(i, m.multiplyMatrices(mat, o.matrixWorld)));
+      im.instanceMatrix.needsUpdate = true;
+      im.castShadow = castShadow; im.receiveShadow = receiveShadow;
+      im.computeBoundingSphere();
+      group.add(im);
+    }
   });
   return group;
 }
@@ -91,22 +102,24 @@ export async function buildProps(assets, mats, extra = { roofProps: [], rubble: 
     if (r.type === 'aircon') add('aircon', M(r.x, r.y + 0.35, r.z, r.rot));
     if (r.type === 'rollershutter') add('rollershutter', new THREE.Matrix4().compose(new THREE.Vector3(r.x, r.y - 0.4, r.z), new THREE.Quaternion().setFromEuler(new THREE.Euler(0, r.rot, 0)), new THREE.Vector3(r.w / 3.1, 0.35, 1)));
   }
-  for (const rb of extra.rubble || []) for (let i = 0; i < rb.n; i++) add('rubble', M(rb.x + (rnd() - 0.5) * 2.5, rb.y - 0.05, rb.z + (rnd() - 0.5) * 2.5, rnd() * 6, 3 + rnd() * 5, rnd() * 0.5, rnd() * 0.5));
+  for (const rb of extra.rubble || []) for (let i = 0; i < Math.min(2, rb.n); i++) add('rubble', M(rb.x + (rnd() - 0.5) * 2.5, rb.y - 0.05, rb.z + (rnd() - 0.5) * 2.5, rnd() * 6, 3 + rnd() * 5, rnd() * 0.5, rnd() * 0.5));
 
   const keys = { barrier: 'barrier', barrier2: 'barrier2', crate: 'crate', ammo: 'ammo', barrel: 'barrel', barrel_rusty: 'barrel_rusty', car: 'car', car_burnt: 'car', generator: 'generator', utility: 'utility', lamp: 'lamp', trash: 'trash', tyre: 'tyre', jerrycan: 'jerrycan', cement_bag: 'cement_bag', sandbag: 'cement_bag', fence: 'fence', aircon: 'aircon', rollershutter: 'rollershutter' };
   const burnt = new Map();
   const burntMat = (m) => { if (!burnt.has(m)) { const c = m.clone(); c.color = new THREE.Color(0x2a2522); c.roughness = 1; c.metalness = 0.2; burnt.set(m, c); } return burnt.get(m); };
   const sandMats = new Map();
-  const sandMat = (m) => { if (!sandMats.has(m)) { const c = m.clone(); c.color = new THREE.Color(0xc9b48c); sandMats.set(m, c); } return sandMats.get(m); };
+  // sandbags: reuse the bag mesh + its fabric normal/roughness detail, but with woven burlap colour instead of the printed paper
+  const sandMat = (m) => { if (!sandMats.has(m)) { const c = m.clone(); c.map = null; c.color = new THREE.Color(0x9c8a66); c.roughness = 1; c.metalness = 0; sandMats.set(m, c); } return sandMats.get(m); };
   await Promise.all(Object.entries(by).map(async ([k, list]) => {
     if (k === 'rubble') {
       const g = await assets.loadVegetation('rock_07');
       const cm = new Map();
-      group.add(instanceGLB(g, list, { name: 'rubble', material: (m) => { if (!cm.has(m)) { const c = m.clone(); c.color = new THREE.Color(0xa8a49c); cm.set(m, c); } return cm.get(m); } }));
+      group.add(instanceGLB(g, list, { name: 'rubble', castShadow: false, material: (m) => { if (!cm.has(m)) { const c = m.clone(); c.color = new THREE.Color(0xa8a49c); cm.set(m, c); } return cm.get(m); } }));
       return;
     }
     const g = await assets.loadProp(keys[k]);
-    group.add(instanceGLB(g, list, { name: k, material: k === 'car_burnt' ? burntMat : k === 'sandbag' ? sandMat : null, castShadow: k !== 'fence' }));
+    const small = ['tyre', 'jerrycan', 'ammo', 'cement_bag', 'fence'].includes(k);
+    group.add(instanceGLB(g, list, { name: k, material: k === 'car_burnt' ? burntMat : k === 'sandbag' ? sandMat : null, castShadow: !small }));
   }));
 
   // shipping containers & precast walls: modular geometry textured with real corrugated steel / concrete

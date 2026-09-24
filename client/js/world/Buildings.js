@@ -18,19 +18,20 @@ export function buildBuildings(world, mats, props) {
   for (const b of world.buildings) {
     const spec = b.spec, rnd = mulberry32(spec.id.length * 977 + spec.x * 13 + spec.z * 7);
     const cx = spec.x, cz = spec.z;
-    const tint = 0.85 + rnd() * 0.25;
+    const tint = 1.0 + rnd() * 0.18;
     const dirtTone = [0.93 + rnd() * 0.07, 0.9 + rnd() * 0.07, 0.86 + rnd() * 0.06];
     const y0 = b.y0;
     // weathering: grime near the ground, streaks below windows (via noise), lighter upper walls
     const color = (p, part, n) => {
       const h = p[1] - y0;
-      const g = 0.62 + 0.38 * Math.min(1, Math.max(0, (h - 0.1) / 1.6));
+      const g = 0.8 + 0.2 * Math.min(1, Math.max(0, (h - 0.1) / 1.6));
       const streak = 0.9 + 0.1 * Math.sin(p[0] * 3.1 + p[2] * 2.3);
       const k = tint * g * (n[1] > 0.5 ? 0.92 : streak);
       return [k * dirtTone[0], k * dirtTone[1], k * dirtTone[2]];
     };
     const faceMat = (part, n, fc) => {
       if (part.part === 'ground' || part.part === 'floor') return n[1] > 0.5 ? 'concrete_floor' : n[1] < -0.5 ? 'plaster_int' : 'trim';
+      if (part.part === 'parapet' && n[1] === 0 && ((fc[0] - cx) * n[0] + (fc[2] - cz) * n[2]) < 0) return 'concrete';
       if (part.part === 'roof') return n[1] > 0.5 ? part.mat : n[1] < -0.5 ? 'plaster_int' : 'trim';
       if (part.part === 'rail') return 'frame';
       if (part.part === 'interior') return 'plaster_int';

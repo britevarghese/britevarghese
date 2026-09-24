@@ -173,7 +173,7 @@ export class BotBrain {
     const moved = Math.hypot(p.x - this.lastPos.x, p.z - this.lastPos.z);
     this.stuckT = moved < 0.4 * dt * 3 ? this.stuckT + dt : 0;
     this.lastPos = { x: p.x, z: p.z };
-    if (this.stuckT > 0.6) input.jump = true;
+    if (this.stuckT > 0.6 && now > (this.nextJump || 0)) { input.jump = true; this.nextJump = now + 2500; }
     if (this.stuckT > 2) { this.stuckT = 0; this.path = this.g.nav.findPath(p.x, p.z, this.goal.x, this.goal.z); this.pathIdx = 1; if (!this.path) this.pickGoal(); }
     return input;
   }

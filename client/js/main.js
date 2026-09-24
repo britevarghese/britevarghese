@@ -24,6 +24,7 @@ class Game {
     this.qualityName = quality;
     const { renderer, q } = createRenderer($('game'), quality);
     this.renderer = renderer; this.q = q;
+    renderer.info.autoReset = false; // count world + viewmodel + shadow passes per frame
     this.baseFov = fov;
     this.camera = new THREE.PerspectiveCamera(fov, innerWidth / innerHeight, 0.05, 1600);
     this.assets = await new AssetManager(renderer).init();
@@ -224,6 +225,7 @@ class Game {
 
   // ---------------------------------------------------------------- frame
   #frame() {
+    this.renderer.info.reset();
     const dt = Math.min(0.05, this.clock.getDelta());
     const time = this.clock.elapsedTime;
     const me = this.me;
@@ -271,6 +273,7 @@ class Game {
     // world
     this.lighting.follow(cam.position);
     this.world.update(dt, cam, time);
+    this.effects.camPos = cam.position;
     this.effects.update(dt);
     const fwd = new THREE.Vector3(0, 0, -1).applyQuaternion(cam.quaternion);
     this.audio.setListener(cam.position, fwd, new THREE.Vector3(0, 1, 0).applyQuaternion(cam.quaternion));

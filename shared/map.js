@@ -106,7 +106,6 @@ function buildProps() {
   add('crate_stack', -38, 64, 0); add('crate', -36.5, 63.6, 1); add('barrel', -34, 74); add('barrel', -33.4, 74.6); add('barrel', -48, 73);
   add('sandbags', -40, 82, 0, { len: 6 }); add('sandbags', -50, 70, 1, { len: 4 }); add('barrier', -26, 74, 1); add('barrier', -26, 72.4, 1);
   add('car', -58, 76, 0); add('generator', -52, 66, 1); add('utility', -76, 68, 0);
-  add('fence', -90, 46, 0, { len: 36 }); add('fence', -90, 46, 1, { len: 26 });
   add('lamp', -20, 81.5, 0); add('lamp', -60, 81.5, 0);
   // --- C (depot) mirrored
   add('container', 44, -60, 1); add('container', 44, -60, 1, { stackOn: true, y: 2.6 });
@@ -114,7 +113,6 @@ function buildProps() {
   add('crate_stack', 38, -64, 0); add('crate', 36.5, -63.6, 1); add('barrel', 34, -74); add('barrel', 33.4, -74.6); add('barrel', 48, -73);
   add('sandbags', 40, -82, 0, { len: 6 }); add('sandbags', 50, -70, 1, { len: 4 }); add('barrier', 26, -74, 1); add('barrier', 26, -72.4, 1);
   add('car', 58, -76, 0, { burnt: true }); add('generator', 52, -66, 1); add('utility', 76, -68, 0);
-  add('fence', 54, -46, 0, { len: 36 }); add('fence', 90, -46, 1, { len: 26 });
   add('lamp', 20, -81.5, 0); add('lamp', 60, -81.5, 0);
   // --- open fields between objectives: scattered cover
   add('sandbags', -18, 38, 0, { len: 5 }); add('sandbags', 22, -38, 0, { len: 5 });
@@ -351,7 +349,7 @@ export function generateVegetation() {
     return false;
   };
   // tree belts/clusters
-  for (let i = 0; i < 900 && trees.length < 260; i++) {
+  for (let i = 0; i < 1600 && trees.length < 440; i++) {
     const cx = (rnd() - 0.5) * 2 * (MAP_HALF - 6), cz = (rnd() - 0.5) * 2 * (MAP_HALF - 6);
     const n = 1 + Math.floor(rnd() * 5);
     for (let k = 0; k < n; k++) {
@@ -360,7 +358,7 @@ export function generateVegetation() {
       trees.push({ x, z, s: 1.25 + rnd() * 0.9, r: rnd() * Math.PI * 2, dead: rnd() < 0.07 });
     }
   }
-  for (let i = 0; i < 700; i++) {
+  for (let i = 0; i < 1300; i++) {
     const x = (rnd() - 0.5) * 2 * (MAP_HALF - 4), z = (rnd() - 0.5) * 2 * (MAP_HALF - 4);
     if (!blocked(x, z, 1.5)) shrubs.push({ x, z, s: 1.4 + rnd() * 1.6, r: rnd() * 6.28, kind: rnd() < 0.5 ? 'shrub' : 'fern' });
   }

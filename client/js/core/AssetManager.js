@@ -81,14 +81,16 @@ export class AssetManager {
     return { ...r, def };
   }
 
-  async loadWeapon(key) {
+  // tps: third-person / remote-player LOD (same sockets & orientation, fewer triangles)
+  async loadWeapon(key, { tps = false } = {}) {
     const def = this.manifest.weapons[key];
     if (!def) throw new Error(`Unknown weapon ${key}`);
-    const r = await this.loadFirst('weapon', key, def.files);
+    const files = tps && def.tpsFiles ? def.tpsFiles : def.files;
+    const r = await this.loadFirst('weapon', key, files);
     // Config (sockets/orientation) only applies to the file it was written for: the default file.
-    const isDefault = r.file === def.files[def.files.length - 1];
+    const isDefault = r.file === files[files.length - 1];
     let cfg = def;
-    if (isDefault && r.file === 'weapons/bolt_action_rifle.glb' && key !== 'bolt_rifle') cfg = { ...this.manifest.weapons.bolt_rifle, files: def.files };
+    if (isDefault && /weapons\/bolt_action_rifle/.test(r.file) && key !== 'bolt_rifle') cfg = { ...this.manifest.weapons.bolt_rifle, files };
     if (!isDefault) cfg = { ...def, sockets: def.userSockets || null, forward: def.userForward || 'auto', optic: def.userOptic || { type: 'auto' } };
     return { ...r, def: cfg };
   }

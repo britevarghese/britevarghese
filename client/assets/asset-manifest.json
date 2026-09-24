@@ -30,7 +30,12 @@
       "forward": "auto",
       "optic": {
         "type": "auto"
-      }
+      },
+      "tpsFiles": [
+        "user/weapons/ss2_v5_assault_rifle.glb",
+        "user/weapons/assault_rifle.glb",
+        "weapons/bolt_action_rifle_tps.glb"
+      ]
     },
     "bolt_rifle": {
       "files": [
@@ -68,6 +73,9 @@
       "hide": [
         "bolt_action_rifle_7_62_bolt_b",
         "bolt_action_rifle_7_62_bullet_54mm"
+      ],
+      "tpsFiles": [
+        "weapons/bolt_action_rifle_tps.glb"
       ]
     },
     "pistol": {
@@ -114,7 +122,11 @@
           0.062,
           0.4
         ]
-      }
+      },
+      "tpsFiles": [
+        "user/weapons/pistol.glb",
+        "weapons/service_pistol_tps.glb"
+      ]
     },
     "grenade": {
       "files": [
@@ -141,7 +153,6 @@
     "generator": "props/generator.glb",
     "rollershutter": "props/rollershutter_door.glb",
     "fence": "props/chainlink_fence.glb",
-    "poles": "props/electricity_poles.glb",
     "wheel_rim": "props/wheel_rim.glb"
   },
   "vegetation": {

@@ -1,7 +1,7 @@
 // Chunked heightfield terrain with multi-layer PBR material blending (grass / dry soil / rock / scorched earth),
 // anti-tiling (dual-scale sampling + macro variation), plus asphalt road ribbons with worn markings.
 import * as THREE from 'three';
-import { MAP_HALF, ROADS, BUILDINGS, FLAGS, groundHeight, roadDistance } from '/shared/map.js';
+import { MAP_HALF, ROADS, BUILDINGS, FLAGS, groundHeight, roadDistance, terrainHeight } from '/shared/map.js';
 import { fbm, smoothstep } from '/shared/util.js';
 
 export function buildTerrain(assets, quality) {
@@ -41,6 +41,9 @@ export function buildTerrain(assets, quality) {
         // height-based blend sharpening using albedo luminance as a cheap height proxy
         float hG = dot(cG.rgb, vec3(0.33)) , hD = dot(cD.rgb, vec3(0.33));
         wd = smoothstep(0.0, 1.0, clamp((wd - 0.5) * 2.2 + (hD - hG) * 1.5 + 0.5, 0.0, 1.0));
+        // living grass: green/olive hue variation at two scales so fields never look like one flat colour
+        float hue = vnoise(vWPos.xz*0.035) * 0.65 + vnoise(vWPos.xz*0.18) * 0.35;
+        cG.rgb *= mix(vec3(0.78, 0.98, 0.62), vec3(1.02, 0.98, 0.78), hue);
         vec4 col = mix(cG, cD, wd);
         col = mix(col, cR, wr);
         col = mix(col, cB, wb);
@@ -97,7 +100,28 @@ export function buildTerrain(assets, quality) {
     }
   }
   group.add(buildRoads(assets));
+  // outer landscape continuing the terrain beyond the playable area (rolling hills rising to distant ridges)
+  const og = new THREE.PlaneGeometry(2600, 2600, 90, 90);
+  og.rotateX(-Math.PI / 2);
+  const op = og.attributes.position;
+  const osplat = new Float32Array(op.count * 4);
+  for (let i = 0; i < op.count; i++) {
+    const x = op.getX(i), z = op.getZ(i);
+    op.setY(i, outerHeight(x, z));
+    osplat[i * 4] = 0.25 + 0.4 * fbm(x / 90, z / 90, 2, 4); osplat[i * 4 + 1] = smoothstep(40, 90, outerHeight(x, z)) * 0.7;
+  }
+  og.setAttribute('splat', new THREE.BufferAttribute(osplat, 4));
+  og.computeVertexNormals();
+  const outer = new THREE.Mesh(og, material);
+  outer.receiveShadow = true; outer.name = 'outer_terrain';
+  group.add(outer);
   return group;
+}
+
+export function outerHeight(x, z) {
+  const r = Math.max(Math.abs(x), Math.abs(z));
+  if (r < MAP_HALF - 2) return terrainHeight(x, z) - 4; // hidden beneath the detailed terrain
+  return terrainHeight(x, z) + smoothstep(MAP_HALF, 900, r) * (35 + 70 * fbm(x / 260, z / 260, 3, 21));
 }
 
 function buildRoads(assets) {

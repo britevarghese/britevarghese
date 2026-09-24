@@ -44,7 +44,7 @@ export class MaterialLibrary {
       roof: ['concrete_floor', { vertexColors: true, color: 0x9a9a98 }],
       metal_roof: ['corrugated', { vertexColors: true, color: 0x8f969a }],
       metal: ['rusty_metal', { vertexColors: true }],
-      plaster_int: ['plaster', { vertexColors: true, color: 0xe8e4dc }],
+      plaster_int: ['concrete', { vertexColors: true, color: 0xf2eee6, normal: 0.6 }],
       trim: ['concrete', { vertexColors: true, color: 0xb9b6ae }],
       plinth: ['concrete_slab', { vertexColors: true, color: 0x8c8a86 }],
       frame: ['rusty_metal', { vertexColors: true, color: 0x6f6f6f }],
@@ -53,7 +53,13 @@ export class MaterialLibrary {
       asphalt: ['asphalt', {}],
     };
     const [k, o] = map[name] || map.concrete;
-    return this.pbr(k, o);
+    const m = this.pbr(k, o);
+    if (name === 'plaster_int' && !m.userData.fill) {
+      // cheap stand-in for bounced daylight inside rooms (no extra lights / passes)
+      m.userData.fill = true;
+      m.emissive = new THREE.Color(0x3a3834); m.emissiveMap = m.map; m.emissiveIntensity = 1;
+    }
+    return m;
   }
 
   glass() {

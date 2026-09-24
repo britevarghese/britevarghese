@@ -38,8 +38,8 @@ export class Vegetation {
     this.assets = assets; this.world = world; this.quality = quality; this.renderer = renderer;
     this.group = new THREE.Group(); this.group.name = 'vegetation';
     this.q = quality === 'low'
-      ? { lod0: 22, lod1: 75, grassR: 26, grassStep: 2.4, shrubR: 55 }
-      : { lod0: 40, lod1: 120, grassR: 48, grassStep: 1.8, shrubR: 90 };
+      ? { lod0: 16, lod1: 60, grassR: 20, grassStep: 2.7, shrubR: 42 }
+      : { lod0: 30, lod1: 100, grassR: 34, grassStep: 2.1, shrubR: 68 };
     this.lastUpdate = -1; this.lastGrassPos = new THREE.Vector3(1e9, 0, 0);
   }
 
@@ -59,6 +59,7 @@ export class Vegetation {
     });
     this.lod0 = mk(lod0, trees.length, true);
     this.lod1 = mk(lod1, trees.length, true);
+    if (this.quality === 'low') this.lod1.forEach((m) => { m.castShadow = false; });
     this.impostor = this.#bakeImpostor(lod1, trees.length);
     // dead trees (static)
     const deadM = V.trees.filter((t) => t.dead).map((t) => new THREE.Matrix4().compose(new THREE.Vector3(t.x, groundHeight(t.x, t.z), t.z), new THREE.Quaternion().setFromEuler(new THREE.Euler(0, t.r, 0)), new THREE.Vector3(t.s * 1.4, t.s * 1.4, t.s * 1.4)));
@@ -67,12 +68,12 @@ export class Vegetation {
     this.chunks = [];
     const chunkOf = (list, gltf, scaleFn, wind) => {
       const cells = new Map();
-      for (const s of list) { const k = `${Math.floor(s.x / 40)},${Math.floor(s.z / 40)}`; (cells.get(k) || cells.set(k, []).get(k)).push(s); }
+      for (const s of list) { const k = `${Math.floor(s.x / 64)},${Math.floor(s.z / 64)}`; (cells.get(k) || cells.set(k, []).get(k)).push(s); }
       for (const [k, arr] of cells) {
         const [cx, cz] = k.split(',').map(Number);
         const ms = arr.map((s) => new THREE.Matrix4().compose(new THREE.Vector3(s.x, groundHeight(s.x, s.z) - 0.03, s.z), new THREE.Quaternion().setFromEuler(new THREE.Euler(0, s.r, 0)), new THREE.Vector3().setScalar(scaleFn(s))));
         const g = this.#staticInstances(gltf, ms, !wind, wind);
-        this.chunks.push({ g, x: cx * 40 + 20, z: cz * 40 + 20 });
+        this.chunks.push({ g, x: cx * 64 + 32, z: cz * 64 + 32 });
       }
     };
     chunkOf(V.shrubs.filter((s) => s.kind === 'shrub'), shrub, (s) => s.s * 1.3, true);
@@ -95,7 +96,10 @@ export class Vegetation {
       this.grassKinds.push(im); this.group.add(im);
     });
     this.grassKinds.sort((a, b) => a.geometry.index.count - b.geometry.index.count);
-    this.grassKinds = this.grassKinds.slice(0, 8); // keep the lighter clump variants
+    // keep the lighter clump variants (<= ~450 triangles each); drop the rest from the scene
+    const keep = this.grassKinds.filter((g) => g.geometry.index.count <= 1350).slice(0, 7);
+    for (const g of this.grassKinds) if (!keep.includes(g)) g.removeFromParent();
+    this.grassKinds = keep.length ? keep : this.grassKinds.slice(0, 3);
     return this;
   }
 
@@ -200,6 +204,6 @@ export class Vegetation {
     windUniforms.uTime.value = time;
     if (time - this.lastUpdate > 0.25) { this.lastUpdate = time; this.#treeLODs(cam); }
     this.#grass(cam);
-    for (const c of this.chunks) c.g.visible = Math.hypot(c.x - cam.position.x, c.z - cam.position.z) < this.q.shrubR + 28;
+    for (const c of this.chunks) c.g.visible = Math.hypot(c.x - cam.position.x, c.z - cam.position.z) < this.q.shrubR + 20;
   }
 }

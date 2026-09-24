@@ -3,7 +3,7 @@ import * as THREE from 'three';
 import { CollisionWorld } from '/shared/world.js';
 import { FLAGS, MAP_HALF, groundHeight } from '/shared/map.js';
 import { mulberry32 } from '/shared/util.js';
-import { buildTerrain } from './Terrain.js';
+import { buildTerrain, outerHeight } from './Terrain.js';
 import { buildBuildings } from './Buildings.js';
 import { buildProps } from './Props.js';
 import { Vegetation } from './Vegetation.js';
@@ -70,10 +70,10 @@ export class GameWorld {
   #skyline() {
     const rnd = mulberry32(31337);
     const parts = [];
-    for (let i = 0; i < 90; i++) {
-      const a = rnd() * Math.PI * 2, r = MAP_HALF + 40 + rnd() * 160;
-      const x = Math.cos(a) * r, z = Math.sin(a) * r, w = 8 + rnd() * 18, d = 8 + rnd() * 18, h = 6 + rnd() * rnd() * 38;
-      const y = Math.max(0, groundHeight(Math.max(-MAP_HALF, Math.min(MAP_HALF, x)), Math.max(-MAP_HALF, Math.min(MAP_HALF, z)))) - 2;
+    for (let i = 0; i < 40; i++) {
+      const a = rnd() * Math.PI * 2, r = MAP_HALF + 25 + rnd() * 90;
+      const x = Math.cos(a) * r, z = Math.sin(a) * r, w = 8 + rnd() * 18, d = 8 + rnd() * 18, h = 5 + rnd() * 9;
+      const y = Math.min(outerHeight(x - w / 2, z - d / 2), outerHeight(x + w / 2, z + d / 2), outerHeight(x, z)) - 1.5;
       parts.push({ min: [x - w / 2, y, z - d / 2], max: [x + w / 2, y + h, z + d / 2], mat: rnd() < 0.5 ? 'concrete' : 'plaster' });
     }
     for (const [m, g] of buildBoxGeometry(parts, { tile: 3.2, color: (p) => [0.75, 0.76, 0.78] })) {
@@ -81,9 +81,6 @@ export class GameWorld {
       mesh.name = 'skyline';
       this.scene.add(mesh);
     }
-    // outer ground ring so the horizon never shows the void
-    const ring = new THREE.Mesh(new THREE.RingGeometry(MAP_HALF * 0.98, 1400, 64, 1), new THREE.MeshStandardMaterial({ color: 0x5e6450, roughness: 1 }));
-    ring.rotation.x = -Math.PI / 2; ring.position.y = 2; this.scene.add(ring);
   }
 
   update(dt, camera, time) {

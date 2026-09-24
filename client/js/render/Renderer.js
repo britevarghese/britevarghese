@@ -35,10 +35,10 @@ export class Lighting {
     this.sun.shadow.radius = 2.5;
     this.target = new THREE.Object3D();
     this.sun.target = this.target;
-    this.hemi = new THREE.HemisphereLight(0xcfdcf0, 0x5b5040, 0.45);
+    this.hemi = new THREE.HemisphereLight(0xcfdcf0, 0x5b5040, 0.6);
     scene.add(this.sun, this.target, this.hemi);
     // haze colour matched to the HDRI horizon
-    scene.fog = new THREE.Fog(0xb9c3c9, 60, q.fogFar);
+    scene.fog = new THREE.Fog(0xbac4cb, 70, q.fogFar);
     this.scene = scene;
   }
 
