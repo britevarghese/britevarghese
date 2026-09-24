@@ -71,10 +71,16 @@ export function adviceFor(gpu) {
   if (gpu.dedicated || gpu.kind === 'mobile' || !(win || linux || mac)) return null;
   const steps = [];
   if (win) {
-    steps.push(`Windows Settings → System → Display → Graphics → add/select ${browser} → Options → "High performance" (your NVIDIA/AMD card) → Save.`);
-    steps.push(`NVIDIA: right-click desktop → NVIDIA Control Panel → Manage 3D settings → Program Settings → ${exe} → "High-performance NVIDIA processor". AMD: Adrenalin → Graphics → ${exe} → High Performance.`);
-    steps.push('Plug in the charger (many laptops keep the dedicated GPU off on battery) and use the "Best performance" power mode.');
-    steps.push(`Close ALL ${browser} windows and reopen, then reload this page — the GPU line above should show your NVIDIA/AMD card.`);
+    const chrome = browser !== 'Firefox';
+    steps.push(`FULLY quit ${browser} — closing the windows is not enough, it keeps running in the background and keeps the Intel GPU: menu ⋮ → Exit${chrome ? `, and turn OFF Settings → System → "Continue running background apps when ${browser} is closed"` : ''}. Check Task Manager: no ${exe} left.`);
+    steps.push(`Windows Settings → System → Display → Graphics → ${browser} (if it is listed twice, set both; use "Browse" → C:\\Program Files\\…\\${exe} if missing) → Options → "High performance" → Save. Windows 11: also Advanced graphics settings → Default high performance GPU → your NVIDIA/AMD card.`);
+    steps.push(`NVIDIA Control Panel → Manage 3D settings → Global Settings → Preferred graphics processor → "High-performance NVIDIA processor" → Apply (and Program Settings → ${exe} → same). AMD: Adrenalin → Graphics → ${exe} → High Performance.`);
+    if (chrome) {
+      steps.push(`Still Intel? Force it: right-click the ${browser} shortcut → Properties → at the end of "Target" add  --force_high_performance_gpu  (after the closing quote) → OK, quit ${browser} completely and start it from that shortcut.`);
+      steps.push(`Still Intel? Open ${browser === 'Microsoft Edge' ? 'edge' : 'chrome'}://flags/#use-angle → "Choose ANGLE graphics backend" → D3D11on12 (or OpenGL) → Relaunch.`);
+    }
+    steps.push('Laptop on battery / power saver keeps the NVIDIA card asleep: plug in the charger, Windows power mode "Best performance". Gaming laptops with a MUX switch: NVIDIA Control Panel → Manage Display Mode → "NVIDIA GPU only" (or the vendor app: Armoury Crate / Lenovo Vantage / OMEN Hub → Discrete/Ultimate GPU mode), then reboot.');
+    steps.push(`Check: ${browser === 'Microsoft Edge' ? 'edge' : 'chrome'}://gpu → "GL_RENDERER" must mention NVIDIA/AMD. Then reload this page — the GPU line above updates.`);
   } else if (mac) {
     steps.push('System Settings → Battery → turn off "Automatic graphics switching" (Intel MacBook Pro with AMD graphics), then restart the browser.');
   } else {

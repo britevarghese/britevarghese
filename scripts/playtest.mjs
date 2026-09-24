@@ -74,8 +74,16 @@ await A.keyboard.press('KeyZ'); await sleep(800);
 check('Z goes prone', (await g(() => __game.me.s.stance)) === 'prone');
 await A.keyboard.press('KeyZ'); await sleep(800);
 check('Z again stands up', (await g(() => __game.me.s.stance)) === 'stand');
-await A.keyboard.down('Space'); await sleep(400); await A.keyboard.up('Space'); await sleep(2500);
-check('Space jumps and lands', (await g(() => __game.me.s.onGround)));
+await g(() => {
+  window.__jumpPeak = 0; window.__air = false; let y0 = null;
+  const me = __game.me, s = me.s, up = me.update.bind(me);
+  me.update = (dt) => { const yb = s.y, gb = s.onGround; up(dt); if (gb && !s.onGround && y0 === null) y0 = yb; if (!s.onGround) window.__air = true; if (y0 !== null) window.__jumpPeak = Math.max(window.__jumpPeak, s.y - y0); };
+});
+await A.keyboard.press('Space');
+check('Space tap jumps (even between two frames)', await A.waitForFunction(() => window.__air, null, { timeout: 60000, polling: 200 }).then(() => true, () => false));
+check('Space jumps and lands', await A.waitForFunction(() => window.__air && __game.me.s.onGround, null, { timeout: 200000, polling: 200 }).then(() => true, () => false));
+const peak = await g(() => window.__jumpPeak);
+check('jump height is realistic (~0.55 m)', peak > 0.35 && peak < 0.65, `${peak.toFixed(2)} m`);
 
 // weapons
 await A.keyboard.press('Digit2'); await sleep(2000);
@@ -110,6 +118,9 @@ const aim = () => g((id) => {
 }, B.id);
 const magBefore = await g(() => __game.me.weapons[0].mag);
 const hpBefore = B.me.hp;
+await g(() => { window.__hits = []; const hm = __game.hud.hitmarker.bind(__game.hud); __game.hud.hitmarker = (...a) => { window.__hits.push(a); hm(...a); }; });
+await aim();
+const onEnemy = await A.waitForFunction(() => __game.onEnemy === true, null, { timeout: 90000, polling: 250 }).then(() => true, () => false);
 await aim(); await sleep(1500); await aim();
 await g(() => { __game.me.mouse.l = true; }); await sleep(2000); await g(() => { __game.me.mouse.l = false; });
 await sleep(2000);
@@ -117,7 +128,14 @@ const magAfter = await g(() => __game.me.weapons[0].mag);
 check('firing spends ammo', magAfter < magBefore, `${magBefore} -> ${magAfter}`);
 check('shots hit B (server-authoritative damage)', B.me.hp < hpBefore || !B.me.alive, `hp ${hpBefore} -> ${B.me.hp}${B.me.alive ? '' : ' (dead)'}`);
 check('B receives A\'s gunshots (for tracers/sound)', B.events.some((e) => e.t === 'shot'));
-check('A got a hit marker', await g(() => document.getElementById('hitmarker').className.includes('show') || true));
+const hits = await g(() => window.__hits);
+check('A got confirmed hit markers with damage numbers', hits.length > 0 && hits.every((h) => h[2] > 0), `${hits.length} hits: ${hits.slice(0, 4).map((h) => `${h[2]}${h[1] ? ' HS' : ''}${h[0] ? ' KILL' : ''}`).join(', ')}`);
+check('crosshair turns red on the enemy', onEnemy);
+check('B was told it got hit (hurt events)', B.events.some((e) => e.t === 'hurt' && e.v === B.id));
+check('bullets are projectiles (flight time sent)', B.events.some((e) => e.t === 'shot' && typeof e.tf === 'number' && e.b));
+await g(() => __game.me.cycleZero(1)); await sleep(800);
+check('PageUp raises sight zeroing', (await g(() => __game.me.zeroOf())) === 100, `${await g(() => __game.me.zeroOf())} m`);
+await g(() => __game.me.cycleZero(-1));
 
 // reload with R
 await g(() => { __game.me.mouse.r = false; });
@@ -154,6 +172,11 @@ await A.keyboard.press('KeyV'); await sleep(3000);
 check('V toggles third person showing own soldier', await g(() => __game.me.thirdPerson && !!__game.players.map.get(__game.myId)?.rig?.root.visible));
 await A.keyboard.press('KeyV');
 await A.keyboard.down('Tab'); await sleep(1500);
+await g(() => document.getElementById('pause').classList.remove('hidden')); await sleep(800);
+check('pause menu has graphics options up to ULTRA', await g(() => [...document.querySelectorAll('#p-quality option')].map((o) => o.value).join() === 'verylow,low,medium,high,ultra' && !!document.getElementById('p-scale') && !!document.getElementById('p-view')));
+await g(() => { document.getElementById('p-scale').value = '0.75'; document.getElementById('p-scale').onchange(); }); await sleep(800);
+check('render scale option applies', await g(() => !__game.dynres.enabled && Math.abs(__game.renderer.getPixelRatio() - 0.75 * Math.min(devicePixelRatio, 2)) < 0.01));
+await g(() => { document.getElementById('p-scale').value = 'auto'; document.getElementById('p-scale').onchange(); document.getElementById('pause').classList.add('hidden'); });
 check('Tab scoreboard lists both players', await g(() => { const t = document.getElementById('scoreboard').textContent; return t.includes('Alpha') && t.includes('Bravo'); }));
 await A.keyboard.up('Tab');
 

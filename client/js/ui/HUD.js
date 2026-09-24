@@ -61,7 +61,7 @@ export class HUD {
     } else cap.classList.add('hidden');
   }
 
-  vitals(me, w, slot, grenades, stance, reloading) {
+  vitals(me, w, slot, grenades, stance, reloading, zero = 0) {
     $('hp').textContent = Math.max(0, Math.round(me.hp));
     document.querySelector('.hpbar i').style.width = `${Math.max(0, me.hp)}%`;
     document.querySelector('.hpbar i').style.background = me.hp < 30 ? '#ff6b5b' : '#e9ecec';
@@ -72,21 +72,33 @@ export class HUD {
       $('mag').textContent = reloading ? '—' : w.mag;
       $('reserve').textContent = w.reserve;
       $('ammo').classList.toggle('low', w.mag <= def.mag * 0.25);
-      $('firemode').textContent = def.auto ? 'AUTO' : def.bolt ? 'BOLT' : 'SEMI';
+      $('firemode').innerHTML = `${def.auto ? 'AUTO' : def.bolt ? 'BOLT' : 'SEMI'}${zero ? ` · <span class="zero">${zero} m</span>` : ''}`;
     }
     $('nades').textContent = `G x${grenades}`;
     $('stance').textContent = stance.toUpperCase();
   }
 
-  crosshair(spread, ads, visible) {
+  crosshair(spread, ads, visible, onEnemy = false) {
     const c = $('crosshair');
     c.style.opacity = visible && !ads ? 1 : 0;
+    c.classList.toggle('enemy', onEnemy);
     const g = 4 + spread * 7;
     c.querySelector('.t').style.top = `${-g - 8}px`; c.querySelector('.b').style.top = `${g}px`;
     c.querySelector('.l').style.left = `${-g - 8}px`; c.querySelector('.r').style.left = `${g}px`;
   }
 
-  hitmarker(kill) { const h = $('hitmarker'); h.className = ''; void h.offsetWidth; h.className = `show${kill ? ' kill' : ''}`; }
+  // confirmed hit (server-authoritative, arrives when the bullet actually reaches the target):
+  // X marker on the crosshair + damage number (+ headshot / kill / distance)
+  hitmarker(kill, hs = false, dmg = 0, dist = 0) {
+    const h = $('hitmarker'); h.className = ''; void h.offsetWidth; h.className = `show${kill ? ' kill' : hs ? ' hs' : ''}`;
+    if (!dmg) return;
+    const d = document.createElement('div');
+    d.className = `dmgpop${kill ? ' kill' : hs ? ' hs' : ''}`;
+    d.innerHTML = `${kill ? 'ELIMINATED ' : hs ? 'HEADSHOT ' : ''}<b>${dmg}</b>${dist >= 40 ? `<span>${dist} m</span>` : ''}`;
+    d.style.setProperty('--dx', `${(Math.random() - 0.5) * 30}px`);
+    document.getElementById('hud').appendChild(d);
+    setTimeout(() => d.remove(), 900);
+  }
 
   damageFrom(angle) {
     const i = document.createElement('i');

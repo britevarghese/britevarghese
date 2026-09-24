@@ -112,6 +112,13 @@
       <h2>PAUSED</h2>
       <div id="p-room" class="sub"></div>
       <label>Mouse sensitivity <input id="p-sens" type="range" min="5" max="60" value="22" /></label>
+      <div class="gfx">
+        <label>Graphics <select id="p-quality"><option value="verylow">VERY LOW</option><option value="low">LOW</option><option value="medium">MEDIUM</option><option value="high">HIGH</option><option value="ultra">ULTRA</option></select></label>
+        <label>Render scale <select id="p-scale"><option value="auto">AUTO (keep FPS)</option><option value="0.5">50%</option><option value="0.75">75%</option><option value="1">100%</option><option value="1.25">125%</option><option value="1.5">150%</option><option value="2">200% (supersampling)</option></select></label>
+        <label>View distance <span id="p-view-v"></span><input id="p-view" type="range" min="150" max="1000" step="10" /></label>
+        <label class="chk"><input type="checkbox" id="p-fps" /> Show FPS / GPU</label>
+      </div>
+      <div id="p-gpu" class="sub"></div>
       <button id="p-resume">RESUME</button>
       <button id="p-invite" class="alt">COPY INVITE LINK</button>
       <button id="p-leave" class="alt">LEAVE ROOM</button>

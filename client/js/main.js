@@ -15,6 +15,8 @@ import { PROPS, groundHeight, roadDistance, BUILDINGS, FLAGS, setActiveMap, ACTI
 import { Lobby, inviteLink } from './ui/Lobby.js';
 import { TouchControls, isTouchDevice } from './ui/TouchControls.js';
 import { EYE_HEIGHT } from '/shared/world.js';
+import { bulletPath } from '/shared/ballistics.js';
+import { hitCapsules, rayCapsule } from '/shared/weapons.js';
 import { RoyaleClient } from './royale/Royale.js';
 import { detectGPU, adviceFor } from './render/GPU.js';
 
@@ -193,18 +195,29 @@ class Game {
         break;
       case 'shot': {
         if (e.id === this.myId) {
-          if (e.s === 'flesh') this.effects.impact(e.e, null, 'flesh');
+          // own shots are predicted locally (onLocalShot); pair this server bullet with the oldest predicted impact
+          const h = this.localImpacts?.shift();
+          if (h) (this.pendingImpacts || (this.pendingImpacts = new Map())).set(e.b, h);
           break;
         }
         const muzzle = P.muzzleOf(e.id);
         const from = muzzle ? [muzzle.x, muzzle.y, muzzle.z] : e.o;
-        this.effects.tracer(from, e.e);
+        const dist = Math.hypot(e.e[0] - from[0], e.e[1] - from[1], e.e[2] - from[2]);
+        const tf = Math.max(0.01, e.tf ?? dist / 700);
+        // tracer flies at the real (average) bullet speed; the impact appears when the bullet gets there
+        this.effects.tracer(from, e.e, dist / tf);
         const dir = new THREE.Vector3(e.e[0] - from[0], e.e[1] - from[1], e.e[2] - from[2]).normalize();
         if (muzzle) this.effects.muzzleFlash(muzzle, dir);
         this.audio.gunshot(from, e.w);
-        if (e.s !== 'none') this.effects.impact(e.e, e.n, e.s);
+        if (e.s !== 'none') this.#scheduleImpact(e.b, tf, () => this.effects.impact(e.e, e.n, e.s));
+        this.#nearMiss(e.o, e.e, tf, e.w);
         const sh = P.info(e.id); if (sh) sh.spottedUntil = performance.now() + 2500;
-        // bullet whizz / near-miss suppression cue
+        break;
+      }
+      case 'bhit': {
+        // the bullet stopped in a soldier: cancel its world impact, show the hit where it landed
+        this.#cancelImpact(e.b);
+        this.effects.impact(e.p, null, 'flesh');
         break;
       }
       case 'hurt':
@@ -216,7 +229,7 @@ class Game {
           }
         } else { const p = P.info(e.v); p?.rig?.hitReact(); }
         break;
-      case 'hitmark': this.hud.hitmarker(e.k); this.audio.ui(e.k ? 'kill' : 'hit'); break;
+      case 'hitmark': this.hud.hitmarker(e.k, e.hs, e.d, e.r); this.audio.ui(e.k ? 'kill' : e.hs ? 'headshot' : 'hit'); break;
       case 'kill': {
         this.hud.killfeed(e.k, e.v, e.w, e.hs, new Map([...this.board].map(([id, r]) => [id, { name: r.n, team: r.tm }])));
         const p = P.info(e.v);
@@ -297,6 +310,44 @@ class Game {
     for (const [id, m] of this.grenadeMeshes) if (!live.has(id)) { m.removeFromParent(); this.grenadeMeshes.delete(id); }
   }
 
+  #scheduleImpact(id, tf, fn) {
+    const m = this.pendingImpacts || (this.pendingImpacts = new Map());
+    const h = setTimeout(() => { if (id !== undefined) m.delete(id); fn(); }, tf * 1000);
+    if (id !== undefined) m.set(id, h);
+    return h;
+  }
+
+  #cancelImpact(id) { const h = this.pendingImpacts?.get(id); if (h) { clearTimeout(h); this.pendingImpacts.delete(id); } }
+
+  // supersonic crack when a bullet passes close by (it arrives before the muzzle report from far away)
+  #nearMiss(o, e, tf, w) {
+    if (!this.me.alive) return;
+    const s = this.me.s, px = s.x, py = s.y + 1.3, pz = s.z;
+    const dx = e[0] - o[0], dy = e[1] - o[1], dz = e[2] - o[2], L2 = dx * dx + dy * dy + dz * dz;
+    if (L2 < 1) return;
+    const k = Math.max(0, Math.min(1, ((px - o[0]) * dx + (py - o[1]) * dy + (pz - o[2]) * dz) / L2));
+    const d = Math.hypot(o[0] + dx * k - px, o[1] + dy * k - py, o[2] + dz * k - pz);
+    if (d > 4 || k < 0.02) return;
+    setTimeout(() => this.audio.crack([o[0] + dx * k, o[1] + dy * k, o[2] + dz * k], w, d), k * tf * 1000);
+  }
+
+  // is an enemy soldier (not behind a wall, within the weapon's range) under the crosshair?
+  #enemyUnderCrosshair(cam, def) {
+    const o = cam.position, d = new THREE.Vector3(0, 0, -1).applyQuaternion(cam.quaternion);
+    const wall = this.world.collision.raycast(o, d, def.maxRange || 600, true);
+    let far = wall ? wall.t : def.maxRange || 600;
+    for (const p of this.players.map.values()) {
+      if (!p.alive || p.id === this.myId || (!this.royale && p.team === this.myTeam)) continue;
+      const dx = p.x - o.x, dz = p.z - o.z, along = dx * d.x + dz * d.z;
+      if (along < 0 || along > far + 2 || Math.abs(dx * d.z - dz * d.x) > 2) continue;
+      for (const c of hitCapsules({ x: p.x, y: p.y, z: p.z, yaw: p.yaw, stance: p.stance })) {
+        const t = rayCapsule(o, d, c.a, c.b, c.r + 0.05);
+        if (t !== null && t < far) return true;
+      }
+    }
+    return false;
+  }
+
   onLocalShot(eye, dir, def) {
     // viewmodel kick + muzzle flash at the real muzzle socket, world tracer & predicted impact
     this.viewmodel.kick(def);
@@ -305,10 +356,15 @@ class Game {
     // map the viewmodel-space muzzle into the world (viewmodel camera sits at the world camera)
     const worldMuzzle = vmMuzzle.applyMatrix4(this.camera.matrixWorld);
     this.effects.muzzleFlash(worldMuzzle, dir, def.id === 'sniper');
-    const hit = this.world.collision.raycast(eye, dir, 600, true);
-    const end = hit ? hit.point : [eye.x + dir.x * 600, eye.y + dir.y * 600, eye.z + dir.z * 600];
-    if (Math.random() < 1 / def.tracer || def.tracer === 1) this.effects.tracer([worldMuzzle.x, worldMuzzle.y, worldMuzzle.z], end, 900);
-    if (hit) this.effects.impact(hit.point, hit.normal, hit.surface);
+    // same ballistic flight as the server: drop, drag, travel time
+    const path = bulletPath(this.world.collision, eye, dir, def);
+    const hit = path.hit, e = path.end, end = [e.x, e.y, e.z];
+    const tf = Math.max(0.01, e.t);
+    const from = [worldMuzzle.x, worldMuzzle.y, worldMuzzle.z];
+    if (Math.random() < 1 / def.tracer || def.tracer === 1) this.effects.tracer(from, end, Math.hypot(end[0] - from[0], end[1] - from[1], end[2] - from[2]) / tf);
+    const h = hit ? this.#scheduleImpact(undefined, tf, () => this.effects.impact(hit.point, hit.normal, hit.surface)) : null;
+    (this.localImpacts || (this.localImpacts = [])).push(h);
+    if (this.localImpacts.length > 40) this.localImpacts.shift();
   }
 
   openChat() {
@@ -356,6 +412,34 @@ class Game {
       if (this.isTouch) { if (this.touch) this.touch.lookSens = v * 2; localStorage.setItem('sp_touch_sens', v * 2); } else { this.me.sens = v; localStorage.setItem('sp_sens', v); }
     };
     $('p-room').textContent = `ROOM ${this.room.id} · ${ACTIVE_MAP.name}`;
+    // ---- graphics options (pause menu)
+    const Q = $('p-quality');
+    Q.value = this.qualityName;
+    Q.onchange = () => {
+      // presets rebuild the world (shadow maps, vegetation, terrain): save and rejoin the same room
+      const st = JSON.parse(localStorage.getItem('sp_settings') || '{}'); st.quality = Q.value; localStorage.setItem('sp_settings', JSON.stringify(st));
+      location.href = `/?room=${encodeURIComponent(this.room.id)}&autojoin=1&q=${Q.value}`;
+    };
+    const S = $('p-scale'), savedScale = localStorage.getItem('sp_scale') || 'auto';
+    S.value = savedScale;
+    const applyScale = () => this.dynres.setManual(S.value === 'auto' ? null : +S.value);
+    S.onchange = applyScale;
+    if (savedScale !== 'auto') applyScale();
+    const V = $('p-view'), fog = this.world.scene.fog;
+    const applyView = (m) => {
+      fog.far = m; fog.near = Math.min(fog.near, m * 0.4);
+      this.camera.far = m + 60; this.camera.updateProjectionMatrix();
+      if (this.royale) this.royale.baseFogFar = m;
+      $('p-view-v').textContent = `${m} m`;
+    };
+    V.value = Math.round(+(localStorage.getItem('sp_view') || fog.far));
+    applyView(+V.value);
+    V.oninput = () => { applyView(+V.value); localStorage.setItem('sp_view', V.value); };
+    const F = $('p-fps');
+    F.checked = localStorage.getItem('sp_showfps') !== '0';
+    const applyFps = () => { $('fps').style.display = F.checked ? '' : 'none'; localStorage.setItem('sp_showfps', F.checked ? '1' : '0'); };
+    F.onchange = applyFps; applyFps();
+    $('p-gpu').textContent = `GPU: ${gpu.name}${gpu.dedicated ? ' (dedicated)' : gpu.kind === 'integrated' ? ' (integrated — see the main menu to switch to your graphics card)' : ''}`;
   }
 
   // ---------------------------------------------------------------- frame
@@ -430,9 +514,10 @@ class Game {
     // HUD
     if (this.lastSnap) {
       const w = me.weapons[me.slot];
-      this.hud.vitals({ hp: me.alive ? (this.meState?.hp ?? 100) : 0 }, w, me.slot, me.grenades, me.s.stance, reloading);
+      this.hud.vitals({ hp: me.alive ? (this.meState?.hp ?? 100) : 0 }, w, me.slot, me.grenades, me.s.stance, reloading, me.zeroOf());
       if (!this.royale) this.hud.flags(this.lastSnap.f, me.alive ? me.s : null);
-      this.hud.crosshair(wdef ? me.spread(wdef) * 57.3 : 1, this.viewmodel.ads > 0.5 && !me.thirdPerson, me.alive && !me.s.air);
+      if ((this.enemyCheckN = (this.enemyCheckN || 0) + 1) % 3 === 1) this.onEnemy = me.alive && wdef ? this.#enemyUnderCrosshair(cam, wdef) : false;
+      this.hud.crosshair(wdef ? me.spread(wdef) * 57.3 : 1, this.viewmodel.ads > 0.5 && !me.thirdPerson, me.alive && !me.s.air, this.onEnemy);
       // the minimap canvas is costly to redraw: 12 Hz is plenty
       this.mmT = (this.mmT || 0) + dt;
       if (this.mmT > 0.083) { this.mmT = 0; this.hud.minimap(me.s, me.yaw, this.players.map, this.myId, this.lastSnap.f, this.royale); }

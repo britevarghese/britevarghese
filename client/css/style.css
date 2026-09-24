@@ -229,3 +229,21 @@ body.royale.br-out #ammo, body.royale.br-out #vitals, body.royale.br-out #br-arm
 #gpuinfo .k { opacity: .75; }
 #gpuinfo button { width: auto; display: inline-block; padding: 2px 8px; margin: 0 0 0 6px; font-size: 10px; letter-spacing: .1em; }
 #gpuinfo summary { cursor: pointer; margin-top: 4px; color: #ffd27a; } #gpuinfo ol { margin: 6px 0 2px; padding-left: 18px; } #gpuinfo li { margin-bottom: 3px; }
+/* hit feedback */
+#hitmarker { width: 28px; height: 28px; margin: -14px; }
+#hitmarker::before, #hitmarker::after { left: 13px; top: -1px; width: 2px; height: 30px;
+  background: linear-gradient(#fff 0 35%, transparent 35% 65%, #fff 65%); }
+#hitmarker.hs::before, #hitmarker.hs::after { background: linear-gradient(#ffc84a 0 35%, transparent 35% 65%, #ffc84a 65%); }
+#hitmarker.kill::before, #hitmarker.kill::after { background: linear-gradient(#ff3b30 0 38%, transparent 38% 62%, #ff3b30 62%); width: 3px; }
+#hitmarker.show { animation: hm .3s ease-out; }
+@keyframes hm { 0% { opacity: 1; transform: scale(1.35); } 60% { opacity: 1; transform: scale(1); } 100% { opacity: 0; } }
+.dmgpop { position: fixed; left: calc(50% + 26px + var(--dx, 0px)); top: calc(50% - 30px); font-size: 12px; font-weight: 700; letter-spacing: .08em; color: #fff;
+  text-shadow: 0 1px 3px #000; pointer-events: none; animation: dmg .9s ease-out forwards; white-space: nowrap; }
+.dmgpop b { font-size: 17px; } .dmgpop span { font-size: 10px; opacity: .8; margin-left: 5px; }
+.dmgpop.hs { color: #ffc84a; } .dmgpop.kill { color: #ff4a3d; }
+@keyframes dmg { 0% { opacity: 0; transform: translateY(6px) scale(1.2); } 15% { opacity: 1; transform: translateY(0) scale(1); } 100% { opacity: 0; transform: translateY(-26px); } }
+#crosshair.enemy i { background: #ff4a3d; }
+#ammo .zero { color: #9fd7ff; }
+#pause .gfx { display: grid; grid-template-columns: 1fr 1fr; gap: 0 12px; margin-top: 4px; }
+#pause .gfx .chk { flex-direction: row; align-items: center; gap: 6px; grid-column: 1 / -1; }
+#pause #p-gpu { font-size: 10px; opacity: .7; margin: 2px 0 8px; }

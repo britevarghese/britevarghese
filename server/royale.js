@@ -29,7 +29,7 @@ export class RoyaleGame extends Game {
     this.tickets = { 1: 0, 2: 0 };
     this.flags = [];
     this.roundOver = null;
-    this.grenades = [];
+    this.grenades = []; this.bullets = [];
     this.ring = null; this.plane = null; this.drops = [];
     this.loot = new Map(); this.lootSeq = 1;
     this.startCount = 0;
@@ -104,7 +104,7 @@ export class RoyaleGame extends Game {
     Object.assign(p, {
       alive: true, hp: 100, x: pp.x + rand(-2, 2), z: pp.z + rand(-2, 2), y: pp.y - 4, vx: this.plane.dx * 22, vz: this.plane.dz * 22, vy: -4,
       air: 1, onGround: false, stance: 'stand', yaw: Math.atan2(-this.plane.dx, -this.plane.dz), pitch: -0.6, slot: 1, reloadUntil: 0, nextFire: 0,
-      weapons: [null, { id: 'pistol', mag: pistol.mag, reserve: 0 }], grenades: 0, armor: 0, meds: 0, spawnProtect: 0, history: [], lastDamageFrom: null,
+      weapons: [null, { id: 'pistol', mag: pistol.mag, reserve: 0 }], grenades: 0, armor: 0, meds: 0, spawnProtect: 0, history: [], lastDamageFrom: null,  airPeak: null,
     });
     p.lastInput = now;
     if (p.brain) p.brain.onJump();
@@ -333,7 +333,8 @@ export class RoyaleGame extends Game {
       if (!p.alive) continue;
       if (p.bot) {
         const input = p.brain.think(dt);
-        if (p.air) stepAir(this.world, p, input, dt); else stepCharacter(this.world, p, input, dt);
+        if (p.air) stepAir(this.world, p, input, dt);
+        else { stepCharacter(this.world, p, input, dt); if (p.fall > 0) this.damage(p, p.fall, null, 'fall'); }
       }
       if (p.reloadUntil && now >= p.reloadUntil) {
         const w = p.weapons[p.reloadSlot ?? p.slot];
@@ -355,6 +356,7 @@ export class RoyaleGame extends Game {
       p.history.push({ t: now, x: p.x, y: p.y, z: p.z, yaw: p.yaw, stance: p.stance });
       while (p.history.length && p.history[0].t < now - 1000) p.history.shift();
     }
+    this.stepBullets(now);
     this.stepGrenades(dt);
     this.#stepDrops(now);
     this.#checkWin(now);

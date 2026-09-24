@@ -26,6 +26,13 @@ export class DynamicResolution {
     this.acc = 0; this.n = 0; this.cool = 0;
     this.enabled = localStorage.getItem('sp_dynres') !== '0';
   }
+  // fixed render scale chosen by the player (null = automatic)
+  setManual(scale) {
+    this.enabled = scale == null;
+    localStorage.setItem('sp_scale', scale == null ? 'auto' : String(scale));
+    this.scale = scale == null ? this.max : scale * Math.min(devicePixelRatio, 2);
+    this.r.setPixelRatio(this.scale);
+  }
   frame(dtMs) {
     if (!this.enabled) return;
     this.acc += dtMs; this.n++;

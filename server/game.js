@@ -1,9 +1,10 @@
 // Authoritative Conquest game simulation.
-import { CollisionWorld, stepCharacter, EYE_HEIGHT, STANCE_HEIGHT, MOVE } from '../shared/world.js';
+import { CollisionWorld, stepCharacter, EYE_HEIGHT, STANCE_HEIGHT, MOVE, SAFE_FALL, FALL_DMG } from '../shared/world.js';
 import { TEAM_NAMES, getMap } from '../shared/map.js';
 import { WEAPONS, CLASSES, GRENADE, damageAt, hitCapsules, rayCapsule } from '../shared/weapons.js';
 import { NavGrid } from './nav.js';
 import { stepAir } from '../shared/royale.js';
+import { bulletPath, STEP } from '../shared/ballistics.js';
 import { BotBrain } from './bots.js';
 
 export const TICK_HZ = 30;
@@ -31,6 +32,7 @@ export class Game {
     this.nav = shared.nav;
     this.players = new Map();
     this.grenades = [];
+    this.bullets = [];
     this.botsPerTeam = botsPerTeam;
     this.events = [];
     this.time = 0;
@@ -44,7 +46,7 @@ export class Game {
     this.flags = this.map.FLAGS.map((f) => ({ ...f, owner: f.owner || 0, progress: f.owner === 1 ? 1 : f.owner === 2 ? -1 : 0, contested: false }));
     this.roundOver = null;
     this.bleedAcc = { 1: 0, 2: 0 };
-    this.grenades = [];
+    this.grenades = []; this.bullets = [];
     for (const p of this.players.values()) {
       p.kills = p.deaths = p.score = 0;
       this.kill(p, null, 'reset', true);
@@ -117,7 +119,7 @@ export class Game {
       alive: true, hp: 100, x, z, y: this.world.supportHeight(x, z, this.map.groundHeight(x, z) + 0.3), vx: 0, vy: 0, vz: 0, stance: 'stand', onGround: true,
       yaw: this.map.BASES[p.team].yaw + (Math.random() - 0.5) * 0.4, pitch: 0, slot: 0, reloadUntil: 0, nextFire: 0, grenades: c.grenades,
       weapons: [c.primary, c.secondary].map((id) => ({ id, mag: WEAPONS[id].mag, reserve: WEAPONS[id].reserve })),
-      spawnProtect: this.now() + 2000, history: [], lastDamageFrom: null, spawnPoint: opt.id,
+      spawnProtect: this.now() + 2000, history: [], lastDamageFrom: null, spawnPoint: opt.id, airPeak: null,
     });
     p.lastInput = this.now();
     if (p.brain) p.brain.onSpawn();
@@ -166,6 +168,15 @@ export class Game {
     } else {
       p.x = m.x; p.y = m.y; p.z = m.z;
     }
+    // fall damage for players (their movement is predicted client-side): highest point of the airborne phase -> landing
+    if (!p.air && !air) {
+      if (!m.og) p.airPeak = Math.max(p.airPeak ?? p.y, p.y);
+      else if (p.airPeak != null) {
+        const h = p.airPeak - p.y; p.airPeak = null;
+        if (h > SAFE_FALL && !process.env.DEV_TELEPORT) this.damage(p, (h - SAFE_FALL) * FALL_DMG, null, 'fall');
+      }
+    } else p.airPeak = null;
+    if (!p.alive) return;
     p.yaw = +m.yaw || 0; p.pitch = Math.max(-1.5, Math.min(1.5, +m.pitch || 0));
     p.stance = STANCES.includes(m.st) ? m.st : 'stand';
     p.ads = !!m.ads; p.sprint = !!m.sp; p.vx = +m.vx || 0; p.vz = +m.vz || 0; p.onGround = !!m.og;
@@ -193,29 +204,62 @@ export class Game {
     const dl = Math.hypot(d.x, d.y, d.z); if (!Number.isFinite(dl) || dl < 1e-6) return false;
     d.x /= dl; d.y /= dl; d.z /= dl;
 
-    const maxRange = 600;
-    const wh = this.world.raycast(o, d, maxRange, true);
-    let best = wh ? wh.t : maxRange, victim = null, head = false;
-    const rewindTo = now - (p.bot ? 0 : Math.min(250, p.rtt / 2 + 100));
-    for (const q of this.players.values()) {
-      if (q === p || !q.alive || !this.isEnemy(p, q)) continue;
-      const hp = p.bot ? q : this.historyAt(q, rewindTo);
-      if (Math.hypot(hp.x - o.x, hp.z - o.z) > best + 2) continue;
-      for (const c of hitCapsules(hp)) {
-        const t = rayCapsule(o, d, c.a, c.b, c.r);
-        if (t !== null && t < best) { best = t; victim = q; head = c.part === 'head'; }
-      }
-    }
-    const end = [o.x + d.x * best, o.y + d.y * best, o.z + d.z * best];
-    this.emit({ t: 'shot', id: p.id, w: w.id, o: [o.x, o.y, o.z], e: end, s: victim ? 'flesh' : wh && wh.t <= best ? wh.surface : 'none', n: !victim && wh ? wh.normal : null });
-    if (victim) {
-      let dmg = damageAt(def, best) * (head ? def.headMul : 1);
-      this.damage(victim, dmg, p, w.id, head);
-      if (!victim.alive) p.score += head ? 20 : 0;
-      this.emit({ t: 'hitmark', hs: head, k: !victim.alive }, p.bot ? null : p);
-    }
+    // real projectile: travel time, drag and bullet drop (shared/ballistics.js). The path through the static world
+    // is known now; soldiers are tested segment by segment as the bullet flies (lag-compensated per segment).
+    const path = bulletPath(this.world, o, d, def);
+    const b = { id: nextId++, shooter: p, w: w.id, def, pts: path.pts, i: 0, t0: now, rewind: p.bot ? 0 : Math.min(250, p.rtt / 2 + 100), done: false };
+    const end = path.end, wh = path.hit;
+    this.emit({ t: 'shot', id: p.id, b: b.id, w: w.id, o: [o.x, o.y, o.z], e: [end.x, end.y, end.z], tf: +end.t.toFixed(3), s: wh ? wh.surface : 'none', n: wh ? wh.normal : null });
+    this.bullets.push(b);
+    this.stepBullet(b, now); // what the bullet covers before the next tick (anything within ~30 m) resolves right away
     if (w.mag === 0 && p.bot) this.reload(p);
     return true;
+  }
+
+  stepBullet(b, now) {
+    const until = (now - b.t0) / 1000 + STEP - 1e-6;
+    while (!b.done && b.i < b.pts.length - 1 && b.pts[b.i].t < until) {
+      const hit = this.#bulletSegment(b, b.pts[b.i], b.pts[b.i + 1]);
+      if (hit) { b.done = true; this.#bulletHit(b, hit); return; }
+      b.i++;
+    }
+    if (b.i >= b.pts.length - 1) b.done = true;
+  }
+
+  stepBullets(now) {
+    for (const b of this.bullets) this.stepBullet(b, now);
+    this.bullets = this.bullets.filter((b) => !b.done);
+  }
+
+  #bulletSegment(b, a, c) {
+    const sx = c.x - a.x, sy = c.y - a.y, sz = c.z - a.z, len = Math.hypot(sx, sy, sz);
+    if (len < 1e-6) return null;
+    const d = { x: sx / len, y: sy / len, z: sz / len }, o = { x: a.x, y: a.y, z: a.z };
+    const mx = a.x + sx / 2, mz = a.z + sz / 2;
+    // where everyone was when the bullet got here, as the shooter saw it
+    const at = b.t0 - b.rewind + c.t * 1000;
+    let best = len, victim = null, head = false;
+    for (const q of this.players.values()) {
+      if (q === b.shooter || !q.alive || !this.isEnemy(b.shooter, q)) continue;
+      if (Math.hypot(q.x - mx, q.z - mz) > len / 2 + 6) continue;
+      const hp = b.rewind ? this.historyAt(q, at) : q;
+      for (const cap of hitCapsules(hp)) {
+        const t = rayCapsule(o, d, cap.a, cap.b, cap.r);
+        if (t !== null && t < best) { best = t; victim = q; head = cap.part === 'head'; }
+      }
+    }
+    return victim ? { victim, head, dist: a.d + best, point: [o.x + d.x * best, o.y + d.y * best, o.z + d.z * best] } : null;
+  }
+
+  #bulletHit(b, { victim, head, dist, point }) {
+    const p = b.shooter, def = b.def;
+    const dmg = damageAt(def, dist) * (head ? def.headMul : 1);
+    const wasAlive = victim.alive;
+    this.damage(victim, dmg, p, b.w, head);
+    const killed = wasAlive && !victim.alive;
+    if (killed) p.score += head ? 20 : 0;
+    this.emit({ t: 'bhit', b: b.id, p: point.map((v) => +v.toFixed(2)), v: victim.id });
+    this.emit({ t: 'hitmark', hs: head, k: killed, d: Math.round(dmg), v: victim.id, r: Math.round(dist) }, p.bot ? null : p);
   }
 
   reload(p) {
@@ -348,6 +392,7 @@ export class Game {
       if (p.bot) {
         const input = p.brain.think(dt);
         if (p.air) stepAir(this.world, p, input, dt); else stepCharacter(this.world, p, input, dt);
+        if (p.fall > 0) this.damage(p, p.fall, null, 'fall');
         if (p.y < -30) this.kill(p, null, 'fall');
       } else if (now - p.lastInput > 8000) {
         // AFK/disconnected-ish: no inputs; nothing to simulate
@@ -362,6 +407,7 @@ export class Game {
       p.history.push({ t: now, x: p.x, y: p.y, z: p.z, yaw: p.yaw, stance: p.stance });
       while (p.history.length && p.history[0].t < now - HISTORY_MS) p.history.shift();
     }
+    this.stepBullets(now);
     this.stepGrenades(dt);
     this.stepFlags(dt);
   }

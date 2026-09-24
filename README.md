@@ -61,7 +61,7 @@ JUMP / CRCH / PRONE / R (reload) / G (grenade) / ⇄ (swap weapon) · top: 👁 
 device with `?touch=1`.
 
 **Keyboard & mouse:** WASD move · Shift sprint · Space jump · C crouch · Z prone · RMB aim down sights · LMB fire · R reload ·
-1/2 or wheel switch weapon · G grenade · **V first/third person** · Tab scoreboard · T/Enter chat · F3 asset debug ·
+1/2 or wheel switch weapon · **PgUp / PgDn sight zeroing** · G grenade · **V first/third person** · Tab scoreboard · T/Enter chat · F3 asset debug ·
 battle royale: **Space** jump / open parachute · **E** pick up · **H** heal · **M** island map
 
 ## Game
@@ -83,6 +83,24 @@ battle royale: **Space** jump / open parachute · **E** pick up · **H** heal ·
      Last one standing wins, then the next match starts in the same room.
   Everything is server-authoritative (jump window, air-speed limits, pickup range, armor, healing, ring damage).
   Royale bots pick a drop zone along the flight path, loot what they need, run from the ring and fight everyone.
+* **Ballistics** (`shared/ballistics.js`, simulated by the server): every bullet is a projectile with the real muzzle
+  velocity of its cartridge, air drag, gravity drop and a maximum range; it takes time to arrive (a sniper round needs
+  ~0.2 s for 150 m) and each flight segment is lag-compensated against where targets were at that moment.
+
+  | Weapon | Muzzle velocity | Max range | Zeroing (PgUp / PgDn) | Drop at 200 m* |
+  |---|---|---|---|---|
+  | AR-15 carbine (5.56 mm) | 910 m/s | 700 m | 50 · 100 · 200 · 300 m | ≈ 20 cm |
+  | M-38 bolt rifle (7.62 mm) | 830 m/s | 1200 m | 100 · 200 … 800 m | ≈ 19 cm |
+  | P-17 pistol (9 mm) | 360 m/s | 220 m | 25 · 50 m | ≈ 1.7 m |
+
+  \* with the default (shortest) zero. Tracers fly at the bullet's speed, impacts appear when it lands, bullets
+  passing within ~4 m of you make a supersonic crack. Damage falls off with distance; headshots multiply it.
+* **Hit feedback**: hits are confirmed by the server when the bullet actually reaches the target — X marker on the
+  crosshair with the damage number (gold = headshot, red = kill, distance for long shots) and a hit sound; the
+  crosshair turns red while it is on an enemy; the victim sees the damage direction.
+* **Movement physics** (`shared/world.js`): real gravity (9.81 m/s²), ≈ 0.55 m standing jump, identical at any frame
+  rate (fixed 120 Hz sub-steps, exact integration); momentum is kept in the air with only light air control; chained
+  jumps lose height; hard landings slow you briefly; falls above 3.2 m cause damage (≈ 10 m is lethal).
 * **Kits**: Assault (automatic carbine, pistol, 2 frags) · Recon (4× scoped bolt-action rifle, pistol, 1 frag).
 * **Server-authoritative**: the server owns ammo, fire rate, damage, hit detection (lag-compensated hitscan
   against capsule hitboxes; walls/cover block shots; headshot multipliers; range falloff), grenades (simulated
@@ -138,6 +156,11 @@ Convert your own `.blend` files with `blender -b file.blend --python scripts/ble
   (*Program Settings → chrome.exe → High-performance NVIDIA processor*) / AMD Adrenalin, plug in the charger,
   restart the browser. If hardware acceleration is off it says how to turn it on.
 * If the laptop switches GPU or the driver resets mid-game, the page rejoins the same room automatically.
+* In game (**Esc**): switch preset (VERY LOW … ULTRA), render scale (AUTO keeps the frame rate, or fixed 50–200 %),
+  view distance (150–1000 m), FPS / GPU counter.
+* Still showing Intel after choosing the NVIDIA card in Windows? Chrome keeps running in the background — quit it
+  completely (⋮ → Exit, and turn off *Continue running background apps*), or add `--force_high_performance_gpu` to the
+  Chrome shortcut's *Target*, or set `chrome://flags/#use-angle` to *D3D11on12*. `chrome://gpu` shows the GPU in use.
 
 ### Performance (VERY LOW … ULTRA presets)
 Instanced props/vegetation, tree LOD0 → LOD1 → baked billboard impostors, distance-streamed grass, chunked

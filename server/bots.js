@@ -2,6 +2,7 @@
 import { EYE_HEIGHT } from '../shared/world.js';
 import { WEAPONS } from '../shared/weapons.js';
 import { angleDiff, clamp } from '../shared/util.js';
+import { zeroAngle } from '../shared/ballistics.js';
 
 const rand = (a, b) => a + Math.random() * (b - a);
 
@@ -84,10 +85,13 @@ export class BotBrain {
       const t = this.target;
       const eye = { x: p.x, y: p.y + EYE_HEIGHT[p.stance], z: p.z };
       const aimY = t.y + (t.stance === 'prone' ? 0.3 : t.stance === 'crouch' ? 0.95 : 1.4) + (Math.random() < 0.18 * this.skill ? 0.25 : 0);
-      const dx = t.x + (t.vx || 0) * 0.08 - eye.x, dy = aimY - eye.y, dz = t.z + (t.vz || 0) * 0.08 - eye.z;
+      // lead moving targets by the bullet's flight time and hold over for the drop (skilled bots judge it better)
+      const rough = Math.hypot(t.x - eye.x, t.z - eye.z), flight = rough / def.velocity;
+      const lead = flight * (0.5 + this.skill * 0.5) + 0.05;
+      const dx = t.x + (t.vx || 0) * lead - eye.x, dy = aimY - eye.y, dz = t.z + (t.vz || 0) * lead - eye.z;
       const dist = Math.hypot(dx, dz);
       const wantYaw = Math.atan2(-dx, -dz) + this.aimErr.yaw;
-      const wantPitch = Math.atan2(dy, dist) + this.aimErr.pitch;
+      const wantPitch = Math.atan2(dy, dist) + this.aimErr.pitch + zeroAngle(def, clamp(Math.round(dist / 10) * 10, 10, def.maxRange * 0.9)) * (0.7 + this.skill * 0.3);
       // aim error converges as the bot tracks the target
       const conv = Math.exp(-dt * (1.2 + this.skill * 2.2));
       this.aimErr.yaw *= conv; this.aimErr.pitch *= conv;

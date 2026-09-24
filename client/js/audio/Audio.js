@@ -144,6 +144,15 @@ export class GameAudio {
     };
   }
 
+  // supersonic crack of a bullet passing within a few metres (+ a short whizz for slower pistol rounds)
+  crack(pos, weapon = 'ar', dist = 2) {
+    if (!this.ctx || !this.enabled) return;
+    const t = this.ctx.currentTime, loud = Math.max(0.25, 1 - dist / 4);
+    const g = this.#chain(pos, 0.9 * loud, 16000, 0, 0.3);
+    if (weapon === 'pistol') this.#noiseBurst(g, t, 0.12, 0.01, 1200, 2400);
+    else { this.#noiseBurst(g, t, 0.025, 0.0005, 2500); this.#noiseBurst(g, t + 0.004, 0.06, 0.001, 800, 1800); }
+  }
+
   explosion(pos) {
     if (!this.ctx) return;
     const d = this.#dist(pos), t = this.ctx.currentTime, delay = d > 30 ? d / 343 : 0;
@@ -173,7 +182,8 @@ export class GameAudio {
   ui(kind) {
     if (!this.ctx) return;
     const t = this.ctx.currentTime, g = this.#chain(null, 0.35, 12000);
-    if (kind === 'hit') { this.#noiseBurst(g, t, 0.04, 0.001, 4000); }
+    if (kind === 'hit') { this.#noiseBurst(g, t, 0.04, 0.001, 4000); this.#thump(g, t, 1400, 0.05, 0.25); }
+    if (kind === 'headshot') { this.#noiseBurst(g, t, 0.05, 0.001, 3500); const o = this.ctx.createOscillator(), og = this.ctx.createGain(); o.type = 'triangle'; o.frequency.setValueAtTime(2600, t); og.gain.setValueAtTime(0.25, t); og.gain.exponentialRampToValueAtTime(0.001, t + 0.18); o.connect(og).connect(g); o.start(t); o.stop(t + 0.2); }
     if (kind === 'kill') { this.#noiseBurst(g, t, 0.05, 0.001, 3000); this.#noiseBurst(g, t + 0.07, 0.06, 0.001, 3000); }
     if (kind === 'hurt') { this.#thump(g, t, 90, 0.18, 0.6); }
     if (kind === 'reload') { this.#noiseBurst(g, t, 0.04, 0.001, 2500, 3200); this.#noiseBurst(g, t + 0.35, 0.05, 0.001, 2000, 2400); }

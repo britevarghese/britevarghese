@@ -5,7 +5,13 @@ export const STEP_UP = 0.5;
 export const PLAYER_RADIUS = 0.34;
 export const STANCE_HEIGHT = { stand: 1.8, crouch: 1.2, prone: 0.55 };
 export const EYE_HEIGHT = { stand: 1.64, crouch: 1.08, prone: 0.38 };
-export const MOVE = { walk: 3.6, sprint: 6.3, crouch: 2.0, prone: 0.85, ads: 2.2, accel: 40, airAccel: 6, jump: 4.8, gravity: 19 };
+// Real-world numbers: g = 9.81 m/s², a loaded soldier's standing jump ≈ 3.3 m/s take-off (≈ 0.55 m of lift,
+// ≈ 0.67 s in the air). Momentum is kept in the air (only light air control); repeated jumps tire you out;
+// hard landings slow you down; falls higher than SAFE_FALL hurt (FALL_DMG hp per extra metre).
+export const MOVE = { walk: 3.6, sprint: 6.3, crouch: 2.0, prone: 0.85, ads: 2.2, accel: 40, airAccel: 2.5, jump: 3.3, gravity: 9.81 };
+export const SAFE_FALL = 3.2, FALL_DMG = 16;
+export const fallDamage = (impactSpeed) => { const h = (impactSpeed * impactSpeed) / (2 * MOVE.gravity); return h > SAFE_FALL ? (h - SAFE_FALL) * FALL_DMG : 0; };
+const MAX_STEP = 1 / 120;
 
 const CELL = 12;
 
@@ -221,33 +227,67 @@ export function rayBox(o, d, mn, mx) {
 // ------------------------------------------------------------------ character movement (shared by bots + client prediction)
 // state: { x, y, z, vx, vy, vz, onGround, stance }
 // input: { fx, fz (world-space wish dir, normalized or 0), sprint, jump, ads }
+// Fixed 120 Hz sub-steps + exact constant-gravity integration: the same jump reaches the same height on a
+// 30 fps phone, a 144 Hz monitor and the 30 Hz server.
 export function stepCharacter(world, s, input, dt) {
-  const speed = s.stance === 'prone' ? MOVE.prone : s.stance === 'crouch' ? MOVE.crouch : input.ads ? MOVE.ads : input.sprint ? MOVE.sprint : MOVE.walk;
-  const wx = input.fx * speed, wz = input.fz * speed;
-  const accel = s.onGround ? MOVE.accel : MOVE.airAccel;
-  const ax = wx - s.vx, az = wz - s.vz;
-  const al = Math.hypot(ax, az), maxA = accel * dt;
-  if (al > maxA) { s.vx += (ax / al) * maxA; s.vz += (az / al) * maxA; } else { s.vx = wx; s.vz = wz; }
-  if (input.jump && s.onGround && s.stance === 'stand') { s.vy = MOVE.jump; s.onGround = false; }
-  s.vy -= MOVE.gravity * dt;
-  const height = STANCE_HEIGHT[s.stance];
-  // substeps for stability
-  const n = Math.max(1, Math.ceil((Math.hypot(s.vx, s.vz) * dt) / 0.25));
-  const pos = { x: s.x, z: s.z };
+  const n = Math.max(1, Math.ceil(dt / MAX_STEP - 1e-6)), h = dt / n;
+  let landed = 0;
   for (let i = 0; i < n; i++) {
-    pos.x += (s.vx * dt) / n; pos.z += (s.vz * dt) / n;
-    world.resolveHorizontal(pos, s.y, height);
+    stepOnce(world, s, input, h);
+    if (s.landed) landed = Math.max(landed, s.landed);
+    input = i === 0 && input.jump ? { ...input, jump: false } : input; // one jump per call
   }
+  s.landed = landed;
+  s.fall = landed ? fallDamage(landed) : 0;
+  return s;
+}
+
+function stepOnce(world, s, input, dt) {
+  s.fatigue = Math.max(0, (s.fatigue || 0) - dt * 0.35);
+  s.groundT = s.onGround ? (s.groundT || 0) + dt : 0;
+  s.landSlow = Math.max(0, (s.landSlow || 0) - dt);
+  let speed = s.stance === 'prone' ? MOVE.prone : s.stance === 'crouch' ? MOVE.crouch : input.ads ? MOVE.ads : input.sprint ? MOVE.sprint : MOVE.walk;
+  if (s.landSlow > 0) speed *= 0.5;
+  const wx = input.fx * speed, wz = input.fz * speed;
+  if (s.onGround) {
+    const accel = MOVE.accel;
+    const ax = wx - s.vx, az = wz - s.vz;
+    const al = Math.hypot(ax, az), maxA = accel * dt;
+    if (al > maxA) { s.vx += (ax / al) * maxA; s.vz += (az / al) * maxA; } else { s.vx = wx; s.vz = wz; }
+  } else if (input.fx || input.fz) {
+    // airborne: keep momentum, only nudge toward the wish direction (can't speed past the take-off speed)
+    const before = Math.hypot(s.vx, s.vz);
+    s.vx += input.fx * MOVE.airAccel * dt; s.vz += input.fz * MOVE.airAccel * dt;
+    const after = Math.hypot(s.vx, s.vz), cap = Math.max(before, speed * 0.5);
+    if (after > cap) { s.vx *= cap / after; s.vz *= cap / after; }
+  }
+  // jump: needs solid footing for a moment; chained jumps lose height (no bunny hopping)
+  if (input.jump && s.onGround && s.stance === 'stand' && s.groundT > 0.1) {
+    s.vy = MOVE.jump * (1 - 0.45 * Math.min(1, s.fatigue));
+    s.fatigue = Math.min(1.5, s.fatigue + 0.6);
+    s.onGround = false; s.groundT = 0;
+  }
+  const height = STANCE_HEIGHT[s.stance];
+  const pos = { x: s.x + s.vx * dt, z: s.z + s.vz * dt };
+  world.resolveHorizontal(pos, s.y, height);
+  // blocked by a wall: lose the velocity into it
+  if (Math.abs(pos.x - (s.x + s.vx * dt)) > 1e-4) s.vx = (pos.x - s.x) / dt;
+  if (Math.abs(pos.z - (s.z + s.vz * dt)) > 1e-4) s.vz = (pos.z - s.z) / dt;
   s.x = pos.x; s.z = pos.z;
-  let ny = s.y + s.vy * dt;
+  const g = MOVE.gravity;
+  let ny = s.y + s.vy * dt - 0.5 * g * dt * dt;
+  let vy = s.vy - g * dt;
   const ceil = world.ceilingHeight(s.x, s.z, s.y + 0.5);
-  if (ny + height > ceil && s.vy > 0) { ny = ceil - height; s.vy = 0; }
+  if (ny + height > ceil && vy > 0) { ny = ceil - height; vy = 0; }
   const sup = world.supportHeight(s.x, s.z, Math.max(s.y, ny));
   const wasGround = s.onGround;
-  if (ny <= sup || (wasGround && s.vy <= 0 && s.y - sup < 0.35)) {
-    s.landed = !wasGround && s.vy < -6 ? -s.vy : 0;
-    ny = sup; s.vy = 0; s.onGround = true;
+  s.landed = 0;
+  if (ny <= sup || (wasGround && vy <= 0 && s.y - sup < 0.35)) {
+    if (!wasGround) {
+      s.landed = -vy;
+      if (-vy > 6) s.landSlow = Math.min(0.6, -vy * 0.04);
+    }
+    ny = sup; vy = 0; s.onGround = true;
   } else s.onGround = false;
-  s.y = ny;
-  return s;
+  s.y = ny; s.vy = vy;
 }

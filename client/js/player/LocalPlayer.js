@@ -3,6 +3,7 @@ import * as THREE from 'three';
 import { stepCharacter, EYE_HEIGHT, STANCE_HEIGHT } from '/shared/world.js';
 import { WEAPONS } from '/shared/weapons.js';
 import { stepAir } from '/shared/royale.js';
+import { zeroAngle } from '/shared/ballistics.js';
 
 const damp = (a, b, k, dt) => a + (b - a) * (1 - Math.exp(-k * dt));
 
@@ -33,6 +34,7 @@ export class LocalPlayer {
     addEventListener('keydown', (e) => {
       if (this.g.chatOpen) return;
       if (e.code === 'Tab') { e.preventDefault(); this.g.hud.scoreboard(true, this.g.myId); }
+      if (e.code === 'Space' && !e.repeat && this.alive) this.jumpQueued = true; // a tap shorter than one frame still jumps
       this.keys.add(e.code);
       const R = this.g.royale;
       if (R && !e.repeat) {
@@ -49,6 +51,7 @@ export class LocalPlayer {
       if (e.code === 'Digit2') this.switchSlot(1);
       if (e.code === 'KeyG') this.throwGrenade();
       if (e.code === 'KeyV') this.thirdPerson = !this.thirdPerson;
+      if (e.code === 'PageUp' || e.code === 'PageDown') { e.preventDefault(); this.cycleZero(e.code === 'PageUp' ? 1 : -1); }
     });
     addEventListener('keyup', (e) => { this.keys.delete(e.code); if (e.code === 'Tab') this.g.hud.scoreboard(false); if (e.code === 'KeyM' && this.g.royale) this.g.royale.mapHeld = false; });
     el.addEventListener('mousedown', (e) => {
@@ -82,9 +85,20 @@ export class LocalPlayer {
 
   weaponId() { return this.weapons[this.slot]?.id; }
 
+  // sight zeroing distance (m) of the current weapon; the barrel is tilted so the bullet crosses the aim point there
+  zeroOf(id = this.weaponId()) { const def = WEAPONS[id]; return def?.zero ? (this.zero?.[id] ?? def.zero[0]) : 0; }
+  cycleZero(step) {
+    const id = this.weaponId(), def = WEAPONS[id]; if (!def?.zero) return;
+    this.zero = this.zero || {};
+    const i = Math.max(0, Math.min(def.zero.length - 1, def.zero.indexOf(this.zeroOf(id)) + step));
+    this.zero[id] = def.zero[i];
+    this.g.hud.notice(`ZEROING ${def.zero[i]} m`, 900);
+    this.g.audio.ui('switch');
+  }
+
   spawn(m) {
     Object.assign(this.s, { x: m.x, y: m.y, z: m.z, vx: m.vx || 0, vy: m.vy || 0, vz: m.vz || 0, onGround: !m.air, stance: 'stand', air: m.air || 0 });
-    this.yaw = m.yaw; this.pitch = m.air ? -0.5 : 0; this.alive = true;
+    this.yaw = m.yaw; this.pitch = m.air ? -0.5 : 0; this.alive = true; this.jumpQueued = false;
     this.weapons = m.w.map((w) => (w ? { ...w } : null)); this.grenades = m.g; this.slot = m.sl ?? 0;
     this.reloadUntil = 0; this.recoil.p = this.recoil.y = 0;
     this.g.equipLocal(this.weaponId());
@@ -164,9 +178,9 @@ export class LocalPlayer {
     if (sprint && s.stance === 'crouch') s.stance = 'stand';
     const ads = this.mouse.r && !sprint;
     this.sprinting = sprint; this.ads = ads;
-    const jump = !chat && (k.has('Space') || T.jump);
-    const jumpPulse = T.jump;
-    T.jump = false;
+    const jump = !chat && (k.has('Space') || T.jump || this.jumpQueued);
+    const jumpPulse = T.jump || this.jumpQueued;
+    T.jump = false; this.jumpQueued = false;
     if (s.air) {
       // freefall / canopy: steer with WASD relative to the view, look down to dive, SPACE opens the canopy
       const dive = Math.max(0, Math.min(1, (-this.pitch - 0.35) / 0.8));
@@ -245,6 +259,9 @@ export class LocalPlayer {
     const right = new THREE.Vector3().crossVectors(d, new THREE.Vector3(0, 1, 0)).normalize();
     const up = new THREE.Vector3().crossVectors(right, d).normalize();
     d.addScaledVector(right, Math.cos(a) * r).addScaledVector(up, Math.sin(a) * r).normalize();
+    // sight zeroing: barrel tilted up so the bullet's drop brings it back onto the aim point at the zero distance
+    const za = zeroAngle(def, this.zeroOf(def.id));
+    if (za) d.multiplyScalar(Math.cos(za)).addScaledVector(up, Math.sin(za)).normalize();
     const eye = this.eyePos();
     this.g.net.send({ t: 'fire', o: [eye.x, eye.y, eye.z], d: [d.x, d.y, d.z], ct: this.g.net.serverNow() });
     // recoil: kick the aim (camera) up with slight random yaw; bloom the cone
