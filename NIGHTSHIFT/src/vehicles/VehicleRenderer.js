@@ -221,8 +221,8 @@ export class VehicleRenderer {
       const key = `${c.vinyl || 0}|${c.paint}|${c.paint2}`;
       if (key !== this._paintKey) {
         this._paintKey = key;
-        m.paint.map?.dispose(); m.paint.normalMap?.dispose();
-        const t = carPaintTexture(c.vinyl || 0, c.paint, c.paint2 || '#111', panels);
+        if (!m.paint.map?.userData.shared) { m.paint.map?.dispose(); m.paint.normalMap?.dispose(); }
+        const t = carPaintTexture(c.vinyl || 0, c.paint, c.paint2 || '#111', panels, this.opts.sharedPaint ? `${this.carId}|${key}` : null);
         m.paint.map = t.map; m.paint.normalMap = t.normalMap;
         m.paint.normalScale = new THREE.Vector2(0.35, 0.35);
       }
@@ -384,7 +384,11 @@ export class VehicleRenderer {
 
   dispose() {
     this.group.removeFromParent();
-    for (const m of Object.values(this.mats)) { m.map?.dispose(); m.dispose(); }
+    for (const m of Object.values(this.mats)) {
+      if (m.map && !m.map.userData.shared) m.map.dispose();
+      if (m === this.mats.paint && m.normalMap && !m.normalMap.userData.shared) m.normalMap.dispose(); // per-instance paint grooves
+      m.dispose();
+    }
     for (const part of this.bodyParts || []) part.mesh.geometry.dispose();
   }
 }

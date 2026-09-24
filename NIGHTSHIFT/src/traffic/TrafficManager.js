@@ -118,11 +118,13 @@ export class TrafficManager {
     const R = this.R;
     // spawn / despawn
     const max = this.maxCars;
-    for (let k = 0; k < 3 && this.cars.length < max; k++) this.spawnNear(focus.x, focus.z, this.cars.length < max * 0.5 ? 50 : 90, 260, forward);
+    for (let k = 0; k < 3 && this.cars.length < max; k++) this.spawnNear(focus.x, focus.z, this.cars.length < max * 0.5 ? 45 : 80, 240, forward);
     for (const c of [...this.cars]) {
       const d = Math.hypot(c.x - focus.x, c.z - focus.z);
       c.dist = d;
-      if (d > 330 || (c.state === 'wreck' && d > 120) || this.cars.length > max + 4 && d > 200) this.remove(c);
+      // cars left well behind are recycled so the budget stays around (and ahead of) the player
+      const behind = forward && d > 150 && ((c.x - focus.x) * forward.x + (c.z - focus.z) * forward.z) / d < -0.4 && this.cars.length >= max * 0.8;
+      if (d > 310 || behind || (c.state === 'wreck' && d > 120) || this.cars.length > max + 4 && d > 200) this.remove(c);
     }
     // sort occupancy
     for (const c of this.cars) if (c.path) c.path._sorted = false;

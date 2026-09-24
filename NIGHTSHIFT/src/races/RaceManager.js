@@ -138,7 +138,7 @@ export class RaceManager {
       for (let i = 0; i < def.opponents; i++) {
         const carId = pool[(i + 1) % pool.length];
         const params = tunedParams(carId, { engine: 1 + (i % 2), tires: 1, transmission: 1 });
-        const v = new Vehicle({ carId, params, world: this.world, lib: game.lib, role: 'racer', carType: CARS[carId].carType, renderOpts: { headlights: 0, shadow: false, lodDistance: game.preset.carLod1Distance } });
+        const v = new Vehicle({ carId, params, world: this.world, lib: game.lib, role: 'racer', carType: CARS[carId].carType, renderOpts: { headlights: 0, shadow: false, lodDistance: game.preset.carLod1Distance, sharedPaint: true } });
         const [lat, back] = slots[i];
         v.place(ev.start.x + rx * lat + fx * back, ev.start.z + rz * lat + fz * back, ev.start.yaw);
         v.renderer.applyCustom({ paint: PAINTS[(i * 5 + 3) % PAINTS.length], paint2: '#111', vinyl: (i % 5) + 1, finish: 'metallic', wheel: i % 4, spoiler: 1 + (i % 3), hood: i % 3, bumper: i % 2, tint: 0.6, wheelColor: '#222428' });

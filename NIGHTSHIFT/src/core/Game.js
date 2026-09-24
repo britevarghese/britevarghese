@@ -85,6 +85,7 @@ export class Game {
     this.fx = new Effects(this.scene, preset);
     this.debris = new Debris(this.scene, this.world.props.defs, (x, z) => this.world.layout.groundHeight(x, z), 40);
     this.police = new PoliceManager(this);
+    try { this.police.prewarm(); } catch (e) { console.warn('[Game] police prewarm failed', e); }
     this.races = new RaceManager(this);
     this.peds = new Pedestrians(this.scene, this.world.layout, preset.pedestrians);
     this.audio = new AudioManager(this.settings.audio);

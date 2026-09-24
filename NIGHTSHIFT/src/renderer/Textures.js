@@ -22,9 +22,15 @@ function tex(c, { srgb = true, repeat = true, aniso = true } = {}) {
   return t;
 }
 
+// cached textures are shared: flag them so per-object disposal (vehicles, debris) leaves them alone
+function markShared(v) {
+  if (v?.isTexture) v.userData.shared = true;
+  else if (v && typeof v === 'object') for (const x of Object.values(v)) if (x?.isTexture) x.userData.shared = true;
+  return v;
+}
 function cached(key, fn) {
   const k = key + '@' + SIZE;
-  if (!cache.has(k)) cache.set(k, fn());
+  if (!cache.has(k)) cache.set(k, markShared(fn()));
   return cache.get(k);
 }
 
@@ -732,7 +738,12 @@ export function vinylTexture(index, base, accent) {
 // ------------------------------------------------------------------ car detail maps
 // Paint albedo (vinyl + panel shut lines + window trim) and a matching groove normal map, drawn from
 // the per-model panel layout exported by the model generator (u = along the car, v = around it).
-export function carPaintTexture(vinyl, base, accent, panels) {
+// shareKey: AI cars with identical liveries (police, racers) share one cached texture pair, marked
+// userData.shared so per-vehicle disposal leaves it alone. Player paint stays per-instance.
+export function carPaintTexture(vinyl, base, accent, panels, shareKey = null) {
+  if (shareKey) {
+    return cached('paint:' + shareKey, () => carPaintTexture(vinyl, base, accent, panels));
+  }
   const w = panels?.width || 1024, h = panels?.height || 512;
   const c = canvas(w, h), ctx = c.getContext('2d');
   const hc = canvas(w, h), hx = hc.getContext('2d');

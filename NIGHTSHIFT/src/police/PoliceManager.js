@@ -59,7 +59,7 @@ export class PoliceManager {
     if (!this.game.lib.has('interceptor')) return null;
     const rules = HEAT_RULES[Math.max(1, this.heat)] || HEAT_RULES[1];
     const params = { ...POLICE_CAR.params, enginePower: POLICE_CAR.params.enginePower * rules.power, grip: POLICE_CAR.params.grip * rules.grip, maxSpeed: POLICE_CAR.params.maxSpeed * (0.95 + rules.power * 0.1) };
-    const v = new Vehicle({ carId: 'interceptor', params, world: this.world, lib: this.game.lib, role: 'police', carType: 'muscle', renderOpts: { police: true, headlights: 0, shadow: false, lodDistance: this.game.preset.carLod1Distance, detailWheels: false } });
+    const v = new Vehicle({ carId: 'interceptor', params, world: this.world, lib: this.game.lib, role: 'police', carType: 'muscle', renderOpts: { police: true, headlights: 0, shadow: false, lodDistance: this.game.preset.carLod1Distance, detailWheels: false, sharedPaint: true } });
     v.place(x, z, yaw);
     v.renderer.applyCustom({ paint: '#f2f2f2', paint2: '#0b0d12', vinyl: 3, finish: 'gloss', spoiler: 0, hood: 0, bumper: 0, tint: 0.7, wheelColor: '#2a2c30' });
     this.game.scene.add(v.renderer.group);
@@ -68,6 +68,12 @@ export class PoliceManager {
     const unit = { vehicle: v, ai, role, replanT: 0, health: 1, disabled: false, id: v.id };
     this.units.push(unit);
     return unit;
+  }
+
+  // build the livery/materials once while loading so the first backup unit doesn't hitch
+  prewarm() {
+    const u = this._spawnUnit(0, 0, 0, 'patrol');
+    if (u) this._removeUnit(u);
   }
 
   _removeUnit(u) {
