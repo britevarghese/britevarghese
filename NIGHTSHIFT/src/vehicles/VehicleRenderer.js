@@ -132,7 +132,7 @@ export class VehicleRenderer {
     for (const f of this.headFlares) f.position.z += 0.05;
     // fake headlight beam on the ground (cheap, works on every quality level)
     const beamMat = new THREE.MeshBasicMaterial({ map: lightPool(), color: 0xfff0d8, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false, opacity: 0.5, polygonOffset: true, polygonOffsetFactor: -6 });
-    this.beam = new THREE.Mesh(new THREE.PlaneGeometry(7, 18).rotateX(-Math.PI / 2).translate(0, 0.06, 11.5), beamMat);
+    this.beam = new THREE.Mesh(new THREE.PlaneGeometry(9, 30).rotateX(-Math.PI / 2).translate(0, 0.06, 17), beamMat);
     this.beam.renderOrder = 5;
     this.group.add(this.beam);
     // real spotlights (player only; count limited by quality)
@@ -142,9 +142,11 @@ export class VehicleRenderer {
     if (n > 0 && hl) {
       const positions = n >= 2 ? [hl.clone(), hl.clone().setX(-hl.x)] : [hl.clone().setX(0)];
       for (const p of positions) {
-        const s = new THREE.SpotLight(0xfff2dc, n >= 2 ? 60 : 110, 70, 0.42, 0.55, 1.6);
-        s.position.copy(p);
-        s.target.position.set(p.x * 1.3, -0.4, p.z + 20);
+        // physically based intensity (candela). Mounted a little higher with a narrow cone aimed down
+        // the road, so it lights 5-45 m ahead without flooding the ground right at the bumper.
+        const s = new THREE.SpotLight(0xfff0dc, n >= 2 ? 1500 : 2400, 80, 0.3, 0.6, 1.5);
+        s.position.set(p.x * 0.8, p.y + 0.35, p.z - 0.3);
+        s.target.position.set(p.x * 1.4, -0.9, p.z + 30);
         s.castShadow = false;
         this.body.add(s, s.target);
         this.spots.push(s);
@@ -319,14 +321,29 @@ export class VehicleRenderer {
     const m = this.mats;
     if (m.headlight) m.headlight.emissiveIntensity = hOn ? 3.2 : 0.4;
     if (m.taillight) m.taillight.emissiveIntensity = (hOn ? 1.4 : 0.25) + this.brake * 4;
+    // lamp flares: only when the lamp faces the viewer, sized by distance (no giant blobs up close)
+    let facing = 1, dist = 20;
+    if (camPos) {
+      const dx = camPos.x - s.x, dz = camPos.z - s.z;
+      dist = Math.hypot(dx, dz) || 1;
+      facing = (dx * Math.sin(s.yaw) + dz * Math.cos(s.yaw)) / dist; // +1 = camera in front of the car
+    }
+    const headK = clamp((facing - 0.05) / 0.6, 0, 1), tailK = clamp((-facing - 0.05) / 0.6, 0, 1);
+    const fsize = clamp(0.25 + dist * 0.018, 0.25, 1.6);
     for (let i = 0; i < this.headFlares.length; i++) {
       const f = this.headFlares[i];
-      f.visible = hOn && !this.lightsBroken[i];
-      f.material.opacity = 0.9;
+      f.visible = hOn && !this.lightsBroken[i] && headK > 0.01;
+      f.material.opacity = headK * 0.95;
+      f.scale.setScalar(fsize * 1.2);
     }
-    for (const f of this.tailFlares) { f.visible = hOn || this.brake > 0.1; f.scale.setScalar(0.55 + this.brake * 0.55); f.material.opacity = 0.5 + this.brake * 0.5; }
+    for (const f of this.tailFlares) {
+      const on = hOn || this.brake > 0.1;
+      f.visible = on && tailK > 0.01;
+      f.material.opacity = tailK * (0.45 + this.brake * 0.55);
+      f.scale.setScalar(fsize * (0.55 + this.brake * 0.4));
+    }
     this.beam.visible = hOn && !(this.lightsBroken[0] && this.lightsBroken[1]);
-    this.beam.material.opacity = 0.35 * Math.min(1, night * 1.2) * (this.lightsBroken[0] || this.lightsBroken[1] ? 0.5 : 1);
+    this.beam.material.opacity = (this.spots.length ? 0.18 : 0.5) * Math.min(1, night * 1.2) * (this.lightsBroken[0] || this.lightsBroken[1] ? 0.5 : 1);
     for (let i = 0; i < this.spots.length; i++) this.spots[i].visible = hOn && !this.lightsBroken[this.spots.length === 1 ? 0 : i];
     // nitro flames
     this.nitro = lerp(this.nitro, s.nitroActive ? 1 : 0, 0.3);

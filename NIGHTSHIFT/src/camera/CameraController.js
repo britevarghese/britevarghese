@@ -33,6 +33,24 @@ export class CameraController {
     this.cinematic = null;      // {pos, target, t}
   }
 
+  // fraction (0..1) of the camera offset that is free of solid colliders
+  _clearance(x, y, z, off) {
+    const col = this.world.collision;
+    const steps = 12;
+    const tmp = this._tmp || (this._tmp = []);
+    for (let i = 2; i <= steps; i++) {
+      const f = i / steps;
+      const px = x + off.x * f, pz = z + off.z * f, py = y + (off.y - 1.3) * f;
+      col.query(px - 0.4, pz - 0.4, px + 0.4, pz + 0.4, tmp);
+      for (const c of tmp) {
+        if (c.kind === 'pole' || c.kind === 'tree' || c.kind === 'rail' || c.kind === 'barrier' || c.h < py) continue;
+        const lx = (px - c.cx) * c.cos - (pz - c.cz) * c.sin, lz = (px - c.cx) * c.sin + (pz - c.cz) * c.cos;
+        if (Math.abs(lx) <= c.hx + 0.35 && Math.abs(lz) <= c.hz + 0.35) return Math.max(0.3, (i - 1.5) / steps);
+      }
+    }
+    return 1;
+  }
+
   next() { this.mode = (this.mode + 1) % CAMERA_MODES.length; return CAMERA_MODES[this.mode].name; }
   addShake(a) { this.shake = Math.min(1.5, this.shake + a); }
 
@@ -42,6 +60,7 @@ export class CameraController {
     const m = CAMERA_MODES[1];
     this.pos.set(s.x - Math.sin(s.yaw) * m.dist, s.y + m.height, s.z - Math.cos(s.yaw) * m.dist);
     this.look.set(s.x, s.y + 1, s.z);
+    this.off = null; this.baseY = s.y; this.hVel = 0; this.gLag = 0; this.clear = 1;
   }
 
   update(dt, vehicle, controls, fx = {}) {
@@ -100,46 +119,57 @@ export class CameraController {
     }
     cam.near = 0.2;
     // --- chase camera ---
-    // follow heading blends between car heading and travel direction (drift follow)
+    // The camera offset is smoothed in car-relative space, so at constant speed the car stays put
+    // in the frame (no ever-growing positional lag); rotation follows through a critically damped
+    // angular spring, and g-forces nudge the distance (accel pulls back, braking pushes in).
     const velHeading = Math.atan2(s.vx, s.vz);
     let target = s.yaw;
     if (speed > 4 && s.speed > 0) {
       let diff = velHeading - s.yaw;
       while (diff > Math.PI) diff -= Math.PI * 2; while (diff < -Math.PI) diff += Math.PI * 2;
-      target = s.yaw + diff * 0.55;
+      target = s.yaw + diff * (s.drifting ? 0.62 : 0.4); // swing out to show the drift angle
     }
     let dh = target - this.heading;
     while (dh > Math.PI) dh -= Math.PI * 2; while (dh < -Math.PI) dh += Math.PI * 2;
-    this.heading += dh * (1 - Math.exp(-dt * (s.onGround ? 5.5 : 2)));
+    const wH = s.onGround ? 6.5 : 2.5;
+    this.hVel = (this.hVel || 0) + (wH * wH * dh - 2 * wH * (this.hVel || 0)) * dt;
+    this.heading += this.hVel * dt;
     const h = this.heading + this.orbitX + (lookBack ? Math.PI : 0);
-    const speedK = clamp(speed / 70, 0, 1);
-    const dist = mode.dist * (1 + speedK * 0.12 - (fx.nitro || 0) * 0.06);
-    const height = mode.height * (1 + this.orbitY * 0.9) + (s.onGround ? 0 : 0.4);
-    // braking dive / acceleration lift (camera reacts to body pitch)
+    const sk = clamp(speed / 75, 0, 1);
+    const ease = sk * sk * (3 - 2 * sk);
+    const nitro = fx.nitro || 0;
+    const ax = vehicle.physics?.axPrev || 0;
+    this.gLag = damp(this.gLag || 0, clamp(ax * 0.07, -0.55, 0.7), 3.5, dt);
+    const dist = mode.dist * (1 + 0.08 * ease) + this.gLag + nitro * 0.45;
     this.pitchLag = damp(this.pitchLag, s.pitch, 6, dt);
-    const desired = _v.set(s.x - Math.sin(h) * dist, s.y + height - this.pitchLag * 2.2, s.z - Math.cos(h) * dist);
-    // spring follow (not rigid): stiffer at speed to avoid falling behind
-    const k = s.onGround ? 9 + speedK * 6 : 4;
-    this.pos.x = damp(this.pos.x, desired.x, k, dt);
-    this.pos.z = damp(this.pos.z, desired.z, k, dt);
-    this.pos.y = damp(this.pos.y, desired.y, s.onGround ? 7 : 3, dt);
-    // keep camera above the ground
-    this.pos.y = Math.max(this.pos.y, s.y + 0.7);
-    const lookAhead = 2.5 + speedK * 4;
+    const height = mode.height * (1 + this.orbitY * 0.9) - this.pitchLag * 1.6 + (s.onGround ? 0 : 0.35);
+    // desired offset from the car, smoothed (no lag at constant velocity)
+    const ox = -Math.sin(h) * dist, oz = -Math.cos(h) * dist;
+    if (!this.off) this.off = new THREE.Vector3(ox, height, oz);
+    this.off.x = damp(this.off.x, ox, 12, dt); this.off.z = damp(this.off.z, oz, 12, dt); this.off.y = damp(this.off.y, height, 6, dt);
+    // vertical follow is softer so suspension bounce doesn't shake the whole view
+    this.baseY = this.baseY === undefined ? s.y : damp(this.baseY, s.y, s.onGround ? 7 : 2.5, dt);
+    // camera collision: pull in when a building/wall blocks the line from the car to the camera
+    let k = 1;
+    if (this.world) k = this._clearance(s.x, this.baseY + 1.3, s.z, this.off);
+    this.clear = damp(this.clear ?? 1, k, k < (this.clear ?? 1) ? 25 : 4, dt);
+    this.pos.set(s.x + this.off.x * this.clear, Math.max(this.baseY + this.off.y * (0.6 + 0.4 * this.clear), s.y + 0.6), s.z + this.off.z * this.clear);
+    const lookAhead = 3 + 8 * ease;
     const lh = this.heading + (lookBack ? Math.PI : 0);
-    _t.set(s.x + Math.sin(lh) * lookAhead, s.y + mode.look + (s.onGround ? 0 : 0.3), s.z + Math.cos(lh) * lookAhead);
-    this.look.lerp(_t, 1 - Math.exp(-dt * 12));
+    _t.set(s.x + Math.sin(lh) * lookAhead, this.baseY + mode.look + 0.35 + (s.onGround ? 0 : 0.25), s.z + Math.cos(lh) * lookAhead);
+    this.look.lerp(_t, 1 - Math.exp(-dt * 14));
     cam.position.copy(this.pos);
-    // shake: road vibration + impacts
-    const vib = speedK * speedK * 0.035 + this.shake * 0.25 + (fx.nitro || 0) * 0.03;
+    // shake: fine road vibration that grows with speed + low-frequency sway + impacts
     const t = this.time;
-    cam.position.x += (Math.sin(t * 37.1) + Math.sin(t * 21.7)) * 0.5 * vib;
-    cam.position.y += (Math.sin(t * 43.3) + Math.sin(t * 17.9)) * 0.5 * vib;
+    const vib = ease * ease * 0.02 + this.shake * 0.22 + nitro * 0.02;
+    cam.position.x += (Math.sin(t * 37.1) + Math.sin(t * 23.3)) * 0.5 * vib + Math.sin(t * 1.3) * 0.02 * ease;
+    cam.position.y += (Math.sin(t * 43.3) + Math.sin(t * 19.7)) * 0.5 * vib + Math.sin(t * 0.9) * 0.015 * ease;
     cam.lookAt(this.look);
-    // slight roll into drifts
-    cam.rotateZ(clamp(-s.yawRate * 0.02 * speedK, -0.05, 0.05));
+    // slight roll into turns/drifts
+    this.roll = damp(this.roll || 0, clamp(-s.yawRate * 0.025 * ease - (s.drifting ? Math.sign(s.yawRate) * 0.02 : 0), -0.06, 0.06), 4, dt);
+    cam.rotateZ(this.roll);
     this.shake = damp(this.shake, 0, 4, dt);
-    this.fov = damp(this.fov, mode.fov + speedK * 16 + (fx.nitro || 0) * 9, 3.5, dt);
+    this.fov = damp(this.fov, mode.fov + ease * 13 + nitro * 7, 3.5, dt);
     cam.fov = this.fov;
     cam.updateProjectionMatrix();
     if (vehicle.renderer) { const intr = vehicle.renderer.lod0.getObjectByName('interior'); if (intr) intr.visible = true; }

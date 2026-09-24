@@ -14,9 +14,12 @@ class SmokePool {
     this.parts = [];
     this.buckets = [];
     const geo = new THREE.PlaneGeometry(1, 1);
-    const ops = [0.42, 0.3, 0.18, 0.08];
+    const ops = [0.3, 0.2, 0.12, 0.05];
+    this.baseColor = new THREE.Color(color);
+    this.mats = [];
     for (const o of ops) {
       const mat = new THREE.MeshBasicMaterial({ map: smokePuff(), color, transparent: true, opacity: o, depthWrite: false, blending, fog: true });
+      this.mats.push(mat);
       const mesh = new THREE.InstancedMesh(geo, mat, max);
       mesh.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(max * 3), 3);
       mesh.frustumCulled = false; mesh.count = 0; mesh.renderOrder = 6;
@@ -50,6 +53,8 @@ class SmokePool {
     this.buckets.forEach((m, i) => { m.count = counts[i]; m.instanceMatrix.needsUpdate = true; if (m.instanceColor) m.instanceColor.needsUpdate = true; });
   }
   get count() { return this.parts.length; }
+  // unlit particles: match the scene's light level (bright grey smoke glowing at night looks fake)
+  setLight(k) { for (const m of this.mats) m.color.copy(this.baseColor).multiplyScalar(k); }
 }
 
 // Additive sparks: color fades to black = invisible, single draw call.
@@ -160,9 +165,9 @@ export class Effects {
       if (slide && s.onGround && speed > 3) {
         const onRoad = s.y < 0.1;
         this.skids.add(key, wx, (v.physics.groundH[i] || 0) + 0.02, wz, sn, cs, 0.26, intensity * (1 - wet * 0.6));
-        if (Math.random() < dt * 45 * this.scale) {
-          const pool = onRoad ? (wet > 0.5 ? this.smoke : this.smoke) : this.dust;
-          pool.emit(wx + (Math.random() - 0.5) * 0.3, 0.35, wz + (Math.random() - 0.5) * 0.3, -s.vx * 0.15 + (Math.random() - 0.5), 0.6 + Math.random() * 0.6, -s.vz * 0.15 + (Math.random() - 0.5), 0.9 + intensity * 0.8, 1.6 + intensity * 1.2, 2.8, wet > 0.5 ? 0.8 : 1);
+        if (Math.random() < dt * 30 * this.scale) {
+          const pool = onRoad ? this.smoke : this.dust;
+          pool.emit(wx + (Math.random() - 0.5) * 0.3, 0.3, wz + (Math.random() - 0.5) * 0.3, -s.vx * 0.12 + (Math.random() - 0.5), 0.5 + Math.random() * 0.5, -s.vz * 0.12 + (Math.random() - 0.5), 0.7 + intensity * 0.6, 1.3 + intensity * 1.0, 2.3, wet > 0.5 ? 0.8 : 1);
         }
       } else this.skids.lift(key);
       // rain spray behind tires
@@ -196,6 +201,11 @@ export class Effects {
       const x = camPos.x + (Math.random() - 0.5) * 30, z = camPos.z + (Math.random() - 0.5) * 30;
       this.splash.emit(x, 0.05, z, (Math.random() - 0.5) * 0.6, 0.8 + Math.random(), (Math.random() - 0.5) * 0.6, 0.18, 0.05, 0x8090a0);
     }
+  }
+
+  setLight(night) {
+    const k = 1 - night * 0.62;
+    this.smoke.setLight(k); this.dust.setLight(k); this.dark.setLight(1);
   }
 
   update(dt, camera) {

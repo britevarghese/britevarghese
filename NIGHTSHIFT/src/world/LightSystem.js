@@ -22,9 +22,9 @@ export class LightSystem {
       if (p.type !== 'lamp' && p.type !== 'highwayLamp' && p.type !== 'floodlight') continue;
       const heads = [];
       const c = Math.cos(p.rot), s = Math.sin(p.rot);
-      if (p.type === 'lamp') heads.push([p.x + s * 2.6, p.y + 8.3, p.z + c * 2.6]);
-      else if (p.type === 'floodlight') heads.push([p.x + s * 0.35, p.y + 9, p.z + c * 0.35]);
-      else { heads.push([p.x + c * 5.4, p.y + 11.6, p.z - s * 5.4]); heads.push([p.x - c * 5.4, p.y + 11.6, p.z + s * 5.4]); }
+      if (p.type === 'lamp') heads.push([p.x + s * 2.6, p.y + 8.3, p.z + c * 2.6, 0xffd9ae]);
+      else if (p.type === 'floodlight') heads.push([p.x + s * 0.35, p.y + 9, p.z + c * 0.35, 0xeef4ff]);
+      else { heads.push([p.x + c * 5.4, p.y + 11.6, p.z - s * 5.4, 0xffc48a]); heads.push([p.x - c * 5.4, p.y + 11.6, p.z + s * 5.4, 0xffc48a]); }
       const k = chunkKey(p.x, p.z);
       if (!this.lampsByChunk.has(k)) this.lampsByChunk.set(k, []);
       for (const h of heads) this.lampsByChunk.get(k).push(h);
@@ -44,6 +44,52 @@ export class LightSystem {
     scene.add(this.pools, this.streaks, this.halos);
     this.active = [];
     this.lamps = [];
+    this.scene = scene;
+    this.dyn = [];
+  }
+
+  // Real spotlights re-assigned every frame to the street lamps nearest the camera (quality gated).
+  setDynamicCount(n) {
+    for (const d of this.dyn) { this.scene.remove(d.light, d.light.target); d.light.dispose(); }
+    this.dyn = [];
+    for (let i = 0; i < n; i++) {
+      const light = new THREE.SpotLight(0xffd9ae, 0, 32, 1.2, 0.85, 1.5);
+      light.castShadow = false;
+      this.scene.add(light, light.target);
+      this.dyn.push({ light, lamp: null, k: 0 });
+    }
+  }
+
+  _updateDynamic(camera, night, dt) {
+    if (!this.dyn.length) return;
+    const on = night > 0.32;
+    const cx = camera.position.x, cz = camera.position.z;
+    const fwd = _p.set(0, 0, -1).applyQuaternion(camera.quaternion);
+    const fx = fwd.x, fz = fwd.z;
+    // choose the best-placed lamps (near, and slightly preferring what the camera looks at)
+    const cand = [];
+    if (on) for (const h of this.lamps) {
+      const dx = h[0] - cx, dz = h[2] - cz, d = Math.hypot(dx, dz);
+      if (d > 120) continue;
+      cand.push({ h, score: d - 18 * ((dx * fx + dz * fz) / (d || 1)) });
+    }
+    cand.sort((a, b) => a.score - b.score);
+    const chosen = new Set(cand.slice(0, this.dyn.length).map((c) => c.h));
+    const free = [];
+    for (const d of this.dyn) {
+      if (d.lamp && chosen.has(d.lamp)) chosen.delete(d.lamp); else { d.target = null; free.push(d); }
+    }
+    const rest = [...chosen];
+    for (const d of this.dyn) {
+      if (free.includes(d)) {
+        // fade out, then take a new lamp
+        d.k = Math.max(0, d.k - dt * 3);
+        if (d.k === 0 && rest.length) { d.lamp = rest.shift(); d.light.position.set(d.lamp[0], d.lamp[1] - 0.2, d.lamp[2]); d.light.target.position.set(d.lamp[0], 0, d.lamp[2]); d.light.color.setHex(d.lamp[3]); }
+        else if (d.k === 0) d.lamp = null;
+      } else d.k = Math.min(1, d.k + dt * 2.5);
+      d.light.intensity = d.lamp && on ? d.k * 330 * Math.min(1, (night - 0.3) * 2) : 0;
+      d.light.visible = d.light.intensity > 0.5;
+    }
   }
 
   rebuild(keys) {
@@ -65,8 +111,9 @@ export class LightSystem {
     this.pools.instanceColor.needsUpdate = true;
   }
 
-  update(camera, envState) {
+  update(camera, envState, dt = 1 / 60) {
     const night = envState.night;
+    this._updateDynamic(camera, night, dt);
     this.pools.visible = night > 0.32;
     this.halos.visible = night > 0.32;
     this.haloMat.opacity = Math.min(1, (night - 0.3) * 1.5);
@@ -93,10 +140,13 @@ export class LightSystem {
       // reflection streak: from under the light towards the camera, stretched with distance
       let n = 0;
       const max = this.streaks.instanceMatrix.count;
+      const cf = _p.set(0, 0, -1).applyQuaternion(camera.quaternion);
+      const cfx = cf.x, cfz = cf.z;
       for (const l of this.active) {
         const dx = cx - l.x, dz = cz - l.z;
         const d = Math.hypot(dx, dz);
-        if (d > 160 || d < 3) continue;
+        if (d > 160 || d < 8) continue;
+        if (-(dx * cfx + dz * cfz) < d * 0.3) continue; // only lamps in front of the camera reflect toward it
         const ang = Math.atan2(dx, dz);
         const len = Math.min(26, 5 + d * 0.28);
         _e.set(0, ang, 0); _q.setFromEuler(_e);

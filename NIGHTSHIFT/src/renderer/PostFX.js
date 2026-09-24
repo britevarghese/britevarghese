@@ -22,7 +22,8 @@ const SpeedShader = {
     void main(){
       vec2 dir = vUv - uCenter;
       float dist = length(dir);
-      float amt = uBlur * smoothstep(0.12, 0.75, dist);
+      // radial speed blur, weaker toward the top of the frame so the sky/stars don't streak
+      float amt = uBlur * smoothstep(0.18, 0.8, dist) * mix(0.25, 1.0, smoothstep(0.9, 0.4, vUv.y));
       vec4 col = vec4(0.0);
       const int N = 8;
       for (int i = 0; i < N; i++) {
@@ -38,6 +39,9 @@ const SpeedShader = {
       col.rgb *= mix(1.0, v, uVignette * 1.4);
       col.rgb += (rand(vUv * 1000.0 + uTime) - 0.5) * uGrain;
       col.rgb = mix(col.rgb, vec3(1.0, 0.1, 0.05) * dot(col.rgb, vec3(0.3,0.5,0.2)) * 1.6, uFlash * smoothstep(0.2, 0.8, dist));
+      // subtle split-tone grade (linear HDR): cool shadows, warm highlights
+      float lum = dot(col.rgb, vec3(0.2126, 0.7152, 0.0722));
+      col.rgb *= mix(vec3(0.93, 0.98, 1.08), vec3(1.04, 1.0, 0.95), smoothstep(0.02, 0.5, lum));
       float g = dot(col.rgb, vec3(0.299, 0.587, 0.114));
       col.rgb = mix(col.rgb, vec3(g) * vec3(0.9, 0.95, 1.1), uGray);
       gl_FragColor = col;

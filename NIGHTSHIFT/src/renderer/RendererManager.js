@@ -43,7 +43,7 @@ export class RendererManager {
     }
     const r = this.renderer;
     r.outputColorSpace = THREE.SRGBColorSpace;
-    r.toneMapping = THREE.ACESFilmicToneMapping;
+    r.toneMapping = THREE.NeutralToneMapping; // keeps neon/brake-light hues, softer highlight roll-off than ACES
     r.toneMappingExposure = 1.0;
     r.shadowMap.enabled = preset.shadows !== 'off';
     r.shadowMap.type = THREE.PCFShadowMap;

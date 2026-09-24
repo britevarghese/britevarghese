@@ -72,6 +72,7 @@ export class Game {
     progress(0.36, 'Spawning car...');
     this.input = new InputManager(this.settings);
     this.camCtl = new CameraController(this.camera, this.settings);
+    this.camCtl.world = this.world;
     this.spawnPlayer();
     // nearby roads & buildings first, then the rest streams in during play
     progress(0.4, 'Loading nearby streets...');
@@ -482,7 +483,7 @@ export class Game {
     const nitroFx = player.state.nitroActive ? 1 : 0;
     this.fx2.nitro = damp(this.fx2.nitro, nitroFx, 5, dt);
     const speed = Math.hypot(player.state.vx, player.state.vz);
-    this.fx2.speed = damp(this.fx2.speed, clamp((speed - 25) / 55, 0, 1) * 0.9 + this.fx2.nitro * 0.5, 4, dt);
+    this.fx2.speed = damp(this.fx2.speed, Math.pow(clamp((speed - 28) / 50, 0, 1), 1.5) * 0.55 + this.fx2.nitro * 0.35, 4, dt);
     this.fx2.damageFlash = damp(this.fx2.damageFlash, 0, 3, dt);
     this.fx2.busted = damp(this.fx2.busted, mode === 'busted' ? 1 : 0, 2, dt);
     if (simulate || mode === 'paused' || mode === 'map' || mode === 'brief' || mode === 'results') {
@@ -496,6 +497,7 @@ export class Game {
     for (const v of this.races.vehicles()) this.fx.vehicle(v, dt, this.env.state);
     for (const u of this.police.units) if (u.vehicle.state.drifting) this.fx.vehicle(u.vehicle, dt, this.env.state);
     if (simulate) this.fx.rainSplashes(dt, camPos, this.env.state.rain);
+    this.fx.setLight(this.env.state.night);
     this.fx.update(simulate ? dt : 0, this.camera);
     if (this.trafficRenderer) this.trafficRenderer.update(this.traffic.renderList, this.camera, this.env.state.night);
     this.peds.update(simulate ? dt : 0, this.camera, [player, ...this.police.vehicles()], this.preset.pedestrians > 0);

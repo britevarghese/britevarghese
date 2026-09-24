@@ -34,12 +34,16 @@ export class WorldManager {
     this.chunks = new ChunkManager(scene, this.builder, materials, preset);
     this.props = new PropSystem(scene, materials, this.planner, preset);
     this.lights = new LightSystem(scene, materials, this.planner, this.layout);
+    this.lights.setDynamicCount(preset.streetLights || 0);
     this.preset = preset;
     bus.on('chunks:near', (keys) => { this.props.rebuild(keys, preset.props); this.lights.rebuild(keys); });
     this._buildTerrain(scene, materials);
   }
 
-  setPreset(p) { this.preset = p; this.chunks.setPreset(p); this.props.preset = p; }
+  setPreset(p) {
+    this.preset = p; this.chunks.setPreset(p); this.props.preset = p;
+    if (this.lights && this.lights.dyn.length !== (p.streetLights || 0)) this.lights.setDynamicCount(p.streetLights || 0);
+  }
 
   _buildTerrain(scene, M) {
     // distant hills ring for depth/silhouettes + a big ground plane beyond the highway
@@ -85,7 +89,7 @@ export class WorldManager {
     this.state.time += dt;
     if (!this.chunks) return;
     this.chunks.update(camera.position, dt);
-    this.lights.update(camera, envState);
+    this.lights.update(camera, envState, dt);
     this.props.updateSignals((id, axis) => this.signalState(id, axis), envState.night);
   }
 }

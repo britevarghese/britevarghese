@@ -9,31 +9,31 @@ export const PRESETS = {
     resolutionScale: 0.7, pixelRatioCap: 1, textureSize: 256, shadows: 'off', shadowMapSize: 0,
     post: 'off', antialias: 'off', viewDistance: 420, detailDistance: 170, traffic: 8, pedestrians: 0,
     particles: 0.3, rainDrops: 1200, headlightSpots: 0, policeLights: 0, anisotropy: 1, roofDetail: false,
-    wetReflections: false, lightPools: true, envMapSize: 64, trees: 0.4, lodBias: 0.6, props: 0.5, carLod1Distance: 25,
+    wetReflections: false, lightPools: true, streetLights: 0, envMapSize: 64, trees: 0.4, lodBias: 0.6, props: 0.5, carLod1Distance: 25,
   },
   low: {
     resolutionScale: 0.85, pixelRatioCap: 1, textureSize: 512, shadows: 'off', shadowMapSize: 0,
     post: 'off', antialias: 'fxaa', viewDistance: 600, detailDistance: 220, traffic: 14, pedestrians: 16,
     particles: 0.5, rainDrops: 2500, headlightSpots: 1, policeLights: 1, anisotropy: 2, roofDetail: false,
-    wetReflections: true, lightPools: true, envMapSize: 128, trees: 0.7, lodBias: 0.8, props: 0.75, carLod1Distance: 40,
+    wetReflections: true, lightPools: true, streetLights: 0, envMapSize: 128, trees: 0.7, lodBias: 0.8, props: 0.75, carLod1Distance: 40,
   },
   medium: {
     resolutionScale: 1, pixelRatioCap: 1, textureSize: 1024, shadows: 'low', shadowMapSize: 1024,
     post: 'low', antialias: 'fxaa', viewDistance: 850, detailDistance: 280, traffic: 22, pedestrians: 36,
     particles: 0.75, rainDrops: 5000, headlightSpots: 2, policeLights: 2, anisotropy: 4, roofDetail: true,
-    wetReflections: true, lightPools: true, envMapSize: 256, trees: 1, lodBias: 1, props: 1, carLod1Distance: 60,
+    wetReflections: true, lightPools: true, streetLights: 4, envMapSize: 256, trees: 1, lodBias: 1, props: 1, carLod1Distance: 60,
   },
   high: {
     resolutionScale: 1, pixelRatioCap: 1.5, textureSize: 2048, shadows: 'high', shadowMapSize: 2048,
     post: 'high', antialias: 'msaa', viewDistance: 1200, detailDistance: 360, traffic: 30, pedestrians: 60,
     particles: 1, rainDrops: 8000, headlightSpots: 2, policeLights: 3, anisotropy: 8, roofDetail: true,
-    wetReflections: true, lightPools: true, envMapSize: 256, trees: 1, lodBias: 1.25, props: 1, carLod1Distance: 90,
+    wetReflections: true, lightPools: true, streetLights: 8, envMapSize: 256, trees: 1, lodBias: 1.25, props: 1, carLod1Distance: 90,
   },
   ultra: {
     resolutionScale: 1, pixelRatioCap: 2, textureSize: 2048, shadows: 'high', shadowMapSize: 4096,
     post: 'high', antialias: 'msaa', viewDistance: 1700, detailDistance: 460, traffic: 40, pedestrians: 90,
     particles: 1.3, rainDrops: 12000, headlightSpots: 2, policeLights: 4, anisotropy: 16, roofDetail: true,
-    wetReflections: true, lightPools: true, envMapSize: 512, trees: 1, lodBias: 1.6, props: 1, carLod1Distance: 130,
+    wetReflections: true, lightPools: true, streetLights: 12, envMapSize: 512, trees: 1, lodBias: 1.6, props: 1, carLod1Distance: 130,
   },
 };
 

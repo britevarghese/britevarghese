@@ -397,7 +397,7 @@ export function markingsAtlas() {
       ctx.restore();
     };
     const cellXY = (i) => [(i % 4) * cell, Math.floor(i / 4) * cell];
-    const W = '#e8e6df', Y = '#e0b830';
+    const W = '#e8e6df', Y = '#c9a232';
     let [x, y] = cellXY(0); ctx.fillStyle = W; ctx.fillRect(x + cell * 0.3, y, cell * 0.4, cell); worn(x, y);
     [x, y] = cellXY(1); ctx.fillStyle = Y; ctx.fillRect(x + cell * 0.3, y, cell * 0.4, cell); worn(x, y);
     [x, y] = cellXY(2); ctx.fillStyle = W; ctx.fillRect(x + cell * 0.3, y + cell * 0.1, cell * 0.4, cell * 0.8); worn(x, y);
