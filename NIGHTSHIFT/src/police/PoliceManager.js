@@ -242,7 +242,7 @@ export class PoliceManager {
         this.lastKnown = { x: p.x, z: p.z };
         this.evade = Math.max(0, this.evade - dt * 0.8);
         if (this.state === 'cooldown') { this.state = 'pursuit'; this.cooldown = 0; bus.emit('police:spotted', {}); }
-      } else if (this.state === 'pursuit') {
+      } else if (this.state === 'pursuit' && this.pursuitTime > 10) {
         this.evade += dt / 4;
         if (this.evade >= 1) { this.state = 'cooldown'; this.cooldown = 0; this.evade = 1; bus.emit('police:cooldown', {}); }
       }
@@ -259,13 +259,13 @@ export class PoliceManager {
 
       // --- backup: maintain unit count for current heat ---
       const active = this.units.filter((u) => u.role === 'pursuit' && !u.disabled);
-      if (this.state === 'pursuit' && active.length < rules.units && this.R() < dt * 0.6) {
+      if (this.state === 'pursuit' && active.length < rules.units && this.R() < dt * (active.length < 2 ? 3 : 0.6)) {
         const intercept = this.R() < 0.45;
         const n = intercept ? this._spawnPoint(170, 280, true) : this._spawnPoint(140, 260, false);
         if (n) { const u = this._spawnNearNode(n, true); if (u) { u.vehicle.renderer.sirenOn = true; if (intercept) bus.emit('police:intercept', {}); } }
       }
       // --- roadblocks at heat 4+ ---
-      if (rules.roadblocks && this.state === 'pursuit' && this.roadblocks.length < 1 && this.R() < dt * 0.08) this._placeRoadblock();
+      if (rules.roadblocks && this.state === 'pursuit' && this.roadblocks.length < 1 && this.R() < dt * 0.15) this._placeRoadblock();
       for (const rb of [...this.roadblocks]) {
         rb.t += dt;
         const d = Math.hypot(rb.x - p.x, rb.z - p.z);

@@ -17,7 +17,9 @@ export class RendererManager {
   async init(preset) {
     this.preset = preset;
     const want = this.settings.graphics.backend;
-    const tryGPU = want === 'webgpu' || (want === 'auto' && this._autoPrefersWebGPU());
+    let forced = false;
+    try { forced = sessionStorage.getItem('nightshift.forceWebGL') === '1'; } catch { /* ignore */ }
+    const tryGPU = !forced && (want === 'webgpu' || (want === 'auto' && this._autoPrefersWebGPU()));
     if (tryGPU && navigator.gpu) {
       try {
         const WGPU = await import('three/webgpu');
@@ -25,6 +27,7 @@ export class RendererManager {
         await r.init();
         if (!r.backend?.isWebGPUBackend) throw new Error('WebGPU backend unavailable (fell back to WebGL inside WebGPURenderer)');
         this.renderer = r; this.backend = 'webgpu'; this.WGPU = WGPU;
+        r.onDeviceLost = () => this.failWebGPU('device lost');
       } catch (e) {
         console.warn('[Renderer] WebGPU init failed, using WebGL2:', e?.message || e);
         bus.emit('renderer:fallback', { reason: String(e?.message || e) });
@@ -52,10 +55,20 @@ export class RendererManager {
     return r;
   }
 
+  // Runtime WebGPU failure (driver/browser incompatibility): switch to WebGL2 for this session.
+  failWebGPU(reason) {
+    if (this.backend !== 'webgpu' || this._failing) return;
+    this._failing = true;
+    console.warn('[Renderer] WebGPU failed at runtime, reloading with WebGL2:', reason);
+    try { sessionStorage.setItem('nightshift.forceWebGL', '1'); } catch { /* ignore */ }
+    location.reload();
+  }
+
   _autoPrefersWebGPU() {
-    // WebGPU is preferred on Chromium browsers where it is stable; Firefox/Safari use WebGL2.
-    const ua = navigator.userAgent;
-    return !!navigator.gpu && /Chrome\/|Edg\//.test(ua) && !/Firefox/.test(ua) && this.settings.graphics.backend !== 'webgl2';
+    // 'auto' uses the fully validated WebGL2 path. WebGPU is opt-in (Settings > Renderer) and
+    // falls back to WebGL2 automatically if the device fails. Flip this once validated on
+    // target hardware: return !!navigator.gpu && /Chrome\/|Edg\//.test(navigator.userAgent);
+    return false;
   }
 
   setupPost(scene, camera) {

@@ -321,14 +321,17 @@ export function storefront() {
       const wx = x + sw * 0.1, wy = h * 0.3, ww = sw * 0.55, wh = h * 0.62;
       const glow = R.pick(['#ffe2b0', '#fff8e8', '#ffd0a0', '#d0f0ff', '#ffc8e8']);
       const lit = R() < 0.8;
+      // interior: bright ceiling strip fading into a darker shop floor, products, reflections
       const g = ec.createLinearGradient(0, wy, 0, wy + wh);
-      g.addColorStop(0, lit ? glow : '#111'); g.addColorStop(1, lit ? shade(glow, -90) : '#000');
+      g.addColorStop(0, lit ? glow : '#0a0a0a'); g.addColorStop(0.18, lit ? shade(glow, -70) : '#050505'); g.addColorStop(1, lit ? shade(glow, -150) : '#000');
       ec.fillStyle = g; ec.fillRect(wx, wy, ww, wh);
-      cc.fillStyle = lit ? shade(glow, -100) : '#15181b'; cc.fillRect(wx, wy, ww, wh);
-      // shelves / products silhouettes
-      ec.fillStyle = 'rgba(0,0,0,0.55)';
+      cc.fillStyle = lit ? shade(glow, -130) : '#15181b'; cc.fillRect(wx, wy, ww, wh);
+      ec.fillStyle = 'rgba(0,0,0,0.6)';
       for (let k = 0; k < 3; k++) ec.fillRect(wx + ww * 0.05, wy + wh * (0.35 + k * 0.22), ww * 0.9, wh * 0.04);
-      for (let k = 0; k < 8; k++) { ec.fillStyle = `rgba(${R() * 255 | 0},${R() * 255 | 0},${R() * 255 | 0},0.5)`; ec.fillRect(wx + ww * R() * 0.9, wy + wh * (0.2 + 0.22 * R.int(0, 2)), ww * 0.06, wh * 0.12); }
+      for (let k = 0; k < 10; k++) { ec.fillStyle = `rgba(${R() * 255 | 0},${R() * 255 | 0},${R() * 255 | 0},0.35)`; ec.fillRect(wx + ww * R() * 0.9, wy + wh * (0.2 + 0.22 * R.int(0, 2)), ww * 0.05, wh * 0.1); }
+      // window mullions
+      ec.fillStyle = '#000'; cc.fillStyle = '#1a1a1a';
+      for (let k = 1; k < 3; k++) { ec.fillRect(wx + ww * k / 3 - 2, wy, 4, wh); cc.fillRect(wx + ww * k / 3 - 2, wy, 4, wh); }
       // door
       const dx = x + sw * 0.7, dw = sw * 0.18;
       cc.fillStyle = '#101214'; cc.fillRect(dx, h * 0.25, dw, h * 0.75);

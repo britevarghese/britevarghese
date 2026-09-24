@@ -392,7 +392,7 @@ export class Game {
     this.frames++; this.fpsT += dt;
     dt = Math.min(dt, 1 / 20); // avoid huge steps after tab switches
     if (this.fpsT >= 0.5) { this.fps = this.frames / this.fpsT; this.frames = 0; this.fpsT = 0; }
-    try { this._update(dt); } catch (e) { console.error('[Game] update error', e); this._errCount = (this._errCount || 0) + 1; if (this._errCount < 4) this.ui?.toast(`Error: ${e.message}`, 'err', 5); }
+    try { this._update(dt); } catch (e) { console.error('[Game] update error', e); if (this.rm.backend === 'webgpu' && /GPU|WebGPU|createView/i.test(String(e?.message) + String(e?.stack))) this.rm.failWebGPU(e.message); this._errCount = (this._errCount || 0) + 1; if (this._errCount < 4) this.ui?.toast(`Error: ${e.message}`, 'err', 5); }
     this.input.endFrame();
   }
 

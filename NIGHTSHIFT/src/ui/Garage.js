@@ -56,8 +56,8 @@ export class Garage {
     const env = new THREE.CubeTexture(faces); env.colorSpace = THREE.SRGBColorSpace; env.needsUpdate = true;
     s.environment = env;
     s.add(new THREE.HemisphereLight(0x8090b0, 0x101010, 0.6));
-    const key = new THREE.SpotLight(0xffffff, 260, 40, 0.6, 0.6, 1.5); key.position.set(4, 9, 5); s.add(key, key.target);
-    const rim = new THREE.SpotLight(0x9fd8ff, 180, 40, 0.7, 0.7, 1.5); rim.position.set(-6, 6, -6); s.add(rim, rim.target);
+    const key = new THREE.SpotLight(0xffffff, 110, 40, 0.6, 0.7, 1.5); key.position.set(4, 9, 5); s.add(key, key.target);
+    const rim = new THREE.SpotLight(0x9fd8ff, 80, 40, 0.7, 0.7, 1.5); rim.position.set(-6, 6, -6); s.add(rim, rim.target);
     const fill = new THREE.PointLight(0xff4060, 20, 20); fill.position.set(-5, 1.5, 4); s.add(fill);
     // floor
     const floor = new THREE.Mesh(new THREE.CircleGeometry(40, 64).rotateX(-Math.PI / 2), new THREE.MeshStandardMaterial({ color: 0x0b0c0f, roughness: 0.25, metalness: 0.6 }));

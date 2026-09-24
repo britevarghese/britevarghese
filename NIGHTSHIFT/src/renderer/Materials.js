@@ -85,7 +85,7 @@ export class Materials {
     const lit = Math.max(0.03, night);
     for (const m of this.facades) m.emissiveIntensity = 0.05 + lit * 0.8;
     for (const m of this.facadesFar) m.emissiveIntensity = 0.05 + lit * 0.8;
-    this.storefront.emissiveIntensity = 0.1 + lit * 0.75;
+    this.storefront.emissiveIntensity = 0.08 + lit * 0.6;
     this.neon.color.setScalar(0.35 + night * 1.6);
     const lamps = night > 0.35 ? 1 : 0.15;
     this.lampHead.color.setRGB(1.0 * lamps * 2.4, 0.9 * lamps * 2.4, 0.72 * lamps * 2.4);

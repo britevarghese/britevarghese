@@ -70,7 +70,8 @@ async function boot() {
   // short benchmark on first launch (auto quality only) — never selects ULTRA
   if (settings.graphics.quality === 'auto' && !settings.graphics.detectedQuality) {
     setProgress(0.96, 'Measuring performance...');
-    const ms = await game.benchmark(40);
+    let ms = 16;
+    try { ms = await game.benchmark(40); } catch (e) { if (rm.backend === 'webgpu') { rm.failWebGPU(e.message); return; } throw e; }
     const refined = quality.refineWithBenchmark(level, ms);
     console.info(`[Quality] benchmark ${ms.toFixed(1)} ms/frame: ${level} -> ${refined}`);
     settings.graphics.detectedQuality = refined; settings.save();

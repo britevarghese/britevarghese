@@ -78440,7 +78440,7 @@ class GPUTextureViewDescriptor {
 		 * @type {string}
 		 * @default 'rgba'
 		 */
-		this.swizzle = 'rgba';
+		this.swizzle = undefined; // NIGHTSHIFT patch: 'rgba' string rejected by some Chromium versions
 
 	}
 
@@ -78458,7 +78458,7 @@ class GPUTextureViewDescriptor {
 		this.mipLevelCount = undefined;
 		this.baseArrayLayer = 0;
 		this.arrayLayerCount = undefined;
-		this.swizzle = 'rgba';
+		this.swizzle = undefined; // NIGHTSHIFT patch: 'rgba' string rejected by some Chromium versions
 
 	}
 
