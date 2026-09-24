@@ -81,7 +81,7 @@ export class Progression {
       const s = S();
       const before = this.level;
       r.xp = r.win ? 400 + (r.def.rep || 100) * 3 : 120 + (r.def.rep || 100);
-      if (r.win) { s.racesWon = (s.racesWon || 0) + 1; (s.wonEvents ||= {})[r.def.id] = true; }
+      if (r.win) { s.racesWon = (s.racesWon || 0) + 1; if (!r.def.street) (s.wonEvents ||= {})[r.def.id] = true; }
       this.addXp(r.xp, r.win ? 'win' : 'finish');
       r.levelUp = this.level > before ? this.level : 0;
     });

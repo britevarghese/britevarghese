@@ -43,12 +43,16 @@ export class RaceManager {
   }
 
   _resolve(w) {
+    if (!Array.isArray(w)) return [w.x, w.z]; // world position (street challenges)
     if (w[0] === 'ring') {
       const k = w[1] * GRID, side = w[2];
       return { N: [k, RING], S: [k, -RING], E: [RING, k], W: [-RING, k] }[side];
     }
     return [w[0] * GRID, w[1] * GRID];
   }
+
+  // build a runnable event (route on the road graph, gates, start) from a definition
+  prepare(def) { return this._prepare(def); }
 
   _prepare(def) {
     const L = this.world.layout;
@@ -132,24 +136,26 @@ export class RaceManager {
     // opponents on the grid behind/beside the player
     if (def.opponents) {
       // rivals drive cars from the player's class (then the class above/below) — real cars included
-      let pool = this.rivalPool().filter((id) => game.lib.has(id));
-      if (pool.length < 2) pool = ['kestrel', 'hikari', 'brawler', 'stratos'].filter((id) => game.lib.has(id));
+      let pool = (def.rivalCars || this.rivalPool()).filter((id) => game.lib.has(id));
+      if (pool.length < (def.rivalCars ? 1 : 2)) pool = ['kestrel', 'hikari', 'brawler', 'stratos'].filter((id) => game.lib.has(id));
       const fx = Math.sin(ev.start.yaw), fz = Math.cos(ev.start.yaw), rx = -fz, rz = fx;
       const slots = [[3.2, 0], [0, -8], [3.2, -8], [0, -16], [3.2, -16]];
       const playerRating = (game.progress?.level || 1) * 40;
       for (let i = 0; i < def.opponents; i++) {
         const carId = pool[i % pool.length];
-        const params = tunedParams(carId, { engine: 1 + (i % 2), tires: 1, transmission: 1 });
+        const tune = def.rivalTune ?? 0;
+        const params = def.rivalCars ? tunedParams(carId, { engine: Math.min(3, 1 + tune), tires: Math.min(3, 1 + (tune >> 1)), transmission: 1 }) : tunedParams(carId, { engine: 1 + (i % 2), tires: 1, transmission: 1 });
         const v = new Vehicle({ carId, params, world: this.world, lib: game.lib, role: 'racer', carType: CARS[carId].carType, renderOpts: { headlights: 0, shadow: false, lodDistance: game.preset.carLod1Distance, sharedPaint: true } });
         const [lat, back] = slots[i];
         v.place(ev.start.x + rx * lat + fx * back, ev.start.z + rz * lat + fz * back, ev.start.yaw);
         if (CARS[carId].real) v.renderer.applyCustom({ paint: 'factory', finish: 'metallic', tint: 0.5 });
+        else if (def.rivalColor) v.renderer.applyCustom({ paint: def.rivalColor, paint2: '#111', vinyl: 1 + (def.rival.length % 5), finish: 'metallic', wheel: def.rival.length % 4, spoiler: 2, tint: 0.7, wheelColor: '#1a1a1c' });
         else v.renderer.applyCustom({ paint: PAINTS[(i * 5 + 3) % PAINTS.length], paint2: '#111', vinyl: (i % 5) + 1, finish: 'metallic', wheel: i % 4, spoiler: 1 + (i % 3), hood: i % 3, bumper: i % 2, tint: 0.6, wheelColor: '#222428' });
         game.scene.add(v.renderer.group);
         const ai = new AIDriver(v, { skill: 0.9 + i * 0.04 + Math.min(0.12, playerRating / 5000), maxSpeed: params.maxSpeed });
         ai.setRoute(ev.route.map((p) => [p[0], p[1]]), def.type === 'circuit');
         ai.useNitro = true;
-        race.opponents.push({ v, ai, name: OPP_NAMES[i], gate: 0, lap: 1, finished: false, time: 0, prev: { x: v.state.x, z: v.state.z } });
+        race.opponents.push({ v, ai, name: def.rivalNames?.[i] || OPP_NAMES[i], gate: 0, lap: 1, finished: false, time: 0, prev: { x: v.state.x, z: v.state.z } });
       }
     }
     this._buildGates();

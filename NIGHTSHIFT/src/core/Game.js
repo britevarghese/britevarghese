@@ -21,6 +21,7 @@ import { TrafficManager } from '../traffic/TrafficManager.js';
 import { TrafficRenderer } from '../traffic/TrafficRenderer.js';
 import { PoliceManager } from '../police/PoliceManager.js';
 import { RaceManager } from '../races/RaceManager.js';
+import { StreetRivals } from '../races/StreetRivals.js';
 import { AudioManager } from '../audio/AudioManager.js';
 import { engineSoundFor } from '../audio/EngineSynth.js';
 import { MapRenderer } from '../ui/MapRenderer.js';
@@ -92,6 +93,7 @@ export class Game {
     this.police = new PoliceManager(this);
     try { this.police.prewarm(); } catch (e) { console.warn('[Game] police prewarm failed', e); }
     this.races = new RaceManager(this);
+    this.rivals = new StreetRivals(this);
     this.peds = new Pedestrians(this.scene, this.world.layout, preset.pedestrians);
     this.audio = new AudioManager(this.settings.audio);
     this.progress = new Progression(this);
@@ -253,7 +255,7 @@ export class Game {
       if (r.rep) this.save.addRep(r.rep);
       if (r.win) this.save.data.raceWins++;
       const best = this.save.data.racesCompleted[r.def.id];
-      if (!r.failed && (!best || r.time < best)) this.save.data.racesCompleted[r.def.id] = r.time;
+      if (!r.failed && !r.def.street && (!best || r.time < best)) this.save.data.racesCompleted[r.def.id] = r.time;
       this.save.save();
       this.hud.message(r.failed ? 'FAILED' : r.win ? 'WINNER' : 'FINISHED', r.detail || '', 2.2);
       setTimeout(() => { if (this.state.mode === 'drive') { this.state.mode = 'results'; this.ui.showResults(r); this.audio.setPaused(true); } }, 1800);
@@ -347,6 +349,7 @@ export class Game {
   }
   toMainMenu() {
     this.races.abort();
+    this.rivals.clear();
     this.police.clearAll();
     this.state.mode = 'menu';
     document.getElementById('hud').classList.add('hidden');
@@ -514,11 +517,12 @@ export class Game {
       this.state.time += dt;
       // races may override controls during countdown
       this.races.update(dt);
+      this.rivals.update(dt, driving);
       const events = player.update(dt);
       this._playerEvents(events, dt);
       // police + traffic
       this.police.update(dt, this.traffic);
-      const dynamic = [player, ...this.police.vehicles(), ...this.races.vehicles()];
+      const dynamic = [player, ...this.police.vehicles(), ...this.races.vehicles(), ...this.rivals.vehicles()];
       const fwd = { x: Math.sin(player.state.yaw), z: Math.cos(player.state.yaw) };
       this.traffic.camera = this.camera;
       this.traffic.update(dt, player.state, fwd, dynamic, player);
@@ -579,6 +583,7 @@ export class Game {
     for (const u of this.police.units) u.vehicle.sync(dt, camPos, this.env.state);
     this.fx.vehicle(player, dt, this.env.state);
     for (const v of this.races.vehicles()) this.fx.vehicle(v, dt, this.env.state);
+    for (const v of this.rivals.vehicles()) this.fx.vehicle(v, dt, this.env.state);
     for (const u of this.police.units) if (u.vehicle.state.drifting) this.fx.vehicle(u.vehicle, dt, this.env.state);
     if (simulate) this.fx.rainSplashes(dt, camPos, this.env.state.rain);
     if (simulate) this.fx.ambient(dt, camPos, this.env.state);
@@ -586,7 +591,7 @@ export class Game {
     this.fx.update(simulate ? dt : 0, this.camera);
     this.debris.update(simulate ? dt : 0);
     if (this.trafficRenderer) this.trafficRenderer.update(this.traffic.renderList, this.camera, this.env.state.night, this.world.lights);
-    this._wetReflections([player, ...this.police.vehicles(), ...this.races.vehicles()]);
+    this._wetReflections([player, ...this.police.vehicles(), ...this.races.vehicles(), ...this.rivals.vehicles()]);
     this.peds.update(simulate ? dt : 0, this.camera, [player, ...this.police.vehicles()], this.preset.pedestrians > 0);
     // audio
     this._audio(dt, mode);
@@ -674,6 +679,11 @@ export class Game {
     if (ev && !this.police.inPursuit) {
       prompt = `<b>${ev.def.name}</b> · ${ev.def.type.toUpperCase()} · press <span class="key">E</span> / <span class="key">A</span>`;
       if (sp < 6 && this.input.consume('event')) { this.state.mode = 'brief'; this.audio.setPaused(true); this.lib.load(this.races.rivalPool(), 4); this.ui.showBriefing(ev); }
+    }
+    const rival = !prompt && !this.police.inPursuit && !this.races.active ? this.rivals.nearest() : null;
+    if (rival) {
+      prompt = `<b style="color:${rival.crew.color}">${rival.crew.name.toUpperCase()}</b> · ${CARS[rival.carId].name} · press <span class="key">E</span> / <span class="key">A</span> to call them out`;
+      if (this.input.consume('event')) this.rivals.challenge(rival);
     }
     if (!prompt && !this.police.inPursuit && !this.races.active) {
       for (const g of [...SAFEHOUSES, ...SHOPS]) {

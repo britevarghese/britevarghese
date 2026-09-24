@@ -23,6 +23,7 @@ export const MISSIONS = [
   { id: 'sideways', chapter: 2, name: 'Sideways', desc: 'Hold one drift for 3 seconds.', target: 3, value: (c) => c.stats.longestDrift || 0, unit: 's', reward: { cash: 3000, xp: 700 } },
   { id: 'ton_up', chapter: 2, name: 'Double Ton', desc: 'Reach 200 km/h.', target: 200, value: (c) => c.stats.topSpeed || 0, unit: 'km/h', reward: { cash: 3000, xp: 600 } },
   { id: 'market_rules', chapter: 2, name: 'Market Rules', desc: 'Win the Market Loop circuit.', target: 1, value: won('circuit_market'), reward: { cash: 6000, xp: 1200 } },
+  { id: 'callout', chapter: 2, name: 'Callout', desc: 'Beat 3 street rivals in free roam (pull up next to one and press E).', target: 3, value: (c) => c.stats.streetWins || 0, reward: { cash: 5000, xp: 1200 } },
   { id: 'wrecking_crew', chapter: 2, name: 'Wrecking Crew', desc: 'Knock down 20 street lamps.', target: 20, value: (c) => c.stats.lampsDown || 0, reward: { cash: 4000, xp: 900 } },
   { id: 'widowmaker', chapter: 2, name: 'The Widowmaker', desc: 'Escape a Heat 3 pursuit. Unlocks the Porsche 911 Turbo (930).', target: 3, value: (c) => c.stats.maxEscapeHeat || 0, unit: 'heat', reward: { cash: 10000, xp: 2500, car: 'porsche_930_turbo' }, finale: true },
   // ---- chapter 3
@@ -35,6 +36,7 @@ export const MISSIONS = [
   { id: 'club_250', chapter: 4, name: '250 Club', desc: 'Reach 250 km/h.', target: 250, value: (c) => c.stats.topSpeed || 0, unit: 'km/h', reward: { cash: 10000, xp: 2000 } },
   { id: 'getaway', chapter: 4, name: 'Getaway Driver', desc: 'Complete the Dockside Getaway.', target: 1, value: won('escape_docks'), reward: { cash: 15000, xp: 3000 } },
   { id: 'night_owl', chapter: 4, name: 'Night Owl', desc: 'Drive 150 km in total.', target: 150, value: (c) => Math.floor((c.save.distanceDriven || 0) / 1000), unit: 'km', reward: { cash: 12000, xp: 2500 } },
+  { id: 'rival_hunter', chapter: 4, name: 'Rival Hunter', desc: 'Beat 15 street rivals.', target: 15, value: (c) => c.stats.streetWins || 0, reward: { cash: 20000, xp: 4000 } },
   { id: 'untouchable', chapter: 4, name: 'Untouchable', desc: 'Escape a Heat 5 pursuit.', target: 5, value: (c) => c.stats.maxEscapeHeat || 0, unit: 'heat', reward: { cash: 25000, xp: 5000 } },
   { id: 'legend_of_the_night', chapter: 4, name: 'Legend of the Night', desc: 'Win every race event in the city. Unlocks the Ferrari F40.', target: 7, value: (c) => Object.keys(c.stats.wonEvents || {}).length, reward: { cash: 50000, xp: 8000, car: 'ferrari_f40' }, finale: true },
   // ---- chapter 5

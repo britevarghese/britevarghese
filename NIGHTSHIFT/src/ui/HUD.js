@@ -240,6 +240,7 @@ export class HUD {
     for (const t of game.traffic?.cars || []) if (t.dist < this.zoom * 1.1) dot(t.x, t.z, 2.2, 'rgba(200,210,220,0.55)');
     // racers
     for (const v of game.races?.vehicles() || []) dot(v.state.x, v.state.z, 3.6, '#ffc53d');
+    for (const r of game.rivals?.rivals || []) dot(r.v.state.x, r.v.state.z, 4.2, r.crew.color);
     // police
     const blink = Math.floor(performance.now() / 180) % 2;
     for (const u of game.police?.units || []) dot(u.vehicle.state.x, u.vehicle.state.z, 4, u.disabled ? '#555' : u.vehicle.renderer.sirenOn ? (blink ? '#ff3040' : '#3060ff') : '#9aa8ff');
