@@ -1,7 +1,8 @@
 # NIGHTSHIFT
 
 An original open-world night street-racing game that runs in the browser. You drive
-through the fictional city of **Port Halvern**, enter street races and lose police pursuits.
+through the fictional city of **Port Halvern**: play a GTA-style story, take any car on the
+street, enter street races and lose police pursuits.
 There is nothing to install for players. They open `http://SERVER_IP:3000` in Chrome, Edge
 or Firefox.
 
@@ -9,11 +10,14 @@ or Firefox.
   - The default renderer is WebGL2 (validated).
   - WebGPU can be selected in *Settings → Renderer*. If the WebGPU device fails at runtime,
     the game switches back to WebGL2 by itself.
-- **Assets:** everything is original.
-  - Vehicles are generated GLB models, built by `tools/generate-models.mjs`.
+- **Assets:**
+  - Vehicles are generated GLB models, built by `tools/generate-models.mjs`. Licensed CC BY 4.0
+    models of the real cars can be imported with `tools/import-cars.mjs` (credits are written to
+    `public/assets/models/cars/CREDITS.md` and shown in the garage).
   - Textures are generated procedurally at the resolution the quality level asks for.
-  - Audio is synthesized with the Web Audio API.
-  - No third-party game assets, branding or music are used.
+  - Audio is synthesized with the Web Audio API (no samples).
+  - Real car names and brands are trademarks of their manufacturers. This is a non-commercial fan
+    project; distributing or selling it with them would need the manufacturers' permission.
 
 ## Quick start (host)
 
@@ -66,37 +70,53 @@ Saves live in each player's browser.
 | Steer | A / D | Left stick |
 | Handbrake (drift) | SPACE | A |
 | Nitrous | SHIFT | RB |
-| Camera (close, chase, far, bumper, hood, cockpit) | V | Y |
+| Camera (close, chase, far, bumper, hood, cockpit) | V | R3 |
 | Look around / look back | Right-mouse drag / C | Right stick / X |
+| Get out of / into a car (any car on the street) | F | Y |
+| On foot: walk / sprint / jump | W A S D / SHIFT / SPACE | Left stick / RB / A |
+| Start mission, event or rival challenge / enter garage | E (in the marker) | A |
 | Map | M | View |
-| Start event / enter garage | E (while stopped in a marker) | A |
+| Instant replay | I | |
+| Photo mode | F2 | |
 | Reset car | R | LB |
 | Pause | ESC | Start |
-| Developer stats | F3 | |
+| Developer stats (FPS, GPU, engine audio model) | F3 | |
 | Fullscreen | F11 | |
 
 ## Gameplay
 
+- **Story:** a GTA-style campaign in two chapters (12 missions). Mission givers (Tully, Mara
+  Voss, Deacon, Rosa Reyes) stand in the city with a coloured marker; walk or drive up and press
+  E. Letterboxed cutscenes with subtitles, then objectives: steal and deliver cars, getaways,
+  tailing, races, ramming targets off the road, timed pickups and convoy escorts, with phone
+  calls, MISSION PASSED / FAILED and retry. Progress shows in *Career* and on the map.
+- **On foot:** get out anywhere, walk around, get back in, or carjack any traffic car (sedans,
+  SUVs, vans, trucks, buses all drive). Cars you leave stay parked. Police chase you on foot too.
 - **Free roam:** the city has downtown, the Market District, Ironworks (industrial), Dockside
   warehouses, Elm Heights (suburbs), a riverside with bridges, a tunnel, a parking deck, a
-  construction zone with jumps, and a six-lane ring highway.
-- **Races:**
-  - Sprint, Circuit, Checkpoint, Speed Run (speed traps), Time Trial and Police Escape.
-  - Checkpoints are 3D gates that must be passed in order.
-  - AI opponents have mild rubber-banding.
+  construction zone with jumps, and a six-lane ring highway. Day and night follow your real
+  local time by default (or a 48-minute game clock, or a fixed time) with dynamic weather.
+- **Races and rivals:**
+  - Sprint, Circuit, Checkpoint, Speed Run (speed traps), Time Trial and Police Escape events.
+  - Street rivals cruise the city: pull up beside one and press E for a one-on-one sprint.
 - **Police:**
-  - Units patrol, detect you and pursue you.
-  - They call backup, send intercept units and set up roadblocks on the road graph at heat 4+.
-  - Heat runs from 1 to 5.
-  - Evading starts a cooldown. Staying slow while surrounded gets you **BUSTED**.
-- **Garage:**
-  - Four cars: sports, tuner, muscle and exotic.
-  - Visual changes: paint, finish, secondary color, vinyl, wheels, wheel color, spoiler, hood,
-    bumper kit, window tint and brake calipers. These change the 3D car.
-  - Performance upgrades: engine, transmission, tires, brakes, suspension and nitrous. These
-    change the physics.
-- **Progress:** cash, reputation, owned cars, upgrades, race wins and settings are saved in
-  `localStorage`.
+  - Units patrol, detect you and pursue you; backup, intercepts and roadblocks at heat 4+.
+  - Heat runs from 1 to 5. Evading starts a cooldown. Staying slow while surrounded gets you
+    **BUSTED**.
+- **Cars:** 4 original cars plus 16 real cars (BMW, Subaru, Mazda, Porsche, Nissan, Toyota, Honda,
+  Chevrolet, Audi, Ferrari, McLaren, Lamborghini) with physics calibrated to their real 0-100 and
+  top speeds and their own engine layouts. They unlock by driver level (1-30) or career missions.
+  Until the licensed models are imported (see `tools/carimport/README.md`) each real car uses a
+  generated stand-in body at its real size.
+- **Garage:** paint (incl. factory colours), finish, vinyl, wheels, spoiler, hood, bumper, tint,
+  calipers; engine, transmission, tyres, brakes, suspension and nitrous upgrades.
+- **Sound:** engines are a physical model (per-cylinder firing through modelled exhaust pipes);
+  crashes, scrapes, tyre screech and backfires are rendered from layered impact synthesis.
+- **Extras:** instant replay with cinematic cameras, photo mode with filters and PNG export,
+  style combos, driver XP and levels, career missions.
+- **Graphics:** quality is detected automatically (up to ULTRA on high-end GPUs) and adjusts at
+  runtime if the frame rate drops; everything can be overridden in *Settings*.
+- **Progress:** everything is saved in the browser (`localStorage`).
 
 ## Architecture
 

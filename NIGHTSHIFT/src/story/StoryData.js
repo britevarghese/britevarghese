@@ -15,10 +15,16 @@ export const CAST = {
   tully: { name: 'Tully', role: 'Mechanic', color: '#ffb03d', look: { jacket: 0x5a4632, jeans: 0x2a2a2c, skin: 0x8a5e40, hair: 0x9a9a9a }, spot: { x: 250, z: -410 } },
   mara: { name: 'Mara Voss', role: 'Crew boss', color: '#ff4d8d', look: { jacket: 0x121214, jeans: 0x1a1a22, skin: 0xd2a07a, hair: 0x2a0f12 }, spot: { x: -250, z: 96 } },
   deacon: { name: 'Deacon', role: 'Fixer', color: '#3dc8ff', look: { jacket: 0x2a3a52, jeans: 0x3a3a3a, skin: 0x5a3a28, hair: 0x0a0a0a }, spot: { x: 640, z: -480 } },
+  rosa: { name: 'Rosa Reyes', role: 'Haulage boss', color: '#b98cff', look: { jacket: 0x3a2a4a, jeans: 0x22222a, skin: 0xc08a64, hair: 0x3a1a0a }, spot: { x: 736, z: 300 } },
   jonah: { name: 'Jonah', color: '#9dff6a' },
   kaze: { name: 'Kaze', color: '#ff3df0' },
   graves: { name: 'Lt. Graves', color: '#ff6a3d' },
 };
+
+export const STORY_CHAPTERS = [
+  { id: 1, name: 'Port Halvern' },
+  { id: 2, name: 'New Management' },
+];
 
 export const STORY = [
   {
@@ -126,6 +132,84 @@ export const STORY = [
     ],
     outro: [['mara', "Graves is done. Kaze's gone quiet. Port Halvern is ours."], ['mara', 'Get some sleep, driver. Tomorrow we get to work.']],
     reward: { cash: 30000, xp: 5000 },
+    chapterEnd: 1,
+  },
+  // ---------------------------------------------------------------- chapter 2: New Management
+  {
+    id: 'rush_hour', chapter: 2, giver: 'rosa', title: 'Rush Hour', requires: ['last_call'],
+    intro: [
+      ['rosa', "So you're the one who put Graves in a ditch. Mara said you'd come looking for work."],
+      ['rosa', "I run every truck out of the Ironworks. Five of my drivers dropped their parcels at the wrong yards tonight."],
+      ['rosa', 'Collect all five before the shift change. After that, the night crew steals anything left lying around.'],
+    ],
+    steps: [
+      { type: 'collect', label: 'PARCELS', time: 170, points: [[4, 1], [5, 2], [5, 4], [4, 4], [6, 3]], inVehicle: true, text: 'Collect the <b>five parcels</b> around the Ironworks before the shift change.' },
+      { type: 'goto', to: 'giver', stop: true, inVehicle: true, text: 'Bring the parcels to <b>Rosa</b>.' },
+    ],
+    outro: [['rosa', "Every single one. You're hired, driver."]],
+    reward: { cash: 9000, xp: 1800 },
+  },
+  {
+    id: 'convoy', chapter: 2, giver: 'rosa', title: 'Convoy', requires: ['rush_hour'],
+    intro: [
+      ['rosa', 'Graves is gone, but his old friends in the department still want my trucks off the road.'],
+      ['rosa', "One of my trucks is running a load to the docks. They'll try to stop it."],
+      ['rosa', 'Stay with it. Keep the cops busy. If that truck gets wrecked, so do we.'],
+    ],
+    steps: [
+      { type: 'escort', vehicle: 'truck', paint: '#c8c2b4', label: 'TRUCK', route: [[4, 2], [4, 0], [4, -2], [4, -3]], heat: 2, maxDist: 115, speed: 14, text: 'Escort <b>Rosa\'s truck</b> to the docks.' },
+      { type: 'lose', heat: 2, text: 'The truck made it. Now lose the <b>police</b>.' },
+    ],
+    outro: [['rosa', 'Load delivered, nobody arrested. Deacon wants a word with you, by the way.']],
+    reward: { cash: 12000, xp: 2200 },
+  },
+  {
+    id: 'ghost_car', chapter: 2, giver: 'deacon', title: 'Ghost Car', requires: ['convoy'],
+    intro: [
+      ['deacon', "There's a black sedan that shows up wherever the police are about to raid someone."],
+      ['deacon', 'Somebody inside the department is driving it. Follow it until it parks.'],
+      ['deacon', 'Then take the car. Whatever is in the glovebox, I want it.'],
+    ],
+    steps: [
+      { type: 'tail', vehicle: 'sedan', paint: '#0e0f11', route: [[3, -1], [1, -1], [1, 1], [-1, 1]], waitText: 'GET CLOSE TO THE SEDAN', text: 'Follow the <b>black sedan</b>. Stay out of sight.' },
+      { type: 'steal', reuse: true, text: 'The driver walked off. Steal the <b>black sedan</b>.' },
+      { type: 'deliver', to: 'giver', maxDamage: 0.5, text: 'Bring the sedan to <b>Deacon</b>.' },
+    ],
+    outro: [['deacon', 'A ledger. Payments, names, dates. Kaze is on every other page.']],
+    reward: { cash: 14000, xp: 2600 },
+  },
+  {
+    id: 'double_cross', chapter: 2, giver: 'mara', title: 'Double Cross', requires: ['ghost_car'],
+    intro: [
+      ['mara', 'Kaze called. He wants a rematch, winner takes everything.'],
+      ['you', "He's on every page of that ledger. It's a setup."],
+      ['mara', "Of course it is. Win anyway. Then get out before the trap closes."],
+    ],
+    steps: [
+      { type: 'goto', to: [-2, -1], inVehicle: true, text: 'Meet <b>Kaze</b> downtown.' },
+      { type: 'race', rival: 'kaze', car: 'mazda_rx7_fd', route: [[-2, -1], [-2, 1], [0, 1], [1, 1], [1, 2], [3, 2]], text: 'Beat <b>Kaze</b> across the city.' },
+      { type: 'call', lines: [['mara', "There it is: roadblocks everywhere. Get out of there!"]] },
+      { type: 'lose', heat: 3, text: 'It was a trap. Lose the <b>police</b>.' },
+    ],
+    outro: [['kaze', "You weren't supposed to get away."], ['mara', "He's out of friends. Rosa has a plan for finishing this."]],
+    reward: { cash: 18000, xp: 3200 },
+  },
+  {
+    id: 'kingmaker', chapter: 2, giver: 'rosa', title: 'Kingmaker', requires: ['double_cross'],
+    intro: [
+      ['rosa', "Kaze's crew is moving everything they own out of the city tonight. Three cars."],
+      ['rosa', "Stop all three and there's no Kaze crew left. Just us."],
+      ['rosa', 'Nobody gets hurt. Just a lot of very expensive scrap.'],
+    ],
+    steps: [
+      { type: 'ram', vehicle: 'suv', paint: '#1c2e4a', from: [5, 1], route: [[5, 1], [5, 3], [3, 3], [3, 5]], hits: 3, text: 'Take out Kaze\'s <b>first car</b>.' },
+      { type: 'ram', vehicle: 'sedan', paint: '#5a1a1a', from: [4, 3], route: [[4, 3], [2, 3], [2, 1], [0, 1]], hits: 3, text: 'Take out the <b>second car</b>.' },
+      { type: 'ram', vehicle: 'nissan_skyline_r34', from: [2, 2], route: [[2, 2], [2, 0], [0, 0], [0, -2], [-2, -2]], hits: 4, speed: 30, text: 'Stop <b>Kaze</b> himself.' },
+      { type: 'call', lines: [['kaze', 'Alright! Alright. The city is yours. I am done.']] },
+      { type: 'goto', to: 'giver', stop: true, inVehicle: true, text: 'Get back to <b>Rosa</b> at the Ironworks.' },
+    ],
+    outro: [['rosa', 'Mara, Deacon, Tully and me. Nobody runs Port Halvern alone anymore.'], ['rosa', 'Go enjoy your city, driver.']],
+    reward: { cash: 40000, xp: 7000 },
     finale: true,
   },
 ];

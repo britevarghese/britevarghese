@@ -5,7 +5,7 @@
 import * as THREE from 'three';
 import { bus } from '../core/EventBus.js';
 import { clamp, formatMoney } from '../core/util.js';
-import { CAST, STORY } from './StoryData.js';
+import { CAST, STORY, STORY_CHAPTERS } from './StoryData.js';
 import { buildCharacter } from '../player/OnFoot.js';
 import { Vehicle } from '../vehicles/Vehicle.js';
 import { AIDriver } from '../vehicles/AIDriver.js';
@@ -223,6 +223,11 @@ export class Story {
     A.i++;
     const st = A.m.steps[A.i];
     if (!st) { this.pass(); return; }
+    A.last = A.st?.v || A.last;   // the previous step's vehicle (e.g. steal the car you just tailed)
+    if (A.st?.ai && A.st.v !== this.game.player && !this.game.onFoot.parked.includes(A.st.v)) {
+      const v = A.st.v; v.controls.throttle = 0; v.controls.brake = 0; v.controls.steer = 0; v.controls.handbrake = 1; v.keep = true;
+      this.game.onFoot.parked.push(v); // finished AI cars stay in the world as parked, solid cars
+    }
     A.st = { t: 0 };
     const g = this.game, s = A.st, m = A.m;
     this._meter(null);
@@ -233,9 +238,25 @@ export class Story {
         break;
       }
       case 'steal': {
+        if (st.reuse && A.last) {
+          const v = A.last;
+          v.controls.throttle = 0; v.controls.brake = 0; v.controls.steer = 0; v.controls.handbrake = 1;
+          v.keep = true; if (!g.onFoot.parked.includes(v)) g.onFoot.parked.push(v);
+          s.v = v;
+          break;
+        }
         const spot = this._resolve(st.at, m);
         s.spot = spot;
         s.pending = true; // spawned when the model is ready
+        break;
+      }
+      case 'collect': {
+        s.points = st.points.map((p) => ({ ...this._resolve(p, m), got: false }));
+        s.timeLeft = st.time || 120;
+        break;
+      }
+      case 'escort': {
+        s.pending = true;
         break;
       }
       case 'lose': {
@@ -282,7 +303,7 @@ export class Story {
       }
       const v = this._spawnVehicle(type, spot, st.paint);
       if (!v) return false;
-      const speed = st.type === 'tail' ? 15 : st.type === 'ram' ? 26 : v.p.maxSpeed;
+      const speed = st.type === 'tail' ? 15 : st.type === 'escort' ? (st.speed || 17) : st.type === 'ram' ? (st.speed || 26) : v.p.maxSpeed;
       const ai = new AIDriver(v, { skill: st.type === 'race' ? 0.96 : 0.82, maxSpeed: speed });
       ai.setRoute(route.map((p) => [p[0], p[1]]));
       ai.useNitro = st.type === 'race';
@@ -346,7 +367,21 @@ export class Story {
         this._meter(`HEAT ${g.police.heat || st.heat}`, 1 - (g.police.evade || 0), true);
         break;
       }
-      case 'tail': case 'ram': case 'race': {
+      case 'collect': {
+        s.timeLeft -= dt;
+        const left = s.points.filter((q) => !q.got);
+        for (const q of left) if (Math.hypot(q.x - f.x, q.z - f.z) < 9) { q.got = true; g.audio.playEvent('checkpoint'); g.hud.message(`${s.points.length - left.length + 1}/${s.points.length}`, '', 0.9, true); }
+        const rem = s.points.filter((q) => !q.got);
+        if (!rem.length) { this._next(); return; }
+        if (s.timeLeft <= 0) { this.fail("You ran out of time."); return; }
+        this._meter(`${st.label || 'PICKUPS'} ${s.points.length - rem.length}/${s.points.length} · ${Math.ceil(s.timeLeft)}s`, s.timeLeft / (st.time || 120), s.timeLeft < 20);
+        // point the marker / GPS at the nearest remaining pickup
+        let best = rem[0], bd = Infinity;
+        for (const q of rem) { const d = Math.hypot(q.x - f.x, q.z - f.z); if (d < bd) { bd = d; best = q; } }
+        target = best;
+        break;
+      }
+      case 'tail': case 'ram': case 'race': case 'escort': {
         const v = s.v, ai = s.ai;
         if (st.type === 'race' && s.countdown > 0) {
           const n = Math.ceil(s.countdown);
@@ -370,8 +405,11 @@ export class Story {
         const dStart = Math.hypot(v.state.x - f.x, v.state.z - f.z);
         // tail / ram targets wait (loading up) until you arrive, then set off
         if (st.type !== 'race' && !s.moving) {
-          if (dStart < (st.type === 'tail' ? 70 : 90)) { s.moving = true; if (st.type === 'ram') g.hud.message('HE SPOTTED YOU', '', 1.4, true); }
-          else { this._meter(st.type === 'tail' ? 'GET CLOSE TO THE VAN' : 'FIND THE TARGET', 0, false); }
+          if (dStart < (st.type === 'ram' ? 90 : st.type === 'escort' ? 45 : 70)) {
+            s.moving = true;
+            if (st.type === 'ram') g.hud.message('HE SPOTTED YOU', '', 1.4, true);
+            if (st.type === 'escort' && st.heat) g.police.startPursuit(st.heat, 'convoy');
+          } else this._meter(st.waitText || (st.type === 'tail' ? 'GET CLOSE TO THE VAN' : st.type === 'escort' ? 'MEET THE CONVOY' : 'FIND THE TARGET'), 0, false);
         }
         if (!s.stopped && (s.moving || st.type === 'race')) ai.update(dt, g.traffic ? g.traffic.cars : []);
         else { v.controls.throttle = 0; v.controls.brake = 1; v.controls.steer = 0; v.controls.handbrake = s.moving ? 0 : 1; }
@@ -399,6 +437,14 @@ export class Story {
           this._meter(close ? 'TOO CLOSE' : far ? 'LOSING HIM' : `DISTANCE ${Math.round(d)} m`, 1 - clamp((d - 16) / 154, 0, 1), close || d > 130);
           if (s.close > 2.5) { this.fail('The courier spotted you.'); return; }
           if (s.far > 5) { this.fail('You lost the van.'); return; }
+          if (atEnd) { this._next(); return; }
+        } else if (st.type === 'escort') {
+          const far = d > (st.maxDist || 110);
+          s.far = far ? (s.far || 0) + dt : 0;
+          const hp = 1 - v.state.damage;
+          this._meter(far ? 'STAY WITH THE CONVOY' : `${st.label || 'TRUCK'} ${Math.round(hp * 100)}%`, hp, far || hp < 0.35);
+          if (v.state.damage >= 1) { this.fail(`The ${(st.label || 'truck').toLowerCase()} was destroyed.`); return; }
+          if (s.far > 6) { this.fail('You left the convoy behind.'); return; }
           if (atEnd) { this._next(); return; }
         } else if (st.type === 'ram') {
           this._meter(`DAMAGE ${s.hits}/${st.hits}`, s.hits / st.hits, false);
@@ -463,6 +509,8 @@ export class Story {
     const out = [];
     if (!this.active) for (const gid of Object.keys(this.available())) { const gv = this._giver(gid); out.push({ x: gv.x, z: gv.z, color: CAST[gid].color, r: 6 }); }
     if (this.target) out.push({ x: this.target.x, z: this.target.z, color: '#ffc53d', r: 5 });
+    const st = this.active?.st;
+    if (st?.points) for (const q of st.points) if (!q.got) out.push({ x: q.x, z: q.z, color: '#ffc53d', r: 4 });
     return out;
   }
 
@@ -493,6 +541,7 @@ export class Story {
     g.hud.message('MISSION PASSED', `${m.title.toUpperCase()} · ${formatMoney(r.cash || 0)} · +${(r.xp || 0).toLocaleString()} XP`, 4.5);
     g.audio.playEvent('raceFinish');
     if (m.outro?.length) this._say(m.outro, true);
+    if (m.chapterEnd) { const nc = STORY_CHAPTERS.find((c) => c.id === m.chapterEnd + 1); setTimeout(() => g.hud.message(`CHAPTER ${m.chapterEnd} COMPLETE`, nc ? `NEXT: ${nc.name.toUpperCase()}` : '', 4), 5000); }
     if (m.finale) setTimeout(() => g.ui.toast('STORY COMPLETE — Port Halvern is yours. The city is still open for business.', 'cash', 8), 4800);
     else { const nx = STORY.find((x) => !this.done[x.id] && (x.requires || []).every((q) => this.done[q])); if (nx) setTimeout(() => g.ui.toast(`New mission from ${CAST[nx.giver].name}: ${nx.title} (see the minimap)`, '', 6), 4800); }
     bus.emit('story:pass', { id: m.id });

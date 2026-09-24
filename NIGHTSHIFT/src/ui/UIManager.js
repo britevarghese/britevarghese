@@ -9,6 +9,7 @@ import { CHAPTERS, MISSIONS } from '../progression/Missions.js';
 import { CARS } from '../vehicles/VehicleCatalog.js';
 import { FILTERS } from '../camera/PhotoMode.js';
 import { REPLAY_CAMS } from '../replay/Replay.js';
+import { STORY, STORY_CHAPTERS, CAST } from '../story/StoryData.js';
 
 const h = (tag, cls, html) => { const e = document.createElement(tag); if (cls) e.className = cls; if (html !== undefined) e.innerHTML = html; return e; };
 
@@ -221,6 +222,18 @@ export class UIManager {
     const next = Object.values(CARS).filter((c) => c.unlock?.level > L.level).sort((a, b) => a.unlock.level - b.unlock.level).slice(0, 3);
     if (next.length) box.appendChild(h('div', 'career-next', `NEXT UNLOCKS · ${next.map((c) => `<b>${c.name}</b> <span>LV ${c.unlock.level}</span>`).join(' · ')}`));
     const list = h('div', 'career-list');
+    // story campaign
+    const sd = g.save.data.story?.done || {};
+    const avail = g.story?.available() || {};
+    for (const ch of STORY_CHAPTERS) {
+      const ms = STORY.filter((m) => (m.chapter || 1) === ch.id);
+      const n = ms.filter((m) => sd[m.id]).length;
+      list.appendChild(h('div', 'chapter', `<span>STORY ${ch.id} · ${ch.name.toUpperCase()}</span><span>${n}/${ms.length}</span>`));
+      for (const m of ms) {
+        const complete = !!sd[m.id], next = Object.values(avail).includes(m), c = CAST[m.giver];
+        list.appendChild(h('div', 'mission' + (complete ? ' done' : '') + (m.finale || m.chapterEnd ? ' finale' : ''), `<div class="mt"><b>${complete ? '✓ ' : ''}${complete || next ? m.title : '???'}</b><span>${complete ? 'COMPLETE' : next ? `<span style="color:${c.color}">AVAILABLE · ${c.name}</span>` : 'LOCKED'}</span></div><div class="mr">${complete || next ? `${formatMoney(m.reward.cash)} · ${m.reward.xp.toLocaleString()} XP` : ''}</div>`));
+      }
+    }
     const done = g.save.data.missions;
     for (const ch of CHAPTERS) {
       const open = P.chapterOpen(ch.id);
@@ -344,8 +357,14 @@ export class UIManager {
     const canvas = h('canvas'); canvas.id = 'worldmap';
     const legend = h('div', 'map-legend panel', '<h2>PORT HALVERN</h2>');
     legend.style.padding = '1.4rem';
-    legend.innerHTML += `<div><span class="dot" style="background:#fff"></span>You</div><div><span class="dot" style="background:#ffc53d"></span>Race events</div><div><span class="dot" style="background:#3d7bff"></span>Police escape</div><div><span class="dot" style="background:#3dff9a"></span>Safehouses</div><div><span class="dot" style="background:#ff9a3d"></span>Shops</div><div><span class="dot" style="background:#ff3040"></span>Police</div>`;
+    legend.innerHTML += `<div><span class="dot" style="background:#fff"></span>You</div><div><span class="dot" style="background:#ffc53d"></span>Race events</div><div><span class="dot" style="background:#3d7bff"></span>Police escape</div><div><span class="dot" style="background:#3dff9a"></span>Safehouses</div><div><span class="dot" style="background:#ff9a3d"></span>Shops</div><div><span class="dot" style="background:#ff3040"></span>Police</div><div><span class="dot" style="background:#b98cff"></span>Story missions</div>`;
     const list = h('div', 'map-events');
+    for (const [gid, m] of Object.entries(g.story?.available() || {})) {
+      const gv = g.story._giver(gid), c = CAST[gid];
+      const d = h('div', '', `<b style="color:${c.color}">STORY · ${m.title}</b> <span style="color:var(--dim)">${c.name}</span>`);
+      d.onclick = () => { g.setGPS(gv.x, gv.z); this.toast(`GPS set: ${c.name}`); };
+      list.appendChild(d);
+    }
     for (const ev of g.races.events) {
       const d = h('div', '', `<b>${ev.def.name}</b> <span style="color:var(--dim)">${RACE_TYPE_NAMES[ev.def.type]}</span> <span style="color:var(--ok)">${formatMoney(ev.def.reward)}</span>`);
       d.onclick = () => { g.setGPS(ev.start.x, ev.start.z); this.toast(`GPS set: ${ev.def.name}`); };
@@ -376,7 +395,9 @@ export class UIManager {
       for (const sh of SAFEHOUSES) dot(sh.x, sh.z, 6, '#3dff9a', sh.name);
       for (const sh of SHOPS) dot(sh.x, sh.z, 5, '#ff9a3d', sh.name);
       for (const u of g.police.units) dot(u.vehicle.state.x, u.vehicle.state.z, 4, '#ff3040');
-      const ps = g.player.state;
+      if (!g.story?.active) for (const [gid, m] of Object.entries(g.story?.available() || {})) { const gv = g.story._giver(gid); dot(gv.x, gv.z, 8, CAST[gid].color, `${CAST[gid].name}: ${m.title}`); }
+      for (const b of g.story?.active ? g.story.blips() : []) dot(b.x, b.z, 6, b.color);
+      const ps = g.focusState;
       const [px, pz] = P(ps.x, ps.z);
       c.save(); c.translate(px, pz); c.rotate(ps.yaw); c.fillStyle = '#fff';
       c.beginPath(); c.moveTo(0, -10 * dpr); c.lineTo(7 * dpr, 8 * dpr); c.lineTo(0, 4 * dpr); c.lineTo(-7 * dpr, 8 * dpr); c.closePath(); c.fill(); c.restore();
