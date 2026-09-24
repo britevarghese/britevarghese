@@ -9,7 +9,7 @@ import {
 export const FACADE = { GLASS: 0, OFFICE: 1, BRICK: 2, METAL: 3, DARK: 4, HOUSE: 5, CONCRETE: 6 };
 
 // half extents of knock-away street clutter
-const SMALL_PROPS = { meter: [0.15, 0.15], bin: [0.3, 0.3], bench: [0.9, 0.25], hydrant: [0.18, 0.18], bollard: [0.12, 0.12], cone: [0.2, 0.2] };
+const SMALL_PROPS = { meter: [0.15, 0.15], bin: [0.3, 0.3], bench: [0.9, 0.25], hydrant: [0.18, 0.18], bollard: [0.12, 0.12], cone: [0.2, 0.2], stopSign: [0.12, 0.12], speedSign: [0.12, 0.12] };
 
 export class CityPlanner {
   constructor(layout) {
@@ -252,6 +252,31 @@ export class CityPlanner {
         const off = (R() < 0.5 ? -1 : 1) * R.range(1, 4);
         const x = ax + (bx - ax) * t + (e.axis === 'z' ? off : 0), z = az + (bz - az) * t + (e.axis === 'x' ? off : 0);
         this.prop('manhole', x, z, 0, { y: 0.003 });
+      }
+    }
+    // signage. Traffic drives on the right; a sign stands on the approaching driver's right, just
+    // before the junction, facing them. Unsignalized grid crossings are all-way stops.
+    const right = (dx, dz) => [-dz, dx];
+    const faceTo = (dx, dz) => Math.atan2(-dx, -dz);
+    for (const n of L.nodes) {
+      if (n.type !== 'grid' || n.signal || n.edges.length < 3) continue;
+      for (const [dx, dz] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+        const from = L.nodeMap.get(`${n.x - dx * GRID},${n.z - dz * GRID}`);
+        if (!from || !from.edges.some((id) => n.edges.includes(id))) continue;
+        const own = dx ? lineHalfWidth(n.l) : lineHalfWidth(n.k), cross = dx ? lineHalfWidth(n.k) : lineHalfWidth(n.l);
+        const [rx, rz] = right(dx, dz);
+        this.prop('stopSign', n.x - dx * (cross + 1.4) + rx * (own + 0.7), n.z - dz * (cross + 1.4) + rz * (own + 0.7), faceTo(dx, dz), { y: CURB_H });
+      }
+    }
+    for (const e of L.edges) {
+      if (e.type !== ROAD_TYPES.arterial || e.length < 90 || e.points.length !== 2) continue;
+      const a = L.nodes[e.a], b = L.nodes[e.b];
+      const hw = e.type.width / 2;
+      for (const [p0, p1] of [[a, b], [b, a]]) {
+        const len = Math.hypot(p1.x - p0.x, p1.z - p0.z), dx = (p1.x - p0.x) / len, dz = (p1.z - p0.z) / len;
+        const [rx, rz] = right(dx, dz);
+        const s0 = lineHalfWidth(dx ? p0.k : p0.l) + 26;
+        this.prop('speedSign', p0.x + dx * s0 + rx * (hw + 0.7), p0.z + dz * s0 + rz * (hw + 0.7), faceTo(dx, dz), { y: CURB_H });
       }
     }
     // traffic lights at signalized intersections: 4 poles on the corners

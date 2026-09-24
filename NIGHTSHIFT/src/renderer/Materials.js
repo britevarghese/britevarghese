@@ -65,6 +65,9 @@ export class Materials {
     // rooftop water tanks and storefront awnings
     this.tankWood = new THREE.MeshStandardMaterial({ name: 'tankWood', map: TX.concrete(1, 21, 120).map, roughness: 0.95, color: 0x6a4c36 });
     this.awning = new THREE.MeshStandardMaterial({ name: 'awning', map: TX.awningAtlas(), roughness: 0.9, side: THREE.DoubleSide });
+    // traffic signs: faintly self-lit at night to mimic retroreflective sheeting
+    const SG = TX.signAtlas();
+    this.sign = new THREE.MeshStandardMaterial({ name: 'sign', map: SG, emissiveMap: SG, emissive: 0xffffff, emissiveIntensity: 0, roughness: 0.5, metalness: 0.1 });
     // aviation obstruction lights on tall roofs (blink driven by WorldManager)
     this.beacon = new THREE.MeshBasicMaterial({ name: 'beacon', color: 0xff1a0a, toneMapped: false });
     this.glassDark = new THREE.MeshStandardMaterial({ name: 'glassDark', color: 0x0c1218, roughness: 0.05, metalness: 0.6, envMapIntensity: 1.3 });
@@ -114,5 +117,6 @@ export class Materials {
     this.streak.opacity = wetOK ? w * Math.max(0, night - 0.3) * 0.9 : 0;
     this.streak.visible = this.streak.opacity > 0.01;
     this.glow.opacity = Math.max(0, night - 0.3) * 1.2;
+    this.sign.emissiveIntensity = 0.03 + night * 0.22;
   }
 }

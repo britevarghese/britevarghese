@@ -34,6 +34,7 @@ export const GROUPS = [
     { id: 'aerial_night', setup: drive(157.75, -250, 0) + fixedCam(350, 180, -600, 0, 0, 0, 55), wait: 8000 },
     { id: 'highway_night', setup: drive(1177, 100, 0) , wait: 7000 },
     { id: 'suburb_night', setup: drive(-798.25, 500, 0), wait: 7000 },
+    { id: 'signs_night', setup: drive(157.75, -250, 0) + fixedCam(157.5, 1.6, -182, 153.3, 1.9, -166, 50), wait: 5000 },
     { id: 'drift_night', setup: drive(-5.75, -80, Math.PI) + sim([[240, { throttle: 1 }], [18, { throttle: 1, steer: 1, handbrake: 1 }], [24, { throttle: 0.8, steer: -0.3 }]]), wait: 1200 },
     { id: 'speed_night', setup: drive(1177, 100, 0) + sim([[420, { throttle: 1, nitro: true }]]), wait: 1200 },
   ] },
@@ -43,6 +44,7 @@ export const GROUPS = [
   { time: 'day', weather: 'clear', views: [
     { id: 'street_day_chase', setup: drive(157.75, -250, 0), wait: 7000 },
     { id: 'car_day_34', setup: drive(157.75, -250, 0) + fixedCam(162.5, 1.3, -244, 157.75, 0.6, -250, 45), wait: 5000 },
+    { id: 'signs_day', setup: drive(157.75, -250, 0) + fixedCam(157.5, 1.6, -182, 153.3, 1.9, -166, 50), wait: 5000 },
     { id: 'traffic_day', setup: drive(157.75, -250, 0) + sim([[600, { brake: 1 }]]) + fixedCam(150, 2.2, -186, 162, 0.8, -160, 50), wait: 1500 },
     { id: 'drift_day', setup: drive(-5.75, -80, Math.PI) + sim([[240, { throttle: 1 }], [18, { throttle: 1, steer: 1, handbrake: 1 }], [40, { throttle: 0.8, steer: -0.3 }]]) + fixedCam(-14, 7, -170, 0, 0, -150, 55), wait: 1500 },
   ] },

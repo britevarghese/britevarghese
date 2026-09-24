@@ -89,6 +89,12 @@ export function buildPropDefs(M) {
   const pillar = new THREE.BoxGeometry(0.9, 5.2, 0.9).translate(0, 2.6, 0);
   const flood = merge([cyl(0.1, 0.16, 9, 8), new THREE.BoxGeometry(1.4, 0.8, 0.2).translate(0, 9, 0.2)]);
   const floodLens = new THREE.PlaneGeometry(1.2, 0.6).translate(0, 9, 0.31);
+  // traffic signs: pole + plate back (metal) and the printed face (atlas: left half STOP, right half speed)
+  const signFace = (geo, u0, u1) => { const uv = geo.attributes.uv; for (let i = 0; i < uv.count; i++) uv.setX(i, u0 + uv.getX(i) * (u1 - u0)); return geo; };
+  const stopFace = signFace(new THREE.CircleGeometry(0.38, 8).rotateZ(Math.PI / 8).translate(0, 2.35, 0.035), 0, 0.5);
+  const stopBody = merge([cyl(0.035, 0.035, 2.35, 6), new THREE.CircleGeometry(0.38, 8).rotateZ(Math.PI / 8).rotateY(Math.PI).translate(0, 2.35, 0.03)]);
+  const speedFace = signFace(new THREE.PlaneGeometry(0.6, 0.75).translate(0, 2.2, 0.035), 0.5, 1);
+  const speedBody = merge([cyl(0.035, 0.035, 2.55, 6), new THREE.PlaneGeometry(0.6, 0.75).rotateY(Math.PI).translate(0, 2.2, 0.03)]);
   const manhole = decalQuad(MARK.MANHOLE, 0.9, 0.9);
   const drain = decalQuad(MARK.DRAIN, 1.0, 0.5);
 
@@ -109,6 +115,8 @@ export function buildPropDefs(M) {
     jersey: [{ geo: jersey, mat: M.concreteWall }],
     pillar: [{ geo: pillar, mat: M.concreteWall, shadow: true }],
     floodlight: [{ geo: flood, mat: M.darkMetal }, { geo: floodLens, mat: M.lampHeadCool, emissive: true }],
+    stopSign: [{ geo: stopBody, mat: M.metal }, { geo: stopFace, mat: M.sign }],
+    speedSign: [{ geo: speedBody, mat: M.metal }, { geo: speedFace, mat: M.sign }],
     manhole: [{ geo: manhole, mat: M.markings }],
     drain: [{ geo: drain, mat: M.markings }],
   };

@@ -847,3 +847,29 @@ export function awningAtlas() {
     return t;
   });
 }
+
+// ------------------------------------------------------------------ traffic signs (original designs)
+// 256x128 atlas: left half STOP octagon, right half SPEED LIMIT 50 plate
+export function signAtlas() {
+  return cached('signs', () => {
+    const w = 512, h = 256, c = canvas(w, h), ctx = c.getContext('2d');
+    ctx.fillStyle = '#6a6e72'; ctx.fillRect(0, 0, w, h);
+    // STOP octagon
+    const cx = h / 2, cy = h / 2, R = h * 0.47;
+    const oct = (r) => { ctx.beginPath(); for (let i = 0; i < 8; i++) { const a = Math.PI / 8 + i * Math.PI / 4; ctx.lineTo(cx + Math.cos(a) * r, cy + Math.sin(a) * r); } ctx.closePath(); };
+    oct(R); ctx.fillStyle = '#f2f2ee'; ctx.fill();
+    oct(R * 0.92); ctx.fillStyle = '#b3141a'; ctx.fill();
+    ctx.fillStyle = '#f4f4f0'; ctx.font = `bold ${h * 0.26}px Arial, Helvetica, sans-serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText('STOP', cx, cy + h * 0.01);
+    // SPEED LIMIT plate
+    const x0 = h + 18, pw = h - 36, py = 10, ph = h - 20;
+    ctx.fillStyle = '#f2f2ee'; ctx.fillRect(x0, py, pw, ph);
+    ctx.strokeStyle = '#151515'; ctx.lineWidth = 7; ctx.strokeRect(x0 + 9, py + 9, pw - 18, ph - 18);
+    ctx.fillStyle = '#151515'; ctx.font = `bold ${h * 0.12}px Arial, Helvetica, sans-serif`;
+    ctx.fillText('SPEED', x0 + pw / 2, py + ph * 0.2); ctx.fillText('LIMIT', x0 + pw / 2, py + ph * 0.36);
+    ctx.font = `bold ${h * 0.36}px Arial, Helvetica, sans-serif`; ctx.fillText('50', x0 + pw / 2, py + ph * 0.7);
+    // light grime
+    for (let i = 0; i < 400; i++) { ctx.fillStyle = `rgba(40,40,40,${Math.random() * 0.06})`; ctx.fillRect(Math.random() * w, Math.random() * h, 3, 3); }
+    return tex(c, { repeat: false });
+  });
+}
