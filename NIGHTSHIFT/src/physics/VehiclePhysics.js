@@ -95,9 +95,13 @@ export class VehiclePhysics {
     // speed-sensitive steering, extra lock allowed while drifting for counter-steer
     const beta = Math.atan2(vy, Math.max(Math.abs(vx), 0.5));
     const slipAngle = Math.abs(beta);
-    const maxLock = p.steeringAngle * lerp(1, 0.28, clamp(speed / 62, 0, 1)) * (1 + clamp(slipAngle * 1.2, 0, 0.8));
+    // speed-sensitive lock: full lock only at parking speeds, progressively less at speed
+    const speedK = clamp(speed / 55, 0, 1);
+    let maxLock = p.steeringAngle * lerp(1, 0.26, speedK * (2 - speedK));
+    if (this.driftMode) maxLock *= 1 + clamp(slipAngle * 1.1, 0, 0.7); // room to counter-steer a slide
     const targetDelta = -c.steer * maxLock;
-    this.delta = approach(this.delta, targetDelta, 3.2 * dt * (1 + speed / 40));
+    // steering rack speed: quick when parking, calmer at speed (prevents twitchy yaw overshoot)
+    this.delta = approach(this.delta, targetDelta, lerp(3.4, 0.9, speedK) * dt);
     const delta = this.delta;
     s.steer = c.steer;
 
@@ -143,6 +147,7 @@ export class VehiclePhysics {
       if (driveIn > 0) Fdrive = driveIn * power / Math.max(Math.abs(vx), 9);
       else if (driveIn < 0) Fdrive = vx > -16 ? driveIn * power * 0.45 / Math.max(Math.abs(vx), 6) : 0;
       if (this.shiftTimer > 0) Fdrive *= 0.25;
+      Fdrive = clamp(Fdrive, -m * G * 0.95, m * G * (p.launchG ?? 0.95) * (wantNitro ? 1.15 : 1));
     }
     // engine braking + rolling resistance + aero drag
     const moving = Math.abs(vx) > 0.05 ? sign(vx) : 0;
@@ -183,13 +188,18 @@ export class VehiclePhysics {
     let ay = (Fxf * sinD + Fyf * cosD + Fyr) / m;
     let rdot = (p.a * (Fyf * cosD + Fxf * sinD) - p.b * Fyr) / p.inertia;
 
-    // --- stability control (grip mode): stop over-rotation unless the driver is drifting ---
+    // --- stability control (grip mode): never rotate faster than the tires can carry the car,
+    // and pull the nose back toward the direction of travel when the rear starts to step out.
     const vAbs = Math.max(speed, 0.1);
-    if (s.onGround && !this.driftMode && !hb && speed > 6) {
-      const rGrip = (mu * G * 1.15) / vAbs;
+    if (s.onGround && !this.driftMode && !hb && speed > 5) {
+      const po = p.powerOversteer || 1;
+      const rGrip = (mu * G * 0.97) / vAbs;
       const rKin = clamp(vx * Math.tan(delta) / L, -rGrip, rGrip);
-      const over = Math.abs(r) > Math.abs(rKin) && Math.sign(r) === Math.sign(rKin || r);
-      if (over || slipAngle > 0.1) rdot -= (r - rKin) * 5.5 * clamp(speed / 25, 0.3, 1) / Math.max(0.6, p.powerOversteer);
+      const over = Math.abs(r) > Math.abs(rKin) * 1.02;
+      if (over) rdot += (rKin - r) * 24;
+      // slip correction (weaker on power-oversteer cars under throttle so muscle cars can slide)
+      const allow = 0.05 + (driveIn > 0.6 ? 0.9 * (po - 1) : 0);
+      if (slipAngle > allow) rdot += beta * (9 / po) * clamp(speed / 20, 0.3, 1);
     }
     const betaOld = Math.atan2(vy, Math.max(Math.abs(vx), 0.5));
     const vOld = Math.hypot(vx, vy);
@@ -210,37 +220,43 @@ export class VehiclePhysics {
 
     // --- arcade drift controller ---
     // The physics decides where the car travels; the driver controls the slip angle (nose vs.
-    // travel direction). Holding the turn deepens the angle, counter-steer straightens it.
+    // travel direction). Steering into the slide builds angle, neutral lets it decay, counter-steer
+    // straightens the car quickly. Throttle holds the slide, lifting ends it.
     if (s.onGround && vx > 0) {
       const spd = Math.hypot(vx, vy);
       const betaNew = Math.atan2(vy, vx);
       if (!this.driftMode) {
-        if ((hb && spd > 9 && (Math.abs(c.steer) > 0.2 || Math.abs(betaNew) > 0.06)) || (Math.abs(betaNew) > 0.28 && spd > 10)) this.driftMode = true;
-      } else if ((Math.abs(betaNew) < 0.07 && !hb) || spd < 5) this.driftMode = false;
+        const hbEntry = hb && spd > 9 && (Math.abs(c.steer) > 0.2 || Math.abs(betaNew) > 0.06);
+        const powerEntry = Math.abs(betaNew) > 0.3 && spd > 9 && driveIn > 0.6;
+        if (hbEntry || powerEntry) { this.driftMode = true; this.driftAngle = Math.max(Math.abs(betaNew), hbEntry ? 0.25 : 0.3); }
+      }
       if (this.driftMode) {
         let dir = Math.sign(betaNew) || -Math.sign(c.steer) || 1;
-        if (Math.abs(betaNew) < 0.05 && Math.abs(c.steer) > 0.2) dir = Math.sign(c.steer); // handbrake flick: slide away from the turn
+        if (Math.abs(betaNew) < 0.05 && Math.abs(c.steer) > 0.2) dir = Math.sign(c.steer); // handbrake flick
         const into = c.steer * dir;
-        let bt = 0.36 + 0.34 * Math.max(0, into) - 0.55 * Math.max(0, -into) + 0.08 * Math.max(0, driveIn);
-        if (!hb && driveIn < 0.1) bt *= 0.45;           // lift: drift fades out
-        if (hb) bt = Math.max(bt, 0.5);
-        bt = clamp(bt, 0.0, 0.82) * dir;
-        const assist = clamp(0.8 * p.driftAssist, 0, 1);
-        const rate = hb ? 3.2 : 2.2;
+        let a = this.driftAngle ?? 0.3;
+        const throttleHold = Math.max(0, driveIn);
+        if (hb) a = approach(a, 0.62, dt * 1.6);
+        else if (into > 0.15) a = approach(a, 0.4 + 0.38 * into, dt * (0.9 + into));
+        else if (into < -0.15) a = approach(a, 0, dt * (0.9 + 1.6 * -into));
+        else a = approach(a, throttleHold > 0.5 ? 0.18 : 0, dt * (throttleHold > 0.5 ? 0.25 : 0.7));
+        if (driveIn < 0.1 && !hb) a = approach(a, 0, dt * 0.6);
+        this.driftAngle = a = clamp(a, 0, 0.85);
+        const bt = a * dir;
+        const assist = clamp(0.85 * p.driftAssist, 0, 1);
+        const rate = hb ? 3.2 : 2.6;
         const betaCtl = betaOld + (bt - betaOld) * (1 - Math.exp(-dt * rate));
-        let beta = lerp(betaNew, betaCtl, assist);
-        beta = clamp(beta, -0.9, 0.9);
-        // travel direction from physics; nose placed at (travel - beta)
-        // extra path curvature while drifting so slides can take city corners
-        const turnAssist = (0.22 + 0.4 * Math.max(0, into)) * clamp(spd / 18, 0, 1) * p.driftAssist;
+        let bb = clamp(lerp(betaNew, betaCtl, assist), -0.9, 0.9);
+        // extra path curvature while sliding so drifts can take city corners
+        const turnAssist = (0.18 + 0.42 * Math.max(0, into) + (hb ? 0.25 : 0)) * clamp(spd / 18, 0, 1) * p.driftAssist;
         const headV = s.yaw + r * dt + betaNew - dir * turnAssist * dt;
-        const newYaw = headV - beta;
-        r = (newYaw - s.yaw) / dt;
+        r = (headV - bb - s.yaw) / dt;
         // keep momentum while sliding on throttle (arcade)
         let sp2 = spd;
-        const maxLoss = (driveIn > 0.1 ? 2.2 : 6) * dt;
+        const maxLoss = (hb ? 3.5 : driveIn > 0.1 ? 0.8 : 4) * dt;
         if (sp2 < vOld - maxLoss) sp2 = vOld - maxLoss;
-        vx = sp2 * Math.cos(beta); vy = sp2 * Math.sin(beta);
+        vx = sp2 * Math.cos(bb); vy = sp2 * Math.sin(bb);
+        if ((Math.abs(bb) < 0.06 && a < 0.08 && !hb) || spd < 5) { this.driftMode = false; this.driftAngle = 0; }
       }
     } else this.driftMode = false;
     s.drifting = this.driftMode && Math.abs(Math.atan2(vy, Math.max(vx, 0.5))) > 0.12;
@@ -363,18 +379,27 @@ export class VehiclePhysics {
     s.x += nx * depth; s.z += nz * depth;
     const vn = s.vx * nx + s.vz * nz;
     if (vn >= 0) return;
-    const e = kind === 'pole' || kind === 'tree' ? 0.15 : 0.28;
-    // tangential friction scrubs speed on glancing hits
+    const e = kind === 'pole' || kind === 'tree' ? 0.08 : 0.12;
+    // tangential friction scrubs speed on glancing hits (grazing a wall keeps most of the speed)
     const tx = -nz, tz = nx;
     const vt = s.vx * tx + s.vz * tz;
     const glance = Math.abs(vt) / (Math.abs(vn) + Math.abs(vt) + 1e-3);
-    const fr = lerp(0.55, 0.9, glance);
-    s.vx = tx * vt * fr - nx * vn * e;
-    s.vz = tz * vt * fr - nz * vn * e;
+    // Coulomb friction: tangential loss proportional to the normal impulse, so a hard hit scrubs a
+    // lot while scraping along a wall (tiny repeated contacts) keeps most of the speed
+    const muWall = kind === 'pole' || kind === 'tree' ? 0.5 : 0.22;
+    const vtNew = vt - Math.sign(vt) * Math.min(Math.abs(vt), muWall * -vn * (1 + e));
+    s.vx = tx * vtNew - nx * vn * e;
+    s.vz = tz * vtNew - nz * vn * e;
+    // glancing hits steer the car along the wall instead of leaving it nosed into it
+    if (glance > 0.55 && Math.abs(vt) > 3) {
+      const along = Math.atan2(tx * Math.sign(vt), tz * Math.sign(vt));
+      let d = along - s.yaw; while (d > Math.PI) d -= Math.PI * 2; while (d < -Math.PI) d += Math.PI * 2;
+      if (Math.abs(d) < 1.2) s.yawRate = lerp(s.yawRate, d * 5, 0.5 * glance);
+    }
     // spin from off-center impact
     const [cx, cz] = contactPoint(box, nx, nz);
     const rx = cx - s.x, rz = cz - s.z;
-    const torque = (rx * nz - rz * nx) * -vn;
+    const torque = (rz * nx - rx * nz) * -vn; // r x J (y component), J = -vn * n
     s.yawRate += clamp(torque * p.mass / p.inertia * 0.35, -3, 3);
     const impact = -vn;
     if (impact > 1.2) {
@@ -400,8 +425,8 @@ export class VehiclePhysics {
     A.s.vx += (j / ma) * nx; A.s.vz += (j / ma) * nz;
     B.s.vx -= (j / mb) * nx; B.s.vz -= (j / mb) * nz;
     const [cx, cz] = contactPoint(a, nx, nz);
-    const ta = ((cx - A.s.x) * nz - (cz - A.s.z) * nx) * j / A.p.inertia * 0.5;
-    const tb = ((cx - B.s.x) * nz - (cz - B.s.z) * nx) * j / B.p.inertia * 0.5;
+    const ta = ((cz - A.s.z) * nx - (cx - A.s.x) * nz) * j / A.p.inertia * 0.5;
+    const tb = ((cz - B.s.z) * nx - (cx - B.s.x) * nz) * j / B.p.inertia * 0.5;
     A.s.yawRate += clamp(ta, -2.5, 2.5); B.s.yawRate -= clamp(tb, -2.5, 2.5);
     const impact = -vn;
     A.s.damage = clamp(A.s.damage + Math.max(0, impact - 5) * 0.004 * (mb / tot) * 2, 0, 1);

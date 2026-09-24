@@ -8,13 +8,13 @@ export const CARS = {
   hikari: {
     id: 'hikari', name: 'Hikari R4', class: 'TUNER', price: 18000, carType: 'tuner',
     blurb: 'Light turbo four. Loves to drift, responds best to upgrades.',
-    params: { mass: 1240, enginePower: 245, maxSpeed: 73, grip: 1.24, driftGrip: 0.4, steeringAngle: 0.62, brakingForce: 15500, wheelBase: 2.53, trackWidth: 1.52, cgHeight: 0.47, frontWeight: 0.55, drive: 'RWD', gears: [3.5, 2.4, 1.8, 1.4, 1.12, 0.92], finalDrive: 4.1, redline: 8400, downforce: 1.3, suspensionStrength: 2.3, suspensionDamping: 0.5, length: 4.3, width: 1.8, wheelRadius: 0.33, driftAssist: 1.15 },
+    params: { mass: 1240, enginePower: 245, maxSpeed: 73, grip: 1.24, driftGrip: 0.4, steeringAngle: 0.56, brakingForce: 15500, wheelBase: 2.53, trackWidth: 1.52, cgHeight: 0.47, frontWeight: 0.55, drive: 'RWD', gears: [3.5, 2.4, 1.8, 1.4, 1.12, 0.92], finalDrive: 4.1, redline: 8400, downforce: 1.3, suspensionStrength: 2.3, suspensionDamping: 0.5, length: 4.3, width: 1.8, wheelRadius: 0.33, driftAssist: 1.15 },
     upgradeBonus: 1.35,
   },
   brawler: {
     id: 'brawler', name: 'Brawler 71', class: 'MUSCLE', price: 32000, carType: 'muscle',
     blurb: 'Big V8 torque, lazy cornering. Power-slides on demand.',
-    params: { mass: 1680, enginePower: 400, maxSpeed: 79, grip: 1.1, driftGrip: 0.36, steeringAngle: 0.52, brakingForce: 16000, wheelBase: 2.8, trackWidth: 1.62, cgHeight: 0.52, frontWeight: 0.56, drive: 'RWD', gears: [2.9, 1.95, 1.45, 1.12, 0.9], finalDrive: 3.4, redline: 6600, downforce: 1.0, suspensionStrength: 1.8, suspensionDamping: 0.42, length: 4.8, width: 1.96, wheelRadius: 0.36, powerOversteer: 1.35 },
+    params: { mass: 1680, enginePower: 420, maxSpeed: 79, grip: 1.16, driftGrip: 0.36, steeringAngle: 0.52, brakingForce: 16000, wheelBase: 2.8, trackWidth: 1.62, cgHeight: 0.52, frontWeight: 0.56, drive: 'RWD', gears: [2.9, 1.95, 1.45, 1.12, 0.9], finalDrive: 3.4, redline: 6600, downforce: 1.0, suspensionStrength: 1.8, suspensionDamping: 0.42, length: 4.8, width: 1.96, wheelRadius: 0.36, powerOversteer: 1.35 },
   },
   stratos: {
     id: 'stratos', name: 'Stratos V12', class: 'EXOTIC', price: 95000, carType: 'exotic',
