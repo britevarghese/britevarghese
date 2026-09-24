@@ -13,7 +13,7 @@ export const RACE_EVENTS = [
     waypoints: [[-3, -2], [-1, -2], [-1, 0], [-3, 0]],
   },
   {
-    id: 'checkpoint_heights', name: 'Elm Heights Checkpoint', type: 'checkpoint', timeLimit: 32, timeBonus: 9, reward: 3000, rep: 90,
+    id: 'checkpoint_heights', name: 'Elm Heights Checkpoint', type: 'checkpoint', timeLimit: 40, timeBonus: 10, reward: 3000, rep: 90,
     desc: 'Beat the clock through the suburbs. Every gate adds time.',
     waypoints: [[-4, 4], [-4, 5], [-2, 5], [-2, 4], [-3, 4], [-3, 3], [-5, 3]],
   },
@@ -30,7 +30,7 @@ export const RACE_EVENTS = [
   {
     id: 'escape_docks', name: 'Dockside Getaway', type: 'escape', heat: 3, timeLimit: 150, reward: 6000, rep: 200,
     desc: 'The police are already on to you. Lose them before time runs out.',
-    waypoints: [[4, -3]],
+    waypoints: [[4, -3], [4, -2]],
   },
   {
     id: 'sprint_river', name: 'Riverside Run', type: 'sprint', opponents: 3, reward: 4800, rep: 140,

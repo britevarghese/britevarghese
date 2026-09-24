@@ -176,7 +176,7 @@ export class LaneGraph {
       const a = l.pts[0], b = l.pts[l.pts.length - 1];
       // quick reject by bbox
       const minx = Math.min(a[0], b[0]) - 40, maxx = Math.max(a[0], b[0]) + 40, minz = Math.min(a[1], b[1]) - 40, maxz = Math.max(a[1], b[1]) + 40;
-      if (l.pts.length === 2 && (x < minx || x > maxx || z < minz || z > maxz)) continue;
+      if (best && l.pts.length === 2 && (x < minx - best.dist || x > maxx + best.dist || z < minz - best.dist || z > maxz + best.dist)) continue;
       for (let i = 1; i < l.pts.length; i++) {
         const p0 = l.pts[i - 1], p1 = l.pts[i];
         const dx = p1[0] - p0[0], dz = p1[1] - p0[1];

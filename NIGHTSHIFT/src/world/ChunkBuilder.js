@@ -138,6 +138,7 @@ export class ChunkBuilder {
       cw.wall(...(o > 0 ? [wb2[0], wb2[1], wa2[0], wa2[1]] : [wa2[0], wa2[1], wb2[0], wb2[1]]), 0, 3.2, 1 / 4, 1 / 4);
       cw.quad([wa[0], 3.2, wa[1]], [wa2[0], 3.2, wa2[1]], [wb2[0], 3.2, wb2[1]], [wb[0], 3.2, wb[1]], [0, 1, 0], [[0, 0], [0.1, 0], [0.1, 1], [0, 1]]);
       // median (jersey-like low wall, both faces)
+      if (this.L.nearRingJunction((a[0] + b[0]) / 2, (a[1] + b[1]) / 2)) continue;
       const ma = P(a, n0, -0.3), mb = P(b, n1, -0.3), ma2 = P(a, n0, 0.3), mb2 = P(b, n1, 0.3);
       cw.wall(ma[0], ma[1], mb[0], mb[1], 0, 0.9, 1 / 4, 1 / 4);
       cw.wall(mb2[0], mb2[1], ma2[0], ma2[1], 0, 0.9, 1 / 4, 1 / 4);

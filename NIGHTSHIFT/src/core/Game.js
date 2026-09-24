@@ -132,6 +132,16 @@ export class Game {
     return { x: n.x, z: n.z, yaw: Math.atan2(n.dx, n.dz) };
   }
 
+  // put an AI vehicle back on the nearest lane (only when the camera can't see the jump)
+  recoverAI(vehicle, ai) {
+    ai.needsReset = false;
+    const s = vehicle.state;
+    if (Math.hypot(s.x - this.camera.position.x, s.z - this.camera.position.z) < 45) return false;
+    const spot = this._laneSpot(s.x, s.z);
+    vehicle.place(spot.x, spot.z, spot.yaw);
+    return true;
+  }
+
   resetPlayer() {
     const s = this.player.state;
     const spot = this._laneSpot(s.x, s.z);
@@ -378,9 +388,9 @@ export class Game {
     const now = performance.now();
     let dt = (now - this.last) / 1000;
     this.last = now;
-    dt = Math.min(dt, 1 / 20); // avoid huge steps after tab switches
     this.frameMs = lerp(this.frameMs, dt * 1000, 0.1);
     this.frames++; this.fpsT += dt;
+    dt = Math.min(dt, 1 / 20); // avoid huge steps after tab switches
     if (this.fpsT >= 0.5) { this.fps = this.frames / this.fpsT; this.frames = 0; this.fpsT = 0; }
     try { this._update(dt); } catch (e) { console.error('[Game] update error', e); this._errCount = (this._errCount || 0) + 1; if (this._errCount < 4) this.ui?.toast(`Error: ${e.message}`, 'err', 5); }
     this.input.endFrame();

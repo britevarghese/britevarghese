@@ -240,37 +240,41 @@ export class VehicleRenderer {
     if (this.dentable) return;
     this.dentable = true;
     const body = this.lod0.getObjectByName('body');
-    if (body) { body.geometry = body.geometry.clone(); this.bodyMesh = body; this.origPos = body.geometry.attributes.position.array.slice(); }
+    this.bodyParts = [];
+    body?.traverse((o) => {
+      if (!o.isMesh) return;
+      o.geometry = o.geometry.clone();
+      // give each part its own position buffer so dents are per-vehicle
+      o.geometry.setAttribute('position', o.geometry.attributes.position.clone());
+      this.bodyParts.push({ mesh: o, orig: o.geometry.attributes.position.array.slice() });
+    });
   }
   // local impact point (car space) and strength 0..1
   dent(localX, localZ, strength) {
-    if (!this.bodyMesh) return;
-    const pos = this.bodyMesh.geometry.attributes.position;
     const R = 0.55 + strength * 0.4;
     const depth = 0.05 + strength * 0.12;
-    let moved = false;
-    for (let i = 0; i < pos.count; i++) {
-      const x = pos.getX(i), z = pos.getZ(i), y = pos.getY(i);
-      const d = Math.hypot(x - localX, z - localZ);
-      if (d > R || y < 0.2) continue;
-      const k = (1 - d / R) ** 2 * depth;
-      // push towards the car's center line / along the impact normal, clamped vs. original
-      const ox = this.origPos[i * 3], oz = this.origPos[i * 3 + 2];
-      const nx = x - 0, nz = z - 0;
-      const l = Math.hypot(nx, nz) || 1;
-      const nxN = x - nx / l * k, nzN = z - nz / l * k;
-      if (Math.hypot(nxN - ox, nzN - oz) < 0.16) { pos.setX(i, nxN); pos.setZ(i, nzN); pos.setY(i, y - k * 0.3); moved = true; }
+    for (const part of this.bodyParts || []) {
+      const pos = part.mesh.geometry.attributes.position;
+      let moved = false;
+      for (let i = 0; i < pos.count; i++) {
+        const x = pos.getX(i), z = pos.getZ(i), y = pos.getY(i);
+        const d = Math.hypot(x - localX, z - localZ);
+        if (d > R || y < 0.2) continue;
+        const k = (1 - d / R) ** 2 * depth;
+        const l = Math.hypot(x, z) || 1;
+        const nx = x - x / l * k, nz = z - z / l * k;
+        const ox = part.orig[i * 3], oz = part.orig[i * 3 + 2];
+        if (Math.hypot(nx - ox, nz - oz) < 0.16) { pos.setXYZ(i, nx, y - k * 0.3, nz); moved = true; }
+      }
+      if (moved) { pos.needsUpdate = true; part.mesh.geometry.computeVertexNormals(); }
     }
-    if (moved) { pos.needsUpdate = true; this.bodyMesh.geometry.computeVertexNormals(); }
-    // broken lights
-    if (strength > 0.45) {
-      const front = localZ > 1.2, rear = localZ < -1.2;
-      if (front) this.lightsBroken[localX > 0 ? 0 : 1] = true;
-      void rear;
-    }
+    if (strength > 0.45 && localZ > 1.2) this.lightsBroken[localX > 0 ? 0 : 1] = true;
   }
   repair() {
-    if (this.bodyMesh && this.origPos) { this.bodyMesh.geometry.attributes.position.array.set(this.origPos); this.bodyMesh.geometry.attributes.position.needsUpdate = true; this.bodyMesh.geometry.computeVertexNormals(); }
+    for (const part of this.bodyParts || []) {
+      const pos = part.mesh.geometry.attributes.position;
+      pos.array.set(part.orig); pos.needsUpdate = true; part.mesh.geometry.computeVertexNormals();
+    }
     this.lightsBroken = [false, false];
     this.setDamageLook(0);
   }
@@ -352,6 +356,6 @@ export class VehicleRenderer {
   dispose() {
     this.group.removeFromParent();
     for (const m of Object.values(this.mats)) { m.map?.dispose(); m.dispose(); }
-    if (this.dentable && this.bodyMesh) this.bodyMesh.geometry.dispose();
+    for (const part of this.bodyParts || []) part.mesh.geometry.dispose();
   }
 }

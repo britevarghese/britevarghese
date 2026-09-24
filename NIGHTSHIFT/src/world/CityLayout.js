@@ -169,6 +169,15 @@ export class CityLayout {
     return pts;
   }
 
+  // true near a link junction on the ring (median barrier has a crossover gap there)
+  nearRingJunction(x, z, r = 40) {
+    for (const k of [-4, -2, 0, 2, 4]) {
+      const c = k * GRID;
+      if ((Math.abs(x - c) < r && Math.abs(Math.abs(z) - RING) < 20) || (Math.abs(z - c) < r && Math.abs(Math.abs(x) - RING) < 20)) return true;
+    }
+    return false;
+  }
+
   // distance to the highway ring center line (analytic rounded square)
   ringDistance(x, z) {
     const C = RING - RING_CORNER_R;

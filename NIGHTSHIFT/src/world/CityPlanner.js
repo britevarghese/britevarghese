@@ -321,7 +321,7 @@ export class CityPlanner {
       const outer = H.width / 2 + 0.6;
       this.collider(mx + ox * outer, mz + oz * outer, 0.4, len / 2 + 0.6, ang, 3, 'wall');
       // median barrier (gaps at link junctions are not needed: links join from the inner side)
-      this.collider(mx, mz, 0.35, len / 2 + 0.3, ang, 1, 'barrier');
+      if (!L.nearRingJunction(mx, mz)) this.collider(mx, mz, 0.35, len / 2 + 0.3, ang, 1, 'barrier');
       if (i % 5 === 0) {
         this.prop('highwayLamp', mx, mz, ang, { y: 0 });
         this.lightPools.push({ x: mx + nx * 6, z: mz + nz * 6, r: 11, color: 0xffc080, i: 1 });
@@ -341,7 +341,7 @@ export class CityPlanner {
       // leave gaps for link roads
       const nearLink = [-4, -2, 0, 2, 4].some((k) => {
         const c = k * GRID;
-        return (Math.abs(ix - c) < 14 && Math.abs(Math.abs(iz) - RING) < 30) || (Math.abs(iz - c) < 14 && Math.abs(Math.abs(ix) - RING) < 30);
+        return (Math.abs(ix - c) < 34 && Math.abs(Math.abs(iz) - RING) < 30) || (Math.abs(iz - c) < 34 && Math.abs(Math.abs(ix) - RING) < 30);
       });
       if (nearLink) continue;
       this.collider(ix, iz, 0.2, len / 2 + 0.3, Math.atan2(dx, dz), 0.8, 'rail');

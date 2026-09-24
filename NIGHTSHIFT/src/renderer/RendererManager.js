@@ -43,7 +43,7 @@ export class RendererManager {
     r.toneMapping = THREE.ACESFilmicToneMapping;
     r.toneMappingExposure = 1.0;
     r.shadowMap.enabled = preset.shadows !== 'off';
-    r.shadowMap.type = THREE.PCFSoftShadowMap;
+    r.shadowMap.type = THREE.PCFShadowMap;
     r.domElement.id = 'game-canvas';
     this.container.prepend(r.domElement);
     this.resize();

@@ -11,7 +11,7 @@ import { FXAAShader } from 'three/addons/shaders/FXAAShader.js';
 const SpeedShader = {
   uniforms: {
     tDiffuse: { value: null }, uBlur: { value: 0 }, uChroma: { value: 0 }, uVignette: { value: 0.35 },
-    uFlash: { value: 0 }, uTime: { value: 0 }, uGrain: { value: 0.025 }, uCenter: { value: new THREE.Vector2(0.5, 0.52) },
+    uFlash: { value: 0 }, uTime: { value: 0 }, uGrain: { value: 0.012 }, uCenter: { value: new THREE.Vector2(0.5, 0.52) },
     uGray: { value: 0 },
   },
   vertexShader: 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }',
@@ -52,7 +52,7 @@ export class PostFX {
     this.composer = new EffectComposer(renderer, rt);
     this.composer.addPass(new RenderPass(scene, camera));
     const bloomRes = new THREE.Vector2(size.x, size.y).multiplyScalar(preset.post === 'high' ? 0.5 : 0.35);
-    this.bloom = new UnrealBloomPass(bloomRes, preset.post === 'high' ? 0.75 : 0.6, 0.55, 0.82);
+    this.bloom = new UnrealBloomPass(bloomRes, preset.post === 'high' ? 0.6 : 0.45, 0.5, 0.9);
     this.composer.addPass(this.bloom);
     this.speed = new ShaderPass(SpeedShader);
     this.composer.addPass(this.speed);
@@ -80,7 +80,7 @@ export class PostFX {
     u.uTime.value = this.time % 100;
     u.uGray.value = fx.busted;
     this.speed.enabled = blur > 0.01 || fx.nitro > 0.01 || fx.damageFlash > 0.01 || fx.busted > 0.01 || true;
-    this.bloom.strength = (this.preset.post === 'high' ? 0.7 : 0.55) * (fx.bloomScale ?? 1);
+    this.bloom.strength = (this.preset.post === 'high' ? 0.6 : 0.45) * (fx.bloomScale ?? 1);
     this.composer.render(dt);
   }
   dispose() { this.composer.dispose(); }

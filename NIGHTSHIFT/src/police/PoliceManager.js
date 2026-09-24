@@ -212,7 +212,7 @@ export class PoliceManager {
     // --- patrols in free roam: keep a couple of units roaming the nearby road network ---
     if (this.state === 'idle') {
       const patrols = this.units.filter((u) => u.role === 'patrol');
-      if (patrols.length < this.maxPatrols && this.R() < dt * 0.5) {
+      if (patrols.length < (game.races?.active ? 1 : this.maxPatrols) && this.R() < dt * 0.5) {
         const n = this._spawnPoint(160, 300, this.R() < 0.5);
         if (n) { const u = this._spawnNearNode(n, false); if (u) { u.role = 'patrol'; u.vehicle.renderer.sirenOn = false; } }
       }
@@ -222,7 +222,7 @@ export class PoliceManager {
         this.detectT = 0.4;
         const seer = this._anyUnitSees(75);
         if (seer) {
-          const racing = game.races?.active && game.races.active.def.type !== 'timetrial';
+          const racing = game.races?.active?.state === 'racing' && game.races.active.def.type !== 'timetrial';
           if (pSpeed > 31 || racing) this.startPursuit(1, racing ? 'street racing' : 'speeding');
         }
       }
@@ -253,8 +253,8 @@ export class PoliceManager {
       // --- bust meter: slow + surrounded ---
       let close = 0;
       for (const u of this.units) if (!u.disabled && u.role !== 'patrol' && Math.hypot(u.vehicle.state.x - p.x, u.vehicle.state.z - p.z) < 11) close++;
-      if (this.state === 'pursuit' && close > 0 && pSpeed < 2.8) this.bust += dt / (close > 1 ? 2.2 : 3.2);
-      else this.bust = Math.max(0, this.bust - dt * 0.6);
+      if (this.state === 'pursuit' && close > 0 && pSpeed < 2.2) this.bust += dt / (close > 1 ? 2.8 : 4);
+      else this.bust = Math.max(0, this.bust - dt * (pSpeed > 8 ? 1.2 : 0.5));
       if (this.bust >= 1) { this.bust = 1; this.state = 'busted'; this.endPursuit('busted'); return; }
 
       // --- backup: maintain unit count for current heat ---
@@ -323,6 +323,7 @@ export class PoliceManager {
         // units leave the roadblock and join when the player gets past
         if (d < 30 && pSpeed > 5) { u.role = 'pursuit'; u.ai.mode = 'pursue'; }
       }
+      if (u.ai.needsReset && game.recoverAI(v, u.ai)) u.replanT = 0;
       const events = v.update(dt);
       for (const e of events) if (e.type === 'collision' && e.intensity > 0.15) game.fx?.impact(e.x, 0.6, e.z, e.nx, e.nz, e.intensity * 0.5);
       if (v.state.damage >= 1 && !u.disabled) { u.disabled = true; v.renderer.sirenOn = false; this.disabledCount++; this.bounty += 500; bus.emit('police:disabled', { x: s.x, z: s.z }); }

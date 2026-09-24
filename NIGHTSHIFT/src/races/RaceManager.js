@@ -72,16 +72,18 @@ export class RaceManager {
         route.push([n.x, n.z]);
       }
     }
+    if (!route.length) { const n = nodeAt(wps[0]); route.push([n.x, n.z]); }
     // start position: 30 m along the first leg, heading along it
     const a = route[0], b = route[1] || [a[0] + 1, a[1]];
     const dirx = b[0] - a[0], dirz = b[1] - a[1], dl = Math.hypot(dirx, dirz) || 1;
     const start = { x: a[0] + dirx / dl * 30, z: a[1] + dirz / dl * 30, yaw: Math.atan2(dirx, dirz) };
     // gates at waypoints (excluding the start for sprints)
     const gateWps = def.type === 'circuit' ? [...wps.slice(1), wps[0]] : wps.slice(1);
-    for (const g of gateWps) {
+    for (const g of route.length > 1 ? gateWps : []) {
       // incoming direction: from the previous route point before this gate
       let idx = route.findIndex((p) => Math.hypot(p[0] - g[0], p[1] - g[1]) < 1);
       if (idx <= 0) idx = 1;
+      if (idx >= route.length) idx = route.length - 1;
       const p0 = route[idx - 1], p1 = route[idx];
       const dx = p1[0] - p0[0], dz = p1[1] - p0[1], l = Math.hypot(dx, dz) || 1;
       gates.push({ x: g[0], z: g[1], dx: dx / l, dz: dz / l, w: 16 });
@@ -190,6 +192,8 @@ export class RaceManager {
   }
 
   _crossed(g, prev, now) {
+    // passing through the gate zone counts (players turn inside intersections)
+    if (Math.hypot(now.x - g.x, now.z - g.z) < g.w / 2 + 3) return true;
     const s0 = (prev.x - g.x) * g.dx + (prev.z - g.z) * g.dz;
     const s1 = (now.x - g.x) * g.dx + (now.z - g.z) * g.dz;
     if (!(s0 < 0 && s1 >= 0)) return false;
@@ -270,6 +274,7 @@ export class RaceManager {
         o.ai.powerScale = clamp(1 - diff / 900, 0.82, 1.12);
         o.v.physics.p.powerW = o.v.physics.p.enginePower * 1000 * (o.v.physics.p.acceleration || 1) * o.ai.powerScale;
         o.ai.update(dt, obstacles);
+        if (o.ai.needsReset && game.recoverAI(o.v, o.ai)) { const r = o.ai.route, idx = o.ai.idx; o.ai.route = r; o.ai.idx = idx; }
         if (gates.length && o.gate < gates.length && this._crossed(gates[o.gate], o.prev, o.v.state)) {
           o.gate++;
           if (o.gate >= gates.length) {

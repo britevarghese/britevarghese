@@ -256,7 +256,7 @@ export function facade(style) {
         cc.fillStyle = g; cc.fillRect(x, y, ww, wh);
         oc.fillStyle = def.metal ? 'rgb(0,25,200)' : 'rgb(0,35,90)'; oc.fillRect(x, y, ww, wh);
         // lit window: warm interior with blinds / silhouettes (fake interiors)
-        if (R() < def.lit) {
+        if (R() < def.lit * 0.8) {
           const col = R.pick(def.litColors);
           const bright = 0.45 + R() * 0.55;
           const eg = ec.createLinearGradient(0, y, 0, y + wh);

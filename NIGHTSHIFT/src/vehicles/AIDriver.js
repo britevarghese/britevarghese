@@ -18,7 +18,27 @@ export class AIDriver {
     this.loop = false;
   }
 
-  setRoute(points, loop = false) { this.route = points; this.idx = 0; this.loop = loop; this.mode = 'route'; }
+  setRoute(points, loop = false, offset = this.laneOffset ?? 2.6) {
+    // drive on the right-hand side of the road (offset polyline), not on the center line
+    if (offset && points.length > 1) {
+      const out = [];
+      for (let i = 0; i < points.length; i++) {
+        const a = points[Math.max(0, i - 1)], b = points[Math.min(points.length - 1, i + 1)];
+        const dx = b[0] - a[0], dz = b[1] - a[1], l = Math.hypot(dx, dz) || 1;
+        out.push([points[i][0] - dz / l * offset, points[i][1] + dx / l * offset]);
+      }
+      points = out;
+    }
+    this.route = points; this.idx = 0; this.loop = loop; this.mode = 'route';
+    // skip route points that are behind the car and close (avoids U-turns into curbs)
+    const s = this.v.state;
+    const fx = Math.sin(s.yaw), fz = Math.cos(s.yaw);
+    while (!loop && this.idx < points.length - 2) {
+      const p = points[this.idx + 1];
+      const dx = p[0] - s.x, dz = p[1] - s.z;
+      if (dx * fx + dz * fz < 0 && Math.hypot(dx, dz) < 60) this.idx++; else break;
+    }
+  }
 
   // progress helper: index of nearest segment ahead
   _advanceIndex(x, z) {
@@ -84,11 +104,20 @@ export class AIDriver {
       targetSpeed = d < 12 ? Math.max(Math.hypot(t.vx || 0, t.vz || 0) + 4, 8) : this.maxSpeed;
     } else if (this.route.length > 1) {
       this._advanceIndex(s.x, s.z);
-      const la = this._lookahead(s.x, s.z, 7 + speed * 0.55);
+      // shorten the lookahead before sharp corners so the car doesn't cut through blocks
+      let laDist = 7 + speed * 0.55;
+      const r = this.route, ni = this.idx + 1;
+      if (ni < r.length - 1) {
+        const a = r[ni - 1], b = r[ni], c2 = r[ni + 1];
+        const turn = Math.abs(wrapAngle(Math.atan2(c2[0] - b[0], c2[1] - b[1]) - Math.atan2(b[0] - a[0], b[1] - a[1])));
+        const dCorner = Math.hypot(b[0] - s.x, b[1] - s.z);
+        if (turn > 0.6 && dCorner > 6) laDist = Math.min(laDist, Math.max(6, dCorner + 2));
+      }
+      const la = this._lookahead(s.x, s.z, laDist);
       tx = la[0]; tz = la[1];
       const corner = this._cornerAhead(Math.max(40, speed * 3));
       if (corner.turn > 0.25) {
-        const vc = (9 + 26 * (1 - corner.turn / Math.PI)) * this.skill + 4;
+        const vc = (7 + 32 * (1 - corner.turn / Math.PI) ** 2) * this.skill + 2;
         // allow braking distance to the corner
         const vmax = Math.sqrt(vc * vc + 2 * 7.5 * Math.max(0, corner.dist - 10));
         targetSpeed = Math.min(targetSpeed, vmax);
@@ -109,13 +138,13 @@ export class AIDriver {
       const lat = -dx * fz + dz * fx; // + = to the right? right = (-fz, fx)
       if (Math.abs(lat) > 2.8) continue;
       avoid += (lat > 0 ? -1 : 1) * (1 - ahead / (18 + speed * 0.8));
-      if (ahead < 10 && speed > (o.v ?? 0) + 6 && this.mode !== 'pursue') targetSpeed = Math.min(targetSpeed, (o.v ?? 0) + 4);
+      if (ahead < 14 + speed * 0.5 && Math.abs(lat) < 2.2 && this.mode !== 'pursue') targetSpeed = Math.min(targetSpeed, (o.v ?? 0) + 2 + ahead * 0.3);
     }
     this.avoid = avoid;
 
     const desired = Math.atan2(tx - s.x, tz - s.z);
     const diff = wrapAngle(desired - s.yaw);
-    let steer = clamp(-diff * 2.2 + avoid * 0.8, -1, 1);
+    let steer = clamp(-diff * 2.2 + clamp(avoid, -1, 1) * 0.35, -1, 1);
     // counter-steer when sliding
     if (s.slip > 0.25) steer = clamp(steer - Math.sign(s.yawRate) * 0.3, -1, 1);
     // stuck detection -> reverse
@@ -127,6 +156,13 @@ export class AIDriver {
     if (speed < 1.2 && targetSpeed > 3) { this.stuckT += dt; if (this.stuckT > 1.6) { this.reverseT = 1.3; this.stuckT = 0; } } else this.stuckT = 0;
     if (Math.abs(diff) > 2.2 && speed < 6) { // target behind: three-point turn
       this.reverseT = 0.9;
+    }
+    // progress watchdog: repeatedly stuck -> ask the owner to reset us onto a lane
+    this.watchT = (this.watchT || 0) + dt;
+    if (this.watchT > 5) {
+      const moved = this.watchPos ? Math.hypot(s.x - this.watchPos[0], s.z - this.watchPos[1]) : 99;
+      this.needsReset = moved < 4 && targetSpeed > 3;
+      this.watchPos = [s.x, s.z]; this.watchT = 0;
     }
     const err = targetSpeed - speed;
     c.steer = steer;

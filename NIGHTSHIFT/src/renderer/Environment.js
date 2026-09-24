@@ -184,7 +184,7 @@ export class Environment {
         }
         // street light glows (these make car paint sparkle at night)
         if (night > 0.3) {
-          for (let k = 0; k < 7; k++) {
+          for (let k = 0; k < 14; k++) {
             const x = R() * n, y = base - n * (0.02 + R() * 0.08), r = n * (0.03 + R() * 0.05);
             const gg = ctx.createRadialGradient(x, y, 0, x, y, r);
             const warm = R() < 0.7;
@@ -209,7 +209,7 @@ export class Environment {
     cube.needsUpdate = true;
     this.envMap = cube;
     this.scene.environment = cube;
-    this.scene.environmentIntensity = night > 0.5 ? 0.9 : 0.7;
+    this.scene.environmentIntensity = night > 0.5 ? 1.6 : 0.8;
   }
 
   // ------------------------------------------------------------------ rain

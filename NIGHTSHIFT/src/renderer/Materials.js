@@ -83,14 +83,14 @@ export class Materials {
   applyEnvironment(state) {
     const night = state.night;
     const lit = Math.max(0.03, night);
-    for (const m of this.facades) m.emissiveIntensity = 0.08 + lit * 1.35;
-    for (const m of this.facadesFar) m.emissiveIntensity = 0.08 + lit * 1.35;
-    this.storefront.emissiveIntensity = 0.15 + lit * 1.5;
+    for (const m of this.facades) m.emissiveIntensity = 0.05 + lit * 0.8;
+    for (const m of this.facadesFar) m.emissiveIntensity = 0.05 + lit * 0.8;
+    this.storefront.emissiveIntensity = 0.1 + lit * 0.75;
     this.neon.color.setScalar(0.35 + night * 1.6);
     const lamps = night > 0.35 ? 1 : 0.15;
     this.lampHead.color.setRGB(1.0 * lamps * 2.4, 0.9 * lamps * 2.4, 0.72 * lamps * 2.4);
     this.lampHeadCool.color.setRGB(0.85 * lamps * 2.2, 0.92 * lamps * 2.2, 1.0 * lamps * 2.2);
-    this.lightPool.opacity = Math.max(0, night - 0.3) * (0.62 + state.wetness * 0.25);
+    this.lightPool.opacity = Math.max(0, night - 0.3) * (0.36 + state.wetness * 0.15);
     this.lightPool.visible = night > 0.32;
     // wet roads: lower roughness, stronger env reflection, darker albedo
     const w = state.wetness;
