@@ -45,6 +45,27 @@ function addMacro(mat, { macro = 0.12, puddles = 0 } = {}) {
   return mat;
 }
 
+// Facades: every building of a style shares one texture, so vary it in world space: per-block tone and
+// hue shifts, darker weathering near the street (splash-back grime + ambient occlusion where the wall meets
+// the pavement) and a faint roof-line fade. Emissive windows are untouched.
+function addFacadeGrade(mat) {
+  mat.customProgramCacheKey = () => 'facadeGrade';
+  mat.onBeforeCompile = (sh) => {
+    sh.vertexShader = 'varying vec3 vWPos;\n' + sh.vertexShader.replace('#include <begin_vertex>', '#include <begin_vertex>\n  vWPos = (modelMatrix * vec4(transformed, 1.0)).xyz;');
+    sh.fragmentShader = MACRO_GLSL.replace('uniform float uMacro, uWet, uPuddles;', '') + sh.fragmentShader.replace('#include <map_fragment>', `#include <map_fragment>
+  {
+    float blk = mNoise(vWPos.xz * 0.018 + 3.0), blk2 = mNoise(vWPos.xz * 0.018 + 41.0);
+    diffuseColor.rgb *= 0.86 + 0.26 * blk;
+    diffuseColor.rgb *= mix(vec3(1.04, 0.99, 0.94), vec3(0.95, 0.99, 1.05), blk2);
+    float h = vWPos.y;
+    float grime = (1.0 - smoothstep(0.0, 3.2, h)) * (0.55 + 0.45 * mFbm(vec2(vWPos.x + vWPos.z, h) * vec2(0.9, 3.0)));
+    diffuseColor.rgb *= 1.0 - 0.28 * grime;
+    diffuseColor.rgb *= mix(0.62, 1.0, smoothstep(0.0, 1.4, h));
+  }`);
+  };
+  return mat;
+}
+
 export class Materials {
   constructor(preset) {
     this.preset = preset;
@@ -70,11 +91,13 @@ export class Materials {
         normalMap: lowEnd ? null : F.normalMap, normalScale: new THREE.Vector2(0.8, 0.8), envMapIntensity: def.metal ? 1.2 : 0.6,
       });
     });
+    if (!lowEnd) this.facades.forEach(addFacadeGrade);
     // far/LOD version: no normal/roughness maps (cheaper)
     this.facadesFar = TX.FACADE_DEF.map((def, i) => {
       const F = TX.facade(i);
       return new THREE.MeshLambertMaterial({ name: 'facadeFar_' + def.name, map: F.map, emissiveMap: F.emissiveMap, emissive: 0xffffff, emissiveIntensity: 1 });
     });
+    if (!lowEnd) this.facadesFar.forEach(addFacadeGrade);
     const SF = TX.storefront();
     this.storefront = new THREE.MeshStandardMaterial({ name: 'storefront', map: SF.map, emissiveMap: SF.emissiveMap, emissive: 0xffffff, emissiveIntensity: 1.3, roughness: 0.35, metalness: 0.2 });
     const N = TX.neonAtlas();

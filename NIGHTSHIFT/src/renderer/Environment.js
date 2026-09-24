@@ -283,7 +283,8 @@ export class Environment {
 
     // sun direction: rises east (+x), sets west
     const sunAng = ((this.hour - 6) / 12) * Math.PI;
-    const sunDir = new THREE.Vector3(Math.cos(sunAng), Math.sin(sunAng), 0.35).normalize();
+    // mid-latitude path: the sun peaks ~57° up (not overhead), so buildings throw shadows across streets
+    const sunDir = new THREE.Vector3(Math.cos(sunAng), Math.sin(sunAng) * 0.78, 0.5).normalize();
     const moonDir = new THREE.Vector3(-0.4, 0.55, -0.7).normalize();
     const lightDir = night > 0.6 ? moonDir : sunDir.y > 0.05 ? sunDir : moonDir;
     const cloudDim = 1 - this.cloud * 0.55;
