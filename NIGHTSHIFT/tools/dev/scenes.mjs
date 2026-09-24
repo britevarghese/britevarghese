@@ -40,6 +40,7 @@ export const GROUPS = [
   ] },
   { time: 'night', weather: 'rain', views: [
     { id: 'rain_night_chase', setup: drive(-2.25, -60, Math.PI), wait: 7000 },
+    { id: 'rain_traffic', setup: drive(-5.75, 40, Math.PI) + sim([[600, { throttle: 0.35 }]]), wait: 1500 },
   ] },
   { time: 'day', weather: 'clear', views: [
     { id: 'street_day_chase', setup: drive(157.75, -250, 0), wait: 7000 },
