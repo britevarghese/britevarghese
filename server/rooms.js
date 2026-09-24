@@ -71,7 +71,7 @@ export class Room {
     if (!p) return;
     switch (m.t) {
       case 'in': g.handleInput(p, m); break;
-      case 'fire': if (Array.isArray(m.d)) g.tryFire(p, m.o, m.d, m.ct); break;
+      case 'fire': if (Array.isArray(m.d)) g.tryFire(p, m.o, m.d, m.ct, m.rt); break;
       case 'reload': g.reload(p); break;
       case 'nade': if (Array.isArray(m.d)) g.throwGrenade(p, m.o, m.d); break;
       case 'spawn': g.spawn(p, m.p, m.cls); break;

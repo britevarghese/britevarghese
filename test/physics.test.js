@@ -100,3 +100,33 @@ test('bullets take time to fly: a far target is hit only after the travel time',
   advance(g, 0.3);
   assert.ok(v.hp < 100, `hit after the flight (${v.hp})`);
 });
+
+test('hit markers go only to the human shooter (never broadcast for bots)', () => {
+  const g = mkGame();
+  const bot = g.addPlayer({ name: 'B', team: 1, bot: true }), v = g.addPlayer({ name: 'V', team: 2 });
+  bot.respawnAt = v.respawnAt = 0; g.spawn(bot, 'base'); g.spawn(v, 'base');
+  Object.assign(bot, { x: -60, z: 30, y: groundHeight(-60, 30), spawnProtect: 0 });
+  Object.assign(v, { x: -60, z: 10, y: groundHeight(-60, 10), spawnProtect: 0 });
+  g.flushEvents();
+  const eye = [bot.x, bot.y + EYE_HEIGHT.stand, bot.z], t = [v.x, v.y + 1.1, v.z];
+  const d = t.map((c, i) => c - eye[i]), L = Math.hypot(...d);
+  g.tryFire(bot, eye, d.map((c) => c / L));
+  const evs = g.flushEvents();
+  assert.ok(v.hp < 100, 'bot hit the target');
+  assert.ok(!evs.some((e) => e.ev.t === 'hitmark'), 'no hit marker event for a bot shooter');
+});
+
+test('lag compensation uses the moment the shooter was looking at', () => {
+  const g = mkGame();
+  const a = g.addPlayer({ name: 'A', team: 1 }), v = g.addPlayer({ name: 'V', team: 2 });
+  a.respawnAt = v.respawnAt = 0; g.spawn(a, 'base'); g.spawn(v, 'base');
+  Object.assign(a, { x: -60, z: 30, y: groundHeight(-60, 30), spawnProtect: 0 });
+  // V ran across A's line of fire: 300 ms ago V was right in front, now V is 3 m to the side
+  const now = g.clock, vy = groundHeight(-60, 10);
+  v.history = [{ t: now - 300, x: -60, y: vy, z: 10, yaw: 0, stance: 'stand' }, { t: now - 250, x: -60, y: vy, z: 10, yaw: 0, stance: 'stand' }, { t: now, x: -57, y: vy, z: 10, yaw: 0, stance: 'stand' }];
+  Object.assign(v, { x: -57, z: 10, y: vy, spawnProtect: 0 });
+  const eye = [a.x, a.y + EYE_HEIGHT.stand, a.z], t = [-60, vy + 1.1, 10];
+  const d = t.map((c, i) => c - eye[i]), L = Math.hypot(...d);
+  g.tryFire(a, eye, d.map((c) => c / L), now, now - 280);
+  assert.ok(v.hp < 100, 'hit where the shooter saw the target');
+});

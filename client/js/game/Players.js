@@ -45,6 +45,8 @@ export class Players {
     try {
       const loaded = await this.#characterFor(p.team);
       const rig = new CharacterRig(this.g.assets, loaded);
+      // ground / floor height under a point (terrain, roads, floors, roofs) for the prone pose
+      rig.groundAt = (x, z, y) => this.g.world.collision.supportHeight(x, z, y + 0.6);
       this.#tint(rig, p.team);
       this.g.world.scene.add(rig.root);
       p.rig = rig;

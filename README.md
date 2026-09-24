@@ -95,6 +95,12 @@ battle royale: **Space** jump / open parachute · **E** pick up · **H** heal ·
 
   \* with the default (shortest) zero. Tracers fly at the bullet's speed, impacts appear when it lands, bullets
   passing within ~4 m of you make a supersonic crack. Damage falls off with distance; headshots multiply it.
+* **Scopes**: fully aimed through a magnified optic you get a full-screen scope (real ~7° field of view for 4×)
+  rendered from the camera itself, so the reticle centre is exactly where the bullet goes. The reticle has mil marks
+  for leading movers and **bullet-drop marks** computed from the ballistics for your zeroing (hold "4" on a target at
+  400 m). Breathing sway moves the aim — hold **Shift** to steady it for ~4 s.
+* **Lag compensation**: every shot carries the moment your screen was showing, so the server checks the bullet against
+  where targets really were on your screen (plus the bullet's flight time).
 * **Hit feedback**: hits are confirmed by the server when the bullet actually reaches the target — X marker on the
   crosshair with the damage number (gold = headshot, red = kill, distance for long shots) and a hit sound; the
   crosshair turns red while it is on an enemy; the victim sees the damage direction.
@@ -119,6 +125,7 @@ battle royale: **Space** jump / open parachute · **E** pick up · **H** heal ·
 | First-person viewmodel (same character arms + weapon), hip↔ADS interpolation to the optic eye point, scope picture-in-picture with reticle, sway/bob/recoil/reload/switch | `client/js/player/Viewmodel.js` |
 | World: PBR splat terrain + outer landscape, roads, modular buildings with interiors & stairs, instanced props, vegetation LOD0/LOD1/impostors + streamed grass, flags, skyline | `client/js/world/*` |
 | Lighting: HDRI IBL + sky, sun with texel-snapped soft shadows, hemisphere fill, fog, ACES | `client/js/render/Renderer.js` |
+| Transport plane (lofted fuselage, airfoil wings, turboprops with spinning props, painted panel lines, nav lights) | `client/js/royale/TransportPlane.js` |
 | Effects (pooled particles, tracers, decals, per-surface impacts, explosions, smoke) · spatial audio (**recorded CC0 gunshots** with per-shot variation, distance muffling, speed-of-sound delay; synthesized foley) · HUD | `client/js/fx`, `client/js/audio`, `client/js/ui` |
 
 ### Debug scenes

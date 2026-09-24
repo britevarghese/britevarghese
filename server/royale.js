@@ -341,7 +341,7 @@ export class RoyaleGame extends Game {
         const w = p.weapons[p.reloadSlot ?? p.slot];
         if (w) { const need = WEAPONS[w.id].mag - w.mag, take = Math.min(need, w.reserve); w.mag += take; w.reserve -= take; }
         p.reloadUntil = 0;
-        this.emit({ t: 'ammo', w: p.weapons, g: p.grenades }, p.bot ? null : p);
+        if (!p.bot) this.emit({ t: 'ammo', w: p.weapons, g: p.grenades }, p);
       }
       if (p.healUntil && now >= p.healUntil) {
         p.healUntil = 0; p.meds--; p.hp = Math.min(100, p.hp + ROYALE.healAmount);

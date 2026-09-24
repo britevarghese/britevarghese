@@ -18,6 +18,7 @@ export class LocalPlayer {
     this.alive = false;
     this.slot = 0; this.weapons = []; this.grenades = 0;
     this.recoil = { p: 0, y: 0 };
+    this.sway = { p: 0, y: 0, t: 0, held: 0 }; // scope breathing sway (radians), SHIFT holds breath
     this.bloom = 0;
     this.nextFire = 0; this.reloadUntil = 0; this.reloadStart = 0; this.reloadDur = 0;
     this.thirdPerson = false;
@@ -77,7 +78,8 @@ export class LocalPlayer {
 
   look(dx, dy, k = this.sens) {
     if (!this.canLook()) return;
-    const f = k * (this.adsBlend > 0.5 ? (WEAPONS[this.weaponId()]?.scoped ? 0.35 : 0.7) : 1);
+    // through a full-screen scope, turn rate follows the zoom so the view moves the same on screen
+    const f = k * (this.scoped ? (this.g.camera.fov / this.g.baseFov) * 1.1 : this.adsBlend > 0.5 ? (WEAPONS[this.weaponId()]?.scoped ? 0.35 : 0.7) : 1);
     this.yaw -= dx * f; this.pitch -= dy * f;
     this.pitch = Math.max(-1.45, Math.min(1.45, this.pitch));
     this.mouse.dx += dx; this.mouse.dy += dy;
@@ -154,8 +156,9 @@ export class LocalPlayer {
   }
 
   aimDir() {
-    const cp = Math.cos(this.pitch + this.recoil.p);
-    return new THREE.Vector3(-Math.sin(this.yaw + this.recoil.y) * cp, Math.sin(this.pitch + this.recoil.p), -Math.cos(this.yaw + this.recoil.y) * cp);
+    const p = this.pitch + this.recoil.p + this.sway.p, y = this.yaw + this.recoil.y + this.sway.y;
+    const cp = Math.cos(p);
+    return new THREE.Vector3(-Math.sin(y) * cp, Math.sin(p), -Math.cos(y) * cp);
   }
 
   // ------------------------------------------------------------------ per frame
@@ -217,6 +220,17 @@ export class LocalPlayer {
       if (!this.mouse.l) this.triggerReleased = true;
       if (w.mag === 0 && !reloading && w.reserve > 0 && !this.mouse.l) this.reload();
     }
+    // scope sway: breathing drifts the aim; SHIFT holds breath for ~4 s (then it gets worse until you breathe again)
+    const W = this.sway;
+    if (this.scoped) {
+      W.t += dt;
+      const hold = k.has('ShiftLeft') && W.held < 4 && !W.gasp;
+      W.held = hold ? W.held + dt : Math.max(0, W.held - dt * 1.5);
+      if (W.held >= 4) W.gasp = 2.5; if (W.gasp) W.gasp = Math.max(0, W.gasp - dt);
+      const amp = (hold ? 0.00012 : W.gasp ? 0.0026 : 0.001) * (s.stance === 'prone' ? 0.35 : s.stance === 'crouch' ? 0.7 : 1) * (1 + Math.min(1, hs / 2));
+      W.p = damp(W.p, (Math.sin(W.t * 1.25) + 0.35 * Math.sin(W.t * 3.1)) * amp, 6, dt);
+      W.y = damp(W.y, (Math.cos(W.t * 0.85) + 0.3 * Math.sin(W.t * 2.3)) * amp, 6, dt);
+    } else { W.p = damp(W.p, 0, 8, dt); W.y = damp(W.y, 0, 8, dt); W.held = 0; }
     // recoil recovery & bloom
     const rec = def ? def.recoil.recover : 8;
     this.recoil.p = damp(this.recoil.p, 0, this.mouse.l && def?.auto ? rec * 0.25 : rec, dt);
@@ -263,7 +277,7 @@ export class LocalPlayer {
     const za = zeroAngle(def, this.zeroOf(def.id));
     if (za) d.multiplyScalar(Math.cos(za)).addScaledVector(up, Math.sin(za)).normalize();
     const eye = this.eyePos();
-    this.g.net.send({ t: 'fire', o: [eye.x, eye.y, eye.z], d: [d.x, d.y, d.z], ct: this.g.net.serverNow() });
+    this.g.net.send({ t: 'fire', o: [eye.x, eye.y, eye.z], d: [d.x, d.y, d.z], ct: this.g.net.serverNow(), rt: Math.round(this.g.net.serverNow() - this.g.net.interpDelay) });
     // recoil: kick the aim (camera) up with slight random yaw; bloom the cone
     const adsK = this.adsBlend > 0.8 ? 0.75 : 1;
     const stK = this.s.stance === 'prone' ? 0.5 : this.s.stance === 'crouch' ? 0.8 : 1;
@@ -289,8 +303,8 @@ export class LocalPlayer {
     const bobX = Math.cos(this.camBob) * 0.012 * Math.min(1, hs / 4) * bobA;
     const eye = new THREE.Vector3(s.x, s.y + this.eyeSmooth - this.landDip + bobY, s.z);
     const shake = this.g.effects.shake;
-    const pitch = this.pitch + this.recoil.p + (Math.random() - 0.5) * shake * 0.03;
-    const yaw = this.yaw + this.recoil.y + (Math.random() - 0.5) * shake * 0.03;
+    const pitch = this.pitch + this.recoil.p + this.sway.p + (Math.random() - 0.5) * shake * 0.03;
+    const yaw = this.yaw + this.recoil.y + this.sway.y + (Math.random() - 0.5) * shake * 0.03;
     const roll = -Math.cos(this.camBob) * 0.004 * Math.min(1, hs / 4) * bobA + (this.sprinting ? Math.sin(this.camBob) * 0.006 : 0);
     cam.rotation.set(pitch, yaw, roll, 'YXZ');
     if (!this.isTPS()) {

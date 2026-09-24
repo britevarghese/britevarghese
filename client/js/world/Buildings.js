@@ -68,9 +68,10 @@ export function buildBuildings(world, mats, props) {
       const ft = 0.06, depth = T + 0.04;
       const outN = sd.out;
       const at = (u, v0, v1, w) => {
-        // a frame member spanning u..u+w along the wall, v0..v1 vertical
-        if (alongX) return { min: [sd.ax + u, v0, sd.az - 0.02], max: [sd.ax + u + w, v1, sd.az + depth - 0.02] };
-        return { min: [sd.ax - 0.02, v0, sd.az + u], max: [sd.ax + depth - 0.02, v1, sd.az + u + w] };
+        // a frame member spanning u..u+w along the wall, v0..v1 vertical (opening heights are relative to the
+        // building's base, which sits on the terrain: y0 must be added — it is metres off zero on hilly maps)
+        if (alongX) return { min: [sd.ax + u, y0 + v0, sd.az - 0.02], max: [sd.ax + u + w, y0 + v1, sd.az + depth - 0.02] };
+        return { min: [sd.ax - 0.02, y0 + v0, sd.az + u], max: [sd.ax + depth - 0.02, y0 + v1, sd.az + u + w] };
       };
       if (o.kind === 'breach') {
         // exposed rebar sticking out of the broken wall stub
@@ -79,7 +80,7 @@ export function buildBuildings(world, mats, props) {
           const cyl = new THREE.CylinderGeometry(0.008, 0.008, len, 5);
           cyl.rotateZ((rnd() - 0.5) * 0.6); cyl.rotateX((rnd() - 0.5) * 0.6);
           const wx = alongX ? sd.ax + u : sd.ax + T / 2, wz = alongX ? sd.az + T / 2 : sd.az + u;
-          cyl.translate(wx, o.v0 + len / 2, wz);
+          cyl.translate(wx, y0 + o.v0 + len / 2, wz);
           rebarGeoms.push(cyl);
         }
         const mid = (o.u0 + o.u1) / 2;
@@ -107,7 +108,7 @@ export function buildBuildings(world, mats, props) {
       if (o.glass) {
         const g = new THREE.PlaneGeometry(w - 2 * ft, o.v1 - o.v0 - 2 * ft);
         if (!alongX) g.rotateY(Math.PI / 2);
-        g.translate(alongX ? sd.ax + (o.u0 + o.u1) / 2 : sd.ax + T / 2, (o.v0 + o.v1) / 2, alongX ? sd.az + T / 2 : sd.az + (o.u0 + o.u1) / 2);
+        g.translate(alongX ? sd.ax + (o.u0 + o.u1) / 2 : sd.ax + T / 2, y0 + (o.v0 + o.v1) / 2, alongX ? sd.az + T / 2 : sd.az + (o.u0 + o.u1) / 2);
         glassGeoms.push(g);
       }
     }

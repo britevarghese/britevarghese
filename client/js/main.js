@@ -18,6 +18,7 @@ import { EYE_HEIGHT } from '/shared/world.js';
 import { bulletPath } from '/shared/ballistics.js';
 import { hitCapsules, rayCapsule } from '/shared/weapons.js';
 import { RoyaleClient } from './royale/Royale.js';
+import { ScopeOverlay } from './ui/ScopeOverlay.js';
 import { detectGPU, adviceFor } from './render/GPU.js';
 
 const $ = (id) => document.getElementById(id);
@@ -83,6 +84,7 @@ class Game {
     for (const [id, l] of Object.entries(this.weaponLoads)) describeGLTF(`WEAPON ${id}`, l.gltf, l.file);
     this.viewmodel = new Viewmodel(this.assets, charLoaded, this.weaponLoads.ar, 'ar', renderer, { quality });
     this.hud = new HUD();
+    this.scope = new ScopeOverlay();
     this.players = new Players(this);
     this.me = new LocalPlayer(this);
     this.isTouch = isTouchDevice();
@@ -217,7 +219,9 @@ class Game {
       case 'bhit': {
         // the bullet stopped in a soldier: cancel its world impact, show the hit where it landed
         this.#cancelImpact(e.b);
-        this.effects.impact(e.p, null, 'flesh');
+        // hits on me: no blood particles inside my own camera, a red flash on the screen edges instead
+        if (e.v === this.myId && this.me.alive && !this.me.isTPS()) this.hud.hurtFlash();
+        else this.effects.impact(e.p, null, 'flesh');
         break;
       }
       case 'hurt':
@@ -483,7 +487,15 @@ class Game {
     });
     P.mark('viewmodel');
     me.mouse.dx = 0; me.mouse.dy = 0;
-    cam.fov = this.baseFov * (me.alive && !me.isTPS() ? this.viewmodel.fovScale : me.thirdPerson && me.ads ? 0.8 : 1);
+    // fully aimed through a magnified scope: full-screen scope view rendered from the camera itself (reticle centre
+    // = bullet direction, no picture-in-picture misalignment)
+    const vw = this.viewmodel.weapon;
+    const fullScope = me.alive && !me.isTPS() && !fc && !!wdef?.scoped && vw.opticType === 'scope' && this.viewmodel.ads > 0.96 && !reloading;
+    // real optics: a 4x rifle scope shows ~7 degrees (PSO-1: 6 deg), independent of the player's FOV setting
+    cam.fov = fullScope ? 28 / (vw.magnification || 4) : this.baseFov * (me.alive && !me.isTPS() ? this.viewmodel.fovScale : me.thirdPerson && me.ads ? 0.8 : 1);
+    this.scope.show(fullScope);
+    if (fullScope) this.scope.update(wdef, me.zeroOf(), cam.fov);
+    me.scoped = fullScope;
     cam.updateProjectionMatrix();
     cam.updateMatrixWorld();
     // is the player in the shade? (for viewmodel lighting)
@@ -524,7 +536,8 @@ class Game {
     }
     P.mark('hud');
     // render: world, then first-person viewmodel on top (or world only in third person / dead)
-    if (me.alive && !me.isTPS() && !fc) this.viewmodel.render(this.renderer, this.world.scene, cam, this.baseFov * this.viewmodel.fovScale);
+    if (fullScope) this.renderer.render(this.world.scene, cam);
+    else if (me.alive && !me.isTPS() && !fc) this.viewmodel.render(this.renderer, this.world.scene, cam, this.baseFov * this.viewmodel.fovScale);
     else this.renderer.render(this.world.scene, cam);
     P.mark('render');
     this.frames++; this.fpsT += dt;

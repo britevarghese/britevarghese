@@ -184,7 +184,9 @@ export class Game {
   }
 
   // ------------------------------------------------------------ weapons
-  tryFire(p, origin, dir, clientTime) {
+  // rt: the server time the shooter's screen was showing other soldiers at (their interpolation delay), for exact
+  // lag compensation; older clients fall back to an estimate from ping
+  tryFire(p, origin, dir, clientTime, rt) {
     const now = this.now();
     if (!p.alive || now < p.reloadUntil || this.roundOver) return false;
     const w = p.weapons[p.slot]; if (!w) return false;
@@ -207,7 +209,8 @@ export class Game {
     // real projectile: travel time, drag and bullet drop (shared/ballistics.js). The path through the static world
     // is known now; soldiers are tested segment by segment as the bullet flies (lag-compensated per segment).
     const path = bulletPath(this.world, o, d, def);
-    const b = { id: nextId++, shooter: p, w: w.id, def, pts: path.pts, i: 0, t0: now, rewind: p.bot ? 0 : Math.min(250, p.rtt / 2 + 100), done: false };
+    const viewT = p.bot ? now : Number.isFinite(rt) ? Math.max(now - 450, Math.min(now, rt)) : now - Math.min(250, p.rtt / 2 + 100);
+    const b = { id: nextId++, shooter: p, w: w.id, def, pts: path.pts, i: 0, t0: now, viewT, bot: !!p.bot, done: false };
     const end = path.end, wh = path.hit;
     this.emit({ t: 'shot', id: p.id, b: b.id, w: w.id, o: [o.x, o.y, o.z], e: [end.x, end.y, end.z], tf: +end.t.toFixed(3), s: wh ? wh.surface : 'none', n: wh ? wh.normal : null });
     this.bullets.push(b);
@@ -236,13 +239,13 @@ export class Game {
     if (len < 1e-6) return null;
     const d = { x: sx / len, y: sy / len, z: sz / len }, o = { x: a.x, y: a.y, z: a.z };
     const mx = a.x + sx / 2, mz = a.z + sz / 2;
-    // where everyone was when the bullet got here, as the shooter saw it
-    const at = b.t0 - b.rewind + c.t * 1000;
+    // where everyone was when the bullet got here, on the shooter's timeline (what they saw + the flight time)
+    const at = b.viewT + c.t * 1000;
     let best = len, victim = null, head = false;
     for (const q of this.players.values()) {
       if (q === b.shooter || !q.alive || !this.isEnemy(b.shooter, q)) continue;
       if (Math.hypot(q.x - mx, q.z - mz) > len / 2 + 6) continue;
-      const hp = b.rewind ? this.historyAt(q, at) : q;
+      const hp = b.bot ? q : this.historyAt(q, at);
       for (const cap of hitCapsules(hp)) {
         const t = rayCapsule(o, d, cap.a, cap.b, cap.r);
         if (t !== null && t < best) { best = t; victim = q; head = cap.part === 'head'; }
@@ -259,7 +262,8 @@ export class Game {
     const killed = wasAlive && !victim.alive;
     if (killed) p.score += head ? 20 : 0;
     this.emit({ t: 'bhit', b: b.id, p: point.map((v) => +v.toFixed(2)), v: victim.id });
-    this.emit({ t: 'hitmark', hs: head, k: killed, d: Math.round(dmg), v: victim.id, r: Math.round(dist) }, p.bot ? null : p);
+    // only the shooter gets the hit marker (bots have no screen: sending it with no recipient would reach everyone)
+    if (!p.bot) this.emit({ t: 'hitmark', hs: head, k: killed, d: Math.round(dmg), v: victim.id, r: Math.round(dist) }, p);
   }
 
   reload(p) {
@@ -401,7 +405,7 @@ export class Game {
         const w = p.weapons[p.reloadSlot ?? p.slot];
         if (w) { const need = WEAPONS[w.id].mag - w.mag, take = Math.min(need, w.reserve); w.mag += take; w.reserve -= take; }
         p.reloadUntil = 0;
-        this.emit({ t: 'ammo', w: p.weapons, g: p.grenades }, p.bot ? null : p);
+        if (!p.bot) this.emit({ t: 'ammo', w: p.weapons, g: p.grenades }, p);
       }
       if (Math.abs(p.x) > this.map.PLAY_HALF + 4 || Math.abs(p.z) > this.map.PLAY_HALF + 4) this.damage(p, 12 * dt, null, 'boundary');
       p.history.push({ t: now, x: p.x, y: p.y, z: p.z, yaw: p.yaw, stance: p.stance });

@@ -247,3 +247,8 @@ body.royale.br-out #ammo, body.royale.br-out #vitals, body.royale.br-out #br-arm
 #pause .gfx { display: grid; grid-template-columns: 1fr 1fr; gap: 0 12px; margin-top: 4px; }
 #pause .gfx .chk { flex-direction: row; align-items: center; gap: 6px; grid-column: 1 / -1; }
 #pause #p-gpu { font-size: 10px; opacity: .7; margin: 2px 0 8px; }
+#hurtflash { position: fixed; inset: 0; pointer-events: none; opacity: 0; box-shadow: inset 0 0 120px 30px rgba(170,0,0,.75); }
+#hurtflash.show { animation: hurtf .45s ease-out; }
+@keyframes hurtf { 0% { opacity: 1; } 100% { opacity: 0; } }
+#scope { position: fixed; inset: 0; display: none; pointer-events: none; z-index: 1; }
+body.scoped #tickets, body.scoped #minimap, body.scoped #roomtag, body.scoped #crosshair, body.scoped #br-map { visibility: hidden; }

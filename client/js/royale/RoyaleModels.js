@@ -1,60 +1,7 @@
-// Procedural models for the battle royale mode (no suitable CC0 meshes exist for these): a four-engine military
-// transport plane, a ram-air parachute canopy with suspension lines, and the animated ring-of-fire wall.
+// Procedural models for the battle royale mode (no suitable CC0 meshes exist for these): a ram-air parachute
+// canopy with suspension lines and the animated ring-of-fire wall (the transport plane is in TransportPlane.js).
 import * as THREE from 'three';
 
-const metal = () => new THREE.MeshStandardMaterial({ color: 0x5f6557, metalness: 0.45, roughness: 0.55 });
-
-// ---------------------------------------------------------------- transport plane (~30 m, C-130 class proportions)
-// Local frame: nose toward -Z, +Y up, origin at the wing root.
-export function buildTransportPlane() {
-  const g = new THREE.Group(); g.name = 'transport_plane';
-  const skin = metal();
-  const dark = new THREE.MeshStandardMaterial({ color: 0x15181a, metalness: 0.2, roughness: 0.15 });
-  // fuselage: lathe profile (radius, length) with the rear upswept toward the tail and a flattened belly
-  const prof = [[0.05, 0], [0.8, 0.35], [1.45, 1.1], [1.9, 2.4], [2.2, 4.2], [2.25, 8], [2.25, 19], [2.1, 22], [1.7, 25], [1.15, 27.5], [0.55, 29.6], [0.1, 30.2]];
-  const fus = new THREE.LatheGeometry(prof.map(([r, y]) => new THREE.Vector2(r, y)), 28);
-  const p = fus.attributes.position;
-  for (let i = 0; i < p.count; i++) {
-    const y = p.getY(i); let x = p.getX(i), z = p.getZ(i);
-    if (z < -1.2) z = -1.2 - (-1.2 - z) * 0.55;            // flatter belly
-    const up = y > 19 ? Math.pow((y - 19) / 11, 1.6) * 1.6 : 0; // upswept tail cone
-    p.setXYZ(i, x, y, z + up);
-  }
-  fus.computeVertexNormals();
-  fus.rotateX(Math.PI / 2); fus.translate(0, 0, -12); // nose at z = -12, tail at z = +18
-  const body = new THREE.Mesh(fus, skin); g.add(body);
-  // cockpit glazing band
-  const glass = new THREE.Mesh(new THREE.CylinderGeometry(1.62, 1.95, 1.1, 20, 1, true, -1.2, 2.4), dark);
-  glass.rotation.x = Math.PI / 2; glass.rotation.y = Math.PI; glass.position.set(0, 0.55, -10.3); g.add(glass);
-  // high wing: tapered planform extruded to an airfoil-ish thickness
-  const wingShape = new THREE.Shape();
-  wingShape.moveTo(0, -2.4); wingShape.lineTo(20, -1.1); wingShape.lineTo(20.4, 0.4); wingShape.lineTo(0, 1.6); wingShape.lineTo(0, -2.4);
-  const wingGeo = new THREE.ExtrudeGeometry(wingShape, { depth: 0.42, bevelEnabled: true, bevelThickness: 0.12, bevelSize: 0.12, bevelSegments: 2 });
-  wingGeo.rotateX(Math.PI / 2); wingGeo.translate(0, 2.35, 0);
-  for (const s of [1, -1]) {
-    const w = new THREE.Mesh(wingGeo, skin); w.scale.x = s; g.add(w);
-    // two turboprop nacelles per wing with blurred propeller discs
-    for (const x of [5.2, 10.4]) {
-      const nac = new THREE.Mesh(new THREE.CylinderGeometry(0.55, 0.42, 5.2, 14), skin);
-      nac.rotation.x = Math.PI / 2; nac.position.set(s * x, 1.75, -1.3); g.add(nac);
-      const spin = new THREE.Mesh(new THREE.ConeGeometry(0.34, 0.8, 12), skin);
-      spin.rotation.x = -Math.PI / 2; spin.position.set(s * x, 1.75, -4.3); g.add(spin);
-      const disc = new THREE.Mesh(new THREE.CircleGeometry(2.05, 32), new THREE.MeshBasicMaterial({ color: 0x222222, transparent: true, opacity: 0.22, depthWrite: false, side: THREE.DoubleSide }));
-      disc.position.set(s * x, 1.75, -4.05); disc.name = 'prop'; g.add(disc);
-    }
-  }
-  // tail: vertical fin + stabilisers
-  const fin = new THREE.Shape(); fin.moveTo(0, 0); fin.lineTo(5.2, 0); fin.lineTo(6.1, 7.2); fin.lineTo(3.9, 7.2); fin.lineTo(0, 0);
-  const finGeo = new THREE.ExtrudeGeometry(fin, { depth: 0.3, bevelEnabled: false });
-  finGeo.rotateY(-Math.PI / 2); finGeo.translate(0.15, 2.4, 12.2);
-  g.add(new THREE.Mesh(finGeo, skin));
-  const stab = new THREE.Shape(); stab.moveTo(0, 0); stab.lineTo(7.4, 1.2); stab.lineTo(7.4, 2.6); stab.lineTo(0, 3.6); stab.lineTo(0, 0);
-  const stabGeo = new THREE.ExtrudeGeometry(stab, { depth: 0.25, bevelEnabled: false });
-  stabGeo.rotateX(Math.PI / 2); stabGeo.translate(0, 2.7, 14.3);
-  for (const s of [1, -1]) { const m = new THREE.Mesh(stabGeo, skin); m.scale.x = s; g.add(m); }
-  g.traverse((o) => { if (o.isMesh) o.castShadow = false; });
-  return g;
-}
 
 // ---------------------------------------------------------------- ram-air parachute
 // Origin = harness (soldier's shoulders); canopy ~6 m above, 8 m span, 3 m chord, 9 inflated cells.

@@ -6,7 +6,8 @@ import { ROYALE, LOOT, ringAt } from '/shared/royale.js';
 import { WEAPONS } from '/shared/weapons.js';
 import { BUILDINGS, ROADS, PLAY_HALF } from '/shared/map.js';
 import { WeaponModel } from '../weapons/WeaponModel.js';
-import { buildTransportPlane, buildCanopy, buildRingWall, glowTexture } from './RoyaleModels.js';
+import { buildCanopy, buildRingWall, glowTexture } from './RoyaleModels.js';
+import { buildTransportPlane } from './TransportPlane.js';
 
 const $ = (id) => document.getElementById(id);
 const PH = ['lobby', 'plane', 'live', 'over'];
@@ -283,6 +284,7 @@ export class RoyaleClient {
     if (pp) {
       this.planeMesh.position.copy(pp);
       this.planeMesh.rotation.set(0, Math.atan2(-this.plane.dx, -this.plane.dz), 0);
+      this.planeMesh.userData.update?.(dt);
       if (!this.planeLoop) this.planeLoop = g.audio.loop('engine');
       const d = cam.position.distanceTo(pp);
       this.planeLoop?.set(this.inPlane ? 0.55 : Math.max(0, 0.5 - d / 900), 240);

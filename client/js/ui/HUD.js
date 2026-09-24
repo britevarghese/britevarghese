@@ -119,6 +119,8 @@ export class HUD {
     setTimeout(() => d.remove(), 6500);
   }
 
+  hurtFlash() { const v = $('hurtflash'); v.className = ''; void v.offsetWidth; v.className = 'show'; }
+
   notice(msg, ms = 2200) { const n = $('notice'); n.textContent = msg; clearTimeout(this._nt); this._nt = setTimeout(() => (n.textContent = ''), ms); }
 
   chat(from, msg, team) {

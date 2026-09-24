@@ -226,9 +226,24 @@ export class CharacterRig {
   #poseRootLayer() {
     const B = this.blend, p = this.poseRoot;
     const pr = B.prone;
-    // prone: lie face down, head toward aim; pivot so the pelvis stays near the root position
-    p.rotation.set(-Math.PI / 2 * pr, 0, 0);
-    p.position.set(0, 0.2 * pr, 0.95 * pr * (this.height / 1.8));
+    // prone: lie face down, head toward aim; pivot so the pelvis stays near the root position.
+    // The body follows the ground slope between head and feet (roads, embankments, hills) and is lifted where the
+    // ground under head/feet is higher than under the hips, so boots and chest never sink into the surface.
+    let slope = 0, lift = 0;
+    if (pr > 0.01 && this.groundAt) {
+      const r = this.root.position, k = this.height / 1.8, fx = -Math.sin(this.bodyYaw), fz = -Math.cos(this.bodyYaw);
+      const ahead = 1.0 * k, behind = 0.85 * k;
+      const gh = this.groundAt(r.x + fx * ahead, r.z + fz * ahead, r.y);
+      const gf = this.groundAt(r.x - fx * behind, r.z - fz * behind, r.y);
+      const target = Math.max(-0.45, Math.min(0.45, Math.atan2(gh - gf, ahead + behind)));
+      this.proneSlope = (this.proneSlope ?? target) + (target - (this.proneSlope ?? target)) * 0.3;
+      slope = this.proneSlope;
+      // ground line through head/feet vs. the ground under the hips (convex road crowns, kerbs, rocks)
+      const mid = gf + (gh - gf) * (behind / (ahead + behind));
+      lift = Math.max(0, Math.min(0.6, mid - r.y));
+    }
+    p.rotation.set((-Math.PI / 2 + slope) * pr, 0, 0);
+    p.position.set(0, (0.27 + lift) * pr, 0.95 * pr * (this.height / 1.8));
   }
 
   #aimSpine() {
