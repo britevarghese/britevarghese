@@ -20,6 +20,7 @@ const SPEED_OF_SOUND = 343;
 // event -> bus / reverb send / min retrigger interval (s)
 const EVENT_ROUTING = {
   collision: { bus: 'sfx', reverb: 0.22, gap: 0.06 },
+  footstep: { bus: 'sfx', reverb: 0.12, gap: 0.12 },
   gearUp: { bus: 'sfx', reverb: 0, gap: 0.05 },
   gearDown: { bus: 'sfx', reverb: 0, gap: 0.05 },
   nitroStart: { bus: 'sfx', reverb: 0.1, gap: 0.1 },
@@ -449,6 +450,8 @@ export class AudioManager {
       return false;
     }
   }
+
+  playFootstep(run, position) { return this.playEvent('footstep', { intensity: run ? 0.85 : 0.5, position, volume: 0.9 }); }
 
   // continuous grinding while the car slides along a wall / barrier (instead of a stream of thumps)
   _initScrape() {

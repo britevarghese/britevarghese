@@ -199,6 +199,7 @@ input[type=range] { width: 100%; accent-color: var(--accent); }
 
 /* driver level / XP (HUD) */
 .top-right .lvl { display: flex; align-items: center; justify-content: flex-end; gap: 0.5rem; margin-top: 0.2rem; font-size: 0.7rem; letter-spacing: 0.2em; color: var(--dim); }
+.top-right .clock { font-size: 0.95rem; font-weight: 700; letter-spacing: 0.12em; color: #e8e8f0; font-variant-numeric: tabular-nums; text-shadow: 0 1px 3px #000; }
 .top-right .xpbar { width: 5.5rem; height: 0.28rem; background: rgba(255,255,255,0.12); display: inline-block; }
 .top-right .xpbar i { display: block; height: 100%; width: 0; background: linear-gradient(90deg, var(--accent2), #9df3ff); transition: width 0.4s; }
 
@@ -289,3 +290,4 @@ input[type=range] { width: 100%; accent-color: var(--accent); }
 .replay-btn { background: rgba(255,255,255,0.06); border: 1px solid var(--line); color: inherit; font: inherit; font-size: 0.72rem; letter-spacing: 0.12em; padding: 0.35rem 0.7rem; cursor: pointer; }
 .replay-btn:hover { border-color: var(--accent); }
 .replay-bar .hint { margin-top: 0.5rem; font-size: 0.66rem; }
+#hud.onfoot .speedo { display: none; }

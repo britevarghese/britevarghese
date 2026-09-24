@@ -43,7 +43,7 @@ export class PhotoMode {
   }
 
   enter() {
-    const g = this.game, s = g.player.state, cam = g.camera;
+    const g = this.game, s = g.focusState, cam = g.camera;
     this.active = true;
     this.prevMode = g.state.mode;
     g.state.mode = 'photo';
@@ -94,7 +94,7 @@ export class PhotoMode {
   }
 
   update(dt, input) {
-    const g = this.game, s = g.player.state, cam = g.camera, o = this.opts;
+    const g = this.game, s = g.focusState, cam = g.camera, o = this.opts;
     const k = (c) => input.down.has(c);
     const sp = (k('ShiftLeft') ? 9 : 3.5) * dt;
     this._pan((k('KeyD') ? sp : 0) - (k('KeyA') ? sp : 0), (k('KeyE') ? sp : 0) - (k('KeyQ') ? sp : 0), (k('KeyW') ? sp : 0) - (k('KeyS') ? sp : 0));

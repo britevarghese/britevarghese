@@ -67,6 +67,17 @@ export class Pedestrians {
     });
   }
 
+  // a driver thrown out of their car: sprints away from the player for a few seconds, then leaves
+  spawnFleeing(x, z, fromX, fromZ) {
+    const n0 = this.peds.length;
+    for (let k = 0; k < 12 && this.peds.length === n0; k++) this._spawn({ x: x + 60, z }); // borrow a random look
+    if (this.peds.length === n0) return;
+    const p = this.peds[this.peds.length - 1];
+    const dx = x - fromX, dz = z - fromZ, l = Math.hypot(dx, dz) || 1;
+    p.flee = { x, z, vx: dx / l * 5.2, vz: dz / l * 5.2, t: 7 };
+    p.speed = 4.6;
+  }
+
   _pos(p) {
     let t = ((p.t % p.per) + p.per) % p.per;
     const w = p.x1 - p.x0, d = p.z1 - p.z0;
@@ -104,8 +115,16 @@ export class Pedestrians {
           if (this.R() < dt * 0.02) p.wait = 2 + this.R() * 4;
         }
       }
-      const [x, z, yaw] = this._pos(p);
-      p.x = x + (p.ox || 0); p.z = z + (p.oz || 0); p.yaw = yaw;
+      let yaw;
+      if (p.flee) {
+        const f = p.flee;
+        f.t -= dt; if (f.t <= 0) { this.peds.splice(i, 1); continue; }
+        f.x += f.vx * dt; f.z += f.vz * dt;
+        p.x = f.x; p.z = f.z; p.yaw = yaw = Math.atan2(f.vx, f.vz); moving = true;
+      } else {
+        const [x, z, y2] = this._pos(p);
+        yaw = y2; p.x = x + (p.ox || 0); p.z = z + (p.oz || 0); p.yaw = yaw;
+      }
       if (d > 150) continue;
       p.phase += dt * (moving ? p.speed * 5.2 : 0);
       const swing = moving ? Math.sin(p.phase) * 0.5 : 0;

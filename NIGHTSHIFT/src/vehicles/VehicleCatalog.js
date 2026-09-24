@@ -163,6 +163,16 @@ export const POLICE_CAR = {
   params: { mass: 1750, enginePower: 320, maxSpeed: 72, grip: 1.22, driftGrip: 0.5, steeringAngle: 0.56, brakingForce: 19000, wheelBase: 2.9, trackWidth: 1.62, cgHeight: 0.5, frontWeight: 0.54, drive: 'RWD', gears: [3.0, 2.1, 1.55, 1.2, 0.98, 0.82], finalDrive: 3.6, redline: 6800, downforce: 1.3, suspensionStrength: 2.1, suspensionDamping: 0.5, length: 4.95, width: 1.92, wheelRadius: 0.35 },
 };
 
+// Traffic vehicles the player can take (carjacking). Not in CARS: they never appear in the garage.
+const TP = (o) => ({ driftGrip: 0.45, steeringAngle: 0.56, frontWeight: 0.56, drive: 'RWD', downforce: 0.4, suspensionStrength: 1.8, suspensionDamping: 0.45, idle: 750, ...o });
+export const TRAFFIC_VEHICLES = {
+  sedan: { name: 'Sedan', carType: 'tuner', params: TP({ mass: 1450, enginePower: 125, maxSpeed: 52, grip: 1.0, brakingForce: 13000, wheelBase: 2.75, trackWidth: 1.55, cgHeight: 0.52, gears: [3.5, 2.0, 1.35, 1.0, 0.8], finalDrive: 3.9, redline: 6200, length: 4.7, width: 1.84, wheelRadius: 0.33 }) },
+  suv: { name: 'SUV', carType: 'sports', params: TP({ mass: 1900, enginePower: 170, maxSpeed: 50, grip: 0.95, brakingForce: 15000, wheelBase: 2.85, trackWidth: 1.62, cgHeight: 0.7, drive: 'AWD', gears: [3.6, 2.1, 1.4, 1.0, 0.78], finalDrive: 3.7, redline: 6000, length: 4.8, width: 1.95, wheelRadius: 0.37 }) },
+  van: { name: 'Van', carType: 'muscle', params: TP({ mass: 2300, enginePower: 115, maxSpeed: 42, grip: 0.9, brakingForce: 15000, wheelBase: 3.2, trackWidth: 1.7, cgHeight: 0.85, gears: [3.8, 2.2, 1.45, 1.0], finalDrive: 4.1, redline: 5200, length: 5.3, width: 2.02, wheelRadius: 0.36 }) },
+  truck: { name: 'Box Truck', carType: 'muscle', params: TP({ mass: 7500, enginePower: 240, maxSpeed: 33, grip: 0.85, brakingForce: 40000, wheelBase: 4.5, trackWidth: 1.9, cgHeight: 1.2, gears: [5.0, 3.2, 2.1, 1.4, 1.0, 0.8], finalDrive: 5.0, redline: 3000, idle: 600, length: 7.4, width: 2.3, wheelRadius: 0.5 }) },
+  bus: { name: 'City Bus', carType: 'muscle', params: TP({ mass: 11000, enginePower: 260, maxSpeed: 30, grip: 0.85, brakingForce: 55000, wheelBase: 6.5, trackWidth: 2.0, cgHeight: 1.3, gears: [5.0, 3.2, 2.1, 1.4, 1.0], finalDrive: 5.2, redline: 2800, idle: 600, length: 11.5, width: 2.55, wheelRadius: 0.5 }) },
+};
+
 export const UPGRADE_KEYS = ['engine', 'transmission', 'tires', 'brakes', 'suspension', 'nitrous'];
 export const UPGRADE_NAMES = { engine: 'Engine', transmission: 'Transmission', tires: 'Tires', brakes: 'Brakes', suspension: 'Suspension', nitrous: 'Nitrous' };
 export const UPGRADE_LEVELS = ['Stock', 'Street', 'Sport', 'Race'];

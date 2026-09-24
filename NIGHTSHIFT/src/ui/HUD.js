@@ -28,7 +28,7 @@ export class HUD {
     sp.append(this.spCanvas, this.speedEl, this.unitEl, this.gearEl, this.nosEl);
     // top
     this.topCenter = h('div', 'top-center');
-    this.topRight = h('div', 'top-right', '<div class="cash">$0</div><div class="lvl"><span class="lv">LV 1</span><span class="xpbar"><i></i></span></div>');
+    this.topRight = h('div', 'top-right', '<div class="cash">$0</div><div class="clock">--:--</div><div class="lvl"><span class="lv">LV 1</span><span class="xpbar"><i></i></span></div>');
     this.raceBoard = h('div', 'race-board panel hidden');
     this.centerMsg = h('div', 'center-msg hidden');
     this.pursuit = h('div', 'pursuit hidden', '<div class="lbl">PURSUIT</div><div class="bar"><div class="fill"></div></div><div class="info"></div>');
@@ -86,6 +86,11 @@ export class HUD {
     const cash = formatMoney(g.save.data.cash);
     const cashEl = this.topRight.firstChild;
     if (cashEl.textContent !== cash) cashEl.textContent = cash;
+    // in-game clock
+    const hr = g.env?.hour ?? 0, hh = Math.floor(hr), mm = Math.floor((hr - hh) * 60);
+    const clock = `${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}`;
+    const clockEl = this.topRight.children[1];
+    if (clockEl.textContent !== clock) clockEl.textContent = clock;
     // style chain
     const ch = g.progress?.chain;
     if (ch?.active) {
@@ -200,7 +205,7 @@ export class HUD {
   _drawMinimap(game) {
     const c = this.mmCanvas, g = c.getContext('2d');
     const W = c.width, H = c.height, cx = W / 2, cy = H / 2;
-    const s = game.player.state;
+    const s = game.focusState;
     const speed = Math.hypot(s.vx, s.vz);
     const viewR = lerp(170, 320, clamp(speed / 60, 0, 1)); // meters radius
     this.zoom = lerp(this.zoom || viewR, viewR, 0.05);

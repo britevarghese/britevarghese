@@ -244,6 +244,14 @@ const R = {
     }
   },
 
+  // shoe on pavement: soft heel thud + a small gritty scuff
+  footstep(s, t, o) {
+    const k = clamp(num(o.intensity, 0.5), 0, 1);
+    s.noiseHit('brown', 'lowpass', 380 + k * 250, 0.9, t, 0.002, 0.35 * k, 0.05);
+    s.noiseHit('white', 'bandpass', rand(1800, 3200), 1.4, t + 0.008, 0.001, 0.07 * k, 0.03);
+    s.tone('sine', rand(95, 130), t, 0.001, 0.12 * k, 0.04, 70);
+  },
+
   crackle(s, t, o, m) {
     const k = num(o.intensity, 0.6);
     const pop = m.impacts?.ready && m.impacts.pick('backfire');

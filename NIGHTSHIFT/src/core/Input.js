@@ -12,7 +12,7 @@ const KEYMAP = {
 };
 const ACTIONS = {
   camera: ['KeyV'], map: ['KeyM'], pause: ['Escape', 'KeyP'], reset: ['KeyR'], horn: ['KeyH'],
-  dev: ['F3'], photo: ['F2'], replay: ['KeyI'], fullscreen: ['F11'], confirm: ['Enter'], back: ['Backspace'], event: ['KeyE'], garage: ['KeyG'],
+  dev: ['F3'], photo: ['F2'], replay: ['KeyI'], enter: ['KeyF'], jump: ['Space'], fullscreen: ['F11'], confirm: ['Enter'], back: ['Backspace'], event: ['KeyE'], garage: ['KeyG'],
   up: ['ArrowUp'], down: ['ArrowDown'], leftNav: ['ArrowLeft'], rightNav: ['ArrowRight'],
 };
 
@@ -96,14 +96,15 @@ export class InputManager {
       lookX = dz(pad.axes[2] || 0, 0.2); lookY = dz(pad.axes[3] || 0, 0.2);
       const edge = (i, action) => {
         const p = !!pad.buttons[i]?.pressed;
-        if (p && !this._padPrev[i]) this.pressed.add(action);
+        if (p && !this._padPrev[i]) for (const a of [].concat(action)) this.pressed.add(a);
         this._padPrev[i] = p;
       };
-      edge(3, 'camera');   // Y
+      edge(11, 'camera');  // R3 (Y is get in / out, like GTA)
       edge(9, 'pause');    // Start
+      edge(3, 'enter');    // Y: get in / out
       edge(8, 'map');      // Back/View
       edge(1, 'back');     // B
-      edge(0, 'confirm');  // A (menus)
+      edge(0, ['confirm', 'jump']);  // A (menus / jump on foot)
       edge(12, 'up'); edge(13, 'down'); edge(14, 'leftNav'); edge(15, 'rightNav');
       edge(4, 'reset');    // LB
       edge(11, 'horn');    // R3

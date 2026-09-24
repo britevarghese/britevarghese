@@ -83,7 +83,7 @@ export class PoliceManager {
 
   // a road node at distance [rMin, rMax] from the player, preferably out of view / ahead
   _spawnPoint(rMin, rMax, preferAhead) {
-    const p = this.game.player.state;
+    const p = this.game.focusState;
     const fx = Math.sin(p.yaw), fz = Math.cos(p.yaw);
     const nodes = this.world.layout.nodes;
     let best = null, bestScore = -Infinity;
@@ -100,7 +100,7 @@ export class PoliceManager {
   }
 
   _spawnNearNode(n, towardPlayer) {
-    const p = this.game.player.state;
+    const p = this.game.focusState;
     const yaw = towardPlayer ? Math.atan2(p.x - n.x, p.z - n.z) : this.R() * Math.PI * 2;
     // snap heading to road axis
     const snapped = Math.round(yaw / (Math.PI / 2)) * (Math.PI / 2);
@@ -156,7 +156,7 @@ export class PoliceManager {
   }
 
   _anyUnitSees(range) {
-    const p = this.game.player.state;
+    const p = this.game.focusState;
     for (const u of this.units) {
       if (u.disabled) continue;
       const s = u.vehicle.state;
@@ -168,7 +168,7 @@ export class PoliceManager {
 
   // --------------------------------------------------------------------------- roadblocks
   _placeRoadblock() {
-    const p = this.game.player.state;
+    const p = this.game.focusState;
     const speed = Math.hypot(p.vx, p.vz);
     if (speed < 8) return;
     const fx = p.vx / speed, fz = p.vz / speed;

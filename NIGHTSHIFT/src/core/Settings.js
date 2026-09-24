@@ -3,7 +3,7 @@ import { Storage } from './Storage.js';
 import { bus } from './EventBus.js';
 
 export const DEFAULT_SETTINGS = {
-  version: 1,
+  version: 2,
   graphics: {
     quality: 'auto',          // auto | veryLow | low | medium | high | ultra
     detectedQuality: null,    // result of auto-detection
@@ -19,7 +19,7 @@ export const DEFAULT_SETTINGS = {
     trafficDensity: 'auto',   // auto | low | medium | high
     particles: 'auto',        // auto | low | medium | high
     weather: 'auto',          // auto | clear | cloudy | rain  (auto = dynamic)
-    timeOfDay: 'night',       // morning | day | evening | night | cycle
+    timeOfDay: 'real',        // real (local clock) | cycle (48-min game day) | morning | day | evening | night
     motionBlur: true,
     showFps: false,
   },
@@ -45,6 +45,8 @@ function merge(base, over) {
 export class Settings {
   constructor() {
     this.data = merge(DEFAULT_SETTINGS, Storage.load('settings', {}));
+    // v2: 'night' was the old default for everyone; move players to real-time day/night once
+    if ((this.data.version || 1) < 2) { if (this.data.graphics.timeOfDay === 'night') this.data.graphics.timeOfDay = 'real'; this.data.version = 2; }
   }
   get graphics() { return this.data.graphics; }
   get gameplay() { return this.data.gameplay; }

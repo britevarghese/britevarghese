@@ -23,6 +23,7 @@ import { TrafficRenderer } from '../traffic/TrafficRenderer.js';
 import { PoliceManager } from '../police/PoliceManager.js';
 import { RaceManager } from '../races/RaceManager.js';
 import { StreetRivals } from '../races/StreetRivals.js';
+import { OnFoot } from '../player/OnFoot.js';
 import { AudioManager } from '../audio/AudioManager.js';
 import { engineSoundFor } from '../audio/EngineSynth.js';
 import { MapRenderer } from '../ui/MapRenderer.js';
@@ -95,6 +96,7 @@ export class Game {
     try { this.police.prewarm(); } catch (e) { console.warn('[Game] police prewarm failed', e); }
     this.races = new RaceManager(this);
     this.rivals = new StreetRivals(this);
+    this.onFoot = new OnFoot(this);
     this.peds = new Pedestrians(this.scene, this.world.layout, preset.pedestrians);
     this.audio = new AudioManager(this.settings.audio);
     this.progress = new Progression(this);
@@ -125,8 +127,12 @@ export class Game {
     else promise.then(attach);
   }
 
+  // whoever the world revolves around: the character on foot, or the car being driven
+  get focusState() { return this.onFoot?.active ? this.onFoot.state : this.player.state; }
+
   // ------------------------------------------------------------------ player
   spawnPlayer(at) {
+    if (this.onFoot) { this.onFoot.clearParked(); this.onFoot.active = false; this.onFoot.body.group.visible = false; document.getElementById('hud')?.classList.remove('onfoot'); }
     const id = this.save.data.currentCar;
     const car = CARS[id];
     const data = this.save.data.cars[id];
@@ -335,7 +341,7 @@ export class Game {
     this.camCtl.snap(this.player);
     document.getElementById('hud').classList.remove('hidden');
     this.audio.setPaused(false);
-    this.ui.toast('Find events on the map (M). Drive into a glowing ring and press E.', '', 5);
+    this.ui.toast('Find events on the map (M) and press E in a glowing ring. Press F to get out and walk, or to take any car on the street.', '', 6);
   }
   pause() {
     if (this.state.mode !== 'drive') return;
@@ -495,12 +501,14 @@ export class Game {
     const simulate = driving || mode === 'menu' || mode === 'busted';
     // global actions
     if (driving) {
+      const onFoot = this.onFoot.active;
       if (input.consume('pause')) this.pause();
       else if (input.consume('map')) this.openMap();
+      else if (!onFoot && !this.races.active && input.consume('enter')) this.onFoot.exit();
       else if (input.consume('photo') && !this.races.active) this.photo.enter();
       else if (input.consume('replay')) this.replay.enter();
       if (input.consume('camera')) this.ui.toast(`Camera: ${this.camCtl.next()}`, '', 1);
-      if (input.consume('reset')) this.resetPlayer();
+      if (input.consume('reset') && !onFoot) this.resetPlayer();
       if (input.consume('horn')) this.audio.playEvent('horn', { position: { x: this.player.state.x, y: 0.5, z: this.player.state.z } });
     } else if (mode === 'paused' || mode === 'map' || mode === 'brief' || mode === 'results' || mode === 'menu') {
       if (mode === 'map' && (input.consume('map') || input.consume('pause'))) this.closeMap();
@@ -511,7 +519,8 @@ export class Game {
 
     const player = this.player;
     const c = player.controls;
-    if (driving && !(this.races.active?.state === 'finished')) {
+    if (this.onFoot.active) { c.throttle = 0; c.brake = 0; c.steer = 0; c.handbrake = 1; c.nitro = false; }
+    else if (driving && !(this.races.active?.state === 'finished')) {
       const ic = input.controls;
       c.throttle = ic.throttle; c.brake = ic.brake; c.steer = ic.steer; c.handbrake = ic.handbrake; c.nitro = ic.nitro;
     } else { c.throttle = 0; c.brake = mode === 'menu' ? 0 : 0.3; c.steer = 0; c.handbrake = mode === 'menu' ? 1 : 0; c.nitro = false; }
@@ -525,10 +534,14 @@ export class Game {
       this._playerEvents(events, dt);
       // police + traffic
       this.police.update(dt, this.traffic);
-      const dynamic = [player, ...this.police.vehicles(), ...this.races.vehicles(), ...this.rivals.vehicles()];
+      if (this.onFoot.active && driving) this.onFoot.update(dt, input);
+      this.onFoot.updateParked(dt, this.camera.position, this.env.state);
+      for (const v of this.onFoot.parked) if (Math.abs(v.state.x - player.state.x) < 8 && Math.abs(v.state.z - player.state.z) < 8) VehiclePhysics.resolvePair(player.physics, v.physics);
+      const dynamic = [player, ...this.onFoot.parked, ...this.police.vehicles(), ...this.races.vehicles(), ...this.rivals.vehicles()];
       const fwd = { x: Math.sin(player.state.yaw), z: Math.cos(player.state.yaw) };
       this.traffic.camera = this.camera;
-      this.traffic.update(dt, player.state, fwd, dynamic, player);
+      const fs = this.focusState;
+      this.traffic.update(dt, fs, this.onFoot.active ? { x: Math.sin(fs.yaw), z: Math.cos(fs.yaw) } : fwd, dynamic, player);
       // player vs police
       for (const u of this.police.units) {
         const v = u.vehicle;
@@ -550,10 +563,10 @@ export class Game {
       if (!s.nitroActive) s.nitro = Math.min(1, s.nitro + dt * (0.012 + (s.drifting && sp > 12 ? 0.11 : 0) + (!s.onGround ? 0.08 : 0)));
       this.state.distance += sp * dt;
       this.save.data.distanceDriven += sp * dt;
-      if (driving) this.progress.update(dt, player);
+      if (driving && !this.onFoot.active) this.progress.update(dt, player);
       if (mode === 'busted') this._bustedUpdate(dt);
       // world interaction prompts (events, garages)
-      if (driving) this._interactions();
+      if (driving && !this.onFoot.active) this._interactions();
       if (driving) this.replay.record(dt);
       this.net.update(dt);
     }
@@ -563,7 +576,8 @@ export class Game {
       this.weatherT -= dt;
       if (this.weatherT <= 0) { this.weatherT = 180 + Math.random() * 240; const r = Math.random(); this.env.setWeather(r < 0.55 ? 'clear' : r < 0.8 ? 'cloudy' : 'rain'); }
     }
-    this.env.update(simulate ? dt : 0, player.renderer.group.position, false, this.camera.position);
+    const fsv = this.onFoot.active ? (this._fsv ||= new THREE.Vector3()).set(this.onFoot.state.x, this.onFoot.state.y, this.onFoot.state.z) : player.renderer.group.position;
+    this.env.update(simulate ? dt : 0, fsv, false, this.camera.position);
     if (mode === 'photo') this.photo.applyExposure();
     this.world.update(dt, this.camera, this.env.state);
     // camera
@@ -578,7 +592,8 @@ export class Game {
     this.fx2.lensRain = damp(this.fx2.lensRain || 0, this.env.state.rain > 0.2 && !covered ? Math.min(1, this.env.state.rain) : 0, 0.6, dt);
     this.fx2.lensWind = clamp((speed - 15) / 45, 0, 1);
     if (simulate || mode === 'paused' || mode === 'map' || mode === 'brief' || mode === 'results') {
-      if (simulate) this.camCtl.update(dt, player, driving ? input.controls : { lookX: 0, lookY: 0 }, this.fx2);
+      if (simulate && this.onFoot.active) this.onFoot.updateCamera(dt, input, this.camera);
+      else if (simulate) this.camCtl.update(dt, player, driving ? input.controls : { lookX: 0, lookY: 0 }, this.fx2);
     }
     if (mode === 'photo') this.photo.update(dt, input);
     if (mode === 'replay') this.replay.update(dt, input);
@@ -665,6 +680,7 @@ export class Game {
 
   // red-light running near police
   _violations() {
+    if (this.onFoot?.active) return;
     const s = this.player.state;
     const sp = Math.hypot(s.vx, s.vz);
     if (sp < 9) return;
@@ -735,7 +751,7 @@ export class Game {
     const s = this.player.state, p = this.player.p;
     this.scrapeT = (this.scrapeT || 0) - dt;
     a.setScrape?.(this.scrapeT > 0 && mode === 'drive' ? clamp(0.35 + (this.scrapeSpeed || 0) / 40, 0.35, 1) : 0, this.scrapeSpeed || 0);
-    if (mode !== 'garage') {
+    if (mode !== 'garage' && !this.onFoot.active) {
       a.setPlayerEngine({
         rpm: s.rpm, idleRpm: p.idle, redline: p.redline, throttle: s.throttle, load: s.throttle, speed: Math.abs(s.speed), gear: s.gear,
         nitro: s.nitroActive, skid: s.drifting ? clamp(s.slip * 1.6, 0.3, 1) : this.player.physics.lastWheelspin > 0.3 ? 0.6 : (s.brake > 0.8 && Math.abs(s.speed) > 20 ? 0.5 : 0),

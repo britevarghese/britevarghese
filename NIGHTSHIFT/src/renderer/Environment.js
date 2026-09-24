@@ -258,7 +258,8 @@ export class Environment {
 
   // ------------------------------------------------------------------ update
   update(dt, focus, force = false, viewPos = null) {
-    if (this.mode === 'cycle') this.hour = (this.hour + dt * (24 / (24 * 60))) % 24; // 24 minutes per day
+    if (this.mode === 'cycle') this.hour = (this.hour + dt * (24 / (48 * 60))) % 24; // 48 real minutes per game day (GTA pace)
+    else if (this.mode === 'real') { const d = new Date(); this.hour = d.getHours() + d.getMinutes() / 60 + d.getSeconds() / 3600; }
     // weather transitions
     const targetRain = this.targetWeather === 'rain' ? 1 : 0;
     const targetCloud = this.targetWeather === 'rain' ? 0.95 : this.targetWeather === 'cloudy' ? 0.75 : 0.15;
@@ -277,7 +278,8 @@ export class Environment {
     const C = this._colors;
     for (const k of ['skyTop', 'skyHor', 'glow', 'sun', 'hemiS', 'hemiG', 'fog']) lerpColor(a[k], b[k], t, C[k]);
     const night = lerp(a.night, b.night, t);
-    const changed = force || Math.abs(night - (this.state.night ?? -1)) > 0.002 || Math.abs(prevCloud - this.cloud) > 0.002 || Math.abs(prevRain - this.rain) > 0.002 || this.mode === 'cycle';
+    const changed = force || Math.abs(night - (this.state.night ?? -1)) > 0.002 || Math.abs(prevCloud - this.cloud) > 0.002 || Math.abs(prevRain - this.rain) > 0.002 || this.mode === 'cycle' || (this.mode === 'real' && Math.abs(this.hour - (this._lastRealHour ?? -9)) > 0.01);
+    if (this.mode === 'real' && changed) this._lastRealHour = this.hour;
     this.state.night = night;
     this.state.hour = this.hour;
 

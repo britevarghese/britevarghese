@@ -71,7 +71,7 @@ export class UIManager {
     const d = g.save.data;
     const L = g.progress?.info || { level: 1, into: 0, need: 1 };
     s.appendChild(h('div', 'menu-stats', `<div class="v">${formatMoney(d.cash)}</div><div class="l">CASH</div><div class="v" style="margin-top:.8rem">${L.level}</div><div class="l">DRIVER LEVEL</div><div class="xpline"><i style="width:${L.need ? Math.round(L.into / L.need * 100) : 100}%"></i></div><div class="v" style="margin-top:.8rem">${d.raceWins}</div><div class="l">RACE WINS</div>`));
-    s.appendChild(h('div', 'menu-foot', `${g.rm.backend.toUpperCase()} · ${QUALITY_LABELS[g.quality.level]} · W/S throttle-brake · A/D steer · SPACE handbrake · SHIFT nitrous · V camera · M map · I replay · F2 photo · ESC pause`));
+    s.appendChild(h('div', 'menu-foot', `${g.rm.backend.toUpperCase()} · ${QUALITY_LABELS[g.quality.level]} · W/S throttle-brake · A/D steer · SPACE handbrake · SHIFT nitrous · V camera · F get in/out · M map · I replay · F2 photo · ESC pause`));
     this.screens.appendChild(s);
     this.current = 'menu';
     this._menuNav(btns, null);
@@ -279,7 +279,7 @@ export class UIManager {
         opt('Traffic density', '', 'graphics', 'trafficDensity', ['auto', 'low', 'medium', 'high'], null, apply);
         opt('Particles', '', 'graphics', 'particles', ['auto', 'low', 'medium', 'high'], null, apply);
         opt('Weather', 'Auto = dynamic weather', 'graphics', 'weather', ['auto', 'clear', 'cloudy', 'rain'], null, () => g.applyWeather());
-        opt('Time of day', '', 'graphics', 'timeOfDay', ['morning', 'day', 'evening', 'night', 'cycle'], null, () => g.applyTime());
+        opt('Time of day', 'Real time follows your local clock; game clock runs a 48-minute day', 'graphics', 'timeOfDay', ['real', 'cycle', 'morning', 'day', 'evening', 'night'], ['REAL TIME', 'GAME CLOCK', 'MORNING', 'DAY', 'EVENING', 'NIGHT'], () => g.applyTime());
         opt('Motion blur', '', 'graphics', 'motionBlur', [true, false], ['ON', 'OFF'], apply);
         opt('Renderer', `Current: ${g.rm.backend.toUpperCase()} (applies after reload)`, 'graphics', 'backend', ['auto', 'webgl2', 'webgpu'], ['AUTO', 'WEBGL2', 'WEBGPU']);
         opt('FPS counter', 'F3 shows full developer stats', 'graphics', 'showFps', [true, false], ['ON', 'OFF']);
