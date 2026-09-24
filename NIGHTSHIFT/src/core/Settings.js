@@ -7,6 +7,7 @@ export const DEFAULT_SETTINGS = {
   graphics: {
     quality: 'auto',          // auto | veryLow | low | medium | high | ultra
     detectedQuality: null,    // result of auto-detection
+    detectedGpu: null,        // GPU the detection ran on (a different GPU re-detects)
     backend: 'auto',          // auto | webgl2 | webgpu
     resolutionScale: 1,
     textures: 'auto',         // auto | 256 | 512 | 1024 | 2048

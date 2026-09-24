@@ -67,14 +67,14 @@ async function boot() {
   await Promise.race([rest, new Promise((r) => setTimeout(r, 4000))]);
   game.onModelsReady(rest);
 
-  // short benchmark on first launch (auto quality only) — never selects ULTRA
+  // short benchmark on first launch / new GPU (auto quality only)
   if (settings.graphics.quality === 'auto' && !settings.graphics.detectedQuality) {
     setProgress(0.96, 'Measuring performance...');
     let ms = 16;
     try { ms = await game.benchmark(40); } catch (e) { if (rm.backend === 'webgpu') { rm.failWebGPU(e.message); return; } throw e; }
     const refined = quality.refineWithBenchmark(level, ms);
     console.info(`[Quality] benchmark ${ms.toFixed(1)} ms/frame: ${level} -> ${refined}`);
-    settings.graphics.detectedQuality = refined; settings.save();
+    settings.graphics.detectedQuality = refined; settings.graphics.detectedGpu = quality.gpuKey; settings.save();
     if (refined !== level) { level = refined; preset = quality.apply(level); game.applyPreset(preset, true); }
   }
   setProgress(1, 'Ready');

@@ -101,7 +101,8 @@ export class RendererManager {
   resize() {
     if (!this.renderer) return;
     const p = this.preset;
-    const pr = Math.min(devicePixelRatio || 1, p.pixelRatioCap) * p.resolutionScale;
+    // dynScale: runtime resolution drop from the auto-quality governor (1 = full preset resolution)
+    const pr = Math.min(devicePixelRatio || 1, p.pixelRatioCap) * p.resolutionScale * (this.dynScale || 1);
     this.pixelRatio = pr;
     this.renderer.setPixelRatio(pr);
     this.renderer.setSize(innerWidth, innerHeight);

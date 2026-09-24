@@ -4,6 +4,47 @@ import * as THREE from 'three';
 import * as TX from './Textures.js';
 import { lerp } from '../core/util.js';
 
+// World-space surface breakup for big tiled ground materials (road, sidewalk): a second rotated sample of
+// the albedo blended in by noise hides the texture repeat, low-frequency tone/roughness variation reads as
+// age and resurfacing, and (roads) rain collects in world-space puddles instead of a repeating pattern.
+const MACRO_GLSL = `
+  varying vec3 vWPos;
+  uniform float uMacro, uWet, uPuddles;
+  float mHash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+  float mNoise(vec2 p) {
+    vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
+    return mix(mix(mHash(i), mHash(i + vec2(1, 0)), f.x), mix(mHash(i + vec2(0, 1)), mHash(i + vec2(1, 1)), f.x), f.y);
+  }
+  float mFbm(vec2 p) { return mNoise(p) * 0.55 + mNoise(p * 2.13 + 3.1) * 0.3 + mNoise(p * 4.37 + 7.7) * 0.15; }
+`;
+function addMacro(mat, { macro = 0.12, puddles = 0 } = {}) {
+  const uniforms = { uMacro: { value: macro }, uWet: { value: 0 }, uPuddles: { value: puddles } };
+  mat.userData.macro = uniforms;
+  mat.customProgramCacheKey = () => 'macro' + (puddles > 0 ? 'P' : '');
+  mat.onBeforeCompile = (sh) => {
+    Object.assign(sh.uniforms, uniforms);
+    sh.vertexShader = 'varying vec3 vWPos;\n' + sh.vertexShader.replace('#include <begin_vertex>', '#include <begin_vertex>\n  vWPos = (modelMatrix * vec4(transformed, 1.0)).xyz;');
+    sh.fragmentShader = MACRO_GLSL + sh.fragmentShader
+      .replace('#include <map_fragment>', `
+  float mN1 = mFbm(vWPos.xz * 0.06), mN2 = mFbm(vWPos.xz * 0.012 + 11.0);
+  #ifdef USE_MAP
+    vec4 mA = texture2D(map, vMapUv);
+    vec4 mB = texture2D(map, mat2(0.8, -0.6, 0.6, 0.8) * vMapUv * 0.71 + vec2(0.37, 0.13));
+    vec4 sampledDiffuseColor = mix(mA, mB, smoothstep(0.3, 0.7, mN1));
+    diffuseColor *= sampledDiffuseColor;
+  #endif
+  diffuseColor.rgb *= (1.0 - uMacro) + uMacro * 1.6 * mN2 + (mN1 - 0.5) * uMacro * 0.5;`)
+      .replace('#include <roughnessmap_fragment>', `#include <roughnessmap_fragment>
+  roughnessFactor *= 0.92 + 0.16 * mN1;
+  if (uPuddles > 0.0 && uWet > 0.0) {
+    float pd = smoothstep(0.58, 0.68, mFbm(vWPos.xz * 0.09 + 5.0)) * uWet;
+    roughnessFactor = mix(roughnessFactor, 0.03, pd);
+    diffuseColor.rgb *= 1.0 - pd * 0.35;
+  }`);
+  };
+  return mat;
+}
+
 export class Materials {
   constructor(preset) {
     this.preset = preset;
@@ -14,8 +55,10 @@ export class Materials {
       name: 'road', map: A.map, normalMap: lowEnd ? null : A.normalMap, roughnessMap: A.roughnessMap, roughness: 1, metalness: 0,
       normalScale: new THREE.Vector2(0.6, 0.6), color: 0xffffff, envMapIntensity: 0.4,
     });
+    if (!lowEnd) addMacro(this.road, { macro: 0.16, puddles: 1 });
     const S = TX.concrete(4, 3, 150);
     this.sidewalk = new THREE.MeshStandardMaterial({ name: 'sidewalk', map: S.map, normalMap: lowEnd ? null : S.normalMap, roughness: 0.92, color: 0xb8b4ac, envMapIntensity: 0.3 });
+    if (!lowEnd) addMacro(this.sidewalk, { macro: 0.14 });
     const C = TX.concrete(1, 9, 175);
     this.curb = new THREE.MeshStandardMaterial({ name: 'curb', map: C.map, roughness: 0.85, color: 0xc8c4bc });
     this.concreteWall = new THREE.MeshStandardMaterial({ name: 'concreteWall', map: TX.concrete(2, 13, 140).map, normalMap: lowEnd ? null : TX.concrete(2, 13, 140).normalMap, roughness: 0.9, color: 0x9a9690 });
@@ -59,7 +102,7 @@ export class Materials {
     this.white = new THREE.MeshStandardMaterial({ name: 'white', color: 0xdddddd, roughness: 0.6 });
     this.bark = new THREE.MeshStandardMaterial({ name: 'bark', color: 0x3a2c22, roughness: 1 });
     // leaf cards are emitted front+back with crown-space normals, so single-sided is correct
-    this.leaves = new THREE.MeshStandardMaterial({ name: 'leaves', map: TX.leaves(), alphaTest: 0.4, roughness: 0.85, color: 0xd4e4c0 });
+    this.leaves = new THREE.MeshStandardMaterial({ name: 'leaves', map: TX.leaves(), alphaTest: 0.4, roughness: 0.85, color: 0xaebd98 });
     this.lampHead = new THREE.MeshBasicMaterial({ name: 'lampHead', color: 0xffe6b8, toneMapped: false });
     this.lampHeadCool = new THREE.MeshBasicMaterial({ name: 'lampHeadCool', color: 0xd8e8ff, toneMapped: false });
     // rooftop water tanks and storefront awnings
@@ -100,7 +143,7 @@ export class Materials {
     const lamps = night > 0.35 ? 1 : 0.15;
     this.lampHead.color.setRGB(1.0 * lamps * 2.4, 0.9 * lamps * 2.4, 0.72 * lamps * 2.4);
     this.lampHeadCool.color.setRGB(0.85 * lamps * 2.2, 0.92 * lamps * 2.2, 1.0 * lamps * 2.2);
-    this.lightPool.opacity = Math.max(0, night - 0.3) * (0.36 + state.wetness * 0.15);
+    this.lightPool.opacity = Math.max(0, night - 0.3) * (0.62 + state.wetness * 0.2);
     this.lightPool.visible = night > 0.32;
     // wet roads: lower roughness, stronger env reflection, darker albedo
     const w = state.wetness;
@@ -110,6 +153,7 @@ export class Materials {
     this.road.color.setScalar(lerp(1, 0.48, w)); // soaked asphalt is roughly half as bright
     this.road.envMapIntensity = lerp(0.35, wetOK ? 1.6 : 0.8, w);
     this.road.needsUpdate = true;
+    if (this.road.userData.macro) this.road.userData.macro.uWet.value = w;
     this.sidewalk.roughness = lerp(0.92, 0.5, w); this.sidewalk.color.setHex(0xb8b4ac).multiplyScalar(lerp(1, 0.7, w));
     this.markings.roughness = lerp(0.6, 0.42, w);
     // road paint is far from pure white (and dims when wet) — keeps lamp-lit dashes from blowing out

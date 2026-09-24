@@ -28,7 +28,7 @@ import { HUD } from '../ui/HUD.js';
 import { UIManager } from '../ui/UIManager.js';
 import { Garage } from '../ui/Garage.js';
 import { NetworkClient } from '../networking/NetworkClient.js';
-import { QUALITY_LABELS } from './QualityManager.js';
+import { QUALITY_LABELS, QUALITY_LEVELS } from './QualityManager.js';
 
 export class GameState {
   constructor() { this.mode = 'loading'; this.time = 0; this.distance = 0; }
@@ -402,20 +402,55 @@ export class Game {
   }
 
   async benchmark(frames = 40) {
-    // render real frames at the spawn to measure GPU/CPU cost
+    // render real frames at the spawn and time the work itself: on WebGL a 1-pixel readback waits for
+    // the GPU to finish, so the result is not capped by the display's refresh rate
     const times = [];
-    let last = performance.now();
+    const gl = this.rm.backend === 'webgl2' ? this.rm.renderer.getContext() : null;
+    const px = new Uint8Array(4);
     for (let i = 0; i < frames; i++) {
       await new Promise((r) => requestAnimationFrame(r));
+      const t0 = performance.now();
       this.camCtl.update(1 / 60, this.player, this.input.controls, {});
       this.world.update(1 / 60, this.camera, this.env.state);
       this.rm.render(this.scene, this.camera, 1 / 60);
-      const now = performance.now();
-      if (i > 8) times.push(now - last);
-      last = now;
+      if (gl) gl.readPixels(0, 0, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, px);
+      else await new Promise((r) => requestAnimationFrame(r));
+      if (i > 8) times.push(performance.now() - t0);
     }
     times.sort((a, b) => a - b);
     return times[Math.floor(times.length / 2)] || 16;
+  }
+
+  // Auto-quality governor (graphics quality = AUTO only). Watches real frame times while driving: when
+  // most frames miss ~40 fps it first lowers the render resolution, then drops a preset level (saved);
+  // resolution comes back once there is headroom again.
+  _governor(dt) {
+    if (this.settings.graphics.quality !== 'auto' || this.state.mode !== 'drive' || document.hidden) return;
+    const G = (this.gov ||= { t: 0, slow: 0, fast: 0, n: 0, cool: 3 });
+    const ms = dt * 1000;
+    if (ms > 250) return; // hitch / tab switch, not steady load
+    G.cool -= dt; G.t += dt; G.n++;
+    if (ms > 25) G.slow++;
+    if (ms < 18) G.fast++;
+    if (G.t < 4) return;
+    const slow = G.slow / G.n, fast = G.fast / G.n;
+    G.t = 0; G.n = 0; G.slow = 0; G.fast = 0;
+    if (G.cool > 0) return;
+    const rm = this.rm;
+    if (slow > 0.6) {
+      if ((rm.dynScale || 1) > 0.72) { rm.dynScale = Math.max(0.7, (rm.dynScale || 1) - 0.1); rm.resize(); G.cool = 3; return; }
+      const i = QUALITY_LEVELS.indexOf(this.quality.level);
+      if (i > 0) {
+        const lvl = QUALITY_LEVELS[i - 1];
+        this.settings.graphics.detectedQuality = lvl; this.settings.save();
+        rm.dynScale = 1;
+        this.applyPreset(this.quality.apply(lvl));
+        this.ui.toast(`Graphics auto-adjusted to ${QUALITY_LABELS[lvl]}`, '', 3);
+        G.cool = 8;
+      }
+    } else if (fast > 0.9 && (rm.dynScale || 1) < 1) {
+      rm.dynScale = Math.min(1, rm.dynScale + 0.1); rm.resize(); G.cool = 6;
+    }
   }
 
   _persistPosition() {
@@ -428,6 +463,7 @@ export class Game {
     const now = performance.now();
     let dt = (now - this.last) / 1000;
     this.last = now;
+    this._governor(dt);
     this.frameMs = lerp(this.frameMs, dt * 1000, 0.1);
     this.frames++; this.fpsT += dt;
     dt = Math.min(dt, 1 / 20); // avoid huge steps after tab switches

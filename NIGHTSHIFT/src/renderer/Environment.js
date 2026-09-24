@@ -7,7 +7,7 @@ import { moonTex, cloudTex, radialGlow } from './Textures.js';
 
 // keyframes by hour
 const KEYS = [
-  { h: 0, skyTop: '#02040b', skyHor: '#161c2a', glow: '#3a2418', sun: '#8fa8e0', sunI: 0.28, hemiS: '#26334d', hemiG: '#2a2016', hemiI: 0.8, fog: '#0a0e16', exp: 1.31, night: 1 },
+  { h: 0, skyTop: '#02040b', skyHor: '#1e1c28', glow: '#4a2c1a', sun: '#8fa8e0', sunI: 0.28, hemiS: '#26334d', hemiG: '#3a2a1a', hemiI: 0.95, fog: '#0a0e16', exp: 1.31, night: 1 },
   { h: 5.2, skyTop: '#060a18', skyHor: '#2a2436', glow: '#5a3020', sun: '#8fa8e0', sunI: 0.25, hemiS: '#23304a', hemiG: '#0a0a0e', hemiI: 0.6, fog: '#141824', exp: 1.25, night: 0.9 },
   { h: 6.5, skyTop: '#3a5a8a', skyHor: '#e8a070', glow: '#ff9a50', sun: '#ffb070', sunI: 1.6, hemiS: '#8aa0c0', hemiG: '#3a3028', hemiI: 0.9, fog: '#9a8a88', exp: 1.12, night: 0.35 },
   { h: 9, skyTop: '#3a6ab0', skyHor: '#b8cce0', glow: '#fff0d0', sun: '#fff2dc', sunI: 2.6, hemiS: '#bccbe0', hemiG: '#7a6a56', hemiI: 1.45, fog: '#a8b8c8', exp: 1.15, night: 0 },
@@ -15,7 +15,7 @@ const KEYS = [
   { h: 17, skyTop: '#3a5c98', skyHor: '#e0c0a0', glow: '#ffc080', sun: '#ffd0a0', sunI: 2.2, hemiS: '#b0b8d0', hemiG: '#6a5440', hemiI: 1.3, fog: '#b0a8a0', exp: 1.06, night: 0.05 },
   { h: 18.6, skyTop: '#2a2c58', skyHor: '#f07848', glow: '#ff6a30', sun: '#ff8a50', sunI: 1.3, hemiS: '#6a6090', hemiG: '#2a2020', hemiI: 0.8, fog: '#6a5058', exp: 1.19, night: 0.5 },
   { h: 19.8, skyTop: '#0a0e24', skyHor: '#3a2a40', glow: '#a04830', sun: '#9ab0e0', sunI: 0.35, hemiS: '#2a3450', hemiG: '#0a0a10', hemiI: 0.6, fog: '#161826', exp: 1.25, night: 0.9 },
-  { h: 24, skyTop: '#02040b', skyHor: '#161c2a', glow: '#3a2418', sun: '#8fa8e0', sunI: 0.28, hemiS: '#26334d', hemiG: '#2a2016', hemiI: 0.8, fog: '#0a0e16', exp: 1.31, night: 1 },
+  { h: 24, skyTop: '#02040b', skyHor: '#1e1c28', glow: '#4a2c1a', sun: '#8fa8e0', sunI: 0.28, hemiS: '#26334d', hemiG: '#3a2a1a', hemiI: 0.95, fog: '#0a0e16', exp: 1.31, night: 1 },
 ];
 export const TIME_PRESETS = { morning: 7.2, day: 13, evening: 18.7, night: 23.3 };
 

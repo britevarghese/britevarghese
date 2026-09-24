@@ -37,6 +37,7 @@ export const PRESETS = {
   },
 };
 
+const clampI = (v, a, b) => Math.max(a, Math.min(b, v));
 const VIEW_DIST = { low: 450, medium: 800, high: 1200, ultra: 1700 };
 const TRAFFIC = { low: 10, medium: 22, high: 36 };
 const PARTICLES = { low: 0.35, medium: 0.75, high: 1.2 };
@@ -78,7 +79,8 @@ export class QualityManager {
     const r = (this.gpu.renderer || '').toLowerCase();
     let lvl = 'medium';
     if (this.gpu.software || !this.gpu.webgl2) lvl = 'veryLow';
-    else if (/rtx|radeon rx [67]\d{3}|rx 7|rx 6[789]|arc a7|apple m[234] (pro|max)|geforce gtx 1[0-9]80/.test(r)) lvl = 'high';
+    else if (/rtx \d0[789]0|rtx [345]0[6789]0|rtx a[456]000|radeon rx (6[89]|7[89]|90)\d0|apple m\d (max|ultra)|apple m[34] pro/.test(r)) lvl = 'ultra';
+    else if (/rtx|radeon rx [67]\d{3}|rx 7|rx 6[789]|arc a7|arc b5|apple m[234] (pro|max)|geforce gtx 1[0-9]80/.test(r)) lvl = 'high';
     else if (/gtx|radeon rx|apple m\d|arc|quadro|radeon pro/.test(r)) lvl = 'medium';
     else if (/intel.*(uhd|iris xe)|radeon\(tm\) graphics|vega/.test(r)) lvl = 'low';
     else if (/intel|hd graphics|mali|adreno|powervr|gma/.test(r)) lvl = 'veryLow';
@@ -87,19 +89,29 @@ export class QualityManager {
     return lvl;
   }
 
-  // Benchmark: caller renders real frames and passes average frame time (ms).
-  refineWithBenchmark(level, avgMs) {
+  // Benchmark: the caller renders real frames at `level` and passes the median GPU+CPU work time per
+  // frame (ms, measured with a pipeline sync, so it is not capped by the display refresh). Budget is a
+  // 60 fps frame with headroom for traffic, police and effects. One step up at most, and ULTRA only
+  // for a GPU the heuristics already rate as high-end.
+  refineWithBenchmark(level, workMs) {
+    const guess = QUALITY_LEVELS.indexOf(this.guessLevel());
     let i = QUALITY_LEVELS.indexOf(level);
-    if (avgMs > 45) i = Math.max(0, i - 2);
-    else if (avgMs > 26) i = Math.max(0, i - 1);
-    else if (avgMs < 9 && i < 3) i = i + 1;
-    return QUALITY_LEVELS[Math.min(i, 3)]; // never auto-select ULTRA
+    if (workMs > 34) i -= 2;
+    else if (workMs > 17) i -= 1;
+    else if (workMs < 6.5) i += 1;
+    const cap = guess >= 3 ? 4 : Math.min(3, guess + 1);
+    return QUALITY_LEVELS[clampI(i, 0, cap)];
   }
 
+  // identity of the GPU the detection was made on: a new GPU / browser re-runs the benchmark
+  get gpuKey() { return `${this.gpu.vendor}|${this.gpu.renderer}`; }
+
   resolveLevel() {
-    const q = this.settings.graphics.quality;
+    const g = this.settings.graphics;
+    const q = g.quality;
     if (q && q !== 'auto' && PRESETS[q]) return q;
-    return this.settings.graphics.detectedQuality || this.guessLevel();
+    if (g.detectedQuality && g.detectedGpu !== this.gpuKey) g.detectedQuality = null; // new hardware (or a pre-ULTRA detection): measure again
+    return g.detectedQuality || this.guessLevel();
   }
 
   // Build the effective preset: level preset + individual overrides from settings.
