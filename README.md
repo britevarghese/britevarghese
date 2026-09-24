@@ -15,8 +15,8 @@ npm run assets     # (optional) re-download and re-optimize all CC0 source asset
 ```
 
 ## Playing together (rooms)
-* **Server browser** lists the public rooms: one always-on room per map (`OUTSKIRTS`, `HARBOR`, `VALLEY`, `ZULU`)
-  plus any public room players created. Double-click to join.
+* **Server browser** lists the public rooms: one always-on room per map (`OUTSKIRTS`, `HARBOR`, `VALLEY`, `ZULU`,
+  and the battle royale room `FIRESTORM`) plus any public room players created. Double-click to join.
 * **Create room**: pick a map, bots per team (0–16), max players (2–32), optional password, private (hidden from the
   browser) and map rotation. You get a 6-letter **room code**.
 * **Invite**: share `https://<your-host>/?room=CODE` — the deploy screen shows the link with a COPY button, or press
@@ -32,6 +32,7 @@ npm run assets     # (optional) re-download and re-optimize all CC0 source asset
 | **Harbor Docks** | 300 m | 4 | container terminal on the water: tight container lanes, open quay, warehouse row |
 | **Dry Valley** | 384 m | 3 | big hills, winding road, farm, village and fortified hilltop — long sightlines |
 | **Checkpoint Zulu** | 184 m | 3 | small walled military compound — fast close-quarters infantry |
+| **Firestorm Island** | 840 m | — | **battle royale**: town, villages, farm, industrial yard, military base, radio station, checkpoint |
 
 Maps are plain data in `shared/maps/*.js` (roads, flags, bases, buildings, props, terrain relief, vegetation,
 lighting/fog). Server (collision, nav grid, bots) and browser (rendering) generate the same world from it —
@@ -60,11 +61,28 @@ JUMP / CRCH / PRONE / R (reload) / G (grenade) / ⇄ (swap weapon) · top: 👁 
 device with `?touch=1`.
 
 **Keyboard & mouse:** WASD move · Shift sprint · Space jump · C crouch · Z prone · RMB aim down sights · LMB fire · R reload ·
-1/2 or wheel switch weapon · G grenade · **V first/third person** · Tab scoreboard · T/Enter chat · F3 asset debug
+1/2 or wheel switch weapon · G grenade · **V first/third person** · Tab scoreboard · T/Enter chat · F3 asset debug ·
+battle royale: **Space** jump / open parachute · **E** pick up · **H** heal · **M** island map
 
 ## Game
 * **Conquest**: flags A / B / C, capture by standing in the zone (more soldiers = faster), 300 tickets per team,
   each death costs a ticket, holding more flags bleeds the enemy. Round restarts 15 s after a team hits 0.
+* **Battle royale** (Firestorm Island, room `FIRESTORM` or create a room on that map):
+  1. **Warm-up** — the match starts 25 s after the first player joins (bots fill the lobby; `ROYALE_BOTS`, `ROYALE_LOBBY`).
+  2. **Transport plane** flies a random line across the island (chase camera, flight path on the island map).
+     **SPACE / JUMP** to jump once it is over land; anyone still aboard is thrown out at the far coast.
+  3. **Freefall** (look down to dive, steer with WASD/stick) → **SPACE** opens the ram-air **parachute**
+     (auto-opens at 55 m).
+  4. Everyone lands with a pistol and no spare ammo. **Loot** lies inside every building and next to crates, containers
+     and wrecks: AR-15, bolt rifle, pistol, ammo boxes, **armor plate kits** (absorb 60 % of hits, 100 max),
+     **med kits** (**H**: 3.2 s, +50 HP) and frag grenades. **E** / PICK picks up (swapping drops your old weapon).
+  5. The **ring of fire** closes in five stages (wall of flames, 1.5 → 12 HP/s outside); the next safe zone is shown on
+     the minimap and on the island map (**M**). **Supply drops** parachute into the next zone (red smoke) with rifles,
+     armor and med kits.
+  6. **No respawns** — fallen soldiers drop everything they carried; you get your placement and spectate the survivors.
+     Last one standing wins, then the next match starts in the same room.
+  Everything is server-authoritative (jump window, air-speed limits, pickup range, armor, healing, ring damage).
+  Royale bots pick a drop zone along the flight path, loot what they need, run from the ring and fight everyone.
 * **Kits**: Assault (automatic carbine, pistol, 2 frags) · Recon (4× scoped bolt-action rifle, pistol, 1 frag).
 * **Server-authoritative**: the server owns ammo, fire rate, damage, hit detection (lag-compensated hitscan
   against capsule hitboxes; walls/cover block shots; headshot multipliers; range falloff), grenades (simulated
@@ -120,6 +138,8 @@ cloning, pooled particles/decals/tracers.
 * `?perf=1` shows per-system CPU time per frame (also `window.__perf`).
 
 ### Playtest
+`npm run playtest:royale` (server running with `DEV_TELEPORT=1 ROYALE_LOBBY=50`) plays a battle royale match in a real
+browser: lobby, plane, jump, freefall, parachute, landing, loot pickup, armor, island map, death, placement, spectating.
 `npm run playtest:mobile -- <map>` does the same on an emulated phone with real multi-touch events (24 checks).
 `npm run playtest -- <map>` (server running with `DEV_TELEPORT=1 BOTS=0`) drives a real browser client plus a second
 network client through ~30 checks: movement, stances, jump, weapon switch, ADS + firing with server damage, reload, kill,

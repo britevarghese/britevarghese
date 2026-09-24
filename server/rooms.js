@@ -1,7 +1,8 @@
 // Rooms: independent game instances (own map, bots, tickets, players) hosted by one server process.
 import crypto from 'node:crypto';
 import { Game, TICK_HZ, SNAP_HZ } from './game.js';
-import { MAP_DEFS, MAP_IDS } from '../shared/map.js';
+import { RoyaleGame } from './royale.js';
+import { MAP_DEFS, MAP_IDS, CONQUEST_MAPS, modeOf } from '../shared/map.js';
 
 const CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 const send = (ws, msg) => { if (ws.readyState === 1) ws.send(typeof msg === 'string' ? msg : JSON.stringify(msg)); };
@@ -21,7 +22,11 @@ export class Room {
 
   #startGame(map) {
     this.mapId = MAP_DEFS[map] ? map : MAP_IDS[0];
-    this.game = new Game({ botsPerTeam: this.botsPerTeam, map: this.mapId, log: this.log });
+    this.mode = modeOf(this.mapId);
+    // battle royale: botsPerTeam is the total number of bots (everyone is on their own)
+    this.game = this.mode === 'royale'
+      ? new RoyaleGame({ bots: this.botsPerTeam, map: this.mapId, log: this.log, lobbyTime: +process.env.ROYALE_LOBBY || undefined })
+      : new Game({ botsPerTeam: this.botsPerTeam, map: this.mapId, log: this.log });
   }
 
   humans() { return this.clients.size; }
@@ -29,7 +34,7 @@ export class Room {
   info() {
     const g = this.game;
     return {
-      id: this.id, name: this.name, map: this.mapId, mapName: MAP_DEFS[this.mapId].name, players: this.humans(), max: this.maxPlayers,
+      id: this.id, name: this.name, map: this.mapId, mode: this.mode, mapName: MAP_DEFS[this.mapId].name, players: this.humans(), max: this.maxPlayers,
       bots: this.botsPerTeam, private: this.isPrivate, locked: !!this.password, rotation: this.rotation, tickets: [g.tickets[1], g.tickets[2]],
     };
   }
@@ -41,9 +46,10 @@ export class Room {
     const g = this.game;
     const p = g.addPlayer({ name: cleanName(m.name) || 'Soldier', team: m.team, cls: m.cls });
     this.clients.set(ws, p);
-    send(ws, { t: 'welcome', id: p.id, team: p.team, cls: p.cls, tickHz: TICK_HZ, snapHz: SNAP_HZ, room: this.info() });
+    send(ws, { t: 'welcome', id: p.id, team: p.team, cls: p.cls, mode: this.mode, tickHz: TICK_HZ, snapHz: SNAP_HZ, room: this.info() });
     send(ws, g.scoreboard());
-    g.emit({ t: 'chat', from: 'SERVER', msg: `${p.name} joined ${p.team === 1 ? 'US' : 'RU'}` });
+    const extra = g.joinPayload?.(p); if (extra) send(ws, extra);
+    g.emit({ t: 'chat', from: 'SERVER', msg: this.mode === 'royale' ? `${p.name} joined` : `${p.name} joined ${p.team === 1 ? 'US' : 'RU'}` });
     return null;
   }
 
@@ -53,7 +59,11 @@ export class Room {
     this.game.emit({ t: 'chat', from: 'SERVER', msg: `${p.name} left` });
     this.game.removePlayer(p.id);
     this.clients.delete(ws);
-    if (!this.clients.size) this.emptySince = Date.now();
+    if (!this.clients.size) {
+      this.emptySince = Date.now();
+      // a battle royale match with nobody watching is abandoned; the next visitor gets a fresh lobby
+      if (this.mode === 'royale') this.game.resetRound();
+    }
   }
 
   message(ws, m) {
@@ -75,6 +85,10 @@ export class Room {
       }
       case 'pong': if (typeof m.s === 'number') p.rtt = p.rtt * 0.7 + Math.min(1000, Date.now() - m.s) * 0.3; break;
       case 'suicide': g.kill(p, null, 'suicide'); break;
+      // battle royale
+      case 'jump': g.jump?.(p); break;
+      case 'pick': if (Number.isInteger(m.id)) g.pickup?.(p, m.id); break;
+      case 'heal': g.heal?.(p); break;
     }
   }
 
@@ -83,8 +97,8 @@ export class Room {
     // empty rooms sleep (bots only fight while somebody is watching)
     if (!this.clients.size) return;
     // map rotation shortly before the round would restart on the same map
-    if (this.rotation && g.roundOver && now - g.roundOver.at > 13000) {
-      const next = MAP_IDS[(MAP_IDS.indexOf(this.mapId) + 1) % MAP_IDS.length];
+    if (this.rotation && this.mode === 'conquest' && g.roundOver && now - g.roundOver.at > 13000) {
+      const next = CONQUEST_MAPS[(CONQUEST_MAPS.indexOf(this.mapId) + 1) % CONQUEST_MAPS.length];
       this.log(`[room ${this.id}] rotating map ${this.mapId} -> ${next}`);
       const msg = JSON.stringify({ t: 'mapchange', map: next, room: this.id });
       for (const ws of this.clients.keys()) { send(ws, msg); setTimeout(() => ws.close(4000, 'mapchange'), 400); }
@@ -108,7 +122,8 @@ export class Room {
       A.snap = Math.min(A.snap - 1 / SNAP_HZ, 1 / SNAP_HZ);
       const snap = g.snapshot();
       for (const [ws, p] of this.clients) {
-        snap.me = { hp: Math.max(0, Math.round(p.hp)), alive: p.alive, w: p.weapons, sl: p.slot, g: p.grenades, rl: Math.max(0, p.reloadUntil - now), rs: Math.max(0, p.respawnAt - now), sp: p.spawnPoint };
+        snap.me = { hp: Math.max(0, Math.round(p.hp)), alive: p.alive, w: p.weapons, sl: p.slot, g: p.grenades, rl: Math.max(0, p.reloadUntil - now), rs: Math.max(0, Math.min(99999, p.respawnAt - now)), sp: p.spawnPoint };
+        if (g.meExtra) Object.assign(snap.me, g.meExtra(p, now));
         send(ws, snap);
       }
     }
@@ -138,7 +153,7 @@ export class RoomManager {
       id,
       name: cleanName(opts.name, 32) || `${MAP_DEFS[opts.map]?.name || 'Battle'} room`,
       map: MAP_DEFS[opts.map] ? opts.map : MAP_IDS[0],
-      botsPerTeam: Math.max(0, Math.min(16, Math.round(+opts.botsPerTeam || 0))),
+      botsPerTeam: Math.max(0, Math.min(modeOf(opts.map) === 'royale' ? 23 : 16, Math.round(+opts.botsPerTeam || 0))),
       maxPlayers: Math.max(2, Math.min(32, Math.round(+opts.maxPlayers || 24))),
       isPrivate: !!opts.isPrivate,
       password: cleanName(opts.password, 32),

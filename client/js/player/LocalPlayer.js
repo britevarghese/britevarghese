@@ -2,6 +2,7 @@
 import * as THREE from 'three';
 import { stepCharacter, EYE_HEIGHT, STANCE_HEIGHT } from '/shared/world.js';
 import { WEAPONS } from '/shared/weapons.js';
+import { stepAir } from '/shared/royale.js';
 
 const damp = (a, b, k, dt) => a + (b - a) * (1 - Math.exp(-k * dt));
 
@@ -33,6 +34,13 @@ export class LocalPlayer {
       if (this.g.chatOpen) return;
       if (e.code === 'Tab') { e.preventDefault(); this.g.hud.scoreboard(true, this.g.myId); }
       this.keys.add(e.code);
+      const R = this.g.royale;
+      if (R && !e.repeat) {
+        if (e.code === 'Space' && R.inPlane) R.jump();
+        if (e.code === 'KeyM') R.mapHeld = true;
+        if (e.code === 'KeyE') R.pickup();
+        if (e.code === 'KeyH') R.heal();
+      }
       if (!this.alive) return;
       if (e.code === 'KeyC' || e.code === 'ControlLeft') this.setStance(this.s.stance === 'crouch' ? 'stand' : 'crouch');
       if (e.code === 'KeyZ') this.setStance(this.s.stance === 'prone' ? 'stand' : 'prone');
@@ -42,24 +50,30 @@ export class LocalPlayer {
       if (e.code === 'KeyG') this.throwGrenade();
       if (e.code === 'KeyV') this.thirdPerson = !this.thirdPerson;
     });
-    addEventListener('keyup', (e) => { this.keys.delete(e.code); if (e.code === 'Tab') this.g.hud.scoreboard(false); });
+    addEventListener('keyup', (e) => { this.keys.delete(e.code); if (e.code === 'Tab') this.g.hud.scoreboard(false); if (e.code === 'KeyM' && this.g.royale) this.g.royale.mapHeld = false; });
     el.addEventListener('mousedown', (e) => {
-      if (document.pointerLockElement !== el) { if (this.alive) el.requestPointerLock(); return; }
+      if (document.pointerLockElement !== el) { if (this.canLook()) el.requestPointerLock(); return; }
       if (e.button === 0) this.mouse.l = true;
       if (e.button === 2) this.mouse.r = true;
     });
     addEventListener('mouseup', (e) => { if (e.button === 0) this.mouse.l = false; if (e.button === 2) this.mouse.r = false; this.triggerReleased = e.button === 0 ? true : this.triggerReleased; });
     addEventListener('contextmenu', (e) => e.preventDefault());
     addEventListener('mousemove', (e) => {
-      if (document.pointerLockElement !== el || !this.alive) return;
+      if (document.pointerLockElement !== el || !this.canLook()) return;
       this.look(e.movementX, e.movementY);
     });
     addEventListener('wheel', () => { if (this.alive) this.switchSlot(1 - this.slot); });
   }
 
   // look input shared by mouse and touch (pixels of movement)
+  // alive, or looking around from the transport plane (battle royale)
+  canLook() { return this.alive || !!this.g.royale?.inPlane; }
+
+  // third-person camera: toggled with V, forced while falling / under the canopy
+  isTPS() { return this.thirdPerson || (this.alive && this.s.air > 0); }
+
   look(dx, dy, k = this.sens) {
-    if (!this.alive) return;
+    if (!this.canLook()) return;
     const f = k * (this.adsBlend > 0.5 ? (WEAPONS[this.weaponId()]?.scoped ? 0.35 : 0.7) : 1);
     this.yaw -= dx * f; this.pitch -= dy * f;
     this.pitch = Math.max(-1.45, Math.min(1.45, this.pitch));
@@ -69,11 +83,25 @@ export class LocalPlayer {
   weaponId() { return this.weapons[this.slot]?.id; }
 
   spawn(m) {
-    Object.assign(this.s, { x: m.x, y: m.y, z: m.z, vx: 0, vy: 0, vz: 0, onGround: true, stance: 'stand' });
-    this.yaw = m.yaw; this.pitch = 0; this.alive = true;
-    this.weapons = m.w.map((w) => ({ ...w })); this.grenades = m.g; this.slot = 0;
+    Object.assign(this.s, { x: m.x, y: m.y, z: m.z, vx: m.vx || 0, vy: m.vy || 0, vz: m.vz || 0, onGround: !m.air, stance: 'stand', air: m.air || 0 });
+    this.yaw = m.yaw; this.pitch = m.air ? -0.5 : 0; this.alive = true;
+    this.weapons = m.w.map((w) => (w ? { ...w } : null)); this.grenades = m.g; this.slot = m.sl ?? 0;
     this.reloadUntil = 0; this.recoil.p = this.recoil.y = 0;
     this.g.equipLocal(this.weaponId());
+  }
+
+  // battle royale: authoritative inventory after a pickup / swap / heal
+  applyInventory(e) {
+    const before = this.weaponId();
+    this.weapons = e.w.map((w, i) => {
+      if (!w) return null;
+      const l = this.weapons[i];
+      return l && l.id === w.id && performance.now() < this.reloadUntil ? { ...w, mag: l.mag } : { ...w };
+    });
+    this.grenades = e.g;
+    if (e.sl !== undefined && this.weapons[e.sl]) this.slot = e.sl;
+    if (!this.weapons[this.slot]) this.slot = this.weapons.findIndex(Boolean);
+    if (this.weaponId() !== before) { this.reloadUntil = 0; this.g.equipLocal(this.weaponId()); }
   }
 
   setStance(st) {
@@ -137,7 +165,19 @@ export class LocalPlayer {
     const ads = this.mouse.r && !sprint;
     this.sprinting = sprint; this.ads = ads;
     const jump = !chat && (k.has('Space') || T.jump);
+    const jumpPulse = T.jump;
     T.jump = false;
+    if (s.air) {
+      // freefall / canopy: steer with WASD relative to the view, look down to dive, SPACE opens the canopy
+      const dive = Math.max(0, Math.min(1, (-this.pitch - 0.35) / 0.8));
+      const deploy = s.air === 1 && ((jump && this.spaceReleased) || jumpPulse);
+      this.spaceReleased = !k.has('Space');
+      stepAir(this.g.world.collision, s, { fx: wx, fz: wz, dive, deploy }, dt);
+      if (!s.air) { this.landDip = 0.12; this.g.audio.footstep(null, this.g.surfaceAt(s.x, s.z), true, 1.8); this.spaceReleased = false; }
+      this.sprinting = false; this.ads = false; this.moveFactor = 0;
+      this.#sendInput(s, false, false);
+      return;
+    }
     if (jump && s.stance !== 'stand' && s.onGround) { this.setStance('stand'); }
     const prevGround = s.onGround;
     stepCharacter(this.g.world.collision, s, { fx: wx, fz: wz, sprint, jump: jump && s.stance === 'stand', ads }, dt);
@@ -154,7 +194,7 @@ export class LocalPlayer {
     const w = this.weapons[this.slot], def = w ? WEAPONS[w.id] : null;
     this.adsBlend = this.g.viewmodel ? this.g.viewmodel.ads : 0;
     if (def) {
-      if (this.mouse.l && !chat && !sprint && !reloading && performance.now() >= this.nextFire && this.g.viewmodel.switchT > 0.8) {
+      if (this.mouse.l && !chat && !sprint && !reloading && performance.now() >= this.nextFire && this.g.viewmodel.switchT > 0.8 && !this.g.royale?.healing) {
         if (!def.auto && !this.triggerReleased) {} // semi/bolt: one shot per click
         else if (w.mag > 0) this.fire(w, def);
         else { this.g.audio.ui('empty'); this.nextFire = performance.now() + 300; this.reload(); }
@@ -169,13 +209,16 @@ export class LocalPlayer {
     this.recoil.y = damp(this.recoil.y, 0, rec, dt);
     this.bloom = damp(this.bloom, 0, 4, dt);
     this.landDip = damp(this.landDip, 0, 6, dt);
-    // send input at ~30Hz
-    this.sendAcc = (this.sendAcc || 0) + dt;
-    if (this.sendAcc > 1 / 30) {
-      this.sendAcc = 0;
-      this.g.net.send({ t: 'in', x: +s.x.toFixed(3), y: +s.y.toFixed(3), z: +s.z.toFixed(3), yaw: +this.yaw.toFixed(4), pitch: +this.pitch.toFixed(4), st: s.stance, ads, sp: sprint, vx: +s.vx.toFixed(2), vz: +s.vz.toFixed(2), og: s.onGround, sl: this.slot });
-    }
+    this.#sendInput(s, ads, sprint);
     this.moveFactor = Math.min(1, hs / 3.6);
+  }
+
+  // send input at ~30Hz
+  #sendInput(s, ads, sprint) {
+    const now = performance.now();
+    if (now - (this.lastSend || 0) < 1000 / 30) return;
+    this.lastSend = now;
+    this.g.net.send({ t: 'in', x: +s.x.toFixed(3), y: +s.y.toFixed(3), z: +s.z.toFixed(3), yaw: +this.yaw.toFixed(4), pitch: +this.pitch.toFixed(4), st: s.stance, ads, sp: sprint, vx: +s.vx.toFixed(2), vz: +s.vz.toFixed(2), og: s.onGround, sl: this.slot, dr: s.air || 0 });
   }
 
   spread(def) {
@@ -233,14 +276,14 @@ export class LocalPlayer {
     const yaw = this.yaw + this.recoil.y + (Math.random() - 0.5) * shake * 0.03;
     const roll = -Math.cos(this.camBob) * 0.004 * Math.min(1, hs / 4) * bobA + (this.sprinting ? Math.sin(this.camBob) * 0.006 : 0);
     cam.rotation.set(pitch, yaw, roll, 'YXZ');
-    if (!this.thirdPerson) {
+    if (!this.isTPS()) {
       cam.position.copy(eye).add(new THREE.Vector3(bobX, 0, 0).applyEuler(new THREE.Euler(0, yaw, 0)));
       this.tpsBlend = 0;
     } else {
       // over-the-shoulder camera with collision
       const q = new THREE.Quaternion().setFromEuler(new THREE.Euler(pitch, yaw, 0, 'YXZ'));
       const pivot = new THREE.Vector3(s.x, s.y + Math.min(1.55, this.eyeSmooth + 0.15), s.z);
-      const offset = new THREE.Vector3(0.55, 0.22, this.adsBlend > 0.5 ? 1.25 : 2.5).applyQuaternion(q);
+      const offset = (s.air ? new THREE.Vector3(0, s.air === 1 ? 1.6 : 3.2, s.air === 1 ? 5.5 : 11) : new THREE.Vector3(0.55, 0.22, this.adsBlend > 0.5 ? 1.25 : 2.5)).applyQuaternion(q);
       const len = offset.length(), dir = offset.clone().normalize();
       const hit = this.g.world.collision.raycast(pivot, dir, len + 0.3, false);
       const dist = hit ? Math.max(0.3, hit.t - 0.3) : len;

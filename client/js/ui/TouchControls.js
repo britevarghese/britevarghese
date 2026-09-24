@@ -9,6 +9,8 @@ const BTN = [
   // id, label, class (position group)
   ['fire', 'FIRE', 'big'], ['ads', 'AIM', 'mid'], ['jump', 'JUMP', 'sm'], ['crouch', 'CRCH', 'sm'], ['prone', 'PRONE', 'sm'],
   ['reload', 'R', 'sm'], ['nade', 'G', 'sm'], ['swap', '⇄', 'sm'], ['view', '👁', 'top'], ['score', '☰', 'top'], ['chat', '💬', 'top'], ['pause', '❚❚', 'top'],
+  // battle royale only
+  ['pick', 'PICK', 'sm br'], ['heal', '✚', 'sm br'], ['map', 'MAP', 'top br'],
 ];
 
 export class TouchControls {
@@ -94,7 +96,10 @@ export class TouchControls {
     const fire = on('fire', () => { me.mouse.l = true; }, () => { me.mouse.l = false; me.triggerReleased = true; });
     this.#dragLook(fire);
     on('ads', () => { me.mouse.r = !me.mouse.r; document.getElementById('t-ads').classList.toggle('latched', me.mouse.r); });
-    on('jump', () => { me.touch.jump = true; });
+    on('jump', () => { if (g.royale?.inPlane) g.royale.jump(); else me.touch.jump = true; });
+    on('pick', () => g.royale?.pickup());
+    on('heal', () => g.royale?.heal());
+    on('map', () => { if (g.royale) g.royale.mapHeld = !g.royale.mapHeld; });
     on('crouch', () => { if (me.alive) me.setStance(me.s.stance === 'crouch' ? 'stand' : 'crouch'); });
     on('prone', () => { if (me.alive) me.setStance(me.s.stance === 'prone' ? 'stand' : 'prone'); });
     on('reload', () => { if (me.alive) me.reload(); });
@@ -108,8 +113,12 @@ export class TouchControls {
 
   update() {
     // hide gameplay controls while dead / in menus
-    const playing = this.me.alive && document.getElementById('pause').classList.contains('hidden');
+    const inPlane = !!this.g.royale?.inPlane;
+    const playing = (this.me.alive || inPlane) && document.getElementById('pause').classList.contains('hidden');
     this.root.classList.toggle('dead', !playing);
+    this.root.classList.toggle('plane', inPlane);
+    this.root.classList.toggle('air', !!(this.me.alive && this.me.s.air));
+    if (this.g.royale) document.getElementById('t-pick').classList.toggle('ready', !!this.g.royale.promptItem);
     if (!this.me.mouse.r) document.getElementById('t-ads').classList.remove('latched');
     document.getElementById('t-crouch').classList.toggle('latched', this.me.s.stance === 'crouch');
     document.getElementById('t-prone').classList.toggle('latched', this.me.s.stance === 'prone');

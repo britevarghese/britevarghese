@@ -6,15 +6,19 @@ import outskirts from './maps/outskirts.js';
 import harbor from './maps/harbor.js';
 import valley from './maps/valley.js';
 import compound from './maps/compound.js';
+import firestorm from './maps/firestorm.js';
 
 export const FLOOR_H = 3.2;
 export const WALL_T = 0.3;
 export const TEAMS = { US: 1, RU: 2 };
 export const TEAM_NAMES = { 1: 'US', 2: 'RU' };
 
-export const MAP_DEFS = { outskirts, harbor, valley, compound };
+export const MAP_DEFS = { outskirts, harbor, valley, compound, firestorm };
 export const MAP_IDS = Object.keys(MAP_DEFS);
-export const mapList = () => MAP_IDS.map((id) => { const d = MAP_DEFS[id]; return { id, name: d.name, description: d.description, size: d.playHalf * 2, flags: d.flags.length }; });
+export const modeOf = (id) => MAP_DEFS[id]?.mode || 'conquest';
+// maps a Conquest room rotates through (battle royale maps have no flags)
+export const CONQUEST_MAPS = MAP_IDS.filter((id) => modeOf(id) === 'conquest');
+export const mapList = () => MAP_IDS.map((id) => { const d = MAP_DEFS[id]; return { id, name: d.name, description: d.description, size: d.playHalf * 2, flags: d.flags.length, mode: modeOf(id) }; });
 
 // Collider half-extents are measured from the optimized GLB bounds (see scripts/build-assets.mjs).
 export const PROP_TYPES = {
@@ -78,7 +82,39 @@ export class GameMap {
     return d;
   }
 
+  // Only features within the terrain's flatten range matter (farther ones are clamped away by the smoothstep in
+  // terrainHeight), so each 32 m cell keeps a short candidate list — big maps would otherwise take seconds.
+  #featureCell(x, z) {
+    const C = 32, i = Math.floor(x / C), j = Math.floor(z / C), key = i * 4099 + j;
+    const cache = this._fc || (this._fc = new Map());
+    let c = cache.get(key);
+    if (c) return c;
+    const cx = (i + 0.5) * C, cz = (j + 0.5) * C, reach = C * 0.71 + this.terrain.flatten + 4;
+    c = {
+      roads: this.ROADS.filter((r) => distToSeg(cx, cz, r) - r.w / 2 - 2.5 < reach),
+      buildings: this.BUILDINGS.filter((b) => Math.hypot(Math.max(Math.abs(cx - b.x) - b.w / 2, 0), Math.max(Math.abs(cz - b.z) - b.d / 2, 0)) - 3 < reach),
+      flags: this.FLAGS.filter((f) => Math.hypot(cx - f.x, cz - f.z) - f.r < reach),
+      bases: [1, 2].map((t) => this.BASES[t]).filter((b) => Math.hypot(cx - b.x, cz - b.z) - 30 < reach),
+      far: reach - C * 0.71,
+    };
+    cache.set(key, c);
+    return c;
+  }
+
   featureDistance(x, z) {
+    const c = this.#featureCell(x, z);
+    let d = c.far;
+    for (const r of c.roads) d = Math.min(d, distToSeg(x, z, r) - r.w / 2 - 2.5);
+    for (const b of c.buildings) {
+      const dx = Math.max(Math.abs(x - b.x) - b.w / 2, 0), dz = Math.max(Math.abs(z - b.z) - b.d / 2, 0);
+      d = Math.min(d, Math.hypot(dx, dz) - 3);
+    }
+    for (const f of c.flags) d = Math.min(d, Math.hypot(x - f.x, z - f.z) - f.r);
+    for (const b of c.bases) d = Math.min(d, Math.hypot(x - b.x, z - b.z) - 30);
+    return d;
+  }
+
+  featureDistanceSlow(x, z) {
     let d = this.roadDistance(x, z) - 2.5;
     for (const b of this.BUILDINGS) {
       const dx = Math.max(Math.abs(x - b.x) - b.w / 2, 0), dz = Math.max(Math.abs(z - b.z) - b.d / 2, 0);

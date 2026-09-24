@@ -19,8 +19,12 @@ const MAX_CONN_PER_IP = +process.env.MAX_CONN_PER_IP || 8;
 const rooms = new RoomManager();
 if (DEFAULT_ROOMS) {
   // one always-on public room per map (they sleep while empty)
-  const ids = { outskirts: 'OUTSKIRTS', harbor: 'HARBOR', valley: 'VALLEY', compound: 'ZULU' };
-  for (const map of MAP_IDS) rooms.create({ id: ids[map] || map.toUpperCase(), name: `${MAP_DEFS[map].name} 24/7`, map, botsPerTeam: map === 'compound' ? Math.min(BOTS, 5) : BOTS, maxPlayers: 32, rotation: false, persistent: true });
+  const ids = { outskirts: 'OUTSKIRTS', harbor: 'HARBOR', valley: 'VALLEY', compound: 'ZULU', firestorm: 'FIRESTORM' };
+  const royaleBots = process.env.ROYALE_BOTS !== undefined ? +process.env.ROYALE_BOTS : Math.min(23, BOTS * 2 + 3);
+  for (const map of MAP_IDS) {
+    const royale = MAP_DEFS[map].mode === 'royale';
+    rooms.create({ id: ids[map] || map.toUpperCase(), name: royale ? `${MAP_DEFS[map].name} · Battle Royale` : `${MAP_DEFS[map].name} 24/7`, map, botsPerTeam: royale ? royaleBots : map === 'compound' ? Math.min(BOTS, 5) : BOTS, maxPlayers: royale ? 24 : 32, rotation: false, persistent: true });
+  }
 }
 
 const app = express();

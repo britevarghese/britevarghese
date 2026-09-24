@@ -22,7 +22,7 @@ export class BotBrain {
   }
 
   onDamaged(attacker) {
-    if (!attacker || !attacker.alive || attacker.team === this.p.team) return;
+    if (!attacker || !attacker.alive || !this.g.isEnemy(this.p, attacker)) return;
     if (!this.target) { this.target = attacker; this.reactUntil = this.g.now() + rand(250, 600) * (1.3 - this.skill); this.aimErr = { yaw: rand(-0.12, 0.12), pitch: rand(-0.06, 0.06) }; }
     this.lastSeen = { x: attacker.x, y: attacker.y, z: attacker.z, t: this.g.now() };
   }
@@ -49,7 +49,7 @@ export class BotBrain {
     let best = null, bestD = 130 * (0.7 + this.skill * 0.4);
     const fwdYaw = p.yaw;
     for (const q of this.g.players.values()) {
-      if (!q.alive || q.team === p.team) continue;
+      if (!q.alive || q.air || !this.g.isEnemy(p, q)) continue;
       const d = Math.hypot(q.x - p.x, q.z - p.z);
       if (d > bestD) continue;
       const yawTo = Math.atan2(-(q.x - p.x), -(q.z - p.z));
@@ -78,9 +78,9 @@ export class BotBrain {
     if (now >= this.nextPerceive) { this.perceive(now); this.nextPerceive = now + 220; }
     if (this.target && !this.target.alive) this.target = null;
     const input = { fx: 0, fz: 0, sprint: false, jump: false, ads: false };
-    const w = p.weapons[p.slot], def = WEAPONS[w.id];
+    const w = p.weapons[p.slot], def = w && WEAPONS[w.id];
 
-    if (this.target && this.visible) {
+    if (this.target && this.visible && def) {
       const t = this.target;
       const eye = { x: p.x, y: p.y + EYE_HEIGHT[p.stance], z: p.z };
       const aimY = t.y + (t.stance === 'prone' ? 0.3 : t.stance === 'crouch' ? 0.95 : 1.4) + (Math.random() < 0.18 * this.skill ? 0.25 : 0);
@@ -129,7 +129,7 @@ export class BotBrain {
     // no visible target
     p.ads = false;
     if (p.stance !== 'stand' && now > this.stanceUntil) p.stance = 'stand';
-    if (w.mag < def.mag * 0.5 && w.reserve > 0 && !p.reloadUntil) g.reload(p);
+    if (def && w.mag < def.mag * 0.5 && w.reserve > 0 && !p.reloadUntil) g.reload(p);
 
     // grenade at last known position behind cover
     if (this.target && this.lastSeen && p.grenades > 0 && now - this.lastSeen.t < 2500 && Math.random() < 0.008) {

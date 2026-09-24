@@ -153,7 +153,8 @@
     "generator": "props/generator.glb",
     "rollershutter": "props/rollershutter_door.glb",
     "fence": "props/chainlink_fence.glb",
-    "wheel_rim": "props/wheel_rim.glb"
+    "wheel_rim": "props/wheel_rim.glb",
+    "medkit": "props/medical_box.glb"
   },
   "vegetation": {
     "tree_lod0": "vegetation/tree_small_02_lod0.glb",

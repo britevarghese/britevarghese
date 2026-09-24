@@ -7,8 +7,10 @@ import { fbm, smoothstep } from '/shared/util.js';
 export function buildTerrain(assets, quality) {
   const group = new THREE.Group();
   group.name = 'terrain';
-  const res = quality === 'verylow' ? 2.5 : quality === 'low' ? 2 : 1.25;
-  const chunks = 8, size = (MAP_HALF * 2) / chunks;
+  // big (battle royale) islands: coarser vertices and more chunks, so the vertex count and culling stay sane
+  const big = Math.max(1, Math.min(1.6, MAP_HALF / 280));
+  const res = (quality === 'verylow' ? 2.5 : quality === 'low' ? 2 : 1.25) * big;
+  const chunks = Math.max(8, Math.round((MAP_HALF * 2) / 90)), size = (MAP_HALF * 2) / chunks;
   const tex = ['grass', 'dirt', 'rock', 'burnt'].map((k) => assets.textureSet(k));
   const material = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 1, metalness: 0, map: tex[0].map, normalMap: tex[0].normalMap, envMapIntensity: 0.55 });
   material.onBeforeCompile = (sh) => {
@@ -64,7 +66,7 @@ export function buildTerrain(assets, quality) {
       `);
   };
   // precomputed tangent frame for a plane rotated flat: use USE_TANGENT-free path (three computes tbn from derivatives)
-  const burnSpots = [...BUILDINGS.filter((b) => b.damage > 0.25).map((b) => ({ x: b.x, z: b.z, r: Math.max(b.w, b.d) * 0.9 })), { x: FLAGS[1].x, z: FLAGS[1].z, r: 11 }, { x: -3, z: 8, r: 6 }, { x: 18, z: -9, r: 6 }];
+  const burnSpots = [...BUILDINGS.filter((b) => b.damage > 0.25).map((b) => ({ x: b.x, z: b.z, r: Math.max(b.w, b.d) * 0.9 })), ...(FLAGS[1] ? [{ x: FLAGS[1].x, z: FLAGS[1].z, r: 11 }] : []), { x: -3, z: 8, r: 6 }, { x: 18, z: -9, r: 6 }];
   for (let cz = 0; cz < chunks; cz++) {
     for (let cx = 0; cx < chunks; cx++) {
       const x0 = -MAP_HALF + cx * size, z0 = -MAP_HALF + cz * size;

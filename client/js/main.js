@@ -15,6 +15,7 @@ import { PROPS, groundHeight, roadDistance, BUILDINGS, FLAGS, setActiveMap, ACTI
 import { Lobby, inviteLink } from './ui/Lobby.js';
 import { TouchControls, isTouchDevice } from './ui/TouchControls.js';
 import { EYE_HEIGHT } from '/shared/world.js';
+import { RoyaleClient } from './royale/Royale.js';
 
 const $ = (id) => document.getElementById(id);
 const AUTO = new URLSearchParams(location.search);
@@ -80,6 +81,7 @@ class Game {
     this.net = new Net();
     this.#bindNet();
     this.#bindUI();
+    if (this.room.mode === 'royale') { progress('battle royale'); this.royale = new RoyaleClient(this); await this.royale.ready; }
     if (this.isTouch) this.touch = new TouchControls(this);
     // compile every shader now instead of stuttering the first time something appears on screen
     progress('preparing shaders');
@@ -126,9 +128,10 @@ class Game {
   #bindNet() {
     const n = this.net;
     n.on('welcome', (m) => {
-      this.myId = m.id; this.myTeam = m.team; this.hud.myTeam = m.team;
+      this.myId = m.id; this.myTeam = m.team; this.hud.myTeam = m.team; this.hud.meId = m.id;
       if (m.room && m.room.map !== this.room.map) { location.href = `/?room=${m.room.id}&autojoin=1`; return; }
-      this._joinOk?.(); this.#showDeploy();
+      this._joinOk?.();
+      if (this.royale) this.royale.showReady(true); else this.#showDeploy();
     });
     n.on('error', (m) => { if (this._joinFail) this._joinFail(new Error(m.msg || m.code)); else showError(m.msg || m.code); });
     n.on('mapchange', (m) => {
@@ -151,11 +154,12 @@ class Game {
       this.meState = me;
       if (me.alive && this.me.alive) {
         // reconcile authoritative ammo/grenades
-        me.w?.forEach((w, i) => { const l = this.me.weapons[i]; if (l && l.id === w.id) { if (performance.now() > this.me.reloadUntil + 400 && Math.abs(l.mag - w.mag) > 3) l.mag = w.mag; l.reserve = w.reserve; } });
+        me.w?.forEach((w, i) => { const l = this.me.weapons[i]; if (w && l && l.id === w.id) { if (performance.now() > this.me.reloadUntil + 400 && Math.abs(l.mag - w.mag) > 3) l.mag = w.mag; l.reserve = w.reserve; } });
         this.me.grenades = me.g;
         this.me.hp = me.hp;
       }
       if (!me.alive && this.me.alive) this.#onLocalDeath();
+      if (this.royale) { this.royale.onSnap(m); return; }
       this.hud.tickets(m.tk);
       for (const [id, owner, prog] of m.f) this.world.setFlagState(id, owner, prog, this.myTeam);
       if (!this.me.alive && !$('deploy').classList.contains('hidden')) this.hud.deployTimer(me.rs);
@@ -217,7 +221,7 @@ class Game {
         break;
       }
       case 'reload': if (e.id !== this.myId) P.onReload(e.id, e.dur); break;
-      case 'ammo': if (e.w) e.w.forEach((w, i) => { const l = this.me.weapons[i]; if (l) { l.mag = w.mag; l.reserve = w.reserve; } }); break;
+      case 'ammo': if (e.w) e.w.forEach((w, i) => { const l = this.me.weapons[i]; if (l && w && l.id === w.id) { l.mag = w.mag; l.reserve = w.reserve; } }); break;
       case 'boom': this.effects.explosion([e.x, e.y, e.z], this.camera.position); this.audio.explosion([e.x, e.y, e.z]); break;
       case 'bounce': break;
       case 'flag': {
@@ -227,16 +231,25 @@ class Game {
         break;
       }
       case 'chat': this.hud.chat(e.from, e.msg, e.tm); break;
-      case 'round': this.hud.roundEnd(`${e.name} WINS`); setTimeout(() => this.hud.roundEnd(null), 14000); break;
+      case 'round': if (!this.royale) { this.hud.roundEnd(`${e.name} WINS`); setTimeout(() => this.hud.roundEnd(null), 14000); } break;
       case 'correct': Object.assign(this.me.s, { x: e.x, y: e.y, z: e.z }); break;
       case 'throw': if (e.id === this.myId) this.me.grenades = e.g; break;
     }
+    this.royale?.onEvent(e);
   }
 
   #onLocalDeath() {
     this.me.alive = false;
+    if (this.royale) return; // no respawn: the royale client switches to spectating
     document.exitPointerLock?.();
     setTimeout(() => this.#showDeploy(this.meState?.rs), 2200);
+  }
+
+  // battle royale READY click: a user gesture, so audio + mouse capture / fullscreen are allowed now
+  onRoyaleReady() {
+    this.audio.unlock();
+    if (this.isTouch) TouchControls.enterFullscreen();
+    else this.renderer.domElement.requestPointerLock?.()?.catch?.(() => {});
   }
 
   copyInvite() {
@@ -323,7 +336,7 @@ class Game {
     document.addEventListener('pointerlockchange', () => {
       if (this.isTouch) return;
       const locked = document.pointerLockElement === this.renderer.domElement;
-      pause.classList.toggle('hidden', locked || !this.me.alive || this.chatOpen);
+      pause.classList.toggle('hidden', locked || !this.me.canLook() || this.chatOpen);
     });
     $('p-resume').onclick = () => { pause.classList.add('hidden'); if (!this.isTouch) this.renderer.domElement.requestPointerLock?.(); };
     $('p-invite').onclick = () => this.copyInvite();
@@ -361,6 +374,8 @@ class Game {
       const m = new THREE.Matrix4().lookAt(cam.position, new THREE.Vector3(tx, ty, tz), new THREE.Vector3(0, 1, 0));
       cam.quaternion.slerp(new THREE.Quaternion().setFromRotationMatrix(m), 1 - Math.exp(-4 * dt));
       cam.position.lerp(new THREE.Vector3(me.s.x, me.s.y + 0.6, me.s.z), 1 - Math.exp(-3 * dt));
+    } else if (this.royale?.updateCamera(cam, dt)) {
+      // battle royale: plane chase camera / spectating
     } else if (!me.alive) {
       // deploy screen: slow aerial orbit of the battlefield
       const a = time * 0.03;
@@ -377,7 +392,7 @@ class Game {
     });
     P.mark('viewmodel');
     me.mouse.dx = 0; me.mouse.dy = 0;
-    cam.fov = this.baseFov * (me.alive && !me.thirdPerson ? this.viewmodel.fovScale : me.thirdPerson && me.ads ? 0.8 : 1);
+    cam.fov = this.baseFov * (me.alive && !me.isTPS() ? this.viewmodel.fovScale : me.thirdPerson && me.ads ? 0.8 : 1);
     cam.updateProjectionMatrix();
     cam.updateMatrixWorld();
     // is the player in the shade? (for viewmodel lighting)
@@ -391,13 +406,14 @@ class Game {
     // third-person aim point: whatever the camera looks at
     // remote & local third-person bodies
     const sample = this.net.sample();
-    const local = me.alive ? { x: me.s.x, y: me.s.y, z: me.s.z, yaw: me.yaw, pitch: me.pitch + me.recoil.p, stance: me.s.stance, vx: me.s.vx, vz: me.s.vz, alive: true, ads: me.ads, sprint: me.sprinting, onGround: me.s.onGround, weaponId: me.weaponId() } : null;
-    this.players.update(dt, sample, this.myId, cam.position, me.thirdPerson, local, cam);
+    const local = me.alive ? { x: me.s.x, y: me.s.y, z: me.s.z, yaw: me.yaw, pitch: me.pitch + me.recoil.p, stance: me.s.stance, vx: me.s.vx, vz: me.s.vz, alive: true, ads: me.ads, sprint: me.sprinting, onGround: me.s.onGround, weaponId: me.weaponId(), air: me.s.air || 0 } : null;
+    this.players.update(dt, sample, this.myId, cam.position, me.isTPS(), local, cam);
     P.mark('players');
     this.#grenades(sample, dt);
     // world
     this.lighting.follow(cam.position, this.renderer);
     this.world.update(dt, cam, time);
+    this.royale?.update(dt, cam);
     P.mark('world');
     this.effects.camPos = cam.position;
     this.effects.update(dt);
@@ -408,15 +424,15 @@ class Game {
     if (this.lastSnap) {
       const w = me.weapons[me.slot];
       this.hud.vitals({ hp: me.alive ? (this.meState?.hp ?? 100) : 0 }, w, me.slot, me.grenades, me.s.stance, reloading);
-      this.hud.flags(this.lastSnap.f, me.alive ? me.s : null);
-      this.hud.crosshair(wdef ? me.spread(wdef) * 57.3 : 1, this.viewmodel.ads > 0.5 && !me.thirdPerson, me.alive);
+      if (!this.royale) this.hud.flags(this.lastSnap.f, me.alive ? me.s : null);
+      this.hud.crosshair(wdef ? me.spread(wdef) * 57.3 : 1, this.viewmodel.ads > 0.5 && !me.thirdPerson, me.alive && !me.s.air);
       // the minimap canvas is costly to redraw: 12 Hz is plenty
       this.mmT = (this.mmT || 0) + dt;
-      if (this.mmT > 0.083) { this.mmT = 0; this.hud.minimap(me.s, me.yaw, this.players.map, this.myId, this.lastSnap.f); }
+      if (this.mmT > 0.083) { this.mmT = 0; this.hud.minimap(me.s, me.yaw, this.players.map, this.myId, this.lastSnap.f, this.royale); }
     }
     P.mark('hud');
     // render: world, then first-person viewmodel on top (or world only in third person / dead)
-    if (me.alive && !me.thirdPerson && !fc) this.viewmodel.render(this.renderer, this.world.scene, cam, this.baseFov * this.viewmodel.fovScale);
+    if (me.alive && !me.isTPS() && !fc) this.viewmodel.render(this.renderer, this.world.scene, cam, this.baseFov * this.viewmodel.fovScale);
     else this.renderer.render(this.world.scene, cam);
     P.mark('render');
     this.frames++; this.fpsT += dt;

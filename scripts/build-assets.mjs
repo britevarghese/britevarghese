@@ -23,6 +23,7 @@ const MODELS = {
   wooden_military_crate: { out: 'props/military_crate.glb', tex: 512, simplify: 0.15, error: 0.02 },
   old_military_crate: { out: 'props/old_military_crate.glb', tex: 512, simplify: 0.3, error: 0.02 },
   ammo_box: { out: 'props/ammo_box.glb', tex: 512, simplify: 0.3, error: 0.02 },
+  medical_box: { out: 'props/medical_box.glb', tex: 512, simplify: 0.3, error: 0.02 },
   Barrel_01: { out: 'props/barrel.glb', tex: 512, simplify: 0.4, error: 0.02 },
   barrel_03: { out: 'props/barrel_rusty.glb', tex: 512 },
   covered_car: { out: 'props/covered_car.glb', tex: 1024, simplify: 0.4, error: 0.01 },

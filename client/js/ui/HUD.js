@@ -97,10 +97,11 @@ export class HUD {
 
   killfeed(killer, victim, weapon, hs, players) {
     const k = players.get(killer), v = players.get(victim);
-    const cls = (p) => (p ? (p.team === this.myTeam ? 'us' : 'ru') : '');
+    const solo = document.body.classList.contains('royale');
+    const cls = (id, p) => (p ? (solo ? (id === this.meId ? 'us' : 'ru') : p.team === this.myTeam ? 'us' : 'ru') : '');
     const d = document.createElement('div'); d.className = 'kf';
     const wname = WEAPONS[weapon]?.name || (weapon === 'grenade' ? 'Frag grenade' : weapon);
-    d.innerHTML = k && killer !== victim ? `<span class="${cls(k)}">${esc(k.name)}</span><span class="w">[${esc(wname)}]</span>${hs ? '<span class="hs">HS </span>' : ''}<span class="${cls(v)}">${esc(v?.name || '?')}</span>` : `<span class="${cls(v)}">${esc(v?.name || '?')}</span><span class="w">[${esc(wname)}]</span>`;
+    d.innerHTML = k && killer !== victim ? `<span class="${cls(killer, k)}">${esc(k.name)}</span><span class="w">[${esc(wname)}]</span>${hs ? '<span class="hs">HS </span>' : ''}<span class="${cls(victim, v)}">${esc(v?.name || '?')}</span>` : `<span class="${cls(victim, v)}">${esc(v?.name || '?')}</span><span class="w">[${esc(wname)}]</span>`;
     $('killfeed').prepend(d);
     while ($('killfeed').children.length > 6) $('killfeed').lastChild.remove();
     setTimeout(() => d.remove(), 6500);
@@ -121,6 +122,12 @@ export class HUD {
     const sb = $('scoreboard');
     sb.classList.toggle('hidden', !show);
     if (!show) return;
+    if (document.body.classList.contains('royale')) {
+      // battle royale: one list, survivors first, then by placement / kills
+      const rows = [...this.board].sort((a, b) => b.a - a.a || (a.pc || 99) - (b.pc || 99) || b.k - a.k);
+      sb.innerHTML = `<div class="us solo"><h3>SOLDIERS · ${rows.filter((r) => r.a).length} ALIVE</h3><table><tr><th>#</th><th>Name</th><th>Kills</th><th>Ping</th></tr>${rows.map((r) => `<tr class="${r.id === myId ? 'me' : ''} ${r.a ? '' : 'dead'}"><td>${r.a ? '—' : r.pc || '—'}</td><td>${esc(r.n)}</td><td>${r.k}</td><td>${r.b ? 'BOT' : r.png}</td></tr>`).join('')}</table></div>`;
+      return;
+    }
     const col = (team) => {
       const rows = this.board.filter((r) => r.tm === team).sort((a, b) => b.s - a.s);
       return `<div class="${team === this.myTeam ? 'us' : 'ru'}"><h3>${TEAM_NAMES[team]}</h3><table><tr><th>Name</th><th>K</th><th>D</th><th>Score</th><th>Ping</th></tr>${rows.map((r) => `<tr class="${r.id === myId ? 'me' : ''} ${r.a ? '' : 'dead'}"><td>${esc(r.n)}</td><td>${r.k}</td><td>${r.d}</td><td>${r.s}</td><td>${r.b ? 'BOT' : r.png}</td></tr>`).join('')}</table></div>`;
@@ -129,8 +136,8 @@ export class HUD {
   }
 
   // ---------------------------------------------------------------- minimap (rotates with the player)
-  minimap(me, yaw, players, myId, flagsState) {
-    const g = this.mm, S = 220, R = 90; // metres radius shown
+  minimap(me, yaw, players, myId, flagsState, royale = null) {
+    const g = this.mm, S = 220, R = royale ? 150 : 90; // metres radius shown
     const k = S / 2 / R;
     g.clearRect(0, 0, S, S);
     g.save(); g.translate(S / 2, S / 2); g.rotate(yaw);
@@ -147,9 +154,10 @@ export class HUD {
       g.save(); g.translate(tx(f.x), tz(f.z)); g.rotate(-yaw); g.beginPath(); g.arc(0, 0, 8, 0, 7); g.globalAlpha = 0.35; g.fill(); g.globalAlpha = 1;
       g.fillStyle = '#fff'; g.font = 'bold 11px sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(f.id, 0, 0); g.restore();
     }
+    royale?.drawMinimap(g, tx, tz, k);
     for (const p of players.values()) {
       if (p.id === myId || !p.alive) continue;
-      const friendly = p.team === this.myTeam;
+      const friendly = !royale && p.team === this.myTeam;
       if (!friendly && !(p.spottedUntil > performance.now())) continue;
       g.fillStyle = friendly ? '#6fb0ff' : '#ff5e4d';
       g.beginPath(); g.arc(tx(p.x), tz(p.z), 3.2, 0, 7); g.fill();

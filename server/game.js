@@ -3,6 +3,7 @@ import { CollisionWorld, stepCharacter, EYE_HEIGHT, STANCE_HEIGHT, MOVE } from '
 import { TEAM_NAMES, getMap } from '../shared/map.js';
 import { WEAPONS, CLASSES, GRENADE, damageAt, hitCapsules, rayCapsule } from '../shared/weapons.js';
 import { NavGrid } from './nav.js';
+import { stepAir } from '../shared/royale.js';
 import { BotBrain } from './bots.js';
 
 export const TICK_HZ = 30;
@@ -22,7 +23,7 @@ export class Game {
     // collision world + nav grid are immutable per map: share them between rooms playing the same map
     const shared = worldCache.get(this.map.id) || (() => {
       const t0 = Date.now();
-      const world = new CollisionWorld(this.map), nav = new NavGrid(world);
+      const world = new CollisionWorld(this.map), nav = new NavGrid(world, this.map.PLAY_HALF > 300 ? 1 : 0.75);
       this.log(`[game] ${this.map.id}: collision + nav grid ${nav.n}x${nav.n} built in ${Date.now() - t0} ms`);
       const v = { world, nav }; worldCache.set(this.map.id, v); return v;
     })();
@@ -62,12 +63,15 @@ export class Game {
       kills: 0, deaths: 0, score: 0, history: [], respawnAt: this.now() + (bot ? 500 + Math.random() * 2500 : 0), rtt: 80,
       lastInput: this.now(), lastFireFlag: 0, lastDamageFrom: null,
     };
-    if (bot) p.brain = new BotBrain(this, p);
+    if (bot) p.brain = new (this.BotBrainClass || BotBrain)(this, p);
     this.players.set(p.id, p);
     return p;
   }
 
   removePlayer(id) { this.players.delete(id); }
+
+  // Conquest: two teams. Battle royale overrides this (everyone for themselves).
+  isEnemy(a, b) { return a !== b && a.team !== b.team; }
 
   teamCounts(humansToo = false) {
     const c = { 1: 0, 2: 0 };
@@ -134,7 +138,7 @@ export class Game {
 
   damage(victim, amount, attacker, weapon, head = false) {
     if (!victim.alive || this.now() < victim.spawnProtect) return;
-    if (attacker && attacker !== victim && attacker.team === victim.team) return; // no friendly fire
+    if (attacker && attacker !== victim && !this.isEnemy(attacker, victim)) return; // no friendly fire
     victim.hp -= amount;
     victim.lastHeadshot = head;
     victim.lastDamageFrom = attacker ? attacker.id : 0;
@@ -151,7 +155,11 @@ export class Game {
     const dt = Math.max(0.001, (now - p.lastInput) / 1000);
     p.lastInput = now;
     const dx = m.x - p.x, dz = m.z - p.z;
-    const allowed = MOVE.sprint * 1.6 * Math.min(dt, 0.5) + 0.6;
+    // freefall / parachute glide is much faster than running; air state only ever goes down (fall -> chute -> ground)
+    const air = p.air && m.dr >= 0 && m.dr < p.air + 1 ? (m.dr | 0) : 0;
+    if (p.air && !air) p.landedAt = now;
+    const allowed = (p.air ? 34 : MOVE.sprint * 1.6) * Math.min(dt, 0.5) + 0.6;
+    p.air = air;
     if (process.env.DEV_TELEPORT && Number.isFinite(m.x + m.y + m.z)) { p.x = m.x; p.y = m.y; p.z = m.z; }
     else if (Math.hypot(dx, dz) > allowed || !Number.isFinite(m.x + m.y + m.z) || Math.abs(m.x) > this.map.PLAY_HALF + 10 || Math.abs(m.z) > this.map.PLAY_HALF + 10) {
       this.emit({ t: 'correct', x: p.x, y: p.y, z: p.z }, p);
@@ -190,7 +198,7 @@ export class Game {
     let best = wh ? wh.t : maxRange, victim = null, head = false;
     const rewindTo = now - (p.bot ? 0 : Math.min(250, p.rtt / 2 + 100));
     for (const q of this.players.values()) {
-      if (q === p || !q.alive || q.team === p.team) continue;
+      if (q === p || !q.alive || !this.isEnemy(p, q)) continue;
       const hp = p.bot ? q : this.historyAt(q, rewindTo);
       if (Math.hypot(hp.x - o.x, hp.z - o.z) > best + 2) continue;
       for (const c of hitCapsules(hp)) {
@@ -266,7 +274,7 @@ export class Game {
       const dist = Math.hypot(c.x - g.x, c.y - g.y, c.z - g.z);
       if (dist > GRENADE.radius) continue;
       if (!this.world.lineOfSight({ x: g.x, y: g.y + 0.15, z: g.z }, c)) continue;
-      if (owner && q.team === owner.team && q !== owner) continue;
+      if (owner && q !== owner && !this.isEnemy(owner, q)) continue;
       const f = 1 - dist / GRENADE.radius;
       this.damage(q, GRENADE.maxDamage * f * f + (dist < 2 ? 40 : 0), owner, 'grenade');
     }
@@ -339,7 +347,7 @@ export class Game {
       }
       if (p.bot) {
         const input = p.brain.think(dt);
-        stepCharacter(this.world, p, input, dt);
+        if (p.air) stepAir(this.world, p, input, dt); else stepCharacter(this.world, p, input, dt);
         if (p.y < -30) this.kill(p, null, 'fall');
       } else if (now - p.lastInput > 8000) {
         // AFK/disconnected-ish: no inputs; nothing to simulate
@@ -371,7 +379,7 @@ export class Game {
     for (const p of this.players.values()) {
       if (!p.alive) continue;
       const w = p.weapons[p.slot];
-      const flags = (p.ads ? 1 : 0) | (p.sprint ? 2 : 0) | (now < p.reloadUntil ? 4 : 0) | (now - p.lastFireFlag < 120 ? 8 : 0) | (p.onGround ? 16 : 0);
+      const flags = (p.ads ? 1 : 0) | (p.sprint ? 2 : 0) | (now < p.reloadUntil ? 4 : 0) | (now - p.lastFireFlag < 120 ? 8 : 0) | (p.onGround ? 16 : 0) | (p.air === 1 ? 32 : 0) | (p.air === 2 ? 64 : 0);
       P.push([p.id, +p.x.toFixed(2), +p.y.toFixed(2), +p.z.toFixed(2), +p.yaw.toFixed(3), +p.pitch.toFixed(3), STANCES.indexOf(p.stance), flags, w ? w.id : '', Math.max(0, Math.round(p.hp)), +(p.vx || 0).toFixed(2), +(p.vz || 0).toFixed(2)]);
     }
     return {

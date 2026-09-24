@@ -97,7 +97,7 @@ export class Players {
       const isMe = p.id === myId;
       if (isMe && localState) {
         // local third-person body uses predicted state
-        Object.assign(p, { x: localState.x, y: localState.y, z: localState.z, yaw: localState.yaw, pitch: localState.pitch, stance: localState.stance, vx: localState.vx, vz: localState.vz, alive: localState.alive, flags: (localState.ads ? 1 : 0) | (localState.sprint ? 2 : 0) | (localState.onGround ? 16 : 0) });
+        Object.assign(p, { x: localState.x, y: localState.y, z: localState.z, yaw: localState.yaw, pitch: localState.pitch, stance: localState.stance, vx: localState.vx, vz: localState.vz, alive: localState.alive, flags: (localState.ads ? 1 : 0) | (localState.sprint ? 2 : 0) | (localState.onGround ? 16 : 0) | (localState.air === 1 ? 32 : 0) | (localState.air === 2 ? 64 : 0) });
         if (localState.weaponId) this.#weapon(p, localState.weaponId);
       } else if (!seen.has(p.id) && p.alive && sample) {
         // not in snapshot => dead (keep the body for the death animation)
@@ -116,10 +116,17 @@ export class Players {
       const onScreen = !this.frustum || isMe || this.frustum.intersectsSphere(_sphere);
       const rate = !onScreen ? 0.25 : dist > 90 ? 0.1 : dist > 45 ? 0.05 : dist > 25 ? 0.033 : 0;
       r.detail = dist < 14 ? 0 : 1;
-      if (!onScreen) r.root.position.set(p.x, p.y, p.z);
-      if (p.animAcc < rate) continue;
+      // battle royale freefall: belly-to-earth (body pitched forward about the chest, weapon slung)
+      const freefall = p.alive && (p.flags & 32);
+      r.airPitch = (r.airPitch || 0) + ((freefall ? -1.35 : 0) - (r.airPitch || 0)) * (1 - Math.exp(-5 * dt));
+      if (r.airPitch < -0.01 || freefall) { r.root.rotation.order = 'YXZ'; r.root.rotation.x = r.airPitch; }
+      else r.root.rotation.x = 0;
+      const lift = -r.airPitch * 0.75;
+      if (r.weapon) r.weapon.root.visible = r.weapon.root.visible && !freefall;
+      if (!onScreen) r.root.position.set(p.x, p.y + lift, p.z);
+      if (p.animAcc < rate) { r.root.position.set(p.x, p.y + lift, p.z); continue; }
       const adt = p.animAcc; p.animAcc = 0;
-      r.root.position.set(p.x, p.y, p.z);
+      r.root.position.set(p.x, p.y + lift, p.z);
       const speed = Math.hypot(p.vx || 0, p.vz || 0);
       const reloadEnd = p.reloadEnd || 0, now = performance.now();
       r.setState({

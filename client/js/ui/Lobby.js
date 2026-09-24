@@ -26,8 +26,17 @@ export class Lobby {
   async loadMaps() {
     this.maps = await (await fetch('/api/maps')).json();
     const sel = $('c-map');
-    sel.innerHTML = this.maps.map((m) => `<option value="${m.id}">${esc(m.name)} — ${m.size} m, ${m.flags} flags</option>`).join('');
-    const desc = () => { const m = this.maps.find((x) => x.id === sel.value); $('c-mapdesc').textContent = m?.description || ''; };
+    sel.innerHTML = this.maps.map((m) => `<option value="${m.id}">${esc(m.name)} — ${m.mode === 'royale' ? `BATTLE ROYALE, ${m.size} m` : `Conquest, ${m.size} m, ${m.flags} flags`}</option>`).join('');
+    const desc = () => {
+      const m = this.maps.find((x) => x.id === sel.value);
+      $('c-mapdesc').textContent = m?.description || '';
+      // royale: bots are a total, not per team; there is nothing to rotate to
+      const royale = m?.mode === 'royale';
+      $('c-bots').previousSibling.textContent = royale ? 'Bots (total) ' : 'Bots per team ';
+      $('c-bots').max = royale ? 23 : 16;
+      if (royale && +$('c-bots').value < 8) $('c-bots').value = 12;
+      $('c-rotation').closest('label').style.display = royale ? 'none' : '';
+    };
     sel.onchange = desc; desc();
   }
 
@@ -40,7 +49,7 @@ export class Lobby {
     if (!this.selected || !this.rooms.some((r) => r.id === this.selected)) this.selected = this.rooms[0].id;
     list.innerHTML = this.rooms.map((r) => `<div class="room${r.id === this.selected ? ' sel' : ''}" data-id="${r.id}">
       <div><b>${esc(r.name)}</b> ${r.locked ? '🔒' : ''}<div class="code">CODE ${r.id}</div></div>
-      <div class="m">${esc(r.mapName)}</div><div class="m">${r.bots} bots/team</div><div class="p">${r.players}/${r.max}</div></div>`).join('');
+      <div class="m">${r.mode === 'royale' ? '<span class="mode">BATTLE ROYALE</span> ' : ''}${esc(r.mapName)}</div><div class="m">${r.bots} ${r.mode === 'royale' ? 'bots' : 'bots/team'}</div><div class="p">${r.players}/${r.max}</div></div>`).join('');
     for (const el of list.querySelectorAll('.room')) {
       el.onclick = () => { this.selected = el.dataset.id; this.refresh(); };
       el.ondblclick = () => { this.selected = el.dataset.id; $('play').click(); };

@@ -126,6 +126,24 @@ export class GameAudio {
     if (local) this.#noiseBurst(g, t + 0.01, 0.05, 0.001, 3000); // mechanical crack
   }
 
+  // continuous beds: 'engine' (transport plane turboprops) and 'wind' (freefall / canopy). Returns { set(gain, freq), stop() }.
+  loop(kind) {
+    if (!this.ctx) return null;
+    const c = this.ctx, src = c.createBufferSource(); src.buffer = this.noise; src.loop = true;
+    const f = c.createBiquadFilter(), g = c.createGain(); g.gain.value = 0;
+    const extra = [];
+    if (kind === 'engine') {
+      f.type = 'lowpass'; f.frequency.value = 260;
+      // four turboprops slightly out of tune -> slow beating drone
+      for (const hz of [74, 75.3, 111, 148.6]) { const o = c.createOscillator(); o.type = 'sawtooth'; o.frequency.value = hz; const og = c.createGain(); og.gain.value = 0.12; o.connect(og).connect(f); o.start(); extra.push(o); }
+    } else { f.type = 'bandpass'; f.frequency.value = 650; f.Q.value = 0.5; }
+    src.connect(f).connect(g).connect(this.master); src.start();
+    return {
+      set: (v, freq) => { g.gain.setTargetAtTime(v, c.currentTime, 0.2); if (freq) f.frequency.setTargetAtTime(freq, c.currentTime, 0.2); },
+      stop: () => { try { src.stop(); extra.forEach((o) => o.stop()); } catch {} g.disconnect(); },
+    };
+  }
+
   explosion(pos) {
     if (!this.ctx) return;
     const d = this.#dist(pos), t = this.ctx.currentTime, delay = d > 30 ? d / 343 : 0;

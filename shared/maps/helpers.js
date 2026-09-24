@@ -24,16 +24,26 @@ export function baseProps(add, b, dir) {
 }
 
 // A cluster of small houses on a loose grid (deterministic).
-export function village(buildings, { id, cx, cz, n, seed, spread = 30, styles = ['plaster', 'brick', 'concrete'], damage = 0.25 }) {
+// `avoid` (optional): also keep clear of already existing buildings and of these roads.
+export function village(buildings, { id, cx, cz, n, seed, spread = 30, styles = ['plaster', 'brick', 'concrete'], damage = 0.25, avoid = null }) {
   const rnd = mulberry32(seed);
   const placed = [];
+  const others = avoid ? [...buildings] : [];
   for (let i = 0, tries = 0; i < n && tries < n * 30; tries++) {
     const w = 8 + Math.round(rnd() * 4), d = 8 + Math.round(rnd() * 4);
     const x = cx + (rnd() - 0.5) * spread * 2, z = cz + (rnd() - 0.5) * spread * 2;
     if (placed.some((q) => Math.abs(q.x - x) < (q.w + w) / 2 + 5 && Math.abs(q.z - z) < (q.d + d) / 2 + 5)) continue;
+    if (others.some((q) => Math.abs(q.x - x) < (q.w + w) / 2 + 5 && Math.abs(q.z - z) < (q.d + d) / 2 + 5)) continue;
+    if (avoid?.roads?.some((r) => segDist(x, z, r) < r.w / 2 + Math.max(w, d) / 2 + 2)) continue;
     const doors = [['n', 's', 'e', 'w'][Math.floor(rnd() * 4)]];
     const b = { id: `${id}${i}`, x: Math.round(x), z: Math.round(z), w, d, floors: 1 + Math.floor(rnd() * 2), style: styles[Math.floor(rnd() * styles.length)], damage: rnd() < 0.5 ? +(rnd() * damage * 2).toFixed(2) : 0, doors };
     placed.push(b); buildings.push(b); i++;
   }
   return placed;
+}
+
+function segDist(px, pz, r) {
+  const dx = r.bx - r.ax, dz = r.bz - r.az;
+  const t = Math.max(0, Math.min(1, ((px - r.ax) * dx + (pz - r.az) * dz) / (dx * dx + dz * dz)));
+  return Math.hypot(r.ax + dx * t - px, r.az + dz * t - pz);
 }

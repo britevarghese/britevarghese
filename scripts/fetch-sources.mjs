@@ -9,7 +9,7 @@ export const MODELS = [
   'bolt_action_rifle_7_62', 'service_pistol', 'stick_grenade',
   // military / urban props
   'concrete_road_barrier', 'concrete_road_barrier_02', 'wooden_military_crate', 'old_military_crate',
-  'ammo_box', 'Barrel_01', 'barrel_03', 'covered_car', 'metal_jerrycan_green', 'cement_bag', 'old_tyre',
+  'ammo_box', 'medical_box', 'Barrel_01', 'barrel_03', 'covered_car', 'metal_jerrycan_green', 'cement_bag', 'old_tyre',
   'utility_box_01', 'street_lamp_01', 'exterior_aircon_unit', 'metal_trash_can', 'portable_generator',
   'rollershutter_door', 'modular_chainlink_fence', 'rusted_wheel_rim_01',
   // nature

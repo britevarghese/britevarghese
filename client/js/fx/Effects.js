@@ -177,7 +177,8 @@ export class Effects {
   }
 
   // persistent drifting smoke from burning wrecks to sell the aftermath of combat
-  addAmbientSmoke(x, y, z) { this.ambient.push({ x, y, z, acc: Math.random() }); }
+  addAmbientSmoke(x, y, z, opts = {}) { const h = { x, y, z, acc: Math.random(), ...opts }; this.ambient.push(h); return h; }
+  removeAmbientSmoke(h) { this.ambient = this.ambient.filter((a) => a !== h); }
 
   update(dt) {
     const P = this.P;
@@ -213,8 +214,8 @@ export class Effects {
     if (this.flashT > 0) { this.flashT -= dt; if (this.flashT <= 0) this.flashLight.intensity = 0; }
     if (this.boomT > 0) { this.boomT -= dt; this.boomLight.intensity = Math.max(0, this.boomT / 0.25) * 60; }
     for (const a of this.ambient) {
-      a.acc += dt * 2.2 * this.q.particles;
-      while (a.acc > 1) { a.acc -= 1; this.emit(a.x + (Math.random() - 0.5) * 0.8, a.y + 0.8, a.z + (Math.random() - 0.5) * 0.8, 0.5 + Math.random() * 0.3, 1.2 + Math.random() * 0.6, 0.2, 0x3a3634, 1.2, 7, { grow: 4, alpha: 0.35, drag: 0.15, grav: -0.05 }); }
+      a.acc += dt * (a.rate || 2.2) * this.q.particles;
+      while (a.acc > 1) { a.acc -= 1; this.emit(a.x + (Math.random() - 0.5) * 0.8, a.y + 0.8, a.z + (Math.random() - 0.5) * 0.8, 0.5 + Math.random() * 0.3, (a.rise || 1.2) + Math.random() * 0.6, 0.2, a.color ?? 0x3a3634, a.size || 1.2, 7, { grow: 4, alpha: a.alpha || 0.35, drag: 0.15, grav: -0.05 }); }
     }
     this.shake = Math.max(0, this.shake - dt * 2.2);
   }

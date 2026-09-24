@@ -183,3 +183,44 @@ body.touch #fps { display: none; }
 }
 #deploy, #pause, #roundend, #menu { z-index: 10; }
 #errors { z-index: 60; }
+
+/* ===================== battle royale ===================== */
+body.royale #tickets, body.royale #capture { display: none; }
+#br { display: none; } body.royale #br { display: block; }
+#br-top { position: fixed; top: 14px; left: 50%; transform: translateX(-50%); font-weight: 800; letter-spacing: .18em; font-size: 17px; text-shadow: 0 2px 4px #000; white-space: nowrap; }
+#br-sub { position: fixed; top: 40px; left: 50%; transform: translateX(-50%); font-size: 12px; letter-spacing: .12em; opacity: .85; text-shadow: 0 1px 3px #000; white-space: nowrap; }
+#br-alive { position: fixed; top: 14px; right: 20px; display: flex; gap: 8px; }
+#br-alive span { background: var(--bg); padding: 6px 10px; font-size: 11px; letter-spacing: .14em; border: 1px solid rgba(255,255,255,.12); }
+#br-alive b { font-size: 18px; margin-right: 4px; }
+#br-armor { position: fixed; left: 18px; bottom: 50px; display: flex; align-items: center; gap: 8px; text-shadow: 0 1px 2px #000; }
+#br-armor .bar { width: 180px; height: 6px; background: rgba(255,255,255,.18); } #br-armor .bar i { display: block; height: 100%; width: 0; background: #49a6ff; }
+#br-armor .ico { color: #49a6ff; font-size: 16px; width: 16px; }
+#br-inv { position: fixed; left: 18px; bottom: 76px; display: flex; gap: 12px; font-size: 12px; letter-spacing: .1em; text-shadow: 0 1px 2px #000; }
+#br-inv .none { opacity: .4; }
+kbd { display: inline-block; min-width: 18px; padding: 1px 5px; border: 1px solid rgba(255,255,255,.6); border-radius: 3px; font: 700 11px/1.3 sans-serif; text-align: center; background: rgba(0,0,0,.35); }
+#br-prompt { position: fixed; left: 50%; top: 60%; transform: translateX(-50%); background: rgba(10,14,16,.7); padding: 8px 14px; letter-spacing: .1em; font-size: 14px; border-left: 3px solid #ffa53d; }
+#br-heal { position: fixed; left: 50%; top: 66%; transform: translateX(-50%); text-align: center; font-size: 11px; letter-spacing: .2em; }
+#br-heal .bar { width: 220px; height: 5px; background: rgba(255,255,255,.2); margin-top: 4px; } #br-heal .bar i { display: block; height: 100%; width: 0; background: #5fe07a; }
+#br-fire { position: fixed; inset: 0; pointer-events: none; opacity: 0; transition: opacity .4s; box-shadow: inset 0 0 180px 40px rgba(255,80,10,.55); background: rgba(255,90,20,.08); }
+#br-map { position: fixed; right: 20px; top: 60px; width: 360px; height: 360px; border: 1px solid rgba(255,255,255,.25); }
+#br-result { position: fixed; top: 24%; left: 50%; transform: translateX(-50%); text-align: center; text-shadow: 0 4px 12px #000; pointer-events: none; }
+#br-result .t { font-size: 44px; letter-spacing: .2em; font-weight: 500; } #br-result .t b { color: #ffc34a; font-weight: 800; }
+#br-result .s { font-size: 15px; letter-spacing: .15em; margin-top: 6px; opacity: .9; } #br-result .n { font-size: 12px; letter-spacing: .15em; margin-top: 12px; opacity: .7; }
+#br-ready { position: fixed; inset: 0; display: grid; place-items: center; background: rgba(5,7,8,.6); z-index: 10; }
+#br-ready .sub { line-height: 1.6; margin: 10px 0 14px; }
+#scoreboard .solo { grid-column: 1 / -1; }
+.tbtn.br { display: none; } body.royale .tbtn.br { display: grid; }
+#t-pick { right: 40px; bottom: 262px; } #t-pick.ready { background: rgba(255,165,61,.55); border-color: #ffa53d; }
+#t-heal { right: 220px; bottom: 236px; } #t-map { right: 244px; }
+#touch.plane > .tbtn:not(#t-jump):not(#t-map):not(#t-score):not(#t-chat):not(#t-pause) { display: none; }
+#touch.plane > #t-stick-zone { display: none; } #touch.plane > #t-look-zone { display: block; left: 0; }
+#touch.plane > #t-jump { display: grid; width: 96px; height: 96px; right: 30px; bottom: 90px; font-size: 16px; background: rgba(255,165,61,.4); }
+#touch.air > #t-fire, #touch.air > #t-ads, #touch.air > #t-reload, #touch.air > #t-nade, #touch.air > #t-crouch, #touch.air > #t-prone, #touch.air > #t-pick, #touch.air > #t-heal { display: none; }
+#touch.dead.plane > #t-jump { display: grid; }
+body.touch #br-armor { bottom: auto; top: 180px; left: 14px; } body.touch #br-armor .bar { width: 110px; }
+body.touch #br-inv { bottom: auto; top: 204px; left: 14px; font-size: 10px; } body.touch.royale #chatlog { top: 232px; }
+body.touch #br-map { width: 240px; height: 240px; top: 56px; right: 10px; }
+body.touch #br-top { font-size: 13px; top: 56px; } body.touch #br-sub { top: 76px; font-size: 10px; }
+body.touch #br-alive { top: 10px; right: 250px; }
+.room .mode { color: #ffa53d; font-weight: 800; font-size: 10px; letter-spacing: .12em; }
+body.royale.br-out #ammo, body.royale.br-out #vitals, body.royale.br-out #br-armor, body.royale.br-out #br-inv, body.royale.br-out #crosshair { display: none; }
