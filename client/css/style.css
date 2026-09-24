@@ -132,3 +132,54 @@ html, body { margin: 0; height: 100%; overflow: hidden; background: #0c0f11; col
 .panel button.alt { background: rgba(255,255,255,.1); color: #eee; }
 .panel button.alt:hover { background: rgba(255,255,255,.18); }
 h2 .leave { float: right; font-size: 11px; letter-spacing: .1em; color: #bbb; font-weight: 400; }
+
+/* ================= touch controls ================= */
+body.touch, body.touch * { -webkit-tap-highlight-color: transparent; }
+body.touch #game canvas, #touch { touch-action: none; }
+#touch { position: fixed; inset: 0; z-index: 5; pointer-events: none; }
+#touch > * { pointer-events: auto; }
+#t-stick-zone { position: absolute; left: 0; top: 18%; width: 40%; bottom: 0; }
+#t-look-zone { position: absolute; left: 40%; right: 0; top: 18%; bottom: 0; }
+#t-stick { position: absolute; width: 120px; height: 120px; border-radius: 50%; border: 2px solid rgba(255,255,255,.35); background: rgba(0,0,0,.18); pointer-events: none; }
+#t-knob { position: absolute; left: 35px; top: 35px; width: 50px; height: 50px; border-radius: 50%; background: rgba(255,255,255,.45); }
+.tbtn { position: absolute; display: grid; place-items: center; border-radius: 50%; background: rgba(15,18,20,.42); border: 2px solid rgba(255,255,255,.4);
+  color: #fff; font: 700 12px/1 "Segoe UI", Roboto, sans-serif; letter-spacing: .06em; user-select: none; -webkit-user-select: none; }
+.tbtn.on { background: rgba(217,181,74,.55); } .tbtn.latched { border-color: #d9b54a; box-shadow: 0 0 0 2px rgba(217,181,74,.5) inset; }
+.tbtn.big { width: 92px; height: 92px; right: 28px; bottom: 96px; font-size: 15px; background: rgba(160,30,20,.38); }
+.tbtn.mid { width: 64px; height: 64px; }
+.tbtn.sm { width: 52px; height: 52px; font-size: 11px; }
+.tbtn.top { width: 40px; height: 40px; top: 10px; border-radius: 8px; font-size: 16px; }
+#t-ads { right: 138px; bottom: 150px; }
+#t-jump { right: 132px; bottom: 76px; }
+#t-crouch { right: 190px; bottom: 36px; }
+#t-prone { right: 250px; bottom: 36px; }
+#t-reload { right: 40px; bottom: 206px; }
+#t-nade { right: 100px; bottom: 226px; }
+#t-swap { right: 160px; bottom: 236px; }
+#t-view { right: 196px; } #t-score { right: 148px; } #t-chat { right: 100px; } #t-pause { right: 52px; }
+#touch.dead > .tbtn:not(#t-score):not(#t-chat), #touch.dead > #t-stick-zone, #touch.dead > #t-look-zone { display: none; }
+#t-rotate { display: none; position: fixed; inset: 0; background: #0c0f11; color: #eee; place-items: center; font-size: 18px; letter-spacing: .1em; z-index: 50; }
+@media (orientation: portrait) { body.touch #t-rotate { display: grid; } }
+
+/* HUD & menus on small / touch screens */
+body.touch #killfeed { top: 58px; } body.touch #killfeed .kf { font-size: 10px; }
+body.touch #ammo { bottom: auto; top: 58px; right: 250px; } body.touch #ammo .count b { font-size: 24px; }
+body.touch #vitals { bottom: auto; top: 150px; left: 14px; } body.touch .hpbar { width: 110px; }
+body.touch #chatlog { bottom: auto; top: 190px; width: 300px; font-size: 11px; }
+body.touch #chatinput { bottom: auto; top: 60px; left: 50%; transform: translateX(-50%); width: 60vw; z-index: 20; font-size: 16px; }
+body.touch #fps { display: none; }
+@media (max-width: 950px), (max-height: 500px) {
+  #minimap { width: 120px; height: 120px; }
+  #roomtag { top: 140px; font-size: 9px; }
+  #tickets { top: 6px; gap: 8px; } .tk .bar { width: 70px; } .tk b { font-size: 15px; min-width: 30px; }
+  .flag { width: 22px; height: 22px; font-size: 11px; }
+  #capture { top: 44px; } .cap-bar { width: 160px; }
+  .panel { padding: 14px 16px; max-height: 94vh; overflow: auto; }
+  .panel h1 { font-size: 22px; } .panel .row { flex-wrap: wrap; gap: 8px; } .panel .row label { min-width: 130px; }
+  .cols { grid-template-columns: 1fr; } #deploymap { width: 220px; height: 220px; }
+  #roomlist { max-height: 34vh; } .room { grid-template-columns: 1fr 90px 50px; } .room > div:nth-child(3) { display: none; }
+  .help { display: none; }
+  #scoreboard { inset: 4% 3%; grid-template-columns: 1fr; font-size: 11px; }
+}
+#deploy, #pause, #roundend, #menu { z-index: 10; }
+#errors { z-index: 60; }

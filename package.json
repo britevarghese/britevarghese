@@ -8,7 +8,8 @@
     "postinstall": "node scripts/fetch-character.mjs",
     "test": "node --test test/*.test.js",
     "share": "node scripts/share.mjs",
-    "playtest": "node scripts/playtest.mjs"
+    "playtest": "node scripts/playtest.mjs",
+    "playtest:mobile": "node scripts/playtest-mobile.mjs"
   },
   "repository": {
     "type": "git",

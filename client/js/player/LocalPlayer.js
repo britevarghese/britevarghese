@@ -22,6 +22,8 @@ export class LocalPlayer {
     this.triggerReleased = true;
     this.camBob = 0; this.stepDist = 0; this.landDip = 0;
     this.tpsCam = new THREE.Vector3();
+    // touch input (set by ui/TouchControls): analog stick, sprint flag, jump pulse
+    this.touch = { mx: 0, mz: 0, sprint: false, jump: false };
     this.bindInput();
   }
 
@@ -50,12 +52,18 @@ export class LocalPlayer {
     addEventListener('contextmenu', (e) => e.preventDefault());
     addEventListener('mousemove', (e) => {
       if (document.pointerLockElement !== el || !this.alive) return;
-      const k = this.sens * (this.adsBlend > 0.5 ? (WEAPONS[this.weaponId()]?.scoped ? 0.35 : 0.7) : 1);
-      this.yaw -= e.movementX * k; this.pitch -= e.movementY * k;
-      this.pitch = Math.max(-1.45, Math.min(1.45, this.pitch));
-      this.mouse.dx += e.movementX; this.mouse.dy += e.movementY;
+      this.look(e.movementX, e.movementY);
     });
     addEventListener('wheel', () => { if (this.alive) this.switchSlot(1 - this.slot); });
+  }
+
+  // look input shared by mouse and touch (pixels of movement)
+  look(dx, dy, k = this.sens) {
+    if (!this.alive) return;
+    const f = k * (this.adsBlend > 0.5 ? (WEAPONS[this.weaponId()]?.scoped ? 0.35 : 0.7) : 1);
+    this.yaw -= dx * f; this.pitch -= dy * f;
+    this.pitch = Math.max(-1.45, Math.min(1.45, this.pitch));
+    this.mouse.dx += dx; this.mouse.dy += dy;
   }
 
   weaponId() { return this.weapons[this.slot]?.id; }
@@ -119,14 +127,17 @@ export class LocalPlayer {
     }
     const len = Math.hypot(fx, fz) || 1;
     fx /= len; fz /= len;
+    const T = this.touch;
+    if (!chat && (T.mx || T.mz)) { fx = T.mx; fz = T.mz; } // analog: partial deflection = slower walk
     const sin = Math.sin(this.yaw), cos = Math.cos(this.yaw);
     const wx = fx * cos + fz * sin, wz = -fx * sin + fz * cos;
     const reloading = performance.now() < this.reloadUntil;
-    const sprint = !chat && k.has('ShiftLeft') && fz < 0 && !this.mouse.r && s.stance !== 'prone';
+    const sprint = !chat && (k.has('ShiftLeft') || T.sprint) && fz < 0 && !this.mouse.r && s.stance !== 'prone';
     if (sprint && s.stance === 'crouch') s.stance = 'stand';
     const ads = this.mouse.r && !sprint;
     this.sprinting = sprint; this.ads = ads;
-    const jump = !chat && k.has('Space');
+    const jump = !chat && (k.has('Space') || T.jump);
+    T.jump = false;
     if (jump && s.stance !== 'stand' && s.onGround) { this.setStance('stand'); }
     const prevGround = s.onGround;
     stepCharacter(this.g.world.collision, s, { fx: wx, fz: wz, sprint, jump: jump && s.stance === 'stand', ads }, dt);

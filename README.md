@@ -53,7 +53,13 @@ creation rate limit (5 per 10 min per IP, max 40 rooms), room passwords compared
 and chat, 16 KB max message size, gzip for all text assets.
 
 ## Controls
-WASD move · Shift sprint · Space jump · C crouch · Z prone · RMB aim down sights · LMB fire · R reload ·
+**Phones / tablets (touch, landscape):** left thumb = floating joystick (push to the top rim to sprint) · drag the
+right half of the screen to look · hold **FIRE** (drag it to aim while shooting) · **AIM** toggles sights ·
+JUMP / CRCH / PRONE / R (reload) / G (grenade) / ⇄ (swap weapon) · top: 👁 third person, ☰ scoreboard, 💬 chat,
+❚❚ pause (look sensitivity, invite link, leave room). Deploying goes fullscreen + landscape. Force touch UI on any
+device with `?touch=1`.
+
+**Keyboard & mouse:** WASD move · Shift sprint · Space jump · C crouch · Z prone · RMB aim down sights · LMB fire · R reload ·
 1/2 or wheel switch weapon · G grenade · **V first/third person** · Tab scoreboard · T/Enter chat · F3 asset debug
 
 ## Game
@@ -105,6 +111,7 @@ cloning, reduced-rate animation for distant soldiers, pooled particles/decals/tr
 cascade around the camera (LOW: 1024² / 38 m, MEDIUM: 2048² / 70 m), LOW renders at 0.8× resolution.
 
 ### Playtest
+`npm run playtest:mobile -- <map>` does the same on an emulated phone with real multi-touch events (24 checks).
 `npm run playtest -- <map>` (server running with `DEV_TELEPORT=1 BOTS=0`) drives a real browser client plus a second
 network client through ~30 checks: movement, stances, jump, weapon switch, ADS + firing with server damage, reload, kill,
 kill feed/score, death/deploy/respawn, grenade, chat, third person, scoreboard.

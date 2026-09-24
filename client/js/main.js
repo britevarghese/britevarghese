@@ -13,6 +13,7 @@ import { Net } from './net/Net.js';
 import { WEAPONS } from '/shared/weapons.js';
 import { PROPS, groundHeight, roadDistance, BUILDINGS, FLAGS, setActiveMap, ACTIVE_MAP } from '/shared/map.js';
 import { Lobby, inviteLink } from './ui/Lobby.js';
+import { TouchControls, isTouchDevice } from './ui/TouchControls.js';
 import { EYE_HEIGHT } from '/shared/world.js';
 
 const $ = (id) => document.getElementById(id);
@@ -61,10 +62,12 @@ class Game {
     this.hud = new HUD();
     this.players = new Players(this);
     this.me = new LocalPlayer(this);
+    this.isTouch = isTouchDevice();
     this.board = new Map();
     this.net = new Net();
     this.#bindNet();
     this.#bindUI();
+    if (this.isTouch) this.touch = new TouchControls(this);
     progress('connecting');
     const proto = location.protocol === 'https:' ? 'wss' : 'ws';
     await this.net.connect(`${proto}://${location.host}/ws?room=${encodeURIComponent(this.room.id)}`);
@@ -153,7 +156,7 @@ class Game {
       case 'spawn':
         if (e.id === this.myId) {
           this.me.spawn(e); this.hud.deployScreen(false); this.hud.roundEnd(null);
-          this.renderer.domElement.requestPointerLock?.();
+          if (!this.isTouch) this.renderer.domElement.requestPointerLock?.()?.catch?.(() => {});
           this.killcam = null;
           setTimeout(() => (document.body.dataset.ready = '1'), 1500);
         }
@@ -232,7 +235,8 @@ class Game {
     this.hud.deployScreen(true, { team: this.myTeam, flagsState: this.lastSnap?.f, respawnIn, killer, onDeploy: (sp, cls) => {
       this.audio.unlock();
       // the DEPLOY click is a user gesture, so the browser allows mouse capture right now
-      this.renderer.domElement.requestPointerLock?.()?.catch?.(() => {});
+      if (this.isTouch) TouchControls.enterFullscreen();
+      else this.renderer.domElement.requestPointerLock?.()?.catch?.(() => {});
       this.net.send({ t: 'spawn', p: sp, cls });
     } });
   }
@@ -268,36 +272,57 @@ class Game {
     if (hit) this.effects.impact(hit.point, hit.normal, hit.surface);
   }
 
+  openChat() {
+    const input = $('chatinput');
+    this.chatOpen = true; input.classList.remove('hidden'); input.value = ''; input.focus(); document.exitPointerLock?.();
+  }
+
+  closeChat(send) {
+    const input = $('chatinput');
+    if (send && input.value.trim()) this.net.send({ t: 'chat', msg: input.value });
+    this.chatOpen = false; input.classList.add('hidden'); input.blur();
+    if (this.me.alive && !this.isTouch) this.renderer.domElement.requestPointerLock?.();
+  }
+
   #bindUI() {
     const input = $('chatinput');
     addEventListener('keydown', (e) => {
       if ((e.code === 'KeyT' || e.code === 'Enter') && !this.chatOpen && this.hud) {
-        e.preventDefault(); this.chatOpen = true; input.classList.remove('hidden'); input.value = ''; input.focus(); document.exitPointerLock?.();
+        e.preventDefault(); this.openChat();
       } else if (e.code === 'Enter' && this.chatOpen) {
-        if (input.value.trim()) this.net.send({ t: 'chat', msg: input.value });
-        this.chatOpen = false; input.classList.add('hidden'); input.blur(); if (this.me.alive) this.renderer.domElement.requestPointerLock?.();
-      } else if (e.code === 'Escape' && this.chatOpen) { this.chatOpen = false; input.classList.add('hidden'); }
+        this.closeChat(true);
+      } else if (e.code === 'Escape' && this.chatOpen) this.closeChat(false);
       if (e.code === 'KeyI' && !this.chatOpen) this.copyInvite();
       if (e.code === 'F3') { e.preventDefault(); window.open('/debug/character-weapon', '_blank'); }
     });
+    // mobile keyboards: sending happens on the "go"/enter key or when the field loses focus
+    input.addEventListener('change', () => { if (this.chatOpen) this.closeChat(true); });
+    input.addEventListener('blur', () => { if (this.chatOpen && this.isTouch) this.closeChat(true); });
     this.renderer.domElement.addEventListener('mousedown', () => this.audio.unlock());
     // pause menu when the mouse is released (Esc) during play
     const pause = $('pause');
     document.addEventListener('pointerlockchange', () => {
+      if (this.isTouch) return;
       const locked = document.pointerLockElement === this.renderer.domElement;
       pause.classList.toggle('hidden', locked || !this.me.alive || this.chatOpen);
     });
-    $('p-resume').onclick = () => { pause.classList.add('hidden'); this.renderer.domElement.requestPointerLock?.(); };
+    $('p-resume').onclick = () => { pause.classList.add('hidden'); if (!this.isTouch) this.renderer.domElement.requestPointerLock?.(); };
     $('p-invite').onclick = () => this.copyInvite();
     $('p-leave').onclick = () => { location.href = '/'; };
-    $('p-sens').value = Math.round(this.me.sens * 10000);
-    $('p-sens').oninput = () => { this.me.sens = +$('p-sens').value / 10000; localStorage.setItem('sp_sens', this.me.sens); };
+    // one slider: mouse sensitivity on desktop, look-drag sensitivity on touch screens
+    const touchSens = () => +(localStorage.getItem('sp_touch_sens') || 0.0045);
+    $('p-sens').value = Math.round((this.isTouch ? touchSens() / 2 : this.me.sens) * 10000);
+    $('p-sens').oninput = () => {
+      const v = +$('p-sens').value / 10000;
+      if (this.isTouch) { if (this.touch) this.touch.lookSens = v * 2; localStorage.setItem('sp_touch_sens', v * 2); } else { this.me.sens = v; localStorage.setItem('sp_sens', v); }
+    };
     $('p-room').textContent = `ROOM ${this.room.id} · ${ACTIVE_MAP.name}`;
   }
 
   // ---------------------------------------------------------------- frame
   #frame() {
     this.renderer.info.reset();
+    this.touch?.update();
     const dt = Math.min(0.05, this.clock.getDelta());
     const time = this.clock.elapsedTime;
     const me = this.me;
@@ -369,7 +394,7 @@ class Game {
 // ------------------------------------------------------------------ menu / lobby
 const saved = JSON.parse(localStorage.getItem('sp_settings') || '{}');
 $('name').value = saved.name || `Soldier${(Math.random() * 900 + 100) | 0}`;
-$('quality').value = saved.quality || (navigator.hardwareConcurrency <= 4 ? 'low' : 'medium');
+$('quality').value = saved.quality || (isTouchDevice() || navigator.hardwareConcurrency <= 4 ? 'low' : 'medium');
 $('fov').value = saved.fov || 78;
 $('team').value = saved.team || '0';
 const lobby = new Lobby({ initialRoom: AUTO.get('room') });
