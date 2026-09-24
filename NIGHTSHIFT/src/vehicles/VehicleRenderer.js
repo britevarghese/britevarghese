@@ -55,7 +55,8 @@ export class VehicleRenderer {
     this.scaleV = new THREE.Vector3(1, 1, 1);
     const spec = CARS[carId]?.spec;
     if (this.standIn && spec) {
-      const size = new THREE.Box3().setFromObject(lod0).getSize(new THREE.Vector3());
+      // measure the body only: wing / scoop variants must not skew the scale
+      const size = new THREE.Box3().setFromObject(lod0.getObjectByName('body') || lod0).getSize(new THREE.Vector3());
       this.scaleV.set(spec.wid / size.x, spec.hgt / size.y, spec.len / size.z);
       lod0.scale.copy(this.scaleV); lod1?.scale.copy(this.scaleV);
     }

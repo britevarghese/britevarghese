@@ -126,6 +126,13 @@ export function realParams(r) {
   };
 }
 // signature factory colours (used by stand-in models; imported models keep their own paint)
+// factory body kit (spoiler / hood variant) each real car wears by default
+const LOOK = {
+  bmw_m3_e30: { spoiler: 1 }, subaru_wrx_sti_gc8: { spoiler: 2, hood: 1 }, mazda_rx7_fd: { spoiler: 1 }, porsche_930_turbo: { spoiler: 1 },
+  nissan_skyline_r34: { spoiler: 2 }, toyota_supra_mk4: { spoiler: 2 }, bmw_m4_f82: { spoiler: 1 }, nissan_gtr_r35: { spoiler: 1 },
+  chevrolet_corvette_c8: { spoiler: 1 }, porsche_911_gt3: { spoiler: 3 }, ferrari_f40: { spoiler: 3 }, mclaren_senna: { spoiler: 3 },
+  lamborghini_centenario: { spoiler: 1 }, lamborghini_huracan_tt: { spoiler: 1 },
+};
 const FACTORY = {
   bmw_m3_e30: '#e9e9e4', subaru_wrx_sti_gc8: '#1f3a93', mazda_rx7_fd: '#b3121f', porsche_930_turbo: '#c8102e', nissan_skyline_r34: '#1f4fbf',
   toyota_supra_mk4: '#e2621b', honda_nsx_na1: '#c01818', bmw_m4_f82: '#d8a800', nissan_gtr_r35: '#e9eaea', chevrolet_corvette_c8: '#c3141c',
@@ -137,7 +144,7 @@ for (const r of REAL) {
   if (cal) { params.enginePower *= cal.power; params.launchG = cal.launchG; params.maxSpeed *= cal.vmax; }
   CARS[r.id] = {
     id: r.id, name: `${r.brand} ${r.model}`, brand: r.brand, model: r.model, year: r.year, class: `${r.tier}-CLASS`, tier: r.tier,
-    price: r.price, carType: r.carType, blurb: r.blurb, unlock: r.unlock, real: true, spec: r.spec, standIn: r.standIn, factoryColor: FACTORY[r.id],
+    price: r.price, carType: r.carType, blurb: r.blurb, unlock: r.unlock, real: true, spec: r.spec, standIn: 'sr_' + r.id, look: LOOK[r.id] || {}, factoryColor: FACTORY[r.id],
     source: { site: 'Sketchfab', uid: r.src.uid, title: r.src.title, author: r.src.author, url: `https://sketchfab.com/3d-models/${r.src.uid}`, license: 'CC-BY-4.0' },
     params,
   };

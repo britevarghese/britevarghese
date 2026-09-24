@@ -92,7 +92,7 @@ export class StreetRivals {
     const car = CARS[carId];
     const params = tunedParams(carId, { engine: Math.min(3, 1 + beaten), tires: Math.min(3, 1 + (beaten >> 1)), transmission: 1 });
     const v = new Vehicle({ carId, params, world: g.world, lib: g.lib, role: 'racer', carType: car.carType, renderOpts: { headlights: 0, shadow: false, lodDistance: g.preset.carLod1Distance, sharedPaint: true } });
-    if (car.real) v.renderer.applyCustom({ paint: 'factory', finish: 'metallic', tint: 0.6 });
+    if (car.real) v.renderer.applyCustom({ paint: 'factory', finish: 'metallic', tint: 0.6, ...car.look });
     else v.renderer.applyCustom({ paint: crew.color, paint2: '#111', vinyl: 1 + (crew.name.length % 5), finish: 'metallic', wheel: crew.name.length % 4, spoiler: 2, tint: 0.7, wheelColor: '#1a1a1c' });
     v.place(spot.x, spot.z, spot.yaw);
     // underglow + name tag

@@ -148,7 +148,7 @@ export class RaceManager {
         const v = new Vehicle({ carId, params, world: this.world, lib: game.lib, role: 'racer', carType: CARS[carId].carType, renderOpts: { headlights: 0, shadow: false, lodDistance: game.preset.carLod1Distance, sharedPaint: true } });
         const [lat, back] = slots[i];
         v.place(ev.start.x + rx * lat + fx * back, ev.start.z + rz * lat + fz * back, ev.start.yaw);
-        if (CARS[carId].real) v.renderer.applyCustom({ paint: 'factory', finish: 'metallic', tint: 0.5 });
+        if (CARS[carId].real) v.renderer.applyCustom({ paint: 'factory', finish: 'metallic', tint: 0.5, ...CARS[carId].look });
         else if (def.rivalColor) v.renderer.applyCustom({ paint: def.rivalColor, paint2: '#111', vinyl: 1 + (def.rival.length % 5), finish: 'metallic', wheel: def.rival.length % 4, spoiler: 2, tint: 0.7, wheelColor: '#1a1a1c' });
         else v.renderer.applyCustom({ paint: PAINTS[(i * 5 + 3) % PAINTS.length], paint2: '#111', vinyl: (i % 5) + 1, finish: 'metallic', wheel: i % 4, spoiler: 1 + (i % 3), hood: i % 3, bumper: i % 2, tint: 0.6, wheelColor: '#222428' });
         game.scene.add(v.renderer.group);

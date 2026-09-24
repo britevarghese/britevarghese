@@ -80,7 +80,7 @@ export class Garage {
 
   get save() { return this.game.save; }
   get owned() { return this.save.owns(this.viewId); }
-  get custom() { return this.save.data.cars[this.viewId]?.custom || { ...DEFAULT_CUSTOM, ...(CARS[this.viewId]?.real ? { paint: 'factory' } : {}) }; }
+  get custom() { return this.save.data.cars[this.viewId]?.custom || { ...DEFAULT_CUSTOM, ...(CARS[this.viewId]?.real ? { paint: 'factory', ...CARS[this.viewId].look } : {}) }; }
   get upgrades() { return this.save.data.cars[this.viewId]?.upgrades || { ...DEFAULT_UPGRADES }; }
 
   async show() {

@@ -2,6 +2,7 @@
 // If multiplayer is added later, this becomes a cache of server-authoritative data.
 import { Storage } from './Storage.js';
 import { bus } from './EventBus.js';
+import { CARS } from '../vehicles/VehicleCatalog.js';
 
 export const DEFAULT_CUSTOM = {
   paint: '#b3121f', paint2: '#111111', finish: 'metallic', wheel: 0, wheelColor: '#c0c4ca',
@@ -54,7 +55,7 @@ export class SaveSystem {
   // real cars arrive in their factory colours
   grantCar(id, real = false) {
     if (this.owns(id)) return false;
-    this.data.cars[id] = { custom: { ...DEFAULT_CUSTOM, ...(real ? { paint: 'factory' } : {}) }, upgrades: { ...DEFAULT_UPGRADES } };
+    this.data.cars[id] = { custom: { ...DEFAULT_CUSTOM, ...(real ? { paint: 'factory', ...CARS[id]?.look } : {}) }, upgrades: { ...DEFAULT_UPGRADES } };
     this.save();
     return true;
   }

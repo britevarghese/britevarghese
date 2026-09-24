@@ -189,7 +189,7 @@ export function buildCar(spec, mats, lod = 0) {
     }
 
     if (spec.class !== 'traffic') addInterior(root, S, spec, mats);
-    if (['sports', 'muscle', 'exotic', 'tuner'].includes(spec.class)) addBodyKits(root, S, spec, mats);
+    if (spec.kits || ['sports', 'muscle', 'exotic', 'tuner'].includes(spec.class)) addBodyKits(root, S, spec, mats);
     if (spec.lightbar) addLightbar(root, S, spec, mats, roofY, S.z(roofT));
     if (spec.pushBar) {
       const z = spec.length / 2 + 0.05;

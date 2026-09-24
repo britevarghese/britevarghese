@@ -245,3 +245,66 @@ export const CAR_SPECS = {
 export const PLAYER_CARS = ['kestrel', 'brawler', 'stratos', 'hikari'];
 export const TRAFFIC_CARS = ['sedan', 'suv', 'van', 'truck', 'bus'];
 export { W as zToT };
+
+// ---------------------------------------------------------------- per-car stand-ins for the real cars
+// Until a licensed model is imported, each real car gets its own body at its real length, width, height,
+// wheelbase and wheel size, built from the closest archetype plus the car's signature proportions
+// (cabin position, haunches, flares) and body-kit variants so its factory spoiler/hood can be shown.
+import { CARS as CATALOG, REAL_CAR_IDS } from '../../src/vehicles/VehicleCatalog.js';
+
+// sedans/coupes: a lower waist and a hood that falls toward the nose read far less boxy than the archetype
+const SEDAN_BELT = [[0, 0.78], [0.025, 0.85], [0.08, 0.88], [0.25, 0.885], [0.5, 0.865], [0.8, 0.82], [0.95, 0.74], [1, 0.57]];
+// base archetype, front overhang (m) and signature shape overrides
+const SIG = {
+  bmw_m3_e30: { base: 'sa_sedan', fo: 0.8, o: {
+    belt: SEDAN_BELT, greenhouse: [[0, 0], [0.19, 0], [0.28, 1], [0.62, 1], [0.7, 0]], hoodCrown: 0.015, tumblehome: 0.76,
+    shoulder: [[0, 1], [0.1, 1.045], [0.3, 1.045], [0.38, 1], [0.7, 1], [0.78, 1.045], [0.92, 1.045], [1, 1]] } },
+  subaru_wrx_sti_gc8: { base: 'sa_sedan', fo: 0.93, o: { belt: SEDAN_BELT, tumblehome: 0.74, greenhouse: [[0, 0], [0.2, 0], [0.31, 1], [0.6, 1], [0.7, 0]] } },
+  nissan_skyline_r34: { base: 'sa_sedan', fo: 0.9, o: {
+    belt: SEDAN_BELT, greenhouse: [[0, 0], [0.18, 0], [0.3, 1], [0.57, 1], [0.69, 0]], tumblehome: 0.78,
+    shoulder: [[0, 1], [0.12, 1.05], [0.32, 1.03], [0.5, 1], [0.8, 1.03], [1, 1]] } },
+  bmw_m4_f82: { base: 'sa_sedan', fo: 0.84, o: {
+    belt: SEDAN_BELT, greenhouse: [[0, 0], [0.15, 0], [0.31, 1], [0.55, 1], [0.69, 0]], tumblehome: 0.72,
+    shoulder: [[0, 1], [0.12, 1.05], [0.3, 1.04], [0.45, 0.99], [0.78, 1.03], [1, 1]] } },
+  toyota_supra_mk4: { base: 'kestrel', fo: 0.95, o: {
+    greenhouse: [[0, 0], [0.1, 0], [0.36, 1], [0.54, 1], [0.69, 0]],
+    shoulder: [[0, 1], [0.14, 1.05], [0.32, 1.03], [0.5, 0.97], [1, 1]] } },
+  nissan_gtr_r35: { base: 'kestrel', fo: 0.92, o: {
+    greenhouse: [[0, 0], [0.12, 0], [0.33, 1], [0.56, 1], [0.7, 0]], tumblehome: 0.76,
+    shoulder: [[0, 1], [0.13, 1.04], [0.3, 1.03], [0.48, 0.99], [0.8, 1.02], [1, 1]] } },
+  mazda_rx7_fd: { base: 'kestrel', fo: 0.86, o: {
+    greenhouse: [[0, 0], [0.1, 0], [0.34, 1], [0.5, 1], [0.68, 0]], hoodCrown: 0.05, tumblehome: 0.7,
+    shoulder: [[0, 1], [0.14, 1.07], [0.3, 1.03], [0.5, 0.95], [0.8, 1.05], [1, 1]],
+    head: { t0: 0.935, t1: 0.968, v0: 5.4, v1: 6.1 } } },
+  porsche_930_turbo: { base: 'sa_fastback', fo: 0.95, o: {
+    shoulder: [[0, 1], [0.1, 1.07], [0.28, 1.06], [0.42, 0.97], [0.76, 1.02], [0.9, 1.02], [1, 1]] } },
+  porsche_911_gt3: { base: 'sa_fastback', fo: 1.0, o: {
+    shoulder: [[0, 1], [0.1, 1.05], [0.3, 1.045], [0.44, 0.98], [0.78, 1.02], [1, 1]] } },
+  honda_nsx_na1: { base: 'sa_wedge', fo: 0.9, o: {
+    greenhouse: [[0, 0], [0.26, 0], [0.4, 1], [0.56, 1], [0.76, 0]], rearSideGlass: true } },
+  chevrolet_corvette_c8: { base: 'sa_wedge', fo: 0.95, o: { greenhouse: [[0, 0], [0.24, 0], [0.4, 1], [0.54, 1], [0.76, 0]], engineCover: true } },
+  audi_r8_v10: { base: 'sa_wedge', fo: 0.93, o: { greenhouse: [[0, 0], [0.3, 0], [0.42, 1], [0.55, 1], [0.76, 0]] } },
+  ferrari_f40: { base: 'sa_wedge', fo: 0.95, o: { engineCover: true, greenhouse: [[0, 0], [0.24, 0], [0.4, 1], [0.52, 1], [0.76, 0]] } },
+  mclaren_senna: { base: 'sa_wedge', fo: 1.05, o: { greenhouse: [[0, 0], [0.3, 0], [0.43, 1], [0.56, 1], [0.8, 0]], tumblehome: 0.56 } },
+  lamborghini_centenario: { base: 'sa_wedge', fo: 1.1, o: {
+    planWidth: roundedPlan(0.3, 0.7, 0.94), greenhouse: [[0, 0], [0.3, 0], [0.44, 1], [0.52, 1], [0.82, 0]], tumblehome: 0.58 } },
+  lamborghini_huracan_tt: { base: 'sa_wedge', fo: 0.98, o: { greenhouse: [[0, 0], [0.3, 0], [0.43, 1], [0.53, 1], [0.8, 0]] } },
+};
+
+for (const id of REAL_CAR_IDS) {
+  const car = CATALOG[id], sg = SIG[id];
+  if (!car?.spec || !sg) continue;
+  const s = car.spec, base = CAR_SPECS[sg.base];
+  const L = s.len, k = s.hgt / base.roof[0][1];
+  const scaleY = (pts) => pts.map(([t, y]) => [t, y * k]);
+  const front = L / 2 - sg.fo;
+  const tw = base.wheels[0].w * (s.wid / base.width);
+  CAR_SPECS['sr_' + id] = {
+    ...base, ...sg.o,
+    name: car.name, class: 'standin', kits: true, length: L, width: s.wid,
+    wheels: wheels(L, front, front - s.wb, s.wr, tw),
+    belt: scaleY(sg.o.belt || base.belt), roof: [[0, s.hgt], [1, s.hgt]],
+    exhaust: base.exhaust.map((e) => ({ ...e, z: -L / 2 - 0.02 })),
+    eyeY: base.eyeY * k,
+  };
+}
