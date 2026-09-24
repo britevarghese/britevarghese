@@ -333,9 +333,11 @@ export class VehiclePhysics {
     }
     s.y += this.vUp * dt;
     // sprung body dynamics (squat/dive/roll) — second-order springs
-    const kp = 90, cp = 9;
-    const pitchT = clamp(this.axPrev * 0.0065, -0.07, 0.06);
-    const rollT = clamp(this.ayPrev * 0.0085, -0.085, 0.085);
+    // stiffer suspension (car setup / upgrades) = less roll and dive, quicker and better damped
+    const stiff = (p.suspensionStrength || 2.2) / 2.2;
+    const kp = 105 * stiff, cp = 2 * 0.58 * Math.sqrt(kp);
+    const pitchT = clamp(this.axPrev * 0.0046 / stiff, -0.06, 0.05);
+    const rollT = clamp(this.ayPrev * 0.0048 / stiff, -0.07, 0.07);
     this.pitchVel += (kp * (pitchT - this.pitchDyn) - cp * this.pitchVel) * dt;
     this.pitchDyn += this.pitchVel * dt;
     this.rollVel += (kp * (rollT - this.rollDyn) - cp * this.rollVel) * dt;
