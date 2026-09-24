@@ -21,6 +21,7 @@
     </div>
     <div id="capture" class="hidden"><div class="cap-title"></div><div class="cap-bar"><i></i></div></div>
     <canvas id="minimap" width="220" height="220"></canvas>
+    <div id="roomtag"></div>
     <div id="killfeed"></div>
     <div id="crosshair"><i class="t"></i><i class="b"></i><i class="l"></i><i class="r"></i><i class="dot"></i></div>
     <div id="hitmarker"></div>
@@ -43,17 +44,43 @@
 
   <!-- ===================== Deploy / menu ===================== -->
   <div id="menu">
-    <div class="panel">
+    <div class="panel lobby">
       <h1>STRIKEPOINT</h1>
-      <div class="sub">CONQUEST · 3 FLAGS · SERVER-AUTHORITATIVE MULTIPLAYER</div>
-      <label>Callsign <input id="name" maxlength="16" value="" placeholder="Soldier" /></label>
+      <div class="sub">CONQUEST · MULTIPLAYER ROOMS · PLAY WITH FRIENDS ANYWHERE</div>
       <div class="row">
+        <label>Callsign <input id="name" maxlength="16" value="" placeholder="Soldier" /></label>
         <label>Team <select id="team"><option value="0">Auto balance</option><option value="1">US</option><option value="2">RU</option></select></label>
         <label>Quality <select id="quality"><option value="low">LOW</option><option value="medium">MEDIUM</option></select></label>
         <label>FOV <input id="fov" type="range" min="60" max="100" value="78" /></label>
       </div>
+      <div class="tabs"><button data-tab="browse" class="on">SERVER BROWSER</button><button data-tab="create">CREATE ROOM</button><button data-tab="code">JOIN BY CODE</button></div>
+      <div class="tab" id="tab-browse">
+        <div id="roomlist"><div class="empty">Loading rooms…</div></div>
+        <div class="row small"><span id="roomcount"></span><a href="#" id="refresh">↻ Refresh</a></div>
+      </div>
+      <div class="tab hidden" id="tab-create">
+        <label>Room name <input id="c-name" maxlength="32" placeholder="My squad" /></label>
+        <label>Map <select id="c-map"></select></label>
+        <div id="c-mapdesc" class="desc"></div>
+        <div class="row">
+          <label>Bots per team <input id="c-bots" type="number" min="0" max="16" value="4" /></label>
+          <label>Max players <input id="c-max" type="number" min="2" max="32" value="16" /></label>
+          <label>Password (optional) <input id="c-pass" maxlength="32" placeholder="none" /></label>
+        </div>
+        <div class="row checks">
+          <label class="chk"><input type="checkbox" id="c-private" checked /> Private (hidden from browser, join by code/link)</label>
+          <label class="chk"><input type="checkbox" id="c-rotation" checked /> Rotate maps after each round</label>
+        </div>
+      </div>
+      <div class="tab hidden" id="tab-code">
+        <div class="row">
+          <label>Room code <input id="j-code" maxlength="12" placeholder="e.g. 4WJLBQ" style="text-transform:uppercase" /></label>
+          <label>Password <input id="j-pass" maxlength="32" placeholder="if required" /></label>
+        </div>
+        <div id="j-info" class="desc"></div>
+      </div>
       <button id="play">JOIN BATTLE</button>
-      <div class="help">WASD move · Shift sprint · Space jump · C crouch · Z prone · RMB aim · LMB fire · R reload · 1/2 weapons · G grenade · V first/third person · Tab scoreboard · T chat · F3 asset debug</div>
+      <div class="help">WASD move · Shift sprint · Space jump · C crouch · Z prone · RMB aim · LMB fire · R reload · 1/2 weapons · G grenade · V first/third person · Tab scoreboard · T chat · I copy invite link</div>
       <div id="loading"></div>
     </div>
   </div>
@@ -61,6 +88,7 @@
   <div id="deploy" class="hidden">
     <div class="panel wide">
       <h2 id="deploy-title">DEPLOY</h2>
+      <div id="invite"></div>
       <div id="killcam" class="hidden"></div>
       <div class="cols">
         <div>

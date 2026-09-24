@@ -1,5 +1,5 @@
 // Collision world shared by server (authoritative movement for bots, hit detection) and client (prediction).
-import { BUILDINGS, PROPS, PROP_TYPES, generateBuilding, generateVegetation, groundHeight, PLAY_HALF } from './map.js';
+import { PROP_TYPES, getMap } from './map.js';
 
 export const STEP_UP = 0.5;
 export const PLAYER_RADIUS = 0.34;
@@ -10,7 +10,8 @@ export const MOVE = { walk: 3.6, sprint: 6.3, crouch: 2.0, prone: 0.85, ads: 2.2
 const CELL = 12;
 
 export class CollisionWorld {
-  constructor() {
+  constructor(map = getMap('outskirts')) {
+    this.map = map;
     this.boxes = [];
     this.ramps = [];
     this.buildings = [];
@@ -31,6 +32,7 @@ export class CollisionWorld {
   }
 
   #build() {
+    const { BUILDINGS, PROPS, generateBuilding, generateVegetation, groundHeight } = this.map;
     const surfaceOf = { concrete: 'concrete', plaster: 'concrete', brick: 'concrete', metal_siding: 'metal', concrete_slab: 'concrete', concrete_floor: 'concrete', roof: 'concrete', metal_roof: 'metal', metal: 'metal', plaster_int: 'concrete' };
     for (const spec of BUILDINGS) {
       const g = generateBuilding(spec);
@@ -61,6 +63,14 @@ export class CollisionWorld {
       const hx = rot90 ? c : a, hz = rot90 ? a : c;
       this.addBox([p.x - hx, y, p.z - hz], [p.x + hx, y + b2 * 2, p.z + hz], t.surface, t.bullets !== false, 'prop');
     }
+    // quay edge on harbour maps: a low concrete wall keeps soldiers out of the water (and is usable cover)
+    const sea = this.map.sea;
+    if (sea) {
+      const H = this.map.MAP_HALF, e = sea.at, y = groundHeight(sea.axis === 'x' ? e - sea.dir * 1 : 0, sea.axis === 'z' ? e - sea.dir * 1 : 0);
+      const lo = Math.min(e, e + sea.dir * 0.6), hi = Math.max(e, e + sea.dir * 0.6);
+      if (sea.axis === 'z') this.addBox([-H, y - 8, lo], [H, y + 1.1, hi], 'concrete', true, 'quay');
+      else this.addBox([lo, y - 8, -H], [hi, y + 1.1, H], 'concrete', true, 'quay');
+    }
     this.vegetation = generateVegetation();
     for (const t of this.vegetation.trees) {
       const r = 0.16 * t.s, y = groundHeight(t.x, t.z);
@@ -84,7 +94,7 @@ export class CollisionWorld {
 
   // Highest walkable surface under (x,z) that is not above feetY + STEP_UP.
   supportHeight(x, z, feetY, r = 0.2) {
-    let h = groundHeight(x, z);
+    let h = this.map.groundHeight(x, z);
     for (const b of this.query(x - r, z - r, x + r, z + r, this._q || (this._q = []))) {
       if (x + r > b.min[0] && x - r < b.max[0] && z + r > b.min[2] && z - r < b.max[2] && b.max[1] <= feetY + STEP_UP && b.max[1] > h) h = b.max[1];
     }
@@ -133,7 +143,7 @@ export class CollisionWorld {
       }
       if (!moved) break;
     }
-    const lim = PLAY_HALF + 8;
+    const lim = this.map.PLAY_HALF + 8;
     pos.x = Math.max(-lim, Math.min(lim, pos.x)); pos.z = Math.max(-lim, Math.min(lim, pos.z));
     return hit;
   }
@@ -160,7 +170,7 @@ export class CollisionWorld {
     if (tt !== null && tt < best) {
       best = tt;
       const px = o.x + d.x * tt, pz = o.z + d.z * tt;
-      const e = 0.5, hx = groundHeight(px + e, pz) - groundHeight(px - e, pz), hz = groundHeight(px, pz + e) - groundHeight(px, pz - e);
+      const e = 0.5, hx = this.map.groundHeight(px + e, pz) - this.map.groundHeight(px - e, pz), hz = this.map.groundHeight(px, pz + e) - this.map.groundHeight(px, pz - e);
       const nl = Math.hypot(hx, 2 * e, hz);
       hit = { t: tt, normal: [-hx / nl, (2 * e) / nl, -hz / nl], surface: 'dirt', box: null };
     }
@@ -170,12 +180,12 @@ export class CollisionWorld {
   }
 
   rayTerrain(o, d, maxDist) {
-    let prevT = 0, prevDiff = o.y - groundHeight(o.x, o.z);
+    let prevT = 0, prevDiff = o.y - this.map.groundHeight(o.x, o.z);
     if (prevDiff < 0) return 0;
     const step = 0.6;
     for (let t = step; t <= maxDist + step; t += step) {
       const tc = Math.min(t, maxDist);
-      const y = o.y + d.y * tc, g = groundHeight(o.x + d.x * tc, o.z + d.z * tc);
+      const y = o.y + d.y * tc, g = this.map.groundHeight(o.x + d.x * tc, o.z + d.z * tc);
       const diff = y - g;
       if (diff < 0) return prevT + (tc - prevT) * (prevDiff / (prevDiff - diff));
       prevT = tc; prevDiff = diff;

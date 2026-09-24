@@ -1,6 +1,6 @@
 // Authoritative Conquest game simulation.
 import { CollisionWorld, stepCharacter, EYE_HEIGHT, STANCE_HEIGHT, MOVE } from '../shared/world.js';
-import { FLAGS, BASES, TEAM_NAMES, groundHeight, PLAY_HALF } from '../shared/map.js';
+import { TEAM_NAMES, getMap } from '../shared/map.js';
 import { WEAPONS, CLASSES, GRENADE, damageAt, hitCapsules, rayCapsule } from '../shared/weapons.js';
 import { NavGrid } from './nav.js';
 import { BotBrain } from './bots.js';
@@ -13,14 +13,21 @@ const HISTORY_MS = 1000;
 const STANCES = ['stand', 'crouch', 'prone'];
 
 let nextId = 1;
+const worldCache = new Map();
 
 export class Game {
-  constructor({ botsPerTeam = 8, log = console.log } = {}) {
+  constructor({ botsPerTeam = 8, log = console.log, map = 'outskirts' } = {}) {
     this.log = log;
-    this.world = new CollisionWorld();
-    const t0 = Date.now();
-    this.nav = new NavGrid(this.world);
-    this.log(`[game] nav grid ${this.nav.n}x${this.nav.n} built in ${Date.now() - t0} ms`);
+    this.map = getMap(map);
+    // collision world + nav grid are immutable per map: share them between rooms playing the same map
+    const shared = worldCache.get(this.map.id) || (() => {
+      const t0 = Date.now();
+      const world = new CollisionWorld(this.map), nav = new NavGrid(world);
+      this.log(`[game] ${this.map.id}: collision + nav grid ${nav.n}x${nav.n} built in ${Date.now() - t0} ms`);
+      const v = { world, nav }; worldCache.set(this.map.id, v); return v;
+    })();
+    this.world = shared.world;
+    this.nav = shared.nav;
     this.players = new Map();
     this.grenades = [];
     this.botsPerTeam = botsPerTeam;
@@ -33,7 +40,7 @@ export class Game {
 
   resetRound() {
     this.tickets = { 1: START_TICKETS, 2: START_TICKETS };
-    this.flags = FLAGS.map((f) => ({ ...f, owner: f.id === 'A' ? 1 : f.id === 'C' ? 2 : 0, progress: f.id === 'A' ? 1 : f.id === 'C' ? -1 : 0, contested: false }));
+    this.flags = this.map.FLAGS.map((f) => ({ ...f, owner: f.owner || 0, progress: f.owner === 1 ? 1 : f.owner === 2 ? -1 : 0, contested: false }));
     this.roundOver = null;
     this.bleedAcc = { 1: 0, 2: 0 };
     this.grenades = [];
@@ -83,7 +90,7 @@ export class Game {
   }
 
   spawnOptions(team) {
-    const opts = [{ id: 'base', x: BASES[team].x, z: BASES[team].z }];
+    const opts = [{ id: 'base', x: this.map.BASES[team].x, z: this.map.BASES[team].z }];
     for (const f of this.flags) if (f.owner === team) opts.push({ id: f.id, x: f.x, z: f.z });
     return opts;
   }
@@ -98,13 +105,13 @@ export class Game {
       const a = Math.random() * Math.PI * 2, r = opt.id === 'base' ? 3 + Math.random() * 9 : 8 + Math.random() * 10;
       x = opt.x + Math.cos(a) * r; z = opt.z + Math.sin(a) * r;
       const pos = { x, z };
-      const gy = groundHeight(x, z);
+      const gy = this.map.groundHeight(x, z);
       if (!this.world.resolveHorizontal(pos, gy, 1.8) && this.world.supportHeight(x, z, gy + 0.2) < gy + 0.3) break;
     }
     const c = CLASSES[p.cls];
     Object.assign(p, {
-      alive: true, hp: 100, x, z, y: this.world.supportHeight(x, z, groundHeight(x, z) + 0.3), vx: 0, vy: 0, vz: 0, stance: 'stand', onGround: true,
-      yaw: BASES[p.team].yaw + (Math.random() - 0.5) * 0.4, pitch: 0, slot: 0, reloadUntil: 0, nextFire: 0, grenades: c.grenades,
+      alive: true, hp: 100, x, z, y: this.world.supportHeight(x, z, this.map.groundHeight(x, z) + 0.3), vx: 0, vy: 0, vz: 0, stance: 'stand', onGround: true,
+      yaw: this.map.BASES[p.team].yaw + (Math.random() - 0.5) * 0.4, pitch: 0, slot: 0, reloadUntil: 0, nextFire: 0, grenades: c.grenades,
       weapons: [c.primary, c.secondary].map((id) => ({ id, mag: WEAPONS[id].mag, reserve: WEAPONS[id].reserve })),
       spawnProtect: this.now() + 2000, history: [], lastDamageFrom: null, spawnPoint: opt.id,
     });
@@ -146,7 +153,7 @@ export class Game {
     const dx = m.x - p.x, dz = m.z - p.z;
     const allowed = MOVE.sprint * 1.6 * Math.min(dt, 0.5) + 0.6;
     if (process.env.DEV_TELEPORT && Number.isFinite(m.x + m.y + m.z)) { p.x = m.x; p.y = m.y; p.z = m.z; }
-    else if (Math.hypot(dx, dz) > allowed || !Number.isFinite(m.x + m.y + m.z) || Math.abs(m.x) > PLAY_HALF + 10 || Math.abs(m.z) > PLAY_HALF + 10) {
+    else if (Math.hypot(dx, dz) > allowed || !Number.isFinite(m.x + m.y + m.z) || Math.abs(m.x) > this.map.PLAY_HALF + 10 || Math.abs(m.z) > this.map.PLAY_HALF + 10) {
       this.emit({ t: 'correct', x: p.x, y: p.y, z: p.z }, p);
     } else {
       p.x = m.x; p.y = m.y; p.z = m.z;
@@ -282,7 +289,7 @@ export class Game {
     for (const f of this.flags) {
       const n = { 1: 0, 2: 0 };
       for (const p of this.players.values()) {
-        if (p.alive && Math.hypot(p.x - f.x, p.z - f.z) < f.r && Math.abs(p.y - groundHeight(f.x, f.z)) < 8) n[p.team]++;
+        if (p.alive && Math.hypot(p.x - f.x, p.z - f.z) < f.r && Math.abs(p.y - this.map.groundHeight(f.x, f.z)) < 8) n[p.team]++;
       }
       f.inside = n;
       const diff = n[1] - n[2];
@@ -343,7 +350,7 @@ export class Game {
         p.reloadUntil = 0;
         this.emit({ t: 'ammo', w: p.weapons, g: p.grenades }, p.bot ? null : p);
       }
-      if (Math.abs(p.x) > PLAY_HALF + 4 || Math.abs(p.z) > PLAY_HALF + 4) this.damage(p, 12 * dt, null, 'boundary');
+      if (Math.abs(p.x) > this.map.PLAY_HALF + 4 || Math.abs(p.z) > this.map.PLAY_HALF + 4) this.damage(p, 12 * dt, null, 'boundary');
       p.history.push({ t: now, x: p.x, y: p.y, z: p.z, yaw: p.yaw, stance: p.stance });
       while (p.history.length && p.history[0].t < now - HISTORY_MS) p.history.shift();
     }

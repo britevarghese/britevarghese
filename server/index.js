@@ -1,106 +1,114 @@
-// STRIKEPOINT server: static client + authoritative WebSocket game server.
+// STRIKEPOINT server: static client, lobby API and authoritative WebSocket game rooms.
 import express from 'express';
+import compression from 'compression';
 import http from 'node:http';
 import path from 'node:path';
 import fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { WebSocketServer } from 'ws';
-import { Game, TICK_HZ, SNAP_HZ } from './game.js';
+import { TICK_HZ } from './game.js';
+import { RoomManager } from './rooms.js';
+import { mapList, MAP_IDS, MAP_DEFS } from '../shared/map.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const PORT = +process.env.PORT || 3000;
-const BOTS = process.env.BOTS !== undefined ? +process.env.BOTS : 8;
+const BOTS = process.env.BOTS !== undefined ? +process.env.BOTS : 6;
+const DEFAULT_ROOMS = process.env.DEFAULT_ROOMS !== '0';
+const MAX_CONN_PER_IP = +process.env.MAX_CONN_PER_IP || 8;
+
+const rooms = new RoomManager();
+if (DEFAULT_ROOMS) {
+  // one always-on public room per map (they sleep while empty)
+  const ids = { outskirts: 'OUTSKIRTS', harbor: 'HARBOR', valley: 'VALLEY', compound: 'ZULU' };
+  for (const map of MAP_IDS) rooms.create({ id: ids[map] || map.toUpperCase(), name: `${MAP_DEFS[map].name} 24/7`, map, botsPerTeam: map === 'compound' ? Math.min(BOTS, 5) : BOTS, maxPlayers: 32, rotation: false, persistent: true });
+}
 
 const app = express();
+app.set('trust proxy', true); // correct client IPs behind Render/Fly/Cloudflare
+app.use(compression());
+app.use(express.json({ limit: '2kb' }));
 app.use('/vendor/three', express.static(path.join(ROOT, 'node_modules/three'), { maxAge: '7d' }));
 app.use('/shared', express.static(path.join(ROOT, 'shared')));
 app.use('/assets', express.static(path.join(ROOT, 'client/assets'), { maxAge: '1h', fallthrough: false }));
 for (const r of ['character', 'weapon', 'character-weapon', 'ads', 'scale']) app.get(`/debug/${r}`, (_, res) => res.sendFile(path.join(ROOT, 'client/debug.html')));
 // list of asset files actually present (lets the client resolve manifest fallback chains without 404 probing)
 const listFiles = (dir, base = '') => fs.readdirSync(dir, { withFileTypes: true }).flatMap((d) => (d.isDirectory() ? listFiles(path.join(dir, d.name), `${base}${d.name}/`) : [`${base}${d.name}`]));
-app.get('/api/assets', (_, res) => res.json(listFiles(path.join(ROOT, 'client/assets')).filter((f) => /\.(glb|gltf)$/i.test(f))));
-app.get('/api/health', (_, res) => res.json({ ok: true, players: game.players.size }));
+const assetList = listFiles(path.join(ROOT, 'client/assets')).filter((f) => /\.(glb|gltf)$/i.test(f));
+app.get('/api/assets', (_, res) => res.json(assetList));
+app.get('/api/health', (_, res) => res.json({ ok: true, rooms: rooms.rooms.size, players: [...rooms.rooms.values()].reduce((s, r) => s + r.humans(), 0) }));
+
+// ---------------------------------------------------------------- lobby API
+app.get('/api/maps', (_, res) => res.json(mapList()));
+app.get('/api/rooms', (_, res) => res.json(rooms.list()));
+app.get('/api/rooms/:id', (req, res) => {
+  const r = rooms.get(req.params.id);
+  if (!r) return res.status(404).json({ error: 'Room not found' });
+  res.json(r.info());
+});
+const createLog = new Map(); // ip -> [timestamps]
+app.post('/api/rooms', (req, res) => {
+  const ip = req.ip, now = Date.now();
+  const recent = (createLog.get(ip) || []).filter((t) => now - t < 10 * 60 * 1000);
+  if (recent.length >= 5) return res.status(429).json({ error: 'Too many rooms created, wait a few minutes' });
+  const b = req.body || {};
+  try {
+    const r = rooms.create({ name: b.name, map: b.map, botsPerTeam: b.bots ?? 4, maxPlayers: b.maxPlayers ?? 16, isPrivate: !!b.private, password: b.password || '', rotation: b.rotation !== false });
+    recent.push(now); createLog.set(ip, recent);
+    res.json(r.info());
+  } catch (e) { res.status(503).json({ error: e.message }); }
+});
 app.use(express.static(path.join(ROOT, 'client')));
 
+// ---------------------------------------------------------------- game sockets
 const server = http.createServer(app);
 const wss = new WebSocketServer({ server, path: '/ws', maxPayload: 16 * 1024 });
-const game = new Game({ botsPerTeam: BOTS });
+const perIp = new Map();
+const send = (ws, msg) => { if (ws.readyState === 1) ws.send(JSON.stringify(msg)); };
 
-const clients = new Map(); // ws -> player
-const send = (ws, msg) => { if (ws.readyState === 1) ws.send(typeof msg === 'string' ? msg : JSON.stringify(msg)); };
-
-wss.on('connection', (ws) => {
-  let player = null;
-  let chatTokens = 3;
-  const chatTimer = setInterval(() => { chatTokens = Math.min(3, chatTokens + 1); }, 2000);
+wss.on('connection', (ws, req) => {
+  const ip = (req.headers['x-forwarded-for'] || '').split(',')[0].trim() || req.socket.remoteAddress;
+  perIp.set(ip, (perIp.get(ip) || 0) + 1);
+  if (perIp.get(ip) > MAX_CONN_PER_IP) { send(ws, { t: 'error', code: 'limit', msg: 'Too many connections from your address' }); ws.close(); }
+  const url = new URL(req.url, 'http://x');
+  let room = null;
+  // token bucket: ~90 messages/s sustained, bursts of 180 (inputs are sent at 30 Hz)
+  let tokens = 180, last = Date.now();
   ws.on('message', (buf) => {
+    const now = Date.now();
+    tokens = Math.min(180, tokens + ((now - last) / 1000) * 90); last = now;
+    if (--tokens < 0) return;
     let m;
     try { m = JSON.parse(buf); } catch { return; }
     if (!m || typeof m.t !== 'string') return;
-    if (!player) {
+    if (!room) {
       if (m.t !== 'join') return;
-      player = game.addPlayer({ name: m.name, team: m.team, cls: m.cls, send: (x) => send(ws, x) });
-      player.ws = ws;
-      clients.set(ws, player);
-      send(ws, { t: 'welcome', id: player.id, team: player.team, cls: player.cls, tickHz: TICK_HZ, snapHz: SNAP_HZ });
-      send(ws, game.scoreboard());
-      game.emit({ t: 'chat', from: 'SERVER', msg: `${player.name} joined ${player.team === 1 ? 'US' : 'RU'}` });
+      const r = rooms.get(m.room || url.searchParams.get('room')) || (m.room || url.searchParams.get('room') ? null : rooms.list()[0] && rooms.get(rooms.list()[0].id));
+      if (!r) return send(ws, { t: 'error', code: 'noroom', msg: 'Room not found (it may have closed)' });
+      const err = r.join(ws, m);
+      if (err) return send(ws, { t: 'error', code: err, msg: err === 'full' ? 'Room is full' : 'Wrong room password' });
+      room = r;
       return;
     }
-    switch (m.t) {
-      case 'in': game.handleInput(player, m); break;
-      case 'fire': if (Array.isArray(m.d)) game.tryFire(player, m.o, m.d, m.ct); break;
-      case 'reload': game.reload(player); break;
-      case 'nade': if (Array.isArray(m.d)) game.throwGrenade(player, m.o, m.d); break;
-      case 'spawn': game.spawn(player, m.p, m.cls); break;
-      case 'team':
-        if (!player.alive && (m.team === 1 || m.team === 2)) player.team = m.team;
-        break;
-      case 'chat':
-        if (chatTokens > 0 && typeof m.msg === 'string' && m.msg.trim()) { chatTokens--; game.emit({ t: 'chat', from: player.name, tm: player.team, msg: m.msg.trim().slice(0, 120) }); }
-        break;
-      case 'pong': if (typeof m.s === 'number') player.rtt = player.rtt * 0.7 + Math.min(1000, Date.now() - m.s) * 0.3; break;
-      case 'suicide': game.kill(player, null, 'suicide'); break;
-    }
+    room.message(ws, m);
   });
   ws.on('close', () => {
-    clearInterval(chatTimer);
-    if (player) { game.emit({ t: 'chat', from: 'SERVER', msg: `${player.name} left` }); game.removePlayer(player.id); }
-    clients.delete(ws);
+    perIp.set(ip, (perIp.get(ip) || 1) - 1);
+    if (perIp.get(ip) <= 0) perIp.delete(ip);
+    if (room) room.leave(ws);
   });
 });
 
-let last = Date.now(), snapAcc = 0, boardAcc = 0, pingAcc = 0;
+let lastTick = Date.now();
 setInterval(() => {
   const now = Date.now();
-  const dt = Math.min(0.1, (now - last) / 1000);
-  last = now;
-  game.tick(dt);
-  // events
-  for (const { ev, only, ids } of game.flushEvents()) {
-    const s = JSON.stringify({ t: 'ev', e: ev });
-    for (const [ws, p] of clients) {
-      if (only !== null && p.id !== only) continue;
-      if (ids && !ids.includes(p.id)) continue;
-      send(ws, s);
-    }
-  }
-  snapAcc += dt; boardAcc += dt; pingAcc += dt;
-  if (snapAcc >= 1 / SNAP_HZ) {
-    snapAcc = 0;
-    const snap = game.snapshot();
-    for (const [ws, p] of clients) {
-      snap.me = { hp: Math.max(0, Math.round(p.hp)), alive: p.alive, w: p.weapons, sl: p.slot, g: p.grenades, rl: Math.max(0, p.reloadUntil - now), rs: Math.max(0, p.respawnAt - now), sp: p.spawnPoint };
-      send(ws, snap);
-    }
-  }
-  if (boardAcc >= 1) { boardAcc = 0; const b = JSON.stringify(game.scoreboard()); for (const ws of clients.keys()) send(ws, b); }
-  if (pingAcc >= 2) { pingAcc = 0; for (const ws of clients.keys()) send(ws, { t: 'ping', s: now }); }
+  const dt = Math.min(0.1, (now - lastTick) / 1000);
+  lastTick = now;
+  rooms.tick(dt);
 }, 1000 / TICK_HZ);
 
-server.listen(PORT, () => {
-  const hasUserChar = fs.existsSync(path.join(ROOT, 'client/assets/user'));
-  console.log(`STRIKEPOINT running on http://localhost:${PORT}  (bots per team: ${BOTS}${hasUserChar ? ', user asset overrides present' : ''})`);
+server.listen(PORT, '0.0.0.0', () => {
+  const hasUserChar = assetList.some((f) => f.startsWith('user/'));
+  console.log(`STRIKEPOINT running on http://localhost:${PORT}  (${rooms.rooms.size} rooms, bots per team: ${BOTS}${hasUserChar ? ', user asset overrides present' : ''})`);
 });
 
-export { game, server };
+export { rooms, server };

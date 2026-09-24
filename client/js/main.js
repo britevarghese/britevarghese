@@ -11,7 +11,8 @@ import { Effects } from './fx/Effects.js';
 import { GameAudio } from './audio/Audio.js';
 import { Net } from './net/Net.js';
 import { WEAPONS } from '/shared/weapons.js';
-import { PROPS, groundHeight, roadDistance, BUILDINGS, FLAGS } from '/shared/map.js';
+import { PROPS, groundHeight, roadDistance, BUILDINGS, FLAGS, setActiveMap, ACTIVE_MAP } from '/shared/map.js';
+import { Lobby, inviteLink } from './ui/Lobby.js';
 import { EYE_HEIGHT } from '/shared/world.js';
 
 const $ = (id) => document.getElementById(id);
@@ -20,7 +21,12 @@ const showError = (m) => { $('errors').textContent += `${m}\n`; };
 addEventListener('error', (e) => showError(`JS error: ${e.message}`));
 
 class Game {
-  async start({ name, team, quality, fov }) {
+  async start({ name, team, quality, fov, room, password }) {
+    // resolve the room's map before building anything: every map is generated from shared/maps/*.js
+    const res = await fetch(`/api/rooms/${encodeURIComponent(room)}`);
+    if (!res.ok) throw new Error('Room not found (it may have closed). Pick another one.');
+    this.room = await res.json();
+    setActiveMap(this.room.map);
     this.qualityName = quality;
     const { renderer, q } = createRenderer($('game'), quality);
     this.renderer = renderer; this.q = q;
@@ -33,6 +39,7 @@ class Game {
     progress('sky');
     this.world = new GameWorld(this.assets, renderer, quality);
     this.lighting = new Lighting(this.world.scene, q);
+    renderer.toneMappingExposure = this.lighting.exposure;
     const hd = await this.assets.loadHDRI(renderer);
     this.lighting.setEnvironment(hd.env, hd.background);
     this.env = hd.env;
@@ -58,8 +65,12 @@ class Game {
     this.#bindUI();
     progress('connecting');
     const proto = location.protocol === 'https:' ? 'wss' : 'ws';
-    await this.net.connect(`${proto}://${location.host}/ws`);
-    this.net.send({ t: 'join', name, team, cls: this.hud.selectedClass });
+    await this.net.connect(`${proto}://${location.host}/ws?room=${encodeURIComponent(this.room.id)}`);
+    const joined = new Promise((resolve, reject) => { this._joinOk = resolve; this._joinFail = reject; });
+    this.net.send({ t: 'join', room: this.room.id, password, name, team, cls: this.hud.selectedClass });
+    await joined;
+    history.replaceState(null, '', `/?room=${encodeURIComponent(this.room.id)}`);
+    $('roomtag').textContent = `ROOM ${this.room.id} · ${ACTIVE_MAP.name.toUpperCase()}`;
     $('menu').classList.add('hidden');
     this.hud.show(true);
     addEventListener('resize', () => this.#resize());
@@ -90,7 +101,19 @@ class Game {
   // ---------------------------------------------------------------- networking
   #bindNet() {
     const n = this.net;
-    n.on('welcome', (m) => { this.myId = m.id; this.myTeam = m.team; this.hud.myTeam = m.team; this.#showDeploy(); });
+    n.on('welcome', (m) => {
+      this.myId = m.id; this.myTeam = m.team; this.hud.myTeam = m.team;
+      if (m.room && m.room.map !== this.room.map) { location.href = `/?room=${m.room.id}&autojoin=1`; return; }
+      this._joinOk?.(); this.#showDeploy();
+    });
+    n.on('error', (m) => { if (this._joinFail) this._joinFail(new Error(m.msg || m.code)); else showError(m.msg || m.code); });
+    n.on('mapchange', (m) => {
+      // the room rotated to the next map: rebuild by reloading into the same room
+      this.hud.roundEnd(`NEXT MAP: ${m.map.toUpperCase()}`);
+      this.mapChanging = true;
+      sessionStorage.setItem('sp_rejoin', '1');
+      setTimeout(() => { location.href = `/?room=${encodeURIComponent(m.room)}&autojoin=1`; }, 1500);
+    });
     n.on('board', (m) => {
       this.board = new Map(m.rows.map((r) => [r.id, r]));
       this.hud.board = m.rows;
@@ -115,7 +138,11 @@ class Game {
       if (!this.me.alive && AUTO.get('autodeploy') && me.rs <= 0 && !this._autoSent) { this._autoSent = true; setTimeout(() => (this._autoSent = false), 1500); this.net.send({ t: 'spawn', p: AUTO.get('spawn') || 'base', cls: AUTO.get('cls') || 'assault' }); }
     });
     n.on('ev', ({ e }) => this.#event(e));
-    n.on('close', () => showError('Disconnected from server.'));
+    n.on('close', () => {
+      if (this.mapChanging) return;
+      showError('Disconnected from server — reconnecting…');
+      setTimeout(() => { location.href = `/?room=${encodeURIComponent(this.room.id)}&autojoin=1`; }, 2500);
+    });
   }
 
   #event(e) {
@@ -188,8 +215,16 @@ class Game {
     setTimeout(() => this.#showDeploy(this.meState?.rs), 2200);
   }
 
+  copyInvite() {
+    const link = inviteLink(this.room.id);
+    navigator.clipboard?.writeText(link).then(() => this.hud.notice('INVITE LINK COPIED'), () => this.hud.notice(link, 6000));
+  }
+
   #showDeploy(respawnIn = 0) {
     if (this.me.alive) return;
+    const link = inviteLink(this.room.id);
+    $('invite').innerHTML = `ROOM <b>${this.room.id}</b> · ${ACTIVE_MAP.name} — invite friends: <code>${link}</code><button id="copyinvite">COPY</button>`;
+    $('copyinvite').onclick = () => this.copyInvite();
     const kc = this.killcam;
     const killer = kc ? `KILLED BY <b>${kc.name || 'enemy'}</b> · ${WEAPONS[kc.w]?.name || kc.w}${kc.hs ? ' · HEADSHOT' : ''}` : null;
     this.hud.deployScreen(true, { team: this.myTeam, flagsState: this.lastSnap?.f, respawnIn, killer, onDeploy: (sp, cls) => { this.audio.unlock(); this.net.send({ t: 'spawn', p: sp, cls }); } });
@@ -218,6 +253,7 @@ class Game {
         if (input.value.trim()) this.net.send({ t: 'chat', msg: input.value });
         this.chatOpen = false; input.classList.add('hidden'); input.blur(); if (this.me.alive) this.renderer.domElement.requestPointerLock?.();
       } else if (e.code === 'Escape' && this.chatOpen) { this.chatOpen = false; input.classList.add('hidden'); }
+      if (e.code === 'KeyI' && !this.chatOpen) this.copyInvite();
       if (e.code === 'F3') { e.preventDefault(); window.open('/debug/character-weapon', '_blank'); }
     });
     this.renderer.domElement.addEventListener('mousedown', () => this.audio.unlock());
@@ -293,18 +329,34 @@ class Game {
   }
 }
 
-// ------------------------------------------------------------------ menu
+// ------------------------------------------------------------------ menu / lobby
 const saved = JSON.parse(localStorage.getItem('sp_settings') || '{}');
 $('name').value = saved.name || `Soldier${(Math.random() * 900 + 100) | 0}`;
 $('quality').value = saved.quality || (navigator.hardwareConcurrency <= 4 ? 'low' : 'medium');
 $('fov').value = saved.fov || 78;
 $('team').value = saved.team || '0';
+const lobby = new Lobby({ initialRoom: AUTO.get('room') });
+if (sessionStorage.getItem('sp_err')) { $('loading').textContent = sessionStorage.getItem('sp_err'); sessionStorage.removeItem('sp_err'); }
 const game = new Game();
 window.__game = game;
 $('play').onclick = async () => {
   const s = { name: $('name').value.trim() || 'Soldier', team: +$('team').value, quality: $('quality').value, fov: +$('fov').value };
   localStorage.setItem('sp_settings', JSON.stringify(s));
   $('play').disabled = true;
-  try { await game.start(s); } catch (e) { console.error(e); showError(e.message); $('play').disabled = false; }
+  try {
+    const pick = AUTO.get('autojoin') && AUTO.get('room') ? { room: AUTO.get('room'), password: sessionStorage.getItem(`sp_pw_${AUTO.get('room')}`) || '' } : await lobby.choose();
+    sessionStorage.setItem(`sp_pw_${pick.room}`, pick.password || '');
+    await game.start({ ...s, ...pick });
+  } catch (e) {
+    console.error(e);
+    $('loading').textContent = e.message;
+    // a failed start leaves a half-built renderer behind; reload keeps things simple
+    if (game.renderer) { sessionStorage.setItem('sp_err', e.message); setTimeout(() => { location.href = `/?room=${encodeURIComponent(game.room?.id || AUTO.get('room') || '')}`; }, 1200); }
+    else $('play').disabled = false;
+  }
 };
-if (AUTO.get('autojoin')) { $('quality').value = AUTO.get('q') || $('quality').value; if (AUTO.get('team')) $('team').value = AUTO.get('team'); $('play').click(); }
+if (AUTO.get('autojoin')) {
+  $('quality').value = AUTO.get('q') || $('quality').value;
+  if (AUTO.get('team')) $('team').value = AUTO.get('team');
+  if (!AUTO.get('room')) { lobby.refresh().then(() => $('play').click()); } else $('play').click();
+}

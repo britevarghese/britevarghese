@@ -8,13 +8,49 @@ tuned to run on low-end GPUs.
 
 ```
 npm install        # installs deps and downloads the default rigged soldier (three.js example asset)
-npm start          # http://localhost:3000   (BOTS=8 per team by default; PORT=3000)
+npm start          # http://localhost:3000  (PORT, BOTS=6 per team in the default rooms)
+npm run share      # host from your PC and get a public https link for friends anywhere (no account needed)
 npm test           # unit + WebSocket integration tests
 npm run assets     # (optional) re-download and re-optimize all CC0 source assets into client/assets/
 ```
 
-Open the page, pick a callsign/quality, **JOIN BATTLE**, choose a kit and spawn point, **DEPLOY**.
-Open a second browser tab/computer on the same server to play together; bots fill both teams.
+## Playing together (rooms)
+* **Server browser** lists the public rooms: one always-on room per map (`OUTSKIRTS`, `HARBOR`, `VALLEY`, `ZULU`)
+  plus any public room players created. Double-click to join.
+* **Create room**: pick a map, bots per team (0–16), max players (2–32), optional password, private (hidden from the
+  browser) and map rotation. You get a 6-letter **room code**.
+* **Invite**: share `https://<your-host>/?room=CODE` — the deploy screen shows the link with a COPY button, or press
+  **I** in game. Friends opening the link land on *Join by code* with the code filled in.
+* Each room is an independent server-authoritative match (own map, bots, tickets). Empty rooms sleep; private
+  rooms close 2 minutes after the last player leaves. With rotation on, the room moves to the next map after each
+  round and everyone is carried over automatically.
+
+## Maps
+| Map | Size | Flags | Character |
+|---|---|---|---|
+| **Outskirts** | 336 m | 3 | ruined town crossroads between an industrial yard and a depot, mixed ranges |
+| **Harbor Docks** | 300 m | 4 | container terminal on the water: tight container lanes, open quay, warehouse row |
+| **Dry Valley** | 384 m | 3 | big hills, winding road, farm, village and fortified hilltop — long sightlines |
+| **Checkpoint Zulu** | 184 m | 3 | small walled military compound — fast close-quarters infantry |
+
+Maps are plain data in `shared/maps/*.js` (roads, flags, bases, buildings, props, terrain relief, vegetation,
+lighting/fog). Server (collision, nav grid, bots) and browser (rendering) generate the same world from it —
+add a file there and register it in `shared/map.js` to create a new map.
+
+## Hosting on the internet
+| Option | How |
+|---|---|
+| **Your own PC, instantly** | `npm run share` → prints a public `https://….trycloudflare.com` link (Cloudflare quick tunnel). Works behind routers/NAT; the link lives while the window is open. |
+| **Render.com** | Push this repo to GitHub → Render → *New + → Blueprint* → select the repo (`render.yaml`, Docker). |
+| **Fly.io** | `fly launch --copy-config --no-deploy && fly deploy` (`fly.toml`). |
+| **Any VPS / Docker host** | `docker build -t strikepoint . && docker run -p 80:3000 strikepoint` (put HTTPS in front, e.g. Caddy). |
+
+The client automatically uses `wss://` on HTTPS. Pick a region close to your players: combat is lag-compensated
+(the server rewinds targets by each player's ping, up to 250 ms) and remote players are interpolated, so games
+across countries stay playable.
+Server hardening: per-IP connection cap (`MAX_CONN_PER_IP`, default 8), per-socket message rate limit, room
+creation rate limit (5 per 10 min per IP, max 40 rooms), room passwords compared in constant time, sanitised names
+and chat, 16 KB max message size, gzip for all text assets.
 
 ## Controls
 WASD move · Shift sprint · Space jump · C crouch · Z prone · RMB aim down sights · LMB fire · R reload ·

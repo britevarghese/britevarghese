@@ -1,9 +1,10 @@
 // Navigation grid + A* for server-side bots.
-import { PLAY_HALF, groundHeight } from '../shared/map.js';
 
 export class NavGrid {
   constructor(world, cell = 0.75) {
     this.world = world;
+    const { PLAY_HALF, groundHeight } = world.map;
+    this.half = PLAY_HALF;
     this.cell = cell;
     this.n = Math.ceil((PLAY_HALF * 2) / cell);
     this.blocked = new Uint8Array(this.n * this.n);
@@ -25,10 +26,10 @@ export class NavGrid {
       }
     }
   }
-  cx(i) { return -PLAY_HALF + (i + 0.5) * this.cell; }
-  cz(j) { return -PLAY_HALF + (j + 0.5) * this.cell; }
-  ix(x) { return Math.max(0, Math.min(this.n - 1, Math.floor((x + PLAY_HALF) / this.cell))); }
-  iz(z) { return Math.max(0, Math.min(this.n - 1, Math.floor((z + PLAY_HALF) / this.cell))); }
+  cx(i) { return -this.half + (i + 0.5) * this.cell; }
+  cz(j) { return -this.half + (j + 0.5) * this.cell; }
+  ix(x) { return Math.max(0, Math.min(this.n - 1, Math.floor((x + this.half) / this.cell))); }
+  iz(z) { return Math.max(0, Math.min(this.n - 1, Math.floor((z + this.half) / this.cell))); }
   free(i, j) { return i >= 0 && j >= 0 && i < this.n && j < this.n && !this.blocked[j * this.n + i]; }
 
   nearestFree(i, j) {

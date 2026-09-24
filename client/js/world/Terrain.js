@@ -1,7 +1,7 @@
 // Chunked heightfield terrain with multi-layer PBR material blending (grass / dry soil / rock / scorched earth),
 // anti-tiling (dual-scale sampling + macro variation), plus asphalt road ribbons with worn markings.
 import * as THREE from 'three';
-import { MAP_HALF, ROADS, BUILDINGS, FLAGS, groundHeight, roadDistance, terrainHeight } from '/shared/map.js';
+import { MAP_HALF, ROADS, BUILDINGS, FLAGS, groundHeight, roadDistance, terrainHeight, ACTIVE_MAP, seaFactor } from '/shared/map.js';
 import { fbm, smoothstep } from '/shared/util.js';
 
 export function buildTerrain(assets, quality) {
@@ -14,12 +14,14 @@ export function buildTerrain(assets, quality) {
   material.onBeforeCompile = (sh) => {
     sh.uniforms.tDirt = { value: tex[1].map }; sh.uniforms.tRock = { value: tex[2].map }; sh.uniforms.tBurnt = { value: tex[3].map };
     sh.uniforms.nDirt = { value: tex[1].normalMap }; sh.uniforms.nRock = { value: tex[2].normalMap };
+    sh.uniforms.uGrassTint = { value: new THREE.Vector3(...(ACTIVE_MAP.atmosphere?.grass || [1, 1, 1])) };
     sh.vertexShader = sh.vertexShader
       .replace('#include <common>', '#include <common>\nattribute vec4 splat;\nvarying vec4 vSplat;\nvarying vec3 vWPos;')
       .replace('#include <uv_vertex>', '#include <uv_vertex>\nvSplat = splat;\nvWPos = (modelMatrix * vec4(position,1.0)).xyz;');
     sh.fragmentShader = sh.fragmentShader
       .replace('#include <common>', `#include <common>
         uniform sampler2D tDirt, tRock, tBurnt, nDirt, nRock;
+        uniform vec3 uGrassTint;
         varying vec4 vSplat; varying vec3 vWPos;
         float hsh(vec2 p){ return fract(sin(dot(p, vec2(127.1,311.7))) * 43758.5453); }
         float vnoise(vec2 p){ vec2 i=floor(p), f=fract(p); f=f*f*(3.0-2.0*f);
@@ -43,7 +45,7 @@ export function buildTerrain(assets, quality) {
         wd = smoothstep(0.0, 1.0, clamp((wd - 0.5) * 2.2 + (hD - hG) * 1.5 + 0.5, 0.0, 1.0));
         // living grass: green/olive hue variation at two scales so fields never look like one flat colour
         float hue = vnoise(vWPos.xz*0.035) * 0.65 + vnoise(vWPos.xz*0.18) * 0.35;
-        cG.rgb *= mix(vec3(0.78, 0.98, 0.62), vec3(1.02, 0.98, 0.78), hue);
+        cG.rgb *= mix(vec3(0.78, 0.98, 0.62), vec3(1.02, 0.98, 0.78), hue) * uGrassTint;
         vec4 col = mix(cG, cD, wd);
         col = mix(col, cR, wr);
         col = mix(col, cB, wb);
@@ -86,6 +88,8 @@ export function buildTerrain(assets, quality) {
         for (const f of FLAGS) dirt = Math.max(dirt, (1 - smoothstep(f.r * 0.4, f.r * 1.1, Math.hypot(x - f.x, z - f.z))) * 0.8);
         let burnt = 0;
         for (const s of burnSpots) burnt = Math.max(burnt, (1 - smoothstep(s.r * 0.3, s.r, Math.hypot(x - s.x, z - s.z))) * (0.5 + 0.5 * fbm(x / 4, z / 4, 2, 9)));
+        const sea = seaFactor(x, z);
+        if (sea > 0) dirt = 1;
         splat[i * 4] = Math.min(1, dirt);
         splat[i * 4 + 1] = smoothstep(0.9, 2.0, slope);
         splat[i * 4 + 2] = smoothstep(0.35, 0.8, burnt);
@@ -121,7 +125,7 @@ export function buildTerrain(assets, quality) {
 export function outerHeight(x, z) {
   const r = Math.max(Math.abs(x), Math.abs(z));
   if (r < MAP_HALF - 2) return terrainHeight(x, z) - 4; // hidden beneath the detailed terrain
-  return terrainHeight(x, z) + smoothstep(MAP_HALF, 900, r) * (35 + 70 * fbm(x / 260, z / 260, 3, 21));
+  return terrainHeight(x, z) + smoothstep(MAP_HALF, 900, r) * (35 + 70 * fbm(x / 260, z / 260, 3, 21)) * (1 - seaFactor(x, z));
 }
 
 function buildRoads(assets) {

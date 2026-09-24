@@ -1,6 +1,7 @@
 // Renderer + daylight lighting model: HDRI sky/IBL, directional sun with camera-following soft shadows,
 // hemisphere fill, atmospheric fog, ACES tone mapping. LOW / MEDIUM quality presets.
 import * as THREE from 'three';
+import { ACTIVE_MAP } from '/shared/map.js';
 
 export const QUALITY = {
   low: { pixelRatio: 0.8, shadowSize: 1024, shadowRange: 38, shadowType: THREE.PCFShadowMap, antialias: false, fogFar: 380, anisotropy: 2, particles: 0.5, maxDpr: 1 },
@@ -24,7 +25,8 @@ export function createRenderer(canvasParent, qualityName) {
 export class Lighting {
   constructor(scene, q) {
     this.q = q;
-    this.sunDir = new THREE.Vector3(-0.45, 0.62, 0.38).normalize();
+    const atm = ACTIVE_MAP.atmosphere || {};
+    this.sunDir = new THREE.Vector3(...(atm.sun || [-0.45, 0.62, 0.38])).normalize();
     this.sun = new THREE.DirectionalLight(0xffeedd, 3.1);
     this.sun.castShadow = true;
     this.sun.shadow.mapSize.set(q.shadowSize, q.shadowSize);
@@ -38,7 +40,10 @@ export class Lighting {
     this.hemi = new THREE.HemisphereLight(0xcfdcf0, 0x5b5040, 0.6);
     scene.add(this.sun, this.target, this.hemi);
     // haze colour matched to the HDRI horizon
-    scene.fog = new THREE.Fog(0xbac4cb, 70, q.fogFar);
+    scene.fog = new THREE.Fog(atm.fog ?? 0xbac4cb, atm.fogNear ?? 70, q.fogFar * (atm.fogFar ?? 1));
+    this.exposure = atm.exposure ?? 0.95;
+    // low sun = warmer light
+    if (this.sunDir.y < 0.45) this.sun.color.setHex(0xffdcb8);
     this.scene = scene;
   }
 

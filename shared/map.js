@@ -1,71 +1,21 @@
-// Map definition: the single source of truth for gameplay collision AND the visual layout.
-// Everything here is plain data + deterministic generators so server & client build the same world.
+// Map system: every map is plain data (shared/maps/*.js) turned into a GameMap with deterministic generators,
+// so the server (collision, bots, hit detection) and the client (rendering) build exactly the same world.
+// The server keeps one GameMap per room; the browser activates one map and uses the live bindings below.
 import { mulberry32, fbm, smoothstep, clamp } from './util.js';
+import outskirts from './maps/outskirts.js';
+import harbor from './maps/harbor.js';
+import valley from './maps/valley.js';
+import compound from './maps/compound.js';
 
-export const MAP_HALF = 190;      // terrain extent (m)
-export const PLAY_HALF = 168;     // playable boundary
 export const FLOOR_H = 3.2;
 export const WALL_T = 0.3;
-
 export const TEAMS = { US: 1, RU: 2 };
 export const TEAM_NAMES = { 1: 'US', 2: 'RU' };
 
-// ---------------------------------------------------------------- roads
-export const ROADS = [
-  { ax: 8, az: -186, bx: 8, bz: 186, w: 9, name: 'main' },
-  { ax: -186, az: 0, bx: 186, bz: 0, w: 8, name: 'cross' },
-  { ax: -186, az: 78, bx: 60, bz: 78, w: 7, name: 'north-a' },
-  { ax: -60, az: -78, bx: 186, bz: -78, w: 7, name: 'south-c' },
-  { ax: -40, az: 78, bx: -40, bz: 130, w: 6, name: 'a-spur' },
-  { ax: 40, az: -78, bx: 40, bz: -130, w: 6, name: 'c-spur' },
-];
+export const MAP_DEFS = { outskirts, harbor, valley, compound };
+export const MAP_IDS = Object.keys(MAP_DEFS);
+export const mapList = () => MAP_IDS.map((id) => { const d = MAP_DEFS[id]; return { id, name: d.name, description: d.description, size: d.playHalf * 2, flags: d.flags.length }; });
 
-// ---------------------------------------------------------------- flags / bases
-export const FLAGS = [
-  { id: 'A', x: -40, z: 70, r: 13 },
-  { id: 'B', x: 6, z: -4, r: 15 },
-  { id: 'C', x: 40, z: -70, r: 13 },
-];
-
-export const BASES = {
-  1: { x: 8, z: 152, yaw: 0 },         // US spawns in the south, facing north (-z)
-  2: { x: 8, z: -152, yaw: Math.PI },  // RU spawns in the north, facing south (+z)
-};
-
-// ---------------------------------------------------------------- buildings
-// style: concrete | plaster | brick | warehouse | bunker ; damage 0..1 ; doors: sides with a ground-floor door
-export const BUILDINGS = [
-  // Town centre (B) – partially ruined
-  { id: 'b1', x: -20, z: -18, w: 12, d: 10, floors: 2, style: 'plaster', damage: 0.55, doors: ['s', 'e'] },
-  { id: 'b2', x: 27, z: -17, w: 10, d: 12, floors: 3, style: 'concrete', damage: 0.3, doors: ['w', 's'] },
-  { id: 'b3', x: -22, z: 19, w: 14, d: 9, floors: 2, style: 'brick', damage: 0, doors: ['n', 'e'] },
-  { id: 'b4', x: 28, z: 20, w: 10, d: 10, floors: 1, style: 'plaster', damage: 0.85, doors: ['w', 'n'] },
-  { id: 'b5', x: -46, z: -16, w: 9, d: 12, floors: 2, style: 'concrete', damage: 0.15, doors: ['e'] },
-  { id: 'b6', x: 52, z: 13, w: 12, d: 10, floors: 2, style: 'brick', damage: 0.4, doors: ['w'] },
-  { id: 'b7', x: -44, z: 22, w: 10, d: 9, floors: 1, style: 'plaster', damage: 0.2, doors: ['s'] },
-  // A – industrial yard
-  { id: 'w1', x: -64, z: 58, w: 24, d: 16, floors: 1, style: 'warehouse', damage: 0.1, doors: ['e', 'w'] },
-  { id: 'a2', x: -28, z: 95, w: 10, d: 10, floors: 2, style: 'concrete', damage: 0, doors: ['s', 'w'] },
-  { id: 'a3', x: -18, z: 55, w: 8, d: 12, floors: 1, style: 'plaster', damage: 0.3, doors: ['w'] },
-  { id: 'a4', x: -78, z: 98, w: 12, d: 9, floors: 2, style: 'brick', damage: 0, doors: ['e'] },
-  // C – depot
-  { id: 'w2', x: 64, z: -58, w: 24, d: 16, floors: 1, style: 'warehouse', damage: 0.25, doors: ['e', 'w'] },
-  { id: 'c2', x: 28, z: -95, w: 10, d: 10, floors: 2, style: 'concrete', damage: 0.35, doors: ['n', 'e'] },
-  { id: 'c3', x: 20, z: -55, w: 8, d: 12, floors: 1, style: 'plaster', damage: 0.2, doors: ['e'] },
-  { id: 'c4', x: 80, z: -98, w: 12, d: 9, floors: 2, style: 'brick', damage: 0.1, doors: ['w'] },
-  // Bases
-  { id: 'us1', x: -12, z: 146, w: 8, d: 8, floors: 1, style: 'bunker', damage: 0, doors: ['n', 'e'] },
-  { id: 'ru1', x: 28, z: -146, w: 8, d: 8, floors: 1, style: 'bunker', damage: 0, doors: ['s', 'w'] },
-  // Outskirts (background / flanks)
-  { id: 'o1', x: 110, z: 40, w: 10, d: 10, floors: 2, style: 'plaster', damage: 0.2, doors: ['w'] },
-  { id: 'o2', x: -110, z: -40, w: 10, d: 10, floors: 2, style: 'plaster', damage: 0.1, doors: ['e'] },
-  { id: 'o3', x: 96, z: 112, w: 12, d: 10, floors: 3, style: 'concrete', damage: 0.5, doors: ['w'] },
-  { id: 'o4', x: -96, z: -112, w: 12, d: 10, floors: 3, style: 'concrete', damage: 0.5, doors: ['e'] },
-  { id: 'o5', x: 130, z: -30, w: 9, d: 12, floors: 2, style: 'brick', damage: 0, doors: ['w'] },
-  { id: 'o6', x: -130, z: 30, w: 9, d: 12, floors: 2, style: 'brick', damage: 0, doors: ['e'] },
-];
-
-// ---------------------------------------------------------------- props
 // Collider half-extents are measured from the optimized GLB bounds (see scripts/build-assets.mjs).
 export const PROP_TYPES = {
   barrier: { half: [0.77, 0.41, 0.31], oy: 0.41, surface: 'concrete' },
@@ -89,119 +39,151 @@ export const PROP_TYPES = {
   ammo: { half: null, surface: 'wood' },
 };
 
-function buildProps() {
-  const P = [];
-  const add = (type, x, z, rot = 0, extra = {}) => P.push({ type, x, z, rot, ...extra });
-  // --- B (intersection): barricades, burnt cars, sandbags
-  add('car', -3, 8, 1, { burnt: true }); add('car', 18, -9, 0, { burnt: true });
-  add('barrier', 0, -12, 0); add('barrier', 1.6, -12.2, 0); add('barrier2', 14, 6, 1); add('barrier2', 14, 7.7, 1);
-  add('sandbags', 6, 10, 0, { len: 5 }); add('sandbags', -6, -6, 1, { len: 4 }); add('sandbags', 18, 4, 1, { len: 4 });
-  add('crate_stack', -8, 3, 0); add('crate', -8.2, 5, 1); add('barrel', 20, -3); add('barrel', 20.7, -2.4);
-  add('container', -14, -3, 0); add('container', 36, 3, 1);
-  add('trash', -12, 11, 0); add('utility', 13.5, -13, 0); add('generator', -2, -15, 0);
-  add('lamp', 13.8, -8, 0); add('lamp', 2.2, 12, 0); add('lamp', 13.8, 24, 0); add('lamp', 2.2, -26, 0);
-  // --- A (industrial yard)
-  add('container', -44, 60, 1); add('container', -44, 60, 1, { stackOn: true, y: 2.6 });
-  add('container', -52, 84, 0); add('container', -30, 66, 0);
-  add('crate_stack', -38, 64, 0); add('crate', -36.5, 63.6, 1); add('barrel', -34, 74); add('barrel', -33.4, 74.6); add('barrel', -48, 73);
-  add('sandbags', -40, 82, 0, { len: 6 }); add('sandbags', -50, 70, 1, { len: 4 }); add('barrier', -26, 74, 1); add('barrier', -26, 72.4, 1);
-  add('car', -58, 76, 0); add('generator', -52, 66, 1); add('utility', -76, 68, 0);
-  add('lamp', -20, 81.5, 0); add('lamp', -60, 81.5, 0);
-  // --- C (depot) mirrored
-  add('container', 44, -60, 1); add('container', 44, -60, 1, { stackOn: true, y: 2.6 });
-  add('container', 52, -84, 0); add('container', 30, -66, 0);
-  add('crate_stack', 38, -64, 0); add('crate', 36.5, -63.6, 1); add('barrel', 34, -74); add('barrel', 33.4, -74.6); add('barrel', 48, -73);
-  add('sandbags', 40, -82, 0, { len: 6 }); add('sandbags', 50, -70, 1, { len: 4 }); add('barrier', 26, -74, 1); add('barrier', 26, -72.4, 1);
-  add('car', 58, -76, 0, { burnt: true }); add('generator', 52, -66, 1); add('utility', 76, -68, 0);
-  add('lamp', 20, -81.5, 0); add('lamp', 60, -81.5, 0);
-  // --- open fields between objectives: scattered cover
-  add('sandbags', -18, 38, 0, { len: 5 }); add('sandbags', 22, -38, 0, { len: 5 });
-  add('barrier', -30, 40, 0); add('barrier', 30, -40, 0); add('barrier2', 40, 44, 0); add('barrier2', -40, -44, 0);
-  add('car', 60, 40, 1); add('car', -60, -40, 1, { burnt: true }); add('crate_stack', 70, 30, 0); add('crate_stack', -70, -30, 0);
-  add('container', 90, 60, 1); add('container', -90, -60, 1); add('container', 110, -70, 0); add('container', -110, 70, 0);
-  // --- bases
-  for (const [t, s] of [[1, 1], [2, -1]]) {
-    const bz = BASES[t].z;
-    add('sandbags', -6, bz - s * 10, 0, { len: 8 }); add('sandbags', 22, bz - s * 10, 0, { len: 8 });
-    add('barrier', 2.5, bz - s * 14, 0); add('barrier', 13.5, bz - s * 14, 0);
-    add('crate_stack', -2, bz + s * 4, 0); add('crate_stack', 20, bz + s * 4, 1); add('generator', 24, bz + s * 1, 0);
-    add('container', 32, bz + s * 6, 1); add('container', -24, bz - s * 2, 1);
-    add('wall', 8, bz + s * 20, 0, { len: 60 });
-    add('fence', -24, bz - s * 16, 1, { len: 30 }); add('fence', 40, bz - s * 16, 1, { len: 30 });
-  }
-  // street lamps along the main road
-  for (let z = -140; z <= 140; z += 35) if (Math.abs(z) > 30) add('lamp', 13.8, z + 5, 0);
-  // debris scatter around damaged buildings (visual)
-  const rnd = mulberry32(99);
-  for (const b of BUILDINGS) {
-    if (!b.damage) continue;
-    const n = Math.round(4 + b.damage * 10);
-    for (let i = 0; i < n; i++) {
-      const a = rnd() * Math.PI * 2, r = Math.max(b.w, b.d) * 0.5 + 1 + rnd() * 4;
-      add('debris', b.x + Math.cos(a) * r, b.z + Math.sin(a) * r, rnd() * 6.28, { s: 0.6 + rnd() * 1.2 });
-    }
-    for (let i = 0; i < 3; i++) add(rnd() < 0.5 ? 'tyre' : 'jerrycan', b.x + (rnd() - 0.5) * (b.w + 6), b.z + (rnd() - 0.5) * (b.d + 6), rnd() * 6.28);
-  }
-  return P;
-}
-export const PROPS = buildProps();
-
-// ---------------------------------------------------------------- terrain
 function distToSeg(px, pz, r) {
   const dx = r.bx - r.ax, dz = r.bz - r.az;
   const t = clamp(((px - r.ax) * dx + (pz - r.az) * dz) / (dx * dx + dz * dz), 0, 1);
   const x = r.ax + dx * t - px, z = r.az + dz * t - pz;
   return Math.sqrt(x * x + z * z);
 }
-export function roadDistance(x, z) {
-  let d = Infinity;
-  for (const r of ROADS) d = Math.min(d, distToSeg(x, z, r) - r.w / 2);
-  return d;
-}
-function featureDistance(x, z) {
-  let d = roadDistance(x, z) - 2.5;
-  for (const b of BUILDINGS) {
-    const dx = Math.max(Math.abs(x - b.x) - b.w / 2, 0), dz = Math.max(Math.abs(z - b.z) - b.d / 2, 0);
-    d = Math.min(d, Math.hypot(dx, dz) - 3);
+
+export class GameMap {
+  constructor(def) {
+    this.def = def;
+    this.id = def.id; this.name = def.name;
+    this.MAP_HALF = def.mapHalf; this.PLAY_HALF = def.playHalf;
+    this.ROADS = def.roads; this.FLAGS = def.flags; this.BASES = def.bases; this.BUILDINGS = def.buildings;
+    this.terrain = { amp: 9, scale: 70, detail: 1.2, edge: 16, seed: 7, flatten: 22, baseAmp: 0, baseScale: 300, ...def.terrain };
+    this.sea = def.sea || null;
+    this.atmosphere = def.atmosphere || {};
+    const props = def.props(def.bases);
+    // debris scatter around damaged buildings (visual)
+    const rnd = mulberry32(99);
+    for (const b of this.BUILDINGS) {
+      if (!b.damage) continue;
+      const n = Math.round(4 + b.damage * 10);
+      for (let i = 0; i < n; i++) {
+        const a = rnd() * Math.PI * 2, r = Math.max(b.w, b.d) * 0.5 + 1 + rnd() * 4;
+        props.push({ type: 'debris', x: b.x + Math.cos(a) * r, z: b.z + Math.sin(a) * r, rot: rnd() * 6.28, s: 0.6 + rnd() * 1.2 });
+      }
+      for (let i = 0; i < 3; i++) props.push({ type: rnd() < 0.5 ? 'tyre' : 'jerrycan', x: b.x + (rnd() - 0.5) * (b.w + 6), z: b.z + (rnd() - 0.5) * (b.d + 6), rot: rnd() * 6.28 });
+    }
+    this.PROPS = props;
+    this.HG = null;
+    for (const k of ['roadDistance', 'featureDistance', 'terrainHeight', 'groundHeight', 'buildingBase', 'generateBuilding', 'generateVegetation', 'seaFactor']) this[k] = this[k].bind(this);
   }
-  for (const f of FLAGS) d = Math.min(d, Math.hypot(x - f.x, z - f.z) - f.r);
-  for (const t of [1, 2]) d = Math.min(d, Math.hypot(x - BASES[t].x, z - BASES[t].z) - 30);
-  return d;
+
+  roadDistance(x, z) {
+    let d = Infinity;
+    for (const r of this.ROADS) d = Math.min(d, distToSeg(x, z, r) - r.w / 2);
+    return d;
+  }
+
+  featureDistance(x, z) {
+    let d = this.roadDistance(x, z) - 2.5;
+    for (const b of this.BUILDINGS) {
+      const dx = Math.max(Math.abs(x - b.x) - b.w / 2, 0), dz = Math.max(Math.abs(z - b.z) - b.d / 2, 0);
+      d = Math.min(d, Math.hypot(dx, dz) - 3);
+    }
+    for (const f of this.FLAGS) d = Math.min(d, Math.hypot(x - f.x, z - f.z) - f.r);
+    for (const t of [1, 2]) d = Math.min(d, Math.hypot(x - this.BASES[t].x, z - this.BASES[t].z) - 30);
+    return d;
+  }
+
+  // 0 on land, 1 over open water (harbour maps)
+  seaFactor(x, z) {
+    const s = this.sea; if (!s) return 0;
+    const along = s.axis === 'x' ? x : z;
+    return smoothstep(0, s.shore || 10, s.dir * (along - s.at));
+  }
+
+  // Large-scale relief (never flattened, buildings sit on it) + rolling detail flattened around built-up areas
+  // + raised hills at the map edges (+ optional sea).
+  terrainHeight(x, z) {
+    const T = this.terrain;
+    const base = T.baseAmp ? (fbm(x / T.baseScale, z / T.baseScale, 3, T.seed + 40) - 0.5) * T.baseAmp : 0;
+    const n = (fbm(x / T.scale, z / T.scale, 4, T.seed) - 0.5) * T.amp + (fbm(x / 18, z / 18, 2, T.seed + 4) - 0.5) * T.detail;
+    const mask = smoothstep(0, T.flatten, this.featureDistance(x, z));
+    const sea = this.seaFactor(x, z);
+    const edge = smoothstep(this.PLAY_HALF - 25, this.MAP_HALF, Math.max(Math.abs(x), Math.abs(z))) * (1 - sea);
+    const land = base + n * mask + edge * T.edge * (0.6 + fbm(x / 30, z / 30, 2, 5) * 0.8);
+    return sea > 0 ? land * (1 - sea) + (-(this.sea.depth || 6)) * sea : land;
+  }
+
+  groundHeight(x, z) {
+    const H = this.MAP_HALF, N = H * 2 + 1;
+    if (!this.HG) {
+      this.HG = new Float32Array(N * N);
+      for (let j = 0; j < N; j++) for (let i = 0; i < N; i++) this.HG[j * N + i] = this.terrainHeight(-H + i, -H + j);
+    }
+    const fx = clamp(x + H, 0, N - 1.001), fz = clamp(z + H, 0, N - 1.001);
+    const i = fx | 0, j = fz | 0, tx = fx - i, tz = fz - j, G = this.HG;
+    const a = G[j * N + i], b = G[j * N + i + 1], c = G[(j + 1) * N + i], d = G[(j + 1) * N + i + 1];
+    return a + (b - a) * tx + (c - a) * tz + (a - b - c + d) * tx * tz;
+  }
+
+  buildingBase(b) { return this.groundHeight(b.x, b.z); }
+
+  generateBuilding(b) { return generateBuildingFor(this, b); }
+
+  generateVegetation() {
+    const V = { seed: 4242, trees: 440, shrubs: 1300, rocks: 160, clusters: 5, ...this.def.vegetation };
+    const rnd = mulberry32(V.seed);
+    const trees = [], shrubs = [], rocks = [];
+    const H = this.MAP_HALF;
+    const blocked = (x, z, pad) => {
+      if (this.roadDistance(x, z) < pad + 1 || this.seaFactor(x, z) > 0.01) return true;
+      for (const b of this.BUILDINGS) if (Math.abs(x - b.x) < b.w / 2 + pad && Math.abs(z - b.z) < b.d / 2 + pad) return true;
+      for (const f of this.FLAGS) if (Math.hypot(x - f.x, z - f.z) < f.r * 0.8) return true;
+      for (const p of this.PROPS) if (Math.hypot(x - p.x, z - p.z) < 2.5 + (p.len || 0) / 2) return true;
+      for (const t of [1, 2]) if (Math.hypot(x - this.BASES[t].x, z - this.BASES[t].z) < 26) return true;
+      return false;
+    };
+    for (let i = 0; i < V.trees * 4 && trees.length < V.trees; i++) {
+      const cx = (rnd() - 0.5) * 2 * (H - 6), cz = (rnd() - 0.5) * 2 * (H - 6);
+      const n = 1 + Math.floor(rnd() * V.clusters);
+      for (let k = 0; k < n; k++) {
+        const x = cx + (rnd() - 0.5) * 14, z = cz + (rnd() - 0.5) * 14;
+        if (Math.abs(x) > H - 3 || Math.abs(z) > H - 3 || blocked(x, z, 3)) continue;
+        trees.push({ x, z, s: 1.25 + rnd() * 0.9, r: rnd() * Math.PI * 2, dead: rnd() < (V.dead ?? 0.07) });
+      }
+    }
+    for (let i = 0; i < V.shrubs; i++) {
+      const x = (rnd() - 0.5) * 2 * (H - 4), z = (rnd() - 0.5) * 2 * (H - 4);
+      if (!blocked(x, z, 1.5)) shrubs.push({ x, z, s: 1.4 + rnd() * 1.6, r: rnd() * 6.28, kind: rnd() < 0.5 ? 'shrub' : 'fern' });
+    }
+    for (let i = 0; i < V.rocks; i++) {
+      const x = (rnd() - 0.5) * 2 * (H - 4), z = (rnd() - 0.5) * 2 * (H - 4);
+      if (!blocked(x, z, 2)) rocks.push({ x, z, s: 6 + rnd() * 14, r: rnd() * 6.28, kind: rnd() < 0.5 ? 'rock_07' : 'rock_09' });
+    }
+    return { trees, shrubs, rocks };
+  }
 }
 
-// Rough ground: gentle rolling hills away from built-up areas, raised berms/hills at the edges.
-export function terrainHeight(x, z) {
-  const n = (fbm(x / 70, z / 70, 4, 7) - 0.5) * 9 + (fbm(x / 18, z / 18, 2, 11) - 0.5) * 1.2;
-  const mask = smoothstep(0, 22, featureDistance(x, z));
-  const edge = smoothstep(PLAY_HALF - 25, MAP_HALF, Math.max(Math.abs(x), Math.abs(z)));
-  return n * mask + edge * 16 * (0.6 + fbm(x / 30, z / 30, 2, 5) * 0.8);
+const cache = new Map();
+export function getMap(id) {
+  if (!MAP_DEFS[id]) id = 'outskirts';
+  if (!cache.has(id)) cache.set(id, new GameMap(MAP_DEFS[id]));
+  return cache.get(id);
 }
 
-// Precomputed height grid for fast queries (bilinear).
-const HG_RES = 1; // metres per sample
-const HG_N = (MAP_HALF * 2) / HG_RES + 1;
-let HG = null;
-function buildHeightGrid() {
-  HG = new Float32Array(HG_N * HG_N);
-  for (let j = 0; j < HG_N; j++) for (let i = 0; i < HG_N; i++) HG[j * HG_N + i] = terrainHeight(-MAP_HALF + i * HG_RES, -MAP_HALF + j * HG_RES);
+// ---------------------------------------------------------------- active map (browser) — ES module live bindings
+export let ACTIVE_MAP, MAP_HALF, PLAY_HALF, ROADS, FLAGS, BASES, BUILDINGS, PROPS;
+export let terrainHeight, groundHeight, roadDistance, buildingBase, generateBuilding, generateVegetation, seaFactor;
+export function setActiveMap(id) {
+  const m = getMap(id);
+  ACTIVE_MAP = m;
+  ({ MAP_HALF, PLAY_HALF, ROADS, FLAGS, BASES, BUILDINGS, PROPS } = m);
+  ({ terrainHeight, groundHeight, roadDistance, buildingBase, generateBuilding, generateVegetation, seaFactor } = m);
+  return m;
 }
-export function groundHeight(x, z) {
-  if (!HG) buildHeightGrid();
-  const fx = clamp((x + MAP_HALF) / HG_RES, 0, HG_N - 1.001), fz = clamp((z + MAP_HALF) / HG_RES, 0, HG_N - 1.001);
-  const i = fx | 0, j = fz | 0, tx = fx - i, tz = fz - j;
-  const a = HG[j * HG_N + i], b = HG[j * HG_N + i + 1], c = HG[(j + 1) * HG_N + i], d = HG[(j + 1) * HG_N + i + 1];
-  return a + (b - a) * tx + (c - a) * tz + (a - b - c + d) * tx * tz;
-}
-
-// Building base height: the flattened ground at its centre.
-export const buildingBase = (b) => groundHeight(b.x, b.z);
+setActiveMap('outskirts');
 
 // ---------------------------------------------------------------- building generator
 // Produces a list of boxes { min:[x,y,z], max:[x,y,z], mat, collide, part } plus ramps (stairs) and openings.
 // The server uses collide:true parts; the client renders all parts with PBR materials and adds trim details.
-export function generateBuilding(b) {
+function generateBuildingFor(map, b) {
   const rnd = mulberry32(b.id.split('').reduce((s, c) => s * 31 + c.charCodeAt(0), 7));
-  const y0 = buildingBase(b);
+  const y0 = map.buildingBase(b);
   const wh = b.style === 'warehouse';
   const bunker = b.style === 'bunker';
   const FH = wh ? 7 : bunker ? 2.8 : FLOOR_H;
@@ -336,35 +318,3 @@ export function generateBuilding(b) {
   return { id: b.id, spec: b, y0, FH, T, parts, ramps, openings, details, destroyed: [...destroyed] };
 }
 
-// ---------------------------------------------------------------- vegetation (deterministic placement)
-export function generateVegetation() {
-  const rnd = mulberry32(4242);
-  const trees = [], shrubs = [], rocks = [];
-  const blocked = (x, z, pad) => {
-    if (roadDistance(x, z) < pad + 1) return true;
-    for (const b of BUILDINGS) if (Math.abs(x - b.x) < b.w / 2 + pad && Math.abs(z - b.z) < b.d / 2 + pad) return true;
-    for (const f of FLAGS) if (Math.hypot(x - f.x, z - f.z) < f.r * 0.8) return true;
-    for (const p of PROPS) if (Math.hypot(x - p.x, z - p.z) < 2.5 + (p.len || 0) / 2) return true;
-    for (const t of [1, 2]) if (Math.hypot(x - BASES[t].x, z - BASES[t].z) < 26) return true;
-    return false;
-  };
-  // tree belts/clusters
-  for (let i = 0; i < 1600 && trees.length < 440; i++) {
-    const cx = (rnd() - 0.5) * 2 * (MAP_HALF - 6), cz = (rnd() - 0.5) * 2 * (MAP_HALF - 6);
-    const n = 1 + Math.floor(rnd() * 5);
-    for (let k = 0; k < n; k++) {
-      const x = cx + (rnd() - 0.5) * 14, z = cz + (rnd() - 0.5) * 14;
-      if (Math.abs(x) > MAP_HALF - 3 || Math.abs(z) > MAP_HALF - 3 || blocked(x, z, 3)) continue;
-      trees.push({ x, z, s: 1.25 + rnd() * 0.9, r: rnd() * Math.PI * 2, dead: rnd() < 0.07 });
-    }
-  }
-  for (let i = 0; i < 1300; i++) {
-    const x = (rnd() - 0.5) * 2 * (MAP_HALF - 4), z = (rnd() - 0.5) * 2 * (MAP_HALF - 4);
-    if (!blocked(x, z, 1.5)) shrubs.push({ x, z, s: 1.4 + rnd() * 1.6, r: rnd() * 6.28, kind: rnd() < 0.5 ? 'shrub' : 'fern' });
-  }
-  for (let i = 0; i < 160; i++) {
-    const x = (rnd() - 0.5) * 2 * (MAP_HALF - 4), z = (rnd() - 0.5) * 2 * (MAP_HALF - 4);
-    if (!blocked(x, z, 2)) rocks.push({ x, z, s: 6 + rnd() * 14, r: rnd() * 6.28, kind: rnd() < 0.5 ? 'rock_07' : 'rock_09' });
-  }
-  return { trees, shrubs, rocks };
-}

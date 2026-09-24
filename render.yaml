@@ -1,0 +1,10 @@
+# Render.com blueprint: New + > Blueprint > pick this repo. WebSockets are supported on web services.
+services:
+  - type: web
+    name: strikepoint
+    runtime: docker
+    plan: starter        # the free plan also works but sleeps when idle (first join then takes ~30 s)
+    healthCheckPath: /api/health
+    envVars:
+      - key: BOTS
+        value: "6"

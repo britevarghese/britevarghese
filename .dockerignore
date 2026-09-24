@@ -1,0 +1,5 @@
+node_modules
+raw
+.git
+docs/screenshots
+*.log
