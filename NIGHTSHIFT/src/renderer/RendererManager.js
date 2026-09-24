@@ -110,6 +110,9 @@ export class RendererManager {
   }
 
   render(scene, camera, dt) {
+    // count every pass of the frame (post-processing renders several times per frame)
+    const info = this.renderer.info;
+    if (info) { info.autoReset = false; info.reset?.(); }
     if (this.post) this.post.render(dt, this.fx);
     else this.renderer.render(scene, camera);
   }
