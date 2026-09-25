@@ -191,8 +191,9 @@ export class Game {
     const dt = Math.max(0.001, (now - p.lastInput) / 1000);
     p.lastInput = now;
     const dx = m.x - p.x, dz = m.z - p.z;
-    // freefall / parachute glide is much faster than running; air state only ever goes down (fall -> chute -> ground)
-    const air = p.air && m.dr >= 0 && m.dr < p.air + 1 ? (m.dr | 0) : 0;
+    // freefall / parachute glide is much faster than running; the air state only moves forward:
+    // freefall (1) -> parachute (2) -> ground (0), never back up into the air
+    const air = p.air && (m.dr === p.air || (p.air === 1 && m.dr === 2)) ? m.dr : 0;
     if (p.air && !air) p.landedAt = now;
     const allowed = (p.air ? 34 : MOVE.sprint * 1.6) * Math.min(dt, 0.5) + 0.6;
     p.air = air;
