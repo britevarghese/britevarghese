@@ -216,7 +216,7 @@ export class HUD {
     g.beginPath(); g.arc(cx, cy, W / 2 - 1, 0, Math.PI * 2); g.clip();
     g.fillStyle = '#0a0e12'; g.fillRect(0, 0, W, H);
     g.translate(cx, cy);
-    g.rotate(-s.yaw + Math.PI * 0);
+    g.rotate(s.yaw); // heading up
     // map image: world point (x,z) -> map px ((x+WH)*S, (WH-z)*S); we want player at origin
     const k = scale / MAP_SCALE;
     g.scale(k, k);
@@ -253,16 +253,20 @@ export class HUD {
     // multiplayer ghosts
     for (const r of game.net?.remotes?.values() || []) dot(r.x, r.z, 3.6, '#b967ff');
     g.restore();
-    // player arrow (always up)
+    // player arrow (always up): large, bright, outlined and glowing so it reads on any map colour
     g.save(); g.translate(cx, cy);
-    g.fillStyle = '#fff'; g.strokeStyle = 'rgba(0,0,0,0.6)'; g.lineWidth = 2;
-    g.beginPath(); g.moveTo(0, -W * 0.045); g.lineTo(W * 0.03, W * 0.035); g.lineTo(0, W * 0.02); g.lineTo(-W * 0.03, W * 0.035); g.closePath(); g.fill(); g.stroke();
+    g.shadowColor = 'rgba(55,226,255,0.9)'; g.shadowBlur = W * 0.05;
+    g.fillStyle = '#ffffff'; g.strokeStyle = '#0a0e12'; g.lineWidth = Math.max(2, W * 0.018); g.lineJoin = 'round';
+    g.beginPath(); g.moveTo(0, -W * 0.085); g.lineTo(W * 0.058, W * 0.06); g.lineTo(0, W * 0.032); g.lineTo(-W * 0.058, W * 0.06); g.closePath();
+    g.stroke(); g.fill();
+    g.shadowBlur = 0; g.fillStyle = '#37e2ff';
+    g.beginPath(); g.moveTo(0, -W * 0.05); g.lineTo(W * 0.03, W * 0.035); g.lineTo(0, W * 0.02); g.lineTo(-W * 0.03, W * 0.035); g.closePath(); g.fill();
     g.restore();
     // ring
     g.strokeStyle = game.police?.inPursuit ? (blink ? 'rgba(255,61,90,0.8)' : 'rgba(60,100,255,0.8)') : 'rgba(255,255,255,0.15)';
     g.lineWidth = W * 0.02; g.beginPath(); g.arc(cx, cy, W / 2 - W * 0.01, 0, Math.PI * 2); g.stroke();
     // N marker
-    const na = -s.yaw - Math.PI / 2;
+    const na = s.yaw - Math.PI / 2;
     g.fillStyle = '#ff3d5a'; g.font = `700 ${Math.round(W * 0.07)}px Segoe UI, Arial`; g.textAlign = 'center'; g.textBaseline = 'middle';
     g.fillText('N', cx + Math.cos(na) * W * 0.42, cy + Math.sin(na) * W * 0.42);
     void WORLD_HALF; void formatTime;

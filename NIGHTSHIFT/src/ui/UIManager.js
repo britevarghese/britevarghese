@@ -414,8 +414,8 @@ export class UIManager {
       for (const b of g.story?.active ? g.story.blips() : []) dot(b.x, b.z, 6, b.color);
       const ps = g.focusState;
       const [px, pz] = P(ps.x, ps.z);
-      c.save(); c.translate(px, pz); c.rotate(ps.yaw); c.fillStyle = '#fff';
-      c.beginPath(); c.moveTo(0, -10 * dpr); c.lineTo(7 * dpr, 8 * dpr); c.lineTo(0, 4 * dpr); c.lineTo(-7 * dpr, 8 * dpr); c.closePath(); c.fill(); c.restore();
+      c.save(); c.translate(px, pz); c.rotate(-ps.yaw); c.fillStyle = '#fff'; c.strokeStyle = '#0a0e12'; c.lineWidth = 2.5 * dpr; c.shadowColor = 'rgba(55,226,255,0.9)'; c.shadowBlur = 10 * dpr;
+      c.beginPath(); c.moveTo(0, -14 * dpr); c.lineTo(10 * dpr, 11 * dpr); c.lineTo(0, 6 * dpr); c.lineTo(-10 * dpr, 11 * dpr); c.closePath(); c.stroke(); c.fill(); c.restore();
       // district labels
       c.fillStyle = 'rgba(255,255,255,0.3)'; c.font = `600 ${13 * dpr}px Segoe UI, Arial`; c.textAlign = 'center';
       for (const [n, x, z] of [['DOWNTOWN', 0, 0], ['MARKET DISTRICT', -560, -320], ['IRONWORKS', 820, 400], ['DOCKSIDE', 820, -560], ['ELM HEIGHTS', -800, 700], ['RIVERSIDE', 560, 820], ['RING HIGHWAY', 0, 1250]]) { const [a, b] = P(x, z); c.fillText(n, a, b); }
@@ -427,7 +427,7 @@ export class UIManager {
       const r = canvas.getBoundingClientRect();
       const M = g.mapRenderer;
       const mx = (e.clientX - r.left) / r.width * M.size, mz = (e.clientY - r.top) / r.height * M.size;
-      const x = mx / 0.6 - 1400, z = 1400 - mz / 0.6;
+      const x = M.wx(mx), z = M.wz(mz);
       g.setGPS(x, z);
     });
     this.focusList = [];
