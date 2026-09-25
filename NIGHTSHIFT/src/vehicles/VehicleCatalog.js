@@ -107,6 +107,13 @@ const REAL = [
 
 // gearbox behaviour: shift duration and how much drive survives the shift
 const SHIFT = { manual: { shiftTime: 0.3, shiftFill: 0.12 }, dct: { shiftTime: 0.08, shiftFill: 0.75 }, isr: { shiftTime: 0.15, shiftFill: 0.4 } };
+// warm idle speeds (rpm): a lazy big V8, a lumpy rotary, high-idling race-bred engines
+const IDLE = {
+  bmw_m3_e30: 900, subaru_wrx_sti_gc8: 800, mazda_rx7_fd: 800, porsche_930_turbo: 950, nissan_skyline_r34: 900, toyota_supra_mk4: 700,
+  honda_nsx_na1: 800, bmw_m4_f82: 700, nissan_gtr_r35: 750, chevrolet_corvette_c8: 600, porsche_911_gt3: 900, audi_r8_v10: 1000,
+  ferrari_f40: 1000, mclaren_senna: 1000, lamborghini_centenario: 1000, lamborghini_huracan_tt: 1000,
+  harley_iron_883: 1000, kawasaki_zx6r: 1300, yamaha_r1: 1300, bmw_s1000rr: 1350, suzuki_hayabusa: 1100, ducati_panigale_v4r: 1300, kawasaki_ninja_h2: 1300,
+};
 // Real-world spec -> physics params (kW power, mass, drivetrain, geometry). Grip and brakes scale with
 // the tyre/brake technology of the car's era.
 export function realParams(r) {
@@ -119,7 +126,7 @@ export function realParams(r) {
     wheelBase: s.wb, trackWidth: s.track, cgHeight: 0.38 + s.hgt * 0.07, frontWeight: s.fw,
     drive: s.drive, gears: s.gears, finalDrive: s.fd, redline: s.redline,
     downforce: s.downforce ?? (0.9 + modern * 1.1), suspensionStrength: 1.9 + modern * 0.6, suspensionDamping: 0.45 + modern * 0.1,
-    length: s.len, width: s.wid, wheelRadius: s.wr,
+    length: s.len, width: s.wid, wheelRadius: s.wr, idle: IDLE[r.id] ?? 850,
     ...SHIFT[s.trans || 'manual'],
     ...(r.powerOversteer ? { powerOversteer: r.powerOversteer } : {}),
     ...(r.driftAssist ? { driftAssist: r.driftAssist } : {}),
@@ -197,7 +204,7 @@ export function bikeParams(r) {
     grip: s.grip, driftGrip: 0.55, steeringAngle: 0.5, driftAssist: 0.55, maxDrift: 0.34,
     brakingForce: kg * 10.8,
     wheelBase: s.wb, trackWidth: 0.2, cgHeight: 0.62, frontWeight: s.fw,
-    drive: 'RWD', gears: s.gears, finalDrive: s.fd, redline: s.redline, idle: s.redline > 9000 ? 1300 : 900,
+    drive: 'RWD', gears: s.gears, finalDrive: s.fd, redline: s.redline, idle: IDLE[r.id] ?? (s.redline > 9000 ? 1300 : 900),
     downforce: 0.22, suspensionStrength: 2.3, suspensionDamping: 0.5,
     length: s.len, width: s.wid, wheelRadius: s.wr,
     ...SHIFT[s.trans || 'manual'],

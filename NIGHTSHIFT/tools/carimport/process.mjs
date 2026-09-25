@@ -226,6 +226,32 @@ export function processCar(doc, car, opt = {}) {
   }
   // re-centre wheel geometry on the hub
   for (const q of wheelIds) for (const kind of ['spin', 'fixed']) for (const piece of wheelPieces[q][kind]) transformPrimitive(piece.prim, transM(-W[q].x, -W[q].y, -W[q].z));
+  // Models are often posed with the front wheels steered. The tyre's axle is the direction of least
+  // spread of its vertices in the ground plane; turn the whole wheel back until the axle lies along X.
+  for (const q of wheelIds) {
+    const c = wheels[q], pos = positions(c.part.prim), idx = triIndices(c.part.prim);
+    let sxx = 0, szz = 0, sxz = 0, n = 0;
+    const seen = new Set();
+    for (const t of c.tris) for (let k = 0; k < 3; k++) {
+      const v = idx[t * 3 + k]; if (seen.has(v)) continue; seen.add(v);
+      const x = pos[v * 3] - W[q].x, z = pos[v * 3 + 2] - W[q].z;
+      sxx += x * x; szz += z * z; sxz += x * z; n++;
+    }
+    if (n < 8) continue;
+    sxx /= n; szz /= n; sxz /= n;
+    // eigenvector of the smaller eigenvalue of [[sxx, sxz], [sxz, szz]]
+    const tr = sxx + szz, det = sxx * szz - sxz * sxz, lmin = tr / 2 - Math.sqrt(Math.max(0, tr * tr / 4 - det));
+    let ax = sxz, az = lmin - sxx;
+    if (Math.abs(ax) + Math.abs(az) < 1e-9) { ax = 1; az = 0; }
+    let yaw = Math.atan2(az, ax);                       // axle angle from +X
+    if (yaw > Math.PI / 2) yaw -= Math.PI; if (yaw < -Math.PI / 2) yaw += Math.PI;
+    if (Math.abs(yaw) < 0.03 || Math.abs(yaw) > 0.7) continue; // straight already (or not a sane reading)
+    // rotY(a) maps the axle direction (cos yaw, sin yaw) to (cos(yaw - a), sin(yaw - a)): a = yaw straightens it
+    for (const kind of ['spin', 'fixed']) for (const piece of wheelPieces[q][kind]) transformPrimitive(piece.prim, rotY(yaw));
+    const d = 2 * W[q].r;
+    W[q].w = Math.max(0.12, (W[q].w - d * Math.abs(Math.sin(yaw))) / Math.max(0.3, Math.abs(Math.cos(yaw))));
+    say(`wheel ${q}: straightened a ${(yaw * 180 / Math.PI).toFixed(1)} deg steer in the source model (width now ${W[q].w.toFixed(3)})`);
+  }
 
   // ---- 5. materials
   const matInfo = new Map();

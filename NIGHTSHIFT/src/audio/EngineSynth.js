@@ -64,30 +64,30 @@ const TYPE_LAYOUT = { muscle: 'v8cross', sports: 'v6', exotic: 'v12', tuner: 'i4
 // rpm/60 * cyl/2, so a two-rotor rotary (fires twice per turn) uses cyl 4; boxers and cross-plane V8s get
 // their uneven burble from a slow, deep amplitude wobble.
 const CAR_SOUNDS = {
-  bmw_m3_e30:            ['tuner',  { layout: 'i4', cyl: 4, turbo: 0, intake: 0.55, cutRpm: 5200, crackle: 0.7, amDepth: 0.1 }],          // S14 I4, NA
-  subaru_wrx_sti_gc8:    ['tuner',  { layout: 'boxer4', cyl: 4, turbo: 1, amDepth: 0.42, amRate: 0.5, sub: 0.3, bodyF: 150, h15: 0.5 }],   // EJ20 boxer, turbo
-  mazda_rx7_fd:          ['tuner',  { layout: 'rotary', cyl: 4, harm: [0, 1, 0.9, 0.85, 0.7, 0.62, 0.5, 0.45, 0.36, 0.3, 0.24], turbo: 0.85, crackle: 1, h15: 0.1, amDepth: 0.05, cutRpm: 6200, q: 3 }], // 13B-REW rotary
-  porsche_930_turbo:     ['sports', { layout: 'flat6', cyl: 6, turbo: 1, amDepth: 0.3, amRate: 0.5, sub: 0.35, bodyF: 150, intake: 0.15 }],  // flat-6, single turbo
-  nissan_skyline_r34:    ['sports', { layout: 'i6', cyl: 6, turbo: 0.95, intake: 0.4, cutRpm: 4200, crackle: 0.5 }],                      // RB26 I6, twin turbo
-  toyota_supra_mk4:      ['sports', { layout: 'i6', cyl: 6, turbo: 1, sub: 0.35, cutRpm: 3800, crackle: 0.55 }],                          // 2JZ I6, twin turbo
-  honda_nsx_na1:         ['sports', { layout: 'v6', cyl: 6, turbo: 0, intake: 0.5, cutRpm: 5200, h2: 0.4, q: 3.2 }],                      // C30A V6, VTEC
-  bmw_m4_f82:            ['sports', { layout: 'i6', cyl: 6, turbo: 0.7, crackle: 0.9, drive: 2.8, exhaust: 0.34 }],                        // S55 I6, twin turbo
-  nissan_gtr_r35:        ['sports', { layout: 'v6', cyl: 6, turbo: 0.9, sub: 0.4, bodyF: 140, crackle: 0.6, cutRpm: 3000 }],               // VR38 V6, twin turbo
-  chevrolet_corvette_c8: ['muscle', { layout: 'v8cross', cyl: 8, crackle: 1, cutRpm: 2600 }],                                                    // LT2 cross-plane V8
-  porsche_911_gt3:       ['exotic', { layout: 'flat6', cyl: 6, harm: [0, 1, 0.9, 0.62, 0.5, 0.42, 0.34, 0.26, 0.2, 0.15], sub: 0.2, h2: 0.6, cutRpm: 7000, amDepth: 0.12, amRate: 0.5, bodyF: 260 }], // 4.0 flat-6, 9000 rpm
+  bmw_m3_e30:            ['tuner',  { layout: 'i4', cyl: 4, turbo: 0, intake: 0.55, cutRpm: 5200, crackle: 0.7, amDepth: 0.1, limHz: 16 }],          // S14 I4, NA
+  subaru_wrx_sti_gc8:    ['tuner',  { layout: 'boxer4', cyl: 4, turbo: 1, amDepth: 0.42, amRate: 0.5, sub: 0.3, bodyF: 150, h15: 0.5, spool: 1.2 }],   // EJ20 boxer, turbo
+  mazda_rx7_fd:          ['tuner',  { layout: 'rotary', cyl: 4, harm: [0, 1, 0.9, 0.85, 0.7, 0.62, 0.5, 0.45, 0.36, 0.3, 0.24], turbo: 0.85, crackle: 1, h15: 0.1, amDepth: 0.05, cutRpm: 6200, q: 3, spool: 1.4, limHz: 18 }], // 13B-REW rotary
+  porsche_930_turbo:     ['sports', { layout: 'flat6', cyl: 6, turbo: 1, amDepth: 0.3, amRate: 0.5, sub: 0.35, bodyF: 150, intake: 0.15, spool: 0.7, limHz: 10 }],  // flat-6, single turbo
+  nissan_skyline_r34:    ['sports', { layout: 'i6', cyl: 6, turbo: 0.95, intake: 0.4, cutRpm: 4200, crackle: 0.5, spool: 1.5 }],                      // RB26 I6, twin turbo
+  toyota_supra_mk4:      ['sports', { layout: 'i6', cyl: 6, turbo: 1, sub: 0.35, cutRpm: 3800, crackle: 0.55, spool: 1.3 }],                          // 2JZ I6, twin turbo
+  honda_nsx_na1:         ['sports', { layout: 'v6', cyl: 6, turbo: 0, intake: 0.5, cutRpm: 5200, h2: 0.4, q: 3.2, vtec: 5800, limHz: 16 }],                      // C30A V6, VTEC
+  bmw_m4_f82:            ['sports', { layout: 'i6', cyl: 6, turbo: 0.7, crackle: 0.9, drive: 2.8, exhaust: 0.34, spool: 2.6 }],                        // S55 I6, twin turbo
+  nissan_gtr_r35:        ['sports', { layout: 'v6', cyl: 6, turbo: 0.9, sub: 0.4, bodyF: 140, crackle: 0.6, cutRpm: 3000, spool: 2.4 }],               // VR38 V6, twin turbo
+  chevrolet_corvette_c8: ['muscle', { layout: 'v8cross', cyl: 8, crackle: 1, cutRpm: 2600, limHz: 9 }],                                                    // LT2 cross-plane V8
+  porsche_911_gt3:       ['exotic', { layout: 'flat6', cyl: 6, harm: [0, 1, 0.9, 0.62, 0.5, 0.42, 0.34, 0.26, 0.2, 0.15], sub: 0.2, h2: 0.6, cutRpm: 7000, amDepth: 0.12, amRate: 0.5, bodyF: 260, limHz: 20 }], // 4.0 flat-6, 9000 rpm
   audi_r8_v10:           ['exotic', { layout: 'v10', cyl: 10, crackle: 1, intake: 0.36 }],                                                  // 5.2 V10, NA
-  ferrari_f40:           ['exotic', { layout: 'v8flat', cyl: 8, turbo: 1, crackle: 1, h2: 0.4, sub: 0.2, cutRpm: 5000, drive: 3.2 }],          // F120 flat-plane V8, twin turbo
-  mclaren_senna:         ['exotic', { layout: 'v8flat', cyl: 8, turbo: 0.8, crackle: 0.9, h2: 0.45, drive: 3 }],                               // M840TR V8, twin turbo
+  ferrari_f40:           ['exotic', { layout: 'v8flat', cyl: 8, turbo: 1, crackle: 1, h2: 0.4, sub: 0.2, cutRpm: 5000, drive: 3.2, spool: 1.1, bov: 0 }],          // F120 flat-plane V8, twin turbo
+  mclaren_senna:         ['exotic', { layout: 'v8flat', cyl: 8, turbo: 0.8, crackle: 0.9, h2: 0.45, drive: 3, spool: 2.2 }],                               // M840TR V8, twin turbo
   lamborghini_centenario:['exotic', { layout: 'v12', cyl: 12, harm: [0, 0.7, 1, 0.8, 0.7, 0.62, 0.55, 0.5, 0.42, 0.36, 0.3, 0.26, 0.22, 0.2, 0.16], h2: 0.65, cutRpm: 7200, crackle: 1, gain: 0.9 }], // 6.5 V12, NA
-  lamborghini_huracan_tt:['exotic', { layout: 'v10', cyl: 10, turbo: 0.8, crackle: 1, drive: 3.2, sub: 0.18 }],                             // V10, aftermarket twin turbo
+  lamborghini_huracan_tt:['exotic', { layout: 'v10', cyl: 10, turbo: 0.8, crackle: 1, drive: 3.2, sub: 0.18, spool: 1.2 }],                             // V10, aftermarket twin turbo
   // motorcycles (cyl = firings per 720 deg, so the V-twin's potato-potato is cyl 2)
-  harley_iron_883:       ['muscle', { layout: 'vtwin', cyl: 2, harm: [0, 1, 0.9, 0.6, 0.45, 0.3, 0.2, 0.12], sub: 0.7, h2: 0.3, h15: 0.5, amDepth: 0.5, amRate: 0.5, cutRpm: 1600, crackle: 1, drive: 3.5, bodyF: 90 }], // Evolution 883 V-twin
-  kawasaki_zx6r:         ['tuner',  { layout: 'i4bike', cyl: 4, turbo: 0, intake: 0.7, cutRpm: 7500, h2: 0.5, q: 3.5, bodyF: 320, gain: 0.8 }],   // 636 I4, 16k rpm
-  yamaha_r1:             ['tuner',  { layout: 'i4cross', cyl: 4, turbo: 0, intake: 0.6, cutRpm: 6200, amDepth: 0.3, amRate: 0.5, h15: 0.5, crackle: 0.9, bodyF: 260 }], // crossplane I4
-  bmw_s1000rr:           ['tuner',  { layout: 'i4bike', cyl: 4, turbo: 0, intake: 0.65, cutRpm: 6800, h2: 0.45, crackle: 0.8, bodyF: 300 }],  // ShiftCam I4
-  suzuki_hayabusa:       ['tuner',  { layout: 'i4bike', cyl: 4, turbo: 0, intake: 0.55, cutRpm: 5200, sub: 0.25, crackle: 0.7, bodyF: 220 }], // 1340 I4
-  ducati_panigale_v4r:   ['exotic', { layout: 'v4', cyl: 4, harm: [0, 1, 0.85, 0.7, 0.55, 0.45, 0.35, 0.28, 0.2], turbo: 0, amDepth: 0.35, amRate: 0.5, h15: 0.45, cutRpm: 7200, crackle: 1, bodyF: 280 }], // Desmosedici Stradale V4
-  kawasaki_ninja_h2:     ['tuner',  { layout: 'i4bike', cyl: 4, turbo: 1, intake: 0.5, cutRpm: 6000, crackle: 0.8, bodyF: 260 }],  // supercharged I4 (turbo = blower whine)
+  harley_iron_883:       ['muscle', { layout: 'vtwin', cyl: 2, harm: [0, 1, 0.9, 0.6, 0.45, 0.3, 0.2, 0.12], sub: 0.7, h2: 0.3, h15: 0.5, amDepth: 0.5, amRate: 0.5, cutRpm: 1600, crackle: 1, drive: 3.5, bodyF: 90, limHz: 6 }], // Evolution 883 V-twin
+  kawasaki_zx6r:         ['tuner',  { layout: 'i4bike', cyl: 4, turbo: 0, intake: 0.7, cutRpm: 7500, h2: 0.5, q: 3.5, bodyF: 320, gain: 0.8, limHz: 22 }],   // 636 I4, 16k rpm
+  yamaha_r1:             ['tuner',  { layout: 'i4cross', cyl: 4, turbo: 0, intake: 0.6, cutRpm: 6200, amDepth: 0.3, amRate: 0.5, h15: 0.5, crackle: 0.9, bodyF: 260, limHz: 22 }], // crossplane I4
+  bmw_s1000rr:           ['tuner',  { layout: 'i4bike', cyl: 4, turbo: 0, intake: 0.65, cutRpm: 6800, h2: 0.45, crackle: 0.8, bodyF: 300, limHz: 22 }],  // ShiftCam I4
+  suzuki_hayabusa:       ['tuner',  { layout: 'i4bike', cyl: 4, turbo: 0, intake: 0.55, cutRpm: 5200, sub: 0.25, crackle: 0.7, bodyF: 220, limHz: 22 }], // 1340 I4
+  ducati_panigale_v4r:   ['exotic', { layout: 'v4', cyl: 4, harm: [0, 1, 0.85, 0.7, 0.55, 0.45, 0.35, 0.28, 0.2], turbo: 0, amDepth: 0.35, amRate: 0.5, h15: 0.45, cutRpm: 7200, crackle: 1, bodyF: 280, limHz: 22 }], // Desmosedici Stradale V4
+  kawasaki_ninja_h2:     ['tuner',  { layout: 'i4bike', cyl: 4, turbo: 0, sc: 1, scRatio: 9.2, intake: 0.5, cutRpm: 6000, crackle: 0.8, bodyF: 260, limHz: 22 }],  // supercharged I4: centrifugal blower geared 9.2:1, whine locked to rpm
 };
 for (const [id, [base, o]] of Object.entries(CAR_SOUNDS)) PROFILES[id] = { ...PROFILES[base], ...o, base };
 
@@ -196,6 +196,14 @@ export class EngineSynth {
     this.white.connect(this.spoolBP).connect(this.turboBP);
     this.turboBP.connect(this.turboGain).connect(engineOut);
 
+    // ---- supercharger: gear-driven impeller whine, locked to crank speed (no lag, no blow-off) ----
+    this.oSC = mk('triangle', 1500);
+    this.oSC2 = mk('sine', 3000);
+    this.scBP = flt('bandpass', 2500, 3);
+    this.scGain = g(0);
+    this.oSC.connect(this.scBP); this.oSC2.connect(this.scBP);
+    this.scBP.connect(this.scGain).connect(engineOut);
+
     // ---- damage rattle ----
     this.rattleBP = flt('bandpass', 2600, 5);
     this.rattleGain = g(0);
@@ -234,7 +242,7 @@ export class EngineSynth {
     this.white.connect(this.nitroBP).connect(this.nitroGain).connect(sfxOut);
     this.brown.connect(this.nitroLP).connect(this.nitroRoar).connect(engineOut);
 
-    this.oscs = [this.oMain, this.oSub, this.oH2, this.oH15, this.lfoA, this.lfoB, this.oTurbo, this.oTurbo2,
+    this.oscs = [this.oMain, this.oSub, this.oH2, this.oH15, this.lfoA, this.lfoB, this.oTurbo, this.oTurbo2, this.oSC, this.oSC2,
       this.rattleLfo, this.skidJitter, this.skidTone, this.skidVib];
     this.srcs = [this.white, this.pink, this.brown];
 
@@ -363,7 +371,9 @@ export class EngineSynth {
     glide(this.inBP.frequency, clamp(f * 3.2, 200, 6000), t, ftc);
 
     // --- timbre: cutoff rises with rpm & throttle; overrun darker ---
-    const cut = p.cutBase + p.cutRpm * rpmN + p.cutThr * thr * (0.4 + 0.6 * st.load) - off * rpmN * p.cutRpm * 0.35;
+    // VTEC-style cam changeover: above it the intake howls and the note hardens
+    this.vtecS = (this.vtecS || 0) + (((p.vtec && rpm > p.vtec && thr > 0.4) ? 1 : 0) - (this.vtecS || 0)) * 0.25;
+    const cut = (p.cutBase + p.cutRpm * rpmN + p.cutThr * thr * (0.4 + 0.6 * st.load) - off * rpmN * p.cutRpm * 0.35) * (1 + 0.3 * this.vtecS);
     glide(this.lp.frequency, clamp(cut, 120, 12000), t, 0.05);
     glide(this.lp2.frequency, clamp(cut * 2.5, 800, 16000), t, 0.05);
     glide(this.preDrive.gain, this.wk ? 0.7 + 0.3 * thr : 0.35 + 0.5 * thr + 0.25 * st.load, t, 0.05);
@@ -391,14 +401,30 @@ export class EngineSynth {
       ? (0.8 + 0.2 * Math.pow(thr, 0.7)) * (0.85 + 0.15 * rpmN) * p.gain * (1.9 - 0.9 * rpmN) // model already scales with rpm/load; keep idle ~15 dB under a full pull
       : (off > 0.5 ? 0.3 + 0.1 * rpmN : 0.3 + 0.7 * Math.pow(thr, 0.8)) * (0.55 + 0.45 * rpmN) * p.gain;
     glide(this.out.gain, vol * 0.55, t, 0.05);
-    glide(this.inGain.gain, p.intake * thr * (0.2 + rpmN) * 0.35, t, 0.05);
+    glide(this.inGain.gain, p.intake * thr * (0.2 + rpmN) * 0.35 * (1 + 1.4 * this.vtecS), t, 0.05);
+
+    // --- supercharger whine: pitch follows the crank directly ---
+    if (p.sc) {
+      const fsc = (rpm / 60) * p.scRatio;
+      glide(this.oSC.frequency, fsc, t, 0.03); glide(this.oSC2.frequency, fsc * 2, t, 0.03); glide(this.scBP.frequency, clamp(fsc * 1.3, 400, 9000), t, 0.03);
+      glide(this.scGain.gain, p.sc * (0.012 + 0.05 * thr) * (0.25 + rpmN), t, 0.04);
+    } else glide(this.scGain.gain, 0, t, 0.05);
+
+    // --- rev limiter: fuel cut stutter when held against redline ---
+    if (rpm >= st.redline * 0.985 && thr > 0.8 && st.onGround && t > (this.limNext || 0)) {
+      const hz = p.limHz || 14;
+      this.limNext = t + 1 / hz;
+      const gm = this.misfire.gain;
+      gm.cancelScheduledValues(t); gm.setValueAtTime(1, t);
+      gm.linearRampToValueAtTime(0.2, t + 0.008); gm.linearRampToValueAtTime(1, t + 0.45 / hz);
+    }
 
     // --- turbo ---
     const target = p.turbo > 0 ? clamp(rpmN * 1.2 - 0.15, 0, 1) * thr * st.load : 0;
     // boost builds slowly (lag), drops fast
     const dtSet = this.lastSet ? clamp(t - this.lastSet, 0, 0.1) : 0.016;
     this.lastSet = t;
-    const rate = target > this.boost ? 1.6 : 6;
+    const rate = target > this.boost ? (p.spool || 1.6) : 6; // spool: how fast boost builds (turbo lag)
     this.boost += (target - this.boost) * clamp(rate * dtSet, 0, 1);
     glide(this.oTurbo.frequency, 1800 + this.boost * 6200, t, 0.05);
     glide(this.oTurbo2.frequency, (1800 + this.boost * 6200) * 1.51, t, 0.05);
@@ -406,7 +432,7 @@ export class EngineSynth {
     glide(this.turboGain.gain, p.turbo * this.boost * this.boost * 0.05, t, 0.05);
 
     // blow-off when throttle released from high boost
-    if (p.turbo > 0 && this.prevThrottle > 0.55 && thr < 0.2 && this.boost > 0.45) {
+    if (p.turbo > 0 && p.bov !== 0 && this.prevThrottle > 0.55 && thr < 0.2 && this.boost > 0.45) {
       this.host._internalEvent('blowOff', { intensity: this.boost * p.turbo });
       this.boost *= 0.3;
     }
