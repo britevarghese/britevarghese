@@ -9,6 +9,7 @@ import { GLTFExporter } from 'three/addons/exporters/GLTFExporter.js';
 import { CAR_SPECS } from './carbuilder/specs.mjs';
 import { buildCar, makeMaterials, panelLayout } from './carbuilder/build.mjs';
 import { tireGeometry, rimGeometry, brakeGeometry, WHEEL_REF } from './carbuilder/wheels.mjs';
+import { stampModels } from './carimport/stamp.mjs';
 
 // Minimal FileReader polyfill so GLTFExporter's binary path works in Node.
 globalThis.FileReader ??= class {
@@ -67,6 +68,8 @@ for (const [id, spec] of Object.entries(CAR_SPECS)) {
 try {
   const prev = JSON.parse(fs.readFileSync(path.join(outDir, 'manifest.json'), 'utf8'));
   for (const [id, c] of Object.entries(prev.cars || {})) if (c.imported) manifest.cars[id] = c;
+  for (const k of ['rider', 'humans']) if (prev[k]) manifest[k] = prev[k]; // tools/import-rider.mjs, tools/import-humans.mjs
 } catch { /* first run */ }
 fs.writeFileSync(path.join(outDir, 'manifest.json'), JSON.stringify(manifest, null, 2));
+stampModels(root); // cache-busting fingerprints for the game
 console.log('manifest.json written');

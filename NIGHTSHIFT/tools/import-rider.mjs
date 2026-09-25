@@ -12,6 +12,7 @@ import { ALL_EXTENSIONS, EXTTextureWebP } from '@gltf-transform/extensions';
 import { prune, dedup, textureCompress, meshopt } from '@gltf-transform/functions';
 import { MeshoptEncoder } from 'meshoptimizer';
 import sharp from 'sharp';
+import { stampModels } from './carimport/stamp.mjs';
 
 export const RIDER_SOURCE = { site: 'Sketchfab', uid: '1594447c9f2d4b618dd59fd3272b6db6', title: 'Biker', author: 'Idris.Abass', license: 'CC-BY-4.0' };
 RIDER_SOURCE.url = `https://sketchfab.com/3d-models/${RIDER_SOURCE.uid}`;
@@ -64,4 +65,5 @@ const line = `- **Motorcycle rider** — "${RIDER_SOURCE.title}" by ${RIDER_SOUR
 const text = fs.readFileSync(credits, 'utf8').split('\n').filter((l) => !l.includes('**Motorcycle rider**'));
 while (text.length && text.at(-1) === '') text.pop();
 fs.writeFileSync(credits, [...text, line, ''].join('\n'));
+stampModels(ROOT); // cache-busting fingerprints for the game
 console.log(`wrote ${path.relative(ROOT, out)} ${(glb.byteLength / 1048576).toFixed(2)} MB`);

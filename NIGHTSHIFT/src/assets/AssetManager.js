@@ -9,6 +9,10 @@ import { bus } from '../core/EventBus.js';
 
 export const PRIORITY = { VEHICLE: 1, ROAD: 2, BUILDINGS: 3, TRAFFIC: 4, ENVIRONMENT: 5, COSMETIC: 6 };
 
+// model URL with its content fingerprint from manifest.json (tools/carimport/stamp.mjs): models are
+// cached by browsers for a day, the fingerprint makes an updated model download at once
+export const modelUrl = (manifest, file) => `/assets/models/${file}${manifest?.hashes?.[file] ? `?v=${manifest.hashes[file]}` : ''}`;
+
 export class AssetManager {
   constructor() {
     this.cache = new Map();     // url -> Promise<asset>

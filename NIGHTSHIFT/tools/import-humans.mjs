@@ -12,6 +12,7 @@ import { ALL_EXTENSIONS, EXTTextureWebP } from '@gltf-transform/extensions';
 import { prune, dedup, textureCompress, meshopt } from '@gltf-transform/functions';
 import { MeshoptEncoder } from 'meshoptimizer';
 import sharp from 'sharp';
+import { stampModels } from './carimport/stamp.mjs';
 
 export const HUMANS = [
   { id: 'pmariano', sex: 'm', uid: 'a9c1f5d2cd7c4ca3bb46272998d3e451', title: 'Avatar Full body - Ready Player Me - pmariano', author: 'patomariano' },
@@ -70,4 +71,5 @@ fs.writeFileSync(manifestPath, JSON.stringify(manifest, null, 2));
 const lines = ['# People credits', '', 'Character models are used under the Creative Commons Attribution 4.0 license (https://creativecommons.org/licenses/by/4.0/). They were converted for real-time use (animations removed, textures re-encoded, geometry compressed); the game animates them procedurally.', ''];
 for (const h of done) lines.push(`- "${h.title}" by ${h.author}, https://sketchfab.com/3d-models/${h.uid} (CC BY 4.0), modified.`);
 fs.writeFileSync(path.join(outDir, 'CREDITS.md'), lines.join('\n') + '\n');
+stampModels(ROOT); // cache-busting fingerprints for the game
 console.log(`done: ${done.length}/${HUMANS.length}`);

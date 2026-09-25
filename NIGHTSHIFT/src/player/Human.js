@@ -4,7 +4,7 @@
 // way), arm swing, hip bob and sway, and a forward lean when running. Used for the player on foot,
 // other players on foot, mission contacts and the pedestrians near the camera.
 import * as THREE from 'three';
-import { AssetManager } from '../assets/AssetManager.js';
+import { AssetManager, modelUrl } from '../assets/AssetManager.js';
 import { clamp, lerp } from '../core/util.js';
 
 const _p = new THREE.Vector3(), _c = new THREE.Vector3(), _d = new THREE.Vector3(), _k = new THREE.Vector3();
@@ -24,10 +24,10 @@ function ik(a, t, l1, l2, hint, out) {
 
 // Loads the people models listed in the manifest (low priority, after the city is up).
 export class HumanLibrary {
-  constructor(assets, manifest) { this.assets = assets; this.list = manifest?.humans || []; this.models = []; this.ready = false; }
+  constructor(assets, manifest) { this.assets = assets; this.manifest = manifest; this.list = manifest?.humans || []; this.models = []; this.ready = false; }
   load(priority = 5) {
     if (this._job) return this._job;
-    this._job = Promise.all(this.list.map((h) => this.assets.loadGLTF(`/assets/models/${h.file}`, priority).then((g) => ({ ...h, scene: g.scene })).catch(() => null)))
+    this._job = Promise.all(this.list.map((h) => this.assets.loadGLTF(modelUrl(this.manifest, h.file), priority).then((g) => ({ ...h, scene: g.scene })).catch(() => null)))
       .then((ms) => { this.models = ms.filter(Boolean); this.ready = this.models.length > 0; return this; });
     return this._job;
   }

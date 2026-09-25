@@ -1,7 +1,7 @@
 // VehicleRenderer: instantiates a GLB vehicle, rigs four wheels (spin + steer + suspension travel),
 // drives head/tail/brake lights, nitro flames, police light bars, customization and damage.
 import * as THREE from 'three';
-import { AssetManager } from '../assets/AssetManager.js';
+import { AssetManager, modelUrl } from '../assets/AssetManager.js';
 import { radialGlow, lightPool, carPaintTexture, headlightTextures, taillightTextures, tireTread } from '../renderer/Textures.js';
 import { clamp, lerp } from '../core/util.js';
 import { CARS } from './VehicleCatalog.js';
@@ -26,17 +26,17 @@ export class ModelLibrary {
   async load(ids, priority) {
     if (!this.manifest) this.manifest = await this.assets.loadJSON('/assets/models/manifest.json', 1);
     const jobs = [];
-    if (!this.wheels) jobs.push(this.assets.loadGLTF('/assets/models/wheels.glb', priority).then((g) => { this.wheels = g.scene; }));
+    if (!this.wheels) jobs.push(this.assets.loadGLTF(modelUrl(this.manifest, 'wheels.glb'), priority).then((g) => { this.wheels = g.scene; }));
     // bikes need the rigged rider (tools/import-rider.mjs); without it they get the built-in figure
     if (!this.rider && !this._riderJob && this.manifest?.rider && ids.some((id) => CARS[id]?.bike)) {
-      this._riderJob = this.assets.loadGLTF(`/assets/models/${this.manifest.rider.file}`, priority).then((g) => { this.rider = g.scene; }).catch(() => {});
+      this._riderJob = this.assets.loadGLTF(modelUrl(this.manifest, this.manifest.rider.file), priority).then((g) => { this.rider = g.scene; }).catch(() => {});
     }
     if (this._riderJob && !this.rider) jobs.push(this._riderJob);
     for (const id of ids) {
       if (this.cars[id]) continue;
       const r = this.resolve(id);
       this.modelOf[id] = r;
-      jobs.push(this.assets.loadGLTF(`/assets/models/${r.file}`, priority).then((g) => { this.cars[id] = g.scene; }).catch(() => {}));
+      jobs.push(this.assets.loadGLTF(modelUrl(this.manifest, r.file), priority).then((g) => { this.cars[id] = g.scene; }).catch(() => {}));
     }
     await Promise.all(jobs);
   }

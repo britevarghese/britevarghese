@@ -21,6 +21,7 @@ import sharp from 'sharp';
 import draco3d from 'draco3dgltf';
 import { CARS } from '../src/vehicles/VehicleCatalog.js';
 import { processCar } from './carimport/process.mjs';
+import { stampModels } from './carimport/stamp.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const args = process.argv.slice(2);
@@ -146,6 +147,7 @@ if (writeManifest) {
   if (rs) lines.push(`- **Motorcycle rider** — "${rs.title}" by ${rs.author}, ${rs.url} (CC BY 4.0), modified.`);
   fs.writeFileSync(path.join(ROOT, 'public/assets/models/cars/CREDITS.md'), lines.join('\n') + '\n');
 }
+stampModels(ROOT); // cache-busting fingerprints for the game
 fs.mkdirSync(cacheRoot, { recursive: true });
 fs.writeFileSync(path.join(cacheRoot, 'report.json'), JSON.stringify(report, null, 2));
 const ok = Object.values(report).filter((r) => r.ok).length;
