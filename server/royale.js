@@ -271,11 +271,21 @@ export class RoyaleGame extends Game {
   handleInput(p, m) {
     if (p.inPlane || !p.alive) return;
     if (p.air && Number.isFinite(m.y) && m.y > p.y + 1) m.y = p.y; // no climbing while falling
+    const wasAir = p.air;
     super.handleInput(p, m);
+    if (wasAir && !p.air && p.alive) this.#landed(p, this.now());
+  }
+
+  // touching down: a few seconds to get your bearings before anyone can hurt you (firing ends it early), so a
+  // soldier drifting in under a canopy isn't executed by someone who dove straight down and is already armed
+  #landed(p, now) {
+    p.landedAt = now;
+    p.spawnProtect = now + ROYALE.landProtect * 1000;
+    if (!p.bot) this.emit({ t: 'landed', prot: ROYALE.landProtect * 1000 }, p);
   }
 
   damage(victim, amount, attacker, weapon, head = false) {
-    if (!victim.alive) return;
+    if (!victim.alive || this.now() < victim.spawnProtect) return;
     // armor plates soak most of a hit until they are broken (the ring burns straight through)
     if (weapon !== 'ring' && victim.armor > 0) { const a = Math.min(victim.armor, amount * 0.6); victim.armor -= a; amount -= a; }
     super.damage(victim, amount, attacker, weapon, head);
@@ -335,7 +345,7 @@ export class RoyaleGame extends Game {
       if (!p.alive) continue;
       if (p.bot) {
         const input = p.brain.think(dt);
-        if (p.air) stepAir(this.world, p, input, dt);
+        if (p.air) { stepAir(this.world, p, input, dt); if (!p.air) this.#landed(p, now); }
         else { stepCharacter(this.world, p, input, dt); if (p.fall > 0) this.damage(p, p.fall, null, 'fall'); }
       }
       if (p.reloadUntil && now >= p.reloadUntil) {
@@ -402,7 +412,11 @@ class RoyaleBrain extends BotBrain {
     this.jumpAt = plane.t0 + plane.dur * k;
     // aim for a building within ~160 m of where we leave the plane
     const px = plane.ax + (plane.bx - plane.ax) * k, pz = plane.az + (plane.bz - plane.az) * k;
-    const near = this.g.map.BUILDINGS.filter((b) => Math.hypot(b.x - px, b.z - pz) < 170);
+    // like most players, avoid dropping on top of someone: prefer buildings away from where the humans are
+    const humans = [...this.g.players.values()].filter((q) => !q.bot && q.alive && !q.inPlane);
+    const all = this.g.map.BUILDINGS.filter((b) => Math.hypot(b.x - px, b.z - pz) < 170);
+    const clear = all.filter((b) => humans.every((q) => Math.hypot(b.x - q.x, b.z - q.z) > 70));
+    const near = clear.length ? clear : all;
     const b = near.length ? near[Math.floor(Math.random() * near.length)] : { x: px + rand(-60, 60), z: pz + rand(-60, 60), w: 4, d: 4 };
     this.landing = { x: b.x + rand(-b.w, b.w) * 0.8, z: b.z + rand(-b.d, b.d) * 0.8 };
   }

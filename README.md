@@ -160,6 +160,8 @@ altitude hands-off), LMB rockets · gunner seats aim freely with the mouse. Touc
 * **Fair spawns:** a flag under attack (being captured or with enemies within 25 m) can't be spawned on; among free spots
   the server picks the one fewest enemies can see; 3 s spawn protection, and bots ignore protected soldiers; each HQ is
   a restricted area for the enemy (warning, then damage after 5 s) so bases can't be camped.
+* **Battle royale landings:** 3 s of protection after touching down (ends early if you fire), bots take a moment to
+  react to someone who just landed, and bots prefer drop zones away from human players.
 * **Realistic bot gunfire:** bots only fire inside each weapon's practical range (pistol ~45 m, carbine ~170 m, bolt
   rifle ~550 m) and with the weapon's real dispersion plus a human hold (a handgun wobbles far more than a shouldered
   rifle, rapid follow-ups spread wider); out of range they close in instead of shooting.

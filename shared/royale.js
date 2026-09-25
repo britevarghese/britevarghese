@@ -21,6 +21,7 @@ export const ROYALE = {
   healTime: 3.2,          // s to use a med kit
   healAmount: 50,
   pickRange: 2.6,
+  landProtect: 3,         // s of protection after touching down (ends early if you fire)
 };
 
 // air state: 0 on foot, 1 freefall, 2 parachute

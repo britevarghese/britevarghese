@@ -305,6 +305,7 @@ class Game {
       case 'chat': this.hud.chat(e.from, e.msg, e.tm); break;
       case 'round': if (!this.royale) { this.hud.roundEnd(`${e.name} WINS`); setTimeout(() => this.hud.roundEnd(null), 14000); } break;
       case 'correct': Object.assign(this.me.s, { x: e.x, y: e.y, z: e.z }); break;
+      case 'landed': this.hud.notice(`LANDED — PROTECTED FOR ${Math.round(e.prot / 1000)} s`, e.prot); break;
       case 'restricted': this.hud.notice(e.left > 0 ? `RESTRICTED AREA — ENEMY HQ · RETURN IN ${Math.ceil(e.left)}` : 'RESTRICTED AREA — RETURN TO BATTLE', 1200); break;
       case 'throw': if (e.id === this.myId) this.me.grenades = e.g; break;
     }

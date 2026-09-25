@@ -124,6 +124,8 @@ export class BotBrain {
     if (best && best !== this.target) {
       this.target = best;
       this.reactUntil = now + rand(200, 650) * (1.35 - this.skill);
+      // someone who only just landed / deployed is a surprise: a person takes a moment to notice and turn
+      if (now - (best.landedAt || best.spawnedAt || 0) < 8000) this.reactUntil += rand(900, 1800);
       const spread = 0.05 + (1 - this.skill) * 0.12;
       this.aimErr = { yaw: rand(-spread, spread) * 2, pitch: rand(-spread, spread) };
       this.burstLeft = 0;

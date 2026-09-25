@@ -96,3 +96,22 @@ test('bots jump, land, loot and fight until one soldier is left', () => {
   const picks = bots.reduce((n, p) => n + (p.pickups || 0), 0);
   assert.ok(picks >= 2, `bots looted (${picks} pickups)`);
 });
+
+test('landing grace: a soldier who just touched down cannot be hurt for a few seconds, and bots hold fire', () => {
+  const g = mk(0);
+  const h = g.addPlayer({ name: 'Human' }), shooter = g.addPlayer({ name: 'Shooter' });
+  g.phase = 'live';
+  for (const p of [h, shooter]) Object.assign(p, { alive: true, hp: 100, armor: 0, weapons: [null, { id: 'pistol', mag: 15, reserve: 0 }], slot: 1, history: [] });
+  // human glides in under the canopy and lands (client-predicted input)
+  Object.assign(h, { air: 2, x: 10, z: 10, y: 30 });
+  const gy = g.world.supportHeight(10, 10, 500);
+  g.handleInput(h, { x: 10, y: gy, z: 10, yaw: 0, pitch: 0, st: 'stand', og: true, dr: 0 });
+  assert.equal(h.air, 0);
+  assert.ok(h.spawnProtect > g.now(), 'protected after landing');
+  assert.ok(g.flushEvents().some((e) => e.ev.t === 'landed'));
+  g.damage(h, 50, shooter, 'pistol');
+  assert.equal(h.hp, 100, 'no damage during the grace period');
+  g.clock += ROYALE.landProtect * 1000 + 100;
+  g.damage(h, 20, shooter, 'pistol');
+  assert.equal(h.hp, 80, 'normal damage afterwards');
+});

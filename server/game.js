@@ -152,7 +152,7 @@ export class Game {
       alive: true, hp: 100, x, z, y: this.world.supportHeight(x, z, this.map.groundHeight(x, z) + 0.3), vx: 0, vy: 0, vz: 0, stance: 'stand', onGround: true,
       yaw: this.map.BASES[p.team].yaw + (Math.random() - 0.5) * 0.4, pitch: 0, slot: 0, reloadUntil: 0, nextFire: 0, grenades: c.grenades,
       weapons: [c.primary, c.secondary].map((id, i) => ({ id, mag: WEAPONS[id].mag, reserve: WEAPONS[id].reserve * (i === 0 ? c.ammoMul || 1 : 1) })),
-      spawnProtect: this.now() + 3000, history: [], lastDamageFrom: null, spawnPoint: opt.id, airPeak: null,
+      spawnProtect: this.now() + 3000, spawnedAt: this.now(), history: [], lastDamageFrom: null, spawnPoint: opt.id, airPeak: null,
     });
     p.lastInput = this.now();
     if (p.brain) p.brain.onSpawn();
