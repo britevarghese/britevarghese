@@ -497,9 +497,22 @@ export class Story {
       gv.body.group.visible = on || busy;
       gv.ring.visible = gv.beam.visible = on && !this.cs;
       gv.ring.material.opacity = 0.55 + Math.sin(t * 3) * 0.25;
-      gv.body.armL.rotation.x = Math.sin(t * 1.3) * 0.05; gv.body.armR.rotation.x = -Math.sin(t * 1.1) * 0.05;
+      if (!gv.human && this.game.humans?.ready) this._humanize(gv, id);
+      if (gv.human) {
+        // idle (breathing, weight on both feet) while the camera is close enough to see it
+        const cp = this.game.camera.position;
+        if (gv.body.group.visible && Math.hypot(cp.x - gv.x, cp.z - gv.z) < 90) { gv.body.group.updateMatrixWorld(true); gv.human.animate(0, dt); }
+      } else { gv.body.armL.rotation.x = Math.sin(t * 1.3) * 0.05; gv.body.armR.rotation.x = -Math.sin(t * 1.1) * 0.05; }
     }
-    void dt;
+  }
+
+  // mission contacts become realistic characters once the people models are loaded
+  _humanize(gv, id) {
+    const h = this.game.humans.create(CAST[id]?.model || id.length, { shadow: this.game.preset.shadows !== 'off' });
+    if (!h) return;
+    for (const c of gv.body.group.children) c.visible = false;
+    gv.body.group.add(h.group);
+    gv.human = h;
   }
 
   // after the rest of the frame's interactions, so the mission prompt wins

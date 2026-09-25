@@ -112,6 +112,11 @@ Saves live in each player's browser.
   0-100 and top speed and has its own engine sound (crossplane R1, twin-pulse V4, 45° V-twin).
   Bikes lean into corners, wheelie off the line, and carry a rider posed to the bike (sport crouch
   or cruiser). Parked bikes rest on the side stand. Buy them in the garage with the cars.
+- **People:** the player on foot, other players, mission contacts and the pedestrians nearest the
+  camera are rigged, textured characters (8 CC BY models, credits in
+  `public/assets/models/humans/CREDITS.md`) with procedural idle, walk and run animation (feet
+  planted with IK). Bikes carry a rigged helmeted rider. Farther pedestrians use cheap instanced
+  figures; how many are realistic depends on the graphics quality.
 - **Garage:** paint (incl. factory colours), finish, vinyl, wheels, spoiler, hood, bumper, tint,
   calipers; engine, transmission, tyres, brakes, suspension and nitrous upgrades.
 - **Sound:** engines are a physical model (per-cylinder firing through modelled exhaust pipes);

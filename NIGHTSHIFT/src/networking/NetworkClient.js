@@ -230,14 +230,26 @@ export class NetworkClient {
       r.x = x; r.z = z; r.foot = !!c.s.foot;
       if (r.foot) {
         if (r.renderer) { r.renderer.dispose(); r.renderer = null; r.car = null; }
-        if (!r.char) { r.char = buildCharacter({ jacket: 0x3a1f5c }); g.scene.add(r.char.group); }
+        // a realistic character once the people models are in (each player keeps one look), else the simple figure
+        if (r.char && !r.char.human && g.humans?.ready) { g.scene.remove(r.char.group); r.char = null; }
+        if (!r.char) {
+          const human = g.humans?.create(r.id + 1, { shadow: false });
+          r.char = human ? { human, group: human.group } : buildCharacter({ jacket: 0x3a1f5c });
+          g.scene.add(r.char.group);
+        }
         r.char.group.visible = true;
-        r.phase += dt * (sp > 3 ? 1.6 + sp * 0.95 : 2.2 + sp * 2.6);
-        const sw = Math.min(1, sp / 2) * (sp > 3 ? 0.95 : 0.55);
-        r.char.legL.rotation.x = Math.sin(r.phase) * sw; r.char.legR.rotation.x = -Math.sin(r.phase) * sw;
-        r.char.armL.rotation.x = -Math.sin(r.phase) * sw * 0.8; r.char.armR.rotation.x = Math.sin(r.phase) * sw * 0.8;
         r.char.group.position.set(x, y, z);
-        r.char.group.rotation.set(sp > 3 ? 0.12 : 0, _e.y, 0);
+        if (r.char.human) {
+          r.char.group.rotation.set(0, _e.y, 0);
+          r.char.group.updateMatrixWorld(true);
+          r.char.human.animate(sp, dt);
+        } else {
+          r.phase += dt * (sp > 3 ? 1.6 + sp * 0.95 : 2.2 + sp * 2.6);
+          const sw = Math.min(1, sp / 2) * (sp > 3 ? 0.95 : 0.55);
+          r.char.legL.rotation.x = Math.sin(r.phase) * sw; r.char.legR.rotation.x = -Math.sin(r.phase) * sw;
+          r.char.armL.rotation.x = -Math.sin(r.phase) * sw * 0.8; r.char.armR.rotation.x = Math.sin(r.phase) * sw * 0.8;
+          r.char.group.rotation.set(sp > 3 ? 0.12 : 0, _e.y, 0);
+        }
       } else {
         if (r.char) r.char.group.visible = false;
         if (r.car !== c.s.car) { r.renderer?.dispose(); r.renderer = null; r.car = c.s.car; r.proxy = new Proxy(c.s.car); r.proxy.remote = true; }

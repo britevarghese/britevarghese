@@ -32,6 +32,7 @@ import { HUD } from '../ui/HUD.js';
 import { UIManager } from '../ui/UIManager.js';
 import { Garage } from '../ui/Garage.js';
 import { NetworkClient } from '../networking/NetworkClient.js';
+import { HumanLibrary } from '../player/Human.js';
 import { QUALITY_LABELS, QUALITY_LEVELS } from './QualityManager.js';
 
 export class GameState {
@@ -100,6 +101,11 @@ export class Game {
     this.onFoot = new OnFoot(this);
     this.story = new Story(this);
     this.peds = new Pedestrians(this.scene, this.world.layout, preset.pedestrians);
+    // realistic people (rigged characters): streamed in after the city, then used for the player on
+    // foot, other players, mission contacts and the pedestrians nearest the camera
+    this.humans = new HumanLibrary(this.assets, this.lib.manifest);
+    this.peds.humans = this.humans; this.peds.people = preset.people ?? 8;
+    this.humans.load(3).then(() => this.onFoot.useHuman()); // small (~4 MB): ahead of the rival cars
     this.audio = new AudioManager(this.settings.audio);
     this.progress = new Progression(this);
     this.hud = new HUD(document.getElementById('hud'), this.mapRenderer, this.settings);
@@ -197,7 +203,7 @@ export class Game {
     this.traffic.preset = p;
     this.materials.preset = p;
     this.materials.applyEnvironment(this.env.state);
-    if (this.peds) this.peds.max = Math.min(p.pedestrians, this.peds.meshTorso.instanceMatrix.count);
+    if (this.peds) { this.peds.max = Math.min(p.pedestrians, this.peds.meshTorso.instanceMatrix.count); this.peds.people = p.people ?? 8; }
     void silent;
   }
 

@@ -1,6 +1,7 @@
-// Pedestrians: cheap sidewalk life. Low-poly figures rendered with a handful of InstancedMeshes
-// (torso/head, legs, arms) animated per instance (walk cycle), walking loops around blocks,
-// waiting at corners, and dodging cars. Distance LOD: limbs only near the camera.
+// Pedestrians: sidewalk life walking loops around blocks, waiting at corners and dodging cars.
+// The ones nearest the camera (preset.people: 4-16) are realistic rigged characters (player/Human.js,
+// drawn from a pool and handed back when they walk away); the rest are low-poly figures rendered
+// with a handful of InstancedMeshes (torso/head, legs, arms). Distance LOD: limbs only near the camera.
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { rng, clamp } from '../core/util.js';
@@ -18,7 +19,11 @@ function clean(g) { const n = g.index ? g.toNonIndexed() : g; for (const k of Ob
 export class Pedestrians {
   constructor(scene, layout, max) {
     this.layout = layout;
+    this.scene = scene;
     this.max = max;
+    this.people = 8;       // realistic characters near the camera (set from the quality preset)
+    this.pool = new Map(); // model index -> idle Human instances
+    this.humans = null;
     this.peds = [];
     this.R = rng(31337);
     // geometry: pivots at hips (legs) and shoulders (arms)
@@ -61,7 +66,7 @@ export class Pedestrians {
       b, x0, x1, z0, z1, per, t: R() * per, dir: R() < 0.5 ? 1 : -1, speed: 1.1 + R() * 0.5, phase: R() * 6,
       shirt: SHIRTS[Math.floor(R() * SHIRTS.length)], pants: PANTS[Math.floor(R() * PANTS.length)], skin: SKIN[Math.floor(R() * SKIN.length)],
       hair: R() < 0.12 ? -1 : HAIR[Math.floor(R() * HAIR.length)],
-      shoes: SHOES[Math.floor(R() * SHOES.length)],
+      shoes: SHOES[Math.floor(R() * SHOES.length)], model: Math.floor(R() * 1000),
       build: 0.88 + R() * 0.3, // girth: slim .. heavy
       scale: 0.92 + R() * 0.16, wait: 0, dodge: 0, dx: 0, dz: 0, x: 0, z: 0, yaw: 0,
     });
@@ -89,13 +94,13 @@ export class Pedestrians {
 
   update(dt, camera, vehicles, enabled = true) {
     const focus = camera.position;
-    if (!enabled || this.max === 0) { for (const m of [this.meshTorso, this.meshHead, this.meshHair, ...this.limbMeshes]) m.count = 0; return; }
+    if (!enabled || this.max === 0) { for (const p of this.peds) this._release(p); for (const m of [this.meshTorso, this.meshHead, this.meshHair, ...this.limbMeshes]) m.count = 0; return; }
     if (this.peds.length < this.max && this.R() < 0.6) this._spawn(focus);
     let n = 0, nl = 0;
     for (let i = this.peds.length - 1; i >= 0; i--) {
       const p = this.peds[i];
       const d = Math.hypot(p.x - focus.x, p.z - focus.z);
-      if (d > 260 && p.x !== 0) { this.peds.splice(i, 1); continue; }
+      if (d > 260 && p.x !== 0) { this._release(p); this.peds.splice(i, 1); continue; }
       // dodge vehicles
       for (const v of vehicles) {
         const s = v.physics.s;
@@ -118,12 +123,20 @@ export class Pedestrians {
       let yaw;
       if (p.flee) {
         const f = p.flee;
-        f.t -= dt; if (f.t <= 0) { this.peds.splice(i, 1); continue; }
+        f.t -= dt; if (f.t <= 0) { this._release(p); this.peds.splice(i, 1); continue; }
         f.x += f.vx * dt; f.z += f.vz * dt;
         p.x = f.x; p.z = f.z; p.yaw = yaw = Math.atan2(f.vx, f.vz); moving = true;
       } else {
         const [x, z, y2] = this._pos(p);
         yaw = y2; p.x = x + (p.ox || 0); p.z = z + (p.oz || 0); p.yaw = yaw;
+      }
+      p.d = d;
+      if (p.human) {
+        const hg = p.human.group;
+        hg.position.set(p.x, CURB_H, p.z); hg.rotation.set(0, yaw, 0);
+        hg.updateMatrixWorld(true);
+        p.human.animate(p.dodge > 0 ? 4.5 : moving ? p.speed : 0, dt);
+        continue;
       }
       if (d > 150) continue;
       p.phase += dt * (moving ? p.speed * 5.2 : 0);
@@ -156,9 +169,36 @@ export class Pedestrians {
       }
       n++;
     }
+    this._assignPeople();
     for (const m of [this.meshTorso, this.meshHead, this.meshHair]) { m.count = n; m.instanceMatrix.needsUpdate = true; m.instanceColor.needsUpdate = true; }
     for (const m of this.limbMeshes) { m.count = nl; m.instanceMatrix.needsUpdate = true; m.instanceColor.needsUpdate = true; }
     void clamp;
   }
+  // the nearest pedestrians become realistic characters; ones that walk off hand theirs back
+  _assignPeople() {
+    const K = this.humans?.ready ? this.people : 0;
+    const near = this.peds.filter((p) => p.d !== undefined && p.d < 45).sort((a, b) => a.d - b.d).slice(0, K);
+    const keep = new Set(near);
+    for (const p of this.peds) if (p.human && (!keep.has(p) || p.d > 50)) this._release(p);
+    for (const p of near) {
+      if (p.human) continue;
+      const list = this.pool.get(p.model % this.humans.models.length);
+      const h = list?.pop() || this.humans.create(p.model, { shadow: true });
+      if (!h) continue;
+      p.human = h;
+      h.group.visible = true;
+      if (!h.group.parent) this.scene.add(h.group);
+    }
+  }
+  _release(p) {
+    const h = p.human;
+    if (!h) return;
+    p.human = null;
+    h.group.visible = false;
+    const k = p.model % this.humans.models.length;
+    if (!this.pool.has(k)) this.pool.set(k, []);
+    this.pool.get(k).push(h);
+  }
+
   count() { return this.peds.length; }
 }

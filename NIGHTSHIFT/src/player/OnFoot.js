@@ -38,13 +38,26 @@ export class OnFoot {
     this.game = game;
     this.active = false;
     this.state = { x: 0, y: 0, z: 0, yaw: 0, vx: 0, vz: 0, speed: 0, rpm: 0, onGround: true, pitch: 0, roll: 0 };
-    this.body = buildCharacter();
+    // body.group is a container: the realistic character once the people models have loaded
+    // (useHuman), the simple built-in figure until then
+    this.box = buildCharacter();
+    this.body = { group: new THREE.Group() };
+    this.body.group.add(this.box.group);
     this.body.group.visible = false;
     game.scene.add(this.body.group);
     this.camYaw = 0; this.camPitch = 0.18; this.camDist = 4.2;
     this.phase = 0; this.vy = 0;
     this.camPos = new THREE.Vector3();
     this.parked = [];        // cars left behind (still physical, drawn, collidable)
+  }
+
+  // swap the built-in figure for the realistic character (people models loaded)
+  useHuman() {
+    const h = this.game.humans?.create('pmariano', { shadow: this.game.preset.shadows !== 'off' });
+    if (!h || this.human) return;
+    this.human = h;
+    this.box.group.visible = false;
+    this.body.group.add(h.group);
   }
 
   // ------------------------------------------------------------------ get out / get in
@@ -249,13 +262,21 @@ export class OnFoot {
     if (this.knockT) { this.knockT = Math.max(0, this.knockT - dt); if (!this.knockT) this.knockT = 0; }
     s.speed = Math.hypot(s.vx, s.vz);
     // walk cycle
-    const b = this.body, v = s.speed;
+    const b = this.box, v = s.speed;
     this.phase += dt * (v > 3 ? 1.6 + v * 0.95 : 2.2 + v * 2.6);
-    const sw = Math.min(1, v / 2) * (v > 3 ? 0.95 : 0.55);
-    b.legL.rotation.x = Math.sin(this.phase) * sw; b.legR.rotation.x = -Math.sin(this.phase) * sw;
-    b.armL.rotation.x = -Math.sin(this.phase) * sw * 0.8; b.armR.rotation.x = Math.sin(this.phase) * sw * 0.8;
-    b.group.position.set(s.x, s.y + Math.abs(Math.sin(this.phase)) * 0.04 * Math.min(1, v / 2), s.z);
-    b.group.rotation.set(v > 3 ? 0.12 : 0, s.yaw, this.knockT ? Math.sin(this.knockT * 6) * 0.4 : 0);
+    const body = this.body.group;
+    if (this.human) {
+      body.position.set(s.x, s.y, s.z);
+      body.rotation.set(0, s.yaw, this.knockT ? Math.sin(this.knockT * 6) * 0.4 : 0);
+      body.updateMatrixWorld(true);
+      this.human.animate(v, dt);
+    } else {
+      const sw = Math.min(1, v / 2) * (v > 3 ? 0.95 : 0.55);
+      b.legL.rotation.x = Math.sin(this.phase) * sw; b.legR.rotation.x = -Math.sin(this.phase) * sw;
+      b.armL.rotation.x = -Math.sin(this.phase) * sw * 0.8; b.armR.rotation.x = Math.sin(this.phase) * sw * 0.8;
+      body.position.set(s.x, s.y + Math.abs(Math.sin(this.phase)) * 0.04 * Math.min(1, v / 2), s.z);
+      body.rotation.set(v > 3 ? 0.12 : 0, s.yaw, this.knockT ? Math.sin(this.knockT * 6) * 0.4 : 0);
+    }
     // footsteps
     const step = Math.floor(this.phase / Math.PI);
     if (step !== this.lastStep && v > 0.6 && s.onGround) { this.lastStep = step; g.audio?.playFootstep?.(v > 3, { x: s.x, y: s.y, z: s.z }); }

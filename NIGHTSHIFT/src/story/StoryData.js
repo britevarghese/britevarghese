@@ -12,10 +12,10 @@
 
 export const CAST = {
   you: { name: 'You', color: '#ffffff' },
-  tully: { name: 'Tully', role: 'Mechanic', color: '#ffb03d', look: { jacket: 0x5a4632, jeans: 0x2a2a2c, skin: 0x8a5e40, hair: 0x9a9a9a }, spot: { x: 250, z: -410 } },
-  mara: { name: 'Mara Voss', role: 'Crew boss', color: '#ff4d8d', look: { jacket: 0x121214, jeans: 0x1a1a22, skin: 0xd2a07a, hair: 0x2a0f12 }, spot: { x: -250, z: 96 } },
-  deacon: { name: 'Deacon', role: 'Fixer', color: '#3dc8ff', look: { jacket: 0x2a3a52, jeans: 0x3a3a3a, skin: 0x5a3a28, hair: 0x0a0a0a }, spot: { x: 640, z: -480 } },
-  rosa: { name: 'Rosa Reyes', role: 'Haulage boss', color: '#b98cff', look: { jacket: 0x3a2a4a, jeans: 0x22222a, skin: 0xc08a64, hair: 0x3a1a0a }, spot: { x: 736, z: 300 } },
+  tully: { name: 'Tully', role: 'Mechanic', color: '#ffb03d', model: 'arnold', look: { jacket: 0x5a4632, jeans: 0x2a2a2c, skin: 0x8a5e40, hair: 0x9a9a9a }, spot: { x: 250, z: -410 } },
+  mara: { name: 'Mara Voss', role: 'Crew boss', color: '#ff4d8d', model: 'lucy', look: { jacket: 0x121214, jeans: 0x1a1a22, skin: 0xd2a07a, hair: 0x2a0f12 }, spot: { x: -250, z: 96 } },
+  deacon: { name: 'Deacon', role: 'Fixer', color: '#3dc8ff', model: 'kenzie', look: { jacket: 0x2a3a52, jeans: 0x3a3a3a, skin: 0x5a3a28, hair: 0x0a0a0a }, spot: { x: 640, z: -480 } },
+  rosa: { name: 'Rosa Reyes', role: 'Haulage boss', color: '#b98cff', model: 'songbird', look: { jacket: 0x3a2a4a, jeans: 0x22222a, skin: 0xc08a64, hair: 0x3a1a0a }, spot: { x: 736, z: 300 } },
   jonah: { name: 'Jonah', color: '#9dff6a' },
   kaze: { name: 'Kaze', color: '#ff3df0' },
   graves: { name: 'Lt. Graves', color: '#ff6a3d' },

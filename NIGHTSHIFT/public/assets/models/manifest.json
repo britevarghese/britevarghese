@@ -4552,5 +4552,111 @@
       "license": "CC-BY-4.0",
       "url": "https://sketchfab.com/3d-models/1594447c9f2d4b618dd59fd3272b6db6"
     }
-  }
+  },
+  "humans": [
+    {
+      "id": "pmariano",
+      "sex": "m",
+      "file": "humans/pmariano.glb",
+      "source": {
+        "site": "Sketchfab",
+        "uid": "a9c1f5d2cd7c4ca3bb46272998d3e451",
+        "title": "Avatar Full body - Ready Player Me - pmariano",
+        "author": "patomariano",
+        "url": "https://sketchfab.com/3d-models/a9c1f5d2cd7c4ca3bb46272998d3e451",
+        "license": "CC-BY-4.0"
+      }
+    },
+    {
+      "id": "alex",
+      "sex": "m",
+      "file": "humans/alex.glb",
+      "source": {
+        "site": "Sketchfab",
+        "uid": "006dd7a2d3734387ab4ab8d92c868788",
+        "title": "ReadyPlayerMe - Rainbow Family: Alex",
+        "author": "anonim.user.978",
+        "url": "https://sketchfab.com/3d-models/006dd7a2d3734387ab4ab8d92c868788",
+        "license": "CC-BY-4.0"
+      }
+    },
+    {
+      "id": "arnold",
+      "sex": "m",
+      "file": "humans/arnold.glb",
+      "source": {
+        "site": "Sketchfab",
+        "uid": "4cd6354f28f24ca9ab84bf182279286a",
+        "title": "ReadyPlayerMe - Rainbow Family: Arnold",
+        "author": "anonim.user.978",
+        "url": "https://sketchfab.com/3d-models/4cd6354f28f24ca9ab84bf182279286a",
+        "license": "CC-BY-4.0"
+      }
+    },
+    {
+      "id": "jake",
+      "sex": "m",
+      "file": "humans/jake.glb",
+      "source": {
+        "site": "Sketchfab",
+        "uid": "73c342982ea74c63b5a9bb1fc3cfb2e7",
+        "title": "ReadyPlayerMe - Sports Couple: Jake",
+        "author": "anonim.user.978",
+        "url": "https://sketchfab.com/3d-models/73c342982ea74c63b5a9bb1fc3cfb2e7",
+        "license": "CC-BY-4.0"
+      }
+    },
+    {
+      "id": "kenzie",
+      "sex": "m",
+      "file": "humans/kenzie.glb",
+      "source": {
+        "site": "Sketchfab",
+        "uid": "3c026db1453644eba3f60afc885998e7",
+        "title": "Kenzie ready player me avatar",
+        "author": "Kenz.makes.3D",
+        "url": "https://sketchfab.com/3d-models/3c026db1453644eba3f60afc885998e7",
+        "license": "CC-BY-4.0"
+      }
+    },
+    {
+      "id": "emilius",
+      "sex": "m",
+      "file": "humans/emilius.glb",
+      "source": {
+        "site": "Sketchfab",
+        "uid": "68839614ac7947a2998148892e2a0c4c",
+        "title": "Avatar Fullbody - Ready Player Me",
+        "author": "emiliusvgs",
+        "url": "https://sketchfab.com/3d-models/68839614ac7947a2998148892e2a0c4c",
+        "license": "CC-BY-4.0"
+      }
+    },
+    {
+      "id": "songbird",
+      "sex": "f",
+      "file": "humans/songbird.glb",
+      "source": {
+        "site": "Sketchfab",
+        "uid": "d739dfe5ac6d46d69886f660cdf6649c",
+        "title": "ReadyPlayerMe - Lifestyle Series: Songbird",
+        "author": "anonim.user.978",
+        "url": "https://sketchfab.com/3d-models/d739dfe5ac6d46d69886f660cdf6649c",
+        "license": "CC-BY-4.0"
+      }
+    },
+    {
+      "id": "lucy",
+      "sex": "f",
+      "file": "humans/lucy.glb",
+      "source": {
+        "site": "Sketchfab",
+        "uid": "152e5e3aed3b408085b14b7aa580d87f",
+        "title": "ReadyPlayerMe - Sports Couple: Lucy",
+        "author": "anonim.user.978",
+        "url": "https://sketchfab.com/3d-models/152e5e3aed3b408085b14b7aa580d87f",
+        "license": "CC-BY-4.0"
+      }
+    }
+  ]
 }
