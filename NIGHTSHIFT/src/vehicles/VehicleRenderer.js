@@ -451,7 +451,8 @@ export class VehicleRenderer {
     const braking = s.brake > 0.1 && Math.abs(s.speed) > 0.5;
     this.brake = lerp(this.brake, braking ? 1 : 0, 0.4);
     const m = this.mats;
-    if (m.headlight) m.headlight.emissiveIntensity = hOn ? 3.2 : 0.4;
+    // other drivers' lamp lenses glow less than the player's own (oncoming glare)
+    if (m.headlight) m.headlight.emissiveIntensity = hOn ? (this.opts.headlights ? 3.2 : 1.8) : 0.4;
     if (m.taillight) m.taillight.emissiveIntensity = (hOn ? 1.4 : 0.04) + this.brake * (hOn ? 4 : 1.6);
     // lamp flares: only when the lamp faces the viewer, sized by distance (no giant blobs up close)
     let facing = 1, dist = 20;
@@ -465,8 +466,8 @@ export class VehicleRenderer {
     for (let i = 0; i < this.headFlares.length; i++) {
       const f = this.headFlares[i];
       f.visible = hOn && !this.lightsBroken[i] && headK > 0.01;
-      f.material.opacity = headK * 0.95;
-      f.scale.setScalar(fsize * 1.2);
+      f.material.opacity = headK * 0.6;
+      f.scale.setScalar(Math.min(fsize, 1.2));
     }
     for (const f of this.tailFlares) {
       const on = hOn || this.brake > 0.1;
@@ -503,10 +504,16 @@ export class VehicleRenderer {
       const on = this.sirenOn;
       const phase = Math.floor(p.t * 7) % 4;
       const redOn = on && (phase === 0 || phase === 2), blueOn = on && (phase === 1 || phase === 3);
-      if (m.lightbar_red) m.lightbar_red.emissiveIntensity = redOn ? 9 : 0.2;
-      if (m.lightbar_blue) m.lightbar_blue.emissiveIntensity = blueOn ? 9 : 0.2;
-      for (const sp of p.red) { sp.visible = redOn; sp.scale.setScalar(2.4 + Math.random() * 0.6); }
-      for (const sp of p.blue) { sp.visible = blueOn; sp.scale.setScalar(2.4 + Math.random() * 0.6); }
+      // right next to the camera the lamps themselves would bloom over the whole screen: dim them up close
+      const near = clamp((dist - 3) / 14, 0.08, 1);
+      if (m.lightbar_red) m.lightbar_red.emissiveIntensity = redOn ? 4 * near : 0.2;
+      if (m.lightbar_blue) m.lightbar_blue.emissiveIntensity = blueOn ? 4 * near : 0.2;
+      // the flash halo grows with distance (readable far off) but stays small right behind you,
+      // where a metres-wide additive sprite would white out the road
+      const pk = clamp(0.3 + dist * 0.035, 0.3, 2.2) * (0.9 + Math.random() * 0.2);
+      const po = clamp(dist / 30, 0.25, 0.85);
+      for (const sp of p.red) { sp.visible = redOn; sp.scale.setScalar(pk); sp.material.opacity = po; }
+      for (const sp of p.blue) { sp.visible = blueOn; sp.scale.setScalar(pk); sp.material.opacity = po; }
       p.redOn = redOn; p.blueOn = blueOn;
     }
   }

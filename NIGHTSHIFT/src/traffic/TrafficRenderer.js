@@ -3,6 +3,7 @@
 // instanced light glows / headlight ground beams. Never hundreds of individual car objects.
 import * as THREE from 'three';
 import { radialGlow, lightPool, carPaintTexture, headlightTextures, taillightTextures } from '../renderer/Textures.js';
+import { clamp } from '../core/util.js';
 
 const _m = new THREE.Matrix4(), _q = new THREE.Quaternion(), _p = new THREE.Vector3(), _s = new THREE.Vector3(), _e = new THREE.Euler(), _c = new THREE.Color();
 const _w = new THREE.Matrix4(), _wq = new THREE.Quaternion();
@@ -93,6 +94,7 @@ export class TrafficRenderer {
     this.headGlow = new THREE.InstancedMesh(quad, new THREE.MeshBasicMaterial({ map: radialGlow('rgba(255,250,235,1)', 'rgba(220,230,255,0.3)'), transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false }), gcap);
     this.tailGlow = new THREE.InstancedMesh(quad, new THREE.MeshBasicMaterial({ map: radialGlow('rgba(255,60,50,1)', 'rgba(255,20,20,0.3)'), transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false }), gcap);
     this.tailGlow.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(gcap * 3), 3);
+    this.headGlow.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(gcap * 3), 3);
     const beamGeo = new THREE.PlaneGeometry(6, 15).rotateX(-Math.PI / 2).translate(0, 0.07, 10);
     this.beams = new THREE.InstancedMesh(beamGeo, new THREE.MeshBasicMaterial({ map: lightPool(), color: 0xfff0d8, transparent: true, opacity: 0.32, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false, polygonOffset: true, polygonOffsetFactor: -6 }), maxPerType * types.length);
     for (const m of [this.headGlow, this.tailGlow, this.beams]) { m.count = 0; m.frustumCulled = false; m.renderOrder = 5; scene.add(m); }
@@ -140,10 +142,13 @@ export class TrafficRenderer {
         const facing = (camera.position.x - c.x) * Math.sin(c.yaw) + (camera.position.z - c.z) * Math.cos(c.yaw);
         const reflect = refl && c.dist < 140;
         for (const sx of [1, -1]) {
-          if (lightsOn) {
+          // headlight halo only toward the camera, and fading as the car turns away (no glare from the side)
+          const headK = clamp((facing / Math.max(c.dist, 1) - 0.05) / 0.6, 0, 1);
+          if (lightsOn && headK > 0.01) {
             _p.set(T.head.x * sx, T.head.y, T.head.z + 0.05).applyQuaternion(_q).add(_s.set(c.x, c.y, c.z));
-            const hs = 0.9 + c.dist * 0.004;
-            this.headGlow.setMatrixAt(gi++, _w.compose(_p, cq, _s.set(hs, hs, hs)));
+            const hs = 0.55 + c.dist * 0.003;
+            this.headGlow.setMatrixAt(gi, _w.compose(_p, cq, _s.set(hs, hs, hs)));
+            this.headGlow.setColorAt(gi++, _c.setScalar(0.65 * headK));
             if (reflect && facing > 0) refl.addReflection(_p.x, _p.y, _p.z, 0.8, 0.74, 0.6, 0.55);
           }
           _p.set(T.tail.x * sx, T.tail.y, T.tail.z - 0.05).applyQuaternion(_q).add(_s.set(c.x, c.y, c.z));
@@ -170,6 +175,7 @@ export class TrafficRenderer {
     this.headGlow.count = gi; this.tailGlow.count = ti; this.beams.count = bi;
     this.headGlow.instanceMatrix.needsUpdate = true; this.tailGlow.instanceMatrix.needsUpdate = true; this.beams.instanceMatrix.needsUpdate = true;
     if (this.tailGlow.instanceColor) this.tailGlow.instanceColor.needsUpdate = true;
+    if (this.headGlow.instanceColor) this.headGlow.instanceColor.needsUpdate = true;
   }
 }
 

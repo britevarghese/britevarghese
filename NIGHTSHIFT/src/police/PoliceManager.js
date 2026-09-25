@@ -365,7 +365,8 @@ export class PoliceManager {
       const red = i % 2 === 0;
       l.visible = true;
       l.position.set(s.x, s.y + 1.8, s.z);
-      l.intensity = (red ? r.police?.redOn : r.police?.blueOn) ? 55 : 0;
+      // a cruiser on your bumper would flood the view: the flash light fades in over the first ~15 m
+      l.intensity = (red ? r.police?.redOn : r.police?.blueOn) ? 24 * clamp((e.d - 2) / 13, 0.1, 1) : 0;
     });
   }
 
