@@ -142,6 +142,8 @@ if (writeManifest) {
     'They were converted for real-time use (re-scaled, wheels separated, simplified, textures re-encoded). Vehicle names and badges are trademarks of their respective manufacturers; NIGHTSHIFT is a non-commercial fan project and is not endorsed by them.', ''];
   for (const [id, c] of imported) lines.push(`- **${CARS[id]?.name || c.name}** — "${c.source.title}" by ${c.source.author}, ${c.source.url} (CC BY 4.0), modified.`);
   if (!imported.length) lines.push('_No real-car models imported yet — run `node tools/import-cars.mjs`._');
+  const rs = manifest.rider?.source; // written by tools/import-rider.mjs
+  if (rs) lines.push(`- **Motorcycle rider** — "${rs.title}" by ${rs.author}, ${rs.url} (CC BY 4.0), modified.`);
   fs.writeFileSync(path.join(ROOT, 'public/assets/models/cars/CREDITS.md'), lines.join('\n') + '\n');
 }
 fs.mkdirSync(cacheRoot, { recursive: true });

@@ -5,7 +5,7 @@ import { AssetManager } from '../assets/AssetManager.js';
 import { radialGlow, lightPool, carPaintTexture, headlightTextures, taillightTextures, tireTread } from '../renderer/Textures.js';
 import { clamp, lerp } from '../core/util.js';
 import { CARS } from './VehicleCatalog.js';
-import { Rider } from './Rider.js';
+import { Rider, SkinnedRider } from './Rider.js';
 
 const glowRed = () => radialGlow('rgba(255,60,50,1)', 'rgba(255,20,20,0.3)');
 const _qa = new THREE.Quaternion(), _qb = new THREE.Quaternion(), _pv = new THREE.Vector3(), _pp = new THREE.Vector3(), _ax = new THREE.Vector3(1, 0, 0), _az = new THREE.Vector3(0, 0, 1);
@@ -27,6 +27,11 @@ export class ModelLibrary {
     if (!this.manifest) this.manifest = await this.assets.loadJSON('/assets/models/manifest.json', 1);
     const jobs = [];
     if (!this.wheels) jobs.push(this.assets.loadGLTF('/assets/models/wheels.glb', priority).then((g) => { this.wheels = g.scene; }));
+    // bikes need the rigged rider (tools/import-rider.mjs); without it they get the built-in figure
+    if (!this.rider && !this._riderJob && this.manifest?.rider && ids.some((id) => CARS[id]?.bike)) {
+      this._riderJob = this.assets.loadGLTF(`/assets/models/${this.manifest.rider.file}`, priority).then((g) => { this.rider = g.scene; }).catch(() => {});
+    }
+    if (this._riderJob && !this.rider) jobs.push(this._riderJob);
     for (const id of ids) {
       if (this.cars[id]) continue;
       const r = this.resolve(id);
@@ -215,7 +220,8 @@ export class VehicleRenderer {
     const car = CARS[this.carId];
     const zF = this.wheels.find((w) => w.id === 'F')?.pivot.position.z ?? car.spec.wb / 2;
     const zR = this.wheels.find((w) => w.id === 'R')?.pivot.position.z ?? -car.spec.wb / 2;
-    this.rider = new Rider({ zF, zR, seat: car.spec.seat ?? 0.82, style: car.style, rider: car.rider, accent: car.factoryColor }, !!this.opts.shadow);
+    const bike = { zF, zR, seat: car.spec.seat ?? 0.82, style: car.style, rider: car.rider, accent: car.factoryColor };
+    this.rider = this.lib.rider ? new SkinnedRider(bike, !!this.opts.shadow, this.lib.rider) : new Rider(bike, !!this.opts.shadow);
     this.body.add(this.rider.group);
     // the onboard camera sits in the rider's helmet
     this.markers.eye_cockpit = { name: 'eye_cockpit', position: this.rider.eye.clone() };

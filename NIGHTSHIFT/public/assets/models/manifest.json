@@ -4541,5 +4541,16 @@
       "width": 0.25
     },
     "rims": 5
+  },
+  "rider": {
+    "file": "rider.glb",
+    "source": {
+      "site": "Sketchfab",
+      "uid": "1594447c9f2d4b618dd59fd3272b6db6",
+      "title": "Biker",
+      "author": "Idris.Abass",
+      "license": "CC-BY-4.0",
+      "url": "https://sketchfab.com/3d-models/1594447c9f2d4b618dd59fd3272b6db6"
+    }
   }
 }

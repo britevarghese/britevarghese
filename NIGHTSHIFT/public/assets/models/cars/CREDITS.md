@@ -26,3 +26,4 @@ They were converted for real-time use (re-scaled, wheels separated, simplified, 
 - **Suzuki Hayabusa (GSX1300R)** — "Suzuki Hayabusa" by JUSTGAME, https://sketchfab.com/3d-models/121f40c2c0974fb08823f3bd93c578fe (CC BY 4.0), modified.
 - **Ducati Panigale V4 R** — "DucatiV4R" by IrfanMuaz, https://sketchfab.com/3d-models/3f1067a86c4c4c3bbfddf61ec0232446 (CC BY 4.0), modified.
 - **Kawasaki Ninja H2** — "Kawasaki ninja h2 2020" by DR1KING100K, https://sketchfab.com/3d-models/0ed1b0cc65de4225a7eac76f02d6bc30 (CC BY 4.0), modified.
+- **Motorcycle rider** — "Biker" by Idris.Abass, https://sketchfab.com/3d-models/1594447c9f2d4b618dd59fd3272b6db6 (CC BY 4.0), modified.
