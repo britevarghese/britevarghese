@@ -89,3 +89,77 @@ export function subsetPrimitive(doc, prim, tris) {
 }
 
 export const vlen = (v) => Math.hypot(v[0], v[1], v[2]);
+
+// Cut a primitive along planes: `regions` are convex volumes, each a list of planes [a, b, c, d]
+// (inside where a*x + b*y + c*z + d <= 0); `use(t, n)` says which regions triangle t (face normal n)
+// may join. Triangles crossing a boundary are clipped exactly, with every vertex attribute
+// interpolated, so the two halves meet seamlessly. Returns { inside, outside } (null when empty).
+export function splitPrimitive(doc, prim, regions, use = () => regions.map(() => true)) {
+  const idx = triIndices(prim), nt = idx.length / 3;
+  const sems = prim.listSemantics();
+  const attrs = sems.map((sem) => { const acc = prim.getAttribute(sem); return { sem, acc, size: acc.getElementSize(), src: acc.getArray(), extra: [] }; });
+  const P = attrs[sems.indexOf('POSITION')];
+  const nv0 = P.src.length / 3;
+  const pos = (v) => (v < nv0 ? [P.src[v * 3], P.src[v * 3 + 1], P.src[v * 3 + 2]] : P.extra.slice((v - nv0) * 3, (v - nv0) * 3 + 3));
+  const get = (A, v) => (v < nv0 ? Array.from(A.src.subarray(v * A.size, v * A.size + A.size)) : A.extra.slice((v - nv0) * A.size, (v - nv0) * A.size + A.size));
+  let nv = nv0;
+  const cache = new Map();
+  const lerpV = (a, b, t) => {
+    const key = a < b ? `${a}|${b}|${t.toFixed(6)}` : `${b}|${a}|${(1 - t).toFixed(6)}`;
+    const hit = cache.get(key); if (hit !== undefined) return hit;
+    for (const A of attrs) { const va = get(A, a), vb = get(A, b); for (let k = 0; k < A.size; k++) A.extra.push(va[k] + (vb[k] - va[k]) * t); }
+    cache.set(key, nv); return nv++;
+  };
+  const f = (pl, v) => { const p = pos(v); return pl[0] * p[0] + pl[1] * p[1] + pl[2] * p[2] + pl[3]; };
+  // split a convex polygon (vertex ids) by a plane into [inside, outside]
+  const split = (poly, pl) => {
+    const d = poly.map((v) => f(pl, v)), inn = [], out = [];
+    for (let i = 0; i < poly.length; i++) {
+      const j = (i + 1) % poly.length, a = poly[i], b = poly[j], da = d[i], db = d[j];
+      if (da <= 0) inn.push(a); if (da >= 0) out.push(a);
+      if ((da < 0 && db > 0) || (da > 0 && db < 0)) { const m = lerpV(a, b, da / (da - db)); inn.push(m); out.push(m); }
+    }
+    return [inn.length >= 3 ? inn : null, out.length >= 3 ? out : null];
+  };
+  const tin = [], tout = [];
+  const emit = (list, poly) => { for (let i = 1; i < poly.length - 1; i++) list.push(poly[0], poly[i], poly[i + 1]); };
+  for (let t = 0; t < nt; t++) {
+    const tri = [idx[t * 3], idx[t * 3 + 1], idx[t * 3 + 2]];
+    const [p0, p1, p2] = tri.map(pos);
+    const u = [p1[0] - p0[0], p1[1] - p0[1], p1[2] - p0[2]], w = [p2[0] - p0[0], p2[1] - p0[1], p2[2] - p0[2]];
+    const n = [u[1] * w[2] - u[2] * w[1], u[2] * w[0] - u[0] * w[2], u[0] * w[1] - u[1] * w[0]];
+    const ok = use(t, n);
+    let rest = [tri];
+    for (let r = 0; r < regions.length; r++) {
+      if (!ok[r]) continue;
+      const next = [];
+      for (const poly of rest) {
+        let cur = poly;
+        for (const pl of regions[r]) {
+          const [a, b] = split(cur, pl);
+          if (b) next.push(b);
+          cur = a; if (!cur) break;
+        }
+        if (cur) emit(tin, cur);
+      }
+      rest = next;
+    }
+    for (const poly of rest) emit(tout, poly);
+  }
+  if (!tin.length) return { inside: null, outside: prim };
+  // one primitive holding the original + new vertices, then compact each half out of it
+  const buffer = doc.getRoot().listBuffers()[0];
+  const all = doc.createPrimitive().setMode(Primitive.Mode.TRIANGLES).setMaterial(prim.getMaterial());
+  for (const A of attrs) {
+    const Ctor = A.src.constructor, isInt = !(A.src instanceof Float32Array);
+    const dst = new Ctor(nv * A.size); dst.set(A.src);
+    for (let i = 0; i < A.extra.length; i++) dst[A.src.length + i] = isInt ? Math.round(A.extra[i]) : A.extra[i];
+    all.setAttribute(A.sem, doc.createAccessor().setType(A.acc.getType()).setArray(dst).setNormalized(A.acc.getNormalized()).setBuffer(buffer));
+  }
+  all.setIndices(doc.createAccessor().setType('SCALAR').setArray(Uint32Array.from([...tin, ...tout])).setBuffer(buffer));
+  const ni = tin.length / 3, no = tout.length / 3;
+  const inside = subsetPrimitive(doc, all, [...Array(ni).keys()]);
+  const outside = no ? subsetPrimitive(doc, all, [...Array(no).keys()].map((k) => k + ni)) : null;
+  all.dispose();
+  return { inside, outside };
+}

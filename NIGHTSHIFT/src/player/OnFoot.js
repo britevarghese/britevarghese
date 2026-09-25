@@ -8,6 +8,8 @@ import { Vehicle, FIXED_DT } from '../vehicles/Vehicle.js';
 import { CARS, TRAFFIC_VEHICLES, POLICE_CAR, tunedParams } from '../vehicles/VehicleCatalog.js';
 import { bus } from '../core/EventBus.js';
 
+// turn an angle toward a target by at most k (radians, shortest way)
+const turn = (a, b, k) => { let d = b - a; while (d > Math.PI) d -= Math.PI * 2; while (d < -Math.PI) d += Math.PI * 2; return a + clamp(d, -k, k); };
 const vehicleWord = (id) => (CARS[id]?.bike ? 'bike' : 'car');
 const WALK = 1.7, RUN = 6.2, RADIUS = 0.34, ENTER_DIST = 3.4;
 const _v = new THREE.Vector3();
@@ -79,6 +81,21 @@ export class OnFoot {
     g.audio?.setEngineOn?.(false);
     document.getElementById('hud')?.classList.add('onfoot');
     bus.emit('player:onfoot', { on: true });
+    // getting out of a car: seated behind the wheel, open the door, swing the legs out, stand up,
+    // step clear and push the door shut
+    if (this.human && !v.p.bike) {
+      const G = this._doorGeo(v, side);
+      this.seq = { kind: 'exit', v, side, G, i: -1, t: 0, steps: [
+        { dur: 0.4, face: 'fwd', clip: ['sitIdle', { hold: true, fade: 0 }], at: 0.08, door: true },
+        { dur: 0.35, face: 'out', to: [G.hx - 0.22, G.seatZ] },
+        { dur: 0.95, face: 'out', to: G.entry, clip: ['sitExit', { rate: 1.15, fade: 0.1 }], ease: true },
+        { dur: 0.6, face: 'move', to: G.handle, walk: true, skip: true },
+        { dur: 0.75, face: 'in', clip: ['interact', { rate: 1.9 }], at: 0.3, door: false, skip: true },
+      ] };
+      this._place(G.seat[0], G.seat[1]);
+      this.state.yaw = s.yaw;
+      this._nextStep();
+    }
     return true;
   }
 
@@ -119,16 +136,134 @@ export class OnFoot {
       if (!v) return false;
       this._park(g.player);
     }
+    if (this.human) { this._startEnter(v); return true; }
+    this._board(v);
+    return true;
+  }
+
+  // walk up to the driver's door (on the side we're standing), open it, step into the opening and sit in
+  _startEnter(v) {
+    const s = this.state, vs = v.state;
+    const lx = Math.cos(vs.yaw), lz = -Math.sin(vs.yaw);
+    const side = Math.sign((s.x - vs.x) * lx + (s.z - vs.z) * lz) || 1;
+    if (v !== this.game.player && !this.parked.includes(v)) this.parked.push(v); // keep it simulated and drawn meanwhile
+    v.keep = true;
+    const G = this._doorGeo(v, side);
+    this.seq = { kind: 'enter', v, side, G, i: -1, t: 0, steps: v.p.bike ? [] : [
+      { dur: 0.9, face: 'in', clip: ['interact', { rate: 1.8 }], at: 0.32, door: true },
+      { dur: 0.5, face: 'out', to: G.entry, walk: true },
+      { dur: 0.95, face: 'out', to: [G.hx - 0.05, G.seatZ], clip: ['sitEnter', { rate: 1.35, hold: true }], ease: true },
+      { dur: 0.45, face: 'fwd', to: G.seat, ease: true },
+    ] };
+    this.seq.walkTo = v.p.bike ? [0.6, -0.1] : G.handle;
+    this.game.hud.setPrompt(null);
+  }
+
+  // where the door, the seat and the door handle are, in the car's frame: [out from the centre line
+  // towards this side, forward]. Imported cars carry their real hinge; others get a typical layout.
+  _doorGeo(v, side) {
+    const d = v.renderer?.doors?.[side], half = (v.p.width || 1.9) / 2;
+    const hx = d ? Math.abs(d.hinge.x) : half, hz = d ? d.hinge.z : (v.p.length || 4.5) * 0.06 + 0.6, len = d?.len || 1.1;
+    const seatZ = hz - len * 0.62;
+    return { hx, hz, len, seatZ, door: !!d, seat: [hx - 0.45, seatZ], entry: [hx + 0.3, seatZ], handle: [hx + 0.5, hz - len - 0.14] };
+  }
+
+  // car-frame point -> world
+  _local(v, side, out, fwd) {
+    const vs = v.state, c = Math.cos(vs.yaw), sn = Math.sin(vs.yaw);
+    return [vs.x + c * side * out + sn * fwd, vs.z - sn * side * out + c * fwd];
+  }
+  _place(out, fwd) { const q = this.seq, [x, z] = this._local(q.v, q.side, out, fwd); this.state.x = x; this.state.z = z; }
+
+  _nextStep() {
+    const q = this.seq;
+    q.i++; q.t = 0; q.fired = false;
+    const st = q.steps[q.i];
+    if (!st) return false;
+    q.from = [this.state.x, this.state.z];
+    if (st.clip) this.human.play(st.clip[0], st.clip[1]);
+    return true;
+  }
+
+  _door(q, open) {
+    const v = q.v, g = this.game;
+    if (!v.renderer?.setDoor?.(q.side, open)) return;
+    const [x, z] = this._local(v, q.side, q.G.hx, q.G.hz - q.G.len / 2);
+    const position = { x, y: 0.9, z };
+    if (open) g.audio?.playEvent('doorOpen', { position });
+    else v.renderer.onDoorShut = () => { v.renderer.onDoorShut = null; g.audio?.playEvent('doorShut', { position }); };
+  }
+
+  // take the wheel: the car becomes the player's vehicle
+  _board(v) {
+    const g = this.game;
+    const i = this.parked.indexOf(v); if (i >= 0 && v !== g.player) this.parked.splice(i, 1);
+    if (v !== g.player && g.player && !this.parked.includes(g.player) && !g.player.gone) this._park(g.player);
+    v.keep = false;
     g.player = v;
     v.controls.handbrake = 0;
     v.renderer?.setRider?.(true);
     this.active = false;
     this.body.group.visible = false;
+    this.human?.clearAction(0);
     g.camCtl.snap(v);
     g.audio?.setEngineOn?.(true);
     document.getElementById('hud')?.classList.remove('onfoot');
     bus.emit('player:onfoot', { on: false, vehicle: v });
-    return true;
+  }
+
+  // scripted get-in / get-out moves (the player has no control meanwhile, except to skip the last,
+  // walking-away part of getting out)
+  _updateSeq(dt, input) {
+    const q = this.seq, s = this.state, v = q.v, vs = v.state;
+    let speed = 0;
+    const face = (dir, k = 9) => {
+      const c = Math.cos(vs.yaw), sn = Math.sin(vs.yaw);
+      const out = [c * q.side, -sn * q.side], fwd = [sn, c];
+      const d = dir === 'out' ? out : dir === 'in' ? [-out[0], -out[1]] : fwd;
+      s.yaw = turn(s.yaw, Math.atan2(d[0], d[1]), dt * k);
+    };
+    if (q.walkTo) {
+      // walk up to the door handle
+      const [tx, tz] = this._local(v, q.side, q.walkTo[0], q.walkTo[1]);
+      const dx = tx - s.x, dz = tz - s.z, d = Math.hypot(dx, dz);
+      q.t += dt;
+      if (d > 0.12 && q.t < 6) {
+        speed = Math.min(d > 3 ? 3.2 : 1.6, d / dt);
+        s.x += dx / d * speed * dt; s.z += dz / d * speed * dt;
+        s.yaw = turn(s.yaw, Math.atan2(dx, dz), dt * 10);
+      } else { q.walkTo = null; if (!this._nextStep()) { this.seq = null; this._board(v); return; } }
+    } else {
+      const st = q.steps[q.i];
+      q.t += dt;
+      const ic = input?.controls;
+      if (st.skip && ic && Math.hypot((ic.throttle || 0) - (ic.brake || 0), ic.steer || 0) > 0.3) {
+        // the player wants to go: let go of the door (it swings shut on its own)
+        if (q.G.door) this._door(q, false);
+        this.human.clearAction(0.15); this.seq = null; return;
+      }
+      if (st.at !== undefined && !q.fired && q.t >= st.at) { q.fired = true; this._door(q, st.door); }
+      if (st.to) {
+        const k = Math.min(1, q.t / st.dur), e = st.ease ? k * k * (3 - 2 * k) : k;
+        const [tx, tz] = this._local(v, q.side, st.to[0], st.to[1]);
+        const nx = q.from[0] + (tx - q.from[0]) * e, nz = q.from[1] + (tz - q.from[1]) * e;
+        if (st.walk) speed = Math.hypot(tx - q.from[0], tz - q.from[1]) / st.dur;
+        if (st.face === 'move' && Math.hypot(nx - s.x, nz - s.z) > 1e-4) s.yaw = turn(s.yaw, Math.atan2(nx - s.x, nz - s.z), dt * 10);
+        s.x = nx; s.z = nz;
+      }
+      if (st.face !== 'move') face(st.face);
+      if (q.t >= st.dur && !this._nextStep()) {
+        const done = this.seq; this.seq = null;
+        if (done.kind === 'enter') { this._board(v); setTimeout(() => this._door(done, false), 200); }
+        return;
+      }
+    }
+    // low cars sit you lower: sink as the hips pass the sill
+    const o = (s.x - vs.x) * Math.cos(vs.yaw) * q.side - (s.z - vs.z) * Math.sin(vs.yaw) * q.side;
+    const drop = clamp((1.42 - (CARS[v.carId]?.spec?.hgt || 1.42)) * 0.7, 0, 0.2);
+    s.y = this._ground(s.x, s.z) - drop * clamp((q.G.hx + 0.1 - o) / 0.45, 0, 1);
+    s.vx = s.vz = 0; s.speed = speed;
+    this._pose(dt);
   }
 
   // another player's parked car, handed over by the server: it appears here, we get in
@@ -235,6 +370,7 @@ export class OnFoot {
   }
 
   update(dt, input) {
+    if (this.seq) { this._updateSeq(dt, input); return; }
     const s = this.state, g = this.game, ic = input.controls;
     // camera-relative movement
     const fwdIn = (ic.throttle || 0) - (ic.brake || 0), sideIn = -(ic.steer || 0);
@@ -250,6 +386,7 @@ export class OnFoot {
       s.yaw += d * Math.min(1, dt * 12);
     }
     const acc = this.knockT ? 1.5 : 10;
+    const wasGround = s.onGround !== false;
     s.vx = damp(s.vx, tx, acc, dt); s.vz = damp(s.vz, tz, acc, dt);
     s.x += s.vx * dt; s.z += s.vz * dt;
     // gravity / jump (space)
@@ -261,23 +398,13 @@ export class OnFoot {
     this._resolve();
     if (this.knockT) { this.knockT = Math.max(0, this.knockT - dt); if (!this.knockT) this.knockT = 0; }
     s.speed = Math.hypot(s.vx, s.vz);
-    // walk cycle
-    const b = this.box, v = s.speed;
-    this.phase += dt * (v > 3 ? 1.6 + v * 0.95 : 2.2 + v * 2.6);
-    const body = this.body.group;
     if (this.human) {
-      body.position.set(s.x, s.y, s.z);
-      body.rotation.set(0, s.yaw, this.knockT ? Math.sin(this.knockT * 6) * 0.4 : 0);
-      body.updateMatrixWorld(true);
-      this.human.animate(v, dt);
-    } else {
-      const sw = Math.min(1, v / 2) * (v > 3 ? 0.95 : 0.55);
-      b.legL.rotation.x = Math.sin(this.phase) * sw; b.legR.rotation.x = -Math.sin(this.phase) * sw;
-      b.armL.rotation.x = -Math.sin(this.phase) * sw * 0.8; b.armR.rotation.x = Math.sin(this.phase) * sw * 0.8;
-      body.position.set(s.x, s.y + Math.abs(Math.sin(this.phase)) * 0.04 * Math.min(1, v / 2), s.z);
-      body.rotation.set(v > 3 ? 0.12 : 0, s.yaw, this.knockT ? Math.sin(this.knockT * 6) * 0.4 : 0);
+      if (!wasGround && s.onGround) this.human.play('jumpLand', { rate: 2, fade: 0.08 });
+      if (this.knockT > 1.1 && !this.human.busy) this.human.play('hit', { rate: 0.8 });
     }
+    this._pose(dt);
     // footsteps
+    const v = s.speed;
     const step = Math.floor(this.phase / Math.PI);
     if (step !== this.lastStep && v > 0.6 && s.onGround) { this.lastStep = step; g.audio?.playFootstep?.(v > 3, { x: s.x, y: s.y, z: s.z }); }
     // enter a vehicle
@@ -285,6 +412,25 @@ export class OnFoot {
     const what = { traffic: 'steal this car', police: 'steal the police car', rival: 'take their car', remote: `take ${g.net?.names.get(near?.ref.owner) || 'their'}'s ${vehicleWord(near?.ref.carId)}` }[near?.kind] || 'get in';
     g.hud.setPrompt(near ? `press <span class="key">F</span> / <span class="key">Y</span> to ${g.net?.pendingTake && near.kind === 'remote' ? 'wait...' : what}` : null);
     if (near && input.consume('enter')) this.enter(near);
+  }
+
+  // place and animate the body for this frame
+  _pose(dt) {
+    const s = this.state, b = this.box, v = s.speed;
+    this.phase += dt * (v > 3 ? 1.6 + v * 0.95 : 2.2 + v * 2.6);
+    const body = this.body.group;
+    if (this.human) {
+      body.position.set(s.x, s.y, s.z);
+      body.rotation.set(0, s.yaw, 0);
+      body.updateMatrixWorld(true);
+      this.human.animate(v, dt, s.onGround === false);
+    } else {
+      const sw = Math.min(1, v / 2) * (v > 3 ? 0.95 : 0.55);
+      b.legL.rotation.x = Math.sin(this.phase) * sw; b.legR.rotation.x = -Math.sin(this.phase) * sw;
+      b.armL.rotation.x = -Math.sin(this.phase) * sw * 0.8; b.armR.rotation.x = Math.sin(this.phase) * sw * 0.8;
+      body.position.set(s.x, s.y + Math.abs(Math.sin(this.phase)) * 0.04 * Math.min(1, v / 2), s.z);
+      body.rotation.set(v > 3 ? 0.12 : 0, s.yaw, this.knockT ? Math.sin(this.knockT * 6) * 0.4 : 0);
+    }
   }
 
   // third-person camera: mouse / right stick orbit, eases in behind while walking

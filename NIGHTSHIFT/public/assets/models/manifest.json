@@ -3423,8 +3423,8 @@
         }
       ],
       "tris": {
-        "lod0": 117261,
-        "lod1": 23763
+        "lod0": 125283,
+        "lod1": 23942
       },
       "source": {
         "site": "Sketchfab",
@@ -3478,8 +3478,8 @@
         }
       ],
       "tris": {
-        "lod0": 151475,
-        "lod1": 35898
+        "lod0": 163111,
+        "lod1": 37720
       },
       "source": {
         "site": "Sketchfab",
@@ -3533,8 +3533,8 @@
         }
       ],
       "tris": {
-        "lod0": 34432,
-        "lod1": 16782
+        "lod0": 40168,
+        "lod1": 16781
       },
       "source": {
         "site": "Sketchfab",
@@ -3588,8 +3588,8 @@
         }
       ],
       "tris": {
-        "lod0": 155980,
-        "lod1": 22641
+        "lod0": 173609,
+        "lod1": 22875
       },
       "source": {
         "site": "Sketchfab",
@@ -3643,8 +3643,8 @@
         }
       ],
       "tris": {
-        "lod0": 62468,
-        "lod1": 16891
+        "lod0": 70120,
+        "lod1": 16912
       },
       "source": {
         "site": "Sketchfab",
@@ -3698,8 +3698,8 @@
         }
       ],
       "tris": {
-        "lod0": 160937,
-        "lod1": 19310
+        "lod0": 180122,
+        "lod1": 19571
       },
       "source": {
         "site": "Sketchfab",
@@ -3753,8 +3753,8 @@
         }
       ],
       "tris": {
-        "lod0": 79032,
-        "lod1": 22111
+        "lod0": 84904,
+        "lod1": 22139
       },
       "source": {
         "site": "Sketchfab",
@@ -3808,8 +3808,8 @@
         }
       ],
       "tris": {
-        "lod0": 65759,
-        "lod1": 25636
+        "lod0": 73317,
+        "lod1": 25637
       },
       "source": {
         "site": "Sketchfab",
@@ -3863,8 +3863,8 @@
         }
       ],
       "tris": {
-        "lod0": 203492,
-        "lod1": 51567
+        "lod0": 212340,
+        "lod1": 54919
       },
       "source": {
         "site": "Sketchfab",
@@ -3918,8 +3918,8 @@
         }
       ],
       "tris": {
-        "lod0": 166207,
-        "lod1": 34566
+        "lod0": 180666,
+        "lod1": 36769
       },
       "source": {
         "site": "Sketchfab",
@@ -3973,8 +3973,8 @@
         }
       ],
       "tris": {
-        "lod0": 157680,
-        "lod1": 20557
+        "lod0": 176948,
+        "lod1": 20850
       },
       "source": {
         "site": "Sketchfab",
@@ -4028,8 +4028,8 @@
         }
       ],
       "tris": {
-        "lod0": 151147,
-        "lod1": 33627
+        "lod0": 163940,
+        "lod1": 36332
       },
       "source": {
         "site": "Sketchfab",
@@ -4083,8 +4083,8 @@
         }
       ],
       "tris": {
-        "lod0": 177710,
-        "lod1": 29662
+        "lod0": 190607,
+        "lod1": 36947
       },
       "source": {
         "site": "Sketchfab",
@@ -4138,8 +4138,8 @@
         }
       ],
       "tris": {
-        "lod0": 225364,
-        "lod1": 52695
+        "lod0": 243502,
+        "lod1": 56069
       },
       "source": {
         "site": "Sketchfab",
@@ -4193,8 +4193,8 @@
         }
       ],
       "tris": {
-        "lod0": 159696,
-        "lod1": 79352
+        "lod0": 165136,
+        "lod1": 81253
       },
       "source": {
         "site": "Sketchfab",
@@ -4248,8 +4248,8 @@
         }
       ],
       "tris": {
-        "lod0": 266231,
-        "lod1": 114606
+        "lod0": 278405,
+        "lod1": 117329
       },
       "source": {
         "site": "Sketchfab",
@@ -4662,28 +4662,28 @@
   "hashes": {
     "brawler.glb": "d989a95250",
     "bus.glb": "a27edba4bb",
-    "cars/audi_r8_v10.glb": "f7cbd25a65",
-    "cars/bmw_m3_e30.glb": "b669a82d6e",
-    "cars/bmw_m4_f82.glb": "913282e1d1",
+    "cars/audi_r8_v10.glb": "f2b197763c",
+    "cars/bmw_m3_e30.glb": "e418460320",
+    "cars/bmw_m4_f82.glb": "f256097384",
     "cars/bmw_s1000rr.glb": "098eba0c42",
-    "cars/chevrolet_corvette_c8.glb": "f2959f2d3a",
+    "cars/chevrolet_corvette_c8.glb": "fae1dea0d3",
     "cars/ducati_panigale_v4r.glb": "bcba8d6f2b",
-    "cars/ferrari_f40.glb": "6b9c6b4bde",
+    "cars/ferrari_f40.glb": "484e1a87d5",
     "cars/harley_iron_883.glb": "c311680c3f",
-    "cars/honda_nsx_na1.glb": "38ce55bfa4",
+    "cars/honda_nsx_na1.glb": "1b6c5d3c2c",
     "cars/kawasaki_ninja_h2.glb": "66216bbf7d",
     "cars/kawasaki_zx6r.glb": "04fb05f437",
-    "cars/lamborghini_centenario.glb": "a81671a09a",
-    "cars/lamborghini_huracan_tt.glb": "4e684c6bfe",
-    "cars/mazda_rx7_fd.glb": "3ca1a5ca74",
-    "cars/mclaren_senna.glb": "c7d3ce0bce",
-    "cars/nissan_gtr_r35.glb": "cfe762bfe7",
-    "cars/nissan_skyline_r34.glb": "91f3b0b51e",
-    "cars/porsche_911_gt3.glb": "b967817160",
-    "cars/porsche_930_turbo.glb": "2d6552d51b",
-    "cars/subaru_wrx_sti_gc8.glb": "a715c245e0",
+    "cars/lamborghini_centenario.glb": "6c9aa6918e",
+    "cars/lamborghini_huracan_tt.glb": "3a5864e8ee",
+    "cars/mazda_rx7_fd.glb": "4cea2d5b82",
+    "cars/mclaren_senna.glb": "2901b2f88b",
+    "cars/nissan_gtr_r35.glb": "60c5c9a2b1",
+    "cars/nissan_skyline_r34.glb": "24205b53fc",
+    "cars/porsche_911_gt3.glb": "2c2e12b29e",
+    "cars/porsche_930_turbo.glb": "12d5992ff3",
+    "cars/subaru_wrx_sti_gc8.glb": "8968c9e0c1",
     "cars/suzuki_hayabusa.glb": "f0799be741",
-    "cars/toyota_supra_mk4.glb": "7dec86716e",
+    "cars/toyota_supra_mk4.glb": "deba81d419",
     "cars/yamaha_r1.glb": "079a76b27b",
     "hikari.glb": "080c1663ef",
     "humans/alex.glb": "d87147073b",

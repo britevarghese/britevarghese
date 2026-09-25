@@ -94,15 +94,15 @@ const REAL = [
   { id: 'mclaren_senna', brand: 'McLaren', model: 'Senna', year: 2018, tier: 'A', carType: 'exotic', unlock: { level: 22 }, price: 320000,
     spec: { trans: 'dct', kw: 588, kg: 1300, drive: 'RWD', t100: 2.8, vmax: 340, len: 4.744, wid: 1.958, hgt: 1.229, wb: 2.67, track: 1.66, wr: 0.35, fw: 0.42, redline: 8250, gears: [3.98, 2.61, 1.91, 1.48, 1.18, 0.95, 0.77], fd: 3.31, grip: 1.45, era: 2018, downforce: 3.2 },
     blurb: 'Downforce first, comfort never. The most extreme road car McLaren ever built.',
-    src: { uid: 'ea3e43a6eb004853a87fe9c58422eb96', title: 'McLaren Senna Free', author: 'BlackSnow02' }, standIn: 'sa_wedge' },
+    src: { uid: 'ea3e43a6eb004853a87fe9c58422eb96', title: 'McLaren Senna Free', author: 'BlackSnow02' }, standIn: 'sa_wedge', import: { doorStyle: 'butterfly' } },
   { id: 'lamborghini_centenario', brand: 'Lamborghini', model: 'Centenario LP 770-4', year: 2016, tier: 'S', carType: 'exotic', unlock: { level: 26 }, price: 450000,
     spec: { trans: 'isr', kw: 566, kg: 1520, drive: 'AWD', t100: 2.8, vmax: 350, len: 4.924, wid: 2.062, hgt: 1.143, wb: 2.7, track: 1.72, wr: 0.36, fw: 0.43, redline: 8500, gears: [3.91, 2.44, 1.81, 1.46, 1.19, 0.97, 0.84], fd: 2.87, grip: 1.4, era: 2016, downforce: 2.6 },
     blurb: 'A centenary tribute with a 770 PS V12. Forty were made. You have one.',
-    src: { uid: 'd679af35b5694301a185c7454a700c73', title: 'Lamborghini Centenario LP-770 Interior SDC', author: 'Lambo_SC04' }, standIn: 'sa_wedge' },
+    src: { uid: 'd679af35b5694301a185c7454a700c73', title: 'Lamborghini Centenario LP-770 Interior SDC', author: 'Lambo_SC04' }, standIn: 'sa_wedge', import: { doorStyle: 'scissor' } },
   { id: 'lamborghini_huracan_tt', brand: 'Lamborghini', model: 'Huracán Twin Turbo', year: 2019, tier: 'S', carType: 'exotic', unlock: { mission: 'apex_predator' }, price: 0,
     spec: { trans: 'dct', kw: 735, kg: 1480, drive: 'AWD', t100: 2.5, vmax: 360, len: 4.459, wid: 1.924, hgt: 1.165, wb: 2.62, track: 1.67, wr: 0.36, fw: 0.43, redline: 8500, gears: [3.13, 2.59, 1.96, 1.54, 1.21, 1.00, 0.77], fd: 3.8, grip: 1.4, era: 2019, downforce: 2.4 },
     blurb: 'Twin-turbo V10 built for the street-racing scene. The final prize of the night.',
-    src: { uid: '1d3809ea5a6749d9864ec4c32511d716', title: 'Lamborghini Huracan Twin Turbo [LOST]', author: 'BlackSnow02' }, standIn: 'sa_wedge' },
+    src: { uid: '1d3809ea5a6749d9864ec4c32511d716', title: 'Lamborghini Huracan Twin Turbo [LOST]', author: 'BlackSnow02' }, standIn: 'sa_wedge', import: { doorStyle: 'butterfly' } },
 ];
 
 // gearbox behaviour: shift duration and how much drive survives the shift
@@ -151,7 +151,7 @@ for (const r of REAL) {
   if (cal) { params.enginePower *= cal.power; params.launchG = cal.launchG; params.maxSpeed *= cal.vmax; }
   CARS[r.id] = {
     id: r.id, name: `${r.brand} ${r.model}`, brand: r.brand, model: r.model, year: r.year, class: `${r.tier}-CLASS`, tier: r.tier,
-    price: r.price, carType: r.carType, blurb: r.blurb, unlock: r.unlock, real: true, spec: r.spec, standIn: 'sr_' + r.id, look: LOOK[r.id] || {}, factoryColor: FACTORY[r.id],
+    price: r.price, carType: r.carType, blurb: r.blurb, unlock: r.unlock, real: true, spec: r.spec, import: r.import, standIn: 'sr_' + r.id, look: LOOK[r.id] || {}, factoryColor: FACTORY[r.id],
     source: { site: 'Sketchfab', uid: r.src.uid, title: r.src.title, author: r.src.author, url: `https://sketchfab.com/3d-models/${r.src.uid}`, license: 'CC-BY-4.0' },
     params,
   };

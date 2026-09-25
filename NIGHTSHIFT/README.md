@@ -114,8 +114,13 @@ Saves live in each player's browser.
   or cruiser). Parked bikes rest on the side stand. Buy them in the garage with the cars.
 - **People:** the player on foot, other players, mission contacts and the pedestrians nearest the
   camera are rigged, textured characters (8 CC BY models, credits in
-  `public/assets/models/humans/CREDITS.md`) with procedural idle, walk and run animation (feet
-  planted with IK). Bikes carry a rigged helmeted rider. Farther pedestrians use cheap instanced
+  `public/assets/models/humans/CREDITS.md`) animated with motion-captured clips (Quaternius'
+  CC0 Universal Animation Library, retargeted by `tools/import-anims.mjs`): idle, walk, jog and
+  sprint blended by speed, jumps and landings, stumbling when clipped by a car. Getting in and out
+  of a car is choreographed: walk to the door, pull it open, step in and sit down; getting out, swing
+  the legs out, stand up and push the door shut (move to skip that last part). Every real car's front
+  doors open on their hinges (scissor on the Centenario, butterfly on the Senna); the converter cuts
+  them out of each model. Bikes carry a rigged helmeted rider. Farther pedestrians use cheap instanced
   figures; how many are realistic depends on the graphics quality.
 - **Garage:** paint (incl. factory colours), finish, vinyl, wheels, spoiler, hood, bumper, tint,
   calipers; engine, transmission, tyres, brakes, suspension and nitrous upgrades.

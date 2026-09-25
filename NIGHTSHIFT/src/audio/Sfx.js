@@ -245,6 +245,18 @@ const R = {
   },
 
   // shoe on pavement: soft heel thud + a small gritty scuff
+  // car door: latch click and a light panel creak opening; a solid thunk with a latch snap shutting
+  doorOpen(s, t) {
+    s.noiseHit('white', 'bandpass', 3200, 6, t, 0.001, 0.14, 0.025);
+    s.tone('triangle', 1900, t + 0.004, 0.001, 0.05, 0.03);
+    s.noiseHit('brown', 'lowpass', 420, 1, t + 0.03, 0.01, 0.12, 0.12);
+  },
+  doorShut(s, t) {
+    s.tone('sine', 72, t, 0.002, 0.7, 0.2, 44);
+    s.noiseHit('brown', 'lowpass', 360, 1.1, t, 0.002, 0.8, 0.16);
+    s.noiseHit('white', 'bandpass', 2600, 5, t + 0.006, 0.001, 0.16, 0.03);
+    s.noiseHit('white', 'bandpass', 900, 2, t, 0.002, 0.12, 0.06);
+  },
   footstep(s, t, o) {
     const k = clamp(num(o.intensity, 0.5), 0, 1);
     s.noiseHit('brown', 'lowpass', 380 + k * 250, 0.9, t, 0.002, 0.35 * k, 0.05);

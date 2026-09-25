@@ -1,5 +1,5 @@
 // Imports the people of Port Halvern: rigged CC BY 4.0 characters from Sketchfab that share one
-// humanoid skeleton (Ready Player Me style), so one procedural walk / run animation drives them all
+// humanoid skeleton (Ready Player Me style), so one set of retargeted motion-capture clips drives them all
 // (src/player/Human.js). Textures are re-encoded as WebP and geometry compressed. The first one is
 // the player's default look; the rest walk the sidewalks, give missions and stand in for other players.
 //
@@ -68,7 +68,7 @@ const manifestPath = path.join(ROOT, 'public/assets/models/manifest.json');
 const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
 manifest.humans = done.map((h) => ({ id: h.id, sex: h.sex, file: `humans/${h.id}.glb`, source: { site: 'Sketchfab', uid: h.uid, title: h.title, author: h.author, url: `https://sketchfab.com/3d-models/${h.uid}`, license: 'CC-BY-4.0' } }));
 fs.writeFileSync(manifestPath, JSON.stringify(manifest, null, 2));
-const lines = ['# People credits', '', 'Character models are used under the Creative Commons Attribution 4.0 license (https://creativecommons.org/licenses/by/4.0/). They were converted for real-time use (animations removed, textures re-encoded, geometry compressed); the game animates them procedurally.', ''];
+const lines = ['# People credits', '', 'Character models are used under the Creative Commons Attribution 4.0 license (https://creativecommons.org/licenses/by/4.0/). They were converted for real-time use (animations removed, textures re-encoded, geometry compressed); the game animates them with motion-captured clips (public/assets/anims).', ''];
 for (const h of done) lines.push(`- "${h.title}" by ${h.author}, https://sketchfab.com/3d-models/${h.uid} (CC BY 4.0), modified.`);
 fs.writeFileSync(path.join(outDir, 'CREDITS.md'), lines.join('\n') + '\n');
 stampModels(ROOT); // cache-busting fingerprints for the game

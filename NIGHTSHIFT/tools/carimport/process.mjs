@@ -1,6 +1,7 @@
 // Converts an arbitrary car model (e.g. a Sketchfab glTF export) into NIGHTSHIFT's vehicle layout:
 //   <id> ─ lod0 ─ body_* (merged per material)          world units: metres, +Z forward, +X left,
 //        │      ├ wheel_FL|FR|RL|RR ─ spin/*, fixed/*    y = 0 on the ground under the tyres
+//        │      ├ door_L|R ─ door_L_* (pivot on the hinge line, extras.len = door length)
 //        │      └ markers (light_head_L, light_tail_R, exhaust_L, eye_cockpit, ...)
 //        └ lod1 ─ same, heavily simplified, no interior
 // Steps: bake transforms -> drop floors/cameras/animation -> orient/scale to the real length -> find
@@ -9,7 +10,7 @@
 import { Primitive } from '@gltf-transform/core';
 import { transformPrimitive, weldPrimitive, simplifyPrimitive, joinPrimitives } from '@gltf-transform/functions';
 import { MeshoptSimplifier } from 'meshoptimizer';
-import { components, subsetPrimitive, triCount, triIndices, positions, triSetBounds } from './geom.mjs';
+import { components, subsetPrimitive, splitPrimitive, triCount, triIndices, positions, triSetBounds } from './geom.mjs';
 
 const RX = {
   plane: /(^|[^a-z])(plane|ground|floor|shadow|backdrop|studio|turntable|platform|podium|environment|sky)([^a-z]|$)/i,
@@ -304,6 +305,60 @@ export function processCar(doc, car, opt = {}) {
   }
   say(`materials: paint=${paint ? `"${[...paint.names][0]}"` : 'NONE'} glass=${glassN} headlight=${[...classes.values()].includes('headlight')} taillight=${[...classes.values()].includes('taillight')}`);
 
+  // ---- 5b. front doors: the side panel between the front wheel arch and the B-pillar (skin, inner
+  // panel and side window) is cut out of the body into door_L / door_R, hinged at its front edge, so the
+  // game can swing them open when someone gets in or out. Triangles on the seams are clipped exactly.
+  const doors = {};
+  if (!bike && W.FL && W.RL && W.FR && car.import?.doors !== false) {
+    const bb = boundsOf(body), H0 = bb.size[1];
+    for (const side of ['L', 'R']) {
+      const sg = side === 'L' ? 1 : -1;
+      const wf = W['F' + side], wr = W['R' + side];
+      const zf = wf.z - wf.r * 1.12 - 0.05;                     // hinge line, just behind the front arch
+      const gap = zf - (wr.z + wr.r * 1.1);
+      const len = Math.min(1.3, Math.max(0.8, gap * (car.import?.doorFrac || 0.66)));
+      const y0 = Math.max(0.16, wf.y - wf.r * 0.45), belt = H0 * 0.6, top = H0 - 0.05;
+      // the side's outer skin where the door is (not mirrors or flared haunches elsewhere)
+      let half = 0;
+      for (const p of body) {
+        const pos = positions(p.prim);
+        for (let i = 0; i < pos.length; i += 3) if (pos[i + 2] < zf && pos[i + 2] > zf - len && pos[i + 1] > y0 && pos[i + 1] < belt && sg * pos[i] > half) half = sg * pos[i];
+      }
+      if (!half) half = side === 'L' ? bb.max[0] : -bb.min[0];
+      // two convex volumes: the door skin below the belt line, the window frame above it (leaning in
+      // with the tumblehome and back with the A-pillar; only side-facing surfaces, not roof or seats)
+      const k = 0.3 / Math.max(0.1, top - belt);
+      const regions = [
+        [[0, -1, 0, y0], [0, 1, 0, -belt], [0, 0, 1, -zf], [0, 0, -1, zf - len], [-sg, 0, 0, half - 0.24]],
+        [[0, -1, 0, belt], [0, 1, 0, -top], [0, 0.9, 1, -zf - 0.9 * belt], [0, 0, -1, zf - len], [-sg, -k, 0, half - 0.14 + k * belt]],
+      ];
+      const use = (t, n) => [true, Math.abs(n[0]) >= 0.45 * Math.hypot(n[0], n[1], n[2])];
+      // scissor / butterfly doors swing up about a hinge at the base of the A-pillar
+      const style = car.import?.doorStyle || 'conventional';
+      const hinge = [sg * (half - 0.04), style === 'conventional' ? 0 : belt * 0.92, zf];
+      const cut = [];
+      let tris = 0;
+      for (const p of body) {
+        const pb = boundsOf([p]);
+        if (sg * (sg > 0 ? pb.max[0] : pb.min[0]) < half - 0.3 || pb.min[2] > zf || pb.max[2] < zf - len || pb.max[1] < y0) continue;
+        const { inside, outside } = splitPrimitive(doc, p.prim, regions, use);
+        if (!inside) continue;
+        tris += triCount(inside);
+        cut.push({ p, inside, outside });
+      }
+      if (tris < 40) { say(`door ${side}: nothing to cut (${tris} tris)`); continue; }
+      doors[side] = { pieces: [], hinge, len, style };
+      for (const { p, inside, outside } of cut) {
+        transformPrimitive(inside, transM(-hinge[0], -hinge[1], -hinge[2]));
+        doors[side].pieces.push({ prim: inside, name: p.name });
+        p.prim = outside;
+      }
+      for (let i = body.length - 1; i >= 0; i--) if (!body[i].prim) body.splice(i, 1);
+      say(`door ${side}: ${tris} tris, hinge z ${zf.toFixed(2)}, length ${len.toFixed(2)}`);
+    }
+  }
+  const doorIds = Object.keys(doors);
+
   // ---- 6. merge per material, build LODs
   const buffer = root.listBuffers()[0];
   const merge = (pieces) => {
@@ -327,15 +382,17 @@ export function processCar(doc, car, opt = {}) {
   };
   const cloneList = (pieces) => pieces.map((pc) => ({ name: pc.name, prim: subsetPrimitive(doc, pc.prim, [...Array(triCount(pc.prim)).keys()]) }));
   const budget = opt.budget || (bike ? { body0: 90000, wheel0: 8000, body1: 9000, wheel1: 600 } : { body0: 120000, wheel0: 9000, body1: 14000, wheel1: 700 });
-  const lod1Body = cloneList(body.filter((p) => !RX.interior.test(p.name)));
+  // far away the doors stay shut: LOD1 keeps them in the body
+  const doorBack = (side) => cloneList(doors[side].pieces).map((pc) => { transformPrimitive(pc.prim, transM(...doors[side].hinge)); return pc; });
+  const lod1Body = [...cloneList(body.filter((p) => !RX.interior.test(p.name))), ...doorIds.flatMap((d) => doorBack(d).filter((p) => !RX.interior.test(p.name)))];
   const lod1Wheels = Object.fromEntries(wheelIds.map((q) => [q, { spin: cloneList(wheelPieces[q].spin), fixed: cloneList(wheelPieces[q].fixed) }]));
   const lods = [
-    { name: 'lod0', body: simplifyList(merge(body), budget.body0, 0.0015), wheels: Object.fromEntries(wheelIds.map((q) => [q, { spin: simplifyList(merge(wheelPieces[q].spin), budget.wheel0, 0.002), fixed: merge(wheelPieces[q].fixed) }])) },
+    { name: 'lod0', body: simplifyList(merge(body), budget.body0, 0.0015), doors: Object.fromEntries(doorIds.map((d) => [d, simplifyList(merge(doors[d].pieces), budget.body0 * 0.08, 0.0015)])), wheels: Object.fromEntries(wheelIds.map((q) => [q, { spin: simplifyList(merge(wheelPieces[q].spin), budget.wheel0, 0.002), fixed: merge(wheelPieces[q].fixed) }])) },
     { name: 'lod1', body: simplifyList(merge(lod1Body), budget.body1, 0.03), wheels: Object.fromEntries(wheelIds.map((q) => [q, { spin: simplifyList(merge(lod1Wheels[q].spin), budget.wheel1, 0.03), fixed: simplifyList(merge(lod1Wheels[q].fixed), 120, 0.05) }])) },
   ];
 
   // ---- 7. markers from the final geometry
-  b = boundsOf(body);
+  b = boundsOf([...body, ...doorIds.flatMap(doorBack)]);
   const H = b.size[1], Wd = b.size[0], zF = b.max[2], zR = b.min[2];
   const matCentres = (cls) => {
     const out = { L: null, R: null };
@@ -398,6 +455,14 @@ export function processCar(doc, car, opt = {}) {
       g.addChild(doc.createNode(`body_${i}`).setMesh(mesh));
       if (lod.name === 'lod0') { tris0 += triCount(pr); calls0++; } else tris1 += triCount(pr);
     });
+    for (const [d, prims] of Object.entries(lod.doors || {})) {
+      const dn = doc.createNode(`door_${d}`).setTranslation(doors[d].hinge.map((x) => +x.toFixed(4))).setExtras({ len: +doors[d].len.toFixed(3), style: doors[d].style });
+      g.addChild(dn);
+      prims.forEach((pr, i) => {
+        dn.addChild(doc.createNode(`door_${d}_${i}`).setMesh(doc.createMesh(`${lod.name}_door_${d}_${i}`).addPrimitive(pr)));
+        tris0 += triCount(pr); calls0++;
+      });
+    }
     for (const q of wheelIds) {
       const wn = doc.createNode(`wheel_${q}`).setTranslation([W[q].x, W[q].y, W[q].z]);
       g.addChild(wn);
@@ -421,7 +486,7 @@ export function processCar(doc, car, opt = {}) {
     info: {
       length: +b.size[2].toFixed(3), width: +b.size[0].toFixed(3), height: +b.size[1].toFixed(3),
       wheels: wheelIds.map((q) => ({ id: q, x: +W[q].x.toFixed(3), y: +W[q].y.toFixed(3), z: +W[q].z.toFixed(3), r: +W[q].r.toFixed(3), w: +W[q].w.toFixed(3) })),
-      tris: { lod0: tris0, lod1: tris1 }, drawCalls: calls0, paint: !!paint,
+      tris: { lod0: tris0, lod1: tris1 }, drawCalls: calls0, paint: !!paint, doors: doorIds,
       lights: { head: !!head.L, tail: !!tail.L },
     },
   };

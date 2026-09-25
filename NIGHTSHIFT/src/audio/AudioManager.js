@@ -21,6 +21,8 @@ const SPEED_OF_SOUND = 343;
 const EVENT_ROUTING = {
   collision: { bus: 'sfx', reverb: 0.22, gap: 0.06 },
   footstep: { bus: 'sfx', reverb: 0.12, gap: 0.12 },
+  doorOpen: { bus: 'sfx', reverb: 0.1, gap: 0.2 },
+  doorShut: { bus: 'sfx', reverb: 0.15, gap: 0.2 },
   gearUp: { bus: 'sfx', reverb: 0, gap: 0.05 },
   gearDown: { bus: 'sfx', reverb: 0, gap: 0.05 },
   nitroStart: { bus: 'sfx', reverb: 0.1, gap: 0.1 },

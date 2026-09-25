@@ -1,6 +1,6 @@
 # People credits
 
-Character models are used under the Creative Commons Attribution 4.0 license (https://creativecommons.org/licenses/by/4.0/). They were converted for real-time use (animations removed, textures re-encoded, geometry compressed); the game animates them procedurally.
+Character models are used under the Creative Commons Attribution 4.0 license (https://creativecommons.org/licenses/by/4.0/). They were converted for real-time use (animations removed, textures re-encoded, geometry compressed); the game animates them with motion-captured clips (public/assets/anims).
 
 - "Avatar Full body - Ready Player Me - pmariano" by patomariano, https://sketchfab.com/3d-models/a9c1f5d2cd7c4ca3bb46272998d3e451 (CC BY 4.0), modified.
 - "ReadyPlayerMe - Rainbow Family: Alex" by anonim.user.978, https://sketchfab.com/3d-models/006dd7a2d3734387ab4ab8d92c868788 (CC BY 4.0), modified.

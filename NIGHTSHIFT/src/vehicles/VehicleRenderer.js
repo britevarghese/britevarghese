@@ -92,6 +92,12 @@ export class VehicleRenderer {
     this.markers = {};
     // marker positions in body space (stand-ins are scaled, so store scaled copies)
     lod0.traverse((o) => { if (!o.isMesh && o.name && !this.markers[o.name]) this.markers[o.name] = this.standIn ? { name: o.name, position: o.position.clone().multiply(this.scaleV) } : o; });
+    // hinged front doors (imported cars): door_L / door_R pivot on their front edge
+    this.doors = {};
+    for (const [side, k] of [[1, 'L'], [-1, 'R']]) {
+      const n = lod0.getObjectByName('door_' + k);
+      if (n) this.doors[side] = { node: n, len: n.userData.len || 1.1, style: n.userData.style || 'conventional', hinge: n.position.clone().multiply(this.scaleV), a: 0, open: false };
+    }
     if (this.imported) this._rigImportedWheels(); else this._rigWheels();
     if (this.bike) this._rider();
     this._lights();
@@ -227,6 +233,22 @@ export class VehicleRenderer {
     this.markers.eye_cockpit = { name: 'eye_cockpit', position: this.rider.eye.clone() };
     this.riderOn = true;
   }
+  // side: +1 = the car's left (+X), -1 = right. Returns false when the model has no such door.
+  setDoor(side, open) { const d = this.doors[side]; if (!d) return false; d.open = open; return true; }
+  _swingDoors(dt) {
+    for (const [side, d] of Object.entries(this.doors)) {
+      const target = d.open ? 1.12 : 0;
+      if (d.a === target) continue;
+      // opens briskly and eases out at the check strap; shuts faster and snaps home
+      const sp = d.open ? 2.4 : 3.2;
+      d.a = d.open ? Math.min(target, d.a + dt * sp * (0.35 + (target - d.a))) : Math.max(0, d.a - dt * sp * (0.4 + d.a));
+      if (d.style === 'scissor') d.node.rotation.set(d.a * 1.12, 0, 0);                  // straight up
+      else if (d.style === 'butterfly') d.node.rotation.set(d.a * 0.95, -Math.sign(side) * d.a * 0.3, Math.sign(side) * d.a * 0.35, 'YXZ'); // up and out
+      else d.node.rotation.y = -Math.sign(side) * d.a;
+      if (!d.open && d.a === 0) this.onDoorShut?.(+side);
+    }
+  }
+
   setRider(on) { this.riderOn = on; if (this.rider) this.rider.group.visible = on; }
 
   _lights() {
@@ -419,6 +441,7 @@ export class VehicleRenderer {
     const g = this.group;
     g.position.set(s.x, s.y, s.z);
     g.rotation.set(0, s.yaw, 0);
+    if (dt > 0) this._swingDoors(dt);
     if (this.bike) this._bikeBody(s);
     else {
       this.body.rotation.set(-s.pitch, 0, s.roll, 'YXZ');
