@@ -221,39 +221,72 @@ export class Environment {
   }
 
   // ------------------------------------------------------------------ rain
+  // Rain: every drop is simulated (falls at ~9 m/s, drifts with the wind) and drawn as a short streak
+  // along its velocity relative to the viewer over a camera exposure, so it slants toward you when you
+  // drive and stretches with speed. Streaks taper (bright head, faint tail) and vary in length and
+  // brightness. One LineSegments draw call; positions are rewritten each frame (a few thousand drops).
   _buildRain() {
+    this.rainMat = new THREE.LineBasicMaterial({ vertexColors: true, transparent: true, opacity: 0.4, fog: true, depthWrite: false });
     this.rainGroup = new THREE.Group();
-    this.rainMat = new THREE.LineBasicMaterial({ color: 0xaab4c8, transparent: true, opacity: 0.35, fog: true, depthWrite: false });
     this.scene.add(this.rainGroup);
+    this.wind = { x: 0, z: 0, t: 0 };
     this._rebuildRainCount();
   }
   _rebuildRainCount() {
     for (const c of [...this.rainGroup.children]) { c.geometry.dispose(); this.rainGroup.remove(c); }
     const N = this.preset.rainDrops;
     const R = rng(7);
-    this.rainBox = { w: 60, h: 34 };
-    // two layers; each is a static geometry moved as a whole (zero per-drop CPU cost)
-    for (let layer = 0; layer < 2; layer++) {
-      const n = Math.floor(N / 2);
-      const pos = new Float32Array(n * 6);
-      for (let i = 0; i < n; i++) {
-        let x = (R() - 0.5) * this.rainBox.w, z = (R() - 0.5) * this.rainBox.w;
-        const y = R() * this.rainBox.h;
-        // keep a clear column around the camera: drops right next to the lens read as huge slashes
-        const rr = Math.hypot(x, z);
-        if (rr < 3.5) { const k = (3.5 + R() * 2) / (rr || 1); x *= k; z *= k; }
-        const len = 0.5 + R() * 0.6;
-        pos.set([x, y, z, x + 0.05, y + len, z + 0.02], i * 6);
-      }
-      const g = new THREE.BufferGeometry();
-      g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
-      for (let k = 0; k < 2; k++) {
-        const m = new THREE.LineSegments(g, this.rainMat);
-        m.frustumCulled = false;
-        m.userData = { layer, copy: k, speed: layer ? 16 : 21, offset: k * this.rainBox.h };
-        this.rainGroup.add(m);
-      }
+    this.rainBox = { w: 34, h: 16 };
+    const d = (this.drops = { n: N, x: new Float32Array(N), y: new Float32Array(N), z: new Float32Array(N), v: new Float32Array(N), len: new Float32Array(N), });
+    const col = new Float32Array(N * 6);
+    for (let i = 0; i < N; i++) {
+      d.x[i] = (R() - 0.5) * this.rainBox.w; d.z[i] = (R() - 0.5) * this.rainBox.w; d.y[i] = R() * this.rainBox.h;
+      d.v[i] = 7.5 + R() * 2.5;          // terminal velocity of 1-3 mm drops
+      d.len[i] = 0.6 + R() * 0.8;        // streak length spread
+      const b = 0.45 + R() * 0.55;       // brightness spread; tail fades to a quarter
+      col.set([0.74 * b, 0.8 * b, 0.9 * b, 0.19 * b, 0.21 * b, 0.25 * b], i * 6);
     }
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.BufferAttribute(new Float32Array(N * 6), 3).setUsage(THREE.DynamicDrawUsage));
+    g.setAttribute('color', new THREE.BufferAttribute(col, 3));
+    const m = new THREE.LineSegments(g, this.rainMat);
+    m.frustumCulled = false;
+    this.rainGroup.add(m);
+    this.rainLines = m;
+  }
+
+  _updateRain(dt, cam, vel) {
+    const d = this.drops, B = this.rainBox, W = B.w, half = W / 2;
+    const w = this.wind;
+    // gusting wind
+    w.t += dt;
+    w.x = Math.sin(w.t * 0.13) * 1.6 + Math.sin(w.t * 0.71) * 0.5;
+    w.z = Math.cos(w.t * 0.09) * 1.2 + Math.sin(w.t * 0.53) * 0.4;
+    const vx = vel?.vx || 0, vz = vel?.vz || 0;
+    const pos = this.rainLines.geometry.attributes.position.array;
+    const count = Math.min(d.n, Math.ceil(d.n * Math.min(1, this.rain * 1.1)));
+    const bottom = cam.y - 5, top = bottom + B.h;
+    const EXPO = 0.055; // s: how far a drop travels while the "shutter" is open (motion-blur length)
+    for (let i = 0; i < count; i++) {
+      let y = d.y[i] - d.v[i] * dt;
+      let x = d.x[i] + w.x * dt, z = d.z[i] + w.z * dt;
+      // keep the drop field centred on the camera (wraps any distance, e.g. after a teleport)
+      if (y < bottom || y > top) y = bottom + (((y - bottom) % B.h) + B.h) % B.h;
+      if (x - cam.x > half || x - cam.x < -half) x = cam.x - half + (((x - cam.x + half) % W) + W) % W;
+      if (z - cam.z > half || z - cam.z < -half) z = cam.z - half + (((z - cam.z + half) % W) + W) % W;
+      d.x[i] = x; d.y[i] = y; d.z[i] = z;
+      // relative velocity to the viewer -> streak direction and length
+      const k = EXPO * d.len[i];
+      let tx = (w.x - vx) * k, ty = -d.v[i] * k, tz = (w.z - vz) * k;
+      // drops right at the lens would read as giant slashes: shrink them
+      const near = Math.hypot(x - cam.x, z - cam.z, y - cam.y);
+      if (near < 2.5) { const f = near / 2.5; tx *= f; ty *= f; tz *= f; }
+      const o = i * 6;
+      pos[o] = x; pos[o + 1] = y; pos[o + 2] = z;
+      pos[o + 3] = x - tx; pos[o + 4] = y - ty; pos[o + 5] = z - tz;
+    }
+    this.rainLines.geometry.setDrawRange(0, count * 2);
+    this.rainLines.geometry.attributes.position.needsUpdate = true;
   }
 
   // ------------------------------------------------------------------ update
@@ -322,15 +355,8 @@ export class Environment {
     const vis = this.rain > 0.02;
     this.rainGroup.visible = vis;
     if (vis) {
-      this.rainMat.opacity = 0.25 * this.rain + 0.05;
-      const rp = viewPos || focus;
-      this.rainGroup.position.set(rp.x, rp.y - 8, rp.z);
-      this.rainTime = (this.rainTime || 0) + dt;
-      for (const m of this.rainGroup.children) {
-        const u = m.userData;
-        const y = ((u.offset - this.rainTime * u.speed) % (this.rainBox.h * 2) + this.rainBox.h * 2) % (this.rainBox.h * 2) - this.rainBox.h;
-        m.position.set(0, y, 0);
-      }
+      this.rainMat.opacity = Math.min(0.85, 0.3 + this.rain * 0.5) * (night > 0.5 ? 0.9 : 1);
+      this._updateRain(dt, viewPos || focus, this.viewVel);
     }
     this.state.rain = this.rain; this.state.wetness = this.wetness; this.state.cloud = this.cloud;
   }

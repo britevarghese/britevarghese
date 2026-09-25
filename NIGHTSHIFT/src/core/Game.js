@@ -582,6 +582,7 @@ export class Game {
       if (this.weatherT <= 0) { this.weatherT = 180 + Math.random() * 240; const r = Math.random(); this.env.setWeather(r < 0.55 ? 'clear' : r < 0.8 ? 'cloudy' : 'rain'); }
     }
     const fsv = this.onFoot.active ? (this._fsv ||= new THREE.Vector3()).set(this.onFoot.state.x, this.onFoot.state.y, this.onFoot.state.z) : player.renderer.group.position;
+    this.env.viewVel = this.focusState; // rain streaks follow your speed
     this.env.update(simulate ? dt : 0, fsv, false, this.camera.position);
     if (mode === 'photo') this.photo.applyExposure();
     this.world.update(dt, this.camera, this.env.state);
