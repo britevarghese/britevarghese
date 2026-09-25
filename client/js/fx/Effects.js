@@ -136,6 +136,19 @@ export class Effects {
     this.audio?.impact(point, surface);
   }
 
+  // shattered window: glittering shards thrown in the direction of the hit + a little dust, falling under gravity
+  glass(p, dir, n) {
+    const [x, y, z] = p, k = this.q.particles, d = dir || [0, 0, 0];
+    for (let i = 0; i < 26 * k; i++) {
+      const s = 1.5 + Math.random() * 3.5;
+      this.emit(x + (Math.random() - 0.5) * 0.8, y + (Math.random() - 0.5) * 0.9, z + (Math.random() - 0.5) * 0.8,
+        d[0] * s + (Math.random() - 0.5) * 2.2, d[1] * s + Math.random() * 1.2, d[2] * s + (Math.random() - 0.5) * 2.2,
+        i % 3 ? 0xd8eef2 : 0x9fc4cc, 0.035 + Math.random() * 0.04, 0.9 + Math.random() * 0.6, { grow: 0, alpha: 0.9, drag: 0.4, grav: 9.8, add: i % 4 === 0 ? 1 : 0 });
+    }
+    for (let i = 0; i < 6 * k; i++) this.spark(x, y, z, d[0] * 3 + (Math.random() - 0.5) * 3, Math.random() * 2, d[2] * 3 + (Math.random() - 0.5) * 3, 0.12);
+    for (let i = 0; i < 5 * k; i++) this.emit(x, y, z, (Math.random() - 0.5), 0.3, (Math.random() - 0.5), 0xbfc4c4, 0.5, 1.2, { grow: 2, alpha: 0.18, drag: 2, grav: 0 });
+  }
+
   decal(point, n, size, mat, opacity = 1) {
     let d = this.decals[this.decalIdx];
     if (!d) { d = new THREE.Mesh(this.decalGeo, mat); this.scene.add(d); this.decals[this.decalIdx] = d; }

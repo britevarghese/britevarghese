@@ -11,6 +11,7 @@ export function buildBuildings(world, mats, props) {
   const all = new Map(); // material -> geometries[]
   const push = (mat, g) => { if (!all.has(mat)) all.set(mat, []); all.get(mat).push(g); };
   const glassGeoms = [];
+  const glassIds = []; // pane id (shared with CollisionWorld.glass) per glass geometry, in merge order
   const rebarGeoms = [];
   const roofProps = [];
   const rubble = [];
@@ -63,7 +64,7 @@ export function buildBuildings(world, mats, props) {
       band(y0 + b.FH - 0.05, 0.25, 0.08, 'frame');
     }
     // openings: frames, sills, glass, lintels
-    for (const o of b.openings) {
+    for (const [oi, o] of b.openings.entries()) {
       const sd = o.sd, alongX = sd.dir[0] !== 0;
       const ft = 0.06, depth = T + 0.04;
       const outN = sd.out;
@@ -110,6 +111,7 @@ export function buildBuildings(world, mats, props) {
         if (!alongX) g.rotateY(Math.PI / 2);
         g.translate(alongX ? sd.ax + (o.u0 + o.u1) / 2 : sd.ax + T / 2, y0 + (o.v0 + o.v1) / 2, alongX ? sd.az + T / 2 : sd.az + (o.u0 + o.u1) / 2);
         glassGeoms.push(g);
+        glassIds.push(`${b.id}:${oi}`);
       }
     }
     // drain pipes at two corners
@@ -144,10 +146,16 @@ export function buildBuildings(world, mats, props) {
     mesh.name = `bld_${m}`;
     group.add(mesh);
   }
-  if (glassGeoms.length) { const gm = new THREE.Mesh(mergeGeometries(glassGeoms), mats.glass()); gm.renderOrder = 1; gm.name = 'windows'; group.add(gm); }
+  let glass = null;
+  if (glassGeoms.length) {
+    const gm = new THREE.Mesh(mergeGeometries(glassGeoms), mats.glass()); gm.renderOrder = 1; gm.name = 'windows'; group.add(gm);
+    // each pane is 4 vertices in merge order: breaking one collapses them (no draw-call cost, no rebuild)
+    const index = new Map(glassIds.map((id, i) => [id, i * 4]));
+    glass = { mesh: gm, index, original: gm.geometry.attributes.position.array.slice() };
+  }
   if (rebarGeoms.length) {
     const rm = new THREE.Mesh(mergeGeometries(rebarGeoms.map((g) => g.toNonIndexed ? g.index ? g.toNonIndexed() : g : g)), mats.pbr('rusty_metal', { color: 0x8a7a6a }));
     rm.castShadow = true; rm.name = 'rebar_pipes'; group.add(rm);
   }
-  return { group, roofProps, rubble };
+  return { group, roofProps, rubble, glass };
 }

@@ -5,7 +5,9 @@ const SAMPLES = { ar: 6, sniper: 5, pistol: 4 };
 const MAX_VOICES = 28;
 export class GameAudio {
   constructor() {
-    this.ctx = null; this.enabled = true; this.volume = 0.8;
+    this.ctx = null; this.enabled = true;
+    let v = 80; try { v = +(localStorage.getItem('sp_volume') ?? 80); } catch {}
+    this.volume = Math.max(0, Math.min(1, v / 100));
     this.buffers = {}; this.lastVar = {}; this.voices = 0;
   }
 
@@ -44,6 +46,8 @@ export class GameAudio {
     this.verb.connect(this.verbGain).connect(this.master);
     this.#loadSamples();
   }
+
+  setVolume(v) { this.volume = v; if (this.master) this.master.gain.setTargetAtTime(v, this.ctx.currentTime, 0.05); }
 
   setListener(pos, fwd, up) {
     if (!this.ctx) return;
@@ -201,6 +205,40 @@ export class GameAudio {
     const g = this.#chain(pos, 1.3, Math.max(700, 9000 - d * 30), d > 30 ? d / 343 : 0);
     this.#noiseBurst(g, t, 0.08, 0.001, 300);
     this.#noiseBurst(g, t + 0.02, 0.9, 0.05, 0, 900);
+  }
+
+  // window pane shattering: bright crash + a spray of glass tinkles falling after it
+  glass(pos) {
+    if (!this.ctx) return;
+    const d = this.#dist(pos); if (d > 120) return;
+    const t = this.ctx.currentTime, delay = d > 30 ? d / 343 : 0;
+    const g = this.#chain(pos, 1.1, Math.max(2500, 16000 - d * 90), delay, 0.6);
+    this.#noiseBurst(g, t + delay, 0.18, 0.001, 2500);
+    this.#noiseBurst(g, t + delay + 0.01, 0.45, 0.01, 4500, 7000);
+    for (let i = 0; i < 9; i++) {
+      const o = this.ctx.createOscillator(), og = this.ctx.createGain(), tt = t + delay + 0.05 + Math.random() * 0.55;
+      o.type = 'sine'; o.frequency.value = 3200 + Math.random() * 4800;
+      og.gain.setValueAtTime(0, tt); og.gain.linearRampToValueAtTime(0.12 + Math.random() * 0.1, tt + 0.003); og.gain.exponentialRampToValueAtTime(0.0008, tt + 0.08 + Math.random() * 0.12);
+      o.connect(og).connect(g); o.start(tt); o.stop(tt + 0.25);
+    }
+  }
+
+  // own landing: boots + body weight, heavier the faster you hit the ground; hurt = bone-jarring crunch
+  land(speed, hurt = false) {
+    if (!this.ctx) return;
+    const t = this.ctx.currentTime, k = Math.min(1, speed / 14);
+    const g = this.#chain(null, 0.5 + k * 1.2, 1200 + k * 3000, 0, 0.2);
+    this.#thump(g, t, 70 - k * 25, 0.18 + k * 0.2, 0.8 + k * 1.2);
+    this.#noiseBurst(g, t, 0.06 + k * 0.08, 0.001, 200, 900);
+    if (hurt) { this.#noiseBurst(g, t + 0.02, 0.09, 0.001, 1400, 3200); this.#thump(g, t + 0.03, 45, 0.35, 1.6); }
+  }
+
+  // vaulting a sill / parapet: hands on the ledge, gear rattle
+  vault() {
+    if (!this.ctx) return;
+    const t = this.ctx.currentTime, g = this.#chain(null, 0.45, 5000, 0, 0.2);
+    this.#noiseBurst(g, t, 0.07, 0.002, 800, 2200);
+    this.#noiseBurst(g, t + 0.18, 0.12, 0.01, 1500, 4000);
   }
 
   impact(pos, surface) {

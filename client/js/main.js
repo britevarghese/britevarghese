@@ -271,6 +271,7 @@ class Game {
       }
       case 'hurt':
         if (e.v === this.myId) {
+          if (e.w === 'fall') { this.audio.land(14, true); this.effects.shake = Math.max(this.effects.shake, 0.6); this.hud.hurtFlash(); this.hud.notice(e.d >= 60 ? 'BAD FALL' : 'FALL DAMAGE', 1200); }
           this.audio.ui('hurt');
           if (e.ax !== undefined) {
             const ang = Math.atan2(e.ax - this.me.s.x, -(e.az - this.me.s.z)) + this.me.yaw;
@@ -305,6 +306,9 @@ class Game {
       case 'chat': this.hud.chat(e.from, e.msg, e.tm); break;
       case 'round': if (!this.royale) { this.hud.roundEnd(`${e.name} WINS`); setTimeout(() => this.hud.roundEnd(null), 14000); } break;
       case 'correct': Object.assign(this.me.s, { x: e.x, y: e.y, z: e.z }); break;
+      case 'glass': { const pane = this.world.breakGlass(e.id); if (pane) { this.effects.glass(e.p || pane.c, e.d, pane.n); this.audio.glass(e.p || pane.c); } break; }
+      case 'glassset': for (const id of e.ids) this.world.breakGlass(id); break;
+      case 'glassreset': this.world.repairGlass(); break;
       case 'landed': this.hud.notice(`LANDED — PROTECTED FOR ${Math.round(e.prot / 1000)} s`, e.prot); break;
       case 'restricted': this.hud.notice(e.left > 0 ? `RESTRICTED AREA — ENEMY HQ · RETURN IN ${Math.ceil(e.left)}` : 'RESTRICTED AREA — RETURN TO BATTLE', 1200); break;
       case 'throw': if (e.id === this.myId) this.me.grenades = e.g; break;
@@ -450,6 +454,11 @@ class Game {
     input.addEventListener('change', () => { if (this.chatOpen) this.closeChat(true); });
     input.addEventListener('blur', () => { if (this.chatOpen && this.isTouch) this.closeChat(true); });
     this.renderer.domElement.addEventListener('mousedown', () => this.audio.unlock());
+    // browsers only allow sound after a user gesture: any click, key or touch anywhere starts (or resumes) it
+    for (const ev of ['pointerdown', 'keydown', 'touchstart']) addEventListener(ev, () => this.audio.unlock(), { capture: true, passive: true });
+    const Vol = $('p-vol');
+    Vol.value = Math.round(this.audio.volume * 100);
+    Vol.oninput = () => { this.audio.setVolume(+Vol.value / 100); localStorage.setItem('sp_volume', Vol.value); };
     // pause menu when the mouse is released (Esc) during play
     const pause = $('pause');
     document.addEventListener('pointerlockchange', () => {

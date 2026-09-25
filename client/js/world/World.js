@@ -25,6 +25,8 @@ export class GameWorld {
     progress('buildings');
     const b = buildBuildings(this.collision, this.mats);
     s.add(b.group);
+    this.glass = b.glass;
+    this.glassPanes = new Map(this.collision.glass.map((p) => [p.id, p]));
     progress('props');
     s.add(await buildProps(this.assets, this.mats, b));
     progress('vegetation');
@@ -89,6 +91,24 @@ export class GameWorld {
     for (const [m, geo] of buildBoxGeometry(parts, { tile: 2.6, color: (p) => { const k = p[1] < -0.5 ? 0.55 : 0.9; return [k, k, k * 0.98]; } })) {
       const mesh = new THREE.Mesh(geo, this.mats.building(m)); mesh.castShadow = mesh.receiveShadow = true; mesh.name = 'quay'; this.scene.add(mesh);
     }
+  }
+
+  // a window pane shattered: collapse its 4 vertices (returns the pane, or null if unknown / already gone)
+  breakGlass(id) {
+    const G = this.glass, i = G?.index.get(id);
+    if (i === undefined) return null;
+    const pos = G.mesh.geometry.attributes.position, a = pos.array;
+    if (a[i * 3 + 1] === a[i * 3 + 10]) return null; // already broken (top-left and bottom-right corners collapsed)
+    const cx = (a[i * 3] + a[i * 3 + 9]) / 2, cy = (a[i * 3 + 1] + a[i * 3 + 10]) / 2, cz = (a[i * 3 + 2] + a[i * 3 + 11]) / 2;
+    for (let k = 0; k < 4; k++) { a[(i + k) * 3] = cx; a[(i + k) * 3 + 1] = cy; a[(i + k) * 3 + 2] = cz; }
+    pos.needsUpdate = true;
+    return this.glassPanes.get(id) || null;
+  }
+
+  repairGlass() {
+    const G = this.glass; if (!G) return;
+    G.mesh.geometry.attributes.position.array.set(G.original);
+    G.mesh.geometry.attributes.position.needsUpdate = true;
   }
 
   setFlagState(id, owner, progress, myTeam) {

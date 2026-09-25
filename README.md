@@ -160,6 +160,11 @@ altitude hands-off), LMB rockets · gunner seats aim freely with the mouse. Touc
 * **Fair spawns:** a flag under attack (being captured or with enemies within 25 m) can't be spawned on; among free spots
   the server picks the one fewest enemies can see; 3 s spawn protection, and bots ignore protected soldiers; each HQ is
   a restricted area for the enemy (warning, then damage after 5 s) so bases can't be camped.
+* **Windows, roofs & falls:** run at a window sill, roof parapet or low wall and press **Space** to vault over it
+  (crouch-height clearance is checked, so you fit through a 1.3 m window but never climb a full wall). Falls hurt by
+  height with real gravity: one floor (3.2 m) is safe, two floors take about half your health, three floors or a roof
+  kill. Window glass shatters from bullets, from a body climbing through it and from nearby blasts (shards, crash +
+  tinkling sound), and is repaired every round. Landing thud grows with impact speed; fall damage has its own crunch.
 * **Battle royale landings:** 3 s of protection after touching down (ends early if you fire), bots take a moment to
   react to someone who just landed, and bots prefer drop zones away from human players.
 * **Realistic bot gunfire:** bots only fire inside each weapon's practical range (pistol ~45 m, carbine ~170 m, bolt

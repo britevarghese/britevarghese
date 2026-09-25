@@ -22,6 +22,9 @@ export class CollisionWorld {
     this.ramps = [];
     this.buildings = [];
     this.grid = new Map();
+    // window glass panes (thin boxes, not solid: bullets, bodies and blasts break them): { id, min, max, c, n }
+    this.glass = [];
+    this.glassGrid = new Map();
     // moving solids (vehicles): { min, max, surface, bullets: false, owner } — refreshed every frame / tick
     this.dynamic = [];
     this.ignoreOwner = null; // a vehicle doesn't collide with itself while it moves
@@ -48,6 +51,16 @@ export class CollisionWorld {
       this.buildings.push(g);
       for (const p of g.parts) if (p.collide) this.addBox(p.min, p.max, surfaceOf[p.mat] || 'concrete', true, g.id);
       for (const r of g.ramps) this.ramps.push(r);
+      g.openings.forEach((o, i) => {
+        if (!o.glass) return;
+        const sd = o.sd, alongX = sd.dir[0] !== 0, mid = g.T / 2, y0 = g.y0;
+        const min = alongX ? [sd.ax + o.u0, y0 + o.v0, sd.az + mid - 0.03] : [sd.ax + mid - 0.03, y0 + o.v0, sd.az + o.u0];
+        const max = alongX ? [sd.ax + o.u1, y0 + o.v1, sd.az + mid + 0.03] : [sd.ax + mid + 0.03, y0 + o.v1, sd.az + o.u1];
+        const pane = { id: `${g.id}:${i}`, min, max, c: [(min[0] + max[0]) / 2, (min[1] + max[1]) / 2, (min[2] + max[2]) / 2], n: alongX ? [0, 0, 1] : [1, 0, 0] };
+        this.glass.push(pane);
+        const k = Math.floor(pane.c[0] / CELL) * 100003 + Math.floor(pane.c[2] / CELL);
+        let arr = this.glassGrid.get(k); if (!arr) this.glassGrid.set(k, (arr = [])); arr.push(pane);
+      });
     }
     for (const p of PROPS) {
       const t = PROP_TYPES[p.type];
@@ -89,6 +102,34 @@ export class CollisionWorld {
       const h = r.s * (r.kind === 'rock_07' ? 0.1 : 0.025), w = r.s * (r.kind === 'rock_07' ? 0.1 : 0.05);
       if (h > 0.35) { const y = groundHeight(r.x, r.z); this.addBox([r.x - w, y - 0.2, r.z - w], [r.x + w, y + h, r.z + w], 'rock', true, 'rock'); }
     }
+  }
+
+  // glass panes crossed by the segment a -> b (optionally inflated by r metres, for bodies), nearest first
+  glassAlong(a, b, r = 0) {
+    const hits = [];
+    const x0 = Math.min(a.x, b.x) - r, x1 = Math.max(a.x, b.x) + r, z0 = Math.min(a.z, b.z) - r, z1 = Math.max(a.z, b.z) + r;
+    const dx = b.x - a.x, dy = b.y - a.y, dz = b.z - a.z;
+    for (let i = Math.floor((x0 - 2) / CELL); i <= Math.floor((x1 + 2) / CELL); i++) for (let j = Math.floor((z0 - 2) / CELL); j <= Math.floor((z1 + 2) / CELL); j++) {
+      for (const p of this.glassGrid.get(i * 100003 + j) || []) {
+        let t0 = 0, t1 = 1, ok = true;
+        for (const [o, d, lo, hi] of [[a.x, dx, p.min[0] - r, p.max[0] + r], [a.y, dy, p.min[1], p.max[1]], [a.z, dz, p.min[2] - r, p.max[2] + r]]) {
+          if (Math.abs(d) < 1e-9) { if (o < lo || o > hi) { ok = false; break; } continue; }
+          let u = (lo - o) / d, v = (hi - o) / d; if (u > v) [u, v] = [v, u];
+          t0 = Math.max(t0, u); t1 = Math.min(t1, v); if (t0 > t1) { ok = false; break; }
+        }
+        if (ok) hits.push({ pane: p, t: t0 });
+      }
+    }
+    return hits.sort((u, v) => u.t - v.t);
+  }
+
+  // panes within radius of a point (explosions)
+  glassNear(x, y, z, radius) {
+    const out = [];
+    for (let i = Math.floor((x - radius - 2) / CELL); i <= Math.floor((x + radius + 2) / CELL); i++) for (let j = Math.floor((z - radius - 2) / CELL); j <= Math.floor((z + radius + 2) / CELL); j++) {
+      for (const p of this.glassGrid.get(i * 100003 + j) || []) if (Math.hypot(p.c[0] - x, p.c[1] - y, p.c[2] - z) < radius) out.push(p);
+    }
+    return out;
   }
 
   query(x0, z0, x1, z1, out = []) {
@@ -236,6 +277,62 @@ export function rayBox(o, d, mn, mx) {
 // input: { fx, fz (world-space wish dir, normalized or 0), sprint, jump, ads }
 // Fixed 120 Hz sub-steps + exact constant-gravity integration: the same jump reaches the same height on a
 // 30 fps phone, a 144 Hz monitor and the 30 Hz server.
+// ---------------------------------------------------------------- vaulting
+export const VAULT = { reach: 0.75, maxH: 1.3, clear: 1.2 };
+
+// a vaultable obstacle straight ahead: its top is between step height and VAULT.maxH above the feet, there is
+// crouch-height clearance above it all the way across (a window opening is 1.3 m tall) and room to land beyond
+export function findVault(world, s, dx, dz) {
+  const r = PLAYER_RADIUS, feet = s.y, reach = r + VAULT.reach;
+  const list = world.query(s.x - 3, s.z - 3, s.x + 3, s.z + 3, []);
+  // first thing the body would bump into along the direction
+  let hit = null;
+  for (const b of list) {
+    if (b.max[1] <= feet + STEP_UP || b.min[1] >= feet + STANCE_HEIGHT.stand) continue;
+    let t0 = -Infinity, t1 = Infinity, ok = true;
+    for (const [o, d, lo, hi] of [[s.x, dx, b.min[0] - r * 0.5, b.max[0] + r * 0.5], [s.z, dz, b.min[2] - r * 0.5, b.max[2] + r * 0.5]]) {
+      if (Math.abs(d) < 1e-9) { if (o < lo || o > hi) { ok = false; break; } continue; }
+      let u = (lo - o) / d, v = (hi - o) / d; if (u > v) [u, v] = [v, u];
+      t0 = Math.max(t0, u); t1 = Math.min(t1, v);
+    }
+    if (!ok || t0 > t1 || t1 < 0 || t0 > reach) continue;
+    if (!hit || t0 < hit.t0 - 0.02 || (Math.abs(t0 - hit.t0) <= 0.02 && b.max[1] > hit.b.max[1])) hit = { b, t0: Math.max(0, t0), t1 };
+  }
+  if (!hit) return null;
+  const top = hit.b.max[1];
+  if (top > feet + VAULT.maxH) return null;
+  // everything else overlapping the path at the same spot must be no higher than this top
+  const far = hit.t1 + r + 0.08;
+  const lo = top + 0.03, hi = top + VAULT.clear;
+  for (let t = hit.t0; t <= far + 1e-6; t += 0.12) {
+    const px = s.x + dx * t, pz = s.z + dz * t;
+    for (const b of list) {
+      const pad = t >= far - 0.01 ? r : r * 0.6;
+      if (px + pad <= b.min[0] || px - pad >= b.max[0] || pz + pad <= b.min[2] || pz - pad >= b.max[2]) continue;
+      if (b.max[1] > lo && b.min[1] < hi) return null; // lintel / wall / something in the way
+    }
+  }
+  return { t: 0, dur: 0.38 + 0.3 * Math.max(0, top - feet), x0: s.x, z0: s.z, y0: s.y, x1: s.x + dx * far, z1: s.z + dz * far, top, dx, dz, stance: s.stance };
+}
+
+function stepVault(s, dt) {
+  const v = s.vault;
+  v.t += dt;
+  const k = Math.min(1, v.t / v.dur), ease = (x) => x * x * (3 - 2 * x);
+  s.stance = 'crouch';
+  // rise onto the top in the first 40 %, then slide across and off
+  s.y = k < 0.4 ? v.y0 + (v.top + 0.02 - v.y0) * ease(k / 0.4) : v.top + 0.02;
+  const h = ease(Math.max(0, (k - 0.15) / 0.85));
+  s.x = v.x0 + (v.x1 - v.x0) * h; s.z = v.z0 + (v.z1 - v.z0) * h;
+  s.onGround = false; s.landed = 0;
+  if (k >= 1) {
+    s.vault = null;
+    s.stance = v.stance === 'prone' ? 'crouch' : v.stance;
+    s.vx = v.dx * 2.2; s.vz = v.dz * 2.2; s.vy = 0; // carry on over the edge (and fall if it is a drop)
+    s.vaulted = true;
+  }
+}
+
 export function stepCharacter(world, s, input, dt) {
   const n = Math.max(1, Math.ceil(dt / MAX_STEP - 1e-6)), h = dt / n;
   let landed = 0;
@@ -267,6 +364,13 @@ function stepOnce(world, s, input, dt) {
     s.vx += input.fx * MOVE.airAccel * dt; s.vz += input.fz * MOVE.airAccel * dt;
     const after = Math.hypot(s.vx, s.vz), cap = Math.max(before, speed * 0.5);
     if (after > cap) { s.vx *= cap / after; s.vz *= cap / after; }
+  }
+  // vaulting in progress: scripted climb over the sill / parapet / low wall, then physics takes over again
+  if (s.vault) { stepVault(s, dt); return; }
+  // jump toward a waist-high obstacle with room above it (window sill, parapet, low wall): vault over it
+  if (input.jump && s.onGround && s.stance !== 'prone' && s.groundT > 0.05 && (input.fx || input.fz)) {
+    const l = Math.hypot(input.fx, input.fz), v = findVault(world, s, input.fx / l, input.fz / l);
+    if (v) { s.vault = v; s.onGround = false; s.groundT = 0; s.landed = 0; s.vx = s.vz = s.vy = 0; stepVault(s, dt); return; }
   }
   // jump: needs solid footing for a moment; chained jumps lose height (no bunny hopping)
   if (input.jump && s.onGround && s.stance === 'stand' && s.groundT > 0.1) {

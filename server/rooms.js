@@ -53,6 +53,7 @@ export class Room {
     // AI agents join the first human's side (teammates) or the opposite one (opponents)
     for (const a of g.agents) if (!a.aligned) { a.aligned = true; const t = a.cfg.side === 'enemy' ? (p.team === 1 ? 2 : 1) : p.team; if (a.p.team !== t) { g.kill(a.p, null, 'switch', true); a.p.team = t; a.p.respawnAt = g.now() + 1500; } }
     send(ws, { t: 'welcome', id: p.id, team: p.team, cls: p.cls, mode: this.mode, tickHz: TICK_HZ, snapHz: SNAP_HZ, room: this.info() });
+    if (g.glassBroken?.size) send(ws, { t: 'ev', e: { t: 'glassset', ids: [...g.glassBroken] } });
     send(ws, g.scoreboard());
     const extra = g.joinPayload?.(p); if (extra) send(ws, extra);
     g.emit({ t: 'chat', from: 'SERVER', msg: this.mode === 'royale' ? `${p.name} joined` : `${p.name} joined ${p.team === 1 ? 'US' : 'RU'}` });

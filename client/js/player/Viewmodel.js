@@ -166,6 +166,11 @@ export class Viewmodel {
       this.scopeRT = new THREE.WebGLRenderTarget(size, size, { samples: 0 });
       this.scopeRT.texture.colorSpace = THREE.SRGBColorSpace;
       this.scopeCam = new THREE.PerspectiveCamera(10, 1, 0.1, 1500);
+    }
+    // every weapon model has its own eyepiece disc (switching weapons / respawning builds a new one): it must get
+    // the magnified picture too, otherwise it shows as a plain white disc
+    if (w.scopeDisc.userData.rt !== this.scopeRT) {
+      w.scopeDisc.userData.rt = this.scopeRT;
       w.scopeDisc.material = new THREE.ShaderMaterial({
         uniforms: { map: { value: this.scopeRT.texture } },
         vertexShader: 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }',

@@ -39,6 +39,7 @@ export class Game {
     this.events = [];
     this.time = 0;
     this.vehicles = new VehicleSystem(this);
+    this.glassBroken = new Set(); // window panes shattered this round (the collision world is shared: state lives here)
     this.restrictedHQ = Math.min(45, this.map.PLAY_HALF * 0.3); // radius of each HQ's no-go zone for the enemy
     this.resetRound();
   }
@@ -53,6 +54,7 @@ export class Game {
     this.bleedAcc = { 1: 0, 2: 0 };
     this.grenades = []; this.bullets = [];
     this.vehicles.resetAll();
+    this.repairGlass();
     for (const p of this.players.values()) {
       p.kills = p.deaths = p.score = 0;
       this.kill(p, null, 'reset', true);
@@ -180,8 +182,33 @@ export class Game {
     victim.lastDamageFrom = attacker ? attacker.id : 0;
     victim.lastHit = this.now();
     if (victim.brain) victim.brain.onDamaged(attacker);
-    this.emit({ t: 'hurt', v: victim.id, a: attacker ? attacker.id : 0, d: Math.round(amount), hs: head, ax: attacker?.x, az: attacker?.z }, null, [victim.id, attacker?.id]);
+    this.emit({ t: 'hurt', v: victim.id, a: attacker ? attacker.id : 0, d: Math.round(amount), hs: head, ax: attacker?.x, az: attacker?.z, w: attacker ? undefined : weapon }, null, [victim.id, attacker?.id]);
     if (victim.hp <= 0) this.kill(victim, attacker, weapon);
+  }
+
+  // ------------------------------------------------------------ window glass
+  breakGlass(pane, at, dir) {
+    if (this.glassBroken.has(pane.id)) return;
+    this.glassBroken.add(pane.id);
+    this.emit({ t: 'glass', id: pane.id, p: (at || pane.c).map((v) => +v.toFixed(2)), d: dir ? [+dir[0].toFixed(2), +dir[1].toFixed(2), +dir[2].toFixed(2)] : null });
+  }
+
+  repairGlass() { if (this.glassBroken?.size) { this.glassBroken.clear(); this.emit({ t: 'glassreset' }); } }
+
+  // something moving from a to b (a bullet, a soldier's body) smashes the panes it crosses
+  #glassAlong(a, b, r = 0) {
+    const dx = b.x - a.x, dy = b.y - a.y, dz = b.z - a.z, l = Math.hypot(dx, dy, dz) || 1;
+    for (const h of this.world.glassAlong(a, b, r)) {
+      if (this.glassBroken.has(h.pane.id)) continue;
+      this.breakGlass(h.pane, [a.x + dx * h.t, a.y + dy * h.t, a.z + dz * h.t], [dx / l, dy / l, dz / l]);
+    }
+  }
+
+  #glassBlast(x, y, z, radius) {
+    for (const pane of this.world.glassNear(x, y, z, radius)) {
+      const d = [pane.c[0] - x, pane.c[1] - y, pane.c[2] - z], l = Math.hypot(...d) || 1;
+      this.breakGlass(pane, null, d.map((v) => v / l));
+    }
   }
 
   // ------------------------------------------------------------ input from humans
@@ -197,12 +224,16 @@ export class Game {
     if (p.air && !air) p.landedAt = now;
     const allowed = (p.air ? 34 : MOVE.sprint * 1.6) * Math.min(dt, 0.5) + 0.6;
     p.air = air;
+    const before = { x: p.x, y: p.y, z: p.z };
     if (process.env.DEV_TELEPORT && Number.isFinite(m.x + m.y + m.z)) { p.x = m.x; p.y = m.y; p.z = m.z; }
     else if (Math.hypot(dx, dz) > allowed || !Number.isFinite(m.x + m.y + m.z) || Math.abs(m.x) > this.map.PLAY_HALF + 10 || Math.abs(m.z) > this.map.PLAY_HALF + 10) {
       this.emit({ t: 'correct', x: p.x, y: p.y, z: p.z }, p);
     } else {
       p.x = m.x; p.y = m.y; p.z = m.z;
     }
+    // climbing / jumping through a window smashes the glass (body at hip and chest height)
+    const mv = Math.hypot(p.x - before.x, p.z - before.z);
+    if (mv > 0.02 && mv < 6) for (const hgt of [0.6, 1.1]) this.#glassAlong({ x: before.x, y: before.y + hgt, z: before.z }, { x: p.x, y: p.y + hgt, z: p.z }, 0.25);
     // fall damage for players (their movement is predicted client-side): highest point of the airborne phase -> landing
     if (!p.air && !air) {
       if (!m.og) p.airPeak = Math.max(p.airPeak ?? p.y, p.y);
@@ -268,6 +299,7 @@ export class Game {
   // generic blast: soldiers (line of sight, no friendly fire) + vehicles
   explodeAt(x, y, z, { radius, damage, owner = null, weapon = 'explosion', vehicleDamage = 0, kind = 'explosive', boom = true }) {
     if (boom) this.emit({ t: 'boom', x, y, z, big: radius >= 5 ? 1 : 0 });
+    this.#glassBlast(x, y, z, radius * 1.6);
     for (const q of this.players.values()) {
       if (!q.alive || (q.vehicle && !q.exposed)) continue;
       const c = { x: q.x, y: q.y + (q.stance === 'prone' ? 0.3 : 1.0), z: q.z };
@@ -303,6 +335,9 @@ export class Game {
   #bulletSegment(b, a, c) {
     const sx = c.x - a.x, sy = c.y - a.y, sz = c.z - a.z, len = Math.hypot(sx, sy, sz);
     if (len < 1e-6) return null;
+    // rounds go through window glass and shatter it (a hit further along stops the bullet there, so the panes
+    // beyond a victim may break a moment early — at 30 m per tick nobody sees it)
+    this.#glassAlong(a, c);
     const d = { x: sx / len, y: sy / len, z: sz / len }, o = { x: a.x, y: a.y, z: a.z };
     const mx = a.x + sx / 2, mz = a.z + sz / 2;
     // where everyone was when the bullet got here, on the shooter's timeline (what they saw + the flight time)
@@ -396,6 +431,7 @@ export class Game {
   explode(g) {
     const owner = this.players.get(g.owner) || null;
     this.emit({ t: 'boom', x: g.x, y: g.y, z: g.z });
+    this.#glassBlast(g.x, g.y, g.z, GRENADE.radius * 1.4);
     for (const q of this.players.values()) {
       if (!q.alive || (q.vehicle && !q.exposed)) continue; // armour protects the crew
       const c = { x: q.x, y: q.y + (q.stance === 'prone' ? 0.3 : 1.0), z: q.z };

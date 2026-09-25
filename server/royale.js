@@ -25,6 +25,7 @@ export class RoyaleGame extends Game {
   isEnemy(a, b) { return a !== b; }
 
   resetRound() {
+    this.repairGlass?.();
     this.phase = 'lobby';
     this.lobbyEnd = null;
     this.tickets = { 1: 0, 2: 0 };

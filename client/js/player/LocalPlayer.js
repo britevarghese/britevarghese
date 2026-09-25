@@ -198,7 +198,9 @@ export class LocalPlayer {
     if (jump && s.stance !== 'stand' && s.onGround) { this.setStance('stand'); }
     const prevGround = s.onGround;
     stepCharacter(this.g.world.collision, s, { fx: wx, fz: wz, sprint, jump: jump && s.stance === 'stand', ads }, dt);
-    if (s.landed) { this.landDip = Math.min(0.12, s.landed * 0.012); this.g.audio.footstep(null, this.g.surfaceAt(s.x, s.z), true, 1.5); }
+    if (s.landed) { this.landDip = Math.min(0.16, s.landed * 0.014); this.g.audio.footstep(null, this.g.surfaceAt(s.x, s.z), true, 1.5); if (s.landed > 4) this.g.audio.land(s.landed); }
+    if (s.vault && !this.vaulting) this.g.audio.vault();
+    this.vaulting = !!s.vault; s.vaulted = false;
     if (s.y < -40) { this.g.net.send({ t: 'suicide' }); }
     // footsteps
     const hs = Math.hypot(s.vx, s.vz);
