@@ -3379,6 +3379,886 @@
         "width": 1024,
         "height": 512
       }
+    },
+    "bmw_m3_e30": {
+      "file": "cars/bmw_m3_e30.glb",
+      "imported": true,
+      "name": "BMW M3 (E30)",
+      "class": "D-CLASS",
+      "length": 4.345,
+      "width": 1.737,
+      "height": 1.206,
+      "wheels": [
+        {
+          "id": "FL",
+          "x": 0.695,
+          "y": 0.31,
+          "z": 1.404,
+          "r": 0.311,
+          "w": 0.473
+        },
+        {
+          "id": "FR",
+          "x": -0.695,
+          "y": 0.31,
+          "z": 1.404,
+          "r": 0.311,
+          "w": 0.473
+        },
+        {
+          "id": "RL",
+          "x": 0.707,
+          "y": 0.31,
+          "z": -1.177,
+          "r": 0.31,
+          "w": 0.253
+        },
+        {
+          "id": "RR",
+          "x": -0.707,
+          "y": 0.31,
+          "z": -1.177,
+          "r": 0.31,
+          "w": 0.253
+        }
+      ],
+      "tris": {
+        "lod0": 117261,
+        "lod1": 23763
+      },
+      "source": {
+        "site": "Sketchfab",
+        "uid": "ac3c7013434e403e8faff87948caf422",
+        "title": "[FREE] BMW M3 E30",
+        "author": "TinoD2",
+        "url": "https://sketchfab.com/3d-models/ac3c7013434e403e8faff87948caf422",
+        "license": "CC-BY-4.0"
+      }
+    },
+    "subaru_wrx_sti_gc8": {
+      "file": "cars/subaru_wrx_sti_gc8.glb",
+      "imported": true,
+      "name": "Subaru Impreza WRX STi (GC8)",
+      "class": "D-CLASS",
+      "length": 4.35,
+      "width": 1.895,
+      "height": 1.267,
+      "wheels": [
+        {
+          "id": "FL",
+          "x": 0.737,
+          "y": 0.307,
+          "z": 1.305,
+          "r": 0.307,
+          "w": 0.248
+        },
+        {
+          "id": "FR",
+          "x": -0.73,
+          "y": 0.307,
+          "z": 1.325,
+          "r": 0.307,
+          "w": 0.248
+        },
+        {
+          "id": "RL",
+          "x": 0.716,
+          "y": 0.307,
+          "z": -1.202,
+          "r": 0.307,
+          "w": 0.248
+        },
+        {
+          "id": "RR",
+          "x": -0.751,
+          "y": 0.307,
+          "z": -1.194,
+          "r": 0.307,
+          "w": 0.248
+        }
+      ],
+      "tris": {
+        "lod0": 151475,
+        "lod1": 35898
+      },
+      "source": {
+        "site": "Sketchfab",
+        "uid": "457f01e7e8d14b088e3f092c1be9e75c",
+        "title": "Subaru Impreza WRX STi Version VI (GC8)",
+        "author": "Car2022",
+        "url": "https://sketchfab.com/3d-models/457f01e7e8d14b088e3f092c1be9e75c",
+        "license": "CC-BY-4.0"
+      }
+    },
+    "mazda_rx7_fd": {
+      "file": "cars/mazda_rx7_fd.glb",
+      "imported": true,
+      "name": "Mazda RX-7 (FD)",
+      "class": "D-CLASS",
+      "length": 4.285,
+      "width": 1.852,
+      "height": 1.112,
+      "wheels": [
+        {
+          "id": "FL",
+          "x": 0.729,
+          "y": 0.326,
+          "z": 1.301,
+          "r": 0.326,
+          "w": 0.3
+        },
+        {
+          "id": "FR",
+          "x": -0.728,
+          "y": 0.326,
+          "z": 1.3,
+          "r": 0.326,
+          "w": 0.3
+        },
+        {
+          "id": "RL",
+          "x": 0.729,
+          "y": 0.326,
+          "z": -1.136,
+          "r": 0.326,
+          "w": 0.3
+        },
+        {
+          "id": "RR",
+          "x": -0.728,
+          "y": 0.326,
+          "z": -1.137,
+          "r": 0.326,
+          "w": 0.3
+        }
+      ],
+      "tris": {
+        "lod0": 34432,
+        "lod1": 16782
+      },
+      "source": {
+        "site": "Sketchfab",
+        "uid": "d35ff630df614771b82e7b2f59035b1e",
+        "title": "Mazda RX-7 FD",
+        "author": "Lexyc16",
+        "url": "https://sketchfab.com/3d-models/d35ff630df614771b82e7b2f59035b1e",
+        "license": "CC-BY-4.0"
+      }
+    },
+    "porsche_930_turbo": {
+      "file": "cars/porsche_930_turbo.glb",
+      "imported": true,
+      "name": "Porsche 911 Turbo (930)",
+      "class": "C-CLASS",
+      "length": 4.29,
+      "width": 1.894,
+      "height": 1.555,
+      "wheels": [
+        {
+          "id": "FL",
+          "x": 0.757,
+          "y": 0.321,
+          "z": 1.237,
+          "r": 0.321,
+          "w": 0.394
+        },
+        {
+          "id": "FR",
+          "x": -0.757,
+          "y": 0.321,
+          "z": 1.217,
+          "r": 0.321,
+          "w": 0.394
+        },
+        {
+          "id": "RL",
+          "x": 0.776,
+          "y": 0.321,
+          "z": -1.044,
+          "r": 0.314,
+          "w": 0.271
+        },
+        {
+          "id": "RR",
+          "x": -0.776,
+          "y": 0.321,
+          "z": -1.044,
+          "r": 0.314,
+          "w": 0.271
+        }
+      ],
+      "tris": {
+        "lod0": 155980,
+        "lod1": 22629
+      },
+      "source": {
+        "site": "Sketchfab",
+        "uid": "8568d9d14a994b9cae59499f0dbed21e",
+        "title": "FREE 1975 Porsche 911 (930) Turbo",
+        "author": "lionsharp",
+        "url": "https://sketchfab.com/3d-models/8568d9d14a994b9cae59499f0dbed21e",
+        "license": "CC-BY-4.0"
+      }
+    },
+    "nissan_skyline_r34": {
+      "file": "cars/nissan_skyline_r34.glb",
+      "imported": true,
+      "name": "Nissan Skyline GT-R (R34)",
+      "class": "C-CLASS",
+      "length": 4.6,
+      "width": 1.883,
+      "height": 1.214,
+      "wheels": [
+        {
+          "id": "FL",
+          "x": 0.702,
+          "y": 0.324,
+          "z": 1.376,
+          "r": 0.324,
+          "w": 0.339
+        },
+        {
+          "id": "FR",
+          "x": -0.716,
+          "y": 0.324,
+          "z": 1.376,
+          "r": 0.324,
+          "w": 0.339
+        },
+        {
+          "id": "RL",
+          "x": 0.702,
+          "y": 0.324,
+          "z": -1.284,
+          "r": 0.324,
+          "w": 0.339
+        },
+        {
+          "id": "RR",
+          "x": -0.716,
+          "y": 0.324,
+          "z": -1.284,
+          "r": 0.324,
+          "w": 0.339
+        }
+      ],
+      "tris": {
+        "lod0": 62468,
+        "lod1": 16891
+      },
+      "source": {
+        "site": "Sketchfab",
+        "uid": "ff8fb2251dfa4bb9979e7022c5a6666c",
+        "title": "Nissan Skyline R34 GT-R",
+        "author": "Lexyc16",
+        "url": "https://sketchfab.com/3d-models/ff8fb2251dfa4bb9979e7022c5a6666c",
+        "license": "CC-BY-4.0"
+      }
+    },
+    "toyota_supra_mk4": {
+      "file": "cars/toyota_supra_mk4.glb",
+      "imported": true,
+      "name": "Toyota Supra Turbo (A80)",
+      "class": "C-CLASS",
+      "length": 4.515,
+      "width": 1.959,
+      "height": 1.117,
+      "wheels": [
+        {
+          "id": "FL",
+          "x": 0.745,
+          "y": 0.334,
+          "z": 1.301,
+          "r": 0.334,
+          "w": 0.307
+        },
+        {
+          "id": "FR",
+          "x": -0.745,
+          "y": 0.334,
+          "z": 1.301,
+          "r": 0.334,
+          "w": 0.307
+        },
+        {
+          "id": "RL",
+          "x": 0.745,
+          "y": 0.334,
+          "z": -1.24,
+          "r": 0.334,
+          "w": 0.307
+        },
+        {
+          "id": "RR",
+          "x": -0.745,
+          "y": 0.334,
+          "z": -1.24,
+          "r": 0.334,
+          "w": 0.307
+        }
+      ],
+      "tris": {
+        "lod0": 160937,
+        "lod1": 19310
+      },
+      "source": {
+        "site": "Sketchfab",
+        "uid": "eb9bb1eb41db431cb078088ae1ce45f8",
+        "title": "Toyota Supra MK IV (1994)",
+        "author": "TinoD2",
+        "url": "https://sketchfab.com/3d-models/eb9bb1eb41db431cb078088ae1ce45f8",
+        "license": "CC-BY-4.0"
+      }
+    },
+    "honda_nsx_na1": {
+      "file": "cars/honda_nsx_na1.glb",
+      "imported": true,
+      "name": "Honda NSX (NA1)",
+      "class": "C-CLASS",
+      "length": 4.405,
+      "width": 1.951,
+      "height": 1.054,
+      "wheels": [
+        {
+          "id": "FL",
+          "x": 0.779,
+          "y": 0.295,
+          "z": 1.293,
+          "r": 0.295,
+          "w": 0.235
+        },
+        {
+          "id": "FR",
+          "x": -0.775,
+          "y": 0.295,
+          "z": 1.292,
+          "r": 0.295,
+          "w": 0.235
+        },
+        {
+          "id": "RL",
+          "x": 0.779,
+          "y": 0.295,
+          "z": -1.232,
+          "r": 0.295,
+          "w": 0.235
+        },
+        {
+          "id": "RR",
+          "x": -0.775,
+          "y": 0.295,
+          "z": -1.233,
+          "r": 0.295,
+          "w": 0.235
+        }
+      ],
+      "tris": {
+        "lod0": 79032,
+        "lod1": 22111
+      },
+      "source": {
+        "site": "Sketchfab",
+        "uid": "1cc15628a00a4739a6b6c01128927c8d",
+        "title": "Honda NSX 1990",
+        "author": "Lexyc16",
+        "url": "https://sketchfab.com/3d-models/1cc15628a00a4739a6b6c01128927c8d",
+        "license": "CC-BY-4.0"
+      }
+    },
+    "bmw_m4_f82": {
+      "file": "cars/bmw_m4_f82.glb",
+      "imported": true,
+      "name": "BMW M4 Coupé (F82)",
+      "class": "B-CLASS",
+      "length": 4.671,
+      "width": 2.06,
+      "height": 1.231,
+      "wheels": [
+        {
+          "id": "FL",
+          "x": 0.855,
+          "y": 0.345,
+          "z": 1.496,
+          "r": 0.343,
+          "w": 0.321
+        },
+        {
+          "id": "FR",
+          "x": -0.856,
+          "y": 0.343,
+          "z": 1.496,
+          "r": 0.343,
+          "w": 0.321
+        },
+        {
+          "id": "RL",
+          "x": 0.855,
+          "y": 0.345,
+          "z": -1.265,
+          "r": 0.343,
+          "w": 0.321
+        },
+        {
+          "id": "RR",
+          "x": -0.859,
+          "y": 0.343,
+          "z": -1.258,
+          "r": 0.343,
+          "w": 0.321
+        }
+      ],
+      "tris": {
+        "lod0": 65759,
+        "lod1": 25636
+      },
+      "source": {
+        "site": "Sketchfab",
+        "uid": "25d00f20b8cf4828bd934acb31e0aae4",
+        "title": "BMW M4 F82 Razor 2014",
+        "author": "heynic (www.vecarz.com)",
+        "url": "https://sketchfab.com/3d-models/25d00f20b8cf4828bd934acb31e0aae4",
+        "license": "CC-BY-4.0"
+      }
+    },
+    "nissan_gtr_r35": {
+      "file": "cars/nissan_gtr_r35.glb",
+      "imported": true,
+      "name": "Nissan GT-R (R35)",
+      "class": "B-CLASS",
+      "length": 4.71,
+      "width": 2.014,
+      "height": 1.227,
+      "wheels": [
+        {
+          "id": "FL",
+          "x": 0.821,
+          "y": 0.354,
+          "z": 1.47,
+          "r": 0.354,
+          "w": 0.564
+        },
+        {
+          "id": "FR",
+          "x": -0.821,
+          "y": 0.354,
+          "z": 1.47,
+          "r": 0.354,
+          "w": 0.564
+        },
+        {
+          "id": "RL",
+          "x": 0.851,
+          "y": 0.354,
+          "z": -1.252,
+          "r": 0.354,
+          "w": 0.3
+        },
+        {
+          "id": "RR",
+          "x": -0.852,
+          "y": 0.354,
+          "z": -1.252,
+          "r": 0.354,
+          "w": 0.3
+        }
+      ],
+      "tris": {
+        "lod0": 203330,
+        "lod1": 51564
+      },
+      "source": {
+        "site": "Sketchfab",
+        "uid": "7b142ea3376e4811a326256c59bbc7a2",
+        "title": "Nissan Skyline GTR r35",
+        "author": "BlackSnow02",
+        "url": "https://sketchfab.com/3d-models/7b142ea3376e4811a326256c59bbc7a2",
+        "license": "CC-BY-4.0"
+      }
+    },
+    "chevrolet_corvette_c8": {
+      "file": "cars/chevrolet_corvette_c8.glb",
+      "imported": true,
+      "name": "Chevrolet Corvette Stingray (C8)",
+      "class": "B-CLASS",
+      "length": 4.63,
+      "width": 2.143,
+      "height": 1.154,
+      "wheels": [
+        {
+          "id": "FL",
+          "x": 0.817,
+          "y": 0.323,
+          "z": 1.28,
+          "r": 0.322,
+          "w": 0.243
+        },
+        {
+          "id": "FR",
+          "x": -0.817,
+          "y": 0.323,
+          "z": 1.28,
+          "r": 0.322,
+          "w": 0.243
+        },
+        {
+          "id": "RL",
+          "x": 0.814,
+          "y": 0.338,
+          "z": -1.437,
+          "r": 0.338,
+          "w": 0.243
+        },
+        {
+          "id": "RR",
+          "x": -0.814,
+          "y": 0.339,
+          "z": -1.438,
+          "r": 0.338,
+          "w": 0.243
+        }
+      ],
+      "tris": {
+        "lod0": 166207,
+        "lod1": 34566
+      },
+      "source": {
+        "site": "Sketchfab",
+        "uid": "790c40ccff6843eab0b7b4bd18421ff8",
+        "title": "2019 Chevrolet Corvette C8 Stingray",
+        "author": "Haris3D",
+        "url": "https://sketchfab.com/3d-models/790c40ccff6843eab0b7b4bd18421ff8",
+        "license": "CC-BY-4.0"
+      }
+    },
+    "porsche_911_gt3": {
+      "file": "cars/porsche_911_gt3.glb",
+      "imported": true,
+      "name": "Porsche 911 GT3",
+      "class": "B-CLASS",
+      "length": 4.56,
+      "width": 1.984,
+      "height": 1.201,
+      "wheels": [
+        {
+          "id": "FL",
+          "x": 0.772,
+          "y": 0.347,
+          "z": 1.229,
+          "r": 0.347,
+          "w": 0.277
+        },
+        {
+          "id": "FR",
+          "x": -0.772,
+          "y": 0.347,
+          "z": 1.229,
+          "r": 0.347,
+          "w": 0.277
+        },
+        {
+          "id": "RL",
+          "x": 0.768,
+          "y": 0.365,
+          "z": -1.227,
+          "r": 0.364,
+          "w": 0.34
+        },
+        {
+          "id": "RR",
+          "x": -0.768,
+          "y": 0.365,
+          "z": -1.227,
+          "r": 0.364,
+          "w": 0.34
+        }
+      ],
+      "tris": {
+        "lod0": 157680,
+        "lod1": 20557
+      },
+      "source": {
+        "site": "Sketchfab",
+        "uid": "78d5c47ab2554c2592b7e499179a0792",
+        "title": "Porsche 911 GT3",
+        "author": "ChevroletSS",
+        "url": "https://sketchfab.com/3d-models/78d5c47ab2554c2592b7e499179a0792",
+        "license": "CC-BY-4.0"
+      }
+    },
+    "audi_r8_v10": {
+      "file": "cars/audi_r8_v10.glb",
+      "imported": true,
+      "name": "Audi R8 V10 performance quattro",
+      "class": "A-CLASS",
+      "length": 4.43,
+      "width": 2.047,
+      "height": 1.142,
+      "wheels": [
+        {
+          "id": "FL",
+          "x": 0.779,
+          "y": 0.358,
+          "z": 1.226,
+          "r": 0.347,
+          "w": 0.314
+        },
+        {
+          "id": "FR",
+          "x": -0.802,
+          "y": 0.357,
+          "z": 1.222,
+          "r": 0.347,
+          "w": 0.314
+        },
+        {
+          "id": "RL",
+          "x": 0.792,
+          "y": 0.364,
+          "z": -1.434,
+          "r": 0.365,
+          "w": 0.33
+        },
+        {
+          "id": "RR",
+          "x": -0.796,
+          "y": 0.365,
+          "z": -1.437,
+          "r": 0.365,
+          "w": 0.33
+        }
+      ],
+      "tris": {
+        "lod0": 151147,
+        "lod1": 33627
+      },
+      "source": {
+        "site": "Sketchfab",
+        "uid": "8dd1c237238244d1a2a49d764d321b87",
+        "title": "2021 Audi R8 V10 Performance Quattro (Type 4S)",
+        "author": "supercarmodels",
+        "url": "https://sketchfab.com/3d-models/8dd1c237238244d1a2a49d764d321b87",
+        "license": "CC-BY-4.0"
+      }
+    },
+    "ferrari_f40": {
+      "file": "cars/ferrari_f40.glb",
+      "imported": true,
+      "name": "Ferrari F40",
+      "class": "A-CLASS",
+      "length": 4.36,
+      "width": 2.032,
+      "height": 1.018,
+      "wheels": [
+        {
+          "id": "FL",
+          "x": 0.779,
+          "y": 0.322,
+          "z": 1.127,
+          "r": 0.322,
+          "w": 0.284
+        },
+        {
+          "id": "FR",
+          "x": -0.773,
+          "y": 0.322,
+          "z": 1.127,
+          "r": 0.322,
+          "w": 0.284
+        },
+        {
+          "id": "RL",
+          "x": 0.777,
+          "y": 0.322,
+          "z": -1.301,
+          "r": 0.322,
+          "w": 0.341
+        },
+        {
+          "id": "RR",
+          "x": -0.772,
+          "y": 0.322,
+          "z": -1.301,
+          "r": 0.322,
+          "w": 0.341
+        }
+      ],
+      "tris": {
+        "lod0": 177710,
+        "lod1": 29662
+      },
+      "source": {
+        "site": "Sketchfab",
+        "uid": "52a66c41cfcd4f999fb1b1c49bf24d70",
+        "title": "Ferrari f40",
+        "author": "BlackSnow02",
+        "url": "https://sketchfab.com/3d-models/52a66c41cfcd4f999fb1b1c49bf24d70",
+        "license": "CC-BY-4.0"
+      }
+    },
+    "mclaren_senna": {
+      "file": "cars/mclaren_senna.glb",
+      "imported": true,
+      "name": "McLaren Senna",
+      "class": "A-CLASS",
+      "length": 4.744,
+      "width": 2.221,
+      "height": 1.134,
+      "wheels": [
+        {
+          "id": "FL",
+          "x": 0.861,
+          "y": 0.354,
+          "z": 1.162,
+          "r": 0.354,
+          "w": 0.252
+        },
+        {
+          "id": "FR",
+          "x": -0.865,
+          "y": 0.354,
+          "z": 1.162,
+          "r": 0.354,
+          "w": 0.252
+        },
+        {
+          "id": "RL",
+          "x": 0.861,
+          "y": 0.354,
+          "z": -1.432,
+          "r": 0.354,
+          "w": 0.252
+        },
+        {
+          "id": "RR",
+          "x": -0.865,
+          "y": 0.354,
+          "z": -1.432,
+          "r": 0.354,
+          "w": 0.252
+        }
+      ],
+      "tris": {
+        "lod0": 225364,
+        "lod1": 52695
+      },
+      "source": {
+        "site": "Sketchfab",
+        "uid": "ea3e43a6eb004853a87fe9c58422eb96",
+        "title": "McLaren Senna Free",
+        "author": "BlackSnow02",
+        "url": "https://sketchfab.com/3d-models/ea3e43a6eb004853a87fe9c58422eb96",
+        "license": "CC-BY-4.0"
+      }
+    },
+    "lamborghini_centenario": {
+      "file": "cars/lamborghini_centenario.glb",
+      "imported": true,
+      "name": "Lamborghini Centenario LP 770-4",
+      "class": "S-CLASS",
+      "length": 4.924,
+      "width": 2.245,
+      "height": 1.145,
+      "wheels": [
+        {
+          "id": "FL",
+          "x": 0.866,
+          "y": 0.3,
+          "z": 1.217,
+          "r": 0.3,
+          "w": 0.449
+        },
+        {
+          "id": "FR",
+          "x": -0.874,
+          "y": 0.3,
+          "z": 1.208,
+          "r": 0.299,
+          "w": 0.429
+        },
+        {
+          "id": "RL",
+          "x": 0.866,
+          "y": 0.315,
+          "z": -1.449,
+          "r": 0.302,
+          "w": 0.288
+        },
+        {
+          "id": "RR",
+          "x": -0.866,
+          "y": 0.315,
+          "z": -1.449,
+          "r": 0.302,
+          "w": 0.288
+        }
+      ],
+      "tris": {
+        "lod0": 159696,
+        "lod1": 79335
+      },
+      "source": {
+        "site": "Sketchfab",
+        "uid": "d679af35b5694301a185c7454a700c73",
+        "title": "Lamborghini Centenario LP-770 Interior SDC",
+        "author": "Lambo_SC04",
+        "url": "https://sketchfab.com/3d-models/d679af35b5694301a185c7454a700c73",
+        "license": "CC-BY-4.0"
+      }
+    },
+    "lamborghini_huracan_tt": {
+      "file": "cars/lamborghini_huracan_tt.glb",
+      "imported": true,
+      "name": "Lamborghini Huracán Twin Turbo",
+      "class": "S-CLASS",
+      "length": 4.459,
+      "width": 2.189,
+      "height": 1.144,
+      "wheels": [
+        {
+          "id": "FL",
+          "x": 0.797,
+          "y": 0.336,
+          "z": 1.154,
+          "r": 0.334,
+          "w": 0.332
+        },
+        {
+          "id": "FR",
+          "x": -0.796,
+          "y": 0.336,
+          "z": 1.154,
+          "r": 0.331,
+          "w": 0.329
+        },
+        {
+          "id": "RL",
+          "x": 0.801,
+          "y": 0.345,
+          "z": -1.413,
+          "r": 0.345,
+          "w": 0.343
+        },
+        {
+          "id": "RR",
+          "x": -0.801,
+          "y": 0.345,
+          "z": -1.413,
+          "r": 0.345,
+          "w": 0.343
+        }
+      ],
+      "tris": {
+        "lod0": 266231,
+        "lod1": 114606
+      },
+      "source": {
+        "site": "Sketchfab",
+        "uid": "1d3809ea5a6749d9864ec4c32511d716",
+        "title": "Lamborghini Huracan Twin Turbo [LOST]",
+        "author": "BlackSnow02",
+        "url": "https://sketchfab.com/3d-models/1d3809ea5a6749d9864ec4c32511d716",
+        "license": "CC-BY-4.0"
+      }
     }
   },
   "wheels": {

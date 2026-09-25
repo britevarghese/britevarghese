@@ -13,6 +13,8 @@ import { components, subsetPrimitive, triCount, triIndices, positions, triSetBou
 
 const RX = {
   plane: /(^|[^a-z])(plane|ground|floor|shadow|backdrop|studio|turntable|platform|podium|environment|sky)([^a-z]|$)/i,
+  // game-rip helpers (GTA .dff collision / shadow meshes), never visible geometry
+  junk: /col.?mesh|shadow.?mesh|collision|\bcol_/i,
   front: /head.?(light|lamp)|headl|front|grill|grille|hood|bonnet|wind.?shield|wind.?screen|steering|dashboard|radiator|splitter|kuehler|capot/i,
   rear: /tail.?(light|lamp)|taill|rear|brake.?light|exhaust|muffler|trunk|boot|diffuser|spoiler|tailpipe|auspuff|heck/i,
   glass: /glass|window|wind.?screen|wind.?shield|vidrio|scheibe|verre|vetro|windows/i,
@@ -87,7 +89,10 @@ export function processCar(doc, car, opt = {}) {
   say(`baked ${parts.length} primitives, ${parts.reduce((a, p) => a + triCount(p.prim), 0)} triangles`);
 
   // ---- 2. drop floors / shadow catchers / studio props
-  let keep = parts.filter((p) => !RX.plane.test(p.name));
+  // a name like "Plane.001" is also what Blender calls a body started from a plane primitive: only drop
+  // name-matched parts that are actually flat
+  const flatPart = (p) => { const pb = triSetBounds(positions(p.prim), [...Array(triCount(p.prim)).keys()], triIndices(p.prim)); return pb.size[1] < Math.max(pb.size[0], pb.size[2]) * 0.1; };
+  let keep = parts.filter((p) => !RX.junk.test(p.name) && !(RX.plane.test(p.name) && flatPart(p)));
   let b = boundsOf(keep);
   const horiz = Math.max(b.size[0], b.size[2]);
   keep = keep.filter((p) => {
