@@ -4259,6 +4259,279 @@
         "url": "https://sketchfab.com/3d-models/1d3809ea5a6749d9864ec4c32511d716",
         "license": "CC-BY-4.0"
       }
+    },
+    "harley_iron_883": {
+      "file": "cars/harley_iron_883.glb",
+      "imported": true,
+      "name": "Harley-Davidson Iron 883",
+      "class": "D-CLASS",
+      "length": 1.932,
+      "width": 0.887,
+      "height": 1.071,
+      "wheels": [
+        {
+          "id": "F",
+          "x": 0,
+          "y": 0.319,
+          "z": 0.774,
+          "r": 0.319,
+          "w": 0.113
+        },
+        {
+          "id": "R",
+          "x": 0,
+          "y": 0.319,
+          "z": -0.71,
+          "r": 0.319,
+          "w": 0.164
+        }
+      ],
+      "tris": {
+        "lod0": 25332,
+        "lod1": 10456
+      },
+      "source": {
+        "site": "Sketchfab",
+        "uid": "94c9d48a23a1407190e973001da63e50",
+        "title": "Harley Davidson Iron 883 2018",
+        "author": "EmanuelRestrepoVelez",
+        "url": "https://sketchfab.com/3d-models/94c9d48a23a1407190e973001da63e50",
+        "license": "CC-BY-4.0"
+      }
+    },
+    "kawasaki_zx6r": {
+      "file": "cars/kawasaki_zx6r.glb",
+      "imported": true,
+      "name": "Kawasaki Ninja ZX-6R",
+      "class": "D-CLASS",
+      "length": 1.826,
+      "width": 0.871,
+      "height": 0.964,
+      "wheels": [
+        {
+          "id": "F",
+          "x": 0,
+          "y": 0.297,
+          "z": 0.715,
+          "r": 0.297,
+          "w": 0.135
+        },
+        {
+          "id": "R",
+          "x": 0,
+          "y": 0.31,
+          "z": -0.703,
+          "r": 0.309,
+          "w": 0.185
+        }
+      ],
+      "tris": {
+        "lod0": 108923,
+        "lod1": 21849
+      },
+      "source": {
+        "site": "Sketchfab",
+        "uid": "4af2b6840b8045a5af5e8df8a85f04fa",
+        "title": "Kawasaki ninja ZX-6R",
+        "author": "valvetin",
+        "url": "https://sketchfab.com/3d-models/4af2b6840b8045a5af5e8df8a85f04fa",
+        "license": "CC-BY-4.0"
+      }
+    },
+    "yamaha_r1": {
+      "file": "cars/yamaha_r1.glb",
+      "imported": true,
+      "name": "Yamaha YZF-R1",
+      "class": "C-CLASS",
+      "length": 1.797,
+      "width": 0.697,
+      "height": 1.049,
+      "wheels": [
+        {
+          "id": "F",
+          "x": 0.005,
+          "y": 0.306,
+          "z": 0.722,
+          "r": 0.306,
+          "w": 0.121
+        },
+        {
+          "id": "R",
+          "x": 0.005,
+          "y": 0.331,
+          "z": -0.698,
+          "r": 0.329,
+          "w": 0.197
+        }
+      ],
+      "tris": {
+        "lod0": 92768,
+        "lod1": 15956
+      },
+      "source": {
+        "site": "Sketchfab",
+        "uid": "7b3343ad0c0f4cbe94238c734e1b731a",
+        "title": "Yamaha R1",
+        "author": "ejsnowy",
+        "url": "https://sketchfab.com/3d-models/7b3343ad0c0f4cbe94238c734e1b731a",
+        "license": "CC-BY-4.0"
+      }
+    },
+    "bmw_s1000rr": {
+      "file": "cars/bmw_s1000rr.glb",
+      "imported": true,
+      "name": "BMW S 1000 RR",
+      "class": "C-CLASS",
+      "length": 1.764,
+      "width": 0.812,
+      "height": 1.084,
+      "wheels": [
+        {
+          "id": "F",
+          "x": 0.009,
+          "y": 0.295,
+          "z": 0.742,
+          "r": 0.295,
+          "w": 0.119
+        },
+        {
+          "id": "R",
+          "x": 0.008,
+          "y": 0.314,
+          "z": -0.723,
+          "r": 0.313,
+          "w": 0.202
+        }
+      ],
+      "tris": {
+        "lod0": 155052,
+        "lod1": 92501
+      },
+      "source": {
+        "site": "Sketchfab",
+        "uid": "68a6f534194b44a5acc7ccc67630f0b9",
+        "title": "BMW s1000rr",
+        "author": "Hassan Visuals 3D | HassanVisuals3D",
+        "url": "https://sketchfab.com/3d-models/68a6f534194b44a5acc7ccc67630f0b9",
+        "license": "CC-BY-4.0"
+      }
+    },
+    "suzuki_hayabusa": {
+      "file": "cars/suzuki_hayabusa.glb",
+      "imported": true,
+      "name": "Suzuki Hayabusa (GSX1300R)",
+      "class": "B-CLASS",
+      "length": 2.17,
+      "width": 0.833,
+      "height": 1.042,
+      "wheels": [
+        {
+          "id": "F",
+          "x": 0,
+          "y": 0.303,
+          "z": 0.792,
+          "r": 0.303,
+          "w": 0.123
+        },
+        {
+          "id": "R",
+          "x": 0,
+          "y": 0.316,
+          "z": -0.708,
+          "r": 0.314,
+          "w": 0.195
+        }
+      ],
+      "tris": {
+        "lod0": 26014,
+        "lod1": 25483
+      },
+      "source": {
+        "site": "Sketchfab",
+        "uid": "121f40c2c0974fb08823f3bd93c578fe",
+        "title": "Suzuki Hayabusa",
+        "author": "JUSTGAME",
+        "url": "https://sketchfab.com/3d-models/121f40c2c0974fb08823f3bd93c578fe",
+        "license": "CC-BY-4.0"
+      }
+    },
+    "ducati_panigale_v4r": {
+      "file": "cars/ducati_panigale_v4r.glb",
+      "imported": true,
+      "name": "Ducati Panigale V4 R",
+      "class": "A-CLASS",
+      "length": 1.792,
+      "width": 0.785,
+      "height": 1.069,
+      "wheels": [
+        {
+          "id": "F",
+          "x": -0.001,
+          "y": 0.311,
+          "z": 0.742,
+          "r": 0.313,
+          "w": 0.157
+        },
+        {
+          "id": "R",
+          "x": -0.002,
+          "y": 0.347,
+          "z": -0.743,
+          "r": 0.314,
+          "w": 0.214
+        }
+      ],
+      "tris": {
+        "lod0": 127953,
+        "lod1": 40427
+      },
+      "source": {
+        "site": "Sketchfab",
+        "uid": "3f1067a86c4c4c3bbfddf61ec0232446",
+        "title": "DucatiV4R",
+        "author": "IrfanMuaz",
+        "url": "https://sketchfab.com/3d-models/3f1067a86c4c4c3bbfddf61ec0232446",
+        "license": "CC-BY-4.0"
+      }
+    },
+    "kawasaki_ninja_h2": {
+      "file": "cars/kawasaki_ninja_h2.glb",
+      "imported": true,
+      "name": "Kawasaki Ninja H2",
+      "class": "A-CLASS",
+      "length": 1.969,
+      "width": 0.842,
+      "height": 1.137,
+      "wheels": [
+        {
+          "id": "F",
+          "x": 0,
+          "y": 0.305,
+          "z": 0.738,
+          "r": 0.305,
+          "w": 0.122
+        },
+        {
+          "id": "R",
+          "x": 0,
+          "y": 0.331,
+          "z": -0.697,
+          "r": 0.331,
+          "w": 0.204
+        }
+      ],
+      "tris": {
+        "lod0": 119097,
+        "lod1": 44506
+      },
+      "source": {
+        "site": "Sketchfab",
+        "uid": "0ed1b0cc65de4225a7eac76f02d6bc30",
+        "title": "Kawasaki ninja h2 2020",
+        "author": "DR1KING100K",
+        "url": "https://sketchfab.com/3d-models/0ed1b0cc65de4225a7eac76f02d6bc30",
+        "license": "CC-BY-4.0"
+      }
     }
   },
   "wheels": {

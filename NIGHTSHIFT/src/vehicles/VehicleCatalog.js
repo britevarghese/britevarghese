@@ -149,6 +149,74 @@ for (const r of REAL) {
     params,
   };
 }
+
+// ------------------------------------------------------------------ licensed real motorcycles
+// Same idea as the real cars: public figures (kW, wet mass kg, 0-100 s, top km/h, length / wheelbase m,
+// tyre radius m) and a CC BY 4.0 Sketchfab model. gears are the gearbox ratios, fd = primary x final
+// drive. Bikes ride on the same single-track physics with bike: true (lean instead of body roll,
+// wheelies, rider on board, the rider is thrown off in a hard crash). style picks the riding pose.
+const REAL_BIKES = [
+  { id: 'harley_iron_883', brand: 'Harley-Davidson', model: 'Iron 883', year: 2018, tier: 'D', carType: 'muscle', unlock: { level: 2 }, price: 11000, style: 'cruiser',
+    spec: { seat: 0.74, trans: 'manual', kw: 38, kg: 256, t100: 6.4, vmax: 170, len: 2.185, wid: 0.87, hgt: 1.09, wb: 1.515, wr: 0.33, fw: 0.47, redline: 6000, gears: [2.94, 2.0, 1.47, 1.15, 0.94], fd: 3.4, grip: 0.98, era: 2018 },
+    blurb: 'Blacked-out Sportster with a 45-degree V-twin. Slow, loud, and cool at every red light.',
+    src: { uid: '94c9d48a23a1407190e973001da63e50', title: 'Harley Davidson Iron 883 2018', author: 'EmanuelRestrepoVelez' }, import: { flip: true } },
+  { id: 'kawasaki_zx6r', brand: 'Kawasaki', model: 'Ninja ZX-6R', year: 2024, tier: 'D', carType: 'tuner', unlock: { level: 3 }, price: 15000, style: 'sport',
+    spec: { seat: 0.83, trans: 'qs', kw: 91, kg: 197, t100: 3.3, vmax: 260, len: 2.025, wid: 0.72, hgt: 1.1, wb: 1.4, wr: 0.31, fw: 0.52, redline: 16000, gears: [2.85, 2.2, 1.85, 1.6, 1.44, 1.33], fd: 5.49, grip: 1.16, era: 2024 },
+    blurb: 'A 600 that lives above 12,000 rpm. Light, flickable, and brutal in the right gear.',
+    src: { uid: '4af2b6840b8045a5af5e8df8a85f04fa', title: 'Kawasaki ninja ZX-6R', author: 'valvetin' } },
+  { id: 'yamaha_r1', brand: 'Yamaha', model: 'YZF-R1', year: 2015, tier: 'C', carType: 'tuner', unlock: { level: 8 }, price: 26000, style: 'sport',
+    spec: { seat: 0.855, trans: 'qs', kw: 147, kg: 199, t100: 3.0, vmax: 299, len: 2.055, wid: 0.69, hgt: 1.15, wb: 1.405, wr: 0.315, fw: 0.53, redline: 14000, gears: [2.6, 2.18, 1.84, 1.6, 1.45, 1.35], fd: 4.2, grip: 1.2, era: 2015 },
+    blurb: 'Crossplane inline-four from MotoGP: it sounds like a V4 and pulls like a superbike.',
+    src: { uid: '7b3343ad0c0f4cbe94238c734e1b731a', title: 'Yamaha R1', author: 'ejsnowy' } },
+  { id: 'bmw_s1000rr', brand: 'BMW', model: 'S 1000 RR', year: 2019, tier: 'C', carType: 'sports', unlock: { level: 10 }, price: 30000, style: 'sport',
+    spec: { seat: 0.824, trans: 'qs', kw: 152, kg: 197, t100: 3.1, vmax: 303, len: 2.073, wid: 0.85, hgt: 1.15, wb: 1.441, wr: 0.315, fw: 0.53, redline: 14600, gears: [2.65, 2.09, 1.73, 1.5, 1.36, 1.27], fd: 4.3, grip: 1.22, era: 2019 },
+    blurb: 'ShiftCam inline-four, electronics for everything, and 300 km/h on the clock.',
+    src: { uid: '68a6f534194b44a5acc7ccc67630f0b9', title: 'BMW s1000rr', author: 'Hassan Visuals 3D | HassanVisuals3D' } },
+  { id: 'suzuki_hayabusa', brand: 'Suzuki', model: 'Hayabusa (GSX1300R)', year: 2008, tier: 'B', carType: 'sports', unlock: { level: 12 }, price: 34000, style: 'sport',
+    spec: { seat: 0.805, trans: 'manual', kw: 145, kg: 260, t100: 2.9, vmax: 299, len: 2.19, wid: 0.735, hgt: 1.165, wb: 1.48, wr: 0.315, fw: 0.5, redline: 11000, gears: [2.62, 1.94, 1.53, 1.29, 1.14, 1.04], fd: 3.72, grip: 1.14, era: 2008 },
+    blurb: 'The peregrine falcon. Long, heavy and stable, built for one thing: top speed.',
+    src: { uid: '121f40c2c0974fb08823f3bd93c578fe', title: 'Suzuki Hayabusa', author: 'JUSTGAME' } },
+  { id: 'ducati_panigale_v4r', brand: 'Ducati', model: 'Panigale V4 R', year: 2019, tier: 'A', carType: 'exotic', unlock: { level: 17 }, price: 58000, style: 'sport',
+    spec: { seat: 0.83, trans: 'qs', kw: 162, kg: 193, t100: 2.9, vmax: 299, len: 2.11, wid: 0.81, hgt: 1.1, wb: 1.471, wr: 0.315, fw: 0.54, redline: 16000, gears: [2.71, 2.2, 1.89, 1.65, 1.47, 1.35], fd: 4.68, grip: 1.26, era: 2019 },
+    blurb: 'Homologation special with a 16,000 rpm Desmosedici Stradale V4 and winglets.',
+    src: { uid: '3f1067a86c4c4c3bbfddf61ec0232446', title: 'DucatiV4R', author: 'IrfanMuaz' } },
+  { id: 'kawasaki_ninja_h2', brand: 'Kawasaki', model: 'Ninja H2', year: 2015, tier: 'A', carType: 'exotic', unlock: { level: 20 }, price: 72000, style: 'sport',
+    spec: { seat: 0.825, trans: 'qs', kw: 152, kg: 238, t100: 2.8, vmax: 300, len: 2.085, wid: 0.77, hgt: 1.125, wb: 1.455, wr: 0.315, fw: 0.5, redline: 14000, gears: [3.07, 2.2, 1.8, 1.55, 1.39, 1.24], fd: 4.4, grip: 1.2, era: 2015 },
+    blurb: 'A supercharged inline-four from the company that builds jet engines. Hold on tight.',
+    src: { uid: '0ed1b0cc65de4225a7eac76f02d6bc30', title: 'Kawasaki ninja h2 2020', author: 'DR1KING100K' } },
+];
+// quickshifter: almost no drive interruption on upshifts
+SHIFT.qs = { shiftTime: 0.05, shiftFill: 0.85 };
+const RIDER_KG = 80;
+// Real-world spec -> single-track physics params for a bike with its rider aboard.
+export function bikeParams(r) {
+  const s = r.spec;
+  const kg = s.kg + RIDER_KG;
+  return {
+    bike: true, mass: kg, enginePower: s.kw, maxSpeed: s.vmax / 3.6,
+    grip: s.grip, driftGrip: 0.55, steeringAngle: 0.5, driftAssist: 0.55, maxDrift: 0.34,
+    brakingForce: kg * 10.8,
+    wheelBase: s.wb, trackWidth: 0.2, cgHeight: 0.62, frontWeight: s.fw,
+    drive: 'RWD', gears: s.gears, finalDrive: s.fd, redline: s.redline, idle: s.redline > 9000 ? 1300 : 900,
+    downforce: 0.22, suspensionStrength: 2.3, suspensionDamping: 0.5,
+    length: s.len, width: s.wid, wheelRadius: s.wr,
+    ...SHIFT[s.trans || 'manual'],
+  };
+}
+const BIKE_FACTORY = {
+  harley_iron_883: '#141416', kawasaki_zx6r: '#3fae2a', yamaha_r1: '#1d3bb3', bmw_s1000rr: '#e8e8ea', suzuki_hayabusa: '#e8e8ea', ducati_panigale_v4r: '#c8102e', kawasaki_ninja_h2: '#1c1c1e',
+};
+for (const r of REAL_BIKES) {
+  const params = bikeParams(r);
+  const cal = CALIBRATION[r.id];
+  if (cal) { params.enginePower *= cal.power; params.launchG = cal.launchG; params.maxSpeed *= cal.vmax; }
+  CARS[r.id] = {
+    id: r.id, name: `${r.brand} ${r.model}`, brand: r.brand, model: r.model, year: r.year, class: `${r.tier}-CLASS`, tier: r.tier,
+    price: r.price, carType: r.carType, blurb: r.blurb, unlock: r.unlock, real: true, bike: true, import: r.import, style: r.style, spec: { ...r.spec, drive: 'RWD' }, look: {}, factoryColor: BIKE_FACTORY[r.id],
+    source: { site: 'Sketchfab', uid: r.src.uid, title: r.src.title, author: r.src.author, url: `https://sketchfab.com/3d-models/${r.src.uid}`, license: 'CC-BY-4.0' },
+    params,
+  };
+}
 for (const [id, c] of Object.entries(CARS)) { c.tier ||= 'D'; c.brand ||= 'NIGHTSHIFT'; c.model ||= c.name; }
 
 export const TIERS = ['D', 'C', 'B', 'A', 'S'];
@@ -157,6 +225,8 @@ const unlockKey = (c) => c.unlock?.level ?? 0;
 // garage order: by tier, then unlock level, then price
 export const PLAYER_CAR_ORDER = Object.values(CARS).sort((a, b) => TIERS.indexOf(a.tier) - TIERS.indexOf(b.tier) || unlockKey(a) - unlockKey(b) || a.price - b.price).map((c) => c.id);
 export const REAL_CAR_IDS = REAL.map((r) => r.id);
+export const REAL_BIKE_IDS = REAL_BIKES.map((r) => r.id);
+export const isBike = (id) => !!CARS[id]?.bike;
 
 export const POLICE_CAR = {
   id: 'interceptor', name: 'Interceptor', carType: 'muscle',

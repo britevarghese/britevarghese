@@ -1,7 +1,7 @@
 # Vehicle model credits
 
-Real-car 3D models are used under the Creative Commons Attribution 4.0 license (https://creativecommons.org/licenses/by/4.0/).
-They were converted for real-time use (re-scaled, wheels separated, simplified, textures re-encoded). Car names and badges are trademarks of their respective manufacturers; NIGHTSHIFT is a non-commercial fan project and is not endorsed by them.
+Real car and motorcycle 3D models are used under the Creative Commons Attribution 4.0 license (https://creativecommons.org/licenses/by/4.0/).
+They were converted for real-time use (re-scaled, wheels separated, simplified, textures re-encoded). Vehicle names and badges are trademarks of their respective manufacturers; NIGHTSHIFT is a non-commercial fan project and is not endorsed by them.
 
 - **BMW M3 (E30)** — "[FREE] BMW M3 E30" by TinoD2, https://sketchfab.com/3d-models/ac3c7013434e403e8faff87948caf422 (CC BY 4.0), modified.
 - **Subaru Impreza WRX STi (GC8)** — "Subaru Impreza WRX STi Version VI (GC8)" by Car2022, https://sketchfab.com/3d-models/457f01e7e8d14b088e3f092c1be9e75c (CC BY 4.0), modified.
@@ -19,3 +19,10 @@ They were converted for real-time use (re-scaled, wheels separated, simplified, 
 - **McLaren Senna** — "McLaren Senna Free" by BlackSnow02, https://sketchfab.com/3d-models/ea3e43a6eb004853a87fe9c58422eb96 (CC BY 4.0), modified.
 - **Lamborghini Centenario LP 770-4** — "Lamborghini Centenario LP-770 Interior SDC" by Lambo_SC04, https://sketchfab.com/3d-models/d679af35b5694301a185c7454a700c73 (CC BY 4.0), modified.
 - **Lamborghini Huracán Twin Turbo** — "Lamborghini Huracan Twin Turbo [LOST]" by BlackSnow02, https://sketchfab.com/3d-models/1d3809ea5a6749d9864ec4c32511d716 (CC BY 4.0), modified.
+- **Harley-Davidson Iron 883** — "Harley Davidson Iron 883 2018" by EmanuelRestrepoVelez, https://sketchfab.com/3d-models/94c9d48a23a1407190e973001da63e50 (CC BY 4.0), modified.
+- **Kawasaki Ninja ZX-6R** — "Kawasaki ninja ZX-6R" by valvetin, https://sketchfab.com/3d-models/4af2b6840b8045a5af5e8df8a85f04fa (CC BY 4.0), modified.
+- **Yamaha YZF-R1** — "Yamaha R1" by ejsnowy, https://sketchfab.com/3d-models/7b3343ad0c0f4cbe94238c734e1b731a (CC BY 4.0), modified.
+- **BMW S 1000 RR** — "BMW s1000rr" by Hassan Visuals 3D | HassanVisuals3D, https://sketchfab.com/3d-models/68a6f534194b44a5acc7ccc67630f0b9 (CC BY 4.0), modified.
+- **Suzuki Hayabusa (GSX1300R)** — "Suzuki Hayabusa" by JUSTGAME, https://sketchfab.com/3d-models/121f40c2c0974fb08823f3bd93c578fe (CC BY 4.0), modified.
+- **Ducati Panigale V4 R** — "DucatiV4R" by IrfanMuaz, https://sketchfab.com/3d-models/3f1067a86c4c4c3bbfddf61ec0232446 (CC BY 4.0), modified.
+- **Kawasaki Ninja H2** — "Kawasaki ninja h2 2020" by DR1KING100K, https://sketchfab.com/3d-models/0ed1b0cc65de4225a7eac76f02d6bc30 (CC BY 4.0), modified.

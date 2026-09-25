@@ -237,12 +237,13 @@ export class VehiclePhysics {
         const into = c.steer * dir;
         let a = this.driftAngle ?? 0.3;
         const throttleHold = Math.max(0, driveIn);
-        if (hb) a = approach(a, 0.62, dt * 1.6);
+        const maxA = p.maxDrift ?? 0.85; // bikes only back it in a little
+        if (hb) a = approach(a, Math.min(0.62, maxA), dt * 1.6);
         else if (into > 0.15) a = approach(a, 0.4 + 0.38 * into, dt * (0.9 + into));
         else if (into < -0.15) a = approach(a, 0, dt * (0.9 + 1.6 * -into));
         else a = approach(a, throttleHold > 0.5 ? 0.18 : 0, dt * (throttleHold > 0.5 ? 0.25 : 0.7));
         if (driveIn < 0.1 && !hb) a = approach(a, 0, dt * 0.6);
-        this.driftAngle = a = clamp(a, 0, 0.85);
+        this.driftAngle = a = clamp(a, 0, maxA);
         const bt = a * dir;
         const assist = clamp(0.85 * p.driftAssist, 0, 1);
         const rate = hb ? 3.2 : 2.6;
@@ -343,8 +344,11 @@ export class VehiclePhysics {
     this.pitchDyn += this.pitchVel * dt;
     this.rollVel += (kp * (rollT - this.rollDyn) - cp * this.rollVel) * dt;
     this.rollDyn += this.rollVel * dt;
-    s.pitch = (s.onGround ? terrainPitch : this.airPitch) + this.pitchDyn;
-    s.roll = (s.onGround ? terrainRoll : 0) + this.rollDyn;
+    if (p.bike) this._bikeAttitude(dt, terrainPitch);
+    else {
+      s.pitch = (s.onGround ? terrainPitch : this.airPitch) + this.pitchDyn;
+      s.roll = (s.onGround ? terrainRoll : 0) + this.rollDyn;
+    }
     // per-wheel suspension compression (visual) : positive = compressed
     for (let i = 0; i < 4; i++) {
       const [f, l] = pts[i];
@@ -354,6 +358,21 @@ export class VehiclePhysics {
       s.wheelOff[i] = s.onGround ? clamp(gh[i] - s.y, -0.16, 0.7) : Math.max(-0.14, s.wheelOff[i] - 0.02);
     }
     s.groundY = hg;
+  }
+
+  // Motorcycles: lean into the turn (tan(lean) = lateral g) instead of rolling out, wheelie when the
+  // drive force would lift the front (a > g * rear-lever / cg height), stoppie under very hard braking.
+  _bikeAttitude(dt, terrainPitch) {
+    const p = this.p, s = this.s;
+    const leanT = s.onGround ? -Math.atan(this.ayPrev / G) : this.lean ?? 0;
+    this.leanVel = (this.leanVel || 0) + (60 * (clamp(leanT, -0.95, 0.95) - (this.lean || 0)) - 2 * 0.8 * Math.sqrt(60) * (this.leanVel || 0)) * dt;
+    this.lean = (this.lean || 0) + this.leanVel * dt;
+    const wheelieG = G * p.wheelBase * (1 - p.frontWeight) / p.cgHeight * 0.62;
+    const lift = s.onGround ? (this.axPrev > wheelieG ? clamp((this.axPrev - wheelieG) * 0.12, 0, 0.42) : this.axPrev < -G * 0.95 ? clamp((this.axPrev + G * 0.95) * 0.05, -0.16, 0) : 0) : 0;
+    this.wheelie = approach(this.wheelie || 0, lift, dt * (lift > (this.wheelie || 0) ? 0.9 : 1.6));
+    s.pitch = (s.onGround ? terrainPitch : this.airPitch) + this.pitchDyn * 0.5 + this.wheelie;
+    s.roll = this.lean;
+    s.wheelie = this.wheelie;
   }
 
   obb() {

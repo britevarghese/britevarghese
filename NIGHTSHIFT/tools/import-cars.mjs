@@ -138,8 +138,8 @@ for (const car of targets) {
 if (writeManifest) {
   fs.writeFileSync(manifestPath, JSON.stringify(manifest, null, 2));
   const imported = Object.entries(manifest.cars).filter(([, c]) => c.imported);
-  const lines = ['# Vehicle model credits', '', 'Real-car 3D models are used under the Creative Commons Attribution 4.0 license (https://creativecommons.org/licenses/by/4.0/).',
-    'They were converted for real-time use (re-scaled, wheels separated, simplified, textures re-encoded). Car names and badges are trademarks of their respective manufacturers; NIGHTSHIFT is a non-commercial fan project and is not endorsed by them.', ''];
+  const lines = ['# Vehicle model credits', '', 'Real car and motorcycle 3D models are used under the Creative Commons Attribution 4.0 license (https://creativecommons.org/licenses/by/4.0/).',
+    'They were converted for real-time use (re-scaled, wheels separated, simplified, textures re-encoded). Vehicle names and badges are trademarks of their respective manufacturers; NIGHTSHIFT is a non-commercial fan project and is not endorsed by them.', ''];
   for (const [id, c] of imported) lines.push(`- **${CARS[id]?.name || c.name}** — "${c.source.title}" by ${c.source.author}, ${c.source.url} (CC BY 4.0), modified.`);
   if (!imported.length) lines.push('_No real-car models imported yet — run `node tools/import-cars.mjs`._');
   fs.writeFileSync(path.join(ROOT, 'public/assets/models/cars/CREDITS.md'), lines.join('\n') + '\n');

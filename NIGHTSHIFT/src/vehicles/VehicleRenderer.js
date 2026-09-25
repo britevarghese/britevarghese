@@ -5,8 +5,11 @@ import { AssetManager } from '../assets/AssetManager.js';
 import { radialGlow, lightPool, carPaintTexture, headlightTextures, taillightTextures, tireTread } from '../renderer/Textures.js';
 import { clamp, lerp } from '../core/util.js';
 import { CARS } from './VehicleCatalog.js';
+import { Rider } from './Rider.js';
 
 const glowRed = () => radialGlow('rgba(255,60,50,1)', 'rgba(255,20,20,0.3)');
+const _qa = new THREE.Quaternion(), _qb = new THREE.Quaternion(), _pv = new THREE.Vector3(), _pp = new THREE.Vector3(), _ax = new THREE.Vector3(1, 0, 0), _az = new THREE.Vector3(0, 0, 1);
+const WHEEL_IDX = { FL: 0, FR: 1, RL: 2, RR: 3, F: 0, R: 2 };
 const glowWhite = () => radialGlow('rgba(255,250,235,1)', 'rgba(220,230,255,0.35)');
 
 export class ModelLibrary {
@@ -48,6 +51,7 @@ export class VehicleRenderer {
     if (!src) throw new Error(`ASSET LOAD ERROR: ${carId}.glb`);
     const res = lib.modelOf[carId] || lib.resolve(carId);
     this.modelId = res.key; this.imported = !!res.imported; this.standIn = res.standIn || null;
+    this.bike = !!CARS[carId]?.bike;
     const lod0 = AssetManager.clone(src.getObjectByName('lod0'));
     const lod1 = src.getObjectByName('lod1') ? AssetManager.clone(src.getObjectByName('lod1')) : null;
     this.lod0 = lod0; this.lod1 = lod1;
@@ -84,6 +88,7 @@ export class VehicleRenderer {
     // marker positions in body space (stand-ins are scaled, so store scaled copies)
     lod0.traverse((o) => { if (!o.isMesh && o.name && !this.markers[o.name]) this.markers[o.name] = this.standIn ? { name: o.name, position: o.position.clone().multiply(this.scaleV) } : o; });
     if (this.imported) this._rigImportedWheels(); else this._rigWheels();
+    if (this.bike) this._rider();
     this._lights();
     this._shadowBlob();
     if (opts.police) this._policeLights();
@@ -182,26 +187,41 @@ export class VehicleRenderer {
     this.caliperMat = this.mats.caliper || null;
     const man = this.lib.manifest?.cars?.[this.carId];
     const move = (src, dst) => { if (src) for (const c of [...src.children]) dst.add(c); };
-    for (const id of ['FL', 'FR', 'RL', 'RR']) {
+    for (const id of this.bike ? ['F', 'R'] : ['FL', 'FR', 'RL', 'RR']) {
       const n0 = this.lod0.getObjectByName('wheel_' + id);
       if (!n0) continue;
-      const n1 = this.lod1?.getObjectByName('wheel_' + id);
+      const n1 = this.lod1?.children.find((c) => c.name === 'wheel_' + id || c.name.startsWith(`wheel_${id}_`));
       const pivot = new THREE.Group();
       pivot.position.copy(n0.position);
       const spin = new THREE.Group(), fixed = new THREE.Group();
       const s0 = new THREE.Group(), s1 = new THREE.Group(), f0 = new THREE.Group(), f1 = new THREE.Group();
-      move(n0.getObjectByName('spin'), s0); move(n0.getObjectByName('fixed'), f0);
-      if (n1) { move(n1.getObjectByName('spin'), s1); move(n1.getObjectByName('fixed'), f1); n1.removeFromParent(); }
+      // GLTFLoader de-duplicates node names (spin, spin_1, ...): match the wheel's own children by prefix
+      const part = (n, kind) => n.children.find((c) => c.name === kind || c.name.startsWith(kind + '_'));
+      move(part(n0, 'spin'), s0); move(part(n0, 'fixed'), f0);
+      if (n1) { move(part(n1, 'spin'), s1); move(part(n1, 'fixed'), f1); n1.removeFromParent(); }
       s1.visible = f1.visible = false;
       spin.add(s0, s1); fixed.add(f0, f1);
       n0.removeFromParent();
       pivot.add(spin, fixed);
       for (const g of [s0, f0]) g.traverse((o) => { if (o.isMesh) o.castShadow = !!this.opts.shadow; });
-      this.body.parent.add(pivot);
+      (this.bike ? this.body : this.body.parent).add(pivot); // bike wheels lean and wheelie with the bike
       const r = man?.wheels?.find((w) => w.id === id)?.r || n0.position.y;
       this.wheels.push({ id, pivot, spin, rim: null, restY: n0.position.y, front: id[0] === 'F', r, lods: [[s0, f0], [s1, f1]] });
     }
   }
+
+  // motorcycles carry a rider, posed onto this bike's seat / bars / pegs
+  _rider() {
+    const car = CARS[this.carId];
+    const zF = this.wheels.find((w) => w.id === 'F')?.pivot.position.z ?? car.spec.wb / 2;
+    const zR = this.wheels.find((w) => w.id === 'R')?.pivot.position.z ?? -car.spec.wb / 2;
+    this.rider = new Rider({ zF, zR, seat: car.spec.seat ?? 0.82, style: car.style, rider: car.rider, accent: car.factoryColor }, !!this.opts.shadow);
+    this.body.add(this.rider.group);
+    // the onboard camera sits in the rider's helmet
+    this.markers.eye_cockpit = { name: 'eye_cockpit', position: this.rider.eye.clone() };
+    this.riderOn = true;
+  }
+  setRider(on) { this.riderOn = on; if (this.rider) this.rider.group.visible = on; }
 
   _lights() {
     const M = this.markers;
@@ -393,15 +413,17 @@ export class VehicleRenderer {
     const g = this.group;
     g.position.set(s.x, s.y, s.z);
     g.rotation.set(0, s.yaw, 0);
-    this.body.rotation.set(-s.pitch, 0, s.roll, 'YXZ');
-    this.body.position.y = 0;
+    if (this.bike) this._bikeBody(s);
+    else {
+      this.body.rotation.set(-s.pitch, 0, s.roll, 'YXZ');
+      this.body.position.y = 0;
+    }
     // wheels
     for (let i = 0; i < this.wheels.length; i++) {
       const w = this.wheels[i];
-      const idx = { FL: 0, FR: 1, RL: 2, RR: 3 }[w.id];
       // wheel follows the ground under it (suspension travel), body pitches/rolls above it
-      w.pivot.position.y = w.restY + (s.wheelOff[idx] || 0);
-      w.pivot.rotation.y = w.front ? (s.wheelSteer || 0) : 0;
+      if (!this.bike) w.pivot.position.y = w.restY + (s.wheelOff[WHEEL_IDX[w.id]] || 0);
+      w.pivot.rotation.y = w.front ? (s.wheelSteer || 0) * (this.bike ? 0.6 : 1) : 0;
       w.spin.rotation.x = s.wheelSpin;
     }
     // distance LOD
@@ -483,7 +505,25 @@ export class VehicleRenderer {
     }
   }
 
+  // bike attitude: lean about the tyre contact line, wheelie about the rear contact patch (stoppie about
+  // the front); a riderless bike at rest leans over onto its side stand
+  _bikeBody(s) {
+    const parked = !this.riderOn && Math.abs(s.speed || 0) < 0.4;
+    this.stand = lerp(this.stand || 0, parked ? 1 : 0, 0.15);
+    const roll = lerp(s.roll, -0.2, this.stand);
+    const pitch = s.pitch;
+    const pz = pitch >= 0 ? (this.wheels.find((w) => w.id === 'R')?.pivot.position.z ?? -0.7) : (this.wheels.find((w) => w.id === 'F')?.pivot.position.z ?? 0.7);
+    _qa.setFromAxisAngle(_az, roll);
+    _qb.setFromAxisAngle(_ax, -pitch);
+    // position = Rz * (P - Rx * P), P = pitch pivot on the ground
+    _pv.set(0, 0, pz).applyQuaternion(_qb).multiplyScalar(-1).add(_pp.set(0, 0, pz)).applyQuaternion(_qa);
+    this.body.position.copy(_pv);
+    this.body.quaternion.copy(_qa).multiply(_qb);
+    this.rider?.update(Math.abs(s.speed || 0) * 3.6);
+  }
+
   dispose() {
+    this.rider?.dispose();
     this.group.removeFromParent();
     for (const m of Object.values(this.mats)) {
       if (m.map && !m.map.userData.shared) m.map.dispose();

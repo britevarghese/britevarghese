@@ -135,30 +135,52 @@ export function processCar(doc, car, opt = {}) {
   b = boundsOf(P);
 
   // ---- 4. wheels
-  const quad = (x, z) => (z > 0 ? 'F' : 'R') + (x > 0 ? 'L' : 'R');
-  const comps = [];
-  for (const p of P) {
-    const pb = boundsOf([p]);
-    if (pb.min[1] > 1.0) continue;
-    for (const c of components(p.prim)) comps.push({ ...c, part: p });
-  }
+  const bike = !!car.bike;
+  const quad = (x, z) => (z > 0 ? 'F' : 'R') + (bike ? '' : x > 0 ? 'L' : 'R');
+  let comps = [];
+  const collect = () => {
+    comps = [];
+    for (const p of P) {
+      const pb = boundsOf([p]);
+      if (pb.min[1] > 1.0) continue;
+      for (const c of components(p.prim)) comps.push({ ...c, part: p });
+    }
+  };
+  collect();
+  // car tyres sit out at the corners; bike tyres are narrow and on the centre line
   const tireOk = (c, loose) => {
     const [dx, dy, dz] = c.size, d = Math.max(dy, dz);
+    if (bike) {
+      const round = loose ? 0.2 : 0.12;
+      return d > (loose ? 0.4 : 0.45) && d < (loose ? 0.95 : 0.85) && Math.abs(dy - dz) < round * d && dx > 0.04 && dx < 0.36 && c.min[1] < (loose ? 0.2 : 0.12) && Math.abs(c.c[0]) < 0.2;
+    }
     const lo = loose ? 0.35 : 0.45, hi = loose ? 1.15 : 1.0, round = loose ? 0.2 : 0.12;
     return d > lo && d < hi && Math.abs(dy - dz) < round * d && dx > 0.08 && dx < 0.6 && c.min[1] < (loose ? 0.2 : 0.12) && Math.abs(c.c[0]) > 0.35;
   };
-  const wheels = {};
-  for (const loose of [false, true]) {
-    for (const c of comps) {
-      if (!tireOk(c, loose)) continue;
-      const q = quad(c.c[0], c.c[2]);
-      if (wheels[q] && !loose) { const w = wheels[q]; if (Math.max(c.size[1], c.size[2]) * c.size[0] <= Math.max(w.size[1], w.size[2]) * w.size[0]) continue; }
-      if (wheels[q] && loose) continue;
-      wheels[q] = c;
+  // the tyre is the largest round part at each wheel (bikes: by diameter, the rim can be wider than a skinny front tyre)
+  const score = (c) => Math.max(c.size[1], c.size[2]) * (bike ? 1 : c.size[0]);
+  const findTyres = () => {
+    const found = {};
+    for (const loose of [false, true]) {
+      for (const c of comps) {
+        if (!tireOk(c, loose)) continue;
+        const q = quad(c.c[0], c.c[2]);
+        if (found[q] && !loose) { const w = found[q]; if (score(c) <= score(w)) continue; }
+        if (found[q] && loose) continue;
+        found[q] = c;
+      }
     }
+    return found;
+  };
+  let wheels = findTyres();
+  // bikes: the rear tyre is always the wider one; that beats part names for front/back
+  if (bike && wheels.F && wheels.R && car.import?.flip === undefined) {
+    const wf = wheels.F.size[0], wr = wheels.R.size[0];
+    if (wf > wr * 1.08) { applyAll(rotY(Math.PI)); say(`front tyre wider than rear (${wf.toFixed(3)} > ${wr.toFixed(3)}): rotated 180 deg`); collect(); wheels = findTyres(); }
+    else if (wr > wf * 1.08 && flipFB) say('rear tyre is the wider one: orientation confirmed');
   }
   const W = {};
-  for (const q of ['FL', 'FR', 'RL', 'RR']) {
+  for (const q of bike ? ['F', 'R'] : ['FL', 'FR', 'RL', 'RR']) {
     const c = wheels[q];
     if (!c) { say(`WARNING: no tyre found for ${q}`); continue; }
     W[q] = { id: q, x: c.c[0], y: c.c[1], z: c.c[2], r: Math.max(c.size[1], c.size[2]) / 2, w: c.size[0], spin: new Map(), fixed: new Map() };
@@ -170,7 +192,7 @@ export function processCar(doc, car, opt = {}) {
       const w = W[q];
       const rr = Math.max(c.size[1], c.size[2]) / 2;
       const dist = Math.hypot(c.c[1] - w.y, c.c[2] - w.z);
-      const inside = dist + rr <= w.r * 1.06 && Math.abs(c.c[0] - w.x) + c.size[0] / 2 <= w.w / 2 + 0.16 && c.size[0] < 0.7;
+      const inside = dist + rr <= w.r * 1.06 && Math.abs(c.c[0] - w.x) + c.size[0] / 2 <= w.w / 2 + (bike ? 0.1 : 0.16) && c.size[0] < 0.7;
       if (!inside) continue;
       const staticPart = RX.caliper.test(labelOf(c.part)) || (dist > 0.3 * w.r && rr * 2 > 0.08 && rr * 2 < 0.8 * w.r);
       const bucket = staticPart ? w.fixed : w.spin;
@@ -278,7 +300,7 @@ export function processCar(doc, car, opt = {}) {
     return prims.filter((pr) => triCount(pr) > 0);
   };
   const cloneList = (pieces) => pieces.map((pc) => ({ name: pc.name, prim: subsetPrimitive(doc, pc.prim, [...Array(triCount(pc.prim)).keys()]) }));
-  const budget = opt.budget || { body0: 120000, wheel0: 9000, body1: 14000, wheel1: 700 };
+  const budget = opt.budget || (bike ? { body0: 90000, wheel0: 8000, body1: 9000, wheel1: 600 } : { body0: 120000, wheel0: 9000, body1: 14000, wheel1: 700 });
   const lod1Body = cloneList(body.filter((p) => !RX.interior.test(p.name)));
   const lod1Wheels = Object.fromEntries(wheelIds.map((q) => [q, { spin: cloneList(wheelPieces[q].spin), fixed: cloneList(wheelPieces[q].fixed) }]));
   const lods = [
@@ -324,6 +346,18 @@ export function processCar(doc, car, opt = {}) {
   let hoodY = H * 0.6;
   for (const p of body) { const pos = positions(p.prim); for (let i = 0; i < pos.length; i += 3) if (pos[i + 2] > zF - 1.3 && pos[i + 2] < zF - 0.6 && Math.abs(pos[i]) < 0.4 && pos[i + 1] > hoodY) hoodY = pos[i + 1]; }
   markers.eye_hood = [0, hoodY + 0.28, zF * 0.3];
+  if (bike) {
+    // single centre lamps, one exhaust (on whichever side the named tip was found), eyes over the tank
+    if (!head.L && !head.R) { markers.light_head_L = [0.05, Math.min(0.9, H * 0.72), zF - 0.18]; markers.light_head_R = [-0.05, markers.light_head_L[1], zF - 0.18]; }
+    if (!tail.L && !tail.R) { markers.light_tail_L = [0.04, Math.min(0.95, H * 0.78), zR + 0.08]; markers.light_tail_R = [-0.04, markers.light_tail_L[1], zR + 0.08]; }
+    for (const k of ['light_head', 'light_tail']) { const l = markers[k + '_L'], r = markers[k + '_R']; if (!l) markers[k + '_L'] = [...r]; if (!r) markers[k + '_R'] = [...l]; }
+    if (!tips.length) { delete markers.exhaust_L; markers.exhaust_R = [-0.14, 0.42, zR + 0.3]; }
+    else if (tips.every((c) => c.c[0] > 0)) delete markers.exhaust_R;
+    else if (tips.every((c) => c.c[0] <= 0)) delete markers.exhaust_L;
+    markers.eye_bumper = [0, 0.72, zF + 0.02];
+    markers.eye_hood = [0, Math.max(1.1, H * 0.95), zF * 0.15];
+    markers.eye_cockpit = [0, 1.32, -0.02];
+  }
   say(`markers: head ${head.L ? 'from lamps' : 'estimated'}, tail ${tail.L ? 'from lamps' : 'estimated'}, cockpit ${sw ? 'from steering wheel' : 'estimated'}`);
 
   // ---- 8. assemble the scene
