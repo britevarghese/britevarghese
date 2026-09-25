@@ -65,7 +65,7 @@ Settings are applied in this order of priority (highest first):
 
 ```json
 { "port": 3000, "host": "0.0.0.0", "serverName": "NIGHTSHIFT Server",
-  "multiplayer": { "enabled": false, "tickRate": 20, "maxPlayers": 8 } }
+  "multiplayer": { "enabled": true, "tickRate": 20, "maxPlayers": 8 } }
 ```
 
 If you change the port, update the firewall rule to match (`localport=<new port>`).
@@ -85,6 +85,13 @@ Useful endpoints: `/api/health` (status and uptime) and `/api/config` (server na
 | Radmin address doesn't appear in the banner | Start Radmin VPN and join or create a network before starting the server. Then restart the server. |
 | Slow first load | Models and textures are cached by the browser for one day, so later loads are fast. |
 
-## Multiplayer (foundation only)
+## Multiplayer
 
-The server includes a small built-in WebSocket endpoint at `/ws` for replicating car state. The server checks each update: speed is capped at 120 m/s and jumps of more than 60 m are rejected. It is **off by default**. Turn it on with `start.bat --multiplayer` or `"multiplayer": { "enabled": true }` in `config.json`. When it is off, `/ws` returns 403. This is groundwork for future online play, not a finished multiplayer mode.
+The server has a built-in WebSocket endpoint at `/ws`, and multiplayer is **on by default**:
+everyone who opens the server's address (LAN, Radmin VPN or the online URL) plays in the same
+city, up to `maxPlayers` (8). Players see each other with name tags, can bump each other's cars,
+and can take the cars other players leave parked. The server checks each update: speed is capped
+at 120 m/s, and jumps of more than 60 m are rejected unless the client announces a teleport
+(respawn, reset). To turn it off, start with `start.bat --no-multiplayer` or set
+`"multiplayer": { "enabled": false }` in `config.json`. When it is off, `/ws` returns 403.
+Render and most hosts pass WebSockets through without extra setup.

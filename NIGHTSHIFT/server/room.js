@@ -5,20 +5,28 @@
  * Protocol (JSON text frames):
  *   client -> server  {t:'hello', name}
  *   server -> client  {t:'welcome', id, tickRate}
- *   client -> server  {t:'state', s:{p:[x,y,z], q:[x,y,z,w], v:[x,y,z], car, paint}}
+ *   client -> server  {t:'state', s:{p:[x,y,z], q:[x,y,z,w], v:[x,y,z], car, paint, foot, warp, parked:[...]}}
+ *                       foot: 1 when the player is walking (p = the character, car = the car they left)
+ *                       warp: counter the client bumps on a deliberate teleport (respawn, reset, mission)
+ *                       parked: up to 4 cars the player left in the street {k, car, paint, p, yaw}
  *   server -> clients {t:'snapshot', time, players:[{id, name, s}]}   (at tickRate)
  *   server -> client  {t:'correction', s}   (when an update was rejected)
- *   server -> clients {t:'leave', id}
+ *   client -> server  {t:'take', owner, k}            take another player's parked car
+ *   server -> taker   {t:'take-ok', owner, k, car, paint, p, yaw} | {t:'take-fail', owner, k}
+ *   server -> owner   {t:'taken', k, by}                (drop it from your parked list)
+ *   server -> clients {t:'join', id, name} / {t:'leave', id, name}
  *   server -> client  {t:'error', msg}
  *
  * The server is authoritative for sanity only: speeds are clamped and
- * teleports are rejected. Physics still runs on the clients.
+ * unannounced teleports are rejected. Physics still runs on the clients.
  */
 
 const MAX_SPEED = 120;      // m/s
 const MAX_TELEPORT = 60;    // m between consecutive accepted updates
 const MAX_COORD = 1e5;      // world bounds sanity
 const MAX_MSG_RATE = 60;    // messages per second per client (soft limit)
+const MAX_PARKED = 4;
+const WARP_COOLDOWN = 400;  // ms between accepted teleports
 
 function isNum(n) { return typeof n === 'number' && Number.isFinite(n); }
 function vec(a, n) {
@@ -75,7 +83,7 @@ class Room {
       if (player.id && this.players.get(player.id) === player) {
         this.players.delete(player.id);
         this.log(`[mp] ${player.name} (#${player.id}) left, ${this.players.size} online`);
-        this.broadcast({ t: 'leave', id: player.id });
+        this.broadcast({ t: 'leave', id: player.id, name: player.name });
       }
     });
   }
@@ -90,7 +98,8 @@ class Room {
       player.id = this.nextId++;
       player.name = cleanStr(msg.name, 20, `Driver${player.id}`);
       this.players.set(player.id, player);
-      this.send(player.ws, { t: 'welcome', id: player.id, tickRate: this.tickRate });
+      this.send(player.ws, { t: 'welcome', id: player.id, tickRate: this.tickRate, players: [...this.players.values()].filter((p) => p !== player).map((p) => ({ id: p.id, name: p.name })) });
+      this.broadcast({ t: 'join', id: player.id, name: player.name }, player);
       this.log(`[mp] ${player.name} (#${player.id}) joined from ${player.ws.remoteAddress}, ${this.players.size} online`);
       return;
     }
@@ -98,6 +107,18 @@ class Room {
       if (!player.id) return;
       const s = this.validate(player, msg.s);
       if (s) { player.s = s; player.lastUpdate = Date.now(); }
+      return;
+    }
+    if (msg.t === 'take') {
+      if (!player.id) return;
+      const owner = this.players.get(msg.owner);
+      const i = owner?.s?.parked?.findIndex((c) => c.k === msg.k) ?? -1;
+      if (!owner || owner === player || i < 0) return this.send(player.ws, { t: 'take-fail', owner: msg.owner, k: msg.k });
+      const [car] = owner.s.parked.splice(i, 1);
+      (owner.taken ||= new Set()).add(car.k); // ignore it in the owner's next few updates
+      this.send(owner.ws, { t: 'taken', k: car.k, by: player.name });
+      this.send(player.ws, { t: 'take-ok', owner: owner.id, ...car });
+      this.log(`[mp] ${player.name} took ${owner.name}'s ${car.car}`);
       return;
     }
     if (msg.t === 'ping') {
@@ -119,13 +140,27 @@ class Room {
     if (speed > MAX_SPEED) v = v.map((c) => (c / speed) * MAX_SPEED);
 
     const prev = player.s;
+    const warp = isNum(s.warp) ? s.warp | 0 : 0;
     if (prev) {
       const d = Math.hypot(s.p[0] - prev.p[0], s.p[1] - prev.p[1], s.p[2] - prev.p[2]);
-      if (d > MAX_TELEPORT) {
+      const now = Date.now();
+      const announced = warp !== prev.warp && now - (player.lastWarp || 0) > WARP_COOLDOWN;
+      if (d > MAX_TELEPORT && !announced) {
         this.send(player.ws, { t: 'correction', s: prev });
         return null;
       }
+      if (announced) player.lastWarp = now;
     }
+    const parked = [];
+    if (Array.isArray(s.parked)) {
+      for (const c of s.parked.slice(0, MAX_PARKED)) {
+        if (!c || !isNum(c.k) || !vec(c.p, 3) || c.p.some((v) => Math.abs(v) > MAX_COORD)) continue;
+        if (player.taken?.has(c.k)) continue;
+        parked.push({ k: c.k | 0, car: cleanStr(c.car, 32, 'sedan'), paint: cleanStr(c.paint, 16, '#888888'), p: c.p.map(round), yaw: isNum(c.yaw) ? round(c.yaw) : 0 });
+      }
+    }
+    // the client has caught up once a taken car is gone from its own list
+    if (player.taken) for (const k of player.taken) if (!s.parked?.some?.((c) => c && c.k === k)) player.taken.delete(k);
 
     return {
       p: s.p.map(round),
@@ -133,6 +168,9 @@ class Room {
       v: v.map(round),
       car: cleanStr(s.car, 32, prev ? prev.car : 'default'),
       paint: cleanStr(s.paint, 16, prev ? prev.paint : '#ffffff'),
+      foot: s.foot ? 1 : 0,
+      warp,
+      parked,
     };
   }
 
@@ -147,9 +185,9 @@ class Room {
 
   send(ws, obj) { ws.send(JSON.stringify(obj)); }
 
-  broadcast(obj) {
+  broadcast(obj, except = null) {
     const data = JSON.stringify(obj);
-    for (const p of this.players.values()) p.ws.send(data);
+    for (const p of this.players.values()) if (p !== except) p.ws.send(data);
   }
 }
 

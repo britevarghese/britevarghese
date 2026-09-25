@@ -1,13 +1,14 @@
 // On foot (GTA-style): leave the car with F, walk/sprint around the city, get back in, or take any car
-// on the street. Carjacking a traffic car throws the driver out and turns the car into a drivable
-// vehicle; your previous car stays parked where you left it (and returns to your garage if you wander
-// far away). The police can chase and arrest you on foot.
+// on the street, including the ones other players left parked (multiplayer). Carjacking a traffic car
+// throws the driver out and turns the car into a drivable vehicle; your previous car stays parked
+// where you left it (and returns to your garage if you wander far away). The police can chase and arrest you on foot.
 import * as THREE from 'three';
 import { clamp, damp } from '../core/util.js';
-import { Vehicle } from '../vehicles/Vehicle.js';
-import { TRAFFIC_VEHICLES } from '../vehicles/VehicleCatalog.js';
+import { Vehicle, FIXED_DT } from '../vehicles/Vehicle.js';
+import { CARS, TRAFFIC_VEHICLES, POLICE_CAR, tunedParams } from '../vehicles/VehicleCatalog.js';
 import { bus } from '../core/EventBus.js';
 
+const vehicleWord = (id) => (CARS[id]?.bike ? 'bike' : 'car');
 const WALK = 1.7, RUN = 6.2, RADIUS = 0.34, ENTER_DIST = 3.4;
 const _v = new THREE.Vector3();
 
@@ -59,6 +60,7 @@ export class OnFoot {
     this.active = true;
     this.body.group.visible = true;
     this.car = v;                     // the car we just left: parked
+    v.renderer?.setRider?.(false);    // a bike keeps no rider on it
     v.controls.throttle = 0; v.controls.brake = 0; v.controls.handbrake = 1; v.controls.steer = 0; v.controls.nitro = false;
     this.camPos.copy(g.camera.position);
     g.audio?.setEngineOn?.(false);
@@ -72,20 +74,33 @@ export class OnFoot {
     const g = this.game, s = this.state;
     let best = null, bd = ENTER_DIST;
     const consider = (kind, ref, x, z, extra = 0) => { const d = Math.hypot(x - s.x, z - s.z) - extra; if (d < bd) { bd = d; best = { kind, ref }; } };
-    if (g.player) consider('own', g.player, g.player.state.x, g.player.state.z, 0.9);
+    if (g.player && !g.player.gone) consider('own', g.player, g.player.state.x, g.player.state.z, 0.9);
     for (const v of this.parked) consider('parked', v, v.state.x, v.state.z, 0.9);
+    for (const px of g.net?.proxies() || []) if (px.k) consider('remote', px, px.s.x, px.s.z, 0.9);
+    // stopped police cruisers and street-rival cars can be taken too
+    for (const u of g.police?.units || []) { const vs = u.vehicle.state; if (Math.hypot(vs.vx, vs.vz) < 2) consider('police', u, vs.x, vs.z, 0.9); }
+    if (!g.story?.active) for (const r of g.rivals?.rivals || []) { const vs = r.v.state; if (Math.hypot(vs.vx, vs.vz) < 2) consider('rival', r, vs.x, vs.z, 0.9); }
     for (const c of g.traffic?.cars || []) if (TRAFFIC_VEHICLES[c.type]) consider('traffic', c, c.x, c.z, c.spec?.w ? c.spec.w * 0.5 : 0.9);
     return best;
   }
 
   enter(target) {
     const g = this.game;
+    if (target.kind === 'remote') { g.net.requestTake(target.ref); return false; } // the server hands it over (enterTaken)
     let v;
     if (target.kind === 'own') v = g.player;
     else if (target.kind === 'parked') {
       v = target.ref;
       this.parked.splice(this.parked.indexOf(v), 1);
       if (g.player !== v) this._park(g.player);
+    } else if (target.kind === 'police' || target.kind === 'rival') {
+      v = target.kind === 'police' ? g.police.release(target.ref) : g.rivals.release(target.ref);
+      if (!v) return false;
+      v.role = 'player'; v.fixedDt = FIXED_DT; v.stolen = true;
+      v.controls.throttle = v.controls.brake = v.controls.steer = 0; v.controls.nitro = false;
+      if (target.kind === 'police') { g.police?.reportInfraction('carjack', 3); g.ui.toast('Stole a police cruiser', '', 2); }
+      else g.ui.toast(`Took ${target.ref.crew?.name || 'the rival'}'s ${CARS[v.carId]?.name || 'car'}`, '', 2);
+      this._park(g.player);
     } else {
       v = this._jack(target.ref);
       if (!v) return false;
@@ -93,6 +108,7 @@ export class OnFoot {
     }
     g.player = v;
     v.controls.handbrake = 0;
+    v.renderer?.setRider?.(true);
     this.active = false;
     this.body.group.visible = false;
     g.camCtl.snap(v);
@@ -102,8 +118,35 @@ export class OnFoot {
     return true;
   }
 
+  // another player's parked car, handed over by the server: it appears here, we get in
+  enterTaken(c, ownerName) {
+    const g = this.game;
+    if (!this.active) return false;
+    const car = CARS[c.car], tv = TRAFFIC_VEHICLES[c.car];
+    const def = car || tv || (c.car === 'interceptor' ? POLICE_CAR : TRAFFIC_VEHICLES.sedan);
+    const id = car || tv || c.car === 'interceptor' ? c.car : 'sedan';
+    if (!g.lib.has(id)) { g.lib.load([id], 1).then(() => this.enterTaken({ ...c, car: id }, ownerName)); return false; }
+    const params = car ? tunedParams(id, {}) : { ...def.params };
+    const v = new Vehicle({ carId: id, params, world: g.world, lib: g.lib, role: 'player', carType: def.carType, renderOpts: { headlights: g.preset.headlightSpots, shadow: g.preset.shadows !== 'off', lodDistance: 1e9 } });
+    v.renderer.applyCustom({ paint: c.paint || '#888888', finish: 'metallic', tint: 0.4, ...(car?.real ? car.look : {}) });
+    v.renderer.enableDents?.();
+    g.scene.add(v.renderer.group);
+    v.place(c.p[0], c.p[2], c.yaw);
+    v.stolen = true;
+    this._park(g.player);
+    g.player = v;
+    this.active = false;
+    this.body.group.visible = false;
+    g.camCtl.snap(v);
+    g.audio?.setEngineOn?.(true);
+    document.getElementById('hud')?.classList.remove('onfoot');
+    g.ui.toast(`Took ${ownerName ? ownerName + "'s" : 'a'} ${def.name || car?.name || 'car'}`, '', 2.5);
+    bus.emit('player:onfoot', { on: false, vehicle: v });
+    return true;
+  }
+
   _park(v) {
-    if (!v || this.parked.includes(v)) return;
+    if (!v || v.gone || this.parked.includes(v)) return;
     v.controls.throttle = 0; v.controls.brake = 0; v.controls.handbrake = 1; v.controls.steer = 0; v.controls.nitro = false;
     this.parked.push(v);
   }
@@ -158,8 +201,8 @@ export class OnFoot {
     };
     for (const c of tmp) if (c.h > s.y + 0.4) push(c.cx, c.cz, c.cos, c.sin, c.hx, c.hz);
     const car = (x, z, yaw, w, l) => push(x, z, Math.cos(yaw), Math.sin(yaw), w / 2, l / 2);
-    for (const v of [g.player, ...this.parked, ...(g.police?.vehicles() || []), ...(g.races?.vehicles() || []), ...(g.rivals?.vehicles() || [])]) {
-      if (!v) continue; const vs = v.state; if (Math.abs(vs.x - s.x) > 8 || Math.abs(vs.z - s.z) > 8) continue;
+    for (const v of [g.player, ...this.parked, ...(g.police?.vehicles() || []), ...(g.races?.vehicles() || []), ...(g.rivals?.vehicles() || []), ...(g.net?.proxies() || [])]) {
+      if (!v || v.gone) continue; const vs = v.state; if (Math.abs(vs.x - s.x) > 8 || Math.abs(vs.z - s.z) > 8) continue;
       car(vs.x, vs.z, vs.yaw, v.p.width || 1.9, v.p.length || 4.5);
     }
     for (const c of g.traffic?.cars || []) {
@@ -218,7 +261,8 @@ export class OnFoot {
     if (step !== this.lastStep && v > 0.6 && s.onGround) { this.lastStep = step; g.audio?.playFootstep?.(v > 3, { x: s.x, y: s.y, z: s.z }); }
     // enter a vehicle
     const near = this.nearestVehicle();
-    g.hud.setPrompt(near ? `press <span class="key">F</span> / <span class="key">Y</span> to ${near.kind === 'traffic' ? 'steal this car' : 'get in'}` : null);
+    const what = { traffic: 'steal this car', police: 'steal the police car', rival: 'take their car', remote: `take ${g.net?.names.get(near?.ref.owner) || 'their'}'s ${vehicleWord(near?.ref.carId)}` }[near?.kind] || 'get in';
+    g.hud.setPrompt(near ? `press <span class="key">F</span> / <span class="key">Y</span> to ${g.net?.pendingTake && near.kind === 'remote' ? 'wait...' : what}` : null);
     if (near && input.consume('enter')) this.enter(near);
   }
 

@@ -66,7 +66,7 @@ const config = {
   host: String(args.host ?? process.env.HOST ?? fileConfig.host ?? '0.0.0.0'),
   serverName: fileConfig.serverName || 'NIGHTSHIFT Server',
   multiplayer: {
-    enabled: false,
+    enabled: true,
     tickRate: 20,
     maxPlayers: 8,
     ...(fileConfig.multiplayer || {}),

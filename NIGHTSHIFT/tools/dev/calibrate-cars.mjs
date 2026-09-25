@@ -1,11 +1,11 @@
-// Calibrates each licensed real car so the simulation's 0-100 km/h time and top speed match the
+// Calibrates each licensed real car and motorcycle so the simulation's 0-100 km/h time and top speed match the
 // real-world figures in VehicleCatalog (spec.t100 / spec.vmax). Writes src/vehicles/RealCarCalibration.js.
 //   node tools/dev/calibrate-cars.mjs
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { VehiclePhysics } from '../../src/physics/VehiclePhysics.js';
-import { CARS, REAL_CAR_IDS, realParams } from '../../src/vehicles/VehicleCatalog.js';
+import { CARS, REAL_CAR_IDS, REAL_BIKE_IDS, realParams, bikeParams } from '../../src/vehicles/VehicleCatalog.js';
 
 const flat = { layout: { groundHeight: () => 0 }, collision: { query: () => [] } };
 const DT = 1 / 120;
@@ -24,13 +24,14 @@ function run(p, seconds, stopAt100 = false) {
 const bisect = (lo, hi, f, iters = 18) => { for (let i = 0; i < iters; i++) { const m = (lo + hi) / 2; if (f(m)) hi = m; else lo = m; } return (lo + hi) / 2; };
 
 const out = {};
-for (const id of REAL_CAR_IDS) {
+for (const id of [...REAL_CAR_IDS, ...REAL_BIKE_IDS]) {
   const car = CARS[id], s = car.spec;
-  const base = realParams({ ...car, spec: s, powerOversteer: car.params.powerOversteer, driftAssist: car.params.driftAssist });
+  const base = car.bike ? bikeParams(car) : realParams({ ...car, spec: s, powerOversteer: car.params.powerOversteer, driftAssist: car.params.driftAssist });
   const modern = Math.min(1, Math.max(0, (s.era - 1975) / 45));
   // power stays within a plausible band around the real figure; traction (launchG) absorbs the rest
   const PMIN = 0.75, PMAX = 1.2;
-  let launchG = s.drive === 'AWD' ? 0.95 + modern * 0.3 : 0.8 + modern * 0.25;
+  // bikes: traction and wheelies cap a launch near 1 g
+  let launchG = car.bike ? 0.9 : s.drive === 'AWD' ? 0.95 + modern * 0.3 : 0.8 + modern * 0.25;
   let power = 1;
   for (let tries = 0; tries < 16; tries++) {
     // smallest power factor whose 0-100 is at or under the real figure

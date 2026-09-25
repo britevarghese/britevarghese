@@ -54,6 +54,17 @@ export class StreetRivals {
 
   vehicles() { return this.rivals.map((r) => r.v); }
 
+  // the player takes a rival's car: the rival leaves the scene, the car stays
+  release(r) {
+    const i = this.rivals.indexOf(r);
+    if (i < 0) return null;
+    this.rivals.splice(i, 1);
+    r.tag.removeFromParent?.(); r.glow.removeFromParent?.();
+    r.tag.material.map.dispose(); r.tag.material.dispose();
+    r.glow.geometry.dispose(); r.glow.material.dispose();
+    return r.v;
+  }
+
   _drop(r) {
     r.v.dispose();
     r.tag.material.map.dispose(); r.tag.material.dispose();

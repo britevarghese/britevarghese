@@ -76,6 +76,15 @@ export class PoliceManager {
     if (u) this._removeUnit(u);
   }
 
+  // hand a stopped cruiser over to the player (stolen): out of the police fleet, vehicle kept alive
+  release(u) {
+    const i = this.units.indexOf(u);
+    if (i < 0) return null;
+    this.units.splice(i, 1);
+    u.vehicle.renderer.sirenOn = false;
+    return u.vehicle;
+  }
+
   _removeUnit(u) {
     u.vehicle.dispose();
     this.units.splice(this.units.indexOf(u), 1);

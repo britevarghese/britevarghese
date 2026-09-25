@@ -97,6 +97,8 @@ export class Garage {
     if (this.car) { this.car.dispose(); this.car = null; }
     this.car = new VehicleRenderer(lib, this.viewId, { headlights: 0, shadow: false });
     this.car.applyCustom(this.custom);
+    if (this.car.bike) { this.car.setRider(false); this.car.stand = 1; } // on the side stand in the showroom
+    this.orbit.dist = CARS[this.viewId]?.bike ? 5.2 : Math.max(this.orbit.dist, 7);
     this.turn.add(this.car.group);
     const st = { x: 0, y: 0, z: 0, yaw: 0, pitch: 0, roll: 0, wheelOff: [0, 0, 0, 0], wheelComp: [0, 0, 0, 0], wheelSpin: 0, wheelSteer: 0.25, brake: 0, speed: 0, nitroActive: false, onGround: true, groundY: 0 };
     this.car.sync(st, 0.016, null, { night: 0.2 });
@@ -107,7 +109,7 @@ export class Garage {
   }
 
   _charge(cost, label) {
-    if (!this.owned) { this.game.ui.toast('Buy this car first', 'err'); return false; }
+    if (!this.owned) { this.game.ui.toast(`Buy this ${CARS[this.viewId]?.bike ? 'bike' : 'car'} first`, 'err'); return false; }
     if (this.save.data.cash < cost) { this.game.ui.toast(`Not enough cash for ${label}`, 'err'); this.game.audio?.playEvent('uiBack'); return false; }
     if (cost > 0) { this.save.addCash(-cost, label); this.game.audio?.playEvent('purchase'); }
     return true;
@@ -136,7 +138,7 @@ export class Garage {
     const imported = real && g.lib.isImported(this.viewId);
     this.tab ||= 'cars';
     const tabs = h('div', 'gtabs');
-    for (const [id, label] of [['cars', 'CARS'], ['custom', 'CUSTOMIZE']]) {
+    for (const [id, label] of [['cars', 'CARS & BIKES'], ['custom', 'CUSTOMIZE']]) {
       const b = h('button', this.tab === id ? 'on' : '', label);
       b.onclick = () => { this.tab = id; this.render(); g.audio?.playEvent('uiClick'); };
       tabs.appendChild(b);
@@ -186,10 +188,10 @@ export class Garage {
         choices(cat(`HOOD · ${formatMoney(PART_COST)}`), HOOD_NAMES, c.hood, (v) => this.setCustom('hood', v, PART_COST));
         choices(cat(`BUMPERS · ${formatMoney(PART_COST)}`), BUMPER_NAMES, c.bumper, (v) => this.setCustom('bumper', v, PART_COST));
       }
-      choices(cat('WINDOW TINT'), ['Light', 'Medium', 'Dark', 'Limo'], Math.round(c.tint * 3), (v) => this.setCustom('tint', v / 3, 200));
+      if (!car.bike) choices(cat('WINDOW TINT'), ['Light', 'Medium', 'Dark', 'Limo'], Math.round(c.tint * 3), (v) => this.setCustom('tint', v / 3, 200));
       if (!imported || this.car?.caliperMat) swatches(cat('BRAKE CALIPERS'), ['#c01818', '#f2c200', '#1f4fd6', '#101012', '#1f9d55', '#ff6a00'], c.caliper, (v) => this.setCustom('caliper', v, 250));
     } else {
-      left.appendChild(h('p', '', '<span style="color:var(--dim)">Buy this car to customize it.</span>'));
+      left.appendChild(h('p', '', `<span style="color:var(--dim)">Buy this ${car.bike ? 'bike' : 'car'} to customize it.</span>`));
     }
     // right: identity, real specs, ratings, upgrades, credits
     const params = tunedParams(this.viewId, this.upgrades);
@@ -197,7 +199,7 @@ export class Garage {
     right.innerHTML = `<div class="car-class">${TIER_NAMES[car.tier] || car.class}</div><div class="car-brand">${car.brand}${car.year ? ` · ${car.year}` : ''}</div><div class="car-title">${car.model}</div><div class="car-blurb">${car.blurb}</div>`;
     if (car.spec) {
       const sp = car.spec;
-      right.appendChild(h('div', 'specs', [[`${Math.round(sp.kw * 1.341)} HP`, 'POWER'], [`${sp.kg} KG`, 'WEIGHT'], [sp.drive, 'DRIVE'], [`${sp.t100.toFixed(1)} S`, '0-100 KM/H'], [`${sp.vmax} KM/H`, 'TOP SPEED']].map(([v, l]) => `<div><b>${v}</b><span>${l}</span></div>`).join('')));
+      right.appendChild(h('div', 'specs', [[`${Math.round(sp.kw * 1.341)} HP`, 'POWER'], [`${sp.kg} KG`, 'WEIGHT'], car.bike ? [`${Math.round(sp.seat * 1000)} MM`, 'SEAT'] : [sp.drive, 'DRIVE'], [`${sp.t100.toFixed(1)} S`, '0-100 KM/H'], [`${sp.vmax} KM/H`, 'TOP SPEED']].map(([v, l]) => `<div><b>${v}</b><span>${l}</span></div>`).join('')));
     }
     for (const [k, l] of [['speed', 'TOP SPEED'], ['accel', 'ACCELERATION'], ['handling', 'HANDLING'], ['braking', 'BRAKING']]) {
       right.appendChild(h('div', 'meter', `<div class="t"><span>${l}</span><span>${now[k].toFixed(1)}</span></div><div class="b" style="position:relative"><div class="f" style="width:${Math.max(4, base[k] * 10)}%"></div><div class="f2" style="position:absolute;top:0;height:100%;left:${base[k] * 10}%;width:${Math.max(0, (now[k] - base[k]) * 10)}%"></div></div>`));

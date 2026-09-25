@@ -80,5 +80,40 @@ export const CALIBRATION = {
     "power": 0.761,
     "launchG": 1.36,
     "vmax": 1.04
+  },
+  "harley_iron_883": {
+    "power": 0.845,
+    "launchG": 0.9,
+    "vmax": 1.052
+  },
+  "kawasaki_zx6r": {
+    "power": 1.2,
+    "launchG": 0.9,
+    "vmax": 1.039
+  },
+  "yamaha_r1": {
+    "power": 0.75,
+    "launchG": 0.98,
+    "vmax": 1.041
+  },
+  "bmw_s1000rr": {
+    "power": 1.2,
+    "launchG": 0.98,
+    "vmax": 1.035
+  },
+  "suzuki_hayabusa": {
+    "power": 1.2,
+    "launchG": 1.54,
+    "vmax": 1.034
+  },
+  "ducati_panigale_v4r": {
+    "power": 0.75,
+    "launchG": 0.98,
+    "vmax": 1.04
+  },
+  "kawasaki_ninja_h2": {
+    "power": 1.2,
+    "launchG": 1.06,
+    "vmax": 1.037
   }
 };

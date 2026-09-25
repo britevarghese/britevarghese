@@ -50,6 +50,12 @@ export const LAYOUTS = {
   v8flat: { fire: even(8), bank: alt(8), hdr: [0, 0.1, 0.05, 0.12, 0.02, 0.08, 0.04, 0.1], pipe: [2.3, 2.3], open: 0.48, sharp: 6.5, turb: 0.35, intake: 0.4, pops: 0.9 },
   v10: { fire: even(10), bank: alt(10), hdr: [0, 0.1, 0.05, 0.15, 0.02, 0.12, 0.07, 0.14, 0.03, 0.09], pipe: [2.4, 2.45], open: 0.46, sharp: 6.5, turb: 0.3, intake: 0.45, valve: 0.03, pops: 1 },
   v12: { fire: even(12), bank: alt(12), hdr: Array(12).fill(0).map((_, i) => (i % 5) * 0.04), pipe: [2.5, 2.5], open: 0.44, sharp: 7, turb: 0.28, intake: 0.5, valve: 0.03, pops: 0.9 },
+  // motorcycles: short 4-into-1 headers, high-revving inline-fours; the R1's crossplane crank fires
+  // 270-180-90-180 (sounds like a V4); Ducati's twin-pulse V4 90-200-90-340; a 45-degree V-twin 315-405
+  i4bike: { fire: even(4), hdr: [0, 0.05, 0.02, 0.07], pipe: [1.3, 1.3], open: 0.62, sharp: 6.5, turb: 0.3, intake: 0.55, pops: 0.8 },
+  i4cross: { fire: [0, 270, 450, 540], hdr: [0, 0.05, 0.02, 0.07], pipe: [1.3, 1.3], open: 0.6, sharp: 6, turb: 0.32, intake: 0.5, pops: 0.9 },
+  v4: { fire: [0, 90, 290, 380], bank: [0, 1, 0, 1], hdr: [0, 0.1, 0.05, 0.12], pipe: [1.2, 1.25], open: 0.6, sharp: 5.5, turb: 0.35, intake: 0.5, pops: 1 },
+  vtwin: { fire: [0, 315], bank: [0, 1], hdr: [0, 0.4], pipe: [1.6, 1.7], open: 0.7, sharp: 3.5, turb: 0.45, jitter: 0.12, intake: 0.25, pops: 1.1 },
   rotary: { fire: even(4), hdr: [0, 0.05, 0, 0.05], pipe: [2.0, 2.0], fb: 0.45, open: 0.8, sharp: 3, turb: 0.65, jitter: 0.08, intake: 0.2, rotary: true, pops: 1.2 },
 };
 const TYPE_LAYOUT = { muscle: 'v8cross', sports: 'v6', exotic: 'v12', tuner: 'i4' };
@@ -74,6 +80,14 @@ const CAR_SOUNDS = {
   mclaren_senna:         ['exotic', { layout: 'v8flat', cyl: 8, turbo: 0.8, crackle: 0.9, h2: 0.45, drive: 3 }],                               // M840TR V8, twin turbo
   lamborghini_centenario:['exotic', { layout: 'v12', cyl: 12, harm: [0, 0.7, 1, 0.8, 0.7, 0.62, 0.55, 0.5, 0.42, 0.36, 0.3, 0.26, 0.22, 0.2, 0.16], h2: 0.65, cutRpm: 7200, crackle: 1, gain: 0.9 }], // 6.5 V12, NA
   lamborghini_huracan_tt:['exotic', { layout: 'v10', cyl: 10, turbo: 0.8, crackle: 1, drive: 3.2, sub: 0.18 }],                             // V10, aftermarket twin turbo
+  // motorcycles (cyl = firings per 720 deg, so the V-twin's potato-potato is cyl 2)
+  harley_iron_883:       ['muscle', { layout: 'vtwin', cyl: 2, harm: [0, 1, 0.9, 0.6, 0.45, 0.3, 0.2, 0.12], sub: 0.7, h2: 0.3, h15: 0.5, amDepth: 0.5, amRate: 0.5, cutRpm: 1600, crackle: 1, drive: 3.5, bodyF: 90 }], // Evolution 883 V-twin
+  kawasaki_zx6r:         ['tuner',  { layout: 'i4bike', cyl: 4, turbo: 0, intake: 0.7, cutRpm: 7500, h2: 0.5, q: 3.5, bodyF: 320, gain: 0.8 }],   // 636 I4, 16k rpm
+  yamaha_r1:             ['tuner',  { layout: 'i4cross', cyl: 4, turbo: 0, intake: 0.6, cutRpm: 6200, amDepth: 0.3, amRate: 0.5, h15: 0.5, crackle: 0.9, bodyF: 260 }], // crossplane I4
+  bmw_s1000rr:           ['tuner',  { layout: 'i4bike', cyl: 4, turbo: 0, intake: 0.65, cutRpm: 6800, h2: 0.45, crackle: 0.8, bodyF: 300 }],  // ShiftCam I4
+  suzuki_hayabusa:       ['tuner',  { layout: 'i4bike', cyl: 4, turbo: 0, intake: 0.55, cutRpm: 5200, sub: 0.25, crackle: 0.7, bodyF: 220 }], // 1340 I4
+  ducati_panigale_v4r:   ['exotic', { layout: 'v4', cyl: 4, harm: [0, 1, 0.85, 0.7, 0.55, 0.45, 0.35, 0.28, 0.2], turbo: 0, amDepth: 0.35, amRate: 0.5, h15: 0.45, cutRpm: 7200, crackle: 1, bodyF: 280 }], // Desmosedici Stradale V4
+  kawasaki_ninja_h2:     ['tuner',  { layout: 'i4bike', cyl: 4, turbo: 1, intake: 0.5, cutRpm: 6000, crackle: 0.8, bodyF: 260 }],  // supercharged I4 (turbo = blower whine)
 };
 for (const [id, [base, o]] of Object.entries(CAR_SOUNDS)) PROFILES[id] = { ...PROFILES[base], ...o, base };
 

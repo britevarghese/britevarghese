@@ -29,6 +29,7 @@ export const DEFAULT_SETTINGS = {
     vibration: true,
     units: 'kmh',             // kmh | mph
     defaultCamera: 1,
+    playerName: '',           // multiplayer name (empty = random DriverNNN)
   },
   audio: { master: 0.8, engine: 0.85, traffic: 0.6, police: 0.75, music: 0.45, environment: 0.7 },
 };

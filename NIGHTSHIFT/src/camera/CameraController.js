@@ -140,9 +140,11 @@ export class CameraController {
     const nitro = fx.nitro || 0;
     const ax = vehicle.physics?.axPrev || 0;
     this.gLag = damp(this.gLag || 0, clamp(ax * 0.07, -0.55, 0.7), 3.5, dt);
-    const dist = mode.dist * (1 + 0.08 * ease) + this.gLag + nitro * 0.45;
-    this.pitchLag = damp(this.pitchLag, s.pitch, 6, dt);
-    const height = mode.height * (1 + this.orbitY * 0.9) - this.pitchLag * 1.6 + (s.onGround ? 0 : 0.35);
+    // bikes: a closer, lower chase that ignores wheelies (the bike pitches, not the view)
+    const bike = !!vehicle.physics?.p.bike;
+    const dist = mode.dist * (bike ? 0.72 : 1) * (1 + 0.08 * ease) + this.gLag + nitro * 0.45;
+    this.pitchLag = damp(this.pitchLag, bike ? 0 : s.pitch, 6, dt);
+    const height = mode.height * (bike ? 0.8 : 1) * (1 + this.orbitY * 0.9) - this.pitchLag * 1.6 + (s.onGround ? 0 : 0.35);
     // desired offset from the car, smoothed (no lag at constant velocity)
     const ox = -Math.sin(h) * dist, oz = -Math.cos(h) * dist;
     if (!this.off) this.off = new THREE.Vector3(ox, height, oz);
@@ -166,7 +168,8 @@ export class CameraController {
     cam.position.y += (Math.sin(t * 43.3) + Math.sin(t * 19.7)) * 0.5 * vib + Math.sin(t * 0.9) * 0.015 * ease;
     cam.lookAt(this.look);
     // slight roll into turns/drifts
-    this.roll = damp(this.roll || 0, clamp(-s.yawRate * 0.025 * ease - (s.drifting ? Math.sign(s.yawRate) * 0.02 : 0), -0.06, 0.06), 4, dt);
+    const rollT = bike ? clamp(-s.roll * 0.14, -0.12, 0.12) : clamp(-s.yawRate * 0.025 * ease - (s.drifting ? Math.sign(s.yawRate) * 0.02 : 0), -0.06, 0.06);
+    this.roll = damp(this.roll || 0, rollT, 4, dt);
     cam.rotateZ(this.roll);
     this.shake = damp(this.shake, 0, 4, dt);
     this.fov = damp(this.fov, mode.fov + ease * 13 + nitro * 7, 3.5, dt);

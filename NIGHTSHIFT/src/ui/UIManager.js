@@ -269,7 +269,7 @@ export class UIManager {
     box.appendChild(h('h1', '', 'SETTINGS'));
     const tabs = h('div', 'tabs');
     const body = h('div', 'set-body');
-    const tabNames = ['GRAPHICS', 'GAMEPLAY', 'AUDIO', 'CONTROLS'];
+    const tabNames = ['GRAPHICS', 'GAMEPLAY', 'AUDIO', 'MULTIPLAYER', 'CONTROLS'];
     let tab = this._settingsTab || 0;
     const opt = (label, desc, section, key, values, labels, after) => {
       const row = h('div', 'row');
@@ -320,6 +320,21 @@ export class UIManager {
         opt('Default camera', '', 'gameplay', 'defaultCamera', [0, 1, 2, 3, 4, 5], ['CLOSE', 'CHASE', 'FAR', 'BUMPER', 'HOOD', 'COCKPIT']);
       } else if (tab === 2) {
         for (const [k, l] of [['master', 'Master'], ['engine', 'Engine'], ['traffic', 'Traffic'], ['police', 'Police'], ['music', 'Music'], ['environment', 'Environment']]) slider(l, 'audio', k, 0, 1, 0.01, () => g.audio?.applySettings(S.audio));
+      } else if (tab === 3) {
+        // multiplayer: everyone who opens this server's address shares the city
+        const net = g.net;
+        const row = h('div', 'row');
+        row.appendChild(h('div', '', '<label>Player name</label><div class="desc">Shown above your car to other players</div>'));
+        const inp = h('input'); inp.type = 'text'; inp.maxLength = 20; inp.placeholder = net?.name || 'Driver'; inp.value = S.gameplay.playerName || '';
+        inp.style.cssText = 'background:#0d0f14;color:#fff;border:1px solid #2a3040;border-radius:6px;padding:.45rem .6rem;font:inherit;width:12rem';
+        inp.onkeydown = inp.onkeyup = (e) => e.stopPropagation(); // typing must not drive the car
+        inp.onchange = () => { S.set('gameplay', 'playerName', inp.value.replace(/[<>]/g, '').trim().slice(0, 20)); net?.rename(); setTimeout(render, 800); };
+        row.appendChild(inp);
+        body.appendChild(row);
+        const st = { connected: `CONNECTED · ${net?.online} in the city`, connecting: 'CONNECTING...', off: 'OFF on this server (start it with --multiplayer or set multiplayer.enabled in config.json)', disconnected: 'DISCONNECTED · retrying', error: 'CANNOT CONNECT' }[net?.status] || 'OFF';
+        body.appendChild(h('div', 'row', `<label>Status</label><div>${st}</div>`));
+        if (net?.connected) body.appendChild(h('div', 'row', `<label>Players</label><div>${[`${net.name} (you)`, ...[...net.remotes.values()].map((r) => r.name)].join(' · ')}</div>`));
+        body.appendChild(h('div', 'row', `<label>How to play together</label><div class="desc" style="max-width:26rem">Everyone opens the same server address (the host's LAN / Radmin / online URL). Other players show up with their name tag and on the map. Get out with F and take any car: traffic, stopped police cruisers, street rivals, or a car another player left parked. Traffic and police are your own.</div>`));
       } else {
         body.innerHTML = `<div class="row"><label>Throttle / Brake-Reverse</label><div>W / S · RT / LT</div></div>
           <div class="row"><label>Steer</label><div>A / D · Left stick</div></div>

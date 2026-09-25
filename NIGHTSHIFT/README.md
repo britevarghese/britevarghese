@@ -11,9 +11,10 @@ or Firefox.
   - WebGPU can be selected in *Settings → Renderer*. If the WebGPU device fails at runtime,
     the game switches back to WebGL2 by itself.
 - **Assets:**
-  - Vehicles are generated GLB models, built by `tools/generate-models.mjs`. Licensed CC BY 4.0
-    models of the real cars can be imported with `tools/import-cars.mjs` (credits are written to
-    `public/assets/models/cars/CREDITS.md` and shown in the garage).
+  - The original and traffic vehicles are generated GLB models, built by `tools/generate-models.mjs`.
+    The real cars and motorcycles use licensed CC BY 4.0 Sketchfab models converted by
+    `tools/import-cars.mjs` (credits are in `public/assets/models/cars/CREDITS.md` and shown in
+    the garage).
   - Textures are generated procedurally at the resolution the quality level asks for.
   - Audio is synthesized with the Web Audio API (no samples).
   - Real car names and brands are trademarks of their manufacturers. This is a non-commercial fan
@@ -106,8 +107,11 @@ Saves live in each player's browser.
 - **Cars:** 4 original cars plus 16 real cars (BMW, Subaru, Mazda, Porsche, Nissan, Toyota, Honda,
   Chevrolet, Audi, Ferrari, McLaren, Lamborghini) with physics calibrated to their real 0-100 and
   top speeds and their own engine layouts. They unlock by driver level (1-30) or career missions.
-  Until the licensed models are imported (see `tools/carimport/README.md`) each real car uses a
-  generated stand-in body at its real size.
+- **Motorcycles:** 7 real bikes: Harley-Davidson Iron 883, Kawasaki Ninja ZX-6R and Ninja H2, Yamaha
+  YZF-R1, BMW S 1000 RR, Suzuki Hayabusa and Ducati Panigale V4 R. Each is calibrated to its real
+  0-100 and top speed and has its own engine sound (crossplane R1, twin-pulse V4, 45° V-twin).
+  Bikes lean into corners, wheelie off the line, and carry a rider posed to the bike (sport crouch
+  or cruiser). Parked bikes rest on the side stand. Buy them in the garage with the cars.
 - **Garage:** paint (incl. factory colours), finish, vinyl, wheels, spoiler, hood, bumper, tint,
   calipers; engine, transmission, tyres, brakes, suspension and nitrous upgrades.
 - **Sound:** engines are a physical model (per-cylinder firing through modelled exhaust pipes);
@@ -121,7 +125,7 @@ Saves live in each player's browser.
 ## Architecture
 
 ```
-server.js, server/        zero-dependency static host + optional WebSocket multiplayer foundation
+server.js, server/        zero-dependency static host + WebSocket multiplayer room (server/room.js)
 public/                   index.html, CSS, vendored three.js, generated GLB models
 src/core/                 Game loop, GameState, Input, Settings, SaveSystem, QualityManager, EventBus
 src/renderer/             RendererManager (WebGPU/WebGL2), PostFX, Environment (time/weather/sky),
@@ -130,12 +134,13 @@ src/world/                CityLayout (road graph, districts), CityPlanner (build
                           ChunkBuilder/ChunkManager (CITY_CHUNK_X_Z streaming), Props (instancing),
                           LightSystem (fake street lighting), Pedestrians
 src/physics/              VehiclePhysics (tire model, weight transfer, suspension, drift assist), Collision
-src/vehicles/             Vehicle, VehicleRenderer (4-wheel rig, lights, damage, customization), AIDriver, catalog
+src/vehicles/             Vehicle, VehicleRenderer (car / bike wheel rigs, lights, damage, customization),
+                          Rider (IK-posed motorcyclist), AIDriver, catalog
 src/traffic/              LaneGraph, TrafficManager (IDM, signals, lane changes), TrafficRenderer (instanced)
 src/police/ src/races/    PoliceManager, RaceManager, RaceEvents
 src/camera/ src/audio/    CameraController, procedural AudioManager
 src/ui/                   HUD, minimap/world map (2D), menus, settings, garage
-src/networking/           NetworkClient (state replication + interpolation)
+src/networking/           NetworkClient (players, on-foot state, shared parked cars, interpolation, collisions)
 tools/                    model generator, installer build scripts
 ```
 
@@ -156,9 +161,22 @@ tools/                    model generator, installer build scripts
 
 ### Multiplayer
 
-The game is single-player for now, but multiplayer is started. `node server.js --multiplayer`
-enables `/ws`. The server validates every state update, clamping speed and rejecting
-teleports, and broadcasts snapshots at 20 Hz. Clients interpolate the other players.
+Multiplayer is on by default. Everyone who opens the same server address shares the city (up to
+8 players; `multiplayer.maxPlayers` in `config.json`). To play alone on a shared server, start
+it with `--no-multiplayer`.
+
+- Other players show up with a name tag and on the minimap: in their car or on their bike, or
+  walking when they are on foot. Set your name in *Settings → Multiplayer*.
+- Their cars are solid, so you can bump and block each other.
+- Get out with F and take any car: traffic, a stopped police cruiser, a street rival's car, or a
+  car another player left parked. The server hands a parked car to whoever asks first, and its
+  owner gets a message.
+- Traffic, police, races and missions are simulated separately by each player.
+
+Protocol: JSON over `/ws`. Clients send their state at 20 Hz: position, rotation, velocity,
+vehicle, paint, on-foot flag, parked cars, and a teleport counter for respawns and resets. The
+server validates each update (speed is clamped and unannounced jumps over 60 m are rejected),
+then broadcasts snapshots at 20 Hz. Clients interpolate the other players 120 ms behind.
 
 ## Regenerating models
 

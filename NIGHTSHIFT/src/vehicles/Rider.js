@@ -10,10 +10,10 @@ const _a = new THREE.Vector3(), _b = new THREE.Vector3(), _d = new THREE.Vector3
 
 // seat / bars / pegs relative to the rear axle (z) and the ground (y); w = half width
 const STYLE = {
-  sport: { hipZ: 0.36, barsBack: 0.44, barsY: 0.1, barsW: 0.31, pegBack: 0.2, pegY: 0.37, pegW: 0.17, torso: 0.72, tuck: 0.34, head: 0.32 },
-  cruiser: { hipZ: 0.36, barsBack: 0.46, barsY: 0.36, barsW: 0.4, pegBack: -0.3, pegY: 0.3, pegW: 0.24, torso: 1.35, tuck: 1.2, head: 0.1 },
+  sport: { hipZ: 0.33, barsBack: 0.44, barsY: 0.1, barsW: 0.31, pegBack: 0.22, pegY: 0.37, pegW: 0.17, torso: 0.62, tuck: 0.3, neck: 0.12 },
+  cruiser: { hipZ: 0.36, barsBack: 0.46, barsY: 0.36, barsW: 0.4, pegBack: -0.3, pegY: 0.3, pegW: 0.24, torso: 1.35, tuck: 1.2, neck: 0.16 },
 };
-const THIGH = 0.45, SHIN = 0.46, UPPER = 0.31, FORE = 0.3, TORSO = 0.56;
+const THIGH = 0.45, SHIN = 0.46, UPPER = 0.31, FORE = 0.3, TORSO = 0.52;
 
 export class Rider {
   // bike: { zF, zR (wheel centres), seat (seat height m), style, suit colour }
@@ -34,13 +34,13 @@ export class Rider {
     const add = (geo, mat, sx, sy, sz) => { const m = new THREE.Mesh(geo, mat); m.scale.set(sx, sy, sz); m.castShadow = shadow; this.group.add(m); return m; };
     const bone = (r, mat) => ({ mesh: add(cyl, mat, r, 1, r), r });
     this.bones = {
-      thighL: bone(0.085, suit), thighR: bone(0.085, suit), shinL: bone(0.065, suit), shinR: bone(0.065, suit),
-      upperL: bone(0.058, suit), upperR: bone(0.058, suit), foreL: bone(0.05, accent), foreR: bone(0.05, accent),
-      spine: bone(0.16, suit), neck: bone(0.05, black),
+      thighL: bone(0.095, suit), thighR: bone(0.095, suit), shinL: bone(0.07, suit), shinR: bone(0.07, suit),
+      upperL: bone(0.065, accent), upperR: bone(0.065, accent), foreL: bone(0.055, suit), foreR: bone(0.055, suit),
+      spine: bone(0.17, suit), neck: bone(0.055, black),
     };
     this.balls = {
-      hips: add(ball, suit, 0.17, 0.12, 0.15), kneeL: add(ball, suit, 0.08, 0.08, 0.08), kneeR: add(ball, suit, 0.08, 0.08, 0.08),
-      shoulders: add(ball, suit, 0.2, 0.1, 0.12), handL: add(ball, black, 0.055, 0.05, 0.07), handR: add(ball, black, 0.055, 0.05, 0.07),
+      hips: add(ball, suit, 0.18, 0.13, 0.17), kneeL: add(ball, suit, 0.08, 0.08, 0.08), kneeR: add(ball, suit, 0.08, 0.08, 0.08),
+      shoulders: add(ball, accent, 0.21, 0.11, 0.14), handL: add(ball, black, 0.055, 0.05, 0.07), handR: add(ball, black, 0.055, 0.05, 0.07),
       bootL: add(ball, black, 0.055, 0.06, 0.14), bootR: add(ball, black, 0.055, 0.06, 0.14),
     };
     this.head = new THREE.Group();
@@ -84,13 +84,12 @@ export class Rider {
     const ang = lerp(c.torso, c.tuck, tuck);
     const sh = new THREE.Vector3(0, Math.sin(ang) * TORSO, Math.cos(ang) * TORSO).add(hipP);
     this._bone(this.bones.spine, hipP, sh);
-    this.bones.spine.mesh.scale.z = 0.12;
     this.balls.hips.position.copy(hipP);
     this.balls.shoulders.position.copy(sh);
     // head: forward of the shoulders, looking up the road
-    const hd = new THREE.Vector3(0, 0.2 - tuck * 0.04, c.head * 0.3 + 0.08).add(sh);
+    const hd = new THREE.Vector3(0, c.neck, 0.09).add(sh);
     this._bone(this.bones.neck, sh, hd);
-    this.head.position.copy(hd).add(new THREE.Vector3(0, 0.06, 0.02));
+    this.head.position.copy(hd).add(new THREE.Vector3(0, 0.04, 0.03));
     this.head.rotation.x = -(Math.PI / 2 - ang) * 0.35;
     this.eye = this.head.position.clone().add(new THREE.Vector3(0, 0.02, 0.1));
     for (const side of [1, -1]) {
