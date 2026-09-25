@@ -32,6 +32,30 @@ const writeManifest = !args.includes('--no-manifest');
 const maxTex = +(opt('max-texture') || 2048);
 const token = opt('token') || process.env.SKETCHFAB_API_TOKEN;
 const srcOverrides = Object.fromEntries(args.flatMap((a, i) => (a === '--src' ? [args[i + 1].split('=')] : [])));
+// Models downloaded by hand from Sketchfab can simply be dropped into incoming-cars/ (any file name:
+// '<car id>.zip' or Sketchfab's own 'model-title.zip' / .glb / .gltf folder). Each file is matched to
+// the car whose source model title shares the most words with the file name.
+const incomingDir = path.join(ROOT, 'incoming-cars');
+if (fs.existsSync(incomingDir)) {
+  const words = (t) => new Set(String(t).toLowerCase().replace(/\.(zip|glb|gltf)$/, '').split(/[^a-z0-9]+/).filter((w) => w.length > 1 && !['free', 'model', 'the', '3d', 'low', 'poly', 'lowpoly'].includes(w)));
+  const reals = Object.values(CARS).filter((c) => c.real && c.source);
+  for (const f of fs.readdirSync(incomingDir)) {
+    if (!/\.(zip|glb|gltf)$/i.test(f) && !fs.statSync(path.join(incomingDir, f)).isDirectory()) continue;
+    const base = f.replace(/\.(zip|glb|gltf)$/i, '');
+    let car = CARS[base]?.real ? CARS[base] : null;
+    if (!car) {
+      const fw = words(f); let best = 0;
+      for (const c of reals) {
+        const tw = words(`${c.source.title} ${c.brand} ${c.model}`);
+        const hit = [...fw].filter((w) => tw.has(w)).length / Math.max(1, fw.size);
+        if (hit > best) { best = hit; car = c; }
+      }
+      if (best < 0.5) car = null;
+    }
+    if (!car) { console.log(`incoming-cars/${f}: could not tell which car this is (rename it to <car id>.zip)`); continue; }
+    if (!srcOverrides[car.id]) { srcOverrides[car.id] = path.join(incomingDir, f); console.log(`incoming-cars/${f} -> ${car.id}`); }
+  }
+}
 const cacheRoot = path.join(ROOT, '.cache/cars');
 const manifestPath = path.join(ROOT, 'public/assets/models/manifest.json');
 
