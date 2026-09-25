@@ -12,6 +12,7 @@ import { AIDriver } from '../vehicles/AIDriver.js';
 import { CARS, tunedParams, TRAFFIC_VEHICLES } from '../vehicles/VehicleCatalog.js';
 import { VehiclePhysics } from '../physics/VehiclePhysics.js';
 import { GRID } from '../world/CityLayout.js';
+import { PROPERTY_BY_ID } from '../world/Empire.js';
 
 const YELLOW = 0xffc53d;
 const _a = new THREE.Vector3(), _b = new THREE.Vector3();
@@ -153,6 +154,7 @@ export class Story {
     g.lib.load(ids, 2);
     this.active = { m, i: -1, spawned: [], vehicle: null };
     g.gps = null;
+    if (m.job) { this.active.job = true; this._next(); return; }
     if (skipIntro || !m.intro?.length) this._next();
     else this._cutscene(m, () => this._next());
     bus.emit('story:start', { id: m.id });
@@ -235,6 +237,13 @@ export class Story {
       case 'goto': case 'deliver': {
         s.target = this._resolve(st.to, m);
         if (st.type === 'deliver') A.vehicle ||= g.player;
+        if (st.time) s.timeLeft = st.time;
+        if (st.ped === 'pickup') s.ped = this._ped(s.target, false);
+        break;
+      }
+      case 'own': {
+        const p = g.empire.markers[st.property] || g.empire._marker(PROPERTY_BY_ID[st.property], false);
+        s.target = { x: p.spot.x, z: p.spot.z };
         break;
       }
       case 'steal': {
@@ -314,6 +323,33 @@ export class Story {
     return true;
   }
 
+  // taxi passengers: one waits on the pavement at the pickup; the one you drop off walks away
+  _ped(at, walker) {
+    const g = this.game;
+    if (!g.humans?.ready) return null;
+    const sw = g.empire.sidewalk(at.x, at.z);
+    const h = g.humans.create(Math.floor(Math.random() * 8), { shadow: g.preset.shadows !== 'off', idle: walker ? 'idle' : 'talk' });
+    if (!h) return null;
+    h.group.position.set(sw.x, sw.y, sw.z);
+    h.group.rotation.y = walker ? sw.face + Math.PI / 2 : sw.face;
+    g.scene.add(h.group);
+    const p = { h, walker, t: 0, dispose: () => { h.dispose(); this.peds = this.peds.filter((q) => q !== p); } };
+    (this.peds ||= []).push(p);
+    return p;
+  }
+  _updatePeds(dt) {
+    for (const p of [...(this.peds || [])]) {
+      p.t += dt;
+      const gr = p.h.group;
+      if (p.walker) {
+        gr.position.x += Math.sin(gr.rotation.y) * 1.4 * dt; gr.position.z += Math.cos(gr.rotation.y) * 1.4 * dt;
+        if (p.t > 7) { p.dispose(); continue; }
+      }
+      gr.updateMatrixWorld(true);
+      p.h.animate(p.walker ? 1.4 : 0, dt);
+    }
+  }
+
   vehicles() {
     const A = this.active;
     return A?.st?.ai ? [A.st.v] : [];
@@ -323,6 +359,7 @@ export class Story {
   update(dt, input, driving) {
     const g = this.game;
     this._updateSubs(dt);
+    this._updatePeds(dt);
     this.promptHtml = null;
     this._animGivers(dt);
     if (!driving) return;
@@ -344,12 +381,33 @@ export class Story {
           if (s.away) { s.away = false; this._objective(st.text); }
           this._meter('CAR CONDITION', 1 - A.vehicle.state.damage / (st.maxDamage || 1), A.vehicle.state.damage > (st.maxDamage || 1) * 0.7);
         }
-        if (st.inVehicle && !inCar) { this._objective('Get in a <b>car</b>.'); s.needCar = true; target = null; break; }
+        if (st.inVehicle && !inCar) {
+          // odd jobs: walking away from the car ends the shift
+          if (A.m.job) { s.outT = (s.outT || 0) + dt; if (s.outT > 4) { this.endJob('You stopped working.'); return; } }
+          this._objective('Get in a <b>car</b>.'); s.needCar = true; target = null; break;
+        }
+        s.outT = 0;
+        if (st.time) {
+          s.timeLeft -= dt;
+          if (s.timeLeft <= 0) { this.fail(A.m.job?.kind === 'taxi' ? 'The passenger got out and walked.' : 'You ran out of time.'); return; }
+        }
         if (s.needCar && inCar) { s.needCar = false; this._objective(st.text); }
         const d = Math.hypot(f.x - s.target.x, f.z - s.target.z), sp = Math.hypot(f.vx || 0, f.vz || 0);
-        if (d < 9 && (!st.stop || sp < 3)) { s.hold = (s.hold || 0) + dt; if (s.hold > (st.stop ? 1.2 : 0)) { this._next(); return; } }
-        else s.hold = 0;
+        if (d < 9 && (!st.stop || sp < 3)) {
+          s.hold = (s.hold || 0) + dt;
+          if (s.hold > (st.stop ? 1.2 : 0)) {
+            if (s.ped) { s.ped.dispose(); s.ped = null; g.audio.playEvent('doorShut', { position: { x: f.x, y: 0.9, z: f.z } }); }
+            if (st.ped === 'drop') this._ped({ x: f.x, z: f.z }, true);
+            this._next(); return;
+          }
+        } else s.hold = 0;
         if (st.stop && d < 25 && sp > 3) this._meter('STOP HERE', 1 - d / 25, false);
+        else if (st.time) this._meter(`TIME ${Math.ceil(s.timeLeft)}s · ${Math.round(d)} m`, s.timeLeft / st.time, s.timeLeft < 15);
+        break;
+      }
+      case 'own': {
+        if (g.empire.owns(st.property)) { this._next(); return; }
+        target = s.target;
         break;
       }
       case 'steal': {
@@ -537,6 +595,7 @@ export class Story {
       const i = g.onFoot.parked.indexOf(v); if (i >= 0) g.onFoot.parked.splice(i, 1);
       v.dispose();
     }
+    if (A.st?.ped) { A.st.ped.dispose(); A.st.ped = null; }
     this.active = null;
     this.dest.visible = false; this.arrow.visible = false; this.target = null;
     this._objective(null); this._meter(null);
@@ -545,6 +604,17 @@ export class Story {
 
   pass() {
     const g = this.game, m = this.active.m;
+    if (m.job) {
+      const pay = m.pay ? m.pay(this) : 0;
+      this._cleanup(true);
+      g.save.addCash(pay, 'job');
+      g.progress?.addXp(Math.round(pay / 12), 'job');
+      g.hud.message('JOB COMPLETE', `${m.title} · ${formatMoney(pay)}`, 3.5);
+      g.audio.playEvent('checkpoint');
+      g.empire.jobDone(m, true);
+      bus.emit('job:pass', { kind: m.job.kind, pay });
+      return;
+    }
     this._cleanup(true);
     this.done[m.id] = true;
     const r = m.reward || {};
@@ -563,6 +633,7 @@ export class Story {
   fail(reason) {
     const g = this.game, m = this.active?.m;
     if (!m) return;
+    if (m.job) { this._cleanup(true); g.hud.message('JOB FAILED', reason, 3.5); g.audio.playEvent('busted'); g.empire.jobDone(m, false); return; }
     this._cleanup(false);
     g.hud.message('MISSION FAILED', reason, 4);
     g.audio.playEvent('busted');
@@ -579,6 +650,15 @@ export class Story {
     g.player.place(gv.lane.x, gv.lane.z, gv.lane.yaw);
     g.camCtl.snap(g.player);
     this.start(m, true);
+  }
+
+  // quit an odd job without a penalty
+  endJob(reason) {
+    const g = this.game, m = this.active?.m;
+    if (!m?.job) return;
+    this._cleanup(true);
+    g.hud.message('JOB ENDED', reason, 2.5);
+    g.empire.jobDone(m, false);
   }
 
   abort() { if (this.active) this._cleanup(false); if (this.cs) { this.cs = null; this.el.root.classList.remove('cine'); this._subtitle(null); } }

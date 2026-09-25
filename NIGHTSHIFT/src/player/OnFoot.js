@@ -313,7 +313,7 @@ export class OnFoot {
     g.traffic.remove(c);
     g.peds?.spawnFleeing?.(c.x + Math.cos(c.yaw) * 1.6, c.z - Math.sin(c.yaw) * 1.6, this.state.x, this.state.z);
     g.audio?.playEvent('collision', { intensity: 0.15, type: 'light', position: { x: c.x, y: 0.5, z: c.z } });
-    g.police?.reportInfraction('carjack', 1);
+    g.police?.reportInfraction('carjack', 1, 35); // only if a cop is watching
     g.ui.toast(`Stole a ${def.name}`, '', 2);
     bus.emit('player:carjack', { type: c.type });
     return v;

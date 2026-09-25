@@ -74,7 +74,7 @@ export class Materials {
     this.asphaltTex = A;
     this.road = new THREE.MeshStandardMaterial({
       name: 'road', map: A.map, normalMap: lowEnd ? null : A.normalMap, roughnessMap: A.roughnessMap, roughness: 1, metalness: 0,
-      normalScale: new THREE.Vector2(0.6, 0.6), color: 0xffffff, envMapIntensity: 0.4,
+      normalScale: new THREE.Vector2(0.35, 0.35), color: 0xffffff, envMapIntensity: 0.4,
     });
     if (!lowEnd) addMacro(this.road, { macro: 0.16, puddles: 1 });
     const S = TX.concrete(4, 3, 150);

@@ -9,6 +9,7 @@
 //   race    beat a rival to the finish
 //   ram     knock a fleeing vehicle out before it gets away
 //   call    phone call subtitles (non-blocking)
+//   own     buy a property (src/world/Empire.js); completes once you own it
 
 export const CAST = {
   you: { name: 'You', color: '#ffffff' },
@@ -19,11 +20,14 @@ export const CAST = {
   jonah: { name: 'Jonah', color: '#9dff6a' },
   kaze: { name: 'Kaze', color: '#ff3df0' },
   graves: { name: 'Lt. Graves', color: '#ff6a3d' },
+  vex: { name: 'Vex', color: '#ff2d55' },
+  dispatch: { name: 'Dispatch', color: '#9aa8ff' },
 };
 
 export const STORY_CHAPTERS = [
   { id: 1, name: 'Port Halvern' },
   { id: 2, name: 'New Management' },
+  { id: 3, name: 'Empire' },
 ];
 
 export const STORY = [
@@ -208,8 +212,89 @@ export const STORY = [
       { type: 'call', lines: [['kaze', 'Alright! Alright. The city is yours. I am done.']] },
       { type: 'goto', to: 'giver', stop: true, inVehicle: true, text: 'Get back to <b>Rosa</b> at the Ironworks.' },
     ],
-    outro: [['rosa', 'Mara, Deacon, Tully and me. Nobody runs Port Halvern alone anymore.'], ['rosa', 'Go enjoy your city, driver.']],
+    outro: [['rosa', 'Mara, Deacon, Tully and me. Nobody runs Port Halvern alone anymore.'], ['mara', "Come see me when you've caught your breath. We're not done."]],
     reward: { cash: 40000, xp: 7000 },
+    chapterEnd: 2,
+  },
+  // ---------------------------------------------------------------- chapter 3: Empire
+  {
+    id: 'grand_opening', chapter: 3, giver: 'mara', title: 'Grand Opening', requires: ['kingmaker'],
+    intro: [
+      ['mara', "Street money gets you noticed. Clean money keeps you out of a cell."],
+      ['mara', "Club Neon is up for sale. Buy it. It's our front, our office, and it pays."],
+      ['you', 'And if I can\'t afford it?'],
+      ['mara', 'Then drive a cab, run parcels, move a few cars for the export yard. Earn it.'],
+    ],
+    steps: [
+      { type: 'own', property: 'club_neon', text: 'Buy <b>Club Neon</b> downtown (it is on the map). Short on cash? Try the <b>odd jobs</b>.' },
+      { type: 'goto', to: { x: -160, z: 240 }, stop: true, text: 'Go to <b>Club Neon</b> for the opening night.' },
+    ],
+    outro: [['mara', 'Look at that line around the block. Welcome to management.']],
+    reward: { cash: 25000, xp: 3000 },
+  },
+  {
+    id: 'protection', chapter: 3, giver: 'tully', title: 'Protection', requires: ['grand_opening'],
+    intro: [
+      ['tully', "Whatever's left of Kaze's crew is shaking down every business with your name on it."],
+      ['tully', "Two cars. They're doing the rounds right now."],
+      ['tully', 'Make them understand the neighbourhood changed hands.'],
+    ],
+    steps: [
+      { type: 'ram', vehicle: 'suv', paint: '#2a2a2e', from: [-3, -1], route: [[-3, -1], [-3, 1], [-1, 1], [-1, 3]], hits: 3, text: 'Stop the <b>first crew car</b>.' },
+      { type: 'ram', vehicle: 'sedan', paint: '#4a1010', from: [-1, 3], route: [[-1, 3], [1, 3], [1, 1], [3, 1]], hits: 3, speed: 28, text: 'Stop the <b>second crew car</b>.' },
+      { type: 'lose', heat: 2, text: 'Somebody called it in. Lose the <b>police</b>.' },
+    ],
+    outro: [['tully', 'Word travels fast. Nobody will touch your places again.']],
+    reward: { cash: 22000, xp: 3200 },
+  },
+  {
+    id: 'bank_job', chapter: 3, giver: 'deacon', title: 'The Bank Job', requires: ['protection'],
+    intro: [
+      ['deacon', 'Graves kept his money in a private vault downtown. Graves is gone. The money is not.'],
+      ['deacon', "My people open the vault. The cash goes out in three armoured bags to three drop points."],
+      ['deacon', 'You collect all three before the alarm goes city-wide, then shake whoever follows you.'],
+    ],
+    steps: [
+      { type: 'goto', to: [0, -1], stop: true, inVehicle: true, text: 'Park outside the <b>vault</b> downtown.' },
+      { type: 'call', lines: [['deacon', "We're in. Bags are going out now. Move!"], ['dispatch', 'All units, alarm at the Halvern private vault.']] },
+      { type: 'collect', label: 'CASH BAGS', time: 120, points: [[1, -1], [2, 0], [1, 1]], inVehicle: true, text: 'Collect the <b>three cash bags</b> before the alarm spreads.' },
+      { type: 'lose', heat: 4, text: 'Every cop in the city is looking for you. Lose them.' },
+      { type: 'deliver', to: 'giver', maxDamage: 0.8, text: 'Bring the money to <b>Deacon</b> at the docks.' },
+    ],
+    outro: [['deacon', "Four million, give or take. You'll find your share has already been counted."]],
+    reward: { cash: 60000, xp: 6000 },
+  },
+  {
+    id: 'hostile_takeover', chapter: 3, giver: 'rosa', title: 'Hostile Takeover', requires: ['bank_job'],
+    intro: [
+      ['rosa', 'The rail yard trucking company refuses to sell to me. Their best truck says otherwise.'],
+      ['rosa', "It's parked in the south yard. Take it, lose the security, and bring it home."],
+    ],
+    steps: [
+      { type: 'steal', vehicle: 'truck', paint: '#c83a2a', at: [5, -3], heat: 3, text: 'Steal the <b>red truck</b> from the south rail yard.' },
+      { type: 'lose', heat: 3, text: 'Lose the <b>police</b>.' },
+      { type: 'deliver', to: 'giver', maxDamage: 0.7, text: 'Bring the truck to <b>Rosa</b> at the Ironworks.' },
+    ],
+    outro: [['rosa', 'They signed the papers an hour ago. Funny how that works.']],
+    reward: { cash: 35000, xp: 4500 },
+  },
+  {
+    id: 'the_king', chapter: 3, giver: 'mara', title: 'King of the Night', requires: ['hostile_takeover'],
+    intro: [
+      ['mara', "There's a new name on the street. Vex. Came from out of town with a Lamborghini and a big mouth."],
+      ['mara', "He says whoever runs Port Halvern should be able to prove it. On the road."],
+      ['you', 'Then I will.'],
+      ['mara', 'Win, lose the heat, and come back to the club. The whole city will be watching.'],
+    ],
+    steps: [
+      { type: 'goto', to: [-3, -3], inVehicle: true, text: 'Meet <b>Vex</b> in the Market District.' },
+      { type: 'race', rival: 'vex', car: 'lamborghini_centenario', route: [[-3, -3], [-3, 0], [-1, 0], [-1, 2], [2, 2], [2, -1], [4, -1]], text: 'Beat <b>Vex</b> across the whole city.' },
+      { type: 'call', lines: [['vex', "Nobody beats me. NOBODY."], ['mara', "Half the police in town saw that race. Get out of there."]] },
+      { type: 'lose', heat: 4, text: 'Lose the <b>police</b>.' },
+      { type: 'goto', to: { x: -160, z: 240 }, stop: true, inVehicle: true, text: 'Come home to <b>Club Neon</b>.' },
+    ],
+    outro: [['mara', 'Listen to them. They are chanting your name.'], ['mara', 'Port Halvern has a king. Go enjoy it: buy the rest of the city if you want.']],
+    reward: { cash: 120000, xp: 12000 },
     finale: true,
   },
 ];

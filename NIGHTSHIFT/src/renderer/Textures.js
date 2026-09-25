@@ -110,7 +110,7 @@ export function asphalt() {
       const speck = g > 0.86 ? (g - 0.86) * 260 : 0;
       const base = 50 + v * 24 + speck - (g < 0.12 ? 10 : 0);
       ci.data[i * 4] = base; ci.data[i * 4 + 1] = base; ci.data[i * 4 + 2] = base + 2; ci.data[i * 4 + 3] = 255;
-      const hgt = 120 + g * 90 + v * 40;
+      const hgt = 120 + g * 100 + v * 8; // aggregate grain only: broad height swells read as water ripples
       hi.data[i * 4] = hi.data[i * 4 + 1] = hi.data[i * 4 + 2] = hgt; hi.data[i * 4 + 3] = 255;
       // roughness in G, metalness 0 in B
       const r = 215 + v * 30;
@@ -162,7 +162,7 @@ export function asphalt() {
     wc.globalAlpha = 0.6; wc.fillStyle = 'rgb(0,60,0)'; wc.fillRect(0, 0, n, n);
     wc.globalAlpha = 1; wc.globalCompositeOperation = 'darken'; wc.drawImage(puddle, 0, 0);
     return {
-      map: tex(color), normalMap: tex(normalFromHeight(height, 3 * (n / 1024) + 1), { srgb: false }),
+      map: tex(color), normalMap: tex(normalFromHeight(height, 2 * (n / 1024) + 0.8), { srgb: false }),
       roughnessMap: tex(rough, { srgb: false }), wetRoughnessMap: tex(wet, { srgb: false }),
     };
   });

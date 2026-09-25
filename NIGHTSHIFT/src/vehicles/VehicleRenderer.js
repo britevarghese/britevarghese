@@ -131,6 +131,12 @@ export class VehicleRenderer {
       const mm = m[k];
       if (mm && mm.emissive && mm.emissive.getHex() === 0) mm.emissive.setHex(k === 'headlight' ? 0xfff2dc : 0xff1a0a);
     }
+    // any other glowing material in a source model (reverse lamps, side markers baked "on") stays dark:
+    // the game drives the lights itself
+    for (const [k, mm] of Object.entries(m)) {
+      if (k === 'headlight' || k === 'taillight' || !mm.emissive) continue;
+      if (mm.emissiveMap || mm.emissive.getHex() !== 0) { mm.emissive.setHex(0x000000); mm.emissiveMap = null; }
+    }
   }
 
   _tuneMaterials() {
@@ -318,6 +324,16 @@ export class VehicleRenderer {
     this.blob.position.y = 0.03;
     this.blob.renderOrder = 1;
     this.group.add(this.blob);
+    // contact shadows: a tight dark patch where each tyre meets the road (grounds the car visually)
+    const cm = new THREE.MeshBasicMaterial({ map: t, transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -4, opacity: 0.95 });
+    this.contacts = this.wheels.map((w) => {
+      const tw = this.bike ? 0.16 : (this.lib.manifest?.cars?.[this.modelId]?.wheels?.find((m) => m.id === w.id)?.w || 0.25);
+      const m = new THREE.Mesh(new THREE.PlaneGeometry(tw * 1.6, (w.r || 0.33) * 1.3).rotateX(-Math.PI / 2), cm);
+      m.position.set(w.pivot.position.x, 0.02, w.pivot.position.z);
+      m.renderOrder = 2;
+      this.group.add(m);
+      return m;
+    });
   }
 
   _policeLights() {
@@ -520,6 +536,11 @@ export class VehicleRenderer {
     // blob shadow follows ground
     this.blob.position.y = 0.03 - (s.y - (s.groundY ?? s.y));
     this.blob.material.opacity = s.onGround ? 0.8 : clamp(0.8 - (s.y - (s.groundY ?? s.y)) * 0.3, 0.1, 0.8);
+    for (let i = 0; i < this.contacts.length; i++) {
+      const c = this.contacts[i], w = this.wheels[i];
+      c.visible = s.onGround !== false && !(this.bike && i === 0 && (s.wheelie || 0) > 0.05);
+      c.position.y = 0.02 + (this.bike ? -(s.y - (s.groundY ?? s.y)) : (s.wheelOff?.[WHEEL_IDX[w.id]] || 0));
+    }
     // police light bar
     if (this.police) {
       const p = this.police;

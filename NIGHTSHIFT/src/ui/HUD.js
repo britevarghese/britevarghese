@@ -246,6 +246,7 @@ export class HUD {
     // racers
     for (const v of game.races?.vehicles() || []) dot(v.state.x, v.state.z, 3.6, '#ffc53d');
     for (const r of game.rivals?.rivals || []) dot(r.v.state.x, r.v.state.z, 4.2, r.crew.color);
+    for (const b of game.empire?.blips() || []) dot(b.x, b.z, b.r || 4, b.color);
     for (const b of game.story?.blips() || []) dot(b.x, b.z, b.r || 5, b.color);
     // police
     const blink = Math.floor(performance.now() / 180) % 2;

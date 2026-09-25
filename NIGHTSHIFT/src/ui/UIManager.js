@@ -10,6 +10,7 @@ import { CARS } from '../vehicles/VehicleCatalog.js';
 import { FILTERS } from '../camera/PhotoMode.js';
 import { REPLAY_CAMS } from '../replay/Replay.js';
 import { STORY, STORY_CHAPTERS, CAST } from '../story/StoryData.js';
+import { PROPERTIES, JOBS, INCOME_PERIOD } from '../world/Empire.js';
 
 const h = (tag, cls, html) => { const e = document.createElement(tag); if (cls) e.className = cls; if (html !== undefined) e.innerHTML = html; return e; };
 
@@ -219,9 +220,18 @@ export class UIManager {
     box.appendChild(h('h1', '', 'CAREER'));
     box.appendChild(h('div', 'career-head', `<div class="lvbig">LEVEL ${L.level}</div><div class="xpline big"><i style="width:${L.need ? Math.round(L.into / L.need * 100) : 100}%"></i></div><div class="xptext">${L.need ? `${L.into.toLocaleString()} / ${L.need.toLocaleString()} XP to level ${L.level + 1}` : 'MAX LEVEL'} · race payouts x${P.rewardMult.toFixed(2)}</div>`));
     // next car unlocks by level
-    const next = Object.values(CARS).filter((c) => c.unlock?.level > L.level).sort((a, b) => a.unlock.level - b.unlock.level).slice(0, 3);
-    if (next.length) box.appendChild(h('div', 'career-next', `NEXT UNLOCKS · ${next.map((c) => `<b>${c.name}</b> <span>LV ${c.unlock.level}</span>`).join(' · ')}`));
+
     const list = h('div', 'career-list');
+    // empire: properties and odd jobs
+    const E = g.empire, owned = PROPERTIES.filter((p) => E.owns(p.id));
+    const perCycle = owned.reduce((a, p) => a + (p.income || 0), 0);
+    list.appendChild(h('div', 'chapter', `<span>EMPIRE · ${owned.length}/${PROPERTIES.length} PROPERTIES</span><span>${formatMoney(perCycle)} / ${INCOME_PERIOD / 60} min · earned ${formatMoney(E.data.earned || 0)}</span>`));
+    for (const p of PROPERTIES) {
+      const own = E.owns(p.id);
+      list.appendChild(h('div', 'mission' + (own ? ' done' : ''), `<div class="mt"><b>${own ? '✓ ' : ''}${p.name}</b><span>${own ? 'OWNED' : formatMoney(p.price)}</span></div><div class="md">${p.kind === 'safehouse' ? 'Safehouse · respawn, rest & save' : `Business · ${formatMoney(p.income)} every ${INCOME_PERIOD / 60} min`} · ${p.blurb}</div>`));
+    }
+    const jd = E.data.jobs || {};
+    list.appendChild(h('div', 'mission', `<div class="mt"><b>Odd jobs</b><span>${JOBS.map((j) => `${j.label} ${jd[j.id] || 0}`).join(' · ')}</span></div><div class="md">Taxi fares, courier runs and car exports: the yellow, green and orange stands on the map.</div>`));
     // story campaign
     const sd = g.save.data.story?.done || {};
     const avail = g.story?.available() || {};
@@ -372,12 +382,23 @@ export class UIManager {
     const canvas = h('canvas'); canvas.id = 'worldmap';
     const legend = h('div', 'map-legend panel', '<h2>PORT HALVERN</h2>');
     legend.style.padding = '1.4rem';
-    legend.innerHTML += `<div><span class="dot" style="background:#fff"></span>You</div><div><span class="dot" style="background:#ffc53d"></span>Race events</div><div><span class="dot" style="background:#3d7bff"></span>Police escape</div><div><span class="dot" style="background:#3dff9a"></span>Safehouses</div><div><span class="dot" style="background:#ff9a3d"></span>Shops</div><div><span class="dot" style="background:#ff3040"></span>Police</div><div><span class="dot" style="background:#b98cff"></span>Story missions</div>`;
+    legend.innerHTML += `<div><span class="dot" style="background:#fff"></span>You</div><div><span class="dot" style="background:#ffc53d"></span>Race events</div><div><span class="dot" style="background:#3d7bff"></span>Police escape</div><div><span class="dot" style="background:#3dff9a"></span>Safehouses</div><div><span class="dot" style="background:#ff9a3d"></span>Shops</div><div><span class="dot" style="background:#ff3040"></span>Police</div><div><span class="dot" style="background:#b98cff"></span>Story missions</div><div><span class="dot" style="background:#3dff9a"></span>Property for sale</div><div><span class="dot" style="background:#37e2ff"></span>Your property</div><div><span class="dot" style="background:#ffd23d"></span>Odd jobs</div>`;
     const list = h('div', 'map-events');
     for (const [gid, m] of Object.entries(g.story?.available() || {})) {
       const gv = g.story._giver(gid), c = CAST[gid];
       const d = h('div', '', `<b style="color:${c.color}">STORY · ${m.title}</b> <span style="color:var(--dim)">${c.name}</span>`);
       d.onclick = () => { g.setGPS(gv.x, gv.z); this.toast(`GPS set: ${c.name}`); };
+      list.appendChild(d);
+    }
+    for (const j of JOBS) {
+      const d = h('div', '', `<b style="color:${j.color}">JOB · ${j.label}</b> <span style="color:var(--dim)">${j.name}</span>`);
+      d.onclick = () => { g.setGPS(j.x, j.z); this.toast(`GPS set: ${j.name}`); };
+      list.appendChild(d);
+    }
+    for (const p of PROPERTIES) {
+      const own = g.empire.owns(p.id);
+      const d = h('div', '', `<b style="color:${own ? '#37e2ff' : '#3dff9a'}">${own ? 'OWNED' : 'FOR SALE'} · ${p.name}</b> <span style="color:var(--dim)">${p.kind === 'safehouse' ? 'safehouse' : `+${formatMoney(p.income)}/${INCOME_PERIOD / 60} min`}</span>${own ? '' : ` <span style="color:var(--ok)">${formatMoney(p.price)}</span>`}`);
+      d.onclick = () => { g.setGPS(p.x, p.z); this.toast(`GPS set: ${p.name}`); };
       list.appendChild(d);
     }
     for (const ev of g.races.events) {
@@ -411,6 +432,7 @@ export class UIManager {
       for (const sh of SHOPS) dot(sh.x, sh.z, 5, '#ff9a3d', sh.name);
       for (const u of g.police.units) dot(u.vehicle.state.x, u.vehicle.state.z, 4, '#ff3040');
       if (!g.story?.active) for (const [gid, m] of Object.entries(g.story?.available() || {})) { const gv = g.story._giver(gid); dot(gv.x, gv.z, 8, CAST[gid].color, `${CAST[gid].name}: ${m.title}`); }
+      for (const b of g.empire?.blips() || []) dot(b.x, b.z, 5, b.color, b.label);
       for (const b of g.story?.active ? g.story.blips() : []) dot(b.x, b.z, 6, b.color);
       const ps = g.focusState;
       const [px, pz] = P(ps.x, ps.z);

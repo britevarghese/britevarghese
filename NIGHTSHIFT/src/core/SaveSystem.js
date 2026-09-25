@@ -36,6 +36,10 @@ export class SaveSystem {
     // saves from before driver levels: turn earned reputation into XP once
     if (s && s.xp === undefined) this.data.xp = Math.round((s.reputation || 0) * 4);
     this.data.version = 2;
+    // open world: every car and bike is in everyone's garage from the start
+    for (const [id, car] of Object.entries(CARS)) {
+      if (!this.data.cars[id]) this.data.cars[id] = { custom: { ...DEFAULT_CUSTOM, ...(car.real ? { paint: 'factory', ...car.look } : {}) }, upgrades: { ...DEFAULT_UPGRADES } };
+    }
     for (const id of Object.keys(this.data.cars)) {
       const c = this.data.cars[id];
       c.custom = { ...DEFAULT_CUSTOM, ...(c.custom || {}) };

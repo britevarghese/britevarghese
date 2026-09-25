@@ -38,12 +38,8 @@ export class Progression {
   get rewardMult() { return 1 + 0.08 * (this.level - 1); }
 
   // ------------------------------------------------------------------ unlocks
-  isUnlocked(id) {
-    const u = CARS[id]?.unlock;
-    if (!u) return true;
-    if (u.mission) return !!this.save.data.missions[u.mission]?.done;
-    return this.level >= (u.level || 1);
-  }
+  // every car is unlocked (and owned: SaveSystem); kept for callers
+  isUnlocked() { return true; }
   unlockText(id) {
     const u = CARS[id]?.unlock;
     if (!u) return '';
@@ -65,8 +61,7 @@ export class Progression {
     bus.emit('progress:xp', { xp: this.save.data.xp, delta: n, reason });
     const after = this.level;
     if (after > before) {
-      const unlocked = Object.keys(CARS).filter((id) => CARS[id].unlock?.level && CARS[id].unlock.level > before && CARS[id].unlock.level <= after);
-      bus.emit('progress:level', { level: after, unlocked });
+      bus.emit('progress:level', { level: after, unlocked: [] });
     }
     this.save.markDirty();
     this._evaluate();

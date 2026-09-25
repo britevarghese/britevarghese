@@ -86,11 +86,23 @@ Saves live in each player's browser.
 
 ## Gameplay
 
-- **Story:** a GTA-style campaign in two chapters (12 missions). Mission givers (Tully, Mara
+- **Story:** a GTA-style campaign in three chapters (17 missions). Mission givers (Tully, Mara
   Voss, Deacon, Rosa Reyes) stand in the city with a coloured marker; walk or drive up and press
   E. Letterboxed cutscenes with subtitles, then objectives: steal and deliver cars, getaways,
   tailing, races, ramming targets off the road, timed pickups and convoy escorts, with phone
   calls, MISSION PASSED / FAILED and retry. Progress shows in *Career* and on the map.
+  Chapter 3, *Empire*, has you buy Club Neon as a front, protect your businesses, pull a vault
+  job and race Vex for the city.
+- **Empire:** ten properties for sale around the city (green markers). Safehouses are where you
+  wake up after a bust, and resting there saves the game and passes six hours. Businesses (car wash,
+  cab company, nightclub, freight, export pier, hotel) pay their income every four minutes of play.
+  Every car and bike is in your garage from the start; money goes on property and upgrades.
+- **Odd jobs:** taxi fares (pick up a waiting passenger, beat the clock, chained fares build a
+  tip bonus), courier runs (three parcels against the clock) and car exports (find the listed car,
+  steal it, deliver it; damage cuts the price). The matching business pays 50% more. Get out of the
+  car to stop working.
+- **Police:** they react to serious crimes a cop actually sees: big crashes, running red lights at
+  speed, carjacking in front of them, driving far over the limit. Driving normally is left alone.
 - **On foot:** get out anywhere, walk around, get back in, or carjack any traffic car (sedans,
   SUVs, vans, trucks, buses all drive). Cars you leave stay parked. Police chase you on foot too.
 - **Free roam:** the city has downtown, the Market District, Ironworks (industrial), Dockside

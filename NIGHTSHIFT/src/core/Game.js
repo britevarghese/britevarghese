@@ -25,6 +25,7 @@ import { RaceManager } from '../races/RaceManager.js';
 import { StreetRivals } from '../races/StreetRivals.js';
 import { OnFoot } from '../player/OnFoot.js';
 import { Story } from '../story/Story.js';
+import { Empire } from '../world/Empire.js';
 import { AudioManager } from '../audio/AudioManager.js';
 import { engineSoundFor } from '../audio/EngineSynth.js';
 import { MapRenderer } from '../ui/MapRenderer.js';
@@ -100,6 +101,7 @@ export class Game {
     this.rivals = new StreetRivals(this);
     this.onFoot = new OnFoot(this);
     this.story = new Story(this);
+    this.empire = new Empire(this);
     this.peds = new Pedestrians(this.scene, this.world.layout, preset.pedestrians);
     // realistic people (rigged characters): streamed in after the city, then used for the player on
     // foot, other players, mission contacts and the pedestrians nearest the camera
@@ -217,7 +219,8 @@ export class Game {
         this.camCtl.addShake(clamp(e.impact / 25, 0, 0.8));
         this.input.rumble(0.8, 0.5, 200);
         this._dentPlayer(e.x, e.z, clamp(e.impact / 25, 0, 1));
-        if (e.impact > 6) { this.police.reportInfraction('hitCivilian', 1); this.progress.chain.crash(); }
+        if (e.impact > 6) this.progress.chain.crash();
+        if (e.impact > 13) this.police.reportInfraction('hitCivilian', 1, 45); // a real smash, not a scrape
       }
     });
     // knocked-over street furniture (any physics vehicle can do it)
@@ -233,7 +236,6 @@ export class Game {
       if (Math.hypot(p.x - s.x, p.z - s.z) < 7) {
         this.camCtl.addShake(lamp ? 0.3 * k : 0.04);
         this.input.rumble(lamp ? 0.6 : 0.2, 0.3, lamp ? 160 : 60);
-        if (lamp) this.police.reportInfraction('vandalism', 0.5);
       }
     });
     bus.on('prop:restore', (cs) => this.debris.restore(cs.map((c) => c.prop).filter(Boolean)));
@@ -349,7 +351,7 @@ export class Game {
     this.camCtl.snap(this.player);
     document.getElementById('hud').classList.remove('hidden');
     this.audio.setPaused(false);
-    this.ui.toast(Object.keys(this.save.data.story?.done || {}).length ? 'Story missions: follow the coloured markers on the minimap. F gets you out of the car.' : 'Tully has work for you: follow the orange marker on the minimap. F gets you out of the car; races are the yellow rings.', '', 7);
+    this.ui.toast(Object.keys(this.save.data.story?.done || {}).length ? 'Story missions: follow the coloured markers on the minimap. Buy property at the green markers, earn cash at the odd-job stands. F gets you in and out of cars.' : 'Port Halvern is yours to explore: every car is in your garage (G). Tully has work for you (orange marker); green markers are property for sale, and the stands on the map pay for taxi fares, courier runs and car exports. F gets you in and out of cars.', '', 9);
   }
   pause() {
     if (this.state.mode !== 'drive') return;
@@ -539,6 +541,7 @@ export class Game {
       // races may override controls during countdown
       this.races.update(dt);
       this.story.update(dt, input, driving);
+      this.empire.update(dt, input, driving);
       this.rivals.update(dt, driving && !this.story.active);
       const events = player.update(dt);
       this._playerEvents(events, dt);
@@ -577,7 +580,7 @@ export class Game {
       if (mode === 'busted') this._bustedUpdate(dt);
       // world interaction prompts (events, garages)
       if (driving && !this.onFoot.active) this._interactions();
-      if (driving) this.story.late();
+      if (driving) { this.empire.late(); this.story.late(); }
       if (driving) this.replay.record(dt);
       this.net.update(dt);
     }
@@ -696,7 +699,7 @@ export class Game {
     if (this.onFoot?.active) return;
     const s = this.player.state;
     const sp = Math.hypot(s.vx, s.vz);
-    if (sp < 9) return;
+    if (sp < 14) return; // blowing a red at speed, not creeping through
     const L = this.world.layout;
     const k = Math.round(s.x / 160), l = Math.round(s.z / 160);
     const n = L.nodeMap.get(`${k * 160},${l * 160}`);
@@ -707,7 +710,7 @@ export class Game {
     if (this.signalMemo.has(key)) return;
     this.signalMemo.add(key);
     const axis = Math.abs(s.vx) > Math.abs(s.vz) ? 'x' : 'z';
-    if (this.world.signalState(n.id, axis) === 'red') this.police.reportInfraction('redLight', 1);
+    if (this.world.signalState(n.id, axis) === 'red') this.police.reportInfraction('redLight', 1, 40);
   }
 
   _interactions() {
@@ -746,7 +749,9 @@ export class Game {
       this.camCtl.cinematic = null;
       this.player.state.damage = 0;
       this.player.renderer.repair();
-      const spot = this._laneSpot(SAFEHOUSES[0].x, SAFEHOUSES[0].z);
+      // wake up at the nearest safehouse you own
+      const home = this.empire.respawnSpot(this.player.state.x, this.player.state.z) || SAFEHOUSES[0];
+      const spot = this._laneSpot(home.x, home.z);
       this.player.place(spot.x, spot.z, spot.yaw);
       this.police.clearAll();
       this.camCtl.snap(this.player);

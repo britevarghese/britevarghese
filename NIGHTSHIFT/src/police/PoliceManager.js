@@ -117,10 +117,10 @@ export class PoliceManager {
   }
 
   // --------------------------------------------------------------------------- public events
-  reportInfraction(kind, severity = 1) {
+  // range: how close a cop must be (with line of sight) to notice; minor things need a cop right there
+  reportInfraction(kind, severity = 1, range = 60) {
     if (!this.enabled) return;
-    // only counts if a unit can see it
-    const seen = this._anyUnitSees(80);
+    const seen = this._anyUnitSees(range);
     if (!seen && this.state === 'idle') return;
     this.infractions += severity;
     if (this.state === 'idle') this.startPursuit(1, kind);
@@ -235,11 +235,11 @@ export class PoliceManager {
       this.detectT -= dt;
       if (this.detectT <= 0) {
         this.detectT = 0.4;
-        const seer = this._anyUnitSees(75);
-        if (seer) {
-          const racing = game.races?.active?.state === 'racing' && game.races.active.def.type !== 'timetrial';
-          if (pSpeed > 31 || racing) this.startPursuit(1, racing ? 'street racing' : 'speeding');
-        }
+        // speeding: well over the limit (~140 km/h), held for a moment in front of a patrol car
+        const seer = this._anyUnitSees(60);
+        const racing = game.races?.active?.state === 'racing' && game.races.active.def.type !== 'timetrial';
+        this.speedT = seer && (pSpeed > 39 || racing) ? (this.speedT || 0) + 0.4 : 0;
+        if (this.speedT >= 1.2) { this.speedT = 0; this.startPursuit(1, racing ? 'street racing' : 'speeding'); }
       }
     } else {
       this.pursuitTime += dt;
