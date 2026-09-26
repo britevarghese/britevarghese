@@ -109,6 +109,10 @@ Saves live in each player's browser.
   warehouses, Elm Heights (suburbs), a riverside with bridges, a tunnel, a parking deck, a
   construction zone with jumps, and a six-lane ring highway. Day and night follow your real
   local time by default (or a 48-minute game clock, or a fixed time) with dynamic weather.
+- **Suburbs:** Elm Heights houses face their streets in five siding colours, with attached garages,
+  driveways (often with a car on them), porches, picket fences or hedges and mailboxes; back yards
+  have privacy fences, pools and sheds. Cars parked along streets, in lots and on driveways are drawn
+  and solid.
 - **Countryside:** beyond the ring highway the world opens up (about 6.8 km across, with mountains
   on the horizon out to 15 km). The Halvern Range rises to the north and west with snow on the peaks;
   Summit Drive climbs to an observatory and radio masts past a giant PORT HALVERN hillside sign. To

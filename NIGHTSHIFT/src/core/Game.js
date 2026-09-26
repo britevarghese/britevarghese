@@ -18,7 +18,7 @@ import { VehiclePhysics } from '../physics/VehiclePhysics.js';
 import { CameraController, CAMERA_MODES } from '../camera/CameraController.js';
 import { PhotoMode } from '../camera/PhotoMode.js';
 import { Replay } from '../replay/Replay.js';
-import { TrafficManager } from '../traffic/TrafficManager.js';
+import { TrafficManager , TRAFFIC_COLORS } from '../traffic/TrafficManager.js';
 import { TrafficRenderer } from '../traffic/TrafficRenderer.js';
 import { PoliceManager } from '../police/PoliceManager.js';
 import { RaceManager } from '../races/RaceManager.js';
@@ -129,7 +129,7 @@ export class Game {
       if (this.traffic.renderer) return;
       const types = ['sedan', 'suv', 'van', 'truck', 'bus'].filter((t) => this.lib.has(t));
       if (!types.length) return;
-      this.trafficRenderer = new TrafficRenderer(this.scene, this.lib, types, Math.max(12, Math.ceil(this.preset.traffic * 0.8)));
+      this.trafficRenderer = new TrafficRenderer(this.scene, this.lib, types, Math.max(12, Math.ceil(this.preset.traffic * 0.8)) + 24);
       this.traffic.setRenderer(this.trafficRenderer);
       this.traffic.enabled = true;
     };
@@ -412,6 +412,22 @@ export class Game {
     this.player.state.nitro = 1;
     this.races.start(ev);
   }
+  // cars the city planner parked along streets, in lots and on driveways: the nearest ones are drawn
+  // through the traffic renderer (they already have colliders)
+  _parkedNear(dt) {
+    this._pkT = (this._pkT || 0) - dt;
+    const cp = this.camera.position;
+    if (this._pkT <= 0 || !this._pk) {
+      this._pkT = 0.5;
+      const all = this.world.planner.parked, near = [];
+      for (const c of all) { const d = Math.hypot(c.x - cp.x, c.z - cp.z); if (d < 170) near.push([d, c]); }
+      near.sort((a, b) => a[0] - b[0]);
+      this._pk = near.slice(0, 36).map(([d, c]) => (c._r ||= { type: c.type, x: c.x, y: this.world.layout.groundHeight(c.x, c.z), z: c.z, yaw: c.rot, pitch: 0, roll: 0, color: new THREE.Color(TRAFFIC_COLORS[c.color % TRAFFIC_COLORS.length]), brake: 0, spin: 0, lod: 0, dist: d, parked: true }));
+    }
+    for (const r of this._pk) { r.dist = Math.hypot(r.x - cp.x, r.z - cp.z); r.lod = r.dist < this.preset.carLod1Distance ? 0 : 1; }
+    return this._pk;
+  }
+
   setGPS(x, z) {
     const L = this.world.layout;
     const s = this.player.state;
@@ -626,7 +642,10 @@ export class Game {
     this.fx.setLight(this.env.state.night);
     this.fx.update(simulate ? dt : 0, this.camera);
     this.debris.update(simulate ? dt : 0);
-    if (this.trafficRenderer) this.trafficRenderer.update(this.replay.active ? this.replay.trafficList : this.traffic.renderList, this.camera, this.env.state.night, this.world.lights);
+    if (this.trafficRenderer) {
+      const moving = this.replay.active ? this.replay.trafficList : this.traffic.renderList;
+      this.trafficRenderer.update(moving.concat(this._parkedNear(dt)), this.camera, this.env.state.night, this.world.lights);
+    }
     this._wetReflections([player, ...this.police.vehicles(), ...this.races.vehicles(), ...this.rivals.vehicles()]);
     this.peds.update(simulate ? dt : 0, this.camera, [player, ...this.police.vehicles()], this.preset.pedestrians > 0);
     // audio

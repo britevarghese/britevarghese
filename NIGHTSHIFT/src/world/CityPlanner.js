@@ -7,7 +7,8 @@ import {
 } from './CityLayout.js';
 
 // Facade styles (indices into the facade material library)
-export const FACADE = { GLASS: 0, OFFICE: 1, BRICK: 2, METAL: 3, DARK: 4, HOUSE: 5, CONCRETE: 6 };
+export const FACADE = { GLASS: 0, OFFICE: 1, BRICK: 2, METAL: 3, DARK: 4, HOUSE: 5, CONCRETE: 6, HOUSE_BLUE: 7, HOUSE_SAGE: 8, HOUSE_CREAM: 9, HOUSE_ROSE: 10 };
+const HOUSE_STYLES = [5, 7, 8, 9, 10];
 
 // half extents of knock-away street clutter
 const SMALL_PROPS = { meter: [0.15, 0.15], bin: [0.3, 0.3], bench: [0.9, 0.25], hydrant: [0.18, 0.18], bollard: [0.12, 0.12], cone: [0.2, 0.2], stopSign: [0.12, 0.12], speedSign: [0.12, 0.12] };
@@ -20,6 +21,7 @@ export class CityPlanner {
     this.colliders = [];   // {cx, cz, hx, hz, cos, sin, h, kind}
     this.lightPools = [];  // {x, z, r, color, i}
     this.parked = [];      // parked cars {x, z, rot, type, color}
+    this.yards = [];       // back-yard features {kind: 'pool'|'shed', x0, z0, x1, z1}
     for (const b of layout.blocks) this._planBlock(b);
     this._planStreets();
     this._planHighway();
@@ -27,6 +29,7 @@ export class CityPlanner {
     this._planTunnel();
     this._planSpecial();
     this._planCountry();
+    for (const c of this.parked) this.collider(c.x, c.z, 0.95, 2.3, c.rot, CURB_H + 1.5, 'car');
     // street clutter gets tiny "knock-away" colliders so cars don't ghost through it
     for (const p of this.props) {
       const size = SMALL_PROPS[p.type];
@@ -112,7 +115,8 @@ export class CityPlanner {
     for (const lot of b.lots) {
       if (lot.empty) continue;
       if (lot.courtyard) {
-        if (R() < 0.5 && lot.w > 16 && lot.d > 16) this._parkingPatch(lot, R);
+        if (d === 'suburban') this._backyard(lot, R);
+        else if (R() < 0.5 && lot.w > 16 && lot.d > 16) this._parkingPatch(lot, R);
         continue;
       }
       const sides = [];
@@ -211,22 +215,90 @@ export class CityPlanner {
     return { x0, z0, x1, z1, parts, style: parts[0].style, roof: 'flat', height: h, warehouse: true };
   }
 
+  // A suburban home that faces its street: front lawn, driveway to an attached garage (often a car on
+  // it), a porch at the front door, a picket fence or hedge along the front, trees. Yard features are
+  // kept on the building (bld.yard) for the chunk builder.
   _house(l, R, sides) {
-    const w = Math.min(l.w - 4, R.range(8, 13)), d = Math.min(l.d - 4, R.range(8, 12));
-    if (w < 6 || d < 6) return null;
-    const cx = (l.x0 + l.x1) / 2 + R.range(-1, 1), cz = (l.z0 + l.z1) / 2 + R.range(-1, 1);
-    const x0 = cx - w / 2, x1 = cx + w / 2, z0 = cz - d / 2, z1 = cz + d / 2;
-    const floors = R() < 0.55 ? 2 : 1;
-    const h = floors * 3 + 0.4;
-    const ridgeAlongX = w > d;
-    const parts = [{ x0, z0, x1, z1, y0: 0, y1: h, style: FACADE.HOUSE }];
-    // trees and hedges in the yard
-    for (let i = 0; i < 2; i++) if (R() < 0.7) {
-      const tx = R() < 0.5 ? R.range(l.x0 + 1, x0 - 1) : R.range(x1 + 1, l.x1 - 1);
-      const tz = R.range(l.z0 + 1.5, l.z1 - 1.5);
-      if (tx > l.x0 + 1 && tx < l.x1 - 1) { this.prop('tree', tx, tz, R() * 6.28, { s: R.range(0.7, 1.1), y: CURB_H }); this.collider(tx, tz, 0.35, 0.35, 0, 6, 'tree'); }
+    const front = sides.find((s2) => s2 === 's' || s2 === 'n') || sides[0] || 's';
+    const alongX = front === 's' || front === 'n';
+    // local frame: u along the street, v away from it (0 at the front edge)
+    const U0 = alongX ? l.x0 : l.z0, U1 = alongX ? l.x1 : l.z1;
+    const V0 = { s: l.z0, n: l.z1, w: l.x0, e: l.x1 }[front], vdir = front === 's' || front === 'w' ? 1 : -1;
+    const Dv = alongX ? l.d : l.w, Wu = U1 - U0;
+    const W = (u, v) => (alongX ? [u, V0 + vdir * v] : [V0 + vdir * v, u]); // local -> world [x, z]
+    const rect = (u0, u1, v0, v1) => { const [ax, az] = W(u0, v0), [bx, bz] = W(u1, v1); return { x0: Math.min(ax, bx), x1: Math.max(ax, bx), z0: Math.min(az, bz), z1: Math.max(az, bz) }; };
+    const garageW = 6.2, hw = Math.min(Wu - garageW - 3.5, R.range(9, 13)), hd = Math.min(Dv - 12, R.range(8, 11));
+    if (hw < 6.5 || hd < 6) {
+      // narrow lot: a small house in the middle, no garage
+      const w = Math.min(l.w - 4, R.range(7, 10)), d = Math.min(l.d - 4, R.range(7, 10));
+      if (w < 6 || d < 6) return null;
+      const cx = (l.x0 + l.x1) / 2, cz = (l.z0 + l.z1) / 2;
+      const parts = [{ x0: cx - w / 2, z0: cz - d / 2, x1: cx + w / 2, z1: cz + d / 2, y0: 0, y1: 3.4, style: FACADE.HOUSE }];
+      return { ...parts[0], parts, style: FACADE.HOUSE, roof: 'gable', ridgeAlongX: w > d, roofH: R.range(2, 3), height: 3.4, house: true, color: R.int(0, 5), sides };
     }
-    return { x0, z0, x1, z1, parts, style: FACADE.HOUSE, roof: 'gable', ridgeAlongX, roofH: R.range(2, 3.2), height: h, house: true, color: R.int(0, 5), sides };
+    const setback = Math.min(Dv - hd - 3, R.range(6.5, 9));
+    const garageLeft = R() < 0.5;
+    const gap = (Wu - hw - garageW) / 2;
+    const hu0 = U0 + gap + (garageLeft ? garageW : 0), hu1 = hu0 + hw;
+    const gu0 = garageLeft ? hu0 - garageW : hu1, gu1 = gu0 + garageW;
+    const floors = R() < 0.6 ? 2 : 1, h = floors * 3 + 0.4;
+    const hs = R.pick(HOUSE_STYLES);
+    const main = { ...rect(hu0, hu1, setback, setback + hd), y0: 0, y1: h, style: hs };
+    const gvFront = setback - R.range(0, 1.5);
+    const garage = { ...rect(gu0, gu1, gvFront, gvFront + 6.8), y0: 0, y1: 3.1, style: hs, garage: true };
+    const parts = [main, garage];
+    const all = { x0: Math.min(main.x0, garage.x0), x1: Math.max(main.x1, garage.x1), z0: Math.min(main.z0, garage.z0), z1: Math.max(main.z1, garage.z1) };
+    // yard: driveway from the garage door to the street, porch, front walk, fence or hedge along the front
+    const door = (hu0 + hu1) / 2 + (garageLeft ? 1.5 : -1.5);
+    const yard = {
+      front, alongX, vdir,
+      driveway: rect(gu0 + 0.4, gu1 - 0.4, -0.2, gvFront),
+      walk: rect(door - 0.7, door + 0.7, -0.2, setback - 1.8),
+      porch: { ...rect(door - 1.9, door + 1.9, setback - 1.8, setback), h: 0.35 },
+      door: { ...W(door, setback - 0.02), w: 1.0 },
+      garageDoor: { ...W((gu0 + gu1) / 2, gvFront - 0.02), w: 4.6 },
+      edge: R() < 0.55 ? 'fence' : R() < 0.7 ? 'hedge' : null,
+      fence: [],
+    };
+    // front boundary, open at the driveway and the walk
+    const segs = [[U0 + 0.3, Math.min(gu0, door - 0.7)], [Math.max(gu0, door - 0.7), Math.min(gu1, door + 0.7)], [Math.max(gu1, door + 0.7), U1 - 0.3]];
+    for (const [a, b2] of [[U0 + 0.3, Math.min(gu0, door - 0.8)], [Math.max(gu1, door + 0.8), U1 - 0.3]]) if (b2 - a > 1) yard.fence.push([...W(a, 0.4), ...W(b2, 0.4)]);
+    void segs;
+    // a car on the driveway
+    if (R() < 0.55) { const [cx, cz] = W((gu0 + gu1) / 2, gvFront - 3.2); this.parked.push({ x: cx, z: cz, rot: alongX ? (vdir > 0 ? 0 : Math.PI) : (vdir > 0 ? Math.PI / 2 : -Math.PI / 2), type: R.pick(['sedan', 'sedan', 'suv', 'suv', 'van']), color: R.int(0, 11), driveway: true }); }
+    // front-yard tree, back-yard trees
+    const treeSpots = [[garageLeft ? hu1 + (U1 - hu1) / 2 : U0 + (hu0 - U0) / 2, setback * 0.5], [U0 + R.range(2, Wu - 2), setback + hd + R.range(2, Math.max(2.5, Dv - setback - hd - 1.5))]];
+    for (const [u, v] of treeSpots) if (R() < 0.8) {
+      const [tx, tz] = W(u, v);
+      if (tx > l.x0 + 1 && tx < l.x1 - 1 && tz > l.z0 + 1 && tz < l.z1 - 1 && !(tx > all.x0 - 1.5 && tx < all.x1 + 1.5 && tz > all.z0 - 1.5 && tz < all.z1 + 1.5)) {
+        this.prop('tree', tx, tz, R() * 6.28, { s: R.range(0.75, 1.15), y: CURB_H }); this.collider(tx, tz, 0.35, 0.35, 0, 6, 'tree');
+      }
+    }
+    // mailbox by the driveway
+    { const [mx, mz] = W(garageLeft ? gu1 + 0.6 : gu0 - 0.6, 0.6); yard.mailbox = { x: mx, z: mz }; }
+    return { ...all, parts, style: hs, roof: 'gable', ridgeAlongX: alongX, roofH: R.range(2.2, 3.4), height: h, house: true, color: R.int(0, 5), sides, yard };
+  }
+
+  // interior suburban lots are back yards: a pool with a paved surround, a shed, trees
+  _backyard(l, R) {
+    if (l.w < 12 || l.d < 12) return;
+    this.yards.push({ kind: 'fence', x0: l.x0 + 0.3, x1: l.x1 - 0.3, z0: l.z0 + 0.3, z1: l.z1 - 0.3 });
+    const cx = (l.x0 + l.x1) / 2 + R.range(-2, 2), cz = (l.z0 + l.z1) / 2 + R.range(-2, 2);
+    if (R() < 0.6) {
+      const pw = R.range(4, 6.5), pl = R.range(7, 10), along = R() < 0.5;
+      const hx = (along ? pl : pw) / 2, hz = (along ? pw : pl) / 2;
+      this.yards.push({ kind: 'pool', x0: cx - hx, x1: cx + hx, z0: cz - hz, z1: cz + hz });
+    }
+    if (R() < 0.5) {
+      const sx = R() < 0.5 ? l.x0 + 3 : l.x1 - 3, sz = R() < 0.5 ? l.z0 + 3 : l.z1 - 3;
+      this.yards.push({ kind: 'shed', x0: sx - 1.4, x1: sx + 1.4, z0: sz - 1.1, z1: sz + 1.1 });
+      this.collider(sx, sz, 1.4, 1.1, 0, CURB_H + 2.4, 'building');
+    }
+    for (let i = 0; i < 2; i++) if (R() < 0.7) {
+      const tx = R.range(l.x0 + 2, l.x1 - 2), tz = R.range(l.z0 + 2, l.z1 - 2);
+      if (Math.abs(tx - cx) < 7 && Math.abs(tz - cz) < 7) continue;
+      this.prop('tree', tx, tz, R() * 6.28, { s: R.range(0.8, 1.2), y: CURB_H }); this.collider(tx, tz, 0.35, 0.35, 0, 6, 'tree');
+    }
   }
 
   _parkingPatch(lot, R) {

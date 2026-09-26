@@ -89,13 +89,14 @@ export class Materials {
         name: 'facade_' + def.name, map: F.map, emissiveMap: F.emissiveMap, emissive: 0xffffff, emissiveIntensity: 1,
         roughnessMap: F.ormMap, metalnessMap: F.ormMap, roughness: 1, metalness: 1,
         normalMap: lowEnd ? null : F.normalMap, normalScale: new THREE.Vector2(0.8, 0.8), envMapIntensity: def.metal ? 1.2 : 0.6,
+        color: def.tint || 0xffffff,
       });
     });
     if (!lowEnd) this.facades.forEach(addFacadeGrade);
     // far/LOD version: no normal/roughness maps (cheaper)
     this.facadesFar = TX.FACADE_DEF.map((def, i) => {
       const F = TX.facade(i);
-      return new THREE.MeshLambertMaterial({ name: 'facadeFar_' + def.name, map: F.map, emissiveMap: F.emissiveMap, emissive: 0xffffff, emissiveIntensity: 1 });
+      return new THREE.MeshLambertMaterial({ name: 'facadeFar_' + def.name, map: F.map, emissiveMap: F.emissiveMap, emissive: 0xffffff, emissiveIntensity: 1, color: def.tint || 0xffffff });
     });
     if (!lowEnd) this.facadesFar.forEach(addFacadeGrade);
     const SF = TX.storefront();
@@ -124,6 +125,14 @@ export class Materials {
     this.orange = new THREE.MeshStandardMaterial({ name: 'orange', color: 0xff5a10, roughness: 0.6 });
     this.white = new THREE.MeshStandardMaterial({ name: 'white', color: 0xdddddd, roughness: 0.6 });
     this.bark = new THREE.MeshStandardMaterial({ name: 'bark', color: 0x3a2c22, roughness: 1 });
+    // suburban yards: sectional garage doors, front doors, picket fences, hedges, pools
+    this.garageDoor = new THREE.MeshStandardMaterial({ name: 'garageDoor', map: TX.garageDoor(), roughness: 0.8, metalness: 0, color: 0xb8b4ac, envMapIntensity: 0.4 });
+    this.frontDoor = new THREE.MeshStandardMaterial({ name: 'frontDoor', map: TX.frontDoor(), roughness: 0.6 });
+    this.picket = new THREE.MeshStandardMaterial({ name: 'picket', map: TX.picketFence(), alphaTest: 0.5, side: THREE.DoubleSide, roughness: 0.7 });
+    this.hedge = new THREE.MeshStandardMaterial({ name: 'hedge', map: TX.grass().map, color: 0x6f9a52, roughness: 1 });
+    this.poolWater = new THREE.MeshStandardMaterial({ name: 'poolWater', color: 0x3fc4dc, roughness: 0.05, metalness: 0.1, normalMap: TX.waterNormal(), normalScale: new THREE.Vector2(0.25, 0.25), envMapIntensity: 1.2, emissive: 0x0a3a48, emissiveIntensity: 0.35 });
+    this.shedWood = new THREE.MeshStandardMaterial({ name: 'shedWood', color: 0x8a6a48, roughness: 0.9 });
+    this.fenceWood = new THREE.MeshStandardMaterial({ name: 'fenceWood', map: TX.woodFence(), color: 0xb09070, roughness: 0.95, side: THREE.DoubleSide });
     // leaf cards are emitted front+back with crown-space normals, so single-sided is correct
     this.leaves = new THREE.MeshStandardMaterial({ name: 'leaves', map: TX.leaves(), alphaTest: 0.4, roughness: 0.85, color: 0xaebd98 });
     this.lampHead = new THREE.MeshBasicMaterial({ name: 'lampHead', color: 0xffe6b8, toneMapped: false });

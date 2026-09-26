@@ -38,6 +38,12 @@ export class ChunkBuilder {
       if (!this.ringByChunk.has(k)) this.ringByChunk.set(k, []);
       this.ringByChunk.get(k).push([a, b, pts[(i - 1 + pts.length) % pts.length], pts[(i + 2) % pts.length]]);
     }
+    this.yardsByChunk = new Map();
+    for (const y of planner.yards || []) {
+      const k = `${Math.floor(((y.x0 + y.x1) / 2) / CHUNK)},${Math.floor(((y.z0 + y.z1) / 2) / CHUNK)}`;
+      if (!this.yardsByChunk.has(k)) this.yardsByChunk.set(k, []);
+      this.yardsByChunk.get(k).push(y);
+    }
     this.propsByChunk = new Map();
     for (const p of planner.props) {
       const k = `${Math.floor(p.x / CHUNK)},${Math.floor(p.z / CHUNK)}`;
@@ -155,6 +161,8 @@ export class ChunkBuilder {
     const blds = this.buildingsByChunk.get(`${ci},${cj}`) || [];
     const R = rng(ci * 7919 + cj * 104729);
     for (const bld of blds) this._building(B, bld, R);
+    for (const bld of blds) if (bld.yard) this._yard(B, bld);
+    for (const y of this.yardsByChunk.get(`${ci},${cj}`) || []) this._yardFeature(B, y);
 
     // --- tunnel & hill ---
     if (TUNNEL.x >= x0 && TUNNEL.x < x1 && TUNNEL.z0 >= z0 && TUNNEL.z0 < z1) this._tunnel(B);
@@ -167,6 +175,64 @@ export class ChunkBuilder {
     }
     group.userData.meshes = meshes;
     return group;
+  }
+
+  // suburban front yard: driveway, front walk, porch with posts and a little roof, front and garage
+  // doors on the walls, a picket fence or a hedge along the street, a mailbox
+  _yard(B, bld) {
+    const M = this.M, Y = bld.yard, g = CURB_H;
+    // outward normal of the street-facing walls, and the tangent that makes GeoBuilder.wall face it
+    const n = Y.alongX ? [0, -Y.vdir] : [-Y.vdir, 0], t = [n[1], -n[0]];
+    const conc = B.get(M.sidewalk);
+    for (const r of [Y.driveway, Y.walk]) conc.flat(r.x0, r.z0, r.x1, r.z1, g + 0.012, 1 / 6);
+    const P = Y.porch;
+    B.get(M.concreteWall).box(P.x0, g, P.z0, P.x1, g + P.h, P.z1, 1 / 4);
+    // porch roof and posts at the street-side corners
+    const white = B.get(M.white);
+    const ov = 0.25;
+    B.get(M.roof).box(P.x0 - ov, g + 2.75, P.z0 - ov, P.x1 + ov, g + 2.9, P.z1 + ov, 1 / 4, true);
+    const fz = n[1] < 0 ? P.z0 : n[1] > 0 ? P.z1 : null, fx = n[0] < 0 ? P.x0 : n[0] > 0 ? P.x1 : null;
+    const posts = fz !== null ? [[P.x0 + 0.2, fz - n[1] * 0.2], [P.x1 - 0.2, fz - n[1] * 0.2]] : [[fx - n[0] * 0.2, P.z0 + 0.2], [fx - n[0] * 0.2, P.z1 - 0.2]];
+    for (const [x, z] of posts) white.box(x - 0.09, g + P.h, z - 0.09, x + 0.09, g + 2.75, z + 0.09, 1 / 4);
+    // doors, a hair in front of the wall
+    const door = (d, w, h, mat) => {
+      const cx = d.x + n[0] * 0.03, cz = d.z + n[1] * 0.03;
+      B.get(mat).wall(cx - t[0] * w / 2, cz - t[1] * w / 2, cx + t[0] * w / 2, cz + t[1] * w / 2, g + (mat === M.frontDoor ? P.h : 0.01), g + h, 1 / w, 1 / (h - (mat === M.frontDoor ? P.h : 0)));
+    };
+    door(Y.door, Y.door.w, 2.45, M.frontDoor);
+    door(Y.garageDoor, Y.garageDoor.w, 2.35, M.garageDoor);
+    // front boundary
+    for (const [ax, az, bx, bz] of Y.fence) {
+      if (Y.edge === 'fence') {
+        B.get(M.picket).wall(ax, az, bx, bz, g, g + 1.0, 1 / 2, 1 / 1.0);
+      } else if (Y.edge === 'hedge') {
+        const x0 = Math.min(ax, bx) - (Y.alongX ? 0 : 0.45), x1 = Math.max(ax, bx) + (Y.alongX ? 0 : 0.45);
+        const z0 = Math.min(az, bz) - (Y.alongX ? 0.45 : 0), z1 = Math.max(az, bz) + (Y.alongX ? 0.45 : 0);
+        B.get(M.hedge).box(x0, g, z0, x1, g + 1.15, z1, 1 / 3);
+      }
+    }
+    if (Y.mailbox) {
+      const { x, z } = Y.mailbox, dm = B.get(M.darkMetal);
+      dm.box(x - 0.05, g, z - 0.05, x + 0.05, g + 1.0, z + 0.05, 1 / 4);
+      dm.box(x - 0.2, g + 1.0, z - 0.2, x + 0.2, g + 1.3, z + 0.2, 1 / 4);
+    }
+  }
+
+  // back-yard pools (tiled surround, bright water) and garden sheds
+  _yardFeature(B, y) {
+    const M = this.M, g = CURB_H;
+    if (y.kind === 'pool') {
+      const c = 0.8, conc = B.get(M.sidewalk);
+      conc.flat(y.x0 - c, y.z0 - c, y.x1 + c, y.z0, g + 0.05, 1 / 4); conc.flat(y.x0 - c, y.z1, y.x1 + c, y.z1 + c, g + 0.05, 1 / 4);
+      conc.flat(y.x0 - c, y.z0, y.x0, y.z1, g + 0.05, 1 / 4); conc.flat(y.x1, y.z0, y.x1 + c, y.z1, g + 0.05, 1 / 4);
+      B.get(M.poolWater).flat(y.x0, y.z0, y.x1, y.z1, g + 0.03, 1 / 6);
+    } else if (y.kind === 'fence') {
+      // wooden privacy fence around a back yard (seen from both sides)
+      B.get(M.fenceWood).ring(y.x0, y.z0, y.x1, y.z1, g, g + 1.7, 1 / 2, 1 / 1.7);
+    } else if (y.kind === 'shed') {
+      B.get(M.shedWood).ring(y.x0, y.z0, y.x1, y.z1, g, g + 2.2, 1 / 2, 1 / 2);
+      B.get(M.roof).box(y.x0 - 0.2, g + 2.2, y.z0 - 0.2, y.x1 + 0.2, g + 2.4, y.z1 + 0.2, 1 / 4);
+    }
   }
 
   _block(B, b) {
@@ -351,7 +417,7 @@ export class ChunkBuilder {
     const o = 0.4; // overhang
     const y = p.y1, rh = bld.roofH;
     const x0 = p.x0 - o, x1 = p.x1 + o, z0 = p.z0 - o, z1 = p.z1 + o;
-    const wall = B.get(M.facades[FACADE.HOUSE]);
+    const wall = B.get(M.facades[p.style ?? FACADE.HOUSE]);
     if (bld.ridgeAlongX) {
       const zm = (p.z0 + p.z1) / 2;
       const n1 = new THREE.Vector3(0, (z1 - zm), rh).normalize(), n2 = new THREE.Vector3(0, (zm - z0), -rh).normalize();

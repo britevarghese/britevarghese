@@ -104,7 +104,7 @@ export class TrafficRenderer {
   update(cars, camera, night, refl = null) {
     const counts = {};
     let wi = 0, gi = 0, ti = 0, bi = 0;
-    const lightsOn = night > 0.35;
+    const lightsOnAll = night > 0.35;
     const cq = camera.quaternion;
     for (const c of cars) {
       const T = this.types[c.type];
@@ -118,6 +118,7 @@ export class TrafficRenderer {
       _q.setFromEuler(_e);
       _m.compose(_p.set(c.x, c.y, c.z), _q, _s.set(1, 1, 1));
       const meshes = T.lods[lod];
+      const lightsOn = lightsOnAll && !c.parked; // parked cars sit dark
       for (const [k, mesh] of Object.entries(meshes)) {
         mesh.setMatrixAt(n, _m);
         if (k === 'paint') mesh.setColorAt(n, c.color);

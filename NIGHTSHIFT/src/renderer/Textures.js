@@ -206,8 +206,11 @@ export const FACADE_DEF = [
   { name: 'house', colW: 3.4, floorH: 3.0, frame: '#f0ece4', glass: '#1b1f22', wall: '#b9ad97', winW: 0.4, winH: 0.45, lit: 0.5, litColors: ['#ffc070', '#ffd898'], siding: true },
   { name: 'concrete', colW: 3.2, floorH: 3.5, frame: '#5b5d5f', glass: '#171c21', wall: '#9a9894', winW: 0.55, winH: 0.5, lit: 0.33, litColors: ['#fff2cc', '#e0ecff'] },
 ];
+// house siding colours: the 'house' textures, tinted per material (no extra texture memory)
+for (const [name, tint] of [['houseBlue', '#a9c0d8'], ['houseSage', '#c4d4b0'], ['houseCream', '#fff4dc'], ['houseRose', '#e8c0b4']]) FACADE_DEF.push({ ...FACADE_DEF[5], name, tintOf: 5, tint });
 
 export function facade(style) {
+  if (FACADE_DEF[style]?.tintOf !== undefined) return facade(FACADE_DEF[style].tintOf);
   return cached('facade' + style, () => {
     const def = FACADE_DEF[style];
     const n = SIZE;
@@ -871,5 +874,46 @@ export function signAtlas() {
     // light grime
     for (let i = 0; i < 400; i++) { ctx.fillStyle = `rgba(40,40,40,${Math.random() * 0.06})`; ctx.fillRect(Math.random() * w, Math.random() * h, 3, 3); }
     return tex(c, { repeat: false });
+  });
+}
+
+// ------------------------------------------------------------------ suburban yard textures
+export function garageDoor() {
+  return cached('garageDoor', () => {
+    const c = canvas(128, 128), g = c.getContext('2d');
+    g.fillStyle = '#e8e6e0'; g.fillRect(0, 0, 128, 128);
+    for (let i = 1; i < 4; i++) { g.fillStyle = 'rgba(0,0,0,0.28)'; g.fillRect(0, i * 32 - 2, 128, 3); g.fillStyle = 'rgba(255,255,255,0.5)'; g.fillRect(0, i * 32 + 1, 128, 1); }
+    for (let r = 0; r < 4; r++) for (let k = 0; k < 4; k++) { g.strokeStyle = 'rgba(0,0,0,0.12)'; g.strokeRect(6 + k * 30, r * 32 + 6, 26, 20); }
+    g.fillStyle = 'rgba(0,0,0,0.35)'; g.fillRect(0, 124, 128, 4);
+    return tex(c, { repeat: false });
+  });
+}
+export function frontDoor() {
+  return cached('frontDoor', () => {
+    const c = canvas(64, 128), g = c.getContext('2d');
+    g.fillStyle = '#5a3424'; g.fillRect(0, 0, 64, 128);
+    g.strokeStyle = 'rgba(0,0,0,0.35)'; g.lineWidth = 3;
+    g.strokeRect(10, 12, 44, 44); g.strokeRect(10, 66, 44, 50);
+    g.fillStyle = '#c8a040'; g.beginPath(); g.arc(50, 70, 3, 0, 7); g.fill();
+    g.fillStyle = '#f2efe8'; g.fillRect(0, 0, 64, 4); g.fillRect(0, 0, 4, 128); g.fillRect(60, 0, 4, 128);
+    return tex(c, { repeat: false });
+  });
+}
+export function picketFence() {
+  return cached('picket', () => {
+    const c = canvas(128, 64), g = c.getContext('2d');
+    g.clearRect(0, 0, 128, 64);
+    g.fillStyle = '#f4f2ec';
+    for (let i = 0; i < 8; i++) { const x = i * 16 + 3; g.fillRect(x, 10, 10, 54); g.beginPath(); g.moveTo(x, 10); g.lineTo(x + 5, 2); g.lineTo(x + 10, 10); g.fill(); }
+    g.fillRect(0, 22, 128, 6); g.fillRect(0, 48, 128, 6);
+    return tex(c, { repeat: true });
+  });
+}
+export function woodFence() {
+  return cached('woodFence', () => {
+    const c = canvas(128, 64), g = c.getContext('2d');
+    for (let i = 0; i < 8; i++) { const v = 150 + ((i * 37) % 40); g.fillStyle = `rgb(${v},${v - 20},${v - 45})`; g.fillRect(i * 16, 0, 16, 64); g.fillStyle = 'rgba(0,0,0,0.35)'; g.fillRect(i * 16 + 15, 0, 1, 64); }
+    g.fillStyle = 'rgba(0,0,0,0.18)'; g.fillRect(0, 14, 128, 3); g.fillRect(0, 46, 128, 3);
+    return tex(c, { repeat: true });
   });
 }
