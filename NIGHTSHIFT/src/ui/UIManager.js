@@ -307,6 +307,13 @@ export class UIManager {
       const apply = () => g.applyGraphicsSettings();
       if (tab === 0) {
         const det = S.graphics.detectedQuality ? ` (detected: ${QUALITY_LABELS[S.graphics.detectedQuality]})` : '';
+        // the detected graphics card, and what AUTO chose for it
+        const Q = g.quality, gpuRow = h('div', 'row');
+        gpuRow.appendChild(h('div', '', `<label>Graphics card</label><div class="desc"><b>${Q.gpu.name || 'Unknown'}</b> · ${g.rm.backend.toUpperCase()} · AUTO runs it at <b>${QUALITY_LABELS[S.graphics.detectedQuality || Q.guessLevel()]}</b></div>`));
+        const redo = h('button', 'btn', 'DETECT AGAIN');
+        redo.onclick = () => { S.graphics.quality = 'auto'; S.graphics.detectedQuality = null; S.graphics.detectedGpu = null; S.save(); location.reload(); };
+        gpuRow.appendChild(redo);
+        body.appendChild(gpuRow);
         opt('Quality preset', 'Auto picks a level from a hardware benchmark' + det, 'graphics', 'quality', ['auto', ...QUALITY_LEVELS], ['AUTO', ...QUALITY_LEVELS.map((l) => QUALITY_LABELS[l])], apply);
         slider('Resolution scale', 'graphics', 'resolutionScale', 0.5, 1, 0.05, apply);
         opt('Textures', 'Texture resolution (applies after reload)', 'graphics', 'textures', ['auto', '256', '512', '1024', '2048'], ['AUTO', '256', '512', '1024', '2048']);

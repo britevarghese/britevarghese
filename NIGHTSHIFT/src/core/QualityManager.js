@@ -43,6 +43,18 @@ const TRAFFIC = { low: 10, medium: 22, high: 36 };
 const PARTICLES = { low: 0.35, medium: 0.75, high: 1.2 };
 const SHADOW = { off: 0, low: 1024, high: 2048 };
 
+// "ANGLE (NVIDIA, NVIDIA GeForce RTX 3060 Laptop GPU (0x00002560) Direct3D11 vs_5_0 ps_5_0, D3D11)"
+// -> "NVIDIA GeForce RTX 3060 Laptop GPU"
+export function gpuName(renderer = '', vendor = '') {
+  let r = String(renderer || '');
+  const m = /^ANGLE \((.*)\)$/.exec(r);
+  if (m) { const parts = m[1].split(', '); r = parts.length >= 2 ? parts[1] : parts[0]; }
+  r = r.replace(/^ANGLE Metal Renderer:\s*/i, '').replace(/\/PCIe.*$|\/SSE2.*$/i, '');
+  r = r.replace(/\(0x[0-9a-f]+\)/ig, '').replace(/Direct3D\S*|vs_\S+|ps_\S+|OpenGL.*$/g, '').replace(/\(R\)|\(TM\)|\(tm\)/g, '').replace(/\s+/g, ' ').trim();
+  if (!r || r === 'unknown') return vendor && vendor !== 'unknown' ? String(vendor) : 'Unknown graphics card';
+  return r;
+}
+
 export class QualityManager {
   constructor(settings) {
     this.settings = settings;
@@ -54,8 +66,10 @@ export class QualityManager {
   detectHardware() {
     const info = { renderer: 'unknown', vendor: 'unknown', webgl2: false, maxTexture: 0, software: false };
     try {
+      // ask for the fast GPU: on laptops with integrated + dedicated graphics the default context is the
+      // integrated one, while the game itself renders on the dedicated one (high-performance)
       const c = document.createElement('canvas');
-      const gl = c.getContext('webgl2');
+      const gl = c.getContext('webgl2', { powerPreference: 'high-performance' });
       if (gl) {
         info.webgl2 = true;
         const ext = gl.getExtension('WEBGL_debug_renderer_info');
@@ -66,6 +80,7 @@ export class QualityManager {
       }
     } catch (e) { console.warn('[Quality] WebGL probe failed', e); }
     info.software = /swiftshader|llvmpipe|software|basic render|microsoft basic/i.test(info.renderer);
+    info.name = gpuName(info.renderer, info.vendor);
     info.memory = navigator.deviceMemory || 0;
     info.cores = navigator.hardwareConcurrency || 4;
     info.webgpu = !!navigator.gpu;
@@ -74,18 +89,62 @@ export class QualityManager {
     return info;
   }
 
-  // Heuristic initial guess from the GPU string; refined by benchmark().
+  // Browsers that hide the GPU name from WebGL (Safari, Firefox privacy modes, some Chrome builds) often
+  // still name it through WebGPU's adapter info.
+  async probeWebGPU() {
+    try {
+      if (!navigator.gpu) return;
+      const a = await navigator.gpu.requestAdapter({ powerPreference: 'high-performance' });
+      if (!a) return;
+      const i = a.info || (a.requestAdapterInfo ? await a.requestAdapterInfo() : null);
+      if (!i) return;
+      const desc = [i.description, i.vendor, i.architecture, i.device].filter(Boolean).join(' ').trim();
+      this.gpu.adapter = desc;
+      if (desc && (!this.gpu.recognized || this.gpu.renderer === 'unknown')) {
+        const r2 = i.description || `${i.vendor || ''} ${i.architecture || ''}`.trim();
+        if (r2 && this._tier(gpuName(r2).toLowerCase()) !== null) { this.gpu.renderer = r2; this.gpu.name = gpuName(r2, i.vendor); }
+        else if (this.gpu.renderer === 'unknown' && r2) { this.gpu.renderer = r2; this.gpu.name = gpuName(r2, i.vendor); }
+      }
+    } catch { /* not available */ }
+  }
+
+  // The GPU the game actually renders on (the renderer's own context, created with high-performance).
+  fromRenderer(rm) {
+    try {
+      if (rm.backend === 'webgl2') {
+        const gl = rm.renderer.getContext();
+        const ext = gl.getExtension('WEBGL_debug_renderer_info');
+        const r = ext ? gl.getParameter(ext.UNMASKED_RENDERER_WEBGL) : gl.getParameter(gl.RENDERER);
+        const v = ext ? gl.getParameter(ext.UNMASKED_VENDOR_WEBGL) : gl.getParameter(gl.VENDOR);
+        if (r && (this._tier(gpuName(r).toLowerCase()) !== null || this.gpu.renderer === 'unknown')) { this.gpu.renderer = r; this.gpu.vendor = v; this.gpu.name = gpuName(r, v); }
+      } else {
+        const i = rm.renderer.backend?.adapter?.info;
+        const r = i?.description || (i ? `${i.vendor || ''} ${i.architecture || ''}`.trim() : '');
+        if (r && (this._tier(gpuName(r).toLowerCase()) !== null || this.gpu.renderer === 'unknown')) { this.gpu.renderer = r; this.gpu.name = gpuName(r, i.vendor); }
+      }
+    } catch { /* keep the probe's answer */ }
+  }
+
+  // tier index from a GPU name, or null when the name is unknown / generic
+  _tier(r) {
+    if (/swiftshader|llvmpipe|software|basic render/.test(r)) return 0;
+    if (/rtx ?[2-5]0[6-9]0|rtx ?[45]0[5-9]0|rtx a[4-6]000|rtx [0-9]000 ada|titan|radeon rx ?(6[7-9]|7[7-9]|9[0-9])\d0|radeon pro w7|apple m\d (max|ultra)|apple m[3-5] pro/.test(r)) return 4;
+    if (/rtx|radeon rx ?(5[6-7]|6[0-6]|7[0-6])\d0|rx ?(5[67]|6[0-6]|7[0-6])\d0|arc (a[57]|b[5-7])|apple m[1-5] (pro|max)|gtx 1(07|08)0|gtx 1660/.test(r)) return 3;
+    if (/gtx|geforce|radeon rx|radeon pro|apple m\d|apple gpu|arc|quadro|radeon (8[0-9]0|7[0-9]0|6[0-9]0)m|iris xe max/.test(r)) return 2;
+    if (/intel.*(uhd|iris)|radeon\(tm\) graphics|radeon graphics|vega|adreno \(tm\) 7|mali-g7/.test(r)) return 1;
+    if (/intel|hd graphics|mali|adreno|powervr|gma|videocore/.test(r)) return 0;
+    return null;
+  }
+
+  // Heuristic initial guess from the GPU name; refined by benchmark().
   guessLevel() {
-    const r = (this.gpu.renderer || '').toLowerCase();
-    let lvl = 'medium';
-    if (this.gpu.software || !this.gpu.webgl2) lvl = 'veryLow';
-    else if (/rtx \d0[789]0|rtx [345]0[6789]0|rtx a[456]000|radeon rx (6[89]|7[89]|90)\d0|apple m\d (max|ultra)|apple m[34] pro/.test(r)) lvl = 'ultra';
-    else if (/rtx|radeon rx [67]\d{3}|rx 7|rx 6[789]|arc a7|arc b5|apple m[234] (pro|max)|geforce gtx 1[0-9]80/.test(r)) lvl = 'high';
-    else if (/gtx|radeon rx|apple m\d|arc|quadro|radeon pro/.test(r)) lvl = 'medium';
-    else if (/intel.*(uhd|iris xe)|radeon\(tm\) graphics|vega/.test(r)) lvl = 'low';
-    else if (/intel|hd graphics|mali|adreno|powervr|gma/.test(r)) lvl = 'veryLow';
-    if (this.gpu.memory && this.gpu.memory <= 2) lvl = 'veryLow';
-    else if (this.gpu.memory && this.gpu.memory <= 4 && QUALITY_LEVELS.indexOf(lvl) > 1) lvl = 'low';
+    const r = gpuName(this.gpu.renderer).toLowerCase();
+    if (!this.gpu.webgl2) return 'veryLow';
+    const t = this._tier(r);
+    this.gpu.recognized = t !== null;
+    let lvl = QUALITY_LEVELS[t ?? 2];
+    // deviceMemory is capped at 8 and only reported by some browsers; only trust very low values
+    if (this.gpu.memory && this.gpu.memory <= 2 && (t ?? 2) < 3) lvl = 'veryLow';
     return lvl;
   }
 
@@ -93,18 +152,21 @@ export class QualityManager {
   // frame (ms, measured with a pipeline sync, so it is not capped by the display refresh). Budget is a
   // 60 fps frame with headroom for traffic, police and effects. One step up at most, and ULTRA only
   // for a GPU the heuristics already rate as high-end.
+  // A fast card goes all the way up: two steps when there is lots of headroom. The cap only applies to
+  // recognized low-end chips (an unrecognized name may be a top card behind a privacy mask).
   refineWithBenchmark(level, workMs) {
     const guess = QUALITY_LEVELS.indexOf(this.guessLevel());
     let i = QUALITY_LEVELS.indexOf(level);
     if (workMs > 34) i -= 2;
-    else if (workMs > 17) i -= 1;
-    else if (workMs < 6.5) i += 1;
-    const cap = guess >= 3 ? 4 : Math.min(3, guess + 1);
+    else if (workMs > 18) i -= 1;
+    else if (workMs < 4) i += 2;
+    else if (workMs < 8) i += 1;
+    const cap = !this.gpu.recognized || guess >= 3 ? 4 : Math.min(4, guess + 2);
     return QUALITY_LEVELS[clampI(i, 0, cap)];
   }
 
   // identity of the GPU the detection was made on: a new GPU / browser re-runs the benchmark
-  get gpuKey() { return `${this.gpu.vendor}|${this.gpu.renderer}`; }
+  get gpuKey() { return `v2|${this.gpu.vendor}|${this.gpu.renderer}`; }
 
   resolveLevel() {
     const g = this.settings.graphics;

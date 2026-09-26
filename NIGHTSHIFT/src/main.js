@@ -36,15 +36,20 @@ async function boot() {
   const settings = new Settings();
   const save = new SaveSystem();
   const quality = new QualityManager(settings);
-  const hw = quality.detectHardware();
+  quality.detectHardware();
+  await quality.probeWebGPU();
   let level = quality.resolveLevel();
   let preset = quality.apply(level);
-  $('load-foot').textContent = `${hw.renderer} · ${QUALITY_LABELS[level]}`;
+  $('load-foot').textContent = `${quality.gpu.name} · ${QUALITY_LABELS[level]}`;
   setProgress(0.03, 'Starting renderer...');
 
   const rm = new RendererManager($('app'), settings);
   try { await rm.init(preset); } catch (e) { fatal('RENDERER ERROR', String(e.message || e)); throw e; }
-  $('load-foot').textContent = `${hw.renderer} · ${rm.backend.toUpperCase()} · ${QUALITY_LABELS[level]}`;
+  // the card the game really renders on (laptops: the dedicated GPU)
+  quality.fromRenderer(rm);
+  const lvl2 = quality.resolveLevel();
+  if (lvl2 !== level) { level = lvl2; preset = quality.apply(level); }
+  $('load-foot').textContent = `${quality.gpu.name} · ${rm.backend.toUpperCase()} · ${QUALITY_LABELS[level]}`;
   setTextureQuality(preset.textureSize, preset.anisotropy);
 
   const assets = new AssetManager();
@@ -73,7 +78,7 @@ async function boot() {
     let ms = 16;
     try { ms = await game.benchmark(40); } catch (e) { if (rm.backend === 'webgpu') { rm.failWebGPU(e.message); return; } throw e; }
     const refined = quality.refineWithBenchmark(level, ms);
-    console.info(`[Quality] benchmark ${ms.toFixed(1)} ms/frame: ${level} -> ${refined}`);
+    console.info(`[Quality] ${quality.gpu.name}: benchmark ${ms.toFixed(1)} ms/frame: ${level} -> ${refined}`);
     settings.graphics.detectedQuality = refined; settings.graphics.detectedGpu = quality.gpuKey; settings.save();
     if (refined !== level) { level = refined; preset = quality.apply(level); game.applyPreset(preset, true); }
   }
