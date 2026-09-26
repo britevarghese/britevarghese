@@ -255,8 +255,8 @@ export class CityPlanner {
       driveway: rect(gu0 + 0.4, gu1 - 0.4, -0.2, gvFront),
       walk: rect(door - 0.7, door + 0.7, -0.2, setback - 1.8),
       porch: { ...rect(door - 1.9, door + 1.9, setback - 1.8, setback), h: 0.35 },
-      door: { ...W(door, setback - 0.02), w: 1.0 },
-      garageDoor: { ...W((gu0 + gu1) / 2, gvFront - 0.02), w: 4.6 },
+      door: { x: W(door, setback - 0.02)[0], z: W(door, setback - 0.02)[1], w: 1.0 },
+      garageDoor: { x: W((gu0 + gu1) / 2, gvFront - 0.02)[0], z: W((gu0 + gu1) / 2, gvFront - 0.02)[1], w: 4.6 },
       edge: R() < 0.55 ? 'fence' : R() < 0.7 ? 'hedge' : null,
       fence: [],
     };
