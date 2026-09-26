@@ -1,6 +1,7 @@
 // CityPlanner: deterministic placement of buildings, street furniture and colliders.
 // Produces plain data consumed by both the renderer (chunk meshes) and physics (colliders).
 import { rng, clamp } from '../core/util.js';
+import { atExit, terrain, ringEdgeDist, bearing, seaMask, shoreDist, DRIVE_LIMIT, LANDMARKS, DECKS } from './Terrain.js';
 import {
   GRID, HALF_LINES, EDGE, RING, RIVER, SIDEWALK_W, CURB_H, ROAD_TYPES, TUNNEL, lineHalfWidth, lineType, RING_CORNER_R,
 } from './CityLayout.js';
@@ -25,11 +26,68 @@ export class CityPlanner {
     this._planRiver();
     this._planTunnel();
     this._planSpecial();
+    this._planCountry();
     // street clutter gets tiny "knock-away" colliders so cars don't ghost through it
     for (const p of this.props) {
       const size = SMALL_PROPS[p.type];
       if (size) this.breakable(p, this.collider(p.x, p.z, size[0], size[1], p.rot, 1.1, 'small'));
     }
+  }
+
+  // the countryside: the edge of the drivable area (in the water off the beach), trees, landmark
+  // buildings, guard rails on the mountain road and the pier railings. Heights are absolute.
+  _planCountry() {
+    const T = terrain();
+    // boundary: a rounded square DRIVE_LIMIT outside the ring, pulled in to just past the shore on the coast
+    const C = 1180 - 180, R0 = 180 + 18;
+    const pts = [];
+    for (let i = 0; i < 720; i++) {
+      const a = (i / 720) * Math.PI * 2, dx = Math.sin(a), dz = Math.cos(a);
+      // march out along the bearing until the (rounded-square) distance reaches the limit
+      const sm = seaMask(a), lim = sm > 0.01 ? DRIVE_LIMIT * (1 - sm) + (shoreDist(a) + 45) * sm : DRIVE_LIMIT;
+      let lo = 1000, hi = 6000;
+      for (let k = 0; k < 30; k++) { const m = (lo + hi) / 2; if (ringEdgeDist(dx * m, dz * m) < lim) lo = m; else hi = m; }
+      pts.push([dx * lo, dz * lo]);
+    }
+    void C; void R0;
+    for (let i = 0; i < pts.length; i++) {
+      const [x0, z0] = pts[i], [x1, z1] = pts[(i + 1) % pts.length];
+      const len = Math.hypot(x1 - x0, z1 - z0), mx = (x0 + x1) / 2, mz = (z0 + z1) / 2;
+      this.collider(mx, mz, 1, len / 2 + 1, Math.atan2(x1 - x0, z1 - z0), 4000, 'wall');
+    }
+    this.driveBoundary = pts;
+    // trees you can drive into
+    for (const t of T.trees()) if (t.drive) this.collider(t.x, t.z, 0.45 * t.s, 0.45 * t.s, 0, t.y + 6, 'tree');
+    // guard rails where the mountain road has a drop beside it
+    for (const rd of T.roads) {
+      const s = rd.s;
+      for (let i = 0; i < s.length - 1; i++) {
+        const a = s[i], b = s[i + 1], dx = b.x - a.x, dz = b.z - a.z, l = Math.hypot(dx, dz) || 1, nx = -dz / l, nz = dx / l;
+        for (const side of [1, -1]) {
+          const drop = a.h - T.height(a.x + nx * (rd.hw + 9) * side, a.z + nz * (rd.hw + 9) * side);
+          if (drop <= 2.2) continue;
+          const off = (rd.hw + 1.2) * side;
+          this.collider((a.x + b.x) / 2 + nx * off, (a.z + b.z) / 2 + nz * off, 0.15, l / 2 + 0.1, Math.atan2(dx, dz), a.h + 0.9, 'barrier');
+        }
+      }
+    }
+    // landmark buildings
+    const H = (x, z) => T.height(x, z), L = LANDMARKS;
+    const box = (x, z, hx, hz, h, ang = 0) => this.collider(x, z, hx, hz, ang, H(x, z) + h, 'building');
+    const o = L.observatory; box(o.x, o.z, 17, 10, 12); box(o.x + 22, o.z, 8.5, 8.5, 24);
+    for (const [x, z] of L.masts) box(x, z, 2, 2, 80);
+    const f = L.ferris; for (const s2 of [-1, 1]) this.collider(f.x, f.z + s2 * 5, 2.5, 0.6, 0, DECKS[0].h + 20, 'pole');
+    const lh = L.lighthouse; box(lh.x, lh.z, 4.2, 4.2, 36); box(lh.x + 7, lh.z, 6, 4, 4);
+    const fm = L.farm; box(fm.x, fm.z, 8, 13, 14); box(fm.x - 28, fm.z + 6, 6, 5, 10); box(fm.x + 14, fm.z - 10, 3.6, 3.6, 21); box(fm.x + 22, fm.z - 10, 3.2, 3.2, 18);
+    const dn = L.diner; box(dn.x, dn.z + 8, 11, 6, 6);
+    for (const [a, b] of [[-7, -4], [7, -4], [-7, 4], [7, 4]]) this.collider(dn.x + a, dn.z - 14 + b, 0.3, 0.3, 0, H(dn.x, dn.z) + 6, 'pole');
+    for (const [x, z] of L.turbines) this.collider(x, z, 2.6, 2.6, 0, H(x, z) + 80, 'building');
+    for (const [x, z] of L.lifeguards) for (const [a, b] of [[-1.4, -1.4], [1.4, -1.4], [-1.4, 1.4], [1.4, 1.4]]) this.collider(x + a, z + b, 0.15, 0.15, 0, H(x, z) + 5, 'pole');
+    // pier railings (both sides) and its seaward end
+    const d = DECKS[0];
+    for (const x of [d.x0 + 0.2, d.x1 - 0.2]) this.collider(x, (d.z0 + d.z1) / 2, 0.1, (d.z1 - d.z0) / 2, 0, d.h + 1.1, 'barrier');
+    this.collider((d.x0 + d.x1) / 2, d.z0 + 0.2, (d.x1 - d.x0) / 2, 0.1, 0, d.h + 1.1, 'barrier');
+    void bearing;
   }
 
   // link a prop and its collider: the physics can knock it over (see VehiclePhysics._tryBreak)
@@ -354,7 +412,8 @@ export class CityPlanner {
       const outSign = (mx * nx + mz * nz) > 0 ? 1 : -1;
       const ox = nx * outSign, oz = nz * outSign;
       const outer = H.width / 2 + 0.6;
-      this.collider(mx + ox * outer, mz + oz * outer, 0.4, len / 2 + 0.6, ang, 3, 'wall');
+      // low barrier on the outside (you can see the countryside over it), open where country roads leave
+      if (!atExit(mx, mz)) this.collider(mx + ox * outer, mz + oz * outer, 0.4, len / 2 + 0.6, ang, 1.1, 'barrier');
       // median barrier (gaps at link junctions are not needed: links join from the inner side)
       if (!L.nearRingJunction(mx, mz)) this.collider(mx, mz, 0.35, len / 2 + 0.3, ang, 1, 'barrier');
       if (i % 5 === 0) {

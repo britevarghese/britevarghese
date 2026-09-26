@@ -2,7 +2,6 @@
 // heat level, pursuit/bust meters, race info, cash, prompts and center messages.
 import { clamp, lerp, formatTime, formatMoney } from '../core/util.js';
 import { MAP_SCALE } from './MapRenderer.js';
-import { WORLD_HALF } from '../world/CityLayout.js';
 
 const h = (tag, cls, html) => { const e = document.createElement(tag); if (cls) e.className = cls; if (html !== undefined) e.innerHTML = html; return e; };
 
@@ -270,6 +269,6 @@ export class HUD {
     const na = s.yaw - Math.PI / 2;
     g.fillStyle = '#ff3d5a'; g.font = `700 ${Math.round(W * 0.07)}px Segoe UI, Arial`; g.textAlign = 'center'; g.textBaseline = 'middle';
     g.fillText('N', cx + Math.cos(na) * W * 0.42, cy + Math.sin(na) * W * 0.42);
-    void WORLD_HALF; void formatTime;
+    void formatTime;
   }
 }

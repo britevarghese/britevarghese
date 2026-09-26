@@ -96,7 +96,7 @@ export class Environment {
     const sp = new Float32Array(N * 3), sc = new Float32Array(N * 3);
     for (let i = 0; i < N; i++) {
       const a = R() * Math.PI * 2, e = Math.asin(0.08 + R() * 0.92);
-      const r = 3800;
+      const r = 15500; // beyond the farthest mountains, so peaks hide the stars behind them
       sp[i * 3] = Math.cos(a) * Math.cos(e) * r; sp[i * 3 + 1] = Math.sin(e) * r; sp[i * 3 + 2] = Math.sin(a) * Math.cos(e) * r;
       const b = 0.4 + R() * 0.6; const t = R();
       sc[i * 3] = b * (t < 0.2 ? 1 : 0.85); sc[i * 3 + 1] = b * 0.9; sc[i * 3 + 2] = b * (t > 0.8 ? 1 : 0.95);
@@ -110,17 +110,17 @@ export class Environment {
     this.scene.add(this.stars);
     // moon & sun sprites
     this.moon = new THREE.Sprite(new THREE.SpriteMaterial({ map: moonTex(), fog: false, depthWrite: false, transparent: true, color: 0xffffff }));
-    this.moon.scale.setScalar(420); this.moon.renderOrder = -8;
+    this.moon.scale.setScalar(1700); this.moon.renderOrder = -8;
     this.sunSprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: radialGlow('rgba(255,250,235,1)', 'rgba(255,200,140,0.35)'), fog: false, depthWrite: false, transparent: true, blending: THREE.AdditiveBlending }));
-    this.sunSprite.scale.setScalar(700); this.sunSprite.renderOrder = -8;
+    this.sunSprite.scale.setScalar(2800); this.sunSprite.renderOrder = -8;
     this.scene.add(this.moon, this.sunSprite);
     // cloud layer (big textured plane high above, follows camera)
     const ct = cloudTex();
-    ct.repeat.set(3, 3);
+    ct.repeat.set(9, 9);
     this.cloudMat = new THREE.MeshBasicMaterial({ map: ct, transparent: true, opacity: 0.4, fog: false, depthWrite: false, color: 0x303848 });
-    this.clouds = new THREE.Mesh(new THREE.PlaneGeometry(9000, 9000), this.cloudMat);
+    this.clouds = new THREE.Mesh(new THREE.PlaneGeometry(30000, 30000), this.cloudMat);
     this.clouds.rotation.x = Math.PI / 2;
-    this.clouds.position.y = 600; this.clouds.renderOrder = -7; this.clouds.frustumCulled = false;
+    this.clouds.position.y = 1500; this.clouds.renderOrder = -7; this.clouds.frustumCulled = false;
     this.scene.add(this.clouds);
   }
 
@@ -332,15 +332,17 @@ export class Environment {
     const fogC = C.fog.clone().lerp(new THREE.Color(0x3a4048), this.rain * (1 - night) * 0.5);
     this.scene.fog.color.copy(fogC);
     const vd = this.preset.viewDistance;
-    this.scene.fog.density = (2.1 / vd) * (1 + this.rain * 0.9 + this.cloud * 0.15) * (night > 0.5 ? 1 : 0.8);
+    // long-range atmosphere: the far city (CityImpostor) and the landscape fill in past the streamed chunks,
+    // so fog no longer has to hide the view distance; rain and night still close it in
+    this.scene.fog.density = 0.00024 * (1 + this.rain * 2.6 + this.cloud * 0.3) * (night > 0.5 ? 1.3 : 1) * (vd < 500 ? 2.2 : 1);
     this.renderer.toneMappingExposure = lerp(a.exp, b.exp, t);
     this.sky.position.copy(focus); this.stars.position.copy(focus);
     this.starMat.opacity = clamp(night * 1.2 - 0.2, 0, 1) * (1 - this.cloud * 0.9);
-    this.moon.position.copy(focus).addScaledVector(moonDir, 3500);
+    this.moon.position.copy(focus).addScaledVector(moonDir, 15000);
     this.moon.material.opacity = clamp(night, 0, 1) * (1 - this.cloud * 0.7);
-    this.sunSprite.position.copy(focus).addScaledVector(sunDir, 3500);
+    this.sunSprite.position.copy(focus).addScaledVector(sunDir, 15000);
     this.sunSprite.material.opacity = clamp(1 - night * 1.5, 0, 1) * (sunDir.y > -0.05 ? 1 : 0) * cloudDim;
-    this.clouds.position.set(focus.x, 600, focus.z);
+    this.clouds.position.set(focus.x, 1500, focus.z);
     this.cloudMat.map.offset.x += dt * 0.0008; this.cloudMat.map.offset.y += dt * 0.0003;
     this.cloudMat.opacity = 0.18 + this.cloud * 0.6;
     this.cloudMat.color.copy(C.skyHor).lerp(new THREE.Color(night > 0.5 ? 0x1a1c24 : 0xcfd6e0), 0.5).multiplyScalar(night > 0.5 ? 0.9 : 1);

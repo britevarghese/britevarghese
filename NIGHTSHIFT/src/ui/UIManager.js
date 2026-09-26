@@ -458,7 +458,7 @@ export class UIManager {
       c.beginPath(); c.moveTo(0, -14 * dpr); c.lineTo(10 * dpr, 11 * dpr); c.lineTo(0, 6 * dpr); c.lineTo(-10 * dpr, 11 * dpr); c.closePath(); c.stroke(); c.fill(); c.restore();
       // district labels
       c.fillStyle = 'rgba(255,255,255,0.3)'; c.font = `600 ${13 * dpr}px Segoe UI, Arial`; c.textAlign = 'center';
-      for (const [n, x, z] of [['DOWNTOWN', 0, 0], ['MARKET DISTRICT', -560, -320], ['IRONWORKS', 820, 400], ['DOCKSIDE', 820, -560], ['ELM HEIGHTS', -800, 700], ['RIVERSIDE', 560, 820], ['RING HIGHWAY', 0, 1250]]) { const [a, b] = P(x, z); c.fillText(n, a, b); }
+      for (const [n, x, z] of [['DOWNTOWN', 0, 0], ['MARKET DISTRICT', -560, -320], ['IRONWORKS', 820, 400], ['DOCKSIDE', 820, -560], ['ELM HEIGHTS', -800, 700], ['RIVERSIDE', 560, 820], ['RING HIGHWAY', 0, 1250], ['HALVERN RANGE', 1100, 2500], ['OBSERVATORY', 1545, 3020], ['HALVERN COAST', 0, -2050], ['HARVEST VALLEY', -2350, 150], ['WIND FARM', -2100, 1330], ['PORT HALVERN SIGN', -150, 2230]]) { const [a, b] = P(x, z); c.fillText(n, a, b); }
       c.textAlign = 'start';
       requestAnimationFrame(draw);
     };

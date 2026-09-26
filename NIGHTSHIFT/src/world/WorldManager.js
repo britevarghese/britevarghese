@@ -1,15 +1,17 @@
 // WorldManager: owns the city layout/planner (gameplay data), the collision world and the
 // streamed visual representation (chunks, props, lights, distant terrain), plus traffic signals.
 import * as THREE from 'three';
-import { CityLayout, district, DISTRICT_NAMES, RING, RING_CORNER_R } from './CityLayout.js';
+import { CityLayout, district, DISTRICT_NAMES } from './CityLayout.js';
 import { CityPlanner } from './CityPlanner.js';
 import { CollisionWorld } from '../physics/Collision.js';
 import { ChunkBuilder } from './ChunkBuilder.js';
 import { ChunkManager } from './ChunkManager.js';
 import { PropSystem } from './Props.js';
 import { LightSystem } from './LightSystem.js';
+import { Landscape } from './Landscape.js';
+import { CityImpostor } from './CityImpostor.js';
+import { ringEdgeDist, bearing, seaMask, mountainMask, farmMask } from './Terrain.js';
 import { bus } from '../core/EventBus.js';
-import { rng } from '../core/util.js';
 
 export const SIGNAL_CYCLE = 34;
 
@@ -27,7 +29,7 @@ export class WorldManager {
   }
 
   // visual side (not needed on a headless server)
-  initVisuals(scene, materials, preset) {
+  initVisuals(scene, materials, preset, opts = {}) {
     this.scene = scene;
     this.M = materials;
     this.builder = new ChunkBuilder(this.layout, this.planner, materials);
@@ -40,6 +42,8 @@ export class WorldManager {
     bus.on('prop:break', ({ p }) => { if (!p) return; this.props.hide(p); if (p.type === 'lamp') this.lights.rebuild(this.nearKeys || []); });
     bus.on('prop:restore', () => { if (this.nearKeys) { this.props.rebuild(this.nearKeys, this.preset.props); this.lights.rebuild(this.nearKeys); } });
     this._buildTerrain(scene, materials);
+    // the far city (skyline from the hills); WebGL2 only (it relies on a vertex-shader patch)
+    if (!opts.webgpu) this.chunks.impostor = new CityImpostor(scene, this.layout, this.planner, materials);
   }
 
   setPreset(p) {
@@ -48,46 +52,8 @@ export class WorldManager {
   }
 
   _buildTerrain(scene, M) {
-    // distant hills ring for depth/silhouettes + a big ground plane beyond the highway. The hole
-    // follows the ring's rounded-square outer edge (a circular hole would cover the highway's
-    // straights and the city's corner districts with grass).
-    const outer = new THREE.Shape();
-    outer.absarc(0, 0, 5200, 0, Math.PI * 2, false);
-    const H = RING + 18, Rc = RING_CORNER_R + 18, C = H - Rc;
-    const hole = new THREE.Path();
-    hole.moveTo(H, -C); hole.lineTo(H, C); hole.absarc(C, C, Rc, 0, Math.PI / 2, false);
-    hole.lineTo(-C, H); hole.absarc(-C, C, Rc, Math.PI / 2, Math.PI, false);
-    hole.lineTo(-H, -C); hole.absarc(-C, -C, Rc, Math.PI, Math.PI * 1.5, false);
-    hole.lineTo(C, -H); hole.absarc(C, -C, Rc, Math.PI * 1.5, Math.PI * 2, false);
-    outer.holes.push(hole);
-    const gg = new THREE.ShapeGeometry(outer, 24).rotateX(-Math.PI / 2);
-    // world-scaled UVs like the chunk grass
-    const uvA = gg.attributes.uv, pA = gg.attributes.position;
-    for (let i = 0; i < uvA.count; i++) uvA.setXY(i, pA.getX(i) / 16, -pA.getZ(i) / 16);
-    const ground = new THREE.Mesh(gg, M.grass);
-    ground.position.y = 0.25; ground.receiveShadow = false;
-    scene.add(ground);
-    const R = rng(99);
-    const seg = 160, rings = 6;
-    const pos = [], idx = [];
-    for (let r = 0; r <= rings; r++) {
-      const rad = 1900 + r * 420;
-      for (let s = 0; s <= seg; s++) {
-        const a = (s / seg) * Math.PI * 2;
-        const h = r === 0 ? 0 : (Math.sin(a * 3 + 1) * 0.5 + 0.5) * 120 * (r / rings) + Math.sin(a * 11) * 30 * (r / rings) + R() * 25 + (r === rings ? 160 : 0);
-        pos.push(Math.cos(a) * rad, h, Math.sin(a) * rad);
-      }
-    }
-    for (let r = 0; r < rings; r++) for (let s = 0; s < seg; s++) {
-      const a = r * (seg + 1) + s, b = a + seg + 1;
-      idx.push(a, a + 1, b, b, a + 1, b + 1);
-    }
-    const g = new THREE.BufferGeometry();
-    g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
-    g.setIndex(idx);
-    g.computeVertexNormals();
-    this.hills = new THREE.Mesh(g, new THREE.MeshLambertMaterial({ color: 0x1a2418 }));
-    scene.add(this.hills);
+    // the countryside beyond the ring highway: terrain, sea, forests, country roads, landmarks
+    this.landscape = new Landscape(scene, M, this.preset);
   }
 
   // Traffic signal state for approach axis 'x' | 'z' at node
@@ -122,7 +88,16 @@ export class WorldManager {
     if (restored.length) bus.emit('prop:restore', restored);
   }
 
-  districtAt(x, z) { const d = district(x, z); return { id: d, name: DISTRICT_NAMES[d] }; }
+  districtAt(x, z) {
+    // the countryside has its own names
+    const e = ringEdgeDist(x, z);
+    if (e > 40) {
+      const a = bearing(x, z);
+      const id = seaMask(a) > 0.5 ? 'coast' : mountainMask(a) > 0.5 && e > 500 ? 'range' : farmMask(a) > 0.5 ? 'farms' : 'country';
+      return { id, name: { coast: 'Halvern Coast', range: 'Halvern Range', farms: 'Harvest Valley', country: 'Halvern Hills' }[id] };
+    }
+    const d = district(x, z); return { id: d, name: DISTRICT_NAMES[d] };
+  }
 
   update(dt, camera, envState) {
     this.state.time += dt;
@@ -130,6 +105,7 @@ export class WorldManager {
     if (!this.chunks) return;
     this.chunks.update(camera.position, dt);
     this.lights.update(camera, envState, dt);
+    this.landscape?.update(camera, envState, dt);
     this.props.updateSignals((id, axis) => this.signalState(id, axis), envState.night);
     // aviation beacons: slow synchronized blink, dim steady red by day
     const ph = (this.state.time * 0.75) % 1;

@@ -82,6 +82,7 @@ export class ChunkManager {
         if (!c?.base) want.push({ d, ci, cj, level: 'base' });
         else if (d < detail && !c.detail) want.push({ d, ci, cj, level: 'detail' });
       }
+      if (!c) this.impostor?.setLoaded(ci, cj, false);
       if (c) {
         if (c.base) {
           c.base.visible = d < view;
@@ -96,6 +97,7 @@ export class ChunkManager {
           }
         }
         if (c.detail) c.detail.visible = d < detail * 1.15;
+        this.impostor?.setLoaded(ci, cj, !!(c.base && c.base.visible));
         // unload far chunks
         if (d > view + 220 && c.base) { this._dispose(c.base); c.base = null; this._dispose(c.detail); c.detail = null; this.chunks.delete(key); }
         else if (d > detail + 200 && c.detail) { this._dispose(c.detail); c.detail = null; }

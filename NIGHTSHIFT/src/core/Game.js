@@ -59,7 +59,7 @@ export class Game {
     const preset = this.preset;
     const r = this.rm.renderer;
     this.scene = new THREE.Scene();
-    this.camera = new THREE.PerspectiveCamera(62, innerWidth / innerHeight, 0.2, 6000);
+    this.camera = new THREE.PerspectiveCamera(62, innerWidth / innerHeight, 0.2, 17000);
     this.rm.camera = this.camera;
     progress(0.02, 'Generating materials...');
     await tick();
@@ -73,8 +73,8 @@ export class Game {
     progress(0.26, 'Planning city...');
     await tick();
     this.world = new WorldManager();
-    this.world.initVisuals(this.scene, this.materials, preset);
-    this.mapRenderer = new MapRenderer(this.world.layout, this.world.planner);
+    this.world.initVisuals(this.scene, this.materials, preset, { webgpu: this.rm.backend === 'webgpu' });
+    this.mapRenderer = new MapRenderer(this.world.layout, this.world.planner, this.world.landscape);
     progress(0.32, 'Building lane graph...');
     await tick();
     this.traffic = new TrafficManager(this.world, preset, null);

@@ -3,6 +3,7 @@
 // storefronts, neon signs, roof equipment, railings. Buildings are assembled from modules
 // (podium / shaft / crown / parapet / storefront band) so memory stays low.
 import * as THREE from 'three';
+import { atExit } from './Terrain.js';
 import { MeshBatch } from './GeoBuilder.js';
 import { markUV, MARK, FACADE_DEF, SIGN_WORDS } from '../renderer/Textures.js';
 import {
@@ -129,14 +130,16 @@ export class ChunkBuilder {
       const cross = (r0[0] - l0[0]) * (l1[1] - l0[1]) - (r0[1] - l0[1]) * (l1[0] - l0[0]);
       if (cross < 0) road.quad([l0[0], 0, l0[1]], [r0[0], 0, r0[1]], [r1[0], 0, r1[1]], [l1[0], 0, l1[1]], [0, 1, 0], [uv(l0), uv(r0), uv(r1), uv(l1)]);
       else road.quad([l1[0], 0, l1[1]], [r1[0], 0, r1[1]], [r0[0], 0, r0[1]], [l0[0], 0, l0[1]], [0, 1, 0], [uv(l1), uv(r1), uv(r0), uv(l0)]);
-      // sound wall on the outside, median barrier in the middle
+      // low concrete barrier on the outside (open where the country roads leave), median in the middle
       const cw = B.get(M.concreteWall);
-      const o = outA;
+      const o = outA, WH = 1.1;
       const wa = P(a, n0, o * (hw + 0.6)), wb = P(b, n1, o * (hw + 0.6));
       const wa2 = P(a, n0, o * (hw + 1.1)), wb2 = P(b, n1, o * (hw + 1.1));
-      cw.wall(...(o > 0 ? [wa[0], wa[1], wb[0], wb[1]] : [wb[0], wb[1], wa[0], wa[1]]), 0, 3.2, 1 / 4, 1 / 4);
-      cw.wall(...(o > 0 ? [wb2[0], wb2[1], wa2[0], wa2[1]] : [wa2[0], wa2[1], wb2[0], wb2[1]]), 0, 3.2, 1 / 4, 1 / 4);
-      cw.quad([wa[0], 3.2, wa[1]], [wa2[0], 3.2, wa2[1]], [wb2[0], 3.2, wb2[1]], [wb[0], 3.2, wb[1]], [0, 1, 0], [[0, 0], [0.1, 0], [0.1, 1], [0, 1]]);
+      if (!atExit((a[0] + b[0]) / 2, (a[1] + b[1]) / 2)) {
+        cw.wall(...(o > 0 ? [wa[0], wa[1], wb[0], wb[1]] : [wb[0], wb[1], wa[0], wa[1]]), 0, WH, 1 / 4, 1 / 4);
+        cw.wall(...(o > 0 ? [wb2[0], wb2[1], wa2[0], wa2[1]] : [wa2[0], wa2[1], wb2[0], wb2[1]]), 0, WH, 1 / 4, 1 / 4);
+        cw.quad([wa[0], WH, wa[1]], [wa2[0], WH, wa2[1]], [wb2[0], WH, wb2[1]], [wb[0], WH, wb[1]], [0, 1, 0], [[0, 0], [0.1, 0], [0.1, 1], [0, 1]]);
+      }
       // median (jersey-like low wall, both faces)
       if (this.L.nearRingJunction((a[0] + b[0]) / 2, (a[1] + b[1]) / 2)) continue;
       const ma = P(a, n0, -0.3), mb = P(b, n1, -0.3), ma2 = P(a, n0, 0.3), mb2 = P(b, n1, 0.3);

@@ -109,6 +109,14 @@ Saves live in each player's browser.
   warehouses, Elm Heights (suburbs), a riverside with bridges, a tunnel, a parking deck, a
   construction zone with jumps, and a six-lane ring highway. Day and night follow your real
   local time by default (or a 48-minute game clock, or a fixed time) with dynamic weather.
+- **Countryside:** beyond the ring highway the world opens up (about 6.8 km across, with mountains
+  on the horizon out to 15 km). The Halvern Range rises to the north and west with snow on the peaks;
+  Summit Drive climbs to an observatory and radio masts past a giant PORT HALVERN hillside sign. To
+  the south, Ocean Boulevard runs along a sand beach with palms, lifeguard towers, a pier with a
+  Ferris wheel and a lighthouse. To the east, Harvest Road winds through farm fields to a barn and
+  silos, a lake, a roadside diner and a wind farm. The terrain is drivable anywhere (forests have
+  real trees to hit), and the map, minimap and GPS cover it. From the hills you can see the city's
+  skyline: a lightweight far-city model stands in for streets that aren't loaded.
 - **Races and rivals:**
   - Sprint, Circuit, Checkpoint, Speed Run (speed traps), Time Trial and Police Escape events.
   - Street rivals cruise the city: pull up beside one and press E for a one-on-one sprint.

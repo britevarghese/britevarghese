@@ -2,6 +2,7 @@
 // "Port Halvern": road network, districts, blocks, lots, ground height and special zones.
 // Everything here is pure data so it can later be shared with an authoritative server.
 import { rng, clamp } from '../core/util.js';
+import { terrain, ringEdgeDist } from './Terrain.js';
 
 export const GRID = 160;           // distance between road center lines (m)
 export const HALF_LINES = 6;       // lines at k*GRID for k in [-6, 6]
@@ -311,7 +312,7 @@ export class CityLayout {
     else if (x > RIVER.x0 && x < RIVER.x1 && Math.abs(z) < RING - 20) {
       // canal walls are vertical; depth grows quickly from the edge
       h = RIVER.depth;
-    } else if (Math.abs(x) > RING + 18 || Math.abs(z) > RING + 18) h = 0.3;
+    } else if (ringEdgeDist(x, z) > 0) return terrain().groundHeight(x, z); // the countryside
     else {
       const b = this.blockAt(x, z);
       if (!b) h = 0.02;
