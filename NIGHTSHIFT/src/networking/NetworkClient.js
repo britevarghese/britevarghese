@@ -91,7 +91,13 @@ export class NetworkClient {
   }
 
   // reconnect with a new name (settings)
-  rename() { if (this.ws && this.connected) { this.ws.onclose = null; this.ws.close(); this.connected = false; for (const r of this.remotes.values()) this._disposeRemote(r); this.remotes.clear(); } this.connect(); }
+  rename() {
+    if (this.ws) { this.ws.onclose = null; this.ws.onmessage = null; try { this.ws.close(); } catch { /* already closed */ } }
+    this.connected = false; this.status = 'connecting';
+    for (const r of this.remotes.values()) this._disposeRemote(r);
+    this.remotes.clear(); this.names.clear();
+    this.connect();
+  }
 
   _send(o) { if (this.connected && this.ws.readyState === 1) this.ws.send(JSON.stringify(o)); }
 
@@ -117,6 +123,7 @@ export class NetworkClient {
         this._syncParked(r, pl.s.parked || []);
       }
     } else if (m.t === 'leave') {
+      this.names.delete(m.id);
       const r = this.remotes.get(m.id);
       if (r) this._disposeRemote(r);
       this.remotes.delete(m.id);

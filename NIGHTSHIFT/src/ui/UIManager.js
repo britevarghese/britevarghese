@@ -345,12 +345,23 @@ export class UIManager {
         const inp = h('input'); inp.type = 'text'; inp.maxLength = 20; inp.placeholder = net?.name || 'Driver'; inp.value = S.gameplay.playerName || '';
         inp.style.cssText = 'background:#0d0f14;color:#fff;border:1px solid #2a3040;border-radius:6px;padding:.45rem .6rem;font:inherit;width:12rem';
         inp.onkeydown = inp.onkeyup = (e) => e.stopPropagation(); // typing must not drive the car
-        inp.onchange = () => { S.set('gameplay', 'playerName', inp.value.replace(/[<>]/g, '').trim().slice(0, 20)); net?.rename(); setTimeout(render, 800); };
+        inp.onchange = () => { S.set('gameplay', 'playerName', inp.value.replace(/[<>]/g, '').trim().slice(0, 20)); net?.rename(); };
         row.appendChild(inp);
         body.appendChild(row);
-        const st = { connected: `CONNECTED · ${net?.online} in the city`, connecting: 'CONNECTING...', off: 'OFF on this server (start it with --multiplayer or set multiplayer.enabled in config.json)', disconnected: 'DISCONNECTED · retrying', error: 'CANNOT CONNECT' }[net?.status] || 'OFF';
-        body.appendChild(h('div', 'row', `<label>Status</label><div>${st}</div>`));
-        if (net?.connected) body.appendChild(h('div', 'row', `<label>Players</label><div>${[`${net.name} (you)`, ...[...net.remotes.values()].map((r) => r.name)].join(' · ')}</div>`));
+        // status and player list stay live while this tab is open
+        const stEl = h('div'), plEl = h('div');
+        const stRow = h('div', 'row'); stRow.append(h('label', '', 'Status'), stEl);
+        const plRow = h('div', 'row'); plRow.append(h('label', '', 'Players'), plEl);
+        body.append(stRow, plRow);
+        const refresh = () => {
+          const st = { connected: `<span style="color:var(--ok)">CONNECTED</span> as <b>${net.name}</b> · ${net.online} in the city`, connecting: 'CONNECTING...', off: 'OFF on this server (start it with --multiplayer or set multiplayer.enabled in config.json)', disconnected: 'DISCONNECTED · retrying', error: 'CANNOT CONNECT' }[net?.status] || 'OFF';
+          stEl.innerHTML = st;
+          plRow.style.display = net?.connected ? '' : 'none';
+          if (net?.connected) plEl.textContent = [`${net.name} (you)`, ...[...net.remotes.values()].map((r) => r.name), ...[...net.names.entries()].filter(([id]) => id !== net.id && !net.remotes.has(id)).map(([, n]) => n)].filter((v, i, a) => a.indexOf(v) === i).join(' · ');
+        };
+        refresh();
+        clearInterval(this._netTimer);
+        this._netTimer = setInterval(() => { if (!stEl.isConnected) { clearInterval(this._netTimer); return; } refresh(); }, 500);
         body.appendChild(h('div', 'row', `<label>How to play together</label><div class="desc" style="max-width:26rem">Everyone opens the same server address (the host's LAN / Radmin / online URL). Other players show up with their name tag and on the map. Get out with F and take any car: traffic, stopped police cruisers, street rivals, or a car another player left parked. Traffic and police are your own.</div>`));
       } else {
         body.innerHTML = `<div class="row"><label>Throttle / Brake-Reverse</label><div>W / S · RT / LT</div></div>
