@@ -187,7 +187,11 @@ export class EngineSynth {
     this.pink.connect(this.inBP).connect(this.inGain).connect(this.synthGate);
 
     // recorded engine (granular player, engine-sample-worklet.js) joins before the limiter/shift dips
+    // recordings: soften the harsh top end (mic hiss, MP3 edge, whine) so the engine note leads
+    this.smpShelf = flt('highshelf', 4500); this.smpShelf.gain.value = -6;
+    this.smpLP = flt('lowpass', 9000, 0.6);
     this.smpGate = g(0);
+    this.smpShelf.connect(this.smpLP).connect(this.smpGate);
     this.smpGate.connect(this.misfire);
     this.samples = new Map(); // engine name -> Promise<{data, an}>
 
@@ -303,7 +307,7 @@ export class EngineSynth {
         this.ctx.audioWorklet.addModule(new URL('./engine-sample-worklet.js', import.meta.url)),
       ]);
       this.smp = new AudioWorkletNode(this.ctx, 'nightshift-engine-sample', { numberOfInputs: 0, numberOfOutputs: 1, outputChannelCount: [1] });
-      this.smp.connect(this.smpGate);
+      this.smp.connect(this.smpShelf);
       this.sampleMap = map;
       const type = this.type; this.type = null; this.setCarType(type || 'sports');
       return true;
@@ -488,7 +492,7 @@ export class EngineSynth {
     glide(this.inGain.gain, p.intake * thr * (0.2 + rpmN) * 0.35 * (1 + 1.4 * this.vtecS), t, 0.05);
 
     // --- supercharger whine: pitch follows the crank directly ---
-    if (p.sc) {
+    if (p.sc && !this.sampleOn) {
       const fsc = (rpm / 60) * p.scRatio;
       glide(this.oSC.frequency, fsc, t, 0.03); glide(this.oSC2.frequency, fsc * 2, t, 0.03); glide(this.scBP.frequency, clamp(fsc * 1.3, 400, 9000), t, 0.03);
       glide(this.scGain.gain, p.sc * (0.012 + 0.05 * thr) * (0.25 + rpmN), t, 0.04);
@@ -513,7 +517,8 @@ export class EngineSynth {
     glide(this.oTurbo.frequency, 1800 + this.boost * 6200, t, 0.05);
     glide(this.oTurbo2.frequency, (1800 + this.boost * 6200) * 1.51, t, 0.05);
     glide(this.turboBP.frequency, 2000 + this.boost * 6000, t, 0.05);
-    glide(this.turboGain.gain, p.turbo * this.boost * this.boost * 0.05, t, 0.05);
+    // the synthetic whistle only goes with the synthetic engine: a recording carries its own induction
+    glide(this.turboGain.gain, this.sampleOn ? 0 : p.turbo * this.boost * this.boost * 0.05, t, 0.05);
 
     // blow-off when throttle released from high boost
     if (EXHAUST_POPS && p.turbo > 0 && p.bov !== 0 && this.prevThrottle > 0.55 && thr < 0.2 && this.boost > 0.45) {

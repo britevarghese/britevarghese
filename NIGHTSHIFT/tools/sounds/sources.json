@@ -122,21 +122,6 @@
       ]
     },
     {
-      "name": "turbo_dyno",
-      "id": 496171,
-      "user": "editboy23",
-      "title": "Import car revs on Chassis Dyno with Turbo.wav",
-      "lic": "CC0",
-      "t": [
-        0,
-        35
-      ],
-      "band": [
-        60,
-        450
-      ]
-    },
-    {
       "name": "v6_delorean",
       "id": 623436,
       "user": "SkyernAklea",
@@ -571,9 +556,9 @@
   ],
   "cars": {
     "bmw_m3_e30": "i4_rover",
-    "subaru_wrx_sti_gc8": "turbo_dyno",
+    "subaru_wrx_sti_gc8": "flat6_911",
     "porsche_930_turbo": "flat6_911",
-    "nissan_skyline_r34": "turbo_dyno",
+    "nissan_skyline_r34": "i6_bmw",
     "toyota_supra_mk4": "i6_bmw",
     "honda_nsx_na1": "v6_delorean",
     "bmw_m4_f82": "i6_bmw",
@@ -595,6 +580,6 @@
     "muscle": "v8_muscle",
     "sports": "i6_bmw",
     "exotic": "v10_r8",
-    "tuner": "turbo_dyno"
+    "tuner": "v6_delorean"
   }
 }
