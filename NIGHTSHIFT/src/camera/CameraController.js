@@ -96,19 +96,24 @@ export class CameraController {
     if (mode.marker && vehicle.renderer) {
       // attached views follow the sprung body (pitch/roll) with light smoothing
       const mk = vehicle.renderer.markers[mode.marker];
+      const eye = mode.marker === 'eye_cockpit' ? vehicle.renderer.cockpitEye?.() : null;
       vehicle.renderer.body.updateMatrixWorld(true);
-      if (mk) {
-        _v.copy(mk.position);
+      if (mk || eye) {
+        _v.copy(eye || mk.position);
         if (lookBack) _v.z = mode.marker === 'eye_bumper' ? -_v.z : _v.z;
         _v.applyMatrix4(vehicle.renderer.body.matrixWorld);
         cam.position.copy(_v);
         vehicle.renderer.body.getWorldQuaternion(_q);
-        cam.quaternion.copy(_q);
+        // the head follows the body's pitch and roll a touch softly (no frame-to-frame jitter)
+        if (!this.headQ || this.headMode !== this.mode) { this.headQ = _q.clone(); this.headMode = this.mode; }
+        this.headQ.slerp(_q, 1 - Math.exp(-dt * 18));
+        cam.quaternion.copy(this.headQ);
         cam.rotateY(Math.PI + (lookBack ? Math.PI : 0) + this.orbitX);
         cam.rotateX(-this.orbitY * 0.5);
-        // vibration
-        const vib = Math.min(1, speed / 60) * 0.004 + this.shake * 0.02;
-        cam.position.x += (Math.random() - 0.5) * vib; cam.position.y += (Math.random() - 0.5) * vib;
+        // smooth road vibration + impact shake (was random per frame, which read as glitching)
+        const t = this.time, vib = Math.min(1, speed / 60) * 0.0025 + this.shake * 0.015;
+        cam.position.x += (Math.sin(t * 31.7) + Math.sin(t * 17.3)) * 0.5 * vib;
+        cam.position.y += (Math.sin(t * 27.1) + Math.sin(t * 13.9)) * 0.5 * vib;
         vehicle.renderer.lod0.getObjectByName('interior') && (vehicle.renderer.lod0.getObjectByName('interior').visible = mode.marker === 'eye_cockpit');
       }
       this.fov = damp(this.fov, mode.fov + Math.min(14, speed * 0.16) + (fx.nitro || 0) * 8, 4, dt);

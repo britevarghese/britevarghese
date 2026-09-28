@@ -92,6 +92,7 @@ export class VehicleRenderer {
     this.markers = {};
     // marker positions in body space (stand-ins are scaled, so store scaled copies)
     lod0.traverse((o) => { if (!o.isMesh && o.name && !this.markers[o.name]) this.markers[o.name] = this.standIn ? { name: o.name, position: o.position.clone().multiply(this.scaleV) } : o; });
+    this._lod0 = lod0;
     // hinged front doors (imported cars): door_L / door_R pivot on their front edge
     this.doors = {};
     for (const [side, k] of [[1, 'L'], [-1, 'R']]) {
@@ -453,6 +454,73 @@ export class VehicleRenderer {
   }
 
   // ------------------------------------------------------------------ per-frame sync
+  /**
+   * Driver's eye point (body space) for the first-person view, measured once from the model itself: the
+   * roof above the driver's seat and the top edge of the windscreen are found by casting rays at the
+   * mesh, and the eyes go just under the roof, about half a metre behind the windscreen top. Import
+   * markers were guesses on models without a named steering wheel (eyes inside the dash or behind the
+   * seats); this works for any closed car. Bikes and open cars keep their marker.
+   */
+  cockpitEye() {
+    if (this._eye !== undefined) return this._eye;
+    const mk = this.markers.eye_cockpit;
+    this._eye = mk ? mk.position.clone() : null;
+    if (this.rider || !this._lod0) return this._eye;
+    try {
+      const body = this.body, meshes = [];
+      body.updateMatrixWorld(true);
+      this._lod0.traverse((o) => { if (o.isMesh && o.visible !== false) meshes.push(o); });
+      const inv = new THREE.Matrix4().copy(body.matrixWorld).invert();
+      const box = new THREE.Box3(), tb = new THREE.Box3();
+      for (const o of meshes) { if (!o.geometry.boundingBox) o.geometry.computeBoundingBox(); tb.copy(o.geometry.boundingBox).applyMatrix4(o.matrixWorld).applyMatrix4(inv); box.union(tb); }
+      const rc = new THREE.Raycaster(), O = new THREE.Vector3(), D = new THREE.Vector3();
+      const cast = (ox, oy, oz, dx, dy, dz) => {
+        O.set(ox, oy, oz).applyMatrix4(body.matrixWorld);
+        D.set(dx, dy, dz).transformDirection(body.matrixWorld);
+        rc.set(O, D); rc.far = 10;
+        const h = rc.intersectObjects(meshes, false)[0];
+        return h ? h.distance : null;
+      };
+      const side = mk && mk.position.x < -0.05 ? -1 : 1;
+      const x = side * THREE.MathUtils.clamp(Math.abs(mk?.position.x ?? 0.36), 0.28, 0.42);
+      const top = box.max.y + 0.5;
+      // roof profile over the cabin (wings and spoilers sit behind this range)
+      const prof = [];
+      for (let z = box.max.z * 0.55; z >= box.min.z * 0.4; z -= 0.04) {
+        const d = cast(x, top, z, 0, -1, 0);
+        if (d !== null) prof.push([z, top - d]);
+      }
+      if (prof.length < 5) return this._eye;
+      const roof = Math.max(...prof.map((p) => p[1]));
+      const onRoof = prof.filter((p) => p[1] > roof - 0.1);
+      const zFront = Math.max(...onRoof.map((p) => p[0]));      // windscreen header
+      const zBack = Math.min(...onRoof.map((p) => p[0]));
+      if (roof < 0.9 || zFront - zBack < 0.35) return this._eye;  // open car / no roof found
+      const roofAt = (zz) => prof.reduce((b, p) => (Math.abs(p[0] - zz) < Math.abs(b[0] - zz) ? p : b), prof[0])[1];
+      let z = Math.max(zBack + 0.1, zFront - 0.36);
+      // the driver's headrest: the first tall thing below the roof going back from the windscreen; the
+      // eyes sit ~14 cm in front of it (sloping roofs make the windscreen edge alone unreliable)
+      for (let zz = zFront - 0.3; zz > zBack - 0.6 && zz > box.min.z * 0.5; zz -= 0.03) {
+        const r = roofAt(zz), y0 = r - 0.1, d = cast(x, y0, zz, 0, -1, 0);
+        if (d !== null && y0 - d > r - 0.42) { z = zz + 0.14; break; }
+      }
+      const under = roofAt(z);
+      let y = Math.max(box.min.y + 0.75, under - 0.18);
+      // not inside the headrest / against the dash
+      const back = cast(x, y, z, 0, 0, -1), fwd = cast(x, y, z, 0, 0, 1);
+      if (back !== null && back < 0.12) z += 0.12 - back;
+      if (fwd !== null && fwd < 0.3) z -= 0.3 - fwd;
+      // always under the roof, behind the windscreen header (models without a full interior)
+      z = Math.min(z, zFront - 0.25);
+      // a marker placed from a real steering wheel (import: wheel - 0.45 m; estimates sit at z = 0) is
+      // reliable fore-aft: never sit ahead of it
+      if (mk && Math.abs(mk.position.z) > 0.02) z = Math.min(z, mk.position.z + 0.05);
+      y = Math.max(box.min.y + 0.75, roofAt(z) - 0.18);
+      this._eye = new THREE.Vector3(x, y, z);
+    } catch (e) { console.warn('[Vehicle] cockpit eye probe failed', e); }
+    return this._eye;
+  }
+
   sync(s, dt, camPos, env) {
     const g = this.group;
     g.position.set(s.x, s.y, s.z);
