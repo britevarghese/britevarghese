@@ -51,7 +51,7 @@ async function boot() {
   quality.fromRenderer(rm);
   const lvl2 = quality.resolveLevel();
   if (lvl2 !== level) { level = lvl2; preset = quality.apply(level); }
-  $('load-foot').textContent = `${quality.gpu.name} · ${rm.backend.toUpperCase()} · ${QUALITY_LABELS[level]}`;
+  $('load-foot').textContent = `GPU: ${quality.gpu.name} · ${rm.backend.toUpperCase()} · ${QUALITY_LABELS[level]}`;
   setTextureQuality(preset.textureSize, preset.anisotropy);
 
   const assets = new AssetManager();

@@ -571,7 +571,7 @@ export class Game {
       if (this.onFoot.active && driving) this.onFoot.update(dt, input);
       this.onFoot.updateParked(dt, this.camera.position, this.env.state);
       for (const v of this.onFoot.parked) if (Math.abs(v.state.x - player.state.x) < 8 && Math.abs(v.state.z - player.state.z) < 8) VehiclePhysics.resolvePair(player.physics, v.physics);
-      const dynamic = [player, ...this.onFoot.parked, ...this.police.vehicles(), ...this.races.vehicles(), ...this.rivals.vehicles(), ...this.story.vehicles()];
+      const dynamic = [player, ...this.onFoot.parked, ...this.police.vehicles(), ...this.races.vehicles(), ...this.rivals.vehicles(), ...this.story.vehicles(), ...this.net.trafficObstacles()];
       const fwd = { x: Math.sin(player.state.yaw), z: Math.cos(player.state.yaw) };
       this.traffic.camera = this.camera;
       const fs = this.focusState;

@@ -8,7 +8,7 @@ import { VehiclePhysics } from '../physics/VehiclePhysics.js';
 import { obbOverlap } from '../physics/Collision.js';
 import { bus } from '../core/EventBus.js';
 
-const TYPE_SPECS = {
+export const TYPE_SPECS = {
   sedan: { w: 1.84, l: 4.7, mass: 1450, weight: 44 },
   suv: { w: 1.95, l: 4.8, mass: 1900, weight: 24 },
   van: { w: 2.02, l: 5.3, mass: 2300, weight: 13 },
@@ -55,10 +55,14 @@ export class TrafficManager {
     this.enabled = true;
     this.density = 1;
     this.renderList = [];
+    // multiplayer: other players whose traffic we simulate too ({x, z}), and, when another player's game
+    // runs the shared traffic, a source of their cars (then we only render them)
+    this.foci = [];
+    this.remote = null;
   }
 
   setRenderer(r) { this.renderer = r; }
-  get maxCars() { return Math.round(this.preset.traffic * this.density); }
+  get maxCars() { return Math.round(this.preset.traffic * this.density * Math.min(1.8, 1 + 0.45 * this.foci.length)); }
 
   pickType(lane) {
     const R = this.R;
@@ -115,16 +119,22 @@ export class TrafficManager {
   update(dt, focus, forward, dynamic, playerVehicle) {
     this.frame++;
     if (!this.enabled) { this.renderList.length = 0; this.renderer?.update([], this.camera, 0); return; }
+    if (this.remote) { this._follow(focus); return; }
     const R = this.R;
-    // spawn / despawn
-    const max = this.maxCars;
-    for (let k = 0; k < 3 && this.cars.length < max; k++) this.spawnNear(focus.x, focus.z, this.cars.length < max * 0.5 ? 45 : 80, 240, forward);
+    // spawn / despawn (around us and around the other players whose traffic we run)
+    const max = this.maxCars, foci = this.foci;
+    for (let k = 0; k < 3 && this.cars.length < max; k++) {
+      const f = foci.length && (this.frame + k) % (foci.length + 1) ? foci[(this.frame + k) % (foci.length + 1) - 1] : focus;
+      this.spawnNear(f.x, f.z, this.cars.length < max * 0.5 ? 45 : 80, 240, f === focus ? forward : null);
+    }
     for (const c of [...this.cars]) {
       const d = Math.hypot(c.x - focus.x, c.z - focus.z);
       c.dist = d;
+      let dm = d;
+      for (const f of foci) dm = Math.min(dm, Math.hypot(c.x - f.x, c.z - f.z));
       // cars left well behind are recycled so the budget stays around (and ahead of) the player
-      const behind = forward && d > 150 && ((c.x - focus.x) * forward.x + (c.z - focus.z) * forward.z) / d < -0.4 && this.cars.length >= max * 0.8;
-      if (d > 310 || behind || (c.state === 'wreck' && d > 120) || this.cars.length > max + 4 && d > 200) this.remove(c);
+      const behind = forward && dm === d && d > 150 && ((c.x - focus.x) * forward.x + (c.z - focus.z) * forward.z) / d < -0.4 && this.cars.length >= max * 0.8;
+      if (dm > 310 || behind || (c.state === 'wreck' && dm > 120) || this.cars.length > max + 4 && dm > 200) this.remove(c);
     }
     // sort occupancy
     for (const c of this.cars) if (c.path) c.path._sorted = false;
@@ -324,5 +334,17 @@ export class TrafficManager {
     }
   }
 
-  count() { return this.cars.length; }
+  // another player's game runs the traffic here: drop ours and draw theirs
+  _follow(focus) {
+    if (this.cars.length) this.clear();
+    const list = this.renderList;
+    list.length = 0;
+    for (const c of this.remote()) {
+      c.dist = Math.hypot(c.x - focus.x, c.z - focus.z);
+      c.lod = c.dist < this.preset.carLod1Distance ? 0 : 1;
+      list.push(c);
+    }
+  }
+
+  count() { return this.remote ? this.renderList.length : this.cars.length; }
 }

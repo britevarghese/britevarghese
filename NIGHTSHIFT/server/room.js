@@ -16,6 +16,10 @@
  *   server -> owner   {t:'taken', k, by}                (drop it from your parked list)
  *   server -> clients {t:'join', id, name} / {t:'leave', id, name}
  *   server -> client  {t:'error', msg}
+ *   client -> server  {t:'traffic', cars:[[id, type, x, y, z, yaw, speed, brake, color], ...]}
+ *   server -> others  {t:'traffic', from, cars}
+ *                       Shared street traffic: players close together form a group and the lowest id
+ *                       in it simulates the cars for everyone (the others render and collide with them).
  *
  * The server is authoritative for sanity only: speeds are clamped and
  * unannounced teleports are rejected. Physics still runs on the clients.
@@ -27,6 +31,8 @@ const MAX_COORD = 1e5;      // world bounds sanity
 const MAX_MSG_RATE = 60;    // messages per second per client (soft limit)
 const MAX_PARKED = 4;
 const WARP_COOLDOWN = 400;  // ms between accepted teleports
+const MAX_TRAFFIC = 120;    // cars per traffic message
+const TRAFFIC_TYPES = new Set(['sedan', 'suv', 'van', 'truck', 'bus']);
 
 function isNum(n) { return typeof n === 'number' && Number.isFinite(n); }
 function vec(a, n) {
@@ -119,6 +125,18 @@ class Room {
       this.send(owner.ws, { t: 'taken', k: car.k, by: player.name });
       this.send(player.ws, { t: 'take-ok', owner: owner.id, ...car });
       this.log(`[mp] ${player.name} took ${owner.name}'s ${car.car}`);
+      return;
+    }
+    if (msg.t === 'traffic') {
+      if (!player.id || !Array.isArray(msg.cars)) return;
+      const cars = [];
+      for (const c of msg.cars.slice(0, MAX_TRAFFIC)) {
+        if (!Array.isArray(c) || c.length !== 9 || !TRAFFIC_TYPES.has(c[1])) continue;
+        const n = [c[0], c[2], c[3], c[4], c[5], c[6], c[7], c[8]];
+        if (!n.every(isNum) || Math.abs(c[2]) > MAX_COORD || Math.abs(c[4]) > MAX_COORD) continue;
+        cars.push([c[0] | 0, c[1], round(c[2]), round(c[3]), round(c[4]), round(c[5]), round(c[6]), c[7] ? 1 : 0, c[8] | 0]);
+      }
+      this.broadcast({ t: 'traffic', from: player.id, cars }, player);
       return;
     }
     if (msg.t === 'ping') {

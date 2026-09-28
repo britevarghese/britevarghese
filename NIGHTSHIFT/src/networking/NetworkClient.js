@@ -4,17 +4,23 @@
 // switch, steal or take one), or their character when they are on foot, with a name tag above.
 // Cars a player leaves in the street are shared too: anyone can walk up and take one (the server
 // hands it over first come, first served). Remote cars are solid: your car and your character
-// collide with them. Traffic, police and races stay local to each player.
+// collide with them. Street traffic is shared: players near each other form a group and the lowest id
+// in it runs the traffic for all of them (streamed at 10 Hz, interpolated like the players), so
+// everyone sees the same cars in the same places. Police and races stay local to each player.
 import * as THREE from 'three';
 import { VehicleRenderer } from '../vehicles/VehicleRenderer.js';
 import { VehiclePhysics } from '../physics/VehiclePhysics.js';
 import { CARS, TRAFFIC_VEHICLES, POLICE_CAR } from '../vehicles/VehicleCatalog.js';
 import { buildCharacter } from '../player/OnFoot.js';
 import { bus } from '../core/EventBus.js';
+import { TYPE_SPECS } from '../traffic/TrafficManager.js';
 
 const INTERP_DELAY = 0.12;   // seconds of buffering for smooth interpolation
 const WARP_DIST = 40;        // a jump this far between sends is announced as a teleport
 const MAX_PARKED = 4;
+const GROUP_JOIN = 450, GROUP_LEAVE = 600; // m: players this close share one traffic simulation
+const TRAFFIC_HZ = 10;
+const TRAFFIC_DELAY = 0.2; // s: remote traffic is drawn this far in the past (interpolation)
 const _q = new THREE.Quaternion(), _q2 = new THREE.Quaternion(), _e = new THREE.Euler();
 
 // size / mass of any vehicle id the game knows (unknown ids from other clients fall back to a sedan)
@@ -62,6 +68,10 @@ export class NetworkClient {
     this.nextKey = 1;
     this.names = new Map();
     this.pendingTake = null;
+    this.links = new Set();   // "a|b" pairs of players currently close enough to share traffic
+    this.trafficBuf = [];     // [{t, from, cars: Map}] from the player running our group's traffic
+    this.trafficT = 0;
+    this.trafficHost = 0;     // id of the player running our traffic (our own id = us)
   }
 
   get name() { return (this.game.settings.gameplay.playerName || '').trim() || this._rand || (this._rand = `Driver${Math.floor(Math.random() * 900 + 100)}`); }
@@ -128,6 +138,12 @@ export class NetworkClient {
       if (r) this._disposeRemote(r);
       this.remotes.delete(m.id);
       if (m.name) bus.emit('toast', { text: `${m.name} left` });
+    } else if (m.t === 'traffic') {
+      if (m.from !== this.trafficHost) return;
+      const cars = new Map();
+      for (const c of m.cars) cars.set(c[0], c);
+      this.trafficBuf.push({ t: performance.now() / 1000, cars });
+      if (this.trafficBuf.length > 12) this.trafficBuf.shift();
     } else if (m.t === 'correction' && m.s) {
       // server rejected our state (unannounced teleport / speed): snap back
       const fs = this.game.onFoot?.active ? null : this.game.player?.physics;
@@ -214,10 +230,15 @@ export class NetworkClient {
   update(dt) {
     // wall clock (frame dt is capped, so summing it would drift behind the snapshots on slow frames)
     this.clock = performance.now() / 1000;
-    if (!this.connected) return;
+    this._dt = dt;
+    if (!this.connected) {
+      if (this.game.traffic?.remote) { this.game.traffic.remote = null; this.game.traffic.foci = []; }
+      return;
+    }
     const g = this.game;
     if (this.pendingTake && this.clock - this.pendingTake.t > 3) this.pendingTake = null;
     this._sendState(dt);
+    this._group(dt);
     this._collide();
     const renderT = this.clock - INTERP_DELAY;
     const cam = g.camera.position, env = g.env.state;
@@ -305,6 +326,89 @@ export class NetworkClient {
     this._send({ t: 'state', s: { p: [s.x, s.y, s.z], q: [_q.x, _q.y, _q.z, _q.w], v: [s.vx || 0, s.vy || 0, s.vz || 0], car, paint: paintOf(pl), foot: foot ? 1 : 0, warp: this.warp, parked } });
   }
 
+  // ------------------------------------------------------------------ shared traffic
+  // Groups are the connected components of "within GROUP_JOIN m" (with hysteresis), computed from the
+  // same snapshots on every client, so all members agree who runs the traffic: the lowest id.
+  _group(dt) {
+    const g = this.game, tm = g.traffic;
+    const me = g.focusState, pos = new Map([[this.id, { x: me.x, z: me.z }]]);
+    for (const r of this.remotes.values()) if (r.buf.length) pos.set(r.id, { x: r.x, z: r.z });
+    const ids = [...pos.keys()];
+    for (let i = 0; i < ids.length; i++) for (let j = i + 1; j < ids.length; j++) {
+      const a = Math.min(ids[i], ids[j]), b = Math.max(ids[i], ids[j]), key = a + '|' + b;
+      const pa = pos.get(a), pb = pos.get(b), d = Math.hypot(pa.x - pb.x, pa.z - pb.z);
+      if (d < GROUP_JOIN) this.links.add(key); else if (d > GROUP_LEAVE) this.links.delete(key);
+    }
+    for (const key of this.links) { const [a, b] = key.split('|').map(Number); if (!pos.has(a) || !pos.has(b)) this.links.delete(key); }
+    // my component
+    const comp = new Set([this.id]), stack = [this.id];
+    while (stack.length) {
+      const x = stack.pop();
+      for (const key of this.links) {
+        const [a, b] = key.split('|').map(Number);
+        const o = a === x ? b : b === x ? a : 0;
+        if (o && !comp.has(o)) { comp.add(o); stack.push(o); }
+      }
+    }
+    const host = Math.min(...comp);
+    if (host !== this.trafficHost) { this.trafficHost = host; this.trafficBuf.length = 0; }
+    if (!tm) return;
+    if (host === this.id) {
+      tm.remote = null;
+      tm.foci = [...comp].filter((i) => i !== this.id).map((i) => pos.get(i));
+      this.trafficT += dt;
+      if (comp.size > 1 && this.trafficT >= 1 / TRAFFIC_HZ) { this.trafficT = 0; this._sendTraffic(tm); }
+    } else {
+      tm.foci = [];
+      tm.remote ||= () => this._remoteTraffic();
+    }
+  }
+
+  _sendTraffic(tm) {
+    const r2 = (v) => Math.round(v * 100) / 100;
+    const cars = tm.cars.map((c) => [c.id, c.type, r2(c.x), r2(c.y), r2(c.z), r2(c.yaw), r2(c.state === 'drive' ? c.v : Math.hypot(c.s2.vx, c.s2.vz)), c.brake ? 1 : 0, c.color.getHex()]);
+    this._send({ t: 'traffic', cars });
+  }
+
+  // the host's cars, interpolated between its last two messages
+  _remoteTraffic() {
+    const b = this.trafficBuf, out = this._tOut || (this._tOut = []);
+    out.length = 0;
+    if (!b.length) return out;
+    const renderT = this.clock - TRAFFIC_DELAY;
+    let i = b.length - 1;
+    while (i > 0 && b[i - 1].t > renderT) i--;
+    const A = b[Math.max(0, i - 1)], B = b[i];
+    const k = A === B ? 1 : Math.min(1.5, Math.max(0, (renderT - A.t) / ((B.t - A.t) || 1)));
+    const pool = this._tPool || (this._tPool = new Map());
+    const seen = new Set();
+    for (const [id, c] of B.cars) {
+      const a = A.cars.get(id) || c;
+      let dy = c[5] - a[5]; while (dy > Math.PI) dy -= 2 * Math.PI; while (dy < -Math.PI) dy += 2 * Math.PI;
+      let o = pool.get(id);
+      if (!o || o.type !== c[1]) {
+        const sp = TYPE_SPECS[c[1]] || TYPE_SPECS.sedan;
+        o = { id, type: c[1], spec: sp, color: new THREE.Color(), spin: 0, pitch: 0, roll: 0, state: 'drive', p: { mass: sp.mass, inertia: sp.mass * (sp.l * sp.l + sp.w * sp.w) / 12, hx: sp.w / 2, hz: sp.l / 2 } };
+        pool.set(id, o);
+      }
+      o.x = a[2] + (c[2] - a[2]) * k; o.y = a[3] + (c[3] - a[3]) * k; o.z = a[4] + (c[4] - a[4]) * k;
+      o.yaw = a[5] + dy * k; o.v = c[6]; o.brake = c[7];
+      o.color.setHex(c[8]);
+      o.spin += o.v * (this._dt || 0.016) / 0.34;
+      seen.add(id); out.push(o);
+    }
+    for (const id of pool.keys()) if (!seen.has(id)) pool.delete(id);
+    return out;
+  }
+
+  // remote players' cars as obstacles for the traffic we run (they brake for them and get knocked)
+  trafficObstacles() {
+    const out = [];
+    if (!this.connected || this.trafficHost !== this.id) return out;
+    for (const r of this.remotes.values()) if (r.proxy && !r.foot) out.push(r.wrap || (r.wrap = { get physics() { return r.proxy; } }));
+    return out;
+  }
+
   // our car against the cars of other players (they are kinematic here; their own client moves them)
   _collide() {
     const g = this.game;
@@ -318,6 +422,17 @@ export class NetworkClient {
       if (hit?.impact > 2) {
         g.audio?.playEvent('collision', { intensity: Math.min(1, hit.impact / 25), type: 'traffic', position: { x: hit.x, y: 0.6, z: hit.z } });
         g.camCtl?.addShake(Math.min(0.8, hit.impact / 20));
+      }
+    }
+    // the shared traffic someone else runs: solid for us, moved only by its host
+    if (g.traffic?.remote) {
+      const tp = this._tProxy || (this._tProxy = { s: { x: 0, z: 0, vx: 0, vz: 0, yawRate: 0, damage: 0, yaw: 0 }, p: null, c: null, obb() { const c = this.c; return { cx: this.s.x, cz: this.s.z, hx: this.p.hx * 0.95, hz: this.p.hz * 0.97, cos: Math.cos(c.yaw), sin: Math.sin(c.yaw) }; } });
+      for (const c of g.traffic.renderList) {
+        if (Math.abs(c.x - s.x) > 9 || Math.abs(c.z - s.z) > 9) continue;
+        tp.c = c; tp.p = c.p;
+        Object.assign(tp.s, { x: c.x, z: c.z, vx: Math.sin(c.yaw) * c.v, vz: Math.cos(c.yaw) * c.v, yawRate: 0, damage: 0 });
+        const hit = VehiclePhysics.resolvePair(ph, tp);
+        if (hit?.impact) bus.emit('traffic:hit', { car: c, ...hit });
       }
     }
   }
