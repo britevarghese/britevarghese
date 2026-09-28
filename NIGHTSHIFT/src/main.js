@@ -44,6 +44,8 @@ async function boot() {
   setProgress(0.03, 'Starting renderer...');
 
   const rm = new RendererManager($('app'), settings);
+  rm.preferWebGPU = quality.kind === 'integrated' && !!quality.gpu.adapterDedicated;
+  if (rm.preferWebGPU) console.info(`[Quality] WebGL is on ${quality.gpu.name}; WebGPU reaches ${quality.gpu.adapter}: using WebGPU`);
   try { await rm.init(preset); } catch (e) { fatal('RENDERER ERROR', String(e.message || e)); throw e; }
   // the card the game really renders on (laptops: the dedicated GPU)
   quality.fromRenderer(rm);

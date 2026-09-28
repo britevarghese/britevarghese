@@ -73,7 +73,12 @@ export class UIManager {
     const d = g.save.data;
     const L = g.progress?.info || { level: 1, into: 0, need: 1 };
     s.appendChild(h('div', 'menu-stats', `<div class="v">${formatMoney(d.cash)}</div><div class="l">CASH</div><div class="v" style="margin-top:.8rem">${L.level}</div><div class="l">DRIVER LEVEL</div><div class="xpline"><i style="width:${L.need ? Math.round(L.into / L.need * 100) : 100}%"></i></div><div class="v" style="margin-top:.8rem">${d.raceWins}</div><div class="l">RACE WINS</div>`));
-    s.appendChild(h('div', 'menu-foot', `${g.rm.backend.toUpperCase()} · ${QUALITY_LABELS[g.quality.level]} · W/S throttle-brake · A/D steer · SPACE handbrake · SHIFT nitrous · V camera · F get in/out · M map · I replay · F2 photo · ESC pause`));
+    const adv = g.quality.advice(g.rm.backend);
+    if (adv && adv.level !== 'info') {
+      const n = h('div', 'gpu-notice ' + adv.level, `<b>${adv.title}</b><span>${adv.text}</span>`);
+      s.appendChild(n);
+    }
+    s.appendChild(h('div', 'menu-foot', `${g.quality.gpu.name} · ${g.rm.backend.toUpperCase()} · ${QUALITY_LABELS[g.quality.level]} · W/S throttle-brake · A/D steer · SPACE handbrake · SHIFT nitrous · V camera · F get in/out · M map · I replay · F2 photo · ESC pause`));
     this.screens.appendChild(s);
     this.current = 'menu';
     this._menuNav(btns, null);
@@ -314,6 +319,13 @@ export class UIManager {
         redo.onclick = () => { S.graphics.quality = 'auto'; S.graphics.detectedQuality = null; S.graphics.detectedGpu = null; S.save(); location.reload(); };
         gpuRow.appendChild(redo);
         body.appendChild(gpuRow);
+        const adv = Q.advice(g.rm.backend);
+        const advRow = h('div', 'row gpu-advice ' + (adv ? adv.level : 'ok'));
+        advRow.appendChild(h('div', '', adv
+          ? `<label>${adv.title}</label><div class="desc">${adv.text}</div>`
+          : `<label>Using your graphics card</label><div class="desc">The game renders on ${Q.gpu.name}${Q.gpu.tier >= 3 ? ' and never drops below ' + QUALITY_LABELS[QUALITY_LEVELS[Q.floorIndex]] + ' on its own' : ''}.</div>`));
+        advRow.appendChild(h('div', 'desc gpu-raw', String(Q.gpu.renderer || '').replace(/[<>&]/g, '')));
+        body.appendChild(advRow);
         opt('Quality preset', 'Auto picks a level from a hardware benchmark' + det, 'graphics', 'quality', ['auto', ...QUALITY_LEVELS], ['AUTO', ...QUALITY_LEVELS.map((l) => QUALITY_LABELS[l])], apply);
         slider('Resolution scale', 'graphics', 'resolutionScale', 0.5, 1, 0.05, apply);
         opt('Textures', 'Texture resolution (applies after reload)', 'graphics', 'textures', ['auto', '256', '512', '1024', '2048'], ['AUTO', '256', '512', '1024', '2048']);

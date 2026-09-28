@@ -65,10 +65,10 @@ export class RendererManager {
   }
 
   _autoPrefersWebGPU() {
-    // 'auto' uses the fully validated WebGL2 path. WebGPU is opt-in (Settings > Renderer) and
-    // falls back to WebGL2 automatically if the device fails. Flip this once validated on
-    // target hardware: return !!navigator.gpu && /Chrome\/|Edg\//.test(navigator.userAgent);
-    return false;
+    // 'auto' uses the fully validated WebGL2 path, except when the browser's WebGL is stuck on the
+    // integrated GPU but WebGPU can reach the dedicated card (dual-GPU laptops): then WebGPU renders on
+    // the fast card, falling back to WebGL2 automatically if the device fails.
+    return !!this.preferWebGPU;
   }
 
   setupPost(scene, camera) {

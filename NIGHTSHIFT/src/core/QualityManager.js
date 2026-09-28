@@ -51,6 +51,7 @@ export function gpuName(renderer = '', vendor = '') {
   if (m) { const parts = m[1].split(', '); r = parts.length >= 2 ? parts[1] : parts[0]; }
   r = r.replace(/^ANGLE Metal Renderer:\s*/i, '').replace(/\/PCIe.*$|\/SSE2.*$/i, '');
   r = r.replace(/\(0x[0-9a-f]+\)/ig, '').replace(/Direct3D\S*|vs_\S+|ps_\S+|OpenGL.*$/g, '').replace(/\(R\)|\(TM\)|\(tm\)/g, '').replace(/\s+/g, ' ').trim();
+  r = r.replace(/,? or similar$/i, '').trim();
   if (!r || r === 'unknown') return vendor && vendor !== 'unknown' ? String(vendor) : 'Unknown graphics card';
   return r;
 }
@@ -100,6 +101,13 @@ export class QualityManager {
       if (!i) return;
       const desc = [i.description, i.vendor, i.architecture, i.device].filter(Boolean).join(' ').trim();
       this.gpu.adapter = desc;
+      // WebGPU can reach the dedicated card even when the browser's WebGL runs on the integrated one
+      const t = this._tier(gpuName(i.description || '').toLowerCase());
+      const v = String(i.vendor || '').toLowerCase();
+      const fam = (x) => (/nvidia|geforce|rtx|gtx|quadro/i.test(x) ? 'nvidia' : /amd|ati|radeon/i.test(x) ? 'amd' : /intel/i.test(x) ? 'intel' : '');
+      const webglFam = fam(`${this.gpu.vendor} ${this.gpu.renderer}`), wgFam = fam(`${v} ${i.description || ''}`);
+      // a named gaming card, or a different GPU maker than the WebGL one (Intel iGPU + NVIDIA/AMD card)
+      this.gpu.adapterDedicated = (t !== null && t >= 2 && !/apple/.test(v)) || (!!wgFam && wgFam !== 'intel' && !!webglFam && wgFam !== webglFam);
       if (desc && (!this.gpu.recognized || this.gpu.renderer === 'unknown')) {
         const r2 = i.description || `${i.vendor || ''} ${i.architecture || ''}`.trim();
         if (r2 && this._tier(gpuName(r2).toLowerCase()) !== null) { this.gpu.renderer = r2; this.gpu.name = gpuName(r2, i.vendor); }
@@ -125,6 +133,40 @@ export class QualityManager {
     } catch { /* keep the probe's answer */ }
   }
 
+  // what kind of graphics the browser is rendering with
+  //   software   - no hardware acceleration (SwiftShader / Microsoft Basic Render Driver)
+  //   integrated - Intel / AMD APU graphics (laptops with an NVIDIA/AMD card fall back to these)
+  //   dedicated  - a real graphics card (or Apple silicon)
+  //   unknown    - the browser hides the name (Firefox fingerprinting protection, some privacy modes)
+  get kind() {
+    const raw = String(this.gpu.renderer || '');
+    if (this.gpu.software || /swiftshader|llvmpipe|basic render/i.test(raw)) return 'software';
+    if (/or similar$/i.test(raw)) return 'unknown';
+    const t = this._tier(gpuName(raw).toLowerCase());
+    if (t === null) return 'unknown';
+    return t <= 1 ? 'integrated' : 'dedicated';
+  }
+
+  // What to tell the player when the browser isn't rendering on a real graphics card (null when it is).
+  // Browsers pick the GPU for the whole browser; a web page can only ask, so the fix is a setting.
+  advice(backend = 'webgl2') {
+    const k = this.kind, ua = navigator.userAgent, name = this.gpu.name || 'unknown';
+    const browser = /Edg\//.test(ua) ? 'Edge' : /Firefox\//.test(ua) ? 'Firefox' : /Chrome\//.test(ua) ? 'Chrome' : 'your browser';
+    const win = /Windows/.test(ua), mac = /Mac OS X/.test(ua);
+    const accel = browser === 'Firefox'
+      ? 'Firefox: Settings > General > Performance > untick "Use recommended performance settings" > tick "Use hardware acceleration when available", then restart Firefox.'
+      : `${browser}: Settings > System > turn on "Use graphics acceleration when available", then Relaunch.`;
+    if (k === 'software') return { level: 'bad', title: 'Graphics card not in use: hardware acceleration is off', text: `${browser} is drawing the game on the CPU (${name}). ${accel}` };
+    if (k === 'integrated' && backend !== 'webgpu') {
+      const steps = win
+        ? `Windows Settings > System > Display > Graphics > ${{ Chrome: 'Google Chrome', Edge: 'Microsoft Edge', Firefox: 'Firefox' }[browser] || 'your browser'} > Options > High performance > Save, then close every ${browser} window and open it again. (NVIDIA: NVIDIA Control Panel > Manage 3D settings > Program settings > ${browser} > "High-performance NVIDIA processor".)`
+        : mac ? 'Plug in the power adapter and turn off "Automatic graphics switching" (System Settings > Battery > Options), then restart the browser.' : 'Start the browser on the dedicated GPU (e.g. "Launch using Discrete Graphics Card" or prime-run / DRI_PRIME=1), then reload.';
+      return { level: 'warn', title: `Running on integrated graphics (${name})`, text: `If this computer has an NVIDIA or AMD graphics card, ${browser} is not using it. ${steps}` };
+    }
+    if (k === 'unknown') return { level: 'info', title: 'The browser hides the graphics card name', text: `Quality was set from a performance test instead. ${browser === 'Firefox' ? 'Chrome or Edge report the card and usually run faster.' : ''}`.trim() };
+    return null;
+  }
+
   // tier index from a GPU name, or null when the name is unknown / generic
   _tier(r) {
     if (/swiftshader|llvmpipe|software|basic render/.test(r)) return 0;
@@ -140,8 +182,9 @@ export class QualityManager {
   guessLevel() {
     const r = gpuName(this.gpu.renderer).toLowerCase();
     if (!this.gpu.webgl2) return 'veryLow';
-    const t = this._tier(r);
+    const t = /or similar$/i.test(this.gpu.renderer) ? null : this._tier(r);
     this.gpu.recognized = t !== null;
+    this.gpu.tier = t;
     let lvl = QUALITY_LEVELS[t ?? 2];
     // deviceMemory is capped at 8 and only reported by some browsers; only trust very low values
     if (this.gpu.memory && this.gpu.memory <= 2 && (t ?? 2) < 3) lvl = 'veryLow';
@@ -162,11 +205,19 @@ export class QualityManager {
     else if (workMs < 4) i += 2;
     else if (workMs < 8) i += 1;
     const cap = !this.gpu.recognized || guess >= 3 ? 4 : Math.min(4, guess + 2);
-    return QUALITY_LEVELS[clampI(i, 0, cap)];
+    return QUALITY_LEVELS[clampI(i, this.floorIndex, cap)];
+  }
+
+  // A recognised gaming card never runs below the level it is rated for: a slow first benchmark (shader
+  // compiles, a background tab, a laptop on battery) or a busy moment must not turn it down.
+  get floorIndex() {
+    this.guessLevel();
+    const t = this.gpu.tier;
+    return t != null && t >= 3 ? t : 0;
   }
 
   // identity of the GPU the detection was made on: a new GPU / browser re-runs the benchmark
-  get gpuKey() { return `v2|${this.gpu.vendor}|${this.gpu.renderer}`; }
+  get gpuKey() { return `v3|${this.gpu.vendor}|${this.gpu.renderer}`; }
 
   resolveLevel() {
     const g = this.settings.graphics;

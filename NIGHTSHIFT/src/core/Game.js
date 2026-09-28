@@ -478,7 +478,7 @@ export class Game {
     if (slow > 0.6) {
       if ((rm.dynScale || 1) > 0.72) { rm.dynScale = Math.max(0.7, (rm.dynScale || 1) - 0.1); rm.resize(); G.cool = 3; return; }
       const i = QUALITY_LEVELS.indexOf(this.quality.level);
-      if (i > 0) {
+      if (i > this.quality.floorIndex) {
         const lvl = QUALITY_LEVELS[i - 1];
         this.settings.graphics.detectedQuality = lvl; this.settings.save();
         rm.dynScale = 1;
