@@ -571,7 +571,7 @@
   ],
   "cars": {
     "bmw_m3_e30": "i4_rover",
-    "subaru_wrx_sti_gc8": "i4_rover",
+    "subaru_wrx_sti_gc8": "turbo_dyno",
     "porsche_930_turbo": "flat6_911",
     "nissan_skyline_r34": "turbo_dyno",
     "toyota_supra_mk4": "i6_bmw",
@@ -595,6 +595,6 @@
     "muscle": "v8_muscle",
     "sports": "i6_bmw",
     "exotic": "v10_r8",
-    "tuner": "i4_rover"
+    "tuner": "turbo_dyno"
   }
 }

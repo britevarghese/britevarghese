@@ -30,7 +30,7 @@ class EngineSampleProcessor extends AudioWorkletProcessor {
   constructor() {
     super();
     this.src = null;
-    this.G = Math.round(2560 * sampleRate / 44100) & ~1;
+    this.G = Math.round(4096 * sampleRate / 44100) & ~1; // ~90 ms grains, a splice at most every ~45 ms
     this.H = this.G >> 1;
     this.win = new Float32Array(this.G);
     for (let i = 0; i < this.G; i++) this.win[i] = 0.5 - 0.5 * Math.cos((2 * Math.PI * i) / this.G);
@@ -39,6 +39,7 @@ class EngineSampleProcessor extends AudioWorkletProcessor {
     this.thr = 0;
     this.fade = 0;
     this.env = 0;
+    this.slope = 0; this.trend = 0;
     this.port.onmessage = (e) => { if (e.data?.type === 'load') this._load(e.data); };
   }
 
@@ -80,7 +81,10 @@ class EngineSampleProcessor extends AudioWorkletProcessor {
       if (dl > 0.35) return false;
       const i = this.ord[k];
       if (this.P[i] + G * 2.2 >= len) return true;
-      const c = dl + v.cost[this.D[i]] + this.Q[i] + Math.random() * 0.012;
+      // pitch match, then a recording moving the way the revs are going (so it keeps matching), then
+      // on/off-throttle character, avoiding quiet frames
+      const di = this.D[i], want = this.trend;
+      const c = dl + (di === want ? 0 : di === 0 || want === 0 ? 0.035 : 0.12) + v.cost[di] * 0.5 + this.Q[i] + Math.random() * 0.003;
       if (c < bestC) { bestC = c; best = i; }
       return true;
     };
@@ -129,7 +133,10 @@ class EngineSampleProcessor extends AudioWorkletProcessor {
       // continue the recording where the previous grain has got to, if it still fits
       const cont = prev.pos;
       fi = this._frameAt(cont);
-      if (fi >= 0 && cont + this.G * 2.2 < this.len && Math.abs(this.LF[fi] - lt) < 0.055 && v.cost[this.D[fi]] < 0.05) pos = cont;
+      // keep going while a small resampling (up to ~20%) holds it on pitch and the recording's revs aren't
+      // heading the opposite way: fewer splices = a cleaner, more natural engine
+      const dl = fi >= 0 ? Math.abs(this.LF[fi] - lt) : 1;
+      if (fi >= 0 && cont + this.G * 2.2 < this.len && dl < 0.19 && (this.D[fi] * this.trend >= 0 || dl < 0.05) && this.Q[fi] < 0.2) pos = cont;
       else fi = -1;
     }
     if (pos < 0) {
@@ -147,6 +154,11 @@ class EngineSampleProcessor extends AudioWorkletProcessor {
     if (!this.src) { out.fill(0); return true; }
     const rpmN = params.rpmN[0], pitch = params.pitch[0], gain = params.gain[0];
     const lt = Math.log(Math.max(4, this.f0idle + rpmN * (this.f0max - this.f0idle)));
+    // which way the revs are going (ln f0 per second, smoothed): 1 rising, -1 falling, 0 steady
+    const blk = out.length / sampleRate;
+    if (this.ltPrev !== undefined) this.slope += ((lt - this.ltPrev) / blk - this.slope) * Math.min(1, blk * 8);
+    this.ltPrev = lt;
+    this.trend = this.slope > 0.12 ? 1 : this.slope < -0.12 ? -1 : 0;
     const thrT = params.throttle[0];
     const G = this.G, H = this.H, win = this.win, len = this.len;
     for (let i = 0; i < out.length; i++) {

@@ -58,6 +58,8 @@ export const LAYOUTS = {
   vtwin: { fire: [0, 315], bank: [0, 1], hdr: [0, 0.4], pipe: [1.6, 1.7], open: 0.7, sharp: 3.5, turb: 0.45, jitter: 0.12, intake: 0.25, pops: 1.1 },
   rotary: { fire: even(4), hdr: [0, 0.05, 0, 0.05], pipe: [2.0, 2.0], fb: 0.45, open: 0.8, sharp: 3, turb: 0.65, jitter: 0.08, intake: 0.2, rotary: true, pops: 1.2 },
 };
+// Exhaust pops, backfires and blow-off valve dumps: off (players found them unrealistic).
+const EXHAUST_POPS = false;
 const TYPE_LAYOUT = { muscle: 'v8cross', sports: 'v6', exotic: 'v12', tuner: 'i4' };
 
 // Real cars: an engine layout per car on top of one of the four base characters. Firing frequency is
@@ -390,7 +392,7 @@ export class EngineSynth {
     this.shaper.curve = makeDriveCurve(this.useWorklet ? 1.3 + p.drive * 0.3 : p.drive);
     if (this.wk) {
       const lay = LAYOUTS[p.layout || TYPE_LAYOUT[base]] || LAYOUTS.i6;
-      this.wk.port.postMessage({ type: 'config', config: lay });
+      this.wk.port.postMessage({ type: 'config', config: EXHAUST_POPS ? lay : { ...lay, pops: 0 } });
       glide(this.lp.Q, 0.9, t, 0.05); // the pipes resonate on their own; a soft muffler filter is enough
       glide(this.gMain.gain, 0, t, 0.05);
     }
@@ -514,14 +516,14 @@ export class EngineSynth {
     glide(this.turboGain.gain, p.turbo * this.boost * this.boost * 0.05, t, 0.05);
 
     // blow-off when throttle released from high boost
-    if (p.turbo > 0 && p.bov !== 0 && this.prevThrottle > 0.55 && thr < 0.2 && this.boost > 0.45) {
+    if (EXHAUST_POPS && p.turbo > 0 && p.bov !== 0 && this.prevThrottle > 0.55 && thr < 0.2 && this.boost > 0.45) {
       this.host._internalEvent('blowOff', { intensity: this.boost * p.turbo });
       this.boost *= 0.3;
     }
     // lift at high rpm -> arm the crackle window
     if (this.prevThrottle > 0.5 && thr < 0.15 && rpmN > 0.5) {
       this.crackleTimer = 0.6 + rpmN * 1.0;
-      if (p.crackle > 0.5 && Math.random() < 0.3 + 0.5 * rpmN) this.host._internalEvent('crackle', { intensity: 0.5 + 0.5 * rpmN, first: true });
+      if (EXHAUST_POPS && p.crackle > 0.5 && Math.random() < 0.3 + 0.5 * rpmN) this.host._internalEvent('crackle', { intensity: 0.5 + 0.5 * rpmN, first: true });
     }
     if (thr > 0.3) this.crackleTimer = 0;
     this.prevThrottle = thr;
@@ -554,7 +556,7 @@ export class EngineSynth {
     const st = this.state;
     const p = this.p;
     // overrun crackles
-    if (this.crackleTimer > 0) {
+    if (EXHAUST_POPS && this.crackleTimer > 0) {
       this.crackleTimer -= dt;
       const rate = 7 * p.crackle * clamp(this.crackleTimer, 0, 1);
       this.crackleAcc += rate * dt;
@@ -574,7 +576,7 @@ export class EngineSynth {
         g.setValueAtTime(1, t);
         g.linearRampToValueAtTime(0.15, t + 0.01);
         g.linearRampToValueAtTime(1, t + 0.05 + Math.random() * 0.06);
-        if (Math.random() < st.damage * 0.3) this.host._internalEvent('crackle', { intensity: 0.3 });
+        if (EXHAUST_POPS && Math.random() < st.damage * 0.3) this.host._internalEvent('crackle', { intensity: 0.3 });
       }
     }
   }
