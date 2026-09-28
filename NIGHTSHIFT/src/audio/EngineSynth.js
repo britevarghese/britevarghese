@@ -176,12 +176,18 @@ export class EngineSynth {
     this.misfire = g(1);
     this.shift = g(1);
     this.out = g(0);
-    this.amGain.connect(this.misfire).connect(this.shift).connect(this.out);
+    this.synthGate = g(1); // the synthesized engine; closed while a recorded engine plays
+    this.amGain.connect(this.synthGate).connect(this.misfire).connect(this.shift).connect(this.out);
 
     // intake / induction noise (pink bandpass tracking rpm)
     this.inBP = flt('bandpass', 800, 1.4);
     this.inGain = g(0);
-    this.pink.connect(this.inBP).connect(this.inGain).connect(this.shift);
+    this.pink.connect(this.inBP).connect(this.inGain).connect(this.synthGate);
+
+    // recorded engine (granular player, engine-sample-worklet.js) joins before the limiter/shift dips
+    this.smpGate = g(0);
+    this.smpGate.connect(this.misfire);
+    this.samples = new Map(); // engine name -> Promise<{data, an}>
 
     this.out.connect(engineOut);
 
@@ -250,9 +256,16 @@ export class EngineSynth {
   }
 
   /** Swap the whistle-like skid tone for a rendered tyre-screech loop (from the impact bank). */
-  attachScreech(buf) {
-    if (!buf || this.screech) return;
+  attachScreech(buf, replace = false) {
+    if (!buf || (this.screech && !replace)) return;
     const c = this.ctx;
+    if (this.screech) { // swap in a new loop (the recorded one)
+      const src = c.createBufferSource(); src.buffer = buf; src.loop = true;
+      src.playbackRate.value = this.screech.playbackRate.value;
+      src.connect(this.screechGain); src.start();
+      safeStop(this.screech, c.currentTime); this.screech = src;
+      return;
+    }
     const src = c.createBufferSource(); src.buffer = buf; src.loop = true;
     this.screechGain = c.createGain(); this.screechGain.gain.value = 0;
     src.connect(this.screechGain).connect(this.skidGain);
@@ -276,6 +289,64 @@ export class EngineSynth {
       console.info('[Audio] physical engine model active');
       return true;
     } catch (e) { console.warn('[Audio] engine worklet unavailable, using oscillator engine', e); return false; }
+  }
+
+  /** Real engine recordings: per-car sample map + the granular player. Falls back to the synth. */
+  async initSamples(base = '/assets/audio/engines/') {
+    try {
+      if (!this.ctx.audioWorklet) return false;
+      this.sampleBase = base;
+      const [map] = await Promise.all([
+        fetch(base + 'cars.json').then((r) => r.json()),
+        this.ctx.audioWorklet.addModule(new URL('./engine-sample-worklet.js', import.meta.url)),
+      ]);
+      this.smp = new AudioWorkletNode(this.ctx, 'nightshift-engine-sample', { numberOfInputs: 0, numberOfOutputs: 1, outputChannelCount: [1] });
+      this.smp.connect(this.smpGate);
+      this.sampleMap = map;
+      const type = this.type; this.type = null; this.setCarType(type || 'sports');
+      return true;
+    } catch (e) { console.warn('[Audio] recorded engines unavailable, using synthesized engine', e); return false; }
+  }
+
+  _loadSample(name) {
+    let pr = this.samples.get(name);
+    if (!pr) {
+      const base = this.sampleBase;
+      pr = Promise.all([
+        fetch(base + name + '.json').then((r) => r.json()),
+        fetch(base + name + '.mp3').then((r) => r.arrayBuffer()).then((ab) => this.ctx.decodeAudioData(ab)),
+      ]).then(([an, buf]) => {
+        let data = buf.getChannelData(0);
+        if (buf.numberOfChannels > 1) { const r = buf.getChannelData(1); data = data.map((v, i) => (v + r[i]) * 0.5); }
+        return { an, data };
+      });
+      pr.catch(() => this.samples.delete(name));
+      this.samples.set(name, pr);
+    }
+    return pr;
+  }
+
+  _useSample(on) {
+    const t = this.ctx.currentTime;
+    this.sampleOn = on;
+    glide(this.synthGate.gain, on ? 0 : 1, t, 0.08);
+    glide(this.smpGate.gain, on ? 1 : 0, t, 0.08);
+  }
+
+  _selectSample(type) {
+    const name = this.sampleMap?.[type] || this.sampleMap?.[this.p.base];
+    // cars with their own synth profile but no recording (e.g. the rotary) keep the synth
+    const own = PROFILES[type] && PROFILES[type].base && !this.sampleMap?.[type];
+    if (!this.smp || !name || own) { this._useSample(false); this.sampleName = null; return; }
+    if (name === this.sampleName) { this._useSample(true); return; }
+    this.sampleName = name;
+    this._useSample(false);
+    this._loadSample(name).then(({ an, data }) => {
+      if (this.sampleName !== name) return;
+      this.smp.port.postMessage({ type: 'load', data: data.slice(), t: an.t, f: an.f, d: an.d, v: an.v, f0idle: an.f0idle, f0max: an.f0max });
+      this.sampleGain = an.gain;
+      this._useSample(true);
+    }).catch((e) => { console.warn('[Audio] engine recording failed to load', name, e); if (this.sampleName === name) this._useSample(false); });
   }
 
   start() {
@@ -323,6 +394,10 @@ export class EngineSynth {
       glide(this.lp.Q, 0.9, t, 0.05); // the pipes resonate on their own; a soft muffler filter is enough
       glide(this.gMain.gain, 0, t, 0.05);
     }
+    // same recording on several cars: a small per-car pitch offset keeps them apart
+    let h = 0; for (const ch of type) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
+    this.samplePitch = 0.94 + (h % 1000) / 1000 * 0.12;
+    if (this.sampleMap) this._selectSample(type);
   }
 
   /** Brief torque-cut dip on upshift. */
@@ -385,6 +460,13 @@ export class EngineSynth {
       P.get('throttle').setTargetAtTime(thr, t, 0.03);
       glide(this.lp.frequency, clamp(cut * 1.05 + 350, 300, 9000), t, 0.05); // muffler opens with rpm/throttle
     }
+    if (this.smp) {
+      const P = this.smp.parameters;
+      P.get('rpmN').setTargetAtTime(clamp((rpm - st.idle) / (st.redline - st.idle), -0.3, 1.1), t, 0.03);
+      P.get('throttle').setTargetAtTime(thr, t, 0.04);
+      P.get('pitch').setTargetAtTime(this.samplePitch || 1, t, 0.1);
+      P.get('gain').setTargetAtTime(this.sampleOn ? (this.sampleGain || 1) * 0.34 * (0.8 + 0.25 * thr) : 0, t, 0.05);
+    }
     // --- AM firing lump: strong at idle / low rpm, smooth when revving (the physical model has its own) ---
     const lump = this.wk ? 0 : p.amDepth * (1 - rpmN * 0.85) * (1 - thr * 0.5);
     glide(this.lfoA.frequency, (rpm / 120) * p.amRate, t, 0.05);
@@ -400,7 +482,7 @@ export class EngineSynth {
     const vol = this.wk
       ? (0.8 + 0.2 * Math.pow(thr, 0.7)) * (0.85 + 0.15 * rpmN) * p.gain * (1.9 - 0.9 * rpmN) // model already scales with rpm/load; keep idle ~15 dB under a full pull
       : (off > 0.5 ? 0.3 + 0.1 * rpmN : 0.3 + 0.7 * Math.pow(thr, 0.8)) * (0.55 + 0.45 * rpmN) * p.gain;
-    glide(this.out.gain, vol * 0.55, t, 0.05);
+    glide(this.out.gain, this.sampleOn ? 0.6 : vol * 0.55, t, 0.05);
     glide(this.inGain.gain, p.intake * thr * (0.2 + rpmN) * 0.35 * (1 + 1.4 * this.vtecS), t, 0.05);
 
     // --- supercharger whine: pitch follows the crank directly ---
@@ -439,6 +521,7 @@ export class EngineSynth {
     // lift at high rpm -> arm the crackle window
     if (this.prevThrottle > 0.5 && thr < 0.15 && rpmN > 0.5) {
       this.crackleTimer = 0.6 + rpmN * 1.0;
+      if (p.crackle > 0.5 && Math.random() < 0.3 + 0.5 * rpmN) this.host._internalEvent('crackle', { intensity: 0.5 + 0.5 * rpmN, first: true });
     }
     if (thr > 0.3) this.crackleTimer = 0;
     this.prevThrottle = thr;

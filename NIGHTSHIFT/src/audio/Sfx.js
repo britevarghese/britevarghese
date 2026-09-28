@@ -164,9 +164,9 @@ function playImpact(s, t, bank, name, k, extra = {}) {
   const buf = bank.pick(name);
   if (!buf) return false;
   s.sample(buf, t, {
-    rate: rand(0.93, 1.07) * (1.08 - 0.16 * k),          // bigger hits: heavier, lower
+    rate: (extra.rate ?? rand(0.94, 1.06)) * (bank.recorded ? 1.04 - 0.08 * k : 1.08 - 0.16 * k), // bigger hits: heavier, lower
     gain: (0.22 + 0.78 * Math.pow(k, 0.8)) * (extra.gain ?? 1),
-    lp: 900 + 17000 * Math.pow(k, 1.3),                   // soft taps are dull, big hits are bright
+    lp: (bank.recorded ? 2400 : 900) + 17000 * Math.pow(k, 1.3), // soft taps are dull, big hits are bright
   });
   return true;
 }
@@ -182,6 +182,11 @@ const R = {
       if (name === 'crash' && k < 0.25) name = 'bump';
       playImpact(s, t, bank, name, k);
       if (type === 'wall' && k > 0.45) playImpact(s, t + 0.004, bank, 'crash', k, { gain: 0.55 }); // body panels crumple too
+      if (bank.recorded) {
+        // real crashes keep going: glass breaking out of the frames, then bits of trim and plastic landing
+        if ((name === 'crash' || name === 'wall') && k > 0.5) playImpact(s, t + rand(0.01, 0.05), bank, 'glass', k, { gain: 0.25 + 0.4 * (k - 0.5) });
+        if (name !== 'bump' && k > 0.35) playImpact(s, t + rand(0.18, 0.35), bank, 'debris', k * 0.8, { gain: 0.3 + 0.3 * k });
+      }
       return;
     }
     switch (type) {
@@ -266,14 +271,26 @@ const R = {
 
   crackle(s, t, o, m) {
     const k = num(o.intensity, 0.6);
-    const pop = m.impacts?.ready && m.impacts.pick('backfire');
-    if (pop) { s.sample(pop, t, { rate: rand(0.85, 1.2), gain: 0.35 + 0.55 * k, lp: 3000 + 9000 * k }); return; }
+    const bank = m.impacts;
+    // on a big lift the exhaust rattles off a burst of pops (a recorded crackle train), then single bangs
+    if (bank?.recorded && o.first && k > 0.5 && bank.b.crackles) {
+      s.sample(bank.pick('crackles'), t, { rate: rand(0.92, 1.08), gain: 0.4 + 0.4 * k, lp: 6000 + 8000 * k });
+      return;
+    }
+    const pop = bank?.ready && bank.pick('backfire');
+    if (pop) { s.sample(pop, t, { rate: bank.recorded ? rand(0.9, 1.12) : rand(0.85, 1.2), gain: (bank.recorded ? 0.3 : 0.35) + 0.55 * k, lp: 3000 + 11000 * k }); return; }
     s.noiseHit('white', 'bandpass', rand(500, 1300), 1.2, t, 0.001, 0.9 * k, rand(0.02, 0.06), null, s.out, s.shaper(m.curves.crunch));
     s.tone('sine', rand(70, 110), t, 0.001, 0.5 * k, 0.05, 40);
   },
 
-  blowOff(s, t, o) {
+  blowOff(s, t, o, m) {
     const k = clamp(num(o.intensity, 0.7), 0, 1);
+    const bov = m.impacts?.recorded && m.impacts.pick('bov');
+    if (bov) {
+      s.sample(bov, t, { rate: rand(0.9, 1.1), gain: 0.25 + 0.45 * k, lp: 16000 });
+      for (let i = 0; i < 3; i++) s.noiseHit('pink', 'bandpass', 900, 2, t + 0.05 + i * 0.045, 0.004, 0.05 * k, 0.03); // valve flutter
+      return;
+    }
     s.noiseHit('white', 'bandpass', 4200, 0.9, t, 0.012, 0.35 * k, 0.45, 1400);
     s.noiseHit('white', 'highpass', 6000, 0.7, t, 0.005, 0.12 * k, 0.25);
     // flutter "chu-chu"

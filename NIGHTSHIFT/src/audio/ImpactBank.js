@@ -266,5 +266,60 @@ export class ImpactBank {
     setTimeout(step, 0);
   }
 
+  /**
+   * Real recordings (public/assets/audio/sfx, see tools/sounds): clips cut from Freesound crash, glass,
+   * debris, backfire, blow-off and tyre recordings. Once loaded they replace the rendered bank of the same
+   * name; banks without recordings (landing, clunk, scrape) stay procedural.
+   */
+  async loadRecorded(base = '/assets/audio/sfx/', onReady) {
+    try {
+      const clips = await (await fetch(base + 'clips.json')).json();
+      const files = new Map();
+      for (const list of Object.values(clips)) for (const [f] of list) files.set(f, null);
+      await Promise.all([...files.keys()].map(async (f) => {
+        try { files.set(f, await this.ctx.decodeAudioData(await (await fetch(base + f)).arrayBuffer())); } catch (e) { console.warn('[Audio] sfx failed', f, e); }
+      }));
+      const rec = {};
+      for (const [bank, list] of Object.entries(clips)) {
+        for (const [f, a, z] of list) {
+          const buf = files.get(f);
+          if (buf) (rec[bank] ||= []).push(this._cut(buf, a, z, bank));
+        }
+      }
+      for (const [bank, list] of Object.entries(rec)) this.b[bank] = list;
+      this.recorded = true;
+      onReady?.(rec);
+    } catch (e) { console.warn('[Audio] recorded sfx unavailable, keeping rendered ones', e); }
+  }
+
+  // slice [a, z] seconds out of a decoded file, mono, faded, peak-normalised
+  _cut(buf, a, z, bank) {
+    const sr = buf.sampleRate, ch = buf.numberOfChannels;
+    const i0 = Math.max(0, Math.floor(a * sr)), i1 = Math.min(buf.length, Math.floor(z * sr));
+    let n = Math.max(1, i1 - i0);
+    const d = new Float32Array(n);
+    for (let c = 0; c < ch; c++) { const x = buf.getChannelData(c); for (let i = 0; i < n; i++) d[i] += x[i0 + i] / ch; }
+    if (bank === 'bov') { // a blow-off valve dumps in one burst: sharp onset, ~0.35 s decay
+      n = Math.min(n, Math.floor(1.1 * sr));
+      for (let i = 0; i < n; i++) d[i] *= Math.min(1, i / (0.006 * sr)) * Math.exp(-i / (0.35 * sr));
+    }
+    let out = d.subarray(0, n);
+    if (bank === 'screech') { // make it loop: crossfade the tail into the head
+      const X = Math.floor(0.25 * sr), L = n - X, o = new Float32Array(L);
+      o.set(d.subarray(0, L));
+      for (let i = 0; i < X; i++) { const k = i / X; o[i] = d[i] * Math.sqrt(k) + d[L + i] * Math.sqrt(1 - k); }
+      out = o;
+    } else {
+      const fi = Math.min(n, Math.floor(0.002 * sr)), fo = Math.min(n, Math.floor(0.04 * sr));
+      for (let i = 0; i < fi; i++) out[i] *= i / fi;
+      for (let i = 0; i < fo; i++) out[n - 1 - i] *= i / fo;
+    }
+    let m = 0; for (let i = 0; i < out.length; i++) m = Math.max(m, Math.abs(out[i]));
+    const g = 0.9 / (m || 1);
+    const res = this.ctx.createBuffer(1, out.length, sr);
+    const r = res.getChannelData(0); for (let i = 0; i < out.length; i++) r[i] = out[i] * g;
+    return res;
+  }
+
   pick(name) { const a = this.b[name]; return a?.length ? a[Math.floor(Math.random() * a.length)] : null; }
 }

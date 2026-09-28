@@ -534,7 +534,12 @@ export class Game {
       else if (!onFoot && !this.races.active && input.consume('enter')) this.onFoot.exit();
       else if (input.consume('photo') && !this.races.active) this.photo.enter();
       else if (input.consume('replay')) this.replay.enter();
-      if (input.consume('camera')) this.ui.toast(`Camera: ${this.camCtl.next()}`, '', 1);
+      if (input.consume('camera') && !onFoot) {
+        // like GTA's V: cycle close / chase / far / bumper / hood / first person, and remember the choice
+        const name = this.camCtl.next();
+        this.settings.gameplay.defaultCamera = this.camCtl.mode; this.settings.save();
+        this.ui.toast(`View: ${name} · V to change`, '', 1.2);
+      }
       if (input.consume('reset') && !onFoot) this.resetPlayer();
       if (input.consume('horn')) this.audio.playEvent('horn', { position: { x: this.player.state.x, y: 0.5, z: this.player.state.z } });
     } else if (mode === 'paused' || mode === 'map' || mode === 'brief' || mode === 'results' || mode === 'menu') {

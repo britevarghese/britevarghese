@@ -156,7 +156,10 @@ export class AudioManager {
     this.curves = { crunch: makeCrunchCurve() };
     // pre-rendered crash / impact / backfire / scrape sounds (built in small slices after start-up)
     this.impacts = new ImpactBank(ctx);
-    this.impacts.build(() => { this._initScrape(); this.engine?.attachScreech(this.impacts.pick('screech')); });
+    this.impacts.build(() => {
+      this._initScrape(); this.engine?.attachScreech(this.impacts.pick('screech'));
+      this.impacts.loadRecorded(undefined, (rec) => { if (rec.screech) this.engine?.attachScreech(rec.screech[0], true); });
+    });
 
     const g = (v = 1) => { const n = ctx.createGain(); n.gain.value = v; return n; };
 
@@ -204,7 +207,7 @@ export class AudioManager {
     this.engineGate.connect(this.buses.engine);
     this.carSfxGate.connect(this.buses.sfx);
     this.engine = new EngineSynth(ctx, this.buffers, this.engineGate, this.carSfxGate, this);
-    this.engine.initWorklet();
+    this.engine.initWorklet().then(() => this.engine.initSamples());
     this.engine.start();
 
     // ---- traffic shared noise

@@ -1,0 +1,600 @@
+{
+  "_about": "Recorded sounds for NIGHTSHIFT (Freesound, CC0 / CC BY). Engines are trimmed to their revving parts and analysed (tools/sounds/analyze.py) for the granular engine (src/audio/engine-sample-worklet.js). SFX clips are [start, end] seconds inside each file. Build: node tools/sounds/build.mjs",
+  "engines": [
+    {
+      "name": "i4_rover",
+      "id": 106553,
+      "user": "Tomlija",
+      "title": "car engine revving up to 7000 rpm (Rover 216 GSi)",
+      "lic": "CC-BY",
+      "t": [
+        0.8,
+        21.5
+      ],
+      "band": [
+        25,
+        260
+      ]
+    },
+    {
+      "name": "v8_muscle",
+      "id": 232272,
+      "user": "wikusv",
+      "title": "Idle and Rev - Engine.wav",
+      "lic": "CC-BY",
+      "t": [
+        0,
+        32.5
+      ],
+      "band": [
+        38,
+        450
+      ]
+    },
+    {
+      "name": "v8_f360",
+      "id": 241083,
+      "user": "PritzProductions",
+      "title": "Ferrari 360 Spider - engine sound",
+      "lic": "CC0",
+      "t": [
+        0.5,
+        37
+      ],
+      "band": [
+        55,
+        600
+      ]
+    },
+    {
+      "name": "v10_r8",
+      "id": 457733,
+      "user": "Jonas_Jocys",
+      "title": "Audi R8 Idling Reving Backfire.wav",
+      "lic": "CC-BY",
+      "t": [
+        8,
+        55
+      ],
+      "band": [
+        55,
+        700
+      ]
+    },
+    {
+      "name": "v10_lambo",
+      "id": 564375,
+      "user": "JaimeLopes",
+      "title": "Lamborghini Sounds",
+      "lic": "CC-BY",
+      "t": [
+        6,
+        35
+      ],
+      "band": [
+        60,
+        500
+      ]
+    },
+    {
+      "name": "v12_aston",
+      "id": 320096,
+      "user": "Paul368",
+      "title": "Auston Martin Rapide Start Engine, Engine Revs & Stut Off.wav",
+      "lic": "CC0",
+      "t": [
+        1.2,
+        22.5
+      ],
+      "band": [
+        45,
+        700
+      ]
+    },
+    {
+      "name": "flat6_911",
+      "id": 772802,
+      "user": "jerry.berumen",
+      "title": "vehicle car porsche 911 revving engine motor boxer",
+      "lic": "CC-BY",
+      "t": [
+        1,
+        51
+      ],
+      "band": [
+        30,
+        250
+      ]
+    },
+    {
+      "name": "i6_bmw",
+      "id": 415276,
+      "user": "ikbenraar",
+      "title": "BMWM3_01.wav",
+      "lic": "CC-BY",
+      "t": [
+        0,
+        36
+      ],
+      "band": [
+        50,
+        420
+      ]
+    },
+    {
+      "name": "turbo_dyno",
+      "id": 496171,
+      "user": "editboy23",
+      "title": "Import car revs on Chassis Dyno with Turbo.wav",
+      "lic": "CC0",
+      "t": [
+        0,
+        35
+      ],
+      "band": [
+        60,
+        450
+      ]
+    },
+    {
+      "name": "v6_delorean",
+      "id": 623436,
+      "user": "SkyernAklea",
+      "title": "DeLorean DMC-12 (V6 PRV engine)",
+      "lic": "CC-BY",
+      "t": [
+        8,
+        62
+      ],
+      "band": [
+        30,
+        350
+      ]
+    },
+    {
+      "name": "vtwin_harley",
+      "id": 502690,
+      "user": "demodave",
+      "title": "Harley Davidson Sportster - Idling with Engine Revs",
+      "lic": "CC0",
+      "t": [
+        0,
+        70
+      ],
+      "band": [
+        14,
+        120
+      ]
+    },
+    {
+      "name": "v4_panigale",
+      "id": 584115,
+      "user": "rsn267",
+      "title": "Ducati Panigale V4.wav",
+      "lic": "CC0",
+      "t": [
+        0.5,
+        24
+      ],
+      "band": [
+        35,
+        450
+      ]
+    },
+    {
+      "name": "i4_hayabusa",
+      "id": 49326,
+      "user": "Heigh-hoo",
+      "title": "hayabusa1.aif",
+      "lic": "CC0",
+      "t": [
+        5,
+        22
+      ],
+      "band": [
+        30,
+        400
+      ]
+    }
+  ],
+  "sfx": [
+    {
+      "id": 237375,
+      "user": "squareal",
+      "title": "Car Crash",
+      "lic": "CC0",
+      "clips": {
+        "crash": [
+          [
+            0.35,
+            3.6
+          ]
+        ]
+      }
+    },
+    {
+      "id": 99960,
+      "user": "CGEffex",
+      "title": "Large Crash.wav",
+      "lic": "CC-BY",
+      "clips": {
+        "crash": [
+          [
+            0.4,
+            4.0
+          ]
+        ]
+      }
+    },
+    {
+      "id": 95078,
+      "user": "sandyrb",
+      "title": "THE CRASH.wav",
+      "lic": "CC-BY",
+      "clips": {
+        "crash": [
+          [
+            0.0,
+            5.2
+          ]
+        ]
+      }
+    },
+    {
+      "id": 420356,
+      "user": "CogFireStudios",
+      "title": "Crash.wav",
+      "lic": "CC0",
+      "clips": {
+        "crash": [
+          [
+            0.0,
+            2.3
+          ]
+        ],
+        "wall": [
+          [
+            0.0,
+            2.3
+          ]
+        ]
+      }
+    },
+    {
+      "id": 40158,
+      "user": "moxobna",
+      "title": "crash.wav",
+      "lic": "CC0",
+      "clips": {
+        "wall": [
+          [
+            0.5,
+            2.3
+          ]
+        ],
+        "crash": [
+          [
+            2.6,
+            3.6
+          ]
+        ]
+      }
+    },
+    {
+      "id": 426021,
+      "user": "HoBoTrails",
+      "title": "Car Accident with Squeal and Crash",
+      "lic": "CC0",
+      "clips": {
+        "crash": [
+          [
+            1.38,
+            3.2
+          ]
+        ]
+      }
+    },
+    {
+      "id": 810174,
+      "user": "mokasza",
+      "title": "car crash",
+      "lic": "CC-BY",
+      "clips": {
+        "crash": [
+          [
+            1.5,
+            2.8
+          ]
+        ],
+        "wall": [
+          [
+            0.1,
+            1.3
+          ]
+        ]
+      }
+    },
+    {
+      "id": 387349,
+      "user": "CosmicEmbers",
+      "title": "Powerful Crush",
+      "lic": "CC-BY",
+      "clips": {
+        "wall": [
+          [
+            0.25,
+            2.2
+          ]
+        ]
+      }
+    },
+    {
+      "id": 243613,
+      "user": "PatrickLieberkind",
+      "title": "Big Crash",
+      "lic": "CC-BY",
+      "clips": {
+        "crash": [
+          [
+            0.0,
+            2.4
+          ]
+        ],
+        "bump": [
+          [
+            0.9,
+            1.4
+          ]
+        ]
+      }
+    },
+    {
+      "id": 151624,
+      "user": "qubodup",
+      "title": "Clank Car Crash Collision",
+      "lic": "CC0",
+      "clips": {
+        "bump": [
+          [
+            0.0,
+            0.5
+          ]
+        ],
+        "pole": [
+          [
+            0.0,
+            0.5
+          ]
+        ],
+        "barrier": [
+          [
+            0.0,
+            0.5
+          ]
+        ]
+      }
+    },
+    {
+      "id": 332056,
+      "user": "qubodup",
+      "title": "Fast Collision",
+      "lic": "CC0",
+      "clips": {
+        "bump": [
+          [
+            0.0,
+            0.25
+          ]
+        ],
+        "barrier": [
+          [
+            0.0,
+            0.25
+          ]
+        ]
+      }
+    },
+    {
+      "id": 587443,
+      "user": "SamsterBirdies",
+      "title": "Scrap metal dropping / crashing",
+      "lic": "CC0",
+      "clips": {
+        "debris": [
+          [
+            0.0,
+            1.5
+          ],
+          [
+            2.4,
+            3.9
+          ],
+          [
+            4.6,
+            6.1
+          ],
+          [
+            8.0,
+            9.6
+          ],
+          [
+            10.8,
+            12.4
+          ],
+          [
+            15.2,
+            16.8
+          ]
+        ]
+      }
+    },
+    {
+      "id": 592388,
+      "user": "magnuswaker",
+      "title": "Car Crash (with Glass)",
+      "lic": "CC0",
+      "clips": {
+        "crash": [
+          [
+            0.0,
+            2.1
+          ]
+        ],
+        "glass": [
+          [
+            0.0,
+            2.1
+          ]
+        ]
+      }
+    },
+    {
+      "id": 587928,
+      "user": "thecommondanger",
+      "title": "BROKEN CAR WINDOW.wav",
+      "lic": "CC0",
+      "clips": {
+        "glass": [
+          [
+            0.05,
+            1.0
+          ]
+        ],
+        "pole": [
+          [
+            0.05,
+            1.0
+          ]
+        ]
+      }
+    },
+    {
+      "id": 806423,
+      "user": "Sanderboah",
+      "title": "Car windshield crack",
+      "lic": "CC0",
+      "clips": {
+        "glass": [
+          [
+            0.0,
+            1.5
+          ]
+        ]
+      }
+    },
+    {
+      "id": 675723,
+      "user": "craigsmith",
+      "title": "S41-25 Car backfires; reverberant.wav",
+      "lic": "CC0",
+      "clips": {
+        "backfire": [
+          [
+            0.0,
+            0.8
+          ],
+          [
+            1.8,
+            2.6
+          ],
+          [
+            4.0,
+            4.6
+          ],
+          [
+            5.05,
+            5.7
+          ],
+          [
+            5.85,
+            6.9
+          ]
+        ]
+      }
+    },
+    {
+      "id": 446101,
+      "user": "JustInvoke",
+      "title": "Backfire",
+      "lic": "CC-BY",
+      "clips": {
+        "backfire": [
+          [
+            0.0,
+            0.5
+          ]
+        ]
+      }
+    },
+    {
+      "id": 105351,
+      "user": "CeebFrack",
+      "title": "BACKFIRE.ogg",
+      "lic": "CC0",
+      "clips": {
+        "crackles": [
+          [
+            0.0,
+            0.95
+          ]
+        ]
+      }
+    },
+    {
+      "id": 659544,
+      "user": "EwanPenman11",
+      "title": "Turbo Spooling and Blow Off.WAV",
+      "lic": "CC0",
+      "clips": {
+        "bov": [
+          [
+            0.0,
+            2.3
+          ]
+        ]
+      }
+    },
+    {
+      "id": 71739,
+      "user": "audible-edge",
+      "title": "Chrysler LHS tire squeal 04 (04-25-2009)",
+      "lic": "CC0",
+      "clips": {
+        "screech": [
+          [
+            2.0,
+            14.0
+          ]
+        ]
+      }
+    }
+  ],
+  "cars": {
+    "bmw_m3_e30": "i4_rover",
+    "subaru_wrx_sti_gc8": "i4_rover",
+    "porsche_930_turbo": "flat6_911",
+    "nissan_skyline_r34": "turbo_dyno",
+    "toyota_supra_mk4": "i6_bmw",
+    "honda_nsx_na1": "v6_delorean",
+    "bmw_m4_f82": "i6_bmw",
+    "nissan_gtr_r35": "v6_delorean",
+    "chevrolet_corvette_c8": "v8_muscle",
+    "porsche_911_gt3": "flat6_911",
+    "audi_r8_v10": "v10_r8",
+    "ferrari_f40": "v8_f360",
+    "mclaren_senna": "v8_f360",
+    "lamborghini_centenario": "v12_aston",
+    "lamborghini_huracan_tt": "v10_lambo",
+    "harley_iron_883": "vtwin_harley",
+    "kawasaki_zx6r": "i4_hayabusa",
+    "yamaha_r1": "i4_hayabusa",
+    "bmw_s1000rr": "i4_hayabusa",
+    "suzuki_hayabusa": "i4_hayabusa",
+    "ducati_panigale_v4r": "v4_panigale",
+    "kawasaki_ninja_h2": "i4_hayabusa",
+    "muscle": "v8_muscle",
+    "sports": "i6_bmw",
+    "exotic": "v10_r8",
+    "tuner": "i4_rover"
+  }
+}

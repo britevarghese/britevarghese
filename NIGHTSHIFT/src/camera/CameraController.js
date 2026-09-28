@@ -10,7 +10,7 @@ export const CAMERA_MODES = [
   { name: 'Far Chase', dist: 9.5, height: 2.9, look: 1.1, fov: 58 },
   { name: 'Bumper', marker: 'eye_bumper', fov: 70 },
   { name: 'Hood', marker: 'eye_hood', fov: 68 },
-  { name: 'Cockpit', marker: 'eye_cockpit', fov: 72 },
+  { name: 'First Person', marker: 'eye_cockpit', fov: 72 },
 ];
 
 const _v = new THREE.Vector3(), _t = new THREE.Vector3(), _q = new THREE.Quaternion(), _m = new THREE.Matrix4();

@@ -16,7 +16,8 @@ or Firefox.
     `tools/import-cars.mjs` (credits are in `public/assets/models/cars/CREDITS.md` and shown in
     the garage).
   - Textures are generated procedurally at the resolution the quality level asks for.
-  - Audio is synthesized with the Web Audio API (no samples).
+  - Engines, crashes, backfires, blow-off and tyre screech use real recordings from Freesound (CC0 /
+    CC BY, credited in `public/assets/audio/CREDITS.md`); everything else is synthesized with Web Audio.
   - Real car names and brands are trademarks of their manufacturers. This is a non-commercial fan
     project; distributing or selling it with them would need the manufacturers' permission.
 
@@ -71,7 +72,7 @@ Saves live in each player's browser.
 | Steer | A / D | Left stick |
 | Handbrake (drift) | SPACE | A |
 | Nitrous | SHIFT | RB |
-| Camera (close, chase, far, bumper, hood, cockpit) | V | R3 |
+| Change view, like GTA (close, chase, far, bumper, hood, first person); remembered | V | R3 |
 | Look around / look back | Right-mouse drag / C | Right stick / X |
 | Get out of / into a car (any car on the street) | F | Y |
 | On foot: walk / sprint / jump | W A S D / SHIFT / SPACE | Left stick / RB / A |
@@ -148,8 +149,13 @@ Saves live in each player's browser.
   figures; how many are realistic depends on the graphics quality.
 - **Garage:** paint (incl. factory colours), finish, vinyl, wheels, spoiler, hood, bumper, tint,
   calipers; engine, transmission, tyres, brakes, suspension and nitrous upgrades.
-- **Sound:** engines are a physical model (per-cylinder firing through modelled exhaust pipes);
-  crashes, scrapes, tyre screech and backfires are rendered from layered impact synthesis.
+- **Sound:** every car plays a real engine recording matched to its layout (V8, V10, V12, flat-6,
+  inline-6, V6, I4, V-twin, V4, superbike I4). A granular player (`engine-sample-worklet.js`) keeps
+  two streams, one from the recording's rising revs (on throttle) and one from its falling revs (off
+  throttle), picks grains whose pitch matches the rpm and crossfades them by throttle. Lifting off at
+  high revs pops and crackles with recorded backfires; turbo cars dump a recorded blow-off valve.
+  Crashes layer recorded metal impacts, breaking glass and falling debris. The RX-7's rotary keeps the
+  physical synth model (no recording yet).
 - **Extras:** instant replay with cinematic cameras, photo mode with filters and PNG export,
   style combos, driver XP and levels, career missions.
 - **Graphics:** quality is detected automatically (up to ULTRA on high-end GPUs) and adjusts at
@@ -217,6 +223,12 @@ then broadcasts snapshots at 20 Hz. Clients interpolate the other players 120 ms
 ```sh
 npm install        # installs three.js (dev only)
 npm run models     # writes public/assets/models/*.glb
+```
+
+## Regenerating sounds
+
+```sh
+node tools/sounds/build.mjs   # needs python3 + numpy/scipy: downloads, trims, analyses (sources.json)
 ```
 
 ## Screenshots
