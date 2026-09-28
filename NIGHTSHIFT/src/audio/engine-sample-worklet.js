@@ -38,18 +38,21 @@ class EngineSampleProcessor extends AudioWorkletProcessor {
     this.clock = 0;
     this.thr = 0;
     this.fade = 0;
+    this.env = 0;
     this.port.onmessage = (e) => { if (e.data?.type === 'load') this._load(e.data); };
   }
 
   _load({ data, t, f, d, v, f0idle, f0max }) {
     const n = t.length;
-    const P = new Float64Array(n), LF = new Float64Array(n), D = new Int8Array(n), Q = new Float32Array(n);
-    for (let i = 0; i < n; i++) { P[i] = t[i] * sampleRate; LF[i] = Math.log(f[i]); D[i] = d[i]; Q[i] = v ? Math.min(0.5, Math.max(0, (-v[i] - 8) * 0.03)) : 0; }
+    const P = new Float64Array(n), LF = new Float64Array(n), D = new Int8Array(n), Q = new Float32Array(n), L = new Float32Array(n);
+    for (let i = 0; i < n; i++) { P[i] = t[i] * sampleRate; LF[i] = Math.log(f[i]); D[i] = d[i]; Q[i] = v ? Math.min(0.5, Math.max(0, (-v[i] - 8) * 0.03)) : 0; L[i] = v ? Math.pow(10, Math.min(24, Math.max(0, -v[i])) * 0.5 / 20) : 1; }
     // index sorted by pitch for the frame search
     const ord = Array.from({ length: n }, (_, i) => i).sort((a, b) => LF[a] - LF[b]);
     this.ord = Int32Array.from(ord);
     this.ordLF = Float64Array.from(ord.map((i) => LF[i]));
-    this.P = P; this.LF = LF; this.D = D; this.Q = Q; this.n = n; // Q: penalty for quiet frames
+    this.P = P; this.LF = LF; this.D = D; this.Q = Q; this.L = L; this.n = n; // Q: penalty for quiet frames, L: level lift
+    // (a recording at idle is ~20 dB under a full rev; in a game that reads as silence, so quiet frames are
+    // brought up by half their shortfall: the engine still gets louder with revs, just not by as much)
     this.src = data; this.len = data.length;
     this.f0idle = f0idle; this.f0max = f0max;
     this.hop = n > 1 ? (P[n - 1] - P[0]) / (n - 1) : 1024; // average source samples between frames
@@ -135,7 +138,7 @@ class EngineSampleProcessor extends AudioWorkletProcessor {
       pos = this._align(prev, this.P[fi], rate0, lt);
     }
     const rate = Math.min(2, Math.max(0.5, Math.exp(lt - this.LF[fi]))) * pitch;
-    v.grains.push({ pos, rate, age: 0 });
+    v.grains.push({ pos, rate, age: 0, amp: this.L[fi] });
   }
 
   process(_in, outputs, params) {
@@ -162,12 +165,15 @@ class EngineSampleProcessor extends AudioWorkletProcessor {
         const gr = v.grains;
         for (let k = 0; k < gr.length; k++) {
           const g = gr[k];
-          if (g.age < G && g.pos < len - 2) s += win[g.age] * this._sample(g.pos);
+          if (g.age < G && g.pos < len - 2) s += win[g.age] * g.amp * this._sample(g.pos);
           g.pos += g.rate; g.age++;
         }
         acc += s * (vi === 0 ? wOn : wOff);
       }
-      out[i] = acc * gain * this.fade;
+      // gentle peak limiter: the loudest recordings sit ~6 dB over the others at full revs
+      const y = acc * gain * this.fade, ay = Math.abs(y);
+      this.env = ay > this.env ? this.env + (ay - this.env) * 0.02 : this.env * 0.99985;
+      out[i] = this.env > 0.85 ? y * 0.85 / this.env : y;
     }
     for (const v of this.voices) {
       const gr = v.grains;

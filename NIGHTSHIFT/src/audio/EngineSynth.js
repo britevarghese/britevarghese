@@ -465,7 +465,7 @@ export class EngineSynth {
       P.get('rpmN').setTargetAtTime(clamp((rpm - st.idle) / (st.redline - st.idle), -0.3, 1.1), t, 0.03);
       P.get('throttle').setTargetAtTime(thr, t, 0.04);
       P.get('pitch').setTargetAtTime(this.samplePitch || 1, t, 0.1);
-      P.get('gain').setTargetAtTime(this.sampleOn ? (this.sampleGain || 1) * 0.34 * (0.8 + 0.25 * thr) : 0, t, 0.05);
+      P.get('gain').setTargetAtTime(this.sampleOn ? (this.sampleGain || 1) * 1.8 * (0.8 + 0.25 * thr) : 0, t, 0.05);
     }
     // --- AM firing lump: strong at idle / low rpm, smooth when revving (the physical model has its own) ---
     const lump = this.wk ? 0 : p.amDepth * (1 - rpmN * 0.85) * (1 - thr * 0.5);
