@@ -43,6 +43,17 @@ def flatten(x, sr, t, f, t0, target, n_out):
     return out
 
 
+def steady(seg, sr, target, k):
+    """Even out slow loudness wobble (blips, gating) above idle: divide by the envelope smoothed over a
+    few engine cycles, 80% of the way. Firing pulses (one period) are untouched."""
+    w = max(int(sr * 3 / target), int(0.06 * sr))
+    env = np.sqrt(np.convolve(seg ** 2, np.ones(w) / w, mode='same')) + 1e-5
+    out = seg * (np.median(env) / env) ** (0.45 if k == 0 else 0.8)   # idle keeps more of its lope
+    # soften pops / clicks: peaks beyond ~4.5x the loop's RMS are rounded off
+    r = np.sqrt(np.mean(out ** 2)) * 4.5
+    return np.where(np.abs(out) > r, np.sign(out) * (r + np.tanh((np.abs(out) - r) / r) * r * 0.3), out)
+
+
 def make_loop(seg, sr, target):
     """Seamless loop: a whole number of periods long, tail crossfaded (equal power) into the head."""
     period = sr / target
@@ -71,6 +82,11 @@ def pick(t, f, d, v, target, want):
         if want == 'on': c += np.mean(dd < 0) * 0.6                   # avoid falling revs
         else: c += np.mean(dd > 0) * 0.8 + np.mean(dd == 0) * 0.1     # prefer falling revs
         c += max(0, -np.min(v[i:j]) - 12) * 0.03                      # loud enough throughout
+        # steady level: no bursts, blips or pops (they repeat every loop and sound like a stutter);
+        # at high revs a real engine note is smooth, so steadiness counts more there
+        vv = v[i:j]
+        hi = 1 + 1.5 * (np.log(target / f.min()) / np.log(f.max() / f.min()))
+        c += np.std(vv) * 0.12 * hi + max(0, np.max(np.abs(np.diff(vv))) - 4) * 0.08 * hi
         if c < bestc: bestc, best = c, i
     return best, bestc
 
@@ -89,7 +105,7 @@ for e in SRC['engines']:
         for L in levels:
             i, c = pick(t, f, d, v, L, cls)
             seg = flatten(x, sr, t, f, t[i], L, int((LOOP_S + XF_S + 0.12) * sr)) if i is not None else None
-            loop = make_loop(seg, sr, L) if seg is not None else None
+            loop = make_loop(steady(seg, sr, L, levels.index(L)), sr, L) if seg is not None else None
             if loop is None:
                 sets[cls].append(sets[cls][-1] if sets[cls] else None)
                 report.append(f'{cls}{L:.0f}:-'); continue
