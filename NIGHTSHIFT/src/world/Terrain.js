@@ -219,7 +219,24 @@ export class TerrainData {
     for (const d of DECKS) if (x > d.x0 && x < d.x1 && z > d.z0 && z < d.z1) return d.h;
     const r = this.nearestRoad(x, z);
     if (r && r.dist < r.rd.hw) return r.h;
-    return this.height(x, z);
+    return this.drawn ? this.drawn(x, z) : this.height(x, z);
+  }
+
+  // Off-road, the physics follows the terrain exactly as it is drawn (Landscape's triangle grid), not
+  // the smooth height function: on steep ground the two differ by metres, and cars sank into or floated
+  // over the visible hillside. grid: {N, S, H} from Landscape._near.
+  useDrawnGrid(grid, NEAR_) {
+    const { N, S, H, Dm } = grid, W = N + 1;
+    this.drawn = (x, z) => {
+      const gx = (x + NEAR_) / S, gz = (z + NEAR_) / S;
+      if (gx < 0 || gz < 0 || gx >= N || gz >= N) return this.height(x, z);
+      const i = Math.floor(gx), j = Math.floor(gz), fx = gx - i, fz = gz - j, k = j * W + i;
+      // cells touching the city (grid points pushed under its ground) keep the exact height
+      if (Dm && Math.min(Dm[k], Dm[k + 1], Dm[k + W], Dm[k + W + 1]) < -2) return this.height(x, z);
+      const a = H[k], b = H[k + 1], c = H[k + W], d = H[k + W + 1];
+      // same split as the mesh: triangles (a, c, b) and (b, c, d)
+      return fx + fz <= 1 ? a + (b - a) * fx + (c - a) * fz : d + (c - d) * (1 - fx) + (b - d) * (1 - fz);
+    };
   }
 
   onRoad(x, z) { const r = this.nearestRoad(x, z); return r && r.dist < r.rd.hw ? r : null; }

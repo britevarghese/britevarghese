@@ -120,6 +120,7 @@ export class Landscape {
     const hAt = (i, j) => H[clamp(j, 0, N) * (N + 1) + clamp(i, 0, N)];
     const CG = new Uint8Array((N + 1) * (N + 1) * 3);
     this.grid = { N, S, H, C: CG, Dm };
+    T.useDrawnGrid(this.grid, NEAR); // physics rides on exactly these triangles
     const TILE = 48, col = new THREE.Color();
     for (let tj = 0; tj < N; tj += TILE) for (let ti = 0; ti < N; ti += TILE) {
       const i1 = Math.min(N, ti + TILE), j1 = Math.min(N, tj + TILE);
@@ -323,7 +324,7 @@ export class Landscape {
         if (!list.length) return;
         const im = new THREE.InstancedMesh(geos[type], this.treeMat, list.length);
         list.forEach((t, j) => {
-          qn.setFromAxisAngle(up, t.rot); sc.setScalar(t.s); ps.set(t.x, t.y - 0.2, t.z);
+          qn.setFromAxisAngle(up, t.rot); sc.setScalar(t.s); ps.set(t.x, (this.T.drawn ? this.T.drawn(t.x, t.z) : t.y) - 0.2, t.z); // on the drawn ground
           im.setMatrixAt(j, m4.compose(ps, qn, sc));
           tint.setHSL(0.25 + (t.rot % 0.3) * 0.1, 0.3 + (t.s - 0.75) * 0.3, 0.4 + (t.rot % 1) * 0.2);
           im.setColorAt(j, tint.lerp(new THREE.Color(1, 1, 1), 0.55));
