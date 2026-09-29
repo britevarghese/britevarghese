@@ -209,6 +209,33 @@ export const FACADE_DEF = [
 // house siding colours: the 'house' textures, tinted per material (no extra texture memory)
 for (const [name, tint] of [['houseBlue', '#a9c0d8'], ['houseSage', '#c4d4b0'], ['houseCream', '#fff4dc'], ['houseRose', '#e8c0b4']]) FACADE_DEF.push({ ...FACADE_DEF[5], name, tintOf: 5, tint });
 
+// house window detail: sky reflection in the glass, a trim casing, four panes, a sill, and (on some)
+// louvred shutters
+const SHUTTERS = ['#2f3b32', '#2c3540', '#5a2f2b', '#3d3a36', '#f2efe8'];
+function houseWindow(cc, ec, hc, def, R, x, y, ww, wh, cw, rh) {
+  const rg = cc.createLinearGradient(x, y, x + ww * 0.7, y + wh);
+  rg.addColorStop(0, 'rgba(185,205,225,0.6)'); rg.addColorStop(0.4, 'rgba(110,130,150,0.3)'); rg.addColorStop(1, 'rgba(0,0,0,0)');
+  cc.fillStyle = rg; cc.fillRect(x, y, ww, wh);
+  const t = cw * 0.045;
+  cc.fillStyle = def.frame; hc.fillStyle = 'rgb(215,215,215)';
+  for (const [a, b, w, h] of [[x - t, y - t, ww + t * 2, t], [x - t, y + wh, ww + t * 2, t], [x - t, y, t, wh], [x + ww, y, t, wh]]) { cc.fillRect(a, b, w, h); hc.fillRect(a, b, w, h); }
+  const m = cw * 0.012; // muntins: 2x2 panes
+  cc.fillRect(x, y + wh / 2 - m, ww, m * 2); cc.fillRect(x + ww / 2 - m, y, m * 2, wh);
+  ec.fillStyle = '#000'; ec.fillRect(x, y + wh / 2 - m, ww, m * 2); ec.fillRect(x + ww / 2 - m, y, m * 2, wh);
+  // sill with a shadow under it
+  cc.fillRect(x - t * 2, y + wh + t, ww + t * 4, rh * 0.035);
+  cc.fillStyle = 'rgba(0,0,0,0.25)'; cc.fillRect(x - t * 2, y + wh + t + rh * 0.035, ww + t * 4, rh * 0.03);
+  hc.fillStyle = 'rgb(240,240,240)'; hc.fillRect(x - t * 2, y + wh + t, ww + t * 4, rh * 0.035);
+  if (R() < 0.55) {
+    const sw = ww * 0.42, col = R.pick(SHUTTERS);
+    for (const sx of [x - t - sw - cw * 0.01, x + ww + t + cw * 0.01]) {
+      cc.fillStyle = col; cc.fillRect(sx, y - t, sw, wh + t * 2);
+      hc.fillStyle = 'rgb(200,200,200)'; hc.fillRect(sx, y - t, sw, wh + t * 2);
+      for (let k = y; k < y + wh; k += rh * 0.035) { cc.fillStyle = 'rgba(0,0,0,0.28)'; cc.fillRect(sx + sw * 0.12, k, sw * 0.76, rh * 0.008); hc.fillStyle = 'rgb(150,150,150)'; hc.fillRect(sx + sw * 0.12, k, sw * 0.76, rh * 0.008); }
+    }
+  }
+}
+
 export function facade(style) {
   if (FACADE_DEF[style]?.tintOf !== undefined) return facade(FACADE_DEF[style].tintOf);
   return cached('facade' + style, () => {
@@ -290,6 +317,7 @@ export function facade(style) {
         cc.fillStyle = def.frame;
         if (ww > cw * 0.5) cc.fillRect(x + ww / 2 - cw * 0.01, y, cw * 0.02, wh);
         ec.fillStyle = '#000'; if (ww > cw * 0.5) ec.fillRect(x + ww / 2 - cw * 0.01, y, cw * 0.02, wh);
+        if (def.siding) houseWindow(cc, ec, hc, def, R, x, y, ww, wh, cw, rh);
       }
       // floor slab line
       cc.fillStyle = 'rgba(0,0,0,0.25)'; cc.fillRect(0, r * rh, n, Math.max(1, rh * 0.04));

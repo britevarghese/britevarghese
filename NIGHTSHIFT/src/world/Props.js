@@ -71,7 +71,9 @@ export function buildPropDefs(M) {
   // signal: pole + arm along +X (length 6 at scale 1), head hangs at x = 4.5, faces -Z
   const signalPole = merge([cyl(0.1, 0.14, 6.2, 8), new THREE.BoxGeometry(6, 0.14, 0.14).translate(3, 6.0, 0), new THREE.BoxGeometry(0.34, 1.0, 0.3).translate(4.5, 5.4, 0), new THREE.BoxGeometry(0.3, 0.9, 0.26).translate(0.25, 3.2, 0)]);
   const signalLens = new THREE.CircleGeometry(0.1, 10).rotateY(Math.PI); // faces -Z
-  const trunk = merge([cyl(0.1, 0.2, 3.6, 7), cyl(0.05, 0.08, 1.4, 5, 3.9).rotateZ(0.5), cyl(0.05, 0.08, 1.4, 5, 3.9).rotateZ(-0.6)]);
+  // trunk with limbs forking from it up into the crown (each limb tilts about its own base)
+  const limb = (y, tilt, yaw, len) => cyl(0.04, 0.09, len, 5, len / 2).rotateZ(tilt).rotateY(yaw).translate(0, y, 0);
+  const trunk = merge([cyl(0.11, 0.2, 4.2, 7), limb(2.9, 0.62, 0.3, 1.9), limb(3.2, 0.7, 2.4, 1.7), limb(3.5, 0.55, 4.3, 1.6), limb(3.9, 0.35, 1.3, 1.3)]);
   const canopy = treeCanopy(3);
   const meter = merge([cyl(0.04, 0.04, 1.1, 6), new THREE.BoxGeometry(0.22, 0.34, 0.18).translate(0, 1.25, 0)]);
   const bin = merge([cyl(0.28, 0.25, 0.95, 10), cyl(0.3, 0.3, 0.06, 10, 0.97)]);
