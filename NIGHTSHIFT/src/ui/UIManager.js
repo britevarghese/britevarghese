@@ -17,6 +17,8 @@ const h = (tag, cls, html) => { const e = document.createElement(tag); if (cls) 
 export class UIManager {
   constructor(game) {
     this.game = game;
+    // the browser says the game can be installed (or it just was): refresh the menu's INSTALL APP item
+    addEventListener('nightshift:installable', () => { if (this.current === 'menu') this.showMainMenu(); });
     this.screens = document.getElementById('screens');
     this.toasts = document.getElementById('toasts');
     this.dev = document.getElementById('dev');
@@ -66,6 +68,7 @@ export class UIManager {
       ['GARAGE', 'Cars, paint, parts & performance', () => g.openGarage()],
       ['MAP', 'City map, events and safehouses', () => this.showMap(true)],
       ['SETTINGS', 'Graphics, gameplay, audio', () => this.showSettings(() => this.showMainMenu())],
+      ...(window.nightshiftInstall ? [['INSTALL APP', 'Install NIGHTSHIFT: opens full screen, loads faster', async () => { const p = window.nightshiftInstall; window.nightshiftInstall = null; await p.prompt(); this.showMainMenu(); }]] : []),
       ['EXIT', 'Leave NIGHTSHIFT', () => this.showExit()],
     ];
     const btns = items.map(([t, sub, fn]) => { const b = h('button', 'menu-item', `${t}<small>${sub}</small>`); b.onclick = fn; list.appendChild(b); return b; });
@@ -347,6 +350,7 @@ export class UIManager {
         opt('Controller vibration', '', 'gameplay', 'vibration', [true, false], ['ON', 'OFF']);
         opt('Units', '', 'gameplay', 'units', ['kmh', 'mph'], ['KM/H', 'MPH']);
         opt('Default camera', '', 'gameplay', 'defaultCamera', [0, 1, 2, 3, 4, 5], ['CLOSE', 'CHASE', 'FAR', 'BUMPER', 'HOOD', 'COCKPIT']);
+        opt('Full screen', 'Switch to full screen on the first click or key (F11 toggles)', 'gameplay', 'fullscreen', [true, false], ['ON', 'OFF'], (v) => { if (!v && document.fullscreenElement) document.exitFullscreen?.(); });
       } else if (tab === 2) {
         for (const [k, l] of [['master', 'Master'], ['engine', 'Engine'], ['traffic', 'Traffic'], ['police', 'Police'], ['music', 'Music'], ['environment', 'Environment']]) slider(l, 'audio', k, 0, 1, 0.01, () => g.audio?.applySettings(S.audio));
       } else if (tab === 3) {

@@ -88,6 +88,7 @@ const MIME = {
   '.mjs': 'text/javascript; charset=utf-8',
   '.css': 'text/css; charset=utf-8',
   '.json': 'application/json; charset=utf-8',
+  '.webmanifest': 'application/manifest+json; charset=utf-8',
   '.map': 'application/json; charset=utf-8',
   '.glb': 'model/gltf-binary',
   '.gltf': 'model/gltf+json',
@@ -108,7 +109,7 @@ const MIME = {
   '.txt': 'text/plain; charset=utf-8',
   '.md': 'text/markdown; charset=utf-8',
 };
-const COMPRESSIBLE = new Set(['.html', '.htm', '.js', '.mjs', '.css', '.json', '.map', '.svg', '.gltf', '.txt', '.md']);
+const COMPRESSIBLE = new Set(['.html', '.htm', '.webmanifest', '.js', '.mjs', '.css', '.json', '.map', '.svg', '.gltf', '.txt', '.md']);
 const LONG_CACHE = new Set(['.glb', '.gltf', '.bin', '.ktx2', '.png', '.jpg', '.jpeg', '.webp', '.ogg', '.mp3', '.m4a', '.wav', '.woff2', '.ico', '.wasm']);
 const MAX_COMPRESS_SIZE = 32 * 1024 * 1024;
 

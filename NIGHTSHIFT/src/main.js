@@ -90,6 +90,24 @@ async function boot() {
   setTimeout(() => $('loading').remove(), 900);
 }
 
+// ---- installable app + full screen
+// The service worker makes the game installable (Chrome / Edge: "Install NIGHTSHIFT"); the installed app
+// opens full screen (manifest display: fullscreen). In a normal tab, browsers only allow full screen
+// from a click or key press, so the first one switches to it (Settings > Gameplay > Full screen).
+if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost' || location.hostname === '127.0.0.1')) {
+  addEventListener('load', () => navigator.serviceWorker.register('/sw.js').catch((e) => console.warn('[App] service worker', e)));
+}
+addEventListener('beforeinstallprompt', (e) => { e.preventDefault(); window.nightshiftInstall = e; window.dispatchEvent(new Event('nightshift:installable')); });
+addEventListener('appinstalled', () => { window.nightshiftInstall = null; window.dispatchEvent(new Event('nightshift:installable')); });
+const goFullscreen = () => {
+  const s = window.NIGHTSHIFT?.settings?.gameplay;
+  if (s && s.fullscreen === false) return;
+  if (!document.fullscreenElement && document.documentElement.requestFullscreen) {
+    document.documentElement.requestFullscreen({ navigationUI: 'hide' }).then(() => navigator.keyboard?.lock?.(['Escape']).catch(() => {})).catch(() => {});
+  }
+};
+for (const ev of ['pointerdown', 'keydown']) addEventListener(ev, (e) => { if (e.code === 'F11') return; goFullscreen(); }, { capture: true });
+
 boot().catch((e) => {
   console.error(e);
   if ($('fatal').classList.contains('hidden')) fatal('STARTUP ERROR', String(e?.stack || e));
