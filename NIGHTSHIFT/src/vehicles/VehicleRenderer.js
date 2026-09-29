@@ -4,7 +4,7 @@ import * as THREE from 'three';
 import { AssetManager, modelUrl } from '../assets/AssetManager.js';
 import { radialGlow, lightPool, carPaintTexture, headlightTextures, taillightTextures, tireTread } from '../renderer/Textures.js';
 import { clamp, lerp } from '../core/util.js';
-import { CARS } from './VehicleCatalog.js';
+import { CARS, TRAFFIC_MODELS } from './VehicleCatalog.js';
 import { Rider, SkinnedRider } from './Rider.js';
 
 const glowRed = () => radialGlow('rgba(255,60,50,1)', 'rgba(255,20,20,0.3)');
@@ -17,6 +17,9 @@ export class ModelLibrary {
   // Which model backs a car: its imported real model (tools/import-cars.mjs), else — for a real car not
   // imported yet — its stand-in original model scaled to the real dimensions, else the car's own GLB.
   resolve(id) {
+    // traffic types (sedan, suv, ...) use their realistic import when there is one
+    const tm = TRAFFIC_MODELS[id] && this.manifest?.cars?.[TRAFFIC_MODELS[id].id];
+    if (tm?.imported) return { key: TRAFFIC_MODELS[id].id, file: tm.file, imported: true };
     const m = this.manifest?.cars?.[id];
     if (m?.imported) return { key: id, file: m.file, imported: true };
     const c = CARS[id];

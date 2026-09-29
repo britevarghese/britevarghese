@@ -5,6 +5,7 @@
 //
 //   SKETCHFAB_API_TOKEN=xxxx node tools/import-cars.mjs            # everything not imported yet
 //   node tools/import-cars.mjs --only bmw_m3_e30,audi_r8_v10 --force
+//   node tools/import-cars.mjs --traffic                              # the realistic traffic models
 //   node tools/import-cars.mjs --src bmw_m3_e30=path/to/model.glb   # use a file you downloaded yourself
 //   node tools/import-cars.mjs --src bmw_m3_e30=x.glb --out /tmp/test --no-manifest   # dry run
 //
@@ -19,7 +20,7 @@ import { MeshoptEncoder } from 'meshoptimizer';
 import { unzipSync } from 'fflate';
 import sharp from 'sharp';
 import draco3d from 'draco3dgltf';
-import { CARS } from '../src/vehicles/VehicleCatalog.js';
+import { CARS, TRAFFIC_MODELS } from '../src/vehicles/VehicleCatalog.js';
 import { processCar } from './carimport/process.mjs';
 import { stampModels } from './carimport/stamp.mjs';
 
@@ -105,7 +106,9 @@ async function resolveSource(car) {
 const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
 fs.mkdirSync(outDir, { recursive: true });
 const report = {};
-const targets = Object.values(CARS).filter((c) => c.real && c.source && (!only || only.includes(c.id)) && (!srcOverrides || !Object.keys(srcOverrides).length || srcOverrides[c.id] || only));
+// --traffic: the realistic traffic models (TRAFFIC_MODELS) instead of the player cars
+const pool = args.includes('--traffic') ? Object.values(TRAFFIC_MODELS) : Object.values(CARS);
+const targets = pool.filter((c) => c.real && c.source && (!only || only.includes(c.id)) && (!srcOverrides || !Object.keys(srcOverrides).length || srcOverrides[c.id] || only));
 for (const car of targets) {
   const outFile = path.join(outDir, `${car.id}.glb`);
   if (!force && writeManifest && manifest.cars[car.id]?.imported && fs.existsSync(outFile)) { console.log(`= ${car.id} already imported (--force to redo)`); continue; }
@@ -113,7 +116,7 @@ for (const car of targets) {
   try {
     const src = await resolveSource(car);
     const doc = await io.read(src);
-    const { log, info } = processCar(doc, car, { verbose: true });
+    const { log, info } = processCar(doc, car, { verbose: true, budget: car.budget });
     doc.createExtension(EXTTextureWebP).setRequired(true);
     await doc.transform(
       dedup(), prune({ keepLeaves: true, keepAttributes: false }),

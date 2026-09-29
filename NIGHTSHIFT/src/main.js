@@ -65,7 +65,7 @@ async function boot() {
   await lib.load([carId], PRIORITY.VEHICLE);
   if (!lib.has(carId)) { fatal('ASSET LOAD ERROR', `${carId}.glb`); return; }
   // traffic/police/other cars stream in the background (priority 4)
-  const rest = lib.load(['kestrel', 'hikari', 'brawler', 'stratos', 'interceptor', 'sedan', 'suv', 'van', 'truck', 'bus'], PRIORITY.TRAFFIC);
+  const rest = lib.load(['kestrel', 'hikari', 'brawler', 'stratos', 'interceptor', 'sedan', 'hatch', 'suv', 'van', 'truck', 'bus'], PRIORITY.TRAFFIC);
 
   const game = new Game({ settings, save, quality, rm, assets, lib, preset });
   window.NIGHTSHIFT = game; // handy for debugging from the console

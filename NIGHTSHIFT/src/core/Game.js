@@ -127,7 +127,7 @@ export class Game {
   onModelsReady(promise) {
     const attach = () => {
       if (this.traffic.renderer) return;
-      const types = ['sedan', 'suv', 'van', 'truck', 'bus'].filter((t) => this.lib.has(t));
+      const types = ['sedan', 'hatch', 'suv', 'van', 'truck', 'bus'].filter((t) => this.lib.has(t));
       if (!types.length) return;
       this.trafficRenderer = new TrafficRenderer(this.scene, this.lib, types, Math.max(12, Math.ceil(this.preset.traffic * 0.8)) + 24);
       this.traffic.setRenderer(this.trafficRenderer);

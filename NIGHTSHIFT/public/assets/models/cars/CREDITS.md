@@ -26,4 +26,10 @@ They were converted for real-time use (re-scaled, wheels separated, simplified, 
 - **Suzuki Hayabusa (GSX1300R)** — "Suzuki Hayabusa" by JUSTGAME, https://sketchfab.com/3d-models/121f40c2c0974fb08823f3bd93c578fe (CC BY 4.0), modified.
 - **Ducati Panigale V4 R** — "DucatiV4R" by IrfanMuaz, https://sketchfab.com/3d-models/3f1067a86c4c4c3bbfddf61ec0232446 (CC BY 4.0), modified.
 - **Kawasaki Ninja H2** — "Kawasaki ninja h2 2020" by DR1KING100K, https://sketchfab.com/3d-models/0ed1b0cc65de4225a7eac76f02d6bc30 (CC BY 4.0), modified.
+- **Toyota Camry** — "Toyota Camry 2020" by ItsDiyor, https://sketchfab.com/3d-models/236a5a6e2fa6420fbdf641f4800cd544 (CC BY 4.0), modified.
+- **Volkswagen Polo** — "2016 Volkswagen Polo" by BHP3D, https://sketchfab.com/3d-models/bab77902c638427bb85e68b6762a481f (CC BY 4.0), modified.
+- **Mercedes-Benz G-Class** — "Mercedes Benz G-class W263" by Lexyc16, https://sketchfab.com/3d-models/1a2a52b16cad4e618af347461817895c (CC BY 4.0), modified.
+- **Mercedes-Benz Sprinter** — "Mercedes Benz Sprinter 2006" by Max-7215, https://sketchfab.com/3d-models/f69de1315bb049c8946d57f6006acd73 (CC BY 4.0), modified.
+- **Mitsubishi Fuso box truck** — "2006 Mitsubishi Fuso" by tonielpro520, https://sketchfab.com/3d-models/34ade13df9c543d3b5709b2f2f971b2e (CC BY 4.0), modified.
+- **City bus** — "Generic Town Bus" by own.guest, https://sketchfab.com/3d-models/14fe03d792914d51b6c6250b393c44fd (CC BY 4.0), modified.
 - **Motorcycle rider** — "Biker" by Idris.Abass, https://sketchfab.com/3d-models/1594447c9f2d4b618dd59fd3272b6db6 (CC BY 4.0), modified.

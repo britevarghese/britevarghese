@@ -240,10 +240,25 @@ export const POLICE_CAR = {
   params: { mass: 1750, enginePower: 320, maxSpeed: 72, grip: 1.22, driftGrip: 0.5, steeringAngle: 0.56, brakingForce: 19000, wheelBase: 2.9, trackWidth: 1.62, cgHeight: 0.5, frontWeight: 0.54, drive: 'RWD', gears: [3.0, 2.1, 1.55, 1.2, 0.98, 0.82], finalDrive: 3.6, redline: 6800, downforce: 1.3, suspensionStrength: 2.1, suspensionDamping: 0.5, length: 4.95, width: 1.92, wheelRadius: 0.35 },
 };
 
+// Realistic traffic: CC BY 4.0 Sketchfab models imported at a traffic budget (tools/import-cars.mjs
+// --traffic) as cars/traffic_<type>.glb; TrafficRenderer draws them instanced and falls back to the
+// built-in blocky models while they're missing. len/wid: real size (the traffic collision box too).
+const SRC = (uid, title, author) => ({ site: 'Sketchfab', uid, title, author, url: `https://sketchfab.com/3d-models/${uid}`, license: 'CC-BY-4.0' });
+export const TRAFFIC_MODELS = {
+  sedan: { id: 'traffic_sedan', name: 'Toyota Camry', spec: { len: 4.88, wid: 1.84 }, source: SRC('236a5a6e2fa6420fbdf641f4800cd544', 'Toyota Camry 2020', 'ItsDiyor') },
+  hatch: { id: 'traffic_hatch', name: 'Volkswagen Polo', spec: { len: 4.05, wid: 1.75 }, source: SRC('bab77902c638427bb85e68b6762a481f', '2016 Volkswagen Polo', 'BHP3D') },
+  suv: { id: 'traffic_suv', name: 'Mercedes-Benz G-Class', spec: { len: 4.82, wid: 1.93 }, source: SRC('1a2a52b16cad4e618af347461817895c', 'Mercedes Benz G-class W263', 'Lexyc16') },
+  van: { id: 'traffic_van', name: 'Mercedes-Benz Sprinter', spec: { len: 5.9, wid: 1.99 }, source: SRC('f69de1315bb049c8946d57f6006acd73', 'Mercedes Benz Sprinter 2006', 'Max-7215') },
+  truck: { id: 'traffic_truck', name: 'Mitsubishi Fuso box truck', spec: { len: 7.0, wid: 2.1 }, source: SRC('34ade13df9c543d3b5709b2f2f971b2e', '2006 Mitsubishi Fuso', 'tonielpro520') },
+  bus: { id: 'traffic_bus', name: 'City bus', spec: { len: 11.5, wid: 2.55 }, source: SRC('14fe03d792914d51b6c6250b393c44fd', 'Generic Town Bus', 'own.guest') },
+};
+for (const m of Object.values(TRAFFIC_MODELS)) Object.assign(m, { real: true, traffic: true, import: { doors: false }, budget: { body0: 36000, wheel0: 2400, body1: 6000, wheel1: 300 } });
+
 // Traffic vehicles the player can take (carjacking). Not in CARS: they never appear in the garage.
 const TP = (o) => ({ driftGrip: 0.45, steeringAngle: 0.56, frontWeight: 0.56, drive: 'RWD', downforce: 0.4, suspensionStrength: 1.8, suspensionDamping: 0.45, idle: 750, ...o });
 export const TRAFFIC_VEHICLES = {
   sedan: { name: 'Sedan', carType: 'tuner', params: TP({ mass: 1450, enginePower: 125, maxSpeed: 52, grip: 1.0, brakingForce: 13000, wheelBase: 2.75, trackWidth: 1.55, cgHeight: 0.52, gears: [3.5, 2.0, 1.35, 1.0, 0.8], finalDrive: 3.9, redline: 6200, length: 4.7, width: 1.84, wheelRadius: 0.33 }) },
+  hatch: { name: 'Hatchback', carType: 'tuner', params: TP({ mass: 1150, enginePower: 95, maxSpeed: 50, grip: 1.0, brakingForce: 11500, wheelBase: 2.56, trackWidth: 1.5, cgHeight: 0.5, drive: 'FWD', frontWeight: 0.62, gears: [3.6, 2.1, 1.4, 1.05, 0.84], finalDrive: 3.9, redline: 6300, length: 4.05, width: 1.75, wheelRadius: 0.31 }) },
   suv: { name: 'SUV', carType: 'sports', params: TP({ mass: 1900, enginePower: 170, maxSpeed: 50, grip: 0.95, brakingForce: 15000, wheelBase: 2.85, trackWidth: 1.62, cgHeight: 0.7, drive: 'AWD', gears: [3.6, 2.1, 1.4, 1.0, 0.78], finalDrive: 3.7, redline: 6000, length: 4.8, width: 1.95, wheelRadius: 0.37 }) },
   van: { name: 'Van', carType: 'muscle', params: TP({ mass: 2300, enginePower: 115, maxSpeed: 42, grip: 0.9, brakingForce: 15000, wheelBase: 3.2, trackWidth: 1.7, cgHeight: 0.85, gears: [3.8, 2.2, 1.45, 1.0], finalDrive: 4.1, redline: 5200, length: 5.3, width: 2.02, wheelRadius: 0.36 }) },
   truck: { name: 'Box Truck', carType: 'muscle', params: TP({ mass: 7500, enginePower: 240, maxSpeed: 33, grip: 0.85, brakingForce: 40000, wheelBase: 4.5, trackWidth: 1.9, cgHeight: 1.2, gears: [5.0, 3.2, 2.1, 1.4, 1.0, 0.8], finalDrive: 5.0, redline: 3000, idle: 600, length: 7.4, width: 2.3, wheelRadius: 0.5 }) },

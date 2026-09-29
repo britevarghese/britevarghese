@@ -4,6 +4,7 @@
 import * as THREE from 'three';
 import { radialGlow, lightPool, carPaintTexture, headlightTextures, taillightTextures } from '../renderer/Textures.js';
 import { clamp } from '../core/util.js';
+import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 
 const _m = new THREE.Matrix4(), _q = new THREE.Quaternion(), _p = new THREE.Vector3(), _s = new THREE.Vector3(), _e = new THREE.Euler(), _c = new THREE.Color();
 const _w = new THREE.Matrix4(), _wq = new THREE.Quaternion();
@@ -39,6 +40,7 @@ export class TrafficRenderer {
     for (const type of types) {
       const src = lib.cars[type];
       if (!src) continue;
+      if (lib.modelOf?.[type]?.imported) { this.types[type] = this._imported(scene, src, lib.manifest?.cars?.[lib.modelOf[type].key], maxPerType); continue; }
       const entry = { lods: [], wheels: [] };
       for (const lodName of ['lod0', 'lod1']) {
         const root = src.getObjectByName(lodName);
@@ -117,8 +119,9 @@ export class TrafficRenderer {
       _e.set(-(c.pitch || 0), c.yaw, c.roll || 0, 'YXZ');
       _q.setFromEuler(_e);
       _m.compose(_p.set(c.x, c.y, c.z), _q, _s.set(1, 1, 1));
-      const meshes = T.lods[lod];
       const lightsOn = lightsOnAll && !c.parked; // parked cars sit dark
+      if (T.imported) { this._placeImported(T, lod, n, _m, c, lightsOn); }
+      const meshes = T.imported ? {} : T.lods[lod];
       for (const [k, mesh] of Object.entries(meshes)) {
         mesh.setMatrixAt(n, _m);
         if (k === 'paint') mesh.setColorAt(n, c.color);
@@ -126,7 +129,7 @@ export class TrafficRenderer {
         else if (k === 'tail') mesh.setColorAt(n, _c.setRGB(lightsOn ? 1.2 + c.brake * 3 : 0.35 + c.brake * 3, 0.05, 0.04));
       }
       // wheels
-      if (c.dist < 160) {
+      if (!T.imported && c.dist < 160) {
         _e.set(0, c.yaw, 0); _wq.setFromEuler(_e);
         for (const w of T.wheels) {
           _p.copy(w.pos).applyQuaternion(_q).add(_s.set(c.x, c.y, c.z));
@@ -162,6 +165,13 @@ export class TrafficRenderer {
       }
     }
     for (const [type, T] of Object.entries(this.types)) {
+      if (T.imported) {
+        T.lods.forEach((parts, lod) => {
+          const n = counts[type + lod] || 0;
+          for (const pt of parts) { pt.mesh.count = n * (pt.wheel ? 4 : 1); pt.mesh.visible = n > 0; pt.mesh.instanceMatrix.needsUpdate = true; if (pt.mesh.instanceColor) pt.mesh.instanceColor.needsUpdate = true; }
+        });
+        continue;
+      }
       T.lods.forEach((meshes, lod) => {
         const n = counts[type + lod] || 0;
         for (const mesh of Object.values(meshes)) {
@@ -178,6 +188,162 @@ export class TrafficRenderer {
     if (this.tailGlow.instanceColor) this.tailGlow.instanceColor.needsUpdate = true;
     if (this.headGlow.instanceColor) this.headGlow.instanceColor.needsUpdate = true;
   }
+}
+
+// ------------------------------------------------------------------ realistic (imported) traffic models
+// An imported model has dozens of meshes; instancing each would cost hundreds of draw calls. Per LOD the
+// body is regrouped into: paint (per-car colour), glass, lamps, one vertex-coloured mesh for every
+// untextured material, and the few textured materials as they are. Each wheel's spinning part is
+// instanced 4x per car (hub position, steer, spin).
+TrafficRenderer.prototype._imported = function (scene, src, man, max) {
+  const entry = { imported: true, lods: [], hubs: [] };
+  const root0 = src.getObjectByName('lod0');
+  root0.updateMatrixWorld(true);
+  const inv = new THREE.Matrix4();
+  const norm = (g) => {
+    g = g.index ? g.toNonIndexed() : g.clone();
+    for (const k of Object.keys(g.attributes)) if (!['position', 'normal', 'uv'].includes(k)) g.deleteAttribute(k);
+    // compressed (quantized, normalized-int) attributes -> plain floats so parts can be merged
+    for (const k of Object.keys(g.attributes)) {
+      const a = g.attributes[k];
+      if (a.array instanceof Float32Array && !a.normalized && !a.isInterleavedBufferAttribute) continue;
+      const n = a.count, sz = a.itemSize, f = new Float32Array(n * sz);
+      for (let i = 0; i < n; i++) for (let j = 0; j < sz; j++) f[i * sz + j] = a.getComponent ? a.getComponent(i, j) : [a.getX, a.getY, a.getZ, a.getW][j].call(a, i);
+      g.setAttribute(k, new THREE.BufferAttribute(f, sz));
+    }
+    if (!g.attributes.normal) g.computeVertexNormals();
+    if (!g.attributes.uv) g.setAttribute('uv', new THREE.BufferAttribute(new Float32Array(g.attributes.position.count * 2), 2));
+    g.morphAttributes = {};
+    return g;
+  };
+  const kindOf = (mat) => {
+    const n = (mat.name || '').toLowerCase();
+    if (n === 'paint') return 'paint';
+    if (/glass|window|windshield/.test(n) || (mat.transparent && mat.opacity < 0.9)) return 'glass';
+    if (/headlight|head_light|lamp.*front/.test(n)) return 'head';
+    if (/taillight|tail_light|brake|rearlight/.test(n)) return 'tail';
+    return mat.map ? 'tex' : 'plain';
+  };
+  for (const lodName of ['lod0', 'lod1']) {
+    const root = src.getObjectByName(lodName) || root0;
+    root.updateMatrixWorld(true);
+    inv.copy(root.matrixWorld).invert();
+    const groups = new Map(); // key -> {kind, mat, geos}
+    const wheelGroups = new Map();
+    root.traverse((o) => {
+      if (!o.isMesh) return;
+      // which wheel (if any) this mesh spins with
+      let w = o, hub = null, spin = false;
+      while (w && w !== root) { if (w.name === 'spin') spin = true; if (/^wheel_(FL|FR|RL|RR)$/.test(w.name)) { hub = w; break; } w = w.parent; }
+      const mats = Array.isArray(o.material) ? o.material : [o.material];
+      const geo0 = o.geometry;
+      const parts = geo0.groups?.length && mats.length > 1 ? geo0.groups.map((gr) => ({ mat: mats[gr.materialIndex], geo: sub(geo0, gr) })) : [{ mat: mats[0], geo: geo0 }];
+      for (const { mat, geo } of parts) {
+        const g = norm(geo);
+        if (hub && spin) {
+          // relative to the hub (the instance matrix puts it on each wheel)
+          const rel = new THREE.Matrix4().copy(hub.matrixWorld).invert().multiply(o.matrixWorld);
+          g.applyMatrix4(rel);
+          const key = hub.name.slice(-2) + '|' + mat.uuid;
+          // one geometry per material, taken from the front-left wheel only (all four are the same wheel)
+          if (hub.name !== 'wheel_FL') continue;
+          if (!wheelGroups.has(mat.uuid)) wheelGroups.set(mat.uuid, { mat, geos: [] });
+          wheelGroups.get(mat.uuid).geos.push(g);
+          void key;
+          continue;
+        }
+        g.applyMatrix4(new THREE.Matrix4().multiplyMatrices(inv, o.matrixWorld));
+        const kind = kindOf(mat);
+        const key = kind === 'tex' ? 'tex|' + mat.uuid : kind;
+        if (!groups.has(key)) groups.set(key, { kind, mat, geos: [] });
+        if (kind === 'plain') {
+          const col = new THREE.Color().copy(mat.color || new THREE.Color(1, 1, 1));
+          const n = g.attributes.position.count, ca = new Float32Array(n * 3);
+          for (let i = 0; i < n; i++) { ca[i * 3] = col.r; ca[i * 3 + 1] = col.g; ca[i * 3 + 2] = col.b; }
+          g.setAttribute('color', new THREE.BufferAttribute(ca, 3));
+          const G = groups.get(key); G.metal = (G.metal || 0) + (mat.metalness ?? 0.2); G.rough = (G.rough || 0) + (mat.roughness ?? 0.6); G.n = (G.n || 0) + 1;
+        }
+        groups.get(key).geos.push(g);
+      }
+    });
+    // keep the four biggest textured materials; the rest join the vertex-coloured group
+    const texd = [...groups.entries()].filter(([, G]) => G.kind === 'tex').sort((a, b) => tri(b[1]) - tri(a[1]));
+    for (const [key, G] of texd.slice(4)) {
+      groups.delete(key);
+      if (!groups.has('plain')) groups.set('plain', { kind: 'plain', mat: G.mat, geos: [], metal: 0, rough: 0, n: 0 });
+      const P = groups.get('plain'), col = new THREE.Color().copy(G.mat.color || new THREE.Color(0.5, 0.5, 0.5)).multiplyScalar(0.6);
+      for (const g of G.geos) {
+        const n = g.attributes.position.count, ca = new Float32Array(n * 3);
+        for (let i = 0; i < n; i++) { ca[i * 3] = col.r; ca[i * 3 + 1] = col.g; ca[i * 3 + 2] = col.b; }
+        g.setAttribute('color', new THREE.BufferAttribute(ca, 3));
+        P.geos.push(g);
+      }
+      P.metal = (P.metal || 0) + (G.mat.metalness ?? 0.2); P.rough = (P.rough || 0) + (G.mat.roughness ?? 0.6); P.n = (P.n || 0) + 1;
+    }
+    const parts = [];
+    const add = (geo, mat, opts = {}) => {
+      const cap = max * (opts.wheel ? 4 : 1);
+      const mesh = new THREE.InstancedMesh(geo, mat, cap);
+      mesh.count = 0; mesh.visible = false; mesh.frustumCulled = false;
+      mesh.castShadow = lodName === 'lod0' && !opts.wheel && opts.kind !== 'glass'; mesh.receiveShadow = false;
+      if (opts.color) mesh.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(cap * 3), 3);
+      scene.add(mesh);
+      parts.push({ mesh, ...opts });
+    };
+    for (const G of groups.values()) {
+      const geo = G.geos.length === 1 ? G.geos[0] : mergeGeometries(G.geos, false);
+      if (!geo) continue;
+      let mat;
+      if (G.kind === 'paint') { mat = G.mat.clone(); mat.color = new THREE.Color(1, 1, 1); }
+      else if (G.kind === 'plain') mat = new THREE.MeshStandardMaterial({ vertexColors: true, metalness: G.metal / G.n, roughness: G.rough / G.n });
+      else mat = G.mat;
+      add(geo, mat, { kind: G.kind, color: G.kind === 'paint' || G.kind === 'head' || G.kind === 'tail' });
+    }
+    for (const W of wheelGroups.values()) {
+      const geo = W.geos.length === 1 ? W.geos[0] : mergeGeometries(W.geos, false);
+      if (geo) add(geo, W.mat, { kind: 'wheel', wheel: true });
+    }
+    entry.lods.push(parts);
+  }
+  for (const id of ['FL', 'FR', 'RL', 'RR']) {
+    const h = root0.getObjectByName('wheel_' + id);
+    if (h) entry.hubs.push({ id, pos: h.position.clone(), front: id[0] === 'F', side: id[1] === 'L' ? 1 : -1 });
+  }
+  const hl = root0.getObjectByName('light_head_L')?.position, tl = root0.getObjectByName('light_tail_L')?.position;
+  entry.head = hl ? hl.clone() : new THREE.Vector3(0.7, 0.7, (man?.length || 4.6) / 2 - 0.1);
+  entry.tail = tl ? tl.clone() : new THREE.Vector3(0.7, 0.8, -(man?.length || 4.6) / 2 + 0.1);
+  entry.length = man?.length || 4.6;
+  return entry;
+};
+
+const _hq = new THREE.Quaternion(), _hs = new THREE.Quaternion(), _hm = new THREE.Matrix4(), _hp = new THREE.Vector3(), _one = new THREE.Vector3(1, 1, 1), _X = new THREE.Vector3(1, 0, 0), _Y = new THREE.Vector3(0, 1, 0), _hc = new THREE.Color();
+TrafficRenderer.prototype._placeImported = function (T, lod, n, carM, c, lightsOn) {
+  for (const pt of T.lods[lod]) {
+    if (pt.wheel) {
+      T.hubs.forEach((h, k) => {
+        _hq.setFromAxisAngle(_Y, h.front ? (c.steer || 0) : 0).multiply(_hs.setFromAxisAngle(_X, c.spin || 0));
+        if (h.side < 0) _hq.multiply(_hs.setFromAxisAngle(_Y, Math.PI)); // right-hand wheels are the left one turned round
+        _hm.compose(h.pos, _hq, _one).premultiply(carM);
+        pt.mesh.setMatrixAt(n * 4 + k, _hm);
+      });
+      continue;
+    }
+    pt.mesh.setMatrixAt(n, carM);
+    if (pt.kind === 'paint') pt.mesh.setColorAt(n, c.color);
+    else if (pt.kind === 'head') pt.mesh.setColorAt(n, _hc.setScalar(lightsOn ? 1.6 : 0.8));
+    else if (pt.kind === 'tail') pt.mesh.setColorAt(n, _hc.setRGB(lightsOn || c.brake ? 1 + c.brake * 2 : 0.6, lightsOn || c.brake ? 0.35 : 0.6, lightsOn || c.brake ? 0.3 : 0.6));
+  }
+};
+
+const tri = (G) => G.geos.reduce((a, g) => a + g.attributes.position.count / 3, 0);
+
+// a draw group of an indexed/non-indexed geometry as its own geometry
+function sub(geo, gr) {
+  const g = new THREE.BufferGeometry();
+  for (const [k, v] of Object.entries(geo.attributes)) g.setAttribute(k, v);
+  if (geo.index) g.setIndex(new THREE.BufferAttribute(geo.index.array.slice(gr.start, gr.start + gr.count), 1));
+  else { g.setDrawRange(gr.start, gr.count); }
+  return g;
 }
 
 function mergeIndexed(list) {

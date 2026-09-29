@@ -4532,6 +4532,330 @@
         "url": "https://sketchfab.com/3d-models/0ed1b0cc65de4225a7eac76f02d6bc30",
         "license": "CC-BY-4.0"
       }
+    },
+    "traffic_sedan": {
+      "file": "cars/traffic_sedan.glb",
+      "imported": true,
+      "name": "Toyota Camry",
+      "length": 4.88,
+      "width": 2.135,
+      "height": 1.346,
+      "wheels": [
+        {
+          "id": "FL",
+          "x": 0.799,
+          "y": 0.331,
+          "z": 1.466,
+          "r": 0.331,
+          "w": 0.23
+        },
+        {
+          "id": "FR",
+          "x": -0.799,
+          "y": 0.331,
+          "z": 1.466,
+          "r": 0.331,
+          "w": 0.23
+        },
+        {
+          "id": "RL",
+          "x": 0.799,
+          "y": 0.331,
+          "z": -1.36,
+          "r": 0.331,
+          "w": 0.23
+        },
+        {
+          "id": "RR",
+          "x": -0.799,
+          "y": 0.331,
+          "z": -1.36,
+          "r": 0.331,
+          "w": 0.23
+        }
+      ],
+      "tris": {
+        "lod0": 59688,
+        "lod1": 21873
+      },
+      "source": {
+        "site": "Sketchfab",
+        "uid": "236a5a6e2fa6420fbdf641f4800cd544",
+        "title": "Toyota Camry 2020",
+        "author": "ItsDiyor",
+        "url": "https://sketchfab.com/3d-models/236a5a6e2fa6420fbdf641f4800cd544",
+        "license": "CC-BY-4.0"
+      }
+    },
+    "traffic_hatch": {
+      "file": "cars/traffic_hatch.glb",
+      "imported": true,
+      "name": "Volkswagen Polo",
+      "length": 4.05,
+      "width": 1.977,
+      "height": 1.532,
+      "wheels": [
+        {
+          "id": "FL",
+          "x": 0.743,
+          "y": 0.299,
+          "z": 1.174,
+          "r": 0.299,
+          "w": 0.186
+        },
+        {
+          "id": "FR",
+          "x": -0.743,
+          "y": 0.299,
+          "z": 1.174,
+          "r": 0.299,
+          "w": 0.186
+        },
+        {
+          "id": "RL",
+          "x": 0.743,
+          "y": 0.299,
+          "z": -1.353,
+          "r": 0.299,
+          "w": 0.186
+        },
+        {
+          "id": "RR",
+          "x": -0.743,
+          "y": 0.299,
+          "z": -1.353,
+          "r": 0.299,
+          "w": 0.186
+        }
+      ],
+      "tris": {
+        "lod0": 59819,
+        "lod1": 11371
+      },
+      "source": {
+        "site": "Sketchfab",
+        "uid": "bab77902c638427bb85e68b6762a481f",
+        "title": "2016 Volkswagen Polo",
+        "author": "BHP3D",
+        "url": "https://sketchfab.com/3d-models/bab77902c638427bb85e68b6762a481f",
+        "license": "CC-BY-4.0"
+      }
+    },
+    "traffic_suv": {
+      "file": "cars/traffic_suv.glb",
+      "imported": true,
+      "name": "Mercedes-Benz G-Class",
+      "length": 4.82,
+      "width": 2.153,
+      "height": 1.756,
+      "wheels": [
+        {
+          "id": "FL",
+          "x": 0.8,
+          "y": 0.414,
+          "z": 1.607,
+          "r": 0.414,
+          "w": 0.283
+        },
+        {
+          "id": "FR",
+          "x": -0.8,
+          "y": 0.414,
+          "z": 1.607,
+          "r": 0.414,
+          "w": 0.283
+        },
+        {
+          "id": "RL",
+          "x": 0.8,
+          "y": 0.414,
+          "z": -1.319,
+          "r": 0.414,
+          "w": 0.283
+        },
+        {
+          "id": "RR",
+          "x": -0.8,
+          "y": 0.414,
+          "z": -1.319,
+          "r": 0.414,
+          "w": 0.283
+        }
+      ],
+      "tris": {
+        "lod0": 12034,
+        "lod1": 7418
+      },
+      "source": {
+        "site": "Sketchfab",
+        "uid": "1a2a52b16cad4e618af347461817895c",
+        "title": "Mercedes Benz G-class W263",
+        "author": "Lexyc16",
+        "url": "https://sketchfab.com/3d-models/1a2a52b16cad4e618af347461817895c",
+        "license": "CC-BY-4.0"
+      }
+    },
+    "traffic_van": {
+      "file": "cars/traffic_van.glb",
+      "imported": true,
+      "name": "Mercedes-Benz Sprinter",
+      "length": 5.9,
+      "width": 2.036,
+      "height": 2.016,
+      "wheels": [
+        {
+          "id": "FL",
+          "x": 0.724,
+          "y": 0.342,
+          "z": 2.099,
+          "r": 0.318,
+          "w": 0.211
+        },
+        {
+          "id": "FR",
+          "x": -0.724,
+          "y": 0.342,
+          "z": 2.099,
+          "r": 0.318,
+          "w": 0.211
+        },
+        {
+          "id": "RL",
+          "x": 0.724,
+          "y": 0.318,
+          "z": -1.032,
+          "r": 0.318,
+          "w": 0.211
+        },
+        {
+          "id": "RR",
+          "x": -0.724,
+          "y": 0.318,
+          "z": -1.032,
+          "r": 0.318,
+          "w": 0.211
+        }
+      ],
+      "tris": {
+        "lod0": 37564,
+        "lod1": 7199
+      },
+      "source": {
+        "site": "Sketchfab",
+        "uid": "f69de1315bb049c8946d57f6006acd73",
+        "title": "Mercedes Benz Sprinter 2006",
+        "author": "Max-7215",
+        "url": "https://sketchfab.com/3d-models/f69de1315bb049c8946d57f6006acd73",
+        "license": "CC-BY-4.0"
+      }
+    },
+    "traffic_truck": {
+      "file": "cars/traffic_truck.glb",
+      "imported": true,
+      "name": "Mitsubishi Fuso box truck",
+      "length": 7,
+      "width": 3.446,
+      "height": 4.085,
+      "wheels": [
+        {
+          "id": "FL",
+          "x": 1.047,
+          "y": 0.464,
+          "z": 2.098,
+          "r": 0.464,
+          "w": 0.297
+        },
+        {
+          "id": "FR",
+          "x": -1.047,
+          "y": 0.464,
+          "z": 2.098,
+          "r": 0.464,
+          "w": 0.297
+        },
+        {
+          "id": "RL",
+          "x": 1.173,
+          "y": 0.48,
+          "z": -1.987,
+          "r": 0.474,
+          "w": 0.295
+        },
+        {
+          "id": "RR",
+          "x": -1.173,
+          "y": 0.48,
+          "z": -1.987,
+          "r": 0.474,
+          "w": 0.295
+        }
+      ],
+      "tris": {
+        "lod0": 59472,
+        "lod1": 8934
+      },
+      "source": {
+        "site": "Sketchfab",
+        "uid": "34ade13df9c543d3b5709b2f2f971b2e",
+        "title": "2006 Mitsubishi Fuso",
+        "author": "tonielpro520",
+        "url": "https://sketchfab.com/3d-models/34ade13df9c543d3b5709b2f2f971b2e",
+        "license": "CC-BY-4.0"
+      }
+    },
+    "traffic_bus": {
+      "file": "cars/traffic_bus.glb",
+      "imported": true,
+      "name": "City bus",
+      "length": 11.5,
+      "width": 2.802,
+      "height": 2.846,
+      "wheels": [
+        {
+          "id": "FL",
+          "x": 0.97,
+          "y": 0.501,
+          "z": 3.072,
+          "r": 0.501,
+          "w": 0.292
+        },
+        {
+          "id": "FR",
+          "x": -0.947,
+          "y": 0.501,
+          "z": 3.072,
+          "r": 0.501,
+          "w": 0.292
+        },
+        {
+          "id": "RL",
+          "x": 1.036,
+          "y": 0.5,
+          "z": -2.257,
+          "r": 0.5,
+          "w": 0.292
+        },
+        {
+          "id": "RR",
+          "x": -1.013,
+          "y": 0.5,
+          "z": -2.257,
+          "r": 0.5,
+          "w": 0.292
+        }
+      ],
+      "tris": {
+        "lod0": 53718,
+        "lod1": 30797
+      },
+      "source": {
+        "site": "Sketchfab",
+        "uid": "14fe03d792914d51b6c6250b393c44fd",
+        "title": "Generic Town Bus",
+        "author": "own.guest",
+        "url": "https://sketchfab.com/3d-models/14fe03d792914d51b6c6250b393c44fd",
+        "license": "CC-BY-4.0"
+      }
     }
   },
   "wheels": {
@@ -4684,6 +5008,12 @@
     "cars/subaru_wrx_sti_gc8.glb": "8968c9e0c1",
     "cars/suzuki_hayabusa.glb": "f0799be741",
     "cars/toyota_supra_mk4.glb": "deba81d419",
+    "cars/traffic_bus.glb": "3901589773",
+    "cars/traffic_hatch.glb": "085811bc64",
+    "cars/traffic_sedan.glb": "a749146702",
+    "cars/traffic_suv.glb": "d37816b515",
+    "cars/traffic_truck.glb": "6f4c10c82b",
+    "cars/traffic_van.glb": "02c4bb7a53",
     "cars/yamaha_r1.glb": "079a76b27b",
     "hikari.glb": "080c1663ef",
     "humans/alex.glb": "d87147073b",

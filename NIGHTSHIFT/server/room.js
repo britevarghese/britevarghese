@@ -32,7 +32,7 @@ const MAX_MSG_RATE = 60;    // messages per second per client (soft limit)
 const MAX_PARKED = 4;
 const WARP_COOLDOWN = 400;  // ms between accepted teleports
 const MAX_TRAFFIC = 120;    // cars per traffic message
-const TRAFFIC_TYPES = new Set(['sedan', 'suv', 'van', 'truck', 'bus']);
+const TRAFFIC_TYPES = new Set(['sedan', 'hatch', 'suv', 'van', 'truck', 'bus']);
 
 function isNum(n) { return typeof n === 'number' && Number.isFinite(n); }
 function vec(a, n) {

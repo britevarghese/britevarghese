@@ -9,10 +9,11 @@ import { obbOverlap } from '../physics/Collision.js';
 import { bus } from '../core/EventBus.js';
 
 export const TYPE_SPECS = {
-  sedan: { w: 1.84, l: 4.7, mass: 1450, weight: 44 },
-  suv: { w: 1.95, l: 4.8, mass: 1900, weight: 24 },
-  van: { w: 2.02, l: 5.3, mass: 2300, weight: 13 },
-  truck: { w: 2.3, l: 7.4, mass: 7500, weight: 10, bigRoads: true },
+  sedan: { w: 1.84, l: 4.88, mass: 1500, weight: 30 },
+  hatch: { w: 1.75, l: 4.05, mass: 1150, weight: 20, needs: 'hatch' },
+  suv: { w: 1.93, l: 4.82, mass: 2400, weight: 22 },
+  van: { w: 1.99, l: 5.9, mass: 2500, weight: 13 },
+  truck: { w: 2.1, l: 7.0, mass: 7500, weight: 10, bigRoads: true },
   bus: { w: 2.55, l: 11.5, mass: 11000, weight: 7, bigRoads: true },
 };
 export const TRAFFIC_COLORS = [0x9aa0a8, 0x2a2d33, 0xe8e8e6, 0x5a1a1a, 0x1c2e4a, 0x3a3f36, 0xb8b0a0, 0x6a6e74, 0x0e0f11, 0x8a2a1a, 0x2a4a6a, 0xd8d0c0];
@@ -67,7 +68,7 @@ export class TrafficManager {
   pickType(lane) {
     const R = this.R;
     let total = 0;
-    const types = Object.entries(TYPE_SPECS).filter(([, s]) => !s.bigRoads || lane.edge.type.lanes > 1);
+    const types = Object.entries(TYPE_SPECS).filter(([t, s]) => (!s.bigRoads || lane.edge.type.lanes > 1) && (!s.needs || this.renderer?.types?.[t]));
     for (const [, s] of types) total += s.weight;
     let r = R() * total;
     for (const [t, s] of types) { r -= s.weight; if (r <= 0) return t; }
