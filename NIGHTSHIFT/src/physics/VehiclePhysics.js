@@ -96,8 +96,9 @@ export class VehiclePhysics {
     const beta = Math.atan2(vy, Math.max(Math.abs(vx), 0.5));
     const slipAngle = Math.abs(beta);
     // speed-sensitive lock: full lock only at parking speeds, progressively less at speed
-    const speedK = clamp(speed / 55, 0, 1);
-    let maxLock = p.steeringAngle * lerp(1, p.bike ? 0.26 : 0.34, speedK * (2 - speedK)); // bikes steer by leaning at speed
+    const speedK = clamp(speed / (p.bike ? 32 : 55), 0, 1);
+    // bikes steer by leaning at speed: the bars barely turn, arcs widen as the speed builds (GTA-like)
+    let maxLock = p.steeringAngle * lerp(1, p.bike ? 0.16 : 0.34, speedK * (2 - speedK));
     if (this.driftMode) maxLock *= 1 + clamp(slipAngle * 1.1, 0, 0.7); // room to counter-steer a slide
     const targetDelta = -c.steer * maxLock;
     // steering rack speed: quick when parking, calmer at speed (prevents twitchy yaw overshoot)
@@ -371,9 +372,12 @@ export class VehiclePhysics {
     const p = this.p, s = this.s;
     // lean = lateral g, plus the rider tipping it in on the steering input (counter-steer) so the bike
     // leans the moment you steer and then carves, like GTA; nearly upright at walking pace
-    const spdK = clamp((Math.abs(s.speed) - 2) / 10, 0, 1);
-    const leanT = s.onGround ? -Math.atan(this.ayPrev / G) - (this.delta || 0) * 1.6 * spdK : this.lean ?? 0;
-    this.leanVel = (this.leanVel || 0) + (95 * (clamp(leanT, -0.95, 0.95) - (this.lean || 0)) - 2 * 0.78 * Math.sqrt(95) * (this.leanVel || 0)) * dt;
+    // lean = what the turn needs (tan(lean) = lateral g) plus a little anticipation on the bars, so the
+    // bike tips in as you steer and then carves; nearly upright at walking pace
+    const spdK = clamp((Math.abs(s.speed) - 3) / 15, 0, 1);
+    const tipIn = clamp(-(this.delta || 0) * 0.6, -0.12, 0.12) * spdK;
+    const leanT = s.onGround ? -Math.atan(this.ayPrev / G) + tipIn : this.lean ?? 0;
+    this.leanVel = (this.leanVel || 0) + (70 * (clamp(leanT, -0.84, 0.84) - (this.lean || 0)) - 2 * 0.85 * Math.sqrt(70) * (this.leanVel || 0)) * dt;
     this.lean = (this.lean || 0) + this.leanVel * dt;
     const wheelieG = G * p.wheelBase * (1 - p.frontWeight) / p.cgHeight * 0.62;
     const lift = s.onGround ? (this.axPrev > wheelieG ? clamp((this.axPrev - wheelieG) * 0.12, 0, 0.42) : this.axPrev < -G * 0.95 ? clamp((this.axPrev + G * 0.95) * 0.05, -0.16, 0) : 0) : 0;
