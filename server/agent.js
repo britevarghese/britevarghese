@@ -14,13 +14,20 @@ import { TEAM_NAMES } from '../shared/map.js';
 
 const OFFICIAL_ANTHROPIC = /^https:\/\/api\.anthropic\.com\/?$/;
 const REQUEST_TIMEOUT = 25000;
-const MAX_TOKENS = 1024;
+// current Claude models think before answering (on Claude Opus 5.5 thinking can't be turned off): leave room for the
+// thinking AND the tool calls, or a decision gets cut off before its orders and the soldier silently gets nothing
+const MAX_TOKENS = 4096;
+export const DEFAULT_CLAUDE_MODEL = 'claude-opus-5-5';
+// models that take output_config.effort (Opus 4.5+, Sonnet 4.6+, Fable, Mythos); Haiku / older ones reject it
+const EFFORT_MODELS = /claude-(opus-(4-[5-9]|5)|sonnet-(4-6|5)|fable|mythos)/;
+// server-side refusal fallback ("default" routing) on the first-party API
+const FALLBACK_MODELS = /^claude-(opus-5|opus-5-5|fable-5-1|sonnet-5-5)$/;
 
 // ---------------------------------------------------------------- config validation (also used by the lobby API)
 export function cleanAgentConfig(c = {}) {
   const provider = c.provider === 'openai' ? 'openai' : 'anthropic';
   const baseUrl = String(c.baseUrl || (provider === 'anthropic' ? 'https://api.anthropic.com' : 'https://api.openai.com/v1')).trim().replace(/\/+$/, '');
-  const model = String(c.model || (provider === 'anthropic' ? 'claude-opus-5' : '')).trim().slice(0, 120);
+  const model = String(c.model || (provider === 'anthropic' ? DEFAULT_CLAUDE_MODEL : '')).trim().slice(0, 120);
   const apiKey = String(c.apiKey || '').trim().slice(0, 400);
   let url;
   try { url = new URL(baseUrl); } catch { throw new Error('Base URL is not a valid URL'); }
@@ -210,7 +217,12 @@ export class AgentController {
       return;
     }
     this.next = g.now() + cfg.interval * 1000;
+    // tell the players once that the link works (and which model actually answered)
+    if (this.requests === 1) g.emit({ t: 'chat', from: 'SERVER', msg: `AI link (${cfg.name}): connected to ${this.lastModel || cfg.model} — ${calls.length ? 'first orders received' : 'waiting for orders'} (${this.lastLatency} ms)` });
+    if (!calls.length) this.idle = (this.idle || 0) + 1; else this.idle = 0;
+    if (this.idle === 3) g.emit({ t: 'chat', from: 'SERVER', msg: `AI link (${cfg.name}): the model answered 3 times without giving any order — check the model supports tool use` });
     for (const c of calls) this.apply(c.name, c.input || {});
+    this.decisions = (this.decisions || 0) + calls.length;
   }
 
   async askClaude(text) {
@@ -224,14 +236,18 @@ export class AgentController {
       messages: [{ role: 'user', content: text }],
     };
     // real-time game: keep deliberation short on models that take an effort setting
-    if (/claude-(opus|fable|mythos|sonnet-5|sonnet-4-6)/.test(cfg.model)) params.output_config = { effort: 'low' };
+    if (EFFORT_MODELS.test(cfg.model)) params.output_config = { effort: 'low' };
     let res;
-    if (OFFICIAL_ANTHROPIC.test(cfg.baseUrl) && /claude-(opus-5|fable-5-1)$/.test(cfg.model)) {
-      // server-side refusal fallback on the first-party API
+    if (OFFICIAL_ANTHROPIC.test(cfg.baseUrl) && FALLBACK_MODELS.test(cfg.model)) {
       res = await this.client.beta.messages.create({ ...params, betas: ['server-side-fallback-2026-07-01'], fallbacks: 'default' });
     } else res = await this.client.messages.create(params);
-    if (res.stop_reason === 'refusal') return [];
-    return res.content.filter((b) => b.type === 'tool_use').map((b) => ({ name: b.name, input: b.input }));
+    this.lastModel = res.model;
+    this.lastStop = res.stop_reason;
+    if (res.stop_reason === 'refusal') { this.log(`[agent ${cfg.name}] model declined (${res.stop_details?.category ?? 'no category'})`); return []; }
+    const calls = res.content.filter((b) => b.type === 'tool_use').map((b) => ({ name: b.name, input: b.input }));
+    // cut off before any order: report it instead of silently doing nothing
+    if (res.stop_reason === 'max_tokens' && !calls.length) throw new Error('reply cut off before any order (max_tokens)');
+    return calls;
   }
 
   async askOpenAI(text) {
@@ -288,7 +304,7 @@ export async function testAgentConfig(raw) {
     const client = new Anthropic({ apiKey: cfg.apiKey || 'none', baseURL: cfg.baseUrl, timeout: 20000, maxRetries: 0 });
     try {
       const params = { model: cfg.model, max_tokens: 64, messages: [{ role: 'user', content: 'Reply with the single word: ready' }] };
-      if (/claude-(opus|fable|mythos|sonnet-5|sonnet-4-6)/.test(cfg.model)) params.output_config = { effort: 'low' };
+      if (EFFORT_MODELS.test(cfg.model)) params.output_config = { effort: 'low' };
       const res = await client.messages.create(params);
       return { ok: true, ms: Date.now() - t0, model: res.model };
     } catch (e) {

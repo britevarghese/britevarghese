@@ -15,8 +15,11 @@ function fakeModel(replies) {
     req.on('end', () => {
       const j = JSON.parse(body || '{}');
       seen.push({ url: req.url, auth: req.headers['x-api-key'] || req.headers.authorization, body: j });
-      const calls = replies.shift() || [];
+      const r = replies.shift() || [];
+      const calls = Array.isArray(r) ? r : [];
       res.setHeader('content-type', 'application/json');
+      // a reply that ran out of tokens while thinking (no tool call made it out)
+      if (r.stop === 'max_tokens') return res.end(JSON.stringify({ id: 'msg_x', type: 'message', role: 'assistant', model: j.model, stop_reason: 'max_tokens', stop_sequence: null, usage: { input_tokens: 10, output_tokens: 4096 }, content: [{ type: 'thinking', thinking: '', signature: 'sig' }] }));
       if (req.url.endsWith('/chat/completions')) {
         res.end(JSON.stringify({ model: j.model, choices: [{ message: { role: 'assistant', content: null, tool_calls: calls.map((c, i) => ({ id: `c${i}`, type: 'function', function: { name: c.name, arguments: JSON.stringify(c.input) } })) } }] }));
       } else {
@@ -31,7 +34,7 @@ const waitFor = async (fn, ms = 5000) => { const t = Date.now(); while (!fn()) {
 
 test('agent config validation keeps keys server-side and rejects internal URLs without opt-in', () => {
   const c = cleanAgentConfig({ provider: 'anthropic', apiKey: 'sk-test', name: 'Viper<x>' });
-  assert.equal(c.baseUrl, 'https://api.anthropic.com'); assert.equal(c.model, 'claude-opus-5'); assert.equal(c.name, 'Viperx');
+  assert.equal(c.baseUrl, 'https://api.anthropic.com'); assert.equal(c.model, 'claude-opus-5-5'); assert.equal(c.name, 'Viperx');
   const saved = process.env.AI_ALLOW_LOCAL; delete process.env.AI_ALLOW_LOCAL;
   assert.throws(() => cleanAgentConfig({ provider: 'openai', baseUrl: 'http://10.0.0.5:8080/v1', model: 'm', apiKey: 'k' }), /public https/);
   assert.throws(() => cleanAgentConfig({ provider: 'openai', baseUrl: 'https://api.example.com/v1', model: 'm' }), /API key/);
@@ -84,6 +87,28 @@ test('OpenAI-compatible provider works through the same orders', async () => {
   assert.equal(fm.seen[0].body.tools[0].type, 'function');
   const r = await testAgentConfig({ provider: 'openai', baseUrl: `${fm.url}/v1`, model: 'local-model', apiKey: 'k' });
   assert.ok(r.ok);
+  fm.server.close();
+});
+
+test('Claude request: room for thinking + orders, low effort, a "connected" notice, and cut-off replies are reported', async () => {
+  const fm = await fakeModel([{ stop: 'max_tokens' }, [{ name: 'go_to_flag', input: { flag: 'A' } }]]);
+  const g = new Game({ botsPerTeam: 0, log: () => {} });
+  const ctl = new AgentController(g, cleanAgentConfig({ provider: 'anthropic', baseUrl: fm.url, apiKey: 'sk-test', name: 'Viper', interval: 3 }));
+  g.agents.push(ctl);
+  ctl.p.respawnAt = 0; g.spawn(ctl.p, 'base');
+  g.tick(1 / 30);
+  assert.ok(await waitFor(() => ctl.errors >= 1), 'cut-off reply counted as a failure');
+  const req = fm.seen[0].body;
+  assert.equal(req.model, 'claude-opus-5-5', 'current default model');
+  assert.ok(req.max_tokens >= 4096, `max_tokens ${req.max_tokens} leaves room for thinking`);
+  assert.deepEqual(req.output_config, { effort: 'low' });
+  let chat = g.flushEvents().map((e) => e.ev).filter((e) => e.t === 'chat').map((e) => e.msg).join(' | ');
+  assert.match(chat, /cut off before any order/);
+  // next attempt succeeds: players are told the link works
+  ctl.next = 0; g.tick(1 / 30);
+  assert.ok(await waitFor(() => ctl.p.brain.order?.type === 'flag'));
+  chat = g.flushEvents().map((e) => e.ev).filter((e) => e.t === 'chat').map((e) => e.msg).join(' | ');
+  assert.match(chat, /AI link \(Viper\): connected to claude-opus-5-5 — first orders received/);
   fm.server.close();
 });
 

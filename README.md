@@ -171,7 +171,7 @@ altitude hands-off), LMB rockets · gunner seats aim freely with the mouse. Touc
   rifle ~550 m) and with the weapon's real dispersion plus a human hold (a handgun wobbles far more than a shouldered
   rifle, rapid follow-ups spread wider); out of range they close in instead of shooting.
 * **AI Zone** (lobby tab): play with a soldier commanded by a **language model**. Set the provider, **base URL,
-  model and API key** — *Anthropic (Claude)* uses the official Anthropic SDK (default model `claude-opus-5`),
+  model and API key** — *Anthropic (Claude)* uses the official Anthropic SDK (default model `claude-opus-5-5`),
   *OpenAI-compatible* covers OpenRouter, Groq, Together, vLLM, LM Studio and similar `/chat/completions` endpoints.
   Every few seconds the model gets a battlefield report (flags, tickets, its health/ammo, teammates, spotted
   enemies, radio messages) and answers with orders — go to flag, move, follow a player, attack, hold, take cover,

@@ -153,7 +153,7 @@ export class Lobby {
     let saved = {}; try { saved = JSON.parse(localStorage.getItem(KEY) || '{}'); } catch {}
     this.aiSaved = saved;
     const f = { provider: $('ai-provider'), base: $('ai-base'), model: $('ai-model'), key: $('ai-key'), name: $('ai-name'), side: $('ai-side'), interval: $('ai-interval'), bots: $('ai-bots') };
-    const defaults = { anthropic: ['https://api.anthropic.com', 'claude-opus-5'], openai: ['https://api.openai.com/v1', ''] };
+    const defaults = { anthropic: ['https://api.anthropic.com', 'claude-opus-5-5'], openai: ['https://api.openai.com/v1', ''] };
     for (const [k, el] of Object.entries(f)) if (saved[k] !== undefined) el.value = saved[k];
     $('ai-remember-key').checked = !!saved.key;
     const syncProvider = (reset) => {
