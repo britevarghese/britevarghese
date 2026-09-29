@@ -614,7 +614,7 @@ export class VehicleRenderer {
   }
 
   _poseArms(steer) {
-    if (this._arms.wheel) this._arms.wheel.userData.spin.rotation.z = steer * 2.6; // turns with the hands
+    if (this._arms.wheel) this._arms.wheel.userData.spin.rotation.z = -steer * 2.6; // turns with the hands
     if (this._arms.driver) return this._arms.driver.pose(steer);
     const A = this._arms, _a = new THREE.Vector3(), _b = new THREE.Vector3(), _d = new THREE.Vector3(), Y = new THREE.Vector3(0, 1, 0);
     const place = (m, a, b) => { _d.subVectors(b, a); const L = _d.length(); m.position.addVectors(a, b).multiplyScalar(0.5); m.quaternion.setFromUnitVectors(Y, _d.divideScalar(L || 1)); m.scale.set(1, L, 1); };

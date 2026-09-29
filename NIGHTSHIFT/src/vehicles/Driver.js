@@ -93,7 +93,7 @@ export class FPDriver {
     this.model.position.add(head).sub(pos(B.Head, _p)); // eyes exactly at the camera
     g.updateMatrixWorld(true);
     this._aim(B.Neck, B.HeadTop_End, pos(B.Head, new THREE.Vector3()).add(new THREE.Vector3(0, 1, 0.2)));
-    const turn = -steer * 2.6; // road-wheel angle -> steering-wheel turn
+    const turn = steer * 2.6; // road-wheel angle -> steering-wheel turn (steer > 0 = left: the top of the wheel goes left)
     for (const sd of [1, -1]) {
       const S = sd > 0 ? 'Left' : 'Right';
       const ang = sd * 1.05 + turn; // ten to two, rotated with the wheel

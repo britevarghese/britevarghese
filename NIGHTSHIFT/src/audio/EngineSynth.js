@@ -375,24 +375,33 @@ export class EngineSynth {
   }
 
   // drive the loop set: pitch from rpm, crossfade between neighbouring rpm loops and on/off throttle
-  _driveLoops(rpmN, thr, t) {
+  _driveLoops(rpmN, thr, t) { // eslint-disable-line no-param-reassign
     const F = this.loopF0;
     if (!this.loops || !F) return;
     // pitch spans at least 3x idle -> redline (some recordings only cover ~2x); past the top loop it is
     // played faster
     const n = F.length, top = Math.max(F[n - 1], F[0] * 3);
+    // the physics rpm jitters (clutch slip, traction control, shifts): smooth it and limit how fast the
+    // pitch can move, so the note glides instead of warbling; the rate limit is generous enough for a real rev
+    const dtS = clamp(t - (this._dlT ?? t), 0.001, 0.1); this._dlT = t;
+    const rt = clamp(rpmN, -0.3, 1.15);
+    if (this.rpmS === undefined) this.rpmS = rt;
+    const aS = 1 - Math.exp(-dtS / 0.07);
+    const step = clamp((rt - this.rpmS) * aS, -2.2 * dtS, 3.2 * dtS);
+    this.rpmS += step;
+    rpmN = this.rpmS;
     const f = Math.max(F[0] * 0.6, F[0] + clamp(rpmN, -0.3, 1.15) * (top - F[0])) * (this.samplePitch || 1);
     let k = 0; while (k < n - 2 && f > F[k + 1]) k++;
     const w = clamp(Math.log(f / F[k]) / Math.log(F[k + 1] / F[k]), 0, 1);
-    this.thrS = (this.thrS ?? thr) + (thr - (this.thrS ?? thr)) * 0.25;
+    this.thrS = (this.thrS ?? thr) + (thr - (this.thrS ?? thr)) * (1 - Math.exp(-dtS / 0.12)); // throttle flutter must not pump the volume
     const on = Math.sqrt(this.thrS), off = Math.sqrt(1 - this.thrS);
     // louder with revs and load, but idle stays clearly audible
     const vol = (0.5 + 0.5 * Math.pow(clamp(rpmN, 0, 1), 0.8)) * (0.72 + 0.28 * this.thrS);
     for (const L of this.loops) {
       const wl = L.i === k ? Math.cos(w * Math.PI / 2) : L.i === k + 1 ? Math.sin(w * Math.PI / 2) : 0;
       const gain = wl * (L.cls === 'on' ? on : off * 0.85) * L.norm * vol;
-      L.g.gain.setTargetAtTime(gain, t, 0.03);
-      if (wl > 0 || L.g.gain.value > 1e-4) L.src.playbackRate.setTargetAtTime(clamp(f / L.f0, 0.5, 2.2), t, 0.03);
+      L.g.gain.setTargetAtTime(gain, t, 0.05);
+      if (wl > 0 || L.g.gain.value > 1e-4) L.src.playbackRate.setTargetAtTime(clamp(f / L.f0, 0.5, 2.2), t, 0.04);
     }
   }
 

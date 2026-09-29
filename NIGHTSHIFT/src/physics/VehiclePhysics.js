@@ -91,6 +91,11 @@ export class VehiclePhysics {
     if (this.reverse) { driveIn = -brake; brakeIn = throttle; }
     if (vx < -0.5 && throttle > 0.1) { brakeIn = throttle; driveIn = 0; }
     s.throttle = Math.abs(driveIn); s.brake = brakeIn; s.handbrake = c.handbrake;
+    // vehicle character from its weight: light sports cars bite and turn in quickly, big SUVs / vans / trucks / buses
+    // build brake pressure and steering slowly
+    const heft = p.bike ? 1 : clamp(Math.pow(1500 / p.mass, 0.3), 0.55, 1.25);
+    const brakeRate = p.bike ? 9 : clamp(9 - (p.mass - 1200) / 1200, 2.5, 9);
+    this.brakeS = approach(this.brakeS ?? 0, brakeIn, dt * (brakeIn > (this.brakeS ?? 0) ? brakeRate : brakeRate * 1.6));
 
     // speed-sensitive steering, extra lock allowed while drifting for counter-steer
     const beta = Math.atan2(vy, Math.max(Math.abs(vx), 0.5));
@@ -102,7 +107,7 @@ export class VehiclePhysics {
     if (this.driftMode) maxLock *= 1 + clamp(slipAngle * 1.1, 0, 0.7); // room to counter-steer a slide
     const targetDelta = -c.steer * maxLock;
     // steering rack speed: quick when parking, calmer at speed (prevents twitchy yaw overshoot)
-    this.delta = approach(this.delta, targetDelta, lerp(3.4, 0.9, speedK) * dt);
+    this.delta = approach(this.delta, targetDelta, lerp(3.4, 0.9, speedK) * heft * dt);
     const delta = this.delta;
     s.steer = c.steer;
 
@@ -158,7 +163,7 @@ export class VehiclePhysics {
     if (driveIn === 0 && s.onGround) Fresist -= moving * m * 0.9 * (s.rpm / p.redline);
     // brakes
     let Fbrake = 0;
-    if (s.onGround && brakeIn > 0) Fbrake = -moving * brakeIn * p.brakingForce;
+    if (s.onGround && this.brakeS > 0.001) Fbrake = -moving * this.brakeS * p.brakingForce;
     const hb = c.handbrake > 0 && s.onGround;
     if (hb) Fbrake += -moving * p.brakingForce * 0.35;
     // distribute: brake 65/35, drive by layout
@@ -169,7 +174,9 @@ export class VehiclePhysics {
     // ---------------------------------------------------------------- lateral tire forces
     this.rearGripMul = approach(this.rearGripMul, hb ? p.driftGrip : 1, dt * (hb ? 6 : 1.6));
     const mu = p.grip * (1 - dmg * 0.15);
-    const muF = mu * 1.02, muR = mu * this.rearGripMul;
+    // nose-heavy cars (FWD hatchbacks, SUVs, vans) push wide; tail-heavy ones turn in eagerly
+    const understeer = p.bike ? 0 : clamp((p.frontWeight - 0.5) * 0.8, -0.05, 0.12);
+    const muF = mu * 1.02 * (1 - understeer), muR = mu * this.rearGripMul;
     let Fyf = 0, Fyr = 0;
     const vxa = Math.max(Math.abs(vx), 1.0);
     const af = Math.atan2(vy + p.a * r, vxa) - delta * sign(vx || 1);
@@ -243,19 +250,20 @@ export class VehiclePhysics {
         let a = this.driftAngle ?? 0.3;
         const throttleHold = Math.max(0, driveIn);
         const maxA = p.maxDrift ?? 0.85; // bikes only back it in a little
-        if (hb) a = approach(a, Math.min(0.62, maxA), dt * 1.6);
-        else if (into > 0.15) a = approach(a, 0.4 + 0.38 * into, dt * (0.9 + into));
+        // handbrake: a controlled flick (~17-24 degrees), not a spin; it builds gently and stops growing
+        if (hb) a = approach(a, Math.min(0.3 + 0.12 * Math.abs(c.steer), maxA), dt * 1.1);
+        else if (into > 0.15) a = approach(a, 0.34 + 0.24 * into, dt * (0.9 + into));
         else if (into < -0.15) a = approach(a, 0, dt * (0.9 + 1.6 * -into));
         else a = approach(a, throttleHold > 0.5 ? 0.18 : 0, dt * (throttleHold > 0.5 ? 0.25 : 0.7));
-        if (driveIn < 0.1 && !hb) a = approach(a, 0, dt * 0.6);
-        this.driftAngle = a = clamp(a, 0, maxA);
+        if (driveIn < 0.1 && !hb) a = approach(a, 0, dt * 1.0);
+        this.driftAngle = a = clamp(a, 0, Math.min(maxA, 0.6));
         const bt = a * dir;
         const assist = clamp(0.85 * p.driftAssist, 0, 1);
-        const rate = hb ? 3.2 : 2.6;
+        const rate = hb ? 2.4 : 2.6;
         const betaCtl = betaOld + (bt - betaOld) * (1 - Math.exp(-dt * rate));
         let bb = clamp(lerp(betaNew, betaCtl, assist), -0.9, 0.9);
         // extra path curvature while sliding so drifts can take city corners
-        const turnAssist = (0.18 + 0.42 * Math.max(0, into) + (hb ? 0.25 : 0)) * clamp(spd / 18, 0, 1) * p.driftAssist;
+        const turnAssist = (0.18 + 0.42 * Math.max(0, into) + (hb ? 0.08 : 0)) * clamp(spd / 18, 0, 1) * p.driftAssist;
         const headV = s.yaw + r * dt + betaNew - dir * turnAssist * dt;
         r = (headV - bb - s.yaw) / dt;
         // keep momentum while sliding on throttle (arcade)
