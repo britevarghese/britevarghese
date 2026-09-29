@@ -656,9 +656,10 @@ export class VehicleRenderer {
     const glare = 1 - 0.7 * clamp((facing - 0.2) / 0.6, 0, 1);
     for (let i = 0; i < this.spots.length; i++) {
       const sp = this.spots[i];
-      sp.visible = hOn && !this.lightsBroken[this.spots.length === 1 ? 0 : i];
+      // on/off by intensity, never by visibility (a changing light count recompiles every shader)
+      const on = hOn && !this.lightsBroken[this.spots.length === 1 ? 0 : i];
       sp.userData.base ??= sp.intensity;
-      sp.intensity = sp.userData.base * glare;
+      sp.intensity = on ? sp.userData.base * glare : 0;
     }
     // nitro flames
     this.nitro = lerp(this.nitro, s.nitroActive ? 1 : 0, 0.3);

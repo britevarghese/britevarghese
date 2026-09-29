@@ -130,7 +130,8 @@ export class LightSystem {
         else if (d.k === 0) d.lamp = null;
       } else d.k = Math.min(1, d.k + dt * 2.5);
       d.light.intensity = d.lamp && on ? d.k * 640 * Math.min(1, (night - 0.3) * 2) : 0;
-      d.light.visible = d.light.intensity > 0.5;
+      // stays 'visible' at zero intensity: toggling visibility changes the scene's light count, which
+      // makes three.js recompile every material's shader (a multi-second freeze on a real GPU)
     }
   }
 

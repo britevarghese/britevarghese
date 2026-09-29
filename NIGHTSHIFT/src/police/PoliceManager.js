@@ -46,8 +46,9 @@ export class PoliceManager {
   _initLights() {
     const n = this.game.preset.policeLights;
     for (let i = 0; i < n; i++) {
+      // always in the scene at zero intensity: switching lights on/off (visible) would change the light
+      // count and recompile every shader in the city the moment a pursuit starts (the freeze)
       const l = new THREE.PointLight(i % 2 ? 0x3050ff : 0xff2030, 0, 26, 1.6);
-      l.visible = false;
       this.game.scene.add(l);
       this.lights.push(l);
     }
@@ -161,7 +162,7 @@ export class PoliceManager {
     for (const u of [...this.units]) this._removeUnit(u);
     this.roadblocks = [];
     this.state = 'idle'; this.heat = 0;
-    for (const l of this.lights) l.visible = false;
+    for (const l of this.lights) l.intensity = 0;
   }
 
   _anyUnitSees(range) {
@@ -359,11 +360,10 @@ export class PoliceManager {
       .sort((a, b) => a.d - b.d);
     this.lights.forEach((l, i) => {
       const e = lit[Math.floor(i / 2)] || lit[i];
-      if (!e || e.d > 120) { l.visible = false; return; }
+      if (!e || e.d > 120) { l.intensity = 0; return; }
       const r = e.u.vehicle.renderer;
       const s = e.u.vehicle.state;
       const red = i % 2 === 0;
-      l.visible = true;
       l.position.set(s.x, s.y + 1.8, s.z);
       // a cruiser on your bumper would flood the view: the flash light fades in over the first ~15 m
       l.intensity = (red ? r.police?.redOn : r.police?.blueOn) ? 24 * clamp((e.d - 2) / 13, 0.1, 1) : 0;
