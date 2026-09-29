@@ -161,6 +161,10 @@ export class VehiclePhysics {
     const moving = Math.abs(vx) > 0.05 ? sign(vx) : 0;
     let Fresist = -p.cd * vx * Math.abs(vx) - 0.013 * m * G * moving;
     if (driveIn === 0 && s.onGround) Fresist -= moving * m * 0.9 * (s.rpm / p.redline);
+    // grass, dirt and rock: soft ground drags hard at speed (roughly 130-150 km/h flat out) and grips less
+    const off = s.onGround && !p.bike && this.world?.layout?.offRoad?.(s.x, s.z);
+    this.offRoadK = approach(this.offRoadK ?? 0, off ? 1 : 0, dt * 4);
+    if (this.offRoadK > 0) Fresist -= moving * m * this.offRoadK * (1.2 + 0.0032 * vx * vx);
     // brakes
     let Fbrake = 0;
     if (s.onGround && this.brakeS > 0.001) Fbrake = -moving * this.brakeS * p.brakingForce;
@@ -173,7 +177,7 @@ export class VehiclePhysics {
 
     // ---------------------------------------------------------------- lateral tire forces
     this.rearGripMul = approach(this.rearGripMul, hb ? p.driftGrip : 1, dt * (hb ? 6 : 1.6));
-    const mu = p.grip * (1 - dmg * 0.15);
+    const mu = p.grip * (1 - dmg * 0.15) * (1 - 0.15 * (this.offRoadK ?? 0));
     // nose-heavy cars (FWD hatchbacks, SUVs, vans) push wide; tail-heavy ones turn in eagerly
     const understeer = p.bike ? 0 : clamp((p.frontWeight - 0.5) * 0.8, -0.05, 0.12);
     const muF = mu * 1.02 * (1 - understeer), muR = mu * this.rearGripMul;
@@ -336,7 +340,7 @@ export class VehiclePhysics {
       if (!wasGround) {
         const impact = -this.vUp;
         if (impact > 2.5) this.events.push({ type: 'landing', intensity: clamp(impact / 12, 0, 1) });
-        this.pitchVel += -impact * 0.25 * (this.airPitch > 0 ? -1 : 1);
+        this.pitchVel += clamp(-impact * 0.25, -1.5, 1.5) * (this.airPitch > 0 ? -1 : 1); // a thump, not a somersault
         this.airTime = 0;
       }
       s.onGround = true;
@@ -360,8 +364,15 @@ export class VehiclePhysics {
     this.rollDyn += this.rollVel * dt;
     if (p.bike) this._bikeAttitude(dt, terrainPitch);
     else {
-      s.pitch = (s.onGround ? terrainPitch : this.airPitch) + this.pitchDyn;
-      s.roll = (s.onGround ? terrainRoll : 0) + this.rollDyn;
+      // the body follows the ground through a smoothing filter (raw 4-wheel angles jump on steep facets at speed and
+      // flung the car about); in the air it keeps its attitude, eases toward the flight path and levels out slowly
+      const tp = clamp(s.onGround ? terrainPitch : this.airPitch, -0.55, 0.55), tr = clamp(s.onGround ? terrainRoll : 0, -0.4, 0.4);
+      this.pitchDyn = clamp(this.pitchDyn, -0.25, 0.25); this.rollDyn = clamp(this.rollDyn, -0.25, 0.25);
+      const kAtt = 1 - Math.exp(-dt * (s.onGround ? 16 : 2.5));
+      this.attP = (this.attP ?? tp) + (tp - (this.attP ?? tp)) * kAtt;
+      this.attR = (this.attR ?? tr) + (tr - (this.attR ?? tr)) * (1 - Math.exp(-dt * (s.onGround ? 16 : 1.2)));
+      s.pitch = this.attP + this.pitchDyn;
+      s.roll = this.attR + this.rollDyn;
     }
     // per-wheel suspension compression (visual) : positive = compressed
     for (let i = 0; i < 4; i++) {

@@ -302,6 +302,13 @@ export class CityLayout {
     b.lots = lots;
   }
 
+  // true on open countryside (grass, dirt, rock): outside the ring and not on a country road
+  offRoad(x, z) {
+    if (ringEdgeDist(x, z) < 12) return false;
+    const T = terrain();
+    return !T.onRoad(x, z);
+  }
+
   // ------------------------------------------------------------------ ground height
   // Height of the drivable surface. Roads are at 0, sidewalks/plazas at CURB_H,
   // the river channel is sunk, ramps in the construction zone lift the ground.
