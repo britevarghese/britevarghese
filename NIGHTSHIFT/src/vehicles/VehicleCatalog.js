@@ -234,6 +234,8 @@ export const PLAYER_CAR_ORDER = Object.values(CARS).sort((a, b) => TIERS.indexOf
 export const REAL_CAR_IDS = REAL.map((r) => r.id);
 export const REAL_BIKE_IDS = REAL_BIKES.map((r) => r.id);
 export const isBike = (id) => !!CARS[id]?.bike;
+// imported cars whose interior has no steering wheel: the first-person view draws one
+export const NO_STEERING_WHEEL = new Set(['subaru_wrx_sti_gc8', 'porsche_930_turbo', 'nissan_skyline_r34', 'toyota_supra_mk4', 'honda_nsx_na1']);
 
 export const POLICE_CAR = {
   id: 'interceptor', name: 'Interceptor', carType: 'muscle',

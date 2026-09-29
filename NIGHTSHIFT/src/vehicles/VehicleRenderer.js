@@ -4,8 +4,9 @@ import * as THREE from 'three';
 import { AssetManager, modelUrl } from '../assets/AssetManager.js';
 import { radialGlow, lightPool, carPaintTexture, headlightTextures, taillightTextures, tireTread } from '../renderer/Textures.js';
 import { clamp, lerp } from '../core/util.js';
-import { CARS, TRAFFIC_MODELS } from './VehicleCatalog.js';
+import { CARS, TRAFFIC_MODELS, NO_STEERING_WHEEL } from './VehicleCatalog.js';
 import { Rider, SkinnedRider } from './Rider.js';
+import { FPDriver } from './Driver.js';
 
 const glowRed = () => radialGlow('rgba(255,60,50,1)', 'rgba(255,20,20,0.3)');
 const _qa = new THREE.Quaternion(), _qb = new THREE.Quaternion(), _pv = new THREE.Vector3(), _pp = new THREE.Vector3(), _ax = new THREE.Vector3(1, 0, 0), _az = new THREE.Vector3(0, 0, 1);
@@ -35,6 +36,7 @@ export class ModelLibrary {
       this._riderJob = this.assets.loadGLTF(modelUrl(this.manifest, this.manifest.rider.file), priority).then((g) => { this.rider = g.scene; }).catch(() => {});
     }
     if (this._riderJob && !this.rider) jobs.push(this._riderJob);
+    for (const id of ids) if (CARS[id] && !CARS[id].bike) { this.loadRider(); break; } // first-person driver
     for (const id of ids) {
       if (this.cars[id]) continue;
       const r = this.resolve(id);
@@ -42,6 +44,11 @@ export class ModelLibrary {
       jobs.push(this.assets.loadGLTF(modelUrl(this.manifest, r.file), priority).then((g) => { this.cars[id] = g.scene; }).catch(() => {}));
     }
     await Promise.all(jobs);
+  }
+  // the rigged character (first-person driver in cars); loads in the background
+  loadRider() {
+    if (this.rider || this._riderJob || !this.manifest?.rider) return this._riderJob;
+    return (this._riderJob = this.assets.loadGLTF(modelUrl(this.manifest, this.manifest.rider.file), 3).then((g) => { this.rider = g.scene; }).catch(() => {}));
   }
   has(id) { return !!this.cars[id]; }
   isImported(id) { return !!this.manifest?.cars?.[id]?.imported; }
@@ -543,6 +550,23 @@ export class VehicleRenderer {
     hub.z -= 0.03; hub.y += 0.02;                                            // grip the rim, not the hub face
     const axis = new THREE.Vector3(0, 0.42, -1).normalize();                  // wheel faces the driver, tilted
     const R = 0.175;
+    const up0 = new THREE.Vector3(0, 1, 0).projectOnPlane(axis).normalize(), right0 = new THREE.Vector3().crossVectors(up0, axis).normalize();
+    const hasRim = !NO_STEERING_WHEEL.has(this.carId);
+    if (!hasRim) {
+      // no wheel in the model: put ours a comfortable reach ahead, clear of the dashboard
+      const clear = (q) => { const dir = q.clone().sub(eye), L = dir.length(); dir.normalize(); const d = this._probe(eye.x, eye.y, eye.z, dir.x, dir.y, dir.z); return d === null || d > L - 0.01; };
+      hub.set(eye.x, eye.y - 0.3, eye.z + 0.5);
+      for (let i = 0; i < 10 && !clear(hub.clone().addScaledVector(up0, R + 0.02)); i++) hub.addScaledVector(axis, 0.03); // towards the driver
+    }
+    const wheel = hasRim ? null : this._steeringWheel(hub, axis, up0, right0, R);
+    // the rigged character when it's loaded (it may still be on its way: tube arms until then)
+    if (this.lib.rider) {
+      const driver = new FPDriver(this.lib.rider, eye, { hub, axis, up0, right0, R });
+      if (wheel) driver.group.add(wheel);
+      this.body.add(driver.group);
+      return { g: driver.group, driver, wheel };
+    }
+    this.lib.loadRider?.();
     const sleeve = new THREE.MeshStandardMaterial({ color: 0x23262d, roughness: 0.85 });
     const glove = new THREE.MeshStandardMaterial({ color: 0x15161a, roughness: 0.6 });
     const skin = new THREE.MeshStandardMaterial({ color: 0xb98365, roughness: 0.7 });
@@ -555,19 +579,43 @@ export class VehicleRenderer {
       cuff: cyl(0.034, 0.03, skin),
       hand: (() => { const m = new THREE.Mesh(new THREE.SphereGeometry(1, 12, 8), glove); m.scale.set(0.045, 0.034, 0.06); m.frustumCulled = false; g.add(m); return m; })(),
     }));
+    if (wheel) g.add(wheel);
     this.body.add(g);
-    // wheel plane basis
-    const up0 = new THREE.Vector3(0, 1, 0).projectOnPlane(axis).normalize(), right0 = new THREE.Vector3().crossVectors(up0, axis).normalize();
-    return { g, arms, hub, axis, up0, right0, R };
+    return { g, arms, hub, axis, up0, right0, R, tube: true, wheel };
+  }
+
+  // a steering wheel for models whose interior has none: leather rim, three spokes, a hub boss
+  _steeringWheel(hub, axis, up0, right0, R) {
+    const dark = new THREE.MeshStandardMaterial({ color: 0x17181b, roughness: 0.75 });
+    const metal = new THREE.MeshStandardMaterial({ color: 0x3a3d42, roughness: 0.4, metalness: 0.6 });
+    const w = new THREE.Group(); w.name = 'fp_wheel';
+    w.add(new THREE.Mesh(new THREE.TorusGeometry(R, 0.017, 10, 40), dark));
+    for (const a of [Math.PI / 2, -Math.PI / 2, Math.PI]) {
+      const sp = new THREE.Mesh(new THREE.BoxGeometry(0.03, R, 0.012), metal);
+      sp.position.set(Math.sin(a) * R / 2, Math.cos(a) * R / 2, 0.012); sp.rotation.z = -a;
+      w.add(sp);
+    }
+    w.add(new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.055, 0.04, 20).rotateX(Math.PI / 2).translate(0, 0, 0.02), dark));
+    const column = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.035, 0.3, 10).rotateX(Math.PI / 2).translate(0, 0, 0.18), dark);
+    // local frame: x = -right0, y = up0, z = -axis (away from the driver)
+    const base = new THREE.Quaternion().setFromRotationMatrix(new THREE.Matrix4().makeBasis(right0.clone().negate(), up0, axis.clone().negate()));
+    const holder = new THREE.Group(); holder.position.copy(hub); holder.quaternion.copy(base);
+    holder.add(w, column);
+    w.traverse((o) => { o.frustumCulled = false; });
+    holder.userData.spin = w;
+    return holder;
   }
 
   /** Show / hide the first-person arms (the camera calls this every frame). */
   setCockpitArms(on) {
+    if (on && this._arms?.tube && this.lib.rider) { this._arms.g.removeFromParent(); this._arms = undefined; } // the driver model arrived
     if (on && this._arms === undefined) this._arms = this._buildArms();
     if (this._arms) this._arms.g.visible = on;
   }
 
   _poseArms(steer) {
+    if (this._arms.wheel) this._arms.wheel.userData.spin.rotation.z = steer * 2.6; // turns with the hands
+    if (this._arms.driver) return this._arms.driver.pose(steer);
     const A = this._arms, _a = new THREE.Vector3(), _b = new THREE.Vector3(), _d = new THREE.Vector3(), Y = new THREE.Vector3(0, 1, 0);
     const place = (m, a, b) => { _d.subVectors(b, a); const L = _d.length(); m.position.addVectors(a, b).multiplyScalar(0.5); m.quaternion.setFromUnitVectors(Y, _d.divideScalar(L || 1)); m.scale.set(1, L, 1); };
     const turn = -steer * 2.6;                                              // road-wheel angle -> steering-wheel turn
