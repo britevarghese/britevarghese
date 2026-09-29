@@ -583,6 +583,7 @@ export class VehicleRenderer {
   }
 
   sync(s, dt, camPos, env) {
+    this._dt = dt;
     if (this._arms?.g.visible) this._poseArms(s.wheelSteer || 0);
     const g = this.group;
     g.position.set(s.x, s.y, s.z);
@@ -697,7 +698,10 @@ export class VehicleRenderer {
   _bikeBody(s) {
     const parked = !this.riderOn && Math.abs(s.speed || 0) < 0.4;
     this.stand = lerp(this.stand || 0, parked ? 1 : 0, 0.15);
-    const roll = lerp(s.roll, -0.2, this.stand);
+    // stopped with a rider: the bike rests leaning a little onto the rider's planted left foot (-roll = left, like the side stand)
+    const footDown = this.riderOn && Math.abs(s.speed || 0) < 1.1 ? 1 : 0;
+    this.footLean = lerp(this.footLean || 0, footDown, 0.08);
+    const roll = lerp(s.roll - this.footLean * 0.09, -0.2, this.stand);
     const pitch = s.pitch;
     const pz = pitch >= 0 ? (this.wheels.find((w) => w.id === 'R')?.pivot.position.z ?? -0.7) : (this.wheels.find((w) => w.id === 'F')?.pivot.position.z ?? 0.7);
     _qa.setFromAxisAngle(_az, roll);
@@ -706,7 +710,7 @@ export class VehicleRenderer {
     _pv.set(0, 0, pz).applyQuaternion(_qb).multiplyScalar(-1).add(_pp.set(0, 0, pz)).applyQuaternion(_qa);
     this.body.position.copy(_pv);
     this.body.quaternion.copy(_qa).multiply(_qb);
-    this.rider?.update(Math.abs(s.speed || 0) * 3.6);
+    this.rider?.update((s.speed || 0) * 3.6, this._dt || 0.016);
   }
 
   dispose() {

@@ -21,7 +21,9 @@ const THIGH = 0.45, SHIN = 0.46, UPPER = 0.31, FORE = 0.3, TORSO = 0.52;
 
 // where the rider's joints go on this bike: hips on the seat, shoulders along the torso line, wrists
 // on the grips, feet on the pegs, plus the direction elbows and knees bend
-function poseTargets(c, bk, tuck) {
+// foot: { down: 0..1 left foot planted on the ground (stopped), paddle: null | phase (reversing: both
+// feet push the bike back in turn) }
+function poseTargets(c, bk, tuck, foot = null) {
   const wb = bk.zF - bk.zR;
   const hip = new THREE.Vector3(0, bk.seat + 0.1, bk.zR + c.hipZ * wb);
   const ang = lerp(c.torso, c.tuck, tuck); // torso angle above horizontal, lower when tucked
@@ -35,7 +37,39 @@ function poseTargets(c, bk, tuck) {
       kneeHint: new THREE.Vector3(side * 0.35, 0.3, 1),
     };
   }
+  if (foot) {
+    // a boot on the tarmac beside the bike, just ahead of the hips; the leg straightens down to it
+    const ground = (side, dz) => new THREE.Vector3(side * (c.pegW + 0.2), 0.06, hip.z + dz);
+    const L = out.side[1];
+    if (foot.down > 0) { L.peg.lerp(ground(1, 0.08), foot.down); L.kneeHint.set(0.6, 0.3, 1); }
+    if (foot.paddle !== null) {
+      for (const side of [1, -1]) {
+        // each foot: planted and pushed forward (the bike rolls back), then lifted and swung back
+        const ph = (foot.paddle + (side > 0 ? 0 : 0.5)) % 1;
+        const push = ph < 0.6, u = push ? ph / 0.6 : (ph - 0.6) / 0.4;
+        const dz = push ? lerp(-0.12, 0.3, u) : lerp(0.3, -0.12, u);
+        const p = ground(side, dz); if (!push) p.y += Math.sin(u * Math.PI) * 0.1;
+        const t = out.side[side];
+        t.peg.copy(p); t.kneeHint.set(side * 0.6, 0.3, 1);
+      }
+    }
+  }
   return out;
+}
+
+// Feet: stopped -> the left foot goes down to the ground (right stays on the rear-brake peg); rolling
+// backwards -> both feet paddle the bike back. speedKmh is signed (negative = backwards).
+// Returns true when the legs moved (the pose needs redoing).
+function footUpdate(r, speedKmh, dt) {
+  const f = (r.foot ||= { down: 0, paddle: null, ph: 0 });
+  const back = speedKmh < -0.5;
+  const stopped = !back && Math.abs(speedKmh) < 4;
+  const down = stopped || back ? 1 : 0;
+  const prev = f.down, prevP = f.paddle;
+  f.down += (down - f.down) * Math.min(1, dt * (down ? 6 : 9));
+  if (Math.abs(f.down - down) < 0.01) f.down = down;
+  if (back) { f.ph = (f.ph + dt * Math.min(1.6, 0.5 - speedKmh / 3.6 * 0.6)) % 1; f.paddle = f.ph; } else f.paddle = null;
+  return f.down !== prev || f.paddle !== prevP;
 }
 
 export class Rider {
@@ -98,10 +132,10 @@ export class Rider {
   }
 
   // tuck 0 (cruising) .. 1 (flat on the tank at top speed)
-  pose(tuck) {
+  pose(tuck, foot = null) {
     this.tuck = tuck;
     const c = this.cfg, bk = this.bike;
-    const T = poseTargets(c, bk, tuck);
+    const T = poseTargets(c, bk, tuck, foot);
     const hipP = T.hip, sh = T.sh, ang = T.ang;
     this._bone(this.bones.spine, hipP, sh);
     this.balls.hips.position.copy(hipP);
@@ -131,9 +165,9 @@ export class Rider {
     }
   }
 
-  update(speedKmh) {
+  update(speedKmh, dt = 0.016) {
     const t = clamp((speedKmh - 90) / 110, 0, 1);
-    if (Math.abs(t - this.tuck) > 0.02) this.pose(lerp(this.tuck, t, 0.15));
+    if (footUpdate(this, speedKmh, dt) || Math.abs(t - this.tuck) > 0.02) this.pose(lerp(this.tuck, t, 0.15), this.foot);
   }
 
   setVisible(on) { this.group.visible = on; }
@@ -175,7 +209,7 @@ export class SkinnedRider {
   }
   _len(a, b) { return bodyPos(a, _p).distanceTo(bodyPos(b, _c)); }
 
-  pose(tuck) {
+  pose(tuck, foot = null) {
     this.tuck = tuck;
     const B = this.bones, g = this.group;
     const parent = g.parent;
@@ -183,7 +217,7 @@ export class SkinnedRider {
     for (const b of Object.values(B)) b.quaternion.copy(b.userData.rest);
     g.position.set(0, 0, 0);
     g.updateMatrixWorld(true);
-    const T = poseTargets(this.cfg, this.bike, tuck);
+    const T = poseTargets(this.cfg, this.bike, tuck, foot);
     // hips onto the seat
     g.position.add(T.hip).sub(bodyPos(B.Hips, _p));
     g.updateMatrixWorld(true);
@@ -212,9 +246,9 @@ export class SkinnedRider {
     parent?.add(g);
   }
 
-  update(speedKmh) {
+  update(speedKmh, dt = 0.016) {
     const t = clamp((speedKmh - 90) / 110, 0, 1);
-    if (Math.abs(t - this.tuck) > 0.04) this.pose(lerp(this.tuck, t, 0.3));
+    if (footUpdate(this, speedKmh, dt) || Math.abs(t - this.tuck) > 0.04) this.pose(lerp(this.tuck, t, 0.3), this.foot);
   }
 
   setVisible(on) { this.group.visible = on; }

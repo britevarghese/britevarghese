@@ -97,7 +97,7 @@ export class VehiclePhysics {
     const slipAngle = Math.abs(beta);
     // speed-sensitive lock: full lock only at parking speeds, progressively less at speed
     const speedK = clamp(speed / 55, 0, 1);
-    let maxLock = p.steeringAngle * lerp(1, 0.26, speedK * (2 - speedK));
+    let maxLock = p.steeringAngle * lerp(1, p.bike ? 0.26 : 0.34, speedK * (2 - speedK)); // bikes steer by leaning at speed
     if (this.driftMode) maxLock *= 1 + clamp(slipAngle * 1.1, 0, 0.7); // room to counter-steer a slide
     const targetDelta = -c.steer * maxLock;
     // steering rack speed: quick when parking, calmer at speed (prevents twitchy yaw overshoot)
@@ -146,6 +146,7 @@ export class VehiclePhysics {
     let Fdrive = 0;
     if (s.onGround) {
       if (driveIn > 0) Fdrive = driveIn * power / Math.max(Math.abs(vx), 9);
+      else if (driveIn < 0 && p.bike) Fdrive = driveIn * m * 1.2 * clamp((vx + 1.3) / 0.5, 0, 1); // no reverse gear: the rider paddles it back at walking pace
       else if (driveIn < 0) Fdrive = driveIn * power * 0.45 / Math.max(Math.abs(vx), 6) * clamp((vx + 10.5) / 2, 0, 1); // reverse tops out ~36 km/h
       if (this.shiftTimer > 0) Fdrive *= p.shiftFill ?? 0.25;
       Fdrive = clamp(Fdrive, -m * G * 0.95, m * G * (p.launchG ?? 0.95) * (wantNitro ? 1.15 : 1));
@@ -196,11 +197,14 @@ export class VehiclePhysics {
       const po = p.powerOversteer || 1;
       const rGrip = (mu * G * 0.97) / vAbs;
       const rKin = clamp(vx * Math.tan(delta) / L, -rGrip, rGrip);
-      const over = Math.abs(r) > Math.abs(rKin) * 1.02;
-      if (over) rdot += (rKin - r) * 24;
+      // (GTA-like: the car may rotate a little past the kinematic line and the rear may step out a few
+      // degrees before the assist catches it, so turns carve and settle instead of running on rails)
+      const give = p.bike ? 1.02 : 1.05; // bikes turn by lean: keep their yaw tight
+      const over = Math.abs(r) > Math.abs(rKin) * give;
+      if (over) rdot += (rKin * give - r) * (p.bike ? 24 : 16);
       // slip correction (weaker on power-oversteer cars under throttle so muscle cars can slide)
-      const allow = 0.05 + (driveIn > 0.6 ? 0.9 * (po - 1) : 0);
-      if (slipAngle > allow) rdot += beta * (9 / po) * clamp(speed / 20, 0.3, 1);
+      const allow = 0.09 + (driveIn > 0.6 ? 0.9 * (po - 1) : 0);
+      if (slipAngle > allow) rdot += beta * (7 / po) * clamp(speed / 20, 0.3, 1);
     }
     const betaOld = Math.atan2(vy, Math.max(Math.abs(vx), 0.5));
     const vOld = Math.hypot(vx, vy);
@@ -337,9 +341,10 @@ export class VehiclePhysics {
     // sprung body dynamics (squat/dive/roll) — second-order springs
     // stiffer suspension (car setup / upgrades) = less roll and dive, quicker and better damped
     const stiff = (p.suspensionStrength || 2.2) / 2.2;
-    const kp = 105 * stiff, cp = 2 * 0.58 * Math.sqrt(kp);
-    const pitchT = clamp(this.axPrev * 0.0046 / stiff, -0.06, 0.05);
-    const rollT = clamp(this.ayPrev * 0.0048 / stiff, -0.07, 0.07);
+    // softer, GTA-like body: visible roll into corners (up to ~7 deg), dive and squat, a slight sway
+    const kp = 85 * stiff, cp = 2 * 0.46 * Math.sqrt(kp);
+    const pitchT = clamp(this.axPrev * 0.0058 / stiff, -0.075, 0.06);
+    const rollT = clamp(this.ayPrev * 0.0078 / stiff, -0.12, 0.12);
     this.pitchVel += (kp * (pitchT - this.pitchDyn) - cp * this.pitchVel) * dt;
     this.pitchDyn += this.pitchVel * dt;
     this.rollVel += (kp * (rollT - this.rollDyn) - cp * this.rollVel) * dt;
@@ -364,8 +369,11 @@ export class VehiclePhysics {
   // drive force would lift the front (a > g * rear-lever / cg height), stoppie under very hard braking.
   _bikeAttitude(dt, terrainPitch) {
     const p = this.p, s = this.s;
-    const leanT = s.onGround ? -Math.atan(this.ayPrev / G) : this.lean ?? 0;
-    this.leanVel = (this.leanVel || 0) + (60 * (clamp(leanT, -0.95, 0.95) - (this.lean || 0)) - 2 * 0.8 * Math.sqrt(60) * (this.leanVel || 0)) * dt;
+    // lean = lateral g, plus the rider tipping it in on the steering input (counter-steer) so the bike
+    // leans the moment you steer and then carves, like GTA; nearly upright at walking pace
+    const spdK = clamp((Math.abs(s.speed) - 2) / 10, 0, 1);
+    const leanT = s.onGround ? -Math.atan(this.ayPrev / G) - (this.delta || 0) * 1.6 * spdK : this.lean ?? 0;
+    this.leanVel = (this.leanVel || 0) + (95 * (clamp(leanT, -0.95, 0.95) - (this.lean || 0)) - 2 * 0.78 * Math.sqrt(95) * (this.leanVel || 0)) * dt;
     this.lean = (this.lean || 0) + this.leanVel * dt;
     const wheelieG = G * p.wheelBase * (1 - p.frontWeight) / p.cgHeight * 0.62;
     const lift = s.onGround ? (this.axPrev > wheelieG ? clamp((this.axPrev - wheelieG) * 0.12, 0, 0.42) : this.axPrev < -G * 0.95 ? clamp((this.axPrev + G * 0.95) * 0.05, -0.16, 0) : 0) : 0;
