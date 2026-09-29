@@ -471,7 +471,7 @@ export class VehicleRenderer {
     if (this.rider || !this._lod0) return this._eye;
     try {
       const body = this.body, meshes = [];
-      body.updateMatrixWorld(true);
+      body.updateWorldMatrix(true, true);
       this._lod0.traverse((o) => { if (o.isMesh && o.visible !== false) meshes.push(o); });
       const inv = new THREE.Matrix4().copy(body.matrixWorld).invert();
       const box = new THREE.Box3(), tb = new THREE.Box3();

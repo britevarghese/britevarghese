@@ -627,6 +627,10 @@ export class Game {
     const covered = this.world.layout.inTunnel?.(this.camera.position.x, this.camera.position.z);
     this.fx2.lensRain = damp(this.fx2.lensRain || 0, this.env.state.rain > 0.2 && !covered ? Math.min(1, this.env.state.rain) : 0, 0.6, dt);
     this.fx2.lensWind = clamp((speed - 15) / 45, 0, 1);
+    // the car's body is posed before the camera: attached views (first person, hood, bumper) read its
+    // matrix, and last frame's pose left the eye ~v*dt behind the seat at speed
+    const syncedEarly = !!simulate;
+    if (syncedEarly) player.sync(dt, this.camera.position, this.env.state);
     if (simulate || mode === 'paused' || mode === 'map' || mode === 'brief' || mode === 'results') {
       if (simulate && this.onFoot.active) this.onFoot.updateCamera(dt, input, this.camera);
       else if (simulate) this.camCtl.update(dt, player, driving ? input.controls : { lookX: 0, lookY: 0 }, this.fx2);
@@ -636,7 +640,7 @@ export class Game {
     if (mode === 'cutscene') this.story.updateCutscene(dt, input);
     // sync visuals
     const camPos = this.camera.position;
-    player.sync(dt, camPos, this.env.state);
+    if (!syncedEarly) player.sync(dt, camPos, this.env.state);
     for (const u of this.police.units) u.vehicle.sync(dt, camPos, this.env.state);
     this.fx.vehicle(player, dt, this.env.state);
     for (const v of this.races.vehicles()) this.fx.vehicle(v, dt, this.env.state);

@@ -97,7 +97,7 @@ export class CameraController {
       // attached views follow the sprung body (pitch/roll) with light smoothing
       const mk = vehicle.renderer.markers[mode.marker];
       const eye = mode.marker === 'eye_cockpit' ? vehicle.renderer.cockpitEye?.() : null;
-      vehicle.renderer.body.updateMatrixWorld(true);
+      vehicle.renderer.body.updateWorldMatrix(true, true); // parents too: the car group moved this frame
       if (mk || eye) {
         _v.copy(eye || mk.position);
         if (lookBack) _v.z = mode.marker === 'eye_bumper' ? -_v.z : _v.z;
