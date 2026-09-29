@@ -331,7 +331,8 @@ export class Landscape {
     // irregular foliage clumps: jittered, flat-shaded, darker underneath (fake self-shadowing)
     let seed = 7;
     const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
-    const clump = (r, x, y, z, hex, sy = 0.85, det = 1) => {
+    const DET = this.preset.textureSize >= 1024 ? 1 : 0; // low presets: 20-face foliage clumps instead of 80
+    const clump = (r, x, y, z, hex, sy = 0.85, det = DET) => {
       const g = new THREE.IcosahedronGeometry(r, det).toNonIndexed();
       const p = g.attributes.position, c = new THREE.Color(hex), a = new Float32Array(p.count * 3);
       const jit = new Map();
@@ -570,9 +571,9 @@ export class Landscape {
     // haze: clear days see the whole range; rain and night close in
     this.uniforms.uFogK.value = (1 / 16000) * (1 + rain * 3.5 + cloud * 0.6) * (night > 0.5 ? 1.4 : 1);
     if (this.seaNormal) { this.seaNormal.offset.x = this.t * 0.004; this.seaNormal.offset.y = this.t * 0.0025; }
-    const cp = camera.position;
+    const cp = camera.position, treeR = Math.min(1500, Math.max(500, (this.preset.viewDistance || 1200) * 1.15));
     for (const tl of this.treeTiles) {
-      const on = Math.hypot(tl.cx - cp.x, tl.cz - cp.z) < 1500 + Math.max(0, cp.y - 40) * 2;
+      const on = Math.hypot(tl.cx - cp.x, tl.cz - cp.z) < treeR + Math.max(0, cp.y - 40) * 2;
       for (const m of tl.meshes) m.visible = on;
     }
     if (this.wheel) {

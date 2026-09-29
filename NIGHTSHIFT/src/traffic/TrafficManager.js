@@ -172,6 +172,12 @@ export class TrafficManager {
       c.lod = c.dist < this.preset.carLod1Distance ? 0 : 1;
       list.push(c);
     }
+    // only the nearest few cars get the full-detail model (the rest would cost tens of thousands of triangles each)
+    const cap = this.preset.carLod0Max ?? 6;
+    if (list.length > cap) {
+      let n = 0;
+      for (const c of [...list].sort((a, b) => a.dist - b.dist)) if (c.lod === 0 && ++n > cap) c.lod = 1;
+    }
   }
 
   _advance(c, ds) {

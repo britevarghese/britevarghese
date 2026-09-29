@@ -9,7 +9,9 @@
 // classify materials (paint/glass/lights/calipers) -> merge per material -> simplify LODs -> markers.
 import { Primitive } from '@gltf-transform/core';
 import { transformPrimitive, weldPrimitive, simplifyPrimitive, joinPrimitives } from '@gltf-transform/functions';
-import { MeshoptSimplifier } from 'meshoptimizer';
+import { MeshoptSimplifier as MS } from 'meshoptimizer';
+// permissive: collapse across UV / normal seams (else meshopt stalls at ~20% on textured cars); prune: drop tiny loose parts
+const MeshoptSimplifier = { ready: MS.ready, simplify: (i, p, st, t, e, f) => MS.simplify(i, p, st, t, e, [...f, 'Permissive', 'Prune']) };
 import { components, subsetPrimitive, splitPrimitive, triCount, triIndices, positions, triSetBounds } from './geom.mjs';
 
 const RX = {
@@ -377,7 +379,15 @@ export function processCar(doc, car, opt = {}) {
     const total = prims.reduce((a, pr) => a + triCount(pr), 0);
     const ratio = Math.min(1, targetTris / Math.max(1, total));
     if (ratio >= 0.999) return prims;
-    for (const pr of prims) { weldPrimitive(pr); simplifyPrimitive(pr, { simplifier: MeshoptSimplifier, ratio, error, lockBorder: false }); }
+    for (const pr of prims) {
+      weldPrimitive(pr);
+      // meshopt stalls on UV / normal seams: keep going in passes until the target is reached
+      const want = Math.max(4, Math.floor(triCount(pr) * ratio));
+      for (let pass = 0, prev = Infinity; pass < 6 && triCount(pr) > want * 1.1 && triCount(pr) < prev; pass++) {
+        prev = triCount(pr);
+        simplifyPrimitive(pr, { simplifier: MeshoptSimplifier, ratio: want / prev, error, lockBorder: false });
+      }
+    }
     return prims.filter((pr) => triCount(pr) > 0);
   };
   const cloneList = (pieces) => pieces.map((pc) => ({ name: pc.name, prim: subsetPrimitive(doc, pc.prim, [...Array(triCount(pc.prim)).keys()]) }));
@@ -387,8 +397,8 @@ export function processCar(doc, car, opt = {}) {
   const lod1Body = [...cloneList(body.filter((p) => !RX.interior.test(p.name))), ...doorIds.flatMap((d) => doorBack(d).filter((p) => !RX.interior.test(p.name)))];
   const lod1Wheels = Object.fromEntries(wheelIds.map((q) => [q, { spin: cloneList(wheelPieces[q].spin), fixed: cloneList(wheelPieces[q].fixed) }]));
   const lods = [
-    { name: 'lod0', body: simplifyList(merge(body), budget.body0, 0.0015), doors: Object.fromEntries(doorIds.map((d) => [d, simplifyList(merge(doors[d].pieces), budget.body0 * 0.08, 0.0015)])), wheels: Object.fromEntries(wheelIds.map((q) => [q, { spin: simplifyList(merge(wheelPieces[q].spin), budget.wheel0, 0.002), fixed: merge(wheelPieces[q].fixed) }])) },
-    { name: 'lod1', body: simplifyList(merge(lod1Body), budget.body1, 0.03), wheels: Object.fromEntries(wheelIds.map((q) => [q, { spin: simplifyList(merge(lod1Wheels[q].spin), budget.wheel1, 0.03), fixed: simplifyList(merge(lod1Wheels[q].fixed), 120, 0.05) }])) },
+    { name: 'lod0', body: simplifyList(merge(body), budget.body0, budget.err0 ?? 0.0015), doors: Object.fromEntries(doorIds.map((d) => [d, simplifyList(merge(doors[d].pieces), budget.body0 * 0.08, 0.0015)])), wheels: Object.fromEntries(wheelIds.map((q) => [q, { spin: simplifyList(merge(wheelPieces[q].spin), budget.wheel0, 0.002), fixed: merge(wheelPieces[q].fixed) }])) },
+    { name: 'lod1', body: simplifyList(merge(lod1Body), budget.body1, budget.err1 ?? 0.03), wheels: Object.fromEntries(wheelIds.map((q) => [q, { spin: simplifyList(merge(lod1Wheels[q].spin), budget.wheel1, 0.03), fixed: simplifyList(merge(lod1Wheels[q].fixed), 120, 0.05) }])) },
   ];
 
   // ---- 7. markers from the final geometry

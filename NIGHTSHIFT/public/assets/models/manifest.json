@@ -4539,7 +4539,7 @@
       "name": "Toyota Camry",
       "length": 4.88,
       "width": 2.135,
-      "height": 1.346,
+      "height": 1.344,
       "wheels": [
         {
           "id": "FL",
@@ -4575,8 +4575,8 @@
         }
       ],
       "tris": {
-        "lod0": 59688,
-        "lod1": 21873
+        "lod0": 33323,
+        "lod1": 4562
       },
       "source": {
         "site": "Sketchfab",
@@ -4629,8 +4629,8 @@
         }
       ],
       "tris": {
-        "lod0": 59819,
-        "lod1": 11371
+        "lod0": 22975,
+        "lod1": 4213
       },
       "source": {
         "site": "Sketchfab",
@@ -4683,8 +4683,8 @@
         }
       ],
       "tris": {
-        "lod0": 12034,
-        "lod1": 7418
+        "lod0": 11546,
+        "lod1": 3515
       },
       "source": {
         "site": "Sketchfab",
@@ -4737,8 +4737,8 @@
         }
       ],
       "tris": {
-        "lod0": 37564,
-        "lod1": 7199
+        "lod0": 19154,
+        "lod1": 3124
       },
       "source": {
         "site": "Sketchfab",
@@ -4755,7 +4755,7 @@
       "name": "Mitsubishi Fuso box truck",
       "length": 7,
       "width": 3.446,
-      "height": 4.085,
+      "height": 4.081,
       "wheels": [
         {
           "id": "FL",
@@ -4791,8 +4791,8 @@
         }
       ],
       "tris": {
-        "lod0": 59472,
-        "lod1": 8934
+        "lod0": 30447,
+        "lod1": 3937
       },
       "source": {
         "site": "Sketchfab",
@@ -4845,8 +4845,8 @@
         }
       ],
       "tris": {
-        "lod0": 53718,
-        "lod1": 30797
+        "lod0": 35652,
+        "lod1": 2577
       },
       "source": {
         "site": "Sketchfab",
@@ -5008,12 +5008,12 @@
     "cars/subaru_wrx_sti_gc8.glb": "8968c9e0c1",
     "cars/suzuki_hayabusa.glb": "f0799be741",
     "cars/toyota_supra_mk4.glb": "deba81d419",
-    "cars/traffic_bus.glb": "3901589773",
-    "cars/traffic_hatch.glb": "085811bc64",
-    "cars/traffic_sedan.glb": "a749146702",
-    "cars/traffic_suv.glb": "d37816b515",
-    "cars/traffic_truck.glb": "6f4c10c82b",
-    "cars/traffic_van.glb": "02c4bb7a53",
+    "cars/traffic_bus.glb": "78c02db52e",
+    "cars/traffic_hatch.glb": "70611bb275",
+    "cars/traffic_sedan.glb": "a4fcf5582e",
+    "cars/traffic_suv.glb": "8448886828",
+    "cars/traffic_truck.glb": "faa9a5a2d2",
+    "cars/traffic_van.glb": "8f5de2ce95",
     "cars/yamaha_r1.glb": "079a76b27b",
     "hikari.glb": "080c1663ef",
     "humans/alex.glb": "d87147073b",

@@ -10,7 +10,7 @@ import { RING, RING_CORNER_R } from './CityLayout.js';
 
 export const SEA = -0.4;              // sea level (anything below is water)
 export const EDGE_OFF = 18;           // terrain starts this far outside the ring centre line
-export const DRIVE_LIMIT = 1950;      // drivable countryside: up to this far outside the ring edge
+export const DRIVE_LIMIT = 2150;      // drivable countryside: up to this far outside the ring edge
 export const NEAR = 3400;             // detailed terrain grid half-size (m)
 export const FAR = 15000;             // horizon terrain radius
 const clamp = (x, a, b) => (x < a ? a : x > b ? b : x);
@@ -208,9 +208,10 @@ export class TerrainData {
   // final height: base terrain with roads and pads cut in
   height(x, z) {
     let h = baseHeight(x, z);
+    for (const p of this.pads) { const d = Math.hypot(x - p.x, z - p.z); if (d < p.r * 2.2) h = lerp(p.h, h, smooth(p.r, p.r * 2.2, d)); }
+    // the road is cut in last: a pad's plateau must not bury the road climbing up to it (a 4 m wall at the summit)
     const r = this.nearestRoad(x, z);
     if (r) h = lerp(r.h - 0.05, h, smooth(r.rd.hw + 1.5, r.rd.hw + 30, r.dist));
-    for (const p of this.pads) { const d = Math.hypot(x - p.x, z - p.z); if (d < p.r * 2.2) h = lerp(p.h, h, smooth(p.r, p.r * 2.2, d)); }
     return h;
   }
 
@@ -280,3 +281,11 @@ export class TerrainData {
 // the shared instance (built lazily: road sampling costs a few ms)
 let _T = null;
 export const terrain = () => (_T ||= new TerrainData());
+
+// metres left before the edge of the drivable area (negative = outside). On the coast the edge is just past
+// the shore; inland it is a soft limit (power fades, a warning, then the car is put back on the map)
+export function driveMargin(x, z) {
+  const a = bearing(x, z), sm = seaMask(a);
+  const lim = sm > 0.01 ? DRIVE_LIMIT * (1 - sm) + (shoreDist(a) + 45) * sm : DRIVE_LIMIT;
+  return lim - ringEdgeDist(x, z);
+}

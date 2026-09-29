@@ -4,6 +4,7 @@ import * as THREE from 'three';
 import { bus } from './EventBus.js';
 import { InputManager } from './Input.js';
 import { clamp, lerp, damp, formatMoney } from './util.js';
+import { driveMargin, terrain } from '../world/Terrain.js';
 import { Materials } from '../renderer/Materials.js';
 import { Environment } from '../renderer/Environment.js';
 import { Effects } from '../renderer/Effects.js';
@@ -164,6 +165,27 @@ export class Game {
   }
 
   // put an AI vehicle back on the nearest lane (only when the camera can't see the jump)
+  // Edge of the drivable countryside: no invisible wall across the mountains. Engine power fades over the
+  // last 150 m with a warning; if you carry on outside for a few seconds you're set back inside.
+  _softLimit(dt, c) {
+    const st = this.player.state, m = driveMargin(st.x, st.z);
+    if (m > 150) { this._outT = 0; return; }
+    const k = clamp(m / 150, 0, 1);
+    c.throttle *= k;
+    if (k < 0.5 && this.player.state.speed > 6) c.brake = Math.max(c.brake, (1 - k) * 0.25);
+    this._warnT = (this._warnT || 0) - dt;
+    if (this._warnT <= 0) { this.ui.toast(m < 0 ? 'OUT OF BOUNDS: turn back' : 'Edge of the map ahead: turn back', 'err', 2.5); this._warnT = 4; }
+    if (m < 0) {
+      this._outT = (this._outT || 0) + dt;
+      if (this._outT > 7) {   // put the car back inside, facing the city
+        this._outT = 0;
+        let x = st.x, z = st.z;
+        for (let i = 0; i < 60 && (driveMargin(x, z) < 300 || terrain().height(x, z) < 2); i++) { const l = Math.hypot(x, z) || 1; x -= (x / l) * 30; z -= (z / l) * 30; }
+        this.player.place(x, z, Math.atan2(-x, -z));
+      }
+    } else this._outT = 0;
+  }
+
   recoverAI(vehicle, ai) {
     ai.needsReset = false;
     const s = vehicle.state;
@@ -568,6 +590,7 @@ export class Game {
       c.throttle = ic.throttle; c.brake = ic.brake; c.steer = ic.steer; c.handbrake = ic.handbrake; c.nitro = ic.nitro;
     } else { c.throttle = 0; c.brake = mode === 'menu' ? 0 : 0.3; c.steer = 0; c.handbrake = mode === 'menu' ? 1 : 0; c.nitro = false; }
 
+    if (driving && !this.onFoot.active) this._softLimit(dt, c);
     if (simulate) {
       this.state.time += dt;
       // races may override controls during countdown

@@ -254,7 +254,7 @@ export const TRAFFIC_MODELS = {
   truck: { id: 'traffic_truck', name: 'Mitsubishi Fuso box truck', spec: { len: 7.0, wid: 2.1 }, source: SRC('34ade13df9c543d3b5709b2f2f971b2e', '2006 Mitsubishi Fuso', 'tonielpro520') },
   bus: { id: 'traffic_bus', name: 'City bus', spec: { len: 11.5, wid: 2.55 }, source: SRC('14fe03d792914d51b6c6250b393c44fd', 'Generic Town Bus', 'own.guest') },
 };
-for (const m of Object.values(TRAFFIC_MODELS)) Object.assign(m, { real: true, traffic: true, import: { doors: false }, budget: { body0: 36000, wheel0: 2400, body1: 6000, wheel1: 300 } });
+for (const m of Object.values(TRAFFIC_MODELS)) Object.assign(m, { real: true, traffic: true, import: { doors: false }, budget: { body0: 15000, wheel0: 900, body1: 2600, wheel1: 140, err0: 0.02, err1: 0.15 } });
 
 // Traffic vehicles the player can take (carjacking). Not in CARS: they never appear in the garage.
 const TP = (o) => ({ driftGrip: 0.45, steeringAngle: 0.56, frontWeight: 0.56, drive: 'RWD', downforce: 0.4, suspensionStrength: 1.8, suspensionDamping: 0.45, idle: 750, ...o });

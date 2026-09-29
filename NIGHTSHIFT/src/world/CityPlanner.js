@@ -56,7 +56,8 @@ export class CityPlanner {
     for (let i = 0; i < pts.length; i++) {
       const [x0, z0] = pts[i], [x1, z1] = pts[(i + 1) % pts.length];
       const len = Math.hypot(x1 - x0, z1 - z0), mx = (x0 + x1) / 2, mz = (z0 + z1) / 2;
-      this.collider(mx, mz, 1, len / 2 + 1, Math.atan2(x1 - x0, z1 - z0), 4000, 'wall');
+      // a hard wall only out in the sea; inland the edge is a soft limit (Game._softLimit): no invisible wall across the mountains
+      if (seaMask(Math.atan2(mx, mz)) > 0.25) this.collider(mx, mz, 1, len / 2 + 1, Math.atan2(x1 - x0, z1 - z0), 4000, 'wall');
     }
     this.driveBoundary = pts;
     // trees you can drive into
