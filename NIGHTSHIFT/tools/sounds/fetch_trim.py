@@ -10,6 +10,7 @@ CACHE = os.path.join(ROOT, '.cache/sounds')
 OUT = os.path.join(ROOT, 'public/assets/audio')
 os.makedirs(CACHE, exist_ok=True)
 os.makedirs(os.path.join(OUT, 'engines'), exist_ok=True)
+os.makedirs(os.path.join(CACHE, 'engines'), exist_ok=True)  # trimmed recordings: build input only
 os.makedirs(os.path.join(OUT, 'sfx'), exist_ok=True)
 
 def get(url):
@@ -72,13 +73,13 @@ def trim(src, dst, t0, t1):
     open(dst, 'wb').write(b''.join(data[o:o + l] for o, l, _, _ in fr[a:b]))
     return (b - a) * spf / sr
 
-credits = ['# Sound credits', '', 'Recorded sounds from [Freesound](https://freesound.org), used under their licenses. Engine recordings were trimmed; the game plays them through a granular engine (pitch and position follow the rpm), and SFX clips are cut from the files listed.', '']
+credits = ['# Sound credits', '', 'Recorded sounds from [Freesound](https://freesound.org), used under their licenses. Engine recordings were trimmed and cut into pitch-steadied seamless loops at several rpm points (the game crossfades them by rpm and throttle), and SFX clips are cut from the files listed.', '']
 for e in SRC['engines']:
     src = fetch(e)
-    dur = trim(src, os.path.join(OUT, 'engines', e['name'] + '.mp3'), *e['t'])
+    dur = trim(src, os.path.join(CACHE, 'engines', e['name'] + '.mp3'), *e['t'])
     ln, lu = license_of(e)
     credits.append(f"- Engine `{e['name']}`: \"{e['title']}\" by {e['user']}, https://freesound.org/s/{e['id']}/ ({ln}, {lu}), trimmed.")
-    print(f"engine {e['name']:14} {dur:5.1f}s {os.path.getsize(os.path.join(OUT, 'engines', e['name'] + '.mp3')) // 1024} KB  {ln}")
+    print(f"engine {e['name']:14} {dur:5.1f}s {os.path.getsize(os.path.join(CACHE, 'engines', e['name'] + '.mp3')) // 1024} KB  {ln}")
 credits.append('')
 for s in SRC['sfx']:
     src = fetch(s)

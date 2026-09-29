@@ -1,5 +1,5 @@
 {
-  "_about": "Recorded sounds for NIGHTSHIFT (Freesound, CC0 / CC BY). Engines are trimmed to their revving parts and analysed (tools/sounds/analyze.py) for the granular engine (src/audio/engine-sample-worklet.js). SFX clips are [start, end] seconds inside each file. Build: node tools/sounds/build.mjs",
+  "_about": "Recorded sounds for NIGHTSHIFT (Freesound, CC0 / CC BY). Engines are trimmed to their revving parts and analysed (tools/sounds/analyze.py), then cut into pitch-steadied rpm loop sets (tools/sounds/build_loops.py). SFX clips are [start, end] seconds inside each file. Build: node tools/sounds/build.mjs",
   "engines": [
     {
       "name": "i4_rover",

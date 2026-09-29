@@ -149,13 +149,12 @@ Saves live in each player's browser.
   figures; how many are realistic depends on the graphics quality.
 - **Garage:** paint (incl. factory colours), finish, vinyl, wheels, spoiler, hood, bumper, tint,
   calipers; engine, transmission, tyres, brakes, suspension and nitrous upgrades.
-- **Sound:** every car plays a real engine recording matched to its layout (V8, V10, V12, flat-6,
-  inline-6, V6, I4, V-twin, V4, superbike I4). A granular player (`engine-sample-worklet.js`) keeps
-  two streams, one from the recording's rising revs (on throttle) and one from its falling revs (off
-  throttle), picks grains whose pitch matches the rpm and crossfades them by throttle. Lifting off at
-  high revs pops and crackles with recorded backfires; turbo cars dump a recorded blow-off valve.
-  Crashes layer recorded metal impacts, breaking glass and falling debris. The RX-7's rotary keeps the
-  physical synth model (no recording yet).
+- **Sound:** every car plays a real engine matched to its layout (V8, V10, V12, flat-6, inline-6,
+  V6, I4, V-twin, V4, superbike I4). Each engine is a set of seamless loops cut from a recording at six
+  rpm points, for on-throttle and off-throttle (`tools/sounds/build_loops.py`: pitch-steadied, a whole
+  number of engine cycles long); the game crossfades the two loops nearest the rpm and blends on/off
+  by throttle, so the note is continuous with no splices. Crashes layer recorded metal impacts,
+  breaking glass and falling debris. The RX-7's rotary keeps the physical synth model.
 - **Extras:** instant replay with cinematic cameras, photo mode with filters and PNG export,
   style combos, driver XP and levels, career missions.
 - **Graphics:** quality is detected automatically (up to ULTRA on high-end GPUs) and adjusts at

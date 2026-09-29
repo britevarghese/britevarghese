@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-# Analyses each trimmed engine recording for the granular engine (src/audio/engine-sample-worklet.js):
+# Analyses each trimmed engine recording for the loop builder (build_loops.py):
 # tracks the firing frequency f0 over time (harmonic-sum salience + Viterbi smoothing), classifies every
 # frame as rising (on throttle), falling (off throttle) or steady, and writes
-# public/assets/audio/engines/<name>.json = { f0idle, f0max, gain, t:[s], f:[Hz], d:[-1|0|1], v:[dB re loud] }.
+# .cache/sounds/<name>.json = { f0idle, f0max, gain, t:[s], f:[Hz], d:[-1|0|1], v:[dB re loud] }.
 import json, os, sys
 import numpy as np
 from scipy.signal import decimate, stft, medfilt
@@ -10,7 +10,7 @@ from scipy.signal import decimate, stft, medfilt
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
 SRC = json.load(open(os.path.join(ROOT, 'tools/sounds/sources.json')))
 CACHE = os.path.join(ROOT, '.cache/sounds')
-OUT = os.path.join(ROOT, 'public/assets/audio/engines')
+OUT = CACHE  # analysis is build input for build_loops.py
 PLOTS = '--plots' in sys.argv
 
 def track(x, sr, fmin=18, fmax=600, win=2048, hop=256):

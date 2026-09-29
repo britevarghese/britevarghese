@@ -1,6 +1,6 @@
 // Builds the recorded-sound assets: fetch + trim (fetch_trim.py), decode the trimmed engines with Chromium's
 // decoder (the same one the game uses) into .cache/sounds/<name>.f32, analyse them (analyze.py -> engine
-// JSON for the granular engine), and write public/assets/audio/sfx/clips.json from sources.json.
+// JSON) and cut the rpm loop sets (build_loops.py), and write public/assets/audio/sfx/clips.json from sources.json.
 // Usage (from NIGHTSHIFT): node tools/sounds/build.mjs   (needs python3 with numpy + scipy)
 import fs from 'node:fs';
 import path from 'node:path';
@@ -20,7 +20,7 @@ const page = await b.newPage();
 await page.setContent('<html></html>');
 for (const e of SRC.engines) {
   const out = path.join(CACHE, e.name + '.f32');
-  const mp3 = path.join(AUDIO, 'engines', e.name + '.mp3');
+  const mp3 = path.join(CACHE, 'engines', e.name + '.mp3');
   if (fs.existsSync(out) && fs.statSync(out).mtimeMs > fs.statSync(mp3).mtimeMs) continue;
   const r = await page.evaluate(async (b64) => {
     const bin = atob(b64), u = new Uint8Array(bin.length);
@@ -39,6 +39,7 @@ for (const e of SRC.engines) {
 await b.close();
 
 run('python3', ['tools/sounds/analyze.py', ...(process.argv.includes('--plots') ? ['--plots'] : [])]);
+run('python3', ['tools/sounds/build_loops.py']);
 
 // SFX clip table: bank -> [[file, start, end], ...]
 const banks = {};

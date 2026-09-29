@@ -186,14 +186,14 @@ export class EngineSynth {
     this.inGain = g(0);
     this.pink.connect(this.inBP).connect(this.inGain).connect(this.synthGate);
 
-    // recorded engine (granular player, engine-sample-worklet.js) joins before the limiter/shift dips
+    // recorded engine (loop sets) joins before the limiter/shift dips
     // recordings: soften the harsh top end (mic hiss, MP3 edge, whine) so the engine note leads
     this.smpShelf = flt('highshelf', 4500); this.smpShelf.gain.value = -6;
     this.smpLP = flt('lowpass', 9000, 0.6);
     this.smpGate = g(0);
     this.smpShelf.connect(this.smpLP).connect(this.smpGate);
     this.smpGate.connect(this.misfire);
-    this.samples = new Map(); // engine name -> Promise<{data, an}>
+    this.samples = new Map(); // engine name -> Promise<loop set>
 
     this.out.connect(engineOut);
 
@@ -297,18 +297,17 @@ export class EngineSynth {
     } catch (e) { console.warn('[Audio] engine worklet unavailable, using oscillator engine', e); return false; }
   }
 
-  /** Real engine recordings: per-car sample map + the granular player. Falls back to the synth. */
+  /**
+   * Real engine sound: per engine a set of seamless loops cut from recordings (tools/sounds/build_loops.py)
+   * at six rpm points, for on-throttle and off-throttle. All twelve loop continuously; the two nearest the
+   * target pitch are crossfaded (equal power) and bent by at most half a level's spacing, and throttle
+   * crossfades the on and off sets. No splicing, so the note stays continuous. Falls back to the synth.
+   */
   async initSamples(base = '/assets/audio/engines/') {
     try {
-      if (!this.ctx.audioWorklet) return false;
       this.sampleBase = base;
-      const [map] = await Promise.all([
-        fetch(base + 'cars.json').then((r) => r.json()),
-        this.ctx.audioWorklet.addModule(new URL('./engine-sample-worklet.js', import.meta.url)),
-      ]);
-      this.smp = new AudioWorkletNode(this.ctx, 'nightshift-engine-sample', { numberOfInputs: 0, numberOfOutputs: 1, outputChannelCount: [1] });
-      this.smp.connect(this.smpShelf);
-      this.sampleMap = map;
+      this.sampleMap = await (await fetch(base + 'cars.json')).json();
+      this.loopOut = this.smpShelf;
       const type = this.type; this.type = null; this.setCarType(type || 'sports');
       return true;
     } catch (e) { console.warn('[Audio] recorded engines unavailable, using synthesized engine', e); return false; }
@@ -319,12 +318,18 @@ export class EngineSynth {
     if (!pr) {
       const base = this.sampleBase;
       pr = Promise.all([
-        fetch(base + name + '.json').then((r) => r.json()),
-        fetch(base + name + '.mp3').then((r) => r.arrayBuffer()).then((ab) => this.ctx.decodeAudioData(ab)),
-      ]).then(([an, buf]) => {
-        let data = buf.getChannelData(0);
-        if (buf.numberOfChannels > 1) { const r = buf.getChannelData(1); data = data.map((v, i) => (v + r[i]) * 0.5); }
-        return { an, data };
+        fetch(base + name + '.loops.json').then((r) => r.json()),
+        fetch(base + name + '.loops.wav').then((r) => r.arrayBuffer()).then((ab) => this.ctx.decodeAudioData(ab)),
+      ]).then(([m, buf]) => {
+        // slice the loops out (the WAV may have been resampled to the context rate on decode)
+        const k = buf.sampleRate / m.sr, src = buf.getChannelData(0);
+        const cut = ([a, l]) => {
+          const a2 = Math.round(a * k), l2 = Math.round(l * k), b = this.ctx.createBuffer(1, l2, buf.sampleRate);
+          const d = b.getChannelData(0); d.set(src.subarray(a2, a2 + l2));
+          let e = 0; for (let i = 0; i < l2; i += 4) e += d[i] * d[i];
+          return { buf: b, rms: Math.sqrt(e / (l2 / 4)) || 1e-3 };
+        };
+        return { f0: m.f0, on: m.on.map(cut), off: m.off.map(cut) };
       });
       pr.catch(() => this.samples.delete(name));
       this.samples.set(name, pr);
@@ -339,20 +344,53 @@ export class EngineSynth {
     glide(this.smpGate.gain, on ? 1 : 0, t, 0.08);
   }
 
+  // start the loop set of an engine (stopping the previous one)
+  _startLoops(set) {
+    const c = this.ctx, t = c.currentTime;
+    for (const L of this.loops || []) { safeStop(L.src, t + 0.1); }
+    const mk = (cls) => set[cls].map((l, i) => {
+      const src = c.createBufferSource(); src.buffer = l.buf; src.loop = true;
+      const g = c.createGain(); g.gain.value = 0;
+      src.connect(g).connect(this.loopOut);
+      src.start(t, Math.random() * l.buf.duration);
+      return { src, g, cls, i, f0: set.f0[i], norm: 0.48 / l.rms };
+    });
+    this.loops = [...mk('on'), ...mk('off')];
+    this.loopF0 = set.f0;
+  }
+
   _selectSample(type) {
     const name = this.sampleMap?.[type] || this.sampleMap?.[this.p.base];
     // cars with their own synth profile but no recording (e.g. the rotary) keep the synth
     const own = PROFILES[type] && PROFILES[type].base && !this.sampleMap?.[type];
-    if (!this.smp || !name || own) { this._useSample(false); this.sampleName = null; return; }
+    if (!this.loopOut || !name || own) { this._useSample(false); this.sampleName = null; return; }
     if (name === this.sampleName) { this._useSample(true); return; }
     this.sampleName = name;
     this._useSample(false);
-    this._loadSample(name).then(({ an, data }) => {
+    this._loadSample(name).then((set) => {
       if (this.sampleName !== name) return;
-      this.smp.port.postMessage({ type: 'load', data: data.slice(), t: an.t, f: an.f, d: an.d, v: an.v, f0idle: an.f0idle, f0max: an.f0max });
-      this.sampleGain = an.gain;
+      this._startLoops(set);
       this._useSample(true);
-    }).catch((e) => { console.warn('[Audio] engine recording failed to load', name, e); if (this.sampleName === name) this._useSample(false); });
+    }).catch((e) => { console.warn('[Audio] engine loops failed to load', name, e); if (this.sampleName === name) this._useSample(false); });
+  }
+
+  // drive the loop set: pitch from rpm, crossfade between neighbouring rpm loops and on/off throttle
+  _driveLoops(rpmN, thr, t) {
+    const F = this.loopF0;
+    if (!this.loops || !F) return;
+    const n = F.length, f = Math.max(F[0] * 0.6, F[0] + clamp(rpmN, -0.3, 1.15) * (F[n - 1] - F[0])) * (this.samplePitch || 1);
+    let k = 0; while (k < n - 2 && f > F[k + 1]) k++;
+    const w = clamp(Math.log(f / F[k]) / Math.log(F[k + 1] / F[k]), 0, 1);
+    this.thrS = (this.thrS ?? thr) + (thr - (this.thrS ?? thr)) * 0.25;
+    const on = Math.sqrt(this.thrS), off = Math.sqrt(1 - this.thrS);
+    // louder with revs and load, but idle stays clearly audible
+    const vol = (0.5 + 0.5 * Math.pow(clamp(rpmN, 0, 1), 0.8)) * (0.72 + 0.28 * this.thrS);
+    for (const L of this.loops) {
+      const wl = L.i === k ? Math.cos(w * Math.PI / 2) : L.i === k + 1 ? Math.sin(w * Math.PI / 2) : 0;
+      const gain = wl * (L.cls === 'on' ? on : off * 0.85) * L.norm * vol;
+      L.g.gain.setTargetAtTime(gain, t, 0.03);
+      if (wl > 0 || L.g.gain.value > 1e-4) L.src.playbackRate.setTargetAtTime(clamp(f / L.f0, 0.5, 2.2), t, 0.03);
+    }
   }
 
   start() {
@@ -466,13 +504,7 @@ export class EngineSynth {
       P.get('throttle').setTargetAtTime(thr, t, 0.03);
       glide(this.lp.frequency, clamp(cut * 1.05 + 350, 300, 9000), t, 0.05); // muffler opens with rpm/throttle
     }
-    if (this.smp) {
-      const P = this.smp.parameters;
-      P.get('rpmN').setTargetAtTime(clamp((rpm - st.idle) / (st.redline - st.idle), -0.3, 1.1), t, 0.03);
-      P.get('throttle').setTargetAtTime(thr, t, 0.04);
-      P.get('pitch').setTargetAtTime(this.samplePitch || 1, t, 0.1);
-      P.get('gain').setTargetAtTime(this.sampleOn ? (this.sampleGain || 1) * 1.8 * (0.8 + 0.25 * thr) : 0, t, 0.05);
-    }
+    if (this.sampleOn) this._driveLoops((rpm - st.idle) / (st.redline - st.idle), thr, t);
     // --- AM firing lump: strong at idle / low rpm, smooth when revving (the physical model has its own) ---
     const lump = this.wk ? 0 : p.amDepth * (1 - rpmN * 0.85) * (1 - thr * 0.5);
     glide(this.lfoA.frequency, (rpm / 120) * p.amRate, t, 0.05);
