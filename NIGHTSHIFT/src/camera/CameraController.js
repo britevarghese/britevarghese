@@ -109,12 +109,14 @@ export class CameraController {
         this.headQ.slerp(_q, 1 - Math.exp(-dt * 18));
         cam.quaternion.copy(this.headQ);
         cam.rotateY(Math.PI + (lookBack ? Math.PI : 0) + this.orbitX);
-        cam.rotateX(-this.orbitY * 0.5);
+        // first person looks slightly down, like GTA, so the road shows over the dash
+        cam.rotateX(-this.orbitY * 0.5 - (eye ? 0.07 : 0));
         // smooth road vibration + impact shake (was random per frame, which read as glitching)
         const t = this.time, vib = Math.min(1, speed / 60) * 0.0025 + this.shake * 0.015;
         cam.position.x += (Math.sin(t * 31.7) + Math.sin(t * 17.3)) * 0.5 * vib;
         cam.position.y += (Math.sin(t * 27.1) + Math.sin(t * 13.9)) * 0.5 * vib;
         vehicle.renderer.lod0.getObjectByName('interior') && (vehicle.renderer.lod0.getObjectByName('interior').visible = mode.marker === 'eye_cockpit');
+        vehicle.renderer.setCockpitArms?.(!!eye && !lookBack);
       }
       this.fov = damp(this.fov, mode.fov + Math.min(14, speed * 0.16) + (fx.nitro || 0) * 8, 4, dt);
       this.shake = damp(this.shake, 0, 5, dt);
@@ -180,6 +182,6 @@ export class CameraController {
     this.fov = damp(this.fov, mode.fov + ease * 13 + nitro * 7, 3.5, dt);
     cam.fov = this.fov;
     cam.updateProjectionMatrix();
-    if (vehicle.renderer) { const intr = vehicle.renderer.lod0.getObjectByName('interior'); if (intr) intr.visible = true; }
+    if (vehicle.renderer) { const intr = vehicle.renderer.lod0.getObjectByName('interior'); if (intr) intr.visible = true; vehicle.renderer.setCockpitArms?.(false); }
   }
 }

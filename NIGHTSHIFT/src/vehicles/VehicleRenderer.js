@@ -481,6 +481,7 @@ export class VehicleRenderer {
         const h = rc.intersectObjects(meshes, false)[0];
         return h ? h.distance : null;
       };
+      this._probe = cast;
       const side = mk && mk.position.x < -0.05 ? -1 : 1;
       const x = side * THREE.MathUtils.clamp(Math.abs(mk?.position.x ?? 0.36), 0.28, 0.42);
       const top = box.max.y + 0.5;
@@ -521,7 +522,68 @@ export class VehicleRenderer {
     return this._eye;
   }
 
+  /**
+   * First-person driver arms: sleeves from the shoulders to gloved hands on the wheel rim at ten to two,
+   * turning round the wheel with the steering. The model's own wheel is found by casting rays forward and
+   * down from the eye (import meshes are merged, so it can't be picked by name).
+   */
+  _buildArms() {
+    const eye = this.cockpitEye();
+    if (!eye || this.bike || !this._probe) return null;
+    let hub = null;
+    for (let a = 0.45; a <= 0.95 && !hub; a += 0.05) {                       // pitch down, radians
+      const dy = -Math.sin(a), dz = Math.cos(a);
+      const d = this._probe(eye.x, eye.y, eye.z, 0, dy, dz);
+      if (d !== null && d > 0.32 && d < 0.85) hub = new THREE.Vector3(eye.x, eye.y + dy * d, eye.z + dz * d);
+    }
+    if (!hub) hub = new THREE.Vector3(eye.x, eye.y - 0.3, eye.z + 0.45);
+    hub.z -= 0.03; hub.y += 0.02;                                            // grip the rim, not the hub face
+    const axis = new THREE.Vector3(0, 0.42, -1).normalize();                  // wheel faces the driver, tilted
+    const R = 0.175;
+    const sleeve = new THREE.MeshStandardMaterial({ color: 0x23262d, roughness: 0.85 });
+    const glove = new THREE.MeshStandardMaterial({ color: 0x15161a, roughness: 0.6 });
+    const skin = new THREE.MeshStandardMaterial({ color: 0xb98365, roughness: 0.7 });
+    const g = new THREE.Group(); g.name = 'fp_arms'; g.visible = false;
+    const cyl = (r0, r1, mat) => { const m = new THREE.Mesh(new THREE.CylinderGeometry(r1, r0, 1, 10, 1, false), mat); m.frustumCulled = false; g.add(m); return m; };
+    const arms = [-1, 1].map((sd) => ({
+      sd,
+      shoulder: new THREE.Vector3(eye.x + sd * 0.2, eye.y - 0.27, eye.z - 0.1),
+      upper: cyl(0.055, 0.047, sleeve), fore: cyl(0.047, 0.036, sleeve),
+      cuff: cyl(0.034, 0.03, skin),
+      hand: (() => { const m = new THREE.Mesh(new THREE.SphereGeometry(1, 12, 8), glove); m.scale.set(0.045, 0.034, 0.06); m.frustumCulled = false; g.add(m); return m; })(),
+    }));
+    this.body.add(g);
+    // wheel plane basis
+    const up0 = new THREE.Vector3(0, 1, 0).projectOnPlane(axis).normalize(), right0 = new THREE.Vector3().crossVectors(up0, axis).normalize();
+    return { g, arms, hub, axis, up0, right0, R };
+  }
+
+  /** Show / hide the first-person arms (the camera calls this every frame). */
+  setCockpitArms(on) {
+    if (on && this._arms === undefined) this._arms = this._buildArms();
+    if (this._arms) this._arms.g.visible = on;
+  }
+
+  _poseArms(steer) {
+    const A = this._arms, _a = new THREE.Vector3(), _b = new THREE.Vector3(), _d = new THREE.Vector3(), Y = new THREE.Vector3(0, 1, 0);
+    const place = (m, a, b) => { _d.subVectors(b, a); const L = _d.length(); m.position.addVectors(a, b).multiplyScalar(0.5); m.quaternion.setFromUnitVectors(Y, _d.divideScalar(L || 1)); m.scale.set(1, L, 1); };
+    const turn = -steer * 2.6;                                              // road-wheel angle -> steering-wheel turn
+    for (const arm of A.arms) {
+      const ang = arm.sd * 1.05 + turn;                                      // ten to two, rotated with the wheel
+      const grip = new THREE.Vector3().copy(A.hub).addScaledVector(A.up0, Math.cos(ang) * A.R).addScaledVector(A.right0, -Math.sin(ang) * A.R);
+      // elbow: bent down and out, between shoulder and hand
+      const elbow = _a.lerpVectors(arm.shoulder, grip, 0.5); elbow.y -= 0.1; elbow.x += arm.sd * 0.07;
+      place(arm.upper, arm.shoulder, elbow);
+      const wrist = _b.lerpVectors(elbow, grip, 0.85);
+      place(arm.fore, elbow, wrist);
+      place(arm.cuff, wrist, _a.lerpVectors(wrist, grip, 0.5).clone());
+      arm.hand.position.copy(grip);
+      arm.hand.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), _d.subVectors(grip, wrist).normalize());
+    }
+  }
+
   sync(s, dt, camPos, env) {
+    if (this._arms?.g.visible) this._poseArms(s.wheelSteer || 0);
     const g = this.group;
     g.position.set(s.x, s.y, s.z);
     g.rotation.set(0, s.yaw, 0);
