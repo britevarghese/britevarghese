@@ -223,6 +223,17 @@ export class Game {
         if (e.impact > 13) this.police.reportInfraction('hitCivilian', 1, 45); // a real smash, not a scrape
       }
     });
+    // pedestrians struck by a vehicle (Pedestrians._hit): body thud, a jolt, and the police care
+    bus.on('ped:hit', (e) => {
+      const k = clamp(e.speed / 22, 0.15, 1);
+      this.audio.playEvent('collision', { intensity: k * 0.7, type: 'light', position: { x: e.x, y: 0.8, z: e.z } });
+      if (e.vehicle === this.player) {
+        this.camCtl.addShake(0.12 + k * 0.3);
+        this.input.rumble(0.5 * k, 0.4, 120);
+        this.police.reportInfraction('hitCivilian', e.speed > 11 ? 2 : 1, 60);
+      }
+    });
+    bus.on('ped:land', (e) => this.audio.playEvent('collision', { intensity: clamp(e.speed / 30, 0.1, 0.4), type: 'light', position: { x: e.x, y: 0.2, z: e.z } }));
     // knocked-over street furniture (any physics vehicle can do it)
     bus.on('prop:break', (e) => {
       const p = e.p;

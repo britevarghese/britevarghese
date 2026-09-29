@@ -6,6 +6,10 @@ import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { rng, clamp } from '../core/util.js';
 import { CURB_H } from './CityLayout.js';
+import { bus } from '../core/EventBus.js';
+
+const G = 9.81;
+const _qa = new THREE.Quaternion(), _qy = new THREE.Quaternion(), _ax = new THREE.Vector3(), _Y = new THREE.Vector3(0, 1, 0), _off = new THREE.Vector3();
 
 const _m = new THREE.Matrix4(), _q = new THREE.Quaternion(), _p = new THREE.Vector3(), _s = new THREE.Vector3(1, 1, 1), _e = new THREE.Euler(), _c = new THREE.Color();
 const SHIRTS = [0x2a3a5a, 0x5a2a2a, 0x2a4a3a, 0x6a6a6a, 0x1a1a1a, 0x8a6a3a, 0x3a2a4a, 0xa0a0a0, 0x7a2a4a];
@@ -101,16 +105,25 @@ export class Pedestrians {
       const p = this.peds[i];
       const d = Math.hypot(p.x - focus.x, p.z - focus.z);
       if (d > 260 && p.x !== 0) { this._release(p); this.peds.splice(i, 1); continue; }
-      // dodge vehicles
+      if (p.down) { if (this._fallen(p, dt, d, i)) continue; n = this._drawDown(p, n, dt); continue; }
+      // vehicles: struck (thrown, tumbling, down on the road) or, with a moment's warning, a quick
+      // step / run out of the way at human speed
+      let struck = false;
       for (const v of vehicles) {
-        const s = v.physics.s;
+        const s = v.physics.s, P = v.physics.p;
         const dx = p.x - s.x, dz = p.z - s.z, dd = Math.hypot(dx, dz);
         const sp = Math.hypot(s.vx, s.vz);
-        if (dd < 3 + sp * 0.35 && sp > 3 && s.y > 0.08) { // car mounted the sidewalk
+        if (dd < 8 && sp > 1.5) {
+          const c = Math.cos(s.yaw), sn = Math.sin(s.yaw);
+          const lx = dx * c - dz * sn, lz = dx * sn + dz * c; // car frame: x left, z forward
+          if (Math.abs(lx) < (P.hx || 0.95) + 0.28 && Math.abs(lz) < (P.hz || 2.3) + 0.28) { this._hit(p, v, sp, lx); struck = true; break; }
+        }
+        if (dd < 3 + sp * 0.35 && sp > 3 && s.y > 0.08 && !p.dodge) { // car mounted the sidewalk
           const k = 1 / (dd || 1);
-          p.dodge = 0.8; p.dx = dx * k * 6; p.dz = dz * k * 6;
+          p.dodge = 0.9; p.dx = dx * k * 3.6; p.dz = dz * k * 3.6;
         }
       }
+      if (struck) { n = this._drawDown(p, n, dt); continue; }
       let moving = true;
       if (p.dodge > 0) { p.dodge -= dt; p.ox = (p.ox || 0) + p.dx * dt; p.oz = (p.oz || 0) + p.dz * dt; }
       else {
@@ -135,7 +148,7 @@ export class Pedestrians {
         const hg = p.human.group;
         hg.position.set(p.x, CURB_H, p.z); hg.rotation.set(0, yaw, 0);
         hg.updateMatrixWorld(true);
-        p.human.animate(p.dodge > 0 ? 4.5 : moving ? p.speed : 0, dt);
+        p.human.animate(p.dodge > 0 ? 3.6 : moving ? p.speed : 0, dt);
         continue;
       }
       if (d > 150) continue;
@@ -198,6 +211,103 @@ export class Pedestrians {
     const k = p.model % this.humans.models.length;
     if (!this.pool.has(k)) this.pool.set(k, []);
     this.pool.get(k).push(h);
+  }
+
+  // Struck by a car: thrown with (most of) the car's speed plus a push away from it, lifted a little
+  // more the faster the hit, tumbling end over end on a hard hit, then down on the road.
+  _hit(p, v, sp, lx) {
+    const s = v.physics.s, m = v.physics.p.mass || 1500;
+    const ax = Math.sin(s.yaw), az = Math.cos(s.yaw);          // car forward
+    const side = Math.sign(lx) || 1, lxv = Math.cos(s.yaw), lzv = -Math.sin(s.yaw); // car left
+    const k = 0.85 + Math.random() * 0.2;
+    const vx = s.vx * k + lxv * side * (0.8 + sp * 0.08), vz = s.vz * k + lzv * side * (0.8 + sp * 0.08);
+    const vy = sp < 5 ? 0.4 : Math.min(6, 0.8 + sp * 0.16);
+    p.down = {
+      x: p.x, y: CURB_H, z: p.z, vx, vy, vz, t: 0, landed: false, rest: 0, yaw: Math.atan2(vx, vz),
+      // tumble about the horizontal axis across the throw
+      axis: new THREE.Vector3(vz, 0, -vx).normalize(), ang: 0, spin: sp > 9 ? Math.min(14, sp * 0.55) : 0, heavy: sp > 11,
+    };
+    p.dodge = 0; p.flee = null;
+    // the car loses a little speed (a person is ~80 kg against its mass)
+    const loss = 80 / (m + 80) * 0.9;
+    s.vx *= 1 - loss; s.vz *= 1 - loss;
+    if (p.human) { p.human.clearAction(0.05); p.human.play(sp > 5 ? 'death' : 'hit', { hold: true, rate: sp > 5 ? 1.5 : 1, fade: 0.08 }); if (sp <= 5) p.down.pending = 'death'; }
+    bus.emit('ped:hit', { x: p.x, z: p.z, speed: sp, vehicle: v });
+    void ax; void az;
+  }
+
+  // flight, landing and sliding to rest; lying still afterwards (removed once far away). Returns true
+  // when the pedestrian was removed.
+  _fallen(p, dt, d, i) {
+    const D = p.down;
+    D.t += dt;
+    if (!D.landed) {
+      D.vy -= G * dt;
+      D.x += D.vx * dt; D.y += D.vy * dt; D.z += D.vz * dt;
+      D.ang += D.spin * dt;
+      const g = Math.max(CURB_H * 0 , this.layout.groundHeight?.(D.x, D.z) ?? 0) + 0.02;
+      if (D.y <= g && D.vy < 0) {
+        D.y = g;
+        if (-D.vy > 3 && !D.bounced) { D.vy = -D.vy * 0.22; D.bounced = true; D.spin *= 0.3; } // one small bounce
+        else { D.landed = true; D.vy = 0; }
+        if (!D.thud) { D.thud = true; bus.emit('ped:land', { x: D.x, z: D.z, speed: Math.hypot(D.vx, D.vz) }); }
+      }
+    } else {
+      // sliding / rolling to a stop on the tarmac
+      const f = Math.exp(-dt * 4.5);
+      D.vx *= f; D.vz *= f; D.spin *= Math.exp(-dt * 6);
+      D.x += D.vx * dt; D.z += D.vz * dt; D.ang += D.spin * dt;
+      D.y = (this.layout.groundHeight?.(D.x, D.z) ?? 0) + 0.02;
+      if (Math.hypot(D.vx, D.vz) < 0.2) D.rest += dt;
+    }
+    if (D.pending && D.t > 0.3 && p.human) { p.human.play(D.pending, { hold: true, rate: 1.3, fade: 0.15 }); D.pending = null; }
+    p.x = D.x; p.z = D.z; p.d = d;
+    // injured / out cold: lie there; gone once the player has moved on
+    if ((D.rest > 25 && d > 40) || d > 200) { this._release(p); this.peds.splice(i, 1); return true; }
+    return false;
+  }
+
+  // the whole body follows the throw; the realistic character crumples with its fall clip, the tumble
+  // turns end over end in the air and settles back to the clip's lying pose on the ground
+  _drawDown(p, n, dt = 1 / 60) {
+    const D = p.down;
+    const tumble = D.landed ? Math.round(D.ang / (Math.PI * 2)) * Math.PI * 2 : D.ang;
+    if (D.landed) D.ang += (tumble - D.ang) * Math.min(1, dt * 12);
+    _qy.setFromAxisAngle(_Y, D.yaw + Math.PI);                 // faces back toward the car: falls backwards
+    _qa.setFromAxisAngle(_ax.copy(D.axis), D.ang);
+    const q = _qa.multiply(_qy);
+    // tumble about the hips (~0.9 m up)
+    _off.set(0, 0.9, 0).applyQuaternion(_qa.clone().setFromAxisAngle(_ax, D.ang)).sub(new THREE.Vector3(0, 0.9, 0));
+    if (p.human) {
+      const hg = p.human.group;
+      if (D.landed) {
+        // on the ground: lie flat on the back (the fall clip has no root motion, so it can't take the
+        // hips down itself), limbs relaxed
+        if (D.lying === undefined) { D.lying = 0; p.human.clearAction(0.35); }
+        D.lying = Math.min(1, D.lying + dt / 0.35);
+        _e.set(-Math.PI / 2 * D.lying, D.yaw + Math.PI, 0, 'YXZ');
+        hg.quaternion.setFromEuler(_e);
+        hg.position.set(D.x, D.y + 0.14 * D.lying, D.z);
+      } else {
+        hg.position.set(D.x - _off.x, D.y - _off.y, D.z - _off.z);
+        hg.quaternion.copy(q);
+      }
+      hg.updateMatrixWorld(true);
+      p.human.animate(0, dt);
+      return n;
+    }
+    // low-poly figure: lie down (pitch back) as it falls
+    const lie = Math.min(1, D.t / 0.55) * (Math.PI / 2);
+    _e.set(-lie, D.yaw + Math.PI, 0, 'YXZ'); _q.setFromEuler(_e);
+    _q.premultiply(_qa.setFromAxisAngle(_ax.copy(D.axis), D.landed ? 0 : D.ang));
+    _s.set(p.scale * p.build, p.scale, p.scale * p.build);
+    _m.compose(_p.set(D.x, D.y + 0.12 * Math.sin(lie), D.z), _q, _s);
+    this.meshTorso.setMatrixAt(n, _m); this.meshTorso.setColorAt(n, _c.setHex(p.shirt));
+    _s.setScalar(p.scale); _m.compose(_p, _q, _s);
+    this.meshHead.setMatrixAt(n, _m); this.meshHead.setColorAt(n, _c.setHex(p.skin));
+    if (p.hair < 0) _m.makeScale(0, 0, 0);
+    this.meshHair.setMatrixAt(n, _m); this.meshHair.setColorAt(n, _c.setHex(p.hair < 0 ? 0 : p.hair));
+    return n + 1;
   }
 
   count() { return this.peds.length; }
