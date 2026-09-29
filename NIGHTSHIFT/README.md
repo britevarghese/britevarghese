@@ -150,7 +150,7 @@ Saves live in each player's browser.
 - **Garage:** paint (incl. factory colours), finish, vinyl, wheels, spoiler, hood, bumper, tint,
   calipers; engine, transmission, tyres, brakes, suspension and nitrous upgrades.
 - **Sound:** every car plays a real engine matched to its layout (V8, V10, V12, flat-6, inline-6,
-  V6, I4, V-twin, V4, superbike I4). Each engine is a set of seamless loops cut from a recording at six
+  V6, I4, V-twin, superbike I4). Each engine is a set of seamless loops cut from a recording at six
   rpm points, for on-throttle and off-throttle (`tools/sounds/build_loops.py`: pitch-steadied, a whole
   number of engine cycles long); the game crossfades the two loops nearest the rpm and blends on/off
   by throttle, so the note is continuous with no splices. Crashes layer recorded metal impacts,

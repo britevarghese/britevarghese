@@ -152,21 +152,6 @@
       ]
     },
     {
-      "name": "v4_panigale",
-      "id": 584115,
-      "user": "rsn267",
-      "title": "Ducati Panigale V4.wav",
-      "lic": "CC0",
-      "t": [
-        0.5,
-        24
-      ],
-      "band": [
-        35,
-        450
-      ]
-    },
-    {
       "name": "i4_hayabusa",
       "id": 49326,
       "user": "Heigh-hoo",
@@ -575,7 +560,7 @@
     "yamaha_r1": "i4_hayabusa",
     "bmw_s1000rr": "i4_hayabusa",
     "suzuki_hayabusa": "i4_hayabusa",
-    "ducati_panigale_v4r": "v4_panigale",
+    "ducati_panigale_v4r": "i4_hayabusa",
     "kawasaki_ninja_h2": "i4_hayabusa",
     "muscle": "v8_muscle",
     "sports": "i6_bmw",

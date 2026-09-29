@@ -378,7 +378,10 @@ export class EngineSynth {
   _driveLoops(rpmN, thr, t) {
     const F = this.loopF0;
     if (!this.loops || !F) return;
-    const n = F.length, f = Math.max(F[0] * 0.6, F[0] + clamp(rpmN, -0.3, 1.15) * (F[n - 1] - F[0])) * (this.samplePitch || 1);
+    // pitch spans at least 3x idle -> redline (some recordings only cover ~2x); past the top loop it is
+    // played faster
+    const n = F.length, top = Math.max(F[n - 1], F[0] * 3);
+    const f = Math.max(F[0] * 0.6, F[0] + clamp(rpmN, -0.3, 1.15) * (top - F[0])) * (this.samplePitch || 1);
     let k = 0; while (k < n - 2 && f > F[k + 1]) k++;
     const w = clamp(Math.log(f / F[k]) / Math.log(F[k + 1] / F[k]), 0, 1);
     this.thrS = (this.thrS ?? thr) + (thr - (this.thrS ?? thr)) * 0.25;

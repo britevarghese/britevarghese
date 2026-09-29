@@ -1,6 +1,6 @@
 # Sound credits
 
-Recorded sounds from [Freesound](https://freesound.org), used under their licenses. Engine recordings were trimmed; the game plays them through a granular engine (pitch and position follow the rpm), and SFX clips are cut from the files listed.
+Recorded sounds from [Freesound](https://freesound.org), used under their licenses. Engine recordings were trimmed and cut into pitch-steadied seamless loops at several rpm points (the game crossfades them by rpm and throttle), and SFX clips are cut from the files listed.
 
 - Engine `i4_rover`: "car engine revving up to 7000 rpm (Rover 216 GSi)" by Tomlija, https://freesound.org/s/106553/ (CC BY 3.0, https://creativecommons.org/licenses/by/3.0/), trimmed.
 - Engine `v8_muscle`: "Idle and Rev - Engine.wav" by wikusv, https://freesound.org/s/232272/ (CC BY 4.0, https://creativecommons.org/licenses/by/4.0/), trimmed.
@@ -12,7 +12,6 @@ Recorded sounds from [Freesound](https://freesound.org), used under their licens
 - Engine `i6_bmw`: "BMWM3_01.wav" by ikbenraar, https://freesound.org/s/415276/ (CC BY 4.0, https://creativecommons.org/licenses/by/4.0/), trimmed.
 - Engine `v6_delorean`: "DeLorean DMC-12 (V6 PRV engine)" by SkyernAklea, https://freesound.org/s/623436/ (CC BY 4.0, https://creativecommons.org/licenses/by/4.0/), trimmed.
 - Engine `vtwin_harley`: "Harley Davidson Sportster - Idling with Engine Revs" by demodave, https://freesound.org/s/502690/ (CC0 1.0, https://creativecommons.org/publicdomain/zero/1.0/), trimmed.
-- Engine `v4_panigale`: "Ducati Panigale V4.wav" by rsn267, https://freesound.org/s/584115/ (CC0 1.0, https://creativecommons.org/publicdomain/zero/1.0/), trimmed.
 - Engine `i4_hayabusa`: "hayabusa1.aif" by Heigh-hoo, https://freesound.org/s/49326/ (CC0 1.0, https://creativecommons.org/publicdomain/zero/1.0/), trimmed.
 
 - SFX (crash): "Car Crash" by squareal, https://freesound.org/s/237375/ (CC0 1.0, https://creativecommons.org/publicdomain/zero/1.0/), clips cut.
