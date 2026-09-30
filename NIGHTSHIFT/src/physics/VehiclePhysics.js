@@ -321,8 +321,20 @@ export class VehiclePhysics {
       this.groundH[i] = h; hs += h;
     }
     const gh = this.groundH;
-    const hg = Math.max(hs / 4, Math.max(gh[0], gh[1], gh[2], gh[3]) - 0.12);
+    let hg = Math.max(hs / 4, Math.max(gh[0], gh[1], gh[2], gh[3]) - 0.12);
     const terrainPitch = Math.atan2((gh[0] + gh[1]) / 2 - (gh[2] + gh[3]) / 2, a + b);
+    // bumper clearance: only the four wheels touch the ground, so on a crest or where a slope steepens the nose or tail
+    // would dig into the hill. Sample the ground under both ends and lift the body enough to clear it (never more than 0.45 m)
+    if (layout && !p.bike) {
+      const ends = [p.length / 2 - 0.1, -(p.length / 2 - 0.1)];
+      const tp = Math.tan(clamp(terrainPitch, -0.6, 0.6));
+      let need = hg;
+      for (const f of ends) {
+        const gE = layout.groundHeight(s.x + sn * f, s.z + cs * f);
+        need = Math.max(need, gE - f * tp - 0.16);
+      }
+      hg = Math.min(need, hg + 0.45);
+    }
     const terrainRoll = Math.atan2((gh[0] + gh[2]) / 2 - (gh[1] + gh[3]) / 2, hw * 2);
     const vg = (hg - this.groundPrev) / dt;
     this.groundPrev = hg;

@@ -386,13 +386,16 @@ export class EngineSynth {
     const dtS = clamp(t - (this._dlT ?? t), 0.001, 0.1); this._dlT = t;
     const rt = clamp(rpmN, -0.3, 1.15);
     if (this.rpmS === undefined) this.rpmS = rt;
-    const aS = 1 - Math.exp(-dtS / 0.07);
-    const step = clamp((rt - this.rpmS) * aS, -2.2 * dtS, 3.2 * dtS);
+    const aS = 1 - Math.exp(-dtS / 0.12);
+    const step = clamp((rt - this.rpmS) * aS, -1.6 * dtS, 2.2 * dtS);
     this.rpmS += step;
     rpmN = this.rpmS;
     const f = Math.max(F[0] * 0.6, F[0] + clamp(rpmN, -0.3, 1.15) * (top - F[0])) * (this.samplePitch || 1);
     let k = 0; while (k < n - 2 && f > F[k + 1]) k++;
-    const w = clamp(Math.log(f / F[k]) / Math.log(F[k + 1] / F[k]), 0, 1);
+    // adjacent loops are the same engine at another rpm, so mixed at similar level they phase against each other
+    // (a slow "waving"): keep them apart except for a short, smooth handover around the midpoint
+    const w0 = clamp(Math.log(f / F[k]) / Math.log(F[k + 1] / F[k]), 0, 1);
+    const w = w0 < 0.3 ? 0 : w0 > 0.7 ? 1 : (w0 - 0.3) / 0.4 * (w0 - 0.3) / 0.4 * (3 - 2 * (w0 - 0.3) / 0.4);
     this.thrS = (this.thrS ?? thr) + (thr - (this.thrS ?? thr)) * (1 - Math.exp(-dtS / 0.12)); // throttle flutter must not pump the volume
     const on = Math.sqrt(this.thrS), off = Math.sqrt(1 - this.thrS);
     // louder with revs and load, but idle stays clearly audible
