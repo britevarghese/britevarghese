@@ -660,10 +660,12 @@ export class VehicleRenderer {
       if (far !== this.isFar) {
         this.isFar = far; this.lod0.visible = !far; this.lod1.visible = far;
         for (const w of this.wheels) {
-          w.pivot.visible = d < 250;
           if (w.lods) { for (const g of w.lods[0]) g.visible = !far; for (const g of w.lods[1]) g.visible = far; }
         }
       }
+      // wheels vanish only when the car is truly far away (checked every frame, not just when the LOD flips)
+      const wOn = d < 250;
+      if (wOn !== this._wheelsOn) { this._wheelsOn = wOn; for (const w of this.wheels) w.pivot.visible = wOn; }
     }
     // lights
     const night = env?.night ?? 1;
