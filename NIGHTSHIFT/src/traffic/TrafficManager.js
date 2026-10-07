@@ -29,9 +29,9 @@ export const TYPE_SPECS = {
   commuter: { w: 0.78, l: 2.04, mass: 210, weight: 20, kl: true, bike: true, colors: [0x1a1a1a, 0xb01818, 0x1a3a8a, 0x6a6a6a, 0xe8e8e8] },
   streetbike: { w: 0.78, l: 2.0, mass: 210, weight: 10, kl: true, bike: true, colors: [0x1a1a1a, 0x2a4a8a, 0xb01818, 0x3a6a3a] },
   lorry: { w: 2.4, l: 7.8, mass: 9000, weight: 5, kl: true, bigRoads: true, livery: true },
-  ksrtc: { w: 2.5, l: 10.8, mass: 11000, weight: 5, kl: true, bigRoads: true, livery: true },
-  pvtbus: { w: 2.5, l: 10.5, mass: 10500, weight: 4, kl: true, bigRoads: true, livery: true },
-  pvtbus2: { w: 2.5, l: 10.6, mass: 10500, weight: 5, kl: true, bigRoads: true, colors: [0x1f6fd0, 0xc81e1e, 0x1a9a4a, 0xf0f0f0, 0xe07a10, 0x7a2ab0, 0xe8c020] },
+  ksrtc: { bus: true, w: 2.5, l: 10.8, mass: 11000, weight: 5, kl: true, bigRoads: true, livery: true },
+  pvtbus: { bus: true, w: 2.5, l: 10.5, mass: 10500, weight: 4, kl: true, bigRoads: true, livery: true },
+  pvtbus2: { bus: true, w: 2.5, l: 10.6, mass: 10500, weight: 5, kl: true, bigRoads: true, colors: [0x1f6fd0, 0xc81e1e, 0x1a9a4a, 0xf0f0f0, 0xe07a10, 0x7a2ab0, 0xe8c020] },
 };
 export const TRAFFIC_COLORS = [0x9aa0a8, 0x2a2d33, 0xe8e8e6, 0x5a1a1a, 0x1c2e4a, 0x3a3f36, 0xb8b0a0, 0x6a6e74, 0x0e0f11, 0x8a2a1a, 0x2a4a6a, 0xd8d0c0];
 const BUS_COLORS = [0xd8b020, 0x2a6ab0, 0xe0e0e0];
@@ -119,6 +119,25 @@ export class TrafficManager {
     return null;
   }
 
+  _spawnParked(focus) {
+    const R = this.R;
+    const lanes = this.graph.lanesNear(focus.x, focus.z, 60, 220).filter((l) => l.kind === 'lane' && l.laneIndex === 0 && (l.edge.cls ?? 0) >= 4 && l.length > 25);
+    if (!lanes.length) return;
+    const lane = lanes[Math.floor(R() * lanes.length)], s = 6 + R() * (lane.length - 12);
+    if (lane.cars.some((o) => Math.abs(o.s - s) < 10)) return;
+    const pool = ['m800', 'dzire', 'brezza', 'ertiga', 'scorpio', 'thar', 'minitruck', 'auto', 'scooter', 'commuter'].filter((t) => this.renderer?.types?.[t]);
+    if (!pool.length) return;
+    const type = pool[Math.floor(R() * pool.length)], sp = TYPE_SPECS[type];
+    const color = sp.livery ? 0xffffff : sp.colors ? sp.colors[Math.floor(R() * sp.colors.length)] : TRAFFIC_COLORS[Math.floor(R() * TRAFFIC_COLORS.length)];
+    const car = new TrafficCar(this.nextId++, type, color);
+    car.path = lane; car.s = s; car.v = 0; car.state = 'parked'; car.parked = true; car.brake = 0;
+    car.lat = -(1.15 + R() * 0.5) - (sp.bike ? 0.4 : 0); // half up on the verge
+    lane.cars.push(car);
+    this._place(car);
+    car.yaw += (R() - 0.5) * 0.12;
+    this.cars.push(car);
+  }
+
   _place(car) {
     car.path.sample(car.s, tmp);
     const rx = -tmp.dz, rz = tmp.dx;
@@ -153,6 +172,8 @@ export class TrafficManager {
       const f = foci.length && (this.frame + k) % (foci.length + 1) ? foci[(this.frame + k) % (foci.length + 1) - 1] : focus;
       this.spawnNear(f.x, f.z, this.cars.length < max * 0.5 ? 45 : 80, 240, f === focus ? forward : null);
     }
+    // cars parked half on the road along town and village streets (Kerala has few car parks)
+    if (this.world.kerala && this.frame % 20 === 0 && this.cars.filter((c) => c.state === 'parked').length < (this.preset.traffic > 20 ? 10 : 5)) this._spawnParked(focus);
     for (const c of [...this.cars]) {
       const d = Math.hypot(c.x - focus.x, c.z - focus.z);
       c.dist = d;
@@ -167,6 +188,7 @@ export class TrafficManager {
     for (const c of this.cars) if (c.path && !c.path._sorted) { c.path.cars.sort((a, b) => a.s - b.s); c.path._sorted = true; }
 
     for (const c of this.cars) {
+      if (c.state === 'parked') continue;
       if (c.state !== 'drive') { this._knocked(c, dt); continue; }
       // far cars update at lower rate
       const far = c.dist > 150;
@@ -234,6 +256,14 @@ export class TrafficManager {
 
   _drive(c, dt, dynamic) {
     const path = c.path;
+    // stopped at the kerb (a bus at its stop, an auto dropping someone off): wait, then pull out
+    if (c.dwell > 0) {
+      c.dwell -= dt; c.v = Math.max(0, c.v - 6 * dt); c.brake = 1;
+      c.lat = lerp(c.lat, c.latT || 0, 1 - Math.exp(-dt * 1.5));
+      this._advance(c, c.v * dt);
+      if (c.dwell <= 0) { c.pulled = false; c.latT = 0; c.dwell = 0; }
+      return;
+    }
     if (!c.next && path.kind === 'lane' && path.length - c.s < 40) c.next = this._chooseNext(path);
     // --- leader search ---
     let gap = 1e9, leadV = 0;
@@ -253,6 +283,12 @@ export class TrafficManager {
         if (c.filterT > 0 && g0 > -o.spec.l) continue;
         if (g0 < 18 && o.v < c.v + 0.5 && path.speed > 6) { c.filterT = 3 + this.R() * 2; continue; }
       }
+      // pulled over at the kerb (a bus at its stop, an auto, a parked car): swing out round it
+      if ((o.pulled || o.state === 'parked') && !c.pulled) {
+        const g0 = o.s - c.s - (o.spec.l + c.spec.l) / 2;
+        const need = o.spec.w / 2 + c.spec.w / 2 + 0.3 + (o.lat ?? 0);
+        if (need < 2.4 && g0 < 25) { c.passT = 2; c.passLat = Math.max(c.passLat || 0, need); continue; }
+      }
       // cars ease out round a bike riding by the kerb instead of queueing behind it
       if (!bike && o.spec.bike && (o.lat ?? 0) < -0.5 && o.state === 'drive') {
         const g0 = o.s - c.s - (o.spec.l + c.spec.l) / 2;
@@ -260,7 +296,9 @@ export class TrafficManager {
       }
       gap = o.s - c.s - (o.spec.l + c.spec.l) / 2; leadV = o.state === 'drive' ? o.v : 0;
     }
-    if (!bike) { if (c.passT > 0) c.passT -= dt; c.latT = c.passT > 0 ? 0.6 : 0; }
+    if (c.passT > 0) c.passT -= dt; else c.passLat = 0;
+    if (!bike && !c.pullAt && !(c.spec.bus && c.latT < 0 && path.stops)) c.latT = c.passT > 0 ? Math.max(0.6, c.passLat || 0) : 0;
+    if (bike && c.passT > 0) c.latT = Math.max(c.latT, (c.passLat || 0) - 0.3);
     if (gap > 1e8 && c.next) {
       for (const o of c.next.cars) {
         const g = path.length - c.s + o.s - (o.spec.l + c.spec.l) / 2;
@@ -287,7 +325,7 @@ export class TrafficManager {
     }
     for (const o of this.cars) {
       // cars knocked into our lane / wrecks
-      if (o === c || o.state === 'drive') continue;
+      if (o === c || o.state === 'drive' || o.state === 'parked') continue;
       const dx = o.x - c.x, dz = o.z - c.z;
       const ahead = dx * fx + dz * fz;
       if (ahead < 0 || ahead > 30) continue;
@@ -296,6 +334,34 @@ export class TrafficManager {
       if (g < gap) { gap = g; leadV = 0; }
     }
     c.honk -= dt;
+    // --- buses call at the stops on their lane; autos pull over now and then in town ---
+    if (c.spec.bus && path.stops && c.lastStop !== path) {
+      for (const st of path.stops) {
+        const d = st - c.s;
+        if (d < -1 || d > 80) continue;
+        if (d + 2 < gap) { gap = Math.max(0.1, d + 2); leadV = 0; c.latT = -1.1; }
+        if (d < 3.2 && c.v < 1.2) { c.dwell = 8 + this.R() * 10; c.pulled = true; c.lastStop = path; bus.emit('traffic:busStop', { car: c, x: c.x, z: c.z }); }
+      }
+    }
+    if (c.type === 'auto' && !c.pullAt && path.kind === 'lane' && (path.edge?.cls ?? 9) >= 2 && this.R() < dt * 0.03 && path.length - c.s > 40) c.pullAt = c.s + 18 + this.R() * 15;
+    if (c.pullAt) {
+      if (c.path !== c.pullPath && c.pullPath) c.pullAt = 0;
+      c.pullPath = path;
+      const d = c.pullAt - c.s;
+      c.latT = -1.4;
+      if (d + 2 < gap) { gap = Math.max(0.1, d + 2); leadV = 0; }
+      if (d < 3.2 && c.v < 1.2) { c.dwell = 5 + this.R() * 14; c.pulled = true; c.pullAt = 0; c.pullPath = null; }
+    }
+    // --- people crossing in front ---
+    for (const q of this.crossing || []) {
+      const dx = q.x - c.x, dz = q.z - c.z;
+      const ahead = dx * fx + dz * fz;
+      if (ahead < 0 || ahead > 30) continue;
+      if (Math.abs(-dx * fz + dz * fx) > 2.6) continue;
+      const g2 = ahead - c.spec.l / 2 - 2.2;
+      if (g2 < gap) { gap = g2; leadV = 0; }
+      if (g2 < 10 && c.honk <= 0 && this.R() < 0.3) { c.honk = 8; bus.emit('traffic:honk', { x: c.x, z: c.z }); }
+    }
     // --- traffic signal ---
     if (path.kind === 'lane' && path.signal) {
       const st = this.world.signalState(path.to, path.axis);
@@ -361,7 +427,7 @@ export class TrafficManager {
     if (!res || !res.impact) return null;
     c.x = c.s2.x; c.z = c.s2.z;
     if (res.impact > 1.5 || c.state !== 'drive') {
-      if (c.state === 'drive') { const i = c.path.cars.indexOf(c); if (i >= 0) c.path.cars.splice(i, 1); }
+      if (c.state === 'drive' || c.state === 'parked') { const i = c.path.cars.indexOf(c); if (i >= 0) c.path.cars.splice(i, 1); }
       c.state = 'knocked'; c.knockT = 0; c.brake = 1;
     }
     return res;

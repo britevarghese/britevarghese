@@ -68,6 +68,8 @@ export class KeralaWorld {
     M.klPole = new THREE.MeshLambertMaterial({ name: 'klPole', color: 0x9a968c });
     M.klWire = new THREE.LineBasicMaterial({ name: 'klWire', color: 0x1a1a1a, transparent: true, opacity: 0.75 });
     this.poleGeo = poleGeometry();
+    this.stopGeo = busStopGeometry();
+    M.klStop = new THREE.MeshLambertMaterial({ name: 'klStop', vertexColors: true });
     M.klLedge = new THREE.MeshStandardMaterial({ name: 'klLedge', color: 0xd6d0c4, roughness: 0.95, side: THREE.DoubleSide });
     M.klRoofFlat = new THREE.MeshStandardMaterial({ name: 'klRoofFlat', color: 0x8d8a82, roughness: 0.95 });
     M.klLineWhite = new THREE.MeshStandardMaterial({ name: 'klLineW', color: 0xe8e8e0, roughness: 0.7, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 });
@@ -116,11 +118,20 @@ export class KeralaWorld {
     this.root.add(t.build(this.M, this._opts()));
     for (const c of t.colliders) this.collision.add(c);
     this.lanes.addTile(t);
+    // bus shelters at the stops the lane graph placed
+    if (t.busStops?.length && this.stopGeo) {
+      const im = new THREE.InstancedMesh(this.stopGeo, this.M.klStop, t.busStops.length), m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), up = new THREE.Vector3(0, 1, 0), one = new THREE.Vector3(1, 1, 1), v = new THREE.Vector3();
+      t.busStops.forEach((b, i) => { im.setMatrixAt(i, m4.compose(v.set(b.x, this.groundHeight(b.x, b.z), b.z), q.setFromAxisAngle(up, b.yaw), one)); });
+      im.computeBoundingSphere(); im.name = 'busStops'; im.castShadow = true;
+      this.root.add(im); t.stopMesh = im;
+      for (const b of t.busStops) { const c = { cx: b.x, cz: b.z, hx: 1.8, hz: 0.6, cos: Math.cos(b.yaw), sin: Math.sin(b.yaw), angle: b.yaw, h: 99, kind: 'building' }; t.colliders.push(c); this.collision.add(c); }
+    }
     this.buildMs = performance.now() - t0;
   }
 
   _unloadTile(k, t) {
     this.lanes.removeTile(t);
+    if (t.stopMesh) { t.stopMesh.removeFromParent(); t.stopMesh.dispose(); t.stopMesh = null; }
     for (const c of t.colliders) this.collision.remove(c);
     t.colliders = [];
     t.dispose();
@@ -201,7 +212,9 @@ export class KeralaWorld {
     const l = lanes[Math.floor(R() * lanes.length)];
     const i = Math.floor(R() * (l.pts.length - 1)), a = l.pts[i], b = l.pts[i + 1];
     const dx = b[0] - a[0], dz = b[1] - a[1], L = Math.hypot(dx, dz) || 1, ox = dz / L * 2.6, oz = -dx / L * 2.6;
-    return { ax: a[0] + ox, az: a[1] + oz, bx: b[0] + ox, bz: b[1] + oz, kerala: true };
+    // the way across the road (to the same spot on the far side), for crossing
+    const across = 2 * (2.6 + ((l.lanes || 1) - 0.5) * 3.2);
+    return { ax: a[0] + ox, az: a[1] + oz, bx: b[0] + ox, bz: b[1] + oz, kerala: true, cross: { nx: -ox / 2.6, nz: -oz / 2.6, len: across } };
   }
 
   signalState() { return 'green'; }
@@ -314,6 +327,20 @@ function poleGeometry() {
   const shaft = new THREE.CylinderGeometry(0.09, 0.16, 9, 4, 1, true).rotateY(Math.PI / 4).translate(0, 4.5, 0);
   const arm = new THREE.BoxGeometry(1.7, 0.1, 0.1).translate(0, 7.95, 0);
   const parts = [shaft, arm].map((g) => { g.deleteAttribute('uv'); return g.index ? g.toNonIndexed() : g; });
+  const g = mergeGeometries(parts); g.computeVertexNormals();
+  return g;
+}
+
+// a roadside bus shelter: concrete posts, a sloping sheet roof, a back wall and a bench (local +z faces the road)
+function busStopGeometry() {
+  const parts = [];
+  const add = (g, hex) => { g = g.index ? g.toNonIndexed() : g; g.deleteAttribute('uv'); const c = new THREE.Color(hex), n = g.attributes.position.count, a = new Float32Array(n * 3); for (let i = 0; i < n; i++) a.set([c.r, c.g, c.b], i * 3); g.setAttribute('color', new THREE.BufferAttribute(a, 3)); parts.push(g); };
+  for (const x of [-1.6, 1.6]) for (const z of [-0.45, 0.45]) add(new THREE.BoxGeometry(0.12, 2.5, 0.12).translate(x, 1.25, z), 0xc8c0b0);
+  add(new THREE.BoxGeometry(3.6, 0.08, 1.5).rotateX(-0.12).translate(0, 2.55, 0.05), 0x2a6a8a);       // roof sheet
+  add(new THREE.BoxGeometry(3.3, 1.6, 0.08).translate(0, 1.2, -0.5), 0xd8d0c0);                       // back wall
+  add(new THREE.BoxGeometry(2.6, 0.08, 0.38).translate(0, 0.46, -0.28), 0x8a6a4a);                     // bench
+  add(new THREE.BoxGeometry(2.6, 0.42, 0.08).translate(0, 0.23, -0.1), 0xa09888);
+  add(new THREE.BoxGeometry(1.2, 0.32, 0.04).translate(-1.1, 2.15, 0.52), 0x1d4e9e);                   // sign board
   const g = mergeGeometries(parts); g.computeVertexNormals();
   return g;
 }

@@ -756,6 +756,9 @@ export class Game {
     const fs = this.onFoot.state;
     this.peds.foe = { x: fs.x, z: fs.z, alive: this.onFoot.active && !this.onFoot.dead };
     this.peds.onHitFoe ||= (dmg, x, z, kind) => this.onFoot.damage(dmg, x, z, kind);
+    // traffic and people see each other: walkers wait for a gap, drivers stop for people crossing
+    this.peds.traffic = this.traffic.cars;
+    this.traffic.crossing = this.peds.peds.filter((q) => q.crossing && !q.down);
     this.peds.update(simulate ? dt : 0, this.camera, [player, ...this.police.vehicles()], this.preset.pedestrians > 0);
     // audio
     this._audio(dt, mode);

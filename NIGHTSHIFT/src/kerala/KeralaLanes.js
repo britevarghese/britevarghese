@@ -152,6 +152,22 @@ export class KeralaLaneGraph {
         }
       }
     }
+    // bus stops: on the kerb lane of town roads, about one in five road pieces (both directions, as in Kerala)
+    t.busStops = [];
+    const tmpS = {};
+    for (const l of mine) {
+      if (l.laneIndex !== 0 || l.edge.cls > 4 || l.edge.cls < 1 || l.length < 70) continue;
+      l.sample(l.length * 0.55, tmpS);
+      const h = Math.abs(Math.round(tmpS.x * 0.37) * 73856093 ^ Math.round(tmpS.z * 0.37) * 19349663) % 100;
+      if (h > 22) continue;
+      const cl = t.classAt?.(-tmpS.x - t.E0, tmpS.z - t.N0);
+      if (cl === 1 || cl === 3 || cl >= 20) continue; // not out in the paddy, the forest or on water
+      const s0 = l.length * 0.55;
+      l.stops = [s0];
+      // the shelter: on the kerb side (left of travel), facing the road
+      const ox = tmpS.dz, oz = -tmpS.dx;  // left of travel
+      t.busStops.push({ x: tmpS.x + ox * 3.4, z: tmpS.z + oz * 3.4, yaw: Math.atan2(-ox, -oz), lane: l, s: s0 });
+    }
     // siblings (same road, same direction) for lane changes
     const groups = new Map();
     for (const l of mine) { const g = `${l.edge.id}:${l.dir}`; if (!groups.has(g)) groups.set(g, []); groups.get(g).push(l); }

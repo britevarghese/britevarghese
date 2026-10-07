@@ -163,8 +163,23 @@ export class Pedestrians {
           if (this.R() < dt * 0.02) p.wait = 2 + this.R() * 4;
         }
       }
+      // crossing the road: wait for a gap, walk straight over, carry on along the far side
+      if (!p.fight && !p.flee && !p.crossing && p.seg?.cross && !p.stagger && this.R() < dt * 0.006) {
+        const X = p.seg.cross, near = (this.traffic || []).some((c) => c.state === 'drive' && c.v > 2 && Math.hypot(c.x - p.x, c.z - p.z) < 14 + c.v * 1.5);
+        if (!near) p.crossing = { x: p.x, z: p.z, nx: X.nx, nz: X.nz, len: X.len, t: 0 };
+      }
       let yaw;
-      if (p.fight) {
+      if (p.crossing) {
+        const C = p.crossing, sp = 1.35;
+        C.t += sp * dt;
+        p.x = C.x + C.nx * C.t; p.z = C.z + C.nz * C.t; p.yaw = yaw = Math.atan2(C.nx, C.nz); moving = true;
+        if (C.t >= C.len) {
+          // the walk now runs along the far side, heading back the other way
+          const g = p.seg, ox = C.nx * C.len, oz = C.nz * C.len;
+          p.seg = { ...g, ax: g.ax + ox, az: g.az + oz, bx: g.bx + ox, bz: g.bz + oz, cross: { ...g.cross, nx: -g.cross.nx, nz: -g.cross.nz } };
+          p.crossing = null; p.ox = p.x - this._pos(p)[0]; p.oz = p.z - this._pos(p)[1];
+        }
+      } else if (p.fight) {
         // squaring up to the player: close in, circle a little, throw punches
         const r = this._fight(p, dt);
         if (r === 'gone') { this._release(p); this.peds.splice(i, 1); continue; }
