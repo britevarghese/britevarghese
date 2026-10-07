@@ -32,4 +32,15 @@ They were converted for real-time use (re-scaled, wheels separated, simplified, 
 - **Mercedes-Benz Sprinter** — "Mercedes Benz Sprinter 2006" by Max-7215, https://sketchfab.com/3d-models/f69de1315bb049c8946d57f6006acd73 (CC BY 4.0), modified.
 - **Mitsubishi Fuso box truck** — "2006 Mitsubishi Fuso" by tonielpro520, https://sketchfab.com/3d-models/34ade13df9c543d3b5709b2f2f971b2e (CC BY 4.0), modified.
 - **City bus** — "Generic Town Bus" by own.guest, https://sketchfab.com/3d-models/14fe03d792914d51b6c6250b393c44fd (CC BY 4.0), modified.
+- **Bajaj autorickshaw** — "Auto Rickshaw" by rSquare, https://sketchfab.com/3d-models/44776bcb34e04c1a8b9c18a70376304e (CC BY 4.0), modified.
+- **KSRTC bus** — "KSRTC Bus kerala" by playmode280513, https://sketchfab.com/3d-models/4a3daa08bfb34119b41b75fd2dbbc9ee (CC BY 4.0), modified.
+- **Private bus** — "Indian  Bus" by khatriparth, https://sketchfab.com/3d-models/67b7998f0f3341a8a96655f96adc1a77 (CC BY 4.0), modified.
+- **Maruti 800** — "Maruti 800 AC" by BHP3D, https://sketchfab.com/3d-models/adcc7ff83891422d9f3dcaf55debc073 (CC BY 4.0), modified.
+- **Maruti Swift Dzire** — "2022 Maruti Suzuki Swift Dzire" by BHP3D, https://sketchfab.com/3d-models/95451c00cb2d48778f67d798167e7237 (CC BY 4.0), modified.
+- **Maruti Vitara Brezza** — "2022 Maruti Suzuki Vitara Brezza" by BHP3D, https://sketchfab.com/3d-models/1a5cbddc8acb457e9d896d7345fd07d8 (CC BY 4.0), modified.
+- **Maruti Ertiga** — "2022 Suzuki Ertiga" by BHP3D, https://sketchfab.com/3d-models/4f14afac3ac44ec4a2fb153e18452f8b (CC BY 4.0), modified.
+- **Mahindra Scorpio-N** — "2022 Mahindra Scorpio-N" by BHP3D, https://sketchfab.com/3d-models/538b10f2860f44e694dc3e9d3e223bf8 (CC BY 4.0), modified.
+- **Mahindra Thar** — "Mahindra Thar (Prisma 3d)" by X_BLADE., https://sketchfab.com/3d-models/6e723690d42748ad9887ce2d7dfa1acc (CC BY 4.0), modified.
+- **Tata lorry** — "TATA 2515" by danieljorge435, https://sketchfab.com/3d-models/be4e08a68a0441f8a41619c3abd73a3a (CC BY 4.0), modified.
+- **Tata Ace** — "Mini-Truck" by roy.3dartist, https://sketchfab.com/3d-models/71e499219de548a7a1be74c237b6a2fb (CC BY 4.0), modified.
 - **Motorcycle rider** — "Biker" by Idris.Abass, https://sketchfab.com/3d-models/1594447c9f2d4b618dd59fd3272b6db6 (CC BY 4.0), modified.

@@ -9,6 +9,10 @@ import { Materials } from '../renderer/Materials.js';
 import { Environment } from '../renderer/Environment.js';
 import { Effects } from '../renderer/Effects.js';
 import { WorldManager } from '../world/WorldManager.js';
+import { KeralaWorld } from '../kerala/KeralaWorld.js';
+import { KeralaMap, KeralaOverview } from '../kerala/KeralaMap.js';
+// the real Kerala (streamed OpenStreetMap tiles) instead of Port Halvern: ?world=kerala while it is being built
+export const KERALA = typeof location !== 'undefined' && new URLSearchParams(location.search).get('world') === 'kerala';
 import { SAFEHOUSES, SHOPS, lineHalfWidth } from '../world/CityLayout.js';
 import { Pedestrians } from '../world/Pedestrians.js';
 import { Debris } from '../world/Debris.js';
@@ -19,7 +23,7 @@ import { VehiclePhysics } from '../physics/VehiclePhysics.js';
 import { CameraController, CAMERA_MODES } from '../camera/CameraController.js';
 import { PhotoMode } from '../camera/PhotoMode.js';
 import { Replay } from '../replay/Replay.js';
-import { TrafficManager , TRAFFIC_COLORS } from '../traffic/TrafficManager.js';
+import { TrafficManager, TRAFFIC_COLORS, TYPE_SPECS } from '../traffic/TrafficManager.js';
 import { TrafficRenderer } from '../traffic/TrafficRenderer.js';
 import { PoliceManager } from '../police/PoliceManager.js';
 import { RaceManager } from '../races/RaceManager.js';
@@ -73,9 +77,13 @@ export class Game {
     this.materials.applyEnvironment(this.env.state);
     progress(0.26, 'Planning city...');
     await tick();
-    this.world = new WorldManager();
+    if (KERALA) {
+      this.world = new KeralaWorld();
+      await this.world.loadIndex();
+    } else this.world = new WorldManager();
     this.world.initVisuals(this.scene, this.materials, preset, { webgpu: this.rm.backend === 'webgpu' });
-    this.mapRenderer = new MapRenderer(this.world.layout, this.world.planner, this.world.landscape);
+    this.mapRenderer = this.world.kerala ? new KeralaMap(this.world) : new MapRenderer(this.world.layout, this.world.planner, this.world.landscape);
+    if (this.world.kerala) this.keralaOverview = new KeralaOverview(this.world.index);
     progress(0.32, 'Building lane graph...');
     await tick();
     this.traffic = new TrafficManager(this.world, preset, null);
@@ -84,6 +92,7 @@ export class Game {
     this.input = new InputManager(this.settings);
     this.camCtl = new CameraController(this.camera, this.settings);
     this.camCtl.world = this.world;
+    if (KERALA) await this.world.preload(new THREE.Vector3(0, 0, 0), (k) => progress(0.36 + k * 0.04, 'Loading Kochi...'));
     this.spawnPlayer();
     // nearby roads & buildings first, then the rest streams in during play
     progress(0.4, 'Loading nearby streets...');
@@ -120,6 +129,7 @@ export class Game {
     this.net.connect().catch(() => {});
     this._wireEvents();
     this._wireAudioUnlock();
+    if (this.world.kerala) { this.safehouses = []; this.empire.blips = () => []; this.story.blips = () => []; }
     await this.rm.setupPost(this.scene, this.camera);
     this.camCtl.snap(this.player);
     progress(1, 'Ready');
@@ -128,13 +138,13 @@ export class Game {
   onModelsReady(promise) {
     const attach = () => {
       if (this.traffic.renderer) return;
-      const types = ['sedan', 'hatch', 'suv', 'van', 'truck', 'bus'].filter((t) => this.lib.has(t));
+      const types = Object.keys(TYPE_SPECS).filter((t) => !!TYPE_SPECS[t].kl === !!this.world.kerala && this.lib.has(t));
       if (!types.length) return;
       this.trafficRenderer = new TrafficRenderer(this.scene, this.lib, types, Math.max(12, Math.ceil(this.preset.traffic * 0.8)) + 24);
       this.traffic.setRenderer(this.trafficRenderer);
       this.traffic.enabled = true;
     };
-    if (['sedan', 'suv', 'van', 'truck', 'bus'].every((t) => this.lib.has(t))) attach();
+    if ((this.world.kerala ? ['auto', 'dzire', 'ksrtc'] : ['sedan', 'suv', 'van', 'truck', 'bus']).every((t) => this.lib.has(t))) attach();
     else promise.then(attach);
   }
 
@@ -153,7 +163,7 @@ export class Game {
     this.player.renderer.applyCustom(data.custom);
     this.player.renderer.enableDents();
     this.scene.add(this.player.renderer.group);
-    const spot = at || this._laneSpot(SAFEHOUSES[0].x, SAFEHOUSES[0].z);
+    const spot = at || (this.world.kerala ? (this.world.roadSpot(0, 0, 4) || { x: 0, z: 0, yaw: 0 }) : this._laneSpot(SAFEHOUSES[0].x, SAFEHOUSES[0].z));
     this.player.place(spot.x, spot.z, spot.yaw);
     this.player.state.nitro = 1;
   }
@@ -168,6 +178,7 @@ export class Game {
   // Edge of the drivable countryside: no invisible wall across the mountains. Engine power fades over the
   // last 150 m with a warning; if you carry on outside for a few seconds you're set back inside.
   _softLimit(dt, c) {
+    if (this.world.kerala) return;
     const st = this.player.state, m = driveMargin(st.x, st.z);
     if (m > 150) { this._outT = 0; return; }
     const k = clamp(m / 150, 0, 1);
@@ -464,6 +475,7 @@ export class Game {
   setGPS(x, z) {
     const L = this.world.layout;
     const s = this.player.state;
+    if (this.world.kerala) { this.gps = { x, z, route: [[s.x, s.z], [x, z]] }; return; } // road routing across Kerala: later
     const ids = L.route(L.nearestNode(s.x, s.z), L.nearestNode(x, z));
     this.gps = { x, z, route: [[s.x, s.z], ...ids.map((id) => [L.nodes[id].x, L.nodes[id].z]), [x, z]] };
   }
@@ -595,9 +607,11 @@ export class Game {
       this.state.time += dt;
       // races may override controls during countdown
       this.races.update(dt);
-      this.story.update(dt, input, driving);
-      this.empire.update(dt, input, driving);
-      this.rivals.update(dt, driving && !this.story.active);
+      if (!this.world.kerala) { // Port Halvern's missions, properties and rival crews (Kerala's come later)
+        this.story.update(dt, input, driving);
+        this.empire.update(dt, input, driving);
+        this.rivals.update(dt, driving && !this.story.active);
+      }
       this._preVel = { vx: player.state.vx, vz: player.state.vz }; // before this frame's impacts (a thrown rider keeps it)
       const events = player.update(dt);
       this._playerEvents(events, dt);
@@ -637,8 +651,8 @@ export class Game {
       if (driving && !this.onFoot.active) this.progress.update(dt, player);
       if (mode === 'busted') this._bustedUpdate(dt);
       // world interaction prompts (events, garages)
-      if (driving && !this.onFoot.active) this._interactions();
-      if (driving) { this.empire.late(); this.story.late(); }
+      if (driving && !this.onFoot.active && !this.world.kerala) this._interactions();
+      if (driving && !this.world.kerala) { this.empire.late(); this.story.late(); }
       if (driving) this.replay.record(dt);
       this.net.update(dt);
     }
@@ -653,6 +667,7 @@ export class Game {
     this.env.update(simulate ? dt : 0, fsv, false, this.camera.position);
     if (mode === 'photo') this.photo.applyExposure();
     this.world.update(dt, this.camera, this.env.state);
+    if (this.mapRenderer.update) { const f = this.focusState; this.mapRenderer.update(f.x, f.z); }
     // camera
     const nitroFx = player.state.nitroActive ? 1 : 0;
     this.fx2.nitro = damp(this.fx2.nitro, nitroFx, 5, dt);
@@ -710,7 +725,7 @@ export class Game {
   // head/tail lamps and police bars of the simulated cars reflected in wet asphalt
   _wetReflections(vehicles) {
     const L = this.world.lights;
-    if (!L.streaks.visible) return;
+    if (!L.streaks?.visible) return;
     const cam = this.camera.position, lightsOn = this.env.state.night > 0.35;
     for (const v of vehicles) {
       const s = v.state, p = v.p, r = v.renderer;

@@ -15,7 +15,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { NodeIO } from '@gltf-transform/core';
 import { ALL_EXTENSIONS, EXTTextureWebP } from '@gltf-transform/extensions';
-import { prune, dedup, textureCompress, meshopt } from '@gltf-transform/functions';
+import { prune, dedup, textureCompress, meshopt, metalRough } from '@gltf-transform/functions';
 import { MeshoptEncoder } from 'meshoptimizer';
 import { unzipSync } from 'fflate';
 import sharp from 'sharp';
@@ -116,6 +116,7 @@ for (const car of targets) {
   try {
     const src = await resolveSource(car);
     const doc = await io.read(src);
+    await doc.transform(metalRough()); // older models store colour as specular-glossiness: convert it, or the textures are lost
     const { log, info } = processCar(doc, car, { verbose: true, budget: car.budget });
     doc.createExtension(EXTTextureWebP).setRequired(true);
     await doc.transform(

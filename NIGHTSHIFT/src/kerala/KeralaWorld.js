@@ -1,0 +1,245 @@
+// KeralaWorld: the real Kerala, all 14 districts, streamed in 2 km tiles built from OpenStreetMap and SRTM
+// elevation (tools/kerala/build_tiles.py -> public/assets/world/kerala). Implements the parts of the
+// WorldManager interface the game relies on (layout.groundHeight, collision, districtAt, update, ...).
+// Coordinates: x = -east, z = north (metres) from Marine Drive, Kochi.
+import * as THREE from 'three';
+import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
+import { CollisionWorld } from '../physics/Collision.js';
+import { KeralaTile, TILE, C, decodeBinary } from './KeralaTile.js';
+import * as TX from '../renderer/Textures.js';
+import { KERALA_FACADE } from '../renderer/Textures.js';
+import { KeralaLaneGraph } from './KeralaLanes.js';
+
+const BASE = '/assets/world/kerala/';
+const RADIUS = 2;        // tiles loaded around the player (5 x 5 = 10 x 10 km)
+const KEEP = 3;          // unloaded beyond this
+
+export class KeralaWorld {
+  constructor() {
+    this.kerala = true;
+    this.tiles = new Map();          // key -> KeralaTile (loaded data, maybe not built)
+    this.pending = new Map();        // key -> Promise
+    this.collision = new CollisionWorld();
+    this.lanes = new KeralaLaneGraph();
+    this.state = { time: 0, hour: 23, weather: 'clear' };
+    this.focus = { x: 0, z: 0 };
+    const W = this;
+    // the gameplay-facing "layout" (Port Halvern systems read these; Kerala has no grid city)
+    this.layout = {
+      nodes: [], edges: [], blocks: [], ringSamples: [], nodeMap: new Map(),
+      groundHeight: (x, z) => W.groundHeight(x, z),
+      inTunnel: () => false,
+      roadAt: () => null,
+      offRoad: (x, z) => W.offRoad(x, z),
+    };
+    this.planner = { colliders: [], props: [], parked: [], buildings: [] };
+    this.chunks = {
+      nearKeys: [], nearPos: new THREE.Vector3(),
+      preload: (pos, r, cb) => this.preload(pos, cb),
+      stats: () => ({ loaded: this.tiles.size, detailed: [...this.tiles.values()].filter((t) => t.ready).length, buildMs: this.buildMs || 0, pending: this.queue?.length || 0 }),
+      update: () => {}, setPreset: () => {},
+    };
+    this.props = { rebuild() {}, defs: {}, count: 0, hide() {}, updateSignals() {}, preset: null };
+    this.lights = { rebuild() {}, update() {}, setDynamicCount() {}, flushReflections() {}, dyn: [] };
+  }
+
+  async loadIndex() {
+    if (this.index) return this.index;
+    this.index = await (await fetch(BASE + 'index.json')).json();
+    this.tileSet = new Map(this.index.tiles.map((t) => [`${t[0]},${t[1]}`, t]));
+    return this.index;
+  }
+
+  // -------------------------------------------------------------------------------------- visuals
+  initVisuals(scene, M, preset) {
+    this.scene = scene; this.M = M; this.preset = preset;
+    this.root = new THREE.Group(); this.root.name = 'kerala';
+    scene.add(this.root);
+    // materials the tiles share
+    M.terrainDetail = TX.grass().map;
+    M.klRoofTile = new THREE.MeshStandardMaterial({ name: 'klRoofTile', color: 0x9c4a30, roughness: 0.85 });
+    M.klRoofFlat = new THREE.MeshStandardMaterial({ name: 'klRoofFlat', color: 0x8d8a82, roughness: 0.95 });
+    M.klLineWhite = new THREE.MeshStandardMaterial({ name: 'klLineW', color: 0xe8e8e0, roughness: 0.7, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 });
+    M.klLineYellow = new THREE.MeshStandardMaterial({ name: 'klLineY', color: 0xe0b020, roughness: 0.7, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 });
+    M.klDirtRoad = new THREE.MeshStandardMaterial({ name: 'klDirt', color: 0x8e5a3c, roughness: 1 });
+    M.klWater = new THREE.MeshStandardMaterial({ name: 'klWater', color: 0x1d4048, roughness: 0.1, metalness: 0.25, normalMap: TX.waterNormal?.(), transparent: true, opacity: 0.92 });
+    this.palmGeo = palmGeometry();
+    M.klTank = new THREE.MeshStandardMaterial({ name: 'klTank', color: 0x1a1c1e, roughness: 0.6 });
+    this.tankGeo = (() => { const g = new THREE.CylinderGeometry(0.62, 0.62, 1.25, 10).translate(0, 0.62 + 0.25, 0); g.deleteAttribute('uv'); return g.toNonIndexed(); })();
+    this.palmMat = new THREE.MeshLambertMaterial({ vertexColors: true, side: THREE.DoubleSide });
+    this.queue = [];
+  }
+
+  setPreset(p) { this.preset = p; }
+
+  _opts() {
+    const p = this.preset || {};
+    return { shadows: p.shadows && p.shadows !== 'off', palms: p.trees ?? 1, palmGeo: this.palmGeo, palmMat: this.palmMat, tankGeo: this.tankGeo, keralaFacade: KERALA_FACADE, maxBuildings: p.textureSize >= 1024 ? 9000 : 4500 };
+  }
+
+  key(tx, tz) { return `${tx},${tz}`; }
+
+  // fetch the data of one tile (no meshes yet)
+  fetchTile(tx, tz) {
+    const k = this.key(tx, tz);
+    if (this.tiles.has(k)) return Promise.resolve(this.tiles.get(k));
+    if (this.pending.has(k)) return this.pending.get(k);
+    if (this.tileSet && !this.tileSet.has(k)) return Promise.resolve(null); // the sea / outside Kerala
+    const bin = this.index?.format === 'bin';
+    const p = fetch(`${BASE}t/${tx}_${tz}.${bin ? 'bin' : 'json'}`).then((r) => (r.ok ? (bin ? r.arrayBuffer() : r.json()) : null)).then((d) => {
+      if (d && bin) d = decodeBinary(d);
+      this.pending.delete(k);
+      if (!d) return null;
+      const t = new KeralaTile(tx, tz, d);
+      this.tiles.set(k, t);
+      return t;
+    }).catch(() => { this.pending.delete(k); return null; });
+    this.pending.set(k, p);
+    return p;
+  }
+
+  _buildTile(t) {
+    if (t.ready || !this.root) return;
+    const t0 = performance.now();
+    this.root.add(t.build(this.M, this._opts()));
+    for (const c of t.colliders) this.collision.add(c);
+    this.lanes.addTile(t);
+    this.buildMs = performance.now() - t0;
+  }
+
+  _unloadTile(k, t) {
+    this.lanes.removeTile(t);
+    for (const c of t.colliders) this.collision.remove(c);
+    t.colliders = [];
+    t.dispose();
+    this.tiles.delete(k);
+  }
+
+  // load and build the tiles around a point (before play starts)
+  async preload(pos, cb) {
+    await this.loadIndex();
+    const tx = Math.floor(-pos.x / TILE), tz = Math.floor(pos.z / TILE);
+    const want = [];
+    for (let dz = -1; dz <= 1; dz++) for (let dx = -1; dx <= 1; dx++) want.push([tx + dx, tz + dz]);
+    let n = 0;
+    await Promise.all(want.map(([a, b]) => this.fetchTile(a, b).then((t) => { if (t) this._buildTile(t); cb?.(++n / want.length); })));
+    this.chunks.nearPos.copy(pos);
+  }
+
+  // -------------------------------------------------------------------------------------- queries
+  tileAt(x, z) {
+    const E = -x, N = z;
+    return this.tiles.get(this.key(Math.floor(E / TILE), Math.floor(N / TILE)));
+  }
+
+  groundHeight(x, z) {
+    const t = this.tileAt(x, z);
+    if (!t) return this._lastH ?? 0;
+    const h = t.heightAt(-x - t.E0, z - t.N0);
+    this._lastH = h;
+    return h;
+  }
+
+  // open country (paddy, groves, forest, sand) rather than a road or a town street
+  offRoad(x, z) {
+    const t = this.tileAt(x, z);
+    if (!t?.cls) return false;
+    const c = t.classAt(-x - t.E0, z - t.N0);
+    return c !== C.road && c !== C.town && c !== C.commercial && c !== C.industrial;
+  }
+
+  inWater(x, z) {
+    const t = this.tileAt(x, z);
+    if (!t?.cls) return false;
+    const c = t.classAt(-x - t.E0, z - t.N0);
+    return c === C.water || c === C.sea;
+  }
+
+  // nearest road point (for spawning on a road): { x, z, yaw, name }
+  roadSpot(x, z, maxCls = 6) {
+    let best = null, bd = Infinity;
+    for (const t of this.tiles.values()) {
+      for (const r of t.roads) {
+        if (r.cls > maxCls || r.pts.length < 2) continue;
+        for (let i = 0; i < r.pts.length - 1; i++) {
+          const [e, n] = r.pts[i], gx = -(t.E0 + e), gz = t.N0 + n, d = Math.hypot(gx - x, gz - z);
+          if (d < bd) { const [e2, n2] = r.pts[i + 1]; bd = d; best = { x: gx, z: gz, yaw: Math.atan2(-(e2 - e), n2 - n), name: r.name || r.ref }; }
+        }
+      }
+    }
+    return best;
+  }
+
+  districtAt(x, z) {
+    const t = this.tileAt(x, z);
+    const name = t && t.district >= 0 ? this.index?.districts[t.district] : 'Kerala';
+    // the nearest town or neighbourhood gives the local name
+    let place = null, bd = 2500;
+    for (const p of this.index?.places || []) {
+      const px = -p[3], pz = p[4], d = Math.hypot(px - x, pz - z) / (p[0] === 'city' ? 3 : p[0] === 'town' ? 2 : 1);
+      if (d < bd) { bd = d; place = p[1]; }
+    }
+    return { id: name || 'kerala', name: place ? `${place}, ${name}` : name };
+  }
+
+  signalState() { return 'green'; }
+  breakCollider(c) { c.broken = true; }
+
+  // -------------------------------------------------------------------------------------- streaming
+  update(dt, camera) {
+    this.state.time += dt;
+    if (!this.index || !camera) return;
+    const p = camera.position, tx = Math.floor(-p.x / TILE), tz = Math.floor(p.z / TILE);
+    if (tx !== this._ctx || tz !== this._ctz) {
+      this._ctx = tx; this._ctz = tz;
+      // queue what's missing, nearest first; drop what's far away
+      const want = [];
+      for (let dz = -RADIUS; dz <= RADIUS; dz++) for (let dx = -RADIUS; dx <= RADIUS; dx++) want.push([tx + dx, tz + dz, dx * dx + dz * dz]);
+      want.sort((a, b) => a[2] - b[2]);
+      for (const [a, b] of want) if (!this.tiles.get(this.key(a, b))?.ready) this.fetchTile(a, b);
+      for (const [k, t] of this.tiles) if (Math.max(Math.abs(t.tx - tx), Math.abs(t.tz - tz)) > KEEP) this._unloadTile(k, t);
+    }
+    // build at most one loaded tile per frame (the nearest)
+    let best = null, bd = Infinity;
+    for (const t of this.tiles.values()) {
+      if (t.ready) continue;
+      const d = Math.max(Math.abs(t.tx - tx), Math.abs(t.tz - tz));
+      if (d <= RADIUS && d < bd) { bd = d; best = t; }
+    }
+    if (best) this._buildTile(best);
+    this.chunks.nearPos.copy(p);
+  }
+}
+
+// a coconut palm: a tall, slightly curved trunk and a crown of drooping fronds (~90 triangles)
+function palmGeometry() {
+  const parts = [];
+  const paint = (g, hex) => { const c = new THREE.Color(hex), n = g.attributes.position.count, a = new Float32Array(n * 3); for (let i = 0; i < n; i++) { a[i * 3] = c.r; a[i * 3 + 1] = c.g; a[i * 3 + 2] = c.b; } g.setAttribute('color', new THREE.BufferAttribute(a, 3)); if (g.attributes.uv) g.deleteAttribute('uv'); return g.index ? g.toNonIndexed() : g; };
+  // trunk: three tapered segments bending a little
+  let x = 0, y = 0;
+  for (let i = 0; i < 3; i++) {
+    const h = 3.6, r0 = 0.24 - i * 0.04, r1 = r0 - 0.04;
+    const g = new THREE.CylinderGeometry(r1, r0, h, 6).translate(0, h / 2, 0).rotateZ(-0.05 * (i + 1)).translate(x, y, 0);
+    parts.push(paint(g, i ? 0x8a7458 : 0x7a6448));
+    x += Math.sin(0.05 * (i + 1)) * h; y += Math.cos(0.05 * (i + 1)) * h;
+  }
+  const top = new THREE.Vector3(x, y, 0);
+  // fronds: two-segment drooping leaves
+  for (let k = 0; k < 9; k++) {
+    const a = (k / 9) * Math.PI * 2 + (k % 2) * 0.2, len = 3.6 + (k % 3) * 0.5;
+    const g = new THREE.BufferGeometry();
+    const w = 0.55, p = [];
+    const pts = [[0, 0], [len * 0.5, 0.45], [len, -0.9]];
+    for (let s = 0; s < 2; s++) {
+      const [d0, y0] = pts[s], [d1, y1] = pts[s + 1], w0 = s ? w : w * 0.6, w1 = s ? 0.05 : w;
+      p.push(d0, y0, -w0, d1, y1, -w1, d1, y1, w1, d0, y0, -w0, d1, y1, w1, d0, y0, w0);
+    }
+    g.setAttribute('position', new THREE.Float32BufferAttribute(p, 3));
+    g.rotateY(a).translate(top.x, top.y, top.z);
+    g.computeVertexNormals();
+    parts.push(paint(g, k % 2 ? 0x4f7a2a : 0x5d8a30));
+  }
+  // coconuts
+  parts.push(paint(new THREE.IcosahedronGeometry(0.42, 0).translate(top.x, top.y - 0.35, top.z), 0x6a5a2a));
+  return mergeGeometries(parts.map((g) => { g.computeVertexNormals(); return g; }));
+}

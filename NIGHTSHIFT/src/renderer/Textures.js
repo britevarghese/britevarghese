@@ -208,6 +208,12 @@ export const FACADE_DEF = [
 ];
 // house siding colours: the 'house' textures, tinted per material (no extra texture memory)
 for (const [name, tint] of [['houseBlue', '#a9c0d8'], ['houseSage', '#c4d4b0'], ['houseCream', '#fff4dc'], ['houseRose', '#e8c0b4']]) FACADE_DEF.push({ ...FACADE_DEF[5], name, tintOf: 5, tint });
+// Kerala: painted plaster walls, small windows with wooden frames and iron grills under concrete sunshades
+// (chajjas). One texture (index KERALA_FACADE), tinted per material in the colours Kerala homes are painted.
+export const KERALA_FACADE = FACADE_DEF.length;
+FACADE_DEF.push({ name: 'plaster', colW: 3.2, floorH: 3.1, frame: '#4a3424', glass: '#1a1d1e', wall: '#efe9dc', winW: 0.36, winH: 0.48, lit: 0.45, litColors: ['#ffd890', '#fff0c8', '#e8f0ff'], plaster: true });
+export const KERALA_TINTS = ['#f2b8c4', '#b8e2c4', '#f2e09a', '#acd0ec', '#f4c8a2', '#f6f4ec', '#d8c4ec', '#c8e8a0'];
+for (const [i, tint] of KERALA_TINTS.entries()) FACADE_DEF.push({ ...FACADE_DEF[KERALA_FACADE], name: 'plaster' + i, tintOf: KERALA_FACADE, tint });
 
 // house window detail: sky reflection in the glass, a trim casing, four panes, a sill, and (on some)
 // louvred shutters
@@ -234,6 +240,23 @@ function houseWindow(cc, ec, hc, def, R, x, y, ww, wh, cw, rh) {
       for (let k = y; k < y + wh; k += rh * 0.035) { cc.fillStyle = 'rgba(0,0,0,0.28)'; cc.fillRect(sx + sw * 0.12, k, sw * 0.76, rh * 0.008); hc.fillStyle = 'rgb(150,150,150)'; hc.fillRect(sx + sw * 0.12, k, sw * 0.76, rh * 0.008); }
     }
   }
+}
+
+// Kerala window: dark wooden frame, vertical iron grill bars, a concrete sunshade (chajja) above casting a shadow
+function keralaWindow(cc, ec, hc, def, R, x, y, ww, wh, cw, rh) {
+  const t = cw * 0.03;
+  cc.fillStyle = def.frame; hc.fillStyle = 'rgb(210,210,210)';
+  for (const [a, b, w, h] of [[x - t, y - t, ww + t * 2, t], [x - t, y + wh, ww + t * 2, t], [x - t, y, t, wh], [x + ww, y, t, wh], [x + ww / 2 - t / 2, y, t, wh]]) { cc.fillRect(a, b, w, h); hc.fillRect(a, b, w, h); }
+  // grill
+  cc.fillStyle = 'rgba(20,20,22,0.85)'; ec.fillStyle = '#000';
+  for (let k = 1; k < 7; k++) { const gx = x + (ww * k) / 7; cc.fillRect(gx - 0.6, y, 1.2, wh); ec.fillRect(gx - 0.6, y, 1.2, wh); }
+  // sunshade
+  const sy = y - t - rh * 0.07;
+  cc.fillStyle = '#d8d4cc'; cc.fillRect(x - cw * 0.12, sy, ww + cw * 0.24, rh * 0.045);
+  cc.fillStyle = 'rgba(0,0,0,0.28)'; cc.fillRect(x - cw * 0.1, sy + rh * 0.045, ww + cw * 0.2, rh * 0.05);
+  hc.fillStyle = 'rgb(250,250,250)'; hc.fillRect(x - cw * 0.12, sy, ww + cw * 0.24, rh * 0.045);
+  // monsoon streaks under it
+  if (R() < 0.5) { const g = cc.createLinearGradient(0, y + wh, 0, y + wh + rh * 0.4); g.addColorStop(0, 'rgba(60,50,40,0.25)'); g.addColorStop(1, 'rgba(60,50,40,0)'); cc.fillStyle = g; cc.fillRect(x, y + wh + t, ww, rh * 0.4); }
 }
 
 export function facade(style) {
@@ -318,6 +341,7 @@ export function facade(style) {
         if (ww > cw * 0.5) cc.fillRect(x + ww / 2 - cw * 0.01, y, cw * 0.02, wh);
         ec.fillStyle = '#000'; if (ww > cw * 0.5) ec.fillRect(x + ww / 2 - cw * 0.01, y, cw * 0.02, wh);
         if (def.siding) houseWindow(cc, ec, hc, def, R, x, y, ww, wh, cw, rh);
+        if (def.plaster) keralaWindow(cc, ec, hc, def, R, x, y, ww, wh, cw, rh);
       }
       // floor slab line
       cc.fillStyle = 'rgba(0,0,0,0.25)'; cc.fillRect(0, r * rh, n, Math.max(1, rh * 0.04));

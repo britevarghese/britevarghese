@@ -284,7 +284,8 @@ export function processCar(doc, car, opt = {}) {
   const candidates = [...matInfo.values()].filter((m) => !classes.has(m.mat) && !RX.notPaint.test(m.mat.getName() || '') && !RX.interior.test(texOf(m)));
   const named = candidates.filter((m) => RX.paint.test(texOf(m)));
   const pick = (list) => list.sort((a, b2) => b2.area - a.area)[0];
-  const paint = car.import?.paint ? [...matInfo.values()].find((m) => m.mat.getName() === car.import.paint) : pick(named.length ? named : candidates);
+  // livery vehicles (buses, autos, lorries) keep their painted texture: no recolourable 'paint' material
+  const paint = car.import?.livery ? null : car.import?.paint ? [...matInfo.values()].find((m) => m.mat.getName() === car.import.paint) : pick(named.length ? named : candidates);
   if (paint) classes.set(paint.mat, 'paint');
   // tidy materials for real-time use
   let glassN = 0;

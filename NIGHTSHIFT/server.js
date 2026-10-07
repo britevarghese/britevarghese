@@ -109,7 +109,7 @@ const MIME = {
   '.txt': 'text/plain; charset=utf-8',
   '.md': 'text/markdown; charset=utf-8',
 };
-const COMPRESSIBLE = new Set(['.html', '.htm', '.webmanifest', '.js', '.mjs', '.css', '.json', '.map', '.svg', '.gltf', '.txt', '.md']);
+const COMPRESSIBLE = new Set(['.bin', '.html', '.htm', '.webmanifest', '.js', '.mjs', '.css', '.json', '.map', '.svg', '.gltf', '.txt', '.md']);
 const LONG_CACHE = new Set(['.glb', '.gltf', '.bin', '.ktx2', '.png', '.jpg', '.jpeg', '.webp', '.ogg', '.mp3', '.m4a', '.wav', '.woff2', '.ico', '.wasm']);
 const MAX_COMPRESS_SIZE = 32 * 1024 * 1024;
 

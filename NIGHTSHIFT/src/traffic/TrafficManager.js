@@ -15,6 +15,18 @@ export const TYPE_SPECS = {
   van: { w: 1.99, l: 5.9, mass: 2500, weight: 13 },
   truck: { w: 2.1, l: 7.0, mass: 7500, weight: 10, bigRoads: true },
   bus: { w: 2.55, l: 11.5, mass: 11000, weight: 7, bigRoads: true },
+  // Kerala (kl): autorickshaws everywhere, Marutis, SUVs, Tata Aces, lorries, KSRTC and private buses
+  auto: { w: 1.3, l: 2.64, mass: 450, weight: 30, kl: true, livery: true },
+  m800: { w: 1.44, l: 3.34, mass: 700, weight: 9, kl: true },
+  dzire: { w: 1.735, l: 3.995, mass: 1000, weight: 16, kl: true },
+  brezza: { w: 1.79, l: 3.995, mass: 1250, weight: 10, kl: true },
+  ertiga: { w: 1.735, l: 4.395, mass: 1200, weight: 8, kl: true },
+  scorpio: { w: 1.92, l: 4.66, mass: 1900, weight: 7, kl: true },
+  thar: { w: 1.82, l: 3.985, mass: 1700, weight: 4, kl: true },
+  minitruck: { w: 1.5, l: 3.8, mass: 1100, weight: 7, kl: true },
+  lorry: { w: 2.4, l: 7.8, mass: 9000, weight: 5, kl: true, bigRoads: true, livery: true },
+  ksrtc: { w: 2.5, l: 10.8, mass: 11000, weight: 5, kl: true, bigRoads: true, livery: true },
+  pvtbus: { w: 2.5, l: 10.5, mass: 10500, weight: 6, kl: true, bigRoads: true, livery: true },
 };
 export const TRAFFIC_COLORS = [0x9aa0a8, 0x2a2d33, 0xe8e8e6, 0x5a1a1a, 0x1c2e4a, 0x3a3f36, 0xb8b0a0, 0x6a6e74, 0x0e0f11, 0x8a2a1a, 0x2a4a6a, 0xd8d0c0];
 const BUS_COLORS = [0xd8b020, 0x2a6ab0, 0xe0e0e0];
@@ -46,7 +58,7 @@ class TrafficCar {
 export class TrafficManager {
   constructor(world, preset, renderer) {
     this.world = world;
-    this.graph = new LaneGraph(world.layout);
+    this.graph = world.kerala ? world.lanes : new LaneGraph(world.layout); // Kerala: lanes stream with the map tiles
     this.cars = [];
     this.preset = preset;
     this.renderer = renderer; // TrafficRenderer (optional)
@@ -68,11 +80,13 @@ export class TrafficManager {
   pickType(lane) {
     const R = this.R;
     let total = 0;
-    const types = Object.entries(TYPE_SPECS).filter(([t, s]) => (!s.bigRoads || lane.edge.type.lanes > 1) && (!s.needs || this.renderer?.types?.[t]));
+    const kl = !!this.world.kerala;
+    const big = lane.edge.cls !== undefined ? lane.edge.cls <= 4 : lane.edge.type.lanes > 1;
+    const types = Object.entries(TYPE_SPECS).filter(([t, s]) => !!s.kl === kl && (!s.bigRoads || big) && (!(s.needs || s.kl) || this.renderer?.types?.[t]));
     for (const [, s] of types) total += s.weight;
     let r = R() * total;
     for (const [t, s] of types) { r -= s.weight; if (r <= 0) return t; }
-    return 'sedan';
+    return this.world.kerala ? 'auto' : 'sedan';
   }
 
   spawnNear(px, pz, rMin, rMax, forward) {
@@ -89,7 +103,7 @@ export class TrafficManager {
       if (forward && d < rMin + 40) { const dot = ((tmp.x - px) * forward.x + (tmp.z - pz) * forward.z) / d; if (dot > 0.5) continue; }
       if (lane.cars.some((c) => Math.abs(c.s - s) < 14)) continue;
       const type = this.pickType(lane);
-      const color = type === 'bus' ? BUS_COLORS[Math.floor(R() * 3)] : TRAFFIC_COLORS[Math.floor(R() * TRAFFIC_COLORS.length)];
+      const color = TYPE_SPECS[type].livery ? 0xffffff : type === 'bus' ? BUS_COLORS[Math.floor(R() * 3)] : TRAFFIC_COLORS[Math.floor(R() * TRAFFIC_COLORS.length)];
       const car = new TrafficCar(this.nextId++, type, color);
       car.path = lane; car.s = s; car.v = lane.speed * 0.7;
       lane.cars.push(car);
@@ -135,7 +149,7 @@ export class TrafficManager {
       for (const f of foci) dm = Math.min(dm, Math.hypot(c.x - f.x, c.z - f.z));
       // cars left well behind are recycled so the budget stays around (and ahead of) the player
       const behind = forward && dm === d && d > 150 && ((c.x - focus.x) * forward.x + (c.z - focus.z) * forward.z) / d < -0.4 && this.cars.length >= max * 0.8;
-      if (dm > 310 || behind || (c.state === 'wreck' && dm > 120) || this.cars.length > max + 4 && dm > 200) this.remove(c);
+      if (c.path?.dead || dm > 310 || behind || (c.state === 'wreck' && dm > 120) || this.cars.length > max + 4 && dm > 200) this.remove(c);
     }
     // sort occupancy
     for (const c of this.cars) if (c.path) c.path._sorted = false;
@@ -184,6 +198,7 @@ export class TrafficManager {
     c.s += ds;
     while (c.s > c.path.length) {
       c.s -= c.path.length;
+      if (c.next?.dead) c.next = null;
       const nxt = c.next || this._chooseNext(c.path);
       c.next = null;
       if (!nxt) { c.s = c.path.length; c.v = 0; break; }

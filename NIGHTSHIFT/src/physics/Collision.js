@@ -27,6 +27,22 @@ export class CollisionWorld {
     this.count++;
   }
 
+  // take a collider out again (streamed worlds unload them with their tile)
+  remove(c) {
+    if (c.minX === undefined) return;
+    for (let x = Math.floor(c.minX / CELL); x <= Math.floor(c.maxX / CELL); x++) {
+      for (let z = Math.floor(c.minZ / CELL); z <= Math.floor(c.maxZ / CELL); z++) {
+        const k = x * 73856093 ^ z * 19349663;
+        const list = this.grid.get(k);
+        if (!list) continue;
+        const i = list.indexOf(c);
+        if (i >= 0) { list[i] = list[list.length - 1]; list.pop(); }
+        if (!list.length) this.grid.delete(k);
+      }
+    }
+    this.count--;
+  }
+
   query(minX, minZ, maxX, maxZ, out = []) {
     out.length = 0;
     const stamp = ++this._stamp;

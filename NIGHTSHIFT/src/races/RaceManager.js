@@ -30,7 +30,7 @@ export class RaceManager {
   constructor(game) {
     this.game = game;
     this.world = game.world;
-    this.events = RACE_EVENTS.map((e) => this._prepare(e));
+    this.events = game.world.kerala ? [] : RACE_EVENTS.map((e) => this._prepare(e)); // Kerala races come later
     this.active = null;
     this.markers = new THREE.Group();
     game.scene.add(this.markers);

@@ -4856,6 +4856,534 @@
         "url": "https://sketchfab.com/3d-models/14fe03d792914d51b6c6250b393c44fd",
         "license": "CC-BY-4.0"
       }
+    },
+    "kl_auto": {
+      "file": "cars/kl_auto.glb",
+      "imported": true,
+      "name": "Bajaj autorickshaw",
+      "length": 2.64,
+      "width": 1.372,
+      "height": 1.745,
+      "wheels": [],
+      "tris": {
+        "lod0": 8128,
+        "lod1": 2595
+      },
+      "source": {
+        "site": "Sketchfab",
+        "uid": "44776bcb34e04c1a8b9c18a70376304e",
+        "title": "Auto Rickshaw",
+        "author": "rSquare",
+        "url": "https://sketchfab.com/3d-models/44776bcb34e04c1a8b9c18a70376304e",
+        "license": "CC-BY-4.0"
+      }
+    },
+    "kl_ksrtc": {
+      "file": "cars/kl_ksrtc.glb",
+      "imported": true,
+      "name": "KSRTC bus",
+      "length": 10.8,
+      "width": 2.577,
+      "height": 3.002,
+      "wheels": [
+        {
+          "id": "FL",
+          "x": 0.929,
+          "y": 0.466,
+          "z": 3.178,
+          "r": 0.454,
+          "w": 0.356
+        },
+        {
+          "id": "FR",
+          "x": -1.014,
+          "y": 0.466,
+          "z": 3.177,
+          "r": 0.454,
+          "w": 0.3
+        },
+        {
+          "id": "RL",
+          "x": 0.696,
+          "y": 0.493,
+          "z": -2.189,
+          "r": 0.493,
+          "w": 0.326
+        },
+        {
+          "id": "RR",
+          "x": -0.746,
+          "y": 0.494,
+          "z": -2.19,
+          "r": 0.493,
+          "w": 0.326
+        }
+      ],
+      "tris": {
+        "lod0": 7340,
+        "lod1": 3130
+      },
+      "source": {
+        "site": "Sketchfab",
+        "uid": "4a3daa08bfb34119b41b75fd2dbbc9ee",
+        "title": "KSRTC Bus kerala",
+        "author": "playmode280513",
+        "url": "https://sketchfab.com/3d-models/4a3daa08bfb34119b41b75fd2dbbc9ee",
+        "license": "CC-BY-4.0"
+      }
+    },
+    "kl_pvtbus": {
+      "file": "cars/kl_pvtbus.glb",
+      "imported": true,
+      "name": "Private bus",
+      "length": 10.5,
+      "width": 2.615,
+      "height": 2.783,
+      "wheels": [
+        {
+          "id": "FL",
+          "x": 1.012,
+          "y": 0.476,
+          "z": 2.212,
+          "r": 0.465,
+          "w": 0.168
+        },
+        {
+          "id": "FR",
+          "x": -0.662,
+          "y": 0.476,
+          "z": 2.212,
+          "r": 0.466,
+          "w": 0.17
+        },
+        {
+          "id": "RL",
+          "x": 0.956,
+          "y": 0.465,
+          "z": -2.955,
+          "r": 0.465,
+          "w": 0.168
+        },
+        {
+          "id": "RR",
+          "x": -0.902,
+          "y": 0.465,
+          "z": -2.956,
+          "r": 0.465,
+          "w": 0.168
+        }
+      ],
+      "tris": {
+        "lod0": 20634,
+        "lod1": 4040
+      },
+      "source": {
+        "site": "Sketchfab",
+        "uid": "67b7998f0f3341a8a96655f96adc1a77",
+        "title": "Indian  Bus",
+        "author": "khatriparth",
+        "url": "https://sketchfab.com/3d-models/67b7998f0f3341a8a96655f96adc1a77",
+        "license": "CC-BY-4.0"
+      }
+    },
+    "kl_m800": {
+      "file": "cars/kl_m800.glb",
+      "imported": true,
+      "name": "Maruti 800",
+      "length": 3.34,
+      "width": 1.637,
+      "height": 1.157,
+      "wheels": [
+        {
+          "id": "FL",
+          "x": 0.579,
+          "y": 0.246,
+          "z": 1.099,
+          "r": 0.246,
+          "w": 0.184
+        },
+        {
+          "id": "FR",
+          "x": -0.581,
+          "y": 0.246,
+          "z": 1.099,
+          "r": 0.246,
+          "w": 0.184
+        },
+        {
+          "id": "RL",
+          "x": 0.579,
+          "y": 0.246,
+          "z": -1.072,
+          "r": 0.246,
+          "w": 0.184
+        },
+        {
+          "id": "RR",
+          "x": -0.581,
+          "y": 0.246,
+          "z": -1.071,
+          "r": 0.246,
+          "w": 0.184
+        }
+      ],
+      "tris": {
+        "lod0": 73041,
+        "lod1": 4397
+      },
+      "source": {
+        "site": "Sketchfab",
+        "uid": "adcc7ff83891422d9f3dcaf55debc073",
+        "title": "Maruti 800 AC",
+        "author": "BHP3D",
+        "url": "https://sketchfab.com/3d-models/adcc7ff83891422d9f3dcaf55debc073",
+        "license": "CC-BY-4.0"
+      }
+    },
+    "kl_dzire": {
+      "file": "cars/kl_dzire.glb",
+      "imported": true,
+      "name": "Maruti Swift Dzire",
+      "length": 3.995,
+      "width": 1.848,
+      "height": 1.407,
+      "wheels": [
+        {
+          "id": "FL",
+          "x": 0.766,
+          "y": 0.317,
+          "z": 1.214,
+          "r": 0.317,
+          "w": 0.179
+        },
+        {
+          "id": "FR",
+          "x": -0.768,
+          "y": 0.317,
+          "z": 1.214,
+          "r": 0.317,
+          "w": 0.179
+        },
+        {
+          "id": "RL",
+          "x": 0.766,
+          "y": 0.328,
+          "z": -1.243,
+          "r": 0.317,
+          "w": 0.179
+        },
+        {
+          "id": "RR",
+          "x": -0.768,
+          "y": 0.328,
+          "z": -1.243,
+          "r": 0.317,
+          "w": 0.179
+        }
+      ],
+      "tris": {
+        "lod0": 57540,
+        "lod1": 5581
+      },
+      "source": {
+        "site": "Sketchfab",
+        "uid": "95451c00cb2d48778f67d798167e7237",
+        "title": "2022 Maruti Suzuki Swift Dzire",
+        "author": "BHP3D",
+        "url": "https://sketchfab.com/3d-models/95451c00cb2d48778f67d798167e7237",
+        "license": "CC-BY-4.0"
+      }
+    },
+    "kl_brezza": {
+      "file": "cars/kl_brezza.glb",
+      "imported": true,
+      "name": "Maruti Vitara Brezza",
+      "length": 3.995,
+      "width": 2.017,
+      "height": 1.47,
+      "wheels": [
+        {
+          "id": "FL",
+          "x": 0.767,
+          "y": 0.339,
+          "z": 1.232,
+          "r": 0.339,
+          "w": 0.191
+        },
+        {
+          "id": "FR",
+          "x": -0.768,
+          "y": 0.339,
+          "z": 1.232,
+          "r": 0.339,
+          "w": 0.191
+        },
+        {
+          "id": "RL",
+          "x": 0.767,
+          "y": 0.339,
+          "z": -1.27,
+          "r": 0.339,
+          "w": 0.191
+        },
+        {
+          "id": "RR",
+          "x": -0.768,
+          "y": 0.339,
+          "z": -1.27,
+          "r": 0.339,
+          "w": 0.191
+        }
+      ],
+      "tris": {
+        "lod0": 48410,
+        "lod1": 6015
+      },
+      "source": {
+        "site": "Sketchfab",
+        "uid": "1a5cbddc8acb457e9d896d7345fd07d8",
+        "title": "2022 Maruti Suzuki Vitara Brezza",
+        "author": "BHP3D",
+        "url": "https://sketchfab.com/3d-models/1a5cbddc8acb457e9d896d7345fd07d8",
+        "license": "CC-BY-4.0"
+      }
+    },
+    "kl_ertiga": {
+      "file": "cars/kl_ertiga.glb",
+      "imported": true,
+      "name": "Maruti Ertiga",
+      "length": 4.393,
+      "width": 2.025,
+      "height": 1.799,
+      "wheels": [
+        {
+          "id": "FL",
+          "x": 0.766,
+          "y": 0.315,
+          "z": 1.423,
+          "r": 0.315,
+          "w": 0.177
+        },
+        {
+          "id": "FR",
+          "x": -0.764,
+          "y": 0.315,
+          "z": 1.423,
+          "r": 0.315,
+          "w": 0.177
+        },
+        {
+          "id": "RL",
+          "x": 0.766,
+          "y": 0.319,
+          "z": -1.317,
+          "r": 0.315,
+          "w": 0.177
+        },
+        {
+          "id": "RR",
+          "x": -0.764,
+          "y": 0.319,
+          "z": -1.317,
+          "r": 0.315,
+          "w": 0.177
+        }
+      ],
+      "tris": {
+        "lod0": 85573,
+        "lod1": 4066
+      },
+      "source": {
+        "site": "Sketchfab",
+        "uid": "4f14afac3ac44ec4a2fb153e18452f8b",
+        "title": "2022 Suzuki Ertiga",
+        "author": "BHP3D",
+        "url": "https://sketchfab.com/3d-models/4f14afac3ac44ec4a2fb153e18452f8b",
+        "license": "CC-BY-4.0"
+      }
+    },
+    "kl_scorpio": {
+      "file": "cars/kl_scorpio.glb",
+      "imported": true,
+      "name": "Mahindra Scorpio-N",
+      "length": 4.66,
+      "width": 2.17,
+      "height": 1.618,
+      "wheels": [
+        {
+          "id": "FL",
+          "x": 0.794,
+          "y": 0.378,
+          "z": 1.474,
+          "r": 0.379,
+          "w": 0.264
+        },
+        {
+          "id": "FR",
+          "x": -0.775,
+          "y": 0.378,
+          "z": 1.474,
+          "r": 0.379,
+          "w": 0.264
+        },
+        {
+          "id": "RL",
+          "x": 0.794,
+          "y": 0.378,
+          "z": -1.269,
+          "r": 0.379,
+          "w": 0.264
+        },
+        {
+          "id": "RR",
+          "x": -0.775,
+          "y": 0.378,
+          "z": -1.269,
+          "r": 0.379,
+          "w": 0.264
+        }
+      ],
+      "tris": {
+        "lod0": 50825,
+        "lod1": 11772
+      },
+      "source": {
+        "site": "Sketchfab",
+        "uid": "538b10f2860f44e694dc3e9d3e223bf8",
+        "title": "2022 Mahindra Scorpio-N",
+        "author": "BHP3D",
+        "url": "https://sketchfab.com/3d-models/538b10f2860f44e694dc3e9d3e223bf8",
+        "license": "CC-BY-4.0"
+      }
+    },
+    "kl_thar": {
+      "file": "cars/kl_thar.glb",
+      "imported": true,
+      "name": "Mahindra Thar",
+      "length": 3.985,
+      "width": 1.901,
+      "height": 1.323,
+      "wheels": [
+        {
+          "id": "FL",
+          "x": 0.815,
+          "y": 0.403,
+          "z": 0.966,
+          "r": 0.404,
+          "w": 0.423
+        },
+        {
+          "id": "FR",
+          "x": -0.815,
+          "y": 0.403,
+          "z": 0.968,
+          "r": 0.404,
+          "w": 0.423
+        },
+        {
+          "id": "RL",
+          "x": 0.815,
+          "y": 0.403,
+          "z": -1.32,
+          "r": 0.404,
+          "w": 0.423
+        },
+        {
+          "id": "RR",
+          "x": -0.815,
+          "y": 0.403,
+          "z": -1.318,
+          "r": 0.404,
+          "w": 0.423
+        }
+      ],
+      "tris": {
+        "lod0": 6796,
+        "lod1": 3824
+      },
+      "source": {
+        "site": "Sketchfab",
+        "uid": "6e723690d42748ad9887ce2d7dfa1acc",
+        "title": "Mahindra Thar (Prisma 3d)",
+        "author": "X_BLADE.",
+        "url": "https://sketchfab.com/3d-models/6e723690d42748ad9887ce2d7dfa1acc",
+        "license": "CC-BY-4.0"
+      }
+    },
+    "kl_lorry": {
+      "file": "cars/kl_lorry.glb",
+      "imported": true,
+      "name": "Tata lorry",
+      "length": 7.797,
+      "width": 3.794,
+      "height": 4.211,
+      "wheels": [],
+      "tris": {
+        "lod0": 14999,
+        "lod1": 2581
+      },
+      "source": {
+        "site": "Sketchfab",
+        "uid": "be4e08a68a0441f8a41619c3abd73a3a",
+        "title": "TATA 2515",
+        "author": "danieljorge435",
+        "url": "https://sketchfab.com/3d-models/be4e08a68a0441f8a41619c3abd73a3a",
+        "license": "CC-BY-4.0"
+      }
+    },
+    "kl_minitruck": {
+      "file": "cars/kl_minitruck.glb",
+      "imported": true,
+      "name": "Tata Ace",
+      "length": 3.8,
+      "width": 1.954,
+      "height": 1.819,
+      "wheels": [
+        {
+          "id": "FL",
+          "x": 0.437,
+          "y": 0.306,
+          "z": 1.411,
+          "r": 0.306,
+          "w": 0.27
+        },
+        {
+          "id": "FR",
+          "x": -0.44,
+          "y": 0.306,
+          "z": 1.416,
+          "r": 0.306,
+          "w": 0.27
+        },
+        {
+          "id": "RL",
+          "x": 0.434,
+          "y": 0.309,
+          "z": -0.977,
+          "r": 0.306,
+          "w": 0.27
+        },
+        {
+          "id": "RR",
+          "x": -0.445,
+          "y": 0.309,
+          "z": -0.973,
+          "r": 0.306,
+          "w": 0.27
+        }
+      ],
+      "tris": {
+        "lod0": 27261,
+        "lod1": 3354
+      },
+      "source": {
+        "site": "Sketchfab",
+        "uid": "71e499219de548a7a1be74c237b6a2fb",
+        "title": "Mini-Truck",
+        "author": "roy.3dartist",
+        "url": "https://sketchfab.com/3d-models/71e499219de548a7a1be74c237b6a2fb",
+        "license": "CC-BY-4.0"
+      }
     }
   },
   "wheels": {
@@ -4997,6 +5525,17 @@
     "cars/honda_nsx_na1.glb": "1b6c5d3c2c",
     "cars/kawasaki_ninja_h2.glb": "66216bbf7d",
     "cars/kawasaki_zx6r.glb": "04fb05f437",
+    "cars/kl_auto.glb": "98a8002568",
+    "cars/kl_brezza.glb": "30987373c5",
+    "cars/kl_dzire.glb": "a179b7b703",
+    "cars/kl_ertiga.glb": "1be13011f7",
+    "cars/kl_ksrtc.glb": "49d9467134",
+    "cars/kl_lorry.glb": "8aa9409c4f",
+    "cars/kl_m800.glb": "d55a6292dd",
+    "cars/kl_minitruck.glb": "415c590a70",
+    "cars/kl_pvtbus.glb": "a4cb21215f",
+    "cars/kl_scorpio.glb": "600ac1856f",
+    "cars/kl_thar.glb": "32038f9347",
     "cars/lamborghini_centenario.glb": "6c9aa6918e",
     "cars/lamborghini_huracan_tt.glb": "3a5864e8ee",
     "cars/mazda_rx7_fd.glb": "4cea2d5b82",

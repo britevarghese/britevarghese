@@ -451,7 +451,7 @@ export class UIManager {
       const dpr = Math.min(2, devicePixelRatio);
       if (canvas.width !== Math.round(r.width * dpr)) { canvas.width = Math.round(r.width * dpr); canvas.height = Math.round(r.height * dpr); }
       const c = canvas.getContext('2d');
-      const M = g.mapRenderer;
+      const KL = !!g.world.kerala, M = KL ? g.keralaOverview : g.mapRenderer;
       const k = canvas.width / M.size;
       c.clearRect(0, 0, canvas.width, canvas.height);
       c.drawImage(M.canvas, 0, 0, canvas.width, canvas.height);
@@ -462,8 +462,8 @@ export class UIManager {
       };
       if (g.gps?.route) { c.strokeStyle = 'rgba(55,226,255,0.9)'; c.lineWidth = 3 * dpr; c.beginPath(); g.gps.route.forEach(([x, z], i) => { const [a, b] = P(x, z); i ? c.lineTo(a, b) : c.moveTo(a, b); }); c.stroke(); }
       for (const ev of g.races.events) dot(ev.start.x, ev.start.z, 6, ev.def.type === 'escape' ? '#3d7bff' : '#ffc53d', ev.def.name);
-      for (const sh of SAFEHOUSES) dot(sh.x, sh.z, 6, '#3dff9a', sh.name);
-      for (const sh of SHOPS) dot(sh.x, sh.z, 5, '#ff9a3d', sh.name);
+      if (!KL) for (const sh of SAFEHOUSES) dot(sh.x, sh.z, 6, '#3dff9a', sh.name);
+      if (!KL) for (const sh of SHOPS) dot(sh.x, sh.z, 5, '#ff9a3d', sh.name);
       for (const u of g.police.units) dot(u.vehicle.state.x, u.vehicle.state.z, 4, '#ff3040');
       if (!g.story?.active) for (const [gid, m] of Object.entries(g.story?.available() || {})) { const gv = g.story._giver(gid); dot(gv.x, gv.z, 8, CAST[gid].color, `${CAST[gid].name}: ${m.title}`); }
       for (const b of g.empire?.blips() || []) dot(b.x, b.z, 5, b.color, b.label);
@@ -474,14 +474,14 @@ export class UIManager {
       c.beginPath(); c.moveTo(0, -14 * dpr); c.lineTo(10 * dpr, 11 * dpr); c.lineTo(0, 6 * dpr); c.lineTo(-10 * dpr, 11 * dpr); c.closePath(); c.stroke(); c.fill(); c.restore();
       // district labels
       c.fillStyle = 'rgba(255,255,255,0.3)'; c.font = `600 ${13 * dpr}px Segoe UI, Arial`; c.textAlign = 'center';
-      for (const [n, x, z] of [['DOWNTOWN', 0, 0], ['MARKET DISTRICT', -560, -320], ['IRONWORKS', 820, 400], ['DOCKSIDE', 820, -560], ['ELM HEIGHTS', -800, 700], ['RIVERSIDE', 560, 820], ['RING HIGHWAY', 0, 1250], ['HALVERN RANGE', 1100, 2500], ['OBSERVATORY', 1545, 3020], ['HALVERN COAST', 0, -2050], ['HARVEST VALLEY', -2350, 150], ['WIND FARM', -2100, 1330], ['PORT HALVERN SIGN', -150, 2230]]) { const [a, b] = P(x, z); c.fillText(n, a, b); }
+      if (!KL) for (const [n, x, z] of [['DOWNTOWN', 0, 0], ['MARKET DISTRICT', -560, -320], ['IRONWORKS', 820, 400], ['DOCKSIDE', 820, -560], ['ELM HEIGHTS', -800, 700], ['RIVERSIDE', 560, 820], ['RING HIGHWAY', 0, 1250], ['HALVERN RANGE', 1100, 2500], ['OBSERVATORY', 1545, 3020], ['HALVERN COAST', 0, -2050], ['HARVEST VALLEY', -2350, 150], ['WIND FARM', -2100, 1330], ['PORT HALVERN SIGN', -150, 2230]]) { const [a, b] = P(x, z); c.fillText(n, a, b); }
       c.textAlign = 'start';
       requestAnimationFrame(draw);
     };
     requestAnimationFrame(draw);
     canvas.addEventListener('click', (e) => {
       const r = canvas.getBoundingClientRect();
-      const M = g.mapRenderer;
+      const M = g.world.kerala ? g.keralaOverview : g.mapRenderer;
       const mx = (e.clientX - r.left) / r.width * M.size, mz = (e.clientY - r.top) / r.height * M.size;
       const x = M.wx(mx), z = M.wz(mz);
       g.setGPS(x, z);
