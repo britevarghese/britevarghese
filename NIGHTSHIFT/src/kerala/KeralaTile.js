@@ -353,7 +353,7 @@ export class KeralaTile {
     this._nearJunction = null;
     const out = [];
     const add = (list, mat, name) => { if (!list.length) return; const gg = mergeGeometries(list); if (!gg) return; const m = new THREE.Mesh(gg, mat); m.receiveShadow = true; m.name = name; out.push(m); };
-    add(paved, M.road, 'roads');
+    add(paved, M.klRoad || M.road, 'roads');
     add(dirt, M.klDirtRoad || M.dirt, 'tracks');
     add(white, M.klLineWhite, 'lines');
     add(yellow, M.klLineYellow, 'linesY');

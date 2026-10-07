@@ -49,21 +49,85 @@ function addMacro(mat, { macro = 0.12, puddles = 0 } = {}) {
 // hue shifts, darker weathering near the street (splash-back grime + ambient occlusion where the wall meets
 // the pavement) and a faint roof-line fade. Emissive windows are untouched.
 function addFacadeGrade(mat) {
+  // Kerala's buildings stand on terrain: their height above the base comes from the facade uv (v = height /
+  // 8 floors of the texture), not from world y
+  const gradeUv = { value: 0 }, floorsH = { value: 24.8 };
+  mat.userData.gradeUv = gradeUv; mat.userData.floorsH = floorsH;
   mat.customProgramCacheKey = () => 'facadeGrade';
   mat.onBeforeCompile = (sh) => {
+    sh.uniforms.uGradeUv = gradeUv; sh.uniforms.uFloorsH = floorsH;
     sh.vertexShader = 'varying vec3 vWPos;\n' + sh.vertexShader.replace('#include <begin_vertex>', '#include <begin_vertex>\n  vWPos = (modelMatrix * vec4(transformed, 1.0)).xyz;');
-    sh.fragmentShader = MACRO_GLSL.replace('uniform float uMacro, uWet, uPuddles;', '') + sh.fragmentShader.replace('#include <map_fragment>', `#include <map_fragment>
+    sh.fragmentShader = 'uniform float uGradeUv, uFloorsH;\n' + MACRO_GLSL.replace('uniform float uMacro, uWet, uPuddles;', '') + sh.fragmentShader.replace('#include <map_fragment>', `#include <map_fragment>
   {
     float blk = mNoise(vWPos.xz * 0.018 + 3.0), blk2 = mNoise(vWPos.xz * 0.018 + 41.0);
     diffuseColor.rgb *= 0.86 + 0.26 * blk;
     diffuseColor.rgb *= mix(vec3(1.04, 0.99, 0.94), vec3(0.95, 0.99, 1.05), blk2);
+    #ifdef USE_MAP
+    float h = mix(vWPos.y, vMapUv.y * uFloorsH, uGradeUv);
+    #else
     float h = vWPos.y;
+    #endif
     float grime = (1.0 - smoothstep(0.0, 3.2, h)) * (0.55 + 0.45 * mFbm(vec2(vWPos.x + vWPos.z, h) * vec2(0.9, 3.0)));
     diffuseColor.rgb *= 1.0 - 0.28 * grime;
     diffuseColor.rgb *= mix(0.62, 1.0, smoothstep(0.0, 1.4, h));
   }`);
   };
   return mat;
+}
+
+// Kerala's roads: the ribbon's uv runs across the road (u 0..1) and along it (v * 7 m). On top of the shared
+// asphalt: polished, oil-darkened tyre tracks in each lane, repair patches, hairline cracks, the odd pothole
+// (full of water in the rain), ragged edges where the tarmac crumbles into the laterite verge, puddles in the
+// ruts. uWear: how hard the road is used (highways polish more, lanes crack and crumble more).
+export function keralaRoadMaterial(base) {
+  const u = { uWet: { value: 0 }, uMacro: { value: 0.16 }, uPuddles: { value: 1 } };
+  const m = new THREE.MeshStandardMaterial({ name: 'klRoad', map: base.map, normalMap: base.normalMap, normalScale: base.normalScale?.clone(), roughnessMap: base.roughnessMap, roughness: 1, metalness: 0, envMapIntensity: 0.4 });
+  m.userData.u = u;
+  m.customProgramCacheKey = () => 'klRoad';
+  m.onBeforeCompile = (sh) => {
+    Object.assign(sh.uniforms, u);
+    sh.vertexShader = 'varying vec3 vWPos;\n' + sh.vertexShader.replace('#include <begin_vertex>', '#include <begin_vertex>\n  vWPos = (modelMatrix * vec4(transformed, 1.0)).xyz;');
+    sh.fragmentShader = MACRO_GLSL + sh.fragmentShader
+      .replace('#include <map_fragment>', `
+  float mN1 = mFbm(vWPos.xz * 0.06), mN2 = mFbm(vWPos.xz * 0.012 + 11.0);
+  float ru = vMapUv.x, along = vMapUv.y * 7.0;
+  // ragged, crumbling edges: the verge shows through
+  float edge = min(ru, 1.0 - ru) - 0.07 * mFbm(vec2(along * 0.45, ru * 9.0) + 3.0);
+  if (edge < 0.004) discard;
+  vec4 mA = texture2D(map, vMapUv);
+  vec4 mB = texture2D(map, mat2(0.8, -0.6, 0.6, 0.8) * vMapUv * 0.71 + vec2(0.37, 0.13));
+  diffuseColor *= mix(mA, mB, smoothstep(0.3, 0.7, mN1));
+  diffuseColor.rgb *= (1.0 - uMacro) + uMacro * 1.6 * mN2 + (mN1 - 0.5) * uMacro * 0.5;
+  // tyre tracks (two per lane) polished darker; an oily drip line between them
+  float tr = 0.0;
+  tr += exp(-pow((ru - 0.16) / 0.05, 2.0)) + exp(-pow((ru - 0.34) / 0.05, 2.0)) + exp(-pow((ru - 0.66) / 0.05, 2.0)) + exp(-pow((ru - 0.84) / 0.05, 2.0));
+  float oil = (exp(-pow((ru - 0.25) / 0.035, 2.0)) + exp(-pow((ru - 0.75) / 0.035, 2.0))) * smoothstep(0.35, 0.75, mFbm(vec2(along * 0.35, ru * 2.0) + 9.0));
+  diffuseColor.rgb *= 1.0 - 0.09 * tr - 0.16 * oil;
+  // repair patches: squarish, fresher (darker) or old and greyed
+  vec2 cell = floor(vWPos.xz / 4.0), fc = fract(vWPos.xz / 4.0);
+  float pr = mHash(cell + 7.3);
+  float inPatch = step(0.83, pr) * step(0.12, fc.x) * step(fc.x, 0.88 - 0.4 * mHash(cell + 1.7)) * step(0.15, fc.y) * step(fc.y, 0.9 - 0.4 * mHash(cell + 4.1));
+  diffuseColor.rgb *= mix(1.0, pr > 0.92 ? 0.72 : 1.14, inPatch);
+  // hairline cracks (and crazing at the edges)
+  float ck = abs(mFbm(vWPos.xz * 0.42 + 21.0) - 0.5);
+  float crack = (1.0 - smoothstep(0.0, 0.012, ck)) * smoothstep(0.45, 0.62, mFbm(vWPos.xz * 0.05 + 2.0) + (0.1 - min(edge, 0.1)) * 3.0);
+  diffuseColor.rgb *= 1.0 - 0.45 * crack;
+  // dust blown on near the verge
+  diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.42, 0.33, 0.25), (1.0 - smoothstep(0.0, 0.07, edge)) * 0.45 * (1.0 - uWet));
+  // potholes: rare dark bowls
+  float ph = smoothstep(0.8, 0.86, mFbm(vWPos.xz * 0.55 + 31.0)) * step(0.72, mHash(floor(vWPos.xz / 9.0) + 2.0));
+  diffuseColor.rgb *= 1.0 - 0.5 * ph;
+  float kPot = ph, kTrack = tr;`)
+      .replace('#include <roughnessmap_fragment>', `#include <roughnessmap_fragment>
+  roughnessFactor *= (0.92 + 0.16 * mN1) * (1.0 - 0.12 * kTrack);
+  if (uWet > 0.0) {
+    // standing water: in the potholes, along the ruts, in the low spots
+    float pd = max(kPot, smoothstep(0.6, 0.7, mFbm(vWPos.xz * 0.09 + 5.0)) * (0.6 + 0.4 * kTrack)) * uWet;
+    roughnessFactor = mix(roughnessFactor, 0.03, pd);
+    diffuseColor.rgb *= 1.0 - pd * 0.35;
+  }`);
+  };
+  return m;
 }
 
 export class Materials {

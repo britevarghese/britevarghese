@@ -8,6 +8,7 @@ import { CollisionWorld } from '../physics/Collision.js';
 import { KeralaTile, TILE, C, decodeBinary } from './KeralaTile.js';
 import * as TX from '../renderer/Textures.js';
 import { KERALA_FACADE, KERALA_SHOP } from '../renderer/Textures.js';
+import { keralaRoadMaterial } from '../renderer/Materials.js';
 import { KeralaLaneGraph } from './KeralaLanes.js';
 import { KeralaRouter } from './KeralaRouter.js';
 import { KeralaTrees } from './KeralaTrees.js';
@@ -64,6 +65,8 @@ export class KeralaWorld {
     this.root = new THREE.Group(); this.root.name = 'kerala';
     scene.add(this.root);
     // materials the tiles share
+    M.klRoad = keralaRoadMaterial(M.road);
+    for (const f of M.facades || []) if (f.userData.gradeUv) f.userData.gradeUv.value = 1; // weathering from the base up
     M.terrainDetail = TX.grass().map;
     M.klRoofTile = new THREE.MeshStandardMaterial({ name: 'klRoofTile', color: 0xffffff, map: mangaloreTiles(), roughness: 0.85 });
     M.klPole = new THREE.MeshLambertMaterial({ name: 'klPole', color: 0x9a968c });
@@ -272,6 +275,9 @@ export class KeralaWorld {
     }
     if (best) this._buildTile(best);
     this.trees?.update(camera, this.tiles);
+    // the Kerala road follows the shared road's wet / dry look
+    const R = this.M?.klRoad, B = this.M?.road;
+    if (R && B) { R.userData.u.uWet.value = this.wet || 0; R.roughness = B.roughness; R.color.copy(B.color); R.envMapIntensity = B.envMapIntensity; if (R.roughnessMap !== B.roughnessMap) { R.roughnessMap = B.roughnessMap; R.needsUpdate = true; } }
     // road markings only on the tiles near the camera (sub-pixel further out)
     if (!this._mkT || (this._mkT += dt) > 0.5) {
       this._mkT = 1e-6;
