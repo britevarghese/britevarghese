@@ -226,9 +226,14 @@ export class Pedestrians {
           continue;
         }
       }
+      if (p.walkTo && !p.board) p.board = { x: p.walkTo.x, z: p.walkTo.z, then: p.walkTo.then }, p.walkTo = null;
       if (p.board) {
         const dx = p.board.x - p.x, dz = p.board.z - p.z, l = Math.hypot(dx, dz);
-        if (l < 1.2) { this._release(p); this.peds.splice(i, 1); continue; }
+        // walking over to something: get on the bus (gone), or stand there (an onlooker)
+        if (l < 1.2) {
+          if (p.board.then) { p.stand = p.board.then; p.board = null; p.ox = p.oz = 0; continue; }
+          this._release(p); this.peds.splice(i, 1); continue;
+        }
         p.x += dx / l * 1.6 * dt; p.z += dz / l * 1.6 * dt; p.yaw = Math.atan2(dx, dz); p.d = d;
         if (p.human) { p.human.clearAction(0.2); const hg = p.human.group; hg.position.set(p.x, this._gy(p.x, p.z), p.z); hg.rotation.set(0, p.yaw, 0); hg.updateMatrixWorld(true); p.human.animate(1.6, dt); continue; }
       }

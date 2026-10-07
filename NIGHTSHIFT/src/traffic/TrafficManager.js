@@ -181,6 +181,7 @@ export class TrafficManager {
       for (const f of foci) dm = Math.min(dm, Math.hypot(c.x - f.x, c.z - f.z));
       // cars left well behind are recycled so the budget stays around (and ahead of) the player
       const behind = forward && dm === d && d > 150 && ((c.x - focus.x) * forward.x + (c.z - focus.z) * forward.z) / d < -0.4 && this.cars.length >= max * 0.8;
+      if (c.incident) continue; // an accident scene stays until it is cleared
       if (c.path?.dead || dm > 310 || behind || (c.state === 'wreck' && dm > 120) || this.cars.length > max + 4 && dm > 200) this.remove(c);
     }
     // sort occupancy
@@ -436,6 +437,13 @@ export class TrafficManager {
     return res;
   }
 
+  // something (an incident) shunts this car: off its lane, sliding with this velocity and spin
+  knock(c, vx, vz, yawRate = 0) {
+    if (c.state === 'drive' || c.state === 'parked') { const i = c.path?.cars.indexOf(c) ?? -1; if (i >= 0) c.path.cars.splice(i, 1); }
+    c.state = 'knocked'; c.knockT = 0; c.brake = 1; c.v = 0;
+    c.s2.x = c.x; c.s2.z = c.z; c.s2.vx = vx; c.s2.vz = vz; c.s2.yawRate = yawRate;
+  }
+
   _knocked(c, dt) {
     const s = c.s2;
     c.knockT += dt;
@@ -456,7 +464,7 @@ export class TrafficManager {
       box.cx = c.x; box.cz = c.z;
     }
     if (c.knockT > 2.5 && Math.hypot(s.vx, s.vz) < 0.5) c.state = 'wreck';
-    if (c.state === 'wreck' && c.knockT > 14) {
+    if (c.state === 'wreck' && c.knockT > 14 && !c.incident) {
       // try to rejoin traffic if the car is still near a lane and roughly aligned
       const near = this.graph.nearest(c.x, c.z);
       if (near && near.dist < 2 && !near.lane.cars.some((o) => Math.abs(o.s - near.s) < 10)) {

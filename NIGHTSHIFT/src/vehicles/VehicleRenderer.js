@@ -419,9 +419,19 @@ export class VehicleRenderer {
   }
 
   _policeLights() {
-    const lb = this.markers.lightbar;
+    let lb = this.markers.lightbar;
     this.police = { t: Math.random() * 10, red: [], blue: [] };
-    if (!lb) return;
+    if (!lb) {
+      // models without a lightbar (Kerala police jeeps, ambulances): a bar on the roof, from the body's bounds
+      this.body.updateMatrixWorld(true);
+      const box = new THREE.Box3().setFromObject(this.body), c = box.getCenter(new THREE.Vector3());
+      lb = { position: new THREE.Vector3(0, box.max.y + 0.06, c.z + (box.max.z - box.min.z) * 0.05) };
+      const bar = new THREE.Group();
+      const mk = (x, col) => { const m = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.1, 0.2), new THREE.MeshStandardMaterial({ color: col, emissive: col, emissiveIntensity: 0.6, roughness: 0.3 })); m.position.set(x, 0, 0); bar.add(m); };
+      mk(0.23, 0xd01020); mk(-0.23, 0x1040d0);
+      bar.position.copy(lb.position).add(new THREE.Vector3(0, -0.02, 0));
+      this.body.add(bar);
+    }
     for (const [side, arr, color, tex] of [[1, this.police.red, 0xff2030, glowRed()], [-1, this.police.blue, 0x3060ff, radialGlow('rgba(80,120,255,1)', 'rgba(40,80,255,0.35)')]]) {
       const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, color, blending: THREE.AdditiveBlending, depthWrite: false, transparent: true, toneMapped: false }));
       s.position.copy(lb.position).add(new THREE.Vector3(side * 0.35, 0.02, 0));

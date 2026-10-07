@@ -11,6 +11,7 @@ import { Effects } from '../renderer/Effects.js';
 import { WorldManager } from '../world/WorldManager.js';
 import { KeralaWorld } from '../kerala/KeralaWorld.js';
 import { SkinnedRider } from '../vehicles/Rider.js';
+import { Incidents } from '../world/Incidents.js';
 import { KeralaMap, KeralaOverview } from '../kerala/KeralaMap.js';
 // the world is the real Kerala (streamed OpenStreetMap tiles); the old Port Halvern map is still there as ?world=halvern
 export const KERALA = !(typeof location !== 'undefined' && new URLSearchParams(location.search).get('world') === 'halvern');
@@ -116,6 +117,7 @@ export class Game {
     this.story = new Story(this);
     this.empire = new Empire(this);
     this.peds = new Pedestrians(this.scene, this.world.layout, preset.pedestrians);
+    this.incidents = new Incidents(this);
     // realistic people (rigged characters): streamed in after the city, then used for the player on
     // foot, other players, mission contacts and the pedestrians nearest the camera
     this.humans = new HumanLibrary(this.assets, this.lib.manifest);
@@ -658,10 +660,11 @@ export class Game {
       this._playerEvents(events, dt);
       // police + traffic
       this.police.update(dt, this.traffic);
+      this.incidents.update(dt);
       if (this.onFoot.active && driving) this.onFoot.update(dt, input);
       this.onFoot.updateParked(dt, this.camera.position, this.env.state);
       for (const v of this.onFoot.parked) if (Math.abs(v.state.x - player.state.x) < 8 && Math.abs(v.state.z - player.state.z) < 8) VehiclePhysics.resolvePair(player.physics, v.physics);
-      const dynamic = [player, ...this.onFoot.parked, ...this.police.vehicles(), ...this.races.vehicles(), ...this.rivals.vehicles(), ...this.story.vehicles(), ...this.net.trafficObstacles()];
+      const dynamic = [player, ...this.onFoot.parked, ...this.police.vehicles(), ...this.races.vehicles(), ...this.rivals.vehicles(), ...this.story.vehicles(), ...this.net.trafficObstacles(), ...this.incidents.vehicles()];
       const fwd = { x: Math.sin(player.state.yaw), z: Math.cos(player.state.yaw) };
       this.traffic.camera = this.camera;
       const fs = this.focusState;
@@ -780,7 +783,7 @@ export class Game {
     // traffic and people see each other: walkers wait for a gap, drivers stop for people crossing
     this.peds.traffic = this.traffic.cars;
     this.traffic.crossing = this.peds.peds.filter((q) => q.crossing && !q.down);
-    this.peds.update(simulate ? dt : 0, this.camera, [player, ...this.police.vehicles()], this.preset.pedestrians > 0);
+    this.peds.update(simulate ? dt : 0, this.camera, [player, ...this.police.vehicles(), ...this.incidents.vehicles()], this.preset.pedestrians > 0);
     // audio
     this._audio(dt, mode);
     // render
@@ -971,7 +974,7 @@ export class Game {
       });
     }
     if (this.nitroWas !== s.nitroActive) { a.playEvent(s.nitroActive ? 'nitroStart' : 'nitroEnd'); this.nitroWas = s.nitroActive; }
-    a.setSirens(this.police.sirenList());
+    a.setSirens([...this.police.sirenList(), ...this.incidents.sirenList()]);
     const near = this.traffic.cars.filter((t) => t.dist < 80).sort((x, y) => x.dist - y.dist).slice(0, 6).map((t) => ({ id: t.id, position: { x: t.x, y: 0.5, z: t.z }, speed: t.v }));
     a.setTraffic(near);
     a.setEnvironment({ rain: this.env.state.rain, speed: Math.abs(s.speed), night: this.env.state.night > 0.5, district: this.world.districtAt(s.x, s.z).id });
