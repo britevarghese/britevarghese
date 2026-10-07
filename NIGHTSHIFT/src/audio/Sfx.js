@@ -269,6 +269,12 @@ const R = {
     s.noiseHit('brown', 'lowpass', 600, 1, t, 0.001, 0.8 * k, 0.07);
     s.noiseHit('white', 'bandpass', rand(2200, 3400), 1.6, t + 0.002, 0.0005, 0.45 * k, 0.025);
   },
+  // thunder: a crack and a long rolling rumble
+  thunder(s, t) {
+    s.noiseHit('white', 'lowpass', 2400, 0.7, t, 0.005, 0.5, 0.25, 300);
+    s.noiseHit('brown', 'lowpass', 220, 0.8, t + 0.05, 0.4, 1.0, 3.5, 60);
+    s.noiseHit('brown', 'lowpass', 140, 0.8, t + 0.6, 0.6, 0.8, 4.0, 50);
+  },
   // a swing through the air
   whoosh(s, t) {
     s.noiseHit('white', 'bandpass', 900, 1.2, t, 0.05, 0.16, 0.12, 2400);

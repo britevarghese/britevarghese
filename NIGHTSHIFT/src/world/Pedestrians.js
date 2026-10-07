@@ -56,6 +56,14 @@ export class Pedestrians {
     this.meshHair = mk(hair);
     this.meshHandL = mk(hand); this.meshHandR = mk(hand); this.meshShoeL = mk(shoe); this.meshShoeR = mk(shoe);
     this.limbMeshes = [this.meshLegL, this.meshLegR, this.meshArmL, this.meshArmR, this.meshHandL, this.meshHandR, this.meshShoeL, this.meshShoeR];
+    // umbrellas for the monsoon: a ribbed canopy on a pole (most are black in Kerala)
+    const canopy = new THREE.ConeGeometry(0.56, 0.26, 8, 1, true).translate(0, 0.13, 0);
+    const pole = new THREE.CylinderGeometry(0.012, 0.012, 0.75, 4).translate(0, -0.3, 0);
+    const umb = mergeGeometries([clean(canopy), clean(pole)]);
+    this.meshUmb = new THREE.InstancedMesh(umb, new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.6, side: THREE.DoubleSide }), max);
+    this.meshUmb.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(max * 3), 3);
+    this.meshUmb.count = 0; this.meshUmb.frustumCulled = false; this.meshUmb.castShadow = true; scene.add(this.meshUmb);
+    this.rain = 0;
   }
 
   _spawn(focus) {
@@ -75,7 +83,7 @@ export class Pedestrians {
         skin: kl ? KL_SKIN[Math.floor(R() * KL_SKIN.length)] : SKIN[Math.floor(R() * SKIN.length)],
         hair: kl ? 0x0e0c0a : R() < 0.12 ? -1 : HAIR[Math.floor(R() * HAIR.length)],
         shoes: SHOES[Math.floor(R() * SHOES.length)], model: Math.floor(R() * 1000),
-        build: 0.88 + R() * 0.3, scale: 0.9 + R() * 0.14, brave: R() * 0.8, wait: 0, dodge: 0, dx: 0, dz: 0, x: 0, z: 0, yaw: 0,
+        build: 0.88 + R() * 0.3, scale: 0.9 + R() * 0.14, brave: R() * 0.8, umb: R() < 0.7 ? (R() < 0.7 ? 0x141414 : [0x1a3a8a, 0xb01818, 0x2a6a3a, 0x7a2a6a, 0xd8b020][Math.floor(R() * 5)]) : 0, wait: 0, dodge: 0, dx: 0, dz: 0, x: 0, z: 0, yaw: 0,
       });
       return;
     }
@@ -94,7 +102,7 @@ export class Pedestrians {
       hair: R() < 0.12 ? -1 : HAIR[Math.floor(R() * HAIR.length)],
       shoes: SHOES[Math.floor(R() * SHOES.length)], model: Math.floor(R() * 1000),
       build: 0.88 + R() * 0.3, // girth: slim .. heavy
-      scale: 0.92 + R() * 0.16, brave: R() * 0.8, wait: 0, dodge: 0, dx: 0, dz: 0, x: 0, z: 0, yaw: 0,
+      scale: 0.92 + R() * 0.16, brave: R() * 0.8, umb: R() < 0.7 ? (R() < 0.7 ? 0x141414 : [0x1a3a8a, 0xb01818, 0x2a6a3a, 0x7a2a6a, 0xd8b020][Math.floor(R() * 5)]) : 0, wait: 0, dodge: 0, dx: 0, dz: 0, x: 0, z: 0, yaw: 0,
     });
   }
 
@@ -128,8 +136,9 @@ export class Pedestrians {
 
   update(dt, camera, vehicles, enabled = true) {
     const focus = camera.position;
-    if (!enabled || this.max === 0) { for (const p of this.peds) this._release(p); for (const m of [this.meshTorso, this.meshHead, this.meshHair, ...this.limbMeshes]) m.count = 0; return; }
-    if (this.peds.length < this.max && this.R() < 0.6) this._spawn(focus);
+    if (!enabled || this.max === 0) { for (const p of this.peds) this._release(p); for (const m of [this.meshTorso, this.meshHead, this.meshHair, this.meshUmb, ...this.limbMeshes]) m.count = 0; return; }
+    if (this.peds.length < this.max * (1 - this.rain * 0.5) && this.R() < 0.6 * (1 - this.rain * 0.6)) this._spawn(focus);
+    let nu = 0;
     let n = 0, nl = 0;
     for (let i = this.peds.length - 1; i >= 0; i--) {
       const p = this.peds[i];
@@ -194,6 +203,14 @@ export class Pedestrians {
         yaw = y2; p.x = x + (p.ox || 0); p.z = z + (p.oz || 0); p.yaw = yaw;
       }
       p.d = d;
+      // caught in a downpour without an umbrella: hurry off indoors
+      if (this.rain > 0.5 && !p.umb && !p.fight && !p.flee && !p.crossing && this.R() < dt * 0.3) { p.flee = { x: p.x, z: p.z, vx: Math.sin(p.yaw) * 3.4, vz: Math.cos(p.yaw) * 3.4, t: 5 }; p.speed = 3.4; }
+      if (p.umb && this.rain > 0.2 && nu < this.meshUmb.instanceMatrix.count) {
+        const gy = this._gy(p.x, p.z), c = Math.cos(p.yaw), sn = Math.sin(p.yaw);
+        _e.set(0.12, p.yaw, 0.08); _q.setFromEuler(_e);
+        _m.compose(_p.set(p.x + c * 0.12, gy + 1.98 * p.scale, p.z - sn * 0.12), _q, _s.setScalar(p.scale));
+        this.meshUmb.setMatrixAt(nu, _m); this.meshUmb.setColorAt(nu++, _c.setHex(p.umb));
+      }
       if (p.human) {
         const hg = p.human.group;
         hg.position.set(p.x, this._gy(p.x, p.z), p.z); hg.rotation.set(0, yaw, 0);
@@ -233,6 +250,7 @@ export class Pedestrians {
       n++;
     }
     this._assignPeople();
+    this.meshUmb.count = nu; this.meshUmb.instanceMatrix.needsUpdate = true; if (this.meshUmb.instanceColor) this.meshUmb.instanceColor.needsUpdate = true;
     for (const m of [this.meshTorso, this.meshHead, this.meshHair]) { m.count = n; m.instanceMatrix.needsUpdate = true; m.instanceColor.needsUpdate = true; }
     for (const m of this.limbMeshes) { m.count = nl; m.instanceMatrix.needsUpdate = true; m.instanceColor.needsUpdate = true; }
     void clamp;

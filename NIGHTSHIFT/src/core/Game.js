@@ -73,6 +73,7 @@ export class Game {
     progress(0.2, 'Building environment...');
     await tick();
     this.env = new Environment(this.scene, r, preset);
+    this.env.onThunder = (delay) => setTimeout(() => this.audio?.playEvent('thunder', { volume: 0.9 }), delay * 1000);
     if (KERALA) this.env.haze = 2.2; // humid tropical air
     this.env.onChange((st) => this.materials.applyEnvironment(st));
     this.applyTime(); this.applyWeather(true);
@@ -704,11 +705,30 @@ export class Game {
     // environment & world streaming (always, so menus have a living background)
     if (this.settings.graphics.weather === 'auto') {
       this.weatherT -= dt;
-      if (this.weatherT <= 0) { this.weatherT = 180 + Math.random() * 240; const r = Math.random(); this.env.setWeather(r < 0.55 ? 'clear' : r < 0.8 ? 'cloudy' : 'rain'); }
+      if (this.weatherT <= 0) {
+        if (this.world.kerala) {
+          // Kerala monsoon: showers build from cloud to drizzle to downpour and pass, the sun comes out on wet roads;
+          // misty mornings
+          const MONSOON = {
+            clear: [['cloudy', 0.6], ['clear', 0.3], ['fog', 0.1]], fog: [['clear', 0.6], ['cloudy', 0.4]],
+            cloudy: [['drizzle', 0.4], ['rain', 0.25], ['clear', 0.35]], drizzle: [['rain', 0.5], ['cloudy', 0.3], ['clear', 0.2]],
+            rain: [['heavy', 0.35], ['drizzle', 0.3], ['cloudy', 0.35]], heavy: [['storm', 0.25], ['rain', 0.45], ['cloudy', 0.3]],
+            storm: [['heavy', 0.6], ['rain', 0.4]],
+          };
+          const cur = this.env.targetWeather in MONSOON ? this.env.targetWeather : 'clear';
+          let r = Math.random(), next = 'clear';
+          for (const [w, k] of MONSOON[cur]) { r -= k; if (r <= 0) { next = w; break; } }
+          const h = this.env.hour;
+          if (next === 'fog' && !(h > 4.5 && h < 9)) next = 'clear';
+          this.env.setWeather(next);
+          this.weatherT = (next === 'storm' ? 60 : 90) + Math.random() * 150;
+        } else { this.weatherT = 180 + Math.random() * 240; const r = Math.random(); this.env.setWeather(r < 0.55 ? 'clear' : r < 0.8 ? 'cloudy' : 'rain'); }
+      }
     }
     const fsv = this.onFoot.active ? (this._fsv ||= new THREE.Vector3()).set(this.onFoot.state.x, this.onFoot.state.y, this.onFoot.state.z) : player.renderer.group.position;
     this.env.viewVel = this.focusState; // rain streaks follow your speed
     this.env.update(simulate ? dt : 0, fsv, false, this.camera.position);
+    this.world.wet = this.env.state.wetness || 0; this.traffic.rain = this.env.state.rain || 0; this.peds.rain = this.env.state.rain || 0;
     if (mode === 'photo') this.photo.applyExposure();
     this.world.update(dt, this.camera, this.env.state);
     if (this.mapRenderer.update) { const f = this.focusState; this.mapRenderer.update(f.x, f.z); }

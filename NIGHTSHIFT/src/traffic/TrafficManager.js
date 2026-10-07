@@ -378,7 +378,10 @@ export class TrafficManager {
       const d = path.length - c.s;
       v0 = Math.min(v0, Math.sqrt(7.5 * 7.5 + 2 * 3 * Math.max(0, d)));
     }
-    const a = 2.2, b = 3.5, s0 = 2.2, T = 1.3;
+    // heavy rain: everyone slows down and leaves more room
+    const rain = this.rain || 0;
+    v0 *= 1 - 0.3 * rain;
+    const a = 2.2, b = 3.5, s0 = 2.2 + rain, T = 1.3 + rain * 0.7;
     const dv = c.v - leadV;
     const sStar = s0 + Math.max(0, c.v * T + c.v * dv / (2 * Math.sqrt(a * b)));
     const g = Math.max(0.1, gap);

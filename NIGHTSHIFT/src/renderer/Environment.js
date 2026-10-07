@@ -22,6 +22,14 @@ export const TIME_PRESETS = { morning: 7.2, day: 13, evening: 18.7, night: 23.3 
 const c1 = new THREE.Color(), c2 = new THREE.Color(), _envTop = new THREE.Color();
 function lerpColor(a, b, t, out) { c1.set(a); c2.set(b); return out.copy(c1).lerp(c2, t); }
 
+// weather states (rain 0..1, cloud cover 0..1, fog multiplier); storms add lightning and thunder
+const _grey = new THREE.Color();
+export const WEATHER = {
+  clear: { rain: 0, cloud: 0.15 }, cloudy: { rain: 0, cloud: 0.75 }, fog: { rain: 0, cloud: 0.6, fog: 3.2 },
+  drizzle: { rain: 0.3, cloud: 0.85, fog: 1.2 }, rain: { rain: 0.7, cloud: 0.95 }, heavy: { rain: 1, cloud: 1, fog: 1.5 },
+  storm: { rain: 1, cloud: 1, fog: 1.6, storm: true },
+};
+
 export class Environment {
   constructor(scene, renderer, preset) {
     this.scene = scene;
@@ -140,6 +148,9 @@ export class Environment {
       const pollution = this.state.night * smoothstep(0.25, 0, e) * 0.5;
       c.r += 0.09 * pollution; c.g += 0.055 * pollution; c.b += 0.035 * pollution;
       if (v.y < 0) c.copy(C.fog);
+      // overcast: the blue goes out of the sky, a flat grey takes over
+      const oc = smoothstep(0.45, 1, this.cloud) * 0.85;
+      if (oc > 0) { const l = (c.r * 0.3 + c.g * 0.59 + c.b * 0.11) * 1.05; c.lerp(_grey.setRGB(l, l * 1.01, l * 1.04), oc); }
       c.multiplyScalar(cloudDim + (1 - cloudDim) * 0.3);
       col.setXYZ(i, c.r, c.g, c.b);
     }
@@ -294,14 +305,20 @@ export class Environment {
     if (this.mode === 'cycle') this.hour = (this.hour + dt * (24 / (48 * 60))) % 24; // 48 real minutes per game day (GTA pace)
     else if (this.mode === 'real') { const d = new Date(); this.hour = d.getHours() + d.getMinutes() / 60 + d.getSeconds() / 3600; }
     // weather transitions
-    const targetRain = this.targetWeather === 'rain' ? 1 : 0;
-    const targetCloud = this.targetWeather === 'rain' ? 0.95 : this.targetWeather === 'cloudy' ? 0.75 : 0.15;
+    // weather states: rain intensity, cloud cover, extra fog (monsoon showers grade from drizzle to storm)
+    const W = WEATHER[this.targetWeather] || WEATHER.clear;
+    const targetRain = W.rain, targetCloud = W.cloud;
+    this.fogK = damp(this.fogK ?? 1, W.fog ?? 1, 0.25, dt);
+    this.storm = W.storm ? 1 : 0;
+    // lightning: a flash now and then in a storm, thunder a moment later
+    if (this.storm && dt > 0 && Math.random() < dt * 0.06) { this.flash = 1; this.onThunder?.(0.4 + Math.random() * 1.6); }
+    this.flash = Math.max(0, (this.flash || 0) - dt * 5);
     const prevRain = this.rain, prevCloud = this.cloud;
     this.rain = damp(this.rain, targetRain, 0.35, dt);
     this.cloud = damp(this.cloud, targetCloud, 0.3, dt);
     this.wetness = damp(this.wetness, Math.max(targetRain, this.rain > 0.2 ? 1 : 0), this.rain > 0.1 ? 0.3 : 0.05, dt);
     if (force) { this.rain = targetRain; this.cloud = targetCloud; this.wetness = targetRain; }
-    this.weather = this.rain > 0.5 ? 'rain' : this.cloud > 0.5 ? 'cloudy' : 'clear';
+    this.weather = this.rain > 0.5 ? 'rain' : this.rain > 0.15 ? 'drizzle' : this.cloud > 0.5 ? 'cloudy' : 'clear';
 
     // time of day interpolation
     let i = 0;
@@ -311,7 +328,7 @@ export class Environment {
     const C = this._colors;
     for (const k of ['skyTop', 'skyHor', 'glow', 'sun', 'hemiS', 'hemiG', 'fog']) lerpColor(a[k], b[k], t, C[k]);
     const night = lerp(a.night, b.night, t);
-    const changed = force || Math.abs(night - (this.state.night ?? -1)) > 0.002 || Math.abs(prevCloud - this.cloud) > 0.002 || Math.abs(prevRain - this.rain) > 0.002 || this.mode === 'cycle' || (this.mode === 'real' && Math.abs(this.hour - (this._lastRealHour ?? -9)) > 0.01);
+    const changed = force || (this.flash || 0) > 0 || Math.abs(night - (this.state.night ?? -1)) > 0.002 || Math.abs(prevCloud - this.cloud) > 0.002 || Math.abs(prevRain - this.rain) > 0.002 || this.mode === 'cycle' || (this.mode === 'real' && Math.abs(this.hour - (this._lastRealHour ?? -9)) > 0.01);
     if (this.mode === 'real' && changed) this._lastRealHour = this.hour;
     this.state.night = night;
     this.state.hour = this.hour;
@@ -328,7 +345,7 @@ export class Environment {
     this.sun.position.copy(focus).addScaledVector(lightDir, 200);
     this.sun.target.position.copy(focus);
     this.hemi.color.copy(C.hemiS); this.hemi.groundColor.copy(C.hemiG);
-    this.hemi.intensity = lerp(a.hemiI, b.hemiI, t) * (0.75 + 0.25 * cloudDim);
+    this.hemi.intensity = lerp(a.hemiI, b.hemiI, t) * (0.75 + 0.25 * cloudDim) + (this.flash || 0) * 2.5;
     const fogC = C.fog.clone().lerp(new THREE.Color(0x3a4048), this.rain * (1 - night) * 0.5);
     // tropical humidity (Kerala): a pale haze by day
     if (this.haze > 1) fogC.lerp(new THREE.Color(0xc2ccd0), Math.min(0.45, (this.haze - 1) * 0.3) * (1 - night));
@@ -336,7 +353,7 @@ export class Environment {
     const vd = this.preset.viewDistance;
     // long-range atmosphere: the far city (CityImpostor) and the landscape fill in past the streamed chunks,
     // so fog no longer has to hide the view distance; rain and night still close it in
-    this.scene.fog.density = 0.00024 * (1 + this.rain * 2.6 + this.cloud * 0.3) * (night > 0.5 ? 1.3 : 1) * (vd < 500 ? 2.2 : 1) * (this.haze || 1);
+    this.scene.fog.density = 0.00024 * (1 + this.rain * 2.6 + this.cloud * 0.3) * (night > 0.5 ? 1.3 : 1) * (vd < 500 ? 2.2 : 1) * (this.haze || 1) * (this.fogK ?? 1);
     this.renderer.toneMappingExposure = lerp(a.exp, b.exp, t);
     this.sky.position.copy(focus); this.stars.position.copy(focus);
     this.starMat.opacity = clamp(night * 1.2 - 0.2, 0, 1) * (1 - this.cloud * 0.9);

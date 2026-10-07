@@ -186,7 +186,9 @@ export class VehiclePhysics {
 
     // ---------------------------------------------------------------- lateral tire forces
     this.rearGripMul = approach(this.rearGripMul, hb ? p.driftGrip : 1, dt * (hb ? 6 : 1.6));
-    const mu = p.grip * (1 - dmg * 0.15) * (1 - 0.15 * (this.offRoadK ?? 0));
+    // wet roads (monsoon): less grip, more so on two wheels
+    const wet = this.world?.wet || 0;
+    const mu = p.grip * (1 - dmg * 0.15) * (1 - 0.15 * (this.offRoadK ?? 0)) * (1 - wet * (p.bike ? 0.24 : 0.17));
     // nose-heavy cars (FWD hatchbacks, SUVs, vans) push wide; tail-heavy ones turn in eagerly
     const understeer = p.bike ? 0 : clamp((p.frontWeight - 0.5) * 0.8, -0.05, 0.12);
     const muF = mu * 1.02 * (1 - understeer), muR = mu * this.rearGripMul;
