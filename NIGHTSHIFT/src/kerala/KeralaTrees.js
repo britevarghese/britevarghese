@@ -9,8 +9,8 @@ import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { TILE, C, ROAD_HALF } from './KeralaTile.js';
 
-export const KIND = { palm: 0, broad: 1, banana: 2, bush: 3 };
-const KINDS = 4;
+export const KIND = { palm: 0, broad: 1, banana: 2, bush: 3, areca: 4, rubber: 5, bamboo: 6, grass: 7 };
+const KINDS = 8;
 
 // atlas regions (u0, v0, u1, v1), v up
 const AW = 512, AH = 256;
@@ -205,6 +205,66 @@ function bushHi() {
   return merge(parts);
 }
 
+// areca (kamuku): a very slim, straight, ringed grey trunk ~11 m up, a green crownshaft and a small tuft of fronds
+function arecaHi() {
+  const parts = [part(new THREE.CylinderGeometry(0.09, 0.13, 10.5, 6, 1, true).translate(0, 5.25, 0).rotateZ(-0.025), 0xc8ccc0, R_PALMBARK)];
+  const top = [0.26, 10.5, 0];
+  parts.push(part(new THREE.CylinderGeometry(0.13, 0.11, 1.1, 6, 1, true).translate(top[0], top[1] + 0.5, 0), 0x6a9a3a, R_FOLIAGE));
+  for (let k = 0; k < 8; k++) {
+    const a = (k / 8) * Math.PI * 2 + (k % 2) * 0.3, len = 2.3 + (k % 3) * 0.3;
+    const pts = [[0, 0], [len * 0.4, 0.55], [len, -0.7 - (k % 2) * 0.3]], pos = [], uvs = [];
+    for (let q = 0; q < 2; q++) {
+      const [d0, y0] = pts[q], [d1, y1] = pts[q + 1], w = 0.7, f = 0.18, v0 = q / 2, v1 = (q + 1) / 2;
+      pos.push(d0, y0, 0, d1, y1, 0, d1, y1 - f, w, d0, y0, 0, d1, y1 - f, w, d0, y0 - f, w); uvs.push(0.5, v0, 0.5, v1, 1, v1, 0.5, v0, 1, v1, 1, v0);
+      pos.push(d0, y0, 0, d0, y0 - f, -w, d1, y1 - f, -w, d0, y0, 0, d1, y1 - f, -w, d1, y1, 0); uvs.push(0.5, v0, 0, v0, 0, v1, 0.5, v0, 0, v1, 0.5, v1);
+    }
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+    g.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
+    g.rotateY(a).translate(top[0], top[1] + 1.05, 0);
+    parts.push(part(g, k % 3 ? 0xd8f0b0 : 0xe8e8b0, R_FROND, { centre: [top[0], top[1], 0] }));
+  }
+  return merge(parts);
+}
+
+// rubber: a straight pale-grey trunk, branching high, a light narrow crown (planted in rows on the slopes)
+function rubberHi() {
+  const parts = [part(new THREE.CylinderGeometry(0.13, 0.2, 6.5, 6, 1, true).translate(0, 3.25, 0), 0xc8c4b8, R_BARK)];
+  for (const [rz, ry] of [[0.35, 0], [-0.35, 2.1], [0.3, 4.2]]) parts.push(part(new THREE.CylinderGeometry(0.06, 0.1, 2.4, 5, 1, true).translate(0, 1.2, 0).rotateZ(rz).rotateY(ry).translate(0, 6.2, 0), 0xc0bcb0, R_BARK));
+  [[0, 8.6, 0, 1.6], [0.9, 7.8, 0.3, 1.2], [-0.8, 7.9, -0.4, 1.2], [0.1, 9.6, 0.1, 1.1]].forEach(([x, y, z, r], i) => {
+    parts.push(part(lumpy(r * 0.6, 0, 1400 + i * 37).scale(1, 0.85, 1).translate(x, y, z), 0xd0e8b8, R_FOLIAGE, { centre: [0, 8.2, 0], up: 0.5 }));
+    parts.push(...cards(x, y, z, r, 6, r * 1.15, 140 + i * 17, 0xe0f0c8));
+  });
+  return merge(parts);
+}
+
+// bamboo clump: a dozen tall culms arching out from one base, feathery leaf cards along their upper half
+function bambooHi() {
+  const parts = [];
+  let s = 777;
+  const rnd = () => ((s = (s * 16807) % 2147483647) / 2147483647);
+  for (let k = 0; k < 12; k++) {
+    const a = rnd() * 6.283, lean = 0.12 + rnd() * 0.3, h = 7 + rnd() * 4;
+    const g = new THREE.CylinderGeometry(0.045, 0.07, h, 5, 1, true).translate(0, h / 2, 0).rotateZ(lean).rotateY(a).translate(Math.cos(a) * 0.3, 0, -Math.sin(a) * 0.3);
+    parts.push(part(g, 0xb8c070, R_PALMBARK));
+    for (let j = 0; j < 4; j++) {
+      const t = 0.5 + j * 0.15, x = Math.cos(a) * (0.3 + Math.sin(lean) * h * t), y = Math.cos(lean) * h * t, z = -Math.sin(a) * (0.3 + Math.sin(lean) * h * t);
+      parts.push(...cards(x, y, z, 0.9, 2, 1.3, 600 + k * 31 + j, 0xe8f8b0));
+    }
+  }
+  return merge(parts);
+}
+
+// a tuft of tall grass: crossed blades from the frond texture's leaflets
+function grassHi() {
+  const parts = [];
+  for (let k = 0; k < 3; k++) {
+    const g = new THREE.PlaneGeometry(0.9, 0.7).translate(0, 0.33, 0).rotateY((k / 3) * Math.PI);
+    parts.push(part(g, k ? 0xd8e8a0 : 0xe8e0a0, [0.5, 0.15, 0.75, 0.6], { centre: [0, -0.4, 0] }));
+  }
+  return merge(parts);
+}
+
 // ---------------------------------------------------------------------------------------------- distant
 function palmLo() {
   // ~9 triangles: a three-sided trunk and three long fronds
@@ -242,7 +302,7 @@ function swapMaterial(U, near, map) {
 export class KeralaTrees {
   constructor(scene, preset) {
     this.U = { uCam: { value: new THREE.Vector3() }, uR: { value: 260 }, uFar: { value: 2200 } };
-    this.hiGeo = [palmHi(), broadHi(), bananaHi(), bushHi()];
+    this.hiGeo = [palmHi(), broadHi(), bananaHi(), bushHi(), arecaHi(), rubberHi(), bambooHi(), grassHi()];
     this.loGeo = [palmLo(), blobLo()];
     this.atlas = atlas();
     this.hiMat = swapMaterial(this.U, true, this.atlas);
@@ -262,8 +322,8 @@ export class KeralaTrees {
     this.cap = cap;
     for (const m of this.hi || []) { m.removeFromParent(); m.dispose(); }
     this.hi = this.hiGeo.map((g, k) => {
-      const m = new THREE.InstancedMesh(g, this.hiMat, k === KIND.bush ? cap : Math.round(cap * 0.6));
-      m.count = 0; m.frustumCulled = false; m.castShadow = this.shadows && k !== KIND.bush; m.receiveShadow = true;
+      const m = new THREE.InstancedMesh(g, this.hiMat, k === KIND.grass ? cap * 2 : k === KIND.bush ? cap : k >= KIND.areca ? Math.round(cap * 0.4) : Math.round(cap * 0.6));
+      m.count = 0; m.frustumCulled = false; m.castShadow = this.shadows && k !== KIND.bush && k !== KIND.grass; m.receiveShadow = true;
       m.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
       m.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(m.instanceMatrix.count * 3), 3).setUsage(THREE.DynamicDrawUsage);
       m.name = `klTreeHi${k}`;
@@ -308,15 +368,42 @@ export class KeralaTrees {
     };
     const step = 6 / Math.sqrt(Math.max(0.3, Math.min(1, D)));
     const P = [];  // e, n, y, kind, scale, rot, tint
+    // rubber estates: whole 300 m blocks of the midland slopes planted in rows (the rows follow one bearing)
+    const estate = new Map();
+    const isEstate = (e, n) => {
+      const k = Math.floor(e / 300) * 100 + Math.floor(n / 300);
+      if (!estate.has(k)) {
+        const h = (Math.imul(k ^ (tile.tx * 73856093) ^ (tile.tz * 19349663), 2654435761) >>> 0) / 4294967296;
+        estate.set(k, h < 0.22 ? h * 30 : -1);
+      }
+      return estate.get(k);
+    };
     for (let n = step / 2; n < TILE; n += step) for (let e = step / 2; e < TILE; e += step) {
       const je = e + (rnd() - 0.5) * step * 0.95, jn = n + (rnd() - 0.5) * step * 0.95;
-      const mix = MIX[tile.classAt(je, jn)];
-      if (!mix || rnd() > mix[0] || onRoad(je, jn)) continue;
-      const h = tile.heightAt(je, jn);
+      const cls = tile.classAt(je, jn), mix = MIX[cls];
+      if (!mix || onRoad(je, jn)) continue;
+      const h = tile.heightAt(je, jn), est = (cls === C.grove || cls === C.forest || cls === C.land) && h > 40 && h < 700 ? isEstate(je, jn) : -1;
+      if (est >= 0) {
+        // a 2x2 block of rubber trees on a 3 m grid in the estate's row direction
+        if (rnd() < 0.08) continue;
+        for (const [a, b] of [[-0.25, -0.25], [0.25, -0.25], [-0.25, 0.25], [0.25, 0.25]]) {
+          const ca = Math.cos(est), sa = Math.sin(est), pe = Math.round(e / step) * step + (a * ca - b * sa) * step, pn = Math.round(n / step) * step + (a * sa + b * ca) * step;
+          if (!onRoad(pe, pn)) P.push(pe, pn, tile.heightAt(pe, pn), KIND.rubber, 0.85 + rnd() * 0.3, rnd() * 6.283, rnd());
+        }
+        continue;
+      }
+      // grass tufts on open ground and along the verges
+      if ((cls === C.grass || cls === C.land || cls === C.scrub || cls === C.wetland || cls === C.town) && rnd() < 0.35 * D) {
+        for (let t = 0; t < 1; t++) { const ge = je + (rnd() - 0.5) * step, gn = jn + (rnd() - 0.5) * step; if (!onRoad(ge, gn)) P.push(ge, gn, tile.heightAt(ge, gn), KIND.grass, 0.6 + rnd() * 0.8, rnd() * 6.283, rnd()); }
+      }
+      if (rnd() > mix[0]) continue;
       let r = rnd() * (mix[1] + mix[2] + mix[3] + mix[4]), kind = KIND.palm;
       if ((r -= mix[1]) > 0) kind = (r -= mix[2]) > 0 ? ((r -= mix[3]) > 0 ? KIND.bush : KIND.banana) : KIND.broad;
       if (kind === KIND.palm && h > 900) kind = KIND.broad; // no coconut palms high in the Ghats
-      const sc = kind === KIND.palm ? 0.8 + rnd() * 0.45 : kind === KIND.broad ? 0.65 + rnd() * 0.7 : 0.7 + rnd() * 0.6;
+      // areca grows among the coconuts round the houses; bamboo by water and on scrubby ground
+      if (kind === KIND.palm && (cls === C.land || cls === C.town || cls === C.grove) && rnd() < 0.3) kind = KIND.areca;
+      if ((kind === KIND.bush || kind === KIND.broad) && (cls === C.wetland || cls === C.scrub || tile.classAt(je + 8, jn) === C.water || tile.classAt(je - 8, jn) === C.water) && rnd() < 0.35) kind = KIND.bamboo;
+      const sc = kind === KIND.palm ? 0.8 + rnd() * 0.45 : kind === KIND.broad ? 0.65 + rnd() * 0.7 : kind === KIND.areca ? 0.85 + rnd() * 0.3 : 0.7 + rnd() * 0.6;
       P.push(je, jn, h, kind, sc, rnd() * 6.283, rnd());
     }
     const N = P.length / 7;
@@ -331,8 +418,8 @@ export class KeralaTrees {
       const V = tile.visCanvas.getContext('2d'), RS = tile.visCanvas.width / TILE;
       V.fillStyle = 'rgba(22,40,16,0.32)';
       for (let i = 0; i < N; i++) {
-        const k = P[i * 7 + 3]; if (k === KIND.bush) continue;
-        const r = (k === KIND.broad ? 3.6 : k === KIND.palm ? 2.6 : 1.4) * P[i * 7 + 4] * RS;
+        const k = P[i * 7 + 3]; if (k === KIND.bush || k === KIND.grass) continue;
+        const r = (k === KIND.broad ? 3.6 : k === KIND.palm ? 2.6 : k === KIND.rubber ? 2.2 : k === KIND.bamboo ? 2.4 : 1.4) * P[i * 7 + 4] * RS;
         V.beginPath(); V.arc(P[i * 7] * RS, (TILE - P[i * 7 + 1]) * RS, Math.max(0.6, r), 0, 6.283); V.fill();
       }
       const terr = tile.group?.getObjectByName('terrain');
@@ -343,8 +430,9 @@ export class KeralaTrees {
     const loFrac = 0.1 + 0.18 * Math.min(1, D), loScale = 1 / Math.sqrt(loFrac) * 0.6;
     const counts = [0, 0];
     // (bushes and banana plants are too small to matter at a distance)
-    const far = (i) => P[i * 7 + 6] < loFrac && P[i * 7 + 3] <= KIND.broad;
-    for (let i = 0; i < N; i++) if (far(i)) counts[P[i * 7 + 3] === KIND.palm ? 0 : 1]++;
+    const far = (i) => { const k = P[i * 7 + 3]; return P[i * 7 + 6] < loFrac && k !== KIND.banana && k !== KIND.bush && k !== KIND.grass; };
+    const lo = (k) => (k === KIND.palm || k === KIND.areca ? 0 : 1);
+    for (let i = 0; i < N; i++) if (far(i)) counts[lo(P[i * 7 + 3])]++;
     const meshes = counts.map((c, j) => {
       if (!c) return null;
       const m = new THREE.InstancedMesh(this.loGeo[j], this.loMat, c);
@@ -354,8 +442,8 @@ export class KeralaTrees {
     const m4 = new THREE.Matrix4(), col = new THREE.Color(), at = [0, 0];
     for (let i = 0; i < N; i++) {
       if (!far(i)) continue;
-      const kind = P[i * 7 + 3], j = kind === KIND.palm ? 0 : 1;
-      this._matrix(m4, P, i, -P[i * 7], P[i * 7 + 1], (kind === KIND.banana ? 0.35 : kind === KIND.bush ? 0.28 : 1) * (kind === KIND.palm ? 1 : Math.max(1, loScale)));
+      const kind = P[i * 7 + 3], j = lo(kind);
+      this._matrix(m4, P, i, -P[i * 7], P[i * 7 + 1], kind === KIND.areca ? 1 : kind === KIND.rubber ? 0.55 * Math.max(1, loScale) : kind === KIND.bamboo ? 0.6 * Math.max(1, loScale) : kind === KIND.palm ? 1 : Math.max(1, loScale));
       meshes[j].setMatrixAt(at[j], m4);
       meshes[j].setColorAt(at[j]++, this._tint(col, kind, (P[i * 7 + 6] * 7.31) % 1));
     }
@@ -367,7 +455,7 @@ export class KeralaTrees {
     const kind = P[i * 7 + 3], sc = P[i * 7 + 4] * extra, rot = P[i * 7 + 5];
     const q = this._q || (this._q = new THREE.Quaternion()), e = this._e || (this._e = new THREE.Euler());
     // palms lean; broadleaf crowns spread wider than tall when big
-    if (kind === KIND.palm) e.set(Math.sin(rot * 3.1) * 0.12, rot, Math.cos(rot * 2.3) * 0.12); else e.set(0, rot, 0);
+    if (kind === KIND.palm) e.set(Math.sin(rot * 3.1) * 0.12, rot, Math.cos(rot * 2.3) * 0.12); else if (kind === KIND.areca) e.set(Math.sin(rot * 3.1) * 0.03, rot, Math.cos(rot * 2.3) * 0.03); else e.set(0, rot, 0);
     q.setFromEuler(e);
     const v = this._v || (this._v = new THREE.Vector3()), s = this._s || (this._s = new THREE.Vector3());
     v.set(x, P[i * 7 + 2] - 0.15, z);
@@ -380,6 +468,9 @@ export class KeralaTrees {
     const k = 0.82 + t * 0.32;
     if (kind === KIND.palm) return col.setRGB(k * (0.95 + t * 0.1), k, k * 0.92);
     if (kind === KIND.broad) return col.setRGB(k * (0.85 + (t > 0.8 ? 0.35 : 0)), k, k * (0.9 + (t < 0.2 ? 0.2 : 0)));
+    if (kind === KIND.rubber) return col.setRGB(k * 0.8, k * 0.92, k * 0.78);
+    if (kind === KIND.bamboo) return col.setRGB(k * 1.02, k, k * 0.82);
+    if (kind === KIND.grass) return col.setRGB(k * (0.9 + t * 0.25), k * 0.95, k * 0.7);
     return col.setRGB(k, k, k);
   }
 
