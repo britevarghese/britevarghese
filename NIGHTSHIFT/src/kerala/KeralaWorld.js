@@ -72,6 +72,10 @@ export class KeralaWorld {
     M.klPole = new THREE.MeshLambertMaterial({ name: 'klPole', color: 0x9a968c });
     M.klWire = new THREE.LineBasicMaterial({ name: 'klWire', color: 0x1a1a1a, transparent: true, opacity: 0.75 });
     this.poleGeo = poleGeometry();
+    Object.assign(this, lampGeometries());
+    // sodium / LED streetlamps: the head glows and throws a pool of light on the road after dark
+    M.klLamp = new THREE.MeshStandardMaterial({ name: 'klLamp', color: 0x9a9a90, emissive: 0xffd9a0, emissiveIntensity: 0, roughness: 0.4 });
+    M.klLampPool = new THREE.MeshBasicMaterial({ name: 'klLampPool', color: 0xffc070, vertexColors: true, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -8 });
     this.stopGeo = busStopGeometry();
     [this.teaGeo, this.teaSignGeo] = teaStallGeometry();
     M.klTeaSign = new THREE.MeshLambertMaterial({ name: 'klTeaSign', map: teaSignTexture() });
@@ -99,7 +103,7 @@ export class KeralaWorld {
 
   _opts() {
     const p = this.preset || {};
-    return { trees: this.trees, shadows: p.shadows && p.shadows !== 'off', palms: p.trees ?? 1, palmGeo: this.palmGeo, palmMat: this.palmMat, tankGeo: this.tankGeo, poleGeo: this.poleGeo, manholeGeo: this.manholeGeo, acGeo: this.acGeo, pipeGeo: this.pipeGeo, balconyGeo: this.balconyGeo, gateGeo: this.gateGeo, awningGeo: this.awningGeo, signGeo: this.signGeo, crateGeo: this.crateGeo, chairGeo: this.chairGeo, scooterGeo: this.scooterGeo, ledges: (p.trees ?? 1) >= 0.7, keralaFacade: KERALA_FACADE, keralaShop: KERALA_SHOP, maxBuildings: p.textureSize >= 1024 ? 9000 : 4500 };
+    return { trees: this.trees, shadows: p.shadows && p.shadows !== 'off', palms: p.trees ?? 1, palmGeo: this.palmGeo, palmMat: this.palmMat, tankGeo: this.tankGeo, poleGeo: this.poleGeo, lampGeo: this.lampGeo, lampHeadGeo: this.lampHeadGeo, lampPoolGeo: this.lampPoolGeo, trafoGeo: this.trafoGeo, manholeGeo: this.manholeGeo, acGeo: this.acGeo, pipeGeo: this.pipeGeo, balconyGeo: this.balconyGeo, gateGeo: this.gateGeo, awningGeo: this.awningGeo, signGeo: this.signGeo, crateGeo: this.crateGeo, chairGeo: this.chairGeo, scooterGeo: this.scooterGeo, ledges: (p.trees ?? 1) >= 0.7, keralaFacade: KERALA_FACADE, keralaShop: KERALA_SHOP, maxBuildings: p.textureSize >= 1024 ? 9000 : 4500 };
   }
 
   key(tx, tz) { return `${tx},${tz}`; }
@@ -289,6 +293,8 @@ export class KeralaWorld {
     // the Kerala road follows the shared road's wet / dry look
     const R = this.M?.klRoad, B = this.M?.road;
     if (R && B) { R.userData.u.uWet.value = this.wet || 0; R.roughness = B.roughness; R.color.copy(B.color); R.envMapIntensity = B.envMapIntensity; if (R.roughnessMap !== B.roughnessMap) { R.roughnessMap = B.roughnessMap; R.needsUpdate = true; } }
+    // streetlights come on at dusk
+    if (this.M?.klLamp) { const nt = this.night || 0, on = Math.max(0, Math.min(1, (nt - 0.3) / 0.4)); this.M.klLamp.emissiveIntensity = on * 3.2; this.M.klLampPool.opacity = on * 0.6; this.M.klLampPool.visible = on > 0.01; }
     if (this.M?.klKerb) this.M.klKerb.roughness = 0.92 - 0.55 * (this.wet || 0);
     // road markings only on the tiles near the camera (sub-pixel further out)
     if (!this._mkT || (this._mkT += dt) > 0.5) {
@@ -447,6 +453,35 @@ function mangaloreTiles() {
 }
 
 // a KSEB concrete pole: tapered square shaft, a crossarm with insulators, a small transformer-less top (~40 tris)
+// a streetlight arm bolted to a KSEB pole (pole frame: local -x points over the road), its lamp head, and the
+// pool of light it throws on the road; plus a pole-mounted transformer on a two-pole platform (second pole +z)
+function lampGeometries() {
+  const nx = (g) => { g.deleteAttribute('uv'); return g.index ? g.toNonIndexed() : g; };
+  const arm = mergeGeometries([
+    new THREE.CylinderGeometry(0.04, 0.04, 2.2, 5).rotateZ(Math.PI / 2 - 0.18).translate(-1.05, 7.05, 0),
+    new THREE.CylinderGeometry(0.03, 0.03, 0.9, 4).rotateZ(-0.7).translate(-0.3, 6.75, 0),
+  ].map(nx)); arm.computeVertexNormals();
+  const head = nx(new THREE.BoxGeometry(0.62, 0.12, 0.26).translate(-2.15, 7.2, 0)); head.computeVertexNormals();
+  const pool = nx(new THREE.CircleGeometry(5.5, 16).rotateX(-Math.PI / 2).translate(-3.2, 0.32, 0));
+  {
+    // soft edge: fade by vertex colour (additive, so dark = transparent)
+    const P = pool.attributes.position, c = new Float32Array(P.count * 3);
+    for (let i = 0; i < P.count; i++) { const d = Math.hypot(P.getX(i) + 3.2, P.getZ(i)) / 5.5, k = Math.max(0, 1 - d) ** 1.5; c.set([k, k, k], i * 3); }
+    pool.setAttribute('color', new THREE.BufferAttribute(c, 3));
+  }
+  const parts = [];
+  const add = (g, hex) => { g = nx(g); const c = new THREE.Color(hex), n = g.attributes.position.count, a = new Float32Array(n * 3); for (let i = 0; i < n; i++) a.set([c.r, c.g, c.b], i * 3); g.setAttribute('color', new THREE.BufferAttribute(a, 3)); parts.push(g); };
+  add(new THREE.CylinderGeometry(0.09, 0.16, 9, 4, 1, true).rotateY(Math.PI / 4).translate(0, 4.5, 2.2), 0x9a968c);
+  for (const z of [0, 2.2]) add(new THREE.BoxGeometry(0.9, 0.1, 0.1).translate(0, 4.0, z), 0x6a6a64);
+  add(new THREE.BoxGeometry(1.2, 0.08, 2.6).translate(0, 4.05, 1.1), 0x5a5a56);              // platform
+  add(new THREE.BoxGeometry(0.9, 1.1, 0.8).translate(0, 4.65, 1.1), 0x6a7468);               // tank
+  for (const x of [-0.5, 0.5]) add(new THREE.BoxGeometry(0.1, 0.9, 0.7).translate(x, 4.6, 1.1), 0x5a6458); // cooling fins
+  for (const z of [0.85, 1.1, 1.35]) add(new THREE.CylinderGeometry(0.05, 0.07, 0.4, 5).translate(0, 5.4, z), 0x8a5a3a); // bushings
+  add(new THREE.BoxGeometry(0.5, 0.6, 0.25).translate(0, 1.6, 1.1), 0x8a8a84);                // fuse box low down
+  const trafo = mergeGeometries(parts); trafo.computeVertexNormals();
+  return { lampGeo: arm, lampHeadGeo: head, lampPoolGeo: pool, trafoGeo: trafo };
+}
+
 function poleGeometry() {
   // ~16 triangles: a tapered square shaft and a crossarm (insulators are too small to matter)
   const shaft = new THREE.CylinderGeometry(0.09, 0.16, 9, 4, 1, true).rotateY(Math.PI / 4).translate(0, 4.5, 0);

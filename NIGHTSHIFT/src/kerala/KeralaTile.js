@@ -557,7 +557,7 @@ export class KeralaTile {
     if (!opts.poleGeo) return [];
     let s = (this.tx * 7919 ^ this.tz * 104729) >>> 0;
     const rnd = () => ((s = (s * 1664525 + 1013904223) >>> 0) / 4294967296);
-    const mats = [], wire = {}, m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), up = new THREE.Vector3(0, 1, 0), one = new THREE.Vector3(1, 1, 1), v = new THREE.Vector3();
+    const mats = [], lamps = [], trafos = [], wire = {}, m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), up = new THREE.Vector3(0, 1, 0), one = new THREE.Vector3(1, 1, 1), v = new THREE.Vector3();
     const SP = 38;
     for (const r of this.roads) {
       if (r.cls < 2 || r.cls > 7 || r.dirt || r.flags & 4 || r.pts.length < 2) continue;
@@ -576,6 +576,14 @@ export class KeralaTile {
           q.setFromAxisAngle(up, th + (rnd() - 0.5) * 0.08);
           const ch = Math.min(3, Math.floor(e / 500)) + 4 * Math.min(3, Math.floor(n / 500));
           mats.push([m4.compose(v.set(-e, y - 0.05, n), q, one).clone(), ch]);
+          // built-up stretches: a streetlight on most poles, now and then a transformer on a two-pole platform
+          const town = [[8, 0], [-8, 0], [0, 8], [0, -8], [14, 0], [-14, 0], [0, 14], [0, -14]].some(([a, b]) => { const c2 = this.classAt(e + a, n + b); return c2 === C.building || c2 === C.commercial || c2 === C.town; });
+          if (town && rnd() < 0.7) lamps.push([mats[mats.length - 1][0], ch]);
+          else if (rnd() < (town ? 0.25 : 0.05) && r.cls <= 6) {
+            trafos.push([mats[mats.length - 1][0], ch]);
+            const de = ue * 2.2, dn = un * 2.2; // the second pole stands 2.2 m along the road
+            this.colliders.push({ cx: -(this.E0 + e + de), cz: this.N0 + n + dn, hx: 0.18, hz: 0.18, cos: 1, sin: 0, angle: 0, h: y + 9, kind: 'pole' });
+          }
           this.colliders.push({ cx: -(this.E0 + e), cz: this.N0 + n, hx: 0.18, hz: 0.18, cos: 1, sin: 0, angle: 0, h: y + 9, kind: 'pole' });
           const tops = [[-0.7, 8.05], [0.7, 8.05], [0, 8.75]].map(([dx, dy]) => [-e + Math.cos(th) * dx, y + dy, n - Math.sin(th) * dx]);
           if (prev && Math.hypot(tops[0][0] - prev[0][0], tops[0][2] - prev[0][2]) < SP * 1.6) {
@@ -601,6 +609,16 @@ export class KeralaTile {
         const im = new THREE.InstancedMesh(opts.poleGeo, M.klPole, L.length);
         L.forEach(([m], i) => im.setMatrixAt(i, m));
         im.computeBoundingSphere(); im.name = 'poles'; im.castShadow = !!opts.shadows; im.userData.cc = cc;
+        out.push(im);
+      }
+      for (const [list, geo, mat, name] of [[lamps, opts.lampGeo, M.klPole, 'lampArms'], [lamps, opts.lampHeadGeo, M.klLamp, 'lampHeads'], [lamps, opts.lampPoolGeo, M.klLampPool, 'lampPools'], [trafos, opts.trafoGeo, M.klStop, 'transformers']]) {
+        if (!geo || !mat) continue;
+        const L2 = list.filter((m) => m[1] === c);
+        if (!L2.length) continue;
+        const im = new THREE.InstancedMesh(geo, mat, L2.length);
+        L2.forEach(([m], i) => im.setMatrixAt(i, m));
+        im.computeBoundingSphere(); im.name = name; im.userData.cc = cc; im.castShadow = name === 'transformers' && !!opts.shadows;
+        if (name === 'lampPools') { im.renderOrder = 2; im.userData.night = true; }
         out.push(im);
       }
       if (wire[c]) {

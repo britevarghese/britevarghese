@@ -745,7 +745,7 @@ export class Game {
     const fsv = this.onFoot.active ? (this._fsv ||= new THREE.Vector3()).set(this.onFoot.state.x, this.onFoot.state.y, this.onFoot.state.z) : player.renderer.group.position;
     this.env.viewVel = this.focusState; // rain streaks follow your speed
     this.env.update(simulate ? dt : 0, fsv, false, this.camera.position);
-    this.world.wet = this.env.state.wetness || 0; this.traffic.rain = this.env.state.rain || 0; this.peds.rain = this.env.state.rain || 0;
+    this.world.wet = this.env.state.wetness || 0; this.world.night = this.env.state.night || 0; this.traffic.rain = this.env.state.rain || 0; this.peds.rain = this.env.state.rain || 0;
     if (mode === 'photo') this.photo.applyExposure();
     this.world.update(dt, this.camera, this.env.state);
     if (this.mapRenderer.update) { const f = this.focusState; this.mapRenderer.update(f.x, f.z); }
