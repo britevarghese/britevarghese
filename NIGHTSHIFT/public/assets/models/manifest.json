@@ -5028,8 +5028,8 @@
         }
       ],
       "tris": {
-        "lod0": 73041,
-        "lod1": 4397
+        "lod0": 83005,
+        "lod1": 4787
       },
       "source": {
         "site": "Sketchfab",
@@ -5082,8 +5082,8 @@
         }
       ],
       "tris": {
-        "lod0": 57540,
-        "lod1": 5581
+        "lod0": 74932,
+        "lod1": 7432
       },
       "source": {
         "site": "Sketchfab",
@@ -5136,8 +5136,8 @@
         }
       ],
       "tris": {
-        "lod0": 48410,
-        "lod1": 6015
+        "lod0": 59625,
+        "lod1": 6262
       },
       "source": {
         "site": "Sketchfab",
@@ -5153,7 +5153,7 @@
       "imported": true,
       "name": "Maruti Ertiga",
       "length": 4.393,
-      "width": 2.025,
+      "width": 2.026,
       "height": 1.799,
       "wheels": [
         {
@@ -5190,8 +5190,8 @@
         }
       ],
       "tris": {
-        "lod0": 85573,
-        "lod1": 4066
+        "lod0": 90591,
+        "lod1": 4164
       },
       "source": {
         "site": "Sketchfab",
@@ -5244,8 +5244,8 @@
         }
       ],
       "tris": {
-        "lod0": 50825,
-        "lod1": 11772
+        "lod0": 79546,
+        "lod1": 14650
       },
       "source": {
         "site": "Sketchfab",
@@ -5298,8 +5298,8 @@
         }
       ],
       "tris": {
-        "lod0": 6796,
-        "lod1": 3824
+        "lod0": 8632,
+        "lod1": 3822
       },
       "source": {
         "site": "Sketchfab",
@@ -5373,8 +5373,8 @@
         }
       ],
       "tris": {
-        "lod0": 27261,
-        "lod1": 3354
+        "lod0": 30208,
+        "lod1": 3358
       },
       "source": {
         "site": "Sketchfab",
@@ -5694,20 +5694,20 @@
     "cars/kawasaki_ninja_h2.glb": "66216bbf7d",
     "cars/kawasaki_zx6r.glb": "04fb05f437",
     "cars/kl_auto.glb": "98a8002568",
-    "cars/kl_brezza.glb": "30987373c5",
+    "cars/kl_brezza.glb": "cff1f9f131",
     "cars/kl_commuter.glb": "bc63d1e7dc",
-    "cars/kl_dzire.glb": "a179b7b703",
-    "cars/kl_ertiga.glb": "1be13011f7",
+    "cars/kl_dzire.glb": "84ce99852b",
+    "cars/kl_ertiga.glb": "c8cf66221e",
     "cars/kl_ksrtc.glb": "49d9467134",
     "cars/kl_lorry.glb": "8aa9409c4f",
-    "cars/kl_m800.glb": "d55a6292dd",
-    "cars/kl_minitruck.glb": "415c590a70",
+    "cars/kl_m800.glb": "1723182897",
+    "cars/kl_minitruck.glb": "f8f12386ab",
     "cars/kl_pvtbus.glb": "a4cb21215f",
     "cars/kl_pvtbus2.glb": "fe762222c5",
     "cars/kl_scooter.glb": "823295e68c",
-    "cars/kl_scorpio.glb": "600ac1856f",
+    "cars/kl_scorpio.glb": "90b925094a",
     "cars/kl_streetbike.glb": "864228dfaa",
-    "cars/kl_thar.glb": "32038f9347",
+    "cars/kl_thar.glb": "431de9c7a4",
     "cars/lamborghini_centenario.glb": "6c9aa6918e",
     "cars/lamborghini_huracan_tt.glb": "3a5864e8ee",
     "cars/mazda_rx7_fd.glb": "4cea2d5b82",

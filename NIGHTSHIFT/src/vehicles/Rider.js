@@ -13,7 +13,7 @@ const _d = new THREE.Vector3(), _k = new THREE.Vector3(), _p = new THREE.Vector3
 const _q = new THREE.Quaternion(), _qp = new THREE.Quaternion(), _qd = new THREE.Quaternion();
 
 // seat / bars / pegs relative to the rear axle (z) and the ground (y); w = half width
-const STYLE = {
+export const STYLE = {
   sport: { hipZ: 0.33, barsBack: 0.44, barsY: 0.1, barsW: 0.31, pegBack: 0.22, pegY: 0.37, pegW: 0.17, torso: 0.62, tuck: 0.3, neck: 0.12 },
   cruiser: { hipZ: 0.36, barsBack: 0.46, barsY: 0.36, barsW: 0.4, pegBack: -0.3, pegY: 0.3, pegW: 0.24, torso: 1.35, tuck: 1.2, neck: 0.16 },
 };
@@ -23,7 +23,7 @@ const THIGH = 0.45, SHIN = 0.46, UPPER = 0.31, FORE = 0.3, TORSO = 0.52;
 // on the grips, feet on the pegs, plus the direction elbows and knees bend
 // foot: { down: 0..1 left foot planted on the ground (stopped), paddle: null | phase (reversing: both
 // feet push the bike back in turn) }
-function poseTargets(c, bk, tuck, foot = null) {
+export function poseTargets(c, bk, tuck, foot = null) {
   const wb = bk.zF - bk.zR;
   const hip = new THREE.Vector3(0, bk.seat + 0.1, bk.zR + c.hipZ * wb);
   const ang = lerp(c.torso, c.tuck, tuck); // torso angle above horizontal, lower when tucked
@@ -185,7 +185,7 @@ export class SkinnedRider {
     this.group = new THREE.Group();
     this.group.name = 'rider';
     this.model = AssetManager.clone(template);
-    this.model.scale.multiplyScalar(RIDER_SCALE);
+    this.model.scale.multiplyScalar(template.userData?.riderScale ?? RIDER_SCALE); // (a game character is already to scale)
     this.group.add(this.model);
     this.bones = {};
     this.model.traverse((o) => {

@@ -7,6 +7,7 @@ import { clamp, damp } from '../core/util.js';
 import { Vehicle, FIXED_DT } from '../vehicles/Vehicle.js';
 import { CARS, TRAFFIC_VEHICLES, POLICE_CAR, tunedParams } from '../vehicles/VehicleCatalog.js';
 import { bus } from '../core/EventBus.js';
+import { VehicleInteraction, interactionProfile } from '../vehicles/Interaction.js';
 
 // turn an angle toward a target by at most k (radians, shortest way)
 const turn = (a, b, k) => { let d = b - a; while (d > Math.PI) d -= Math.PI * 2; while (d < -Math.PI) d += Math.PI * 2; return a + clamp(d, -k, k); };
@@ -56,6 +57,7 @@ export class OnFoot {
     this.attack = null;      // the punch being thrown
     this.combo = 0;
     this.dead = false;
+    this.inter = new VehicleInteraction(game, this); // getting in and out of vehicles, sitting in them
   }
 
   // ------------------------------------------------------------------ fighting
@@ -137,12 +139,30 @@ export class OnFoot {
     this.human = h;
     this.box.group.visible = false;
     this.body.group.add(h.group);
+    // already at the wheel: sit in the seat
+    const v = this.game.player;
+    if (!this.active && v && !v.gone && !v.p.bike) this.inter.seatInstant(v);
   }
 
   // ------------------------------------------------------------------ get out / get in
   exit() {
     const g = this.game, v = g.player, s = v.state;
     if (Math.hypot(s.vx, s.vz) > 8) { g.ui.toast('Slow down to get out', '', 1.5); return false; }
+    // getting out like a person (doors, legs, standing up beside the car)
+    if (this.human && this.inter.seated === v) {
+      const r = this.inter.startExit(v);
+      if (r === 'blocked') { g.ui.toast('No room to get out', '', 1.5); return false; }
+      if (r) {
+        this.active = true; this.car = v;
+        this.state.yaw = s.yaw; this.camYaw = s.yaw; this.vy = 0; this.state.vx = this.state.vz = 0;
+        this.state.y = this._ground(s.x, s.z);
+        this.camPos.copy(g.camera.position);
+        g.audio?.setEngineOn?.(false);
+        document.getElementById('hud')?.classList.add('onfoot');
+        bus.emit('player:onfoot', { on: true });
+        return true;
+      }
+    }
     const L = (v.p.width || 1.9) / 2 + 0.55;
     const side = [1, -1].find((k) => this._free(s.x + Math.cos(s.yaw) * L * k, s.z - Math.sin(s.yaw) * L * k)) ?? 1;
     this.state.x = s.x + Math.cos(s.yaw) * L * side; this.state.z = s.z - Math.sin(s.yaw) * L * side;
@@ -179,6 +199,7 @@ export class OnFoot {
   // thrown off a crashed bike: pick yourself up where you landed; the bike lies where it stopped
   bail(x, z, yaw) {
     const g = this.game, v = g.player;
+    this.inter.release(); this.inter._detach(); this.body.group.quaternion.identity();
     this.state.x = x; this.state.z = z; this.state.y = this._ground(x, z);
     this.state.yaw = yaw; this.state.vx = this.state.vz = 0; this.state.speed = 0;
     this.camYaw = yaw; this.vy = 0;
@@ -209,7 +230,7 @@ export class OnFoot {
     return best;
   }
 
-  enter(target) {
+  enter(target, instant = false) {
     const g = this.game;
     if (target.kind === 'remote') { g.net.requestTake(target.ref); return false; } // the server hands it over (enterTaken)
     let v;
@@ -231,9 +252,38 @@ export class OnFoot {
       if (!v) return false;
       this._park(g.player);
     }
+    if (instant && this.human && this.inter.canUse(v)) {
+      // straight into the seat (respawn / release from custody): no walk-up
+      this.inter._cancel?.(); this.seq = null;
+      this._handover(v); this.inter.seatInstant(v); g.camCtl.snap(v); g.camBlend = null;
+      return true;
+    }
+    if (this.human && this.inter.canUse(v)) {
+      if (v !== this.game.player && !this.parked.includes(v)) this.parked.push(v); // keep it simulated and drawn meanwhile
+      v.keep = true;
+      this.inter.startEnter(v);
+      return true;
+    }
     if (this.human) { this._startEnter(v); return true; }
     this._board(v);
     return true;
+  }
+
+  // the moment the door shuts behind you: the car is yours (the character stays in the seat, visible;
+  // the camera blends over to the driving camera)
+  _handover(v) {
+    const g = this.game;
+    if (v.physics?.down) v.physics.place(v.state.x, v.state.z, v.state.yaw); // a dropped bike picked back up
+    const i = this.parked.indexOf(v); if (i >= 0 && v !== g.player) this.parked.splice(i, 1);
+    if (v !== g.player && g.player && !this.parked.includes(g.player) && !g.player.gone) this._park(g.player);
+    v.keep = false;
+    g.player = v;
+    v.controls.handbrake = 0;
+    this.active = false;
+    g.startCameraBlend?.(v);
+    g.audio?.setEngineOn?.(true);
+    document.getElementById('hud')?.classList.remove('onfoot');
+    bus.emit('player:onfoot', { on: false, vehicle: v });
   }
 
   // walk up to the driver's door (on the side we're standing), open it, step into the opening and sit in
@@ -466,6 +516,7 @@ export class OnFoot {
   }
 
   update(dt, input) {
+    if (this.inter.busy) { this.inter.update(dt, input); return; }
     if (this.seq) { this._updateSeq(dt, input); return; }
     const s = this.state, g = this.game, ic = input.controls;
     this.hurtT += dt;

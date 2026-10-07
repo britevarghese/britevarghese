@@ -165,6 +165,14 @@ export class Game {
     });
   }
 
+  // console: NIGHTSHIFT.showVehicleSockets() — seat, entry / exit points, door hinge and handle, pedals, wheel grips
+  showVehicleSockets(on = true) { this.onFoot.inter.setDebug(on); return on; }
+
+  startCameraBlend(v) {
+    this.camCtl.snap(v);
+    this.camBlend = { t: 0, dur: 1.1, pos: this.camera.position.clone(), quat: this.camera.quaternion.clone() };
+  }
+
   // whoever the world revolves around: the character on foot, or the car being driven
   get focusState() { return this.onFoot?.active ? this.onFoot.state : this.player.state; }
 
@@ -175,6 +183,7 @@ export class Game {
     const car = CARS[id];
     const data = this.save.data.cars[id];
     const params = tunedParams(id, data.upgrades);
+    if (this.onFoot?.inter) { this.onFoot.inter._detach(); this.onFoot.inter.release(); } // out of the old car first
     if (this.player) this.player.dispose();
     this.player = new Vehicle({ carId: id, params, world: this.world, lib: this.lib, role: 'player', carType: car.carType, renderOpts: { headlights: this.preset.headlightSpots, shadow: this.preset.shadows !== 'off', lodDistance: 1e9 } });
     this.player.renderer.applyCustom(data.custom);
@@ -183,6 +192,7 @@ export class Game {
     const spot = at || (this.world.kerala ? (this.world.roadSpot(0, 0, 4) || { x: 0, z: 0, yaw: 0 }) : this._laneSpot(SAFEHOUSES[0].x, SAFEHOUSES[0].z));
     this.player.place(spot.x, spot.z, spot.yaw);
     this.player.state.nitro = 1;
+    if (this.onFoot?.human && !car.bike) this.onFoot.inter.seatInstant(this.player); // at the wheel
   }
 
   _laneSpot(x, z) {
@@ -661,7 +671,10 @@ export class Game {
       // police + traffic
       this.police.update(dt, this.traffic);
       this.incidents.update(dt);
+      // debug: SHOW VEHICLE INTERACTION SOCKETS (F7)
+      if (input.consume('sockets')) { const on = !this.onFoot.inter.debug; this.onFoot.inter.setDebug(on); this.ui.toast(on ? 'Vehicle interaction sockets: on' : 'Vehicle interaction sockets: off', '', 1.5); }
       if (this.onFoot.active && driving) this.onFoot.update(dt, input);
+      else if (this.onFoot.inter.st) this.onFoot.inter.update(dt, input); // at the wheel (or finishing getting in)
       this.onFoot.updateParked(dt, this.camera.position, this.env.state);
       for (const v of this.onFoot.parked) if (Math.abs(v.state.x - player.state.x) < 8 && Math.abs(v.state.z - player.state.z) < 8) VehiclePhysics.resolvePair(player.physics, v.physics);
       const dynamic = [player, ...this.onFoot.parked, ...this.police.vehicles(), ...this.races.vehicles(), ...this.rivals.vehicles(), ...this.story.vehicles(), ...this.net.trafficObstacles(), ...this.incidents.vehicles()];
@@ -754,6 +767,14 @@ export class Game {
     if (simulate || mode === 'paused' || mode === 'map' || mode === 'brief' || mode === 'results') {
       if (simulate && this.onFoot.active) this.onFoot.updateCamera(dt, input, this.camera);
       else if (simulate) this.camCtl.update(dt, player, driving ? input.controls : { lookX: 0, lookY: 0 }, this.fx2);
+      // after getting in: ease from where the walking camera was to the driving camera (no cut)
+      if (simulate && this.camBlend) {
+        const B = this.camBlend; B.t += dt;
+        const k = Math.min(1, B.t / B.dur), e = k * k * (3 - 2 * k);
+        this.camera.position.lerpVectors(B.pos, this.camera.position, e);
+        this.camera.quaternion.slerpQuaternions(B.quat, this.camera.quaternion.clone(), e);
+        if (k >= 1) this.camBlend = null;
+      }
     }
     if (mode === 'photo') this.photo.update(dt, input);
     if (mode === 'replay') this.replay.update(dt, input);
@@ -833,6 +854,7 @@ export class Game {
         this.input.rumble(e.intensity, e.intensity * 0.5, 180);
         if (e.intensity > 0.95) this._bikeCrash(); // cased a big jump
       } else if (e.type === 'collision') {
+        this.onFoot.inter.collision(e.intensity, e.nx || 0, e.nz || 0); // the driver is thrown about
         const type = e.intensity > 0.45 ? 'heavy' : (KIND_SOUND[e.kind] || 'light');
         // light contacts while moving = grinding along the object: a continuous scrape, not a stream of thumps
         const sp = Math.hypot(s.vx, s.vz);
@@ -938,7 +960,7 @@ export class Game {
   _bustedUpdate(dt) {
     this.bustT += dt;
     if (this.bustT > 4.5) {
-      if (this.onFoot.active) { const own = this.player; this.onFoot.enter({ kind: this.onFoot.parked.includes(own) ? 'parked' : 'own', ref: own }); }
+      if (this.onFoot.active || this.onFoot.inter.busy) { const own = this.player; this.onFoot.enter({ kind: this.onFoot.parked.includes(own) ? 'parked' : 'own', ref: own }, true); }
       this.camCtl.cinematic = null;
       this.player.state.damage = 0;
       this.player.renderer.repair();

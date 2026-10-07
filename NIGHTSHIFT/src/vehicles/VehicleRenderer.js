@@ -240,12 +240,30 @@ export class VehicleRenderer {
   }
 
   // motorcycles carry a rider, posed onto this bike's seat / bars / pegs
-  _rider() {
+  // the rider becomes this character (the player's own model), posed the same way
+  setRiderTemplate(root) {
+    if (!this.bike || !root || this._riderTemplate === root) return;
+    this._riderTemplate = root;
+    const vis = this.rider ? this.rider.group.visible : true;
+    if (this.rider) { this.rider.group.removeFromParent(); this.rider = null; }
+    this._rider(root);
+    this.rider.group.visible = vis;
+  }
+  // the bike's geometry for mounting: wheel axles (z), seat height, style and rider overrides
+  bikeGeom() {
+    const car = CARS[this.carId];
+    const zF = this.wheels.find((w) => w.id === 'F')?.pivot.position.z ?? car.spec.wb / 2;
+    const zR = this.wheels.find((w) => w.id === 'R')?.pivot.position.z ?? -car.spec.wb / 2;
+    return { zF, zR, seat: car.spec.seat ?? 0.82, style: car.style, rider: car.rider };
+  }
+
+  _rider(template = null) {
     const car = CARS[this.carId];
     const zF = this.wheels.find((w) => w.id === 'F')?.pivot.position.z ?? car.spec.wb / 2;
     const zR = this.wheels.find((w) => w.id === 'R')?.pivot.position.z ?? -car.spec.wb / 2;
     const bike = { zF, zR, seat: car.spec.seat ?? 0.82, style: car.style, rider: car.rider, accent: car.factoryColor };
-    this.rider = this.lib.rider ? new SkinnedRider(bike, !!this.opts.shadow, this.lib.rider) : new Rider(bike, !!this.opts.shadow);
+    const T = template || this._riderTemplate || this.lib.rider;
+    this.rider = T ? new SkinnedRider(bike, !!this.opts.shadow, T) : new Rider(bike, !!this.opts.shadow);
     this.body.add(this.rider.group);
     // the onboard camera sits in the rider's helmet
     this.markers.eye_cockpit = { name: 'eye_cockpit', position: this.rider.eye.clone() };
@@ -618,9 +636,13 @@ export class VehicleRenderer {
    * turning round the wheel with the steering. The model's own wheel is found by casting rays forward and
    * down from the eye (import meshes are merged, so it can't be picked by name).
    */
-  _buildArms() {
+  // the steering wheel in body space: { eye, hub, axis (towards the driver), up0, right0, R, rim } — measured
+  // from the model (rays from the eye) once; rim: the model has its own wheel. Shared by the first-person
+  // arms and the seated driver (vehicle interaction sockets).
+  steeringGeom() {
+    if (this._steer !== undefined) return this._steer;
     const eye = this.cockpitEye();
-    if (!eye || this.bike || !this._probe) return null;
+    if (!eye || this.bike || !this._probe) return (this._steer = null);
     let hub = null;
     for (let a = 0.45; a <= 0.95 && !hub; a += 0.05) {                       // pitch down, radians
       const dy = -Math.sin(a), dz = Math.cos(a);
@@ -639,7 +661,14 @@ export class VehicleRenderer {
       hub.set(eye.x, eye.y - 0.3, eye.z + 0.5);
       for (let i = 0; i < 10 && !clear(hub.clone().addScaledVector(up0, R + 0.02)); i++) hub.addScaledVector(axis, 0.03); // towards the driver
     }
-    const wheel = hasRim ? null : this._steeringWheel(hub, axis, up0, right0, R);
+    return (this._steer = { eye, hub, axis, up0, right0, R, rim: hasRim });
+  }
+
+  _buildArms() {
+    const G = this.steeringGeom();
+    if (!G) return null;
+    const { eye, hub, axis, up0, right0, R } = G, hasRim = G.rim;
+    const wheel = null; this.ensureSteeringWheel(); // (models without one get ours, on the body)
     // the rigged character when it's loaded (it may still be on its way: tube arms until then)
     if (this.lib.rider) {
       const driver = new FPDriver(this.lib.rider, eye, { hub, axis, up0, right0, R });
@@ -663,6 +692,15 @@ export class VehicleRenderer {
     if (wheel) g.add(wheel);
     this.body.add(g);
     return { g, arms, hub, axis, up0, right0, R, tube: true, wheel };
+  }
+
+  // the cabin's steering wheel exists in every view (seated driver, first person): add ours if the model has none
+  ensureSteeringWheel() {
+    const G = this.steeringGeom();
+    if (!G || G.rim || this._ownWheel) return this._ownWheel || null;
+    this._ownWheel = this._steeringWheel(G.hub, G.axis, G.up0, G.right0, G.R);
+    this.body.add(this._ownWheel);
+    return this._ownWheel;
   }
 
   // a steering wheel for models whose interior has none: leather rim, three spokes, a hub boss
@@ -689,13 +727,13 @@ export class VehicleRenderer {
 
   /** Show / hide the first-person arms (the camera calls this every frame). */
   setCockpitArms(on) {
+    this.cockpitOn = on;
     if (on && this._arms?.tube && this.lib.rider) { this._arms.g.removeFromParent(); this._arms = undefined; } // the driver model arrived
     if (on && this._arms === undefined) this._arms = this._buildArms();
     if (this._arms) this._arms.g.visible = on;
   }
 
   _poseArms(steer) {
-    if (this._arms.wheel) this._arms.wheel.userData.spin.rotation.z = -steer * 2.6; // turns with the hands
     if (this._arms.driver) return this._arms.driver.pose(steer);
     const A = this._arms, _a = new THREE.Vector3(), _b = new THREE.Vector3(), _d = new THREE.Vector3(), Y = new THREE.Vector3(0, 1, 0);
     const place = (m, a, b) => { _d.subVectors(b, a); const L = _d.length(); m.position.addVectors(a, b).multiplyScalar(0.5); m.quaternion.setFromUnitVectors(Y, _d.divideScalar(L || 1)); m.scale.set(1, L, 1); };
@@ -716,6 +754,7 @@ export class VehicleRenderer {
 
   sync(s, dt, camPos, env) {
     this._dt = dt;
+    if (this._ownWheel) this._ownWheel.userData.spin.rotation.z = -(s.wheelSteer || 0) * 2.6; // turns with the hands
     if (this._arms?.g.visible) this._poseArms(s.wheelSteer || 0);
     const g = this.group;
     g.position.set(s.x, s.y, s.z);
