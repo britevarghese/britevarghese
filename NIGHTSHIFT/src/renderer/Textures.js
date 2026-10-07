@@ -268,10 +268,10 @@ function keralaWindow(cc, ec, hc, def, R, x, y, ww, wh, cw, rh) {
 function keralaWeather(cc, hc, R, n, rh) {
   for (let r = 0; r < 8; r++) {
     const y0 = r * rh, k = r === 0 ? 1.6 : 1;
-    for (let i = 0; i < 14 * k; i++) {
-      const x = R() * n, w = 2 + R() * n / 60, len = rh * (0.15 + R() * 0.7) * k;
+    for (let i = 0; i < 7 * k; i++) {
+      const x = R() * n, w = 2 + R() * n / 90, len = rh * (0.1 + R() * 0.4) * k;
       const g = cc.createLinearGradient(0, y0, 0, y0 + len);
-      g.addColorStop(0, `rgba(${40 + R() * 20},${46 + R() * 20},${38 + R() * 10},${0.35 + R() * 0.25})`); g.addColorStop(1, 'rgba(40,46,38,0)');
+      g.addColorStop(0, `rgba(${40 + R() * 20},${46 + R() * 20},${38 + R() * 10},${0.14 + R() * 0.14})`); g.addColorStop(1, 'rgba(40,46,38,0)');
       cc.fillStyle = g; cc.fillRect(x, y0, w, len);
     }
   }
@@ -423,8 +423,8 @@ export function facade(style) {
     }
     if (def.plaster) keralaWeather(cc, hc, R, n, rh);
     if (def.shop) keralaShops(cc, ec, hc, oc, R, n, cw, rh);
-    // vertical dirt streaks
-    cc.globalAlpha = 0.12;
+    // vertical dirt streaks (not on Kerala plaster: its weathering is drawn per floor above)
+    cc.globalAlpha = def.plaster ? 0 : 0.12;
     for (let i = 0; i < 30; i++) { const x = R() * n; const g = cc.createLinearGradient(0, 0, 0, n); g.addColorStop(0, 'rgba(0,0,0,0)'); g.addColorStop(1, 'rgba(0,0,0,1)'); cc.fillStyle = g; cc.fillRect(x, R() * n * 0.5, 2 + R() * n / 100, n); }
     cc.globalAlpha = 1;
     const out = {

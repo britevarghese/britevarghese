@@ -745,35 +745,65 @@ export class KeralaTile {
     const rnd = () => ((s = (s * 1664525 + 1013904223) >>> 0) / 4294967296);
     const maxB = opts.maxBuildings ?? 6000;
     const list = d.b || [];
-    for (let bi = 0; bi < list.length && bi < maxB; bi++) {
+    // OSM often maps a building twice (an outline plus parts, or overlapping traces): a footprint whose middle
+    // lies inside a bigger one is dropped, or its walls and shopfront would poke through the bigger building
+    const pre = [], N = Math.min(list.length, maxB);
+    for (let bi = 0; bi < N; bi++) {
+      const ring = decodeLine(list[bi], 2);
+      let a = 0, ce = 0, cn = 0;
+      for (let i = 0; i < ring.length; i++) { const [x1, y1] = ring[i], [x2, y2] = ring[(i + 1) % ring.length]; a += x1 * y2 - x2 * y1; ce += x1; cn += y1; }
+      if (a < 0) ring.reverse();
+      pre.push({ ring, area: Math.abs(a) / 2, ce: ce / (ring.length || 1), cn: cn / (ring.length || 1) });
+    }
+    const inside = (R, e, n) => { let c = false; for (let i = 0, j = R.length - 1; i < R.length; j = i++) { const [xi, yi] = R[i], [xj, yj] = R[j]; if ((yi > n) !== (yj > n) && e < ((xj - xi) * (n - yi)) / (yj - yi) + xi) c = !c; } return c; };
+    const BG = new Map(), hidden = new Uint8Array(N);
+    for (const bi of [...pre.keys()].sort((a, b) => pre[b].area - pre[a].area)) {
+      const P = pre[bi];
+      if (P.ring.length < 3) { hidden[bi] = 1; continue; }
+      let e0 = Infinity, e1 = -Infinity, n0 = Infinity, n1 = -Infinity;
+      for (const [e, n] of P.ring) { e0 = Math.min(e0, e); e1 = Math.max(e1, e); n0 = Math.min(n0, n); n1 = Math.max(n1, n); }
+      // the bigger buildings near it; this one goes if its middle or most of its corners (pulled in a little) are inside them
+      const near = new Set();
+      for (let x = Math.floor(e0 / 40); x <= Math.floor(e1 / 40); x++) for (let z = Math.floor(n0 / 40); z <= Math.floor(n1 / 40); z++) for (const o of BG.get(x * 100 + z) || []) near.add(o);
+      if (near.size) {
+        const pts = [[P.ce, P.cn], ...P.ring.map(([e, n]) => [e + (P.ce - e) * 0.15, n + (P.cn - n) * 0.15])];
+        const inAny = ([e, n]) => { for (const o of near) if (inside(pre[o].ring, e, n)) return true; return false; };
+        if (inAny(pts[0]) || pts.filter(inAny).length >= pts.length * 0.5) { hidden[bi] = 1; continue; }
+      }
+      for (let x = Math.floor(e0 / 40); x <= Math.floor(e1 / 40); x++) for (let z = Math.floor(n0 / 40); z <= Math.floor(n1 / 40); z++) { const k = x * 100 + z; if (!BG.has(k)) BG.set(k, []); BG.get(k).push(bi); }
+    }
+    for (let bi = 0; bi < N; bi++) {
+      if (hidden[bi]) continue;
       const b = list[bi];
       const kind = b[0], H = b[1] / 10;
-      const ring = decodeLine(b, 2);
+      const ring = pre[bi].ring;
       if (ring.length < 3) continue;
-      // counter-clockwise in e/n
-      let area = 0;
-      for (let i = 0; i < ring.length; i++) { const [x1, y1] = ring[i], [x2, y2] = ring[(i + 1) % ring.length]; area += x1 * y2 - x2 * y1; }
-      if (area < 0) ring.reverse();
-      area = Math.abs(area) / 2;
+      const area = pre[bi].area;
       let base = Infinity;
       for (const [e, n] of ring) base = Math.min(base, this.heightAt(e, n));
+      const g0 = base;   // ground floor level: the texture's floors start here
       base -= 0.4;
-      const top = base + 0.4 + H;
+      // whole floors, so the roof never slices through a row of windows
+      const colW = 3.2, floorH = 3.1, floors = Math.max(1, Math.round(H / floorH));
+      const top = g0 + floors * floorH;
       const house = kind === 1 || kind === 2 || (kind === 0 && H < 8.5);
       const tiled = house && area < 320 && rnd() < 0.62;
-      // flat roofs have a parapet round the terrace
-      const wallTop = tiled ? top : top + 0.9;
-      // walls
-      const n = ring.length, pos = new Float32Array(n * 4 * 3), uv = new Float32Array(n * 4 * 2), idx = [];
-      let u = 0;
-      const colW = kind === 1 || kind === 2 || kind === 0 ? 3.4 : 3.1, floorH = 3.1;
+      // flat roofs have a parapet round the terrace (below the next row's window sills)
+      const wallTop = tiled ? top : top + 0.8;
+      // walls: each side starts at a bay boundary and holds a whole number of window bays (the texture is
+      // 8 bays x 8 floors), so windows are never cut at the corners; sides too short for a window get plain wall
+      const n = ring.length, pos = new Float32Array(n * 4 * 3), uv = new Float32Array(n * 4 * 2), idx = [], bays = [];
+      const vb = (base - g0) / (floorH * 8), vt = (wallTop - g0) / (floorH * 8);
       for (let i = 0; i < n; i++) {
         const [e1, n1] = ring[i], [e2, n2] = ring[(i + 1) % n];
-        const L = Math.hypot(e2 - e1, n2 - n1);
+        const L = Math.hypot(e2 - e1, n2 - n1), sp = L / colW;
+        let u0, u1, nb = 0;
+        if (sp < 0.62) { const k = 1 + Math.floor(rnd() * 6); u0 = (k - sp / 2) / 8; u1 = (k + sp / 2) / 8; } // between two windows
+        else { nb = Math.max(1, Math.round(sp)); const k = Math.floor(rnd() * 8); u0 = k / 8; u1 = (k + nb) / 8; }
+        bays.push(nb);
         const q = i * 4;
         pos.set([-e1, base, n1, -e2, base, n2, -e1, wallTop, n1, -e2, wallTop, n2], q * 3);
-        uv.set([u / (colW * 8), 0, (u + L) / (colW * 8), 0, u / (colW * 8), (wallTop - base) / (floorH * 8), (u + L) / (colW * 8), (wallTop - base) / (floorH * 8)], q * 2);
-        u += L;
+        uv.set([u0, vb, u1, vb, u0, vt, u1, vt], q * 2);
         idx.push(q, q + 1, q + 2, q + 1, q + 3, q + 2); // outward: the x axis is mirrored
       }
       const wg = new THREE.BufferGeometry();
@@ -807,20 +837,23 @@ export class KeralaTile {
         pg.setIndex(ii); pg.computeVertexNormals();
         push(fac, pg);
       }
-      // concrete sunshades (chajjas) over each floor's windows: real ledges, drawn near the camera only
+      // a concrete sunshade (chajja) over every window, exactly where the texture paints it: 2.58-2.69 m above
+      // each floor, the window's width plus a hand each side, 0.55 m deep; drawn near the camera only
       if (kind !== 5 && kind < 6 && opts.ledges) {
-        const floors = Math.min(5, Math.floor((H + 0.4) / floorH));
-        for (let f = 0; f < floors; f++) {
-          const y = base + (f + 1) * floorH - 0.62;
-          if (y > top - 0.3) break;
-          for (let i = 0; i < n; i++) {
-            const [e1, n1] = ring[i], [e2, n2] = ring[(i + 1) % n], L = Math.hypot(e2 - e1, n2 - n1);
-            if (L < 2.2) continue;
-            const ue = (e2 - e1) / L, un = (n2 - n1) / L, oe = un * 0.55, on = -ue * 0.55; // outward (ring is CCW in e/n)
-            const a0 = [e1 + ue * 0.3, n1 + un * 0.3], a1 = [e2 - ue * 0.3, n2 - un * 0.3];
-            const P = (pt, o, yy) => [-(pt[0] + oe * o), yy, pt[1] + on * o];
-            const v = [P(a0, 0, y), P(a1, 0, y), P(a0, 1, y), P(a1, 1, y), P(a0, 1, y - 0.09), P(a1, 1, y - 0.09), P(a0, 0, y - 0.09), P(a1, 0, y - 0.09)];
-            ledges.push([v, Math.min(3, Math.floor(e1 / 500)) + 4 * Math.min(3, Math.floor(n1 / 500))]);
+        for (let i = 0; i < n; i++) {
+          const nb = bays[i];
+          if (!nb) continue;
+          const [e1, n1] = ring[i], [e2, n2] = ring[(i + 1) % n], L = Math.hypot(e2 - e1, n2 - n1);
+          const ue = (e2 - e1) / L, un = (n2 - n1) / L, oe = un * 0.55, on = -ue * 0.55; // outward (ring is CCW in e/n)
+          const bw = L / nb, hw = 0.3 * bw;
+          for (let f = shop ? 1 : 0; f < Math.min(floors, 8); f++) {
+            const y = g0 + f * floorH + 2.69;
+            for (let j = 0; j < nb; j++) {
+              const c = (j + 0.5) * bw, a0 = [e1 + ue * (c - hw), n1 + un * (c - hw)], a1 = [e1 + ue * (c + hw), n1 + un * (c + hw)];
+              const P = (pt, o, yy) => [-(pt[0] + oe * o), yy, pt[1] + on * o];
+              const v = [P(a0, 0, y), P(a1, 0, y), P(a0, 1, y), P(a1, 1, y), P(a0, 1, y - 0.11), P(a1, 1, y - 0.11), P(a0, 0, y - 0.11), P(a1, 0, y - 0.11)];
+              ledges.push([v, Math.min(3, Math.floor(e1 / 500)) + 4 * Math.min(3, Math.floor(n1 / 500))]);
+            }
           }
         }
       }
@@ -862,7 +895,7 @@ export class KeralaTile {
       }
       // collider: the footprint's oriented box (principal axes)
       if (area > 12) this.colliders.push(this._obb(ring, top));
-      if (opts.ledges) this._details(D, { ring, n, base, top, wallTop, H, area, house, tiled, shop, kind, ce, cn, floorH }, rnd);
+      if (opts.ledges) this._details(D, { ring, n, base, g0, top, wallTop, H, area, house, tiled, shop, kind, ce, cn, floorH, floors, bays }, rnd);
     }
     const out = [];
     for (const [fac, geos] of byMat) { const g = mergeGeometries(geos); if (g) { const m = new THREE.Mesh(g, M.facades[fac] || M.facades[6]); m.castShadow = !!opts.shadows; m.receiveShadow = true; out.push(m); } }
@@ -882,7 +915,7 @@ export class KeralaTile {
       g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
       g.setIndex(idx); g.computeVertexNormals();
       const m = new THREE.Mesh(g, M.klLedge || M.klRoofFlat); m.name = 'ledges'; m.castShadow = !!opts.shadows; m.receiveShadow = true;
-      m.userData.cc = [(c % 4) * 500 + 250, Math.floor(c / 4) * 500 + 250];
+      m.userData.cc = [(c % 4) * 500 + 250, Math.floor(c / 4) * 500 + 250]; m.userData.far = 420;
       out.push(m);
     }
     if (roofsFlat.length) { const g = mergeGeometries(strip(roofsFlat)); if (g) out.push(new THREE.Mesh(g, M.klRoofFlat)); }
@@ -895,7 +928,7 @@ export class KeralaTile {
   // terraces, balconies on two-storey houses, the compound wall round a house plot with its gate toward the road
   // (walls are solid), and a soft dark skirt where every wall meets the ground.
   _details(D, B, rnd) {
-    const { ring, n, base, top, wallTop, H, area, house, tiled, shop, ce, cn, floorH } = B;
+    const { ring, n, base, g0, top, wallTop, area, house, tiled, shop, ce, cn, floorH, floors, bays } = B;
     const ch = (e, nn) => Math.min(3, Math.max(0, Math.floor(e / 500))) + 4 * Math.min(3, Math.max(0, Math.floor(nn / 500)));
     const C0 = ch(ce, cn);
     const m4 = new THREE.Matrix4(), X = new THREE.Vector3(), Y = new THREE.Vector3(0, 1, 0), Z = new THREE.Vector3();
@@ -908,16 +941,15 @@ export class KeralaTile {
       list.push([m4.clone(), C0]);
     };
     const edges = []; for (let i = 0; i < n; i++) { const [e1, n1] = ring[i], [e2, n2] = ring[(i + 1) % n]; edges.push([i, Math.hypot(e2 - e1, n2 - n1)]); }
-    const floors = Math.max(1, Math.floor((H + 0.4) / floorH));
-    // AC units (flats, shops, offices; the odd better-off house)
+    // AC units (flats, shops, offices; the odd better-off house), on the pier between two windows
     if ((!house && rnd() < 0.6) || (house && floors >= 2 && rnd() < 0.2)) {
       const k = 1 + Math.floor(rnd() * Math.min(4, floors));
       for (let j = 0; j < k; j++) {
-        const [i, L] = edges[Math.floor(rnd() * n)];
-        if (L < 3) continue;
+        const i = Math.floor(rnd() * n), nb = bays[i];
+        if (nb < 2) continue;
         const f = shop ? 1 + Math.floor(rnd() * Math.max(1, floors - 1)) : Math.floor(rnd() * floors);
-        const y = base + 0.4 + f * floorH + 1.0;
-        if (y + 0.6 < top) place(D.props.ac, i, 0.15 + rnd() * 0.7, y, 0.2);
+        if (f >= floors) continue;
+        place(D.props.ac, i, (1 + Math.floor(rnd() * (nb - 1))) / nb, g0 + f * floorH + 1.2, 0.2);
       }
     }
     // downpipe from the terrace at a corner
@@ -927,8 +959,8 @@ export class KeralaTile {
     }
     // balcony on the long side of a two-storey house
     if (house && floors >= 2 && rnd() < 0.55) {
-      const [i, L] = edges.reduce((a, b) => (b[1] > a[1] ? b : a));
-      if (L > 4) place(D.props.balc, i, 0.5, base + 0.4 + floorH - 0.05, 0, Math.min(3.6, L * 0.55));
+      const [i, L] = edges.reduce((a, b) => (b[1] > a[1] ? b : a)), nb = bays[i];
+      if (L > 4 && nb) { const j = Math.floor(nb / 2); place(D.props.balc, i, (j + 0.5) / nb, g0 + floorH - 0.05, 0, Math.min(3.6, (L / nb) * 0.95)); }
     }
     // ground contact: a dark skirt round the footprint, fading out over ~1.2 m
     {
@@ -946,17 +978,18 @@ export class KeralaTile {
     // shopfronts on the sides facing a road: a sloping awning per bay, a projecting sign, and the clutter out
     // front (crates of produce, plastic chairs, a scooter or two parked on the footpath)
     if (shop) for (const [i, L] of edges) {
-      if (L < 3.5) continue;
+      if (L < 3.5 || !bays[i]) continue;
       const [e1, n1] = ring[i], [e2, n2] = ring[(i + 1) % n], ue = (e2 - e1) / L, un = (n2 - n1) / L;
       if (!this.nearRoad((e1 + e2) / 2 + un * 7, (n1 + n2) / 2 - ue * 7, 7, 9)) continue;
-      const bays = Math.max(1, Math.round(L / 4)), bw = L / bays, yb = base + 0.4;
-      for (let b = 0; b < bays; b++) {
-        const t = (b + 0.5) / bays;
-        if (rnd() < 0.7) { place(D.props.awning, i, t, yb + 2.75, 0, bw * 0.96); D.tint.awning.push(rnd()); }
-        if (rnd() < 0.35) { place(D.props.sign, i, t + (rnd() - 0.5) * 0.4 / bays, yb + 3.4, 0); D.tint.sign.push(rnd()); }
+      const nbays = bays[i] || 1, bw = L / nbays, yb = g0;
+      for (let b = 0; b < nbays; b++) {
+        const t = (b + 0.5) / nbays;
+        // the texture paints the signboard from 2.36 m up: the awning hangs just under it
+        if (rnd() < 0.7) { place(D.props.awning, i, t, yb + 2.3, 0, bw * 0.96); D.tint.awning.push(rnd()); }
+        if (floors >= 2 && rnd() < 0.3) { place(D.props.sign, i, b / nbays, yb + 3.5, 0); D.tint.sign.push(rnd()); }
         const r = rnd();
-        if (r < 0.25) place(D.props.crate, i, t + (rnd() - 0.5) * 0.5 / bays, this.heightAt(e1 + (e2 - e1) * t + un, n1 + (n2 - n1) * t - ue) + 0.2, 0.9 + rnd() * 0.5);
-        else if (r < 0.4) place(D.props.chair, i, t + (rnd() - 0.5) * 0.5 / bays, this.heightAt(e1 + (e2 - e1) * t + un, n1 + (n2 - n1) * t - ue) + 0.2, 1.2 + rnd() * 0.6);
+        if (r < 0.25) place(D.props.crate, i, t + (rnd() - 0.5) * 0.5 / nbays, this.heightAt(e1 + (e2 - e1) * t + un, n1 + (n2 - n1) * t - ue) + 0.2, 0.9 + rnd() * 0.5);
+        else if (r < 0.4) place(D.props.chair, i, t + (rnd() - 0.5) * 0.5 / nbays, this.heightAt(e1 + (e2 - e1) * t + un, n1 + (n2 - n1) * t - ue) + 0.2, 1.2 + rnd() * 0.6);
         else if (r < 0.6) {
           // scooters park nose-in to the shop, at right angles to the wall
           const e = e1 + (e2 - e1) * t + un * 2.4, nn = n1 + (n2 - n1) * t - ue * 2.4;
