@@ -24,6 +24,10 @@ export const TYPE_SPECS = {
   scorpio: { w: 1.92, l: 4.66, mass: 1900, weight: 7, kl: true },
   thar: { w: 1.82, l: 3.985, mass: 1700, weight: 4, kl: true },
   minitruck: { w: 1.5, l: 3.8, mass: 1100, weight: 7, kl: true },
+  // two-wheelers: ride by the kerb, filter past slow traffic, lean into the bends
+  scooter: { w: 0.75, l: 1.85, mass: 190, weight: 24, kl: true, bike: true, livery: true },
+  commuter: { w: 0.78, l: 2.04, mass: 210, weight: 20, kl: true, bike: true, colors: [0x1a1a1a, 0xb01818, 0x1a3a8a, 0x6a6a6a, 0xe8e8e8] },
+  streetbike: { w: 0.78, l: 2.0, mass: 210, weight: 10, kl: true, bike: true, colors: [0x1a1a1a, 0x2a4a8a, 0xb01818, 0x3a6a3a] },
   lorry: { w: 2.4, l: 7.8, mass: 9000, weight: 5, kl: true, bigRoads: true, livery: true },
   ksrtc: { w: 2.5, l: 10.8, mass: 11000, weight: 5, kl: true, bigRoads: true, livery: true },
   pvtbus: { w: 2.5, l: 10.5, mass: 10500, weight: 4, kl: true, bigRoads: true, livery: true },
@@ -45,7 +49,7 @@ class TrafficCar {
     this.lat = 0;          // lateral offset (lane change blend)
     this.state = 'drive';  // drive | knocked | wreck
     this.next = null;
-    this.speedFactor = 0.85 + Math.random() * 0.25;
+    this.speedFactor = (sp.bike ? 1.0 : 0.85) + Math.random() * 0.25;
     this.honk = 0; this.laneChangeCD = 3 + Math.random() * 5;
     this.knockT = 0; this.nearMissDone = false;
     // proxy for impulse resolution with VehiclePhysics.resolvePair
@@ -120,7 +124,13 @@ export class TrafficManager {
     const rx = -tmp.dz, rz = tmp.dx;
     car.x = tmp.x + rx * car.lat; car.z = tmp.z + rz * car.lat;
     car.yaw = Math.atan2(tmp.dx, tmp.dz);
-    car.y = this.world.layout.groundHeight(car.x, car.z) * 0; // traffic stays on the road surface
+    if (this.world.kerala) {
+      // the streamed terrain has hills: ride on it, nose up / down with the slope
+      const L = car.spec.l * 0.45, fx = Math.sin(car.yaw), fz = Math.cos(car.yaw), gh = this.world.layout.groundHeight;
+      const hf = gh(car.x + fx * L, car.z + fz * L), hr = gh(car.x - fx * L, car.z - fz * L);
+      car.y = (hf + hr) / 2 + 0.06;
+      car.slope = Math.atan2(hf - hr, 2 * L);
+    } else car.y = 0; // Port Halvern: traffic stays on the flat road surface
   }
 
   remove(car) {
@@ -228,7 +238,29 @@ export class TrafficManager {
     // --- leader search ---
     let gap = 1e9, leadV = 0;
     const cars = path.cars;
-    for (const o of cars) if (o !== c && o.s > c.s && o.s - c.s < gap) { gap = o.s - c.s - (o.spec.l + c.spec.l) / 2; leadV = o.state === 'drive' ? o.v : 0; }
+    // two-wheelers keep to the kerb (left) and filter out past slower traffic, the way Kerala rides
+    const bike = c.spec.bike;
+    if (bike) {
+      const lw = (path.edge?.type?.lanes ?? 1) > 0 ? 1 : 1;
+      if (c.filterT > 0) c.filterT -= dt;
+      c.latT = c.filterT > 0 ? 1.45 * lw : -0.85;
+    }
+    for (const o of cars) {
+      if (o === c || o.s <= c.s || o.s - c.s >= gap) continue;
+      // a bike filtering out (or riding by the kerb) slips past cars that leave it room
+      if (bike && !o.spec.bike && o.state === 'drive') {
+        const g0 = o.s - c.s - (o.spec.l + c.spec.l) / 2;
+        if (c.filterT > 0 && g0 > -o.spec.l) continue;
+        if (g0 < 18 && o.v < c.v + 0.5 && path.speed > 6) { c.filterT = 3 + this.R() * 2; continue; }
+      }
+      // cars ease out round a bike riding by the kerb instead of queueing behind it
+      if (!bike && o.spec.bike && (o.lat ?? 0) < -0.5 && o.state === 'drive') {
+        const g0 = o.s - c.s - (o.spec.l + c.spec.l) / 2;
+        if (g0 < 20) { c.passT = 1.5; continue; }
+      }
+      gap = o.s - c.s - (o.spec.l + c.spec.l) / 2; leadV = o.state === 'drive' ? o.v : 0;
+    }
+    if (!bike) { if (c.passT > 0) c.passT -= dt; c.latT = c.passT > 0 ? 0.6 : 0; }
     if (gap > 1e8 && c.next) {
       for (const o of c.next.cars) {
         const g = path.length - c.s + o.s - (o.spec.l + c.spec.l) / 2;
@@ -305,10 +337,17 @@ export class TrafficManager {
         c.laneChangeCD = 6 + this.R() * 8;
       } else c.laneChangeCD = 1.5;
     }
-    c.lat = lerp(c.lat, 0, 1 - Math.exp(-dt * 1.3));
+    c.lat = lerp(c.lat, c.latT || 0, 1 - Math.exp(-dt * (c.spec.bike ? 2.2 : 1.3)));
     this._advance(c, c.v * dt);
     // gentle body pitch on braking
-    c.pitch = lerp(c.pitch, c.brake && c.v > 2 ? -0.02 : 0, 0.1);
+    c.pitch = lerp(c.pitch, (c.brake && c.v > 2 ? -0.02 : 0) + (c.slope || 0), 0.15);
+    if (c.spec.bike) {
+      // lean into the bend: tan(lean) = v * yawRate / g (yaw grows turning left; leaning left is -roll)
+      let dy = c.yaw - (c.prevYaw ?? c.yaw); while (dy > Math.PI) dy -= Math.PI * 2; while (dy < -Math.PI) dy += Math.PI * 2;
+      const lean = -Math.atan(clamp(c.v * (dy / Math.max(dt, 1e-3)) / 9.81, -0.9, 0.9));
+      c.roll = lerp(c.roll || 0, lean, 1 - Math.exp(-dt * 6));
+    }
+    c.prevYaw = c.yaw;
   }
 
   _collide(v, c) {

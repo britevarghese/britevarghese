@@ -37,56 +37,8 @@ export class TrafficRenderer {
       head: new THREE.MeshBasicMaterial({ color: 0xffffff, toneMapped: false, map: headlightTextures().emissiveMap }),
       tail: new THREE.MeshBasicMaterial({ color: 0xffffff, toneMapped: false, map: taillightTextures().emissiveMap }),
     };
-    for (const type of types) {
-      const src = lib.cars[type];
-      if (!src) continue;
-      if (lib.modelOf?.[type]?.imported) { this.types[type] = this._imported(scene, src, lib.manifest?.cars?.[lib.modelOf[type].key], maxPerType); continue; }
-      const entry = { lods: [], wheels: [] };
-      for (const lodName of ['lod0', 'lod1']) {
-        const root = src.getObjectByName(lodName);
-        if (!root) continue;
-        const parts = { paint: [], glass: [], dark: [], chrome: [], head: [], tail: [] };
-        root.traverse((o) => {
-          if (!o.isMesh) return;
-          const mats = Array.isArray(o.material) ? o.material : [o.material];
-          for (const { materialIndex, geo } of splitGroups(o.geometry)) {
-            const name = mats[materialIndex]?.name || mats[0].name;
-            const key = { paint: 'paint', glass: 'glass', trim: 'dark', under: 'dark', chrome: 'chrome', headlight: 'head', taillight: 'tail', interior: 'dark', carbon: 'dark' }[name] || 'dark';
-            parts[key].push(geo);
-          }
-        });
-        const meshes = {};
-        if (!entry.paintMat) {
-          entry.paintMat = this.shared.paint.clone();
-          const t = carPaintTexture(0, '#ffffff', '#111111', lib.manifest?.cars?.[type]?.panels);
-          entry.paintMat.map = t.map; entry.paintMat.normalMap = t.normalMap; entry.paintMat.normalScale = new THREE.Vector2(0.35, 0.35);
-        }
-        for (const [k, list] of Object.entries(parts)) {
-          if (!list.length) continue;
-          const geo = list.length === 1 ? list[0] : mergeIndexed(list);
-          const mesh = new THREE.InstancedMesh(geo, k === 'paint' ? entry.paintMat : this.shared[k], maxPerType);
-          mesh.count = 0; mesh.frustumCulled = false;
-          mesh.castShadow = k === 'paint' && lodName === 'lod0'; mesh.receiveShadow = false;
-          if (k === 'paint' || k === 'head' || k === 'tail') mesh.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(maxPerType * 3), 3);
-          scene.add(mesh);
-          meshes[k] = mesh;
-        }
-        entry.lods.push(meshes);
-      }
-      // wheel positions from markers
-      const lod0 = src.getObjectByName('lod0');
-      for (const id of ['FL', 'FR', 'RL', 'RR']) {
-        const mk = lod0.getObjectByName('wheel_' + id);
-        if (mk) entry.wheels.push({ id, pos: mk.position.clone(), side: mk.position.x >= 0 ? 1 : -1 });
-      }
-      const man = lib.manifest?.cars?.[type];
-      entry.wheelR = man?.wheels?.[0]?.r || 0.34; entry.wheelW = man?.wheels?.[0]?.w || 0.25;
-      const hl = lod0.getObjectByName('light_head_L')?.position, tl = lod0.getObjectByName('light_tail_L')?.position;
-      entry.head = hl ? hl.clone() : new THREE.Vector3(0.7, 0.7, 2.2);
-      entry.tail = tl ? tl.clone() : new THREE.Vector3(0.7, 0.8, -2.2);
-      entry.length = man?.length || 4.6;
-      this.types[type] = entry;
-    }
+    this.lib = lib; this.maxPerType = maxPerType;
+    for (const type of types) this.addType(type);
     const cap = maxPerType * types.length * 4;
     this.tires = new THREE.InstancedMesh(tireGeo, tireMat, cap);
     this.rims = new THREE.InstancedMesh(rimGeo, rimMat, cap);
@@ -102,9 +54,119 @@ export class TrafficRenderer {
     for (const m of [this.headGlow, this.tailGlow, this.beams]) { m.count = 0; m.frustumCulled = false; m.renderOrder = 5; scene.add(m); }
   }
 
+  // a vehicle type whose model has loaded (types can arrive after the renderer was created)
+  addType(type) {
+    if (this.types[type]) return;
+    const lib = this.lib, maxPerType = this.maxPerType, scene = this.scene;
+    const src = lib.cars[type];
+    if (!src) return;
+    if (lib.modelOf?.[type]?.imported) { this.types[type] = this._imported(scene, src, lib.manifest?.cars?.[lib.modelOf[type].key], maxPerType); return; }
+    const entry = { lods: [], wheels: [] };
+    for (const lodName of ['lod0', 'lod1']) {
+      const root = src.getObjectByName(lodName);
+      if (!root) continue;
+      const parts = { paint: [], glass: [], dark: [], chrome: [], head: [], tail: [] };
+      root.traverse((o) => {
+        if (!o.isMesh) return;
+        const mats = Array.isArray(o.material) ? o.material : [o.material];
+        for (const { materialIndex, geo } of splitGroups(o.geometry)) {
+          const name = mats[materialIndex]?.name || mats[0].name;
+          const key = { paint: 'paint', glass: 'glass', trim: 'dark', under: 'dark', chrome: 'chrome', headlight: 'head', taillight: 'tail', interior: 'dark', carbon: 'dark' }[name] || 'dark';
+          parts[key].push(geo);
+        }
+      });
+      const meshes = {};
+      if (!entry.paintMat) {
+        entry.paintMat = this.shared.paint.clone();
+        const t = carPaintTexture(0, '#ffffff', '#111111', lib.manifest?.cars?.[type]?.panels);
+        entry.paintMat.map = t.map; entry.paintMat.normalMap = t.normalMap; entry.paintMat.normalScale = new THREE.Vector2(0.35, 0.35);
+      }
+      for (const [k, list] of Object.entries(parts)) {
+        if (!list.length) continue;
+        const geo = list.length === 1 ? list[0] : mergeIndexed(list);
+        const mesh = new THREE.InstancedMesh(geo, k === 'paint' ? entry.paintMat : this.shared[k], maxPerType);
+        mesh.count = 0; mesh.frustumCulled = false;
+        mesh.castShadow = k === 'paint' && lodName === 'lod0'; mesh.receiveShadow = false;
+        if (k === 'paint' || k === 'head' || k === 'tail') mesh.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(maxPerType * 3), 3);
+        scene.add(mesh);
+        meshes[k] = mesh;
+      }
+      entry.lods.push(meshes);
+    }
+    // wheel positions from markers
+    const lod0 = src.getObjectByName('lod0');
+    for (const id of ['FL', 'FR', 'RL', 'RR']) {
+      const mk = lod0.getObjectByName('wheel_' + id);
+      if (mk) entry.wheels.push({ id, pos: mk.position.clone(), side: mk.position.x >= 0 ? 1 : -1 });
+    }
+    const man = lib.manifest?.cars?.[type];
+    entry.wheelR = man?.wheels?.[0]?.r || 0.34; entry.wheelW = man?.wheels?.[0]?.w || 0.25;
+    const hl = lod0.getObjectByName('light_head_L')?.position, tl = lod0.getObjectByName('light_tail_L')?.position;
+    entry.head = hl ? hl.clone() : new THREE.Vector3(0.7, 0.7, 2.2);
+    entry.tail = tl ? tl.clone() : new THREE.Vector3(0.7, 0.8, -2.2);
+    entry.length = man?.length || 4.6;
+    this.types[type] = entry;
+  }
+
+  // Riders for the two-wheelers: casual characters posed onto each bike's seat, bars and footrests (the player's
+  // rider IK), wearing a helmet, baked once into static geometry and drawn instanced with the bikes.
+  attachRiders(humans, SkinnedRider, bikes) {
+    if (this.riders || !humans?.ready) return;
+    this.riders = {};
+    const helmetGeo = new THREE.SphereGeometry(0.155, 12, 8, 0, Math.PI * 2, 0, Math.PI * 0.62).scale(1, 1.05, 1.18);
+    const HELMETS = [0x1a1a1a, 0xe8e8e8, 0xb01818, 0x1a3a8a, 0xd8b020, 0x2a6a3a];
+    for (const [type, cfg] of Object.entries(bikes)) {
+      const T = this.types[type];
+      if (!T || !T.hubs) continue;
+      const zF = T.hubs.find((h) => h.id === 'F')?.pos.z ?? 0.65, zR = T.hubs.find((h) => h.id === 'R')?.pos.z ?? -0.65;
+      const variants = [];
+      for (let v = 0; v < 3; v++) {
+        const h = humans.create(v * 2 + (type.length % 2), { shadow: false });
+        if (!h) break;
+        // the character's bones under the rider IK (same Mixamo-style names as the rider model)
+        const r = new SkinnedRider({ zF, zR, seat: cfg.seat, style: 'sport', rider: cfg.pose }, false, h.root);
+        r.model.updateMatrixWorld(true);
+        const byMat = new Map(), v3 = new THREE.Vector3();
+        r.model.traverse((o) => {
+          if (!o.isMesh) return;
+          const src = o.geometry, n = src.attributes.position.count;
+          const g = new THREE.BufferGeometry(), pos = new Float32Array(n * 3);
+          for (let i = 0; i < n; i++) {
+            if (o.isSkinnedMesh) o.getVertexPosition(i, v3); else v3.fromBufferAttribute(src.attributes.position, i);
+            v3.applyMatrix4(o.matrixWorld);
+            pos.set([v3.x, v3.y, v3.z], i * 3);
+          }
+          g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+          if (src.attributes.uv) g.setAttribute('uv', src.attributes.uv);
+          if (src.index) g.setIndex(src.index);
+          g.computeVertexNormals();
+          const m = Array.isArray(o.material) ? o.material[0] : o.material;
+          if (!byMat.has(m)) byMat.set(m, []);
+          byMat.get(m).push(g);
+        });
+        // helmet on the head
+        const head = new THREE.Vector3(); r.bones.Head.getWorldPosition(head);
+        const parts = [];
+        for (const [m, geos] of byMat) {
+          const g = geos.length === 1 ? geos[0] : mergeGeometries(geos.map((x) => { if (!x.attributes.uv) x.setAttribute('uv', new THREE.BufferAttribute(new Float32Array(x.attributes.position.count * 2), 2)); return x; }), false);
+          if (!g) continue;
+          const mesh = new THREE.InstancedMesh(g, m, this.maxPerType);
+          mesh.count = 0; mesh.frustumCulled = false; mesh.castShadow = false;
+          this.scene.add(mesh); parts.push(mesh);
+        }
+        const hm = new THREE.InstancedMesh(helmetGeo.clone().translate(head.x, head.y + 0.06, head.z - 0.01), new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.3, metalness: 0.1 }), this.maxPerType);
+        hm.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(this.maxPerType * 3), 3);
+        hm.count = 0; hm.frustumCulled = false; this.scene.add(hm); parts.push(hm); hm.userData.helmet = true;
+        variants.push(parts);
+        h.dispose?.();
+      }
+      if (variants.length) this.riders[type] = { variants, HELMETS };
+    }
+  }
+
   // cars: [{type, x, y, z, yaw, pitch, roll, color(THREE.Color), brake, spin, lod}]
   update(cars, camera, night, refl = null) {
-    const counts = {};
+    const counts = {}, rc = {};
     let wi = 0, gi = 0, ti = 0, bi = 0;
     const lightsOnAll = night > 0.35;
     const cq = camera.quaternion;
@@ -121,6 +183,15 @@ export class TrafficRenderer {
       _m.compose(_p.set(c.x, c.y, c.z), _q, _s.set(1, 1, 1));
       const lightsOn = lightsOnAll && !c.parked; // parked cars sit dark
       if (T.imported) { this._placeImported(T, lod, n, _m, c, lightsOn); }
+      const RD = this.riders?.[c.type];
+      if (RD && !c.parked && c.dist < 220) {
+        const vi = c.id % RD.variants.length, parts = RD.variants[vi], k = (rc[c.type + vi] = (rc[c.type + vi] || 0) + 1) - 1;
+        for (const mesh of parts) {
+          if (k >= mesh.instanceMatrix.count) continue;
+          mesh.setMatrixAt(k, _m);
+          if (mesh.userData.helmet) mesh.setColorAt(k, _c.setHex(RD.HELMETS[c.id % RD.HELMETS.length]));
+        }
+      }
       const meshes = T.imported ? {} : T.lods[lod];
       for (const [k, mesh] of Object.entries(meshes)) {
         mesh.setMatrixAt(n, _m);
@@ -145,7 +216,7 @@ export class TrafficRenderer {
         // which end faces the camera (for wet-road reflections)
         const facing = (camera.position.x - c.x) * Math.sin(c.yaw) + (camera.position.z - c.z) * Math.cos(c.yaw);
         const reflect = refl && c.dist < 140;
-        for (const sx of [1, -1]) {
+        for (const sx of T.bike ? [0] : [1, -1]) {
           // headlight halo only toward the camera, and fading as the car turns away (no glare from the side)
           const headK = clamp((facing / Math.max(c.dist, 1) - 0.05) / 0.6, 0, 1);
           if (lightsOn && headK > 0.01) {
@@ -181,6 +252,10 @@ export class TrafficRenderer {
         }
       });
     }
+    for (const [type, RD] of Object.entries(this.riders || {})) RD.variants.forEach((parts, vi) => {
+      const n = rc[type + vi] || 0;
+      for (const mesh of parts) { mesh.count = Math.min(n, mesh.instanceMatrix.count); mesh.instanceMatrix.needsUpdate = true; if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true; }
+    });
     this.tires.count = wi; this.rims.count = wi;
     this.tires.instanceMatrix.needsUpdate = true; this.rims.instanceMatrix.needsUpdate = true;
     this.headGlow.count = gi; this.tailGlow.count = ti; this.beams.count = bi;
@@ -305,13 +380,15 @@ TrafficRenderer.prototype._imported = function (scene, src, man, max) {
     }
     entry.lods.push(parts);
   }
-  for (const id of ['FL', 'FR', 'RL', 'RR']) {
+  for (const id of ['FL', 'FR', 'RL', 'RR', 'F', 'R']) {  // (bikes: F / R on the centre line)
     const h = root0.getObjectByName('wheel_' + id);
-    if (h) entry.hubs.push({ id, pos: h.position.clone(), front: id[0] === 'F', side: id[1] === 'L' ? 1 : -1 });
+    if (h) entry.hubs.push({ id, pos: h.position.clone(), front: id[0] === 'F', side: id[1] === 'R' ? -1 : 1 });
   }
   const hl = root0.getObjectByName('light_head_L')?.position, tl = root0.getObjectByName('light_tail_L')?.position;
+  entry.bike = entry.hubs.some((h) => h.id === 'F' || h.id === 'R');
   entry.head = hl ? hl.clone() : new THREE.Vector3(0.7, 0.7, (man?.length || 4.6) / 2 - 0.1);
   entry.tail = tl ? tl.clone() : new THREE.Vector3(0.7, 0.8, -(man?.length || 4.6) / 2 + 0.1);
+  if (entry.bike) { entry.head.set(0, 0.95, (man?.length || 2) / 2 - 0.1); entry.tail.set(0, 0.8, -(man?.length || 2) / 2 + 0.08); }
   entry.length = man?.length || 4.6;
   return entry;
 };

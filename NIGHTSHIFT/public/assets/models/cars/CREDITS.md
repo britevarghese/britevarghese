@@ -44,4 +44,7 @@ They were converted for real-time use (re-scaled, wheels separated, simplified, 
 - **Tata lorry** — "TATA 2515" by danieljorge435, https://sketchfab.com/3d-models/be4e08a68a0441f8a41619c3abd73a3a (CC BY 4.0), modified.
 - **Tata Ace** — "Mini-Truck" by roy.3dartist, https://sketchfab.com/3d-models/71e499219de548a7a1be74c237b6a2fb (CC BY 4.0), modified.
 - **Kerala private bus** — "KERALA BUS 3D MODEL" by rmxdesignz, https://sketchfab.com/3d-models/a1f06445141d4e68b500440570a72dbf (CC BY 4.0), modified.
+- **Scooter** — "Scooter Motorcycle" by norberto3d, https://sketchfab.com/3d-models/53474287ff1045e49f82819f50b8736f (CC BY 4.0), modified.
+- **Commuter motorcycle** — "Bajaj pulsar 150" by shreyanshchaurasia13, https://sketchfab.com/3d-models/06fac75c72ed4780a19034447c81e72c (CC BY 4.0), modified.
+- **Street motorcycle** — "pulsar 135 ls" by EmanuelRestrepoVelez, https://sketchfab.com/3d-models/36d04d99171e4d59b540c25d8650dbd5 (CC BY 4.0), modified.
 - **Motorcycle rider** — "Biker" by Idris.Abass, https://sketchfab.com/3d-models/1594447c9f2d4b618dd59fd3272b6db6 (CC BY 4.0), modified.

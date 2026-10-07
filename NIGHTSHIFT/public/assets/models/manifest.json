@@ -5438,6 +5438,120 @@
         "url": "https://sketchfab.com/3d-models/a1f06445141d4e68b500440570a72dbf",
         "license": "CC-BY-4.0"
       }
+    },
+    "kl_scooter": {
+      "file": "cars/kl_scooter.glb",
+      "imported": true,
+      "name": "Scooter",
+      "length": 1.768,
+      "width": 0.866,
+      "height": 1.124,
+      "wheels": [
+        {
+          "id": "F",
+          "x": 0,
+          "y": 0.216,
+          "z": 0.684,
+          "r": 0.216,
+          "w": 0.134
+        },
+        {
+          "id": "R",
+          "x": -0.002,
+          "y": 0.216,
+          "z": -0.589,
+          "r": 0.216,
+          "w": 0.147
+        }
+      ],
+      "tris": {
+        "lod0": 3143,
+        "lod1": 2911
+      },
+      "source": {
+        "site": "Sketchfab",
+        "uid": "53474287ff1045e49f82819f50b8736f",
+        "title": "Scooter Motorcycle",
+        "author": "norberto3d",
+        "url": "https://sketchfab.com/3d-models/53474287ff1045e49f82819f50b8736f",
+        "license": "CC-BY-4.0"
+      }
+    },
+    "kl_commuter": {
+      "file": "cars/kl_commuter.glb",
+      "imported": true,
+      "name": "Commuter motorcycle",
+      "length": 1.8,
+      "width": 0.808,
+      "height": 0.948,
+      "wheels": [
+        {
+          "id": "F",
+          "x": -0.006,
+          "y": 0.307,
+          "z": 0.675,
+          "r": 0.307,
+          "w": 0.113
+        },
+        {
+          "id": "R",
+          "x": -0.01,
+          "y": 0.31,
+          "z": -0.716,
+          "r": 0.308,
+          "w": 0.12
+        }
+      ],
+      "tris": {
+        "lod0": 13788,
+        "lod1": 3270
+      },
+      "source": {
+        "site": "Sketchfab",
+        "uid": "06fac75c72ed4780a19034447c81e72c",
+        "title": "Bajaj pulsar 150",
+        "author": "shreyanshchaurasia13",
+        "url": "https://sketchfab.com/3d-models/06fac75c72ed4780a19034447c81e72c",
+        "license": "CC-BY-4.0"
+      }
+    },
+    "kl_streetbike": {
+      "file": "cars/kl_streetbike.glb",
+      "imported": true,
+      "name": "Street motorcycle",
+      "length": 1.917,
+      "width": 0.955,
+      "height": 1.093,
+      "wheels": [
+        {
+          "id": "F",
+          "x": 0,
+          "y": 0.311,
+          "z": 0.632,
+          "r": 0.311,
+          "w": 0.099
+        },
+        {
+          "id": "R",
+          "x": 0,
+          "y": 0.311,
+          "z": -0.689,
+          "r": 0.311,
+          "w": 0.099
+        }
+      ],
+      "tris": {
+        "lod0": 21601,
+        "lod1": 3302
+      },
+      "source": {
+        "site": "Sketchfab",
+        "uid": "36d04d99171e4d59b540c25d8650dbd5",
+        "title": "pulsar 135 ls",
+        "author": "EmanuelRestrepoVelez",
+        "url": "https://sketchfab.com/3d-models/36d04d99171e4d59b540c25d8650dbd5",
+        "license": "CC-BY-4.0"
+      }
     }
   },
   "wheels": {
@@ -5581,6 +5695,7 @@
     "cars/kawasaki_zx6r.glb": "04fb05f437",
     "cars/kl_auto.glb": "98a8002568",
     "cars/kl_brezza.glb": "30987373c5",
+    "cars/kl_commuter.glb": "bc63d1e7dc",
     "cars/kl_dzire.glb": "a179b7b703",
     "cars/kl_ertiga.glb": "1be13011f7",
     "cars/kl_ksrtc.glb": "49d9467134",
@@ -5589,7 +5704,9 @@
     "cars/kl_minitruck.glb": "415c590a70",
     "cars/kl_pvtbus.glb": "a4cb21215f",
     "cars/kl_pvtbus2.glb": "fe762222c5",
+    "cars/kl_scooter.glb": "823295e68c",
     "cars/kl_scorpio.glb": "600ac1856f",
+    "cars/kl_streetbike.glb": "864228dfaa",
     "cars/kl_thar.glb": "32038f9347",
     "cars/lamborghini_centenario.glb": "6c9aa6918e",
     "cars/lamborghini_huracan_tt.glb": "3a5864e8ee",

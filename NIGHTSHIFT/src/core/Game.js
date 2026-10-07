@@ -10,6 +10,7 @@ import { Environment } from '../renderer/Environment.js';
 import { Effects } from '../renderer/Effects.js';
 import { WorldManager } from '../world/WorldManager.js';
 import { KeralaWorld } from '../kerala/KeralaWorld.js';
+import { SkinnedRider } from '../vehicles/Rider.js';
 import { KeralaMap, KeralaOverview } from '../kerala/KeralaMap.js';
 // the world is the real Kerala (streamed OpenStreetMap tiles); the old Port Halvern map is still there as ?world=halvern
 export const KERALA = !(typeof location !== 'undefined' && new URLSearchParams(location.search).get('world') === 'halvern');
@@ -146,7 +147,19 @@ export class Game {
       this.traffic.enabled = true;
     };
     if ((this.world.kerala ? ['auto', 'dzire', 'ksrtc'] : ['sedan', 'suv', 'van', 'truck', 'bus']).every((t) => this.lib.has(t))) attach();
-    else promise.then(attach);
+    // types whose models arrive later join the renderer then; two-wheelers get their riders once people load
+    promise.then(() => {
+      attach();
+      const R = this.trafficRenderer;
+      if (!R) return;
+      for (const t of Object.keys(TYPE_SPECS)) if (!!TYPE_SPECS[t].kl === !!this.world.kerala && this.lib.has(t)) R.addType(t);
+      const bikes = {
+        scooter: { seat: 0.74, pose: { hipZ: 0.3, barsBack: 0.34, barsY: 0.32, barsW: 0.33, pegBack: -0.34, pegY: 0.2, pegW: 0.14, torso: 1.42, tuck: 1.35, neck: 0.16 } },
+        commuter: { seat: 0.79, pose: { hipZ: 0.36, barsBack: 0.42, barsY: 0.26, barsW: 0.36, pegBack: 0.05, pegY: 0.3, pegW: 0.18, torso: 1.25, tuck: 1.15, neck: 0.15 } },
+        streetbike: { seat: 0.8, pose: { hipZ: 0.35, barsBack: 0.43, barsY: 0.22, barsW: 0.36, pegBack: 0.1, pegY: 0.32, pegW: 0.18, torso: 1.1, tuck: 0.95, neck: 0.14 } },
+      };
+      this.humans.load(3).then(() => R.attachRiders(this.humans, SkinnedRider, bikes));
+    });
   }
 
   // whoever the world revolves around: the character on foot, or the car being driven
