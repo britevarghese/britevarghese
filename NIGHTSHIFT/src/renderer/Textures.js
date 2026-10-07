@@ -214,6 +214,10 @@ export const KERALA_FACADE = FACADE_DEF.length;
 FACADE_DEF.push({ name: 'plaster', colW: 3.2, floorH: 3.1, frame: '#4a3424', glass: '#1a1d1e', wall: '#efe9dc', winW: 0.36, winH: 0.48, lit: 0.45, litColors: ['#ffd890', '#fff0c8', '#e8f0ff'], plaster: true });
 export const KERALA_TINTS = ['#f2b8c4', '#b8e2c4', '#f2e09a', '#acd0ec', '#f4c8a2', '#f6f4ec', '#d8c4ec', '#c8e8a0'];
 for (const [i, tint] of KERALA_TINTS.entries()) FACADE_DEF.push({ ...FACADE_DEF[KERALA_FACADE], name: 'plaster' + i, tintOf: KERALA_FACADE, tint });
+// Kerala town blocks: shops on the ground floor (rolling shutters, open fronts, painted signboards), flats above
+export const KERALA_SHOP = FACADE_DEF.length;
+FACADE_DEF.push({ ...FACADE_DEF[KERALA_FACADE], name: 'klshop0', wall: '#e9e0cc', shop: true });
+FACADE_DEF.push({ ...FACADE_DEF[KERALA_FACADE], name: 'klshop1', wall: '#d6e2e4', shop: true });
 
 // house window detail: sky reflection in the glass, a trim casing, four panes, a sill, and (on some)
 // louvred shutters
@@ -257,6 +261,76 @@ function keralaWindow(cc, ec, hc, def, R, x, y, ww, wh, cw, rh) {
   hc.fillStyle = 'rgb(250,250,250)'; hc.fillRect(x - cw * 0.12, sy, ww + cw * 0.24, rh * 0.045);
   // monsoon streaks under it
   if (R() < 0.5) { const g = cc.createLinearGradient(0, y + wh, 0, y + wh + rh * 0.4); g.addColorStop(0, 'rgba(60,50,40,0.25)'); g.addColorStop(1, 'rgba(60,50,40,0)'); cc.fillStyle = g; cc.fillRect(x, y + wh + t, ww, rh * 0.4); }
+}
+
+// monsoon weathering on Kerala plaster: black mould running down from every slab edge and the parapet,
+// a damp, splashed plinth at the foot of the wall
+function keralaWeather(cc, hc, R, n, rh) {
+  for (let r = 0; r < 8; r++) {
+    const y0 = r * rh, k = r === 0 ? 1.6 : 1;
+    for (let i = 0; i < 14 * k; i++) {
+      const x = R() * n, w = 2 + R() * n / 60, len = rh * (0.15 + R() * 0.7) * k;
+      const g = cc.createLinearGradient(0, y0, 0, y0 + len);
+      g.addColorStop(0, `rgba(${40 + R() * 20},${46 + R() * 20},${38 + R() * 10},${0.35 + R() * 0.25})`); g.addColorStop(1, 'rgba(40,46,38,0)');
+      cc.fillStyle = g; cc.fillRect(x, y0, w, len);
+    }
+  }
+  // blotchy damp patches
+  for (let i = 0; i < 24; i++) { cc.fillStyle = `rgba(60,64,52,${0.03 + R() * 0.05})`; cc.beginPath(); cc.ellipse(R() * n, R() * n, 4 + R() * n / 30, 3 + R() * n / 40, 0, 0, 6.283); cc.fill(); }
+  // plinth: the bottom of the canvas is the foot of the wall
+  const ph = rh * 0.16;
+  cc.fillStyle = '#5e574c'; cc.fillRect(0, n - ph, n, ph);
+  hc.fillStyle = 'rgb(200,200,200)'; hc.fillRect(0, n - ph, n, ph * 0.12);
+  const g = cc.createLinearGradient(0, n - ph - rh * 0.3, 0, n - ph);
+  g.addColorStop(0, 'rgba(70,62,50,0)'); g.addColorStop(1, 'rgba(70,62,50,0.45)');
+  cc.fillStyle = g; cc.fillRect(0, n - ph - rh * 0.3, n, rh * 0.3);
+}
+
+// the ground floor of a Kerala town block: a row of shops under painted signboards
+const SIGN_BG = ['#c8202a', '#1d4e9e', '#f2c12e', '#1f8a4a', '#f2f2ee', '#7a1f6a', '#e86a1a', '#202020'];
+const SIGN_TXT = ['STORES', 'BAKERY', 'MEDICALS', 'TEXTILES', 'HOTEL', 'JEWELLERY', 'MOBILES', 'HARDWARES', 'TEA STALL', 'AGENCIES', 'FANCY', 'TRADERS',
+  'ബേക്കറി', 'സ്റ്റോഴ്സ്', 'ഹോട്ടൽ', 'ടെക്സ്റ്റൈൽസ്', 'മെഡിക്കൽസ്', 'ജ്വല്ലറി'];
+function keralaShops(cc, ec, hc, oc, R, n, cw, rh) {
+  const y0 = n - rh, sh = rh * 0.24;
+  // clear the ground-floor row
+  cc.fillStyle = '#d8d0c0'; cc.fillRect(0, y0, n, rh);
+  ec.fillStyle = '#000'; ec.fillRect(0, y0, n, rh);
+  hc.fillStyle = 'rgb(180,180,180)'; hc.fillRect(0, y0, n, rh);
+  for (let c = 0; c < 8;) {
+    const span = Math.min(8 - c, 1 + Math.floor(R() * 3)), x = c * cw, w = span * cw;
+    // signboard
+    const bg = R.pick(SIGN_BG);
+    cc.fillStyle = bg; cc.fillRect(x + 2, y0 + 2, w - 4, sh);
+    ec.fillStyle = 'rgb(40,40,40)'; ec.fillRect(x + 2, y0 + 2, w - 4, sh);
+    const light = bg === '#f2f2ee' || bg === '#f2c12e';
+    cc.fillStyle = light ? '#b01818' : '#ffffff';
+    cc.font = `bold ${Math.round(sh * 0.62)}px "Nirmala UI","Noto Sans Malayalam",Kartika,Arial,sans-serif`;
+    cc.textAlign = 'center'; cc.textBaseline = 'middle';
+    cc.fillText(R.pick(SIGN_TXT), x + w / 2, y0 + 2 + sh / 2, w - 12);
+    // fronts: rolling shutters (some half up) or open shops with goods inside
+    for (let k = 0; k < span; k++) {
+      const fx = x + k * cw + cw * 0.06, fw = cw * 0.88, fy = y0 + sh + rh * 0.05, fh = n - rh * 0.16 - fy;
+      const open = R() < 0.55, up = open ? 1 : R() < 0.3 ? 0.5 : 0;
+      if (up > 0) {
+        cc.fillStyle = '#1c1a18'; cc.fillRect(fx, fy, fw, fh);
+        for (let i = 0; i < 9; i++) { cc.fillStyle = R.pick(['#c04030', '#3060a0', '#d0a030', '#40804a', '#e0e0d0', '#806040']); cc.fillRect(fx + R() * fw * 0.85, fy + fh * (0.2 + R() * 0.6), fw * (0.06 + R() * 0.12), fh * (0.08 + R() * 0.2)); }
+        ec.fillStyle = 'rgb(150,120,70)'; ec.fillRect(fx, fy + fh * (1 - up), fw, fh * up);
+        oc.fillStyle = 'rgb(0,200,0)'; oc.fillRect(fx, fy, fw, fh);
+      }
+      if (up < 1) {
+        const sc = R.pick(['#8a9096', '#5f7f6a', '#4f6e8a', '#9a8a6a']), hgt = fh * (1 - up);
+        cc.fillStyle = sc; cc.fillRect(fx, fy, fw, hgt);
+        for (let yy = fy; yy < fy + hgt; yy += Math.max(2, rh / 40)) { cc.fillStyle = 'rgba(0,0,0,0.18)'; cc.fillRect(fx, yy, fw, 1); hc.fillStyle = 'rgb(130,130,130)'; hc.fillRect(fx, yy, fw, 1); }
+        oc.fillStyle = 'rgb(0,120,170)'; oc.fillRect(fx, fy, fw, hgt);
+      }
+      // pillar between fronts
+      cc.fillStyle = '#c8c0b0'; cc.fillRect(x + k * cw, y0 + sh, cw * 0.06, rh - sh);
+    }
+    c += span;
+  }
+  // a little awning shadow under the boards
+  cc.fillStyle = 'rgba(0,0,0,0.3)'; cc.fillRect(0, y0 + sh + 2, n, rh * 0.04);
+  cc.textAlign = 'start'; cc.textBaseline = 'alphabetic';
 }
 
 export function facade(style) {
@@ -347,6 +421,8 @@ export function facade(style) {
       cc.fillStyle = 'rgba(0,0,0,0.25)'; cc.fillRect(0, r * rh, n, Math.max(1, rh * 0.04));
       if (def.strips) { ec.fillStyle = 'rgba(80,200,255,0.9)'; ec.fillRect(0, r * rh, n, Math.max(1, rh * 0.02)); }
     }
+    if (def.plaster) keralaWeather(cc, hc, R, n, rh);
+    if (def.shop) keralaShops(cc, ec, hc, oc, R, n, cw, rh);
     // vertical dirt streaks
     cc.globalAlpha = 0.12;
     for (let i = 0; i < 30; i++) { const x = R() * n; const g = cc.createLinearGradient(0, 0, 0, n); g.addColorStop(0, 'rgba(0,0,0,0)'); g.addColorStop(1, 'rgba(0,0,0,1)'); cc.fillStyle = g; cc.fillRect(x, R() * n * 0.5, 2 + R() * n / 100, n); }

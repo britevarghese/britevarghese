@@ -330,11 +330,13 @@ export class Environment {
     this.hemi.color.copy(C.hemiS); this.hemi.groundColor.copy(C.hemiG);
     this.hemi.intensity = lerp(a.hemiI, b.hemiI, t) * (0.75 + 0.25 * cloudDim);
     const fogC = C.fog.clone().lerp(new THREE.Color(0x3a4048), this.rain * (1 - night) * 0.5);
+    // tropical humidity (Kerala): a pale haze by day
+    if (this.haze > 1) fogC.lerp(new THREE.Color(0xc2ccd0), Math.min(0.45, (this.haze - 1) * 0.3) * (1 - night));
     this.scene.fog.color.copy(fogC);
     const vd = this.preset.viewDistance;
     // long-range atmosphere: the far city (CityImpostor) and the landscape fill in past the streamed chunks,
     // so fog no longer has to hide the view distance; rain and night still close it in
-    this.scene.fog.density = 0.00024 * (1 + this.rain * 2.6 + this.cloud * 0.3) * (night > 0.5 ? 1.3 : 1) * (vd < 500 ? 2.2 : 1);
+    this.scene.fog.density = 0.00024 * (1 + this.rain * 2.6 + this.cloud * 0.3) * (night > 0.5 ? 1.3 : 1) * (vd < 500 ? 2.2 : 1) * (this.haze || 1);
     this.renderer.toneMappingExposure = lerp(a.exp, b.exp, t);
     this.sky.position.copy(focus); this.stars.position.copy(focus);
     this.starMat.opacity = clamp(night * 1.2 - 0.2, 0, 1) * (1 - this.cloud * 0.9);

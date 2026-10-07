@@ -15,12 +15,14 @@ const RASTER = 256;                       // land-use raster per tile (7.8 m per
 const PX = RASTER / TILE;
 
 // road classes (build_tiles.py ROAD_CLS): half widths (m) and draw order
-const ROAD_HALF = [7, 6, 4.6, 4, 3.5, 2.8, 2.6, 2.2, 1.9, 1.6, 2];
+export const ROAD_HALF = [7, 6, 4.6, 4, 3.5, 2.8, 2.6, 2.2, 1.9, 1.6, 2];
 // land-use / class raster codes (R channel of the class canvas)
+const VALID = new Uint8Array(256);
 export const C = { land: 0, paddy: 1, grove: 2, forest: 3, town: 4, commercial: 5, industrial: 6, grass: 7, sand: 8, rock: 9, religious: 10, scrub: 11, wetland: 12, water: 20, sea: 21, road: 30, building: 31 };
+for (const v of Object.values(C)) VALID[v] = 1;
 const LU_COLOR = {
-  0: '#4d7531', 1: '#7aa83a', 2: '#3d6528', 3: '#2a4a1f', 4: '#5f7040', 5: '#7d7a6a', 6: '#77746a', 7: '#5f9038',
-  8: '#d6c493', 9: '#8a7a68', 10: '#6b7a44', 11: '#6a7838', 12: '#4d6a44',
+  0: '#55703a', 1: '#7da23c', 2: '#3f5f2a', 3: '#2c4522', 4: '#66694a', 5: '#7a7466', 6: '#77746a', 7: '#5c8238',
+  8: '#d2bf8e', 9: '#7d7264', 10: '#686c44', 11: '#6a7040', 12: '#4a6644',
 };
 
 // ------------------------------------------------------------------------------------------- decoding
@@ -101,7 +103,8 @@ export class KeralaTile {
   classAt(e, n) {
     if (!this.cls) return 0;
     const px = Math.min(RASTER - 1, Math.max(0, Math.floor(e * PX))), py = Math.min(RASTER - 1, Math.max(0, Math.floor((TILE - n) * PX)));
-    return this.cls[(py * RASTER + px) * 4];
+    const c = this.cls[(py * RASTER + px) * 4];
+    return VALID[c] ? c : c < 15 ? C.land : C.road;  // anti-aliased edges blend codes: mostly-land or mostly-road
   }
 
   // ------------------------------------------------------------------------------------------ build
@@ -118,8 +121,9 @@ export class KeralaTile {
     if (water) g.add(water);
     for (const m of this._roads(M)) g.add(m);
     for (const m of this._buildings(M, d, opts)) g.add(m);
-    const palms = this._palms(opts);
-    if (palms) g.add(palms);
+    for (const m of this._poles(M, opts)) g.add(m);
+    if (opts.trees) { this.trees = opts.trees.plant(this); g.add(this.trees.group); }
+    else { const palms = this._palms(opts); if (palms) g.add(palms); }
     g.traverse((o) => { o.matrixAutoUpdate = false; o.updateMatrix(); });
     g.updateMatrixWorld(true);
     this.ready = true;
@@ -129,7 +133,7 @@ export class KeralaTile {
   // class canvas (what is where: water / land use / roads / buildings) + the visible ground colours
   _rasters(d) {
     const mk = () => { const c = document.createElement('canvas'); c.width = c.height = RASTER; return c; };
-    const vis = mk(), cl = mk(), V = vis.getContext('2d'), K = cl.getContext('2d');
+    const vis = mk(), cl = mk(), V = vis.getContext('2d'), K = cl.getContext('2d', { willReadFrequently: true }); // read back below: keep it on the CPU
     V.fillStyle = LU_COLOR[0]; V.fillRect(0, 0, RASTER, RASTER);
     K.fillStyle = 'rgb(0,0,0)'; K.fillRect(0, 0, RASTER, RASTER);
     const path = (ctx, rings) => {
@@ -160,8 +164,13 @@ export class KeralaTile {
     V.globalAlpha = 0.18;
     let s = (this.tx * 73856093 ^ this.tz * 19349663) >>> 0;
     const rnd = () => ((s = (s * 1664525 + 1013904223) >>> 0) / 4294967296);
-    for (let i = 0; i < 900; i++) { V.fillStyle = rnd() < 0.5 ? '#2f4a20' : '#8a7a4a'; const r = 1 + rnd() * 4; V.beginPath(); V.arc(rnd() * RASTER, rnd() * RASTER, r, 0, 6.283); V.fill(); }
+    const MOTTLE = ['#2f4a20', '#3c5a26', '#6b5a3a', '#8a5a3c', '#7a7048'];
+    for (let i = 0; i < 2600; i++) { V.fillStyle = MOTTLE[Math.floor(rnd() * MOTTLE.length)]; const r = 0.8 + rnd() * rnd() * 7; V.beginPath(); V.ellipse(rnd() * RASTER, rnd() * RASTER, r, r * (0.5 + rnd() * 0.5), rnd() * 3, 0, 6.283); V.fill(); }
     V.globalAlpha = 1;
+    // swept earth yards round the houses (Kerala compounds), a little wider than the footprint
+    V.fillStyle = 'rgba(132,96,66,0.55)'; V.strokeStyle = 'rgba(132,96,66,0.45)'; V.lineJoin = 'round';
+    V.lineWidth = Math.max(1, 7 * PX);
+    for (const b of d.b || []) { path(V, [decodeLine(b, 2)]); V.fill(); V.stroke(); }
     // red laterite earth along the road edges (Kerala's verges)
     V.lineCap = 'round'; V.lineJoin = 'round'; V.globalAlpha = 0.55; V.strokeStyle = '#8a563a';
     for (const r of this.roads) {
@@ -173,7 +182,7 @@ export class KeralaTile {
     // roads and buildings into the class map (palms keep off them)
     K.lineCap = 'round';
     for (const r of this.roads) {
-      K.strokeStyle = `rgb(${C.road},0,0)`; K.lineWidth = Math.max(1.5, (ROAD_HALF[r.cls] * 2 + 3) * PX);
+      K.strokeStyle = `rgb(${C.road},0,0)`; K.lineWidth = Math.max(0.9, (ROAD_HALF[r.cls] * 2 + 2) * PX);
       K.beginPath(); r.pts.forEach(([e, n], i) => { const x = e * PX, y = (TILE - n) * PX; if (i) K.lineTo(x, y); else K.moveTo(x, y); }); K.stroke();
       if (r.dirt) { V.strokeStyle = '#8c5a3a'; V.lineWidth = Math.max(1, ROAD_HALF[r.cls] * 2 * PX); V.lineCap = 'round'; V.beginPath(); r.pts.forEach(([e, n], i) => { const x = e * PX, y = (TILE - n) * PX; if (i) V.lineTo(x, y); else V.moveTo(x, y); }); V.stroke(); }
     }
@@ -189,7 +198,8 @@ export class KeralaTile {
     this.waterLevel = 0.25;
     for (let j = 0; j < GRID; j++) for (let i = 0; i < GRID; i++) {
       const c = this.classAt(i * STEP, j * STEP);
-      if (c === C.water || c === C.sea) H[j * GRID + i] = Math.min(H[j * GRID + i], 0) - 2.2;
+      // (not under a road: bridges and causeways keep the ground at road level)
+      if ((c === C.water || c === C.sea) && !this.nearRoad(i * STEP, j * STEP, 9, 9)) H[j * GRID + i] = Math.min(H[j * GRID + i], 0) - 2.2;
     }
   }
 
@@ -263,7 +273,7 @@ export class KeralaTile {
     const P = [];
     for (let i = 0; i < pts.length; i++) {
       if (i) {
-        const [ae, an] = pts[i - 1], [be, bn] = pts[i], L = Math.hypot(be - ae, bn - an), k = Math.ceil(L / 6);
+        const [ae, an] = pts[i - 1], [be, bn] = pts[i], L = Math.hypot(be - ae, bn - an), k = Math.ceil(L / 8);
         for (let s = 1; s < k; s++) P.push([ae + (be - ae) * s / k, an + (bn - an) * s / k]);
       }
       P.push(pts[i]);
@@ -298,6 +308,27 @@ export class KeralaTile {
   _roads(M) {
     const paved = [], dirt = [], white = [], yellow = [];
     const y = (lift) => (e, n) => this.heightAt(e, n) + lift;
+    // junctions (points shared by roads): markings stop short of them, as painted lines do
+    const seen = new Map();
+    for (const r of this.roads) {
+      if (r.flags & 4 || r.cls > 8) continue;
+      const hw = ROAD_HALF[r.cls];
+      for (const k of new Set(r.pts.map(([e, n]) => `${Math.round(e)},${Math.round(n)}`))) { const o = seen.get(k); seen.set(k, o ? [o[0] + 1, Math.max(o[1], hw)] : [1, hw]); }
+    }
+    const JG = new Map();
+    for (const [k, [c, hw]] of seen) {
+      if (c < 2) continue;
+      const [e, n] = k.split(',').map(Number), gk = Math.floor(e / 16) * 1000 + Math.floor(n / 16);
+      if (!JG.has(gk)) JG.set(gk, []); JG.get(gk).push(e, n, hw + 2.5);
+    }
+    this._nearJunction = (e, n) => {
+      const ge = Math.floor(e / 16), gn = Math.floor(n / 16);
+      for (let a = -1; a <= 1; a++) for (let b = -1; b <= 1; b++) {
+        const L = JG.get((ge + a) * 1000 + gn + b); if (!L) continue;
+        for (let j = 0; j < L.length; j += 3) if ((L[j] - e) ** 2 + (L[j + 1] - n) ** 2 < L[j + 2] * L[j + 2]) return true;
+      }
+      return false;
+    };
     // wider classes sit a hair higher so junctions don't flicker
     for (const r of this.roads) {
       if (r.flags & 4) continue; // tunnels: not drawn on the surface
@@ -313,18 +344,78 @@ export class KeralaTile {
       if (!g) continue;
       g.computeVertexNormals();
       (r.dirt ? dirt : paved).push(g);
-      if (r.dirt || r.cls > 6) continue;
+      if (r.dirt || r.cls > 4) continue;  // village and town lanes carry no paint
       // markings: dashed white centre line (Indian roads), solid edge lines on the main roads
-      const cl = this._dashes(r.pts, 0, 0.08, r.cls <= 4 ? 3 : 0, r.cls <= 4 ? 6 : 0, y(lift + 0.012));
+      const cl = this._dashes(r.pts, 0, 0.08, 3, 6, y(lift + 0.012));
       if (cl) white.push(cl);
       if (r.cls <= 3) for (const side of [1, -1]) { const e = this._dashes(r.pts, side * (hw - 0.35), 0.08, 0, 0, y(lift + 0.012)); if (e) (r.cls <= 1 ? yellow : white).push(e); }
     }
+    this._nearJunction = null;
     const out = [];
     const add = (list, mat, name) => { if (!list.length) return; const gg = mergeGeometries(list); if (!gg) return; const m = new THREE.Mesh(gg, mat); m.receiveShadow = true; m.name = name; out.push(m); };
     add(paved, M.road, 'roads');
     add(dirt, M.klDirtRoad || M.dirt, 'tracks');
     add(white, M.klLineWhite, 'lines');
     add(yellow, M.klLineYellow, 'linesY');
+    return out;
+  }
+
+  // KSEB electric poles along the town roads, ~38 m apart on one side, strung with sagging wires
+  _poles(M, opts) {
+    if (!opts.poleGeo) return [];
+    let s = (this.tx * 7919 ^ this.tz * 104729) >>> 0;
+    const rnd = () => ((s = (s * 1664525 + 1013904223) >>> 0) / 4294967296);
+    const mats = [], wire = {}, m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), up = new THREE.Vector3(0, 1, 0), one = new THREE.Vector3(1, 1, 1), v = new THREE.Vector3();
+    const SP = 38;
+    for (const r of this.roads) {
+      if (r.cls < 2 || r.cls > 7 || r.dirt || r.flags & 4 || r.pts.length < 2) continue;
+      const side = rnd() < 0.5 ? 1 : -1, off = ROAD_HALF[r.cls] + 1.3;
+      let prev = null, acc = SP * rnd();
+      for (let i = 1; i < r.pts.length; i++) {
+        const [ae, an] = r.pts[i - 1], [be, bn] = r.pts[i], L = Math.hypot(be - ae, bn - an);
+        if (L < 0.01) continue;
+        const ue = (be - ae) / L, un = (bn - an) / L;
+        for (; acc < L; acc += SP) {
+          const e = ae + ue * acc - un * off * side, n = an + un * acc + ue * off * side;
+          const c = this.classAt(e, n);
+          if (e < 1 || n < 1 || e > TILE - 1 || n > TILE - 1 || c === C.water || c === C.sea || c === C.building || this.nearRoad(e, n, Math.min(4.5, off - 0.4))) { prev = null; continue; }
+          // crossarm across the road: local x -> the road's normal in game space
+          const nx = un * side, nz = ue * side, th = Math.atan2(-nz, nx), y = this.heightAt(e, n);
+          q.setFromAxisAngle(up, th + (rnd() - 0.5) * 0.08);
+          const ch = Math.min(3, Math.floor(e / 500)) + 4 * Math.min(3, Math.floor(n / 500));
+          mats.push([m4.compose(v.set(-e, y - 0.05, n), q, one).clone(), ch]);
+          this.colliders.push({ cx: -(this.E0 + e), cz: this.N0 + n, hx: 0.18, hz: 0.18, cos: 1, sin: 0, angle: 0, h: y + 9, kind: 'pole' });
+          const tops = [[-0.7, 8.05], [0.7, 8.05], [0, 8.75]].map(([dx, dy]) => [-e + Math.cos(th) * dx, y + dy, n - Math.sin(th) * dx]);
+          if (prev && Math.hypot(tops[0][0] - prev[0][0], tops[0][2] - prev[0][2]) < SP * 1.6) {
+            for (let k = 0; k < 3; k++) {
+              const A = prev[k], B = tops[k], sag = 0.55 + k * 0.1;
+              for (let t = 0; t < 4; t++) {
+                const t0 = t / 4, t1 = (t + 1) / 4, s0 = 4 * t0 * (1 - t0) * sag, s1 = 4 * t1 * (1 - t1) * sag;
+                (wire[ch] || (wire[ch] = [])).push(A[0] + (B[0] - A[0]) * t0, A[1] + (B[1] - A[1]) * t0 - s0, A[2] + (B[2] - A[2]) * t0,
+                  A[0] + (B[0] - A[0]) * t1, A[1] + (B[1] - A[1]) * t1 - s1, A[2] + (B[2] - A[2]) * t1);
+              }
+            }
+          }
+          prev = tops;
+        }
+        acc -= L;
+      }
+    }
+    // one instanced mesh and one wire set per 500 m chunk, drawn near the camera only
+    const out = [];
+    for (let c = 0; c < 16; c++) {
+      const L = mats.filter((m) => m[1] === c), cc = [(c % 4) * 500 + 250, Math.floor(c / 4) * 500 + 250];
+      if (L.length) {
+        const im = new THREE.InstancedMesh(opts.poleGeo, M.klPole, L.length);
+        L.forEach(([m], i) => im.setMatrixAt(i, m));
+        im.computeBoundingSphere(); im.name = 'poles'; im.castShadow = !!opts.shadows; im.userData.cc = cc;
+        out.push(im);
+      }
+      if (wire[c]) {
+        const wg = new THREE.BufferGeometry(); wg.setAttribute('position', new THREE.Float32BufferAttribute(wire[c], 3));
+        const w = new THREE.LineSegments(wg, M.klWire); w.name = 'wires'; w.userData.cc = cc; out.push(w);
+      }
+    }
     return out;
   }
 
@@ -335,6 +426,24 @@ export class KeralaTile {
       const a = pts[Math.max(0, i - 1)], b = pts[Math.min(pts.length - 1, i + 1)];
       const de = b[0] - a[0], dn = b[1] - a[1], l = Math.hypot(de, dn) || 1;
       P.push([pts[i][0] - dn / l * off, pts[i][1] + de / l * off]);
+    }
+    // split into the runs clear of junctions (sampled every 1.5 m)
+    if (this._nearJunction) {
+      const runs = []; let cur = [];
+      for (let i = 0; i < P.length; i++) {
+        if (i) {
+          const [ae, an] = P[i - 1], [be, bn] = P[i], k = Math.max(1, Math.ceil(Math.hypot(be - ae, bn - an) / 1.5));
+          for (let j = 1; j < k; j++) { const q = [ae + (be - ae) * j / k, an + (bn - an) * j / k]; if (this._nearJunction(q[0], q[1])) { if (cur.length > 1) runs.push(cur); cur = []; } else cur.push(q); }
+        }
+        if (this._nearJunction(P[i][0], P[i][1])) { if (cur.length > 1) runs.push(cur); cur = []; } else cur.push(P[i]);
+      }
+      if (cur.length > 1) runs.push(cur);
+      if (runs.length !== 1 || runs[0].length !== P.length) {
+        const nj = this._nearJunction; this._nearJunction = null;
+        const parts = runs.map((r) => this._dashes(r, 0, hw, dash, gap, yOf)).filter(Boolean);
+        this._nearJunction = nj;
+        return parts.length ? mergeGeometries(parts) : null;
+      }
     }
     if (!dash) return (() => { const g = this._ribbon(P, hw, yOf, 1e9); if (g) g.computeVertexNormals(); return g; })();
     const geos = [];
@@ -361,8 +470,33 @@ export class KeralaTile {
   // ------------------------------------------------------------------------------------------ buildings
   // Footprints extruded to their height. Houses get Mangalore-tile hip roofs (terracotta), bigger buildings
   // flat concrete terraces; walls use the facade textures, painted in the colours Kerala houses come in.
+  // distance test to the tile's roads up to class maxCls (grid of segments, built on first use)
+  nearRoad(e, n, dist, maxCls = 10) {
+    if (!this._rg) {
+      const RG = this._rg = new Map(), G = 25;
+      for (const r of this.roads) for (let i = 1; i < r.pts.length; i++) {
+        const a = r.pts[i - 1], b = r.pts[i];
+        for (let gx = Math.floor(Math.min(a[0], b[0]) / G); gx <= Math.floor(Math.max(a[0], b[0]) / G); gx++)
+          for (let gz = Math.floor(Math.min(a[1], b[1]) / G); gz <= Math.floor(Math.max(a[1], b[1]) / G); gz++) {
+            const k = gx * 1000 + gz; if (!RG.has(k)) RG.set(k, []); RG.get(k).push(a[0], a[1], b[0], b[1], r.cls);
+          }
+      }
+    }
+    const G = 25, R = Math.ceil(dist / G);
+    for (let a = -R; a <= R; a++) for (let b = -R; b <= R; b++) {
+      const L = this._rg.get((Math.floor(e / G) + a) * 1000 + Math.floor(n / G) + b); if (!L) continue;
+      for (let j = 0; j < L.length; j += 5) {
+        if (L[j + 4] > maxCls) continue;
+        const ax = L[j], az = L[j + 1], dx = L[j + 2] - ax, dz = L[j + 3] - az, l2 = dx * dx + dz * dz || 1;
+        const t = Math.max(0, Math.min(1, ((e - ax) * dx + (n - az) * dz) / l2));
+        if ((ax + dx * t - e) ** 2 + (az + dz * t - n) ** 2 < dist * dist) return true;
+      }
+    }
+    return false;
+  }
+
   _buildings(M, d, opts) {
-    const byMat = new Map(), roofsTile = [], roofsFlat = [], tanks = [];
+    const byMat = new Map(), roofsTile = [], roofsFlat = [], tanks = [], ledges = [];
     const push = (key, g) => { let l = byMat.get(key); if (!l) byMat.set(key, (l = [])); l.push(g); };
     let s = (this.tx * 2654435761 ^ this.tz * 40503) >>> 0;
     const rnd = () => ((s = (s * 1664525 + 1013904223) >>> 0) / 4294967296);
@@ -382,6 +516,10 @@ export class KeralaTile {
       for (const [e, n] of ring) base = Math.min(base, this.heightAt(e, n));
       base -= 0.4;
       const top = base + 0.4 + H;
+      const house = kind === 1 || kind === 2 || (kind === 0 && H < 8.5);
+      const tiled = house && area < 320 && rnd() < 0.62;
+      // flat roofs have a parapet round the terrace
+      const wallTop = tiled ? top : top + 0.9;
       // walls
       const n = ring.length, pos = new Float32Array(n * 4 * 3), uv = new Float32Array(n * 4 * 2), idx = [];
       let u = 0;
@@ -390,8 +528,8 @@ export class KeralaTile {
         const [e1, n1] = ring[i], [e2, n2] = ring[(i + 1) % n];
         const L = Math.hypot(e2 - e1, n2 - n1);
         const q = i * 4;
-        pos.set([-e1, base, n1, -e2, base, n2, -e1, top, n1, -e2, top, n2], q * 3);
-        uv.set([u / (colW * 8), 0, (u + L) / (colW * 8), 0, u / (colW * 8), (top - base) / (floorH * 8), (u + L) / (colW * 8), (top - base) / (floorH * 8)], q * 2);
+        pos.set([-e1, base, n1, -e2, base, n2, -e1, wallTop, n1, -e2, wallTop, n2], q * 3);
+        uv.set([u / (colW * 8), 0, (u + L) / (colW * 8), 0, u / (colW * 8), (wallTop - base) / (floorH * 8), (u + L) / (colW * 8), (wallTop - base) / (floorH * 8)], q * 2);
         u += L;
         idx.push(q, q + 1, q + 2, q + 1, q + 3, q + 2); // outward: the x axis is mirrored
       }
@@ -400,34 +538,76 @@ export class KeralaTile {
       wg.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
       wg.setIndex(idx); wg.computeVertexNormals();
       // facade: houses in Kerala's paint colours, shops / flats / offices concrete, places of worship white
-      const house = kind === 1 || kind === 2 || (kind === 0 && H < 8.5);
       // Kerala plaster in a painted tint for homes and most shops / flats; churches, temples and mosques white;
       // industrial sheds corrugated metal; a few concrete office blocks
       const KF = opts.keralaFacade ?? 6;
-      const fac = kind === 5 ? 3 : kind === 6 || kind === 7 || kind === 8 ? KF + 6 : kind === 4 && H > 12 ? (rnd() < 0.5 ? 6 : 1) : KF + 1 + Math.floor(rnd() * 8);
+      let ce = 0, cn = 0; for (const [e, nn] of ring) { ce += e; cn += nn; } ce /= n; cn /= n;
+      // town blocks fronting a road: shops on the ground floor
+      const shop = opts.keralaShop !== undefined && H >= 5 && (kind === 4 || kind === 0 || kind === 3) && (kind === 4 || rnd() < 0.8)
+        && this.nearRoad(ce, cn, Math.sqrt(area) * 0.6 + 8, kind === 4 ? 8 : 5);
+      const fac = kind === 5 ? 3 : kind === 6 || kind === 7 || kind === 8 ? KF + 6 : shop ? opts.keralaShop + (rnd() < 0.5 ? 0 : 1) : kind === 4 && H > 12 ? (rnd() < 0.5 ? 6 : 1) : KF + 1 + Math.floor(rnd() * 8);
       push(fac, wg);
+      if (!tiled) {
+        // the parapet's inner face, in plain wall from the texture
+        const ip = [], iu = [], ii = [];
+        let u2 = 0;
+        for (let i = 0; i < n; i++) {
+          const [e1, n1] = ring[i], [e2, n2] = ring[(i + 1) % n], L = Math.hypot(e2 - e1, n2 - n1), q = i * 4;
+          ip.push(-e1, top, n1, -e2, top, n2, -e1, wallTop, n1, -e2, wallTop, n2);
+          iu.push(u2 / (colW * 8), 0.505, (u2 + L) / (colW * 8), 0.505, u2 / (colW * 8), 0.53, (u2 + L) / (colW * 8), 0.53);
+          u2 += L;
+          ii.push(q, q + 2, q + 1, q + 1, q + 2, q + 3);
+        }
+        const pg = new THREE.BufferGeometry();
+        pg.setAttribute('position', new THREE.Float32BufferAttribute(ip, 3));
+        pg.setAttribute('uv', new THREE.Float32BufferAttribute(iu, 2));
+        pg.setIndex(ii); pg.computeVertexNormals();
+        push(fac, pg);
+      }
+      // concrete sunshades (chajjas) over each floor's windows: real ledges, drawn near the camera only
+      if (kind !== 5 && kind < 6 && opts.ledges) {
+        const floors = Math.min(5, Math.floor((H + 0.4) / floorH));
+        for (let f = 0; f < floors; f++) {
+          const y = base + (f + 1) * floorH - 0.62;
+          if (y > top - 0.3) break;
+          for (let i = 0; i < n; i++) {
+            const [e1, n1] = ring[i], [e2, n2] = ring[(i + 1) % n], L = Math.hypot(e2 - e1, n2 - n1);
+            if (L < 2.2) continue;
+            const ue = (e2 - e1) / L, un = (n2 - n1) / L, oe = un * 0.55, on = -ue * 0.55; // outward (ring is CCW in e/n)
+            const a0 = [e1 + ue * 0.3, n1 + un * 0.3], a1 = [e2 - ue * 0.3, n2 - un * 0.3];
+            const P = (pt, o, yy) => [-(pt[0] + oe * o), yy, pt[1] + on * o];
+            const v = [P(a0, 0, y), P(a1, 0, y), P(a0, 1, y), P(a1, 1, y), P(a0, 1, y - 0.09), P(a1, 1, y - 0.09), P(a0, 0, y - 0.09), P(a1, 0, y - 0.09)];
+            ledges.push([v, Math.min(3, Math.floor(e1 / 500)) + 4 * Math.min(3, Math.floor(n1 / 500))]);
+          }
+        }
+      }
       // roof
       const contour = ring.map(([e, nn]) => new THREE.Vector2(-e, nn));
       const tris = THREE.ShapeUtils.triangulateShape(contour, []);
-      const tiled = house && area < 320 && rnd() < 0.62;
       if (tiled) {
-        // hip roof: eaves ring, ridge ring pulled in toward the centre and raised
-        let ce = 0, cn = 0; for (const [e, nn] of ring) { ce += e; cn += nn; } ce /= n; cn /= n;
+        // hip roof: eaves ring, ridge ring pulled in toward the centre and raised; tile courses run along the
+        // eaves (u: metres round the eaves, v: metres up the slope)
         const rise = Math.min(2.6, 0.9 + Math.sqrt(area) * 0.12), k = 0.42, ov = 0.45;
-        const rp = [], ri = [];
+        const rp = [], ri = [], ru = [];
         const eaves = ring.map(([e, nn]) => { const de = e - ce, dn = nn - cn, l = Math.hypot(de, dn) || 1; return [e + de / l * ov, nn + dn / l * ov]; });
-        eaves.forEach(([e, nn]) => rp.push(-e, top - 0.15, nn));
-        ring.forEach(([e, nn]) => rp.push(-(ce + (e - ce) * k), top + rise, cn + (nn - cn) * k));
-        for (let i = 0; i < n; i++) { const a = i, b2 = (i + 1) % n, c2 = n + i, d2 = n + (i + 1) % n; ri.push(a, c2, b2, b2, c2, d2); }
-        for (const t of tris) ri.push(n + t[0], n + t[2], n + t[1]);
+        let per = 0;
+        for (let i = 0; i <= n; i++) {
+          const [e, nn] = eaves[i % n], re = ce + (ring[i % n][0] - ce) * k, rn = cn + (ring[i % n][1] - cn) * k;
+          if (i) per += Math.hypot(e - eaves[i - 1][0], nn - eaves[i - 1][1]);
+          const slope = Math.hypot(Math.hypot(e - re, nn - rn), rise + 0.15);
+          rp.push(-e, top - 0.15, nn, -re, top + rise, rn);
+          ru.push(per / 3.2, 0, per / 3.2, slope / 2.4);
+        }
+        for (let i = 0; i < n; i++) { const a = i * 2, b2 = (i + 1) * 2, c2 = a + 1, d2 = b2 + 1; ri.push(a, c2, b2, b2, c2, d2); }
+        for (const t of tris) ri.push(t[0] * 2 + 1, t[2] * 2 + 1, t[1] * 2 + 1);
         const rg = new THREE.BufferGeometry();
         rg.setAttribute('position', new THREE.Float32BufferAttribute(rp, 3));
+        rg.setAttribute('uv', new THREE.Float32BufferAttribute(ru, 2));
         rg.setIndex(ri); faceUp(rg); rg.computeVertexNormals();
         roofsTile.push(rg);
       } else {
         // flat concrete terrace; most homes keep a black water tank up there
         if (house && rnd() < 0.55 && opts.tankGeo) {
-          let ce = 0, cn = 0; for (const [e, nn] of ring) { ce += e; cn += nn; } ce /= n; cn /= n;
           tanks.push(opts.tankGeo.clone().translate(-ce + (rnd() - 0.5) * 2, top, cn + (rnd() - 0.5) * 2));
         }
         const rp = []; ring.forEach(([e, nn]) => rp.push(-e, top, nn));
@@ -443,7 +623,24 @@ export class KeralaTile {
     const out = [];
     for (const [fac, geos] of byMat) { const g = mergeGeometries(geos); if (g) { const m = new THREE.Mesh(g, M.facades[fac] || M.facades[6]); m.castShadow = !!opts.shadows; m.receiveShadow = true; out.push(m); } }
     const strip = (gs) => gs.map((g) => { for (const k of Object.keys(g.attributes)) if (k !== 'position' && k !== 'normal') g.deleteAttribute(k); return g; });
-    if (roofsTile.length) { const g = mergeGeometries(strip(roofsTile)); if (g) { const m = new THREE.Mesh(g, M.klRoofTile); m.castShadow = !!opts.shadows; out.push(m); } }
+    if (roofsTile.length) { const g = mergeGeometries(roofsTile); if (g) { const m = new THREE.Mesh(g, M.klRoofTile); m.castShadow = !!opts.shadows; m.name = 'roofsTile'; out.push(m); } }
+    // ledges in 500 m chunks, so only the ones near the camera are drawn (3 quads each: top, front, underside)
+    for (let c = 0; c < 16; c++) {
+      const L = ledges.filter((l) => l[1] === c);
+      if (!L.length) continue;
+      const pos = new Float32Array(L.length * 8 * 3), idx = [];
+      L.forEach(([v], i) => {
+        v.forEach((p, j) => pos.set(p, (i * 8 + j) * 3));
+        const q = i * 8;
+        idx.push(q, q + 2, q + 1, q + 1, q + 2, q + 3, q + 2, q + 4, q + 3, q + 3, q + 4, q + 5, q + 4, q + 6, q + 5, q + 5, q + 6, q + 7);
+      });
+      const g = new THREE.BufferGeometry();
+      g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+      g.setIndex(idx); g.computeVertexNormals();
+      const m = new THREE.Mesh(g, M.klLedge || M.klRoofFlat); m.name = 'ledges'; m.castShadow = !!opts.shadows; m.receiveShadow = true;
+      m.userData.cc = [(c % 4) * 500 + 250, Math.floor(c / 4) * 500 + 250];
+      out.push(m);
+    }
     if (roofsFlat.length) { const g = mergeGeometries(strip(roofsFlat)); if (g) out.push(new THREE.Mesh(g, M.klRoofFlat)); }
     if (tanks.length) { const g = mergeGeometries(tanks); if (g) out.push(new THREE.Mesh(g, M.klTank)); }
     return out;
@@ -501,10 +698,11 @@ export class KeralaTile {
 
   dispose() {
     this.group?.traverse((o) => {
-      if (o.geometry) o.geometry.dispose();
+      if (o.isInstancedMesh) o.dispose();
+      if (o.geometry && o.name !== 'treesFar' && o.name !== 'palmsFar') o.geometry.dispose();
       if (o.material && o.name === 'terrain') { o.material.map?.dispose(); o.material.dispose(); }
     });
     this.group?.removeFromParent();
-    this.cls = null; this.visCanvas = null;
+    this.cls = null; this.visCanvas = null; this.trees = null; this._rg = null;
   }
 }

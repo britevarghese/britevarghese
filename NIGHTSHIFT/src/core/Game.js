@@ -72,6 +72,7 @@ export class Game {
     progress(0.2, 'Building environment...');
     await tick();
     this.env = new Environment(this.scene, r, preset);
+    if (KERALA) this.env.haze = 2.2; // humid tropical air
     this.env.onChange((st) => this.materials.applyEnvironment(st));
     this.applyTime(); this.applyWeather(true);
     this.materials.applyEnvironment(this.env.state);

@@ -7,9 +7,10 @@ import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { CollisionWorld } from '../physics/Collision.js';
 import { KeralaTile, TILE, C, decodeBinary } from './KeralaTile.js';
 import * as TX from '../renderer/Textures.js';
-import { KERALA_FACADE } from '../renderer/Textures.js';
+import { KERALA_FACADE, KERALA_SHOP } from '../renderer/Textures.js';
 import { KeralaLaneGraph } from './KeralaLanes.js';
 import { KeralaRouter } from './KeralaRouter.js';
+import { KeralaTrees } from './KeralaTrees.js';
 
 const BASE = '/assets/world/kerala/';
 const RADIUS = 2;        // tiles loaded around the player (5 x 5 = 10 x 10 km)
@@ -63,7 +64,11 @@ export class KeralaWorld {
     scene.add(this.root);
     // materials the tiles share
     M.terrainDetail = TX.grass().map;
-    M.klRoofTile = new THREE.MeshStandardMaterial({ name: 'klRoofTile', color: 0x9c4a30, roughness: 0.85 });
+    M.klRoofTile = new THREE.MeshStandardMaterial({ name: 'klRoofTile', color: 0xffffff, map: mangaloreTiles(), roughness: 0.85 });
+    M.klPole = new THREE.MeshLambertMaterial({ name: 'klPole', color: 0x9a968c });
+    M.klWire = new THREE.LineBasicMaterial({ name: 'klWire', color: 0x1a1a1a, transparent: true, opacity: 0.75 });
+    this.poleGeo = poleGeometry();
+    M.klLedge = new THREE.MeshStandardMaterial({ name: 'klLedge', color: 0xd6d0c4, roughness: 0.95, side: THREE.DoubleSide });
     M.klRoofFlat = new THREE.MeshStandardMaterial({ name: 'klRoofFlat', color: 0x8d8a82, roughness: 0.95 });
     M.klLineWhite = new THREE.MeshStandardMaterial({ name: 'klLineW', color: 0xe8e8e0, roughness: 0.7, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 });
     M.klLineYellow = new THREE.MeshStandardMaterial({ name: 'klLineY', color: 0xe0b020, roughness: 0.7, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 });
@@ -73,14 +78,15 @@ export class KeralaWorld {
     M.klTank = new THREE.MeshStandardMaterial({ name: 'klTank', color: 0x1a1c1e, roughness: 0.6 });
     this.tankGeo = (() => { const g = new THREE.CylinderGeometry(0.62, 0.62, 1.25, 10).translate(0, 0.62 + 0.25, 0); g.deleteAttribute('uv'); return g.toNonIndexed(); })();
     this.palmMat = new THREE.MeshLambertMaterial({ vertexColors: true, side: THREE.DoubleSide });
+    this.trees = new KeralaTrees(scene, preset);
     this.queue = [];
   }
 
-  setPreset(p) { this.preset = p; }
+  setPreset(p) { this.preset = p; this.trees?.setPreset(p); }
 
   _opts() {
     const p = this.preset || {};
-    return { shadows: p.shadows && p.shadows !== 'off', palms: p.trees ?? 1, palmGeo: this.palmGeo, palmMat: this.palmMat, tankGeo: this.tankGeo, keralaFacade: KERALA_FACADE, maxBuildings: p.textureSize >= 1024 ? 9000 : 4500 };
+    return { trees: this.trees, shadows: p.shadows && p.shadows !== 'off', palms: p.trees ?? 1, palmGeo: this.palmGeo, palmMat: this.palmMat, tankGeo: this.tankGeo, poleGeo: this.poleGeo, ledges: (p.trees ?? 1) >= 0.7, keralaFacade: KERALA_FACADE, keralaShop: KERALA_SHOP, maxBuildings: p.textureSize >= 1024 ? 9000 : 4500 };
   }
 
   key(tx, tz) { return `${tx},${tz}`; }
@@ -223,6 +229,20 @@ export class KeralaWorld {
       if (d <= RADIUS && d < bd) { bd = d; best = t; }
     }
     if (best) this._buildTile(best);
+    this.trees?.update(camera, this.tiles);
+    // road markings only on the tiles near the camera (sub-pixel further out)
+    if (!this._mkT || (this._mkT += dt) > 0.5) {
+      this._mkT = 1e-6;
+      for (const t of this.tiles.values()) {
+        if (!t.group) continue;
+        const ex = Math.max(0, Math.abs(-p.x - (t.E0 + TILE / 2)) - TILE / 2), ez = Math.max(0, Math.abs(p.z - (t.N0 + TILE / 2)) - TILE / 2);
+        const near = Math.hypot(ex, ez) < 600;
+        for (const c of t.group.children) {
+          if (c.name === 'lines' || c.name === 'linesY') c.visible = near;
+          else if (c.userData.cc) c.visible = near && Math.hypot(-(t.E0 + c.userData.cc[0]) - p.x, t.N0 + c.userData.cc[1] - p.z) < 650;
+        }
+      }
+    }
     this.chunks.nearPos.copy(p);
   }
 }
@@ -258,4 +278,42 @@ function palmGeometry() {
   // coconuts
   parts.push(paint(new THREE.IcosahedronGeometry(0.42, 0).translate(top.x, top.y - 0.35, top.z), 0x6a5a2a));
   return mergeGeometries(parts.map((g) => { g.computeVertexNormals(); return g; }));
+}
+
+// Mangalore tiles: courses of curved terracotta tiles, each a little different, darkened by monsoon and moss
+function mangaloreTiles() {
+  const W = 256, cv = document.createElement('canvas'); cv.width = cv.height = W;
+  const g = cv.getContext('2d');
+  let s = 777;
+  const rnd = () => ((s = (s * 16807) % 2147483647) / 2147483647);
+  g.fillStyle = '#5a2a1c'; g.fillRect(0, 0, W, W);
+  const rows = 8, cols = 8, rh = W / rows, cw = W / cols;
+  for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) {
+    const x = c * cw, y = r * rh;
+    const age = rnd(), base = [152 + rnd() * 30 - age * 50, 70 + rnd() * 18 - age * 25, 44 + rnd() * 12 - age * 12];
+    // the tile's curve: light down the middle, dark at the sides
+    const gr = g.createLinearGradient(x, 0, x + cw, 0);
+    gr.addColorStop(0, `rgb(${base[0] * 0.55},${base[1] * 0.55},${base[2] * 0.55})`);
+    gr.addColorStop(0.45, `rgb(${base[0] * 1.08},${base[1] * 1.08},${base[2] * 1.08})`);
+    gr.addColorStop(1, `rgb(${base[0] * 0.6},${base[1] * 0.6},${base[2] * 0.6})`);
+    g.fillStyle = gr; g.fillRect(x + 1, y + 1, cw - 2, rh - 3);
+    // the overlapping lower lip casts a shadow on the course below
+    g.fillStyle = 'rgba(30,12,8,0.55)'; g.fillRect(x, y + rh - 4, cw, 4);
+    if (age > 0.75) { g.fillStyle = `rgba(30,36,24,${0.25 + rnd() * 0.3})`; g.fillRect(x + 1, y + rh * 0.4, cw - 2, rh * 0.6 - 3); }
+  }
+  // black monsoon streaks down the slope
+  for (let i = 0; i < 26; i++) { g.fillStyle = `rgba(20,18,14,${0.08 + rnd() * 0.12})`; g.fillRect(rnd() * W, 0, 3 + rnd() * 10, W); }
+  const t = new THREE.CanvasTexture(cv);
+  t.wrapS = t.wrapT = THREE.RepeatWrapping; t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4;
+  return t;
+}
+
+// a KSEB concrete pole: tapered square shaft, a crossarm with insulators, a small transformer-less top (~40 tris)
+function poleGeometry() {
+  // ~16 triangles: a tapered square shaft and a crossarm (insulators are too small to matter)
+  const shaft = new THREE.CylinderGeometry(0.09, 0.16, 9, 4, 1, true).rotateY(Math.PI / 4).translate(0, 4.5, 0);
+  const arm = new THREE.BoxGeometry(1.7, 0.1, 0.1).translate(0, 7.95, 0);
+  const parts = [shaft, arm].map((g) => { g.deleteAttribute('uv'); return g.index ? g.toNonIndexed() : g; });
+  const g = mergeGeometries(parts); g.computeVertexNormals();
+  return g;
 }
