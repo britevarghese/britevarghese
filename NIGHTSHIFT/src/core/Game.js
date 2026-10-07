@@ -289,6 +289,7 @@ export class Game {
       if (this.police.state === 'idle' && witnesses && Math.random() < Math.min(0.85, 0.3 + witnesses * 0.12)) this.police.startPursuit(1, 'assault');
     });
     bus.on('player:wasted', () => this._wasted());
+    bus.on('traffic:busStop', (e) => this.peds.busArrived(e.x, e.z));
     bus.on('ped:land', (e) => this.audio.playEvent('collision', { intensity: clamp(e.speed / 30, 0.1, 0.4), type: 'light', position: { x: e.x, y: 0.2, z: e.z } }));
     // knocked-over street furniture (any physics vehicle can do it)
     bus.on('prop:break', (e) => {

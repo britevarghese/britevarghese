@@ -6,6 +6,7 @@ import { Path } from '../traffic/LaneGraph.js';
 import { TILE } from './KeralaTile.js';
 
 const LANE_W = 3.2;
+const C_BUILDING = 31; // class raster code (KeralaTile C.building)
 // speed (m/s) by road class: Kerala's roads are slow and busy
 const SPEED = [22, 16.7, 13.9, 12.5, 11.1, 9.7, 8.3, 6.9, 5.6, 4.2, 4.2];
 const DRIVEN = 7;  // classes 0..7 get traffic (no service roads, tracks or pedestrian streets)
@@ -167,6 +168,19 @@ export class KeralaLaneGraph {
       // the shelter: on the kerb side (left of travel), facing the road
       const ox = tmpS.dz, oz = -tmpS.dx;  // left of travel
       t.busStops.push({ x: tmpS.x + ox * 3.4, z: tmpS.z + oz * 3.4, yaw: Math.atan2(-ox, -oz), lane: l, s: s0 });
+    }
+    // tea stalls (chaya kada) by town and village roads, set back on the verge
+    t.teaShops = [];
+    for (const l of mine) {
+      if (l.laneIndex !== 0 || l.edge.cls < 2 || l.edge.cls > 7 || l.length < 50 || l.stops) continue;
+      l.sample(l.length * 0.4, tmpS);
+      const h = Math.abs(Math.round(tmpS.x * 0.53) * 83492791 ^ Math.round(tmpS.z * 0.53) * 2971215073) % 100;
+      if (h > 16) continue;
+      const ox = tmpS.dz, oz = -tmpS.dx, x = tmpS.x + ox * 5.2, z = tmpS.z + oz * 5.2;
+      const e = -x - t.E0, n = z - t.N0, cl = t.classAt?.(e, n);
+      if (cl === C_BUILDING || cl === 1 || cl === 3 || cl >= 20) continue;
+      if (t.nearRoad?.(e, n, 3.6)) continue;
+      t.teaShops.push({ x, z, yaw: Math.atan2(-ox, -oz) });
     }
     // siblings (same road, same direction) for lane changes
     const groups = new Map();

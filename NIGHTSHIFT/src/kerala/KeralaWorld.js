@@ -38,6 +38,7 @@ export class KeralaWorld {
       roadAt: () => null,
       offRoad: (x, z) => W.offRoad(x, z),
       pedSegment: (focus, R) => W.pedSegment(focus, R),
+      standSpots: (x, z, r) => W.standSpots(x, z, r),
     };
     this.planner = { colliders: [], props: [], parked: [], buildings: [] };
     this.chunks = {
@@ -69,6 +70,8 @@ export class KeralaWorld {
     M.klWire = new THREE.LineBasicMaterial({ name: 'klWire', color: 0x1a1a1a, transparent: true, opacity: 0.75 });
     this.poleGeo = poleGeometry();
     this.stopGeo = busStopGeometry();
+    [this.teaGeo, this.teaSignGeo] = teaStallGeometry();
+    M.klTeaSign = new THREE.MeshLambertMaterial({ name: 'klTeaSign', map: teaSignTexture() });
     M.klStop = new THREE.MeshLambertMaterial({ name: 'klStop', vertexColors: true });
     M.klLedge = new THREE.MeshStandardMaterial({ name: 'klLedge', color: 0xd6d0c4, roughness: 0.95, side: THREE.DoubleSide });
     M.klRoofFlat = new THREE.MeshStandardMaterial({ name: 'klRoofFlat', color: 0x8d8a82, roughness: 0.95 });
@@ -118,6 +121,19 @@ export class KeralaWorld {
     this.root.add(t.build(this.M, this._opts()));
     for (const c of t.colliders) this.collision.add(c);
     this.lanes.addTile(t);
+    // tea stalls
+    if (t.teaShops?.length && this.teaGeo) {
+      const im = new THREE.InstancedMesh(this.teaGeo, this.M.klStop, t.teaShops.length), sg = new THREE.InstancedMesh(this.teaSignGeo, this.M.klTeaSign, t.teaShops.length);
+      const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), up = new THREE.Vector3(0, 1, 0), one = new THREE.Vector3(1, 1, 1), v = new THREE.Vector3();
+      t.teaShops.forEach((b, i) => { m4.compose(v.set(b.x, this.groundHeight(b.x, b.z), b.z), q.setFromAxisAngle(up, b.yaw), one); im.setMatrixAt(i, m4); sg.setMatrixAt(i, m4); });
+      for (const m of [im, sg]) { m.computeBoundingSphere(); m.castShadow = m === im; this.root.add(m); }
+      im.name = 'teaShops'; t.teaMeshes = [im, sg];
+      for (const b of t.teaShops) {
+        // the kiosk is solid; the bench in front is not
+        const c = { cx: b.x - Math.sin(b.yaw) * 0.6, cz: b.z - Math.cos(b.yaw) * 0.6, hx: 1.3, hz: 0.95, cos: Math.cos(b.yaw), sin: Math.sin(b.yaw), angle: b.yaw, h: 99, kind: 'building' };
+        t.colliders.push(c); this.collision.add(c);
+      }
+    }
     // bus shelters at the stops the lane graph placed
     if (t.busStops?.length && this.stopGeo) {
       const im = new THREE.InstancedMesh(this.stopGeo, this.M.klStop, t.busStops.length), m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), up = new THREE.Vector3(0, 1, 0), one = new THREE.Vector3(1, 1, 1), v = new THREE.Vector3();
@@ -132,6 +148,8 @@ export class KeralaWorld {
   _unloadTile(k, t) {
     this.lanes.removeTile(t);
     if (t.stopMesh) { t.stopMesh.removeFromParent(); t.stopMesh.dispose(); t.stopMesh = null; }
+    for (const m of t.teaMeshes || []) { m.removeFromParent(); m.dispose(); }
+    t.teaMeshes = null;
     for (const c of t.colliders) this.collision.remove(c);
     t.colliders = [];
     t.dispose();
@@ -215,6 +233,17 @@ export class KeralaWorld {
     // the way across the road (to the same spot on the far side), for crossing
     const across = 2 * (2.6 + ((l.lanes || 1) - 0.5) * 3.2);
     return { ax: a[0] + ox, az: a[1] + oz, bx: b[0] + ox, bz: b[1] + oz, kerala: true, cross: { nx: -ox / 2.6, nz: -oz / 2.6, len: across } };
+  }
+
+  // where people stand about near (x, z): tea stalls (chatting) and bus stops (waiting)
+  standSpots(x, z, r) {
+    const out = [];
+    for (const t of this.tiles.values()) {
+      if (Math.abs(-(t.E0 + TILE / 2) - x) > TILE / 2 + r || Math.abs(t.N0 + TILE / 2 - z) > TILE / 2 + r) continue;
+      for (const b of t.teaShops || []) if (Math.hypot(b.x - x, b.z - z) < r) out.push({ kind: 'tea', ...b, key: `t${Math.round(b.x)},${Math.round(b.z)}` });
+      for (const b of t.busStops || []) if (Math.hypot(b.x - x, b.z - z) < r) out.push({ kind: 'bus', x: b.x, z: b.z, yaw: b.yaw, key: `b${Math.round(b.x)},${Math.round(b.z)}` });
+    }
+    return out;
   }
 
   signalState() { return 'green'; }
@@ -343,4 +372,38 @@ function busStopGeometry() {
   add(new THREE.BoxGeometry(1.2, 0.32, 0.04).translate(-1.1, 2.15, 0.52), 0x1d4e9e);                   // sign board
   const g = mergeGeometries(parts); g.computeVertexNormals();
   return g;
+}
+
+// a tea stall (chaya kada): a painted kiosk open at the front, a tin roof jutting out over the counter, glass jars
+// of snacks on the counter, a bench outside. Local +z faces the road. Returns [kiosk, signboard].
+function teaStallGeometry() {
+  const parts = [];
+  const add = (g, hex) => { g = g.index ? g.toNonIndexed() : g; g.deleteAttribute('uv'); const c = new THREE.Color(hex), n = g.attributes.position.count, a = new Float32Array(n * 3); for (let i = 0; i < n; i++) a.set([c.r, c.g, c.b], i * 3); g.setAttribute('color', new THREE.BufferAttribute(a, 3)); parts.push(g); };
+  const wall = 0x3a8a8a;
+  add(new THREE.BoxGeometry(2.6, 2.3, 0.1).translate(0, 1.15, -1.0), wall);                 // back
+  for (const x of [-1.25, 1.25]) add(new THREE.BoxGeometry(0.1, 2.3, 2.0).translate(x, 1.15, 0), wall); // sides
+  add(new THREE.BoxGeometry(2.6, 1.0, 0.12).translate(0, 0.5, 0.95), 0x2a6a6a);              // counter front
+  add(new THREE.BoxGeometry(2.7, 0.06, 0.5).translate(0, 1.03, 0.95), 0x8a6a4a);             // counter top
+  add(new THREE.BoxGeometry(3.2, 0.05, 3.0).rotateX(0.12).translate(0, 2.42, 0.3), 0x8a8e94); // tin roof
+  for (let i = 0; i < 4; i++) add(new THREE.CylinderGeometry(0.1, 0.1, 0.24, 8).translate(-0.8 + i * 0.5, 1.18, 0.95), [0xd8c060, 0xc87a3a, 0xe8d8a0, 0xa0603a][i]); // jars
+  add(new THREE.BoxGeometry(1.2, 0.5, 0.6).translate(0, 1.6, -0.7), 0xb8b0a0);               // shelf with the urn
+  add(new THREE.CylinderGeometry(0.18, 0.2, 0.45, 10).translate(0.7, 1.28, 0.6), 0xc0c4c8);   // tea urn
+  add(new THREE.BoxGeometry(2.0, 0.07, 0.38).translate(0, 0.45, 2.1), 0x6a4a30);             // bench outside
+  for (const x of [-0.85, 0.85]) add(new THREE.BoxGeometry(0.08, 0.45, 0.32).translate(x, 0.22, 2.1), 0x5a3a24);
+  const g = mergeGeometries(parts); g.computeVertexNormals();
+  const sign = new THREE.PlaneGeometry(2.4, 0.5).translate(0, 2.75, 1.78);
+  return [g, sign];
+}
+
+// the stall's board: ചായക്കട (tea shop) over 'TEA STALL', hand-painted
+function teaSignTexture() {
+  const c = document.createElement('canvas'); c.width = 512; c.height = 112;
+  const g = c.getContext('2d');
+  g.fillStyle = '#f2d23a'; g.fillRect(0, 0, 512, 112);
+  g.strokeStyle = '#b01818'; g.lineWidth = 6; g.strokeRect(4, 4, 504, 104);
+  g.fillStyle = '#b01818'; g.textAlign = 'center'; g.textBaseline = 'middle';
+  g.font = 'bold 50px "Nirmala UI","Noto Sans Malayalam",Kartika,sans-serif'; g.fillText('ചായക്കട', 256, 44);
+  g.font = 'bold 26px Arial,sans-serif'; g.fillStyle = '#1a1a1a'; g.fillText('TEA STALL', 256, 90);
+  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace;
+  return t;
 }

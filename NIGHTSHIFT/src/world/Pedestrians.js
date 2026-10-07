@@ -106,6 +106,45 @@ export class Pedestrians {
     });
   }
 
+  // people standing about: chatting at tea stalls, waiting at bus stops (Kerala's roadside life)
+  _spawnGroups(focus) {
+    const spots = this.layout.standSpots?.(focus.x, focus.z, 140);
+    if (!spots?.length) return;
+    this.groups ||= new Map();
+    for (const sp of spots) {
+      if (this.groups.has(sp.key) || this.peds.length >= this.max + 12) continue;
+      const R = this.R, n = sp.kind === 'tea' ? 2 + Math.floor(R() * 3) : 1 + Math.floor(R() * 3);
+      const members = [];
+      // the road side of the stall / the shelter; tea drinkers stand round in a loose ring
+      const fx = Math.sin(sp.yaw), fz = Math.cos(sp.yaw);
+      const cx = sp.x + fx * (sp.kind === 'tea' ? 3.6 : 1.1), cz = sp.z + fz * (sp.kind === 'tea' ? 3.6 : 1.1);
+      for (let i = 0; i < n; i++) {
+        const n0 = this.peds.length;
+        this._spawn(focus);
+        if (this.peds.length === n0) { this._spawnLook(); }
+        const p = this.peds[this.peds.length - 1];
+        if (!p || members.includes(p)) continue;
+        const a = (i / n) * Math.PI * 2 + R(), r = sp.kind === 'tea' ? 0.9 + R() * 0.4 : 0.5 + R() * 1.6;
+        const x = sp.kind === 'tea' ? cx + Math.cos(a) * r : cx + (R() - 0.5) * 3, z = sp.kind === 'tea' ? cz + Math.sin(a) * r : cz + (R() - 0.5) * 1.2;
+        p.seg = null; p.cross = null;
+        p.stand = { x, z, yaw: sp.kind === 'tea' ? Math.atan2(cx - x, cz - z) : sp.yaw, talk: sp.kind === 'tea' || R() < 0.3, spot: sp.key, kind: sp.kind };
+        p.x = x; p.z = z; p.yaw = p.stand.yaw;
+        members.push(p);
+      }
+      this.groups.set(sp.key, { members, x: sp.x, z: sp.z });
+    }
+  }
+  // a pedestrian look without a walking route (for standing groups)
+  _spawnLook() {
+    const R = this.R;
+    this.peds.push({ t: 0, per: 1, dir: 1, speed: 1.1, phase: R() * 6, shirt: KL_TOPS[Math.floor(R() * KL_TOPS.length)], pants: R() < 0.45 ? 0xf2efe6 : KL_LOWER[Math.floor(R() * KL_LOWER.length)], skin: KL_SKIN[Math.floor(R() * KL_SKIN.length)], hair: 0x0e0c0a, shoes: SHOES[Math.floor(R() * SHOES.length)], model: Math.floor(R() * 1000), build: 0.88 + R() * 0.3, scale: 0.9 + R() * 0.14, brave: R() * 0.8, umb: R() < 0.7 ? 0x141414 : 0, wait: 0, dodge: 0, dx: 0, dz: 0, x: 0, z: 0, yaw: 0 });
+  }
+
+  // a bus has stopped at (x, z): the people waiting there get on
+  busArrived(x, z) {
+    for (const p of this.peds) if (p.stand?.kind === 'bus' && Math.hypot(p.x - x, p.z - z) < 14) { p.board = { x, z }; p.stand = null; }
+  }
+
   // a driver thrown out of their car: sprints away from the player for a few seconds, then leaves
   spawnFleeing(x, z, fromX, fromZ) {
     const n0 = this.peds.length;
@@ -138,6 +177,12 @@ export class Pedestrians {
     const focus = camera.position;
     if (!enabled || this.max === 0) { for (const p of this.peds) this._release(p); for (const m of [this.meshTorso, this.meshHead, this.meshHair, this.meshUmb, ...this.limbMeshes]) m.count = 0; return; }
     if (this.peds.length < this.max * (1 - this.rain * 0.5) && this.R() < 0.6 * (1 - this.rain * 0.6)) this._spawn(focus);
+    if (this.layout.standSpots && (this._grpT = (this._grpT || 0) - dt) <= 0) {
+      this._grpT = 1.5;
+      // groups far away break up; new ones form at the spots near the camera
+      if (this.groups) for (const [k, g] of this.groups) if (Math.hypot(g.x - focus.x, g.z - focus.z) > 200) this.groups.delete(k);
+      this._spawnGroups(focus);
+    }
     let nu = 0;
     let n = 0, nl = 0;
     for (let i = this.peds.length - 1; i >= 0; i--) {
@@ -172,6 +217,21 @@ export class Pedestrians {
           if (this.R() < dt * 0.02) p.wait = 2 + this.R() * 4;
         }
       }
+      // standing about (chatting, waiting for the bus) or walking over to board a bus
+      if (p.stand && !p.fight && !p.flee && !p.down) {
+        p.x = p.stand.x + (p.ox || 0); p.z = p.stand.z + (p.oz || 0); p.yaw = p.stand.yaw; p.d = d;
+        if (p.human) {
+          if (p.stand.talk && !p.human.shot && p.human.acts?.talk) p.human.play('talk', { hold: true, fade: 0.4 });
+          const hg = p.human.group; hg.position.set(p.x, this._gy(p.x, p.z), p.z); hg.rotation.set(0, p.yaw, 0); hg.updateMatrixWorld(true); p.human.animate(0, dt);
+          continue;
+        }
+      }
+      if (p.board) {
+        const dx = p.board.x - p.x, dz = p.board.z - p.z, l = Math.hypot(dx, dz);
+        if (l < 1.2) { this._release(p); this.peds.splice(i, 1); continue; }
+        p.x += dx / l * 1.6 * dt; p.z += dz / l * 1.6 * dt; p.yaw = Math.atan2(dx, dz); p.d = d;
+        if (p.human) { p.human.clearAction(0.2); const hg = p.human.group; hg.position.set(p.x, this._gy(p.x, p.z), p.z); hg.rotation.set(0, p.yaw, 0); hg.updateMatrixWorld(true); p.human.animate(1.6, dt); continue; }
+      }
       // crossing the road: wait for a gap, walk straight over, carry on along the far side
       if (!p.fight && !p.flee && !p.crossing && p.seg?.cross && !p.stagger && this.R() < dt * 0.006) {
         const X = p.seg.cross, near = (this.traffic || []).some((c) => c.state === 'drive' && c.v > 2 && Math.hypot(c.x - p.x, c.z - p.z) < 14 + c.v * 1.5);
@@ -198,13 +258,15 @@ export class Pedestrians {
         f.t -= dt; if (f.t <= 0) { this._release(p); this.peds.splice(i, 1); continue; }
         f.x += f.vx * dt; f.z += f.vz * dt;
         p.x = f.x; p.z = f.z; p.yaw = yaw = Math.atan2(f.vx, f.vz); moving = true;
+      } else if (p.stand || p.board) {
+        yaw = p.yaw; moving = !!p.board;
       } else {
         const [x, z, y2] = this._pos(p);
         yaw = y2; p.x = x + (p.ox || 0); p.z = z + (p.oz || 0); p.yaw = yaw;
       }
       p.d = d;
       // caught in a downpour without an umbrella: hurry off indoors
-      if (this.rain > 0.5 && !p.umb && !p.fight && !p.flee && !p.crossing && this.R() < dt * 0.3) { p.flee = { x: p.x, z: p.z, vx: Math.sin(p.yaw) * 3.4, vz: Math.cos(p.yaw) * 3.4, t: 5 }; p.speed = 3.4; }
+      if (this.rain > 0.5 && !p.umb && !p.stand && !p.fight && !p.flee && !p.crossing && this.R() < dt * 0.3) { p.flee = { x: p.x, z: p.z, vx: Math.sin(p.yaw) * 3.4, vz: Math.cos(p.yaw) * 3.4, t: 5 }; p.speed = 3.4; }
       if (p.umb && this.rain > 0.2 && nu < this.meshUmb.instanceMatrix.count) {
         const gy = this._gy(p.x, p.z), c = Math.cos(p.yaw), sn = Math.sin(p.yaw);
         _e.set(0.12, p.yaw, 0.08); _q.setFromEuler(_e);
@@ -275,6 +337,7 @@ export class Pedestrians {
     const h = p.human;
     if (!h) return;
     p.human = null;
+    h.clearAction?.(0);
     h.group.visible = false;
     const k = p.model % this.humans.models.length;
     if (!this.pool.has(k)) this.pool.set(k, []);
@@ -400,6 +463,7 @@ export class Pedestrians {
   damage(p, amount, fromX, fromZ, kind = 'jab') {
     if (!p || p.down) return false;
     p.hp = (p.hp ?? 100) - amount;
+    p.stand = null; p.board = null;
     const dx = p.x - fromX, dz = p.z - fromZ, l = Math.hypot(dx, dz) || 1;
     if (p.hp <= 0) {
       // knocked out: thrown back off their feet
@@ -440,7 +504,7 @@ export class Pedestrians {
   panic(x, z, r, except) {
     for (const q of this.peds) {
       if (q === except || q.down || q.fight || q.flee) continue;
-      if (Math.hypot(q.x - x, q.z - z) < r && this.R() < 0.85) this._flee(q, x, z, 4.2 + this.R() * 1.2, 6 + this.R() * 4);
+      if (Math.hypot(q.x - x, q.z - z) < r && this.R() < 0.85) { q.stand = null; q.board = null; this._flee(q, x, z, 4.2 + this.R() * 1.2, 6 + this.R() * 4); }
     }
   }
 
