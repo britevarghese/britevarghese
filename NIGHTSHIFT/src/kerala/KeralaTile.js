@@ -115,6 +115,7 @@ export class KeralaTile {
     g.position.set(-this.E0, 0, this.N0);
     this.group = g;
     this._rasters(d);
+    this._smoothTowns();
     this._sinkWater();
     g.add(this._terrain(M));
     const water = this._water(M, d);
@@ -195,6 +196,30 @@ export class KeralaTile {
   }
 
   // ground under lakes, rivers and the sea sits below the water surface
+  // SRTM is a 30 m radar surface with creases and roof-top bumps; the ground under a town has been levelled.
+  // Relax the height grid toward its neighbours in proportion to how built-up each point is (tile borders stay
+  // fixed so neighbouring tiles still meet).
+  _smoothTowns() {
+    const H = this.h, W = new Float32Array(GRID * GRID), BUILT = new Set([C.town, C.commercial, C.industrial, C.building, C.road]);
+    const r = STEP * 0.35;
+    for (let j = 1; j < GRID - 1; j++) for (let i = 1; i < GRID - 1; i++) {
+      let k = 0;
+      for (const [a, b] of [[0, 0], [r, 0], [-r, 0], [0, r], [0, -r], [r, r], [-r, -r], [r, -r], [-r, r]]) if (BUILT.has(this.classAt(i * STEP + a, j * STEP + b))) k++;
+      W[j * GRID + i] = Math.min(1, k / 5);
+    }
+    for (let pass = 0; pass < 3; pass++) {
+      const S = H.slice();
+      for (let j = 1; j < GRID - 1; j++) for (let i = 1; i < GRID - 1; i++) {
+        const w = W[j * GRID + i];
+        if (!w) continue;
+        let sum = 0;
+        for (let b = -1; b <= 1; b++) for (let a = -1; a <= 1; a++) sum += S[(j + b) * GRID + i + a];
+        H[j * GRID + i] = S[j * GRID + i] + (sum / 9 - S[j * GRID + i]) * w * 0.7;
+      }
+    }
+    this.smoothed = W.reduce((a, b) => a + (b > 0), 0);
+  }
+
   _sinkWater() {
     const H = this.h;
     this.waterLevel = 0.25;
