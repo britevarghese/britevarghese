@@ -689,6 +689,8 @@ export class KeralaTile {
 
   _buildings(M, d, opts) {
     const byMat = new Map(), roofsTile = [], roofsFlat = [], tanks = [], ledges = [];
+    const D = { props: { ac: [], pipe: [], balc: [], gate: [] }, walls: [], ao: [] };
+    for (let c = 0; c < 16; c++) { D.walls.push({ p: [], c: [] }); D.ao.push({ p: [], c: [] }); }
     const push = (key, g) => { let l = byMat.get(key); if (!l) byMat.set(key, (l = [])); l.push(g); };
     let s = (this.tx * 2654435761 ^ this.tz * 40503) >>> 0;
     const rnd = () => ((s = (s * 1664525 + 1013904223) >>> 0) / 4294967296);
@@ -811,6 +813,7 @@ export class KeralaTile {
       }
       // collider: the footprint's oriented box (principal axes)
       if (area > 12) this.colliders.push(this._obb(ring, top));
+      if (opts.ledges) this._details(D, { ring, n, base, top, wallTop, H, area, house, tiled, shop, kind, ce, cn, floorH }, rnd);
     }
     const out = [];
     for (const [fac, geos] of byMat) { const g = mergeGeometries(geos); if (g) { const m = new THREE.Mesh(g, M.facades[fac] || M.facades[6]); m.castShadow = !!opts.shadows; m.receiveShadow = true; out.push(m); } }
@@ -835,6 +838,134 @@ export class KeralaTile {
     }
     if (roofsFlat.length) { const g = mergeGeometries(strip(roofsFlat)); if (g) out.push(new THREE.Mesh(g, M.klRoofFlat)); }
     if (tanks.length) { const g = mergeGeometries(tanks); if (g) out.push(new THREE.Mesh(g, M.klTank)); }
+    if (opts.ledges) out.push(...this._detailMeshes(D, M, opts));
+    return out;
+  }
+
+  // Building details, near the camera only: split AC units on the walls of shops and flats, PVC downpipes off the
+  // terraces, balconies on two-storey houses, the compound wall round a house plot with its gate toward the road
+  // (walls are solid), and a soft dark skirt where every wall meets the ground.
+  _details(D, B, rnd) {
+    const { ring, n, base, top, wallTop, H, area, house, tiled, shop, ce, cn, floorH } = B;
+    const ch = (e, nn) => Math.min(3, Math.max(0, Math.floor(e / 500))) + 4 * Math.min(3, Math.max(0, Math.floor(nn / 500)));
+    const C0 = ch(ce, cn);
+    const m4 = new THREE.Matrix4(), X = new THREE.Vector3(), Y = new THREE.Vector3(0, 1, 0), Z = new THREE.Vector3();
+    // a prop standing on edge i at fraction t, `out` metres off the wall, facing outward
+    const place = (list, i, t, y, out, sx = 1, sy = 1) => {
+      const [e1, n1] = ring[i], [e2, n2] = ring[(i + 1) % n], L = Math.hypot(e2 - e1, n2 - n1), ue = (e2 - e1) / L, un = (n2 - n1) / L;
+      const e = e1 + (e2 - e1) * t + un * out, nn = n1 + (n2 - n1) * t - ue * out;
+      Z.set(-un, 0, -ue); X.crossVectors(Y, Z);
+      m4.makeBasis(X.multiplyScalar(sx), Y.clone().multiplyScalar(sy), Z).setPosition(-e, y, nn);
+      list.push([m4.clone(), C0]);
+    };
+    const edges = []; for (let i = 0; i < n; i++) { const [e1, n1] = ring[i], [e2, n2] = ring[(i + 1) % n]; edges.push([i, Math.hypot(e2 - e1, n2 - n1)]); }
+    const floors = Math.max(1, Math.floor((H + 0.4) / floorH));
+    // AC units (flats, shops, offices; the odd better-off house)
+    if ((!house && rnd() < 0.6) || (house && floors >= 2 && rnd() < 0.2)) {
+      const k = 1 + Math.floor(rnd() * Math.min(4, floors));
+      for (let j = 0; j < k; j++) {
+        const [i, L] = edges[Math.floor(rnd() * n)];
+        if (L < 3) continue;
+        const f = shop ? 1 + Math.floor(rnd() * Math.max(1, floors - 1)) : Math.floor(rnd() * floors);
+        const y = base + 0.4 + f * floorH + 1.0;
+        if (y + 0.6 < top) place(D.props.ac, i, 0.15 + rnd() * 0.7, y, 0.2);
+      }
+    }
+    // downpipe from the terrace at a corner
+    if (!tiled && rnd() < 0.6) {
+      const [i, L] = edges[Math.floor(rnd() * n)];
+      if (L > 1.5) place(D.props.pipe, i, 0.3 / L, base, 0.08, 1, wallTop - base);
+    }
+    // balcony on the long side of a two-storey house
+    if (house && floors >= 2 && rnd() < 0.55) {
+      const [i, L] = edges.reduce((a, b) => (b[1] > a[1] ? b : a));
+      if (L > 4) place(D.props.balc, i, 0.5, base + 0.4 + floorH - 0.05, 0, Math.min(3.6, L * 0.55));
+    }
+    // ground contact: a dark skirt round the footprint, fading out over ~1.2 m
+    {
+      const A = D.ao[C0];
+      for (let i = 0; i < n; i++) {
+        const [e1, n1] = ring[i], [e2, n2] = ring[(i + 1) % n], L = Math.hypot(e2 - e1, n2 - n1);
+        if (L < 0.3) continue;
+        const oe = (n2 - n1) / L * 1.2, on = -(e2 - e1) / L * 1.2;
+        const y1 = this.heightAt(e1, n1) + 0.05, y2 = this.heightAt(e2, n2) + 0.05, y3 = this.heightAt(e2 + oe, n2 + on) + 0.05, y4 = this.heightAt(e1 + oe, n1 + on) + 0.05;
+        const a = [-e1, y1, n1], b = [-e2, y2, n2], c = [-(e2 + oe), y3, n2 + on], d = [-(e1 + oe), y4, n1 + on];
+        A.p.push(...a, ...c, ...b, ...a, ...d, ...c);
+        A.c.push(0, 0, 0, 0.42, 0, 0, 0, 0, 0, 0, 0, 0.42, 0, 0, 0, 0.42, 0, 0, 0, 0, 0, 0, 0, 0);
+      }
+    }
+    // compound wall round a house plot, with a gate on the side facing the road
+    if (!house || area > 320 || shop || rnd() > 0.7) return;
+    const off = 2 + rnd() * 1.6, R = ring.map(([e, nn]) => { const de = e - ce, dn = nn - cn, l = Math.hypot(de, dn) || 1; return [e + de / l * off * 1.3, nn + dn / l * off * 1.3]; });
+    const laterite = rnd() < 0.35, j = 0.85 + rnd() * 0.2;
+    const top0 = laterite ? [0.24 * j, 0.09 * j, 0.045 * j] : [0.36 * j, 0.35 * j, 0.32 * j], low = laterite ? [0.12, 0.05, 0.03] : [0.08, 0.09, 0.05];
+    const clear = (e, nn) => e > 0.5 && nn > 0.5 && e < TILE - 0.5 && nn < TILE - 0.5 && !this.nearRoad(e, nn, 4.2, 9) && this.classAt(e, nn) !== C.building && this.classAt(e, nn) !== C.road && this.classAt(e, nn) !== C.water;
+    let gateDone = false;
+    const W = D.walls[C0], HW = 1.45, T = 0.1;
+    const piece = (a, b) => {
+      const de = b[0] - a[0], dn = b[1] - a[1], L = Math.hypot(de, dn);
+      if (L < 0.6) return;
+      const ne = -dn / L * T, nn = de / L * T, ya = this.heightAt(...a) - 0.1, yb = this.heightAt(...b) - 0.1;
+      const V = (p, o, y) => [-(p[0] + ne * o), y, p[1] + nn * o];
+      const q = (p1, p2, p3, p4, c1, c2) => { W.p.push(...p1, ...p2, ...p3, ...p1, ...p3, ...p4); W.c.push(...c1, ...c1, ...c2, ...c1, ...c2, ...c2); };
+      for (const o of [1, -1]) q(V(a, o, ya), V(b, o, yb), V(b, o, yb + HW), V(a, o, ya + HW), low, top0);
+      q(V(a, 1, ya + HW), V(b, 1, yb + HW), V(b, -1, yb + HW), V(a, -1, ya + HW), top0, top0);
+      const ang = Math.atan2(-de / L, dn / L);
+      this.colliders.push({ cx: -(this.E0 + (a[0] + b[0]) / 2), cz: this.N0 + (a[1] + b[1]) / 2, hx: 0.15, hz: L / 2, cos: Math.cos(ang), sin: Math.sin(ang), angle: ang, h: Math.max(ya, yb) + HW, kind: 'barrier' });
+    };
+    for (let i = 0; i < n; i++) {
+      const a = R[i], b = R[(i + 1) % n], L = Math.hypot(b[0] - a[0], b[1] - a[1]);
+      if (L < 1) continue;
+      const ue = (b[0] - a[0]) / L, un = (b[1] - a[1]) / L;
+      // the gate: the first side whose outward side reaches a road
+      let gate = -1;
+      if (!gateDone && L > 4.5) { const me = (a[0] + b[0]) / 2 + un * 7, mn = (a[1] + b[1]) / 2 - ue * 7; if (this.nearRoad(me, mn, 6, 9)) { gate = L / 2; gateDone = true; } }
+      // runs of clear ground, sampled every 1 m, broken at the gate
+      let run = null;
+      for (let d = 0; d <= L + 1e-6; d = Math.min(L, d + 1) + (d >= L ? 1 : 0)) {
+        const p = [a[0] + ue * d, a[1] + un * d], ok = clear(...p) && !(gate >= 0 && Math.abs(d - gate) < 1.6);
+        if (ok) { if (!run) run = p; else if (d >= L) { piece(run, p); run = null; } }
+        else if (run) { piece(run, [a[0] + ue * (d - 1), a[1] + un * (d - 1)]); run = null; }
+        if (d >= L) { if (run) piece(run, p); break; }
+      }
+      if (gate >= 0) {
+        const ge = a[0] + ue * gate, gn = a[1] + un * gate;
+        {
+          Z.set(-un, 0, -ue); X.crossVectors(Y, Z);
+          m4.makeBasis(X, Y, Z).setPosition(-ge, this.heightAt(ge, gn) - 0.05, gn);
+          D.props.gate.push([m4.clone(), C0]);
+          const ang = Math.atan2(ue, un);
+          this.colliders.push({ cx: -(this.E0 + ge), cz: this.N0 + gn, hx: 0.12, hz: 1.5, cos: Math.cos(ang), sin: Math.sin(ang), angle: ang, h: this.heightAt(ge, gn) + 1.6, kind: 'barrier' });
+        }
+      }
+    }
+  }
+
+  _detailMeshes(D, M, opts) {
+    const out = [], cc = (c) => [(c % 4) * 500 + 250, Math.floor(c / 4) * 500 + 250];
+    const geo = { ac: opts.acGeo, pipe: opts.pipeGeo, balc: opts.balconyGeo, gate: opts.gateGeo };
+    for (const [k, list] of Object.entries(D.props)) {
+      if (!geo[k]) continue;
+      for (let c = 0; c < 16; c++) {
+        const L = list.filter((q) => q[1] === c);
+        if (!L.length) continue;
+        const im = new THREE.InstancedMesh(geo[k], M.klStop, L.length);
+        L.forEach(([m], i) => im.setMatrixAt(i, m));
+        im.computeBoundingSphere(); im.name = 'detail_' + k; im.castShadow = !!opts.shadows && k !== 'pipe';
+        im.userData.cc = cc(c); im.userData.far = 350;
+        out.push(im);
+      }
+    }
+    const mk = (A, mat, name, far, cols = 3) => {
+      if (!A.p.length) return null;
+      const g = new THREE.BufferGeometry();
+      g.setAttribute('position', new THREE.Float32BufferAttribute(A.p, 3));
+      g.setAttribute('color', new THREE.Float32BufferAttribute(A.c, cols));
+      g.computeVertexNormals();
+      const m = new THREE.Mesh(g, mat); m.name = name; m.userData.far = far; return m;
+    };
+    D.walls.forEach((A, c) => { const m = mk(A, M.klKerb, 'compound', 400); if (m) { m.userData.cc = cc(c); m.castShadow = !!opts.shadows; m.receiveShadow = true; out.push(m); } });
+    if (M.klAO) D.ao.forEach((A, c) => { const m = mk(A, M.klAO, 'ao', 400, 4); if (m) { m.userData.cc = cc(c); m.renderOrder = 1; out.push(m); } });
     return out;
   }
 

@@ -83,6 +83,8 @@ export class KeralaWorld {
     M.klKerb = new THREE.MeshStandardMaterial({ name: 'klKerb', vertexColors: true, roughness: 0.92, side: THREE.DoubleSide });
     M.klManhole = new THREE.MeshStandardMaterial({ name: 'klManhole', color: 0x34302c, roughness: 0.5, metalness: 0.55, polygonOffset: true, polygonOffsetFactor: -3, polygonOffsetUnits: -3 });
     this.manholeGeo = manholeGeometry();
+    Object.assign(this, detailGeometries());
+    M.klAO = new THREE.MeshBasicMaterial({ name: 'klAO', vertexColors: true, transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -4 });
     M.klDirtRoad = new THREE.MeshStandardMaterial({ name: 'klDirt', color: 0x8e5a3c, roughness: 1 });
     M.klWater = new THREE.MeshStandardMaterial({ name: 'klWater', color: 0x1d4048, roughness: 0.1, metalness: 0.25, normalMap: TX.waterNormal?.(), transparent: true, opacity: 0.92 });
     this.palmGeo = palmGeometry();
@@ -97,7 +99,7 @@ export class KeralaWorld {
 
   _opts() {
     const p = this.preset || {};
-    return { trees: this.trees, shadows: p.shadows && p.shadows !== 'off', palms: p.trees ?? 1, palmGeo: this.palmGeo, palmMat: this.palmMat, tankGeo: this.tankGeo, poleGeo: this.poleGeo, manholeGeo: this.manholeGeo, ledges: (p.trees ?? 1) >= 0.7, keralaFacade: KERALA_FACADE, keralaShop: KERALA_SHOP, maxBuildings: p.textureSize >= 1024 ? 9000 : 4500 };
+    return { trees: this.trees, shadows: p.shadows && p.shadows !== 'off', palms: p.trees ?? 1, palmGeo: this.palmGeo, palmMat: this.palmMat, tankGeo: this.tankGeo, poleGeo: this.poleGeo, manholeGeo: this.manholeGeo, acGeo: this.acGeo, pipeGeo: this.pipeGeo, balconyGeo: this.balconyGeo, gateGeo: this.gateGeo, ledges: (p.trees ?? 1) >= 0.7, keralaFacade: KERALA_FACADE, keralaShop: KERALA_SHOP, maxBuildings: p.textureSize >= 1024 ? 9000 : 4500 };
   }
 
   key(tx, tz) { return `${tx},${tz}`; }
@@ -295,6 +297,9 @@ export class KeralaWorld {
         if (!t.group) continue;
         const ex = Math.max(0, Math.abs(-p.x - (t.E0 + TILE / 2)) - TILE / 2), ez = Math.max(0, Math.abs(p.z - (t.N0 + TILE / 2)) - TILE / 2);
         const near = Math.hypot(ex, ez) < 600;
+        // roadside kiosks and shelters are small: only on the tiles round the camera
+        for (const m of t.teaMeshes || []) m.visible = Math.hypot(ex, ez) < 350;
+        if (t.stopMesh) t.stopMesh.visible = Math.hypot(ex, ez) < 450;
         for (const c of t.group.children) {
           if (c.name === 'lines' || c.name === 'linesY') c.visible = near;
           else if (c.userData.cc) c.visible = near && Math.hypot(-(t.E0 + c.userData.cc[0]) - p.x, t.N0 + c.userData.cc[1] - p.z) < (c.userData.far || 650);
@@ -303,6 +308,39 @@ export class KeralaWorld {
     }
     this.chunks.nearPos.copy(p);
   }
+}
+
+// wall details, vertex-coloured, local +z out of the wall, origin on the wall face (instanced per tile chunk)
+function detailGeometries() {
+  const kit = () => { const parts = []; return { parts, add(g, hex) { g = g.index ? g.toNonIndexed() : g; g.deleteAttribute('uv'); const c = new THREE.Color(hex), n = g.attributes.position.count, a = new Float32Array(n * 3); for (let i = 0; i < n; i++) a.set([c.r, c.g, c.b], i * 3); g.setAttribute('color', new THREE.BufferAttribute(a, 3)); parts.push(g); }, done() { const g = mergeGeometries(parts); g.computeVertexNormals(); return g; } }; };
+  // split AC outdoor unit on two brackets: white casing, the dark fan grille, a pipe running into the wall
+  let k = kit();
+  k.add(new THREE.BoxGeometry(0.8, 0.55, 0.28).translate(0, 0, 0.16), 0xe4e2dc);
+  k.add(new THREE.CylinderGeometry(0.2, 0.2, 0.02, 12).rotateX(Math.PI / 2).translate(-0.12, 0, 0.305), 0x2a2a2a);
+  for (const x of [-0.3, 0.3]) k.add(new THREE.BoxGeometry(0.04, 0.04, 0.34).translate(x, -0.3, 0.15), 0x5a5a58);
+  k.add(new THREE.BoxGeometry(0.05, 0.05, 0.12).translate(0.36, 0.1, 0.0), 0xd8d4c8);
+  const acGeo = k.done();
+  // PVC downpipe, 1 m tall (scaled to the wall), with a shoe at the foot
+  k = kit();
+  k.add(new THREE.CylinderGeometry(0.05, 0.05, 1, 6).translate(0, 0.5, 0.06), 0x707470);
+  k.add(new THREE.BoxGeometry(0.12, 0.08, 0.2).translate(0, 0.04, 0.12), 0x606460);
+  const pipeGeo = k.done();
+  // balcony: a slab 1 m wide (scaled along the wall) jutting out 1.1 m, with a parapet and a steel rail
+  k = kit();
+  k.add(new THREE.BoxGeometry(1, 0.14, 1.1).translate(0, 0, 0.55), 0xc8c2b4);
+  k.add(new THREE.BoxGeometry(1, 0.5, 0.1).translate(0, 0.32, 1.06), 0xd2ccbe);
+  for (const x of [-0.5, 0.5]) k.add(new THREE.BoxGeometry(0.08, 0.5, 1.0).translate(x, 0.32, 0.55), 0xd2ccbe);
+  k.add(new THREE.BoxGeometry(1, 0.04, 0.05).translate(0, 0.95, 1.06), 0x3a3a3a);
+  for (let i = 0; i < 5; i++) k.add(new THREE.BoxGeometry(0.025, 0.4, 0.025).translate(-0.4 + i * 0.2, 0.76, 1.06), 0x3a3a3a);
+  const balconyGeo = k.done();
+  // house gate in a compound wall: two plastered pillars with caps, a painted steel gate between them
+  k = kit();
+  for (const x of [-1.5, 1.5]) { k.add(new THREE.BoxGeometry(0.42, 1.75, 0.42).translate(x, 0.88, 0), 0xd6d0c2); k.add(new THREE.BoxGeometry(0.52, 0.12, 0.52).translate(x, 1.81, 0), 0x9a6040); }
+  k.add(new THREE.BoxGeometry(2.6, 0.06, 0.05).translate(0, 1.35, 0), 0x2a4a6a);
+  k.add(new THREE.BoxGeometry(2.6, 0.06, 0.05).translate(0, 0.25, 0), 0x2a4a6a);
+  for (let i = 0; i < 12; i++) k.add(new THREE.BoxGeometry(0.03, 1.1, 0.03).translate(-1.24 + i * 0.225, 0.8, 0), 0x2a4a6a);
+  const gateGeo = k.done();
+  return { acGeo, pipeGeo, balconyGeo, gateGeo };
 }
 
 // a cast-iron manhole cover: a flat disc with a raised rim and a cross pattern (lies on the road)
