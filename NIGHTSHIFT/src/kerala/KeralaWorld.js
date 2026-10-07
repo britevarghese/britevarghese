@@ -99,7 +99,7 @@ export class KeralaWorld {
 
   _opts() {
     const p = this.preset || {};
-    return { trees: this.trees, shadows: p.shadows && p.shadows !== 'off', palms: p.trees ?? 1, palmGeo: this.palmGeo, palmMat: this.palmMat, tankGeo: this.tankGeo, poleGeo: this.poleGeo, manholeGeo: this.manholeGeo, acGeo: this.acGeo, pipeGeo: this.pipeGeo, balconyGeo: this.balconyGeo, gateGeo: this.gateGeo, ledges: (p.trees ?? 1) >= 0.7, keralaFacade: KERALA_FACADE, keralaShop: KERALA_SHOP, maxBuildings: p.textureSize >= 1024 ? 9000 : 4500 };
+    return { trees: this.trees, shadows: p.shadows && p.shadows !== 'off', palms: p.trees ?? 1, palmGeo: this.palmGeo, palmMat: this.palmMat, tankGeo: this.tankGeo, poleGeo: this.poleGeo, manholeGeo: this.manholeGeo, acGeo: this.acGeo, pipeGeo: this.pipeGeo, balconyGeo: this.balconyGeo, gateGeo: this.gateGeo, awningGeo: this.awningGeo, signGeo: this.signGeo, crateGeo: this.crateGeo, chairGeo: this.chairGeo, scooterGeo: this.scooterGeo, ledges: (p.trees ?? 1) >= 0.7, keralaFacade: KERALA_FACADE, keralaShop: KERALA_SHOP, maxBuildings: p.textureSize >= 1024 ? 9000 : 4500 };
   }
 
   key(tx, tz) { return `${tx},${tz}`; }
@@ -340,7 +340,41 @@ function detailGeometries() {
   k.add(new THREE.BoxGeometry(2.6, 0.06, 0.05).translate(0, 0.25, 0), 0x2a4a6a);
   for (let i = 0; i < 12; i++) k.add(new THREE.BoxGeometry(0.03, 1.1, 0.03).translate(-1.24 + i * 0.225, 0.8, 0), 0x2a4a6a);
   const gateGeo = k.done();
-  return { acGeo, pipeGeo, balconyGeo, gateGeo };
+  // shop awning: a sloping sheet 1 m wide (scaled to the bay), 1.3 m deep, on two thin poles at the front
+  // (white so the instance colour paints it)
+  k = kit();
+  k.add(new THREE.BoxGeometry(1, 0.03, 1.35).rotateX(0.22).translate(0, 0, 0.66), 0xffffff);
+  k.add(new THREE.BoxGeometry(1, 0.22, 0.02).translate(0, -0.25, 1.32), 0xdddddd);
+  const awningGeo = k.done();
+  // projecting signboard on a bracket, lit-box style: coloured panel with a pale inner face
+  k = kit();
+  k.add(new THREE.BoxGeometry(0.05, 0.05, 0.4).translate(0, 0.42, 0.2), 0x4a4a4a);
+  k.add(new THREE.BoxGeometry(0.12, 0.75, 0.9).translate(0, 0, 0.75), 0xffffff);
+  for (const x of [-0.065, 0.065]) k.add(new THREE.BoxGeometry(0.01, 0.42, 0.66).translate(x, 0, 0.75), 0xf4ecd8);
+  const signGeo = k.done();
+  // stack of produce crates (bananas / vegetables) out front
+  k = kit();
+  for (const [x, y, c] of [[-0.3, 0, 0x8a6a3a], [0.3, 0, 0x2a7a3a], [0, 0.32, 0x9a4a2a]]) { k.add(new THREE.BoxGeometry(0.55, 0.3, 0.4).translate(x, y + 0.15, 0), c); k.add(new THREE.BoxGeometry(0.5, 0.08, 0.36).translate(x, y + 0.31, 0), [0xd8c040, 0x5a9a3a, 0xc85a2a][(x > 0) + (y > 0) * 2] ?? 0xd8c040); }
+  const crateGeo = k.done();
+  // a pair of moulded plastic chairs
+  k = kit();
+  for (const [x, c] of [[-0.35, 0xe8e8e0], [0.35, 0x2a4a8a]]) {
+    k.add(new THREE.BoxGeometry(0.44, 0.04, 0.42).translate(x, 0.45, 0), c);
+    k.add(new THREE.BoxGeometry(0.44, 0.45, 0.04).rotateX(-0.12).translate(x, 0.7, -0.2), c);
+    for (const dx of [-0.19, 0.19]) for (const dz of [-0.18, 0.18]) k.add(new THREE.BoxGeometry(0.03, 0.45, 0.03).translate(x + dx, 0.22, dz), c);
+  }
+  const chairGeo = k.done();
+  // a parked scooter on its stand, length along local z (painted panels are white, tinted per instance)
+  k = kit();
+  for (const z of [-0.62, 0.6]) k.add(new THREE.CylinderGeometry(0.25, 0.25, 0.1, 10).rotateZ(Math.PI / 2).translate(0, 0.1, z), 0x111111);
+  k.add(new THREE.BoxGeometry(0.34, 0.32, 0.8).translate(0, 0.38, -0.25), 0xffffff);      // rear body
+  k.add(new THREE.BoxGeometry(0.3, 0.1, 0.62).translate(0, 0.6, -0.28), 0x1a1a1a);       // seat
+  k.add(new THREE.BoxGeometry(0.3, 0.1, 0.5).translate(0, 0.18, 0.18), 0x9a9a9a);        // floorboard
+  k.add(new THREE.BoxGeometry(0.32, 0.62, 0.14).rotateX(-0.3).translate(0, 0.5, 0.5), 0xffffff); // front apron
+  k.add(new THREE.BoxGeometry(0.62, 0.04, 0.04).translate(0, 0.92, 0.46), 0x2a2a2a);     // handlebar
+  k.add(new THREE.BoxGeometry(0.18, 0.12, 0.08).translate(0, 0.86, 0.56), 0xe8e8e0);     // headlamp cowl
+  const scooterGeo = k.done();
+  return { acGeo, pipeGeo, balconyGeo, gateGeo, awningGeo, signGeo, crateGeo, chairGeo, scooterGeo };
 }
 
 // a cast-iron manhole cover: a flat disc with a raised rim and a cross pattern (lies on the road)

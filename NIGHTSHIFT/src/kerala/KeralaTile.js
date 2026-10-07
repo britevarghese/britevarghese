@@ -689,7 +689,7 @@ export class KeralaTile {
 
   _buildings(M, d, opts) {
     const byMat = new Map(), roofsTile = [], roofsFlat = [], tanks = [], ledges = [];
-    const D = { props: { ac: [], pipe: [], balc: [], gate: [] }, walls: [], ao: [] };
+    const D = { props: { ac: [], pipe: [], balc: [], gate: [], awning: [], sign: [], crate: [], chair: [], scooter: [] }, tint: { awning: [], scooter: [], sign: [] }, walls: [], ao: [] };
     for (let c = 0; c < 16; c++) { D.walls.push({ p: [], c: [] }); D.ao.push({ p: [], c: [] }); }
     const push = (key, g) => { let l = byMat.get(key); if (!l) byMat.set(key, (l = [])); l.push(g); };
     let s = (this.tx * 2654435761 ^ this.tz * 40503) >>> 0;
@@ -894,6 +894,31 @@ export class KeralaTile {
         A.c.push(0, 0, 0, 0.42, 0, 0, 0, 0, 0, 0, 0, 0.42, 0, 0, 0, 0.42, 0, 0, 0, 0, 0, 0, 0, 0);
       }
     }
+    // shopfronts on the sides facing a road: a sloping awning per bay, a projecting sign, and the clutter out
+    // front (crates of produce, plastic chairs, a scooter or two parked on the footpath)
+    if (shop) for (const [i, L] of edges) {
+      if (L < 3.5) continue;
+      const [e1, n1] = ring[i], [e2, n2] = ring[(i + 1) % n], ue = (e2 - e1) / L, un = (n2 - n1) / L;
+      if (!this.nearRoad((e1 + e2) / 2 + un * 7, (n1 + n2) / 2 - ue * 7, 7, 9)) continue;
+      const bays = Math.max(1, Math.round(L / 4)), bw = L / bays, yb = base + 0.4;
+      for (let b = 0; b < bays; b++) {
+        const t = (b + 0.5) / bays;
+        if (rnd() < 0.7) { place(D.props.awning, i, t, yb + 2.75, 0, bw * 0.96); D.tint.awning.push(rnd()); }
+        if (rnd() < 0.35) { place(D.props.sign, i, t + (rnd() - 0.5) * 0.4 / bays, yb + 3.4, 0); D.tint.sign.push(rnd()); }
+        const r = rnd();
+        if (r < 0.25) place(D.props.crate, i, t + (rnd() - 0.5) * 0.5 / bays, this.heightAt(e1 + (e2 - e1) * t + un, n1 + (n2 - n1) * t - ue) + 0.2, 0.9 + rnd() * 0.5);
+        else if (r < 0.4) place(D.props.chair, i, t + (rnd() - 0.5) * 0.5 / bays, this.heightAt(e1 + (e2 - e1) * t + un, n1 + (n2 - n1) * t - ue) + 0.2, 1.2 + rnd() * 0.6);
+        else if (r < 0.6) {
+          // scooters park nose-in to the shop, at right angles to the wall
+          const e = e1 + (e2 - e1) * t + un * 2.4, nn = n1 + (n2 - n1) * t - ue * 2.4;
+          if (!this.nearRoad(e, nn, 3.2, 9) || rnd() < 0.5) {
+            Z.set(-un, 0, -ue); X.crossVectors(Y, Z);
+            m4.makeBasis(X, Y, Z).setPosition(-e, this.heightAt(e, nn) + 0.15, nn);
+            D.props.scooter.push([m4.clone(), C0]); D.tint.scooter.push(rnd());
+          }
+        }
+      }
+    }
     // compound wall round a house plot, with a gate on the side facing the road
     if (!house || area > 320 || shop || rnd() > 0.7) return;
     const off = 2 + rnd() * 1.6, R = ring.map(([e, nn]) => { const de = e - ce, dn = nn - cn, l = Math.hypot(de, dn) || 1; return [e + de / l * off * 1.3, nn + dn / l * off * 1.3]; });
@@ -943,14 +968,19 @@ export class KeralaTile {
 
   _detailMeshes(D, M, opts) {
     const out = [], cc = (c) => [(c % 4) * 500 + 250, Math.floor(c / 4) * 500 + 250];
-    const geo = { ac: opts.acGeo, pipe: opts.pipeGeo, balc: opts.balconyGeo, gate: opts.gateGeo };
+    const geo = { ac: opts.acGeo, pipe: opts.pipeGeo, balc: opts.balconyGeo, gate: opts.gateGeo, awning: opts.awningGeo, sign: opts.signGeo, crate: opts.crateGeo, chair: opts.chairGeo, scooter: opts.scooterGeo };
+    // awnings in faded tarpaulin blues, greens, reds and tin; scooters in the usual paints
+    const PAL = { awning: [0x2d5f8a, 0x2f7a4a, 0x9a3a2a, 0x8a8e94, 0xc89a2a, 0x3a4a9a, 0x8a8e94], scooter: [0xe8e8e8, 0x1a1a1a, 0x8a1a1a, 0x2a3a6a, 0x9a9a9a, 0x5a6a5a], sign: [0xc81e1e, 0x1e5ac8, 0xe8c020, 0x1e8a3a, 0xe8e8e8, 0xd85a1a] };
+    const col = new THREE.Color();
     for (const [k, list] of Object.entries(D.props)) {
       if (!geo[k]) continue;
       for (let c = 0; c < 16; c++) {
-        const L = list.filter((q) => q[1] === c);
+        const idx = []; list.forEach((q, i) => { if (q[1] === c) idx.push(i); });
+        const L = idx.map((i) => list[i]);
         if (!L.length) continue;
         const im = new THREE.InstancedMesh(geo[k], M.klStop, L.length);
         L.forEach(([m], i) => im.setMatrixAt(i, m));
+        if (D.tint[k]) idx.forEach((j, i) => { const P = PAL[k]; im.setColorAt(i, col.set(P[Math.floor(D.tint[k][j] * P.length)])); });
         im.computeBoundingSphere(); im.name = 'detail_' + k; im.castShadow = !!opts.shadows && k !== 'pipe';
         im.userData.cc = cc(c); im.userData.far = 350;
         out.push(im);
