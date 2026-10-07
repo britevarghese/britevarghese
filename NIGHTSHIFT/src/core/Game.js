@@ -672,6 +672,13 @@ export class Game {
       this.police.update(dt, this.traffic);
       this.incidents.update(dt);
       // debug: SHOW VEHICLE INTERACTION SOCKETS (F7)
+      // debug: environment stats (F8), environment detail layers on/off for A/B perf (F9), cycle weather (F4)
+      if (input.consume('envStats')) { this.showEnvStats = !this.showEnvStats; if (this.showEnvStats) this.showDev = true; }
+      if (input.consume('envDetail')) { this.world.detailOff = !this.world.detailOff; this.world._mkT = 0; this.ui.toast(this.world.detailOff ? 'Environment detail: off' : 'Environment detail: on', '', 1.5); }
+      if (input.consume('envWeather')) {
+        const W = ['clear', 'cloudy', 'drizzle', 'rain', 'heavy', 'storm', 'fog'], next = W[(W.indexOf(this.env.targetWeather || this.env.weather) + 1) % W.length];
+        this.env.setWeather(next); this.weatherT = 600; this.ui.toast(`Weather: ${next}`, '', 1.5);
+      }
       if (input.consume('sockets')) { const on = !this.onFoot.inter.debug; this.onFoot.inter.setDebug(on); this.ui.toast(on ? 'Vehicle interaction sockets: on' : 'Vehicle interaction sockets: off', '', 1.5); }
       if (this.onFoot.active && driving) this.onFoot.update(dt, input);
       else if (this.onFoot.inter.st) this.onFoot.inter.update(dt, input); // at the wheel (or finishing getting in)
@@ -1012,7 +1019,7 @@ export class Game {
     if (!this.showDev) { this.ui.updateDev(`${this.fps.toFixed(0)} FPS`, true); return; }
     const i = this.rm.info();
     const mem = performance.memory ? `${(performance.memory.usedJSHeapSize / 1048576).toFixed(0)} MB JS heap` : 'n/a';
-    const ch = this.world.chunks.stats;
+    const ch = this.world.chunks?.stats || {};
     const s = this.player.state;
     this.ui.updateDev([
       `NIGHTSHIFT dev · ${this.rm.backend.toUpperCase()} · ${QUALITY_LABELS[this.quality.level]} · ${this.quality.gpu.renderer}`,
@@ -1020,10 +1027,11 @@ export class Game {
       `engine audio: ${this.audio?.engine?.useWorklet ? 'PHYSICAL MODEL' : 'oscillator (fallback)'}`,
       `draw calls ${i.calls}  triangles ${(i.triangles / 1000).toFixed(0)}k  textures ${i.textures}  geometries ${i.geometries}`,
       `memory ${mem}  est. GPU tex ${(i.textures * this.preset.textureSize * this.preset.textureSize * 4 / 1048576 * 0.3).toFixed(0)} MB`,
-      `chunks loaded ${ch.loaded} detailed ${ch.detailed} pending ${ch.pending ?? 0}  props ${this.world.props.count()}`,
+      this.world.kerala ? `kerala tiles ${this.world.tiles.size}  building ${this.world.buildMs?.toFixed(0) ?? 0} ms/tile` : `chunks loaded ${ch.loaded} detailed ${ch.detailed} pending ${ch.pending ?? 0}  props ${this.world.props?.count?.() ?? 0}`,
       `traffic ${this.traffic.count()}  police ${this.police.count()} (heat ${this.police.heat}, ${this.police.state})  peds ${this.peds.count()}  particles ${this.fx.particleCount}`,
       `pos ${s.x.toFixed(0)}, ${s.z.toFixed(0)}  speed ${(Math.abs(s.speed) * 3.6).toFixed(0)} km/h  gear ${s.gear}  rpm ${s.rpm.toFixed(0)}  slip ${s.slip.toFixed(2)}  dmg ${(s.damage * 100).toFixed(0)}%`,
       `camera ${CAMERA_MODES[this.camCtl.mode].name}  time ${this.env.hour.toFixed(1)}h  weather ${this.env.weather}`,
+      ...(this.showEnvStats && this.world.envStats ? this.world.envStats(this.env.state) : []),
     ].join('\n'), true);
   }
 }

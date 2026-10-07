@@ -12,7 +12,7 @@ const KEYMAP = {
 };
 const ACTIONS = {
   camera: ['KeyV'], map: ['KeyM'], pause: ['Escape', 'KeyP'], reset: ['KeyR'], horn: ['KeyH'],
-  dev: ['F3'], photo: ['F2'], replay: ['KeyI'], enter: ['KeyF'], jump: ['Space'], fullscreen: ['F11'], confirm: ['Enter'], back: ['Backspace'], event: ['KeyE'], garage: ['KeyG'], attack: ['KeyQ'], sockets: ['F7'],
+  dev: ['F3'], photo: ['F2'], replay: ['KeyI'], enter: ['KeyF'], jump: ['Space'], fullscreen: ['F11'], confirm: ['Enter'], back: ['Backspace'], event: ['KeyE'], garage: ['KeyG'], attack: ['KeyQ'], sockets: ['F7'], envStats: ['F8'], envDetail: ['F9'], envWeather: ['F4'],
   up: ['ArrowUp'], down: ['ArrowDown'], leftNav: ['ArrowLeft'], rightNav: ['ArrowRight'],
 };
 
@@ -47,7 +47,7 @@ export class InputManager {
   _key(e, isDown) {
     const code = e.code;
     // prevent browser defaults for game keys (space scroll, F3 find, arrows)
-    if (['Space', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'F2', 'F3', 'F7', 'Tab'].includes(code) && e.target.tagName !== 'INPUT') e.preventDefault();
+    if (['Space', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'F2', 'F3', 'F4', 'F7', 'F8', 'F9', 'Tab'].includes(code) && e.target.tagName !== 'INPUT') e.preventDefault();
     if (e.target && (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT') && code !== 'Escape') return;
     if (isDown) {
       if (!this.down.has(code)) {

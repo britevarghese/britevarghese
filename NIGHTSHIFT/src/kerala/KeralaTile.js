@@ -370,6 +370,12 @@ export class KeralaTile {
       const g = this._ribbon(P, hw, y(lift), 7);
       if (!g) continue;
       g.computeVertexNormals();
+      if (!r.dirt) {
+        // in a junction the strips overlap: no ragged edge or verge dust there (it would show on the other road)
+        const Pp = g.attributes.position, J = new Float32Array(Pp.count);
+        for (let i = 0; i < Pp.count; i++) J[i] = this._nearJunction(-Pp.getX(i), Pp.getZ(i)) ? 1 : 0;
+        g.setAttribute('junc', new THREE.BufferAttribute(J, 1));
+      }
       (r.dirt ? dirt : paved).push(g);
       if (r.dirt || r.cls > 4) continue;  // village and town lanes carry no paint
       // markings: dashed white centre line (Indian roads), solid edge lines on the main roads

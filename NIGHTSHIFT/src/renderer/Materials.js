@@ -86,13 +86,13 @@ export function keralaRoadMaterial(base) {
   m.customProgramCacheKey = () => 'klRoad';
   m.onBeforeCompile = (sh) => {
     Object.assign(sh.uniforms, u);
-    sh.vertexShader = 'varying vec3 vWPos;\n' + sh.vertexShader.replace('#include <begin_vertex>', '#include <begin_vertex>\n  vWPos = (modelMatrix * vec4(transformed, 1.0)).xyz;');
-    sh.fragmentShader = MACRO_GLSL + sh.fragmentShader
+    sh.vertexShader = 'attribute float junc;\nvarying float vJunc;\nvarying vec3 vWPos;\n' + sh.vertexShader.replace('#include <begin_vertex>', '#include <begin_vertex>\n  vWPos = (modelMatrix * vec4(transformed, 1.0)).xyz; vJunc = junc;');
+    sh.fragmentShader = 'varying float vJunc;\n' + MACRO_GLSL + sh.fragmentShader
       .replace('#include <map_fragment>', `
   float mN1 = mFbm(vWPos.xz * 0.06), mN2 = mFbm(vWPos.xz * 0.012 + 11.0);
   float ru = vMapUv.x, along = vMapUv.y * 7.0;
-  // ragged, crumbling edges: the verge shows through
-  float edge = min(ru, 1.0 - ru) - 0.07 * mFbm(vec2(along * 0.45, ru * 9.0) + 3.0);
+  // ragged, crumbling edges: the verge shows through (not inside junctions, where the strips overlap)
+  float edge = mix(min(ru, 1.0 - ru) - 0.07 * mFbm(vec2(along * 0.45, ru * 9.0) + 3.0), 0.5, smoothstep(0.2, 0.8, vJunc));
   if (edge < 0.004) discard;
   vec4 mA = texture2D(map, vMapUv);
   vec4 mB = texture2D(map, mat2(0.8, -0.6, 0.6, 0.8) * vMapUv * 0.71 + vec2(0.37, 0.13));

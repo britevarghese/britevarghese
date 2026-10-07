@@ -264,6 +264,29 @@ export class KeralaWorld {
     return out;
   }
 
+  // F8: what the environment is drawing round the camera
+  envStats(env = {}) {
+    const n = {}, add = (k, v) => { n[k] = (n[k] || 0) + v; };
+    let tiles = 0, smooth = 0;
+    for (const t of this.tiles.values()) {
+      if (!t.group) continue;
+      tiles++; smooth += t.smoothed || 0;
+      add('bumps', t.bumps?.length || 0); add('zebras', t.crossings?.length || 0); add('colliders', t.colliders.length);
+      for (const c of t.group.children) {
+        if (!c.visible) continue;
+        const k = c.name.startsWith('detail_') ? c.name.slice(7) : c.name;
+        if (c.isInstancedMesh) add(k, c.count); else if (['kerbs', 'compound', 'ao'].includes(k)) add(k + ' tris', c.geometry.attributes.position.count / 3);
+      }
+    }
+    const tr = this.trees?.hi?.map((m) => m.count) || [];
+    return [
+      `env · tiles ${tiles}  detail ${this.detailOff ? 'OFF' : 'on'}  wet ${(this.wet || 0).toFixed(2)}  night ${(this.night || 0).toFixed(2)}  rain ${(env.rain || 0).toFixed(2)}`,
+      `env · kerbs ${((n['kerbs tris'] || 0) / 1000).toFixed(0)}k tris  walls ${((n['compound tris'] || 0) / 1000).toFixed(0)}k  ao ${((n['ao tris'] || 0) / 1000).toFixed(0)}k  breakers ${n.bumps || 0}  zebras ${n.zebras || 0}  colliders ${n.colliders || 0}`,
+      `env · ac ${n.ac || 0}  awnings ${n.awning || 0}  signs ${n.sign || 0}  scooters ${n.scooter || 0}  gates ${n.gate || 0}  lamps ${n.lampHeads || 0}  transformers ${n.transformers || 0}`,
+      `env · near plants: palm ${tr[0] || 0} broad ${tr[1] || 0} banana ${tr[2] || 0} bush ${tr[3] || 0} areca ${tr[4] || 0} rubber ${tr[5] || 0} bamboo ${tr[6] || 0} grass ${tr[7] || 0}  smoothed pts ${smooth}`,
+    ];
+  }
+
   signalState() { return 'green'; }
   breakCollider(c) { c.broken = true; }
 
@@ -307,7 +330,8 @@ export class KeralaWorld {
         for (const m of t.teaMeshes || []) m.visible = Math.hypot(ex, ez) < 350;
         if (t.stopMesh) t.stopMesh.visible = Math.hypot(ex, ez) < 450;
         for (const c of t.group.children) {
-          if (c.name === 'lines' || c.name === 'linesY') c.visible = near;
+          if (this.detailOff && DETAIL.test(c.name)) c.visible = false;
+          else if (c.name === 'lines' || c.name === 'linesY') c.visible = near;
           else if (c.userData.cc) c.visible = near && Math.hypot(-(t.E0 + c.userData.cc[0]) - p.x, t.N0 + c.userData.cc[1] - p.z) < (c.userData.far || 650);
         }
       }
@@ -382,6 +406,9 @@ function detailGeometries() {
   const scooterGeo = k.done();
   return { acGeo, pipeGeo, balconyGeo, gateGeo, awningGeo, signGeo, crateGeo, chairGeo, scooterGeo };
 }
+
+// the optional environment detail layers (F9 turns them off for an A/B performance check)
+const DETAIL = /^(detail_|kerbs$|compound$|ao$|lamp|transformers$|poles$|wires$|ledges$)/;
 
 // a cast-iron manhole cover: a flat disc with a raised rim and a cross pattern (lies on the road)
 function manholeGeometry() {
