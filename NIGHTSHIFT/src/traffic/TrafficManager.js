@@ -382,6 +382,11 @@ export class TrafficManager {
     // heavy rain: everyone slows down and leaves more room
     const rain = this.rain || 0;
     v0 *= 1 - 0.3 * rain;
+    // speed breakers: everyone crawls over them (bikes a little quicker)
+    if (this.world.bumpAhead) {
+      const bd = this.world.bumpAhead(c.x, c.z, Math.sin(c.yaw), Math.cos(c.yaw), 35);
+      if (bd >= 0) v0 = Math.min(v0, Math.sqrt((c.spec.bike ? 4.5 : 3.2) ** 2 + 2 * 2.2 * bd));
+    }
     const a = 2.2, b = 3.5, s0 = 2.2 + rain, T = 1.3 + rain * 0.7;
     const dv = c.v - leadV;
     const sStar = s0 + Math.max(0, c.v * T + c.v * dv / (2 * Math.sqrt(a * b)));

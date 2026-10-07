@@ -80,6 +80,9 @@ export class KeralaWorld {
     M.klRoofFlat = new THREE.MeshStandardMaterial({ name: 'klRoofFlat', color: 0x8d8a82, roughness: 0.95 });
     M.klLineWhite = new THREE.MeshStandardMaterial({ name: 'klLineW', color: 0xe8e8e0, roughness: 0.7, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 });
     M.klLineYellow = new THREE.MeshStandardMaterial({ name: 'klLineY', color: 0xe0b020, roughness: 0.7, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 });
+    M.klKerb = new THREE.MeshStandardMaterial({ name: 'klKerb', vertexColors: true, roughness: 0.92, side: THREE.DoubleSide });
+    M.klManhole = new THREE.MeshStandardMaterial({ name: 'klManhole', color: 0x34302c, roughness: 0.5, metalness: 0.55, polygonOffset: true, polygonOffsetFactor: -3, polygonOffsetUnits: -3 });
+    this.manholeGeo = manholeGeometry();
     M.klDirtRoad = new THREE.MeshStandardMaterial({ name: 'klDirt', color: 0x8e5a3c, roughness: 1 });
     M.klWater = new THREE.MeshStandardMaterial({ name: 'klWater', color: 0x1d4048, roughness: 0.1, metalness: 0.25, normalMap: TX.waterNormal?.(), transparent: true, opacity: 0.92 });
     this.palmGeo = palmGeometry();
@@ -94,7 +97,7 @@ export class KeralaWorld {
 
   _opts() {
     const p = this.preset || {};
-    return { trees: this.trees, shadows: p.shadows && p.shadows !== 'off', palms: p.trees ?? 1, palmGeo: this.palmGeo, palmMat: this.palmMat, tankGeo: this.tankGeo, poleGeo: this.poleGeo, ledges: (p.trees ?? 1) >= 0.7, keralaFacade: KERALA_FACADE, keralaShop: KERALA_SHOP, maxBuildings: p.textureSize >= 1024 ? 9000 : 4500 };
+    return { trees: this.trees, shadows: p.shadows && p.shadows !== 'off', palms: p.trees ?? 1, palmGeo: this.palmGeo, palmMat: this.palmMat, tankGeo: this.tankGeo, poleGeo: this.poleGeo, manholeGeo: this.manholeGeo, ledges: (p.trees ?? 1) >= 0.7, keralaFacade: KERALA_FACADE, keralaShop: KERALA_SHOP, maxBuildings: p.textureSize >= 1024 ? 9000 : 4500 };
   }
 
   key(tx, tz) { return `${tx},${tz}`; }
@@ -181,7 +184,13 @@ export class KeralaWorld {
     if (!t) return this._lastH ?? 0;
     const h = t.heightAt(-x - t.E0, z - t.N0);
     this._lastH = h;
-    return h;
+    return t._bg ? h + t.bumpAt(x, z) : h;
+  }
+
+  // distance to a speed breaker ahead of (x, z) along (fx, fz), or -1
+  bumpAhead(x, z, fx, fz, range = 30) {
+    const t = this.tileAt(x, z);
+    return t?._bg ? t.bumpAhead(x, z, fx, fz, range) : -1;
   }
 
   // open country (paddy, groves, forest, sand) rather than a road or a town street
@@ -278,6 +287,7 @@ export class KeralaWorld {
     // the Kerala road follows the shared road's wet / dry look
     const R = this.M?.klRoad, B = this.M?.road;
     if (R && B) { R.userData.u.uWet.value = this.wet || 0; R.roughness = B.roughness; R.color.copy(B.color); R.envMapIntensity = B.envMapIntensity; if (R.roughnessMap !== B.roughnessMap) { R.roughnessMap = B.roughnessMap; R.needsUpdate = true; } }
+    if (this.M?.klKerb) this.M.klKerb.roughness = 0.92 - 0.55 * (this.wet || 0);
     // road markings only on the tiles near the camera (sub-pixel further out)
     if (!this._mkT || (this._mkT += dt) > 0.5) {
       this._mkT = 1e-6;
@@ -287,12 +297,20 @@ export class KeralaWorld {
         const near = Math.hypot(ex, ez) < 600;
         for (const c of t.group.children) {
           if (c.name === 'lines' || c.name === 'linesY') c.visible = near;
-          else if (c.userData.cc) c.visible = near && Math.hypot(-(t.E0 + c.userData.cc[0]) - p.x, t.N0 + c.userData.cc[1] - p.z) < 650;
+          else if (c.userData.cc) c.visible = near && Math.hypot(-(t.E0 + c.userData.cc[0]) - p.x, t.N0 + c.userData.cc[1] - p.z) < (c.userData.far || 650);
         }
       }
     }
     this.chunks.nearPos.copy(p);
   }
+}
+
+// a cast-iron manhole cover: a flat disc with a raised rim and a cross pattern (lies on the road)
+function manholeGeometry() {
+  const parts = [new THREE.CylinderGeometry(0.33, 0.35, 0.025, 14).translate(0, 0.012, 0)];
+  for (const a of [0, Math.PI / 2]) parts.push(new THREE.BoxGeometry(0.5, 0.012, 0.05).rotateY(a).translate(0, 0.03, 0));
+  for (const g of parts) g.deleteAttribute('uv');
+  return mergeGeometries(parts.map((g) => g.toNonIndexed()));
 }
 
 // a coconut palm: a tall, slightly curved trunk and a crown of drooping fronds (~90 triangles)

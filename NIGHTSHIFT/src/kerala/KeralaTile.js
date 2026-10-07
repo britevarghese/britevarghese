@@ -120,6 +120,8 @@ export class KeralaTile {
     const water = this._water(M, d);
     if (water) g.add(water);
     for (const m of this._roads(M)) g.add(m);
+    for (const m of this._street(M, opts)) g.add(m);
+    this._nearJunction = null;
     for (const m of this._buildings(M, d, opts)) g.add(m);
     for (const m of this._poles(M, opts)) g.add(m);
     if (opts.trees) { this.trees = opts.trees.plant(this); g.add(this.trees.group); }
@@ -350,7 +352,7 @@ export class KeralaTile {
       if (cl) white.push(cl);
       if (r.cls <= 3) for (const side of [1, -1]) { const e = this._dashes(r.pts, side * (hw - 0.35), 0.08, 0, 0, y(lift + 0.012)); if (e) (r.cls <= 1 ? yellow : white).push(e); }
     }
-    this._nearJunction = null;
+    this._junctions = [...seen].filter(([, [c]]) => c >= 3).map(([k, [c, hw]]) => { const [e, n] = k.split(',').map(Number); return { e, n, c, r: hw + 2.5 }; });
     const out = [];
     const add = (list, mat, name) => { if (!list.length) return; const gg = mergeGeometries(list); if (!gg) return; const m = new THREE.Mesh(gg, mat); m.receiveShadow = true; m.name = name; out.push(m); };
     add(paved, M.klRoad || M.road, 'roads');
@@ -358,6 +360,196 @@ export class KeralaTile {
     add(white, M.klLineWhite, 'lines');
     add(yellow, M.klLineYellow, 'linesY');
     return out;
+  }
+
+  // ------------------------------------------------------------------------------------------ street edge
+  // Town streets: a concrete kerb with the open roadside drain behind it (slab-covered in stretches) and, on the
+  // commercial stretches, a raised footpath; zebra crossings at the busy junctions, painted speed breakers (which
+  // vehicles feel: bumpAt / bumpAhead), and iron manhole covers in the carriageway.
+  _street(M, opts) {
+    if (!M.klKerb) return [];
+    let s = (this.tx * 3571 ^ this.tz * 7919 ^ 0x5bd1) >>> 0;
+    const rnd = () => ((s = (s * 1664525 + 1013904223) >>> 0) / 4294967296);
+    const TOWN = new Set([C.town, C.commercial, C.industrial, C.building]);
+    const nj = this._nearJunction || (() => false);
+    const builtUp = (e, n, ne, nn, hw) => [1, -1].some((sd) => { const c = this.classAt(e + ne * (hw + 1.3) * sd, n + nn * (hw + 1.3) * sd); return TOWN.has(c) || [3, 9, 16].some((o) => this.classAt(e + ne * (hw + o) * sd, n + nn * (hw + o) * sd) === C.building); });
+    const chunkOf = (e, n) => Math.min(3, Math.max(0, Math.floor(e / 500))) + 4 * Math.min(3, Math.max(0, Math.floor(n / 500)));
+    const kerb = [], zebra = [], bumps = [], holes = [];
+    for (let c = 0; c < 16; c++) kerb.push({ p: [], c: [] });
+    const quad = (K, a, b, c2, d, col, col2 = col) => {
+      // a-b at the start of the segment, d-c at the end (a/d inner, b/c outer)
+      K.p.push(...a, ...b, ...c2, ...a, ...c2, ...d);
+      K.c.push(...col, ...col2, ...col2, ...col, ...col2, ...col);
+    };
+    this.bumps = [];
+    for (const r of this.roads) {
+      if (r.cls < 2 || r.cls > 6 || r.dirt || r.flags & 6 || r.pts.length < 2) continue;
+      const hw = r.cls <= 2 && r.lanes ? Math.max(ROAD_HALF[r.cls], r.lanes * 1.75) : ROAD_HALF[r.cls];
+      const lift = 0.07 + (10 - r.cls) * 0.004;
+      // the line, every ~3 m
+      const P = [];
+      for (let i = 0; i < r.pts.length; i++) {
+        if (i) { const [ae, an] = r.pts[i - 1], [be, bn] = r.pts[i], k = Math.ceil(Math.hypot(be - ae, bn - an) / 3); for (let j = 1; j < k; j++) P.push([ae + (be - ae) * j / k, an + (bn - an) * j / k]); }
+        P.push(r.pts[i]);
+      }
+      const N = P.map((_, i) => { const a = P[Math.max(0, i - 1)], b = P[Math.min(P.length - 1, i + 1)], de = b[0] - a[0], dn = b[1] - a[1], l = Math.hypot(de, dn) || 1; return [-dn / l, de / l, de / l, dn / l]; });
+      const inTile = ([e, n]) => e > 0.5 && n > 0.5 && e < TILE - 0.5 && n < TILE - 0.5;
+      // --- kerb, drain, footpath on both sides
+      const striped = r.cls <= 3;
+      for (const side of [1, -1]) {
+        let cover = rnd() < 0.4, runLeft = 6 + rnd() * 20;
+        const prof = (i) => {
+          const [e, n] = P[i], [ne, nn] = N[i];
+          const at = (o) => [e + ne * o * side, n + nn * o * side];
+          const c0 = this.classAt(...at(hw + 1.3));
+          // built-up: tagged town land, or buildings close beside the road (most of Kerala's streets are untagged)
+          const town = c0 !== C.water && c0 !== C.sea && (TOWN.has(c0) || [3, 8, 14, 20].some((o) => [-5, 5].some((t) => this.classAt(at(hw + o)[0] + N[i][2] * t, at(hw + o)[1] + N[i][3] * t) === C.building)));
+          const shop = town && (this.classAt(...at(hw + 2.6)) === C.building || this.classAt(...at(hw + 1.3)) === C.commercial);
+          const y0 = Math.max(this.heightAt(...at(hw)), this.heightAt(...at(hw + 0.9))) + lift;
+          return { at, y0, town, shop: shop && r.cls <= 5 };
+        };
+        let A = prof(0);
+        for (let i = 1; i < P.length; i++) {
+          const B = prof(i);
+          const mid = [(P[i][0] + P[i - 1][0]) / 2, (P[i][1] + P[i - 1][1]) / 2];
+          if ((runLeft -= 3) < 0) { cover = !cover; runLeft = cover ? 3 + rnd() * 9 : 6 + rnd() * 24; }
+          if (A.town && B.town && inTile(mid) && !nj(mid[0], mid[1]) && !nj(...A.at(hw + 0.5)) && !nj(...B.at(hw + 0.5))) {
+            const K = kerb[chunkOf(...mid)];
+            const v = (Q, o, h) => { const [e, n] = Q.at(o - 0.25); return [-e, Q.y0 + h, n]; };
+            const j = 0.9 + rnd() * 0.12, seg = (i & 1) === 0;
+            const conc = [0.3 * j, 0.29 * j, 0.26 * j], grime = [0.16 * j, 0.16 * j, 0.13 * j];
+            const face = striped && B.shop ? (seg ? [0.62, 0.62, 0.58] : [0.025, 0.025, 0.025]) : conc;
+            const edge = (o0, h0, o1, h1, c0, c1) => quad(K, v(A, o0, h0), v(A, o1, h1), v(B, o1, h1), v(B, o0, h0), c0, c1 || c0);
+            edge(hw - 0.02, -0.06, hw - 0.02, 0.16, grime, face);               // kerb face
+            edge(hw - 0.02, 0.16, hw + 0.2, 0.16, conc);                        // kerb top
+            if (cover) edge(hw + 0.2, 0.16, hw + 0.75, 0.17, [0.24 * j, 0.235 * j, 0.21 * j]); // slabs over the drain
+            else {
+              edge(hw + 0.2, 0.16, hw + 0.2, -0.04, conc, [0.07, 0.08, 0.06]);  // drain: inner wall
+              edge(hw + 0.2, -0.04, hw + 0.75, -0.04, [0.012, 0.016, 0.01]);      // black water / silt
+              edge(hw + 0.75, -0.04, hw + 0.75, 0.17, [0.07, 0.08, 0.06], conc); // outer wall
+            }
+            if (B.shop && A.shop) {
+              edge(hw + 0.75, 0.17, hw + 2.2, 0.2, [0.26 * j, 0.25 * j, 0.22 * j]); // footpath slabs
+              edge(hw + 2.2, 0.2, hw + 2.2, -0.35, conc, grime);
+            } else edge(hw + 0.75, 0.17, hw + 0.95, -0.35, conc, grime);
+          }
+          A = B;
+        }
+      }
+      // --- zebra crossings just short of the busy junctions (main roads in town)
+      if (r.cls <= 4) for (const J of this._junctions || []) {
+        if (J.c < 3) continue;
+        const i = r.pts.findIndex(([e, n]) => Math.abs(e - J.e) < 1 && Math.abs(n - J.n) < 1);
+        if (i < 0) continue;
+        for (const dir of [-1, 1]) {
+          const k = i + dir;
+          if (k < 0 || k >= r.pts.length || rnd() < 0.35) continue;
+          const [je, jn] = r.pts[i], [ke, kn] = r.pts[k], L = Math.hypot(ke - je, kn - jn);
+          const D = J.r + 2.2;
+          if (L < D + 3) continue;
+          const ue = (ke - je) / L, un = (kn - jn) / L, ce = je + ue * D, cn = jn + un * D;
+          if (!inTile([ce, cn]) || !builtUp(ce, cn, -un, ue, hw)) continue;
+          const y = (e, n) => this.heightAt(e, n) + lift + 0.012;
+          for (let o = -hw + 0.6; o <= hw - 0.5; o += 1.1) {
+            const se = ce - un * o, sn = cn + ue * o;
+            const g = this._ribbon([[se - ue * 1.6, sn - un * 1.6], [se + ue * 1.6, sn + un * 1.6]], 0.28, y, 1e9);
+            if (g) { g.computeVertexNormals(); zebra.push(g); }
+          }
+          (this.crossings || (this.crossings = [])).push({ x: -(this.E0 + ce), z: this.N0 + cn, fx: -ue, fz: un, hw });
+        }
+      }
+      // --- speed breakers in town, and manholes
+      let acc = 60 + rnd() * 250, accM = 20 + rnd() * 80;
+      for (let i = 1; i < r.pts.length; i++) {
+        const [ae, an] = r.pts[i - 1], [be, bn] = r.pts[i], L = Math.hypot(be - ae, bn - an);
+        if (L < 0.01) continue;
+        const ue = (be - ae) / L, un = (bn - an) / L;
+        for (; accM < L; accM += 50 + rnd() * 90) {
+          const o = (rnd() < 0.5 ? -1 : 1) * hw * (0.25 + rnd() * 0.3), e = ae + ue * accM - un * o, n = an + un * accM + ue * o;
+          if (inTile([e, n]) && builtUp(e, n, -un, ue, hw)) holes.push([-e, this.heightAt(e, n) + lift + 0.008, n, rnd() * 6]);
+        }
+        accM -= L;
+        if (r.cls < 3) continue;
+        for (; acc < L; acc += 180 + rnd() * 320) {
+          const e = ae + ue * acc, n = an + un * acc;
+          if (!inTile([e, n]) || nj(e, n) || !builtUp(e, n, -un, ue, hw)) continue;
+          bumps.push(this._breaker(e, n, ue, un, hw, lift));
+          this.bumps.push({ x: -(this.E0 + e), z: this.N0 + n, fx: -ue, fz: un, hw });
+        }
+        acc -= L;
+      }
+    }
+    // bump lookup grid (50 m cells, game coords)
+    this._bg = new Map();
+    for (const b of this.bumps) {
+      const R = Math.ceil((b.hw + 1) / 50);
+      for (let a = -R; a <= R; a++) for (let c = -R; c <= R; c++) { const k = (Math.floor(b.x / 50) + a) * 100003 + Math.floor(b.z / 50) + c; if (!this._bg.has(k)) this._bg.set(k, []); this._bg.get(k).push(b); }
+    }
+    const out = [];
+    kerb.forEach((K, c) => {
+      if (!K.p.length) return;
+      const g = new THREE.BufferGeometry();
+      g.setAttribute('position', new THREE.Float32BufferAttribute(K.p, 3));
+      g.setAttribute('color', new THREE.Float32BufferAttribute(K.c, 3));
+      g.computeVertexNormals();
+      const m = new THREE.Mesh(g, M.klKerb); m.name = 'kerbs'; m.receiveShadow = true;
+      m.userData.cc = [(c % 4) * 500 + 250, Math.floor(c / 4) * 500 + 250]; m.userData.far = 450;
+      out.push(m);
+    });
+    if (zebra.length) { const m = new THREE.Mesh(mergeGeometries(zebra), M.klLineWhite); m.name = 'lines'; out.push(m); }
+    if (bumps.length) { const m = new THREE.Mesh(mergeGeometries(bumps), M.klKerb); m.name = 'lines'; m.receiveShadow = true; out.push(m); }
+    if (holes.length && opts.manholeGeo) {
+      const im = new THREE.InstancedMesh(opts.manholeGeo, M.klManhole, holes.length), m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), up = new THREE.Vector3(0, 1, 0), one = new THREE.Vector3(1, 1, 1), v = new THREE.Vector3();
+      holes.forEach(([x, y, z, a], i) => im.setMatrixAt(i, m4.compose(v.set(x, y, z), q.setFromAxisAngle(up, a), one)));
+      im.computeBoundingSphere(); im.name = 'lines'; out.push(im);
+    }
+    return out;
+  }
+
+  // a hump across the road, painted in yellow and black bands (~0.1 m high, ~1 m long)
+  _breaker(e, n, ue, un, hw, lift) {
+    const p = [], c = [], prof = [-0.5, -0.3, -0.12, 0.12, 0.3, 0.5].map((d) => [d, 0.1 * Math.cos(Math.PI * d) ** 2]);
+    const bands = Math.max(4, Math.round(hw * 2 / 0.6));
+    for (let b = 0; b < bands; b++) {
+      const o0 = -hw + (2 * hw * b) / bands, o1 = -hw + (2 * hw * (b + 1)) / bands, col = b & 1 ? [0.02, 0.02, 0.02] : [0.7, 0.42, 0.02];
+      for (let k = 0; k < prof.length - 1; k++) {
+        const V = (o, [d, h]) => { const pe = e + ue * d - un * o, pn = n + un * d + ue * o; return [-pe, this.heightAt(pe, pn) + lift + h + 0.01, pn]; };
+        const a = V(o0, prof[k]), bb = V(o1, prof[k]), cc = V(o1, prof[k + 1]), d = V(o0, prof[k + 1]);
+        p.push(...a, ...cc, ...bb, ...a, ...d, ...cc);
+        for (let q = 0; q < 6; q++) c.push(...col);
+      }
+    }
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.Float32BufferAttribute(p, 3));
+    g.setAttribute('color', new THREE.Float32BufferAttribute(c, 3));
+    g.computeVertexNormals();
+    if (g.attributes.normal.getY(0) < 0) { const P = g.attributes.position.array; for (let i = 0; i < P.length; i += 9) for (let q = 0; q < 3; q++) { const t = P[i + 3 + q]; P[i + 3 + q] = P[i + 6 + q]; P[i + 6 + q] = t; } g.computeVertexNormals(); }
+    return g;
+  }
+
+  // extra ground height (game coords) from a speed breaker under (x, z)
+  bumpAt(x, z) {
+    const L = this._bg?.get(Math.floor(x / 50) * 100003 + Math.floor(z / 50));
+    if (!L) return 0;
+    for (const b of L) {
+      const dx = x - b.x, dz = z - b.z, a = dx * b.fx + dz * b.fz;
+      if (Math.abs(a) < 0.5 && Math.abs(dx * b.fz - dz * b.fx) < b.hw) return 0.1 * Math.cos(Math.PI * a) ** 2;
+    }
+    return 0;
+  }
+
+  // distance to the next breaker ahead along (fx, fz) within range, or -1
+  bumpAhead(x, z, fx, fz, range) {
+    let best = -1;
+    for (const k of [0, 1]) {
+      const L = this._bg?.get(Math.floor((x + fx * range * k) / 50) * 100003 + Math.floor((z + fz * range * k) / 50));
+      if (!L) continue;
+      for (const b of L) {
+        const dx = b.x - x, dz = b.z - z, a = dx * fx + dz * fz;
+        if (a > -0.5 && a < range && Math.abs(dx * fz - dz * fx) < b.hw && Math.abs(fx * b.fx + fz * b.fz) > 0.7 && (best < 0 || a < best)) best = Math.max(0, a);
+      }
+    }
+    return best;
   }
 
   // KSEB electric poles along the town roads, ~38 m apart on one side, strung with sagging wires
@@ -703,6 +895,6 @@ export class KeralaTile {
       if (o.material && o.name === 'terrain') { o.material.map?.dispose(); o.material.dispose(); }
     });
     this.group?.removeFromParent();
-    this.cls = null; this.visCanvas = null; this.trees = null; this._rg = null;
+    this.cls = null; this.visCanvas = null; this.trees = null; this._rg = null; this._bg = null; this.bumps = [];
   }
 }
