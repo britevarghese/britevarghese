@@ -598,6 +598,7 @@ export class Game {
       this.story.update(dt, input, driving);
       this.empire.update(dt, input, driving);
       this.rivals.update(dt, driving && !this.story.active);
+      this._preVel = { vx: player.state.vx, vz: player.state.vz }; // before this frame's impacts (a thrown rider keeps it)
       const events = player.update(dt);
       this._playerEvents(events, dt);
       // police + traffic
@@ -622,8 +623,10 @@ export class Game {
           this._dentPlayer(hit.x, hit.z, clamp(hit.impact / 25, 0, 1));
           if (this.police.state === 'idle') this.police.startPursuit(1, 'assaulting an officer');
           else this.police.reportInfraction('ramPolice');
+          if (hit.impact > 6.5) this._bikeCrash();
         }
       }
+      if (this.bikeCrash) this._updateBikeCrash(dt);
       this._violations(dt);
       // nitro refill: drifting, air time, slowly over time
       const s = player.state;
@@ -738,6 +741,7 @@ export class Game {
         this.fx.landing(s.x, s.y, s.z, e.intensity);
         this.camCtl.addShake(e.intensity * 0.6);
         this.input.rumble(e.intensity, e.intensity * 0.5, 180);
+        if (e.intensity > 0.95) this._bikeCrash(); // cased a big jump
       } else if (e.type === 'collision') {
         const type = e.intensity > 0.45 ? 'heavy' : (KIND_SOUND[e.kind] || 'light');
         // light contacts while moving = grinding along the object: a continuous scrape, not a stream of thumps
@@ -751,9 +755,46 @@ export class Game {
         this.input.rumble(e.intensity, e.intensity, 150);
         if (e.intensity > 0.15) this._dentPlayer(e.x, e.z, e.intensity);
         if (e.intensity > 0.3) this.progress.chain.crash();
+        if (e.speed > 6.5) this._bikeCrash(); // ~23 km/h into something solid
       }
     }
     void dt;
+  }
+
+  // ------------------------------------------------------------------ motorcycle crashes
+  // A hard hit on a bike: the bike goes down and slides, the rider is thrown off with the bike's momentum and
+  // tumbles to a stop; then you are on foot beside it (get back on to pick it up), like GTA.
+  _bikeCrash() {
+    const v = this.player;
+    if (!v?.p?.bike || v.physics.down || this.onFoot.active || this.bikeCrash) return;
+    const s = v.state, pv = this._preVel || s;
+    v.physics.crashBike(Math.sign(s.roll) || (Math.random() < 0.5 ? -1 : 1));
+    const sp = Math.hypot(pv.vx, pv.vz);
+    v.renderer?.throwRider(pv.vx * 0.85, 1.6 + Math.min(4, sp * 0.12), pv.vz * 0.85);
+    if (v.renderer) v.renderer.onRiderLand = (p, speed) => this.audio.playEvent('collision', { intensity: clamp(speed / 20, 0.15, 0.6), type: 'light', position: { x: p.x, y: 0.3, z: p.z } });
+    this.bikeCrash = { t: 0 };
+    this.camCtl.addShake(0.6);
+    this.input.rumble(1, 0.8, 300);
+    this.ui.toast('WIPEOUT', 'err', 1.8);
+    this.progress.chain.crash();
+  }
+
+  _updateBikeCrash(dt) {
+    const C = this.bikeCrash, v = this.player, R = v.renderer;
+    C.t += dt;
+    const L = this.world.layout, col = this.world.collision;
+    const solid = (x, z, y) => col.query(x - 0.6, z - 0.6, x + 0.6, z + 0.6, []).some((c) => {
+      if (c.kind === 'none' || c.broken || c.h < y) return false;
+      const dx = x - c.cx, dz = z - c.cz, lx = dx * c.cos - dz * c.sin, lz = dx * c.sin + dz * c.cos;
+      return Math.abs(lx) < c.hx + 0.25 && Math.abs(lz) < c.hz + 0.25;
+    });
+    const rest = R ? R.updateThrown(dt, (x, z) => L.groundHeight(x, z), solid) : true;
+    if ((rest && C.t > 1.6) || C.t > 6) {
+      const at = R?.thrownAt() || { x: v.state.x, z: v.state.z, yaw: v.state.yaw };
+      R?.recoverRider();
+      this.bikeCrash = null;
+      this.onFoot.bail(at.x, at.z, at.yaw);
+    }
   }
 
   // red-light running near police

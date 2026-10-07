@@ -8,6 +8,7 @@ import { clamp, lerp, sign, approach } from '../core/util.js';
 import { obbOverlap, contactPoint } from './Collision.js';
 
 const G = 9.81;
+const NO_CONTROL = Object.freeze({ throttle: 0, brake: 0, steer: 0, handbrake: 0, nitro: false });
 const TMP = [];
 
 export const DEFAULT_PARAMS = {
@@ -70,11 +71,19 @@ export class VehiclePhysics {
     s.vx = s.vy = s.vz = 0; s.yawRate = 0; this.vUp = 0; s.speed = 0; s.gear = 1;
     this.pitchDyn = this.rollDyn = this.pitchVel = this.rollVel = 0;
     s.onGround = true; this.airTime = 0;
+    this.down = null; this.lean = 0; this.leanVel = 0; this.attP = this.attR = undefined;
   }
+
+  // Motorcycle crash: the bike goes down on its side (side +1 = falls to its left) and slides to a stop with no
+  // control until place() picks it back up.
+  crashBike(side) { if (this.p.bike && !this.down) this.down = { side: side >= 0 ? 1 : -1, t: 0 }; }
 
   // controls: {throttle, brake, steer, handbrake, nitro}
   step(dt, c) {
     const p = this.p, s = this.s;
+    if (this.down) { this.down.t += dt; c = NO_CONTROL; }
+    s.down = !!this.down;
+    this.steerIn = c.steer;
     const sinY = Math.sin(s.yaw), cosY = Math.cos(s.yaw);
     const fx = sinY, fz = cosY, lx = cosY, lz = -sinY;
     let vx = s.vx * fx + s.vz * fz;   // forward
@@ -231,6 +240,15 @@ export class VehiclePhysics {
       r = lerp(rKin, r, k);
       vy = lerp(vy * 0.85, vy, k);
       if (Math.abs(vx) < 0.15 && driveIn === 0) { vx *= 0.9; }
+      // motorcycles turn by leaning: above walking pace the turn rate is what the lean supports
+      // (ay = g tan(lean)), so the bike tips in first and then carves, and it does not slide sideways
+      if (p.bike && !this.down) {
+        const kL = clamp((vx - 3) / 6, 0, 1);
+        if (kL > 0) {
+          r = lerp(r, -G * Math.tan(this.lean || 0) / Math.max(vx, 3), kL);
+          vy = lerp(vy, 0, kL * clamp(dt * 10, 0, 1));
+        }
+      }
     } else {
       r *= 1 - dt * 0.8; // air: keep rotation, slowly damp
     }
@@ -282,6 +300,13 @@ export class VehiclePhysics {
     this.axPrev = lerp(this.axPrev, clamp(ax, -14, 12), 0.2);
     this.ayPrev = lerp(this.ayPrev, clamp(ay, -14, 14), 0.2);
 
+    // a downed bike scrapes along on its side: hard friction, it spins down slowly
+    if (this.down && s.onGround) {
+      const sp = Math.hypot(vx, vy), dec = Math.min(sp, 7.5 * dt);
+      if (sp > 1e-4) { vx -= vx / sp * dec; vy -= vy / sp * dec; }
+      r *= Math.exp(-dt * 1.5);
+      this.driftMode = false;
+    }
     // back to world
     s.yawRate = r;
     s.yaw += r * dt;
@@ -405,11 +430,18 @@ export class VehiclePhysics {
     // leans the moment you steer and then carves, like GTA; nearly upright at walking pace
     // lean = what the turn needs (tan(lean) = lateral g) plus a little anticipation on the bars, so the
     // bike tips in as you steer and then carves; nearly upright at walking pace
-    const spdK = clamp((Math.abs(s.speed) - 3) / 15, 0, 1);
-    const tipIn = clamp(-(this.delta || 0) * 0.6, -0.12, 0.12) * spdK;
-    const leanT = s.onGround ? -Math.atan(this.ayPrev / G) + tipIn : this.lean ?? 0;
-    this.leanVel = (this.leanVel || 0) + (70 * (clamp(leanT, -0.84, 0.84) - (this.lean || 0)) - 2 * 0.85 * Math.sqrt(70) * (this.leanVel || 0)) * dt;
+    // Above walking pace the rider leans the bike to the angle asked for by the steering (up to what the tyres can
+    // hold, ~48 degrees) and the turn follows the lean (step()); at walking pace the bars steer and the lean is just the
+    // lateral g. The roll is a damped spring that gets slower at high speed (gyroscopic wheels).
+    const v = Math.abs(s.speed);
+    const kS = clamp((v - 3) / 6, 0, 1);
+    const maxL = (p.maxLean ?? 0.84) * Math.pow(clamp((v - 2) / 10, 0, 1), 0.8);
+    let leanT = s.onGround ? lerp(-Math.atan(this.ayPrev / G), clamp(this.steerIn || 0, -1, 1) * maxL, kS) : this.lean ?? 0;
+    let kSpring = 70 * clamp(1.25 - v / 80, 0.6, 1.1), lim = p.maxLean ?? 0.84;
+    if (this.down) { leanT = this.down.side * 1.42; kSpring = 30; lim = 1.45; } // falls over onto its side
+    this.leanVel = (this.leanVel || 0) + (kSpring * (clamp(leanT, -lim, lim) - (this.lean || 0)) - 2 * 0.85 * Math.sqrt(kSpring) * (this.leanVel || 0)) * dt;
     this.lean = (this.lean || 0) + this.leanVel * dt;
+    if (this.down && Math.abs(this.lean) > 1.42) { this.lean = Math.sign(this.lean) * 1.42; this.leanVel = 0; }
     const wheelieG = G * p.wheelBase * (1 - p.frontWeight) / p.cgHeight * 0.62;
     const lift = s.onGround ? (this.axPrev > wheelieG ? clamp((this.axPrev - wheelieG) * 0.12, 0, 0.42) : this.axPrev < -G * 0.95 ? clamp((this.axPrev + G * 0.95) * 0.05, -0.16, 0) : 0) : 0;
     this.wheelie = approach(this.wheelie || 0, lift, dt * (lift > (this.wheelie || 0) ? 0.9 : 1.6));

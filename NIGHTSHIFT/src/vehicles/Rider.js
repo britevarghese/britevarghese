@@ -209,8 +209,10 @@ export class SkinnedRider {
   }
   _len(a, b) { return bodyPos(a, _p).distanceTo(bodyPos(b, _c)); }
 
-  pose(tuck, foot = null) {
-    this.tuck = tuck;
+  // hang: signed lean of the bike (rad). The rider hangs into the corner: hips slide to the inside of the seat
+  // and the upper body and head lean further in than the bike, hands and feet stay on the bars and pegs.
+  pose(tuck, foot = null, hang = 0) {
+    this.tuck = tuck; this.hang = hang;
     const B = this.bones, g = this.group;
     const parent = g.parent;
     parent?.remove(g); // pose in bike space: the group's own frame is the bike's
@@ -218,13 +220,16 @@ export class SkinnedRider {
     g.position.set(0, 0, 0);
     g.updateMatrixWorld(true);
     const T = poseTargets(this.cfg, this.bike, tuck, foot);
+    // +roll tips the bike towards -X, so the inside of the corner is -X
+    const hk = clamp(hang, -0.9, 0.9), hipX = -Math.sin(hk) * 0.16, upX = hipX - Math.sin(hk) * 0.3;
+    T.hip.x += hipX; T.sh.x += upX;
     // hips onto the seat
     g.position.add(T.hip).sub(bodyPos(B.Hips, _p));
     g.updateMatrixWorld(true);
     // torso leans along the hip -> shoulder line, head up looking down the road
     this._aim(B.Spine, B.Neck, T.sh);
     const neckP = bodyPos(B.Neck, new THREE.Vector3());
-    this._aim(B.Neck, B.HeadTop_End, neckP.add(new THREE.Vector3(0, 1, 0.35 + (1 - Math.sin(T.ang)) * 0.4)));
+    this._aim(B.Neck, B.HeadTop_End, neckP.add(new THREE.Vector3(-Math.sin(hk) * 0.55, 1, 0.35 + (1 - Math.sin(T.ang)) * 0.4))); // head into the turn, eyes level-ish
     for (const side of [1, -1]) {
       const S = side > 0 ? 'Left' : 'Right', t = T.side[side];
       // arms: wrists just behind the grips, elbows out and down
@@ -246,9 +251,37 @@ export class SkinnedRider {
     parent?.add(g);
   }
 
-  update(speedKmh, dt = 0.016) {
+  // thrown off in a crash: limp and spread out (arms flung out and up, knees bent), in the group's own frame;
+  // the hips stay where they are. The caller tumbles the group.
+  sprawl() {
+    const B = this.bones, g = this.group;
+    g.updateMatrixWorld(true);
+    const hip0 = bodyPos(B.Hips, new THREE.Vector3());
+    for (const b of Object.values(B)) b.quaternion.copy(b.userData.rest);
+    g.updateMatrixWorld(true);
+    const gq = g.getWorldQuaternion(new THREE.Quaternion());
+    const dirW = (x, y, z) => new THREE.Vector3(x, y, z).normalize().applyQuaternion(gq);
+    const aimDir = (bone, tip, x, y, z) => { if (!bone || !tip) return; const o = bodyPos(bone, new THREE.Vector3()); this._aim(bone, tip, o.add(dirW(x, y, z))); };
+    aimDir(B.Spine, B.Neck, 0, 1, 0.2);
+    aimDir(B.Neck, B.HeadTop_End, 0, 1, 0.35);
+    for (const side of [1, -1]) {
+      const S = side > 0 ? 'Left' : 'Right';
+      aimDir(B[S + 'Arm'], B[S + 'ForeArm'], side * 0.8, 0.45, 0.2);
+      aimDir(B[S + 'ForeArm'], B[S + 'Hand'], side * 0.55, 0.7, 0.4);
+      aimDir(B[S + 'UpLeg'], B[S + 'Leg'], side * 0.3, -0.9, 0.3);
+      aimDir(B[S + 'Leg'], B[S + 'Foot'], side * 0.15, -0.8, -0.4);
+    }
+    g.updateMatrixWorld(true);
+    // keep the hips where they were
+    const hip1 = bodyPos(B.Hips, new THREE.Vector3());
+    g.position.add(g.parent ? g.parent.worldToLocal(hip0.clone()).sub(g.parent.worldToLocal(hip1)) : hip0.sub(hip1));
+    g.updateMatrixWorld(true);
+  }
+
+  update(speedKmh, dt = 0.016, roll = 0) {
     const t = clamp((speedKmh - 90) / 110, 0, 1);
-    if (footUpdate(this, speedKmh, dt) || Math.abs(t - this.tuck) > 0.04) this.pose(lerp(this.tuck, t, 0.3), this.foot);
+    const h = Math.abs(speedKmh) > 15 ? roll : 0; // no hanging off at walking pace
+    if (footUpdate(this, speedKmh, dt) || Math.abs(t - this.tuck) > 0.04 || Math.abs(h - (this.hang || 0)) > 0.03) this.pose(lerp(this.tuck, t, 0.3), this.foot, lerp(this.hang || 0, h, 0.5));
   }
 
   setVisible(on) { this.group.visible = on; }

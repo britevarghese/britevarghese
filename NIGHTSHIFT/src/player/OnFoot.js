@@ -99,6 +99,24 @@ export class OnFoot {
     return true;
   }
 
+  // thrown off a crashed bike: pick yourself up where you landed; the bike lies where it stopped
+  bail(x, z, yaw) {
+    const g = this.game, v = g.player;
+    this.state.x = x; this.state.z = z; this.state.y = this._ground(x, z);
+    this.state.yaw = yaw; this.state.vx = this.state.vz = 0; this.state.speed = 0;
+    this.camYaw = yaw; this.vy = 0;
+    this.active = true;
+    this.body.group.visible = true;
+    this.car = v;
+    v.renderer?.setRider?.(false);
+    v.controls.throttle = 0; v.controls.brake = 0; v.controls.handbrake = 1; v.controls.steer = 0; v.controls.nitro = false;
+    this.camPos.copy(g.camera.position);
+    g.audio?.setEngineOn?.(false);
+    document.getElementById('hud')?.classList.add('onfoot');
+    bus.emit('player:onfoot', { on: true });
+    this.human?.play('jumpLand', { rate: 0.55, fade: 0.05 }); // getting up off the tarmac
+  }
+
   // nearest enterable vehicle: our car, a parked car, or a traffic car
   nearestVehicle() {
     const g = this.game, s = this.state;
@@ -197,6 +215,7 @@ export class OnFoot {
   // take the wheel: the car becomes the player's vehicle
   _board(v) {
     const g = this.game;
+    if (v.physics?.down) v.physics.place(v.state.x, v.state.z, v.state.yaw); // pick the crashed bike back up
     const i = this.parked.indexOf(v); if (i >= 0 && v !== g.player) this.parked.splice(i, 1);
     if (v !== g.player && g.player && !this.parked.includes(g.player) && !g.player.gone) this._park(g.player);
     v.keep = false;

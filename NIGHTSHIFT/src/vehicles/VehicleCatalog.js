@@ -202,6 +202,7 @@ export function bikeParams(r) {
   return {
     bike: true, mass: kg, enginePower: s.kw, maxSpeed: s.vmax / 3.6,
     grip: s.grip, driftGrip: 0.55, steeringAngle: 0.5, driftAssist: 0.55, maxDrift: 0.34,
+    maxLean: r.style === 'cruiser' ? 0.56 : 0.84, // cruisers scrape their pegs at ~32 degrees, sports bikes reach ~48
     brakingForce: kg * 10.8,
     wheelBase: s.wb, trackWidth: 0.2, cgHeight: 0.62, frontWeight: s.fw,
     drive: 'RWD', gears: s.gears, finalDrive: s.fd, redline: s.redline, idle: IDLE[r.id] ?? (s.redline > 9000 ? 1300 : 900),

@@ -10,6 +10,7 @@ import { FPDriver } from './Driver.js';
 
 const glowRed = () => radialGlow('rgba(255,60,50,1)', 'rgba(255,20,20,0.3)');
 const _qa = new THREE.Quaternion(), _qb = new THREE.Quaternion(), _pv = new THREE.Vector3(), _pp = new THREE.Vector3(), _ax = new THREE.Vector3(1, 0, 0), _az = new THREE.Vector3(0, 0, 1);
+const _eu = new THREE.Euler();
 const WHEEL_IDX = { FL: 0, FR: 1, RL: 2, RR: 3, F: 0, R: 2 };
 const glowWhite = () => radialGlow('rgba(255,250,235,1)', 'rgba(220,230,255,0.35)');
 
@@ -267,6 +268,76 @@ export class VehicleRenderer {
   }
 
   setRider(on) { this.riderOn = on; if (this.rider) this.rider.group.visible = on; }
+
+  // ---------------------------------------------------------------- crash: the rider is thrown off
+  // The rider leaves the bike with its momentum (vx, vy, vz world m/s), tumbles, bounces once, slides and
+  // ends up lying on their back. updateThrown() returns true once they have come to rest.
+  throwRider(vx, vy, vz) {
+    const R = this.rider, scene = this.group.parent;
+    if (!R || this.thrown || !scene) return;
+    const g = R.group;
+    this.riderLocal = { p: g.position.clone(), q: g.quaternion.clone() };
+    g.updateWorldMatrix(true, true);
+    const hips = R.bones?.Hips ? new THREE.Vector3().setFromMatrixPosition(R.bones.Hips.matrixWorld) : g.getWorldPosition(new THREE.Vector3()).add(new THREE.Vector3(0, 0.95, 0));
+    const pivot = new THREE.Group(); pivot.name = 'thrown_rider';
+    pivot.position.copy(hips);
+    g.getWorldQuaternion(pivot.quaternion);
+    scene.add(pivot); pivot.updateMatrixWorld(true);
+    pivot.attach(g);
+    R.sprawl?.();
+    const sp = Math.hypot(vx, vz), yaw = Math.atan2(vx, vz);
+    // tumble: mostly head-over-heels about the side axis, plus some twist; faster when thrown harder
+    const side = new THREE.Vector3(Math.cos(yaw), 0, -Math.sin(yaw));
+    const spin = side.multiplyScalar(-Math.min(9, 1.5 + sp * 0.35)).add(new THREE.Vector3((Math.random() - 0.5) * 2, (Math.random() - 0.5) * 3, (Math.random() - 0.5) * 2));
+    this.thrown = { pivot, vel: new THREE.Vector3(vx, vy, vz), spin, t: 0, bounces: 0, landed: false, rest: 0, yaw };
+  }
+
+  updateThrown(dt, groundAt, solidAt) {
+    const T = this.thrown;
+    if (!T) return true;
+    T.t += dt;
+    const P = T.pivot, v = T.vel;
+    const gh = groundAt(P.position.x, P.position.z) + 0.16; // hips height when lying
+    v.y -= 9.81 * dt;
+    const nx = P.position.x + v.x * dt, nz = P.position.z + v.z * dt;
+    // buildings / walls / barriers: stop dead against them (no flying through)
+    if (solidAt?.(nx, nz, P.position.y)) { v.x *= -0.15; v.z *= -0.15; } else { P.position.x = nx; P.position.z = nz; }
+    P.position.y += v.y * dt;
+    if (P.position.y <= gh) {
+      P.position.y = gh;
+      if (v.y < -2.5 && T.bounces < 1) { v.y *= -0.3; T.bounces++; T.spin.multiplyScalar(0.5); this.onRiderLand?.(P.position, -v.y); }
+      else { if (!T.landed) this.onRiderLand?.(P.position, Math.hypot(v.x, v.z)); v.y = 0; T.landed = true; }
+      // sliding / rolling along the ground
+      const sp = Math.hypot(v.x, v.z), dec = Math.min(sp, 7 * dt);
+      if (sp > 1e-4) { v.x -= v.x / sp * dec; v.z -= v.z / sp * dec; }
+    }
+    if (!T.landed) {
+      const w = T.spin.length();
+      if (w > 1e-4) P.quaternion.premultiply(_qa.setFromAxisAngle(_pv.copy(T.spin).divideScalar(w), w * dt));
+    } else {
+      // settle flat on the back, facing the way they slid
+      const sp = Math.hypot(v.x, v.z);
+      if (sp > 0.5) T.yaw = Math.atan2(v.x, v.z);
+      _qb.setFromEuler(_eu.set(-Math.PI / 2, T.yaw + Math.PI, 0, 'YXZ'));
+      P.quaternion.slerp(_qb, 1 - Math.exp(-dt * (sp > 2 ? 3 : 6)));
+      T.rest = sp < 0.4 ? T.rest + dt : 0;
+    }
+    return T.landed && T.rest > 0.6;
+  }
+
+  // where the thrown rider is (for handing over to the on-foot character)
+  thrownAt() { return this.thrown ? { x: this.thrown.pivot.position.x, z: this.thrown.pivot.position.z, yaw: this.thrown.yaw } : null; }
+
+  // the rider goes back on the bike (hidden or shown by setRider)
+  recoverRider() {
+    const T = this.thrown, R = this.rider;
+    if (!T || !R) return;
+    this.body.add(R.group);
+    R.group.position.copy(this.riderLocal.p); R.group.quaternion.copy(this.riderLocal.q);
+    T.pivot.removeFromParent();
+    this.thrown = null;
+    R.pose?.(0, null, 0);
+  }
 
   _lights() {
     const M = this.markers;
@@ -750,7 +821,7 @@ export class VehicleRenderer {
   // bike attitude: lean about the tyre contact line, wheelie about the rear contact patch (stoppie about
   // the front); a riderless bike at rest leans over onto its side stand
   _bikeBody(s) {
-    const parked = !this.riderOn && Math.abs(s.speed || 0) < 0.4;
+    const parked = !this.riderOn && !s.down && Math.abs(s.speed || 0) < 0.4;
     this.stand = lerp(this.stand || 0, parked ? 1 : 0, 0.15);
     // stopped with a rider: the bike rests leaning a little onto the rider's planted left foot (-roll = left, like the side stand)
     const footDown = this.riderOn && Math.abs(s.speed || 0) < 1.1 ? 1 : 0;
@@ -763,8 +834,10 @@ export class VehicleRenderer {
     // position = Rz * (P - Rx * P), P = pitch pivot on the ground
     _pv.set(0, 0, pz).applyQuaternion(_qb).multiplyScalar(-1).add(_pp.set(0, 0, pz)).applyQuaternion(_qa);
     this.body.position.copy(_pv);
+    // lying on its side: rest on the bars, pegs and bodywork, not sunk through the ground
+    if (Math.abs(roll) > 0.9) this.body.position.y += Math.min(1, (Math.abs(roll) - 0.9) / 0.52) * 0.22;
     this.body.quaternion.copy(_qa).multiply(_qb);
-    this.rider?.update((s.speed || 0) * 3.6, this._dt || 0.016);
+    this.rider?.update((s.speed || 0) * 3.6, this._dt || 0.016, s.roll || 0);
   }
 
   dispose() {
