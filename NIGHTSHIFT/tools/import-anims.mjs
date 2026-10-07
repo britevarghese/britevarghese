@@ -30,6 +30,11 @@ const CLIPS = {
   jumpStart: ['Jump_Start', false], jumpLoop: ['Jump_Loop', true], jumpLand: ['Jump_Land', false],
   interact: ['Interact', false], sitEnter: ['Sitting_Enter', false], sitExit: ['Sitting_Exit', false], sitIdle: ['Sitting_Idle_Loop', true],
   drive: ['Driving_Loop', true], hit: ['Hit_Chest', false], roll: ['Roll', false], death: ['Death01', false], push: ['Push_Loop', true],
+  // fighting and weapons (on foot)
+  jab: ['Punch_Jab', false], cross: ['Punch_Cross', false], hitHead: ['Hit_Head', false], swing: ['Sword_Attack', false],
+  crouchIdle: ['Crouch_Idle_Loop', true], crouchWalk: ['Crouch_Fwd_Loop', true],
+  pistolIdle: ['Pistol_Idle_Loop', true], pistolAim: ['Pistol_Aim_Neutral', false], pistolShoot: ['Pistol_Shoot', false], pistolReload: ['Pistol_Reload', false],
+  pickUp: ['PickUp_Table', false], dance: ['Dance_Loop', true],
 };
 
 // target (Ready Player Me) segment -> source (Unreal-style) segment: aim target bone at its child the way

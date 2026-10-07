@@ -16,7 +16,8 @@ export class HUD {
     this.mmCanvas = h('canvas'); this.mmCanvas.id = 'minimap';
     this.heatEl = h('div', 'heat', '<i></i><i></i><i></i><i></i><i></i>');
     this.districtEl = h('div', 'district', '');
-    mm.append(this.mmCanvas, this.heatEl, this.districtEl);
+    this.hpEl = h('div', 'hp-bar hidden', '<i></i>');
+    mm.append(this.mmCanvas, this.heatEl, this.districtEl, this.hpEl);
     // speedo
     const sp = h('div', 'speedo');
     this.spCanvas = h('canvas'); this.spCanvas.id = 'speedo-canvas';
@@ -74,6 +75,10 @@ export class HUD {
     this.gearEl.textContent = player.physics.reverse ? 'R' : Math.abs(s.speed) < 0.3 && s.throttle < 0.05 ? 'N' : String(s.gear);
     this._drawSpeedo(player);
     this._drawMinimap(g);
+    // health on foot
+    const of = g.onFoot, showHp = of && (of.active || of.hp < 100);
+    this.hpEl.classList.toggle('hidden', !showHp);
+    if (showHp) { const w = `${Math.round(of.hp)}%`; const bar = this.hpEl.firstChild; if (bar.style.width !== w) bar.style.width = w; this.hpEl.classList.toggle('low', of.hp < 30); }
     // heat
     const heat = g.police?.heat || 0;
     const stars = this.heatEl.children;

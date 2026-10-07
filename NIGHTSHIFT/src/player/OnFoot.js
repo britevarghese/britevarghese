@@ -51,7 +51,84 @@ export class OnFoot {
     this.phase = 0; this.vy = 0;
     this.camPos = new THREE.Vector3();
     this.parked = [];        // cars left behind (still physical, drawn, collidable)
+    this.hp = 100;           // health on foot; heals back to 60 when left alone
+    this.hurtT = 99;         // seconds since last hurt
+    this.attack = null;      // the punch being thrown
+    this.combo = 0;
+    this.dead = false;
   }
+
+  // ------------------------------------------------------------------ fighting
+  // GTA-style melee: tap to jab, keep tapping for jab-cross combos; locks on to the person in front
+  _melee(dt, input) {
+    const s = this.state, g = this.game, A = this.attack;
+    if (A) {
+      A.t += dt;
+      // lunge into the punch, facing the target
+      if (A.target && !A.target.down) { const tx = A.target.x - s.x, tz = A.target.z - s.z; s.yaw = turn(s.yaw, Math.atan2(tx, tz), dt * 14); }
+      // step in to reach a target that has staggered back
+      const td = A.target && !A.target.down ? Math.hypot(A.target.x - s.x, A.target.z - s.z) : 0;
+      const lunge = A.t < A.at ? (td > 1.1 ? Math.min(4, (td - 0.9) / A.at) : 1.4) : 0;
+      s.x += Math.sin(s.yaw) * lunge * dt; s.z += Math.cos(s.yaw) * lunge * dt;
+      if (!A.done && A.t >= A.at) {
+        A.done = true;
+        const tgt = A.target && !A.target.down && Math.hypot(A.target.x - s.x, A.target.z - s.z) < 1.9 ? A.target : g.peds?.target(s.x, s.z, s.yaw, 1.5, 0.35);
+        if (tgt) {
+          const ko = g.peds.damage(tgt, A.dmg * (0.85 + Math.random() * 0.3), s.x, s.z, A.kind);
+          g.audio?.playEvent('punch', { intensity: A.kind === 'cross' ? 0.9 : 0.65, position: { x: tgt.x, y: 1.5, z: tgt.z } });
+          g.camCtl.addShake(A.kind === 'cross' ? 0.18 : 0.1);
+          g.input.rumble?.(0.4, 0.2, 60);
+          this.hitStop = 0.05;
+          bus.emit('player:punch', { x: tgt.x, z: tgt.z, ko, ped: tgt });
+        } else g.audio?.playEvent?.('whoosh', { position: { x: s.x, y: 1.4, z: s.z } });
+      }
+      if (input.consume('attack') && A.t > A.at * 0.6) A.queued = true;
+      if (A.t >= A.len) {
+        this.attack = null;
+        if (A.queued) this._punch(); else this.combo = 0;
+      }
+      return true;
+    }
+    if (input.consume('attack') && !this.knockT && s.onGround !== false) { this._punch(); return true; }
+    return false;
+  }
+
+  _punch() {
+    const s = this.state, g = this.game;
+    const kind = this.combo % 2 ? 'cross' : 'jab';
+    this.combo++;
+    // lock on: the person in front of the character, else in front of the camera
+    const target = g.peds?.target(s.x, s.z, s.yaw, 2.4, 0.3) || g.peds?.target(s.x, s.z, this.camYaw, 2.4, 0.5);
+    if (target) s.yaw = Math.atan2(target.x - s.x, target.z - s.z);
+    this.attack = { kind, t: 0, at: kind === 'jab' ? 0.16 : 0.24, len: kind === 'jab' ? 0.42 : 0.55, dmg: kind === 'jab' ? 16 : 28, target, done: false, queued: false };
+    this.human?.play(kind, { rate: 1.45, fade: 0.05 });
+  }
+
+  // a blow (or anything else) hurting the player on foot
+  damage(amount, fromX, fromZ, kind = 'jab') {
+    if (!this.active || this.dead) return;
+    const s = this.state, g = this.game;
+    this.hp = Math.max(0, this.hp - amount); this.hurtT = 0;
+    g.fx2.damageFlash = Math.max(g.fx2.damageFlash, 0.35 + amount / 40);
+    g.camCtl.addShake(0.15 + amount / 60);
+    g.input.rumble?.(0.6, 0.4, 90);
+    g.audio?.playEvent('punch', { intensity: 0.5 + amount / 30, position: { x: s.x, y: 1.5, z: s.z } });
+    if (this.hp <= 0) { this._die(fromX, fromZ); return; }
+    const dx = s.x - fromX, dz = s.z - fromZ, l = Math.hypot(dx, dz) || 1;
+    s.vx += dx / l * 1.8; s.vz += dz / l * 1.8;
+    this.attack = null; this.combo = 0;
+    this.human?.play(kind === 'cross' ? 'hitHead' : 'hit', { rate: 1.3, fade: 0.05 });
+    this.stagger = 0.3;
+  }
+
+  _die(fromX, fromZ) {
+    this.dead = true; this.attack = null;
+    this.human?.clearAction(0.05);
+    this.human?.play('death', { hold: true, rate: 1.1, fade: 0.08 });
+    bus.emit('player:wasted', { x: this.state.x, z: this.state.z, fromX, fromZ });
+  }
+
+  heal() { this.hp = 100; this.dead = false; this.hurtT = 99; this.attack = null; this.stagger = 0; this.human?.clearAction(0.1); }
 
   // swap the built-in figure for the realistic character (people models loaded)
   useHuman() {
@@ -391,6 +468,21 @@ export class OnFoot {
   update(dt, input) {
     if (this.seq) { this._updateSeq(dt, input); return; }
     const s = this.state, g = this.game, ic = input.controls;
+    this.hurtT += dt;
+    if (this.hurtT > 6 && this.hp < 60 && !this.dead) this.hp = Math.min(60, this.hp + dt * 4);
+    if (this.dead) { s.vx = damp(s.vx, 0, 4, dt); s.vz = damp(s.vz, 0, 4, dt); s.speed = 0; this._pose(dt); g.hud.setPrompt(null); return; }
+    if (this.stagger > 0) this.stagger -= dt;
+    const fighting = this.stagger > 0 || this._melee(dt, input);
+    if (fighting) {
+      s.vx = damp(s.vx, 0, 8, dt); s.vz = damp(s.vz, 0, 8, dt);
+      s.x += s.vx * dt; s.z += s.vz * dt;
+      s.y = Math.max(s.y, this._ground(s.x, s.z));
+      this._resolve();
+      s.speed = Math.hypot(s.vx, s.vz);
+      this._pose(dt);
+      g.hud.setPrompt(null);
+      return;
+    }
     // camera-relative movement
     const fwdIn = (ic.throttle || 0) - (ic.brake || 0), sideIn = -(ic.steer || 0);
     const mag = Math.min(1, Math.hypot(fwdIn, sideIn));

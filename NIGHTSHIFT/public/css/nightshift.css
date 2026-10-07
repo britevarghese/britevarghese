@@ -323,3 +323,9 @@ input[type=range] { width: 100%; accent-color: var(--accent); }
 .story-title small { display: block; font-size: 0.8rem; letter-spacing: 0.4em; color: #ffc53d; }
 @keyframes titlecard { 0% { opacity: 0; transform: translateX(-20px); } 15%, 80% { opacity: 1; transform: none; } 100% { opacity: 0; } }
 @media (max-width: 600px) { .story-sub { font-size: 0.95rem; } .story-title { font-size: 1.7rem; } .story-meter { top: 12rem; width: 150px; } }
+
+/* health on foot (under the minimap) */
+.hp-bar { position: absolute; left: 8%; right: 8%; bottom: -14px; height: 6px; background: rgba(0,0,0,0.55); border-radius: 3px; overflow: hidden; box-shadow: 0 0 0 1px rgba(255,255,255,0.12); }
+.hp-bar i { display: block; height: 100%; width: 100%; background: linear-gradient(90deg, #3ec46d, #62e08a); transition: width 0.25s; }
+.hp-bar.low i { background: linear-gradient(90deg, #d0302a, #ff5a4a); animation: hpPulse 0.8s infinite alternate; }
+@keyframes hpPulse { from { opacity: 0.6; } to { opacity: 1; } }

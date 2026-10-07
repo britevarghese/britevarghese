@@ -262,6 +262,17 @@ const R = {
     s.noiseHit('white', 'bandpass', 2600, 5, t + 0.006, 0.001, 0.16, 0.03);
     s.noiseHit('white', 'bandpass', 900, 2, t, 0.002, 0.12, 0.06);
   },
+  // a fist landing: a dull body thump with a sharp skin slap on top
+  punch(s, t, o) {
+    const k = clamp(num(o.intensity, 0.6), 0, 1);
+    s.tone('sine', rand(85, 120), t, 0.001, 0.9 * k, 0.09, 50);
+    s.noiseHit('brown', 'lowpass', 600, 1, t, 0.001, 0.8 * k, 0.07);
+    s.noiseHit('white', 'bandpass', rand(2200, 3400), 1.6, t + 0.002, 0.0005, 0.45 * k, 0.025);
+  },
+  // a swing through the air
+  whoosh(s, t) {
+    s.noiseHit('white', 'bandpass', 900, 1.2, t, 0.05, 0.16, 0.12, 2400);
+  },
   footstep(s, t, o) {
     const k = clamp(num(o.intensity, 0.5), 0, 1);
     s.noiseHit('brown', 'lowpass', 380 + k * 250, 0.9, t, 0.002, 0.35 * k, 0.05);

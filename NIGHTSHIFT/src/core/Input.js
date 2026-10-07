@@ -12,7 +12,7 @@ const KEYMAP = {
 };
 const ACTIONS = {
   camera: ['KeyV'], map: ['KeyM'], pause: ['Escape', 'KeyP'], reset: ['KeyR'], horn: ['KeyH'],
-  dev: ['F3'], photo: ['F2'], replay: ['KeyI'], enter: ['KeyF'], jump: ['Space'], fullscreen: ['F11'], confirm: ['Enter'], back: ['Backspace'], event: ['KeyE'], garage: ['KeyG'],
+  dev: ['F3'], photo: ['F2'], replay: ['KeyI'], enter: ['KeyF'], jump: ['Space'], fullscreen: ['F11'], confirm: ['Enter'], back: ['Backspace'], event: ['KeyE'], garage: ['KeyG'], attack: ['KeyQ'],
   up: ['ArrowUp'], down: ['ArrowDown'], leftNav: ['ArrowLeft'], rightNav: ['ArrowRight'],
 };
 
@@ -33,7 +33,10 @@ export class InputManager {
     addEventListener('blur', () => this.down.clear());
     addEventListener('gamepadconnected', (e) => { this.gamepadIndex = e.gamepad.index; console.info('[Input] gamepad connected:', e.gamepad.id); });
     addEventListener('gamepaddisconnected', () => { this.gamepadIndex = -1; });
-    addEventListener('mousedown', (e) => { if (e.button === 2 || e.button === 1) this.mouse.dragging = true; });
+    addEventListener('mousedown', (e) => {
+      if (e.button === 2 || e.button === 1) this.mouse.dragging = true;
+      if (e.button === 0 && e.target?.tagName === 'CANVAS') this.pressed.add('attack'); // left click: punch / fire
+    });
     addEventListener('mouseup', () => { this.mouse.dragging = false; });
     addEventListener('mousemove', (e) => {
       if (this.mouse.dragging || document.pointerLockElement) { this.mouse.dx += e.movementX; this.mouse.dy += e.movementY; this.mouse.lastMove = performance.now(); }
@@ -103,7 +106,7 @@ export class InputManager {
       edge(9, 'pause');    // Start
       edge(3, 'enter');    // Y: get in / out
       edge(8, 'map');      // Back/View
-      edge(1, 'back');     // B
+      edge(1, ['back', 'attack']); // B: back in menus, punch on foot
       edge(0, ['confirm', 'jump']);  // A (menus / jump on foot)
       edge(12, 'up'); edge(13, 'down'); edge(14, 'leftNav'); edge(15, 'rightNav');
       edge(4, 'reset');    // LB

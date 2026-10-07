@@ -75,7 +75,7 @@ export class Pedestrians {
         skin: kl ? KL_SKIN[Math.floor(R() * KL_SKIN.length)] : SKIN[Math.floor(R() * SKIN.length)],
         hair: kl ? 0x0e0c0a : R() < 0.12 ? -1 : HAIR[Math.floor(R() * HAIR.length)],
         shoes: SHOES[Math.floor(R() * SHOES.length)], model: Math.floor(R() * 1000),
-        build: 0.88 + R() * 0.3, scale: 0.9 + R() * 0.14, wait: 0, dodge: 0, dx: 0, dz: 0, x: 0, z: 0, yaw: 0,
+        build: 0.88 + R() * 0.3, scale: 0.9 + R() * 0.14, brave: R() * 0.8, wait: 0, dodge: 0, dx: 0, dz: 0, x: 0, z: 0, yaw: 0,
       });
       return;
     }
@@ -94,7 +94,7 @@ export class Pedestrians {
       hair: R() < 0.12 ? -1 : HAIR[Math.floor(R() * HAIR.length)],
       shoes: SHOES[Math.floor(R() * SHOES.length)], model: Math.floor(R() * 1000),
       build: 0.88 + R() * 0.3, // girth: slim .. heavy
-      scale: 0.92 + R() * 0.16, wait: 0, dodge: 0, dx: 0, dz: 0, x: 0, z: 0, yaw: 0,
+      scale: 0.92 + R() * 0.16, brave: R() * 0.8, wait: 0, dodge: 0, dx: 0, dz: 0, x: 0, z: 0, yaw: 0,
     });
   }
 
@@ -108,6 +108,9 @@ export class Pedestrians {
     p.flee = { x, z, vx: dx / l * 5.2, vz: dz / l * 5.2, t: 7 };
     p.speed = 4.6;
   }
+
+  // the ground under a pedestrian: Port Halvern's kerb, or the streamed terrain
+  _gy(x, z) { return this.layout.pedSegment ? (this.layout.groundHeight?.(x, z) ?? 0) : CURB_H; }
 
   _pos(p) {
     let t = ((p.t % p.per) + p.per) % p.per;
@@ -161,7 +164,12 @@ export class Pedestrians {
         }
       }
       let yaw;
-      if (p.flee) {
+      if (p.fight) {
+        // squaring up to the player: close in, circle a little, throw punches
+        const r = this._fight(p, dt);
+        if (r === 'gone') { this._release(p); this.peds.splice(i, 1); continue; }
+        yaw = p.yaw; moving = r === 'move';
+      } else if (p.flee) {
         const f = p.flee;
         f.t -= dt; if (f.t <= 0) { this._release(p); this.peds.splice(i, 1); continue; }
         f.x += f.vx * dt; f.z += f.vz * dt;
@@ -173,16 +181,16 @@ export class Pedestrians {
       p.d = d;
       if (p.human) {
         const hg = p.human.group;
-        hg.position.set(p.x, CURB_H, p.z); hg.rotation.set(0, yaw, 0);
+        hg.position.set(p.x, this._gy(p.x, p.z), p.z); hg.rotation.set(0, yaw, 0);
         hg.updateMatrixWorld(true);
-        p.human.animate(p.dodge > 0 ? 3.6 : moving ? p.speed : 0, dt);
+        p.human.animate(p.fight ? (moving ? p.fight.sp : 0) : p.dodge > 0 ? 3.6 : moving ? p.speed : 0, dt);
         continue;
       }
       if (d > 150) continue;
       p.phase += dt * (moving ? p.speed * 5.2 : 0);
       const swing = moving ? Math.sin(p.phase) * 0.5 : 0;
       const bob = moving ? Math.abs(Math.cos(p.phase)) * 0.04 : 0;
-      const y = CURB_H + bob;
+      const y = this._gy(p.x, p.z) + bob;
       _e.set(0, yaw, 0); _q.setFromEuler(_e);
       _s.set(p.scale * p.build, p.scale, p.scale * p.build);
       _m.compose(_p.set(p.x, y, p.z), _q, _s);
@@ -250,7 +258,7 @@ export class Pedestrians {
     const vx = s.vx * k + lxv * side * (0.8 + sp * 0.08), vz = s.vz * k + lzv * side * (0.8 + sp * 0.08);
     const vy = sp < 5 ? 0.4 : Math.min(6, 0.8 + sp * 0.16);
     p.down = {
-      x: p.x, y: CURB_H, z: p.z, vx, vy, vz, t: 0, landed: false, rest: 0, yaw: Math.atan2(vx, vz),
+      x: p.x, y: this._gy(p.x, p.z), z: p.z, vx, vy, vz, t: 0, landed: false, rest: 0, yaw: Math.atan2(vx, vz),
       // tumble about the horizontal axis across the throw
       axis: new THREE.Vector3(vz, 0, -vx).normalize(), ang: 0, spin: sp > 9 ? Math.min(14, sp * 0.55) : 0, heavy: sp > 11,
     };
@@ -335,6 +343,111 @@ export class Pedestrians {
     if (p.hair < 0) _m.makeScale(0, 0, 0);
     this.meshHair.setMatrixAt(n, _m); this.meshHair.setColorAt(n, _c.setHex(p.hair < 0 ? 0 : p.hair));
     return n + 1;
+  }
+
+  // ------------------------------------------------------------------------------------------ fighting
+  // the pedestrian nearest to (x, z) inside a cone around yaw, standing (not down), within range
+  target(x, z, yaw, range = 2.2, cone = 0.5) {
+    let best = null, bs = Infinity;
+    const fx = Math.sin(yaw), fz = Math.cos(yaw);
+    for (const p of this.peds) {
+      if (p.down) continue;
+      const dx = p.x - x, dz = p.z - z, d = Math.hypot(dx, dz);
+      if (d > range || d < 0.05) continue;
+      const dot = (dx * fx + dz * fz) / d;
+      if (dot < cone) continue;
+      const score = d - dot;
+      if (score < bs) { bs = score; best = p; }
+    }
+    return best;
+  }
+
+  // a blow from the player (or anyone at fromX/fromZ): hurts, staggers, knocks down; the victim and the
+  // people around react. kind: 'jab' | 'cross' | 'kick'
+  damage(p, amount, fromX, fromZ, kind = 'jab') {
+    if (!p || p.down) return false;
+    p.hp = (p.hp ?? 100) - amount;
+    const dx = p.x - fromX, dz = p.z - fromZ, l = Math.hypot(dx, dz) || 1;
+    if (p.hp <= 0) {
+      // knocked out: thrown back off their feet
+      const sp = kind === 'cross' ? 3.2 : 2.4;
+      p.down = { x: p.x, y: this._gy(p.x, p.z), z: p.z, vx: dx / l * sp, vy: 1.2, vz: dz / l * sp, t: 0, landed: false, rest: 0, yaw: Math.atan2(-dx, -dz), axis: new THREE.Vector3(dz, 0, -dx).normalize(), ang: 0, spin: 0, heavy: false };
+      p.fight = null; p.flee = null; p.dodge = 0;
+      if (p.human) { p.human.clearAction(0.05); p.human.play('death', { hold: true, rate: 1.4, fade: 0.06 }); }
+      bus.emit('ped:ko', { x: p.x, z: p.z, ped: p });
+      this.panic(p.x, p.z, 22, p);
+      return true;
+    }
+    // staggered: shoved back, head snaps
+    p.stagger = 0.45; p.svx = dx / l * 2.2; p.svz = dz / l * 2.2;
+    if (p.human) p.human.play(kind === 'cross' || this.R() < 0.5 ? 'hitHead' : 'hit', { rate: 1.3, fade: 0.05 });
+    // first blow decides it: square up, or run
+    if (!p.fight && !p.angry) {
+      p.angry = true;
+      if (this.R() < (p.brave ?? 0.45)) this.startFight(p);
+      else this._flee(p, fromX, fromZ, 5.0, 8);
+    }
+    this.panic(p.x, p.z, 14, p);
+    bus.emit('ped:struck', { x: p.x, z: p.z, ped: p, amount });
+    return false;
+  }
+
+  startFight(p) {
+    p.fight = { x: p.x, z: p.z, cd: 0.5 + this.R() * 0.6, sp: 0, strafe: this.R() < 0.5 ? 1 : -1, swing: null, t: 0 };
+    p.flee = null; p.wait = 0;
+  }
+
+  _flee(p, fromX, fromZ, speed = 4.6, t = 7) {
+    const dx = p.x - fromX, dz = p.z - fromZ, l = Math.hypot(dx, dz) || 1;
+    p.flee = { x: p.x, z: p.z, vx: dx / l * speed, vz: dz / l * speed, t };
+    p.fight = null; p.speed = speed;
+  }
+
+  // everyone close by (not already fighting or down) runs from trouble
+  panic(x, z, r, except) {
+    for (const q of this.peds) {
+      if (q === except || q.down || q.fight || q.flee) continue;
+      if (Math.hypot(q.x - x, q.z - z) < r && this.R() < 0.85) this._flee(q, x, z, 4.2 + this.R() * 1.2, 6 + this.R() * 4);
+    }
+  }
+
+  // one frame of a pedestrian fighting the player (this.foe: { x, z, alive }). Returns 'move' | 'still' | 'gone'
+  _fight(p, dt) {
+    const F = p.fight, foe = this.foe;
+    F.t += dt;
+    if (!foe || !foe.alive || Math.hypot(foe.x - F.x, foe.z - F.z) > 30 || F.t > 60) { this._flee(p, foe?.x ?? F.x, foe?.z ?? F.z, 3.2, 6); p.x = F.x; p.z = F.z; return 'move'; }
+    const dx = foe.x - F.x, dz = foe.z - F.z, d = Math.hypot(dx, dz) || 1;
+    p.yaw = Math.atan2(dx, dz);
+    let mv = 'still';
+    if (p.stagger > 0) { p.stagger -= dt; F.x += p.svx * dt; F.z += p.svz * dt; p.svx *= 1 - dt * 5; p.svz *= 1 - dt * 5; F.sp = 0; }
+    else if (F.swing) {
+      // a punch on its way: lands at its moment if the player is still in reach
+      F.swing.t += dt;
+      if (!F.swing.done && F.swing.t >= F.swing.at) {
+        F.swing.done = true;
+        if (d < 1.45) this.onHitFoe?.(F.swing.dmg, F.x, F.z, F.swing.kind);
+      }
+      if (F.swing.t >= F.swing.len) F.swing = null;
+    } else if (d > 1.15) {
+      // close in (jogging when far)
+      F.sp = d > 4 ? 3.6 : 1.6;
+      F.x += dx / d * F.sp * dt; F.z += dz / d * F.sp * dt; mv = 'move';
+    } else {
+      // in range: circle a step, then swing
+      F.cd -= dt;
+      F.sp = 0.6;
+      F.x += (dz / d) * F.strafe * 0.6 * dt; F.z += (-dx / d) * F.strafe * 0.6 * dt; mv = 'move';
+      if (F.cd <= 0) {
+        const kind = this.R() < 0.6 ? 'jab' : 'cross';
+        F.swing = { kind, t: 0, at: kind === 'jab' ? 0.2 : 0.3, len: kind === 'jab' ? 0.55 : 0.7, dmg: kind === 'jab' ? 6 : 10, done: false };
+        F.cd = 0.9 + this.R() * 1.1;
+        if (this.R() < 0.3) F.strafe *= -1;
+        if (p.human) p.human.play(kind, { rate: 1.25, fade: 0.06 });
+      }
+    }
+    if (d < 0.7) { F.x -= dx / d * (0.7 - d); F.z -= dz / d * (0.7 - d); } // don't stand inside the player
+    p.x = F.x; p.z = F.z;
+    return mv;
   }
 
   count() { return this.peds.length; }

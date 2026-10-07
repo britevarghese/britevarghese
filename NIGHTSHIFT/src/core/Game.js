@@ -267,6 +267,14 @@ export class Game {
         this.police.reportInfraction('hitCivilian', e.speed > 11 ? 2 : 1, 60);
       }
     });
+    // fights on foot: the police care about assault; witnesses call it in when someone is knocked out
+    bus.on('ped:struck', () => this.police.reportInfraction('assault', 1, 45));
+    bus.on('ped:ko', (e) => {
+      this.police.reportInfraction('assault', 2, 70);
+      const witnesses = this.peds.peds.filter((q) => !q.down && q !== e.ped && Math.hypot(q.x - e.x, q.z - e.z) < 30).length;
+      if (this.police.state === 'idle' && witnesses && Math.random() < Math.min(0.85, 0.3 + witnesses * 0.12)) this.police.startPursuit(1, 'assault');
+    });
+    bus.on('player:wasted', () => this._wasted());
     bus.on('ped:land', (e) => this.audio.playEvent('collision', { intensity: clamp(e.speed / 30, 0.1, 0.4), type: 'light', position: { x: e.x, y: 0.2, z: e.z } }));
     // knocked-over street furniture (any physics vehicle can do it)
     bus.on('prop:break', (e) => {
@@ -368,8 +376,20 @@ export class Game {
     this.fx2.damageFlash = Math.max(this.fx2.damageFlash, strength * 0.6);
   }
 
-  _busted(e) {
+  _wasted() {
     this.state.mode = 'busted';
+    this.bustT = 0; this.wasted = true; this.hud.setPrompt(null);
+    const bill = Math.min(this.save.data.cash ?? 0, 500);
+    this.hud.message('WASTED', `HOSPITAL BILL ${formatMoney(bill)}`, 4.5);
+    this.audio.playEvent('busted');
+    this.camCtl.cinematic = { t: 0, r: 6, h: 3 };
+    this.save.addCash(-bill);
+    if (this.races.active) this.races.abort();
+    this.save.save();
+  }
+
+  _busted(e) {
+    this.state.mode = 'busted'; this.hud.setPrompt(null);
     this.bustT = 0;
     this.hud.message('BUSTED', `POLICE ARREST · FINE ${formatMoney(e.fine)}`, 4.5);
     this.audio.playEvent('busted');
@@ -719,6 +739,10 @@ export class Game {
       this.trafficRenderer.update(moving.concat(this._parkedNear(dt)), this.camera, this.env.state.night, this.world.lights);
     }
     this._wetReflections([player, ...this.police.vehicles(), ...this.races.vehicles(), ...this.rivals.vehicles()]);
+    // who pedestrians fight: the player on foot
+    const fs = this.onFoot.state;
+    this.peds.foe = { x: fs.x, z: fs.z, alive: this.onFoot.active && !this.onFoot.dead };
+    this.peds.onHitFoe ||= (dmg, x, z, kind) => this.onFoot.damage(dmg, x, z, kind);
     this.peds.update(simulate ? dt : 0, this.camera, [player, ...this.police.vehicles()], this.preset.pedestrians > 0);
     // audio
     this._audio(dt, mode);
@@ -878,14 +902,17 @@ export class Game {
       this.camCtl.cinematic = null;
       this.player.state.damage = 0;
       this.player.renderer.repair();
-      // wake up at the nearest safehouse you own
-      const home = this.empire.respawnSpot(this.player.state.x, this.player.state.z) || SAFEHOUSES[0];
-      const spot = this._laneSpot(home.x, home.z);
+      // wake up at the nearest safehouse you own (Kerala: back on the nearest road)
+      let spot;
+      if (this.world.kerala) spot = this.world.roadSpot(this.focusState.x, this.focusState.z, 5) || this.world.roadSpot(this.player.state.x, this.player.state.z, 6) || { x: this.player.state.x, z: this.player.state.z, yaw: 0 };
+      else { const home = this.empire.respawnSpot(this.player.state.x, this.player.state.z) || SAFEHOUSES[0]; spot = this._laneSpot(home.x, home.z); }
+      this.onFoot.heal();
       this.player.place(spot.x, spot.z, spot.yaw);
       this.police.clearAll();
       this.camCtl.snap(this.player);
       this.state.mode = 'drive';
-      this.ui.toast('Released from custody. Back to the streets.', '', 3);
+      this.ui.toast(this.wasted ? 'Patched up at the hospital.' : 'Released from custody. Back to the streets.', '', 3);
+      this.wasted = false;
     }
   }
 
