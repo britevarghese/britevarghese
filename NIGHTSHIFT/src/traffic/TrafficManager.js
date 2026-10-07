@@ -26,7 +26,8 @@ export const TYPE_SPECS = {
   minitruck: { w: 1.5, l: 3.8, mass: 1100, weight: 7, kl: true },
   lorry: { w: 2.4, l: 7.8, mass: 9000, weight: 5, kl: true, bigRoads: true, livery: true },
   ksrtc: { w: 2.5, l: 10.8, mass: 11000, weight: 5, kl: true, bigRoads: true, livery: true },
-  pvtbus: { w: 2.5, l: 10.5, mass: 10500, weight: 6, kl: true, bigRoads: true, livery: true },
+  pvtbus: { w: 2.5, l: 10.5, mass: 10500, weight: 4, kl: true, bigRoads: true, livery: true },
+  pvtbus2: { w: 2.5, l: 10.6, mass: 10500, weight: 5, kl: true, bigRoads: true, colors: [0x1f6fd0, 0xc81e1e, 0x1a9a4a, 0xf0f0f0, 0xe07a10, 0x7a2ab0, 0xe8c020] },
 };
 export const TRAFFIC_COLORS = [0x9aa0a8, 0x2a2d33, 0xe8e8e6, 0x5a1a1a, 0x1c2e4a, 0x3a3f36, 0xb8b0a0, 0x6a6e74, 0x0e0f11, 0x8a2a1a, 0x2a4a6a, 0xd8d0c0];
 const BUS_COLORS = [0xd8b020, 0x2a6ab0, 0xe0e0e0];
@@ -103,7 +104,7 @@ export class TrafficManager {
       if (forward && d < rMin + 40) { const dot = ((tmp.x - px) * forward.x + (tmp.z - pz) * forward.z) / d; if (dot > 0.5) continue; }
       if (lane.cars.some((c) => Math.abs(c.s - s) < 14)) continue;
       const type = this.pickType(lane);
-      const color = TYPE_SPECS[type].livery ? 0xffffff : type === 'bus' ? BUS_COLORS[Math.floor(R() * 3)] : TRAFFIC_COLORS[Math.floor(R() * TRAFFIC_COLORS.length)];
+      const sp = TYPE_SPECS[type], color = sp.livery ? 0xffffff : sp.colors ? sp.colors[Math.floor(R() * sp.colors.length)] : type === 'bus' ? BUS_COLORS[Math.floor(R() * 3)] : TRAFFIC_COLORS[Math.floor(R() * TRAFFIC_COLORS.length)];
       const car = new TrafficCar(this.nextId++, type, color);
       car.path = lane; car.s = s; car.v = lane.speed * 0.7;
       lane.cars.push(car);

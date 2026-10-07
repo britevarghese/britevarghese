@@ -5384,6 +5384,60 @@
         "url": "https://sketchfab.com/3d-models/71e499219de548a7a1be74c237b6a2fb",
         "license": "CC-BY-4.0"
       }
+    },
+    "kl_pvtbus2": {
+      "file": "cars/kl_pvtbus2.glb",
+      "imported": true,
+      "name": "Kerala private bus",
+      "length": 10.6,
+      "width": 2.527,
+      "height": 2.816,
+      "wheels": [
+        {
+          "id": "FL",
+          "x": 0.903,
+          "y": 0.505,
+          "z": 3.254,
+          "r": 0.504,
+          "w": 0.326
+        },
+        {
+          "id": "FR",
+          "x": -0.978,
+          "y": 0.504,
+          "z": 3.254,
+          "r": 0.503,
+          "w": 0.326
+        },
+        {
+          "id": "RL",
+          "x": 0.716,
+          "y": 0.505,
+          "z": -2.523,
+          "r": 0.504,
+          "w": 0.494
+        },
+        {
+          "id": "RR",
+          "x": -0.731,
+          "y": 0.505,
+          "z": -2.52,
+          "r": 0.503,
+          "w": 0.494
+        }
+      ],
+      "tris": {
+        "lod0": 35759,
+        "lod1": 3470
+      },
+      "source": {
+        "site": "Sketchfab",
+        "uid": "a1f06445141d4e68b500440570a72dbf",
+        "title": "KERALA BUS 3D MODEL",
+        "author": "rmxdesignz",
+        "url": "https://sketchfab.com/3d-models/a1f06445141d4e68b500440570a72dbf",
+        "license": "CC-BY-4.0"
+      }
     }
   },
   "wheels": {
@@ -5534,6 +5588,7 @@
     "cars/kl_m800.glb": "d55a6292dd",
     "cars/kl_minitruck.glb": "415c590a70",
     "cars/kl_pvtbus.glb": "a4cb21215f",
+    "cars/kl_pvtbus2.glb": "fe762222c5",
     "cars/kl_scorpio.glb": "600ac1856f",
     "cars/kl_thar.glb": "32038f9347",
     "cars/lamborghini_centenario.glb": "6c9aa6918e",

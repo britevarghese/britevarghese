@@ -11,8 +11,8 @@ import { Effects } from '../renderer/Effects.js';
 import { WorldManager } from '../world/WorldManager.js';
 import { KeralaWorld } from '../kerala/KeralaWorld.js';
 import { KeralaMap, KeralaOverview } from '../kerala/KeralaMap.js';
-// the real Kerala (streamed OpenStreetMap tiles) instead of Port Halvern: ?world=kerala while it is being built
-export const KERALA = typeof location !== 'undefined' && new URLSearchParams(location.search).get('world') === 'kerala';
+// the world is the real Kerala (streamed OpenStreetMap tiles); the old Port Halvern map is still there as ?world=halvern
+export const KERALA = !(typeof location !== 'undefined' && new URLSearchParams(location.search).get('world') === 'halvern');
 import { SAFEHOUSES, SHOPS, lineHalfWidth } from '../world/CityLayout.js';
 import { Pedestrians } from '../world/Pedestrians.js';
 import { Debris } from '../world/Debris.js';
@@ -475,7 +475,12 @@ export class Game {
   setGPS(x, z) {
     const L = this.world.layout;
     const s = this.player.state;
-    if (this.world.kerala) { this.gps = { x, z, route: [[s.x, s.z], [x, z]] }; return; } // road routing across Kerala: later
+    if (this.world.kerala) {
+      // roads as far as the loaded tiles reach (towards the target), then a straight line; refreshed as tiles stream in
+      const a = L.nearestNode(s.x, s.z), b = L.nearestNode(x, z), ids = L.route(a, b);
+      this.gps = { x, z, t: 0, route: [[s.x, s.z], ...ids.map((id) => [L.nodes[id].x, L.nodes[id].z]), [x, z]] };
+      return;
+    }
     const ids = L.route(L.nearestNode(s.x, s.z), L.nearestNode(x, z));
     this.gps = { x, z, route: [[s.x, s.z], ...ids.map((id) => [L.nodes[id].x, L.nodes[id].z]), [x, z]] };
   }
@@ -652,6 +657,11 @@ export class Game {
       if (mode === 'busted') this._bustedUpdate(dt);
       // world interaction prompts (events, garages)
       if (driving && !this.onFoot.active && !this.world.kerala) this._interactions();
+      if (this.gps && this.world.kerala) {
+        const fs = this.focusState;
+        if (Math.hypot(this.gps.x - fs.x, this.gps.z - fs.z) < 25) { this.gps = null; this.ui.toast('Destination reached'); }
+        else if ((this.gps.t += dt) > 5) this.setGPS(this.gps.x, this.gps.z);
+      }
       if (driving && !this.world.kerala) { this.empire.late(); this.story.late(); }
       if (driving) this.replay.record(dt);
       this.net.update(dt);

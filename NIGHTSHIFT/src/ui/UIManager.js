@@ -60,7 +60,7 @@ export class UIManager {
     this.clear();
     const g = this.game;
     const s = h('div', 'screen menu-main');
-    s.innerHTML = `<div class="logo"><span class="logo-night">NIGHT</span><span class="logo-shift">SHIFT</span></div><div class="tag">PORT HALVERN · AFTER DARK</div>`;
+    s.innerHTML = `<div class="logo"><span class="logo-night">NIGHT</span><span class="logo-shift">SHIFT</span></div><div class="tag">${this.game.world?.kerala ? 'KERALA · GOD\'S OWN COUNTRY' : 'PORT HALVERN · AFTER DARK'}</div>`;
     const list = h('div', 'menu-list');
     const items = [
       ['PLAY', 'Free roam the city — races, pursuits, cash', () => g.play()],
@@ -414,22 +414,34 @@ export class UIManager {
     const g = this.game;
     const s = h('div', 'screen map-screen');
     const canvas = h('canvas'); canvas.id = 'worldmap';
-    const legend = h('div', 'map-legend panel', '<h2>PORT HALVERN</h2>');
+    const KL0 = !!g.world.kerala;
+    const legend = h('div', 'map-legend panel', KL0 ? `<h2>KERALA</h2><div style="color:var(--dim)">${g.world.districtAt(g.focusState.x, g.focusState.z).name}</div>` : '<h2>PORT HALVERN</h2>');
     legend.style.padding = '1.4rem';
-    legend.innerHTML += `<div><span class="dot" style="background:#fff"></span>You</div><div><span class="dot" style="background:#ffc53d"></span>Race events</div><div><span class="dot" style="background:#3d7bff"></span>Police escape</div><div><span class="dot" style="background:#3dff9a"></span>Safehouses</div><div><span class="dot" style="background:#ff9a3d"></span>Shops</div><div><span class="dot" style="background:#ff3040"></span>Police</div><div><span class="dot" style="background:#b98cff"></span>Story missions</div><div><span class="dot" style="background:#3dff9a"></span>Property for sale</div><div><span class="dot" style="background:#37e2ff"></span>Your property</div><div><span class="dot" style="background:#ffd23d"></span>Odd jobs</div>`;
+    if (!KL0) legend.innerHTML += `<div><span class="dot" style="background:#fff"></span>You</div><div><span class="dot" style="background:#ffc53d"></span>Race events</div><div><span class="dot" style="background:#3d7bff"></span>Police escape</div><div><span class="dot" style="background:#3dff9a"></span>Safehouses</div><div><span class="dot" style="background:#ff9a3d"></span>Shops</div><div><span class="dot" style="background:#ff3040"></span>Police</div><div><span class="dot" style="background:#b98cff"></span>Story missions</div><div><span class="dot" style="background:#3dff9a"></span>Property for sale</div><div><span class="dot" style="background:#37e2ff"></span>Your property</div><div><span class="dot" style="background:#ffd23d"></span>Odd jobs</div>`;
     const list = h('div', 'map-events');
-    for (const [gid, m] of Object.entries(g.story?.available() || {})) {
+    // Kerala: the cities and towns, nearest first; click one for GPS
+    if (KL0) {
+      const ps = g.focusState;
+      const places = g.keralaOverview.index.places.filter((p) => p[0] === 'city' || p[0] === 'town').map((p) => ({ kind: p[0], name: p[1], x: -p[3], z: p[4] }));
+      places.sort((a, b) => Math.hypot(a.x - ps.x, a.z - ps.z) - Math.hypot(b.x - ps.x, b.z - ps.z));
+      for (const p of places.slice(0, 60)) {
+        const d = h('div', '', `<b style="color:${p.kind === 'city' ? '#ffcf4a' : '#d8e0d8'}">${p.name}</b> <span style="color:var(--dim)">${p.kind} · ${(Math.hypot(p.x - ps.x, p.z - ps.z) / 1000).toFixed(1)} km</span>`);
+        d.onclick = () => { g.setGPS(p.x, p.z); this.toast(`GPS set: ${p.name}`); };
+        list.appendChild(d);
+      }
+    }
+    if (!KL0) for (const [gid, m] of Object.entries(g.story?.available() || {})) {
       const gv = g.story._giver(gid), c = CAST[gid];
       const d = h('div', '', `<b style="color:${c.color}">STORY · ${m.title}</b> <span style="color:var(--dim)">${c.name}</span>`);
       d.onclick = () => { g.setGPS(gv.x, gv.z); this.toast(`GPS set: ${c.name}`); };
       list.appendChild(d);
     }
-    for (const j of JOBS) {
+    if (!KL0) for (const j of JOBS) {
       const d = h('div', '', `<b style="color:${j.color}">JOB · ${j.label}</b> <span style="color:var(--dim)">${j.name}</span>`);
       d.onclick = () => { g.setGPS(j.x, j.z); this.toast(`GPS set: ${j.name}`); };
       list.appendChild(d);
     }
-    for (const p of PROPERTIES) {
+    if (!KL0) for (const p of PROPERTIES) {
       const own = g.empire.owns(p.id);
       const d = h('div', '', `<b style="color:${own ? '#37e2ff' : '#3dff9a'}">${own ? 'OWNED' : 'FOR SALE'} · ${p.name}</b> <span style="color:var(--dim)">${p.kind === 'safehouse' ? 'safehouse' : `+${formatMoney(p.income)}/${INCOME_PERIOD / 60} min`}</span>${own ? '' : ` <span style="color:var(--ok)">${formatMoney(p.price)}</span>`}`);
       d.onclick = () => { g.setGPS(p.x, p.z); this.toast(`GPS set: ${p.name}`); };
@@ -465,7 +477,7 @@ export class UIManager {
       if (!KL) for (const sh of SAFEHOUSES) dot(sh.x, sh.z, 6, '#3dff9a', sh.name);
       if (!KL) for (const sh of SHOPS) dot(sh.x, sh.z, 5, '#ff9a3d', sh.name);
       for (const u of g.police.units) dot(u.vehicle.state.x, u.vehicle.state.z, 4, '#ff3040');
-      if (!g.story?.active) for (const [gid, m] of Object.entries(g.story?.available() || {})) { const gv = g.story._giver(gid); dot(gv.x, gv.z, 8, CAST[gid].color, `${CAST[gid].name}: ${m.title}`); }
+      if (!KL && !g.story?.active) for (const [gid, m] of Object.entries(g.story?.available() || {})) { const gv = g.story._giver(gid); dot(gv.x, gv.z, 8, CAST[gid].color, `${CAST[gid].name}: ${m.title}`); }
       for (const b of g.empire?.blips() || []) dot(b.x, b.z, 5, b.color, b.label);
       for (const b of g.story?.active ? g.story.blips() : []) dot(b.x, b.z, 6, b.color);
       const ps = g.focusState;

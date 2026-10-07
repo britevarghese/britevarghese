@@ -43,4 +43,5 @@ They were converted for real-time use (re-scaled, wheels separated, simplified, 
 - **Mahindra Thar** — "Mahindra Thar (Prisma 3d)" by X_BLADE., https://sketchfab.com/3d-models/6e723690d42748ad9887ce2d7dfa1acc (CC BY 4.0), modified.
 - **Tata lorry** — "TATA 2515" by danieljorge435, https://sketchfab.com/3d-models/be4e08a68a0441f8a41619c3abd73a3a (CC BY 4.0), modified.
 - **Tata Ace** — "Mini-Truck" by roy.3dartist, https://sketchfab.com/3d-models/71e499219de548a7a1be74c237b6a2fb (CC BY 4.0), modified.
+- **Kerala private bus** — "KERALA BUS 3D MODEL" by rmxdesignz, https://sketchfab.com/3d-models/a1f06445141d4e68b500440570a72dbf (CC BY 4.0), modified.
 - **Motorcycle rider** — "Biker" by Idris.Abass, https://sketchfab.com/3d-models/1594447c9f2d4b618dd59fd3272b6db6 (CC BY 4.0), modified.

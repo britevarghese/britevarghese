@@ -111,7 +111,7 @@ def parts(g):
 
 # ---------------------------------------------------------------------------------------- byte encoding
 def uv(b, v):
-    v = int(v)
+    v = max(0, int(v))  # unsigned: a negative value would never terminate (OSM has buildings with height=-3)
     while True:
         x = v & 0x7f
         v >>= 7
@@ -294,8 +294,8 @@ class Reader(osmium.SimpleHandler):
                 kind = t.get('building')
                 lv = num(t.get('building:levels'), None)
                 h = num(t.get('height'), None)
-                if h is None:
-                    h = (lv * 3.3 + 1.0) if lv else BLD_H.get(kind, 6.5)
+                if h is None or h <= 0:
+                    h = (lv * 3.3 + 1.0) if lv and lv > 0 else BLD_H.get(kind, 6.5)
                 bk = BLD_KIND.get(kind, 0)
                 if t.get('amenity') == 'place_of_worship':
                     bk = {'christian': 6, 'hindu': 7, 'muslim': 8}.get(t.get('religion'), bk)

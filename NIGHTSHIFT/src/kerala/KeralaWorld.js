@@ -9,6 +9,7 @@ import { KeralaTile, TILE, C, decodeBinary } from './KeralaTile.js';
 import * as TX from '../renderer/Textures.js';
 import { KERALA_FACADE } from '../renderer/Textures.js';
 import { KeralaLaneGraph } from './KeralaLanes.js';
+import { KeralaRouter } from './KeralaRouter.js';
 
 const BASE = '/assets/world/kerala/';
 const RADIUS = 2;        // tiles loaded around the player (5 x 5 = 10 x 10 km)
@@ -25,12 +26,17 @@ export class KeralaWorld {
     this.focus = { x: 0, z: 0 };
     const W = this;
     // the gameplay-facing "layout" (Port Halvern systems read these; Kerala has no grid city)
+    const router = this.router = new KeralaRouter(this.lanes);
     this.layout = {
-      nodes: [], edges: [], blocks: [], ringSamples: [], nodeMap: new Map(),
+      get nodes() { return router.nodes; },
+      nearestNode: (x, z) => router.nearestNode(x, z),
+      route: (a, b) => router.route(a, b),
+      edges: [], blocks: [], ringSamples: [], nodeMap: new Map(),
       groundHeight: (x, z) => W.groundHeight(x, z),
       inTunnel: () => false,
       roadAt: () => null,
       offRoad: (x, z) => W.offRoad(x, z),
+      pedSegment: (focus, R) => W.pedSegment(focus, R),
     };
     this.planner = { colliders: [], props: [], parked: [], buildings: [] };
     this.chunks = {
@@ -40,7 +46,7 @@ export class KeralaWorld {
       update: () => {}, setPreset: () => {},
     };
     this.props = { rebuild() {}, defs: {}, count: 0, hide() {}, updateSignals() {}, preset: null };
-    this.lights = { rebuild() {}, update() {}, setDynamicCount() {}, flushReflections() {}, dyn: [] };
+    this.lights = { rebuild() {}, update() {}, setDynamicCount() {}, addReflection() {}, flushReflections() {}, dyn: [] };
   }
 
   async loadIndex() {
@@ -180,6 +186,16 @@ export class KeralaWorld {
       if (d < bd) { bd = d; place = p[1]; }
     }
     return { id: name || 'kerala', name: place ? `${place}, ${name}` : name };
+  }
+
+  // a stretch of roadside for a pedestrian to walk: along a town road, just off the kerb-side lane
+  pedSegment(focus, R) {
+    const lanes = this.lanes.lanesNear(focus.x, focus.z, 30, 200).filter((l) => l.edge.cls >= 3 && l.edge.cls <= 7 && l.laneIndex === 0 && l.pts.length >= 2);
+    if (!lanes.length) return null;
+    const l = lanes[Math.floor(R() * lanes.length)];
+    const i = Math.floor(R() * (l.pts.length - 1)), a = l.pts[i], b = l.pts[i + 1];
+    const dx = b[0] - a[0], dz = b[1] - a[1], L = Math.hypot(dx, dz) || 1, ox = dz / L * 2.6, oz = -dx / L * 2.6;
+    return { ax: a[0] + ox, az: a[1] + oz, bx: b[0] + ox, bz: b[1] + oz, kerala: true };
   }
 
   signalState() { return 'green'; }

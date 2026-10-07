@@ -10,7 +10,61 @@ const LANE_W = 3.2;
 const SPEED = [22, 16.7, 13.9, 12.5, 11.1, 9.7, 8.3, 6.9, 5.6, 4.2, 4.2];
 const DRIVEN = 7;  // classes 0..7 get traffic (no service roads, tracks or pedestrian streets)
 
-const nodeKey = (x, z) => `${Math.round(x)},${Math.round(z)}`;
+// junction key; points on a tile seam (where both tiles cut the road) match within a metre or so
+const seam = (v) => { const m = ((v % TILE) + TILE) % TILE; return m < 1.5 || m > TILE - 1.5 ? Math.round(v / TILE) * TILE : null; };
+const nodeKey = (x, z) => {
+  const sx = seam(x), sz = seam(z);
+  if (sx !== null) return `${sx},${Math.round(z / 2) * 2}`;
+  if (sz !== null) return `${Math.round(x / 2) * 2},${sz}`;
+  return `${Math.round(x)},${Math.round(z)}`;
+};
+// the tile's driven roads were simplified when built, which drops the vertex where a side road meets a
+// through road: snap each dead end onto the road it touches and give that road a vertex there
+function joinDeadEnds(driven) {
+  const C = 25, grid = new Map(), SN = 7;
+  driven.forEach(({ P }, ri) => {
+    for (let i = 0; i < P.length - 1; i++) {
+      const [a, b] = [P[i], P[i + 1]];
+      for (let cx = Math.floor((Math.min(a[0], b[0]) - SN) / C); cx <= Math.floor((Math.max(a[0], b[0]) + SN) / C); cx++)
+        for (let cz = Math.floor((Math.min(a[1], b[1]) - SN) / C); cz <= Math.floor((Math.max(a[1], b[1]) + SN) / C); cz++) {
+          const k = cx * 100003 + cz; if (!grid.has(k)) grid.set(k, []); grid.get(k).push(ri, i);
+        }
+    }
+  });
+  const count = new Map();
+  for (const { P } of driven) for (const q of [P[0], P[P.length - 1]]) { const k = nodeKey(...q); count.set(k, (count.get(k) || 0) + 1); }
+  const inner = new Set(); for (const { P } of driven) for (let i = 1; i < P.length - 1; i++) inner.add(nodeKey(...P[i]));
+  const ins = driven.map(() => []);
+  driven.forEach(({ P }, ri) => {
+    for (const end of [0, P.length - 1]) {
+      const q = P[end], k = nodeKey(...q);
+      if (count.get(k) > 1 || inner.has(k) || seam(q[0]) !== null || seam(q[1]) !== null) continue;
+      const L = grid.get(Math.floor(q[0] / C) * 100003 + Math.floor(q[1] / C)) || [];
+      let best = null, bd = SN;
+      for (let j = 0; j < L.length; j += 2) {
+        const rj = L[j], i = L[j + 1]; if (rj === ri) continue;
+        const R = driven[rj].P, a = R[i], b = R[i + 1], dx = b[0] - a[0], dz = b[1] - a[1], l2 = dx * dx + dz * dz || 1;
+        const t = Math.max(0, Math.min(1, ((q[0] - a[0]) * dx + (q[1] - a[1]) * dz) / l2));
+        const px = a[0] + dx * t, pz = a[1] + dz * t, d = Math.hypot(px - q[0], pz - q[1]);
+        if (d < bd) { bd = d; best = { rj, i, t, p: [px, pz] }; }
+      }
+      if (!best) continue;
+      const R = driven[best.rj].P;
+      // land on an existing vertex when close to one, else add a vertex to the through road
+      if (best.t * Math.hypot(R[best.i + 1][0] - R[best.i][0], R[best.i + 1][1] - R[best.i][1]) < 1.5) best.p = R[best.i];
+      else if ((1 - best.t) * Math.hypot(R[best.i + 1][0] - R[best.i][0], R[best.i + 1][1] - R[best.i][1]) < 1.5) best.p = R[best.i + 1];
+      else ins[best.rj].push(best);
+      P[end] = [...best.p];
+    }
+  });
+  driven.forEach((d, ri) => {
+    if (!ins[ri].length) return;
+    ins[ri].sort((a, b) => a.i - b.i || a.t - b.t);
+    const out = []; let k = 0;
+    for (let i = 0; i < d.P.length; i++) { out.push(d.P[i]); while (k < ins[ri].length && ins[ri][k].i === i) out.push(ins[ri][k++].p); }
+    d.P = out;
+  });
+}
 function leftOffset(pts, off) {
   const out = [];
   for (let i = 0; i < pts.length; i++) {
@@ -60,9 +114,17 @@ export class KeralaLaneGraph {
     const k = `${t.tx},${t.tz}`;
     if (this.byTile.has(k)) return;
     const mine = [], touched = new Set();
-    for (const r of t.roads) {
-      if (r.cls > DRIVEN || r.pts.length < 2 || r.flags & 4) continue;
-      const P = r.pts.map(([e, n]) => [-(t.E0 + e), t.N0 + n]);
+    // OSM ways often run straight through junctions: split every road where it shares a point with another
+    const driven = t.roads.filter((r) => r.cls <= DRIVEN && r.pts.length >= 2 && !(r.flags & 4)).map((r) => ({ r, P: r.pts.map(([e, n]) => [-(t.E0 + e), t.N0 + n]) }));
+    joinDeadEnds(driven);
+    const uses = new Map();
+    for (const { P } of driven) for (const k of new Set(P.map((q) => nodeKey(...q)))) uses.set(k, (uses.get(k) || 0) + 1);
+    const pieces = [];
+    for (const { r, P } of driven) {
+      let a = 0;
+      for (let i = 1; i < P.length; i++) if (i === P.length - 1 || uses.get(nodeKey(...P[i])) > 1) { pieces.push({ r, P: P.slice(a, i + 1) }); a = i; }
+    }
+    for (const { r, P } of pieces) {
       let len = 0; for (let i = 1; i < P.length; i++) len += Math.hypot(P[i][0] - P[i - 1][0], P[i][1] - P[i - 1][1]);
       if (len < 4) continue;
       const one = !!(r.flags & 1);

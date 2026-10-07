@@ -15,6 +15,9 @@ const _m = new THREE.Matrix4(), _q = new THREE.Quaternion(), _p = new THREE.Vect
 const SHIRTS = [0x2a3a5a, 0x5a2a2a, 0x2a4a3a, 0x6a6a6a, 0x1a1a1a, 0x8a6a3a, 0x3a2a4a, 0xa0a0a0, 0x7a2a4a];
 const PANTS = [0x1a1c22, 0x2a2e3a, 0x3a3228, 0x101010, 0x4a4a52];
 const SKIN = [0xe0b090, 0xc08a60, 0x8a5a3a, 0x5a3a28, 0xf0c8a8];
+const KL_TOPS = [0xf4f2ec, 0xd8e4f0, 0xf0e0b0, 0x8ab0d8, 0xe8b0c0, 0xa0c8a0, 0xd04a5a, 0x2a6a9a, 0xe0a040, 0x6a3a8a];
+const KL_LOWER = [0x1a1c22, 0x2a2e3a, 0xb0304a, 0x2a5a8a, 0xd8a030, 0x3a6a3a];
+const KL_SKIN = [0xb07a50, 0x9a6a42, 0x8a5a3a, 0x6a4430, 0xc08a60];
 const HAIR = [0x1a1410, 0x2a1c12, 0x3a2616, 0x0e0e10, 0x6a4a2a, 0x8a7a5a, 0x9a9a9a, 0x2a1c12];
 const SHOES = [0x111111, 0x1a1a1a, 0xe8e8e8, 0x4a3020, 0x2a2a35];
 
@@ -57,6 +60,25 @@ export class Pedestrians {
 
   _spawn(focus) {
     const R = this.R;
+    // streamed worlds (Kerala) hand out stretches of road edge instead of city blocks
+    if (this.layout.pedSegment) {
+      const g = this.layout.pedSegment(focus, R);
+      if (!g) return;
+      const L = Math.hypot(g.bx - g.ax, g.bz - g.az);
+      if (L < 6) return;
+      const kl = !!g.kerala;
+      this.peds.push({
+        seg: g, segL: L, per: L * 2, t: R() * L * 2, dir: R() < 0.5 ? 1 : -1, speed: 0.95 + R() * 0.5, phase: R() * 6,
+        // Kerala: light cotton shirts, white mundus and coloured sarees / churidars
+        shirt: kl ? KL_TOPS[Math.floor(R() * KL_TOPS.length)] : SHIRTS[Math.floor(R() * SHIRTS.length)],
+        pants: kl ? (R() < 0.45 ? 0xf2efe6 : KL_LOWER[Math.floor(R() * KL_LOWER.length)]) : PANTS[Math.floor(R() * PANTS.length)],
+        skin: kl ? KL_SKIN[Math.floor(R() * KL_SKIN.length)] : SKIN[Math.floor(R() * SKIN.length)],
+        hair: kl ? 0x0e0c0a : R() < 0.12 ? -1 : HAIR[Math.floor(R() * HAIR.length)],
+        shoes: SHOES[Math.floor(R() * SHOES.length)], model: Math.floor(R() * 1000),
+        build: 0.88 + R() * 0.3, scale: 0.9 + R() * 0.14, wait: 0, dodge: 0, dx: 0, dz: 0, x: 0, z: 0, yaw: 0,
+      });
+      return;
+    }
     // pick a random dense-ish block near the focus and a point on its sidewalk ring
     const blocks = this.layout.blocks.filter((b) => b.special !== 'river' && b.special !== 'hill' && Math.hypot(b.cx - focus.x, b.cz - focus.z) < 220 && Math.hypot(b.cx - focus.x, b.cz - focus.z) > 40);
     if (!blocks.length) return;
@@ -89,6 +111,11 @@ export class Pedestrians {
 
   _pos(p) {
     let t = ((p.t % p.per) + p.per) % p.per;
+    if (p.seg) { // there and back along a stretch of road edge
+      const g = p.seg, L = p.segL, out = t < L, u = out ? t : 2 * L - t;
+      const fwd = out === (p.dir > 0);
+      return [g.ax + (g.bx - g.ax) * u / L, g.az + (g.bz - g.az) * u / L, Math.atan2(g.bx - g.ax, g.bz - g.az) + (fwd ? 0 : Math.PI)];
+    }
     const w = p.x1 - p.x0, d = p.z1 - p.z0;
     if (t < w) return [p.x0 + t, p.z0, p.dir > 0 ? Math.PI / 2 : -Math.PI / 2];
     t -= w; if (t < d) return [p.x1, p.z0 + t, p.dir > 0 ? 0 : Math.PI];

@@ -1,6 +1,6 @@
 // Gameplay smoke test: loads the game headless, AI-drives the player through the city, runs a
 // sprint race and a heat-3 pursuit with rendering disabled (fast), and reports errors.
-//   node tools/dev/smoke.mjs --port 3000 [--seconds 180]
+//   node tools/dev/smoke.mjs --port 3000 [--seconds 180] [--world halvern]
 import { launch } from './pw.mjs';
 const args = Object.fromEntries(process.argv.slice(2).reduce((acc, a, i, arr) => { if (a.startsWith('--')) acc.push([a.slice(2), arr[i + 1]]); return acc; }, []));
 const port = args.port || 3000, seconds = +(args.seconds || 180);
@@ -10,7 +10,7 @@ const errors = [];
 p.on('pageerror', (e) => errors.push('[pageerror] ' + e.message));
 p.on('console', (m) => { if (m.type() === 'error') errors.push(m.text().slice(0, 300)); });
 await p.addInitScript(`localStorage.setItem('nightshift.settings', JSON.stringify({graphics:{quality:'low',detectedQuality:'low',backend:'webgl2'}}))`);
-await p.goto(`http://localhost:${port}/`);
+await p.goto(`http://localhost:${port}/${args.world ? `?world=${args.world}` : ""}`);
 await p.waitForFunction(() => (window.NIGHTSHIFT && window.NIGHTSHIFT.state.mode === 'menu') || !document.getElementById('fatal').classList.contains('hidden'), null, { timeout: 120000 });
 const result = await p.evaluate(async (seconds) => {
   const G = window.NIGHTSHIFT;
@@ -43,10 +43,12 @@ const result = await p.evaluate(async (seconds) => {
   // race
   G.police.enabled = false;
   const ev = G.races.events.find((e) => e.def.id === 'sprint_river');
-  G.startEvent(ev);
-  const rai = new AIDriver(G.player, { skill: 1, maxSpeed: 70 }); rai.setRoute(ev.route.map((q) => [q[0], q[1]]), false, 3);
-  out.race = drive(rai, 30 * 240, false);
-  out.raceFinished = events.includes('race:finished');
+  if (ev) { // (Kerala has no race events yet)
+    G.startEvent(ev);
+    const rai = new AIDriver(G.player, { skill: 1, maxSpeed: 70 }); rai.setRoute(ev.route.map((q) => [q[0], q[1]]), false, 3);
+    out.race = drive(rai, 30 * 240, false);
+    out.raceFinished = events.includes('race:finished');
+  }
   // pursuit
   G.police.enabled = true; G.races.abort();
   G.police.startPursuit(3, 'smoke');

@@ -287,6 +287,11 @@ export function processCar(doc, car, opt = {}) {
   // livery vehicles (buses, autos, lorries) keep their painted texture: no recolourable 'paint' material
   const paint = car.import?.livery ? null : car.import?.paint ? [...matInfo.values()].find((m) => m.mat.getName() === car.import.paint) : pick(named.length ? named : candidates);
   if (paint) classes.set(paint.mat, 'paint');
+  // extra body panels split across materials (import.paintAlso: names) join the paint material
+  if (paint && car.import?.paintAlso) {
+    const also = new Set(car.import.paintAlso);
+    for (const mesh of root.listMeshes()) for (const prim of mesh.listPrimitives()) if (also.has(prim.getMaterial()?.getName())) prim.setMaterial(paint.mat);
+  }
   // tidy materials for real-time use
   let glassN = 0;
   for (const [mat, cls] of classes) {

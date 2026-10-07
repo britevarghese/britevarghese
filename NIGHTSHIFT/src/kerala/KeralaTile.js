@@ -162,6 +162,14 @@ export class KeralaTile {
     const rnd = () => ((s = (s * 1664525 + 1013904223) >>> 0) / 4294967296);
     for (let i = 0; i < 900; i++) { V.fillStyle = rnd() < 0.5 ? '#2f4a20' : '#8a7a4a'; const r = 1 + rnd() * 4; V.beginPath(); V.arc(rnd() * RASTER, rnd() * RASTER, r, 0, 6.283); V.fill(); }
     V.globalAlpha = 1;
+    // red laterite earth along the road edges (Kerala's verges)
+    V.lineCap = 'round'; V.lineJoin = 'round'; V.globalAlpha = 0.55; V.strokeStyle = '#8a563a';
+    for (const r of this.roads) {
+      if (r.cls > 7) continue;
+      V.lineWidth = Math.max(1.5, (ROAD_HALF[r.cls] * 2 + 3.5) * PX);
+      V.beginPath(); r.pts.forEach(([e, n], i) => { const x = e * PX, y = (TILE - n) * PX; if (i) V.lineTo(x, y); else V.moveTo(x, y); }); V.stroke();
+    }
+    V.globalAlpha = 1;
     // roads and buildings into the class map (palms keep off them)
     K.lineCap = 'round';
     for (const r of this.roads) {
@@ -255,7 +263,7 @@ export class KeralaTile {
     const P = [];
     for (let i = 0; i < pts.length; i++) {
       if (i) {
-        const [ae, an] = pts[i - 1], [be, bn] = pts[i], L = Math.hypot(be - ae, bn - an), k = Math.ceil(L / 9);
+        const [ae, an] = pts[i - 1], [be, bn] = pts[i], L = Math.hypot(be - ae, bn - an), k = Math.ceil(L / 6);
         for (let s = 1; s < k; s++) P.push([ae + (be - ae) * s / k, an + (bn - an) * s / k]);
       }
       P.push(pts[i]);
@@ -269,7 +277,13 @@ export class KeralaTile {
       const ne = -dn / l * hw, nn = de / l * hw;  // left of travel (in e/n)
       if (i) along += Math.hypot(P[i][0] - P[i - 1][0], P[i][1] - P[i - 1][1]);
       const [e, n] = P[i];
-      const yl = yOf(e + ne, n + nn), yr = yOf(e - ne, n - nn);
+      // the ground between vertices is creased (noisy SRTM): sit each vertex on the highest ground around it so
+      // no ridge pokes through the strip
+      const pe = P[Math.max(0, i - 1)], qe = P[Math.min(P.length - 1, i + 1)];
+      const hi = (oe, on) => Math.max(yOf(e + oe, n + on), yOf((e + pe[0]) / 2 + oe, (n + pe[1]) / 2 + on), yOf((e + qe[0]) / 2 + oe, (n + qe[1]) / 2 + on));
+      const yc = hi(0, 0);
+      let yl = Math.max(hi(ne, nn), yc - 0.25), yr = Math.max(hi(-ne, -nn), yc - 0.25);
+      if ((yl + yr) / 2 < yc) { const up = yc - (yl + yr) / 2; yl += up; yr += up; }  // a ridge along the middle
       pos.set([-(e + ne), yl, n + nn, -(e - ne), yr, n - nn], i * 6);
       uv.set([0, along / vScale, 1, along / vScale], i * 4);
       if (i) { const q = (i - 1) * 2; idx.push(q, q + 1, q + 2, q + 1, q + 3, q + 2); }
@@ -290,7 +304,12 @@ export class KeralaTile {
       const lanes = r.lanes || (r.cls <= 1 ? 4 : r.cls <= 3 ? 2 : r.cls <= 6 ? 2 : 1);
       const hw = r.cls <= 2 && r.lanes ? Math.max(ROAD_HALF[r.cls], lanes * 1.75) : ROAD_HALF[r.cls];
       const lift = 0.07 + (10 - r.cls) * 0.004;
-      const g = this._ribbon(r.pts, hw, y(lift), 7);
+      // ends cut at the tile border run on a little, so a road crossing the seam at an angle leaves no wedge
+      const onEdge = ([e, n]) => e < 0.6 || n < 0.6 || e > TILE - 0.6 || n > TILE - 0.6;
+      const run = (a, b) => { const de = a[0] - b[0], dn = a[1] - b[1], l = Math.hypot(de, dn) || 1; return [a[0] + de / l * (hw + 1), a[1] + dn / l * (hw + 1)]; };
+      const P = r.pts.length > 1 && (onEdge(r.pts[0]) || onEdge(r.pts[r.pts.length - 1])) ? [...r.pts] : r.pts;
+      if (P !== r.pts) { if (onEdge(P[0])) P.unshift(run(P[0], P[1])); if (onEdge(P[P.length - 1])) P.push(run(P[P.length - 1], P[P.length - 2])); }
+      const g = this._ribbon(P, hw, y(lift), 7);
       if (!g) continue;
       g.computeVertexNormals();
       (r.dirt ? dirt : paved).push(g);

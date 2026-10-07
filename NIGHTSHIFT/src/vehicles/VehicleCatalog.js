@@ -258,6 +258,7 @@ export const TRAFFIC_MODELS = {
   auto: { id: 'kl_auto', livery: true, name: 'Bajaj autorickshaw', spec: { len: 2.64, wid: 1.3 }, wheels: 3, source: SRC('44776bcb34e04c1a8b9c18a70376304e', 'Auto Rickshaw', 'rSquare') },
   ksrtc: { id: 'kl_ksrtc', livery: true, name: 'KSRTC bus', spec: { len: 10.8, wid: 2.5 }, source: SRC('4a3daa08bfb34119b41b75fd2dbbc9ee', 'KSRTC Bus kerala', 'playmode280513') },
   pvtbus: { id: 'kl_pvtbus', livery: true, name: 'Private bus', spec: { len: 10.5, wid: 2.5 }, source: SRC('67b7998f0f3341a8a96655f96adc1a77', 'Indian  Bus', 'khatriparth') },
+  pvtbus2: { id: 'kl_pvtbus2', import: { paint: 'Flake_Shift_Car_Paint', paintAlso: ['Flake_Shift_Car_Paint.001'] }, name: 'Kerala private bus', spec: { len: 10.6, wid: 2.5 }, source: SRC('a1f06445141d4e68b500440570a72dbf', 'KERALA BUS 3D MODEL', 'rmxdesignz') },
   m800: { id: 'kl_m800', name: 'Maruti 800', spec: { len: 3.34, wid: 1.44 }, source: SRC('adcc7ff83891422d9f3dcaf55debc073', 'Maruti 800 AC', 'BHP3D') },
   dzire: { id: 'kl_dzire', name: 'Maruti Swift Dzire', spec: { len: 3.995, wid: 1.735 }, source: SRC('95451c00cb2d48778f67d798167e7237', '2022 Maruti Suzuki Swift Dzire', 'BHP3D') },
   brezza: { id: 'kl_brezza', name: 'Maruti Vitara Brezza', spec: { len: 3.995, wid: 1.79 }, source: SRC('1a5cbddc8acb457e9d896d7345fd07d8', '2022 Maruti Suzuki Vitara Brezza', 'BHP3D') },
@@ -267,7 +268,7 @@ export const TRAFFIC_MODELS = {
   lorry: { id: 'kl_lorry', livery: true, name: 'Tata lorry', spec: { len: 7.8, wid: 2.4 }, source: SRC('be4e08a68a0441f8a41619c3abd73a3a', 'TATA 2515', 'danieljorge435') },
   minitruck: { id: 'kl_minitruck', name: 'Tata Ace', spec: { len: 3.8, wid: 1.5 }, source: SRC('71e499219de548a7a1be74c237b6a2fb', 'Mini-Truck', 'roy.3dartist') },
 };
-for (const m of Object.values(TRAFFIC_MODELS)) Object.assign(m, { real: true, traffic: true, import: { doors: false, livery: !!m.livery }, budget: { body0: 15000, wheel0: 900, body1: 2600, wheel1: 140, err0: 0.02, err1: 0.15 } });
+for (const m of Object.values(TRAFFIC_MODELS)) Object.assign(m, { real: true, traffic: true, import: { doors: false, livery: !!m.livery, ...m.import }, budget: { body0: 15000, wheel0: 900, body1: 2600, wheel1: 140, err0: 0.02, err1: 0.15 } });
 
 // Traffic vehicles the player can take (carjacking). Not in CARS: they never appear in the garage.
 const TP = (o) => ({ driftGrip: 0.45, steeringAngle: 0.56, frontWeight: 0.56, drive: 'RWD', downforce: 0.4, suspensionStrength: 1.8, suspensionDamping: 0.45, idle: 750, ...o });
