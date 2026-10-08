@@ -166,7 +166,7 @@ export class RaceManager {
 
   // cars the AI rivals may drive: same class as the player's car first, then one class up/down
   rivalPool() {
-    const cur = CARS[this.game.save.data.currentCar] || CARS.kestrel;
+    const cur = CARS[this.game.save.data.currentCar] || CARS.bmw_m3_e30 || CARS.kestrel;
     const ti = TIERS.indexOf(cur.tier || 'D');
     const tierOf = (id) => TIERS.indexOf(CARS[id].tier || 'D');
     const others = PLAYER_CAR_ORDER.filter((id) => id !== cur.id);

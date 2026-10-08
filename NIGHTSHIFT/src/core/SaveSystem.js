@@ -10,12 +10,15 @@ export const DEFAULT_CUSTOM = {
 };
 export const DEFAULT_UPGRADES = { engine: 0, transmission: 0, tires: 0, brakes: 0, suspension: 0, nitrous: 0 };
 
+// the car a new driver starts in: a real, licensed model (the original placeholder Kestrel is still in the garage)
+export const STARTER_CAR = 'bmw_m3_e30';
+
 const DEFAULT_SAVE = {
   version: 1,
   cash: 12000,
   reputation: 0,
-  currentCar: 'kestrel',
-  cars: { kestrel: { custom: { ...DEFAULT_CUSTOM }, upgrades: { ...DEFAULT_UPGRADES } } },
+  currentCar: STARTER_CAR,
+  cars: {},
   raceWins: 0,
   racesCompleted: {},   // eventId -> best time
   bestHeat: 0,
@@ -35,7 +38,10 @@ export class SaveSystem {
     this.data = { ...structuredClone(DEFAULT_SAVE), ...(s || {}) };
     // saves from before driver levels: turn earned reputation into XP once
     if (s && s.xp === undefined) this.data.xp = Math.round((s.reputation || 0) * 4);
-    this.data.version = 2;
+    // saves from before the real starter car: still sitting in the placeholder Kestrel -> into the real starter, once
+    if (s && (s.version || 1) < 3 && s.currentCar === 'kestrel' && CARS[STARTER_CAR]) this.data.currentCar = STARTER_CAR;
+    if (!CARS[this.data.currentCar]) this.data.currentCar = CARS[STARTER_CAR] ? STARTER_CAR : 'kestrel';
+    this.data.version = 3;
     // open world: every car and bike is in everyone's garage from the start
     for (const [id, car] of Object.entries(CARS)) {
       if (!this.data.cars[id]) this.data.cars[id] = { custom: { ...DEFAULT_CUSTOM, ...(car.real ? { paint: 'factory', ...car.look } : {}) }, upgrades: { ...DEFAULT_UPGRADES } };

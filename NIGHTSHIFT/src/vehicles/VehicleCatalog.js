@@ -39,7 +39,7 @@ CARS.stratos.unlock = { level: 16 }; CARS.stratos.tier = 'A';
 // scaled to the real dimensions, until the real model has been imported.
 // Car names and badges are trademarks of their manufacturers; this is a non-commercial fan project.
 const REAL = [
-  { id: 'bmw_m3_e30', brand: 'BMW', model: 'M3 (E30)', year: 1986, tier: 'D', carType: 'tuner', unlock: { level: 2 }, price: 24000,
+  { id: 'bmw_m3_e30', brand: 'BMW', model: 'M3 (E30)', year: 1986, tier: 'D', carType: 'tuner', unlock: { level: 1 }, price: 0,
     spec: { trans: 'manual', kw: 147, kg: 1200, drive: 'RWD', t100: 6.7, vmax: 235, len: 4.345, wid: 1.68, hgt: 1.37, wb: 2.565, track: 1.42, wr: 0.31, fw: 0.51, redline: 7250, gears: [3.72, 2.40, 1.77, 1.26, 1.00], fd: 3.25, grip: 1.12, era: 1986 },
     blurb: 'The touring-car legend. Light, nimble, and it rewards a smooth right foot.',
     src: { uid: 'ac3c7013434e403e8faff87948caf422', title: '[FREE] BMW M3 E30', author: 'TinoD2' }, standIn: 'sa_sedan' },
