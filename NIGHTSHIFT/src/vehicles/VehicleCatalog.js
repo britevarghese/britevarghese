@@ -265,7 +265,7 @@ export const TRAFFIC_MODELS = {
   ertiga: { id: 'kl_ertiga', import: { doors: true }, name: 'Maruti Ertiga', spec: { len: 4.395, wid: 1.735 }, source: SRC('4f14afac3ac44ec4a2fb153e18452f8b', '2022 Suzuki Ertiga', 'BHP3D') },
   scorpio: { id: 'kl_scorpio', import: { doors: true }, name: 'Mahindra Scorpio-N', spec: { len: 4.66, wid: 1.92 }, source: SRC('538b10f2860f44e694dc3e9d3e223bf8', '2022 Mahindra Scorpio-N', 'BHP3D') },
   thar: { id: 'kl_thar', import: { doors: true, flip: true }, name: 'Mahindra Thar', spec: { len: 3.985, wid: 1.82 }, source: SRC('6e723690d42748ad9887ce2d7dfa1acc', 'Mahindra Thar (Prisma 3d)', 'X_BLADE.') },
-  lorry: { id: 'kl_lorry', livery: true, name: 'Tata lorry', spec: { len: 7.8, wid: 2.4 }, source: SRC('be4e08a68a0441f8a41619c3abd73a3a', 'TATA 2515', 'danieljorge435') },
+  lorry: { id: 'kl_lorry', name: 'Tata lorry', spec: { len: 8.6, wid: 2.5 }, source: SRC('8c7650b96d6846de8cc54391ab16cf20', 'Indian Truck', 'afjalymail78692') },  // the hand-painted Tata goods carrier
   // two-wheelers: half of Kerala's traffic (generic names in game; models credited)
   scooter: { id: 'kl_scooter', bike: true, livery: true, name: 'Scooter', spec: { len: 1.8, wid: 0.7 }, wheels: 2, source: SRC('53474287ff1045e49f82819f50b8736f', 'Scooter Motorcycle', 'norberto3d') },
   commuter: { id: 'kl_commuter', bike: true, import: { flip: true }, name: 'Commuter motorcycle', spec: { len: 2.04, wid: 0.75 }, wheels: 2, source: SRC('06fac75c72ed4780a19034447c81e72c', 'Bajaj pulsar 150', 'shreyanshchaurasia13') },

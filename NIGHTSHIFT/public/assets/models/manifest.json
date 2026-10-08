@@ -5331,20 +5331,53 @@
       "file": "cars/kl_lorry.glb",
       "imported": true,
       "name": "Tata lorry",
-      "length": 7.797,
-      "width": 3.794,
-      "height": 4.211,
-      "wheels": [],
+      "length": 8.6,
+      "width": 2.981,
+      "height": 3.572,
+      "wheels": [
+        {
+          "id": "FL",
+          "x": 1.182,
+          "y": 0.442,
+          "z": 1.643,
+          "r": 0.442,
+          "w": 0.26
+        },
+        {
+          "id": "FR",
+          "x": -1.182,
+          "y": 0.442,
+          "z": 1.643,
+          "r": 0.442,
+          "w": 0.26
+        },
+        {
+          "id": "RL",
+          "x": 1.182,
+          "y": 0.442,
+          "z": -2.534,
+          "r": 0.442,
+          "w": 0.262
+        },
+        {
+          "id": "RR",
+          "x": -1.182,
+          "y": 0.442,
+          "z": -1.534,
+          "r": 0.442,
+          "w": 0.262
+        }
+      ],
       "tris": {
-        "lod0": 14999,
-        "lod1": 2581
+        "lod0": 30224,
+        "lod1": 3640
       },
       "source": {
         "site": "Sketchfab",
-        "uid": "be4e08a68a0441f8a41619c3abd73a3a",
-        "title": "TATA 2515",
-        "author": "danieljorge435",
-        "url": "https://sketchfab.com/3d-models/be4e08a68a0441f8a41619c3abd73a3a",
+        "uid": "8c7650b96d6846de8cc54391ab16cf20",
+        "title": "Indian Truck",
+        "author": "afjalymail78692",
+        "url": "https://sketchfab.com/3d-models/8c7650b96d6846de8cc54391ab16cf20",
         "license": "CC-BY-4.0"
       }
     },
@@ -5729,7 +5762,7 @@
     "cars/kl_dzire.glb": "84ce99852b",
     "cars/kl_ertiga.glb": "c8cf66221e",
     "cars/kl_ksrtc.glb": "49d9467134",
-    "cars/kl_lorry.glb": "8aa9409c4f",
+    "cars/kl_lorry.glb": "15afb76547",
     "cars/kl_m800.glb": "1723182897",
     "cars/kl_minitruck.glb": "f8f12386ab",
     "cars/kl_pvtbus.glb": "c27127f7c0",

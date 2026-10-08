@@ -41,7 +41,7 @@ They were converted for real-time use (re-scaled, wheels separated, simplified, 
 - **Maruti Ertiga** — "2022 Suzuki Ertiga" by BHP3D, https://sketchfab.com/3d-models/4f14afac3ac44ec4a2fb153e18452f8b (CC BY 4.0), modified.
 - **Mahindra Scorpio-N** — "2022 Mahindra Scorpio-N" by BHP3D, https://sketchfab.com/3d-models/538b10f2860f44e694dc3e9d3e223bf8 (CC BY 4.0), modified.
 - **Mahindra Thar** — "Mahindra Thar (Prisma 3d)" by X_BLADE., https://sketchfab.com/3d-models/6e723690d42748ad9887ce2d7dfa1acc (CC BY 4.0), modified.
-- **Tata lorry** — "TATA 2515" by danieljorge435, https://sketchfab.com/3d-models/be4e08a68a0441f8a41619c3abd73a3a (CC BY 4.0), modified.
+- **Tata lorry** — "Indian Truck" by afjalymail78692, https://sketchfab.com/3d-models/8c7650b96d6846de8cc54391ab16cf20 (CC BY 4.0), modified.
 - **Tata Ace** — "Mini-Truck" by roy.3dartist, https://sketchfab.com/3d-models/71e499219de548a7a1be74c237b6a2fb (CC BY 4.0), modified.
 - **Kerala private bus** — "KERALA BUS 3D MODEL" by rmxdesignz, https://sketchfab.com/3d-models/a1f06445141d4e68b500440570a72dbf (CC BY 4.0), modified.
 - **Scooter** — "Scooter Motorcycle" by norberto3d, https://sketchfab.com/3d-models/53474287ff1045e49f82819f50b8736f (CC BY 4.0), modified.
