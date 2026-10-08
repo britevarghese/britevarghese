@@ -1302,7 +1302,16 @@ export class KeralaTile {
         // a rectangle-ish footprint gets its oriented box; an L, a wedge or a curved terrace gets a thin solid
         // slab along each wall instead (its box would cover the yard and the road beside it)
         const box = this._obb(ring, top), fill = area / (4 * box.hx * box.hz / 0.9216);
-        if (fill > 0.86 && ring.length <= 6) this.colliders.push(box);
+        if (fill > 0.86 && ring.length <= 6) {
+          // a plain box of a building can be walked into: Interiors builds its ground floor on demand
+          if (kind !== 5 && kind < 6 && area > 24) {
+            let fl = g0; for (const [e, nn] of ring) fl = Math.max(fl, this.heightAt(e, nn));
+            fl = Math.max(fl, this.heightAt(ce, cn)) + 0.06;
+            const ceil = Math.min(fl + 3.0, top - 0.12);
+            if (ceil - fl > 2.45) box.bld = { floor: fl, ceil, kind, house, shop, seed: (bi * 2654435761 ^ this.tx * 97 ^ this.tz * 31) >>> 0 };
+          }
+          this.colliders.push(box);
+        }
         else for (let i = 0; i < n; i++) {
           const [e1, n1] = ring[i], [e2, n2] = ring[(i + 1) % n], L = Math.hypot(e2 - e1, n2 - n1);
           if (L < 0.3) continue;

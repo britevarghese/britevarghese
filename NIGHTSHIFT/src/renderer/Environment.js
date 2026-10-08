@@ -373,12 +373,15 @@ export class Environment {
     }
 
     // rain animation
-    const vis = this.rain > 0.02;
+    const vis = this.rain > 0.02 && !this.indoors;   // no rain falling in a room
     this.rainGroup.visible = vis;
     if (vis) {
       this.rainMat.opacity = Math.min(0.85, 0.3 + this.rain * 0.5) * (night > 0.5 ? 0.9 : 1);
       this._updateRain(dt, viewPos || focus, this.viewVel);
     }
     this.state.rain = this.rain; this.state.wetness = this.wetness; this.state.cloud = this.cloud;
+    // indoors with the tube lights on: the sky light stands in for them (lights the player; nothing recompiles).
+    // Put back by the forced update on the way out.
+    if (this.indoorLamp > 0.5) { this.hemi.color.setHex(0xfff6e8); this.hemi.groundColor.setHex(0x9a9080); this.hemi.intensity = Math.max(this.hemi.intensity, 1.8 * this.indoorLamp); }
   }
 }

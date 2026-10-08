@@ -469,11 +469,19 @@ export class OnFoot {
   }
 
   // ------------------------------------------------------------------ movement
-  _ground(x, z) { return this.game.world.layout.groundHeight(x, z, this.state.y); }
+  _ground(x, z) { const A = this.game.interiors?.active; return A ? A.floor : this.game.world.layout.groundHeight(x, z, this.state.y); }
+
+  // static colliders round a point: the world's, without the building we're inside, plus its walls and furniture
+  _statics(x0, z0, x1, z1, tmp) {
+    this.game.world.collision.query(x0, z0, x1, z1, tmp);
+    const I = this.game.interiors;
+    if (I?.active) { for (let i = tmp.length - 1; i >= 0; i--) if (tmp[i].off) tmp.splice(i, 1); for (const c of I.colliders) tmp.push(c); }
+    return tmp;
+  }
 
   _free(x, z) {
     const tmp = this._tmp || (this._tmp = []);
-    this.game.world.collision.query(x - 0.6, z - 0.6, x + 0.6, z + 0.6, tmp);
+    this._statics(x - 0.6, z - 0.6, x + 0.6, z + 0.6, tmp);
     for (const c of tmp) {
       if (c.h < this.state.y + 0.5) continue;
       const lx = (x - c.cx) * c.cos - (z - c.cz) * c.sin, lz = (x - c.cx) * c.sin + (z - c.cz) * c.cos;
@@ -486,7 +494,7 @@ export class OnFoot {
   _resolve() {
     const s = this.state, g = this.game;
     const tmp = this._tmp || (this._tmp = []);
-    g.world.collision.query(s.x - 1, s.z - 1, s.x + 1, s.z + 1, tmp);
+    this._statics(s.x - 1, s.z - 1, s.x + 1, s.z + 1, tmp);
     const push = (cx, cz, cos, sin, hx, hz) => {
       const lx = (s.x - cx) * cos - (s.z - cz) * sin, lz = (s.x - cx) * sin + (s.z - cz) * cos;
       const ox = hx + RADIUS - Math.abs(lx), oz = hz + RADIUS - Math.abs(lz);
@@ -580,11 +588,23 @@ export class OnFoot {
     const v = s.speed;
     const step = Math.floor(this.phase / Math.PI);
     if (step !== this.lastStep && v > 0.6 && s.onGround) { this.lastStep = step; g.audio?.playFootstep?.(v > 3, { x: s.x, y: s.y, z: s.z }); }
+    // inside a building: the way out
+    const I = g.interiors;
+    if (I?.active) {
+      const out = I.nearExit(s.x, s.z);
+      g.hud.setPrompt(out ? 'press <span class="key">F</span> / <span class="key">Y</span> to go outside' : null);
+      if (out && input.consume('enter')) I.blink(() => I.leave());
+      return;
+    }
     // enter a vehicle
     const near = this.nearestVehicle();
     const what = { traffic: 'steal this car', police: 'steal the police car', rival: 'take their car', remote: `take ${g.net?.names.get(near?.ref.owner) || 'their'}'s ${vehicleWord(near?.ref.carId)}` }[near?.kind] || 'get in';
-    g.hud.setPrompt(near ? `press <span class="key">F</span> / <span class="key">Y</span> to ${g.net?.pendingTake && near.kind === 'remote' ? 'wait...' : what}` : null);
+    // or a building: walk up to a wall
+    const door = !near && I && !this.pistol.armed ? I.doorAt(s.x, s.z, s.yaw) : null;
+    const dWord = door ? (door.c.bld.shop ? 'go into the shop' : door.c.bld.kind === 4 ? 'go inside' : door.c.bld.kind === 2 ? 'go into the shed' : 'go into the house') : '';
+    g.hud.setPrompt(near ? `press <span class="key">F</span> / <span class="key">Y</span> to ${g.net?.pendingTake && near.kind === 'remote' ? 'wait...' : what}` : door ? `press <span class="key">F</span> / <span class="key">Y</span> to ${dWord}` : null);
     if (near && input.consume('enter')) this.enter(near);
+    else if (door && input.consume('enter')) I.blink(() => I.enter(door));
   }
 
   // place and animate the body for this frame
@@ -620,7 +640,8 @@ export class OnFoot {
     }
     // aiming: in close over the right shoulder
     const A = this.pistol.aim;
-    const dist = this.camDist * (s.speed > 3 ? 1.15 : 1) * (1 - 0.55 * A);
+    const inside = this.game.interiors?.active;
+    const dist = (inside ? 2.3 : this.camDist * (s.speed > 3 ? 1.15 : 1)) * (1 - 0.55 * A);
     const cp = Math.cos(this.camPitch), rx = Math.cos(this.camYaw) * -0.55 * A, rz = -Math.sin(this.camYaw) * -0.55 * A;
     const tx = s.x - Math.sin(this.camYaw) * dist * cp + rx, tz = s.z - Math.cos(this.camYaw) * dist * cp + rz, ty = s.y + 1.55 + Math.sin(this.camPitch) * dist;
     _v.set(tx, Math.max(ty, s.y + 0.4), tz);
@@ -631,6 +652,7 @@ export class OnFoot {
       if (!this._free(px, pz)) { k = Math.max(0.25, (i - 1) / 6); break; }
     }
     _v.set(s.x + (tx - s.x) * k, s.y + 1.4 + (_v.y - s.y - 1.4) * k, s.z + (tz - s.z) * k);
+    if (inside) _v.y = Math.min(_v.y, inside.ceil - 0.18);
     this.camPos.lerp(_v, 1 - Math.exp(-dt * (10 + 14 * A)));
     cam.position.copy(this.camPos);
     // the view looks past the character along the camera's own heading (the crosshair is the screen centre)

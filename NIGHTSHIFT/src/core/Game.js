@@ -35,6 +35,7 @@ import { PoliceManager } from '../police/PoliceManager.js';
 import { RaceManager } from '../races/RaceManager.js';
 import { StreetRivals } from '../races/StreetRivals.js';
 import { OnFoot } from '../player/OnFoot.js';
+import { Interiors } from '../world/Interiors.js';
 import { Story } from '../story/Story.js';
 import { Empire } from '../world/Empire.js';
 import { AudioManager } from '../audio/AudioManager.js';
@@ -124,6 +125,7 @@ export class Game {
     this.races = new RaceManager(this);
     this.rivals = new StreetRivals(this);
     this.onFoot = new OnFoot(this);
+    this.interiors = new Interiors(this);   // walk into buildings
     this.story = new Story(this);
     this.empire = new Empire(this);
     this.peds = new Pedestrians(this.scene, this.world.layout, preset.pedestrians);
@@ -785,6 +787,8 @@ export class Game {
       if (this.onFoot.active && driving) this.onFoot.update(dt, input);
       else if (this.onFoot.inter.st) this.onFoot.inter.update(dt, input); // at the wheel (or finishing getting in)
       this.onFoot.updateParked(dt, this.camera.position, this.env.state);
+      this.interiors.update(dt, this.env.state);
+      this.env.indoors = !!this.interiors.active;
       for (const v of this.onFoot.parked) if (Math.abs(v.state.x - player.state.x) < 8 && Math.abs(v.state.z - player.state.z) < 8) VehiclePhysics.resolvePair(player.physics, v.physics);
       this._drown(dt);
       const dynamic = [player, ...this.onFoot.parked, ...this.police.vehicles(), ...this.races.vehicles(), ...this.rivals.vehicles(), ...this.story.vehicles(), ...this.net.trafficObstacles(), ...this.incidents.vehicles()];
@@ -880,7 +884,7 @@ export class Game {
     this.fx2.damageFlash = damp(this.fx2.damageFlash, 0, 3, dt);
     this.fx2.busted = damp(this.fx2.busted, mode === 'busted' ? 1 : 0, 2, dt);
     // lens rain: builds up while it rains (not under cover), airflow sweeps it at speed
-    const covered = this.world.layout.inTunnel?.(this.camera.position.x, this.camera.position.z);
+    const covered = this.interiors.active || this.world.layout.inTunnel?.(this.camera.position.x, this.camera.position.z);
     this.fx2.lensRain = damp(this.fx2.lensRain || 0, this.env.state.rain > 0.2 && !covered ? Math.min(1, this.env.state.rain) : 0, 0.6, dt);
     this.fx2.lensWind = clamp((speed - 15) / 45, 0, 1);
     // the car's body is posed before the camera: attached views (first person, hood, bumper) read its
