@@ -5487,24 +5487,24 @@
       "wheels": [
         {
           "id": "F",
-          "x": -0.006,
-          "y": 0.307,
-          "z": 0.675,
-          "r": 0.307,
-          "w": 0.113
+          "x": 0.01,
+          "y": 0.31,
+          "z": 0.716,
+          "r": 0.308,
+          "w": 0.12
         },
         {
           "id": "R",
-          "x": -0.01,
-          "y": 0.31,
-          "z": -0.716,
-          "r": 0.308,
-          "w": 0.12
+          "x": 0.006,
+          "y": 0.307,
+          "z": -0.675,
+          "r": 0.307,
+          "w": 0.113
         }
       ],
       "tris": {
-        "lod0": 13788,
-        "lod1": 3270
+        "lod0": 13786,
+        "lod1": 3238
       },
       "source": {
         "site": "Sketchfab",
@@ -5527,7 +5527,7 @@
           "id": "F",
           "x": 0,
           "y": 0.311,
-          "z": 0.632,
+          "z": 0.689,
           "r": 0.311,
           "w": 0.099
         },
@@ -5535,14 +5535,14 @@
           "id": "R",
           "x": 0,
           "y": 0.311,
-          "z": -0.689,
+          "z": -0.632,
           "r": 0.311,
           "w": 0.099
         }
       ],
       "tris": {
-        "lod0": 21601,
-        "lod1": 3302
+        "lod0": 21598,
+        "lod1": 3293
       },
       "source": {
         "site": "Sketchfab",
@@ -5695,7 +5695,7 @@
     "cars/kawasaki_zx6r.glb": "04fb05f437",
     "cars/kl_auto.glb": "2f38b4ef92",
     "cars/kl_brezza.glb": "cff1f9f131",
-    "cars/kl_commuter.glb": "bc63d1e7dc",
+    "cars/kl_commuter.glb": "3a76e2a511",
     "cars/kl_dzire.glb": "84ce99852b",
     "cars/kl_ertiga.glb": "c8cf66221e",
     "cars/kl_ksrtc.glb": "49d9467134",
@@ -5706,7 +5706,7 @@
     "cars/kl_pvtbus2.glb": "fe762222c5",
     "cars/kl_scooter.glb": "823295e68c",
     "cars/kl_scorpio.glb": "90b925094a",
-    "cars/kl_streetbike.glb": "864228dfaa",
+    "cars/kl_streetbike.glb": "c3dd2cadbc",
     "cars/kl_thar.glb": "b2b35eb05f",
     "cars/lamborghini_centenario.glb": "6c9aa6918e",
     "cars/lamborghini_huracan_tt.glb": "3a5864e8ee",
