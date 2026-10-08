@@ -35,7 +35,7 @@ export const TYPE_SPECS = {
   pvtbus2: { bus: true, w: 2.5, l: 10.6, mass: 10500, weight: 0, kl: true, bigRoads: true, colors: [0x1f6fd0, 0xc81e1e, 0x1a9a4a, 0xf0f0f0, 0xe07a10, 0x7a2ab0, 0xe8c020] },   // (its model's front end is broken: kept out of the traffic)
 };
 export const TRAFFIC_COLORS = [0x9aa0a8, 0x2a2d33, 0xe8e8e6, 0x5a1a1a, 0x1c2e4a, 0x3a3f36, 0xb8b0a0, 0x6a6e74, 0x0e0f11, 0x8a2a1a, 0x2a4a6a, 0xd8d0c0];
-const _dir = new THREE.Vector3(), _pa = { x: 0, z: 0 };
+const _dir = new THREE.Vector3(), _pa = { x: 0, z: 0 }, _pb = { x: 0, z: 0 };
 const BUS_COLORS = [0xd8b020, 0x2a6ab0, 0xe0e0e0];
 
 const tmp = {};
@@ -323,9 +323,6 @@ export class TrafficManager {
   _bikeDrive(c, dt) {
     if (!c.bk) { this._place(c); c.bk = { x: c.x, z: c.z, yaw: c.yaw, yr: 0 }; }
     const B = c.bk, v = c.v;
-    c.path.sample(c.s, tmp);
-    const along = v * (Math.sin(B.yaw) * tmp.dx + Math.cos(B.yaw) * tmp.dz);
-    this._advance(c, Math.max(0, along) * dt, false);
     const Ld = 2.2 + v * 0.45, T = this._pointAhead(c, Ld, _pa);
     let diff = Math.atan2(T.x - B.x, T.z - B.z) - B.yaw;
     while (diff > Math.PI) diff -= Math.PI * 2; while (diff < -Math.PI) diff += Math.PI * 2;
@@ -335,9 +332,15 @@ export class TrafficManager {
     B.yr += (want - B.yr) * (1 - Math.exp(-dt * 7));       // the lean (and so the turn) takes a moment to build
     B.yaw += B.yr * dt;
     B.x += Math.sin(B.yaw) * v * dt; B.z += Math.cos(B.yaw) * v * dt;
+    // its place on the lane follows the bike: up to where the rider now is along it (a lane position integrated
+    // from the speed drifted ahead of or behind the bike, which then snapped), and always a little forward when
+    // moving (so a rider sideways to a very short lane piece can't circle its own aiming point)
+    c.path.sample(c.s, tmp);
+    const ahead = (B.x - (tmp.x - tmp.dz * c.lat)) * tmp.dx + (B.z - (tmp.z + tmp.dx * c.lat)) * tmp.dz;
+    this._advance(c, clamp(ahead, v > 1 ? 0.2 * v * dt : 0, v * dt * 2 + 0.3), false);
     // pushed far off its line (a shunt, a lane change into a gap): rejoin it
     this._place(c);
-    if (Math.hypot(c.x - B.x, c.z - B.z) > 3) { B.x = c.x; B.z = c.z; B.yaw = c.yaw; B.yr = 0; }
+    if (Math.hypot(c.x - B.x, c.z - B.z) > 4.5) { B.x = c.x; B.z = c.z; B.yaw = c.yaw; B.yr = 0; }
     c.x = B.x; c.z = B.z; c.yaw = B.yaw;
     if (this.world.kerala) c.y = this.world.layout.groundHeight(c.x, c.z, c.y) + 0.01;
     c.pitch = lerp(c.pitch, c.slope || 0, 0.15);
@@ -501,6 +504,30 @@ export class TrafficManager {
     if (c.next && c.next.kind === 'connector' && c.next.turn !== 'straight') {
       const d = path.length - c.s;
       v0 = Math.min(v0, Math.sqrt(7.5 * 7.5 + 2 * 3 * Math.max(0, d)));
+    }
+    // two-wheelers ease off for the bends and junction turns ahead (Kerala's lanes meet at the junction with a
+    // kink, no connector): the path's heading every 4 m over the next ~45 m gives each bend's radius; a rider
+    // leans into it at a comfortable ~2.8 m/s² and brakes for it in time
+    if (bike && c.dist < 160) {
+      let px = 0, pz = 0, ph = null;
+      for (let i = 0, d = 0; d <= 44; i++, d += 4) {
+        const P = this._pointAhead(c, d, _pb);
+        if (i) {
+          const sx = P.x - px, sz = P.z - pz, seg = Math.hypot(sx, sz);
+          if (seg > 0.8) {
+            const h = Math.atan2(sx, sz);
+            if (ph !== null) {
+              let dh = h - ph; while (dh > Math.PI) dh -= Math.PI * 2; while (dh < -Math.PI) dh += Math.PI * 2;
+              if (Math.abs(dh) > 0.06) {
+                const vc = Math.max(3.6, Math.sqrt(2.8 * seg / Math.abs(dh)));
+                v0 = Math.min(v0, Math.sqrt(vc * vc + 2 * 2.6 * Math.max(0, d - 6)));
+              }
+            }
+            ph = h;
+          }
+        }
+        px = P.x; pz = P.z;
+      }
     }
     // heavy rain: everyone slows down and leaves more room
     const rain = this.rain || 0;
