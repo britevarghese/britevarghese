@@ -522,6 +522,15 @@ export class Game {
     return this._pk;
   }
 
+  // follow a friend in the session on the GPS (call again, or set another destination, to stop)
+  trackFriend(id) {
+    const r = this.net.remotes?.get(id);
+    if (!r) return;
+    if (this.gps?.friend === id) { this.gps = null; this.ui.toast(`Stopped tracking ${r.name}`); return; }
+    this.setGPS(r.x, r.z);
+    this.gps.friend = id; this.gps.name = r.name;
+    this.ui.toast(`Tracking ${r.name}`);
+  }
   setGPS(x, z) {
     const L = this.world.layout;
     const s = this.player.state;
@@ -718,7 +727,15 @@ export class Game {
       if (mode === 'busted') this._bustedUpdate(dt);
       // world interaction prompts (events, garages)
       if (driving && !this.onFoot.active && !this.world.kerala) this._interactions();
-      if (this.gps && this.world.kerala) {
+      // tracking a friend: the GPS follows them (route refreshed every 3 s), and keeps going after you meet up
+      if (this.gps?.friend) {
+        const r = this.net.remotes?.get(this.gps.friend), fs = this.focusState;
+        if (!r) { this.ui.toast('Your friend left the session'); this.gps = null; }
+        else if ((this.gps.t = (this.gps.t || 0) + dt) > 3) { const id = this.gps.friend, name = this.gps.name; this.setGPS(r.x, r.z); this.gps.friend = id; this.gps.name = name; }
+        else { this.gps.x = r.x; this.gps.z = r.z; if (this.gps.route?.length) this.gps.route[this.gps.route.length - 1] = [r.x, r.z]; }
+        if (this.gps && Math.hypot(r.x - fs.x, r.z - fs.z) < 15 && !this.gps.met) { this.gps.met = true; this.ui.toast(`You've caught up with ${this.gps.name}`); }
+        if (this.gps && Math.hypot(r.x - fs.x, r.z - fs.z) > 40) this.gps.met = false;
+      } else if (this.gps && this.world.kerala) {
         const fs = this.focusState;
         if (Math.hypot(this.gps.x - fs.x, this.gps.z - fs.z) < 25) { this.gps = null; this.ui.toast('Destination reached'); }
         else if ((this.gps.t += dt) > 5) this.setGPS(this.gps.x, this.gps.z);
@@ -962,7 +979,7 @@ export class Game {
     }
     if (this.input.consume('garage') && !this.police.inPursuit && !this.races.active && !this.story.active && sp < 3) this.openGarage();
     // GPS arrival
-    if (this.gps && Math.hypot(this.gps.x - s.x, this.gps.z - s.z) < 25) { this.gps = null; this.ui.toast('Destination reached'); }
+    if (this.gps && !this.gps.friend && Math.hypot(this.gps.x - s.x, this.gps.z - s.z) < 25) { this.gps = null; this.ui.toast('Destination reached'); }
     this.hud.setPrompt(prompt);
   }
 

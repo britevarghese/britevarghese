@@ -1,5 +1,6 @@
 // UIManager: main menu, pause, settings, world map, event briefing, results, toasts and the
 // F3 developer overlay. Keyboard, mouse and gamepad navigation for every menu.
+import { MAP_SCALE } from './MapRenderer.js';
 import { bus } from '../core/EventBus.js';
 import { QUALITY_LEVELS, QUALITY_LABELS } from '../core/QualityManager.js';
 import { formatMoney, formatTime } from '../core/util.js';
@@ -419,6 +420,16 @@ export class UIManager {
     legend.style.padding = '1.4rem';
     if (!KL0) legend.innerHTML += `<div><span class="dot" style="background:#fff"></span>You</div><div><span class="dot" style="background:#ffc53d"></span>Race events</div><div><span class="dot" style="background:#3d7bff"></span>Police escape</div><div><span class="dot" style="background:#3dff9a"></span>Safehouses</div><div><span class="dot" style="background:#ff9a3d"></span>Shops</div><div><span class="dot" style="background:#ff3040"></span>Police</div><div><span class="dot" style="background:#b98cff"></span>Story missions</div><div><span class="dot" style="background:#3dff9a"></span>Property for sale</div><div><span class="dot" style="background:#37e2ff"></span>Your property</div><div><span class="dot" style="background:#ffd23d"></span>Odd jobs</div>`;
     const list = h('div', 'map-events');
+    // friends in the session: click to track them on the GPS (click again to stop)
+    const net = g.net;
+    if (net?.connected && net.remotes.size) {
+      list.appendChild(h('div', '', '<b style="color:#b967ff">FRIENDS</b> <span style="color:var(--dim)">click to track</span>'));
+      for (const r of net.remotes.values()) {
+        const ps = g.focusState, d = h('div', '', `<b style="color:#b967ff">● ${r.name}</b> <span style="color:var(--dim)">${(Math.hypot(r.x - ps.x, r.z - ps.z) / 1000).toFixed(1)} km${r.foot ? ' · on foot' : ''}</span>`);
+        d.onclick = () => g.trackFriend(r.id);
+        list.appendChild(d);
+      }
+    }
     // Kerala: the cities and towns, nearest first; click one for GPS
     if (KL0) {
       const ps = g.focusState;
@@ -453,10 +464,33 @@ export class UIManager {
       list.appendChild(d);
     }
     legend.appendChild(list);
-    legend.appendChild(h('div', 'hint', 'Click an event to set GPS · M / ESC to close'));
+    legend.appendChild(h('div', 'hint', 'Scroll to zoom · drag to move · click the map or a place to set GPS · M / ESC to close'));
     s.append(canvas, legend);
     this.screens.appendChild(s);
     this.current = 'map';
+    // view: zoom about the cursor (wheel), pan by dragging; Kerala opens zoomed in on you
+    const V = { z: 1, x: 0, y: 0, init: false };
+    const KLv = !!g.world.kerala, MAXZ = KLv ? 60 : 6;
+    const clampView = () => {
+      V.z = Math.max(1, Math.min(MAXZ, V.z));
+      const w = canvas.width, hh = canvas.height, S = Math.max(w, hh) * V.z;
+      V.x = Math.min(w * 0.5, Math.max(w * 0.5 - S, V.x)); V.y = Math.min(hh * 0.5, Math.max(hh * 0.5 - S, V.y));
+    };
+    const zoomAt = (sx, sy, f) => { const z0 = V.z; V.z = Math.max(1, Math.min(MAXZ, V.z * f)); V.x = sx - (sx - V.x) * V.z / z0; V.y = sy - (sy - V.y) * V.z / z0; clampView(); };
+    canvas.addEventListener('wheel', (e) => {
+      e.preventDefault();
+      const r = canvas.getBoundingClientRect(), dpr = canvas.width / r.width;
+      zoomAt((e.clientX - r.left) * dpr, (e.clientY - r.top) * dpr, Math.exp(-e.deltaY * 0.0015));
+    }, { passive: false });
+    let drag = null;
+    canvas.addEventListener('mousedown', (e) => { drag = { x: e.clientX, y: e.clientY, vx: V.x, vy: V.y, moved: 0 }; });
+    addEventListener('mousemove', (e) => {
+      if (!drag || this.current !== 'map') return;
+      const r = canvas.getBoundingClientRect(), dpr = canvas.width / r.width;
+      drag.moved = Math.max(drag.moved, Math.hypot(e.clientX - drag.x, e.clientY - drag.y));
+      V.x = drag.vx + (e.clientX - drag.x) * dpr; V.y = drag.vy + (e.clientY - drag.y) * dpr; clampView();
+    });
+    addEventListener('mouseup', () => { setTimeout(() => { drag = null; }, 0); });
     const draw = () => {
       if (this.current !== 'map') return;
       const r = canvas.getBoundingClientRect();
@@ -464,10 +498,25 @@ export class UIManager {
       if (canvas.width !== Math.round(r.width * dpr)) { canvas.width = Math.round(r.width * dpr); canvas.height = Math.round(r.height * dpr); }
       const c = canvas.getContext('2d');
       const KL = !!g.world.kerala, M = KL ? g.keralaOverview : g.mapRenderer;
-      const k = canvas.width / M.size;
-      c.clearRect(0, 0, canvas.width, canvas.height);
-      c.drawImage(M.canvas, 0, 0, canvas.width, canvas.height);
-      const P = (x, z) => [M.px(x) * k, M.pz(z) * k];
+      const k = Math.max(canvas.width, canvas.height) / M.size; // one scale both ways (the map is square)
+      if (!V.init) {
+        V.init = true;
+        V.x = (canvas.width - M.size * k) / 2; V.y = (canvas.height - M.size * k) / 2;
+        if (KL) { const f = g.focusState; V.z = 14; V.x = canvas.width / 2 - M.px(f.x) * k * V.z; V.y = canvas.height / 2 - M.pz(f.z) * k * V.z; clampView(); }
+      }
+      c.fillStyle = '#0b1a26'; c.fillRect(0, 0, canvas.width, canvas.height);
+      c.imageSmoothingEnabled = true;
+      c.drawImage(M.canvas, V.x, V.y, M.size * k * V.z, M.size * k * V.z);
+      c.imageSmoothingEnabled = true;
+      const P = (x, z) => [M.px(x) * k * V.z + V.x, M.pz(z) * k * V.z + V.y];
+      // zoomed in on Kerala: the detailed streets round you (the minimap's 5 km window) over the overview
+      if (KL && g.mapRenderer?.canvas && M.s * k * V.z > 0.03) {
+        const L = g.mapRenderer, f = L.size * (M.s / MAP_SCALE) * k * V.z;
+        const [ox, oy] = P(L.cx + (L.size / 2) / MAP_SCALE, L.cz + (L.size / 2) / MAP_SCALE);
+        c.globalAlpha = Math.min(1, (M.s * k * V.z - 0.03) / 0.03);
+        c.drawImage(L.canvas, ox, oy, f, f);
+        c.globalAlpha = 1;
+      }
       const dot = (x, z, r, col, label) => {
         const [a, b] = P(x, z); c.fillStyle = col; c.beginPath(); c.arc(a, b, r * dpr, 0, 7); c.fill();
         if (label) { c.fillStyle = 'rgba(255,255,255,0.85)'; c.font = `${11 * dpr}px Segoe UI, Arial`; c.fillText(label, a + 8 * dpr, b + 4 * dpr); }
@@ -480,6 +529,8 @@ export class UIManager {
       if (!KL && !g.story?.active) for (const [gid, m] of Object.entries(g.story?.available() || {})) { const gv = g.story._giver(gid); dot(gv.x, gv.z, 8, CAST[gid].color, `${CAST[gid].name}: ${m.title}`); }
       for (const b of g.empire?.blips() || []) dot(b.x, b.z, 5, b.color, b.label);
       for (const b of g.story?.active ? g.story.blips() : []) dot(b.x, b.z, 6, b.color);
+      // friends, with their names
+      for (const fr of g.net?.remotes?.values() || []) dot(fr.x, fr.z, g.gps?.friend === fr.id ? 8 : 6, g.gps?.friend === fr.id ? '#37e2ff' : '#b967ff', fr.name);
       const ps = g.focusState;
       const [px, pz] = P(ps.x, ps.z);
       c.save(); c.translate(px, pz); c.rotate(-ps.yaw); c.fillStyle = '#fff'; c.strokeStyle = '#0a0e12'; c.lineWidth = 2.5 * dpr; c.shadowColor = 'rgba(55,226,255,0.9)'; c.shadowBlur = 10 * dpr;
@@ -492,9 +543,11 @@ export class UIManager {
     };
     requestAnimationFrame(draw);
     canvas.addEventListener('click', (e) => {
+      if (drag && drag.moved > 5) return; // that was a drag, not a click
       const r = canvas.getBoundingClientRect();
       const M = g.world.kerala ? g.keralaOverview : g.mapRenderer;
-      const mx = (e.clientX - r.left) / r.width * M.size, mz = (e.clientY - r.top) / r.height * M.size;
+      const dpr = canvas.width / r.width, sx = (e.clientX - r.left) * dpr, sy = (e.clientY - r.top) * dpr;
+      const kk = Math.max(canvas.width, canvas.height) / M.size, mx = (sx - V.x) / V.z / kk, mz = (sy - V.y) / V.z / kk;
       const x = M.wx(mx), z = M.wz(mz);
       g.setGPS(x, z);
     });

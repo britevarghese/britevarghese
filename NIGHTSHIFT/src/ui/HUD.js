@@ -255,9 +255,25 @@ export class HUD {
     // police
     const blink = Math.floor(performance.now() / 180) % 2;
     for (const u of game.police?.units || []) dot(u.vehicle.state.x, u.vehicle.state.z, 4, u.disabled ? '#555' : u.vehicle.renderer.sirenOn ? (blink ? '#ff3040' : '#3060ff') : '#9aa8ff');
-    // multiplayer ghosts
-    for (const r of game.net?.remotes?.values() || []) dot(r.x, r.z, 3.6, '#b967ff');
     g.restore();
+    // friends in the session: a marker with their initial, pinned to the rim with an arrow when out of range
+    for (const r of game.net?.remotes?.values() || []) {
+      const dx = r.x - s.x, dz = r.z - s.z;
+      // world -> minimap (heading up; +x is west, drawn to the left)
+      let mx = -(dx * Math.cos(s.yaw) - dz * Math.sin(s.yaw)) * scale, my = -(dx * Math.sin(s.yaw) + dz * Math.cos(s.yaw)) * scale;
+      const rr = Math.hypot(mx, my), lim = W / 2 - 12, out = rr > lim;
+      if (out) { mx *= lim / rr; my *= lim / rr; }
+      const tracked = game.gps?.friend === r.id;
+      g.save(); g.translate(cx + mx, cy + my);
+      if (out) { g.rotate(Math.atan2(my, mx)); g.fillStyle = tracked ? '#37e2ff' : '#b967ff'; g.beginPath(); g.moveTo(9, 0); g.lineTo(-4, -6); g.lineTo(-4, 6); g.closePath(); g.fill(); }
+      else {
+        g.fillStyle = tracked ? '#37e2ff' : '#b967ff'; g.strokeStyle = '#0a0e12'; g.lineWidth = 2;
+        g.beginPath(); g.arc(0, 0, W * 0.035, 0, Math.PI * 2); g.fill(); g.stroke();
+        g.fillStyle = '#0a0e12'; g.font = `700 ${Math.round(W * 0.04)}px Segoe UI, Arial`; g.textAlign = 'center'; g.textBaseline = 'middle';
+        g.fillText((r.name || '?')[0].toUpperCase(), 0, 0.5);
+      }
+      g.restore();
+    }
     // player arrow (always up): large, bright, outlined and glowing so it reads on any map colour
     g.save(); g.translate(cx, cy);
     g.shadowColor = 'rgba(55,226,255,0.9)'; g.shadowBlur = W * 0.05;
