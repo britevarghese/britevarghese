@@ -1,5 +1,6 @@
 // Game: orchestrates every system. Gameplay state (GameState / VehicleState / WorldState) is
 // kept separate from rendering so a server-authoritative multiplayer mode can be added later.
+import { TrafficDrivers } from '../traffic/TrafficDrivers.js';
 import { Mirrors } from '../vehicles/Mirrors.js';
 import * as THREE from 'three';
 import { bus } from './EventBus.js';
@@ -122,6 +123,7 @@ export class Game {
     // realistic people (rigged characters): streamed in after the city, then used for the player on
     // foot, other players, mission contacts and the pedestrians nearest the camera
     this.mirrors = new Mirrors(this.rm);
+    this.trafficDrivers = new TrafficDrivers(this);
     this.humans = new HumanLibrary(this.assets, this.lib.manifest, { kerala: !!this.world.kerala });
     this.peds.humans = this.humans; this.peds.people = preset.people ?? 8;
     this.humans.load(3).then(() => this.onFoot.useHuman()); // small (~4 MB): ahead of the rival cars
@@ -702,6 +704,7 @@ export class Game {
       this.traffic.camera = this.camera;
       const fs = this.focusState;
       this.traffic.update(dt, fs, this.onFoot.active ? { x: Math.sin(fs.yaw), z: Math.cos(fs.yaw) } : fwd, dynamic, player);
+      this.trafficDrivers.update(dt);
       // player vs police
       for (const u of this.police.units) {
         const v = u.vehicle;
