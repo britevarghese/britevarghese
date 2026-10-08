@@ -414,7 +414,8 @@ export class KeralaTile {
     };
     this.bumps = [];
     for (const [ri, r] of this.roads.entries()) {
-      if (r.cls < 2 || r.cls > 6 || r.dirt || r.flags & 6 || r.pts.length < 2) continue;
+      if (r.cls < 2 || r.cls > 7 || r.dirt || r.flags & 4 || r.pts.length < 2) continue;
+      const bridge = !!(r.flags & 2);
       const hw = r.cls <= 2 && r.lanes ? Math.max(ROAD_HALF[r.cls], r.lanes * 1.75) : ROAD_HALF[r.cls];
       const lift = 0.07 + (10 - r.cls) * 0.004;
       // the line, every ~3 m
@@ -436,8 +437,11 @@ export class KeralaTile {
           // built-up: tagged town land, or buildings close beside the road (most of Kerala's streets are untagged)
           const town = c0 !== C.water && c0 !== C.sea && (TOWN.has(c0) || [3, 8, 14, 20].some((o) => [-5, 5].some((t) => this.classAt(at(hw + o)[0] + N[i][2] * t, at(hw + o)[1] + N[i][3] * t) === C.building)));
           const shop = town && (this.classAt(...at(hw + 2.6)) === C.building || this.classAt(...at(hw + 1.3)) === C.commercial);
-          const y0 = Math.max(this.heightAt(...at(hw)), this.heightAt(...at(hw + 0.9))) + lift;
-          return { at, y0, town, shop: shop && r.cls <= 5 };
+          // beside a canal, backwater or river (or on a bridge): a side wall with a parapet instead
+          const water = bridge || [2.5, 5, 8].some((o) => { const c = this.classAt(...at(hw + o)); return c === C.water || c === C.sea; });
+          let y0 = Math.max(this.heightAt(...at(hw)), this.heightAt(...at(hw + 0.9))) + lift;
+          if (water) y0 = Math.max(this.roadSurface(...at(hw - 0.3)), bridge ? -Infinity : y0);
+          return { at, y0, town: town && !water && r.cls <= 6, shop: shop && r.cls <= 5, water };
         };
         let A = prof(0);
         for (let i = 1; i < P.length; i++) {
@@ -464,10 +468,37 @@ export class KeralaTile {
               edge(hw + 0.75, 0.17, hw + 2.2, 0.2, [0.26 * j, 0.25 * j, 0.22 * j]); // footpath slabs
               edge(hw + 2.2, 0.2, hw + 2.2, -0.35, conc, grime);
             } else edge(hw + 0.75, 0.17, hw + 0.95, -0.35, conc, grime);
+          } else if (A.water && B.water && inTile(mid) && !nj(mid[0], mid[1]) && Number.isFinite(A.y0) && Number.isFinite(B.y0)
+            && [A.at(hw), B.at(hw), [(A.at(hw)[0] + B.at(hw)[0]) / 2, (A.at(hw)[1] + B.at(hw)[1]) / 2]].every((q) => !this.onRoad(q[0], q[1], 0.6, ri))) {
+            // canal side / bridge: a whitewashed parapet on a granite side wall going down to the water; solid
+            const K = kerb[chunkOf(...mid)];
+            const v = (Q, o, h) => { const [e, n] = Q.at(o); return [-e, Q.y0 + h, n]; };
+            const j = 0.9 + rnd() * 0.12, band = bridge && (i & 1) === 0;
+            const white = [0.5 * j, 0.5 * j, 0.47 * j], grime = [0.2 * j, 0.21 * j, 0.18 * j], stone = [0.17 * j, 0.15 * j, 0.12 * j];
+            const edge = (o0, h0, o1, h1, c0, c1) => quad(K, v(A, o0, h0), v(A, o1, h1), v(B, o1, h1), v(B, o0, h0), c0, c1 || c0);
+            edge(hw - 0.12, -0.08, hw - 0.12, 0.62, grime, band ? [0.03, 0.03, 0.03] : white);   // parapet, road face
+            edge(hw - 0.12, 0.62, hw + 0.16, 0.62, white);                                      // coping
+            edge(hw + 0.16, 0.62, hw + 0.16, -0.1, white, grime);                               // outer face
+            edge(hw + 0.16, -0.1, hw + 0.3, -2.6, stone, [0.08, 0.09, 0.07]);                    // side wall down to the water
+            const a = A.at(hw + 0.02), b = B.at(hw + 0.02), de = b[0] - a[0], dn = b[1] - a[1], L = Math.hypot(de, dn) || 1, ang = Math.atan2(-de / L, dn / L);
+            this.colliders.push({ cx: -(this.E0 + (a[0] + b[0]) / 2), cz: this.N0 + (a[1] + b[1]) / 2, hx: 0.16, hz: Math.max(0.2, L / 2 - 0.05), cos: Math.cos(ang), sin: Math.sin(ang), angle: ang, h: Math.max(A.y0, B.y0) + 0.62, kind: 'barrier' });
+          } else if (!A.town && !B.town && !A.water && !B.water && !bridge && r.cls <= 5 && !cover && inTile(mid) && !nj(mid[0], mid[1])
+            && !this.onRoad(...A.at(hw + 0.5), 0.2, ri) && !this.onRoad(...B.at(hw + 0.5), 0.2, ri)) {
+            // country road: the laterite-lined open drain (kaana) along the edge, broken where gates and lanes cross
+            const K = kerb[chunkOf(...mid)];
+            const v = (Q, o, h) => { const [e, n] = Q.at(o); return [-e, Q.y0 + h, n]; };
+            const j = 0.85 + rnd() * 0.2, lat = [0.3 * j, 0.14 * j, 0.075 * j], latD = [0.15 * j, 0.07 * j, 0.04 * j];
+            const edge = (o0, h0, o1, h1, c0, c1) => quad(K, v(A, o0, h0), v(A, o1, h1), v(B, o1, h1), v(B, o0, h0), c0, c1 || c0);
+            edge(hw - 0.06, -0.03, hw + 0.12, 0.03, latD, lat);                  // shoulder lip
+            edge(hw + 0.12, 0.03, hw + 0.17, -0.07, lat, latD);                  // inner wall
+            edge(hw + 0.17, -0.07, hw + 0.57, -0.07, [0.02, 0.03, 0.02]);         // water / silt
+            edge(hw + 0.57, -0.07, hw + 0.62, 0.1, latD, lat);                   // outer wall
+            edge(hw + 0.62, 0.1, hw + 0.85, -0.3, lat, [0.1, 0.12, 0.06]);        // back to the verge
           }
           A = B;
         }
       }
+      if (bridge || r.cls > 6) continue;
       // --- zebra crossings just short of the busy junctions (main roads in town)
       if (r.cls <= 4) for (const J of this._junctions || []) {
         if (J.c < 3) continue;
@@ -978,7 +1009,7 @@ export class KeralaTile {
       g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
       g.setIndex(idx); g.computeVertexNormals();
       const m = new THREE.Mesh(g, M.klLedge || M.klRoofFlat); m.name = 'ledges'; m.castShadow = !!opts.shadows; m.receiveShadow = true;
-      m.userData.cc = [(c % 4) * 500 + 250, Math.floor(c / 4) * 500 + 250]; m.userData.far = 420;
+      m.userData.cc = [(c % 4) * 500 + 250, Math.floor(c / 4) * 500 + 250]; m.userData.far = 230;
       out.push(m);
     }
     if (roofsFlat.length) { const g = mergeGeometries(strip(roofsFlat)); if (g) out.push(new THREE.Mesh(g, M.klRoofFlat)); }
@@ -1051,12 +1082,14 @@ export class KeralaTile {
         if (rnd() < 0.7) { place(D.props.awning, i, t, yb + 2.3, 0, bw * 0.96); D.tint.awning.push(rnd()); }
         if (b > 0 && floors >= 2 && rnd() < 0.3) { place(D.props.sign, i, b / nbays, yb + 3.5, 0); D.tint.sign.push(rnd()); }
         const r = rnd();
+        const fe = e1 + (e2 - e1) * t + un * 1.2, fn = n1 + (n2 - n1) * t - ue * 1.2;
+        if (r < 0.4 && this.onRoad(fe, fn, 0.4, -1, 9)) continue;
         if (r < 0.25) place(D.props.crate, i, t + (rnd() - 0.5) * 0.5 / nbays, this.heightAt(e1 + (e2 - e1) * t + un, n1 + (n2 - n1) * t - ue) + 0.01, 0.9 + rnd() * 0.5);
         else if (r < 0.4) place(D.props.chair, i, t + (rnd() - 0.5) * 0.5 / nbays, this.heightAt(e1 + (e2 - e1) * t + un, n1 + (n2 - n1) * t - ue) + 0.01, 1.2 + rnd() * 0.6);
-        else if (r < 0.6) {
+        else if (r < 0.48) {
           // scooters park nose-in to the shop, at right angles to the wall
           const e = e1 + (e2 - e1) * t + un * 2.4, nn = n1 + (n2 - n1) * t - ue * 2.4;
-          if (!this.nearRoad(e, nn, 3.2, 9) || rnd() < 0.5) {
+          if (!this.onRoad(e, nn, 0.5, -1, 9)) {
             Z.set(-un, 0, -ue); X.crossVectors(Y, Z);
             m4.makeBasis(X, Y, Z).setPosition(-e, this.heightAt(e, nn) + 0.15, nn);
             D.props.scooter.push([m4.clone(), C0]); D.tint.scooter.push(rnd());

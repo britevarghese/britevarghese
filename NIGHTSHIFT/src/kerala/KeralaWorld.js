@@ -163,7 +163,7 @@ export class KeralaWorld {
     // the box stand-ins built before the model arrived
     for (const c of [...t.group.children]) if (c.name === 'detail_scooter') { c.removeFromParent(); c.dispose(); }
     t.scooterMeshes = [];
-    const PAL = [0xe8e8e8, 0x1a1a1a, 0x8a1a1a, 0x2a3a6a, 0x9a9a9a, 0x5a6a5a, 0xc8a020];
+    const PAL = SCOOTER_PAL;
     const col = new THREE.Color();
     for (let c = 0; c < 16; c++) {
       const L = t.scooterSpots.filter((q) => q[1] === c);
@@ -172,7 +172,8 @@ export class KeralaWorld {
         const im = new THREE.InstancedMesh(part.geo, part.mat, L.length);
         L.forEach(([m4, , tint], i) => { im.setMatrixAt(i, _m4.copy(m4).premultiply(_lift)); if (part.paint) im.setColorAt(i, col.set(PAL[Math.floor((tint || 0) * PAL.length)])); });
         im.computeBoundingSphere(); im.name = 'detail_scooterReal'; im.castShadow = false;
-        im.userData.cc = [(c % 4) * 500 + 250, Math.floor(c / 4) * 500 + 250]; im.userData.far = 300;
+        im.userData.spots = L; im.userData.paint = part.paint; im.frustumCulled = false;
+        im.userData.cc = [(c % 4) * 500 + 250, Math.floor(c / 4) * 500 + 250]; im.userData.far = 300; im.userData.near = 130;
         im.matrixAutoUpdate = false; im.updateMatrix();
         t.group.add(im); t.scooterMeshes.push(im);
       }
@@ -433,6 +434,21 @@ export class KeralaWorld {
         for (const c of t.group.children) {
           if (this.detailOff && DETAIL.test(c.name)) c.visible = false;
           else if (c.name === 'lines' || c.name === 'linesY') c.visible = near;
+          else if (c.userData.near) {
+            const ex2 = Math.max(0, Math.abs(-(t.E0 + c.userData.cc[0]) - p.x) - 250), ez2 = Math.max(0, Math.abs(t.N0 + c.userData.cc[1] - p.z) - 250);
+            c.visible = near && Math.hypot(ex2, ez2) < c.userData.near;
+            // only the parked scooters within 60 m are drawn: packed at the front of the instance list
+            if (c.visible && c.userData.spots) {
+              const L = c.userData.spots, gx = -t.E0 - p.x, gz = t.N0 - p.z; let k = 0;
+              for (const [m4, , tint] of L) {
+                const lx = m4.elements[12], lz = m4.elements[14];
+                if (k >= 28 || (lx + gx) ** 2 + (lz + gz) ** 2 > 3600) continue;
+                c.setMatrixAt(k, _sm.copy(m4).premultiply(_lift)); if (c.userData.paint) c.setColorAt(k, _sc.set(SCOOTER_PAL[Math.floor((tint || 0) * SCOOTER_PAL.length)])); k++;
+              }
+              c.count = k; c.instanceMatrix.needsUpdate = true; if (c.instanceColor) c.instanceColor.needsUpdate = true;
+              if (!k) c.visible = false;
+            }
+          }
           else if (c.userData.cc) c.visible = near && Math.hypot(-(t.E0 + c.userData.cc[0]) - p.x, t.N0 + c.userData.cc[1] - p.z) < (c.userData.far || 650);
         }
       }
@@ -469,7 +485,7 @@ function detailGeometries() {
   for (const x of [-1.5, 1.5]) { k.add(new THREE.BoxGeometry(0.42, 1.75, 0.42).translate(x, 0.88, 0), 0xd6d0c2); k.add(new THREE.BoxGeometry(0.52, 0.12, 0.52).translate(x, 1.81, 0), 0x9a6040); }
   k.add(new THREE.BoxGeometry(2.6, 0.06, 0.05).translate(0, 1.35, 0), 0x2a4a6a);
   k.add(new THREE.BoxGeometry(2.6, 0.06, 0.05).translate(0, 0.25, 0), 0x2a4a6a);
-  for (let i = 0; i < 12; i++) k.add(new THREE.BoxGeometry(0.03, 1.1, 0.03).translate(-1.24 + i * 0.225, 0.8, 0), 0x2a4a6a);
+  for (let i = 0; i < 6; i++) k.add(new THREE.BoxGeometry(0.035, 1.1, 0.035).translate(-1.15 + i * 0.46, 0.8, 0), 0x2a4a6a);
   const gateGeo = k.done();
   // shop awning: a sloping sheet 1 m wide (scaled to the bay), 1.3 m deep, on two thin poles at the front
   // (white so the instance colour paints it)
@@ -507,6 +523,9 @@ function detailGeometries() {
   const scooterGeo = k.done();
   return { acGeo, pipeGeo, balconyGeo, gateGeo, awningGeo, signGeo, crateGeo, chairGeo, scooterGeo };
 }
+
+const SCOOTER_PAL = [0xe8e8e8, 0x1a1a1a, 0x8a1a1a, 0x2a3a6a, 0x9a9a9a, 0x5a6a5a, 0xc8a020];
+const _sm = new THREE.Matrix4(), _lift = new THREE.Matrix4().makeTranslation(0, -0.15, 0), _sc = new THREE.Color();
 
 // the optional environment detail layers (F9 turns them off for an A/B performance check)
 const DETAIL = /^(detail_|kerbs$|compound$|ao$|lamp|transformers$|poles$|wires$|ledges$)/;
