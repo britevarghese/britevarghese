@@ -523,11 +523,13 @@ export class KeralaTile {
   }
 
   // The earth shoulder each side of a road strip: from the strip's edge, 1.6 m out and down (or up) to the ground,
-  // so a road on a low embankment has a slope, not a ledge (roadSurface() gives the physics the same slope)
-  _shoulder(g) {
+  // so a road on a low embankment has a slope, not a ledge (roadSurface() gives the physics the same slope).
+  // Not where it would reach into a junction or onto another road (ri: this road's index): the raw ground there
+  // can stand above the other road's graded surface, and the slope showed as a brown wedge across its lanes.
+  _shoulder(g, ri = -1) {
     const P = g.attributes.position.array, n = P.length / 6;
     if (n < 2) return null;
-    const pos = [], idx = [], W = 1.6;
+    const pos = [], idx = [], W = 1.6, clash = [];
     for (const side of [0, 1]) {
       const base = pos.length / 3;
       for (let i = 0; i < n; i++) {
@@ -536,10 +538,15 @@ export class KeralaTile {
         let dx = ex - P[q], dz = ez - P[q + 2]; const l = Math.hypot(dx, dz) || 1; dx /= l; dz /= l;
         const ox = ex + dx * W, oz = ez + dz * W, gy = this.heightAt(-ox, oz) + 0.03;
         pos.push(ex, ey - 0.005, ez, ox, Math.min(gy, ey - 0.02) + (gy > ey ? (gy - ey) : 0), oz);
+        clash.push(this._nearJunction?.(-ox, oz) || this.onRoad(-ox, oz, 0.3, ri) || this.onRoad(-(ex + dx * 0.5), ez + dz * 0.5, 0.1, ri));
       }
       // only where the road and the ground beside it part (a level road needs no slope drawn)
       const drop = (k) => Math.abs(pos[(k * 2) * 3 + 1] - pos[(k * 2 + 1) * 3 + 1]);
-      for (let i = 0; i < n - 1; i++) { if (drop(base / 2 + i) < 0.12 && drop(base / 2 + i + 1) < 0.12) continue; const a = base + i * 2; idx.push(a, a + 1, a + 2, a + 1, a + 3, a + 2); }
+      for (let i = 0; i < n - 1; i++) {
+        if (drop(base / 2 + i) < 0.12 && drop(base / 2 + i + 1) < 0.12) continue;
+        if (clash[side * n + i] || clash[side * n + i + 1]) continue;
+        const a = base + i * 2; idx.push(a, a + 1, a + 2, a + 1, a + 3, a + 2);
+      }
     }
     if (!idx.length) return null;
     // a low bank is bare laterite earth; a tall cut or fill is held by a grey rubble retaining wall, as on hill roads
@@ -601,7 +608,7 @@ export class KeralaTile {
         g.setAttribute('junc', new THREE.BufferAttribute(J, 1));
       }
       (r.dirt ? dirt : paved).push(g);
-      const sk = r.deck ? null : this._shoulder(g);  // (a road with a bridge: its approaches are banked up instead)
+      const sk = r.deck ? null : this._shoulder(g, this.roads.indexOf(r));  // (a road with a bridge: its approaches are banked up instead)
       if (sk) shoulders.push(sk);
       if (r.dirt || r.cls > 4) continue;  // village and town lanes carry no paint
       // markings: dashed white centre line (Indian roads), solid edge lines on the main roads
