@@ -128,6 +128,36 @@ export class KeralaWorld {
     return p;
   }
 
+  _setBack(spots, hx, hz) {
+    if (!spots?.length) return spots;
+    const onRd = (x, z) => { const o = this.tileAt(x, z); return !!o?.ready && o.onRoad(-x - o.E0, z - o.N0, 0.4, -1, 7); };
+    let lanes = [];
+    const nearLane = (x, z) => {
+      for (const l of lanes) for (let i = 1; i < l.pts.length; i++) {
+        const [ax, az] = l.pts[i - 1], [bx, bz] = l.pts[i], dx = bx - ax, dz = bz - az, L2 = dx * dx + dz * dz || 1;
+        if (Math.abs(x - ax) > 60 && Math.abs(x - bx) > 60) continue;
+        const u = Math.max(0, Math.min(1, ((x - ax) * dx + (z - az) * dz) / L2));
+        if (Math.hypot(ax + dx * u - x, az + dz * u - z) < 2.2) return true;
+      }
+      return false;
+    };
+    const blocked = (b) => {
+      const c = Math.cos(b.yaw), s = Math.sin(b.yaw);
+      for (let a = -1; a <= 1; a += 0.5) for (let f = -1; f <= 1; f += 0.5) {
+        const lx = hx * a, lz = hz * f, x = b.x + lx * c + lz * s, z = b.z - lx * s + lz * c;
+        if (onRd(x, z) || nearLane(x, z)) return true;
+      }
+      return false;
+    };
+    return spots.filter((b) => {
+      lanes = this.lanes.lanesNear(b.x, b.z, 0, 20).filter((l) => l.edge.cls <= 7);
+      // the spot faces the road: step back, away from it
+      const bx = -Math.sin(b.yaw) * 0.5, bz = -Math.cos(b.yaw) * 0.5;
+      for (let k = 0; k <= 12; k++) { if (!blocked(b)) return true; b.x += bx; b.z += bz; }
+      return false;
+    });
+  }
+
   _clearLanes(t, list) {
     const onRd = (x, z) => { const o = this.tileAt(x, z); return !!o?.ready && o.onRoad(-x - o.E0, z - o.N0, -0.5, -1, 6); };
     for (const c of list) {
@@ -221,6 +251,10 @@ export class KeralaWorld {
     for (const c of t.colliders) this.collision.add(c);
     this.lanes.addTile(t);
     const n0 = t.colliders.length;
+    // tea stalls and bus shelters stand clear of every carriageway (a junction's other road, a wide highway): set back
+    // from the road until the whole footprint, bench included, is off it, or dropped
+    t.teaShops = this._setBack(t.teaShops, 1.4, 1.9);
+    t.busStops = this._setBack(t.busStops, 1.9, 0.9);
     // tea stalls
     if (t.teaShops?.length && this.teaGeo) {
       const im = new THREE.InstancedMesh(this.teaGeo, this.M.klStop, t.teaShops.length), sg = new THREE.InstancedMesh(this.teaSignGeo, this.M.klTeaSign, t.teaShops.length);
