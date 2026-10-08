@@ -275,6 +275,33 @@ const R = {
     s.noiseHit('brown', 'lowpass', 220, 0.8, t + 0.05, 0.4, 1.0, 3.5, 60);
     s.noiseHit('brown', 'lowpass', 140, 0.8, t + 0.6, 0.6, 0.8, 4.0, 50);
   },
+  // a pistol shot: the crack (a hard, bright transient), the muzzle blast's thump, and its echo off the street
+  gunshot(s, t, o) {
+    const k = clamp(num(o.intensity, 1), 0, 1);
+    s.noiseHit('white', 'highpass', 1800, 0.7, t, 0.0005, 1.0 * k, 0.03);
+    s.noiseHit('white', 'bandpass', rand(2600, 3400), 1.1, t, 0.0005, 0.9 * k, 0.06, 1200);
+    s.noiseHit('brown', 'lowpass', 900, 0.9, t, 0.001, 1.0 * k, 0.16, 120);
+    s.tone('sine', rand(110, 140), t, 0.001, 0.9 * k, 0.12, 45);
+    s.noiseHit('pink', 'lowpass', 1600, 0.7, t + 0.09, 0.02, 0.22 * k, 0.5, 400);
+  },
+  // the magazine out and in, and the slide racked
+  reload(s, t) {
+    s.noiseHit('white', 'bandpass', 2400, 3, t, 0.001, 0.25, 0.03);
+    s.noiseHit('white', 'bandpass', 1700, 3, t + 0.55, 0.001, 0.35, 0.04);
+    s.tone('triangle', 900, t + 0.55, 0.001, 0.08, 0.03, 600);
+    s.noiseHit('white', 'bandpass', 3200, 2, t + 0.95, 0.001, 0.3, 0.05, 1800);
+    s.noiseHit('white', 'bandpass', 2200, 2, t + 1.05, 0.001, 0.35, 0.04);
+  },
+  // the hammer falling on an empty chamber
+  dryFire(s, t) {
+    s.noiseHit('white', 'bandpass', 3800, 4, t, 0.0005, 0.3, 0.02);
+    s.tone('square', 1400, t, 0.0005, 0.05, 0.015, 900);
+  },
+  // a round striking something hard
+  ricochet(s, t) {
+    s.noiseHit('white', 'bandpass', rand(2800, 4200), 3, t, 0.0005, 0.35, 0.05);
+    s.tone('sine', rand(2200, 3600), t + 0.005, 0.002, 0.12, 0.18, rand(900, 1400));
+  },
   // a swing through the air
   whoosh(s, t) {
     s.noiseHit('white', 'bandpass', 900, 1.2, t, 0.05, 0.16, 0.12, 2400);

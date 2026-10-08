@@ -2,6 +2,7 @@
 // on the street, including the ones other players left parked (multiplayer). Carjacking a traffic car
 // throws the driver out and turns the car into a drivable vehicle; your previous car stays parked
 // where you left it (and returns to your garage if you wander far away). The police can chase and arrest you on foot.
+import { Pistol } from './Pistol.js';
 import * as THREE from 'three';
 import { clamp, damp } from '../core/util.js';
 import { Vehicle, FIXED_DT } from '../vehicles/Vehicle.js';
@@ -58,6 +59,7 @@ export class OnFoot {
     this.combo = 0;
     this.dead = false;
     this.inter = new VehicleInteraction(game, this); // getting in and out of vehicles, sitting in them
+    this.pistol = new Pistol(game, this);
   }
 
   // ------------------------------------------------------------------ fighting
@@ -232,6 +234,7 @@ export class OnFoot {
 
   enter(target, instant = false) {
     const g = this.game;
+    this.pistol.holster();
     if (target.kind === 'remote') { g.net.requestTake(target.ref); return false; } // the server hands it over (enterTaken)
     let v;
     if (target.kind === 'own') v = g.player;
@@ -521,9 +524,11 @@ export class OnFoot {
     const s = this.state, g = this.game, ic = input.controls;
     this.hurtT += dt;
     if (this.hurtT > 6 && this.hp < 60 && !this.dead) this.hp = Math.min(60, this.hp + dt * 4);
+    if (this.dead && this.pistol.armed) this.pistol.holster();
     if (this.dead) { s.vx = damp(s.vx, 0, 4, dt); s.vz = damp(s.vz, 0, 4, dt); s.speed = 0; this._pose(dt); g.hud.setPrompt(null); return; }
     if (this.stagger > 0) this.stagger -= dt;
-    const fighting = this.stagger > 0 || this._melee(dt, input);
+    const armed = this.pistol.update(dt, input);       // gun in hand: shooting instead of punching
+    const fighting = this.stagger > 0 || (!armed && this._melee(dt, input));
     if (fighting) {
       s.vx = damp(s.vx, 0, 8, dt); s.vz = damp(s.vz, 0, 8, dt);
       s.x += s.vx * dt; s.z += s.vz * dt;
@@ -546,6 +551,12 @@ export class OnFoot {
       tx = dx / l * sp; tz = dz / l * sp;
       let d = Math.atan2(dx, dz) - s.yaw; while (d > Math.PI) d -= Math.PI * 2; while (d < -Math.PI) d += Math.PI * 2;
       s.yaw += d * Math.min(1, dt * 12);
+    }
+    // aiming: face where the crosshair is and walk (strafe) slower
+    if (this.pistol.aim > 0.3) {
+      tx *= 0.55; tz *= 0.55;
+      let d = this.camYaw - s.yaw; while (d > Math.PI) d -= Math.PI * 2; while (d < -Math.PI) d += Math.PI * 2;
+      s.yaw += d * Math.min(1, dt * 18);
     }
     const acc = this.knockT ? 1.5 : 10;
     const wasGround = s.onGround !== false;
@@ -586,6 +597,7 @@ export class OnFoot {
       body.rotation.set(0, s.yaw, 0);
       body.updateMatrixWorld(true);
       this.human.animate(v, dt, s.onGround === false);
+      this.pistol.pose();
     } else {
       const sw = Math.min(1, v / 2) * (v > 3 ? 0.95 : 0.55);
       b.legL.rotation.x = Math.sin(this.phase) * sw; b.legR.rotation.x = -Math.sin(this.phase) * sw;
@@ -606,9 +618,11 @@ export class OnFoot {
       this.lookIdle = (this.lookIdle || 0) + dt;
       if (this.lookIdle > 1.2 && s.speed > 0.8) { let d = s.yaw - this.camYaw; while (d > Math.PI) d -= Math.PI * 2; while (d < -Math.PI) d += Math.PI * 2; this.camYaw += d * Math.min(1, dt * 1.6); }
     }
-    const dist = this.camDist * (s.speed > 3 ? 1.15 : 1);
-    const cp = Math.cos(this.camPitch);
-    const tx = s.x - Math.sin(this.camYaw) * dist * cp, tz = s.z - Math.cos(this.camYaw) * dist * cp, ty = s.y + 1.55 + Math.sin(this.camPitch) * dist;
+    // aiming: in close over the right shoulder
+    const A = this.pistol.aim;
+    const dist = this.camDist * (s.speed > 3 ? 1.15 : 1) * (1 - 0.55 * A);
+    const cp = Math.cos(this.camPitch), rx = Math.cos(this.camYaw) * -0.55 * A, rz = -Math.sin(this.camYaw) * -0.55 * A;
+    const tx = s.x - Math.sin(this.camYaw) * dist * cp + rx, tz = s.z - Math.cos(this.camYaw) * dist * cp + rz, ty = s.y + 1.55 + Math.sin(this.camPitch) * dist;
     _v.set(tx, Math.max(ty, s.y + 0.4), tz);
     // don't put the camera inside buildings: pull in toward the character
     let k = 1;
@@ -617,10 +631,12 @@ export class OnFoot {
       if (!this._free(px, pz)) { k = Math.max(0.25, (i - 1) / 6); break; }
     }
     _v.set(s.x + (tx - s.x) * k, s.y + 1.4 + (_v.y - s.y - 1.4) * k, s.z + (tz - s.z) * k);
-    this.camPos.lerp(_v, 1 - Math.exp(-dt * 10));
+    this.camPos.lerp(_v, 1 - Math.exp(-dt * (10 + 14 * A)));
     cam.position.copy(this.camPos);
-    cam.lookAt(s.x, s.y + 1.45, s.z);
-    cam.fov = damp(cam.fov, s.speed > 3 ? 62 : 58, 3, dt); cam.near = 0.1;
+    // the view looks past the character along the camera's own heading (the crosshair is the screen centre)
+    const lx = s.x + rx + Math.sin(this.camYaw) * 30 * A, lz = s.z + rz + Math.cos(this.camYaw) * 30 * A;
+    cam.lookAt(lx, s.y + 1.45 - Math.sin(this.camPitch) * 30 * A, lz);
+    cam.fov = damp(cam.fov, A > 0.5 ? 46 : s.speed > 3 ? 62 : 58, A > 0.5 ? 8 : 3, dt); cam.near = 0.1;
     cam.updateProjectionMatrix();
   }
 

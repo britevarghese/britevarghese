@@ -12,7 +12,7 @@ const KEYMAP = {
 };
 const ACTIONS = {
   camera: ['KeyV'], map: ['KeyM'], pause: ['Escape', 'KeyP'], reset: ['KeyR'], horn: ['KeyH'],
-  dev: ['F3'], photo: ['F2'], replay: ['KeyI'], enter: ['KeyF'], jump: ['Space'], fullscreen: ['F11'], confirm: ['Enter'], back: ['Backspace'], event: ['KeyE'], garage: ['KeyG'], attack: ['KeyQ'], sockets: ['F7'], envStats: ['F8'], envDetail: ['F9'], envWeather: ['F4'],
+  dev: ['F3'], photo: ['F2'], replay: ['KeyI'], enter: ['KeyF'], jump: ['Space'], fullscreen: ['F11'], confirm: ['Enter'], back: ['Backspace'], event: ['KeyE'], garage: ['KeyG'], attack: ['KeyQ'], weapon: ['Digit1'], reload: ['KeyR'], sockets: ['F7'], envStats: ['F8'], envDetail: ['F9'], envWeather: ['F4'],
   up: ['ArrowUp'], down: ['ArrowDown'], leftNav: ['ArrowLeft'], rightNav: ['ArrowRight'],
 };
 
@@ -25,7 +25,7 @@ export class InputManager {
     this.steerKeyboard = 0;
     this.gamepadIndex = -1;
     this.lastDevice = 'keyboard';
-    this.mouse = { dx: 0, dy: 0, dragging: false, lastMove: 0 };
+    this.mouse = { dx: 0, dy: 0, dragging: false, lastMove: 0, aim: false };
     this.enabled = true;
     this._padPrev = {};
     addEventListener('keydown', (e) => this._key(e, true));
@@ -41,9 +41,10 @@ export class InputManager {
         try { const r = e.target.requestPointerLock?.({ unadjustedMovement: true }); r?.catch?.(() => { try { e.target.requestPointerLock(); } catch { /* not allowed */ } }); } catch { /* not allowed */ }
       }
       if (e.button === 2 || e.button === 1) this.mouse.dragging = true;
+      if (e.button === 2) this.mouse.aim = true;                      // right button: aim a weapon (on foot)
       if (e.button === 0 && e.target?.tagName === 'CANVAS') this.pressed.add('attack'); // left click: punch / fire
     });
-    addEventListener('mouseup', () => { this.mouse.dragging = false; });
+    addEventListener('mouseup', (e) => { this.mouse.dragging = false; if (e.button === 2) this.mouse.aim = false; });
     addEventListener('mousemove', (e) => {
       if (this.mouse.dragging || document.pointerLockElement) { this.mouse.dx += e.movementX; this.mouse.dy += e.movementY; this.mouse.lastMove = performance.now(); }
     });
@@ -115,8 +116,9 @@ export class InputManager {
       edge(8, 'map');      // Back/View
       edge(1, ['back', 'attack']); // B: back in menus, punch on foot
       edge(0, ['confirm', 'jump']);  // A (menus / jump on foot)
-      edge(12, 'up'); edge(13, 'down'); edge(14, 'leftNav'); edge(15, 'rightNav');
-      edge(4, 'reset');    // LB
+      edge(12, 'up'); edge(14, 'leftNav'); edge(15, 'rightNav');
+      edge(4, ['reset', 'reload']);    // LB (on foot: reload)
+      edge(13, ['down', 'weapon']);  // d-pad down: menus; on foot, draw / holster the pistol
       edge(11, 'horn');    // R3
     }
     c.throttle = throttle; c.brake = brake; c.steer = clamp(steer, -1, 1); c.handbrake = handbrake;
@@ -124,6 +126,8 @@ export class InputManager {
     const csens = this.settings.gameplay.cameraSensitivity || 1;
     c.lookX = lookX + this.mouse.dx * 0.004 * csens; c.lookY = lookY + this.mouse.dy * 0.004 * csens;
     c.mouseLook = this.mouse.dragging || performance.now() - this.mouse.lastMove < 1500;
+    // aiming a weapon on foot: the right mouse button, or the left trigger
+    c.aim = this.mouse.aim || (this.gamepadIndex >= 0 && (navigator.getGamepads?.()[this.gamepadIndex]?.buttons[6]?.value || 0) > 0.5);
     this.mouse.dx = 0; this.mouse.dy = 0;
   }
 

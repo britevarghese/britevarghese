@@ -553,6 +553,47 @@ export class Pedestrians {
     return false;
   }
 
+  // shot (by the player): a head shot or a second body shot puts them down, falling away from the shot;
+  // otherwise they stagger and run. Everyone within earshot scatters.
+  shoot(p, dx, dz, head = false) {
+    if (!p || p.down) return false;
+    p.hp = (p.hp ?? 100) - (head ? 200 : 55 + this.R() * 15);
+    p.stand = null; p.board = null; p.fight = null;
+    if (p.hp <= 0) {
+      const l = Math.hypot(dx, dz) || 1, ux = dx / l, uz = dz / l;
+      p.down = { x: p.x, y: this._gy(p.x, p.z), z: p.z, vx: ux * 1.4, vy: 0.3, vz: uz * 1.4, t: 0, landed: false, rest: 0, yaw: Math.atan2(-ux, -uz), axis: new THREE.Vector3(uz, 0, -ux).normalize(), ang: 0, spin: 0, heavy: false };
+      p.flee = null; p.dodge = 0;
+      if (p.human) { p.human.clearAction(0.05); p.human.play('death', { hold: true, rate: 1.25, fade: 0.05 }); }
+      bus.emit('ped:ko', { x: p.x, z: p.z, ped: p, shot: true });
+    } else {
+      p.stagger = 0.35; p.svx = dx * 1.5; p.svz = dz * 1.5;
+      if (p.human) p.human.play('hit', { rate: 1.4, fade: 0.04 });
+      p.angry = true;
+      this._flee(p, p.x - dx * 10, p.z - dz * 10, 5.4, 10);
+    }
+    this.panic(p.x, p.z, 40, p);
+    return p.hp <= 0;
+  }
+
+  // the nearest standing pedestrian a ray from (ox, oy, oz) along unit (dx, dy, dz) passes through, within maxT:
+  // { p, t, head } (bodies as upright cylinders, 0.3 m round, head the top 0.3 m)
+  rayHit(ox, oy, oz, dx, dy, dz, maxT) {
+    let best = null;
+    const h2 = dx * dx + dz * dz;
+    if (h2 < 1e-6) return null;
+    for (const p of this.peds) {
+      if (p.down || p.x === 0) continue;
+      const px = p.x - ox, pz = p.z - oz, t = (px * dx + pz * dz) / h2;
+      if (t < 0.3 || t > maxT || (best && t > best.t)) continue;
+      const cx = ox + dx * t - p.x, cz = oz + dz * t - p.z;
+      if (cx * cx + cz * cz > 0.33 * 0.33) continue;
+      const gy = this._gy(p.x, p.z), y = oy + dy * t - gy, H = 1.72 * (p.scale || 1);
+      if (y < 0 || y > H) continue;
+      best = { p, t, head: y > H - 0.3 };
+    }
+    return best;
+  }
+
   startFight(p) {
     p.fight = { x: p.x, z: p.z, cd: 0.5 + this.R() * 0.6, sp: 0, strafe: this.R() < 0.5 ? 1 : -1, swing: null, t: 0 };
     p.flee = null; p.wait = 0;

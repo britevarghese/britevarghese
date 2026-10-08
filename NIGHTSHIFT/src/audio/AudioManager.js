@@ -20,6 +20,10 @@ const SPEED_OF_SOUND = 343;
 // event -> bus / reverb send / min retrigger interval (s)
 const EVENT_ROUTING = {
   collision: { bus: 'sfx', reverb: 0.22, gap: 0.06 },
+  gunshot: { bus: 'sfx', reverb: 0.45, gap: 0.04 },
+  reload: { bus: 'sfx', reverb: 0.08, gap: 0.5 },
+  dryFire: { bus: 'sfx', reverb: 0.05, gap: 0.1 },
+  ricochet: { bus: 'sfx', reverb: 0.25, gap: 0.03 },
   footstep: { bus: 'sfx', reverb: 0.12, gap: 0.12 },
   doorOpen: { bus: 'sfx', reverb: 0.1, gap: 0.2 },
   doorShut: { bus: 'sfx', reverb: 0.15, gap: 0.2 },
