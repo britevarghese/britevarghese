@@ -46,6 +46,12 @@ import { NetworkClient } from '../networking/NetworkClient.js';
 import { HumanLibrary } from '../player/Human.js';
 import { QUALITY_LABELS, QUALITY_LEVELS } from './QualityManager.js';
 
+// share of the full traffic / crowd by hour of the day (0..23), Kerala-like: an early start, rush hours at 8-10
+// and 17-19, a lull after lunch, near-empty roads and streets after midnight
+const TRAFFIC_BY_HOUR = [0.18, 0.12, 0.1, 0.1, 0.14, 0.3, 0.55, 0.8, 1, 1, 0.9, 0.8, 0.75, 0.7, 0.7, 0.75, 0.85, 1, 1, 0.9, 0.7, 0.5, 0.35, 0.25];
+const PEOPLE_BY_HOUR = [0.08, 0.05, 0.04, 0.04, 0.08, 0.3, 0.6, 0.85, 1, 1, 0.9, 0.85, 0.7, 0.65, 0.65, 0.75, 0.9, 1, 1, 0.9, 0.7, 0.45, 0.25, 0.14];
+const byHour = (T, h) => { const a = Math.floor(((h % 24) + 24) % 24), f = h - Math.floor(h); return T[a] + (T[(a + 1) % 24] - T[a]) * f; };
+
 export class GameState {
   constructor() { this.mode = 'loading'; this.time = 0; this.distance = 0; }
 }
@@ -828,6 +834,10 @@ export class Game {
     this.env.viewVel = this.focusState; // rain streaks follow your speed
     this.env.update(simulate ? dt : 0, fsv, false, this.camera.position);
     this.world.wet = this.env.state.wetness || 0; this.world.night = this.env.state.night || 0; this.traffic.rain = this.env.state.rain || 0; this.peds.rain = this.env.state.rain || 0;
+    // the day's rhythm: busy at the morning and evening rush, quiet in the small hours (traffic and people)
+    const hr = this.env.hour ?? 12;
+    this.traffic.density = byHour(TRAFFIC_BY_HOUR, hr);
+    this.peds.timeK = byHour(PEOPLE_BY_HOUR, hr);
     if (mode === 'photo') this.photo.applyExposure();
     this.world.update(dt, this.camera, this.env.state);
     if (this.mapRenderer.update) { const f = this.focusState; this.mapRenderer.update(f.x, f.z); }

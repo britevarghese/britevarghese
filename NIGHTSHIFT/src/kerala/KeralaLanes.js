@@ -109,6 +109,34 @@ export class KeralaLaneGraph {
     this.ins = new Map();         // node -> lanes ending there
     this.outs = new Map();        // node -> lanes starting there
     this.version = 0;
+    this.signals = new Map();     // node -> { x, z, off, heads: [{ x, z, yaw, axis }] }
+  }
+
+  // Traffic signals where three or more roads meet and at least two of them are main roads: every lane coming in
+  // stops on its phase (two phases, by the approach's direction), a signal head on the kerb (left) facing it
+  _signalize(nodes) {
+    for (const node of nodes) {
+      const ins = this.ins.get(node) || [], outs = this.outs.get(node) || [];
+      const edges = new Map();
+      for (const l of [...ins, ...outs]) edges.set(l.edge.id, l.edge);
+      const E = [...edges.values()], big = E.filter((e) => e.cls <= 2).length, main = E.filter((e) => e.cls <= 3).length;
+      if (!ins.length || edges.size < 3 || !(big >= 2 || (edges.size >= 4 && main >= 3))) continue;
+      let th0 = null, sx = 0, sz = 0;
+      const heads = [];
+      for (const l of ins) {
+        const P = l.pts, a = P[P.length - 2], b = P[P.length - 1], dx = b[0] - a[0], dz = b[1] - a[1], L = Math.hypot(dx, dz) || 1;
+        const th = Math.atan2(dx, dz);
+        if (th0 === null) th0 = th;
+        l.signal = true; l.axis = Math.abs(Math.sin(th - th0)) < 0.7 ? 'x' : 'z';
+        sx += b[0]; sz += b[1];
+        // one head per approach, on the kerb side (left of travel) by the stop line
+        if (l.laneIndex === 0) heads.push({ x: b[0] + dz / L * (LANE_W * 0.5 + 1.3), z: b[1] - dx / L * (LANE_W * 0.5 + 1.3), yaw: Math.atan2(-dx, -dz), axis: l.axis });
+      }
+      const h = [...node].reduce((s, ch) => (s * 31 + ch.charCodeAt(0)) >>> 0, 7), X = sx / ins.length, Z = sz / ins.length;
+      // (one junction's signals: a node 80 m from another signalled one is the same crossroads, or too close)
+      if ([...this.signals].some(([k, S]) => k !== node && Math.abs(S.x - X) < 80 && Math.abs(S.z - Z) < 80)) { for (const l of ins) l.signal = false; continue; }
+      this.signals.set(node, { x: X, z: Z, off: h % 44, heads });
+    }
   }
 
   addTile(t) {
@@ -182,6 +210,7 @@ export class KeralaLaneGraph {
       if (t.nearRoad?.(e, n, 3.6)) continue;
       t.teaShops.push({ x, z, yaw: Math.atan2(-ox, -oz) });
     }
+    this._signalize(touched);
     // siblings (same road, same direction) for lane changes
     const groups = new Map();
     for (const l of mine) { const g = `${l.edge.id}:${l.dir}`; if (!groups.has(g)) groups.set(g, []); groups.get(g).push(l); }

@@ -466,7 +466,48 @@ export class KeralaWorld {
     ];
   }
 
-  signalState() { return 'green'; }
+  // the signal at a junction for the approaches on one axis: a 44 s cycle, green 18 s, amber 3 s, then red
+  signalState(node, axis) {
+    const S = this.lanes?.signals?.get(node);
+    if (!S) return 'green';
+    const t = ((this.state.time || 0) + S.off) % 44, a = axis === 'x' ? t : (t + 22) % 44;
+    return a < 18 ? 'green' : a < 21 ? 'yellow' : 'red';
+  }
+
+  // the signal poles and heads near the camera, lamps lit by their phase (instanced; refreshed a few times a second)
+  _signals(dt, p) {
+    if (!this.root || !this.lanes?.signals) return;
+    if (!this.sigMeshes) {
+      const mk = (geo, mat, n) => { const m = new THREE.InstancedMesh(geo, mat, n); m.count = 0; m.frustumCulled = false; this.root.add(m); return m; };
+      const N = 160;
+      const dark = new THREE.MeshStandardMaterial({ color: 0x1a1b1c, roughness: 0.6, metalness: 0.3 });
+      const lamp = new THREE.MeshBasicMaterial({ color: 0xffffff });
+      this.sigMeshes = {
+        pole: mk(new THREE.CylinderGeometry(0.07, 0.08, 3.6, 8).translate(0, 1.8, 0), new THREE.MeshStandardMaterial({ color: 0x9a9a92, roughness: 0.7 }), N),
+        head: mk(new THREE.BoxGeometry(0.34, 1.0, 0.26).translate(0, 3.4, 0), dark, N),
+        lamps: [0, 1, 2].map((k) => mk(new THREE.SphereGeometry(0.1, 10, 8).translate(0, 3.72 - k * 0.32, 0.14), lamp, N)),
+      };
+      for (const m of this.sigMeshes.lamps) m.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(N * 3), 3);
+      this._sigT = 0;
+    }
+    if ((this._sigT -= dt) > 0) return;
+    this._sigT = 0.2;
+    const M = this.sigMeshes, m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), up = new THREE.Vector3(0, 1, 0), one = new THREE.Vector3(1, 1, 1), v = new THREE.Vector3(), c = new THREE.Color();
+    const ON = [0xff2a1a, 0xffb020, 0x30ff70], OFF = [0x2a0806, 0x2a1c06, 0x062a10];
+    let n = 0;
+    for (const [node, S] of this.lanes.signals) {
+      if (Math.abs(S.x - p.x) > 500 || Math.abs(S.z - p.z) > 500) continue;
+      for (const H of S.heads) {
+        if (n >= M.pole.instanceMatrix.count) break;
+        m4.compose(v.set(H.x, this.groundHeight(H.x, H.z), H.z), q.setFromAxisAngle(up, H.yaw), one);
+        M.pole.setMatrixAt(n, m4); M.head.setMatrixAt(n, m4);
+        const st = this.signalState(node, H.axis), k = st === 'red' ? 0 : st === 'yellow' ? 1 : 2;
+        M.lamps.forEach((L, i) => { L.setMatrixAt(n, m4); L.setColorAt(n, c.setHex(i === k ? ON[i] : OFF[i])); });
+        n++;
+      }
+    }
+    for (const m of [M.pole, M.head, ...M.lamps]) { m.count = n; m.instanceMatrix.needsUpdate = true; if (m.instanceColor) m.instanceColor.needsUpdate = true; }
+  }
   breakCollider(c) { c.broken = true; }
 
   // -------------------------------------------------------------------------------------- streaming
@@ -474,6 +515,7 @@ export class KeralaWorld {
     this.state.time += dt;
     if (!this.index || !camera) return;
     const p = camera.position, tx = Math.floor(-p.x / TILE), tz = Math.floor(p.z / TILE);
+    this._signals(dt, p);
     if (tx !== this._ctx || tz !== this._ctz) {
       this._ctx = tx; this._ctz = tz;
       // queue what's missing, nearest first; drop what's far away

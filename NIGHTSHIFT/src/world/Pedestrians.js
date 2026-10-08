@@ -191,7 +191,8 @@ export class Pedestrians {
   update(dt, camera, vehicles, enabled = true) {
     const focus = camera.position;
     if (!enabled || this.max === 0) { for (const p of this.peds) this._release(p); for (const m of [this.meshTorso, this.meshHead, this.meshHair, this.meshUmb, ...this.limbMeshes]) m.count = 0; return; }
-    if (this.peds.length < this.max * (1 - this.rain * 0.5) && this.R() < 0.6 * (1 - this.rain * 0.6)) this._spawn(focus);
+    const want = this.max * (1 - this.rain * 0.5) * (this.timeK ?? 1);
+    if (this.peds.length < want && this.R() < 0.6 * (1 - this.rain * 0.6)) this._spawn(focus);
     if (this.layout.standSpots && (this._grpT = (this._grpT || 0) - dt) <= 0) {
       this._grpT = 1.5;
       // groups far away break up; new ones form at the spots near the camera

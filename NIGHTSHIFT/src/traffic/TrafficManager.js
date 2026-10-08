@@ -195,7 +195,7 @@ export class TrafficManager {
       if (c.incident) continue; // an accident scene stays until it is cleared
       // gridlock relief: a car stuck for a long while out of the player's sight quietly goes (another spawns)
       if (c.state === 'drive') { c.stuckT = c.v < 0.3 && !c.dwell ? (c.stuckT || 0) + dt : 0; if (c.stuckT > 25 && dm > 45 && !this._inView(c)) { this.remove(c); continue; } }
-      if (c.path?.dead || dm > 310 || behind || (c.state === 'wreck' && dm > 120) || this.cars.length > max + 4 && dm > 200) this.remove(c);
+      if (c.path?.dead || dm > 310 || behind || (c.state === 'wreck' && dm > 120) || this.cars.length > max + 4 && dm > 200 || (this.cars.length > max + 2 && dm > 110 && c.state === 'drive' && !this._inView(c))) this.remove(c);  // (the roads empty out as night falls)
     }
     // sort occupancy
     for (const c of this.cars) if (c.path) c.path._sorted = false;
