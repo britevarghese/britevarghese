@@ -2,6 +2,7 @@
 // The ones nearest the camera (preset.people: 4-16) are realistic rigged characters (player/Human.js,
 // drawn from a pool and handed back when they walk away); the rest are low-poly figures rendered
 // with a handful of InstancedMeshes (torso/head, legs, arms). Distance LOD: limbs only near the camera.
+import { Ragdoll } from './Ragdoll.js';
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { rng, clamp } from '../core/util.js';
@@ -416,6 +417,23 @@ export class Pedestrians {
   _fallen(p, dt, d, i) {
     const D = p.down;
     D.t += dt;
+    // a rigged character falls as a ragdoll (limbs on their own), near the camera
+    if (p.human && D.rag === undefined && d < 120) {
+      const R = new Ragdoll(p.human, { x: D.vx, y: D.vy, z: D.vz }, D.spin, D.axis);
+      D.rag = R.ok ? R : null;
+      if (D.rag) { p.human.clearAction(0); D.pending = null; }
+    }
+    if (D.rag && D.rag.h !== p.human) D.rag = null;   // (their character went back to the pool)
+    if (D.rag) {
+      const R = D.rag, gh = (x, z) => this.layout.groundHeight?.(x, z) ?? 0, cq = this._rq || (this._rq = []);
+      R.step(dt, gh, this.collision ? (x, z) => this.collision.query(x - 2, z - 2, x + 2, z + 2, cq) : null);
+      D.x = R.hips.x; D.z = R.hips.z; D.y = R.hips.y; D.landed = R.landed;
+      if (!D.thud && R.landed) { D.thud = true; bus.emit('ped:land', { x: D.x, z: D.z, speed: Math.hypot(D.vx, D.vz) }); }
+      if (R.still) D.rest += dt;
+      p.x = D.x; p.z = D.z; p.d = d;
+      if ((D.rest > 25 && d > 40) || d > 200) { this._release(p); this.peds.splice(i, 1); return true; }
+      return false;
+    }
     if (!D.landed) {
       D.vy -= G * dt;
       D.x += D.vx * dt; D.y += D.vy * dt; D.z += D.vz * dt;
@@ -467,6 +485,7 @@ export class Pedestrians {
   // turns end over end in the air and settles back to the clip's lying pose on the ground
   _drawDown(p, n, dt = 1 / 60) {
     const D = p.down;
+    if (D.rag && p.human === D.rag.h) { D.rag.pose(D.yaw); return n; }
     const tumble = D.landed ? Math.round(D.ang / (Math.PI * 2)) * Math.PI * 2 : D.ang;
     if (D.landed) D.ang += (tumble - D.ang) * Math.min(1, dt * 12);
     _qy.setFromAxisAngle(_Y, D.yaw + Math.PI);                 // faces back toward the car: falls backwards
