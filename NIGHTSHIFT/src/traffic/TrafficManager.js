@@ -31,8 +31,8 @@ export const TYPE_SPECS = {
   streetbike: { w: 0.78, l: 2.0, mass: 210, weight: 10, kl: true, bike: true, colors: [0x1a1a1a, 0x2a4a8a, 0xb01818, 0x3a6a3a] },
   lorry: { w: 2.4, l: 7.8, mass: 9000, weight: 5, kl: true, bigRoads: true, livery: true },
   ksrtc: { bus: true, w: 2.5, l: 10.8, mass: 11000, weight: 5, kl: true, bigRoads: true, livery: true },
-  pvtbus: { bus: true, w: 2.5, l: 10.5, mass: 10500, weight: 4, kl: true, bigRoads: true, livery: true },
-  pvtbus2: { bus: true, w: 2.5, l: 10.6, mass: 10500, weight: 5, kl: true, bigRoads: true, colors: [0x1f6fd0, 0xc81e1e, 0x1a9a4a, 0xf0f0f0, 0xe07a10, 0x7a2ab0, 0xe8c020] },
+  pvtbus: { bus: true, w: 2.5, l: 10.5, mass: 10500, weight: 7, kl: true, bigRoads: true, livery: true },
+  pvtbus2: { bus: true, w: 2.5, l: 10.6, mass: 10500, weight: 0, kl: true, bigRoads: true, colors: [0x1f6fd0, 0xc81e1e, 0x1a9a4a, 0xf0f0f0, 0xe07a10, 0x7a2ab0, 0xe8c020] },   // (its model's front end is broken: kept out of the traffic)
 };
 export const TRAFFIC_COLORS = [0x9aa0a8, 0x2a2d33, 0xe8e8e6, 0x5a1a1a, 0x1c2e4a, 0x3a3f36, 0xb8b0a0, 0x6a6e74, 0x0e0f11, 0x8a2a1a, 0x2a4a6a, 0xd8d0c0];
 const _dir = new THREE.Vector3(), _pa = { x: 0, z: 0 };

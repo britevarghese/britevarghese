@@ -15,6 +15,8 @@ import sharp from 'sharp';
 import { stampModels } from './carimport/stamp.mjs';
 
 export const HUMANS = [
+  // the player: a realistic young Indian man (hoodie, jeans, trainers), kept at full texture detail
+  { id: 'hero', sex: 'm', uid: '0304e3ede6f346adbe92439042ee7758', title: 'indian man', author: 'madmak21199', license: 'CC-BY-4.0', tex: 1024 },
   { id: 'pmariano', sex: 'm', uid: 'a9c1f5d2cd7c4ca3bb46272998d3e451', title: 'Avatar Full body - Ready Player Me - pmariano', author: 'patomariano' },
   { id: 'alex', sex: 'm', uid: '006dd7a2d3734387ab4ab8d92c868788', title: 'ReadyPlayerMe - Rainbow Family: Alex', author: 'anonim.user.978' },
   { id: 'arnold', sex: 'm', uid: '4cd6354f28f24ca9ab84bf182279286a', title: 'ReadyPlayerMe - Rainbow Family: Arnold', author: 'anonim.user.978' },
@@ -77,7 +79,7 @@ for (const h of LIST) {
     // crowds: bring heavy models down to ~20k triangles
     let tris = 0; for (const m of doc.getRoot().listMeshes()) for (const p of m.listPrimitives()) tris += (p.getIndices()?.getCount() ?? p.getAttribute('POSITION').getCount()) / 3;
     if (KERALA && tris > 22000) { await doc.transform(weld(), simplify({ simplifier: MeshoptSimplifier, ratio: 20000 / tris, error: 0.004 })); console.log(`   ${h.id}: ${Math.round(tris)} tris -> ~20k`); }
-    await doc.transform(prune(), dedup(), textureCompress({ encoder: sharp, targetFormat: 'webp', resize: [512, 512], quality: 82 }), meshopt({ encoder: MeshoptEncoder, level: 'medium' }));
+    await doc.transform(prune(), dedup(), textureCompress({ encoder: sharp, targetFormat: 'webp', resize: [h.tex || 512, h.tex || 512], quality: 82 }), meshopt({ encoder: MeshoptEncoder, level: 'medium' }));
     const glb = await io.writeBinary(doc);
     fs.writeFileSync(path.join(outDir, `${h.id}.glb`), glb);
     console.log(`${h.id.padEnd(10)} ${(glb.byteLength / 1048576).toFixed(2)} MB`);

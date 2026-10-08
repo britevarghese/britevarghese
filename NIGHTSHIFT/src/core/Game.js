@@ -872,6 +872,13 @@ export class Game {
     const fpv = mode === 'drive' && !this.onFoot.active && CAMERA_MODES[this.camCtl.mode]?.marker === 'eye_cockpit' && !this.input.controls.lookBack && !this.camCtl.cinematic;
     this.mirrors.hideAlso = [this.onFoot.body?.group, this.player.renderer?._fpArms].filter(Boolean);
     this.mirrors.update(this.scene, this.player, fpv && this.settings.graphics.mirrors !== false);
+    // a camera that has left the car (photo mode, a replay, the pause screen) sees the driver at the wheel, not the
+    // first-person arms (the driving camera, which switches them, isn't running then)
+    const pr = this.player?.renderer;
+    if (pr?.cockpitOn && this.camera.position.distanceTo(pr.group.position) > 3) {
+      pr.setCockpitArms(false);
+      if (this.onFoot?.inter?.seated === this.player && !this.player.p.bike) this.onFoot.body.group.visible = true;
+    }
     this.rm.render(this.scene, this.camera, dt);
     if (mode === 'photo') this.photo.afterRender();
     // UI

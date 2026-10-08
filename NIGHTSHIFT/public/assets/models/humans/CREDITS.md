@@ -2,6 +2,7 @@
 
 Character models from Sketchfab, used under their licenses (Creative Commons Attribution 4.0, https://creativecommons.org/licenses/by/4.0/, or the Sketchfab Free Standard license). They were converted for real-time use (animations removed, textures re-encoded, geometry compressed and, for the Kerala crowd, simplified); the game animates them with motion-captured clips (public/assets/anims).
 
+- "indian man" by madmak21199, https://sketchfab.com/3d-models/0304e3ede6f346adbe92439042ee7758 (CC BY 4.0), modified.
 - "Avatar Full body - Ready Player Me - pmariano" by patomariano, https://sketchfab.com/3d-models/a9c1f5d2cd7c4ca3bb46272998d3e451 (CC BY 4.0), modified.
 - "ReadyPlayerMe - Rainbow Family: Alex" by anonim.user.978, https://sketchfab.com/3d-models/006dd7a2d3734387ab4ab8d92c868788 (CC BY 4.0), modified.
 - "ReadyPlayerMe - Rainbow Family: Arnold" by anonim.user.978, https://sketchfab.com/3d-models/4cd6354f28f24ca9ab84bf182279286a (CC BY 4.0), modified.

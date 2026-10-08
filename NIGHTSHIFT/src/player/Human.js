@@ -81,6 +81,10 @@ export class Human {
     this.root = AssetManager.clone(model.scene);
     this.group.add(this.root);
     this.B = {};
+    // a rig with no head-top bone gets one, a neck-length and a bit above the head (posing and sizing aim at it)
+    let head = null, hasTop = false;
+    this.root.traverse((o) => { if (!o.isBone) return; const n = o.name.replace(/^mixamorig\d*[:_]?/i, '').replace(/_\d+$/, ''); if (n === 'Head') head ||= o; if (n === 'HeadTop_End') hasTop = true; });
+    if (head && !hasTop) { const b = new THREE.Bone(); b.name = 'HeadTop_End'; b.position.copy(head.position).multiplyScalar(1.8); head.add(b); }
     this.root.traverse((o) => {
       // (Ready Player Me and Mixamo rigs share bone names; Mixamo exports prefix them, e.g. mixamorig:Hips)
       if (o.isBone) { const n = o.name.replace(/^mixamorig\d*[:_]?/i, '').replace(/_\d+$/, ''); this.B[n] ||= o; o.userData.rest = o.quaternion.clone(); }

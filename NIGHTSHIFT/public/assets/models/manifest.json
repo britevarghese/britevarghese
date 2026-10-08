@@ -5592,6 +5592,19 @@
   },
   "humans": [
     {
+      "id": "hero",
+      "sex": "m",
+      "file": "humans/hero.glb",
+      "source": {
+        "site": "Sketchfab",
+        "uid": "0304e3ede6f346adbe92439042ee7758",
+        "title": "indian man",
+        "author": "madmak21199",
+        "url": "https://sketchfab.com/3d-models/0304e3ede6f346adbe92439042ee7758",
+        "license": "CC-BY-4.0"
+      }
+    },
+    {
       "id": "pmariano",
       "sex": "m",
       "file": "humans/pmariano.glb",
@@ -5747,6 +5760,7 @@
     "humans/alex.glb": "d87147073b",
     "humans/arnold.glb": "0e56ac678d",
     "humans/emilius.glb": "a896155083",
+    "humans/hero.glb": "3af4681b55",
     "humans/jake.glb": "cb3e344faf",
     "humans/kenzie.glb": "44a155d6f3",
     "humans/kl_elder.glb": "4b8cf12450",

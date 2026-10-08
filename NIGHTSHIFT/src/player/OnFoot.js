@@ -134,7 +134,7 @@ export class OnFoot {
 
   // swap the built-in figure for the realistic character (people models loaded)
   useHuman() {
-    const h = this.game.humans?.create('pmariano', { shadow: this.game.preset.shadows !== 'off' });
+    const h = this.game.humans?.create('hero', { shadow: this.game.preset.shadows !== 'off' });
     if (!h || this.human) return;
     this.human = h;
     this.box.group.visible = false;

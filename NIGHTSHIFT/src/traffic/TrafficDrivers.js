@@ -27,7 +27,7 @@ export class TrafficDrivers {
   _take() {
     const H = this.game.humans;
     if (this.pool.length) return this.pool.pop();
-    const n = H.models.length, skip = this.game.world.kerala && n > 2 ? 1 : 0;
+    const n = H.models.length, skip = n > 2 ? 1 : 0;
     const h = H.create(skip + Math.floor(Math.random() * (n - skip)), { shadow: false });
     if (h) h.play('drive', { hold: true, fade: 0 });
     return h;

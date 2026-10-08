@@ -154,7 +154,8 @@ export class PostFX {
       if (this._prevDir) {
         _q.copy(cam.quaternion).invert();
         _p.copy(this._prevDir).applyQuaternion(_q);           // last frame's view direction, in this camera's space
-        if (_p.z < -0.2) {
+        // (a cut, such as the look-back view, jumps further than any turn in one frame: no smear)
+        if (_p.z < -Math.cos(0.35)) {
           const ty = Math.tan(THREE.MathUtils.degToRad(cam.fov) / 2), tx = ty * cam.aspect;
           // per-frame slide in uv, scaled to a 1/60 s shutter whatever the frame rate
           const k = Math.min(1, (1 / 60) / dt) * 0.9;
