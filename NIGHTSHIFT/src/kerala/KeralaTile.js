@@ -1051,8 +1051,8 @@ export class KeralaTile {
         if (rnd() < 0.7) { place(D.props.awning, i, t, yb + 2.3, 0, bw * 0.96); D.tint.awning.push(rnd()); }
         if (b > 0 && floors >= 2 && rnd() < 0.3) { place(D.props.sign, i, b / nbays, yb + 3.5, 0); D.tint.sign.push(rnd()); }
         const r = rnd();
-        if (r < 0.25) place(D.props.crate, i, t + (rnd() - 0.5) * 0.5 / nbays, this.heightAt(e1 + (e2 - e1) * t + un, n1 + (n2 - n1) * t - ue) + 0.2, 0.9 + rnd() * 0.5);
-        else if (r < 0.4) place(D.props.chair, i, t + (rnd() - 0.5) * 0.5 / nbays, this.heightAt(e1 + (e2 - e1) * t + un, n1 + (n2 - n1) * t - ue) + 0.2, 1.2 + rnd() * 0.6);
+        if (r < 0.25) place(D.props.crate, i, t + (rnd() - 0.5) * 0.5 / nbays, this.heightAt(e1 + (e2 - e1) * t + un, n1 + (n2 - n1) * t - ue) + 0.01, 0.9 + rnd() * 0.5);
+        else if (r < 0.4) place(D.props.chair, i, t + (rnd() - 0.5) * 0.5 / nbays, this.heightAt(e1 + (e2 - e1) * t + un, n1 + (n2 - n1) * t - ue) + 0.01, 1.2 + rnd() * 0.6);
         else if (r < 0.6) {
           // scooters park nose-in to the shop, at right angles to the wall
           const e = e1 + (e2 - e1) * t + un * 2.4, nn = n1 + (n2 - n1) * t - ue * 2.4;
@@ -1139,8 +1139,9 @@ export class KeralaTile {
     // awnings in faded tarpaulin blues, greens, reds and tin; scooters in the usual paints
     const PAL = { awning: [0x2d5f8a, 0x2f7a4a, 0x9a3a2a, 0x8a8e94, 0xc89a2a, 0x3a4a9a, 0x8a8e94], scooter: [0xe8e8e8, 0x1a1a1a, 0x8a1a1a, 0x2a3a6a, 0x9a9a9a, 0x5a6a5a], sign: [0xc81e1e, 0x1e5ac8, 0xe8c020, 0x1e8a3a, 0xe8e8e8, 0xd85a1a] };
     const col = new THREE.Color();
+    this.scooterSpots = D.props.scooter.map(([m, c], i) => [m, c, D.tint.scooter[i]]);
     for (const [k, list] of Object.entries(D.props)) {
-      if (!geo[k]) continue;
+      if (!geo[k] || (k === 'scooter' && opts.realScooter)) continue;
       for (let c = 0; c < 16; c++) {
         const idx = []; list.forEach((q, i) => { if (q[1] === c) idx.push(i); });
         const L = idx.map((i) => list[i]);
@@ -1219,7 +1220,7 @@ export class KeralaTile {
   dispose() {
     this.group?.traverse((o) => {
       if (o.isInstancedMesh) o.dispose();
-      if (o.geometry && o.name !== 'treesFar' && o.name !== 'palmsFar') o.geometry.dispose();
+      if (o.geometry && o.name !== 'treesFar' && o.name !== 'palmsFar' && o.name !== 'detail_scooterReal') o.geometry.dispose();
       if (o.material && o.name === 'terrain') { o.material.map?.dispose(); o.material.dispose(); }
     });
     this.group?.removeFromParent();

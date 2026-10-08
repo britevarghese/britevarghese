@@ -153,6 +153,7 @@ export class Game {
     // types whose models arrive later join the renderer then; two-wheelers get their riders once people load
     promise.then(() => {
       attach();
+      this.world.setPropModels?.(this.lib);
       const R = this.trafficRenderer;
       if (!R) return;
       for (const t of Object.keys(TYPE_SPECS)) if (!!TYPE_SPECS[t].kl === !!this.world.kerala && this.lib.has(t)) R.addType(t);

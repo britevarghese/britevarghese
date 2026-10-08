@@ -103,7 +103,7 @@ export class KeralaWorld {
 
   _opts() {
     const p = this.preset || {};
-    return { trees: this.trees, shadows: p.shadows && p.shadows !== 'off', palms: p.trees ?? 1, palmGeo: this.palmGeo, palmMat: this.palmMat, tankGeo: this.tankGeo, poleGeo: this.poleGeo, lampGeo: this.lampGeo, lampHeadGeo: this.lampHeadGeo, lampPoolGeo: this.lampPoolGeo, trafoGeo: this.trafoGeo, manholeGeo: this.manholeGeo, acGeo: this.acGeo, pipeGeo: this.pipeGeo, balconyGeo: this.balconyGeo, gateGeo: this.gateGeo, awningGeo: this.awningGeo, signGeo: this.signGeo, crateGeo: this.crateGeo, chairGeo: this.chairGeo, scooterGeo: this.scooterGeo, ledges: (p.trees ?? 1) >= 0.7, keralaFacade: KERALA_FACADE, keralaShop: KERALA_SHOP, maxBuildings: p.textureSize >= 1024 ? 9000 : 4500 };
+    return { trees: this.trees, shadows: p.shadows && p.shadows !== 'off', palms: p.trees ?? 1, palmGeo: this.palmGeo, palmMat: this.palmMat, tankGeo: this.tankGeo, poleGeo: this.poleGeo, lampGeo: this.lampGeo, lampHeadGeo: this.lampHeadGeo, lampPoolGeo: this.lampPoolGeo, trafoGeo: this.trafoGeo, manholeGeo: this.manholeGeo, acGeo: this.acGeo, pipeGeo: this.pipeGeo, balconyGeo: this.balconyGeo, gateGeo: this.gateGeo, awningGeo: this.awningGeo, signGeo: this.signGeo, crateGeo: this.crateGeo, chairGeo: this.chairGeo, scooterGeo: this.scooterGeo, realScooter: !!this.scooterParts, ledges: (p.trees ?? 1) >= 0.7, keralaFacade: KERALA_FACADE, keralaShop: KERALA_SHOP, maxBuildings: p.textureSize >= 1024 ? 9000 : 4500 };
   }
 
   key(tx, tz) { return `${tx},${tz}`; }
@@ -127,10 +127,63 @@ export class KeralaWorld {
     return p;
   }
 
+  // parked scooters outside the shops use the real two-wheeler model (its low-detail level, instanced per part)
+  setPropModels(lib) {
+    if (this.scooterParts || !lib?.cars?.scooter) return;
+    const root = lib.cars.scooter, lod = root.getObjectByName('lod1') || root.getObjectByName('lod0');
+    if (!lod) return;
+    root.updateMatrixWorld(true);
+    const inv = new THREE.Matrix4().copy(root.matrixWorld).invert(), parts = new Map();
+    lod.traverse((o) => {
+      if (!o.isMesh) return;
+      let g = o.geometry.clone().applyMatrix4(new THREE.Matrix4().multiplyMatrices(inv, o.matrixWorld));
+      for (const k of Object.keys(g.attributes)) if (!['position', 'normal', 'uv'].includes(k)) g.deleteAttribute(k);
+      for (const k of Object.keys(g.attributes)) { const a = g.attributes[k]; if (!(a.array instanceof Float32Array) || a.normalized) { const f = new Float32Array(a.count * a.itemSize); for (let i = 0; i < a.count; i++) for (let j = 0; j < a.itemSize; j++) f[i * a.itemSize + j] = a.getComponent(i, j); g.setAttribute(k, new THREE.BufferAttribute(f, a.itemSize)); } }
+      if (!g.attributes.uv) g.setAttribute('uv', new THREE.BufferAttribute(new Float32Array(g.attributes.position.count * 2), 2));
+      if (!g.attributes.normal) g.computeVertexNormals();
+      if (g.index) g = g.toNonIndexed();
+      const mat = Array.isArray(o.material) ? o.material[0] : o.material;
+      if (!parts.has(mat)) parts.set(mat, []);
+      parts.get(mat).push(g);
+    });
+    this.scooterParts = [...parts].map(([mat, gs]) => {
+      const m = mat.clone();
+      // paint: tinted per instance (white-ish base so the instance colour shows)
+      const paint = /paint|body/i.test(mat.name || '') || (!mat.map && mat.color && Math.max(mat.color.r, mat.color.g, mat.color.b) > 0.25);
+      if (paint) m.color.set(0xffffff);
+      return { geo: mergeGeometries(gs), mat: m, paint };
+    });
+    for (const t of this.tiles.values()) if (t.ready) this._scooters(t);
+  }
+
+  _scooters(t) {
+    const _m4 = new THREE.Matrix4(), _lift = new THREE.Matrix4().makeTranslation(0, -0.15, 0); // the model stands on its tyres
+    if (!this.scooterParts || !t.scooterSpots?.length) return;
+    for (const m of t.scooterMeshes || []) { m.removeFromParent(); m.dispose(); }
+    // the box stand-ins built before the model arrived
+    for (const c of [...t.group.children]) if (c.name === 'detail_scooter') { c.removeFromParent(); c.dispose(); }
+    t.scooterMeshes = [];
+    const PAL = [0xe8e8e8, 0x1a1a1a, 0x8a1a1a, 0x2a3a6a, 0x9a9a9a, 0x5a6a5a, 0xc8a020];
+    const col = new THREE.Color();
+    for (let c = 0; c < 16; c++) {
+      const L = t.scooterSpots.filter((q) => q[1] === c);
+      if (!L.length) continue;
+      for (const part of this.scooterParts) {
+        const im = new THREE.InstancedMesh(part.geo, part.mat, L.length);
+        L.forEach(([m4, , tint], i) => { im.setMatrixAt(i, _m4.copy(m4).premultiply(_lift)); if (part.paint) im.setColorAt(i, col.set(PAL[Math.floor((tint || 0) * PAL.length)])); });
+        im.computeBoundingSphere(); im.name = 'detail_scooterReal'; im.castShadow = false;
+        im.userData.cc = [(c % 4) * 500 + 250, Math.floor(c / 4) * 500 + 250]; im.userData.far = 300;
+        im.matrixAutoUpdate = false; im.updateMatrix();
+        t.group.add(im); t.scooterMeshes.push(im);
+      }
+    }
+  }
+
   _buildTile(t) {
     if (t.ready || !this.root) return;
     const t0 = performance.now();
     this.root.add(t.build(this.M, this._opts()));
+    this._scooters(t);
     for (const c of t.colliders) this.collision.add(c);
     this.lanes.addTile(t);
     // tea stalls
