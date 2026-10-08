@@ -255,9 +255,9 @@ export const TRAFFIC_MODELS = {
   truck: { id: 'traffic_truck', name: 'Mitsubishi Fuso box truck', spec: { len: 7.0, wid: 2.1 }, source: SRC('34ade13df9c543d3b5709b2f2f971b2e', '2006 Mitsubishi Fuso', 'tonielpro520') },
   bus: { id: 'traffic_bus', name: 'City bus', spec: { len: 11.5, wid: 2.55 }, source: SRC('14fe03d792914d51b6c6250b393c44fd', 'Generic Town Bus', 'own.guest') },
   // Kerala: what you actually see on the roads there
-  auto: { id: 'kl_auto', livery: true, import: { flip: true }, name: 'Bajaj autorickshaw', spec: { len: 2.64, wid: 1.3 }, wheels: 3, source: SRC('44776bcb34e04c1a8b9c18a70376304e', 'Auto Rickshaw', 'rSquare') },
+  auto: { id: 'kl_auto', name: 'Bajaj autorickshaw', spec: { len: 2.64, wid: 1.3 }, wheels: 3, source: SRC('0bdfdf97a0f248008806840f7188367c', 'Tuk Tuk Rikshaw', 'alnmathew') },
   ksrtc: { id: 'kl_ksrtc', livery: true, name: 'KSRTC bus', spec: { len: 10.8, wid: 2.5 }, source: SRC('4a3daa08bfb34119b41b75fd2dbbc9ee', 'KSRTC Bus kerala', 'playmode280513') },
-  pvtbus: { id: 'kl_pvtbus', livery: true, name: 'Private bus', spec: { len: 10.5, wid: 2.5 }, source: SRC('67b7998f0f3341a8a96655f96adc1a77', 'Indian  Bus', 'khatriparth') },
+  pvtbus: { id: 'kl_pvtbus', livery: true, import: { flip: true }, name: 'Private bus', spec: { len: 10.5, wid: 2.5 }, source: SRC('67b7998f0f3341a8a96655f96adc1a77', 'Indian  Bus', 'khatriparth') },
   pvtbus2: { id: 'kl_pvtbus2', import: { paint: 'Flake_Shift_Car_Paint', paintAlso: ['Flake_Shift_Car_Paint.001'] }, name: 'Kerala private bus', spec: { len: 10.6, wid: 2.5 }, source: SRC('a1f06445141d4e68b500440570a72dbf', 'KERALA BUS 3D MODEL', 'rmxdesignz') },
   m800: { id: 'kl_m800', import: { doors: true }, name: 'Maruti 800', spec: { len: 3.34, wid: 1.44 }, source: SRC('adcc7ff83891422d9f3dcaf55debc073', 'Maruti 800 AC', 'BHP3D') },
   dzire: { id: 'kl_dzire', import: { doors: true }, name: 'Maruti Swift Dzire', spec: { len: 3.995, wid: 1.735 }, source: SRC('95451c00cb2d48778f67d798167e7237', '2022 Maruti Suzuki Swift Dzire', 'BHP3D') },

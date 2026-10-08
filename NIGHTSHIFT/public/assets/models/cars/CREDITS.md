@@ -32,7 +32,7 @@ They were converted for real-time use (re-scaled, wheels separated, simplified, 
 - **Mercedes-Benz Sprinter** — "Mercedes Benz Sprinter 2006" by Max-7215, https://sketchfab.com/3d-models/f69de1315bb049c8946d57f6006acd73 (CC BY 4.0), modified.
 - **Mitsubishi Fuso box truck** — "2006 Mitsubishi Fuso" by tonielpro520, https://sketchfab.com/3d-models/34ade13df9c543d3b5709b2f2f971b2e (CC BY 4.0), modified.
 - **City bus** — "Generic Town Bus" by own.guest, https://sketchfab.com/3d-models/14fe03d792914d51b6c6250b393c44fd (CC BY 4.0), modified.
-- **Bajaj autorickshaw** — "Auto Rickshaw" by rSquare, https://sketchfab.com/3d-models/44776bcb34e04c1a8b9c18a70376304e (CC BY 4.0), modified.
+- **Bajaj autorickshaw** — "Tuk Tuk Rikshaw" by alnmathew, https://sketchfab.com/3d-models/0bdfdf97a0f248008806840f7188367c (CC BY 4.0), modified.
 - **KSRTC bus** — "KSRTC Bus kerala" by playmode280513, https://sketchfab.com/3d-models/4a3daa08bfb34119b41b75fd2dbbc9ee (CC BY 4.0), modified.
 - **Private bus** — "Indian  Bus" by khatriparth, https://sketchfab.com/3d-models/67b7998f0f3341a8a96655f96adc1a77 (CC BY 4.0), modified.
 - **Maruti 800** — "Maruti 800 AC" by BHP3D, https://sketchfab.com/3d-models/adcc7ff83891422d9f3dcaf55debc073 (CC BY 4.0), modified.

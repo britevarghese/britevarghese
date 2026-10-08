@@ -4861,20 +4861,37 @@
       "file": "cars/kl_auto.glb",
       "imported": true,
       "name": "Bajaj autorickshaw",
-      "length": 2.64,
-      "width": 1.372,
-      "height": 1.745,
-      "wheels": [],
+      "length": 2.634,
+      "width": 1.132,
+      "height": 1.667,
+      "wheels": [
+        {
+          "id": "RL",
+          "x": 0.495,
+          "y": 0.227,
+          "z": -0.933,
+          "r": 0.225,
+          "w": 0.125
+        },
+        {
+          "id": "RR",
+          "x": -0.495,
+          "y": 0.227,
+          "z": -0.933,
+          "r": 0.225,
+          "w": 0.125
+        }
+      ],
       "tris": {
-        "lod0": 8128,
-        "lod1": 2595
+        "lod0": 25908,
+        "lod1": 3291
       },
       "source": {
         "site": "Sketchfab",
-        "uid": "44776bcb34e04c1a8b9c18a70376304e",
-        "title": "Auto Rickshaw",
-        "author": "rSquare",
-        "url": "https://sketchfab.com/3d-models/44776bcb34e04c1a8b9c18a70376304e",
+        "uid": "0bdfdf97a0f248008806840f7188367c",
+        "title": "Tuk Tuk Rikshaw",
+        "author": "alnmathew",
+        "url": "https://sketchfab.com/3d-models/0bdfdf97a0f248008806840f7188367c",
         "license": "CC-BY-4.0"
       }
     },
@@ -4942,40 +4959,40 @@
       "wheels": [
         {
           "id": "FL",
-          "x": 1.012,
-          "y": 0.476,
-          "z": 2.212,
+          "x": 0.902,
+          "y": 0.465,
+          "z": 2.956,
           "r": 0.465,
           "w": 0.168
         },
         {
           "id": "FR",
-          "x": -0.662,
-          "y": 0.476,
-          "z": 2.212,
-          "r": 0.466,
-          "w": 0.17
-        },
-        {
-          "id": "RL",
-          "x": 0.956,
+          "x": -0.956,
           "y": 0.465,
-          "z": -2.955,
+          "z": 2.955,
           "r": 0.465,
           "w": 0.168
         },
         {
+          "id": "RL",
+          "x": 0.662,
+          "y": 0.476,
+          "z": -2.212,
+          "r": 0.466,
+          "w": 0.17
+        },
+        {
           "id": "RR",
-          "x": -0.902,
-          "y": 0.465,
-          "z": -2.956,
+          "x": -1.012,
+          "y": 0.476,
+          "z": -2.212,
           "r": 0.465,
           "w": 0.168
         }
       ],
       "tris": {
-        "lod0": 20634,
-        "lod1": 4040
+        "lod0": 20637,
+        "lod1": 4023
       },
       "source": {
         "site": "Sketchfab",
@@ -5693,7 +5710,7 @@
     "cars/honda_nsx_na1.glb": "1b6c5d3c2c",
     "cars/kawasaki_ninja_h2.glb": "66216bbf7d",
     "cars/kawasaki_zx6r.glb": "04fb05f437",
-    "cars/kl_auto.glb": "2f38b4ef92",
+    "cars/kl_auto.glb": "ba1beab738",
     "cars/kl_brezza.glb": "cff1f9f131",
     "cars/kl_commuter.glb": "3a76e2a511",
     "cars/kl_dzire.glb": "84ce99852b",
@@ -5702,7 +5719,7 @@
     "cars/kl_lorry.glb": "8aa9409c4f",
     "cars/kl_m800.glb": "1723182897",
     "cars/kl_minitruck.glb": "f8f12386ab",
-    "cars/kl_pvtbus.glb": "a4cb21215f",
+    "cars/kl_pvtbus.glb": "c27127f7c0",
     "cars/kl_pvtbus2.glb": "fe762222c5",
     "cars/kl_scooter.glb": "823295e68c",
     "cars/kl_scorpio.glb": "90b925094a",
