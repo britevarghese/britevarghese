@@ -214,7 +214,8 @@ export class TrafficManager {
     const PH = this.cars.filter((c) => c.phys && c.state === 'drive');
     for (let i = 0; i < PH.length; i++) for (let j = i + 1; j < PH.length; j++) {
       const a = PH[i], b = PH[j];
-      if (Math.abs(a.x - b.x) > 12 || Math.abs(a.z - b.z) > 12) continue;
+      const r = (a.spec.l + b.spec.l) / 2 + 1;   // (a bus and a car can touch with their centres 8 m and more apart)
+      if (Math.abs(a.x - b.x) > r || Math.abs(a.z - b.z) > r) continue;
       if (VehiclePhysics.resolvePair(a.phys, b.phys)) for (const c of [a, b]) { c.x = c.phys.s.x; c.z = c.phys.s.z; c.yaw = c.phys.s.yaw; }
     }
     // collisions with dynamic vehicles

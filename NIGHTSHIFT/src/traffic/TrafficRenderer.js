@@ -318,11 +318,17 @@ TrafficRenderer.prototype._imported = function (scene, src, man, max) {
     inv.copy(root.matrixWorld).invert();
     const groups = new Map(); // key -> {kind, mat, geos}
     const wheelGroups = new Map();
+    // the wheel drawn at every hub: the front-left one, or the first wheel the model has (an autorickshaw has only
+    // the rear pair as separate wheels)
+    const hubName = (id) => { let f = null; root.traverse((o) => { if (!f && new RegExp(`^wheel_${id}(_\\d+)?$`).test(o.name)) f = o; }); return f; };
+    const srcHub = ['FL', 'RL', 'FR', 'RR'].find((id) => hubName(id)) || 'FL';
+    entry.wheelSide = srcHub[1] === 'R' ? -1 : 1;
     root.traverse((o) => {
       if (!o.isMesh) return;
       // which wheel (if any) this mesh spins with
       let w = o, hub = null, spin = false;
-      while (w && w !== root) { if (w.name === 'spin') spin = true; if (/^wheel_(FL|FR|RL|RR)$/.test(w.name)) { hub = w; break; } w = w.parent; }
+      // (the loader renames repeated node names, so the far LOD's are 'spin_1', 'wheel_RL_1', ...)
+      while (w && w !== root) { if (/^spin(_\d+)?$/.test(w.name)) spin = true; if (/^wheel_(FL|FR|RL|RR)(_\d+)?$/.test(w.name)) { hub = w; break; } w = w.parent; }
       const mats = Array.isArray(o.material) ? o.material : [o.material];
       const geo0 = o.geometry;
       const parts = geo0.groups?.length && mats.length > 1 ? geo0.groups.map((gr) => ({ mat: mats[gr.materialIndex], geo: sub(geo0, gr) })) : [{ mat: mats[0], geo: geo0 }];
@@ -334,7 +340,7 @@ TrafficRenderer.prototype._imported = function (scene, src, man, max) {
           g.applyMatrix4(rel);
           const key = hub.name.slice(-2) + '|' + mat.uuid;
           // one geometry per material, taken from the front-left wheel only (all four are the same wheel)
-          if (hub.name !== 'wheel_FL') continue;
+          if (hub.name.slice(6, 8) !== srcHub) continue;
           if (!wheelGroups.has(mat.uuid)) wheelGroups.set(mat.uuid, { mat, geos: [] });
           wheelGroups.get(mat.uuid).geos.push(g);
           void key;
@@ -412,7 +418,7 @@ TrafficRenderer.prototype._placeImported = function (T, lod, n, carM, c, lightsO
     if (pt.wheel) {
       T.hubs.forEach((h, k) => {
         _hq.setFromAxisAngle(_Y, h.front ? (c.steer || 0) : 0).multiply(_hs.setFromAxisAngle(_X, c.spin || 0));
-        if (h.side < 0) _hq.multiply(_hs.setFromAxisAngle(_Y, Math.PI)); // right-hand wheels are the left one turned round
+        if (h.side !== (T.wheelSide || 1)) _hq.multiply(_hs.setFromAxisAngle(_Y, Math.PI)); // the other side's wheels are that one turned round
         _hm.compose(h.pos, _hq, _one).premultiply(carM);
         pt.mesh.setMatrixAt(n * 4 + k, _hm);
       });
