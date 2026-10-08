@@ -7,6 +7,7 @@ import { clamp, lerp, rng } from '../core/util.js';
 import { VehiclePhysics } from '../physics/VehiclePhysics.js';
 import { obbOverlap } from '../physics/Collision.js';
 import { bus } from '../core/EventBus.js';
+import { TRAFFIC_VEHICLES } from '../vehicles/VehicleCatalog.js';
 
 export const TYPE_SPECS = {
   sedan: { w: 1.84, l: 4.88, mass: 1500, weight: 30 },
@@ -34,7 +35,7 @@ export const TYPE_SPECS = {
   pvtbus2: { bus: true, w: 2.5, l: 10.6, mass: 10500, weight: 5, kl: true, bigRoads: true, colors: [0x1f6fd0, 0xc81e1e, 0x1a9a4a, 0xf0f0f0, 0xe07a10, 0x7a2ab0, 0xe8c020] },
 };
 export const TRAFFIC_COLORS = [0x9aa0a8, 0x2a2d33, 0xe8e8e6, 0x5a1a1a, 0x1c2e4a, 0x3a3f36, 0xb8b0a0, 0x6a6e74, 0x0e0f11, 0x8a2a1a, 0x2a4a6a, 0xd8d0c0];
-const _dir = new THREE.Vector3();
+const _dir = new THREE.Vector3(), _pa = { x: 0, z: 0 };
 const BUS_COLORS = [0xd8b020, 0x2a6ab0, 0xe0e0e0];
 
 const tmp = {};
@@ -208,6 +209,13 @@ export class TrafficManager {
       const step = far ? dt * 3 : dt;
       this._drive(c, step, dynamic);
     }
+    // physics-driven traffic doesn't pass through itself either
+    const PH = this.cars.filter((c) => c.phys && c.state === 'drive');
+    for (let i = 0; i < PH.length; i++) for (let j = i + 1; j < PH.length; j++) {
+      const a = PH[i], b = PH[j];
+      if (Math.abs(a.x - b.x) > 12 || Math.abs(a.z - b.z) > 12) continue;
+      if (VehiclePhysics.resolvePair(a.phys, b.phys)) for (const c of [a, b]) { c.x = c.phys.s.x; c.z = c.phys.s.z; c.yaw = c.phys.s.yaw; }
+    }
     // collisions with dynamic vehicles
     for (const v of dynamic) {
       const vs = v.physics.s;
@@ -239,7 +247,7 @@ export class TrafficManager {
     }
   }
 
-  _advance(c, ds) {
+  _advance(c, ds, place = true) {
     c.s += ds;
     while (c.s > c.path.length) {
       c.s -= c.path.length;
@@ -251,7 +259,60 @@ export class TrafficManager {
       c.path = nxt; nxt.cars.push(c);
       c.nearMissDone = false;
     }
-    this._place(c);
+    if (place) this._place(c);
+  }
+
+  // A point `ahead` metres further along the car's way (into the next path when this one ends), with its lane offset
+  _pointAhead(c, ahead, out) {
+    let path = c.path, s = c.s + ahead;
+    if (s > path.length) {
+      if (!c.next) c.next = this._chooseNext(path);
+      if (c.next) { s -= path.length; path = c.next; if (s > path.length && path.next?.[0]) { s -= path.length; path = path.next[0]; } }
+      s = Math.min(s, path.length);
+    }
+    path.sample(s, tmp);
+    out.x = tmp.x - tmp.dz * c.lat; out.z = tmp.z + tmp.dx * c.lat;
+    return out;
+  }
+
+  // Near the player, a car drives on the same vehicle physics as the player's (suspension, weight transfer, body
+  // roll, tyre grip, the ground and walls), steered by a driver aiming at a point ahead on its lane; the traffic
+  // logic still decides how fast it should go and still tracks its progress along the lane.
+  _physDrive(c, dt, vDes) {
+    const TV = TRAFFIC_VEHICLES[c.type];
+    if (!c.phys) {
+      const P = new VehiclePhysics({ ...TV.params }, this.world);
+      P.place(c.x, c.z, c.yaw, c.y);
+      P.s.vx = Math.sin(c.yaw) * c.v; P.s.vz = Math.cos(c.yaw) * c.v;
+      c.phys = P; c.ctl = { throttle: 0, brake: 0, steer: 0, handbrake: 0, nitro: false }; c.pacc = 0;
+    }
+    const P = c.phys, s = P.s, k = c.ctl;
+    // progress along the lane: the forward part of the real velocity
+    c.path.sample(c.s, tmp);
+    const along = s.vx * tmp.dx + s.vz * tmp.dz;
+    this._advance(c, Math.max(0, along) * dt, false);
+    // steer at a point ahead (further at speed), like a driver looking down the road
+    const sp = Math.hypot(s.vx, s.vz), T = this._pointAhead(c, 3.2 + sp * 0.55, _pa);
+    let diff = Math.atan2(T.x - s.x, T.z - s.z) - s.yaw;
+    while (diff > Math.PI) diff -= Math.PI * 2; while (diff < -Math.PI) diff += Math.PI * 2;
+    k.steer = clamp(-diff * 2.4, -1, 1);
+    // speed: the acceleration the traffic logic asks for (computed from the real speed), by throttle and brake
+    const acc = c.acc || 0;
+    k.throttle = acc > 0.05 ? clamp(0.2 + acc / 2.2 * 0.8, 0, 1) : 0;
+    k.brake = acc < -0.3 ? clamp(-acc / 7, 0.12, 1) : 0;
+    if (c.gapNow < 0.6) { k.throttle = 0; k.brake = 1; }
+    k.handbrake = 0;
+    if (vDes < 0.3 && sp < 0.8 && acc <= 0.05) { k.throttle = 0; k.brake = 0; k.handbrake = 1; }  // held at a stop (braking there would reverse)
+    c.pacc = Math.min(c.pacc + dt, 0.1);
+    while (c.pacc >= 1 / 60) { P.step(1 / 60, k); c.pacc -= 1 / 60; }
+    P.events.length = 0;
+    c.x = s.x; c.z = s.z; c.y = s.y; c.yaw = s.yaw; c.pitch = s.pitch; c.roll = s.roll;
+    c.steer = s.wheelSteer ?? k.steer * 0.5;
+    c.brake = k.brake > 0.1 || k.handbrake ? 1 : 0;
+    c.v = sp;
+    // leash: a car pushed far off its lane (by a crash) goes back to the traffic model there
+    c.path.sample(c.s, tmp);
+    if (Math.hypot(tmp.x - tmp.dz * c.lat - s.x, tmp.z + tmp.dx * c.lat - s.z) > 4.5) c.phys = null;
   }
 
   _chooseNext(path) {
@@ -424,6 +485,7 @@ export class TrafficManager {
     const g = Math.max(0.1, gap);
     let acc = a * (1 - Math.pow(c.v / Math.max(v0, 0.1), 4) - (sStar / g) ** 2);
     acc = clamp(acc, -9, a);
+    c.acc = acc; c.gapNow = gap;
     c.v = Math.max(0, c.v + acc * dt);
     if (gap < 0.3) c.v = Math.min(c.v, 0.5);
     c.brake = acc < -0.8 || c.v < 0.3 ? 1 : 0;
@@ -444,6 +506,8 @@ export class TrafficManager {
       } else c.laneChangeCD = 1.5;
     }
     c.lat = lerp(c.lat, c.latT || 0, 1 - Math.exp(-dt * (c.spec.bike ? 2.2 : 1.3)));
+    if (this.world.kerala && !c.spec.bike && c.dist < 70 && TRAFFIC_VEHICLES[c.type]?.params) { this._physDrive(c, dt, c.v); c.prevYaw = c.yaw; return; }
+    if (c.phys) { c.phys = null; }            // left the player's surroundings: back on the lane
     this._advance(c, c.v * dt);
     // gentle body pitch on braking
     c.pitch = lerp(c.pitch, (c.brake && c.v > 2 ? -0.02 : 0) + (c.slope || 0), 0.15);
@@ -458,6 +522,13 @@ export class TrafficManager {
 
   _collide(v, c) {
     const A = v.physics;
+    if (c.phys && c.state === 'drive') {
+      const res = VehiclePhysics.resolvePair(A, c.phys);
+      if (!res || !res.impact) return null;
+      const s = c.phys.s; c.x = s.x; c.z = s.z; c.yaw = s.yaw;
+      if (res.impact > 3) { c.s2.vx = s.vx; c.s2.vz = s.vz; c.s2.yawRate = s.yawRate; this.knock(c, s.vx, s.vz, s.yawRate); c.phys = null; }
+      return res;
+    }
     // sync proxy state from traffic car
     const fx = Math.sin(c.yaw), fz = Math.cos(c.yaw);
     if (c.state === 'drive') { c.s2.vx = fx * c.v; c.s2.vz = fz * c.v; c.s2.yawRate = 0; }
