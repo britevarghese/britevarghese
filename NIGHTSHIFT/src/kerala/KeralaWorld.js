@@ -334,6 +334,36 @@ export class KeralaWorld {
     return out;
   }
 
+  // Tree trunks are solid near the player: a small set of colliders refreshed as the player moves (the whole
+  // state's trees as colliders would be millions)
+  _treeColliders(f) {
+    if (!this.trees || !f) return;
+    if (this._tcAt && Math.hypot(f.x - this._tcAt.x, f.z - this._tcAt.z) < 20 && this._tcVer === this.tiles.size) return;
+    this._tcAt = { x: f.x, z: f.z }; this._tcVer = this.tiles.size;
+    for (const c of this._tc || []) this.collision.remove(c);
+    this._tc = [];
+    const R = 90, TRUNK = { 0: 0.24, 1: 0.32, 4: 0.13, 5: 0.2, 6: 0.45 }; // palm, broadleaf, areca, rubber, bamboo clump
+    for (const t of this.tiles.values()) {
+      const d = t.trees?.data;
+      if (!d) continue;
+      const e = -f.x - d.e0, nn = f.z - d.n0;
+      if (e < -R || nn < -R || e > TILE + R || nn > TILE + R) continue;
+      for (let r = Math.max(0, Math.floor((nn - R) / 100)); r <= Math.min(19, Math.floor((nn + R) / 100)); r++) {
+        for (let c = Math.max(0, Math.floor((e - R) / 100)); c <= Math.min(19, Math.floor((e + R) / 100)); c++) {
+          for (const i of d.cells.get(c + r * 64) || []) {
+            const k = d.P[i * 7 + 3], rad = TRUNK[k];
+            if (rad === undefined) continue;
+            const x = -(d.e0 + d.P[i * 7]), z = d.n0 + d.P[i * 7 + 1];
+            if ((x - f.x) ** 2 + (z - f.z) ** 2 > R * R) continue;
+            const hr = rad * Math.max(0.7, d.P[i * 7 + 4]);
+            const col = { cx: x, cz: z, hx: hr, hz: hr, cos: 1, sin: 0, angle: 0, h: d.P[i * 7 + 2] + 6, kind: 'tree' };
+            this.collision.add(col); this._tc.push(col);
+          }
+        }
+      }
+    }
+  }
+
   // F8: what the environment is drawing round the camera
   envStats(env = {}) {
     const n = {}, add = (k, v) => { n[k] = (n[k] || 0) + v; };
@@ -383,6 +413,7 @@ export class KeralaWorld {
     }
     if (best) this._buildTile(best);
     this.trees?.update(camera, this.tiles);
+    this._treeColliders(this.focus || p);
     // the Kerala road follows the shared road's wet / dry look
     const R = this.M?.klRoad, B = this.M?.road;
     if (R && B) { R.userData.u.uWet.value = this.wet || 0; R.roughness = B.roughness; R.color.copy(B.color); R.envMapIntensity = B.envMapIntensity; if (R.roughnessMap !== B.roughnessMap) { R.roughnessMap = B.roughnessMap; R.needsUpdate = true; } }
