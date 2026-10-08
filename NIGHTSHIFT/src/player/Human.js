@@ -39,17 +39,25 @@ export class HumanLibrary {
       .then(([, ...ms]) => { this.models = ms.filter(Boolean); this.ready = this.models.length > 0; return this; });
     return this._job;
   }
-  // AnimationClips for one model: the baked hips track is re-based on this model's own hip height
-  clipsFor(model, hipsRest) {
+  // AnimationClips for one model: the baked hips track is re-based on this model's own hip height, in character
+  // space (y up), then taken into the hips' parent space (a Mixamo armature is often rotated and scaled)
+  clipsFor(model, hips) {
     if (!this.anims) return null;
     model.clips ||= {};
-    const key = hipsRest.toArray().map((v) => v.toFixed(3)).join(',');
+    hips.parent.updateWorldMatrix(true, false);
+    const toLocal = new THREE.Matrix4().copy(hips.parent.matrixWorld).invert();
+    const rest = new THREE.Vector3().setFromMatrixPosition(hips.matrixWorld);
+    const key = [...rest.toArray(), ...toLocal.elements].map((v) => v.toFixed(3)).join(',');
     if (model.clips[key]) return model.clips[key];
-    const A = this.anims, ref = A.hipsRest, k = hipsRest.y / ref[1];
+    const A = this.anims, ref = A.hipsRest, k = rest.y / ref[1], P = new THREE.Vector3();
     const out = {};
     for (const [name, c] of Object.entries(A.clips)) {
       const tracks = Object.entries(c.bones).map(([b, q]) => new THREE.QuaternionKeyframeTrack(`${b}.quaternion`, c.times, q));
-      const hp = c.hips.map((v, i) => hipsRest.getComponent(i % 3) + (v - ref[i % 3]) * k);
+      const hp = new Float32Array(c.hips.length);
+      for (let i = 0; i < c.hips.length; i += 3) {
+        P.set(rest.x + (c.hips[i] - ref[0]) * k, rest.y + (c.hips[i + 1] - ref[1]) * k, rest.z + (c.hips[i + 2] - ref[2]) * k).applyMatrix4(toLocal);
+        hp[i] = P.x; hp[i + 1] = P.y; hp[i + 2] = P.z;
+      }
       tracks.push(new THREE.VectorKeyframeTrack('Hips.position', c.times, hp));
       const clip = new THREE.AnimationClip(name, c.duration, tracks);
       clip.userData = { loop: c.loop, speed: c.speed };
@@ -88,6 +96,9 @@ export class Human {
     // so the ankles sit at a normal ~9 cm
     const ank = Math.min(wpos(this.B.LeftFoot, new THREE.Vector3()).y, wpos(this.B.RightFoot, new THREE.Vector3()).y);
     if (Math.abs(ank - 0.09) > 0.035) { this.root.position.y += 0.09 - ank; this.group.updateMatrixWorld(true); }
+    // and centred over the origin (one model was authored 2.3 m off it, so it walked and fell beside where it was)
+    const hc = wpos(this.B.Hips, new THREE.Vector3());
+    if (Math.hypot(hc.x, hc.z) > 0.15) { this.root.position.x -= hc.x; this.root.position.z -= hc.z; this.group.updateMatrixWorld(true); }
     // rest measurements in character space
     const B = this.B, L = (a, b) => wpos(a, _p).distanceTo(wpos(b, _c));
     this.hipH = wpos(B.Hips, new THREE.Vector3()).y;
@@ -101,7 +112,7 @@ export class Human {
     this.t = Math.random() * 10;
     // motion-captured clips (bones get clean names so the tracks bind)
     for (const [n, b] of Object.entries(B)) b.name = n;
-    const clips = lib?.clipsFor(model, B.Hips.position);
+    const clips = lib?.clipsFor(model, B.Hips);
     if (clips) {
       this.mixer = new THREE.AnimationMixer(this.root);
       this.acts = {};

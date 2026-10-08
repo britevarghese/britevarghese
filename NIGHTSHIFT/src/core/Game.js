@@ -120,6 +120,7 @@ export class Game {
     this.story = new Story(this);
     this.empire = new Empire(this);
     this.peds = new Pedestrians(this.scene, this.world.layout, preset.pedestrians);
+    this.peds.collision = this.world.collision;   // a thrown body stops at walls and poles
     this.incidents = new Incidents(this);
     // realistic people (rigged characters): streamed in after the city, then used for the player on
     // foot, other players, mission contacts and the pedestrians nearest the camera

@@ -405,6 +405,7 @@ export class Pedestrians {
       D.vy -= G * dt;
       D.x += D.vx * dt; D.y += D.vy * dt; D.z += D.vz * dt;
       D.ang += D.spin * dt;
+      this._bodyHit(D, D.y);
       const g = Math.max(CURB_H * 0 , this.layout.groundHeight?.(D.x, D.z) ?? 0) + 0.02;
       if (D.y <= g && D.vy < 0) {
         D.y = g;
@@ -417,6 +418,7 @@ export class Pedestrians {
       const f = Math.exp(-dt * 4.5);
       D.vx *= f; D.vz *= f; D.spin *= Math.exp(-dt * 6);
       D.x += D.vx * dt; D.z += D.vz * dt; D.ang += D.spin * dt;
+      this._bodyHit(D, D.y);
       D.y = (this.layout.groundHeight?.(D.x, D.z) ?? 0) + 0.02;
       if (Math.hypot(D.vx, D.vz) < 0.2) D.rest += dt;
     }
@@ -425,6 +427,25 @@ export class Pedestrians {
     // injured / out cold: lie there; gone once the player has moved on
     if ((D.rest > 25 && d > 40) || d > 200) { this._release(p); this.peds.splice(i, 1); return true; }
     return false;
+  }
+
+  // a thrown or sliding body meets a wall, a pole, a tree or a building: it stops against it (a little rebound)
+  // instead of passing through; `y` = its height (it can fly over a low wall; collider tops are heights too)
+  _bodyHit(D, y) {
+    if (!this.collision) return;
+    const r = 0.3, list = this.collision.query(D.x - r - 1, D.z - r - 1, D.x + r + 1, D.z + r + 1, this._cq || (this._cq = []));
+    for (const c of list) {
+      if ((c.h ?? 99) < y + 0.2) continue;
+      const dx = D.x - c.cx, dz = D.z - c.cz, lx = dx * c.cos - dz * c.sin, lz = dx * c.sin + dz * c.cos;
+      const px = c.hx + r - Math.abs(lx), pz = c.hz + r - Math.abs(lz);
+      if (px <= 0 || pz <= 0) continue;
+      // out along the shallower side; the velocity into the obstacle turns into a small rebound
+      let nx, nz, d;
+      if (px < pz) { const s = Math.sign(lx) || 1; nx = c.cos * s; nz = -c.sin * s; d = px; } else { const s = Math.sign(lz) || 1; nx = c.sin * s; nz = c.cos * s; d = pz; }
+      D.x += nx * d; D.z += nz * d;
+      const vn = D.vx * nx + D.vz * nz;
+      if (vn < 0) { D.vx -= vn * 1.25 * nx; D.vz -= vn * 1.25 * nz; D.vx *= 0.5; D.vz *= 0.5; D.spin *= 0.4; }
+    }
   }
 
   // the whole body follows the throw; the realistic character crumples with its fall clip, the tumble
