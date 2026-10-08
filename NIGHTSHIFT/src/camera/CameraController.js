@@ -83,15 +83,24 @@ export class CameraController {
     const s = vehicle.state;
     const speed = Math.hypot(s.vx, s.vz);
     const mode = CAMERA_MODES[this.mode];
-    // look-around (mouse drag / right stick), eases back when released
+    // look-around, as in GTA: the mouse (or right stick) swings the view round the car (mouse right looks right),
+    // smoothly; let go and it stays a moment, then eases back behind the car once it is moving (parked, it stays)
+    this.orbitXT ??= 0; this.orbitYT ??= 0;
     if (controls.mouseLook || Math.abs(controls.lookX) > 0.01 || Math.abs(controls.lookY) > 0.01) {
-      this.orbitX = clamp(this.orbitX + controls.lookX * (controls.mouseLook ? 1 : dt * 3), -Math.PI, Math.PI);
-      this.orbitY = clamp(this.orbitY + controls.lookY * (controls.mouseLook ? 1 : dt * 2), -0.35, 0.6);
-      this.lookIdle = 0;
-    } else {
-      this.lookIdle = (this.lookIdle || 0) + dt;
-      if (this.lookIdle > 0.6) { this.orbitX = damp(this.orbitX, 0, 3, dt); this.orbitY = damp(this.orbitY, 0, 3, dt); }
+      const k = controls.mouseLook ? 1 : dt * 3;
+      this.orbitXT -= controls.lookX * k;
+      while (this.orbitXT - this.orbitX > Math.PI) this.orbitXT -= Math.PI * 2;
+      while (this.orbitXT - this.orbitX < -Math.PI) this.orbitXT += Math.PI * 2;
+      this.orbitYT = clamp(this.orbitYT + controls.lookY * (controls.mouseLook ? 1 : dt * 2), -0.3, 0.75);
+      if (Math.abs(controls.lookX) > 1e-4 || Math.abs(controls.lookY) > 1e-4) this.lookIdle = 0;
     }
+    this.lookIdle = (this.lookIdle || 0) + dt;
+    if (this.lookIdle > 1.2 && speed > 2.5) {
+      const r = clamp((speed - 2.5) / 6, 0, 1) * 2.4;
+      this.orbitXT = damp(this.orbitXT, 0, r, dt); this.orbitYT = damp(this.orbitYT, 0, r, dt);
+    }
+    this.orbitX = damp(this.orbitX, this.orbitXT, 16, dt); this.orbitY = damp(this.orbitY, this.orbitYT, 16, dt);
+    if (Math.abs(this.orbitX) > Math.PI) { const w = Math.sign(this.orbitX) * Math.PI * 2; this.orbitX -= w; this.orbitXT -= w; }
     const lookBack = controls.lookBack;
 
     if (this.cinematic) {
@@ -174,15 +183,20 @@ export class CameraController {
     const bike = !!vehicle.physics?.p.bike;
     const dist = mode.dist * (bike ? 0.72 : 1) * (1 + 0.08 * ease) + this.gLag + nitro * 0.45;
     this.pitchLag = damp(this.pitchLag, bike ? 0 : s.pitch, 6, dt);
-    const height = mode.height * (bike ? 0.8 : 1) * (1 + this.orbitY * 0.9) - this.pitchLag * 1.6 + (s.onGround ? 0 : 0.35);
+    // looking up or down swings the camera over the car on a sphere (down: higher, up: lower toward the road)
+    const h0 = mode.height * (bike ? 0.8 : 1), d3 = Math.hypot(dist, h0), pch = clamp(Math.atan2(h0, dist) + this.orbitY * 0.9, 0.02, 1.25);
+    const flat = d3 * Math.cos(pch);
+    const height = d3 * Math.sin(pch) - this.pitchLag * 1.6 + (s.onGround ? 0 : 0.35);
     // desired offset from the car, smoothed (no lag at constant velocity)
-    const ox = -Math.sin(h) * dist, oz = -Math.cos(h) * dist;
+    const ox = -Math.sin(h) * flat, oz = -Math.cos(h) * flat;
     // look-back cuts straight to the view from the front (the offset would otherwise swing through the car)
     const cut = this._lb !== undefined && this._lb !== !!lookBack;
     this._lb = !!lookBack;
     if (!this.off || cut) this.off = new THREE.Vector3(ox, height, oz);
     if (cut) this.clear = 1;
-    this.off.x = damp(this.off.x, ox, 12, dt); this.off.z = damp(this.off.z, oz, 12, dt); this.off.y = damp(this.off.y, height, 6, dt);
+    // (looking around is already smoothed: follow it closely)
+    const orb = clamp(Math.max(Math.abs(this.orbitX) / 0.5, Math.abs(this.orbitY) / 0.35), 0, 1);
+    this.off.x = damp(this.off.x, ox, 12 + 18 * orb, dt); this.off.z = damp(this.off.z, oz, 12 + 18 * orb, dt); this.off.y = damp(this.off.y, height, 6 + 14 * orb, dt);
     // vertical follow is softer so suspension bounce doesn't shake the whole view
     this.baseY = this.baseY === undefined ? s.y : damp(this.baseY, s.y, s.onGround ? 7 : 2.5, dt);
     // camera collision: pull in when a building/wall blocks the line from the car to the camera
@@ -193,7 +207,9 @@ export class CameraController {
     const lookAhead = 3 + 8 * ease;
     const lh = this.heading + (lookBack ? Math.PI : 0);
     _t.set(s.x + Math.sin(lh) * lookAhead, this.baseY + mode.look + 0.35 + (s.onGround ? 0 : 0.25), s.z + Math.cos(lh) * lookAhead);
-    if (cut) this.look.copy(_t); else this.look.lerp(_t, 1 - Math.exp(-dt * 14));
+    // looking around: the view turns about the car itself, not a point down the road ahead of it
+    if (orb > 0) { _t.x += (s.x - _t.x) * orb; _t.z += (s.z - _t.z) * orb; }
+    if (cut) this.look.copy(_t); else this.look.lerp(_t, 1 - Math.exp(-dt * (14 + 16 * orb)));
     cam.position.copy(this.pos);
     // shake: fine road vibration that grows with speed + low-frequency sway + impacts
     const t = this.time;

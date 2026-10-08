@@ -33,7 +33,13 @@ export class InputManager {
     addEventListener('blur', () => this.down.clear());
     addEventListener('gamepadconnected', (e) => { this.gamepadIndex = e.gamepad.index; console.info('[Input] gamepad connected:', e.gamepad.id); });
     addEventListener('gamepaddisconnected', () => { this.gamepadIndex = -1; });
+    // while playing, a click on the game captures the mouse (as GTA does): moving it then looks around with no
+    // button held; Esc frees it (and pauses). `lockable` is set by the game each frame.
+    this.lockable = false;
     addEventListener('mousedown', (e) => {
+      if (e.button === 0 && this.lockable && e.target?.tagName === 'CANVAS' && !document.pointerLockElement && this.settings.gameplay.mouseCapture !== false) {
+        try { const r = e.target.requestPointerLock?.({ unadjustedMovement: true }); r?.catch?.(() => { try { e.target.requestPointerLock(); } catch { /* not allowed */ } }); } catch { /* not allowed */ }
+      }
       if (e.button === 2 || e.button === 1) this.mouse.dragging = true;
       if (e.button === 0 && e.target?.tagName === 'CANVAS') this.pressed.add('attack'); // left click: punch / fire
     });
@@ -41,6 +47,7 @@ export class InputManager {
     addEventListener('mousemove', (e) => {
       if (this.mouse.dragging || document.pointerLockElement) { this.mouse.dx += e.movementX; this.mouse.dy += e.movementY; this.mouse.lastMove = performance.now(); }
     });
+    document.addEventListener('pointerlockchange', () => { if (!document.pointerLockElement && this.lockable) this.pressed.add('pause'); });
     addEventListener('contextmenu', (e) => { if (e.target.tagName === 'CANVAS') e.preventDefault(); });
   }
 

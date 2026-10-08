@@ -26,6 +26,7 @@ export const DEFAULT_SETTINGS = {
   },
   gameplay: {
     cameraSensitivity: 1,
+    mouseCapture: true,       // a click captures the mouse for looking around (Esc frees it)
     steeringSensitivity: 1,
     vibration: true,
     units: 'kmh',             // kmh | mph

@@ -650,6 +650,9 @@ export class Game {
     const mode = this.state.mode;
     const input = this.input;
     input.update(dt);
+    // the mouse is captured only while driving or on foot (menus, map and pause get the pointer back)
+    input.lockable = mode === 'drive' && !this.photo?.active;
+    if (!input.lockable && document.pointerLockElement) document.exitPointerLock?.();
     if (input.consume('dev')) this.showDev = !this.showDev;
 
     if (mode === 'garage') {

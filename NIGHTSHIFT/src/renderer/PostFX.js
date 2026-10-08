@@ -14,10 +14,11 @@ const SpeedShader = {
     uFlash: { value: 0 }, uTime: { value: 0 }, uGrain: { value: 0.012 }, uCenter: { value: new THREE.Vector2(0.5, 0.52) },
     uGray: { value: 0 }, uSat: { value: 1 }, uContrast: { value: 1 }, uLift: { value: 0 }, uTint: { value: new THREE.Vector3(1, 1, 1) },
     uRain: { value: 0 }, uRainSpeed: { value: 0 }, tDrops: { value: null }, uAspect: { value: 16 / 9 },
+    uPan: { value: new THREE.Vector2() },
   },
   vertexShader: 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }',
   fragmentShader: `
-    uniform sampler2D tDiffuse; uniform float uBlur, uChroma, uVignette, uFlash, uTime, uGrain, uGray; uniform vec2 uCenter;
+    uniform sampler2D tDiffuse; uniform float uBlur, uChroma, uVignette, uFlash, uTime, uGrain, uGray; uniform vec2 uCenter, uPan;
     uniform sampler2D tDrops; uniform float uRain, uRainSpeed, uAspect;
     uniform float uSat, uContrast, uLift; uniform vec3 uTint;
     varying vec2 vUv;
@@ -46,10 +47,16 @@ const SpeedShader = {
       // radial speed blur, weaker toward the top of the frame so the sky/stars don't streak
       float amt = uBlur * smoothstep(0.18, 0.8, dist) * mix(0.25, 1.0, smoothstep(0.9, 0.4, vUv.y));
       vec4 col = vec4(0.0);
+      // the turn blur spares the middle of the frame (the car the camera turns about stays sharp) and is
+      // dithered per pixel so the 8 taps read as a smear, not as copies
+      vec2 cp = (duv - uCenter) * vec2(uAspect, 1.0);
+      vec2 pan = uPan * smoothstep(0.06, 0.38, length(cp));
+      float jit = rand(vUv * 731.0 + fract(uTime)) - 0.5;
       const int N = 8;
       for (int i = 0; i < N; i++) {
         float t = float(i) / float(N - 1);
-        vec2 uv = duv - dir * amt * t * 0.12;
+        // + camera-turn blur: the image smeared along how far it slid across the screen while the shutter was open
+        vec2 uv = duv - dir * amt * t * 0.12 + pan * (t - 0.5 + jit / float(N));
         vec2 off = dir * uChroma * 0.012 * dist;
         col.r += texture2D(tDiffuse, uv + off).r;
         col.g += texture2D(tDiffuse, uv).g;
@@ -104,6 +111,8 @@ function dropTexture() {
   return t;
 }
 
+const _d = new THREE.Vector3(), _p = new THREE.Vector3(), _q = new THREE.Quaternion();
+
 export class PostFX {
   constructor(renderer, scene, camera, preset) {
     this.renderer = renderer;
@@ -111,6 +120,7 @@ export class PostFX {
     const rt = new THREE.WebGLRenderTarget(size.x, size.y, { type: THREE.HalfFloatType, samples: preset.antialias === 'msaa' ? 4 : 0 });
     this.composer = new EffectComposer(renderer, rt);
     this.composer.addPass(new RenderPass(scene, camera));
+    this.camera = camera;
     const bloomRes = new THREE.Vector2(size.x, size.y).multiplyScalar(preset.post === 'high' ? 0.5 : 0.35);
     this.bloom = new UnrealBloomPass(bloomRes, preset.post === 'high' ? 0.6 : 0.45, 0.5, 0.9);
     this.composer.addPass(this.bloom);
@@ -136,6 +146,27 @@ export class PostFX {
     const u = this.speed.uniforms;
     const blur = this.preset.motionBlur ? fx.speed : 0;
     u.uBlur.value = blur;
+    // camera motion blur from turning the view (mouse look, a swinging chase camera): where the point now at the
+    // screen centre was last frame, as a screen-space slide; only fast turns smear, at most a few percent of the frame
+    const cam = this.camera, P = u.uPan.value;
+    if (cam && this.preset.motionBlur && dt > 0) {
+      cam.getWorldDirection(_d);
+      if (this._prevDir) {
+        _q.copy(cam.quaternion).invert();
+        _p.copy(this._prevDir).applyQuaternion(_q);           // last frame's view direction, in this camera's space
+        if (_p.z < -0.2) {
+          const ty = Math.tan(THREE.MathUtils.degToRad(cam.fov) / 2), tx = ty * cam.aspect;
+          // per-frame slide in uv, scaled to a 1/60 s shutter whatever the frame rate
+          const k = Math.min(1, (1 / 60) / dt) * 0.9;
+          let sx = (_p.x / -_p.z) / tx * 0.5 * k, sy = (_p.y / -_p.z) / ty * 0.5 * k;
+          const L = Math.hypot(sx, sy), lim = 0.028;
+          if (L > lim) { sx *= lim / L; sy *= lim / L; }
+          const f = Math.min(1, Math.max(0, (Math.hypot(sx, sy) - 0.002) / 0.006));   // still or slow: none
+          P.set(sx * f, sy * f);
+        } else P.set(0, 0);
+      }
+      (this._prevDir ||= new THREE.Vector3()).copy(_d);
+    } else P.set(0, 0);
     u.uChroma.value = this.preset.post === 'high' ? fx.nitro : 0;
     u.uFlash.value = fx.damageFlash;
     u.uTime.value = this.time % 100;

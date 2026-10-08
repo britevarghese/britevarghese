@@ -348,6 +348,7 @@ export class UIManager {
         opt('FPS counter', 'F3 shows full developer stats', 'graphics', 'showFps', [true, false], ['ON', 'OFF']);
       } else if (tab === 1) {
         slider('Camera sensitivity', 'gameplay', 'cameraSensitivity', 0.2, 2, 0.05);
+        opt('Mouse look', 'Click the game to capture the mouse and look around freely (Esc frees it); off: hold the right button to look', 'gameplay', 'mouseCapture', [true, false], ['CAPTURE', 'RIGHT-DRAG']);
         slider('Steering sensitivity', 'gameplay', 'steeringSensitivity', 0.4, 1.8, 0.05);
         opt('Controller vibration', '', 'gameplay', 'vibration', [true, false], ['ON', 'OFF']);
         opt('Units', '', 'gameplay', 'units', ['kmh', 'mph'], ['KM/H', 'MPH']);
