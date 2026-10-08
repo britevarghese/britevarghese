@@ -1,5 +1,6 @@
 // Game: orchestrates every system. Gameplay state (GameState / VehicleState / WorldState) is
 // kept separate from rendering so a server-authoritative multiplayer mode can be added later.
+import { KeralaHighways } from '../kerala/KeralaHighways.js';
 import { TrafficDrivers } from '../traffic/TrafficDrivers.js';
 import { Mirrors } from '../vehicles/Mirrors.js';
 import * as THREE from 'three';
@@ -539,9 +540,30 @@ export class Game {
     const L = this.world.layout;
     const s = this.player.state;
     if (this.world.kerala) {
-      // roads as far as the loaded tiles reach (towards the target), then a straight line; refreshed as tiles stream in
-      const a = L.nearestNode(s.x, s.z), b = L.nearestNode(x, z), ids = L.route(a, b);
-      this.gps = { x, z, t: 0, route: [[s.x, s.z], ...ids.map((id) => [L.nodes[id].x, L.nodes[id].z]), [x, z]] };
+      const f = this.focusState, pts = (ids) => ids.map((id) => [L.nodes[id].x, L.nodes[id].z]);
+      // nearby: the streets as loaded (every lane, both ways)
+      const ids = L.route(L.nearestNode(f.x, f.z), L.nearestNode(x, z)), local = pts(ids), end = local[local.length - 1];
+      if (end && Math.hypot(end[0] - x, end[1] - z) < 200) { this.gps = { x, z, t: 0, route: [[f.x, f.z], ...local, [x, z]] }; return; }
+      // further: the state's highways and main roads, reached along the local streets
+      const H = (this.highways ||= this.world.index?.majors ? new KeralaHighways(this.world.index.majors) : null);
+      if (!H) { this.gps = { x, z, t: 0, route: [[f.x, f.z], ...local, [x, z]] }; return; }
+      // the highway leg is worked out once per destination and then trimmed as we drive along it; only leaving it by
+      // 300 m (a wrong turn) works it out again
+      const b = H.nearest(x, z);
+      let hw = null;
+      if (this._hwB === b && this._hw?.length) {
+        let bi = -1, bd = 300 * 300;
+        for (let i = 0; i < this._hw.length; i++) { const d = (this._hw[i][0] - f.x) ** 2 + (this._hw[i][1] - f.z) ** 2; if (d < bd) { bd = d; bi = i; } }
+        if (bi >= 0) hw = this._hw.slice(bi);
+      }
+      if (!hw) { this._hwB = b; this._hw = H.route(H.nearest(f.x, f.z), b); hw = this._hw; }
+      // join the highway at the first point the local streets can reach, ahead of us
+      let lead = [];
+      if (hw.length) {
+        const j = L.route(L.nearestNode(f.x, f.z), L.nearestNode(hw[0][0], hw[0][1]));
+        lead = pts(j);
+      }
+      this.gps = { x, z, t: 0, route: [[f.x, f.z], ...lead, ...hw, [x, z]], long: true };
       return;
     }
     const ids = L.route(L.nearestNode(s.x, s.z), L.nearestNode(x, z));
