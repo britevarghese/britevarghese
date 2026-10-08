@@ -89,7 +89,7 @@ export class KeralaWorld {
     this.manholeGeo = manholeGeometry();
     Object.assign(this, detailGeometries());
     M.klAO = new THREE.MeshBasicMaterial({ name: 'klAO', vertexColors: true, transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -4 });
-    M.klShoulder = new THREE.MeshStandardMaterial({ name: 'klShoulder', color: 0x7a5a40, roughness: 1, polygonOffset: true, polygonOffsetFactor: 1, polygonOffsetUnits: 1 });
+    M.klShoulder = new THREE.MeshStandardMaterial({ name: 'klShoulder', color: 0xffffff, vertexColors: true, roughness: 1, polygonOffset: true, polygonOffsetFactor: 1, polygonOffsetUnits: 1 });
     M.klDirtRoad = new THREE.MeshStandardMaterial({ name: 'klDirt', color: 0x8e5a3c, roughness: 1 });
     M.klWater = new THREE.MeshStandardMaterial({ name: 'klWater', color: 0x1d4048, roughness: 0.1, metalness: 0.25, normalMap: TX.waterNormal?.(), transparent: true, opacity: 0.92 });
     this.palmGeo = palmGeometry();

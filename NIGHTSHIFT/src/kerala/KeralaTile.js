@@ -278,14 +278,17 @@ export class KeralaTile {
   _gradeRoads() {
     const N = this.gn, S = this.gs, pre = this.h.slice(), H = this.h;
     const Ws = new Float32Array(N * N), Ys = new Float32Array(N * N), Am = new Float32Array(N * N);
+    // each road's own smoothed profile first; then where roads meet they share one height, each road easing to it
+    // over its last 30 m (else two roads would meet a step apart on a hillside)
+    const roads = [], node = new Map(), key = ([e, n]) => `${Math.round(e)},${Math.round(n)}`;
     for (const r of this.roads) {
       if (r.flags & 4 || r.cls > 8 || r.pts.length < 2) continue;
       const lanes = r.lanes || (r.cls <= 1 ? 4 : r.cls <= 3 ? 2 : r.cls <= 6 ? 2 : 1);
       const hw = r.cls <= 2 && r.lanes ? Math.max(ROAD_HALF[r.cls], lanes * 1.75) : ROAD_HALF[r.cls];
-      const P = [];
+      const P = [], at = [];
       for (let i = 1; i < r.pts.length; i++) {
         const [ae, an] = r.pts[i - 1], [be, bn] = r.pts[i], k = Math.max(1, Math.ceil(Math.hypot(be - ae, bn - an) / 4));
-        for (let s = i === 1 ? 0 : 1; s <= k; s++) P.push([ae + (be - ae) * s / k, an + (bn - an) * s / k]);
+        for (let s = i === 1 ? 0 : 1; s <= k; s++) { P.push([ae + (be - ae) * s / k, an + (bn - an) * s / k]); at.push(s === k ? i : s === 0 ? i - 1 : -1); }
       }
       if (P.length < 2) continue;
       const raw = P.map(([e, n]) => gridAt(pre, N, S, e, n));
@@ -296,6 +299,24 @@ export class KeralaTile {
         sm = o;
       }
       const prof = P.map(([e, n], i) => raw[i] + (sm[i] - raw[i]) * Math.min(1, Math.max(0, Math.min(e, n, TILE - e, TILE - n) / 40)));
+      // the road's points that other roads share (junctions)
+      const joins = [];
+      at.forEach((pi, i) => { if (pi < 0) return; const k = key(r.pts[pi]); joins.push([i, k]); const o = node.get(k) || [0, 0]; o[0] += prof[i]; o[1]++; node.set(k, o); });
+      roads.push({ hw, P, prof, joins });
+    }
+    for (const R of roads) {
+      const { P, prof } = R;
+      // distance along the road
+      const D = [0]; for (let i = 1; i < P.length; i++) D.push(D[i - 1] + Math.hypot(P[i][0] - P[i - 1][0], P[i][1] - P[i - 1][1]));
+      const adj = new Float32Array(P.length), wt = new Float32Array(P.length);
+      for (const [j, k] of R.joins) {
+        const o = node.get(k); if (!o || o[1] < 2) continue;
+        const dy = o[0] / o[1] - prof[j];
+        for (let i = 0; i < P.length; i++) { const w = 1 - Math.abs(D[i] - D[j]) / 30; if (w > wt[i]) { wt[i] = w; adj[i] = dy * _smooth(w); } }
+      }
+      for (let i = 0; i < P.length; i++) prof[i] += adj[i];
+    }
+    for (const { hw, P, prof } of roads) {
       const inner = hw + S * 0.75;          // every terrain triangle the road crosses is levelled to it
       for (let i = 1; i < P.length; i++) {
         const [ae, an] = P[i - 1], [be, bn] = P[i], ya = prof[i - 1], yb = prof[i];
@@ -475,7 +496,14 @@ export class KeralaTile {
       for (let i = 0; i < n - 1; i++) { if (drop(base / 2 + i) < 0.12 && drop(base / 2 + i + 1) < 0.12) continue; const a = base + i * 2; idx.push(a, a + 1, a + 2, a + 1, a + 3, a + 2); }
     }
     if (!idx.length) return null;
+    // a low bank is bare laterite earth; a tall cut or fill is held by a grey rubble retaining wall, as on hill roads
+    const col = new Float32Array(pos.length), E = new THREE.Color(0x7a5a40).toArray(), R = new THREE.Color(0x85827a).toArray();
+    for (let k = 0; k < pos.length / 6; k++) {
+      const w = Math.min(1, Math.max(0, (Math.abs(pos[k * 6 + 1] - pos[k * 6 + 4]) - 0.8) / 0.6));
+      for (let c = 0; c < 3; c++) col[k * 6 + c] = col[k * 6 + 3 + c] = E[c] + (R[c] - E[c]) * w;
+    }
     const sg = new THREE.BufferGeometry();
+    sg.setAttribute('color', new THREE.BufferAttribute(col, 3));
     sg.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
     sg.setAttribute('uv', new THREE.Float32BufferAttribute(new Float32Array(pos.length / 3 * 2), 2));
     sg.setIndex(idx); faceUp(sg); sg.computeVertexNormals();
