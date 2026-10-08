@@ -443,7 +443,8 @@ export class Game {
     this.camCtl.snap(this.player);
     document.getElementById('hud').classList.remove('hidden');
     this.audio.setPaused(false);
-    this.ui.toast(Object.keys(this.save.data.story?.done || {}).length ? 'Story missions: follow the coloured markers on the minimap. Buy property at the green markers, earn cash at the odd-job stands. F gets you in and out of cars.' : 'Port Halvern is yours to explore: every car is in your garage (G). Tully has work for you (orange marker); green markers are property for sale, and the stands on the map pay for taxi fares, courier runs and car exports. F gets you in and out of cars.', '', 9);
+    if (this.world.kerala) this.ui.toast('Kerala is yours to explore: every car is in your garage (G). F gets you in and out of cars (or onto a bike), Q to fight on foot, M for the map.', '', 9);
+    else this.ui.toast(Object.keys(this.save.data.story?.done || {}).length ? 'Story missions: follow the coloured markers on the minimap. Buy property at the green markers, earn cash at the odd-job stands. F gets you in and out of cars.' : 'Port Halvern is yours to explore: every car is in your garage (G). Tully has work for you (orange marker); green markers are property for sale, and the stands on the map pay for taxi fares, courier runs and car exports. F gets you in and out of cars.', '', 9);
   }
   pause() {
     if (this.state.mode !== 'drive') return;
