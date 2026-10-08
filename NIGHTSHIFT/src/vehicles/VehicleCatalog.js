@@ -257,7 +257,7 @@ export const TRAFFIC_MODELS = {
   // Kerala: what you actually see on the roads there
   auto: { id: 'kl_auto', name: 'Bajaj autorickshaw', spec: { len: 2.64, wid: 1.3 }, wheels: 3, source: SRC('0bdfdf97a0f248008806840f7188367c', 'Tuk Tuk Rikshaw', 'alnmathew') },
   ksrtc: { id: 'kl_ksrtc', livery: true, name: 'KSRTC bus', spec: { len: 10.8, wid: 2.5 }, source: SRC('4a3daa08bfb34119b41b75fd2dbbc9ee', 'KSRTC Bus kerala', 'playmode280513') },
-  pvtbus: { id: 'kl_pvtbus', livery: true, import: { flip: true }, name: 'Private bus', spec: { len: 10.5, wid: 2.5 }, source: SRC('67b7998f0f3341a8a96655f96adc1a77', 'Indian  Bus', 'khatriparth') },
+  pvtbus: { id: 'kl_pvtbus', import: { livery: true }, name: 'Private bus', spec: { len: 9.5, wid: 2.4 }, source: SRC('ad4f787739d2433abc8595e962aaad62', 'bus14 (Indian Bus) - Bus Simulator Original', 'vj32621') },  // a town private bus in its own livery
   pvtbus2: { id: 'kl_pvtbus2', import: { paint: 'Flake_Shift_Car_Paint', paintAlso: ['Flake_Shift_Car_Paint.001'] }, name: 'Kerala private bus', spec: { len: 10.6, wid: 2.5 }, source: SRC('a1f06445141d4e68b500440570a72dbf', 'KERALA BUS 3D MODEL', 'rmxdesignz') },
   m800: { id: 'kl_m800', import: { doors: true }, name: 'Maruti 800', spec: { len: 3.34, wid: 1.44 }, source: SRC('adcc7ff83891422d9f3dcaf55debc073', 'Maruti 800 AC', 'BHP3D') },
   dzire: { id: 'kl_dzire', import: { doors: true }, name: 'Maruti Swift Dzire', spec: { len: 3.995, wid: 1.735 }, source: SRC('95451c00cb2d48778f67d798167e7237', '2022 Maruti Suzuki Swift Dzire', 'BHP3D') },
@@ -265,7 +265,7 @@ export const TRAFFIC_MODELS = {
   ertiga: { id: 'kl_ertiga', import: { doors: true }, name: 'Maruti Ertiga', spec: { len: 4.395, wid: 1.735 }, source: SRC('4f14afac3ac44ec4a2fb153e18452f8b', '2022 Suzuki Ertiga', 'BHP3D') },
   scorpio: { id: 'kl_scorpio', import: { doors: true }, name: 'Mahindra Scorpio-N', spec: { len: 4.66, wid: 1.92 }, source: SRC('538b10f2860f44e694dc3e9d3e223bf8', '2022 Mahindra Scorpio-N', 'BHP3D') },
   thar: { id: 'kl_thar', import: { doors: true, flip: true }, name: 'Mahindra Thar', spec: { len: 3.985, wid: 1.82 }, source: SRC('6e723690d42748ad9887ce2d7dfa1acc', 'Mahindra Thar (Prisma 3d)', 'X_BLADE.') },
-  lorry: { id: 'kl_lorry', name: 'Tata lorry', spec: { len: 8.6, wid: 2.5 }, source: SRC('8c7650b96d6846de8cc54391ab16cf20', 'Indian Truck', 'afjalymail78692') },  // the hand-painted Tata goods carrier
+  lorry: { id: 'kl_lorry', import: { livery: true }, name: 'Tata lorry', spec: { len: 8.6, wid: 2.5 }, source: SRC('8c7650b96d6846de8cc54391ab16cf20', 'Indian Truck', 'afjalymail78692') },  // the hand-painted Tata goods carrier
   // two-wheelers: half of Kerala's traffic (generic names in game; models credited)
   scooter: { id: 'kl_scooter', bike: true, livery: true, name: 'Scooter', spec: { len: 1.8, wid: 0.7 }, wheels: 2, source: SRC('53474287ff1045e49f82819f50b8736f', 'Scooter Motorcycle', 'norberto3d') },
   commuter: { id: 'kl_commuter', bike: true, import: { flip: true }, name: 'Commuter motorcycle', spec: { len: 2.04, wid: 0.75 }, wheels: 2, source: SRC('06fac75c72ed4780a19034447c81e72c', 'Bajaj pulsar 150', 'shreyanshchaurasia13') },

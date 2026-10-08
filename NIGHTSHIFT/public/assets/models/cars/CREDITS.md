@@ -34,7 +34,7 @@ They were converted for real-time use (re-scaled, wheels separated, simplified, 
 - **City bus** — "Generic Town Bus" by own.guest, https://sketchfab.com/3d-models/14fe03d792914d51b6c6250b393c44fd (CC BY 4.0), modified.
 - **Bajaj autorickshaw** — "Tuk Tuk Rikshaw" by alnmathew, https://sketchfab.com/3d-models/0bdfdf97a0f248008806840f7188367c (CC BY 4.0), modified.
 - **KSRTC bus** — "KSRTC Bus kerala" by playmode280513, https://sketchfab.com/3d-models/4a3daa08bfb34119b41b75fd2dbbc9ee (CC BY 4.0), modified.
-- **Private bus** — "Indian  Bus" by khatriparth, https://sketchfab.com/3d-models/67b7998f0f3341a8a96655f96adc1a77 (CC BY 4.0), modified.
+- **Private bus** — "bus14 (Indian Bus) - Bus Simulator Original" by vj32621, https://sketchfab.com/3d-models/ad4f787739d2433abc8595e962aaad62 (CC BY 4.0), modified.
 - **Maruti 800** — "Maruti 800 AC" by BHP3D, https://sketchfab.com/3d-models/adcc7ff83891422d9f3dcaf55debc073 (CC BY 4.0), modified.
 - **Maruti Swift Dzire** — "2022 Maruti Suzuki Swift Dzire" by BHP3D, https://sketchfab.com/3d-models/95451c00cb2d48778f67d798167e7237 (CC BY 4.0), modified.
 - **Maruti Vitara Brezza** — "2022 Maruti Suzuki Vitara Brezza" by BHP3D, https://sketchfab.com/3d-models/1a5cbddc8acb457e9d896d7345fd07d8 (CC BY 4.0), modified.

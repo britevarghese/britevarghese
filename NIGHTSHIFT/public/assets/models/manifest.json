@@ -4953,53 +4953,53 @@
       "file": "cars/kl_pvtbus.glb",
       "imported": true,
       "name": "Private bus",
-      "length": 10.5,
-      "width": 2.615,
-      "height": 2.783,
+      "length": 9.5,
+      "width": 2.352,
+      "height": 2.764,
       "wheels": [
         {
           "id": "FL",
-          "x": 0.902,
-          "y": 0.465,
-          "z": 2.956,
-          "r": 0.465,
-          "w": 0.168
+          "x": 0.865,
+          "y": 0.48,
+          "z": 2.652,
+          "r": 0.48,
+          "w": 0.295
         },
         {
           "id": "FR",
-          "x": -0.956,
-          "y": 0.465,
-          "z": 2.955,
-          "r": 0.465,
-          "w": 0.168
+          "x": -0.824,
+          "y": 0.48,
+          "z": 2.65,
+          "r": 0.48,
+          "w": 0.295
         },
         {
           "id": "RL",
-          "x": 0.662,
-          "y": 0.476,
-          "z": -2.212,
-          "r": 0.466,
-          "w": 0.17
+          "x": 0.86,
+          "y": 0.48,
+          "z": -2.391,
+          "r": 0.476,
+          "w": 0.305
         },
         {
           "id": "RR",
-          "x": -1.012,
-          "y": 0.476,
-          "z": -2.212,
-          "r": 0.465,
-          "w": 0.168
+          "x": -0.819,
+          "y": 0.48,
+          "z": -2.393,
+          "r": 0.476,
+          "w": 0.305
         }
       ],
       "tris": {
-        "lod0": 20637,
-        "lod1": 4023
+        "lod0": 19859,
+        "lod1": 3291
       },
       "source": {
         "site": "Sketchfab",
-        "uid": "67b7998f0f3341a8a96655f96adc1a77",
-        "title": "Indian  Bus",
-        "author": "khatriparth",
-        "url": "https://sketchfab.com/3d-models/67b7998f0f3341a8a96655f96adc1a77",
+        "uid": "ad4f787739d2433abc8595e962aaad62",
+        "title": "bus14 (Indian Bus) - Bus Simulator Original",
+        "author": "vj32621",
+        "url": "https://sketchfab.com/3d-models/ad4f787739d2433abc8595e962aaad62",
         "license": "CC-BY-4.0"
       }
     },
@@ -5762,10 +5762,10 @@
     "cars/kl_dzire.glb": "84ce99852b",
     "cars/kl_ertiga.glb": "c8cf66221e",
     "cars/kl_ksrtc.glb": "49d9467134",
-    "cars/kl_lorry.glb": "15afb76547",
+    "cars/kl_lorry.glb": "ec1cafe2b2",
     "cars/kl_m800.glb": "1723182897",
     "cars/kl_minitruck.glb": "f8f12386ab",
-    "cars/kl_pvtbus.glb": "c27127f7c0",
+    "cars/kl_pvtbus.glb": "6649a49cf4",
     "cars/kl_pvtbus2.glb": "fe762222c5",
     "cars/kl_scooter.glb": "823295e68c",
     "cars/kl_scorpio.glb": "90b925094a",

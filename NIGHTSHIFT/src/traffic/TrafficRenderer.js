@@ -360,9 +360,10 @@ TrafficRenderer.prototype._imported = function (scene, src, man, max) {
         groups.get(key).geos.push(g);
       }
     });
-    // keep the four biggest textured materials; the rest join the vertex-coloured group
+    // keep the biggest textured materials (four; up to sixteen on a vehicle in its own painted livery, a bus or a
+    // hand-painted lorry, which is mostly texture); the rest join the vertex-coloured group
     const texd = [...groups.entries()].filter(([, G]) => G.kind === 'tex').sort((a, b) => tri(b[1]) - tri(a[1]));
-    for (const [key, G] of texd.slice(4)) {
+    for (const [key, G] of texd.slice(groups.has('paint') ? 4 : 16)) {
       groups.delete(key);
       if (!groups.has('plain')) groups.set('plain', { kind: 'plain', mat: G.mat, geos: [], metal: 0, rough: 0, n: 0 });
       const P = groups.get('plain'), col = new THREE.Color().copy(G.mat.color || new THREE.Color(0.5, 0.5, 0.5)).multiplyScalar(0.6);
