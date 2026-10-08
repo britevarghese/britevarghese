@@ -127,6 +127,7 @@ export class KeralaTile {
     for (const m of this._poles(M, opts)) g.add(m);
     if (opts.trees) { this.trees = opts.trees.plant(this); g.add(this.trees.group); }
     else { const palms = this._palms(opts); if (palms) g.add(palms); }
+    this.clearRoads(this.colliders);
     g.traverse((o) => { o.matrixAutoUpdate = false; o.updateMatrix(); });
     g.updateMatrixWorld(true);
     this.ready = true;
@@ -768,6 +769,22 @@ export class KeralaTile {
     return false;
   }
 
+  // Nothing solid stands in a lane: a collider whose box reaches 0.5 m onto a carriageway (map outlines and our road
+  // widths don't always agree) is removed, so the worst case is driving through the edge of a wall, never an invisible
+  // wall in the road. Returns the colliders kept (filters the array in place).
+  clearRoads(list) {
+    const keep = list.filter((c) => {
+      for (let a = -1; a <= 1; a += 0.5) for (let b = -1; b <= 1; b += 0.5) {
+        const lx = c.hx * a, lz = c.hz * b, x = c.cx + lx * c.cos + lz * c.sin, z = c.cz - lx * c.sin + lz * c.cos;
+        if (this.onRoad(-x - this.E0, z - this.N0, -0.5, -1, 6)) return false;
+      }
+      return true;
+    });
+    this.removedColliders = list.length - keep.length;
+    list.length = 0; list.push(...keep);
+    return list;
+  }
+
   // the height of the drawn road surface at (e, n), or -Infinity off the roads. Matches how _ribbon lays the strip:
   // lifted by class, each vertex on the highest ground around it, so wheels sit on the asphalt rather than in it
   roadSurface(e, n) {
@@ -845,7 +862,8 @@ export class KeralaTile {
       {
         const pts = [[P.ce, P.cn], ...P.ring.map(([e, n]) => [e + (P.ce - e) * 0.15, n + (P.cn - n) * 0.15])];
         const onRd = pts.filter(([e, n]) => this.onRoad(e, n, -0.4, -1, 7)).length;
-        if (this.onRoad(P.ce, P.cn, -0.4, -1, 7) || onRd >= pts.length * 0.34) { hidden[bi] = 1; continue; }
+        // (any corner more than ~1 m into a main or town road's carriageway also goes: it would stand in a lane)
+        if (this.onRoad(P.ce, P.cn, -0.4, -1, 7) || onRd >= pts.length * 0.34 || P.ring.some(([e, n]) => this.onRoad(e, n, -1.0, -1, 6))) { hidden[bi] = 1; continue; }
       }
       if (near.size) {
         const pts = [[P.ce, P.cn], ...P.ring.map(([e, n]) => [e + (P.ce - e) * 0.15, n + (P.cn - n) * 0.15])];

@@ -127,6 +127,38 @@ export class KeralaWorld {
     return p;
   }
 
+  _clearLanes(t, list) {
+    const onRd = (x, z) => { const o = this.tileAt(x, z); return !!o?.ready && o.onRoad(-x - o.E0, z - o.N0, -0.5, -1, 6); };
+    for (const c of list) {
+      let hit = false;
+      for (let a = -1; a <= 1 && !hit; a += 0.5) for (let b = -1; b <= 1 && !hit; b += 0.5) {
+        const lx = c.hx * a, lz = c.hz * b;
+        hit = onRd(c.cx + lx * c.cos + lz * c.sin, c.cz - lx * c.sin + lz * c.cos);
+      }
+      if (hit) { this.collision.remove(c); const i = t.colliders.indexOf(c); if (i >= 0) t.colliders.splice(i, 1); }
+    }
+    // and nothing on a traffic lane's line (lanes joining dead ends can run just off the drawn road)
+    const left = list.filter((c) => t.colliders.includes(c));
+    if (!left.length) return;
+    const grid = new Map(), G = 20;
+    for (const l of this.lanes.lanesNear(-(t.E0 + TILE / 2), t.N0 + TILE / 2, 0, TILE)) {
+      if (l.edge.cls > 6) continue;
+      for (let i = 1; i < l.pts.length; i++) {
+        const [ax, az] = l.pts[i - 1], [bx, bz] = l.pts[i], L = Math.hypot(bx - ax, bz - az);
+        for (let d = 0; d <= L; d += 1.5) { const x = ax + (bx - ax) * Math.min(1, d / L), z = az + (bz - az) * Math.min(1, d / L), k = Math.floor(x / G) * 100003 + Math.floor(z / G); if (!grid.has(k)) grid.set(k, []); grid.get(k).push(x, z); }
+      }
+    }
+    for (const c of left) {
+      const r = Math.hypot(c.hx, c.hz) + 1;
+      let hit = false;
+      for (let gx = Math.floor((c.cx - r) / G); gx <= Math.floor((c.cx + r) / G) && !hit; gx++) for (let gz = Math.floor((c.cz - r) / G); gz <= Math.floor((c.cz + r) / G) && !hit; gz++) {
+        const P = grid.get(gx * 100003 + gz); if (!P) continue;
+        for (let j = 0; j < P.length && !hit; j += 2) { const dx = P[j] - c.cx, dz = P[j + 1] - c.cz, lx = dx * c.cos - dz * c.sin, lz = dx * c.sin + dz * c.cos; hit = Math.abs(lx) < c.hx + 0.85 && Math.abs(lz) < c.hz + 0.85; }
+      }
+      if (hit) { this.collision.remove(c); t.colliders.splice(t.colliders.indexOf(c), 1); }
+    }
+  }
+
   // parked scooters outside the shops use the real two-wheeler model (its low-detail level, instanced per part)
   setPropModels(lib) {
     if (this.scooterParts || !lib?.cars?.scooter) return;
@@ -187,6 +219,7 @@ export class KeralaWorld {
     this._scooters(t);
     for (const c of t.colliders) this.collision.add(c);
     this.lanes.addTile(t);
+    const n0 = t.colliders.length;
     // tea stalls
     if (t.teaShops?.length && this.teaGeo) {
       const im = new THREE.InstancedMesh(this.teaGeo, this.M.klStop, t.teaShops.length), sg = new THREE.InstancedMesh(this.teaSignGeo, this.M.klTeaSign, t.teaShops.length);
@@ -208,6 +241,14 @@ export class KeralaWorld {
       this.root.add(im); t.stopMesh = im;
       for (const b of t.busStops) { const c = { cx: b.x, cz: b.z, hx: 1.8, hz: 0.6, cos: Math.cos(b.yaw), sin: Math.sin(b.yaw), angle: b.yaw, h: 99, kind: 'building' }; t.colliders.push(c); this.collision.add(c); }
     }
+    // nothing solid in a lane, across tile borders too (a road on the next tile can run past this tile's walls):
+    // this tile's colliders against every loaded road, and the neighbours' border colliders against this tile's roads
+    this._clearLanes(t, t.colliders);
+    for (const o of this.tiles.values()) {
+      if (o === t || !o.ready || Math.abs(o.tx - t.tx) > 1 || Math.abs(o.tz - t.tz) > 1) continue;
+      this._clearLanes(o, o.colliders.filter((c) => { const e = -c.cx - o.E0, n = c.cz - o.N0; return e < 40 || n < 40 || e > TILE - 40 || n > TILE - 40; }));
+    }
+    void n0;
     this.buildMs = performance.now() - t0;
   }
 
