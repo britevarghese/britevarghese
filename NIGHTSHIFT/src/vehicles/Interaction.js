@@ -55,6 +55,19 @@ export function interactionProfile(v) {
   if (box.isEmpty() || box.max.x - box.min.x > W * 1.6) box.set(new THREE.Vector3(-W / 2, -0.35, -L / 2), new THREE.Vector3(W / 2, 1.1, L / 2));
   // (mirrors and roof racks stick out: the cabin is about the vehicle's own width)
   const halfW = Math.min((box.max.x - box.min.x) / 2, W / 2 + 0.08), groundY = box.min.y, roofY = box.max.y;
+  // the windscreen header: the front edge of the roof (highest centre-line point per 10 cm of length, from the
+  // front back; wings and roof racks behind it don't matter)
+  let header = null;
+  {
+    const top = new Map(), m = new THREE.Matrix4(), q = new THREE.Vector3();
+    (r._lod0 || r.body).traverse((o) => {
+      if (!o.isMesh || o.visible === false || !o.geometry?.attributes.position) return;
+      m.multiplyMatrices(inv, o.matrixWorld);
+      const A = o.geometry.attributes.position, step = Math.max(1, Math.floor(A.count / 6000));
+      for (let i = 0; i < A.count; i += step) { q.fromBufferAttribute(A, i).applyMatrix4(m); if (Math.abs(q.x) > 0.5) continue; const k = Math.round(q.z * 10); top.set(k, Math.max(top.get(k) ?? -9, q.y)); }
+    });
+    if (top.size) { const roof = Math.max(...top.values()), k = [...top.keys()].sort((a, b) => b - a).find((z) => top.get(z) > roof - 0.06); header = k / 10; }
+  }
   const pr = { kind, box, halfW, groundY, roofY };
   if (kind === 'bike') {
     // motorcycles: mount from the left (the side stand side): stand by the seat, hands to the bars, swing the
@@ -82,7 +95,8 @@ export function interactionProfile(v) {
     pr.bars = { L: new THREE.Vector3(0.3, pr.seat.y + 0.36, pr.seat.z + 0.48), R: new THREE.Vector3(-0.3, pr.seat.y + 0.36, pr.seat.z + 0.48) };
     ds = -1;
   } else if (G) {
-    pr.seat = new THREE.Vector3(ds * Math.abs(G.eye.x || 0.36), G.eye.y - (kind === 'bus' ? 0.7 : 0.66), G.eye.z - 0.13);
+    // hips a little ahead of the eyes (the seat back is reclined)
+    pr.seat = new THREE.Vector3(ds * Math.abs(G.eye.x || 0.36), G.eye.y - (kind === 'bus' ? 0.7 : 0.66), G.eye.z + (kind === 'car' ? 0.08 : 0));
     pr.wheel = { hub: G.hub.clone(), axis: G.axis.clone(), up0: G.up0.clone(), right0: G.right0.clone(), R: G.R };
     pr.wheel.hub.x = pr.seat.x;
   } else {
@@ -94,11 +108,20 @@ export function interactionProfile(v) {
   // can land on the rear seats)
   const H = { car: [0.42, 0.72], suv: [0.66, 1.0], truck: [1.3, 1.75], bus: [1.3, 1.6], auto: [0.7, 0.85] }[kind];
   S.y = clamp(S.y, groundY + H[0], groundY + H[1]);
+  // a seated driver's head (with hair) is ~0.86 m above the hips: low supercars sit you right down on the floor
+  if (kind === 'car' || kind === 'suv') S.y = Math.max(groundY + (kind === 'car' ? 0.26 : 0.5), Math.min(S.y, roofY - 0.9));
+  // the model's driver's eye is trusted when it sits where a driver's eyes are: 0.2-1.05 m behind the windscreen
+  // header. Otherwise (estimated markers on some imports) the hips go to the back of the front door's opening,
+  // by the B-pillar, where they are in every car
+  const eyeOk = G && header !== null && kind !== 'bus' && header - G.eye.z > 0.2 && header - G.eye.z < 1.05;
+  pr.header = header; pr.eyeOk = !!eyeOk;
   const d0 = r.doors?.[ds];
-  if (d0 && kind !== 'auto') {
-    const lo = d0.hinge.z - d0.len * 0.85, hi = d0.hinge.z - d0.len * 0.38;
-    if (S.z < lo || S.z > hi) S.z = d0.hinge.z - d0.len * 0.62;
+  if (d0 && kind !== 'auto' && !eyeOk) {
+    const lo = d0.hinge.z - d0.len * 0.95, hi = d0.hinge.z - d0.len * 0.55;
+    if (S.z < lo || S.z > hi) S.z = d0.hinge.z - d0.len * 0.7;
   }
+  // and never ahead of the windscreen
+  if (header !== null && kind === 'car' && S.z > header - 0.2) S.z = header - 0.32;
   if (kind !== 'auto' && (!pr.wheel || Math.abs(pr.wheel.hub.z - S.z - 0.58) > 0.3 || pr.wheel.hub.y < S.y + 0.2)) {
     // a wheel where a driver's hands would find it (and draw one if the model has none there)
     const axis = new THREE.Vector3(0, 0.42, -1).normalize(), up0 = new THREE.Vector3(0, 1, 0).projectOnPlane(axis).normalize();

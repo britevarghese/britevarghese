@@ -5268,7 +5268,7 @@
           "id": "FL",
           "x": 0.815,
           "y": 0.403,
-          "z": 0.966,
+          "z": 1.318,
           "r": 0.404,
           "w": 0.423
         },
@@ -5276,7 +5276,7 @@
           "id": "FR",
           "x": -0.815,
           "y": 0.403,
-          "z": 0.968,
+          "z": 1.32,
           "r": 0.404,
           "w": 0.423
         },
@@ -5284,7 +5284,7 @@
           "id": "RL",
           "x": 0.815,
           "y": 0.403,
-          "z": -1.32,
+          "z": -0.968,
           "r": 0.404,
           "w": 0.423
         },
@@ -5292,14 +5292,14 @@
           "id": "RR",
           "x": -0.815,
           "y": 0.403,
-          "z": -1.318,
+          "z": -0.966,
           "r": 0.404,
           "w": 0.423
         }
       ],
       "tris": {
-        "lod0": 8632,
-        "lod1": 3822
+        "lod0": 9046,
+        "lod1": 3823
       },
       "source": {
         "site": "Sketchfab",
@@ -5707,7 +5707,7 @@
     "cars/kl_scooter.glb": "823295e68c",
     "cars/kl_scorpio.glb": "90b925094a",
     "cars/kl_streetbike.glb": "864228dfaa",
-    "cars/kl_thar.glb": "431de9c7a4",
+    "cars/kl_thar.glb": "b2b35eb05f",
     "cars/lamborghini_centenario.glb": "6c9aa6918e",
     "cars/lamborghini_huracan_tt.glb": "3a5864e8ee",
     "cars/mazda_rx7_fd.glb": "4cea2d5b82",

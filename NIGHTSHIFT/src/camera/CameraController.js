@@ -52,6 +52,20 @@ export class CameraController {
   }
 
   next() { this.mode = (this.mode + 1) % CAMERA_MODES.length; return CAMERA_MODES[this.mode].name; }
+
+  // the rear end of a vehicle's body, in body space (cached on the renderer)
+  _rearZ(r) {
+    if (r._rearZ !== undefined) return r._rearZ;
+    const inv = _m.copy(r.body.matrixWorld).invert(), box = new THREE.Box3(), tb = new THREE.Box3();
+    (r.lod0 || r.body).traverse((o) => {
+      if (!o.isMesh || !o.geometry) return;
+      if (!o.geometry.boundingBox) o.geometry.computeBoundingBox();
+      tb.copy(o.geometry.boundingBox).applyMatrix4(o.matrixWorld).applyMatrix4(inv); box.union(tb);
+    });
+    const L = r.vehicle?.p?.length || 4.4;
+    r._rearZ = box.isEmpty() || box.min.z < -L ? -L / 2 : box.min.z;
+    return r._rearZ;
+  }
   addShake(a) { this.shake = Math.min(1.5, this.shake + a); }
 
   snap(vehicle) {
@@ -100,7 +114,14 @@ export class CameraController {
       vehicle.renderer.body.updateWorldMatrix(true, true); // parents too: the car group moved this frame
       if (mk || eye) {
         _v.copy(eye || mk.position);
-        if (lookBack) _v.z = mode.marker === 'eye_bumper' ? -_v.z : _v.z;
+        // looking back: the matching view from the other end of the car (bumper -> rear bumper, hood -> over the
+        // boot lid; first person -> the rear window at head height), never turned round inside the cabin
+        if (lookBack) {
+          const rz = this._rearZ(vehicle.renderer);
+          if (mode.marker === 'eye_bumper') _v.z = -_v.z;
+          else if (mode.marker === 'eye_hood') { _v.z = Math.min(-Math.abs(_v.z), rz + 0.6); _v.y += 0.12; }
+          else { _v.x = 0; _v.y += 0.06; _v.z = rz + 0.35; }
+        }
         _v.applyMatrix4(vehicle.renderer.body.matrixWorld);
         cam.position.copy(_v);
         vehicle.renderer.body.getWorldQuaternion(_q);
@@ -117,6 +138,8 @@ export class CameraController {
         cam.position.y += (Math.sin(t * 27.1) + Math.sin(t * 13.9)) * 0.5 * vib;
         vehicle.renderer.lod0.getObjectByName('interior') && (vehicle.renderer.lod0.getObjectByName('interior').visible = mode.marker === 'eye_cockpit');
         vehicle.renderer.setCockpitArms?.(!!eye && !lookBack);
+        // the cabin is only drawn from inside it
+        if (eye && lookBack) { const intr = vehicle.renderer.lod0.getObjectByName('interior'); if (intr) intr.visible = false; }
       }
       this.fov = damp(this.fov, mode.fov + Math.min(14, speed * 0.16) + (fx.nitro || 0) * 8, 4, dt);
       this.shake = damp(this.shake, 0, 5, dt);
@@ -154,7 +177,11 @@ export class CameraController {
     const height = mode.height * (bike ? 0.8 : 1) * (1 + this.orbitY * 0.9) - this.pitchLag * 1.6 + (s.onGround ? 0 : 0.35);
     // desired offset from the car, smoothed (no lag at constant velocity)
     const ox = -Math.sin(h) * dist, oz = -Math.cos(h) * dist;
-    if (!this.off) this.off = new THREE.Vector3(ox, height, oz);
+    // look-back cuts straight to the view from the front (the offset would otherwise swing through the car)
+    const cut = this._lb !== undefined && this._lb !== !!lookBack;
+    this._lb = !!lookBack;
+    if (!this.off || cut) this.off = new THREE.Vector3(ox, height, oz);
+    if (cut) this.clear = 1;
     this.off.x = damp(this.off.x, ox, 12, dt); this.off.z = damp(this.off.z, oz, 12, dt); this.off.y = damp(this.off.y, height, 6, dt);
     // vertical follow is softer so suspension bounce doesn't shake the whole view
     this.baseY = this.baseY === undefined ? s.y : damp(this.baseY, s.y, s.onGround ? 7 : 2.5, dt);
@@ -166,7 +193,7 @@ export class CameraController {
     const lookAhead = 3 + 8 * ease;
     const lh = this.heading + (lookBack ? Math.PI : 0);
     _t.set(s.x + Math.sin(lh) * lookAhead, this.baseY + mode.look + 0.35 + (s.onGround ? 0 : 0.25), s.z + Math.cos(lh) * lookAhead);
-    this.look.lerp(_t, 1 - Math.exp(-dt * 14));
+    if (cut) this.look.copy(_t); else this.look.lerp(_t, 1 - Math.exp(-dt * 14));
     cam.position.copy(this.pos);
     // shake: fine road vibration that grows with speed + low-frequency sway + impacts
     const t = this.time;
