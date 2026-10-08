@@ -147,10 +147,11 @@ export class TrafficManager {
     car.yaw = Math.atan2(tmp.dx, tmp.dz);
     if (this.world.kerala) {
       // the streamed terrain has hills: ride on it, nose up / down with the slope
-      const L = car.spec.l * 0.45, fx = Math.sin(car.yaw), fz = Math.cos(car.yaw), gh = this.world.layout.groundHeight;
+      const L = car.spec.l * 0.45, fx = Math.sin(car.yaw), fz = Math.cos(car.yaw), y0 = car.placed ? car.y : undefined, gh = (x, z) => this.world.layout.groundHeight(x, z, y0);
       const hf = gh(car.x + fx * L, car.z + fz * L), hr = gh(car.x - fx * L, car.z - fz * L);
       car.y = (hf + hr) / 2 + 0.01; // (ground height already includes the road surface)
       car.slope = Math.atan2(hf - hr, 2 * L);
+      car.placed = true;
     } else car.y = 0; // Port Halvern: traffic stays on the flat road surface
   }
 
@@ -337,7 +338,7 @@ export class TrafficManager {
     this._place(c);
     if (Math.hypot(c.x - B.x, c.z - B.z) > 3) { B.x = c.x; B.z = c.z; B.yaw = c.yaw; B.yr = 0; }
     c.x = B.x; c.z = B.z; c.yaw = B.yaw;
-    if (this.world.kerala) c.y = this.world.layout.groundHeight(c.x, c.z) + 0.01;
+    if (this.world.kerala) c.y = this.world.layout.groundHeight(c.x, c.z, c.y) + 0.01;
     c.pitch = lerp(c.pitch, c.slope || 0, 0.15);
     const lean = v < 0.6 ? -0.07 : -Math.atan(clamp(v * B.yr / 9.81, -0.9, 0.9));   // stopped: on the left foot
     c.roll = lerp(c.roll || 0, lean, 1 - Math.exp(-dt * (v < 0.6 ? 3 : 6)));
@@ -605,10 +606,16 @@ export class TrafficManager {
     // a bike down on its side scrapes to a stop sooner
     const f = Math.exp(-dt * (c.riderOff ? 2.6 : 1.6));
     s.vx *= f; s.vz *= f; s.yawRate *= Math.exp(-dt * 2);
+    // a shunted car settles back onto the road (the impact could leave it mid-bounce) and levels out
+    if (!c.spec.bike && this.world.kerala) {
+      const gy = this.world.layout.groundHeight(c.x, c.z, c.y);
+      c.y = c.y > gy ? Math.max(gy, c.y - 9.81 * dt * Math.min(3, c.knockT + 0.3)) : gy;
+      c.pitch = lerp(c.pitch || 0, c.slope || 0, 1 - Math.exp(-dt * 5)); c.roll = lerp(c.roll || 0, 0, 1 - Math.exp(-dt * 5));
+    }
     if (c.riderOff) {
       c.roll = lerp(c.roll || 0, c.fall * 1.38, 1 - Math.exp(-dt * 5));
       c.pitch = lerp(c.pitch || 0, 0, 0.1);
-      if (this.world.kerala) c.y = this.world.layout.groundHeight(c.x, c.z) + 0.16 * Math.abs(Math.sin(c.roll));
+      if (this.world.kerala) c.y = this.world.layout.groundHeight(c.x, c.z, c.y) + 0.16 * Math.abs(Math.sin(c.roll));
     }
     // static collisions for knocked cars (buildings, poles)
     const col = this.world.collision.query(c.x - 6, c.z - 6, c.x + 6, c.z + 6, []);

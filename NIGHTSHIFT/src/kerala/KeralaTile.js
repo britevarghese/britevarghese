@@ -237,8 +237,8 @@ export class KeralaTile {
     this.h0 = H.slice();
     for (let j = 0; j < GRID; j++) for (let i = 0; i < GRID; i++) {
       const c = this.classAt(i * STEP, j * STEP);
-      // (not under a road: bridges and causeways keep the ground at road level)
-      if ((c === C.water || c === C.sea) && !this.nearRoad(i * STEP, j * STEP, 9, 9)) {
+      // (under a road too: roads over water are carried on bridge decks)
+      if (c === C.water || c === C.sea) {
         const h = H[j * GRID + i];
         H[j * GRID + i] = (h < INLAND ? Math.min(h, 0) : h) - 2.2;
       }
@@ -299,10 +299,40 @@ export class KeralaTile {
         sm = o;
       }
       const prof = P.map(([e, n], i) => raw[i] + (sm[i] - raw[i]) * Math.min(1, Math.max(0, Math.min(e, n, TILE - e, TILE - n) / 40)));
+      // bridges: over water (or tagged as a bridge) the road rises to a deck clear of the water, on approach
+      // ramps of 7%; the water under the span is left alone (not graded), the approaches are banked up
+      // (the road's own pixels read as road: over water means water on both sides of it)
+      const isW = (e, n) => { const c = this.classAt(e, n); return c === C.water || c === C.sea; };
+      const water = P.map(([e, n], i) => {
+        if (isW(e, n)) return true;
+        const a = P[Math.max(0, i - 1)], b = P[Math.min(P.length - 1, i + 1)], de = b[0] - a[0], dn = b[1] - a[1], l = Math.hypot(de, dn) || 1, o = hw + 5;
+        return isW(e - dn / l * o, n + de / l * o) && isW(e + dn / l * o, n - de / l * o);
+      });
+      const wet = water.map((w) => w || !!(r.flags & 2));
+      if (wet.some(Boolean)) {
+        // each span: a little above its higher bank, and at least 2 m over the water
+        const lift = r.cls <= 3 ? 2.5 : r.cls <= 5 ? 2 : 1.5, D = [0];
+        for (let i = 1; i < P.length; i++) D.push(D[i - 1] + Math.hypot(P[i][0] - P[i - 1][0], P[i][1] - P[i - 1][1]));
+        const want = new Array(P.length).fill(-Infinity);
+        for (let i = 0; i < P.length;) {
+          if (!wet[i]) { i++; continue; }
+          let j = i; while (j + 1 < P.length && wet[j + 1]) j++;
+          const bank = Math.max(i > 0 ? prof[i - 1] : -Infinity, j + 1 < P.length ? prof[j + 1] : -Infinity);
+          for (let k = i; k <= j; k++) want[k] = water[k] ? Math.max(Number.isFinite(bank) ? bank + lift : -Infinity, this._waterY(P[k][0], P[k][1]) + 2)
+            : raw[k] + (r.cls <= 3 ? 6.5 : 5.2);   // a flyover over land: clear of the road (and traffic) beneath
+          i = j + 1;
+        }
+        const deck = want.slice();
+        for (let i = 1; i < P.length; i++) deck[i] = Math.max(deck[i], deck[i - 1] - (D[i] - D[i - 1]) * 0.07);
+        for (let i = P.length - 2; i >= 0; i--) deck[i] = Math.max(deck[i], deck[i + 1] - (D[i + 1] - D[i]) * 0.07);
+        let up = false;
+        for (let i = 0; i < P.length; i++) if (deck[i] > prof[i]) { prof[i] = deck[i]; up = true; }
+        if (up) r.deck = { P, y: prof, wet, hw };
+      }
       // the road's points that other roads share (junctions)
       const joins = [];
       at.forEach((pi, i) => { if (pi < 0) return; const k = key(r.pts[pi]); joins.push([i, k]); const o = node.get(k) || [0, 0]; o[0] += prof[i]; o[1]++; node.set(k, o); });
-      roads.push({ hw, P, prof, joins });
+      roads.push({ hw, P, prof, joins, wet });
     }
     for (const R of roads) {
       const { P, prof } = R;
@@ -316,9 +346,10 @@ export class KeralaTile {
       }
       for (let i = 0; i < P.length; i++) prof[i] += adj[i];
     }
-    for (const { hw, P, prof } of roads) {
+    for (const { hw, P, prof, wet } of roads) {
       const inner = hw + S * 0.75;          // every terrain triangle the road crosses is levelled to it
       for (let i = 1; i < P.length; i++) {
+        if (wet[i - 1] || wet[i]) continue;  // a bridge span: the water stays under it
         const [ae, an] = P[i - 1], [be, bn] = P[i], ya = prof[i - 1], yb = prof[i];
         const de = be - ae, dn = bn - an, l2 = de * de + dn * dn || 1, R = inner + 40;
         const i0 = Math.max(0, Math.ceil((Math.min(ae, be) - R) / S)), i1 = Math.min(N - 1, Math.floor((Math.max(ae, be) + R) / S));
@@ -545,7 +576,7 @@ export class KeralaTile {
       const run = (a, b) => { const de = a[0] - b[0], dn = a[1] - b[1], l = Math.hypot(de, dn) || 1; return [a[0] + de / l * (hw + 1), a[1] + dn / l * (hw + 1)]; };
       const P = r.pts.length > 1 && (onEdge(r.pts[0]) || onEdge(r.pts[r.pts.length - 1])) ? [...r.pts] : r.pts;
       if (P !== r.pts) { if (onEdge(P[0])) P.unshift(run(P[0], P[1])); if (onEdge(P[P.length - 1])) P.push(run(P[P.length - 1], P[P.length - 2])); }
-      const g = this._ribbon(P, hw, y(lift), 7);
+      const g = this._ribbon(P, hw, r.deck ? (e, n) => Math.max(this.heightAt(e, n), this._deckAt(r, e, n)) + lift : y(lift), 7);
       if (!g) continue;
       g.computeVertexNormals();
       if (!r.dirt) {
@@ -555,7 +586,7 @@ export class KeralaTile {
         g.setAttribute('junc', new THREE.BufferAttribute(J, 1));
       }
       (r.dirt ? dirt : paved).push(g);
-      const sk = this._shoulder(g);
+      const sk = r.deck ? null : this._shoulder(g);  // (a road with a bridge: its approaches are banked up instead)
       if (sk) shoulders.push(sk);
       if (r.dirt || r.cls > 4) continue;  // village and town lanes carry no paint
       // markings: dashed white centre line (Indian roads), solid edge lines on the main roads
@@ -569,6 +600,8 @@ export class KeralaTile {
     add(paved, M.klRoad || M.road, 'roads');
     add(dirt, M.klDirtRoad || M.dirt, 'tracks');
     add(shoulders, M.klShoulder || M.klDirtRoad || M.dirt, 'shoulders');
+    const br = this._bridges();
+    if (br) { const m = new THREE.Mesh(br, M.klBridge || M.klKerb); m.name = 'bridges'; m.castShadow = true; m.receiveShadow = true; out.push(m); }
     add(white, M.klLineWhite, 'lines');
     add(yellow, M.klLineYellow, 'linesY');
     return out;
@@ -595,8 +628,9 @@ export class KeralaTile {
     };
     this.bumps = [];
     for (const [ri, r] of this.roads.entries()) {
-      if (r.cls < 2 || r.cls > 7 || r.dirt || r.flags & 4 || r.pts.length < 2) continue;
-      const bridge = !!(r.flags & 2);
+      // (the highways get only their bridge parapets here)
+      if ((r.cls < 2 && !r.deck) || r.cls > 7 || r.dirt || r.flags & 4 || r.pts.length < 2) continue;
+      const bridge = !!(r.flags & 2), deckOnly = r.cls < 2;
       const hw = r.cls <= 2 && r.lanes ? Math.max(ROAD_HALF[r.cls], r.lanes * 1.75) : ROAD_HALF[r.cls];
       const lift = 0.07 + (10 - r.cls) * 0.004;
       // the line, every ~3 m
@@ -619,16 +653,17 @@ export class KeralaTile {
           const town = c0 !== C.water && c0 !== C.sea && (TOWN.has(c0) || [3, 8, 14, 20].some((o) => [-5, 5].some((t) => this.classAt(at(hw + o)[0] + N[i][2] * t, at(hw + o)[1] + N[i][3] * t) === C.building)));
           const shop = town && (this.classAt(...at(hw + 2.6)) === C.building || this.classAt(...at(hw + 1.3)) === C.commercial);
           // beside a canal, backwater or river (or on a bridge): a side wall with a parapet instead
-          const water = bridge || [2.5, 5, 8].some((o) => { const c = this.classAt(...at(hw + o)); return c === C.water || c === C.sea; });
+          const wet = [2.5, 5, 8].some((o) => { const c = this.classAt(...at(hw + o)); return c === C.water || c === C.sea; }), water = bridge || wet;
           let y0 = Math.max(this.heightAt(...at(hw)), this.heightAt(...at(hw + 0.9))) + lift;
           if (water) y0 = Math.max(this.roadSurface(...at(hw - 0.3)), bridge ? -Infinity : y0);
-          return { at, y0, town: town && !water && r.cls <= 6, shop: shop && r.cls <= 5, water };
+          return { at, y0, town: town && !water && r.cls <= 6, shop: shop && r.cls <= 5, water, wet };
         };
         let A = prof(0);
         for (let i = 1; i < P.length; i++) {
           const B = prof(i);
           const mid = [(P[i][0] + P[i - 1][0]) / 2, (P[i][1] + P[i - 1][1]) / 2];
           if ((runLeft -= 3) < 0) { cover = !cover; runLeft = cover ? 3 + rnd() * 9 : 6 + rnd() * 24; }
+          if (deckOnly && !(A.water && B.water)) { A = B; continue; }
           if (A.town && B.town && inTile(mid) && !nj(mid[0], mid[1]) && !nj(...A.at(hw + 0.5)) && !nj(...B.at(hw + 0.5))
             && !this.onRoad(...A.at(hw + 0.4), 0.2, ri) && !this.onRoad(...B.at(hw + 0.4), 0.2, ri)) {
             const K = kerb[chunkOf(...mid)];
@@ -660,7 +695,7 @@ export class KeralaTile {
             edge(hw - 0.12, -0.08, hw - 0.12, 0.62, grime, band ? [0.03, 0.03, 0.03] : white);   // parapet, road face
             edge(hw - 0.12, 0.62, hw + 0.16, 0.62, white);                                      // coping
             edge(hw + 0.16, 0.62, hw + 0.16, -0.1, white, grime);                               // outer face
-            edge(hw + 0.16, -0.1, hw + 0.3, -2.6, stone, [0.08, 0.09, 0.07]);                    // side wall down to the water
+            if (A.wet || B.wet || !bridge) edge(hw + 0.16, -0.1, hw + 0.3, -2.6, stone, [0.08, 0.09, 0.07]); // side wall down to the water
             const a = A.at(hw + 0.02), b = B.at(hw + 0.02), de = b[0] - a[0], dn = b[1] - a[1], L = Math.hypot(de, dn) || 1, ang = Math.atan2(-de / L, dn / L);
             this.colliders.push({ cx: -(this.E0 + (a[0] + b[0]) / 2), cz: this.N0 + (a[1] + b[1]) / 2, hx: 0.16, hz: Math.max(0.2, L / 2 - 0.05), cos: Math.cos(ang), sin: Math.sin(ang), angle: ang, h: Math.max(A.y0, B.y0) + 0.62, kind: 'barrier' });
           } else if (!A.town && !B.town && !A.water && !B.water && !bridge && r.cls <= 5 && !cover && inTile(mid) && !nj(mid[0], mid[1])
@@ -679,7 +714,7 @@ export class KeralaTile {
           A = B;
         }
       }
-      if (bridge || r.cls > 6) continue;
+      if (bridge || deckOnly || r.cls > 6) continue;
       // --- zebra crossings just short of the busy junctions (main roads in town)
       if (r.cls <= 4) for (const J of this._junctions || []) {
         if (J.c < 3) continue;
@@ -965,9 +1000,66 @@ export class KeralaTile {
     return list;
   }
 
+  // the bridge deck (or ramp) of road r at (e, n): its profile at the nearest point of its line, or -Infinity when
+  // (e, n) is beyond the deck's edge
+  _deckAt(r, e, n) {
+    const D = r.deck;
+    if (!D) return -Infinity;
+    if (!D.grid) {
+      D.grid = new Map();
+      D.P.forEach(([pe, pn], i) => { const k = Math.floor(pe / 8) * 100000 + Math.floor(pn / 8); if (!D.grid.has(k)) D.grid.set(k, []); D.grid.get(k).push(i); });
+    }
+    const ge = Math.floor(e / 8), gn = Math.floor(n / 8);
+    let bd = Infinity, by = -Infinity;
+    for (let a = -2; a <= 2; a++) for (let b = -2; b <= 2; b++) {
+      const L = D.grid.get((ge + a) * 100000 + gn + b); if (!L) continue;
+      for (const i of L) {
+        if (i === 0) continue;
+        const [ae, an] = D.P[i - 1], [be, bn] = D.P[i], de = be - ae, dn = bn - an, l2 = de * de + dn * dn || 1;
+        const u = Math.max(0, Math.min(1, ((e - ae) * de + (n - an) * dn) / l2)), d = Math.hypot(ae + de * u - e, an + dn * u - n);
+        if (d < bd) { bd = d; by = D.y[i - 1] + (D.y[i] - D.y[i - 1]) * u; }
+      }
+    }
+    return bd <= D.hw + 0.5 ? by : -Infinity;
+  }
+
+  // under the bridge decks: the concrete girder (sides and soffit) and piers down to the river bed, every ~24 m
+  _bridges() {
+    const pos = [];
+    const quad = (a, b, c, d) => pos.push(...a, ...b, ...c, ...a, ...c, ...d);
+    const box = (e, n, y0, y1, s) => {
+      const v = (x, y, z) => [-(e + x), y, n + z];
+      const c = [[-s, -s], [s, -s], [s, s], [-s, s]];
+      for (let k = 0; k < 4; k++) { const [x0, z0] = c[k], [x1, z1] = c[(k + 1) % 4]; quad(v(x0, y0, z0), v(x1, y0, z1), v(x1, y1, z1), v(x0, y1, z0)); }
+    };
+    for (const r of this.roads) {
+      const D = r.deck; if (!D) continue;
+      const { P, y, hw } = D, w = hw + 0.25, N = P.length;
+      const nrm = (i) => { const a = P[Math.max(0, i - 1)], b = P[Math.min(N - 1, i + 1)], de = b[0] - a[0], dn = b[1] - a[1], l = Math.hypot(de, dn) || 1; return [-dn / l, de / l]; };
+      const high = (i) => y[i] - this.heightAt(P[i][0], P[i][1]) > 1.1;
+      for (let i = 1; i < N; i++) {
+        if (!high(i - 1) && !high(i)) continue;
+        const [n0e, n0n] = nrm(i - 1), [n1e, n1n] = nrm(i);
+        const p = (j, ne, nn, o, dy) => [-(P[j][0] + ne * o), y[j] + dy, P[j][1] + nn * o];
+        for (const sd of [1, -1]) quad(p(i - 1, n0e, n0n, w * sd, 0), p(i, n1e, n1n, w * sd, 0), p(i, n1e, n1n, w * sd, -1.0), p(i - 1, n0e, n0n, w * sd, -1.0));
+        quad(p(i - 1, n0e, n0n, w, -1.0), p(i, n1e, n1n, w, -1.0), p(i, n1e, n1n, -w, -1.0), p(i - 1, n0e, n0n, -w, -1.0));
+        // piers: one in the middle of a narrow deck, a pair under a wide one
+        if (i % 6 === 0 && high(i) && D.wet[i]) {
+          const g = this.heightAt(P[i][0], P[i][1]) - 0.5;
+          for (const o of hw > 3.5 ? [hw * 0.55, -hw * 0.55] : [0]) box(P[i][0] + n1e * o, P[i][1] + n1n * o, g, y[i] - 1.0, 0.45);
+        }
+      }
+    }
+    if (!pos.length) return null;
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+    g.computeVertexNormals();
+    return g;
+  }
+
   // the height of the drawn road surface at (e, n), or -Infinity off the roads. Matches how _ribbon lays the strip:
   // lifted by class, each vertex on the highest ground around it, so wheels sit on the asphalt rather than in it
-  roadSurface(e, n) {
+  roadSurface(e, n, yRef) {
     if (!this._rg) this.nearRoad(e, n, 1);
     const G = 25;
     let best = -Infinity;
@@ -981,6 +1073,11 @@ export class KeralaTile {
         const t = Math.max(0, Math.min(1, ((e - ax) * dx + (n - az) * dz) / l2));
         const ce = ax + dx * t, cn = az + dz * t, dist = Math.hypot(ce - e, cn - n);
         if (dist > hw + 1.6) continue;
+        // on a bridge (or its ramps): the deck, and nothing beyond its edge
+        if (r.deck) {
+          const yd = this._deckAt(r, e, n);
+          if (yd > this.heightAt(e, n) + 0.3) { if (dist <= hw && !(yRef < yd - 1.2)) best = Math.max(best, yd + 0.07 + (10 - cls) * 0.004); continue; }
+        }
         const l = Math.sqrt(l2), ue = dx / l * 4, un = dz / l * 4;
         const y = Math.max(this.heightAt(e, n), this.heightAt(ce, cn), this.heightAt(ce + ue, cn + un), this.heightAt(ce - ue, cn - un)) + 0.07 + (10 - cls) * 0.004;
         // beyond the edge: down the shoulder to the ground (as drawn)

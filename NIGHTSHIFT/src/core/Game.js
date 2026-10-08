@@ -202,6 +202,29 @@ export class Game {
     if (this.onFoot?.human && !car.bike) this.onFoot.inter.seatInstant(this.player); // at the wheel
   }
 
+  // Into the water: a car under the surface (or someone in over their head) slows to a stop as it fills, and after
+  // a few seconds is fished out onto the nearest road
+  _drown(dt) {
+    const W = this.world, of = this.onFoot;
+    if (!W.inWater) return;
+    const s = of.active ? of.state : this.player?.state;
+    const t = s && W.tileAt(s.x, s.z);
+    if (!t?.ready || !W.inWater(s.x, s.z)) { this.sinkT = 0; return; }
+    const depth = t._waterY(-s.x - t.E0, s.z - t.N0) - s.y;
+    if (depth < (of.active ? 1.0 : 0.45)) { this.sinkT = 0; return; }
+    this.sinkT = (this.sinkT || 0) + dt;
+    const k = Math.exp(-dt * 2.5);
+    s.vx *= k; s.vz *= k;
+    if (!of.active) { const ps = this.player.physics.s; ps.vx *= k; ps.vz *= k; }
+    if (this.sinkT > 2.5) {
+      this.sinkT = 0;
+      this.hud.message('SUNK', of.active ? 'out of the water' : 'your car went into the water', 2.5);
+      const spot = this._laneSpot(s.x, s.z);
+      if (of.active) { s.x = spot.x + Math.cos(spot.yaw) * 4; s.z = spot.z - Math.sin(spot.yaw) * 4; s.y = W.groundHeight(s.x, s.z); s.vx = s.vz = 0; }
+      else this.resetPlayer();
+    }
+  }
+
   _laneSpot(x, z) {
     const n = this.traffic.graph.nearest(x, z, (l) => !l.ring);
     if (!n) return { x, z, yaw: 0 };
@@ -726,6 +749,7 @@ export class Game {
       else if (this.onFoot.inter.st) this.onFoot.inter.update(dt, input); // at the wheel (or finishing getting in)
       this.onFoot.updateParked(dt, this.camera.position, this.env.state);
       for (const v of this.onFoot.parked) if (Math.abs(v.state.x - player.state.x) < 8 && Math.abs(v.state.z - player.state.z) < 8) VehiclePhysics.resolvePair(player.physics, v.physics);
+      this._drown(dt);
       const dynamic = [player, ...this.onFoot.parked, ...this.police.vehicles(), ...this.races.vehicles(), ...this.rivals.vehicles(), ...this.story.vehicles(), ...this.net.trafficObstacles(), ...this.incidents.vehicles()];
       const fwd = { x: Math.sin(player.state.yaw), z: Math.cos(player.state.yaw) };
       this.traffic.camera = this.camera;

@@ -344,7 +344,7 @@ export class VehiclePhysics {
       const [f, l] = pts[i];
       const wx = s.x + sn * f + cs * l, wz = s.z + cs * f - sn * l;
       this.corners[i][0] = wx; this.corners[i][1] = wz;
-      const h = layout ? layout.groundHeight(wx, wz) : 0;
+      const h = layout ? layout.groundHeight(wx, wz, s.y) : 0;
       this.groundH[i] = h; hs += h;
     }
     const gh = this.groundH;
@@ -357,7 +357,7 @@ export class VehiclePhysics {
       const tp = Math.tan(clamp(terrainPitch, -0.6, 0.6));
       let need = hg;
       for (const f of ends) {
-        const gE = layout.groundHeight(s.x + sn * f, s.z + cs * f);
+        const gE = layout.groundHeight(s.x + sn * f, s.z + cs * f, s.y);
         need = Math.max(need, gE - f * tp - 0.16);
       }
       hg = Math.min(need, hg + 0.45);

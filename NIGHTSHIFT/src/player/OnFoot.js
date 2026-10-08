@@ -469,7 +469,7 @@ export class OnFoot {
   }
 
   // ------------------------------------------------------------------ movement
-  _ground(x, z) { return this.game.world.layout.groundHeight(x, z); }
+  _ground(x, z) { return this.game.world.layout.groundHeight(x, z, this.state.y); }
 
   _free(x, z) {
     const tmp = this._tmp || (this._tmp = []);

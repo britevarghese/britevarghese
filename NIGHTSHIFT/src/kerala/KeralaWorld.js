@@ -34,7 +34,7 @@ export class KeralaWorld {
       nearestNode: (x, z) => router.nearestNode(x, z),
       route: (a, b) => router.route(a, b),
       edges: [], blocks: [], ringSamples: [], nodeMap: new Map(),
-      groundHeight: (x, z) => W.groundHeight(x, z),
+      groundHeight: (x, z, y) => W.groundHeight(x, z, y),
       inTunnel: () => false,
       roadAt: () => null,
       offRoad: (x, z) => W.offRoad(x, z),
@@ -89,6 +89,7 @@ export class KeralaWorld {
     this.manholeGeo = manholeGeometry();
     Object.assign(this, detailGeometries());
     M.klAO = new THREE.MeshBasicMaterial({ name: 'klAO', vertexColors: true, transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -4 });
+    M.klBridge = new THREE.MeshStandardMaterial({ name: 'klBridge', color: 0x8f8c84, roughness: 0.92, side: THREE.DoubleSide });
     M.klShoulder = new THREE.MeshStandardMaterial({ name: 'klShoulder', color: 0xffffff, vertexColors: true, roughness: 1, polygonOffset: true, polygonOffsetFactor: 1, polygonOffsetUnits: 1 });
     M.klDirtRoad = new THREE.MeshStandardMaterial({ name: 'klDirt', color: 0x8e5a3c, roughness: 1 });
     M.klWater = new THREE.MeshStandardMaterial({ name: 'klWater', color: 0x1d4048, roughness: 0.1, metalness: 0.25, normalMap: TX.waterNormal?.(), transparent: true, opacity: 0.92 });
@@ -315,12 +316,13 @@ export class KeralaWorld {
     return this.tiles.get(this.key(Math.floor(E / TILE), Math.floor(N / TILE)));
   }
 
-  groundHeight(x, z) {
+  // y: the height of whatever asks (a car under a flyover drives on the road below, not on the deck above it)
+  groundHeight(x, z, y) {
     const t = this.tileAt(x, z);
     if (!t) return this._lastH ?? 0;
     const e = -x - t.E0, n = z - t.N0;
     let h = t.heightAt(e, n);
-    if (t.ready) h = Math.max(h, t.roadSurface(e, n));
+    if (t.ready) h = Math.max(h, t.roadSurface(e, n, y));
     this._lastH = h;
     return t._bg ? h + t.bumpAt(x, z) : h;
   }
