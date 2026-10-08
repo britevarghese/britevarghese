@@ -147,7 +147,7 @@ export class TrafficManager {
       // the streamed terrain has hills: ride on it, nose up / down with the slope
       const L = car.spec.l * 0.45, fx = Math.sin(car.yaw), fz = Math.cos(car.yaw), gh = this.world.layout.groundHeight;
       const hf = gh(car.x + fx * L, car.z + fz * L), hr = gh(car.x - fx * L, car.z - fz * L);
-      car.y = (hf + hr) / 2 + 0.06;
+      car.y = (hf + hr) / 2 + 0.01; // (ground height already includes the road surface)
       car.slope = Math.atan2(hf - hr, 2 * L);
     } else car.y = 0; // Port Halvern: traffic stays on the flat road surface
   }

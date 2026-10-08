@@ -737,6 +737,30 @@ export class KeralaTile {
     return false;
   }
 
+  // the height of the drawn road surface at (e, n), or -Infinity off the roads. Matches how _ribbon lays the strip:
+  // lifted by class, each vertex on the highest ground around it, so wheels sit on the asphalt rather than in it
+  roadSurface(e, n) {
+    if (!this._rg) this.nearRoad(e, n, 1);
+    const G = 25;
+    let best = -Infinity;
+    for (let a = -1; a <= 1; a++) for (let b = -1; b <= 1; b++) {
+      const L = this._rg.get((Math.floor(e / G) + a) * 1000 + Math.floor(n / G) + b); if (!L) continue;
+      for (let j = 0; j < L.length; j += 6) {
+        const cls = L[j + 4], r = this.roads[L[j + 5]];
+        if (r.flags & 4) continue;
+        const hw = (cls <= 2 && r.lanes ? Math.max(ROAD_HALF[cls], r.lanes * 1.75) : ROAD_HALF[cls]) + 0.15;
+        const ax = L[j], az = L[j + 1], dx = L[j + 2] - ax, dz = L[j + 3] - az, l2 = dx * dx + dz * dz || 1;
+        const t = Math.max(0, Math.min(1, ((e - ax) * dx + (n - az) * dz) / l2));
+        const ce = ax + dx * t, cn = az + dz * t;
+        if ((ce - e) ** 2 + (cn - n) ** 2 > hw * hw) continue;
+        const l = Math.sqrt(l2), ue = dx / l * 4, un = dz / l * 4;
+        const y = Math.max(this.heightAt(e, n), this.heightAt(ce, cn), this.heightAt(ce + ue, cn + un), this.heightAt(ce - ue, cn - un)) + 0.07 + (10 - cls) * 0.004;
+        if (y > best) best = y;
+      }
+    }
+    return best;
+  }
+
   // on a drawn road's surface (its own half-width plus margin), optionally ignoring one road (by index)
   onRoad(e, n, margin = 0, skip = -1, maxCls = 8) {
     if (!this._rg) this.nearRoad(e, n, 1);
@@ -786,6 +810,12 @@ export class KeralaTile {
       // the bigger buildings near it; this one goes if its middle or most of its corners (pulled in a little) are inside them
       const near = new Set();
       for (let x = Math.floor(e0 / 40); x <= Math.floor(e1 / 40); x++) for (let z = Math.floor(n0 / 40); z <= Math.floor(n1 / 40); z++) for (const o of BG.get(x * 100 + z) || []) near.add(o);
+      // OSM building outlines and our road widths don't always agree: a house standing on the carriageway goes
+      {
+        const pts = [[P.ce, P.cn], ...P.ring.map(([e, n]) => [e + (P.ce - e) * 0.15, n + (P.cn - n) * 0.15])];
+        const onRd = pts.filter(([e, n]) => this.onRoad(e, n, -0.4, -1, 7)).length;
+        if (this.onRoad(P.ce, P.cn, -0.4, -1, 7) || onRd >= pts.length * 0.34) { hidden[bi] = 1; continue; }
+      }
       if (near.size) {
         const pts = [[P.ce, P.cn], ...P.ring.map(([e, n]) => [e + (P.ce - e) * 0.15, n + (P.cn - n) * 0.15])];
         const inAny = ([e, n]) => { for (const o of near) if (inside(pre[o].ring, e, n)) return true; return false; };
@@ -1034,17 +1064,34 @@ export class KeralaTile {
         }
       }
     }
-    // compound wall round a house plot, with a gate on the side facing the road
-    if (!house || area > 320 || shop || rnd() > 0.7) return;
-    const off = 2 + rnd() * 1.6, R = ring.map(([e, nn]) => { const de = e - ce, dn = nn - cn, l = Math.hypot(de, dn) || 1; return [e + de / l * off * 1.3, nn + dn / l * off * 1.3]; });
+    // Compound wall round the house plot. Kerala homes nearly all stand in a walled compound: a 1.2-1.8 m wall of
+    // plastered brick or laterite along the plot line, pillars and a steel gate to the road, the house set back
+    // ~3 m (the building rules' front yard). The plot is the house's own rectangle grown by a yard on each side
+    // (a deeper one toward the road); where it would run onto a road the wall steps back to the road edge,
+    // neighbouring plots share a wall, and it is solid.
+    if (!house || area > 650 || shop || rnd() > 0.92) return;
+    let sxx = 0, syy = 0, sxy = 0;
+    for (const [e, nn] of ring) { const a = e - ce, b = nn - cn; sxx += a * a; syy += b * b; sxy += a * b; }
+    const th = 0.5 * Math.atan2(2 * sxy, sxx - syy), ux = Math.cos(th), uy = Math.sin(th);
+    let a0 = Infinity, a1 = -Infinity, b0 = Infinity, b1 = -Infinity;
+    for (const [e, nn] of ring) { const a = (e - ce) * ux + (nn - cn) * uy, b = -(e - ce) * uy + (nn - cn) * ux; a0 = Math.min(a0, a); a1 = Math.max(a1, a); b0 = Math.min(b0, b); b1 = Math.max(b1, b); }
+    const W2 = (a, b) => [ce + ux * a - uy * b, cn + uy * a + ux * b];
+    // which side faces the nearest road (that is the front, with the gate)
+    const sides = [[a1, 0, 1, 0], [a0, 0, -1, 0], [0, b1, 0, 1], [0, b0, 0, -1]];
+    let front = -1, fd = Infinity;
+    sides.forEach(([sa, sb, da, db], k) => { for (let d = 2; d <= 16; d += 2) { const p = W2(sa + da * d, sb + db * d); if (this.onRoad(p[0], p[1], 0.5, -1, 9)) { if (d < fd) { fd = d; front = k; } break; } } });
+    const yard = [1.4 + rnd() * 1.2, 1.4 + rnd() * 1.2, 1.6 + rnd() * 1.4, 1.6 + rnd() * 1.4].map((m, k) => (k === front ? 3 + rnd() * 3 : m));
+    const A0 = a0 - yard[1], A1 = a1 + yard[0], B0 = b0 - yard[3], B1 = b1 + yard[2];
+    const corners = [[A1, B0], [A1, B1], [A0, B1], [A0, B0]];      // sides: +a, +b, -a, -b
+    const sideOf = [0, 2, 1, 3];                                  // corner edge i -> index in `sides`
     const laterite = rnd() < 0.35, j = 0.85 + rnd() * 0.2;
     const top0 = laterite ? [0.24 * j, 0.09 * j, 0.045 * j] : [0.36 * j, 0.35 * j, 0.32 * j], low = laterite ? [0.12, 0.05, 0.03] : [0.08, 0.09, 0.05];
-    const clear = (e, nn) => e > 0.5 && nn > 0.5 && e < TILE - 0.5 && nn < TILE - 0.5 && !this.onRoad(e, nn, 1.2, -1, 9) && this.classAt(e, nn) !== C.building && this.classAt(e, nn) !== C.road && this.classAt(e, nn) !== C.water;
-    let gateDone = false;
-    const W = D.walls[C0], HW = 1.45, T = 0.1;
+    const W = D.walls[C0], HW = 1.25 + rnd() * 0.4, T = 0.1;
+    if (!D.wallCells) D.wallCells = new Set();
+    const cell = (e, nn) => Math.round(e * 2) * 100003 + Math.round(nn * 2);
     const piece = (a, b) => {
       const de = b[0] - a[0], dn = b[1] - a[1], L = Math.hypot(de, dn);
-      if (L < 0.6) return;
+      if (L < 0.5) return;
       const ne = -dn / L * T, nn = de / L * T, ya = this.heightAt(...a) - 0.1, yb = this.heightAt(...b) - 0.1;
       const V = (p, o, y) => [-(p[0] + ne * o), y, p[1] + nn * o];
       const q = (p1, p2, p3, p4, c1, c2) => { W.p.push(...p1, ...p2, ...p3, ...p1, ...p3, ...p4); W.c.push(...c1, ...c1, ...c2, ...c1, ...c2, ...c2); };
@@ -1053,29 +1100,34 @@ export class KeralaTile {
       const ang = Math.atan2(-de / L, dn / L);
       this.colliders.push({ cx: -(this.E0 + (a[0] + b[0]) / 2), cz: this.N0 + (a[1] + b[1]) / 2, hx: 0.15, hz: L / 2, cos: Math.cos(ang), sin: Math.sin(ang), angle: ang, h: Math.max(ya, yb) + HW, kind: 'barrier' });
     };
-    for (let i = 0; i < n; i++) {
-      const a = R[i], b = R[(i + 1) % n], L = Math.hypot(b[0] - a[0], b[1] - a[1]);
-      if (L < 1) continue;
-      const ue = (b[0] - a[0]) / L, un = (b[1] - a[1]) / L;
-      // the gate: the first side whose outward side reaches a road
-      let gate = -1;
-      if (!gateDone && L > 4.5) { const me = (a[0] + b[0]) / 2 + un * 7, mn = (a[1] + b[1]) / 2 - ue * 7; if (this.nearRoad(me, mn, 6, 9)) { gate = L / 2; gateDone = true; } }
-      // runs of clear ground, sampled every 1 m, broken at the gate
-      let run = null;
-      for (let d = 0; d <= L + 1e-6; d = Math.min(L, d + 1) + (d >= L ? 1 : 0)) {
-        const p = [a[0] + ue * d, a[1] + un * d], ok = clear(...p) && !(gate >= 0 && Math.abs(d - gate) < 1.6);
-        if (ok) { if (!run) run = p; else if (d >= L) { piece(run, p); run = null; } }
-        else if (run) { piece(run, [a[0] + ue * (d - 1), a[1] + un * (d - 1)]); run = null; }
-        if (d >= L) { if (run) piece(run, p); break; }
+    const blocked = (e, nn) => e < 0.5 || nn < 0.5 || e > TILE - 0.5 || nn > TILE - 0.5 || this.classAt(e, nn) === C.building || this.classAt(e, nn) === C.water || this.classAt(e, nn) === C.sea;
+    for (let i = 0; i < 4; i++) {
+      const [pa, pb] = corners[i], [qa, qb] = corners[(i + 1) % 4], L = Math.hypot(qa - pa, qb - pb), isFront = sideOf[i] === front;
+      const gate = isFront && L > 5 ? L / 2 : -1;
+      let run = null, last = null;
+      for (let d = 0; d <= L + 1e-6; d += 1) {
+        const t = Math.min(1, d / L);
+        let a = pa + (qa - pa) * t, b = pb + (qb - pb) * t, p = W2(a, b);
+        // onto a road: step back toward the house until it is off the carriageway (the wall runs along the road edge)
+        for (let k = 0; k < 16 && this.onRoad(p[0], p[1], 0.7, -1, 9); k++) { a *= 0.93; b *= 0.93; p = W2(a, b); }
+        const inHouse = a > a0 - 0.6 && a < a1 + 0.6 && b > b0 - 0.6 && b < b1 + 0.6;
+        const shared = D.wallCells.has(cell(...p));
+        const ok = !inHouse && !shared && !blocked(...p) && !this.onRoad(p[0], p[1], 0.7, -1, 9) && !(gate >= 0 && Math.abs(d - gate) < 1.6);
+        if (ok) { D.wallCells.add(cell(...p)); if (!run) run = p; last = p; }
+        else { if (run && last !== run) piece(run, last); run = null; }
       }
+      if (run && last !== run) piece(run, last);
       if (gate >= 0) {
-        const ge = a[0] + ue * gate, gn = a[1] + un * gate;
-        if (clear(ge, gn)) {
+        const t = gate / L, ga = pa + (qa - pa) * t, gb = pb + (qb - pb) * t;
+        let k = 1, g = W2(ga, gb);
+        for (let s2 = 0; s2 < 16 && this.onRoad(g[0], g[1], 0.7, -1, 9); s2++) { k *= 0.93; g = W2(ga * k, gb * k); }
+        if (!blocked(...g) && !this.onRoad(g[0], g[1], 0.7, -1, 9)) {
+          const de = (qa - pa) * ux - (qb - pb) * uy, dn = (qa - pa) * uy + (qb - pb) * ux, l = Math.hypot(de, dn) || 1, ue = de / l, un = dn / l;
           Z.set(-un, 0, -ue); X.crossVectors(Y, Z);
-          m4.makeBasis(X, Y, Z).setPosition(-ge, this.heightAt(ge, gn) - 0.05, gn);
+          m4.makeBasis(X, Y, Z).setPosition(-g[0], this.heightAt(...g) - 0.05, g[1]);
           D.props.gate.push([m4.clone(), C0]);
           const ang = Math.atan2(-ue, un);  // collider local z runs along the wall
-          this.colliders.push({ cx: -(this.E0 + ge), cz: this.N0 + gn, hx: 0.12, hz: 1.5, cos: Math.cos(ang), sin: Math.sin(ang), angle: ang, h: this.heightAt(ge, gn) + 1.6, kind: 'barrier' });
+          this.colliders.push({ cx: -(this.E0 + g[0]), cz: this.N0 + g[1], hx: 0.12, hz: 1.5, cos: Math.cos(ang), sin: Math.sin(ang), angle: ang, h: this.heightAt(...g) + 1.6, kind: 'barrier' });
         }
       }
     }

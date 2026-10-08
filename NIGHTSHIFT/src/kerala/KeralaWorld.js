@@ -188,7 +188,9 @@ export class KeralaWorld {
   groundHeight(x, z) {
     const t = this.tileAt(x, z);
     if (!t) return this._lastH ?? 0;
-    const h = t.heightAt(-x - t.E0, z - t.N0);
+    const e = -x - t.E0, n = z - t.N0;
+    let h = t.heightAt(e, n);
+    if (t.ready) h = Math.max(h, t.roadSurface(e, n));
     this._lastH = h;
     return t._bg ? h + t.bumpAt(x, z) : h;
   }
