@@ -333,8 +333,32 @@ export class KeralaTile {
     return faceUp(g);
   }
 
+  // The earth shoulder each side of a road strip: from the strip's edge, 1.6 m out and down (or up) to the ground,
+  // so a road on a low embankment has a slope, not a ledge (roadSurface() gives the physics the same slope)
+  _shoulder(g) {
+    const P = g.attributes.position.array, n = P.length / 6;
+    if (n < 2) return null;
+    const pos = [], idx = [], W = 1.6;
+    for (const side of [0, 1]) {
+      const base = pos.length / 3;
+      for (let i = 0; i < n; i++) {
+        const o = i * 6 + side * 3, q = i * 6 + (1 - side) * 3;
+        const ex = P[o], ey = P[o + 1], ez = P[o + 2];
+        let dx = ex - P[q], dz = ez - P[q + 2]; const l = Math.hypot(dx, dz) || 1; dx /= l; dz /= l;
+        const ox = ex + dx * W, oz = ez + dz * W, gy = this.heightAt(-ox, oz) + 0.03;
+        pos.push(ex, ey - 0.005, ez, ox, Math.min(gy, ey - 0.02) + (gy > ey ? (gy - ey) : 0), oz);
+      }
+      for (let i = 0; i < n - 1; i++) { const a = base + i * 2; idx.push(a, a + 1, a + 2, a + 1, a + 3, a + 2); }
+    }
+    const sg = new THREE.BufferGeometry();
+    sg.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+    sg.setAttribute('uv', new THREE.Float32BufferAttribute(new Float32Array(pos.length / 3 * 2), 2));
+    sg.setIndex(idx); faceUp(sg); sg.computeVertexNormals();
+    return sg;
+  }
+
   _roads(M) {
-    const paved = [], dirt = [], white = [], yellow = [];
+    const paved = [], dirt = [], white = [], yellow = [], shoulders = [];
     const y = (lift) => (e, n) => this.heightAt(e, n) + lift;
     // junctions (points shared by roads): markings stop short of them, as painted lines do
     const seen = new Map();
@@ -378,6 +402,8 @@ export class KeralaTile {
         g.setAttribute('junc', new THREE.BufferAttribute(J, 1));
       }
       (r.dirt ? dirt : paved).push(g);
+      const sk = this._shoulder(g);
+      if (sk) shoulders.push(sk);
       if (r.dirt || r.cls > 4) continue;  // village and town lanes carry no paint
       // markings: dashed white centre line (Indian roads), solid edge lines on the main roads
       const cl = this._dashes(r.pts, 0, 0.08, 3, 6, y(lift + 0.012));
@@ -389,6 +415,7 @@ export class KeralaTile {
     const add = (list, mat, name) => { if (!list.length) return; const gg = mergeGeometries(list); if (!gg) return; const m = new THREE.Mesh(gg, mat); m.receiveShadow = true; m.name = name; out.push(m); };
     add(paved, M.klRoad || M.road, 'roads');
     add(dirt, M.klDirtRoad || M.dirt, 'tracks');
+    add(shoulders, M.klShoulder || M.klDirtRoad || M.dirt, 'shoulders');
     add(white, M.klLineWhite, 'lines');
     add(yellow, M.klLineYellow, 'linesY');
     return out;
@@ -799,11 +826,13 @@ export class KeralaTile {
         const hw = (cls <= 2 && r.lanes ? Math.max(ROAD_HALF[cls], r.lanes * 1.75) : ROAD_HALF[cls]) + 0.15;
         const ax = L[j], az = L[j + 1], dx = L[j + 2] - ax, dz = L[j + 3] - az, l2 = dx * dx + dz * dz || 1;
         const t = Math.max(0, Math.min(1, ((e - ax) * dx + (n - az) * dz) / l2));
-        const ce = ax + dx * t, cn = az + dz * t;
-        if ((ce - e) ** 2 + (cn - n) ** 2 > hw * hw) continue;
+        const ce = ax + dx * t, cn = az + dz * t, dist = Math.hypot(ce - e, cn - n);
+        if (dist > hw + 1.6) continue;
         const l = Math.sqrt(l2), ue = dx / l * 4, un = dz / l * 4;
         const y = Math.max(this.heightAt(e, n), this.heightAt(ce, cn), this.heightAt(ce + ue, cn + un), this.heightAt(ce - ue, cn - un)) + 0.07 + (10 - cls) * 0.004;
-        if (y > best) best = y;
+        // beyond the edge: down the shoulder to the ground (as drawn)
+        const yy = dist <= hw ? y : y + (this.heightAt(e, n) - y) * ((dist - hw) / 1.6);
+        if (yy > best) best = yy;
       }
     }
     return best;

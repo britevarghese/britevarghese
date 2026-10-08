@@ -348,7 +348,8 @@ export class KeralaTrees {
     // keep clear of the carriageway: road segments in a 20 m grid
     const RG = new Map(), G = 20;
     for (const r of tile.roads) {
-      const hw = (ROAD_HALF[r.cls] ?? 2) + 1.4;
+      // the road's real width (main roads are as wide as their lanes) plus the verge and shoulder
+      const hw = (r.cls <= 2 && r.lanes ? Math.max(ROAD_HALF[r.cls], r.lanes * 1.75) : (ROAD_HALF[r.cls] ?? 2)) + (r.cls <= 6 ? 2.4 : 1.4);
       for (let i = 1; i < r.pts.length; i++) {
         const a = r.pts[i - 1], b = r.pts[i];
         for (let gx = Math.floor((Math.min(a[0], b[0]) - hw) / G); gx <= Math.floor((Math.max(a[0], b[0]) + hw) / G); gx++)
