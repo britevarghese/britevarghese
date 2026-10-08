@@ -120,7 +120,7 @@ export class Game {
     this.incidents = new Incidents(this);
     // realistic people (rigged characters): streamed in after the city, then used for the player on
     // foot, other players, mission contacts and the pedestrians nearest the camera
-    this.humans = new HumanLibrary(this.assets, this.lib.manifest);
+    this.humans = new HumanLibrary(this.assets, this.lib.manifest, { kerala: !!this.world.kerala });
     this.peds.humans = this.humans; this.peds.people = preset.people ?? 8;
     this.humans.load(3).then(() => this.onFoot.useHuman()); // small (~4 MB): ahead of the rival cars
     this.audio = new AudioManager(this.settings.audio);

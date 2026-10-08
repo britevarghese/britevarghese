@@ -328,8 +328,11 @@ export class Pedestrians {
     const near = this.peds.filter((p) => p.d !== undefined && p.d < 45).sort((a, b) => a.d - b.d).slice(0, K);
     const keep = new Set(near);
     for (const p of this.peds) if (p.human && (!keep.has(p) || p.d > 50)) this._release(p);
+    // in Kerala the first model is the player's own look: the crowd is the rest (mundus, kurtas, sarees)
+    const M = this.humans?.models?.length || 1, skip = this.layout.pedSegment && M > 2 ? 1 : 0;
     for (const p of near) {
       if (p.human) continue;
+      if (p.model % M < skip) p.model += 1;
       const list = this.pool.get(p.model % this.humans.models.length);
       const h = list?.pop() || this.humans.create(p.model, { shadow: true });
       if (!h) continue;

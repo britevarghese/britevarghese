@@ -5732,6 +5732,13 @@
     "humans/emilius.glb": "a896155083",
     "humans/jake.glb": "cb3e344faf",
     "humans/kenzie.glb": "44a155d6f3",
+    "humans/kl_elder.glb": "4b8cf12450",
+    "humans/kl_kurta_brown.glb": "b5ac97ed5d",
+    "humans/kl_kurta_dhoti.glb": "f3fd13bef5",
+    "humans/kl_modern.glb": "2ec1d7b96b",
+    "humans/kl_office.glb": "2159115a0c",
+    "humans/kl_saree.glb": "13c321fe8c",
+    "humans/kl_saree_pink.glb": "5b970077a0",
     "humans/lucy.glb": "0b051b41fe",
     "humans/pmariano.glb": "09f3dc6859",
     "humans/songbird.glb": "e6ef9db7de",
@@ -5763,5 +5770,98 @@
     "truck.glb": "d306027ce6",
     "van.glb": "208b808643",
     "wheels.glb": "6309f7c8eb"
-  }
+  },
+  "humansKL": [
+    {
+      "id": "kl_elder",
+      "sex": "m",
+      "file": "humans/kl_elder.glb",
+      "source": {
+        "site": "Sketchfab",
+        "uid": "e70a140ad4334c2e8648ac78d61545b3",
+        "title": "Indian Old man walking",
+        "author": "anandmohan662",
+        "url": "https://sketchfab.com/3d-models/e70a140ad4334c2e8648ac78d61545b3",
+        "license": "CC-BY-4.0"
+      }
+    },
+    {
+      "id": "kl_kurta_brown",
+      "sex": "m",
+      "file": "humans/kl_kurta_brown.glb",
+      "source": {
+        "site": "Sketchfab",
+        "uid": "a7fcb7ce36984b1b860ac7e476033bb1",
+        "title": "Indian Man In Kurta",
+        "author": "ar.jethin",
+        "url": "https://sketchfab.com/3d-models/a7fcb7ce36984b1b860ac7e476033bb1",
+        "license": "Sketchfab Free Standard"
+      }
+    },
+    {
+      "id": "kl_kurta_dhoti",
+      "sex": "m",
+      "file": "humans/kl_kurta_dhoti.glb",
+      "source": {
+        "site": "Sketchfab",
+        "uid": "d691bd90c3e046aa970215a5c6a00a6d",
+        "title": "Indian Man In Kurta (2)",
+        "author": "ar.jethin",
+        "url": "https://sketchfab.com/3d-models/d691bd90c3e046aa970215a5c6a00a6d",
+        "license": "Sketchfab Free Standard"
+      }
+    },
+    {
+      "id": "kl_saree",
+      "sex": "f",
+      "file": "humans/kl_saree.glb",
+      "source": {
+        "site": "Sketchfab",
+        "uid": "b5965a93b03440dea65160f7cbac1fc7",
+        "title": "Indian Woman in Saree",
+        "author": "ar.jethin",
+        "url": "https://sketchfab.com/3d-models/b5965a93b03440dea65160f7cbac1fc7",
+        "license": "Sketchfab Free Standard"
+      }
+    },
+    {
+      "id": "kl_saree_pink",
+      "sex": "f",
+      "file": "humans/kl_saree_pink.glb",
+      "source": {
+        "site": "Sketchfab",
+        "uid": "c8ae4057c6904a248ad0b185170cbe45",
+        "title": "Indian  women",
+        "author": "Sorojithaldar98",
+        "url": "https://sketchfab.com/3d-models/c8ae4057c6904a248ad0b185170cbe45",
+        "license": "CC-BY-4.0"
+      }
+    },
+    {
+      "id": "kl_modern",
+      "sex": "f",
+      "file": "humans/kl_modern.glb",
+      "source": {
+        "site": "Sketchfab",
+        "uid": "830d8ed3236a4221862290b81807f408",
+        "title": "Modern Indian Woman",
+        "author": "ar.jethin",
+        "url": "https://sketchfab.com/3d-models/830d8ed3236a4221862290b81807f408",
+        "license": "CC-BY-4.0"
+      }
+    },
+    {
+      "id": "kl_office",
+      "sex": "f",
+      "file": "humans/kl_office.glb",
+      "source": {
+        "site": "Sketchfab",
+        "uid": "e6c60cafd33c4d54b0b840c4146ed244",
+        "title": "Indian Office Woman",
+        "author": "ar.jethin",
+        "url": "https://sketchfab.com/3d-models/e6c60cafd33c4d54b0b840c4146ed244",
+        "license": "CC-BY-4.0"
+      }
+    }
+  ]
 }

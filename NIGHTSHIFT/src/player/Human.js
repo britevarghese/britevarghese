@@ -25,7 +25,13 @@ function ik(a, t, l1, l2, hint, out) {
 
 // Loads the people models listed in the manifest (low priority, after the city is up).
 export class HumanLibrary {
-  constructor(assets, manifest) { this.assets = assets; this.manifest = manifest; this.list = manifest?.humans || []; this.models = []; this.ready = false; }
+  // Kerala: the player's own look first, then the Kerala crowd (mundu, kurtas, sarees...) instead of the city set
+  constructor(assets, manifest, { kerala = false } = {}) {
+    this.assets = assets; this.manifest = manifest;
+    const base = manifest?.humans || [];
+    this.list = kerala && manifest?.humansKL?.length ? [base[0], ...manifest.humansKL].filter(Boolean) : base;
+    this.models = []; this.ready = false;
+  }
   load(priority = 5) {
     if (this._job) return this._job;
     const anims = fetch('/assets/anims/people.json').then((r) => (r.ok ? r.json() : null)).catch(() => null).then((a) => { this.anims = a; });
@@ -68,7 +74,8 @@ export class Human {
     this.group.add(this.root);
     this.B = {};
     this.root.traverse((o) => {
-      if (o.isBone) { const n = o.name.replace(/_\d+$/, ''); this.B[n] ||= o; o.userData.rest = o.quaternion.clone(); }
+      // (Ready Player Me and Mixamo rigs share bone names; Mixamo exports prefix them, e.g. mixamorig:Hips)
+      if (o.isBone) { const n = o.name.replace(/^mixamorig\d*[:_]?/i, '').replace(/_\d+$/, ''); this.B[n] ||= o; o.userData.rest = o.quaternion.clone(); }
       if (o.isMesh) { o.castShadow = shadow; o.frustumCulled = false; }
     });
     // normalise the height (the models are 1.74-1.87 m tall): men ~1.78 m, women ~1.66 m
