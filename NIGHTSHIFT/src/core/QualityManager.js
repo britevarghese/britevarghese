@@ -8,14 +8,14 @@ export const PRESETS = {
   veryLow: {
     resolutionScale: 0.7, pixelRatioCap: 1, textureSize: 256, shadows: 'off', shadowMapSize: 0,
     post: 'off', antialias: 'off', viewDistance: 420, detailDistance: 170, traffic: 10, pedestrians: 0, people: 0,
-    particles: 0.3, rainDrops: 1200, headlightSpots: 0, policeLights: 0, anisotropy: 1, roofDetail: false,
-    wetReflections: false, lightPools: true, streetLights: 0, envMapSize: 64, trees: 0.4, lodBias: 0.6, props: 0.5, carLod1Distance: 18, carLod0Max: 2,
+    particles: 0.3, rainDrops: 1200, headlightSpots: 1, policeLights: 0, anisotropy: 1, roofDetail: false,
+    wetReflections: false, lightPools: true, streetLights: 2, envMapSize: 64, trees: 0.4, lodBias: 0.6, props: 0.5, carLod1Distance: 18, carLod0Max: 2,
   },
   low: {
     resolutionScale: 0.85, pixelRatioCap: 1, textureSize: 512, shadows: 'off', shadowMapSize: 0,
     post: 'off', antialias: 'fxaa', viewDistance: 600, detailDistance: 220, traffic: 20, pedestrians: 16, people: 4,
     particles: 0.5, rainDrops: 2500, headlightSpots: 1, policeLights: 1, anisotropy: 2, roofDetail: false,
-    wetReflections: true, lightPools: true, streetLights: 0, envMapSize: 128, trees: 0.7, lodBias: 0.8, props: 0.75, carLod1Distance: 28, carLod0Max: 3,
+    wetReflections: true, lightPools: true, streetLights: 3, envMapSize: 128, trees: 0.7, lodBias: 0.8, props: 0.75, carLod1Distance: 28, carLod0Max: 3,
   },
   medium: {
     resolutionScale: 1, pixelRatioCap: 1, textureSize: 1024, shadows: 'low', shadowMapSize: 1024,

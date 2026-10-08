@@ -49,7 +49,7 @@ export class KeralaWorld {
       update: () => {}, setPreset: () => {},
     };
     this.props = { rebuild() {}, defs: {}, count: 0, hide() {}, updateSignals() {}, preset: null };
-    this.lights = { rebuild() {}, update() {}, setDynamicCount() {}, addReflection() {}, flushReflections() {}, dyn: [] };
+    this.lights = { rebuild() {}, update() {}, setDynamicCount() {}, addReflection() {}, flushReflections() {}, dyn: [] }; // (the real one once there is a scene)
   }
 
   async loadIndex() {
@@ -62,6 +62,8 @@ export class KeralaWorld {
   // -------------------------------------------------------------------------------------- visuals
   initVisuals(scene, M, preset) {
     this.scene = scene; this.M = M; this.preset = preset;
+    this.lights = new KeralaLights(scene, this);
+    this.lights.setDynamicCount(preset?.streetLights || 0);
     this.root = new THREE.Group(); this.root.name = 'kerala';
     scene.add(this.root);
     // materials the tiles share
@@ -101,7 +103,7 @@ export class KeralaWorld {
     this.queue = [];
   }
 
-  setPreset(p) { this.preset = p; this.trees?.setPreset(p); }
+  setPreset(p) { this.preset = p; this.trees?.setPreset(p); if (this.lights.dyn.length !== (p.streetLights || 0)) this.lights.setDynamicCount(p.streetLights || 0); }
 
   _opts() {
     const p = this.preset || {};
@@ -521,9 +523,10 @@ export class KeralaWorld {
   breakCollider(c) { c.broken = true; }
 
   // -------------------------------------------------------------------------------------- streaming
-  update(dt, camera) {
+  update(dt, camera, envState) {
     this.state.time += dt;
     if (!this.index || !camera) return;
+    this.lights.update(camera, envState || { night: this.night || 0 }, dt);
     const p = camera.position, tx = Math.floor(-p.x / TILE), tz = Math.floor(p.z / TILE);
     this._signals(dt, p);
     if (tx !== this._ctx || tz !== this._ctz) {
@@ -560,7 +563,7 @@ export class KeralaWorld {
     const R = this.M?.klRoad, B = this.M?.road;
     if (R && B) { R.userData.u.uWet.value = this.wet || 0; R.roughness = B.roughness; R.color.copy(B.color); R.envMapIntensity = B.envMapIntensity; if (R.roughnessMap !== B.roughnessMap) { R.roughnessMap = B.roughnessMap; R.needsUpdate = true; } }
     // streetlights come on at dusk
-    if (this.M?.klLamp) { const nt = this.night || 0, on = Math.max(0, Math.min(1, (nt - 0.3) / 0.4)); this.M.klLamp.emissiveIntensity = on * 3.2; this.M.klLampPool.opacity = on * 0.6; this.M.klLampPool.visible = on > 0.01; }
+    if (this.M?.klLamp) { const nt = this.night || 0, on = Math.max(0, Math.min(1, (nt - 0.3) / 0.4)); this.M.klLamp.emissiveIntensity = on * 3.2; this.M.klLampPool.opacity = on * 0.85; this.M.klLampPool.visible = on > 0.01; }
     if (this.M?.klKerb) this.M.klKerb.roughness = 0.92 - 0.55 * (this.wet || 0);
     // road markings only on the tiles near the camera (sub-pixel further out)
     if (!this._mkT || (this._mkT += dt) > 0.5) {
@@ -753,11 +756,11 @@ function lampGeometries() {
     new THREE.CylinderGeometry(0.03, 0.03, 0.9, 4).rotateZ(-0.7).translate(-0.3, 6.75, 0),
   ].map(nx)); arm.computeVertexNormals();
   const head = nx(new THREE.BoxGeometry(0.62, 0.12, 0.26).translate(-2.15, 7.2, 0)); head.computeVertexNormals();
-  const pool = nx(new THREE.CircleGeometry(5.5, 16).rotateX(-Math.PI / 2).translate(-3.2, 0.32, 0));
+  const pool = nx(new THREE.CircleGeometry(7, 20).rotateX(-Math.PI / 2).translate(-3.2, 0.32, 0));
   {
     // soft edge: fade by vertex colour (additive, so dark = transparent)
     const P = pool.attributes.position, c = new Float32Array(P.count * 3);
-    for (let i = 0; i < P.count; i++) { const d = Math.hypot(P.getX(i) + 3.2, P.getZ(i)) / 5.5, k = Math.max(0, 1 - d) ** 1.5; c.set([k, k, k], i * 3); }
+    for (let i = 0; i < P.count; i++) { const d = Math.hypot(P.getX(i) + 3.2, P.getZ(i)) / 7, k = Math.max(0, 1 - d) ** 1.3; c.set([k, k, k], i * 3); }
     pool.setAttribute('color', new THREE.BufferAttribute(c, 3));
   }
   const parts = [];
@@ -829,3 +832,67 @@ function teaSignTexture() {
   const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace;
   return t;
 }
+
+// Kerala's street lighting at night: the lamp heads near the camera glow (additive halos), and a few real
+// spotlights (by quality) move to the lamps nearest the camera so the road under them is actually lit
+class KeralaLights {
+  constructor(scene, world) {
+    this.scene = scene; this.world = world; this.dyn = []; this.heads = []; this._t = 0;
+    const c = document.createElement('canvas'); c.width = c.height = 64;
+    const x = c.getContext('2d'), g = x.createRadialGradient(32, 32, 0, 32, 32, 32);
+    g.addColorStop(0, 'rgba(255,240,210,1)'); g.addColorStop(0.2, 'rgba(255,214,150,0.65)'); g.addColorStop(1, 'rgba(255,170,80,0)');
+    x.fillStyle = g; x.fillRect(0, 0, 64, 64);
+    this.haloMat = new THREE.MeshBasicMaterial({ map: new THREE.CanvasTexture(c), transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false, fog: true, color: 0xffd9a8 });
+    this.halos = new THREE.InstancedMesh(new THREE.PlaneGeometry(1, 1), this.haloMat, 700);
+    this.halos.frustumCulled = false; this.halos.count = 0; this.halos.renderOrder = 4;
+    scene.add(this.halos);
+  }
+  rebuild() {}
+  addReflection() {}
+  flushReflections() {}
+  setDynamicCount(n) {
+    for (const d of this.dyn) { this.scene.remove(d.light, d.light.target); d.light.dispose(); }
+    this.dyn = [];
+    for (let i = 0; i < n; i++) {
+      // sodium-warm, a wide cone straight down: a pool on the road under each lamp, dark gaps between
+      const light = new THREE.SpotLight(0xffc98a, 0, 42, 1.1, 0.6, 1.7);
+      light.castShadow = false;
+      this.scene.add(light, light.target);
+      this.dyn.push({ light, lamp: null, k: 0 });
+    }
+  }
+  update(camera, env, dt) {
+    const night = env.night || 0, on = night > 0.32, p = camera.position;
+    // lamp heads near the camera (gathered a few times a second)
+    if ((this._t -= dt) <= 0) {
+      this._t = 0.4; this.heads.length = 0;
+      if (on) for (const t of this.world.tiles.values()) {
+        if (!t.ready || !t.lampHeads) continue;
+        const L = t.lampHeads;
+        for (let i = 0; i < L.length; i += 3) { const dx = L[i] - p.x, dz = L[i + 2] - p.z; if (dx * dx + dz * dz < 300 * 300) this.heads.push([L[i], L[i + 1], L[i + 2]]); }
+      }
+    }
+    // halos, facing the camera
+    const H = this.halos, q = camera.quaternion, m = _hm, s = _hs.set(2.8, 2.8, 2.8);
+    let n = 0;
+    if (on) for (const h of this.heads) { if (n >= H.instanceMatrix.count) break; H.setMatrixAt(n++, m.compose(_hp.set(h[0], h[1], h[2]), q, s)); }
+    H.count = n; H.instanceMatrix.needsUpdate = true;
+    this.haloMat.opacity = Math.min(1, Math.max(0, night - 0.3) * 2.2);
+    // real lights on the lamps nearest the camera (a little ahead of it preferred)
+    if (!this.dyn.length) return;
+    const fwd = _hp.set(0, 0, -1).applyQuaternion(q), fx = fwd.x, fz = fwd.z;
+    const cand = on ? this.heads.map((h) => { const dx = h[0] - p.x, dz = h[2] - p.z, d = Math.hypot(dx, dz); return { h, s: d - 15 * ((dx * fx + dz * fz) / (d || 1)) }; }).filter((c) => c.s < 110).sort((a, b) => a.s - b.s) : [];
+    const want = new Set(cand.slice(0, this.dyn.length).map((c) => c.h)), free = [];
+    for (const d of this.dyn) { if (d.lamp && want.has(d.lamp)) want.delete(d.lamp); else free.push(d); }
+    const rest = [...want];
+    for (const d of this.dyn) {
+      if (free.includes(d)) {
+        d.k = Math.max(0, d.k - dt * 3);
+        if (d.k === 0) { d.lamp = rest.shift() || null; if (d.lamp) { d.light.position.set(d.lamp[0], d.lamp[1] - 0.15, d.lamp[2]); d.light.target.position.set(d.lamp[0], d.lamp[1] - 8, d.lamp[2]); } }
+      } else d.k = Math.min(1, d.k + dt * 2.5);
+      // (always in the scene: changing the light count would recompile every shader)
+      d.light.intensity = d.lamp && on ? d.k * 1700 * Math.min(1, (night - 0.3) * 2) : 0;
+    }
+  }
+}
+const _hm = new THREE.Matrix4(), _hp = new THREE.Vector3(), _hs = new THREE.Vector3();

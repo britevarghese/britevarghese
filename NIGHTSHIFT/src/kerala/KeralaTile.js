@@ -874,7 +874,14 @@ export class KeralaTile {
           mats.push([m4.compose(v.set(-e, y - 0.05, n), q, one).clone(), ch]);
           // built-up stretches: a streetlight on most poles, now and then a transformer on a two-pole platform
           const town = [[8, 0], [-8, 0], [0, 8], [0, -8], [14, 0], [-14, 0], [0, 14], [0, -14]].some(([a, b]) => { const c2 = this.classAt(e + a, n + b); return c2 === C.building || c2 === C.commercial || c2 === C.town; });
-          if (town && rnd() < 0.7) lamps.push([mats[mats.length - 1][0], ch]);
+          // streetlights: most poles in town and along the main roads, many on residential streets (KSEB fits a
+          // lamp on the poles in front of houses), a few out in the country
+          const homes = !town && [[20, 0], [-20, 0], [0, 20], [0, -20], [30, 10], [-30, -10]].some(([a, b]) => this.classAt(e + a, n + b) === C.building);
+          if (rnd() < (town ? 0.95 : r.cls <= 4 ? 0.85 : homes ? 0.75 : 0.2)) {
+            lamps.push([mats[mats.length - 1][0], ch]);
+            const M4 = mats[mats.length - 1][0], hp = new THREE.Vector3(-2.15, 7.1, 0).applyMatrix4(M4);
+            (this.lampHeads ||= []).push(hp.x - this.E0, hp.y, hp.z + this.N0);
+          }
           else if (rnd() < (town ? 0.25 : 0.05) && r.cls <= 6 && !this.onRoad(e + ue * 2.2, n + un * 2.2, 0.4)) {
             trafos.push([mats[mats.length - 1][0], ch]);
             const de = ue * 2.2, dn = un * 2.2; // the second pole stands 2.2 m along the road
