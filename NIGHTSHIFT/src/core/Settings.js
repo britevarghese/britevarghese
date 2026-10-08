@@ -22,6 +22,7 @@ export const DEFAULT_SETTINGS = {
     timeOfDay: 'real',        // real (local clock) | cycle (48-min game day) | morning | day | evening | night
     motionBlur: true,
     showFps: false,
+    mirrors: true,
   },
   gameplay: {
     cameraSensitivity: 1,

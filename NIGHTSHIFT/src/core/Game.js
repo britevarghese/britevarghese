@@ -1,5 +1,6 @@
 // Game: orchestrates every system. Gameplay state (GameState / VehicleState / WorldState) is
 // kept separate from rendering so a server-authoritative multiplayer mode can be added later.
+import { Mirrors } from '../vehicles/Mirrors.js';
 import * as THREE from 'three';
 import { bus } from './EventBus.js';
 import { InputManager } from './Input.js';
@@ -120,6 +121,7 @@ export class Game {
     this.incidents = new Incidents(this);
     // realistic people (rigged characters): streamed in after the city, then used for the player on
     // foot, other players, mission contacts and the pedestrians nearest the camera
+    this.mirrors = new Mirrors(this.rm);
     this.humans = new HumanLibrary(this.assets, this.lib.manifest, { kerala: !!this.world.kerala });
     this.peds.humans = this.humans; this.peds.people = preset.people ?? 8;
     this.humans.load(3).then(() => this.onFoot.useHuman()); // small (~4 MB): ahead of the rival cars
@@ -836,6 +838,10 @@ export class Game {
     // render
     this.world.lights.flushReflections(this.camera);
     this.rm.fx = this.fx2;
+    // first person at the wheel: the rear-view and door mirrors show what is behind
+    const fpv = mode === 'drive' && !this.onFoot.active && CAMERA_MODES[this.camCtl.mode]?.marker === 'eye_cockpit' && !this.input.controls.lookBack && !this.camCtl.cinematic;
+    this.mirrors.hideAlso = [this.onFoot.body?.group, this.player.renderer?._fpArms].filter(Boolean);
+    this.mirrors.update(this.scene, this.player, fpv && this.settings.graphics.mirrors !== false);
     this.rm.render(this.scene, this.camera, dt);
     if (mode === 'photo') this.photo.afterRender();
     // UI

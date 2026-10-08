@@ -344,6 +344,7 @@ export class UIManager {
         opt('Time of day', 'Real time follows your local clock; game clock runs a 48-minute day', 'graphics', 'timeOfDay', ['real', 'cycle', 'morning', 'day', 'evening', 'night'], ['REAL TIME', 'GAME CLOCK', 'MORNING', 'DAY', 'EVENING', 'NIGHT'], () => g.applyTime());
         opt('Motion blur', '', 'graphics', 'motionBlur', [true, false], ['ON', 'OFF'], apply);
         opt('Renderer', `Current: ${g.rm.backend.toUpperCase()} (applies after reload)`, 'graphics', 'backend', ['auto', 'webgl2', 'webgpu'], ['AUTO', 'WEBGL2', 'WEBGPU']);
+        opt('Working mirrors', 'Rear-view and door mirrors in the first-person car view (costs some frame rate)', 'graphics', 'mirrors', [true, false], ['ON', 'OFF']);
         opt('FPS counter', 'F3 shows full developer stats', 'graphics', 'showFps', [true, false], ['ON', 'OFF']);
       } else if (tab === 1) {
         slider('Camera sensitivity', 'gameplay', 'cameraSensitivity', 0.2, 2, 0.05);

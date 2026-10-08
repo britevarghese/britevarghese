@@ -572,6 +572,18 @@ export class VehicleRenderer {
    */
   cockpitEye() {
     if (this._eye !== undefined) return this._eye;
+    this._cockpitEye();
+    // Kerala's vehicles are right-hand drive, whichever side the model's own (estimated) eye marker is on
+    const tm = TRAFFIC_MODELS[this.carId];
+    if (this._eye && tm && /^kl_/.test(tm.id)) this._eye.x = -Math.abs(this._eye.x);
+    // with real front doors: the driver's eyes are over the back half of the door opening (an eye found further
+    // back is the rear seat of a tall cabin)
+    const d = this._eye && tm && /^kl_/.test(tm.id) && this.doors?.[this._eye.x < 0 ? -1 : 1];
+    if (d?.len > 0.5 && this._eye.z < d.hinge.z - d.len * 1.05) this._eye.z = d.hinge.z - d.len * 0.75;
+    return this._eye;
+  }
+
+  _cockpitEye() {
     const mk = this.markers.eye_cockpit;
     this._eye = mk ? mk.position.clone() : null;
     if (this.rider || !this._lod0) return this._eye;
@@ -605,6 +617,7 @@ export class VehicleRenderer {
       const onRoof = prof.filter((p) => p[1] > roof - 0.1);
       const zFront = Math.max(...onRoof.map((p) => p[0]));      // windscreen header
       const zBack = Math.min(...onRoof.map((p) => p[0]));
+      this._cabin = { zFront, zBack, roof };
       if (roof < 0.9 || zFront - zBack < 0.35) return this._eye;  // open car / no roof found
       const roofAt = (zz) => prof.reduce((b, p) => (Math.abs(p[0] - zz) < Math.abs(b[0] - zz) ? p : b), prof[0])[1];
       let z = Math.max(zBack + 0.1, zFront - 0.36);
