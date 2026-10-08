@@ -238,13 +238,13 @@ export class Pedestrians {
         if (p.human) { p.human.clearAction(0.2); const hg = p.human.group; hg.position.set(p.x, this._gy(p.x, p.z), p.z); hg.rotation.set(0, p.yaw, 0); hg.updateMatrixWorld(true); p.human.animate(1.6, dt); continue; }
       }
       // crossing the road: wait for a gap, walk straight over, carry on along the far side
-      if (!p.fight && !p.flee && !p.crossing && p.seg?.cross && !p.stagger && this.R() < dt * 0.006) {
+      if (!p.fight && !p.flee && !p.crossing && p.seg?.cross && !p.stagger && this.R() < dt * 0.0025) {
         const X = p.seg.cross, near = (this.traffic || []).some((c) => c.state === 'drive' && c.v > 2 && Math.hypot(c.x - p.x, c.z - p.z) < 14 + c.v * 1.5);
         if (!near) p.crossing = { x: p.x, z: p.z, nx: X.nx, nz: X.nz, len: X.len, t: 0 };
       }
       let yaw;
       if (p.crossing) {
-        const C = p.crossing, sp = 1.35;
+        const C = p.crossing, sp = 1.7; // people hurry across
         C.t += sp * dt;
         p.x = C.x + C.nx * C.t; p.z = C.z + C.nz * C.t; p.yaw = yaw = Math.atan2(C.nx, C.nz); moving = true;
         if (C.t >= C.len) {

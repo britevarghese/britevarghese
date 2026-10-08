@@ -5,7 +5,7 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { CollisionWorld } from '../physics/Collision.js';
-import { KeralaTile, TILE, C, decodeBinary } from './KeralaTile.js';
+import { KeralaTile, TILE, C, ROAD_HALF, decodeBinary } from './KeralaTile.js';
 import * as TX from '../renderer/Textures.js';
 import { KERALA_FACADE, KERALA_SHOP } from '../renderer/Textures.js';
 import { keralaRoadMaterial } from '../renderer/Materials.js';
@@ -300,12 +300,27 @@ export class KeralaWorld {
   pedSegment(focus, R) {
     const lanes = this.lanes.lanesNear(focus.x, focus.z, 30, 200).filter((l) => l.edge.cls >= 3 && l.edge.cls <= 7 && l.laneIndex === 0 && l.pts.length >= 2);
     if (!lanes.length) return null;
-    const l = lanes[Math.floor(R() * lanes.length)];
+    for (let tries = 0; tries < 6; tries++) {
+      const g = this._pedSeg(lanes[Math.floor(R() * lanes.length)], R);
+      // the walk must stay off every carriageway (near junctions the verge of one road runs across another)
+      if (g && [0, 0.25, 0.5, 0.75, 1].every((k) => !this.onCarriageway(g.ax + (g.bx - g.ax) * k, g.az + (g.bz - g.az) * k, -0.3))) return g;
+    }
+    return null;
+  }
+
+  onCarriageway(x, z, margin = 0) {
+    const t = this.tileAt(x, z);
+    return !!t?.ready && t.onRoad(-x - t.E0, z - t.N0, margin, -1, 7);
+  }
+
+  _pedSeg(l, R) {
     const i = Math.floor(R() * (l.pts.length - 1)), a = l.pts[i], b = l.pts[i + 1];
-    const dx = b[0] - a[0], dz = b[1] - a[1], L = Math.hypot(dx, dz) || 1, ox = dz / L * 2.6, oz = -dx / L * 2.6;
+    // off the carriageway: 1.3 m beyond the road's edge (the kerb-side lane's centre is (lanes - 0.5) lanes in)
+    const hw = ROAD_HALF[l.edge.cls] ?? 3, laneOff = ((l.lanes || 1) - 0.5) * 3.2, off = Math.max(2.6, hw + 1.3 - laneOff);
+    const dx = b[0] - a[0], dz = b[1] - a[1], L = Math.hypot(dx, dz) || 1, ox = dz / L * off, oz = -dx / L * off;
     // the way across the road (to the same spot on the far side), for crossing
-    const across = 2 * (2.6 + ((l.lanes || 1) - 0.5) * 3.2);
-    return { ax: a[0] + ox, az: a[1] + oz, bx: b[0] + ox, bz: b[1] + oz, kerala: true, cross: { nx: -ox / 2.6, nz: -oz / 2.6, len: across } };
+    const across = 2 * (off + laneOff);
+    return { ax: a[0] + ox, az: a[1] + oz, bx: b[0] + ox, bz: b[1] + oz, kerala: true, cross: { nx: -ox / off, nz: -oz / off, len: across } };
   }
 
   // where people stand about near (x, z): tea stalls (chatting) and bus stops (waiting)
