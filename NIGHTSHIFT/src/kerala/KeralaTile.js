@@ -348,8 +348,11 @@ export class KeralaTile {
         const ox = ex + dx * W, oz = ez + dz * W, gy = this.heightAt(-ox, oz) + 0.03;
         pos.push(ex, ey - 0.005, ez, ox, Math.min(gy, ey - 0.02) + (gy > ey ? (gy - ey) : 0), oz);
       }
-      for (let i = 0; i < n - 1; i++) { const a = base + i * 2; idx.push(a, a + 1, a + 2, a + 1, a + 3, a + 2); }
+      // only where the road and the ground beside it part (a level road needs no slope drawn)
+      const drop = (k) => Math.abs(pos[(k * 2) * 3 + 1] - pos[(k * 2 + 1) * 3 + 1]);
+      for (let i = 0; i < n - 1; i++) { if (drop(base / 2 + i) < 0.12 && drop(base / 2 + i + 1) < 0.12) continue; const a = base + i * 2; idx.push(a, a + 1, a + 2, a + 1, a + 3, a + 2); }
     }
+    if (!idx.length) return null;
     const sg = new THREE.BufferGeometry();
     sg.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
     sg.setAttribute('uv', new THREE.Float32BufferAttribute(new Float32Array(pos.length / 3 * 2), 2));
