@@ -561,10 +561,10 @@ export class UIManager {
       };
       if (g.gps?.route) { c.strokeStyle = 'rgba(55,226,255,0.9)'; c.lineWidth = 3 * dpr; c.beginPath(); g.gps.route.forEach(([x, z], i) => { const [a, b] = P(x, z); i ? c.lineTo(a, b) : c.moveTo(a, b); }); c.stroke(); }
       for (const ev of g.races.events) dot(ev.start.x, ev.start.z, 6, ev.def.type === 'escape' ? '#3d7bff' : '#ffc53d', ev.def.name);
-      if (!KL) for (const sh of SAFEHOUSES) dot(sh.x, sh.z, 6, '#3dff9a', sh.name);
+      for (const sh of KL ? g.safehouses || [] : SAFEHOUSES) dot(sh.x, sh.z, 6, '#3dff9a', sh.name);
       if (!KL) for (const sh of SHOPS) dot(sh.x, sh.z, 5, '#ff9a3d', sh.name);
       for (const u of g.police.units) dot(u.vehicle.state.x, u.vehicle.state.z, 4, '#ff3040');
-      if (!KL && !g.story?.active) for (const [gid, m] of Object.entries(g.story?.available() || {})) { const gv = g.story._giver(gid); dot(gv.x, gv.z, 8, CAST[gid].color, `${CAST[gid].name}: ${m.title}`); }
+      if (!g.story?.active) for (const [gid, m] of Object.entries(g.story?.available() || {})) { const gv = g.story._giver(gid); dot(gv.x, gv.z, 8, CAST[gid].color, `${CAST[gid].name}: ${m.title}`); }
       for (const b of g.empire?.blips() || []) dot(b.x, b.z, 5, b.color, b.label);
       for (const b of g.story?.active ? g.story.blips() : []) dot(b.x, b.z, 6, b.color);
       // friends, with their names

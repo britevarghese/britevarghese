@@ -11,7 +11,7 @@
 //   call    phone call subtitles (non-blocking)
 //   own     buy a property (src/world/Empire.js); completes once you own it
 
-export const CAST = {
+export let CAST = {
   you: { name: 'You', color: '#ffffff' },
   tully: { name: 'Tully', role: 'Mechanic', color: '#ffb03d', model: 'arnold', look: { jacket: 0x5a4632, jeans: 0x2a2a2c, skin: 0x8a5e40, hair: 0x9a9a9a }, spot: { x: 250, z: -410 } },
   mara: { name: 'Mara Voss', role: 'Crew boss', color: '#ff4d8d', model: 'lucy', look: { jacket: 0x121214, jeans: 0x1a1a22, skin: 0xd2a07a, hair: 0x2a0f12 }, spot: { x: -250, z: 96 } },
@@ -24,13 +24,13 @@ export const CAST = {
   dispatch: { name: 'Dispatch', color: '#9aa8ff' },
 };
 
-export const STORY_CHAPTERS = [
+export let STORY_CHAPTERS = [
   { id: 1, name: 'Port Halvern' },
   { id: 2, name: 'New Management' },
   { id: 3, name: 'Empire' },
 ];
 
-export const STORY = [
+export let STORY = [
   {
     id: 'fresh_plates', giver: 'tully', title: 'Fresh Plates',
     intro: [
@@ -298,3 +298,121 @@ export const STORY = [
     finale: true,
   },
 ];
+
+// ------------------------------------------------------------------------------------------------------------
+// Kerala: "Ernakulam Nights". The same step types, at real places round Kochi (place names from the map; each is
+// moved onto the nearest road when it's needed). useKeralaStory() swaps these in for Port Halvern's.
+const KL_CAST = {
+  you: { name: 'You', color: '#ffffff' },
+  babu: { name: 'Babu', role: 'Mechanic, Vyttila', color: '#ffb03d', model: 'kl_kurta_dhoti', look: { jacket: 0xe8e2d0, jeans: 0xf2efe6, skin: 0x7a4e30, hair: 0x9a9a9a }, place: 'Pulleppady' },
+  leena: { name: 'Leena', role: 'Crew boss', color: '#ff4d8d', model: 'kl_modern', look: { jacket: 0x121214, jeans: 0x1a1a22, skin: 0x9a6a48, hair: 0x0a0a0a }, place: 'Ernakulam North' },
+  firoz: { name: 'Firoz', role: 'Fixer, Mattancherry', color: '#3dc8ff', model: 'kl_kurta_brown', look: { jacket: 0x5a4632, jeans: 0x2a2a2c, skin: 0x6a4228, hair: 0x0a0a0a }, place: 'Mattancherry' },
+  shibu: { name: "'Tiger' Shibu", color: '#ff3df0' },
+  mathew: { name: 'SI Mathew', color: '#ff6a3d' },
+  sajan: { name: 'Sajan', color: '#9dff6a' },
+};
+
+const KL_CHAPTERS = [{ id: 1, name: 'Ernakulam Nights' }];
+
+const KL_STORY = [
+  {
+    id: 'kl_white_dzire', giver: 'babu', title: 'The White Dzire',
+    intro: [
+      ['babu', 'So you are the new driver Leena talked about. Driving licence, no case against you. Good.'],
+      ['babu', 'A white Dzire is parked near Kaloor stadium. The owner took my money for a gearbox and vanished.'],
+      ['babu', 'Bring it to my workshop. Every dent comes out of your share, ketto.'],
+      ['you', 'Easy money.'],
+    ],
+    steps: [
+      { type: 'steal', vehicle: 'dzire', paint: '#f2f2f0', at: 'Kaloor', text: 'Take the <b>white Dzire</b> parked at Kaloor.' },
+      { type: 'deliver', to: 'giver', maxDamage: 0.55, text: "Bring the Dzire to <b>Babu's workshop</b>. Don't wreck it." },
+    ],
+    outro: [['babu', "Not one scratch. Okay, okay. Go and see Leena, she's waiting."]],
+    reward: { cash: 3000, xp: 600 },
+  },
+  {
+    id: 'kl_pachalam_pickup', giver: 'leena', title: 'Pachalam Pickup', requires: ['kl_white_dzire'],
+    intro: [
+      ['leena', 'Babu says you can drive. Tonight we find out.'],
+      ['leena', "Sajan is finishing a job near Pachalam railway gate. He'll need a ride, and the police are already looking."],
+      ['you', 'How many?'],
+      ['leena', 'Enough. Lose them, then bring him here.'],
+    ],
+    steps: [
+      { type: 'goto', to: 'Pachalam', stop: true, inVehicle: true, text: 'Pick up <b>Sajan</b> at Pachalam.' },
+      { type: 'call', lines: [['sajan', 'Go, go! The jeep is right behind us!']] },
+      { type: 'lose', heat: 2, text: 'Lose the <b>police</b>.' },
+      { type: 'goto', to: 'giver', stop: true, inVehicle: true, text: 'Take Sajan back to <b>Leena</b>.' },
+    ],
+    outro: [['sajan', 'Machane, that was mad. You are okay.'], ['leena', 'Good. Firoz in Mattancherry needs a driver. Go and see him.']],
+    reward: { cash: 5000, xp: 1000 },
+  },
+  {
+    id: 'kl_spice_route', giver: 'firoz', title: 'Spice Route', requires: ['kl_pachalam_pickup'],
+    intro: [
+      ['firoz', 'Firoz. I find things out for people. Sit, have a chaya.'],
+      ['firoz', 'Every night a pickup leaves the spice godowns here, and nobody knows where it goes.'],
+      ['firoz', 'Follow it. Not too close, not too far. If he sees you, we lose everything.'],
+    ],
+    steps: [
+      { type: 'tail', vehicle: 'minitruck', paint: '#e8e8e2', route: ['Mattancherry', 'Jew Town', 'Kalvathy', 'Fort Kochi'], text: 'Follow the <b>pickup truck</b>. Stay out of sight.' },
+      { type: 'call', lines: [['firoz', 'A godown behind Fort Kochi beach. Interesting. Good work. Now get out of there.']] },
+    ],
+    outro: [],
+    reward: { cash: 6000, xp: 1200 },
+  },
+  {
+    id: 'kl_tiger', giver: 'leena', title: 'Tiger by the Tail', requires: ['kl_spice_route'],
+    intro: [
+      ['leena', "'Tiger' Shibu is telling every crew from Aluva to Vyttila that we are finished."],
+      ['leena', 'He wants a race through Palarivattom. Winner takes the other crew\'s corner.'],
+      ['you', "Then let's take it."],
+    ],
+    steps: [
+      { type: 'goto', to: 'Kaloor', inVehicle: true, text: 'Meet <b>Shibu</b> at Kaloor junction.' },
+      { type: 'race', rival: 'shibu', car: 'nissan_skyline_r34', route: ['Kaloor', 'Palarivattom', 'Elamakkara', 'Pachalam'], text: 'Beat <b>Shibu</b> to the finish.' },
+    ],
+    outro: [['shibu', '...Fine. It is only one corner.'], ['leena', 'It is never only one corner. Nice driving.']],
+    reward: { cash: 8000, xp: 1500 },
+  },
+  {
+    id: 'kl_scorpio', giver: 'babu', title: 'Black Scorpio', requires: ['kl_tiger'],
+    intro: [
+      ['babu', "Shibu's boys took a full load of my spare parts. Bad loser."],
+      ['babu', "They're driving it out past Vyttila right now in a black Scorpio. I don't want it back."],
+      ['babu', 'Knock it off the road. Insurance pays me, nobody gets hurt, everybody is happy.'],
+    ],
+    steps: [
+      { type: 'ram', vehicle: 'scorpio', paint: '#0e0f11', from: 'Elamkulam', route: ['Elamkulam', 'Vyttila', 'Thykoodam'], hits: 4, text: 'Ram the <b>black Scorpio</b> off the road.' },
+    ],
+    outro: [['babu', 'I heard the crash from the workshop. Beautiful. Chaya and pazhampori are on me.']],
+    reward: { cash: 7000, xp: 1400 },
+  },
+  {
+    id: 'kl_last_ferry', giver: 'firoz', title: 'Last Ferry', requires: ['kl_scorpio'],
+    intro: [
+      ['firoz', 'Remember the godown? Your pickup was moving money for SI Mathew. Hawala money.'],
+      ['firoz', "His Thar is parked at the boat jetty tonight, with all of it inside, and his own men watching it."],
+      ['firoz', 'Take it, lose them, and bring it here before the last ferry. Then this town is yours.'],
+      ['you', 'And Mathew?'],
+      ['firoz', 'Without the money, Mathew is just one more policeman.'],
+    ],
+    steps: [
+      { type: 'steal', vehicle: 'thar', paint: '#1a1a1a', at: 'Boat Jetty', heat: 3, text: "Steal <b>SI Mathew's Thar</b> at the boat jetty." },
+      { type: 'call', lines: [['mathew', 'You have no idea whose vehicle that is!']] },
+      { type: 'lose', heat: 3, text: 'Lose the <b>police</b>.' },
+      { type: 'deliver', to: 'giver', maxDamage: 0.6, text: 'Bring the Thar to <b>Firoz</b> in Mattancherry.' },
+    ],
+    outro: [['firoz', 'Mathew is finished. Shibu has gone quiet. Ernakulam is ours.'], ['leena', 'Sleep, driver. Tomorrow there is more work.']],
+    reward: { cash: 30000, xp: 5000 },
+    chapterEnd: 1, finale: true,
+  },
+];
+
+// switch the story to Kerala: the cast's spots come from the map's place list ({ x: -E, z: N })
+export function useKeralaStory(places) {
+  const at = (name) => { const p = (places || []).filter((q) => q[1] === name).sort((a, b) => Math.hypot(a[3], a[4]) - Math.hypot(b[3], b[4]))[0]; return p ? { x: -p[3], z: p[4] } : null; };
+  for (const c of Object.values(KL_CAST)) if (c.place) c.spot = at(c.place) || { x: 0, z: 0 };
+  CAST = KL_CAST; STORY = KL_STORY; STORY_CHAPTERS = KL_CHAPTERS;
+  return at;
+}

@@ -2,7 +2,7 @@
 // (strict sequence, no skipping), AI opponents with rubber banding, countdown, positions, timers
 // and results for Sprint / Circuit / Checkpoint / Speed Run / Time Trial / Police Escape.
 import * as THREE from 'three';
-import { RACE_EVENTS, RACE_TYPE_NAMES } from './RaceEvents.js';
+import { RACE_EVENTS, RACE_TYPE_NAMES, KERALA_RACES } from './RaceEvents.js';
 import { Vehicle } from '../vehicles/Vehicle.js';
 import { AIDriver } from '../vehicles/AIDriver.js';
 import { CARS, tunedParams, PAINTS, PLAYER_CAR_ORDER, TIERS } from '../vehicles/VehicleCatalog.js';
@@ -30,7 +30,7 @@ export class RaceManager {
   constructor(game) {
     this.game = game;
     this.world = game.world;
-    this.events = game.world.kerala ? [] : RACE_EVENTS.map((e) => this._prepare(e)); // Kerala races come later
+    this.events = game.world.kerala ? KERALA_RACES.map((d) => this._lazy(d)).filter(Boolean) : RACE_EVENTS.map((e) => this._prepare(e));
     this.active = null;
     this.markers = new THREE.Group();
     game.scene.add(this.markers);
@@ -51,18 +51,46 @@ export class RaceManager {
     return [w[0] * GRID, w[1] * GRID];
   }
 
+  // Kerala: an event at real places, planned once its roads are loaded (_plan, when it starts); until then the
+  // marker stands at the first place (snapped onto the road once the tiles round it are in)
+  _lazy(def) {
+    const P = this.world.index?.places || [];
+    const at = (name) => { const p = P.filter((q) => q[1] === name).sort((a, b) => Math.hypot(a[3], a[4]) - Math.hypot(b[3], b[4]))[0]; return p ? { x: -p[3], z: p[4] } : null; };
+    const wps = def.places.map(at);
+    if (wps.some((w) => !w)) return null;
+    return { def, lazy: true, wps, start: { x: wps[0].x, z: wps[0].z, yaw: 0 }, route: [], gates: [] };
+  }
+
+  // plan a Kerala event on the loaded roads: false if they don't reach yet
+  _plan(ev) {
+    const P = this._prepare({ ...ev.def, waypoints: ev.wps });
+    if (P.route.length < 4 || P.broken) { this.world.prioritize?.(ev.wps); return false; }
+    let len = 0; for (let i = 1; i < P.route.length; i++) len += Math.hypot(P.route[i][0] - P.route[i - 1][0], P.route[i][1] - P.route[i - 1][1]);
+    const d = ev.def, laps = d.laps || 1;
+    // targets from the distance (Kochi traffic: ~60 km/h average is quick)
+    const def = { ...d, waypoints: ev.wps };
+    if (d.type === 'timetrial') def.target = Math.round(len / 16.5);
+    if (d.type === 'checkpoint') { def.timeLimit = Math.round(len / P.gates.length / 15) + 12; def.timeBonus = Math.round(len / P.gates.length / 16); }
+    if (d.type === 'speedrun') def.target = P.gates.length * 95;
+    Object.assign(ev, { route: P.route, gates: P.gates, start: P.start, def, len: len * laps, snapped: true });
+    return true;
+  }
+
   // build a runnable event (route on the road graph, gates, start) from a definition
   prepare(def) { return this._prepare(def); }
 
   _prepare(def) {
     const L = this.world.layout;
-    const wps = def.waypoints.map((w) => this._resolve(w));
+    // (Kerala waypoints are place centres: onto the junction nearest each)
+    const wps = def.waypoints.map((w) => this._resolve(w)).map((p) => (this.world.kerala ? ((n) => (n ? [n.x, n.z] : p))(L.nearestNode(p[0], p[1])) : p));
     const route = [];
     const gates = [];
     const nodeAt = (p) => L.nearestNode(p[0], p[1]);
     const legs = def.type === 'circuit' ? [...wps, wps[0]] : wps;
+    let broken = false;
     for (let i = 0; i < legs.length - 1; i++) {
       const ids = L.route(nodeAt(legs[i]), nodeAt(legs[i + 1]));
+      if (!ids.length && Math.hypot(legs[i][0] - legs[i + 1][0], legs[i][1] - legs[i + 1][1]) > 30) broken = true;
       for (let j = i === 0 ? 0 : 1; j < ids.length; j++) {
         const n = L.nodes[ids[j]];
         // include the curved ring points when routing along highway edges
@@ -78,9 +106,14 @@ export class RaceManager {
     }
     if (!route.length) { const n = nodeAt(wps[0]); route.push([n.x, n.z]); }
     // start position: 30 m along the first leg, heading along it
-    const a = route[0], b = route[1] || [a[0] + 1, a[1]];
-    const dirx = b[0] - a[0], dirz = b[1] - a[1], dl = Math.hypot(dirx, dirz) || 1;
-    const start = { x: a[0] + dirx / dl * 30, z: a[1] + dirz / dl * 30, yaw: Math.atan2(dirx, dirz) };
+    // (along the route itself, so a bending road keeps the grid on the tarmac)
+    let start = null;
+    for (let i = 1, s = 0; i < route.length && !start; i++) {
+      const a = route[i - 1], b = route[i], l = Math.hypot(b[0] - a[0], b[1] - a[1]);
+      if (s + l >= 30 || i === route.length - 1) { const k = Math.min(1, (30 - s) / (l || 1)); start = { x: a[0] + (b[0] - a[0]) * k, z: a[1] + (b[1] - a[1]) * k, yaw: Math.atan2(b[0] - a[0], b[1] - a[1]) }; }
+      s += l;
+    }
+    if (!start) start = { x: route[0][0] + 30, z: route[0][1], yaw: Math.PI / 2 };
     // gates at waypoints (excluding the start for sprints)
     const gateWps = def.type === 'circuit' ? [...wps.slice(1), wps[0]] : wps.slice(1);
     for (const g of route.length > 1 ? gateWps : []) {
@@ -93,7 +126,7 @@ export class RaceManager {
       gates.push({ x: g[0], z: g[1], dx: dx / l, dz: dz / l, w: 16 });
     }
     if (def.type === 'escape') gates.length = 0;
-    return { def, route, gates, start };
+    return { def, route, gates, start, broken };
   }
 
   _buildMarkers() {
@@ -121,6 +154,7 @@ export class RaceManager {
   // ------------------------------------------------------------------ start
   start(ev) {
     const game = this.game;
+    if (ev.lazy && !this._plan(ev)) { game.ui?.toast?.('The roads for this race are still loading: try again in a moment', '', 2.5); return null; }
     const def = ev.def;
     this.clearRace();
     const player = game.player;
@@ -176,6 +210,59 @@ export class RaceManager {
     return [...shuffle(pick(0)), ...shuffle(pick(1)), ...shuffle(pick(-1))].slice(0, 5);
   }
 
+  // Kerala: a rival stuck against a wall or a canal edge goes back onto the race line a little ahead (only out of
+  // the player's sight)
+  _backOnRoute(o) {
+    o.ai.needsReset = false;
+    const r = o.ai.route, i = Math.min(r.length - 2, (o.ai.idx || 0) + 1), a = r[i], b = r[i + 1];
+    if (!a || !b) return;
+    const cam = this.game.camera.position;
+    if (Math.hypot(o.v.state.x - cam.x, o.v.state.z - cam.z) < 45 || Math.hypot(a[0] - cam.x, a[1] - cam.z) < 45) return;
+    o.v.place(a[0], a[1], Math.atan2(b[0] - a[0], b[1] - a[1]));
+    o.ai.idx = i; o.ai.stuckT = 0; o.ai.reverseT = 0;
+    o.prev = { x: a[0], z: a[1] };
+  }
+
+  // out of sight (with some hysteresis); switching on picks up from the nearest point of the line
+  _gliding(o) {
+    const cam = this.game.camera.position, s = o.v.state, d = Math.hypot(s.x - cam.x, s.z - cam.z);
+    if (o.gliding) { if (d < 95) { o.gliding = false; o.ai.idx = o.gi; o.ai.stuckT = 0; } return o.gliding; }
+    if (d < 130) return false;
+    const r = o.ai.route;
+    let bi = o.ai.idx || 0, bd = Infinity;
+    for (let i = Math.max(0, bi - 3); i < Math.min(r.length - 1, bi + 10); i++) { const dd = Math.hypot(r[i][0] - s.x, r[i][1] - s.z); if (dd < bd) { bd = dd; bi = i; } }
+    o.gliding = true; o.gi = Math.min(bi, r.length - 2); o.gf = 0; o.gs = Math.hypot(s.vx, s.vz); o.gy = s.yaw;
+    return true;
+  }
+
+  _glide(o, dt) {
+    const r = o.ai.route, N = r.length, ai = o.ai;
+    if (N < 2) return;
+    const seg = (i) => Math.hypot(r[i + 1][0] - r[i][0], r[i + 1][1] - r[i][1]) || 0.01;
+    let i = o.gi, f = o.gf;
+    // corner speed as the driving AI would take it, braking toward it
+    const a = r[i], b = r[i + 1], c = r[Math.min(N - 1, i + 2)];
+    const turn = Math.abs(wrapAngle(Math.atan2(c[0] - b[0], c[1] - b[1]) - Math.atan2(b[0] - a[0], b[1] - a[1])));
+    const vc = turn > 0.25 ? (7 + 32 * (1 - turn / Math.PI) ** 2) * ai.skill + 2 : 99;
+    const vmax = Math.sqrt(vc * vc + 2 * 7.5 * Math.max(0, seg(i) - f - 10));
+    const target = Math.min(ai.maxSpeed * 0.8 * (ai.powerScale || 1), vmax);
+    o.gs += clamp(target - o.gs, -9 * dt, 4.5 * dt);
+    let d = o.gs * dt;
+    while (d > 0) {
+      const left = seg(i) - f;
+      if (d < left) { f += d; d = 0; break; }
+      d -= left; i++; f = 0;
+      if (i >= N - 1) { if (ai.loop) i = 0; else { i = N - 2; f = seg(i); o.gs = 0; break; } }
+    }
+    o.gi = i; o.gf = f; ai.idx = i;
+    const p0 = r[i], p1 = r[i + 1], k = f / seg(i);
+    const x = p0[0] + (p1[0] - p0[0]) * k, z = p0[1] + (p1[1] - p0[1]) * k;
+    o.gy += clamp(wrapAngle(Math.atan2(p1[0] - p0[0], p1[1] - p0[1]) - o.gy), -dt * 2.5, dt * 2.5);
+    const P = o.v.physics, s = o.v.state;
+    P.place(x, z, o.gy, this.world.layout.groundHeight(x, z, s.y + 1));
+    s.vx = Math.sin(o.gy) * o.gs; s.vz = Math.cos(o.gy) * o.gs; s.speed = o.gs; s.gear = Math.max(1, Math.min(5, Math.ceil(o.gs / 11)));
+  }
+
   _buildGates() {
     this.gateGroup.clear();
     const race = this.active;
@@ -192,7 +279,7 @@ export class RaceManager {
       const line = new THREE.Mesh(new THREE.PlaneGeometry(g.w, 0.8).rotateX(-Math.PI / 2), this.gateMatLater);
       line.position.y = 0.05;
       grp.add(left, right, banner, line);
-      grp.position.set(g.x, 0, g.z);
+      grp.position.set(g.x, this.world.kerala ? this.world.layout.groundHeight(g.x, g.z, 999) : 0, g.z);
       grp.rotation.y = Math.atan2(g.dx, g.dz);
       grp.userData = { left, right, line, banner };
       this.gateGroup.add(grp);
@@ -238,6 +325,12 @@ export class RaceManager {
       const t = performance.now() / 1000;
       for (const ev of this.events) {
         const d = Math.hypot(ev.start.x - game.camera.position.x, ev.start.z - game.camera.position.z);
+        // Kerala: onto the road (and the ground) once the map round it has loaded
+        if (ev.lazy && !ev.snapped && d < 1200) {
+          const s = this.world.roadSpot?.(ev.start.x, ev.start.z, 5);
+          if (s && Math.hypot(s.x - ev.start.x, s.z - ev.start.z) < 400) { ev.start = { x: s.x, z: s.z, yaw: s.yaw }; ev.snapped = true; }
+          ev.marker.position.set(ev.start.x, this.world.layout.groundHeight(ev.start.x, ev.start.z, 999) + 0.08, ev.start.z);
+        }
         ev.marker.visible = d < 900;
         ev.marker.children[1].material.opacity = 0.55 + Math.sin(t * 3) * 0.25;
       }
@@ -294,8 +387,12 @@ export class RaceManager {
         const diff = (prog - playerProg) / 10000 * 160; // meters ahead (approx)
         o.ai.powerScale = clamp(1 - diff / 900, 0.82, 1.12);
         o.v.physics.p.powerW = o.v.physics.p.enginePower * 1000 * (o.v.physics.p.acceleration || 1) * o.ai.powerScale;
-        o.ai.update(dt, obstacles);
-        if (o.ai.needsReset && game.recoverAI(o.v, o.ai)) { const r = o.ai.route, idx = o.ai.idx; o.ai.route = r; o.ai.idx = idx; }
+        // Kerala: rivals out of sight glide along the race line (narrow roads, canal walls and autos would
+        // otherwise pin the driving AI); in sight they drive for real
+        if (this.world.kerala && this._gliding(o)) this._glide(o, dt);
+        else o.ai.update(dt, obstacles);
+        if (o.gliding) { /* placed by _glide */ } else if (o.ai.needsReset && this.world.kerala) this._backOnRoute(o);
+        else if (o.ai.needsReset && game.recoverAI(o.v, o.ai)) { const r = o.ai.route, idx = o.ai.idx; o.ai.route = r; o.ai.idx = idx; }
         if (gates.length && o.gate < gates.length && this._crossed(gates[o.gate], o.prev, o.v.state)) {
           o.gate++;
           if (o.gate >= gates.length) {
@@ -305,7 +402,7 @@ export class RaceManager {
         // opponents that fall far behind or get stuck teleport forward along the route (off-camera)
       } else { o.v.controls.throttle = 0; o.v.controls.brake = 0.6; o.v.controls.steer = 0; }
       o.prev = { x: o.v.state.x, z: o.v.state.z };
-      o.v.update(dt);
+      if (!o.gliding) o.v.update(dt);
       VehiclePhysics.resolvePair(game.player.physics, o.v.physics);
     }
     for (let i = 0; i < race.opponents.length; i++) for (let j = i + 1; j < race.opponents.length; j++) VehiclePhysics.resolvePair(race.opponents[i].v.physics, race.opponents[j].v.physics);

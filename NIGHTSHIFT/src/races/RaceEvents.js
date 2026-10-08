@@ -39,4 +39,45 @@ export const RACE_EVENTS = [
   },
 ];
 
+// Kerala: races between real places in and around Kochi (names from the map's place list; each waypoint snaps to
+// the nearest junction). Routes are planned when the race starts, on the roads loaded around it; targets and
+// time limits come from the route's length. Every place is within ~3 km of the start (the map loaded round it).
+export const KERALA_RACES = [
+  {
+    id: 'kl_mgroad', name: 'MG Road Sprint', type: 'sprint', opponents: 3, reward: 4000, rep: 120,
+    desc: 'Down MG Road from Shenoys to Ernakulam South and Ravipuram, then across to Elamkulam. Watch for buses pulling out.',
+    places: ['Shenoys', 'Ernakulam South', 'Ravipuram', 'Elamkulam'],
+  },
+  {
+    id: 'kl_kaloor', name: 'Kaloor Loop', type: 'circuit', laps: 2, opponents: 3, reward: 5500, rep: 160,
+    desc: 'Two laps round Ernakulam North, Kaloor and Pachalam. Autos everywhere.',
+    places: ['Ernakulam North', 'Kaloor', 'Pachalam'],
+  },
+  {
+    id: 'kl_edappally', name: 'Edappally Checkpoint', type: 'checkpoint', reward: 3000, rep: 90,
+    desc: 'Beat the clock from Palarivattom to Edappally and back through Elamakkara. Every gate adds time.',
+    places: ['Palarivattom', 'Edappally', 'Elamakkara', 'Kaloor'],
+  },
+  {
+    id: 'kl_tripunithura', name: 'Thrippunithura Time Trial', type: 'timetrial', reward: 3500, rep: 110,
+    desc: 'Solo run from Petta through Vadakkekotta and Statue Junction to the old royal town. Beat the target time.',
+    places: ['Petta', 'Vadakkekotta', 'Statue Junction', 'Thrippunithura'],
+  },
+  {
+    id: 'kl_fortkochi', name: 'Fort Kochi Run', type: 'sprint', opponents: 3, reward: 4800, rep: 140,
+    desc: 'Through Mattancherry and Jew Town to Fort Kochi beach, then out over the bridge to Thoppumpady.',
+    places: ['Mattancherry', 'Jew Town', 'Fort Kochi', 'Thoppumpady'],
+  },
+  {
+    id: 'kl_bolgatty', name: 'Goshree Getaway', type: 'escape', heat: 3, timeLimit: 150, reward: 6000, rep: 200,
+    desc: 'The police are already on to you at Bolgatty. Lose them before time runs out.',
+    places: ['Bolgatty', 'Ernakulam North'],
+  },
+  {
+    id: 'kl_kakkanad', name: 'Seaport-Airport Speedtrap', type: 'speedrun', reward: 4500, rep: 140,
+    desc: 'Hit every speed trap on the Seaport-Airport road out to Kakkanad. Total speed decides.',
+    places: ['Padivattom', 'Chembumukku', 'Kakkanad West', 'Kakkanad'],
+  },
+];
+
 export const RACE_TYPE_NAMES = { sprint: 'SPRINT', circuit: 'CIRCUIT', checkpoint: 'CHECKPOINT', speedrun: 'SPEED RUN', timetrial: 'TIME TRIAL', escape: 'POLICE ESCAPE' };

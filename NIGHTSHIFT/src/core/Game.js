@@ -36,6 +36,8 @@ import { RaceManager } from '../races/RaceManager.js';
 import { StreetRivals } from '../races/StreetRivals.js';
 import { OnFoot } from '../player/OnFoot.js';
 import { Interiors } from '../world/Interiors.js';
+import { KeralaGarages } from '../kerala/KeralaGarages.js';
+import { useKeralaStory } from '../story/StoryData.js';
 import { Story } from '../story/Story.js';
 import { Empire } from '../world/Empire.js';
 import { AudioManager } from '../audio/AudioManager.js';
@@ -126,7 +128,9 @@ export class Game {
     this.rivals = new StreetRivals(this);
     this.onFoot = new OnFoot(this);
     this.interiors = new Interiors(this);   // walk into buildings
+    const placeAt = this.world.kerala ? useKeralaStory(this.world.index?.places) : null;   // Kerala's story at real places
     this.story = new Story(this);
+    this.story.placeAt = placeAt;
     this.empire = new Empire(this);
     this.peds = new Pedestrians(this.scene, this.world.layout, preset.pedestrians);
     this.peds.collision = this.world.collision;   // a thrown body stops at walls and poles
@@ -149,7 +153,7 @@ export class Game {
     this.net.connect().catch(() => {});
     this._wireEvents();
     this._wireAudioUnlock();
-    if (this.world.kerala) { this.safehouses = []; this.empire.blips = () => []; this.story.blips = () => []; }
+    if (this.world.kerala) { this.klGarages = new KeralaGarages(this.world, this.scene); this.safehouses = this.klGarages.list; this.empire.blips = () => []; }
     await this.rm.setupPost(this.scene, this.camera);
     this.camCtl.snap(this.player);
     progress(1, 'Ready');
@@ -764,8 +768,9 @@ export class Game {
       this.state.time += dt;
       // races may override controls during countdown
       this.races.update(dt);
-      if (!this.world.kerala) { // Port Halvern's missions, properties and rival crews (Kerala's come later)
-        this.story.update(dt, input, driving);
+      this.klGarages?.update(this.camera.position);
+      this.story.update(dt, input, driving);
+      if (!this.world.kerala) { // Port Halvern's properties and rival crews (Kerala's come later)
         this.empire.update(dt, input, driving);
         this.rivals.update(dt, driving && !this.story.active);
       }
@@ -837,7 +842,7 @@ export class Game {
         if (Math.hypot(this.gps.x - fs.x, this.gps.z - fs.z) < 25) { this.gps = null; this.ui.toast('Destination reached'); }
         else if ((this.gps.t += dt) > 5) this.setGPS(this.gps.x, this.gps.z);
       }
-      if (driving && !this.world.kerala) { this.empire.late(); this.story.late(); }
+      if (driving) { if (!this.world.kerala) this.empire.late(); this.story.late(); }
       if (driving) this.replay.record(dt);
       this.net.update(dt);
     }
@@ -1073,6 +1078,7 @@ export class Game {
     const ev = this.races.nearbyEvent(s.x, s.z);
     if (ev && !this.police.inPursuit && !this.story.active) {
       prompt = `<b>${ev.def.name}</b> · ${ev.def.type.toUpperCase()} · press <span class="key">E</span> / <span class="key">A</span>`;
+      if (sp < 6 && ev.lazy && !ev.route.length && this.input.wasPressed('event') && !this.races._plan(ev)) { this.input.consume('event'); this.ui.toast('The roads for this race are still loading: try again in a moment', '', 2.5); }
       if (sp < 6 && this.input.consume('event')) { this.state.mode = 'brief'; this.audio.setPaused(true); this.lib.load(this.races.rivalPool(), 4); this.ui.showBriefing(ev); }
     }
     const rival = !prompt && !this.police.inPursuit && !this.races.active ? this.rivals.nearest() : null;
@@ -1081,7 +1087,7 @@ export class Game {
       if (this.input.consume('event')) this.rivals.challenge(rival);
     }
     if (!prompt && !this.police.inPursuit && !this.races.active) {
-      for (const g of [...SAFEHOUSES, ...SHOPS]) {
+      for (const g of this.world.kerala ? this.safehouses : [...SAFEHOUSES, ...SHOPS]) {
         if (Math.hypot(g.x - s.x, g.z - s.z) < 18) {
           prompt = `<b>${g.name}</b> · press <span class="key">E</span> to enter the garage`;
           if (sp < 6 && this.input.consume('event')) this.openGarage();
@@ -1102,9 +1108,11 @@ export class Game {
       this.camCtl.cinematic = null;
       this.player.state.damage = 0;
       this.player.renderer.repair();
-      // wake up at the nearest safehouse you own (Kerala: back on the nearest road)
+      // wake up at the nearest safehouse you own (Kerala: the nearest garage, or back on the nearest road)
       let spot;
-      if (this.world.kerala) spot = this.world.roadSpot(this.focusState.x, this.focusState.z, 5) || this.world.roadSpot(this.player.state.x, this.player.state.z, 6) || { x: this.player.state.x, z: this.player.state.z, yaw: 0 };
+      const gar = this.world.kerala ? this.klGarages?.nearest(this.focusState.x, this.focusState.z) : null;
+      if (gar && gar.d < 3500 && gar.g.snapped) spot = { x: gar.g.x, z: gar.g.z, yaw: gar.g.heading };
+      else if (this.world.kerala) spot = this.world.roadSpot(this.focusState.x, this.focusState.z, 5) || this.world.roadSpot(this.player.state.x, this.player.state.z, 6) || { x: this.player.state.x, z: this.player.state.z, yaw: 0 };
       else { const home = this.empire.respawnSpot(this.player.state.x, this.player.state.z) || SAFEHOUSES[0]; spot = this._laneSpot(home.x, home.z); }
       this.onFoot.heal();
       this.player.place(spot.x, spot.z, spot.yaw);

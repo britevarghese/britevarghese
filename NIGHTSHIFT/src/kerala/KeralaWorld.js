@@ -33,6 +33,7 @@ export class KeralaWorld {
       get nodes() { return router.nodes; },
       nearestNode: (x, z) => router.nearestNode(x, z),
       route: (a, b) => router.route(a, b),
+      edgeBetween: () => null,
       edges: [], blocks: [], ringSamples: [], nodeMap: new Map(),
       groundHeight: (x, z, y) => W.groundHeight(x, z, y),
       inTunnel: () => false,
@@ -245,6 +246,9 @@ export class KeralaWorld {
       }
     }
   }
+
+  // build the tiles under these points next (a race about to start needs its roads)
+  prioritize(points) { this.prio = new Set(points.map((p) => this.key(Math.floor(-p.x / TILE), Math.floor(p.z / TILE)))); }
 
   _buildTile(t) { const it = this._buildSteps(t); while (!it.next().done); }
 
@@ -542,7 +546,7 @@ export class KeralaWorld {
     let best = null, bd = Infinity;
     for (const t of this.tiles.values()) {
       if (t.ready) continue;
-      const d = Math.max(Math.abs(t.tx - tx), Math.abs(t.tz - tz));
+      const d = this.prio?.has(this.key(t.tx, t.tz)) ? -1 : Math.max(Math.abs(t.tx - tx), Math.abs(t.tz - tz));
       if (d <= RADIUS && d < bd) { bd = d; best = t; }
     }
     // build in stages, a few milliseconds a frame (a whole tile at once stalled the game for a moment)

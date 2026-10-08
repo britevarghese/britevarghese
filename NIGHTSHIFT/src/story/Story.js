@@ -62,6 +62,11 @@ export class Story {
   _giver(id) {
     if (this.givers[id]) return this.givers[id];
     const c = CAST[id], g = this.game;
+    // Kerala: not until the roads round them have loaded (until then just the spot, for the map)
+    if (g.world.kerala) {
+      const n = g.traffic.graph.nearest(c.spot.x, c.spot.z, (l) => l.edge?.cls <= 7);
+      if (!n || n.dist > 150) return { id, x: c.spot.x, z: c.spot.z, provisional: true, lane: { x: c.spot.x, z: c.spot.z, yaw: 0 } };
+    }
     // stand on the pavement beside the nearest traffic lane
     const lane = g._laneSpot(c.spot.x, c.spot.z);
     const rx = -Math.cos(lane.yaw), rz = Math.sin(lane.yaw);
@@ -73,7 +78,7 @@ export class Story {
       if (g.world.layout.groundHeight(px, pz) > 0.05 && d > 5) break;
     }
     const body = buildCharacter(c.look);
-    const y = g.world.layout.groundHeight(x, z);
+    const y = g.world.layout.groundHeight(x, z, (g.world.layout.groundHeight(lane.x, lane.z) || 0) + 1);
     body.group.position.set(x, y, z);
     body.group.rotation.y = Math.atan2(-rx, -rz); // face the road
     g.scene.add(body.group);
@@ -88,6 +93,7 @@ export class Story {
   _resolve(loc, m) {
     if (loc === 'giver') { const gv = this._giver(m.giver); return { x: gv.lane.x, z: gv.lane.z, yaw: gv.lane.yaw }; }
     if (Array.isArray(loc)) return this.game._laneSpot(loc[0] * GRID, loc[1] * GRID);
+    if (typeof loc === 'string') { const p = this.placeAt?.(loc) || { x: 0, z: 0 }; return this.game._laneSpot(p.x, p.z); }   // a Kerala place
     return this.game._laneSpot(loc.x, loc.z);
   }
 
@@ -296,7 +302,11 @@ export class Story {
       v.keep = true; g.onFoot.parked.push(v); A.spawned.push(v);
       s.v = v;
     } else {
-      const route = this._route(st.route || [st.from || 'giver', st.to], m);
+      // (Kerala: the AI's route needs the roads along it built; until they are, build those first and try again)
+      if (g.world.kerala && (s.nextTry || 0) > s.t) return false;
+      const pts = st.route || [st.from || 'giver', st.to];
+      const route = this._route(pts, m);
+      if (g.world.kerala && route.length < 4) { s.nextTry = s.t + 1; g.world.prioritize?.(pts.map((q) => this._resolve(q, m))); return false; }
       let spot;
       if (st.type === 'race') {
         // line up beside the player, facing the first leg
@@ -551,6 +561,7 @@ export class Story {
       const on = !!av[id] && !this.active;
       if (!on && !this.givers[id]) continue;
       const gv = this._giver(id);
+      if (gv.provisional) continue;
       const busy = this.cs?.gv === gv;
       gv.body.group.visible = on || busy;
       gv.ring.visible = gv.beam.visible = on && !this.cs;
@@ -625,7 +636,7 @@ export class Story {
     g.audio.playEvent('raceFinish');
     if (m.outro?.length) this._say(m.outro, true);
     if (m.chapterEnd) { const nc = STORY_CHAPTERS.find((c) => c.id === m.chapterEnd + 1); setTimeout(() => g.hud.message(`CHAPTER ${m.chapterEnd} COMPLETE`, nc ? `NEXT: ${nc.name.toUpperCase()}` : '', 4), 5000); }
-    if (m.finale) setTimeout(() => g.ui.toast('STORY COMPLETE — Port Halvern is yours. The city is still open for business.', 'cash', 8), 4800);
+    if (m.finale) setTimeout(() => g.ui.toast(`STORY COMPLETE — ${g.world.kerala ? 'Ernakulam' : 'Port Halvern'} is yours. The city is still open for business.`, 'cash', 8), 4800);
     else { const nx = STORY.find((x) => !this.done[x.id] && (x.requires || []).every((q) => this.done[q])); if (nx) setTimeout(() => g.ui.toast(`New mission from ${CAST[nx.giver].name}: ${nx.title} (see the minimap)`, '', 6), 4800); }
     bus.emit('story:pass', { id: m.id });
   }
