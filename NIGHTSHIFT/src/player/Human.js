@@ -84,6 +84,10 @@ export class Human {
     const want = height ?? (model.sex === 'f' ? 1.66 : 1.78);
     this.root.scale.multiplyScalar(want / top);
     this.group.updateMatrixWorld(true);
+    // stand on the ground: models whose origin isn't at the soles (some sank to the knees, some floated) are moved
+    // so the ankles sit at a normal ~9 cm
+    const ank = Math.min(wpos(this.B.LeftFoot, new THREE.Vector3()).y, wpos(this.B.RightFoot, new THREE.Vector3()).y);
+    if (Math.abs(ank - 0.09) > 0.035) { this.root.position.y += 0.09 - ank; this.group.updateMatrixWorld(true); }
     // rest measurements in character space
     const B = this.B, L = (a, b) => wpos(a, _p).distanceTo(wpos(b, _c));
     this.hipH = wpos(B.Hips, new THREE.Vector3()).y;

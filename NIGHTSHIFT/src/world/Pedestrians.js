@@ -8,6 +8,7 @@ import { rng, clamp } from '../core/util.js';
 import { CURB_H } from './CityLayout.js';
 import { bus } from '../core/EventBus.js';
 
+const _u0 = new THREE.Vector3(), _u1 = new THREE.Vector3(), _u2 = new THREE.Vector3(), _u3 = new THREE.Vector3();
 const G = 9.81;
 const _qa = new THREE.Quaternion(), _qy = new THREE.Quaternion(), _ax = new THREE.Vector3(), _Y = new THREE.Vector3(0, 1, 0), _off = new THREE.Vector3();
 
@@ -272,7 +273,8 @@ export class Pedestrians {
       p.d = d;
       // caught in a downpour without an umbrella: hurry off indoors
       if (this.rain > 0.5 && !p.umb && !p.stand && !p.fight && !p.flee && !p.crossing && this.R() < dt * 0.3) { p.flee = { x: p.x, z: p.z, vx: Math.sin(p.yaw) * 3.4, vz: Math.cos(p.yaw) * 3.4, t: 5 }; p.speed = 3.4; }
-      if (p.umb && this.rain > 0.2 && nu < this.meshUmb.instanceMatrix.count) {
+      // (an umbrella over a simple figure only where those figures are drawn; real characters hold theirs, below)
+      if (p.umb && this.rain > 0.2 && !p.human && !(this.layout.pedSegment && d < 85 && this.humans?.ready) && d <= 150 && nu < this.meshUmb.instanceMatrix.count) {
         const gy = this._gy(p.x, p.z), c = Math.cos(p.yaw), sn = Math.sin(p.yaw);
         _e.set(0.12, p.yaw, 0.08); _q.setFromEuler(_e);
         _m.compose(_p.set(p.x + c * 0.12, gy + 1.98 * p.scale, p.z - sn * 0.12), _q, _s.setScalar(p.scale));
@@ -283,9 +285,27 @@ export class Pedestrians {
         hg.position.set(p.x, this._gy(p.x, p.z), p.z); hg.rotation.set(0, yaw, 0);
         hg.updateMatrixWorld(true);
         p.human.animate(p.fight ? (moving ? p.fight.sp : 0) : p.dodge > 0 ? 3.6 : moving ? p.speed : 0, dt);
+        // in the rain: the right arm comes up and the hand holds the umbrella's handle
+        if (p.umb && this.rain > 0.2 && !p.fight && !p.down && nu < this.meshUmb.instanceMatrix.count) {
+          const h = p.human, B = h.B;
+          if (B.RightArm && B.RightForeArm && B.RightHand && B.LeftArm) {
+            const sh = B.RightArm.getWorldPosition(_u0), side = B.LeftArm.getWorldPosition(_u1).sub(sh).setY(0).normalize(); // towards the left shoulder
+            const fx = Math.sin(yaw), fz = Math.cos(yaw);
+            const elbow = _u2.copy(sh).add(_u3.set(fx * 0.14 - side.x * 0.06, -0.2, fz * 0.14 - side.z * 0.06));
+            h._aim(B.RightArm, B.RightForeArm, elbow);
+            const hand = _u2.copy(sh).add(_u3.set(fx * 0.24 + side.x * 0.12, 0.14, fz * 0.24 + side.z * 0.12));
+            h._aim(B.RightForeArm, B.RightHand, hand);
+            B.RightHand.getWorldPosition(_u0);
+            _e.set(0.06, yaw, 0.04); _q.setFromEuler(_e);
+            _m.compose(_p.set(_u0.x, _u0.y + 0.62 * p.scale, _u0.z), _q, _s.setScalar(p.scale));
+            this.meshUmb.setMatrixAt(nu, _m); this.meshUmb.setColorAt(nu++, _c.setHex(p.umb));
+          }
+        }
         continue;
       }
       if (d > 150) continue;
+      // in Kerala everyone near enough to make out is a real character: the simple figures only stand in far off
+      if (this.layout.pedSegment && d < 85 && this.humans?.ready) continue;
       p.phase += dt * (moving ? p.speed * 5.2 : 0);
       const swing = moving ? Math.sin(p.phase) * 0.5 : 0;
       const bob = moving ? Math.abs(Math.cos(p.phase)) * 0.04 : 0;
@@ -324,10 +344,11 @@ export class Pedestrians {
   }
   // the nearest pedestrians become realistic characters; ones that walk off hand theirs back
   _assignPeople() {
-    const K = this.humans?.ready ? this.people : 0;
-    const near = this.peds.filter((p) => p.d !== undefined && p.d < 45).sort((a, b) => a.d - b.d).slice(0, K);
+    const kl = !!this.layout.pedSegment, R = kl ? 90 : 45;
+    const K = this.humans?.ready ? (kl ? Math.max(this.people, 20) : this.people) : 0;
+    const near = this.peds.filter((p) => p.d !== undefined && p.d < R).sort((a, b) => a.d - b.d).slice(0, K);
     const keep = new Set(near);
-    for (const p of this.peds) if (p.human && (!keep.has(p) || p.d > 50)) this._release(p);
+    for (const p of this.peds) if (p.human && (!keep.has(p) || p.d > R + 5)) this._release(p);
     // in Kerala the first model is the player's own look: the crowd is the rest (mundus, kurtas, sarees)
     const M = this.humans?.models?.length || 1, skip = this.layout.pedSegment && M > 2 ? 1 : 0;
     for (const p of near) {
