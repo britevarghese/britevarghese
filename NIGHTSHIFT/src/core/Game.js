@@ -1,5 +1,6 @@
 // Game: orchestrates every system. Gameplay state (GameState / VehicleState / WorldState) is
 // kept separate from rendering so a server-authoritative multiplayer mode can be added later.
+import { Storage } from './Storage.js';
 import { KeralaHighways } from '../kerala/KeralaHighways.js';
 import { TrafficDrivers } from '../traffic/TrafficDrivers.js';
 import { Mirrors } from '../vehicles/Mirrors.js';
@@ -655,6 +656,36 @@ export class Game {
     } else if (fast > 0.9 && (rm.dynScale || 1) < 1) {
       rm.dynScale = Math.min(1, rm.dynScale + 0.1); rm.resize(); G.cool = 6;
     }
+  }
+
+  // ------------------------------------------------------------------ save slots
+  // three slots: progress, the car, where you are (on foot or at the wheel), the time of day and the weather
+  saveSlots() { return [0, 1, 2].map((i) => Storage.load('slot' + i, null)); }
+  saveSlot(i) {
+    const f = this.focusState;
+    this._persistPosition();
+    const slot = {
+      t: Date.now(), place: this.world.districtAt?.(f.x, f.z)?.name || '', cash: this.save.data.cash, level: this.progress?.info?.level || 1,
+      car: this.save.data.currentCar, data: structuredClone(this.save.data),
+      pos: { x: f.x, z: f.z, yaw: f.yaw || 0, onFoot: !!this.onFoot.active }, hour: this.env.hour, weather: this.env.targetWeather || this.env.weather,
+    };
+    const ok = Storage.save('slot' + i, slot);
+    this.save.save();
+    return ok;
+  }
+  loadSlot(i) {
+    const slot = Storage.load('slot' + i, null);
+    if (!slot) return false;
+    Object.assign(this.save.data, structuredClone(slot.data));
+    this.save.save();
+    if (typeof slot.hour === 'number' && this.env.mode !== 'real') this.env.hour = slot.hour;
+    if (slot.weather) { this.env.setWeather(slot.weather); this.weatherT = 300; }
+    this.police?.clearAll?.();
+    this.spawnPlayer({ x: slot.pos.x, z: slot.pos.z, yaw: slot.pos.yaw });
+    this.play();
+    this.camCtl.snap(this.player);
+    this.ui.toast(`Loaded: ${slot.place || 'saved game'}`, '', 3);
+    return true;
   }
 
   _persistPosition() {

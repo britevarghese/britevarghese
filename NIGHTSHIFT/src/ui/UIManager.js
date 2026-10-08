@@ -65,6 +65,7 @@ export class UIManager {
     const list = h('div', 'menu-list');
     const items = [
       ['PLAY', 'Free roam the city — races, pursuits, cash', () => g.play()],
+      ['LOAD GAME', 'Carry on from a saved game', () => this.showSlots('load', () => this.showMainMenu())],
       ['CAREER', 'Driver level, missions and car unlocks', () => this.showCareer(() => this.showMainMenu())],
       ['GARAGE', 'Cars, paint, parts & performance', () => g.openGarage()],
       ['MAP', 'City map, events and safehouses', () => this.showMap(true)],
@@ -104,6 +105,34 @@ export class UIManager {
     this._menuNav([back, full], () => this.showMainMenu());
   }
 
+  // ------------------------------------------------------------------ save / load
+  showSlots(kind, onBack) {
+    this.clear();
+    const g = this.game, slots = g.saveSlots();
+    const s = h('div', 'screen center dim-bg');
+    const box = h('div', 'panel pause-box', `<h1>${kind === 'save' ? 'SAVE GAME' : 'LOAD GAME'}</h1>`);
+    const when = (t) => new Date(t).toLocaleString(undefined, { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+    const btns = slots.map((sl, i) => {
+      const label = sl ? `SLOT ${i + 1}<small>${sl.place || 'Kerala'} · ${formatMoney(sl.cash || 0)} · level ${sl.level || 1} · ${when(sl.t)}</small>` : `SLOT ${i + 1}<small>empty</small>`;
+      const b = h('button', 'menu-item', label);
+      if (kind === 'load' && !sl) b.disabled = true;
+      b.onclick = () => {
+        if (kind === 'save') { const ok = g.saveSlot(i); this.toast(ok ? `Saved to slot ${i + 1}` : 'Could not save (browser storage is full or blocked)', '', 2.5); this.showSlots('save', onBack); }
+        else g.loadSlot(i);
+      };
+      box.appendChild(b);
+      return b;
+    });
+    const back = h('button', 'menu-item', 'BACK');
+    back.onclick = onBack;
+    box.appendChild(back);
+    box.appendChild(h('div', 'hint', kind === 'save' ? 'Saves your progress, car, position, time of day and weather. (Progress is also saved automatically.)' : 'Loading puts you back where that game was saved.'));
+    s.appendChild(box);
+    this.screens.appendChild(s);
+    this.current = 'slots';
+    this._menuNav([...btns.filter((b) => !b.disabled), back], onBack);
+  }
+
   // ------------------------------------------------------------------ pause
   showPause() {
     this.clear();
@@ -112,6 +141,8 @@ export class UIManager {
     const box = h('div', 'panel pause-box', '<h1>PAUSED</h1>');
     const items = [
       ['RESUME', () => g.resume()],
+      ['SAVE GAME', () => this.showSlots('save', () => this.showPause())],
+      ['LOAD GAME', () => this.showSlots('load', () => this.showPause())],
       ['MAP', () => this.showMap(false)],
       ['PHOTO MODE', () => g.photo.enter()],
       ['INSTANT REPLAY', () => { if (!g.replay.enter()) this.showPause(); }],
