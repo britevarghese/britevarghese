@@ -115,6 +115,14 @@ export class KeralaTile {
 
   // ------------------------------------------------------------------------------------------ build
   build(M, opts) {
+    const it = this.buildSteps(M, opts);
+    let r;
+    while (!(r = it.next()).done);
+    return r.value;
+  }
+
+  // the build in stages (a generator), so the world can spread a tile over several frames instead of stalling one
+  *buildSteps(M, opts) {
     const d = this.data;
     const g = new THREE.Group();
     g.name = `kl_${this.tx}_${this.tz}`;
@@ -123,16 +131,23 @@ export class KeralaTile {
     this._rasters(d);
     this._smoothTowns();
     this._sinkWater();
+    yield 'tile:rasters';
     this._refine(opts.terrainN || 129);
     this._gradeRoads();
+    yield 'tile:grade';
     g.add(this._terrain(M));
     const water = this._water(M, d);
     if (water) g.add(water);
+    yield 'tile:terrain';
     for (const m of this._roads(M)) g.add(m);
-    for (const m of this._street(M, opts)) g.add(m);
+    yield 'tile:roads';
+    for (const m of yield* this._street(M, opts)) g.add(m);
     this._nearJunction = null;
-    for (const m of this._buildings(M, d, opts)) g.add(m);
+    yield 'tile:street';
+    for (const m of yield* this._buildings(M, d, opts)) g.add(m);
+    yield 'tile:buildings';
     for (const m of this._poles(M, opts)) g.add(m);
+    yield 'tile:poles';
     if (opts.trees) { this.trees = opts.trees.plant(this); g.add(this.trees.group); }
     else { const palms = this._palms(opts); if (palms) g.add(palms); }
     this.clearRoads(this.colliders);
@@ -611,7 +626,8 @@ export class KeralaTile {
   // Town streets: a concrete kerb with the open roadside drain behind it (slab-covered in stretches) and, on the
   // commercial stretches, a raised footpath; zebra crossings at the busy junctions, painted speed breakers (which
   // vehicles feel: bumpAt / bumpAhead), and iron manhole covers in the carriageway.
-  _street(M, opts) {
+  // (generators: they yield partway through, so a tile's build can be spread over frames)
+  *_street(M, opts) {
     if (!M.klKerb) return [];
     let s = (this.tx * 3571 ^ this.tz * 7919 ^ 0x5bd1) >>> 0;
     const rnd = () => ((s = (s * 1664525 + 1013904223) >>> 0) / 4294967296);
@@ -628,6 +644,7 @@ export class KeralaTile {
     };
     this.bumps = [];
     for (const [ri, r] of this.roads.entries()) {
+      if ((ri & 31) === 31) yield 'tile:street+';
       // (the highways get only their bridge parapets here)
       if ((r.cls < 2 && !r.deck) || r.cls > 7 || r.dirt || r.flags & 4 || r.pts.length < 2) continue;
       const bridge = !!(r.flags & 2), deckOnly = r.cls < 2;
@@ -1108,7 +1125,7 @@ export class KeralaTile {
     return false;
   }
 
-  _buildings(M, d, opts) {
+  *_buildings(M, d, opts) {
     const byMat = new Map(), roofsTile = [], roofsFlat = [], tanks = [], ledges = [];
     const D = { props: { ac: [], pipe: [], balc: [], gate: [], awning: [], sign: [], crate: [], chair: [], scooter: [] }, tint: { awning: [], scooter: [], sign: [] }, walls: [], ao: [] };
     for (let c = 0; c < 16; c++) { D.walls.push({ p: [], c: [] }); D.ao.push({ p: [], c: [] }); }
@@ -1152,6 +1169,7 @@ export class KeralaTile {
       for (let x = Math.floor(e0 / 40); x <= Math.floor(e1 / 40); x++) for (let z = Math.floor(n0 / 40); z <= Math.floor(n1 / 40); z++) { const k = x * 100 + z; if (!BG.has(k)) BG.set(k, []); BG.get(k).push(bi); }
     }
     for (let bi = 0; bi < N; bi++) {
+      if ((bi & 127) === 127) yield 'tile:buildings+';
       if (hidden[bi]) continue;
       const b = list[bi];
       const kind = b[0], H = b[1] / 10;

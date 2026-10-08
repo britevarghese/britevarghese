@@ -244,13 +244,20 @@ export class KeralaWorld {
     }
   }
 
-  _buildTile(t) {
+  _buildTile(t) { const it = this._buildSteps(t); while (!it.next().done); }
+
+  // a tile's build in stages: the tile's own (terrain, roads, streets, buildings, trees...), then its place in the
+  // world (lanes, stalls and shelters, clearing the lanes of anything solid)
+  *_buildSteps(t) {
     if (t.ready || !this.root) return;
     const t0 = performance.now();
-    this.root.add(t.build(this.M, this._opts()));
+    const g = yield* t.buildSteps(this.M, this._opts());
+    this.root.add(g);
+    yield 'world:add';
     this._scooters(t);
     for (const c of t.colliders) this.collision.add(c);
     this.lanes.addTile(t);
+    yield 'world:lanes';
     const n0 = t.colliders.length;
     // tea stalls and bus shelters stand clear of every carriageway (a junction's other road, a wide highway): set back
     // from the road until the whole footprint, bench included, is off it, or dropped
@@ -279,10 +286,13 @@ export class KeralaWorld {
     }
     // nothing solid in a lane, across tile borders too (a road on the next tile can run past this tile's walls):
     // this tile's colliders against every loaded road, and the neighbours' border colliders against this tile's roads
-    this._clearLanes(t, t.colliders);
+    yield 'world:extras';
+    const own = [...t.colliders];
+    for (let i = 0; i < own.length; i += 1500) { this._clearLanes(t, own.slice(i, i + 1500)); yield 'world:clear+'; }
     for (const o of this.tiles.values()) {
       if (o === t || !o.ready || Math.abs(o.tx - t.tx) > 1 || Math.abs(o.tz - t.tz) > 1) continue;
       this._clearLanes(o, o.colliders.filter((c) => { const e = -c.cx - o.E0, n = c.cz - o.N0; return e < 40 || n < 40 || e > TILE - 40 || n > TILE - 40; }));
+      yield 'world:clear+';
     }
     void n0;
     this.buildMs = performance.now() - t0;
@@ -532,7 +542,18 @@ export class KeralaWorld {
       const d = Math.max(Math.abs(t.tx - tx), Math.abs(t.tz - tz));
       if (d <= RADIUS && d < bd) { bd = d; best = t; }
     }
-    if (best) this._buildTile(best);
+    // build in stages, a few milliseconds a frame (a whole tile at once stalled the game for a moment)
+    if (this.job && !this.tiles.has(this.key(this.job.t.tx, this.job.t.tz))) this.job = null;
+    if (!this.job && best) this.job = { t: best, it: this._buildSteps(best) };
+    if (this.job) {
+      const t0 = performance.now();
+      while (performance.now() - t0 < 6) {
+        const a = performance.now(), r = this.job.it.next(), d = performance.now() - a;
+        if (this.stepLog) this.stepLog.push([this.job?.last || 'start', d]);
+        if (r.done) { this.job = null; break; }
+        this.job.last = r.value;
+      }
+    }
     this.trees?.update(camera, this.tiles);
     this._treeColliders(this.focus || p);
     // the Kerala road follows the shared road's wet / dry look
