@@ -504,6 +504,9 @@ export class KeralaWorld {
         if (!t.group) continue;
         const ex = Math.max(0, Math.abs(-p.x - (t.E0 + TILE / 2)) - TILE / 2), ez = Math.max(0, Math.abs(p.z - (t.N0 + TILE / 2)) - TILE / 2);
         const near = Math.hypot(ex, ez) < 600;
+        // the ground: full detail (graded roads) round the camera, coarser further out
+        const T = t.terrain?.userData;
+        if (T?.lods) { const dd = Math.hypot(ex, ez), l = Math.min(T.lods.length - 1, dd < 900 ? 0 : dd < 2600 ? 1 : 2); if (l !== T.lod) { T.lod = l; t.terrain.geometry.setDrawRange(T.lods[l][0], T.lods[l][1]); } }
         // roadside kiosks and shelters are small: only on the tiles round the camera
         for (const m of t.teaMeshes || []) m.visible = Math.hypot(ex, ez) < 350;
         if (t.stopMesh) t.stopMesh.visible = Math.hypot(ex, ez) < 450;

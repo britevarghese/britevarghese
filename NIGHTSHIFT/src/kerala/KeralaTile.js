@@ -11,6 +11,7 @@ import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 export const TILE = 2000;
 export const GRID = 33;
 const STEP = TILE / (GRID - 1);
+const INLAND = 4;                         // ground (m) above which water is a hill river or pond, not sea level
 const RASTER = 256;                       // land-use raster per tile (7.8 m per pixel)
 const PX = RASTER / TILE;
 
@@ -76,6 +77,17 @@ function b64ToInt16(s) {
   return out;
 }
 
+// height on a square grid of N x N vertices S apart, split into triangles a-c-b / b-c-d (as the terrain is indexed)
+function gridAt(H, N, S, e, n) {
+  const gx = Math.min(N - 1.0001, Math.max(0, e / S)), gz = Math.min(N - 1.0001, Math.max(0, n / S));
+  const i = Math.floor(gx), j = Math.floor(gz), fx = gx - i, fz = gz - j;
+  const a = H[j * N + i], b = H[j * N + i + 1], c = H[(j + 1) * N + i], d = H[(j + 1) * N + i + 1];
+  return fx + fz <= 1 ? a + (b - a) * fx + (c - a) * fz : d + (c - d) * (1 - fx) + (b - d) * (1 - fz);
+}
+
+const _cr = (p0, p1, p2, p3, t) => p1 + 0.5 * t * (p2 - p0 + t * (2 * p0 - 5 * p1 + 4 * p2 - p3 + t * (3 * (p1 - p2) + p3 - p0)));
+const _smooth = (x) => x * x * (3 - 2 * x);
+
 export class KeralaTile {
   constructor(tx, tz, data) {
     this.tx = tx; this.tz = tz;
@@ -91,14 +103,8 @@ export class KeralaTile {
     this.ready = false;
   }
 
-  // ground height (game y) at tile-local (e, n): the triangles exactly as drawn
-  heightAt(e, n) {
-    const gx = Math.min(GRID - 1.0001, Math.max(0, e / STEP)), gz = Math.min(GRID - 1.0001, Math.max(0, n / STEP));
-    const i = Math.floor(gx), j = Math.floor(gz), fx = gx - i, fz = gz - j, H = this.h;
-    const a = H[j * GRID + i], b = H[j * GRID + i + 1], c = H[(j + 1) * GRID + i], d = H[(j + 1) * GRID + i + 1];
-    // split a-c-b / b-c-d (matches the index order below)
-    return fx + fz <= 1 ? a + (b - a) * fx + (c - a) * fz : d + (c - d) * (1 - fx) + (b - d) * (1 - fz);
-  }
+  // ground height (game y) at tile-local (e, n): the triangles exactly as drawn (the fine, graded grid once built)
+  heightAt(e, n) { return gridAt(this.h, this.gn || GRID, this.gs || STEP, e, n); }
 
   classAt(e, n) {
     if (!this.cls) return 0;
@@ -117,6 +123,8 @@ export class KeralaTile {
     this._rasters(d);
     this._smoothTowns();
     this._sinkWater();
+    this._refine(opts.terrainN || 129);
+    this._gradeRoads();
     g.add(this._terrain(M));
     const water = this._water(M, d);
     if (water) g.add(water);
@@ -221,32 +229,142 @@ export class KeralaTile {
     this.smoothed = W.reduce((a, b) => a + (b > 0), 0);
   }
 
+  // Water beds: the coast, backwaters and lowland rivers lie at sea level; a river, pond or reservoir up in the hills
+  // lies at its own height (sinking it to sea level dug pits a kilometre and more deep beside the hill roads)
   _sinkWater() {
     const H = this.h;
     this.waterLevel = 0.25;
+    this.h0 = H.slice();
     for (let j = 0; j < GRID; j++) for (let i = 0; i < GRID; i++) {
       const c = this.classAt(i * STEP, j * STEP);
       // (not under a road: bridges and causeways keep the ground at road level)
-      if ((c === C.water || c === C.sea) && !this.nearRoad(i * STEP, j * STEP, 9, 9)) H[j * GRID + i] = Math.min(H[j * GRID + i], 0) - 2.2;
+      if ((c === C.water || c === C.sea) && !this.nearRoad(i * STEP, j * STEP, 9, 9)) {
+        const h = H[j * GRID + i];
+        H[j * GRID + i] = (h < INLAND ? Math.min(h, 0) : h) - 2.2;
+      }
+    }
+  }
+
+  // the water surface at (e, n): sea level on the lowland, otherwise just under the ground it runs through
+  _waterY(e, n) {
+    const g0 = this._h0At(e, n);
+    return g0 < INLAND ? this.waterLevel : Math.max(this.heightAt(e, n) + 0.12, g0 - 0.6);
+  }
+
+  _h0At(e, n) { return this.h0 ? gridAt(this.h0, GRID, STEP, e, n) : this.heightAt(e, n); }
+
+  // The 62.5 m survey grid, resampled smoothly (Catmull-Rom) to N x N: no 60 m facets for roads to sit across, and
+  // fine enough for the ground to be graded along each road. The tile's edge rows depend only on the edge rows of
+  // the survey grid, so neighbouring tiles still meet exactly.
+  _refine(N) {
+    const H = this.h, S = TILE / (N - 1), F = new Float32Array(N * N), r = [0, 0, 0, 0];
+    const at = (i, j) => H[Math.min(GRID - 1, Math.max(0, j)) * GRID + Math.min(GRID - 1, Math.max(0, i))];
+    for (let j = 0; j < N; j++) {
+      const gz = j * S / STEP, j0 = Math.min(GRID - 2, Math.floor(gz)), fz = gz - j0;
+      for (let i = 0; i < N; i++) {
+        const gx = i * S / STEP, i0 = Math.min(GRID - 2, Math.floor(gx)), fx = gx - i0;
+        for (let b = -1; b <= 2; b++) r[b + 1] = _cr(at(i0 - 1, j0 + b), at(i0, j0 + b), at(i0 + 1, j0 + b), at(i0 + 2, j0 + b), fx);
+        F[j * N + i] = _cr(r[0], r[1], r[2], r[3], fz);
+      }
+    }
+    this.h = F; this.gn = N; this.gs = S;
+  }
+
+  // Roads are built into the hillside as real ones are: along each road the ground takes a smoothed profile of
+  // itself, level across the road and a few metres either side, then cut into the slope above and filled below,
+  // the cut or fill running out over a distance that grows with its height. Where roads meet or run close, the
+  // nearest road shapes the ground. Not at the tile's edge rows (so tiles meet), and the profile runs into the
+  // natural ground over the last 40 m before a tile edge.
+  _gradeRoads() {
+    const N = this.gn, S = this.gs, pre = this.h.slice(), H = this.h;
+    const Ws = new Float32Array(N * N), Ys = new Float32Array(N * N), Am = new Float32Array(N * N);
+    for (const r of this.roads) {
+      if (r.flags & 4 || r.cls > 8 || r.pts.length < 2) continue;
+      const lanes = r.lanes || (r.cls <= 1 ? 4 : r.cls <= 3 ? 2 : r.cls <= 6 ? 2 : 1);
+      const hw = r.cls <= 2 && r.lanes ? Math.max(ROAD_HALF[r.cls], lanes * 1.75) : ROAD_HALF[r.cls];
+      const P = [];
+      for (let i = 1; i < r.pts.length; i++) {
+        const [ae, an] = r.pts[i - 1], [be, bn] = r.pts[i], k = Math.max(1, Math.ceil(Math.hypot(be - ae, bn - an) / 4));
+        for (let s = i === 1 ? 0 : 1; s <= k; s++) P.push([ae + (be - ae) * s / k, an + (bn - an) * s / k]);
+      }
+      if (P.length < 2) continue;
+      const raw = P.map(([e, n]) => gridAt(pre, N, S, e, n));
+      let sm = raw;
+      for (let pass = 0; pass < 3; pass++) {
+        const o = new Array(sm.length);
+        for (let i = 0; i < sm.length; i++) { let s = 0, c = 0; for (let k = Math.max(0, i - 5); k <= Math.min(sm.length - 1, i + 5); k++) { s += sm[k]; c++; } o[i] = s / c; }
+        sm = o;
+      }
+      const prof = P.map(([e, n], i) => raw[i] + (sm[i] - raw[i]) * Math.min(1, Math.max(0, Math.min(e, n, TILE - e, TILE - n) / 40)));
+      const inner = hw + S * 0.75;          // every terrain triangle the road crosses is levelled to it
+      for (let i = 1; i < P.length; i++) {
+        const [ae, an] = P[i - 1], [be, bn] = P[i], ya = prof[i - 1], yb = prof[i];
+        const de = be - ae, dn = bn - an, l2 = de * de + dn * dn || 1, R = inner + 40;
+        const i0 = Math.max(0, Math.ceil((Math.min(ae, be) - R) / S)), i1 = Math.min(N - 1, Math.floor((Math.max(ae, be) + R) / S));
+        const j0 = Math.max(0, Math.ceil((Math.min(an, bn) - R) / S)), j1 = Math.min(N - 1, Math.floor((Math.max(an, bn) + R) / S));
+        for (let j = j0; j <= j1; j++) for (let ii = i0; ii <= i1; ii++) {
+          const e = ii * S, n = j * S, u = Math.max(0, Math.min(1, ((e - ae) * de + (n - an) * dn) / l2));
+          const d = Math.hypot(ae + de * u - e, an + dn * u - n), y = ya + (yb - ya) * u, k = j * N + ii;
+          const B = Math.min(40, Math.max(8, Math.abs(y - pre[k]) * 1.6));
+          if (d >= inner + B) continue;
+          const w = d <= inner ? 1 : _smooth(1 - (d - inner) / B), q = w / ((0.5 + d) * (0.5 + d));
+          Ws[k] += q; Ys[k] += q * y; if (w > Am[k]) Am[k] = w;
+        }
+      }
+    }
+    for (let j = 1; j < N - 1; j++) for (let i = 1; i < N - 1; i++) {
+      const k = j * N + i;
+      if (!Ws[k]) continue;
+      const edge = Math.min(1, Math.min(i, j, N - 1 - i, N - 1 - j) / 1.5);
+      H[k] = pre[k] + (Ys[k] / Ws[k] - pre[k]) * Am[k] * edge;
     }
   }
 
   _terrain(M) {
-    const n = GRID, pos = new Float32Array(n * n * 3), uv = new Float32Array(n * n * 2), idx = [];
+    const n = this.gn || GRID, S = this.gs || STEP;
+    // the edge vertices again, 4 m lower: a skirt round the tile hides cracks against a neighbour drawn coarser
+    const edge = [];
+    for (let i = 0; i < n; i++) edge.push([i, 0]); for (let j = 0; j < n; j++) edge.push([n - 1, j]);
+    for (let i = n - 1; i >= 0; i--) edge.push([i, n - 1]); for (let j = n - 1; j >= 0; j--) edge.push([0, j]);
+    const nv = n * n, pos = new Float32Array((nv + edge.length) * 3), uv = new Float32Array((nv + edge.length) * 2);
     for (let j = 0; j < n; j++) for (let i = 0; i < n; i++) {
       const k = j * n + i;
-      pos[k * 3] = -i * STEP; pos[k * 3 + 1] = this.h[k]; pos[k * 3 + 2] = j * STEP;
+      pos[k * 3] = -i * S; pos[k * 3 + 1] = this.h[k]; pos[k * 3 + 2] = j * S;
       uv[k * 2] = i / (n - 1); uv[k * 2 + 1] = j / (n - 1);
     }
-    for (let j = 0; j < n - 1; j++) for (let i = 0; i < n - 1; i++) {
-      const a = j * n + i, b = a + 1, c = a + n, d = c + 1;
-      // the local x axis is mirrored (x = -e), so wind the other way round to face up
-      idx.push(a, b, c, b, d, c);
-    }
+    edge.forEach(([i, j], q) => { const k = j * n + i, s = nv + q; pos.set([pos[k * 3], pos[k * 3 + 1] - 4, pos[k * 3 + 2]], s * 3); uv.set([uv[k * 2], uv[k * 2 + 1]], s * 2); });
+    // index buffers at full, half and quarter detail (the grid is 2^k + 1 vertices a side); the tile picks one by distance
+    const grid = (st) => {
+      const idx = [];
+      for (let j = 0; j < n - 1; j += st) for (let i = 0; i < n - 1; i += st) {
+        const a = j * n + i, b = a + st, c = a + n * st, d = c + st;
+        idx.push(a, b, c, b, d, c);
+      }
+      return idx;
+    };
+    const skirt = (st) => {
+      const idx = [];
+      for (let e = 0; e < 4; e++) for (let q = 0; q < n - 1; q += st) {
+        const a = e * n + q, b = a + st, [ia, ja] = edge[a], [ib, jb] = edge[b], A = ja * n + ia, B = jb * n + ib;
+        idx.push(A, B, nv + a, B, nv + b, nv + a, A, nv + a, B, B, nv + a, nv + b);   // both sides
+      }
+      return idx;
+    };
     const g = new THREE.BufferGeometry();
     g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
     g.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
-    g.setIndex(idx); faceUp(g); g.computeVertexNormals();
+    g.setIndex(grid(1)); faceUp(g); g.computeVertexNormals();
+    const N3 = g.attributes.normal.array;
+    edge.forEach(([i, j], q) => { const k = (j * n + i) * 3; N3.set([N3[k], N3[k + 1], N3[k + 2]], (nv + q) * 3); });
+    // (one index buffer holding every level; the draw range picks the level)
+    const all = [], lods = [];
+    for (const st of [1, 2, 4].filter((s) => (n - 1) % s === 0)) {
+      const tmp = new THREE.BufferGeometry(); tmp.setAttribute('position', g.attributes.position); tmp.setIndex(grid(st)); faceUp(tmp);
+      const I = [...tmp.index.array, ...skirt(st)];
+      lods.push([all.length, I.length]); for (const v of I) all.push(v);
+    }
+    g.setIndex(new THREE.BufferAttribute(new Uint32Array(all), 1));
+    g.setDrawRange(lods[0][0], lods[0][1]);
     const tex = new THREE.CanvasTexture(this.visCanvas);
     tex.colorSpace = THREE.SRGBColorSpace; tex.anisotropy = 4;
     const mat = new THREE.MeshStandardMaterial({ map: tex, roughness: 0.95, metalness: 0 });
@@ -261,6 +379,8 @@ export class KeralaTile {
     const m = new THREE.Mesh(g, mat);
     m.receiveShadow = true;
     m.name = 'terrain';
+    m.userData.lods = lods; m.userData.lod = 0;
+    this.terrain = m;
     return m;
   }
 
@@ -272,7 +392,9 @@ export class KeralaTile {
       if (contour.length < 3) continue;
       const tris = THREE.ShapeUtils.triangulateShape(contour, holes);
       const all = [contour, ...holes].flat();
-      const y = k === 9 ? 0 : this.waterLevel;
+      // a hill pond or reservoir: level with its lowest shore
+      let y = k === 9 ? 0 : this.waterLevel;
+      if (k !== 9) { const lo = Math.min(...contour.map((p) => this._h0At(-p.x, p.y))); if (lo >= INLAND) y = lo - 0.4; }
       const pos = new Float32Array(all.length * 3);
       all.forEach((p, i) => { pos[i * 3] = p.x; pos[i * 3 + 1] = y; pos[i * 3 + 2] = p.y; });
       const g = new THREE.BufferGeometry();
@@ -283,7 +405,7 @@ export class KeralaTile {
     // rivers / canals as ribbons
     for (const w of d.wl || []) {
       const pts = decodeLine(w, 2), hw = Math.max(1.5, w[1] / 20);
-      const g = this._ribbon(pts, hw, () => this.waterLevel, 1e9);
+      const g = this._ribbon(pts, hw, (e, n) => this._waterY(e, n), 1e9);
       if (g) { g.deleteAttribute('uv'); geos.push(faceUp(g)); }
     }
     if (!geos.length) return null;
