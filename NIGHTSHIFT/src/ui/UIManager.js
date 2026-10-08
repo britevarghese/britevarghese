@@ -538,10 +538,15 @@ export class UIManager {
         if (KL) { const f = g.focusState; V.z = 14; V.x = canvas.width / 2 - M.px(f.x) * k * V.z; V.y = canvas.height / 2 - M.pz(f.z) * k * V.z; clampView(); }
       }
       c.fillStyle = '#0b1a26'; c.fillRect(0, 0, canvas.width, canvas.height);
-      c.imageSmoothingEnabled = true;
-      c.drawImage(M.canvas, V.x, V.y, M.size * k * V.z, M.size * k * V.z);
-      c.imageSmoothingEnabled = true;
       const P = (x, z) => [M.px(x) * k * V.z + V.x, M.pz(z) * k * V.z + V.y];
+      if (KL && M.drawView) {
+        // Kerala: drawn from the map data at this zoom (an image of the whole state blurred when zoomed in)
+        const W0 = M.wx((0 - V.x) / (k * V.z)), W1 = M.wx((canvas.width - V.x) / (k * V.z)), Z0 = M.wz((0 - V.y) / (k * V.z)), Z1 = M.wz((canvas.height - V.y) / (k * V.z));
+        M.drawView(c, P, M.s * k * V.z, [Math.min(W0, W1), Math.min(Z0, Z1), Math.max(W0, W1), Math.max(Z0, Z1)], dpr);
+      } else {
+        c.imageSmoothingEnabled = true;
+        c.drawImage(M.canvas, V.x, V.y, M.size * k * V.z, M.size * k * V.z);
+      }
       // zoomed in on Kerala: the detailed streets round you (the minimap's 5 km window) over the overview
       if (KL && g.mapRenderer?.canvas && M.s * k * V.z > 0.03) {
         const L = g.mapRenderer, f = L.size * (M.s / MAP_SCALE) * k * V.z;

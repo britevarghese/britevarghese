@@ -122,4 +122,53 @@ export class KeralaOverview {
     }
     g.textAlign = 'start';
   }
+
+  // the visible part at the zoom it is shown (vectors, sharp at any zoom): P maps world (x, z) to canvas pixels,
+  // ppm is canvas pixels per metre, [x0, z0, x1, z1] the world rectangle in view
+  drawView(c, P, ppm, view, dpr = 1) {
+    const I = this.index, [x0, z0, x1, z1] = view;
+    if (!this._boxes) this._boxes = I.majors.map((m) => { let a = Infinity, b = -Infinity, cc = Infinity, d = -Infinity; for (let k = 2; k + 1 < m.length; k += 2) { a = Math.min(a, -m[k]); b = Math.max(b, -m[k]); cc = Math.min(cc, m[k + 1]); d = Math.max(d, m[k + 1]); } return [a, b, cc, d]; });
+    const vis = (bx) => bx[1] >= x0 && bx[0] <= x1 && bx[3] >= z0 && bx[2] <= z1;
+    Object.entries(I.outlines).forEach(([, polys], i) => {
+      c.fillStyle = DIST_FILL[i % DIST_FILL.length]; c.strokeStyle = 'rgba(160,200,170,0.35)'; c.lineWidth = 1.5 * dpr;
+      for (const poly of polys) { c.beginPath(); poly.forEach(([e, n], j) => { const [a, b] = P(-e, n); if (j) c.lineTo(a, b); else c.moveTo(a, b); }); c.closePath(); c.fill(); c.stroke(); }
+    });
+    const col = ['#ffcf4a', '#ffcf4a', '#f0d27a', '#c8c0a0'], wid = [3, 2.6, 1.8, 1.1], metres = [16, 14, 9, 8];
+    c.lineCap = 'round'; c.lineJoin = 'round';
+    for (let cls = 3; cls >= 0; cls--) {
+      c.strokeStyle = col[cls]; c.lineWidth = Math.max(wid[cls] * dpr, metres[cls] * ppm);
+      c.beginPath();
+      I.majors.forEach((m, i) => {
+        if (m[0] !== cls || !vis(this._boxes[i])) return;
+        for (let k = 2; k + 1 < m.length; k += 2) { const [a, b] = P(-m[k], m[k + 1]); if (k === 2) c.moveTo(a, b); else c.lineTo(a, b); }
+      });
+      c.stroke();
+    }
+    c.textAlign = 'center';
+    const placed = [];
+    const order = [...I.places].sort((a, b) => (a[0] === 'city' ? 0 : a[0] === 'town' ? 1 : 2) - (b[0] === 'city' ? 0 : b[0] === 'town' ? 1 : 2));
+    for (const p of order) {
+      const city = p[0] === 'city', town = p[0] === 'town';
+      if ((town && ppm < 0.004) || (!city && !town && ppm < 0.02)) continue;   // towns, then villages, as you zoom in
+      { const [a, b] = P(-p[3], p[4]), w = p[1].length * (city ? 8.5 : 6.5) * dpr, hgt = 16 * dpr;
+        if (placed.some(([x, y, ww]) => Math.abs(x - a) < (w + ww) / 2 && Math.abs(y - b) < hgt)) continue;   // no label over another
+        placed.push([a, b, w]); }
+      const x = -p[3], z = p[4];
+      if (x < x0 || x > x1 || z < z0 || z > z1) continue;
+      const [a, b] = P(x, z);
+      c.fillStyle = city ? '#ffffff' : '#d8e0d8'; c.beginPath(); c.arc(a, b, (city ? 4 : town ? 2.6 : 1.8) * dpr, 0, 7); c.fill();
+      c.font = `${city ? 600 : 400} ${(city ? 15 : town ? 12 : 10) * dpr}px Segoe UI, Arial`; c.fillStyle = city ? 'rgba(255,255,255,0.95)' : 'rgba(220,230,220,0.8)';
+      c.fillText(p[1], a, b - (city ? 9 : 6) * dpr);
+    }
+    if (ppm < 0.01) {
+      c.font = `700 ${17 * dpr}px Segoe UI, Arial`; c.fillStyle = 'rgba(160,230,180,0.5)';
+      for (const [name, polys] of Object.entries(I.outlines)) {
+        let ce = 0, cn = 0, k = 0;
+        const big = polys.reduce((a, b) => (b.length > a.length ? b : a), polys[0] || []);
+        for (const [e, n] of big) { ce += e; cn += n; k++; }
+        if (k) { const [a, b] = P(-ce / k, cn / k); c.fillText(name.toUpperCase(), a, b); }
+      }
+    }
+    c.textAlign = 'start';
+  }
 }
