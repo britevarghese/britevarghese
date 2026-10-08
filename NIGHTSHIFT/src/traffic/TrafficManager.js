@@ -315,6 +315,35 @@ export class TrafficManager {
     if (Math.hypot(tmp.x - tmp.dz * c.lat - s.x, tmp.z + tmp.dx * c.lat - s.z) > 4.5) c.phys = null;
   }
 
+  // A two-wheeler near the player rides like one: it steers (pure pursuit) at a point ahead on its line, its turn
+  // rate limited by how far it can lean, so it takes corners in smooth arcs and leans with the real turn
+  // (tan(lean) = v * yawRate / g), sways upright as it slows, and puts a foot down (tipped onto it) when stopped.
+  _bikeDrive(c, dt) {
+    if (!c.bk) { this._place(c); c.bk = { x: c.x, z: c.z, yaw: c.yaw, yr: 0 }; }
+    const B = c.bk, v = c.v;
+    c.path.sample(c.s, tmp);
+    const along = v * (Math.sin(B.yaw) * tmp.dx + Math.cos(B.yaw) * tmp.dz);
+    this._advance(c, Math.max(0, along) * dt, false);
+    const Ld = 2.2 + v * 0.45, T = this._pointAhead(c, Ld, _pa);
+    let diff = Math.atan2(T.x - B.x, T.z - B.z) - B.yaw;
+    while (diff > Math.PI) diff -= Math.PI * 2; while (diff < -Math.PI) diff += Math.PI * 2;
+    const dist = Math.hypot(T.x - B.x, T.z - B.z) || Ld;
+    const maxYr = Math.min(1.8, 9.81 * Math.tan(0.7) / Math.max(v, 0.5));
+    const want = clamp(2 * v * Math.sin(diff) / dist, -maxYr, maxYr) + (v < 0.5 ? diff * 0.6 : 0);
+    B.yr += (want - B.yr) * (1 - Math.exp(-dt * 7));       // the lean (and so the turn) takes a moment to build
+    B.yaw += B.yr * dt;
+    B.x += Math.sin(B.yaw) * v * dt; B.z += Math.cos(B.yaw) * v * dt;
+    // pushed far off its line (a shunt, a lane change into a gap): rejoin it
+    this._place(c);
+    if (Math.hypot(c.x - B.x, c.z - B.z) > 3) { B.x = c.x; B.z = c.z; B.yaw = c.yaw; B.yr = 0; }
+    c.x = B.x; c.z = B.z; c.yaw = B.yaw;
+    if (this.world.kerala) c.y = this.world.layout.groundHeight(c.x, c.z) + 0.01;
+    c.pitch = lerp(c.pitch, c.slope || 0, 0.15);
+    const lean = v < 0.6 ? -0.07 : -Math.atan(clamp(v * B.yr / 9.81, -0.9, 0.9));   // stopped: on the left foot
+    c.roll = lerp(c.roll || 0, lean, 1 - Math.exp(-dt * (v < 0.6 ? 3 : 6)));
+    c.footDown = v < 0.6;
+  }
+
   _chooseNext(path) {
     const opts = path.next;
     if (!opts.length) return null;
@@ -508,6 +537,8 @@ export class TrafficManager {
     c.lat = lerp(c.lat, c.latT || 0, 1 - Math.exp(-dt * (c.spec.bike ? 2.2 : 1.3)));
     if (this.world.kerala && !c.spec.bike && c.dist < 70 && TRAFFIC_VEHICLES[c.type]?.params) { this._physDrive(c, dt, c.v); c.prevYaw = c.yaw; return; }
     if (c.phys) { c.phys = null; }            // left the player's surroundings: back on the lane
+    if (c.spec.bike && c.dist < 160) { this._bikeDrive(c, dt); c.prevYaw = c.yaw; return; }
+    c.bk = null;
     this._advance(c, c.v * dt);
     // gentle body pitch on braking
     c.pitch = lerp(c.pitch, (c.brake && c.v > 2 ? -0.02 : 0) + (c.slope || 0), 0.15);
@@ -540,6 +571,7 @@ export class TrafficManager {
     if (res.impact > 1.5 || c.state !== 'drive') {
       if (c.state === 'drive' || c.state === 'parked') { const i = c.path.cars.indexOf(c); if (i >= 0) c.path.cars.splice(i, 1); }
       c.state = 'knocked'; c.knockT = 0; c.brake = 1;
+      this._unseat(c, c.s2.vx, c.s2.vz);
     }
     return res;
   }
@@ -547,8 +579,21 @@ export class TrafficManager {
   // something (an incident) shunts this car: off its lane, sliding with this velocity and spin
   knock(c, vx, vz, yawRate = 0) {
     if (c.state === 'drive' || c.state === 'parked') { const i = c.path?.cars.indexOf(c) ?? -1; if (i >= 0) c.path.cars.splice(i, 1); }
-    c.state = 'knocked'; c.knockT = 0; c.brake = 1; c.v = 0;
+    c.state = 'knocked'; c.knockT = 0; c.brake = 1;
     c.s2.x = c.x; c.s2.z = c.z; c.s2.vx = vx; c.s2.vz = vz; c.s2.yawRate = yawRate;
+    this._unseat(c, vx, vz);
+    c.v = 0;
+  }
+
+  // a two-wheeler struck: the rider is thrown off (a tumbling body, as a struck pedestrian) and the bike goes down
+  // on its side, falling away from the blow
+  _unseat(c, vx, vz) {
+    if (!c.spec.bike || c.riderOff) return;
+    c.riderOff = true;
+    const fx = Math.sin(c.yaw), fz = Math.cos(c.yaw), own = c.v || 0;
+    const lat = (vx - fx * own) * fz - (vz - fz * own) * fx;      // the blow across the bike (+: toward its right)
+    c.fall = lat >= 0 ? 1 : -1;
+    if (!c.parked) bus.emit('traffic:riderThrown', { x: c.x, y: c.y, z: c.z, vx: fx * own * 0.8 + vx * 0.6, vz: fz * own * 0.8 + vz * 0.6, yaw: c.yaw });
   }
 
   _knocked(c, dt) {
@@ -557,8 +602,14 @@ export class TrafficManager {
     s.x = c.x; s.z = c.z;
     c.x += s.vx * dt; c.z += s.vz * dt;
     c.yaw += s.yawRate * dt;
-    const f = Math.exp(-dt * 1.6);
+    // a bike down on its side scrapes to a stop sooner
+    const f = Math.exp(-dt * (c.riderOff ? 2.6 : 1.6));
     s.vx *= f; s.vz *= f; s.yawRate *= Math.exp(-dt * 2);
+    if (c.riderOff) {
+      c.roll = lerp(c.roll || 0, c.fall * 1.38, 1 - Math.exp(-dt * 5));
+      c.pitch = lerp(c.pitch || 0, 0, 0.1);
+      if (this.world.kerala) c.y = this.world.layout.groundHeight(c.x, c.z) + 0.16 * Math.abs(Math.sin(c.roll));
+    }
     // static collisions for knocked cars (buildings, poles)
     const col = this.world.collision.query(c.x - 6, c.z - 6, c.x + 6, c.z + 6, []);
     const box = c.obb();
@@ -571,7 +622,7 @@ export class TrafficManager {
       box.cx = c.x; box.cz = c.z;
     }
     if (c.knockT > 2.5 && Math.hypot(s.vx, s.vz) < 0.5) c.state = 'wreck';
-    if (c.state === 'wreck' && c.knockT > 14 && !c.incident) {
+    if (c.state === 'wreck' && c.knockT > 14 && !c.incident && !c.riderOff) {
       // try to rejoin traffic if the car is still near a lane and roughly aligned
       const near = this.graph.nearest(c.x, c.z);
       if (near && near.dist < 2 && !near.lane.cars.some((o) => Math.abs(o.s - near.s) < 10)) {

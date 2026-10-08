@@ -125,43 +125,54 @@ export class TrafficRenderer {
         if (!h) break;
         // the character's bones under the rider IK (same Mixamo-style names as the rider model)
         const r = new SkinnedRider({ zF, zR, seat: cfg.seat, style: 'sport', rider: cfg.pose }, false, h.root);
-        r.model.updateMatrixWorld(true);
-        const byMat = new Map(), v3 = new THREE.Vector3();
-        r.model.traverse((o) => {
-          if (!o.isMesh) return;
-          const src = o.geometry, n = src.attributes.position.count;
-          const g = new THREE.BufferGeometry(), pos = new Float32Array(n * 3);
-          for (let i = 0; i < n; i++) {
-            if (o.isSkinnedMesh) o.getVertexPosition(i, v3); else v3.fromBufferAttribute(src.attributes.position, i);
-            v3.applyMatrix4(o.matrixWorld);
-            pos.set([v3.x, v3.y, v3.z], i * 3);
-          }
-          g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
-          if (src.attributes.uv) g.setAttribute('uv', src.attributes.uv);
-          if (src.index) g.setIndex(src.index);
-          g.computeVertexNormals();
-          const m = Array.isArray(o.material) ? o.material[0] : o.material;
-          if (!byMat.has(m)) byMat.set(m, []);
-          byMat.get(m).push(g);
-        });
-        // helmet on the head
-        const head = new THREE.Vector3(); r.bones.Head.getWorldPosition(head);
-        const parts = [];
-        for (const [m, geos] of byMat) {
-          const g = geos.length === 1 ? geos[0] : mergeGeometries(geos.map((x) => { if (!x.attributes.uv) x.setAttribute('uv', new THREE.BufferAttribute(new Float32Array(x.attributes.position.count * 2), 2)); return x; }), false);
-          if (!g) continue;
-          const mesh = new THREE.InstancedMesh(g, m, this.maxPerType);
-          mesh.count = 0; mesh.frustumCulled = false; mesh.castShadow = false;
-          this.scene.add(mesh); parts.push(mesh);
+        // two poses: riding (feet on the pegs) and stopped (the left foot down on the road)
+        const both = {};
+        for (const pose of ['ride', 'stop']) {
+          if (pose === 'stop') r.pose(0, { down: 1, paddle: null });
+          r.model.updateMatrixWorld(true);
+          both[pose] = this._bakeRider(r, helmetGeo);
         }
-        const hm = new THREE.InstancedMesh(helmetGeo.clone().translate(head.x, head.y + 0.06, head.z - 0.01), new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.3, metalness: 0.1 }), this.maxPerType);
-        hm.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(this.maxPerType * 3), 3);
-        hm.count = 0; hm.frustumCulled = false; this.scene.add(hm); parts.push(hm); hm.userData.helmet = true;
+        const parts = both;
         variants.push(parts);
         h.dispose?.();
       }
       if (variants.length) this.riders[type] = { variants, HELMETS };
     }
+  }
+
+  _bakeRider(r, helmetGeo) {
+    const byMat = new Map(), v3 = new THREE.Vector3();
+    r.model.traverse((o) => {
+      if (!o.isMesh) return;
+      const src = o.geometry, n = src.attributes.position.count;
+      const g = new THREE.BufferGeometry(), pos = new Float32Array(n * 3);
+      for (let i = 0; i < n; i++) {
+        if (o.isSkinnedMesh) o.getVertexPosition(i, v3); else v3.fromBufferAttribute(src.attributes.position, i);
+        v3.applyMatrix4(o.matrixWorld);
+        pos.set([v3.x, v3.y, v3.z], i * 3);
+      }
+      g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+      if (src.attributes.uv) g.setAttribute('uv', src.attributes.uv);
+      if (src.index) g.setIndex(src.index);
+      g.computeVertexNormals();
+      const m = Array.isArray(o.material) ? o.material[0] : o.material;
+      if (!byMat.has(m)) byMat.set(m, []);
+      byMat.get(m).push(g);
+    });
+    // helmet on the head
+    const head = new THREE.Vector3(); r.bones.Head.getWorldPosition(head);
+    const parts = [];
+    for (const [m, geos] of byMat) {
+      const g = geos.length === 1 ? geos[0] : mergeGeometries(geos.map((x) => { if (!x.attributes.uv) x.setAttribute('uv', new THREE.BufferAttribute(new Float32Array(x.attributes.position.count * 2), 2)); return x; }), false);
+      if (!g) continue;
+      const mesh = new THREE.InstancedMesh(g, m, this.maxPerType);
+      mesh.count = 0; mesh.frustumCulled = false; mesh.castShadow = false;
+      this.scene.add(mesh); parts.push(mesh);
+    }
+    const hm = new THREE.InstancedMesh(helmetGeo.clone().translate(head.x, head.y + 0.06, head.z - 0.01), new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.3, metalness: 0.1 }), this.maxPerType);
+    hm.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(this.maxPerType * 3), 3);
+    hm.count = 0; hm.frustumCulled = false; this.scene.add(hm); parts.push(hm); hm.userData.helmet = true;
+    return parts;
   }
 
   // cars: [{type, x, y, z, yaw, pitch, roll, color(THREE.Color), brake, spin, lod}]
@@ -184,8 +195,8 @@ export class TrafficRenderer {
       const lightsOn = lightsOnAll && !c.parked; // parked cars sit dark
       if (T.imported) { this._placeImported(T, lod, n, _m, c, lightsOn); }
       const RD = this.riders?.[c.type];
-      if (RD && !c.parked && c.dist < 220) {
-        const vi = c.id % RD.variants.length, parts = RD.variants[vi], k = (rc[c.type + vi] = (rc[c.type + vi] || 0) + 1) - 1;
+      if (RD && !c.parked && !c.riderOff && c.dist < 220) {
+        const vi = c.id % RD.variants.length, pose = c.footDown ? 'stop' : 'ride', parts = RD.variants[vi][pose], key = c.type + vi + pose, k = (rc[key] = (rc[key] || 0) + 1) - 1;
         for (const mesh of parts) {
           if (k >= mesh.instanceMatrix.count) continue;
           mesh.setMatrixAt(k, _m);
@@ -252,9 +263,11 @@ export class TrafficRenderer {
         }
       });
     }
-    for (const [type, RD] of Object.entries(this.riders || {})) RD.variants.forEach((parts, vi) => {
-      const n = rc[type + vi] || 0;
-      for (const mesh of parts) { mesh.count = Math.min(n, mesh.instanceMatrix.count); mesh.instanceMatrix.needsUpdate = true; if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true; }
+    for (const [type, RD] of Object.entries(this.riders || {})) RD.variants.forEach((poses, vi) => {
+      for (const [pose, parts] of Object.entries(poses)) {
+        const n = rc[type + vi + pose] || 0;
+        for (const mesh of parts) { mesh.count = Math.min(n, mesh.instanceMatrix.count); mesh.instanceMatrix.needsUpdate = true; if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true; }
+      }
     });
     this.tires.count = wi; this.rims.count = wi;
     this.tires.instanceMatrix.needsUpdate = true; this.rims.instanceMatrix.needsUpdate = true;

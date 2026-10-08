@@ -43,6 +43,10 @@ export class TrafficDrivers {
     for (const c of want) {
       let h = this.on.get(c);
       if (!h) { h = this._take(); if (!h) continue; this.on.set(c, h); g.scene.add(h.group); }
+      // in a closed car the shins and feet are under the dash, out of sight, and on low or narrow cabins they
+      // poked out through the floor and doors: fold them away at the knee (an autorickshaw is open: keep them)
+      const fold = c.type === 'auto' ? 1 : 0.001;
+      if (h._fold !== fold) { h._fold = fold; for (const b of [h.B.LeftLeg, h.B.RightLeg]) b?.scale.setScalar(fold); }
       // the car's transform, as the traffic renderer draws it
       _q.setFromEuler(_e.set(-(c.pitch || 0), c.yaw, c.roll || 0, 'YXZ'));
       _m.compose(_p.set(c.x, c.y, c.z), _q, _one);

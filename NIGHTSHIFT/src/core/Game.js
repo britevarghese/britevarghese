@@ -291,6 +291,7 @@ export class Game {
       }
     });
     // pedestrians struck by a vehicle (Pedestrians._hit): body thud, a jolt, and the police care
+    bus.on('traffic:riderThrown', (e) => this.peds?.throwRider(e));
     bus.on('ped:hit', (e) => {
       const k = clamp(e.speed / 22, 0.15, 1);
       this.audio.playEvent('collision', { intensity: k * 0.7, type: 'light', position: { x: e.x, y: 0.8, z: e.z } });

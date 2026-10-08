@@ -146,6 +146,20 @@ export class Pedestrians {
     for (const p of this.peds) if (p.stand?.kind === 'bus' && Math.hypot(p.x - x, p.z - z) < 14) { p.board = { x, z }; p.stand = null; }
   }
 
+  // a rider knocked off a two-wheeler: a person thrown from the seat with the bike's speed, tumbling to the road
+  throwRider({ x, y, z, vx, vz, yaw }) {
+    const n0 = this.peds.length;
+    for (let k = 0; k < 12 && this.peds.length === n0; k++) this._spawn({ x: x + 60, z });   // borrow a random look
+    if (this.peds.length === n0) return;
+    const p = this.peds[this.peds.length - 1], sp = Math.hypot(vx, vz);
+    p.x = x; p.z = z; p.umb = 0; p.d = 0;
+    p.down = {
+      x, y: y + 0.75, z, vx, vy: 1.2 + Math.min(3, sp * 0.18), vz, t: 0, landed: false, rest: 0, yaw: Math.atan2(vx, vz) || yaw,
+      axis: new THREE.Vector3(vz, 0, -vx).normalize(), ang: 0, spin: sp > 4 ? Math.min(12, sp * 0.6) : 2, heavy: sp > 9, pending: 'death',
+    };
+    if (!sp) p.down.axis.set(1, 0, 0);
+  }
+
   // a driver thrown out of their car: sprints away from the player for a few seconds, then leaves
   spawnFleeing(x, z, fromX, fromZ) {
     const n0 = this.peds.length;
