@@ -34,6 +34,7 @@ export const TYPE_SPECS = {
   pvtbus2: { bus: true, w: 2.5, l: 10.6, mass: 10500, weight: 5, kl: true, bigRoads: true, colors: [0x1f6fd0, 0xc81e1e, 0x1a9a4a, 0xf0f0f0, 0xe07a10, 0x7a2ab0, 0xe8c020] },
 };
 export const TRAFFIC_COLORS = [0x9aa0a8, 0x2a2d33, 0xe8e8e6, 0x5a1a1a, 0x1c2e4a, 0x3a3f36, 0xb8b0a0, 0x6a6e74, 0x0e0f11, 0x8a2a1a, 0x2a4a6a, 0xd8d0c0];
+const _dir = new THREE.Vector3();
 const BUS_COLORS = [0xd8b020, 0x2a6ab0, 0xe0e0e0];
 
 const tmp = {};
@@ -152,6 +153,14 @@ export class TrafficManager {
     } else car.y = 0; // Port Halvern: traffic stays on the flat road surface
   }
 
+  _inView(c) {
+    const cam = this.camera;
+    if (!cam) return false;
+    const dx = c.x - cam.position.x, dz = c.z - cam.position.z, d = Math.hypot(dx, dz) || 1;
+    cam.getWorldDirection(_dir);
+    return d < 60 || (dx * _dir.x + dz * _dir.z) / d > 0.55;
+  }
+
   remove(car) {
     const i = this.cars.indexOf(car);
     if (i >= 0) this.cars.splice(i, 1);
@@ -182,6 +191,8 @@ export class TrafficManager {
       // cars left well behind are recycled so the budget stays around (and ahead of) the player
       const behind = forward && dm === d && d > 150 && ((c.x - focus.x) * forward.x + (c.z - focus.z) * forward.z) / d < -0.4 && this.cars.length >= max * 0.8;
       if (c.incident) continue; // an accident scene stays until it is cleared
+      // gridlock relief: a car stuck for a long while out of the player's sight quietly goes (another spawns)
+      if (c.state === 'drive') { c.stuckT = c.v < 0.3 && !c.dwell ? (c.stuckT || 0) + dt : 0; if (c.stuckT > 25 && dm > 45 && !this._inView(c)) { this.remove(c); continue; } }
       if (c.path?.dead || dm > 310 || behind || (c.state === 'wreck' && dm > 120) || this.cars.length > max + 4 && dm > 200) this.remove(c);
     }
     // sort occupancy
@@ -323,6 +334,26 @@ export class TrafficManager {
       const g = ahead - (c.spec.l / 2 + 2.4);
       if (g < gap) { gap = g; leadV = Math.max(0, s.vx * fx + s.vz * fz); }
       if (g < 8 && c.honk <= 0 && Math.hypot(s.vx, s.vz) < 3) { c.honk = 6; bus.emit('traffic:honk', { x: c.x, z: c.z }); }
+    }
+    // any other traffic in front, whatever path it is on: cars crossing the junction from another road, merging,
+    // turning across. Of two cars that see each other (nose to nose across a junction) only one gives way.
+    const reach = 4 + c.v * 1.4 + c.spec.l / 2;
+    for (const o of this.cars) {
+      if (o === c || o.state !== 'drive' || o.path === path || o.path === c.next) continue;
+      const dx = o.x - c.x, dz = o.z - c.z;
+      if (Math.abs(dx) > reach + 6 || Math.abs(dz) > reach + 6) continue;
+      const ahead = dx * fx + dz * fz;
+      if (ahead < 0 || ahead > reach + o.spec.l / 2) continue;
+      // how far across our line its body reaches (its own width and length, turned however it faces)
+      const ofx = Math.sin(o.yaw), ofz = Math.cos(o.yaw), cosA = Math.abs(ofx * fx + ofz * fz);
+      const half = (o.spec.w * cosA + o.spec.l * Math.sqrt(Math.max(0, 1 - cosA * cosA))) / 2;
+      if (Math.abs(-dx * fz + dz * fx) > half + c.spec.w / 2 + 0.35) continue;
+      if (ofx * fx + ofz * fz < -0.5) continue;          // oncoming traffic in its own lane
+      // does it see us in front of it too? then the one further from the conflict (or the later id) waits
+      const bAhead = -dx * ofx - dz * ofz;
+      if (bAhead > 0 && bAhead < 4 + o.v * 1.4 + o.spec.l / 2 && Math.abs(dx * ofz - dz * ofx) < c.spec.w / 2 + o.spec.w / 2 + 1.5 && (bAhead > ahead || (Math.abs(bAhead - ahead) < 1 && c.id < o.id))) continue;
+      const g = ahead - (c.spec.l / 2 + half);
+      if (g < gap) { gap = Math.max(0.1, g); leadV = o.v * Math.max(0, ofx * fx + ofz * fz); }
     }
     for (const o of this.cars) {
       // cars knocked into our lane / wrecks
