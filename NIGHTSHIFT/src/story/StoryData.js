@@ -310,9 +310,12 @@ const KL_CAST = {
   shibu: { name: "'Tiger' Shibu", color: '#ff3df0' },
   mathew: { name: 'SI Mathew', color: '#ff6a3d' },
   sajan: { name: 'Sajan', color: '#9dff6a' },
+  anitha: { name: 'Anitha', role: 'Car dealer, Edappally', color: '#ffd23d', model: 'kl_saree', look: { jacket: 0x8a2a4a, jeans: 0x3a1a2a, skin: 0x8a5a3a, hair: 0x0a0a0a }, place: 'Edappally' },
+  rajan: { name: 'Rajan', role: 'Lorry contractor, Kalamassery', color: '#9dff6a', model: 'kl_elder', look: { jacket: 0xf0ece0, jeans: 0xf2efe6, skin: 0x6a4228, hair: 0xb0b0b0 }, place: 'South Kalamassery' },
+  biju: { name: 'Biju', color: '#ff8a3d' },
 };
 
-const KL_CHAPTERS = [{ id: 1, name: 'Ernakulam Nights' }];
+const KL_CHAPTERS = [{ id: 1, name: 'Ernakulam Nights' }, { id: 2, name: 'Infopark Money' }];
 
 const KL_STORY = [
   {
@@ -405,7 +408,93 @@ const KL_STORY = [
     ],
     outro: [['firoz', 'Mathew is finished. Shibu has gone quiet. Ernakulam is ours.'], ['leena', 'Sleep, driver. Tomorrow there is more work.']],
     reward: { cash: 30000, xp: 5000 },
-    chapterEnd: 1, finale: true,
+    chapterEnd: 1,
+  },
+  // ---- chapter 2: the money moves east, to Edappally, Kakkanad and the Infopark
+  {
+    id: 'kl_showroom', giver: 'anitha', title: 'Showroom Condition', requires: ['kl_last_ferry'], chapter: 2,
+    intro: [
+      ['anitha', 'Firoz says you deliver things without asking questions. Good. I sell cars. Very clean cars.'],
+      ['anitha', 'A customer in Koonamthai stopped paying for his red Brezza. The bank wants it back. So do I, first.'],
+      ['anitha', 'Bring it to my yard. Not one scratch: I can sell it again by Friday.'],
+    ],
+    steps: [
+      { type: 'steal', vehicle: 'brezza', paint: '#a01818', at: 'Koonamthai', text: 'Take the <b>red Brezza</b> at Koonamthai.' },
+      { type: 'deliver', to: 'giver', maxDamage: 0.4, text: "Bring it to <b>Anitha's yard</b> in Edappally. Keep it clean." },
+    ],
+    outro: [['anitha', 'Showroom condition. You will go far, driver.']],
+    reward: { cash: 9000, xp: 1600 },
+  },
+  {
+    id: 'kl_infopark', giver: 'anitha', title: 'Infopark Shuttle', requires: ['kl_showroom'], chapter: 2,
+    intro: [
+      ['anitha', 'Somebody is buying my cars with company money from the Infopark. I want to know who.'],
+      ['anitha', 'A white Ertiga leaves Kakkanad every evening with the cash. Follow it. Do not get seen.'],
+    ],
+    steps: [
+      { type: 'goto', to: 'Kakkanad West', inVehicle: true, text: 'Get to <b>Kakkanad</b>.' },
+      { type: 'tail', vehicle: 'ertiga', paint: '#f2f2f0', route: ['Kakkanad West', 'Chembumukku', 'Padivattom', 'Palarivattom'], text: 'Follow the <b>white Ertiga</b>. Stay out of sight.' },
+      { type: 'call', lines: [['anitha', "Palarivattom? That's Biju's place. Rajan's old partner. Interesting. Go home."]] },
+    ],
+    outro: [],
+    reward: { cash: 10000, xp: 1800 },
+  },
+  {
+    id: 'kl_sand_run', giver: 'rajan', title: 'Sand Run', requires: ['kl_infopark'], chapter: 2,
+    intro: [
+      ['rajan', "Anitha's friend. Sit. I am Rajan. Thirty years of lorries in Kalamassery."],
+      ['rajan', 'Biju took my pickup full of river sand, with my permit papers inside. Without papers I lose the contract.'],
+      ['rajan', "It's parked at Pathadipalam. The police are watching it, so be quick."],
+    ],
+    steps: [
+      { type: 'steal', vehicle: 'minitruck', paint: '#e8e2d0', at: 'Pathadipalam', heat: 2, text: "Take <b>Rajan's pickup</b> at Pathadipalam." },
+      { type: 'lose', heat: 2, text: 'Lose the <b>police</b>.' },
+      { type: 'deliver', to: 'giver', maxDamage: 0.7, text: 'Bring the pickup to <b>Rajan</b> at Kalamassery.' },
+    ],
+    outro: [['rajan', 'Papers are here, sand is here. Biju will be angry. Good.']],
+    reward: { cash: 11000, xp: 2000 },
+  },
+  {
+    id: 'kl_lorry_war', giver: 'rajan', title: 'Lorry War', requires: ['kl_sand_run'], chapter: 2,
+    intro: [
+      ['rajan', "Biju sent a lorry to block my yard. Now it's driving back toward Edappally, loaded with my cement."],
+      ['rajan', "Stop it. Nobody hurt, but that lorry doesn't reach Edappally."],
+    ],
+    steps: [
+      { type: 'ram', vehicle: 'lorry', paint: '#ffffff', from: 'Pathadipalam', route: ['Pathadipalam', 'Koonamthai', 'Edappally'], hits: 5, speed: 18, text: "Ram <b>Biju's lorry</b> until it stops." },
+    ],
+    outro: [['rajan', 'Cement all over the road, driver half asleep, not a scratch on him. Perfect.']],
+    reward: { cash: 12000, xp: 2200 },
+  },
+  {
+    id: 'kl_kakkanad_night', giver: 'leena', title: 'Kakkanad Nights', requires: ['kl_lorry_war'], chapter: 2,
+    intro: [
+      ['leena', "Biju has a racer now. 'Tiger' Shibu again, in a new car, with Biju's money behind him."],
+      ['leena', 'Thrikkakkara to the Infopark. Beat him, and Biju loses face in front of everyone.'],
+    ],
+    steps: [
+      { type: 'goto', to: 'Thrikkakkara', inVehicle: true, text: 'Meet <b>Shibu</b> at Thrikkakkara.' },
+      { type: 'race', rival: 'shibu', car: 'toyota_supra_mk4', route: ['Thrikkakkara', 'Kakkanad', 'DLF City', 'Kakkanad West'], text: 'Beat <b>Shibu</b> to the Infopark.' },
+    ],
+    outro: [['shibu', 'Again? Who taught you to drive like that?'], ['leena', 'Biju is finished on the road. Now finish him properly.']],
+    reward: { cash: 14000, xp: 2600 },
+  },
+  {
+    id: 'kl_biju', giver: 'anitha', title: 'Black Money, White Scorpio', requires: ['kl_kakkanad_night'], chapter: 2,
+    intro: [
+      ['anitha', "Biju is running tonight. A white Scorpio at Thrikkakkara with every rupee he took from the Infopark."],
+      ['biju', 'Anitha. You should have stayed selling cars.'],
+      ['anitha', 'Bring me that Scorpio, driver. After tonight, Edappally to Kakkanad is ours.'],
+    ],
+    steps: [
+      { type: 'steal', vehicle: 'scorpio', paint: '#f4f4f2', at: 'Thrikkakkara', heat: 3, text: "Take <b>Biju's white Scorpio</b> at Thrikkakkara." },
+      { type: 'call', lines: [['biju', 'That is not your car! I know people in the police!']] },
+      { type: 'lose', heat: 3, text: 'Lose the <b>police</b>.' },
+      { type: 'deliver', to: 'giver', maxDamage: 0.6, text: 'Bring the Scorpio to <b>Anitha</b> in Edappally.' },
+    ],
+    outro: [['anitha', 'Count it later. Tonight we celebrate: biryani at Edappally, on me.'], ['leena', 'Ernakulam, Edappally, Kakkanad. Not bad for one driver.']],
+    reward: { cash: 60000, xp: 8000 },
+    chapterEnd: 2, finale: true,
   },
 ];
 
