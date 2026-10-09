@@ -1,6 +1,7 @@
 // QualityManager: hardware detection, short benchmark, and the scalable quality presets.
 
 import { bus } from './EventBus.js';
+import * as VP from './Viewport.js';
 
 // a phone or tablet (an iPad reports itself as a Mac with a touch screen)
 export const IS_MOBILE = typeof navigator !== 'undefined' && (/Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent) || (navigator.maxTouchPoints > 1 && /Mac/.test(navigator.platform || '')));
@@ -192,7 +193,8 @@ export class QualityManager {
     let lvl = QUALITY_LEVELS[t ?? 2];
     // deviceMemory is capped at 8 and only reported by some browsers; only trust very low values
     if (this.gpu.memory && this.gpu.memory <= 2 && (t ?? 2) < 3) lvl = 'veryLow';
-    // a phone or tablet starts no higher than LOW (small screen, a battery, and it gets hot): the benchmark may lift it
+    // a phone or tablet runs at LOW at most (small screen, a battery, it gets hot, and iOS closes a page that takes
+    // too much memory)
     if (IS_MOBILE && QUALITY_LEVELS.indexOf(lvl) > QUALITY_LEVELS.indexOf('low')) lvl = 'low';
     return lvl;
   }
@@ -210,7 +212,7 @@ export class QualityManager {
     else if (workMs > 18) i -= 1;
     else if (workMs < 4) i += 2;
     else if (workMs < 8) i += 1;
-    const cap = IS_MOBILE ? QUALITY_LEVELS.indexOf('medium') : !this.gpu.recognized || guess >= 3 ? 4 : Math.min(4, guess + 2);
+    const cap = IS_MOBILE ? QUALITY_LEVELS.indexOf('low') : !this.gpu.recognized || guess >= 3 ? 4 : Math.min(4, guess + 2);
     return QUALITY_LEVELS[clampI(i, this.floorIndex, cap)];
   }
 
@@ -230,6 +232,8 @@ export class QualityManager {
     const q = g.quality;
     if (q && q !== 'auto' && PRESETS[q]) return q;
     if (g.detectedQuality && g.detectedGpu !== this.gpuKey) g.detectedQuality = null; // new hardware (or a pre-ULTRA detection): measure again
+    // (a phone: never above LOW automatically, whatever an earlier version measured)
+    if (IS_MOBILE && g.detectedQuality && QUALITY_LEVELS.indexOf(g.detectedQuality) > QUALITY_LEVELS.indexOf('low')) g.detectedQuality = 'low';
     return g.detectedQuality || this.guessLevel();
   }
 
@@ -249,7 +253,7 @@ export class QualityManager {
     if (g.particles !== 'auto') p.particles = PARTICLES[g.particles];
     p.motionBlur = g.motionBlur;
     // very high-res screens: keep the internal resolution sane
-    const px = innerWidth * innerHeight * Math.min(devicePixelRatio, p.pixelRatioCap) ** 2;
+    const px = VP.width() * VP.height() * Math.min(devicePixelRatio, p.pixelRatioCap) ** 2;
     if (px > 3840 * 2160 * 0.9 && level !== 'ultra') p.resolutionScale = Math.min(p.resolutionScale, 0.75);
     this.preset = p;
     bus.emit('quality:changed', { level, preset: p });

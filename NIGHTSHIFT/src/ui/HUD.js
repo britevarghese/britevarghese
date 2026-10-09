@@ -38,7 +38,7 @@ export class HUD {
     this.disp = { speed: 0, rpm: 0, nitro: 1 };
     this.msgT = 0;
     this._resize();
-    addEventListener('resize', () => this._resize());
+    addEventListener('app-resize', () => this._resize());
   }
 
   _resize() {

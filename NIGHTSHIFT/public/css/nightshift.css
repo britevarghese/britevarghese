@@ -368,10 +368,6 @@ html.touch canvas { touch-action: none; }
 #touch-controls .tc-enter { right: calc(39vmin + env(safe-area-inset-right)); background: rgba(200,150,30,0.45); }
 #touch-controls .tc-reset { right: calc(51vmin + env(safe-area-inset-right)); }
 #touch-controls .tc-event { right: calc(63vmin + env(safe-area-inset-right)); }
-#touch-controls .tc-rotate { display: none; }
-@media (orientation: portrait) {
-  #touch-controls .tc-rotate { display: flex; position: fixed; inset: 0; pointer-events: auto; align-items: center; justify-content: center; background: rgba(0,0,0,0.88); color: #fff; font-size: 5vw; text-align: center; padding: 10vw; z-index: 50; }
-}
 /* the HUD on a touch screen: smaller, and clear of the thumbs (speed between the two hands, money under the top
    buttons, the minimap small in its corner) */
 html.touch .minimap-wrap { top: calc(0.8rem + env(safe-area-inset-top)); left: calc(0.8rem + env(safe-area-inset-left)); width: 26vmin; }
@@ -386,15 +382,13 @@ html.touch .prompt { bottom: 34%; }
 html.touch .pursuit { bottom: 27vmin; width: 40vw; }
 html.touch .center-msg { font-size: 3rem; }
 html.touch .key { display: none; }
-/* short screens (a phone held sideways): menus fit, and scroll where they can't */
-@media (max-height: 520px) {
-  .screen { overflow-y: auto; -webkit-overflow-scrolling: touch; touch-action: pan-y; }
-  .menu-main { justify-content: flex-start; padding-top: calc(0.8rem + env(safe-area-inset-top)); padding-left: calc(4vw + env(safe-area-inset-left)); }
-  .menu-main .logo { font-size: 2.6rem; }
-  .menu-main .tag { margin-bottom: 0.8rem; font-size: 0.7rem; }
-  .menu-item { font-size: 1.25rem; padding: 0.35rem 1rem; }
-  .menu-item small { font-size: 0.7rem; }
-  .panel { max-height: 94vh; overflow-y: auto; -webkit-overflow-scrolling: touch; touch-action: pan-y; }
-}
+/* short screens (a phone held sideways, or upright and turned by Viewport): menus fit, and scroll where they can't */
+html.short .screen { overflow-y: auto; -webkit-overflow-scrolling: touch; touch-action: pan-y; }
+html.short .menu-main { justify-content: flex-start; padding-top: calc(0.8rem + env(safe-area-inset-top)); padding-left: calc(4vw + env(safe-area-inset-left)); }
+html.short .menu-main .logo { font-size: 2.6rem; }
+html.short .menu-main .tag { margin-bottom: 0.8rem; font-size: 0.7rem; }
+html.short .menu-item { font-size: 1.25rem; padding: 0.35rem 1rem; }
+html.short .menu-item small { font-size: 0.7rem; }
+html.short .panel { max-height: 94vh; overflow-y: auto; -webkit-overflow-scrolling: touch; touch-action: pan-y; }
 html.touch .tkey { display: inline-flex; align-items: center; justify-content: center; min-width: 1.6em; height: 1.6em; border-radius: 50%; border: 1px solid rgba(255,255,255,0.5); margin: 0 0.2rem; }
 html.touch .prompt { font-size: 1.1rem; padding: 0.7rem 1.2rem; }

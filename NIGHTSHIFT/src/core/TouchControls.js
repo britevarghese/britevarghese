@@ -5,6 +5,8 @@
 //             on the right.
 //   Anywhere else on the right half, a drag looks around (as the mouse does).
 // Only built on a touch device. It feeds InputManager: held controls through state(), taps as its actions.
+// (positions go through Viewport: a phone held upright plays turned sideways)
+import * as VP from './Viewport.js';
 
 const isTouch = () => (typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches) || (navigator.maxTouchPoints || 0) > 0;
 
@@ -42,9 +44,8 @@ export class TouchControls {
     document.documentElement.classList.add('touch');
     const root = this.root = document.createElement('div');
     root.id = 'touch-controls';
-    root.innerHTML = '<div class="tc-zone tc-left"></div><div class="tc-zone tc-right"></div><div class="tc-stick"><div class="tc-knob"></div></div>'
-      + '<div class="tc-rotate">Turn your phone sideways to play</div>';
-    document.body.appendChild(root);
+    root.innerHTML = '<div class="tc-zone tc-left"></div><div class="tc-zone tc-right"></div><div class="tc-stick"><div class="tc-knob"></div></div>';
+    (document.getElementById('app') || document.body).appendChild(root);
     this.stickEl = root.querySelector('.tc-stick'); this.knobEl = root.querySelector('.tc-knob');
     this.btns = [];
     for (const [id, label, act, groups, cls] of BUTTONS) {
@@ -67,30 +68,32 @@ export class TouchControls {
     L.addEventListener('pointerdown', (e) => {
       if (this.stick) return;
       e.preventDefault(); L.setPointerCapture?.(e.pointerId);
-      this.stick = { id: e.pointerId, x0: e.clientX, y0: e.clientY, x: 0, y: 0 };
-      this.stickEl.style.left = e.clientX + 'px'; this.stickEl.style.top = e.clientY + 'px';
+      const [ax, ay] = VP.toApp(e.clientX, e.clientY);
+      this.stick = { id: e.pointerId, x0: ax, y0: ay, x: 0, y: 0 };
+      this.stickEl.style.left = ax + 'px'; this.stickEl.style.top = ay + 'px';
       this.stickEl.classList.add('on'); this._knob();
     });
     L.addEventListener('pointermove', (e) => {
       const s = this.stick; if (!s || e.pointerId !== s.id) return;
-      const R = this._radius(), dx = e.clientX - s.x0, dy = e.clientY - s.y0, l = Math.hypot(dx, dy), k = l > R ? R / l : 1;
+      const [ax, ay] = VP.toApp(e.clientX, e.clientY), R = this._radius(), dx = ax - s.x0, dy = ay - s.y0, l = Math.hypot(dx, dy), k = l > R ? R / l : 1;
       s.x = dx * k / R; s.y = dy * k / R; this._knob();
     });
     const lup = (e) => { if (this.stick && e.pointerId === this.stick.id) { this.stick = null; this.stickEl.classList.remove('on'); } };
     L.addEventListener('pointerup', lup); L.addEventListener('pointercancel', lup);
     // right zone: drag to look around
     const Rz = root.querySelector('.tc-right');
-    Rz.addEventListener('pointerdown', (e) => { if (this.lookId !== null) return; e.preventDefault(); Rz.setPointerCapture?.(e.pointerId); this.lookId = e.pointerId; this.lx = e.clientX; this.ly = e.clientY; });
+    Rz.addEventListener('pointerdown', (e) => { if (this.lookId !== null) return; e.preventDefault(); Rz.setPointerCapture?.(e.pointerId); this.lookId = e.pointerId; [this.lx, this.ly] = VP.toApp(e.clientX, e.clientY); });
     Rz.addEventListener('pointermove', (e) => {
       if (e.pointerId !== this.lookId) return;
-      this.dx += e.clientX - this.lx; this.dy += e.clientY - this.ly; this.lx = e.clientX; this.ly = e.clientY;
+      const [ax, ay] = VP.toApp(e.clientX, e.clientY);
+      this.dx += ax - this.lx; this.dy += ay - this.ly; this.lx = ax; this.ly = ay;
     });
     const rup = (e) => { if (e.pointerId === this.lookId) this.lookId = null; };
     Rz.addEventListener('pointerup', rup); Rz.addEventListener('pointercancel', rup);
     this.setContext('none');
   }
 
-  _radius() { return Math.max(44, Math.min(innerWidth, innerHeight) * 0.13); }
+  _radius() { return Math.max(44, Math.min(VP.width(), VP.height()) * 0.13); }
   _knob() { const s = this.stick, R = this._radius(); this.knobEl.style.transform = s ? `translate(${s.x * R}px, ${s.y * R}px)` : ''; }
 
   // 'car' | 'foot' | 'map' | 'none' (menus, garage, cut-scenes: nothing on screen)

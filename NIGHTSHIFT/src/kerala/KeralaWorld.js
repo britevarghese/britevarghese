@@ -3,6 +3,7 @@
 // WorldManager interface the game relies on (layout.groundHeight, collision, districtAt, update, ...).
 // Coordinates: x = -east, z = north (metres) from Marine Drive, Kochi.
 import * as THREE from 'three';
+import { IS_MOBILE } from '../core/QualityManager.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { CollisionWorld } from '../physics/Collision.js';
 import { KeralaTile, TILE, C, ROAD_HALF, decodeBinary } from './KeralaTile.js';
@@ -15,8 +16,10 @@ import { KeralaTrees } from './KeralaTrees.js';
 import { KeralaTea } from './KeralaTea.js';
 
 const BASE = '/assets/world/kerala/';
-const RADIUS = 2;        // tiles loaded around the player (5 x 5 = 10 x 10 km)
-const KEEP = 3;          // unloaded beyond this
+// tiles loaded around the player (5 x 5 = 10 x 10 km; on a phone 3 x 3, which keeps the browser's memory in
+// bounds: iOS closes a page that takes too much), and unloaded beyond KEEP
+const RADIUS = IS_MOBILE ? 1 : 2;
+const KEEP = IS_MOBILE ? 2 : 3;
 
 export class KeralaWorld {
   constructor() {

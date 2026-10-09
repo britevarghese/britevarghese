@@ -1,6 +1,7 @@
 // UIManager: main menu, pause, settings, world map, event briefing, results, toasts and the
 // F3 developer overlay. Keyboard, mouse and gamepad navigation for every menu.
 import { MAP_SCALE } from './MapRenderer.js';
+import * as VP from '../core/Viewport.js';
 import { bus } from '../core/EventBus.js';
 import { QUALITY_LEVELS, QUALITY_LABELS } from '../core/QualityManager.js';
 import { formatMoney, formatTime } from '../core/util.js';
@@ -512,25 +513,25 @@ export class UIManager {
     const zoomAt = (sx, sy, f) => { const z0 = V.z; V.z = Math.max(1, Math.min(MAXZ, V.z * f)); V.x = sx - (sx - V.x) * V.z / z0; V.y = sy - (sy - V.y) * V.z / z0; clampView(); };
     canvas.addEventListener('wheel', (e) => {
       e.preventDefault();
-      const r = canvas.getBoundingClientRect(), dpr = canvas.width / r.width;
-      zoomAt((e.clientX - r.left) * dpr, (e.clientY - r.top) * dpr, Math.exp(-e.deltaY * 0.0015));
+      const r = VP.appRect(canvas), dpr = canvas.width / r.width;
+      const [cx, cy] = VP.toApp(e.clientX, e.clientY); zoomAt((cx - r.left) * dpr, (cy - r.top) * dpr, Math.exp(-e.deltaY * 0.0015));
     }, { passive: false });
     let drag = null;
-    canvas.addEventListener('mousedown', (e) => { drag = { x: e.clientX, y: e.clientY, vx: V.x, vy: V.y, moved: 0 }; });
+    canvas.addEventListener('mousedown', (e) => { const [x, y] = VP.toApp(e.clientX, e.clientY); drag = { x, y, vx: V.x, vy: V.y, moved: 0 }; });
     addEventListener('mousemove', (e) => {
-      if (!drag || this.current !== 'map') return;
-      const r = canvas.getBoundingClientRect(), dpr = canvas.width / r.width;
-      drag.moved = Math.max(drag.moved, Math.hypot(e.clientX - drag.x, e.clientY - drag.y));
-      V.x = drag.vx + (e.clientX - drag.x) * dpr; V.y = drag.vy + (e.clientY - drag.y) * dpr; clampView();
+      if (!drag || drag.touch || this.current !== 'map') return;
+      const r = VP.appRect(canvas), dpr = canvas.width / r.width, [ex, ey] = VP.toApp(e.clientX, e.clientY);
+      drag.moved = Math.max(drag.moved, Math.hypot(ex - drag.x, ey - drag.y));
+      V.x = drag.vx + (ex - drag.x) * dpr; V.y = drag.vy + (ey - drag.y) * dpr; clampView();
     });
     addEventListener('mouseup', () => { setTimeout(() => { drag = null; }, 0); });
     // touch: one finger moves the map, two pinch to zoom (a tap still sets the GPS, as a click does)
     let pinch = null;
-    const tpos = (t) => { const r = canvas.getBoundingClientRect(), dpr = canvas.width / r.width; return [(t.clientX - r.left) * dpr, (t.clientY - r.top) * dpr]; };
+    const tpos = (t) => { const r = VP.appRect(canvas), dpr = canvas.width / r.width, [x, y] = VP.toApp(t.clientX, t.clientY); return [(x - r.left) * dpr, (y - r.top) * dpr]; };
     canvas.addEventListener('touchstart', (e) => {
       e.preventDefault();
       if (e.touches.length >= 2) { const a = tpos(e.touches[0]), b = tpos(e.touches[1]); pinch = { d: Math.hypot(a[0] - b[0], a[1] - b[1]) }; drag = null; }
-      else { const t = e.touches[0]; drag = { x: t.clientX, y: t.clientY, vx: V.x, vy: V.y, moved: 0, touch: true }; }
+      else { const [x, y] = VP.toApp(e.touches[0].clientX, e.touches[0].clientY); drag = { x, y, vx: V.x, vy: V.y, moved: 0, touch: true }; }
     }, { passive: false });
     canvas.addEventListener('touchmove', (e) => {
       e.preventDefault();
@@ -538,9 +539,9 @@ export class UIManager {
         const a = tpos(e.touches[0]), b = tpos(e.touches[1]), d = Math.hypot(a[0] - b[0], a[1] - b[1]);
         zoomAt((a[0] + b[0]) / 2, (a[1] + b[1]) / 2, d / (pinch.d || d)); pinch.d = d;
       } else if (drag) {
-        const t = e.touches[0], r = canvas.getBoundingClientRect(), dpr = canvas.width / r.width;
-        drag.moved = Math.max(drag.moved, Math.hypot(t.clientX - drag.x, t.clientY - drag.y));
-        V.x = drag.vx + (t.clientX - drag.x) * dpr; V.y = drag.vy + (t.clientY - drag.y) * dpr; clampView();
+        const r = VP.appRect(canvas), dpr = canvas.width / r.width, [tx, ty] = VP.toApp(e.touches[0].clientX, e.touches[0].clientY);
+        drag.moved = Math.max(drag.moved, Math.hypot(tx - drag.x, ty - drag.y));
+        V.x = drag.vx + (tx - drag.x) * dpr; V.y = drag.vy + (ty - drag.y) * dpr; clampView();
       }
     }, { passive: false });
     canvas.addEventListener('touchend', (e) => {
@@ -553,7 +554,7 @@ export class UIManager {
     });
     const draw = () => {
       if (this.current !== 'map') return;
-      const r = canvas.getBoundingClientRect();
+      const r = VP.appRect(canvas);
       const dpr = Math.min(2, devicePixelRatio);
       if (canvas.width !== Math.round(r.width * dpr)) { canvas.width = Math.round(r.width * dpr); canvas.height = Math.round(r.height * dpr); }
       const c = canvas.getContext('2d');
@@ -609,9 +610,9 @@ export class UIManager {
     requestAnimationFrame(draw);
     canvas.addEventListener('click', (e) => {
       if (drag && drag.moved > 5) return; // that was a drag, not a click
-      const r = canvas.getBoundingClientRect();
+      const r = VP.appRect(canvas);
       const M = g.world.kerala ? g.keralaOverview : g.mapRenderer;
-      const dpr = canvas.width / r.width, sx = (e.clientX - r.left) * dpr, sy = (e.clientY - r.top) * dpr;
+      const [cx, cy] = VP.toApp(e.clientX, e.clientY), dpr = canvas.width / r.width, sx = (cx - r.left) * dpr, sy = (cy - r.top) * dpr;
       const kk = Math.max(canvas.width, canvas.height) / M.size, mx = (sx - V.x) / V.z / kk, mz = (sy - V.y) / V.z / kk;
       const x = M.wx(mx), z = M.wz(mz);
       g.setGPS(x, z);

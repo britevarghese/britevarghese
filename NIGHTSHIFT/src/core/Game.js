@@ -1,6 +1,7 @@
 // Game: orchestrates every system. Gameplay state (GameState / VehicleState / WorldState) is
 // kept separate from rendering so a server-authoritative multiplayer mode can be added later.
 import { Storage } from './Storage.js';
+import * as VP from './Viewport.js';
 import { KeralaHighways } from '../kerala/KeralaHighways.js';
 import { TrafficDrivers } from '../traffic/TrafficDrivers.js';
 import { Mirrors } from '../vehicles/Mirrors.js';
@@ -80,7 +81,7 @@ export class Game {
     const preset = this.preset;
     const r = this.rm.renderer;
     this.scene = new THREE.Scene();
-    this.camera = new THREE.PerspectiveCamera(62, innerWidth / innerHeight, 0.2, 17000);
+    this.camera = new THREE.PerspectiveCamera(62, VP.width() / VP.height(), 0.2, 17000);
     this.rm.camera = this.camera;
     progress(0.02, 'Generating materials...');
     await tick();

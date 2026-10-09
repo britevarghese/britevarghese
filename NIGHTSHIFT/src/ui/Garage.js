@@ -2,6 +2,7 @@
 // immediately (paint, finish, vinyl, wheels, spoiler, hood, bumper, tint, calipers) and
 // performance upgrades change the physics parameters.
 import * as THREE from 'three';
+import * as VP from '../core/Viewport.js';
 import { VehicleRenderer } from '../vehicles/VehicleRenderer.js';
 import {
   CARS, PLAYER_CAR_ORDER, UPGRADE_KEYS, UPGRADE_NAMES, UPGRADE_LEVELS, UPGRADE_COST, PAINTS, RIM_NAMES, FINISHES,
@@ -18,19 +19,20 @@ export class Garage {
   constructor(game) {
     this.game = game;
     this.scene = new THREE.Scene();
-    this.camera = new THREE.PerspectiveCamera(34, innerWidth / innerHeight, 0.1, 200);
+    this.camera = new THREE.PerspectiveCamera(34, VP.width() / VP.height(), 0.1, 200);
     this.orbit = { yaw: 0.7, pitch: 0.18, dist: 8.2, auto: true };
     this.viewId = game.save.data.currentCar;
     this._buildStudio();
     this.car = null;
     this.open = false;
     this._drag = null;
-    addEventListener('pointerdown', (e) => { if (this.open && e.target.tagName === 'CANVAS') this._drag = { x: e.clientX, y: e.clientY }; });
+    addEventListener('pointerdown', (e) => { if (this.open && e.target.tagName === 'CANVAS') { const [x, y] = VP.toApp(e.clientX, e.clientY); this._drag = { x, y }; } });
     addEventListener('pointerup', () => { this._drag = null; });
     addEventListener('pointermove', (e) => {
       if (!this._drag) return;
-      this.orbit.yaw -= (e.clientX - this._drag.x) * 0.006; this.orbit.pitch = Math.min(0.8, Math.max(0.02, this.orbit.pitch + (e.clientY - this._drag.y) * 0.004));
-      this._drag = { x: e.clientX, y: e.clientY }; this.orbit.auto = false;
+      const [ex, ey] = VP.toApp(e.clientX, e.clientY);
+      this.orbit.yaw -= (ex - this._drag.x) * 0.006; this.orbit.pitch = Math.min(0.8, Math.max(0.02, this.orbit.pitch + (ey - this._drag.y) * 0.004));
+      this._drag = { x: ex, y: ey }; this.orbit.auto = false;
     });
     addEventListener('wheel', (e) => { if (this.open) this.orbit.dist = Math.min(13, Math.max(5, this.orbit.dist + e.deltaY * 0.004)); });
   }
@@ -266,7 +268,7 @@ export class Garage {
     const o = this.orbit;
     this.camera.position.set(Math.sin(o.yaw) * Math.cos(o.pitch) * o.dist, 0.9 + Math.sin(o.pitch) * o.dist, Math.cos(o.yaw) * Math.cos(o.pitch) * o.dist);
     this.camera.lookAt(0, 0.65, 0);
-    this.camera.aspect = innerWidth / innerHeight; this.camera.updateProjectionMatrix();
+    this.camera.aspect = VP.width() / VP.height(); this.camera.updateProjectionMatrix();
     this.turn.rotation.y = damp(this.turn.rotation.y, 0, 1, dt);
   }
 }

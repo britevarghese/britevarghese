@@ -1,6 +1,7 @@
 // RendererManager: creates WebGPU (preferred where available) or WebGL2 renderer with automatic
 // fallback, handles resolution scaling, tone mapping, shadows and the post-processing chain.
 import * as THREE from 'three';
+import * as VP from '../core/Viewport.js';
 import { bus } from '../core/EventBus.js';
 
 export class RendererManager {
@@ -50,7 +51,7 @@ export class RendererManager {
     r.domElement.id = 'game-canvas';
     this.container.prepend(r.domElement);
     this.resize();
-    addEventListener('resize', () => this.resize());
+    addEventListener('app-resize', () => this.resize());
     console.info(`[Renderer] backend=${this.backend}`);
     return r;
   }
@@ -105,9 +106,10 @@ export class RendererManager {
     const pr = Math.min(devicePixelRatio || 1, p.pixelRatioCap) * p.resolutionScale * (this.dynScale || 1);
     this.pixelRatio = pr;
     this.renderer.setPixelRatio(pr);
-    this.renderer.setSize(innerWidth, innerHeight);
-    if (this.camera) { this.camera.aspect = innerWidth / innerHeight; this.camera.updateProjectionMatrix(); }
-    this.post?.setSize?.(innerWidth, innerHeight, pr);
+    const w = VP.width(), h = VP.height();   // (a phone held upright plays turned sideways: see Viewport)
+    this.renderer.setSize(w, h);
+    if (this.camera) { this.camera.aspect = w / h; this.camera.updateProjectionMatrix(); }
+    this.post?.setSize?.(w, h, pr);
   }
 
   render(scene, camera, dt) {
