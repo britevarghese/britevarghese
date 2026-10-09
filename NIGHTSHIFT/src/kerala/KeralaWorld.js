@@ -78,6 +78,8 @@ export class KeralaWorld {
     Object.assign(this, lampGeometries());
     // sodium / LED streetlamps: the head glows and throws a pool of light on the road after dark
     M.klLamp = new THREE.MeshStandardMaterial({ name: 'klLamp', color: 0x9a9a90, emissive: 0xffd9a0, emissiveIntensity: 0, roughness: 0.4 });
+    // festival bulbs on temples, churches and mosques: glowing points, faded in after dark (KeralaLights.update)
+    M.klFestive = new THREE.PointsMaterial({ name: 'klFestive', size: 0.32, sizeAttenuation: true, vertexColors: true, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false });
     M.klLampPool = new THREE.MeshBasicMaterial({ name: 'klLampPool', color: 0xffc070, vertexColors: true, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -8 });
     this.stopGeo = busStopGeometry();
     [this.teaGeo, this.teaSignGeo] = teaStallGeometry();
@@ -894,6 +896,8 @@ class KeralaLights {
     if (on) for (const h of this.heads) { if (n >= H.instanceMatrix.count) break; H.setMatrixAt(n++, m.compose(_hp.set(h[0], h[1], h[2]), q, s)); }
     H.count = n; H.instanceMatrix.needsUpdate = true;
     this.haloMat.opacity = Math.min(1, Math.max(0, night - 0.3) * 2.2);
+    const F = this.world.M?.klFestive;
+    if (F) { F.opacity = this.haloMat.opacity; F.visible = F.opacity > 0.01; }
     // real lights on the lamps nearest the camera (a little ahead of it preferred)
     if (!this.dyn.length) return;
     const fwd = _hp.set(0, 0, -1).applyQuaternion(q), fx = fwd.x, fz = fwd.z;

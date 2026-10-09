@@ -6021,5 +6021,52 @@
         "license": "CC-BY-4.0"
       }
     }
-  ]
+  ],
+  "props": {
+    "boat_canopy": {
+      "file": "props/boat_canopy.glb",
+      "name": "Country boat with a canopy",
+      "length": 9,
+      "draft": 0.25,
+      "tris": 9417,
+      "source": {
+        "site": "Sketchfab",
+        "uid": "45ab977c53aa44c3b9c81052dcf19b57",
+        "title": "Traditional Bangladeshi Boat",
+        "author": "xamir",
+        "url": "https://sketchfab.com/3d-models/45ab977c53aa44c3b9c81052dcf19b57",
+        "license": "CC-BY-4.0"
+      }
+    },
+    "boat_vallam": {
+      "file": "props/boat_vallam.glb",
+      "name": "Vallam (wooden boat)",
+      "length": 6.5,
+      "draft": 0.18,
+      "tris": 4000,
+      "source": {
+        "site": "Sketchfab",
+        "uid": "7357ab059f744223985423eb9cb01eb7",
+        "title": "Vallam (Wooden Boat)",
+        "author": "Shadowtiger",
+        "url": "https://sketchfab.com/3d-models/7357ab059f744223985423eb9cb01eb7",
+        "license": "CC-BY-4.0"
+      }
+    },
+    "boat_ferry": {
+      "file": "props/boat_ferry.glb",
+      "name": "Passenger ferry",
+      "length": 24,
+      "draft": 0.9,
+      "tris": 14250,
+      "source": {
+        "site": "Sketchfab",
+        "uid": "73b9556133704e73af6637a428bcb8f4",
+        "title": "Ferry Concept",
+        "author": "gmanisdabossatbeastmode",
+        "url": "https://sketchfab.com/3d-models/73b9556133704e73af6637a428bcb8f4",
+        "license": "CC-BY-4.0"
+      }
+    }
+  }
 }

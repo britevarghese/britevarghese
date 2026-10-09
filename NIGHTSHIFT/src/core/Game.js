@@ -37,6 +37,7 @@ import { StreetRivals } from '../races/StreetRivals.js';
 import { OnFoot } from '../player/OnFoot.js';
 import { Interiors } from '../world/Interiors.js';
 import { KeralaGarages } from '../kerala/KeralaGarages.js';
+import { KeralaBoats } from '../kerala/KeralaBoats.js';
 import { useKeralaStory } from '../story/StoryData.js';
 import { Story } from '../story/Story.js';
 import { Empire } from '../world/Empire.js';
@@ -153,7 +154,7 @@ export class Game {
     this.net.connect().catch(() => {});
     this._wireEvents();
     this._wireAudioUnlock();
-    if (this.world.kerala) { this.klGarages = new KeralaGarages(this.world, this.scene); this.safehouses = this.klGarages.list; this.empire.blips = () => []; }
+    if (this.world.kerala) { this.boats = new KeralaBoats(this.world, this.scene, this.assets); this.klGarages = new KeralaGarages(this.world, this.scene); this.safehouses = this.klGarages.list; this.empire.blips = () => []; }
     await this.rm.setupPost(this.scene, this.camera);
     this.camCtl.snap(this.player);
     progress(1, 'Ready');
@@ -770,6 +771,7 @@ export class Game {
       // races may override controls during countdown
       this.races.update(dt);
       this.klGarages?.update(this.camera.position);
+      this.boats?.update(dt, this.camera.position);
       this.story.update(dt, input, driving);
       if (!this.world.kerala) { // Port Halvern's properties and rival crews (Kerala's come later)
         this.empire.update(dt, input, driving);

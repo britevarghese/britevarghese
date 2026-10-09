@@ -1166,7 +1166,7 @@ export class KeralaTile {
   }
 
   *_buildings(M, d, opts) {
-    const byMat = new Map(), roofsTile = [], roofsFlat = [], tanks = [], ledges = [];
+    const byMat = new Map(), roofsTile = [], roofsFlat = [], tanks = [], ledges = [], bulbs = { p: [], c: [] };
     const D = { props: { ac: [], pipe: [], balc: [], gate: [], awning: [], sign: [], crate: [], chair: [], scooter: [] }, tint: { awning: [], scooter: [], sign: [] }, walls: [], ao: [] };
     for (let c = 0; c < 16; c++) { D.walls.push({ p: [], c: [] }); D.ao.push({ p: [], c: [] }); }
     const push = (key, g) => { let l = byMat.get(key); if (!l) byMat.set(key, (l = [])); l.push(g); };
@@ -1356,6 +1356,22 @@ export class KeralaTile {
         }
       }
       if (opts.ledges) this._details(D, { ring, n, base, g0, top, wallTop, H, area, house, tiled, shop, kind, ce, cn, floorH, floors, bays }, rnd);
+      // festival lights: strings of bulbs along the eaves (and a second row lower down on the bigger ones) of every
+      // church (warm white), temple (orange and yellow chains) and mosque (green and white), lit after dark
+      if (kind >= 6 && kind <= 8 && opts.festive !== false) {
+        const PAL = kind === 6 ? [[1, 0.9, 0.7]] : kind === 7 ? [[1, 0.55, 0.12], [1, 0.85, 0.2], [1, 0.3, 0.1]] : [[0.25, 1, 0.35], [1, 1, 0.9]];
+        const rows = [wallTop + 0.08, ...(wallTop - g0 > 6 ? [g0 + (wallTop - g0) * 0.55] : [])];
+        for (const [ri, y] of rows.entries()) for (let i = 0; i < n; i++) {
+          const [e1, n1] = ring[i], [e2, n2] = ring[(i + 1) % n], L = Math.hypot(e2 - e1, n2 - n1);
+          if (L < 0.5) continue;
+          const ue = (e2 - e1) / L, un = (n2 - n1) / L, oe = un * 0.25, on = -ue * 0.25;   // a hand's width out from the wall
+          for (let d = 0; d < L; d += 0.55) {
+            const sag = ri ? 0 : Math.sin((d / L) * Math.PI) * Math.min(0.35, L * 0.02);   // the string droops between the corners
+            bulbs.p.push(-(e1 + ue * d + oe), y - sag, n1 + un * d + on);
+            const c = PAL[Math.floor(d / 0.55) % PAL.length]; bulbs.c.push(...c);
+          }
+        }
+      }
     }
     yield 'tile:bmerge';
     const out = [];
@@ -1382,6 +1398,12 @@ export class KeralaTile {
     }
     if (roofsFlat.length) { const g = mergeGeometries(strip(roofsFlat)); if (g) out.push(new THREE.Mesh(g, M.klRoofFlat)); }
     if (tanks.length) { const g = mergeGeometries(tanks); if (g) out.push(new THREE.Mesh(g, M.klTank)); }
+    if (bulbs.p.length && M.klFestive) {
+      const g = new THREE.BufferGeometry();
+      g.setAttribute('position', new THREE.Float32BufferAttribute(bulbs.p, 3));
+      g.setAttribute('color', new THREE.Float32BufferAttribute(bulbs.c, 3));
+      const pts = new THREE.Points(g, M.klFestive); pts.name = 'festive'; pts.renderOrder = 2; out.push(pts);
+    }
     yield 'tile:bdetail';
     if (opts.ledges) out.push(...(yield* this._detailMeshes(D, M, opts)));
     return out;
