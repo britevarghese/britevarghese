@@ -36,6 +36,12 @@ function decodeLine(a, from, out = []) {
   }
   return out;
 }
+// vertex colours as bytes (a quarter of the memory of floats: kerbs, walls and shading run to millions of vertices)
+function byteColors(c, n) {
+  const a = new Uint8Array(c.length);
+  for (let i = 0; i < c.length; i++) a[i] = Math.max(0, Math.min(255, Math.round(c[i] * 255)));
+  return new THREE.BufferAttribute(a, n, true);
+}
 // make every triangle of a (mostly horizontal) surface face up: the mirrored x axis makes winding easy to get wrong
 export function faceUp(g) {
   const P = g.attributes.position.array, I = g.index.array;
@@ -1140,7 +1146,7 @@ export class KeralaTile {
       if (!K.p.length) return;
       const g = new THREE.BufferGeometry();
       g.setAttribute('position', new THREE.Float32BufferAttribute(K.p, 3));
-      g.setAttribute('color', new THREE.Float32BufferAttribute(K.c, 3));
+      g.setAttribute('color', byteColors(K.c, 3));
       g.computeVertexNormals();
       const m = new THREE.Mesh(g, M.klKerb); m.name = 'kerbs'; m.receiveShadow = true;
       m.userData.cc = [(c % 4) * 500 + 250, Math.floor(c / 4) * 500 + 250]; m.userData.far = 450;
@@ -1928,7 +1934,7 @@ export class KeralaTile {
       if (!A.p.length) return null;
       const g = new THREE.BufferGeometry();
       g.setAttribute('position', new THREE.Float32BufferAttribute(A.p, 3));
-      g.setAttribute('color', new THREE.Float32BufferAttribute(A.c, cols));
+      g.setAttribute('color', byteColors(A.c, cols));
       g.computeVertexNormals();
       const m = new THREE.Mesh(g, mat); m.name = name; m.userData.far = far; return m;
     };

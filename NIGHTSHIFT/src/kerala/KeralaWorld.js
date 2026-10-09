@@ -19,6 +19,7 @@ const BASE = '/assets/world/kerala/';
 // tiles loaded around the player (5 x 5 = 10 x 10 km; on a phone 3 x 3, which keeps the browser's memory in
 // bounds: iOS closes a page that takes too much), and unloaded beyond KEEP
 const RADIUS = IS_MOBILE ? 1 : 2;
+function dropArray() { this.array = null; }
 const KEEP = IS_MOBILE ? 2 : 3;
 
 export class KeralaWorld {
@@ -115,7 +116,7 @@ export class KeralaWorld {
 
   _opts() {
     const p = this.preset || {};
-    return { trees: this.trees, shadows: p.shadows && p.shadows !== 'off', palms: p.trees ?? 1, palmGeo: this.palmGeo, palmMat: this.palmMat, tankGeo: this.tankGeo, poleGeo: this.poleGeo, lampGeo: this.lampGeo, lampHeadGeo: this.lampHeadGeo, lampPoolGeo: this.lampPoolGeo, trafoGeo: this.trafoGeo, manholeGeo: this.manholeGeo, acGeo: this.acGeo, pipeGeo: this.pipeGeo, balconyGeo: this.balconyGeo, gateGeo: this.gateGeo, awningGeo: this.awningGeo, signGeo: this.signGeo, crateGeo: this.crateGeo, chairGeo: this.chairGeo, scooterGeo: this.scooterGeo, realScooter: !!this.scooterParts, ledges: (p.trees ?? 1) >= 0.7, keralaFacade: KERALA_FACADE, keralaShop: KERALA_SHOP, maxBuildings: p.textureSize >= 1024 ? 9000 : 4500 };
+    return { trees: this.trees, shadows: p.shadows && p.shadows !== 'off', palms: p.trees ?? 1, palmGeo: this.palmGeo, palmMat: this.palmMat, tankGeo: this.tankGeo, poleGeo: this.poleGeo, lampGeo: this.lampGeo, lampHeadGeo: this.lampHeadGeo, lampPoolGeo: this.lampPoolGeo, trafoGeo: this.trafoGeo, manholeGeo: this.manholeGeo, acGeo: this.acGeo, pipeGeo: this.pipeGeo, balconyGeo: this.balconyGeo, gateGeo: this.gateGeo, awningGeo: this.awningGeo, signGeo: this.signGeo, crateGeo: this.crateGeo, chairGeo: this.chairGeo, scooterGeo: this.scooterGeo, realScooter: !!this.scooterParts, ledges: !IS_MOBILE && (p.trees ?? 1) >= 0.7, keralaFacade: KERALA_FACADE, keralaShop: KERALA_SHOP, maxBuildings: IS_MOBILE ? 2500 : p.textureSize >= 1024 ? 9000 : 4500 };   // (a phone: no window ledges, fewer buildings: memory)
   }
 
   key(tx, tz) { return `${tx},${tz}`; }
@@ -276,6 +277,14 @@ export class KeralaWorld {
     if (t.ready || !this.root) return;
     const t0 = performance.now();
     const g = yield* t.buildSteps(this.M, this._opts());
+    // a phone: once a tile's static meshes (ground, roads, buildings, walls) are on the GPU, the copies of their
+    // vertices in the page's own memory are dropped (iOS closes a page that holds too much). Instanced meshes
+    // (trees, props) keep theirs: they are rewritten as you move
+    if (IS_MOBILE) g.traverse((o) => {
+      if (!o.isMesh || o.isInstancedMesh || !o.geometry) return;
+      const G = o.geometry; G.computeBoundingSphere(); G.computeBoundingBox();
+      for (const a of [...Object.values(G.attributes), G.index]) if (a) a.onUpload(dropArray);
+    });
     this.root.add(g);
     yield 'world:add';
     this._scooters(t);
