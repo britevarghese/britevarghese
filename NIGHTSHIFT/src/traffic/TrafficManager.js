@@ -220,6 +220,12 @@ export class TrafficManager {
       if (Math.abs(a.x - b.x) > r || Math.abs(a.z - b.z) > r) continue;
       if (VehiclePhysics.resolvePair(a.phys, b.phys)) for (const c of [a, b]) { c.x = c.phys.s.x; c.z = c.phys.s.z; c.yaw = c.phys.s.yaw; }
     }
+    this._separate();
+    // ...nor through a car stopped in its way (parked, knocked aside, a wreck): pushed back out, its speed into it gone
+    for (const a of PH) for (const o of this.cars) {
+      if (o === a || o.state === 'drive' || o.phys || Math.abs(a.x - o.x) > 9 || Math.abs(a.z - o.z) > 9) continue;
+      this._pushOut(a, o);
+    }
     // collisions with dynamic vehicles
     for (const v of dynamic) {
       const vs = v.physics.s;
@@ -282,6 +288,48 @@ export class TrafficManager {
   // Near the player, a car drives on the same vehicle physics as the player's (suspension, weight transfer, body
   // roll, tyre grip, the ground and walls), steered by a driver aiming at a point ahead on its lane; the traffic
   // logic still decides how fast it should go and still tracks its progress along the lane.
+  // Kinematic traffic (beyond the physics range) merging at a junction can nose into another car: the one behind
+  // holds until the other has gone (if each has the other ahead of it, side by side, the lower id goes first)
+  _separate() {
+    const K = this.cars.filter((c) => c.state === 'drive' && !c.phys && c.dist < 160);
+    for (let i = 0; i < K.length; i++) for (let j = i + 1; j < K.length; j++) {
+      const a = K[i], b = K[j], r = ((a.spec.l || 4.5) + (b.spec.l || 4.5)) / 2;
+      if (Math.abs(a.x - b.x) > r || Math.abs(a.z - b.z) > r) continue;
+      if (!this._overlap(a, b)) continue;
+      const aSeesB = (b.x - a.x) * Math.sin(a.yaw) + (b.z - a.z) * Math.cos(a.yaw) > 0, bSeesA = (a.x - b.x) * Math.sin(b.yaw) + (a.z - b.z) * Math.cos(b.yaw) > 0;
+      const hold = aSeesB && !bSeesA ? a : bSeesA && !aSeesB ? b : a.id > b.id ? a : b;
+      hold.blockT = 0.5; hold.v = Math.min(hold.v, 0.5);
+    }
+  }
+
+  _overlap(a, b) {
+    const box = (c) => ({ w: (c.spec.w || 1.8) / 2, l: (c.spec.l || 4.5) / 2, cs: Math.cos(c.yaw), sn: Math.sin(c.yaw) });
+    const A = box(a), B = box(b), dx = b.x - a.x, dz = b.z - a.z;
+    for (const [ux, uz] of [[A.sn, A.cs], [A.cs, -A.sn], [B.sn, B.cs], [B.cs, -B.sn]]) {
+      const ra = A.l * Math.abs(A.sn * ux + A.cs * uz) + A.w * Math.abs(A.cs * ux - A.sn * uz), rb = B.l * Math.abs(B.sn * ux + B.cs * uz) + B.w * Math.abs(B.cs * ux - B.sn * uz);
+      if (ra + rb - Math.abs(dx * ux + dz * uz) <= 0.05) return false;
+    }
+    return true;
+  }
+
+  // two oriented boxes (x/z): if a overlaps the stopped o, move a out along the shallowest axis and take away its
+  // velocity into o
+  _pushOut(a, o) {
+    const box = (c) => ({ w: (c.spec.w || 1.8) / 2, l: (c.spec.l || 4.5) / 2, cs: Math.cos(c.yaw), sn: Math.sin(c.yaw) });
+    const A = box(a), B = box(o), dx = a.x - o.x, dz = a.z - o.z;
+    let best = Infinity, nx = 0, nz = 0;
+    for (const [ux, uz] of [[A.sn, A.cs], [A.cs, -A.sn], [B.sn, B.cs], [B.cs, -B.sn]]) {
+      const ra = A.l * Math.abs(A.sn * ux + A.cs * uz) + A.w * Math.abs(A.cs * ux - A.sn * uz), rb = B.l * Math.abs(B.sn * ux + B.cs * uz) + B.w * Math.abs(B.cs * ux - B.sn * uz);
+      const d = dx * ux + dz * uz, pen = ra + rb - Math.abs(d);
+      if (pen <= 0) return;
+      if (pen < best) { best = pen; nx = ux * Math.sign(d || 1); nz = uz * Math.sign(d || 1); }
+    }
+    const S = a.phys.s;
+    S.x += nx * best; S.z += nz * best; a.x = S.x; a.z = S.z;
+    const vn = S.vx * nx + S.vz * nz;
+    if (vn < 0) { S.vx -= vn * nx; S.vz -= vn * nz; }
+  }
+
   _physDrive(c, dt, vDes) {
     const TV = TRAFFIC_VEHICLES[c.type];
     if (!c.phys) {
@@ -396,7 +444,7 @@ export class TrafficManager {
       if ((o.pulled || o.state === 'parked') && !c.pulled) {
         const g0 = o.s - c.s - (o.spec.l + c.spec.l) / 2;
         const need = o.spec.w / 2 + c.spec.w / 2 + 0.3 + (o.lat ?? 0);
-        if (need < 2.4 && g0 < 25) { c.passT = 2; c.passLat = Math.max(c.passLat || 0, need); continue; }
+        if (need < 2.4 && g0 < (bike ? 32 : 25)) { c.passT = 2; c.passLat = Math.max(c.passLat || 0, need); continue; }
       }
       // cars ease out round a bike riding by the kerb instead of queueing behind it
       if (!bike && o.spec.bike && (o.lat ?? 0) < -0.5 && o.state === 'drive') {
@@ -407,7 +455,7 @@ export class TrafficManager {
     }
     if (c.passT > 0) c.passT -= dt; else c.passLat = 0;
     if (!bike && !c.pullAt && !(c.spec.bus && c.latT < 0 && path.stops)) c.latT = c.passT > 0 ? Math.max(0.6, c.passLat || 0) : 0;
-    if (bike && c.passT > 0) c.latT = Math.max(c.latT, (c.passLat || 0) - 0.3);
+    if (bike && c.passT > 0) c.latT = Math.max(c.latT, (c.passLat || 0) + 0.1);   // (a rider gives a parked car a proper berth)
     if (gap > 1e8 && c.next) {
       for (const o of c.next.cars) {
         const g = path.length - c.s + o.s - (o.spec.l + c.spec.l) / 2;
@@ -502,6 +550,7 @@ export class TrafficManager {
     }
     // --- IDM ---
     let v0 = path.speed * c.speedFactor;
+    if (c.blockT > 0) { c.blockT -= dt; v0 = 0; c.v = Math.min(c.v, 0.5); }   // (held: nosed into another car, see _separate)
     if (path.kind === 'connector' && path.turn !== 'straight') v0 = Math.min(v0, 7.5);
     if (c.next && c.next.kind === 'connector' && c.next.turn !== 'straight') {
       const d = path.length - c.s;
@@ -565,7 +614,7 @@ export class TrafficManager {
         c.laneChangeCD = 6 + this.R() * 8;
       } else c.laneChangeCD = 1.5;
     }
-    c.lat = lerp(c.lat, c.latT || 0, 1 - Math.exp(-dt * (c.spec.bike ? 2.2 : 1.3)));
+    c.lat = lerp(c.lat, c.latT || 0, 1 - Math.exp(-dt * (c.spec.bike ? 3 : 1.3)));
     if (this.world.kerala && !c.spec.bike && c.dist < 70 && TRAFFIC_VEHICLES[c.type]?.params) { this._physDrive(c, dt, c.v); c.prevYaw = c.yaw; return; }
     if (c.phys) { c.phys = null; }            // left the player's surroundings: back on the lane
     if (c.spec.bike && c.dist < 160) { this._bikeDrive(c, dt); c.prevYaw = c.yaw; return; }
