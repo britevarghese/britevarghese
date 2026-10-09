@@ -700,13 +700,13 @@ export class KeralaTile {
     if (M.terrainDetail) {
       mat.onBeforeCompile = (sh) => {
         sh.uniforms.uDet = { value: M.terrainDetail };
-        sh.vertexShader = 'varying vec3 vWp;\n' + sh.vertexShader.replace('#include <worldpos_vertex>', '#include <worldpos_vertex>\n vWp = (modelMatrix * vec4(transformed, 1.0)).xyz;');
-        sh.fragmentShader = 'varying vec3 vWp;\nuniform sampler2D uDet;\n' + sh.fragmentShader.replace('#include <map_fragment>', '#include <map_fragment>\n { float g1 = texture2D(uDet, vWp.xz / 7.0).g, g2 = texture2D(uDet, vWp.xz / 41.0).g; diffuseColor.rgb *= (0.7 + 0.6 * g1) * (0.88 + 0.24 * g2);'
+        sh.vertexShader = 'varying vec3 vWp;\nvarying float vUp;\n' + sh.vertexShader.replace('#include <worldpos_vertex>', '#include <worldpos_vertex>\n vWp = (modelMatrix * vec4(transformed, 1.0)).xyz; vUp = normalize(mat3(modelMatrix) * objectNormal).y;');
+        sh.fragmentShader = 'varying vec3 vWp;\nvarying float vUp;\nuniform sampler2D uDet;\n' + sh.fragmentShader.replace('#include <map_fragment>', '#include <map_fragment>\n { float g1 = texture2D(uDet, vWp.xz / 7.0).g, g2 = texture2D(uDet, vWp.xz / 41.0).g; diffuseColor.rgb *= (0.7 + 0.6 * g1) * (0.88 + 0.24 * g2);'
           // tea (texture alpha): rounded hedges in rows along the contours, a dark path between, fading to their
           // average colour where the rows get finer than a pixel; on near-level ground no rows show
           + ' float tea = clamp((1.0 - sampledDiffuseColor.a) * 2.2 - 0.05, 0.0, 1.0); diffuseColor.a = 1.0;'
-          + ' if (tea > 0.0) { float u = vWp.y / 0.7 + g2 * 0.8, w = fwidth(u), p = fract(u);'
-          + '   float sl = length(vec2(dFdx(vWp.y), dFdy(vWp.y))) / max(1e-4, length(vec2(length(dFdx(vWp.xz)), length(dFdy(vWp.xz)))));'
+          + ' if (tea > 0.0) { float u = vWp.y / 0.4 + g2 * 0.8, w = fwidth(u), p = fract(u);'
+          + '   float up = clamp(vUp, 0.2, 1.0), sl = sqrt(1.0 - up * up) / up;'
           + '   float dome = clamp(sin(3.14159 * (p - 0.12) / 0.76), 0.0, 1.0), rows = smoothstep(0.06, 0.18, sl);'
           + '   float shade = mix(mix(0.15, 1.0, sqrt(dome)), 0.78, smoothstep(0.15, 0.45, w));'
           + '   vec3 bush = mix(vec3(0.045, 0.1, 0.02), vec3(0.11, 0.17, 0.035), g1 * dome) * mix(0.82, shade, rows), soil = vec3(0.06, 0.045, 0.03);'
