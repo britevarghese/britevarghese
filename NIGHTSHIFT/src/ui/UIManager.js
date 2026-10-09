@@ -83,7 +83,7 @@ export class UIManager {
       const n = h('div', 'gpu-notice ' + adv.level, `<b>${adv.title}</b><span>${adv.text}</span>`);
       s.appendChild(n);
     }
-    s.appendChild(h('div', 'menu-foot', `${g.quality.gpu.name} · ${g.rm.backend.toUpperCase()} · ${QUALITY_LABELS[g.quality.level]} · W/S throttle-brake · A/D steer · SPACE handbrake · SHIFT nitrous · V camera · F get in/out · M map · I replay · F2 photo · ESC pause`));
+    s.appendChild(h('div', 'menu-foot', `${g.quality.gpu.name} · ${g.rm.backend.toUpperCase()} · ${QUALITY_LABELS[g.quality.level]} ${document.documentElement.classList.contains('touch') ? '· touch controls: stick to steer / walk, pedals on the right, drag to look' : '· W/S throttle-brake · A/D steer · SPACE handbrake · SHIFT nitrous · V camera · F get in/out · M map · I replay · F2 photo · ESC pause'}`));
     this.screens.appendChild(s);
     this.current = 'menu';
     this._menuNav(btns, null);
@@ -497,7 +497,7 @@ export class UIManager {
       list.appendChild(d);
     }
     legend.appendChild(list);
-    legend.appendChild(h('div', 'hint', 'Scroll to zoom · drag to move · click the map or a place to set GPS · M / ESC to close'));
+    legend.appendChild(h('div', 'hint', document.documentElement.classList.contains('touch') ? 'Pinch to zoom · drag to move · tap the map or a place to set GPS' : 'Scroll to zoom · drag to move · click the map or a place to set GPS · M / ESC to close'));
     s.append(canvas, legend);
     this.screens.appendChild(s);
     this.current = 'map';
@@ -524,6 +524,33 @@ export class UIManager {
       V.x = drag.vx + (e.clientX - drag.x) * dpr; V.y = drag.vy + (e.clientY - drag.y) * dpr; clampView();
     });
     addEventListener('mouseup', () => { setTimeout(() => { drag = null; }, 0); });
+    // touch: one finger moves the map, two pinch to zoom (a tap still sets the GPS, as a click does)
+    let pinch = null;
+    const tpos = (t) => { const r = canvas.getBoundingClientRect(), dpr = canvas.width / r.width; return [(t.clientX - r.left) * dpr, (t.clientY - r.top) * dpr]; };
+    canvas.addEventListener('touchstart', (e) => {
+      e.preventDefault();
+      if (e.touches.length >= 2) { const a = tpos(e.touches[0]), b = tpos(e.touches[1]); pinch = { d: Math.hypot(a[0] - b[0], a[1] - b[1]) }; drag = null; }
+      else { const t = e.touches[0]; drag = { x: t.clientX, y: t.clientY, vx: V.x, vy: V.y, moved: 0, touch: true }; }
+    }, { passive: false });
+    canvas.addEventListener('touchmove', (e) => {
+      e.preventDefault();
+      if (pinch && e.touches.length >= 2) {
+        const a = tpos(e.touches[0]), b = tpos(e.touches[1]), d = Math.hypot(a[0] - b[0], a[1] - b[1]);
+        zoomAt((a[0] + b[0]) / 2, (a[1] + b[1]) / 2, d / (pinch.d || d)); pinch.d = d;
+      } else if (drag) {
+        const t = e.touches[0], r = canvas.getBoundingClientRect(), dpr = canvas.width / r.width;
+        drag.moved = Math.max(drag.moved, Math.hypot(t.clientX - drag.x, t.clientY - drag.y));
+        V.x = drag.vx + (t.clientX - drag.x) * dpr; V.y = drag.vy + (t.clientY - drag.y) * dpr; clampView();
+      }
+    }, { passive: false });
+    canvas.addEventListener('touchend', (e) => {
+      if (e.touches.length < 2) pinch = null;
+      if (!e.touches.length && drag?.touch) {
+        // a tap (no drag): the same as a click on the map
+        if (drag.moved < 8) { const t = e.changedTouches[0]; canvas.dispatchEvent(new MouseEvent('click', { clientX: t.clientX, clientY: t.clientY, bubbles: true })); }
+        setTimeout(() => { drag = null; }, 0);
+      }
+    });
     const draw = () => {
       if (this.current !== 'map') return;
       const r = canvas.getBoundingClientRect();

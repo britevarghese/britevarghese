@@ -329,3 +329,72 @@ input[type=range] { width: 100%; accent-color: var(--accent); }
 .hp-bar i { display: block; height: 100%; width: 100%; background: linear-gradient(90deg, #3ec46d, #62e08a); transition: width 0.25s; }
 .hp-bar.low i { background: linear-gradient(90deg, #d0302a, #ff5a4a); animation: hpPulse 0.8s infinite alternate; }
 @keyframes hpPulse { from { opacity: 0.6; } to { opacity: 1; } }
+
+/* ---------------------------------------------------------------- touch controls (phones, tablets) */
+html.touch, html.touch body { overscroll-behavior: none; touch-action: none; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+html.touch canvas { touch-action: none; }
+#touch-controls { position: fixed; inset: 0; z-index: 40; pointer-events: none; font-family: inherit; -webkit-tap-highlight-color: transparent; }
+#touch-controls[data-ctx="none"] { display: none; }
+#touch-controls .tc-zone { position: absolute; top: 18%; bottom: 0; pointer-events: auto; touch-action: none; }
+#touch-controls .tc-left { left: 0; width: 42%; }
+#touch-controls .tc-right { right: 0; width: 58%; }
+#touch-controls[data-ctx="map"] .tc-zone { display: none; }
+#touch-controls .tc-stick { position: absolute; width: 0; height: 0; display: none; }
+#touch-controls .tc-stick.on { display: block; }
+#touch-controls .tc-stick::before { content: ''; position: absolute; width: 26vmin; height: 26vmin; left: -13vmin; top: -13vmin; border-radius: 50%; border: 2px solid rgba(255,255,255,0.35); background: rgba(0,0,0,0.18); }
+#touch-controls .tc-knob { position: absolute; width: 11vmin; height: 11vmin; left: -5.5vmin; top: -5.5vmin; border-radius: 50%; background: rgba(255,255,255,0.55); box-shadow: 0 0 8px rgba(0,0,0,0.4); }
+#touch-controls .tc-b { position: absolute; pointer-events: auto; touch-action: none; display: flex; align-items: center; justify-content: center; text-align: center; white-space: pre-line;
+  color: rgba(255,255,255,0.92); font-weight: 700; font-size: 3.2vmin; line-height: 1.05; letter-spacing: 0.04em; border-radius: 50%;
+  background: rgba(20,24,30,0.42); border: 2px solid rgba(255,255,255,0.35); box-shadow: 0 2px 8px rgba(0,0,0,0.35); backdrop-filter: blur(2px); }
+#touch-controls .tc-b.on { background: rgba(255,255,255,0.38); transform: scale(0.94); }
+/* right thumb: pedals and buttons, sized to the short side of the screen (safe-area aware) */
+#touch-controls .tc-pedal { width: 19vmin; height: 19vmin; bottom: calc(5vmin + env(safe-area-inset-bottom)); font-size: 3.6vmin; }
+#touch-controls .tc-gas { right: calc(4vmin + env(safe-area-inset-right)); background: rgba(40,140,70,0.45); }
+#touch-controls .tc-brake { right: calc(25vmin + env(safe-area-inset-right)); background: rgba(160,50,40,0.45); }
+#touch-controls .tc-hand { width: 14vmin; height: 14vmin; right: calc(27.5vmin + env(safe-area-inset-right)); bottom: calc(26vmin + env(safe-area-inset-bottom)); font-size: 2.5vmin; }
+#touch-controls .tc-nitro { width: 14vmin; height: 14vmin; right: calc(6.5vmin + env(safe-area-inset-right)); bottom: calc(26vmin + env(safe-area-inset-bottom)); background: rgba(40,90,170,0.45); }
+#touch-controls .tc-horn { width: 10vmin; height: 10vmin; right: calc(44vmin + env(safe-area-inset-right)); bottom: calc(6vmin + env(safe-area-inset-bottom)); font-size: 4vmin; }
+#touch-controls .tc-lookback { width: 10vmin; height: 10vmin; right: calc(44vmin + env(safe-area-inset-right)); bottom: calc(18vmin + env(safe-area-inset-bottom)); font-size: 4vmin; }
+#touch-controls .tc-jump { width: 16vmin; height: 16vmin; right: calc(4vmin + env(safe-area-inset-right)); bottom: calc(5vmin + env(safe-area-inset-bottom)); }
+#touch-controls .tc-hit { width: 16vmin; height: 16vmin; right: calc(22vmin + env(safe-area-inset-right)); bottom: calc(5vmin + env(safe-area-inset-bottom)); font-size: 6vmin; }
+#touch-controls .tc-aim { width: 13vmin; height: 13vmin; right: calc(6vmin + env(safe-area-inset-right)); bottom: calc(24vmin + env(safe-area-inset-bottom)); }
+#touch-controls .tc-gun { width: 11vmin; height: 11vmin; right: calc(23vmin + env(safe-area-inset-right)); bottom: calc(25vmin + env(safe-area-inset-bottom)); font-size: 4.5vmin; }
+#touch-controls .tc-reload { width: 9vmin; height: 9vmin; right: calc(37vmin + env(safe-area-inset-right)); bottom: calc(7vmin + env(safe-area-inset-bottom)); }
+/* top row, right of the minimap side: small round buttons */
+#touch-controls .tc-top { width: 10vmin; height: 10vmin; top: calc(2.5vmin + env(safe-area-inset-top)); font-size: 4vmin; }
+#touch-controls .tc-pause { right: calc(3vmin + env(safe-area-inset-right)); }
+#touch-controls .tc-map { right: calc(15vmin + env(safe-area-inset-right)); }
+#touch-controls .tc-cam { right: calc(27vmin + env(safe-area-inset-right)); }
+#touch-controls .tc-enter { right: calc(39vmin + env(safe-area-inset-right)); background: rgba(200,150,30,0.45); }
+#touch-controls .tc-reset { right: calc(51vmin + env(safe-area-inset-right)); }
+#touch-controls .tc-event { right: calc(63vmin + env(safe-area-inset-right)); }
+#touch-controls .tc-rotate { display: none; }
+@media (orientation: portrait) {
+  #touch-controls .tc-rotate { display: flex; position: fixed; inset: 0; pointer-events: auto; align-items: center; justify-content: center; background: rgba(0,0,0,0.88); color: #fff; font-size: 5vw; text-align: center; padding: 10vw; z-index: 50; }
+}
+/* the HUD on a touch screen: smaller, and clear of the thumbs (speed between the two hands, money under the top
+   buttons, the minimap small in its corner) */
+html.touch .minimap-wrap { top: calc(0.8rem + env(safe-area-inset-top)); left: calc(0.8rem + env(safe-area-inset-left)); width: 26vmin; }
+html.touch #minimap { width: 26vmin; height: 26vmin; }
+html.touch .speedo { right: auto; left: 50%; transform: translateX(-50%); bottom: calc(0.4rem + env(safe-area-inset-bottom)); width: 24vmin; height: 24vmin; }
+html.touch .speed-digits { font-size: 6vmin; }
+html.touch .gear { font-size: 3.4vmin; }
+html.touch .top-right { top: calc(14vmin + env(safe-area-inset-top)); right: calc(3vmin + env(safe-area-inset-right)); }
+html.touch .top-center { top: calc(0.6rem + env(safe-area-inset-top)); left: 42%; gap: 1.2rem; }
+html.touch .race-board { top: calc(22vmin + env(safe-area-inset-top)); }
+html.touch .prompt { bottom: 34%; }
+html.touch .pursuit { bottom: 27vmin; width: 40vw; }
+html.touch .center-msg { font-size: 3rem; }
+html.touch .key { display: none; }
+/* short screens (a phone held sideways): menus fit, and scroll where they can't */
+@media (max-height: 520px) {
+  .screen { overflow-y: auto; -webkit-overflow-scrolling: touch; touch-action: pan-y; }
+  .menu-main { justify-content: flex-start; padding-top: calc(0.8rem + env(safe-area-inset-top)); padding-left: calc(4vw + env(safe-area-inset-left)); }
+  .menu-main .logo { font-size: 2.6rem; }
+  .menu-main .tag { margin-bottom: 0.8rem; font-size: 0.7rem; }
+  .menu-item { font-size: 1.25rem; padding: 0.35rem 1rem; }
+  .menu-item small { font-size: 0.7rem; }
+  .panel { max-height: 94vh; overflow-y: auto; -webkit-overflow-scrolling: touch; touch-action: pan-y; }
+}
+html.touch .tkey { display: inline-flex; align-items: center; justify-content: center; min-width: 1.6em; height: 1.6em; border-radius: 50%; border: 1px solid rgba(255,255,255,0.5); margin: 0 0.2rem; }
+html.touch .prompt { font-size: 1.1rem; padding: 0.7rem 1.2rem; }

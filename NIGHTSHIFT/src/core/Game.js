@@ -722,6 +722,8 @@ export class Game {
     // the mouse is captured only while driving or on foot (menus, map and pause get the pointer back)
     input.lockable = mode === 'drive' && !this.photo?.active;
     if (!input.lockable && document.pointerLockElement) document.exitPointerLock?.();
+    // touch screens: the on-screen controls for what's happening (driving, on foot, the map; none in menus)
+    input.touch?.setContext(mode === 'drive' && !this.photo?.active ? (this.onFoot?.active ? 'foot' : 'car') : mode === 'map' ? 'map' : 'none');
     if (input.consume('dev')) this.showDev = !this.showDev;
 
     if (mode === 'garage') {

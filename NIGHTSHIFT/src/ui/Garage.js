@@ -25,9 +25,9 @@ export class Garage {
     this.car = null;
     this.open = false;
     this._drag = null;
-    addEventListener('mousedown', (e) => { if (this.open && e.target.tagName === 'CANVAS') this._drag = { x: e.clientX, y: e.clientY }; });
-    addEventListener('mouseup', () => { this._drag = null; });
-    addEventListener('mousemove', (e) => {
+    addEventListener('pointerdown', (e) => { if (this.open && e.target.tagName === 'CANVAS') this._drag = { x: e.clientX, y: e.clientY }; });
+    addEventListener('pointerup', () => { this._drag = null; });
+    addEventListener('pointermove', (e) => {
       if (!this._drag) return;
       this.orbit.yaw -= (e.clientX - this._drag.x) * 0.006; this.orbit.pitch = Math.min(0.8, Math.max(0.02, this.orbit.pitch + (e.clientY - this._drag.y) * 0.004));
       this._drag = { x: e.clientX, y: e.clientY }; this.orbit.auto = false;

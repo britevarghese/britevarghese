@@ -105,7 +105,7 @@ const goFullscreen = () => {
   const s = window.NIGHTSHIFT?.settings?.gameplay;
   if (s && s.fullscreen === false) return;
   if (!document.fullscreenElement && document.documentElement.requestFullscreen) {
-    document.documentElement.requestFullscreen({ navigationUI: 'hide' }).then(() => navigator.keyboard?.lock?.(['Escape']).catch(() => {})).catch(() => {});
+    document.documentElement.requestFullscreen({ navigationUI: 'hide' }).then(() => { navigator.keyboard?.lock?.(['Escape']).catch(() => {}); screen.orientation?.lock?.('landscape').catch(() => {}); }).catch(() => {});   // (phones: held sideways)
   }
 };
 for (const ev of ['pointerdown', 'keydown']) addEventListener(ev, (e) => { if (e.code === 'F11') return; goFullscreen(); }, { capture: true });

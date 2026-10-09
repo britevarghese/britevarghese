@@ -1,5 +1,6 @@
 // InputManager: keyboard + mouse + gamepad -> normalized driving controls and edge-triggered actions.
 import { clamp, approach } from './util.js';
+import { TouchControls } from './TouchControls.js';
 
 const KEYMAP = {
   throttle: ['KeyW', 'ArrowUp'],
@@ -28,6 +29,7 @@ export class InputManager {
     this.mouse = { dx: 0, dy: 0, dragging: false, lastMove: 0, aim: false };
     this.enabled = true;
     this._padPrev = {};
+    this.touch = new TouchControls(this);
     addEventListener('keydown', (e) => this._key(e, true));
     addEventListener('keyup', (e) => this._key(e, false));
     addEventListener('blur', () => this.down.clear());
@@ -121,13 +123,23 @@ export class InputManager {
       edge(13, ['down', 'weapon']);  // d-pad down: menus; on foot, draw / holster the pistol
       edge(11, 'horn');    // R3
     }
+    // touch screen (phones, tablets)
+    const T = this.touch.state();
+    if (T) {
+      if (T.steer || T.throttle || T.brake || T.handbrake) this.lastDevice = 'touch';
+      if (Math.abs(T.steer) > Math.abs(steer)) steer = T.steer * sens;
+      throttle = Math.max(throttle, T.throttle); brake = Math.max(brake, T.brake); handbrake = Math.max(handbrake, T.handbrake);
+      nitro = nitro || T.nitro; lookBack = lookBack || T.lookBack;
+      // (a look drag counts as the mouse does, a little livelier for the thumb)
+      if (T.lookDx || T.lookDy) { this.mouse.dx += T.lookDx * 1.6; this.mouse.dy += T.lookDy * 1.6; this.mouse.lastMove = performance.now(); }
+    }
     c.throttle = throttle; c.brake = brake; c.steer = clamp(steer, -1, 1); c.handbrake = handbrake;
     c.nitro = nitro; c.lookBack = lookBack;
     const csens = this.settings.gameplay.cameraSensitivity || 1;
     c.lookX = lookX + this.mouse.dx * 0.004 * csens; c.lookY = lookY + this.mouse.dy * 0.004 * csens;
     c.mouseLook = this.mouse.dragging || performance.now() - this.mouse.lastMove < 1500;
     // aiming a weapon on foot: the right mouse button, or the left trigger
-    c.aim = this.mouse.aim || (this.gamepadIndex >= 0 && (navigator.getGamepads?.()[this.gamepadIndex]?.buttons[6]?.value || 0) > 0.5);
+    c.aim = this.mouse.aim || !!T?.aim || (this.gamepadIndex >= 0 && (navigator.getGamepads?.()[this.gamepadIndex]?.buttons[6]?.value || 0) > 0.5);
     this.mouse.dx = 0; this.mouse.dy = 0;
   }
 

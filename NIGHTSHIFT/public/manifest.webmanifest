@@ -1,7 +1,7 @@
 {
   "name": "NIGHTSHIFT",
   "short_name": "NIGHTSHIFT",
-  "description": "Open-world night street racing in Port Halvern.",
+  "description": "Open-world driving across a streamed, real-map Kerala.",
   "id": "/",
   "start_url": "/?app=1",
   "scope": "/",

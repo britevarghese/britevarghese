@@ -1,5 +1,9 @@
 // QualityManager: hardware detection, short benchmark, and the scalable quality presets.
+
 import { bus } from './EventBus.js';
+
+// a phone or tablet (an iPad reports itself as a Mac with a touch screen)
+export const IS_MOBILE = typeof navigator !== 'undefined' && (/Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent) || (navigator.maxTouchPoints > 1 && /Mac/.test(navigator.platform || '')));
 
 export const QUALITY_LEVELS = ['veryLow', 'low', 'medium', 'high', 'ultra'];
 export const QUALITY_LABELS = { veryLow: 'VERY LOW', low: 'LOW', medium: 'MEDIUM', high: 'HIGH', ultra: 'ULTRA' };
@@ -188,6 +192,8 @@ export class QualityManager {
     let lvl = QUALITY_LEVELS[t ?? 2];
     // deviceMemory is capped at 8 and only reported by some browsers; only trust very low values
     if (this.gpu.memory && this.gpu.memory <= 2 && (t ?? 2) < 3) lvl = 'veryLow';
+    // a phone or tablet starts no higher than LOW (small screen, a battery, and it gets hot): the benchmark may lift it
+    if (IS_MOBILE && QUALITY_LEVELS.indexOf(lvl) > QUALITY_LEVELS.indexOf('low')) lvl = 'low';
     return lvl;
   }
 
@@ -204,7 +210,7 @@ export class QualityManager {
     else if (workMs > 18) i -= 1;
     else if (workMs < 4) i += 2;
     else if (workMs < 8) i += 1;
-    const cap = !this.gpu.recognized || guess >= 3 ? 4 : Math.min(4, guess + 2);
+    const cap = IS_MOBILE ? QUALITY_LEVELS.indexOf('medium') : !this.gpu.recognized || guess >= 3 ? 4 : Math.min(4, guess + 2);
     return QUALITY_LEVELS[clampI(i, this.floorIndex, cap)];
   }
 
