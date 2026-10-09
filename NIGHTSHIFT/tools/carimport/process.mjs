@@ -403,7 +403,7 @@ export function processCar(doc, car, opt = {}) {
   const lod1Body = [...cloneList(body.filter((p) => !RX.interior.test(p.name))), ...doorIds.flatMap((d) => doorBack(d).filter((p) => !RX.interior.test(p.name)))];
   const lod1Wheels = Object.fromEntries(wheelIds.map((q) => [q, { spin: cloneList(wheelPieces[q].spin), fixed: cloneList(wheelPieces[q].fixed) }]));
   const lods = [
-    { name: 'lod0', body: simplifyList(merge(body), budget.body0, budget.err0 ?? 0.0015), doors: Object.fromEntries(doorIds.map((d) => [d, simplifyList(merge(doors[d].pieces), budget.body0 * 0.08, 0.0015)])), wheels: Object.fromEntries(wheelIds.map((q) => [q, { spin: simplifyList(merge(wheelPieces[q].spin), budget.wheel0, 0.002), fixed: merge(wheelPieces[q].fixed) }])) },
+    { name: 'lod0', body: simplifyList(merge(body), budget.body0, budget.err0 ?? 0.0015), doors: Object.fromEntries(doorIds.map((d) => [d, simplifyList(merge(doors[d].pieces), budget.body0 * 0.08, 0.0015)])), wheels: Object.fromEntries(wheelIds.map((q) => [q, { spin: simplifyList(merge(wheelPieces[q].spin), budget.wheel0, budget.werr0 ?? 0.002), fixed: budget.fixed0 ? simplifyList(merge(wheelPieces[q].fixed), budget.fixed0, budget.werr0 ?? 0.002) : merge(wheelPieces[q].fixed) }])) },   // (werr0 / fixed0: a heavy scan's spoked wheels)
     { name: 'lod1', body: simplifyList(merge(lod1Body), budget.body1, budget.err1 ?? 0.03), wheels: Object.fromEntries(wheelIds.map((q) => [q, { spin: simplifyList(merge(lod1Wheels[q].spin), budget.wheel1, 0.03), fixed: simplifyList(merge(lod1Wheels[q].fixed), 120, 0.05) }])) },
   ];
 

@@ -47,4 +47,6 @@ They were converted for real-time use (re-scaled, wheels separated, simplified, 
 - **Scooter** — "Scooter Motorcycle" by norberto3d, https://sketchfab.com/3d-models/53474287ff1045e49f82819f50b8736f (CC BY 4.0), modified.
 - **Commuter motorcycle** — "Bajaj pulsar 150" by shreyanshchaurasia13, https://sketchfab.com/3d-models/06fac75c72ed4780a19034447c81e72c (CC BY 4.0), modified.
 - **Street motorcycle** — "pulsar 135 ls" by EmanuelRestrepoVelez, https://sketchfab.com/3d-models/36d04d99171e4d59b540c25d8650dbd5 (CC BY 4.0), modified.
+- **Mahindra Bolero** — "Bolero" by Waseem_Kadri, https://sketchfab.com/3d-models/9f1e594c45e24012b50992bbfeeecda0 (CC BY 4.0), modified.
+- **Classic motorcycle** — "Royal enfield classic 350" by mansoorman, https://sketchfab.com/3d-models/f6495bfbffe443e89c499a2ba8766c88 (CC BY 4.0), modified.
 - **Motorcycle rider** — "Biker" by Idris.Abass, https://sketchfab.com/3d-models/1594447c9f2d4b618dd59fd3272b6db6 (CC BY 4.0), modified.

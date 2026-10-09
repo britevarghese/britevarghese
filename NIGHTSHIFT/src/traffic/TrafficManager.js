@@ -25,9 +25,11 @@ export const TYPE_SPECS = {
   scorpio: { w: 1.92, l: 4.66, mass: 1900, weight: 7, kl: true },
   thar: { w: 1.82, l: 3.985, mass: 1700, weight: 4, kl: true },
   minitruck: { w: 1.5, l: 3.8, mass: 1100, weight: 7, kl: true },
+  bolero: { w: 1.745, l: 3.995, mass: 1615, weight: 7, kl: true },
   // two-wheelers: ride by the kerb, filter past slow traffic, lean into the bends
   scooter: { w: 0.75, l: 1.85, mass: 190, weight: 24, kl: true, bike: true, livery: true },
   commuter: { w: 0.78, l: 2.04, mass: 210, weight: 20, kl: true, bike: true, colors: [0x1a1a1a, 0xb01818, 0x1a3a8a, 0x6a6a6a, 0xe8e8e8] },
+  bullet: { w: 0.8, l: 2.15, mass: 195, weight: 8, kl: true, bike: true, livery: true },
   streetbike: { w: 0.78, l: 2.0, mass: 210, weight: 10, kl: true, bike: true, colors: [0x1a1a1a, 0x2a4a8a, 0xb01818, 0x3a6a3a] },
   lorry: { w: 2.5, l: 8.6, mass: 9000, weight: 5, kl: true, bigRoads: true, colors: [0xffffff] },   // (its own hand-painted colours)
   ksrtc: { bus: true, w: 2.5, l: 10.8, mass: 11000, weight: 5, kl: true, bigRoads: true, livery: true },
@@ -127,7 +129,7 @@ export class TrafficManager {
     if (!lanes.length) return;
     const lane = lanes[Math.floor(R() * lanes.length)], s = 6 + R() * (lane.length - 12);
     if (lane.cars.some((o) => Math.abs(o.s - s) < 10)) return;
-    const pool = ['m800', 'dzire', 'brezza', 'ertiga', 'scorpio', 'thar', 'minitruck', 'auto', 'scooter', 'commuter'].filter((t) => this.renderer?.types?.[t]);
+    const pool = ['m800', 'dzire', 'brezza', 'ertiga', 'scorpio', 'thar', 'bolero', 'minitruck', 'auto', 'scooter', 'commuter'].filter((t) => this.renderer?.types?.[t]);
     if (!pool.length) return;
     const type = pool[Math.floor(R() * pool.length)], sp = TYPE_SPECS[type];
     const color = sp.livery ? 0xffffff : sp.colors ? sp.colors[Math.floor(R() * sp.colors.length)] : TRAFFIC_COLORS[Math.floor(R() * TRAFFIC_COLORS.length)];

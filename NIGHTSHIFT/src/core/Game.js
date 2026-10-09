@@ -179,6 +179,7 @@ export class Game {
       const bikes = {
         scooter: { seat: 0.74, pose: { hipZ: 0.3, barsBack: 0.34, barsY: 0.32, barsW: 0.33, pegBack: -0.34, pegY: 0.2, pegW: 0.14, torso: 1.42, tuck: 1.35, neck: 0.16 } },
         commuter: { seat: 0.79, pose: { hipZ: 0.36, barsBack: 0.42, barsY: 0.26, barsW: 0.36, pegBack: 0.05, pegY: 0.3, pegW: 0.18, torso: 1.25, tuck: 1.15, neck: 0.15 } },
+        bullet: { seat: 0.8, pose: { hipZ: 0.32, barsBack: 0.46, barsY: 0.3, barsW: 0.4, pegBack: 0.04, pegY: 0.3, pegW: 0.19, torso: 1.42, tuck: 1.3, neck: 0.16 } },   // sat bolt upright
         streetbike: { seat: 0.8, pose: { hipZ: 0.35, barsBack: 0.43, barsY: 0.22, barsW: 0.36, pegBack: 0.1, pegY: 0.32, pegW: 0.18, torso: 1.1, tuck: 0.95, neck: 0.14 } },
       };
       this.humans.load(3).then(() => R.attachRiders(this.humans, SkinnedRider, bikes));

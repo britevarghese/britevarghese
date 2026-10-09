@@ -5602,6 +5602,98 @@
         "url": "https://sketchfab.com/3d-models/36d04d99171e4d59b540c25d8650dbd5",
         "license": "CC-BY-4.0"
       }
+    },
+    "kl_bolero": {
+      "file": "cars/kl_bolero.glb",
+      "imported": true,
+      "name": "Mahindra Bolero",
+      "length": 3.995,
+      "width": 1.855,
+      "height": 1.543,
+      "wheels": [
+        {
+          "id": "FL",
+          "x": 0.729,
+          "y": 0.347,
+          "z": 1.45,
+          "r": 0.347,
+          "w": 0.248
+        },
+        {
+          "id": "FR",
+          "x": -0.729,
+          "y": 0.347,
+          "z": 1.45,
+          "r": 0.347,
+          "w": 0.248
+        },
+        {
+          "id": "RL",
+          "x": 0.729,
+          "y": 0.347,
+          "z": -0.986,
+          "r": 0.347,
+          "w": 0.248
+        },
+        {
+          "id": "RR",
+          "x": -0.729,
+          "y": 0.347,
+          "z": -0.986,
+          "r": 0.347,
+          "w": 0.248
+        }
+      ],
+      "tris": {
+        "lod0": 22360,
+        "lod1": 3165
+      },
+      "source": {
+        "site": "Sketchfab",
+        "uid": "9f1e594c45e24012b50992bbfeeecda0",
+        "title": "Bolero",
+        "author": "Waseem_Kadri",
+        "url": "https://sketchfab.com/3d-models/9f1e594c45e24012b50992bbfeeecda0",
+        "license": "CC-BY-4.0"
+      }
+    },
+    "kl_bullet": {
+      "file": "cars/kl_bullet.glb",
+      "imported": true,
+      "name": "Classic motorcycle",
+      "length": 2.15,
+      "width": 0.666,
+      "height": 1.053,
+      "wheels": [
+        {
+          "id": "F",
+          "x": 0.01,
+          "y": 0.344,
+          "z": 0.729,
+          "r": 0.343,
+          "w": 0.123
+        },
+        {
+          "id": "R",
+          "x": -0.001,
+          "y": 0.375,
+          "z": -0.646,
+          "r": 0.309,
+          "w": 0.097
+        }
+      ],
+      "tris": {
+        "lod0": 18880,
+        "lod1": 4681
+      },
+      "source": {
+        "site": "Sketchfab",
+        "uid": "f6495bfbffe443e89c499a2ba8766c88",
+        "title": "Royal enfield classic 350",
+        "author": "mansoorman",
+        "url": "https://sketchfab.com/3d-models/f6495bfbffe443e89c499a2ba8766c88",
+        "license": "CC-BY-4.0"
+      }
     }
   },
   "wheels": {
@@ -5757,7 +5849,9 @@
     "cars/kawasaki_ninja_h2.glb": "66216bbf7d",
     "cars/kawasaki_zx6r.glb": "04fb05f437",
     "cars/kl_auto.glb": "ba1beab738",
+    "cars/kl_bolero.glb": "a9884e9d08",
     "cars/kl_brezza.glb": "cff1f9f131",
+    "cars/kl_bullet.glb": "29028d0dc3",
     "cars/kl_commuter.glb": "3a76e2a511",
     "cars/kl_dzire.glb": "84ce99852b",
     "cars/kl_ertiga.glb": "c8cf66221e",
