@@ -100,6 +100,7 @@ export class KeralaTile {
     this.h = new Float32Array(GRID * GRID);
     for (let i = 0; i < hq.length; i++) this.h[i] = hq[i] / 4;
     this.roads = (data.r || []).map((r) => ({ cls: r[0], lanes: r[1], flags: r[2], layer: r[3], name: this.names[r[4]] || '', ref: this.names[r[5]] || '', dirt: r[6] === 1, pts: decodeLine(r, 7) }));
+    this._roundCorners();
     this.colliders = [];
     this.ready = false;
   }
@@ -279,6 +280,38 @@ export class KeralaTile {
   _waterY(e, n) {
     const g0 = this._h0At(e, n);
     return g0 < INLAND ? this.waterLevel : Math.max(this.heightAt(e, n) + 0.12, g0 - 0.6);
+  }
+
+  // The map draws a road as straight pieces with a corner wherever it changes direction; a real road turns in a
+  // curve. Every corner is rounded into an arc (wider for the bigger roads, as tight as the pieces either side
+  // allow); the points where roads meet stay where they are, so junctions still join.
+  _roundCorners() {
+    const key = ([e, n]) => `${Math.round(e * 10)},${Math.round(n * 10)}`, uses = new Map();
+    for (const r of this.roads) for (const p of r.pts) { const k = key(p); uses.set(k, (uses.get(k) || 0) + 1); }
+    for (const r of this.roads) {
+      const P = r.pts; if (P.length < 3) continue;
+      const R = r.cls <= 1 ? 90 : r.cls <= 3 ? 50 : r.cls <= 5 ? 28 : 14, out = [P[0]];
+      for (let i = 1; i < P.length - 1; i++) {
+        const A = P[i - 1], B = P[i], Cn = P[i + 1];
+        const l1 = Math.hypot(B[0] - A[0], B[1] - A[1]), l2 = Math.hypot(Cn[0] - B[0], Cn[1] - B[1]);
+        if (uses.get(key(B)) > 1 || l1 < 0.5 || l2 < 0.5) { out.push(B); continue; }
+        const u1 = [(B[0] - A[0]) / l1, (B[1] - A[1]) / l1], u2 = [(Cn[0] - B[0]) / l2, (Cn[1] - B[1]) / l2];
+        const th = Math.acos(Math.max(-1, Math.min(1, u1[0] * u2[0] + u1[1] * u2[1])));
+        if (th < 0.05) { out.push(B); continue; }
+        // tangent length for radius R, at most a little under half of each piece (the next corner needs the rest)
+        const t = Math.min(R * Math.tan(Math.min(th, 2.8) / 2), l1 * 0.48, l2 * 0.48);
+        if (t < 1.5) { out.push(B); continue; }   // (too short to matter)
+        const S0 = [B[0] - u1[0] * t, B[1] - u1[1] * t], S1 = [B[0] + u2[0] * t, B[1] + u2[1] * t];
+        // (a quadratic curve through the corner: close to a circular arc, a point every ~8 degrees, at least ~1.5 m apart)
+        const k = Math.max(2, Math.min(Math.ceil(th / 0.14), Math.floor(t * 2 / 1.5)));
+        for (let j = 0; j <= k; j++) {
+          const q = j / k, a = (1 - q) * (1 - q), b = 2 * q * (1 - q), c = q * q;
+          out.push([a * S0[0] + b * B[0] + c * S1[0], a * S0[1] + b * B[1] + c * S1[1]]);
+        }
+      }
+      out.push(P[P.length - 1]);
+      r.pts = out;
+    }
   }
 
   // a tea garden at (e, n): open land high in the hills (not forest, grassland, water, roads or buildings)
@@ -537,22 +570,27 @@ export class KeralaTile {
           R.P.forEach(([e, n], i) => {
             if (R.up[i] || R.wet[i]) return;
             const [ux, uy] = dir(R, i);
-            let sw = 1, sy = R.prof[i];
+            // (each neighbouring road counts once, by its closest point; roads more than ~3 m apart in height are
+            // terraced one above the other, not side by side)
+            const best = new Map();
             const ge = Math.floor(e / 16), gn = Math.floor(n / 16);
             for (let a = -2; a <= 2; a++) for (let b = -2; b <= 2; b++) {
               const L = G.get((ge + a) * 100000 + gn + b); if (!L) continue;
               for (let q = 0; q < L.length; q += 2) {
                 const o = roads[L[q]]; if (o === R) continue;
                 const j = L[q + 1], [oe, on] = o.P[j], d = Math.hypot(oe - e, on - n), gap = R.hw + o.hw + 6;
-                if (d > gap || Math.abs(o.prof[j] - R.prof[i]) > 6) continue;
+                if (d > gap || Math.abs(o.prof[j] - R.prof[i]) > 3) continue;
                 const [vx, vy] = dir(o, j); if (Math.abs(ux * vx + uy * vy) < 0.8) continue;
-                const w = (1 - d / gap) * 0.5; sw += w; sy += o.prof[j] * w;
+                const w = (1 - d / gap) * 0.5, c = best.get(L[q]); if (!c || w > c[0]) best.set(L[q], [w, o.prof[j]]);
               }
             }
+            let sw = 1, sy = R.prof[i];
+            for (const [w, y] of best.values()) { sw += w; sy += y * w; }
             dl[i] = (sy / sw - R.prof[i]) * _smooth(Math.min(1, Math.max(0, Math.min(e, n, TILE - e, TILE - n) / 80)));
           });
           // (smoothed along the road: no kink where the neighbour starts or ends)
-          return dl.map((_, i) => { let s2 = 0, c = 0; for (let k = Math.max(0, i - 4); k <= Math.min(dl.length - 1, i + 4); k++) { s2 += dl[k]; c++; } return s2 / c; });
+          const Dd = [0]; for (let i = 1; i < R.P.length; i++) Dd.push(Dd[i - 1] + Math.hypot(R.P[i][0] - R.P[i - 1][0], R.P[i][1] - R.P[i - 1][1]));
+          return dl.map((_, i) => { let s2 = 0, c = 0; for (let k = i; k >= 0 && Dd[i] - Dd[k] <= 16; k--) { s2 += dl[k]; c++; } for (let k = i + 1; k < dl.length && Dd[k] - Dd[i] <= 16; k++) { s2 += dl[k]; c++; } return s2 / c; });
         });
         roads.forEach((R, ri) => { for (let i = 0; i < R.P.length; i++) R.prof[i] += deltas[ri][i]; });
       }
@@ -670,9 +708,9 @@ export class KeralaTile {
           + ' if (tea > 0.0) { float u = vWp.y / 0.7 + g2 * 0.8, w = fwidth(u), p = fract(u);'
           + '   float sl = length(vec2(dFdx(vWp.y), dFdy(vWp.y))) / max(1e-4, length(vec2(length(dFdx(vWp.xz)), length(dFdy(vWp.xz)))));'
           + '   float dome = clamp(sin(3.14159 * (p - 0.12) / 0.76), 0.0, 1.0), rows = smoothstep(0.06, 0.18, sl);'
-          + '   float shade = mix(mix(0.15, 1.0, sqrt(dome)), 0.78, smoothstep(0.3, 0.7, w));'
+          + '   float shade = mix(mix(0.15, 1.0, sqrt(dome)), 0.78, smoothstep(0.15, 0.45, w));'
           + '   vec3 bush = mix(vec3(0.045, 0.1, 0.02), vec3(0.11, 0.17, 0.035), g1 * dome) * mix(0.82, shade, rows), soil = vec3(0.06, 0.045, 0.03);'
-          + '   vec3 teaC = mix(soil, bush, mix(0.92, smoothstep(0.0, 0.15, dome) * 0.85 + 0.15, rows * (1.0 - smoothstep(0.3, 0.7, w))));'
+          + '   vec3 teaC = mix(soil, bush, mix(0.92, smoothstep(0.0, 0.15, dome) * 0.85 + 0.15, rows * (1.0 - smoothstep(0.15, 0.45, w))));'
           + '   diffuseColor.rgb = mix(diffuseColor.rgb, teaC, tea); } }');
       };
       mat.customProgramCacheKey = () => 'klTerrain';
@@ -964,13 +1002,13 @@ export class KeralaTile {
             this.colliders.push({ cx: -(this.E0 + (a[0] + b[0]) / 2), cz: this.N0 + (a[1] + b[1]) / 2, hx: 0.16, hz: Math.max(0.2, L / 2 - 0.05), cos: Math.cos(ang), sin: Math.sin(ang), angle: ang, h: Math.max(A.y0, B.y0) + 0.62, kind: 'barrier' });
           } else if (!A.town && !B.town && !A.water && !B.water && !bridge && r.cls <= 7 && inTile(mid) && !nj(mid[0], mid[1])
             && !this.onRoad(...A.at(hw + 0.5), 0.2, ri) && !this.onRoad(...B.at(hw + 0.5), 0.2, ri)) {
-            // country road: a clean gravel shoulder along the edge, easing down into a grassy verge (broken where
+            // country road: a dusty earth shoulder along the edge, easing down into a grassy verge (broken where
             // gates and lanes cross)
             const K = kerb[chunkOf(...mid)];
             const v = (Q, o, h) => { const [e, n] = Q.at(o); return [-e, Q.y0 + h, n]; };
-            const j = 0.9 + rnd() * 0.12, grav = [0.3 * j, 0.28 * j, 0.24 * j], gravD = [0.24 * j, 0.22 * j, 0.19 * j], grass = [0.13 * j, 0.19 * j, 0.08 * j];
+            const j = 0.9 + rnd() * 0.12, grav = [0.17 * j, 0.125 * j, 0.085 * j], gravD = [0.14 * j, 0.11 * j, 0.08 * j], grass = [0.11 * j, 0.15 * j, 0.06 * j];   // (dusty laterite, as the tar's edge breaks into the verge)
             const edge = (o0, h0, o1, h1, c0, c1) => quad(K, v(A, o0, h0), v(A, o1, h1), v(B, o1, h1), v(B, o0, h0), c0, c1 || c0);
-            edge(hw - 0.06, -0.02, hw + 0.7, -0.05, gravD, grav);                // gravel shoulder
+            edge(hw - 0.06, -0.02, hw + 0.7, -0.05, gravD, grav);                // earth shoulder
             edge(hw + 0.7, -0.05, hw + 1.25, -0.22, grav, grass);                // down into the grass verge
             // up in the hills, above a drop: a guard post every ~6 m, banded black and white
             if ((i & 1) === 0 && A.y0 > 150 && this.heightAt(...A.at(hw + 3.5)) < A.y0 - 1.6) {
