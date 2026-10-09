@@ -297,6 +297,13 @@ export class Story {
     const type = st.vehicle || st.car;
     if (!g.lib.has(type)) { g.lib.load([type], 1); return false; }
     if (st.type === 'steal') {
+      // (Kerala: on a lane by the place, so not until the roads there are built: those first, then try again)
+      if (g.world.kerala && typeof st.at === 'string') {
+        if ((s.nextTry || 0) > s.t) return false;
+        const p = this.placeAt?.(st.at), n = p && g.traffic.graph.nearest(p.x, p.z, (l) => l.edge?.cls <= 7);
+        if (!n || n.dist > 120) { s.nextTry = s.t + 1; if (p) g.world.prioritize?.([p]); return false; }
+        s.spot = { x: n.x, z: n.z, yaw: Math.atan2(n.dx, n.dz) };
+      }
       const v = this._spawnVehicle(type, s.spot, st.paint);
       if (!v) return false;
       v.keep = true; g.onFoot.parked.push(v); A.spawned.push(v);
