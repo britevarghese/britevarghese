@@ -388,9 +388,12 @@ export class KeralaWorld {
     for (const t of this.tiles.values()) {
       for (const r of t.roads) {
         if (r.cls > maxCls || r.pts.length < 2) continue;
+        // (the middle of a piece of road at least 16 m long: not on a junction, its speed breakers or a bend)
         for (let i = 0; i < r.pts.length - 1; i++) {
-          const [e, n] = r.pts[i], gx = -(t.E0 + e), gz = t.N0 + n, d = Math.hypot(gx - x, gz - z);
-          if (d < bd) { const [e2, n2] = r.pts[i + 1]; bd = d; best = { x: gx, z: gz, yaw: Math.atan2(-(e2 - e), n2 - n), name: r.name || r.ref }; }
+          const [e, n] = r.pts[i], [e2, n2] = r.pts[i + 1];
+          if (Math.hypot(e2 - e, n2 - n) < 16 && r.pts.length > 2) continue;
+          const gx = -(t.E0 + (e + e2) / 2), gz = t.N0 + (n + n2) / 2, d = Math.hypot(gx - x, gz - z);
+          if (d < bd) { bd = d; best = { x: gx, z: gz, yaw: Math.atan2(-(e2 - e), n2 - n), name: r.name || r.ref }; }
         }
       }
     }

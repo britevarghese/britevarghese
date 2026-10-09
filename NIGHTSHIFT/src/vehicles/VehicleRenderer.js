@@ -446,8 +446,9 @@ export class VehicleRenderer {
       const box = new THREE.Box3().setFromObject(this.body), c = box.getCenter(new THREE.Vector3());
       lb = { position: new THREE.Vector3(0, box.max.y + 0.06, c.z + (box.max.z - box.min.z) * 0.05) };
       const bar = new THREE.Group();
-      const mk = (x, col) => { const m = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.1, 0.2), new THREE.MeshStandardMaterial({ color: col, emissive: col, emissiveIntensity: 0.6, roughness: 0.3 })); m.position.set(x, 0, 0); bar.add(m); };
-      mk(0.23, 0xd01020); mk(-0.23, 0x1040d0);
+      // (unlit when the siren is off; flashing, and dimmed close to the camera, when on: see update)
+      const mk = (x, col) => { const m = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.1, 0.2), new THREE.MeshStandardMaterial({ color: col, emissive: col, emissiveIntensity: 0.05, roughness: 0.3 })); m.position.set(x, 0, 0); bar.add(m); return m.material; };
+      this.police.bar = [mk(0.23, 0x80141c), mk(-0.23, 0x142a80)];
       bar.position.copy(lb.position).add(new THREE.Vector3(0, -0.02, 0));
       this.body.add(bar);
     }
@@ -871,6 +872,7 @@ export class VehicleRenderer {
       const near = clamp((dist - 3) / 14, 0.08, 1);
       if (m.lightbar_red) m.lightbar_red.emissiveIntensity = redOn ? 4 * near : 0.2;
       if (m.lightbar_blue) m.lightbar_blue.emissiveIntensity = blueOn ? 4 * near : 0.2;
+      if (p.bar) { p.bar[0].emissiveIntensity = redOn ? 3 * near : 0.05; p.bar[1].emissiveIntensity = blueOn ? 3 * near : 0.05; }
       // the flash halo grows with distance (readable far off) but stays small right behind you,
       // where a metres-wide additive sprite would white out the road
       const pk = clamp(0.3 + dist * 0.035, 0.3, 2.2) * (0.9 + Math.random() * 0.2);
