@@ -99,6 +99,7 @@ export class PoliceManager {
     let best = null, bestScore = -Infinity;
     for (let i = 0; i < 40; i++) {
       const n = nodes[Math.floor(this.R() * nodes.length)];
+      if (!n) break;   // (no road network streamed in around here yet)
       const dx = n.x - p.x, dz = n.z - p.z, d = Math.hypot(dx, dz);
       if (d < rMin || d > rMax) continue;
       const dot = (dx * fx + dz * fz) / d;

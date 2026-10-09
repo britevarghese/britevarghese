@@ -11,6 +11,7 @@ import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 export const TILE = 2000;
 export const GRID = 33;
 const STEP = TILE / (GRID - 1);
+const TEA_MIN = 900;                       // ground (m) above which open land is a tea estate
 const INLAND = 4;                         // ground (m) above which water is a hill river or pond, not sea level
 const RASTER = 256;                       // land-use raster per tile (7.8 m per pixel)
 const PX = RASTER / TILE;
@@ -220,6 +221,16 @@ export class KeralaTile {
     K.fillStyle = `rgb(${C.building},0,0)`;
     for (const b of d.b || []) { path(K, [decodeLine(b, 2)]); K.fill(); }
     this.cls = K.getImageData(0, 0, RASTER, RASTER).data;
+    // tea: the open slopes of the high ranges (Munnar, Vagamon, Peermade) are tea estates. Marked in the ground
+    // texture's alpha; the terrain shader draws the bushes in rows along the contours there
+    if (Math.max(...this.h) >= TEA_MIN) {
+      const img = V.getImageData(0, 0, RASTER, RASTER), A = img.data;
+      for (let py = 0; py < RASTER; py++) for (let px = 0; px < RASTER; px++) {
+        const e = (px + 0.5) / PX, n = TILE - (py + 0.5) / PX;
+        if (this.isTea(e, n)) A[(py * RASTER + px) * 4 + 3] = 128;
+      }
+      V.putImageData(img, 0, 0);
+    }
     this.visCanvas = vis;
   }
 
@@ -268,6 +279,12 @@ export class KeralaTile {
   _waterY(e, n) {
     const g0 = this._h0At(e, n);
     return g0 < INLAND ? this.waterLevel : Math.max(this.heightAt(e, n) + 0.12, g0 - 0.6);
+  }
+
+  // a tea garden at (e, n): open land high in the hills (not forest, grassland, water, roads or buildings)
+  isTea(e, n) {
+    const c = this.classAt(e, n);
+    return (c === C.land || c === C.grove || c === C.scrub || c === C.paddy) && this.heightAt(e, n) >= TEA_MIN;   // (farmland up there is tea, not paddy)
   }
 
   _h0At(e, n) { return this.h0 ? gridAt(this.h0, GRID, STEP, e, n) : this.heightAt(e, n); }
@@ -345,6 +362,32 @@ export class KeralaTile {
       const rawAt = (e, n) => { const g = gridAt(pre, N, S, e, n), h0 = this._h0At(e, n); return h0 < 25 ? Math.max(g, h0 - 0.5) : g; };
       const cross = (r.flags & 2) && !water.some(Boolean) ? this._roadBeneath(r) : [];
       E.push({ r, hw, P, at, raw: P.map(([e, n]) => rawAt(e, n)), water, over: cross.length > 0, cross });
+    }
+    // two roads crossing in the map without a shared point (neither a bridge): a junction all the same, one level
+    {
+      const SG = new Map(), gk = (e, n) => Math.floor(e / 40) * 100000 + Math.floor(n / 40);
+      E.forEach((x, xi) => { if (x.over || x.r.flags & 2) return; for (let i = 1; i < x.P.length; i++) { const k = gk(...x.P[i]); if (!SG.has(k)) SG.set(k, []); SG.get(k).push(xi, i); } });
+      const o = (p, q, s2) => (q[0] - p[0]) * (s2[1] - p[1]) - (q[1] - p[1]) * (s2[0] - p[0]), seen = new Set();
+      E.forEach((x, xi) => {
+        if (x.over || x.r.flags & 2) return;
+        for (let i = 1; i < x.P.length; i++) {
+          const a = x.P[i - 1], b = x.P[i], ge = Math.floor(b[0] / 40), gn = Math.floor(b[1] / 40);
+          for (let A = -1; A <= 1; A++) for (let B = -1; B <= 1; B++) {
+            const L = SG.get((ge + A) * 100000 + gn + B); if (!L) continue;
+            for (let q = 0; q < L.length; q += 2) {
+              const yi = L[q]; if (yi <= xi) continue;
+              const y = E[yi], j = L[q + 1], c = y.P[j - 1], d = y.P[j], d1 = o(a, b, c), d2 = o(a, b, d);
+              if (!(d1 * d2 < 0 && o(c, d, a) * o(c, d, b) < 0)) continue;
+              const u = d1 / (d1 - d2), pe = c[0] + (d[0] - c[0]) * u, pn = c[1] + (d[1] - c[1]) * u, k = `x${Math.round(pe)},${Math.round(pn)}`;
+              // (not where they already meet at a shared point close by)
+              if (seen.has(xi + k) || x.r.pts.some((p2) => Math.hypot(p2[0] - pe, p2[1] - pn) < 6 && y.r.pts.some((p3) => Math.abs(p3[0] - p2[0]) < 0.5 && Math.abs(p3[1] - p2[1]) < 0.5))) continue;
+              seen.add(xi + k);
+              const near = (P, pi) => (Math.hypot(P[pi - 1][0] - pe, P[pi - 1][1] - pn) < Math.hypot(P[pi][0] - pe, P[pi][1] - pn) ? pi - 1 : pi);
+              (x.xj ||= []).push([near(x.P, i), k]); (y.xj ||= []).push([near(y.P, j), k]);
+            }
+          }
+        }
+      });
     }
     // a dual carriageway's other half: a bridge piece beside a flyover (within 30 m) is a flyover too (the check for
     // a road beneath can miss one half)
@@ -470,8 +513,48 @@ export class KeralaTile {
           const o = node.get(k); const c = x.r.cls;
           if (!o || c < o[2]) node.set(k, [yy[i], 1, c, (o?.[3] || 0) + 1, raised[map[i]]]); else if (c === o[2]) { o[0] += yy[i]; o[1]++; o[3]++; o[4] |= raised[map[i]]; } else o[3]++;
         });
-        roads.push({ hw: x.hw, P: x.P, prof: yy, joins, wet: ww, cls: x.r.cls });
+        for (const [i, k] of x.xj || []) {
+          if (raised[map[i]]) continue;   // (a bridge ramp passing over: no junction there)
+          joins.push([i, k]);
+          const o = node.get(k), c = x.r.cls;
+          if (!o || c < o[2]) node.set(k, [yy[i], 1, c, (o?.[3] || 0) + 1, raised[map[i]]]); else if (c === o[2]) { o[0] += yy[i]; o[1]++; o[3]++; o[4] |= raised[map[i]]; } else o[3]++;
+        }
+        roads.push({ hw: x.hw, P: x.P, prof: yy, joins, wet: ww, cls: x.r.cls, up: map.map((ci) => raised[ci]) });
         x.r.surf = { P: x.P, y: yy, hw: x.hw };   // the road's own surface (drawn and driven on): see _surfAt
+      }
+    }
+    // roads running side by side (a highway and its service road, two carriageways, a lane along a main road) are
+    // levelled together: the ground between them can't hold two levels a few metres apart, it would leave a wall.
+    // Not decks or their ramps (a flyover beside its service road is meant to stand above it), not crossing roads,
+    // and eased off at the tile's edge (the neighbour sees the raw level there)
+    {
+      const G = new Map(), gk = (e, n) => Math.floor(e / 16) * 100000 + Math.floor(n / 16);
+      roads.forEach((R, ri) => R.P.forEach(([e, n], i) => { if (R.up[i] || R.wet[i]) return; const k = gk(e, n); if (!G.has(k)) G.set(k, []); G.get(k).push(ri, i); }));
+      const dir = (R, i) => { const a = R.P[Math.max(0, i - 1)], b = R.P[Math.min(R.P.length - 1, i + 1)], de = b[0] - a[0], dn = b[1] - a[1], l = Math.hypot(de, dn) || 1; return [de / l, dn / l]; };
+      for (let pass = 0; pass < 2; pass++) {
+        const deltas = roads.map((R) => {
+          const dl = new Float32Array(R.P.length);
+          R.P.forEach(([e, n], i) => {
+            if (R.up[i] || R.wet[i]) return;
+            const [ux, uy] = dir(R, i);
+            let sw = 1, sy = R.prof[i];
+            const ge = Math.floor(e / 16), gn = Math.floor(n / 16);
+            for (let a = -2; a <= 2; a++) for (let b = -2; b <= 2; b++) {
+              const L = G.get((ge + a) * 100000 + gn + b); if (!L) continue;
+              for (let q = 0; q < L.length; q += 2) {
+                const o = roads[L[q]]; if (o === R) continue;
+                const j = L[q + 1], [oe, on] = o.P[j], d = Math.hypot(oe - e, on - n), gap = R.hw + o.hw + 6;
+                if (d > gap || Math.abs(o.prof[j] - R.prof[i]) > 6) continue;
+                const [vx, vy] = dir(o, j); if (Math.abs(ux * vx + uy * vy) < 0.8) continue;
+                const w = (1 - d / gap) * 0.5; sw += w; sy += o.prof[j] * w;
+              }
+            }
+            dl[i] = (sy / sw - R.prof[i]) * _smooth(Math.min(1, Math.max(0, Math.min(e, n, TILE - e, TILE - n) / 80)));
+          });
+          // (smoothed along the road: no kink where the neighbour starts or ends)
+          return dl.map((_, i) => { let s2 = 0, c = 0; for (let k = Math.max(0, i - 4); k <= Math.min(dl.length - 1, i + 4); k++) { s2 += dl[k]; c++; } return s2 / c; });
+        });
+        roads.forEach((R, ri) => { for (let i = 0; i < R.P.length; i++) R.prof[i] += deltas[ri][i]; });
       }
     }
     for (const R of roads) {
@@ -580,7 +663,17 @@ export class KeralaTile {
       mat.onBeforeCompile = (sh) => {
         sh.uniforms.uDet = { value: M.terrainDetail };
         sh.vertexShader = 'varying vec3 vWp;\n' + sh.vertexShader.replace('#include <worldpos_vertex>', '#include <worldpos_vertex>\n vWp = (modelMatrix * vec4(transformed, 1.0)).xyz;');
-        sh.fragmentShader = 'varying vec3 vWp;\nuniform sampler2D uDet;\n' + sh.fragmentShader.replace('#include <map_fragment>', '#include <map_fragment>\n { float g1 = texture2D(uDet, vWp.xz / 7.0).g, g2 = texture2D(uDet, vWp.xz / 41.0).g; diffuseColor.rgb *= (0.7 + 0.6 * g1) * (0.88 + 0.24 * g2); }');
+        sh.fragmentShader = 'varying vec3 vWp;\nuniform sampler2D uDet;\n' + sh.fragmentShader.replace('#include <map_fragment>', '#include <map_fragment>\n { float g1 = texture2D(uDet, vWp.xz / 7.0).g, g2 = texture2D(uDet, vWp.xz / 41.0).g; diffuseColor.rgb *= (0.7 + 0.6 * g1) * (0.88 + 0.24 * g2);'
+          // tea (texture alpha): rounded hedges in rows along the contours, a dark path between, fading to their
+          // average colour where the rows get finer than a pixel; on near-level ground no rows show
+          + ' float tea = clamp((1.0 - sampledDiffuseColor.a) * 2.2 - 0.05, 0.0, 1.0); diffuseColor.a = 1.0;'
+          + ' if (tea > 0.0) { float u = vWp.y / 0.7 + g2 * 0.8, w = fwidth(u), p = fract(u);'
+          + '   float sl = length(vec2(dFdx(vWp.y), dFdy(vWp.y))) / max(1e-4, length(vec2(length(dFdx(vWp.xz)), length(dFdy(vWp.xz)))));'
+          + '   float dome = clamp(sin(3.14159 * (p - 0.12) / 0.76), 0.0, 1.0), rows = smoothstep(0.06, 0.18, sl);'
+          + '   float shade = mix(mix(0.15, 1.0, sqrt(dome)), 0.78, smoothstep(0.3, 0.7, w));'
+          + '   vec3 bush = mix(vec3(0.045, 0.1, 0.02), vec3(0.11, 0.17, 0.035), g1 * dome) * mix(0.82, shade, rows), soil = vec3(0.06, 0.045, 0.03);'
+          + '   vec3 teaC = mix(soil, bush, mix(0.92, smoothstep(0.0, 0.15, dome) * 0.85 + 0.15, rows * (1.0 - smoothstep(0.3, 0.7, w))));'
+          + '   diffuseColor.rgb = mix(diffuseColor.rgb, teaC, tea); } }');
       };
       mat.customProgramCacheKey = () => 'klTerrain';
     }
@@ -690,11 +783,12 @@ export class KeralaTile {
       }
     }
     if (!idx.length) return null;
-    // a low bank is bare laterite earth; a tall cut or fill is held by a grey rubble retaining wall, as on hill roads
-    const col = new Float32Array(pos.length), E = new THREE.Color(0x6b6150).toArray(), R = new THREE.Color(0x85827a).toArray();   // (earth and gravel, not raw laterite)
+    // a low bank is bare earth; a tall cut into the hill shows its rock and red earth, a tall fill is held by a grey
+    // rubble retaining wall, as on the ghat roads
+    const col = new Float32Array(pos.length), E = new THREE.Color(0x5f5644).toArray(), R = new THREE.Color(0x67635a).toArray(), X = new THREE.Color(0x6a5040).toArray();
     for (let k = 0; k < pos.length / 6; k++) {
-      const w = Math.min(1, Math.max(0, (Math.abs(pos[k * 6 + 1] - pos[k * 6 + 4]) - 0.8) / 0.6));
-      for (let c = 0; c < 3; c++) col[k * 6 + c] = col[k * 6 + 3 + c] = E[c] + (R[c] - E[c]) * w;
+      const d = pos[k * 6 + 4] - pos[k * 6 + 1], w = Math.min(1, Math.max(0, (Math.abs(d) - 0.8) / 0.6)), T = d > 0 ? X : R;
+      for (let c = 0; c < 3; c++) col[k * 6 + c] = col[k * 6 + 3 + c] = E[c] + (T[c] - E[c]) * w;
     }
     const sg = new THREE.BufferGeometry();
     sg.setAttribute('color', new THREE.BufferAttribute(col, 3));
@@ -735,7 +829,7 @@ export class KeralaTile {
       if (r.flags & 4) continue; // tunnels: not drawn on the surface
       const lanes = r.lanes || (r.cls <= 1 ? 4 : r.cls <= 3 ? 2 : r.cls <= 6 ? 2 : 1);
       const hw = r.cls <= 2 && r.lanes ? Math.max(ROAD_HALF[r.cls], lanes * 1.75) : ROAD_HALF[r.cls];
-      const lift = 0.07 + (10 - r.cls) * 0.004;
+      const lift = r.dirt ? 0.06 : 0.07 + (10 - r.cls) * 0.004;   // (a dirt track always under a paved road it meets)
       // ends cut at the tile border run on a little, so a road crossing the seam at an angle leaves no wedge
       const onEdge = ([e, n]) => e < 0.6 || n < 0.6 || e > TILE - 0.6 || n > TILE - 0.6;
       const run = (a, b) => { const de = a[0] - b[0], dn = a[1] - b[1], l = Math.hypot(de, dn) || 1; return [a[0] + de / l * (hw + 1), a[1] + dn / l * (hw + 1)]; };
@@ -878,6 +972,16 @@ export class KeralaTile {
             const edge = (o0, h0, o1, h1, c0, c1) => quad(K, v(A, o0, h0), v(A, o1, h1), v(B, o1, h1), v(B, o0, h0), c0, c1 || c0);
             edge(hw - 0.06, -0.02, hw + 0.7, -0.05, gravD, grav);                // gravel shoulder
             edge(hw + 0.7, -0.05, hw + 1.25, -0.22, grav, grass);                // down into the grass verge
+            // up in the hills, above a drop: a guard post every ~6 m, banded black and white
+            if ((i & 1) === 0 && A.y0 > 150 && this.heightAt(...A.at(hw + 3.5)) < A.y0 - 1.6) {
+              const [pe, pn] = A.at(hw + 0.95), y = A.y0 - 0.1, w = 0.08, bands = [[0, 0.2, 1], [0.2, 0.4, 0], [0.4, 0.6, 1], [0.6, 0.8, 0]];
+              for (const [h0, h1, wh] of bands) {
+                const c = wh ? [0.62, 0.62, 0.6] : [0.03, 0.03, 0.03];
+                for (const [a, b] of [[[-w, -w], [w, -w]], [[w, -w], [w, w]], [[w, w], [-w, w]], [[-w, w], [-w, -w]]])
+                  quad(K, [-(pe + a[0]), y + h0, pn + a[1]], [-(pe + a[0]), y + h1, pn + a[1]], [-(pe + b[0]), y + h1, pn + b[1]], [-(pe + b[0]), y + h0, pn + b[1]], c);
+              }
+              quad(K, [-(pe - w), y + 0.8, pn - w], [-(pe - w), y + 0.8, pn + w], [-(pe + w), y + 0.8, pn + w], [-(pe + w), y + 0.8, pn - w], [0.62, 0.62, 0.6]);
+            }
           }
           A = B;
         }

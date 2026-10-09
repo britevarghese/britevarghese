@@ -398,6 +398,12 @@ export class KeralaTrees {
         }
         continue;
       }
+      // a tea garden: the bushes are drawn on the ground; over them only the tall, thin shade trees (silver oak),
+      // one every 15-20 m
+      if (h >= 900 && tile.isTea?.(je, jn)) {
+        if (rnd() < 0.09 * (step / 6) ** 2) P.push(je, jn, h, KIND.rubber, 1.05 + rnd() * 0.45, rnd() * 6.283, rnd());
+        continue;
+      }
       // grass tufts on open ground and along the verges
       if ((cls === C.grass || cls === C.land || cls === C.scrub || cls === C.wetland || cls === C.town) && rnd() < 0.35 * D) {
         for (let t = 0; t < 1; t++) { const ge = je + (rnd() - 0.5) * step, gn = jn + (rnd() - 0.5) * step; if (!onRoad(ge, gn)) P.push(ge, gn, tile.heightAt(ge, gn), KIND.grass, 0.6 + rnd() * 0.8, rnd() * 6.283, rnd()); }
