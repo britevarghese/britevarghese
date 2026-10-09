@@ -346,7 +346,7 @@ export class TrafficManager {
     c.x = B.x; c.z = B.z; c.yaw = B.yaw;
     if (this.world.kerala) c.y = this.world.layout.groundHeight(c.x, c.z, c.y) + 0.01;
     c.pitch = lerp(c.pitch, c.slope || 0, 0.15);
-    const lean = v < 0.6 ? -0.07 : -Math.atan(clamp(v * B.yr / 9.81, -0.9, 0.9));   // stopped: on the left foot
+    const lean = v < 0.6 ? -0.12 : -Math.atan(clamp(v * B.yr / 9.81, -0.9, 0.9));   // stopped: leaning onto the left foot
     c.roll = lerp(c.roll || 0, lean, 1 - Math.exp(-dt * (v < 0.6 ? 3 : 6)));
     c.footDown = v < 0.6;
   }

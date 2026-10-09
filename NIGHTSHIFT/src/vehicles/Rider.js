@@ -38,10 +38,11 @@ export function poseTargets(c, bk, tuck, foot = null) {
     };
   }
   if (foot) {
-    // a boot on the tarmac beside the bike, just ahead of the hips; the leg straightens down to it
-    const ground = (side, dz) => new THREE.Vector3(side * (c.pegW + 0.2), 0.06, hip.z + dz);
+    // a boot planted on the tarmac out beside the bike (clear of the engine, a little ahead of the hips), the knee
+    // a touch bent and out; the bike leans onto it
+    const ground = (side, dz, out2 = 0.2) => new THREE.Vector3(side * (c.pegW + out2), 0.06, hip.z + dz);
     const L = out.side[1];
-    if (foot.down > 0) { L.peg.lerp(ground(1, 0.08), foot.down); L.kneeHint.set(0.6, 0.3, 1); }
+    if (foot.down > 0) { L.peg.lerp(ground(1, 0.17, 0.33), foot.down); L.kneeHint.set(0.9, 0.2, 1); }
     if (foot.paddle !== null) {
       for (const side of [1, -1]) {
         // each foot: planted and pushed forward (the bike rolls back), then lifted and swung back

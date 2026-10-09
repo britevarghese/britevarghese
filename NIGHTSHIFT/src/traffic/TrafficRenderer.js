@@ -113,7 +113,7 @@ export class TrafficRenderer {
   attachRiders(humans, SkinnedRider, bikes) {
     if (this.riders || !humans?.ready) return;
     this.riders = {};
-    const helmetGeo = new THREE.SphereGeometry(0.155, 12, 8, 0, Math.PI * 2, 0, Math.PI * 0.62).scale(1, 1.05, 1.18);
+    const helmetGeo = null;   // (each rider's helmet is shaped to its own head: _helmet)
     const HELMETS = [0x1a1a1a, 0xe8e8e8, 0xb01818, 0x1a3a8a, 0xd8b020, 0x2a6a3a];
     for (const [type, cfg] of Object.entries(bikes)) {
       const T = this.types[type];
@@ -130,7 +130,7 @@ export class TrafficRenderer {
         for (const pose of ['ride', 'stop']) {
           if (pose === 'stop') r.pose(0, { down: 1, paddle: null });
           r.model.updateMatrixWorld(true);
-          both[pose] = this._bakeRider(r, helmetGeo);
+          both[pose] = this._bakeRider(r);
         }
         const parts = both;
         variants.push(parts);
@@ -140,10 +140,30 @@ export class TrafficRenderer {
     }
   }
 
-  _bakeRider(r, helmetGeo) {
+  // An open-face helmet shaped to the rider's head: the shell over the top and down the back (the face open), a peak
+  // over the brow and a smoked visor strip, turned with the head (the Head -> HeadTop bone gives its size and tilt)
+  _helmet(r) {
+    let topB = null; r.model.traverse((o) => { if (!topB && /HeadTop_End$/i.test(o.name)) topB = o; });
+    const head = new THREE.Vector3(), top = new THREE.Vector3();
+    r.bones.Head.getWorldPosition(head);
+    if (topB) topB.getWorldPosition(top); else top.copy(head).add(new THREE.Vector3(0, 0.2, 0));
+    const up = top.clone().sub(head), L = up.length(); up.normalize();
+    const fwd = new THREE.Vector3(0, 0, 1).addScaledVector(up, -up.z).normalize(), right = new THREE.Vector3().crossVectors(up, fwd).normalize();
+    const R = Math.min(0.15, Math.max(0.11, L * 0.62)), centre = head.clone().addScaledVector(up, L * 0.52).addScaledVector(fwd, -0.01);
+    const M = new THREE.Matrix4().makeBasis(right, up, fwd).setPosition(centre);
+    const tilt = new THREE.Matrix4().makeRotationX(-0.38);   // the back comes lower than the front
+    const shell = new THREE.SphereGeometry(R, 24, 14, 0, Math.PI * 2, 0, Math.PI * 0.6).scale(1, 0.98, 1.1).applyMatrix4(tilt).applyMatrix4(M);
+    // the peak: a short brim over the brow; the visor: a smoked band across the forehead
+    const peak = new THREE.SphereGeometry(R * 1.06, 18, 2, Math.PI / 2 - 0.85, 1.7, Math.PI * 0.55, Math.PI * 0.05).applyMatrix4(tilt).applyMatrix4(M);
+    const visor = new THREE.SphereGeometry(R * 1.03, 18, 3, Math.PI / 2 - 0.95, 1.9, Math.PI * 0.6, Math.PI * 0.12).applyMatrix4(tilt).applyMatrix4(M);
+    return { shell: mergeGeometries([shell, peak]), visor };
+  }
+
+  _bakeRider(r) {
     const byMat = new Map(), v3 = new THREE.Vector3();
     r.model.traverse((o) => {
       if (!o.isMesh) return;
+      if (/hair/i.test(o.name) || /hair/i.test(o.material?.name || '')) return;   // (under the helmet)
       const src = o.geometry, n = src.attributes.position.count;
       const g = new THREE.BufferGeometry(), pos = new Float32Array(n * 3);
       for (let i = 0; i < n; i++) {
@@ -159,8 +179,6 @@ export class TrafficRenderer {
       if (!byMat.has(m)) byMat.set(m, []);
       byMat.get(m).push(g);
     });
-    // helmet on the head
-    const head = new THREE.Vector3(); r.bones.Head.getWorldPosition(head);
     const parts = [];
     for (const [m, geos] of byMat) {
       const g = geos.length === 1 ? geos[0] : mergeGeometries(geos.map((x) => { if (!x.attributes.uv) x.setAttribute('uv', new THREE.BufferAttribute(new Float32Array(x.attributes.position.count * 2), 2)); return x; }), false);
@@ -169,9 +187,12 @@ export class TrafficRenderer {
       mesh.count = 0; mesh.frustumCulled = false; mesh.castShadow = false;
       this.scene.add(mesh); parts.push(mesh);
     }
-    const hm = new THREE.InstancedMesh(helmetGeo.clone().translate(head.x, head.y + 0.06, head.z - 0.01), new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.3, metalness: 0.1 }), this.maxPerType);
+    const H = this._helmet(r);
+    const hm = new THREE.InstancedMesh(H.shell, new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.35, metalness: 0.05 }), this.maxPerType);
     hm.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(this.maxPerType * 3), 3);
     hm.count = 0; hm.frustumCulled = false; this.scene.add(hm); parts.push(hm); hm.userData.helmet = true;
+    const vm = new THREE.InstancedMesh(H.visor, new THREE.MeshStandardMaterial({ color: 0x15181c, roughness: 0.15, metalness: 0.3 }), this.maxPerType);
+    vm.count = 0; vm.frustumCulled = false; this.scene.add(vm); parts.push(vm);
     return parts;
   }
 
