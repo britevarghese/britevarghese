@@ -601,7 +601,8 @@ export class KeralaTile {
           // main road doesn't dip or rise to meet them); roads of the same class share the average
           const k = key(x.r.pts[pi]); joins.push([i, k]);
           const o = node.get(k); const c = x.r.cls;
-          if (!o || c < o[2]) node.set(k, [yy[i], 1, c, (o?.[3] || 0) + 1, raised[map[i]]]); else if (c === o[2]) { o[0] += yy[i]; o[1]++; o[3]++; o[4] |= raised[map[i]]; } else o[3]++;
+          if (!o || c < o[2]) node.set(k, [yy[i], 1, c, (o?.[3] || 0) + 1, raised[map[i]], o?.[5], o?.[6]]); else if (c === o[2]) { o[0] += yy[i]; o[1]++; o[3]++; o[4] |= raised[map[i]]; } else o[3]++;
+          const q = node.get(k); if (raised[map[i]] && !(q[5] >= yy[i])) { q[5] = yy[i]; q[6] = c; }
         });
         for (const [i, k] of x.xj || []) {
           if (raised[map[i]]) continue;   // (a bridge ramp passing over: no junction there)
@@ -659,9 +660,12 @@ export class KeralaTile {
       const J = [];
       for (const [j, k] of R.joins) {
         const o = node.get(k); if (!o || o[3] < 2) continue;
-        const dy = o[0] / o[1] - prof[j];
+        // a junction on a bridge's or flyover's ramp is at the ramp's height (a side road of about the same
+        // importance climbs to meet it, the ramp doesn't dip to the road below)
+        const onRamp = o[5] !== undefined && o[6] <= o[2] + 2;
+        const dy = (onRamp ? o[5] : o[0] / o[1]) - prof[j];
         // (a lane joined in the map to a flyover's or bridge's ramp passes under or beside it: it keeps its own level)
-        if (o[4] && Math.abs(dy) > 1.5 && R.cls > o[2]) continue;
+        if ((o[4] || onRamp) && Math.abs(dy) > 1.5 && R.cls > Math.min(o[2], onRamp ? o[6] : 99) + 2) continue;
         J.push([D[j], dy, Math.min(150, Math.max(30, Math.abs(dy) / 0.08))]);
       }
       // each junction's correction fades out over 30 m (longer for a big one: no more than 8 % extra grade); where two overlap they blend (each weighted by how far the
