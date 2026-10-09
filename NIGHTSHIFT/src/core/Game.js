@@ -813,8 +813,12 @@ export class Game {
           this.audio.playEvent('collision', { intensity: clamp(hit.impact / 20, 0, 1), type: 'heavy', position: { x: hit.x, y: 0.5, z: hit.z } });
           this.camCtl.addShake(clamp(hit.impact / 25, 0, 0.7));
           this._dentPlayer(hit.x, hit.z, clamp(hit.impact / 25, 0, 1));
-          if (this.police.state === 'idle') this.police.startPursuit(1, 'assaulting an officer');
-          else this.police.reportInfraction('ramPolice');
+          // a light bump (in a queue, parking) gets a warning; a second within 20 s, or a real hit, a pursuit
+          if (this.police.state === 'idle') {
+            const since = this.state.time - (this._copBumpT ?? -99), light = hit.impact < 6.5;
+            if (light && since < 1.5) { /* the same nudge, still touching */ } else if (light && since > 20) { this._copBumpT = this.state.time; this.ui.toast('Police: "Watch where you\'re going!"', 'err', 2.5); bus.emit('traffic:honk', { x: v.state.x, z: v.state.z }); }
+            else this.police.startPursuit(1, 'ramming a police car');
+          } else this.police.reportInfraction('ramPolice');
           if (hit.impact > 6.5) this._bikeCrash();
         }
       }
