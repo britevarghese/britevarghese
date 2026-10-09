@@ -339,10 +339,12 @@ export class KeralaTile {
         const a = P[Math.max(0, i - 1)], b = P[Math.min(P.length - 1, i + 1)], de = b[0] - a[0], dn = b[1] - a[1], l = Math.hypot(de, dn) || 1, o = hw + 5;
         return isW(e - dn / l * o, n + de / l * o) && isW(e + dn / l * o, n - de / l * o);
       });
-      // (the ground before the water beds were sunk, at most half a metre lower: a road beside a creek doesn't dip
-      // into its bed; h0 is shared along the tile edges, so neighbours still agree)
+      // (in the lowlands, the ground before the water beds were sunk, at most half a metre lower: a road beside a
+      // creek doesn't dip into its bed; h0 is shared along the tile edges, so neighbours agree. Not in the hills:
+      // the coarse survey grid stands far above a valley floor there)
+      const rawAt = (e, n) => { const g = gridAt(pre, N, S, e, n), h0 = this._h0At(e, n); return h0 < 25 ? Math.max(g, h0 - 0.5) : g; };
       const cross = (r.flags & 2) && !water.some(Boolean) ? this._roadBeneath(r) : [];
-      E.push({ r, hw, P, at, raw: P.map(([e, n]) => Math.max(gridAt(pre, N, S, e, n), this._h0At(e, n) - 0.5)), water, over: cross.length > 0, cross });
+      E.push({ r, hw, P, at, raw: P.map(([e, n]) => rawAt(e, n)), water, over: cross.length > 0, cross });
     }
     // a dual carriageway's other half: a bridge piece beside a flyover (within 30 m) is a flyover too (the check for
     // a road beneath can miss one half)
@@ -387,7 +389,7 @@ export class KeralaTile {
       chains.push(C2);
     }
     // 3. each chain's profile: the ground smoothed along it (SRTM in town is rooftops and trees: a long window), the raw
-    //    ground kept at the tile's edge (the neighbour sees the same) and eased into over 150 m; decks where it crosses
+    //    ground kept at the tile's edge (the neighbour sees the same) and eased into over 80 m; decks where it crosses
     //    water or runs over another road
     for (const ch of chains) {
       const P = [], raw = [], water = [], over = [], own = [];
@@ -407,7 +409,8 @@ export class KeralaTile {
         for (let i = 0; i < sm.length; i++) { let s2 = 0, c = 0; for (let k = Math.max(0, i - 8); k <= Math.min(sm.length - 1, i + 8); k++) { s2 += sm[k]; c++; } o[i] = s2 / c; }
         sm = o;
       }
-      const prof = P.map(([e, n], i) => raw[i] + (sm[i] - raw[i]) * _smooth(Math.min(1, Math.max(0, Math.min(e, n, TILE - e, TILE - n) / 150))));
+      // (but not far off the ground: round a hairpin the average would cut metres into the hill or float over it)
+      const prof = P.map(([e, n], i) => raw[i] + 5 * Math.tanh((sm[i] - raw[i]) / 5) * _smooth(Math.min(1, Math.max(0, Math.min(e, n, TILE - e, TILE - n) / 80))));
       const wet = water.map((w, i) => w || over[i]);
       const cls = Math.min(...ch.map(([ei]) => E[ei].r.cls)), raised = new Uint8Array(P.length);
       if (wet.some(Boolean)) {
@@ -431,15 +434,25 @@ export class KeralaTile {
           }
           const lift = span < 32 ? 0.3 : cls <= 3 ? 2.5 : cls <= 5 ? 2 : 1.5, clear = span < 32 ? 0.6 : 2;
           if (span >= 32 || over[i]) bigSpan = true;
-          for (let k = i; k <= j; k++) want[k] = water[k] ? Math.max(Number.isFinite(bank) ? bank + lift : -Infinity, this._waterY(P[k][0], P[k][1]) + clear)
+          // (a hill stream or pond lies below its banks: the coarse survey can put its level well above them)
+          const wy = (k) => { const y = this._waterY(P[k][0], P[k][1]); return Number.isFinite(bank) && this._h0At(P[k][0], P[k][1]) >= INLAND ? Math.min(y, bank - 0.3) : y; };
+          for (let k = i; k <= j; k++) want[k] = water[k] ? Math.max(Number.isFinite(bank) ? bank + lift : -Infinity, wy(k) + clear)
             : raw[k] + (cls <= 3 ? 6.5 : 5.2);   // a flyover: clear of the road (and traffic) beneath
           i = j + 1;
         }
         // ramps: 7 % up and down (4 % for a little canal bridge), running on along the chain into the approaches
-        const deck = want.slice(), rk = bigSpan ? 0.07 : 0.04;
-        for (let i = 1; i < P.length; i++) deck[i] = Math.max(deck[i], deck[i - 1] - (D[i] - D[i - 1]) * rk);
-        for (let i = P.length - 2; i >= 0; i--) deck[i] = Math.max(deck[i], deck[i + 1] - (D[i + 1] - D[i]) * rk);
-        for (let i = 0; i < P.length; i++) if (deck[i] > prof[i]) { if (deck[i] > prof[i] + 0.3) raised[i] = 1; prof[i] = deck[i]; }
+        // two decks less than 250 m apart along the road are one: level between them, no dip in a V
+        for (let a = -1, i = 0; i < P.length; i++) {
+          if (!Number.isFinite(want[i])) continue;
+          if (a >= 0 && i > a + 1 && D[i] - D[a] < 250) for (let k = a + 1; k < i; k++) want[k] = Math.max(want[k], want[a] + (want[i] - want[a]) * (D[k] - D[a]) / (D[i] - D[a]));
+          a = i;
+        }
+        // (the height above the road's own profile eases off, not the absolute height: down a hillside steeper than
+        // the ramp, a fixed-slope ramp would never meet the ground again)
+        const ex = want.map((w, i) => w - prof[i]), rk = bigSpan ? 0.07 : 0.04;
+        for (let i = 1; i < P.length; i++) ex[i] = Math.max(ex[i], ex[i - 1] - (D[i] - D[i - 1]) * rk);
+        for (let i = P.length - 2; i >= 0; i--) ex[i] = Math.max(ex[i], ex[i + 1] - (D[i + 1] - D[i]) * rk);
+        for (let i = 0; i < P.length; i++) if (ex[i] > 0) { if (ex[i] > 0.3) raised[i] = 1; prof[i] += ex[i]; }
       }
       // back to the pieces
       const per = new Map();
@@ -455,7 +468,7 @@ export class KeralaTile {
           // main road doesn't dip or rise to meet them); roads of the same class share the average
           const k = key(x.r.pts[pi]); joins.push([i, k]);
           const o = node.get(k); const c = x.r.cls;
-          if (!o || c < o[2]) node.set(k, [yy[i], 1, c, (o?.[3] || 0) + 1]); else if (c === o[2]) { o[0] += yy[i]; o[1]++; o[3]++; } else o[3]++;
+          if (!o || c < o[2]) node.set(k, [yy[i], 1, c, (o?.[3] || 0) + 1, raised[map[i]]]); else if (c === o[2]) { o[0] += yy[i]; o[1]++; o[3]++; o[4] |= raised[map[i]]; } else o[3]++;
         });
         roads.push({ hw: x.hw, P: x.P, prof: yy, joins, wet: ww, cls: x.r.cls });
         x.r.surf = { P: x.P, y: yy, hw: x.hw };   // the road's own surface (drawn and driven on): see _surfAt
@@ -465,15 +478,25 @@ export class KeralaTile {
       const { P, prof } = R;
       // distance along the road
       const D = [0]; for (let i = 1; i < P.length; i++) D.push(D[i - 1] + Math.hypot(P[i][0] - P[i - 1][0], P[i][1] - P[i - 1][1]));
-      const adj = new Float32Array(P.length), wt = new Float32Array(P.length);
+      const J = [];
       for (const [j, k] of R.joins) {
         const o = node.get(k); if (!o || o[3] < 2) continue;
         const dy = o[0] / o[1] - prof[j];
-        // (a lane joined in the map to a flyover's ramp passes under or beside it: it keeps its own level)
-        if (Math.abs(dy) > 1.5 && R.cls > o[2]) continue;
-        for (let i = 0; i < P.length; i++) { const w = 1 - Math.abs(D[i] - D[j]) / 30; if (w > wt[i]) { wt[i] = w; adj[i] = dy * _smooth(w); } }
+        // (a lane joined in the map to a flyover's or bridge's ramp passes under or beside it: it keeps its own level)
+        if (o[4] && Math.abs(dy) > 1.5 && R.cls > o[2]) continue;
+        J.push([D[j], dy, Math.min(150, Math.max(30, Math.abs(dy) / 0.08))]);
       }
-      for (let i = 0; i < P.length; i++) prof[i] += adj[i];
+      // each junction's correction fades out over 30 m (longer for a big one: no more than 8 % extra grade); where two overlap they blend (each weighted by how far the
+      // other has faded), exact at each junction and with no jump between them
+      if (J.length) for (let i = 0; i < P.length; i++) {
+        const s = J.map(([d, , L]) => _smooth(Math.max(0, 1 - Math.abs(D[i] - d) / L)));
+        let a = 0;
+        for (let q = 0; q < J.length; q++) { if (!s[q]) continue; let w = s[q]; for (let r = 0; r < J.length; r++) if (r !== q) w *= 1 - s[r]; a += J[q][1] * w; }
+        // (two junctions closer than the fade share it: normalised so the road still meets both)
+        let tot = 0; for (let q = 0; q < J.length; q++) { let w = s[q]; for (let r = 0; r < J.length; r++) if (r !== q) w *= 1 - s[r]; tot += w; }
+        const full = Math.max(...s);
+        prof[i] += (tot > 1e-6 ? a / tot : J[s.indexOf(full)][1]) * full;
+      }
     }
     for (const { hw, P, prof, wet } of roads) {
       const inner = hw + S * 0.75;          // every terrain triangle the road crosses is levelled to it
