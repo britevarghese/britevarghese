@@ -859,7 +859,7 @@ class KeralaLights {
     this.dyn = [];
     for (let i = 0; i < n; i++) {
       // sodium-warm, a wide cone straight down: a pool on the road under each lamp, dark gaps between
-      const light = new THREE.SpotLight(0xffc98a, 0, 42, 1.1, 0.6, 1.7);
+      const light = new THREE.SpotLight(0xffc98a, 0, 36, 1.1, 0.6, 1.2);   // (a gentle falloff: a wall by the pole isn't blown out)
       light.castShadow = false;
       this.scene.add(light, light.target);
       this.dyn.push({ light, lamp: null, k: 0 });
@@ -895,7 +895,7 @@ class KeralaLights {
         if (d.k === 0) { d.lamp = rest.shift() || null; if (d.lamp) { d.light.position.set(d.lamp[0], d.lamp[1] - 0.15, d.lamp[2]); d.light.target.position.set(d.lamp[0], d.lamp[1] - 8, d.lamp[2]); } }
       } else d.k = Math.min(1, d.k + dt * 2.5);
       // (always in the scene: changing the light count would recompile every shader)
-      d.light.intensity = d.lamp && on ? d.k * 1700 * Math.min(1, (night - 0.3) * 2) : 0;
+      d.light.intensity = d.lamp && on ? d.k * 48 * Math.min(1, (night - 0.3) * 2) : 0;
     }
   }
 }
