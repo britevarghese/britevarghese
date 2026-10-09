@@ -1706,7 +1706,7 @@ export class KeralaTile {
           this.colliders.push({ cx: -(this.E0 + me), cz: this.N0 + mn, hx: 0.3, hz: L / 2 + 0.15, cos: Math.cos(ang), sin: Math.sin(ang), angle: ang, h: top, kind: 'building' });
         }
       }
-      if (opts.ledges) this._details(D, { ring, n, base, g0, top, wallTop, H, area, house, tiled, shop, kind, ce, cn, floorH, floors, bays }, rnd);
+      if (opts.details ?? opts.ledges) this._details(D, { ring, n, base, g0, top, wallTop, H, area, house, tiled, shop, kind, ce, cn, floorH, floors, bays }, rnd);
       // festival lights: strings of bulbs along the eaves (and a second row lower down on the bigger ones) of every
       // church (warm white), temple (orange and yellow chains) and mosque (green and white), lit after dark
       if (kind >= 6 && kind <= 8 && opts.festive !== false) {
@@ -1756,7 +1756,7 @@ export class KeralaTile {
       const pts = new THREE.Points(g, M.klFestive); pts.name = 'festive'; pts.renderOrder = 2; out.push(pts);
     }
     yield 'tile:bdetail';
-    if (opts.ledges) out.push(...(yield* this._detailMeshes(D, M, opts)));
+    if (opts.details ?? opts.ledges) out.push(...(yield* this._detailMeshes(D, M, opts)));
     return out;
   }
 
