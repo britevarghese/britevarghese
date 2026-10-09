@@ -668,7 +668,7 @@ export class KeralaTile {
     }
     if (!idx.length) return null;
     // a low bank is bare laterite earth; a tall cut or fill is held by a grey rubble retaining wall, as on hill roads
-    const col = new Float32Array(pos.length), E = new THREE.Color(0x7a5a40).toArray(), R = new THREE.Color(0x85827a).toArray();
+    const col = new Float32Array(pos.length), E = new THREE.Color(0x6b6150).toArray(), R = new THREE.Color(0x85827a).toArray();   // (earth and gravel, not raw laterite)
     for (let k = 0; k < pos.length / 6; k++) {
       const w = Math.min(1, Math.max(0, (Math.abs(pos[k * 6 + 1] - pos[k * 6 + 4]) - 0.8) / 0.6));
       for (let c = 0; c < 3; c++) col[k * 6 + c] = col[k * 6 + 3 + c] = E[c] + (R[c] - E[c]) * w;
@@ -790,7 +790,7 @@ export class KeralaTile {
       // --- kerb, drain, footpath on both sides
       const striped = r.cls <= 3;
       for (const side of [1, -1]) {
-        let cover = rnd() < 0.4, runLeft = 6 + rnd() * 20;
+        let cover = rnd() < 0.7, runLeft = 6 + rnd() * 20;
         const prof = (i) => {
           const [e, n] = P[i], [ne, nn] = N[i];
           const at = (o) => [e + ne * o * side, n + nn * o * side];
@@ -809,7 +809,7 @@ export class KeralaTile {
         for (let i = 1; i < P.length; i++) {
           const B = prof(i);
           const mid = [(P[i][0] + P[i - 1][0]) / 2, (P[i][1] + P[i - 1][1]) / 2];
-          if ((runLeft -= 3) < 0) { cover = !cover; runLeft = cover ? 3 + rnd() * 9 : 6 + rnd() * 24; }
+          if ((runLeft -= 3) < 0) { cover = !cover; runLeft = cover ? 12 + rnd() * 30 : 3 + rnd() * 8; }   // (mostly slabbed over in town)
           if (deckOnly && !(A.water && B.water)) { A = B; continue; }
           if (A.town && B.town && inTile(mid) && !nj(mid[0], mid[1]) && !nj(...A.at(hw + 0.5)) && !nj(...B.at(hw + 0.5))
             && !this.onRoad(...A.at(hw + 0.4), 0.2, ri) && !this.onRoad(...B.at(hw + 0.4), 0.2, ri)) {
@@ -824,7 +824,7 @@ export class KeralaTile {
             if (cover) edge(hw + 0.2, 0.16, hw + 0.75, 0.17, [0.24 * j, 0.235 * j, 0.21 * j]); // slabs over the drain
             else {
               edge(hw + 0.2, 0.16, hw + 0.2, -0.04, conc, [0.07, 0.08, 0.06]);  // drain: inner wall
-              edge(hw + 0.2, -0.04, hw + 0.75, -0.04, [0.012, 0.016, 0.01]);      // black water / silt
+              edge(hw + 0.2, -0.04, hw + 0.75, -0.04, [0.05, 0.06, 0.045]);       // water / silt
               edge(hw + 0.75, -0.04, hw + 0.75, 0.17, [0.07, 0.08, 0.06], conc); // outer wall
             }
             if (B.shop && A.shop) {
@@ -845,18 +845,16 @@ export class KeralaTile {
             if (A.wet || B.wet || !bridge) edge(hw + 0.16, -0.1, hw + 0.3, -2.6, stone, [0.08, 0.09, 0.07]); // side wall down to the water
             const a = A.at(hw + 0.02), b = B.at(hw + 0.02), de = b[0] - a[0], dn = b[1] - a[1], L = Math.hypot(de, dn) || 1, ang = Math.atan2(-de / L, dn / L);
             this.colliders.push({ cx: -(this.E0 + (a[0] + b[0]) / 2), cz: this.N0 + (a[1] + b[1]) / 2, hx: 0.16, hz: Math.max(0.2, L / 2 - 0.05), cos: Math.cos(ang), sin: Math.sin(ang), angle: ang, h: Math.max(A.y0, B.y0) + 0.62, kind: 'barrier' });
-          } else if (!A.town && !B.town && !A.water && !B.water && !bridge && r.cls <= 5 && !cover && inTile(mid) && !nj(mid[0], mid[1])
+          } else if (!A.town && !B.town && !A.water && !B.water && !bridge && r.cls <= 7 && inTile(mid) && !nj(mid[0], mid[1])
             && !this.onRoad(...A.at(hw + 0.5), 0.2, ri) && !this.onRoad(...B.at(hw + 0.5), 0.2, ri)) {
-            // country road: the laterite-lined open drain (kaana) along the edge, broken where gates and lanes cross
+            // country road: a clean gravel shoulder along the edge, easing down into a grassy verge (broken where
+            // gates and lanes cross)
             const K = kerb[chunkOf(...mid)];
             const v = (Q, o, h) => { const [e, n] = Q.at(o); return [-e, Q.y0 + h, n]; };
-            const j = 0.85 + rnd() * 0.2, lat = [0.3 * j, 0.14 * j, 0.075 * j], latD = [0.15 * j, 0.07 * j, 0.04 * j];
+            const j = 0.9 + rnd() * 0.12, grav = [0.3 * j, 0.28 * j, 0.24 * j], gravD = [0.24 * j, 0.22 * j, 0.19 * j], grass = [0.13 * j, 0.19 * j, 0.08 * j];
             const edge = (o0, h0, o1, h1, c0, c1) => quad(K, v(A, o0, h0), v(A, o1, h1), v(B, o1, h1), v(B, o0, h0), c0, c1 || c0);
-            edge(hw - 0.06, -0.03, hw + 0.12, 0.03, latD, lat);                  // shoulder lip
-            edge(hw + 0.12, 0.03, hw + 0.17, -0.07, lat, latD);                  // inner wall
-            edge(hw + 0.17, -0.07, hw + 0.57, -0.07, [0.02, 0.03, 0.02]);         // water / silt
-            edge(hw + 0.57, -0.07, hw + 0.62, 0.1, latD, lat);                   // outer wall
-            edge(hw + 0.62, 0.1, hw + 0.85, -0.3, lat, [0.1, 0.12, 0.06]);        // back to the verge
+            edge(hw - 0.06, -0.02, hw + 0.7, -0.05, gravD, grav);                // gravel shoulder
+            edge(hw + 0.7, -0.05, hw + 1.25, -0.22, grav, grass);                // down into the grass verge
           }
           A = B;
         }
