@@ -1,6 +1,7 @@
 // UIManager: main menu, pause, settings, world map, event briefing, results, toasts and the
 // F3 developer overlay. Keyboard, mouse and gamepad navigation for every menu.
 import { MAP_SCALE } from './MapRenderer.js';
+import { friendColor } from '../networking/NetworkClient.js';
 import * as VP from '../core/Viewport.js';
 import { bus } from '../core/EventBus.js';
 import { QUALITY_LEVELS, QUALITY_LABELS } from '../core/QualityManager.js';
@@ -457,10 +458,14 @@ export class UIManager {
     // friends in the session: click to track them on the GPS (click again to stop)
     const net = g.net;
     if (net?.connected && net.remotes.size) {
-      list.appendChild(h('div', '', '<b style="color:#b967ff">FRIENDS</b> <span style="color:var(--dim)">click to track</span>'));
+      list.appendChild(h('div', '', `<b style="color:var(--text)">PLAYERS HERE (${net.remotes.size})</b>`));
       for (const r of net.remotes.values()) {
-        const ps = g.focusState, d = h('div', '', `<b style="color:#b967ff">● ${r.name}</b> <span style="color:var(--dim)">${(Math.hypot(r.x - ps.x, r.z - ps.z) / 1000).toFixed(1)} km${r.foot ? ' · on foot' : ''}</span>`);
-        d.onclick = () => g.trackFriend(r.id);
+        const ps = g.focusState, col = friendColor(r.id), d = h('div', 'friend-row', `<b style="color:${col}">● ${r.name}</b> <span style="color:var(--dim)">${(Math.hypot(r.x - ps.x, r.z - ps.z) / 1000).toFixed(1)} km${r.foot ? ' · on foot' : ''}</span>`);
+        const bt = h('button', 'friend-btn', g.gps?.friend === r.id ? 'STOP' : 'TRACK'), fd = h('button', 'friend-btn', 'FIND');
+        bt.onclick = (e) => { e.stopPropagation(); g.trackFriend(r.id); bt.textContent = g.gps?.friend === r.id ? 'STOP' : 'TRACK'; };
+        fd.onclick = (e) => { e.stopPropagation(); this._mapFocus?.(r.x, r.z); };   // (centre the map on them)
+        d.onclick = () => this._mapFocus?.(r.x, r.z);
+        const bb = h('span', 'friend-btns'); bb.append(bt, fd); d.append(bb);
         list.appendChild(d);
       }
     }
@@ -509,6 +514,10 @@ export class UIManager {
       V.z = Math.max(1, Math.min(MAXZ, V.z));
       const w = canvas.width, hh = canvas.height, S = Math.max(w, hh) * V.z;
       V.x = Math.min(w * 0.5, Math.max(w * 0.5 - S, V.x)); V.y = Math.min(hh * 0.5, Math.max(hh * 0.5 - S, V.y));
+    };
+    this._mapFocus = (x, z) => {
+      const KL = !!g.world.kerala, M = KL ? g.keralaOverview : g.mapRenderer, k = Math.max(canvas.width, canvas.height) / M.size;
+      V.z = Math.max(V.z, KL ? 45 : 4); V.x = canvas.width / 2 - M.px(x) * k * V.z; V.y = canvas.height / 2 - M.pz(z) * k * V.z; clampView();
     };
     const zoomAt = (sx, sy, f) => { const z0 = V.z; V.z = Math.max(1, Math.min(MAXZ, V.z * f)); V.x = sx - (sx - V.x) * V.z / z0; V.y = sy - (sy - V.y) * V.z / z0; clampView(); };
     canvas.addEventListener('wheel', (e) => {
@@ -595,8 +604,20 @@ export class UIManager {
       if (!g.story?.active) for (const [gid, m] of Object.entries(g.story?.available() || {})) { const gv = g.story._giver(gid); dot(gv.x, gv.z, 8, CAST[gid].color, `${CAST[gid].name}: ${m.title}`); }
       for (const b of g.empire?.blips() || []) dot(b.x, b.z, 5, b.color, b.label);
       for (const b of g.story?.active ? g.story.blips() : []) dot(b.x, b.z, 6, b.color);
-      // friends, with their names
-      for (const fr of g.net?.remotes?.values() || []) dot(fr.x, fr.z, g.gps?.friend === fr.id ? 8 : 6, g.gps?.friend === fr.id ? '#37e2ff' : '#b967ff', fr.name);
+      // friends: a big marker in their colour pointing where they head, their name and distance on a tag; the one
+      // you are tracking ringed and pulsing
+      for (const fr of g.net?.remotes?.values() || []) {
+        const [a, b] = P(fr.x, fr.z), [a2, b2] = P(fr.x + Math.sin(fr.yaw ?? 0) * 50, fr.z + Math.cos(fr.yaw ?? 0) * 50);
+        const col = friendColor(fr.id), tracked = g.gps?.friend === fr.id, R = (tracked ? 11 : 9) * dpr, ang = Math.atan2(b2 - b, a2 - a);
+        if (tracked) { const pr = R * (1.6 + 0.5 * Math.sin(performance.now() / 180)); c.strokeStyle = col; c.lineWidth = 3 * dpr; c.beginPath(); c.arc(a, b, pr, 0, 7); c.stroke(); }
+        c.save(); c.translate(a, b); c.rotate(ang + Math.PI / 2); c.shadowColor = col; c.shadowBlur = 12 * dpr;
+        c.fillStyle = col; c.strokeStyle = '#0a0e12'; c.lineWidth = 2.5 * dpr;
+        c.beginPath(); c.moveTo(0, -R * 1.5); c.lineTo(R, R * 0.8); c.lineTo(0, R * 0.35); c.lineTo(-R, R * 0.8); c.closePath(); c.fill(); c.stroke(); c.restore();
+        const fs = g.focusState, d = Math.hypot(fr.x - fs.x, fr.z - fs.z), t = `${fr.name}  ${d >= 1000 ? (d / 1000).toFixed(1) + ' km' : Math.round(d) + ' m'}${fr.foot ? ' · on foot' : ''}`;
+        c.font = `700 ${13 * dpr}px Segoe UI, Arial`; const tw = c.measureText(t).width;
+        c.fillStyle = 'rgba(10,14,18,0.85)'; c.fillRect(a + R * 1.4, b - 11 * dpr, tw + 12 * dpr, 22 * dpr);
+        c.fillStyle = col; c.fillRect(a + R * 1.4, b - 11 * dpr, 3 * dpr, 22 * dpr); c.fillText(t, a + R * 1.4 + 8 * dpr, b + 4.5 * dpr);
+      }
       const ps = g.focusState;
       const [px, pz] = P(ps.x, ps.z);
       c.save(); c.translate(px, pz); c.rotate(-ps.yaw); c.fillStyle = '#fff'; c.strokeStyle = '#0a0e12'; c.lineWidth = 2.5 * dpr; c.shadowColor = 'rgba(55,226,255,0.9)'; c.shadowBlur = 10 * dpr;

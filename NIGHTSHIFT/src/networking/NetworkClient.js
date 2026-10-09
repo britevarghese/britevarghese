@@ -41,16 +41,29 @@ class Proxy {
   obb() { const s = this.s; return { cx: s.x, cz: s.z, hx: this.p.hx * 0.96, hz: this.p.hz * 0.97, cos: Math.cos(s.yaw), sin: Math.sin(s.yaw) }; }
 }
 
-function nameTag(text) {
-  const c = document.createElement('canvas'); c.width = 256; c.height = 64;
-  const g = c.getContext('2d');
-  g.font = '600 30px system-ui, sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle';
-  const w = Math.min(250, g.measureText(text).width + 28);
-  g.fillStyle = 'rgba(10,12,18,0.72)'; g.beginPath(); g.roundRect(128 - w / 2, 10, w, 44, 12); g.fill();
-  g.fillStyle = '#d9b3ff'; g.fillText(text, 128, 33);
+// each player their own colour (the same on every screen: from the id), used on the map, the minimap and the tag
+const FRIEND_COLORS = ['#b967ff', '#ff8a3d', '#3dd6ff', '#ff4fb0', '#7dff5a', '#ffd23d', '#ff5a5a', '#5a8cff'];
+export const friendColor = (id) => FRIEND_COLORS[Math.abs(Number(id) || 0) % FRIEND_COLORS.length];
+
+// a name tag over a player: their name in their colour and how far away they are; it keeps the same size on screen
+// and, for the one you are tracking, shows through buildings
+function nameTag(r) {
+  const c = document.createElement('canvas'); c.width = 384; c.height = 72;
   const tex = new THREE.CanvasTexture(c); tex.colorSpace = THREE.SRGBColorSpace;
   const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, transparent: true, depthWrite: false, sizeAttenuation: false }));
-  s.scale.set(0.16, 0.04, 1); s.renderOrder = 10;
+  s.scale.set(0.24, 0.045, 1); s.renderOrder = 10;
+  s.userData.draw = (dist, tracked) => {
+    const label = `${tracked ? '◎ ' : ''}${r.name}${dist > 40 ? ' · ' + (dist >= 1000 ? (dist / 1000).toFixed(1) + ' km' : Math.round(dist) + ' m') : ''}`;
+    if (s.userData.label === label) return;
+    s.userData.label = label;
+    const g = c.getContext('2d'); g.clearRect(0, 0, c.width, c.height);
+    g.font = '700 32px system-ui, sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle';
+    const w = Math.min(378, g.measureText(label).width + 34), col = friendColor(r.id);
+    g.fillStyle = 'rgba(10,12,18,0.78)'; g.beginPath(); g.roundRect(192 - w / 2, 8, w, 54, 14); g.fill();
+    g.strokeStyle = col; g.lineWidth = tracked ? 5 : 3; g.stroke();
+    g.fillStyle = col; g.fillText(label, 192, 36);
+    tex.needsUpdate = true;
+  };
   return s;
 }
 
@@ -290,9 +303,14 @@ export class NetworkClient {
         }
       }
       // name tag over the head / roof
-      if (!r.tag) { r.tag = nameTag(r.name); g.scene.add(r.tag); }
-      r.tag.position.set(x, y + (r.foot ? 2.15 : (vehicleDef(r.car).p.bike ? 2.0 : 1.9)), z);
-      r.tag.visible = Math.hypot(x - cam.x, z - cam.z) < 300;
+      r.yaw = _e.y;
+      if (!r.tag) { r.tag = nameTag(r); g.scene.add(r.tag); }
+      // (seen from far off, so a friend can be found: up to 2 km, and the tracked one through walls)
+      const dist = Math.hypot(x - cam.x, z - cam.z), tracked = g.gps?.friend === r.id;
+      r.tag.position.set(x, y + (r.foot ? 2.15 : (vehicleDef(r.car).p.bike ? 2.0 : 1.9)) + Math.min(6, dist * 0.01), z);
+      r.tag.visible = dist < 2000;
+      r.tag.material.depthTest = !tracked;
+      r.tag.userData.draw(dist, tracked);
       // their parked cars
       for (const pc of r.parked.values()) {
         if (!pc.renderer) pc.renderer = this._renderer(pc.car, pc.paint);

@@ -1,6 +1,7 @@
 // HUD: analog/digital hybrid speedometer (canvas), circular minimap cropped from the 2D map,
 // heat level, pursuit/bust meters, race info, cash, prompts and center messages.
 import { clamp, lerp, formatTime, formatMoney } from '../core/util.js';
+import { friendColor } from '../networking/NetworkClient.js';
 import { MAP_SCALE } from './MapRenderer.js';
 
 const h = (tag, cls, html) => { const e = document.createElement(tag); if (cls) e.className = cls; if (html !== undefined) e.innerHTML = html; return e; };
@@ -55,6 +56,20 @@ export class HUD {
     this.msgT = time;
   }
 
+  // following a friend: their name, how far, and an arrow toward them (relative to where you face)
+  _trackBanner(g) {
+    const id = g.gps?.friend, r = id != null ? g.net?.remotes?.get(id) : null;
+    if (!this.trackEl) { this.trackEl = document.createElement('div'); this.trackEl.className = 'track-banner hidden'; this.root.appendChild(this.trackEl); }
+    if (!r) { this.trackEl.classList.add('hidden'); return; }
+    const f = g.focusState, d = Math.hypot(r.x - f.x, r.z - f.z), col = friendColor(r.id);
+    // bearing to them, relative to your heading (the world's x runs west: a turn to the right is negative)
+    let a = Math.atan2(r.x - f.x, r.z - f.z) - (f.yaw || 0); while (a > Math.PI) a -= Math.PI * 2; while (a < -Math.PI) a += Math.PI * 2;
+    const html = `<i style="transform:rotate(${(-a * 180 / Math.PI).toFixed(0)}deg);color:${col}">▲</i> TRACKING <b style="color:${col}">${r.name}</b> · ${d >= 1000 ? (d / 1000).toFixed(1) + ' km' : Math.round(d) + ' m'}`;
+    if (this.trackEl.innerHTML !== html) this.trackEl.innerHTML = html;
+    this.trackEl.style.borderColor = col;
+    this.trackEl.classList.remove('hidden');
+  }
+
   setPrompt(html) {
     if (!html) { this.prompt.classList.add('hidden'); return; }
     // touch screens: the on-screen button instead of the keys, and the prompt itself can be tapped
@@ -75,6 +90,7 @@ export class HUD {
   update(dt, g) {
     const player = g.player;
     if (!player) return;
+    this._trackBanner(g);
     const s = player.state;
     const mph = this.settings.gameplay.units === 'mph';
     const kmh = Math.abs(s.speed) * 3.6;
@@ -256,8 +272,6 @@ export class HUD {
     // next checkpoint
     const gate = game.races?.nextGate();
     if (gate) { const [a, b] = W2(gate.x, gate.z); g.strokeStyle = '#ff3d5a'; g.lineWidth = 3 / k; g.beginPath(); g.arc(a, b, 9 / k, 0, Math.PI * 2); g.stroke(); }
-    // traffic
-    for (const t of game.traffic?.cars || []) if (t.dist < this.zoom * 1.1) dot(t.x, t.z, 2.2, 'rgba(200,210,220,0.55)');
     // racers
     for (const v of game.races?.vehicles() || []) dot(v.state.x, v.state.z, 3.6, '#ffc53d');
     for (const r of game.rivals?.rivals || []) dot(r.v.state.x, r.v.state.z, 4.2, r.crew.color);
@@ -267,21 +281,32 @@ export class HUD {
     const blink = Math.floor(performance.now() / 180) % 2;
     for (const u of game.police?.units || []) dot(u.vehicle.state.x, u.vehicle.state.z, 4, u.disabled ? '#555' : u.vehicle.renderer.sirenOn ? (blink ? '#ff3040' : '#3060ff') : '#9aa8ff');
     g.restore();
-    // friends in the session: a marker with their initial, pinned to the rim with an arrow when out of range
+    // friends in the session (no traffic on the map: they are what you look for): a big marker in their colour
+    // pointing where they are heading, with their name; out of range, pinned to the rim with an arrow and the distance
     for (const r of game.net?.remotes?.values() || []) {
-      const dx = r.x - s.x, dz = r.z - s.z;
+      const dx = r.x - s.x, dz = r.z - s.z, dist = Math.hypot(dx, dz);
       // world -> minimap (heading up; +x is west, drawn to the left)
       let mx = -(dx * Math.cos(s.yaw) - dz * Math.sin(s.yaw)) * scale, my = -(dx * Math.sin(s.yaw) + dz * Math.cos(s.yaw)) * scale;
-      const rr = Math.hypot(mx, my), lim = W / 2 - 12, out = rr > lim;
+      const rr = Math.hypot(mx, my), lim = W / 2 - W * 0.07, out = rr > lim;
       if (out) { mx *= lim / rr; my *= lim / rr; }
-      const tracked = game.gps?.friend === r.id;
+      const tracked = game.gps?.friend === r.id, col = friendColor(r.id), R = W * (tracked ? 0.06 : 0.05);
       g.save(); g.translate(cx + mx, cy + my);
-      if (out) { g.rotate(Math.atan2(my, mx)); g.fillStyle = tracked ? '#37e2ff' : '#b967ff'; g.beginPath(); g.moveTo(9, 0); g.lineTo(-4, -6); g.lineTo(-4, 6); g.closePath(); g.fill(); }
-      else {
-        g.fillStyle = tracked ? '#37e2ff' : '#b967ff'; g.strokeStyle = '#0a0e12'; g.lineWidth = 2;
-        g.beginPath(); g.arc(0, 0, W * 0.035, 0, Math.PI * 2); g.fill(); g.stroke();
-        g.fillStyle = '#0a0e12'; g.font = `700 ${Math.round(W * 0.04)}px Segoe UI, Arial`; g.textAlign = 'center'; g.textBaseline = 'middle';
-        g.fillText((r.name || '?')[0].toUpperCase(), 0, 0.5);
+      g.shadowColor = col; g.shadowBlur = W * (tracked ? 0.06 : 0.03);
+      if (out) {
+        g.save(); g.rotate(Math.atan2(my, mx)); g.fillStyle = col; g.strokeStyle = '#0a0e12'; g.lineWidth = 2;
+        g.beginPath(); g.moveTo(R * 1.3, 0); g.lineTo(-R * 0.6, -R); g.lineTo(-R * 0.6, R); g.closePath(); g.fill(); g.stroke(); g.restore();
+        g.shadowBlur = 0; g.font = `700 ${Math.round(W * 0.045)}px Segoe UI, Arial`; g.textAlign = 'center'; g.textBaseline = 'middle';
+        const t = `${(r.name || '?').slice(0, 8)} ${dist >= 1000 ? (dist / 1000).toFixed(1) + 'km' : Math.round(dist) + 'm'}`;
+        const ix = -mx / rr * W * 0.13, iy = -my / rr * W * 0.09;
+        g.lineWidth = 4; g.strokeStyle = 'rgba(10,14,18,0.9)'; g.strokeText(t, ix, iy); g.fillStyle = col; g.fillText(t, ix, iy);
+      } else {
+        // their heading, turned into the minimap's frame (it turns with you)
+        g.save(); g.rotate(s.yaw - (r.yaw ?? s.yaw));   // (the minimap is mirrored: x is west)
+        g.fillStyle = col; g.strokeStyle = '#0a0e12'; g.lineWidth = 2;
+        g.beginPath(); g.moveTo(0, -R * 1.5); g.lineTo(R, R * 0.8); g.lineTo(0, R * 0.35); g.lineTo(-R, R * 0.8); g.closePath(); g.fill(); g.stroke();
+        g.restore();
+        g.shadowBlur = 0; g.font = `700 ${Math.round(W * 0.045)}px Segoe UI, Arial`; g.textAlign = 'left'; g.textBaseline = 'middle';
+        g.lineWidth = 4; g.strokeStyle = 'rgba(10,14,18,0.9)'; g.strokeText(r.name || '?', R * 1.3, 0); g.fillStyle = col; g.fillText(r.name || '?', R * 1.3, 0);
       }
       g.restore();
     }
