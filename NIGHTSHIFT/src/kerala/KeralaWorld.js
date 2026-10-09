@@ -132,6 +132,17 @@ export class KeralaWorld {
     return p;
   }
 
+  // _setBack a few milliseconds at a time
+  *_setBackSteps(t, spots, hx, hz) {
+    if (!spots?.length) return spots;
+    const out = [];
+    for (const b of spots) {
+      if (t._due()) { yield 'world:setback'; t._ys = performance.now(); }
+      out.push(...this._setBack([b], hx, hz));
+    }
+    return out;
+  }
+
   _setBack(spots, hx, hz) {
     if (!spots?.length) return spots;
     const onRd = (x, z) => { const o = this.tileAt(x, z); return !!o?.ready && o.onRoad(-x - o.E0, z - o.N0, 0.4, -1, 7); };
@@ -267,8 +278,8 @@ export class KeralaWorld {
     const n0 = t.colliders.length;
     // tea stalls and bus shelters stand clear of every carriageway (a junction's other road, a wide highway): set back
     // from the road until the whole footprint, bench included, is off it, or dropped
-    t.teaShops = this._setBack(t.teaShops, 1.4, 1.9);
-    t.busStops = this._setBack(t.busStops, 1.9, 0.9);
+    t.teaShops = yield* this._setBackSteps(t, t.teaShops, 1.4, 1.9);
+    t.busStops = yield* this._setBackSteps(t, t.busStops, 1.9, 0.9);
     // tea stalls
     if (t.teaShops?.length && this.teaGeo) {
       const im = new THREE.InstancedMesh(this.teaGeo, this.M.klStop, t.teaShops.length), sg = new THREE.InstancedMesh(this.teaSignGeo, this.M.klTeaSign, t.teaShops.length);
@@ -294,7 +305,7 @@ export class KeralaWorld {
     // this tile's colliders against every loaded road, and the neighbours' border colliders against this tile's roads
     yield 'world:extras';
     const own = [...t.colliders];
-    for (let i = 0; i < own.length; i += 1500) { this._clearLanes(t, own.slice(i, i + 1500)); yield 'world:clear+'; }
+    for (let i = 0; i < own.length; i += 300) { this._clearLanes(t, own.slice(i, i + 300)); yield 'world:clear+'; }
     for (const o of this.tiles.values()) {
       if (o === t || !o.ready || Math.abs(o.tx - t.tx) > 1 || Math.abs(o.tz - t.tz) > 1) continue;
       this._clearLanes(o, o.colliders.filter((c) => { const e = -c.cx - o.E0, n = c.cz - o.N0; return e < 40 || n < 40 || e > TILE - 40 || n > TILE - 40; }));
@@ -555,6 +566,7 @@ export class KeralaWorld {
     if (this.job) {
       const t0 = performance.now();
       while (performance.now() - t0 < 6) {
+        this.job.t._ys = performance.now();   // (the tile's own ~3 ms pauses count from here)
         const a = performance.now(), r = this.job.it.next(), d = performance.now() - a;
         if (this.stepLog) this.stepLog.push([this.job?.last || 'start', d]);
         if (r.done) { this.job = null; break; }

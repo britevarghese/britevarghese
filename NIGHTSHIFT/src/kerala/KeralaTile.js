@@ -121,8 +121,12 @@ export class KeralaTile {
     return r.value;
   }
 
+  // inside a build step: has ~3 ms of work gone by since the last pause? (resumed steps reset _ys)
+  _due() { return performance.now() - (this._ys ?? (this._ys = performance.now())) > 3; }
+
   // the build in stages (a generator), so the world can spread a tile over several frames instead of stalling one
   *buildSteps(M, opts) {
+    this._ys = performance.now();
     const d = this.data;
     const g = new THREE.Group();
     g.name = `kl_${this.tx}_${this.tz}`;
@@ -139,7 +143,7 @@ export class KeralaTile {
     const water = this._water(M, d);
     if (water) g.add(water);
     yield 'tile:terrain';
-    for (const m of this._roads(M)) g.add(m);
+    for (const m of yield* this._roads(M)) g.add(m);
     yield 'tile:roads';
     for (const m of yield* this._street(M, opts)) g.add(m);
     this._nearJunction = null;
@@ -148,9 +152,9 @@ export class KeralaTile {
     yield 'tile:buildings';
     for (const m of this._poles(M, opts)) g.add(m);
     yield 'tile:poles';
-    if (opts.trees) { this.trees = opts.trees.plant(this); g.add(this.trees.group); }
+    if (opts.trees) { this.trees = yield* opts.trees.plantSteps(this); g.add(this.trees.group); yield 'tile:trees'; }
     else { const palms = this._palms(opts); if (palms) g.add(palms); }
-    this.clearRoads(this.colliders);
+    yield* this._clearRoadsSteps(this.colliders);
     g.traverse((o) => { o.matrixAutoUpdate = false; o.updateMatrix(); });
     g.updateMatrixWorld(true);
     this.ready = true;
@@ -563,7 +567,8 @@ export class KeralaTile {
     return sg;
   }
 
-  _roads(M) {
+  // (a generator: yields every ~3 ms of work, see _due)
+  *_roads(M) {
     const paved = [], dirt = [], white = [], yellow = [], shoulders = [];
     const y = (lift) => (e, n) => this.heightAt(e, n) + lift;
     // junctions (points shared by roads): markings stop short of them, as painted lines do
@@ -589,6 +594,7 @@ export class KeralaTile {
     };
     // wider classes sit a hair higher so junctions don't flicker
     for (const r of this.roads) {
+      if (this._due()) { yield 'tile:roads+'; this._ys = performance.now(); }
       if (r.flags & 4) continue; // tunnels: not drawn on the surface
       const lanes = r.lanes || (r.cls <= 1 ? 4 : r.cls <= 3 ? 2 : r.cls <= 6 ? 2 : 1);
       const hw = r.cls <= 2 && r.lanes ? Math.max(ROAD_HALF[r.cls], lanes * 1.75) : ROAD_HALF[r.cls];
@@ -651,7 +657,7 @@ export class KeralaTile {
     };
     this.bumps = [];
     for (const [ri, r] of this.roads.entries()) {
-      if ((ri & 31) === 31) yield 'tile:street+';
+      if (this._due()) { yield 'tile:street+'; this._ys = performance.now(); }
       // (the highways get only their bridge parapets here)
       if ((r.cls < 2 && !r.deck) || r.cls > 7 || r.dirt || r.flags & 4 || r.pts.length < 2) continue;
       const bridge = !!(r.flags & 2), deckOnly = r.cls < 2;
@@ -1018,6 +1024,26 @@ export class KeralaTile {
   // Nothing solid stands in a lane: a collider whose box reaches 0.5 m onto a carriageway (map outlines and our road
   // widths don't always agree) is removed, so the worst case is driving through the edge of a wall, never an invisible
   // wall in the road. Returns the colliders kept (filters the array in place).
+  // clearRoads, a few milliseconds at a time (a tile has thousands of colliders)
+  *_clearRoadsSteps(list) {
+    const keep = [];
+    for (let i = 0; i < list.length; i++) {
+      if ((i & 63) === 63 && this._due()) { yield 'tile:clear+'; this._ys = performance.now(); }
+      if (!this._onRoadBox(list[i])) keep.push(list[i]);
+    }
+    this.removedColliders = list.length - keep.length;
+    list.length = 0; list.push(...keep);
+    return list;
+  }
+
+  _onRoadBox(c) {
+    for (let a = -1; a <= 1; a += 0.5) for (let b = -1; b <= 1; b += 0.5) {
+      const lx = c.hx * a, lz = c.hz * b, x = c.cx + lx * c.cos + lz * c.sin, z = c.cz - lx * c.sin + lz * c.cos;
+      if (this.onRoad(-x - this.E0, z - this.N0, -0.5, -1, 6)) return true;
+    }
+    return false;
+  }
+
   clearRoads(list) {
     const keep = list.filter((c) => {
       for (let a = -1; a <= 1; a += 0.5) for (let b = -1; b <= 1; b += 0.5) {
@@ -1152,6 +1178,7 @@ export class KeralaTile {
     // lies inside a bigger one is dropped, or its walls and shopfront would poke through the bigger building
     const pre = [], N = Math.min(list.length, maxB);
     for (let bi = 0; bi < N; bi++) {
+      if ((bi & 63) === 63 && this._due()) { yield 'tile:buildings+'; this._ys = performance.now(); }
       const ring = decodeLine(list[bi], 2);
       let a = 0, ce = 0, cn = 0;
       for (let i = 0; i < ring.length; i++) { const [x1, y1] = ring[i], [x2, y2] = ring[(i + 1) % ring.length]; a += x1 * y2 - x2 * y1; ce += x1; cn += y1; }
@@ -1161,6 +1188,7 @@ export class KeralaTile {
     const inside = (R, e, n) => { let c = false; for (let i = 0, j = R.length - 1; i < R.length; j = i++) { const [xi, yi] = R[i], [xj, yj] = R[j]; if ((yi > n) !== (yj > n) && e < ((xj - xi) * (n - yi)) / (yj - yi) + xi) c = !c; } return c; };
     const BG = new Map(), hidden = new Uint8Array(N);
     for (const bi of [...pre.keys()].sort((a, b) => pre[b].area - pre[a].area)) {
+      if (this._due()) { yield 'tile:buildings+'; this._ys = performance.now(); }
       const P = pre[bi];
       if (P.ring.length < 3) { hidden[bi] = 1; continue; }
       let e0 = Infinity, e1 = -Infinity, n0 = Infinity, n1 = -Infinity;
@@ -1183,7 +1211,7 @@ export class KeralaTile {
       for (let x = Math.floor(e0 / 40); x <= Math.floor(e1 / 40); x++) for (let z = Math.floor(n0 / 40); z <= Math.floor(n1 / 40); z++) { const k = x * 100 + z; if (!BG.has(k)) BG.set(k, []); BG.get(k).push(bi); }
     }
     for (let bi = 0; bi < N; bi++) {
-      if ((bi & 127) === 127) yield 'tile:buildings+';
+      if (this._due()) { yield 'tile:buildings+'; this._ys = performance.now(); }
       if (hidden[bi]) continue;
       const b = list[bi];
       const kind = b[0], H = b[1] / 10;
@@ -1329,12 +1357,14 @@ export class KeralaTile {
       }
       if (opts.ledges) this._details(D, { ring, n, base, g0, top, wallTop, H, area, house, tiled, shop, kind, ce, cn, floorH, floors, bays }, rnd);
     }
+    yield 'tile:bmerge';
     const out = [];
-    for (const [fac, geos] of byMat) { const g = mergeGeometries(geos); if (g) { const m = new THREE.Mesh(g, M.facades[fac] || M.facades[6]); m.castShadow = !!opts.shadows; m.receiveShadow = true; out.push(m); } }
+    for (const [fac, geos] of byMat) { if (this._due()) { yield 'tile:bmerge+'; this._ys = performance.now(); } const g = mergeGeometries(geos); if (g) { const m = new THREE.Mesh(g, M.facades[fac] || M.facades[6]); m.castShadow = !!opts.shadows; m.receiveShadow = true; out.push(m); } }
     const strip = (gs) => gs.map((g) => { for (const k of Object.keys(g.attributes)) if (k !== 'position' && k !== 'normal') g.deleteAttribute(k); return g; });
     if (roofsTile.length) { const g = mergeGeometries(roofsTile); if (g) { const m = new THREE.Mesh(g, M.klRoofTile); m.castShadow = !!opts.shadows; m.name = 'roofsTile'; out.push(m); } }
     // ledges in 500 m chunks, so only the ones near the camera are drawn (3 quads each: top, front, underside)
     for (let c = 0; c < 16; c++) {
+      if (this._due()) { yield 'tile:bmerge+'; this._ys = performance.now(); }
       const L = ledges.filter((l) => l[1] === c);
       if (!L.length) continue;
       const pos = new Float32Array(L.length * 8 * 3), idx = [];
@@ -1352,7 +1382,8 @@ export class KeralaTile {
     }
     if (roofsFlat.length) { const g = mergeGeometries(strip(roofsFlat)); if (g) out.push(new THREE.Mesh(g, M.klRoofFlat)); }
     if (tanks.length) { const g = mergeGeometries(tanks); if (g) out.push(new THREE.Mesh(g, M.klTank)); }
-    if (opts.ledges) out.push(...this._detailMeshes(D, M, opts));
+    yield 'tile:bdetail';
+    if (opts.ledges) out.push(...(yield* this._detailMeshes(D, M, opts)));
     return out;
   }
 
@@ -1504,7 +1535,7 @@ export class KeralaTile {
     }
   }
 
-  _detailMeshes(D, M, opts) {
+  *_detailMeshes(D, M, opts) {
     const out = [], cc = (c) => [(c % 4) * 500 + 250, Math.floor(c / 4) * 500 + 250];
     const geo = { ac: opts.acGeo, pipe: opts.pipeGeo, balc: opts.balconyGeo, gate: opts.gateGeo, awning: opts.awningGeo, sign: opts.signGeo, crate: opts.crateGeo, chair: opts.chairGeo, scooter: opts.scooterGeo };
     // awnings in faded tarpaulin blues, greens, reds and tin; scooters in the usual paints
@@ -1514,6 +1545,7 @@ export class KeralaTile {
     for (const [k, list] of Object.entries(D.props)) {
       if (!geo[k] || (k === 'scooter' && opts.realScooter)) continue;
       for (let c = 0; c < 16; c++) {
+        if (this._due()) { yield 'tile:bdetail+'; this._ys = performance.now(); }
         const idx = []; list.forEach((q, i) => { if (q[1] === c) idx.push(i); });
         const L = idx.map((i) => list[i]);
         if (!L.length) continue;
@@ -1533,8 +1565,14 @@ export class KeralaTile {
       g.computeVertexNormals();
       const m = new THREE.Mesh(g, mat); m.name = name; m.userData.far = far; return m;
     };
-    D.walls.forEach((A, c) => { const m = mk(A, M.klKerb, 'compound', 400); if (m) { m.userData.cc = cc(c); m.castShadow = !!opts.shadows; m.receiveShadow = true; out.push(m); } });
-    if (M.klAO) D.ao.forEach((A, c) => { const m = mk(A, M.klAO, 'ao', 400, 4); if (m) { m.userData.cc = cc(c); m.renderOrder = 1; out.push(m); } });
+    for (const [c, A] of D.walls.entries()) {
+      if (this._due()) { yield 'tile:bdetail+'; this._ys = performance.now(); }
+      const m = mk(A, M.klKerb, 'compound', 400); if (m) { m.userData.cc = cc(c); m.castShadow = !!opts.shadows; m.receiveShadow = true; out.push(m); }
+    }
+    if (M.klAO) for (const [c, A] of D.ao.entries()) {
+      if (this._due()) { yield 'tile:bdetail+'; this._ys = performance.now(); }
+      const m = mk(A, M.klAO, 'ao', 400, 4); if (m) { m.userData.cc = cc(c); m.renderOrder = 1; out.push(m); }
+    }
     return out;
   }
 

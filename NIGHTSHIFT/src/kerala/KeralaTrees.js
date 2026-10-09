@@ -334,8 +334,12 @@ export class KeralaTrees {
   }
 
   // scatter a tile's plants: returns { mesh group (distant copies), data for the near set }
-  plant(tile) {
+  plant(tile) { const it = this.plantSteps(tile); let r; while (!(r = it.next()).done); return r.value; }
+
+  // (a generator: it yields every ~3 ms of work, so a tile's planting spreads over frames)
+  *plantSteps(tile) {
     const D = this.density;
+    let ys = performance.now(), yc = 0;
     let s = (tile.tx * 2654435761 ^ tile.tz * 40503) >>> 0;
     const rnd = () => ((s = (s * 1664525 + 1013904223) >>> 0) / 4294967296);
     // probability of a plant per cell, and the mix [palm, broad, banana, bush] by land use
@@ -380,6 +384,7 @@ export class KeralaTrees {
       return estate.get(k);
     };
     for (let n = step / 2; n < TILE; n += step) for (let e = step / 2; e < TILE; e += step) {
+      if ((++yc & 31) === 0 && performance.now() - ys > 3) { yield 'trees+'; ys = performance.now(); }
       const je = e + (rnd() - 0.5) * step * 0.95, jn = n + (rnd() - 0.5) * step * 0.95;
       const cls = tile.classAt(je, jn), mix = MIX[cls];
       if (!mix || onRoad(je, jn)) continue;
@@ -414,6 +419,7 @@ export class KeralaTrees {
       if (!data.cells.has(c)) data.cells.set(c, []);
       data.cells.get(c).push(i);
     }
+    yield 'trees+';
     // shade under the canopy on the ground texture (also what reads as forest from far away)
     if (tile.visCanvas) {
       const V = tile.visCanvas.getContext('2d'), RS = tile.visCanvas.width / TILE;
@@ -426,6 +432,7 @@ export class KeralaTrees {
       const terr = tile.group?.getObjectByName('terrain');
       if (terr?.material.map) terr.material.map.needsUpdate = true;
     }
+    yield 'trees+';
     // distant copies: a share of the plants, a little bigger (palms, and one blob mesh for everything else)
     const g = new THREE.Group(); g.name = 'klTreesFar';
     const loFrac = 0.1 + 0.18 * Math.min(1, D), loScale = 1 / Math.sqrt(loFrac) * 0.6;
