@@ -294,12 +294,28 @@ export class KeralaTile {
   // the cut or fill running out over a distance that grows with its height. Where roads meet or run close, the
   // nearest road shapes the ground. Not at the tile's edge rows (so tiles meet), and the profile runs into the
   // natural ground over the last 40 m before a tile edge.
+  // a road tagged as a bridge on dry land is a flyover only where another road passes beneath it (crosses it in plan
+  // without meeting it); otherwise it's a culvert or a mistagged way, and stays at road level
+  _roadBeneath(r) {
+    const seg = (a, b, c, d) => { const o = (p, q, s2) => (q[0] - p[0]) * (s2[1] - p[1]) - (q[1] - p[1]) * (s2[0] - p[0]); return o(a, b, c) * o(a, b, d) < 0 && o(c, d, a) * o(c, d, b) < 0; };
+    const mine = new Set(r.pts.map(([e, n]) => `${Math.round(e)},${Math.round(n)}`));
+    for (const o of this.roads) {
+      if (o === r || o.flags & 2 || o.cls > 8 || o.pts.length < 2) continue;
+      if (o.pts.some(([e, n]) => mine.has(`${Math.round(e)},${Math.round(n)}`))) continue;
+      for (let i = 1; i < r.pts.length; i++) for (let j = 1; j < o.pts.length; j++) if (seg(r.pts[i - 1], r.pts[i], o.pts[j - 1], o.pts[j])) return true;
+    }
+    return false;
+  }
+
   _gradeRoads() {
     const N = this.gn, S = this.gs, pre = this.h.slice(), H = this.h;
     const Ws = new Float32Array(N * N), Ys = new Float32Array(N * N), Am = new Float32Array(N * N);
     // each road's own smoothed profile first; then where roads meet they share one height, each road easing to it
     // over its last 30 m (else two roads would meet a step apart on a hillside)
     const roads = [], node = new Map(), key = ([e, n]) => `${Math.round(e)},${Math.round(n)}`;
+    const isW = (e, n) => { const c = this.classAt(e, n); return c === C.water || c === C.sea; };
+    // 1. each road sampled every ~4 m: points, ground under them, water under them
+    const E = [];
     for (const r of this.roads) {
       if (r.flags & 4 || r.cls > 8 || r.pts.length < 2) continue;
       const lanes = r.lanes || (r.cls <= 1 ? 4 : r.cls <= 3 ? 2 : r.cls <= 6 ? 2 : 1);
@@ -310,48 +326,87 @@ export class KeralaTile {
         for (let s = i === 1 ? 0 : 1; s <= k; s++) { P.push([ae + (be - ae) * s / k, an + (bn - an) * s / k]); at.push(s === k ? i : s === 0 ? i - 1 : -1); }
       }
       if (P.length < 2) continue;
-      const raw = P.map(([e, n]) => gridAt(pre, N, S, e, n));
-      let sm = raw;
-      for (let pass = 0; pass < 3; pass++) {
-        const o = new Array(sm.length);
-        for (let i = 0; i < sm.length; i++) { let s = 0, c = 0; for (let k = Math.max(0, i - 5); k <= Math.min(sm.length - 1, i + 5); k++) { s += sm[k]; c++; } o[i] = s / c; }
-        sm = o;
-      }
-      const prof = P.map(([e, n], i) => raw[i] + (sm[i] - raw[i]) * Math.min(1, Math.max(0, Math.min(e, n, TILE - e, TILE - n) / 40)));
-      // bridges: over water (or tagged as a bridge) the road rises to a deck clear of the water, on approach
-      // ramps of 7%; the water under the span is left alone (not graded), the approaches are banked up
       // (the road's own pixels read as road: over water means water on both sides of it)
-      const isW = (e, n) => { const c = this.classAt(e, n); return c === C.water || c === C.sea; };
       const water = P.map(([e, n], i) => {
         if (isW(e, n)) return true;
         const a = P[Math.max(0, i - 1)], b = P[Math.min(P.length - 1, i + 1)], de = b[0] - a[0], dn = b[1] - a[1], l = Math.hypot(de, dn) || 1, o = hw + 5;
         return isW(e - dn / l * o, n + de / l * o) && isW(e + dn / l * o, n - de / l * o);
       });
-      const wet = water.map((w) => w || !!(r.flags & 2));
+      E.push({ r, hw, P, at, raw: P.map(([e, n]) => gridAt(pre, N, S, e, n)), water, over: !!(r.flags & 2) && !water.some(Boolean) && this._roadBeneath(r) });
+    }
+    // 2. chains: where exactly two road ends meet (and nothing else passes), it is one road in OSM's pieces (a bridge
+    //    is usually its own short way): graded as one, so a bridge's ramps run on into its approaches
+    const ends = new Map(), through = new Set();
+    E.forEach((x, i) => {
+      x.r.pts.forEach((pt, k) => { if (k > 0 && k < x.r.pts.length - 1) through.add(key(pt)); });
+      for (const [end, pt] of [[0, x.r.pts[0]], [1, x.r.pts[x.r.pts.length - 1]]]) { const k = key(pt); if (!ends.has(k)) ends.set(k, []); ends.get(k).push([i, end]); }
+    });
+    const link = new Map();   // `${i},${end}` -> [j, endJ]
+    for (const [k, L] of ends) if (L.length === 2 && !through.has(k) && L[0][0] !== L[1][0]) { link.set(L[0].join(','), L[1]); link.set(L[1].join(','), L[0]); }
+    const used = new Uint8Array(E.length), chains = [];
+    for (let i = 0; i < E.length; i++) {
+      if (used[i]) continue;
+      // walk back to the chain's first piece, then forward
+      let cur = i, fwd = true, guard = 0;
+      for (;;) { const prev = link.get(`${cur},${fwd ? 0 : 1}`); if (!prev || prev[0] === i || guard++ > E.length) break; fwd = prev[1] === 1; cur = prev[0]; }
+      const C2 = []; guard = 0;
+      for (;;) { if (used[cur]) break; used[cur] = 1; C2.push([cur, fwd]); const nx = link.get(`${cur},${fwd ? 1 : 0}`); if (!nx || guard++ > E.length) break; cur = nx[0]; fwd = nx[1] === 0; }
+      chains.push(C2);
+    }
+    // 3. each chain's profile: the ground smoothed along it (SRTM in town is rooftops and trees: a long window), the raw
+    //    ground kept at the tile's edge (the neighbour sees the same) and eased into over 150 m; decks where it crosses
+    //    water or runs over another road
+    for (const ch of chains) {
+      const P = [], raw = [], water = [], over = [], own = [];
+      for (const [ei, fwd] of ch) {
+        const x = E[ei], n = x.P.length;
+        for (let q = 0; q < n; q++) {
+          const i = fwd ? q : n - 1 - q;
+          if (P.length && q === 0) { own.push([ei, i, P.length - 1]); continue; }   // the shared joint
+          own.push([ei, i, P.length]); P.push(x.P[i]); raw.push(x.raw[i]); water.push(x.water[i]); over.push(x.over);
+        }
+      }
+      const D = [0]; for (let i = 1; i < P.length; i++) D.push(D[i - 1] + Math.hypot(P[i][0] - P[i - 1][0], P[i][1] - P[i - 1][1]));
+      let sm = raw;
+      for (let pass = 0; pass < 4; pass++) {
+        const o = new Array(sm.length);
+        for (let i = 0; i < sm.length; i++) { let s2 = 0, c = 0; for (let k = Math.max(0, i - 8); k <= Math.min(sm.length - 1, i + 8); k++) { s2 += sm[k]; c++; } o[i] = s2 / c; }
+        sm = o;
+      }
+      const prof = P.map(([e, n], i) => raw[i] + (sm[i] - raw[i]) * _smooth(Math.min(1, Math.max(0, Math.min(e, n, TILE - e, TILE - n) / 150))));
+      const wet = water.map((w, i) => w || over[i]);
+      const cls = Math.min(...ch.map(([ei]) => E[ei].r.cls)), raised = new Uint8Array(P.length);
       if (wet.some(Boolean)) {
-        // each span: a little above its higher bank, and at least 2 m over the water
-        const lift = r.cls <= 3 ? 2.5 : r.cls <= 5 ? 2 : 1.5, D = [0];
-        for (let i = 1; i < P.length; i++) D.push(D[i - 1] + Math.hypot(P[i][0] - P[i - 1][0], P[i][1] - P[i - 1][1]));
         const want = new Array(P.length).fill(-Infinity);
         for (let i = 0; i < P.length;) {
           if (!wet[i]) { i++; continue; }
           let j = i; while (j + 1 < P.length && wet[j + 1]) j++;
-          const bank = Math.max(i > 0 ? prof[i - 1] : -Infinity, j + 1 < P.length ? prof[j + 1] : -Infinity);
-          for (let k = i; k <= j; k++) want[k] = water[k] ? Math.max(Number.isFinite(bank) ? bank + lift : -Infinity, this._waterY(P[k][0], P[k][1]) + 2)
-            : raw[k] + (r.cls <= 3 ? 6.5 : 5.2);   // a flyover over land: clear of the road (and traffic) beneath
+          const span = D[j] - D[i] + 4, bank = Math.max(i > 0 ? prof[i - 1] : -Infinity, j + 1 < P.length ? prof[j + 1] : -Infinity);
+          // a drain or ditch (a culvert under the road) changes nothing; a canal bridge rises a little; rivers and
+          // backwaters get a deck
+          if (span < 14 && !over[i]) { i = j + 1; continue; }
+          const lift = span < 32 ? 0.6 : cls <= 3 ? 2.5 : cls <= 5 ? 2 : 1.5, clear = span < 32 ? 1.0 : 2;
+          for (let k = i; k <= j; k++) want[k] = water[k] ? Math.max(Number.isFinite(bank) ? bank + lift : -Infinity, this._waterY(P[k][0], P[k][1]) + clear)
+            : raw[k] + (cls <= 3 ? 6.5 : 5.2);   // a flyover: clear of the road (and traffic) beneath
           i = j + 1;
         }
+        // ramps: 7 % up and down, running on along the chain into the approaches
         const deck = want.slice();
         for (let i = 1; i < P.length; i++) deck[i] = Math.max(deck[i], deck[i - 1] - (D[i] - D[i - 1]) * 0.07);
         for (let i = P.length - 2; i >= 0; i--) deck[i] = Math.max(deck[i], deck[i + 1] - (D[i + 1] - D[i]) * 0.07);
-        let up = false;
-        for (let i = 0; i < P.length; i++) if (deck[i] > prof[i]) { prof[i] = deck[i]; up = true; }
-        if (up) r.deck = { P, y: prof, wet, hw };
+        for (let i = 0; i < P.length; i++) if (deck[i] > prof[i]) { if (deck[i] > prof[i] + 0.3) raised[i] = 1; prof[i] = deck[i]; }
       }
-      // the road's points that other roads share (junctions)
-      const joins = [];
-      at.forEach((pi, i) => { if (pi < 0) return; const k = key(r.pts[pi]); joins.push([i, k]); const o = node.get(k) || [0, 0]; o[0] += prof[i]; o[1]++; node.set(k, o); });
-      roads.push({ hw, P, prof, joins, wet });
+      // back to the pieces
+      const per = new Map();
+      for (const [ei, i, ci] of own) { if (!per.has(ei)) per.set(ei, new Array(E[ei].P.length)); per.get(ei)[i] = ci; }
+      for (const [ei, map] of per) {
+        const x = E[ei], yy = map.map((ci) => prof[ci]), ww = map.map((ci) => wet[ci]);
+        // a deck where the road is lifted clear (water spans, flyovers and their ramps)
+        if (map.some((ci) => raised[ci])) x.r.deck = { P: x.P, y: yy, wet: ww, hw: x.hw }; else delete x.r.deck;
+        const joins = [];
+        x.at.forEach((pi, i) => { if (pi < 0) return; const k = key(x.r.pts[pi]); joins.push([i, k]); const o = node.get(k) || [0, 0]; o[0] += yy[i]; o[1]++; node.set(k, o); });
+        roads.push({ hw: x.hw, P: x.P, prof: yy, joins, wet: ww });
+      }
     }
     for (const R of roads) {
       const { P, prof } = R;
