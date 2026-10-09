@@ -705,7 +705,7 @@ export class KeralaTile {
           // tea (texture alpha): rounded hedges in rows along the contours, a dark path between, fading to their
           // average colour where the rows get finer than a pixel; on near-level ground no rows show
           + ' float tea = clamp((1.0 - sampledDiffuseColor.a) * 2.2 - 0.05, 0.0, 1.0); diffuseColor.a = 1.0;'
-          + ' if (tea > 0.0) { float u = vWp.y / 0.4 + g2 * 0.8, w = fwidth(u), p = fract(u);'
+          + ' if (tea > 0.0) { float u = vWp.y / 0.4 + 0.4 * (sin(vWp.x * 0.071) + sin(vWp.z * 0.053 + 1.7)), w = fwidth(u), p = fract(u);'
           + '   float up = clamp(vUp, 0.2, 1.0), sl = sqrt(1.0 - up * up) / up;'
           + '   float dome = clamp(sin(3.14159 * (p - 0.12) / 0.76), 0.0, 1.0), rows = smoothstep(0.06, 0.18, sl);'
           + '   float shade = mix(mix(0.15, 1.0, sqrt(dome)), 0.78, smoothstep(0.15, 0.45, w));'

@@ -12,6 +12,7 @@ import { keralaRoadMaterial } from '../renderer/Materials.js';
 import { KeralaLaneGraph } from './KeralaLanes.js';
 import { KeralaRouter } from './KeralaRouter.js';
 import { KeralaTrees } from './KeralaTrees.js';
+import { KeralaTea } from './KeralaTea.js';
 
 const BASE = '/assets/world/kerala/';
 const RADIUS = 2;        // tiles loaded around the player (5 x 5 = 10 x 10 km)
@@ -103,6 +104,7 @@ export class KeralaWorld {
     this.tankGeo = (() => { const g = new THREE.CylinderGeometry(0.62, 0.62, 1.25, 10).translate(0, 0.62 + 0.25, 0); g.deleteAttribute('uv'); return g.toNonIndexed(); })();
     this.palmMat = new THREE.MeshLambertMaterial({ vertexColors: true, side: THREE.DoubleSide });
     this.trees = new KeralaTrees(scene, preset);
+    this.teaBushes = new KeralaTea(scene);
     this.queue = [];
   }
 
@@ -576,6 +578,7 @@ export class KeralaWorld {
       }
     }
     this.trees?.update(camera, this.tiles);
+    this.teaBushes?.update(dt, camera, this);
     this._treeColliders(this.focus || p);
     // the Kerala road follows the shared road's wet / dry look
     const R = this.M?.klRoad, B = this.M?.road;
