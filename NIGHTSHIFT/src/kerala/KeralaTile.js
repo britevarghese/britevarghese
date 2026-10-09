@@ -134,7 +134,7 @@ export class KeralaTile {
     g.name = `kl_${this.tx}_${this.tz}`;
     g.position.set(-this.E0, 0, this.N0);
     this.group = g;
-    this._rasters(d);
+    this._rasters(d, opts);
     this._smoothTowns();
     this._sinkWater();
     yield 'tile:rasters';
@@ -164,7 +164,7 @@ export class KeralaTile {
   }
 
   // class canvas (what is where: water / land use / roads / buildings) + the visible ground colours
-  _rasters(d) {
+  _rasters(d, opts = {}) {
     const mk = () => { const c = document.createElement('canvas'); c.width = c.height = RASTER; return c; };
     const vis = mk(), cl = mk(), V = vis.getContext('2d'), K = cl.getContext('2d', { willReadFrequently: true }); // read back below: keep it on the CPU
     V.fillStyle = LU_COLOR[0]; V.fillRect(0, 0, RASTER, RASTER);
@@ -200,6 +200,8 @@ export class KeralaTile {
     const MOTTLE = ['#2f4a20', '#3c5a26', '#6b5a3a', '#8a5a3c', '#7a7048'];
     for (let i = 0; i < 2600; i++) { V.fillStyle = MOTTLE[Math.floor(rnd() * MOTTLE.length)]; const r = 0.8 + rnd() * rnd() * 7; V.beginPath(); V.ellipse(rnd() * RASTER, rnd() * RASTER, r, r * (0.5 + rnd() * 0.5), rnd() * 3, 0, 6.283); V.fill(); }
     V.globalAlpha = 1;
+    // the houses and shops the map hasn't got (see _infill), before anything is drawn from the building list
+    if (!d._infill) { d._infill = true; this._infill(d, K.getImageData(0, 0, RASTER, RASTER).data, opts.maxBuildings ?? 6000); }
     // swept earth yards round the houses (Kerala compounds), a little wider than the footprint
     V.fillStyle = 'rgba(132,96,66,0.55)'; V.strokeStyle = 'rgba(132,96,66,0.45)'; V.lineJoin = 'round';
     V.lineWidth = Math.max(1, 7 * PX);
@@ -312,6 +314,61 @@ export class KeralaTile {
       out.push(P[P.length - 1]);
       r.pts = out;
     }
+  }
+
+  // Kerala's lowlands and midlands are built along nearly every road: a house in its compound every plot or so, and
+  // in town a run of shops at the road's edge. OSM has only some of them mapped; the rest are filled in here, on
+  // plots along the roads where the land is buildable (not paddy, water, forest, open grass or rock) and nothing is
+  // mapped: shops set at the footpath in town, houses set back behind a yard elsewhere.
+  _infill(d, L, maxB) {
+    const list = d.b || (d.b = []);
+    if (list.length >= maxB) return;
+    let s = (this.tx * 7919 ^ this.tz * 104729 ^ 0x2f6a) >>> 0;
+    const rnd = () => ((s = (s * 1664525 + 1013904223) >>> 0) / 4294967296);
+    const lu = (e, n) => { const px = Math.min(RASTER - 1, Math.max(0, Math.floor(e * PX))), py = Math.min(RASTER - 1, Math.max(0, Math.floor((TILE - n) * PX))); return L[(py * RASTER + px) * 4]; };
+    const OK = new Set([C.land, C.grove, C.town, C.commercial, C.scrub]), TOWN = new Set([C.town, C.commercial]);
+    // what's taken: the mapped buildings (their box and a margin), then each new one
+    const G = 2, occ = new Set(), mark = (e0, n0, e1, n1, m) => { for (let x = Math.floor((e0 - m) / G); x <= Math.floor((e1 + m) / G); x++) for (let z = Math.floor((n0 - m) / G); z <= Math.floor((n1 + m) / G); z++) occ.add(x * 10000 + z); };
+    const free = (e0, n0, e1, n1) => { for (let x = Math.floor(e0 / G); x <= Math.floor(e1 / G); x++) for (let z = Math.floor(n0 / G); z <= Math.floor(n1 / G); z++) if (occ.has(x * 10000 + z)) return false; return true; };
+    for (const b of list) { const R = decodeLine(b, 2); let e0 = Infinity, e1 = -Infinity, n0 = Infinity, n1 = -Infinity; for (const [e, n] of R) { e0 = Math.min(e0, e); e1 = Math.max(e1, e); n0 = Math.min(n0, n); n1 = Math.max(n1, n); } mark(e0, n0, e1, n1, 1.5); }
+    const add = [];
+    for (const r of this.roads) {
+      if (r.cls > 7 || r.flags & 6 || r.pts.length < 2) continue;
+      const hw = r.cls <= 2 && r.lanes ? Math.max(ROAD_HALF[r.cls], r.lanes * 1.75) : ROAD_HALF[r.cls];
+      // walk the road: a plot every so often on each side
+      const P = r.pts, D = [0]; for (let i = 1; i < P.length; i++) D.push(D[i - 1] + Math.hypot(P[i][0] - P[i - 1][0], P[i][1] - P[i - 1][1]));
+      const len = D[D.length - 1]; if (len < 30) continue;
+      const at = (d0) => { let i = 1; while (i < P.length - 1 && D[i] < d0) i++; const u = (d0 - D[i - 1]) / ((D[i] - D[i - 1]) || 1), a = P[i - 1], b = P[i], l = (D[i] - D[i - 1]) || 1; return [a[0] + (b[0] - a[0]) * u, a[1] + (b[1] - a[1]) * u, (b[0] - a[0]) / l, (b[1] - a[1]) / l]; };
+      for (const side of [1, -1]) {
+        for (let d0 = 12 + rnd() * 8; d0 < len - 12;) {
+          const [e, n, te, tn] = at(d0), ne = -tn * side, nn = te * side;
+          if (gridAt(this.h, GRID, STEP, e, n) > 450) { d0 += 25; continue; }   // (not up in the high ranges)
+          const c0 = lu(e + ne * (hw + 6), n + nn * (hw + 6)), town = TOWN.has(c0);
+          const w = town ? 6 + rnd() * 4 : 8 + rnd() * 5;
+          if (!OK.has(c0) || rnd() > (town ? 0.9 : 0.5)) { d0 += w + 2 + rnd() * 6; continue; }
+          const back = town ? hw + 2.4 + rnd() * 0.8 : hw + 5 + rnd() * 6, dep = town ? 9 + rnd() * 5 : 7 + rnd() * 4;
+          const c = [e + ne * (back + dep / 2), n + nn * (back + dep / 2)];
+          const ring = [[-w / 2, -dep / 2], [w / 2, -dep / 2], [w / 2, dep / 2], [-w / 2, dep / 2]].map(([a, b]) => [c[0] + te * a + ne * b, c[1] + tn * a + nn * b]);
+          let e0 = Infinity, e1 = -Infinity, n0 = Infinity, n1 = -Infinity; for (const [x, z] of ring) { e0 = Math.min(e0, x); e1 = Math.max(e1, x); n0 = Math.min(n0, z); n1 = Math.max(n1, z); }
+          const good = e0 > 2 && n0 > 2 && e1 < TILE - 2 && n1 < TILE - 2 && free(e0, n0, e1, n1)
+            && [...ring, c].every(([x, z]) => OK.has(lu(x, z)) && !this.onRoad(x, z, 1.2))
+            && !this.onRoad(c[0] - ne * dep * 0.25, c[1] - nn * dep * 0.25, 1.2);
+          if (good) {
+            mark(e0, n0, e1, n1, town ? 0.3 : 2.5);
+            const H = town ? 6.2 + Math.floor(rnd() * 3) * 3.1 : rnd() < 0.55 ? 3.6 : 6.4;
+            const out = [town ? 4 : 1, Math.round(H * 10)];
+            let px = 0, pz = 0;
+            ring.forEach(([x, z], i) => { const X = Math.round(x * 10), Z = Math.round(z * 10); if (i) out.push(X - px, Z - pz); else out.push(X, Z); px = X; pz = Z; });
+            add.push([(town ? 0 : 10) + r.cls + rnd(), out]);
+          }
+          d0 += w + (town ? 0.2 + rnd() * 1.5 : 4 + rnd() * 10);
+        }
+      }
+    }
+    // (a budget: town shop rows first, then the houses along the bigger roads)
+    const keep = add.sort((a, b) => a[0] - b[0]).slice(0, Math.max(0, Math.min(maxB - list.length, Math.round(maxB * 0.2)))).map((a) => a[1]);
+    list.push(...keep);
+    this.infilled = keep.length;
   }
 
   // a tea garden at (e, n): open land high in the hills (not forest, grassland, water, roads or buildings)
