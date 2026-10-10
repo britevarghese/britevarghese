@@ -26,7 +26,10 @@ function ik(a, t, l1, l2, hint, out) {
 // Loads the people models listed in the manifest (low priority, after the city is up).
 // Kerala dress: men in a plain cotton shirt over dark trousers, khaki, or a white mundu; the women's own sarees and
 // churidars. (The kurta and western-dress models are kept for the story's characters only.)
-const KL_CROWD = ['pmariano', 'alex', 'arnold', 'jake', 'emilius', 'kl_elder', 'pmariano', 'alex', 'jake', 'kl_saree', 'kl_saree_pink', 'kl_saree', 'kl_saree_pink'];
+const KL_CROWD = ['pmariano', 'alex', 'arnold', 'jake', 'emilius', 'kl_elder', 'pmariano', 'alex', 'jake', 'kl_saree', 'kl_saree_pink', 'kl_saree_yellow', 'kl_saree_rose', 'songbird', 'lucy', 'songbird'];
+// churidar: a kurta over leggings (the two women avatars, dressed so)
+const KL_KURTAS = [0x7a1f2b, 0xc8962a, 0x1f6a6a, 0xe8a888, 0x5a2a6a, 0x2a6a3a, 0xf0ece0, 0x2a3a7a, 0xb03a5a];
+const KL_LEGGINGS = [0xf2efe6, 0xe8dcc0, 0x1a1a1e, 0x7a1f2b, 0xf2efe6, 0x2a3a7a];
 const KL_SHIRTS = [0xf2f0ea, 0xf4f4f0, 0xa9c8e8, 0x8fb0d8, 0xe8c4c8, 0xe6dcc0, 0xc8ccd0, 0x6a8ab0, 0x8a3a3a, 0x3a5a3a, 0xd8c8a0, 0x4a4a6a];
 const KL_LOWERS = [0x1f2430, 0x2e2e30, 0x23262c, 0x6a5a44, 0x3a4250, 0xf2efe6, 0xf2efe6, 0xece6d4];
 
@@ -35,8 +38,8 @@ export class HumanLibrary {
   constructor(assets, manifest, { kerala = false } = {}) {
     this.assets = assets; this.manifest = manifest; this.kerala = kerala;
     const base = manifest?.humans || [];
-    const men = base.filter((h) => ['pmariano', 'alex', 'arnold', 'jake', 'emilius'].includes(h.id));
-    this.list = kerala && manifest?.humansKL?.length ? [base[0], ...men, ...manifest.humansKL].filter(Boolean) : base;
+    const avatars = base.filter((h) => ['pmariano', 'alex', 'arnold', 'jake', 'emilius', 'songbird', 'lucy'].includes(h.id));
+    this.list = kerala && manifest?.humansKL?.length ? [base[0], ...avatars, ...manifest.humansKL].filter(Boolean) : base;
     this.models = []; this.ready = false;
   }
   load(priority = 5) {
@@ -83,7 +86,10 @@ export class HumanLibrary {
     if (!this.ready) return null;
     const L = typeof which === 'number' && this.crowd ? this.crowd : this.models;
     const m = typeof which === 'string' ? this.models.find((x) => x.id === which) || this.models[0] : L[((which % L.length) + L.length) % L.length];
-    const outfit = opts.outfit ?? (this.kerala && typeof which === 'number' ? { top: KL_SHIRTS[(which * 7 + 3) % KL_SHIRTS.length], bottom: KL_LOWERS[(which * 5 + 1) % KL_LOWERS.length] } : null);
+    const n = typeof which === 'number' ? Math.abs(which) : 0;
+    const outfit = opts.outfit ?? (this.kerala && typeof which === 'number'
+      ? (m.sex === 'f' ? { top: KL_KURTAS[(n * 7 + 2) % KL_KURTAS.length], bottom: KL_LEGGINGS[(n * 5 + 3) % KL_LEGGINGS.length] }
+        : { top: KL_SHIRTS[(n * 7 + 3) % KL_SHIRTS.length], bottom: KL_LOWERS[(n * 5 + 1) % KL_LOWERS.length] }) : null);
     return new Human(m, { ...opts, outfit, lib: this });
   }
   // a man from the crowd (drivers, riders)
@@ -109,6 +115,9 @@ export class Human {
     let head = null, hasTop = false;
     this.root.traverse((o) => { if (!o.isBone) return; const n = o.name.replace(/^mixamorig\d*[:_]?/i, '').replace(/_\d+$/, ''); if (n === 'Head') head ||= o; if (n === 'HeadTop_End') hasTop = true; });
     if (head && !hasTop) { const b = new THREE.Bone(); b.name = 'HeadTop_End'; b.position.copy(head.position).multiplyScalar(1.8); head.add(b); }
+    // (a model can carry more than one armature: the bones that skin its biggest mesh come first)
+    let skinned = null; this.root.traverse((o) => { if (o.isSkinnedMesh && (!skinned || o.geometry.attributes.position.count > skinned.geometry.attributes.position.count)) skinned = o; });
+    for (const o of skinned?.skeleton?.bones || []) { const n = o.name.replace(/^mixamorig\d*[:_]?/i, '').replace(/_\d+$/, ''); this.B[n] ||= o; }
     this.root.traverse((o) => {
       // (Ready Player Me and Mixamo rigs share bone names; Mixamo exports prefix them, e.g. mixamorig:Hips)
       if (o.isBone) { const n = o.name.replace(/^mixamorig\d*[:_]?/i, '').replace(/_\d+$/, ''); this.B[n] ||= o; o.userData.rest = o.quaternion.clone(); }
@@ -121,11 +130,17 @@ export class Human {
         if (/Hair|Beard/i.test(o.material.name) && !/^kl_/.test(model.id)) { const m = o.material.clone(); m.color.setHex(0x2a2622); o.material = m; }
       }
     });
+    // (a head-top bone that isn't on this head: another armature's. One above the head instead)
+    { const H = this.B.Head; let t = this.B.HeadTop_End, ok = false; for (let q = t; q && !ok; q = q.parent) ok = q === H;
+      if (H && !ok) { const nb = new THREE.Bone(); nb.name = 'HeadTop_End'; nb.position.copy(H.position).multiplyScalar(1.8); H.add(nb); this.B.HeadTop_End = nb; } }
     // normalise the height (the models are 1.74-1.87 m tall): men ~1.78 m, women ~1.66 m
     this.group.updateMatrixWorld(true);
-    const top = wpos(this.B.HeadTop_End, new THREE.Vector3()).y;
+    // (measured in the world: a rotated armature's head-top bone can sit anywhere; never below the head plus a bit)
+    const hy = this.B.Head ? wpos(this.B.Head, new THREE.Vector3()).y : 0, ny = this.B.Neck ? wpos(this.B.Neck, new THREE.Vector3()).y : hy - 0.1;
+    const top = Math.max(wpos(this.B.HeadTop_End, new THREE.Vector3()).y, hy + Math.max(0.08, (hy - ny) * 1.5));
     const want = height ?? (model.sex === 'f' ? 1.66 : 1.78);
-    this.root.scale.multiplyScalar(want / top);
+    const ank0 = Math.min(wpos(this.B.LeftFoot, new THREE.Vector3()).y, wpos(this.B.RightFoot, new THREE.Vector3()).y);
+    this.root.scale.multiplyScalar(want / Math.max(0.5, top - ank0 + 0.09));   // (from the soles: some models' origin is at the waist)
     this.group.updateMatrixWorld(true);
     // stand on the ground: models whose origin isn't at the soles (some sank to the knees, some floated) are moved
     // so the ankles sit at a normal ~9 cm

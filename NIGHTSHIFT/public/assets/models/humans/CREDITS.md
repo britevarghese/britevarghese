@@ -18,3 +18,5 @@ Character models from Sketchfab, used under their licenses (Creative Commons Att
 - "Indian  women" by Sorojithaldar98, https://sketchfab.com/3d-models/c8ae4057c6904a248ad0b185170cbe45 (CC BY 4.0), modified.
 - "Modern Indian Woman" by ar.jethin, https://sketchfab.com/3d-models/830d8ed3236a4221862290b81807f408 (CC BY 4.0), modified.
 - "Indian Office Woman" by ar.jethin, https://sketchfab.com/3d-models/e6c60cafd33c4d54b0b840c4146ed244 (CC BY 4.0), modified.
+- "Sareewoman" by dk8026854, https://sketchfab.com/3d-models/c28105203127478b8e26ad0474083367 (CC BY 4.0), modified.
+- "Sareewoman" by dk8026854, https://sketchfab.com/3d-models/c686c80a3fc84465b1dad642d3b21fa3 (CC BY 4.0), modified.

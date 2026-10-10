@@ -40,6 +40,8 @@ export const HUMANS_KL = [
   { id: 'kl_saree_pink', sex: 'f', uid: 'c8ae4057c6904a248ad0b185170cbe45', title: 'Indian  women', author: 'Sorojithaldar98', license: 'CC-BY-4.0' },
   { id: 'kl_modern', sex: 'f', uid: '830d8ed3236a4221862290b81807f408', title: 'Modern Indian Woman', author: 'ar.jethin', license: 'CC-BY-4.0' },
   { id: 'kl_office', sex: 'f', uid: 'e6c60cafd33c4d54b0b840c4146ed244', title: 'Indian Office Woman', author: 'ar.jethin', license: 'CC-BY-4.0' },
+  { id: 'kl_saree_yellow', sex: 'f', uid: 'c28105203127478b8e26ad0474083367', title: 'Sareewoman', author: 'dk8026854', license: 'CC-BY-4.0' },
+  { id: 'kl_saree_rose', sex: 'f', uid: 'c686c80a3fc84465b1dad642d3b21fa3', title: 'Sareewoman', author: 'dk8026854', license: 'CC-BY-4.0' },
 ];
 const KERALA = process.argv.includes('--kerala');
 

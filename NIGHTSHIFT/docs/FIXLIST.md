@@ -27,7 +27,7 @@ the game. Newly found problems go at the end of their section.
 
 ## People
 - [x] Clothing: men in plain shirts over dark trousers, khaki or a white mundu, black hair; women in sarees; no kurtas or western dress in crowds, drivers or riders
-- [ ] More women's models: churidar / salwar (only two saree models now)
+- [x] More women: four saree models (two new: yellow and rose), and churidars (a kurta-coloured top over leggings) on the two women avatars; models with their origin at the waist now come out the right size
 - [ ] Riders: helmets (Kerala law), no turbans
 
 ## Roads and world

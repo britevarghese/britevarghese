@@ -5897,6 +5897,8 @@
     "humans/kl_office.glb": "2159115a0c",
     "humans/kl_saree.glb": "13c321fe8c",
     "humans/kl_saree_pink.glb": "5b970077a0",
+    "humans/kl_saree_rose.glb": "500a9b3fcc",
+    "humans/kl_saree_yellow.glb": "52bab3a2a4",
     "humans/lucy.glb": "0b051b41fe",
     "humans/pmariano.glb": "09f3dc6859",
     "humans/songbird.glb": "e6ef9db7de",
@@ -6021,6 +6023,32 @@
         "title": "Indian Office Woman",
         "author": "ar.jethin",
         "url": "https://sketchfab.com/3d-models/e6c60cafd33c4d54b0b840c4146ed244",
+        "license": "CC-BY-4.0"
+      }
+    },
+    {
+      "id": "kl_saree_yellow",
+      "sex": "f",
+      "file": "humans/kl_saree_yellow.glb",
+      "source": {
+        "site": "Sketchfab",
+        "uid": "c28105203127478b8e26ad0474083367",
+        "title": "Sareewoman",
+        "author": "dk8026854",
+        "url": "https://sketchfab.com/3d-models/c28105203127478b8e26ad0474083367",
+        "license": "CC-BY-4.0"
+      }
+    },
+    {
+      "id": "kl_saree_rose",
+      "sex": "f",
+      "file": "humans/kl_saree_rose.glb",
+      "source": {
+        "site": "Sketchfab",
+        "uid": "c686c80a3fc84465b1dad642d3b21fa3",
+        "title": "Sareewoman",
+        "author": "dk8026854",
+        "url": "https://sketchfab.com/3d-models/c686c80a3fc84465b1dad642d3b21fa3",
         "license": "CC-BY-4.0"
       }
     }
