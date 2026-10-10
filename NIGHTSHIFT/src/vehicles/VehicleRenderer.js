@@ -55,6 +55,17 @@ export class ModelLibrary {
   isImported(id) { return !!this.manifest?.cars?.[id]?.imported; }
 }
 
+// 'KERALA POLICE' in blue on white (the jeep's side lettering), made once
+let _policeWord = null;
+function policeWordTexture() {
+  if (_policeWord || typeof document === 'undefined') return _policeWord;
+  const c = document.createElement('canvas'); c.width = 512; c.height = 80;
+  const g = c.getContext('2d'); g.fillStyle = '#14306e'; g.font = 'bold 56px Arial, sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle';
+  g.fillText('KERALA POLICE', 256, 42);
+  _policeWord = new THREE.CanvasTexture(c); _policeWord.colorSpace = THREE.SRGBColorSpace;
+  return _policeWord;
+}
+
 export class VehicleRenderer {
   // opts: {lod: 'full'|'auto', headlights: 0..2 spotlights, police: bool, shadow: bool}
   constructor(lib, carId, opts = {}) {
@@ -438,6 +449,23 @@ export class VehicleRenderer {
     });
   }
 
+  // the body paint police white: strongly coloured texels (the paint) become a warm white with their shading kept;
+  // greys and blacks (glass, tyres, trim, grille) are left alone
+  _policeWhite() {
+    this.body.traverse((o) => {
+      if (!o.isMesh || !o.material || o.material.userData?.policeWhite) return;
+      const m = o.material.clone(); m.userData = { ...m.userData, policeWhite: true };
+      m.onBeforeCompile = (sh) => {
+        sh.fragmentShader = sh.fragmentShader.replace('#include <map_fragment>', `#include <map_fragment>
+          { vec3 c = diffuseColor.rgb; float mx = max(c.r, max(c.g, c.b)), mn = min(c.r, min(c.g, c.b)), sat = (mx - mn) / max(mx, 1e-3);
+            float k = smoothstep(0.35, 0.6, sat) * smoothstep(0.08, 0.2, mx);
+            diffuseColor.rgb = mix(c, vec3(0.93, 0.93, 0.9) * clamp(0.45 + mx * 1.1, 0.0, 1.0), k); }`);
+      };
+      m.customProgramCacheKey = () => 'policeWhite';
+      o.material = m;
+    });
+  }
+
   _policeLights() {
     let lb = this.markers.lightbar;
     this.police = { t: Math.random() * 10, red: [], blue: [] };
@@ -452,6 +480,18 @@ export class VehicleRenderer {
       this.police.bar = [mk(0.23, 0x80141c), mk(-0.23, 0x142a80)];
       bar.position.copy(lb.position).add(new THREE.Vector3(0, -0.02, 0));
       this.body.add(bar);
+      // a Kerala Police jeep: its body paint (whatever colour the model came in) turned police white, the
+      // windows, tyres and trim kept; 'KERALA POLICE' on the doors, flat against the side found by a ray
+      this._policeWhite();
+      const word = new THREE.MeshBasicMaterial({ map: policeWordTexture(), transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2 });
+      const meshes = []; this.body.traverse((o) => { if (o.isMesh && o.visible !== false) meshes.push(o); });
+      const rc = new THREE.Raycaster(), y = box.min.y + (box.max.y - box.min.y) * 0.45;
+      for (const sd of [1, -1]) {
+        const o = new THREE.Vector3(sd * (box.max.x + 1), y, c.z - 0.1).applyMatrix4(this.body.matrixWorld), d = new THREE.Vector3(-sd, 0, 0).transformDirection(this.body.matrixWorld);
+        rc.set(o, d); rc.far = 3; const h = rc.intersectObjects(meshes, false)[0];
+        const x = h ? sd * (box.max.x + 1 - h.distance + 0.012) : sd * ((box.max.x - box.min.x) / 2 * 0.9);
+        const t = new THREE.Mesh(new THREE.PlaneGeometry(1.2, 0.19), word); t.rotation.y = sd * Math.PI / 2; t.position.set(x, y, c.z - 0.1); this.body.add(t);
+      }
     }
     for (const [side, arr, color, tex] of [[1, this.police.red, 0xff2030, glowRed()], [-1, this.police.blue, 0x3060ff, radialGlow('rgba(80,120,255,1)', 'rgba(40,80,255,0.35)')]]) {
       const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, color, blending: THREE.AdditiveBlending, depthWrite: false, transparent: true, toneMapped: false }));

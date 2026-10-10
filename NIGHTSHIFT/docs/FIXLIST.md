@@ -23,7 +23,7 @@ the game. Newly found problems go at the end of their section.
 - [ ] Traffic police at busy junctions, directing traffic
 - [ ] Accidents: recovery crane / tow truck clears wrecks, traffic police control traffic round it
 - [ ] Traffic with purpose: trips with destinations (buses stand to stand, autos to stands, cars to homes and shops, lorries to markets)
-- [ ] Police jeep = Mahindra Bolero in Kerala Police livery; figure poking through the Bolero roof
+- [x] Police jeep = Mahindra Bolero, white with KERALA POLICE on the doors and a light bar (the roof figure: cab seat fixed earlier)
 
 ## People
 - [x] Clothing: men in plain shirts over dark trousers, khaki or a white mundu, black hair; women in sarees; no kurtas or western dress in crowds, drivers or riders

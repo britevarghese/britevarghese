@@ -18,6 +18,9 @@ export const HEAT_RULES = {
   5: { units: 7, power: 1.3, grip: 1.12, roadblocks: true, sight: 140, cooldown: 26, name: 'Heavy pursuit' },
 };
 
+// a Kerala Police Bolero: a heavy, upright jeep, but tuned to keep up in a chase
+const KL_POLICE_JEEP = { ...POLICE_CAR.params, mass: 1650, enginePower: 235, maxSpeed: 58, grip: 1.08, wheelBase: 2.68, trackWidth: 1.47, cgHeight: 0.78, frontWeight: 0.55, downforce: 0.5, length: 3.995, width: 1.745, wheelRadius: 0.36 };
+
 export class PoliceManager {
   constructor(game) {
     this.game = game;
@@ -57,12 +60,15 @@ export class PoliceManager {
   get inPursuit() { return this.state === 'pursuit' || this.state === 'cooldown'; }
 
   _spawnUnit(x, z, yaw, role) {
-    if (!this.game.lib.has('interceptor')) return null;
+    // Kerala: the police drive Mahindra Boleros (white, the Kerala Police band, a light bar on the roof)
+    const jeep = !!this.world.kerala && this.game.lib.has('bolero'), id = jeep ? 'bolero' : 'interceptor';
+    if (!this.game.lib.has(id)) return null;
     const rules = HEAT_RULES[Math.max(1, this.heat)] || HEAT_RULES[1];
-    const params = { ...POLICE_CAR.params, enginePower: POLICE_CAR.params.enginePower * rules.power, grip: POLICE_CAR.params.grip * rules.grip, maxSpeed: POLICE_CAR.params.maxSpeed * (0.95 + rules.power * 0.1) };
-    const v = new Vehicle({ carId: 'interceptor', params, world: this.world, lib: this.game.lib, role: 'police', carType: 'muscle', renderOpts: { police: true, headlights: 0, shadow: false, lodDistance: this.game.preset.carLod1Distance, detailWheels: false, sharedPaint: true } });
+    const P0 = jeep ? KL_POLICE_JEEP : POLICE_CAR.params;
+    const params = { ...P0, enginePower: P0.enginePower * rules.power, grip: P0.grip * rules.grip, maxSpeed: P0.maxSpeed * (0.95 + rules.power * 0.1) };
+    const v = new Vehicle({ carId: id, params, world: this.world, lib: this.game.lib, role: 'police', carType: 'muscle', renderOpts: { police: true, headlights: 0, shadow: false, lodDistance: this.game.preset.carLod1Distance, detailWheels: false, sharedPaint: true } });
     v.place(x, z, yaw);
-    v.renderer.applyCustom({ paint: '#f2f2f2', paint2: '#0b0d12', vinyl: 3, finish: 'gloss', spoiler: 0, hood: 0, bumper: 0, tint: 0.7, wheelColor: '#2a2c30' });
+    v.renderer.applyCustom(jeep ? { paint: 'factory', finish: 'gloss', tint: 0.5 } : { paint: '#f2f2f2', paint2: '#0b0d12', vinyl: 3, finish: 'gloss', spoiler: 0, hood: 0, bumper: 0, tint: 0.7, wheelColor: '#2a2c30' });
     this.game.scene.add(v.renderer.group);
     const ai = new AIDriver(v, { skill: 0.9 + this.heat * 0.03, maxSpeed: params.maxSpeed });
     ai.useNitro = this.heat >= 3;
