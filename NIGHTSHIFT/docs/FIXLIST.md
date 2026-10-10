@@ -11,7 +11,7 @@ the game. Newly found problems go at the end of their section.
 - [x] Bus: driver seat and first-person eye at the front right of the cab
 - [x] Car first person: eye kept ~0.75 m from the wheel/dash, a little lower under the roof
 - [ ] Getting in: head through the roof, wrong posture
-- [ ] Wheels: rotation and look wrong on some vehicles (tyres stretched / offset from the arches)
+- [x] Wheels: traffic wheels roll at each vehicle's own wheel size (autos, buses and lorries were wrong); the shards round the wheels were the model import (fixed)
 - [x] Vehicle models incomplete up close: the importer's simplifier tore spikes and holes into dense panels (Scorpio, Dzire, Brezza, Ertiga, Maruti 800...); the near LOD now keeps seams, small trim and panel borders. Re-imported. (Thar scan: still a little rough at the wheels)
 - [x] Two-wheeler rider vanishes when hit (always thrown as a body now; no get-up animation exists yet)
 - [ ] Traffic car floating in the air (parked by a pole)
@@ -22,7 +22,7 @@ the game. Newly found problems go at the end of their section.
 - [x] Police checking points (a Bolero on the verge with its lights, a barricade on the edge, two officers in khaki)
 - [x] Traffic police at busy junctions (an officer in khaki on a podium under a white umbrella at the corner)
 - [x] Accidents: a recovery truck with a jib hoists the wrecks and tows them away; a traffic officer waves traffic past; crashes the player causes get the same response
-- [ ] Traffic with purpose: trips with destinations (buses stand to stand, autos to stands, cars to homes and shops, lorries to markets)
+- [x] Traffic with purpose: every vehicle has a trip to a real place (autos short fares, cars further, lorries to towns and markets), turns towards it at junctions, pulls in on arrival, then sets off on the next
 - [x] Police jeep = Mahindra Bolero, white with KERALA POLICE on the doors and a light bar (the roof figure: cab seat fixed earlier)
 
 ## People

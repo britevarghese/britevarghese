@@ -273,7 +273,7 @@ export class TrafficManager {
     while (c.s > c.path.length) {
       c.s -= c.path.length;
       if (c.next?.dead) c.next = null;
-      const nxt = c.next || this._chooseNext(c.path);
+      const nxt = c.next || this._chooseNext(c.path, c);
       c.next = null;
       if (!nxt) { c.s = c.path.length; c.v = 0; break; }
       const i = c.path.cars.indexOf(c); if (i >= 0) c.path.cars.splice(i, 1);
@@ -287,7 +287,7 @@ export class TrafficManager {
   _pointAhead(c, ahead, out) {
     let path = c.path, s = c.s + ahead;
     if (s > path.length) {
-      if (!c.next) c.next = this._chooseNext(path);
+      if (!c.next) c.next = this._chooseNext(path, c);
       if (c.next) { s -= path.length; path = c.next; if (s > path.length && path.next?.[0]) { s -= path.length; path = path.next[0]; } }
       s = Math.min(s, path.length);
     }
@@ -410,13 +410,41 @@ export class TrafficManager {
     c.footDown = v < 0.6;
   }
 
-  _chooseNext(path) {
+  // A trip for a vehicle: a real place a sensible way off. Autos hop between nearby places (fares), cars go further
+  // (homes, shops, offices), lorries and pickups to the markets and commercial streets, buses run between towns
+  _trip(c) {
+    const all = this.world.index?.places;
+    if (!all?.length || !this.world.kerala) return;
+    // (the places within ~4.5 km, kept while the traffic stays round here)
+    if (!this._pl || Math.hypot(this._pl.x - c.x, this._pl.z - c.z) > 1500) this._pl = { x: c.x, z: c.z, list: all.filter((q) => Math.hypot(-q[3] - c.x, q[4] - c.z) < 4500) };
+    const P = this._pl.list;
+    if (!P.length) return;
+    const lo = c.type === 'auto' ? 200 : c.spec.bike ? 300 : 400, hi = c.type === 'auto' ? 900 : c.spec.bus ? 4000 : c.type === 'lorry' || c.type === 'minitruck' ? 2500 : 2000;
+    const want = c.spec.bus ? /^(town|city|suburb)$/ : c.type === 'lorry' || c.type === 'minitruck' ? /^(town|city|suburb|quarter|village)$/ : /./;
+    for (let k = 0; k < 14; k++) {
+      const q = P[Math.floor(this.R() * P.length)], x = -q[3], z = q[4], d = Math.hypot(x - c.x, z - c.z);
+      if (d >= lo && d <= hi && want.test(q[0])) { c.dest = { x, z, name: q[1] }; return; }
+    }
+    // (none drawn: somewhere ahead along the way, so it still heads off purposefully)
+    const a = c.yaw + (this.R() - 0.5) * 1.2, r = lo + this.R() * (hi - lo);
+    c.dest = { x: c.x + Math.sin(a) * r, z: c.z + Math.cos(a) * r, name: '' };
+  }
+
+  // Every vehicle is going somewhere (a trip, see _trip): at a junction it takes the way that brings it nearer, mostly
+  // (some wander: shortcuts, errands on the way), and without a trip carries on straight more often than it turns
+  _chooseNext(path, c = null) {
     const opts = path.next;
     if (!opts.length) return null;
     if (opts.length === 1) return opts[0];
-    const R = this.R;
+    const R = this.R, D = c?.dest;
+    const endOf = (o) => { const q = (o.to || o).pts; return q[q.length - 1]; };
+    const d0 = D ? Math.hypot(path.pts[path.pts.length - 1][0] - D.x, path.pts[path.pts.length - 1][1] - D.z) : 0;
     let total = 0;
-    const w = opts.map((o) => { const x = o.turn === 'straight' ? 3 : o.turn === 'uturn' ? 0.05 : o.kind === 'lane' ? 1 : 1; total += x; return x; });
+    const w = opts.map((o) => {
+      let x = o.turn === 'straight' ? 3 : o.turn === 'uturn' ? 0.05 : 1;
+      if (D && o.turn !== 'uturn') { const [ex, ez] = endOf(o), gain = d0 - Math.hypot(ex - D.x, ez - D.z); x *= Math.exp(Math.max(-3, Math.min(3, gain / 25))); }
+      total += x; return x;
+    });
     let r = R() * total;
     for (let i = 0; i < opts.length; i++) { r -= w[i]; if (r <= 0) return opts[i]; }
     return opts[0];
@@ -432,7 +460,7 @@ export class TrafficManager {
       if (c.dwell <= 0) { c.pulled = false; c.latT = 0; c.dwell = 0; }
       return;
     }
-    if (!c.next && path.kind === 'lane' && path.length - c.s < 40) c.next = this._chooseNext(path);
+    if (!c.next && path.kind === 'lane' && path.length - c.s < 40) c.next = this._chooseNext(path, c);
     // --- leader search ---
     let gap = 1e9, leadV = 0;
     const cars = path.cars;
@@ -531,14 +559,23 @@ export class TrafficManager {
         if (d < 3.2 && c.v < 1.2) { c.dwell = 8 + this.R() * 10; c.pulled = true; c.lastStop = path; bus.emit('traffic:busStop', { car: c, x: c.x, z: c.z }); }
       }
     }
-    if (c.type === 'auto' && !c.pullAt && path.kind === 'lane' && (path.edge?.cls ?? 9) >= 2 && this.R() < dt * 0.03 && path.length - c.s > 40) c.pullAt = c.s + 18 + this.R() * 15;
+    // arrived (within 70 m of where it was going, on a street it can stop in): pull in to the kerb, and once the
+    // errand's done (a fare paid, a parcel dropped, someone fetched from a shop) it sets off on its next trip
+    if (c.dest && !c.pullAt && !c.spec.bus && path.kind === 'lane' && (path.edge?.cls ?? 9) >= 2 && path.length - c.s > 30 && Math.hypot(c.x - c.dest.x, c.z - c.dest.z) < 70) {
+      c.pullAt = c.s + 12 + this.R() * 10; c.arriving = true;
+    }
+    if (!c.dest && c.state === 'drive' && !c.spec.bus) this._trip(c);
     if (c.pullAt) {
       if (c.path !== c.pullPath && c.pullPath) c.pullAt = 0;
       c.pullPath = path;
       const d = c.pullAt - c.s;
       c.latT = -Math.min(1.4, kerbRoom(path));   // (to the kerb, never off the road's edge onto the verge)
       if (d + 2 < gap) { gap = Math.max(0.1, d + 2); leadV = 0; }
-      if (d < 3.2 && c.v < 1.2) { c.dwell = 5 + this.R() * 14; c.pulled = true; c.pullAt = 0; c.pullPath = null; }
+      if (d < 3.2 && c.v < 1.2) {
+        c.dwell = c.arriving ? (c.type === 'auto' ? 8 + this.R() * 12 : c.type === 'lorry' || c.type === 'minitruck' ? 25 + this.R() * 35 : 12 + this.R() * 30) : 5 + this.R() * 14;
+        c.pulled = true; c.pullAt = 0; c.pullPath = null;
+        if (c.arriving) { c.arriving = false; c.dest = null; }   // (a new trip when it pulls out)
+      }
     }
     // --- people crossing in front ---
     for (const q of this.crossing || []) {
