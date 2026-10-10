@@ -29,6 +29,8 @@ export class KeralaWorld {
     this.pending = new Map();        // key -> Promise
     this.collision = new CollisionWorld();
     this.lanes = new KeralaLaneGraph();
+    // (signal poles go where no road is: a point on any road's carriageway, game coords)
+    this.lanes.onAnyRoad = (x, z) => { const t = this.tileAt(x, z); return !!t?.ready && t.onRoad(-x - t.E0, z - t.N0, 0.4, -1, 9); };
     this.state = { time: 0, hour: 23, weather: 'clear' };
     this.focus = { x: 0, z: 0 };
     const W = this;

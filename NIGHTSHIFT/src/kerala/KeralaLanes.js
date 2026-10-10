@@ -3,7 +3,7 @@
 // sit to the left of the centre line. Lanes join where roads meet (OSM way ends, and tile seams, which share
 // exact coordinates); a road that just ends gets a U-turn. Lanes come and go with their tiles.
 import { Path } from '../traffic/LaneGraph.js';
-import { TILE } from './KeralaTile.js';
+import { TILE, ROAD_HALF } from './KeralaTile.js';
 
 const LANE_W = 3.2;
 const C_BUILDING = 31; // class raster code (KeralaTile C.building)
@@ -128,9 +128,25 @@ export class KeralaLaneGraph {
         const th = Math.atan2(dx, dz);
         if (th0 === null) th0 = th;
         l.signal = true; l.axis = Math.abs(Math.sin(th - th0)) < 0.7 ? 'x' : 'z';
+        // the stop line: just short of the widest crossing road's carriageway (the lane itself ends 2.5 m from the node)
+        l.stopBack = Math.max(1, Math.max(4, ...E.filter((e) => e !== l.edge).map((e) => e.hw || 4)) + 2 - 2.5);
         sx += b[0]; sz += b[1];
-        // one head per approach, on the kerb side (left of travel) by the stop line
-        if (l.laneIndex === 0) heads.push({ x: b[0] + dz / L * (LANE_W * 0.5 + 1.3), z: b[1] - dx / L * (LANE_W * 0.5 + 1.3), yaw: Math.atan2(-dx, -dz), axis: l.axis });
+        // one head per approach: on the footpath at the left kerb (we keep left), at the stop line, which is just
+        // short of the crossing road's carriageway (never out in the junction or in a lane)
+        if (l.laneIndex === 0) {
+          const ux = dx / L, uz = dz / L, lx = dz / L, lz = -dx / L, per = l.edge.type.lanes;
+          const off0 = l.edge.one ? -(per - 1) / 2 * LANE_W : (per - 0.5) * LANE_W;
+          const nx = b[0] + ux * 2.5 - lx * off0, nz = b[1] + uz * 2.5 - lz * off0;   // the junction, on this road's centre line
+          const cross = Math.max(4, ...E.filter((e) => e !== l.edge).map((e) => e.hw || 4)), side = (l.edge.hw || 4) + 0.9;
+          // (the first spot off every carriageway: a twin carriageway, a slip road or a lane may run right beside)
+          let hx = null, hz = null;
+          for (const back of [cross + 2, cross + 4, cross + 7]) for (const sd of [side, side + 0.8, side + 1.8, side + 3]) {
+            if (hx !== null) break;
+            const x = nx - ux * back + lx * sd, z = nz - uz * back + lz * sd;
+            if (!this.onAnyRoad?.(x, z)) { hx = x; hz = z; }
+          }
+          if (hx !== null) heads.push({ x: hx, z: hz, yaw: Math.atan2(-dx, -dz), axis: l.axis });
+        }
       }
       const h = [...node].reduce((s, ch) => (s * 31 + ch.charCodeAt(0)) >>> 0, 7), X = sx / ins.length, Z = sz / ins.length;
       // (one junction's signals: a node 80 m from another signalled one is the same crossroads, or too close)
@@ -159,7 +175,7 @@ export class KeralaLaneGraph {
       const one = !!(r.flags & 1);
       const total = r.lanes || (r.cls <= 1 ? (one ? 2 : 4) : one ? 1 : 2);
       const per = one ? Math.max(1, Math.min(3, total)) : Math.max(1, Math.min(3, Math.floor(total / 2)));
-      const edge = { id: EDGE_ID++, type: { lanes: per }, cls: r.cls, name: r.name };
+      const edge = { id: EDGE_ID++, type: { lanes: per }, cls: r.cls, name: r.name, one, hw: r.cls <= 2 && r.lanes ? Math.max(ROAD_HALF[r.cls], r.lanes * 1.75) : ROAD_HALF[r.cls] };
       const a = nodeKey(...P[0]), b = nodeKey(...P[P.length - 1]);
       for (const dir of one ? [1] : [1, -1]) {
         const C = dir > 0 ? P : [...P].reverse();

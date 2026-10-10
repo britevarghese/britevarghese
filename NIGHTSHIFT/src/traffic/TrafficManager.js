@@ -64,6 +64,15 @@ class TrafficCar {
   obb() { return { cx: this.x, cz: this.z, hx: this.p.hx * 0.95, hz: this.p.hz * 0.97, cos: Math.cos(this.yaw), sin: Math.sin(this.yaw) }; }
 }
 
+// how far a vehicle on this lane can move over toward the kerb and still have its wheels on the road (Kerala lanes:
+// lane 0 is the kerb lane; its centre is (lanes - 0.5) lane widths from the road's centre line, one-way roads centred)
+function kerbRoom(path) {
+  const e = path.edge, per = path.lanes || e?.type?.lanes || 1;
+  if (!e?.hw) return 0.6;
+  const off = e.one ? Math.abs((path.laneIndex || 0) - (per - 1) / 2) * 3.2 : (per - (path.laneIndex || 0) - 0.5) * 3.2;
+  return Math.max(0, e.hw - off - 1.0);
+}
+
 export class TrafficManager {
   constructor(world, preset, renderer) {
     this.world = world;
@@ -516,7 +525,7 @@ export class TrafficManager {
       for (const st of path.stops) {
         const d = st - c.s;
         if (d < -1 || d > 80) continue;
-        if (d + 2 < gap) { gap = Math.max(0.1, d + 2); leadV = 0; c.latT = -1.1; }
+        if (d + 2 < gap) { gap = Math.max(0.1, d + 2); leadV = 0; c.latT = -Math.min(1.1, kerbRoom(path)); }
         if (d < 3.2 && c.v < 1.2) { c.dwell = 8 + this.R() * 10; c.pulled = true; c.lastStop = path; bus.emit('traffic:busStop', { car: c, x: c.x, z: c.z }); }
       }
     }
@@ -525,7 +534,7 @@ export class TrafficManager {
       if (c.path !== c.pullPath && c.pullPath) c.pullAt = 0;
       c.pullPath = path;
       const d = c.pullAt - c.s;
-      c.latT = -1.4;
+      c.latT = -Math.min(1.4, kerbRoom(path));   // (to the kerb, never off the road's edge onto the verge)
       if (d + 2 < gap) { gap = Math.max(0.1, d + 2); leadV = 0; }
       if (d < 3.2 && c.v < 1.2) { c.dwell = 5 + this.R() * 14; c.pulled = true; c.pullAt = 0; c.pullPath = null; }
     }
@@ -542,7 +551,7 @@ export class TrafficManager {
     // --- traffic signal ---
     if (path.kind === 'lane' && path.signal) {
       const st = this.world.signalState(path.to, path.axis);
-      const distToStop = path.length - c.s - 1;
+      const distToStop = path.length - c.s - (path.stopBack ?? 1);   // (at the stop line, by the signal pole)
       const canStop = c.v * c.v / (2 * 4.5) < distToStop + 2;
       if ((st === 'red' || (st === 'yellow' && canStop)) && distToStop > -1) {
         if (distToStop < gap) { gap = distToStop; leadV = 0; }
