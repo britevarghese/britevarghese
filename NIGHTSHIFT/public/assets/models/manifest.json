@@ -4862,7 +4862,7 @@
       "imported": true,
       "name": "Bajaj autorickshaw",
       "length": 2.634,
-      "width": 1.132,
+      "width": 1.135,
       "height": 1.667,
       "wheels": [
         {
@@ -4883,7 +4883,7 @@
         }
       ],
       "tris": {
-        "lod0": 25908,
+        "lod0": 25928,
         "lod1": 3291
       },
       "source": {
@@ -5045,7 +5045,7 @@
         }
       ],
       "tris": {
-        "lod0": 83005,
+        "lod0": 202995,
         "lod1": 4787
       },
       "source": {
@@ -5099,7 +5099,7 @@
         }
       ],
       "tris": {
-        "lod0": 74932,
+        "lod0": 283509,
         "lod1": 7432
       },
       "source": {
@@ -5153,7 +5153,7 @@
         }
       ],
       "tris": {
-        "lod0": 59625,
+        "lod0": 144300,
         "lod1": 6262
       },
       "source": {
@@ -5169,7 +5169,7 @@
       "file": "cars/kl_ertiga.glb",
       "imported": true,
       "name": "Maruti Ertiga",
-      "length": 4.393,
+      "length": 4.395,
       "width": 2.026,
       "height": 1.799,
       "wheels": [
@@ -5207,7 +5207,7 @@
         }
       ],
       "tris": {
-        "lod0": 90591,
+        "lod0": 210098,
         "lod1": 4164
       },
       "source": {
@@ -5261,7 +5261,7 @@
         }
       ],
       "tris": {
-        "lod0": 79546,
+        "lod0": 397291,
         "lod1": 14650
       },
       "source": {
@@ -5315,7 +5315,7 @@
         }
       ],
       "tris": {
-        "lod0": 78402,
+        "lod0": 78493,
         "lod1": 12219
       },
       "source": {
@@ -5387,7 +5387,7 @@
       "name": "Tata Ace",
       "length": 3.8,
       "width": 1.954,
-      "height": 1.819,
+      "height": 1.81,
       "wheels": [
         {
           "id": "FL",
@@ -5423,7 +5423,7 @@
         }
       ],
       "tris": {
-        "lod0": 30208,
+        "lod0": 30998,
         "lod1": 3358
       },
       "source": {
@@ -5848,23 +5848,23 @@
     "cars/honda_nsx_na1.glb": "1b6c5d3c2c",
     "cars/kawasaki_ninja_h2.glb": "66216bbf7d",
     "cars/kawasaki_zx6r.glb": "04fb05f437",
-    "cars/kl_auto.glb": "ba1beab738",
-    "cars/kl_bolero.glb": "a9884e9d08",
-    "cars/kl_brezza.glb": "cff1f9f131",
+    "cars/kl_auto.glb": "ba121d088f",
+    "cars/kl_bolero.glb": "c33866f049",
+    "cars/kl_brezza.glb": "deaedbdd83",
     "cars/kl_bullet.glb": "29028d0dc3",
     "cars/kl_commuter.glb": "3a76e2a511",
-    "cars/kl_dzire.glb": "84ce99852b",
-    "cars/kl_ertiga.glb": "c8cf66221e",
+    "cars/kl_dzire.glb": "140674df76",
+    "cars/kl_ertiga.glb": "6a1801741b",
     "cars/kl_ksrtc.glb": "49d9467134",
     "cars/kl_lorry.glb": "ec1cafe2b2",
-    "cars/kl_m800.glb": "1723182897",
-    "cars/kl_minitruck.glb": "f8f12386ab",
+    "cars/kl_m800.glb": "af591e5cff",
+    "cars/kl_minitruck.glb": "7a39889dd3",
     "cars/kl_pvtbus.glb": "6649a49cf4",
     "cars/kl_pvtbus2.glb": "fe762222c5",
     "cars/kl_scooter.glb": "823295e68c",
-    "cars/kl_scorpio.glb": "90b925094a",
+    "cars/kl_scorpio.glb": "ebc52e2862",
     "cars/kl_streetbike.glb": "c3dd2cadbc",
-    "cars/kl_thar.glb": "7ff9d2dd45",
+    "cars/kl_thar.glb": "5e8ad0b940",
     "cars/lamborghini_centenario.glb": "6c9aa6918e",
     "cars/lamborghini_huracan_tt.glb": "3a5864e8ee",
     "cars/mazda_rx7_fd.glb": "4cea2d5b82",

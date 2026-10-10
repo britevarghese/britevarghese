@@ -12,6 +12,8 @@ import { transformPrimitive, weldPrimitive, simplifyPrimitive, joinPrimitives } 
 import { MeshoptSimplifier as MS } from 'meshoptimizer';
 // permissive: collapse across UV / normal seams (else meshopt stalls at ~20% on textured cars); prune: drop tiny loose parts
 const MeshoptSimplifier = { ready: MS.ready, simplify: (i, p, st, t, e, f) => MS.simplify(i, p, st, t, e, [...f, 'Permissive', 'Prune']) };
+// the near LOD: seams kept (permissive collapses across them tore spikes into dense panels and doors)
+const MeshoptSimplifierStrict = { ready: MS.ready, simplify: (i, p, st, t, e, f) => MS.simplify(i, p, st, t, e, [...f]) };   // (and no pruning: small trim pieces stay)
 import { components, subsetPrimitive, splitPrimitive, triCount, triIndices, positions, triSetBounds } from './geom.mjs';
 
 const RX = {
@@ -381,7 +383,7 @@ export function processCar(doc, car, opt = {}) {
     for (const list of groups.values()) out.push(list.length === 1 ? list[0] : joinPrimitives(list));
     return out;
   };
-  const simplifyList = (prims, targetTris, error) => {
+  const simplifyList = (prims, targetTris, error, strict = false) => {
     const total = prims.reduce((a, pr) => a + triCount(pr), 0);
     const ratio = Math.min(1, targetTris / Math.max(1, total));
     if (ratio >= 0.999) return prims;
@@ -391,7 +393,7 @@ export function processCar(doc, car, opt = {}) {
       const want = Math.max(4, Math.floor(triCount(pr) * ratio));
       for (let pass = 0, prev = Infinity; pass < 6 && triCount(pr) > want * 1.1 && triCount(pr) < prev; pass++) {
         prev = triCount(pr);
-        simplifyPrimitive(pr, { simplifier: MeshoptSimplifier, ratio: want / prev, error, lockBorder: false });
+        simplifyPrimitive(pr, { simplifier: strict ? MeshoptSimplifierStrict : MeshoptSimplifier, ratio: want / prev, error, lockBorder: strict });   // (near: panel edges kept, no cracks)
       }
     }
     return prims.filter((pr) => triCount(pr) > 0);
@@ -403,7 +405,7 @@ export function processCar(doc, car, opt = {}) {
   const lod1Body = [...cloneList(body.filter((p) => !RX.interior.test(p.name))), ...doorIds.flatMap((d) => doorBack(d).filter((p) => !RX.interior.test(p.name)))];
   const lod1Wheels = Object.fromEntries(wheelIds.map((q) => [q, { spin: cloneList(wheelPieces[q].spin), fixed: cloneList(wheelPieces[q].fixed) }]));
   const lods = [
-    { name: 'lod0', body: simplifyList(merge(body), budget.body0, budget.err0 ?? 0.0015), doors: Object.fromEntries(doorIds.map((d) => [d, simplifyList(merge(doors[d].pieces), budget.body0 * 0.08, 0.0015)])), wheels: Object.fromEntries(wheelIds.map((q) => [q, { spin: simplifyList(merge(wheelPieces[q].spin), budget.wheel0, budget.werr0 ?? 0.002), fixed: budget.fixed0 ? simplifyList(merge(wheelPieces[q].fixed), budget.fixed0, budget.werr0 ?? 0.002) : merge(wheelPieces[q].fixed) }])) },   // (werr0 / fixed0: a heavy scan's spoked wheels)
+    { name: 'lod0', body: simplifyList(merge(body), budget.body0, budget.err0 ?? 0.003, true), doors: Object.fromEntries(doorIds.map((d) => [d, simplifyList(merge(doors[d].pieces), budget.body0 * 0.08, 0.003, true)])), wheels: Object.fromEntries(wheelIds.map((q) => [q, { spin: simplifyList(merge(wheelPieces[q].spin), budget.wheel0, budget.werr0 ?? 0.002), fixed: budget.fixed0 ? simplifyList(merge(wheelPieces[q].fixed), budget.fixed0, budget.werr0 ?? 0.002) : merge(wheelPieces[q].fixed) }])) },   // (werr0 / fixed0: a heavy scan's spoked wheels)
     { name: 'lod1', body: simplifyList(merge(lod1Body), budget.body1, budget.err1 ?? 0.03), wheels: Object.fromEntries(wheelIds.map((q) => [q, { spin: simplifyList(merge(lod1Wheels[q].spin), budget.wheel1, 0.03), fixed: simplifyList(merge(lod1Wheels[q].fixed), 120, 0.05) }])) },
   ];
 

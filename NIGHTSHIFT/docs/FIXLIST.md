@@ -12,7 +12,7 @@ the game. Newly found problems go at the end of their section.
 - [x] Car first person: eye kept ~0.75 m from the wheel/dash, a little lower under the roof
 - [ ] Getting in: head through the roof, wrong posture
 - [ ] Wheels: rotation and look wrong on some vehicles (tyres stretched / offset from the arches)
-- [ ] Vehicle models incomplete up close (green SUV body shards, Thar scan tearing at the wheels)
+- [x] Vehicle models incomplete up close: the importer's simplifier tore spikes and holes into dense panels (Scorpio, Dzire, Brezza, Ertiga, Maruti 800...); the near LOD now keeps seams, small trim and panel borders. Re-imported. (Thar scan: still a little rough at the wheels)
 - [x] Two-wheeler rider vanishes when hit (always thrown as a body now; no get-up animation exists yet)
 - [ ] Traffic car floating in the air (parked by a pole)
 - [x] Bus tilted on a kerb after a crash and stays there (a player crash is an incident now: towed away)
