@@ -14,7 +14,7 @@ the game. Newly found problems go at the end of their section.
 - [x] Wheels: traffic wheels roll at each vehicle's own wheel size (autos, buses and lorries were wrong); the shards round the wheels were the model import (fixed)
 - [x] Vehicle models incomplete up close: the importer's simplifier tore spikes and holes into dense panels (Scorpio, Dzire, Brezza, Ertiga, Maruti 800...); the near LOD now keeps seams, small trim and panel borders. Re-imported. (Thar scan: still a little rough at the wheels)
 - [x] Two-wheeler rider vanishes when hit (always thrown as a body now; no get-up animation exists yet)
-- [ ] Traffic car floating in the air (parked by a pole)
+- [x] Traffic car floating in the air (parked by a pole): parked cars hung half off raised roads, drains and embankments; now they stand where all four wheels are level (further onto the road, or not parked there), tilted to the ground, never through a pole, wall or stall (checked: 0 of 1,765 parked cars over a drop, five areas)
 - [x] Bus tilted on a kerb after a crash and stays there (a player crash is an incident now: towed away)
 
 ## Police and traffic

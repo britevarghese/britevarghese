@@ -144,10 +144,17 @@ export class TrafficManager {
     const color = sp.livery ? 0xffffff : sp.colors ? sp.colors[Math.floor(R() * sp.colors.length)] : TRAFFIC_COLORS[Math.floor(R() * TRAFFIC_COLORS.length)];
     const car = new TrafficCar(this.nextId++, type, color);
     car.path = lane; car.s = s; car.v = 0; car.state = 'parked'; car.parked = true; car.brake = 0;
-    car.lat = -(1.15 + R() * 0.5) - (sp.bike ? 0.4 : 0); // half up on the verge
+    // half up on the verge, where the four wheels stand level: off a raised road's edge, a drain or an embankment
+    // the car comes further onto the road, and where there's no level spot it isn't parked here at all
+    const want = -(1.15 + R() * 0.5) - (sp.bike ? 0.4 : 0), twist = (R() - 0.5) * 0.12;
+    let ok = false;
+    for (const lat of [want, want + 0.4, want + 0.8, -0.4]) {
+      car.lat = lat; car.placed = false; this._place(car); car.yaw += twist;
+      const w = this._wheelGround(car), b = this._wheelGround(car, 1.25);   // (and no corner of the body over a drop)
+      if (Math.max(...w) - Math.min(...w) < 0.3 && Math.max(...b) - Math.min(...b) < 0.4 && !this._footprintBlocked(car)) { ok = true; this._settle(car, w); break; }
+    }
+    if (!ok) return;
     lane.cars.push(car);
-    this._place(car);
-    car.yaw += (R() - 0.5) * 0.12;
     this.cars.push(car);
   }
 
@@ -165,6 +172,36 @@ export class TrafficManager {
       car.slope = Math.atan2(hf - hr, 2 * L);
       car.placed = true;
     } else car.y = 0; // Port Halvern: traffic stays on the flat road surface
+  }
+
+  // the ground under a car's four wheels: front left, front right, rear left, rear right
+  _wheelGround(c, k = 1) {
+    const fx = Math.sin(c.yaw), fz = Math.cos(c.yaw), L = c.spec.l * 0.4 * k, H = (c.spec.w || 1.7) * 0.42 * k, out = [];
+    for (const [a, b] of [[1, 1], [1, -1], [-1, 1], [-1, -1]]) out.push(this.world.layout.groundHeight(c.x + fx * L * a + fz * H * b, c.z + fz * L * a - fx * H * b, c.y));
+    return out;
+  }
+
+  // something solid (a pole, a wall, a stall, a tree) inside a standing car's footprint, with a little room round it
+  _footprintBlocked(c) {
+    const col = this.world.collision; if (!col) return false;
+    const fx = Math.sin(c.yaw), fz = Math.cos(c.yaw), L = c.spec.l / 2 + 0.3, H = (c.spec.w || 1.7) / 2 + 0.25, r = L + H;
+    const list = col.query(c.x - r, c.z - r, c.x + r, c.z + r, this._fpq || (this._fpq = []));
+    for (const o of list) {
+      if (o.kind !== 'pole' && o.kind !== 'building' && o.kind !== 'tree' && o.kind !== 'barrier' && o.kind !== 'tea') continue;
+      // the obstacle's centre and corners in the car's frame (a pole is a point; a wall's corners or middle may be inside)
+      const pts = [[o.cx, o.cz]];
+      for (const [a, b] of [[1, 1], [1, -1], [-1, 1], [-1, -1], [1, 0], [-1, 0], [0, 1], [0, -1]]) pts.push([o.cx + o.hx * a * o.cos + o.hz * b * o.sin, o.cz - o.hx * a * o.sin + o.hz * b * o.cos]);
+      for (const [x, z] of pts) { const dx = x - c.x, dz = z - c.z; if (Math.abs(dx * fx + dz * fz) < L && Math.abs(dx * fz - dz * fx) < H) return true; }
+    }
+    return false;
+  }
+
+  // a standing car settled on its four wheels: height, nose up/down, lean to the side
+  _settle(c, w = this._wheelGround(c)) {
+    const L = c.spec.l * 0.4, H = (c.spec.w || 1.7) * 0.42;
+    c.y = (w[0] + w[1] + w[2] + w[3]) / 4 + 0.01;
+    c.slope = c.pitch = Math.atan2((w[0] + w[1]) - (w[2] + w[3]), 4 * L);
+    c.roll = c.spec.bike ? c.roll : Math.atan2((w[0] + w[2]) - (w[1] + w[3]), 4 * H);
   }
 
   _inView(c) {
