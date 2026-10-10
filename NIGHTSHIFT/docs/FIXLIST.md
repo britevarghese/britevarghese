@@ -36,7 +36,7 @@ the game. Newly found problems go at the end of their section.
 - [x] Dual carriageway median: kerbed divider, no trench
 - [x] Flyovers meet the road across tile edges; traffic under a flyover stays below
 - [x] Roads: seamless joins: where two roads overlap away from their shared point the lesser one tucks under the main road (drawn and driven), no slab edge or ledge
-- [ ] Wide canals / rivers mapped as water areas (polygons): same treatment as the canal lines
+- [x] Narrow water areas (canals, rivers, ponds, temple tanks mapped as polygons): cut out of the ground, walled, a bed, the physics drops into them; never under a road
 - [ ] Kannur QA: every main road, the bridges (Valapattanam), the hills, Payyambalam beach, the rivers
 - [x] Median ends: the gap between the halves by a junction is paved, level with them (it was bare earth)
 - [ ] Ride every road and fix what is found

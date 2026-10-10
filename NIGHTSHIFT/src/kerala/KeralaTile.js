@@ -332,12 +332,34 @@ export class KeralaTile {
       if (!this._cnG.has(key)) this._cnG.set(key, []);
       this._cnG.get(key).push(a[0], a[1], b[0], b[1], c.hw, c.kind);
     }
+    // water mapped as areas: the narrow ones (canals, rivers, ponds; mean width under ~70 m) treated the same way:
+    // cut out of the ground, walled, a bed under them (the wide backwaters and the sea lie on the sunken ground)
+    const polys = this._wpolys = [];
+    for (const [k, rr] of this.data.w || []) {
+      if (k === 9) continue;
+      const ring = decodeLine(rr[0], 0); if (ring.length < 3) continue;
+      let area = 0, per = 0;
+      for (let i = 0; i < ring.length; i++) { const a = ring[i], b = ring[(i + 1) % ring.length]; area += a[0] * b[1] - b[0] * a[1]; per += Math.hypot(b[0] - a[0], b[1] - a[1]); }
+      area = Math.abs(area) / 2;
+      if (!per || area / per * 2 > 70) continue;
+      const holes = rr.slice(1).map((h) => decodeLine(h, 0));
+      let lo = Infinity; for (const [e, n] of ring) lo = Math.min(lo, this._h0At(e, n));
+      const y = lo >= INLAND ? lo - 0.4 : this.waterLevel;   // (as _water lays it)
+      let e0 = Infinity, n0 = Infinity, e1 = -Infinity, n1 = -Infinity; for (const [e, n] of ring) { e0 = Math.min(e0, e); n0 = Math.min(n0, n); e1 = Math.max(e1, e); n1 = Math.max(n1, n); }
+      polys.push({ ring, holes, y, box: [e0, n0, e1, n1] });
+    }
     // the mask (1024 px, rows from the south, as the terrain's uv runs)
-    if (out.length && typeof document !== 'undefined') {
+    if ((out.length || polys.length) && typeof document !== 'undefined') {
       const R = 1024, k = R / TILE, cv = document.createElement('canvas'); cv.width = cv.height = R;
       const g = cv.getContext('2d', { willReadFrequently: true });
       g.strokeStyle = '#fff'; g.lineCap = 'butt'; g.lineJoin = 'round';
       for (const c of out) { g.lineWidth = c.hw * 2 * k; g.beginPath(); c.run.forEach(([e, n], i) => { const x = e * k, y = (TILE - n) * k; if (i) g.lineTo(x, y); else g.moveTo(x, y); }); g.stroke(); }
+      g.fillStyle = '#fff';
+      for (const P of polys) { g.beginPath(); for (const R of [P.ring, ...P.holes]) R.forEach(([e, n], i) => { const x = e * k, y = (TILE - n) * k; if (i) g.lineTo(x, y); else g.moveTo(x, y); }); g.fill('evenodd'); }
+      // (but never under a road: a road over the water is a bridge or a culvert, drawn on its own)
+      g.globalCompositeOperation = 'destination-out'; g.lineCap = 'round';
+      for (const r of this.roads) { if (r.flags & 4 || r.cls > 8 || r.deck) continue; g.lineWidth = (ROAD_HALF[r.cls] * 2 + 1) * k; g.beginPath(); r.pts.forEach(([e, n], i) => { const x = e * k, y = (TILE - n) * k; if (i) g.lineTo(x, y); else g.moveTo(x, y); }); g.stroke(); }
+      g.globalCompositeOperation = 'source-over';
       const src = g.getImageData(0, 0, R, R).data, a = new Uint8Array(R * R);
       for (let y = 0; y < R; y++) for (let x = 0; x < R; x++) a[(R - 1 - y) * R + x] = src[(y * R + x) * 4];
       const t = this.canalMask = new THREE.DataTexture(a, R, R, THREE.RedFormat);
@@ -367,6 +389,12 @@ export class KeralaTile {
 
   // the bed of a channel at (e, n) (water 0.9 m deep below the surface), or -Infinity outside every one
   canalBedAt(e, n) {
+    for (const P of this._wpolys || []) {
+      const [e0, n0, e1, n1] = P.box; if (e < e0 || e > e1 || n < n0 || n > n1) continue;
+      let inside = false;
+      for (const R of [P.ring, ...P.holes]) for (let i = 0, j = R.length - 1; i < R.length; j = i++) { const [xi, yi] = R[i], [xj, yj] = R[j]; if ((yi > n) !== (yj > n) && e < (xj - xi) * (n - yi) / (yj - yi || 1e-9) + xi) inside = !inside; }
+      if (inside) return P.y - 0.9;
+    }
     if (!this._cnG) return -Infinity;
     for (let a = -1; a <= 1; a++) for (let b = -1; b <= 1; b++) {
       const L = this._cnG.get((Math.floor(e / 20) + a) * 1000 + Math.floor(n / 20) + b); if (!L) continue;
@@ -1342,6 +1370,29 @@ export class KeralaTile {
         const K = kerb[chunkOf(...P[i])], w = this._wwY(...P[i], c.kind), L = at(i, 1, hw), R = at(i, -1, hw), t = Math.max(this.heightAt(...P[i]), w + 0.4) + 0.12;
         quad(K, V(L, w - 0.95), V(L, t), V(R, t), V(R, w - 0.95), stone); quad(K, V(R, w - 0.95), V(R, t), V(L, t), V(L, w - 0.95), stone);
       }
+    }
+    // --- the narrow water areas: a stone wall down from the bank all round (open where a road crosses), a muddy bed
+    for (const P of this._wpolys || []) {
+      const stone = [0.33, 0.29, 0.24], cope = [0.55, 0.53, 0.49], mud = [0.08, 0.07, 0.05], V = ([e, n], y) => [-e, y, n];
+      for (const R of [P.ring, ...P.holes]) for (let i = 0; i < R.length; i++) {
+        const a = R[i], b = R[(i + 1) % R.length], L = Math.hypot(b[0] - a[0], b[1] - a[1]); if (L < 0.5) continue;
+        const k = Math.max(1, Math.ceil(L / 4));
+        for (let q = 0; q < k; q++) {
+          const A = [a[0] + (b[0] - a[0]) * q / k, a[1] + (b[1] - a[1]) * q / k], B = [a[0] + (b[0] - a[0]) * (q + 1) / k, a[1] + (b[1] - a[1]) * (q + 1) / k];
+          const mid = [(A[0] + B[0]) / 2, (A[1] + B[1]) / 2];
+          if (!inTileM(mid) || this.onRoad(mid[0], mid[1], 1.2)) continue;
+          const K = kerb[chunkOf(...mid)], ta = Math.max(this.heightAt(...A), P.y + 0.4) + 0.12, tb = Math.max(this.heightAt(...B), P.y + 0.4) + 0.12;
+          quad(K, V(A, P.y - 0.95), V(A, ta), V(B, tb), V(B, P.y - 0.95), [0.2, 0.18, 0.15], stone);
+          quad(K, V(B, P.y - 0.95), V(B, tb), V(A, ta), V(A, P.y - 0.95), [0.2, 0.18, 0.15], stone);
+          quad(K, V(A, ta), V(A, ta + 0.04), V(B, tb + 0.04), V(B, tb), cope);
+        }
+      }
+      // the bed: the outline triangulated, 0.9 m under the water
+      const tris = THREE.ShapeUtils.triangulateShape(P.ring.map(([e, n]) => new THREE.Vector2(e, n)), P.holes.map((h) => h.map(([e, n]) => new THREE.Vector2(e, n))));
+      const all = [P.ring, ...P.holes].flat(), c0 = [(P.box[0] + P.box[2]) / 2, (P.box[1] + P.box[3]) / 2];
+      if (!inTileM(c0)) continue;
+      const K = kerb[chunkOf(...c0)];
+      for (const [i0, i1, i2] of tris) { for (const ii of [i0, i2, i1, i0, i1, i2]) { K.p.push(...V(all[ii], P.y - 0.9)); K.c.push(...mud); } }
     }
     // --- dual carriageway medians: a kerb painted in black and yellow bands each side, soil on top
     for (const m of this._medians()) {
