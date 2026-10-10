@@ -264,7 +264,7 @@ export const TRAFFIC_MODELS = {
   brezza: { id: 'kl_brezza', import: { doors: true }, name: 'Maruti Vitara Brezza', spec: { len: 3.995, wid: 1.79 }, source: SRC('1a5cbddc8acb457e9d896d7345fd07d8', '2022 Maruti Suzuki Vitara Brezza', 'BHP3D') },
   ertiga: { id: 'kl_ertiga', import: { doors: true }, name: 'Maruti Ertiga', spec: { len: 4.395, wid: 1.735 }, source: SRC('4f14afac3ac44ec4a2fb153e18452f8b', '2022 Suzuki Ertiga', 'BHP3D') },
   scorpio: { id: 'kl_scorpio', import: { doors: true }, name: 'Mahindra Scorpio-N', spec: { len: 4.66, wid: 1.92 }, source: SRC('538b10f2860f44e694dc3e9d3e223bf8', '2022 Mahindra Scorpio-N', 'BHP3D') },
-  thar: { id: 'kl_thar', import: { doors: true, flip: true }, name: 'Mahindra Thar', spec: { len: 3.985, wid: 1.82 }, source: SRC('6e723690d42748ad9887ce2d7dfa1acc', 'Mahindra Thar (Prisma 3d)', 'X_BLADE.') },
+  thar: { id: 'kl_thar', livery: true, import: { flip: true }, name: 'Mahindra Thar', spec: { len: 3.985, wid: 1.82 }, budget: { body0: 45000, wheel0: 5000, body1: 9000, err1: 0.2, wheel1: 700 }, source: SRC('b044bb5c930b4924ad0f752080fedeb9', 'Mahendra Thar 3 Door', 'doraemondt200') },
   bolero: { id: 'kl_bolero', import: { doors: true }, name: 'Mahindra Bolero', spec: { len: 3.995, wid: 1.745 }, source: SRC('9f1e594c45e24012b50992bbfeeecda0', 'Bolero', 'Waseem_Kadri') },  // the Kerala jeep: taxis, panchayat, police
   lorry: { id: 'kl_lorry', import: { livery: true }, name: 'Tata lorry', spec: { len: 8.6, wid: 2.5 }, source: SRC('8c7650b96d6846de8cc54391ab16cf20', 'Indian Truck', 'afjalymail78692') },  // the hand-painted Tata goods carrier
   // two-wheelers: half of Kerala's traffic (generic names in game; models credited)

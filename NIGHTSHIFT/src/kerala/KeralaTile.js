@@ -401,6 +401,27 @@ export class KeralaTile {
     return (this._isl = out);
   }
 
+  // inside (or within m of) a building's footprint: a 10 m grid of the footprints' boxes, built once
+  inBuilding(e, n, m = 0) {
+    if (!this._bx) {
+      this._bx = new Map();
+      for (const b of this.data?.b || []) {
+        const R = decodeLine(b, 2); let e0 = Infinity, e1 = -Infinity, n0 = Infinity, n1 = -Infinity;
+        for (const [x, z] of R) { e0 = Math.min(e0, x); e1 = Math.max(e1, x); n0 = Math.min(n0, z); n1 = Math.max(n1, z); }
+        const box = [e0, n0, e1, n1, R];
+        for (let x = Math.floor((e0 - 4) / 10); x <= Math.floor((e1 + 4) / 10); x++) for (let z = Math.floor((n0 - 4) / 10); z <= Math.floor((n1 + 4) / 10); z++) { const k = x * 10000 + z; if (!this._bx.has(k)) this._bx.set(k, []); this._bx.get(k).push(box); }
+      }
+    }
+    for (const [e0, n0, e1, n1, R] of this._bx.get(Math.floor(e / 10) * 10000 + Math.floor(n / 10)) || []) {
+      if (e < e0 - m || e > e1 + m || n < n0 - m || n > n1 + m) continue;
+      // inside the outline, or within m of one of its walls
+      let c = false; for (let i = 0, j = R.length - 1; i < R.length; j = i++) { const [xi, yi] = R[i], [xj, yj] = R[j]; if ((yi > n) !== (yj > n) && e < ((xj - xi) * (n - yi)) / (yj - yi) + xi) c = !c; }
+      if (c) return true;
+      if (m > 0) for (let i = 0, j = R.length - 1; i < R.length; j = i++) { const [ax, az] = R[j], [bx, bz] = R[i], dx = bx - ax, dz = bz - az, l2 = dx * dx + dz * dz || 1, u = Math.max(0, Math.min(1, ((e - ax) * dx + (n - az) * dz) / l2)); if (Math.hypot(ax + dx * u - e, az + dz * u - n) < m) return true; }
+    }
+    return false;
+  }
+
   // a tea garden at (e, n): open land high in the hills (not forest, grassland, water, roads or buildings)
   isTea(e, n) {
     const c = this.classAt(e, n);
@@ -555,7 +576,7 @@ export class KeralaTile {
     //    ground kept at the tile's edge (the neighbour sees the same) and eased into over 80 m; decks where it crosses
     //    water or runs over another road
     for (const ch of chains) {
-      const P = [], raw = [], water = [], over = [], own = [];
+      const P = [], raw = [], water = [], over = [], own = [], brg = [];
       for (const [ei, fwd] of ch) {
         const x = E[ei], n = x.P.length;
         for (let q = 0; q < n; q++) {
@@ -563,6 +584,7 @@ export class KeralaTile {
           if (P.length && q === 0) { own.push([ei, i, P.length - 1]); continue; }   // the shared joint
           // (raised only over the road beneath: within ~22 m of where it crosses; the ramps do the rest)
           own.push([ei, i, P.length]); P.push(x.P[i]); raw.push(x.raw[i]); water.push(x.water[i]); over.push(x.over && x.cross.some(([ce, cn]) => Math.hypot(ce - x.P[i][0], cn - x.P[i][1]) < 22));
+          brg.push(x.r.flags & 2 ? x.r.cls : 0);
         }
       }
       const D = [0]; for (let i = 1; i < P.length; i++) D.push(D[i - 1] + Math.hypot(P[i][0] - P[i - 1][0], P[i][1] - P[i - 1][1]));
@@ -574,6 +596,11 @@ export class KeralaTile {
       }
       // (but not far off the ground: round a hairpin the average would cut metres into the hill or float over it)
       const prof = P.map(([e, n], i) => raw[i] + 5 * Math.tanh((sm[i] - raw[i]) / 5) * _smooth(Math.min(1, Math.max(0, Math.min(e, n, TILE - e, TILE - n) / 80))));
+      // a flyover cut by the tile's edge: the road beneath may be in the neighbour only, so where a dry bridge meets
+      // the edge both tiles hold it clear at the edge (the shared ground there plus a flyover's height) and ramp
+      // down from it: the two halves meet in the air. Every other raised piece is back on the ground at the edge.
+      const edge = P.map(([e, n]) => Math.min(e, n, TILE - e, TILE - n)), atEdge = [];
+      for (const i of [0, P.length - 1]) if (edge[i] < 1.5 && brg[i] && !water[i]) { over[i] = true; atEdge.push(i); }
       const wet = water.map((w, i) => w || over[i]);
       const cls = Math.min(...ch.map(([ei]) => E[ei].r.cls)), raised = new Uint8Array(P.length);
       if (wet.some(Boolean)) {
@@ -600,7 +627,7 @@ export class KeralaTile {
           // (a hill stream or pond lies below its banks: the coarse survey can put its level well above them)
           const wy = (k) => { const y = this._waterY(P[k][0], P[k][1]); return Number.isFinite(bank) && this._h0At(P[k][0], P[k][1]) >= INLAND ? Math.min(y, bank - 0.3) : y; };
           for (let k = i; k <= j; k++) want[k] = water[k] ? Math.max(Number.isFinite(bank) ? bank + lift : -Infinity, wy(k) + clear)
-            : raw[k] + (cls <= 3 ? 6.5 : 5.2);   // a flyover: clear of the road (and traffic) beneath
+            : raw[k] + ((atEdge.includes(k) ? brg[k] : cls) <= 3 ? 6.5 : 5.2);   // a flyover: clear of the road (and traffic) beneath
           i = j + 1;
         }
         // ramps: 7 % up and down (4 % for a little canal bridge), running on along the chain into the approaches
@@ -615,6 +642,9 @@ export class KeralaTile {
         const ex = want.map((w, i) => w - prof[i]), rk = bigSpan ? 0.07 : 0.04;
         for (let i = 1; i < P.length; i++) ex[i] = Math.max(ex[i], ex[i - 1] - (D[i] - D[i - 1]) * rk);
         for (let i = P.length - 2; i >= 0; i--) ex[i] = Math.max(ex[i], ex[i + 1] - (D[i + 1] - D[i]) * rk);
+        // (a bridge over water running off the edge: the neighbour sees the water too)
+        const held = [...atEdge, ...[0, P.length - 1].filter((i) => edge[i] < 1.5 && water[i])];
+        for (let i = 0; i < P.length; i++) if (!held.some((a) => Math.abs(D[a] - D[i]) < 200)) ex[i] = Math.min(ex[i], edge[i] * rk);
         for (let i = 0; i < P.length; i++) if (ex[i] > 0) { if (ex[i] > 0.3) raised[i] = 1; prof[i] += ex[i]; }
       }
       // back to the pieces
@@ -870,7 +900,9 @@ export class KeralaTile {
       // the ground between vertices is creased (noisy SRTM): sit each vertex on the highest ground around it so
       // no ridge pokes through the strip
       const pe = P[Math.max(0, i - 1)], qe = P[Math.min(P.length - 1, i + 1)];
-      const hi = (oe, on) => Math.max(yOf(e + oe, n + on), yOf((e + pe[0]) / 2 + oe, (n + pe[1]) / 2 + on), yOf((e + qe[0]) / 2 + oe, (n + qe[1]) / 2 + on));
+      // (not on a road's own graded surface: that is smooth and is exactly what the wheels drive on; lifted to the higher
+      // ground ahead or behind, a ramp's strip would stand 0.1-0.3 m above them and the tyres sink into it)
+      const hi = (oe, on) => yOf.exact?.(e + oe, n + on) ? yOf(e + oe, n + on) : Math.max(yOf(e + oe, n + on), yOf((e + pe[0]) / 2 + oe, (n + pe[1]) / 2 + on), yOf((e + qe[0]) / 2 + oe, (n + qe[1]) / 2 + on));
       const yc = hi(0, 0);
       let yl = Math.max(hi(ne, nn), yc - 0.25), yr = Math.max(hi(-ne, -nn), yc - 0.25);
       if ((yl + yr) / 2 < yc) { const up = yc - (yl + yr) / 2; yl += up; yr += up; }  // a ridge along the middle
@@ -965,7 +997,7 @@ export class KeralaTile {
       const P = r.pts.length > 1 && (onEdge(r.pts[0]) || onEdge(r.pts[r.pts.length - 1])) ? [...r.pts] : r.pts;
       if (P !== r.pts) { if (onEdge(P[0])) P.unshift(run(P[0], P[1])); if (onEdge(P[P.length - 1])) P.push(run(P[P.length - 1], P[P.length - 2])); }
       // the road's own graded surface (its deck on a bridge), the ground where it has none (beyond a tile-edge cut)
-      const ys = (extra) => (e, n) => { const v = this._surfAt(r, e, n); return (v > -1e9 ? v : this.heightAt(e, n)) + lift + extra; };
+      const ys = (extra) => Object.assign((e, n) => { const v = this._surfAt(r, e, n); return (v > -1e9 ? v : this.heightAt(e, n)) + lift + extra; }, { exact: (e, n) => this._surfAt(r, e, n) > -1e9 });
       const g = this._ribbon(P, hw, ys(0), 7);
       if (!g) continue;
       g.computeVertexNormals();
@@ -1607,7 +1639,10 @@ export class KeralaTile {
         const pts = [[P.ce, P.cn], ...P.ring.map(([e, n]) => [e + (P.ce - e) * 0.15, n + (P.cn - n) * 0.15])];
         const onRd = pts.filter(([e, n]) => this.onRoad(e, n, -0.4, -1, 7)).length;
         // (any corner more than ~1 m into a main or town road's carriageway also goes: it would stand in a lane)
-        if (this.onRoad(P.ce, P.cn, -0.4, -1, 7) || onRd >= pts.length * 0.34 || P.ring.some(([e, n]) => this.onRoad(e, n, -1.0, -1, 6))) { hidden[bi] = 1; continue; }
+        // (and a long building lying across a road: points every ~3 m along its walls, pulled in a little)
+        const along = [];
+        for (let i = 0; i < P.ring.length; i++) { const [e1, n1] = P.ring[i], [e2, n2] = P.ring[(i + 1) % P.ring.length], k = Math.floor(Math.hypot(e2 - e1, n2 - n1) / 3); for (let j = 1; j < k; j++) { const e = e1 + (e2 - e1) * j / k, n = n1 + (n2 - n1) * j / k; along.push([e + (P.ce - e) * 0.1, n + (P.cn - n) * 0.1]); } }
+        if (this.onRoad(P.ce, P.cn, -0.4, -1, 7) || onRd >= pts.length * 0.34 || P.ring.some(([e, n]) => this.onRoad(e, n, -1.0, -1, 6)) || along.some(([e, n]) => this.onRoad(e, n, -1.0, -1, 6))) { hidden[bi] = 1; continue; }
       }
       if (near.size) {
         const pts = [[P.ce, P.cn], ...P.ring.map(([e, n]) => [e + (P.ce - e) * 0.15, n + (P.cn - n) * 0.15])];

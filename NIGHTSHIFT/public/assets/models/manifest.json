@@ -5278,52 +5278,52 @@
       "imported": true,
       "name": "Mahindra Thar",
       "length": 3.985,
-      "width": 1.901,
-      "height": 1.323,
+      "width": 1.976,
+      "height": 1.81,
       "wheels": [
         {
           "id": "FL",
-          "x": 0.815,
-          "y": 0.403,
-          "z": 1.318,
-          "r": 0.404,
-          "w": 0.423
+          "x": 0.64,
+          "y": 0.454,
+          "z": 1.245,
+          "r": 0.362,
+          "w": 0.324
         },
         {
           "id": "FR",
-          "x": -0.815,
-          "y": 0.403,
-          "z": 1.32,
-          "r": 0.404,
-          "w": 0.423
+          "x": -0.74,
+          "y": 0.404,
+          "z": 1.228,
+          "r": 0.388,
+          "w": 0.305
         },
         {
           "id": "RL",
-          "x": 0.815,
-          "y": 0.403,
-          "z": -0.968,
-          "r": 0.404,
-          "w": 0.423
+          "x": 0.76,
+          "y": 0.407,
+          "z": -1.069,
+          "r": 0.39,
+          "w": 0.267
         },
         {
           "id": "RR",
-          "x": -0.815,
-          "y": 0.403,
-          "z": -0.966,
-          "r": 0.404,
-          "w": 0.423
+          "x": -0.76,
+          "y": 0.39,
+          "z": -1.069,
+          "r": 0.39,
+          "w": 0.267
         }
       ],
       "tris": {
-        "lod0": 9046,
-        "lod1": 3823
+        "lod0": 78402,
+        "lod1": 12219
       },
       "source": {
         "site": "Sketchfab",
-        "uid": "6e723690d42748ad9887ce2d7dfa1acc",
-        "title": "Mahindra Thar (Prisma 3d)",
-        "author": "X_BLADE.",
-        "url": "https://sketchfab.com/3d-models/6e723690d42748ad9887ce2d7dfa1acc",
+        "uid": "b044bb5c930b4924ad0f752080fedeb9",
+        "title": "Mahendra Thar 3 Door",
+        "author": "doraemondt200",
+        "url": "https://sketchfab.com/3d-models/b044bb5c930b4924ad0f752080fedeb9",
         "license": "CC-BY-4.0"
       }
     },
@@ -5864,7 +5864,7 @@
     "cars/kl_scooter.glb": "823295e68c",
     "cars/kl_scorpio.glb": "90b925094a",
     "cars/kl_streetbike.glb": "c3dd2cadbc",
-    "cars/kl_thar.glb": "b2b35eb05f",
+    "cars/kl_thar.glb": "7ff9d2dd45",
     "cars/lamborghini_centenario.glb": "6c9aa6918e",
     "cars/lamborghini_huracan_tt.glb": "3a5864e8ee",
     "cars/mazda_rx7_fd.glb": "4cea2d5b82",
@@ -5902,6 +5902,9 @@
     "humans/songbird.glb": "e6ef9db7de",
     "interceptor.glb": "3b6f782a56",
     "kestrel.glb": "74f553c565",
+    "props/boat_canopy.glb": "82d4e8a312",
+    "props/boat_ferry.glb": "5881526b56",
+    "props/boat_vallam.glb": "2b31c91894",
     "rider.glb": "de5444d131",
     "sa_fastback.glb": "224f9e45a6",
     "sa_sedan.glb": "9f5ec09e9f",

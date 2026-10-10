@@ -31,7 +31,7 @@ export class TrafficRenderer {
     const rimMat = new THREE.MeshStandardMaterial({ color: 0x9a9ea4, metalness: 0.9, roughness: 0.35 });
     this.shared = {
       paint: new THREE.MeshPhysicalMaterial({ color: 0xffffff, metalness: 0.5, roughness: 0.35, clearcoat: 1, clearcoatRoughness: 0.08, envMapIntensity: 1.1, vertexColors: true }),
-      glass: new THREE.MeshStandardMaterial({ color: 0x0a0e12, metalness: 0.5, roughness: 0.05, envMapIntensity: 1.5 }),
+      glass: new THREE.MeshStandardMaterial({ color: 0x0a0e12, metalness: 0.5, roughness: 0.14, envMapIntensity: 1.1 }),
       dark: new THREE.MeshStandardMaterial({ color: 0x0c0d0f, roughness: 0.7 }),
       chrome: new THREE.MeshStandardMaterial({ color: 0xcfd3d8, metalness: 1, roughness: 0.15 }),
       head: new THREE.MeshBasicMaterial({ color: 0xffffff, toneMapped: false, map: headlightTextures().emissiveMap }),
@@ -260,9 +260,11 @@ export class TrafficRenderer {
           }
           _p.set(T.tail.x * sx, T.tail.y, T.tail.z - 0.05).applyQuaternion(_q).add(_s.set(c.x, c.y, c.z));
           if (reflect && facing < 0) refl.addReflection(_p.x, _p.y, _p.z, 0.7 * (0.45 + c.brake), 0.04, 0.025, 0.45);
-          const ts = 0.55 + c.brake * 0.5 + c.dist * 0.003;
+          // (from behind only, and small up close: right behind a car a metre-wide red halo hid half the screen)
+          const tailK = clamp((-facing / Math.max(c.dist, 1) - 0.05) / 0.5, 0, 1);
+          const ts = Math.min(0.3 + c.brake * 0.2 + c.dist * 0.004, 1.1);
           this.tailGlow.setMatrixAt(ti, _w.compose(_p, cq, _s.set(ts, ts, ts)));
-          this.tailGlow.setColorAt(ti++, _c.setScalar(lightsOn ? 0.7 + c.brake * 0.6 : c.brake));
+          this.tailGlow.setColorAt(ti++, _c.setScalar((lightsOn ? 0.55 + c.brake * 0.4 : c.brake * 0.6) * tailK));
         }
         if (lightsOn && c.dist < 140) { _m.compose(_p.set(c.x, c.y, c.z), _wq.setFromEuler(_e.set(0, c.yaw, 0)), _s.set(1, 1, 1)); this.beams.setMatrixAt(bi++, _m); }
       }

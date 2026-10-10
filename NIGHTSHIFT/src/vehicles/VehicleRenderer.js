@@ -138,7 +138,7 @@ export class VehicleRenderer {
       this._swapMaterial(m.paint, pm);
     }
     if (m.paint) { m.paint.envMapIntensity = 1.2; this.factory = { color: m.paint.color.clone(), map: m.paint.map, metalness: m.paint.metalness, roughness: m.paint.roughness }; }
-    if (m.glass) { m.glass.envMapIntensity = 2; m.glass.depthWrite = false; this.factoryGlass = m.glass.opacity; }
+    if (m.glass) { m.glass.envMapIntensity = 1.2; m.glass.roughness = Math.max(m.glass.roughness ?? 0, 0.12); m.glass.depthWrite = false; this.factoryGlass = m.glass.opacity; }
     for (const k of ['headlight', 'taillight']) {
       const mm = m[k];
       if (mm && mm.emissive && mm.emissive.getHex() === 0) mm.emissive.setHex(k === 'headlight' ? 0xfff2dc : 0xff1a0a);
@@ -155,7 +155,8 @@ export class VehicleRenderer {
     if (this.imported) { this._tuneImported(); return; }
     const m = this.mats;
     if (m.paint) { m.paint.envMapIntensity = 1.25; m.paint.clearcoat = 1; m.paint.clearcoatRoughness = 0.04; }
-    if (m.glass) { m.glass.envMapIntensity = 2.2; m.glass.roughness = 0.02; m.glass.metalness = 0.55; m.glass.depthWrite = false; }
+    // (smoother glass than this and the sun's highlight blooms into a white blob on the screen)
+    if (m.glass) { m.glass.envMapIntensity = 1.3; m.glass.roughness = 0.12; m.glass.metalness = 0.45; m.glass.depthWrite = false; }
     if (m.chrome) m.chrome.envMapIntensity = 1.5;
     if (m.headlight) {
       const t = headlightTextures();

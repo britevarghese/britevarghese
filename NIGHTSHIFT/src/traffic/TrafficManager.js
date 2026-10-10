@@ -157,8 +157,9 @@ export class TrafficManager {
     car.x = tmp.x + rx * car.lat; car.z = tmp.z + rz * car.lat;
     car.yaw = Math.atan2(tmp.dx, tmp.dz);
     if (this.world.kerala) {
-      // the streamed terrain has hills: ride on it, nose up / down with the slope
-      const L = car.spec.l * 0.45, fx = Math.sin(car.yaw), fz = Math.cos(car.yaw), y0 = car.placed ? car.y : undefined, gh = (x, z) => this.world.layout.groundHeight(x, z, y0);
+      // the streamed terrain has hills: ride on it, nose up / down with the slope (a lane on a road with no bridge
+      // never climbs onto a flyover above it, even a car just spawned under one)
+      const L = car.spec.l * 0.45, fx = Math.sin(car.yaw), fz = Math.cos(car.yaw), y0 = car.path.deck === false ? -Infinity : car.placed ? car.y : undefined, gh = (x, z) => this.world.layout.groundHeight(x, z, y0);
       const hf = gh(car.x + fx * L, car.z + fz * L), hr = gh(car.x - fx * L, car.z - fz * L);
       car.y = (hf + hr) / 2 + 0.01; // (ground height already includes the road surface)
       car.slope = Math.atan2(hf - hr, 2 * L);

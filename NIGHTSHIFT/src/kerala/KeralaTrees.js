@@ -388,6 +388,8 @@ export class KeralaTrees {
       const je = e + (rnd() - 0.5) * step * 0.95, jn = n + (rnd() - 0.5) * step * 0.95;
       const cls = tile.classAt(je, jn), mix = MIX[cls];
       if (!mix || onRoad(je, jn)) continue;
+      // (not in a house: a trunk through a wall or a crown through the roof; small plants may stand by the walls)
+      if (tile.inBuilding?.(je, jn, 2.2)) continue;
       const h = tile.heightAt(je, jn), est = (cls === C.grove || cls === C.forest || cls === C.land) && h > 40 && h < 700 ? isEstate(je, jn) : -1;
       if (est >= 0) {
         // a 2x2 block of rubber trees on a 3 m grid in the estate's row direction

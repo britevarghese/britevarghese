@@ -186,7 +186,7 @@ export class KeralaLaneGraph {
           let pts = leftOffset(C, off);
           pts = trim(pts, 2.5, 2.5);
           if (pts.length < 2) continue;
-          const lane = new Path(pts, { kind: 'lane', edge, dir, speed: SPEED[r.cls], laneIndex: li, lanes: per, from, to, signal: false, axis: 'x', tile: k, siblings: [] });
+          const lane = new Path(pts, { kind: 'lane', edge, dir, speed: SPEED[r.cls], laneIndex: li, lanes: per, from, to, signal: false, axis: 'x', tile: k, siblings: [], deck: !!r.deck });
           lane.next = [];
           mine.push(lane);
           if (!this.outs.has(from)) this.outs.set(from, []);

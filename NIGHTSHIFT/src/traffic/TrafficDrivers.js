@@ -6,6 +6,8 @@ import { TRAFFIC_MODELS } from '../vehicles/VehicleCatalog.js';
 
 const _m = new THREE.Matrix4(), _q = new THREE.Quaternion(), _e = new THREE.Euler(), _p = new THREE.Vector3(), _one = new THREE.Vector3(1, 1, 1);
 const _seat = new THREE.Vector3(), _hip = new THREE.Vector3();
+// the driver's seat (hips) along the body, metres from its middle toward the front, for the models without a marker
+const CAB_Z = { minitruck: 1.0, lorry: 3.15, ksrtc: 4.55, pvtbus2: 4.45, bolero: 0.1 };
 
 export class TrafficDrivers {
   constructor(game) { this.game = game; this.on = new Map(); this.pool = []; this.seats = {}; }
@@ -20,6 +22,9 @@ export class TrafficDrivers {
       if (type === 'auto') s.x = 0;
       else if (tm && /^kl_/.test(tm.id)) s.x = -Math.max(0.3, Math.abs(s.x));   // right-hand drive
       s.y -= 0.62; s.z += type === "auto" ? -0.08 : 0.06;                            // hips under the eyes (seat back reclined)
+      // models whose eye marker was never placed (it sits at the body's middle): the cab is at the front
+      // (a pickup's driver sat in the cargo bed, a lorry's and a bus's halfway down the body)
+      if (CAB_Z[type] !== undefined && Math.abs(eye.position.z) < 0.01) s.z = CAB_Z[type];
     }
     return (this.seats[type] = s);
   }
@@ -27,8 +32,9 @@ export class TrafficDrivers {
   _take() {
     const H = this.game.humans;
     if (this.pool.length) return this.pool.pop();
-    const n = H.models.length, skip = n > 2 ? 1 : 0;
-    const h = H.create(skip + Math.floor(Math.random() * (n - skip)), { shadow: false });
+    // (the men among the people models: the player's own look aside)
+    const men = H.models.map((m, i) => (i > 0 && m.sex !== 'f' ? i : -1)).filter((i) => i >= 0);
+    const h = H.create(men.length ? men[Math.floor(Math.random() * men.length)] : 0, { shadow: false });
     if (h) h.play('drive', { hold: true, fade: 0 });
     return h;
   }
