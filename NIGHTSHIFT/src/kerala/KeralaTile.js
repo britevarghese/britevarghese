@@ -789,6 +789,18 @@ export class KeralaTile {
         // (a bridge over water running off the edge: the neighbour sees the water too)
         const held = [...atEdge, ...[0, P.length - 1].filter((i) => edge[i] < 1.5 && water[i])];
         for (let i = 0; i < P.length; i++) if (!held.some((a) => Math.abs(D[a] - D[i]) < 200)) ex[i] = Math.min(ex[i], edge[i] * rk);
+        // (the ramps rounded off at the foot and the top, no kink to jolt over: the lift averaged along the road
+        // over ±20 m a few times, never below what the span itself needs, and still down to nothing at the edge)
+        const need = ex.map((v, i) => (wet[i] ? v : 0));
+        for (let pass = 0; pass < 3; pass++) {
+          const sm2 = ex.map((_, i) => {
+            let sw = 0, sy = 0;
+            for (let k = i; k >= 0 && (D[i] - D[k] < 20 || k === i - 1); k--) { const w = Math.max(0.2, 1 - (D[i] - D[k]) / 20); sw += w; sy += ex[k] * w; }
+            for (let k = i + 1; k < P.length && (D[k] - D[i] < 20 || k === i + 1); k++) { const w = Math.max(0.2, 1 - (D[k] - D[i]) / 20); sw += w; sy += ex[k] * w; }
+            return sy / sw;
+          });
+          for (let i = 0; i < P.length; i++) { ex[i] = Math.max(sm2[i], need[i]); if (!held.some((a) => Math.abs(D[a] - D[i]) < 200)) ex[i] = Math.min(ex[i], edge[i] * rk); }
+        }
         for (let i = 0; i < P.length; i++) if (ex[i] > 0) { if (ex[i] > 0.3) raised[i] = 1; prof[i] += ex[i]; }
       }
       // back to the pieces
@@ -870,7 +882,9 @@ export class KeralaTile {
         const dy = (onRamp ? o[5] : o[0] / o[1]) - prof[j];
         // (a lane joined in the map to a flyover's or bridge's ramp passes under or beside it: it keeps its own level)
         if ((o[4] || onRamp) && Math.abs(dy) > 1.5 && R.cls > Math.min(o[2], onRamp ? o[6] : 99) + 2) continue;
-        J.push([D[j], dy, Math.min(150, Math.max(30, Math.abs(dy) / 0.08))]);
+        // (long enough for no more than 8 % extra grade, and for the dip or rise to be a gentle curve: under
+        // 0.3 m of bend over 16 m at its middle)
+        J.push([D[j], dy, Math.min(150, Math.max(45, Math.abs(dy) / 0.08, Math.sqrt(1300 * Math.abs(dy))))]);
       }
       // each junction's correction fades out over 30 m (longer for a big one: no more than 8 % extra grade); where two overlap they blend (each weighted by how far the
       // other has faded), exact at each junction and with no jump between them

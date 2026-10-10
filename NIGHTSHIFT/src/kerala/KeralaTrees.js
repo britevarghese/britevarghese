@@ -5,7 +5,7 @@
 // radius uR hides the cheap copy where the detailed one is drawn, so nothing has to be re-uploaded per tile.
 // The detailed plants are leaf cards on a generated atlas (leaf clusters, pinnate palm fronds, banana leaves,
 // bark), lit with normals pointing out of the crown so the foliage reads as a soft volume.
-// Closest of all (within uM), the coconut palms, broadleaf trees and banana plants are real models
+// Closest of all (within uM), the coconut and areca palms, broadleaf trees and banana plants are real models
 // (public/assets/models/props/tree_*.glb, tools/import-props.mjs), on the same instance matrices.
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
@@ -15,7 +15,8 @@ export const KIND = { palm: 0, broad: 1, banana: 2, bush: 3, areca: 4, rubber: 5
 const KINDS = 8;
 const WHITE = new THREE.Color(1, 1, 1);
 // the real models, by kind (loaded once the asset manager is up; the generated plants stand in until then)
-const MODELS = { [KIND.palm]: 'props/tree_coconut.glb', [KIND.broad]: 'props/tree_broad.glb', [KIND.banana]: 'props/tree_banana.glb' };
+// (an areca palm is the coconut palm's shape on a slimmer scale: the same model, half as wide)
+const MODELS = { [KIND.palm]: 'props/tree_coconut.glb', [KIND.broad]: 'props/tree_broad.glb', [KIND.banana]: 'props/tree_banana.glb', [KIND.areca]: ['props/tree_coconut.glb', 0.5] };
 
 // atlas regions (u0, v0, u1, v1), v up
 const AW = 512, AH = 256;
@@ -69,6 +70,26 @@ function atlas() {
   for (let i = 0; i < 80; i++) { g.fillStyle = rnd() < 0.5 ? '#5a4c3e' : '#3a3026'; g.fillRect(X(0.875) + rnd() * X(0.06), AH / 2 + rnd() * AH / 2, 2, 10); }
   g.fillStyle = '#8a7c66'; g.fillRect(X(0.94), 0, X(0.06), AH);
   for (let y = 0; y < AH; y += 6) { g.fillStyle = '#6a5e4c'; g.fillRect(X(0.94), y, X(0.06), 2); }
+  const t = new THREE.CanvasTexture(cv);
+  t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4;
+  return t;
+}
+
+// a tuft of grass: thin tapering blades fanning up from the root, light at the tips (its own small texture)
+function grassTex() {
+  const cv = document.createElement('canvas'); cv.width = cv.height = 128;
+  const g = cv.getContext('2d');
+  let s = 4242;
+  const rnd = () => ((s = (s * 16807) % 2147483647) / 2147483647);
+  for (let i = 0; i < 70; i++) {
+    const x0 = 64 + (rnd() - 0.5) * 30, lean = (rnd() - 0.5) * 70, h = 60 + rnd() * 66, w = 1.6 + rnd() * 2.2;
+    const tip = [x0 + lean, 128 - h], mid = [x0 + lean * 0.35, 128 - h * 0.55];
+    const gr = g.createLinearGradient(0, 128, 0, 128 - h);
+    const hue = 75 + rnd() * 30, l = 18 + rnd() * 12;
+    gr.addColorStop(0, `hsl(${hue}, 45%, ${l * 0.6}%)`); gr.addColorStop(1, `hsl(${hue - 10 + rnd() * 10}, 40%, ${l + 10}%)`);
+    g.fillStyle = gr;
+    g.beginPath(); g.moveTo(x0 - w, 128); g.quadraticCurveTo(mid[0] - w * 0.6, mid[1], tip[0], tip[1]); g.quadraticCurveTo(mid[0] + w * 0.6, mid[1], x0 + w, 128); g.fill();
+  }
   const t = new THREE.CanvasTexture(cv);
   t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4;
   return t;
@@ -260,12 +281,12 @@ function bambooHi() {
   return merge(parts);
 }
 
-// a tuft of tall grass: crossed blades from the frond texture's leaflets
+// a tuft of tall grass: three crossed cards of the grass texture (drawn with their own material)
 function grassHi() {
   const parts = [];
   for (let k = 0; k < 3; k++) {
-    const g = new THREE.PlaneGeometry(0.9, 0.7).translate(0, 0.33, 0).rotateY((k / 3) * Math.PI);
-    parts.push(part(g, k ? 0xd8e8a0 : 0xe8e0a0, [0.5, 0.15, 0.75, 0.6], { centre: [0, -0.4, 0] }));
+    const g = new THREE.PlaneGeometry(0.8, 0.75).translate(0, 0.36, 0).rotateY((k / 3) * Math.PI);
+    parts.push(part(g, 0xffffff, [0, 0, 1, 1], { centre: [0, -0.6, 0] }));
   }
   return merge(parts);
 }
@@ -342,7 +363,8 @@ export class KeralaTrees {
     this.atlas = atlas();
     this.hiMat = swapMaterial(this.U, true, this.atlas);
     this.loMat = swapMaterial(this.U, false);
-    this.midMat = swapMaterial(this.U, 'mid', this.atlas);   // (the generated plant where a real model takes over close up)
+    this.midMat = swapMaterial(this.U, 'mid', this.atlas);
+    this.grassMat = swapMaterial(this.U, true, grassTex());   // (the generated plant where a real model takes over close up)
     this.group = new THREE.Group(); this.group.name = 'klTreesNear';
     scene.add(this.group);
     this.setPreset(preset);
@@ -373,7 +395,8 @@ export class KeralaTrees {
 
   // load the real tree models (call once the asset manager exists)
   loadModels(assets) {
-    for (const [k, file] of Object.entries(MODELS)) {
+    for (const [k, M] of Object.entries(MODELS)) {
+      const [file, wide = 1] = [].concat(M);
       assets.loadGLTF('/assets/models/' + file, 5).then((g) => {
         const parts = new Map();
         g.scene.updateMatrixWorld(true);
@@ -389,6 +412,7 @@ export class KeralaTrees {
           }
           if (o.geometry.index) geo.setIndex(new THREE.BufferAttribute(Uint32Array.from(o.geometry.index.array), 1));
           geo.applyMatrix4(o.matrixWorld);
+          if (wide !== 1) geo.scale(wide, 1, wide);
           if (!parts.has(o.material)) parts.set(o.material, []);
           parts.get(o.material).push(geo);
         });
@@ -421,7 +445,7 @@ export class KeralaTrees {
       });
       this.hi[k].material = this.midMat; this.hi[k].customDepthMaterial = this.midDepth ||= depthMaterial(this.U, 'mid', this.atlas, 0.42);
     }
-    for (let k = 0; k < (this.hi?.length || 0); k++) if (!this.hiModel[k]) { this.hi[k].material = this.hiMat; this.hi[k].customDepthMaterial = undefined; }
+    for (let k = 0; k < (this.hi?.length || 0); k++) if (!this.hiModel[k]) { this.hi[k].material = k === KIND.grass ? this.grassMat : this.hiMat; this.hi[k].customDepthMaterial = undefined; }
   }
 
   // scatter a tile's plants: returns { mesh group (distant copies), data for the near set }
