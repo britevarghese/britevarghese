@@ -19,8 +19,8 @@ the game. Newly found problems go at the end of their section.
 
 ## Police and traffic
 - [x] Police start a chase when their own car hits you (fault check: whoever drove into whom)
-- [ ] Police checkpoints (Bolero jeep, officers checking vehicles)
-- [ ] Traffic police at busy junctions, directing traffic
+- [x] Police checking points (a Bolero on the verge with its lights, a barricade on the edge, two officers in khaki)
+- [x] Traffic police at busy junctions (an officer in khaki on a podium under a white umbrella at the corner)
 - [ ] Accidents: recovery crane / tow truck clears wrecks, traffic police control traffic round it
 - [ ] Traffic with purpose: trips with destinations (buses stand to stand, autos to stands, cars to homes and shops, lorries to markets)
 - [x] Police jeep = Mahindra Bolero, white with KERALA POLICE on the doors and a light bar (the roof figure: cab seat fixed earlier)

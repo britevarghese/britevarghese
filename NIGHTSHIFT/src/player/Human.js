@@ -87,10 +87,12 @@ export class HumanLibrary {
     return new Human(m, { ...opts, outfit, lib: this });
   }
   // a man from the crowd (drivers, riders)
+  // (opts.outfit: a uniform; then only the avatars that can wear one)
   createMan(n = 0, opts = {}) {
     if (!this.ready || !this.men?.length) return this.create(n, opts);
-    const m = this.men[((n % this.men.length) + this.men.length) % this.men.length];
-    return new Human(m, { ...opts, outfit: this.kerala ? { top: KL_SHIRTS[(n * 7 + 3) % KL_SHIRTS.length], bottom: KL_LOWERS[(n * 5 + 1) % KL_LOWERS.length] } : null, lib: this });
+    const L = opts.outfit ? this.men.filter((m) => !/^kl_/.test(m.id)) : this.men, M = L.length ? L : this.men;
+    const m = M[((n % M.length) + M.length) % M.length];
+    return new Human(m, { ...opts, outfit: opts.outfit ?? (this.kerala ? { top: KL_SHIRTS[(n * 7 + 3) % KL_SHIRTS.length], bottom: KL_LOWERS[(n * 5 + 1) % KL_LOWERS.length] } : null), lib: this });
   }
 }
 

@@ -15,6 +15,7 @@ import { Environment } from '../renderer/Environment.js';
 import { Effects } from '../renderer/Effects.js';
 import { WorldManager } from '../world/WorldManager.js';
 import { KeralaWorld, START } from '../kerala/KeralaWorld.js';
+import { KeralaPolice } from '../kerala/KeralaPolice.js';
 import { SkinnedRider } from '../vehicles/Rider.js';
 import { Incidents } from '../world/Incidents.js';
 import { KeralaMap, KeralaOverview } from '../kerala/KeralaMap.js';
@@ -155,7 +156,7 @@ export class Game {
     this.net.connect().catch(() => {});
     this._wireEvents();
     this._wireAudioUnlock();
-    if (this.world.kerala) { this.boats = new KeralaBoats(this.world, this.scene, this.assets); this.klGarages = new KeralaGarages(this.world, this.scene); this.safehouses = this.klGarages.list; this.empire.blips = () => []; }
+    if (this.world.kerala) { this.boats = new KeralaBoats(this.world, this.scene, this.assets); this.klGarages = new KeralaGarages(this.world, this.scene); this.klPolice = new KeralaPolice(this); this.safehouses = this.klGarages.list; this.empire.blips = () => []; }
     await this.rm.setupPost(this.scene, this.camera);
     this.camCtl.snap(this.player);
     progress(1, 'Ready');
@@ -784,6 +785,7 @@ export class Game {
       this.races.update(dt);
       this.klGarages?.update(this.camera.position);
       this.boats?.update(dt, this.camera.position);
+      this.klPolice?.update(dt, this.player.state); this.klPolice?.sync(dt, this.camera.position);
       this.story.update(dt, input, driving);
       if (!this.world.kerala) { // Port Halvern's properties and rival crews (Kerala's come later)
         this.empire.update(dt, input, driving);
