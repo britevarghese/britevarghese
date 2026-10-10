@@ -329,6 +329,7 @@ export class Game {
         if (e.impact > 6) this.progress.chain.crash();
         // a real smash, not a scrape, and the player's doing (not a car that ran into them)
         if (e.impact > 13 && this._atFault(s, e.car.x, e.car.z, e.car.v * Math.sin(e.car.yaw), e.car.v * Math.cos(e.car.yaw))) this.police.reportInfraction('hitCivilian', 1, 45);
+        if (e.impact > 13) this.incidents?.fromCrash(e.car);   // (a wreck: the ambulance, police and recovery truck come)
       }
     });
     // pedestrians struck by a vehicle (Pedestrians._hit): body thud, a jolt, and the police care

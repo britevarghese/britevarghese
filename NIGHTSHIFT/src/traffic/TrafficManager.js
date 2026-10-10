@@ -214,7 +214,7 @@ export class TrafficManager {
     for (const c of this.cars) if (c.path && !c.path._sorted) { c.path.cars.sort((a, b) => a.s - b.s); c.path._sorted = true; }
 
     for (const c of this.cars) {
-      if (c.state === 'parked') continue;
+      if (c.state === 'parked' || c.state === 'hoisted') continue;   // (hoisted: on a recovery truck's hook)
       if (c.state !== 'drive') { this._knocked(c, dt); continue; }
       // far cars update at lower rate
       const far = c.dist > 150;
@@ -642,6 +642,7 @@ export class TrafficManager {
   }
 
   _collide(v, c) {
+    if (c.state === 'hoisted') return null;   // (on a recovery truck's hook)
     const A = v.physics;
     if (c.phys && c.state === 'drive') {
       const res = VehiclePhysics.resolvePair(A, c.phys);

@@ -15,13 +15,13 @@ the game. Newly found problems go at the end of their section.
 - [ ] Vehicle models incomplete up close (green SUV body shards, Thar scan tearing at the wheels)
 - [x] Two-wheeler rider vanishes when hit (always thrown as a body now; no get-up animation exists yet)
 - [ ] Traffic car floating in the air (parked by a pole)
-- [ ] Bus tilted on a kerb after a crash and stays there
+- [x] Bus tilted on a kerb after a crash and stays there (a player crash is an incident now: towed away)
 
 ## Police and traffic
 - [x] Police start a chase when their own car hits you (fault check: whoever drove into whom)
 - [x] Police checking points (a Bolero on the verge with its lights, a barricade on the edge, two officers in khaki)
 - [x] Traffic police at busy junctions (an officer in khaki on a podium under a white umbrella at the corner)
-- [ ] Accidents: recovery crane / tow truck clears wrecks, traffic police control traffic round it
+- [x] Accidents: a recovery truck with a jib hoists the wrecks and tows them away; a traffic officer waves traffic past; crashes the player causes get the same response
 - [ ] Traffic with purpose: trips with destinations (buses stand to stand, autos to stands, cars to homes and shops, lorries to markets)
 - [x] Police jeep = Mahindra Bolero, white with KERALA POLICE on the doors and a light bar (the roof figure: cab seat fixed earlier)
 
@@ -38,4 +38,5 @@ the game. Newly found problems go at the end of their section.
 - [ ] Roads: thick tar look, seamless joins (no ledges or slab edges where roads meet)
 - [ ] Wide canals / rivers mapped as water areas (polygons): same treatment as the canal lines
 - [ ] Kannur QA: every main road, the bridges (Valapattanam), the hills, Payyambalam beach, the rivers
+- [ ] Median ends: a brown earth strip runs into the junction past the median's end
 - [ ] Ride every road and fix what is found
