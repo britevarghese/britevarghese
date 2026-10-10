@@ -453,7 +453,8 @@ export class OnFoot {
     const g = this.game, def = TRAFFIC_VEHICLES[c.type];
     if (!def || !g.lib.has(c.type)) return null;
     const v = new Vehicle({ carId: c.type, params: { ...def.params }, world: g.world, lib: g.lib, role: 'player', carType: def.carType, renderOpts: { headlights: g.preset.headlightSpots, shadow: g.preset.shadows !== 'off', lodDistance: 1e9 } });
-    const col = '#' + new THREE.Color(c.color ?? 0x888888).getHexString();
+    // (a vehicle in its own painted livery, an auto, a bus, keeps it: its traffic 'colour' is only an untinted white)
+    const col = c.spec?.livery || def.livery ? 'factory' : '#' + new THREE.Color(c.color ?? 0x888888).getHexString();
     v.renderer.applyCustom({ paint: col, finish: 'gloss', wheel: 0, tint: 0.2 });
     v.renderer.enableDents?.();
     g.scene.add(v.renderer.group);

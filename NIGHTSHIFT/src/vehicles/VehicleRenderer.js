@@ -583,6 +583,11 @@ export class VehicleRenderer {
     // back is the rear seat of a tall cabin)
     const d = this._eye && tm && /^kl_/.test(tm.id) && this.doors?.[this._eye.x < 0 ? -1 : 1];
     if (d?.len > 0.5 && this._eye.z < d.hinge.z - d.len * 1.05) this._eye.z = d.hinge.z - d.len * 0.75;
+    // a bus: the driver sits right at the front, by the windscreen (its eye estimate lands among the passengers)
+    if (this._eye && ['ksrtc', 'pvtbus', 'pvtbus2'].includes(this.carId) && this._cabin) {
+      this._eye.z = Math.max(this._eye.z, this._cabin.zFront - 0.95);
+      this._eye.x = -Math.max(0.45, Math.abs(this._eye.x), 0.62);
+    }
     return this._eye;
   }
 
@@ -597,6 +602,8 @@ export class VehicleRenderer {
       const inv = new THREE.Matrix4().copy(body.matrixWorld).invert();
       const box = new THREE.Box3(), tb = new THREE.Box3();
       for (const o of meshes) { if (!o.geometry.boundingBox) o.geometry.computeBoundingBox(); tb.copy(o.geometry.boundingBox).applyMatrix4(o.matrixWorld).applyMatrix4(inv); box.union(tb); }
+      // an autorickshaw: the driver sits in the middle at the front on a bench, the handlebars before him
+      if (this.carId === 'auto') { this._eye = new THREE.Vector3(0, box.min.y + 1.42, box.max.z - 1.0); return this._eye; }
       const rc = new THREE.Raycaster(), O = new THREE.Vector3(), D = new THREE.Vector3();
       const cast = (ox, oy, oz, dx, dy, dz) => {
         O.set(ox, oy, oz).applyMatrix4(body.matrixWorld);
@@ -642,6 +649,11 @@ export class VehicleRenderer {
       // reliable fore-aft: never sit ahead of it
       if (mk && Math.abs(mk.position.z) > 0.02) z = Math.min(z, mk.position.z + 0.05);
       y = Math.max(box.min.y + 0.75, roofAt(z) - 0.18);
+      // the wheel and dash a seated driver has in reach: at hand height, ~0.75 m ahead. A headrest found further
+      // back (the rear seats of a tall cabin) left the eye a metre and more behind them, the roof filling the view
+      const dash = cast(x, y - 0.38, z, 0, 0, 1);
+      if (dash !== null && dash > 0.9 && dash < 2.6) z = Math.min(z + (dash - 0.75), zFront - 0.25);
+      y = Math.max(box.min.y + 0.75, roofAt(z) - 0.22);
       this._eye = new THREE.Vector3(x, y, z);
     } catch (e) { console.warn('[Vehicle] cockpit eye probe failed', e); }
     return this._eye;

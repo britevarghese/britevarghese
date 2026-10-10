@@ -90,7 +90,15 @@ const CAR_SOUNDS = {
   suzuki_hayabusa:       ['tuner',  { layout: 'i4bike', cyl: 4, turbo: 0, intake: 0.55, cutRpm: 5200, sub: 0.25, crackle: 0.7, bodyF: 220, limHz: 22 }], // 1340 I4
   ducati_panigale_v4r:   ['exotic', { layout: 'v4', cyl: 4, harm: [0, 1, 0.85, 0.7, 0.55, 0.45, 0.35, 0.28, 0.2], turbo: 0, amDepth: 0.35, amRate: 0.5, h15: 0.45, cutRpm: 7200, crackle: 1, bodyF: 280, limHz: 22 }], // Desmosedici Stradale V4
   kawasaki_ninja_h2:     ['tuner',  { layout: 'i4bike', cyl: 4, turbo: 0, sc: 1, scRatio: 9.2, intake: 0.5, cutRpm: 6000, crackle: 0.8, bodyF: 260, limHz: 22 }],  // supercharged I4: centrifugal blower geared 9.2:1, whine locked to rpm
+  // Kerala's vehicles (traffic you can take)
+  auto:      ['tuner',  { layout: 'vtwin', cyl: 1, harm: [0, 1, 0.8, 0.55, 0.4, 0.28, 0.18, 0.1], turbo: 0, sub: 0.5, h15: 0.6, amDepth: 0.55, amRate: 1, cutRpm: 4500, crackle: 0, drive: 2.6, bodyF: 180, gain: 0.85, limHz: 8 }], // single-cylinder putt-putt
+  m800:      ['tuner',  { layout: 'i4', cyl: 3, turbo: 0, crackle: 0, amDepth: 0.25, amRate: 0.5, bodyF: 170 }],                            // 796 cc three-cylinder
+  minitruck: ['tuner',  { layout: 'i4', cyl: 2, turbo: 0, sub: 0.5, crackle: 0, amDepth: 0.4, amRate: 0.5, bodyF: 120, drive: 2.8 }],      // two-cylinder diesel
+  bolero:    ['tuner',  { layout: 'i4', cyl: 4, turbo: 0.6, sub: 0.45, crackle: 0, bodyF: 120, amDepth: 0.15, drive: 2.8 }],              // diesel jeeps
+  lorry:     ['muscle', { layout: 'i6', cyl: 6, turbo: 0.6, sub: 0.6, h2: 0.3, crackle: 0, cutRpm: 2200, amDepth: 0.15, bodyF: 90, drive: 3 }], // big diesels
 };
+for (const id of ['scorpio', 'thar']) CAR_SOUNDS[id] = CAR_SOUNDS.bolero;
+for (const id of ['ksrtc', 'pvtbus', 'pvtbus2']) CAR_SOUNDS[id] = CAR_SOUNDS.lorry;
 for (const [id, [base, o]] of Object.entries(CAR_SOUNDS)) PROFILES[id] = { ...PROFILES[base], ...o, base };
 
 /** Engine sound key for a car: its own profile when there is one, else its type's. */

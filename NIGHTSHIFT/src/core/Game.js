@@ -326,7 +326,8 @@ export class Game {
         this.input.rumble(0.8, 0.5, 200);
         this._dentPlayer(e.x, e.z, clamp(e.impact / 25, 0, 1));
         if (e.impact > 6) this.progress.chain.crash();
-        if (e.impact > 13) this.police.reportInfraction('hitCivilian', 1, 45); // a real smash, not a scrape
+        // a real smash, not a scrape, and the player's doing (not a car that ran into them)
+        if (e.impact > 13 && this._atFault(s, e.car.x, e.car.z, e.car.v * Math.sin(e.car.yaw), e.car.v * Math.cos(e.car.yaw))) this.police.reportInfraction('hitCivilian', 1, 45);
       }
     });
     // pedestrians struck by a vehicle (Pedestrians._hit): body thud, a jolt, and the police care
@@ -697,6 +698,14 @@ export class Game {
     return true;
   }
 
+  // whose fault was a collision between the player (state s) and another vehicle at (ox, oz) moving at (ovx, ovz):
+  // the player's when they were driving into it at least as fast as it was coming into them
+  _atFault(s, ox, oz, ovx, ovz) {
+    const dx = ox - s.x, dz = oz - s.z, l = Math.hypot(dx, dz) || 1, ux = dx / l, uz = dz / l;
+    const mine = (s.vx || 0) * ux + (s.vz || 0) * uz, theirs = -(ovx * ux + ovz * uz);
+    return mine > 1 && mine >= theirs * 0.8;
+  }
+
   _persistPosition() {
     const s = this.player?.state;
     if (s) this.save.data.lastPosition = { x: s.x, z: s.z, yaw: s.yaw };
@@ -819,7 +828,11 @@ export class Game {
           this.camCtl.addShake(clamp(hit.impact / 25, 0, 0.7));
           this._dentPlayer(hit.x, hit.z, clamp(hit.impact / 25, 0, 1));
           // a light bump (in a queue, parking) gets a warning; a second within 20 s, or a real hit, a pursuit
-          if (this.police.state === 'idle') {
+          // (the police car drove into the player: its fault, an apology, nothing more)
+          const vs2 = v.physics?.s || v.state;
+          if (this.police.state === 'idle' && !this._atFault(player.state, vs2.x, vs2.z, vs2.vx || 0, vs2.vz || 0)) {
+            if (this.state.time - (this._copBumpT ?? -99) > 6) { this._copBumpT = this.state.time; this.ui.toast('Police: "Sorry, sorry. Go on."', '', 2.5); }
+          } else if (this.police.state === 'idle') {
             const since = this.state.time - (this._copBumpT ?? -99), light = hit.impact < 6.5;
             if (light && since < 1.5) { /* the same nudge, still touching */ } else if (light && since > 20) { this._copBumpT = this.state.time; this.ui.toast('Police: "Watch where you\'re going!"', 'err', 2.5); bus.emit('traffic:honk', { x: v.state.x, z: v.state.z }); }
             else this.police.startPursuit(1, 'ramming a police car');

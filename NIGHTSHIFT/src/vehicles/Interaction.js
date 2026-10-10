@@ -102,6 +102,10 @@ export function interactionProfile(v) {
   } else {
     pr.seat = new THREE.Vector3(ds * halfW * 0.42, groundY + (kind === 'bus' ? 1.55 : kind === 'truck' ? 1.45 : kind === 'suv' ? 0.92 : 0.72), L * 0.05);
   }
+  // a bus or lorry: the driver sits right at the front of the cab, by the windscreen, beside the door (the model's
+  // eye marker on a bus is often back among the passenger seats)
+  if (kind === 'bus') pr.seat.set(ds * Math.max(0.45, halfW - 0.62), pr.seat.y, box.max.z - 1.2);
+  else if (kind === 'truck' && G && (box.max.z - G.eye.z > 2.4 || box.max.z - G.eye.z < 0.6)) pr.seat.set(ds * Math.max(0.4, halfW - 0.6), pr.seat.y, box.max.z - 1.35);
   pr.ds = ds;
   const S = pr.seat;
   // sanity: seat height by class, and the seat inside the front door's opening (eye probes on tall cabins
@@ -301,6 +305,9 @@ export class VehicleInteraction {
     const st = this.st;
     if (!st) return;
     if (!st.v.renderer || st.v.gone) { this._detach(); this.st = null; return; }
+    // brisk, as in GTA: about two seconds from the door to driving away (it took four and more), and out again
+    if (st.mode === 'enter' && st.phase !== 'approach') dt *= 1.8;
+    else if (st.mode === 'exit') dt *= 1.5;
     st.t += dt; st.T += dt;
     if (st.mode === 'enter') this._enter(dt, input);
     else if (st.mode === 'exit') this._exit(dt, input);
@@ -311,10 +318,10 @@ export class VehicleInteraction {
   _next(name) { this.st.phase = name; this.st.t = 0; }
 
   // walking along the route to the door, with the normal locomotion
-  _walk(dt, target, speedMax) {
+  _walk(dt, target, speedMax, stop = true) {
     const s = this.of.state, w = this._toWorld(this.st.v, target, _b);
     const dx = w.x - s.x, dz = w.z - s.z, d = Math.hypot(dx, dz);
-    const sp = Math.min(speedMax, d * 2.2 + 0.25);             // slows to a stop on arrival
+    const sp = stop ? Math.min(speedMax, d * 2.2 + 0.25) : speedMax;   // slows to a stop on arrival (at the door only)
     if (d > 0.04) { s.x += dx / d * Math.min(sp * dt, d); s.z += dz / d * Math.min(sp * dt, d); }
     let dy = Math.atan2(dx, dz) - s.yaw; while (dy > Math.PI) dy -= Math.PI * 2; while (dy < -Math.PI) dy += Math.PI * 2;
     if (d > 0.15) s.yaw += dy * Math.min(1, dt * 9);
@@ -327,12 +334,18 @@ export class VehicleInteraction {
     const st = this.st, v = st.v, P = st.P, s = this.of.state, h = this.human;
     v.controls.handbrake = 1; v.controls.throttle = 0;
     const ic = input?.controls;
+    // once in the seat, the gas pedal finishes it: the door shuts and the car is yours
+    if ((st.phase === 'legsIn' || st.phase === 'settle') && (ic?.throttle || 0) > 0.5) {
+      if (!st.closed) { st.closed = true; this._door(v, P.door.side, false); this.of._handover?.(v); }
+      this.st = { mode: 'seated', v, P, t: 0, T: 0 }; v.occupied = 'driver';
+      return;
+    }
     switch (st.phase) {
       case 'approach': {
         // the player can give up by walking away
         if (ic && Math.hypot((ic.throttle || 0) - (ic.brake || 0), ic.steer || 0) > 0.5 && st.t > 0.4) { this._cancel(); return; }
         const far = st.route.length - st.ri > 2;
-        const d = this._walk(dt, st.route[st.ri], far ? 3.2 : 1.7);
+        const last = st.ri >= st.route.length - 1, d = this._walk(dt, st.route[st.ri], far ? 4.4 : 2.4, last);   // (a quick jog round to the door)
         if (d < (st.ri < st.route.length - 1 ? 0.35 : 0.06)) { if (++st.ri >= st.route.length) this._next('align'); }
         if (st.t > 12) { this._cancel(); return; }
         this.of._pose(dt);
