@@ -37,8 +37,11 @@ the game. Newly found problems go at the end of their section.
 - [x] Flyovers meet the road across tile edges; traffic under a flyover stays below
 - [x] Roads: seamless joins: where two roads overlap away from their shared point the lesser one tucks under the main road (drawn and driven), no slab edge or ledge
 - [x] Narrow water areas (canals, rivers, ponds, temple tanks mapped as polygons): cut out of the ground, walled, a bed, the physics drops into them; never under a road
-- [ ] Kannur QA: every main road, the bridges (Valapattanam), the hills, Payyambalam beach, the rivers
+- [x] Kannur QA: every main road, the bridges (Valapattanam), the hills, Payyambalam beach, the rivers
   - [x] Valapattanam: NH66 crossed the river as a causeway at water level (the water under the road was read as a string of little culverts); now one bridge about 6 m over the water. Canal walls no longer stand in open river water
+  - [x] Rivers: every road over water in the region scanned (Kannur, Valapattanam, Kattampally, Thalassery,
+    Mattannur, Iritty): the Kattampally backwater roads lay half a metre over the water, now bridges ~4 m up;
+    a long bridge slopes from bank to bank instead of standing at the higher bank's level
   - [x] Payyambalam beach: sand, palms, the sea; no glitches
   - [x] Hills (Iritty): steep stretches are the real grades; looked at with the new trees
   - [x] Areca palms: the real palm model, slimmer; grass tufts: thin blades of their own (they were palm leaflets)

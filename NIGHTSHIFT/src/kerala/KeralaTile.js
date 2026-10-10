@@ -733,14 +733,16 @@ export class KeralaTile {
       for (const i of [0, P.length - 1]) if (edge[i] < 1.5 && brg[i] && !water[i]) { over[i] = true; atEdge.push(i); }
       // (the water under a road comes and goes where the road's own strip is painted over it: a river crossing
       // read as a string of little culverts. Gaps under 40 m between wet stretches are the same water, where the
-      // whole is a river's width (80 m or more) under a main road: drains and ditches near each other stay culverts)
-      if (Math.min(...ch.map(([ei]) => E[ei].r.cls)) <= 3) {   // (main roads: the river bridges)
+      // whole is a river's width (80 m or more): drains and ditches near each other stay culverts)
+      if (Math.min(...ch.map(([ei]) => E[ei].r.cls)) <= 5) {   // (main and district roads: the river bridges)
         const w2 = water.slice();
         for (let i = 0, last = -1; i < P.length; i++) if (water[i]) { if (last >= 0 && i > last + 1 && D[i] - D[last] < 40) for (let k = last + 1; k < i; k++) w2[k] = true; last = i; }
         for (let i = 0; i < P.length;) {
           if (!w2[i]) { i++; continue; }
           let j = i; while (j + 1 < P.length && w2[j + 1]) j++;
-          if (D[j] - D[i] >= 80) for (let k = i; k <= j; k++) water[k] = true;
+          // (and mostly water: a string of drains through a town with dry road between them is not a river)
+          let wl = 0; for (let k = i + 1; k <= j; k++) if (water[k] || water[k - 1]) wl += D[k] - D[k - 1];
+          if (D[j] - D[i] >= 80 && wl >= (D[j] - D[i]) * 0.4) for (let k = i; k <= j; k++) water[k] = true;
           i = j + 1;
         }
       }
@@ -769,8 +771,12 @@ export class KeralaTile {
           const lift = span < 32 ? 0.3 : cls <= 3 ? 2.5 : cls <= 5 ? 2 : 1.5, clear = span < 32 ? 0.6 : span >= 80 && cls <= 3 ? 6 : 2;
           if (span >= 32 || over[i]) bigSpan = true;
           // (a hill stream or pond lies below its banks: the coarse survey can put its level well above them)
-          const wy = (k) => { const y = this._waterY(P[k][0], P[k][1]); return Number.isFinite(bank) && this._h0At(P[k][0], P[k][1]) >= INLAND ? Math.min(y, bank - 0.3) : y; };
-          for (let k = i; k <= j; k++) want[k] = water[k] ? Math.max(Number.isFinite(bank) ? bank + lift : -Infinity, wy(k) + clear)
+          // (but a river 60 m and more across is drawn at its surveyed level: the bridge clears that)
+          const wy = (k) => { const y = this._waterY(P[k][0], P[k][1]); return Number.isFinite(bank) && span < 60 && this._h0At(P[k][0], P[k][1]) >= INLAND ? Math.min(y, bank - 0.3) : y; };
+          // (from bank to bank: a long bridge between banks at different heights slopes between them)
+          const b0 = i > 0 ? prof[i - 1] : bank, b1 = j + 1 < P.length ? prof[j + 1] : bank;
+          const bankAt = (k) => (span < 60 || !Number.isFinite(b0) || !Number.isFinite(b1) ? bank : b0 + (b1 - b0) * (D[k] - D[i]) / ((D[j] - D[i]) || 1));
+          for (let k = i; k <= j; k++) want[k] = water[k] ? Math.max(Number.isFinite(bank) ? bankAt(k) + lift : -Infinity, wy(k) + clear)
             : raw[k] + ((atEdge.includes(k) ? brg[k] : cls) <= 3 ? 6.5 : 5.2);   // a flyover: clear of the road (and traffic) beneath
           i = j + 1;
         }
