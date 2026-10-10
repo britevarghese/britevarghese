@@ -151,6 +151,12 @@ export class Pedestrians {
   throwRider({ x, y, z, vx, vz, yaw }) {
     const n0 = this.peds.length;
     for (let k = 0; k < 12 && this.peds.length === n0; k++) this._spawn({ x: x + 60, z });   // borrow a random look
+    // (no stretch of roadside free: one at the crash itself, so the rider never just vanishes)
+    if (this.peds.length === n0 && this.layout.pedSegment) {
+      const ps = this.layout.pedSegment, fx = Math.sin(yaw || 0), fz = Math.cos(yaw || 0);
+      this.layout.pedSegment = () => ({ ax: x - fx * 4, az: z - fz * 4, bx: x + fx * 4, bz: z + fz * 4, kerala: true });
+      try { this._spawn({ x, z }); } finally { this.layout.pedSegment = ps; }
+    }
     if (this.peds.length === n0) return;
     const p = this.peds[this.peds.length - 1], sp = Math.hypot(vx, vz);
     p.x = x; p.z = z; p.umb = 0; p.d = 0;

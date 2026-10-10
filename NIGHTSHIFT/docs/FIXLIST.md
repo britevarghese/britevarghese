@@ -13,7 +13,7 @@ the game. Newly found problems go at the end of their section.
 - [ ] Getting in: head through the roof, wrong posture
 - [ ] Wheels: rotation and look wrong on some vehicles (tyres stretched / offset from the arches)
 - [ ] Vehicle models incomplete up close (green SUV body shards, Thar scan tearing at the wheels)
-- [ ] Two-wheeler rider vanishes when hit (should be thrown off, lie, get up)
+- [x] Two-wheeler rider vanishes when hit (always thrown as a body now; no get-up animation exists yet)
 - [ ] Traffic car floating in the air (parked by a pole)
 - [ ] Bus tilted on a kerb after a crash and stays there
 
