@@ -356,7 +356,7 @@ export class KeralaTile {
           const c = [e + ne * (back + dep / 2), n + nn * (back + dep / 2)];
           const ring = [[-w / 2, -dep / 2], [w / 2, -dep / 2], [w / 2, dep / 2], [-w / 2, dep / 2]].map(([a, b]) => [c[0] + te * a + ne * b, c[1] + tn * a + nn * b]);
           let e0 = Infinity, e1 = -Infinity, n0 = Infinity, n1 = -Infinity; for (const [x, z] of ring) { e0 = Math.min(e0, x); e1 = Math.max(e1, x); n0 = Math.min(n0, z); n1 = Math.max(n1, z); }
-          const good = e0 > 2 && n0 > 2 && e1 < TILE - 2 && n1 < TILE - 2 && free(e0, n0, e1, n1)
+          const good = e0 > 2 && n0 > 2 && e1 < TILE - 2 && n1 < TILE - 2 && free(e0, n0, e1, n1) && !this._islands().some((I) => Math.hypot(c[0] - I.ce, c[1] - I.cn) < I.rin + 6)
             && [...ring, c].every(([x, z]) => OK.has(lu(x, z)) && !this.onRoad(x, z, 1.2))
             && !this.onRoad(c[0] - ne * dep * 0.25, c[1] - nn * dep * 0.25, 1.2);
           if (good) {
@@ -375,6 +375,30 @@ export class KeralaTile {
     const keep = add.sort((a, b) => a[0] - b[0]).slice(0, Math.max(0, Math.min(maxB - list.length, Math.round(maxB * 0.2)))).map((a) => a[1]);
     list.push(...keep);
     this.infilled = keep.length;
+  }
+
+  // roundabout islands: OSM maps the ring in pieces (flag 8); its points chained together, centred, the island as
+  // big as fits inside the carriageway. [{ ce, cn, rin, grp: [[e, n, road]] }], worked out once
+  _islands() {
+    if (this._isl) return this._isl;
+    const pts = [];
+    for (const r of this.roads) if (r.flags & 8 && !(r.flags & 4)) for (const p of r.pts) pts.push([p[0], p[1], r]);
+    const used = new Uint8Array(pts.length), out = [];
+    for (let i = 0; i < pts.length; i++) {
+      if (used[i]) continue;
+      const grp = [pts[i]]; used[i] = 1;
+      for (let q = 0; q < grp.length; q++) for (let j = 0; j < pts.length; j++) if (!used[j] && Math.hypot(pts[j][0] - grp[q][0], pts[j][1] - grp[q][1]) < 40) { used[j] = 1; grp.push(pts[j]); }
+      if (grp.length < 5) continue;
+      let ce = 0, cn = 0; for (const [e, n] of grp) { ce += e; cn += n; } ce /= grp.length; cn /= grp.length;
+      // (only a ring all round its centre: the points spread over every direction)
+      const sect = new Set(grp.map(([e, n]) => Math.floor((Math.atan2(n - cn, e - ce) + Math.PI) / (Math.PI / 4))));
+      if (sect.size < 6) continue;
+      let rin = Infinity;
+      for (const [e, n, r] of grp) { const hw = r.cls <= 2 && r.lanes ? Math.max(ROAD_HALF[r.cls], r.lanes * 1.75) : ROAD_HALF[r.cls]; rin = Math.min(rin, Math.hypot(e - ce, n - cn) - hw - 0.6); }
+      if (!(rin >= 2.5 && rin <= 45) || this.onRoad(ce, cn, 0, -1, 8)) continue;
+      out.push({ ce, cn, rin, grp });
+    }
+    return (this._isl = out);
   }
 
   // a tea garden at (e, n): open land high in the hills (not forest, grassland, water, roads or buildings)
@@ -1133,6 +1157,37 @@ export class KeralaTile {
           this.bumps.push({ x: -(this.E0 + e), z: this.N0 + n, fx: -ue, fz: un, hw });
         }
         acc -= L;
+      }
+    }
+    // --- roundabouts: the island in the middle (OSM maps the ring in pieces, flag 8): a kerb painted in black and
+    // white bands, grass on top, and on the bigger ones a clock tower; solid to cars
+    {
+      for (const { ce, cn, rin, grp } of this._islands()) {
+        if (!(ce > 0.5 && cn > 0.5 && ce < TILE - 0.5 && cn < TILE - 0.5)) continue;   // (its own tile draws it)
+        let ysum = 0, yn = 0;
+        for (const [e, n, r] of grp) { const y = this._surfAt(r, e, n); if (y > -1e9) { ysum += y; yn++; } }
+        const y0 = (yn ? ysum / yn : this.heightAt(ce, cn)) + 0.08, top = y0 + 0.3, K = kerb[chunkOf(ce, cn)], N = Math.max(16, Math.round(rin * 2.5));
+        const at = (a, rr, h) => [-(ce + Math.cos(a) * rr), h, cn + Math.sin(a) * rr];
+        const grass = [0.1, 0.19, 0.06], soil = [0.12, 0.09, 0.06];
+        for (let k = 0; k < N; k++) {
+          const a0 = k / N * Math.PI * 2, a1 = (k + 1) / N * Math.PI * 2, band = (k & 1) ? [0.62, 0.62, 0.58] : [0.04, 0.04, 0.04];
+          quad(K, at(a0, rin, y0 - 0.8), at(a0, rin, top), at(a1, rin, top), at(a1, rin, y0 - 0.8), band);          // kerb face
+          quad(K, at(a0, rin, top), at(a0, rin - 0.3, top), at(a1, rin - 0.3, top), at(a1, rin, top), band);        // kerb top
+          quad(K, at(a0, rin - 0.3, top), at(a0, 0, top + 0.05), at(a1, 0, top + 0.05), at(a1, rin - 0.3, top), grass, soil); // lawn
+        }
+        // a clock tower on the bigger islands (the town's landmark), a short pillar on the small ones
+        const box = (x0, x1, y1, y2, col) => {
+          const c = [[-x0, -x0], [x0, -x0], [x0, x0], [-x0, x0]];
+          for (let q = 0; q < 4; q++) { const [ax, az] = c[q], [bx, bz] = c[(q + 1) % 4], s1 = x1 / x0; quad(K, [-(ce + ax), y1, cn + az], [-(ce + ax * s1), y2, cn + az * s1], [-(ce + bx * s1), y2, cn + bz * s1], [-(ce + bx), y1, cn + bz], col); }
+          quad(K, [-(ce - x1), y2, cn - x1], [-(ce + x1), y2, cn - x1], [-(ce + x1), y2, cn + x1], [-(ce - x1), y2, cn + x1], col);
+        };
+        if (rin >= 7) {
+          const cream = [0.68, 0.64, 0.55], face = [0.85, 0.84, 0.78], roof = [0.45, 0.18, 0.1];
+          box(1.6, 1.6, top, top + 0.6, [0.45, 0.43, 0.4]); box(1.0, 0.85, top + 0.6, top + 7, cream); box(1.05, 1.05, top + 7, top + 8.4, face); box(1.15, 0.05, top + 8.4, top + 9.6, roof);
+        } else box(0.5, 0.35, top, top + 2.2, [0.68, 0.64, 0.55]);
+        // solid: an octagon of two crossed boxes inside the kerb
+        for (const ang of [0, Math.PI / 4]) this.colliders.push({ cx: -(this.E0 + ce), cz: this.N0 + cn, hx: rin * 0.86, hz: rin * 0.86, cos: Math.cos(ang), sin: Math.sin(ang), angle: ang, h: top, kind: 'barrier' });
+        (this.roundabouts ||= []).push({ x: -(this.E0 + ce), z: this.N0 + cn, r: rin });
       }
     }
     // bump lookup grid (50 m cells, game coords)
