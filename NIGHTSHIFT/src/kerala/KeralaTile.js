@@ -731,6 +731,19 @@ export class KeralaTile {
       // down from it: the two halves meet in the air. Every other raised piece is back on the ground at the edge.
       const edge = P.map(([e, n]) => Math.min(e, n, TILE - e, TILE - n)), atEdge = [];
       for (const i of [0, P.length - 1]) if (edge[i] < 1.5 && brg[i] && !water[i]) { over[i] = true; atEdge.push(i); }
+      // (the water under a road comes and goes where the road's own strip is painted over it: a river crossing
+      // read as a string of little culverts. Gaps under 40 m between wet stretches are the same water, where the
+      // whole is a river's width (80 m or more) under a main road: drains and ditches near each other stay culverts)
+      if (Math.min(...ch.map(([ei]) => E[ei].r.cls)) <= 3) {   // (main roads: the river bridges)
+        const w2 = water.slice();
+        for (let i = 0, last = -1; i < P.length; i++) if (water[i]) { if (last >= 0 && i > last + 1 && D[i] - D[last] < 40) for (let k = last + 1; k < i; k++) w2[k] = true; last = i; }
+        for (let i = 0; i < P.length;) {
+          if (!w2[i]) { i++; continue; }
+          let j = i; while (j + 1 < P.length && w2[j + 1]) j++;
+          if (D[j] - D[i] >= 80) for (let k = i; k <= j; k++) water[k] = true;
+          i = j + 1;
+        }
+      }
       const wet = water.map((w, i) => w || over[i]);
       const cls = Math.min(...ch.map(([ei]) => E[ei].r.cls)), raised = new Uint8Array(P.length);
       if (wet.some(Boolean)) {
@@ -752,7 +765,8 @@ export class KeralaTile {
             }
             i = j + 1; continue;
           }
-          const lift = span < 32 ? 0.3 : cls <= 3 ? 2.5 : cls <= 5 ? 2 : 1.5, clear = span < 32 ? 0.6 : 2;
+          // (a main road's bridge over a river clears the water by a boat's height)
+          const lift = span < 32 ? 0.3 : cls <= 3 ? 2.5 : cls <= 5 ? 2 : 1.5, clear = span < 32 ? 0.6 : span >= 80 && cls <= 3 ? 6 : 2;
           if (span >= 32 || over[i]) bigSpan = true;
           // (a hill stream or pond lies below its banks: the coarse survey can put its level well above them)
           const wy = (k) => { const y = this._waterY(P[k][0], P[k][1]); return Number.isFinite(bank) && this._h0At(P[k][0], P[k][1]) >= INLAND ? Math.min(y, bank - 0.3) : y; };
@@ -1381,6 +1395,9 @@ export class KeralaTile {
           const A = [a[0] + (b[0] - a[0]) * q / k, a[1] + (b[1] - a[1]) * q / k], B = [a[0] + (b[0] - a[0]) * (q + 1) / k, a[1] + (b[1] - a[1]) * (q + 1) / k];
           const mid = [(A[0] + B[0]) / 2, (A[1] + B[1]) / 2];
           if (!inTileM(mid) || this.onRoad(mid[0], mid[1], 1.2)) continue;
+          // (open water on both sides: a channel mapped inside a wider river or backwater, no wall in the middle of it)
+          const ux = (B[1] - A[1]) / (L / k), uz = -(B[0] - A[0]) / (L / k), wtr = (o) => { const c = this.classAt(mid[0] + ux * o, mid[1] + uz * o); return c === C.water || c === C.sea; };
+          if (wtr(8) && wtr(-8)) continue;
           const K = kerb[chunkOf(...mid)], ta = Math.max(this.heightAt(...A), P.y + 0.4) + 0.12, tb = Math.max(this.heightAt(...B), P.y + 0.4) + 0.12;
           quad(K, V(A, P.y - 0.95), V(A, ta), V(B, tb), V(B, P.y - 0.95), [0.2, 0.18, 0.15], stone);
           quad(K, V(B, P.y - 0.95), V(B, tb), V(A, ta), V(A, P.y - 0.95), [0.2, 0.18, 0.15], stone);

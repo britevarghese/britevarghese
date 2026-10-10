@@ -5,7 +5,7 @@
 // radius uR hides the cheap copy where the detailed one is drawn, so nothing has to be re-uploaded per tile.
 // The detailed plants are leaf cards on a generated atlas (leaf clusters, pinnate palm fronds, banana leaves,
 // bark), lit with normals pointing out of the crown so the foliage reads as a soft volume.
-// Closest of all (within uM), the coconut palms, broadleaf trees and banana plants are real scanned models
+// Closest of all (within uM), the coconut palms, broadleaf trees and banana plants are real models
 // (public/assets/models/props/tree_*.glb, tools/import-props.mjs), on the same instance matrices.
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
@@ -381,11 +381,11 @@ export class KeralaTrees {
           if (!o.isMesh) return;
           // (the attributes are quantized integers: plain floats before the node's transform is baked in)
           const geo = new THREE.BufferGeometry();
-          for (const a of ['position', 'normal', 'uv']) {
+          for (const a of ['position', 'normal', 'uv', 'color']) {
             const A = o.geometry.attributes[a]; if (!A) continue;
-            const F = new Float32Array(A.count * A.itemSize);
-            for (let i = 0; i < A.count; i++) for (let c = 0; c < A.itemSize; c++) F[i * A.itemSize + c] = A.getComponent(i, c);
-            geo.setAttribute(a, new THREE.BufferAttribute(F, A.itemSize));
+            const n = a === 'color' ? 3 : A.itemSize, F = new Float32Array(A.count * n);   // (painted models: rgb of the vertex colours)
+            for (let i = 0; i < A.count; i++) for (let c = 0; c < n; c++) F[i * n + c] = A.getComponent(i, c);
+            geo.setAttribute(a, new THREE.BufferAttribute(F, n));
           }
           if (o.geometry.index) geo.setIndex(new THREE.BufferAttribute(Uint32Array.from(o.geometry.index.array), 1));
           geo.applyMatrix4(o.matrixWorld);

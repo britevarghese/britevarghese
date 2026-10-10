@@ -38,6 +38,10 @@ the game. Newly found problems go at the end of their section.
 - [x] Roads: seamless joins: where two roads overlap away from their shared point the lesser one tucks under the main road (drawn and driven), no slab edge or ledge
 - [x] Narrow water areas (canals, rivers, ponds, temple tanks mapped as polygons): cut out of the ground, walled, a bed, the physics drops into them; never under a road
 - [ ] Kannur QA: every main road, the bridges (Valapattanam), the hills, Payyambalam beach, the rivers
+  - [x] Valapattanam: NH66 crossed the river as a causeway at water level (the water under the road was read as a string of little culverts); now one bridge about 6 m over the water. Canal walls no longer stand in open river water
+  - [x] Payyambalam beach: sand, palms, the sea; no glitches
+  - [x] Hills (Iritty): steep stretches are the real grades; looked at with the new trees
+  - [ ] Areca palms and grass tufts are still the generated ones (no good real model found yet)
 - [x] Median ends: the gap between the halves by a junction is paved, level with them (it was bare earth)
 - [ ] Ride every road and fix what is found
 - [x] Realistic trees: real coconut palm, banana and broadleaf models (Sketchfab, CC BY) within ~90 m of the camera, with leaf-cut shadows; the generated plants beyond. (Junction-height priority was tried for the remaining road humps: more humps, reverted)
