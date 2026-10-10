@@ -1035,6 +1035,7 @@ export class KeralaTile {
   // vehicles feel: bumpAt / bumpAhead), and iron manhole covers in the carriageway.
   // (generators: they yield partway through, so a tile's build can be spread over frames)
   *_street(M, opts) {
+    this._medians();   // (the medians are ground for the physics too)
     if (!M.klKerb) return [];
     let s = (this.tx * 3571 ^ this.tz * 7919 ^ 0x5bd1) >>> 0;
     const rnd = () => ((s = (s * 1664525 + 1013904223) >>> 0) / 4294967296);
@@ -1042,6 +1043,7 @@ export class KeralaTile {
     const nj = this._nearJunction || (() => false);
     const builtUp = (e, n, ne, nn, hw) => [1, -1].some((sd) => { const c = this.classAt(e + ne * (hw + 1.3) * sd, n + nn * (hw + 1.3) * sd); return TOWN.has(c) || [3, 9, 16].some((o) => this.classAt(e + ne * (hw + o) * sd, n + nn * (hw + o) * sd) === C.building); });
     const chunkOf = (e, n) => Math.min(3, Math.max(0, Math.floor(e / 500))) + 4 * Math.min(3, Math.max(0, Math.floor(n / 500)));
+    const inTileM = ([e, n]) => e > 0 && n > 0 && e < TILE && n < TILE;
     const kerb = [], zebra = [], bumps = [], holes = [];
     for (let c = 0; c < 16; c++) kerb.push({ p: [], c: [] });
     const quad = (K, a, b, c2, d, col, col2 = col) => {
@@ -1081,6 +1083,8 @@ export class KeralaTile {
           const sf = this._surfAt(r, e, n);   // (the road's own surface where it has one: the kerb sits on its edge)
           let y0 = (sf > -1e9 ? sf : Math.max(this.heightAt(...at(hw)), this.heightAt(...at(hw + 0.9)))) + lift;
           if (water) y0 = Math.max(this.roadSurface(...at(hw - 0.3)), bridge ? -Infinity : y0);
+          // (the median side of a dual carriageway: the median is drawn there instead)
+          if (this._medianAt(...at(hw + 0.6)) > -1e9) return { at, y0, town: false, shop: false, water: false, wet: false, med: true };
           return { at, y0, town: town && !water && r.cls <= 6, shop: shop && r.cls <= 5, water, wet };
         };
         let A = prof(0);
@@ -1123,7 +1127,7 @@ export class KeralaTile {
             if (A.wet || B.wet || !bridge) edge(hw + 0.16, -0.1, hw + 0.3, -2.6, stone, [0.08, 0.09, 0.07]); // side wall down to the water
             const a = A.at(hw + 0.02), b = B.at(hw + 0.02), de = b[0] - a[0], dn = b[1] - a[1], L = Math.hypot(de, dn) || 1, ang = Math.atan2(-de / L, dn / L);
             this.colliders.push({ cx: -(this.E0 + (a[0] + b[0]) / 2), cz: this.N0 + (a[1] + b[1]) / 2, hx: 0.16, hz: Math.max(0.2, L / 2 - 0.05), cos: Math.cos(ang), sin: Math.sin(ang), angle: ang, h: Math.max(A.y0, B.y0) + 0.62, kind: 'barrier' });
-          } else if (!A.town && !B.town && !A.water && !B.water && !bridge && r.cls <= 7 && inTile(mid) && !nj(mid[0], mid[1])
+          } else if (!A.med && !B.med && !A.town && !B.town && !A.water && !B.water && !bridge && r.cls <= 7 && inTile(mid) && !nj(mid[0], mid[1])
             && !this.onRoad(...A.at(hw + 0.5), 0.2, ri) && !this.onRoad(...B.at(hw + 0.5), 0.2, ri)) {
             // country road: a dusty earth shoulder along the edge, easing down into a grassy verge (broken where
             // gates and lanes cross)
@@ -1190,6 +1194,25 @@ export class KeralaTile {
         }
         acc -= L;
       }
+    }
+    // --- dual carriageway medians: a kerb painted in black and yellow bands each side, soil on top
+    for (const m of this._medians()) {
+      const mid = [m.e + m.ne * m.w / 2, m.n + m.nn * m.w / 2];
+      if (!inTileM(mid)) continue;
+      const K = kerb[chunkOf(...mid)], h = 0.22;
+      const P = (s2, x, dy) => { const e = m.e + m.ue * s2 + m.ne * x, n = m.n + m.un * s2 + m.nn * x, u = Math.max(0, Math.min(1, x / m.w)); return [-e, m.y0 + (m.y1 - m.y0) * u + 0.07 + dy, n]; };
+      const band = ((m.i * 7 + Math.floor(m.a / 4)) & 1) ? [0.55, 0.45, 0.06] : [0.04, 0.04, 0.04];
+      const soil = [0.17, 0.13, 0.08], grass = [0.11, 0.17, 0.06];
+      const s0 = -2.05, s1 = 2.05, w = m.w;
+      quad(K, P(s0, 0, -0.08), P(s0, 0, h), P(s1, 0, h), P(s1, 0, -0.08), band);                 // kerb face, this side
+      quad(K, P(s1, w, -0.08), P(s1, w, h), P(s0, w, h), P(s0, w, -0.08), band);                 // and the other
+      const kw = Math.min(0.3, w / 4);
+      // (the across direction is to either side of the road: face the tops up whichever way it runs)
+      const up = (a, b2, c, d, c1, c2) => { const A = P(...a), B = P(...b2), D = P(...d), cr = (B[0] - A[0]) * (D[2] - A[2]) - (B[2] - A[2]) * (D[0] - A[0]);
+        if (cr < 0) quad(K, A, B, P(...c), D, c1, c2); else quad(K, B, A, D, P(...c), c2, c1); };
+      up([s0, 0, h], [s0, kw, h], [s1, kw, h], [s1, 0, h], band, band);                       // kerb tops, painted
+      up([s0, w - kw, h], [s0, w, h], [s1, w, h], [s1, w - kw, h], band, band);
+      up([s0, kw, h - 0.02], [s0, w - kw, h - 0.02], [s1, w - kw, h - 0.02], [s1, kw, h - 0.02], soil, grass); // soil and grass between
     }
     // --- roundabouts: the island in the middle (OSM maps the ring in pieces, flag 8): a kerb painted in black and
     // white bands, grass on top, and on the bigger ones a clock tower; solid to cars
@@ -1431,6 +1454,77 @@ export class KeralaTile {
   // Footprints extruded to their height. Houses get Mangalore-tile hip roofs (terracotta), bigger buildings
   // flat concrete terraces; walls use the facade textures, painted in the colours Kerala houses come in.
   // distance test to the tile's roads up to class maxCls (grid of segments, built on first use)
+  // Dual carriageways: OSM draws each half as its own one-way road, a few metres apart. Between them is the median:
+  // a low concrete kerb with soil on top, level with the road, not the ground (each half's shoulder sloped down into
+  // the gap and left a trench a wheel dropped into). Samples every 4 m along the lower-numbered half, across the gap
+  // to the other: { e, n (on this half's edge), ne, nn (unit, across), ue, un (along), w (gap width), y0, y1 (the two
+  // road edges' heights) }. Not at junctions or where another road crosses the gap (an opening there).
+  _medians() {
+    if (this._med) return this._med;
+    const out = this._med = [];
+    if (!this._rg) this.nearRoad(0, 0, 1);
+    const hwOf = (r) => (r.cls <= 2 && r.lanes ? Math.max(ROAD_HALF[r.cls], r.lanes * 1.75) : ROAD_HALF[r.cls]);
+    const nj = this._nearJunction || (() => false);
+    // the road (index) whose strip covers (e, n), besides ri, and its direction there
+    const roadAt = (e, n, ri) => {
+      const L = this._rg.get(Math.floor(e / 25) * 1000 + Math.floor(n / 25)); if (!L) return null;
+      for (let j = 0; j < L.length; j += 6) {
+        const oi = L[j + 5]; if (oi === ri) continue;
+        const o = this.roads[oi]; if (o.flags & 4 || o.cls > 8) continue;
+        const ax = L[j], az = L[j + 1], dx = L[j + 2] - ax, dz = L[j + 3] - az, l2 = dx * dx + dz * dz || 1;
+        const t = Math.max(0, Math.min(1, ((e - ax) * dx + (n - az) * dz) / l2));
+        if ((ax + dx * t - e) ** 2 + (az + dz * t - n) ** 2 < hwOf(o) ** 2) { const l = Math.sqrt(l2); return { oi, o, ux: dx / l, uz: dz / l }; }
+      }
+      return null;
+    };
+    this.roads.forEach((r, ri) => {
+      if (!(r.flags & 1) || r.flags & 4 || r.cls > 3 || r.pts.length < 2) return;
+      const hw = hwOf(r);
+      for (let i = 1; i < r.pts.length; i++) {
+        const [ae, an] = r.pts[i - 1], [be, bn] = r.pts[i], L = Math.hypot(be - ae, bn - an); if (L < 1) continue;
+        const ue = (be - ae) / L, un = (bn - an) / L;
+        for (let a = 2; a < L; a += 4) {
+          const e = ae + ue * a, n = an + un * a;
+          if (nj(e, n)) continue;
+          for (const sd of [1, -1]) {
+            const ne = -un * sd, nn = ue * sd;
+            let hit = null, g = 0;
+            for (g = 0.25; g <= 8; g += 0.25) { hit = roadAt(e + ne * (hw + g), n + nn * (hw + g), ri); if (hit) break; }
+            // the other half: one-way, alongside (not a road crossing the gap), and drawn once (by the lower index)
+            if (!hit || g < 0.5 || !(hit.o.flags & 1) || hit.o.cls > 3 || Math.abs(hit.ux * ue + hit.uz * un) < 0.9 || hit.oi < ri) continue;
+            const pe = e + ne * hw, pn = n + nn * hw, qe = pe + ne * g, qn = pn + nn * g;
+            if (nj(qe, qn) || nj(pe + ne * g / 2, pn + nn * g / 2)) continue;
+            const y0 = this._surfAt(r, e, n), y1 = this._surfAt(hit.o, qe + ne * 0.5, qn + nn * 0.5);
+            if (!(y0 > -1e9) || !(y1 > -1e9) || Math.abs(y0 - y1) > 0.6) continue;
+            out.push({ e: pe, n: pn, ne, nn, ue, un, w: g, y0, y1, ri, i, a });
+          }
+        }
+      }
+    });
+    // lookup grid (10 m cells)
+    this._medG = new Map();
+    out.forEach((m, k) => { const c = Math.floor(m.e / 10) * 1000 + Math.floor(m.n / 10); if (!this._medG.has(c)) this._medG.set(c, []); this._medG.get(c).push(k); });
+    return out;
+  }
+
+  // the median's surface at (e, n) (a kerb 0.15 m high, eased up over its first 0.3 m so a wheel rolls over it), or
+  // -Infinity outside every median
+  _medianAt(e, n) {
+    if (!this._medG) return -Infinity;
+    let best = -Infinity;
+    for (let a = -1; a <= 1; a++) for (let b = -1; b <= 1; b++) {
+      const L = this._medG.get((Math.floor(e / 10) + a) * 1000 + Math.floor(n / 10) + b); if (!L) continue;
+      for (const k of L) {
+        const m = this._med[k], de = e - m.e, dn = n - m.n, along = de * m.ue + dn * m.un, across = de * m.ne + dn * m.nn;
+        if (Math.abs(along) > 2.05 || across < -0.05 || across > m.w + 0.05) continue;
+        const u = Math.max(0, Math.min(1, across / m.w)), y = m.y0 + (m.y1 - m.y0) * u;
+        const ramp = Math.min(1, Math.max(0, Math.min(across, m.w - across) / 0.3));
+        best = Math.max(best, y + 0.07 + 0.15 * ramp);
+      }
+    }
+    return best;
+  }
+
   nearRoad(e, n, dist, maxCls = 10) {
     if (!this._rg) {
       const RG = this._rg = new Map(), G = 25;
@@ -1580,6 +1674,8 @@ export class KeralaTile {
         if (yy > best) best = yy;
       }
     }
+    // between the two halves of a dual carriageway: the median
+    if (this._medG) { const ym = this._medianAt(e, n); if (ym > best && !(yRef < ym - 1.2)) best = ym; }
     return best;
   }
 
