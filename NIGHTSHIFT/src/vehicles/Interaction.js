@@ -443,7 +443,7 @@ export class VehicleInteraction {
           foot.y = lerp(P.groundY, floorIn.y, k) + Math.sin(k * Math.PI) * 0.22;
           ik.leg(inner, this._toWorld(v, foot), this._hint(v, 0.1, 0.4, 1), 1);
           ik.leg(-inner, this._toWorld(v, _k.set(P.entry.x, P.groundY, P.entry.z - 0.1)), this._hint(v, 0, 0.3, 1), 1);
-          this._spine(ik, v, P.duck * Math.sin(k * Math.PI * 0.6) * 0.6);
+          this._spine(ik, v, Math.max(P.duck, P.kind === 'auto' ? 0.25 : 0.45) * Math.sin(k * Math.PI * 0.5) * 0.85);   // (head down before it reaches the door's top)
           this._look(ik, this._toWorld(v, P.seat, _c), 0.4);
         });
         if (st.t >= T) { this._next('lower'); st.from = hips.clone(); st.fromYaw = yaw; }
@@ -459,7 +459,7 @@ export class VehicleInteraction {
           ik.leg(inner, this._toWorld(v, _a.copy(P.pedals[inner > 0 ? 'L' : 'R']).lerp(_k.set(P.sill.x - P.ds * 0.2, P.floorY + 0.02, P.seat.z + 0.32), 1 - k)), this._hint(v, 0.1, 0.5, 1), 1);
           // the outer foot stays on the ground outside until the hips are in
           ik.leg(-inner, this._toWorld(v, _k.set(P.entry.x, P.groundY, P.entry.z - 0.1)), this._hint(v, 0, 0.3, 1), 1);
-          this._spine(ik, v, P.duck * (1 - k) * 0.7);
+          this._spine(ik, v, Math.max(P.duck, P.kind === 'auto' ? 0.25 : 0.45) * (1 - k * k * k) * 0.85);   // (kept down until the hips are in under the roof)
           this._look(ik, this._toWorld(v, _c.copy(P.seat).add(_k.set(0, 0.5, 3)), _c), 0.4);
         });
         if (st.t >= T) { this._next('legsIn'); h.play(P.kind === 'auto' ? 'sitIdle' : 'drive', { hold: true, fade: 0.45 }); }

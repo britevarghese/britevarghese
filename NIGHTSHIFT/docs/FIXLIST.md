@@ -10,7 +10,7 @@ the game. Newly found problems go at the end of their section.
 - [x] Bus / lorry: far too slow (power tuned: bus 0-50 km/h ~7 s, top ~92 km/h)
 - [x] Bus: driver seat and first-person eye at the front right of the cab
 - [x] Car first person: eye kept ~0.75 m from the wheel/dash, a little lower under the roof
-- [ ] Getting in: head through the roof, wrong posture
+- [x] Getting in: head kept down under the door top and roof until the hips are in (checked: an auto, an Ertiga)
 - [x] Wheels: traffic wheels roll at each vehicle's own wheel size (autos, buses and lorries were wrong); the shards round the wheels were the model import (fixed)
 - [x] Vehicle models incomplete up close: the importer's simplifier tore spikes and holes into dense panels (Scorpio, Dzire, Brezza, Ertiga, Maruti 800...); the near LOD now keeps seams, small trim and panel borders. Re-imported. (Thar scan: still a little rough at the wheels)
 - [x] Two-wheeler rider vanishes when hit (always thrown as a body now; no get-up animation exists yet)
