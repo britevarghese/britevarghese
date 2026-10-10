@@ -26,7 +26,8 @@ the game. Newly found problems go at the end of their section.
 - [ ] Police jeep = Mahindra Bolero in Kerala Police livery; figure poking through the Bolero roof
 
 ## People
-- [ ] Clothing: men in shirt and pant, shirt and mundu, t-shirt and shorts, mundu; women in saree or churidar; no kurtas or western dress in crowds
+- [x] Clothing: men in plain shirts over dark trousers, khaki or a white mundu, black hair; women in sarees; no kurtas or western dress in crowds, drivers or riders
+- [ ] More women's models: churidar / salwar (only two saree models now)
 - [ ] Riders: helmets (Kerala law), no turbans
 
 ## Roads and world

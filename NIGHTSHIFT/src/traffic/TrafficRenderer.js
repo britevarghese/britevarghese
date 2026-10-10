@@ -121,7 +121,8 @@ export class TrafficRenderer {
       const zF = T.hubs.find((h) => h.id === 'F')?.pos.z ?? 0.65, zR = T.hubs.find((h) => h.id === 'R')?.pos.z ?? -0.65;
       const variants = [];
       for (let v = 0; v < 3; v++) {
-        const h = humans.create(v * 2 + (type.length % 2), { shadow: false });
+        // (scooters: anyone; the motorcycles: men, in shirts)
+        const h = type === 'scooter' ? humans.create(v * 2 + (type.length % 2), { shadow: false }) : humans.createMan(v * 3 + type.length, { shadow: false });
         if (!h) break;
         // the character's bones under the rider IK (same Mixamo-style names as the rider model)
         const r = new SkinnedRider({ zF, zR, seat: cfg.seat, style: 'sport', rider: cfg.pose }, false, h.root);

@@ -32,9 +32,8 @@ export class TrafficDrivers {
   _take() {
     const H = this.game.humans;
     if (this.pool.length) return this.pool.pop();
-    // (the men among the people models: the player's own look aside)
-    const men = H.models.map((m, i) => (i > 0 && m.sex !== 'f' ? i : -1)).filter((i) => i >= 0);
-    const h = H.create(men.length ? men[Math.floor(Math.random() * men.length)] : 0, { shadow: false });
+    // (a man from the crowd, in a shirt and trousers or mundu)
+    const h = H.createMan(Math.floor(Math.random() * 1000), { shadow: false });
     if (h) h.play('drive', { hold: true, fade: 0 });
     return h;
   }

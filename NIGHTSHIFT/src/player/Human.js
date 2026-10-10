@@ -24,19 +24,31 @@ function ik(a, t, l1, l2, hint, out) {
 }
 
 // Loads the people models listed in the manifest (low priority, after the city is up).
+// Kerala dress: men in a plain cotton shirt over dark trousers, khaki, or a white mundu; the women's own sarees and
+// churidars. (The kurta and western-dress models are kept for the story's characters only.)
+const KL_CROWD = ['pmariano', 'alex', 'arnold', 'jake', 'emilius', 'kl_elder', 'pmariano', 'alex', 'jake', 'kl_saree', 'kl_saree_pink', 'kl_saree', 'kl_saree_pink'];
+const KL_SHIRTS = [0xf2f0ea, 0xf4f4f0, 0xa9c8e8, 0x8fb0d8, 0xe8c4c8, 0xe6dcc0, 0xc8ccd0, 0x6a8ab0, 0x8a3a3a, 0x3a5a3a, 0xd8c8a0, 0x4a4a6a];
+const KL_LOWERS = [0x1f2430, 0x2e2e30, 0x23262c, 0x6a5a44, 0x3a4250, 0xf2efe6, 0xf2efe6, 0xece6d4];
+
 export class HumanLibrary {
-  // Kerala: the player's own look first, then the Kerala crowd (mundu, kurtas, sarees...) instead of the city set
+  // Kerala: the player's own look first, then the Kerala crowd instead of the city set
   constructor(assets, manifest, { kerala = false } = {}) {
-    this.assets = assets; this.manifest = manifest;
+    this.assets = assets; this.manifest = manifest; this.kerala = kerala;
     const base = manifest?.humans || [];
-    this.list = kerala && manifest?.humansKL?.length ? [base[0], ...manifest.humansKL].filter(Boolean) : base;
+    const men = base.filter((h) => ['pmariano', 'alex', 'arnold', 'jake', 'emilius'].includes(h.id));
+    this.list = kerala && manifest?.humansKL?.length ? [base[0], ...men, ...manifest.humansKL].filter(Boolean) : base;
     this.models = []; this.ready = false;
   }
   load(priority = 5) {
     if (this._job) return this._job;
     const anims = fetch('/assets/anims/people.json').then((r) => (r.ok ? r.json() : null)).catch(() => null).then((a) => { this.anims = a; });
     this._job = Promise.all([anims, ...this.list.map((h) => this.assets.loadGLTF(modelUrl(this.manifest, h.file), priority).then((g) => ({ ...h, scene: g.scene })).catch(() => null))])
-      .then(([, ...ms]) => { this.models = ms.filter(Boolean); this.ready = this.models.length > 0; return this; });
+      .then(([, ...ms]) => {
+        this.models = ms.filter(Boolean); this.ready = this.models.length > 0;
+        if (this.kerala) { this.crowd = KL_CROWD.map((id) => this.models.find((m) => m.id === id)).filter(Boolean); if (!this.crowd.length) this.crowd = null; }
+        this.men = (this.crowd || this.models.slice(1)).filter((m) => m.sex !== 'f');
+        return this;
+      });
     return this._job;
   }
   // AnimationClips for one model: the baked hips track is re-based on this model's own hip height, in character
@@ -66,16 +78,26 @@ export class HumanLibrary {
     return (model.clips[key] = out);
   }
   // a new character; `which` = index or id (defaults to a deterministic pick from a number)
+  // (Kerala: a number picks from the crowd, each one dressed in their own shirt and lower)
   create(which = 0, opts = {}) {
     if (!this.ready) return null;
-    const m = typeof which === 'string' ? this.models.find((x) => x.id === which) || this.models[0] : this.models[((which % this.models.length) + this.models.length) % this.models.length];
-    return new Human(m, { ...opts, lib: this });
+    const L = typeof which === 'number' && this.crowd ? this.crowd : this.models;
+    const m = typeof which === 'string' ? this.models.find((x) => x.id === which) || this.models[0] : L[((which % L.length) + L.length) % L.length];
+    const outfit = opts.outfit ?? (this.kerala && typeof which === 'number' ? { top: KL_SHIRTS[(which * 7 + 3) % KL_SHIRTS.length], bottom: KL_LOWERS[(which * 5 + 1) % KL_LOWERS.length] } : null);
+    return new Human(m, { ...opts, outfit, lib: this });
+  }
+  // a man from the crowd (drivers, riders)
+  createMan(n = 0, opts = {}) {
+    if (!this.ready || !this.men?.length) return this.create(n, opts);
+    const m = this.men[((n % this.men.length) + this.men.length) % this.men.length];
+    return new Human(m, { ...opts, outfit: this.kerala ? { top: KL_SHIRTS[(n * 7 + 3) % KL_SHIRTS.length], bottom: KL_LOWERS[(n * 5 + 1) % KL_LOWERS.length] } : null, lib: this });
   }
 }
 
 export class Human {
-  constructor(model, { shadow = true, height, lib, idle = 'idle' } = {}) {
+  constructor(model, { shadow = true, height, lib, idle = 'idle', outfit = null } = {}) {
     this.id = model.id;
+    if (/^kl_/.test(model.id)) outfit = null;   // (the Kerala models wear their own mundu, saree or churidar)
     this.group = new THREE.Group();
     this.group.name = 'human_' + model.id;
     this.root = AssetManager.clone(model.scene);
@@ -89,6 +111,13 @@ export class Human {
       // (Ready Player Me and Mixamo rigs share bone names; Mixamo exports prefix them, e.g. mixamorig:Hips)
       if (o.isBone) { const n = o.name.replace(/^mixamorig\d*[:_]?/i, '').replace(/_\d+$/, ''); this.B[n] ||= o; o.userData.rest = o.quaternion.clone(); }
       if (o.isMesh) { o.castShadow = shadow; o.frustumCulled = false; }
+      // dressed: a plain cotton shirt and trousers or mundu over the avatar's own outfit (its print and logos go)
+      if (o.isMesh && outfit && o.material?.name) {
+        const top = /Outfit_Top/i.test(o.material.name), bot = /Outfit_Bottom/i.test(o.material.name);
+        if (top || bot) { const m = o.material.clone(); m.map = null; m.color.setHex(top ? outfit.top : outfit.bottom); m.roughness = 0.9; m.metalness = 0; o.material = m; }
+        // (and black hair: no dyed blue or orange)
+        if (/Hair|Beard/i.test(o.material.name) && !/^kl_/.test(model.id)) { const m = o.material.clone(); m.color.setHex(0x2a2622); o.material = m; }
+      }
     });
     // normalise the height (the models are 1.74-1.87 m tall): men ~1.78 m, women ~1.66 m
     this.group.updateMatrixWorld(true);
