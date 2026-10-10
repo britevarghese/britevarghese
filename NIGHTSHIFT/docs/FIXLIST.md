@@ -40,3 +40,4 @@ the game. Newly found problems go at the end of their section.
 - [ ] Kannur QA: every main road, the bridges (Valapattanam), the hills, Payyambalam beach, the rivers
 - [x] Median ends: the gap between the halves by a junction is paved, level with them (it was bare earth)
 - [ ] Ride every road and fix what is found
+- [x] Realistic trees: real coconut palm, banana and broadleaf models (Sketchfab, CC BY) within ~90 m of the camera, with leaf-cut shadows; the generated plants beyond. (Junction-height priority was tried for the remaining road humps: more humps, reverted)

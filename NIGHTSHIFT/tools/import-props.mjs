@@ -22,6 +22,10 @@ import draco3d from 'draco3dgltf';
 export const PROPS = [
   { id: 'boat_canopy', name: 'Country boat with a canopy', len: 9, draft: 0.25, tris: 9000, uid: '45ab977c53aa44c3b9c81052dcf19b57', title: 'Traditional Bangladeshi Boat', author: 'xamir' },
   { id: 'boat_vallam', name: 'Vallam (wooden boat)', len: 6.5, draft: 0.18, tris: 4000, uid: '7357ab059f744223985423eb9cb01eb7', title: 'Vallam (Wooden Boat)', author: 'Shadowtiger' },
+  // trees: height instead of len (scaled to that height, standing on y = 0, trunk at the origin, not turned)
+  { id: 'tree_coconut', name: 'Coconut palm', height: 11, tris: 8000, uid: '26e787f2ff2e4c0fb004c3b0210805a3', title: 'Coconut Palm', author: 'evolveduk' },
+  { id: 'tree_banana', name: 'Banana plant', height: 3.1, tris: 4500, uid: '85695b82c7ba4b3497a663616cc3bf25', title: 'Banana Plant', author: 'evolveduk' },
+  { id: 'tree_broad', name: 'Broadleaf tree', height: 8.5, tris: 5000, uid: '2cd58e603ae542c78dd9cada46496921', title: 'Realistic Tree 2 Free', author: 'NextSpring' },
   { id: 'boat_ferry', name: 'Passenger ferry', len: 24, draft: 0.9, tris: 16000, error: 0.06, sloppy: true, uid: '73b9556133704e73af6637a428bcb8f4', title: 'Ferry Concept', author: 'gmanisdabossatbeastmode' },
 ];
 
@@ -112,7 +116,7 @@ for (const p of PROPS) {
   // one wrapper node: turn the long side along +Z, scale to the real length, sit the hull on the waterline
   const scene = doc.getRoot().getDefaultScene() || doc.getRoot().listScenes()[0];
   const b = getBounds(scene), sx = b.max[0] - b.min[0], sz = b.max[2] - b.min[2];
-  const alongX = sx > sz, L = Math.max(sx, sz), k = p.len / L;
+  const alongX = !p.height && sx > sz, L = Math.max(sx, sz), k = p.height ? p.height / (b.max[1] - b.min[1]) : p.len / L;
   const wrap = doc.createNode('prop');
   for (const n of scene.listChildren()) { scene.removeChild(n); wrap.addChild(n); }
   scene.addChild(wrap);
@@ -124,14 +128,14 @@ for (const p of PROPS) {
   // translate after rotation and scale: centre to the origin, bottom at -draft
   const c = Math.cos(yaw), s = Math.sin(yaw);
   const rx = cx * c + cz * s, rz = -cx * s + cz * c;
-  wrap.setTranslation([-rx * k, -b.min[1] * k - p.draft, -rz * k]);
+  wrap.setTranslation([-rx * k, -b.min[1] * k - (p.draft || 0), -rz * k]);
   doc.createExtension(EXTTextureWebP).setRequired(true);
   await doc.transform(dedup(), prune(), textureCompress({ encoder: sharp, targetFormat: 'webp', resize: [1024, 1024], quality: 82 }), meshopt({ encoder: MeshoptEncoder, level: 'medium' }));
   const glb = await io.writeBinary(doc);
   fs.writeFileSync(out, glb);
   const t1 = tris(doc);
-  console.log(`   ${t0} -> ${t1} tris, ${(glb.byteLength / 1048576).toFixed(2)} MB, length ${p.len} m (${alongX ? 'turned' : 'as is'})`);
-  manifest.props[p.id] = { file: `props/${p.id}.glb`, name: p.name, length: p.len, draft: p.draft, tris: t1, source: { site: 'Sketchfab', uid: p.uid, title: p.title, author: p.author, url: `https://sketchfab.com/3d-models/${p.uid}`, license: 'CC-BY-4.0' } };
+  console.log(`   ${t0} -> ${t1} tris, ${(glb.byteLength / 1048576).toFixed(2)} MB, ${p.height ? 'height ' + p.height : 'length ' + p.len} m (${alongX ? 'turned' : 'as is'})`);
+  manifest.props[p.id] = { file: `props/${p.id}.glb`, name: p.name, ...(p.height ? { height: p.height } : { length: p.len, draft: p.draft }), tris: t1, source: { site: 'Sketchfab', uid: p.uid, title: p.title, author: p.author, url: `https://sketchfab.com/3d-models/${p.uid}`, license: 'CC-BY-4.0' } };
 }
 fs.writeFileSync(manifestPath, JSON.stringify(manifest, null, 2));
 const credits = ['# Prop model credits', '', ...Object.values(manifest.props).map((m) => `- **${m.name}**: "${m.source.title}" by ${m.source.author}, ${m.source.url} (CC BY 4.0), modified.`), ''];

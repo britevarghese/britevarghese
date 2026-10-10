@@ -6098,6 +6098,48 @@
         "url": "https://sketchfab.com/3d-models/73b9556133704e73af6637a428bcb8f4",
         "license": "CC-BY-4.0"
       }
+    },
+    "tree_coconut": {
+      "file": "props/tree_coconut.glb",
+      "name": "Coconut palm",
+      "height": 11,
+      "tris": 6630,
+      "source": {
+        "site": "Sketchfab",
+        "uid": "26e787f2ff2e4c0fb004c3b0210805a3",
+        "title": "Coconut Palm",
+        "author": "evolveduk",
+        "url": "https://sketchfab.com/3d-models/26e787f2ff2e4c0fb004c3b0210805a3",
+        "license": "CC-BY-4.0"
+      }
+    },
+    "tree_banana": {
+      "file": "props/tree_banana.glb",
+      "name": "Banana plant",
+      "height": 3.1,
+      "tris": 4342,
+      "source": {
+        "site": "Sketchfab",
+        "uid": "85695b82c7ba4b3497a663616cc3bf25",
+        "title": "Banana Plant",
+        "author": "evolveduk",
+        "url": "https://sketchfab.com/3d-models/85695b82c7ba4b3497a663616cc3bf25",
+        "license": "CC-BY-4.0"
+      }
+    },
+    "tree_broad": {
+      "file": "props/tree_broad.glb",
+      "name": "Broadleaf tree",
+      "height": 8.5,
+      "tris": 4652,
+      "source": {
+        "site": "Sketchfab",
+        "uid": "2cd58e603ae542c78dd9cada46496921",
+        "title": "Realistic Tree 2 Free",
+        "author": "NextSpring",
+        "url": "https://sketchfab.com/3d-models/2cd58e603ae542c78dd9cada46496921",
+        "license": "CC-BY-4.0"
+      }
     }
   }
 }

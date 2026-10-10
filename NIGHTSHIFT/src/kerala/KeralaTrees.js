@@ -5,12 +5,17 @@
 // radius uR hides the cheap copy where the detailed one is drawn, so nothing has to be re-uploaded per tile.
 // The detailed plants are leaf cards on a generated atlas (leaf clusters, pinnate palm fronds, banana leaves,
 // bark), lit with normals pointing out of the crown so the foliage reads as a soft volume.
+// Closest of all (within uM), the coconut palms, broadleaf trees and banana plants are real scanned models
+// (public/assets/models/props/tree_*.glb, tools/import-props.mjs), on the same instance matrices.
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { TILE, C, ROAD_HALF } from './KeralaTile.js';
 
 export const KIND = { palm: 0, broad: 1, banana: 2, bush: 3, areca: 4, rubber: 5, bamboo: 6, grass: 7 };
 const KINDS = 8;
+const WHITE = new THREE.Color(1, 1, 1);
+// the real models, by kind (loaded once the asset manager is up; the generated plants stand in until then)
+const MODELS = { [KIND.palm]: 'props/tree_coconut.glb', [KIND.broad]: 'props/tree_broad.glb', [KIND.banana]: 'props/tree_banana.glb' };
 
 // atlas regions (u0, v0, u1, v1), v up
 const AW = 512, AH = 256;
@@ -289,24 +294,55 @@ function swapMaterial(U, near, map) {
   const m = new THREE.MeshLambertMaterial({ vertexColors: true, side: THREE.DoubleSide, map: near ? map : null, alphaTest: near ? 0.42 : 0 });
   m.onBeforeCompile = (sh) => {
     sh.uniforms.uCam = U.uCam; sh.uniforms.uR = U.uR; sh.uniforms.uFar = U.uFar;
-    sh.vertexShader = 'uniform vec3 uCam; uniform float uR; uniform float uFar;\n' + sh.vertexShader.replace('#include <begin_vertex>', `#include <begin_vertex>
+    sh.uniforms.uM = U.uM;
+    sh.vertexShader = 'uniform vec3 uCam; uniform float uR; uniform float uFar; uniform float uM;\n' + sh.vertexShader.replace('#include <begin_vertex>', `#include <begin_vertex>
       { vec3 ip = (modelMatrix * instanceMatrix * vec4(0.0, 0.0, 0.0, 1.0)).xyz; float dd = distance(ip.xz, uCam.xz);
-        ${near ? 'if (dd > uR) transformed *= 0.0;' : 'if (dd < uR || dd > uFar) transformed *= 0.0;'} }`);
+        ${near === 'mid' ? 'if (dd > uR || dd < uM) transformed *= 0.0;' : near ? 'if (dd > uR) transformed *= 0.0;' : 'if (dd < uR || dd > uFar) transformed *= 0.0;'} }`);
     // foliage normals point out of the crown on both faces: undo the back-face flip (no dark plates)
     sh.fragmentShader = sh.fragmentShader.replace('#include <normal_fragment_begin>', '#include <normal_fragment_begin>\n normal *= faceDirection;');
   };
-  m.customProgramCacheKey = () => (near ? 'klTreeHi' : 'klTreeLo');
+  m.customProgramCacheKey = () => (near === 'mid' ? 'klTreeMid' : near ? 'klTreeHi' : 'klTreeLo');
+  return m;
+}
+
+// the shadow caster to match: the same distance swap ('mid': outside uM, 'model': inside uM), leaves cut out
+function depthMaterial(U, mode, map, alphaTest) {
+  const m = new THREE.MeshDepthMaterial({ depthPacking: THREE.RGBADepthPacking, map, alphaTest, side: THREE.DoubleSide });
+  m.onBeforeCompile = (sh) => {
+    sh.uniforms.uCam = U.uCam; sh.uniforms.uM = U.uM; sh.uniforms.uR = U.uR;
+    sh.vertexShader = 'uniform vec3 uCam; uniform float uM; uniform float uR;\n' + sh.vertexShader.replace('#include <begin_vertex>', `#include <begin_vertex>
+      { vec3 ip = (modelMatrix * instanceMatrix * vec4(0.0, 0.0, 0.0, 1.0)).xyz; float dd = distance(ip.xz, uCam.xz);
+        ${mode === 'mid' ? 'if (dd < uM || dd > uR) transformed *= 0.0;' : 'if (dd > uM) transformed *= 0.0;'} }`);
+  };
+  m.customProgramCacheKey = () => 'klTreeDepth' + mode + (alphaTest ? 'A' : '');
+  return m;
+}
+
+// a real model's own material (its textures, normal maps, alpha-cut leaves), drawn only within uM of the camera
+function modelMaterial(U, src) {
+  const m = src.clone();
+  if (m.alphaTest > 0 || m.transparent) { m.transparent = false; m.alphaTest = Math.max(0.35, m.alphaTest || 0.5); m.side = THREE.DoubleSide; }
+  if (m.metalness !== undefined) { m.metalness = 0; m.roughness = Math.max(0.75, m.roughness ?? 1); }
+  if (m.emissive) { m.emissive.setScalar(0); m.emissiveMap = null; }
+  m.onBeforeCompile = (sh) => {
+    sh.uniforms.uCam = U.uCam; sh.uniforms.uM = U.uM;
+    sh.vertexShader = 'uniform vec3 uCam; uniform float uM;\n' + sh.vertexShader.replace('#include <begin_vertex>', `#include <begin_vertex>
+      { vec3 ip = (modelMatrix * instanceMatrix * vec4(0.0, 0.0, 0.0, 1.0)).xyz; if (distance(ip.xz, uCam.xz) > uM) transformed *= 0.0; }`);
+  };
+  m.customProgramCacheKey = () => 'klTreeModel' + (m.alphaTest > 0 ? 'A' : '');
   return m;
 }
 
 export class KeralaTrees {
   constructor(scene, preset) {
-    this.U = { uCam: { value: new THREE.Vector3() }, uR: { value: 260 }, uFar: { value: 2200 } };
+    this.U = { uCam: { value: new THREE.Vector3() }, uR: { value: 260 }, uFar: { value: 2200 }, uM: { value: 0 } };
+    this.models = {};   // kind -> [{ geometry, material }] (the real models' parts, in the plant's own frame)
     this.hiGeo = [palmHi(), broadHi(), bananaHi(), bushHi(), arecaHi(), rubberHi(), bambooHi(), grassHi()];
     this.loGeo = [palmLo(), blobLo()];
     this.atlas = atlas();
     this.hiMat = swapMaterial(this.U, true, this.atlas);
     this.loMat = swapMaterial(this.U, false);
+    this.midMat = swapMaterial(this.U, 'mid', this.atlas);   // (the generated plant where a real model takes over close up)
     this.group = new THREE.Group(); this.group.name = 'klTreesNear';
     scene.add(this.group);
     this.setPreset(preset);
@@ -316,6 +352,7 @@ export class KeralaTrees {
     this.density = p.trees ?? 1;
     this.U.uR.value = 140 + 160 * Math.min(1, this.density);
     this.U.uFar.value = 1100 + 1300 * Math.min(1, this.density);
+    this.modelR = this.density >= 0.7 ? 45 + 45 * Math.min(1, this.density) : 0;   // (low settings and phones: no real models)
     this.shadows = !!(p.shadows && p.shadows !== 'off');
     const cap = Math.round(2500 + 7000 * this.density);
     if (this.cap === cap) return;
@@ -330,7 +367,61 @@ export class KeralaTrees {
       this.group.add(m);
       return m;
     });
+    this._buildModels();
     this._at = null;
+  }
+
+  // load the real tree models (call once the asset manager exists)
+  loadModels(assets) {
+    for (const [k, file] of Object.entries(MODELS)) {
+      assets.loadGLTF('/assets/models/' + file, 5).then((g) => {
+        const parts = new Map();
+        g.scene.updateMatrixWorld(true);
+        g.scene.traverse((o) => {
+          if (!o.isMesh) return;
+          // (the attributes are quantized integers: plain floats before the node's transform is baked in)
+          const geo = new THREE.BufferGeometry();
+          for (const a of ['position', 'normal', 'uv']) {
+            const A = o.geometry.attributes[a]; if (!A) continue;
+            const F = new Float32Array(A.count * A.itemSize);
+            for (let i = 0; i < A.count; i++) for (let c = 0; c < A.itemSize; c++) F[i * A.itemSize + c] = A.getComponent(i, c);
+            geo.setAttribute(a, new THREE.BufferAttribute(F, A.itemSize));
+          }
+          if (o.geometry.index) geo.setIndex(new THREE.BufferAttribute(Uint32Array.from(o.geometry.index.array), 1));
+          geo.applyMatrix4(o.matrixWorld);
+          if (!parts.has(o.material)) parts.set(o.material, []);
+          parts.get(o.material).push(geo);
+        });
+        this.models[k] = [...parts].map(([mat, geos]) => {
+          const material = modelMaterial(this.U, mat);
+          return { geometry: geos.length > 1 ? mergeGeometries(geos) : geos[0], material, depth: depthMaterial(this.U, 'model', material.alphaTest > 0 ? material.map : null, material.alphaTest) };
+        });
+        this._buildModels(); this._at = null;
+      }).catch((e) => console.warn('[KeralaTrees] tree model failed', file, e));
+    }
+  }
+
+  // one instanced mesh per part of each loaded model, as many instances as the kind's detailed mesh
+  _buildModels() {
+    for (const m of this.modelMeshes || []) m.removeFromParent();
+    this.modelMeshes = [];
+    this.hiModel = [];
+    this.U.uM.value = this.modelR || 0;
+    for (const [k, parts] of Object.entries(this.models)) {
+      if (!this.modelR || !this.hi?.[k]) continue;
+      const cap = Math.min(this.hi[k].instanceMatrix.count, 1500);
+      this.hiModel[k] = parts.map((p) => {
+        const m = new THREE.InstancedMesh(p.geometry, p.material, cap);
+        m.count = 0; m.frustumCulled = false; m.castShadow = this.shadows; m.receiveShadow = true; m.customDepthMaterial = p.depth;
+        m.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+        m.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(cap * 3), 3).setUsage(THREE.DynamicDrawUsage);
+        m.name = `klTreeModel${k}`;
+        this.group.add(m); this.modelMeshes.push(m);
+        return m;
+      });
+      this.hi[k].material = this.midMat; this.hi[k].customDepthMaterial = this.midDepth ||= depthMaterial(this.U, 'mid', this.atlas, 0.42);
+    }
+    for (let k = 0; k < (this.hi?.length || 0); k++) if (!this.hiModel[k]) { this.hi[k].material = this.hiMat; this.hi[k].customDepthMaterial = undefined; }
   }
 
   // scatter a tile's plants: returns { mesh group (distant copies), data for the near set }
@@ -499,7 +590,8 @@ export class KeralaTrees {
     const ver = tiles.size + [...tiles.values()].filter((t) => t.trees).length * 1000;
     if (this._at && Math.hypot(p.x - this._at.x, p.z - this._at.z) < 45 && this._ver === ver) return;
     this._at = { x: p.x, z: p.z }; this._ver = ver;
-    const R = this.U.uR.value + 70, m4 = new THREE.Matrix4(), col = new THREE.Color(), n = new Array(KINDS).fill(0);
+    const R = this.U.uR.value + 70, m4 = new THREE.Matrix4(), col = new THREE.Color(), n = new Array(KINDS).fill(0), nm = new Array(KINDS).fill(0);
+    const RM = this.modelR + 60;   // (the real models: everything they might show before the next refill)
     for (const t of tiles.values()) {
       const d = t.trees?.data;
       if (!d) continue;
@@ -515,9 +607,16 @@ export class KeralaTrees {
           if (n[k] >= mesh.instanceMatrix.count) continue;
           mesh.setMatrixAt(n[k], this._matrix(m4, d.P, i, x, z));
           mesh.setColorAt(n[k]++, this._tint(col, k, d.P[i * 7 + 6]));
+          const mm = this.hiModel[k];
+          if (mm && nm[k] < mm[0].instanceMatrix.count && (x - p.x) ** 2 + (z - p.z) ** 2 < RM * RM) {
+            this._tint(col, k, d.P[i * 7 + 6]).lerp(WHITE, 0.6);   // (the models are coloured already: only a hint of variety)
+            for (const q of mm) { q.setMatrixAt(nm[k], m4); q.setColorAt(nm[k], col); }
+            nm[k]++;
+          }
         }
       }
     }
     this.hi.forEach((m, k) => { m.count = n[k]; m.instanceMatrix.needsUpdate = true; m.instanceColor.needsUpdate = true; });
+    this.hiModel.forEach((mm, k) => { for (const m of mm || []) { m.count = nm[k]; m.instanceMatrix.needsUpdate = true; m.instanceColor.needsUpdate = true; } });
   }
 }
