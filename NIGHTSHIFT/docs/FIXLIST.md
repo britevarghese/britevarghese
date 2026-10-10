@@ -35,7 +35,7 @@ the game. Newly found problems go at the end of their section.
 - [x] Canals: walled channels, not water lying on the road
 - [x] Dual carriageway median: kerbed divider, no trench
 - [x] Flyovers meet the road across tile edges; traffic under a flyover stays below
-- [ ] Roads: thick tar look, seamless joins (no ledges or slab edges where roads meet)
+- [x] Roads: seamless joins: where two roads overlap away from their shared point the lesser one tucks under the main road (drawn and driven), no slab edge or ledge
 - [ ] Wide canals / rivers mapped as water areas (polygons): same treatment as the canal lines
 - [ ] Kannur QA: every main road, the bridges (Valapattanam), the hills, Payyambalam beach, the rivers
 - [ ] Median ends: a brown earth strip runs into the junction past the median's end

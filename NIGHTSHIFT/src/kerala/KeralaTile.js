@@ -1100,7 +1100,13 @@ export class KeralaTile {
       const P = r.pts.length > 1 && (onEdge(r.pts[0]) || onEdge(r.pts[r.pts.length - 1])) ? [...r.pts] : r.pts;
       if (P !== r.pts) { if (onEdge(P[0])) P.unshift(run(P[0], P[1])); if (onEdge(P[P.length - 1])) P.push(run(P[P.length - 1], P[P.length - 2])); }
       // the road's own graded surface (its deck on a bridge), the ground where it has none (beyond a tile-edge cut)
-      const ys = (extra) => Object.assign((e, n) => { const v = this._surfAt(r, e, n); return (v > -1e9 ? v : this.heightAt(e, n)) + lift + extra; }, { exact: (e, n) => this._surfAt(r, e, n) > -1e9 });
+      // (inside a more important road's strip, just under its surface: one continuous top where two roads overlap away
+      // from their shared point, instead of the lesser road's slab and edge standing on the main road)
+      const ri = this.roads.indexOf(r);
+      const ys = (extra) => Object.assign((e, n) => {
+        const v = this._surfAt(r, e, n), y = (v > -1e9 ? v : this.heightAt(e, n)) + lift + extra, cov = r.deck ? -Infinity : this._coverY(e, n, ri);
+        return cov > -1e9 && y > cov - 0.02 ? cov - 0.02 : y;
+      }, { exact: (e, n) => this._surfAt(r, e, n) > -1e9 });
       const g = this._ribbon(P, hw, ys(0), 7);
       if (!g) continue;
       g.computeVertexNormals();
@@ -1778,6 +1784,29 @@ export class KeralaTile {
     return g;
   }
 
+  // the top of the more important roads' strips covering (e, n) (lower class, or the same class drawn earlier),
+  // other than road ri; -Infinity where none covers it. Decks (bridges) aren't covers: what passes under stays under
+  _coverY(e, n, ri) {
+    if (!this._rg) this.nearRoad(e, n, 1);
+    const me = this.roads[ri], G = 25;
+    let best = -Infinity;
+    for (let a = -1; a <= 1; a++) for (let b = -1; b <= 1; b++) {
+    const L = this._rg.get((Math.floor(e / G) + a) * 1000 + Math.floor(n / G) + b); if (!L) continue;
+    for (let j = 0; j < L.length; j += 6) {
+      const oi = L[j + 5]; if (oi === ri) continue;
+      const cls = L[j + 4], o = this.roads[oi];
+      if (o.flags & 4 || o.deck || o.dirt || !(cls < me.cls || (cls === me.cls && oi < ri))) continue;
+      const hw = cls <= 2 && o.lanes ? Math.max(ROAD_HALF[cls], o.lanes * 1.75) : ROAD_HALF[cls];
+      const ax = L[j], az = L[j + 1], dx = L[j + 2] - ax, dz = L[j + 3] - az, l2 = dx * dx + dz * dz || 1;
+      const t = Math.max(0, Math.min(1, ((e - ax) * dx + (n - az) * dz) / l2));
+      if ((ax + dx * t - e) ** 2 + (az + dz * t - n) ** 2 > (hw - 0.3) ** 2) continue;
+      const sf = this._surfAt(o, e, n); if (!(sf > -1e9)) continue;
+      best = Math.max(best, sf + 0.07 + (10 - cls) * 0.004);
+    }
+    }
+    return best;
+  }
+
   // the height of the drawn road surface at (e, n), or -Infinity off the roads. Matches how _ribbon lays the strip:
   // lifted by class, each vertex on the highest ground around it, so wheels sit on the asphalt rather than in it
   roadSurface(e, n, yRef) {
@@ -1802,8 +1831,9 @@ export class KeralaTile {
         const l = Math.sqrt(l2), ue = dx / l * 4, un = dz / l * 4, sf = this._surfAt(r, ce, cn);
         // its own graded surface (as drawn); the ground only where it has none
         const y = (sf > -1e9 ? sf : Math.max(this.heightAt(e, n), this.heightAt(ce, cn), this.heightAt(ce + ue, cn + un), this.heightAt(ce - ue, cn - un))) + 0.07 + (10 - cls) * 0.004;
-        // beyond the edge: down the shoulder to the ground (as drawn)
-        const yy = dist <= hw ? y : y + (this.heightAt(e, n) - y) * ((dist - hw) / 1.6);
+        // beyond the edge: down the shoulder to the ground (as drawn); under a more important road's strip, as drawn too
+        let yy = dist <= hw ? y : y + (this.heightAt(e, n) - y) * ((dist - hw) / 1.6);
+        if (yy > best) { const cov = this._coverY(e, n, L[j + 5]); if (cov > -1e9 && yy > cov - 0.02) yy = cov - 0.02; }
         if (yy > best) best = yy;
       }
     }
