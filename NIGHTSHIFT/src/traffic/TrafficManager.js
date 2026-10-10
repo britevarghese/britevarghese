@@ -255,7 +255,8 @@ export class TrafficManager {
     const list = this.renderList;
     list.length = 0;
     for (const c of this.cars) {
-      c.spin += (c.state === 'drive' ? c.v : Math.hypot(c.s2.vx, c.s2.vz)) * dt / 0.34;
+      // (rolling at its own wheel size: an auto's little wheels turn fast, a bus's big ones slowly)
+      c.spin += (c.state === 'drive' ? c.v : Math.hypot(c.s2.vx, c.s2.vz)) * dt / (c.wheelR ||= TRAFFIC_VEHICLES[c.type]?.params?.wheelRadius || (c.spec.bike ? 0.3 : 0.34));
       c.lod = c.dist < this.preset.carLod1Distance ? 0 : 1;
       list.push(c);
     }
