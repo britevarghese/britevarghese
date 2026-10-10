@@ -13,6 +13,7 @@ export const GRID = 33;
 const STEP = TILE / (GRID - 1);
 const TEA_MIN = 900;                       // ground (m) above which open land is a tea estate
 const INLAND = 4;                         // ground (m) above which water is a hill river or pond, not sea level
+const NO_CANAL = new THREE.DataTexture(new Uint8Array([0]), 1, 1, THREE.RedFormat); NO_CANAL.needsUpdate = true;
 const RASTER = 256;                       // land-use raster per tile (7.8 m per pixel)
 const PX = RASTER / TILE;
 
@@ -146,6 +147,7 @@ export class KeralaTile {
     yield 'tile:rasters';
     this._refine(opts.terrainN || 129);
     this._gradeRoads();
+    this._carveWaterways();
     yield 'tile:grade';
     g.add(this._terrain(M));
     const water = this._water(M, d);
@@ -196,8 +198,8 @@ export class KeralaTile {
     // rivers and canals drawn as lines
     for (const w of d.wl || []) {
       const pts = decodeLine(w, 2), wd = w[1] / 10;
-      K.strokeStyle = `rgb(${C.water},0,0)`; V.strokeStyle = '#2a4e52';
-      for (const ctx of [K, V]) { ctx.lineWidth = Math.max(1, wd * PX); ctx.beginPath(); pts.forEach(([e, n], i) => { const x = e * PX, y = (TILE - n) * PX; if (i) ctx.lineTo(x, y); else ctx.moveTo(x, y); }); ctx.stroke(); }
+      K.strokeStyle = `rgb(${C.water},0,0)`;   // (not painted on the ground: the channel is cut and drawn)
+      for (const ctx of [K]) { ctx.lineWidth = Math.max(1, wd * PX); ctx.beginPath(); pts.forEach(([e, n], i) => { const x = e * PX, y = (TILE - n) * PX; if (i) ctx.lineTo(x, y); else ctx.moveTo(x, y); }); ctx.stroke(); }
     }
     // laterite earth under the trees, a little texture so nothing is a flat colour
     V.globalAlpha = 0.18;
@@ -282,6 +284,106 @@ export class KeralaTile {
         H[j * GRID + i] = (h < INLAND ? Math.min(h, 0) : h) - 2.2;
       }
     }
+  }
+
+  // Canals, rivers and streams the map draws as lines: a channel with stone walls and the water well below its banks
+  // (they were a flat sheet of water lying on the ground, roads and all, that people walked and drove on). Kept clear
+  // of the roads (a road crosses on its own graded level: a culvert or a bridge with its parapets).
+  _carveWaterways() {
+    this._hPre = this.h.slice();
+    this._canals();
+  }
+
+  // the open stretches of every canal, river and stream line (broken where a road crosses), and from them: a 2 m mask
+  // that cuts the channel out of the terrain (the ground grid is far too coarse to show a 10 m channel), and a lookup
+  // for the ground in it (the bed, under the water)
+  _canals() {
+    if (this._cn) return this._cn;
+    const out = this._cn = [];
+    for (const w of this.data.wl || []) {
+      if (w[0] === 3) continue;
+      const pts = decodeLine(w, 2), hw = Math.max(1.5, w[1] / 20);
+      let cur = [];
+      const flush = () => { if (cur.length > 1) out.push({ kind: w[0], hw, run: cur }); cur = []; };
+      for (let i = 0; i < pts.length; i++) {
+        const [ae, an] = pts[Math.max(0, i - 1)], [be, bn] = pts[i], k = i ? Math.max(1, Math.ceil(Math.hypot(be - ae, bn - an) / 3)) : 1;
+        for (let s2 = i ? 1 : 0; s2 <= k; s2++) {
+          const q = i ? [ae + (be - ae) * s2 / k, an + (bn - an) * s2 / k] : pts[0];
+          // over a road: where it crosses (a culvert), a break; where it runs along it (the map's line lies on the road),
+          // beside it, as Kerala's canals run
+          const r = this._roadNear(q[0], q[1], hw + 0.8);
+          if (!r) { cur.push(q); continue; }
+          const [ue, un] = [pts[Math.min(pts.length - 1, Math.max(1, i))][0] - pts[Math.max(0, Math.min(pts.length - 2, i - 1))][0], pts[Math.min(pts.length - 1, Math.max(1, i))][1] - pts[Math.max(0, Math.min(pts.length - 2, i - 1))][1]];
+          const ul = Math.hypot(ue, un) || 1;
+          if (Math.abs((ue * r.ue + un * r.un) / ul) < 0.8) { flush(); continue; }
+          const side = r.d > 0.05 ? 1 : (cur.length ? Math.sign((cur[cur.length - 1][0] - r.ce) * r.ne + (cur[cur.length - 1][1] - r.cn) * r.nn) || 1 : 1);
+          const sg = Math.sign((q[0] - r.ce) * r.ne + (q[1] - r.cn) * r.nn) || side, off = r.hw + hw + 1.4;
+          const p2 = [r.ce + r.ne * off * sg, r.cn + r.nn * off * sg];
+          if (this._roadNear(p2[0], p2[1], hw + 0.5)) { flush(); continue; }   // (no room: another road there too)
+          cur.push(p2);
+        }
+      }
+      flush();
+    }
+    // physics lookup (20 m cells): [e0, n0, e1, n1, hw, kind]
+    this._cnG = new Map();
+    for (const c of out) for (let i = 1; i < c.run.length; i++) {
+      const [a, b] = [c.run[i - 1], c.run[i]], key = Math.floor((a[0] + b[0]) / 40) * 1000 + Math.floor((a[1] + b[1]) / 40);
+      if (!this._cnG.has(key)) this._cnG.set(key, []);
+      this._cnG.get(key).push(a[0], a[1], b[0], b[1], c.hw, c.kind);
+    }
+    // the mask (1024 px, rows from the south, as the terrain's uv runs)
+    if (out.length && typeof document !== 'undefined') {
+      const R = 1024, k = R / TILE, cv = document.createElement('canvas'); cv.width = cv.height = R;
+      const g = cv.getContext('2d', { willReadFrequently: true });
+      g.strokeStyle = '#fff'; g.lineCap = 'butt'; g.lineJoin = 'round';
+      for (const c of out) { g.lineWidth = c.hw * 2 * k; g.beginPath(); c.run.forEach(([e, n], i) => { const x = e * k, y = (TILE - n) * k; if (i) g.lineTo(x, y); else g.moveTo(x, y); }); g.stroke(); }
+      const src = g.getImageData(0, 0, R, R).data, a = new Uint8Array(R * R);
+      for (let y = 0; y < R; y++) for (let x = 0; x < R; x++) a[(R - 1 - y) * R + x] = src[(y * R + x) * 4];
+      const t = this.canalMask = new THREE.DataTexture(a, R, R, THREE.RedFormat);
+      t.magFilter = THREE.LinearFilter; t.minFilter = THREE.LinearFilter; t.needsUpdate = true;
+    }
+    return out;
+  }
+
+  // the nearest drivable road strip within margin of (e, n): its centreline point, unit direction, normal, half width,
+  // and how far off its centre (e, n) is; or null
+  _roadNear(e, n, margin) {
+    if (!this._rg) this.nearRoad(e, n, 1);
+    let best = null;
+    for (let a = -1; a <= 1; a++) for (let b = -1; b <= 1; b++) {
+      const L = this._rg.get((Math.floor(e / 25) + a) * 1000 + Math.floor(n / 25) + b); if (!L) continue;
+      for (let j = 0; j < L.length; j += 6) {
+        const cls = L[j + 4], r = this.roads[L[j + 5]]; if (cls > 8 || r.flags & 4) continue;
+        const hw = cls <= 2 && r.lanes ? Math.max(ROAD_HALF[cls], r.lanes * 1.75) : ROAD_HALF[cls];
+        const ax = L[j], az = L[j + 1], dx = L[j + 2] - ax, dz = L[j + 3] - az, l2 = dx * dx + dz * dz || 1, l = Math.sqrt(l2);
+        const t = Math.max(0, Math.min(1, ((e - ax) * dx + (n - az) * dz) / l2)), ce = ax + dx * t, cn = az + dz * t, d = Math.hypot(e - ce, n - cn);
+        if (d > hw + margin || (best && d - hw > best.d - best.hw)) continue;
+        best = { ce, cn, ue: dx / l, un: dz / l, ne: -dz / l, nn: dx / l, hw, d };
+      }
+    }
+    return best;
+  }
+
+  // the bed of a channel at (e, n) (water 0.9 m deep below the surface), or -Infinity outside every one
+  canalBedAt(e, n) {
+    if (!this._cnG) return -Infinity;
+    for (let a = -1; a <= 1; a++) for (let b = -1; b <= 1; b++) {
+      const L = this._cnG.get((Math.floor(e / 20) + a) * 1000 + Math.floor(n / 20) + b); if (!L) continue;
+      for (let j = 0; j < L.length; j += 6) {
+        const ax = L[j], az = L[j + 1], dx = L[j + 2] - ax, dz = L[j + 3] - az, l2 = dx * dx + dz * dz || 1;
+        const t = Math.max(0, Math.min(1, ((e - ax) * dx + (n - az) * dz) / l2));
+        if ((ax + dx * t - e) ** 2 + (az + dz * t - n) ** 2 < (L[j + 4] - 0.2) ** 2) return this._wwY(e, n, L[j + 5]) - (L[j + 5] === 2 ? 0.5 : 0.9);
+      }
+    }
+    return -Infinity;
+  }
+
+  // a waterway's surface at (e, n): sea level on the lowland (never above the bank), otherwise 0.7 m (a stream: 0.4 m)
+  // under the ground it runs through (as it was before the channel was cut)
+  _wwY(e, n, kind) {
+    const g = this._hPre ? gridAt(this._hPre, this.gn, this.gs, e, n) : this.heightAt(e, n);
+    return Math.min(this._waterY(e, n), g - (kind === 2 ? 0.4 : 0.7));
   }
 
   // the water surface at (e, n): sea level on the lowland, otherwise just under the ground it runs through
@@ -821,8 +923,9 @@ export class KeralaTile {
     if (M.terrainDetail) {
       mat.onBeforeCompile = (sh) => {
         sh.uniforms.uDet = { value: M.terrainDetail };
+        sh.uniforms.uCanal = { value: this.canalMask || NO_CANAL };
         sh.vertexShader = 'varying vec3 vWp;\nvarying float vUp;\n' + sh.vertexShader.replace('#include <worldpos_vertex>', '#include <worldpos_vertex>\n vWp = (modelMatrix * vec4(transformed, 1.0)).xyz; vUp = normalize(mat3(modelMatrix) * objectNormal).y;');
-        sh.fragmentShader = 'varying vec3 vWp;\nvarying float vUp;\nuniform sampler2D uDet;\n' + sh.fragmentShader.replace('#include <map_fragment>', '#include <map_fragment>\n { float g1 = texture2D(uDet, vWp.xz / 7.0).g, g2 = texture2D(uDet, vWp.xz / 41.0).g; diffuseColor.rgb *= (0.7 + 0.6 * g1) * (0.88 + 0.24 * g2);'
+        sh.fragmentShader = 'varying vec3 vWp;\nvarying float vUp;\nuniform sampler2D uDet;\nuniform sampler2D uCanal;\n' + sh.fragmentShader.replace('#include <map_fragment>', '#include <map_fragment>\n if (texture2D(uCanal, vMapUv).r > 0.5) discard;   // (a canal: cut out of the ground)\n { float g1 = texture2D(uDet, vWp.xz / 7.0).g, g2 = texture2D(uDet, vWp.xz / 41.0).g; diffuseColor.rgb *= (0.7 + 0.6 * g1) * (0.88 + 0.24 * g2);'
           // tea (texture alpha): rounded hedges in rows along the contours, a dark path between, fading to their
           // average colour where the rows get finer than a pixel; on near-level ground no rows show
           + ' float tea = clamp((1.0 - sampledDiffuseColor.a) * 2.2 - 0.05, 0.0, 1.0); diffuseColor.a = 1.0;'
@@ -863,9 +966,9 @@ export class KeralaTile {
       geos.push(faceUp(g));
     }
     // rivers / canals as ribbons
-    for (const w of d.wl || []) {
-      const pts = decodeLine(w, 2), hw = Math.max(1.5, w[1] / 20);
-      const g = this._ribbon(pts, hw, (e, n) => this._waterY(e, n), 1e9);
+    // (in runs, broken where a road crosses: the road carries over it)
+    for (const c of this._canals()) {
+      const g = this._ribbon(c.run, c.hw + 0.3, (e, n) => this._wwY(e, n, c.kind), 1e9);
       if (g) { g.deleteAttribute('uv'); geos.push(faceUp(g)); }
     }
     if (!geos.length) return null;
@@ -1193,6 +1296,36 @@ export class KeralaTile {
           this.bumps.push({ x: -(this.E0 + e), z: this.N0 + n, fx: -ue, fz: un, hw });
         }
         acc -= L;
+      }
+    }
+    // --- canals and streams: laterite-and-granite walls down from each bank into the water, a coping along the top,
+    // a muddy bed; closed off where a road crosses (the culvert)
+    for (const c of this._canals()) {
+      const P = c.run, hw = c.hw + 0.3, stone = [0.33, 0.29, 0.24], cope = [0.55, 0.53, 0.49], mud = [0.08, 0.07, 0.05];
+      const nrm = (i) => { const a = P[Math.max(0, i - 1)], b = P[Math.min(P.length - 1, i + 1)], de = b[0] - a[0], dn = b[1] - a[1], l = Math.hypot(de, dn) || 1; return [-dn / l, de / l]; };
+      const at = (i, sd, o) => { const [ne, nn] = nrm(i); return [P[i][0] + ne * o * sd, P[i][1] + nn * o * sd]; };
+      const V = ([e, n], y) => [-e, y, n];
+      for (let i = 1; i < P.length; i++) {
+        const mid = [(P[i][0] + P[i - 1][0]) / 2, (P[i][1] + P[i - 1][1]) / 2];
+        if (!inTileM(mid)) continue;
+        const K = kerb[chunkOf(...mid)], wa = this._wwY(...P[i - 1], c.kind), wb = this._wwY(...P[i], c.kind);
+        for (const sd of [1, -1]) {
+          const A = at(i - 1, sd, hw), B = at(i, sd, hw), A2 = at(i - 1, sd, hw + 0.35), B2 = at(i, sd, hw + 0.35);
+          const ta = Math.max(this.heightAt(...A2), wa + 0.4) + 0.12, tb = Math.max(this.heightAt(...B2), wb + 0.4) + 0.12;
+          quad(K, V(A, wa - 0.95), V(A, ta), V(B, tb), V(B, wb - 0.95), [0.2, 0.18, 0.15], stone);   // the wall
+          quad(K, V(B, wb - 0.95), V(B, tb), V(A, ta), V(A, wa - 0.95), [0.2, 0.18, 0.15], stone);   // (both faces)
+          quad(K, V(A, ta), V(A2, ta), V(B2, tb), V(B, tb), cope);                                    // coping
+          quad(K, V(B, tb), V(B2, tb), V(A2, ta), V(A, ta), cope);
+        }
+        const L0 = at(i - 1, 1, hw), L1 = at(i, 1, hw), R0 = at(i - 1, -1, hw), R1 = at(i, -1, hw);
+        quad(K, V(L0, wa - 0.9), V(R0, wa - 0.9), V(R1, wb - 0.9), V(L1, wb - 0.9), mud);             // the bed
+        quad(K, V(L1, wb - 0.9), V(R1, wb - 0.9), V(R0, wa - 0.9), V(L0, wa - 0.9), mud);
+      }
+      // the ends (at a road: the culvert's headwall)
+      for (const i of [0, P.length - 1]) {
+        if (!inTileM(P[i])) continue;
+        const K = kerb[chunkOf(...P[i])], w = this._wwY(...P[i], c.kind), L = at(i, 1, hw), R = at(i, -1, hw), t = Math.max(this.heightAt(...P[i]), w + 0.4) + 0.12;
+        quad(K, V(L, w - 0.95), V(L, t), V(R, t), V(R, w - 0.95), stone); quad(K, V(R, w - 0.95), V(R, t), V(L, t), V(L, w - 0.95), stone);
       }
     }
     // --- dual carriageway medians: a kerb painted in black and yellow bands each side, soil on top

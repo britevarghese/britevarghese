@@ -22,6 +22,9 @@ const RADIUS = IS_MOBILE ? 1 : 2;
 function dropArray() { this.array = null; }
 const KEEP = IS_MOBILE ? 2 : 3;
 
+// where the game starts: Kannur town (Caltex junction, by the old bus stand), the home of the story
+export const START = { x: 98566, z: 209513, name: 'Kannur' };
+
 export class KeralaWorld {
   constructor() {
     this.kerala = true;
@@ -32,7 +35,7 @@ export class KeralaWorld {
     // (signal poles go where no road is: a point on any road's carriageway, game coords)
     this.lanes.onAnyRoad = (x, z) => { const t = this.tileAt(x, z); return !!t?.ready && t.onRoad(-x - t.E0, z - t.N0, 0.4, -1, 9); };
     this.state = { time: 0, hour: 23, weather: 'clear' };
-    this.focus = { x: 0, z: 0 };
+    this.focus = { x: START.x, z: START.z };
     const W = this;
     // the gameplay-facing "layout" (Port Halvern systems read these; Kerala has no grid city)
     const router = this.router = new KeralaRouter(this.lanes);
@@ -367,7 +370,7 @@ export class KeralaWorld {
     if (!t) return this._lastH ?? 0;
     const e = -x - t.E0, n = z - t.N0;
     let h = t.heightAt(e, n);
-    if (t.ready) h = Math.max(h, t.roadSurface(e, n, y));
+    if (t.ready) { const cb = t.canalBedAt(e, n); if (cb > -1e9) h = cb; h = Math.max(h, t.roadSurface(e, n, y)); }   // (in a canal: down to its bed)
     this._lastH = h;
     return t._bg ? h + t.bumpAt(x, z) : h;
   }

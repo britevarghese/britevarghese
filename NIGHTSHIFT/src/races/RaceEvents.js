@@ -39,10 +39,48 @@ export const RACE_EVENTS = [
   },
 ];
 
-// Kerala: races between real places in and around Kochi (names from the map's place list; each waypoint snaps to
+// Kerala: races between real places in and around Kannur and Kochi (names from the map's place list; each waypoint snaps to
 // the nearest junction). Routes are planned when the race starts, on the roads loaded around it; targets and
 // time limits come from the route's length. Every place is within ~3 km of the start (the map loaded round it).
+const KANNUR = [98566, 209513];
 export const KERALA_RACES = [
+  // Kannur (where the game starts)
+  {
+    id: 'kl_caltex', name: 'Caltex Sprint', type: 'sprint', opponents: 3, reward: 4000, rep: 120, near: KANNUR,
+    desc: 'From Caltex junction past the bus stand to Thavakkara and Talap, then out to Puzhathi. Buses pull out without looking.',
+    places: ['Caltex', 'Thavakkara', 'Talap', 'Puzhathi'],
+  },
+  {
+    id: 'kl_kannur_loop', name: 'Kannur Town Loop', type: 'circuit', laps: 2, opponents: 3, reward: 5500, rep: 160, near: KANNUR,
+    desc: 'Two laps round Kannur town, Talap and Thavakkara. Autos everywhere.',
+    places: ['Kannur', 'Talap', 'Thavakkara'],
+  },
+  {
+    id: 'kl_chovva', name: 'Chovva Checkpoint', type: 'checkpoint', reward: 3000, rep: 90, near: KANNUR,
+    desc: 'Beat the clock from Thavakkara down to Melechovva and Adikadalayi. Every gate adds time.',
+    places: ['Thavakkara', 'Melechovva', 'Adikadalayi'],
+  },
+  {
+    id: 'kl_chirakkal', name: 'Chirakkal Time Trial', type: 'timetrial', reward: 3500, rep: 110, near: KANNUR,
+    desc: 'Solo run north from Talap through Puthiyatheru to Chirakkal. Beat the target time.',
+    places: ['Talap', 'Puthiyatheru', 'Chirakkal'],
+  },
+  {
+    id: 'kl_thottada', name: 'Thottada Beach Run', type: 'sprint', opponents: 3, reward: 4800, rep: 140, near: KANNUR,
+    desc: 'Down the national highway from Melechovva to Adikadalayi, then the beach road to Thottada.',
+    places: ['Melechovva', 'Adikadalayi', 'Thottada'],
+  },
+  {
+    id: 'kl_azhikode', name: 'Azhikode Getaway', type: 'escape', heat: 3, timeLimit: 150, reward: 6000, rep: 200, near: KANNUR,
+    desc: 'The police are already on to you at Azhikode. Lose them before time runs out.',
+    places: ['Azhikode', 'Puthiyatheru'],
+  },
+  {
+    id: 'kl_nh66', name: 'NH 66 Speedtrap', type: 'speedrun', reward: 4500, rep: 140, near: KANNUR,
+    desc: 'Hit every speed trap on the national highway south out of Kannur. Total speed decides.',
+    places: ['Melechovva', 'Chala', 'Thottada'],
+  },
+  // Kochi
   {
     id: 'kl_mgroad', name: 'MG Road Sprint', type: 'sprint', opponents: 3, reward: 4000, rep: 120,
     desc: 'Down MG Road from Shenoys to Ernakulam South and Ravipuram, then across to Elamkulam. Watch for buses pulling out.',

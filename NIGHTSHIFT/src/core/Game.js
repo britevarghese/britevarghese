@@ -14,7 +14,7 @@ import { Materials } from '../renderer/Materials.js';
 import { Environment } from '../renderer/Environment.js';
 import { Effects } from '../renderer/Effects.js';
 import { WorldManager } from '../world/WorldManager.js';
-import { KeralaWorld } from '../kerala/KeralaWorld.js';
+import { KeralaWorld, START } from '../kerala/KeralaWorld.js';
 import { SkinnedRider } from '../vehicles/Rider.js';
 import { Incidents } from '../world/Incidents.js';
 import { KeralaMap, KeralaOverview } from '../kerala/KeralaMap.js';
@@ -111,7 +111,7 @@ export class Game {
     this.input = new InputManager(this.settings);
     this.camCtl = new CameraController(this.camera, this.settings);
     this.camCtl.world = this.world;
-    if (KERALA) await this.world.preload(new THREE.Vector3(0, 0, 0), (k) => progress(0.36 + k * 0.04, 'Loading Kochi...'));
+    if (KERALA) await this.world.preload(new THREE.Vector3(START.x, 0, START.z), (k) => progress(0.36 + k * 0.04, `Loading ${START.name}...`));
     this.spawnPlayer();
     // nearby roads & buildings first, then the rest streams in during play
     progress(0.4, 'Loading nearby streets...');
@@ -130,7 +130,7 @@ export class Game {
     this.rivals = new StreetRivals(this);
     this.onFoot = new OnFoot(this);
     this.interiors = new Interiors(this);   // walk into buildings
-    const placeAt = this.world.kerala ? useKeralaStory(this.world.index?.places) : null;   // Kerala's story at real places
+    const placeAt = this.world.kerala ? useKeralaStory(this.world.index?.places, START) : null;   // Kerala's story at real places
     this.story = new Story(this);
     this.story.placeAt = placeAt;
     this.empire = new Empire(this);
@@ -212,7 +212,7 @@ export class Game {
     this.player.renderer.applyCustom(data.custom);
     this.player.renderer.enableDents();
     this.scene.add(this.player.renderer.group);
-    const spot = at || (this.world.kerala ? (this.world.roadSpot(0, 0, 4) || { x: 0, z: 0, yaw: 0 }) : this._laneSpot(SAFEHOUSES[0].x, SAFEHOUSES[0].z));
+    const spot = at || (this.world.kerala ? (this.world.roadSpot(START.x, START.z, 4) || { x: START.x, z: START.z, yaw: 0 }) : this._laneSpot(SAFEHOUSES[0].x, SAFEHOUSES[0].z));
     this.player.place(spot.x, spot.z, spot.yaw);
     this.player.state.nitro = 1;
     if (this.onFoot?.human && !car.bike) this.onFoot.inter.seatInstant(this.player); // at the wheel

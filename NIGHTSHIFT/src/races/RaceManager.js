@@ -55,7 +55,9 @@ export class RaceManager {
   // marker stands at the first place (snapped onto the road once the tiles round it are in)
   _lazy(def) {
     const P = this.world.index?.places || [];
-    const at = (name) => { const p = P.filter((q) => q[1] === name).sort((a, b) => Math.hypot(a[3], a[4]) - Math.hypot(b[3], b[4]))[0]; return p ? { x: -p[3], z: p[4] } : null; };
+    // (a name used more than once: the one nearest the event's town)
+    const [hx, hz] = def.near || [0, 0];
+    const at = (name) => { const p = P.filter((q) => q[1] === name).sort((a, b) => Math.hypot(-a[3] - hx, a[4] - hz) - Math.hypot(-b[3] - hx, b[4] - hz))[0]; return p ? { x: -p[3], z: p[4] } : null; };
     const wps = def.places.map(at);
     if (wps.some((w) => !w)) return null;
     return { def, lazy: true, wps, start: { x: wps[0].x, z: wps[0].z, yaw: 0 }, route: [], gates: [] };
