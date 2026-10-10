@@ -1087,6 +1087,15 @@ export class KeralaTile {
       }
       return false;
     };
+    // the gap between a dual carriageway's halves by a junction: paved over, level with them (it was bare earth
+    // running into the junction past the median's end)
+    for (const m of this._medians()) {
+      if (!m.fill) continue;
+      const c0 = [m.e + m.ne * m.w / 2 - m.ue * 2.1, m.n + m.nn * m.w / 2 - m.un * 2.1], c1 = [m.e + m.ne * m.w / 2 + m.ue * 2.1, m.n + m.nn * m.w / 2 + m.un * 2.1];
+      const y = (m.y0 + m.y1) / 2 + 0.07 + (10 - m.cls) * 0.004 - 0.005;
+      const gq = this._ribbon([c0, c1], m.w / 2 + 0.25, () => y, 7);
+      if (gq) { gq.computeVertexNormals(); const n0 = gq.attributes.position.count; gq.setAttribute('junc', new THREE.BufferAttribute(new Float32Array(n0).fill(1), 1)); paved.push(gq); }
+    }
     // wider classes sit a hair higher so junctions don't flicker
     for (const r of this.roads) {
       if (this._due()) { yield 'tile:roads+'; this._ys = performance.now(); }
@@ -1336,6 +1345,7 @@ export class KeralaTile {
     }
     // --- dual carriageway medians: a kerb painted in black and yellow bands each side, soil on top
     for (const m of this._medians()) {
+      if (m.fill) continue;   // (paved: drawn with the roads)
       const mid = [m.e + m.ne * m.w / 2, m.n + m.nn * m.w / 2];
       if (!inTileM(mid)) continue;
       const K = kerb[chunkOf(...mid)], h = 0.22;
@@ -1624,7 +1634,7 @@ export class KeralaTile {
         const ue = (be - ae) / L, un = (bn - an) / L;
         for (let a = 2; a < L; a += 4) {
           const e = ae + ue * a, n = an + un * a;
-          if (nj(e, n)) continue;
+          const atJ = nj(e, n);   // (by a junction: the gap is paved, not a median)
           for (const sd of [1, -1]) {
             const ne = -un * sd, nn = ue * sd;
             let hit = null, g = 0;
@@ -1632,10 +1642,10 @@ export class KeralaTile {
             // the other half: one-way, alongside (not a road crossing the gap), and drawn once (by the lower index)
             if (!hit || g < 0.5 || !(hit.o.flags & 1) || hit.o.cls > 3 || Math.abs(hit.ux * ue + hit.uz * un) < 0.9 || hit.oi < ri) continue;
             const pe = e + ne * hw, pn = n + nn * hw, qe = pe + ne * g, qn = pn + nn * g;
-            if (nj(qe, qn) || nj(pe + ne * g / 2, pn + nn * g / 2)) continue;
+            const fill = atJ || nj(qe, qn) || nj(pe + ne * g / 2, pn + nn * g / 2);
             const y0 = this._surfAt(r, e, n), y1 = this._surfAt(hit.o, qe + ne * 0.5, qn + nn * 0.5);
             if (!(y0 > -1e9) || !(y1 > -1e9) || Math.abs(y0 - y1) > 0.6) continue;
-            out.push({ e: pe, n: pn, ne, nn, ue, un, w: g, y0, y1, ri, i, a });
+            out.push({ e: pe, n: pn, ne, nn, ue, un, w: g, y0, y1, ri, i, a, fill, cls: r.cls });
           }
         }
       }
@@ -1657,8 +1667,8 @@ export class KeralaTile {
         const m = this._med[k], de = e - m.e, dn = n - m.n, along = de * m.ue + dn * m.un, across = de * m.ne + dn * m.nn;
         if (Math.abs(along) > 2.05 || across < -0.05 || across > m.w + 0.05) continue;
         const u = Math.max(0, Math.min(1, across / m.w)), y = m.y0 + (m.y1 - m.y0) * u;
-        const ramp = Math.min(1, Math.max(0, Math.min(across, m.w - across) / 0.3));
-        best = Math.max(best, y + 0.07 + 0.15 * ramp);
+        const ramp = m.fill ? 0 : Math.min(1, Math.max(0, Math.min(across, m.w - across) / 0.3));
+        best = Math.max(best, y + 0.07 + (m.fill ? (10 - m.cls) * 0.004 - 0.005 : 0.15 * ramp));
       }
     }
     return best;
