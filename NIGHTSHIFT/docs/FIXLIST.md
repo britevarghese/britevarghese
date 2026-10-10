@@ -28,7 +28,7 @@ the game. Newly found problems go at the end of their section.
 ## People
 - [x] Clothing: men in plain shirts over dark trousers, khaki or a white mundu, black hair; women in sarees; no kurtas or western dress in crowds, drivers or riders
 - [x] More women: four saree models (two new: yellow and rose), and churidars (a kurta-coloured top over leggings) on the two women avatars; models with their origin at the waist now come out the right size
-- [ ] Riders: helmets (Kerala law), no turbans
+- [x] Riders: helmets (riders wear baked helmets; the 'turban' was a helmet on the old kurta models, which no longer ride)
 
 ## Roads and world
 - [x] Kannur is the starting area (story, garages, races moved there)
