@@ -25,6 +25,14 @@ the game. Newly found problems go at the end of their section.
 - [x] Traffic with purpose: every vehicle has a trip to a real place (autos short fares, cars further, lorries to towns and markets), turns towards it at junctions, pulls in on arrival, then sets off on the next
 - [x] Police jeep = Mahindra Bolero, white with KERALA POLICE on the doors and a light bar (the roof figure: cab seat fixed earlier)
 
+- [x] Traffic police run their junction: palm raised to the way held, the other arm waving the other way on, the
+  signals following his phases (the queue that's waiting gets its turn); one officer at most, at some busy
+  junctions, only once that part of town is built (they stood in the empty void before)
+- [x] Checking points stop vehicles: one officer waves a vehicle down, it pulls in, the other walks to its window,
+  checks the papers and waves it on. The player too: stop for the check (a stolen car is spotted), or drive through
+  and they come after you. The jeep and the barricade are solid
+- [x] A jam (three or more vehicles stuck 20 s): an officer walks in and lets one way through at a time, then leaves
+
 ## People
 - [x] Clothing: men in plain shirts over dark trousers, khaki or a white mundu, black hair; women in sarees; no kurtas or western dress in crowds, drivers or riders
 - [x] More women: four saree models (two new: yellow and rose), and churidars (a kurta-coloured top over leggings) on the two women avatars; models with their origin at the waist now come out the right size

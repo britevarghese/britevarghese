@@ -525,6 +525,8 @@ export class KeralaWorld {
   signalState(node, axis) {
     const S = this.lanes?.signals?.get(node);
     if (!S) return 'green';
+    // (a traffic officer running the junction: his phases, see KeralaPolice)
+    if (S.cop) return axis !== S.cop.go ? 'red' : S.cop.amber > 0 ? 'yellow' : 'green';
     const t = ((this.state.time || 0) + S.off) % 44, a = axis === 'x' ? t : (t + 22) % 44;
     return a < 18 ? 'green' : a < 21 ? 'yellow' : 'red';
   }

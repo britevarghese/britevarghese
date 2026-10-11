@@ -1147,7 +1147,7 @@ export class KeralaTile {
     }
     // (extra: a wider margin; minC: only where that many road ends meet, a real junction rather than one road's
     // two pieces meeting)
-    this._nearJunction = (e, n, extra = 0, minC = 2) => {
+    const nearJ = this._nearJunction = (e, n, extra = 0, minC = 2) => {
       const ge = Math.floor(e / 16), gn = Math.floor(n / 16);
       for (let a = -1; a <= 1; a++) for (let b = -1; b <= 1; b++) {
         const L = JG.get((ge + a) * 1000 + gn + b); if (!L) continue;
@@ -1190,7 +1190,7 @@ export class KeralaTile {
       if (!r.dirt) {
         // in a junction the strips overlap: no ragged edge or verge dust there (it would show on the other road)
         const Pp = g.attributes.position, J = new Float32Array(Pp.count);
-        for (let i = 0; i < Pp.count; i++) J[i] = this._nearJunction(-Pp.getX(i), Pp.getZ(i)) ? 1 : 0;
+        for (let i = 0; i < Pp.count; i++) J[i] = nearJ(-Pp.getX(i), Pp.getZ(i)) ? 1 : 0;   // (its own copy: the tile's may be cleared meanwhile)
         g.setAttribute('junc', new THREE.BufferAttribute(J, 1));
       }
       (r.dirt ? dirt : paved).push(g);

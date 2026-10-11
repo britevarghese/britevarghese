@@ -354,7 +354,7 @@ export class TrafficManager {
       if (Math.abs(a.x - b.x) > r || Math.abs(a.z - b.z) > r) continue;
       if (!this._overlap(a, b)) continue;
       const aSeesB = (b.x - a.x) * Math.sin(a.yaw) + (b.z - a.z) * Math.cos(a.yaw) > 0, bSeesA = (a.x - b.x) * Math.sin(b.yaw) + (a.z - b.z) * Math.cos(b.yaw) > 0;
-      const hold = aSeesB && !bSeesA ? a : bSeesA && !aSeesB ? b : a.id > b.id ? a : b;
+      const hold = a.jamHold && b.jamGo ? a : b.jamHold && a.jamGo ? b : aSeesB && !bSeesA ? a : bSeesA && !aSeesB ? b : a.id > b.id ? a : b;
       hold.blockT = 0.5; hold.v = Math.min(hold.v, 0.5);
     }
   }
@@ -499,6 +499,8 @@ export class TrafficManager {
   _drive(c, dt, dynamic) {
     const path = c.path;
     // stopped at the kerb (a bus at its stop, an auto dropping someone off): wait, then pull out
+    // (held at a police check until the officer waves it on: KeralaPolice releases it)
+    if (c.ckHold) c.dwell = Math.max(c.dwell, 0.5);
     if (c.dwell > 0) {
       c.dwell -= dt; c.v = Math.max(0, c.v - 6 * dt); c.brake = 1;
       c.lat = lerp(c.lat, c.latT || 0, 1 - Math.exp(-dt * 1.5));
@@ -519,6 +521,7 @@ export class TrafficManager {
     }
     for (const o of cars) {
       if (o === c || o.s <= c.s || o.s - c.s >= gap) continue;
+      if (c.jamGo && o.jamHold) continue;   // (an officer clearing a jam: this one goes, that one waits for it)
       // a bike filtering out (or riding by the kerb) slips past cars that leave it room
       if (bike && !o.spec.bike && o.state === 'drive') {
         const g0 = o.s - c.s - (o.spec.l + c.spec.l) / 2;
@@ -570,6 +573,7 @@ export class TrafficManager {
     const reach = 4 + c.v * 1.4 + c.spec.l / 2;
     for (const o of this.cars) {
       if (o === c || o.state !== 'drive' || o.path === path || o.path === c.next) continue;
+      if (c.jamGo && o.jamHold) continue;
       const dx = o.x - c.x, dz = o.z - c.z;
       if (Math.abs(dx) > reach + 6 || Math.abs(dz) > reach + 6) continue;
       const ahead = dx * fx + dz * fz;
@@ -620,6 +624,7 @@ export class TrafficManager {
       if (d < 3.2 && c.v < 1.2) {
         c.dwell = c.arriving ? (c.type === 'auto' ? 8 + this.R() * 12 : c.type === 'lorry' || c.type === 'minitruck' ? 25 + this.R() * 35 : 12 + this.R() * 30) : 5 + this.R() * 14;
         c.pulled = true; c.pullAt = 0; c.pullPath = null;
+        if (c.ckWait) { c.ckWait = false; c.ckHold = true; }   // (waved down at a police check: waits for the officer)
         if (c.arriving) { c.arriving = false; c.dest = null; }   // (a new trip when it pulls out)
       }
     }
@@ -642,6 +647,8 @@ export class TrafficManager {
         if (distToStop < gap) { gap = distToStop; leadV = 0; }
       }
     }
+    // (told to wait by an officer clearing a jam)
+    if (c.jamHold) { gap = Math.min(gap, 0.4); leadV = 0; }
     // --- IDM ---
     let v0 = path.speed * c.speedFactor;
     if (c.blockT > 0) { c.blockT -= dt; v0 = 0; c.v = Math.min(c.v, 0.5); }   // (held: nosed into another car, see _separate)
