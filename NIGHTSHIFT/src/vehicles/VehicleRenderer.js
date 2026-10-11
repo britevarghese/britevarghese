@@ -638,6 +638,10 @@ export class VehicleRenderer {
       this._eye.z = Math.max(this._eye.z, this._cabin.zFront - 0.95);
       this._eye.x = -Math.max(0.45, Math.abs(this._eye.x), 0.62);
     }
+    // a bus's or a lorry's driver sits on a high seat by the windscreen, the eyes ~0.8 m above it (the roof probe left
+    // them just under a tall cab's roof, looking at the top of the dashboard)
+    const seatEye = { ksrtc: 2.4, pvtbus: 2.4, pvtbus2: 2.4, bus: 2.4, lorry: 2.55, truck: 2.55, minitruck: 1.9 }[this.carId];
+    if (this._eye && seatEye && this._box) this._eye.y = Math.min(this._eye.y, this._box.min.y + seatEye);
     return this._eye;
   }
 
@@ -652,6 +656,7 @@ export class VehicleRenderer {
       const inv = new THREE.Matrix4().copy(body.matrixWorld).invert();
       const box = new THREE.Box3(), tb = new THREE.Box3();
       for (const o of meshes) { if (!o.geometry.boundingBox) o.geometry.computeBoundingBox(); tb.copy(o.geometry.boundingBox).applyMatrix4(o.matrixWorld).applyMatrix4(inv); box.union(tb); }
+      this._box = box;
       // an autorickshaw: the driver sits in the middle at the front on a bench, the handlebars before him
       if (this.carId === 'auto') { this._eye = new THREE.Vector3(0, box.min.y + 1.42, box.max.z - 1.0); return this._eye; }
       const rc = new THREE.Raycaster(), O = new THREE.Vector3(), D = new THREE.Vector3();
@@ -729,8 +734,10 @@ export class VehicleRenderer {
     }
     if (!hub) hub = new THREE.Vector3(eye.x, eye.y - 0.3, eye.z + 0.45);
     hub.z -= 0.03; hub.y += 0.02;                                            // grip the rim, not the hub face
-    let axis = new THREE.Vector3(0, 0.42, -1).normalize();                    // wheel faces the driver, tilted
-    let R = 0.175;
+    // (a bus's or a lorry's wheel is bigger and lies flatter)
+    const big = ['ksrtc', 'pvtbus', 'pvtbus2', 'bus', 'lorry', 'truck', 'minitruck'].includes(this.carId);
+    let axis = big ? new THREE.Vector3(0, 0.75, -0.66).normalize() : new THREE.Vector3(0, 0.42, -1).normalize(); // wheel faces the driver, tilted
+    let R = big ? (this.carId === 'minitruck' ? 0.19 : 0.23) : 0.175;
     // the model's own wheel, found in its geometry: the hands go on its real rim. A model where none is found gets
     // ours (below), clear of the dashboard: hands on a guessed rim held air or sank into the dash
     const fit = !NO_STEERING_WHEEL.has(this.carId) && this._lod0 ? fitSteeringWheel(this._lod0, this.body, eye) : null;
@@ -745,7 +752,7 @@ export class VehicleRenderer {
     if (!hasRim) {
       // no wheel in the model: put ours a comfortable reach ahead, clear of the dashboard
       const clear = (q) => { const dir = q.clone().sub(eye), L = dir.length(); dir.normalize(); const d = this._probe(eye.x, eye.y, eye.z, dir.x, dir.y, dir.z); return d === null || d > L - 0.01; };
-      hub.set(eye.x, eye.y - 0.3, eye.z + 0.5);
+      hub.set(eye.x, eye.y - (big ? 0.45 : 0.3), eye.z + (big ? 0.42 : 0.5));
       for (let i = 0; i < 10 && !clear(hub.clone().addScaledVector(up0, R + 0.02)); i++) hub.addScaledVector(axis, 0.03); // towards the driver
     }
     return (this._steer = { eye, hub, axis, up0, right0, R, rim: hasRim, fit: !!fit });

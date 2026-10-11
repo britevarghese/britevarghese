@@ -1917,7 +1917,7 @@ export class KeralaTile {
   roadSurface(e, n, yRef) {
     if (!this._rg) this.nearRoad(e, n, 1);
     const G = 25;
-    let best = -Infinity;
+    let best = -Infinity, off = -Infinity;
     for (let a = -1; a <= 1; a++) for (let b = -1; b <= 1; b++) {
       const L = this._rg.get((Math.floor(e / G) + a) * 1000 + Math.floor(n / G) + b); if (!L) continue;
       for (let j = 0; j < L.length; j += 6) {
@@ -1931,17 +1931,29 @@ export class KeralaTile {
         // on a bridge (or its ramps): the deck, and nothing beyond its edge
         if (r.deck) {
           const yd = this._deckAt(r, e, n);
-          if (yd > this.heightAt(e, n) + 0.3) { if (dist <= hw && !(yRef < yd - 1.2)) best = Math.max(best, yd + 0.07 + (10 - cls) * 0.004); continue; }
+          if (yd > this.heightAt(e, n) + 0.3) {
+            if (dist <= hw && !(yRef < yd - 1.2)) {
+              // (a lesser road's culvert deck where it joins a main road: under the main road's strip, as drawn; a flyover
+              // well above it stays a flyover)
+              let v = yd + 0.07 + (10 - cls) * 0.004; const cov = v > best ? this._coverY(e, n, L[j + 5]) : -Infinity;
+              if (cov > -1e9 && v > cov - 0.02 && v < cov + 1.2) v = cov - 0.02;
+              best = Math.max(best, v);
+            }
+            continue;
+          }
         }
         const l = Math.sqrt(l2), ue = dx / l * 4, un = dz / l * 4, sf = this._surfAt(r, ce, cn);
         // its own graded surface (as drawn); the ground only where it has none
         const y = (sf > -1e9 ? sf : Math.max(this.heightAt(e, n), this.heightAt(ce, cn), this.heightAt(ce + ue, cn + un), this.heightAt(ce - ue, cn - un))) + 0.07 + (10 - cls) * 0.004;
         // beyond the edge: down the shoulder to the ground (as drawn); under a more important road's strip, as drawn too
         let yy = dist <= hw ? y : y + (this.heightAt(e, n) - y) * ((dist - hw) / 1.6);
-        if (yy > best) { const cov = this._coverY(e, n, L[j + 5]); if (cov > -1e9 && yy > cov - 0.02) yy = cov - 0.02; }
-        if (yy > best) best = yy;
+        if (yy > (dist <= hw ? best : off)) { const cov = this._coverY(e, n, L[j + 5]); if (cov > -1e9 && yy > cov - 0.02) yy = cov - 0.02; }
+        if (dist <= hw) { if (yy > best) best = yy; } else if (yy > off) off = yy;
       }
     }
+    // a road's own carriageway is what is drawn there: a neighbour's shoulder never lifts a car above it (a road a
+    // metre higher alongside a culvert ramp or a junction mouth held autos and cars half a metre in the air)
+    if (best === -Infinity) best = off;
     // between the two halves of a dual carriageway: the median
     if (this._medG) { const ym = this._medianAt(e, n); if (ym > best && !(yRef < ym - 1.2)) best = ym; }
     return best;
