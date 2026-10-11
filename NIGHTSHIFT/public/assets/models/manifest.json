@@ -5883,6 +5883,7 @@
     "cars/traffic_truck.glb": "faa9a5a2d2",
     "cars/traffic_van.glb": "8f5de2ce95",
     "cars/yamaha_r1.glb": "079a76b27b",
+    "fp_hands.glb": "07fe139a3c",
     "hikari.glb": "080c1663ef",
     "humans/alex.glb": "d87147073b",
     "humans/arnold.glb": "0e56ac678d",
@@ -5907,6 +5908,9 @@
     "props/boat_canopy.glb": "82d4e8a312",
     "props/boat_ferry.glb": "5881526b56",
     "props/boat_vallam.glb": "2b31c91894",
+    "props/tree_banana.glb": "4338c601bb",
+    "props/tree_broad.glb": "b92bb296eb",
+    "props/tree_coconut.glb": "eb42d530bc",
     "rider.glb": "de5444d131",
     "sa_fastback.glb": "224f9e45a6",
     "sa_sedan.glb": "9f5ec09e9f",
@@ -6140,6 +6144,17 @@
         "url": "https://sketchfab.com/3d-models/2cd58e603ae542c78dd9cada46496921",
         "license": "CC-BY-4.0"
       }
+    }
+  },
+  "fpHands": {
+    "file": "fp_hands.glb",
+    "source": {
+      "site": "Sketchfab",
+      "uid": "5a6a434b8ec943ffacc581358781eecb",
+      "title": "Hand With Gloves",
+      "author": "teenjust500",
+      "license": "CC-BY-4.0",
+      "url": "https://sketchfab.com/3d-models/5a6a434b8ec943ffacc581358781eecb"
     }
   }
 }

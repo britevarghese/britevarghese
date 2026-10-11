@@ -1,6 +1,7 @@
 // NIGHTSHIFT bootstrap: detect hardware → create renderer (WebGPU/WebGL2) → load critical
 // assets first (player car, nearby roads/buildings) → show the game while the rest streams in.
 import * as THREE from 'three';
+import './renderer/SkinPrecision.js'; // (before anything renders: skinned characters far from the origin)
 import { Settings } from './core/Settings.js';
 import { SaveSystem } from './core/SaveSystem.js';
 import { QualityManager, QUALITY_LABELS } from './core/QualityManager.js';

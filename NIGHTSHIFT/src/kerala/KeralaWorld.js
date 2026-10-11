@@ -25,6 +25,44 @@ const KEEP = IS_MOBILE ? 2 : 3;
 // where the game starts: Kannur town (Caltex junction, by the old bus stand), the home of the story
 export const START = { x: 98566, z: 209513, name: 'Kannur' };
 
+// Water: live, not a flat sheet. Waves drawn in the shader (several trains of different size and speed, the
+// surface gently heaving with them), crests a lighter green, the sky's colour reflected at low angles; the same for
+// the sea, the backwaters, the rivers and the canals. (The map's coordinates run to 200 km: the shader works about
+// an origin by the camera, each wave's phase there worked out on the CPU in double precision, so the GPU's sines
+// stay small and smooth.)
+const WAVES = [[0.8, 0.6, 0.35, 1.2, 0.08], [-0.5, 0.86, 0.62, 1.7, 0.04], [0.2, -0.98, 1.3, 2.6, 0.018], [-0.9, -0.3, 2.7, 3.9, 0.008], [0.6, -0.8, 5.1, 5.3, 0.004]]; // dir x, z; k; speed; height
+function waterMaterial() {
+  const u = { uSky: { value: new THREE.Color(0x9fb4c0) }, uOrigin: { value: new THREE.Vector2() }, uPh: { value: WAVES.map(() => 0) } };
+  const m = new THREE.MeshStandardMaterial({ name: 'klWater', color: 0x1b4a52, roughness: 0.07, metalness: 0.1, transparent: true, opacity: 0.9, envMapIntensity: 1.2 });
+  m.userData.u = u;
+  const n = WAVES.length, f = (v) => v.toFixed(3);
+  const GLSL = `
+    uniform vec2 uOrigin; uniform float uPh[${n}];
+    const vec3 WV[${n}] = vec3[${n}](${WAVES.map((w) => `vec3(${f(w[0])}, ${f(w[1])}, ${f(w[2])})`).join(', ')});
+    const float WA[${n}] = float[${n}](${WAVES.map((w) => f(w[4])).join(', ')});
+    float wH(vec2 p) { float h = 0.0; for (int i = 0; i < ${n}; i++) h += WA[i] * sin(dot(WV[i].xy, p) * WV[i].z + uPh[i]); return h; }
+    vec2 wG(vec2 p) { vec2 g = vec2(0.0); for (int i = 0; i < ${n}; i++) g += WA[i] * WV[i].z * cos(dot(WV[i].xy, p) * WV[i].z + uPh[i]) * WV[i].xy; return g; }`;
+  m.onBeforeCompile = (sh) => {
+    Object.assign(sh.uniforms, u);
+    sh.vertexShader = 'varying vec2 vLP;\n' + GLSL + '\n' + sh.vertexShader.replace('#include <begin_vertex>', `#include <begin_vertex>
+      { vec2 lp = (modelMatrix * vec4(transformed, 1.0)).xz - uOrigin; transformed.y += wH(lp) * 0.6; vLP = lp; }`);
+    sh.fragmentShader = 'uniform vec3 uSky;\nvarying vec2 vLP;\n' + GLSL + '\n' + sh.fragmentShader
+      .replace('#include <normal_fragment_maps>', `#include <normal_fragment_maps>
+        { vec2 g = wG(vLP) * 2.6; normal = normalize((viewMatrix * vec4(normalize(vec3(-g.x, 1.0, -g.y)), 0.0)).xyz); }`)
+      .replace('#include <color_fragment>', `#include <color_fragment>
+        diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.16, 0.42, 0.40), clamp(wH(vLP) * 5.0 + 0.3, 0.0, 1.0) * 0.45);`)
+      .replace('#include <dithering_fragment>', `{ float fr = pow(1.0 - clamp(dot(normal, normalize(vViewPosition)), 0.0, 1.0), 4.0); gl_FragColor.rgb = mix(gl_FragColor.rgb, uSky, fr * 0.6); }
+        #include <dithering_fragment>`);
+  };
+  m.customProgramCacheKey = () => 'klWaterLive2';
+  return m;
+}
+// the waves at time t about origin (x, z): each train's phase there (mod 2 pi, in doubles)
+function waterPhases(U, x, z, t) {
+  U.uOrigin.value.set(x, z);
+  WAVES.forEach((w, i) => { U.uPh.value[i] = ((w[0] * x + w[1] * z) * w[2] + w[3] * t) % (Math.PI * 2); });
+}
+
 export class KeralaWorld {
   constructor() {
     this.kerala = true;
@@ -107,7 +145,7 @@ export class KeralaWorld {
     M.klBridge = new THREE.MeshStandardMaterial({ name: 'klBridge', color: 0x8f8c84, roughness: 0.92, side: THREE.DoubleSide });
     M.klShoulder = new THREE.MeshStandardMaterial({ name: 'klShoulder', color: 0xffffff, vertexColors: true, roughness: 1, polygonOffset: true, polygonOffsetFactor: 1, polygonOffsetUnits: 1 });
     M.klDirtRoad = new THREE.MeshStandardMaterial({ name: 'klDirt', color: 0x7a5c46, roughness: 1 });
-    M.klWater = new THREE.MeshStandardMaterial({ name: 'klWater', color: 0x1d4048, roughness: 0.1, metalness: 0.25, normalMap: TX.waterNormal?.(), transparent: true, opacity: 0.92 });
+    M.klWater = waterMaterial();
     this.palmGeo = palmGeometry();
     M.klTank = new THREE.MeshStandardMaterial({ name: 'klTank', color: 0x1a1c1e, roughness: 0.6 });
     this.tankGeo = (() => { const g = new THREE.CylinderGeometry(0.62, 0.62, 1.25, 10).translate(0, 0.62 + 0.25, 0); g.deleteAttribute('uv'); return g.toNonIndexed(); })();
@@ -570,6 +608,7 @@ export class KeralaWorld {
   // -------------------------------------------------------------------------------------- streaming
   update(dt, camera, envState) {
     this.state.time += dt;
+    { const U = this.M?.klWater?.userData?.u; if (U) { if (camera) waterPhases(U, camera.position.x, camera.position.z, this.state.time); if (this.scene?.fog) U.uSky.value.copy(this.scene.fog.color); } }
     if (!this.index || !camera) return;
     this.lights.update(camera, envState || { night: this.night || 0 }, dt);
     const p = camera.position, tx = Math.floor(-p.x / TILE), tz = Math.floor(p.z / TILE);

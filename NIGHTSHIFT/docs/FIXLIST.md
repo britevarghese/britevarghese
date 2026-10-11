@@ -16,6 +16,10 @@ the game. Newly found problems go at the end of their section.
 - [x] Two-wheeler rider vanishes when hit (always thrown as a body now; no get-up animation exists yet)
 - [x] Traffic car floating in the air (parked by a pole): parked cars hung half off raised roads, drains and embankments; now they stand where all four wheels are level (further onto the road, or not parked there), tilted to the ground, never through a pole, wall or stall (checked: 0 of 1,765 parked cars over a drop, five areas)
 - [x] Bus tilted on a kerb after a crash and stays there (a player crash is an incident now: towed away)
+- [x] First-person driver's hands: black leather riding gloves with hard knuckles and jacket sleeves (a real rigged
+  model, Sketchfab, CC BY) at ten to two: the back of the hand to the driver, fingers wrapped round the rim, thumbs
+  along it, the forearm turning with the hand, all following the wheel
+- [x] Driving into the sea or a river off the road: the water drags the car back (it drove on the sea at speed)
 
 ## Police and traffic
 - [x] Police start a chase when their own car hits you (fault check: whoever drove into whom)
@@ -37,6 +41,9 @@ the game. Newly found problems go at the end of their section.
 - [x] Clothing: men in plain shirts over dark trousers, khaki or a white mundu, black hair; women in sarees; no kurtas or western dress in crowds, drivers or riders
 - [x] More women: four saree models (two new: yellow and rose), and churidars (a kurta-coloured top over leggings) on the two women avatars; models with their origin at the waist now come out the right size
 - [x] Riders: helmets (riders wear baked helmets; the 'turban' was a helmet on the old kurta models, which no longer ride)
+- [x] Characters torn into spikes up close (hands, faces, hair, clothes; the 'blocky' hands at the wheel): the map's
+  coordinates run to 200 km and the GPU skinned in float32 there (~1-2 cm steps). Skinning is now worked out about
+  the camera: every character smooth
 
 ## Roads and world
 - [x] Kannur is the starting area (story, garages, races moved there)
@@ -54,6 +61,9 @@ the game. Newly found problems go at the end of their section.
   - [x] Hills (Iritty): steep stretches are the real grades; looked at with the new trees
   - [x] Areca palms: the real palm model, slimmer; grass tufts: thin blades of their own (they were palm leaflets)
 - [x] Median ends: the gap between the halves by a junction is paved, level with them (it was bare earth)
+- [x] Sea, rivers and backwaters: live water, waves running across it in several trains, the surface heaving with
+  them, lighter crests, the sky reflected at low angles (it was a flat sheet); worked about the camera so the waves
+  stay smooth 200 km from the map's origin
 - [ ] Ride every road and fix what is found
   - [x] Test drives (a careful driver following the lanes, Kannur, Valapattanam, Thalassery, Mattannur, Iritty) found:
     lanes 3.2 m wide on narrow two-way streets (cars drove with a wheel on the verge, scraping the edge walls);

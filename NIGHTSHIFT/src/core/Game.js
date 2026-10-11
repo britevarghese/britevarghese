@@ -52,6 +52,7 @@ import { Garage } from '../ui/Garage.js';
 import { NetworkClient } from '../networking/NetworkClient.js';
 import { HumanLibrary } from '../player/Human.js';
 import { QUALITY_LABELS, QUALITY_LEVELS } from './QualityManager.js';
+import { SKIN_ORIGIN } from '../renderer/SkinPrecision.js';
 
 // share of the full traffic / crowd by hour of the day (0..23), Kerala-like: an early start, rush hours at 8-10
 // and 17-19, a lull after lunch, near-empty roads and streets after midnight
@@ -227,10 +228,15 @@ export class Game {
     const s = of.active ? of.state : this.player?.state;
     const t = s && W.tileAt(s.x, s.z);
     if (!t?.ready || !W.inWater(s.x, s.z)) { this.sinkT = 0; return; }
-    const wy = t._waterY(-s.x - t.E0, s.z - t.N0), depth = wy - s.y;
+    const wy = t._waterY(-s.x - t.E0, s.z - t.N0), depth = wy - s.y, gnd = W.groundHeight(s.x, s.z, s.y), road = W.onCarriageway?.(s.x, s.z, 0);
+    // shallow water (a beach, a flooded field): the car wades, held back by it the deeper it is
+    if (!of.active && !road && wy - gnd > 0.12) {
+      const k = Math.exp(-dt * Math.min(3, (wy - gnd) * 4));
+      s.vx *= k; s.vz *= k; // (s is the car's physics state)
+    }
     if (depth < (of.active ? 1.0 : 0.45)) { this.sinkT = 0; return; }
     // (the ground here stands out of the water: a road or a bridge over a mapped pond or creek, a bank: not sinking)
-    if (W.groundHeight(s.x, s.z, s.y) > wy - (of.active ? 1.0 : 0.45) || W.onCarriageway?.(s.x, s.z, 0)) { this.sinkT = 0; return; }
+    if (gnd > wy - (of.active ? 1.0 : 0.45) || road) { this.sinkT = 0; return; }
     this.sinkT = (this.sinkT || 0) + dt;
     const k = Math.exp(-dt * 2.5);
     s.vx *= k; s.vz *= k;
@@ -968,11 +974,12 @@ export class Game {
     // audio
     this._audio(dt, mode);
     // render
+    SKIN_ORIGIN.copy(this.camera.position); // skinned characters are skinned about the camera (float precision)
     this.world.lights.flushReflections(this.camera);
     this.rm.fx = this.fx2;
     // first person at the wheel: the rear-view and door mirrors show what is behind
     const fpv = mode === 'drive' && !this.onFoot.active && CAMERA_MODES[this.camCtl.mode]?.marker === 'eye_cockpit' && !this.input.controls.lookBack && !this.camCtl.cinematic;
-    this.mirrors.hideAlso = [this.onFoot.body?.group, this.player.renderer?._fpArms].filter(Boolean);
+    this.mirrors.hideAlso = [this.onFoot.body?.group, this.player.renderer?._arms?.g].filter(Boolean);
     this.mirrors.update(this.scene, this.player, fpv && this.settings.graphics.mirrors !== false);
     // a camera that has left the car (photo mode, a replay, the pause screen) sees the driver at the wheel, not the
     // first-person arms (the driving camera, which switches them, isn't running then)

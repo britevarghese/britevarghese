@@ -50,3 +50,4 @@ They were converted for real-time use (re-scaled, wheels separated, simplified, 
 - **Mahindra Bolero** — "Bolero" by Waseem_Kadri, https://sketchfab.com/3d-models/9f1e594c45e24012b50992bbfeeecda0 (CC BY 4.0), modified.
 - **Classic motorcycle** — "Royal enfield classic 350" by mansoorman, https://sketchfab.com/3d-models/f6495bfbffe443e89c499a2ba8766c88 (CC BY 4.0), modified.
 - **Motorcycle rider** — "Biker" by Idris.Abass, https://sketchfab.com/3d-models/1594447c9f2d4b618dd59fd3272b6db6 (CC BY 4.0), modified.
+- **Driver's gloved hands (first person)** — "Hand With Gloves" by teenjust500, https://sketchfab.com/3d-models/5a6a434b8ec943ffacc581358781eecb (CC BY 4.0), modified.

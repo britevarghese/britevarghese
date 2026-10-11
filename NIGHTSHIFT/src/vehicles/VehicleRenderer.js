@@ -46,8 +46,9 @@ export class ModelLibrary {
     }
     await Promise.all(jobs);
   }
-  // the rigged character (first-person driver in cars); loads in the background
+  // the rigged character (first-person driver in cars) and the realistic arms that hold the wheel; load in the background
   loadRider() {
+    if (!this.hands && !this._handsJob && this.manifest?.fpHands) this._handsJob = this.assets.loadGLTF(modelUrl(this.manifest, this.manifest.fpHands.file), 3).then((g) => { this.hands = g.scene; }).catch(() => {});
     if (this.rider || this._riderJob || !this.manifest?.rider) return this._riderJob;
     return (this._riderJob = this.assets.loadGLTF(modelUrl(this.manifest, this.manifest.rider.file), 3).then((g) => { this.rider = g.scene; }).catch(() => {}));
   }
@@ -745,9 +746,9 @@ export class VehicleRenderer {
     if (!G) return null;
     const { eye, hub, axis, up0, right0, R } = G, hasRim = G.rim;
     const wheel = null; this.ensureSteeringWheel(); // (models without one get ours, on the body)
-    // the rigged character when it's loaded (it may still be on its way: tube arms until then)
+    // the rigged character and the realistic arms when they're loaded (they may still be on their way: tube arms until then)
     if (this.lib.rider) {
-      const driver = new FPDriver(this.lib.rider, eye, { hub, axis, up0, right0, R });
+      const driver = new FPDriver(this.lib.rider, eye, { hub, axis, up0, right0, R }, this.lib.hands || null);
       if (wheel) driver.group.add(wheel);
       this.body.add(driver.group);
       return { g: driver.group, driver, wheel };
@@ -804,7 +805,8 @@ export class VehicleRenderer {
   /** Show / hide the first-person arms (the camera calls this every frame). */
   setCockpitArms(on) {
     this.cockpitOn = on;
-    if (on && this._arms?.tube && this.lib.rider) { this._arms.g.removeFromParent(); this._arms = undefined; } // the driver model arrived
+    // (the driver model arrived; or the realistic arms did)
+    if (on && this._arms && this.lib.rider && (this._arms.tube || (this.lib.hands && !this._arms.driver?.arms))) { this._arms.g.removeFromParent(); this._arms = undefined; }
     if (on && this._arms === undefined) this._arms = this._buildArms();
     if (this._arms) this._arms.g.visible = on;
   }
