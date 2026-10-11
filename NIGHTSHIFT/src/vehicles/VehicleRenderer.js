@@ -7,6 +7,7 @@ import { clamp, lerp } from '../core/util.js';
 import { CARS, TRAFFIC_MODELS, NO_STEERING_WHEEL } from './VehicleCatalog.js';
 import { Rider, SkinnedRider } from './Rider.js';
 import { FPDriver } from './Driver.js';
+import { fitSteeringWheel, detachSteeringWheel } from './SteeringWheel.js';
 
 const glowRed = () => radialGlow('rgba(255,60,50,1)', 'rgba(255,20,20,0.3)');
 const _qa = new THREE.Quaternion(), _qb = new THREE.Quaternion(), _pv = new THREE.Vector3(), _pp = new THREE.Vector3(), _ax = new THREE.Vector3(1, 0, 0), _az = new THREE.Vector3(0, 0, 1);
@@ -728,17 +729,26 @@ export class VehicleRenderer {
     }
     if (!hub) hub = new THREE.Vector3(eye.x, eye.y - 0.3, eye.z + 0.45);
     hub.z -= 0.03; hub.y += 0.02;                                            // grip the rim, not the hub face
-    const axis = new THREE.Vector3(0, 0.42, -1).normalize();                  // wheel faces the driver, tilted
-    const R = 0.175;
+    let axis = new THREE.Vector3(0, 0.42, -1).normalize();                    // wheel faces the driver, tilted
+    let R = 0.175;
+    // the model's own wheel, found in its geometry: the hands go on its real rim. A model where none is found gets
+    // ours (below), clear of the dashboard: hands on a guessed rim held air or sank into the dash
+    const fit = !NO_STEERING_WHEEL.has(this.carId) && this._lod0 ? fitSteeringWheel(this._lod0, this.body, eye) : null;
+    const hasRim = !!fit || this.carId === 'auto'; // (an auto's handlebars: no wheel of ours in it)
+    if (fit) { hub = fit.hub; axis = fit.axis; R = fit.R; if (Math.abs(eye.x - hub.x) < 0.12) eye.x = hub.x; } // (sat square behind it)
     const up0 = new THREE.Vector3(0, 1, 0).projectOnPlane(axis).normalize(), right0 = new THREE.Vector3().crossVectors(up0, axis).normalize();
-    const hasRim = !NO_STEERING_WHEEL.has(this.carId);
+    // ... and lifted out of the car to turn with the steering (and the hands on it)
+    if (fit) {
+      const d = detachSteeringWheel(this._lod0, this.body, { hub, axis, up0, right0, R });
+      if (d) { d.holder.userData.spin = d.spin; this.body.add(d.holder); this._ownWheel = d.holder; }
+    }
     if (!hasRim) {
       // no wheel in the model: put ours a comfortable reach ahead, clear of the dashboard
       const clear = (q) => { const dir = q.clone().sub(eye), L = dir.length(); dir.normalize(); const d = this._probe(eye.x, eye.y, eye.z, dir.x, dir.y, dir.z); return d === null || d > L - 0.01; };
       hub.set(eye.x, eye.y - 0.3, eye.z + 0.5);
       for (let i = 0; i < 10 && !clear(hub.clone().addScaledVector(up0, R + 0.02)); i++) hub.addScaledVector(axis, 0.03); // towards the driver
     }
-    return (this._steer = { eye, hub, axis, up0, right0, R, rim: hasRim });
+    return (this._steer = { eye, hub, axis, up0, right0, R, rim: hasRim, fit: !!fit });
   }
 
   _buildArms() {

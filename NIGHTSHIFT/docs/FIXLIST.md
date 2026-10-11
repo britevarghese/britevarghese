@@ -20,6 +20,13 @@ the game. Newly found problems go at the end of their section.
   model, Sketchfab, CC BY) at ten to two: the back of the hand to the driver, fingers wrapped round the rim, thumbs
   along it, the forearm turning with the hand, all following the wheel
 - [x] Driving into the sea or a river off the road: the water drags the car back (it drove on the sea at speed)
+- [x] Hands not on the steering wheel (gripping air above it, or sunk in the dash): the wheel's place was guessed
+  from one ray. Each model's own wheel is now found in its geometry (the ring in front of the driver), the hands
+  go on its rim, the driver sits square behind it, and the wheel turns with the steering (it stood still while
+  the hands went round it). Found in every car with a modelled wheel; where none is found (the Bolero) ours is
+  fitted
+- [ ] Bus and lorry first person: the eye sits just under the cab roof and their low-detail cabins have no wheel
+  to find (ours is fitted)
 
 ## Police and traffic
 - [x] Police start a chase when their own car hits you (fault check: whoever drove into whom)
