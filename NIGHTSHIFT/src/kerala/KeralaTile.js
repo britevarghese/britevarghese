@@ -1045,7 +1045,8 @@ export class KeralaTile {
   }
 
   // a flat strip of half width hw along pts (tile-local e/n), at height yOf(e, n); uv: u across, v along (m / vScale)
-  _ribbon(pts, hw, yOf, vScale = 8) {
+  // rows: if given, gets each row of the strip as drawn ([e, n, unit normal e, n, left y, right y]), for drawnAt()
+  _ribbon(pts, hw, yOf, vScale = 8, rows = null) {
     // densify so the strip follows the ground
     const P = [];
     for (let i = 0; i < pts.length; i++) {
@@ -1074,6 +1075,7 @@ export class KeralaTile {
       let yl = Math.max(hi(ne, nn), yc - 0.25), yr = Math.max(hi(-ne, -nn), yc - 0.25);
       if ((yl + yr) / 2 < yc) { const up = yc - (yl + yr) / 2; yl += up; yr += up; }  // a ridge along the middle
       pos.set([-(e + ne), yl, n + nn, -(e - ne), yr, n - nn], i * 6);
+      if (rows) rows.push(e, n, ne / hw, nn / hw, yl, yr);
       uv.set([0, along / vScale, 1, along / vScale], i * 4);
       if (i) { const q = (i - 1) * 2; idx.push(q, q + 1, q + 2, q + 1, q + 3, q + 2); }
     }
@@ -1184,8 +1186,10 @@ export class KeralaTile {
         const v = this._surfAt(r, e, n), y = (v > -1e9 ? v : this.heightAt(e, n)) + lift + extra, cov = r.deck ? -Infinity : this._coverY(e, n, ri);
         return cov > -1e9 && y > cov - 0.02 ? cov - 0.02 : y;
       }, { exact: (e, n) => this._surfAt(r, e, n) > -1e9 });
-      const g = this._ribbon(P, hw, ys(0), 7);
+      const rows = [];
+      const g = this._ribbon(P, hw, ys(0), 7, rows);
       if (!g) continue;
+      r.drawn = { rows, hw };   // (what the wheels drive on: see _drawnAt)
       g.computeVertexNormals();
       if (!r.dirt) {
         // in a junction the strips overlap: no ragged edge or verge dust there (it would show on the other road)
@@ -1836,6 +1840,36 @@ export class KeralaTile {
   // the road's own surface height at (e, n) (its graded profile), or -Infinity when not on it
   _surfAt(r, e, n) { return r.surf ? this._profileAt(r.surf, e, n, 3) : -Infinity; }
 
+  // a road's strip exactly as drawn at (e, n), or -Infinity off it: each row is a straight line across the road from
+  // its left edge's height to its right's, the rows joined by flat pieces. (Its centre-line profile is not what is
+  // drawn: an edge tucked under another road at a junction tilts the strip, and cars rode up to 0.7 m above it.)
+  _drawnAt(r, e, n, margin = 0) {
+    const D = r.drawn; if (!D) return -Infinity;
+    const R = D.rows, m = R.length / 6;
+    if (!D.grid) {
+      D.grid = new Map();
+      for (let i = 0; i < m; i++) { const k = Math.floor(R[i * 6] / 8) * 100000 + Math.floor(R[i * 6 + 1] / 8); if (!D.grid.has(k)) D.grid.set(k, []); D.grid.get(k).push(i); }
+    }
+    const ge = Math.floor(e / 8), gn = Math.floor(n / 8);
+    let bd = Infinity, by = -Infinity;
+    for (let a = -2; a <= 2; a++) for (let b = -2; b <= 2; b++) {
+      const L = D.grid.get((ge + a) * 100000 + gn + b); if (!L) continue;
+      for (const i of L) {
+        if (i === 0) continue;
+        const j = (i - 1) * 6, k = i * 6, ae = R[j], an = R[j + 1], de = R[k] - ae, dn = R[k + 1] - an, l2 = de * de + dn * dn || 1;
+        const u = Math.max(0, Math.min(1, ((e - ae) * de + (n - an) * dn) / l2)), ce = ae + de * u, cn = an + dn * u;
+        const d = Math.hypot(ce - e, cn - n);
+        if (d >= bd) continue;
+        // across the road: the signed distance along the rows' normal, each row's line from its right edge to its left
+        const ue = R[j + 2] + (R[k + 2] - R[j + 2]) * u, un = R[j + 3] + (R[k + 3] - R[j + 3]) * u;
+        const x = Math.max(-1, Math.min(1, ((e - ce) * ue + (n - cn) * un) / D.hw));
+        const y0 = (R[j + 4] + R[j + 5]) / 2 + (R[j + 4] - R[j + 5]) / 2 * x, y1 = (R[k + 4] + R[k + 5]) / 2 + (R[k + 4] - R[k + 5]) / 2 * x;
+        bd = d; by = y0 + (y1 - y0) * u;
+      }
+    }
+    return bd <= D.hw + margin ? by : -Infinity;
+  }
+
   _profileAt(D, e, n, margin) {
     if (!D.grid) {
       D.grid = new Map();
@@ -1935,19 +1969,23 @@ export class KeralaTile {
             if (dist <= hw && !(yRef < yd - 1.2)) {
               // (a lesser road's culvert deck where it joins a main road: under the main road's strip, as drawn; a flyover
               // well above it stays a flyover)
-              let v = yd + 0.07 + (10 - cls) * 0.004; const cov = v > best ? this._coverY(e, n, L[j + 5]) : -Infinity;
+              // (the deck's strip as drawn, where there is one: the profile alone left wheels 0.3 m into some decks)
+              const dd = this._drawnAt(r, e, n, 0.3);
+              let v = dd > -1e9 ? dd : yd + 0.07 + (10 - cls) * 0.004; const cov = dd === -Infinity && v > best ? this._coverY(e, n, L[j + 5]) : -Infinity;
               if (cov > -1e9 && v > cov - 0.02 && v < cov + 1.2) v = cov - 0.02;
               best = Math.max(best, v);
             }
             continue;
           }
         }
-        const l = Math.sqrt(l2), ue = dx / l * 4, un = dz / l * 4, sf = this._surfAt(r, ce, cn);
-        // its own graded surface (as drawn); the ground only where it has none
-        const y = (sf > -1e9 ? sf : Math.max(this.heightAt(e, n), this.heightAt(ce, cn), this.heightAt(ce + ue, cn + un), this.heightAt(ce - ue, cn - un))) + 0.07 + (10 - cls) * 0.004;
+        // its strip as drawn (at the edge, for the shoulder beyond it): exactly what the wheels should touch
+        const dr = r.drawn ? this._drawnAt(r, dist <= hw ? e : ce + (e - ce) * (hw - 0.15) / dist, dist <= hw ? n : cn + (n - cn) * (hw - 0.15) / dist, 0.3) : -Infinity;
+        const l = Math.sqrt(l2), ue = dx / l * 4, un = dz / l * 4, sf = dr > -1e9 ? -Infinity : this._surfAt(r, ce, cn);
+        // (else its own graded surface; the ground only where it has none)
+        const y = dr > -1e9 ? dr : (sf > -1e9 ? sf : Math.max(this.heightAt(e, n), this.heightAt(ce, cn), this.heightAt(ce + ue, cn + un), this.heightAt(ce - ue, cn - un))) + 0.07 + (10 - cls) * 0.004;
         // beyond the edge: down the shoulder to the ground (as drawn); under a more important road's strip, as drawn too
         let yy = dist <= hw ? y : y + (this.heightAt(e, n) - y) * ((dist - hw) / 1.6);
-        if (yy > (dist <= hw ? best : off)) { const cov = this._coverY(e, n, L[j + 5]); if (cov > -1e9 && yy > cov - 0.02) yy = cov - 0.02; }
+        if (dr === -Infinity && yy > (dist <= hw ? best : off)) { const cov = this._coverY(e, n, L[j + 5]); if (cov > -1e9 && yy > cov - 0.02) yy = cov - 0.02; }
         if (dist <= hw) { if (yy > best) best = yy; } else if (yy > off) off = yy;
       }
     }

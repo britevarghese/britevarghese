@@ -25,8 +25,15 @@ the game. Newly found problems go at the end of their section.
   go on its rim, the driver sits square behind it, and the wheel turns with the steering (it stood still while
   the hands went round it). Found in every car with a modelled wheel; where none is found (the Bolero) ours is
   fitted
-- [ ] Bus and lorry first person: the eye sits just under the cab roof and their low-detail cabins have no wheel
-  to find (ours is fitted)
+- [x] First-person grip as drivers really hold a wheel (driving-school 9 and 3, the 'sports grip' of driving games):
+  hands near a quarter to three, the palm round the outside of the rim, fingers wrapped behind it, the thumb along
+  it; push-pull steering (the hands follow the wheel a little, then the rim slides through them; hand over hand
+  swung an arm across the view). The wheel itself turns with the steering
+- [x] Bus and lorry first person: the eye ~0.8 m above the driver's seat (it sat just under the cab roof); a bigger,
+  flatter wheel (their low-detail cabins have none to find)
+- [x] Vehicles floating at junctions, by culverts and on bridge ramps (an auto on a lawn's edge, an SUV in a jam): the
+  physics took a road's centre-line height, or a neighbour road's shoulder up to a metre higher, where the strip is
+  drawn tilted or lower. Wheels now sit on the road exactly as drawn (each strip read row by row)
 
 ## Police and traffic
 - [x] Police start a chase when their own car hits you (fault check: whoever drove into whom)
