@@ -170,6 +170,14 @@ export class TrafficManager {
       const L = car.spec.l * 0.45, fx = Math.sin(car.yaw), fz = Math.cos(car.yaw), y0 = car.path.deck === false ? -Infinity : car.placed ? car.y : undefined, gh = (x, z) => this.world.layout.groundHeight(x, z, y0);
       let hf, hr;
       if (car.spec.bike) { hf = gh(car.x + fx * L, car.z + fz * L); hr = gh(car.x - fx * L, car.z - fz * L); car.y = (hf + hr) / 2 + 0.01; }
+      else if (car.type === 'auto') {
+        // an autorickshaw stands on three wheels: one at the front in the middle, two at the back
+        const H = (car.spec.w || 1.3) * 0.4, wf = gh(car.x + fx * L, car.z + fz * L);
+        const wl = gh(car.x - fx * L + fz * H, car.z - fz * L - fx * H), wr = gh(car.x - fx * L - fz * H, car.z - fz * L + fx * H);
+        hf = wf; hr = (wl + wr) / 2;
+        car.y = Math.max((wf + wl + wr) / 3, Math.max(wf, wl, wr) - 0.25) + 0.01;
+        car.roll = Math.atan2(wl - wr, 2 * H);
+      }
       else {
         // four wheels (a car swung out round a parked one has two of them on the verge): it rests on them, leaning
         // with the ground, never hanging in the air over a lower verge or sunk into a higher one
