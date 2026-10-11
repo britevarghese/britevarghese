@@ -47,6 +47,14 @@ the game. Newly found problems go at the end of their section.
   - [x] Areca palms: the real palm model, slimmer; grass tufts: thin blades of their own (they were palm leaflets)
 - [x] Median ends: the gap between the halves by a junction is paved, level with them (it was bare earth)
 - [ ] Ride every road and fix what is found
+  - [x] Test drives (a careful driver following the lanes, Kannur, Valapattanam, Thalassery, Mattannur, Iritty) found:
+    lanes 3.2 m wide on narrow two-way streets (cars drove with a wheel on the verge, scraping the edge walls);
+    compound walls cut across the street where they stepped back from it; corner walls and canal parapets
+    right in a junction's mouth (no room to turn); houses on cls 7 streets left standing in the lane; the inner
+    lane of a one-way road with no way on at some junctions. All fixed
+  - [x] AI drivers (police): took 90-degree junction turns at 70 km/h (a turn drawn with several points read as
+    several gentle ones; the corner judged from the wrong place; soft braking) and circled a corner point they
+    had passed: corners are judged by their real radius and braked for in time
   - [x] Bumps where roads meet: a side road meeting a junction at another level eases in over a longer stretch
     (a gentle curve, not a dip); canal bridges' ramps rounded off at the foot and the top. Kannur 74 -> 55,
     Thalassery 44 -> 29, Valapattanam 53 -> 38; no steps, no floating road. What remains is mostly the gentle

@@ -135,7 +135,7 @@ export class KeralaLaneGraph {
         // short of the crossing road's carriageway (never out in the junction or in a lane)
         if (l.laneIndex === 0) {
           const ux = dx / L, uz = dz / L, lx = dz / L, lz = -dx / L, per = l.edge.type.lanes;
-          const off0 = l.edge.one ? -(per - 1) / 2 * LANE_W : (per - 0.5) * LANE_W;
+          const off0 = l.edge.one ? -(per - 1) / 2 * (l.edge.lw ?? LANE_W) : (per - 0.5) * (l.edge.lw ?? LANE_W);
           const nx = b[0] + ux * 2.5 - lx * off0, nz = b[1] + uz * 2.5 - lz * off0;   // the junction, on this road's centre line
           const cross = Math.max(4, ...E.filter((e) => e !== l.edge).map((e) => e.hw || 4)), side = (l.edge.hw || 4) + 0.9;
           // (the first spot off every carriageway: a twin carriageway, a slip road or a lane may run right beside)
@@ -176,13 +176,15 @@ export class KeralaLaneGraph {
       const total = r.lanes || (r.cls <= 1 ? (one ? 2 : 4) : one ? 1 : 2);
       const per = one ? Math.max(1, Math.min(3, total)) : Math.max(1, Math.min(3, Math.floor(total / 2)));
       const edge = { id: EDGE_ID++, type: { lanes: per }, cls: r.cls, name: r.name, one, hw: r.cls <= 2 && r.lanes ? Math.max(ROAD_HALF[r.cls], r.lanes * 1.75) : ROAD_HALF[r.cls] };
+      // (lanes as wide as the road allows: on a narrow village road both ways share it, a car keeps off the edge)
+      edge.lw = Math.min(LANE_W, one ? 2 * edge.hw / per : edge.hw / per);
       const a = nodeKey(...P[0]), b = nodeKey(...P[P.length - 1]);
       for (const dir of one ? [1] : [1, -1]) {
         const C = dir > 0 ? P : [...P].reverse();
         const from = dir > 0 ? a : b, to = dir > 0 ? b : a;
         for (let li = 0; li < per; li++) {
           // keep left: lane 0 is the outer (kerb) lane, further lanes towards the centre
-          const off = one ? (li - (per - 1) / 2) * LANE_W : (per - li - 0.5) * LANE_W;
+          const off = one ? (li - (per - 1) / 2) * edge.lw : (per - li - 0.5) * edge.lw;
           let pts = leftOffset(C, off);
           pts = trim(pts, 2.5, 2.5);
           if (pts.length < 2) continue;
@@ -262,6 +264,10 @@ export class KeralaLaneGraph {
       const end = lin.pts[lin.pts.length - 1], prev = lin.pts[lin.pts.length - 2];
       const d0 = norm(end[0] - prev[0], end[1] - prev[1]);
       const cands = [];
+      // (lane discipline first; where it leaves this lane no way on at all, e.g. the centre lane of a one-way road
+      // whose only exit is a left turn, any lane out will do)
+      for (const strict of [true, false]) {
+      if (cands.length) break;
       for (const lout of outs) {
         if (lout.edge === lin.edge) continue;
         const st = lout.pts[0], st2 = lout.pts[1];
@@ -269,11 +275,14 @@ export class KeralaLaneGraph {
         const cross = d0[0] * d1[1] - d0[1] * d1[0], dot = d0[0] * d1[0] + d0[1] * d1[1];
         const turn = dot > 0.7 ? 'straight' : cross > 0 ? 'right' : 'left';
         // lane discipline (keep left): left turns from the kerb lane, right turns from the centre lane
-        if (lin.lanes > 1 && turn === 'left' && lin.laneIndex !== 0) continue;
-        if (lin.lanes > 1 && turn === 'right' && lin.laneIndex !== lin.lanes - 1) continue;
-        if (turn === 'straight' && lout.laneIndex !== Math.min(lin.laneIndex, lout.lanes - 1)) continue;
-        if (turn !== 'straight' && lout.laneIndex !== (turn === 'left' ? 0 : lout.lanes - 1)) continue;
+        if (strict) {
+          if (lin.lanes > 1 && turn === 'left' && lin.laneIndex !== 0) continue;
+          if (lin.lanes > 1 && turn === 'right' && lin.laneIndex !== lin.lanes - 1) continue;
+          if (turn === 'straight' && lout.laneIndex !== Math.min(lin.laneIndex, lout.lanes - 1)) continue;
+          if (turn !== 'straight' && lout.laneIndex !== (turn === 'left' ? 0 : lout.lanes - 1)) continue;
+        } else if (cands.some((q) => q.lout.edge === lout.edge)) continue;   // (one lane of each road out)
         cands.push({ lout, turn, d1, st });
+      }
       }
       // a road that just ends: turn round
       if (!cands.length) { const back = outs.find((l) => l.edge === lin.edge); if (back) cands.push({ lout: back, turn: 'uturn', d1: null, st: back.pts[0] }); }

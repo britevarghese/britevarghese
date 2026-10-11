@@ -1133,19 +1133,23 @@ export class KeralaTile {
     for (const r of this.roads) {
       if (r.flags & 4 || r.cls > 8) continue;
       const hw = ROAD_HALF[r.cls];
-      for (const k of new Set(r.pts.map(([e, n]) => `${Math.round(e)},${Math.round(n)}`))) { const o = seen.get(k); seen.set(k, o ? [o[0] + 1, Math.max(o[1], hw)] : [1, hw]); }
+      const last = r.pts.length - 1;
+      for (const [k, mid] of new Map(r.pts.map(([e, n], i) => [`${Math.round(e)},${Math.round(n)}`, i > 0 && i < last]))) { const o = seen.get(k); seen.set(k, o ? [o[0] + 1, Math.max(o[1], hw), o[2] || mid] : [1, hw, mid]); }
     }
     const JG = new Map();
-    for (const [k, [c, hw]] of seen) {
-      if (c < 2) continue;
+    for (const [k, [c0, hw, through]] of seen) {
+      if (c0 < 2) continue;
+      const c = c0 >= 3 || through ? Math.max(3, c0) : c0;   // (a side road ending on a road passing through: a T junction)
       const [e, n] = k.split(',').map(Number), gk = Math.floor(e / 16) * 1000 + Math.floor(n / 16);
-      if (!JG.has(gk)) JG.set(gk, []); JG.get(gk).push(e, n, hw + 2.5);
+      if (!JG.has(gk)) JG.set(gk, []); JG.get(gk).push(e, n, hw + 2.5, c);
     }
-    this._nearJunction = (e, n) => {
+    // (extra: a wider margin; minC: only where that many road ends meet, a real junction rather than one road's
+    // two pieces meeting)
+    this._nearJunction = (e, n, extra = 0, minC = 2) => {
       const ge = Math.floor(e / 16), gn = Math.floor(n / 16);
       for (let a = -1; a <= 1; a++) for (let b = -1; b <= 1; b++) {
         const L = JG.get((ge + a) * 1000 + gn + b); if (!L) continue;
-        for (let j = 0; j < L.length; j += 3) if ((L[j] - e) ** 2 + (L[j + 1] - n) ** 2 < L[j + 2] * L[j + 2]) return true;
+        for (let j = 0; j < L.length; j += 4) if (L[j + 3] >= minC && (L[j] - e) ** 2 + (L[j + 1] - n) ** 2 < (L[j + 2] + extra) ** 2) return true;
       }
       return false;
     };
@@ -1293,9 +1297,10 @@ export class KeralaTile {
               edge(hw + 0.75, 0.17, hw + 2.2, 0.2, [0.26 * j, 0.25 * j, 0.22 * j]); // footpath slabs
               edge(hw + 2.2, 0.2, hw + 2.2, -0.35, conc, grime);
             } else edge(hw + 0.75, 0.17, hw + 0.95, -0.35, conc, grime);
-          } else if (A.water && B.water && inTile(mid) && !nj(mid[0], mid[1]) && Number.isFinite(A.y0) && Number.isFinite(B.y0)
+          } else if (A.water && B.water && inTile(mid) && ![mid, A.at(hw), B.at(hw)].some((q) => nj(q[0], q[1], 3)) && Number.isFinite(A.y0) && Number.isFinite(B.y0)
             && [A.at(hw), B.at(hw), [(A.at(hw)[0] + B.at(hw)[0]) / 2, (A.at(hw)[1] + B.at(hw)[1]) / 2]].every((q) => !this.onRoad(q[0], q[1], 0.6, ri))) {
-            // canal side / bridge: a whitewashed parapet on a granite side wall going down to the water; solid
+            // canal side / bridge: a whitewashed parapet on a granite side wall going down to the water; solid (it stops
+            // short of a junction's corner: room for a car to turn)
             const K = kerb[chunkOf(...mid)];
             const v = (Q, o, h) => { const [e, n] = Q.at(o); return [-e, Q.y0 + h, n]; };
             const j = 0.9 + rnd() * 0.12, band = bridge && (i & 1) === 0;
@@ -1995,11 +2000,11 @@ export class KeralaTile {
       {
         const pts = [[P.ce, P.cn], ...P.ring.map(([e, n]) => [e + (P.ce - e) * 0.15, n + (P.cn - n) * 0.15])];
         const onRd = pts.filter(([e, n]) => this.onRoad(e, n, -0.4, -1, 7)).length;
-        // (any corner more than ~1 m into a main or town road's carriageway also goes: it would stand in a lane)
+        // (any corner more than ~1 m into a carriageway with traffic on it also goes: it would stand in a lane)
         // (and a long building lying across a road: points every ~3 m along its walls, pulled in a little)
         const along = [];
         for (let i = 0; i < P.ring.length; i++) { const [e1, n1] = P.ring[i], [e2, n2] = P.ring[(i + 1) % P.ring.length], k = Math.floor(Math.hypot(e2 - e1, n2 - n1) / 3); for (let j = 1; j < k; j++) { const e = e1 + (e2 - e1) * j / k, n = n1 + (n2 - n1) * j / k; along.push([e + (P.ce - e) * 0.1, n + (P.cn - n) * 0.1]); } }
-        if (this.onRoad(P.ce, P.cn, -0.4, -1, 7) || onRd >= pts.length * 0.34 || P.ring.some(([e, n]) => this.onRoad(e, n, -1.0, -1, 6)) || along.some(([e, n]) => this.onRoad(e, n, -1.0, -1, 6))) { hidden[bi] = 1; continue; }
+        if (this.onRoad(P.ce, P.cn, -0.4, -1, 7) || onRd >= pts.length * 0.34 || P.ring.some(([e, n]) => this.onRoad(e, n, -1.0, -1, 7)) || along.some(([e, n]) => this.onRoad(e, n, -1.0, -1, 7))) { hidden[bi] = 1; continue; }
       }
       if (near.size) {
         const pts = [[P.ce, P.cn], ...P.ring.map(([e, n]) => [e + (P.ce - e) * 0.15, n + (P.cn - n) * 0.15])];
@@ -2326,15 +2331,21 @@ export class KeralaTile {
     for (let i = 0; i < 4; i++) {
       const [pa, pb] = corners[i], [qa, qb] = corners[(i + 1) % 4], L = Math.hypot(qa - pa, qb - pb), isFront = sideOf[i] === front;
       const gate = isFront && L > 5 ? L / 2 : -1;
-      let run = null, last = null;
+      let run = null, last = null, kRun = 0;
       for (let d = 0; d <= L + 1e-6; d += 1) {
         const t = Math.min(1, d / L);
-        let a = pa + (qa - pa) * t, b = pb + (qb - pb) * t, p = W2(a, b);
+        let a = pa + (qa - pa) * t, b = pb + (qb - pb) * t, p = W2(a, b), k = 0;
         // onto a road: step back toward the house until it is off the carriageway (the wall runs along the road edge)
-        for (let k = 0; k < 16 && this.onRoad(p[0], p[1], 0.7, -1, 9); k++) { a *= 0.93; b *= 0.93; p = W2(a, b); }
+        for (; k < 16 && this.onRoad(p[0], p[1], 0.7, -1, 9); k++) { a *= 0.93; b *= 0.93; p = W2(a, b); }
+        // (a piece is drawn straight from its first point to its last: where the step back changes, the points are
+        // no longer in line, so the piece ends there; a straight run would cut across the road)
+        if (run && k !== kRun) { if (last !== run) piece(run, last); run = null; }
+        kRun = k;
         const inHouse = a > a0 - 0.6 && a < a1 + 0.6 && b > b0 - 0.6 && b < b1 + 0.6;
         const shared = D.wallCells.has(cell(...p));
-        const ok = !inHouse && !shared && !blocked(...p) && !this.onRoad(p[0], p[1], 0.7, -1, 9) && !(gate >= 0 && Math.abs(d - gate) < 1.6);
+        // (and clear of a junction's corners: the corner plot's wall is set back there, so a car turning into the
+        // side road has room to swing round)
+        const ok = !inHouse && !shared && !blocked(...p) && !this.onRoad(p[0], p[1], 0.7, -1, 9) && !(gate >= 0 && Math.abs(d - gate) < 1.6) && !this._nearJunction?.(p[0], p[1], 3, 3);
         if (ok) { D.wallCells.add(cell(...p)); if (!run) run = p; last = p; }
         else { if (run && last !== run) piece(run, last); run = null; }
       }

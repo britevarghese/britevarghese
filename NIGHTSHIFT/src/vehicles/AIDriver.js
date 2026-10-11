@@ -47,7 +47,15 @@ export class AIDriver {
       const a = r[this.idx], b = r[this.idx + 1];
       const dx = b[0] - a[0], dz = b[1] - a[1];
       const t = ((x - a[0]) * dx + (z - a[1]) * dz) / (dx * dx + dz * dz || 1);
-      if (t > 1) this.idx++; else break;
+      // past the segment's end, or round a corner beside its point (within 5 m of it, or nearer the next segment
+      // than this one): on to the next, so the car doesn't keep circling for a point it has already passed
+      let next = t > 1;
+      if (!next && this.idx < r.length - 2) {
+        const c = r[this.idx + 2], ex = c[0] - b[0], ez = c[1] - b[1], u = clamp(((x - b[0]) * ex + (z - b[1]) * ez) / (ex * ex + ez * ez || 1), 0, 1);
+        const tt = clamp(t, 0, 1), dThis = Math.hypot(a[0] + dx * tt - x, a[1] + dz * tt - z), dNext = Math.hypot(b[0] + ex * u - x, b[1] + ez * u - z);
+        next = Math.hypot(b[0] - x, b[1] - z) < 5 || (t > 0.5 && dNext < dThis - 0.5);
+      }
+      if (next) this.idx++; else break;
     }
     if (this.loop && this.idx >= r.length - 1) this.idx = 0;
   }
@@ -75,20 +83,37 @@ export class AIDriver {
     return r.length ? r[r.length - 1] : [x, z];
   }
 
-  // max heading change over the next `dist` meters (corner severity)
+  // max heading change over the next `dist` meters (corner severity). A corner drawn with several close points
+  // (a junction turn on lane points) is one corner: the turning within any 20 m is added up (signed: an S-bend
+  // or a lane-change wiggle cancels out)
   _cornerAhead(dist) {
-    const r = this.route;
-    let i = this.idx, travelled = 0, maxTurn = 0, turnDist = dist;
-    while (i < r.length - 2 && travelled < dist) {
+    const r = this.route, turns = [], s = this.v.state;
+    let i = this.idx, travelled = 0;
+    while (i < r.length - 2 && travelled < dist + 20) {
       const a = r[i], b = r[i + 1], c = r[i + 2];
       const h1 = Math.atan2(b[0] - a[0], b[1] - a[1]), h2 = Math.atan2(c[0] - b[0], c[1] - b[1]);
-      const turn = Math.abs(wrapAngle(h2 - h1));
-      const segLen = Math.hypot(b[0] - a[0], b[1] - a[1]);
-      if (turn > maxTurn) { maxTurn = turn; turnDist = travelled + segLen; }
-      travelled += segLen;
+      // (distances from the car, not from the start of the segment it's on)
+      travelled += i === this.idx ? Math.hypot(b[0] - s.x, b[1] - s.z) : Math.hypot(b[0] - a[0], b[1] - a[1]);
+      turns.push([travelled, wrapAngle(h2 - h1)]);
       i++;
+      if (this.loop && i >= r.length - 2) break;
     }
-    return { turn: maxTurn, dist: turnDist };
+    // and how fast it can be taken: its radius is the length the turning is spread over (8 m at least) divided
+    // by the angle, the speed what the tyres hold round that radius. Of the corners ahead, the one that needs
+    // the most braking from here
+    let maxTurn = 0, turnDist = dist, vc = Infinity, need = -Infinity;
+    for (let j = 0; j < turns.length; j++) {
+      if (turns[j][0] > dist) break;
+      let sum = 0, span = 0;
+      for (let k = j; k < turns.length && turns[k][0] - turns[j][0] <= 20; k++) { sum += turns[k][1]; span = turns[k][0] - turns[j][0]; }
+      const a = Math.min(Math.PI, Math.abs(sum));
+      if (a < 0.2) continue;
+      // (a tight junction turn at walking pace: the steering lock is less at speed)
+      const v = Math.sqrt(5 * this.skill * Math.max(6, span) / a) + 0.5, n = -(2 * 5.5 * Math.max(0, turns[j][0] - 8) + v * v);
+      if (a > maxTurn) maxTurn = a;
+      if (n > need) { need = n; vc = v; turnDist = turns[j][0]; }
+    }
+    return { turn: maxTurn, dist: turnDist, vc };
   }
 
   update(dt, obstacles = []) {
@@ -115,11 +140,10 @@ export class AIDriver {
       }
       const la = this._lookahead(s.x, s.z, laDist);
       tx = la[0]; tz = la[1];
-      const corner = this._cornerAhead(Math.max(40, speed * 3));
-      if (corner.turn > 0.25) {
-        const vc = (7 + 32 * (1 - corner.turn / Math.PI) ** 2) * this.skill + 2;
+      const corner = this._cornerAhead(Math.max(50, speed * 3.5));
+      if (Number.isFinite(corner.vc)) {
         // allow braking distance to the corner
-        const vmax = Math.sqrt(vc * vc + 2 * 7.5 * Math.max(0, corner.dist - 10));
+        const vmax = Math.sqrt(corner.vc * corner.vc + 2 * 5.5 * Math.max(0, corner.dist - 8));
         targetSpeed = Math.min(targetSpeed, vmax);
       }
       if (!this.loop && this.idx >= this.route.length - 2) {
@@ -167,7 +191,7 @@ export class AIDriver {
     const err = targetSpeed - speed;
     c.steer = steer;
     c.throttle = err > 0 ? clamp(err / 6, 0.25, 1) * this.powerScale : 0;
-    c.brake = err < -2 ? clamp(-err / 10, 0.2, 1) : 0;
+    c.brake = err < -1 ? clamp(-err / 4, 0.3, 1) : 0;   // (firmly: the speed plan counts on real braking)
     c.handbrake = Math.abs(diff) > 1.1 && speed > 12 && speed < 30 ? 1 : 0;
     c.nitro = this.useNitro && err > 15 && Math.abs(diff) < 0.12;
   }
