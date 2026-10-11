@@ -167,8 +167,17 @@ export class TrafficManager {
       // the streamed terrain has hills: ride on it, nose up / down with the slope (a lane on a road with no bridge
       // never climbs onto a flyover above it, even a car just spawned under one)
       const L = car.spec.l * 0.45, fx = Math.sin(car.yaw), fz = Math.cos(car.yaw), y0 = car.path.deck === false ? -Infinity : car.placed ? car.y : undefined, gh = (x, z) => this.world.layout.groundHeight(x, z, y0);
-      const hf = gh(car.x + fx * L, car.z + fz * L), hr = gh(car.x - fx * L, car.z - fz * L);
-      car.y = (hf + hr) / 2 + 0.01; // (ground height already includes the road surface)
+      let hf, hr;
+      if (car.spec.bike) { hf = gh(car.x + fx * L, car.z + fz * L); hr = gh(car.x - fx * L, car.z - fz * L); car.y = (hf + hr) / 2 + 0.01; }
+      else {
+        // four wheels (a car swung out round a parked one has two of them on the verge): it rests on them, leaning
+        // with the ground, never hanging in the air over a lower verge or sunk into a higher one
+        const H = (car.spec.w || 1.7) * 0.42, w0 = gh(car.x + fx * L + fz * H, car.z + fz * L - fx * H), w1 = gh(car.x + fx * L - fz * H, car.z + fz * L + fx * H);
+        const w2 = gh(car.x - fx * L + fz * H, car.z - fz * L - fx * H), w3 = gh(car.x - fx * L - fz * H, car.z - fz * L + fx * H);
+        hf = (w0 + w1) / 2; hr = (w2 + w3) / 2;
+        car.y = Math.max((w0 + w1 + w2 + w3) / 4, Math.max(w0, w1, w2, w3) - 0.3) + 0.01;   // (ground height includes the road surface)
+        car.roll = Math.atan2((w0 + w2) - (w1 + w3), 4 * H);
+      }
       car.slope = Math.atan2(hf - hr, 2 * L);
       car.placed = true;
     } else car.y = 0; // Port Halvern: traffic stays on the flat road surface

@@ -358,6 +358,7 @@ export class KeralaTrees {
   constructor(scene, preset) {
     this.U = { uCam: { value: new THREE.Vector3() }, uR: { value: 260 }, uFar: { value: 2200 }, uM: { value: 0 } };
     this.models = {};   // kind -> [{ geometry, material }] (the real models' parts, in the plant's own frame)
+    this.trunks = {};   // kind -> [[x, z, radius]]: where a real model's trunks stand, in its own frame
     this.hiGeo = [palmHi(), broadHi(), bananaHi(), bushHi(), arecaHi(), rubberHi(), bambooHi(), grassHi()];
     this.loGeo = [palmLo(), blobLo()];
     this.atlas = atlas();
@@ -416,6 +417,23 @@ export class KeralaTrees {
           if (!parts.has(o.material)) parts.set(o.material, []);
           parts.get(o.material).push(geo);
         });
+        // where its trunks stand (a coconut palm is often two trunks from one root): the model's lowest points
+        // gathered into one or two clumps, each a trunk's foot (the colliders go there)
+        {
+          const base = [];
+          for (const geos of parts.values()) for (const g2 of geos) { const P = g2.attributes.position; for (let i = 0; i < P.count; i++) if (P.getY(i) < 1.0) base.push([P.getX(i), P.getZ(i)]); }
+          if (base.length) {
+            let A = base[0], B = base[0], far = 0;
+            for (const q of base) { const d = Math.hypot(q[0] - A[0], q[1] - A[1]); if (d > far) { far = d; B = q; } }
+            const cl = far > 0.7 ? [A, B] : [base.reduce((m, q) => [m[0] + q[0] / base.length, m[1] + q[1] / base.length], [0, 0])];
+            for (let it = 0; it < 6 && cl.length > 1; it++) {   // (two-means)
+              const sum = cl.map(() => [0, 0, 0]);
+              for (const q of base) { const j = Math.hypot(q[0] - cl[0][0], q[1] - cl[0][1]) <= Math.hypot(q[0] - cl[1][0], q[1] - cl[1][1]) ? 0 : 1; sum[j][0] += q[0]; sum[j][1] += q[1]; sum[j][2]++; }
+              for (let j = 0; j < 2; j++) if (sum[j][2]) cl[j] = [sum[j][0] / sum[j][2], sum[j][1] / sum[j][2]];
+            }
+            this.trunks[k] = cl.map((c) => { let r = 0.12; for (const q of base) { const d = Math.hypot(q[0] - c[0], q[1] - c[1]); if (d < 0.35) r = Math.max(r, d); } return [c[0], c[1], Math.min(0.3, r)]; });
+          }
+        }
         this.models[k] = [...parts].map(([mat, geos]) => {
           const material = modelMaterial(this.U, mat);
           return { geometry: geos.length > 1 ? mergeGeometries(geos) : geos[0], material, depth: depthMaterial(this.U, 'model', material.alphaTest > 0 ? material.map : null, material.alphaTest) };
@@ -592,6 +610,15 @@ export class KeralaTrees {
     v.set(x, P[i * 7 + 2] - 0.15, z);
     s.set(sc, kind === KIND.broad ? sc * (0.85 + (P[i * 7 + 6] - 0.5) * 0.4) : sc, sc);
     return m4.compose(v, q, s);
+  }
+
+  // the trunks of plant i (tile data d) in game space: [[x, z, r]]; the real model's when it is drawn, else one at the root
+  trunksOf(d, i) {
+    const k = d.P[i * 7 + 3], sc = d.P[i * 7 + 4], rot = d.P[i * 7 + 5], x = -(d.e0 + d.P[i * 7]), z = d.n0 + d.P[i * 7 + 1];
+    const T = this.modelR && this.trunks[k];
+    if (!T) return null;
+    const c = Math.cos(rot), s = Math.sin(rot);
+    return T.map(([ox, oz, r]) => [x + (ox * c + oz * s) * sc, z + (-ox * s + oz * c) * sc, r * sc]);
   }
 
   _tint(col, kind, t) {

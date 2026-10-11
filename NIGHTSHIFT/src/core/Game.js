@@ -227,8 +227,10 @@ export class Game {
     const s = of.active ? of.state : this.player?.state;
     const t = s && W.tileAt(s.x, s.z);
     if (!t?.ready || !W.inWater(s.x, s.z)) { this.sinkT = 0; return; }
-    const depth = t._waterY(-s.x - t.E0, s.z - t.N0) - s.y;
+    const wy = t._waterY(-s.x - t.E0, s.z - t.N0), depth = wy - s.y;
     if (depth < (of.active ? 1.0 : 0.45)) { this.sinkT = 0; return; }
+    // (the ground here stands out of the water: a road or a bridge over a mapped pond or creek, a bank: not sinking)
+    if (W.groundHeight(s.x, s.z, s.y) > wy - (of.active ? 1.0 : 0.45) || W.onCarriageway?.(s.x, s.z, 0)) { this.sinkT = 0; return; }
     this.sinkT = (this.sinkT || 0) + dt;
     const k = Math.exp(-dt * 2.5);
     s.vx *= k; s.vz *= k;

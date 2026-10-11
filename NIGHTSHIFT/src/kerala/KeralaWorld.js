@@ -485,9 +485,13 @@ export class KeralaWorld {
             if (rad === undefined) continue;
             const x = -(d.e0 + d.P[i * 7]), z = d.n0 + d.P[i * 7 + 1];
             if ((x - f.x) ** 2 + (z - f.z) ** 2 > R * R) continue;
-            const hr = rad * Math.max(0.7, d.P[i * 7 + 4]);
-            const col = { cx: x, cz: z, hx: hr, hz: hr, cos: 1, sin: 0, angle: 0, h: d.P[i * 7 + 2] + 6, kind: 'tree' };
-            this.collision.add(col); this._tc.push(col);
+            // (the real model's trunks where it is drawn: a double palm has two)
+            const spots = this.trees.trunksOf?.(d, i) || [[x, z, rad * Math.max(0.7, d.P[i * 7 + 4])]];
+            for (const [tx, tz, hr0] of spots) {
+              const hr = Math.max(0.12, hr0);
+              const col = { cx: tx, cz: tz, hx: hr, hz: hr, cos: 1, sin: 0, angle: 0, h: d.P[i * 7 + 2] + 6, kind: 'tree' };
+              this.collision.add(col); this._tc.push(col);
+            }
           }
         }
       }
