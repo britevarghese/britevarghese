@@ -240,17 +240,39 @@ export class Incidents {
     bus.emit('incident:cleared', { x: inc.x, z: inc.z });
   }
 
-  // the recovery truck's crane: a yellow jib and its cable over the back
+  // the recovery truck's crane, built on its deck: a slewing pedestal over the rear axle, a boom raised back over the
+  // tail with its lift ram, the cable down to a hook block behind the truck, outrigger legs, a beacon on the cab
   _jib(v) {
     const r = v.renderer, body = r.body; body.updateMatrixWorld(true);
     const box = new THREE.Box3().setFromObject(body), inv = new THREE.Matrix4().copy(body.matrixWorld).invert();
     box.applyMatrix4(inv);
-    const yel = new THREE.MeshStandardMaterial({ color: 0xe8b818, roughness: 0.6 }), dark = new THREE.MeshStandardMaterial({ color: 0x222222, roughness: 0.8 });
-    const g = new THREE.Group();
-    const post = new THREE.Mesh(new THREE.BoxGeometry(0.5, 1.2, 0.5), yel); post.position.set(0, box.max.y + 0.6, box.min.z + 1.6); g.add(post);
-    const boom = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.3, 3.6), yel); boom.position.set(0, box.max.y + 1.5, box.min.z + 0.4); boom.rotation.x = -0.35; g.add(boom);
-    const cable = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, 1.8, 4), dark); cable.position.set(0, box.max.y + 1.2, box.min.z - 1.1); g.add(cable);
-    const beacon = new THREE.Mesh(new THREE.SphereGeometry(0.12, 8, 6), new THREE.MeshBasicMaterial({ color: 0xffa020 })); beacon.position.set(0, box.max.y + 0.1, box.max.z - 1.2); g.add(beacon);
+    const yel = new THREE.MeshStandardMaterial({ color: 0xe8b818, roughness: 0.55, metalness: 0.2 }), dark = new THREE.MeshStandardMaterial({ color: 0x222222, roughness: 0.7, metalness: 0.3 });
+    const steel = new THREE.MeshStandardMaterial({ color: 0x8a8d90, roughness: 0.4, metalness: 0.6 });
+    const g = new THREE.Group(), top = box.max.y, rear = box.min.z, len = box.max.z - box.min.z, w = box.max.x - box.min.x;
+    const add = (geo, mat, x, y, z, rx = 0) => { const m = new THREE.Mesh(geo, mat); m.position.set(x, y, z); m.rotation.x = rx; m.castShadow = true; g.add(m); return m; };
+    const pz = rear + Math.min(1.6, len * 0.22), py = top + 0.05;
+    add(new THREE.CylinderGeometry(0.55, 0.65, 0.35, 12), dark, 0, py + 0.17, pz);           // slewing ring
+    add(new THREE.BoxGeometry(1.0, 0.9, 1.1), yel, 0, py + 0.8, pz);                          // pedestal / operator box
+    // boom: from the pedestal top up and back over the tail, 34 degrees
+    const L = 4.6, ang = 0.6, by = py + 1.2, tipZ = pz - Math.cos(ang) * L, tipY = by + Math.sin(ang) * L;
+    add(new THREE.BoxGeometry(0.34, 0.4, L), yel, 0, (by + tipY) / 2, (pz + tipZ) / 2, ang);
+    add(new THREE.BoxGeometry(0.24, 0.3, L * 0.55), yel, 0, by + Math.sin(ang) * L * 0.86, pz - Math.cos(ang) * L * 0.86, ang);   // the telescoped end
+    // the lift ram from the pedestal's foot to the boom's middle
+    const rz0 = pz + 0.3, ry0 = py + 0.5, rz1 = pz - Math.cos(ang) * L * 0.45, ry1 = by + Math.sin(ang) * L * 0.45, rl = Math.hypot(rz1 - rz0, ry1 - ry0);
+    add(new THREE.CylinderGeometry(0.09, 0.09, rl, 8), steel, 0, (ry0 + ry1) / 2, (rz0 + rz1) / 2, Math.atan2(rz0 - rz1, ry1 - ry0));
+    // sheave, cable and hook block hanging behind the truck
+    add(new THREE.CylinderGeometry(0.22, 0.22, 0.12, 12), dark, 0, tipY, tipZ).rotation.z = Math.PI / 2;
+    const hookY = Math.max(1.1, box.min.y + 1.1);
+    add(new THREE.CylinderGeometry(0.018, 0.018, tipY - hookY, 4), dark, 0, (tipY + hookY) / 2, tipZ);
+    add(new THREE.BoxGeometry(0.28, 0.36, 0.2), yel, 0, hookY, tipZ);
+    add(new THREE.TorusGeometry(0.1, 0.03, 6, 10, Math.PI * 1.4), steel, 0, hookY - 0.26, tipZ);
+    // outrigger legs at the rear corners
+    for (const sx of [-1, 1]) {
+      add(new THREE.BoxGeometry(0.5, 0.18, 0.22), yel, sx * (w / 2 + 0.1), box.min.y + 0.75, rear + 0.6);
+      add(new THREE.BoxGeometry(0.14, 0.7, 0.14), yel, sx * (w / 2 + 0.3), box.min.y + 0.4, rear + 0.6);
+    }
+    // the amber beacon on the cab roof
+    add(new THREE.SphereGeometry(0.12, 8, 6), new THREE.MeshBasicMaterial({ color: 0xffa020 }), 0, top + 0.1, box.max.z - 1.2);
     body.add(g);
   }
 

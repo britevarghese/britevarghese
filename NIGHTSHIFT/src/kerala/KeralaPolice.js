@@ -192,13 +192,21 @@ export class KeralaPolice {
   // ------------------------------------------------------------------------------------------ checking point
   _makeCheck(lane) {
     const g = this.game, W = g.world, tmp = { x: 0, z: 0, dx: 0, dz: 1 };
-    const s = lane.length * 0.6;
+    // a place along the road where the verge is clear for the jeep (no house, wall or stall there)
+    let s = -1, edge = 0, rx = 0, rz = 0, yaw = 0, ex = 0, ez = 0;
+    for (const f of [0.6, 0.45, 0.75, 0.35, 0.85]) {
+      lane.sample(lane.length * f, tmp);
+      rx = -tmp.dz; rz = tmp.dx; yaw = Math.atan2(tmp.dx, tmp.dz);   // (right of travel: the kerb is to the left)
+      // the carriageway's edge on the kerb side (left of travel), found by stepping out from the lane
+      edge = 1.75; while (edge < 14 && W.onCarriageway(tmp.x + rx * -edge, tmp.z + rz * -edge, 0)) edge += 0.25;
+      ex = tmp.x + rx * -(edge + 1.6); ez = tmp.z + rz * -(edge + 1.6);   // the jeep on the verge
+      const jx = ex - tmp.dx * 6, jz = ez - tmp.dz * 6;
+      const blocked = W.collision.query(jx - 4, jz - 4, jx + 4, jz + 4, []).some((c) => c.kind !== 'lane' && c.kind !== 'connector' && Math.hypot(c.cx - jx, c.cz - jz) < 3.2 + Math.max(c.hx, c.hz))
+        || W.inWater?.(jx, jz) || W.onCarriageway(jx, jz, 0.3);
+      if (!blocked) { s = lane.length * f; break; }
+    }
+    if (s < 0) return;
     lane.sample(s, tmp);
-    const rx = -tmp.dz, rz = tmp.dx, yaw = Math.atan2(tmp.dx, tmp.dz);   // (right of travel: the kerb is to the left)
-    // the carriageway's edge on the kerb side (left of travel), found by stepping out from the lane
-    let edge = 1.75; while (edge < 14 && W.onCarriageway(tmp.x + rx * -edge, tmp.z + rz * -edge, 0)) edge += 0.25;
-    const off = edge + 1.6;
-    const ex = tmp.x + rx * -off, ez = tmp.z + rz * -off;                  // the jeep on the verge
     const grp = new THREE.Group(); this.group.add(grp);
     const cols = [];
     let jeep = null;

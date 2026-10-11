@@ -475,9 +475,17 @@ export class VehicleRenderer {
       const box = new THREE.Box3().setFromObject(this.body), c = box.getCenter(new THREE.Vector3());
       lb = { position: new THREE.Vector3(0, box.max.y + 0.06, c.z + (box.max.z - box.min.z) * 0.05) };
       const bar = new THREE.Group();
-      // (unlit when the siren is off; flashing, and dimmed close to the camera, when on: see update)
-      const mk = (x, col) => { const m = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.1, 0.2), new THREE.MeshStandardMaterial({ color: col, emissive: col, emissiveIntensity: 0.05, roughness: 0.3 })); m.position.set(x, 0, 0); bar.add(m); return m.material; };
-      this.police.bar = [mk(0.23, 0x80141c), mk(-0.23, 0x142a80)];
+      // an LED bar the way Kerala Police jeeps carry them: a long black housing on two feet across the roof, red lenses
+      // one half, blue the other, a siren speaker in the middle (lenses unlit when the siren is off; flashing, and
+      // dimmed close to the camera, when on: see update)
+      const W = Math.min(1.3, (box.max.x - box.min.x) * 0.72), black = new THREE.MeshStandardMaterial({ color: 0x141414, roughness: 0.55, metalness: 0.3 });
+      const part = (geo, mat, x, y, z) => { const m = new THREE.Mesh(geo, mat); m.position.set(x, y, z); bar.add(m); return m; };
+      part(new THREE.BoxGeometry(W, 0.05, 0.3), black, 0, 0.025, 0);                                     // base
+      for (const x of [-W * 0.38, W * 0.38]) part(new THREE.BoxGeometry(0.06, 0.06, 0.24), black, x, -0.03, 0);   // feet
+      const lens = (x, col) => { const m = part(new THREE.BoxGeometry(W / 2 - 0.1, 0.09, 0.26), new THREE.MeshStandardMaterial({ color: col, emissive: col, emissiveIntensity: 0.05, roughness: 0.15, transparent: true, opacity: 0.88 }), x, 0.095, 0); return m.material; };
+      this.police.bar = [lens(W / 4 + 0.05, 0x9a1820), lens(-(W / 4 + 0.05), 0x1a3290)];
+      part(new THREE.BoxGeometry(0.1, 0.1, 0.27), black, 0, 0.095, 0);                                   // the middle
+      part(new THREE.CylinderGeometry(0.06, 0.08, 0.1, 10), black, 0, 0.09, 0.2).rotation.x = Math.PI / 2;   // siren horn
       bar.position.copy(lb.position).add(new THREE.Vector3(0, -0.02, 0));
       this.body.add(bar);
       // a Kerala Police jeep: its body paint (whatever colour the model came in) turned police white, the
@@ -495,7 +503,7 @@ export class VehicleRenderer {
     }
     for (const [side, arr, color, tex] of [[1, this.police.red, 0xff2030, glowRed()], [-1, this.police.blue, 0x3060ff, radialGlow('rgba(80,120,255,1)', 'rgba(40,80,255,0.35)')]]) {
       const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, color, blending: THREE.AdditiveBlending, depthWrite: false, transparent: true, toneMapped: false }));
-      s.position.copy(lb.position).add(new THREE.Vector3(side * 0.35, 0.02, 0));
+      s.position.copy(lb.position).add(new THREE.Vector3(side * 0.34, 0.1, 0));
       s.scale.setScalar(2.2);
       this.body.add(s);
       arr.push(s);

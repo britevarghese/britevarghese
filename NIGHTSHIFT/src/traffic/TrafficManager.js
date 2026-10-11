@@ -134,7 +134,8 @@ export class TrafficManager {
 
   _spawnParked(focus) {
     const R = this.R;
-    const lanes = this.graph.lanesNear(focus.x, focus.z, 60, 220).filter((l) => l.kind === 'lane' && l.laneIndex === 0 && (l.edge.cls ?? 0) >= 4 && l.length > 25);
+    // (on the district roads: a village street is too narrow, one parked car there blocks the way)
+    const lanes = this.graph.lanesNear(focus.x, focus.z, 60, 220).filter((l) => l.kind === 'lane' && l.laneIndex === 0 && (l.edge.cls ?? 0) >= 4 && (l.edge.cls ?? 0) <= 5 && l.length > 25);
     if (!lanes.length) return;
     const lane = lanes[Math.floor(R() * lanes.length)], s = 6 + R() * (lane.length - 12);
     if (lane.cars.some((o) => Math.abs(o.s - s) < 10)) return;
@@ -347,6 +348,19 @@ export class TrafficManager {
   // logic still decides how fast it should go and still tracks its progress along the lane.
   // Kinematic traffic (beyond the physics range) merging at a junction can nose into another car: the one behind
   // holds until the other has gone (if each has the other ahead of it, side by side, the lower id goes first)
+  // nothing coming the other way within d metres ahead, near our line (a car about to pull out round a parked one)
+  _oncomingClear(c, d) {
+    const fx = Math.sin(c.yaw), fz = Math.cos(c.yaw);
+    for (const o of this.cars) {
+      if (o === c || o.state !== 'drive' || o.spec.bike) continue;
+      const dx = o.x - c.x, dz = o.z - c.z, ah = dx * fx + dz * fz;
+      if (ah < 0 || ah > d) continue;
+      if (Math.abs(-dx * fz + dz * fx) > 5) continue;
+      if (Math.sin(o.yaw) * fx + Math.cos(o.yaw) * fz < -0.5) return false;
+    }
+    return true;
+  }
+
   _separate() {
     const K = this.cars.filter((c) => c.state === 'drive' && !c.phys && c.dist < 160);
     for (let i = 0; i < K.length; i++) for (let j = i + 1; j < K.length; j++) {
@@ -419,9 +433,11 @@ export class TrafficManager {
     c.steer = s.wheelSteer ?? k.steer * 0.5;
     c.brake = k.brake > 0.1 || k.handbrake ? 1 : 0;
     c.v = sp;
-    // leash: a car pushed far off its lane (by a crash) goes back to the traffic model there
+    // leash: a car pushed off its lane (by a crash, or running wide round a corner) goes back to the traffic model
+    // there: 3 m off its line, or 1.5 s off the carriageway altogether (never driving on across a lawn or a yard)
     c.path.sample(c.s, tmp);
-    if (Math.hypot(tmp.x - tmp.dz * c.lat - s.x, tmp.z + tmp.dx * c.lat - s.z) > 4.5) c.phys = null;
+    c.offT = this.world.onCarriageway && !this.world.onCarriageway(s.x, s.z, 0.6) ? (c.offT || 0) + dt : 0;
+    if (Math.hypot(tmp.x - tmp.dz * c.lat - s.x, tmp.z + tmp.dx * c.lat - s.z) > 3 || c.offT > 1.5) { c.phys = null; c.offT = 0; }
   }
 
   // A two-wheeler near the player rides like one: it steers (pure pursuit) at a point ahead on its line, its turn
@@ -486,8 +502,12 @@ export class TrafficManager {
     const endOf = (o) => { const q = (o.to || o).pts; return q[q.length - 1]; };
     const d0 = D ? Math.hypot(path.pts[path.pts.length - 1][0] - D.x, path.pts[path.pts.length - 1][1] - D.z) : 0;
     let total = 0;
+    // (a bus or a lorry keeps to the roads it fits: not into a village street when there's another way)
+    const fits = (o) => { const L = o.to || o; return !c?.spec?.bigRoads || (L.edge?.cls ?? 0) <= 4; };
+    const anyFits = opts.some(fits);
     const w = opts.map((o) => {
       let x = o.turn === 'straight' ? 3 : o.turn === 'uturn' ? 0.05 : 1;
+      if (anyFits && !fits(o)) x *= 0.001;
       if (D && o.turn !== 'uturn') { const [ex, ez] = endOf(o), gain = d0 - Math.hypot(ex - D.x, ez - D.z); x *= Math.exp(Math.max(-3, Math.min(3, gain / 25))); }
       total += x; return x;
     });
@@ -532,7 +552,8 @@ export class TrafficManager {
       if ((o.pulled || o.state === 'parked') && !c.pulled) {
         const g0 = o.s - c.s - (o.spec.l + c.spec.l) / 2;
         const need = o.spec.w / 2 + c.spec.w / 2 + 0.3 + (o.lat ?? 0);
-        if (need < 2.4 && g0 < (bike ? 32 : 25)) { c.passT = 2; c.passLat = Math.max(c.passLat || 0, need); continue; }
+        // (out round it only when nothing is coming the other way: else wait behind it, as drivers do)
+        if (need < 2.4 && g0 < (bike ? 32 : 25) && (bike || c.passT > 0 || this._oncomingClear(c, g0 + o.spec.l + 30))) { c.passT = 2; c.passLat = Math.max(c.passLat || 0, need); continue; }
       }
       // cars ease out round a bike riding by the kerb instead of queueing behind it
       if (!bike && o.spec.bike && (o.lat ?? 0) < -0.5 && o.state === 'drive') {
