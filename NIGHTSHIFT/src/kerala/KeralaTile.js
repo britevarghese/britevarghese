@@ -1857,7 +1857,9 @@ export class KeralaTile {
       for (const i of L) {
         if (i === 0) continue;
         const j = (i - 1) * 6, k = i * 6, ae = R[j], an = R[j + 1], de = R[k] - ae, dn = R[k + 1] - an, l2 = de * de + dn * dn || 1;
-        const u = Math.max(0, Math.min(1, ((e - ae) * de + (n - an) * dn) / l2)), ce = ae + de * u, cn = an + dn * u;
+        const t = ((e - ae) * de + (n - an) * dn) / l2, sl = Math.sqrt(l2);
+        if ((i === 1 && t * sl < -0.1) || (i === m - 1 && (t - 1) * sl > 0.1)) continue;   // (beyond the strip's end)
+        const u = Math.max(0, Math.min(1, t)), ce = ae + de * u, cn = an + dn * u;
         const d = Math.hypot(ce - e, cn - n);
         if (d >= bd) continue;
         // across the road: the signed distance along the rows' normal, each row's line from its right edge to its left
@@ -1971,6 +1973,7 @@ export class KeralaTile {
               // well above it stays a flyover)
               // (the deck's strip as drawn, where there is one: the profile alone left wheels 0.3 m into some decks)
               const dd = this._drawnAt(r, e, n, 0.3);
+              if (r.drawn && dd === -Infinity) continue;   // (its strip isn't drawn here)
               let v = dd > -1e9 ? dd : yd + 0.07 + (10 - cls) * 0.004; const cov = dd === -Infinity && v > best ? this._coverY(e, n, L[j + 5]) : -Infinity;
               if (cov > -1e9 && v > cov - 0.02 && v < cov + 1.2) v = cov - 0.02;
               best = Math.max(best, v);
@@ -1980,6 +1983,7 @@ export class KeralaTile {
         }
         // its strip as drawn (at the edge, for the shoulder beyond it): exactly what the wheels should touch
         const dr = r.drawn ? this._drawnAt(r, dist <= hw ? e : ce + (e - ce) * (hw - 0.15) / dist, dist <= hw ? n : cn + (n - cn) * (hw - 0.15) / dist, 0.3) : -Infinity;
+        if (r.drawn && dr === -Infinity) continue;   // (its strip isn't drawn here: nothing to stand on)
         const l = Math.sqrt(l2), ue = dx / l * 4, un = dz / l * 4, sf = dr > -1e9 ? -Infinity : this._surfAt(r, ce, cn);
         // (else its own graded surface; the ground only where it has none)
         const y = dr > -1e9 ? dr : (sf > -1e9 ? sf : Math.max(this.heightAt(e, n), this.heightAt(ce, cn), this.heightAt(ce + ue, cn + un), this.heightAt(ce - ue, cn - un))) + 0.07 + (10 - cls) * 0.004;
