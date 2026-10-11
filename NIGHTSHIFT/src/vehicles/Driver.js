@@ -15,17 +15,22 @@ const _p = new THREE.Vector3(), _c = new THREE.Vector3(), _d = new THREE.Vector3
 const _q = new THREE.Quaternion(), _qp = new THREE.Quaternion(), _qd = new THREE.Quaternion();
 const FINGERS = ['Index', 'Middle', 'Ring', 'Pinky'];
 
-// where one hand holds the rim: sd = +1 left hand, -1 right; turn = the wheel's rotation. As a driver holds it at
-// ten to two: the back of the hand to the driver, the knuckles just over the rim's outer edge, the wrist inside the
-// rim; the fingers wrap over it and round the front, the thumb lies along it towards the top of the wheel
+// where one hand holds the rim: sd = +1 left hand, -1 right; turn = the wheel's rotation. As driving schools teach
+// (and the 'sports grip' of driving games): at a quarter to three, the palm round the outside of the rim, the
+// knuckles at its front edge, the fingers wrapped round behind it, the thumb along it towards the top of the
+// wheel; the driver sees the backs of the hands from the side and above
 function rimHold(W, sd, turn) {
-  const ang = sd * 1.05 + turn; // ten to two, rotated with the wheel
+  // push-pull steering: the hands go round with the wheel for a small turn, then the rim slides through them (going
+  // hand over hand, an arm swung across the top of the wheel and filled the view)
+  const ang = sd * 1.4 + 0.55 * Math.tanh(turn / 0.55);
   const radial = W.up0.clone().multiplyScalar(Math.cos(ang)).addScaledVector(W.right0, -Math.sin(ang));
   const grip = W.hub.clone().addScaledVector(radial, W.R);
   const tang = new THREE.Vector3().crossVectors(W.axis, radial).normalize(); // along the rim
-  const wrist = grip.clone().addScaledVector(W.axis, 0.06).addScaledVector(radial, -0.07);
-  const knuck = grip.clone().addScaledVector(W.axis, 0.02).addScaledVector(radial, 0.025);
-  const thumb = W.up0.clone().multiplyScalar(Math.sin(ang)).addScaledVector(W.right0, Math.cos(ang)).multiplyScalar(sd).addScaledVector(radial, -0.3);
+  const knuck = grip.clone().addScaledVector(radial, 0.03).addScaledVector(W.axis, -0.015);
+  const wrist = knuck.clone().addScaledVector(W.axis, 0.085).addScaledVector(radial, 0.02);
+  // (up the rim, towards the top of the wheel; a little inside it and towards the driver)
+  const thumb = W.up0.clone().multiplyScalar(Math.sin(ang)).addScaledVector(W.right0, Math.cos(ang)).multiplyScalar(sd)
+    .addScaledVector(radial, -0.35).addScaledVector(W.axis, 0.25);
   return { radial, grip, tang, wrist, knuck, thumb };
 }
 
@@ -191,7 +196,7 @@ const ARM_REACH = 0.56; // shoulder to wrist, m
 class FPArms extends Poser {
   constructor(template) {
     super();
-    this.straighten = true; this.curlAng = [1.0, 1.1, 0.8]; this.thumbAng = 0.8; this.thumbFrom = 1;
+    this.straighten = true; this.curlAng = [1.05, 1.35, 0.8]; this.thumbAng = 0.3; this.thumbFrom = 1;
     // shoulder (left side; mirrored for the right) from the eyes, and which way the elbows bend
     this.shoulder = new THREE.Vector3(0.22, -0.3, -0.08); this.elbowHint = new THREE.Vector3(0.8, -0.6, -0.1);
     this.model = AssetManager.clone(template);
