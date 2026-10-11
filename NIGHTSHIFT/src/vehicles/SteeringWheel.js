@@ -32,9 +32,11 @@ function parts(root, body, keep) {
 }
 
 /** { hub, axis (towards the driver), R } of the model's steering wheel, or null if no convincing ring is found. */
-export function fitSteeringWheel(root, body, eye) {
+// big: a bus's or a lorry's cab, whose wheel is bigger, lies flatter and may sit further to the side
+export function fitSteeringWheel(root, body, eye, big = false) {
   body.updateWorldMatrix(true, true);
-  const { all, parts: pieces } = parts(root, body, (p) => Math.abs(p.x - eye.x) < 0.32 && p.y - eye.y < -0.02 && p.y - eye.y > -0.8 && p.z - eye.z > 0.12 && p.z - eye.z < 1.0);
+  const X = big ? 0.55 : 0.32, Y0 = big ? -1.35 : -0.8;
+  const { all, parts: pieces } = parts(root, body, (p) => Math.abs(p.x - eye.x) < X && p.y - eye.y < -0.02 && p.y - eye.y > Y0 && p.z - eye.z > (big ? 0.05 : 0.12) && p.z - eye.z < 1.0);
   let n = all.length / 3;
   if (n < 60 || !pieces.length) return null;
   // (a fixed sequence: the same car fits the same every time)
@@ -74,12 +76,12 @@ export function fitSteeringWheel(root, body, eye) {
     // the circle through the three points
     C.copy(b).multiplyScalar(a.lengthSq()).addScaledVector(a, -b.lengthSq()).cross(ab).divideScalar(2 * l2).add(p3);
     const R = C.distanceTo(p3);
-    if (R < 0.14 || R > 0.27) continue; // (a car's wheel ~19 cm, a bus's ~25)
-    if (Math.abs(C.x - eye.x) > 0.1 || C.z - eye.z < 0.25 || C.z - eye.z > 0.85 || C.y - eye.y > -0.08 || C.y - eye.y < -0.6) continue;
+    if (R < 0.14 || R > (big ? 0.3 : 0.27)) continue; // (a car's wheel ~19 cm, a bus's ~25)
+    if (Math.abs(C.x - eye.x) > (big ? 0.5 : 0.1) || C.z - eye.z < (big ? 0.05 : 0.25) || C.z - eye.z > (big ? 0.95 : 0.85) || C.y - eye.y > -0.08 || C.y - eye.y < (big ? -1.3 : -0.6)) continue;
     N.copy(ab).normalize();
     _w.subVectors(eye, C).normalize();
     if (N.dot(_w) < 0) N.negate();
-    if (N.dot(_w) < 0.5 || N.z > -0.4) continue; // facing the driver: towards the back of the car, somewhat up
+    if (N.dot(_w) < (big ? 0.3 : 0.5) || N.z > (big ? -0.12 : -0.4) || Math.abs(N.x) > 0.45 || N.y < 0.05) continue; // facing the driver: towards the back of the car, somewhat up (a bus's: mostly up)
     const s = score(R);
     if (s.cov < 0.6) continue;
     const val = s.cnt * s.cov * s.cov;

@@ -30,7 +30,10 @@ the game. Newly found problems go at the end of their section.
   it; push-pull steering (the hands follow the wheel a little, then the rim slides through them; hand over hand
   swung an arm across the view). The wheel itself turns with the steering
 - [x] Bus and lorry first person: the eye ~0.8 m above the driver's seat (it sat just under the cab roof); a bigger,
-  flatter wheel (their low-detail cabins have none to find)
+  flatter wheel (their low-detail cabins have none to find); the hands shown (a rule meant for photo mode turned them
+  off whenever the camera was 3 m from the vehicle's middle: a bus driver always is)
+- [ ] KSRTC bus: our wheel stands beside the model's own white one (its rim is too coarse to find)
+- [ ] Mini-truck: the model's windscreen and side glass are opaque grey: first person sees little
 - [x] Vehicles floating at junctions, by culverts and on bridge ramps (an auto on a lawn's edge, an SUV in a jam): the
   physics took a road's centre-line height, or a neighbour road's shoulder up to a metre higher, where the strip is
   drawn tilted or lower. Wheels now sit on the road exactly as drawn (each strip read row by row)

@@ -640,8 +640,10 @@ export class VehicleRenderer {
     }
     // a bus's or a lorry's driver sits on a high seat by the windscreen, the eyes ~0.8 m above it (the roof probe left
     // them just under a tall cab's roof, looking at the top of the dashboard)
-    const seatEye = { ksrtc: 2.4, pvtbus: 2.4, pvtbus2: 2.4, bus: 2.4, lorry: 2.55, truck: 2.55, minitruck: 1.9 }[this.carId];
-    if (this._eye && seatEye && this._box) this._eye.y = Math.min(this._eye.y, this._box.min.y + seatEye);
+    const seatEye = { ksrtc: 2.4, pvtbus: 2.4, pvtbus2: 2.4, bus: 2.4, lorry: 2.55, truck: 2.55, minitruck: 1.36 }[this.carId];
+    if (this._eye && seatEye && this._box) {
+      this._eye.y = Math.min(this._eye.y, this._box.min.y + seatEye, this._cabin ? this._cabin.roof - 0.5 : Infinity);
+    }
     return this._eye;
   }
 
@@ -740,9 +742,14 @@ export class VehicleRenderer {
     let R = big ? (this.carId === 'minitruck' ? 0.19 : 0.23) : 0.175;
     // the model's own wheel, found in its geometry: the hands go on its real rim. A model where none is found gets
     // ours (below), clear of the dashboard: hands on a guessed rim held air or sank into the dash
-    const fit = !NO_STEERING_WHEEL.has(this.carId) && this._lod0 ? fitSteeringWheel(this._lod0, this.body, eye) : null;
+    const fit = !NO_STEERING_WHEEL.has(this.carId) && this._lod0 ? fitSteeringWheel(this._lod0, this.body, eye, big) : null;
     const hasRim = !!fit || this.carId === 'auto'; // (an auto's handlebars: no wheel of ours in it)
-    if (fit) { hub = fit.hub; axis = fit.axis; R = fit.R; if (Math.abs(eye.x - hub.x) < 0.12) eye.x = hub.x; } // (sat square behind it)
+    if (fit) {
+      hub = fit.hub; axis = fit.axis; R = fit.R;
+      if (Math.abs(eye.x - hub.x) < (big ? 0.5 : 0.12)) eye.x = hub.x;
+      // a bus's or a lorry's driver sits behind his wheel: the eyes ~0.6 m over it and half a metre back
+      if (big) { eye.y = Math.min(eye.y, hub.y + 0.62); eye.z = Math.min(eye.z, hub.z - 0.45); }
+    } // (sat square behind it)
     const up0 = new THREE.Vector3(0, 1, 0).projectOnPlane(axis).normalize(), right0 = new THREE.Vector3().crossVectors(up0, axis).normalize();
     // ... and lifted out of the car to turn with the steering (and the hands on it)
     if (fit) {

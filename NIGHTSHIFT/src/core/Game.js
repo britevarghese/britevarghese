@@ -53,6 +53,7 @@ import { NetworkClient } from '../networking/NetworkClient.js';
 import { HumanLibrary } from '../player/Human.js';
 import { QUALITY_LABELS, QUALITY_LEVELS } from './QualityManager.js';
 import { SKIN_ORIGIN } from '../renderer/SkinPrecision.js';
+const _eyeW = new THREE.Vector3();
 
 // share of the full traffic / crowd by hour of the day (0..23), Kerala-like: an early start, rush hours at 8-10
 // and 17-19, a lull after lunch, near-empty roads and streets after midnight
@@ -984,7 +985,9 @@ export class Game {
     // a camera that has left the car (photo mode, a replay, the pause screen) sees the driver at the wheel, not the
     // first-person arms (the driving camera, which switches them, isn't running then)
     const pr = this.player?.renderer;
-    if (pr?.cockpitOn && this.camera.position.distanceTo(pr.group.position) > 3) {
+    // (measured from the driver's eye: a bus's or a lorry's is 3-4 m from the vehicle's middle, and its hands went)
+    const eyeW = pr?.cockpitOn && pr.cockpitEye?.() ? pr.body.localToWorld(_eyeW.copy(pr.cockpitEye())) : pr?.group.position;
+    if (pr?.cockpitOn && this.camera.position.distanceTo(eyeW) > 1.5) {
       pr.setCockpitArms(false);
       if (this.onFoot?.inter?.seated === this.player && !this.player.p.bike) this.onFoot.body.group.visible = true;
     }
