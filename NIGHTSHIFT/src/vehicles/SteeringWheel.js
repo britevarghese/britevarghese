@@ -9,7 +9,7 @@ const _v = new THREE.Vector3(), _w = new THREE.Vector3(), _m = new THREE.Matrix4
 
 // the model's triangles in front of the driver, split into connected parts (vertices welded at 2 mm: the rim is a
 // part of its own, or a few), each a flat array of its vertices; and all their vertices together
-function parts(root, body, keep) {
+function parts(root, body, keep, min = 60) {
   const inv = new THREE.Matrix4().copy(body.matrixWorld).invert(), A = new THREE.Vector3(), B = new THREE.Vector3(), C = new THREE.Vector3();
   const id = new Map(), pos = [], parent = [];
   const find = (i) => { while (parent[i] !== i) i = parent[i] = parent[parent[i]]; return i; };
@@ -28,15 +28,16 @@ function parts(root, body, keep) {
   });
   const groups = new Map();
   for (let i = 0; i < parent.length; i++) { const r = find(i); let g = groups.get(r); if (!g) groups.set(r, (g = [])); g.push(pos[i * 3], pos[i * 3 + 1], pos[i * 3 + 2]); }
-  return { all: pos, parts: [...groups.values()].filter((g) => g.length >= 60 * 3) };
+  return { all: pos, parts: [...groups.values()].filter((g) => g.length >= min * 3) };
 }
 
 /** { hub, axis (towards the driver), R } of the model's steering wheel, or null if no convincing ring is found. */
-// big: a bus's or a lorry's cab, whose wheel is bigger, lies flatter and may sit further to the side
-export function fitSteeringWheel(root, body, eye, big = false) {
+// big: a bus's or a lorry's cab, whose wheel is bigger and may sit further to the side, or well ahead of the eye
+// (a bus's long cab); flat: a bus's or a lorry's wheel, lying well back (a dashboard dial or a fan is upright)
+export function fitSteeringWheel(root, body, eye, { big = false, flat = false } = {}) {
   body.updateWorldMatrix(true, true);
   const X = big ? 0.55 : 0.32, Y0 = big ? -1.35 : -0.8;
-  const { all, parts: pieces } = parts(root, body, (p) => Math.abs(p.x - eye.x) < X && p.y - eye.y < -0.02 && p.y - eye.y > Y0 && p.z - eye.z > (big ? 0.05 : 0.12) && p.z - eye.z < 1.0);
+  const { all, parts: pieces } = parts(root, body, (p) => Math.abs(p.x - eye.x) < X && p.y - eye.y < -0.02 && p.y - eye.y > Y0 && p.z - eye.z > (big ? 0.05 : 0.12) && p.z - eye.z < (big ? 1.7 : 1.0), big ? 30 : 60); // (a bus's low-detail rim: ~50 vertices)
   let n = all.length / 3;
   if (n < 60 || !pieces.length) return null;
   // (a fixed sequence: the same car fits the same every time)
@@ -77,17 +78,17 @@ export function fitSteeringWheel(root, body, eye, big = false) {
     C.copy(b).multiplyScalar(a.lengthSq()).addScaledVector(a, -b.lengthSq()).cross(ab).divideScalar(2 * l2).add(p3);
     const R = C.distanceTo(p3);
     if (R < 0.14 || R > (big ? 0.3 : 0.27)) continue; // (a car's wheel ~19 cm, a bus's ~25)
-    if (Math.abs(C.x - eye.x) > (big ? 0.5 : 0.1) || C.z - eye.z < (big ? 0.05 : 0.25) || C.z - eye.z > (big ? 0.95 : 0.85) || C.y - eye.y > -0.08 || C.y - eye.y < (big ? -1.3 : -0.6)) continue;
+    if (Math.abs(C.x - eye.x) > (big ? 0.5 : 0.1) || C.z - eye.z < (big ? 0.05 : 0.25) || C.z - eye.z > (big ? 1.6 : 0.85) || C.y - eye.y > -0.08 || C.y - eye.y < (big ? -1.3 : -0.6)) continue;
     N.copy(ab).normalize();
     _w.subVectors(eye, C).normalize();
     if (N.dot(_w) < 0) N.negate();
-    if (N.dot(_w) < (big ? 0.3 : 0.5) || N.z > (big ? -0.12 : -0.4) || Math.abs(N.x) > 0.45 || N.y < 0.05) continue; // facing the driver: towards the back of the car, somewhat up (a bus's: mostly up)
+    if (N.dot(_w) < (big ? 0.3 : 0.5) || N.z > (big ? -0.12 : -0.4) || Math.abs(N.x) > 0.45 || N.y < (flat ? 0.35 : 0.05)) continue; // facing the driver: towards the back of the car, somewhat up (a bus's: mostly up)
     const s = score(R);
     if (s.cov < 0.6) continue;
     const val = s.cnt * s.cov * s.cov;
     if (!best || val > best.val) best = { val, C: C.clone(), N: N.clone(), R, cnt: s.cnt, cov: s.cov };
   }
-  if (!best || best.cnt < 40) return null;
+  if (!best || best.cnt < (big ? 24 : 40)) return null; // (a bus's rim: ~35 points)
   // refined by least squares on the points near the ring: their plane (the least-spread direction), then the
   // circle through them in it (three random points only roughly agree with the rim)
   const hub = best.C.clone(), axis = best.N.clone(); let R = best.R;
@@ -99,7 +100,7 @@ export function fitSteeringWheel(root, body, eye, big = false) {
     const cov = [0, 0, 0, 0, 0, 0]; // xx yy zz xy xz yz
     for (const i of ins) { P(i, q).sub(m); cov[0] += q.x * q.x; cov[1] += q.y * q.y; cov[2] += q.z * q.z; cov[3] += q.x * q.y; cov[4] += q.x * q.z; cov[5] += q.y * q.z; }
     const nn = leastAxis(cov); if (nn.dot(axis) < 0) nn.negate();
-    if (nn.dot(_w.subVectors(eye, m).normalize()) < 0.5) break;
+    if (nn.dot(_w.subVectors(eye, m).normalize()) < 0.5 || nn.y < (flat ? 0.3 : -1)) break;
     axis.copy(nn);
     e1.set(1, 0, 0).addScaledVector(axis, -axis.x); if (e1.lengthSq() < 0.1) e1.set(0, 1, 0).addScaledVector(axis, -axis.y); e1.normalize(); e2.crossVectors(axis, e1);
     // Kasa circle fit in the plane: x^2 + y^2 + D x + E y + F = 0

@@ -13,6 +13,10 @@ const glowRed = () => radialGlow('rgba(255,60,50,1)', 'rgba(255,20,20,0.3)');
 const _qa = new THREE.Quaternion(), _qb = new THREE.Quaternion(), _pv = new THREE.Vector3(), _pp = new THREE.Vector3(), _ax = new THREE.Vector3(1, 0, 0), _az = new THREE.Vector3(0, 0, 1);
 const _eu = new THREE.Euler();
 const WHEEL_IDX = { FL: 0, FR: 1, RL: 2, RR: 3, F: 0, R: 2 };
+// a bus's, a lorry's, a mini-truck's driver's eye height over the ground on its high seat
+const SEAT_EYE = { ksrtc: 2.4, pvtbus: 2.4, pvtbus2: 2.4, bus: 2.4, lorry: 2.55, truck: 2.55, minitruck: 1.36 };
+// a cab right at the front (a bus's, a lorry's): how far behind the windscreen the driver's eyes are
+const FRONT_CAB = { ksrtc: 1.05, pvtbus: 1.05, pvtbus2: 1.05, bus: 1.05, lorry: 0.9, truck: 0.9 };
 const glowWhite = () => radialGlow('rgba(255,250,235,1)', 'rgba(220,230,255,0.35)');
 
 export class ModelLibrary {
@@ -633,19 +637,28 @@ export class VehicleRenderer {
     // back is the rear seat of a tall cabin)
     const d = this._eye && tm && /^kl_/.test(tm.id) && this.doors?.[this._eye.x < 0 ? -1 : 1];
     if (d?.len > 0.5 && this._eye.z < d.hinge.z - d.len * 1.05) this._eye.z = d.hinge.z - d.len * 0.75;
-    // a bus: the driver sits right at the front, by the windscreen (its eye estimate lands among the passengers)
-    if (this._eye && ['ksrtc', 'pvtbus', 'pvtbus2'].includes(this.carId) && this._cabin) {
-      this._eye.z = Math.max(this._eye.z, this._cabin.zFront - 0.95);
-      this._eye.x = -Math.max(0.45, Math.abs(this._eye.x), 0.62);
-    }
-    // a bus's or a lorry's driver sits on a high seat by the windscreen, the eyes ~0.8 m above it (the roof probe left
-    // them just under a tall cab's roof, looking at the top of the dashboard)
-    const seatEye = { ksrtc: 2.4, pvtbus: 2.4, pvtbus2: 2.4, bus: 2.4, lorry: 2.55, truck: 2.55, minitruck: 1.36 }[this.carId];
-    if (this._eye && seatEye && this._box) {
+    // a bus's or a lorry's driver sits on a high seat by the windscreen (the roof probe left the eyes just under a
+    // tall cab's roof, looking at the top of the dashboard) ...
+    const seatEye = SEAT_EYE[this.carId];
+    // ... right at the front on the right, the eyes ~1 m behind the windscreen (a bus's) and ~1.3 m over the cab
+    // floor. (The car probe's roof profile stops short of a long vehicle's front: it put a bus driver's eyes among
+    // the passengers, a lorry driver's in the chassis under the load.) Its own wheel, found later, has the last word
+    const cab = FRONT_CAB[this.carId];
+    if (this._eye && cab && this._probe && this._box) {
+      const B = this._box, x = -0.62, y = B.min.y + seatEye, probe = this._probe;
+      const d = probe(x, y, B.max.z + 1, 0, 0, -1);
+      this._eye.set(x, y, d !== null ? B.max.z + 1 - d - cab : Math.max(this._eye.z, B.max.z - 1.6));
+      const y0 = B.min.y + 1.9, f = probe(x, y0, this._eye.z, 0, -1, 0), c = probe(x, y0, this._eye.z, 0, 1, 0);
+      if (f !== null) this._eye.y = THREE.MathUtils.clamp(y0 - f + 1.3, y - 0.6, y + 0.1);
+      if (c !== null) this._eye.y = Math.min(this._eye.y, y0 + c - 0.3);        // (clear of the ceiling)
+    } else if (this._eye && seatEye && this._box) {
       this._eye.y = Math.min(this._eye.y, this._box.min.y + seatEye, this._cabin ? this._cabin.roof - 0.5 : Infinity);
     }
     return this._eye;
   }
+
+  // first person looks down a little more from a bus's or a lorry's high seat: the wheel and the hands low in view
+  cockpitPitch() { return FRONT_CAB[this.carId] ? 0.1 : 0; }
 
   _cockpitEye() {
     const mk = this.markers.eye_cockpit;
@@ -737,18 +750,21 @@ export class VehicleRenderer {
     if (!hub) hub = new THREE.Vector3(eye.x, eye.y - 0.3, eye.z + 0.45);
     hub.z -= 0.03; hub.y += 0.02;                                            // grip the rim, not the hub face
     // (a bus's or a lorry's wheel is bigger and lies flatter)
-    const big = ['ksrtc', 'pvtbus', 'pvtbus2', 'bus', 'lorry', 'truck', 'minitruck'].includes(this.carId);
+    const big = !!SEAT_EYE[this.carId], flat = !!FRONT_CAB[this.carId];
     let axis = big ? new THREE.Vector3(0, 0.75, -0.66).normalize() : new THREE.Vector3(0, 0.42, -1).normalize(); // wheel faces the driver, tilted
     let R = big ? (this.carId === 'minitruck' ? 0.19 : 0.23) : 0.175;
     // the model's own wheel, found in its geometry: the hands go on its real rim. A model where none is found gets
     // ours (below), clear of the dashboard: hands on a guessed rim held air or sank into the dash
-    const fit = !NO_STEERING_WHEEL.has(this.carId) && this._lod0 ? fitSteeringWheel(this._lod0, this.body, eye, big) : null;
+    // (a bus's or a lorry's looked for from the seat's full height: the eye may have come down to a low cab floor)
+    const look = flat && this._box ? eye.clone().setY(this._box.min.y + SEAT_EYE[this.carId]) : eye;
+    const fit = !NO_STEERING_WHEEL.has(this.carId) && this._lod0 ? fitSteeringWheel(this._lod0, this.body, look, { big, flat }) : null;
     const hasRim = !!fit || this.carId === 'auto'; // (an auto's handlebars: no wheel of ours in it)
     if (fit) {
       hub = fit.hub; axis = fit.axis; R = fit.R;
       if (Math.abs(eye.x - hub.x) < (big ? 0.5 : 0.12)) eye.x = hub.x;
-      // a bus's or a lorry's driver sits behind his wheel: the eyes ~0.6 m over it and half a metre back
-      if (big) { eye.y = Math.min(eye.y, hub.y + 0.62); eye.z = Math.min(eye.z, hub.z - 0.45); }
+      // a bus's or a lorry's driver sits up behind the wheel: the eyes ~half a metre over it and back from it
+      if (flat) { eye.y = hub.y + 0.52; eye.z = hub.z - 0.52; }
+      else if (big) { eye.y = Math.min(eye.y, hub.y + 0.62); eye.z = hub.z - eye.z > 0.75 ? hub.z - 0.5 : Math.min(eye.z, hub.z - 0.45); }
     } // (sat square behind it)
     const up0 = new THREE.Vector3(0, 1, 0).projectOnPlane(axis).normalize(), right0 = new THREE.Vector3().crossVectors(up0, axis).normalize();
     // ... and lifted out of the car to turn with the steering (and the hands on it)

@@ -136,6 +136,9 @@ export function processCar(doc, car, opt = {}) {
   else if (zr !== null) flipFB = zr > 0;
   else say('WARNING: no front/rear named parts; assuming the model faces +Z (set import.flip to override)');
   if (flipFB) { applyAll(rotY(Math.PI)); say('model faced -Z: rotated 180 deg'); }
+  // import.mirror: a left-hand-drive model made right-hand drive, as Kerala's are (its doors move to the kerb side
+  // with it). (transformPrimitive turns the faces round for a mirroring matrix)
+  if (car.import?.mirror) { applyAll([-1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1]); say('mirrored left to right: right-hand drive'); }
   say(`front marker z ${zf?.toFixed(2)} rear marker z ${zr?.toFixed(2)}`);
   b = boundsOf(P);
 
@@ -269,6 +272,8 @@ export function processCar(doc, car, opt = {}) {
   for (const p of body) { const t = [...Array(triCount(p.prim)).keys()]; const pb = triSetBounds(positions(p.prim), t, triIndices(p.prim)); note(p.prim.getMaterial(), p, pb.area, pb.c); }
   const L = spec.len;
   const texOf = (m) => `${m.mat.getName() || ''} ${[...m.names].join(' ')}`;
+  // (--materials: where each material sits, to find windows an author named otherwise: import.glass)
+  if (opt.materials) for (const m of [...matInfo.values()].sort((a, b) => b.area - a.area)) say(`material "${m.mat.getName()}" area ${m.area.toFixed(2)} at |x| ${(m.x / m.area).toFixed(2)} y ${(m.y / m.area).toFixed(2)} z ${(m.z / m.area).toFixed(2)} alpha ${m.mat.getBaseColorFactor()[3].toFixed(2)} ${m.mat.getAlphaMode()} tex ${!!m.mat.getBaseColorTexture()}`);
   const classes = new Map();
   for (const m of matInfo.values()) {
     const z = m.z / m.area, y = m.y / m.area, mat = m.mat, name = texOf(m);
@@ -295,6 +300,24 @@ export function processCar(doc, car, opt = {}) {
   if (paint && car.import?.paintAlso) {
     const also = new Set(car.import.paintAlso);
     for (const mesh of root.listMeshes()) for (const prim of mesh.listPrimitives()) if (also.has(prim.getMaterial()?.getName())) prim.setMaterial(paint.mat);
+  }
+  // import.windows: { material, box: [[x0, y0, z0], [x1, y1, z1]] }: windows painted into an opaque body texture
+  // (a lorry's cab): the texture triangles of that material's faces in the box (the window band), for the importer
+  // to turn the dark glass in them see-through (tools/import-cars.mjs)
+  const windowUV = car.import?.windows ? { ...car.import.windows, tris: [] } : null;
+  if (windowUV) {
+    const [lo, hi] = windowUV.box;
+    for (const p of body) {
+      const uv = p.prim.getAttribute('TEXCOORD_0')?.getArray();
+      if (p.prim.getMaterial()?.getName() !== windowUV.material || !uv) continue;
+      const pos = positions(p.prim), idx = triIndices(p.prim);
+      for (let t = 0; t < idx.length; t += 3) {
+        const c = [0, 1, 2].map((k) => (pos[idx[t] * 3 + k] + pos[idx[t + 1] * 3 + k] + pos[idx[t + 2] * 3 + k]) / 3);
+        if (c.some((v, k) => v < lo[k] || v > hi[k])) continue;
+        windowUV.tris.push([0, 1, 2].flatMap((k) => [uv[idx[t + k] * 2], uv[idx[t + k] * 2 + 1]]));
+      }
+    }
+    say(`windows: ${windowUV.tris.length} faces of "${windowUV.material}" in the window band`);
   }
   // tidy materials for real-time use
   let glassN = 0;
@@ -502,7 +525,7 @@ export function processCar(doc, car, opt = {}) {
   say(`lod0 ${tris0} tris in ${calls0} draw calls, lod1 ${tris1} tris`);
   void buffer;
   return {
-    log,
+    log, windowUV,
     info: {
       length: +b.size[2].toFixed(3), width: +b.size[0].toFixed(3), height: +b.size[1].toFixed(3),
       wheels: wheelIds.map((q) => ({ id: q, x: +W[q].x.toFixed(3), y: +W[q].y.toFixed(3), z: +W[q].z.toFixed(3), r: +W[q].r.toFixed(3), w: +W[q].w.toFixed(3) })),

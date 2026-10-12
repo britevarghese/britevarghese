@@ -4959,40 +4959,40 @@
       "wheels": [
         {
           "id": "FL",
-          "x": 0.865,
-          "y": 0.48,
-          "z": 2.652,
-          "r": 0.48,
-          "w": 0.295
-        },
-        {
-          "id": "FR",
-          "x": -0.824,
+          "x": 0.824,
           "y": 0.48,
           "z": 2.65,
           "r": 0.48,
           "w": 0.295
         },
         {
-          "id": "RL",
-          "x": 0.86,
+          "id": "FR",
+          "x": -0.865,
           "y": 0.48,
-          "z": -2.391,
+          "z": 2.652,
+          "r": 0.48,
+          "w": 0.295
+        },
+        {
+          "id": "RL",
+          "x": 0.819,
+          "y": 0.48,
+          "z": -2.393,
           "r": 0.476,
           "w": 0.305
         },
         {
           "id": "RR",
-          "x": -0.819,
+          "x": -0.86,
           "y": 0.48,
-          "z": -2.393,
+          "z": -2.391,
           "r": 0.476,
           "w": 0.305
         }
       ],
       "tris": {
-        "lod0": 19859,
-        "lod1": 3291
+        "lod0": 27856,
+        "lod1": 3280
       },
       "source": {
         "site": "Sketchfab",
@@ -5333,7 +5333,7 @@
       "name": "Tata lorry",
       "length": 8.6,
       "width": 2.981,
-      "height": 3.572,
+      "height": 3.566,
       "wheels": [
         {
           "id": "FL",
@@ -5369,7 +5369,7 @@
         }
       ],
       "tris": {
-        "lod0": 30224,
+        "lod0": 47689,
         "lod1": 3640
       },
       "source": {
@@ -5856,10 +5856,10 @@
     "cars/kl_dzire.glb": "140674df76",
     "cars/kl_ertiga.glb": "6a1801741b",
     "cars/kl_ksrtc.glb": "49d9467134",
-    "cars/kl_lorry.glb": "ec1cafe2b2",
+    "cars/kl_lorry.glb": "eed2d7f771",
     "cars/kl_m800.glb": "af591e5cff",
     "cars/kl_minitruck.glb": "290034934d",
-    "cars/kl_pvtbus.glb": "6649a49cf4",
+    "cars/kl_pvtbus.glb": "19871e3728",
     "cars/kl_pvtbus2.glb": "fe762222c5",
     "cars/kl_scooter.glb": "823295e68c",
     "cars/kl_scorpio.glb": "ebc52e2862",

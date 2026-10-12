@@ -236,7 +236,8 @@ export const REAL_CAR_IDS = REAL.map((r) => r.id);
 export const REAL_BIKE_IDS = REAL_BIKES.map((r) => r.id);
 export const isBike = (id) => !!CARS[id]?.bike;
 // imported cars whose interior has no steering wheel: the first-person view draws one
-export const NO_STEERING_WHEEL = new Set(['subaru_wrx_sti_gc8', 'porsche_930_turbo', 'nissan_skyline_r34', 'toyota_supra_mk4', 'honda_nsx_na1']);
+// (the mini-truck's cab is an empty shell: the only ring in front of its driver is a headlight)
+export const NO_STEERING_WHEEL = new Set(['subaru_wrx_sti_gc8', 'porsche_930_turbo', 'nissan_skyline_r34', 'toyota_supra_mk4', 'honda_nsx_na1', 'minitruck']);
 
 export const POLICE_CAR = {
   id: 'interceptor', name: 'Interceptor', carType: 'muscle',
@@ -257,7 +258,7 @@ export const TRAFFIC_MODELS = {
   // Kerala: what you actually see on the roads there
   auto: { id: 'kl_auto', name: 'Bajaj autorickshaw', spec: { len: 2.64, wid: 1.3 }, wheels: 3, source: SRC('0bdfdf97a0f248008806840f7188367c', 'Tuk Tuk Rikshaw', 'alnmathew') },
   ksrtc: { id: 'kl_ksrtc', livery: true, name: 'KSRTC bus', spec: { len: 10.8, wid: 2.5 }, source: SRC('4a3daa08bfb34119b41b75fd2dbbc9ee', 'KSRTC Bus kerala', 'playmode280513') },
-  pvtbus: { id: 'kl_pvtbus', import: { livery: true }, name: 'Private bus', spec: { len: 9.5, wid: 2.4 }, source: SRC('ad4f787739d2433abc8595e962aaad62', 'bus14 (Indian Bus) - Bus Simulator Original', 'vj32621') },  // a town private bus in its own livery
+  pvtbus: { id: 'kl_pvtbus', import: { livery: true, mirror: true }, name: 'Private bus', spec: { len: 9.5, wid: 2.4 }, source: SRC('ad4f787739d2433abc8595e962aaad62', 'bus14 (Indian Bus) - Bus Simulator Original', 'vj32621') },  // a town private bus in its own livery
   pvtbus2: { id: 'kl_pvtbus2', import: { paint: 'Flake_Shift_Car_Paint', paintAlso: ['Flake_Shift_Car_Paint.001'] }, name: 'Kerala private bus', spec: { len: 10.6, wid: 2.5 }, source: SRC('a1f06445141d4e68b500440570a72dbf', 'KERALA BUS 3D MODEL', 'rmxdesignz') },
   m800: { id: 'kl_m800', import: { doors: true }, name: 'Maruti 800', spec: { len: 3.34, wid: 1.44 }, source: SRC('adcc7ff83891422d9f3dcaf55debc073', 'Maruti 800 AC', 'BHP3D') },
   dzire: { id: 'kl_dzire', import: { doors: true }, name: 'Maruti Swift Dzire', spec: { len: 3.995, wid: 1.735 }, source: SRC('95451c00cb2d48778f67d798167e7237', '2022 Maruti Suzuki Swift Dzire', 'BHP3D') },
@@ -266,7 +267,7 @@ export const TRAFFIC_MODELS = {
   scorpio: { id: 'kl_scorpio', import: { doors: true }, name: 'Mahindra Scorpio-N', spec: { len: 4.66, wid: 1.92 }, source: SRC('538b10f2860f44e694dc3e9d3e223bf8', '2022 Mahindra Scorpio-N', 'BHP3D') },
   thar: { id: 'kl_thar', livery: true, import: { flip: true }, name: 'Mahindra Thar', spec: { len: 3.985, wid: 1.82 }, budget: { body0: 45000, wheel0: 5000, body1: 9000, err1: 0.2, wheel1: 700 }, source: SRC('b044bb5c930b4924ad0f752080fedeb9', 'Mahendra Thar 3 Door', 'doraemondt200') },
   bolero: { id: 'kl_bolero', import: { doors: true }, name: 'Mahindra Bolero', spec: { len: 3.995, wid: 1.745 }, source: SRC('9f1e594c45e24012b50992bbfeeecda0', 'Bolero', 'Waseem_Kadri') },  // the Kerala jeep: taxis, panchayat, police
-  lorry: { id: 'kl_lorry', import: { livery: true }, name: 'Tata lorry', spec: { len: 8.6, wid: 2.5 }, source: SRC('8c7650b96d6846de8cc54391ab16cf20', 'Indian Truck', 'afjalymail78692') },  // the hand-painted Tata goods carrier
+  lorry: { id: 'kl_lorry', import: { livery: true, windows: { material: 'aiStandardSurface8SG', box: [[-1.7, 1.85, 2.5], [1.7, 3.0, 4.4]] } }, name: 'Tata lorry', spec: { len: 8.6, wid: 2.5 }, source: SRC('8c7650b96d6846de8cc54391ab16cf20', 'Indian Truck', 'afjalymail78692') },  // the hand-painted Tata goods carrier
   // two-wheelers: half of Kerala's traffic (generic names in game; models credited)
   scooter: { id: 'kl_scooter', bike: true, livery: true, name: 'Scooter', spec: { len: 1.8, wid: 0.7 }, wheels: 2, source: SRC('53474287ff1045e49f82819f50b8736f', 'Scooter Motorcycle', 'norberto3d') },
   commuter: { id: 'kl_commuter', bike: true, import: { flip: true }, name: 'Commuter motorcycle', spec: { len: 2.04, wid: 0.75 }, wheels: 2, source: SRC('06fac75c72ed4780a19034447c81e72c', 'Bajaj pulsar 150', 'shreyanshchaurasia13') },

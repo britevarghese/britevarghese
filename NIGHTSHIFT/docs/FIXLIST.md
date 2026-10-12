@@ -32,7 +32,18 @@ the game. Newly found problems go at the end of their section.
 - [x] Bus and lorry first person: the eye ~0.8 m above the driver's seat (it sat just under the cab roof); a bigger,
   flatter wheel (their low-detail cabins have none to find); the hands shown (a rule meant for photo mode turned them
   off whenever the camera was 3 m from the vehicle's middle: a bus driver always is)
-- [ ] KSRTC bus: our wheel stands beside the model's own white one (its rim is too coarse to find)
+- [x] KSRTC bus: our wheel stood beside the model's own white one. Its rim is found now (the search reached only
+  a metre ahead of the eye, and its low-detail rim has ~35 points): the hands are on the bus's own wheel, which turns
+- [x] Buses and lorries, first person: the driver's eyes are put behind the vehicle's own wheel, or ~1 m behind the
+  windscreen and 1.3 m over the cab floor where it has none (the Kerala private bus looked at its passengers' seat
+  backs from the middle of the bus; the lorry's eye could fall into the chassis), looking down a little more so the
+  wheel and the hands show; the seated driver sits there too
+- [x] Private bus: a left-hand-drive model (its wheel and dials on the left, the driver on the right with ours):
+  mirrored into a right-hand-drive bus, its doors on the kerb side
+- [x] Lorry: the windscreen and side windows were painted into the cab's texture, opaque: their dark glass is
+  see-through now (the ALL INDIA PERMIT strip and the frames stay)
+- [x] Mini-truck: its hands gripped the headlight (the only ring in front of the driver: the cab is an empty shell);
+  it gets our wheel. Its seated driver sat on the cab roof (lorry seat heights): inside now
 - [x] Mini-truck: the model's windscreen and side glass were opaque grey (its author named the glass materials
   something else): first person saw little. They're glass now, see-through from the cab and outside
 - [x] Vehicles floating at junctions, by culverts and on bridge ramps (an auto on a lawn's edge, an SUV in a jam): the

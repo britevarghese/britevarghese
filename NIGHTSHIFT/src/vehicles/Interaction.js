@@ -103,14 +103,15 @@ export function interactionProfile(v) {
     pr.seat = new THREE.Vector3(ds * halfW * 0.42, groundY + (kind === 'bus' ? 1.55 : kind === 'truck' ? 1.45 : kind === 'suv' ? 0.92 : 0.72), L * 0.05);
   }
   // a bus or lorry: the driver sits right at the front of the cab, by the windscreen, beside the door (the model's
-  // eye marker on a bus is often back among the passenger seats)
-  if (kind === 'bus') pr.seat.set(ds * Math.max(0.45, halfW - 0.62), pr.seat.y, box.max.z - 1.2);
+  // eye marker on a bus is often back among the passenger seats; the cockpit eye is put behind the bus's wheel)
+  if (kind === 'bus' && !G) pr.seat.set(ds * Math.max(0.45, halfW - 0.62), pr.seat.y, box.max.z - 1.2);
   else if (kind === 'truck' && G && (box.max.z - G.eye.z > 2.4 || box.max.z - G.eye.z < 0.6)) pr.seat.set(ds * Math.max(0.4, halfW - 0.6), pr.seat.y, box.max.z - 1.35);
   pr.ds = ds;
   const S = pr.seat;
   // sanity: seat height by class, and the seat inside the front door's opening (eye probes on tall cabins
   // can land on the rear seats)
-  const H = { car: [0.42, 0.72], suv: [0.66, 1.0], truck: [1.3, 1.75], bus: [1.3, 1.6], auto: [0.7, 0.85] }[kind];
+  // (a mini-truck's cab is a car's height, not a lorry's: its driver was sat on the roof)
+  const H = v.carId === 'minitruck' ? [0.55, 1.0] : { car: [0.42, 0.72], suv: [0.66, 1.0], truck: [1.3, 1.75], bus: [1.0, 1.6], auto: [0.7, 0.85] }[kind];
   S.y = clamp(S.y, groundY + H[0], groundY + H[1]);
   // a seated driver's head (with hair) is ~0.86 m above the hips: low supercars sit you right down on the floor
   if (kind === 'car' || kind === 'suv') S.y = Math.max(groundY + (kind === 'car' ? 0.26 : 0.5), Math.min(S.y, roofY - 0.9));
@@ -126,7 +127,8 @@ export function interactionProfile(v) {
   }
   // and never ahead of the windscreen
   if (header !== null && kind === 'car' && S.z > header - 0.2) S.z = header - 0.32;
-  if (kind !== 'auto' && (!pr.wheel || Math.abs(pr.wheel.hub.z - S.z - 0.58) > 0.3 || pr.wheel.hub.y < S.y + 0.2)) {
+  // (a bus's flat wheel sits low, nearly in the driver's lap)
+  if (kind !== 'auto' && (!pr.wheel || Math.abs(pr.wheel.hub.z - S.z - 0.58) > 0.3 || pr.wheel.hub.y < S.y + (kind === 'bus' ? 0.05 : 0.2))) {
     // a wheel where a driver's hands would find it (and draw one if the model has none there)
     const axis = new THREE.Vector3(0, 0.42, -1).normalize(), up0 = new THREE.Vector3(0, 1, 0).projectOnPlane(axis).normalize();
     pr.wheel = { hub: new THREE.Vector3(S.x, S.y + (kind === 'bus' || kind === 'truck' ? 0.5 : 0.42), S.z + 0.58), axis, up0, right0: new THREE.Vector3().crossVectors(up0, axis).normalize(), R: kind === 'bus' ? 0.24 : 0.18 };

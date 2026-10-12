@@ -140,7 +140,7 @@ export class CameraController {
         cam.quaternion.copy(this.headQ);
         cam.rotateY(Math.PI + (lookBack ? Math.PI : 0) + this.orbitX);
         // first person looks slightly down, like GTA, so the road shows over the dash
-        cam.rotateX(-this.orbitY * 0.5 - (eye ? 0.07 : 0));
+        cam.rotateX(-this.orbitY * 0.5 - (eye ? 0.07 + (vehicle.renderer.cockpitPitch?.() || 0) : 0));
         // smooth road vibration + impact shake (was random per frame, which read as glitching)
         const t = this.time, vib = Math.min(1, speed / 60) * 0.0025 + this.shake * 0.015;
         cam.position.x += (Math.sin(t * 31.7) + Math.sin(t * 17.3)) * 0.5 * vib;

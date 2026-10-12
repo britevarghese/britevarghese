@@ -8,6 +8,7 @@
 //   node tools/import-cars.mjs --traffic                              # the realistic traffic models
 //   node tools/import-cars.mjs --src bmw_m3_e30=path/to/model.glb   # use a file you downloaded yourself
 //   node tools/import-cars.mjs --src bmw_m3_e30=x.glb --out /tmp/test --no-manifest   # dry run
+//   node tools/import-cars.mjs --traffic --only kl_lorry --out /tmp/test --no-manifest --materials   # where each material sits
 //
 // The token is on https://sketchfab.com/settings/password (API token). Downloads are cached in .cache/cars.
 import fs from 'node:fs';
@@ -103,6 +104,37 @@ async function resolveSource(car) {
   return path.resolve(o);
 }
 
+// windows painted into a body texture, opaque (import.windows): the dark glass inside the window faces' texture
+// triangles gets a low alpha (the frames, stickers and lettering round it stay), the material blends
+async function seeThrough(doc, { material, tris, dark = 70, alpha = 80 }) {
+  const mat = doc.getRoot().listMaterials().find((m) => m.getName() === material), tex = mat?.getBaseColorTexture();
+  if (!tex) return;
+  const { data, info } = await sharp(Buffer.from(tex.getImage())).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
+  const W = info.width, H = info.height, done = new Uint8Array(W * H);
+  let n = 0;
+  for (const t of tris) {
+    // (texture coordinates may run past 0-1: repeat)
+    const ou = Math.floor(Math.min(t[0], t[2], t[4])), ov = Math.floor(Math.min(t[1], t[3], t[5]));
+    const P = [0, 1, 2].map((k) => [(t[k * 2] - ou) * W, (t[k * 2 + 1] - ov) * H]);
+    const area = (P[1][0] - P[0][0]) * (P[2][1] - P[0][1]) - (P[2][0] - P[0][0]) * (P[1][1] - P[0][1]);
+    if (Math.abs(area) < 1e-6) continue;
+    const x0 = Math.max(0, Math.floor(Math.min(P[0][0], P[1][0], P[2][0]))), x1 = Math.min(W - 1, Math.ceil(Math.max(P[0][0], P[1][0], P[2][0])));
+    const y0 = Math.max(0, Math.floor(Math.min(P[0][1], P[1][1], P[2][1]))), y1 = Math.min(H - 1, Math.ceil(Math.max(P[0][1], P[1][1], P[2][1])));
+    for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) {
+      const px = x + 0.5, py = y + 0.5;
+      const w1 = ((P[2][0] - P[0][0]) * (py - P[0][1]) - (px - P[0][0]) * (P[2][1] - P[0][1])) / -area;
+      const w2 = ((px - P[0][0]) * (P[1][1] - P[0][1]) - (P[1][0] - P[0][0]) * (py - P[0][1])) / -area;
+      if (w1 < 0 || w2 < 0 || w1 + w2 > 1 || done[y * W + x]) continue;
+      done[y * W + x] = 1;
+      const i = (y * W + x) * 4;
+      if (0.3 * data[i] + 0.59 * data[i + 1] + 0.11 * data[i + 2] < dark) { data[i + 3] = Math.min(data[i + 3], alpha); n++; }
+    }
+  }
+  tex.setImage(new Uint8Array(await sharp(data, { raw: { width: W, height: H, channels: 4 } }).png().toBuffer())).setMimeType('image/png');
+  mat.setAlphaMode('BLEND');
+  console.log(`   windows: ${n} texels of glass made see-through`);
+}
+
 const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
 fs.mkdirSync(outDir, { recursive: true });
 const report = {};
@@ -117,7 +149,8 @@ for (const car of targets) {
     const src = await resolveSource(car);
     const doc = await io.read(src);
     await doc.transform(metalRough()); // older models store colour as specular-glossiness: convert it, or the textures are lost
-    const { log, info } = processCar(doc, car, { verbose: true, budget: car.budget });
+    const { log, info, windowUV } = processCar(doc, car, { verbose: true, budget: car.budget, materials: args.includes('--materials') });
+    if (windowUV?.tris.length) await seeThrough(doc, windowUV);
     doc.createExtension(EXTTextureWebP).setRequired(true);
     await doc.transform(
       dedup(), prune({ keepLeaves: true, keepAttributes: false }),
