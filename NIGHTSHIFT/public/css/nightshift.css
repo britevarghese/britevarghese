@@ -409,4 +409,5 @@ html.touch .track-banner { top: calc(13vmin + env(safe-area-inset-top)); left: 4
 .wheel-setup .ws-step { font-size: 1.02rem; line-height: 1.4; margin-bottom: 0.7rem; }
 .wheel-setup .ws-bar { height: 0.45rem; background: rgba(255, 255, 255, 0.12); }
 .wheel-setup .ws-bar i { display: block; height: 100%; width: 0; background: var(--ok); transition: width 0.08s; }
+.wheel-setup .ws-live { font-size: 0.78rem; opacity: 0.7; margin-top: 0.4rem; min-height: 1em; }
 .wheel-setup .ws-foot { margin-top: 0.8rem; text-align: right; }

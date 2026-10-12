@@ -2,7 +2,7 @@
 import { clamp, approach } from './util.js';
 import { TouchControls } from './TouchControls.js';
 import { bus } from './EventBus.js';
-import { isWheel, xboxLayout, pedal, wheelSteer, hat, profileFor } from './Wheel.js';
+import { isWheel, xboxLayout, pedal, wheelSteer, hat, profileFor, saveProfile, settlePedals } from './Wheel.js';
 
 const KEYMAP = {
   throttle: ['KeyW', 'ArrowUp'],
@@ -29,6 +29,7 @@ export class InputManager {
     this.gamepadIndex = -1;
     this.wheel = null;           // the steering wheel in use (a Gamepad), if the controller is one
     this._wheelAsked = new Set(); // (wheels whose pedals the setup has asked for this session)
+    this._padTold = new Set();    // (gamepads told once where a wheel is set up)
     this.lastDevice = 'keyboard';
     this.mouse = { dx: 0, dy: 0, dragging: false, lastMove: 0, aim: false };
     this.enabled = true;
@@ -95,19 +96,29 @@ export class InputManager {
 
     // gamepad (standard mapping), or a steering wheel (see Wheel.js)
     const pads = navigator.getGamepads ? navigator.getGamepads() : [];
-    const pad = this.gamepadIndex >= 0 ? pads[this.gamepadIndex] : [...pads].find((p) => p);
-    this.wheel = pad && isWheel(pad, this.settings.gameplay.controller) ? pad : null;
+    // (with more than one, a wheel set up here first: some wheels show up twice, as themselves and as an Xbox pad)
+    const live = [...pads].filter(Boolean);
+    const pad = (live.length > 1 && live.find((p) => profileFor(this.settings, p))) || pads[this.gamepadIndex] || live[0];
+    this.wheel = pad && isWheel(pad, this.settings.gameplay.controller, this.settings) ? pad : null;
     const edge = (key, p, action) => {
       if (p && !this._padPrev[key]) for (const a of [].concat(action)) this.pressed.add(a);
       this._padPrev[key] = p;
     };
     if (this.wheel) {
       this.gamepadIndex = pad.index;
-      // its pedals, once learnt (the setup asks for them the first time a wheel is seen, once a session)
-      const prof = profileFor(this.settings, pad);
+      // its wheel and pedals, once learnt (the setup asks for them the first time a wheel is seen, once a session); until
+      // then the wheel on axis 0 and the pedals where a pad has its triggers (R2 / L2, or RT / LT laid out as a pad)
+      const prof = profileFor(this.settings, pad), std = pad.mapping === 'standard';
       if (!prof && !this._wheelAsked.has(pad.id)) { this._wheelAsked.add(pad.id); bus.emit('wheel:setup', { id: pad.id }); }
-      const s = wheelSteer(pad, sens), th = pedal(pad, prof?.throttle), br = pedal(pad, prof?.brake);
-      const B = (i) => !!pad.buttons[i]?.pressed;
+      // (a pedal let up past its learnt rest: kept, and saved a moment later)
+      if (prof && settlePedals(pad, prof)) this._saveProfT = 1;
+      if (prof && this._saveProfT > 0 && (this._saveProfT -= dt) <= 0) saveProfile(this.settings, prof);
+      const s = wheelSteer(pad, sens, prof?.steer);
+      const th = prof ? pedal(pad, prof.throttle) : pad.buttons[7]?.value || 0;
+      const br = prof ? pedal(pad, prof.brake) : pad.buttons[6]?.value || 0;
+      // (a pedal that is a button is no button of the controls)
+      const nAx = pad.axes.length, pedalBtn = new Set([prof?.throttle, prof?.brake].filter((q) => q && q.i >= nAx).map((q) => q.i - nAx));
+      const B = (i) => !pedalBtn.has(i) && !!pad.buttons[i]?.pressed;
       if (Math.abs(s) > 0.03 || th > 0.05 || br > 0.05 || pad.buttons.some((b) => b.pressed)) this.lastDevice = 'wheel';
       if (s !== 0) steer = s;                                      // (linear: as far as the wheel is turned)
       throttle = Math.max(throttle, th); brake = Math.max(brake, br);
@@ -116,14 +127,17 @@ export class InputManager {
       if (B(0)) handbrake = 1;
       if (B(2)) lookBack = true;
       if (B(4)) nitro = true;
-      const X = xboxLayout(pad);
+      // menu buttons: laid out as a pad (X-Input), as an Xbox wheel (Menu, View on 6 / 7), or as a PlayStation one
+      const [P, M, C, Hn] = std ? [9, 8, 11, 10] : xboxLayout(pad) ? [6, 7, 8, 9] : [9, 8, 10, 11];
       edge(0, B(0), ['confirm', 'jump']); edge(1, B(1), ['back', 'attack']); edge(3, B(3), 'enter'); edge(5, B(5), 'horn');
-      edge(X ? 6 : 9, B(X ? 6 : 9), 'pause'); edge(X ? 7 : 8, B(X ? 7 : 8), 'map'); edge(X ? 8 : 10, B(X ? 8 : 10), 'camera'); edge(X ? 9 : 11, B(X ? 9 : 11), 'horn');
+      edge(P, B(P), 'pause'); edge(M, B(M), 'map'); edge(C, B(C), 'camera'); edge(Hn, B(Hn), 'horn');
       // the d-pad: a hat axis (Chrome), or buttons 12-15 (Firefox)
       const H = hat(pad);
       edge('hu', H.up || B(12), 'up'); edge('hd', H.down || B(13), 'down'); edge('hl', H.left || B(14), 'leftNav'); edge('hr', H.right || B(15), 'rightNav');
     } else if (pad) {
       this.gamepadIndex = pad.index;
+      // (a steering wheel in X-Input mode looks like an Xbox pad: say once where it is set up)
+      if (!this._padTold.has(pad.id)) { this._padTold.add(pad.id); bus.emit('toast', { text: 'Controller connected. A steering wheel? Settings > Controls > SET UP WHEEL', time: 5 }); }
       const ax = pad.axes[0] || 0;
       const dz = (v, d = 0.12) => (Math.abs(v) < d ? 0 : (v - Math.sign(v) * d) / (1 - d));
       const s = dz(ax);

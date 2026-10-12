@@ -421,13 +421,15 @@ export class UIManager {
         this._netTimer = setInterval(() => { if (!stEl.isConnected) { clearInterval(this._netTimer); return; } refresh(); }, 500);
         body.appendChild(h('div', 'row', `<label>How to play together</label><div class="desc" style="max-width:26rem">Everyone opens the same server address (the host's LAN / Radmin / online URL). Other players show up with their name tag and on the map. Get out with F and take any car: traffic, stopped police cruisers, street rivals, or a car another player left parked. Traffic and police are your own.</div>`));
       } else {
-        // a steering wheel: what's connected, its pedals (learnt once: SET UP PEDALS), and its buttons
-        const W = g.input.wheel, prof = W && profileFor(S, W);
-        opt('Controller', 'Auto knows most steering wheels by name (Logitech, Thrustmaster, Fanatec, Moza...)', 'gameplay', 'controller', ['auto', 'wheel', 'gamepad'], ['AUTO', 'STEERING WHEEL', 'GAMEPAD']);
+        // a steering wheel: what's connected, its wheel and pedals (learnt once: SET UP WHEEL), and its buttons. A budget
+        // wheel may show up as any controller (D-Input) or as an Xbox pad (X-Input), so any connected one can be set up
+        const W = g.input.wheel, pad = W || [...(navigator.getGamepads?.() || [])].find(Boolean), prof = pad && profileFor(S, pad);
+        const nm = pad ? (pad.id.replace(/\s*\(.*$/, '').replace(/[<>&]/g, '') || 'Connected') : '';
+        opt('Controller', 'Auto knows most steering wheels by name (Logitech, Thrustmaster, Fanatec, Moza, Nitho...) or by not being a gamepad. Pick STEERING WHEEL if yours is taken for a gamepad', 'gameplay', 'controller', ['auto', 'wheel', 'gamepad'], ['AUTO', 'STEERING WHEEL', 'GAMEPAD']);
         const wr = h('div', 'row');
-        wr.appendChild(h('div', '', `<label>Steering wheel</label><div class="desc">${W ? `<b>${W.id.replace(/\s*\(.*$/, '').replace(/[<>&]/g, '') || 'Connected'}</b> · ${prof ? 'pedals set' : 'pedals not set up yet'}` : 'None connected (press a button on it if it is plugged in)'}. Turn its range to 900° or less in the wheel's own software; force feedback isn't available in the browser</div>`));
-        const su = h('button', 'btn', 'SET UP PEDALS'); su.disabled = !W;
-        su.onclick = () => this.wheelSetup.start(W?.id);
+        wr.appendChild(h('div', '', `<label>Steering wheel</label><div class="desc">${pad ? `<b>${nm}</b> · ${W ? 'used as a wheel' : 'used as a gamepad'} · ${prof ? 'wheel and pedals set' : 'wheel and pedals not set up yet'}` : 'None connected (press a button on it if it is plugged in)'}. Pedals not working? SET UP WHEEL, then turn the wheel and press each pedal when asked. Turn its range to 900° or less in the wheel's own software (or its mode button); force feedback isn't available in the browser</div>`));
+        const su = h('button', 'btn', 'SET UP WHEEL'); su.disabled = !pad;
+        su.onclick = () => { if (S.gameplay.controller === 'gamepad') S.set('gameplay', 'controller', 'auto'); this.wheelSetup.start(pad?.id); };
         wr.appendChild(su);
         body.appendChild(wr);
         body.insertAdjacentHTML('beforeend', `<div class="row"><label>On a steering wheel</label><div>Pedals · cross / A handbrake · triangle / Y get in / out · right paddle nitrous · left paddle horn · Options / Menu pause · Share / View map · R3 / RSB camera</div></div>`);
