@@ -630,7 +630,12 @@ export class KeralaTile {
       // (in the lowlands, the ground before the water beds were sunk, at most half a metre lower: a road beside a
       // creek doesn't dip into its bed; h0 is shared along the tile edges, so neighbours agree. Not in the hills:
       // the coarse survey grid stands far above a valley floor there)
-      const rawAt = (e, n) => { const g = gridAt(pre, N, S, e, n), h0 = this._h0At(e, n); return h0 < 25 ? Math.max(g, h0 - 0.5) : g; };
+      // (at the tile's edge: the survey before the water was sunk, which both tiles share. The sunk ground can differ
+      // there, one tile reading water at the edge and the other not: a road met its other half 0.5 m higher or lower)
+      const rawAt = (e, n) => {
+        const g = gridAt(pre, N, S, e, n), h0 = this._h0At(e, n), y = h0 < 25 ? Math.max(g, h0 - 0.5) : g, dE = Math.min(e, n, TILE - e, TILE - n);
+        return dE < 20 ? h0 + (y - h0) * _smooth(dE / 20) : y;
+      };
       const cross = (r.flags & 2) && !water.some(Boolean) ? this._roadBeneath(r) : [];
       E.push({ r, hw, P, at, raw: P.map(([e, n]) => rawAt(e, n)), water, over: cross.length > 0, cross });
     }
@@ -657,6 +662,32 @@ export class KeralaTile {
               (x.xj ||= []).push([near(x.P, i), k]); (y.xj ||= []).push([near(y.P, j), k]);
             }
           }
+        }
+      });
+      // a road ending on another's carriageway without a shared point (a T in the map's pieces, the shared point
+      // dropped from the other's line or its end just short of it): a junction too. Its end kept a level of its own: a
+      // culvert's deck ended 0.27 m over the main road it joins
+      E.forEach((x, xi) => {
+        if (x.over || x.r.flags & 2) return;
+        for (const i of [0, x.P.length - 1]) {
+          const [e0, n0] = x.P[i], ge = Math.floor(e0 / 40), gn = Math.floor(n0 / 40);
+          let best = null;
+          for (let A = -1; A <= 1; A++) for (let B = -1; B <= 1; B++) {
+            const L = SG.get((ge + A) * 100000 + gn + B); if (!L) continue;
+            for (let q = 0; q < L.length; q += 2) {
+              if (L[q] === xi) continue;
+              const y = E[L[q]], j = L[q + 1], c = y.P[j - 1], d = y.P[j], se = d[0] - c[0], sn = d[1] - c[1];
+              const u = Math.max(0, Math.min(1, ((e0 - c[0]) * se + (n0 - c[1]) * sn) / (se * se + sn * sn || 1)));
+              const pe = c[0] + se * u, pn = c[1] + sn * u, dd = Math.hypot(pe - e0, pn - n0);
+              if (dd < y.hw + 1 && (!best || dd < best.dd)) best = { dd, y, j, u };
+            }
+          }
+          if (!best) continue;
+          // (not where the two share a point: that junction is in already)
+          const shared = x.r.pts.some((p2) => Math.hypot(p2[0] - e0, p2[1] - n0) < 6 && best.y.r.pts.some((p3) => Math.abs(p3[0] - p2[0]) < 0.5 && Math.abs(p3[1] - p2[1]) < 0.5));
+          if (shared) continue;
+          // (the ending road is brought to the other's level there once that is settled: see the junctions below)
+          (x.tj ||= []).push({ i, y: best.y, j: best.j, u: best.u });
         }
       });
     }
@@ -834,7 +865,7 @@ export class KeralaTile {
           const o = node.get(k), c = x.r.cls;
           if (!o || c < o[2]) node.set(k, [yy[i], 1, c, (o?.[3] || 0) + 1, raised[map[i]]]); else if (c === o[2]) { o[0] += yy[i]; o[1]++; o[3]++; o[4] |= raised[map[i]]; } else o[3]++;
         }
-        roads.push({ hw: x.hw, P: x.P, prof: yy, joins, wet: ww, cls: x.r.cls, up: map.map((ci) => raised[ci]) });
+        roads.push((x.R = { hw: x.hw, P: x.P, prof: yy, joins, wet: ww, cls: x.r.cls, up: map.map((ci) => raised[ci]), tj: x.tj }));
         x.r.surf = { P: x.P, y: yy, hw: x.hw };   // the road's own surface (drawn and driven on): see _surfAt
       }
     }
@@ -877,11 +908,19 @@ export class KeralaTile {
         roads.forEach((R, ri) => { for (let i = 0; i < R.P.length; i++) R.prof[i] += deltas[ri][i]; });
       }
     }
-    for (const R of roads) {
+    // (the most important roads first: a side road ending on one without a shared point meets it at its final level)
+    for (const R of [...roads].sort((a, b) => a.cls - b.cls)) {
       const { P, prof } = R;
       // distance along the road
       const D = [0]; for (let i = 1; i < P.length; i++) D.push(D[i - 1] + Math.hypot(P[i][0] - P[i - 1][0], P[i][1] - P[i - 1][1]));
       const J = [];
+      for (const { i, y, j, u } of R.tj || []) {
+        const Y = y.R; if (!Y || R.up[i] || y.r.cls > R.cls + 1) continue;   // (a main road ending on a lane: no)
+        const dy = Y.prof[j - 1] + (Y.prof[j] - Y.prof[j - 1]) * u - prof[i];
+        // (passing under or beside a ramp: its own level)
+        if ((Y.up[j - 1] || Y.up[j]) && Math.abs(dy) > 1.5) continue;
+        J.push([D[i], dy, Math.min(150, Math.max(45, Math.abs(dy) / 0.08, Math.sqrt(1300 * Math.abs(dy))))]);
+      }
       for (const [j, k] of R.joins) {
         const o = node.get(k); if (!o || o[3] < 2) continue;
         // a junction on a bridge's or flyover's ramp is at the ramp's height (a side road of about the same
@@ -932,7 +971,20 @@ export class KeralaTile {
       if (!Ws[k]) continue;
       const edge = Math.min(1, Math.min(i, j, N - 1 - i, N - 1 - j) / 1.5);
       H[k] = pre[k] + (Ys[k] / Ws[k] - pre[k]) * Am[k] * edge;
-      if (edge >= 1 && H[k] > Cap[k]) H[k] = Cap[k];
+      // (the row next to the tile's edge too: left uncapped, the ground poked up through a road in a cutting there)
+      if (H[k] > Cap[k]) H[k] = Cap[k];
+    }
+    // the edge row is the neighbour's as well: capped only from what both tiles agree on, the survey under each road
+    // where it crosses the edge (its level there, rawAt above), so both cap their shared vertices alike
+    for (const { hw, P, wet } of roads) for (const i of [0, P.length - 1]) {
+      const [e, n] = P[i];
+      if (wet[i] || Math.min(e, n, TILE - e, TILE - n) > 0.01) continue;
+      const y = this._h0At(e, n), inner = hw + S * 0.75, row = n < 0.01 ? 0 : n > TILE - 0.01 ? N - 1 : -1, col = e < 0.01 ? 0 : e > TILE - 0.01 ? N - 1 : -1;
+      const along = []; for (let q = 0; q < N; q++) { if (row >= 0) along.push([q, row]); if (col >= 0) along.push([col, q]); }
+      for (const [ii, jj] of along) {
+        const d = Math.hypot(ii * S - e, jj * S - n), k = jj * N + ii, c = y - 0.05 + Math.max(0, d - hw) * 0.03;
+        if (d <= inner && H[k] > c) H[k] = c;
+      }
     }
   }
 

@@ -87,6 +87,14 @@ function intersect(p, d, q, e) {
   return [p[0] + d[0] * t, p[1] + d[1] * t];
 }
 const norm = (x, z) => { const l = Math.hypot(x, z) || 1; return [x / l, z / l]; };
+// a connector's line from a lane's end (heading d0) to the next lane's start (heading d1): straight on a short way,
+// else a curve through where the two lines meet
+function conPts(end, d0, st, d1, turn) {
+  if (turn === 'straight' && Math.hypot(st[0] - end[0], st[1] - end[1]) < 8) return [end, st];
+  let c = d1 ? intersect(end, d0, st, d1) : null;
+  if (!c || Math.hypot(c[0] - end[0], c[1] - end[1]) > 40) c = [(end[0] + st[0]) / 2 + d0[0] * 3, (end[1] + st[1]) / 2 + d0[1] * 3];
+  return bezier(end, c, st, 8);
+}
 function trimStart(pts, d) {
   const out = pts.map((p) => [...p]);
   let rem = d;
@@ -236,6 +244,8 @@ export class KeralaLaneGraph {
     this.byTile.set(k, mine);
     for (const l of mine) this.lanes.push(l);
     for (const n of touched) this._relink(n);
+    // (lanes round here left with no way on, short of a road that has only now come in: on into it)
+    for (const l of this.lanesNear(-(t.E0 + TILE / 2), t.N0 + TILE / 2, 0, TILE)) if (!l.next.length && !touched.has(l.to)) this._relink(l.to);
     this.version++;
   }
 
@@ -286,15 +296,32 @@ export class KeralaLaneGraph {
       }
       // a road that just ends: turn round
       if (!cands.length) { const back = outs.find((l) => l.edge === lin.edge); if (back) cands.push({ lout: back, turn: 'uturn', d1: null, st: back.pts[0] }); }
-      for (const { lout, turn, d1, st } of cands) {
-        let pts;
-        if (turn === 'straight' && Math.hypot(st[0] - end[0], st[1] - end[1]) < 8) pts = [end, st];
-        else {
-          let c = d1 ? intersect(end, d0, st, d1) : null;
-          if (!c || Math.hypot(c[0] - end[0], c[1] - end[1]) > 40) c = [(end[0] + st[0]) / 2 + d0[0] * 3, (end[1] + st[1]) / 2 + d0[1] * 3];
-          pts = bezier(end, c, st, 8);
+      // the map's pieces not sharing a point where they meet (a one-way carriageway ending a few metres short of the
+      // road it runs into): on into the nearest lane starting just ahead, roughly this way. With no way on, traffic
+      // queued for good behind the first car to reach the end
+      if (!cands.length) {
+        let best = null;
+        for (const o of this.lanesNear(end[0], end[1], 0, 30)) {
+          if (o.edge === lin.edge || o.from === node || o.dead) continue;
+          const st = o.pts[0], st2 = o.pts[1], dd = Math.hypot(st[0] - end[0], st[1] - end[1]);
+          if (dd > 15) continue;
+          const d1 = norm(st2[0] - st[0], st2[1] - st[1]), dot = d0[0] * d1[0] + d0[1] * d1[1];
+          const ahead = dd < 0.5 ? 1 : (d0[0] * (st[0] - end[0]) + d0[1] * (st[1] - end[1])) / dd;
+          if (dot < 0 || ahead < -0.2) continue;   // (not back the way it came, nor behind it)
+          // (and on road all the way across: the nearest lane start can be another road's, behind a wall or a house)
+          const turn = dot > 0.7 ? 'straight' : d0[0] * d1[1] - d0[1] * d1[0] > 0 ? 'right' : 'left', pts = conPts(end, d0, st, d1, turn);
+          let on = true;
+          for (let q = 1; q < pts.length && on; q++) for (const f of [0.5, 1]) on &&= !this.onAnyRoad || this.onAnyRoad(pts[q - 1][0] + (pts[q][0] - pts[q - 1][0]) * f, pts[q - 1][1] + (pts[q][1] - pts[q - 1][1]) * f);
+          if (!on) continue;
+          const score = dd - dot * 6;
+          if (!best || score < best.score) best = { score, lout: o, d1, st, turn };
         }
+        if (best) cands.push({ lout: best.lout, turn: best.turn, d1: best.d1, st: best.st, bridge: true });
+      }
+      for (const { lout, turn, d1, st, bridge } of cands) {
+        const pts = conPts(end, d0, st, d1, turn);
         const con = new Path(pts, { kind: 'connector', node, turn, from: lin, to: lout, speed: turn === 'straight' ? lin.speed : turn === 'uturn' ? 4 : 7, axis: 'x' });
+        if (bridge) con.bridge = true;
         con.next = [lout];
         lin.next.push(con);
       }

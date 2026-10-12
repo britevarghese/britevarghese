@@ -55,6 +55,14 @@ the game. Newly found problems go at the end of their section.
 - [x] Vehicles floating at junctions, by culverts and on bridge ramps (an auto on a lawn's edge, an SUV in a jam): the
   physics took a road's centre-line height, or a neighbour road's shoulder up to a metre higher, where the strip is
   drawn tilted or lower. Wheels now sit on the road exactly as drawn (each strip read row by row)
+- [x] Junction steps: a road ending on another without a shared point in the map (the point dropped from the main
+  road's line, or the side road ending just short of it) kept a level of its own: a culvert's deck ended 0.27 m over
+  the main road, and in the Kannur tile 40 such junctions had a step over 10 cm (15 over 40 cm, the worst 2.5 m). The
+  side road now eases onto the main road's settled level: 4 left over 10 cm (beside ramps, which keep their own level)
+- [x] Steps where a road crosses from one 2 km tile to the next (44-60 cm at one): one tile had sunk its edge as
+  water and the other hadn't, and each took the road's level from its own ground. At the edge both take the survey
+  they share. The ground there no longer pokes up through a road in a cutting (it was left as surveyed on the edge
+  rows: now held under the road from that shared level, alike in both tiles)
 
 ## Police and traffic
 - [x] Police start a chase when their own car hits you (fault check: whoever drove into whom)
@@ -71,6 +79,10 @@ the game. Newly found problems go at the end of their section.
   checks the papers and waves it on. The player too: stop for the check (a stolen car is spotted), or drive through
   and they come after you. The jeep and the barricade are solid
 - [x] A jam (three or more vehicles stuck 20 s): an officer walks in and lets one way through at a time, then leaves
+- [x] Narrow-street head-on jams re-tested (six runs of 3-4 minutes in Kannur): no head-on lockups. A pile-up of a
+  dozen autos for minutes near the start was a lane with no way on: one-way carriageways ending a few metres short
+  of the road they run into (the map's pieces sharing no point there), so the first to reach the end stopped for
+  good. They run on into the nearest lane starting just ahead, on road all the way (11 such ends round Kannur, now 0)
 
 ## People
 - [x] Clothing: men in plain shirts over dark trousers, khaki or a white mundu, black hair; women in sarees; no kurtas or western dress in crowds, drivers or riders
