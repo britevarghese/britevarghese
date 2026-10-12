@@ -12,6 +12,11 @@ const WHEEL_IDS = /046d.{0,12}(c24f|c260|c261|c262|c266|c267|c268|c26d|c26e|c24b
 // not 'USB Gamepad', the name some budget wheels give)
 const PAD_RX = /xbox|x-box|xinput|playstation|dualshock|dualsense|wireless controller|054c|045e|pro controller|joy-con|nintendo|8bitdo|stadia|dual action|f310|f510|f710/i;
 
+/** The connected controllers (an empty list where the browser keeps them from the page: it may even throw there). */
+export function gamepads() {
+  try { return [...(navigator.getGamepads?.() || [])]; } catch { return []; }
+}
+
 /** The learnt wheel and pedals for this controller, if any. */
 export const profileFor = (settings, pad) => (settings.gameplay.wheelProfiles || []).find((p) => p.id === pad?.id) || null;
 

@@ -20,6 +20,13 @@ the game. Newly found problems go at the end of their section.
   showing what it sees. Any controller can be set up from Settings > Controls > SET UP WHEEL (an X-Input wheel looks
   like an Xbox pad: a note says so when one is plugged in); until it is, a wheel's pedals are read where a pad has
   its triggers
+- [x] Settings > Controls said 'None connected' with the wheel plugged in, and SET UP WHEEL stayed grey. Two causes:
+  browsers give controllers only to secure pages (https, or http://localhost), so a PC that opened the game at the
+  server's LAN or Radmin address (http://192.168..., http://26...) could never see a wheel or gamepad; and the row
+  was written once when the tab opened, while a browser shows a controller only after it is first used. The server
+  now answers https on the same port (a certificate it makes itself: the browser warns once, Advanced > Proceed);
+  on an http page the row says so and OPEN HTTPS goes there, taking the progress and settings along (a note says it
+  once too). The row follows what the browser sees, every half second
 - [x] Autorickshaw first person: eye on the front bench, centre
 - [x] Autorickshaw first person: no hands at all (the cockpit probe stopped early for autos) and no handlebar in the
   model. It has ours now, chrome with black rubber grips over the dash, turning about the raked column with the

@@ -3,7 +3,7 @@
 // kept for that controller (axes or analogue buttons, a pedal resting at either end of its travel or both pedals on
 // one axis). A panel at the top of the screen while the game runs on under it; Settings > Controls runs it again.
 import { bus } from '../core/EventBus.js';
-import { saveProfile, inputs } from '../core/Wheel.js';
+import { saveProfile, inputs, gamepads } from '../core/Wheel.js';
 
 const STEPS = {
   rest: 'Centre the wheel, let go of it, and take your feet off the pedals',
@@ -33,7 +33,7 @@ export class WheelSetup {
     const loop = () => {
       if (this.el !== el) return;
       requestAnimationFrame(loop);
-      const pad = [...(navigator.getGamepads?.() || [])].find((p) => p && (!id || p.id === id));
+      const pad = gamepads().find((p) => p && (!id || p.id === id));
       if (!pad) { show('Connect the steering wheel, and press any button on it...'); return; }
       id = pad.id;
       $('.ws-name').textContent = pad.id.replace(/\s*\(.*$/, '') || pad.id;

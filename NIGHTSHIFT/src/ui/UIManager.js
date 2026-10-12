@@ -5,7 +5,8 @@ import { friendColor } from '../networking/NetworkClient.js';
 import * as VP from '../core/Viewport.js';
 import { bus } from '../core/EventBus.js';
 import { WheelSetup } from './WheelSetup.js';
-import { profileFor } from '../core/Wheel.js';
+import { profileFor, gamepads } from '../core/Wheel.js';
+import { controllersBlocked, secureUrl, openSecure } from '../core/SecureMove.js';
 import { QUALITY_LEVELS, QUALITY_LABELS } from '../core/QualityManager.js';
 import { formatMoney, formatTime } from '../core/util.js';
 import { RACE_TYPE_NAMES } from '../races/RaceEvents.js';
@@ -421,17 +422,45 @@ export class UIManager {
         this._netTimer = setInterval(() => { if (!stEl.isConnected) { clearInterval(this._netTimer); return; } refresh(); }, 500);
         body.appendChild(h('div', 'row', `<label>How to play together</label><div class="desc" style="max-width:26rem">Everyone opens the same server address (the host's LAN / Radmin / online URL). Other players show up with their name tag and on the map. Get out with F and take any car: traffic, stopped police cruisers, street rivals, or a car another player left parked. Traffic and police are your own.</div>`));
       } else {
-        // a steering wheel: what's connected, its wheel and pedals (learnt once: SET UP WHEEL), and its buttons. A budget
-        // wheel may show up as any controller (D-Input) or as an Xbox pad (X-Input), so any connected one can be set up
-        const W = g.input.wheel, pad = W || [...(navigator.getGamepads?.() || [])].find(Boolean), prof = pad && profileFor(S, pad);
-        const nm = pad ? (pad.id.replace(/\s*\(.*$/, '').replace(/[<>&]/g, '') || 'Connected') : '';
+        // a steering wheel: what the browser sees, kept up to date (a controller shows only once it is used, and on a
+        // page that isn't secure none ever does), its wheel and pedals (learnt once: SET UP WHEEL), and its buttons. A
+        // budget wheel may show up as any controller (D-Input) or as an Xbox pad (X-Input): any one can be set up
         opt('Controller', 'Auto knows most steering wheels by name (Logitech, Thrustmaster, Fanatec, Moza, Nitho...) or by not being a gamepad. Pick STEERING WHEEL if yours is taken for a gamepad', 'gameplay', 'controller', ['auto', 'wheel', 'gamepad'], ['AUTO', 'STEERING WHEEL', 'GAMEPAD']);
-        const wr = h('div', 'row');
-        wr.appendChild(h('div', '', `<label>Steering wheel</label><div class="desc">${pad ? `<b>${nm}</b> · ${W ? 'used as a wheel' : 'used as a gamepad'} · ${prof ? 'wheel and pedals set' : 'wheel and pedals not set up yet'}` : 'None connected (press a button on it if it is plugged in)'}. Pedals not working? SET UP WHEEL, then turn the wheel and press each pedal when asked. Turn its range to 900° or less in the wheel's own software (or its mode button); force feedback isn't available in the browser</div>`));
-        const su = h('button', 'btn', 'SET UP WHEEL'); su.disabled = !pad;
-        su.onclick = () => { if (S.gameplay.controller === 'gamepad') S.set('gameplay', 'controller', 'auto'); this.wheelSetup.start(pad?.id); };
-        wr.appendChild(su);
+        const wr = h('div', 'row'), wd = h('div', '', '<label>Steering wheel</label><div class="desc"></div>'), desc = wd.querySelector('.desc');
+        const su = h('button', 'btn', 'SET UP WHEEL');
+        wr.append(wd, su);
         body.appendChild(wr);
+        const esc = (t) => String(t).replace(/[<>&]/g, '');
+        const TAIL = 'Turn its range to 900° or less in the wheel\'s own software (or its mode button); force feedback isn\'t available in the browser';
+        let target = null, shown = '', seen = false;
+        const refresh = () => {
+          // (the row is built before the panel is on the page: stop only once it has been shown and then taken away)
+          if (!wr.isConnected) { if (seen) clearInterval(this._wheelTimer); return; }
+          seen = true;
+          let html, label = 'SET UP WHEEL';
+          if (controllersBlocked()) {
+            target = 'https'; label = 'OPEN HTTPS';
+            html = `<b style="color:var(--gold)">This page can't see a wheel or gamepad.</b> Browsers give controllers only to secure pages: open <b>${esc(secureUrl())}</b> (the same address with https; the first time, the browser warns about the certificate: Advanced &gt; Proceed), or http://localhost on the PC running the server. OPEN HTTPS takes your progress and settings along`;
+          } else {
+            const pads = gamepads().filter(Boolean), W = g.input.wheel, isW = (p) => !!W && p.index === W.index;
+            const pad = pads.find(isW) || pads[0];
+            target = pad?.id || null;
+            html = pads.length
+              ? pads.map((p) => `<b>${esc(p.id.replace(/\s*\(.*$/, '')) || 'Controller'}</b> · ${isW(p) ? 'used as a wheel' : 'used as a gamepad'} · ${profileFor(S, p) ? 'wheel and pedals set' : 'wheel and pedals not set up yet'}`).join('<br>')
+                + `. Pedals not working? SET UP WHEEL, then turn the wheel and press each pedal when asked. ${TAIL}`
+              : `<b>None seen yet.</b> A browser shows a controller only once it is used: press a button or a pedal on the wheel with this window in front. Still nothing? Check Windows sees it (Start: 'Set up USB game controllers') and that the wheel is in its PC mode. ${TAIL}`;
+          }
+          if (html !== shown) { desc.innerHTML = html; shown = html; }
+          su.textContent = label; su.disabled = !target;
+        };
+        su.onclick = () => {
+          if (target === 'https') { openSecure(); return; }
+          if (S.gameplay.controller === 'gamepad') S.set('gameplay', 'controller', 'auto');
+          this.wheelSetup.start(target);
+        };
+        clearInterval(this._wheelTimer);
+        this._wheelTimer = setInterval(refresh, 500);
+        setTimeout(refresh, 0);
         body.insertAdjacentHTML('beforeend', `<div class="row"><label>On a steering wheel</label><div>Pedals · cross / A handbrake · triangle / Y get in / out · right paddle nitrous · left paddle horn · Options / Menu pause · Share / View map · R3 / RSB camera</div></div>`);
         body.insertAdjacentHTML('beforeend', `<div class="row"><label>Throttle / Brake-Reverse</label><div>W / S · RT / LT</div></div>
           <div class="row"><label>Steer</label><div>A / D · Left stick</div></div>

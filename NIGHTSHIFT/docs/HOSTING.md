@@ -38,6 +38,7 @@ The startup banner lists every address the server is reachable on:
 - **LAN**: players on the same Wi-Fi/router use the `LAN` address. To find it by hand, run `ipconfig` (Windows) and look at *IPv4 Address*, or `ip -4 addr` on Linux.
 - **Radmin VPN**: the host and all players join the same Radmin network. Players use the host's `26.x.x.x` address, which is also shown in the Radmin window.
 - **Internet without a VPN**: forward TCP port 3000 on your router to the host PC and share your public IP. A VPN such as Radmin or Tailscale is simpler and safer.
+- **Steering wheel or gamepad on another PC**: use the same address with `https://` (the same port; the banner shows it). Browsers only let secure pages (`https://`, or `http://localhost` on the host itself) read controllers, so on a plain `http://192.168...` page a wheel or gamepad never shows up. The server makes its own certificate, so the first time the browser warns about it: *Advanced → Proceed*. In the game, *Settings → Controls → OPEN HTTPS* opens it and takes your progress along. The certificate is kept in a `cert` folder next to the server (or in `%LOCALAPPDATA%\nightshift\cert` for an install in Program Files); delete it to make a new one. `--no-https` turns https off.
 
 ## Firewall
 

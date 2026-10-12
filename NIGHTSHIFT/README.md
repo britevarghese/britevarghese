@@ -4,7 +4,8 @@ An original open-world night street-racing game that runs in the browser. You dr
 through the fictional city of **Port Halvern**: play a GTA-style story, take any car on the
 street, enter street races and lose police pursuits.
 There is nothing to install for players. They open `http://SERVER_IP:3000` in Chrome, Edge
-or Firefox.
+or Firefox. With a steering wheel or gamepad on another PC, they open `https://SERVER_IP:3000`
+instead (see [Controllers](#controllers)).
 
 - **Engine:** Three.js.
   - The default renderer is WebGL2 (validated).
@@ -37,9 +38,9 @@ The server binds to `0.0.0.0:3000` and prints every address players can use:
 ========================================
  Server started.
  LOCAL:  http://localhost:3000
- LAN:    http://192.168.1.100:3000
- RADMIN: http://26.x.x.x:3000
- PORT:   3000
+ LAN:    http://192.168.1.100:3000  (wheel / gamepad: https://192.168.1.100:3000)
+ RADMIN: http://26.x.x.x:3000  (wheel / gamepad: https://26.x.x.x:3000)
+ PORT:   3000 (http and https)
 ========================================
 ```
 
@@ -84,6 +85,21 @@ Saves live in each player's browser.
 | Pause | ESC | Start |
 | Developer stats (FPS, GPU, engine audio model) | F3 | |
 | Fullscreen | F11 | |
+
+### Controllers
+
+Gamepads and steering wheels (Logitech, Thrustmaster, Fanatec, Moza, and budget wheels such as
+Nitho, PXN or Hori) work in Chrome, Edge and Firefox. Browsers only give controllers to secure
+pages: `https://...` or `http://localhost`. On the server's own PC, `http://localhost:3000` is
+fine. On another PC, open `https://SERVER_IP:3000` (the same port). The server answers https with
+a certificate it makes itself, so the first time the browser warns: choose *Advanced → Proceed*.
+On the plain `http://` address, *Settings → Controls → OPEN HTTPS* moves you there and takes your
+progress and settings along. Start with `--no-https` to turn https off.
+
+A browser shows a controller only after one of its buttons or pedals is used while the game's
+window is in front. The first time a wheel is seen, a panel asks you to turn it left and press each
+pedal; *Settings → Controls → SET UP WHEEL* runs it again for any controller (a wheel in X-Input
+mode looks like an Xbox pad).
 
 ## Gameplay
 

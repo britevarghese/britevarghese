@@ -4,18 +4,23 @@
  * NIGHTSHIFT game server.
  * Zero npm dependencies: Node.js >= 18 built-ins only.
  *
- *   node server.js [--port 3000] [--host 0.0.0.0] [--multiplayer] [--config path] [--verbose]
+ *   node server.js [--port 3000] [--host 0.0.0.0] [--no-https] [--multiplayer] [--config path] [--verbose]
  *
  * Serves public/ at "/" and src/ at "/src/". Optional multiplayer WebSocket at "/ws".
+ * HTTP and HTTPS on the one port (a self-signed certificate the server makes): browsers give steering wheels and
+ * gamepads only to secure pages, https or http://localhost, so a player on another PC opens https://<ip>:<port>.
  */
 
 const http = require('http');
+const https = require('https');
+const net = require('net');
 const fs = require('fs');
 const path = require('path');
 const os = require('os');
 const zlib = require('zlib');
 const { attachWebSocketServer } = require('./server/ws');
 const { Room } = require('./server/room');
+const { loadCertificate } = require('./server/cert');
 
 const ROOT = __dirname;
 const PUBLIC_DIR = path.join(ROOT, 'public');
@@ -34,13 +39,14 @@ function parseArgs(argv) {
     const next = () => (inline !== undefined ? inline : argv[++i]);
     switch (key) {
       case '--port': case '-p': out.port = next(); break;
+      case '--no-https': out.https = false; break;
       case '--host': case '-h': out.host = next(); break;
       case '--config': out.config = next(); break;
       case '--multiplayer': case '--mp': out.multiplayer = true; break;
       case '--no-multiplayer': out.multiplayer = false; break;
       case '--verbose': case '-v': out.verbose = true; break;
       case '--help':
-        console.log('Usage: node server.js [--port 3000] [--host 0.0.0.0] [--multiplayer] [--config config.json] [--verbose]');
+        console.log('Usage: node server.js [--port 3000] [--host 0.0.0.0] [--no-https] [--multiplayer] [--config config.json] [--verbose]');
         process.exit(0);
         break;
       default:
@@ -64,6 +70,7 @@ const pkg = readJson(path.join(ROOT, 'package.json')) || {};
 const config = {
   port: Number(args.port ?? process.env.PORT ?? fileConfig.port ?? 3000),
   host: String(args.host ?? process.env.HOST ?? fileConfig.host ?? '0.0.0.0'),
+  https: args.https ?? fileConfig.https ?? true,
   serverName: fileConfig.serverName || 'NIGHTSHIFT Server',
   multiplayer: {
     enabled: true,
@@ -273,6 +280,7 @@ function publicConfig() {
   return {
     serverName: config.serverName,
     version: pkg.version || '0.0.0',
+    https: !!httpsServer,
     multiplayer: {
       enabled: !!config.multiplayer.enabled,
       tickRate: config.multiplayer.tickRate,
@@ -282,7 +290,7 @@ function publicConfig() {
   };
 }
 
-const server = http.createServer((req, res) => {
+function handleRequest(req, res) {
   let pathname;
   try {
     pathname = new URL(req.url, 'http://localhost').pathname;
@@ -312,6 +320,30 @@ const server = http.createServer((req, res) => {
     if (!res.headersSent) sendText(res, 500, '500 Internal Server Error');
     else res.destroy();
   }
+}
+const server = http.createServer(handleRequest);
+
+// the same game on https (see the top): its certificate covers localhost and this PC's addresses
+let httpsServer = null;
+if (config.https) {
+  try {
+    const c = loadCertificate(ROOT, networkAddresses().map((a) => a.ip));
+    httpsServer = https.createServer({ key: c.key, cert: c.cert }, handleRequest);
+  } catch (e) {
+    console.warn(`HTTPS is off: could not make a certificate (${e.message})`);
+  }
+}
+// one port for both: a TLS connection opens with a handshake record (first byte 22), plain HTTP with a method name
+const front = net.createServer((socket) => {
+  socket.setTimeout(120000, () => socket.destroy());   // (a connection opened and never used)
+  socket.once('data', (first) => {
+    socket.setTimeout(0);
+    socket.pause();
+    socket.unshift(first);
+    (httpsServer && first[0] === 22 ? httpsServer : server).emit('connection', socket);
+    process.nextTick(() => socket.resume());
+  });
+  socket.on('error', () => socket.destroy());
 });
 
 // ---------------------------------------------------------------- multiplayer
@@ -321,11 +353,13 @@ const room = new Room({
   maxPlayers: config.multiplayer.maxPlayers,
   log: (m) => console.log(m),
 });
-const wss = attachWebSocketServer(server, {
+const wsOptions = {
   path: '/ws',
   enabled: () => !!config.multiplayer.enabled,
   onConnection: (ws) => room.addConnection(ws),
-});
+};
+const wss = attachWebSocketServer(server, wsOptions);
+const wssSecure = httpsServer ? attachWebSocketServer(httpsServer, wsOptions) : null;   // (one room for both)
 if (config.multiplayer.enabled) room.start();
 
 // ---------------------------------------------------------------- startup
@@ -358,25 +392,31 @@ function banner() {
   const lines = [line, ' NIGHTSHIFT SERVER', line, ' Server started.'];
   const wildcard = ['0.0.0.0', '::', ''].includes(config.host);
   const local = wildcard || ['127.0.0.1', 'localhost', '::1'].includes(config.host);
+  const both = (ip) => `http://${ip}:${port}` + (httpsServer ? `  (wheel / gamepad: https://${ip}:${port})` : '');
   if (local) lines.push(row('LOCAL', `http://localhost:${port}`));
   if (wildcard) {
     const addrs = networkAddresses();
-    for (const a of addrs) lines.push(row(a.kind, `http://${a.ip}:${port}`));
+    for (const a of addrs) lines.push(row(a.kind, both(a.ip)));
     if (addrs.length === 0) lines.push(' (no network adapters found - only this PC can connect)');
   } else if (!local) {
-    lines.push(row(classify(config.host), `http://${config.host}:${port}`));
+    lines.push(row(classify(config.host), both(config.host)));
   }
-  lines.push(row('PORT', String(port)));
+  lines.push(row('PORT', String(port) + (httpsServer ? ' (http and https)' : '')));
   if (config.multiplayer.enabled) {
     lines.push(row('MULTI', `enabled, ws path /ws, ${config.multiplayer.tickRate} Hz, max ${config.multiplayer.maxPlayers}`));
   }
   lines.push(line);
   lines.push(' Players open one of the URLs above in Chrome, Edge or Firefox.');
+  if (httpsServer) {
+    lines.push(' Steering wheel or gamepad on another PC: open the https address. Browsers');
+    lines.push(' give controllers only to https pages (or localhost). The first time, the');
+    lines.push(' browser warns about the certificate: Advanced > Proceed.');
+  }
   lines.push(' Press Ctrl+C to stop.');
   return lines.join('\n');
 }
 
-server.on('error', (err) => {
+front.on('error', (err) => {
   if (err.code === 'EADDRINUSE') {
     console.error('');
     console.error(`ERROR: Port ${config.port} is already in use.`);
@@ -399,13 +439,16 @@ if (!fs.existsSync(path.join(PUBLIC_DIR, 'index.html'))) {
   console.warn('Warning: public/index.html not found - the game page will not load.');
 }
 
-server.listen(config.port, config.host, () => console.log(banner()));
+front.listen(config.port, config.host, () => console.log(banner()));
 
 function shutdown() {
   console.log('\nStopping NIGHTSHIFT server...');
   room.stop();
   wss.close();
-  server.close(() => process.exit(0));
+  wssSecure?.close();
+  httpsServer?.close();
+  server.close();
+  front.close(() => process.exit(0));
   setTimeout(() => process.exit(0), 1500).unref();
 }
 process.on('SIGINT', shutdown);

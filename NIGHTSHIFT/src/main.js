@@ -12,6 +12,8 @@ import { ModelLibrary } from './vehicles/VehicleRenderer.js';
 import { bus } from './core/EventBus.js';
 import { Game, KERALA } from './core/Game.js';
 import { TYPE_SPECS } from './traffic/TrafficManager.js';
+import { receiveCarry, controllersBlocked, secureUrl } from './core/SecureMove.js';
+import { Storage } from './core/Storage.js';
 
 const $ = (id) => document.getElementById(id);
 const TIPS = [
@@ -35,6 +37,8 @@ export function fatal(title, msg) {
 
 async function boot() {
   $('load-tip').textContent = TIPS[Math.floor(Math.random() * TIPS.length)];
+  // (opened from the http address to reach a wheel or gamepad: bring its progress and settings across first)
+  await receiveCarry();
   const settings = new Settings();
   const save = new SaveSystem();
   const quality = new QualityManager(settings);
@@ -91,6 +95,14 @@ async function boot() {
   game.start();
   $('loading').classList.add('fade');
   setTimeout(() => $('loading').remove(), 900);
+  // (opened at http on another PC: say once where a wheel or gamepad works, when the server answers https too)
+  if (controllersBlocked() && !Storage.load('httpsHint', false)) {
+    fetch('/api/config').then((r) => r.json()).then((c) => {
+      if (!c.https) return;
+      Storage.save('httpsHint', true);
+      bus.emit('toast', { text: `Steering wheel or gamepad? Browsers give them only to secure pages: open ${secureUrl()} (Settings > Controls)`, time: 9 });
+    }).catch(() => {});
+  }
 }
 
 // ---- installable app + full screen

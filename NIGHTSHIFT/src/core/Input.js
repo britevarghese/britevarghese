@@ -2,7 +2,7 @@
 import { clamp, approach } from './util.js';
 import { TouchControls } from './TouchControls.js';
 import { bus } from './EventBus.js';
-import { isWheel, xboxLayout, pedal, wheelSteer, hat, profileFor, saveProfile, settlePedals } from './Wheel.js';
+import { isWheel, xboxLayout, pedal, wheelSteer, hat, profileFor, saveProfile, settlePedals, gamepads } from './Wheel.js';
 
 const KEYMAP = {
   throttle: ['KeyW', 'ArrowUp'],
@@ -95,7 +95,7 @@ export class InputManager {
     let lookX = 0, lookY = 0;
 
     // gamepad (standard mapping), or a steering wheel (see Wheel.js)
-    const pads = navigator.getGamepads ? navigator.getGamepads() : [];
+    const pads = gamepads();
     // (with more than one, a wheel set up here first: some wheels show up twice, as themselves and as an Xbox pad)
     const live = [...pads].filter(Boolean);
     const pad = (live.length > 1 && live.find((p) => profileFor(this.settings, p))) || pads[this.gamepadIndex] || live[0];
@@ -179,7 +179,7 @@ export class InputManager {
     c.lookX = lookX + this.mouse.dx * 0.004 * csens; c.lookY = lookY + this.mouse.dy * 0.004 * csens;
     c.mouseLook = this.mouse.dragging || performance.now() - this.mouse.lastMove < 1500;
     // aiming a weapon on foot: the right mouse button, or the left trigger
-    c.aim = this.mouse.aim || !!T?.aim || (!this.wheel && this.gamepadIndex >= 0 && (navigator.getGamepads?.()[this.gamepadIndex]?.buttons[6]?.value || 0) > 0.5);
+    c.aim = this.mouse.aim || !!T?.aim || (!this.wheel && this.gamepadIndex >= 0 && (gamepads()[this.gamepadIndex]?.buttons[6]?.value || 0) > 0.5);
     this.mouse.dx = 0; this.mouse.dy = 0;
   }
 
@@ -187,7 +187,7 @@ export class InputManager {
 
   rumble(strong = 0.5, weak = 0.5, ms = 120) {
     if (!this.settings.gameplay.vibration || this.gamepadIndex < 0) return;
-    const pad = navigator.getGamepads?.()[this.gamepadIndex];
+    const pad = gamepads()[this.gamepadIndex];
     const act = pad?.vibrationActuator;
     if (act?.playEffect) act.playEffect('dual-rumble', { duration: ms, strongMagnitude: clamp(strong, 0, 1), weakMagnitude: clamp(weak, 0, 1) }).catch(() => {});
   }
