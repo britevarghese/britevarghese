@@ -4,6 +4,8 @@ import { MAP_SCALE } from './MapRenderer.js';
 import { friendColor } from '../networking/NetworkClient.js';
 import * as VP from '../core/Viewport.js';
 import { bus } from '../core/EventBus.js';
+import { WheelSetup } from './WheelSetup.js';
+import { profileFor } from '../core/Wheel.js';
 import { QUALITY_LEVELS, QUALITY_LABELS } from '../core/QualityManager.js';
 import { formatMoney, formatTime } from '../core/util.js';
 import { RACE_TYPE_NAMES } from '../races/RaceEvents.js';
@@ -28,6 +30,9 @@ export class UIManager {
     this.current = null;
     this.focusList = []; this.focusIdx = 0;
     bus.on('toast', (t) => this.toast(t.text, t.type, t.time));
+    // a steering wheel plugged in with its pedals not learnt yet
+    this.wheelSetup = new WheelSetup(game.settings);
+    bus.on('wheel:setup', (e) => this.wheelSetup.start(e.id));
   }
 
   toast(text, type = '', time = 3) {
@@ -416,7 +421,17 @@ export class UIManager {
         this._netTimer = setInterval(() => { if (!stEl.isConnected) { clearInterval(this._netTimer); return; } refresh(); }, 500);
         body.appendChild(h('div', 'row', `<label>How to play together</label><div class="desc" style="max-width:26rem">Everyone opens the same server address (the host's LAN / Radmin / online URL). Other players show up with their name tag and on the map. Get out with F and take any car: traffic, stopped police cruisers, street rivals, or a car another player left parked. Traffic and police are your own.</div>`));
       } else {
-        body.innerHTML = `<div class="row"><label>Throttle / Brake-Reverse</label><div>W / S · RT / LT</div></div>
+        // a steering wheel: what's connected, its pedals (learnt once: SET UP PEDALS), and its buttons
+        const W = g.input.wheel, prof = W && profileFor(S, W);
+        opt('Controller', 'Auto knows most steering wheels by name (Logitech, Thrustmaster, Fanatec, Moza...)', 'gameplay', 'controller', ['auto', 'wheel', 'gamepad'], ['AUTO', 'STEERING WHEEL', 'GAMEPAD']);
+        const wr = h('div', 'row');
+        wr.appendChild(h('div', '', `<label>Steering wheel</label><div class="desc">${W ? `<b>${W.id.replace(/\s*\(.*$/, '').replace(/[<>&]/g, '') || 'Connected'}</b> · ${prof ? 'pedals set' : 'pedals not set up yet'}` : 'None connected (press a button on it if it is plugged in)'}. Turn its range to 900° or less in the wheel's own software; force feedback isn't available in the browser</div>`));
+        const su = h('button', 'btn', 'SET UP PEDALS'); su.disabled = !W;
+        su.onclick = () => this.wheelSetup.start(W?.id);
+        wr.appendChild(su);
+        body.appendChild(wr);
+        body.insertAdjacentHTML('beforeend', `<div class="row"><label>On a steering wheel</label><div>Pedals · cross / A handbrake · triangle / Y get in / out · right paddle nitrous · left paddle horn · Options / Menu pause · Share / View map · R3 / RSB camera</div></div>`);
+        body.insertAdjacentHTML('beforeend', `<div class="row"><label>Throttle / Brake-Reverse</label><div>W / S · RT / LT</div></div>
           <div class="row"><label>Steer</label><div>A / D · Left stick</div></div>
           <div class="row"><label>Handbrake (drift)</label><div>SPACE · A</div></div>
           <div class="row"><label>Nitrous</label><div>SHIFT · RB</div></div>
@@ -428,7 +443,7 @@ export class UIManager {
           <div class="row"><label>Horn</label><div>H · R3</div></div>
           <div class="row"><label>Pause</label><div>ESC · Start</div></div>
           <div class="row"><label>Developer stats</label><div>F3</div></div>
-          <div class="row"><label>Fullscreen</label><div>F11</div></div>`;
+          <div class="row"><label>Fullscreen</label><div>F11</div></div>`);
       }
     };
     render();

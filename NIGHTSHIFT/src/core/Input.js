@@ -1,6 +1,8 @@
 // InputManager: keyboard + mouse + gamepad -> normalized driving controls and edge-triggered actions.
 import { clamp, approach } from './util.js';
 import { TouchControls } from './TouchControls.js';
+import { bus } from './EventBus.js';
+import { isWheel, xboxLayout, pedal, wheelSteer, hat, profileFor } from './Wheel.js';
 
 const KEYMAP = {
   throttle: ['KeyW', 'ArrowUp'],
@@ -25,6 +27,8 @@ export class InputManager {
     this.controls = { throttle: 0, brake: 0, steer: 0, handbrake: 0, nitro: false, lookBack: false, lookX: 0, lookY: 0 };
     this.steerKeyboard = 0;
     this.gamepadIndex = -1;
+    this.wheel = null;           // the steering wheel in use (a Gamepad), if the controller is one
+    this._wheelAsked = new Set(); // (wheels whose pedals the setup has asked for this session)
     this.lastDevice = 'keyboard';
     this.mouse = { dx: 0, dy: 0, dragging: false, lastMove: 0, aim: false };
     this.enabled = true;
@@ -89,10 +93,36 @@ export class InputManager {
     let lookBack = this._any(KEYMAP.lookBack);
     let lookX = 0, lookY = 0;
 
-    // gamepad (standard mapping)
+    // gamepad (standard mapping), or a steering wheel (see Wheel.js)
     const pads = navigator.getGamepads ? navigator.getGamepads() : [];
     const pad = this.gamepadIndex >= 0 ? pads[this.gamepadIndex] : [...pads].find((p) => p);
-    if (pad) {
+    this.wheel = pad && isWheel(pad, this.settings.gameplay.controller) ? pad : null;
+    const edge = (key, p, action) => {
+      if (p && !this._padPrev[key]) for (const a of [].concat(action)) this.pressed.add(a);
+      this._padPrev[key] = p;
+    };
+    if (this.wheel) {
+      this.gamepadIndex = pad.index;
+      // its pedals, once learnt (the setup asks for them the first time a wheel is seen, once a session)
+      const prof = profileFor(this.settings, pad);
+      if (!prof && !this._wheelAsked.has(pad.id)) { this._wheelAsked.add(pad.id); bus.emit('wheel:setup', { id: pad.id }); }
+      const s = wheelSteer(pad, sens), th = pedal(pad, prof?.throttle), br = pedal(pad, prof?.brake);
+      const B = (i) => !!pad.buttons[i]?.pressed;
+      if (Math.abs(s) > 0.03 || th > 0.05 || br > 0.05 || pad.buttons.some((b) => b.pressed)) this.lastDevice = 'wheel';
+      if (s !== 0) steer = s;                                      // (linear: as far as the wheel is turned)
+      throttle = Math.max(throttle, th); brake = Math.max(brake, br);
+      // buttons: the face buttons as on a pad (A / cross: handbrake, Y / triangle: get in / out); the paddles nitro and
+      // horn (never the car's reset, a paddle is pulled by accident). Menu buttons where each layout has them
+      if (B(0)) handbrake = 1;
+      if (B(2)) lookBack = true;
+      if (B(4)) nitro = true;
+      const X = xboxLayout(pad);
+      edge(0, B(0), ['confirm', 'jump']); edge(1, B(1), ['back', 'attack']); edge(3, B(3), 'enter'); edge(5, B(5), 'horn');
+      edge(X ? 6 : 9, B(X ? 6 : 9), 'pause'); edge(X ? 7 : 8, B(X ? 7 : 8), 'map'); edge(X ? 8 : 10, B(X ? 8 : 10), 'camera'); edge(X ? 9 : 11, B(X ? 9 : 11), 'horn');
+      // the d-pad: a hat axis (Chrome), or buttons 12-15 (Firefox)
+      const H = hat(pad);
+      edge('hu', H.up || B(12), 'up'); edge('hd', H.down || B(13), 'down'); edge('hl', H.left || B(14), 'leftNav'); edge('hr', H.right || B(15), 'rightNav');
+    } else if (pad) {
       this.gamepadIndex = pad.index;
       const ax = pad.axes[0] || 0;
       const dz = (v, d = 0.12) => (Math.abs(v) < d ? 0 : (v - Math.sign(v) * d) / (1 - d));
@@ -107,21 +137,17 @@ export class InputManager {
       if (pad.buttons[5]?.pressed) nitro = true;            // RB
       if (pad.buttons[2]?.pressed) lookBack = true;         // X
       lookX = dz(pad.axes[2] || 0, 0.2); lookY = dz(pad.axes[3] || 0, 0.2);
-      const edge = (i, action) => {
-        const p = !!pad.buttons[i]?.pressed;
-        if (p && !this._padPrev[i]) for (const a of [].concat(action)) this.pressed.add(a);
-        this._padPrev[i] = p;
-      };
-      edge(11, 'camera');  // R3 (Y is get in / out, like GTA)
-      edge(9, 'pause');    // Start
-      edge(3, 'enter');    // Y: get in / out
-      edge(8, 'map');      // Back/View
-      edge(1, ['back', 'attack']); // B: back in menus, punch on foot
-      edge(0, ['confirm', 'jump']);  // A (menus / jump on foot)
-      edge(12, 'up'); edge(14, 'leftNav'); edge(15, 'rightNav');
-      edge(4, ['reset', 'reload']);    // LB (on foot: reload)
-      edge(13, ['down', 'weapon']);  // d-pad down: menus; on foot, draw / holster the pistol
-      edge(11, 'horn');    // R3
+      const btn = (i, action) => edge(i, !!pad.buttons[i]?.pressed, action);
+      btn(11, 'camera');  // R3 (Y is get in / out, like GTA)
+      btn(9, 'pause');    // Start
+      btn(3, 'enter');    // Y: get in / out
+      btn(8, 'map');      // Back/View
+      btn(1, ['back', 'attack']); // B: back in menus, punch on foot
+      btn(0, ['confirm', 'jump']);  // A (menus / jump on foot)
+      btn(12, 'up'); btn(14, 'leftNav'); btn(15, 'rightNav');
+      btn(4, ['reset', 'reload']);    // LB (on foot: reload)
+      btn(13, ['down', 'weapon']);  // d-pad down: menus; on foot, draw / holster the pistol
+      btn(11, 'horn');    // R3
     }
     // touch screen (phones, tablets)
     const T = this.touch.state();
@@ -139,7 +165,7 @@ export class InputManager {
     c.lookX = lookX + this.mouse.dx * 0.004 * csens; c.lookY = lookY + this.mouse.dy * 0.004 * csens;
     c.mouseLook = this.mouse.dragging || performance.now() - this.mouse.lastMove < 1500;
     // aiming a weapon on foot: the right mouse button, or the left trigger
-    c.aim = this.mouse.aim || !!T?.aim || (this.gamepadIndex >= 0 && (navigator.getGamepads?.()[this.gamepadIndex]?.buttons[6]?.value || 0) > 0.5);
+    c.aim = this.mouse.aim || !!T?.aim || (!this.wheel && this.gamepadIndex >= 0 && (navigator.getGamepads?.()[this.gamepadIndex]?.buttons[6]?.value || 0) > 0.5);
     this.mouse.dx = 0; this.mouse.dy = 0;
   }
 

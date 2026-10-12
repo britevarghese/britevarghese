@@ -6,6 +6,12 @@ the game. Newly found problems go at the end of their section.
 ## Driving and vehicles
 - [x] Stolen vehicles: turning and acceleration (all eleven types tested; the get-in took 6-8 s with the controls dead: now ~3-5 s, gas finishes it)
 - [x] Autorickshaw: colour changes when you get in (livery kept); its own single-cylinder sound (and diesel sounds for jeeps, lorries, buses)
+- [x] Steering wheels (Logitech G29 / G920 / G923, Thrustmaster, Fanatec, Moza...): the game read every controller as
+  an Xbox pad, so a wheel steered with a thumbstick's curve and dead zone and its pedals did nothing (and could turn
+  the camera). A wheel is known by its name: linear steering, and its pedals learnt the first time it's plugged in
+  (a panel asks for the accelerator, then the brake; each wheel reports them its own way), kept per wheel; paddles
+  for nitrous and horn, never the car's reset; the d-pad for the menus. Settings > Controls shows the wheel and sets
+  the pedals up again. (No force feedback: browsers don't offer it)
 - [x] Autorickshaw first person: eye on the front bench, centre
 - [x] Autorickshaw first person: no hands at all (the cockpit probe stopped early for autos) and no handlebar in the
   model. It has ours now, chrome with black rubber grips over the dash, turning about the raked column with the

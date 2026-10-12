@@ -29,6 +29,8 @@ export const DEFAULT_SETTINGS = {
     mouseCapture: true,       // a click captures the mouse for looking around (Esc frees it)
     steeringSensitivity: 1,
     vibration: true,
+    controller: 'auto',       // auto | wheel | gamepad: what the controller is (auto: a steering wheel by its name)
+    wheelProfiles: [],        // a steering wheel's pedals, learnt once: [{ id, throttle: { a, rest, full }, brake }]
     units: 'kmh',             // kmh | mph
     defaultCamera: 1,
     fullscreen: true,         // go full screen on the first click / key press
