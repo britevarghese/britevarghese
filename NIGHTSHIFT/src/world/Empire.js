@@ -7,6 +7,7 @@
 // Walk or drive up to a marker: FOR SALE signs show the price; press E to buy / rest / start a job.
 import * as THREE from 'three';
 import { bus } from '../core/EventBus.js';
+import { markerBeam } from './MarkerBeam.js';
 import { formatMoney } from '../core/util.js';
 import { CARS } from '../vehicles/VehicleCatalog.js';
 import { EDGE, DISTRICT_NAMES, district } from './CityLayout.js';
@@ -98,7 +99,7 @@ export class Empire {
     grp.position.set(spot.x, spot.y, spot.z);
     const ring = new THREE.Mesh(new THREE.RingGeometry(1.5, 2.0, 36).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.8, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false }));
     ring.position.y = 0.06;
-    const beam = new THREE.Mesh(new THREE.CylinderGeometry(0.45, 0.45, 30, 12, 1, true).translate(0, 15, 0), new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.12, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide, toneMapped: false }));
+    const beam = markerBeam(new THREE.CylinderGeometry(0.45, 0.45, 30, 12, 1, true).translate(0, 15, 0), 0xffffff, 0.16, { near: 4, far: 20 });
     grp.add(ring, beam);
     g.scene.add(grp);
     const m = { item, isJob, spot, grp, ring, beam, sign: null, signKey: '' };

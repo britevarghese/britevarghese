@@ -828,7 +828,6 @@ export class Game {
       this.traffic.camera = this.camera;
       const fs = this.focusState;
       this.traffic.update(dt, fs, this.onFoot.active ? { x: Math.sin(fs.yaw), z: Math.cos(fs.yaw) } : fwd, dynamic, player);
-      this.trafficDrivers.update(dt);
       // player vs police
       for (const u of this.police.units) {
         const v = u.vehicle;
@@ -962,6 +961,8 @@ export class Game {
     if (this.trafficRenderer) {
       const moving = this.replay.active ? this.replay.trafficList : this.traffic.renderList;
       this.trafficRenderer.update(moving.concat(this._parkedNear(dt)), this.camera, this.env.state.night, this.world.lights);
+      // the drivers in the cars just drawn (none in a replay's: its cars are new objects every frame)
+      this.trafficDrivers.update(dt, this.replay.active ? [] : moving);
     }
     this._wetReflections([player, ...this.police.vehicles(), ...this.races.vehicles(), ...this.rivals.vehicles()]);
     // who pedestrians fight: the player on foot

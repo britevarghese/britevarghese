@@ -38,13 +38,15 @@ export class TrafficDrivers {
     return h;
   }
 
-  update(dt) {
-    const g = this.game, H = g.humans;
-    if (!H?.ready || !g.traffic?.cars) return;
-    const K = Math.min(8, Math.round((g.preset.people ?? 8) * 0.75));
-    const want = g.traffic.cars.filter((c) => c.dist < 60 && !c.spec.bike && (c.state === 'drive' || c.pulled) && this._seatOf(c.type)).sort((a, b) => a.dist - b.dist).slice(0, K);
+  // cars: the traffic just drawn (called right after the traffic renderer, every frame, whatever the game is doing). A
+  // driver sits only in a car the renderer drew this frame: run apart from the drawing (it froze with the game while
+  // the cars drew on), people were left sitting on the road with no car round them
+  update(dt, cars = []) {
+    const g = this.game, H = g.humans, R = g.trafficRenderer;
+    const K = H?.ready && R ? Math.min(8, Math.round((g.preset.people ?? 8) * 0.75)) : 0;
+    const want = K ? cars.filter((c) => c.drawn === R.tick && c.dist < 60 && !c.spec?.bike && (c.state === 'drive' || c.pulled) && this._seatOf(c.type)).sort((a, b) => a.dist - b.dist).slice(0, K) : [];
     const keep = new Set(want);
-    for (const [c, h] of this.on) if (!keep.has(c) || !g.traffic.cars.includes(c)) { h.group.removeFromParent(); this.pool.push(h); this.on.delete(c); }
+    for (const [c, h] of this.on) if (!keep.has(c)) { h.group.removeFromParent(); this.pool.push(h); this.on.delete(c); }
     for (const c of want) {
       let h = this.on.get(c);
       if (!h) { h = this._take(); if (!h) continue; this.on.set(c, h); g.scene.add(h.group); }

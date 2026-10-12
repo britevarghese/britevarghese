@@ -12,6 +12,14 @@ the game. Newly found problems go at the end of their section.
   (a panel asks for the accelerator, then the brake; each wheel reports them its own way), kept per wheel; paddles
   for nitrous and horn, never the car's reset; the d-pad for the menus. Settings > Controls shows the wheel and sets
   the pedals up again. (No force feedback: browsers don't offer it)
+- [x] Budget wheels (Nitho Drive Pro V200, PXN, Hori...): the pedals still did nothing. Such a wheel doesn't give its
+  make: in D-Input mode it's a 'USB Gamepad' with the pedals on any axes (or both on one, accelerator one way, brake
+  the other), in X-Input mode an Xbox pad with them on the triggers or a stick. A controller that isn't a known
+  gamepad and isn't laid out as one is taken for a wheel now, and the setup learns the wheel and both pedals from
+  whatever moves (an axis or an analogue button, resting at either end, a pedal that reads 0 until first pressed),
+  showing what it sees. Any controller can be set up from Settings > Controls > SET UP WHEEL (an X-Input wheel looks
+  like an Xbox pad: a note says so when one is plugged in); until it is, a wheel's pedals are read where a pad has
+  its triggers
 - [x] Autorickshaw first person: eye on the front bench, centre
 - [x] Autorickshaw first person: no hands at all (the cockpit probe stopped early for autos) and no handlebar in the
   model. It has ours now, chrome with black rubber grips over the dash, turning about the raked column with the
@@ -101,6 +109,13 @@ the game. Newly found problems go at the end of their section.
 - [x] Characters torn into spikes up close (hands, faces, hair, clothes; the 'blocky' hands at the wheel): the map's
   coordinates run to 200 km and the GPU skinned in float32 there (~1-2 cm steps). Skinning is now worked out about
   the camera: every character smooth
+- [x] People sitting in mid-air on the road, hands on a wheel that wasn't there (by a mission marker): the drivers of
+  the traffic, seated by a system run apart from the drawing of the cars, which froze with the game while the cars
+  drew on. They are seated now right after the traffic is drawn, every frame and whatever the game is doing, and
+  only in a vehicle drawn that frame (none in a replay's; a multiplayer guest's traffic gets its drivers too)
+- [x] A mission's light column filled the screen yellow when the car stood on the marker: the columns (missions,
+  races, garages, contacts, businesses) are brightest at the foot and fade up into the sky, and fade out as the
+  camera comes within ~9-30 m (a contact's or business's within ~4-20 m); the ring on the ground stays
 
 ## Roads and world
 - [x] Kannur is the starting area (story, garages, races moved there)
@@ -140,6 +155,11 @@ the game. Newly found problems go at the end of their section.
   - [x] A canal bridge whose head is right at a junction dipped 1.5 m in a V there (a ramp crossing another road is
     brought down to it, meant for a ramp passing over a street): by the water it stays up, the side road climbing
     to meet it. Kannur's humps (the same inspector) 77 -> 72; 60 of those are small canal-bridge crests
-  - [ ] Still to do: a road running along a canal (water on both sides for 30 m and more) reads as a bridge and is
-    lifted ~1.8 m, its ramp too steep where a junction is close (one in Kannur); a footbridge's short ramps
+  - [x] A road running along a canal or a creek (the waterway's line drawn over the road's centre) was read as a
+    bridge and lifted on a deck: 1.8 m with a steep ramp by a junction (the one reported, in Kannur), and up to 6-7 m
+    for 200 m where a main road's drains, joined up, passed for a river. A crossing has water on both sides of the
+    road for a good part of the way over; a road with the water along one side stays on its ground, with the canal
+    wall beside it. Mapped bridges and the river bridges stay. Kannur's humps (the same inspector) 72 -> 21,
+    Thalassery and Valapattanam 14 and 26; no steps, no new floats
+  - [ ] Still to do: a footbridge's short ramps (Kannur's two worst humps)
 - [x] Realistic trees: real coconut palm, banana and broadleaf models (Sketchfab, CC BY) within ~90 m of the camera, with leaf-cut shadows; the generated plants beyond. (Junction-height priority was tried for the remaining road humps: more humps, reverted)

@@ -9,6 +9,7 @@ import { CARS, tunedParams, PAINTS, PLAYER_CAR_ORDER, TIERS } from '../vehicles/
 import { VehiclePhysics } from '../physics/VehiclePhysics.js';
 import { GRID, RING } from '../world/CityLayout.js';
 import { bus } from '../core/EventBus.js';
+import { markerBeam } from '../world/MarkerBeam.js';
 import { clamp, wrapAngle } from '../core/util.js';
 
 const OPP_NAMES = ['Vex', 'Juno', 'Kaito', 'Rhea', 'Marlow', 'Sable', 'Dex', 'Nova'];
@@ -136,7 +137,7 @@ export class RaceManager {
     const ringGeo = new THREE.RingGeometry(5.5, 7, 40).rotateX(-Math.PI / 2);
     for (const ev of this.events) {
       const color = ev.def.type === 'escape' ? 0x3d7bff : ev.def.type === 'speedrun' || ev.def.type === 'timetrial' ? 0x37e2ff : 0xffc53d;
-      const beam = new THREE.Mesh(beamGeo, new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.16, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide, toneMapped: false }));
+      const beam = markerBeam(beamGeo, color, 0.2);
       const ring = new THREE.Mesh(ringGeo, new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.8, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false, polygonOffset: true, polygonOffsetFactor: -4 }));
       const g = new THREE.Group();
       g.add(beam, ring);

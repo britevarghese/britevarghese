@@ -201,6 +201,7 @@ export class TrafficRenderer {
   update(cars, camera, night, refl = null) {
     const counts = {}, rc = {};
     let wi = 0, gi = 0, ti = 0, bi = 0;
+    this.tick = (this.tick || 0) + 1;     // (each car drawn is marked with it: the seated drivers go only in those)
     const lightsOnAll = night > 0.35;
     const cq = camera.quaternion;
     for (const c of cars) {
@@ -211,6 +212,7 @@ export class TrafficRenderer {
       const n = counts[key] || 0;
       if (n >= this.max) continue;
       counts[key] = n + 1;
+      c.drawn = this.tick;
       _e.set(-(c.pitch || 0), c.yaw, c.roll || 0, 'YXZ');
       _q.setFromEuler(_e);
       _m.compose(_p.set(c.x, c.y, c.z), _q, _s.set(1, 1, 1));

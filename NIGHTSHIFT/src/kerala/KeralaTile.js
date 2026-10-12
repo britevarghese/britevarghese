@@ -622,11 +622,13 @@ export class KeralaTile {
       }
       if (P.length < 2) continue;
       // (the road's own pixels read as road: over water means water on both sides of it)
-      const water = P.map(([e, n], i) => {
-        if (isW(e, n)) return true;
+      // (and whether the water is on both sides, as under a crossing: a road along a canal bank, the canal's line
+      // drawn over its centre, has it on one side only)
+      const across = P.map(([e, n], i) => {
         const a = P[Math.max(0, i - 1)], b = P[Math.min(P.length - 1, i + 1)], de = b[0] - a[0], dn = b[1] - a[1], l = Math.hypot(de, dn) || 1, o = hw + 5;
         return isW(e - dn / l * o, n + de / l * o) && isW(e + dn / l * o, n - de / l * o);
       });
+      const water = P.map(([e, n], i) => across[i] || isW(e, n));
       // (in the lowlands, the ground before the water beds were sunk, at most half a metre lower: a road beside a
       // creek doesn't dip into its bed; h0 is shared along the tile edges, so neighbours agree. Not in the hills:
       // the coarse survey grid stands far above a valley floor there)
@@ -637,7 +639,7 @@ export class KeralaTile {
         return dE < 20 ? h0 + (y - h0) * _smooth(dE / 20) : y;
       };
       const cross = (r.flags & 2) && !water.some(Boolean) ? this._roadBeneath(r) : [];
-      E.push({ r, hw, P, at, raw: P.map(([e, n]) => rawAt(e, n)), water, over: cross.length > 0, cross });
+      E.push({ r, hw, P, at, raw: P.map(([e, n]) => rawAt(e, n)), water, across, over: cross.length > 0, cross });
     }
     // two roads crossing in the map without a shared point (neither a bridge): a junction all the same, one level
     {
@@ -748,14 +750,14 @@ export class KeralaTile {
     //    ground kept at the tile's edge (the neighbour sees the same) and eased into over 80 m; decks where it crosses
     //    water or runs over another road
     for (const ch of chains) {
-      const P = [], raw = [], water = [], over = [], own = [], brg = [], ring = [];
+      const P = [], raw = [], water = [], across = [], over = [], own = [], brg = [], ring = [];
       for (const [ei, fwd] of ch) {
         const x = E[ei], n = x.P.length;
         for (let q = 0; q < n; q++) {
           const i = fwd ? q : n - 1 - q;
           if (P.length && q === 0) { own.push([ei, i, P.length - 1]); continue; }   // the shared joint
           // (raised only over the road beneath: within ~22 m of where it crosses; the ramps do the rest)
-          own.push([ei, i, P.length]); P.push(x.P[i]); raw.push(x.raw[i]); water.push(x.water[i]); ring.push(ringY.get(x)); over.push(x.over && x.cross.some(([ce, cn]) => Math.hypot(ce - x.P[i][0], cn - x.P[i][1]) < 22));
+          own.push([ei, i, P.length]); P.push(x.P[i]); raw.push(x.raw[i]); water.push(x.water[i]); across.push(x.across[i]); ring.push(ringY.get(x)); over.push(x.over && x.cross.some(([ce, cn]) => Math.hypot(ce - x.P[i][0], cn - x.P[i][1]) < 22));
           brg.push(x.r.flags & 2 ? x.r.cls : 0);
         }
       }
@@ -796,6 +798,16 @@ export class KeralaTile {
           if (D[j] - D[i] >= 80 && wl >= (D[j] - D[i]) * 0.4) for (let k = i; k <= j; k++) water[k] = true;
           i = j + 1;
         }
+      }
+      // (water along the road, not across it: a road on a canal's bank, the canal drawn over its centre, was raised
+      // on a deck all along the bank with steep ramps at each end. A crossing has the water on both sides of the
+      // road for a good part of the way over; a culvert's few metres change nothing either way)
+      for (let i = 0; i < P.length;) {
+        if (!water[i] || over[i]) { i++; continue; }
+        let j = i; while (j + 1 < P.length && water[j + 1] && !over[j + 1]) j++;
+        let both = 0; for (let k = i; k <= j; k++) both += across[k] ? 1 : 0;
+        if (D[j] - D[i] + 4 >= 14 && both < (j - i + 1) * 0.3) for (let k = i; k <= j; k++) water[k] = false;
+        i = j + 1;
       }
       const wet = water.map((w, i) => w || over[i]);
       const cls = Math.min(...ch.map(([ei]) => E[ei].r.cls)), raised = new Uint8Array(P.length);

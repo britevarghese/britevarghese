@@ -2,6 +2,7 @@
 // garage screen), and where they wake up after being busted. Each one stands at a place from the map's list
 // and is moved onto the nearest road once the tiles round it have loaded; a green ring marks the forecourt.
 import * as THREE from 'three';
+import { markerBeam } from '../world/MarkerBeam.js';
 
 const KANNUR = [98566, 209513];
 const GARAGES = [
@@ -33,7 +34,7 @@ export class KeralaGarages {
     const mat = (o) => new THREE.MeshBasicMaterial({ color: 0x3dff9a, transparent: true, opacity: o, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide, toneMapped: false });
     for (const g of this.list) {
       const m = new THREE.Group();
-      m.add(new THREE.Mesh(beam, mat(0.12)), new THREE.Mesh(ring, mat(0.7)));
+      m.add(markerBeam(beam, 0x3dff9a, 0.16), new THREE.Mesh(ring, mat(0.7)));
       m.visible = false;
       g.marker = m; this.group.add(m);
     }

@@ -4,6 +4,7 @@
 // cash + XP, and the next mission unlocks. Progress is saved.
 import * as THREE from 'three';
 import { bus } from '../core/EventBus.js';
+import { markerBeam } from '../world/MarkerBeam.js';
 import { clamp, formatMoney } from '../core/util.js';
 import { CAST, STORY, STORY_CHAPTERS } from './StoryData.js';
 import { buildCharacter } from '../player/OnFoot.js';
@@ -47,7 +48,7 @@ export class Story {
     const g = this.game;
     const mk = (color, r0, r1, beamR) => {
       const grp = new THREE.Group();
-      const beam = new THREE.Mesh(new THREE.CylinderGeometry(beamR, beamR, 60, 16, 1, true).translate(0, 30, 0), new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.18, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide, toneMapped: false }));
+      const beam = markerBeam(new THREE.CylinderGeometry(beamR, beamR, 60, 16, 1, true).translate(0, 30, 0), color, 0.22);
       const ring = new THREE.Mesh(new THREE.RingGeometry(r0, r1, 40).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.85, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false }));
       ring.position.y = 0.06;
       grp.add(beam, ring); grp.visible = false; g.scene.add(grp);
@@ -84,7 +85,7 @@ export class Story {
     g.scene.add(body.group);
     const ring = new THREE.Mesh(new THREE.RingGeometry(1.4, 1.9, 32).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ color: new THREE.Color(c.color), transparent: true, opacity: 0.8, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false }));
     ring.position.set(x, y + 0.05, z); g.scene.add(ring);
-    const beam = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.5, 40, 12, 1, true).translate(0, 20, 0), new THREE.MeshBasicMaterial({ color: new THREE.Color(c.color), transparent: true, opacity: 0.14, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide, toneMapped: false }));
+    const beam = markerBeam(new THREE.CylinderGeometry(0.5, 0.5, 40, 12, 1, true).translate(0, 20, 0), new THREE.Color(c.color), 0.18, { near: 4, far: 20 });
     beam.position.set(x, y, z); g.scene.add(beam);
     // where the player's car goes on retry
     return (this.givers[id] = { id, x, y, z, body, ring, beam, lane });
