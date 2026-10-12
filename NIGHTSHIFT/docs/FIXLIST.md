@@ -182,5 +182,7 @@ the game. Newly found problems go at the end of their section.
     road for a good part of the way over; a road with the water along one side stays on its ground, with the canal
     wall beside it. Mapped bridges and the river bridges stay. Kannur's humps (the same inspector) 72 -> 21,
     Thalassery and Valapattanam 14 and 26; no steps, no new floats
-  - [ ] Still to do: a footbridge's short ramps (Kannur's two worst humps)
+  - [x] Kannur's two worst humps (taken for a footbridge's short ramps): a service road mapped as a bridge over
+    another road, lifted 5 m on ramps of 27 % between two junctions 18 m apart. A bridge with no room for ramps a
+    car can drive (15 %) crosses at the ground now; a bridge over a road in a tunnel is no flyover either
 - [x] Realistic trees: real coconut palm, banana and broadleaf models (Sketchfab, CC BY) within ~90 m of the camera, with leaf-cut shadows; the generated plants beyond. (Junction-height priority was tried for the remaining road humps: more humps, reverted)

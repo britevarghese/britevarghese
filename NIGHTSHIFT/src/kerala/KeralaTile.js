@@ -96,6 +96,21 @@ function gridAt(H, N, S, e, n) {
 const _cr = (p0, p1, p2, p3, t) => p1 + 0.5 * t * (p2 - p0 + t * (2 * p0 - 5 * p1 + 4 * p2 - p3 + t * (3 * (p1 - p2) + p3 - p0)));
 const _smooth = (x) => x * x * (3 - 2 * x);
 
+// the 62.5 m survey grid, resampled smoothly (Catmull-Rom) to N x N
+function _resample(H, N) {
+  const S = TILE / (N - 1), F = new Float32Array(N * N), r = [0, 0, 0, 0];
+  const at = (i, j) => H[Math.min(GRID - 1, Math.max(0, j)) * GRID + Math.min(GRID - 1, Math.max(0, i))];
+  for (let j = 0; j < N; j++) {
+    const gz = j * S / STEP, j0 = Math.min(GRID - 2, Math.floor(gz)), fz = gz - j0;
+    for (let i = 0; i < N; i++) {
+      const gx = i * S / STEP, i0 = Math.min(GRID - 2, Math.floor(gx)), fx = gx - i0;
+      for (let b = -1; b <= 2; b++) r[b + 1] = _cr(at(i0 - 1, j0 + b), at(i0, j0 + b), at(i0 + 1, j0 + b), at(i0 + 2, j0 + b), fx);
+      F[j * N + i] = _cr(r[0], r[1], r[2], r[3], fz);
+    }
+  }
+  return F;
+}
+
 export class KeralaTile {
   constructor(tx, tz, data) {
     this.tx = tx; this.tz = tz;
@@ -147,6 +162,7 @@ export class KeralaTile {
     yield 'tile:rasters';
     this._refine(opts.terrainN || 129);
     yield* this._gradeRoads();
+    this.h0r = null;
     yield 'tile:carve';
     this._carveWaterways();
     yield 'tile:grade';
@@ -581,18 +597,11 @@ export class KeralaTile {
   // The 62.5 m survey grid, resampled smoothly (Catmull-Rom) to N x N: no 60 m facets for roads to sit across, and
   // fine enough for the ground to be graded along each road. The tile's edge rows depend only on the edge rows of
   // the survey grid, so neighbouring tiles still meet exactly.
+  // (the survey before the water beds were sunk too, resampled alike: the ground a road beside a pond keeps)
   _refine(N) {
-    const H = this.h, S = TILE / (N - 1), F = new Float32Array(N * N), r = [0, 0, 0, 0];
-    const at = (i, j) => H[Math.min(GRID - 1, Math.max(0, j)) * GRID + Math.min(GRID - 1, Math.max(0, i))];
-    for (let j = 0; j < N; j++) {
-      const gz = j * S / STEP, j0 = Math.min(GRID - 2, Math.floor(gz)), fz = gz - j0;
-      for (let i = 0; i < N; i++) {
-        const gx = i * S / STEP, i0 = Math.min(GRID - 2, Math.floor(gx)), fx = gx - i0;
-        for (let b = -1; b <= 2; b++) r[b + 1] = _cr(at(i0 - 1, j0 + b), at(i0, j0 + b), at(i0 + 1, j0 + b), at(i0 + 2, j0 + b), fx);
-        F[j * N + i] = _cr(r[0], r[1], r[2], r[3], fz);
-      }
-    }
-    this.h = F; this.gn = N; this.gs = S;
+    const S = TILE / (N - 1);
+    this.h0r = this.h0 ? _resample(this.h0, N) : null;
+    this.h = _resample(this.h, N); this.gn = N; this.gs = S;
   }
 
   // Roads are built into the hillside as real ones are: along each road the ground takes a smoothed profile of
@@ -613,7 +622,9 @@ export class KeralaTile {
     };
     const mine = new Set(r.pts.map(([e, n]) => `${Math.round(e)},${Math.round(n)}`));
     for (const o of this.roads) {
-      if (o === r || o.flags & 2 || o.cls > 8 || o.pts.length < 2) continue;
+      // (not a road in a tunnel: an underpass runs below ground, not drawn; a bridge over it is a crossing at ground
+      // level, which was lifted 5 m on steep ramps as if over a road in the open)
+      if (o === r || o.flags & 2 || o.flags & 4 || o.cls > 8 || o.pts.length < 2) continue;
       if (o.pts.some(([e, n]) => mine.has(`${Math.round(e)},${Math.round(n)}`))) continue;
       for (let i = 1; i < r.pts.length; i++) for (let j = 1; j < o.pts.length; j++) seg(r.pts[i - 1], r.pts[i], o.pts[j - 1], o.pts[j]);
     }
@@ -622,7 +633,7 @@ export class KeralaTile {
 
   // (a generator: it pauses every few milliseconds, the world spreading it over frames)
   *_gradeRoads() {
-    const N = this.gn, S = this.gs, pre = this.h.slice(), H = this.h;
+    const N = this.gn, S = this.gs, pre = this.h.slice(), H = this.h, h0r = this.h0r;
     const Ws = new Float32Array(N * N), Ys = new Float32Array(N * N), Am = new Float32Array(N * N), Cap = new Float32Array(N * N).fill(Infinity);
     // each road's own smoothed profile first; then where roads meet they share one height, each road easing to it
     // over its last 30 m (else two roads would meet a step apart on a hillside)
@@ -654,8 +665,11 @@ export class KeralaTile {
       // the coarse survey grid stands far above a valley floor there)
       // (at the tile's edge: the survey before the water was sunk, which both tiles share. The sunk ground can differ
       // there, one tile reading water at the edge and the other not: a road met its other half 0.5 m higher or lower)
+      // (and anywhere, the same ground resampled before the beds were sunk: up in the hills a road beside a pond or a
+      // reservoir dipped 2 m and more into its bed, a hump either side where it met the roads above)
       const rawAt = (e, n) => {
-        const g = gridAt(pre, N, S, e, n), h0 = this._h0At(e, n), y = h0 < 25 ? Math.max(g, h0 - 0.5) : g, dE = Math.min(e, n, TILE - e, TILE - n);
+        const g = gridAt(pre, N, S, e, n), h0 = this._h0At(e, n), g0 = h0r ? gridAt(h0r, N, S, e, n) - 0.5 : g;
+        const y = Math.max(g, g0, h0 < 25 ? h0 - 0.5 : g), dE = Math.min(e, n, TILE - e, TILE - n);
         return dE < 20 ? h0 + (y - h0) * _smooth(dE / 20) : y;
       };
       const cross = (r.flags & 2) && !water.some(Boolean) ? this._roadBeneath(r) : [];
@@ -856,6 +870,14 @@ export class KeralaTile {
               if (y > prof[k]) prof[k] = y;
             }
             i = j + 1; continue;
+          }
+          // (an overpass with no room for its ramps: the road it rides meets other roads too close to either end to
+          // climb a lorry's height at a grade a car can drive, 15 %. A short service bridge was lifted 5 m on ramps of
+          // 27 % between two junctions 18 m off: it crosses at the ground instead. A ramp cut by the tile's edge runs
+          // on in the neighbour. (Over a road, not mostly water: a drain beside the street is no river)
+          if (over.slice(i, j + 1).some(Boolean) && water.slice(i, j + 1).filter(Boolean).length * 2 < j - i + 1) {
+            const need = cls <= 3 ? 6.5 : 5.2, room = (k, end) => (edge[end] < 1.5 ? Infinity : Math.abs(D[k] - D[end]));
+            if (Math.min(room(i, 0), room(j, P.length - 1)) * 0.15 < need) { for (let k = i; k <= j; k++) { wet[k] = false; over[k] = false; } i = j + 1; continue; }
           }
           // (a main road's bridge over a river clears the water by a boat's height)
           const lift = span < 32 ? 0.3 : cls <= 3 ? 2.5 : cls <= 5 ? 2 : 1.5, clear = span < 32 ? 0.6 : span >= 80 && cls <= 3 ? 6 : 2;
