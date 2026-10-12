@@ -33,6 +33,8 @@ the game. Newly found problems go at the end of their section.
   hands near a quarter to three, the palm round the outside of the rim, fingers wrapped behind it, the thumb along
   it; push-pull steering (the hands follow the wheel a little, then the rim slides through them; hand over hand
   swung an arm across the view). The wheel itself turns with the steering
+- [x] First-person jacket sleeves bulky (the source model's are ~1.5 times an arm across): drawn in towards the arm's
+  bones, the upper arm to 72%, the forearm 72% at the elbow to 92% at the cuff (still over the glove's)
 - [x] Bus and lorry first person: the eye ~0.8 m above the driver's seat (it sat just under the cab roof); a bigger,
   flatter wheel (their low-detail cabins have none to find); the hands shown (a rule meant for photo mode turned them
   off whenever the camera was 3 m from the vehicle's middle: a bus driver always is)
