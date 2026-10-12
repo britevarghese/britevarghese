@@ -99,7 +99,9 @@ progress and settings along. Start with `--no-https` to turn https off.
 A browser shows a controller only after one of its buttons or pedals is used while the game's
 window is in front. The first time a wheel is seen, a panel asks you to turn it left and press each
 pedal; *Settings → Controls → SET UP WHEEL* runs it again for any controller (a wheel in X-Input
-mode looks like an Xbox pad).
+mode looks like an Xbox pad). If a wheel never shows up, open `/controllers.html` on the same
+address (also linked in *Settings → Controls*): it shows live what the browser sees of each
+controller, what to check when nothing appears, and a report to copy.
 
 ## Gameplay
 

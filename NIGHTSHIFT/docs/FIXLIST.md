@@ -27,6 +27,10 @@ the game. Newly found problems go at the end of their section.
   now answers https on the same port (a certificate it makes itself: the browser warns once, Advanced > Proceed);
   on an http page the row says so and OPEN HTTPS goes there, taking the progress and settings along (a note says it
   once too). The row follows what the browser sees, every half second
+- [x] A controller test page (/controllers.html, linked from Settings > Controls): what the browser sees of each
+  wheel or gamepad, live (every axis and button), whether the page can see controllers at all, a checklist for when
+  nothing shows (the V200's purple / orange modes and its HOME button, Windows' joy.cpl, Steam Input and other
+  programs that take controllers over) and a report to copy
 - [x] Autorickshaw first person: eye on the front bench, centre
 - [x] Autorickshaw first person: no hands at all (the cockpit probe stopped early for autos) and no handlebar in the
   model. It has ours now, chrome with black rubber grips over the dash, turning about the raked column with the

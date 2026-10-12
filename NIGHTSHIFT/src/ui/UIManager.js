@@ -431,6 +431,7 @@ export class UIManager {
         wr.append(wd, su);
         body.appendChild(wr);
         const esc = (t) => String(t).replace(/[<>&]/g, '');
+        const TEST = '<a href="/controllers.html" target="_blank" style="color:var(--accent2)">controller test</a>';
         const TAIL = 'Turn its range to 900° or less in the wheel\'s own software (or its mode button); force feedback isn\'t available in the browser';
         let target = null, shown = '', seen = false;
         const refresh = () => {
@@ -447,8 +448,8 @@ export class UIManager {
             target = pad?.id || null;
             html = pads.length
               ? pads.map((p) => `<b>${esc(p.id.replace(/\s*\(.*$/, '')) || 'Controller'}</b> · ${isW(p) ? 'used as a wheel' : 'used as a gamepad'} · ${profileFor(S, p) ? 'wheel and pedals set' : 'wheel and pedals not set up yet'}`).join('<br>')
-                + `. Pedals not working? SET UP WHEEL, then turn the wheel and press each pedal when asked. ${TAIL}`
-              : `<b>None seen yet.</b> A browser shows a controller only once it is used: press a button or a pedal on the wheel with this window in front. Still nothing? Check Windows sees it (Start: 'Set up USB game controllers') and that the wheel is in its PC mode. ${TAIL}`;
+                + `. Pedals not working? SET UP WHEEL, then turn the wheel and press each pedal when asked (the ${TEST} shows what each one moves). ${TAIL}`
+              : `<b>None seen yet.</b> A browser shows a controller only once it is used: press a button or a pedal on the wheel with this window in front. Still nothing? Open the ${TEST}: it shows what the browser sees and what to check. ${TAIL}`;
           }
           if (html !== shown) { desc.innerHTML = html; shown = html; }
           su.textContent = label; su.disabled = !target;

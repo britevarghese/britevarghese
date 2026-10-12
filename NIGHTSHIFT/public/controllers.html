@@ -1,0 +1,131 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Controller Test</title>
+<!-- What the browser sees of the wheels and gamepads plugged in, live: without loading the game. If a controller
+     shows here it works in the game; if nothing shows, the browser isn't given it (page not secure, wheel mode,
+     Windows, other software). COPY REPORT gives the details to send. -->
+<style>
+  :root { --bg: #07090d; --panel: #0f131b; --line: rgba(255, 255, 255, 0.1); --text: #eef2f7; --dim: #8a94a6; --ok: #3dff9a; --bad: #ff3d5a; --warn: #ffc53d; --accent: #37e2ff; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.45 "Segoe UI", Roboto, Arial, sans-serif; }
+  main { max-width: 860px; margin: 0 auto; padding: 24px 16px 48px; }
+  h1 { font-size: 1.3rem; letter-spacing: 0.18em; margin: 0 0 4px; }
+  .sub { color: var(--dim); margin: 0 0 20px; }
+  .card { background: var(--panel); border: 1px solid var(--line); border-left: 4px solid var(--dim); padding: 14px 16px; margin: 0 0 14px; }
+  .card.ok { border-left-color: var(--ok); } .card.bad { border-left-color: var(--bad); } .card.warn { border-left-color: var(--warn); }
+  .card h2 { font-size: 0.8rem; letter-spacing: 0.2em; color: var(--dim); margin: 0 0 6px; font-weight: 600; }
+  .big { font-size: 1.05rem; font-weight: 600; }
+  a { color: var(--accent); }
+  code, .mono { font-family: Consolas, "Roboto Mono", monospace; font-size: 0.85rem; }
+  .pad { border-top: 1px solid var(--line); padding-top: 10px; margin-top: 10px; }
+  .pad:first-of-type { border-top: 0; padding-top: 0; margin-top: 0; }
+  .axes { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 6px 14px; margin: 8px 0; }
+  .ax { display: grid; grid-template-columns: 52px 1fr 52px; align-items: center; gap: 6px; font-size: 0.8rem; color: var(--dim); }
+  .bar { position: relative; height: 10px; background: rgba(255, 255, 255, 0.08); }
+  .bar i { position: absolute; top: 0; bottom: 0; background: var(--accent); }
+  .bar b { position: absolute; left: 50%; top: -2px; bottom: -2px; width: 1px; background: var(--line); }
+  .ax.moved { color: var(--text); } .ax.moved .bar i { background: var(--ok); }
+  .btns { display: flex; flex-wrap: wrap; gap: 4px; }
+  .btn { min-width: 30px; padding: 2px 4px; text-align: center; font-size: 0.75rem; border: 1px solid var(--line); color: var(--dim); }
+  .btn.on { background: var(--ok); color: #000; border-color: var(--ok); }
+  ol { margin: 6px 0 0; padding-left: 20px; } li { margin: 4px 0; }
+  button { background: transparent; color: var(--text); border: 1px solid var(--accent); padding: 8px 14px; letter-spacing: 0.12em; cursor: pointer; font: inherit; font-size: 0.85rem; }
+  button:hover { background: rgba(55, 226, 255, 0.12); }
+  #log { max-height: 140px; overflow: auto; color: var(--dim); }
+  .row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+</style>
+</head>
+<body>
+<main>
+  <h1>CONTROLLER TEST</h1>
+  <p class="sub">What this browser sees of your steering wheel or gamepad, live. Keep this window in front and press a button or a pedal on the wheel.</p>
+
+  <div class="card" id="secure"><h2>THIS PAGE</h2><div id="secureText"></div></div>
+  <div class="card" id="seen"><h2>CONTROLLERS THE BROWSER SEES</h2><div id="pads"></div></div>
+  <div class="card warn" id="help"><h2>NOTHING SHOWS?</h2>
+    <ol>
+      <li>Plug the <b>pedals into the wheel first</b>, then the wheel's USB straight into the PC (no hub or extension). Press any button on the wheel with this window in front.</li>
+      <li><b>Nitho Drive Pro V200:</b> on a PC its light is <b>purple</b> (D-Input) or <b>orange</b> (X-Input). Hold the <b>HOME</b> button about 3 seconds to switch between them; try each, pressing a button after each switch.</li>
+      <li>Check Windows sees it: press Start, type <b>joy.cpl</b> (Set up USB game controllers), Enter. The wheel should be listed, and <i>Properties</i> should move as you turn it and press the pedals. If it isn't listed, it's the cable, the USB port or the wheel's mode, not the game.</li>
+      <li>Close programs that take controllers over: <b>Steam</b> (or turn off Steam Input for generic controllers), DS4Windows, x360ce, HidHide, the wheel maker's tool. Then unplug the wheel and plug it back in.</li>
+      <li>Use <b>Chrome</b> or <b>Edge</b>, and open the game in only one tab or window.</li>
+    </ol>
+  </div>
+  <div class="card"><h2>EVENTS</h2><div id="log" class="mono">(none yet)</div></div>
+  <div class="row">
+    <button id="copy">COPY REPORT</button>
+    <a href="/">BACK TO THE GAME</a>
+    <span id="copied" class="sub" style="margin:0"></span>
+  </div>
+</main>
+<script>
+(() => {
+  const $ = (id) => document.getElementById(id);
+  const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  const log = [], base = {}, seenEver = new Map();
+  const say = (t) => { log.unshift(`${new Date().toLocaleTimeString()}  ${t}`); $('log').textContent = log.slice(0, 30).join('\n'); };
+  let api = 'missing', apiError = '';
+  const pads = () => {
+    if (typeof navigator.getGamepads !== 'function') { api = 'missing'; return []; }
+    try { api = 'ok'; return [...navigator.getGamepads()].filter(Boolean); } catch (e) { api = 'blocked'; apiError = e.message; return []; }
+  };
+  addEventListener('gamepadconnected', (e) => say(`connected: #${e.gamepad.index} ${e.gamepad.id} (${e.gamepad.axes.length} axes, ${e.gamepad.buttons.length} buttons, mapping '${e.gamepad.mapping}')`));
+  addEventListener('gamepaddisconnected', (e) => say(`disconnected: #${e.gamepad.index} ${e.gamepad.id}`));
+
+  const secure = window.isSecureContext;
+  const https = `https://${location.host}/controllers.html`;
+  $('secure').className = 'card ' + (secure ? 'ok' : 'bad');
+  $('secureText').innerHTML = secure
+    ? `<div class="big" style="color:var(--ok)">Secure page: controllers can be used here.</div><div class="sub" style="margin:4px 0 0">${esc(location.href)}</div>`
+    : `<div class="big" style="color:var(--bad)">This page is not secure: the browser gives it no controllers at all.</div>
+       <div style="margin-top:6px">Open <a href="${esc(https)}">${esc(https)}</a> instead (the first time the browser warns about the certificate: <b>Advanced &rarr; Proceed</b>), or <code>http://localhost:${esc(location.port || '80')}</code> on the PC running the server.</div>`;
+
+  let shown = '';
+  const frame = () => {
+    const list = pads();
+    let html = '';
+    if (api === 'missing') html = `<div class="big" style="color:var(--bad)">This browser has no controller support here${secure ? '' : ' (the page is not secure: see above)'}.</div>`;
+    else if (api === 'blocked') html = `<div class="big" style="color:var(--bad)">The browser blocks controllers on this page: ${esc(apiError)}</div>`;
+    else if (!list.length) html = `<div class="big">None yet.</div><div class="sub" style="margin:4px 0 0">A browser shows a controller only after it is used: press a button or a pedal on the wheel now, with this window in front. If nothing appears, see below.</div>`;
+    for (const p of list) {
+      if (!seenEver.has(p.id)) seenEver.set(p.id, { mapping: p.mapping, axes: p.axes.length, buttons: p.buttons.length, moved: new Set(), pressed: new Set() });
+      const S = seenEver.get(p.id);
+      base[p.index] ||= [...p.axes];
+      const axes = p.axes.map((v, i) => {
+        const moved = Math.abs(v - base[p.index][i]) > 0.15; if (moved) S.moved.add(i);
+        const x = Math.max(-1, Math.min(1, v)), l = 50 + Math.min(0, x) * 50, w = Math.abs(x) * 50;
+        return `<div class="ax${S.moved.has(i) ? ' moved' : ''}"><span>axis ${i}</span><div class="bar"><b></b><i style="left:${l}%;width:${w}%"></i></div><span class="mono">${v.toFixed(2)}</span></div>`;
+      }).join('');
+      const btns = p.buttons.map((b, i) => { const on = b.pressed || b.value > 0.1; if (on) S.pressed.add(i); return `<span class="btn${on ? ' on' : ''}">${i}${b.value > 0.01 && b.value < 0.99 ? ' ' + b.value.toFixed(1) : ''}</span>`; }).join('');
+      html += `<div class="pad"><div class="big" style="color:var(--ok)">#${p.index} ${esc(p.id)}</div>
+        <div class="sub mono" style="margin:2px 0 0">mapping '${esc(p.mapping)}' · ${p.axes.length} axes · ${p.buttons.length} buttons</div>
+        <div class="axes">${axes}</div><div class="btns">${btns}</div></div>`;
+    }
+    if (html !== shown) { $('pads').innerHTML = html; shown = html; }
+    $('seen').className = 'card ' + (list.length ? 'ok' : api === 'ok' ? '' : 'bad');
+    $('help').style.display = list.length ? 'none' : '';
+    requestAnimationFrame(frame);
+  };
+  requestAnimationFrame(frame);
+
+  $('copy').onclick = () => {
+    const lines = [
+      'NIGHTSHIFT controller report',
+      `page: ${location.href} (secure: ${secure})`,
+      `browser: ${navigator.userAgent}`,
+      `controller API: ${api}${apiError ? ' (' + apiError + ')' : ''}`,
+      `controllers seen: ${seenEver.size}`,
+      ...[...seenEver].map(([id, s]) => `- ${id} | mapping '${s.mapping}' | ${s.axes} axes, ${s.buttons} buttons | axes moved: ${[...s.moved].join(',') || 'none'} | buttons pressed: ${[...s.pressed].join(',') || 'none'}`),
+      'events:', ...log.slice(0, 10).reverse(),
+    ];
+    const text = lines.join('\n');
+    const done = () => { $('copied').textContent = 'Copied: paste it in the chat'; setTimeout(() => ($('copied').textContent = ''), 4000); };
+    (navigator.clipboard?.writeText(text) || Promise.reject()).then(done).catch(() => { prompt('Copy this report:', text); });
+  };
+})();
+</script>
+</body>
+</html>
