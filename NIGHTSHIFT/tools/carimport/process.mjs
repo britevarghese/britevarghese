@@ -274,6 +274,8 @@ export function processCar(doc, car, opt = {}) {
     const z = m.z / m.area, y = m.y / m.area, mat = m.mat, name = texOf(m);
     const transmission = mat.getExtension('KHR_materials_transmission');
     const alpha = mat.getBaseColorFactor()[3];
+    // (import.glass: materials a model's author used for its windows under other names, drawn opaque)
+    if (car.import?.glass?.includes(mat.getName())) { classes.set(mat, 'glass'); continue; }
     if (RX.glass.test(mat.getName() || '') || transmission || (mat.getAlphaMode() === 'BLEND' && alpha < 0.85)) {
       if (z > L / 2 - 0.75 && y < 1.0 && y > 0.3 && !RX.glass.test(name)) classes.set(mat, 'headlight');
       else classes.set(mat, 'glass');

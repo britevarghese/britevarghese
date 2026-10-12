@@ -33,7 +33,8 @@ the game. Newly found problems go at the end of their section.
   flatter wheel (their low-detail cabins have none to find); the hands shown (a rule meant for photo mode turned them
   off whenever the camera was 3 m from the vehicle's middle: a bus driver always is)
 - [ ] KSRTC bus: our wheel stands beside the model's own white one (its rim is too coarse to find)
-- [ ] Mini-truck: the model's windscreen and side glass are opaque grey: first person sees little
+- [x] Mini-truck: the model's windscreen and side glass were opaque grey (its author named the glass materials
+  something else): first person saw little. They're glass now, see-through from the cab and outside
 - [x] Vehicles floating at junctions, by culverts and on bridge ramps (an auto on a lawn's edge, an SUV in a jam): the
   physics took a road's centre-line height, or a neighbour road's shoulder up to a metre higher, where the strip is
   drawn tilted or lower. Wheels now sit on the road exactly as drawn (each strip read row by row)

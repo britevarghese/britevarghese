@@ -272,7 +272,7 @@ export const TRAFFIC_MODELS = {
   commuter: { id: 'kl_commuter', bike: true, import: { flip: true }, name: 'Commuter motorcycle', spec: { len: 2.04, wid: 0.75 }, wheels: 2, source: SRC('06fac75c72ed4780a19034447c81e72c', 'Bajaj pulsar 150', 'shreyanshchaurasia13') },
   streetbike: { id: 'kl_streetbike', bike: true, import: { flip: true }, name: 'Street motorcycle', spec: { len: 2.0, wid: 0.76 }, wheels: 2, source: SRC('36d04d99171e4d59b540c25d8650dbd5', 'pulsar 135 ls', 'EmanuelRestrepoVelez') },
   bullet: { id: 'kl_bullet', bike: true, livery: true, import: { flip: true }, name: 'Classic motorcycle', spec: { len: 2.15, wid: 0.8 }, wheels: 2, budget: { body0: 14000, err0: 0.08, wheel0: 1500, werr0: 0.05, fixed0: 800 }, source: SRC('f6495bfbffe443e89c499a2ba8766c88', 'Royal enfield classic 350', 'mansoorman') },  // the Bullet
-  minitruck: { id: 'kl_minitruck', import: { doors: true }, name: 'Tata Ace', spec: { len: 3.8, wid: 1.5 }, source: SRC('71e499219de548a7a1be74c237b6a2fb', 'Mini-Truck', 'roy.3dartist') },
+  minitruck: { id: 'kl_minitruck', import: { doors: true, glass: ['grade_frente.002', 'Default_OBJ.005'] }, name: 'Tata Ace', spec: { len: 3.8, wid: 1.5 }, source: SRC('71e499219de548a7a1be74c237b6a2fb', 'Mini-Truck', 'roy.3dartist') },
 };
 for (const m of Object.values(TRAFFIC_MODELS)) Object.assign(m, { real: true, traffic: true, import: { doors: false, livery: !!m.livery, ...m.import }, budget: { body0: 15000, wheel0: 900, body1: 2600, wheel1: 140, err0: 0.02, err1: 0.15, ...m.budget } });
 

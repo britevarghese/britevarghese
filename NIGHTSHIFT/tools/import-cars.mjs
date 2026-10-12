@@ -149,6 +149,8 @@ if (writeManifest) {
   if (!imported.length) lines.push('_No real-car models imported yet — run `node tools/import-cars.mjs`._');
   const rs = manifest.rider?.source; // written by tools/import-rider.mjs
   if (rs) lines.push(`- **Motorcycle rider** — "${rs.title}" by ${rs.author}, ${rs.url} (CC BY 4.0), modified.`);
+  const hs = manifest.fpHands?.source; // written by tools/import-hands.mjs
+  if (hs) lines.push(`- **Driver's gloved hands (first person)** — "${hs.title}" by ${hs.author}, ${hs.url} (CC BY 4.0), modified.`);
   fs.writeFileSync(path.join(ROOT, 'public/assets/models/cars/CREDITS.md'), lines.join('\n') + '\n');
 }
 stampModels(ROOT); // cache-busting fingerprints for the game
