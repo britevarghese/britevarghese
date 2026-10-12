@@ -803,10 +803,19 @@ export class KeralaTile {
         }
       }
       const D = [0]; for (let i = 1; i < P.length; i++) D.push(D[i - 1] + Math.hypot(P[i][0] - P[i - 1][0], P[i][1] - P[i - 1][1]));
+      // (near a chain's end the window is cut short: a straight line fitted to what it holds, not their mean. The
+      // mean of a road climbing to its end lies below the end: a side road met the road at the top of a hill 2 m
+      // under it, a 4 m hump between that junction and the next one 7 m on)
       let sm = raw;
       for (let pass = 0; pass < 4; pass++) {
         const o = new Array(sm.length);
-        for (let i = 0; i < sm.length; i++) { let s2 = 0, c = 0; for (let k = Math.max(0, i - 8); k <= Math.min(sm.length - 1, i + 8); k++) { s2 += sm[k]; c++; } o[i] = s2 / c; }
+        for (let i = 0; i < sm.length; i++) {
+          const lo = Math.max(0, i - 8), hi = Math.min(sm.length - 1, i + 8);
+          let s2 = 0, sx = 0, sxx = 0, sxy = 0, c = 0;
+          for (let k = lo; k <= hi; k++) { const x2 = k - i; s2 += sm[k]; sx += x2; sxx += x2 * x2; sxy += x2 * sm[k]; c++; }
+          const det = c * sxx - sx * sx;
+          o[i] = hi - i === i - lo || det < 1e-6 ? s2 / c : (sxx * s2 - sx * sxy) / det;
+        }
         sm = o;
       }
       // (but not far off the ground: round a hairpin the average would cut metres into the hill or float over it)
