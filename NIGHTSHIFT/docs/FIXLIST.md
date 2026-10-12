@@ -52,6 +52,10 @@ the game. Newly found problems go at the end of their section.
   it gets our wheel. Its seated driver sat on the cab roof (lorry seat heights): inside now
 - [x] Mini-truck: the model's windscreen and side glass were opaque grey (its author named the glass materials
   something else): first person saw little. They're glass now, see-through from the cab and outside
+- [x] Autos with a wheel in the air at the road's edge (up to 0.44 m over a drain or a ditch): an auto stands on its
+  three wheels, its body on the plane through them, and may tilt further before it is held up (0.45 m, was 0.25 m).
+  A scan of the traffic round Kannur for a minute: 9 with a wheel over 0.25 m in the air, now 2 (0.32 m, beside a
+  junction whose roads the map leaves apart)
 - [x] Vehicles floating at junctions, by culverts and on bridge ramps (an auto on a lawn's edge, an SUV in a jam): the
   physics took a road's centre-line height, or a neighbour road's shoulder up to a metre higher, where the strip is
   drawn tilted or lower. Wheels now sit on the road exactly as drawn (each strip read row by row)
@@ -124,4 +128,12 @@ the game. Newly found problems go at the end of their section.
     (a gentle curve, not a dip); canal bridges' ramps rounded off at the foot and the top. Kannur 74 -> 55,
     Thalassery 44 -> 29, Valapattanam 53 -> 38; no steps, no floating road. What remains is mostly the gentle
     crest of a small canal bridge
+  - [x] Roundabouts were not level: the ring (mapped in pieces) took each arm's height where it joined, 0.74 m up
+    and down between two arms 8 m apart. The ring is one level now, its junctions at the ring's level, the arms
+    easing onto it
+  - [x] A canal bridge whose head is right at a junction dipped 1.5 m in a V there (a ramp crossing another road is
+    brought down to it, meant for a ramp passing over a street): by the water it stays up, the side road climbing
+    to meet it. Kannur's humps (the same inspector) 77 -> 72; 60 of those are small canal-bridge crests
+  - [ ] Still to do: a road running along a canal (water on both sides for 30 m and more) reads as a bridge and is
+    lifted ~1.8 m, its ramp too steep where a junction is close (one in Kannur); a footbridge's short ramps
 - [x] Realistic trees: real coconut palm, banana and broadleaf models (Sketchfab, CC BY) within ~90 m of the camera, with leaf-cut shadows; the generated plants beyond. (Junction-height priority was tried for the remaining road humps: more humps, reverted)

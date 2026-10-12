@@ -699,6 +699,17 @@ export class KeralaTile {
       const twin = E.find((o) => o !== x && o.over && o.P.some(([e, n]) => Math.hypot(e - m[0], n - m[1]) < 30));
       if (twin) { x.over = true; x.cross = twin.cross; }
     }
+    // a roundabout is one level all round: OSM maps its ring in pieces, and each arm pulled the ring to its own height
+    // where it joined (0.74 m up and down between two arms, 8 m apart). The ring at its ground's mean; the arms ease
+    // onto it (its junctions take the ring's level, below)
+    const ringY = new Map();
+    for (const isl of this._islands()) {
+      const rs = new Set(isl.grp.map((g) => g[2])), xs = E.filter((x) => rs.has(x.r) && !x.water.some(Boolean)), all = xs.flatMap((x) => x.raw);
+      if (all.length) { const y = all.reduce((a, b) => a + b, 0) / all.length; for (const x of xs) ringY.set(x, y); }
+    }
+    // (every road's points, by where they are: the roads meeting at a junction)
+    const vtx = new Map();
+    for (const x of E) { const ri = this.roads.indexOf(x.r); for (const pt of x.r.pts) { const k = key(pt); if (!vtx.has(k)) vtx.set(k, new Set()); vtx.get(k).add(ri); } }
     // 2. chains: where exactly two road ends meet (and nothing else passes), it is one road in OSM's pieces (a bridge
     //    is usually its own short way): graded as one, so a bridge's ramps run on into its approaches
     const ends = new Map(), through = new Set();
@@ -737,14 +748,14 @@ export class KeralaTile {
     //    ground kept at the tile's edge (the neighbour sees the same) and eased into over 80 m; decks where it crosses
     //    water or runs over another road
     for (const ch of chains) {
-      const P = [], raw = [], water = [], over = [], own = [], brg = [];
+      const P = [], raw = [], water = [], over = [], own = [], brg = [], ring = [];
       for (const [ei, fwd] of ch) {
         const x = E[ei], n = x.P.length;
         for (let q = 0; q < n; q++) {
           const i = fwd ? q : n - 1 - q;
           if (P.length && q === 0) { own.push([ei, i, P.length - 1]); continue; }   // the shared joint
           // (raised only over the road beneath: within ~22 m of where it crosses; the ramps do the rest)
-          own.push([ei, i, P.length]); P.push(x.P[i]); raw.push(x.raw[i]); water.push(x.water[i]); over.push(x.over && x.cross.some(([ce, cn]) => Math.hypot(ce - x.P[i][0], cn - x.P[i][1]) < 22));
+          own.push([ei, i, P.length]); P.push(x.P[i]); raw.push(x.raw[i]); water.push(x.water[i]); ring.push(ringY.get(x)); over.push(x.over && x.cross.some(([ce, cn]) => Math.hypot(ce - x.P[i][0], cn - x.P[i][1]) < 22));
           brg.push(x.r.flags & 2 ? x.r.cls : 0);
         }
       }
@@ -757,6 +768,15 @@ export class KeralaTile {
       }
       // (but not far off the ground: round a hairpin the average would cut metres into the hill or float over it)
       const prof = P.map(([e, n], i) => raw[i] + 5 * Math.tanh((sm[i] - raw[i]) / 5) * _smooth(Math.min(1, Math.max(0, Math.min(e, n, TILE - e, TILE - n) / 80))));
+      // (a roundabout's ring level; a road carrying straight on from it, in the same chain, eases off it over 30 m)
+      if (ring.some((y) => y !== undefined)) {
+        const at = P.map((_, i) => i).filter((i) => ring[i] !== undefined);
+        for (let i = 0; i < P.length; i++) {
+          if (ring[i] !== undefined) { prof[i] = ring[i]; continue; }
+          const a = at.reduce((b, j) => (Math.abs(D[j] - D[i]) < Math.abs(D[b] - D[i]) ? j : b), at[0]), d = Math.abs(D[a] - D[i]);
+          if (d < 30) prof[i] = ring[a] + (prof[i] - ring[a]) * _smooth(d / 30);
+        }
+      }
       // a flyover cut by the tile's edge: the road beneath may be in the neighbour only, so where a dry bridge meets
       // the edge both tiles hold it clear at the edge (the shared ground there plus a flyover's height) and ramp
       // down from it: the two halves meet in the air. Every other raised piece is back on the ground at the edge.
@@ -833,8 +853,12 @@ export class KeralaTile {
         // street from nowhere); from there it may climb more steeply (12 %) to the span. The span itself as it is
         {
           const mine = new Set(ch.map(([ei]) => this.roads.indexOf(E[ei].r)));
+          // (not at a junction it shares with the road there, by the water: the head of a canal bridge right at a
+          // junction stays up, the side road climbing to meet it (a junction on a ramp, below). Brought down there, it
+          // dipped 1.5 m in a V. A flyover's ramp still comes down to the junction at its foot)
+          const atJ = (i) => { const J = vtx.get(key(P[i])); return J && wet.some((w, k) => w && Math.abs(D[k] - D[i]) < 12) ? new Set([...mine, ...J]) : mine; };
           let any = false;
-          for (let i = 0; i < P.length; i++) if (!wet[i] && ex[i] > 0.05 && this.onRoad(P[i][0], P[i][1], 0.5, mine, 8)) { ex[i] = 0; any = true; }
+          for (let i = 0; i < P.length; i++) if (!wet[i] && ex[i] > 0.05 && this.onRoad(P[i][0], P[i][1], 0.5, atJ(i), 8)) { ex[i] = 0; any = true; }
           if (any) {
             for (let i = 1; i < P.length; i++) if (!wet[i]) ex[i] = Math.min(ex[i], ex[i - 1] + (D[i] - D[i - 1]) * 0.12);
             for (let i = P.length - 2; i >= 0; i--) if (!wet[i]) ex[i] = Math.min(ex[i], ex[i + 1] + (D[i + 1] - D[i]) * 0.12);
@@ -855,14 +879,14 @@ export class KeralaTile {
           // a junction takes the height of its most important road (side roads meet the main road where it is; the
           // main road doesn't dip or rise to meet them); roads of the same class share the average
           const k = key(x.r.pts[pi]); joins.push([i, k]);
-          const o = node.get(k); const c = x.r.cls;
+          const o = node.get(k); const c = x.r.flags & 8 ? -1 : x.r.cls;   // (a roundabout's ring first)
           if (!o || c < o[2]) node.set(k, [yy[i], 1, c, (o?.[3] || 0) + 1, raised[map[i]], o?.[5], o?.[6]]); else if (c === o[2]) { o[0] += yy[i]; o[1]++; o[3]++; o[4] |= raised[map[i]]; } else o[3]++;
           const q = node.get(k); if (raised[map[i]] && !(q[5] >= yy[i])) { q[5] = yy[i]; q[6] = c; }
         });
         for (const [i, k] of x.xj || []) {
           if (raised[map[i]]) continue;   // (a bridge ramp passing over: no junction there)
           joins.push([i, k]);
-          const o = node.get(k), c = x.r.cls;
+          const o = node.get(k), c = x.r.flags & 8 ? -1 : x.r.cls;
           if (!o || c < o[2]) node.set(k, [yy[i], 1, c, (o?.[3] || 0) + 1, raised[map[i]]]); else if (c === o[2]) { o[0] += yy[i]; o[1]++; o[3]++; o[4] |= raised[map[i]]; } else o[3]++;
         }
         roads.push((x.R = { hw: x.hw, P: x.P, prof: yy, joins, wet: ww, cls: x.r.cls, up: map.map((ci) => raised[ci]), tj: x.tj }));

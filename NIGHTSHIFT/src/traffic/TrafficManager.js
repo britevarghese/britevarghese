@@ -175,7 +175,10 @@ export class TrafficManager {
         const H = (car.spec.w || 1.3) * 0.4, wf = gh(car.x + fx * L, car.z + fz * L);
         const wl = gh(car.x - fx * L + fz * H, car.z - fz * L - fx * H), wr = gh(car.x - fx * L - fz * H, car.z - fz * L + fx * H);
         hf = wf; hr = (wl + wr) / 2;
-        car.y = Math.max((wf + wl + wr) / 3, Math.max(wf, wl, wr) - 0.25) + 0.01;
+        // (three wheels always stand on the ground: the body on the plane through them, halfway between the front
+        // wheel and the rear axle. Held up at most 0.45 m below the highest, a ditch beside a kerb; it was 0.25 m,
+        // and a wheel over a drain at the road's edge hung in the air)
+        car.y = Math.max((hf + hr) / 2, Math.max(wf, wl, wr) - 0.45) + 0.01;
         car.roll = Math.atan2(wl - wr, 2 * H);
       }
       else {
