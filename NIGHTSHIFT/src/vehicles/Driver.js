@@ -211,6 +211,44 @@ export class FPDriver extends Poser {
 const FINGER_BONES = { Thumb: 'thumb', Index: 'index', Middle: 'middle', Ring: 'ring', Pinky: 'pink' };
 const ARM_REACH = 0.56; // shoulder to wrist, m
 
+// The source's jacket sleeves are ~1.5 times a man's arm across (9 cm in radius round the upper arm): bulky, filling
+// the view. Their vertices are drawn in towards the arm's bones, in bind space: the upper arm's to 72%, the
+// forearm's from 72% at the elbow to 92% at the cuff (which still has to cover the glove's). Once per geometry
+// (the clones share it).
+function slimSleeves(mesh) {
+  const g = mesh.geometry;
+  if (g.userData.slim) return;
+  g.userData.slim = true;
+  const sk = mesh.skeleton, P = g.attributes.position, SI = g.attributes.skinIndex, SW = g.attributes.skinWeight;
+  const at = sk.boneInverses.map((m) => new THREE.Vector3().setFromMatrixPosition(m.clone().invert()));
+  const key = (b) => b.name.replace(/_\d+$/, '').replace(/[^a-z0-9]/gi, '').toLowerCase();
+  const find = (k) => sk.bones.findIndex((b) => key(b) === k);
+  const lines = [], line = new Int8Array(sk.bones.length).fill(-1);
+  for (const s of ['l', 'r']) {
+    const [u, f, h] = ['upperarml', 'lowerarml', 'handl'].map((n) => find(n + s));
+    if (u < 0 || f < 0 || h < 0) continue;
+    line[u] = lines.push({ a: at[u], c: at[f], f0: 0.72, f1: 0.72 }) - 1;
+    line[f] = lines.push({ a: at[f], c: at[h], f0: 0.72, f1: 0.92 }) - 1;
+    sk.bones.forEach((b, i) => { if (key(b).startsWith('twistarm') && key(b).endsWith('l' + s)) line[i] = line[f]; });
+  }
+  // (the bind matrix's own inverse: bindMatrixInverse is reworked about the camera for skinning, SkinPrecision.js)
+  const v = new THREE.Vector3(), d = new THREE.Vector3(), move = new THREE.Vector3(), inv = mesh.bindMatrix.clone().invert();
+  for (let i = 0; i < P.count; i++) {
+    v.fromBufferAttribute(P, i).applyMatrix4(mesh.bindMatrix);
+    move.set(0, 0, 0);
+    for (let k = 0; k < 4; k++) {
+      const w = SW.getComponent(i, k), L = lines[line[SI.getComponent(i, k)]];
+      if (!w || !L) continue;
+      const dir = d.subVectors(L.c, L.a), len = dir.length(); dir.divideScalar(len);
+      const t = v.clone().sub(L.a).dot(dir), f = L.f0 + (L.f1 - L.f0) * THREE.MathUtils.clamp(t / len, 0, 1);
+      move.addScaledVector(v.clone().sub(L.a).addScaledVector(dir, -t), w * (1 - f));
+    }
+    P.setXYZ(i, ...v.sub(move).applyMatrix4(inv).toArray());
+  }
+  P.needsUpdate = true;
+  g.computeBoundingSphere();
+}
+
 class FPArms extends Poser {
   constructor(template) {
     super();
@@ -218,6 +256,7 @@ class FPArms extends Poser {
     // shoulder (left side; mirrored for the right) from the eyes, and which way the elbows bend
     this.shoulder = new THREE.Vector3(0.22, -0.3, -0.08); this.elbowHint = new THREE.Vector3(0.8, -0.6, -0.1);
     this.model = AssetManager.clone(template);
+    this.model.traverse((o) => { if (o.isSkinnedMesh && /sleeve/i.test(o.material?.name || '')) slimSleeves(o); });
     const N = {}; this.bones = [];
     this.model.traverse((o) => {
       // (names like upperarm_L.L / hand_L.R: keyed without punctuation, 'upperarmll', 'handlr')
