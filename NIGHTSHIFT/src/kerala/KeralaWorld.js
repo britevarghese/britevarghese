@@ -224,7 +224,21 @@ export class KeralaWorld {
     });
   }
 
-  _clearLanes(t, list) {
+  // points every 1.5 m along this tile's traffic lanes (main to minor roads), in G-metre cells
+  _laneGrid(t, G) {
+    const grid = new Map();
+    for (const l of this.lanes.lanesNear(-(t.E0 + TILE / 2), t.N0 + TILE / 2, 0, TILE)) {
+      if (l.edge.cls > 6) continue;
+      for (let i = 1; i < l.pts.length; i++) {
+        const [ax, az] = l.pts[i - 1], [bx, bz] = l.pts[i], L = Math.hypot(bx - ax, bz - az);
+        for (let d = 0; d <= L; d += 1.5) { const x = ax + (bx - ax) * Math.min(1, d / L), z = az + (bz - az) * Math.min(1, d / L), k = Math.floor(x / G) * 100003 + Math.floor(z / G); if (!grid.has(k)) grid.set(k, []); grid.get(k).push(x, z); }
+      }
+    }
+    return grid;
+  }
+
+  // (grids: lane grids already made for these tiles during this build, reused batch to batch)
+  _clearLanes(t, list, grids = null) {
     const onRd = (x, z) => { const o = this.tileAt(x, z); return !!o?.ready && o.onRoad(-x - o.E0, z - o.N0, -0.5, -1, 6); };
     for (const c of list) {
       let hit = false;
@@ -237,14 +251,9 @@ export class KeralaWorld {
     // and nothing on a traffic lane's line (lanes joining dead ends can run just off the drawn road)
     const left = list.filter((c) => t.colliders.includes(c));
     if (!left.length) return;
-    const grid = new Map(), G = 20;
-    for (const l of this.lanes.lanesNear(-(t.E0 + TILE / 2), t.N0 + TILE / 2, 0, TILE)) {
-      if (l.edge.cls > 6) continue;
-      for (let i = 1; i < l.pts.length; i++) {
-        const [ax, az] = l.pts[i - 1], [bx, bz] = l.pts[i], L = Math.hypot(bx - ax, bz - az);
-        for (let d = 0; d <= L; d += 1.5) { const x = ax + (bx - ax) * Math.min(1, d / L), z = az + (bz - az) * Math.min(1, d / L), k = Math.floor(x / G) * 100003 + Math.floor(z / G); if (!grid.has(k)) grid.set(k, []); grid.get(k).push(x, z); }
-      }
-    }
+    const G = 20;
+    let grid = grids?.get(t);
+    if (!grid) grid = this._laneGrid(t, G), grids?.set(t, grid);
     for (const c of left) {
       const r = Math.hypot(c.hx, c.hz) + 1;
       let hit = false;
@@ -332,6 +341,7 @@ export class KeralaWorld {
     yield 'world:add';
     this._scooters(t);
     for (const c of t.colliders) this.collision.add(c);
+    yield 'world:lanes0';
     this.lanes.addTile(t);
     yield 'world:lanes';
     const n0 = t.colliders.length;
@@ -364,11 +374,13 @@ export class KeralaWorld {
     // this tile's colliders against every loaded road, and the neighbours' border colliders against this tile's roads
     yield 'world:extras';
     const own = [...t.colliders];
-    for (let i = 0; i < own.length; i += 300) { this._clearLanes(t, own.slice(i, i + 300)); yield 'world:clear+'; }
+    // (a hundred at a time: three hundred took up to a tenth of a second)
+    const grids = new Map();
+    for (let i = 0; i < own.length; i += 100) { this._clearLanes(t, own.slice(i, i + 100), grids); yield 'world:clear+'; }
     for (const o of this.tiles.values()) {
       if (o === t || !o.ready || Math.abs(o.tx - t.tx) > 1 || Math.abs(o.tz - t.tz) > 1) continue;
-      this._clearLanes(o, o.colliders.filter((c) => { const e = -c.cx - o.E0, n = c.cz - o.N0; return e < 40 || n < 40 || e > TILE - 40 || n > TILE - 40; }));
-      yield 'world:clear+';
+      const border = o.colliders.filter((c) => { const e = -c.cx - o.E0, n = c.cz - o.N0; return e < 40 || n < 40 || e > TILE - 40 || n > TILE - 40; });
+      for (let i = 0; i < border.length; i += 100) { this._clearLanes(o, border.slice(i, i + 100), grids); yield 'world:clear+'; }
     }
     void n0;
     this.buildMs = performance.now() - t0;
@@ -611,7 +623,8 @@ export class KeralaWorld {
     { const U = this.M?.klWater?.userData?.u; if (U) { if (camera) waterPhases(U, camera.position.x, camera.position.z, this.state.time); if (this.scene?.fog) U.uSky.value.copy(this.scene.fog.color); } }
     if (!this.index || !camera) return;
     this.lights.update(camera, envState || { night: this.night || 0 }, dt);
-    const p = camera.position, tx = Math.floor(-p.x / TILE), tz = Math.floor(p.z / TILE);
+    // (tiles stream round the player; the camera can be elsewhere for a moment: the origin, before the first shot)
+    const p = camera.position, f = this.focus || p, tx = Math.floor(-f.x / TILE), tz = Math.floor(f.z / TILE);
     this._signals(dt, p);
     if (tx !== this._ctx || tz !== this._ctz) {
       this._ctx = tx; this._ctz = tz;

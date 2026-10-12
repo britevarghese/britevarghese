@@ -913,6 +913,9 @@ export class Game {
     this.traffic.density = byHour(TRAFFIC_BY_HOUR, hr);
     this.peds.timeK = byHour(PEOPLE_BY_HOUR, hr);
     if (mode === 'photo') this.photo.applyExposure();
+    // (the world streams round the player, and makes the trees there solid: it kept the start's position, so the
+    // menu's first frame, its camera still at the origin, unloaded the start's tiles, and trees were solid only there)
+    if (this.world.focus && this.player) { const f = this.focusState; this.world.focus.x = f.x; this.world.focus.z = f.z; }
     this.world.update(dt, this.camera, this.env.state);
     if (this.mapRenderer.update) { const f = this.focusState; this.mapRenderer.update(f.x, f.z); }
     // camera

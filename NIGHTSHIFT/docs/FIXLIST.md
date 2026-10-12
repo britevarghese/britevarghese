@@ -129,6 +129,16 @@ the game. Newly found problems go at the end of their section.
   camera comes within ~9-30 m (a contact's or business's within ~4-20 m); the ring on the ground stays
 
 ## Roads and world
+- [x] The game hung for a moment every so often while driving: building each new 2 km piece of the map ran some
+  steps in one go (grading the roads up to 0.7 s, the ground maps 0.2 s, merging a district's walls 0.1 s, the
+  street edges 0.25 s, the lanes kept clear of walls 0.1 s). They pause every few milliseconds now and the world
+  spreads them over frames. Ninety seconds of driving round Kannur (this test machine, slower than a gaming PC):
+  worst frame 0.74 s -> 0.15 s, time lost to stalls 9.6 s -> 3.2 s, the slowest 1% of frames 82 -> 55 ms; the roads
+  come out exactly the same
+- [x] The start area was built twice: the menu's first frame had its camera at the map's origin, and the world,
+  streaming round the camera, dropped the tiles the loading screen had just built; they were built again after
+  PLAY. The world streams round the player now. (Trees were made solid only round the starting point too: they
+  follow the player now)
 - [x] Kannur is the starting area (story, garages, races moved there)
 - [x] Canals: walled channels, not water lying on the road
 - [x] Dual carriageway median: kerbed divider, no trench
