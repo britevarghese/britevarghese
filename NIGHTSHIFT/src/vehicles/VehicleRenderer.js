@@ -13,6 +13,45 @@ const glowRed = () => radialGlow('rgba(255,60,50,1)', 'rgba(255,20,20,0.3)');
 const _qa = new THREE.Quaternion(), _qb = new THREE.Quaternion(), _pv = new THREE.Vector3(), _pp = new THREE.Vector3(), _ax = new THREE.Vector3(1, 0, 0), _az = new THREE.Vector3(0, 0, 1);
 const _eu = new THREE.Euler();
 const WHEEL_IDX = { FL: 0, FR: 1, RL: 2, RR: 3, F: 0, R: 2 };
+// an autorickshaw's handlebar in body space, from its box (the Bajaj model has none; its dash shelf is ~0.95 m up,
+// 0.35-0.65 m in from the front): the column raked back through the dash, the bar ~10 cm over the shelf, swept back
+// to rubber grips ~0.6 m apart. pivot / axis: the column (up, towards the driver), about which the bar turns as the
+// front wheel; grip / out: the left grip's middle and the bar's direction there, out to its end (mirrored for the right)
+function autoBars(box) {
+  const pivot = new THREE.Vector3(0, box.min.y + 1.07, box.max.z - 0.63), axis = new THREE.Vector3(0, 0.9, -0.42).normalize();
+  const c = pivot.clone().addScaledVector(axis, 0.03);                       // the bar's clamp
+  const bend = new THREE.Vector3(0.18, 0, 0), end = new THREE.Vector3(0.36, -0.03, -0.085);
+  const out = end.clone().sub(bend).normalize();
+  return { bars: true, pivot, axis, c, bend, end, out, grip: c.clone().add(end).addScaledVector(out, -0.06) };
+}
+// ... drawn: chrome bar, black rubber grips, the column; `spin` turns about userData.axis
+let _barGeo = null;
+function handlebar(H) {
+  if (!_barGeo) {
+    _barGeo = {
+      chrome: new THREE.MeshStandardMaterial({ color: 0xb9bcc2, roughness: 0.28, metalness: 0.85 }),
+      rubber: new THREE.MeshStandardMaterial({ color: 0x141416, roughness: 0.9 }),
+    };
+  }
+  const holder = new THREE.Group(); holder.name = 'handlebar'; holder.position.copy(H.pivot);
+  const spin = new THREE.Group(); holder.add(spin);
+  const rel = (v) => v.clone().sub(H.pivot);
+  const pts = [-1, 1].flatMap((sd) => [H.end, H.bend].map((p) => H.c.clone().add(p.clone().setX(sd * p.x))));
+  const path = new THREE.CatmullRomCurve3([pts[0], pts[1], pts[3], pts[2]].map(rel), false, 'catmullrom', 0.1);
+  spin.add(new THREE.Mesh(new THREE.TubeGeometry(path, 24, 0.011, 8, false), _barGeo.chrome));
+  for (const sd of [-1, 1]) {
+    const o = H.out.clone().setX(sd * H.out.x), g = H.grip.clone().setX(sd * H.grip.x);
+    const m = new THREE.Mesh(new THREE.CylinderGeometry(0.018, 0.018, 0.12, 12), _barGeo.rubber);
+    m.position.copy(rel(g)); m.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), o);
+    spin.add(m);
+  }
+  const col = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.024, 0.3, 10), _barGeo.chrome);
+  col.position.copy(H.axis).multiplyScalar(-0.12); col.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), H.axis);
+  spin.add(col);
+  spin.traverse((o) => { o.frustumCulled = false; o.castShadow = true; });
+  holder.userData = { spin, axis: H.axis };
+  return holder;
+}
 // a bus's, a lorry's, a mini-truck's driver's eye height over the ground on its high seat
 const SEAT_EYE = { ksrtc: 2.4, pvtbus: 2.4, pvtbus2: 2.4, bus: 2.4, lorry: 2.55, truck: 2.55, minitruck: 1.36 };
 // a cab right at the front (a bus's, a lorry's): how far behind the windscreen the driver's eyes are
@@ -635,7 +674,7 @@ export class VehicleRenderer {
     if (this._eye && tm && /^kl_/.test(tm.id)) this._eye.x = -Math.abs(this._eye.x);
     // with real front doors: the driver's eyes are over the back half of the door opening (an eye found further
     // back is the rear seat of a tall cabin)
-    const d = this._eye && tm && /^kl_/.test(tm.id) && this.doors?.[this._eye.x < 0 ? -1 : 1];
+    const d = this._eye && tm && /^kl_/.test(tm.id) && this.carId !== 'auto' && this.doors?.[this._eye.x < 0 ? -1 : 1]; // (an auto has no doors: its driver sits in the open front)
     if (d?.len > 0.5 && this._eye.z < d.hinge.z - d.len * 1.05) this._eye.z = d.hinge.z - d.len * 0.75;
     // a bus's or a lorry's driver sits on a high seat by the windscreen (the roof probe left the eyes just under a
     // tall cab's roof, looking at the top of the dashboard) ...
@@ -657,8 +696,9 @@ export class VehicleRenderer {
     return this._eye;
   }
 
-  // first person looks down a little more from a bus's or a lorry's high seat: the wheel and the hands low in view
-  cockpitPitch() { return FRONT_CAB[this.carId] ? 0.1 : 0; }
+  // first person looks down a little more from a bus's or a lorry's high seat, and over an auto's handlebars close in
+  // front: the wheel or the bars and the hands low in view
+  cockpitPitch() { return FRONT_CAB[this.carId] ? 0.1 : this.carId === 'auto' ? 0.14 : 0; }
 
   _cockpitEye() {
     const mk = this.markers.eye_cockpit;
@@ -670,7 +710,10 @@ export class VehicleRenderer {
       this._lod0.traverse((o) => { if (o.isMesh && o.visible !== false) meshes.push(o); });
       const inv = new THREE.Matrix4().copy(body.matrixWorld).invert();
       const box = new THREE.Box3(), tb = new THREE.Box3();
-      for (const o of meshes) { if (!o.geometry.boundingBox) o.geometry.computeBoundingBox(); tb.copy(o.geometry.boundingBox).applyMatrix4(o.matrixWorld).applyMatrix4(inv); box.union(tb); }
+      // (mesh -> body in one matrix: a box taken out to the world and back grew with the heading, and an auto's eye,
+      // measured from its front, ended up outside it)
+      const M = new THREE.Matrix4();
+      for (const o of meshes) { if (!o.geometry.boundingBox) o.geometry.computeBoundingBox(); tb.copy(o.geometry.boundingBox).applyMatrix4(M.multiplyMatrices(inv, o.matrixWorld)); box.union(tb); }
       this._box = box;
       // an autorickshaw: the driver sits in the middle at the front on a bench, the handlebars before him
       if (this.carId === 'auto') { this._eye = new THREE.Vector3(0, box.min.y + 1.42, box.max.z - 1.0); return this._eye; }
@@ -740,6 +783,8 @@ export class VehicleRenderer {
   steeringGeom() {
     if (this._steer !== undefined) return this._steer;
     const eye = this.cockpitEye();
+    // an autorickshaw: handlebars (the model has none: ours, over the dash)
+    if (this.carId === 'auto' && eye && this._box) return (this._steer = { eye, bars: autoBars(this._box), rim: false, fit: false });
     if (!eye || this.bike || !this._probe) return (this._steer = null);
     let hub = null;
     for (let a = 0.45; a <= 0.95 && !hub; a += 0.05) {                       // pitch down, radians
@@ -758,7 +803,7 @@ export class VehicleRenderer {
     // (a bus's or a lorry's looked for from the seat's full height: the eye may have come down to a low cab floor)
     const look = flat && this._box ? eye.clone().setY(this._box.min.y + SEAT_EYE[this.carId]) : eye;
     const fit = !NO_STEERING_WHEEL.has(this.carId) && this._lod0 ? fitSteeringWheel(this._lod0, this.body, look, { big, flat }) : null;
-    const hasRim = !!fit || this.carId === 'auto'; // (an auto's handlebars: no wheel of ours in it)
+    const hasRim = !!fit;
     if (fit) {
       hub = fit.hub; axis = fit.axis; R = fit.R;
       if (Math.abs(eye.x - hub.x) < (big ? 0.5 : 0.12)) eye.x = hub.x;
@@ -788,12 +833,13 @@ export class VehicleRenderer {
     const wheel = null; this.ensureSteeringWheel(); // (models without one get ours, on the body)
     // the rigged character and the realistic arms when they're loaded (they may still be on their way: tube arms until then)
     if (this.lib.rider) {
-      const driver = new FPDriver(this.lib.rider, eye, { hub, axis, up0, right0, R }, this.lib.hands || null);
+      const driver = new FPDriver(this.lib.rider, eye, G.bars || { hub, axis, up0, right0, R }, this.lib.hands || null);
       if (wheel) driver.group.add(wheel);
       this.body.add(driver.group);
       return { g: driver.group, driver, wheel };
     }
     this.lib.loadRider?.();
+    if (G.bars) return null; // (no tube arms on handlebars: the realistic ones are on their way)
     const sleeve = new THREE.MeshStandardMaterial({ color: 0x23262d, roughness: 0.85 });
     const glove = new THREE.MeshStandardMaterial({ color: 0x15161a, roughness: 0.6 });
     const skin = new THREE.MeshStandardMaterial({ color: 0xb98365, roughness: 0.7 });
@@ -815,7 +861,7 @@ export class VehicleRenderer {
   ensureSteeringWheel() {
     const G = this.steeringGeom();
     if (!G || G.rim || this._ownWheel) return this._ownWheel || null;
-    this._ownWheel = this._steeringWheel(G.hub, G.axis, G.up0, G.right0, G.R);
+    this._ownWheel = G.bars ? handlebar(G.bars) : this._steeringWheel(G.hub, G.axis, G.up0, G.right0, G.R);
     this.body.add(this._ownWheel);
     return this._ownWheel;
   }
@@ -872,7 +918,9 @@ export class VehicleRenderer {
 
   sync(s, dt, camPos, env) {
     this._dt = dt;
-    if (this._ownWheel) this._ownWheel.userData.spin.rotation.z = -(s.wheelSteer || 0) * 2.6; // turns with the hands
+    // turns with the hands: a wheel ~2.6 times the road wheels' angle, handlebars as the front wheel
+    const ow = this._ownWheel;
+    if (ow) { if (ow.userData.axis) ow.userData.spin.quaternion.setFromAxisAngle(ow.userData.axis, s.wheelSteer || 0); else ow.userData.spin.rotation.z = -(s.wheelSteer || 0) * 2.6; }
     if (this._arms?.g.visible) this._poseArms(s.wheelSteer || 0);
     const g = this.group;
     g.position.set(s.x, s.y, s.z);

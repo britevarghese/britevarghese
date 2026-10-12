@@ -45,11 +45,12 @@ export function interactionProfile(v) {
     : SUVS.has(v.carId) || (P.cgHeight ?? 0.5) > 0.66 ? 'suv' : 'car';
   // cabin bounds in body space
   r.group.updateMatrixWorld(true);
-  const inv = new THREE.Matrix4().copy(r.body.matrixWorld).invert(), box = new THREE.Box3(), tb = new THREE.Box3();
+  const inv = new THREE.Matrix4().copy(r.body.matrixWorld).invert(), box = new THREE.Box3(), tb = new THREE.Box3(), M = new THREE.Matrix4();
   (r._lod0 || r.body).traverse((o) => {
     if (!o.isMesh || o.visible === false || !o.geometry) return;
     if (!o.geometry.boundingBox) o.geometry.computeBoundingBox();
-    tb.copy(o.geometry.boundingBox).applyMatrix4(o.matrixWorld).applyMatrix4(inv); box.union(tb);
+    // (mesh -> body in one matrix: a box taken out to the world and back grows with the vehicle's heading)
+    tb.copy(o.geometry.boundingBox).applyMatrix4(M.multiplyMatrices(inv, o.matrixWorld)); box.union(tb);
   });
   const W = P.width || 1.8, L = P.length || 4.4;
   if (box.isEmpty() || box.max.x - box.min.x > W * 1.6) box.set(new THREE.Vector3(-W / 2, -0.35, -L / 2), new THREE.Vector3(W / 2, 1.1, L / 2));
@@ -92,7 +93,10 @@ export function interactionProfile(v) {
   if (kind === 'auto') {
     // the auto driver sits in the middle at the front on a bench, on handlebars
     pr.seat = new THREE.Vector3(0, groundY + 0.78, box.max.z - 1.05);
-    pr.bars = { L: new THREE.Vector3(0.3, pr.seat.y + 0.36, pr.seat.z + 0.48), R: new THREE.Vector3(-0.3, pr.seat.y + 0.36, pr.seat.z + 0.48) };
+    // (the grips of the handlebar drawn on it: VehicleRenderer autoBars)
+    const H = r.steeringGeom?.()?.bars;
+    pr.bars = H ? { L: H.grip.clone(), R: H.grip.clone().setX(-H.grip.x), pivot: H.pivot, axis: H.axis } : { L: new THREE.Vector3(0.3, pr.seat.y + 0.36, pr.seat.z + 0.48), R: new THREE.Vector3(-0.3, pr.seat.y + 0.36, pr.seat.z + 0.48) };
+    r.ensureSteeringWheel?.();
     ds = -1;
   } else if (G) {
     // hips a little ahead of the eyes (the seat back is reclined)
@@ -670,8 +674,13 @@ export class VehicleInteraction {
       if (P.wheel) {
         for (const side of [1, -1]) ik.arm(side, this._toWorld(v, gripPoint(P.wheel, side * 1.05, steer, _a)), this._hint(v, side * 0.6, -0.8, -0.2), wHands);
       } else if (P.bars) {
-        const turn = steer * 0.5;
-        for (const side of [1, -1]) { const g = _a.copy(P.bars[side > 0 ? 'L' : 'R']); g.z += side * turn * 0.25; ik.arm(side, this._toWorld(v, g), this._hint(v, side * 0.7, -0.7, -0.2), wHands); }
+        const turn = steer * 0.5, B = P.bars;
+        for (const side of [1, -1]) {
+          const g = _a.copy(B[side > 0 ? 'L' : 'R']);
+          // (our handlebar turns about its column with the front wheel: the grips with it)
+          if (B.axis) g.sub(B.pivot).applyQuaternion(_q0.setFromAxisAngle(B.axis, steer)).add(B.pivot); else g.z += side * turn * 0.25;
+          ik.arm(side, this._toWorld(v, g), this._hint(v, side * 0.7, -0.7, -0.2), wHands);
+        }
       }
       // eyes on the road, into the turn
       this._look(ik, this._toWorld(v, _c.set(P.seat.x - steer * 5, P.seat.y + 0.6, P.seat.z + 12), _c), 0.55);

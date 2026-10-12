@@ -7,6 +7,10 @@ the game. Newly found problems go at the end of their section.
 - [x] Stolen vehicles: turning and acceleration (all eleven types tested; the get-in took 6-8 s with the controls dead: now ~3-5 s, gas finishes it)
 - [x] Autorickshaw: colour changes when you get in (livery kept); its own single-cylinder sound (and diesel sounds for jeeps, lorries, buses)
 - [x] Autorickshaw first person: eye on the front bench, centre
+- [x] Autorickshaw first person: no hands at all (the cockpit probe stopped early for autos) and no handlebar in the
+  model. It has ours now, chrome with black rubber grips over the dash, turning about the raked column with the
+  front wheel, the gloved hands round the grips; the seated driver holds the same grips. (The eye could also land
+  outside the auto: the cab's box was measured out to the world and back, which grows with the heading)
 - [x] Bus / lorry: far too slow (power tuned: bus 0-50 km/h ~7 s, top ~92 km/h)
 - [x] Bus: driver seat and first-person eye at the front right of the cab
 - [x] Car first person: eye kept ~0.75 m from the wheel/dash, a little lower under the roof

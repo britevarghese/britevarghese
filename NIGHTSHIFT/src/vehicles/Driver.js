@@ -34,6 +34,23 @@ function rimHold(W, sd, turn) {
   return { radial, grip, tang, wrist, knuck, thumb };
 }
 
+// where one hand holds an autorickshaw's handlebar (W.bars, VehicleRenderer autoBars): round the grip like a
+// motorcycle's, the knuckles over it, the fingers round the front and under, the thumb under from the inside, the
+// wrist behind; the bar turned about the steering column by the front wheel's angle (`turn`)
+function barHold(W, sd, turn) {
+  const q = new THREE.Quaternion().setFromAxisAngle(W.axis, turn);
+  const grip = W.grip.clone().setX(sd * W.grip.x).sub(W.pivot).applyQuaternion(q).add(W.pivot);
+  const tang = W.out.clone().setX(sd * W.out.x).applyQuaternion(q);       // along the bar, out to its end
+  const radial = new THREE.Vector3(0, 1, 0).addScaledVector(tang, -tang.y).normalize(); // up, off the bar
+  const back = new THREE.Vector3().crossVectors(radial, tang);              // towards the driver
+  if (back.z > 0) back.negate();
+  const knuck = grip.clone().addScaledVector(radial, 0.03).addScaledVector(back, -0.015);
+  const wrist = knuck.clone().addScaledVector(back, 0.085).addScaledVector(radial, 0.025);
+  const thumb = tang.clone().negate().addScaledVector(radial, -0.5).addScaledVector(back, 0.1);
+  return { radial, grip, tang, wrist, knuck, thumb };
+}
+const holdOf = (W) => (W.bars ? barHold : rimHold);
+
 class Poser {
   constructor() { this.curl = new Map(); } // which way each finger joint curls (found on the first pose)
   // rotate `bone` about world `axis` by `th`, the way that brings `tip` closest to `c`
@@ -153,9 +170,10 @@ export class FPDriver extends Poser {
     this.model.position.add(head).sub(pos(B.Head, _p)); // eyes exactly at the camera
     g.updateMatrixWorld(true);
     this._aim(B.Neck, B.HeadTop_End, pos(B.Head, new THREE.Vector3()).add(new THREE.Vector3(0, 1, 0.2)));
-    const turn = steer * 2.6; // road-wheel angle -> steering-wheel turn (steer > 0 = left: the top of the wheel goes left)
+    // road-wheel angle -> steering-wheel turn (steer > 0 = left: the top of the wheel goes left); handlebars as the wheel
+    const turn = W.bars ? steer : steer * 2.6;
     for (const sd of [1, -1]) {
-      const S = sd > 0 ? 'Left' : 'Right', h = rimHold(W, sd, turn);
+      const S = sd > 0 ? 'Left' : 'Right', h = holdOf(W)(W, sd, turn);
       // the realistic arms hold the wheel: this character's own fold away at the shoulder (out of sight)
       if (this.arms) { B[S + 'Arm'].scale.setScalar(0.001); B[S + 'Arm'].updateWorldMatrix(false, true); continue; }
       const a = pos(B[S + 'Arm'], new THREE.Vector3());
@@ -250,7 +268,7 @@ class FPArms extends Poser {
     m.position.set(0, 0, 0); m.updateMatrixWorld(true);
     if (this.cam) { m.position.copy(eye).sub(pos(this.cam, _p)); m.updateMatrixWorld(true); } // the rig's camera at the eyes
     for (const sd of [1, -1]) {
-      const S = sd > 0 ? 'Left' : 'Right', h = rimHold(W, sd, turn), [l1, l2] = this.len[S], R = this.rest[S];
+      const S = sd > 0 ? 'Left' : 'Right', h = holdOf(W)(W, sd, turn), [l1, l2] = this.len[S], R = this.rest[S];
       // shoulder beside and below the eyes (out of sight); brought forward if the wheel is out of reach. The rig's
       // shoulder bone moves there (the sleeve's top with it)
       const sh = eye.clone().add(this.shoulder).setX(eye.x + sd * this.shoulder.x);

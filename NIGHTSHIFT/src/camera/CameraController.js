@@ -56,11 +56,12 @@ export class CameraController {
   // the rear end of a vehicle's body, in body space (cached on the renderer)
   _rearZ(r) {
     if (r._rearZ !== undefined) return r._rearZ;
-    const inv = _m.copy(r.body.matrixWorld).invert(), box = new THREE.Box3(), tb = new THREE.Box3();
+    const inv = _m.copy(r.body.matrixWorld).invert(), box = new THREE.Box3(), tb = new THREE.Box3(), M = new THREE.Matrix4();
     (r.lod0 || r.body).traverse((o) => {
       if (!o.isMesh || !o.geometry) return;
       if (!o.geometry.boundingBox) o.geometry.computeBoundingBox();
-      tb.copy(o.geometry.boundingBox).applyMatrix4(o.matrixWorld).applyMatrix4(inv); box.union(tb);
+      // (mesh -> body in one matrix: a box taken out to the world and back grows with the car's heading)
+      tb.copy(o.geometry.boundingBox).applyMatrix4(M.multiplyMatrices(inv, o.matrixWorld)); box.union(tb);
     });
     const L = r.vehicle?.p?.length || 4.4;
     r._rearZ = box.isEmpty() || box.min.z < -L ? -L / 2 : box.min.z;
