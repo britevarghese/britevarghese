@@ -127,6 +127,11 @@ the game. Newly found problems go at the end of their section.
 - [x] A mission's light column filled the screen yellow when the car stood on the marker: the columns (missions,
   races, garages, contacts, businesses) are brightest at the foot and fade up into the sky, and fade out as the
   camera comes within ~9-30 m (a contact's or business's within ~4-20 m); the ring on the ground stays
+- [x] People flying off when hit (and riders thrown from bikes): the ragdoll was started with its limbs' motion for
+  1/60 s and stepped at half the frame time, so a person left at twice the car's speed at 60 fps and nearly five
+  times at 144 fps (50 km/h: hips 5.8 m up, 45 m away). It steps at a fixed 1/120 s now: hips 1.4 m up, at rest
+  ~10 m on, at any frame rate; the feet don't grip the road in the first instant (the body toppled where it stood);
+  a fast car carries a person over its bonnet instead of firing them ahead at its own speed
 
 ## Roads and world
 - [x] The game hung for a moment every so often while driving: building each new 2 km piece of the map ran some
@@ -135,6 +140,19 @@ the game. Newly found problems go at the end of their section.
   spreads them over frames. Ninety seconds of driving round Kannur (this test machine, slower than a gaming PC):
   worst frame 0.74 s -> 0.15 s, time lost to stalls 9.6 s -> 3.2 s, the slowest 1% of frames 82 -> 55 ms; the roads
   come out exactly the same
+- [x] Still hanging, worst at the start: (1) when the traffic models finished loading (often mid-drive) all 17
+  vehicle types were made ready at once, a freeze of seconds (5 s on this machine): each is made ready a few
+  milliseconds at a time now, in the background; (2) every material's shader was compiled the first frame it was
+  drawn, a stall of a tenth of a second and more each on a PC: the menu's first frame compiled ~50 at once, the first
+  frame of a drive 28, each new tile up to a dozen. They are compiled in the background (behind the loading screen,
+  'Preparing graphics...', and before each tile, vehicle type, rider, tree model, parked scooter and person is first
+  drawn); mid-drive compiles 22-33 -> 4 (the shadow pass's own). Tile meshes merge on a fast path, the terrain's
+  index buffers are written straight into one typed array
+- [x] A gaming laptop detected as VERY LOW: the first-launch benchmark timed the world being built and the shaders
+  compiling, and the auto-quality governor saved every level it took off while driving (each slow start lowered it
+  for good). The benchmark draws only, after the shaders are compiled; the governor's drops hold for that session,
+  not in the first 40 s of a drive or while a tile is building; earlier detections are measured again. The main menu
+  says which graphics the browser uses, and what to change when it is the built-in chip or software
 - [x] The start area was built twice: the menu's first frame had its camera at the map's origin, and the world,
   streaming round the camera, dropped the tiles the loading screen had just built; they were built again after
   PLAY. The world streams round the player now. (Trees were made solid only round the starting point too: they
