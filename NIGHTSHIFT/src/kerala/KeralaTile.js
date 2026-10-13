@@ -1047,10 +1047,11 @@ export class KeralaTile {
         js.sort((a, b) => a[0] - b[0]);
         for (let q = 1; q < js.length; q++) { const d = js[q][0] - js[q - 1][0]; if (d > 0.5 && d < 25 && js[q][1] !== js[q - 1][1]) pairs.push([js[q - 1][1], js[q][1], d]); }
       }
-      const g0 = (k) => { const [e, n] = k.split(',').map(Number); return h0r ? gridAt(h0r, N, S, e, n) : this._h0At(e, n); };
+      // (a crossing without a shared point is keyed 'x' + where they cross)
+      const g0 = (k) => { const [e, n] = k.replace(/^x/, '').split(',').map(Number); return h0r ? gridAt(h0r, N, S, e, n) : this._h0At(e, n); };
       for (let pass = 0; pass < 8 && pairs.length; pass++) for (const [ka, kb, d] of pairs) {
         const a = node.get(ka), b = node.get(kb), dy = lvl(b) - lvl(a), ex = Math.abs(dy) - Math.max(0.08 * d, Math.abs(g0(kb) - g0(ka)) + 0.04 * d);
-        if (ex <= 0 || (fixed(a) && fixed(b))) continue;
+        if (!(ex > 0) || (fixed(a) && fixed(b))) continue;
         const wa = fixed(a) || a[2] < b[2] ? 0 : fixed(b) || b[2] < a[2] ? 1 : 0.5, m = Math.sign(dy) * ex;
         a[0] += m * wa * a[1]; b[0] -= m * (1 - wa) * b[1];
       }
