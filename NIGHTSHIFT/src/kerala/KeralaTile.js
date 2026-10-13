@@ -874,7 +874,9 @@ export class KeralaTile {
           // backwaters get a deck
           if (span < 14 && !over[i]) {
             // (straight across from bank to bank: under it the ground is the sunk water bed)
-            const a0 = i > 0 ? prof[i - 1] : null, b0 = j + 1 < P.length ? prof[j + 1] : null;
+            // (a drain running off the tile's edge: to the level both tiles agree on there. Held at the bank's level
+            // to the edge, the road met its other half 0.8 m lower: the neighbour may not see the drain at all)
+            const a0 = i > 0 ? prof[i - 1] : edge[0] < 1.5 ? prof[0] : null, b0 = j + 1 < P.length ? prof[j + 1] : edge[P.length - 1] < 1.5 ? prof[P.length - 1] : null;
             for (let k = i; k <= j; k++) {
               const u = (D[k] - D[Math.max(0, i - 1)]) / ((D[Math.min(P.length - 1, j + 1)] - D[Math.max(0, i - 1)]) || 1);
               const y = a0 !== null && b0 !== null ? a0 + (b0 - a0) * u : (a0 ?? b0 ?? prof[k]);
@@ -1000,7 +1002,9 @@ export class KeralaTile {
           });
           // (smoothed along the road: no kink where the neighbour starts or ends)
           const Dd = [0]; for (let i = 1; i < R.P.length; i++) Dd.push(Dd[i - 1] + Math.hypot(R.P[i][0] - R.P[i - 1][0], R.P[i][1] - R.P[i - 1][1]));
-          return dl.map((_, i) => { let s2 = 0, c = 0; for (let k = i; k >= 0 && Dd[i] - Dd[k] <= 16; k--) { s2 += dl[k]; c++; } for (let k = i + 1; k < dl.length && Dd[k] - Dd[i] <= 16; k++) { s2 += dl[k]; c++; } return s2 / c; });
+          // (and still nothing at the tile's edge: the average reached it from the road's last 16 m)
+          const eg = (i) => { const [e, n] = R.P[i]; return _smooth(Math.min(1, Math.min(e, n, TILE - e, TILE - n) / 16)); };
+          return dl.map((_, i) => { let s2 = 0, c = 0; for (let k = i; k >= 0 && Dd[i] - Dd[k] <= 16; k--) { s2 += dl[k]; c++; } for (let k = i + 1; k < dl.length && Dd[k] - Dd[i] <= 16; k++) { s2 += dl[k]; c++; } return s2 / c * eg(i); });
         };
         const deltas = [];
         for (const R of roads) { if (this._due()) { yield 'grade:side+'; this._ys = performance.now(); } deltas.push(shift(R)); }
@@ -1037,9 +1041,12 @@ export class KeralaTile {
       // (where the road runs out over the tile's edge it stays at the level both tiles agree on: a junction near the
       // edge, which the neighbour doesn't know of, pulled its end up or down, the road meeting its other half there
       // a step of up to a metre higher or lower)
+      // (a junction right on the edge too: it is at that level, not the average of the roads this tile has there)
       if (J.length) for (const i of [0, P.length - 1]) {
         const [e, n] = P[i];
-        if (Math.min(e, n, TILE - e, TILE - n) < 0.01 && !R.up[i] && !J.some(([d]) => Math.abs(d - D[i]) < 1)) J.push([D[i], 0, 80]);
+        if (Math.min(e, n, TILE - e, TILE - n) >= 0.01 || R.up[i]) continue;
+        const on = J.filter(([d]) => Math.abs(d - D[i]) < 1);
+        if (on.length) for (const q of on) q[1] = 0; else J.push([D[i], 0, 80]);
       }
       // each junction's correction fades out over 30 m (longer for a big one: no more than 8 % extra grade); where two overlap they blend (each weighted by how far the
       // other has faded), exact at each junction and with no jump between them
