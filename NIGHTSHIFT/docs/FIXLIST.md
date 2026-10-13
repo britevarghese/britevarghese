@@ -185,4 +185,11 @@ the game. Newly found problems go at the end of their section.
   - [x] Kannur's two worst humps (taken for a footbridge's short ramps): a service road mapped as a bridge over
     another road, lifted 5 m on ramps of 27 % between two junctions 18 m apart. A bridge with no room for ramps a
     car can drive (15 %) crosses at the ground now; a bridge over a road in a tunnel is no flyover either
+  - [x] Humps where a road climbing a hillside ends at a junction: a road's level is smoothed along it, and near its
+    end the shortened window's mean lay below the road on a climb (a side road met the road at the top of a slope
+    2 m under it: a 4.4 m hump to the next junction 7 m on). Near the ends a straight line is fitted instead. Up in
+    the hills a road beside a pond also no longer dips into the pond's sunk bed. Humps (the same inspector): Kannur
+    21 -> 8, Thalassery 14 -> 7, Valapattanam 26 -> 18; Kannur and the 8 tiles round it 263 -> 132, steep stretches
+    64 -> 35, roads banked off the ground 8 -> 0; worst hump 4.4 m -> 1.5 m. Bridges and flyovers as before; no
+    steps, no new floats
 - [x] Realistic trees: real coconut palm, banana and broadleaf models (Sketchfab, CC BY) within ~90 m of the camera, with leaf-cut shadows; the generated plants beyond. (Junction-height priority was tried for the remaining road humps: more humps, reverted)
