@@ -19,6 +19,10 @@ const LINKS = [
 // soft limits: a knee or elbow can't fold its two ends closer than this share of their straight length
 const BENDS = [['LeftUpLeg', 'LeftFoot', 0.45], ['RightUpLeg', 'RightFoot', 0.45], ['LeftArm', 'LeftHand', 0.3], ['RightArm', 'RightHand', 0.3], ['Hips', 'Head', 0.75]];
 const _v = new THREE.Vector3(), _w = new THREE.Vector3();
+// its own fixed step, whatever the frame rate: Verlet keeps a particle's velocity as the distance it moved in the
+// last step. Started with the distance for 1/60 s and stepped at half the frame time, a struck person left at
+// twice the car's speed at 60 fps and nearly five times on a 144 Hz screen (people flew off over the houses)
+const H = 1 / 120;
 
 export class Ragdoll {
   // human: a Human (bones in human.B); v: initial velocity {x, y, z}; spin: rad/s about `axis` (tumble)
@@ -28,13 +32,13 @@ export class Ragdoll {
     human.group.updateMatrixWorld(true);
     this.p = J.map((n) => human.B[n].getWorldPosition(new THREE.Vector3()));
     const c = this.p[0].clone();
-    // previous positions = current - v*dt (Verlet), plus a tumble about the hips
-    const dt = 1 / 60;
+    // previous positions = current - v*H (Verlet), plus a tumble about the hips
     this.q = this.p.map((x) => {
-      const o = x.clone().sub(_v.set(v.x, v.y, v.z).multiplyScalar(dt));
-      if (spin && axis) { const r = x.clone().sub(c); o.sub(_w.copy(axis).cross(r).multiplyScalar(spin * dt)); }
+      const o = x.clone().sub(_v.set(v.x, v.y, v.z).multiplyScalar(H));
+      if (spin && axis) { const r = x.clone().sub(c); o.sub(_w.copy(axis).cross(r).multiplyScalar(spin * H)); }
       return o;
     });
+    this.acc = 0; this.age = 0;
     this.len = LINKS.map(([a, b]) => this.p[I[a]].distanceTo(this.p[I[b]]));
     this.bend = BENDS.map(([a, b, k]) => this.p[I[a]].distanceTo(this.p[I[b]]) * k);
     this.rest = 0; this.still = false; this.landed = false;
@@ -43,8 +47,13 @@ export class Ragdoll {
   // ground(x, z): the ground height; colliders(x, z): nearby obstacles {cx, cz, hx, hz, cos, sin, h}
   step(dt, ground, colliders) {
     if (!this.ok || this.still) return;
-    const n = 2, h = Math.min(dt, 1 / 30) / n, P = this.p, Q = this.q;
-    for (let s = 0; s < n; s++) {
+    const h = H, P = this.p, Q = this.q;
+    this.acc = Math.min(this.acc + dt, 0.1);   // (a long frame: at most a tenth of a second caught up)
+    while (this.acc >= h) {
+      this.acc -= h; this.age += h;
+      // (struck standing, the feet start on the ground: gripped there at once they held the body back, and it fell
+      // over where it stood. The first moment it is thrown clear)
+      const grip = this.age > 0.15;
       for (let i = 0; i < P.length; i++) {
         const p = P[i], q = Q[i];
         const vx = (p.x - q.x) * 0.995, vy = (p.y - q.y) * 0.995, vz = (p.z - q.z) * 0.995;
@@ -58,7 +67,9 @@ export class Ragdoll {
         for (let i = 0; i < P.length; i++) {
           const p = P[i], g = ground(p.x, p.z) + (i === 2 ? 0.1 : 0.06);
           if (p.y < g) {
-            p.y = g; this.landed = true;
+            p.y = g;
+            if (!grip) continue;
+            this.landed = true;
             // friction: drag the previous position toward this one along the ground
             const q = Q[i]; q.x += (p.x - q.x) * 0.35; q.z += (p.z - q.z) * 0.35;
           }

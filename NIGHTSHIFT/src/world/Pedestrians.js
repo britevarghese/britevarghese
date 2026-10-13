@@ -415,13 +415,15 @@ export class Pedestrians {
     const s = v.physics.s, m = v.physics.p.mass || 1500;
     const ax = Math.sin(s.yaw), az = Math.cos(s.yaw);          // car forward
     const side = Math.sign(lx) || 1, lxv = Math.cos(s.yaw), lzv = -Math.sin(s.yaw); // car left
-    const k = 0.85 + Math.random() * 0.2;
-    const vx = s.vx * k + lxv * side * (0.8 + sp * 0.08), vz = s.vz * k + lzv * side * (0.8 + sp * 0.08);
-    const vy = sp < 5 ? 0.4 : Math.min(6, 0.8 + sp * 0.16);
+    // (a fast car carries a person up over its bonnet rather than firing them ahead at its own speed: past ~45 km/h
+    // the throw gains less than half of the extra speed)
+    const k = (0.85 + Math.random() * 0.2) * (sp > 12 ? (12 + (sp - 12) * 0.45) / sp : 1);
+    const vx = s.vx * k + lxv * side * (0.8 + sp * 0.06), vz = s.vz * k + lzv * side * (0.8 + sp * 0.06);
+    const vy = sp < 5 ? 0.4 : Math.min(4.5, 0.8 + sp * 0.14);
     p.down = {
       x: p.x, y: this._py(p), z: p.z, vx, vy, vz, t: 0, landed: false, rest: 0, yaw: Math.atan2(vx, vz),
       // tumble about the horizontal axis across the throw
-      axis: new THREE.Vector3(vz, 0, -vx).normalize(), ang: 0, spin: sp > 9 ? Math.min(14, sp * 0.55) : 0, heavy: sp > 11,
+      axis: new THREE.Vector3(vz, 0, -vx).normalize(), ang: 0, spin: sp > 9 ? Math.min(10, sp * 0.45) : 0, heavy: sp > 11,
     };
     p.dodge = 0; p.flee = null;
     // the car loses a little speed (a person is ~80 kg against its mass)
