@@ -1034,6 +1034,13 @@ export class KeralaTile {
         // 0.3 m of bend over 16 m at its middle)
         J.push([D[j], dy, Math.min(150, Math.max(45, Math.abs(dy) / 0.08, Math.sqrt(1300 * Math.abs(dy))))]);
       }
+      // (where the road runs out over the tile's edge it stays at the level both tiles agree on: a junction near the
+      // edge, which the neighbour doesn't know of, pulled its end up or down, the road meeting its other half there
+      // a step of up to a metre higher or lower)
+      if (J.length) for (const i of [0, P.length - 1]) {
+        const [e, n] = P[i];
+        if (Math.min(e, n, TILE - e, TILE - n) < 0.01 && !R.up[i] && !J.some(([d]) => Math.abs(d - D[i]) < 1)) J.push([D[i], 0, 80]);
+      }
       // each junction's correction fades out over 30 m (longer for a big one: no more than 8 % extra grade); where two overlap they blend (each weighted by how far the
       // other has faded), exact at each junction and with no jump between them
       if (J.length) for (let i = 0; i < P.length; i++) {
