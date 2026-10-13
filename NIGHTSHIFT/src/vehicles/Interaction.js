@@ -32,8 +32,24 @@ const BUSES = new Set(['ksrtc', 'pvtbus', 'pvtbus2', 'bus']);
 const TRUCKS = new Set(['lorry', 'truck', 'minitruck', 'van']);
 const SUVS = new Set(['scorpio', 'thar', 'brezza', 'ertiga', 'suv']);
 const _a = new THREE.Vector3(), _b = new THREE.Vector3(), _c = new THREE.Vector3(), _d = new THREE.Vector3(), _k = new THREE.Vector3();
+// (a phase's hips target: never one of the scratch vectors above, which the IK writes over while posing; the
+// sequence read the hips back from one afterwards and the body dropped through the floor, the camera lurched)
+const _hp = new THREE.Vector3(), _H = new THREE.Vector3();
 const _q0 = new THREE.Quaternion(), _q1 = new THREE.Quaternion();
+const _lf = new THREE.Vector3(), _lw = new THREE.Vector3(), _lp = new THREE.Vector3(), _lb = new THREE.Vector3(), UP = new THREE.Vector3(0, 1, 0);
+const _lq = new THREE.Quaternion(), _lq2 = new THREE.Quaternion(), _lq3 = new THREE.Quaternion(), _lR = new THREE.Quaternion();
 const wpos = (o, out) => out.setFromMatrixPosition(o.matrixWorld);
+const wrap = (a) => Math.atan2(Math.sin(a), Math.cos(a));
+
+// the car's top across its width, every 5 cm out from the centre line, as far as the roof goes (a sparse sample
+// leaves holes in it: filled from the bins either side)
+function roofTop(P) {
+  if (P.roofTop) return P.roofTop;
+  const A = P.across || [];
+  const T = A.map((y, j) => { const l = A[j - 1] ?? -9, r = A[j + 1] ?? -9; return (y ?? -9) < Math.min(l, r) - 0.1 ? Math.min(l, r) : y ?? -9; });
+  let e = -1; T.forEach((y, j) => { if (y >= P.roofY - 0.3) e = j; });
+  return (P.roofTop = T.slice(0, e + 1));
+}
 
 // ------------------------------------------------------------------------------------------- profile
 export function interactionProfile(v) {
@@ -59,17 +75,24 @@ export function interactionProfile(v) {
   // the windscreen header: the front edge of the roof (highest centre-line point per 10 cm of length, from the
   // front back; wings and roof racks behind it don't matter)
   let header = null;
+  // (and the car's top across its width round the cabin's middle, every 5 cm out from the centre line: the roof's
+  // curve and the door frame's top, which a head getting in or out has to pass under)
+  const across = [], cz = (box.min.z + box.max.z) / 2;
   {
     const top = new Map(), m = new THREE.Matrix4(), q = new THREE.Vector3();
     (r._lod0 || r.body).traverse((o) => {
       if (!o.isMesh || o.visible === false || !o.geometry?.attributes.position) return;
       m.multiplyMatrices(inv, o.matrixWorld);
       const A = o.geometry.attributes.position, step = Math.max(1, Math.floor(A.count / 6000));
-      for (let i = 0; i < A.count; i += step) { q.fromBufferAttribute(A, i).applyMatrix4(m); if (Math.abs(q.x) > 0.5) continue; const k = Math.round(q.z * 10); top.set(k, Math.max(top.get(k) ?? -9, q.y)); }
+      for (let i = 0; i < A.count; i += step) {
+        q.fromBufferAttribute(A, i).applyMatrix4(m);
+        if (Math.abs(q.z - cz) < 0.9) { const j = Math.round(Math.abs(q.x) / 0.05); if (q.y > (across[j] ?? -9)) across[j] = q.y; }
+        if (Math.abs(q.x) > 0.5) continue; const k = Math.round(q.z * 10); top.set(k, Math.max(top.get(k) ?? -9, q.y));
+      }
     });
     if (top.size) { const roof = Math.max(...top.values()), k = [...top.keys()].sort((a, b) => b - a).find((z) => top.get(z) > roof - 0.06); header = k / 10; }
   }
-  const pr = { kind, box, halfW, groundY, roofY };
+  const pr = { kind, box, halfW, groundY, roofY, across };
   if (kind === 'bike') {
     // motorcycles: mount from the left (the side stand side): stand by the seat, hands to the bars, swing the
     // right leg over, sit, feet down
@@ -119,6 +142,15 @@ export function interactionProfile(v) {
   S.y = clamp(S.y, groundY + H[0], groundY + H[1]);
   // a seated driver's head (with hair) is ~0.86 m above the hips: low supercars sit you right down on the floor
   if (kind === 'car' || kind === 'suv') S.y = Math.max(groundY + (kind === 'car' ? 0.26 : 0.5), Math.min(S.y, roofY - 0.9));
+  // and under the roof right over the seat: the box's top can be a wing or an aerial (the 930's is 1.65 m, its roof
+  // over the driver 1.23 m, and his head stood out through it), and a curved roof is lower over the seat than in
+  // the middle (the Huracan's hair showed). A seated head with its hair is ~0.9 m over the hips
+  if (kind === 'car' || kind === 'suv') {
+    const T = roofTop(pr), a = Math.abs(S.x);
+    let over = null;
+    for (let j = 0; j < T.length; j++) if (Math.abs(j * 0.05 - a) <= 0.12) over = Math.min(over ?? 9, T[j]);
+    if (over !== null) S.y = Math.min(S.y, Math.max(groundY + (kind === 'car' ? 0.26 : 0.5), over - 0.93));
+  }
   // the model's driver's eye is trusted when it sits where a driver's eyes are: 0.2-1.05 m behind the windscreen
   // header. Otherwise (estimated markers on some imports) the hips go to the back of the front door's opening,
   // by the B-pillar, where they are in every car
@@ -186,6 +218,37 @@ class BodyIK {
     const L = (a, b) => wpos(B[a], _a).distanceTo(wpos(B[b], _b));
     human.group.updateMatrixWorld(true);
     this.len = { thigh: L('LeftUpLeg', 'LeftLeg'), shin: L('LeftLeg', 'LeftFoot'), upper: L('LeftArm', 'LeftForeArm'), fore: L('LeftForeArm', 'LeftHand') };
+    // which way the face points in the head bone's own frame: from the rest pose, where the character faces +Z
+    if (B.Head) {
+      const q = new THREE.Quaternion();
+      for (let o = B.Head; o && o !== human.group; o = o.parent) q.premultiply(o.isBone && o.userData.rest ? o.userData.rest : o.quaternion);
+      this.face = new THREE.Vector3(0, 0, 1).applyQuaternion(q.invert()).normalize();
+    }
+  }
+  // turn the head (the neck taking a third) so the face looks at world `target`, blended by w: at most 75° either
+  // side of the body's heading, 35° down and 25° up, the head kept upright. (It aimed the top of the head at the
+  // target, which nodded the face down: 40° at the wheel, chin on the chest at the door handle)
+  look(target, w) {
+    const B = this.h.B, head = B.Head, neck = B.Neck;
+    if (!head || !neck || !this.face || w <= 0.001) return;
+    const cur = _lf.copy(this.face).applyQuaternion(head.getWorldQuaternion(_lq));
+    const want = _lw.subVectors(target, wpos(head, _lp)), body = this.h.group.getWorldDirection(_lb);
+    const yb = Math.atan2(body.x, body.z), yw = yb + clamp(wrap(Math.atan2(want.x, want.z) - yb), -1.3, 1.3);
+    const pw = clamp(Math.atan2(want.y, Math.hypot(want.x, want.z)), -0.6, 0.45);
+    const yc = Math.atan2(cur.x, cur.z), pc = Math.atan2(cur.y, Math.hypot(cur.x, cur.z));
+    const dy = wrap(yw - yc) * w, dp = (pw - pc) * w;
+    // round the vertical, then up or down about the face's level right-hand axis
+    _lR.setFromAxisAngle(UP, dy);
+    _lR.premultiply(_lq.setFromAxisAngle(_lp.set(Math.sin(yc + dy), 0, Math.cos(yc + dy)).cross(UP).normalize(), dp));
+    this.turn(neck, _lq.identity().slerp(_lR, 0.35));
+    this.turn(head, _lq.identity().slerp(_lR, 0.65));
+  }
+  // rotate `bone` by the world rotation q (its children follow)
+  turn(bone, q) {
+    bone.getWorldQuaternion(_lq2).premultiply(q);
+    bone.parent.getWorldQuaternion(_lq3).invert();
+    bone.quaternion.copy(_lq3.multiply(_lq2));
+    bone.updateWorldMatrix(false, true);
   }
   // turn `bone` so `tip` points at world `target`, blended by w
   aim(bone, tip, target, w = 1) {
@@ -311,8 +374,9 @@ export class VehicleInteraction {
     const st = this.st;
     if (!st) return;
     if (!st.v.renderer || st.v.gone) { this._detach(); this.st = null; return; }
-    // brisk, as in GTA: about two seconds from the door to driving away (it took four and more), and out again
-    if (st.mode === 'enter' && st.phase !== 'approach') dt *= 1.8;
+    // brisk, as in GTA: about two seconds from the door to driving away (it took four and more), and out again.
+    // (At 1.8x the whole sit-down took a third of a second: it read as a jump into the seat)
+    if (st.mode === 'enter' && st.phase !== 'approach') dt *= 1.4;
     else if (st.mode === 'exit') dt *= 1.5;
     st.t += dt; st.T += dt;
     if (st.mode === 'enter') this._enter(dt, input);
@@ -322,6 +386,21 @@ export class VehicleInteraction {
   }
 
   _next(name) { this.st.phase = name; this.st.t = 0; }
+
+  // the ground beside the door in the vehicle's body space (the profile's groundY is the body's underside, 15-20 cm
+  // up: the feet stood on air beside the car, and getting out ended on tiptoe and dropped into the walk). Feet go an
+  // ankle's height above it, standing hips a standing clip's hip height
+  _g() {
+    const st = this.st;
+    if (st.g === undefined) {
+      const e = st.side !== undefined && st.side !== st.P.ds ? _lp.set(-st.P.entry.x, st.P.entry.y, st.P.entry.z) : st.P.entry;
+      const w = this._toWorld(st.v, e, _lw), gy = this.of._ground(w.x, w.z);
+      st.g = Number.isFinite(gy) ? this._toLocal(st.v, w.setY(gy), _lw).y : st.P.groundY;
+    }
+    return st.g;
+  }
+  _footY() { return this._g() + (this.human.ankleH || 0.09); }
+  _standY() { const h = this.human; return this._g() + (h.standH || h.hipH * 0.96 || 0.9); }
 
   // walking along the route to the door, with the normal locomotion
   _walk(dt, target, speedMax, stop = true) {
@@ -337,15 +416,12 @@ export class VehicleInteraction {
   }
 
   _enter(dt, input) {
-    const st = this.st, v = st.v, P = st.P, s = this.of.state, h = this.human;
+    const st = this.st, v = st.v, P = st.P, s = this.of.state, h = this.human, fy = this._footY();
     v.controls.handbrake = 1; v.controls.throttle = 0;
     const ic = input?.controls;
-    // once in the seat, the gas pedal finishes it: the door shuts and the car is yours
-    if ((st.phase === 'legsIn' || st.phase === 'settle') && (ic?.throttle || 0) > 0.5) {
-      if (!st.closed) { st.closed = true; this._door(v, P.door.side, false); this.of._handover?.(v); }
-      this.st = { mode: 'seated', v, P, t: 0, T: 0 }; v.occupied = 'driver';
-      return;
-    }
+    // once in the seat, the gas pedal hurries the rest along (legs in, the door pulled shut) rather than skipping it:
+    // the legs jumped inside and the door slammed in the same frame
+    if ((st.phase === 'legsIn' || st.phase === 'settle') && (ic?.throttle || 0) > 0.5) { st.t += dt * 1.5; st.T += dt * 1.5; dt *= 2.5; }
     switch (st.phase) {
       case 'approach': {
         // the player can give up by walking away
@@ -395,9 +471,9 @@ export class VehicleInteraction {
           ik.arm(1, this._toWorld(v, P.bars.L), this._hint(v, 0.7, -0.7, -0.2), 1);
           ik.arm(-1, this._toWorld(v, P.bars.R), this._hint(v, -0.6, -0.7, -0.2), 1);
           // left foot stays planted beside the bike; the right foot arcs over the seat to the far side
-          ik.leg(1, this._toWorld(v, _a.set(0.32, P.groundY, P.seat.z + 0.08)), this._hint(v, 0.4, 0.2, 1), 1);
-          const f0 = _b.set(0.42, P.groundY, P.seat.z - 0.05), f1 = _c.set(-0.32, P.groundY, P.seat.z + 0.08);
-          const foot = f0.clone().lerp(f1, k); foot.y += Math.sin(k * Math.PI) * (P.seat.y + 0.15 - P.groundY);
+          ik.leg(1, this._toWorld(v, _a.set(0.32, fy, P.seat.z + 0.08)), this._hint(v, 0.4, 0.2, 1), 1);
+          const f0 = _b.set(0.42, fy, P.seat.z - 0.05), f1 = _c.set(-0.32, fy, P.seat.z + 0.08);
+          const foot = f0.clone().lerp(f1, k); foot.y += Math.sin(k * Math.PI) * (P.seat.y + 0.15 - fy);
           foot.z -= Math.sin(k * Math.PI) * 0.35;                    // swung round behind, over the tail
           ik.leg(-1, this._toWorld(v, foot), this._hint(v, -0.3, 0.3, 1), 1);
           this._look(ik, this._toWorld(v, _c.set(0, 1.2, 4)), 0.5);
@@ -411,8 +487,8 @@ export class VehicleInteraction {
         this._poseLocal(dt, P.seat, 0, (ik) => {
           ik.arm(1, this._toWorld(v, P.bars.L), this._hint(v, 0.7, -0.7, -0.2), 1);
           ik.arm(-1, this._toWorld(v, P.bars.R), this._hint(v, -0.7, -0.7, -0.2), 1);
-          ik.leg(1, this._toWorld(v, _a.set(0.36, P.groundY + 0.06, P.seat.z + 0.08)), this._hint(v, 0.5, 0.3, 1), 1);
-          ik.leg(-1, this._toWorld(v, _a.set(-0.36, P.groundY + 0.06, P.seat.z + 0.08)), this._hint(v, -0.5, 0.3, 1), 1);
+          ik.leg(1, this._toWorld(v, _a.set(0.36, fy + 0.06, P.seat.z + 0.08)), this._hint(v, 0.5, 0.3, 1), 1);
+          ik.leg(-1, this._toWorld(v, _a.set(-0.36, fy + 0.06, P.seat.z + 0.08)), this._hint(v, -0.5, 0.3, 1), 1);
         });
         if (st.t >= T) {
           this._riderIsMe(v, true);
@@ -439,18 +515,19 @@ export class VehicleInteraction {
       case 'step': {
         // turn the back to the seat, inner foot in over the sill (onto the step for a tall cab), head down
         const T = P.step ? 0.75 : 0.55, k = smooth(st.t / T);
-        const hips = _d.copy(st.local.hips).lerp(P.step ? P.step.clone().add(_k.set(P.ds * 0.25, 0.75, 0)) : P.sill.clone().add(_k.set(P.ds * 0.28, 0.08, 0)), k);
+        const hips = _hp.copy(st.local.hips).lerp(P.step ? P.step.clone().add(_k.set(P.ds * 0.25, 0.75, 0)) : P.sill.clone().add(_k.set(P.ds * 0.28, 0.08, 0)), k);
         const yaw = lerp(st.local.yaw, P.ds * 0.55, k);
         this._poseLocal(dt, hips, yaw, (ik) => {
           const inner = -P.ds;                                   // the leg towards the inside goes first
           // the inner foot lifts over the sill and down onto the cabin floor (or the step)
           const floorIn = new THREE.Vector3(P.sill.x - P.ds * 0.2, P.step ? P.step.y : P.floorY + 0.02, P.seat.z + 0.32);
-          const foot = new THREE.Vector3(P.entry.x, P.groundY, P.entry.z + 0.15).lerp(floorIn, k);
-          foot.y = lerp(P.groundY, floorIn.y, k) + Math.sin(k * Math.PI) * 0.22;
+          const foot = new THREE.Vector3(P.entry.x, fy, P.entry.z + 0.15).lerp(floorIn, k);
+          foot.y = lerp(fy, floorIn.y, k) + Math.sin(k * Math.PI) * 0.22;
           ik.leg(inner, this._toWorld(v, foot), this._hint(v, 0.1, 0.4, 1), 1);
-          ik.leg(-inner, this._toWorld(v, _k.set(P.entry.x, P.groundY, P.entry.z - 0.1)), this._hint(v, 0, 0.3, 1), 1);
+          ik.leg(-inner, this._toWorld(v, _k.set(P.entry.x, fy, P.entry.z - 0.1)), this._hint(v, 0, 0.3, 1), 1);
           this._spine(ik, v, Math.max(P.duck, P.kind === 'auto' ? 0.25 : 0.45) * Math.sin(k * Math.PI * 0.5) * 0.85);   // (head down before it reaches the door's top)
           this._look(ik, this._toWorld(v, P.seat, _c), 0.4);
+          this._clearRoof(ik, v, P);
         });
         if (st.t >= T) { this._next('lower'); st.from = hips.clone(); st.fromYaw = yaw; }
         return;
@@ -458,15 +535,17 @@ export class VehicleInteraction {
       case 'lower': {
         // the hips swing in under the roof and down onto the seat, turning to face forward
         const T = 0.65, k = smooth(st.t / T);
-        const hips = _d.copy(st.from).lerp(P.seat, k); hips.y += Math.sin(k * Math.PI) * 0.03;
+        const hips = _hp.copy(st.from).lerp(P.seat, k); hips.y += Math.sin(k * Math.PI) * 0.03;
         const yaw = lerp(st.fromYaw, 0, k);
         this._poseLocal(dt, hips, yaw, (ik) => {
           const inner = -P.ds;
           ik.leg(inner, this._toWorld(v, _a.copy(P.pedals[inner > 0 ? 'L' : 'R']).lerp(_k.set(P.sill.x - P.ds * 0.2, P.floorY + 0.02, P.seat.z + 0.32), 1 - k)), this._hint(v, 0.1, 0.5, 1), 1);
           // the outer foot stays on the ground outside until the hips are in
-          ik.leg(-inner, this._toWorld(v, _k.set(P.entry.x, P.groundY, P.entry.z - 0.1)), this._hint(v, 0, 0.3, 1), 1);
+          ik.leg(-inner, this._toWorld(v, _k.set(P.entry.x, fy, P.entry.z - 0.1)), this._hint(v, 0, 0.3, 1), 1);
           this._spine(ik, v, Math.max(P.duck, P.kind === 'auto' ? 0.25 : 0.45) * (1 - k * k * k) * 0.85);   // (kept down until the hips are in under the roof)
           this._look(ik, this._toWorld(v, _c.copy(P.seat).add(_k.set(0, 0.5, 3)), _c), 0.4);
+          this._clearRoof(ik, v, P, 1 - smooth((k - 0.75) / 0.25));
+          this._clearRoof(ik, v, P, smooth((k - 0.75) / 0.25), true);
         });
         if (st.t >= T) { this._next('legsIn'); h.play(P.kind === 'auto' ? 'sitIdle' : 'drive', { hold: true, fade: 0.45 }); }
         return;
@@ -475,10 +554,11 @@ export class VehicleInteraction {
         // the outer leg comes in over the sill onto its pedal
         const T = 0.45, k = smooth(st.t / T), outer = P.ds;
         this._poseLocal(dt, P.seat, 0, (ik) => {
-          const from = _a.set(P.entry.x, P.groundY, P.entry.z - 0.1), to = P.pedals[outer > 0 ? 'L' : 'R'];
+          const from = _a.set(P.entry.x, fy, P.entry.z - 0.1), to = P.pedals[outer > 0 ? 'L' : 'R'];
           const p = _b.copy(from).lerp(to, k); p.y += Math.sin(k * Math.PI) * 0.28;
           ik.leg(outer, this._toWorld(v, p), this._hint(v, 0.1, 0.5, 1), 1);
           ik.leg(-outer, this._toWorld(v, P.pedals[-outer > 0 ? 'L' : 'R']), this._hint(v, 0.1, 0.5, 1), 1);
+          this._clearRoof(ik, v, P, 1, true);
           this._look(ik, this._toWorld(v, _c.copy(P.seat).add(_k.set(0, 0.5, 3)), _c), 0.4);
         });
         if (st.t >= T) this._next('settle');
@@ -496,7 +576,7 @@ export class VehicleInteraction {
   }
 
   _exit(dt, input) {
-    const st = this.st, v = st.v, P = st.P, h = this.human;
+    const st = this.st, v = st.v, P = st.P, h = this.human, fy = this._footY();
     const side = st.side, sgn = side === P.ds ? 1 : -1;     // climbing across to the other door mirrors x
     const M = (p) => (sgn > 0 ? p : _k.copy(p).setX(-p.x));
     switch (st.phase) {
@@ -514,15 +594,15 @@ export class VehicleInteraction {
       }
       case 'unswing': {
         const T = 0.8, k = smooth(st.t / T);
-        const over = _d.copy(P.seat).add(_k.set(0.05, 0.12, 0)), stand = _b.copy(P.entry); stand.y = P.groundY + (h.hipH || 0.95);
+        const over = _d.copy(P.seat).add(_k.set(0.05, 0.12, 0)), stand = _b.copy(P.entry); stand.y = this._standY();
         const hips = k < 0.4 ? P.seat.clone().lerp(over, k / 0.4) : over.clone().lerp(stand, (k - 0.4) / 0.6);
         this._poseLocal(dt, hips, lerp(0, 0.3, k), (ik) => {
           const wH = 1 - smooth((k - 0.75) / 0.25);
           ik.arm(1, this._toWorld(v, P.bars.L), this._hint(v, 0.7, -0.7, -0.2), wH);
           ik.arm(-1, this._toWorld(v, P.bars.R), this._hint(v, -0.6, -0.7, -0.2), wH);
-          ik.leg(1, this._toWorld(v, _a.set(0.36, P.groundY, P.seat.z + 0.08).lerp(_c.set(P.entry.x + 0.08, P.groundY, P.entry.z + 0.05), k)), this._hint(v, 0.4, 0.2, 1), 1);
-          const f0 = _a.set(-0.36, P.groundY, P.seat.z + 0.08), f1 = _c.set(P.entry.x - 0.1, P.groundY, P.entry.z - 0.1);
-          const foot = f0.clone().lerp(f1, k); foot.y += Math.sin(k * Math.PI) * (P.seat.y + 0.15 - P.groundY); foot.z -= Math.sin(k * Math.PI) * 0.35;
+          ik.leg(1, this._toWorld(v, _a.set(0.36, fy, P.seat.z + 0.08).lerp(_c.set(P.entry.x + 0.08, fy, P.entry.z + 0.05), k)), this._hint(v, 0.4, 0.2, 1), 1);
+          const f0 = _a.set(-0.36, fy, P.seat.z + 0.08), f1 = _c.set(P.entry.x - 0.1, fy, P.entry.z - 0.1);
+          const foot = f0.clone().lerp(f1, k); foot.y += Math.sin(k * Math.PI) * (P.seat.y + 0.15 - fy); foot.z -= Math.sin(k * Math.PI) * 0.35;
           ik.leg(-1, this._toWorld(v, foot), this._hint(v, -0.3, 0.3, 1), 1);
         });
         if (st.t >= T) {
@@ -562,8 +642,8 @@ export class VehicleInteraction {
       }
       case 'across': {
         const T = 0.9, k = smooth(st.t / T);
-        const hips = _d.copy(st.from).lerp(_a.set(-P.seat.x, P.seat.y, P.seat.z), k); hips.y += Math.sin(k * Math.PI) * 0.06;
-        this._poseLocal(dt, hips, 0, (ik) => { this._spine(ik, v, P.duck * 0.5 * Math.sin(k * Math.PI)); });
+        const hips = _hp.copy(st.from).lerp(_a.set(-P.seat.x, P.seat.y, P.seat.z), k); hips.y += Math.sin(k * Math.PI) * 0.06;
+        this._poseLocal(dt, hips, 0, (ik) => { this._spine(ik, v, P.duck * 0.5 * Math.sin(k * Math.PI)); this._clearRoof(ik, v, P, Math.sin(k * Math.PI)); });
         if (st.t >= T) this._next('legsOut');
         return;
       }
@@ -571,10 +651,11 @@ export class VehicleInteraction {
         // turn towards the door, the outer leg swings out onto the ground
         const T = 0.5, k = smooth(st.t / T), seat = M(P.seat).clone();
         this._poseLocal(dt, seat, side * 0.5 * k, (ik) => {
-          const outer = side, to = M(_a.set(P.entry.x, P.groundY, P.entry.z - 0.1)).clone(), from = M(P.pedals[outer > 0 ? 'L' : 'R']).clone();
+          const outer = side, to = M(_a.set(P.entry.x, fy, P.entry.z - 0.1)).clone(), from = M(P.pedals[outer > 0 ? 'L' : 'R']).clone();
           const p = from.lerp(to, k); p.y += Math.sin(k * Math.PI) * 0.28;
           ik.leg(outer, this._toWorld(v, p), this._hint(v, side * 0.4, 0.5, 1), 1);
           ik.leg(-outer, this._toWorld(v, M(P.pedals[-outer > 0 ? 'L' : 'R']).clone()), this._hint(v, 0.1, 0.5, 1), 1);
+          this._clearRoof(ik, v, P, 1, true);
           this._look(ik, this._toWorld(v, M(P.exit).clone().setY(P.seat.y), _c), 0.5);
         });
         if (st.t >= T) { this._next('rise'); h.play('sitExit', { rate: 1.35, fade: 0.2 }); st.from = seat; }
@@ -583,15 +664,17 @@ export class VehicleInteraction {
       case 'rise': {
         // duck under the roof and out, weight onto the outside foot, standing up beside the door
         const T = P.step ? 0.9 : 0.8, k = smooth(st.t / T);
-        const standHips = M(P.entry).clone(); standHips.y = P.groundY + (h.hipH || 0.95);
+        const standHips = M(P.entry).clone(); standHips.y = this._standY();
         const mid = M(P.sill).clone().add(_k.set(side * 0.28, 0.08, 0));
-        const hips = k < 0.5 ? _d.copy(st.from).lerp(mid, k * 2) : _d.copy(mid).lerp(standHips, (k - 0.5) * 2);
+        const hips = k < 0.5 ? _hp.copy(st.from).lerp(mid, k * 2) : _hp.copy(mid).lerp(standHips, (k - 0.5) * 2);
         this._poseLocal(dt, hips, side * lerp(0.5, 0.75, k), (ik) => {
-          ik.leg(side, this._toWorld(v, M(_a.set(P.entry.x, P.groundY, P.entry.z - 0.1)).clone()), this._hint(v, side * 0.3, 0.3, 1), 1);
-          const innerFrom = M(P.pedals[-side > 0 ? 'L' : 'R']).clone(), innerTo = M(_a.set(P.entry.x, P.groundY, P.entry.z + 0.2)).clone();
+          ik.leg(side, this._toWorld(v, M(_a.set(P.entry.x, fy, P.entry.z - 0.1)).clone()), this._hint(v, side * 0.3, 0.3, 1), 1);
+          const innerFrom = M(P.pedals[-side > 0 ? 'L' : 'R']).clone(), innerTo = M(_a.set(P.entry.x, fy, P.entry.z + 0.2)).clone();
           const p = innerFrom.lerp(innerTo, smooth((k - 0.35) / 0.65)); p.y += Math.sin(smooth((k - 0.35) / 0.65) * Math.PI) * 0.25;
           ik.leg(-side, this._toWorld(v, p), this._hint(v, 0.1, 0.4, 1), 1 - smooth((k - 0.85) / 0.15));
           this._spine(ik, v, P.duck * Math.sin(k * Math.PI) * 0.7);
+          this._clearRoof(ik, v, P, 1 - smooth(k / 0.08), true);
+          this._clearRoof(ik, v, P, smooth(k / 0.08));
         });
         if (st.t >= T) {
           // standing outside: back to the world and the walking character
@@ -662,7 +745,7 @@ export class VehicleInteraction {
   _seatedPose(dt, wHands) {
     const st = this.st, v = st.v, P = st.P, s = v.state;
     const steer = s.wheelSteer || 0;
-    const hips = _d.copy(P.seat); hips.x += this.sway.x * 0.35;
+    const hips = _hp.copy(P.seat); hips.x += this.sway.x * 0.35;
     this._poseLocal(dt, hips, 0, (ik) => {
       // feet on the pedals (the right foot presses with the throttle / brake)
       const thr = v.controls?.throttle || 0, brk = v.controls?.brake || 0;
@@ -670,6 +753,7 @@ export class VehicleInteraction {
       ik.leg(-1, this._toWorld(v, _a.copy(P.pedals.R).add(_k.set(brk > 0.1 ? 0.12 : 0, -0.03 * Math.max(thr, brk), 0.04 * Math.max(thr, brk)))), this._hint(v, -0.15, 0.5, 1), 1);
       // the torso sways with the car (forward under braking, back under acceleration, out in the turns)
       ik.aim(this.human.B.Spine, this.human.B.Neck, wpos(this.human.B.Neck, _a).add(this._dirW(v, -this.sway.x, 0, this.sway.z, _b)), 1);
+      if (!P.bars) this._clearRoof(ik, v, P, 1, true);
       // hands on the wheel, turning with it (ten to two), or on the bars
       if (P.wheel) {
         for (const side of [1, -1]) ik.arm(side, this._toWorld(v, gripPoint(P.wheel, side * 1.05, steer, _a)), this._hint(v, side * 0.6, -0.8, -0.2), wHands);
@@ -693,6 +777,7 @@ export class VehicleInteraction {
   // first, then the IK callback
   _poseLocal(dt, hips, yaw, fn) {
     const c = this.of.body.group, h = this.human;
+    hips = _H.copy(hips);
     c.rotation.set(0, yaw, 0);
     c.updateMatrixWorld(true);
     h.animate(0, dt);
@@ -717,24 +802,43 @@ export class VehicleInteraction {
     for (const side of [1, -1]) {
       const fwd = _a.set(Math.sin(this.of.body.group.rotation.y), 0, Math.cos(this.of.body.group.rotation.y));
       const lat = _b.set(fwd.z, 0, -fwd.x).multiplyScalar(side * 0.11);
-      const p = _c.set(hips.x + lat.x, P.groundY, hips.z + lat.z);
+      const p = _c.set(hips.x + lat.x, this._footY(), hips.z + lat.z);
       ik.leg(side, this._toWorld(v, p), this._dirW(v, fwd.x, 0.3, fwd.z, _k), w);
     }
   }
+  // keep the head under the roof and the door frame's top: while it goes in or out the spine ducks forward where the
+  // head would show through; sat in a low car it lies back instead, as a sports car's seat does (the F40's driver
+  // ~40°). w fades it in and out at the ends of a move
+  _clearRoof(ik, v, P, w = 1, back = false) {
+    const B = this.human.B;
+    if (!P.across?.length || !B.HeadTop_End || w <= 0.01) return;
+    for (let it = 0; it < 3; it++) {
+      const t = this._toLocal(v, wpos(B.HeadTop_End, _a), _b), lim = this._roofAt(P, Math.abs(t.x), !back);
+      if (lim === null) return;
+      const over = (t.y + 0.04 - lim) * w;                 // (hair, and the roof's own thickness)
+      if (over <= 0.01) return;
+      this._spine(ik, v, Math.min(0.9, over * 2.5) * (back ? -1 : 1));
+    }
+  }
+  // the car's top over a head at |x| = a, or null where it is clear of the roof. (The head is ~0.2 m across; on the
+  // move it ducks on the way to the door frame's top rather than at it: the limit eases off 0.8 m per metre beyond)
+  _roofAt(P, a, ahead = true) {
+    const T = roofTop(P);
+    let lim = null;
+    for (let j = 0; j < T.length; j++) {
+      const d = Math.max(0, Math.abs(j * 0.05 - a) - 0.1);
+      if (d === 0 || (ahead && d < 0.35)) lim = Math.min(lim ?? 9, T[j] + d * 0.8);
+    }
+    return lim;
+  }
   _spine(ik, v, duck) {
-    if (duck <= 0.01) return;
+    if (Math.abs(duck) <= 0.01) return;
     const B = this.human.B, base = wpos(B.Spine, _a), neck = wpos(B.Neck, _b);
     const L = base.distanceTo(neck), fwd = this._dirW(v, 0, 0, 1, _c);
     const dir = _k.subVectors(neck, base).normalize().addScaledVector(fwd, duck).normalize();
     ik.aim(B.Spine, B.Neck, base.clone().addScaledVector(dir, L), 1);
   }
-  _look(ik, target, w) {
-    const B = this.human.B;
-    if (!B.Neck || !B.HeadTop_End) return;
-    const n = wpos(B.Neck, new THREE.Vector3()), dir = _k.subVectors(target, n).normalize();
-    dir.y = Math.max(dir.y, -0.3) + 0.25;                            // a level-ish gaze, not chin-on-chest
-    ik.aim(B.Neck, B.HeadTop_End, n.add(dir.normalize().multiplyScalar(0.3)), w);
-  }
+  _look(ik, target, w) { ik.look(target, w); }
   _hint(v, x, y, z) { return this._dirW(v, x, y, z, new THREE.Vector3()).normalize(); }
   _dirW(v, x, y, z, out) { return out.set(x, y, z).applyQuaternion(this._body(v).getWorldQuaternion(_q1)); }
   // the hand nearer the door's free edge

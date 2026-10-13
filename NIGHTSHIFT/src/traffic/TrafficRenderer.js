@@ -171,7 +171,7 @@ export class TrafficRenderer {
 
   _attachRider(type) {
     const S = this._riderSrc;
-    if (!S || type in this.riders) return;
+    if (!S || type in this.riders || this._rw?.has(type)) return;
     const { humans, SkinnedRider, bikes } = S;
     const HELMETS = [0x1a1a1a, 0xe8e8e8, 0xb01818, 0x1a3a8a, 0xd8b020, 0x2a6a3a];   // (each rider's helmet is shaped to its own head: _helmet)
     {
@@ -197,7 +197,8 @@ export class TrafficRenderer {
         h.dispose?.();
       }
       // (drawn once their shaders are compiled: see _ready)
-      if (variants.length) { this.riders[type] = null; this._warmAll(variants.flatMap((v) => Object.values(v).flat()).filter((m) => m?.isMesh)).then(() => { this.riders[type] = { variants, HELMETS }; }); }
+      // (the table holds only riders ready to draw: update() walks every entry)
+      if (variants.length) { (this._rw ||= new Set()).add(type); this._warmAll(variants.flatMap((v) => Object.values(v).flat()).filter((m) => m?.isMesh)).then(() => { this._rw.delete(type); this.riders[type] = { variants, HELMETS }; }); }
     }
   }
 

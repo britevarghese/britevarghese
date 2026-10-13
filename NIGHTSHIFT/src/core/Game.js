@@ -780,7 +780,10 @@ export class Game {
     this.frames++; this.fpsT += dt;
     dt = Math.min(dt, 1 / 20); // avoid huge steps after tab switches
     if (this.fpsT >= 0.5) { this.fps = this.frames / this.fpsT; this.frames = 0; this.fpsT = 0; }
-    try { this._update(dt); } catch (e) { console.error('[Game] update error', e); if (this.rm.backend === 'webgpu' && /GPU|WebGPU|createView/i.test(String(e?.message) + String(e?.stack))) this.rm.failWebGPU(e.message); this._errCount = (this._errCount || 0) + 1; if (this._errCount < 4) this.ui?.toast(`Error: ${e.message}`, 'err', 5); }
+    // (an error in one part of the update skipped the rest of the frame, the drawing too: the picture froze for as
+    // long as it kept happening. The frame is still drawn)
+    this._drawn = false;
+    try { this._update(dt); } catch (e) { console.error('[Game] update error', e); if (!this._drawn && this.state.mode !== 'garage') try { this.rm.render(this.scene, this.camera, dt); } catch { /* drawing failed too */ } if (this.rm.backend === 'webgpu' && /GPU|WebGPU|createView/i.test(String(e?.message) + String(e?.stack))) this.rm.failWebGPU(e.message); this._errCount = (this._errCount || 0) + 1; if (this._errCount < 4) this.ui?.toast(`Error: ${e.message}`, 'err', 5); }
     this.input.endFrame();
   }
 
@@ -1043,7 +1046,7 @@ export class Game {
       pr.setCockpitArms(false);
       if (this.onFoot?.inter?.seated === this.player && !this.player.p.bike) this.onFoot.body.group.visible = true;
     }
-    this.rm.render(this.scene, this.camera, dt);
+    this.rm.render(this.scene, this.camera, dt); this._drawn = true;
     if (mode === 'photo') this.photo.afterRender();
     // UI
     if (mode !== 'menu' && mode !== 'photo' && mode !== 'replay' && mode !== 'cutscene') this.hud.update(dt, this);

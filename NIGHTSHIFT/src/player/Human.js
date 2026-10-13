@@ -44,7 +44,7 @@ export class HumanLibrary {
   }
   load(priority = 5) {
     if (this._job) return this._job;
-    const anims = fetch('/assets/anims/people.json').then((r) => (r.ok ? r.json() : null)).catch(() => null).then((a) => { this.anims = a; });
+    const anims = fetch('/assets/anims/people.json').then((r) => (r.ok ? r.json() : null)).catch(() => null).then((a) => { if (a) trimClips(a); this.anims = a; });
     this._job = Promise.all([anims, ...this.list.map((h) => this.assets.loadGLTF(modelUrl(this.manifest, h.file), priority).then((g) => ({ ...h, scene: g.scene })).catch(() => null))])
       .then(([, ...ms]) => {
         this.models = ms.filter(Boolean); this.ready = this.models.length > 0;
@@ -102,6 +102,23 @@ export class HumanLibrary {
   }
 }
 
+// The importer closed some one-shot clips with their own first frame: sitting down ended standing up again, getting
+// up ended sat down, a landing ended in the air. A held clip showed it (the driver popped up out of the seat at the
+// end of getting in). Such a last frame (the body jumping from the frame before) is dropped
+function trimClips(A) {
+  const ang = (q, i, j) => { let d = 0; for (let k = 0; k < 4; k++) d += q[i * 4 + k] * q[j * 4 + k]; return 2 * Math.acos(Math.min(1, Math.abs(d))); };
+  for (const c of Object.values(A.clips)) {
+    const n = c.times.length;
+    if (c.loop || n < 4) continue;
+    let jump = Math.abs(c.hips[(n - 1) * 3 + 1] - c.hips[(n - 2) * 3 + 1]) > 0.12;
+    for (const [b, q] of Object.entries(c.bones)) if (!/Thumb|Index|Middle|Ring|Pinky/.test(b) && ang(q, n - 2, n - 1) > 0.8) jump = true;
+    if (!jump) continue;
+    c.times = c.times.slice(0, n - 1); c.hips = c.hips.slice(0, (n - 1) * 3);
+    for (const b of Object.keys(c.bones)) c.bones[b] = c.bones[b].slice(0, (n - 1) * 4);
+    c.duration = c.times[n - 2];
+  }
+}
+
 export class Human {
   constructor(model, { shadow = true, height, lib, idle = 'idle', outfit = null } = {}) {
     this.id = model.id;
@@ -152,6 +169,9 @@ export class Human {
     // rest measurements in character space
     const B = this.B, L = (a, b) => wpos(a, _p).distanceTo(wpos(b, _c));
     this.hipH = wpos(B.Hips, new THREE.Vector3()).y;
+    // (standing in the clips the knees are soft: the hips a little below the rest pose's straight legs)
+    const A = lib?.anims;
+    this.standH = A?.clips?.idle && A.hipsRest ? this.hipH * A.clips.idle.hips[1] / A.hipsRest[1] : this.hipH * 0.96;
     this.thigh = L(B.LeftUpLeg, B.LeftLeg); this.shin = L(B.LeftLeg, B.LeftFoot);
     this.upper = L(B.LeftArm, B.LeftForeArm); this.fore = L(B.LeftForeArm, B.LeftHand);
     this.ankleH = wpos(B.LeftFoot, new THREE.Vector3()).y;
@@ -210,9 +230,17 @@ export class Human {
   get busy() { return !!this.shot; }
 
   // speed m/s (ground speed); the caller has placed the group and updated its parents' matrices
+  // (The mixer writes only the bones whose clip value changed since its last update; the others keep whatever they
+  // hold, and after posing that was last frame's IK. A pose that adds to the bone (the spine ducking under a car's
+  // roof) then added up frame on frame while the clip held still, and the body folded double getting into a car.
+  // The bones go back to the mixer's own pose before it runs)
   animate(speed, dt, airborne = false) {
-    if (this.mixer) return this._animateClips(speed, dt, airborne);
-    return this._animateIK(speed, dt);
+    const L = (this._bl ||= Object.values(this.B)), Q = this._bq;
+    if (Q) for (let i = 0; i < L.length; i++) L[i].quaternion.copy(Q[i]);
+    const r = this.mixer ? this._animateClips(speed, dt, airborne) : this._animateIK(speed, dt);
+    const S = (this._bq ||= L.map(() => new THREE.Quaternion()));
+    for (let i = 0; i < L.length; i++) S[i].copy(L[i].quaternion);
+    return r;
   }
 
   // locomotion blend: idle -> walk -> jog -> sprint by speed, playback rate matched to the ground speed

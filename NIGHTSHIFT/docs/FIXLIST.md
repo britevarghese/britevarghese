@@ -40,6 +40,34 @@ the game. Newly found problems go at the end of their section.
 - [x] Bus: driver seat and first-person eye at the front right of the cab
 - [x] Car first person: eye kept ~0.75 m from the wheel/dash, a little lower under the roof
 - [x] Getting in: head kept down under the door top and roof until the hips are in (checked: an auto, an Ertiga)
+- [x] Getting in looked broken: the head nodded and swung, the body dived in head first, the camera jumped.
+  - The pose kept its hips target in a scratch vector that the arm and leg IK wrote over. The body dropped through
+    the floor for a frame, and the walking camera jumped to the car's middle and back.
+  - The "look at" turned the top of the head toward the target instead of the face, so the head nodded 30-45°
+    down: at the door handle, and at the wheel the whole drive. It turns the face now (yaw, then pitch, the neck
+    taking a third), within ±75° and 35° down to 25° up.
+  - The animation mixer rewrites only the bones whose clip value changed. While the sit-down clip held still, the
+    spine's duck added up frame on frame and folded the body double, about 70°. Every person's bones now go back
+    to the mixer's own pose before it runs.
+  - The sit-down clip's last frame was a standing pose, and the stand-up clip's a seated one (as was the landing
+    clip's). The driver popped up out of the seat and dropped back at the end. Those frames are dropped on load.
+  - The head ducks under each car's own roof and door frame, measured across its width. It starts on the way to
+    the frame and straightens once inside (BMW: head top 1.13 m under a 1.16 m frame).
+  - The feet were planted on the car body's underside, 17 cm up, so they stood on air. Getting out ended on
+    tiptoe and dropped into the walk. Both now use the real ground beside the door and the standing clip's hip
+    height.
+  - The sequence runs a little slower (about 2.1 s from the door). The gas pedal hurries the legs in and the door
+    shut, rather than skipping them.
+- [x] Driver's head through the roof of low cars. The seat height came from the car's highest point: on the 930
+  that is 1.65 m, above its 1.23 m roof, so the head stood 18 cm out of the roof; the Huracan, Senna and F40 showed
+  the hair or more.
+  - The seat now sits under the roof measured right over it.
+  - In the lowest cars the driver lies back as a sports seat does (F40 about 40°).
+  - Checked: 930, Huracan, Senna, F40, BMW E30 and GT-R. Every head is under its roof (at most 3 cm into the roof's
+    own thickness, from 19 cm through it).
+- [x] An error in one part of a frame's update skipped the rest of the frame, drawing included, so the picture froze
+  while it lasted. The frame is drawn anyway now. (One such error: a two-wheeler's riders were listed as empty
+  while their shaders compiled, which threw every frame at start-up.)
 - [x] Wheels: traffic wheels roll at each vehicle's own wheel size (autos, buses and lorries were wrong); the shards round the wheels were the model import (fixed)
 - [x] Vehicle models incomplete up close: the importer's simplifier tore spikes and holes into dense panels (Scorpio, Dzire, Brezza, Ertiga, Maruti 800...); the near LOD now keeps seams, small trim and panel borders. Re-imported. (Thar scan: still a little rough at the wheels)
 - [x] Two-wheeler rider vanishes when hit (always thrown as a body now; no get-up animation exists yet)
