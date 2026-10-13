@@ -225,7 +225,9 @@ export class QualityManager {
   }
 
   // identity of the GPU the detection was made on: a new GPU / browser re-runs the benchmark
-  get gpuKey() { return `v3|${this.gpu.vendor}|${this.gpu.renderer}`; }
+  // (v4: the benchmark used to time the world being built and the shaders compiling, and the governor saved every
+  // drop it made: a gaming laptop ended up on VERY LOW. Earlier detections are measured again)
+  get gpuKey() { return `v4|${this.gpu.vendor}|${this.gpu.renderer}`; }
 
   resolveLevel() {
     const g = this.settings.graphics;

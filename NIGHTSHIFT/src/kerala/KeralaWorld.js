@@ -4,7 +4,7 @@
 // Coordinates: x = -east, z = north (metres) from Marine Drive, Kochi.
 import * as THREE from 'three';
 import { IS_MOBILE } from '../core/QualityManager.js';
-import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
+import { mergeFast as mergeGeometries } from '../core/MergeFast.js';   // (three's, with a fast path: see there)
 import { CollisionWorld } from '../physics/Collision.js';
 import { KeralaTile, TILE, C, ROAD_HALF, decodeBinary } from './KeralaTile.js';
 import * as TX from '../renderer/Textures.js';

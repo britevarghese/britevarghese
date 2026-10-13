@@ -6,7 +6,7 @@
 // so a tile's group sits at (x = -E0, z = N0) and its local vertices are (x = -e, z = n). Every mesh stays in
 // local coordinates (small floats) wherever the tile is in the state.
 import * as THREE from 'three';
-import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
+import { mergeFast as mergeGeometries } from '../core/MergeFast.js';   // (three's, with a fast path: see there)
 
 export const TILE = 2000;
 export const GRID = 33;
@@ -1176,36 +1176,35 @@ export class KeralaTile {
     }
     edge.forEach(([i, j], q) => { const k = j * n + i, s = nv + q; pos.set([pos[k * 3], pos[k * 3 + 1] - 4, pos[k * 3 + 2]], s * 3); uv.set([uv[k * 2], uv[k * 2 + 1]], s * 2); });
     // index buffers at full, half and quarter detail (the grid is 2^k + 1 vertices a side); the tile picks one by distance
-    const grid = (st) => {
-      const idx = [];
+    // (written straight into one typed array. The grid's triangles face up as laid out, x mirrored and all: faceUp
+    // found nothing to turn; built as JS lists and copied about, this was a tile's slowest single step)
+    const sts = [1, 2, 4].filter((st) => (n - 1) % st === 0), lods = [];
+    let total = 0, fullGrid = 0;
+    for (const st of sts) total += ((n - 1) / st) ** 2 * 6 + 4 * ((n - 1) / st) * 12;
+    const all = new Uint32Array(total);
+    let o = 0;
+    for (const st of sts) {
+      const o0 = o;
       for (let j = 0; j < n - 1; j += st) for (let i = 0; i < n - 1; i += st) {
         const a = j * n + i, b = a + st, c = a + n * st, d = c + st;
-        idx.push(a, b, c, b, d, c);
+        all[o++] = a; all[o++] = b; all[o++] = c; all[o++] = b; all[o++] = d; all[o++] = c;
       }
-      return idx;
-    };
-    const skirt = (st) => {
-      const idx = [];
+      if (st === 1) fullGrid = o;
       for (let e = 0; e < 4; e++) for (let q = 0; q < n - 1; q += st) {
         const a = e * n + q, b = a + st, [ia, ja] = edge[a], [ib, jb] = edge[b], A = ja * n + ia, B = jb * n + ib;
-        idx.push(A, B, nv + a, B, nv + b, nv + a, A, nv + a, B, B, nv + a, nv + b);   // both sides
+        all[o++] = A; all[o++] = B; all[o++] = nv + a; all[o++] = B; all[o++] = nv + b; all[o++] = nv + a;   // both sides
+        all[o++] = A; all[o++] = nv + a; all[o++] = B; all[o++] = B; all[o++] = nv + a; all[o++] = nv + b;
       }
-      return idx;
-    };
+      lods.push([o0, o - o0]);
+    }
     const g = new THREE.BufferGeometry();
     g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
     g.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
-    g.setIndex(grid(1)); faceUp(g); g.computeVertexNormals();
+    g.setIndex(new THREE.BufferAttribute(all.subarray(0, fullGrid), 1)); g.computeVertexNormals();   // (normals from the full grid)
     const N3 = g.attributes.normal.array;
     edge.forEach(([i, j], q) => { const k = (j * n + i) * 3; N3.set([N3[k], N3[k + 1], N3[k + 2]], (nv + q) * 3); });
     // (one index buffer holding every level; the draw range picks the level)
-    const all = [], lods = [];
-    for (const st of [1, 2, 4].filter((s) => (n - 1) % s === 0)) {
-      const tmp = new THREE.BufferGeometry(); tmp.setAttribute('position', g.attributes.position); tmp.setIndex(grid(st)); faceUp(tmp);
-      const I = [...tmp.index.array, ...skirt(st)];
-      lods.push([all.length, I.length]); for (const v of I) all.push(v);
-    }
-    g.setIndex(new THREE.BufferAttribute(new Uint32Array(all), 1));
+    g.setIndex(new THREE.BufferAttribute(all, 1));
     g.setDrawRange(lods[0][0], lods[0][1]);
     const tex = new THREE.CanvasTexture(this.visCanvas);
     tex.colorSpace = THREE.SRGBColorSpace; tex.anisotropy = 4;

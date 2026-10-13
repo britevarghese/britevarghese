@@ -521,11 +521,11 @@ export class Game {
     const made = [];
     let i = 0;
     const step = () => {
-      for (let k = 0; k < 3 && i < n; k++, i++) {
+      for (let k = 0; k < 1 && i < n; k++, i++) {   // (one at a time: a person is a copy of a skinned model)
         const h = i < (H.crowd || H.models).length ? H.create(i, { shadow: true }) : H.create(H.models[i - (H.crowd || H.models).length].id, { shadow: true });
         if (h) made.push(h);
       }
-      if (i < n) return void setTimeout(step, 30);
+      if (i < n) return void setTimeout(step, 50);
       this.warm({ traverse: (cb) => { for (const h of made) h.group.traverse(cb); }, traverseVisible() {} }).finally(() => { for (const h of made) h.dispose?.(); });
     };
     setTimeout(step, 0);
@@ -674,11 +674,12 @@ export class Game {
     const times = [];
     const gl = this.rm.backend === 'webgl2' ? this.rm.renderer.getContext() : null;
     const px = new Uint8Array(4);
+    // (drawing only: the world's own updates build the tiles still to come, a few milliseconds a frame, which is not
+    // what the graphics card can do; timed with them, a fast card measured slow)
     for (let i = 0; i < frames; i++) {
       await new Promise((r) => requestAnimationFrame(r));
       const t0 = performance.now();
       this.camCtl.update(1 / 60, this.player, this.input.controls, {});
-      this.world.update(1 / 60, this.camera, this.env.state);
       this.rm.render(this.scene, this.camera, 1 / 60);
       if (gl) gl.readPixels(0, 0, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, px);
       else await new Promise((r) => requestAnimationFrame(r));
@@ -689,14 +690,19 @@ export class Game {
   }
 
   // Auto-quality governor (graphics quality = AUTO only). Watches real frame times while driving: when
-  // most frames miss ~40 fps it first lowers the render resolution, then drops a preset level (saved);
+  // most frames miss ~40 fps it first lowers the render resolution, then drops a preset level for this session;
   // resolution comes back once there is headroom again.
+  // (not in the first 40 s of a drive, while the area is still being built, and a level only after 12 s of it: the
+  // start of a drive is busy on any computer. And not saved: each slow start took a level off for good, and a
+  // gaming laptop ended up on VERY LOW. The detected level is the benchmark's)
   _governor(dt) {
     if (this.settings.graphics.quality !== 'auto' || this.state.mode !== 'drive' || document.hidden) return;
-    const G = (this.gov ||= { t: 0, slow: 0, fast: 0, n: 0, cool: 3 });
+    const G = (this.gov ||= { t: 0, slow: 0, fast: 0, n: 0, cool: 40, bad: 0 });
     const ms = dt * 1000;
     if (ms > 250) return; // hitch / tab switch, not steady load
-    G.cool -= dt; G.t += dt; G.n++;
+    G.cool -= dt;
+    if (this.world.job) { G.t = 0; G.n = 0; G.slow = 0; G.fast = 0; return; }   // (a tile being built: not steady load)
+    G.t += dt; G.n++;
     if (ms > 25) G.slow++;
     if (ms < 18) G.fast++;
     if (G.t < 4) return;
@@ -704,12 +710,13 @@ export class Game {
     G.t = 0; G.n = 0; G.slow = 0; G.fast = 0;
     if (G.cool > 0) return;
     const rm = this.rm;
+    G.bad = slow > 0.6 ? G.bad + 1 : 0;
     if (slow > 0.6) {
       if ((rm.dynScale || 1) > 0.72) { rm.dynScale = Math.max(0.7, (rm.dynScale || 1) - 0.1); rm.resize(); G.cool = 3; return; }
       const i = QUALITY_LEVELS.indexOf(this.quality.level);
-      if (i > this.quality.floorIndex) {
+      if (i > this.quality.floorIndex && G.bad >= 3) {
         const lvl = QUALITY_LEVELS[i - 1];
-        this.settings.graphics.detectedQuality = lvl; this.settings.save();
+        G.bad = 0;
         rm.dynScale = 1;
         this.applyPreset(this.quality.apply(lvl));
         this.ui.toast(`Graphics auto-adjusted to ${QUALITY_LABELS[lvl]}`, '', 3);

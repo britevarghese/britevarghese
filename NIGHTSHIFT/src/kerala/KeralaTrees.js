@@ -8,7 +8,7 @@
 // Closest of all (within uM), the coconut and areca palms, broadleaf trees and banana plants are real models
 // (public/assets/models/props/tree_*.glb, tools/import-props.mjs), on the same instance matrices.
 import * as THREE from 'three';
-import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
+import { mergeFast as mergeGeometries } from '../core/MergeFast.js';   // (three's, with a fast path: see there)
 import { TILE, C, ROAD_HALF } from './KeralaTile.js';
 
 export const KIND = { palm: 0, broad: 1, banana: 2, bush: 3, areca: 4, rubber: 5, bamboo: 6, grass: 7 };

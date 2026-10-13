@@ -81,6 +81,11 @@ async function boot() {
   await Promise.race([rest, new Promise((r) => setTimeout(r, 4000))]);
   game.onModelsReady(rest);
 
+  // the shaders of everything loaded so far, compiled in the background behind the loading screen (the menu's first
+  // frame compiled some fifty at once: the game froze for seconds as it started)
+  const warm = (ms) => Promise.race([game.warm(game.scene), new Promise((r) => setTimeout(r, ms))]);
+  setProgress(0.94, 'Preparing graphics...');
+  await warm(10000);
   // short benchmark on first launch / new GPU (auto quality only)
   if (settings.graphics.quality === 'auto' && !settings.graphics.detectedQuality) {
     setProgress(0.96, 'Measuring performance...');
@@ -89,7 +94,7 @@ async function boot() {
     const refined = quality.refineWithBenchmark(level, ms);
     console.info(`[Quality] ${quality.gpu.name}: benchmark ${ms.toFixed(1)} ms/frame: ${level} -> ${refined}`);
     settings.graphics.detectedQuality = refined; settings.graphics.detectedGpu = quality.gpuKey; settings.save();
-    if (refined !== level) { level = refined; preset = quality.apply(level); game.applyPreset(preset, true); }
+    if (refined !== level) { level = refined; preset = quality.apply(level); game.applyPreset(preset, true); await warm(8000); }
   }
   setProgress(1, 'Ready');
   game.start();
