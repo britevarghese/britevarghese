@@ -1034,6 +1034,27 @@ export class KeralaTile {
       }
       return { parts, C, joints, cls: Math.min(...parts.map(([R]) => R.cls)) };
     });
+    // two junctions close together on a road (OSM maps a staggered crossing so): each took the level of the roads
+    // meeting there, and on a hillside those were a metre and more apart a few metres from each other (a 27 % pitch
+    // between junctions 4.6 m apart). Brought within the grade the hillside has there (8 % at least); the less
+    // important junction gives way, two alike meet halfway
+    {
+      const lvl = (o) => o[0] / o[1], fixed = (o) => o[4] || o[5] !== undefined, pairs = [];
+      for (const { parts, C, joints } of runs) {
+        const D = [0]; for (let i = 1; i < C.length; i++) { const a = C[i - 1][0].P[C[i - 1][1]], b = C[i][0].P[C[i][1]]; D.push(D[i - 1] + Math.hypot(b[0] - a[0], b[1] - a[1])); }
+        const js = [];
+        for (const [R, at] of parts) for (const [j, k] of R.joins) { const o = node.get(k); if (o && o[3] >= 2 && !(o[3] === 2 && joints.has(k))) js.push([D[at[j]], k]); }
+        js.sort((a, b) => a[0] - b[0]);
+        for (let q = 1; q < js.length; q++) { const d = js[q][0] - js[q - 1][0]; if (d > 0.5 && d < 25 && js[q][1] !== js[q - 1][1]) pairs.push([js[q - 1][1], js[q][1], d]); }
+      }
+      const g0 = (k) => { const [e, n] = k.split(',').map(Number); return h0r ? gridAt(h0r, N, S, e, n) : this._h0At(e, n); };
+      for (let pass = 0; pass < 8 && pairs.length; pass++) for (const [ka, kb, d] of pairs) {
+        const a = node.get(ka), b = node.get(kb), dy = lvl(b) - lvl(a), ex = Math.abs(dy) - Math.max(0.08 * d, Math.abs(g0(kb) - g0(ka)) + 0.04 * d);
+        if (ex <= 0 || (fixed(a) && fixed(b))) continue;
+        const wa = fixed(a) || a[2] < b[2] ? 0 : fixed(b) || b[2] < a[2] ? 1 : 0.5, m = Math.sign(dy) * ex;
+        a[0] += m * wa * a[1]; b[0] -= m * (1 - wa) * b[1];
+      }
+    }
     for (const { parts, C, joints } of runs.sort((a, b) => a.cls - b.cls)) {
       if (this._due()) { yield 'grade:junctions+'; this._ys = performance.now(); }
       const P = C.map(([R, i]) => R.P[i]), prof = C.map(([R, i]) => R.prof[i]), up = C.map(([R, i]) => R.up[i]);
