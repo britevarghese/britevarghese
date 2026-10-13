@@ -667,10 +667,12 @@ export class KeralaTile {
       // there, one tile reading water at the edge and the other not: a road met its other half 0.5 m higher or lower)
       // (and anywhere, the same ground resampled before the beds were sunk: up in the hills a road beside a pond or a
       // reservoir dipped 2 m and more into its bed, a hump either side where it met the roads above)
+      // (by the edge, the survey resampled smoothly: its edge row is the neighbour's too. Straight lines between the
+      // survey's points 62.5 m apart made a sharp crest every 62.5 m on a road along the edge, 15 % up onto the flat)
       const rawAt = (e, n) => {
-        const g = gridAt(pre, N, S, e, n), h0 = this._h0At(e, n), g0 = h0r ? gridAt(h0r, N, S, e, n) - 0.5 : g;
-        const y = Math.max(g, g0, h0 < 25 ? h0 - 0.5 : g), dE = Math.min(e, n, TILE - e, TILE - n);
-        return dE < 20 ? h0 + (y - h0) * _smooth(dE / 20) : y;
+        const g = gridAt(pre, N, S, e, n), h0 = this._h0At(e, n), he = h0r ? gridAt(h0r, N, S, e, n) : h0;
+        const y = Math.max(g, he - 0.5, h0 < 25 ? h0 - 0.5 : g), dE = Math.min(e, n, TILE - e, TILE - n);
+        return dE < 20 ? he + (y - he) * _smooth(dE / 20) : y;
       };
       const cross = (r.flags & 2) && !water.some(Boolean) ? this._roadBeneath(r) : [];
       E.push({ r, hw, P, at, raw: P.map(([e, n]) => rawAt(e, n)), water, across, over: cross.length > 0, cross });
@@ -1081,7 +1083,7 @@ export class KeralaTile {
     for (const { hw, P, wet } of roads) for (const i of [0, P.length - 1]) {
       const [e, n] = P[i];
       if (wet[i] || Math.min(e, n, TILE - e, TILE - n) > 0.01) continue;
-      const y = this._h0At(e, n), inner = hw + S * 0.75, row = n < 0.01 ? 0 : n > TILE - 0.01 ? N - 1 : -1, col = e < 0.01 ? 0 : e > TILE - 0.01 ? N - 1 : -1;
+      const y = h0r ? gridAt(h0r, N, S, e, n) : this._h0At(e, n), inner = hw + S * 0.75, row = n < 0.01 ? 0 : n > TILE - 0.01 ? N - 1 : -1, col = e < 0.01 ? 0 : e > TILE - 0.01 ? N - 1 : -1;
       const along = []; for (let q = 0; q < N; q++) { if (row >= 0) along.push([q, row]); if (col >= 0) along.push([col, q]); }
       for (const [ii, jj] of along) {
         const d = Math.hypot(ii * S - e, jj * S - n), k = jj * N + ii, c = y - 0.05 + Math.max(0, d - hw) * 0.03;
