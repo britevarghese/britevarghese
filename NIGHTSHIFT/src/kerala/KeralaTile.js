@@ -54,6 +54,21 @@ export function faceUp(g) {
   g.index.needsUpdate = true;
   return g;
 }
+// vertex normals as three's computeVertexNormals makes them (each face's (C - B) x (A - B) added to its corners, then
+// normalised), in typed arrays: three's goes through accessor calls per corner, a tile's slowest part of a few steps
+export function fastNormals(g) {
+  const P = g.attributes.position.array, I = g.index ? g.index.array : null, n = I ? I.length : P.length / 3, N = new Float32Array(P.length);
+  for (let t = 0; t + 2 < n; t += 3) {
+    const a = (I ? I[t] : t) * 3, b = (I ? I[t + 1] : t + 1) * 3, c = (I ? I[t + 2] : t + 2) * 3;
+    const cx = P[c] - P[b], cy = P[c + 1] - P[b + 1], cz = P[c + 2] - P[b + 2], ax = P[a] - P[b], ay = P[a + 1] - P[b + 1], az = P[a + 2] - P[b + 2];
+    const nx = cy * az - cz * ay, ny = cz * ax - cx * az, nz = cx * ay - cy * ax;
+    if (I) { N[a] += nx; N[a + 1] += ny; N[a + 2] += nz; N[b] += nx; N[b + 1] += ny; N[b + 2] += nz; N[c] += nx; N[c + 1] += ny; N[c + 2] += nz; }
+    else { N[a] = N[b] = N[c] = nx; N[a + 1] = N[b + 1] = N[c + 1] = ny; N[a + 2] = N[b + 2] = N[c + 2] = nz; }
+  }
+  for (let i = 0; i < N.length; i += 3) { const l = Math.hypot(N[i], N[i + 1], N[i + 2]) || 1; N[i] /= l; N[i + 1] /= l; N[i + 2] /= l; }
+  g.setAttribute('normal', new THREE.BufferAttribute(N, 3));
+  return g;
+}
 // KLT1 binary tile (tools/kerala/build_tiles.py encode_tile) -> the same arrays as the JSON form (decimetres)
 export function decodeBinary(buf) {
   const u8 = new Uint8Array(buf);
@@ -2474,19 +2489,22 @@ export class KeralaTile {
     const strip = (gs) => gs.map((g) => { for (const k of Object.keys(g.attributes)) if (k !== 'position' && k !== 'normal') g.deleteAttribute(k); return g; });
     for (const part of roofsTile.length ? batches(roofsTile) : []) { if (this._due()) { yield 'tile:bmerge+'; this._ys = performance.now(); } const g = mergeGeometries(part); if (g) { const m = new THREE.Mesh(g, M.klRoofTile); m.castShadow = !!opts.shadows; m.name = 'roofsTile'; out.push(m); } }
     // ledges in 500 m chunks, so only the ones near the camera are drawn (3 quads each: top, front, underside)
+    // (straight into typed arrays: built as JS lists, with three's normals, a chunk took up to a tenth of a second)
+    const byChunk = Array.from({ length: 16 }, () => []), Q = [0, 2, 1, 1, 2, 3, 2, 4, 3, 3, 4, 5, 4, 6, 5, 5, 6, 7];
+    for (const l of ledges) byChunk[l[1]]?.push(l[0]);   // (a ledge just past the tile's edge has no chunk: not drawn, as before)
     for (let c = 0; c < 16; c++) {
       if (this._due()) { yield 'tile:bmerge+'; this._ys = performance.now(); }
-      const L = ledges.filter((l) => l[1] === c);
+      const L = byChunk[c];
       if (!L.length) continue;
-      const pos = new Float32Array(L.length * 8 * 3), idx = [];
-      L.forEach(([v], i) => {
-        v.forEach((p, j) => pos.set(p, (i * 8 + j) * 3));
-        const q = i * 8;
-        idx.push(q, q + 2, q + 1, q + 1, q + 2, q + 3, q + 2, q + 4, q + 3, q + 3, q + 4, q + 5, q + 4, q + 6, q + 5, q + 5, q + 6, q + 7);
-      });
+      const pos = new Float32Array(L.length * 24), idx = new Uint32Array(L.length * 18);
+      for (let i = 0; i < L.length; i++) {
+        const v = L[i];
+        for (let j = 0; j < 8; j++) { const p = v[j], o = (i * 8 + j) * 3; pos[o] = p[0]; pos[o + 1] = p[1]; pos[o + 2] = p[2]; }
+        for (let k = 0; k < 18; k++) idx[i * 18 + k] = i * 8 + Q[k];
+      }
       const g = new THREE.BufferGeometry();
       g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
-      g.setIndex(idx); g.computeVertexNormals();
+      g.setIndex(new THREE.BufferAttribute(idx, 1)); fastNormals(g);
       const m = new THREE.Mesh(g, M.klLedge || M.klRoofFlat); m.name = 'ledges'; m.castShadow = !!opts.shadows; m.receiveShadow = true;
       m.userData.cc = [(c % 4) * 500 + 250, Math.floor(c / 4) * 500 + 250]; m.userData.far = 230;
       out.push(m);
