@@ -877,9 +877,14 @@ export class KeralaTile {
             // (a drain running off the tile's edge: to the level both tiles agree on there. Held at the bank's level
             // to the edge, the road met its other half 0.8 m lower: the neighbour may not see the drain at all)
             const a0 = i > 0 ? prof[i - 1] : edge[0] < 1.5 ? prof[0] : null, b0 = j + 1 < P.length ? prof[j + 1] : edge[P.length - 1] < 1.5 ? prof[P.length - 1] : null;
+            // (with the bank on one side only, where the road ends over a drain (the main road's, at a junction's
+            // mouth): it carries on at its grade. Held level at the bank, a lane coming down a hill at 14 % met the
+            // main road flat, a knee)
+            const grade = (k0, k1) => (k0 >= 0 && k1 < P.length && D[k1] > D[k0] ? Math.max(-0.15, Math.min(0.15, (prof[k1] - prof[k0]) / (D[k1] - D[k0]))) : 0);
             for (let k = i; k <= j; k++) {
               const u = (D[k] - D[Math.max(0, i - 1)]) / ((D[Math.min(P.length - 1, j + 1)] - D[Math.max(0, i - 1)]) || 1);
-              const y = a0 !== null && b0 !== null ? a0 + (b0 - a0) * u : (a0 ?? b0 ?? prof[k]);
+              const y = a0 !== null && b0 !== null ? a0 + (b0 - a0) * u
+                : a0 !== null ? a0 + grade(i - 2, i - 1) * (D[k] - D[i - 1]) : b0 !== null ? b0 - grade(j + 1, j + 2) * (D[j + 1] - D[k]) : prof[k];
               if (y > prof[k]) prof[k] = y;
             }
             i = j + 1; continue;
