@@ -1116,6 +1116,7 @@ export class KeralaTile {
     for (const { hw, P, prof, wet } of roads) {
       if (this._due()) { yield 'grade:stamp+'; this._ys = performance.now(); }
       const inner = hw + S * 0.75;          // every terrain triangle the road crosses is levelled to it
+      const capAt = new Map();
       for (let i = 1; i < P.length; i++) {
         if (wet[i - 1] || wet[i]) continue;  // a bridge span: the water stays under it
         const [ae, an] = P[i - 1], [be, bn] = P[i], ya = prof[i - 1], yb = prof[i];
@@ -1131,9 +1132,12 @@ export class KeralaTile {
           Ws[k] += q; Ys[k] += q * y; if (w > Am[k]) Am[k] = w;
           // under and beside the road the ground stays below its surface (a neighbour's grading or a hillside can't
           // push up through it), rising gently away from the edge
-          if (d <= inner) { const c = y - 0.05 + Math.max(0, d - hw) * 0.03; if (c < Cap[k]) Cap[k] = c; }
+          // (from the nearest point of the road: from any point within reach, a road climbing at 15 % held the ground
+          // under it at its level 13 m further down the hill, 2 to 3 m below its surface)
+          if (d <= inner) { const c = y - 0.05 + Math.max(0, d - hw) * 0.03, o = capAt.get(k); if (!o || d < o[0]) capAt.set(k, [d, c]); }
         }
       }
+      for (const [k, [, c]] of capAt) if (c < Cap[k]) Cap[k] = c;
     }
     yield 'grade:ground';
     for (let j = 1; j < N - 1; j++) for (let i = 1; i < N - 1; i++) {
