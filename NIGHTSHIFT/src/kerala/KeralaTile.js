@@ -1013,30 +1013,49 @@ export class KeralaTile {
     }
     // (the most important roads first: a side road ending on one without a shared point meets it at its final level)
     yield 'grade:junctions';
-    for (const R of [...roads].sort((a, b) => a.cls - b.cls)) {
+    // (along each chain, not piece by piece: the road eases to a junction across the joint into its next piece as
+    // well. Each piece on its own, the joint held the correction to nothing there: a junction 3.6 m from a joint was
+    // a 1 m step up a 29 % slope)
+    const runs = chains.map((ch) => {
+      const parts = [], C = [], joints = new Set();   // C: the piece and its sample at each point along the chain
+      for (const [ei, fwd] of ch) {
+        const R = E[ei].R, n = R.P.length, at = new Array(n);
+        for (let q = 0; q < n; q++) {
+          const i = fwd ? q : n - 1 - q;
+          if (q === 0 && C.length) { at[i] = C.length - 1; joints.add(key(R.P[i])); continue; }   // (the shared joint)
+          at[i] = C.length; C.push([R, i]);
+        }
+        parts.push([R, at]);
+      }
+      return { parts, C, joints, cls: Math.min(...parts.map(([R]) => R.cls)) };
+    });
+    for (const { parts, C, joints } of runs.sort((a, b) => a.cls - b.cls)) {
       if (this._due()) { yield 'grade:junctions+'; this._ys = performance.now(); }
-      const { P, prof } = R;
+      const P = C.map(([R, i]) => R.P[i]), prof = C.map(([R, i]) => R.prof[i]), up = C.map(([R, i]) => R.up[i]);
       // distance along the road
       const D = [0]; for (let i = 1; i < P.length; i++) D.push(D[i - 1] + Math.hypot(P[i][0] - P[i - 1][0], P[i][1] - P[i - 1][1]));
-      const J = [];
-      for (const { i, y, j, u } of R.tj || []) {
-        const Y = y.R; if (!Y || R.up[i] || y.r.cls > R.cls + 1) continue;   // (a main road ending on a lane: no)
-        const dy = Y.prof[j - 1] + (Y.prof[j] - Y.prof[j - 1]) * u - prof[i];
-        // (passing under or beside a ramp: its own level)
-        if ((Y.up[j - 1] || Y.up[j]) && Math.abs(dy) > 1.5) continue;
-        J.push([D[i], dy, Math.min(150, Math.max(45, Math.abs(dy) / 0.08, Math.sqrt(1300 * Math.abs(dy))))]);
-      }
-      for (const [j, k] of R.joins) {
-        const o = node.get(k); if (!o || o[3] < 2) continue;
-        // a junction on a bridge's or flyover's ramp is at the ramp's height (a side road of about the same
-        // importance climbs to meet it, the ramp doesn't dip to the road below)
-        const onRamp = o[5] !== undefined && o[6] <= o[2] + 2;
-        const dy = (onRamp ? o[5] : o[0] / o[1]) - prof[j];
-        // (a lane joined in the map to a flyover's or bridge's ramp passes under or beside it: it keeps its own level)
-        if ((o[4] || onRamp) && Math.abs(dy) > 1.5 && R.cls > Math.min(o[2], onRamp ? o[6] : 99) + 2) continue;
-        // (long enough for no more than 8 % extra grade, and for the dip or rise to be a gentle curve: under
-        // 0.3 m of bend over 16 m at its middle)
-        J.push([D[j], dy, Math.min(150, Math.max(45, Math.abs(dy) / 0.08, Math.sqrt(1300 * Math.abs(dy))))]);
+      const J = [], had = new Set(), fade = (dy) => Math.min(150, Math.max(45, Math.abs(dy) / 0.08, Math.sqrt(1300 * Math.abs(dy))));
+      for (const [R, at] of parts) {
+        for (const { i, y, j, u } of R.tj || []) {
+          const Y = y.R, ci = at[i]; if (!Y || up[ci] || y.r.cls > R.cls + 1) continue;   // (a main road ending on a lane: no)
+          const dy = Y.prof[j - 1] + (Y.prof[j] - Y.prof[j - 1]) * u - prof[ci];
+          // (passing under or beside a ramp: its own level)
+          if ((Y.up[j - 1] || Y.up[j]) && Math.abs(dy) > 1.5) continue;
+          if (!had.has(ci)) { had.add(ci); J.push([D[ci], dy, fade(dy)]); }
+        }
+        for (const [j, k] of R.joins) {
+          const o = node.get(k), ci = at[j]; if (!o || o[3] < 2 || had.has(ci)) continue;
+          if (o[3] === 2 && joints.has(k)) continue;   // (the joint between two of its own pieces and nothing else)
+          // a junction on a bridge's or flyover's ramp is at the ramp's height (a side road of about the same
+          // importance climbs to meet it, the ramp doesn't dip to the road below)
+          const onRamp = o[5] !== undefined && o[6] <= o[2] + 2;
+          const dy = (onRamp ? o[5] : o[0] / o[1]) - prof[ci];
+          // (a lane joined in the map to a flyover's or bridge's ramp passes under or beside it: it keeps its own level)
+          if ((o[4] || onRamp) && Math.abs(dy) > 1.5 && R.cls > Math.min(o[2], onRamp ? o[6] : 99) + 2) continue;
+          // (long enough for no more than 8 % extra grade, and for the dip or rise to be a gentle curve: under
+          // 0.3 m of bend over 16 m at its middle)
+          had.add(ci); J.push([D[ci], dy, fade(dy)]);
+        }
       }
       // (where the road runs out over the tile's edge it stays at the level both tiles agree on: a junction near the
       // edge, which the neighbour doesn't know of, pulled its end up or down, the road meeting its other half there
@@ -1044,21 +1063,27 @@ export class KeralaTile {
       // (a junction right on the edge too: it is at that level, not the average of the roads this tile has there)
       if (J.length) for (const i of [0, P.length - 1]) {
         const [e, n] = P[i];
-        if (Math.min(e, n, TILE - e, TILE - n) >= 0.01 || R.up[i]) continue;
+        if (Math.min(e, n, TILE - e, TILE - n) >= 0.01 || up[i]) continue;
         const on = J.filter(([d]) => Math.abs(d - D[i]) < 1);
         if (on.length) for (const q of on) q[1] = 0; else J.push([D[i], 0, 80]);
       }
-      // each junction's correction fades out over 30 m (longer for a big one: no more than 8 % extra grade); where two overlap they blend (each weighted by how far the
-      // other has faded), exact at each junction and with no jump between them
-      if (J.length) for (let i = 0; i < P.length; i++) {
-        const s = J.map(([d, , L]) => _smooth(Math.max(0, 1 - Math.abs(D[i] - d) / L)));
-        let a = 0;
-        for (let q = 0; q < J.length; q++) { if (!s[q]) continue; let w = s[q]; for (let r = 0; r < J.length; r++) if (r !== q) w *= 1 - s[r]; a += J[q][1] * w; }
+      // each junction's correction fades out over 45 m (longer for a big one: no more than 8 % extra grade); where two
+      // overlap they blend (each weighted by how far the other has faded), exact at each junction and with no jump
+      // between them
+      if (!J.length) continue;
+      for (let i = 0; i < P.length; i++) {
+        const act = [], s = [];
+        for (let q = 0; q < J.length; q++) { const v = _smooth(Math.max(0, 1 - Math.abs(D[i] - J[q][0]) / J[q][2])); if (v > 0) { act.push(q); s.push(v); } }
+        if (!act.length) continue;
+        let a = 0, tot = 0, full = 0, fq = 0;
+        for (let q = 0; q < act.length; q++) {
+          let w = s[q]; for (let r = 0; r < act.length; r++) if (r !== q) w *= 1 - s[r];
+          a += J[act[q]][1] * w; tot += w; if (s[q] > full) { full = s[q]; fq = act[q]; }
+        }
         // (two junctions closer than the fade share it: normalised so the road still meets both)
-        let tot = 0; for (let q = 0; q < J.length; q++) { let w = s[q]; for (let r = 0; r < J.length; r++) if (r !== q) w *= 1 - s[r]; tot += w; }
-        const full = Math.max(...s);
-        prof[i] += (tot > 1e-6 ? a / tot : J[s.indexOf(full)][1]) * full;
+        prof[i] += (tot > 1e-6 ? a / tot : J[fq][1]) * full;
       }
+      for (const [R, at] of parts) for (let i = 0; i < at.length; i++) R.prof[i] = prof[at[i]];
     }
     yield 'grade:stamp';
     for (const { hw, P, prof, wet } of roads) {
