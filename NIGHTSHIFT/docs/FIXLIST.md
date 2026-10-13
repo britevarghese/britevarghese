@@ -199,4 +199,13 @@ the game. Newly found problems go at the end of their section.
     end at the edge stays at the level both tiles share now: all 169 meet exactly (Thalassery's too). Roads along a
     tile's edge follow the survey smoothly (straight pieces between its points made a sharp crest every 62.5 m on a
     hill). Kannur and the 8 tiles round it 132 -> 113 humps; Kannur 7, Thalassery 6, Valapattanam 17
+  - [x] Roads on hills standing on a slab in the air: the ground under and beside a road is kept below its surface,
+    and that limit was taken from any point of the road within 14.5 m: on a road climbing at 15 % the ground under
+    it was held at its level 13 m further down the hill, 2 to 3 m below it. From the road's nearest point now: roads
+    more than 0.6 m above the ground under them, Kannur and the 8 tiles round it, 610 -> 174 (what is left: two roads
+    at different levels a few metres apart, on an embankment between them, and at tile edges)
+  - [x] Sharp knees and steps at junctions: a road in OSM's pieces eased to a junction on one piece only (a junction
+    3.6 m from the joint was a 1 m step up a 29 % slope); a lane coming down a hill over the main road's drain met it
+    flat (held at the drain's bank); two junctions a few metres apart on a hillside took levels 1.2 m apart. Kannur
+    and the 8 tiles round it 113 -> 102 humps; no steps; every tile edge still meets exactly
 - [x] Realistic trees: real coconut palm, banana and broadleaf models (Sketchfab, CC BY) within ~90 m of the camera, with leaf-cut shadows; the generated plants beyond. (Junction-height priority was tried for the remaining road humps: more humps, reverted)
