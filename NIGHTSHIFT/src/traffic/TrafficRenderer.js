@@ -20,8 +20,8 @@ function splitGroups(geo) {
 }
 
 export class TrafficRenderer {
-  constructor(scene, lib, types, maxPerType = 40) {
-    this.scene = scene;
+  constructor(scene, lib, types, maxPerType = 40, warm = null) {
+    this.scene = scene; this.warm = warm;
     this.types = {};
     this.max = maxPerType;
     const W = lib.wheels;
@@ -38,7 +38,11 @@ export class TrafficRenderer {
       tail: new THREE.MeshBasicMaterial({ color: 0xffffff, toneMapped: false, map: taillightTextures().emissiveMap }),
     };
     this.lib = lib; this.maxPerType = maxPerType;
-    for (const type of types) this.addType(type);
+    // (the types' models are made ready a few milliseconds at a time, between frames: all seventeen at once froze the
+    // game for seconds when the models finished loading mid-drive, and one big model alone for up to a second.
+    // Traffic uses a type once it is ready)
+    this._queue = []; this._job = null;
+    for (const type of types) this.queueType(type);
     const cap = maxPerType * types.length * 4;
     this.tires = new THREE.InstancedMesh(tireGeo, tireMat, cap);
     this.rims = new THREE.InstancedMesh(rimGeo, rimMat, cap);
@@ -54,13 +58,60 @@ export class TrafficRenderer {
     for (const m of [this.headGlow, this.tailGlow, this.beams]) { m.count = 0; m.frustumCulled = false; m.renderOrder = 5; scene.add(m); }
   }
 
-  // a vehicle type whose model has loaded (types can arrive after the renderer was created)
+  queueType(type) {
+    if (this.types[type] || this._queue.includes(type) || this._job?.type === type || this._wt?.has(type)) return;
+    this._queue.push(type); this._schedule();
+  }
+
+  // (when the page is idle too: in the menu, or time to spare between frames)
+  _schedule() {
+    if (this._idle || (!this._queue.length && !this._job)) return;
+    const go = (ms) => { this._idle = null; this._pump(ms); this._schedule(); };
+    this._idle = typeof requestIdleCallback === 'function'
+      ? requestIdleCallback((d) => go(Math.min(8, Math.max(3, d.timeRemaining()))), { timeout: 250 })
+      : setTimeout(() => go(4), 16);
+  }
+
+  _pump(ms) {
+    const t0 = performance.now();
+    while (performance.now() - t0 < ms) {
+      if (!this._job) {
+        const type = this._queue.shift(); if (!type) return;
+        if (!this.types[type]) this._job = { type, it: this._typeSteps(type) };
+        continue;
+      }
+      const r = this._job.it.next();
+      if (r.done) { const t = this._job.type; this._job = null; if (r.value) this._ready(t, r.value); }
+    }
+  }
+
+  // a type is used once its shaders are compiled too (in the background: see Game.warm); until then its meshes
+  // stay hidden and empty
+  _ready(type, entry) {
+    const meshes = []; for (const L of entry.lods) for (const v of Object.values(L)) { const m = v?.mesh || v; if (m?.isMesh) meshes.push(m); }
+    const done = () => { this._wt.delete(type); this.types[type] = entry; this._attachRider(type); };
+    (this._wt ||= new Set()).add(type);
+    this._warmAll(meshes).then(done);
+  }
+
+  _warmAll(meshes) {
+    if (!this.warm || !meshes.length) return Promise.resolve();
+    return Promise.resolve(this.warm({ traverse: (cb) => { for (const m of meshes) m.traverse(cb); }, traverseVisible() {} })).catch(() => {});
+  }
+
+  // a vehicle type whose model has loaded, made ready at once (types can arrive after the renderer was created)
   addType(type) {
     if (this.types[type]) return;
+    const it = this._typeSteps(type);
+    let r; while (!(r = it.next()).done);
+    if (r.value) { this.types[type] = r.value; this._attachRider(type); }
+  }
+
+  *_typeSteps(type) {
     const lib = this.lib, maxPerType = this.maxPerType, scene = this.scene;
     const src = lib.cars[type];
-    if (!src) return;
-    if (lib.modelOf?.[type]?.imported) { this.types[type] = this._imported(scene, src, lib.manifest?.cars?.[lib.modelOf[type].key], maxPerType); return; }
+    if (!src) return null;
+    if (lib.modelOf?.[type]?.imported) return yield* this._importSteps(scene, src, lib.manifest?.cars?.[lib.modelOf[type].key], maxPerType);
     const entry = { lods: [], wheels: [] };
     for (const lodName of ['lod0', 'lod1']) {
       const root = src.getObjectByName(lodName);
@@ -105,19 +156,27 @@ export class TrafficRenderer {
     entry.head = hl ? hl.clone() : new THREE.Vector3(0.7, 0.7, 2.2);
     entry.tail = tl ? tl.clone() : new THREE.Vector3(0.7, 0.8, -2.2);
     entry.length = man?.length || 4.6;
-    this.types[type] = entry;
+    return entry;
   }
 
   // Riders for the two-wheelers: casual characters posed onto each bike's seat, bars and footrests (the player's
   // rider IK), wearing a helmet, baked once into static geometry and drawn instanced with the bikes.
+  // (a bike type made ready after the people loaded gets its riders then: see _pump)
   attachRiders(humans, SkinnedRider, bikes) {
-    if (this.riders || !humans?.ready) return;
-    this.riders = {};
-    const helmetGeo = null;   // (each rider's helmet is shaped to its own head: _helmet)
-    const HELMETS = [0x1a1a1a, 0xe8e8e8, 0xb01818, 0x1a3a8a, 0xd8b020, 0x2a6a3a];
-    for (const [type, cfg] of Object.entries(bikes)) {
-      const T = this.types[type];
-      if (!T || !T.hubs) continue;
+    if (this._riderSrc || !humans?.ready) return;
+    this._riderSrc = { humans, SkinnedRider, bikes };
+    this.riders ||= {};
+    for (const type of Object.keys(bikes)) this._attachRider(type);
+  }
+
+  _attachRider(type) {
+    const S = this._riderSrc;
+    if (!S || type in this.riders) return;
+    const { humans, SkinnedRider, bikes } = S;
+    const HELMETS = [0x1a1a1a, 0xe8e8e8, 0xb01818, 0x1a3a8a, 0xd8b020, 0x2a6a3a];   // (each rider's helmet is shaped to its own head: _helmet)
+    {
+      const cfg = bikes[type], T = this.types[type];
+      if (!cfg || !T || !T.hubs) return;
       const zF = T.hubs.find((h) => h.id === 'F')?.pos.z ?? 0.65, zR = T.hubs.find((h) => h.id === 'R')?.pos.z ?? -0.65;
       const variants = [];
       for (let v = 0; v < 3; v++) {
@@ -137,7 +196,8 @@ export class TrafficRenderer {
         variants.push(parts);
         h.dispose?.();
       }
-      if (variants.length) this.riders[type] = { variants, HELMETS };
+      // (drawn once their shaders are compiled: see _ready)
+      if (variants.length) { this.riders[type] = null; this._warmAll(variants.flatMap((v) => Object.values(v).flat()).filter((m) => m?.isMesh)).then(() => { this.riders[type] = { variants, HELMETS }; }); }
     }
   }
 
@@ -199,6 +259,7 @@ export class TrafficRenderer {
 
   // cars: [{type, x, y, z, yaw, pitch, roll, color(THREE.Color), brake, spin, lod}]
   update(cars, camera, night, refl = null) {
+    if (this._queue.length || this._job) this._pump(3);
     const counts = {}, rc = {};
     let wi = 0, gi = 0, ti = 0, bi = 0;
     this.tick = (this.tick || 0) + 1;     // (each car drawn is marked with it: the seated drivers go only in those)
@@ -309,26 +370,58 @@ export class TrafficRenderer {
 // body is regrouped into: paint (per-car colour), glass, lamps, one vertex-coloured mesh for every
 // untextured material, and the few textured materials as they are. Each wheel's spinning part is
 // instanced 4x per car (hub position, steer, spin).
-TrafficRenderer.prototype._imported = function (scene, src, man, max) {
+TrafficRenderer.prototype._importSteps = function* (scene, src, man, max) {
   const entry = { imported: true, lods: [], hubs: [] };
   const root0 = src.getObjectByName('lod0');
   root0.updateMatrixWorld(true);
   const inv = new THREE.Matrix4();
-  const norm = (g) => {
-    g = g.index ? g.toNonIndexed() : g.clone();
-    for (const k of Object.keys(g.attributes)) if (!['position', 'normal', 'uv'].includes(k)) g.deleteAttribute(k);
-    // compressed (quantized, normalized-int) attributes -> plain floats so parts can be merged
-    for (const k of Object.keys(g.attributes)) {
-      const a = g.attributes[k];
-      if (a.array instanceof Float32Array && !a.normalized && !a.isInterleavedBufferAttribute) continue;
-      const n = a.count, sz = a.itemSize, f = new Float32Array(n * sz);
-      for (let i = 0; i < n; i++) for (let j = 0; j < sz; j++) f[i * sz + j] = a.getComponent ? a.getComponent(i, j) : [a.getX, a.getY, a.getZ, a.getW][j].call(a, i);
-      g.setAttribute(k, new THREE.BufferAttribute(f, sz));
+  // the vertices a draw uses, each corner its own, as plain floats so parts can be merged: a model's attributes are
+  // often packed (interleaved, quantized to normalized integers). Read through three's accessors a value at a time
+  // (and made non-indexed first, the same again), this took seconds for the vehicle types
+  const scale = (A) => (A instanceof Int8Array ? 1 / 127 : A instanceof Uint8Array ? 1 / 255 : A instanceof Int16Array ? 1 / 32767 : A instanceof Uint16Array ? 1 / 65535 : A instanceof Int32Array ? 1 / 2147483647 : A instanceof Uint32Array ? 1 / 4294967295 : 1);
+  const gather = (a, idx, n, start) => {
+    const sz = a.itemSize, il = a.isInterleavedBufferAttribute, A = il ? a.data.array : a.array, st = il ? a.data.stride : sz, off = il ? a.offset : 0;
+    const k = a.normalized ? scale(A) : 1, f = new Float32Array(n * sz);
+    for (let i = 0; i < n; i++) { const b = (idx ? idx[i] : start + i) * st + off; for (let j = 0; j < sz; j++) { const v = A[b + j] * k; f[i * sz + j] = v < -1 && k !== 1 ? -1 : v; } }
+    return f;
+  };
+  // (placed by the matrix as it is read: positions by it, normals by its normal matrix. three's applyMatrix4 goes
+  // through a vector per vertex)
+  const _nm = new THREE.Matrix3();
+  const norm = (g0, m) => {
+    const idx = g0.index ? g0.index.array : null, pos = g0.attributes.position;
+    // (a draw group of a non-indexed geometry is its draw range)
+    const start = idx ? 0 : g0.drawRange.start, n = idx ? idx.length : Math.min(pos.count - start, g0.drawRange.count);
+    const P = gather(pos, idx, n, start), e = m.elements;
+    for (let i = 0; i < P.length; i += 3) {
+      const x = P[i], y = P[i + 1], z = P[i + 2];
+      P[i] = e[0] * x + e[4] * y + e[8] * z + e[12]; P[i + 1] = e[1] * x + e[5] * y + e[9] * z + e[13]; P[i + 2] = e[2] * x + e[6] * y + e[10] * z + e[14];
     }
-    if (!g.attributes.normal) g.computeVertexNormals();
-    if (!g.attributes.uv) g.setAttribute('uv', new THREE.BufferAttribute(new Float32Array(g.attributes.position.count * 2), 2));
-    g.morphAttributes = {};
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.BufferAttribute(P, 3));
+    if (g0.attributes.normal) {
+      const N = gather(g0.attributes.normal, idx, n, start), q = _nm.getNormalMatrix(m).elements;
+      for (let i = 0; i < N.length; i += 3) {
+        const x = N[i], y = N[i + 1], z = N[i + 2], nx = q[0] * x + q[3] * y + q[6] * z, ny = q[1] * x + q[4] * y + q[7] * z, nz = q[2] * x + q[5] * y + q[8] * z, l = Math.hypot(nx, ny, nz) || 1;
+        N[i] = nx / l; N[i + 1] = ny / l; N[i + 2] = nz / l;
+      }
+      g.setAttribute('normal', new THREE.BufferAttribute(N, 3));
+    } else g.computeVertexNormals();
+    g.setAttribute('uv', new THREE.BufferAttribute(g0.attributes.uv ? gather(g0.attributes.uv, idx, n, start) : new Float32Array(n * 2), 2));
     return g;
+  };
+  // (all of one draw's parts in one geometry: they are all plain floats with the same attributes, copied end to end)
+  const merge = (geos) => {
+    if (geos.length === 1) return geos[0];
+    const out = new THREE.BufferGeometry();
+    for (const k of Object.keys(geos[0].attributes)) {
+      if (!geos.every((g) => g.attributes[k])) continue;
+      let len = 0; for (const g of geos) len += g.attributes[k].array.length;
+      const A = new Float32Array(len); let o = 0;
+      for (const g of geos) { A.set(g.attributes[k].array, o); o += g.attributes[k].array.length; }
+      out.setAttribute(k, new THREE.BufferAttribute(A, geos[0].attributes[k].itemSize));
+    }
+    return out;
   };
   const kindOf = (mat) => {
     const n = (mat.name || '').toLowerCase();
@@ -349,8 +442,8 @@ TrafficRenderer.prototype._imported = function (scene, src, man, max) {
     const hubName = (id) => { let f = null; root.traverse((o) => { if (!f && new RegExp(`^wheel_${id}(_\\d+)?$`).test(o.name)) f = o; }); return f; };
     const srcHub = ['FL', 'RL', 'FR', 'RR'].find((id) => hubName(id)) || 'FL';
     entry.wheelSide = srcHub[1] === 'R' ? -1 : 1;
-    root.traverse((o) => {
-      if (!o.isMesh) return;
+    const meshes = []; root.traverse((o) => { if (o.isMesh) meshes.push(o); });
+    for (const o of meshes) {
       // which wheel (if any) this mesh spins with
       let w = o, hub = null, spin = false;
       // (the loader renames repeated node names, so the far LOD's are 'spin_1', 'wheel_RL_1', ...)
@@ -359,20 +452,17 @@ TrafficRenderer.prototype._imported = function (scene, src, man, max) {
       const geo0 = o.geometry;
       const parts = geo0.groups?.length && mats.length > 1 ? geo0.groups.map((gr) => ({ mat: mats[gr.materialIndex], geo: sub(geo0, gr) })) : [{ mat: mats[0], geo: geo0 }];
       for (const { mat, geo } of parts) {
-        const g = norm(geo);
+        yield;
         if (hub && spin) {
-          // relative to the hub (the instance matrix puts it on each wheel)
-          const rel = new THREE.Matrix4().copy(hub.matrixWorld).invert().multiply(o.matrixWorld);
-          g.applyMatrix4(rel);
-          const key = hub.name.slice(-2) + '|' + mat.uuid;
           // one geometry per material, taken from the front-left wheel only (all four are the same wheel)
           if (hub.name.slice(6, 8) !== srcHub) continue;
+          // relative to the hub (the instance matrix puts it on each wheel)
+          const g = norm(geo, new THREE.Matrix4().copy(hub.matrixWorld).invert().multiply(o.matrixWorld));
           if (!wheelGroups.has(mat.uuid)) wheelGroups.set(mat.uuid, { mat, geos: [] });
           wheelGroups.get(mat.uuid).geos.push(g);
-          void key;
           continue;
         }
-        g.applyMatrix4(new THREE.Matrix4().multiplyMatrices(inv, o.matrixWorld));
+        const g = norm(geo, new THREE.Matrix4().multiplyMatrices(inv, o.matrixWorld));
         const kind = kindOf(mat);
         const key = kind === 'tex' ? 'tex|' + mat.uuid : kind;
         if (!groups.has(key)) groups.set(key, { kind, mat, geos: [] });
@@ -385,7 +475,8 @@ TrafficRenderer.prototype._imported = function (scene, src, man, max) {
         }
         groups.get(key).geos.push(g);
       }
-    });
+      yield;
+    }
     // keep the biggest textured materials (four; up to sixteen on a vehicle in its own painted livery, a bus or a
     // hand-painted lorry, which is mostly texture); the rest join the vertex-coloured group
     const texd = [...groups.entries()].filter(([, G]) => G.kind === 'tex').sort((a, b) => tri(b[1]) - tri(a[1]));
@@ -412,17 +503,17 @@ TrafficRenderer.prototype._imported = function (scene, src, man, max) {
       parts.push({ mesh, ...opts });
     };
     for (const G of groups.values()) {
-      const geo = G.geos.length === 1 ? G.geos[0] : mergeGeometries(G.geos, false);
-      if (!geo) continue;
+      const geo = merge(G.geos);
       let mat;
       if (G.kind === 'paint') { mat = G.mat.clone(); mat.color = new THREE.Color(1, 1, 1); }
       else if (G.kind === 'plain') mat = new THREE.MeshStandardMaterial({ vertexColors: true, metalness: G.metal / G.n, roughness: G.rough / G.n });
       else mat = G.mat;
       add(geo, mat, { kind: G.kind, color: G.kind === 'paint' || G.kind === 'head' || G.kind === 'tail' });
+      yield;
     }
     for (const W of wheelGroups.values()) {
-      const geo = W.geos.length === 1 ? W.geos[0] : mergeGeometries(W.geos, false);
-      if (geo) add(geo, W.mat, { kind: 'wheel', wheel: true });
+      add(merge(W.geos), W.mat, { kind: 'wheel', wheel: true });
+      yield;
     }
     entry.lods.push(parts);
   }

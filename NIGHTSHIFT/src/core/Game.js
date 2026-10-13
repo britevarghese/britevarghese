@@ -104,6 +104,7 @@ export class Game {
       await this.world.loadIndex();
     } else this.world = new WorldManager();
     this.world.initVisuals(this.scene, this.materials, preset, { webgpu: this.rm.backend === 'webgpu' });
+    this.world.warm = (o) => this.warm(o);
     this.mapRenderer = this.world.kerala ? new KeralaMap(this.world) : new MapRenderer(this.world.layout, this.world.planner, this.world.landscape);
     if (this.world.kerala) this.keralaOverview = new KeralaOverview(this.world.index);
     progress(0.32, 'Building lane graph...');
@@ -146,7 +147,7 @@ export class Game {
     this.trafficDrivers = new TrafficDrivers(this);
     this.humans = new HumanLibrary(this.assets, this.lib.manifest, { kerala: !!this.world.kerala });
     this.peds.humans = this.humans; this.peds.people = preset.people ?? 8;
-    this.humans.load(3).then(() => this.onFoot.useHuman()); // small (~4 MB): ahead of the rival cars
+    this.humans.load(3).then(() => { this.onFoot.useHuman(); this._warmPeople(); }); // small (~4 MB): ahead of the rival cars
     this.audio = new AudioManager(this.settings.audio);
     this.progress = new Progression(this);
     this.hud = new HUD(document.getElementById('hud'), this.mapRenderer, this.settings);
@@ -169,7 +170,7 @@ export class Game {
       if (this.traffic.renderer) return;
       const types = Object.keys(TYPE_SPECS).filter((t) => !!TYPE_SPECS[t].kl === !!this.world.kerala && this.lib.has(t));
       if (!types.length) return;
-      this.trafficRenderer = new TrafficRenderer(this.scene, this.lib, types, Math.max(12, Math.ceil(this.preset.traffic * 0.8)) + 24);
+      this.trafficRenderer = new TrafficRenderer(this.scene, this.lib, types, Math.max(12, Math.ceil(this.preset.traffic * 0.8)) + 24, (o) => this.warm(o));
       this.traffic.setRenderer(this.trafficRenderer);
       this.traffic.enabled = true;
     };
@@ -177,10 +178,11 @@ export class Game {
     // types whose models arrive later join the renderer then; two-wheelers get their riders once people load
     promise.then(() => {
       attach();
+      this.warm(this.scene);   // (in the menu, in the background: see warm)
       this.world.setPropModels?.(this.lib);
       const R = this.trafficRenderer;
       if (!R) return;
-      for (const t of Object.keys(TYPE_SPECS)) if (!!TYPE_SPECS[t].kl === !!this.world.kerala && this.lib.has(t)) R.addType(t);
+      for (const t of Object.keys(TYPE_SPECS)) if (!!TYPE_SPECS[t].kl === !!this.world.kerala && this.lib.has(t)) R.queueType(t);
       const bikes = {
         scooter: { seat: 0.74, pose: { hipZ: 0.3, barsBack: 0.34, barsY: 0.32, barsW: 0.33, pegBack: -0.34, pegY: 0.2, pegW: 0.14, torso: 1.42, tuck: 1.35, neck: 0.16 } },
         commuter: { seat: 0.79, pose: { hipZ: 0.36, barsBack: 0.42, barsY: 0.26, barsW: 0.36, pegBack: 0.05, pegY: 0.3, pegW: 0.18, torso: 1.25, tuck: 1.15, neck: 0.15 } },
@@ -494,7 +496,46 @@ export class Game {
     this.last = performance.now();
     this.rm.renderer.setAnimationLoop(() => this._frame());
   }
-  play() {
+  // The shaders of what is about to be drawn, compiled in the background (KHR_parallel_shader_compile) instead of at
+  // the first frame it is drawn: on a PC each new shader is a stall of a tenth of a second or more, and the first
+  // frame of a drive compiled 28 of them at once (the trees, the people, the traffic, the car's close-up parts); a new
+  // tile up to a dozen, each vehicle type a few
+  // (compiled for where the scene is drawn: post-processing draws it into a buffer of its own, and a shader drawing
+  // to a buffer is not the one drawing to the screen: no tone mapping, linear colour)
+  warm(o) {
+    const R = this.rm?.renderer;
+    if (!o || typeof R?.compileAsync !== 'function') return Promise.resolve();
+    const prev = R.getRenderTarget?.() ?? null;
+    try {
+      R.setRenderTarget?.(this.rm.post?.composer?.renderTarget1 ?? null);
+      return R.compileAsync(o, this.camera, this.scene).catch(() => {});
+    } catch { return Promise.resolve(); } finally { R.setRenderTarget?.(prev); }
+  }
+
+  // one of each person, made and their shaders compiled in the background, a few at a time, then let go (the first
+  // pedestrians drawn compiled theirs mid-drive)
+  _warmPeople() {
+    const H = this.humans, n = (H?.crowd || H?.models || []).length + (H?.models?.length || 0);
+    if (!H?.ready || this._warmedPeople) return;
+    this._warmedPeople = true;
+    const made = [];
+    let i = 0;
+    const step = () => {
+      for (let k = 0; k < 3 && i < n; k++, i++) {
+        const h = i < (H.crowd || H.models).length ? H.create(i, { shadow: true }) : H.create(H.models[i - (H.crowd || H.models).length].id, { shadow: true });
+        if (h) made.push(h);
+      }
+      if (i < n) return void setTimeout(step, 30);
+      this.warm({ traverse: (cb) => { for (const h of made) h.group.traverse(cb); }, traverseVisible() {} }).finally(() => { for (const h of made) h.dispose?.(); });
+    };
+    setTimeout(step, 0);
+  }
+
+  async play() {
+    if (this._starting) return;
+    this._starting = true;
+    // (what the drive draws first, compiled before it starts: a few seconds at most)
+    try { await Promise.race([this.warm(this.scene), new Promise((r) => setTimeout(r, 4000))]); } finally { this._starting = false; }
     this.ui.clear();
     this.state.mode = 'drive';
     this.camCtl.cinematic = null;

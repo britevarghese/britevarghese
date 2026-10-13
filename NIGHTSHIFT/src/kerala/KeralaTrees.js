@@ -438,7 +438,10 @@ export class KeralaTrees {
           const material = modelMaterial(this.U, mat);
           return { geometry: geos.length > 1 ? mergeGeometries(geos) : geos[0], material, depth: depthMaterial(this.U, 'model', material.alphaTest > 0 ? material.map : null, material.alphaTest) };
         });
-        this._buildModels(); this._at = null;
+        // (their shaders compiled first, on stand-ins: a tree model's first frame compiled them, a stall on a PC)
+        const go = () => { this._buildModels(); this._at = null; };
+        const tmp = this.models[k].map((p) => { const m = new THREE.InstancedMesh(p.geometry, p.material, 1); m.receiveShadow = true; m.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(3), 3); return m; });
+        (this.warm ? this.warm(tmp) : Promise.resolve()).then(go, go);
       }).catch((e) => console.warn('[KeralaTrees] tree model failed', file, e));
     }
   }

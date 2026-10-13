@@ -151,6 +151,7 @@ export class KeralaWorld {
     this.tankGeo = (() => { const g = new THREE.CylinderGeometry(0.62, 0.62, 1.25, 10).translate(0, 0.62 + 0.25, 0); g.deleteAttribute('uv'); return g.toNonIndexed(); })();
     this.palmMat = new THREE.MeshLambertMaterial({ vertexColors: true, side: THREE.DoubleSide });
     this.trees = new KeralaTrees(scene, preset);
+    this.trees.warm = (list) => this._warmList(list);
     this.teaBushes = new KeralaTea(scene);
     this.queue = [];
   }
@@ -291,7 +292,15 @@ export class KeralaWorld {
       if (paint) m.color.set(0xffffff);
       return { geo: mergeGeometries(gs), mat: m, paint };
     });
-    for (const t of this.tiles.values()) if (t.ready) this._scooters(t);
+    // (their shaders compiled first, on stand-ins: see Game.warm)
+    const go = () => { for (const t of this.tiles.values()) if (t.ready) this._scooters(t); };
+    this._warmList(this.scooterParts.map((p) => { const m = new THREE.InstancedMesh(p.geo, p.mat, 1); if (p.paint) m.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(3), 3); return m; })).then(go, go);
+  }
+
+  // several objects' shaders compiled in the background (see Game.warm); resolves at once if there is no renderer
+  _warmList(list) {
+    if (!this.warm || !list?.length) return Promise.resolve();
+    return Promise.resolve(this.warm({ traverse: (cb) => { for (const o of list) o.traverse(cb); }, traverseVisible() {} })).catch(() => {});
   }
 
   _scooters(t) {
@@ -321,11 +330,11 @@ export class KeralaWorld {
   // build the tiles under these points next (a race about to start needs its roads)
   prioritize(points) { this.prio = new Set(points.map((p) => this.key(Math.floor(-p.x / TILE), Math.floor(p.z / TILE)))); }
 
-  _buildTile(t) { const it = this._buildSteps(t); while (!it.next().done); }
+  _buildTile(t) { const it = this._buildSteps(t, true); while (!it.next().done); }
 
   // a tile's build in stages: the tile's own (terrain, roads, streets, buildings, trees...), then its place in the
   // world (lanes, stalls and shelters, clearing the lanes of anything solid)
-  *_buildSteps(t) {
+  *_buildSteps(t, sync = false) {
     if (t.ready || !this.root) return;
     const t0 = performance.now();
     const g = yield* t.buildSteps(this.M, this._opts());
@@ -337,6 +346,13 @@ export class KeralaWorld {
       const G = o.geometry; G.computeBoundingSphere(); G.computeBoundingBox();
       for (const a of [...Object.values(G.attributes), G.index]) if (a) a.onUpload(dropArray);
     });
+    // its shaders compiled in the background first (a tile's new materials were compiled the first frame it was
+    // drawn: a stall of a tenth of a second and more each on a PC). The build waits for them, the game runs on
+    if (this.warm && !sync) {
+      let done = false;
+      this.warm(g).then(() => { done = true; }, () => { done = true; });
+      for (const tw = performance.now(); !done && performance.now() - tw < 5000;) yield 'world:wait';
+    }
     this.root.add(g);
     yield 'world:add';
     this._scooters(t);
@@ -653,6 +669,7 @@ export class KeralaWorld {
         if (this.stepLog) this.stepLog.push([this.job?.last || 'start', d]);
         if (r.done) { this.job = null; break; }
         this.job.last = r.value;
+        if (r.value === 'world:wait') break;   // (waiting on the GPU: nothing more to do this frame)
       }
     }
     this.trees?.update(camera, this.tiles);
