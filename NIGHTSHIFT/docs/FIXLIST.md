@@ -192,4 +192,11 @@ the game. Newly found problems go at the end of their section.
     21 -> 8, Thalassery 14 -> 7, Valapattanam 26 -> 18; Kannur and the 8 tiles round it 263 -> 132, steep stretches
     64 -> 35, roads banked off the ground 8 -> 0; worst hump 4.4 m -> 1.5 m. Bridges and flyovers as before; no
     steps, no new floats
+  - [x] Steps where a road crosses from one 2 km tile into the next (the inspector looked at one tile at a time and
+    never saw them): 33 of the 169 crossings round Kannur met their other half a step apart, up to 1.08 m. A
+    junction near the edge eased the road's end to its level, a drain right at the edge held it at the bank's level
+    (the neighbour may not see the drain), a junction exactly on the edge took an average only one tile had. The
+    end at the edge stays at the level both tiles share now: all 169 meet exactly (Thalassery's too). Roads along a
+    tile's edge follow the survey smoothly (straight pieces between its points made a sharp crest every 62.5 m on a
+    hill). Kannur and the 8 tiles round it 132 -> 113 humps; Kannur 7, Thalassery 6, Valapattanam 17
 - [x] Realistic trees: real coconut palm, banana and broadleaf models (Sketchfab, CC BY) within ~90 m of the camera, with leaf-cut shadows; the generated plants beyond. (Junction-height priority was tried for the remaining road humps: more humps, reverted)
