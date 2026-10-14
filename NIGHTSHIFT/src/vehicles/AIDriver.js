@@ -18,7 +18,9 @@ export class AIDriver {
     this.loop = false;
   }
 
-  setRoute(points, loop = false, offset = this.laneOffset ?? 2.6) {
+  // (Kerala's routes are the lanes themselves, keep-left: followed as they are. A road's centre line elsewhere:
+  // driven on its right-hand side, an offset polyline)
+  setRoute(points, loop = false, offset = this.laneOffset ?? (this.v?.physics?.world?.kerala ? 0 : 2.6)) {
     // drive on the right-hand side of the road (offset polyline), not on the center line
     if (offset && points.length > 1) {
       const out = [];
@@ -83,6 +85,21 @@ export class AIDriver {
     return r.length ? r[r.length - 1] : [x, z];
   }
 
+  // the turning of the route over the next `dist` metres from the car (signed, summed: a lane-change wiggle cancels
+  // out) and the length it is spread over
+  _bendAhead(x, z, dist) {
+    const r = this.route;
+    let i = this.idx, len = 0, sum = 0, px = x, pz = z;
+    while (i < r.length - 2 && len < dist) {
+      const a = r[i], b = r[i + 1], c = r[i + 2];
+      len += Math.hypot(b[0] - px, b[1] - pz); px = b[0]; pz = b[1];
+      if (len > dist) break;
+      sum += wrapAngle(Math.atan2(c[0] - b[0], c[1] - b[1]) - Math.atan2(b[0] - a[0], b[1] - a[1]));
+      i++;
+    }
+    return { a: Math.abs(sum), len: Math.max(2, Math.min(len, dist)) };
+  }
+
   // max heading change over the next `dist` meters (corner severity). A corner drawn with several close points
   // (a junction turn on lane points) is one corner: the turning within any 20 m is added up (signed: an S-bend
   // or a lane-change wiggle cancels out)
@@ -107,10 +124,14 @@ export class AIDriver {
       let sum = 0, span = 0;
       for (let k = j; k < turns.length && turns[k][0] - turns[j][0] <= 20; k++) { sum += turns[k][1]; span = turns[k][0] - turns[j][0]; }
       const a = Math.min(Math.PI, Math.abs(sum));
-      if (a < 0.2) continue;
+      // (and a sharp corner at one point on its own: two sharp opposite corners close together - a jog through a
+      // junction - cancelled out in the sum, and the car came at the first one at 55 km/h)
+      const a1 = Math.min(Math.PI, Math.abs(turns[j][1]));
+      if (a < 0.2 && a1 < 0.35) continue;
       // (a tight junction turn at walking pace: the steering lock is less at speed)
-      const v = Math.sqrt(5 * this.skill * Math.max(6, span) / a) + 0.5, n = -(2 * 5.5 * Math.max(0, turns[j][0] - 8) + v * v);
-      if (a > maxTurn) maxTurn = a;
+      const v = Math.min(a >= 0.2 ? Math.sqrt(5 * this.skill * Math.max(6, span) / a) : Infinity, a1 >= 0.35 ? Math.sqrt(5 * this.skill * 6 / a1) : Infinity) + 0.5;
+      const n = -(2 * 5.5 * Math.max(0, turns[j][0] - 8) + v * v);
+      if (Math.max(a, a1) > maxTurn) maxTurn = Math.max(a, a1);
       if (n > need) { need = n; vc = v; turnDist = turns[j][0]; }
     }
     return { turn: maxTurn, dist: turnDist, vc };
@@ -136,9 +157,24 @@ export class AIDriver {
         const a = r[ni - 1], b = r[ni], c2 = r[ni + 1];
         const turn = Math.abs(wrapAngle(Math.atan2(c2[0] - b[0], c2[1] - b[1]) - Math.atan2(b[0] - a[0], b[1] - a[1])));
         const dCorner = Math.hypot(b[0] - s.x, b[1] - s.z);
-        if (turn > 0.6 && dCorner > 6) laDist = Math.min(laDist, Math.max(6, dCorner + 2));
+        // (at the corner itself too: a point well past it is across the corner's pavement)
+        if (turn > 0.6) laDist = Math.min(laDist, dCorner > 6 ? Math.max(6, dCorner + 2) : Math.max(4, dCorner + 3));
       }
-      const la = this._lookahead(s.x, s.z, laDist);
+      // and on a bend (a curve drawn with many close points, each turning a little): the line to the point it steers
+      // for cuts inside the lane by about L^2 / 8R, kept to 0.3 m (it was a metre and a half on a lane's tight bend
+      // at 45 km/h, into the trees and poles on the inside)
+      const bend = this._bendAhead(s.x, s.z, laDist);
+      if (bend.a > 0.1) laDist = Math.max(4.5, Math.min(laDist, Math.sqrt(8 * (bend.len / bend.a) * 0.3)));
+      let la = this._lookahead(s.x, s.z, laDist);
+      // and never for a point across the verge (a junction's corner, the inside of a kink in the lanes): shortened
+      // until the line to it stays on the road
+      const W = v.physics?.world;
+      if (W?.kerala && W.onCarriageway(s.x, s.z)) {
+        for (let k = 0; k < 4 && laDist > 3.5; k++) {
+          if ([0.35, 0.7].every((f) => W.onCarriageway(s.x + (la[0] - s.x) * f, s.z + (la[1] - s.z) * f))) break;
+          laDist *= 0.65; la = this._lookahead(s.x, s.z, laDist);
+        }
+      }
       tx = la[0]; tz = la[1];
       const corner = this._cornerAhead(Math.max(50, speed * 3.5));
       if (Number.isFinite(corner.vc)) {
@@ -168,7 +204,17 @@ export class AIDriver {
 
     const desired = Math.atan2(tx - s.x, tz - s.z);
     const diff = wrapAngle(desired - s.yaw);
+    // still turning hard (a junction's corner passed but the car not yet round it): no faster than it can turn at,
+    // not on the throttle at full lock into the wall on the outside
+    if (this.mode !== 'pursue' && Math.abs(diff) > 0.35) targetSpeed = Math.min(targetSpeed, 4 + 10 * Math.max(0, 1 - Math.abs(diff) / 1.2));
     let steer = clamp(-diff * 2.2 + clamp(avoid, -1, 1) * 0.35, -1, 1);
+    // and back onto the line itself when off it (steering only for a point ahead, a metre to one side was corrected
+    // slowly: a car drifted that far toward a bridge's parapet and into its end)
+    if (this.mode !== 'pursue' && this.idx < this.route.length - 1 && !avoid) {
+      const a = this.route[this.idx], b = this.route[this.idx + 1], dx = b[0] - a[0], dz = b[1] - a[1], L = Math.hypot(dx, dz) || 1;
+      const eR = ((s.x - a[0]) * -dz + (s.z - a[1]) * dx) / L;   // (+: right of the line, (-dz, dx) being its right)
+      steer = clamp(steer - clamp(eR, -2, 2) * 0.45 / (1 + speed / 15), -1, 1);
+    }
     // counter-steer when sliding
     if (s.slip > 0.25) steer = clamp(steer - Math.sign(s.yawRate) * 0.3, -1, 1);
     // stuck detection -> reverse

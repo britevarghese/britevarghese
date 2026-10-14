@@ -1552,11 +1552,12 @@ export class KeralaTile {
             const j = 0.9 + rnd() * 0.12, band = bridge && (i & 1) === 0;
             const white = [0.5 * j, 0.5 * j, 0.47 * j], grime = [0.2 * j, 0.21 * j, 0.18 * j], stone = [0.17 * j, 0.15 * j, 0.12 * j];
             const edge = (o0, h0, o1, h1, c0, c1) => quad(K, v(A, o0, h0), v(A, o1, h1), v(B, o1, h1), v(B, o0, h0), c0, c1 || c0);
-            edge(hw - 0.12, -0.08, hw - 0.12, 0.62, grime, band ? [0.03, 0.03, 0.03] : white);   // parapet, road face
-            edge(hw - 0.12, 0.62, hw + 0.16, 0.62, white);                                      // coping
-            edge(hw + 0.16, 0.62, hw + 0.16, -0.1, white, grime);                               // outer face
-            if (A.wet || B.wet || !bridge) edge(hw + 0.16, -0.1, hw + 0.3, -2.6, stone, [0.08, 0.09, 0.07]); // side wall down to the water
-            const a = A.at(hw + 0.02), b = B.at(hw + 0.02), de = b[0] - a[0], dn = b[1] - a[1], L = Math.hypot(de, dn) || 1, ang = Math.atan2(-de / L, dn / L);
+            // (standing just off the carriageway's edge: its road face on the edge, not on the road)
+            edge(hw, -0.08, hw, 0.62, grime, band ? [0.03, 0.03, 0.03] : white);                 // parapet, road face
+            edge(hw, 0.62, hw + 0.28, 0.62, white);                                             // coping
+            edge(hw + 0.28, 0.62, hw + 0.28, -0.1, white, grime);                               // outer face
+            if (A.wet || B.wet || !bridge) edge(hw + 0.28, -0.1, hw + 0.42, -2.6, stone, [0.08, 0.09, 0.07]); // side wall down to the water
+            const a = A.at(hw + 0.14), b = B.at(hw + 0.14), de = b[0] - a[0], dn = b[1] - a[1], L = Math.hypot(de, dn) || 1, ang = Math.atan2(-de / L, dn / L);
             this.colliders.push({ cx: -(this.E0 + (a[0] + b[0]) / 2), cz: this.N0 + (a[1] + b[1]) / 2, hx: 0.16, hz: Math.max(0.2, L / 2 - 0.05), cos: Math.cos(ang), sin: Math.sin(ang), angle: ang, h: Math.max(A.y0, B.y0) + 0.62, kind: 'barrier' });
           } else if (!A.med && !B.med && !A.town && !B.town && !A.water && !B.water && !bridge && r.cls <= 7 && inTile(mid) && !nj(mid[0], mid[1])
             && !this.onRoad(...A.at(hw + 0.5), 0.2, ri) && !this.onRoad(...B.at(hw + 0.5), 0.2, ri)) {

@@ -124,6 +124,7 @@ the game. Newly found problems go at the end of their section.
   lights. The model gives ten different materials one name (the windows and the black plastic among them, drawn as
   one), calls its body colour 'primary' and its high stop lamp 'glass'. Renamed by what each one is as the model
   loads: it takes its paint (the prologue's black Scorpio is black), the windows are glass, only the tail lamps glow
+- [x] Canal bridge parapets stood 12 cm onto the carriageway (their road face inside the road's edge): moved just off it
 - [x] Traffic vehicles with panels missing (a Scorpio's doors and front see-through): parts made of single faces were
   drawn one side only; they are drawn both sides now, as the model has them
 
@@ -146,6 +147,16 @@ the game. Newly found problems go at the end of their section.
   dozen autos for minutes near the start was a lane with no way on: one-way carriageways ending a few metres short
   of the road they run into (the map's pieces sharing no point there), so the first to reach the end stopped for
   good. They run on into the nearest lane starting just ahead, on road all the way (11 such ends round Kannur, now 0)
+- [x] Police (and racers, story drivers) drove 1.7 m off their lane on average, often over the centre line: every
+  route was shifted 2.6 m to the right (a rule for roads whose route is the centre line); Kerala's routes are the
+  keep-left lanes themselves. Followed as they are now: 0.4 m off on average
+- [x] Police and other AI drivers ran into trees, poles and walls: they cut bends and junction corners (steering for
+  a point across the inside, 1.3-1.5 m off the lane), went back on the throttle at full lock while still turning,
+  came at the first of two sharp opposite corners at 55 km/h (the pair counted as one gentle bend), and drifted a
+  metre off the lane. They look less far ahead on a bend, never aim across the verge, hold the corner's speed until
+  lined up, judge each sharp corner on its own and steer back onto the lane line. A drive test of ~10 km round
+  Kannur by the same driver went from 30 stops against something solid to one (a junction turn straight onto a
+  narrow canal bridge)
 - [x] Full-detail traffic cars cost up to 400k triangles each (the Scorpio; a Dzire 280k, an Ertiga or an 800 200k),
   and up to 8 of them were drawn that way at once on High (12 on Ultra), shadows on top. The nearest cars still get
   full detail, within a triangle budget per quality level (High: 1M; a short drive peaked at 1.0M, was 1.33M)
