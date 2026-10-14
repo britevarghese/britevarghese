@@ -161,6 +161,7 @@ export class InputManager {
       btn(12, 'up'); btn(14, 'leftNav'); btn(15, 'rightNav');
       btn(4, ['reset', 'reload']);    // LB (on foot: reload)
       btn(13, ['down', 'weapon']);  // d-pad down: menus; on foot, draw / holster the pistol
+      btn(2, 'event');    // X: a mission's action (talk, grab, take)
       btn(11, 'horn');    // R3
     }
     // touch screen (phones, tablets)
@@ -174,6 +175,8 @@ export class InputManager {
       if (T.lookDx || T.lookDy) { this.mouse.dx += T.lookDx * 1.6; this.mouse.dy += T.lookDy * 1.6; this.mouse.lastMove = performance.now(); }
     }
     c.throttle = throttle; c.brake = brake; c.steer = clamp(steer, -1, 1); c.handbrake = handbrake;
+    // held: E, or X on a pad (fill a bag, hold a door)
+    c.use = this._any(ACTIONS.event) || (!this.wheel && this.gamepadIndex >= 0 && !!gamepads()[this.gamepadIndex]?.buttons[2]?.pressed);
     c.nitro = nitro; c.lookBack = lookBack;
     const csens = this.settings.gameplay.cameraSensitivity || 1;
     c.lookX = lookX + this.mouse.dx * 0.004 * csens; c.lookY = lookY + this.mouse.dy * 0.004 * csens;

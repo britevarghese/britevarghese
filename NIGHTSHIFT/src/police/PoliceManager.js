@@ -276,7 +276,8 @@ export class PoliceManager {
       // --- bust meter: slow + surrounded ---
       let close = 0;
       for (const u of this.units) if (!u.disabled && u.role !== 'patrol' && Math.hypot(u.vehicle.state.x - p.x, u.vehicle.state.z - p.z) < 11) close++;
-      if (this.state === 'pursuit' && close > 0 && pSpeed < 2.2) this.bust += dt / (close > 1 ? 2.8 : 4);
+      // (bustHold: a story holding it off a moment, e.g. a crew running out of a bank to their car)
+      if (this.state === 'pursuit' && close > 0 && pSpeed < 2.2 && !this.bustHold) this.bust += dt / (close > 1 ? 2.8 : 4);
       else this.bust = Math.max(0, this.bust - dt * (pSpeed > 8 ? 1.2 : 0.5));
       if (this.bust >= 1) { this.bust = 1; this.state = 'busted'; this.endPursuit('busted'); return; }
 

@@ -58,6 +58,35 @@ const SEAT_EYE = { ksrtc: 2.4, pvtbus: 2.4, pvtbus2: 2.4, bus: 2.4, lorry: 2.55,
 const FRONT_CAB = { ksrtc: 1.05, pvtbus: 1.05, pvtbus2: 1.05, bus: 1.05, lorry: 0.9, truck: 0.9 };
 const glowWhite = () => radialGlow('rgba(255,250,235,1)', 'rgba(220,230,255,0.35)');
 
+// Imported models whose material names came out of the importer wrong, renamed by what each one is before either
+// renderer sees them (both pick paint, glass and lamps by name, and share materials of one name). The Scorpio-N's
+// source gives ten different materials the name 'taillight' - its windows and its black plastic among them, so the
+// windows were drawn opaque and the whole trim glowed red with the brake lights - calls its body colour 'primary'
+// (the 'paint' it was given is a panel inside) and its 'glass' is the high stop lamp's red lens. Keys: a name, or
+// name#colour for one of several alike; 'trim' gives each its own name.
+const MAT_FIX = {
+  kl_scorpio: { primary: 'paint', paint: 'interior_panel', glass: 'taillight', 'taillight#bbbbbb': 'glass', 'taillight#ff0000': 'taillight', taillight: 'trim', 'headlight#73838b': 'trim' },
+};
+function fixMaterials(key, scene) {
+  const F = MAT_FIX[key];
+  if (!F || scene.userData.matFixed) return;
+  scene.userData.matFixed = true;
+  const seen = new Set();
+  let n = 0;
+  scene.traverse((o) => {
+    if (!o.isMesh) return;
+    for (const m of [].concat(o.material)) {
+      if (seen.has(m)) continue;
+      seen.add(m);
+      const to = F[`${m.name}#${m.color?.getHexString?.()}`] ?? F[m.name];
+      if (!to) continue;
+      // (the importer's look for windows: dark, a third opaque)
+      if (to === 'glass') { m.color.multiplyScalar(0.15); m.opacity = 0.32; m.transparent = true; m.roughness = 0.04; m.metalness = 0.1; m.depthWrite = false; }
+      m.name = to === 'trim' ? `trim_${n++}` : to;
+    }
+  });
+}
+
 export class ModelLibrary {
   constructor(assets) { this.assets = assets; this.cars = {}; this.wheels = null; this.manifest = null; this.modelOf = {}; }
   // Which model backs a car: its imported real model (tools/import-cars.mjs), else — for a real car not
@@ -86,7 +115,7 @@ export class ModelLibrary {
       if (this.cars[id]) continue;
       const r = this.resolve(id);
       this.modelOf[id] = r;
-      jobs.push(this.assets.loadGLTF(modelUrl(this.manifest, r.file), priority).then((g) => { this.cars[id] = g.scene; }).catch(() => {}));
+      jobs.push(this.assets.loadGLTF(modelUrl(this.manifest, r.file), priority).then((g) => { fixMaterials(r.key, g.scene); this.cars[id] = g.scene; }).catch(() => {}));
     }
     await Promise.all(jobs);
   }

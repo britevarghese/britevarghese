@@ -19,6 +19,8 @@ const result = await p.evaluate(async (seconds) => {
   const { bus } = await import('/src/core/EventBus.js');
   const events = [];
   for (const n of ['race:finished', 'race:checkpoint', 'police:pursuit', 'police:busted', 'police:escaped', 'police:roadblock']) bus.on(n, () => events.push(n));
+  // (a new save starts the story's prologue on play: not here, this drives the open world)
+  G.save.data.story.prologueOffered = true;
   G.play();
   G.rm.render = () => {}; G.rm.renderer.setAnimationLoop(null);
   const L = G.world.layout;

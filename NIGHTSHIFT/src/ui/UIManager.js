@@ -159,6 +159,9 @@ export class UIManager {
       ['RESET CAR', () => { g.resetPlayer(); g.resume(); }],
     ];
     if (g.races.active) items.push(['QUIT EVENT', () => { g.races.abort(); g.resume(); }]);
+    // the story's prologue: skip it while it plays, or play it (again) from here
+    if (g.story?.active?.m?.prologue) items.push(['SKIP PROLOGUE', () => { g.resume(); g.story.skipPrologue(); }]);
+    else if (g.world.kerala && g.story?.prologue && !g.story.active && !g.races.active && !g.police.inPursuit) items.push([g.story.done[g.story.prologue.id] ? 'REPLAY PROLOGUE' : 'PLAY PROLOGUE', () => { g.resume(); g.story.startPrologue(); }]);
     items.push(['TOGGLE FULLSCREEN', () => g.toggleFullscreen()]);
     items.push(['MAIN MENU', () => g.toMainMenu()]);
     const btns = items.map(([t, fn]) => { const b = h('button', 'menu-item', t); b.onclick = fn; box.appendChild(b); return b; });

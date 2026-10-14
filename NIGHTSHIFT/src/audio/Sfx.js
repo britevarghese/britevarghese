@@ -500,6 +500,30 @@ const R = {
     g.gain.linearRampToValueAtTime(0, t + dur);
     o.connect(lp).connect(g).connect(s.out);
   },
+  // a bank's alarm bell: a hammer on a bell some twenty times a second (inharmonic partials, each stroke a sharp
+  // attack and a fast decay), for `dur` seconds; played back to back while it rings
+  alarmBell(s, t, o) {
+    const dur = num(o.dur, 1.2);
+    const bell = s.gain(0.5), depth = s.gain(-0.5);
+    const lfo = s.osc('sawtooth', 21, t, dur);
+    lfo.connect(depth).connect(bell.gain);
+    for (const [f, a] of [[2350, 0.5], [3170, 0.32], [4480, 0.18], [6150, 0.08]]) { const p = s.osc('sine', f * rand(0.995, 1.005), t, dur); const g = s.gain(a * 0.22); p.connect(g).connect(bell); }
+    const hit = s.noise('white', t, dur), bp = s.filter('bandpass', 5200, 3), hg = s.gain(0.05);
+    hit.connect(bp).connect(hg).connect(bell);
+    const g = s.gain(0);
+    g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(1, t + 0.01); g.gain.setValueAtTime(1, t + dur - 0.03); g.gain.linearRampToValueAtTime(0, t + dur);
+    bell.connect(g).connect(s.out);
+  },
+  // a police jeep's siren close by: the wail rising and falling, for `dur` seconds
+  sirenBurst(s, t, o) {
+    const dur = num(o.dur, 3);
+    const v = s.osc('sawtooth', 600, t, dur), f = v.frequency;
+    f.setValueAtTime(620, t);
+    for (let tt = t; tt < t + dur; tt += 1.6) { f.linearRampToValueAtTime(1450, tt + 0.8); f.linearRampToValueAtTime(620, tt + 1.6); }
+    const lp = s.filter('lowpass', 2600, 0.9), g = s.gain(0);
+    g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(0.16, t + 0.15); g.gain.setValueAtTime(0.16, t + dur - 0.3); g.gain.linearRampToValueAtTime(0, t + dur);
+    v.connect(lp).connect(g).connect(s.out);
+  },
 };
 
 export const RECIPES = R;

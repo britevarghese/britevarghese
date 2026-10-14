@@ -601,8 +601,9 @@ export class OnFoot {
     const near = this.nearestVehicle();
     const what = { traffic: 'steal this car', police: 'steal the police car', rival: 'take their car', remote: `take ${g.net?.names.get(near?.ref.owner) || 'their'}'s ${vehicleWord(near?.ref.carId)}` }[near?.kind] || 'get in';
     // or a building: walk up to a wall
-    const door = !near && I && !this.pistol.armed ? I.doorAt(s.x, s.z, s.yaw) : null;
-    const dWord = door ? (door.c.bld.shop ? 'go into the shop' : door.c.bld.kind === 4 ? 'go inside' : door.c.bld.kind === 2 ? 'go into the shed' : 'go into the house') : '';
+    let door = !near && I ? I.doorAt(s.x, s.z, s.yaw) : null;
+    if (door && this.pistol.armed && !I.custom?.get(door.c)) door = null;
+    const dWord = door ? (I.custom?.get(door.c)?.word || (door.c.bld.shop ? 'go into the shop' : door.c.bld.kind === 4 ? 'go inside' : door.c.bld.kind === 2 ? 'go into the shed' : 'go into the house')) : '';
     g.hud.setPrompt(near ? `press <span class="key">F</span> / <span class="key">Y</span> to ${g.net?.pendingTake && near.kind === 'remote' ? 'wait...' : what}` : door ? `press <span class="key">F</span> / <span class="key">Y</span> to ${dWord}` : null);
     if (near && input.consume('enter')) this.enter(near);
     else if (door && input.consume('enter')) I.blink(() => I.enter(door));

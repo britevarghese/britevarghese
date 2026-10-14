@@ -188,6 +188,23 @@ export function interactionProfile(v) {
   return (r._iprof = pr);
 }
 
+// the front passenger's profile: the driver's mirrored across the centre line, the passenger door's own hinge, the
+// feet in the footwell (no wheel, no pedals). A car only (not a bike, an auto or a bus)
+export function passengerProfile(v) {
+  const r = v.renderer;
+  if (r?._iprofP !== undefined) return r._iprofP;
+  const P = interactionProfile(v);
+  if (!P || P.kind === 'bike' || P.kind === 'auto' || P.kind === 'bus') return (r._iprofP = null);
+  const M = (p) => (p ? new THREE.Vector3(-p.x, p.y, p.z) : p);
+  const side = -P.ds, d = r.doors?.[side];
+  const door = d ? { side, hinge: d.hinge.clone(), len: d.len, real: true } : { ...P.door, side, hinge: M(P.door.hinge) };
+  const Q = { ...P, passenger: true, ds: side, door, seat: M(P.seat), sill: M(P.sill), entry: M(P.entry), exit: M(P.exit), step: M(P.step), wheel: null, ownWheel: false };
+  Q.handle = M(P.handle); if (door.len) Q.handle.z = door.hinge.z - door.len + 0.12;
+  // (feet flat in the footwell, the left foot the left one)
+  Q.pedals = { L: new THREE.Vector3(Q.seat.x + 0.12, P.floorY + 0.06, P.pedals.L.z), R: new THREE.Vector3(Q.seat.x - 0.12, P.floorY + 0.06, P.pedals.R.z) };
+  return (r._iprofP = Q);
+}
+
 // sockets drawn as small markers on the vehicle (debug: "show vehicle interaction sockets")
 export function showSockets(v, on) {
   const r = v?.renderer;
@@ -212,7 +229,7 @@ function gripPoint(W, ang, steer, out) {
 }
 
 // ------------------------------------------------------------------------------------------- body IK
-class BodyIK {
+export class BodyIK {
   constructor(human) {
     this.h = human; const B = human.B;
     const L = (a, b) => wpos(B[a], _a).distanceTo(wpos(B[b], _b));
@@ -297,8 +314,8 @@ export class VehicleInteraction {
   // -------------------------------------------------------------- enter
   canUse(v) { const P = interactionProfile(v); return !!(P && this.human); }
 
-  startEnter(v) {
-    const P = interactionProfile(v), s = this.of.state;
+  startEnter(v, P = interactionProfile(v)) {
+    const s = this.of.state;
     // which side are we on? Walk round the front or back to the driver's door if needed
     const me = this._toLocal(v, _a.set(s.x, s.y, s.z));
     const route = [];
@@ -318,8 +335,7 @@ export class VehicleInteraction {
   }
 
   // -------------------------------------------------------------- exit
-  startExit(v) {
-    const P = interactionProfile(v);
+  startExit(v, P = this.st?.P || interactionProfile(v)) {
     if (!P || !this.human) return false;
     if (P.kind === 'bike') {
       this.st = { mode: 'exit', v, P, side: 1, phase: 'bikeStop', t: 0, T: 0 };
@@ -353,12 +369,11 @@ export class VehicleInteraction {
   }
 
   // sit straight in (a new car from the garage, a respawn)
-  seatInstant(v) {
-    const P = interactionProfile(v);
+  seatInstant(v, P = interactionProfile(v)) {
     if (!P || !this.human) { this.st = null; return; }
     if (P.kind === 'bike') { this._riderIsMe(v, true); this.st = { mode: 'seated', v, P, t: 0, T: 0 }; v.occupied = 'driver'; this._detach(); this.of.body.group.visible = false; return; }
     this._attach(v);
-    this.human.play(P.kind === 'auto' ? 'sitIdle' : 'drive', { hold: true, fade: 0 });
+    this.human.play(P.kind === 'auto' || P.passenger ? 'sitIdle' : 'drive', { hold: true, fade: 0 });
     this.st = { mode: 'seated', v, P, t: 0 };
     v.occupied = 'driver';
     this.of.body.group.visible = true;
@@ -547,7 +562,7 @@ export class VehicleInteraction {
           this._clearRoof(ik, v, P, 1 - smooth((k - 0.75) / 0.25));
           this._clearRoof(ik, v, P, smooth((k - 0.75) / 0.25), true);
         });
-        if (st.t >= T) { this._next('legsIn'); h.play(P.kind === 'auto' ? 'sitIdle' : 'drive', { hold: true, fade: 0.45 }); }
+        if (st.t >= T) { this._next('legsIn'); h.play(P.kind === 'auto' || P.passenger ? 'sitIdle' : 'drive', { hold: true, fade: 0.45 }); }
         return;
       }
       case 'legsIn': {
@@ -719,7 +734,7 @@ export class VehicleInteraction {
     const st = this.st, v = st.v;
     if (st.P.kind === 'bike') { this.of.body.group.visible = false; return; }
     // first person: the cockpit view draws its own arms
-    this.of.body.group.visible = !v.renderer.cockpitOn;
+    this.of.body.group.visible = !!st.P.passenger || !v.renderer.cockpitOn;
     if (!this.of.body.group.visible) return;
     // the body sways with the car: g-forces in the car's frame (a damped spring, kept subtle)
     const s = v.state, fx = Math.sin(s.yaw), fz = Math.cos(s.yaw);
@@ -748,7 +763,7 @@ export class VehicleInteraction {
     const hips = _hp.copy(P.seat); hips.x += this.sway.x * 0.35;
     this._poseLocal(dt, hips, 0, (ik) => {
       // feet on the pedals (the right foot presses with the throttle / brake)
-      const thr = v.controls?.throttle || 0, brk = v.controls?.brake || 0;
+      const thr = P.passenger ? 0 : v.controls?.throttle || 0, brk = P.passenger ? 0 : v.controls?.brake || 0;
       ik.leg(1, this._toWorld(v, P.pedals.L), this._hint(v, 0.15, 0.5, 1), 1);
       ik.leg(-1, this._toWorld(v, _a.copy(P.pedals.R).add(_k.set(brk > 0.1 ? 0.12 : 0, -0.03 * Math.max(thr, brk), 0.04 * Math.max(thr, brk)))), this._hint(v, -0.15, 0.5, 1), 1);
       // the torso sways with the car (forward under braking, back under acceleration, out in the turns)
@@ -766,8 +781,10 @@ export class VehicleInteraction {
           ik.arm(side, this._toWorld(v, g), this._hint(v, side * 0.7, -0.7, -0.2), wHands);
         }
       }
-      // eyes on the road, into the turn
-      this._look(ik, this._toWorld(v, _c.set(P.seat.x - steer * 5, P.seat.y + 0.6, P.seat.z + 12), _c), 0.55);
+      // eyes on the road, into the turn; or on someone talking (a scene's gaze: a world point, or a function of one)
+      const gz = typeof this.gaze === 'function' ? this.gaze(_c) : this.gaze;
+      if (gz) this._look(ik, gz, 0.8);
+      else this._look(ik, this._toWorld(v, _c.set(P.seat.x - steer * 5, P.seat.y + 0.6, P.seat.z + 12), _c), 0.55);
     });
   }
 

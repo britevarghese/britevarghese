@@ -313,11 +313,20 @@ const KL_CAST = {
   anitha: { name: 'Anitha', role: 'Car dealer, Chala', color: '#ffd23d', model: 'kl_saree', look: { jacket: 0x8a2a4a, jeans: 0x3a1a2a, skin: 0x8a5a3a, hair: 0x0a0a0a }, place: 'Chala' },
   rajan: { name: 'Rajan', role: 'Lorry contractor, Kappad', color: '#9dff6a', model: 'kl_elder', look: { jacket: 0xf0ece0, jeans: 0xf2efe6, skin: 0x6a4228, hair: 0xb0b0b0 }, place: 'Kappad' },
   biju: { name: 'Biju', color: '#ff8a3d' },
+  customer: { name: 'Customer', color: '#d8d8d8' },
+  guard: { name: 'Guard', color: '#c8b070' },
+  manager: { name: 'Manager', color: '#9ac8ff' },
 };
 
-const KL_CHAPTERS = [{ id: 1, name: 'Kannur Nights' }, { id: 2, name: 'Airport Money' }];
+const KL_CHAPTERS = [{ id: 0, name: 'Prologue' }, { id: 1, name: 'Kannur Nights' }, { id: 2, name: 'Airport Money' }];
 
 const KL_STORY = [
+  // the prologue (Heist.js): a bank job in Kannur with Leena and Sajan, a police chase, Babu's workshop. Started on a
+  // new story (or from the pause menu), never offered by a contact
+  {
+    id: 'kl_prologue', giver: 'leena', title: 'The Kayal Job', script: 'heist', prologue: true, chapter: 0, requires: ['kl_prologue_manual'],
+    reward: { cash: 25000, xp: 1500 }, steps: [],
+  },
   {
     id: 'kl_white_dzire', giver: 'babu', title: 'The White Dzire',
     intro: [

@@ -49,6 +49,8 @@ const EVENT_ROUTING = {
   farHorn: { bus: 'env', reverb: 0.8, gap: 1 },
   dog: { bus: 'env', reverb: 0.7, gap: 1 },
   distantSiren: { bus: 'env', reverb: 0.9, gap: 2 },
+  alarmBell: { bus: 'sfx', reverb: 0.35, gap: 0.5 },
+  sirenBurst: { bus: 'sfx', reverb: 0.4, gap: 1 },
 };
 
 const DISTRICTS = {

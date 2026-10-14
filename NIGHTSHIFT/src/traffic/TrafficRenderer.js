@@ -473,6 +473,7 @@ TrafficRenderer.prototype._importSteps = function* (scene, src, man, max) {
           for (let i = 0; i < n; i++) { ca[i * 3] = col.r; ca[i * 3 + 1] = col.g; ca[i * 3 + 2] = col.b; }
           g.setAttribute('color', new THREE.BufferAttribute(ca, 3));
           const G = groups.get(key); G.metal = (G.metal || 0) + (mat.metalness ?? 0.2); G.rough = (G.rough || 0) + (mat.roughness ?? 0.6); G.n = (G.n || 0) + 1;
+          if (mat.side === THREE.DoubleSide) G.double = true;
         }
         groups.get(key).geos.push(g);
       }
@@ -492,6 +493,7 @@ TrafficRenderer.prototype._importSteps = function* (scene, src, man, max) {
         P.geos.push(g);
       }
       P.metal = (P.metal || 0) + (G.mat.metalness ?? 0.2); P.rough = (P.rough || 0) + (G.mat.roughness ?? 0.6); P.n = (P.n || 0) + 1;
+      if (G.mat.side === THREE.DoubleSide) P.double = true;
     }
     const parts = [];
     const add = (geo, mat, opts = {}) => {
@@ -507,7 +509,8 @@ TrafficRenderer.prototype._importSteps = function* (scene, src, man, max) {
       const geo = merge(G.geos);
       let mat;
       if (G.kind === 'paint') { mat = G.mat.clone(); mat.color = new THREE.Color(1, 1, 1); }
-      else if (G.kind === 'plain') mat = new THREE.MeshStandardMaterial({ vertexColors: true, metalness: G.metal / G.n, roughness: G.rough / G.n });
+      // (double-sided where the model's own materials were: some models' panels are single faces wound either way)
+      else if (G.kind === 'plain') mat = new THREE.MeshStandardMaterial({ vertexColors: true, metalness: G.metal / G.n, roughness: G.rough / G.n, side: G.double ? THREE.DoubleSide : THREE.FrontSide });
       else mat = G.mat;
       add(geo, mat, { kind: G.kind, color: G.kind === 'paint' || G.kind === 'head' || G.kind === 'tail' });
       yield;

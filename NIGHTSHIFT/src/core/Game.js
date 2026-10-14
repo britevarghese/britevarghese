@@ -543,7 +543,9 @@ export class Game {
     this.camCtl.snap(this.player);
     document.getElementById('hud').classList.remove('hidden');
     this.audio.setPaused(false);
-    if (this.world.kerala) this.ui.toast('Kerala is yours to explore: every car is in your garage (G). F gets you in and out of cars (or onto a bike), Q to fight on foot, M for the map.', '', 9);
+    const SD = this.save.data.story;
+    if (this.world.kerala && this.story.prologue && !SD.done[this.story.prologue.id] && !SD.prologueOffered && !Object.keys(SD.done).length && !this.story.active) this.story.startPrologue();
+    else if (this.world.kerala) this.ui.toast('Kerala is yours to explore: every car is in your garage (G). F gets you in and out of cars (or onto a bike), Q to fight on foot, M for the map.', '', 9);
     else this.ui.toast(Object.keys(this.save.data.story?.done || {}).length ? 'Story missions: follow the coloured markers on the minimap. Buy property at the green markers, earn cash at the odd-job stands. F gets you in and out of cars.' : 'Port Halvern is yours to explore: every car is in your garage (G). Tully has work for you (orange marker); green markers are property for sale, and the stands on the map pay for taxi fares, courier runs and car exports. F gets you in and out of cars.', '', 9);
   }
   pause() {
@@ -809,7 +811,11 @@ export class Game {
     const driving = mode === 'drive';
     const simulate = driving || mode === 'menu' || mode === 'busted';
     // global actions
-    if (driving) {
+    const cine = driving && this.story?.cinema?.active ? this.story.cinema : null;
+    if (cine) {
+      if (input.consume('pause') || input.consume('back')) cine.skip();
+      for (const a of ['map', 'enter', 'photo', 'replay', 'camera', 'reset', 'horn', 'weapon', 'attack', 'jump', 'event']) input.consume(a);
+    } else if (driving) {
       const onFoot = this.onFoot.active;
       if (input.consume('pause')) this.pause();
       else if (input.consume('map')) this.openMap();
@@ -839,6 +845,7 @@ export class Game {
       c.throttle = ic.throttle; c.brake = ic.brake; c.steer = ic.steer; c.handbrake = ic.handbrake; c.nitro = ic.nitro;
     } else { c.throttle = 0; c.brake = mode === 'menu' ? 0 : 0.3; c.steer = 0; c.handbrake = mode === 'menu' ? 1 : 0; c.nitro = false; }
 
+    if (cine) { c.throttle = 0; c.brake = 0; c.steer = 0; c.handbrake = 1; c.nitro = false; }
     if (driving && !this.onFoot.active) this._softLimit(dt, c);
     if (simulate) {
       this.state.time += dt;
@@ -867,8 +874,9 @@ export class Game {
         this.env.setWeather(next); this.weatherT = 600; this.ui.toast(`Weather: ${next}`, '', 1.5);
       }
       if (input.consume('sockets')) { const on = !this.onFoot.inter.debug; this.onFoot.inter.setDebug(on); this.ui.toast(on ? 'Vehicle interaction sockets: on' : 'Vehicle interaction sockets: off', '', 1.5); }
-      if (this.onFoot.active && driving) this.onFoot.update(dt, input);
-      else if (this.onFoot.inter.st) this.onFoot.inter.update(dt, input); // at the wheel (or finishing getting in)
+      const pin = this.story?.cinema?.active ? (this._noInput ||= { controls: { throttle: 0, brake: 0, steer: 0, lookX: 0, lookY: 0, nitro: false, aim: false, use: false }, consume: () => false, wasPressed: () => false }) : input;
+      if (this.onFoot.active && driving) this.onFoot.update(dt, pin);
+      else if (this.onFoot.inter.st) this.onFoot.inter.update(dt, pin); // at the wheel (or finishing getting in)
       this.onFoot.updateParked(dt, this.camera.position, this.env.state);
       this.interiors.update(dt, this.env.state);
       this.env.indoors = !!this.interiors.active;
@@ -984,7 +992,8 @@ export class Game {
     // matrix, and last frame's pose left the eye ~v*dt behind the seat at speed
     const syncedEarly = !!simulate;
     if (syncedEarly) player.sync(dt, this.camera.position, this.env.state);
-    if (simulate || mode === 'paused' || mode === 'map' || mode === 'brief' || mode === 'results') {
+    if (driving && this.story?.cinema?.active) { this.story.cinema.camera(dt, this.camera); this.camBlend = null; }
+    else if (simulate || mode === 'paused' || mode === 'map' || mode === 'brief' || mode === 'results') {
       if (simulate && this.onFoot.active) this.onFoot.updateCamera(dt, input, this.camera);
       else if (simulate) this.camCtl.update(dt, player, driving ? input.controls : { lookX: 0, lookY: 0 }, this.fx2);
       // after getting in: ease from where the walking camera was to the driving camera (no cut)

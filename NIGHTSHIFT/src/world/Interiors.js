@@ -10,8 +10,8 @@ import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 
 const WALL = 0.1, DOOR_W = 0.95, DOOR_H = 2.1;
-const INDOOR = 3;   // render layer: inside, the camera sees only the room and the player (a garden tree or a
-                    // neighbour's wall standing into the footprint stays outside)
+export const INDOOR = 3;   // render layer: inside, the camera sees only the room and the player (a garden tree or a
+                           // neighbour's wall standing into the footprint stays outside)
 const _c = new THREE.Color();
 const hex = (h) => _c.set(h).clone();
 
@@ -85,10 +85,13 @@ export class Interiors {
   }
 
   // ------------------------------------------------------------------ enter / leave
-  enter(door) {
+  // (builder: a layout of its own for this building, e.g. the story's bank: Bank.js)
+  enter(door, builder = null) {
     if (this.active) return;
+    const cu = !builder && this.custom?.get(door.c);
+    if (cu) { builder = cu.builder; door = { ...door, side: cu.side, t: cu.t }; }
     const c = door.c, B = c.bld;
-    const g = this._build(c, door);
+    const g = builder ? builder(this, c, door) : this._build(c, door);
     this.game.scene.add(g.group);
     g.group.traverse((o) => o.layers.set(INDOOR));
     this.game.onFoot.body.group.traverse((o) => o.layers.enable(INDOOR));
@@ -106,7 +109,7 @@ export class Interiors {
     s.x = p[0]; s.z = p[1]; s.y = B.floor; s.vx = s.vz = 0; f.vy = 0;
     s.yaw = g.spawnYaw + c.angle; f.camYaw = s.yaw; f.camPitch = 0.12;
     f.camPos.set(s.x - Math.sin(s.yaw) * 1.5, s.y + 1.7, s.z - Math.cos(s.yaw) * 1.5);
-    this.game.ui?.toast?.({ house: 'Home', shop: 'Shop', office: 'Office', shed: 'Shed' }[g.type] || 'Inside', '', 1.2);
+    this.game.ui?.toast?.(g.title || { house: 'Home', shop: 'Shop', office: 'Office', shed: 'Shed' }[g.type] || 'Inside', '', 1.2);
   }
 
   leave() {
@@ -131,6 +134,7 @@ export class Interiors {
     this.game.camera.layers.mask = this._mask ?? 1;
     this.game.scene.remove(A.group);
     A.group.traverse((o) => { if (o.isMesh) o.geometry.dispose(); });
+    A.dispose?.();
     this.active = null; this.colliders = []; this.fans = [];
     if (this.game.env) this.game.env.indoorLamp = 0;
     this.game.env?.update?.(0, this.game.camera.position, true);   // the sky light back to outdoors
@@ -184,6 +188,7 @@ export class Interiors {
     for (const f of this.fans) f.rotation.y += dt * 9;
     // whoever is in here (their character comes from the crowd's pool) is drawn on the indoor layer
     this._show(A.person?.human || null);
+    A.tick?.(dt);
   }
 
   // ------------------------------------------------------------------ geometry helpers

@@ -120,6 +120,12 @@ the game. Newly found problems go at the end of their section.
   water and the other hadn't, and each took the road's level from its own ground. At the edge both take the survey
   they share. The ground there no longer pokes up through a road in a cutting (it was left as surveyed on the edge
   rows: now held under the road from that shared level, alike in both tiles)
+- [x] Scorpio: green whatever its paint, its windows opaque black and its whole trim glowing red with the brake
+  lights. The model gives ten different materials one name (the windows and the black plastic among them, drawn as
+  one), calls its body colour 'primary' and its high stop lamp 'glass'. Renamed by what each one is as the model
+  loads: it takes its paint (the prologue's black Scorpio is black), the windows are glass, only the tail lamps glow
+- [x] Traffic vehicles with panels missing (a Scorpio's doors and front see-through): parts made of single faces were
+  drawn one side only; they are drawn both sides now, as the model has them
 
 ## Police and traffic
 - [x] Police start a chase when their own car hits you (fault check: whoever drove into whom)
@@ -255,3 +261,19 @@ the game. Newly found problems go at the end of their section.
     flat (held at the drain's bank); two junctions a few metres apart on a hillside took levels 1.2 m apart. Kannur
     and the 8 tiles round it 113 -> 102 humps; no steps; every tile edge still meets exactly
 - [x] Realistic trees: real coconut palm, banana and broadleaf models (Sketchfab, CC BY) within ~90 m of the camera, with leaf-cut shadows; the generated plants beyond. (Junction-height priority was tried for the remaining road humps: more humps, reverted)
+
+## Story
+- [x] The story begins like GTA's: a prologue, 'The Kayal Job', starts on a new game in Kerala (Esc skips a scene;
+  the pause menu skips the prologue, or plays it again later). A cold open in a black Scorpio down the road from Kayal
+  Mercantile Bank, Kannur: Leena (she plans it) beside you, Sajan (the guns) behind, the camera cutting between them
+  as they talk, each looking at whoever speaks. You walk to the bank with them, Kathakali masks go on at the door;
+  Sajan's shot into the ceiling, everyone down, the old guard thinks better of his gun. The manager out of his cabin,
+  the cashier with the second key (two keys, as in every Indian bank), the strongroom door swings, the bag filled rack
+  by rack; the silent alarm, the bell and a clock running down. Out with the bag: police jeeps, Sajan splits off
+  through the market, Leena gets in beside you and keeps talking (looking back at the jeeps) until you lose them;
+  then Babu's workshop in Thavakkara, where the car disappears and chapter 1 starts
+  - [x] The bank is a real building on a main road near the start with an open front (one behind a compound wall
+    and gate could not be walked into); its board, glass doors and an ATM are put up outside, and walking in builds
+    the branch: hall, counter, cabin, strongroom, staff and customers, its windows daylight from inside
+  - [x] The scenes' cameras stay inside the car's cabin and keep clear of walls, the car and other people; the dark
+    windows clear while the camera looks in through the windscreen; game notices wait until a scene is over

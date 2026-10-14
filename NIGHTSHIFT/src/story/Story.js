@@ -14,6 +14,7 @@ import { CARS, tunedParams, TRAFFIC_VEHICLES } from '../vehicles/VehicleCatalog.
 import { VehiclePhysics } from '../physics/VehiclePhysics.js';
 import { GRID } from '../world/CityLayout.js';
 import { PROPERTY_BY_ID } from '../world/Empire.js';
+import { Heist } from './Heist.js';
 
 const YELLOW = 0xffc53d;
 const _a = new THREE.Vector3(), _b = new THREE.Vector3();
@@ -161,6 +162,8 @@ export class Story {
     g.lib.load(ids, 2);
     this.active = { m, i: -1, spawned: [], vehicle: null };
     g.gps = null;
+    // a scripted mission (the prologue): its own director runs it
+    if (m.script === 'heist') { this.active.script = new Heist(g, this, m); this.active.script.start(skipIntro); bus.emit('story:start', { id: m.id }); return; }
     if (m.job) { this.active.job = true; this._next(); return; }
     if (skipIntro || !m.intro?.length) this._next();
     else this._cutscene(m, () => this._next());
@@ -370,6 +373,7 @@ export class Story {
 
   vehicles() {
     const A = this.active;
+    if (A?.script) return A.script.vehicles();
     return A?.st?.ai ? [A.st.v] : [];
   }
 
@@ -382,6 +386,7 @@ export class Story {
     this._animGivers(dt);
     if (!driving) return;
     if (!this.active) { this._offer(input); return; }
+    if (this.active.script) { this.active.script.update(dt, input); return; }
     const A = this.active, st = A.m.steps[A.i], s = A.st;
     if (!st || !s) return;
     s.t += dt;
@@ -570,7 +575,7 @@ export class Story {
       if (!on && !this.givers[id]) continue;
       const gv = this._giver(id);
       if (gv.provisional) continue;
-      const busy = this.cs?.gv === gv;
+      const busy = this.cs?.gv === gv || this.active?.script?.giverOn === id;
       gv.body.group.visible = on || busy;
       gv.ring.visible = gv.beam.visible = on && !this.cs;
       gv.ring.material.opacity = 0.55 + Math.sin(t * 3) * 0.25;
@@ -593,7 +598,7 @@ export class Story {
   }
 
   // after the rest of the frame's interactions, so the mission prompt wins
-  late() { if (this.promptHtml) this.game.hud.setPrompt(this.promptHtml); }
+  late() { this.active?.script?.late(); if (this.promptHtml) this.game.hud.setPrompt(this.promptHtml); }
 
   blips() {
     const out = [];
@@ -608,6 +613,7 @@ export class Story {
   _cleanup(keepCar) {
     const g = this.game, A = this.active;
     if (!A) return;
+    A.script?._dispose(keepCar);
     for (const v of A.spawned) {
       if (keepCar && g.player === v) { v.keep = false; v.mission = false; continue; }
       if (g.player === v) continue; // never delete the car you're sitting in
@@ -662,7 +668,9 @@ export class Story {
   }
 
   retry(m) {
-    const g = this.game, gv = this._giver(m.giver);
+    const g = this.game;
+    if (m.script) { g.police.clearAll(); if (g.onFoot.dead) g.onFoot.heal(); this.start(m, true); return; }
+    const gv = this._giver(m.giver);
     if (g.onFoot.active) g.onFoot.enter({ kind: 'own', ref: g.player });
     g.police.clearAll();
     g.player.state.damage = 0; g.player.renderer.repair?.();
@@ -681,4 +689,24 @@ export class Story {
   }
 
   abort() { if (this.active) this._cleanup(false); if (this.cs) { this.cs = null; this.el.root.classList.remove('cine'); this._subtitle(null); } }
+
+  // the prologue (Kerala): played at the start of a new story, or from the pause menu
+  get prologue() { return STORY.find((m) => m.prologue); }
+  startPrologue(skipIntro = false) {
+    const m = this.prologue;
+    if (!m || this.active) return false;
+    this.game.save.data.story.prologueOffered = true;
+    this.start(m, skipIntro);
+    return true;
+  }
+  // skipped (from the pause menu): done, no reward, the story goes on from Babu's first job
+  skipPrologue() {
+    const m = this.active?.m;
+    if (!m?.prologue) return;
+    this._cleanup(false);
+    this.done[m.id] = true; this.game.save.save();
+    this.game.spawnPlayer();
+    this.game.applyTime?.();
+    this.game.ui.toast(`Prologue skipped. Babu has work for you (see the minimap).`, '', 5);
+  }
 }

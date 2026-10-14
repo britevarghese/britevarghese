@@ -323,6 +323,12 @@ input[type=range] { width: 100%; accent-color: var(--accent); }
 .story-title small { display: block; font-size: 0.8rem; letter-spacing: 0.4em; color: #ffc53d; }
 @keyframes titlecard { 0% { opacity: 0; transform: translateX(-20px); } 15%, 80% { opacity: 1; transform: none; } 100% { opacity: 0; } }
 @media (max-width: 600px) { .story-sub { font-size: 0.95rem; } .story-title { font-size: 1.7rem; } .story-meter { top: 12rem; width: 150px; } }
+/* cutscenes: the skip hint, the big title over the picture */
+.cine-skip { position: absolute; right: 1.4rem; bottom: calc(11vh + 0.6rem); font-size: 0.72rem; letter-spacing: 0.12em; color: rgba(255,255,255,0.55); opacity: 0; transition: opacity 0.4s; text-transform: uppercase; }
+.cine-skip.on { opacity: 1; }
+.cine-title { position: absolute; left: 0; right: 0; top: 36vh; text-align: center; font-size: clamp(2.4rem, 7vw, 5.6rem); font-weight: 900; letter-spacing: 0.32em; color: #fff; text-shadow: 0 4px 22px rgba(0,0,0,0.85); animation: cinetitle 5s ease forwards; }
+.cine-title small { display: block; margin-top: 0.6rem; font-size: clamp(0.8rem, 1.6vw, 1.15rem); font-weight: 600; letter-spacing: 0.45em; color: #ffc53d; }
+@keyframes cinetitle { 0% { opacity: 0; transform: scale(1.04); } 15% { opacity: 1; } 80% { opacity: 1; } 100% { opacity: 0; transform: scale(1); } }
 
 /* health on foot (under the minimap) */
 .hp-bar { position: absolute; left: 8%; right: 8%; bottom: -14px; height: 6px; background: rgba(0,0,0,0.55); border-radius: 3px; overflow: hidden; box-shadow: 0 0 0 1px rgba(255,255,255,0.12); }
