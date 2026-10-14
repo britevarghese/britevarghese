@@ -258,6 +258,19 @@ export class TrafficRenderer {
     return parts;
   }
 
+  // the triangles one car of this type costs in full detail (LOD 0; its wheels drawn four times)
+  lod0Tris(type) {
+    const T = this.types[type];
+    if (!T) return 0;
+    if (T.tris0 != null) return T.tris0;
+    let n = 0;
+    for (const pt of Object.values(T.lods[0] || {})) {
+      const g = (pt.mesh || pt).geometry;
+      if (g) n += ((g.index ? g.index.count : g.attributes.position.count) / 3) * (pt.wheel ? 4 : 1);
+    }
+    return (T.tris0 = Math.round(n));
+  }
+
   // cars: [{type, x, y, z, yaw, pitch, roll, color(THREE.Color), brake, spin, lod}]
   update(cars, camera, night, refl = null) {
     if (this._queue.length || this._job) this._pump(3);

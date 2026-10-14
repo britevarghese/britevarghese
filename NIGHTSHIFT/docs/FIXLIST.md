@@ -146,6 +146,9 @@ the game. Newly found problems go at the end of their section.
   dozen autos for minutes near the start was a lane with no way on: one-way carriageways ending a few metres short
   of the road they run into (the map's pieces sharing no point there), so the first to reach the end stopped for
   good. They run on into the nearest lane starting just ahead, on road all the way (11 such ends round Kannur, now 0)
+- [x] Full-detail traffic cars cost up to 400k triangles each (the Scorpio; a Dzire 280k, an Ertiga or an 800 200k),
+  and up to 8 of them were drawn that way at once on High (12 on Ultra), shadows on top. The nearest cars still get
+  full detail, within a triangle budget per quality level (High: 1M; a short drive peaked at 1.0M, was 1.33M)
 
 ## People
 - [x] Clothing: men in plain shirts over dark trousers, khaki or a white mundu, black hair; women in sarees; no kurtas or western dress in crowds, drivers or riders
@@ -166,6 +169,10 @@ the game. Newly found problems go at the end of their section.
   times at 144 fps (50 km/h: hips 5.8 m up, 45 m away). It steps at a fixed 1/120 s now: hips 1.4 m up, at rest
   ~10 m on, at any frame rate; the feet don't grip the road in the first instant (the body toppled where it stood);
   a fast car carries a person over its bonnet instead of firing them ahead at its own speed
+- [x] On foot, the camera sat right behind the character's head indoors and against walls (the bank's vault and
+  cash racks hidden), and could end up behind an electric pole or a tree. Up close it now goes over the right
+  shoulder and looks on past it; the line to the character is checked every quarter metre, so a pole or a trunk
+  brings the camera in front of it at once (easing back out after); low walls and counters below it don't count
 
 ## Roads and world
 - [x] The game hung for a moment every so often while driving: building each new 2 km piece of the map ran some

@@ -132,7 +132,7 @@ export function dressBank(game, site) {
   const half = along ? c.hx : c.hz, len = (along ? c.hz : c.hx) * 2;
   const face = half / 0.96 + 0.05;           // (the collider is 4% inside the walls)
   const grp = new THREE.Group(); grp.name = 'bank_front';
-  const fy = site.floor;
+  const fy = site.floor, cols = [];
   // the frame: x along the wall, z out of it
   const put = (o, u, y, out = 0) => { const [x, z] = toWorld(c, nx * (face + out) + (along ? 0 : u), nz * (face + out) + (along ? u : 0)); o.position.set(x, fy + y, z); o.rotation.y = Math.atan2(nx, nz) + c.angle; grp.add(o); };
   // (rotation: +z of the object out of the wall. The collider's own angle turns the frame)
@@ -160,10 +160,14 @@ export function dressBank(game, site) {
     const scr = new THREE.Mesh(new THREE.PlaneGeometry(0.34, 0.26), new THREE.MeshBasicMaterial({ color: 0x3a7ac8, toneMapped: false })); scr.position.set(0, 1.35, 0.152); atm.add(scr);
     const pad = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.04, 0.16), steel); pad.position.set(0, 1.05, 0.2); atm.add(pad);
     put(atm, Math.min(len / 2 - 1.2, 3.0), 0, 0.15);
+    // (solid: walked round, the camera kept out of it)
+    const a = atm.rotation.y;
+    cols.push({ cx: atm.position.x, cz: atm.position.z, hx: 0.7, hz: 0.2, cos: Math.cos(a), sin: Math.sin(a), angle: a, h: fy + 2.3, kind: 'barrier' });
   }
   grp.traverse((o) => { if (o.isMesh) { o.castShadow = false; o.receiveShadow = true; } });
   game.scene.add(grp);
-  return { group: grp, dispose: () => { grp.removeFromParent(); grp.traverse((o) => { if (o.isMesh) { o.geometry.dispose(); } }); } };
+  for (const q of cols) game.world.collision.add(q);
+  return { group: grp, dispose: () => { for (const q of cols) game.world.collision.remove(q); grp.removeFromParent(); grp.traverse((o) => { if (o.isMesh) { o.geometry.dispose(); } }); } };
 }
 
 // ------------------------------------------------------------------------------------------------ inside

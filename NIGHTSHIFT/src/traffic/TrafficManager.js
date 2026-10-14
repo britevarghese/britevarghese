@@ -318,11 +318,19 @@ export class TrafficManager {
       c.lod = c.dist < this.preset.carLod1Distance ? 0 : 1;
       list.push(c);
     }
-    // only the nearest few cars get the full-detail model (the rest would cost tens of thousands of triangles each)
-    const cap = this.preset.carLod0Max ?? 6;
-    if (list.length > cap) {
-      let n = 0;
-      for (const c of [...list].sort((a, b) => a.dist - b.dist)) if (c.lod === 0 && ++n > cap) c.lod = 1;
+    this._lodBudget(list);
+  }
+
+  // only the nearest few cars get the full-detail model (the rest would cost tens of thousands of triangles each),
+  // and within a budget of triangles between them: a real model is up to 400k on its own (the Scorpio's), a few of
+  // those together millions, drawn again for the shadows. (The nearest always has its own)
+  _lodBudget(list) {
+    const cap = this.preset.carLod0Max ?? 6, budget = this.preset.carLod0Tris ?? cap * 150000;
+    let n = 0, tris = 0;
+    for (const c of [...list].sort((a, b) => a.dist - b.dist)) {
+      if (c.lod !== 0) continue;
+      const t = this.renderer?.lod0Tris?.(c.type) || 0;
+      if (n < cap && (n === 0 || tris + t <= budget)) { n++; tris += t; } else c.lod = 1;
     }
   }
 
@@ -861,6 +869,7 @@ export class TrafficManager {
       c.lod = c.dist < this.preset.carLod1Distance ? 0 : 1;
       list.push(c);
     }
+    this._lodBudget(list);
   }
 
   count() { return this.remote ? this.renderList.length : this.cars.length; }

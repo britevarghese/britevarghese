@@ -480,6 +480,19 @@ export class OnFoot {
     return tmp;
   }
 
+  // a camera spot clear of walls, poles and trunks, at the camera's own height (a low wall or a counter below it
+  // doesn't count)
+  _camFree(x, z, y) {
+    const tmp = this._ctmp || (this._ctmp = []);
+    this._statics(x - 0.5, z - 0.5, x + 0.5, z + 0.5, tmp);
+    for (const c of tmp) {
+      if (c.h < y - 0.25) continue;
+      const lx = (x - c.cx) * c.cos - (z - c.cz) * c.sin, lz = (x - c.cx) * c.sin + (z - c.cz) * c.cos;
+      if (Math.abs(lx) < c.hx + 0.22 && Math.abs(lz) < c.hz + 0.22) return false;
+    }
+    return true;
+  }
+
   _free(x, z) {
     const tmp = this._tmp || (this._tmp = []);
     this._statics(x - 0.6, z - 0.6, x + 0.6, z + 0.6, tmp);
@@ -644,22 +657,31 @@ export class OnFoot {
     const A = this.pistol.aim;
     const inside = this.game.interiors?.active;
     const dist = (inside ? 2.3 : this.camDist * (s.speed > 3 ? 1.15 : 1)) * (1 - 0.55 * A);
-    const cp = Math.cos(this.camPitch), rx = Math.cos(this.camYaw) * -0.55 * A, rz = -Math.sin(this.camYaw) * -0.55 * A;
-    const tx = s.x - Math.sin(this.camYaw) * dist * cp + rx, tz = s.z - Math.cos(this.camYaw) * dist * cp + rz, ty = s.y + 1.55 + Math.sin(this.camPitch) * dist;
-    _v.set(tx, Math.max(ty, s.y + 0.4), tz);
-    // don't put the camera inside buildings: pull in toward the character
+    const cp = Math.cos(this.camPitch), fx = Math.sin(this.camYaw), fz = Math.cos(this.camYaw), Rx = -fz, Rz = fx;   // the heading, its right
+    const tx = s.x - fx * dist * cp, tz = s.z - fz * dist * cp, ty = Math.max(s.y + 0.4, s.y + 1.55 + Math.sin(this.camPitch) * dist);
+    // not inside a building, nor behind a pole or a tree's trunk: pulled in toward the character at once (the line to
+    // it looked along every quarter metre), easing back out once it's clear
     let k = 1;
-    for (let i = 1; i <= 6; i++) {
-      const f = i / 6, px = s.x + (tx - s.x) * f, pz = s.z + (tz - s.z) * f;
-      if (!this._free(px, pz)) { k = Math.max(0.25, (i - 1) / 6); break; }
+    const N = Math.max(6, Math.ceil(dist / 0.25));
+    for (let i = 1; i <= N; i++) {
+      const f = i / N;
+      if (!this._camFree(s.x + (tx - s.x) * f, s.z + (tz - s.z) * f, s.y + 1.4 + (ty - s.y - 1.4) * f)) { k = Math.max(0.2, (i - 1) / N); break; }
     }
-    _v.set(s.x + (tx - s.x) * k, s.y + 1.4 + (_v.y - s.y - 1.4) * k, s.z + (tz - s.z) * k);
+    this.camK = k < (this.camK ?? 1) ? k : Math.min(k, (this.camK ?? 1) + dt * 0.9);
+    k = this.camK;
+    // in close (a room, against a wall) it goes over the right shoulder and looks on past it, so the character
+    // doesn't fill the view (aiming: further over, down the sights)
+    const near = clamp((2.1 - dist * cp * k) / 1.4, 0, 1);
+    const bx = s.x + (tx - s.x) * k, bz = s.z + (tz - s.z) * k, by = s.y + 1.4 + (ty - s.y - 1.4) * k + 0.08 * near;
+    let sh = Math.max(0.55 * A, 0.4 * near);
+    while (sh > 0.05 && !this._camFree(bx + Rx * sh, bz + Rz * sh, by)) sh *= 0.5;   // (not into a wall at the side)
+    _v.set(bx + Rx * sh, by, bz + Rz * sh);
     if (inside) _v.y = Math.min(_v.y, inside.ceil - 0.18);
     this.camPos.lerp(_v, 1 - Math.exp(-dt * (10 + 14 * A)));
     cam.position.copy(this.camPos);
     // the view looks past the character along the camera's own heading (the crosshair is the screen centre)
-    const lx = s.x + rx + Math.sin(this.camYaw) * 30 * A, lz = s.z + rz + Math.cos(this.camYaw) * 30 * A;
-    cam.lookAt(lx, s.y + 1.45 - Math.sin(this.camPitch) * 30 * A, lz);
+    const ahead = 30 * A + 1.8 * near * (1 - A);
+    cam.lookAt(s.x + Rx * sh + fx * ahead, s.y + 1.45 - Math.sin(this.camPitch) * ahead, s.z + Rz * sh + fz * ahead);
     cam.fov = damp(cam.fov, A > 0.5 ? 46 : s.speed > 3 ? 62 : 58, A > 0.5 ? 8 : 3, dt); cam.near = 0.1;
     cam.updateProjectionMatrix();
   }
