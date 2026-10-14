@@ -154,9 +154,9 @@ the game. Newly found problems go at the end of their section.
   a point across the inside, 1.3-1.5 m off the lane), went back on the throttle at full lock while still turning,
   came at the first of two sharp opposite corners at 55 km/h (the pair counted as one gentle bend), and drifted a
   metre off the lane. They look less far ahead on a bend, never aim across the verge, hold the corner's speed until
-  lined up, judge each sharp corner on its own and steer back onto the lane line. A drive test of ~10 km round
-  Kannur by the same driver went from 30 stops against something solid to one (a junction turn straight onto a
-  narrow canal bridge)
+  lined up, judge each sharp corner on its own and steer back onto the lane line. A drive test by the same driver,
+  ~10 km round Kannur, now leaves the road or hits something at one place only (a tight junction turn straight
+  onto a narrow canal bridge)
 - [x] Full-detail traffic cars cost up to 400k triangles each (the Scorpio; a Dzire 280k, an Ertiga or an 800 200k),
   and up to 8 of them were drawn that way at once on High (12 on Ultra), shadows on top. The nearest cars still get
   full detail, within a triangle budget per quality level (High: 1M; a short drive peaked at 1.0M, was 1.33M)
