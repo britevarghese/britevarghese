@@ -414,8 +414,9 @@ export class Vehicle {
       w.vx = vx; w.vy = vy;
       const flat = this.damage.flat[w.index], rw = flat ? r - this.flatDrop : r;
       let N = tyre.stiffness * (flat ? 0.35 : 1) * w.pen + tyre.damping * vn;
-      // a front tyre slammed into a rock face (the contact normal tipped back against the heading) bends the tie rod
-      if (w.index < 2 && vn > 4.5 && w.nx * w.headX + w.ny * w.headY + w.nz * w.headZ < -0.6) this.damage.steeringHit(w.side, vn);
+      // a front tyre slammed into a rock face (the contact normal tipped back against the heading) bends the tie rod;
+      // soft ground gives way instead (a tyre ploughing into mud or sand meets its own rut's front wall)
+      if (w.index < 2 && vn > 4.5 && !w.surf.sink && w.nx * w.headX + w.ny * w.headY + w.nz * w.headZ < -0.6) this.damage.steeringHit(w.side, vn);
       if (N < 0) N = 0;
       w.N = N;
       // bristle deflections (implicit relaxation, stable at any speed)
@@ -690,7 +691,9 @@ export class Vehicle {
       const surf = ground.surfaceAt(_p.x, _p.z);
       const Fn = this.penalty(_p, _n, pen, kh, ch, surf.hull * this.hullFriction);
       this.hullContact = Math.max(this.hullContact, Fn / 2e4);
-      if (this.lastClose > 2) this.hitAt(hp, _n, this.lastClose, k);
+      // soft ground (mud, sand, snow) gives under the body: it takes a far harder landing to dent or break anything
+      const close = surf.maxSink > 0.15 ? this.lastClose * 0.4 : this.lastClose;
+      if (close > 2) this.hitAt(hp, _n, close, k);
     }
   }
 
@@ -781,8 +784,12 @@ export class Vehicle {
     if (ground.water && this.waterDepth > 0.05) {
       this.toWorld(this.intake, _p);
       const level = ground.water(_p.x, _p.z);
-      const sp = Math.max(0, this.vel.dot(this.fwd));
-      wet = level > -1e8 && level + Math.min(0.4, 0.05 * sp * sp) > _p.y;
+      if (level > -1e8) {
+        // the bow wave: water piles up against the front, the higher the deeper and faster the water is entered (a
+        // walking-pace wave is low and steady; a puddle at speed is spray, not enough water to drown an engine)
+        const sp = Math.max(0, this.vel.dot(this.fwd)), depth = Math.max(0, level - ground.height(_p.x, _p.z));
+        wet = level + Math.min(0.45, depth * Math.min(2, 0.06 * sp * sp)) > _p.y;
+      }
     }
     this.intakeWet = wet;
     const dtr = this.dt;

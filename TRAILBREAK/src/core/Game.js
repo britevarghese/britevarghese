@@ -1,8 +1,9 @@
 // The game loop: input -> physics (fixed 480 Hz substeps) -> models, camera, effects, sound -> network -> HUD -> frame.
 import * as THREE from 'three';
 import { Vehicle, simulate } from '../physics/Vehicle.js';
-import { truckSpec } from '../physics/trucks.js';
-import { buildSummary } from '../physics/Upgrades.js';
+import { truckSpec, TRUCKS, TRUCK_IDS } from '../physics/trucks.js';
+import { money, TRUCK_PRICES } from '../game/Career.js';
+import { buildSummary, buildStats } from '../physics/Upgrades.js';
 import { SURFACES } from '../physics/Surfaces.js';
 import { TruckModel } from '../render/TruckModel.js';
 import { CameraRig } from './CameraRig.js';
@@ -27,9 +28,11 @@ function nameTag(text, color) {
   return s;
 }
 
+const BOUNTY = 600, BOUNTY_SHARE = 150, RESCUE_FEE = 300, TOW_FEE = 250;
+
 export class Game {
   constructor(o) {
-    Object.assign(this, o);          // world, renderer, terrain, vegetation, grass, rocks, water, landmarks, effects, rope, audio, net, hud, input, settings, garage, build
+    Object.assign(this, o);          // world, renderer, terrain, vegetation, grass, rocks, water, landmarks, effects, rope, audio, net, hud, input, settings, garage, career, build
     this.scene = this.renderer.scene;
     this.spec = truckSpec(this.truckId, this.build);
     this.build = this.spec.buildCode;
@@ -39,6 +42,10 @@ export class Game {
     this.garageSpot = this.world.landmarks.find((L) => L.type === 'garage');
     this.stationSpot = this.world.landmarks.find((L) => L.type === 'station');
     this.cam = new CameraRig(this.renderer.camera, this.world);
+    if (this.career) {
+      this.career.onChange = (amount, why) => this.hud.money(this.career.money, amount, why);
+      this.hud.money(this.career.money);
+    }
     this.remotes = new Map();
     this.sphereCache = new Map();
     this.carry = 0;
@@ -138,7 +145,7 @@ export class Game {
     this.garageOpen = true;
     this.input.enabled = false;
     const code = await this.garage.open({
-      truckId: this.truckId, code: this.build, paint: this.myColor,
+      truckId: this.truckId, code: this.build, paint: this.myColor, career: this.career,
       fitLabel: here ? 'Fit these parts' : 'Fit them at the station',
       note: here ? '' : 'You are out on the trail: fitting parts takes the truck back to the station garage.',
     });
@@ -149,6 +156,51 @@ export class Game {
   }
 
   get myColor() { return '#' + new THREE.Color(this.paint).getHexString(); }
+
+  /** The dealer: buy a truck, or swap to one you own (delivered to the station garage). */
+  openDealer() {
+    if (!this.career) return;
+    const $ = (id) => document.getElementById(id), C = this.career;
+    if (this.paused) this.togglePause(false);
+    this.dealerOpen = true;
+    this.input.enabled = false;
+    const el = $('dealer');
+    const close = () => { el.classList.add('hidden'); this.dealerOpen = false; this.input.enabled = !this.paused && !this.chatOpen; this.renderer.renderer.domElement.focus(); };
+    const render = () => {
+      $('d-money').innerHTML = `You have <b>${money(C.money)}</b>.`;
+      const list = $('d-list');
+      list.innerHTML = '';
+      for (const id of TRUCK_IDS) {
+        const t = TRUCKS[id], owned = C.ownsTruck(id), price = TRUCK_PRICES[id] ?? 0, here = id === this.truckId;
+        const st = buildStats(truckSpec(id));
+        const row = document.createElement('div');
+        row.className = 'dealer-row' + (owned ? ' mine' : '');
+        row.innerHTML = `<b>${t.name}</b><span class="blurb">${t.blurb}</span>
+          <span class="stats">${Math.round(st.powerKw)} kW · ${Math.round(st.peakTorque)} Nm · ${Math.round(st.mass)} kg · ${Math.round(st.clearance * 100)} cm under the diffs · wades ${Math.round(st.wading * 100)} cm</span>`;
+        const b = document.createElement('button');
+        if (here) { b.textContent = 'Driving it'; b.disabled = true; b.className = 'ghost'; }
+        else if (owned) { b.textContent = 'Drive this one'; b.className = 'primary'; b.onclick = () => { close(); this.switchTruck(id); }; }
+        else {
+          b.textContent = `Buy ${money(price)}`;
+          b.className = C.canAfford(price) ? 'primary' : 'ghost';
+          b.disabled = !C.canAfford(price);
+          b.onclick = () => { if (C.buyTruck(id)) { this.hud.toast(`You bought the ${t.name}: it waits at the station garage`, false, 5); render(); } };
+        }
+        row.appendChild(b);
+        list.appendChild(row);
+      }
+    };
+    render();
+    $('d-close').onclick = close;
+    el.classList.remove('hidden');
+  }
+
+  /** Drive another of your trucks: it is waiting at the station garage, with its last build. */
+  switchTruck(id) {
+    if (!this.career?.ownsTruck(id) || id === this.truckId) return;
+    this.truckId = id;
+    this.applyBuild(this.settings.builds?.[id] || '', true);
+  }
 
   spawnPoint() {
     const slot = this.net?.id ? (this.net.id - 1) % 6 : 0;
@@ -339,7 +391,7 @@ export class Game {
     if (I.consume('hook')) this.toggleHook();
     if (I.consume('recover')) this.recover();
     if (I.consume('tow')) this.callHelp();
-    if (I.consume('respawn')) this.spawn();
+    if (I.consume('respawn')) this.towHome();
   }
 
   /** P: next tyre pressure. Down any time (stopped); up only with onboard air or at the station. */
@@ -533,6 +585,14 @@ export class Game {
     }
   }
 
+  /** Backspace: the tow truck takes us back to the station (a fee when it has a long way to come). */
+  towHome() {
+    const S = this.stationSpot, p = this.vehicle.pos;
+    const far = S && Math.hypot(p.x - S.x, p.z - S.z) > 250;
+    this.spawn();
+    if (far && this.career) this.hud.toast(`Tow truck to the station: ${money(this.career.charge(TOW_FEE, 'Tow truck to the station'))}`, false, 4);
+  }
+
   /** Y: fit the spare in place of a flat tyre (stopped). */
   fitSpare() {
     const v = this.vehicle, D = v.damage, i = D.flat.findIndex(Boolean);
@@ -547,8 +607,11 @@ export class Game {
     const D = this.vehicle.damage;
     if (!D.any) return false;
     const bill = D.cost;
+    const paid = this.career ? this.career.charge(bill, 'Workshop repairs') : 0;
     this.applyBuild(this.build, false);
-    this.hud.toast(`Repaired at the station workshop (parts and labour about $${bill.toLocaleString('en-US')})`, false, 6);
+    this.hud.toast(this.career
+      ? `Repaired at the station workshop: ${money(paid)}${this.career.money < 0 ? ' (on credit: you owe the workshop)' : ''}`
+      : `Repaired at the station workshop (parts and labour about ${money(bill)})`, false, 6);
     return true;
   }
 
@@ -581,7 +644,7 @@ export class Game {
   }
 
   updateRemotes(dt) {
-    const others = [], pulls = [];
+    const others = [], pulls = [], W0 = this.vehicle.winch;
     const live = new Set();
     if (this.net) {
       for (const r of this.net.remotes.values()) {
@@ -614,6 +677,13 @@ export class Game {
           const dir = dirs[(Math.round(a / (Math.PI / 4)) + 8) % 8];
           this.hud.toast(`${r.name} needs a tow! ${d < 1000 ? Math.round(d) + ' m' : (d / 1000).toFixed(1) + ' km'} ${dir} (red ! on the compass)`, true, 8);
           this.audio.chirp?.();
+        }
+        if (rv.help && W0.attached && W0.kind === 'truck' && W0.target === rv.id) rv.towedAt = performance.now();
+        if (rv.help && !s.help && rv.towedAt && performance.now() - rv.towedAt < 20000 && this.career
+          && performance.now() - (rv.rewardAt || -1e9) > 180000) {
+          rv.rewardAt = performance.now();
+          this.career.add(RESCUE_FEE, `Towed ${rv.name} out`);
+          this.hud.toast(`You towed ${rv.name} out: ${money(RESCUE_FEE)} recovery fee`, false, 5);
         }
         rv.help = !!s.help;
         this.remoteDamage(rv, r.dmg, dt);
@@ -671,6 +741,13 @@ export class Game {
     const b = this.world.beacons.find((x) => x.id === id);
     const n = this.found.size, total = this.world.beacons.length;
     if (b) this.hud.toast(by ? `${by} surveyed ${b.name} (${n}/${total})` : `Surveyed ${b.name} (${n}/${total})`, true, 5);
+    if (b && this.career) {
+      const paid = this.career.d.bounties || (this.career.d.bounties = []), key = `ashwood:${id}`;
+      if (!paid.includes(key)) {
+        paid.push(key);
+        this.career.add(by ? BOUNTY_SHARE : BOUNTY, by ? `Share of ${by}'s survey bounty (${b.name})` : `Survey bounty: ${b.name}`);
+      }
+    }
     if (n === total) this.hud.toast('Every beacon in Ashwood Valley is surveyed. Great work!', true, 8);
     if (!this.net?.connected) {
       try { localStorage.setItem('trailbreak.solo.beacons', JSON.stringify([...this.found])); } catch { /* storage blocked */ }

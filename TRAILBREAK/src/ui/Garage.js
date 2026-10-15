@@ -2,8 +2,9 @@
 // Opens from the start screen, and in the valley with U or from the pause menu (parts are fitted at the station).
 import {
   CATEGORIES, PRESETS, optionsFor, normalizeBuild, presetBuild, encodeBuild, decodeBuild, buildStats, maxTyre,
-  LIFTS, TYRE_SIZES, TYRES,
+  LIFTS, TYRE_SIZES, TYRES, partPrice,
 } from '../physics/Upgrades.js';
+import { money } from '../game/Career.js';
 import { truckBase, truckSpec } from '../physics/trucks.js';
 import { GaragePreview } from './GaragePreview.js';
 
@@ -47,13 +48,15 @@ export class Garage {
    * Open the garage for a truck. Resolves with the build code to fit, or null when cancelled.
    *   truckId, code: current build; paint: hex; fitLabel: the fit button's text; note: a line under the parts
    */
-  open({ truckId, code, paint = '#b5532c', fitLabel = 'Fit these parts', note = '' }) {
+  open({ truckId, code, paint = '#b5532c', fitLabel = 'Fit these parts', note = '', career = null }) {
     if (this.isOpen) return Promise.resolve(null);
     this.isOpen = true;
     this.base = truckBase(truckId);
     this.truckId = this.base.id;
     this.paint = paint;
     this.build = decodeBuild(this.base, code || '');
+    this.career = career;
+    this.fitLabel = fitLabel;
     this.stockStats = buildStats(truckSpec(this.truckId));
     this.focus = null;
     this.el.classList.remove('hidden');
@@ -84,7 +87,11 @@ export class Garage {
       };
       const onKey = (e) => { if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); done(null); } };
       addEventListener('keydown', onKey, true);
-      $('g-fit').onclick = () => done(encodeBuild(this.build));
+      $('g-fit').onclick = () => {
+        // the parts not yet owned are bought now
+        if (this.career && !this.career.buyBuild(this.truckId, this.build)) { $('g-note').textContent = 'Not enough money for those parts.'; return; }
+        done(encodeBuild(this.build));
+      };
       $('g-cancel').onclick = () => done(null);
       $('g-close').onclick = () => done(null);
     });
@@ -125,6 +132,16 @@ export class Garage {
         b.dataset.cat = cat.id; b.dataset.i = i;
         b.textContent = optLabel(cat, o, this.base);
         b.title = o.name;
+        if (this.career) {
+          const v = cat.id === 'tyre' ? TYRE_SIZES[i] : i, price = partPrice(this.base, cat.id, v);
+          if (price > 0) {
+            const tag = document.createElement('span');
+            tag.className = 'price';
+            tag.textContent = money(price);
+            b.appendChild(tag);
+            b.classList.toggle('owned', this.career.ownsPart(this.truckId, cat.id, v));
+          }
+        }
         b.onclick = () => this.pick(cat, i, o);
         b.onmouseenter = () => this.describe(cat, o);
         b.onmouseleave = () => this.describe(null);
@@ -188,6 +205,15 @@ export class Garage {
     $('g-stats').innerHTML = `<div class="g-tyre">${esc(st.tyre)} · ${esc(t.label)} · down to ${st.minPsi} psi</div>${rows.join('')}${warn}`;
     this.describe(null);
     if (this.preview && code !== this.shown) { this.preview.show(spec, this.paint); this.shown = code; }
+    // the bill: parts in this build not yet owned
+    const bill = $('g-bill'), fit = $('g-fit');
+    if (this.career) {
+      const q = this.career.quote(this.truckId, b), ok = this.career.canAfford(q.total);
+      bill.innerHTML = q.total ? `Parts to buy <b>${money(q.total)}</b> · you have ${money(this.career.money)}` : `You have ${money(this.career.money)}`;
+      bill.classList.toggle('short', !ok);
+      fit.disabled = !ok;
+      fit.textContent = q.total ? `${this.fitLabel} (${money(q.total)})` : this.fitLabel;
+    } else { bill.textContent = ''; fit.disabled = false; fit.textContent = this.fitLabel; }
   }
 
   describe(cat, o) {

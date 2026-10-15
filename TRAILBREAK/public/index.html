@@ -29,6 +29,7 @@
         </div>
         <div class="field">
           <label>Truck</label>
+          <div id="lobby-money" class="lobby-money"></div>
           <div id="trucks" class="truck-list"></div>
           <div class="build-row"><span id="build-name" class="build-name"></span><button id="open-garage" class="ghost small">Garage</button></div>
         </div>
@@ -66,6 +67,7 @@
     <div id="compass"><div id="compass-strip"></div><div id="compass-needle"></div></div>
     <div id="objective"></div>
     <div id="players"></div>
+    <div id="money" class="money"></div>
     <canvas id="minimap" width="220" height="220"></canvas>
     <div id="dash">
       <canvas id="gauges" width="360" height="170"></canvas>
@@ -133,6 +135,7 @@
       <div class="menu-actions">
         <button id="resume" class="primary">Resume</button>
         <button id="menu-garage" class="ghost">Garage</button>
+        <button id="menu-dealer" class="ghost">Dealer</button>
         <button id="respawn" class="ghost">Back to the station</button>
         <button id="show-help" class="ghost">Controls</button>
       </div>
@@ -140,6 +143,16 @@
   </section>
 
   <!-- garage -->
+  <section id="dealer" class="screen hidden">
+    <div class="menu-card wide">
+      <h2>Ashwood 4x4 Sales <button id="d-close" class="ghost icon" aria-label="Close">&#x2715;</button></h2>
+      <p id="d-money" class="dim"></p>
+      <div id="d-list" class="dealer-list"></div>
+      <p class="fine">A truck you buy is delivered to the station garage. Earn money by surveying beacons, winning events
+        and towing friends out; repairs and the tow truck cost money.</p>
+    </div>
+  </section>
+
   <section id="garage" class="screen hidden">
     <div class="garage-card">
       <header class="garage-head">
@@ -157,6 +170,7 @@
       </div>
       <footer class="garage-foot">
         <span id="g-note" class="msg"></span>
+        <span id="g-bill" class="g-bill"></span>
         <button id="g-cancel" class="ghost">Cancel</button>
         <button id="g-fit" class="primary">Fit these parts</button>
       </footer>

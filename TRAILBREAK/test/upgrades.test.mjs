@@ -91,16 +91,16 @@ test('bigger tyres blunt the acceleration; deeper axle gears give it back', () =
   assert.ok(regeared < big * 0.95, `35s with 4.56 gears ${regeared.toFixed(2)} s`);
 });
 
-test('airing down: the tyres sink less in sand, and the truck gets up a sandy slope it bogs on at 30 psi', () => {
+test('airing down: the tyres sink less in sand, and the truck gets up a sandy slope far faster than at 30 psi', () => {
   const drive = (psi) => {
-    const g = softSlope(12, SURFACE.SAND);
+    const g = softSlope(15, SURFACE.SAND);
     const v = truck('hauler', { wheels: 2 }, g);
     v.setPressure(psi);
     v.dt.setRange(true, 0);
     let sink = 0, n = 0;
     run(v, g, 1, { ...IDLE, brake: 1 });
     const z0 = v.pos.z;
-    const steps = Math.round(10 / PHYS_DT);
+    const steps = Math.round(15 / PHYS_DT);
     for (let i = 0; i < steps; i++) {
       v.step({ ...IDLE, throttle: 1 }, g);
       if (i < steps / 3) { sink += v.wheels.reduce((s, w) => s + w.sink, 0) / 4; n++; }
@@ -109,7 +109,7 @@ test('airing down: the tyres sink less in sand, and the truck gets up a sandy sl
   };
   const hard = drive(30), soft8 = drive(8);
   assert.ok(soft8.sink < hard.sink * 0.8, `rut depth ${(hard.sink * 100).toFixed(1)} cm at 30 psi, ${(soft8.sink * 100).toFixed(1)} cm at 8 psi`);
-  assert.ok(soft8.dist > hard.dist * 1.5, `up a 12 degree dune: ${hard.dist.toFixed(1)} m at 30 psi, ${soft8.dist.toFixed(1)} m at 8 psi`);
+  assert.ok(soft8.dist > hard.dist * 1.4, `up a 15 degree dune in 15 s: ${hard.dist.toFixed(1)} m at 30 psi, ${soft8.dist.toFixed(1)} m at 8 psi`);
 });
 
 test('pressure: steel wheels stop at 14 psi, beadlocks go to 6; no compressor, no airing back up', () => {

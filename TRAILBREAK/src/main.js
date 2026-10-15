@@ -4,6 +4,7 @@ import { World } from './world/World.js';
 import { TRUCKS, TRUCK_IDS } from './physics/trucks.js';
 import { buildSummary, decodeBuild } from './physics/Upgrades.js';
 import { Garage } from './ui/Garage.js';
+import { Career, TRUCK_PRICES, money } from './game/Career.js';
 import { Renderer } from './render/Renderer.js';
 import { TerrainRenderer } from './render/Terrain.js';
 import { loadGround } from './render/Ground.js';
@@ -30,6 +31,9 @@ const settings = Object.assign({ name: '', truck: 'ranger', paint: PAINTS[0], ho
 if (!settings.builds || typeof settings.builds !== 'object') settings.builds = {};
 const save = () => { try { localStorage.setItem(STORE, JSON.stringify(settings)); } catch { /* storage blocked */ } };
 const garage = new Garage();
+// the career: money, the trucks and parts owned (players from before careers keep their truck and its parts)
+const career = new Career({ truck: settings.truck, builds: settings.builds });
+if (!career.ownsTruck(settings.truck)) settings.truck = career.trucks[0];
 
 // ---------------------------------------------------------------- lobby
 function lobby() {
@@ -40,19 +44,33 @@ function lobby() {
   const showBuild = () => {
     const base = TRUCKS[settings.truck] || TRUCKS.ranger;
     $('build-name').textContent = `Build: ${buildSummary(base, decodeBuild(base, settings.builds[base.id] || ''))}`;
+    $('lobby-money').innerHTML = `Your money: <b>${money(career.money)}</b>`;
   };
-  for (const id of TRUCK_IDS) {
-    const t = TRUCKS[id];
-    const b = document.createElement('button');
-    b.className = 'truck-opt' + (settings.truck === id ? ' sel' : '');
-    b.innerHTML = `<b>${t.name}</b><span>${t.blurb}</span>`;
-    b.onclick = () => { settings.truck = id; for (const c of trucksEl.children) c.classList.remove('sel'); b.classList.add('sel'); showBuild(); save(); };
-    trucksEl.appendChild(b);
-  }
+  // the trucks: yours to drive, or the dealer's price
+  const showTrucks = () => {
+    trucksEl.innerHTML = '';
+    for (const id of TRUCK_IDS) {
+      const t = TRUCKS[id], owned = career.ownsTruck(id), price = TRUCK_PRICES[id] ?? 0;
+      const b = document.createElement('button');
+      b.className = 'truck-opt' + (settings.truck === id ? ' sel' : '') + (owned ? '' : ' locked');
+      b.innerHTML = `<b>${t.name}${owned ? '' : ` <em>${money(price)}</em>`}</b><span>${t.blurb}</span>`;
+      b.onclick = () => {
+        if (!owned) {
+          if (!career.canAfford(price)) { $('lobby-msg').textContent = `The ${t.name} costs ${money(price)} and you have ${money(career.money)}: win events, survey beacons and tow friends out to earn it.`; return; }
+          if (!confirm(`Buy the ${t.name} for ${money(price)}? You have ${money(career.money)}.`)) return;
+          career.buyTruck(id);
+        }
+        settings.truck = id; save(); showTrucks(); showBuild();
+      };
+      trucksEl.appendChild(b);
+    }
+  };
+  showTrucks();
   showBuild();
   $('open-garage').onclick = async () => {
-    const code = await garage.open({ truckId: settings.truck, code: settings.builds[settings.truck], paint: settings.paint, fitLabel: 'Use this build' });
-    if (code) { settings.builds[settings.truck] = code; save(); showBuild(); }
+    const code = await garage.open({ truckId: settings.truck, code: settings.builds[settings.truck], paint: settings.paint, fitLabel: 'Use this build', career });
+    if (code) { settings.builds[settings.truck] = code; save(); }
+    showBuild();
   };
   const paintsEl = $('paints');
   for (const p of PAINTS) {
@@ -129,10 +147,10 @@ async function start() {
   const hud = new HUD(world, terrain);
   const input = new Input();
   const game = new Game({
-    world, renderer, terrain, vegetation, grass, rocks, water, landmarks, effects, rope, audio, net, hud, input, settings, garage,
+    world, renderer, terrain, vegetation, grass, rocks, water, landmarks, effects, rope, audio, net, hud, input, settings, garage, career,
     truckId: settings.truck, build: settings.builds[settings.truck] || '', paint: settings.paint, name: settings.name,
   });
-  game.onBuild = (id, code) => { settings.builds[id] = code; save(); };
+  game.onBuild = (id, code) => { settings.truck = id; settings.builds[id] = code; save(); };
   $('m-dmg').onclick = () => game.fitSpare();          // (a tap on phones)
   window.game = game;                              // (handy in the console)
   await audio.setLocalEngine(game.spec).catch(() => {});
@@ -196,8 +214,9 @@ function wireMenus(game, net) {
   $('opt-rumble').checked = s.rumble;
   $('opt-rumble').onchange = () => { s.rumble = $('opt-rumble').checked; save(); };
   $('resume').onclick = () => game.togglePause(false);
-  $('respawn').onclick = () => { game.togglePause(false); game.spawn(); };
+  $('respawn').onclick = () => { game.togglePause(false); game.towHome(); };
   $('menu-garage').onclick = () => game.openGarage();
+  $('menu-dealer').onclick = () => game.openDealer();
   const help = (on) => $('help').classList.toggle('hidden', !on);
   $('show-help').onclick = () => help(true);
   $('close-help').onclick = () => help(false);

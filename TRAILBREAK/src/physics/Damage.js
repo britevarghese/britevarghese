@@ -53,6 +53,7 @@ export class Damage {
     this.version = 0;                   // changes whenever something breaks or is mended (for the network)
     this._last = new Map();             // hull point -> [time, speed] of its last dent
     this._shaftT = [0, 0, 0, 0];
+    this._susPeak = [0, 0, 0, 0];
   }
 
   say(text, kind = 'warn') { this.messages.push({ text, kind }); this.version++; }
@@ -140,14 +141,21 @@ export class Damage {
     }
   }
 
-  /** The suspension load at corner i (spring and bump stop, N) each substep: a hard landing blows dampers, cracks leaves. */
+  /**
+   * The suspension load at corner i (spring and bump stop, N) each substep. What breaks goes by the peak of each hit
+   * (in times that corner's share of the weight): bottoming out on a rough trail is what bump stops are for; a landing
+   * like a metre-and-a-half drop blows the damper, harder still cracks the main leaf.
+   */
   suspension(i, F) {
     const r = F / share(this.spec);
-    if (r < 4.5) return;
-    this.shocks[i] = Math.min(1, this.shocks[i] + (r - 4.5) * 0.004);
-    if (r > 6.5) {
+    if (r > 8) { if (r > this._susPeak[i]) this._susPeak[i] = r; return; }
+    const peak = this._susPeak[i];
+    if (!peak) return;
+    this._susPeak[i] = 0;
+    if (peak > 13.5) { this.shocks[i] = Math.min(1, this.shocks[i] + (peak - 13.5) * 0.12); this.version++; }
+    if (peak > 16) {
       const was = this.springs[i];
-      this.springs[i] = Math.min(1, this.springs[i] + (r - 6.5) * 0.006);
+      this.springs[i] = Math.min(1, this.springs[i] + (peak - 16) * 0.18);
       if (was < 1 && this.springs[i] >= 1) this.say(`${CORNER[i]} leaf spring broken: that corner sags`);
     }
   }

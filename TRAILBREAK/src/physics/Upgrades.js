@@ -144,6 +144,35 @@ export const CATEGORIES = [
 export const CATEGORY_IDS = CATEGORIES.map((c) => c.id);
 export const optionsFor = (cat, truckId) => (cat.id === 'engine' ? ENGINES[truckId] || ENGINES.ranger : cat.options);
 
+// ---------------------------------------------------------------- prices (US dollars, parts and fitting)
+/** What each part costs to buy and fit; the truck's factory parts are free. Tyres are a set of five. */
+export const PRICES = {
+  lift: [0, 900, 2200, 5800],
+  tyre: { 30: 850, 31: 950, 33: 1300, 35: 1750, 37: 2400 },
+  tread: [0, 400, 350],
+  wheels: [0, 650, 2100],
+  gears: 1600,                       // any ratio but the factory one: both axles re-geared
+  tcase: [0, 1900],
+  diffs: [0, 750, 1100, 2200],
+  trans: [1800, 1200, 1600],         // a different gearbox swapped in
+  engine: [0, 1500, 4800],
+  intake: [0, 450],
+  winch: [0, 1300],
+  armor: [0, 700, 1350],
+  lights: [0, 480],
+  rack: [0, 520, 900],
+};
+
+/** Price of part value v in category cat for a truck (0 for its factory part). */
+export function partPrice(base, cat, v) {
+  const stock = stockBuild(base)[cat];
+  if (v === stock) return 0;
+  const p = PRICES[cat];
+  if (cat === 'tyre') return p[v] || 0;
+  if (typeof p === 'number') return p;
+  return p?.[v] || 0;
+}
+
 // ---------------------------------------------------------------- builds
 /** Each truck's factory build (indices; tyre is the diameter). */
 export function stockBuild(base) {

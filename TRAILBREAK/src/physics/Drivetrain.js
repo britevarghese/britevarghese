@@ -179,7 +179,7 @@ export class Drivetrain {
   start() { if (!this.running && this.crankT <= 0 && !this.seized) this.crankT = 0.75; }
 
   /** Automatic shift logic, run every substep. thr: driver throttle 0..1. */
-  autoShift(dt, thrIn) {
+  autoShift(dt, thrIn, wheels) {
     // the shift schedule follows a smoothed throttle (as a governor / throttle-valve cable would), and waits a moment
     // after each shift, so the box doesn't hunt between two gears
     this.thrS = (this.thrS ?? thrIn) + (thrIn - (this.thrS ?? thrIn)) * Math.min(1, dt / 0.6);
@@ -190,6 +190,11 @@ export class Drivetrain {
     if (this.gear < this.firstGear) { this.gear = this.firstGear; return; }
     const n = this.t.gears.length;
     const turbineRpm = (g) => this.wOut * this.t.gears[g - 1] * RPM;
+    // what the truck makes over the ground, as the ABS wheel sensors tell the gearbox (the slowest wheel): wheels
+    // spinning in place on a climb don't upshift it out of the gear it needs
+    let wRef = Math.abs(this.wOut);
+    if (wheels) for (const w of wheels) wRef = Math.min(wRef, Math.abs(w.omega) * this.axleGear);
+    const groundRpm = (g) => wRef * this.t.gears[g - 1] * RPM;
     // crawling in low range off the throttle (a steep way down): hold the gear and drop to first for the engine to
     // hold the truck back, as a driver puts the selector in 1
     if (this.low && thrIn < 0.05) {
@@ -204,7 +209,7 @@ export class Drivetrain {
     const up = light + (top - light) * thr;
     const down = (this.low ? 900 : 1000) + (top * 0.55 - 1000) * thr;
     const shiftTime = this.t.shiftTime * (this.manual ? 1.4 : 1);
-    if (this.gear < n && turbineRpm(this.gear) > up) {
+    if (this.gear < n && turbineRpm(this.gear) > up && groundRpm(this.gear) > up - 300) {
       this.gear++; this.shiftT = shiftTime; this.lockupOn = false; this.sinceShift = 0;
     } else if (this.gear > this.firstGear && turbineRpm(this.gear) < down && turbineRpm(this.gear - 1) < up - 500) {
       this.gear--; this.shiftT = shiftTime * 0.8; this.lockupOn = false; this.sinceShift = 0;
@@ -247,7 +252,7 @@ export class Drivetrain {
     const e = this.e, t = this.t;
     const g = this.gearRatio;
     const G = this.axleGear;
-    this.autoShift(dt, input.throttle);
+    this.autoShift(dt, input.throttle, wheels);
 
     // ---- engine: idle governor, rev limiter, net torque (or the starter, when it isn't running)
     const rpm = this.wEngine * RPM;

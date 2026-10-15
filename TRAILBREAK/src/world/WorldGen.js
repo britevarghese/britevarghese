@@ -6,10 +6,11 @@
 // only ever runs downhill, edge walls, big lumps) -> 1 m detail (bumps, roughness) -> river channel, fords, lake
 // basin, bog, puddles -> trails and the old road blended in (with two-track ruts) -> surfaces -> trees, boulders.
 
+import { coursePaths, trialsLine } from '../game/Events.js';
 import { fbm, ridged, vnoise, rng } from './Noise.js';
 import { SURFACE } from '../physics/Surfaces.js';
 import {
-  MAP_HALF, WORLD_SEED, RIVER, LAKE, PEAKS, BOG, ROCK_GARDEN, SAND_WASH, SNOW_LINE, TRAILS, BEACONS, LANDMARKS, STATION,
+  MAP_HALF, WORLD_SEED, RIVER, LAKE, PEAKS, BOG, ROCK_GARDEN, SAND_WASH, SAND_STRIP, SNOW_LINE, TRAILS, BEACONS, LANDMARKS, STATION,
 } from './MapData.js';
 
 export const GRID_RES = 1;
@@ -40,6 +41,17 @@ export function spline(points, step) {
     }
   }
   out.push(points[points.length - 1].slice());
+  return out;
+}
+
+/**
+ * A profile kept within a grade: with Math.min the highest one under h (cut down), with Math.max the lowest one over
+ * it (filled up). step[c]: the most it may change between points c-1 and c.
+ */
+function limitGrade(h, step, pick) {
+  const out = Float64Array.from(h), sgn = pick === Math.min ? 1 : -1;
+  for (let c = 1; c < out.length; c++) out[c] = pick(out[c], out[c - 1] + sgn * step[c]);
+  for (let c = out.length - 2; c >= 0; c--) out[c] = pick(out[c], out[c + 1] + sgn * step[c + 1]);
   return out;
 }
 
@@ -160,6 +172,15 @@ export async function generateWorld({ onProgress = () => {}, yieldEvery = 64 } =
   const lake = { ...LAKE, level: Math.round((shoreMin - 1.2) * 10) / 10 };
   const bogFloor = bil(coarse, BOG.x, BOG.z) - 0.8;
   const stationH = bil(coarse, STATION.x, STATION.z);
+  // the sand wash: a dry wash with a level floor along the drag strip, from a run-up before it to a run-off after
+  const [[wx0, wz0], [wx1, wz1]] = SAND_STRIP;
+  const wl = hyp(wx1 - wx0, wz1 - wz0), wux = (wx1 - wx0) / wl, wuz = (wz1 - wz0) / wl;
+  let washFloor = 0;
+  for (let k = 0; k <= 10; k++) washFloor += bil(coarse, lerp(wx0, wx1, k / 10), lerp(wz0, wz1, k / 10)) / 11;
+  const washD = (x, z) => {
+    const t = clamp((x - wx0) * wux + (z - wz0) * wuz, -25, wl + 35);
+    return hyp(x - wx0 - wux * t, z - wz0 - wuz * t);
+  };
 
   // ---- fine grid (1 m): macro + bumps + lake + bog + station terrace
   const N = GRID_N;
@@ -192,6 +213,9 @@ export async function generateWorld({ onProgress = () => {}, yieldEvery = 64 } =
         const be = Math.sqrt(bu * bu + bv * bv);
         if (be < 1.8) h = lerp(h, bogFloor + 0.35 * fbm(x / 9, z / 9, 2, S + 50) + Math.max(0, be - 0.8) * 1.5, smoothstep(1.8, 0.9, be));
       }
+      // the wash floor (wind ripples on it)
+      const wd = washD(x, z);
+      if (wd < 36) h = lerp(h, washFloor + 0.07 * fbm(x / 8, z / 8, 2, S + 51), smoothstep(36, 15, wd));
       // station terrace
       const sx = x - STATION.x, sz = z - STATION.z;
       if (sx * sx + sz * sz < 75 * 75) h = lerp(h, stationH, smoothstep(75, 42, Math.sqrt(sx * sx + sz * sz)));
@@ -273,13 +297,24 @@ export async function generateWorld({ onProgress = () => {}, yieldEvery = 64 } =
     }
   }
 
+  // the event courses are kept clear of puddles, boulders and trees
+  const courses = coursePaths();
+  const onCourse = (x, z, w = 7) => {
+    for (const path of courses) for (let k = 1; k < path.length; k++) {
+      const [ax, az] = path[k - 1], [bx, bz] = path[k], dx = bx - ax, dz = bz - az, l2 = dx * dx + dz * dz;
+      const t = clamp(((x - ax) * dx + (z - az) * dz) / l2, 0, 1);
+      if (hyp(x - ax - dx * t, z - az - dz * t) < w) return true;
+    }
+    return false;
+  };
+
   // ---- trails and the road
   await tick(0.62, 'Cutting the trails');
   const R = rng(S + 99);
   const puddles = [];
   const hAt = (x, z) => H[clamp(Math.round(z - GRID_ORIGIN), 0, N - 1) * N + clamp(Math.round(x - GRID_ORIGIN), 0, N - 1)];
   // every trail point in one list: target height, half-width, kind (1 trail, 2 road)
-  const tpH = [], tpW = [], tpK = [];
+  const tpH = [], tpW = [], tpK = [], tpX = [], tpZ = [];
   const tD = new Uint8Array(N * N).fill(255), tI = new Uint16Array(N * N);   // distance in 0.1 m units
   const trailLines = [];
   for (const tr of TRAILS) {
@@ -297,15 +332,35 @@ export async function generateWorld({ onProgress = () => {}, yieldEvery = 64 } =
       }
       hs = out;
     }
-    // where it fords the river it dips to the bed, and comes out up the banks
+    // the bed is graded, half cut into the rises and half built up over the dips, so no pitch is steeper than a
+    // stock truck climbs in low range: the mean of the deepest cut and the highest fill that keep within the grade
+    const gmax = tr.kind === 'road' ? 0.14 : 0.34;
+    const step = pts.map((q, c) => (c ? hyp(q[0] - pts[c - 1][0], q[1] - pts[c - 1][1]) * gmax : 0));
+    // (by at most 3 m either way: a climb steeper than that on average stays steep rather than becoming a cutting or
+    // an embankment)
+    const cut = limitGrade(hs, step, Math.min), fill = limitGrade(hs, step, Math.max);
+    hs = hs.map((h, c) => clamp((cut[c] + fill[c]) / 2, h - 3, h + 3));
+    // where it fords the river it dips to the bed, and the banks are cut down to it in ramps
     for (let p = 0; p < pts.length; p++) {
       const ci = Math.round(pts[p][0] - GRID_ORIGIN), ck = Math.round(pts[p][1] - GRID_ORIGIN);
       if (ci < 0 || ck < 0 || ci >= N || ck >= N) continue;
       const idx = ck * N + ci;
       if (riverD(idx) < riverHalf(idx) + 3) hs[p] = Math.min(hs[p], riverLvl(idx) - 0.38);
     }
+    hs = limitGrade(hs, step, Math.min);
+    // its ends stay where they are: on the ground, or on the trail they join (eased in over a ramp)
+    for (const e of [0, pts.length - 1]) {
+      let target = hAt(pts[e][0], pts[e][1]), bd = 4;
+      for (let q = 0; q < tpX.length; q++) { const d = hyp(tpX[q] - pts[e][0], tpZ[q] - pts[e][1]); if (d < bd) { bd = d; target = tpH[q]; } }
+      const off = target - hs[e], D = Math.max(20, Math.abs(off) / 0.12);
+      for (let c = e, s = 0; s < D && c >= 0 && c < pts.length; c += e ? -1 : 1) {
+        hs[c] += off * (1 - s / D);
+        const n = c + (e ? -1 : 1);
+        if (n >= 0 && n < pts.length) s += hyp(pts[n][0] - pts[c][0], pts[n][1] - pts[c][1]);
+      }
+    }
     const base = tpH.length;
-    for (let p = 0; p < pts.length; p++) { tpH.push(hs[p]); tpW.push(tr.width); tpK.push(tr.kind === 'road' ? 2 : 1); }
+    for (let p = 0; p < pts.length; p++) { tpH.push(hs[p]); tpW.push(tr.width); tpK.push(tr.kind === 'road' ? 2 : 1); tpX.push(pts[p][0]); tpZ.push(pts[p][1]); }
     const Rr = Math.ceil(tr.width + 6);
     for (let p = 0; p < pts.length; p++) {
       const [px, pz] = pts[p];
@@ -326,7 +381,11 @@ export async function generateWorld({ onProgress = () => {}, yieldEvery = 64 } =
         const p = Math.floor((0.15 + 0.7 * R()) * pts.length);
         const [px, pz] = pts[p];
         if (hyp(px - STATION.x, pz - STATION.z) < 90 || hs[p] > SNOW_LINE - 20) continue;
-        puddles.push({ x: px + (R() - 0.5) * 1.5, z: pz + (R() - 0.5) * 1.5, r: 3.5 + R() * 4, depth: 0.28 + R() * 0.2 });
+        const pd = { x: px + (R() - 0.5) * 1.5, z: pz + (R() - 0.5) * 1.5, r: 3.5 + R() * 4, depth: 0.28 + R() * 0.2 };
+        // water lies on the level: none where the trail climbs (it would be a hole cut into the hill), nor on a
+        // course (after the draws, so the rest of the world stays as it was)
+        const grade = Math.abs(hs[Math.min(pts.length - 1, p + 6)] - hs[Math.max(0, p - 6)]) / 12;
+        if (grade < 0.035 && !onCourse(pd.x, pd.z, pd.r + 6)) puddles.push(pd);
       }
     }
   }
@@ -411,6 +470,7 @@ export async function generateWorld({ onProgress = () => {}, yieldEvery = 64 } =
       if (l2 < lakeShoreR2 && h < lake.level + 1.6 && Math.sqrt(l2) < lake.r * 1.12 + 6 * vnoise(x / 15, z / 15, S + 74)) s = SURFACE.SAND;
       const sx = x - SAND_WASH.x, sz = z - SAND_WASH.z;
       if (sx * sx + sz * sz < washR2 && Math.sqrt(sx * sx + sz * sz) < SAND_WASH.r * (0.75 + 0.4 * vnoise(x / 25, z / 25, S + 75))) s = SURFACE.SAND;
+      if (washD(x, z) < 15 + 5 * vnoise(x / 12, z / 12, S + 79)) s = SURFACE.SAND;
       if (rd < rh + 4 && rd >= rh - 0.5) s = vnoise(x / 9, z / 9, S + 76) > 0.45 ? SURFACE.SAND : SURFACE.GRAVEL;
       // the bog
       const bx = x - BOG.x, bz = z - BOG.z;
@@ -420,7 +480,8 @@ export async function generateWorld({ onProgress = () => {}, yieldEvery = 64 } =
       }
       // trails and road (on top)
       const td = trailD(idx), tw = trailW(idx);
-      if (td < tw * 0.95) s = trailK(idx) === 2 ? SURFACE.GRAVEL : (s === SURFACE.MUD ? SURFACE.MUD : s === SURFACE.SNOW ? SURFACE.SNOW : s === SURFACE.ROCK && sl > 0.5 ? SURFACE.ROCK : SURFACE.DIRT);
+      // (up in the snow a trail is the lookout's gravel track, ploughed, with the snow banked either side)
+      if (td < tw * 0.95) s = trailK(idx) === 2 || s === SURFACE.SNOW ? SURFACE.GRAVEL : (s === SURFACE.MUD ? SURFACE.MUD : s === SURFACE.ROCK && sl > 0.5 ? SURFACE.ROCK : SURFACE.DIRT);
       else if (td < tw + 1.6 && s === SURFACE.GRASS && vnoise(x / 3, z / 3, S + 78) > 0.4) s = SURFACE.DIRT;
       // under water
       const wl = waterAt(x, z);
@@ -461,7 +522,25 @@ export async function generateWorld({ onProgress = () => {}, yieldEvery = 64 } =
     if (R() > p) continue;
     if (trailD(idx) < 4.5 || hyp(x - STATION.x, z - STATION.z) < 80) continue;
     addBoulder(x, z, 0.4 + R() * R() * (s === SURFACE.ROCK ? 2.4 : 1.3));
+    if (onCourse(x, z, 9)) boulders.pop();                            // (after its draws: the rest stays as it was)
   }
+  // the trials line through the rock garden: the big boulders on it rolled aside, the small ones bedded down to rocks a
+  // truck can crawl over or straddle
+  const tl = trialsLine();
+  for (const b of boulders) {
+    const R = Math.max(b.rx, b.rz);
+    let on = false;
+    for (let k = 1; k < tl.length && !on; k++) {
+      const [ax, az] = tl[k - 1], [bx, bz] = tl[k], dx = bx - ax, dz = bz - az;
+      const t = clamp(((b.x - ax) * dx + (b.z - az) * dz) / (dx * dx + dz * dz), 0, 1);
+      on = hyp(b.x - ax - dx * t, b.z - az - dz * t) < R + 2.2;
+    }
+    if (!on) continue;
+    const g = hAt(b.x, b.z);
+    if (R > 1) b.gone = true;
+    else if (b.y + b.ry - g > 0.3) b.y = g + 0.3 - b.ry;
+  }
+  { const keep = boulders.filter((b) => !b.gone); boulders.length = 0; boulders.push(...keep); }
 
   // ---- trees
   await tick(0.9, 'Planting the forest');
@@ -490,6 +569,7 @@ export async function generateWorld({ onProgress = () => {}, yieldEvery = 64 } =
       const nearWater = riverD(idx) < riverHalf(idx) + 12 || hyp(px - lake.x, pz - lake.z) < lake.r + 60;
       const type = nearWater && R() < 0.55 ? 2 : (h > 200 || R() < 0.35) ? 1 : (R() < 0.02 ? 3 : 0);
       const ht = type === 2 ? 9 + R() * 7 : type === 1 ? 11 + R() * 10 : type === 3 ? 7 + R() * 6 : 12 + R() * 11;
+      if (onCourse(px, pz)) continue;                  // event courses are kept clear (after the draws: the rest stays put)
       trees.x.push(px); trees.y.push(hAt(px, pz)); trees.z.push(pz);
       trees.r.push(type === 2 ? 0.14 + R() * 0.08 : 0.18 + ht * 0.012 + R() * 0.06);
       trees.h.push(ht); trees.type.push(type);

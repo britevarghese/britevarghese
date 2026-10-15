@@ -190,6 +190,20 @@ export class HUD {
     if (el.innerHTML !== text) el.innerHTML = text;
   }
 
+  /** The balance, with what just came in or went out floating under it. */
+  money(balance, delta, why) {
+    const el = document.getElementById('money');
+    if (!el) return;
+    const fmt = (n) => `${n < 0 ? '-' : ''}$${Math.abs(Math.round(n)).toLocaleString('en-US')}`;
+    el.innerHTML = `<span class="bal${balance < 0 ? ' red' : ''}">${fmt(balance)}</span>`;
+    if (delta) {
+      const d = document.createElement('span');
+      d.className = `delta ${delta > 0 ? 'plus' : 'minus'}`;
+      d.textContent = `${delta > 0 ? '+' : ''}${fmt(delta)}${why ? ` ${why}` : ''}`;
+      el.appendChild(d);
+    }
+  }
+
   drawPlayers(list) {
     const html = list.map((p) => `<div>${escapeHtml(p.name)}${p.me ? ' (you)' : ''}${p.help ? '<span class="help">needs a tow</span>' : ''}<span class="dot" style="background:${p.color}"></span></div>`).join('');
     const el = $('players');
