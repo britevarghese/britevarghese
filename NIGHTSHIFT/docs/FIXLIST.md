@@ -301,6 +301,14 @@ the game. Newly found problems go at the end of their section.
     3.6 m from the joint was a 1 m step up a 29 % slope); a lane coming down a hill over the main road's drain met it
     flat (held at the drain's bank); two junctions a few metres apart on a hillside took levels 1.2 m apart. Kannur
     and the 8 tiles round it 113 -> 102 humps; no steps; every tile edge still meets exactly
+  - [x] Jolts on hill roads (a test drive in Iritty: three at 68 km/h on the Thalassery-Coorg highway). The ground
+    between a terrain cell's corners stood up to 0.67 m over the road, every cell or so along it: a road through a
+    cell's near side has the far corner up to 22 m off, past the band kept under the road, and on a hillside that
+    corner held the cell's surface up over the carriageway (the car rode up it; grass over the tarmac). Now over every
+    carriageway, every 2 m and five points across, the ground's triangle is kept under the road, the corners holding
+    it up lowered by just enough (the high ones, not those beside the road). And where a side road climbing away from
+    a junction overlapped the main road's lane higher up (a 0.36 m step on the main road), the main road's own surface
+    rules on its carriageway. The same drive: no jolts; that stretch's grade smooth (6-7 %, no 20-35 % kicks)
 - [x] Realistic trees: real coconut palm, banana and broadleaf models (Sketchfab, CC BY) within ~90 m of the camera, with leaf-cut shadows; the generated plants beyond. (Junction-height priority was tried for the remaining road humps: more humps, reverted)
 
 ## Story

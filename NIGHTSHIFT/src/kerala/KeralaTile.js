@@ -1220,6 +1220,36 @@ export class KeralaTile {
         if (d <= inner && H[k] > c) H[k] = c;
       }
     }
+    // the ground between a cell's corners stays under the road too: a road through a cell's near side has the far
+    // corner up to S*1.4 away, past the band capped above, and on a hillside that corner held the cell's surface up
+    // over the road itself (0.45 m above a main road in Iritty, every cell along it: a jolt at each one at speed). Over
+    // the carriageway (every 2 m, five points across) the surface of the ground's triangle is kept under the road,
+    // the corners holding it up lowered by just enough, the highest the most (not the near ones, beside the road)
+    yield 'grade:cells';
+    for (const { hw, P, prof, wet } of roads) {
+      if (this._due()) { yield 'grade:cells+'; this._ys = performance.now(); }
+      for (let i = 1; i < P.length; i++) {
+        if (wet[i - 1] || wet[i]) continue;
+        const [ae, an] = P[i - 1], [be, bn] = P[i], ya = prof[i - 1], yb = prof[i];
+        const L = Math.hypot(be - ae, bn - an) || 1, ne = -(bn - an) / L, nn = (be - ae) / L, steps = Math.max(1, Math.ceil(L / 2));
+        for (let s2 = 0; s2 <= steps; s2++) {
+          const u = s2 / steps, ce = ae + (be - ae) * u, cn = an + (bn - an) * u, y = ya + (yb - ya) * u - 0.05;
+          for (const o of [-hw, -hw / 2, 0, hw / 2, hw]) {
+            const gx = (ce + ne * o) / S, gz = (cn + nn * o) / S;
+            if (gx < 1 || gz < 1 || gx >= N - 2 || gz >= N - 2) continue;   // (not cells on the edge rows: the neighbour's too)
+            const i0 = Math.floor(gx), j0 = Math.floor(gz), fx = gx - i0, fz = gz - j0, A = j0 * N + i0, B = A + 1, Cc = A + N, D = Cc + 1;
+            // (the triangle the point is in, as gridAt and the mesh split the cell)
+            const k0 = fx + fz <= 1 ? A : D, w0 = fx + fz <= 1 ? 1 - fx - fz : fx + fz - 1, w1 = fx + fz <= 1 ? fx : 1 - fz, w2 = fx + fz <= 1 ? fz : 1 - fx;
+            const v = H[k0] * w0 + H[B] * w1 + H[Cc] * w2;
+            if (v <= y) continue;
+            const x0 = Math.max(0, H[k0] - y) * w0, x1 = Math.max(0, H[B] - y) * w1, x2 = Math.max(0, H[Cc] - y) * w2, q = x0 * w0 + x1 * w1 + x2 * w2;
+            if (q <= 1e-9) continue;
+            const ex = (v - y) / q;
+            H[k0] -= ex * x0; H[B] -= ex * x1; H[Cc] -= ex * x2;
+          }
+        }
+      }
+    }
   }
 
   _terrain(M) {
@@ -2252,7 +2282,9 @@ export class KeralaTile {
   roadSurface(e, n, yRef) {
     if (!this._rg) this.nearRoad(e, n, 1);
     const G = 25;
-    let best = -Infinity, off = -Infinity;
+    let best = -Infinity, off = -Infinity, mainCls = 99, mainY = -Infinity;
+    const on = this._rsOn || (this._rsOn = []);
+    on.length = 0;
     for (let a = -1; a <= 1; a++) for (let b = -1; b <= 1; b++) {
       const L = this._rg.get((Math.floor(e / G) + a) * 1000 + Math.floor(n / G) + b); if (!L) continue;
       for (let j = 0; j < L.length; j += 6) {
@@ -2289,9 +2321,12 @@ export class KeralaTile {
         // beyond the edge: down the shoulder to the ground (as drawn); under a more important road's strip, as drawn too
         let yy = dist <= hw ? y : y + (this.heightAt(e, n) - y) * ((dist - hw) / 1.6);
         if (dr === -Infinity && yy > (dist <= hw ? best : off)) { const cov = this._coverY(e, n, L[j + 5]); if (cov > -1e9 && yy > cov - 0.02) yy = cov - 0.02; }
-        if (dist <= hw) { if (yy > best) best = yy; } else if (yy > off) off = yy;
+        if (dist <= hw) { on.push(cls, yy); if (cls < mainCls || (cls === mainCls && yy > mainY)) { if (cls < mainCls) mainY = -Infinity; mainCls = cls; mainY = Math.max(mainY, yy); } } else if (yy > off) off = yy;
       }
     }
+    // on a road's carriageway its surface rules: a lesser road whose strip runs into it no higher than just above it
+    // (a side road climbing away from a junction overlapped a main road's lane 0.36 m up, a step on the main road)
+    for (let i = 0; i < on.length; i += 2) { const y = on[i] > mainCls ? Math.min(on[i + 1], mainY + 0.03) : on[i + 1]; if (y > best) best = y; }
     // a road's own carriageway is what is drawn there: a neighbour's shoulder never lifts a car above it (a road a
     // metre higher alongside a culvert ramp or a junction mouth held autos and cars half a metre in the air)
     if (best === -Infinity) best = off;
