@@ -331,6 +331,16 @@ the game. Newly found problems go at the end of their section.
 - [x] T junctions drawn without a shared point (a side road ending part-way along a road, or the point simplified out
   of the through road) were no junction to anything that keeps clear of one: a canal's parapet ran right up to a
   side road's mouth, and a car turning in caught it. Found now by the side road's end lying on the other road
+- [x] Steps where a side road meets another road (every lane and junction turn checked for a jump in height: up to
+  0.53 m round Iritty). A side road was brought to the junction's level only on the other road's centre line: coming
+  down a hillside it met the main road's edge half a metre up, and the main road's surface, which rules on its own
+  carriageway, left that as a drop off the kerb. It is held at the other road's level right across that road's
+  half-width now - at the other road's own height where it reaches its edge (a highway falling past a slanting
+  junction) - and eases into its grade beyond; road strips have a point every 2.5 m near their junctions (drawn every
+  8 m, the strip ran straight through that bend). And two roads' points 0.31 m apart across a metre's boundary - a
+  link road's start and the highway's point - were no junction at all: points within 0.6 m are one now. Iritty:
+  flagged spots 22 -> 12, the worst 53 -> 14 cm (bar a 13 m link between the highway's two carriageways, 0.95 m apart
+  in height); Kannur 81 -> 54, worst 46 -> 29 cm. Tile edges still meet exactly
 
 ## Story
 - [x] The story begins like GTA's: a prologue, 'The Kayal Job', starts on a new game in Kerala (Esc skips a scene;
