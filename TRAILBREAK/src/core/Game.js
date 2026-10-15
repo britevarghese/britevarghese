@@ -449,6 +449,34 @@ export class Game {
     return rv;
   }
 
+  /**
+   * The ground in your hands: the gamepad rumbles (the heavy motor with the shake of the ground, mud judder and hits,
+   * the light one with the buzz of the surface and the steering's kick), an Android phone buzzes over rough ground and
+   * on hits, and the camera trembles (most from the seat). Browsers can't drive a wheel's force feedback motor, so a
+   * steering wheel only shows the kick in the cab.
+   */
+  feelGround(dt) {
+    const f = this.vehicle.feel, on = this.settings.rumble !== false;
+    const hit = Math.max(f.bump, Math.min(1, this.vehicle.impact / 4));
+    const seat = this.cam.mode === 'cab' || this.cam.mode === 'hood';
+    this.cam.jitter = on ? (f.texture * 0.0035 + Math.min(1, f.rough) * 0.012 + f.judder * 0.006) * (seat ? 1 : 0.4) : 0;
+    if (!on) return;
+    this.rumbleIn = (this.rumbleIn || 0) - dt;
+    const strong = clamp(Math.min(1, f.rough) * 0.55 + f.judder * 0.5 + hit, 0, 1);
+    const weak = clamp(f.texture * 0.55 + Math.abs(f.kick) / 12, 0, 1);
+    if (this.rumbleIn <= 0 && (strong > 0.05 || weak > 0.06)) {
+      this.input.rumble(strong, weak, 110);
+      this.rumbleIn = 0.08;
+    }
+    // phones (Android: on/off only): short buzzes, closer together the rougher it gets, and a long one on a hit
+    if (this.input.device === 'touch' && navigator.vibrate) {
+      this.buzzIn = (this.buzzIn || 0) - dt;
+      const amt = Math.min(1, f.rough) * 0.7 + f.judder * 0.5 + f.texture * 0.25;
+      if (hit > 0.35 && this.buzzIn < 0.1) { navigator.vibrate(Math.round(30 + hit * 50)); this.buzzIn = 0.25; }
+      else if (amt > 0.25 && this.buzzIn <= 0) { navigator.vibrate(Math.round(8 + amt * 14)); this.buzzIn = 0.45 - amt * 0.3; }
+    }
+  }
+
   /** What presses the grass flat: our wheels on the ground and our friends' trucks. */
   grassPush() {
     const out = this._push || (this._push = []);
@@ -663,7 +691,8 @@ export class Game {
     const speed = v.speed;
     for (const w of v.wheels) this.effects.wheel(`me-${w.index}`, w, dt, speed, w.hub.x, w.hub.y, w.hub.z, w.headX, w.headZ);
     if (v.hullContact > 0.8) this.cam.shake = Math.max(this.cam.shake, Math.min(0.12, v.hullContact * 0.04));
-    if (v.impact > 0.5) { this.cam.shake = Math.max(this.cam.shake, Math.min(0.2, v.impact * 0.05)); this.input.rumble(Math.min(1, v.impact / 4), 0.5, 160); }
+    if (v.impact > 0.5) this.cam.shake = Math.max(this.cam.shake, Math.min(0.2, v.impact * 0.05));
+    this.feelGround(dt);
 
     // camera and world
     this.cam.update(dt, m, ctrl);

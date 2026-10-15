@@ -24,7 +24,7 @@ const $ = (id) => document.getElementById(id);
 const PAINTS = ['#b5532c', '#3d6b8c', '#6b7d3e', '#c9a227', '#8c2f2f', '#e6e1d3', '#2f4f3a', '#4a4a4a'];
 const STORE = 'trailbreak.settings';
 
-const settings = Object.assign({ name: '', truck: 'ranger', paint: PAINTS[0], hour: 16.5, shadows: true, sound: true, assist: true, quality: 'high', autoQuality: true, builds: {} }, (() => {
+const settings = Object.assign({ name: '', truck: 'ranger', paint: PAINTS[0], hour: 16.5, shadows: true, sound: true, assist: true, rumble: true, quality: 'high', autoQuality: true, builds: {} }, (() => {
   try { return JSON.parse(localStorage.getItem(STORE) || '{}'); } catch { return {}; }
 })());
 if (!settings.builds || typeof settings.builds !== 'object') settings.builds = {};
@@ -192,6 +192,8 @@ function wireMenus(game, net) {
   game.onSettingsChanged = () => { $('opt-quality').value = s.quality; save(); };
   $('opt-assist').checked = s.assist;
   $('opt-assist').onchange = () => { s.assist = $('opt-assist').checked; save(); };
+  $('opt-rumble').checked = s.rumble;
+  $('opt-rumble').onchange = () => { s.rumble = $('opt-rumble').checked; save(); };
   $('resume').onclick = () => game.togglePause(false);
   $('respawn').onclick = () => { game.togglePause(false); game.spawn(); };
   $('menu-garage').onclick = () => game.openGarage();

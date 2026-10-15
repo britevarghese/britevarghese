@@ -190,6 +190,12 @@ Everything that makes off-roading off-roading is simulated, not faked:
   engine until it is out again.
 - **Winch:** a steel line with a stall-limited motor (line speed falls with load). Hook a tree to pull yourself
   out, or hook a friend's truck: your truck holds on its brakes and theirs feels the line tension.
+- **Steering kickback:** the forces on the front tyres turn the wheels about their kingpins (a tyre shoved back by a
+  rock or a ledge acts at the scrub radius, side forces act behind the kingpin and centre the wheel). The sudden part
+  kicks the steering wheel (you see it in the cab) and turns the road wheels a degree or two against your grip, as on
+  a real beam-axle truck. With **Vibration** on (pause menu), a gamepad rumbles with the shake of the ground, the buzz
+  of gravel and rock, mud judder and hard hits; an Android phone buzzes; the camera trembles. Browsers can't drive a
+  steering wheel's force-feedback motor, so wheels don't rumble.
 
 The behaviours are checked by tests (`npm test`): ride height and weight on the tyres, holding on a 25 degree
 slope, sliding in mud, acceleration, low range climbing 30 degrees, open versus locked diffs on split friction,

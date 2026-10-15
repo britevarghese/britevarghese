@@ -50,6 +50,10 @@ export function groundNormal(ground, x, z, out, e = 0.3) {
 const _v = new V3(), _w = new V3(), _r = new V3(), _f = new V3(), _s = new V3(), _n = new V3(), _p = new V3();
 const _q = new V3(), _a = new V3(), _b = new V3(), _c = new V3(), _d = new V3(), _tmpTyre = { fx: 0, fy: 0, s: 0, mu: 0 };
 
+// How much a surface's texture buzzes through the tyres at speed (by surface id: grass, dirt, gravel, rock, mud, sand,
+// snow, road, river bed, ice).
+const TEXTURE = [0.25, 0.3, 0.65, 0.9, 0.2, 0.2, 0.12, 0.08, 0.55, 0.05];
+
 export class Vehicle {
   constructor(spec) {
     this.spec = spec;
@@ -173,6 +177,11 @@ export class Vehicle {
     this.setPressure(this.psiTarget);
     this.hullContact = 0;          // strongest hull impact this frame (for sounds)
     this.impact = 0;
+    // what the driver feels (see feelStep): the steering wheel's kick (N m at the rim, + = pulls left), the shake of
+    // the ground through the tyres (0..1+), the buzz of a rough surface, the judder of tyres spinning in mud, hard hits
+    this.feel = { kick: 0, rough: 0, texture: 0, judder: 0, bump: 0 };
+    this.kickAngle = 0;            // the front wheels giving a little against the driver's grip (rad)
+    this._kT = 0; this._kHP = 0; this._nLP = [0, 0, 0, 0];
     this.waterDepth = 0;
     this.reverseTimer = 0;
     this.trees = [];
@@ -354,7 +363,7 @@ export class Vehicle {
       dl = Math.atan(L / (R - fa.half));
       dr = Math.atan(L / (R + fa.half));
     }
-    this.wheels[0].steer = dl; this.wheels[1].steer = dr; this.wheels[2].steer = 0; this.wheels[3].steer = 0;
+    this.wheels[0].steer = dl + this.kickAngle; this.wheels[1].steer = dr + this.kickAngle; this.wheels[2].steer = 0; this.wheels[3].steer = 0;
 
     // ---------------------------------------------------------------- tyres: contact, load, slip
     const qx = this.quat;
@@ -451,6 +460,7 @@ export class Vehicle {
     for (const w of this.wheels) {
       w.angle += w.omega * dt;
       if (w.angle > 1e4 || w.angle < -1e4) w.angle %= Math.PI * 2;
+      w.Flong = 0; w.Flat = 0;
       if (!w.contact || w.N <= 0) continue;
       const surf = w.surf;
       let fx = w.Fshape + w.cxDamp * (w.omega * r - w.vx);
@@ -463,6 +473,9 @@ export class Vehicle {
       w.slipSpeed = slipV;
       // world force: normal + friction
       _a.set(w.nx * w.N + w.fX * fx + w.sX * fy, w.ny * w.N + w.fY * fx + w.sY * fy, w.nz * w.N + w.fZ * fx + w.sZ * fy);
+      // along the wheel's heading (a ledge pushes back through the tilted normal) and across it (left), for the steering
+      w.Flong = _a.x * w.headX + _a.y * w.headY + _a.z * w.headZ;
+      w.Flat = _a.x * (w.upY * w.headZ - w.upZ * w.headY) + _a.y * (w.upZ * w.headX - w.upX * w.headZ) + _a.z * (w.upX * w.headY - w.upY * w.headX);
       const along = _a.dot(u);
       const ax = w.axle;
       if (w.side > 0) ax.QL += along; else ax.QR += along;
@@ -489,6 +502,7 @@ export class Vehicle {
       } else w.sink = 0;
     }
     this.axleContacts(ground);
+    this.feelStep(dt, speed);
 
     // ---------------------------------------------------------------- springs, dampers, limits
     for (const ax of this.axles) {
@@ -903,6 +917,46 @@ export class Vehicle {
 
   // ---------------------------------------------------------------- state for the network / renderer
   /** Wheel travel (from full droop), spin angle and steer for each wheel. */
+  /**
+   * What reaches the driver. A beam front axle steers through a box: a tyre shoved back at its contact patch (by a
+   * rock, a ledge, a rut, its brake) turns its wheel about the kingpin by the scrub radius, and the tie rod passes it
+   * to the other; side forces act behind the kingpin (caster and pneumatic trail) and centre the wheel. The steady
+   * part is the self-centring the driver holds; the sudden part kicks the steering wheel and, against the driver's
+   * grip, turns the road wheels a little (bump steer). The ground's shake is how far each tyre's load jumps from its
+   * running average; a surface's texture (gravel and rock buzz, a road hums) grows with speed and is soaked up by soft
+   * tyres; tyres spinning in mud and snow judder; a hit several times the tyre's share of the weight is a bump.
+   */
+  feelStep(dt, speed) {
+    const [wl, wr] = this.wheels, f = this.feel;
+    const SCRUB = 0.07, TRAIL = 0.05;
+    const Tk = SCRUB * (wr.Flong - wl.Flong) - TRAIL * (wl.Flat + wr.Flat);
+    const a = 0.08 / (0.08 + dt);
+    this._kHP = a * (this._kHP + Tk - this._kT);
+    this._kT = Tk;
+    this.kickAngle += (clamp(this._kHP / 6000, -0.035, 0.035) - this.kickAngle) * Math.min(1, dt / 0.02);
+    const rim = (this._kHP / 17.5) * 0.25;
+    f.kick += (rim - f.kick) * Math.min(1, dt / 0.015);
+    // the ground through the tyres
+    const share = (this.mass * GRAVITY) / 4, decay = Math.exp(-dt / 0.12);
+    let rough = 0, tex = 0, judder = 0, bump = 0, n = 0;
+    const soft = 0.55 + 0.45 * Math.min(1, this.psi / 30), pace = Math.pow(Math.min(1, Math.abs(speed) / 9), 0.8);
+    for (let i = 0; i < 4; i++) {
+      const w = this.wheels[i];
+      const N = w.contact ? w.N : 0;
+      this._nLP[i] += (N - this._nLP[i]) * Math.min(1, dt / 0.25);
+      rough = Math.max(rough, Math.abs(N - this._nLP[i]) / share);
+      if (N > 2.8 * share) bump = Math.max(bump, (N / share - 2.8) / 4);
+      if (!w.contact) continue;
+      n++;
+      tex += (TEXTURE[w.surf.id] ?? 0.2) * pace * soft;
+      if (w.surf.sink > 0 && w.slipSpeed > 1) judder = Math.max(judder, Math.min(1, (w.slipSpeed - 1) / 4));
+    }
+    f.rough = Math.max(f.rough * decay, Math.min(1.5, rough));
+    f.texture += ((n ? tex / n : 0) - f.texture) * Math.min(1, dt / 0.1);
+    f.judder = Math.max(f.judder * decay, judder);
+    f.bump = Math.max(f.bump * Math.exp(-dt / 0.2), Math.min(1, bump));
+  }
+
   wheelState(i) {
     const w = this.wheels[i];
     const z = w.side > 0 ? w.axle.zL : w.axle.zR;

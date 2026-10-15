@@ -32,7 +32,7 @@ export class TouchControls {
     };
     for (const b of root.querySelectorAll('button[data-k]')) {
       const k = b.dataset.k;
-      const down = (e) => { e.preventDefault(); b.setPointerCapture?.(e.pointerId); held.add(k); b.classList.add('on'); sync(); };
+      const down = (e) => { e.preventDefault(); b.setPointerCapture?.(e.pointerId); held.add(k); b.classList.add('on'); input.device = 'touch'; sync(); };
       const up = (e) => { e.preventDefault(); held.delete(k); b.classList.remove('on'); sync(); };
       b.addEventListener('pointerdown', down);
       b.addEventListener('pointerup', up);

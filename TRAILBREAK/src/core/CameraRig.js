@@ -16,6 +16,7 @@ export class CameraRig {
     this.look = new THREE.Vector3();
     this._v = new THREE.Vector3(); this._f = new THREE.Vector3(); this._q = new THREE.Quaternion();
     this.shake = 0;
+    this.jitter = 0;
   }
 
   next() {
@@ -73,6 +74,13 @@ export class CameraRig {
       cam.quaternion.multiply(this._q);
       cam.fov = this.mode === 'cab' ? 70 : 64;
       this.pos.copy(cam.position);
+    }
+    if (this.jitter > 0) {
+      // the ground's tremble: a few fast incommensurate wobbles
+      const t = performance.now() / 1000, j = this.jitter;
+      cam.position.x += (Math.sin(t * 71.0) * 0.5 + Math.sin(t * 113.0) * 0.3 + Math.sin(t * 37.0) * 0.2) * j;
+      cam.position.y += (Math.sin(t * 83.0) * 0.5 + Math.sin(t * 131.0) * 0.3 + Math.sin(t * 29.0) * 0.2) * j;
+      cam.position.z += Math.sin(t * 97.0) * 0.4 * j;
     }
     if (this.shake > 0) {
       cam.position.x += (Math.random() - 0.5) * this.shake;

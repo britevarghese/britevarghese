@@ -119,8 +119,12 @@ export class Input {
 
   endFrame() { this.pressed.clear(); }
 
+  /** Gamepad rumble: the heavy (strong) and light (weak) motors, 0..1, for ms (Chrome and Edge; Firefox's pulse). */
   rumble(strong, weak, ms = 100) {
     const pad = this.pad();
-    pad?.vibrationActuator?.playEffect?.('dual-rumble', { duration: ms, strongMagnitude: clamp(strong, 0, 1), weakMagnitude: clamp(weak, 0, 1) }).catch(() => {});
+    if (!pad) return;
+    const a = pad.vibrationActuator;
+    if (a?.playEffect) a.playEffect('dual-rumble', { duration: ms, strongMagnitude: clamp(strong, 0, 1), weakMagnitude: clamp(weak, 0, 1) }).catch(() => {});
+    else pad.hapticActuators?.[0]?.pulse?.(clamp(Math.max(strong, weak), 0, 1), ms)?.catch?.(() => {});
   }
 }
