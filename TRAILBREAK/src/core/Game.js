@@ -402,7 +402,7 @@ export class Game {
     this.vegetation.update(this.renderer.camera, dt);
     this.water.update(this.renderer.camera, dt, this.renderer.sky.state.horizon);
     this.landmarks.update(this.renderer.camera, dt);
-    this.effects.update(dt, this.world);
+    this.effects.update(dt, this.world, this.renderer.camera, this.renderer.renderer.domElement.height);
     if (W.attached) {
       const a = this.fairleadWorld(new THREE.Vector3());
       const b = new THREE.Vector3(W.anchor.x, W.anchor.y, W.anchor.z);

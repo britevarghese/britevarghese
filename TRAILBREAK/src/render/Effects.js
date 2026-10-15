@@ -6,6 +6,7 @@ import { SURFACE } from '../physics/Surfaces.js';
 const MAX = 2400;
 
 const vert = /* glsl */`
+uniform float uScale;
 attribute float aSize;
 attribute float aAlpha;
 attribute vec3 aColor;
@@ -18,7 +19,7 @@ void main() {
   vAlpha = aAlpha; vColor = aColor;
   vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
   gl_Position = projectionMatrix * mvPosition;
-  gl_PointSize = aSize * (900.0 / max(0.5, -mvPosition.z));
+  gl_PointSize = aSize * (uScale / max(0.5, -mvPosition.z));
   #include <logdepthbuf_vertex>
   #include <fog_vertex>
 }`;
@@ -67,7 +68,7 @@ export class Effects {
     g.boundingSphere = new THREE.Sphere(new THREE.Vector3(), 1e6);
     const mat = new THREE.ShaderMaterial({
       vertexShader: vert, fragmentShader: frag, transparent: true, depthWrite: false, fog: true,
-      uniforms: THREE.UniformsUtils.merge([THREE.UniformsLib.fog]),
+      uniforms: THREE.UniformsUtils.merge([THREE.UniformsLib.fog, { uScale: { value: 600 } }]),
     });
     this.points = new THREE.Points(g, mat);
     this.points.frustumCulled = false;
@@ -118,18 +119,20 @@ export class Effects {
         const c = [col[0] * 1.4 + 0.12, col[1] * 1.4 + 0.1, col[2] * 1.4 + 0.08];
         this.spawn(hubX + (Math.random() - 0.5) * 0.6, hubY - r * 0.7, hubZ + (Math.random() - 0.5) * 0.6,
           (Math.random() - 0.5) * 1.2, 0.4 + Math.random() * 0.9, (Math.random() - 0.5) * 1.2,
-          0.5 + Math.random() * 0.5, 1.8 + Math.random() * 1.6, c, 0.22, 1.4, 1.2, -0.25);
+          0.35 + Math.random() * 0.35, 1.6 + Math.random() * 1.4, c, 0.14, 0.9, 1.2, -0.25);
       }
     }
-    // water spray
+    // water spray (muddy in the bog and the puddles)
     if (w.water > 0.05 && Math.abs(speed) > 1) {
-      acc += dt * Math.min(120, Math.abs(speed) * 10);
+      acc += dt * Math.min(110, Math.abs(speed) * 9);
+      const muddy = s === SURFACE.MUD;
+      const c = muddy ? [0.2, 0.15, 0.1] : [0.62, 0.7, 0.74];
       while (acc > 1) {
         acc -= 1;
-        const v = Math.min(8, Math.abs(speed) * 0.7) * (0.5 + Math.random() * 0.7);
+        const v = Math.min(7, Math.abs(speed) * 0.6) * (0.5 + Math.random() * 0.7);
         this.spawn(hubX + (Math.random() - 0.5) * 0.4, hubY - r + w.water, hubZ + (Math.random() - 0.5) * 0.4,
           (Math.random() - 0.5) * v * 0.8, v * (0.5 + Math.random() * 0.5), (Math.random() - 0.5) * v * 0.8,
-          0.08 + Math.random() * 0.12, 0.7 + Math.random() * 0.5, [0.8, 0.86, 0.9], 0.75, 0.6, 0.4, 9.81);
+          0.04 + Math.random() * 0.06, 0.6 + Math.random() * 0.4, c, muddy ? 0.9 : 0.55, 0.15, 0.4, 9.81);
       }
     }
     this.acc.set(key, acc);
@@ -143,7 +146,8 @@ export class Effects {
     }
   }
 
-  update(dt, ground) {
+  update(dt, ground, camera, height) {
+    if (camera) this.points.material.uniforms.uScale.value = height / (2 * Math.tan(camera.fov * Math.PI / 360));
     const P = this.pos, Vv = this.vel;
     for (let i = 0; i < MAX; i++) {
       if (this.life[i] <= 0) { this.alpha[i] = 0; continue; }

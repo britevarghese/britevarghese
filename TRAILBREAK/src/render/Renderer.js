@@ -46,6 +46,12 @@ export class Renderer {
     const s = this.sky.setTime(hour);
     this.sun.color.copy(s.sun);
     this.sun.intensity = s.sunI;
+    this.moon = s.el < 1;
+    if (this.moon) {
+      // after dusk a cool moonlight from high in the south-west keeps the hills readable
+      this.sun.color.set(0x9db4ff);
+      this.sun.intensity = 0.55 * Math.min(1, (1 - s.el) / 6);
+    }
     this.hemi.color.copy(s.hemiSky);
     this.hemi.groundColor.copy(s.hemiGround);
     this.hemi.intensity = s.hemiI;
@@ -83,7 +89,7 @@ export class Renderer {
 
   /** Keep the sun's shadow box centred on what we look at (snapped to texels so shadows don't shimmer). */
   updateSun(focus) {
-    const d = this.sky.sunDir;
+    const d = this.moon ? this._moonDir || (this._moonDir = { x: -0.45, y: 0.75, z: 0.5 }) : this.sky.sunDir;
     const texel = 140 / this.sun.shadow.mapSize.x;
     const fx = Math.round(focus.x / texel) * texel, fy = Math.round(focus.y / texel) * texel, fz = Math.round(focus.z / texel) * texel;
     this.sun.target.position.set(fx, fy, fz);

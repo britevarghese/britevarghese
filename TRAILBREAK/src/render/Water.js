@@ -62,7 +62,7 @@ export class Water {
         let dx = bx - ax, dz = bz - az; const l = Math.hypot(dx, dz) || 1; dx /= l; dz /= l;
         const w = half * 1.9 + 4;                                 // past the banks: the terrain hides the excess
         pos.push(x - dz * w, level, z + dx * w, x + dz * w, level, z - dx * w);
-        if (i > 0) { const a = (i - 1) * 2; idx.push(a, a + 1, a + 2, a + 1, a + 3, a + 2); }
+        if (i > 0) { const a = (i - 1) * 2; idx.push(a, a + 2, a + 1, a + 1, a + 2, a + 3); }   // facing up
       }
       const g = new THREE.BufferGeometry();
       g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
@@ -70,7 +70,7 @@ export class Water {
       g.computeVertexNormals();
       // make sure all normals point up
       const n = g.attributes.normal; for (let i = 0; i < n.count; i++) n.setXYZ(i, 0, 1, 0);
-      const m = new THREE.Mesh(g, waterMaterial(0x2f5f63, 0.84, this.uniforms, 0.6));
+      const m = new THREE.Mesh(g, waterMaterial(0x24555a, 0.86, this.uniforms, 0.6, 0.5));
       m.receiveShadow = true;
       m.renderOrder = 2;
       this.group.add(m);
@@ -79,13 +79,14 @@ export class Water {
     {
       const L = world.lake;
       const g = new THREE.CircleGeometry(L.r * 1.32, 72).rotateX(-Math.PI / 2);
-      const m = new THREE.Mesh(g, waterMaterial(0x2b5566, 0.86, this.uniforms, 0.05));
+      const m = new THREE.Mesh(g, waterMaterial(0x24505f, 0.88, this.uniforms, 0.05, 0.6));
       m.position.set(L.x, L.level, L.z);
       m.receiveShadow = true; m.renderOrder = 2;
       this.group.add(m);
     }
     // the bog's pools and the puddles: muddy water
-    const mud = waterMaterial(0x4d3f2a, 0.92, this.uniforms, 0.02, 0.25);
+    const mud = waterMaterial(0x2e2418, 0.94, this.uniforms, 0.02, 0.1);
+    mud.roughness = 0.35;
     {
       const g = new THREE.CircleGeometry(1, 40).rotateX(-Math.PI / 2);
       const m = new THREE.Mesh(g, mud);

@@ -36,7 +36,7 @@ const C = (hex) => new THREE.Color(hex);
 
 // key frames by sun elevation (deg): sky zenith, horizon, sun colour, sun intensity, hemisphere sky / ground
 const KEYS = [
-  { el: -8, zenith: C(0x0d1626), horizon: C(0x2a2f3c), sun: C(0xff6a3a), sunI: 0.0, hemiSky: C(0x3a4660), hemiGround: C(0x1b1d1a), hemiI: 0.35 },
+  { el: -8, zenith: C(0x0d1626), horizon: C(0x2a2f3c), sun: C(0xff6a3a), sunI: 0.0, hemiSky: C(0x4f5f86), hemiGround: C(0x23251f), hemiI: 0.62 },
   { el: 2, zenith: C(0x35507e), horizon: C(0xe4936a), sun: C(0xff7b3d), sunI: 1.1, hemiSky: C(0x8f8fa6), hemiGround: C(0x3a3027), hemiI: 0.5 },
   { el: 12, zenith: C(0x4a74b4), horizon: C(0xf0c38f), sun: C(0xffc58a), sunI: 2.4, hemiSky: C(0xb7c4d9), hemiGround: C(0x4a4232), hemiI: 0.7 },
   { el: 30, zenith: C(0x3f78c4), horizon: C(0xc9daea), sun: C(0xfff0d6), sunI: 3.0, hemiSky: C(0xc5d6ee), hemiGround: C(0x52503a), hemiI: 0.8 },
