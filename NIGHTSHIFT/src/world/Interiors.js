@@ -27,6 +27,21 @@ function floorTexture() {
 }
 
 // colour * (ambient * daylight + tube light * lamps on): attribute `light` = (ambient, lamp)
+// a bundle of notes seen from the side: the stacked paper edges, the paper band round its middle (white: the
+// bundle's own colour tints it)
+function notesTexture() {
+  const c = document.createElement('canvas'); c.width = c.height = 128;
+  const g = c.getContext('2d');
+  g.fillStyle = '#ecebe6'; g.fillRect(0, 0, 128, 128);
+  for (let y = 0; y < 128; y += 3) { g.fillStyle = (y / 3) % 4 ? 'rgba(90,90,85,0.35)' : 'rgba(70,70,65,0.55)'; g.fillRect(0, y, 128, 1); }
+  for (let i = 0; i < 160; i++) { g.fillStyle = `rgba(255,255,255,${0.15 + Math.random() * 0.2})`; g.fillRect(Math.random() * 128, Math.random() * 128, 6 + Math.random() * 14, 1); }
+  g.fillStyle = '#d8cfb8'; g.fillRect(50, 0, 28, 128);
+  g.fillStyle = 'rgba(80,60,40,0.55)'; g.fillRect(50, 0, 2, 128); g.fillRect(76, 0, 2, 128);
+  g.fillStyle = 'rgba(120,40,40,0.5)'; g.fillRect(58, 54, 12, 20);
+  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4;
+  return t;
+}
+
 function litMaterial(opts) {
   const m = new THREE.MeshBasicMaterial({ vertexColors: true, fog: false, ...opts });
   m.userData.u = { uDay: { value: 1 }, uLamp: { value: 1 } };
@@ -48,6 +63,7 @@ export class Interiors {
     this.colliders = [];
     this.mat = litMaterial({});
     this.floorMat = litMaterial({ map: floorTexture() });
+    this.notes = litMaterial({ map: notesTexture() });   // bundles of currency notes (a bank's strongroom), tinted per bundle
     this.glass = new THREE.MeshBasicMaterial({ color: 0xdde8f0, fog: false });
     this.glow = new THREE.MeshBasicMaterial({ color: 0xf4fbff, fog: false });
     this.screen = new THREE.MeshBasicMaterial({ color: 0x1a2a40, fog: false });
@@ -180,7 +196,7 @@ export class Interiors {
     if (Math.hypot(this.game.onFoot.state.x - A.c.cx, this.game.onFoot.state.z - A.c.cz) > 60 || !this.game.onFoot.active) { this.dispose(); return; }
     const night = env?.night ?? 0, day = 1 - night;
     const lamps = A.type === 'shop' || A.type === 'office' ? 0.3 + 0.7 * night : Math.min(1, 0.25 + night * 1.2);
-    for (const m of [this.mat, this.floorMat]) { m.userData.u.uDay.value = 0.22 + 0.78 * day; m.userData.u.uLamp.value = lamps; }
+    for (const m of [this.mat, this.floorMat, this.notes]) { m.userData.u.uDay.value = 0.22 + 0.78 * day; m.userData.u.uLamp.value = lamps; }
     this.glass.color.setRGB(0.07 + 0.68 * day, 0.09 + 0.72 * day, 0.16 + 0.72 * day);
     // the player is lit by the room: the sky light turns into tube light (same light, nothing recompiles)
     if (this.game.env) this.game.env.indoorLamp = lamps;

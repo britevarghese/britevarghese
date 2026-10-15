@@ -203,7 +203,7 @@ export function buildBank(I, c, door, opts = {}) {
     return rooms.find((r) => u >= r.u0 - 0.06 && u <= r.u1 + 0.06 && w >= r.w0 - 0.06 && w <= r.w1 + 0.06) || rooms[0];
   };
   // ---- geometry with baked light (as Interiors: colour, and (sky, lamp) light per vertex)
-  const geos = [], floorGeos = [], glassGeos = [], dayGeos = [], glowGeos = [], screenGeos = [], steelGeos = [];
+  const geos = [], floorGeos = [], glassGeos = [], dayGeos = [], glowGeos = [], screenGeos = [], steelGeos = [], noteGeos = [];
   const colliders = [];
   const bake = (geo, col, o = {}) => {
     const P = geo.attributes.position, N = geo.attributes.normal, n = P.count;
@@ -232,7 +232,7 @@ export function buildBank(I, c, door, opts = {}) {
     g.translate(0, sh / 2, 0);
     g.rotateY(rotUW + rot);
     g.translate(lx, y, lz);
-    if (list === geos || list === floorGeos || list === steelGeos) bake(g, typeof color === 'string' ? hex(color) : color);
+    if (list === geos || list === floorGeos || list === steelGeos || list === noteGeos) bake(g, typeof color === 'string' ? hex(color) : color);
     list.push(g);
     return g;
   };
@@ -393,7 +393,8 @@ export function buildBank(I, c, door, opts = {}) {
       for (let j = 0; j < n; j++) {
         const along2 = -wide / 2 + 0.1 + j * 0.2, col = k === 3 ? (j % 2 ? '#c8a050' : '#e8dcc0') : ['#b8b4a0', '#c8c0a8', '#e0b840', '#a898c8'][(j + k) % 4];
         const hgt = k === 3 ? 0.08 : 0.07 + (j % 3) * 0.07;
-        if (rot) boxUW(u, w + along2, y, 0.16, hgt, 0.18, col, geos, 0); else boxUW(u + along2, w, y, 0.18, hgt, 0.16, col);
+        const list = k === 3 ? geos : noteGeos;   // (the notes textured as bundles; the gold-loan packets plain)
+        if (rot) boxUW(u, w + along2, y, 0.16, hgt, 0.18, col, list, 0); else boxUW(u + along2, w, y, 0.18, hgt, 0.16, col, list);
       }
     }
     racks.push({ u, w, rot });
@@ -454,6 +455,7 @@ export function buildBank(I, c, door, opts = {}) {
   merge(geos, I.mat, ['position', 'color', 'light', 'uv']);
   merge(steelGeos, I.mat, ['position', 'color', 'light', 'uv']);
   merge(floorGeos, I.floorMat, ['position', 'color', 'light', 'uv']);
+  merge(noteGeos, I.notes || I.mat, ['position', 'color', 'light', 'uv']);
   const counterGlass = new THREE.MeshBasicMaterial({ color: 0xcfe4ec, transparent: true, opacity: 0.16, depthWrite: false, fog: false, side: THREE.DoubleSide });
   merge(glassGeos, counterGlass, ['position']);
   merge(dayGeos, I.glass, ['position']);

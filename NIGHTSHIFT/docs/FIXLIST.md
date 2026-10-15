@@ -306,3 +306,5 @@ the game. Newly found problems go at the end of their section.
     the branch: hall, counter, cabin, strongroom, staff and customers, its windows daylight from inside
   - [x] The scenes' cameras stay inside the car's cabin and keep clear of walls, the car and other people; the dark
     windows clear while the camera looks in through the windscreen; game notices wait until a scene is over
+  - [x] The strongroom's racks hold bundles of notes (stacked edges, a paper band and a stamp on each) instead of
+    plain coloured blocks; the gold-loan packets on the top shelf stay plain envelopes
