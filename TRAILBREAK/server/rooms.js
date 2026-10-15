@@ -16,6 +16,8 @@
  *   server -> client  {t:'correction', s}                                    (an update was rejected)
  *   client -> server  {t:'beacon', id}         -> room {t:'beacon', id, by}  (shared survey progress)
  *   client -> server  {t:'chat', text}         -> room {t:'chat', id, name, text}
+ *   client -> server  {t:'damage', d}          -> room {t:'damage', id, d}   (what is broken on that truck: glass, lamps,
+ *                       flat tyres, steam, smoke, toe and the latest dents; kept for whoever joins later)
  *   client -> server  {t:'ping', time}         -> client {t:'pong', time, echo}
  *   server -> clients {t:'join', id, name} / {t:'leave', id, name}
  *   server -> client  {t:'error', msg}
@@ -44,6 +46,17 @@ function cleanStr(s, max, fallback) {
 }
 function round(n, k = 1000) { return Math.round(n * k) / k; }
 function clamp(x, a, b) { return x < a ? a : x > b ? b : x; }
+
+/** A sanitized damage summary (src/physics/Damage.js summary()), or null. */
+function cleanDamage(d) {
+  if (!d || typeof d !== 'object') return null;
+  const n = (x, lo, hi) => (isNum(x) ? clamp(x, lo, hi) : lo);
+  const dents = Array.isArray(d.d) ? d.d.slice(-16).filter((a) => vec(a, 8)).map((a) => a.map((c) => round(clamp(c, -6, 6)))) : [];
+  return {
+    v: Math.round(n(d.v, 0, 1e9)), n: Math.round(n(d.n, 0, 1e9)), g: round(n(d.g, 0, 2), 10), l: Math.round(n(d.l, 0, 3)),
+    f: Math.round(n(d.f, 0, 15)), s: Math.round(n(d.s, 0, 2)), k: round(n(d.k, 0, 1), 10), t: round(n(d.t, -0.1, 0.1)), d: dents,
+  };
+}
 
 function normalizeCode(code) {
   if (typeof code !== 'string') return null;
@@ -77,7 +90,7 @@ class Room {
     this.emptySince = 0;
     this.send(player, {
       t: 'welcome', id: player.id, room: this.code, tickRate: this.tickRate, maxPlayers: this.maxPlayers,
-      players: [...this.players.values()].filter((p) => p !== player).map((p) => ({ id: p.id, name: p.name })),
+      players: [...this.players.values()].filter((p) => p !== player).map((p) => (p.dmg ? { id: p.id, name: p.name, dmg: p.dmg } : { id: p.id, name: p.name })),
       beacons: [...this.beacons.keys()],
     });
     this.broadcast({ t: 'join', id: player.id, name: player.name }, player);
@@ -105,6 +118,13 @@ class Room {
         this.beacons.set(id, player.name);
         this.broadcast({ t: 'beacon', id, by: player.name });
         this.log(`[room ${this.code}] ${player.name} surveyed beacon ${id} (${this.beacons.size} found)`);
+        return;
+      }
+      case 'damage': {
+        const d = cleanDamage(msg.d);
+        if (!d) return;
+        player.dmg = d;
+        this.broadcast({ t: 'damage', id: player.id, d }, player);
         return;
       }
       case 'chat': {

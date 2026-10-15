@@ -131,6 +131,64 @@ material.roughness = mix(material.roughness, 0.95, gMud);`);
   return mat;
 }
 
+/** Cracked safety glass: a web of cracks from a few impact points over the dark tint (alpha carries both). */
+let CRACKS = null;
+function crackTexture() {
+  if (CRACKS) return CRACKS;
+  const S = 512, c = document.createElement('canvas');
+  c.width = S; c.height = S;
+  const x = c.getContext('2d');
+  x.fillStyle = 'rgba(26,38,43,0.38)';
+  x.fillRect(0, 0, S, S);
+  let seed = 3;
+  const R = () => { seed = (seed * 16807) % 2147483647; return seed / 2147483647; };
+  x.lineCap = 'round';
+  for (let hit = 0; hit < 3; hit++) {
+    const cx = S * (0.2 + 0.6 * R()), cy = S * (0.2 + 0.6 * R());
+    // radial cracks wandering out from the hit
+    for (let k = 0; k < 14; k++) {
+      let a = (k / 14) * Math.PI * 2 + R() * 0.4, px = cx, py = cy;
+      const len = S * (0.15 + 0.45 * R());
+      x.strokeStyle = 'rgba(235,242,245,0.95)';
+      x.lineWidth = 2.6;
+      x.beginPath(); x.moveTo(px, py);
+      for (let t = 0; t < len; t += 12) { a += (R() - 0.5) * 0.35; px += Math.cos(a) * 12; py += Math.sin(a) * 12; x.lineTo(px, py); }
+      x.stroke();
+    }
+    // rings of the spider web
+    for (let ring = 1; ring <= 4; ring++) {
+      const rr = ring * S * (0.035 + 0.02 * R());
+      x.strokeStyle = 'rgba(235,242,245,0.85)';
+      x.lineWidth = 2;
+      x.beginPath();
+      for (let k = 0; k <= 28; k++) { const a = (k / 28) * Math.PI * 2, j = rr * (0.85 + 0.3 * R()); if (k) x.lineTo(cx + Math.cos(a) * j, cy + Math.sin(a) * j); else x.moveTo(cx + Math.cos(a) * j, cy + Math.sin(a) * j); }
+      x.stroke();
+    }
+    // the crushed spot itself
+    x.fillStyle = 'rgba(225,232,236,0.8)';
+    x.beginPath(); x.arc(cx, cy, S * 0.012, 0, Math.PI * 2); x.fill();
+  }
+  CRACKS = new THREE.CanvasTexture(c);
+  CRACKS.colorSpace = THREE.SRGBColorSpace;
+  return CRACKS;
+}
+
+/** A flat tyre: the tyre squashed against the ground under its rim, the sidewalls bulging. drop: how far it sank. */
+function flatTyre(src, R, drop) {
+  const g = src.clone();
+  const p = g.attributes.position;
+  for (let i = 0; i < p.count; i++) {
+    const y = p.getY(i);
+    if (y >= 0) continue;
+    const t = Math.min(1, -y / R);
+    const s = 1 - (drop / R) * t * t;
+    p.setY(i, y * s);
+    p.setX(i, p.getX(i) * (1 + 0.22 * t * t * (drop / R) * 3));
+  }
+  g.computeVertexNormals();
+  return g;
+}
+
 const MATS = {};
 function shared() {
   if (MATS.black) return MATS;
@@ -140,6 +198,7 @@ function shared() {
   MATS.chrome = std(0xe8e8e6, 0.08, 1.0);
   MATS.alu = std(0xb9bbb8, 0.35, 0.85);
   MATS.glass = new THREE.MeshPhysicalMaterial({ color: 0x1a262b, roughness: 0.03, metalness: 0, clearcoat: 1, clearcoatRoughness: 0.02, transparent: true, opacity: 0.38, depthWrite: false });
+  MATS.screen = MATS.glass.clone();                  // the windscreen: laminated, it cracks instead of falling out
   MATS.tire = std(0x1c1b1a, 0.95, 0);
   MATS.steel = std(0xe9e6dc, 0.45, 0.35);            // white steel wheels
   MATS.bead = std(0x222222, 0.5, 0.5);               // black beadlock wheels
@@ -282,7 +341,7 @@ function rangerBody(P, M, paint, top, spec) {
   const wsC = [(wsB[0] + wsT[0]) / 2, (wsB[1] + wsT[1]) / 2], wsL = Math.hypot(wsT[0] - wsB[0], wsT[1] - wsB[1]);
   P.box(paint, [0.05, wsL, 0.05], [0.785, wsC[1], wsC[0]], { r: 0.012, rot: [-rake, 0, 0], mirror: true });
   P.box(paint, [1.62, 0.05, 0.06], [0, wsT[1] - 0.02, wsT[0]], { r: 0.012 });
-  P.box(M.glass, [1.52, wsL - 0.06, 0.012], [0, wsC[1], wsC[0]], { r: 0, rot: [-rake, 0, 0] });
+  P.box(M.screen, [1.52, wsL - 0.06, 0.012], [0, wsC[1], wsC[0]], { r: 0, rot: [-rake, 0, 0] });
   P.box(M.black, [0.5, 0.012, 0.012], [0.22, belt + 0.06, 0.465], { r: 0, rot: [0, 0, 0.25] });
   P.box(M.black, [0.5, 0.012, 0.012], [-0.32, belt + 0.06, 0.465], { r: 0, rot: [0, 0, 0.25] });
   // the hardtop: roof, pillars, side and back glass
@@ -369,7 +428,7 @@ function haulerBody(P, M, paint, top, spec) {
   P.box(paint, [0.06, wsL, 0.07], [0.82, wsC[1], wsC[0]], { r: 0.015, rot: [-rake, 0, 0], mirror: true });
   P.box(paint, [0.06, 0.64, 0.12], [0.82, 1.5, -0.32], { r: 0.015, mirror: true });
   P.box(paint, [1.68, 0.64, 0.06], [0, 1.5, zCab + 0.01], { r: 0.02 });
-  P.box(M.glass, [1.56, wsL - 0.06, 0.012], [0, wsC[1], wsC[0]], { r: 0, rot: [-rake, 0, 0] });
+  P.box(M.screen, [1.56, wsL - 0.06, 0.012], [0, wsC[1], wsC[0]], { r: 0, rot: [-rake, 0, 0] });
   P.box(M.glass, [0.012, 0.52, 0.8], [0.83, 1.48, 0.14], { r: 0, mirror: true });
   P.box(M.glass, [1.2, 0.36, 0.012], [0, 1.52, zCab - 0.025], { r: 0 });
   P.box(M.amber, [0.12, 0.04, 0.05], [0.4, 1.89, 0.42], { r: 0.01, mirror: true });
@@ -435,7 +494,7 @@ function muleBody(P, M, paint, top, spec) {
   P.box(paint, [0.05, wsL, 0.05], [0.7, wsC[1], wsC[0]], { r: 0.012, rot: [-rake, 0, 0], mirror: true });
   P.box(paint, [1.44, 0.05, 0.05], [0, wsT[1], wsT[0]], { r: 0.012 });
   P.box(paint, [1.44, 0.06, 0.05], [0, wsB[1] + 0.02, wsB[0]], { r: 0.012 });
-  P.box(M.glass, [1.34, wsL - 0.08, 0.012], [0, wsC[1], wsC[0]], { r: 0, rot: [-rake, 0, 0] });
+  P.box(M.screen, [1.34, wsL - 0.08, 0.012], [0, wsC[1], wsC[0]], { r: 0, rot: [-rake, 0, 0] });
   P.box(M.black, [0.42, 0.012, 0.012], [0.2, wsT[1] - 0.04, wsT[0] + 0.02], { r: 0, rot: [0, 0, -0.2] });
   P.path(M.black, [[0.62, belt, -0.75], [0.62, 1.6, -0.75], [-0.62, 1.6, -0.75], [-0.62, belt, -0.75]], 0.025);
   P.box(top, [1.44, 0.04, 1.86], [0, 1.69, -0.68], { r: 0.015 });
@@ -611,8 +670,14 @@ export class TruckModel {
     chassis(P, M, spec, x);
     bumpers(P, M, spec, x, spec.winch || {});
     buildParts(P, M, spec, x, base, this.barMat);
+    this.lampMats = [this.lightMat, this.lightMat.clone()];           // left (+x), right
+    this.lamps = [];
     for (const [hx, hy, hz, hr] of x.heads) {
-      P.cyl(this.lightMat, hr, hr, 0.03, [hx, hy, hz], { axis: 'z', mirror: true, seg: 18 });
+      [1, -1].forEach((sx, side) => {
+        const lamp = new THREE.Mesh(new THREE.CylinderGeometry(hr, hr, 0.03, 18).rotateX(Math.PI / 2), this.lampMats[side]);
+        lamp.position.set(sx * hx, hy, hz);
+        this.lamps.push(lamp);
+      });
       const g = new THREE.TorusGeometry(hr + 0.008, 0.013, 6, 18); P.add(M.chrome, g, [hx, hy, hz + 0.012], null, true);
     }
     for (const [lx, ly, lz, lw, lh, side] of x.tails) P.box(this.brakeMat, side ? [0.02, lh, lw] : [lw, lh, 0.02], [lx, ly, lz], { r: 0.005, mirror: true });
@@ -631,6 +696,26 @@ export class TruckModel {
       P.add(M.tire, tg, pos); P.add(t.beadlock ? M.bead : M.steel, rg, pos);
     }
     P.build(this.body);
+    for (const l of this.lamps) this.body.add(l);
+    // this truck's own glass, so it can crack and shatter
+    // this truck's own glass: the windscreen (laminated: it crazes) and the side and back windows (toughened: they burst)
+    this.screenMesh = this.body.children.find((m) => m.material === M.screen);
+    if (this.screenMesh) {
+      this.screen = M.screen.clone();
+      this.screenMesh.material = this.screen;
+      // the parts lose their texture coordinates when merged: map the cracks across the pane, flat on from the front
+      const g = this.screenMesh.geometry, p = g.attributes.position;
+      g.computeBoundingBox();
+      const b = g.boundingBox, uv = new Float32Array(p.count * 2);
+      for (let i = 0; i < p.count; i++) {
+        uv[i * 2] = (p.getX(i) - b.min.x) / (b.max.x - b.min.x || 1);
+        uv[i * 2 + 1] = (p.getY(i) - b.min.y) / (b.max.y - b.min.y || 1);
+      }
+      g.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
+    }
+    this.glassMesh = this.body.children.find((m) => m.material === M.glass);
+    this.dentMeshes = this.body.children.filter((m) => m.isMesh && !m.material.transparent);
+    this.rimR = rimR;
 
     // ---- steering wheel (turns with the front wheels)
     {
@@ -686,7 +771,7 @@ export class TruckModel {
         if (side < 0) rim.rotation.y = Math.PI;              // outer face out on both sides
         tire.castShadow = true; rim.castShadow = true;
         spin.add(tire, rim);
-        return { knuckle, spin };
+        return { knuckle, spin, tire, tireGeo: tire.geometry };
       });
       return { group, wheels, yDroop, half, spec: a };
     });
@@ -724,7 +809,88 @@ export class TruckModel {
   }
 
   setPaint(hex) { this.paint.color.set(hex); }
-  setLights(on) { this.lightMat.emissiveIntensity = on ? 3.5 : 0.15; this.barMat.emissiveIntensity = on ? 4 : 0.1; this.lightsOn = on; this.setBrake(this.braking); }
+  setLights(on) {
+    this.lampMats.forEach((m, i) => { m.emissiveIntensity = this.broken?.[i] ? 0 : on ? 3.5 : 0.15; });
+    this.barMat.emissiveIntensity = on ? 4 : 0.1; this.lightsOn = on; this.setBrake(this.braking);
+  }
+
+  // ---------------------------------------------------------------- damage (physics/Damage.js)
+  /**
+   * Press dents into the body: each { p, d, depth, r } with p the point hit and d the push (CG frame). Vertices within r
+   * move along d by depth times a smooth bowl (crumpled a little), and their normals tilt into the bowl so it
+   * catches the light.
+   */
+  applyDents(dents) {
+    const o = this.bodyOffset;
+    for (const dent of dents) {
+      const px = dent.p[0] - o.x, py = dent.p[1] - o.y, pz = dent.p[2] - o.z;
+      const [dx, dy, dz] = dent.d, R = dent.r, depth = dent.depth;
+      for (const m of this.dentMeshes) {
+        const g = m.geometry, bs = g.boundingSphere || (g.computeBoundingSphere(), g.boundingSphere);
+        if (Math.hypot(bs.center.x - px, bs.center.y - py, bs.center.z - pz) > bs.radius + R) continue;
+        const pos = g.attributes.position, nor = g.attributes.normal;
+        let moved = false;
+        for (let i = 0; i < pos.count; i++) {
+          const x = pos.getX(i) - px, y = pos.getY(i) - py, z = pos.getZ(i) - pz;
+          const d2 = x * x + y * y + z * z;
+          if (d2 >= R * R) continue;
+          const rho = Math.sqrt(d2) / R, f = (1 - rho * rho) ** 2;
+          const h = Math.sin(i * 12.9898) * 43758.5453, crumple = 0.75 + 0.5 * (h - Math.floor(h));
+          const k = depth * f * crumple;
+          pos.setXYZ(i, pos.getX(i) + dx * k, pos.getY(i) + dy * k, pos.getZ(i) + dz * k);
+          if (nor) {
+            const nx = nor.getX(i), ny = nor.getY(i), nz = nor.getZ(i);
+            const along = x * nx + y * ny + z * nz;
+            let tx = x - nx * along, ty = y - ny * along, tz = z - nz * along;
+            const tl = Math.hypot(tx, ty, tz) || 1; tx /= tl; ty /= tl; tz /= tl;
+            const tilt = (dx * nx + dy * ny + dz * nz) * depth * 4 * rho * (1 - rho * rho) / R * crumple;
+            const ax = nx + tilt * tx, ay = ny + tilt * ty, az = nz + tilt * tz, al = Math.hypot(ax, ay, az) || 1;
+            nor.setXYZ(i, ax / al, ay / al, az / al);
+          }
+          moved = true;
+        }
+        if (moved) { pos.needsUpdate = true; if (nor) nor.needsUpdate = true; g.computeBoundingSphere(); }
+      }
+    }
+  }
+
+  /**
+   * The rest of the damage: glass (0 whole, 0.35+ cracked, 2 shattered), headlamps [left, right] (1 working), flat
+   * tyres [4], the tie rod's toe (rad: the steering wheel stays where the driver holds it).
+   */
+  setDamage(glass, lights, flat, toe) {
+    this.toe = toe || 0;
+    if (this.screen) {
+      const crack = glass >= 0.35;
+      if (crack && !this.screen.map) {
+        this.screen.map = crackTexture();
+        this.screen.color.set(0xffffff);
+        this.screen.opacity = 1;
+        this.screen.needsUpdate = true;
+      } else if (!crack && this.screen.map) {
+        this.screen.map = null; this.screen.color.set(0x1a262b); this.screen.opacity = 0.38; this.screen.needsUpdate = true;
+      }
+    }
+    if (this.glassMesh) this.glassMesh.visible = glass < 2;
+    this.broken = [!lights[0], !lights[1]];
+    this.lampMats.forEach((m, i) => { m.color.set(this.broken[i] ? 0x2a2a28 : 0xfff6dc); });
+    this.setLights(this.lightsOn);
+    // a flat tyre: squashed under the rim, and it no longer spins with it (the rim turns inside)
+    this.axles.forEach((ax, ai) => ax.wheels.forEach((wm, s) => {
+      const i = ai * 2 + s, isFlat = !!flat[i];
+      if (isFlat === !!wm.flat) return;
+      wm.flat = isFlat;
+      const tire = wm.tire;
+      if (isFlat) {
+        tire.geometry = flatTyre(tire.geometry, this.spec.tyre.radius, this.spec.tyre.radius - this.rimR - 0.05);
+        wm.knuckle.add(tire);
+      } else {
+        tire.geometry.dispose();
+        tire.geometry = wm.tireGeo;
+        wm.spin.add(tire);
+      }
+    }));
+  }
   setBrake(on) { this.braking = !!on; this.brakeMat.emissiveIntensity = on ? 2.4 : this.lightsOn ? 0.7 : 0.05; }
   setReverse(on) { this.revMat.emissiveIntensity = on ? 1.6 : 0; }
 
@@ -745,7 +911,7 @@ export class TruckModel {
       }
       ax.group.updateMatrix();
     }
-    if (this.steeringWheel) this.steeringWheel.rotation.z = -((wheels[0][2] + wheels[1][2]) / 2) * 14;
+    if (this.steeringWheel) this.steeringWheel.rotation.z = -((wheels[0][2] + wheels[1][2]) / 2 - (this.toe || 0)) * 14;
     // leaf springs: hanger -> seat on the axle -> shackle; shocks: frame mount -> axle mount
     const v = this._v, w = this._w;
     let li = 0, si = 0;
@@ -789,7 +955,7 @@ export class TruckModel {
 
   dispose() {
     this.root.traverse((o) => { if (o.geometry && !o.geometry.userData.cached) o.geometry.dispose(); });
-    for (const m of [this.paint, this.top, this.lightMat, this.barMat, this.brakeMat, this.revMat]) m.dispose();
+    for (const m of [this.paint, this.top, ...this.lampMats, this.barMat, this.brakeMat, this.revMat, this.screen]) m?.dispose();
   }
 }
 

@@ -245,3 +245,5 @@ button.icon { padding: 6px 10px; }
 #players .help { color: var(--warn); font-weight: 700; margin-left: 6px; }
 #compass-strip span.help { color: var(--warn) !important; font-weight: 900; font-size: 16px; }
 body.touch #stuck { bottom: 120px; }
+
+#m-dmg { pointer-events: auto; cursor: pointer; }

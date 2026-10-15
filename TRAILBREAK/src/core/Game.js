@@ -134,6 +134,7 @@ export class Game {
     if (this.paused) this.togglePause(false);
     if (this.mapOpen) this.toggleMap();
     const here = this.nearGarage();
+    if (here && this.repairAtGarage()) return;
     this.garageOpen = true;
     this.input.enabled = false;
     const code = await this.garage.open({
@@ -222,11 +223,14 @@ export class Game {
   checkStuck(dt, ctrl) {
     const v = this.vehicle;
     const over = v.up.y < 0.5, wet = v.flooded || v.waterDepth > 0.9;
+    const D = v.damage, d = v.dt, sh = D.shafts;
+    const drives = (l, r, locked) => (!sh[l] && !sh[r]) || (locked && !(sh[l] && sh[r]));
+    const dead = D.seized || (!drives(2, 3, d.lockRear) && !(d.fourWD && drives(0, 1, d.lockFront)));
     const pushing = (ctrl.throttle > 0.3 || ctrl.brake > 0.3) && Math.abs(v.speed) < 0.5;
     this.boggedT = pushing ? this.boggedT + dt : Math.max(0, this.boggedT - dt * 2);
-    this.stuckT = over || wet ? this.stuckT + dt : 0;
+    this.stuckT = over || wet || dead ? this.stuckT + dt : 0;
     this.isStuck = this.stuckT > 1.5 || this.boggedT > 7;
-    this.stuckWhy = over ? 'over' : v.flooded ? 'flooded' : wet ? 'water' : this.boggedT > 7 ? 'bogged' : '';
+    this.stuckWhy = over ? 'over' : v.flooded ? 'flooded' : wet ? 'water' : dead ? 'broken' : this.boggedT > 7 ? 'bogged' : '';
     if (this.helpOn) {
       this.helpMoveT = Math.abs(v.speed) > 3 ? this.helpMoveT + dt : 0;
       if (this.helpMoveT > 3) this.setHelp(false, 'Rolling again: tow call over');
@@ -261,7 +265,7 @@ export class Game {
     el.classList.toggle('hidden', !show);
     if (!show) return;
     const v = this.vehicle, W = v.winch, $ = (id) => document.getElementById(id);
-    const titles = { over: 'Upside down', flooded: 'Engine flooded', water: 'In deep water', bogged: 'Stuck?' };
+    const titles = { over: 'Upside down', flooded: 'Engine flooded', water: 'In deep water', broken: 'Broken down', bogged: 'Stuck?' };
     const title = this.helpOn ? 'Waiting for a tow' : titles[this.stuckWhy] || 'Stuck?';
     if ($('st-title').textContent !== title) $('st-title').textContent = title;
     $('st-flip').classList.toggle('hidden', !(v.up.y < 0.5));
@@ -274,7 +278,10 @@ export class Game {
     $('st-call').classList.toggle('hidden', !(this.net?.connected && friends));
     const call = this.helpOn ? '<b>T</b> Cancel the tow call' : '<b>T</b> Call friends for a tow';
     if ($('st-call').innerHTML !== call) $('st-call').innerHTML = call;
-    const tip = W.attached ? 'Hold E to winch in (and give it a little throttle)' : v.flooded ? 'Once the intake is out of the water the engine starts again' : 'Or winch out: point the bumper at a tree or a friend, F to hook, hold E';
+    const D = v.damage;
+    const tip = W.attached ? 'Hold E to winch in (and give it a little throttle)' : v.flooded ? 'Once the intake is out of the water the engine starts again'
+      : this.stuckWhy === 'broken' ? (D.seized ? 'The engine is seized. Friends can tow you to the station garage (they hook you with F), or Backspace for the tow truck. U at the garage mends it' : 'A broken axle shaft: try 4WD (4) or the lockers (X), or get a tow to the station garage')
+        : 'Or winch out: point the bumper at a tree or a friend, F to hook, hold E';
     if ($('st-tip').textContent !== tip) $('st-tip').textContent = tip;
   }
 
@@ -328,6 +335,7 @@ export class Game {
       if (I.consume('shiftUp')) d.selectGear(d.gear + 1 > d.t.gears.length ? d.gear : d.gear + 1, sp);
       if (I.consume('shiftDown')) { if (!d.selectGear(d.gear - 1, sp)) this.hud.hint('Stop to select reverse'); }
     }
+    if (I.consume('spare')) this.fitSpare();
     if (I.consume('hook')) this.toggleHook();
     if (I.consume('recover')) this.recover();
     if (I.consume('tow')) this.callHelp();
@@ -477,6 +485,73 @@ export class Game {
     }
   }
 
+  // ---------------------------------------------------------------- damage (physics/Damage.js)
+  /** What broke this frame: messages, dents, glass, lamps, flat tyres; steam from the radiator, smoke from the engine. */
+  damageFrame(dt) {
+    const v = this.vehicle, D = v.damage, m = this.model;
+    for (const msg of D.messages) this.hud.toast(msg.text, msg.kind === 'bad', msg.kind === 'bad' ? 7 : 4);
+    D.messages.length = 0;
+    if (D.newDents.length) { m.applyDents(D.newDents); D.newDents.length = 0; }
+    if (D.version !== this.dmgSeen) {
+      if (D.glass >= 2 && !this.glassGone) this.shatter(m.root, this.spec);
+      this.glassGone = D.glass >= 2;
+      m.setDamage(D.glass, D.lights, D.flat, D.toe);
+      this.dmgSeen = D.version;
+    }
+    const steam = D.radiator > 0 && D.coolant > 0.02 ? (D.temp > 112 ? 2 : 1) : D.temp > 112 ? 2 : 0;
+    this.damageFx(dt, m.root, this.spec, steam, 1 - D.engine, 'me');
+    // tell the room (rarely: when something changes, and now and then for anyone who joined since)
+    if (this.net?.connected) {
+      this.dmgSendT = (this.dmgSendT || 0) - dt;
+      if (D !== this.dmgSentObj || D.version !== this.dmgSentV) {
+        this.net.send({ t: 'damage', d: D.summary() });
+        this.dmgSentObj = D; this.dmgSentV = D.version;
+      }
+    }
+  }
+
+  /** Steam (1 leaking, 2 boiling) from the grille, smoke (engine wear 0..1) from under the bonnet. */
+  damageFx(dt, root, spec, steam, smoke, key) {
+    const fx = this.fxT || (this.fxT = {});
+    fx[key] = (fx[key] || 0) - dt;
+    if (fx[key] > 0 || (!steam && smoke < 0.3)) return;
+    const raise = spec.raise || 0, p = this._fxP || (this._fxP = new THREE.Vector3());
+    p.set((Math.random() - 0.5) * 0.5, raise - spec.cgHeight + 1.12, spec.noseZ - (spec.cgZ || 0) - 0.3).applyQuaternion(root.quaternion).add(root.position);
+    const r = () => (Math.random() - 0.5) * 0.4;
+    if (steam) this.effects.spawn(p.x, p.y, p.z, r(), 0.9 + Math.random() * 0.6, r(), steam > 1 ? 0.5 : 0.32, 1.8, [0.9, 0.92, 0.94], steam > 1 ? 0.5 : 0.28, 1.4, 0.9, -0.5);
+    if (smoke >= 0.3) this.effects.spawn(p.x, p.y + 0.1, p.z - 0.3, r(), 0.7 + Math.random() * 0.4, r(), 0.4, 2.4, [0.16, 0.16, 0.16], 0.3 + smoke * 0.3, 1.2, 0.9, -0.3);
+    fx[key] = steam > 1 ? 0.035 : steam ? 0.09 : 0.12;
+  }
+
+  /** The side and back windows go: a shower of little cubes of toughened glass. */
+  shatter(root, spec) {
+    const p = new THREE.Vector3(0, (spec.raise || 0) - spec.cgHeight + spec.roofY - 0.35, spec.cabZ - (spec.cgZ || 0) - 0.4).applyQuaternion(root.quaternion).add(root.position);
+    for (let k = 0; k < 80; k++) {
+      const a = Math.random() * Math.PI * 2, sp = 1 + Math.random() * 2.5;
+      this.effects.spawn(p.x + (Math.random() - 0.5) * 1.4, p.y + (Math.random() - 0.5) * 0.4, p.z + (Math.random() - 0.5) * 1.6,
+        Math.cos(a) * sp, 0.5 + Math.random() * 1.5, Math.sin(a) * sp, 0.025 + Math.random() * 0.025, 0.7 + Math.random() * 0.8, [0.8, 0.9, 0.92], 0.9, 0, 0.3, 9.81);
+    }
+  }
+
+  /** Y: fit the spare in place of a flat tyre (stopped). */
+  fitSpare() {
+    const v = this.vehicle, D = v.damage, i = D.flat.findIndex(Boolean);
+    if (i < 0) { this.hud.hint(D.spare ? 'No flat tyre: the spare stays on its carrier' : 'No flat tyre (and the spare is used)'); return; }
+    if (!D.spare) { this.hud.hint('No spare left: drive gently to the station garage, or call a tow (T)', 4); return; }
+    if (Math.abs(v.speed) > 0.5) { this.hud.hint('Stop to change the tyre'); return; }
+    D.fitSpare(i);
+  }
+
+  /** At the station garage: everything mended (dents, glass, radiator, engine, springs, shafts, tyres, the spare). */
+  repairAtGarage() {
+    const D = this.vehicle.damage;
+    if (!D.any) return false;
+    const bill = D.cost;
+    this.applyBuild(this.build, false);
+    this.hud.toast(`Repaired at the station workshop (parts and labour about $${bill.toLocaleString('en-US')})`, false, 6);
+    return true;
+  }
+
   /** What presses the grass flat: our wheels on the ground and our friends' trucks. */
   grassPush() {
     const out = this._push || (this._push = []);
@@ -488,6 +563,21 @@ export class Game {
       if (rv.state) out.push({ x: rv.model.root.position.x, z: rv.model.root.position.z, r: 2.2 });
     }
     return out;
+  }
+
+  /** A friend's dents, glass, lamps, flat tyres, steam and smoke (their summary, physics/Damage.js). */
+  remoteDamage(rv, dm, dt) {
+    if (!dm) return;
+    if (dm.v !== rv.dmgV || dm.n !== rv.dentN) {
+      if (rv.dentN !== undefined && dm.n < rv.dentN) { rv.cfg = null; rv.dmgV = undefined; rv.dentN = undefined; return; }  // repaired: a fresh truck
+      const fresh = Math.min(dm.d.length, dm.n - (rv.dentN || 0));
+      if (fresh > 0) rv.model.applyDents(dm.d.slice(-fresh).map((a) => ({ p: a.slice(0, 3), d: a.slice(3, 6), depth: a[6], r: a[7] })));
+      if (dm.g >= 2 && !rv.glassGone) this.shatter(rv.model.root, rv.spec);
+      rv.glassGone = dm.g >= 2;
+      rv.model.setDamage(dm.g, [dm.l & 1, (dm.l >> 1) & 1], [0, 1, 2, 3].map((i) => (dm.f >> i) & 1), dm.t);
+      rv.dmgV = dm.v; rv.dentN = dm.n;
+    }
+    this.damageFx(dt, rv.model.root, rv.spec, dm.s, dm.k, `r${rv.id}`);
   }
 
   updateRemotes(dt) {
@@ -526,6 +616,7 @@ export class Game {
           this.audio.chirp?.();
         }
         rv.help = !!s.help;
+        this.remoteDamage(rv, r.dmg, dt);
         this.remoteRuts(rv, s);
         this.remoteEffects(rv, s, dt);
       }
@@ -636,6 +727,9 @@ export class Game {
     // the station's air line: air up for free there
     v.airSupply = this.nearGarage(26) || (this.stationSpot && Math.hypot(v.pos.x - this.stationSpot.x, v.pos.z - this.stationSpot.z) < 22);
     const wasFlooded = v.flooded, wasRunning = v.dt.running;
+    if (!v.dt.running && !v.flooded && v.dt.crankT <= 0 && c.throttle > 0.5) {
+      if (v.damage.seized) { if ((this.seizedHintT = (this.seizedHintT || 0) - dt) <= 0) { this.hud.hint('The engine is seized: it needs a tow to the station', 3); this.seizedHintT = 3; } } else { v.dt.start(); this.hud.hint('Starting the engine', 1.2); }
+    }
     this.carry = simulate(v, c, this.world, dt, this.carry);
     if (v.flooded && !wasFlooded) {
       this.hud.toast(this.spec.snorkel ? 'Water over the snorkel: the engine has stopped' : 'Water in the air intake: the engine has stopped. Get it out of the water (winch!)', true, 6);
@@ -679,13 +773,14 @@ export class Game {
     m.setLights(lights);
     m.setBrake(v.pedalBrake > 0.1);
     m.setReverse(v.dt.gear < 0);
-    for (const h of this.heads) h.intensity = lights ? 60 : 0;
+    this.heads.forEach((h, i) => { h.intensity = lights && v.damage.lights[i] ? 60 : 0; });
     if (this.barLight) this.barLight.intensity = lights ? 160 : 0;
     // mud on the paint: picked up in mud and wet ground, washed off in water
     let mud = 0;
     for (const w of v.wheels) if (w.contact && (w.surf.name === 'mud' || w.surf.name === 'riverbed' || w.surf.name === 'snow')) mud += (Math.abs(v.speed) * 0.02 + w.slipSpeed * 0.03);
     this.dirt = clamp(this.dirt + mud * dt * 0.25 - (v.waterDepth > 0.2 ? v.waterDepth * dt * 0.25 : 0), 0, 1);
     m.setDirt(this.dirt);
+    this.damageFrame(dt);
 
     // effects from our tyres
     const speed = v.speed;

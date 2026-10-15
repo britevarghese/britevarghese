@@ -63,7 +63,7 @@ export class NetClient {
           clearTimeout(timer);
           this.id = m.id; this.room = m.room; this.tickRate = m.tickRate; this.maxPlayers = m.maxPlayers;
           this.connected = true;
-          for (const p of m.players) this.remote(p.id, p.name);
+          for (const p of m.players) { const r = this.remote(p.id, p.name); if (p.dmg) r.dmg = p.dmg; }
           settled = true;
           resolve(m);
           this.pingTimer = setInterval(() => this.send({ t: 'ping', time: performance.now() }), 2000);
@@ -100,6 +100,7 @@ export class NetClient {
         }
         break;
       }
+      case 'damage': if (m.id !== this.id) this.remote(m.id).dmg = m.d; break;
       case 'join': this.remote(m.id, m.name); this.onEvent(m); break;
       case 'leave': this.remotes.delete(m.id); this.onEvent(m); break;
       case 'pong': this.ping = performance.now() - m.echo; break;

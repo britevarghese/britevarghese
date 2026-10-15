@@ -68,6 +68,7 @@ export function torqueAt(curve, rpm) {
 }
 
 const NB = 6;            // bodies: 0 FL, 1 FR, 2 RL, 3 RR, 4 gearbox output, 5 engine
+const NO_BREAKS = [false, false, false, false];
 const OUT = 4, ENG = 5;
 const MAXC = 10;
 
@@ -83,6 +84,10 @@ export class Drivetrain {
     this.clutch = 0;                 // clutch engagement 0..1 (manual)
     this.running = true;
     this.crankT = 0;                 // starter motor running (s left)
+    this.powerMul = 1;               // share of its torque a damaged engine still makes
+    this.seized = false;             // won't turn over
+    this.broken = null;              // [4] axle shafts snapped (physics/Damage.js)
+    this.wheelT = new Float64Array(4);   // Nm each axle shaft carried this substep
     this.lamAcc = new Float64Array(MAXC);
     this.propRear = 0;               // Nm in the rear / front propshafts (torque twist, sounds)
     this.propFront = 0;
@@ -171,7 +176,7 @@ export class Drivetrain {
   stall() { this.running = false; this.crankT = 0; this.lockupOn = false; }
 
   /** Crank it over; it runs after the starter has turned it for a moment. */
-  start() { if (!this.running && this.crankT <= 0) this.crankT = 0.75; }
+  start() { if (!this.running && this.crankT <= 0 && !this.seized) this.crankT = 0.75; }
 
   /** Automatic shift logic, run every substep. thr: driver throttle 0..1. */
   autoShift(dt, thrIn) {
@@ -248,7 +253,7 @@ export class Drivetrain {
       if (this.limiterCut) thr = 0;
       this.throttle = thr;
       const fric = e.friction[0] + e.friction[1] * rpm;
-      Teng = thr * torqueAt(e.torque, rpm) - (1 - thr) * fric;
+      Teng = thr * torqueAt(e.torque, rpm) * this.powerMul - (1 - thr) * fric;
     } else {
       this.throttle = 0; this.idleI = 0;
       Teng = -(e.friction[0] + e.friction[1] * rpm) * Math.tanh(this.wEngine / 4);
@@ -314,13 +319,25 @@ export class Drivetrain {
     const J = this.J, bound = this.bound;
     J.fill(0);
     let n = 0;
-    // rear axle (always: the gearbox output turns with the rear propshaft)
-    J[n * NB + 2] = G / 2; J[n * NB + 3] = G / 2; J[n * NB + OUT] = -1; bound[n] = Infinity; n++;
-    if (this.fourWD) { J[n * NB + 0] = G / 2; J[n * NB + 1] = G / 2; J[n * NB + OUT] = -1; bound[n] = Infinity; n++; }
-    if (this.lockRear) { J[n * NB + 2] = 1; J[n * NB + 3] = -1; bound[n] = Infinity; n++; } else if (this.diffs.rear === 'lsd') {
-      J[n * NB + 2] = 1; J[n * NB + 3] = -1; bound[n] = (100 + 0.45 * Math.abs(this.propRear * t.axle)) * dt; n++;
+    // an axle drives through its diff; a snapped shaft lets its wheel turn free. Then an open (or limited-slip)
+    // diff's side gear spins with no load, so neither wheel gets torque; a locked one still drives the other wheel.
+    const B = this.broken || NO_BREAKS;
+    const axle = (l, r, locked) => {
+      if (!B[l] && !B[r]) { J[n * NB + l] = G / 2; J[n * NB + r] = G / 2; J[n * NB + OUT] = -1; bound[n] = Infinity; return n++; }
+      if (!locked || (B[l] && B[r])) return -1;
+      const k = B[l] ? r : l;
+      J[n * NB + k] = G; J[n * NB + OUT] = -1; bound[n] = Infinity; return n++;
+    };
+    // rear axle (the gearbox output turns with the rear propshaft), front axle in 4WD
+    const iRear = axle(2, 3, this.lockRear);
+    const iFront = this.fourWD ? axle(0, 1, this.lockFront) : -1;
+    if (!B[2] && !B[3]) {
+      if (this.lockRear) { J[n * NB + 2] = 1; J[n * NB + 3] = -1; bound[n] = Infinity; n++; } else if (this.diffs.rear === 'lsd') {
+        J[n * NB + 2] = 1; J[n * NB + 3] = -1; bound[n] = (100 + 0.45 * Math.abs(this.propRear * t.axle)) * dt; n++;
+      }
     }
-    if (this.lockFront) { J[n * NB + 0] = 1; J[n * NB + 1] = -1; bound[n] = Infinity; n++; }
+    if (this.lockFront && !B[0] && !B[1]) { J[n * NB + 0] = 1; J[n * NB + 1] = -1; bound[n] = Infinity; n++; }
+    const nDrive = n;
     let ic = -1;
     if (this.lockupOn) { ic = n; J[n * NB + ENG] = 1; J[n * NB + OUT] = -g; bound[n] = t.lockup * dt; n++; }
     if (this.manual && g !== 0 && this.clutch > 0.001) { ic = n; J[n * NB + ENG] = 1; J[n * NB + OUT] = -g; bound[n] = this.clutch * this.clutchCap * dt; n++; }
@@ -330,12 +347,18 @@ export class Drivetrain {
     }
     this.lamAcc.fill(0, 0, n);
     this.solve(n);
-    // torques in the propshafts (constraint 0: rear, 1: front in 4WD) and through the clutch
+    // torques in the propshafts and through the clutch, and in each axle shaft
     const R = this.rangeRatio;
-    this.propRear = R * this.lamAcc[0] / dt;
-    this.propFront = this.fourWD ? R * this.lamAcc[1] / dt : 0;
-    this.outTorque = (this.lamAcc[0] + (this.fourWD ? this.lamAcc[1] : 0)) / dt;
+    const lr = iRear >= 0 ? this.lamAcc[iRear] : 0, lf = iFront >= 0 ? this.lamAcc[iFront] : 0;
+    this.propRear = R * lr / dt;
+    this.propFront = R * lf / dt;
+    this.outTorque = (lr + lf) / dt;
     this.couple = ic >= 0 ? this.lamAcc[ic] / dt : 0;
+    for (let i = 0; i < 4; i++) {
+      let T = 0;
+      for (let r = 0; r < nDrive; r++) T += J[r * NB + i] * this.lamAcc[r];
+      this.wheelT[i] = T / dt;
+    }
 
     for (let i = 0; i < 4; i++) wheels[i].omega = v[i];
     this.wOut = v[OUT];

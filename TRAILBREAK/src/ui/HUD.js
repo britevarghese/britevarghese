@@ -130,6 +130,19 @@ export class HUD {
     if (!d.running) eng.textContent = d.crankT > 0 ? 'CRANKING' : v.flooded ? 'FLOODED' : 'ENGINE OFF';
     const sway = $('m-sway');
     sway.classList.toggle('hidden', !v.swayDisconnected);
+    // damage: the coolant temperature once the radiator leaks or it runs hot, and what is broken
+    const D = v.damage, temp = $('m-temp'), hot = D.radiator > 0 || D.temp > 100;
+    temp.classList.toggle('hidden', !hot);
+    if (hot) set('m-temp', `${Math.round(D.temp)}°C${D.radiator > 0 ? ` · coolant ${Math.round(D.coolant * 100)}%` : ''}`, D.temp > 112 ? 'warn' : 'on2');
+    const bad = [];
+    D.flat.forEach((f, i) => { if (f) bad.push(`FLAT ${['FL', 'FR', 'RL', 'RR'][i]}`); });
+    if (D.shafts.some(Boolean)) bad.push(`AXLE ${D.shafts[0] || D.shafts[1] ? 'F' : ''}${D.shafts[2] || D.shafts[3] ? 'R' : ''}`);
+    if (Math.abs(D.toe) > 0.012) bad.push('STEERING');
+    if (D.springs.some((x) => x >= 1)) bad.push('SPRING');
+    if (D.engine < 0.95) bad.push(D.engine <= 0 ? 'ENGINE SEIZED' : `ENGINE ${Math.round(D.engine * 100)}%`);
+    const dmg = $('m-dmg'), text = bad.join(' · ');
+    dmg.classList.toggle('hidden', !text);
+    if (text && dmg.textContent !== text) dmg.textContent = text;
   }
 
   drawWinch(v, targetName) {

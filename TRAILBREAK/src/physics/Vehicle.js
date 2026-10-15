@@ -26,6 +26,7 @@
 // a lift too. The air intake has to stay out of the water or the engine stops.
 
 import { V3, Quat, clamp, smoothstep, lerp } from './math.js';
+import { Damage } from './Damage.js';
 import { tyreForce, corneringStiffness, slipStiffness } from './Tire.js';
 import { Drivetrain } from './Drivetrain.js';
 import { surfaceById, SURFACES, SURFACE } from './Surfaces.js';
@@ -53,6 +54,7 @@ const _q = new V3(), _a = new V3(), _b = new V3(), _c = new V3(), _d = new V3(),
 // How much a surface's texture buzzes through the tyres at speed (by surface id: grass, dirt, gravel, rock, mud, sand,
 // snow, road, river bed, ice).
 const TEXTURE = [0.25, 0.3, 0.65, 0.9, 0.2, 0.2, 0.12, 0.08, 0.55, 0.05];
+const _hn = new V3(), _hl = new V3();
 
 export class Vehicle {
   constructor(spec) {
@@ -180,6 +182,14 @@ export class Vehicle {
     // what the driver feels (see feelStep): the steering wheel's kick (N m at the rim, + = pulls left), the shake of
     // the ground through the tyres (0..1+), the buzz of a rough surface, the judder of tyres spinning in mud, hard hits
     this.feel = { kick: 0, rough: 0, texture: 0, judder: 0, bump: 0 };
+    // what breaks (physics/Damage.js); a flat tyre runs on the rim, a little over its radius
+    this.damage = new Damage(spec);
+    const rimR = ((spec.tyre.size >= 37 ? 17 : 15) * 0.0254) / 2 + 0.03;
+    this.flatDrop = Math.max(0.05, spec.tyre.radius - rimR - 0.05);
+    // axle shaft strength (Nm): a light truck's 30-spline shafts, the three-quarter-ton's heavy axles, the utility's
+    // light front; a locker comes with chromoly shafts
+    const base = spec.id === 'hauler' ? [11000, 12000] : spec.id === 'mule' ? [5000, 6500] : [6000, 7500];
+    this.shaftStrength = ['front', 'rear'].map((a, k) => base[k] * ((spec.diffs || {})[a] === 'locker' ? 1.25 : 1));
     this.kickAngle = 0;            // the front wheels giving a little against the driver's grip (rad)
     this._kT = 0; this._kHP = 0; this._nLP = [0, 0, 0, 0];
     this.waterDepth = 0;
@@ -231,7 +241,7 @@ export class Vehicle {
     for (const ax of this.axles) { ax.zL = ax.zR = ax.spec.sag; ax.vL = ax.vR = 0; }
     for (const w of this.wheels) { w.omega = 0; w.dx = 0; w.dy = 0; }
     this.dt.wOut = 0;
-    if (!this.dt.running) { this.dt.running = true; this.dt.crankT = 0; this.dt.wEngine = this.dt.e.idleRpm * Math.PI / 30; }
+    if (!this.dt.running && !this.damage?.seized) { this.dt.running = true; this.dt.crankT = 0; this.dt.wEngine = this.dt.e.idleRpm * Math.PI / 30; }
     this.flooded = false; this.intakeWet = false;
     this.detachWinch();
     this.updateBasis();
@@ -251,7 +261,7 @@ export class Vehicle {
 
   /** Tyre contact by rays around the bottom of the wheel (see the header). */
   contact(w, ground, heading, u) {
-    const tyre = this.spec.tyre, r = tyre.radius;
+    const tyre = this.spec.tyre, r = tyre.radius - (this.damage.flat[w.index] ? this.flatDrop : 0);
     const C = w.hub;
     let best = -1, bestPen = -Infinity;
     const pens = this._pens || (this._pens = new Float64Array(RAY_ANGLES.length));
@@ -363,7 +373,8 @@ export class Vehicle {
       dl = Math.atan(L / (R - fa.half));
       dr = Math.atan(L / (R + fa.half));
     }
-    this.wheels[0].steer = dl + this.kickAngle; this.wheels[1].steer = dr + this.kickAngle; this.wheels[2].steer = 0; this.wheels[3].steer = 0;
+    const toe = this.damage.toe;
+    this.wheels[0].steer = dl + this.kickAngle + toe; this.wheels[1].steer = dr + this.kickAngle + toe; this.wheels[2].steer = 0; this.wheels[3].steer = 0;
 
     // ---------------------------------------------------------------- tyres: contact, load, slip
     const qx = this.quat;
@@ -401,12 +412,15 @@ export class Vehicle {
       const vx = _v.dot(_f), vy = _v.dot(_s);
       const vn = -_v.dot(_n);                                          // compression rate
       w.vx = vx; w.vy = vy;
-      let N = tyre.stiffness * w.pen + tyre.damping * vn;
+      const flat = this.damage.flat[w.index], rw = flat ? r - this.flatDrop : r;
+      let N = tyre.stiffness * (flat ? 0.35 : 1) * w.pen + tyre.damping * vn;
+      // a front tyre slammed into a rock face (the contact normal tipped back against the heading) bends the tie rod
+      if (w.index < 2 && vn > 4.5 && w.nx * w.headX + w.ny * w.headY + w.nz * w.headZ < -0.6) this.damage.steeringHit(w.side, vn);
       if (N < 0) N = 0;
       w.N = N;
       // bristle deflections (implicit relaxation, stable at any speed)
       const avx = Math.abs(vx);
-      w.dx = (w.dx + (w.omega * r - vx) * dt) / (1 + avx * dt / tyre.relaxX);
+      w.dx = (w.dx + (w.omega * rw - vx) * dt) / (1 + avx * dt / tyre.relaxX);
       w.dy = (w.dy + vy * dt) / (1 + avx * dt / tyre.relaxY);
       // keep the deflection within a few times the peak slip (the force is saturated there anyway)
       const surf = w.surf;
@@ -416,6 +430,7 @@ export class Vehicle {
       w.kappa = kappa; w.tanA = tanA;
       tyreForce(_tmpTyre, N, kappa, tanA, surf, tyre);
       w.Fshape = _tmpTyre.fx; w.FyShape = _tmpTyre.fy; w.slip = _tmpTyre.s; w.mu = _tmpTyre.mu;
+      if (flat) { w.Fshape *= 0.55; w.FyShape *= 0.55; w.mu *= 0.55; }
       // low-speed damping of the bristle springs (stops a parked truck from rocking on its tyres)
       const adh = clamp(1 - _tmpTyre.s, 0, 1);
       const low = 1 - smoothstep(1.5, 5, avx);
@@ -423,10 +438,10 @@ export class Vehicle {
       w.cxDamp = 2 * 0.55 * Math.sqrt(slipStiffness(N, surf, tyre) / tyre.relaxX * mq) * adh * low;
       w.cyDamp = 2 * 0.6 * Math.sqrt(corneringStiffness(N, surf, tyre) / tyre.relaxY * mq) * adh * low;
       // rolling resistance (more in soft ground and in water; mud tyres and soft tyres roll harder on firm ground)
-      const crr = surf.rr * (surf.sink > 0 ? tyre.rrMul || 1 : tyre.rrFirm || 1) + surf.drag * w.sink + (w.water > 0.15 ? 0.04 : 0);
+      const crr = surf.rr * (surf.sink > 0 ? tyre.rrMul || 1 : tyre.rrFirm || 1) + surf.drag * w.sink + (w.water > 0.15 ? 0.04 : 0) + (flat ? 0.09 : 0);
       w.rr = crr * N;
-      w.torque = -r * w.Fshape + r * w.cxDamp * vx - crr * N * r * Math.tanh(w.omega * 2) - 0.6 * Math.tanh(w.omega);
-      w.damp = w.cxDamp * r * r;
+      w.torque = -rw * w.Fshape + rw * w.cxDamp * vx - crr * N * rw * Math.tanh(w.omega * 2) - 0.6 * Math.tanh(w.omega);
+      w.damp = w.cxDamp * rw * rw;
     }
 
     // ---------------------------------------------------------------- drivetrain (wheel spin)
@@ -444,7 +459,16 @@ export class Vehicle {
     }
     this._dtIn = this._dtIn || { throttle: 0, brakeTorque: bt };
     this._dtIn.throttle = throttle;
+    const D = this.damage;
+    dtr.powerMul = D.power;
+    dtr.seized = D.seized;
+    dtr.broken = D.shafts;
     dtr.step(dt, this._dtIn, this.wheels);
+    for (let i = 0; i < 4; i++) {
+      const w = this.wheels[i];
+      w.spinAgo = w.slipSpeed > 2 ? 0 : (w.spinAgo ?? 9) + dt;
+      D.shaftTorque(i, dtr.wheelT[i], this.shaftStrength[i < 2 ? 0 : 1], w.spinAgo, dt);
+    }
 
     // ---------------------------------------------------------------- tyre forces on chassis and axles
     for (const ax of this.axles) { ax.QL = 0; ax.QR = 0; ax.rollM = 0; }
@@ -463,19 +487,21 @@ export class Vehicle {
       w.Flong = 0; w.Flat = 0;
       if (!w.contact || w.N <= 0) continue;
       const surf = w.surf;
-      let fx = w.Fshape + w.cxDamp * (w.omega * r - w.vx);
+      const rw = this.damage.flat[w.index] ? r - this.flatDrop : r;
+      let fx = w.Fshape + w.cxDamp * (w.omega * rw - w.vx);
       let fy = w.FyShape - w.cyDamp * w.vy;
       // the total can't exceed what the friction circle allows
       const lim = w.mu * w.N * 1.02, mag = Math.hypot(fx, fy);
       if (mag > lim) { fx *= lim / mag; fy *= lim / mag; }
       w.fx = fx; w.fy = fy;
-      const slipV = Math.hypot(w.omega * r - w.vx, w.vy);
+      const slipV = Math.hypot(w.omega * rw - w.vx, w.vy);
       w.slipSpeed = slipV;
       // world force: normal + friction
       _a.set(w.nx * w.N + w.fX * fx + w.sX * fy, w.ny * w.N + w.fY * fx + w.sY * fy, w.nz * w.N + w.fZ * fx + w.sZ * fy);
       // along the wheel's heading (a ledge pushes back through the tilted normal) and across it (left), for the steering
       w.Flong = _a.x * w.headX + _a.y * w.headY + _a.z * w.headZ;
       w.Flat = _a.x * (w.upY * w.headZ - w.upZ * w.headY) + _a.y * (w.upZ * w.headX - w.upX * w.headZ) + _a.z * (w.upX * w.headY - w.upY * w.headX);
+      this.damage.tyreLoad(w.index, w.N, w.Flat, w.vx, surf, tyre, this.psi, surf.id === 3, this.time);
       const along = _a.dot(u);
       const ax = w.axle;
       if (w.side > 0) ax.QL += along; else ax.QR += along;
@@ -503,16 +529,19 @@ export class Vehicle {
     }
     this.axleContacts(ground);
     this.feelStep(dt, speed);
+    this.damage.update(dt, dtr, dtr.running ? dtr.throttle * Math.min(1, dtr.rpm / dtr.e.redline) : 0, u.y, this.waterDepth);
 
     // ---------------------------------------------------------------- springs, dampers, limits
-    for (const ax of this.axles) {
-      const a = ax.spec;
+    for (let ai = 0; ai < 2; ai++) {
+      const ax = this.axles[ai], a = ax.spec;
       for (let side = 0; side < 2; side++) {
         const near = side === 0 ? ax.zL : ax.zR, far = side === 0 ? ax.zR : ax.zL;
         const vNear = side === 0 ? ax.vL : ax.vR, vFar = side === 0 ? ax.vR : ax.vL;
         const x = ax.ka * near + ax.kb * far, xv = ax.ka * vNear + ax.kb * vFar;
-        let Fs = Math.max(0, a.rate * (x + ax.pre));
-        Fs += xv > 0 ? a.bump * xv : a.rebound * xv;
+        // a broken main leaf carries about half, a blown damper damps a quarter
+        const corner = ai * 2 + side, leaf = 1 - 0.5 * this.damage.springs[corner], damp = 1 - 0.75 * this.damage.shocks[corner];
+        let Fs = Math.max(0, a.rate * leaf * (x + ax.pre));
+        Fs += (xv > 0 ? a.bump * xv : a.rebound * xv) * damp;
         // generalized forces on the wheel travels, reaction on the chassis at the spring seat
         if (side === 0) { ax.QL -= ax.ka * Fs; ax.QR -= ax.kb * Fs; } else { ax.QR -= ax.ka * Fs; ax.QL -= ax.kb * Fs; }
         const sx = (side === 0 ? 1 : -1) * a.springTrack / 2;
@@ -526,6 +555,7 @@ export class Vehicle {
         if (z < 0) Fl = 3e5 * -z - 6000 * Math.min(0, zv);
         const bsStart = (a.bumpTravel ?? a.travel) - 0.05;
         if (z > bsStart) { const e = z - bsStart; Fl = -(4e5 * e + 2.5e7 * e * e * e) - 9000 * Math.max(0, zv); }
+        this.damage.suspension(corner, Fs + Math.max(0, -Fl));
         if (Fl !== 0) {
           if (side === 0) ax.QL += Fl; else ax.QR += Fl;
           _p.set(sx * 2 * ax.half / a.springTrack, ax.mountY, ax.zc);
@@ -632,6 +662,7 @@ export class Vehicle {
   penalty(p, n, pen, k, c, mu) {
     this.pointVel(p, _v);
     const vn = _v.dot(n);
+    this.lastClose = -vn;                                              // closing speed (for damage)
     let Fn = k * pen - c * vn;
     if (Fn <= 0) return 0;
     Fn = Math.min(Fn, k * 0.5);                                         // cap a deep overlap
@@ -649,7 +680,8 @@ export class Vehicle {
 
   hullContacts(ground) {
     const kh = 4.5e5, ch = 2.4e4;
-    for (const hp of this.hullPoints) {
+    for (let k = 0; k < this.hullPoints.length; k++) {
+      const hp = this.hullPoints[k];
       this.toWorld(hp, _p);
       const h = ground.height(_p.x, _p.z);
       if (_p.y >= h) continue;
@@ -658,7 +690,14 @@ export class Vehicle {
       const surf = ground.surfaceAt(_p.x, _p.z);
       const Fn = this.penalty(_p, _n, pen, kh, ch, surf.hull * this.hullFriction);
       this.hullContact = Math.max(this.hullContact, Fn / 2e4);
+      if (this.lastClose > 2) this.hitAt(hp, _n, this.lastClose, k);
     }
+  }
+
+  /** Report a hit at hull point local (CG frame) pushed along world normal n to the damage model. */
+  hitAt(local, n, close, key) {
+    _hn.copy(n).applyQuatInv(this.quat);
+    this.damage.hit(local, _hn, close, key, this.time);
   }
 
   /**
@@ -747,7 +786,7 @@ export class Vehicle {
     }
     this.intakeWet = wet;
     const dtr = this.dt;
-    if (wet && dtr.running) { dtr.stall(); this.flooded = true; this.floodClear = 0; }
+    if (wet && dtr.running) { this.damage.hydrolock(dtr.rpm); dtr.stall(); this.flooded = true; this.floodClear = 0; }
     if (this.flooded) {
       if (wet) this.floodClear = 0;
       else if ((this.floodClear += dt) > 2.5) { this.flooded = false; dtr.start(); }
@@ -794,6 +833,10 @@ export class Vehicle {
           _n.y = 0; _n.normalize();
           const Fn = this.penalty(_p, _n, pen, 6e5, 3e4, 0.3);
           this.impact = Math.max(this.impact, Fn / 3e4);
+          if (this.lastClose > 2) {
+            _hl.copy(_p).sub(this.pos).applyQuatInv(this.quat);
+            this.hitAt(_hl, _n, this.lastClose, `t${Math.round(t.x * 10)},${Math.round(t.z * 10)},${hgt}`);
+          }
         }
       }
       // tyres against the trunk
@@ -804,6 +847,7 @@ export class Vehicle {
           _n.set(dx / d, 0, dz / d);
           _p.copy(w.hub).addScaled(_n, -tyreR * 0.9);
           this.penalty(_p, _n, pen, 4e5, 2e4, 0.4);
+          if (w.index < 2) this.damage.steeringHit(w.side, this.lastClose);
         }
       }
     }
@@ -829,6 +873,10 @@ export class Vehicle {
             _a.copy(_n).scale(Fn);
             this.applyForce(_a, _p);
             this.impact = Math.max(this.impact, Fn / 3e4);
+            if (-vn > 2) {
+              _hl.copy(_p).sub(this.pos).applyQuatInv(this.quat);
+              this.hitAt(_hl, _n, -vn, `o${o.id ?? ''}${o.spheres.indexOf(s)}`);
+            }
           }
         }
       }

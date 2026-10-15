@@ -123,3 +123,20 @@ test('beacons are shared once, and new arrivals learn which are found', () => {
   a.msg({ t: 'beacon', id: 999 });
   assert.equal(b.sent.filter((m) => m.t === 'beacon').length, 1);
 });
+
+test('damage: relayed to the room, cleaned, and handed to whoever joins later', () => {
+  const lobby = new Lobby({ maxPlayers: 4 });
+  const a = join(lobby, 'Ana', 'DENTS');
+  const b = join(lobby, 'Ben', 'DENTS');
+  a.msg({ t: 'damage', d: { v: 3, n: 2, g: 9, l: 1, f: 2, s: 1, k: 0.2, t: 0.5, d: [[0, 1.2, 1.5, 0, 0, -1, 0.1, 0.6], ['x'], [1, 2, 3]], junk: 'no' } });
+  const got = b.last('damage');
+  assert.equal(got.id, a.last('welcome').id);
+  assert.equal(got.d.g, 2, 'glass clamped');
+  assert.equal(got.d.t, 0.1, 'toe clamped');
+  assert.equal(got.d.d.length, 1, 'only well-formed dents');
+  assert.equal(got.d.junk, undefined);
+  assert.equal(a.last('damage'), null, 'not echoed to the sender');
+  const c = join(lobby, 'Cy', 'DENTS');
+  const ana = c.last('welcome').players.find((p) => p.name === 'Ana');
+  assert.equal(ana.dmg.f, 2, 'a late joiner sees the flat tyre');
+});

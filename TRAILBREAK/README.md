@@ -66,13 +66,14 @@ Without the Blueprint: **New > Web Service** with this repository, branch `claud
 | 2WD / 4WD | 4 | D-pad left |
 | Diff lockers (if fitted): open, rear, front + rear | X | D-pad down |
 | Tyre pressure: air down (stopped) / back up | P | |
-| Garage (parts are fitted at the station) | U | |
+| Garage (parts are fitted at the station; at the garage it first mends any damage) | U | |
 | Disconnect the front anti-roll bar | B | |
 | Gearbox AUTO / MANUAL (manual: Shift up, Ctrl down) | G | |
 | Winch: hook the nearest tree or friend ahead / unhook | F | X |
 | Winch in / pay out (hold) | E / Q | RB / LB |
 | Recover: back on the wheels, or back to dry ground when stuck | R | B |
 | Call your friends for a tow (they see where you are) | T | |
+| Fit the spare in place of a flat tyre (stopped) | Y | |
 | Back to the ranger station | Backspace | |
 | Camera: chase, far, bonnet, cab (drag to look around) | C | Y, right stick |
 | Headlights | H | D-pad right |
@@ -82,12 +83,38 @@ Without the Blueprint: **New > Web Service** with this repository, branch `claud
 | Controls | F1 | |
 
 In the valley the HUD shows the transfer case range, 2WD or 4WD, the lockers (or LSD), the gearbox (AUTO or STICK,
-with M when you shift yourself) and the tyre pressure. ENGINE OFF / FLOODED appears when water has got into the intake.
+with M when you shift yourself) and the tyre pressure. ENGINE OFF / FLOODED appears when water has got into the intake
+(press the throttle to start it again). The coolant temperature shows once the radiator leaks, and what is broken
+(FLAT FL, AXLE R, STEERING, SPRING, ENGINE 60%) shows beside it: see [Damage](#damage).
 
 Steering wheels are detected by name and get the full steering range; keys and thumbsticks get a steering assist
 (full lock at walking pace, gentler at speed) that you can turn off in the pause menu. On phones and tablets,
 on-screen controls appear: steering on the left, pedals on the right, buttons for the winch, recovery, range, locks,
 camera, map and menu (play in landscape).
+
+## Damage
+
+Trucks break the way real ones do (physics/Damage.js), so drive like it's yours:
+
+- **Crashes and roll-overs** dent the body where it hits (closing faster than about 8 km/h; steel bumpers and rock
+  sliders shrug off what would crease a fender or a sill), crack the windscreen and then shatter it, smash headlamps.
+- **The radiator:** a front hit holes it. The coolant runs out over a few minutes, the temperature climbs, the engine
+  loses power (steam pours from the grille) and, driven on, seizes. Stop and it cools.
+- **The oil pan:** high-centring hard on a rock with no skid plates cracks it, and the engine wears out.
+- **Steering:** a front tyre slammed into a rock or a tree bends the tie rod: the truck pulls to one side and you
+  drive with the steering wheel off centre.
+- **Suspension:** a hard landing blows the dampers (the corner bounces) and cracks the main leaf (it sags).
+- **Tyres:** a sharp rock at speed can cut a sidewall; aired down hard, a big side load pulls a tyre off its bead
+  (beadlocks hold it). A flat runs on its rim, low and draggy. You carry one spare: stop and press **Y**.
+- **Axle shafts:** hammering ledges at full throttle with the lockers in, so the tyres hop and bite, can snap a shaft.
+  That wheel turns free; with an open diff its whole axle stops driving (engage 4WD to get home).
+- **The engine:** water into the intake above about 1300 rpm bends a rod (at idle it only stalls); upside down it
+  starves and stops (press the throttle to restart it once it is back on its wheels).
+
+A seized engine or an axle that can't drive puts up the **Broken down** panel: call your friends for a tow (they
+hook your bumper and winch, or drag you home) or take the tow truck back to the station (Backspace). Driving into the
+station garage and opening it (U) mends everything and shows what the parts and labour would have cost. Your
+friends see your dents, your glass, your lamps, your flat tyres and your steam.
 
 ## Stuck?
 

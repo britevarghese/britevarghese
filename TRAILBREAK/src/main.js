@@ -133,6 +133,7 @@ async function start() {
     truckId: settings.truck, build: settings.builds[settings.truck] || '', paint: settings.paint, name: settings.name,
   });
   game.onBuild = (id, code) => { settings.builds[id] = code; save(); };
+  $('m-dmg').onclick = () => game.fitSpare();          // (a tap on phones)
   window.game = game;                              // (handy in the console)
   await audio.setLocalEngine(game.spec).catch(() => {});
   if (net) {
