@@ -106,10 +106,11 @@ export class Vehicle {
       ax.iM11 = m11 / det; ax.iM12 = -m12 / det;
       // what hangs below the beam: the diff housing (its bottom, and its rounded front and back) and the spring
       // plates under the leaf springs; x across (+ left), drop below the axle centre, dz along
-      const dd = a.diffDrop || 0.16, dxd = a.diffX || 0, sp = s / 2;
+      // (portal axles carry the tube and the diff above the hubs: little hangs below the wheel centres)
+      const dd = a.diffDrop ?? 0.16, dxd = a.diffX || 0, sp = s / 2, pd = a.plateDrop ?? 0.085;
       ax.under = [
         { x: dxd, drop: dd, dz: 0 }, { x: dxd, drop: dd - 0.035, dz: 0.09 }, { x: dxd, drop: dd - 0.035, dz: -0.09 },
-        { x: sp, drop: 0.085, dz: 0 }, { x: -sp, drop: 0.085, dz: 0 },
+        { x: sp, drop: pd, dz: 0 }, { x: -sp, drop: pd, dz: 0 },
       ];
       return ax;
     });
@@ -185,12 +186,10 @@ export class Vehicle {
     this.feel = { kick: 0, rough: 0, texture: 0, judder: 0, bump: 0 };
     // what breaks (physics/Damage.js); a flat tyre runs on the rim, a little over its radius
     this.damage = new Damage(spec);
-    const rimR = ((spec.tyre.size >= 37 ? 17 : 15) * 0.0254) / 2 + 0.03;
+    const rimR = ((spec.tyre.rim || (spec.tyre.size >= 37 ? 17 : 15)) * 0.0254) / 2 + 0.03;
     this.flatDrop = Math.max(0.05, spec.tyre.radius - rimR - 0.05);
-    // axle shaft strength (Nm): a light truck's 30-spline shafts, the three-quarter-ton's heavy axles, the utility's
-    // light front; a locker comes with chromoly shafts
-    const base = spec.id === 'hauler' ? [11000, 12000] : spec.id === 'mule' ? [5000, 6500] : [6000, 7500];
-    this.shaftStrength = ['front', 'rear'].map((a, k) => base[k] * ((spec.diffs || {})[a] === 'locker' ? 1.25 : 1));
+    // axle shaft strength (Nm): the truck's own (Upgrades.js: chromoly shafts come with a locker)
+    this.shaftStrength = spec.shafts || [6000, 7500];
     this.kickAngle = 0;            // the front wheels giving a little against the driver's grip (rad)
     this._kT = 0; this._kHP = 0; this._nLP = [0, 0, 0, 0];
     this.waterDepth = 0;
@@ -746,7 +745,7 @@ export class Vehicle {
   /** Tyres at a pressure (psi): the spec's tyre (at its stock pressure) made softer or firmer. */
   setPressure(psi) {
     const s = this.spec.tyre;
-    psi = clamp(psi, s.minPsi || 14, 35);
+    psi = clamp(psi, s.minPsi || 14, (s.psiStock || 30) + 5);
     this.psiAir = psi;
     if (psi === this.psi) return;
     this.psi = psi;
@@ -766,7 +765,7 @@ export class Vehicle {
   /** Let air out (any time, nearly stopped) or pump it in (onboard compressor, or the station's air line). */
   airStep(dt) {
     const s = this.spec.tyre;
-    this.psiTarget = clamp(this.psiTarget, s.minPsi || 14, 35);
+    this.psiTarget = clamp(this.psiTarget, s.minPsi || 14, (s.psiStock || 30) + 5);
     const slow = Math.abs(this.vel.dot(this.fwd)) < 2.5;
     let p = this.psiAir;
     if (this.psiTarget < p) { if (slow) p = Math.max(this.psiTarget, p - 1.6 * dt); } else if (s.compressor || this.airSupply) p = Math.min(this.psiTarget, p + (this.airSupply ? 4 : 1) * dt);

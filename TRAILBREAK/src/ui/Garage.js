@@ -32,7 +32,7 @@ const STATS = [
 
 /** Label of option i in a category. */
 function optLabel(cat, o, base) {
-  if (cat.id === 'tcase' && !o.low) return `${base.stock.low.toFixed(2)}`;
+  if (cat.id === 'tcase' && !o.low) return base.stock.low > 1 ? `${base.stock.low.toFixed(2)}` : 'none';
   return o.short || o.name;
 }
 
@@ -126,7 +126,10 @@ export class Garage {
       row.className = 'g-row';
       row.innerHTML = `<span class="g-cat">${esc(cat.name)}</span><div class="g-opts"></div>`;
       const opts = row.querySelector('.g-opts');
-      optionsFor(cat, this.truckId).forEach((o, i) => {
+      // a truck without a low range (its gearbox crawls on its own) shows that for its transfer case
+      const single = (o, i) => (cat.id === 'tcase' && i === 0 && this.base.stock.low <= 1
+        ? { ...o, name: 'Single-speed transfer case', desc: 'No low range: the gearbox\'s own crawler first does that job.' } : o);
+      optionsFor(cat, this.truckId).map(single).forEach((o, i) => {
         const b = document.createElement('button');
         b.className = 'g-opt';
         b.dataset.cat = cat.id; b.dataset.i = i;
@@ -185,7 +188,7 @@ export class Garage {
       if (id === 'tyre') {
         const d = TYRE_SIZES[i];
         btn.classList.toggle('need', d > maxTyre(this.base, b.lift));
-        btn.classList.toggle('hide', d < this.base.stock.tyre);
+        btn.classList.toggle('hide', d < this.base.stock.tyre || d > maxTyre(this.base, LIFTS.length - 1));   // smaller than stock, or too big for any lift
       }
     }
     for (const btn of $('g-presets').children) btn.classList.toggle('sel', encodeBuild(presetBuild(this.base, btn.dataset.id)) === code);

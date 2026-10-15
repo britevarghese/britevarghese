@@ -51,8 +51,8 @@ input:focus { border-color: var(--accent-2); }
 .field label { display: block; font-size: 12px; letter-spacing: .12em; text-transform: uppercase; color: var(--ink-dim); margin-bottom: 6px; }
 .field label small { text-transform: none; letter-spacing: 0; }
 .field:nth-child(2) { grid-row: span 2; }
-.truck-list { display: grid; gap: 8px; }
-.truck-opt { text-align: left; padding: 9px 12px; border-radius: 10px; }
+.truck-list { display: grid; gap: 6px; max-height: 46vh; overflow: auto; position: relative; padding-right: 4px; }
+.truck-opt { text-align: left; padding: 8px 12px; border-radius: 10px; }
 .truck-opt b { display: block; font-size: 15px; }
 .truck-opt span { font-size: 12px; color: var(--ink-dim); }
 .truck-opt.sel { border-color: var(--accent); background: rgba(232, 137, 58, .14); }

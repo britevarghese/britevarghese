@@ -2,7 +2,7 @@
 import * as THREE from 'three';
 import { Vehicle, simulate } from '../physics/Vehicle.js';
 import { truckSpec, TRUCKS, TRUCK_IDS } from '../physics/trucks.js';
-import { money, TRUCK_PRICES } from '../game/Career.js';
+import { money, TRUCK_PRICES, DEALER_ORDER } from '../game/Career.js';
 import { buildSummary, buildStats } from '../physics/Upgrades.js';
 import { SURFACES } from '../physics/Surfaces.js';
 import { TruckModel } from '../render/TruckModel.js';
@@ -195,7 +195,7 @@ export class Game {
       $('d-money').innerHTML = `You have <b>${money(C.money)}</b>.`;
       const list = $('d-list');
       list.innerHTML = '';
-      for (const id of TRUCK_IDS) {
+      for (const id of DEALER_ORDER.filter((id) => TRUCK_IDS.includes(id))) {
         const t = TRUCKS[id], owned = C.ownsTruck(id), price = TRUCK_PRICES[id] ?? 0, here = id === this.truckId;
         const st = buildStats(truckSpec(id));
         const row = document.createElement('div');
@@ -425,11 +425,12 @@ export class Game {
 
   /** P: next tyre pressure. Down any time (stopped); up only with onboard air or at the station. */
   cyclePressure() {
-    const v = this.vehicle, t = this.spec.tyre;
-    const steps = t.minPsi <= 6 ? [30, 20, 12, 6] : [30, 20, 14];
+    const v = this.vehicle, t = this.spec.tyre, top = t.psiStock || 30, min = t.minPsi || 14;
+    // road pressure, two thirds (trail), two fifths (rock and sand), as low as the wheels allow
+    const steps = [...new Set([top, Math.round(top * 2 / 3), Math.max(min, Math.round(top * 0.4)), min])];
     const cur = v.psiTarget;
     let next = steps.find((p) => p < cur - 0.5);
-    if (next === undefined) next = 30;
+    if (next === undefined) next = top;
     if (next > v.psi && !t.compressor && !v.airSupply) {
       this.hud.hint(`No compressor: air back up at the station (Backspace), or fit onboard air in the garage. ${Math.round(v.psi)} psi`, 4);
       return;

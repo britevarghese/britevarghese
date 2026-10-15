@@ -13,7 +13,9 @@ export const START_MONEY = 2500;
 export const DEBT_LIMIT = -5000;
 
 /** The dealer's prices (US dollars): sound used trucks, ready for the trail. */
-export const TRUCK_PRICES = { mule: 6500, ranger: 9500, hauler: 14500, bruiser: 24000, rhino: 42000 };
+export const TRUCK_PRICES = { gecko: 4500, mule: 6500, trekker: 8000, ranger: 9500, shepherd: 13000, hauler: 14500, drover: 16000, bruiser: 24000, rhino: 42000 };
+/** The dealer's trucks, cheapest first. */
+export const DEALER_ORDER = Object.keys(TRUCK_PRICES).sort((a, b) => TRUCK_PRICES[a] - TRUCK_PRICES[b]);
 
 export class Career {
   /** grandfather: the truck and builds a player had before careers existed (they keep them). */

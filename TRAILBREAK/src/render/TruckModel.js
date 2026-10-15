@@ -9,6 +9,7 @@
 
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
+import { geckoBody, trekkerBody, shepherdBody, droverBody, bruiserBody, rhinoBody } from './TruckBodies.js';
 
 const GRAV = 9.81;
 const IN = 0.0254;
@@ -32,7 +33,7 @@ export function rbox(w, h, d, r = 0.03, cr = 0) {
 }
 
 /** A side silhouette (a Shape drawn in z, y of the design frame) extruded across x, halfW each side of x = 0. */
-function slab(shape, halfW, bevel = 0.02, curveSegments = 10) {
+export function slab(shape, halfW, bevel = 0.02, curveSegments = 10) {
   const depth = Math.max(0.002, 2 * (halfW - bevel));
   const g = new THREE.ExtrudeGeometry(shape, { depth, bevelEnabled: bevel > 0, bevelThickness: bevel, bevelSize: bevel, bevelSegments: 2, curveSegments });
   g.translate(0, 0, -depth / 2);
@@ -41,7 +42,7 @@ function slab(shape, halfW, bevel = 0.02, curveSegments = 10) {
 }
 
 /** An arch over a wheel at (zc, yc), radius r, cut into an outline being drawn along its bottom from rear to front. */
-function arch(s, zc, yc, r, yRear, yFront) {
+export function arch(s, zc, yc, r, yRear, yFront) {
   s.absarc(zc, yc, r, Math.PI - Math.asin(Math.min(1, (yRear - yc) / r)), Math.asin(Math.min(1, (yFront - yc) / r)), true);
 }
 
@@ -521,7 +522,7 @@ function muleBody(P, M, paint, top, spec) {
   };
 }
 
-const BUILDERS = { ranger: rangerBody, hauler: haulerBody, mule: muleBody };
+const BUILDERS = { ranger: rangerBody, hauler: haulerBody, mule: muleBody, gecko: geckoBody, trekker: trekkerBody, shepherd: shepherdBody, drover: droverBody, bruiser: bruiserBody, rhino: rhinoBody };
 
 // ---------------------------------------------------------------- chassis, bumpers and the build's parts
 function chassis(P, M, spec, x) {
@@ -541,7 +542,7 @@ function chassis(P, M, spec, x) {
   P.path(M.rust, [[-0.2, f.y + 0.12, front - 0.3], [ex, f.y - 0.02, front - 0.75], [ex, f.y - 0.02, rear + 0.25], [ex, f.y + 0.02, tailZ]], 0.028);
   P.box(M.rust, [0.22, 0.15, 0.62], [ex, f.y - 0.02, (front + rear) / 2 + 0.1], { r: 0.06 });
   // bump stops over the axles
-  for (const a of spec.axles) P.box(M.rubber, [0.07, 0.07, 0.07], [a.springTrack / 2, f.y - 0.04, a.z], { r: 0.015, mirror: true });
+  for (const a of spec.axles) P.box(M.rubber, [0.07, 0.07, 0.07], [a.springTrack / 2, (x.coilY ?? f.y) - 0.04, a.z], { r: 0.015, mirror: true });
   return belly;
 }
 
@@ -578,8 +579,8 @@ function bumpers(P, M, spec, x, winch) {
 /** The build's add-ons (design frame, stock height: the body group is raised). */
 function buildParts(P, M, spec, x, base, lightBar) {
   const b = spec.build || {}, raise = spec.raise || 0;
-  // snorkel: up the windscreen pillar on the passenger side to a ram head at roof height
-  if (spec.snorkel) {
+  // snorkel: up the windscreen pillar on the passenger side to a ram head at roof height (some bodies draw their own)
+  if (spec.snorkel && !x.ownSnorkel) {
     const [sx, sy0, sz] = spec.intake, sy = sy0 - raise, belt = spec.hull[0].c[1] + spec.hull[0].h[1] - raise;
     P.path(M.black, [[sx + 0.08, belt - 0.02, sz + 0.42], [sx, belt + 0.08, sz + 0.16], [sx, sy - 0.08, sz + 0.02]], 0.05, { seg: 12 });
     P.box(M.black, [0.15, 0.13, 0.22], [sx, sy, sz + 0.06], { r: 0.04 });
@@ -589,12 +590,12 @@ function buildParts(P, M, spec, x, base, lightBar) {
   // roof rack: a tubular basket (a bed rack on the pickup), with fuel, water and a spare on the loaded one
   if (b.rack) {
     const roof = x.roofY, z0 = Math.max(x.roofZ[0] + 0.08, base.rackZ - 0.9), z1 = Math.min(x.roofZ[1] - 0.08, base.rackZ + 0.9);
-    const bed = spec.style === 'hauler', hw = bed ? 0.86 : 0.7, y = bed ? roof + 0.02 : roof + 0.1, zc = bed ? base.rackZ : (z0 + z1) / 2;
-    const zA = bed ? base.rackZ - 1.0 : z0, zB = bed ? base.rackZ + 1.0 : z1;
+    const bed = !!spec.look?.bed, hw = bed ? x.half - 0.14 : Math.min(0.7, x.half - 0.08), y = bed ? roof + 0.02 : roof + 0.1;
+    const zA = bed ? (x.bedZ ? x.bedZ[0] + 0.05 : base.rackZ - 1.0) : z0, zB = bed ? (x.bedZ ? x.bedZ[1] - 0.05 : base.rackZ + 1.0) : z1, zc = (zA + zB) / 2;
     P.path(M.black, [[hw, y, zA], [hw, y, zB], [-hw, y, zB], [-hw, y, zA], [hw, y, zA]], 0.018);
     P.path(M.black, [[hw, y + 0.1, zA], [hw, y + 0.1, zB], [-hw, y + 0.1, zB], [-hw, y + 0.1, zA], [hw, y + 0.1, zA]], 0.014);
     for (let i = 0; i <= 4; i++) { const z = zA + (zB - zA) * i / 4; P.tube(M.black, [hw, y, z], [-hw, y, z], 0.012); P.tube(M.black, [hw, y, z], [hw, y + 0.1, z], 0.01, { mirror: true }); }
-    if (bed) for (const z of [zA, zB]) P.tube(M.black, [hw + 0.08, 1.2, z], [hw, y, z], 0.022, { mirror: true });
+    if (bed) for (const z of [zA, zB]) P.tube(M.black, [hw + 0.08, spec.hull[0].c[1] + spec.hull[0].h[1] - raise, z], [hw, y, z], 0.022, { mirror: true });
     else for (const z of [zA + 0.1, zB - 0.1]) P.box(M.black, [0.06, 0.1, 0.06], [hw - 0.02, roof + 0.04, z], { r: 0.01, mirror: true });
     if (b.rack === 2) {
       for (let i = 0; i < 3; i++) P.box(i === 2 ? M.red : M.olive, [0.17, 0.34, 0.46], [hw - 0.15 - i * 0.2, y + 0.18, zA + 0.3], { r: 0.02 });
@@ -647,8 +648,8 @@ export class TruckModel {
     this.spec = spec;
     this.uniforms = { uDirt: { value: 0 } };
     this.paint = paintMaterial(paintHex, this.uniforms);
-    const canvasTop = spec.style === 'mule';
-    this.top = new THREE.MeshStandardMaterial({ color: canvasTop ? 0x8f8467 : 0xece6d6, roughness: canvasTop ? 0.95 : 0.45, metalness: canvasTop ? 0 : 0.15 });
+    const look = spec.look || {}, canvasTop = look.top === 'canvas';
+    this.top = look.top === 'paint' ? this.paint : new THREE.MeshStandardMaterial({ color: canvasTop ? 0x8f8467 : 0xece6d6, roughness: canvasTop ? 0.95 : 0.45, metalness: canvasTop ? 0 : 0.15 });
     this.lightMat = new THREE.MeshStandardMaterial({ color: 0xfff6dc, emissive: 0xfff2c8, emissiveIntensity: 0.15, roughness: 0.15 });
     this.barMat = new THREE.MeshStandardMaterial({ color: 0xfff6dc, emissive: 0xfff2c8, emissiveIntensity: 0.1, roughness: 0.15 });
     this.brakeMat = new THREE.MeshStandardMaterial({ color: 0x8a1a12, emissive: 0xff2010, emissiveIntensity: 0.05, roughness: 0.3 });
@@ -661,7 +662,7 @@ export class TruckModel {
     this.bodyOffset = this.body.position.clone();
     const t = spec.tyre, R = t.radius, Wt = t.width;
     const base = { rackZ: spec.rackZ ?? -0.8 };
-    const rimR = (t.size >= 37 ? 17 : 15) * IN / 2 + 0.03;
+    const rimR = (t.rim || (t.size >= 37 ? 17 : 15)) * IN / 2 + 0.03;
 
     // ---- body, chassis, bumpers, build
     const P = new PartList();
@@ -688,7 +689,9 @@ export class TruckModel {
     if (x.spare) {
       const tg = tireGeometry(R, Wt, t.tread).clone(), rg = rimGeometry(rimR, Wt, t.beadlock).clone();
       let pos;
-      if (x.spare.mount === 'under') { tg.rotateZ(Math.PI / 2); rg.rotateZ(Math.PI / 2); pos = [x.spare.x, x.frame.y - Wt / 2 + 0.06, x.spare.z]; } else {
+      if (x.spare.mount === 'under') { tg.rotateZ(Math.PI / 2); rg.rotateZ(Math.PI / 2); pos = [x.spare.x, x.frame.y - Wt / 2 + 0.06, x.spare.z]; } else if (x.spare.mount === 'bed') {
+        tg.rotateZ(Math.PI / 2); rg.rotateZ(Math.PI / 2); pos = [x.spare.x, x.spare.y + Wt / 2, x.spare.z];
+      } else {
         tg.rotateY(Math.PI / 2); rg.rotateY(Math.PI / 2);
         pos = [x.spare.x, Math.max(x.sill + R + 0.12, 0.98), x.spare.z - Wt / 2 - 0.05];
         P.box(M.black, [0.06, 0.4, 0.06], [x.spare.x, pos[1] - 0.12, x.spare.z - 0.02], { r: 0.01 });
@@ -733,24 +736,35 @@ export class TruckModel {
 
     // ---- axles and wheels (CG frame; the physics moves them)
     const rStatic = R - (spec.mass * GRAV / 4) / t.stiffness;
+    const coilR = spec.mass > 4000 ? 0.12 : 0.085, coilWire = spec.mass > 4000 ? 0.02 : 0.013;
     this.axles = spec.axles.map((a, ai) => {
       const half = a.track / 2;
       const yStatic = rStatic - cgY, yDroop = yStatic - a.sag;
       const group = new THREE.Group();
       group.position.set(0, yStatic, a.z - cgZ);
       this.root.add(group);
-      const heavy = a.mass > 110, tubeR = heavy ? 0.052 : 0.044, dd = a.diffDrop || 0.16, rp = dd * 0.82;
+      // the beam: tube, diff and pinion; on portal axles they ride above the hubs, and a gear drop at each wheel
+      // brings the drive down to the hub
+      const heavy = a.mass > 110, tubeR = a.mass > 300 ? 0.075 : heavy ? 0.052 : 0.044, dd = a.diffDrop ?? 0.16;
+      const portal = !!look.portal, up = this.tubeUp = portal ? 0.21 : 0, rp = portal ? 0.16 : dd * 0.82, dy = rp - dd;
       const AP = new PartList();
-      AP.cyl(M.under, tubeR, tubeR, a.track - Wt - 0.08, [0, 0, 0], { axis: 'x' });
-      AP.add(M.under, new THREE.SphereGeometry(rp, 14, 10).scale(1.05, 1, 0.9), [a.diffX || 0, -(dd - rp), 0]);
-      AP.cyl(M.satin, rp * 0.82, rp * 0.82, 0.03, [a.diffX || 0, -(dd - rp) + 0.005, ai === 0 ? rp * 0.8 : -rp * 0.8], { axis: 'z', seg: 16 });
-      AP.cyl(M.under, 0.055, 0.07, 0.16, [a.diffX || 0, 0, ai === 0 ? -rp - 0.04 : rp + 0.04], { axis: 'z' });
+      AP.cyl(M.under, tubeR, tubeR, a.track - Wt - (portal ? 0.36 : 0.08), [0, up, 0], { axis: 'x' });
+      AP.add(M.under, new THREE.SphereGeometry(rp, 14, 10).scale(1.05, 1, 0.9), [a.diffX || 0, dy, 0]);
+      AP.cyl(M.satin, rp * 0.82, rp * 0.82, 0.03, [a.diffX || 0, dy + 0.005, ai === 0 ? rp * 0.8 : -rp * 0.8], { axis: 'z', seg: 16 });
+      AP.cyl(M.under, 0.055, 0.07, 0.16, [a.diffX || 0, up, ai === 0 ? -rp - 0.04 : rp + 0.04], { axis: 'z' });
+      if (portal) for (const sx of [1, -1]) AP.box(M.under, [0.17, up + 0.26, 0.34], [sx * (a.track / 2 - Wt / 2 - 0.13), up / 2 - 0.02, 0], { r: 0.05 });
       for (const sx of [1, -1]) {
-        AP.box(M.under, [0.1, 0.03, 0.16], [sx * a.springTrack / 2, tubeR + 0.012, 0], { r: 0.005 });
-        for (const dz of [-0.05, 0.05]) AP.cyl(M.satin, 0.009, 0.009, 0.16, [sx * a.springTrack / 2, 0.0, dz]);
-        AP.box(M.under, [0.08, 0.025, 0.14], [sx * a.springTrack / 2, -tubeR - 0.02, 0], { r: 0.005 });
+        if (look.coils) {
+          AP.cyl(M.under, 0.1, 0.1, 0.03, [sx * a.springTrack / 2, up + tubeR + 0.015, 0], { seg: 16 });       // coil seat
+          AP.box(M.under, [0.06, 0.06, 0.5], [sx * (a.springTrack / 2 - 0.12), up - tubeR - 0.02, ai === 0 ? -0.25 : 0.25], { r: 0.01 });   // link
+          AP.box(M.under, [0.05, 0.05, coilR + 0.1], [sx * a.springTrack / 2, up - 0.04, (ai === 0 ? -1 : 1) * (coilR + 0.1) / 2], { r: 0.01 });   // shock mount
+        } else {
+          AP.box(M.under, [0.1, 0.03, 0.16], [sx * a.springTrack / 2, tubeR + 0.012, 0], { r: 0.005 });
+          for (const dz of [-0.05, 0.05]) AP.cyl(M.satin, 0.009, 0.009, 0.16, [sx * a.springTrack / 2, 0.0, dz]);
+          AP.box(M.under, [0.08, 0.025, 0.14], [sx * a.springTrack / 2, -tubeR - 0.02, 0], { r: 0.005 });
+        }
       }
-      if (ai === 0) AP.cyl(M.satin, 0.018, 0.018, a.track - 0.5, [0, -0.02, -0.17], { axis: 'x' });
+      if (ai === 0) AP.cyl(M.satin, 0.018, 0.018, a.track - 0.5, [0, up - 0.02, -0.17], { axis: 'x' });
       AP.build(group);
       const wheels = [1, -1].map((side) => {
         const knuckle = new THREE.Group();
@@ -776,18 +790,23 @@ export class TruckModel {
       return { group, wheels, yDroop, half, spec: a };
     });
 
-    // ---- leaf springs (two halves per side), shocks (body and shaft), propshafts: placed every frame
-    const nLeaf = 8, nShock = 4;
-    this.leaves = new THREE.InstancedMesh(new THREE.BoxGeometry(0.065, 1, 0.055).translate(0, 0.5, 0), M.under, nLeaf);
+    // ---- leaf springs (two halves per side) or coils, shocks (body and shaft), propshafts: placed every frame
+    const nLeaf = look.coils ? 4 : 8, nShock = 4;
+    this.coils = !!look.coils;
+    this.leaves = new THREE.InstancedMesh(look.coils ? coilGeometry(coilR, coilWire) : new THREE.BoxGeometry(0.065, 1, 0.055).translate(0, 0.5, 0), look.coils ? M.satin : M.under, nLeaf);
     this.shockBody = new THREE.InstancedMesh(new THREE.CylinderGeometry(0.035, 0.035, 1, 10).translate(0, 0.5, 0), b2m(spec, M), nShock);
     this.shockRod = new THREE.InstancedMesh(new THREE.CylinderGeometry(0.012, 0.012, 1, 6).translate(0, 0.5, 0), M.chrome, nShock);
     for (const m of [this.leaves, this.shockBody, this.shockRod]) { m.castShadow = true; m.frustumCulled = false; this.root.add(m); }
     const f = x.frame, lt = spec.axles[0].travel > 0.3;
     this.mounts = spec.axles.map((a) => {
-      const L = spec.style === 'hauler' ? 0.72 : 0.6;
+      const L = look.leaf ?? 0.6, up = this.tubeUp || 0, s = a.springTrack / 2, ins = a.z > 0 ? -1 : 1;
+      // coils: the spring on the axle up to a seat under the frame (or a tower beside it), the shock just inboard of it
+      // toward the middle of the truck; leaves: the shock beside the spring
       return {
-        hanger: [a.springTrack / 2, f.y - 0.02, a.z + L], shackle: [a.springTrack / 2, f.y - 0.07, a.z - L],
-        shockTop: [a.springTrack / 2 + 0.09, f.y + 0.3 + (lt ? 0.08 : 0), a.z + 0.16], shockLow: [a.springTrack / 2 + 0.09, -0.06, a.z > 0 ? -0.1 : 0.1],
+        hanger: [s, f.y - 0.02, a.z + L], shackle: [s, f.y - 0.07, a.z - L],
+        coilTop: [s, x.coilY ?? f.y + 0.04, a.z],
+        shockTop: look.coils ? [s, f.y + 0.3 + (lt ? 0.08 : 0), a.z + ins * (coilR + 0.13)] : [s + 0.09, f.y + 0.3 + (lt ? 0.08 : 0), a.z + 0.16],
+        shockLow: look.coils ? [s, up - 0.04, ins * (coilR + 0.1)] : [s + 0.09, up - 0.06, a.z > 0 ? -0.1 : 0.1],
       };
     });
     if (lt) {
@@ -918,10 +937,14 @@ export class TruckModel {
     for (let ai = 0; ai < 2; ai++) {
       const ax = this.axles[ai], mt = this.mounts[ai], s = ax.spec.springTrack / 2;
       for (const side of [1, -1]) {
-        const seat = w.set(side * s, 0.06, 0).applyMatrix4(ax.group.matrix);
-        const seatC = seat.clone();
-        this.bodyPoint(mt.hanger, v, side); this.segment(this.leaves, li++, v, seatC);
-        this.bodyPoint(mt.shackle, v, side); this.segment(this.leaves, li++, seatC, v);
+        if (this.coils) {
+          const seat = w.set(side * s, (this.tubeUp || 0) + 0.1, 0).applyMatrix4(ax.group.matrix).clone();
+          this.bodyPoint(mt.coilTop, v, side); this.segment(this.leaves, li++, seat, v);
+        } else {
+          const seatC = w.set(side * s, 0.06, 0).applyMatrix4(ax.group.matrix).clone();
+          this.bodyPoint(mt.hanger, v, side); this.segment(this.leaves, li++, v, seatC);
+          this.bodyPoint(mt.shackle, v, side); this.segment(this.leaves, li++, seatC, v);
+        }
         const low = w.set(side * mt.shockLow[0], mt.shockLow[1], mt.shockLow[2]).applyMatrix4(ax.group.matrix);
         const top = this.bodyPoint(mt.shockTop, v, side);
         const len = top.distanceTo(low);
@@ -934,8 +957,8 @@ export class TruckModel {
     this.shockRod.instanceMatrix.needsUpdate = true;
     // propshafts: transfer case -> pinion
     for (let ai = 0; ai < 2; ai++) {
-      const ax = this.axles[ai], sh = this.shafts[ai], a = ax.spec, rp = (a.diffDrop || 0.16) * 0.82;
-      const end = this._w.set((a.diffX || 0) * 0.9, 0, ai === 0 ? -rp - 0.1 : rp + 0.1).applyMatrix4(ax.group.matrix);
+      const ax = this.axles[ai], sh = this.shafts[ai], a = ax.spec, rp = this.tubeUp ? 0.16 : (a.diffDrop ?? 0.16) * 0.82;
+      const end = this._w.set((a.diffX || 0) * 0.9, this.tubeUp || 0, ai === 0 ? -rp - 0.1 : rp + 0.1).applyMatrix4(ax.group.matrix);
       const st = this.tcase, len = st.distanceTo(end);
       sh.position.copy(st).add(end).multiplyScalar(0.5);
       sh.scale.set(1, len, 1);
@@ -957,6 +980,13 @@ export class TruckModel {
     this.root.traverse((o) => { if (o.geometry && !o.geometry.userData.cached) o.geometry.dispose(); });
     for (const m of [this.paint, this.top, ...this.lampMats, this.barMat, this.brakeMat, this.revMat, this.screen]) m?.dispose();
   }
+}
+
+/** A coil spring, unit height along +y (scaled to the gap between its seats). */
+function coilGeometry(r, wire, turns = 7) {
+  const pts = [];
+  for (let i = 0; i <= turns * 14; i++) { const t = i / (turns * 14), a = t * turns * Math.PI * 2; pts.push(new THREE.Vector3(Math.cos(a) * r, t, Math.sin(a) * r)); }
+  return new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), turns * 14, wire, 5, false);
 }
 
 /** Shock body colour: the long-travel kit's remote-reservoir shocks are bright, stock ones black. */

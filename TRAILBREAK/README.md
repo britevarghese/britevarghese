@@ -126,10 +126,10 @@ start with $2,500 and the Ranger.
 
 - **Earning:** surveying a beacon pays a $600 bounty (friends in the room get a share when you find one), towing a
   friend out pays a rescue fee, and events pay prize money.
-- **Spending:** the dealer (pause menu, or the truck list in the lobby) sells the Mule and the Hauler; the garage
-  prices every part and bills only for parts you haven't bought for that truck (once bought, a part is yours to fit
-  and take off again). Repairs and the tow truck cost money, and can run you into the red (down to -$5,000): a truck is
-  never left broken.
+- **Spending:** the dealer (pause menu, or the truck list in the lobby) sells nine trucks, from the $4,500 Gecko to
+  the $42,000 Rhino (see [The trucks](#the-trucks)); the garage prices every part and bills only for parts you haven't
+  bought for that truck (once bought, a part is yours to fit and take off again). Repairs and the tow truck cost money,
+  and can run you into the red (down to -$5,000): a truck is never left broken.
 
 **Events** (pause menu > Events, or the chequered flags on the map): drive to a start line and press **J**. The truck
 is lined up and counted down; drive through the gates in order to the finish. Beat the par times for a medal: each
@@ -162,23 +162,32 @@ lies, go back to the last firm, dry ground you drove on, call your friends for a
 
 ## The trucks
 
-Three original designs, built to the real numbers of the classic 1970s American four-wheel drives:
+Nine original designs, each built to the real numbers of the kind of truck it is, from a one-ton micro 4x4 to a
+six-ton portal-axle expedition truck. Every one takes every part in the garage.
 
-| | Ranger | Hauler | Mule |
-|---|---|---|---|
-| Type | compact two-door wagon | three-quarter-ton pickup | open utility 4x4 |
-| Wheelbase / track | 2.34 m (92") / 1.46 m | 3.34 m (131") / 1.68 m | 2.12 m (83") / 1.31 m |
-| Weight (with driver, fuel) | 1760 kg | 2250 kg | 1300 kg |
-| Engine | 5.0 V8, 318 Nm | 6.6 V8, 410 Nm | 4.2 straight six, 268 Nm |
-| Gearbox | 3-speed automatic | 4-speed manual, 6.55:1 granny low | 3-speed manual |
-| Transfer case low / axles | 2.46 / 4.10 | 1.96 / 4.10 | 2.03 / 3.54 |
-| Stock tyres | 31x10.5R15 | 33x12.5R15 | 30x9.5R15 |
-| Clearance under the diffs | 21.5 cm | 19.7 cm | 21.7 cm |
-| Approach / departure / breakover | 43 / 30 / 32 degrees | 35 / 24 / 25 degrees | 46 / 30 / 35 degrees |
+| Truck | Price | Kind | Wheelbase | Weight | Engine | Gearbox | Low range / axles | Stock tyres | Under the diffs | Approach / departure / breakover |
+|---|---|---|---|---|---|---|---|---|---|---|
+| Gecko | $4,500 | micro 4x4 | 2.03 m (80") | 1050 kg | 1.3 four, 101 Nm | 5-speed manual | 1.65 / 5.38 | 205/75R15 (27") | 20 cm | 41 / 31 / 32 degrees |
+| Mule | $6,500 | open utility 4x4 | 2.12 m (83") | 1300 kg | 4.2 six, 268 Nm | 3-speed manual | 2.03 / 3.54 | 30x9.5R15 | 22 cm | 46 / 30 / 35 degrees |
+| Trekker | $8,000 | compact pickup | 2.62 m (103") | 1480 kg | 2.4 four, 175 Nm | 5-speed manual | 2.28 / 4.10 | 31x10.5R15 | 21 cm | 31 / 27 / 29 degrees |
+| Ranger | $9,500 | compact two-door wagon | 2.34 m (92") | 1760 kg | 5.0 V8, 318 Nm | 3-speed automatic | 2.46 / 4.10 | 31x10.5R15 | 21 cm | 43 / 30 / 32 degrees |
+| Shepherd | $13,000 | utility wagon on coils | 2.79 m (110") | 2050 kg | 2.5 turbo-diesel four, 203 Nm | 5-speed manual | 2.74 / 4.10 | 31x10.5R15 | 20 cm | 42 / 28 / 28 degrees |
+| Hauler | $14,500 | three-quarter-ton pickup | 3.34 m (131") | 2250 kg | 6.6 V8, 410 Nm | 4-speed manual, 6.55:1 granny | 1.96 / 4.10 | 33x12.5R15 | 20 cm | 35 / 24 / 25 degrees |
+| Drover | $16,000 | big six-cylinder wagon | 2.73 m (107") | 2150 kg | 4.2 six, 285 Nm | 4-speed automatic | 1.96 / 4.10 | 31x10.5R15 | 19 cm | 34 / 25 / 30 degrees |
+| Bruiser | $24,000 | one-ton crew-cab pickup | 3.96 m (156") | 3350 kg | 5.9 turbo-diesel six, 570 Nm | heavy-duty 5-speed, 5.61:1 granny | 2.72 / 4.10 | 33x12.5R15 | 20 cm | 36 / 29 / 25 degrees |
+| Rhino | $42,000 | portal-axle expedition truck | 3.25 m (128") | 6200 kg | 5.7 diesel six, 363 Nm | 8-speed truck box, 9:1 first | none / 7.17 | 395/85R20 (42") | 45 cm | 43 / 40 / 50 degrees |
+
+They drive like what they are. The Gecko weighs a ton and floats over mud, but it is slow and narrow on a side slope.
+The heavy trucks run their tyres harder (50 psi on the Bruiser, 55 on the Rhino: P steps down through two-thirds and
+two-fifths of that to the wheels' minimum), carry stiffer tyres and stronger axle shafts, and their parts cost more to
+buy and fit. The Rhino's portal axles ride the diffs high above the hubs: 45 cm under them on stock tyres. It has
+lockers at both ends, onboard air and a raised intake from the factory, and wades 1.5 m. It is also slow: 0-60 km/h
+takes 20 seconds and it tops out at 84 km/h.
 
 The models are built from code: body panels with real wheel arches, opening seams, glass you can see the interior
 through (the steering wheel turns), a ladder frame with the engine, gearbox, transfer case, tank and exhaust under it,
-leaf springs and shocks that flex with the axles, brake and reverse lamps, and every garage part on the truck.
+leaf or coil springs and shocks that flex with the axles (and the Rhino's portal hubs and spring towers), brake and
+reverse lamps, and every garage part on the truck.
 
 ## The garage
 
@@ -194,7 +203,7 @@ Every part changes the physics, the way it does on a real truck:
 - **Lift (2", 4", 6" long travel):** raises the body, the belly, the bumpers and the centre of gravity, but not the
   diffs (only bigger tyres lift those). Makes room for bigger tyres. The long-travel kit has soft springs and much more
   articulation, and leans a lot more on side slopes.
-- **Tyres (30" to 37"):** more clearance under the diffs, better angles, they roll over bigger rocks and sink less.
+- **Tyres (27" to 46", from the factory size up to what the tallest lift clears):** more clearance under the diffs, better angles, they roll over bigger rocks and sink less.
   They also weigh more, add rotating inertia and gear the truck taller: 35s on stock gears are slow off the line until
   you re-gear. Tyres too big for the lift rub, and the bump stops are extended to stop them hitting the body.
 - **Tread:** all-terrain, mud-terrain (more grip in mud, snow and grass, a little less on rock and road, louder) or
@@ -202,9 +211,10 @@ Every part changes the physics, the way it does on a real truck:
 - **Wheels and air:** steel wheels can be aired down to 14 psi, beadlocks to 6. Aired down, the footprint gets longer
   and wider, so the tyre floats over sand and mud instead of digging in, and wraps over rock; on firm ground it rolls
   harder and steers vaguely. Without a compressor you can only air back up at the station.
-- **Axle gears (3.54 to 5.38), 4:1 crawl box, gearbox:** the crawl ratio, from 21:1 stock to 134:1 for the rock
-  crawler (walking pace at idle). The manual gearboxes have no torque converter: no creep, and in low range the engine
-  holds the truck back down steep hills.
+- **Axle gears (3.54 to 7.17), 4:1 crawl box, gearbox (seven, from a 3-speed automatic to an 8-speed truck box):** the
+  crawl ratio, from 21:1 on a stock Mule to 258:1 on a Rhino with the crawl box (walking pace at idle, and slower). The
+  manual gearboxes have no torque converter: no creep, and in low range the engine holds the truck back down steep
+  hills.
 - **Differentials:** open (the wheel with the least grip gets the power), a clutch-type limited-slip rear (always on, up
   to 2.6 times the torque to the wheel with grip, a dab of brake helps it), or selectable lockers.
 - **Engine:** stock, tuned (+13% torque), or a swap (the big-block weighs 45-80 kg more over the front axle).
@@ -291,8 +301,9 @@ server.js, server/        static host + https + WebSocket rooms (rooms.js)
 src/physics/              Vehicle (chassis, axles, tyre contact, winch, water), Tire, Drivetrain, Surfaces, trucks,
                           Upgrades (the garage's parts and what each does to the physics)
 src/world/                WorldGen (the valley), World (ground for the physics), Deform (ruts), MapData, Noise
-src/render/               Renderer, Sky, Terrain (LOD patches), Vegetation, Rocks, Water, Landmarks, TruckModel,
-                          Effects (particles, winch line), EventCourse (start banners, gates)
+src/render/               Renderer, Sky, Terrain (LOD patches), Vegetation, Rocks, Water, Landmarks, TruckModel
+                          (chassis, axles, wheels, parts) and TruckBodies (the newer trucks' bodies), Effects
+                          (particles, winch line), EventCourse (start banners, gates)
 src/core/                 Game (the loop), Input, CameraRig
 src/game/                 Career (money, trucks, parts, best times), Events (the courses, runs, medals, races),
                           EventPlay (events in the game: start lines, countdown, clock, prizes, races with friends)

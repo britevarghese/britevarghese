@@ -4,7 +4,7 @@ import { World } from './world/World.js';
 import { TRUCKS, TRUCK_IDS } from './physics/trucks.js';
 import { buildSummary, decodeBuild } from './physics/Upgrades.js';
 import { Garage } from './ui/Garage.js';
-import { Career, TRUCK_PRICES, money } from './game/Career.js';
+import { Career, TRUCK_PRICES, DEALER_ORDER, money } from './game/Career.js';
 import { Renderer } from './render/Renderer.js';
 import { TerrainRenderer } from './render/Terrain.js';
 import { loadGround } from './render/Ground.js';
@@ -49,11 +49,14 @@ function lobby() {
   // the trucks: yours to drive, or the dealer's price
   const showTrucks = () => {
     trucksEl.innerHTML = '';
-    for (const id of TRUCK_IDS) {
-      const t = TRUCKS[id], owned = career.ownsTruck(id), price = TRUCK_PRICES[id] ?? 0;
+    let sel = null;
+    for (const id of DEALER_ORDER.filter((id) => TRUCK_IDS.includes(id))) {
+      const t = TRUCKS[id], owned = career.ownsTruck(id), price = TRUCK_PRICES[id] ?? 0, on = settings.truck === id;
       const b = document.createElement('button');
-      b.className = 'truck-opt' + (settings.truck === id ? ' sel' : '') + (owned ? '' : ' locked');
-      b.innerHTML = `<b>${t.name}${owned ? '' : ` <em>${money(price)}</em>`}</b><span>${t.blurb}</span>`;
+      b.className = 'truck-opt' + (on ? ' sel' : '') + (owned ? '' : ' locked');
+      // the kind of truck in the list; the whole description for the one picked
+      b.innerHTML = `<b>${t.name}${owned ? '' : ` <em>${money(price)}</em>`}</b><span>${on ? t.blurb : t.blurb.split(':')[0]}</span>`;
+      if (on) sel = b;
       b.onclick = () => {
         if (!owned) {
           if (!career.canAfford(price)) { $('lobby-msg').textContent = `The ${t.name} costs ${money(price)} and you have ${money(career.money)}: win events, survey beacons and tow friends out to earn it.`; return; }
@@ -64,6 +67,7 @@ function lobby() {
       };
       trucksEl.appendChild(b);
     }
+    if (sel) trucksEl.scrollTop = Math.max(0, sel.offsetTop - 60);
   };
   showTrucks();
   showBuild();
