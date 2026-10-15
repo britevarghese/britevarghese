@@ -309,7 +309,7 @@ const KL_CAST = {
   firoz: { name: 'Firoz', role: 'Fixer, Azhikode', color: '#3dc8ff', model: 'kl_kurta_brown', look: { jacket: 0x5a4632, jeans: 0x2a2a2c, skin: 0x6a4228, hair: 0x0a0a0a }, place: 'Azhikode' },
   shibu: { name: "'Tiger' Shibu", color: '#ff3df0' },
   mathew: { name: 'SI Mathew', color: '#ff6a3d' },
-  sajan: { name: 'Sajan', color: '#9dff6a' },
+  sajan: { name: 'Sajan', color: '#9dff6a', crew: { model: 'jake', outfit: { top: 0x26262a, bottom: 0x1f2430 } } },
   anitha: { name: 'Anitha', role: 'Car dealer, Chala', color: '#ffd23d', model: 'kl_saree', look: { jacket: 0x8a2a4a, jeans: 0x3a1a2a, skin: 0x8a5a3a, hair: 0x0a0a0a }, place: 'Chala' },
   rajan: { name: 'Rajan', role: 'Lorry contractor, Kappad', color: '#9dff6a', model: 'kl_elder', look: { jacket: 0xf0ece0, jeans: 0xf2efe6, skin: 0x6a4228, hair: 0xb0b0b0 }, place: 'Kappad' },
   biju: { name: 'Biju', color: '#ff8a3d' },
@@ -330,39 +330,42 @@ const KL_STORY = [
   {
     id: 'kl_white_dzire', giver: 'babu', title: 'The White Dzire',
     intro: [
-      ['babu', 'So you are the new driver Leena talked about. Driving licence, no case against you. Good.'],
-      ['babu', 'A white Dzire is parked near Caltex junction. The owner took my money for a gearbox and vanished.'],
+      ['babu', 'You came. Good. The Scorpio is green now, with a Mangalore number. Nobody is asking about it.'],
+      ['babu', 'Now, work. A white Dzire is parked near Caltex junction. The owner took my money for a gearbox and vanished.'],
       ['babu', 'Bring it to my workshop. Every dent comes out of your share, ketto.'],
-      ['you', 'Easy money.'],
+      ['you', 'This is the honest work Leena talked about?'],
+      ['babu', 'It is my money. That makes it honest.'],
     ],
     steps: [
       { type: 'steal', vehicle: 'dzire', paint: '#f2f2f0', at: 'Caltex', text: 'Take the <b>white Dzire</b> parked at Caltex.' },
       { type: 'deliver', to: 'giver', maxDamage: 0.55, text: "Bring the Dzire to <b>Babu's workshop</b>. Don't wreck it." },
     ],
-    outro: [['babu', "Not one scratch. Okay, okay. Go and see Leena, she's waiting."]],
+    outro: [['babu', "Not one scratch. Okay, okay. Leena called for you. Go, she's waiting."]],
     reward: { cash: 3000, xp: 600 },
   },
   {
     id: 'kl_pachalam_pickup', giver: 'leena', title: 'Puzhathi Pickup', requires: ['kl_white_dzire'],
     intro: [
-      ['leena', 'Babu says you can drive. Tonight we find out.'],
-      ['leena', "Sajan is finishing a job near the Puzhathi railway gate. He'll need a ride, and the police are already looking."],
+      ['leena', "'Kathakali gang robs Kayal Bank.' Front page of every paper. They have the masks and nothing else."],
+      ['leena', 'But Sajan came back from Thalassery too soon. Somebody knew him at the Puzhathi railway gate and called the police.'],
       ['you', 'How many?'],
-      ['leena', 'Enough. Lose them, then bring him here.'],
+      ['leena', 'Enough. Get him out, lose them, and bring him here.'],
     ],
     steps: [
-      { type: 'goto', to: 'Puzhathi', stop: true, inVehicle: true, text: 'Pick up <b>Sajan</b> at Puzhathi.' },
+      // (Sajan waits at the kerb, gets in beside you when you stop, rides through the chase and gets out at Leena's)
+      { type: 'goto', to: 'Puzhathi', stop: true, inVehicle: true, rider: 'sajan', text: 'Pick up <b>Sajan</b> at Puzhathi.' },
       { type: 'call', lines: [['sajan', 'Go, go! The jeep is right behind us!']] },
       { type: 'lose', heat: 2, text: 'Lose the <b>police</b>.' },
-      { type: 'goto', to: 'giver', stop: true, inVehicle: true, text: 'Take Sajan back to <b>Leena</b>.' },
+      { type: 'goto', to: 'giver', stop: true, inVehicle: true, drop: 'sajan', text: 'Take Sajan back to <b>Leena</b>.' },
     ],
-    outro: [['sajan', 'Machane, that was mad. You are okay.'], ['leena', 'Good. Firoz in Azhikode needs a driver. Go and see him.']],
+    outro: [['sajan', 'Machane, two chases in one week. You are mad.'], ['leena', 'Thirty-two lakhs are no use in a bag under my bed. Firoz in Azhikode can make them clean. Go and see him.']],
     reward: { cash: 5000, xp: 1000 },
   },
   {
     id: 'kl_spice_route', giver: 'firoz', title: 'Spice Route', requires: ['kl_pachalam_pickup'],
     intro: [
-      ['firoz', 'Firoz. I find things out for people. Sit, have a chaya.'],
+      ['firoz', "Firoz. I find things out for people. Leena's money, yes? Sit, have a chaya."],
+      ['firoz', 'Money like that goes clean through the hawala men. But in Kannur you must know whose hawala you are using.'],
       ['firoz', 'Every night a pickup leaves the fish godowns by the harbour, and nobody knows where it goes.'],
       ['firoz', 'Follow it. Not too close, not too far. If he sees you, we lose everything.'],
     ],
@@ -376,8 +379,8 @@ const KL_STORY = [
   {
     id: 'kl_tiger', giver: 'leena', title: 'Tiger by the Tail', requires: ['kl_spice_route'],
     intro: [
-      ['leena', "'Tiger' Shibu is telling every crew from Payyanur to Thalassery that we are finished."],
-      ['leena', 'He wants a race through Talap. Winner takes the other crew\'s corner.'],
+      ['leena', "'Tiger' Shibu is telling every crew from Payyanur to Thalassery that the Kayal job was his."],
+      ['leena', 'Let the police look at him. But now he wants a race through Talap. Winner takes the other crew\'s corner.'],
       ['you', "Then let's take it."],
     ],
     steps: [
@@ -391,8 +394,8 @@ const KL_STORY = [
     id: 'kl_scorpio', giver: 'babu', title: 'Black Scorpio', requires: ['kl_tiger'],
     intro: [
       ['babu', "Shibu's boys took a full load of my spare parts. Bad loser."],
-      ['babu', "They're driving it out past Chovva right now in a black Scorpio. I don't want it back."],
-      ['babu', 'Knock it off the road. Insurance pays me, nobody gets hurt, everybody is happy.'],
+      ['babu', "They're driving it out past Chovva right now in a black Scorpio. Not ours. Ours is green now."],
+      ['babu', "I don't want it back. Knock it off the road. Insurance pays me, nobody gets hurt, everybody is happy."],
     ],
     steps: [
       { type: 'ram', vehicle: 'scorpio', paint: '#0e0f11', from: 'Melechovva', route: ['Melechovva', 'Adikadalayi', 'Thottada'], hits: 4, text: 'Ram the <b>black Scorpio</b> off the road.' },
@@ -404,6 +407,7 @@ const KL_STORY = [
     id: 'kl_last_ferry', giver: 'firoz', title: 'Last Ferry', requires: ['kl_scorpio'],
     intro: [
       ['firoz', 'Remember the godown? Your pickup was moving money for SI Mathew. Hawala money.'],
+      ['firoz', "A policeman's hawala. If Leena's lakhs had gone through his people, he would know whose they were by morning."],
       ['firoz', "His Thar is parked at the Neerkadavu fishing jetty tonight, with all of it inside, and his own men watching it."],
       ['firoz', 'Take it, lose them, and bring it here before the boats go out. Then this town is yours.'],
       ['you', 'And Mathew?'],

@@ -15,6 +15,8 @@ import { VehiclePhysics } from '../physics/VehiclePhysics.js';
 import { GRID } from '../world/CityLayout.js';
 import { PROPERTY_BY_ID } from '../world/Empire.js';
 import { Heist } from './Heist.js';
+import { CrewMember } from './Crew.js';
+import { passengerProfile } from '../vehicles/Interaction.js';
 
 const YELLOW = 0xffc53d;
 const _a = new THREE.Vector3(), _b = new THREE.Vector3();
@@ -119,6 +121,156 @@ export class Story {
     return this.game.races.prepare({ type: 'sprint', waypoints: wps }).route;
   }
 
+  // ------------------------------------------------------------------ riders
+  // GTA's pickups: a crew member waits at the kerb, turns to watch your car come, walks to the passenger door when you
+  // stop and gets in (the car held still until the door shuts). He rides along, looking at you when he talks and back at
+  // the police in a chase; if you get out and walk off he gets out and follows, and gets back in when you stop for him.
+  // At the drop-off he gets out and walks over to the contact. (A step's rider: 'id' picks him up, drop: 'id' sets him
+  // down.) No rider if the people models never loaded: the pickup is then just a stop, as before.
+  _riderFor(st, s, d) {
+    const g = this.game;
+    if (st.drop) { const r = this.riders?.[st.drop]; return r?.job === 'aboard' ? r : null; }
+    if (!st.rider) return null;
+    let r = this.riders?.[st.rider];
+    if (!r && d < 250 && g.humans?.ready && !s.noRider) {
+      // (placed once the place has loaded round you: the spot is worked out again from the roads now there)
+      s.target = this._resolve(st.to, this.active.m);
+      const c = CAST[st.rider] || {}, look = c.crew || {};
+      r = new CrewMember(g, { id: st.rider, name: c.name || st.rider, model: look.model || c.model || 'jake', outfit: look.outfit || null });
+      if (!r.ok) { r.dispose(); s.noRider = true; return null; }
+      const k = this._kerb(s.target.x, s.target.z);
+      r.place(k.x, k.z, k.face); r.stand(k.face);
+      r.job = 'wait';
+      (this.riders ||= {})[st.rider] = r;
+    }
+    return r || null;
+  }
+
+  // the kerb beside the lane nearest (x, z), on the lane's own side (Kerala keeps left), facing the road
+  _kerb(x, z) {
+    const g = this.game, W = g.world;
+    if (!W.kerala) { const k = g.empire.sidewalk(x, z); return { x: k.x, z: k.z, face: k.face }; }
+    const lane = g._laneSpot(x, z), lx = Math.cos(lane.yaw), lz = -Math.sin(lane.yaw);
+    let px = lane.x, pz = lane.z, off = null;
+    for (let d = 0.5; d < 9; d += 0.25) {
+      const qx = lane.x + lx * d, qz = lane.z + lz * d;
+      if (!g.onFoot._free(qx, qz)) break;
+      px = qx; pz = qz;
+      if (off === null && !W.onCarriageway(qx, qz)) off = d;
+      if (off !== null && d >= off + 0.75) break;
+    }
+    return { x: px, z: pz, face: Math.atan2(-lx, -lz) };
+  }
+
+  // the pickup / drop-off itself; true when he's in (or out and on his way)
+  _riderStop(r, st, s, d, sp, dt) {
+    const g = this.game, P = g.player, name = CAST[r.id]?.name || r.id;
+    const hold = () => this._holdCar(P);
+    if (!s.boarding && !s.dropping) {
+      if (st.rider && d < 45) r.face = { x: P.state.x, z: P.state.z };      // (watching the car come)
+      s.hold = d < 9 && sp < 2.5 ? (s.hold || 0) + dt : 0;
+      if (st.stop && d < 25 && sp > 2.5) this._meter('STOP HERE', 1 - d / 25, false); else this._meter(null);
+      if (s.hold < 0.6) return false;
+      if (st.rider) {
+        const PP = passengerProfile(P);
+        if (!PP) { if (!s.noRoom) this._objective(`No room for ${name} on that. Come back in a <b>car</b>.`); s.noRoom = true; return false; }
+        if (s.noRoom) { s.noRoom = false; }
+        r.board(P, PP); s.boarding = true; s.bt = 0;
+        this._objective(`Wait for <b>${name}</b>.`);
+      } else {
+        if (sp > 0.8) return false;
+        const ok = r.alight();
+        if (ok !== true) { r._out(); r.inter.release(); const k = this._kerb(P.state.x, P.state.z); r.place(k.x, k.z, k.face); r.stand(); }
+        s.dropping = true; s.bt = 0;
+      }
+      this._meter(null);
+    }
+    s.bt += dt;
+    if (s.boarding) {
+      hold();
+      // (couldn't reach the door, or too long about it: straight into the seat)
+      if ((r.mode === 'stand' || s.bt > 10) && !r.seated) { const PP = passengerProfile(P); if (PP) r.seatIn(P, PP); }
+      if (r.mode === 'car' && r.seated === P) { r.job = 'aboard'; s.boarding = false; return true; }
+      return false;
+    }
+    // dropping off: out of the car, then over to the contact
+    hold();
+    if (r.mode === 'alight' && s.bt < 6) return false;
+    if (r.mode !== 'stand' && r.mode !== 'goto') { r._out(); r.inter.release(); }
+    r.job = 'leave'; r.leaveT = 0; r.look = null;
+    const gv = this._giver(this.active.m.giver);
+    if (!gv.provisional) {
+      const a = Math.atan2(r.state.x - gv.x, r.state.z - gv.z);
+      r.goTo(gv.x + Math.sin(a + 0.6) * 1.3, gv.z + Math.cos(a + 0.6) * 1.3, { face: { x: gv.x, z: gv.z } });
+    } else r.stand();
+    return true;
+  }
+
+  // a rider who should be with you and isn't: the mission waits while you go back for him (failed if you drive off)
+  _riderLost(s) {
+    const g = this.game;
+    let lost = null;
+    const f = g.focusState, at = (r) => r.seated?.state || r.state, dist = (r) => Math.hypot(at(r).x - f.x, at(r).z - f.z);
+    for (const r of Object.values(this.riders || {})) {
+      if (r.job !== 'aboard' || s.dropping) continue;
+      // with you: in your car, getting in or out of it, beside you on foot, or close by coming to the car
+      if (r.seated === g.player || r.inter.st?.v === g.player || dist(r) < (g.onFoot.active ? 15 : 9)) continue;
+      lost = r; break;
+    }
+    if (!lost) { if (s.lostR) { s.lostR = null; this._objective(this.active.m.steps[this.active.i]?.text); } return null; }
+    const d = dist(lost);
+    if (d > 260) { s.lostR = lost; return 'left'; }
+    if (s.lostR !== lost) { s.lostR = lost; this._objective(`Go back for <b>${CAST[lost.id]?.name || lost.id}</b>.`); }
+    this._meter(null);
+    return lost;
+  }
+
+  // per frame: the riders' own lives (getting out after you, following you on foot, boarding the car you stop in)
+  _updateRiders(dt) {
+    const g = this.game, P = g.player, onFoot = g.onFoot.active;
+    for (const [id, r] of Object.entries(this.riders || {})) {
+      if (r.job === 'aboard' && !r.busy) {
+        const v = r.seated;
+        if (v && (v.gone || v.state.damage >= 1)) { r._out(); r.inter.release(); r.stand(); }
+        else if (v) {
+          // in your car: stays while you're nearby; out and after you if you walk off, or took another car
+          const L = onFoot ? g.onFoot.state : P.state, far = Math.hypot(L.x - v.state.x, L.z - v.state.z) > 7;
+          if ((onFoot && far) || (!onFoot && v !== P)) { if (r.alight() !== true) { r._out(); r.inter.release(); r.stand(); } }
+        } else if (onFoot) { if (r.mode !== 'follow') r.follow([0.9, -0.8]); }
+        else {
+          // you're in a car again: he comes to it, and gets in when it's stopped beside him
+          const d = Math.hypot(P.state.x - r.state.x, P.state.z - r.state.z), PP = passengerProfile(P);
+          if (PP && d < 9 && Math.abs(P.state.speed || 0) < 1) r.board(P, PP);
+          else if (d < 40) { if (r.mode !== 'goto' || Math.hypot(r.dest.x - P.state.x, r.dest.z - P.state.z) > 2) r.goTo(P.state.x, P.state.z, { run: true, near: 2.5 }); }
+          else if (r.mode !== 'stand') r.stand();
+        }
+      }
+      if (r.job === 'aboard' && r.mode === 'car') r.look = this._riderLook(r);
+      // (your car held still while he gets in, as in GTA)
+      if (r.mode === 'board' && r.inter.st?.v === P && !onFoot) this._holdCar(P);
+      if (r.job === 'leave') {
+        r.leaveT += dt;
+        const c = g.camera.position;
+        if (r.leaveT > 40 || (r.leaveT > 6 && Math.hypot(c.x - r.state.x, c.z - r.state.z) > 90)) { r.dispose(); delete this.riders[id]; continue; }
+      }
+      r.update(dt, onFoot ? g.onFoot.state : null);
+    }
+  }
+
+  // the car held still: the handbrake, the footbrake only while it still rolls forward (at a standstill the brake pedal
+  // is reverse)
+  _holdCar(v) { const c = v.controls; c.throttle = 0; c.nitro = false; c.handbrake = 1; c.brake = (v.state.speed || 0) > 0.6 ? 1 : 0; }
+
+  // seated beside you: at you while he talks, back at the nearest police car now and then in a chase, else the road
+  _riderLook(r) {
+    const g = this.game;
+    if (this.subSpeaker === r.id) return (out) => { const H = g.onFoot.human?.B?.Head; if (H) { H.getWorldPosition(out); out.y += 0.06; } else { const s = g.player.state; out.set(s.x, s.y + 1.2, s.z); } return out; };
+    const s = r.seated?.state;
+    let best = null, bd = 70;
+    if (s && (performance.now() / 1000) % 7 < 3.2) for (const u of g.police.units || []) { const v = u.vehicle?.state; if (!v) continue; const d = Math.hypot(v.x - s.x, v.z - s.z); if (d < bd) { bd = d; best = v; } }
+    return best ? (out) => out.set(best.x, (best.y || 0) + 1.2, best.z) : null;
+  }
+
   // ------------------------------------------------------------------ UI
   _buildUI() {
     const root = h('div', 'story-ui');
@@ -127,6 +279,7 @@ export class Story {
     this.el = { root, sub: root.querySelector('.story-sub'), obj: root.querySelector('.story-obj'), meter: root.querySelector('.story-meter') };
   }
   _subtitle(speaker, text, phone = false) {
+    this.subSpeaker = speaker || null;
     if (!speaker) { this.el.sub.classList.remove('on'); return; }
     const c = CAST[speaker] || { name: speaker, color: '#fff' };
     this.el.sub.innerHTML = `${phone ? '<span class="phone">&#9742;</span> ' : ''}<b style="color:${c.color}">${c.name}:</b> ${text}`;
@@ -145,7 +298,14 @@ export class Story {
     const i = m.querySelector('i'); i.style.width = `${clamp(frac, 0, 1) * 100}%`; i.className = danger ? 'danger' : '';
   }
   // non-blocking lines (phone calls, outros)
-  _say(lines, phone = true) { this.queue = [...(this.queue || []), ...lines.map(([s, t]) => ({ s, t, phone }))]; }
+  _say(lines, phone = true) { this.queue = [...(this.queue || []), ...lines.map(([s, t, ph]) => ({ s, t, phone: ph ?? phone }))]; }
+  // someone here in person (no phone): you, a rider near you, a contact you're standing by
+  _here(who) {
+    if (who === 'you') return true;
+    const f = this.game.focusState, r = this.riders?.[who], gv = this.givers[who];
+    const near = (o, d) => o && Math.hypot((o.seated?.state || o.state || o).x - f.x, (o.seated?.state || o.state || o).z - f.z) < d;
+    return !!(near(r, 20) || (gv && !gv.provisional && near(gv, 30)));
+  }
   _updateSubs(dt) {
     if (this.subT > 0) { this.subT -= dt; if (this.subT <= 0) this._subtitle(null); }
     if ((!this.subT || this.subT <= 0) && this.queue?.length) {
@@ -288,7 +448,8 @@ export class Story {
         break;
       }
       case 'call': {
-        this._say(st.lines, true);
+        // (on the phone, unless everyone talking is in the car with you)
+        this._say(st.lines, !st.lines.every(([who]) => this.riders?.[who]?.seated === g.player));
         this._next();
         return;
       }
@@ -382,6 +543,7 @@ export class Story {
     const g = this.game;
     this._updateSubs(dt);
     this._updatePeds(dt);
+    this._updateRiders(dt);
     this.promptHtml = null;
     this._animGivers(dt);
     if (!driving) return;
@@ -395,7 +557,10 @@ export class Story {
     const inCar = !g.onFoot.active;
     const P = g.player;
     let target = null, arrowOn = null;
-    switch (st.type) {
+    const lost = this._riderLost(s);
+    if (lost === 'left') { this.fail(`You left ${CAST[s.lostR.id]?.name || 'him'} behind.`); return; }
+    if (lost) arrowOn = lost;
+    else switch (st.type) {
       case 'goto': case 'deliver': {
         target = s.target;
         if (st.type === 'deliver' && A.vehicle) {
@@ -416,6 +581,9 @@ export class Story {
         }
         if (s.needCar && inCar) { s.needCar = false; this._objective(st.text); }
         const d = Math.hypot(f.x - s.target.x, f.z - s.target.z), sp = Math.hypot(f.vx || 0, f.vz || 0);
+        // someone to pick up or drop off here: he comes to the car (or gets out) before the step is done
+        const R = this._riderFor(st, s, d);
+        if (R) { if (this._riderStop(R, st, s, d, sp, dt)) { this._next(); return; } if (s.boarding || s.dropping) target = null; break; }
         if (d < 9 && (!st.stop || sp < 3)) {
           s.hold = (s.hold || 0) + dt;
           if (s.hold > (st.stop ? 1.2 : 0)) {
@@ -576,7 +744,9 @@ export class Story {
       const gv = this._giver(id);
       if (gv.provisional) continue;
       const busy = this.cs?.gv === gv || this.active?.script?.giverOn === id;
-      gv.body.group.visible = on || busy;
+      // (a contact you've just finished a job with stays for the last words, until you've gone)
+      if (gv.stayT > 0) { const c = this.game.camera.position; gv.stayT = Math.hypot(c.x - gv.x, c.z - gv.z) > 80 ? 0 : gv.stayT - dt; }
+      gv.body.group.visible = on || busy || gv.stayT > 0;
       gv.ring.visible = gv.beam.visible = on && !this.cs;
       gv.ring.material.opacity = 0.55 + Math.sin(t * 3) * 0.25;
       if (!gv.human && this.game.humans?.ready) this._humanize(gv, id);
@@ -621,6 +791,8 @@ export class Story {
       v.dispose();
     }
     if (A.st?.ped) { A.st.ped.dispose(); A.st.ped = null; }
+    // riders: gone with the mission, unless dropped off and walking away (they go on their own)
+    for (const [id, r] of Object.entries(this.riders || {})) if (r.job !== 'leave') { r.dispose(); delete this.riders[id]; }
     this.active = null;
     this.dest.visible = false; this.arrow.visible = false; this.target = null;
     this._objective(null); this._meter(null);
@@ -642,15 +814,17 @@ export class Story {
     }
     this._cleanup(true);
     this.done[m.id] = true;
+    const gv = this.givers[m.giver];
+    if (gv && !gv.provisional && this._here(m.giver)) gv.stayT = 30;
     const r = m.reward || {};
     if (r.cash) g.save.addCash(Math.round(r.cash * (g.progress?.rewardMult || 1)), 'story');
     if (r.xp) g.progress?.addXp(r.xp, 'story');
     g.save.save();
     g.hud.message('MISSION PASSED', `${m.title.toUpperCase()} · ${formatMoney(r.cash || 0)} · +${(r.xp || 0).toLocaleString()} XP`, 4.5);
     g.audio.playEvent('raceFinish');
-    if (m.outro?.length) this._say(m.outro, true);
+    if (m.outro?.length) this._say(m.outro.map(([w, t]) => [w, t, !this._here(w)]), true);
     if (m.chapterEnd) { const nc = STORY_CHAPTERS.find((c) => c.id === m.chapterEnd + 1); setTimeout(() => g.hud.message(`CHAPTER ${m.chapterEnd} COMPLETE`, nc ? `NEXT: ${nc.name.toUpperCase()}` : '', 4), 5000); }
-    if (m.finale) setTimeout(() => g.ui.toast(`STORY COMPLETE — ${g.world.kerala ? 'Ernakulam' : 'Port Halvern'} is yours. The city is still open for business.`, 'cash', 8), 4800);
+    if (m.finale) setTimeout(() => g.ui.toast(`STORY COMPLETE — ${g.world.kerala ? 'Kannur' : 'Port Halvern'} is yours. The city is still open for business.`, 'cash', 8), 4800);
     else { const nx = STORY.find((x) => !this.done[x.id] && (x.requires || []).every((q) => this.done[q])); if (nx) setTimeout(() => g.ui.toast(`New mission from ${CAST[nx.giver].name}: ${nx.title} (see the minimap)`, '', 6), 4800); }
     bus.emit('story:pass', { id: m.id });
   }

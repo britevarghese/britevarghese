@@ -308,3 +308,13 @@ the game. Newly found problems go at the end of their section.
     windows clear while the camera looks in through the windscreen; game notices wait until a scene is over
   - [x] The strongroom's racks hold bundles of notes (stacked edges, a paper band and a stamp on each) instead of
     plain coloured blocks; the gold-loan packets on the top shelf stay plain envelopes
+- [x] Chapter 1 follows on from the prologue: Babu, Leena, Sajan and Firoz talked as if they'd never met you ("So you
+  are the new driver Leena talked about"). Now the bank job is in the papers, the Scorpio is green with a Mangalore
+  number, Leena's thirty-two lakhs need washing (so Firoz, and whose hawala the pickup carries: SI Mathew's), and
+  Shibu goes about saying the Kayal job was his. The last line of the story said Ernakulam; it's Kannur
+- [x] Sajan is picked up in person in 'Puzhathi Pickup' (he was an invisible passenger): he waits at the kerb by the
+  railway gate, watches your car come, walks round to the passenger door when you stop and gets in (the car held
+  until the door shuts), rides through the chase looking back at the jeeps, gets out and follows you if you walk
+  off and back in when you return; at Leena's he gets out and walks over to her. Driving off without him fails it
+- [x] A contact stays for the last words when a job ends with them (Leena vanished the moment the mission passed);
+  lines from someone standing with you aren't phone calls
