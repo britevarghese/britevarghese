@@ -81,7 +81,10 @@ export class KeralaRouter {
       const P = lane.pts;
       for (let i = 0; i < P.length; i++) {
         const last = out.length ? N[out[out.length - 1]] : null;
-        if (last && Math.hypot(P[i][0] - last.x, P[i][1] - last.z) < 6) continue;
+        // (only the point two lanes share at a junction, or one on top of another: dropping every point within 6 m
+        // of the last left out the start of the next lane, and the route cut across the corner, a metre off the
+        // lane, into a bridge's parapet)
+        if (last && Math.hypot(P[i][0] - last.x, P[i][1] - last.z) < 1.5) continue;
         out.push(N.length); N.push({ id: N.length, x: P[i][0], z: P[i][1], type: 'wp' });
       }
     }

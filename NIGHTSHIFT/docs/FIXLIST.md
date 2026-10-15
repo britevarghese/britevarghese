@@ -157,6 +157,16 @@ the game. Newly found problems go at the end of their section.
   lined up, judge each sharp corner on its own and steer back onto the lane line. A drive test by the same driver,
   ~10 km round Kannur, now leaves the road or hits something at one place only (a tight junction turn straight
   onto a narrow canal bridge)
+- [x] AI routes (police, racers, story drivers) cut across corners at junctions: the route dropped every lane point
+  within 6 m of the last one, so where one lane ends and the next begins it ran straight across, a metre off the
+  lane, and a car on it met the end of a canal bridge's parapet just past the junction. Only points on top of one
+  another are merged now. Out of a sharp junction turn the AI also sped up at full lock and swung wide: it waits
+  until it's straightened (and slows when a metre or more off its lane); a bridge's parapets keep a little further
+  from a junction. A drive test round Kannur (three runs, ~9 km) now has no crashes or runs off the road;
+  Thalassery, Mattannur and Taliparamba only a few slow scrapes in very sharp junction turns
+- [x] AI cars stopped with the brake held drove off backwards: in this game the brake at a standstill is reverse
+  gear (a police car parked at a roadblock crept back; one with no route reversed away at up to 35 km/h). They
+  stand on the handbrake now
 - [x] Full-detail traffic cars cost up to 400k triangles each (the Scorpio; a Dzire 280k, an Ertiga or an 800 200k),
   and up to 8 of them were drawn that way at once on High (12 on Ultra), shadows on top. The nearest cars still get
   full detail, within a triangle budget per quality level (High: 1M; a short drive peaked at 1.0M, was 1.33M)

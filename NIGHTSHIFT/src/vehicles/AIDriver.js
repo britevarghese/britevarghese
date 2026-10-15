@@ -140,7 +140,8 @@ export class AIDriver {
   update(dt, obstacles = []) {
     const v = this.v, s = v.state, c = v.controls;
     const speed = Math.hypot(s.vx, s.vz);
-    if (this.mode === 'park') { c.throttle = 0; c.brake = 1; c.steer = 0; c.handbrake = 1; c.nitro = false; return; }
+    // (standing still on the handbrake: the brake held at a standstill is reverse gear, and the car backed away)
+    if (this.mode === 'park') { c.throttle = 0; c.brake = speed > 0.6 ? 1 : 0; c.steer = 0; c.handbrake = 1; c.nitro = false; return; }
     let tx, tz, targetSpeed = this.maxSpeed;
     if (this.mode === 'pursue' && this.target) {
       const t = this.target;
@@ -186,7 +187,7 @@ export class AIDriver {
         const end = this.route[this.route.length - 1];
         if (Math.hypot(end[0] - s.x, end[1] - s.z) < 12) targetSpeed = 0;
       }
-    } else { c.throttle = 0; c.brake = 0.5; c.steer = 0; return; }
+    } else { c.throttle = 0; c.brake = speed > 0.6 ? 0.5 : 0; c.handbrake = speed > 0.6 ? 0 : 1; c.steer = 0; return; }
 
     // obstacle avoidance (traffic cars / other vehicles ahead)
     const fx = Math.sin(s.yaw), fz = Math.cos(s.yaw);
@@ -214,6 +215,9 @@ export class AIDriver {
       const a = this.route[this.idx], b = this.route[this.idx + 1], dx = b[0] - a[0], dz = b[1] - a[1], L = Math.hypot(dx, dz) || 1;
       const eR = ((s.x - a[0]) * -dz + (s.z - a[1]) * dx) / L;   // (+: right of the line, (-dz, dx) being its right)
       steer = clamp(steer - clamp(eR, -2, 2) * 0.45 / (1 + speed / 15), -1, 1);
+      // well off it (come out of a junction wide): slowed until back in the lane, as a driver would (it sped up while
+      // swinging back across, and over-ran the lane into a bridge's parapet)
+      if (Math.abs(eR) > 1) targetSpeed = Math.min(targetSpeed, 5 + 7 / Math.abs(eR));
     }
     // counter-steer when sliding
     if (s.slip > 0.25) steer = clamp(steer - Math.sign(s.yawRate) * 0.3, -1, 1);
@@ -234,11 +238,16 @@ export class AIDriver {
       this.needsReset = moved < 4 && targetSpeed > 3;
       this.watchPos = [s.x, s.z]; this.watchT = 0;
     }
+    // (and not on the throttle while still steering hard: out of a sharp junction turn it sped up at full lock and
+    // swung wide, into a bridge's parapet just past the junction)
+    if (this.mode !== 'pursue' && Math.abs(steer) > 0.7) targetSpeed = Math.min(targetSpeed, 6);
     const err = targetSpeed - speed;
     c.steer = steer;
     c.throttle = err > 0 ? clamp(err / 6, 0.25, 1) * this.powerScale : 0;
     c.brake = err < -1 ? clamp(-err / 4, 0.3, 1) : 0;   // (firmly: the speed plan counts on real braking)
     c.handbrake = Math.abs(diff) > 1.1 && speed > 12 && speed < 30 ? 1 : 0;
+    // (stopped where it means to stop: held there)
+    if (targetSpeed < 0.5 && speed < 0.8) { c.brake = 0; c.throttle = 0; c.handbrake = 1; }
     c.nitro = this.useNitro && err > 15 && Math.abs(diff) < 0.12;
   }
 }

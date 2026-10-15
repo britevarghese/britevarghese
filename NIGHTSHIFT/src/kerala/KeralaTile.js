@@ -1543,7 +1543,7 @@ export class KeralaTile {
               edge(hw + 0.75, 0.17, hw + 2.2, 0.2, [0.26 * j, 0.25 * j, 0.22 * j]); // footpath slabs
               edge(hw + 2.2, 0.2, hw + 2.2, -0.35, conc, grime);
             } else edge(hw + 0.75, 0.17, hw + 0.95, -0.35, conc, grime);
-          } else if (A.water && B.water && inTile(mid) && ![mid, A.at(hw), B.at(hw)].some((q) => nj(q[0], q[1], 3)) && Number.isFinite(A.y0) && Number.isFinite(B.y0)
+          } else if (A.water && B.water && inTile(mid) && ![mid, A.at(hw), B.at(hw)].some((q) => nj(q[0], q[1], 4.5)) && Number.isFinite(A.y0) && Number.isFinite(B.y0)
             && [A.at(hw), B.at(hw), [(A.at(hw)[0] + B.at(hw)[0]) / 2, (A.at(hw)[1] + B.at(hw)[1]) / 2]].every((q) => !this.onRoad(q[0], q[1], 0.6, ri))) {
             // canal side / bridge: a whitewashed parapet on a granite side wall going down to the water; solid (it stops
             // short of a junction's corner: room for a car to turn)
