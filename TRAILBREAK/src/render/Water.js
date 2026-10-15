@@ -1,117 +1,185 @@
-// Water: the river (a ribbon along its course at its falling level), Mirror Lake, the bog's pools and the trail
-// puddles. Ripples are scrolled noise bent into the normal; the sky shows in it at grazing angles.
+// Water: the river, Mirror Lake, the bog's pools and the trail puddles, as one surface over the world's water grid
+// (every 2 m point that has a water level; the physics wades in the same water). Each point knows how deep the water
+// is there (the level over the ground), which way it flows (down the river's slope) and whether it is muddy.
+//
+// Light goes into water and is absorbed, red first: shallow water is clear and shows the stones of its bed, deep
+// water is dark green-blue, a pool of mud is opaque a few centimetres down, and the edge fades to nothing at the
+// shore. The surface reflects the sky (the scene's environment map) as glass does, more at grazing angles, with the
+// sun glinting in it. Ripples drift with the current (two phases of a flowing normal map, so they never stretch),
+// and the river froths a little over its shallow riffles.
 import * as THREE from 'three';
-import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { BOG } from '../world/MapData.js';
 
-function waterMaterial(color, opacity, uniforms, flow = 0.25, reflect = 0.75) {
-  const mat = new THREE.MeshStandardMaterial({ color, transparent: true, opacity, roughness: 0.07, metalness: 0.0, depthWrite: false });
+/** A tileable picture of ripples: the normal's x and y, and the height. */
+function rippleTexture(size = 256) {
+  const h = new Float32Array(size * size);
+  let s = 5;
+  const R = () => { s = (s * 16807) % 2147483647; return s / 2147483647; };
+  // sum of waves on the tile's lattice (whole cycles across it, so it tiles), many directions
+  const waves = [];
+  for (let i = 0; i < 26; i++) {
+    const a = R() * Math.PI * 2, f = Math.round(3 + R() * R() * 26);
+    const kx = Math.round(Math.cos(a) * f), ky = Math.round(Math.sin(a) * f);
+    if (!kx && !ky) continue;
+    waves.push([kx, ky, 1 / Math.hypot(kx, ky) ** 1.15, R() * Math.PI * 2]);
+  }
+  for (let y = 0; y < size; y++) for (let x = 0; x < size; x++) {
+    let v = 0;
+    for (const [kx, ky, amp, ph] of waves) v += amp * Math.sin((kx * x + ky * y) / size * Math.PI * 2 + ph);
+    h[y * size + x] = v;
+  }
+  let lo = Infinity, hi = -Infinity;
+  for (const v of h) { lo = Math.min(lo, v); hi = Math.max(hi, v); }
+  const data = new Uint8Array(size * size * 4);
+  const at = (x, y) => h[((y + size) % size) * size + ((x + size) % size)];
+  for (let y = 0; y < size; y++) for (let x = 0; x < size; x++) {
+    const dx = (at(x + 1, y) - at(x - 1, y)) / (hi - lo) * 9, dy = (at(x, y + 1) - at(x, y - 1)) / (hi - lo) * 9;
+    const l = Math.hypot(dx, dy, 1), o = (y * size + x) * 4;
+    data[o] = Math.round((-dx / l * 0.5 + 0.5) * 255);
+    data[o + 1] = Math.round((-dy / l * 0.5 + 0.5) * 255);
+    data[o + 2] = Math.round((h[y * size + x] - lo) / (hi - lo) * 255);
+    data[o + 3] = 255;
+  }
+  const t = new THREE.DataTexture(data, size, size, THREE.RGBAFormat);
+  t.wrapS = t.wrapT = THREE.RepeatWrapping;
+  t.magFilter = THREE.LinearFilter;
+  t.minFilter = THREE.LinearMipmapLinearFilter;
+  t.generateMipmaps = true;
+  t.anisotropy = 4;
+  t.needsUpdate = true;
+  return t;
+}
+
+function waterMaterial(uniforms) {
+  const mat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.04, metalness: 0, transparent: true, depthWrite: false });
+  mat.blending = THREE.CustomBlending;
+  mat.blendSrc = THREE.OneFactor;
+  mat.blendDst = THREE.OneMinusSrcAlphaFactor;
   mat.onBeforeCompile = (sh) => {
-    sh.uniforms.uTime = uniforms.uTime;
-    sh.uniforms.uSky = uniforms.uSky;
-    sh.uniforms.uFlow = { value: flow };
-    sh.uniforms.uReflect = { value: reflect };
+    Object.assign(sh.uniforms, uniforms);
     sh.vertexShader = sh.vertexShader
-      .replace('#include <common>', '#include <common>\nvarying vec3 vWPos;')
-      .replace('#include <worldpos_vertex>', '#include <worldpos_vertex>\nvWPos = (modelMatrix * vec4(transformed, 1.0)).xyz;');
+      .replace('#include <common>', `#include <common>
+attribute float aDepth;
+attribute vec2 aFlow;
+attribute float aMud;
+varying float vDepth;
+varying vec2 vFlow;
+varying float vMud;
+varying vec3 vWPos;`)
+      .replace('#include <worldpos_vertex>', `#include <worldpos_vertex>
+vWPos = (modelMatrix * vec4(transformed, 1.0)).xyz;
+vDepth = aDepth; vFlow = aFlow; vMud = aMud;`);
     sh.fragmentShader = sh.fragmentShader
       .replace('#include <common>', `#include <common>
-varying vec3 vWPos;
 uniform float uTime;
-uniform vec3 uSky;
-uniform float uFlow;
-uniform float uReflect;
-float wh(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
-float wn(vec2 p) { vec2 i = floor(p), f = fract(p); vec2 u = f * f * (3.0 - 2.0 * f);
-  return mix(mix(wh(i), wh(i + vec2(1, 0)), u.x), mix(wh(i + vec2(0, 1)), wh(i + vec2(1, 1)), u.x), u.y); }
-float waves(vec2 p) {
-  return wn(p * 0.42 + vec2(uTime * 0.31, uTime * 0.2) * uFlow * 4.0) * 0.6 + wn(p * 1.3 - vec2(uTime * 0.5, -uTime * 0.37)) * 0.3 + wn(p * 3.7 + vec2(uTime * 0.9, uTime * 0.6)) * 0.1;
+uniform sampler2D uRipple;
+varying float vDepth;
+varying vec2 vFlow;
+varying float vMud;
+varying vec3 vWPos;
+float wA;
+vec3 wN;
+vec2 ripple(vec2 uv) { return texture2D(uRipple, uv).rg * 2.0 - 1.0; }`)
+      .replace('#include <color_fragment>', `#include <color_fragment>
+{
+  float depth = max(vDepth, 0.0);
+  float dist = length(vWPos - cameraPosition);
+  // ripples carried by the current: two phases half a cycle apart, each faded out as it resets
+  float t = uTime;
+  float ph0 = fract(t * 0.3), ph1 = fract(t * 0.3 + 0.5);
+  float wb = abs(ph0 - 0.5) * 2.0;
+  vec2 drift = vec2(t * 0.012, t * 0.007);
+  vec2 p0 = vWPos.xz - vFlow * ph0 * 3.0, p1 = vWPos.xz - vFlow * ph1 * 3.0 + vec2(3.7, 1.9);
+  vec2 r0 = ripple(p0 * 0.11 + drift) + ripple(p0 * 0.37 - drift * 1.7) * 0.6;
+  vec2 r1 = ripple(p1 * 0.11 + drift) + ripple(p1 * 0.37 - drift * 1.7) * 0.6;
+  vec2 r = mix(r0, r1, wb);
+  float calm = mix(0.35, 1.0, clamp(length(vFlow) * 0.7, 0.0, 1.0));
+  float k = calm * clamp(1.0 - dist / 700.0, 0.2, 1.0) * (vMud > 0.5 ? 0.35 : 1.0);
+  wN = normalize(vec3(-r.x * k * 0.55, 1.0, -r.y * k * 0.55));
+  // light absorbed on the way down and back: clear in the shallows, dark green-blue deep, mud opaque
+  vec3 absorb = mix(vec3(0.5, 0.14, 0.11), vec3(9.0, 11.0, 13.0), vMud);
+  vec3 T = exp(-absorb * depth * 1.8);
+  wA = clamp(1.0 - dot(T, vec3(0.3333)), 0.0, 1.0) * smoothstep(0.0, 0.06, depth);
+  diffuseColor.rgb = mix(vec3(0.012, 0.05, 0.05), vec3(0.11, 0.08, 0.05), vMud);
+  // froth over the shallow riffles of the river
+  float speed = length(vFlow);
+  float froth = smoothstep(0.32, 0.08, depth) * smoothstep(0.6, 1.6, speed) * smoothstep(0.55, 0.85, texture2D(uRipple, p0 * 0.5).b * 0.6 + texture2D(uRipple, p1 * 1.3).b * 0.4) * (1.0 - vMud);
+  diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.85), froth);
+  wA = max(wA, froth * 0.9 * smoothstep(0.0, 0.04, depth));
 }`)
       .replace('#include <normal_fragment_maps>', `#include <normal_fragment_maps>
+normal = normalize((viewMatrix * vec4(wN, 0.0)).xyz);`)
+      .replace('#include <opaque_fragment>', `
 {
-  vec2 p = vWPos.xz;
-  float e = 0.25;
-  float h0 = waves(p), hx = waves(p + vec2(e, 0.0)), hz = waves(p + vec2(0.0, e));
-  float dist = length(vWPos - cameraPosition);
-  float k = 0.9 * clamp(1.0 - dist / 600.0, 0.15, 1.0);
-  vec3 nW = normalize(vec3(-(hx - h0) / e * k, 1.0, -(hz - h0) / e * k));
-  normal = normalize((viewMatrix * vec4(nW, 0.0)).xyz);
+  // what is behind shows through what the water lets past; the reflection adds on top
+  vec3 V = normalize(vViewPosition);
+  float R = 0.02 + 0.98 * pow(1.0 - clamp(dot(normal, V), 0.0, 1.0), 5.0);
+  vec3 diff = reflectedLight.directDiffuse + reflectedLight.indirectDiffuse;
+  vec3 spec = reflectedLight.directSpecular + reflectedLight.indirectSpecular;
+  float a = 1.0 - (1.0 - wA) * (1.0 - R);
+  gl_FragColor = vec4(diff * wA * (1.0 - R) + spec, a);
 }`)
-      .replace('#include <lights_fragment_end>', `#include <lights_fragment_end>
-{
-  vec3 V = normalize(cameraPosition - vWPos);
-  float fres = pow(1.0 - clamp(dot(normalize((inverse(viewMatrix) * vec4(normal, 0.0)).xyz), V), 0.0, 1.0), 4.0);
-  reflectedLight.indirectSpecular += uSky * (0.08 + uReflect * fres);
-}`);
+      .replace('#include <fog_fragment>', `#ifdef USE_FOG
+  float fogFactor = 1.0 - exp(- fogDensity * fogDensity * vFogDepth * vFogDepth);
+  gl_FragColor.rgb = mix(gl_FragColor.rgb, fogColor * gl_FragColor.a, fogFactor);
+#endif`);
   };
   return mat;
 }
 
 export class Water {
   constructor(world, scene) {
-    this.uniforms = { uTime: { value: 0 }, uSky: { value: new THREE.Color(0xbfd5ec) } };
-    this.group = new THREE.Group();
-    scene.add(this.group);
-    const river = world.data.river.points;
-    // river ribbon
-    {
-      const pos = [], idx = [];
-      for (let i = 0; i < river.length; i++) {
-        const [x, z, level, half] = river[i];
-        const [ax, az] = river[Math.max(0, i - 1)], [bx, bz] = river[Math.min(river.length - 1, i + 1)];
-        let dx = bx - ax, dz = bz - az; const l = Math.hypot(dx, dz) || 1; dx /= l; dz /= l;
-        const w = half * 1.9 + 4;                                 // past the banks: the terrain hides the excess
-        pos.push(x - dz * w, level, z + dx * w, x + dz * w, level, z - dx * w);
-        if (i > 0) { const a = (i - 1) * 2; idx.push(a, a + 2, a + 1, a + 1, a + 2, a + 3); }   // facing up
+    this.uniforms = { uTime: { value: 0 }, uRipple: { value: rippleTexture() } };
+    const d = world.data, N = d.waterN, res = d.waterRes, O = d.origin, W = d.water;
+    const has = (i, k) => i >= 0 && k >= 0 && i < N && k < N && W[k * N + i] > -1e8;
+    // vertices at the grid points with a water level, and quads where all four corners have one
+    const index = new Int32Array(N * N).fill(-1);
+    const pos = [], depth = [], flow = [], mud = [], idx = [];
+    const puddles = d.puddles.filter((p) => p.level !== undefined);
+    const cb = Math.cos(BOG.rot), sb = Math.sin(BOG.rot);
+    for (let k = 0; k < N; k++) {
+      for (let i = 0; i < N; i++) {
+        if (!has(i, k)) continue;
+        const x = O + i * res, z = O + k * res, level = W[k * N + i];
+        index[k * N + i] = pos.length / 3;
+        pos.push(x, level, z);
+        depth.push(level - world.terrain(x, z));
+        // downstream: down the slope of the water's surface, faster where it falls faster
+        const lx = has(i + 1, k) && has(i - 1, k) ? (W[k * N + i + 1] - W[k * N + i - 1]) / (2 * res) : 0;
+        const lz = has(i, k + 1) && has(i, k - 1) ? (W[(k + 1) * N + i] - W[(k - 1) * N + i]) / (2 * res) : 0;
+        const g = Math.hypot(lx, lz), sp = g > 1e-4 ? Math.min(2.4, 0.5 + g * 220) / g : 0;
+        flow.push(-lx * sp, -lz * sp);
+        const bx = x - BOG.x, bz = z - BOG.z, bu = (bx * cb - bz * sb) / BOG.rx, bv = (bx * sb + bz * cb) / BOG.rz;
+        const muddy = bu * bu + bv * bv < 0.7 || puddles.some((p) => Math.hypot(x - p.x, z - p.z) < p.r + 2);
+        mud.push(muddy ? 1 : 0);
       }
-      const g = new THREE.BufferGeometry();
-      g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
-      g.setIndex(idx);
-      g.computeVertexNormals();
-      // make sure all normals point up
-      const n = g.attributes.normal; for (let i = 0; i < n.count; i++) n.setXYZ(i, 0, 1, 0);
-      const m = new THREE.Mesh(g, waterMaterial(0x24555a, 0.86, this.uniforms, 0.6, 0.5));
-      m.receiveShadow = true;
-      m.renderOrder = 2;
-      this.group.add(m);
     }
-    // the lake
-    {
-      const L = world.lake;
-      const g = new THREE.CircleGeometry(L.r * 1.32, 72).rotateX(-Math.PI / 2);
-      const m = new THREE.Mesh(g, waterMaterial(0x24505f, 0.88, this.uniforms, 0.05, 0.6));
-      m.position.set(L.x, L.level, L.z);
-      m.receiveShadow = true; m.renderOrder = 2;
-      this.group.add(m);
+    for (let k = 0; k < N - 1; k++) {
+      for (let i = 0; i < N - 1; i++) {
+        const a = index[k * N + i], b = index[k * N + i + 1], c = index[(k + 1) * N + i], e = index[(k + 1) * N + i + 1];
+        if (a < 0 || b < 0 || c < 0 || e < 0) continue;
+        if (depth[a] < -0.3 && depth[b] < -0.3 && depth[c] < -0.3 && depth[e] < -0.3) continue;   // all on dry bank
+        idx.push(a, c, b, b, c, e);
+      }
     }
-    // the bog's pools and the puddles: muddy water
-    const mud = waterMaterial(0x2e2418, 0.94, this.uniforms, 0.02, 0.1);
-    mud.roughness = 0.35;
-    {
-      const g = new THREE.CircleGeometry(1, 40).rotateX(-Math.PI / 2);
-      const m = new THREE.Mesh(g, mud);
-      m.scale.set(BOG.rx * 0.72, 1, BOG.rz * 0.72);
-      m.rotation.y = -BOG.rot;
-      m.position.set(BOG.x, world.data.bogFloor - 0.06, BOG.z);
-      m.renderOrder = 2;
-      this.group.add(m);
-    }
-    const discs = [];
-    for (const pd of world.data.puddles) {
-      if (pd.level === undefined) continue;
-      discs.push(new THREE.CircleGeometry(pd.r * 0.98, 20).rotateX(-Math.PI / 2).translate(pd.x, pd.level, pd.z));
-    }
-    if (discs.length) {
-      const m = new THREE.Mesh(mergeGeometries(discs), mud);
-      m.renderOrder = 2;
-      this.group.add(m);
-    }
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+    g.setAttribute('normal', new THREE.Float32BufferAttribute(new Float32Array(pos.length).map((v, j) => (j % 3 === 1 ? 1 : 0)), 3));
+    g.setAttribute('aDepth', new THREE.Float32BufferAttribute(depth, 1));
+    g.setAttribute('aFlow', new THREE.Float32BufferAttribute(flow, 2));
+    g.setAttribute('aMud', new THREE.Float32BufferAttribute(mud, 1));
+    g.setIndex(idx);
+    g.computeBoundingSphere();
+    this.mesh = new THREE.Mesh(g, waterMaterial(this.uniforms));
+    this.mesh.receiveShadow = true;
+    this.mesh.renderOrder = 2;
+    scene.add(this.mesh);
+    this.group = this.mesh;
   }
 
-  update(camera, dt, skyColor) {
+  update(camera, dt) {
     this.uniforms.uTime.value += dt;
-    if (skyColor) this.uniforms.uSky.value.copy(skyColor);
   }
 }
 
-export async function preview(world, r) { const w = new Water(world, r.scene); w.update(r.camera, 0, r.sky.state.horizon); return w; }
+export async function preview(world, r) { const w = new Water(world, r.scene); w.update(r.camera, 0); return w; }

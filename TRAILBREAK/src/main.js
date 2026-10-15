@@ -8,6 +8,7 @@ import { Renderer } from './render/Renderer.js';
 import { TerrainRenderer } from './render/Terrain.js';
 import { loadGround } from './render/Ground.js';
 import { Vegetation } from './render/Vegetation.js';
+import { Grass } from './render/Grass.js';
 import { Rocks } from './render/Rocks.js';
 import { Water } from './render/Water.js';
 import { Landmarks } from './render/Landmarks.js';
@@ -119,6 +120,7 @@ async function start() {
   await new Promise((r) => setTimeout(r, 0));
   const vegetation = await Vegetation.create(world, renderer);
   const rocks = new Rocks(world, renderer.scene, ground);
+  const grass = new Grass(world, terrain, renderer.scene, ground, vegetation.uniforms);
   const water = new Water(world, renderer.scene);
   const landmarks = new Landmarks(world, renderer.scene);
   const effects = new Effects(renderer.scene);
@@ -127,7 +129,7 @@ async function start() {
   const hud = new HUD(world, terrain);
   const input = new Input();
   const game = new Game({
-    world, renderer, terrain, vegetation, rocks, water, landmarks, effects, rope, audio, net, hud, input, settings, garage,
+    world, renderer, terrain, vegetation, grass, rocks, water, landmarks, effects, rope, audio, net, hud, input, settings, garage,
     truckId: settings.truck, build: settings.builds[settings.truck] || '', paint: settings.paint, name: settings.name,
   });
   game.onBuild = (id, code) => { settings.builds[id] = code; save(); };

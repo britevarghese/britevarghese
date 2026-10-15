@@ -29,7 +29,7 @@ function nameTag(text, color) {
 
 export class Game {
   constructor(o) {
-    Object.assign(this, o);          // world, renderer, terrain, vegetation, rocks, water, landmarks, effects, rope, audio, net, hud, input, settings, garage, build
+    Object.assign(this, o);          // world, renderer, terrain, vegetation, grass, rocks, water, landmarks, effects, rope, audio, net, hud, input, settings, garage, build
     this.scene = this.renderer.scene;
     this.spec = truckSpec(this.truckId, this.build);
     this.build = this.spec.buildCode;
@@ -449,6 +449,19 @@ export class Game {
     return rv;
   }
 
+  /** What presses the grass flat: our wheels on the ground and our friends' trucks. */
+  grassPush() {
+    const out = this._push || (this._push = []);
+    out.length = 0;
+    const v = this.vehicle, r = v.spec.tyre.radius;
+    for (const w of v.wheels) if (w.contact) out.push({ x: w.hub.x, z: w.hub.z, r: r * 1.4 });
+    for (const rv of this.remotes.values()) {
+      if (out.length >= 6) break;
+      if (rv.state) out.push({ x: rv.model.root.position.x, z: rv.model.root.position.z, r: 2.2 });
+    }
+    return out;
+  }
+
   updateRemotes(dt) {
     const others = [], pulls = [];
     const live = new Set();
@@ -626,7 +639,7 @@ export class Game {
 
     // ruts -> terrain
     const dirty = this.world.deformGrid.takeDirty();
-    if (dirty) this.terrain.markDirty(dirty);
+    if (dirty) { this.terrain.markDirty(dirty); this.grass.markDirty(dirty); }
 
     // the truck
     const m = this.model;
@@ -658,6 +671,7 @@ export class Game {
     this.terrain.update(camPos);
     this.vegetation.update(this.renderer.camera, dt);
     this.rocks.update(this.renderer.camera);
+    this.grass.update(this.renderer.camera, dt, this.grassPush());
     this.water.update(this.renderer.camera, dt, this.renderer.sky.state.horizon);
     this.landmarks.update(this.renderer.camera, dt);
     this.effects.update(dt, this.world, this.renderer.camera, this.renderer.renderer.domElement.height);
@@ -741,6 +755,7 @@ export class Game {
     this.vegetation.setDetailRange(q === 'high' ? 340 : q === 'medium' ? 240 : 150);
     this.terrain.split = q === 'high' ? 2.1 : q === 'medium' ? 1.8 : 1.5;
     this.terrain.setQuality(q);
+    this.grass.setQuality(q);
   }
 
   updateRemoteRopes() {

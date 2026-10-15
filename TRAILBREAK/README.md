@@ -10,7 +10,8 @@ Nothing to install for players: they open the server's address in Chrome, Edge o
   trucks, boulders and buildings are built from code. The ground wears photo-scanned textures (grass, pine-needle
   forest floor, trail dirt, gravel, rock, mud, sand, snow, river stones: 5 MB), blended per metre by their height maps.
   The trees are four real species (game models, 1.5 MB): the full model close up, and beyond that a picture of it
-  rendered when the game starts.
+  rendered when the game starts. Meadow grass grows in tufts around you, the sky has drifting clouds and stars, and
+  everything is lit by (and the paint and water reflect) that sky. Water is as clear or as muddy as it is deep.
 - **Physics:** written for off-roading, running at 480 Hz (see [The physics](#the-physics)).
 - **Server:** Node.js 18+ with no npm dependencies. Static files, http and https on one port, and WebSocket rooms.
 

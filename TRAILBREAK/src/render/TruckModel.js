@@ -98,7 +98,8 @@ class PartList {
 
 // ---------------------------------------------------------------- materials
 function paintMaterial(hex, uniforms) {
-  const mat = new THREE.MeshPhysicalMaterial({ color: hex, metalness: 0.2, roughness: 0.42, clearcoat: 0.55, clearcoatRoughness: 0.3 });
+  // solid enamel under a clear coat: the sky and the trees slide across it
+  const mat = new THREE.MeshPhysicalMaterial({ color: hex, metalness: 0.05, roughness: 0.38, clearcoat: 1, clearcoatRoughness: 0.07 });
   mat.onBeforeCompile = (sh) => {
     sh.uniforms.uDirt = uniforms.uDirt;
     sh.vertexShader = sh.vertexShader
@@ -108,6 +109,7 @@ function paintMaterial(hex, uniforms) {
       .replace('#include <common>', `#include <common>
 varying vec3 vLocal;
 uniform float uDirt;
+float gMud = 0.0;
 float dh(vec3 p) { return fract(sin(dot(p, vec3(12.9898, 78.233, 37.719))) * 43758.5453); }
 float dn(vec3 p) { vec3 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
   return mix(mix(mix(dh(i), dh(i + vec3(1,0,0)), f.x), mix(dh(i + vec3(0,1,0)), dh(i + vec3(1,1,0)), f.x), f.y),
@@ -119,7 +121,12 @@ float dn(vec3 p) { vec3 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
   float splash = dn(vLocal * 7.0) * 0.6 + dn(vLocal * 19.0) * 0.4;
   float m = clamp(uDirt * 1.6 * lowness - (1.0 - splash) * 0.6, 0.0, 1.0);
   diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.085, 0.06, 0.04), m * 0.92);
-}`);
+  gMud = m;
+}`)
+      // mud dulls the shine
+      .replace('#include <lights_physical_fragment>', `#include <lights_physical_fragment>
+material.clearcoat *= 1.0 - gMud;
+material.roughness = mix(material.roughness, 0.95, gMud);`);
   };
   return mat;
 }
@@ -130,9 +137,9 @@ function shared() {
   const std = (color, roughness, metalness, extra = {}) => new THREE.MeshStandardMaterial({ color, roughness, metalness, ...extra });
   MATS.black = std(0x1d1d1c, 0.7, 0.2);
   MATS.satin = std(0x2a2a29, 0.5, 0.45);
-  MATS.chrome = std(0xe2e2df, 0.18, 1.0);
+  MATS.chrome = std(0xe8e8e6, 0.08, 1.0);
   MATS.alu = std(0xb9bbb8, 0.35, 0.85);
-  MATS.glass = std(0x1d2a30, 0.06, 0.3, { transparent: true, opacity: 0.42, depthWrite: false });
+  MATS.glass = new THREE.MeshPhysicalMaterial({ color: 0x1a262b, roughness: 0.03, metalness: 0, clearcoat: 1, clearcoatRoughness: 0.02, transparent: true, opacity: 0.38, depthWrite: false });
   MATS.tire = std(0x1c1b1a, 0.95, 0);
   MATS.steel = std(0xe9e6dc, 0.45, 0.35);            // white steel wheels
   MATS.bead = std(0x222222, 0.5, 0.5);               // black beadlock wheels

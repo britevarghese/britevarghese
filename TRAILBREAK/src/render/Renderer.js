@@ -19,6 +19,9 @@ export class Renderer {
     this.camera.position.set(0, 120, 0);
 
     this.sky = new Sky(this.scene);
+    this.envOn = true;
+    this.envAt = -1e9;
+    this.scene.environmentIntensity = 0.75;
     this.fog = new THREE.FogExp2(0xc9d6e2, 0.00038);
     this.scene.fog = this.fog;
 
@@ -54,7 +57,8 @@ export class Renderer {
     }
     this.hemi.color.copy(s.hemiSky);
     this.hemi.groundColor.copy(s.hemiGround);
-    this.hemi.intensity = s.hemiI;
+    // the sky's environment map gives most of the sky light; the hemisphere light keeps the shadows from going black
+    this.hemi.intensity = s.hemiI * (this.envOn ? 0.45 : 1);
     this.fog.color.copy(s.fog);
     this.renderer.setClearColor(s.fog);
     this.night = s.el < 2;
@@ -98,6 +102,14 @@ export class Renderer {
   }
 
   render() {
+    const now = performance.now();
+    this.sky.update(Math.min(0.1, (now - (this.lastRender ?? now)) / 1000));
+    this.lastRender = now;
+    // the sky's light, made again (at most a few times a second) when the time of day changes
+    if (this.envOn && this.sky.envDirty && now - this.envAt > 300) {
+      this.scene.environment = this.sky.environment(this.renderer);
+      this.envAt = now;
+    }
     this.sky.follow(this.camera);
     this.renderer.render(this.scene, this.camera);
   }
