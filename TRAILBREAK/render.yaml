@@ -1,0 +1,19 @@
+# Render Blueprint for TRAILBREAK alone (https://render.com/docs/blueprint-spec).
+# Render dashboard -> New -> Blueprint -> connect this repository -> branch claude/sweet-volta-hxo6tl ->
+# Blueprint Path: TRAILBREAK/render.yaml -> Deploy Blueprint. (The render.yaml at the repository root deploys
+# NIGHTSHIFT too.) The server has no npm dependencies, so there is nothing to build; Render provides PORT, the server
+# binds 0.0.0.0, and Render's https covers the page, the WebSockets and gamepads.
+services:
+  - type: web
+    name: trailbreak
+    runtime: node
+    plan: free
+    rootDir: TRAILBREAK
+    branch: claude/sweet-volta-hxo6tl
+    buildCommand: node --version
+    startCommand: node server.js
+    healthCheckPath: /api/health
+    autoDeploy: true
+    envVars:
+      - key: NODE_VERSION
+        value: "20"

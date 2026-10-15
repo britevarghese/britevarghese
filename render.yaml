@@ -1,6 +1,6 @@
 # Render Blueprint for NIGHTSHIFT and TRAILBREAK (https://render.com/docs/blueprint-spec)
-# Render dashboard -> New -> Blueprint -> pick this repository. The game server has no npm
-# dependencies, so there is nothing to build; Render provides PORT and the server binds 0.0.0.0.
+# Render dashboard -> New -> Blueprint -> pick this repository (TRAILBREAK/render.yaml deploys TRAILBREAK alone). No npm
+# dependencies in either game, so there is nothing to build; Render provides PORT and the servers bind 0.0.0.0.
 services:
   - type: web
     name: nightshift
