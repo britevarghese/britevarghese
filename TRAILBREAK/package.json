@@ -1,0 +1,15 @@
+{
+  "name": "trailbreak",
+  "version": "0.1.0",
+  "private": true,
+  "description": "TRAILBREAK - co-op off-road driving in the browser, with a zero-dependency Node.js host server",
+  "type": "commonjs",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "test": "node --test \"test/*.test.mjs\""
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

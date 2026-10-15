@@ -1,0 +1,10 @@
+{
+  "port": 3000,
+  "host": "0.0.0.0",
+  "multiplayer": {
+    "enabled": true,
+    "tickRate": 20,
+    "maxPlayers": 4
+  },
+  "serverName": "TRAILBREAK Server"
+}

@@ -1,0 +1,59 @@
+// Synthetic grounds for the physics tests: the same interface the game world provides (height, surfaceAt,
+// optional deform / water / treesNear).
+import { SURFACES, SURFACE } from '../src/physics/Surfaces.js';
+import { DeformGrid } from '../src/world/Deform.js';
+
+export function flat(surface = SURFACE.DIRT, h = 0) {
+  return { height: () => h, surfaceAt: () => SURFACES[surface] };
+}
+
+/** A plane rising toward +z (uphill) at `deg` degrees; with `side`, rising toward +x instead. */
+export function slope(deg, surface = SURFACE.DIRT, side = false) {
+  const t = Math.tan(deg * Math.PI / 180);
+  return {
+    height: (x, z) => (side ? x : z) * t,
+    surfaceAt: () => SURFACES[surface],
+  };
+}
+
+/** Soft ground that keeps ruts. */
+export function soft(surface = SURFACE.MUD, h = 0) {
+  const grid = new DeformGrid();
+  const s = SURFACES[surface];
+  return {
+    grid,
+    height: (x, z) => h - grid.get(x, z),
+    surfaceAt: () => s,
+    deform: (x, z, fx, fz, hw, hl, press, dig) => grid.stamp(x, z, fx, fz, hw, hl, press, dig, () => s.maxSink),
+  };
+}
+
+/** A slope with pits (holes) at the given [x0, z0, x1, z1] rectangles. */
+export function slopeWithPits(deg, pits, depth = 0.8, surface = SURFACE.DIRT) {
+  const t = Math.tan(deg * Math.PI / 180);
+  return {
+    height: (x, z) => {
+      let h = z * t;
+      for (const [x0, z0, x1, z1] of pits) if (x >= x0 && x <= x1 && z >= z0 && z <= z1) return h - depth;
+      return h;
+    },
+    surfaceAt: () => SURFACES[surface],
+  };
+}
+
+/** Flat ground with a step (ledge) of height h starting at z = z0. */
+export function ledge(z0, h, surface = SURFACE.ROCK) {
+  return { height: (x, z) => (z >= z0 ? h : 0), surfaceAt: () => SURFACES[surface] };
+}
+
+/** A slope with ice on the given [x0, z0, x1, z1] rectangles (split friction). */
+export function slopeWithIce(deg, patches, surface = SURFACE.DIRT) {
+  const t = Math.tan(deg * Math.PI / 180);
+  return {
+    height: (x, z) => z * t,
+    surfaceAt: (x, z) => {
+      for (const [x0, z0, x1, z1] of patches) if (x >= x0 && x <= x1 && z >= z0 && z <= z1) return SURFACES[SURFACE.ICE];
+      return SURFACES[surface];
+    },
+  };
+}
