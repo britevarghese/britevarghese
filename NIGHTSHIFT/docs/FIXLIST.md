@@ -171,6 +171,21 @@ the game. Newly found problems go at the end of their section.
 - [x] Full-detail traffic cars cost up to 400k triangles each (the Scorpio; a Dzire 280k, an Ertiga or an 800 200k),
   and up to 8 of them were drawn that way at once on High (12 on Ultra), shadows on top. The nearest cars still get
   full detail, within a triangle budget per quality level (High: 1M; a short drive peaked at 1.0M, was 1.33M)
+- [x] AI cars (police, racers, story drivers) ran wide at junctions, at more than a third of a town's sharp turns:
+  lanes meet across a junction a few metres apart at right angles - a turn of 3-4 m radius - and a car turns no
+  tighter than about 4.7 m at its lock, so it went over the far kerb or into a wall. A route's sharp corners are
+  rounded now to an arc the car can steer (a corner split between one lane's end and the next one's start, or a lane
+  starting with a hook, taken as one corner; a bend drawn with many points left alone); an arc that would cut the
+  kerb's corner, or sweep the car's front corner off the far side, is moved across until it doesn't, the car easing
+  over in the last few metres before it, as a driver swings out. The car also ran a few points ahead of itself along
+  a curve drawn with close points (it moved on 5 m short of every point, and cut the curve by 1.4 m), and now aims out
+  by what steering for a point ahead cuts off a curve. A route no longer drops a lane's start 1.4 m on from the last
+  lane's end (it ran a car's width off the lane for 100 m, into a house's wall), and one starting 25 m ahead no longer
+  reads as the car being 2 m off it (it steered hard into a wall). Every sharp turn in four towns driven from 30 km/h,
+  clean: 77 of 135 -> 120 (Kannur 16 -> 33 of 38, Thalassery 24 -> 33, Mattannur 21 -> 29 of 31, Taliparamba
+  16 -> 25 of 28; most of the rest turn back sharper than 120 degrees, which wants a three-point turn). The lorry in
+  'Lorry War', stuck in the drain 0.8 km into its route, now drives all 7.6 km of it; a race's rival that stopped
+  dead against a canal's parapet finishes
 
 - [x] Hitches while driving into new country (a tile's build stalling a frame): every step of a tile's build timed
   on a drive (headless, its CPU about half a desktop's). The worst were the ground's mesh (up to a quarter of a second:
@@ -310,6 +325,12 @@ the game. Newly found problems go at the end of their section.
     a junction overlapped the main road's lane higher up (a 0.36 m step on the main road), the main road's own surface
     rules on its carriageway. The same drive: no jolts; that stretch's grade smooth (6-7 %, no 20-35 % kicks)
 - [x] Realistic trees: real coconut palm, banana and broadleaf models (Sketchfab, CC BY) within ~90 m of the camera, with leaf-cut shadows; the generated plants beyond. (Junction-height priority was tried for the remaining road humps: more humps, reverted)
+- [x] Houses standing a little into a narrow road (OSM's outlines and our road widths don't quite agree; one more than
+  a metre in was already left out): a car keeping its lane ran into a house's corner. Moved back off the road, up to
+  2 m, to stand 0.3 m clear of it. Round Mattannur, buildings onto a carriageway or within 1.3 m of a lane 18 -> 1
+- [x] T junctions drawn without a shared point (a side road ending part-way along a road, or the point simplified out
+  of the through road) were no junction to anything that keeps clear of one: a canal's parapet ran right up to a
+  side road's mouth, and a car turning in caught it. Found now by the side road's end lying on the other road
 
 ## Story
 - [x] The story begins like GTA's: a prologue, 'The Kayal Job', starts on a new game in Kerala (Esc skips a scene;
@@ -379,3 +400,6 @@ the game. Newly found problems go at the end of their section.
     Puzhathi), only the top of the beam showing. It stands on the ground now
   - [x] A race against a story rival lined you both up 1.8 m either side of the lane's centre: him half on the
     verge on a narrow road. He's in the lane now, you beside him in the other
+  - [x] A mission's 'go to' a place kilometres off was put on the nearest road loaded when the step began, not
+    necessarily its own: Chirakkal's spot ended 60 m from any road, the marker in a field and the step never done.
+    It's worked out again once that place's roads are in

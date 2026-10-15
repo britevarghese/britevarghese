@@ -1455,6 +1455,18 @@ export class KeralaTile {
       const last = r.pts.length - 1;
       for (const [k, mid] of new Map(r.pts.map(([e, n], i) => [`${Math.round(e)},${Math.round(n)}`, i > 0 && i < last]))) { const o = seen.get(k); seen.set(k, o ? [o[0] + 1, Math.max(o[1], hw), o[2] || mid] : [1, hw, mid]); }
     }
+    // (and a road ending part-way along another, on no point of it - a T junction drawn that way, or its shared point
+    // simplified out of the through road: nothing kept clear of it, and a canal's parapet ran up to the side road's
+    // mouth, where a car turning in caught it)
+    for (const [ri, r] of this.roads.entries()) {
+      if (r.flags & 4 || r.cls > 8) continue;
+      for (const q of [r.pts[0], r.pts[r.pts.length - 1]]) {
+        const k = `${Math.round(q[0])},${Math.round(q[1])}`, o = seen.get(k);
+        if (!o || o[0] > 1) continue;
+        const hwO = this._roadHwAt(q[0], q[1], ri);
+        if (hwO > 0) seen.set(k, [2, Math.max(o[1], hwO), true]);
+      }
+    }
     const JG = new Map();
     for (const [k, [c0, hw, through]] of seen) {
       if (c0 < 2) continue;
@@ -2335,6 +2347,43 @@ export class KeralaTile {
     return best;
   }
 
+  // the widest other road (not `skip`) whose strip, plus margin, holds (e, n): its half-width, or 0
+  _roadHwAt(e, n, skip = -1, margin = 0.5, maxCls = 8) {
+    if (!this._rg) this.nearRoad(e, n, 1);
+    const G = 25;
+    let best = 0;
+    for (let a = -1; a <= 1; a++) for (let b = -1; b <= 1; b++) {
+      const L = this._rg.get((Math.floor(e / G) + a) * 1000 + Math.floor(n / G) + b); if (!L) continue;
+      for (let j = 0; j < L.length; j += 6) {
+        const cls = L[j + 4]; if (cls > maxCls || L[j + 5] === skip || (this.roads[L[j + 5]].flags & 4)) continue;
+        const hw = ROAD_HALF[cls], ax = L[j], az = L[j + 1], dx = L[j + 2] - ax, dz = L[j + 3] - az, l2 = dx * dx + dz * dz || 1;
+        const t = Math.max(0, Math.min(1, ((e - ax) * dx + (n - az) * dz) / l2));
+        if ((ax + dx * t - e) ** 2 + (az + dz * t - n) ** 2 < (hw + margin) ** 2) best = Math.max(best, hw);
+      }
+    }
+    return best;
+  }
+
+  // the road centre-line pieces (cls up to maxCls, not under a deck) whose strip, half-width plus margin, may reach into
+  // the box: [ae, an, be, bn, half-width + margin] each, flat
+  _segsNear(e0, n0, e1, n1, maxCls = 7, margin = 0) {
+    if (!this._rg) this.nearRoad(e0, n0, 1);
+    const G = 25, out = [];
+    for (let gx = Math.floor((e0 - 8) / G); gx <= Math.floor((e1 + 8) / G); gx++) for (let gz = Math.floor((n0 - 8) / G); gz <= Math.floor((n1 + 8) / G); gz++) {
+      const L = this._rg.get(gx * 1000 + gz); if (!L) continue;
+      for (let j = 0; j < L.length; j += 6) {
+        const cls = L[j + 4]; if (cls > maxCls) continue;
+        const r = this.roads[L[j + 5]]; if (r.flags & 4) continue;
+        const hw = (cls <= 2 && r.lanes ? Math.max(ROAD_HALF[cls], r.lanes * 1.75) : ROAD_HALF[cls]) + margin;
+        const ax = L[j], az = L[j + 1], bx = L[j + 2], bz = L[j + 3];
+        if (Math.max(ax, bx) < e0 - hw || Math.min(ax, bx) > e1 + hw || Math.max(az, bz) < n0 - hw || Math.min(az, bz) > n1 + hw) continue;
+        let dup = false; for (let k = 0; k < out.length && !dup; k += 5) dup = out[k] === ax && out[k + 1] === az && out[k + 2] === bx && out[k + 3] === bz;
+        if (!dup) out.push(ax, az, bx, bz, hw);
+      }
+    }
+    return out;
+  }
+
   // on a drawn road's surface (its own half-width plus margin), optionally ignoring one road (by index)
   onRoad(e, n, margin = 0, skip = -1, maxCls = 8) {
     if (!this._rg) this.nearRoad(e, n, 1);
@@ -2396,6 +2445,36 @@ export class KeralaTile {
         for (let i = 0; i < P.ring.length; i++) { const [e1, n1] = P.ring[i], [e2, n2] = P.ring[(i + 1) % P.ring.length], k = Math.floor(Math.hypot(e2 - e1, n2 - n1) / 3); for (let j = 1; j < k; j++) { const e = e1 + (e2 - e1) * j / k, n = n1 + (n2 - n1) * j / k; along.push([e + (P.ce - e) * 0.1, n + (P.cn - n) * 0.1]); } }
         if (this.onRoad(P.ce, P.cn, -0.4, -1, 7) || onRd >= pts.length * 0.34 || P.ring.some(([e, n]) => this.onRoad(e, n, -1.0, -1, 7)) || along.some(([e, n]) => this.onRoad(e, n, -1.0, -1, 7))
           || P.ring.some(([e, n]) => this._nearJunction?.(e, n, -0.5, 3))) { hidden[bi] = 1; continue; }   // (nor a corner in a junction's mouth)
+      }
+      // (and one only a little into a carriageway moved back off it, up to 2 m, to stand 0.3 m clear: a car keeping its
+      // lane on a narrow road ran into the corner of a house standing 0.3 m into the road. One it can't clear - on a
+      // corner between two roads - goes too)
+      {
+        const segs = this._segsNear(e0 - 2.5, n0 - 2.5, e1 + 2.5, n1 + 2.5, 7, 0.3), R = P.ring;
+        if (segs.length) {
+          let se = 0, sn = 0, deep = 0;
+          for (let it = 0; it < 4; it++) {
+            let pe = 0, pn = 0; deep = 0;
+            // (the walls every 1.5 m)
+            for (let i = 0; i < R.length; i++) {
+              const ea = R[i][0], na = R[i][1], eb = R[(i + 1) % R.length][0], nb = R[(i + 1) % R.length][1], k = Math.max(1, Math.ceil(Math.hypot(eb - ea, nb - na) / 1.5));
+              for (let q = 0; q < k; q++) {
+                const e = ea + (eb - ea) * q / k + se, n = na + (nb - na) * q / k + sn;
+                for (let j = 0; j < segs.length; j += 5) {
+                  const ax = segs[j], az = segs[j + 1], dx = segs[j + 2] - ax, dz = segs[j + 3] - az, hw = segs[j + 4], l2 = dx * dx + dz * dz || 1;
+                  const t = Math.max(0, Math.min(1, ((e - ax) * dx + (n - az) * dz) / l2)), ce = ax + dx * t, cn = az + dz * t, dd = Math.hypot(e - ce, n - cn);
+                  if (dd >= hw || hw - dd <= deep) continue;
+                  const l = Math.sqrt(l2);
+                  deep = hw - dd; pe = (dd > 0.05 ? (e - ce) / dd : -dz / l) * deep; pn = (dd > 0.05 ? (n - cn) / dd : dx / l) * deep;
+                }
+              }
+            }
+            if (deep < 0.02) break;
+            se += pe; sn += pn;
+          }
+          if (deep > 0.3 || Math.hypot(se, sn) > 2) { hidden[bi] = 1; continue; }
+          if (se || sn) { P.ring = R.map(([e, n]) => [e + se, n + sn]); P.ce += se; P.cn += sn; e0 += se; e1 += se; n0 += sn; n1 += sn; }
+        }
       }
       if (near.size) {
         const pts = [[P.ce, P.cn], ...P.ring.map(([e, n]) => [e + (P.ce - e) * 0.15, n + (P.cn - n) * 0.15])];
