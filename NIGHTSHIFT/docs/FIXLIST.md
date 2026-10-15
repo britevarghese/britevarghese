@@ -163,7 +163,8 @@ the game. Newly found problems go at the end of their section.
   another are merged now. Out of a sharp junction turn the AI also sped up at full lock and swung wide: it waits
   until it's straightened (and slows when a metre or more off its lane); a bridge's parapets keep a little further
   from a junction. A drive test round Kannur (three runs, ~9 km) now has no crashes or runs off the road;
-  Thalassery, Mattannur and Taliparamba only a few slow scrapes in very sharp junction turns
+  Thalassery, Mattannur and Taliparamba (one run each) a few scrapes and slips at under 20 km/h (the one looked at:
+  a junction turn too sharp for the car's lock)
 - [x] AI cars stopped with the brake held drove off backwards: in this game the brake at a standstill is reverse
   gear (a police car parked at a roadblock crept back; one with no route reversed away at up to 35 km/h). They
   stand on the handbrake now
