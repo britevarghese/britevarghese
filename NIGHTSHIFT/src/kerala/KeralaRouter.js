@@ -18,10 +18,27 @@ function turnCost(a, b, big) {
   if (a.pts.length < 2 || b.pts.length < 2) return 0;
   const [ax, az] = (a._dirE ||= dirAt(a.pts, true)), [bx, bz] = (b._dirS ||= dirAt(b.pts, false));
   const c = ax * bx + az * bz;
-  if (c < -0.85) return 600;                                     // (more than ~150 degrees)
-  if (c < -0.34) return big ? 500 : 120;                         // (more than ~110)
+  if (c < -0.85) return big ? 4000 : 600;                        // (more than ~150 degrees)
+  if (c < -0.34) return big ? 2500 : 120;                         // (more than ~110: a lorry can't, short of backing up)
   if (big && c < 0.42 && b.edge?.cls > 4) return 200;            // (more than ~65, into a side street)
   return 0;
+}
+
+// a lane's sharpest bend: the most it turns within any 12 m of it (radians). A road can bend at a junction within one
+// lane: 100 degrees in 6 m, where a lorry cut the corner and stuck
+function sharpOf(P) {
+  let best = 0;
+  const turn = [], at = [0];
+  for (let i = 1; i < P.length - 1; i++) {
+    let d = Math.atan2(P[i + 1][0] - P[i][0], P[i + 1][1] - P[i][1]) - Math.atan2(P[i][0] - P[i - 1][0], P[i][1] - P[i - 1][1]);
+    while (d > Math.PI) d -= 2 * Math.PI; while (d < -Math.PI) d += 2 * Math.PI;
+    turn.push(d); at.push(at[at.length - 1] + Math.hypot(P[i][0] - P[i - 1][0], P[i][1] - P[i - 1][1]));
+  }
+  for (let i = 0; i < turn.length; i++) {
+    let sum = 0;
+    for (let j = i; j < turn.length && at[j + 1] - at[i + 1] <= 12; j++) { sum += turn[j]; best = Math.max(best, Math.abs(sum)); }
+  }
+  return best;
 }
 
 export class KeralaRouter {
@@ -96,10 +113,11 @@ export class KeralaRouter {
       for (const { to: v, lane } of this.adj[u]) {
         // (turning right round at a junction only when there's no other way: round the block instead, as a driver
         // would. An AI car can't turn in a lane: a truck on a story route stood facing the way it came for good)
-        const gv = gu + lane.length * (lane.edge?.cls > 4 ? minorW : 1) + (lin ? turnCost(lin, lane, opts?.big) : 0);
+        const gv = gu + lane.length * (lane.edge?.cls > 4 ? minorW : 1) + (lin ? turnCost(lin, lane, opts?.big) : 0) + (opts?.big && (lane._sharp ??= sharpOf(lane.pts)) > 1.5 ? 1500 : 0);
         if (gv < (g.get(v) ?? Infinity)) { g.set(v, gv); prev.set(v, lane); push([gv + Math.hypot(N[v].x - goal.x, N[v].z - goal.z), v]); }
       }
     }
+    this.lastSteps = steps;
     if (!found) return [];
     const path = [];
     for (let v = to; v !== from && path.length < 5000;) { const lane = prev.get(v); path.push(lane); v = this.ids.get(lane.from); }

@@ -340,10 +340,11 @@ the game. Newly found problems go at the end of their section.
     turn is judged over the last and first 6 m, or every right turn looked like turning round)
   - [x] A mission car stuck out of sight is put back on its own route a little ahead, facing along it (it was set
     on the nearest lane, which could run the other way)
-  - [x] Lorries and buses on mission routes keep to the main roads where they can and take corners a quarter
-    slower. Still: in 'Lorry War' the only way out of Attadappa has a 100-degree turn at a Y-junction that the
-    lorry can't make in its lane; it cuts across the point of the Y and lodges there (easy to ram: the job still
-    passes). A lorry swinging wide for a tight turn is still to do
+  - [x] Lorries and buses on mission routes keep to the main roads where they can, avoid acute junction turns and
+    roads that bend too tight for them, take corners a quarter slower and aim out to the outside of a sharp turn.
+    An AI car on the throttle and not moving now backs off and tries again (a lorry wanting a slow corner speed
+    never counted as stuck). Still: in 'Lorry War' the only way out of Attadappa bends 100 degrees in 6 m; the lorry
+    leaves the road there and stays in the roadside drain (easy to ram: the job still passes)
   - [x] A mission car not put in place yet (its roads not loaded, kilometres off) left the objective with no marker
     and no GPS: both now show the way to the place meanwhile
   - [x] 'press E' for a contact's mission stayed on screen through the whole mission

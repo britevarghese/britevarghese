@@ -102,7 +102,7 @@ export class AIDriver {
       sum += wrapAngle(Math.atan2(c[0] - b[0], c[1] - b[1]) - Math.atan2(b[0] - a[0], b[1] - a[1]));
       i++;
     }
-    return { a: Math.abs(sum), len: Math.max(2, Math.min(len, dist)) };
+    return { a: Math.abs(sum), s: sum, len: Math.max(2, Math.min(len, dist)) };
   }
 
   // max heading change over the next `dist` meters (corner severity). A corner drawn with several close points
@@ -182,6 +182,20 @@ export class AIDriver {
         }
       }
       tx = la[0]; tz = la[1];
+      // a lorry or a bus keeps to the outside of a sharp turn (its rear wheels run inside the front's, and steered
+      // along the lane it cut the corner of a Y-junction onto the verge and lodged there): aimed out by up to a metre
+      // and a half as the turn comes, as far as the road goes
+      if (this.bulkK < 0.97 && this.mode !== 'pursue') {
+        const bt = this._bendAhead(s.x, s.z, 16);
+        if (bt.a > 0.6) {
+          const L = this.v.p.length || 4.5, off = Math.min(1.5, (L - 4.6) * 0.5) * clamp((bt.a - 0.6) / 0.9, 0, 1) * Math.sign(bt.s);
+          const fx0 = Math.sin(s.yaw), fz0 = Math.cos(s.yaw), ox = -fz0 * off, oz = fx0 * off;   // (right of the car for a left turn)
+          for (const k of [1, 0.6, 0.3]) {
+            const qx = tx + ox * k, qz = tz + oz * k;
+            if (!W?.kerala || W.onCarriageway(qx, qz)) { tx = qx; tz = qz; break; }
+          }
+        }
+      }
       const corner = this._cornerAhead(Math.max(50, speed * 3.5));
       if (Number.isFinite(corner.vc)) {
         // allow braking distance to the corner
@@ -232,7 +246,10 @@ export class AIDriver {
       c.throttle = 0; c.brake = 1; c.steer = -steer; c.handbrake = 0; c.nitro = false;
       return;
     }
-    if (speed < 1.2 && targetSpeed > 3) { this.stuckT += dt; if (this.stuckT > 1.6) { this.reverseT = 1.3; this.stuckT = 0; } } else this.stuckT = 0;
+    // (or on the throttle and not moving: pushing against something at a slow corner speed, a lorry at 3 m/s wanted
+    // never counted as stuck and pushed at a wall for good)
+    const pushing = speed < 0.5 && c.throttle > 0.3;
+    if (speed < 1.2 && (targetSpeed > 3 || pushing)) { this.stuckT += dt; if (this.stuckT > 1.6) { this.reverseT = 1.3; this.stuckT = 0; } } else this.stuckT = 0;
     if (Math.abs(diff) > 2.2 && speed < 6) { // target behind: three-point turn
       this.reverseT = 0.9;
     }
@@ -240,7 +257,7 @@ export class AIDriver {
     this.watchT = (this.watchT || 0) + dt;
     if (this.watchT > 5) {
       const moved = this.watchPos ? Math.hypot(s.x - this.watchPos[0], s.z - this.watchPos[1]) : 99;
-      this.needsReset = moved < 4 && targetSpeed > 3;
+      this.needsReset = moved < 4 && (targetSpeed > 3 || pushing);
       this.watchPos = [s.x, s.z]; this.watchT = 0;
     }
     // (and not on the throttle while still steering hard: out of a sharp junction turn it sped up at full lock and
