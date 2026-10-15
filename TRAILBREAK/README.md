@@ -74,7 +74,8 @@ Without the Blueprint: **New > Web Service** with this repository, branch `claud
 | Recover: back on the wheels, or back to dry ground when stuck | R | B |
 | Call your friends for a tow (they see where you are) | T | |
 | Fit the spare in place of a flat tyre (stopped) | Y | |
-| Back to the ranger station | Backspace | |
+| Events: start one at its start line (with friends: open a race, or join one); twice to give up | J | Right stick press |
+| Back to the ranger station (broken down: the tow truck takes it into the workshop) | Backspace | |
 | Camera: chase, far, bonnet, cab (drag to look around) | C | Y, right stick |
 | Headlights | H | D-pad right |
 | Map | M | View |
@@ -112,9 +113,39 @@ Trucks break the way real ones do (physics/Damage.js), so drive like it's yours:
   starves and stops (press the throttle to restart it once it is back on its wheels).
 
 A seized engine or an axle that can't drive puts up the **Broken down** panel: call your friends for a tow (they
-hook your bumper and winch, or drag you home) or take the tow truck back to the station (Backspace). Driving into the
-station garage and opening it (U) mends everything and shows what the parts and labour would have cost. Your
-friends see your dents, your glass, your lamps, your flat tyres and your steam.
+hook your bumper and winch, or drag you to the station garage) or call the tow truck (Backspace), which takes the truck
+into the station workshop, where the mechanics mend everything and hand you the bill (an engine rebuild is the big
+one). Broken down anywhere at the station, U brings the workshop out to you. Driving into the station garage and
+opening it (U) mends everything too. Your friends see your dents, your glass, your lamps, your flat tyres and your
+steam.
+
+## Money, the dealer and events
+
+Each driver has a career, kept in their own browser: money, the trucks and parts they own, their best times. You
+start with $2,500 and the Ranger.
+
+- **Earning:** surveying a beacon pays a $600 bounty (friends in the room get a share when you find one), towing a
+  friend out pays a rescue fee, and events pay prize money.
+- **Spending:** the dealer (pause menu, or the truck list in the lobby) sells the Mule and the Hauler; the garage
+  prices every part and bills only for parts you haven't bought for that truck (once bought, a part is yours to fit
+  and take off again). Repairs and the tow truck cost money, and can run you into the red (down to -$5,000): a truck is
+  never left broken.
+
+**Events** (pause menu > Events, or the chequered flags on the map): drive to a start line and press **J**. The truck
+is lined up and counted down; drive through the gates in order to the finish. Beat the par times for a medal: each
+medal level pays once (bronze, then silver, then gold come to the gold prize), and every finish pays a little.
+
+| Event | What it asks for | Par (gold / silver / bronze) |
+|---|---|---|
+| Summit Hill Climb | 1.3 km of switchbacks up 260 m from the Summit Ford to the lookout | 3:15 / 3:55 / 4:50 |
+| Cattail Bog Dash | a run-up, then the length of the bog flat out | 20.5 / 25 / 32 s |
+| Rock Garden Trials | a slalom of tight gates up through the boulders; each hard knock of the body is +5 s | 1:10 / 1:30 / 2:00 |
+| Sand Wash Drag | 100 m of soft sand: power, and the right tyre pressure (air down) | 11.5 / 13.5 / 16 s |
+
+With friends in the room, J opens a race instead: they get a message and 15 seconds to press J, which lines them up
+beside you; everyone's clock starts together (the server's), and the places pay out (1st $2,500, 2nd $1,200, 3rd
+$600, 4th $300, more for the hill climb and less for the drag). The par times came from driving each course in every
+stock truck with a simple robot driver (`node` scripts against the real world and physics).
 
 ## Stuck?
 
@@ -244,8 +275,14 @@ tilt table the stock Mule lifts its wheels at about 38 degrees, a tall build at 
 
 About 2 km across: the ranger station where everyone starts, the old valley road, trails up the Corrie Range to the
 snowy summit, the river from the north-west gorge to the south-east with three fords, Mirror Lake, Cattail Bog, the
-rock garden and the Alder mine on the east ridge, the Pinecrest fire tower, sand washes, puddles that hold water and
+rock garden and the Alder mine on the east ridge, the Pinecrest fire tower, the sand wash, puddles that hold water and
 mud, and thick woods. Survey beacons show as orange light beams; drive up to one to survey it for the whole room.
+
+The trails are built like real ones: the beds are graded (cut into the rises and built up over the dips, at most
+3 m) to about 19 degrees where the hill allows, switchbacks climb the steep ground (the Summit Trail's were laid out
+by a search over the land for the gentlest way up, with bends a long truck can take), the fords' banks are cut down
+in ramps, and puddles only lie where the ground is level. A stock truck in low range can drive every trail; the last
+pitches onto the summit are the steepest (about 25 degrees, on gravel).
 
 ## Project layout
 
@@ -255,8 +292,10 @@ src/physics/              Vehicle (chassis, axles, tyre contact, winch, water), 
                           Upgrades (the garage's parts and what each does to the physics)
 src/world/                WorldGen (the valley), World (ground for the physics), Deform (ruts), MapData, Noise
 src/render/               Renderer, Sky, Terrain (LOD patches), Vegetation, Rocks, Water, Landmarks, TruckModel,
-                          Effects (particles, winch line)
+                          Effects (particles, winch line), EventCourse (start banners, gates)
 src/core/                 Game (the loop), Input, CameraRig
+src/game/                 Career (money, trucks, parts, best times), Events (the courses, runs, medals, races),
+                          EventPlay (events in the game: start lines, countdown, clock, prizes, races with friends)
 src/audio/, src/net/, src/ui/   sound, multiplayer client, HUD and maps, the garage (Garage, GaragePreview)
 public/preview.html       developer view: ?cam=x,y,z&look=x,y,z&mods=Vegetation,Water,...
 public/trucks.html        developer view of one truck: ?truck=hauler&build=overland (a preset or a build code)

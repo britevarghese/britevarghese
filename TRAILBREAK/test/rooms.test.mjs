@@ -140,3 +140,56 @@ test('damage: relayed to the room, cleaned, and handed to whoever joins later', 
   const ana = c.last('welcome').players.find((p) => p.name === 'Ana');
   assert.equal(ana.dmg.f, 2, 'a late joiner sees the flat tyre');
 });
+
+test('races: one opens it, friends join before the start, results end it; a racer who leaves gave up', () => {
+  const lobby = new Lobby({ maxPlayers: 4, rand: () => 0.5 });
+  const a = join(lobby, 'Ana');
+  const code = a.last('welcome').room;
+  const b = join(lobby, 'Ben', code), c = join(lobby, 'Cy', code);
+  const room = lobby.rooms.get(code);
+  a.msg({ t: 'ev', k: 'open', id: 'sanddrag' });
+  const open = b.last('ev');
+  assert.equal(open.k, 'open'); assert.equal(open.id, 'sanddrag'); assert.equal(open.name, 'Ana');
+  assert.ok(open.at > Date.now() + 10000, 'friends get time to join');
+  a.msg({ t: 'ev', k: 'open', id: 'bogdash' });                  // one race at a time
+  assert.equal(room.race.id, 'sanddrag');
+  b.msg({ t: 'ev', k: 'join' });
+  assert.deepEqual(c.last('ev').racers.map((r) => r.name), ['Ana', 'Ben']);
+  // a newcomer hears about the race in its welcome
+  const d = join(lobby, 'Di', code);
+  assert.equal(d.last('welcome').race.id, 'sanddrag');
+  // the start: times only count after it
+  room.race.at = Date.now() - 1;
+  c.msg({ t: 'ev', k: 'join' });                                   // too late
+  assert.equal(room.race.racers.size, 2);
+  a.msg({ t: 'ev', k: 'done', time: 12.345 });
+  assert.equal(c.last('ev').k, 'done');
+  assert.equal(c.last('ev').time, 12.35);
+  assert.ok(room.race, 'still waiting for Ben');
+  b.close();                                                       // Ben leaves: he gave up
+  const end = a.last('ev');
+  assert.equal(end.k, 'end');
+  assert.deepEqual(end.results, [{ id: 1, name: 'Ana', time: 12.35 }, { id: 2, name: 'Ben', time: null }]);
+  assert.equal(room.race, null);
+  // the next race can be opened
+  c.msg({ t: 'ev', k: 'open', id: 'trials' });
+  assert.equal(room.race.id, 'trials');
+  c.msg({ t: 'ev', k: 'done', time: 5 });                         // before the start: not a time
+  const done = a.sent.filter((m) => m.t === 'ev' && m.k === 'done').pop();
+  assert.equal(done.time, null);
+  assert.equal(a.last('ev').k, 'end', 'Cy was its only racer');
+});
+
+test('races: junk event ids are ignored; a race is called after its time limit', () => {
+  const lobby = new Lobby({ maxPlayers: 4, rand: () => 0.5 });
+  const a = join(lobby, 'Ana');
+  const room = lobby.rooms.get(a.last('welcome').room);
+  a.msg({ t: 'ev', k: 'open', id: '<script>' });
+  a.msg({ t: 'ev', k: 'open', id: 7 });
+  assert.equal(room.race, null);
+  a.msg({ t: 'ev', k: 'open', id: 'hillclimb' });
+  room.race.at = Date.now() - 12 * 60 * 1000;
+  room.tick();
+  assert.equal(room.race, null);
+  assert.deepEqual(a.last('ev').results, [{ id: 1, name: 'Ana', time: null }]);
+});

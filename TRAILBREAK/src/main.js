@@ -157,6 +157,7 @@ async function start() {
   if (net) {
     net.onEvent = (m) => game.onNet(m);
     for (const id of welcome.beacons || []) game.found.add(id);
+    game.events.welcome(welcome.race);
   } else {
     try { for (const id of JSON.parse(localStorage.getItem('trailbreak.solo.beacons') || '[]')) { game.found.add(id); landmarks.setFound(id, true); } } catch { /* none */ }
   }
@@ -217,6 +218,7 @@ function wireMenus(game, net) {
   $('respawn').onclick = () => { game.togglePause(false); game.towHome(); };
   $('menu-garage').onclick = () => game.openGarage();
   $('menu-dealer').onclick = () => game.openDealer();
+  $('menu-events').onclick = () => game.openEvents();
   const help = (on) => $('help').classList.toggle('hidden', !on);
   $('show-help').onclick = () => help(true);
   $('close-help').onclick = () => help(false);

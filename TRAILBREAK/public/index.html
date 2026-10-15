@@ -89,6 +89,13 @@
       <div class="tension"><div id="winch-ten"></div></div>
     </div>
     <div id="hint"></div>
+    <div id="ev-panel" class="hidden">
+      <div id="ev-name"></div>
+      <div id="ev-time"></div>
+      <div id="ev-info"></div>
+    </div>
+    <div id="ev-count" class="hidden"></div>
+    <div id="ev-result" class="hidden"></div>
     <div id="stuck" class="hidden">
       <div class="stuck-title" id="st-title">Stuck?</div>
       <div class="stuck-actions">
@@ -135,10 +142,22 @@
       <div class="menu-actions">
         <button id="resume" class="primary">Resume</button>
         <button id="menu-garage" class="ghost">Garage</button>
+        <button id="menu-events" class="ghost">Events</button>
         <button id="menu-dealer" class="ghost">Dealer</button>
         <button id="respawn" class="ghost">Back to the station</button>
         <button id="show-help" class="ghost">Controls</button>
       </div>
+    </div>
+  </section>
+
+  <!-- events -->
+  <section id="events" class="screen hidden">
+    <div class="menu-card wide">
+      <h2>Events <button id="ev-close" class="ghost icon" aria-label="Close">&#x2715;</button></h2>
+      <p class="dim">Drive to a start line (the flags on the map) and press <b>J</b>. Beat the par times for medal money: each
+        medal level pays once, and every finish pays a little. With friends in the room, J opens a race: they have 15 s
+        to press J and line up beside you, and the places pay out.</p>
+      <div id="ev-list" class="dealer-list"></div>
     </div>
   </section>
 
@@ -200,6 +219,7 @@
           <dt>R</dt><dd>Recover: back on its wheels, or back to dry ground when stuck</dd>
           <dt>T</dt><dd>Call your friends for a tow (they see where you are)</dd>
           <dt>Y</dt><dd>Fit the spare in place of a flat tyre (stopped)</dd>
+          <dt>J</dt><dd>Events: start one at its start line (with friends: open a race, or join theirs); twice to give up</dd>
           <dt>Backspace</dt><dd>Back to the ranger station</dd>
           <dt>C</dt><dd>Camera (drag the mouse to look around)</dd>
           <dt>H</dt><dd>Headlights</dd>

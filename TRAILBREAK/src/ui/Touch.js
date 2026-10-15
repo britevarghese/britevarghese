@@ -1,9 +1,10 @@
 // On-screen controls for phones and tablets: steering on the left, pedals on the right, and buttons for the winch,
-// recovery, transfer case, lockers, tyre pressure, camera, map and menu. Shown only on touch screens.
+// recovery, transfer case, lockers, tyre pressure, camera, map, events (at a start line or in a run) and menu. Shown
+// only on touch screens.
 
 const BUTTONS = [
   ['cam', 'camera', 'CAM'], ['hook', 'hook', 'WINCH'], ['rec', 'recover', 'RESET'],
-  ['rng', 'range', 'LOW'], ['lck', 'locks', 'LOCK'], ['air', 'air', 'AIR'], ['tow', 'tow', 'HELP'], ['map', 'map', 'MAP'], ['esc', 'pause', '☰'],
+  ['rng', 'range', 'LOW'], ['lck', 'locks', 'LOCK'], ['air', 'air', 'AIR'], ['tow', 'tow', 'HELP'], ['map', 'map', 'MAP'], ['ev', 'event', 'EVENT'], ['esc', 'pause', '☰'],
 ];
 
 export function isTouchDevice() {
@@ -48,6 +49,8 @@ export class TouchControls {
 
   update(game) {
     this.winchRow.classList.toggle('hidden', !game.vehicle.winch.attached);
+    const ev = this.root.querySelector('[data-a="ev"]');
+    ev.classList.toggle('hidden', !game.events?.canPress);
     const r = this.root.querySelector('[data-a="rng"]');
     const label = game.vehicle.dt.low ? 'HIGH' : 'LOW';
     if (r.textContent !== label) r.textContent = label;

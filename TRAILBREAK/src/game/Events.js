@@ -121,6 +121,42 @@ export function medalFor(event, time) {
   return time <= p.gold ? 'gold' : time <= p.silver ? 'silver' : time <= p.bronze ? 'bronze' : null;
 }
 
+const MEDALS = [null, 'bronze', 'silver', 'gold'];
+export const medalRank = (m) => Math.max(0, MEDALS.indexOf(m ?? null));
+
+/**
+ * What a finished run pays: the step up to a better medal than the driver held before (so each level is paid once:
+ * bronze, then silver, then gold come to the gold prize), and a little for finishing at all.
+ */
+export function runPrize(event, medal, before) {
+  const k = event.prize ?? 1;
+  const up = medalRank(medal) > medalRank(before) ? MEDAL_PRIZE[medal] - (MEDAL_PRIZE[before] || 0) : 0;
+  return { medal: Math.round(up * k), finish: Math.round(FINISH_PRIZE * k) };
+}
+
+/**
+ * Where racers line up: side by side on the start line where the ground is open (firm, not steep, no water, trees or
+ * boulders), else in a second row. [{ x, z, yaw }] for up to four trucks; the first is the start itself.
+ */
+export function gridFor(world, event) {
+  const { x, z, yaw } = event.start, fx = Math.sin(yaw), fz = Math.cos(yaw), rx = fz, rz = -fx;
+  const ok = (px, pz) => {
+    const h = world.terrain(px, pz), sl = Math.hypot(world.terrain(px + 2, pz) - world.terrain(px - 2, pz), world.terrain(px, pz + 2) - world.terrain(px, pz - 2)) / 4;
+    if (sl > 0.3 || world.water(px, pz) > h - 0.1) return false;
+    if (world.treesNear && world.treesNear(px, pz, 3.5, []).some((t) => Math.hypot(t.x - px, t.z - pz) < 3.5)) return false;
+    return !(world.boulders || []).some((b) => Math.hypot(b.x - px, b.z - pz) < Math.max(b.rx, b.rz) + 2);
+  };
+  const slots = [[0, 0], [4.5, 0], [-4.5, 0], [9, 0], [-9, 0], [0, -9], [4.5, -9], [-4.5, -9], [0, -18], [4.5, -18], [-4.5, -18]];
+  const out = [];
+  for (const [side, back] of slots) {
+    const px = x + rx * side + fx * back, pz = z + rz * side + fz * back;
+    if (!out.length || ok(px, pz)) out.push({ x: px, z: pz, yaw });
+    if (out.length === 4) break;
+  }
+  while (out.length < 4) out.push({ x: x - fx * 9 * out.length, z: z - fz * 9 * out.length, yaw });
+  return out;
+}
+
 /** m:ss.s */
 export function clock(t) {
   if (!Number.isFinite(t)) return '--:--';
@@ -172,11 +208,13 @@ export class EventRun {
 }
 
 /**
- * Final places of a race: results [{ id, name, time | null (didn't finish) }] -> sorted, with place and prize.
+ * Final places of a race: results [{ id, name, time | null (didn't finish) }] -> sorted, with place and prize (place
+ * money only when there was someone to race: two or more starters).
  */
-export function standings(results) {
+export function standings(results, event = {}) {
+  const k = event.prize ?? 1;
   const done = results.filter((r) => Number.isFinite(r.time)).sort((a, b) => a.time - b.time);
   const out = results.filter((r) => !Number.isFinite(r.time));
   const n = results.length;
-  return [...done.map((r, i) => ({ ...r, place: i + 1, prize: n > 1 ? RACE_PRIZE[i] || 0 : 0 })), ...out.map((r) => ({ ...r, place: null, prize: 0 }))];
+  return [...done.map((r, i) => ({ ...r, place: i + 1, prize: n > 1 ? Math.round((RACE_PRIZE[i] || 0) * k) : 0 })), ...out.map((r) => ({ ...r, place: null, prize: 0 }))];
 }

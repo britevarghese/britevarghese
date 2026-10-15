@@ -19,6 +19,13 @@
  *   client -> server  {t:'damage', d}          -> room {t:'damage', id, d}   (what is broken on that truck: glass, lamps,
  *                       flat tyres, steam, smoke, toe and the latest dents; kept for whoever joins later)
  *   client -> server  {t:'ping', time}         -> client {t:'pong', time, echo}
+ *   races (one at a time in a room; the clock is the server's, ms):
+ *   client -> server  {t:'ev', k:'open', id}   -> room {t:'ev', k:'open', id, by, name, at, racers:[{id, name}]}
+ *                       (at: when the countdown ends, RACE_LEAD from now; friends can join until then)
+ *   client -> server  {t:'ev', k:'join'}       -> room {t:'ev', k:'join', id, pid, name, racers}
+ *   client -> server  {t:'ev', k:'done', time} -> room {t:'ev', k:'done', id, pid, name, time}   (time null: gave up)
+ *   server -> room    {t:'ev', k:'end', id, results:[{id, name, time}]}   (everyone done, gone, or out of time)
+ *                       welcome carries race: {id, at, racers} while one is open or running
  *   server -> clients {t:'join', id, name} / {t:'leave', id, name}
  *   server -> client  {t:'error', msg}
  *
@@ -36,6 +43,9 @@ const MAX_ROOMS = 500;
 const BEACON_COUNT = 64;       // beacon ids are 0..63
 const CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';   // no 0/O, 1/I
 const CODE_RX = /^[A-HJ-NP-Z2-9]{4,8}$/;
+const RACE_LEAD = 15000;       // ms from opening a race to the start: time for friends to join
+const RACE_MAX = 11 * 60 * 1000;   // ms after the start a race is called (the events' own limit is 10 min)
+const EVENT_RX = /^[a-z]{2,16}$/;
 
 function isNum(n) { return typeof n === 'number' && Number.isFinite(n); }
 function vec(a, n) { return Array.isArray(a) && a.length === n && a.every(isNum); }
@@ -78,6 +88,7 @@ class Room {
     this.log = log;
     this.players = new Map();
     this.beacons = new Map();      // id -> name of the player who surveyed it
+    this.race = null;              // { id, at, racers: Map(player id -> { name, time: undefined | null | s }) }
     this.nextId = 1;
     this.emptySince = Date.now();
   }
@@ -92,6 +103,7 @@ class Room {
       t: 'welcome', id: player.id, room: this.code, tickRate: this.tickRate, maxPlayers: this.maxPlayers,
       players: [...this.players.values()].filter((p) => p !== player).map((p) => (p.dmg ? { id: p.id, name: p.name, dmg: p.dmg } : { id: p.id, name: p.name })),
       beacons: [...this.beacons.keys()],
+      race: this.race ? { id: this.race.id, at: this.race.at, racers: this.racerList() } : null,
     });
     this.broadcast({ t: 'join', id: player.id, name: player.name }, player);
     this.log(`[room ${this.code}] ${player.name} (#${player.id}) joined, ${this.size}/${this.maxPlayers}`);
@@ -102,6 +114,8 @@ class Room {
     this.players.delete(player.id);
     if (this.size === 0) this.emptySince = Date.now();
     this.broadcast({ t: 'leave', id: player.id, name: player.name });
+    const me = this.race?.racers.get(player.id);
+    if (me && me.time === undefined) { me.time = null; this.checkRace(); }
     this.log(`[room ${this.code}] ${player.name} (#${player.id}) left, ${this.size}/${this.maxPlayers}`);
   }
 
@@ -139,8 +153,44 @@ class Room {
       case 'ping':
         this.send(player, { t: 'pong', time: Date.now(), echo: isNum(msg.time) ? msg.time : 0 });
         return;
+      case 'ev':
+        this.event(player, msg);
+        return;
       default:
     }
+  }
+
+  // ---- races
+  racerList() { return [...this.race.racers].map(([id, r]) => ({ id, name: r.name })); }
+
+  event(player, msg, now = Date.now()) {
+    const r = this.race;
+    if (msg.k === 'open') {
+      if (r || typeof msg.id !== 'string' || !EVENT_RX.test(msg.id)) return;
+      this.race = { id: msg.id, at: now + RACE_LEAD, racers: new Map([[player.id, { name: player.name, time: undefined }]]) };
+      this.broadcast({ t: 'ev', k: 'open', id: msg.id, by: player.id, name: player.name, at: this.race.at, racers: this.racerList() });
+      this.log(`[room ${this.code}] ${player.name} opened a race: ${msg.id}`);
+    } else if (msg.k === 'join') {
+      if (!r || now >= r.at || r.racers.has(player.id)) return;
+      r.racers.set(player.id, { name: player.name, time: undefined });
+      this.broadcast({ t: 'ev', k: 'join', id: r.id, pid: player.id, name: player.name, racers: this.racerList() });
+    } else if (msg.k === 'done') {
+      const me = r?.racers.get(player.id);
+      if (!me || me.time !== undefined) return;
+      me.time = isNum(msg.time) && msg.time > 0 && msg.time < 3600 && now >= r.at ? round(msg.time, 100) : null;
+      this.broadcast({ t: 'ev', k: 'done', id: r.id, pid: player.id, name: player.name, time: me.time });
+      this.checkRace(now);
+    }
+  }
+
+  /** End the race once every racer is done (or gone), or it has run too long. */
+  checkRace(now = Date.now()) {
+    const r = this.race;
+    if (!r) return;
+    const all = [...r.racers.values()].every((x) => x.time !== undefined);
+    if (!all && now < r.at + RACE_MAX) return;
+    this.race = null;
+    this.broadcast({ t: 'ev', k: 'end', id: r.id, results: [...r.racers].map(([id, x]) => ({ id, name: x.name, time: x.time ?? null })) });
   }
 
   /** A sanitized copy of a state update, or null when it is rejected. */
@@ -206,6 +256,7 @@ class Room {
   }
 
   tick() {
+    if (this.race) this.checkRace();
     if (this.size === 0) return;
     const players = [];
     for (const p of this.players.values()) if (p.s) players.push({ id: p.id, name: p.name, s: p.s });
@@ -308,4 +359,4 @@ class Lobby {
   }
 }
 
-module.exports = { Lobby, Room, normalizeCode, randomCode, MAX_SPEED, MAX_TELEPORT, BEACON_COUNT };
+module.exports = { Lobby, Room, normalizeCode, randomCode, MAX_SPEED, MAX_TELEPORT, BEACON_COUNT, RACE_LEAD };

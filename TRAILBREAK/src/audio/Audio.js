@@ -189,6 +189,16 @@ export class Audio {
     setTimeout(() => this.bang(0.4, true), 160);
   }
 
+  /** A start-light beep (the countdown, a gate passed). */
+  beep(freq = 880, len = 0.16, vol = 0.12) {
+    if (!this.ctx) return;
+    const ctx = this.ctx, t = ctx.currentTime, o = ctx.createOscillator(), g = ctx.createGain();
+    o.type = 'square'; o.frequency.value = freq;
+    g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(vol, t + 0.01); g.gain.setValueAtTime(vol, t + len - 0.03); g.gain.linearRampToValueAtTime(0, t + len);
+    o.connect(g).connect(this.master);
+    o.start(t); o.stop(t + len + 0.02);
+  }
+
   chirp() {
     const ctx = this.ctx, t = ctx.currentTime;
     const n = 2 + Math.floor(Math.random() * 4), base = 2400 + Math.random() * 2200;

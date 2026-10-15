@@ -2,13 +2,14 @@
 //
 // Keys (see index.html's help): W/S throttle/brake, A/D steer, Space handbrake, L range, 4 4WD, X lockers, B sway bar,
 // G gearbox mode (Shift/Ctrl shift in manual), F winch hook, E/Q winch in/out, R recover, Backspace station, C camera,
-// H lights, M map, P tyre pressure, U garage, T call friends for a tow, Y fit the spare, Enter chat, Esc pause, F1 help.
+// H lights, M map, P tyre pressure, U garage, T call friends for a tow, Y fit the spare, J events, Enter chat, Esc pause,
+// F1 help.
 
 const KEY_ACTIONS = {
   KeyL: 'range', Digit4: '4wd', Numpad4: '4wd', KeyX: 'locks', KeyB: 'sway', KeyG: 'gearMode',
   ShiftLeft: 'shiftUp', ShiftRight: 'shiftUp', ControlLeft: 'shiftDown', ControlRight: 'shiftDown',
   KeyF: 'hook', KeyR: 'recover', Backspace: 'respawn', KeyC: 'camera', KeyH: 'lights', KeyM: 'map',
-  Enter: 'chat', Escape: 'pause', F1: 'help', Slash: 'help', KeyP: 'air', KeyU: 'garage', KeyT: 'tow', KeyY: 'spare',
+  Enter: 'chat', Escape: 'pause', F1: 'help', Slash: 'help', KeyP: 'air', KeyU: 'garage', KeyT: 'tow', KeyY: 'spare', KeyJ: 'event',
 };
 const WHEEL_RX = /wheel|racing|driving force|\bG2[5-9]\b|\bG9[0-9]{2}\b|DFGT|momo|thrustmaster|\bT1[5-9]0\b|\bT2[0-9]{2}\b|\bT3[0-9]{2}\b|\bTMX\b|T-GT|fanatec|\bCSL\b|clubsport|podium|moza|simucube|simagic|\bPXN\b|cammus|nitho|steering/i;
 
@@ -107,7 +108,7 @@ export class Input {
       if (pad.buttons[4]?.pressed) winch = -1;
       if (!wheel) { lookX = dz(pad.axes[2] || 0, 0.18); lookY = dz(pad.axes[3] || 0, 0.18); }
       edge(2, 'hook'); edge(3, 'camera'); edge(1, 'recover'); edge(12, 'range'); edge(13, 'locks'); edge(14, '4wd');
-      edge(15, 'lights'); edge(9, 'pause'); edge(8, 'map');
+      edge(15, 'lights'); edge(9, 'pause'); edge(8, 'map'); edge(11, 'event');
     }
     c.throttle = throttle; c.brake = brake; c.steer = clamp(steer, -1, 1); c.handbrake = handbrake; c.winch = winch;
     c.analogSteer = analog;

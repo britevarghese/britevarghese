@@ -401,16 +401,16 @@ export async function generateWorld({ onProgress = () => {}, yieldEvery = 64 } =
     if (riverD(idx) < riverHalf(idx)) h = Math.min(h, riverLvl(idx) - 0.3);                 // keep fords wet
     H[idx] = h;
   }
-  // carve the puddles
+  // carve the puddles (only where the ground all round is level: on a side slope one would be a pothole with a wall)
   for (const pd of puddles) {
     const ci = Math.round(pd.x - GRID_ORIGIN), ck = Math.round(pd.z - GRID_ORIGIN), Rr = Math.ceil(pd.r + 2);
-    let rim = Infinity;
+    let rim = Infinity, rimTop = -Infinity;
     for (let k = ck - Rr; k <= ck + Rr; k++) for (let i = ci - Rr; i <= ci + Rr; i++) {
       if (i < 0 || k < 0 || i >= N || k >= N) continue;
       const d = hyp(GRID_ORIGIN + i - pd.x, GRID_ORIGIN + k - pd.z);
-      if (d > pd.r && d < pd.r + 1.5) rim = Math.min(rim, H[k * N + i]);
+      if (d > pd.r && d < pd.r + 1.5) { rim = Math.min(rim, H[k * N + i]); rimTop = Math.max(rimTop, H[k * N + i]); }
     }
-    if (!Number.isFinite(rim)) continue;
+    if (!Number.isFinite(rim) || rimTop - rim > 0.45) { pd.skip = true; continue; }
     pd.level = rim - 0.1;
     for (let k = ck - Rr; k <= ck + Rr; k++) for (let i = ci - Rr; i <= ci + Rr; i++) {
       if (i < 0 || k < 0 || i >= N || k >= N) continue;
@@ -423,6 +423,7 @@ export async function generateWorld({ onProgress = () => {}, yieldEvery = 64 } =
       if (a * a + b * b < pd.r * pd.r * 0.8) setWater(pd.x + a, pd.z + b, pd.level);
     }
   }
+  { const keep = puddles.filter((pd) => !pd.skip); puddles.length = 0; puddles.push(...keep); }
 
   // ---- landmark pads (flatten under buildings)
   const landmarks = LANDMARKS.map((L) => ({ ...L }));

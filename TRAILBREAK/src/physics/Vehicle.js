@@ -178,6 +178,7 @@ export class Vehicle {
     this.airSupply = false;        // at the station's air line (the game sets it)
     this.setPressure(this.psiTarget);
     this.hullContact = 0;          // strongest hull impact this frame (for sounds)
+    this.hullPeak = 0;             // the hardest since the game last read it (and zeroed it)
     this.impact = 0;
     // what the driver feels (see feelStep): the steering wheel's kick (N m at the rim, + = pulls left), the shake of
     // the ground through the tyres (0..1+), the buzz of a rough surface, the judder of tyres spinning in mud, hard hits
@@ -581,6 +582,7 @@ export class Vehicle {
     this.hullContacts(ground);
     if (ground.treesNear) this.treeContacts(ground);
     if (this.others.length) this.otherContacts();
+    if (this.hullContact > this.hullPeak) this.hullPeak = this.hullContact;   // (the frame's hardest, for the game)
     this.winchStep(dt, ground);
     // other players' winch lines hooked to this truck: pulled toward their fairlead at the tension they report
     for (const pl of this.pulls) {

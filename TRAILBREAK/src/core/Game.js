@@ -8,6 +8,8 @@ import { SURFACES } from '../physics/Surfaces.js';
 import { TruckModel } from '../render/TruckModel.js';
 import { CameraRig } from './CameraRig.js';
 import { SPAWN, BEACON_RADIUS, MAP_HALF } from '../world/MapData.js';
+import { EventPlay } from '../game/EventPlay.js';
+import { EventCourse } from '../render/EventCourse.js';
 
 const clamp = (x, a, b) => (x < a ? a : x > b ? b : x);
 const MATE_COLORS = ['#4fb3a9', '#e0b33b', '#c46bd6', '#6aa8e8', '#e0563b', '#7cc36a', '#e88fb0', '#c9c06a'];
@@ -72,10 +74,30 @@ export class Game {
       btn('st-flip', () => this.recover('flip'));
       btn('st-dry', () => this.recover('dry'));
       btn('st-call', () => this.callHelp());
-      btn('st-station', () => this.spawn());
+      btn('st-station', () => this.towHome());
     }
     this.spawn(true);
     this.applySettings();
+    // events: the start lines, runs and races (game/EventPlay.js), their banners and gates on the ground
+    this.events = new EventPlay(this);
+    this.course = new EventCourse(this.scene, this.world, this.events.events);
+  }
+
+  /** The Events list (pause menu): each event, its par times and your best, and a way to its start line. */
+  openEvents() {
+    const el = document.getElementById('events'), list = document.getElementById('ev-list');
+    if (this.paused) this.togglePause(false);
+    this.input.enabled = false;
+    const close = () => { el.classList.add('hidden'); this.input.enabled = !this.paused && !this.chatOpen; this.renderer.renderer.domElement.focus(); };
+    list.innerHTML = this.events.listHtml();
+    list.onclick = (e) => {
+      const b = e.target.closest('[data-go]');
+      if (!b) return;
+      close();
+      this.events.goTo(b.dataset.go);
+    };
+    document.getElementById('ev-close').onclick = close;
+    el.classList.remove('hidden');
   }
 
   /** Headlights (and the light bar's driving lamps) on the local truck's model. */
@@ -142,6 +164,9 @@ export class Game {
     if (this.mapOpen) this.toggleMap();
     const here = this.nearGarage();
     if (here && this.repairAtGarage()) return;
+    // broken down at the station: the workshop's mechanics come out and bring it in
+    const S = this.stationSpot, p = this.vehicle.pos;
+    if (!here && this.brokenDown && S && Math.hypot(p.x - S.x, p.z - S.z) < 200) { this.towToWorkshop(); return; }
     this.garageOpen = true;
     this.input.enabled = false;
     const code = await this.garage.open({
@@ -321,6 +346,7 @@ export class Game {
     const title = this.helpOn ? 'Waiting for a tow' : titles[this.stuckWhy] || 'Stuck?';
     if ($('st-title').textContent !== title) $('st-title').textContent = title;
     $('st-flip').classList.toggle('hidden', !(v.up.y < 0.5));
+    $('st-dry').classList.toggle('hidden', this.stuckWhy === 'broken');             // (moving it won't mend it)
     // R does whichever suits: flip where it lies on dry land, otherwise back to dry ground
     const rFlips = v.up.y < 0.5 && !(v.flooded || v.waterDepth > 0.6);
     const flipHtml = `${rFlips ? '<b>R</b> ' : ''}Flip upright here`, dryHtml = `${rFlips ? '' : '<b>R</b> '}Back to dry ground`;
@@ -332,9 +358,11 @@ export class Game {
     if ($('st-call').innerHTML !== call) $('st-call').innerHTML = call;
     const D = v.damage;
     const tip = W.attached ? 'Hold E to winch in (and give it a little throttle)' : v.flooded ? 'Once the intake is out of the water the engine starts again'
-      : this.stuckWhy === 'broken' ? (D.seized ? 'The engine is seized. Friends can tow you to the station garage (they hook you with F), or Backspace for the tow truck. U at the garage mends it' : 'A broken axle shaft: try 4WD (4) or the lockers (X), or get a tow to the station garage')
+      : this.stuckWhy === 'broken' ? (D.seized ? 'The engine is seized: it won\'t turn over. Backspace calls the tow truck, which takes it into the station workshop to be mended (you pay the bill). Or friends can tow you there (F to hook)' : 'A broken axle shaft: try 4WD (4) or the lockers (X). Backspace: the tow truck takes it to the station workshop to be mended')
         : 'Or winch out: point the bumper at a tree or a friend, F to hook, hold E';
     if ($('st-tip').textContent !== tip) $('st-tip').textContent = tip;
+    const home = `<b>&#9003;</b> ${this.stuckWhy === 'broken' ? 'Tow to the workshop' : 'Back to the station'}`;
+    if ($('st-station').innerHTML !== home) $('st-station').innerHTML = home;
   }
 
   applySettings() {
@@ -388,6 +416,7 @@ export class Game {
       if (I.consume('shiftDown')) { if (!d.selectGear(d.gear - 1, sp)) this.hud.hint('Stop to select reverse'); }
     }
     if (I.consume('spare')) this.fitSpare();
+    if (I.consume('event')) this.events.press();
     if (I.consume('hook')) this.toggleHook();
     if (I.consume('recover')) this.recover();
     if (I.consume('tow')) this.callHelp();
@@ -586,7 +615,26 @@ export class Game {
   }
 
   /** Backspace: the tow truck takes us back to the station (a fee when it has a long way to come). */
+  /** Broken down: a seized engine, or no wheel left that drives. It won't go anywhere under its own power. */
+  get brokenDown() { return this.vehicle.damage.seized || this.stuckWhy === 'broken'; }
+
+  /** The tow truck takes a broken-down truck into the station workshop, and the mechanics mend it (for the bill). */
+  towToWorkshop() {
+    const G = this.garageSpot, p = this.vehicle.pos, v = this.vehicle;
+    const far = G && Math.hypot(p.x - G.x, p.z - G.z) > 150;
+    if (v.winch.attached) v.detachWinch();
+    if (this.helpOn) this.setHelp(false);
+    this.placeAtGarage();
+    if (this.net) this.net.warp++;
+    this.carry = 0; this.stuckT = 0; this.boggedT = 0;
+    const fee = far && this.career ? this.career.charge(TOW_FEE, 'Tow truck to the station workshop') : 0;
+    this.hud.toast(`Towed into the station workshop${fee ? `: ${money(fee)}` : ''}`, false, 4);
+    this.repairAtGarage();
+  }
+
   towHome() {
+    if (this.events?.racing) this.events.giveUp('Towed off the course: the run is over');
+    if (this.brokenDown) { this.towToWorkshop(); return; }
     const S = this.stationSpot, p = this.vehicle.pos;
     const far = S && Math.hypot(p.x - S.x, p.z - S.z) > 250;
     this.spawn();
@@ -773,6 +821,7 @@ export class Game {
     else if (m.t === 'chat') this.hud.chat(m.name, m.text);
     else if (m.t === 'disconnected') this.hud.toast('Lost the connection to the server. Reload to rejoin.', true, 8);
     else if (m.t === 'correction') this.net.warp++;
+    else if (m.t === 'ev') this.events.onNet(m);
   }
 
   // ---------------------------------------------------------------- frame
@@ -807,7 +856,9 @@ export class Game {
     if (!v.dt.running && !v.flooded && v.dt.crankT <= 0 && c.throttle > 0.5) {
       if (v.damage.seized) { if ((this.seizedHintT = (this.seizedHintT || 0) - dt) <= 0) { this.hud.hint('The engine is seized: it needs a tow to the station', 3); this.seizedHintT = 3; } } else { v.dt.start(); this.hud.hint('Starting the engine', 1.2); }
     }
+    this.events.control(c);
     this.carry = simulate(v, c, this.world, dt, this.carry);
+    this.events.update(dt);
     if (v.flooded && !wasFlooded) {
       this.hud.toast(this.spec.snorkel ? 'Water over the snorkel: the engine has stopped' : 'Water in the air intake: the engine has stopped. Get it out of the water (winch!)', true, 6);
       this.audio.stall?.();
@@ -875,6 +926,7 @@ export class Game {
     this.grass.update(this.renderer.camera, dt, this.grassPush());
     this.water.update(this.renderer.camera, dt, this.renderer.sky.state.horizon);
     this.landmarks.update(this.renderer.camera, dt);
+    this.course.update(dt);
     this.effects.update(dt, this.world, this.renderer.camera, this.renderer.renderer.domElement.height);
     if (W.attached) {
       const a = this.fairleadWorld(new THREE.Vector3());
@@ -907,7 +959,7 @@ export class Game {
     this.hud.update(dt);
     this.hudT += dt; this.miniT += dt;
     const heading = Math.atan2(v.fwd.x, -v.fwd.z);
-    const mates = [...this.remotes.values()].filter((r) => r.state).map((r) => ({ x: r.model.root.position.x, z: r.model.root.position.z, color: r.color, name: r.name, help: !!r.help }));
+    const mates = [...this.remotes.values()].filter((r) => r.state).map((r) => ({ id: r.id, x: r.model.root.position.x, z: r.model.root.position.z, color: r.color, name: r.name, help: !!r.help }));
     if (this.hudT > 1 / 30) {
       this.hudT = 0;
       this.hud.drawGauges(v);
@@ -922,7 +974,7 @@ export class Game {
       this.miniT = 0;
       this.hud.drawMinimap(v.pos, heading, mates);
       this.hud.drawObjective(v.pos);
-      const list = [{ name: this.name, color: this.myColor, me: true, help: this.helpOn }, ...mates.map((r) => ({ name: r.name, color: r.color, help: r.help }))];
+      const list = [{ name: this.name, color: this.myColor, me: true, help: this.helpOn, tag: this.events.tagFor(this.net?.id) }, ...mates.map((r) => ({ name: r.name, color: r.color, help: r.help, tag: this.events.tagFor(r.id) }))];
       this.hud.drawPlayers(list);
       if (this.mapOpen) this.hud.drawMap(v.pos, heading, mates);
     }

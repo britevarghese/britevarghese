@@ -166,6 +166,8 @@ export class HUD {
       marks.push({ a, text: '◆', cls: 'bcn' + (this.found.has(b.id) ? ' done' : '') });
     }
     for (const m of mates) marks.push({ a: Math.atan2(m.x - here.x, -(m.z - here.z)), text: m.help ? '!' : '●', cls: m.help ? 'mate help' : 'mate', color: m.help ? null : m.color });
+    const next = this.eventMarks?.next;
+    if (next) marks.push({ a: Math.atan2(next.x - here.x, -(next.z - here.z)), text: '▼', cls: 'gate' });
     let html = '';
     for (const m of marks) {
       let d = m.a - heading;
@@ -205,7 +207,7 @@ export class HUD {
   }
 
   drawPlayers(list) {
-    const html = list.map((p) => `<div>${escapeHtml(p.name)}${p.me ? ' (you)' : ''}${p.help ? '<span class="help">needs a tow</span>' : ''}<span class="dot" style="background:${p.color}"></span></div>`).join('');
+    const html = list.map((p) => `<div>${escapeHtml(p.name)}${p.me ? ' (you)' : ''}${p.tag ? `<span class="tag">${escapeHtml(p.tag)}</span>` : ''}${p.help ? '<span class="help">needs a tow</span>' : ''}<span class="dot" style="background:${p.color}"></span></div>`).join('');
     const el = $('players');
     if (el.innerHTML !== html) el.innerHTML = html;
   }
@@ -237,6 +239,10 @@ export class HUD {
       g.beginPath(); g.moveTo(px, py - 5); g.lineTo(px + 4, py); g.lineTo(px, py + 5); g.lineTo(px - 4, py); g.closePath(); g.fill();
       if (edge) { g.strokeStyle = 'rgba(0,0,0,0.5)'; g.stroke(); }
     });
+    // event start lines (flags), and the next gate of a run
+    for (const e of this.eventMarks?.starts || []) put(e.x, e.z, (px, py, edge) => { if (!edge) flag(g, px, py, 1); });
+    const next = this.eventMarks?.next;
+    if (next) put(next.x, next.z, (px, py) => { g.strokeStyle = '#ffb340'; g.lineWidth = 3; g.beginPath(); g.arc(px, py, 7, 0, TAU); g.stroke(); });
     for (const m of mates) put(m.x, m.z, (px, py) => {
       if (m.help) { g.strokeStyle = '#e0563b'; g.lineWidth = 2.5; g.beginPath(); g.arc(px, py, 8 + 3 * Math.sin(performance.now() / 160), 0, TAU); g.stroke(); }
       g.fillStyle = m.color; g.beginPath(); g.arc(px, py, 4.5, 0, TAU); g.fill(); g.strokeStyle = '#fff'; g.lineWidth = 1; g.stroke();
@@ -260,6 +266,14 @@ export class HUD {
       g.fillStyle = 'rgba(20,25,22,0.8)'; g.fillText(b.name, x + 1, y - 11);
       g.fillStyle = '#f3ead7'; g.fillText(b.name, x, y - 12);
     }
+    for (const e of this.eventMarks?.starts || []) {
+      const x = toPx(e.x), y = toPx(e.z);
+      flag(g, x, y, 1.5);
+      g.fillStyle = 'rgba(20,25,22,0.8)'; g.fillText(e.name, x + 1, y + 21);
+      g.fillStyle = '#ffd08a'; g.fillText(e.name, x, y + 20);
+    }
+    const next = this.eventMarks?.next;
+    if (next) { g.strokeStyle = '#ffb340'; g.lineWidth = 3; g.beginPath(); g.arc(toPx(next.x), toPx(next.z), 10, 0, TAU); g.stroke(); }
     for (const m of mates) {
       if (m.help) { g.strokeStyle = '#e0563b'; g.lineWidth = 3; g.beginPath(); g.arc(toPx(m.x), toPx(m.z), 13, 0, TAU); g.stroke(); }
       g.fillStyle = m.color; g.beginPath(); g.arc(toPx(m.x), toPx(m.z), 6, 0, TAU); g.fill(); g.strokeStyle = '#fff'; g.lineWidth = 1.5; g.stroke();
@@ -269,7 +283,7 @@ export class HUD {
     g.fillStyle = '#f3ead7'; g.strokeStyle = '#1c241f'; g.lineWidth = 2;
     g.beginPath(); g.moveTo(0, -12); g.lineTo(8, 9); g.lineTo(0, 4); g.lineTo(-8, 9); g.closePath(); g.fill(); g.stroke();
     g.restore();
-    $('map-legend').textContent = `◆ survey beacons (${this.found.size}/${this.world.beacons.length} found) · trails dashed · M to close`;
+    $('map-legend').textContent = `◆ survey beacons (${this.found.size}/${this.world.beacons.length} found) · ⚑ event start lines (J there) · trails dashed · M to close`;
   }
 
   // ---------------------------------------------------------------- messages
@@ -288,6 +302,8 @@ export class HUD {
     this.hintT = time;
   }
 
+  clearHint() { this.hintEl.classList.remove('show'); this.hintT = 0; }
+
   chat(name, text) {
     const d = document.createElement('div');
     d.innerHTML = name ? `<b>${escapeHtml(name)}:</b> ${escapeHtml(text)}` : `<i>${escapeHtml(text)}</i>`;
@@ -300,6 +316,14 @@ export class HUD {
     this.t += dt;
     if (this.hintT > 0) { this.hintT -= dt; if (this.hintT <= 0) this.hintEl.classList.remove('show'); }
   }
+}
+
+/** A little chequered flag on a pole at (x, y) (the event start lines on the maps). */
+function flag(g, x, y, k) {
+  g.save(); g.translate(x, y); g.scale(k, k);
+  g.strokeStyle = '#1c241f'; g.lineWidth = 1.6; g.beginPath(); g.moveTo(-3, 6); g.lineTo(-3, -8); g.stroke();
+  for (let i = 0; i < 3; i++) for (let j = 0; j < 2; j++) { g.fillStyle = (i + j) % 2 ? '#1c241f' : '#f3ead7'; g.fillRect(-3 + i * 3, -8 + j * 3, 3, 3); }
+  g.restore();
 }
 
 export function escapeHtml(s) {
