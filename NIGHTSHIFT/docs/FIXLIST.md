@@ -324,6 +324,13 @@ the game. Newly found problems go at the end of their section.
   line: a wide one from the side to open, then over the listener's shoulder onto whoever speaks, a close one when
   they go on talking, all from one side of the two of you, clear of walls and the car. Game tips wait till it's
   over; afterwards you're on foot by your car and the contact stays where they stood while you're about
+- [x] A job that ends with the contact (a car brought to Babu, Anitha or Rajan; Sajan back to Leena; the Thar and the
+  white Scorpio) closes the same way: out of the car, the last words face to face, then MISSION PASSED (they were
+  subtitles while you sat in the car). Someone else with something to say stands with the contact: Sajan just
+  dropped off, Leena at Firoz's and at the finale in Chala; everyone looks at whoever's talking. A job that ends
+  elsewhere keeps its phone call
+- [x] The walking camera went inside a car beside you (getting out after a scene, the seats seen through the roof):
+  it keeps out of the cars round you as out of walls
 - [x] Contacts stood in odd places on Kerala's roads: Leena on a dual carriageway's median (the pavement was found by
   stepping across the road from the lane, as for traffic on the right). Across the road is kept where it works (Babu
   at his workshop's door), but a median sends them to the lane's own side, and a place right at a big junction to

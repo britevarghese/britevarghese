@@ -406,17 +406,47 @@ export class Story {
     bus.emit('story:start', { id: m.id });
   }
 
-  _cutscene(m, done) {
+  _cutscene(m, done, { guest = null, title = true } = {}) {
     const g = this.game, gv = this._giver(m.giver);
-    this.cs = { lines: m.intro, i: 0, t: 0, done, gv, prev: g.state.mode };
+    this.cs = { lines: m.intro, i: 0, t: 0, done, gv, guest, prev: g.state.mode };
     // GTA's briefings: out of the car and face to face with the contact (one not in the world yet: the old shots)
     if (!gv.provisional && gv.human) this._stage(this.cs);
     g.state.mode = 'cutscene';
+    this._meter(null);
     for (const id of ['hud', 'toasts']) document.getElementById(id)?.classList.add('hidden');
     this.el.root.classList.add('cine');
     this.el.obj.classList.remove('on');
     this._subtitle(m.intro[0][0], m.intro[0][1]);
-    this._titleCard(m);
+    if (title) this._titleCard(m);
+  }
+
+  // a job that ends with the contact (you've brought them the car, or him): the last words face to face as the
+  // briefing was, then MISSION PASSED. One more person speaking (Leena at the end, Sajan just dropped off) stands with
+  // the contact. A job that ends elsewhere: the lines after it, on the phone, as before
+  _outroScene() {
+    const A = this.active, m = A?.m, g = this.game;
+    if (!m?.outro?.length || m.job || m.script || !g.humans?.ready || !g.onFoot.human) return false;
+    if (m.steps[m.steps.length - 1]?.to !== 'giver') return false;
+    const gv = this._giver(m.giver), f = g.focusState;
+    if (gv.provisional || !gv.human || Math.hypot(gv.x - f.x, gv.z - f.z) > 25) return false;
+    const others = [...new Set(m.outro.map((l) => l[0]).filter((w) => w !== m.giver && w !== 'you'))];
+    if (others.length > 1) return false;
+    let guest = null;
+    if (others.length) {
+      const id = others[0], c = CAST[id] || {}, look = c.crew || {};
+      guest = this.riders?.[id] || null;
+      if (!guest) {
+        if (!(look.model || c.model)) return false;
+        guest = new CrewMember(g, { id, name: c.name || id, model: look.model || c.model, outfit: look.outfit || null });
+        if (!guest.ok) { guest.dispose(); return false; }
+        (this.riders ||= {})[id] = guest;
+      }
+      guest._out(); guest.inter.release(); guest.look = null;
+      guest.job = 'scene';
+    }
+    A.outroDone = true;
+    this._cutscene({ ...m, intro: m.outro }, () => { if (guest) { guest.job = 'leave'; guest.leaveT = 0; } this.pass(); }, { guest, title: false });
+    return true;
   }
   // the briefing staged: you out of the car (it stays where it stopped) and standing 1.7 m from the contact, the first
   // clear spot from them toward you, the two of you facing each other
@@ -440,13 +470,25 @@ export class Story {
       const s = of.state; s.x = spot.x; s.z = spot.z; s.y = of._ground(spot.x, spot.z); s.yaw = yaw; s.speed = 0; s.vx = s.vz = 0;
     }
     cs.staged = true; cs.inCar = inCar;
+    // (a contact is hidden while their job runs: back for the scene, without the marker)
+    gv.body.group.visible = true; gv.ring.visible = gv.beam.visible = false;
     cs.pIK = new BodyIK(of.human); cs.gIK = new BodyIK(gv.human);
     gv.body.group.rotation.y = Math.atan2(spot.x - gv.x, spot.z - gv.z);
     // (the camera's side of the two of them, kept for every shot: the side the shots are clear on)
     const dx = gv.x - spot.x, dz = gv.z - spot.z, d = Math.hypot(dx, dz) || 1, ux = dx / d, uz = dz / d;
-    const ok = (k) => this._shots(cs, k).every((c) => of._camFree(c.p.x, c.p.z, c.p.y) && !inCar(c.p.x, c.p.z, 0.3));
+    const ok = (k) => this._shots(cs, k).slice(0, 5).every((c) => of._camFree(c.p.x, c.p.z, c.p.y) && !inCar(c.p.x, c.p.z, 0.3));
     cs.side = ok(1) ? 1 : ok(-1) ? -1 : 1;
-    void ux; void uz;
+    // a third: beside the contact, on the far side of the line from the camera (in every shot, behind no one), facing you
+    const G = cs.guest;
+    if (G) {
+      let gs = null;
+      for (const k of [-cs.side, cs.side]) {
+        const sx = -uz * k, sz = ux * k, x = gv.x + sx * 1.25 - ux * 0.35, z = gv.z + sz * 1.25 - uz * 0.35;
+        if (of._free(x, z) && !inCar(x, z, 0.4)) { gs = { x, z }; break; }
+      }
+      gs ||= { x: gv.x - uz * -cs.side * 1.25, z: gv.z + ux * -cs.side * 1.25 };
+      G.place(gs.x, gs.z, Math.atan2(spot.x - gs.x, spot.z - gs.z)); G.stand({ x: spot.x, z: spot.z });
+    }
     this._talk(cs);
   }
   // the shots for the staged briefing: [wide two-shot from the side, over your shoulder onto the contact, over theirs
@@ -462,33 +504,48 @@ export class Story {
       // a single on each: in front of them, off the line by the camera's side, head and shoulders
       { p: new THREE.Vector3(gv.x - ux * 1.45 + sx * 0.75, gv.y + 1.55, gv.z - uz * 1.45 + sz * 0.75), at: new THREE.Vector3(gv.x, gv.y + 1.5, gv.z), fov: 34 },
       { p: new THREE.Vector3(s.x + ux * 1.45 + sx * 0.75, s.y + 1.57, s.z + uz * 1.45 + sz * 0.75), at: new THREE.Vector3(s.x, s.y + 1.52, s.z), fov: 34 },
+      ...(cs.guest ? ((G) => {
+        // the third: over your shoulder onto them, and a single
+        const gx = G.state.x - s.x, gz = G.state.z - s.z, gd = Math.hypot(gx, gz) || 1, vx = gx / gd, vz = gz / gd;
+        return [
+          { p: new THREE.Vector3(s.x - vx * 0.95 + sx * 0.42, s.y + 1.68, s.z - vz * 0.95 + sz * 0.42), at: new THREE.Vector3(G.state.x, G.state.y + 1.5, G.state.z), fov: 38 },
+          { p: new THREE.Vector3(G.state.x - vx * 1.45 + sx * 0.75, G.state.y + 1.55, G.state.z - vz * 1.45 + sz * 0.75), at: new THREE.Vector3(G.state.x, G.state.y + 1.5, G.state.z), fov: 34 },
+        ];
+      })(cs.guest) : []),
     ];
   }
   // which shot a line gets: the wide one to open; then over the listener's shoulder onto whoever speaks, and when the
   // same one goes on talking, a single on them (and back), so every line is a cut
   _shotFor(cs) {
     if (cs.i === 0) return 0;
-    const L = cs.lines, me = (i) => L[i][0] === 'you';
+    const L = cs.lines, who = (i) => (L[i][0] === 'you' ? 'you' : cs.guest && L[i][0] === cs.guest.id ? 'guest' : 'giver');
     let run = 0;
-    for (let i = cs.i; i > 0 && me(i) === me(cs.i); i--) run++;
-    const ots = me(cs.i) ? 2 : 1, single = me(cs.i) ? 4 : 3;
+    for (let i = cs.i; i > 0 && who(i) === who(cs.i); i--) run++;
+    const [ots, single] = { you: [2, 4], giver: [1, 3], guest: [5, 6] }[who(cs.i)];
     return run % 2 === 1 ? ots : single;
   }
   // whoever is speaking talks (the gestures), the other listens
   _talk(cs) {
-    const g = this.game, who = cs.lines[cs.i]?.[0], gh = cs.gv.human, ph = g.onFoot.human;
+    const g = this.game, who = cs.lines[cs.i]?.[0], gh = cs.gv.human, ph = g.onFoot.human, G = cs.guest;
     const say = (h, on) => { if (!h) return; if (on && h.acts?.talk) h.play('talk', { hold: true, fade: 0.35 }); else h.clearAction(0.35); };
-    say(gh, who !== 'you'); say(ph, who === 'you');
+    const guestTalks = !!G && who === G.id;
+    say(gh, who !== 'you' && !guestTalks); say(ph, who === 'you'); if (G) say(G.human, guestTalks);
   }
   // per frame: the two posed (idle, talking, heads turned to each other), the camera on the shot for this line
   _stagedShot(cs, dt) {
-    const g = this.game, gv = cs.gv, of = g.onFoot, s = of.state, cam = g.camera;
+    const g = this.game, gv = cs.gv, of = g.onFoot, s = of.state, cam = g.camera, G = cs.guest;
+    // (everyone looks at whoever speaks; whoever speaks, at you, or you at the contact)
+    const who = cs.lines[cs.i][0], gt = !!G && who === G.id;
+    const head = (o, y) => new THREE.Vector3(o.x, o.y + y, o.z);
+    const pH = head(s, 1.6), gH = head(gv, 1.58), qH = G ? head(G.state, 1.58) : null;
+    const spk = who === 'you' ? pH : gt ? qH : gH;
     gv.body.group.rotation.y = Math.atan2(s.x - gv.x, s.z - gv.z);
     gv.body.group.updateMatrixWorld(true); gv.human.animate(0, dt);
-    cs.gIK.look(_a.set(s.x, s.y + 1.6, s.z), 0.8);
+    cs.gIK.look(who === 'you' || !gt ? pH : qH, 0.8);
     s.yaw = Math.atan2(gv.x - s.x, gv.z - s.z);
     of._pose(dt);
-    cs.pIK.look(_b.set(gv.x, gv.y + 1.58, gv.z), 0.8);
+    cs.pIK.look(who === 'you' ? gH : spk, 0.8);
+    if (G) { G.face = { x: s.x, z: s.z }; G.look = gt ? pH : spk; G.update(dt, null); }
     // the shot: the wide one to open, then over the shoulder of whoever listens onto whoever speaks (every third line
     // the wide one again), a slow drift within it
     const sh = this._shots(cs, cs.side)[this._shotFor(cs)];
@@ -541,7 +598,11 @@ export class Story {
     const cs = this.cs, g = this.game;
     this.cs = null;
     // (the contact stays where they stood while you're about, not gone the moment the talking stops)
-    if (cs.staged) { cs.gv.human?.clearAction(0.35); g.onFoot.human?.clearAction(0.35); cs.gv.stayT = 40; }
+    if (cs.staged) {
+      cs.gv.human?.clearAction(0.35); g.onFoot.human?.clearAction(0.35); cs.guest?.human?.clearAction(0.35); cs.gv.stayT = 40;
+      // (the walking camera behind you, looking the way you face: toward the contact)
+      g.onFoot.camYaw = g.onFoot.state.yaw; g.onFoot.camPitch = 0.12;
+    }
     this._subtitle(null);
     this.el.root.classList.remove('cine');
     g.state.mode = 'drive';
@@ -555,7 +616,7 @@ export class Story {
     if (!A) return;
     A.i++;
     const st = A.m.steps[A.i];
-    if (!st) { this.pass(); return; }
+    if (!st) { if (!this._outroScene()) this.pass(); return; }
     A.last = A.st?.v || A.last;   // the previous step's vehicle (e.g. steal the car you just tailed)
     if (A.st?.ai && A.st.v !== this.game.player && !this.game.onFoot.parked.includes(A.st.v)) {
       const v = A.st.v; v.controls.throttle = 0; v.controls.brake = 0; v.controls.steer = 0; v.controls.handbrake = 1; v.keep = true;
@@ -995,7 +1056,7 @@ export class Story {
   }
 
   pass() {
-    const g = this.game, m = this.active.m;
+    const g = this.game, m = this.active.m, said = this.active.outroDone;
     if (m.job) {
       const pay = m.pay ? m.pay(this) : 0;
       this._cleanup(true);
@@ -1017,7 +1078,7 @@ export class Story {
     g.save.save();
     g.hud.message('MISSION PASSED', `${m.title.toUpperCase()} · ${formatMoney(r.cash || 0)} · +${(r.xp || 0).toLocaleString()} XP`, 4.5);
     g.audio.playEvent('raceFinish');
-    if (m.outro?.length) this._say(m.outro.map(([w, t]) => [w, t, !this._here(w)]), true);
+    if (m.outro?.length && !said) this._say(m.outro.map(([w, t]) => [w, t, !this._here(w)]), true);
     if (m.chapterEnd) { const nc = STORY_CHAPTERS.find((c) => c.id === m.chapterEnd + 1); setTimeout(() => g.hud.message(`CHAPTER ${m.chapterEnd} COMPLETE`, nc ? `NEXT: ${nc.name.toUpperCase()}` : '', 4), 5000); }
     if (m.finale) setTimeout(() => g.ui.toast(`STORY COMPLETE — ${g.world.kerala ? 'Kannur' : 'Port Halvern'} is yours. The city is still open for business.`, 'cash', 8), 4800);
     else { const nx = STORY.find((x) => !this.done[x.id] && (x.requires || []).every((q) => this.done[q])); if (nx) setTimeout(() => g.ui.toast(`New mission from ${CAST[nx.giver].name}: ${nx.title} (see the minimap)`, '', 6), 4800); }

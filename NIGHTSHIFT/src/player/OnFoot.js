@@ -483,6 +483,7 @@ export class OnFoot {
   // a camera spot clear of walls, poles and trunks, at the camera's own height (a low wall or a counter below it
   // doesn't count)
   _camFree(x, z, y) {
+    if (this._carAt(x, z, y)) return false;
     const tmp = this._ctmp || (this._ctmp = []);
     this._statics(x - 0.5, z - 0.5, x + 0.5, z + 0.5, tmp);
     for (const c of tmp) {
@@ -491,6 +492,22 @@ export class OnFoot {
       if (Math.abs(lx) < c.hx + 0.22 && Math.abs(lz) < c.hz + 0.22) return false;
     }
     return true;
+  }
+
+  // a car beside you, below its roof: the camera isn't to go inside it (it pulled in behind you into the car you'd just
+  // got out of, the seats seen through its roof)
+  _carAt(x, z, y) {
+    const g = this.game;
+    for (const v of [g.player, ...this.parked]) {
+      if (!v || v.gone) continue;
+      const vs = v.state;
+      if (Math.abs(vs.x - x) > 8 || Math.abs(vs.z - z) > 8) continue;
+      const L = v.p.length || 4.5, W = v.p.width || 1.9;
+      if (y > (vs.y || 0) + (L > 6 ? 3.2 : 2.0)) continue;   // (an SUV's roof is near two metres up)
+      const c = Math.cos(vs.yaw), sn = Math.sin(vs.yaw), lx = (x - vs.x) * c - (z - vs.z) * sn, lz = (x - vs.x) * sn + (z - vs.z) * c;
+      if (Math.abs(lx) < W / 2 + 0.15 && Math.abs(lz) < L / 2 + 0.15) return true;
+    }
+    return false;
   }
 
   _free(x, z) {
