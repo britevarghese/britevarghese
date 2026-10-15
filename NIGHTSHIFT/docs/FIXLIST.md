@@ -178,8 +178,11 @@ the game. Newly found problems go at the end of their section.
   second), a tile's roads or walls merged at once (an eighth), the canals' mask (a seventh) and the canopy shade (a
   twelfth). Now the normals are worked out straight from the arrays (several times faster), the long loops pause when
   the frame's share is used, the merges copy a few parts at a time with a pause between, the mask is drawn, read and
-  turned over in pieces. Frames over 40 ms on the same drive 21 -> 18, the worst 269 -> ~130 ms; what's left is mostly
-  the garbage collector and shaders compiling (in the test, without a GPU)
+  turned over in pieces. The minimap's 5 km picture was redrawn whole (every road, waterway and house of up to 25
+  tiles, ~35 ms) each time a tile arrived: now a tile that arrives is drawn in on its own, and a new picture for where
+  you've got to is drawn behind the scenes, two tiles a frame, then swapped in. Frames over 40 ms on the same drive
+  21 -> 11, the worst 269 -> ~170 ms; what's left comes in pairs with every system slowed at once: the garbage
+  collector (the build's churn of JS arrays, still to cut down) and shaders compiling (in the test, without a GPU)
 
 ## People
 - [x] Clothing: men in plain shirts over dark trousers, khaki or a white mundu, black hair; women in sarees; no kurtas or western dress in crowds, drivers or riders

@@ -16,7 +16,8 @@ export class KeralaMap {
     this.canvas = document.createElement('canvas');
     this.canvas.width = this.canvas.height = this.size;
     this.cx = 0; this.cz = 0;               // world point at the canvas centre
-    this.dirty = true;
+    this.drawn = new WeakSet();             // the tiles drawn into it (weak: unloaded ones go)
+    this.first = true;                      // (the first window: drawn at once, there's nothing to show meanwhile)
   }
   // world -> map pixel (north up; +x, the west, is to the left)
   px(x) { return (this.cx - x) * MAP_SCALE + this.size / 2; }
@@ -24,47 +25,67 @@ export class KeralaMap {
   wx(px) { return this.cx - (px - this.size / 2) / MAP_SCALE; }
   wz(pz) { return this.cz - (pz - this.size / 2) / MAP_SCALE; }
 
-  // keep the window around (x, z); redraw when the player gets near its edge or new tiles have arrived
+  // keep the window around (x, z). A tile that arrives is drawn in on its own, one a frame; when you've gone well
+  // away from the window's centre, a new window is drawn behind the scenes, two tiles a frame, and swapped in. (The
+  // whole window redrawn each time a tile arrived - every road, waterway and house of up to 25 tiles - took ~35 ms,
+  // a hitch every few seconds on the road)
   update(x, z) {
-    const n = this.world.tiles.size, ready = [...this.world.tiles.values()].filter((t) => t.ready).length;
-    if (Math.hypot(x - this.cx, z - this.cz) > SPAN * 0.24) { this.cx = Math.round(x); this.cz = Math.round(z); this.dirty = true; }
-    if (ready !== this._ready) { this._ready = ready; this.dirty = true; }
-    if (this.dirty && (performance.now() - (this._last || 0) > 1500 || Math.hypot(x - this.cx, z - this.cz) > SPAN * 0.3)) this.draw();
-    void n;
-  }
-
-  draw() {
-    this.dirty = false; this._last = performance.now();
-    const g = this.canvas.getContext('2d'), S = this.size, K = MAP_SCALE;
-    g.fillStyle = '#1b2a1c'; g.fillRect(0, 0, S, S);
-    const tiles = [...this.world.tiles.values()].filter((t) => t.ready && Math.abs(-(t.E0 + TILE / 2) - this.cx) < SPAN && Math.abs(t.N0 + TILE / 2 - this.cz) < SPAN);
-    // tile-local (e, n) -> canvas
-    const P = (t, e, n) => [this.px(-(t.E0 + e)), this.pz(t.N0 + n)];
-    const dec = (r, from) => { const out = []; let x = 0, z = 0; for (let i = from; i + 1 < r.length; i += 2) { if (i === from) { x = r[i]; z = r[i + 1]; } else { x += r[i]; z += r[i + 1]; } out.push([x / 10, z / 10]); } return out; };
-    // water
-    g.fillStyle = '#16384a';
-    for (const t of tiles) {
-      for (const [, rings] of t.data.w || []) {
-        g.beginPath();
-        for (const ring of rings) dec(ring, 0).forEach(([e, n], i) => { const [a, b] = P(t, e, n); if (i) g.lineTo(a, b); else g.moveTo(a, b); });
-        g.fill('evenodd');
-      }
-      g.strokeStyle = '#16384a';
-      for (const w of t.data.wl || []) { g.lineWidth = Math.max(1, (w[1] / 10) * K); g.beginPath(); dec(w, 2).forEach(([e, n], i) => { const [a, b] = P(t, e, n); if (i) g.lineTo(a, b); else g.moveTo(a, b); }); g.stroke(); }
+    if (!this.back && (this.first || Math.hypot(x - this.cx, z - this.cz) > SPAN * 0.24)) this._begin(Math.round(x), Math.round(z));
+    if (this.back) {
+      const B = this.back;
+      for (const t of this.world.tiles.values()) if (t.ready && !B.drawn.has(t) && !B.todo.includes(t) && this._inWin(t, B.cx, B.cz)) B.todo.push(t);
+      for (let k = 0; k < (this.first === undefined ? 99 : 2) && B.todo.length; k++) { const t = B.todo.shift(); if (t.ready) { this._tile(B.g, t, B.cx, B.cz); B.drawn.add(t); } }
+      if (!B.todo.length) this._swap();
+      return;
     }
-    // buildings (faint)
+    for (const t of this.world.tiles.values()) {
+      if (!t.ready || this.drawn.has(t) || !this._inWin(t, this.cx, this.cz)) continue;
+      this._tile(this.canvas.getContext('2d'), t, this.cx, this.cz); this.drawn.add(t);
+      break;
+    }
+  }
+  _inWin(t, cx, cz) { return Math.abs(-(t.E0 + TILE / 2) - cx) < SPAN && Math.abs(t.N0 + TILE / 2 - cz) < SPAN; }
+  _begin(cx, cz) {
+    const cv = this.spare || document.createElement('canvas');
+    cv.width = cv.height = this.size;
+    const g = cv.getContext('2d');
+    g.fillStyle = '#1b2a1c'; g.fillRect(0, 0, this.size, this.size);
+    this.back = { canvas: cv, g, cx, cz, todo: [], drawn: new WeakSet() };
+  }
+  _swap() {
+    const B = this.back;
+    this.spare = this.canvas; this.canvas = B.canvas; this.cx = B.cx; this.cz = B.cz; this.drawn = B.drawn;
+    this.back = null; this.first = false; this.dirty = false;
+  }
+  // (all at once: the first window, or on demand)
+  draw() { this._begin(this.cx, this.cz); this.first = undefined; this.update(this.cx, this.cz); }
+
+  // one tile into a canvas whose centre is (cx, cz): water, the houses faintly, roads minor first and main on top
+  _tile(g, t, cx, cz) {
+    const S = this.size, K = MAP_SCALE;
+    const P = (e, n) => [(cx + (t.E0 + e)) * K + S / 2, (cz - (t.N0 + n)) * K + S / 2];
+    const dec = (r, from) => { const out = []; let x = 0, z = 0; for (let i = from; i + 1 < r.length; i += 2) { if (i === from) { x = r[i]; z = r[i + 1]; } else { x += r[i]; z += r[i + 1]; } out.push([x / 10, z / 10]); } return out; };
+    g.fillStyle = '#16384a';
+    for (const [, rings] of t.data.w || []) {
+      g.beginPath();
+      for (const ring of rings) dec(ring, 0).forEach(([e, n], i) => { const [a, b] = P(e, n); if (i) g.lineTo(a, b); else g.moveTo(a, b); });
+      g.fill('evenodd');
+    }
+    g.strokeStyle = '#16384a';
+    for (const w of t.data.wl || []) { g.lineWidth = Math.max(1, (w[1] / 10) * K); g.beginPath(); dec(w, 2).forEach(([e, n], i) => { const [a, b] = P(e, n); if (i) g.lineTo(a, b); else g.moveTo(a, b); }); g.stroke(); }
     g.fillStyle = '#2a3530';
-    for (const t of tiles) for (const b of t.data.b || []) { g.beginPath(); dec(b, 2).forEach(([e, n], i) => { const [a, c] = P(t, e, n); if (i) g.lineTo(a, c); else g.moveTo(a, c); }); g.fill(); }
-    // roads: minor first, main roads on top
+    g.beginPath();
+    for (const b of t.data.b || []) dec(b, 2).forEach(([e, n], i) => { const [a, c] = P(e, n); if (i) g.lineTo(a, c); else g.moveTo(a, c); });
+    g.fill();
     g.lineCap = 'round'; g.lineJoin = 'round';
     for (let cls = 10; cls >= 0; cls--) {
-      g.strokeStyle = ROAD_COL[cls]; g.lineWidth = Math.max(1.2, ROAD_W[cls] * K);
-      g.beginPath();
-      for (const t of tiles) for (const r of t.roads) {
+      let any = false;
+      for (const r of t.roads) {
         if (r.cls !== cls) continue;
-        r.pts.forEach(([e, n], i) => { const [a, b] = P(t, e, n); if (i) g.lineTo(a, b); else g.moveTo(a, b); });
+        if (!any) { any = true; g.strokeStyle = ROAD_COL[cls]; g.lineWidth = Math.max(1.2, ROAD_W[cls] * K); g.beginPath(); }
+        r.pts.forEach(([e, n], i) => { const [a, b] = P(e, n); if (i) g.lineTo(a, b); else g.moveTo(a, b); });
       }
-      g.stroke();
+      if (any) g.stroke();
     }
   }
 }
