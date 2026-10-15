@@ -150,6 +150,7 @@ export class Vehicle {
     this.trees = [];
     this.others = [];              // other trucks: [{ pos, quat, spheres:[{c,r}], vel }]
     this.winchForce = new V3();
+    this.pulls = [];               // [{ local: V3 (CG frame), target: V3 (world), tension }] from other players' winches
     this.lastSafe = null;
     this.updateBasis();
   }
@@ -302,6 +303,7 @@ export class Vehicle {
       if (dtr.gear < 0) { throttle = ctrl.brake; brake = ctrl.throttle; }
       if (dtr.gear === 0) dtr.selectGear(1, speed);
     }
+    if (ctrl.hold) brake = Math.max(brake, ctrl.hold);                 // brakes on without asking for reverse
     this.pedalThrottle = throttle; this.pedalBrake = brake;
 
     const fa = this.axles[0];
@@ -493,6 +495,15 @@ export class Vehicle {
     if (ground.treesNear) this.treeContacts(ground);
     if (this.others.length) this.otherContacts();
     this.winchStep(dt, ground);
+    // other players' winch lines hooked to this truck: pulled toward their fairlead at the tension they report
+    for (const pl of this.pulls) {
+      this.toWorld(pl.local, _p);
+      _d.subVectors(pl.target, _p);
+      const len = _d.length();
+      if (len < 0.3 || !(pl.tension > 0)) continue;
+      _a.copy(_d).scale(Math.min(pl.tension, 120000) / len);
+      this.applyForce(_a, _p);
+    }
     this.waterStep(ground);
     const v2 = this.vel.lengthSq();
     if (v2 > 0.01) {

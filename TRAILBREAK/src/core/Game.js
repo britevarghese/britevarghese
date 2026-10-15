@@ -1,0 +1,504 @@
+// The game loop: input -> physics (fixed 480 Hz substeps) -> models, camera, effects, sound -> network -> HUD -> frame.
+import * as THREE from 'three';
+import { Vehicle, simulate } from '../physics/Vehicle.js';
+import { truckSpec } from '../physics/trucks.js';
+import { SURFACES } from '../physics/Surfaces.js';
+import { TruckModel } from '../render/TruckModel.js';
+import { CameraRig } from './CameraRig.js';
+import { SPAWN, BEACON_RADIUS, MAP_HALF } from '../world/MapData.js';
+
+const clamp = (x, a, b) => (x < a ? a : x > b ? b : x);
+const MATE_COLORS = ['#4fb3a9', '#e0b33b', '#c46bd6', '#6aa8e8', '#e0563b', '#7cc36a', '#e88fb0', '#c9c06a'];
+
+function nameTag(text, color) {
+  const c = document.createElement('canvas'); c.width = 256; c.height = 64;
+  const x = c.getContext('2d');
+  x.font = 'bold 30px sans-serif'; x.textAlign = 'center'; x.textBaseline = 'middle';
+  const w = Math.min(250, x.measureText(text).width + 30);
+  x.fillStyle = 'rgba(20,25,22,0.75)';
+  x.beginPath(); x.roundRect(128 - w / 2, 8, w, 48, 22); x.fill();
+  x.fillStyle = color; x.fillRect(128 - w / 2 + 14, 28, 8, 8);
+  x.fillStyle = '#f3ead7'; x.fillText(text, 136, 33);
+  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace;
+  const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: t, depthTest: false, transparent: true }));
+  s.renderOrder = 10;
+  s.scale.set(3.2, 0.8, 1);
+  return s;
+}
+
+export class Game {
+  constructor(o) {
+    Object.assign(this, o);          // world, renderer, terrain, vegetation, rocks, water, landmarks, effects, rope, audio, net, hud, input, settings
+    this.scene = this.renderer.scene;
+    this.spec = truckSpec(this.truckId);
+    this.vehicle = new Vehicle(this.spec);
+    this.model = new TruckModel(this.spec, this.paint);
+    this.scene.add(this.model.root);
+    this.cam = new CameraRig(this.renderer.camera, this.world);
+    this.remotes = new Map();
+    this.sphereCache = new Map();
+    this.carry = 0;
+    this.found = this.hud.found;
+    this.dirt = 0;
+    this.lightsOn = false;
+    this.safe = null; this.safeT = 0;
+    this.paused = false;
+    this.mapOpen = false;
+    this.chatOpen = false;
+    this.hudT = 0; this.miniT = 0;
+    this.color = this.paint;
+    this.tmpTrees = [];
+    this.stamps = new Map();
+    this._v = new THREE.Vector3(); this._q = new THREE.Quaternion(); this._v2 = new THREE.Vector3();
+    // headlights for the local truck
+    this.heads = [1, -1].map((s) => {
+      const l = new THREE.SpotLight(0xfff1d0, 0, 90, 0.5, 0.45, 1.4);
+      l.position.set(s * 0.6, 0.95 - this.spec.cgHeight, 2.0 - (this.spec.cgZ || 0));
+      l.target.position.set(s * 0.8, 0.2 - this.spec.cgHeight, 20);
+      this.model.root.add(l, l.target);
+      return l;
+    });
+    this.spawn(true);
+    this.applySettings();
+  }
+
+  get myColor() { return '#' + new THREE.Color(this.paint).getHexString(); }
+
+  spawnPoint() {
+    const slot = this.net?.id ? (this.net.id - 1) % 6 : 0;
+    const side = (slot % 2 ? 1 : -1) * Math.ceil(slot / 2) * 5.5;
+    const c = Math.cos(SPAWN.yaw), s = Math.sin(SPAWN.yaw);
+    return { x: SPAWN.x + c * side, z: SPAWN.z - s * side, yaw: SPAWN.yaw };
+  }
+
+  spawn(first = false) {
+    const p = this.spawnPoint();
+    this.vehicle.place(this.world, p.x, p.z, p.yaw);
+    this.carry = 0;
+    if (this.net) this.net.warp++;
+    if (!first) this.hud.toast('Back at the ranger station');
+    this.cam.heading = null;
+  }
+
+  recover() {
+    const v = this.vehicle;
+    if (v.vel.length() > 4 && v.up.y > 0.3) { this.hud.hint('Slow down to recover'); return; }
+    v.rightSideUp(this.world);
+    if (this.net) this.net.warp++;
+    this.hud.hint('Back on your wheels');
+  }
+
+  applySettings() {
+    const s = this.settings;
+    this.renderer.setTime(s.hour);
+    this.renderer.setShadows(s.shadows);
+    this.terrain.shadows = s.shadows;
+    this.vegetation.setShadows(s.shadows);
+    this.audio.setEnabled(s.sound);
+    this.applyQuality();
+  }
+
+  // ---------------------------------------------------------------- actions
+  actions() {
+    const I = this.input, v = this.vehicle, d = v.dt, sp = v.speed;
+    if (I.consume('pause')) { if (this.chatOpen) this.closeChat(); else if (this.mapOpen) this.toggleMap(); else this.togglePause(); }
+    if (this.paused) return;
+    if (I.consume('chat') && this.net?.connected) this.openChat();
+    if (I.consume('map')) this.toggleMap();
+    if (I.consume('help')) this.onHelp?.();
+    if (I.consume('camera')) this.hud.hint(`Camera: ${this.cam.next()}`, 1.2);
+    if (I.consume('lights')) { this.lightsOn = !this.lightsOn; this.hud.hint(this.lightsOn ? 'Headlights on' : 'Headlights off', 1.2); }
+    if (I.consume('range')) {
+      if (d.setRange(!d.low, sp)) this.hud.hint(d.low ? 'Transfer case: LOW range' : 'Transfer case: HIGH range');
+      else this.hud.hint('Stop (or nearly) to change range');
+    }
+    if (I.consume('4wd')) {
+      if (d.setFourWD(!d.fourWD, sp)) this.hud.hint(d.fourWD ? '4WD engaged' : '2WD (rear)');
+      else this.hud.hint('Too fast to engage 4WD');
+    }
+    if (I.consume('locks')) {
+      // cycle: open -> rear -> front + rear -> open
+      const next = !d.lockRear ? [false, true] : !d.lockFront ? [true, true] : [false, false];
+      if (next[1] && Math.abs(sp) > 8) this.hud.hint('Too fast to lock the diffs');
+      else {
+        d.setLocker('front', next[0], sp); d.setLocker('rear', next[1], sp);
+        this.hud.hint(next[0] ? 'Front and rear diffs locked' : next[1] ? 'Rear diff locked' : 'Diffs open');
+      }
+    }
+    if (I.consume('sway')) { v.swayDisconnected = !v.swayDisconnected; this.hud.hint(v.swayDisconnected ? 'Front anti-roll bar disconnected: more articulation, more lean' : 'Anti-roll bar connected'); }
+    if (I.consume('gearMode')) { d.auto = !d.auto; if (!d.auto && d.gear <= 0) d.selectGear(1, sp); this.hud.hint(d.auto ? 'Automatic' : 'Manual: Shift up, Ctrl down'); }
+    if (!d.auto) {
+      if (I.consume('shiftUp')) d.selectGear(d.gear + 1 > d.t.gears.length ? d.gear : d.gear + 1, sp);
+      if (I.consume('shiftDown')) { if (!d.selectGear(d.gear - 1, sp)) this.hud.hint('Stop to select reverse'); }
+    }
+    if (I.consume('hook')) this.toggleHook();
+    if (I.consume('recover')) this.recover();
+    if (I.consume('respawn')) this.spawn();
+  }
+
+  togglePause(force) {
+    this.paused = force ?? !this.paused;
+    document.getElementById('menu').classList.toggle('hidden', !this.paused);
+    this.input.enabled = !this.paused && !this.chatOpen;
+  }
+
+  toggleMap() {
+    this.mapOpen = !this.mapOpen;
+    document.getElementById('map').classList.toggle('hidden', !this.mapOpen);
+  }
+
+  openChat() {
+    const el = document.getElementById('chat-input');
+    this.chatOpen = true; this.input.enabled = false;
+    el.classList.remove('hidden'); el.value = ''; el.focus();
+    el.onkeydown = (e) => {
+      if (e.key === 'Enter') { const t = el.value.trim(); if (t) this.net.send({ t: 'chat', text: t }); this.closeChat(); e.preventDefault(); }
+      else if (e.key === 'Escape') { this.closeChat(); e.preventDefault(); }
+      e.stopPropagation();
+    };
+  }
+
+  closeChat() {
+    const el = document.getElementById('chat-input');
+    this.chatOpen = false; el.classList.add('hidden'); el.blur();
+    this.input.enabled = !this.paused;
+    this.renderer.renderer.domElement.focus();
+  }
+
+  // ---------------------------------------------------------------- winch
+  fairleadWorld(out) {
+    const f = this.vehicle.winch.fairlead, v = this.vehicle;
+    return out.set(f.x, f.y, f.z).applyQuaternion(this._q.set(v.quat.x, v.quat.y, v.quat.z, v.quat.w)).add(this._v2.set(v.pos.x, v.pos.y, v.pos.z));
+  }
+
+  toggleHook() {
+    const v = this.vehicle, W = v.winch;
+    if (W.attached) { v.detachWinch(); this.hud.hint('Winch unhooked'); return; }
+    const F = this.fairleadWorld(this._v.clone()), f = v.fwd;
+    let best = null, bd = Infinity;
+    const consider = (x, y, z, cand) => {
+      const dx = x - F.x, dz = z - F.z, d = Math.hypot(dx, dz);
+      if (d < 1 || d > W.maxLen - 1) return;
+      const cos = (dx * f.x + dz * f.z) / (d * Math.hypot(f.x, f.z));
+      if (cos < 0.35) return;                                         // ahead of the bumper (within ~70 degrees)
+      // prefer what the bumper points at, then what is near; a friend's truck over a tree beside it
+      const score = d * (1 + 2.5 * (1 - cos)) * (cand.kind === 'truck' ? 0.6 : 1);
+      if (score < bd) { bd = score; best = cand; }
+    };
+    for (const t of this.world.treesNear(F.x, F.z, W.maxLen, this.tmpTrees)) {
+      if (t.i >= this.world.trees.count) continue;                   // a wall post
+      consider(t.x, t.y, t.z, { kind: 'tree', x: t.x, y: t.y + 0.9, z: t.z, name: 'a tree' });
+    }
+    for (const r of this.remotes.values()) {
+      if (!r.state) continue;
+      const hook = this.hookPoint(r.spec);
+      const p = hook.clone().applyQuaternion(r.model.root.quaternion).add(r.model.root.position);
+      consider(p.x, p.y, p.z, { kind: 'truck', id: r.id, local: hook, x: p.x, y: p.y, z: p.z, name: `${r.name}'s ${r.spec.name}` });
+    }
+    if (!best) { this.hud.hint(`Nothing to hook within ${W.maxLen} m ahead: point the bumper at a tree or a friend`); return; }
+    const ok = best.kind === 'tree'
+      ? v.attachWinch('tree', new THREE.Vector3(best.x, best.y, best.z))
+      : v.attachWinch('truck', new THREE.Vector3(best.x, best.y, best.z), best.id, best.local);
+    if (ok) { this.hookName = best.name; this.hud.hint(`Hooked to ${best.name}. Hold E to winch in, Q to pay out, F to unhook`, 4); }
+  }
+
+  /** The rear tow point of a truck, in its CG frame. */
+  hookPoint(spec) {
+    const rear = spec.hull[0].c[2] - spec.hull[0].h[2];
+    return new THREE.Vector3(0, 0.62 - spec.cgHeight, rear - 0.05 - (spec.cgZ || 0));
+  }
+
+  // ---------------------------------------------------------------- remote players
+  remoteView(r) {
+    let rv = this.remotes.get(r.id);
+    const s = r.view;
+    if (!rv || rv.truckId !== s.truck) {
+      if (rv) { this.scene.remove(rv.model.root); rv.model.dispose(); }
+      const spec = truckSpec(s.truck);
+      const color = MATE_COLORS[r.id % MATE_COLORS.length];
+      rv = { id: r.id, name: r.name, truckId: s.truck, spec, model: new TruckModel(spec, s.paint), color, paint: s.paint };
+      rv.tag = nameTag(r.name, color);
+      rv.model.root.add(rv.tag);
+      rv.tag.position.set(0, 2.2, 0);
+      this.scene.add(rv.model.root);
+      if (!this.sphereCache.has(s.truck)) this.sphereCache.set(s.truck, new Vehicle(spec).hullSpheres);
+      this.remotes.set(r.id, rv);
+    }
+    if (rv.paint !== s.paint) { rv.model.setPaint(s.paint); rv.paint = s.paint; }
+    rv.name = r.name;
+    return rv;
+  }
+
+  updateRemotes(dt) {
+    const others = [], pulls = [];
+    const live = new Set();
+    if (this.net) {
+      for (const r of this.net.remotes.values()) {
+        const s = this.net.sample(r);
+        if (!s) continue;
+        live.add(r.id);
+        const rv = this.remoteView(r);
+        rv.state = s;
+        const root = rv.model.root;
+        root.position.set(s.pos[0], s.pos[1], s.pos[2]);
+        root.quaternion.set(s.quat[0], s.quat[1], s.quat[2], s.quat[3]);
+        rv.model.updateWheels(s.wh);
+        rv.model.setLights(!!s.lights);
+        const dist = root.position.distanceTo(this.renderer.camera.position);
+        rv.tag.visible = dist < 450;
+        rv.tag.scale.set(3.2 * Math.max(1, dist / 30), 0.8 * Math.max(1, dist / 30), 1);
+        others.push({ pos: root.position, quat: root.quaternion, vel: this._v.set(s.vel[0], s.vel[1], s.vel[2]).clone(), spheres: this.sphereCache.get(s.truck) });
+        // their winch on us: pulled toward their fairlead
+        const w = s.winch;
+        if (w && w.to === this.net.id) {
+          const target = new THREE.Vector3(...w.f).applyQuaternion(root.quaternion).add(root.position);
+          pulls.push({ local: new THREE.Vector3(...w.a), target, tension: w.ten });
+        }
+        this.remoteRuts(rv, s);
+        this.remoteEffects(rv, s, dt);
+      }
+    }
+    for (const [id, rv] of this.remotes) {
+      if (live.has(id)) continue;
+      this.scene.remove(rv.model.root); rv.model.dispose(); this.remotes.delete(id);
+      if (this.vehicle.winch.target === id) { this.vehicle.detachWinch(); this.hud.hint('Winch line dropped'); }
+    }
+    this.vehicle.others = others;
+    this.vehicle.pulls = pulls;
+  }
+
+  /** Press other players' tyre tracks into soft ground here too, so ruts are shared. */
+  remoteRuts(rv, s) {
+    const root = rv.model.root, spec = rv.spec, R = spec.tyre.radius;
+    if (root.position.distanceToSquared(this.renderer.camera.position) > 200 * 200) return;
+    const fwd = this._v.set(0, 0, 1).applyQuaternion(root.quaternion);
+    for (let i = 0; i < 4; i++) {
+      const ax = spec.axles[i < 2 ? 0 : 1], side = i % 2 === 0 ? 1 : -1;
+      const p = new THREE.Vector3(side * ax.track / 2, -spec.cgHeight + 0.05, ax.z - (spec.cgZ || 0)).applyQuaternion(root.quaternion).add(root.position);
+      const key = rv.id * 4 + i, last = this.stamps.get(key);
+      if (last && Math.hypot(p.x - last.x, p.z - last.z) < 0.15) continue;
+      this.stamps.set(key, { x: p.x, z: p.z });
+      const surf = this.world.surfaceAt(p.x, p.z);
+      if (!surf.sink) continue;
+      const pKPa = spec.mass * 9.81 / 4 / (spec.tyre.width * 0.25) / 1000;
+      this.world.deform(p.x, p.z, fwd.x, fwd.z, spec.tyre.width * 0.5, 0.12, Math.min(surf.maxSink, pKPa / surf.sink), 0);
+    }
+    void R;
+  }
+
+  remoteEffects(rv, s, dt) {
+    const root = rv.model.root;
+    if (root.position.distanceToSquared(this.renderer.camera.position) > 150 * 150) return;
+    const speed = Math.hypot(s.vel[0], s.vel[2]);
+    const fwd = this._v.set(0, 0, 1).applyQuaternion(root.quaternion);
+    for (let i = 0; i < 4; i++) {
+      const ax = rv.spec.axles[i < 2 ? 0 : 1], side = i % 2 === 0 ? 1 : -1;
+      const hub = new THREE.Vector3(side * ax.track / 2, rv.spec.tyre.radius - rv.spec.cgHeight, ax.z - (rv.spec.cgZ || 0)).applyQuaternion(root.quaternion).add(root.position);
+      const surf = this.world.surfaceAt(hub.x, hub.z), wl = this.world.water(hub.x, hub.z);
+      const w = { contact: true, surf, slipSpeed: s.thr > 0.6 && speed < 3 && surf.sink ? 4 : 0, omega: 1, water: Math.max(0, wl - (hub.y - rv.spec.tyre.radius)) };
+      this.effects.wheel(`r${rv.id}-${i}`, w, dt, speed, hub.x, hub.y, hub.z, fwd.x, fwd.z);
+    }
+  }
+
+  // ---------------------------------------------------------------- beacons
+  markFound(id, by) {
+    if (this.found.has(id)) return;
+    this.found.add(id);
+    this.landmarks.setFound(id, true);
+    const b = this.world.beacons.find((x) => x.id === id);
+    const n = this.found.size, total = this.world.beacons.length;
+    if (b) this.hud.toast(by ? `${by} surveyed ${b.name} (${n}/${total})` : `Surveyed ${b.name} (${n}/${total})`, true, 5);
+    if (n === total) this.hud.toast('Every beacon in Ashwood Valley is surveyed. Great work!', true, 8);
+    if (!this.net?.connected) {
+      try { localStorage.setItem('trailbreak.solo.beacons', JSON.stringify([...this.found])); } catch { /* storage blocked */ }
+    }
+  }
+
+  checkBeacons() {
+    const p = this.vehicle.pos;
+    for (const b of this.world.beacons) {
+      if (this.found.has(b.id)) continue;
+      if (Math.hypot(b.x - p.x, b.z - p.z) < BEACON_RADIUS && Math.abs(b.y - p.y) < 8) {
+        if (this.net?.connected) this.net.send({ t: 'beacon', id: b.id });
+        this.markFound(b.id, null);
+        this.audio.chirp?.();
+      }
+    }
+  }
+
+  onNet(m) {
+    if (m.t === 'beacon') this.markFound(m.id, m.by === this.name ? null : m.by);
+    else if (m.t === 'join') { this.hud.toast(`${m.name} joined`); this.hud.chat(null, `${m.name} joined the room`); }
+    else if (m.t === 'leave') { this.hud.toast(`${m.name} left`); this.hud.chat(null, `${m.name} left`); }
+    else if (m.t === 'chat') this.hud.chat(m.name, m.text);
+    else if (m.t === 'disconnected') this.hud.toast('Lost the connection to the server. Reload to rejoin.', true, 8);
+    else if (m.t === 'correction') this.net.warp++;
+  }
+
+  // ---------------------------------------------------------------- frame
+  frame(dt) {
+    const I = this.input, v = this.vehicle, W = v.winch;
+    const ctrl = I.update(dt);
+    this.actions();
+    const c = { ...ctrl };
+    if (this.paused || this.chatOpen) { c.throttle = 0; c.brake = 0; c.handbrake = 1; c.steer = 0; c.winch = 0; }
+    if (!this.settings.assist) c.analogSteer = true;
+    W.motor = W.attached ? c.winch : 0;
+    // winching a friend out: hold our own truck on the brakes (as you'd put it in park); winching to a tree, roll free
+    c.hold = W.attached && W.kind === 'truck' && W.motor !== 0 && c.throttle < 0.05 ? 0.8 : 0;
+
+    this.updateRemotes(dt);
+    // a truck we're winching toward moves: follow its tow point
+    if (W.attached && W.kind === 'truck') {
+      const rv = this.remotes.get(W.target);
+      if (rv?.state) {
+        W.anchor.copy(new THREE.Vector3().copy(W.anchorLocal).applyQuaternion(rv.model.root.quaternion).add(rv.model.root.position));
+        W.anchorVel = new THREE.Vector3(...rv.state.vel);
+      }
+    } else W.anchorVel = null;
+
+    this.carry = simulate(v, c, this.world, dt, this.carry);
+
+    // keep inside the valley
+    if (!this.world.inBounds(v.pos.x, v.pos.z, 14) || v.pos.y < -50 || !Number.isFinite(v.pos.x)) {
+      if (this.safe) { v.place(this.world, this.safe.x, this.safe.z, this.safe.yaw); if (this.net) this.net.warp++; } else this.spawn();
+      this.hud.toast('That is as far as the valley goes');
+    }
+    this.safeT += dt;
+    if (this.safeT > 2 && v.settled && v.vel.length() < 15) {
+      this.safeT = 0;
+      this.safe = { x: v.pos.x, z: v.pos.z, yaw: Math.atan2(v.fwd.x, v.fwd.z) };
+    }
+
+    // ruts -> terrain
+    const dirty = this.world.deformGrid.takeDirty();
+    if (dirty) this.terrain.markDirty(dirty);
+
+    // the truck
+    const m = this.model;
+    m.root.position.set(v.pos.x, v.pos.y, v.pos.z);
+    m.root.quaternion.set(v.quat.x, v.quat.y, v.quat.z, v.quat.w);
+    m.updateWheels([0, 1, 2, 3].map((i) => v.wheelState(i)));
+    const night = this.renderer.night;
+    const lights = this.lightsOn || night;
+    m.setLights(lights);
+    for (const h of this.heads) h.intensity = lights ? 60 : 0;
+    // mud on the paint: picked up in mud and wet ground, washed off in water
+    let mud = 0;
+    for (const w of v.wheels) if (w.contact && (w.surf.name === 'mud' || w.surf.name === 'riverbed' || w.surf.name === 'snow')) mud += (Math.abs(v.speed) * 0.02 + w.slipSpeed * 0.03);
+    this.dirt = clamp(this.dirt + mud * dt * 0.25 - (v.waterDepth > 0.2 ? v.waterDepth * dt * 0.25 : 0), 0, 1);
+    m.setDirt(this.dirt);
+
+    // effects from our tyres
+    const speed = v.speed;
+    for (const w of v.wheels) this.effects.wheel(`me-${w.index}`, w, dt, speed, w.hub.x, w.hub.y, w.hub.z, w.headX, w.headZ);
+    if (v.hullContact > 0.8) this.cam.shake = Math.max(this.cam.shake, Math.min(0.12, v.hullContact * 0.04));
+    if (v.impact > 0.5) { this.cam.shake = Math.max(this.cam.shake, Math.min(0.2, v.impact * 0.05)); this.input.rumble(Math.min(1, v.impact / 4), 0.5, 160); }
+
+    // camera and world
+    this.cam.update(dt, m, ctrl);
+    const camPos = this.renderer.camera.position;
+    this.terrain.update(camPos);
+    this.vegetation.update(this.renderer.camera, dt);
+    this.water.update(this.renderer.camera, dt, this.renderer.sky.state.horizon);
+    this.landmarks.update(this.renderer.camera, dt);
+    this.effects.update(dt, this.world);
+    if (W.attached) {
+      const a = this.fairleadWorld(new THREE.Vector3());
+      const b = new THREE.Vector3(W.anchor.x, W.anchor.y, W.anchor.z);
+      this.rope.update(a, b, W.len - a.distanceTo(b));
+    } else this.rope.update(null);
+    // friends' winch lines
+    this.updateRemoteRopes();
+    this.renderer.updateSun(m.root.position);
+
+    this.checkBeacons();
+
+    // sound
+    const remotes = [...this.remotes.values()].filter((r) => r.state).map((r) => ({ id: r.id, spec: r.spec, pos: r.model.root.position, rpm: r.state.rpm, thr: r.state.thr }));
+    this.audio.update(dt, v, this.renderer.camera, remotes);
+    v.impact = 0;
+
+    // network
+    if (this.net) {
+      let winch = null;
+      if (W.attached) {
+        winch = W.kind === 'tree'
+          ? { to: 'tree', a: [W.anchor.x, W.anchor.y, W.anchor.z], f: [W.fairlead.x, W.fairlead.y, W.fairlead.z], len: W.len, ten: W.tension }
+          : { to: W.target, a: [W.anchorLocal.x, W.anchorLocal.y, W.anchorLocal.z], f: [W.fairlead.x, W.fairlead.y, W.fairlead.z], len: W.len, ten: W.tension };
+      }
+      this.net.sendState(dt, v, { truck: this.truckId, paint: this.myColor, lights, winch });
+    }
+
+    // HUD
+    this.hud.update(dt);
+    this.hudT += dt; this.miniT += dt;
+    const heading = Math.atan2(v.fwd.x, -v.fwd.z);
+    const mates = [...this.remotes.values()].filter((r) => r.state).map((r) => ({ x: r.model.root.position.x, z: r.model.root.position.z, color: r.color, name: r.name }));
+    if (this.hudT > 1 / 30) {
+      this.hudT = 0;
+      this.hud.drawGauges(v);
+      this.hud.drawChips(v);
+      this.hud.drawWinch(v, this.hookName);
+      this.hud.drawCompass(heading, v.pos, mates);
+    }
+    if (this.miniT > 1 / 12) {
+      this.miniT = 0;
+      this.hud.drawMinimap(v.pos, heading, mates);
+      this.hud.drawObjective(v.pos);
+      const list = [{ name: this.name, color: this.myColor, me: true }, ...mates.map((r) => ({ name: r.name, color: r.color }))];
+      this.hud.drawPlayers(list);
+      if (this.mapOpen) this.hud.drawMap(v.pos, heading, mates);
+    }
+
+    if (!this.noRender) this.renderer.render();
+    this.perf(dt);
+    I.endFrame();
+  }
+
+  /** Watch the frame rate; step the graphics down if it can't keep up. */
+  perf(dt) {
+    const p = this.perfState || (this.perfState = { t: 0, n: 0, sum: 0, fps: 60, grace: 6 });
+    p.t += dt; p.n++; p.sum += dt;
+    if (p.t < 4) return;
+    p.fps = p.n / p.sum;
+    p.t = 0; p.n = 0; p.sum = 0;
+    if (p.grace > 0) { p.grace -= 4; return; }
+    if (this.settings.autoQuality !== false && p.fps < 32 && this.settings.quality !== 'low' && !this.noRender) {
+      this.settings.quality = this.settings.quality === 'high' ? 'medium' : 'low';
+      this.applyQuality();
+      this.hud.toast(`Graphics set to ${this.settings.quality} to keep it smooth (Esc to change)`, false, 5);
+      this.onSettingsChanged?.();
+      p.grace = 8;
+    }
+  }
+
+  applyQuality() {
+    const q = this.settings.quality || 'high';
+    this.renderer.setQuality(q);
+    this.vegetation.setDetailRange(q === 'high' ? 340 : q === 'medium' ? 240 : 150);
+    this.terrain.split = q === 'high' ? 2.1 : q === 'medium' ? 1.8 : 1.5;
+  }
+
+  updateRemoteRopes() {
+    this.remoteRopes = this.remoteRopes || new Map();
+    const used = new Set();
+    for (const rv of this.remotes.values()) {
+      const w = rv.state?.winch;
+      if (!w) continue;
+      used.add(rv.id);
+      let rope = this.remoteRopes.get(rv.id);
+      if (!rope) { rope = new this.rope.constructor(this.scene); this.remoteRopes.set(rv.id, rope); }
+      const root = rv.model.root;
+      const a = new THREE.Vector3(...w.f).applyQuaternion(root.quaternion).add(root.position);
+      let b;
+      if (w.to === 'tree') b = new THREE.Vector3(...w.a);
+      else if (w.to === this.net.id) b = new THREE.Vector3(...w.a).applyQuaternion(this.model.root.quaternion).add(this.model.root.position);
+      else { const t = this.remotes.get(w.to); if (!t) { rope.update(null); continue; } b = new THREE.Vector3(...w.a).applyQuaternion(t.model.root.quaternion).add(t.model.root.position); }
+      rope.update(a, b, w.len - a.distanceTo(b));
+    }
+    for (const [id, rope] of this.remoteRopes) if (!used.has(id)) rope.update(null);
+  }
+}
+
+export { MAP_HALF, SURFACES };

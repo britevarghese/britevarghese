@@ -1,0 +1,98 @@
+// WebGL renderer, scene, camera, sun and sky light, fog and shadows that follow the player.
+import * as THREE from 'three';
+import { Sky } from './Sky.js';
+
+export class Renderer {
+  constructor(container) {
+    this.renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance', logarithmicDepthBuffer: true });
+    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.75));
+    this.renderer.outputColorSpace = THREE.SRGBColorSpace;
+    this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    this.renderer.toneMappingExposure = 1.0;
+    this.renderer.shadowMap.enabled = true;
+    this.renderer.shadowMap.type = THREE.PCFShadowMap;
+    container.appendChild(this.renderer.domElement);
+    this.renderer.domElement.tabIndex = 0;
+
+    this.scene = new THREE.Scene();
+    this.camera = new THREE.PerspectiveCamera(62, 1, 0.2, 9000);
+    this.camera.position.set(0, 120, 0);
+
+    this.sky = new Sky(this.scene);
+    this.fog = new THREE.FogExp2(0xc9d6e2, 0.00038);
+    this.scene.fog = this.fog;
+
+    this.hemi = new THREE.HemisphereLight(0xc5d6ee, 0x52503a, 0.8);
+    this.scene.add(this.hemi);
+    this.sun = new THREE.DirectionalLight(0xffffff, 3);
+    this.sun.castShadow = true;
+    this.sun.shadow.mapSize.set(2048, 2048);
+    const sc = this.sun.shadow.camera;
+    sc.left = -70; sc.right = 70; sc.top = 70; sc.bottom = -70; sc.near = 10; sc.far = 600;
+    this.sun.shadow.bias = -0.0004;
+    this.sun.shadow.normalBias = 0.05;
+    this.scene.add(this.sun);
+    this.scene.add(this.sun.target);
+    this.focus = new THREE.Vector3();
+    this.hour = 16.5;
+    this.setTime(this.hour);
+
+    this.resize();
+    addEventListener('resize', () => this.resize());
+  }
+
+  setTime(hour) {
+    this.hour = hour;
+    const s = this.sky.setTime(hour);
+    this.sun.color.copy(s.sun);
+    this.sun.intensity = s.sunI;
+    this.hemi.color.copy(s.hemiSky);
+    this.hemi.groundColor.copy(s.hemiGround);
+    this.hemi.intensity = s.hemiI;
+    this.fog.color.copy(s.fog);
+    this.renderer.setClearColor(s.fog);
+    this.night = s.el < 2;
+    return s;
+  }
+
+  /** Graphics level: 'high' | 'medium' | 'low' (resolution and shadow detail). */
+  setQuality(q) {
+    this.quality = q;
+    const dpr = window.devicePixelRatio || 1;
+    this.renderer.setPixelRatio(q === 'high' ? Math.min(dpr, 1.75) : q === 'medium' ? Math.min(dpr, 1.25) : Math.min(dpr, 1) * 0.85);
+    const size = q === 'low' ? 1024 : 2048;
+    if (this.sun.shadow.mapSize.x !== size) {
+      this.sun.shadow.mapSize.set(size, size);
+      this.sun.shadow.map?.dispose(); this.sun.shadow.map = null;
+    }
+    this.resize();
+  }
+
+  setShadows(on) {
+    this.renderer.shadowMap.enabled = on;
+    this.sun.castShadow = on;
+    this.scene.traverse((o) => { if (o.material) o.material.needsUpdate = true; });
+  }
+
+  resize() {
+    const w = innerWidth, h = innerHeight;
+    this.renderer.setSize(w, h, false);
+    this.camera.aspect = w / h;
+    this.camera.updateProjectionMatrix();
+  }
+
+  /** Keep the sun's shadow box centred on what we look at (snapped to texels so shadows don't shimmer). */
+  updateSun(focus) {
+    const d = this.sky.sunDir;
+    const texel = 140 / this.sun.shadow.mapSize.x;
+    const fx = Math.round(focus.x / texel) * texel, fy = Math.round(focus.y / texel) * texel, fz = Math.round(focus.z / texel) * texel;
+    this.sun.target.position.set(fx, fy, fz);
+    this.sun.position.set(fx + d.x * 300, fy + Math.max(0.15, d.y) * 300, fz + d.z * 300);
+    this.sun.target.updateMatrixWorld();
+  }
+
+  render() {
+    this.sky.follow(this.camera);
+    this.renderer.render(this.scene, this.camera);
+  }
+}

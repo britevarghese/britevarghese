@@ -1,0 +1,161 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+  <title>TRAILBREAK</title>
+  <meta name="description" content="Co-op off-road driving with real physics, in the browser.">
+  <meta name="theme-color" content="#1c241f">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cpath d='M4 50 L24 18 L34 32 L42 22 L60 50 Z' fill='%23e8893a'/%3E%3Ccircle cx='20' cy='52' r='7' fill='%231c241f'/%3E%3Ccircle cx='44' cy='52' r='7' fill='%231c241f'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="css/style.css">
+  <script type="importmap">
+    { "imports": { "three": "./vendor/three/three.module.js", "three/addons/": "./vendor/three/addons/" } }
+  </script>
+</head>
+<body>
+  <div id="app"></div>
+
+  <!-- start screen -->
+  <section id="lobby" class="screen">
+    <div class="lobby-card">
+      <header class="brand">
+        <h1>TRAIL<span>BREAK</span></h1>
+        <p class="tagline">Old trucks, real physics, good friends. Find the survey beacons of Ashwood Valley together.</p>
+      </header>
+      <div class="lobby-grid">
+        <div class="field">
+          <label for="name">Driver name</label>
+          <input id="name" maxlength="20" autocomplete="nickname" placeholder="Driver">
+        </div>
+        <div class="field">
+          <label>Truck</label>
+          <div id="trucks" class="truck-list"></div>
+        </div>
+        <div class="field">
+          <label>Paint</label>
+          <div id="paints" class="paint-list"></div>
+        </div>
+        <div class="field">
+          <label for="room">Room code <small>(blank: start a new room)</small></label>
+          <input id="room" maxlength="8" autocomplete="off" spellcheck="false" placeholder="e.g. K7QMP">
+        </div>
+      </div>
+      <div class="lobby-actions">
+        <button id="go" class="primary">Drive</button>
+        <button id="solo" class="ghost">Drive alone (offline)</button>
+      </div>
+      <p id="lobby-msg" class="msg"></p>
+      <p class="fine">Controls: W A S D or arrows, Space handbrake. Press F1 in the valley for all of them.
+        Steering wheel or gamepad on another PC: open the https:// address.</p>
+    </div>
+  </section>
+
+  <!-- loading -->
+  <section id="loading" class="screen hidden">
+    <div class="load-card">
+      <h2>Ashwood Valley</h2>
+      <div class="bar"><div id="load-bar"></div></div>
+      <p id="load-label">Preparing...</p>
+    </div>
+  </section>
+
+  <!-- in-game HUD -->
+  <div id="hud" class="hidden">
+    <div id="compass"><div id="compass-strip"></div><div id="compass-needle"></div></div>
+    <div id="objective"></div>
+    <div id="players"></div>
+    <canvas id="minimap" width="220" height="220"></canvas>
+    <div id="dash">
+      <canvas id="gauges" width="360" height="170"></canvas>
+      <div id="drive-modes">
+        <span id="m-range" class="chip">HIGH</span>
+        <span id="m-4wd" class="chip on">4WD</span>
+        <span id="m-lock" class="chip">OPEN</span>
+        <span id="m-box" class="chip">AUTO</span>
+        <span id="m-sway" class="chip hidden">SWAY OFF</span>
+      </div>
+    </div>
+    <div id="winch" class="hidden">
+      <div class="winch-title">WINCH <span id="winch-target"></span></div>
+      <div class="winch-row"><span>Line</span><span id="winch-len">0.0 m</span></div>
+      <div class="tension"><div id="winch-ten"></div></div>
+    </div>
+    <div id="hint"></div>
+    <div id="toasts"></div>
+    <div id="chat">
+      <div id="chat-log"></div>
+      <input id="chat-input" maxlength="160" placeholder="Say something (Enter to send, Esc to cancel)" class="hidden">
+    </div>
+  </div>
+
+  <!-- full map -->
+  <section id="map" class="screen hidden">
+    <canvas id="map-canvas" width="900" height="900"></canvas>
+    <div id="map-legend"></div>
+  </section>
+
+  <!-- pause / invite menu -->
+  <section id="menu" class="screen hidden">
+    <div class="menu-card">
+      <h2>Paused</h2>
+      <div id="invite" class="hidden">
+        <p>Room <b id="room-code"></b>. Send your friends this link:</p>
+        <div class="invite-row"><input id="invite-link" readonly><button id="copy-link">Copy</button></div>
+      </div>
+      <div class="menu-row">
+        <label>Time of day <input id="tod" type="range" min="5" max="21" step="0.25" value="16.5"></label>
+      </div>
+      <div class="menu-row">
+        <label><input id="opt-shadows" type="checkbox" checked> Shadows</label>
+        <label><input id="opt-sound" type="checkbox" checked> Sound</label>
+        <label><input id="opt-assist" type="checkbox" checked> Steering assist</label>
+      </div>
+      <div class="menu-row">
+        <label>Graphics <select id="opt-quality"><option value="high">High</option><option value="medium">Medium</option><option value="low">Low</option></select></label>
+      </div>
+      <div class="menu-actions">
+        <button id="resume" class="primary">Resume</button>
+        <button id="respawn" class="ghost">Back to the station</button>
+        <button id="show-help" class="ghost">Controls</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- help -->
+  <section id="help" class="screen hidden">
+    <div class="menu-card wide">
+      <h2>Controls</h2>
+      <div class="help-cols">
+        <dl>
+          <dt>W / S</dt><dd>Throttle / brake (hold S when stopped to reverse)</dd>
+          <dt>A / D</dt><dd>Steer</dd>
+          <dt>Space</dt><dd>Handbrake</dd>
+          <dt>L</dt><dd>Transfer case HIGH / LOW range (nearly stopped)</dd>
+          <dt>4</dt><dd>2WD / 4WD</dd>
+          <dt>X</dt><dd>Diff locks: open, rear, front + rear</dd>
+          <dt>B</dt><dd>Disconnect the front anti-roll bar (more articulation)</dd>
+          <dt>G</dt><dd>Gearbox AUTO / MANUAL; manual: Shift up, Ctrl down</dd>
+        </dl>
+        <dl>
+          <dt>F</dt><dd>Winch: hook the nearest tree or friend ahead / unhook</dd>
+          <dt>E / Q (hold)</dt><dd>Winch in / pay out</dd>
+          <dt>R</dt><dd>Recover (put the truck back on its wheels)</dd>
+          <dt>Backspace</dt><dd>Back to the ranger station</dd>
+          <dt>C</dt><dd>Camera (drag the mouse to look around)</dd>
+          <dt>H</dt><dd>Headlights</dd>
+          <dt>M</dt><dd>Map</dd>
+          <dt>Enter</dt><dd>Chat</dd>
+          <dt>Esc</dt><dd>Pause, invite link, settings</dd>
+        </dl>
+      </div>
+      <p class="fine">Gamepad: RT / LT pedals, left stick steer, A handbrake, X winch hook, RB / LB winch in / out, Y camera,
+        B recover, d-pad: up range, down locks, left 4WD, right lights. Right stick looks around.</p>
+      <p class="fine">Tips: open diffs send power to the wheel with the least grip. Lock them in ruts and rocks, unlock them to
+        turn. Low range for crawling, momentum for mud. Spinning tyres dig.</p>
+      <div class="menu-actions"><button id="close-help" class="primary">Close</button></div>
+    </div>
+  </section>
+
+  <script type="module" src="/src/main.js"></script>
+</body>
+</html>
