@@ -16,7 +16,7 @@ import { GRID } from '../world/CityLayout.js';
 import { PROPERTY_BY_ID } from '../world/Empire.js';
 import { Heist } from './Heist.js';
 import { CrewMember } from './Crew.js';
-import { passengerProfile } from '../vehicles/Interaction.js';
+import { passengerProfile, BodyIK } from '../vehicles/Interaction.js';
 
 const YELLOW = 0xffc53d;
 // where a route turns right round: the way it comes in over the last 8 m and goes on over the next 8 m more than 150
@@ -95,17 +95,39 @@ export class Story {
     // stand on the pavement beside the nearest traffic lane
     const lane = g._laneSpot(c.spot.x, c.spot.z);
     const rx = -Math.cos(lane.yaw), rz = Math.sin(lane.yaw);
-    let x = lane.x, z = lane.z;
+    let x = lane.x, z = lane.z, face = Math.atan2(-rx, -rz);
     for (let d = 3; d < 12; d += 0.5) {
       const px = lane.x + rx * d, pz = lane.z + rz * d;
       if (!g.onFoot._free(px, pz)) break;
       x = px; z = pz;
       if (g.world.layout.groundHeight(px, pz) > 0.05 && d > 5) break;
     }
+    // (Kerala, traffic keeping left: that's across the road, and 5.5 m was still the tarmac on a wide street. Just past
+    // the far edge instead; but a dual carriageway's median (more road just beyond it: Leena stood on one) or no edge
+    // within reach, the lane's own kerb, back from the road)
+    const W = g.world;
+    if (W.kerala) {
+      let far = null, last = null, wall = false;
+      const roadOn = (px, pz) => [1.5, 3].some((e) => W.onCarriageway(px + rx * e, pz + rz * e));
+      for (let d = 2; d < 14; d += 0.25) {
+        const px = lane.x + rx * d, pz = lane.z + rz * d;
+        // (a wall at the far edge: up against it, a workshop's door; one with more road beyond is a median's barrier)
+        if (!g.onFoot._free(px, pz)) { if (last && d > 3 && !roadOn(px, pz)) { far = last; wall = true; } break; }
+        last = { x: px, z: pz };
+        if (W.onCarriageway(px, pz)) continue;
+        let bx = px, bz = pz;
+        for (let e = 0.25; e <= 1; e += 0.25) { if (!g.onFoot._free(px + rx * e, pz + rz * e)) break; bx = px + rx * e; bz = pz + rz * e; }
+        if (![1, 2, 3].some((e) => W.onCarriageway(bx + rx * e, bz + rz * e))) far = { x: bx, z: bz };
+        break;
+      }
+      ({ x, z, face } = far ? { ...far, face } : this._kerb(c.spot.x, c.spot.z, 2.2));
+      // (still on the road: a place right at a big junction. The nearest pavement round it)
+      if (!wall && W.onCarriageway(x, z)) { const o = this._pavement(lane.x, lane.z); if (o) ({ x, z, face } = o); }
+    }
     const body = buildCharacter(c.look);
     const y = g.world.layout.groundHeight(x, z, (g.world.layout.groundHeight(lane.x, lane.z) || 0) + 1);
     body.group.position.set(x, y, z);
-    body.group.rotation.y = Math.atan2(-rx, -rz); // face the road
+    body.group.rotation.y = face; // face the road
     g.scene.add(body.group);
     const ring = new THREE.Mesh(new THREE.RingGeometry(1.4, 1.9, 32).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ color: new THREE.Color(c.color), transparent: true, opacity: 0.8, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false }));
     ring.position.set(x, y + 0.05, z); g.scene.add(ring);
@@ -180,20 +202,40 @@ export class Story {
     return r || null;
   }
 
-  // the kerb beside the lane nearest (x, z), on the lane's own side (Kerala keeps left), facing the road
-  _kerb(x, z) {
+  // the kerb beside the lane nearest (x, z), on the lane's own side (Kerala keeps left), facing the road; `back`: how
+  // far past the road's edge (as far as there's room)
+  _kerb(x, z, back = 0.75) {
     const g = this.game, W = g.world;
     if (!W.kerala) { const k = g.empire.sidewalk(x, z); return { x: k.x, z: k.z, face: k.face }; }
     const lane = g._laneSpot(x, z), lx = Math.cos(lane.yaw), lz = -Math.sin(lane.yaw);
     let px = lane.x, pz = lane.z, off = null;
-    for (let d = 0.5; d < 9; d += 0.25) {
+    for (let d = 0.5; d < 16; d += 0.25) {
       const qx = lane.x + lx * d, qz = lane.z + lz * d;
       if (!g.onFoot._free(qx, qz)) break;
       px = qx; pz = qz;
       if (off === null && !W.onCarriageway(qx, qz)) off = d;
-      if (off !== null && d >= off + 0.75) break;
+      if (off !== null && d >= off + back) break;
     }
     return { x: px, z: pz, face: Math.atan2(-lx, -lz) };
+  }
+
+  // Kerala: the nearest spot round (x, z) a person can stand at the roadside: off the road by most of a metre, clear of
+  // walls, and not a median (road on both sides of it); facing the road
+  _pavement(x, z) {
+    const g = this.game, W = g.world, on = (px, pz) => W.onCarriageway(px, pz);
+    for (let r = 3; r <= 30; r += 1.5) {
+      let best = null, bd = Infinity;
+      for (let k = 0; k < 32; k++) {
+        const a = (k / 32) * Math.PI * 2, px = x + Math.sin(a) * r, pz = z + Math.cos(a) * r;
+        if (on(px, pz) || !g.onFoot._free(px, pz)) continue;
+        if ([[0.75, 0], [-0.75, 0], [0, 0.75], [0, -0.75]].some(([dx, dz]) => on(px + dx, pz + dz))) continue;
+        if ([[3, 0], [0, 3], [2.1, 2.1], [2.1, -2.1]].some(([dx, dz]) => on(px + dx, pz + dz) && on(px - dx, pz - dz))) continue;
+        const d = Math.hypot(px - x, pz - z);
+        if (d < bd) { bd = d; best = { x: px, z: pz, face: Math.atan2(x - px, z - pz) }; }
+      }
+      if (best) return best;
+    }
+    return null;
   }
 
   // the pickup / drop-off itself; true when he's in (or out and on his way)
@@ -367,13 +409,94 @@ export class Story {
   _cutscene(m, done) {
     const g = this.game, gv = this._giver(m.giver);
     this.cs = { lines: m.intro, i: 0, t: 0, done, gv, prev: g.state.mode };
+    // GTA's briefings: out of the car and face to face with the contact (one not in the world yet: the old shots)
+    if (!gv.provisional && gv.human) this._stage(this.cs);
     g.state.mode = 'cutscene';
-    document.getElementById('hud').classList.add('hidden');
+    for (const id of ['hud', 'toasts']) document.getElementById(id)?.classList.add('hidden');
     this.el.root.classList.add('cine');
     this.el.obj.classList.remove('on');
     this._subtitle(m.intro[0][0], m.intro[0][1]);
     this._titleCard(m);
   }
+  // the briefing staged: you out of the car (it stays where it stopped) and standing 1.7 m from the contact, the first
+  // clear spot from them toward you, the two of you facing each other
+  _stage(cs) {
+    const g = this.game, gv = cs.gv, of = g.onFoot, P = g.player, f = g.focusState;
+    if (!of.human) return;
+    const inCar = (x, z, m) => { const v = P.state, c = Math.cos(v.yaw), sn = Math.sin(v.yaw), lx = (x - v.x) * c - (z - v.z) * sn, lz = (x - v.x) * sn + (z - v.z) * c; return Math.abs(lx) < (P.p.width || 1.9) / 2 + m && Math.abs(lz) < (P.p.length || 4.5) / 2 + m; };
+    const a0 = Math.atan2(f.x - gv.x, f.z - gv.z);
+    let spot = null;
+    for (const da of [0, 0.45, -0.45, 0.9, -0.9, 1.4, -1.4, 2.1, -2.1, 2.7, -2.7, Math.PI]) {
+      const a = a0 + da, x = gv.x + Math.sin(a) * 1.7, z = gv.z + Math.cos(a) * 1.7;
+      if (of._free(x, z) && !inCar(x, z, 0.45)) { spot = { x, z }; break; }
+    }
+    if (!spot) return;
+    const yaw = Math.atan2(gv.x - spot.x, gv.z - spot.z);
+    if (!of.active) {
+      P.controls.throttle = 0; P.controls.brake = 0; P.controls.steer = 0; P.controls.handbrake = 1; P.controls.nitro = false;
+      of.inter.release(); of.inter._detach(); of.inter.gaze = null;
+      of.bail(spot.x, spot.z, yaw); of.human.clearAction(0);
+    } else {
+      const s = of.state; s.x = spot.x; s.z = spot.z; s.y = of._ground(spot.x, spot.z); s.yaw = yaw; s.speed = 0; s.vx = s.vz = 0;
+    }
+    cs.staged = true; cs.inCar = inCar;
+    cs.pIK = new BodyIK(of.human); cs.gIK = new BodyIK(gv.human);
+    gv.body.group.rotation.y = Math.atan2(spot.x - gv.x, spot.z - gv.z);
+    // (the camera's side of the two of them, kept for every shot: the side the shots are clear on)
+    const dx = gv.x - spot.x, dz = gv.z - spot.z, d = Math.hypot(dx, dz) || 1, ux = dx / d, uz = dz / d;
+    const ok = (k) => this._shots(cs, k).every((c) => of._camFree(c.p.x, c.p.z, c.p.y) && !inCar(c.p.x, c.p.z, 0.3));
+    cs.side = ok(1) ? 1 : ok(-1) ? -1 : 1;
+    void ux; void uz;
+    this._talk(cs);
+  }
+  // the shots for the staged briefing: [wide two-shot from the side, over your shoulder onto the contact, over theirs
+  // onto you], the camera all on one side of the line between them (k: which side)
+  _shots(cs, k) {
+    const g = this.game, gv = cs.gv, s = g.onFoot.state;
+    const dx = gv.x - s.x, dz = gv.z - s.z, d = Math.hypot(dx, dz) || 1, ux = dx / d, uz = dz / d, sx = -uz * k, sz = ux * k;
+    const mx = (s.x + gv.x) / 2, mz = (s.z + gv.z) / 2, my = (s.y + gv.y) / 2;
+    return [
+      { p: new THREE.Vector3(mx + sx * 3.3 - ux * 0.4, my + 1.5, mz + sz * 3.3 - uz * 0.4), at: new THREE.Vector3(mx, my + 1.3, mz), fov: 42 },
+      { p: new THREE.Vector3(s.x - ux * 0.95 + sx * 0.42, s.y + 1.68, s.z - uz * 0.95 + sz * 0.42), at: new THREE.Vector3(gv.x, gv.y + 1.5, gv.z), fov: 38 },
+      { p: new THREE.Vector3(gv.x + ux * 0.95 + sx * 0.42, gv.y + 1.66, gv.z + uz * 0.95 + sz * 0.42), at: new THREE.Vector3(s.x, s.y + 1.52, s.z), fov: 38 },
+      // a single on each: in front of them, off the line by the camera's side, head and shoulders
+      { p: new THREE.Vector3(gv.x - ux * 1.45 + sx * 0.75, gv.y + 1.55, gv.z - uz * 1.45 + sz * 0.75), at: new THREE.Vector3(gv.x, gv.y + 1.5, gv.z), fov: 34 },
+      { p: new THREE.Vector3(s.x + ux * 1.45 + sx * 0.75, s.y + 1.57, s.z + uz * 1.45 + sz * 0.75), at: new THREE.Vector3(s.x, s.y + 1.52, s.z), fov: 34 },
+    ];
+  }
+  // which shot a line gets: the wide one to open; then over the listener's shoulder onto whoever speaks, and when the
+  // same one goes on talking, a single on them (and back), so every line is a cut
+  _shotFor(cs) {
+    if (cs.i === 0) return 0;
+    const L = cs.lines, me = (i) => L[i][0] === 'you';
+    let run = 0;
+    for (let i = cs.i; i > 0 && me(i) === me(cs.i); i--) run++;
+    const ots = me(cs.i) ? 2 : 1, single = me(cs.i) ? 4 : 3;
+    return run % 2 === 1 ? ots : single;
+  }
+  // whoever is speaking talks (the gestures), the other listens
+  _talk(cs) {
+    const g = this.game, who = cs.lines[cs.i]?.[0], gh = cs.gv.human, ph = g.onFoot.human;
+    const say = (h, on) => { if (!h) return; if (on && h.acts?.talk) h.play('talk', { hold: true, fade: 0.35 }); else h.clearAction(0.35); };
+    say(gh, who !== 'you'); say(ph, who === 'you');
+  }
+  // per frame: the two posed (idle, talking, heads turned to each other), the camera on the shot for this line
+  _stagedShot(cs, dt) {
+    const g = this.game, gv = cs.gv, of = g.onFoot, s = of.state, cam = g.camera;
+    gv.body.group.rotation.y = Math.atan2(s.x - gv.x, s.z - gv.z);
+    gv.body.group.updateMatrixWorld(true); gv.human.animate(0, dt);
+    cs.gIK.look(_a.set(s.x, s.y + 1.6, s.z), 0.8);
+    s.yaw = Math.atan2(gv.x - s.x, gv.z - s.z);
+    of._pose(dt);
+    cs.pIK.look(_b.set(gv.x, gv.y + 1.58, gv.z), 0.8);
+    // the shot: the wide one to open, then over the shoulder of whoever listens onto whoever speaks (every third line
+    // the wide one again), a slow drift within it
+    const sh = this._shots(cs, cs.side)[this._shotFor(cs)];
+    const drift = cs.lt * 0.06;
+    cam.position.copy(sh.p).addScaledVector(_a.subVectors(sh.at, sh.p).normalize(), drift);
+    cam.lookAt(sh.at); cam.fov = sh.fov; cam.near = 0.1; cam.updateProjectionMatrix();
+  }
+
   _titleCard(m) {
     const t = h('div', 'story-title', `<small>${CAST[m.giver].name.toUpperCase()}</small>${m.title}`);
     this.el.root.appendChild(t);
@@ -391,7 +514,9 @@ export class Story {
       cs.i = skipAll ? cs.lines.length : cs.i + 1; cs.lt = 0;
       if (cs.i >= cs.lines.length) { this._endCutscene(); return; }
       this._subtitle(cs.lines[cs.i][0], cs.lines[cs.i][1]);
+      if (cs.staged) this._talk(cs);
     }
+    if (cs.staged) { this._stagedShot(cs, dt); return; }
     // camera: alternate a wide two-shot and an over-the-shoulder on whoever is talking
     const f = g.focusState, gv = cs.gv, cam = g.camera;
     const dx = gv.x - f.x, dz = gv.z - f.z, d = Math.hypot(dx, dz) || 1, ux = dx / d, uz = dz / d;
@@ -415,10 +540,12 @@ export class Story {
   _endCutscene() {
     const cs = this.cs, g = this.game;
     this.cs = null;
+    // (the contact stays where they stood while you're about, not gone the moment the talking stops)
+    if (cs.staged) { cs.gv.human?.clearAction(0.35); g.onFoot.human?.clearAction(0.35); cs.gv.stayT = 40; }
     this._subtitle(null);
     this.el.root.classList.remove('cine');
     g.state.mode = 'drive';
-    document.getElementById('hud').classList.remove('hidden');
+    for (const id of ['hud', 'toasts']) document.getElementById(id)?.classList.remove('hidden');
     if (g.onFoot.active) g.onFoot.camPos.copy(g.camera.position); else g.camCtl.snap(g.player);
     cs.done();
   }

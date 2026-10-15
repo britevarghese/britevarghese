@@ -318,6 +318,16 @@ the game. Newly found problems go at the end of their section.
   off and back in when you return; at Leena's he gets out and walks over to her. Driving off without him fails it
 - [x] A contact stays for the last words when a job ends with them (Leena vanished the moment the mission passed);
   lines from someone standing with you aren't phone calls
+- [x] A contact's briefing is staged as in GTA: you were left sitting in the car while they talked at the windscreen,
+  both of you frozen (a scene doesn't run the game). Now you're out of the car and standing face to face with them,
+  both breathing and shifting, whoever speaks gesturing, the heads turned to each other; the shots cut line by
+  line: a wide one from the side to open, then over the listener's shoulder onto whoever speaks, a close one when
+  they go on talking, all from one side of the two of you, clear of walls and the car. Game tips wait till it's
+  over; afterwards you're on foot by your car and the contact stays where they stood while you're about
+- [x] Contacts stood in odd places on Kerala's roads: Leena on a dual carriageway's median (the pavement was found by
+  stepping across the road from the lane, as for traffic on the right). Across the road is kept where it works (Babu
+  at his workshop's door), but a median sends them to the lane's own side, and a place right at a big junction to
+  the nearest pavement round it, off the road and clear of walls
 - [x] Every mission played through by a test (the driving done by teleports, the AI cars watched over their whole
   routes). Found and fixed:
   - [x] 'Spice Route': the pickup you tail stood facing the way it came, for good, 3 km in. Its route was made
