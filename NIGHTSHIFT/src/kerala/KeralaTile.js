@@ -1145,10 +1145,21 @@ export class KeralaTile {
         }
         return bd < Y.hw + 1.5 ? y : null;
       };
-      const flat = (ci, yJ, w, Y) => {
+      // (a road passing through a junction of its own kind: only so far towards the next junction along that the
+      // climb between them is no more than 2 % steeper for it. Two T junctions 7 m apart and 0.64 m different, a
+      // plateau at each, left a 15 % ramp between them, 0.3 m below the road forking off it there. The junctions are
+      // J's first nj entries. Not a side road meeting a main road: its edge is what matters there)
+      const flats = [];
+      let nj = 0;
+      const flat = (ci, yJ, w, Y, lim) => {
         w = Math.min(w, D[D.length - 1] / 4);   // (a short link between two carriageways isn't all plateau and cliff)
-        for (const dd of [-w, w]) {
-          const d = D[ci] + dd; if (d <= 0.5 || d >= D[D.length - 1] - 0.5) continue;
+        for (const sg of [-1, 1]) {
+          let dd = w;
+          if (lim) for (let q = 0; q < nj; q++) {
+            const g = (J[q][0] - D[ci]) * sg; if (g < 0.5) continue;
+            const dy = Math.abs(atD(J[q][0]) + J[q][1] - yJ); dd = Math.min(dd, (g - dy / (dy / g + 0.02)) / 2);
+          }
+          const d = D[ci] + sg * dd; if (dd < 0.5 || d <= 0.5 || d >= D[D.length - 1] - 0.5) continue;
           // (the other road's slope there, from the junction's level: its own correction to that level is the same
           // a few metres either side, whether it is graded yet or not)
           const y1 = Y ? levelOn(Y, atD(d, P)) : null, y0 = Y ? levelOn(Y, P[ci]) : null;
@@ -1162,7 +1173,7 @@ export class KeralaTile {
           const dy = Y.prof[j - 1] + (Y.prof[j] - Y.prof[j - 1]) * u - prof[ci];
           // (passing under or beside a ramp: its own level)
           if ((Y.up[j - 1] || Y.up[j]) && Math.abs(dy) > 1.5) continue;
-          if (!had.has(ci)) { had.add(ci); J.push([D[ci], dy, fade(dy)]); if (y.r.cls <= R.cls) flat(ci, prof[ci] + dy, Y.hw + 0.5, Y); }
+          if (!had.has(ci)) { had.add(ci); J.push([D[ci], dy, fade(dy)]); if (y.r.cls <= R.cls) flats.push([ci, prof[ci] + dy, Y.hw + 0.5, Y]); }
         }
         for (const [j, k] of R.joins) {
           const o = node.get(k), ci = at[j];
@@ -1177,15 +1188,22 @@ export class KeralaTile {
           // (long enough for no more than 8 % extra grade, and for the dip or rise to be a gentle curve: under
           // 0.3 m of bend over 16 m at its middle)
           had.add(ci); J.push([D[ci], dy, fade(dy)]);
-          // (a road ending here, or one passing through a more important road's junction: a main road passing a
-          // side road or a link isn't flattened to it)
-          if (!onRamp && !o[4] && (o[2] < R.cls || (o[2] === R.cls && (ci === 0 || ci === C.length - 1)))) {
-            const W = nodeW.get(k) || []; let w = 0, Y = null;
-            for (let q = 0; q < W.length; q += 3) if (W[q] <= R.cls && W[q + 2] !== R.src && W[q + 1] > w) { w = W[q + 1]; Y = W[q + 2].R; }
-            if (w) flat(ci, prof[ci] + dy, w + 0.5, Y);
+          // (a road ending here, one passing through a more important road's junction, or through a junction of its
+          // own kind - OSM splits every piece at a crossroads and the straight ones are graded as one: a fork's two lanes
+          // overlapped there at different grades. Not a main road passing a link road: that isn't flattened to it)
+          if (!onRamp && !o[4] && o[2] <= R.cls) {
+            const end = ci === 0 || ci === C.length - 1, W = nodeW.get(k) || []; let w = 0, Y = null;
+            for (let q = 0; q < W.length; q += 3) {
+              const X = W[q + 2]; if (W[q] > R.cls || X === R.src || W[q + 1] <= w) continue;
+              if (!end && W[q] === R.cls && (X.r.flags & 16)) continue;
+              w = W[q + 1]; Y = X.R;
+            }
+            if (w) flats.push([ci, prof[ci] + dy, w + 0.5, Y, !end && o[2] === R.cls]);
           }
         }
       }
+      nj = J.length;
+      for (const [ci, yJ, w, Y, lim] of flats) flat(ci, yJ, w, Y, lim);
       // (where the road runs out over the tile's edge it stays at the level both tiles agree on: a junction near the
       // edge, which the neighbour doesn't know of, pulled its end up or down, the road meeting its other half there
       // a step of up to a metre higher or lower)

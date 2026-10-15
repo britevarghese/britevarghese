@@ -341,6 +341,11 @@ the game. Newly found problems go at the end of their section.
   link road's start and the highway's point - were no junction at all: points within 0.6 m are one now. Iritty:
   flagged spots 22 -> 12, the worst 53 -> 14 cm (bar a 13 m link between the highway's two carriageways, 0.95 m apart
   in height); Kannur 81 -> 54, worst 46 -> 29 cm. Tile edges still meet exactly
+- [x] Where two roads of the same kind meet, the one passing through stays level across the other one's width too
+  (OSM splits a road at every junction and the straight pieces are graded as one road: at a fork the two lanes
+  overlapped at different grades, a 0.25 m step). Not past a link road; and only as far towards the next junction as
+  leaves room to climb to it (two T junctions 7 m apart and 0.64 m different, levelled at both, had a 15 % ramp
+  between, 0.29 m under the road forking off). Kannur: flagged spots 54 -> 40; Iritty 12 -> 10. All 12 missions pass
 
 ## Story
 - [x] The story begins like GTA's: a prologue, 'The Kayal Job', starts on a new game in Kerala (Esc skips a scene;
