@@ -284,6 +284,7 @@ export class Game {
     this.renderer.setShadows(s.shadows);
     this.terrain.shadows = s.shadows;
     this.vegetation.setShadows(s.shadows);
+    this.rocks.setShadows(s.shadows);
     this.audio.setEnabled(s.sound);
     this.applyQuality();
   }
@@ -656,6 +657,7 @@ export class Game {
     const camPos = this.renderer.camera.position;
     this.terrain.update(camPos);
     this.vegetation.update(this.renderer.camera, dt);
+    this.rocks.update(this.renderer.camera);
     this.water.update(this.renderer.camera, dt, this.renderer.sky.state.horizon);
     this.landmarks.update(this.renderer.camera, dt);
     this.effects.update(dt, this.world, this.renderer.camera, this.renderer.renderer.domElement.height);
@@ -738,6 +740,7 @@ export class Game {
     this.renderer.setQuality(q);
     this.vegetation.setDetailRange(q === 'high' ? 340 : q === 'medium' ? 240 : 150);
     this.terrain.split = q === 'high' ? 2.1 : q === 'medium' ? 1.8 : 1.5;
+    this.terrain.setQuality(q);
   }
 
   updateRemoteRopes() {

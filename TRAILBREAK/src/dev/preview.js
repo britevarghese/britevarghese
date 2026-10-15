@@ -5,6 +5,7 @@ import { generateWorld } from '../world/WorldGen.js';
 import { World } from '../world/World.js';
 import { Renderer } from '../render/Renderer.js';
 import { TerrainRenderer } from '../render/Terrain.js';
+import { loadGround } from '../render/Ground.js';
 
 const q = new URLSearchParams(location.search);
 const vec = (s, d) => (s ? s.split(',').map(Number) : d);
@@ -15,7 +16,8 @@ const world = new World(data);
 window.world = world;
 const r = new Renderer(document.getElementById('app'));
 r.setTime(Number(q.get('hour') || 16.5));
-const terrain = new TerrainRenderer(world, r.scene);
+const ground = await loadGround('ashwood').catch(() => null);
+const terrain = new TerrainRenderer(world, r.scene, { ground });
 terrain.budget = 4000;
 const [cx, cy, cz] = vec(q.get('cam'), [-60, 140, 620]);
 const [lx, ly, lz] = vec(q.get('look'), [-60, 70, 430]);

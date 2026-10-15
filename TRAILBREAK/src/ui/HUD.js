@@ -48,8 +48,16 @@ export class HUD {
       }
     }
     x.putImageData(img, 0, 0);
-    // trails
     const toPx = (v) => (v + MAP_HALF) / (2 * MAP_HALF) * S;
+    // the woods: each tree's crown
+    const T = w.trees;
+    x.fillStyle = 'rgba(42,66,32,0.5)';
+    for (let t = 0; t < T.count; t++) {
+      x.beginPath();
+      x.arc(toPx(T.x[t]), toPx(T.z[t]), Math.max(0.9, (T.h[t] * 0.16) / step), 0, 6.2832);
+      x.fill();
+    }
+    // trails
     for (const t of w.data.trails) {
       x.beginPath();
       t.points.forEach(([px, pz], k) => (k ? x.lineTo(toPx(px), toPx(pz)) : x.moveTo(toPx(px), toPx(pz))));

@@ -1,0 +1,121 @@
+{
+ "layers": [
+  {
+   "name": "grass",
+   "color": "grass004_c.webp",
+   "data": "grass004_d.webp",
+   "size": 2.4,
+   "rough": 0.95,
+   "avg": [
+    0.12689,
+    0.16117,
+    0.03431
+   ],
+   "source": "ambientcg:Grass004"
+  },
+  {
+   "name": "forest",
+   "color": "ground076_c.webp",
+   "data": "ground076_d.webp",
+   "size": 2.2,
+   "rough": 0.92,
+   "avg": [
+    0.2505,
+    0.12606,
+    0.04663
+   ],
+   "source": "ambientcg:Ground076"
+  },
+  {
+   "name": "dirt",
+   "color": "rocky_trail_c.webp",
+   "data": "rocky_trail_d.webp",
+   "size": 2.0,
+   "rough": 0.9,
+   "avg": [
+    0.29952,
+    0.22371,
+    0.15105
+   ],
+   "source": "polyhaven:rocky_trail"
+  },
+  {
+   "name": "gravel",
+   "color": "rock_ground_c.webp",
+   "data": "rock_ground_d.webp",
+   "size": 1.5,
+   "rough": 0.88,
+   "avg": [
+    0.19557,
+    0.16674,
+    0.13516
+   ],
+   "source": "polyhaven:rock_ground"
+  },
+  {
+   "name": "rock",
+   "color": "rock028_c.webp",
+   "data": "rock028_d.webp",
+   "size": 5.0,
+   "rough": 0.8,
+   "avg": [
+    0.08554,
+    0.08207,
+    0.06394
+   ],
+   "source": "ambientcg:Rock028"
+  },
+  {
+   "name": "mud",
+   "color": "brown_mud_03_c.webp",
+   "data": "brown_mud_03_d.webp",
+   "size": 2.4,
+   "rough": 0.5,
+   "avg": [
+    0.094,
+    0.07369,
+    0.04832
+   ],
+   "source": "polyhaven:brown_mud_03"
+  },
+  {
+   "name": "sand",
+   "color": "coast_sand_01_c.webp",
+   "data": "coast_sand_01_d.webp",
+   "size": 4.0,
+   "rough": 0.92,
+   "avg": [
+    0.2269,
+    0.17373,
+    0.10967
+   ],
+   "source": "polyhaven:coast_sand_01"
+  },
+  {
+   "name": "snow",
+   "color": "snow_02_c.webp",
+   "data": "snow_02_d.webp",
+   "size": 2.5,
+   "rough": 0.7,
+   "avg": [
+    0.37905,
+    0.37851,
+    0.3886
+   ],
+   "source": "polyhaven:snow_02"
+  },
+  {
+   "name": "pebbles",
+   "color": "ganges_river_pebbles_c.webp",
+   "data": "ganges_river_pebbles_d.webp",
+   "size": 2.16,
+   "rough": 0.72,
+   "avg": [
+    0.23262,
+    0.1956,
+    0.15542
+   ],
+   "source": "polyhaven:ganges_river_pebbles"
+  }
+ ]
+}

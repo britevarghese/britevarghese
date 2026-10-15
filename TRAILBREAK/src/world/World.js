@@ -12,6 +12,7 @@ import { SURFACES, SURFACE } from '../physics/Surfaces.js';
 import { DeformGrid } from './Deform.js';
 import { farHeight, NO_WATER } from './WorldGen.js';
 import { MAP_HALF } from './MapData.js';
+import { rockTop, shapeOf } from './RockShapes.js';
 
 const OB_CELL = 16;          // obstacle (tree, post) grid cell (m)
 const BO_CELL = 8;           // boulder grid cell (m)
@@ -53,6 +54,7 @@ export class World {
     this.boulders.forEach((b, i) => {
       const R = Math.max(b.rx, b.rz);
       b.cos = Math.cos(b.yaw); b.sin = Math.sin(b.yaw);
+      b.shape = shapeOf(i);
       const i0 = Math.floor((b.x - R + MAP_HALF) / BO_CELL), i1 = Math.floor((b.x + R + MAP_HALF) / BO_CELL);
       const k0 = Math.floor((b.z - R + MAP_HALF) / BO_CELL), k1 = Math.floor((b.z + R + MAP_HALF) / BO_CELL);
       for (let k = k0; k <= k1; k++) for (let ii = i0; ii <= i1; ii++) {
@@ -84,9 +86,8 @@ export class World {
       const b = this.boulders[list[n]];
       const dx = x - b.x, dz = z - b.z;
       const u = (dx * b.cos - dz * b.sin) / b.rx, v = (dx * b.sin + dz * b.cos) / b.rz;
-      const q = 1 - u * u - v * v;
-      if (q <= 0) continue;
-      const y = b.y + b.ry * Math.sqrt(q);
+      if (u * u + v * v >= 1) continue;
+      const y = b.y + b.ry * rockTop(b.shape, u, v);
       if (y > top) top = y;
     }
     return top;
