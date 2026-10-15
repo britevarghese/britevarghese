@@ -30,6 +30,7 @@
         <div class="field">
           <label>Truck</label>
           <div id="trucks" class="truck-list"></div>
+          <div class="build-row"><span id="build-name" class="build-name"></span><button id="open-garage" class="ghost small">Garage</button></div>
         </div>
         <div class="field">
           <label>Paint</label>
@@ -72,7 +73,9 @@
         <span id="m-4wd" class="chip on">4WD</span>
         <span id="m-lock" class="chip">OPEN</span>
         <span id="m-box" class="chip">AUTO</span>
+        <span id="m-psi" class="chip">30 PSI</span>
         <span id="m-sway" class="chip hidden">SWAY OFF</span>
+        <span id="m-eng" class="chip warn hidden">ENGINE OFF</span>
       </div>
     </div>
     <div id="winch" class="hidden">
@@ -115,9 +118,34 @@
       </div>
       <div class="menu-actions">
         <button id="resume" class="primary">Resume</button>
+        <button id="menu-garage" class="ghost">Garage</button>
         <button id="respawn" class="ghost">Back to the station</button>
         <button id="show-help" class="ghost">Controls</button>
       </div>
+    </div>
+  </section>
+
+  <!-- garage -->
+  <section id="garage" class="screen hidden">
+    <div class="garage-card">
+      <header class="garage-head">
+        <h2>Garage <span id="g-truck"></span></h2>
+        <div id="g-presets" class="g-presets"></div>
+        <button id="g-close" class="ghost icon" aria-label="Close">&#x2715;</button>
+      </header>
+      <div class="garage-body">
+        <div id="g-parts" class="g-parts"></div>
+        <div class="g-side">
+          <canvas id="g-view"></canvas>
+          <div id="g-desc" class="g-desc"></div>
+          <div id="g-stats" class="g-stats"></div>
+        </div>
+      </div>
+      <footer class="garage-foot">
+        <span id="g-note" class="msg"></span>
+        <button id="g-cancel" class="ghost">Cancel</button>
+        <button id="g-fit" class="primary">Fit these parts</button>
+      </footer>
     </div>
   </section>
 
@@ -132,7 +160,9 @@
           <dt>Space</dt><dd>Handbrake</dd>
           <dt>L</dt><dd>Transfer case HIGH / LOW range (nearly stopped)</dd>
           <dt>4</dt><dd>2WD / 4WD</dd>
-          <dt>X</dt><dd>Diff locks: open, rear, front + rear</dd>
+          <dt>X</dt><dd>Diff lockers, if fitted: open, rear, front + rear</dd>
+          <dt>P</dt><dd>Tyre pressure: air down (stopped), or back up with a compressor or at the station</dd>
+          <dt>U</dt><dd>Garage (parts are fitted at the station)</dd>
           <dt>B</dt><dd>Disconnect the front anti-roll bar (more articulation)</dd>
           <dt>G</dt><dd>Gearbox AUTO / MANUAL; manual: Shift up, Ctrl down</dd>
         </dl>
@@ -151,7 +181,8 @@
       <p class="fine">Gamepad: RT / LT pedals, left stick steer, A handbrake, X winch hook, RB / LB winch in / out, Y camera,
         B recover, d-pad: up range, down locks, left 4WD, right lights. Right stick looks around.</p>
       <p class="fine">Tips: open diffs send power to the wheel with the least grip. Lock them in ruts and rocks, unlock them to
-        turn. Low range for crawling, momentum for mud. Spinning tyres dig.</p>
+        turn. Low range for crawling, momentum for mud. Spinning tyres dig. Air down for sand, mud and rock (and air
+        back up for the road). Ford deep water slowly: the bow wave reaches the intake first.</p>
       <div class="menu-actions"><button id="close-help" class="primary">Close</button></div>
     </div>
   </section>

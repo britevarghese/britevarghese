@@ -62,9 +62,8 @@ export class CameraRig {
     } else {
       // seat positions in the truck's frame
       const spec = truck.spec;
-      const eye = this.mode === 'hood'
-        ? this._v.set(0, 1.45 - spec.cgHeight, (spec.style === 'hauler' ? 1.6 : 1.0) - (spec.cgZ || 0))
-        : this._v.set(0.36, (spec.style === 'hauler' ? 1.72 : 1.62) - spec.cgHeight, (spec.style === 'hauler' ? 0.25 : -0.05) - (spec.cgZ || 0));
+      const e = (this.mode === 'hood' ? spec.hoodEye : spec.eye) || [0.36, 1.6, 0];
+      const eye = this._v.set(e[0], e[1] + (spec.raise || 0) - spec.cgHeight, e[2] - (spec.cgZ || 0));
       eye.applyQuaternion(q).add(p);
       cam.position.copy(eye);
       this._q.setFromAxisAngle(this._v.set(0, 1, 0), Math.PI + this.yaw);

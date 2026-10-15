@@ -119,6 +119,8 @@ input:focus { border-color: var(--accent-2); }
 .chip { font: 700 11px/1 var(--mono); letter-spacing: .08em; padding: 5px 8px; border-radius: 6px; background: var(--panel); border: 1px solid var(--line); color: var(--ink-dim); }
 .chip.on { color: #241a10; background: var(--accent); border-color: var(--accent); }
 .chip.on2 { color: #0f2321; background: var(--accent-2); border-color: var(--accent-2); }
+.chip.warn { color: #fff; background: var(--warn); border-color: var(--warn); animation: blink 1s steps(2) infinite; }
+@keyframes blink { 50% { opacity: .55; } }
 #winch { position: absolute; right: 16px; bottom: 210px; width: 200px; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 8px 10px; }
 .winch-title { font: 700 12px var(--mono); letter-spacing: .08em; color: var(--accent-2); margin-bottom: 4px; }
 .winch-title span { color: var(--ink); font-family: var(--font); font-weight: 400; letter-spacing: 0; }
@@ -168,4 +170,66 @@ body.touch #chat { display: none; }
   .t-steer button { width: 70px; height: 70px; }
   .t-pedals .t-gas { width: 70px; height: 112px; }
   .t-pedals .t-brake { width: 70px; height: 80px; }
+}
+
+/* ---------- garage */
+.build-row { display: flex; align-items: center; gap: 10px; margin-top: 8px; }
+.build-name { flex: 1; font-size: 12px; color: var(--ink-dim); line-height: 1.35; }
+button.small { padding: 6px 12px; font-size: 13px; border-radius: 8px; }
+#garage { background: rgba(12, 16, 14, .55); z-index: 30; }
+.garage-card {
+  background: var(--panel-solid); border: 1px solid var(--line); border-radius: 18px; width: min(1180px, 100%);
+  height: min(780px, 100%); display: flex; flex-direction: column; overflow: hidden; box-shadow: 0 20px 60px rgba(0, 0, 0, .45);
+}
+.garage-head { display: flex; align-items: center; gap: 14px; padding: 14px 18px; border-bottom: 1px solid var(--line); flex-wrap: wrap; }
+.garage-head h2 { margin: 0; font-size: 20px; letter-spacing: .08em; text-transform: uppercase; }
+.garage-head h2 span { color: var(--accent); }
+.g-presets { display: flex; gap: 6px; flex-wrap: wrap; flex: 1; }
+.g-preset { padding: 6px 11px; font-size: 13px; border-radius: 999px; }
+.g-preset.sel { border-color: var(--accent); color: var(--accent); }
+button.icon { padding: 6px 10px; }
+.garage-body { flex: 1; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.05fr); min-height: 0; }
+.g-parts { overflow: auto; padding: 4px 18px 16px; border-right: 1px solid var(--line); }
+.g-parts h3 { font-size: 11px; letter-spacing: .14em; text-transform: uppercase; color: var(--accent-2); margin: 14px 0 6px; }
+.g-row { display: grid; grid-template-columns: 104px minmax(0, 1fr); gap: 8px; align-items: center; padding: 5px 0; border-bottom: 1px solid rgba(243, 234, 215, .06); }
+.g-cat { font-size: 13px; color: var(--ink-dim); }
+.g-opts { display: flex; flex-wrap: wrap; gap: 5px; }
+.g-opt { padding: 5px 9px; font-size: 12.5px; border-radius: 7px; white-space: nowrap; }
+.g-opt.sel { background: var(--accent); border-color: var(--accent); color: #241a10; font-weight: 700; }
+.g-opt.need:not(.sel) { opacity: .55; border-style: dashed; }
+.g-opt.hide { display: none; }
+.g-side { display: flex; flex-direction: column; min-height: 0; overflow: auto; }
+#g-view { width: 100%; height: 330px; flex: none; display: block; cursor: grab; touch-action: none; background: #232822; }
+#g-view:active { cursor: grabbing; }
+.g-desc { padding: 10px 16px; font-size: 13px; min-height: 3.6em; color: var(--ink); border-bottom: 1px solid var(--line); line-height: 1.4; }
+.g-desc b { color: var(--accent); margin-right: 4px; }
+.g-desc .dim { color: var(--ink-dim); }
+.g-stats { display: grid; grid-template-columns: 1fr 1fr; gap: 2px 18px; padding: 10px 16px 14px; font-size: 13px; }
+.g-tyre { grid-column: 1 / -1; color: var(--ink-dim); font-size: 12px; margin-bottom: 4px; }
+.g-stat { display: grid; grid-template-columns: minmax(0, 1fr) auto 52px; gap: 6px; align-items: baseline; padding: 3px 0; border-bottom: 1px solid rgba(243, 234, 215, .05); }
+.g-stat span { color: var(--ink-dim); }
+.g-stat b { font-family: var(--mono); font-size: 13px; }
+.g-stat small { color: var(--ink-dim); font-weight: 400; margin-left: 2px; }
+.g-stat .d { font-family: var(--mono); font-size: 11px; text-align: right; }
+.g-stat .d.good { color: var(--ok); }
+.g-stat .d.bad { color: var(--warn); }
+.g-warn { grid-column: 1 / -1; color: var(--warn); margin: 6px 0 0; font-size: 12px; }
+.garage-foot { display: flex; align-items: center; gap: 10px; padding: 12px 18px; border-top: 1px solid var(--line); }
+.garage-foot .msg { flex: 1; margin: 0; font-size: 13px; }
+@media (max-width: 820px) {
+  #garage { padding: 8px; }
+  .garage-card { height: 100%; border-radius: 12px; }
+  .garage-head { padding: 10px 12px; gap: 8px; }
+  .garage-head h2 { font-size: 16px; flex: 1; }
+  .g-presets { order: 3; flex: 1 0 100%; flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; }
+  .g-preset { flex: none; }
+  .garage-body { display: flex; flex-direction: column; overflow: auto; }
+  .g-side, .g-parts { flex: none; }
+  .g-side { order: -1; overflow: visible; }
+  #g-view { height: 230px; }
+  .g-parts { overflow: visible; border-right: 0; padding: 0 12px 12px; }
+  .g-row { grid-template-columns: 1fr; gap: 4px; }
+  .g-stats { grid-template-columns: 1fr; }
+  .garage-foot { padding: 10px 12px; flex-wrap: wrap; }
+  .garage-foot .msg { flex: 1 0 100%; }
 }

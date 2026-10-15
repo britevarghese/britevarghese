@@ -2,6 +2,7 @@
 import * as THREE from 'three';
 import { Vehicle, simulate } from '../physics/Vehicle.js';
 import { truckSpec } from '../physics/trucks.js';
+import { buildSummary } from '../physics/Upgrades.js';
 import { SURFACES } from '../physics/Surfaces.js';
 import { TruckModel } from '../render/TruckModel.js';
 import { CameraRig } from './CameraRig.js';
@@ -28,12 +29,15 @@ function nameTag(text, color) {
 
 export class Game {
   constructor(o) {
-    Object.assign(this, o);          // world, renderer, terrain, vegetation, rocks, water, landmarks, effects, rope, audio, net, hud, input, settings
+    Object.assign(this, o);          // world, renderer, terrain, vegetation, rocks, water, landmarks, effects, rope, audio, net, hud, input, settings, garage, build
     this.scene = this.renderer.scene;
-    this.spec = truckSpec(this.truckId);
+    this.spec = truckSpec(this.truckId, this.build);
+    this.build = this.spec.buildCode;
     this.vehicle = new Vehicle(this.spec);
     this.model = new TruckModel(this.spec, this.paint);
     this.scene.add(this.model.root);
+    this.garageSpot = this.world.landmarks.find((L) => L.type === 'garage');
+    this.stationSpot = this.world.landmarks.find((L) => L.type === 'station');
     this.cam = new CameraRig(this.renderer.camera, this.world);
     this.remotes = new Map();
     this.sphereCache = new Map();
@@ -50,16 +54,86 @@ export class Game {
     this.tmpTrees = [];
     this.stamps = new Map();
     this._v = new THREE.Vector3(); this._q = new THREE.Quaternion(); this._v2 = new THREE.Vector3();
-    // headlights for the local truck
+    this.attachLights();
+    this.rope.mat.color.set(this.spec.winch.synthetic ? 0xd0571e : 0x2b2b28);
+    this.spawn(true);
+    this.applySettings();
+  }
+
+  /** Headlights (and the light bar's driving lamps) on the local truck's model. */
+  attachLights() {
+    const spec = this.spec, head = this.model.layout.heads[0], raise = spec.raise || 0;
+    const y = head[1] + raise - spec.cgHeight, z = head[2] - (spec.cgZ || 0);
     this.heads = [1, -1].map((s) => {
       const l = new THREE.SpotLight(0xfff1d0, 0, 90, 0.5, 0.45, 1.4);
-      l.position.set(s * 0.6, 0.95 - this.spec.cgHeight, 2.0 - (this.spec.cgZ || 0));
-      l.target.position.set(s * 0.8, 0.2 - this.spec.cgHeight, 20);
+      l.position.set(s * head[0], y, z);
+      l.target.position.set(s * 0.8, y - 0.9, z + 20);
       this.model.root.add(l, l.target);
       return l;
     });
-    this.spawn(true);
-    this.applySettings();
+    this.barLight = null;
+    if (spec.lightBar) {
+      const l = new THREE.SpotLight(0xfff6e0, 0, 160, 0.62, 0.5, 1.2);
+      const ry = this.model.layout.roofY + 0.2 + raise - spec.cgHeight, rz = this.model.layout.roofZ[1] - (spec.cgZ || 0);
+      l.position.set(0, ry, rz);
+      l.target.position.set(0, ry - 2.5, rz + 30);
+      this.model.root.add(l, l.target);
+      this.barLight = l;
+    }
+  }
+
+  /** Fit a build (a 14-character code): a new truck in the same place, or at the station garage. */
+  applyBuild(code, toGarage = false) {
+    const old = this.vehicle;
+    const pose = { x: old.pos.x, z: old.pos.z, yaw: Math.atan2(old.fwd.x, old.fwd.z) };
+    this.spec = truckSpec(this.truckId, code);
+    this.build = this.spec.buildCode;
+    const v = this.vehicle = new Vehicle(this.spec);
+    v.dt.low = old.dt.low; v.dt.fourWD = old.dt.fourWD;
+    this.scene.remove(this.model.root); this.model.dispose();
+    this.model = new TruckModel(this.spec, this.paint);
+    this.model.setDirt(this.dirt);
+    this.scene.add(this.model.root);
+    this.attachLights();
+    this.rope.mat.color.set(this.spec.winch.synthetic ? 0xd0571e : 0x2b2b28);
+    if (toGarage) this.placeAtGarage(); else v.place(this.world, pose.x, pose.z, pose.yaw);
+    this.carry = 0;
+    if (this.net) this.net.warp++;
+    this.audio.setLocalEngine(this.spec).catch(() => {});
+    this.onBuild?.(this.truckId, this.build);
+    this.hud.toast(`${this.spec.name}: ${buildSummary(this.spec, this.spec.build)}`, false, 5);
+  }
+
+  placeAtGarage() {
+    const L = this.garageSpot;
+    if (!L) { this.spawn(); return; }
+    const c = Math.cos(L.yaw), s = Math.sin(L.yaw), lz = 14 + (this.net?.id ? ((this.net.id - 1) % 3) * 6 : 0);
+    this.vehicle.place(this.world, L.x + lz * s, L.z + lz * c, L.yaw);
+    this.cam.heading = null;
+  }
+
+  /** Close enough to the station's garage to have parts fitted there. */
+  nearGarage(r = 24) {
+    const L = this.garageSpot, p = this.vehicle.pos;
+    return !!L && Math.hypot(p.x - L.x, p.z - L.z) < r;
+  }
+
+  async openGarage() {
+    if (!this.garage || this.garage.isOpen) return;
+    if (this.paused) this.togglePause(false);
+    if (this.mapOpen) this.toggleMap();
+    const here = this.nearGarage();
+    this.garageOpen = true;
+    this.input.enabled = false;
+    const code = await this.garage.open({
+      truckId: this.truckId, code: this.build, paint: this.myColor,
+      fitLabel: here ? 'Fit these parts' : 'Fit them at the station',
+      note: here ? '' : 'You are out on the trail: fitting parts takes the truck back to the station garage.',
+    });
+    this.garageOpen = false;
+    this.input.enabled = !this.paused && !this.chatOpen;
+    this.renderer.renderer.domElement.focus();
+    if (code && code !== this.build) this.applyBuild(code, !here);
   }
 
   get myColor() { return '#' + new THREE.Color(this.paint).getHexString(); }
@@ -74,6 +148,8 @@ export class Game {
   spawn(first = false) {
     const p = this.spawnPoint();
     this.vehicle.place(this.world, p.x, p.z, p.yaw);
+    this.vehicle.psiTarget = this.spec.tyre.psiStock || 30;      // the station's air line
+    this.vehicle.setPressure(this.vehicle.psiTarget);
     this.carry = 0;
     if (this.net) this.net.warp++;
     if (!first) this.hud.toast('Back at the ranger station');
@@ -117,14 +193,20 @@ export class Game {
       else this.hud.hint('Too fast to engage 4WD');
     }
     if (I.consume('locks')) {
-      // cycle: open -> rear -> front + rear -> open
-      const next = !d.lockRear ? [false, true] : !d.lockFront ? [true, true] : [false, false];
-      if (next[1] && Math.abs(sp) > 8) this.hud.hint('Too fast to lock the diffs');
+      // cycle through what is fitted: open -> rear -> front + rear -> open
+      const F = d.diffs.front === 'locker', Rr = d.diffs.rear === 'locker';
+      if (!F && !Rr) this.hud.hint(d.diffs.rear === 'lsd' ? 'Limited-slip rear diff: it works by itself. Lockers: see the garage (U)' : 'No lockers fitted: open diffs. See the garage (U)', 3);
       else {
-        d.setLocker('front', next[0], sp); d.setLocker('rear', next[1], sp);
-        this.hud.hint(next[0] ? 'Front and rear diffs locked' : next[1] ? 'Rear diff locked' : 'Diffs open');
+        const next = !d.lockRear ? [false, true] : !d.lockFront && F ? [true, true] : [false, false];
+        if (next[1] && Math.abs(sp) > 8) this.hud.hint('Too fast to lock the diffs');
+        else {
+          d.setLocker('front', next[0], sp); d.setLocker('rear', next[1], sp);
+          this.hud.hint(next[0] ? 'Front and rear lockers in' : next[1] ? 'Rear locker in' : 'Lockers out: diffs open');
+        }
       }
     }
+    if (I.consume('air')) this.cyclePressure();
+    if (I.consume('garage')) this.openGarage();
     if (I.consume('sway')) { v.swayDisconnected = !v.swayDisconnected; this.hud.hint(v.swayDisconnected ? 'Front anti-roll bar disconnected: more articulation, more lean' : 'Anti-roll bar connected'); }
     if (I.consume('gearMode')) { d.auto = !d.auto; if (!d.auto && d.gear <= 0) d.selectGear(1, sp); this.hud.hint(d.auto ? 'Automatic' : 'Manual: Shift up, Ctrl down'); }
     if (!d.auto) {
@@ -134,6 +216,22 @@ export class Game {
     if (I.consume('hook')) this.toggleHook();
     if (I.consume('recover')) this.recover();
     if (I.consume('respawn')) this.spawn();
+  }
+
+  /** P: next tyre pressure. Down any time (stopped); up only with onboard air or at the station. */
+  cyclePressure() {
+    const v = this.vehicle, t = this.spec.tyre;
+    const steps = t.minPsi <= 6 ? [30, 20, 12, 6] : [30, 20, 14];
+    const cur = v.psiTarget;
+    let next = steps.find((p) => p < cur - 0.5);
+    if (next === undefined) next = 30;
+    if (next > v.psi && !t.compressor && !v.airSupply) {
+      this.hud.hint(`No compressor: air back up at the station (Backspace), or fit onboard air in the garage. ${Math.round(v.psi)} psi`, 4);
+      return;
+    }
+    if (next < v.psi && Math.abs(v.speed) > 2.5) { this.hud.hint('Stop to air down'); return; }
+    v.psiTarget = next;
+    this.hud.hint(next < v.psi ? `Airing down to ${next} psi` : `Airing up to ${next} psi`, 2.5);
   }
 
   togglePause(force) {
@@ -205,23 +303,25 @@ export class Game {
   /** The rear tow point of a truck, in its CG frame. */
   hookPoint(spec) {
     const rear = spec.hull[0].c[2] - spec.hull[0].h[2];
-    return new THREE.Vector3(0, 0.62 - spec.cgHeight, rear - 0.05 - (spec.cgZ || 0));
+    return new THREE.Vector3(0, spec.hull[0].c[1] - spec.hull[0].h[1] + 0.12 - spec.cgHeight, rear - 0.05 - (spec.cgZ || 0));
   }
 
   // ---------------------------------------------------------------- remote players
   remoteView(r) {
     let rv = this.remotes.get(r.id);
     const s = r.view;
-    if (!rv || rv.truckId !== s.truck) {
+    if (!rv || rv.truckId !== s.truck || rv.cfg !== s.cfg) {
       if (rv) { this.scene.remove(rv.model.root); rv.model.dispose(); }
-      const spec = truckSpec(s.truck);
+      const spec = truckSpec(s.truck, s.cfg || undefined);
       const color = MATE_COLORS[r.id % MATE_COLORS.length];
-      rv = { id: r.id, name: r.name, truckId: s.truck, spec, model: new TruckModel(spec, s.paint), color, paint: s.paint };
+      rv = { id: r.id, name: r.name, truckId: s.truck, cfg: s.cfg, spec, model: new TruckModel(spec, s.paint), color, paint: s.paint };
       rv.tag = nameTag(r.name, color);
       rv.model.root.add(rv.tag);
-      rv.tag.position.set(0, 2.2, 0);
+      rv.tag.position.set(0, spec.roofY + spec.raise - spec.cgHeight + 0.5, 0);
       this.scene.add(rv.model.root);
-      if (!this.sphereCache.has(s.truck)) this.sphereCache.set(s.truck, new Vehicle(spec).hullSpheres);
+      const key = `${spec.id}:${spec.buildCode}`;
+      if (!this.sphereCache.has(key)) this.sphereCache.set(key, new Vehicle(spec).hullSpheres);
+      rv.spheres = this.sphereCache.get(key);
       this.remotes.set(r.id, rv);
     }
     if (rv.paint !== s.paint) { rv.model.setPaint(s.paint); rv.paint = s.paint; }
@@ -244,10 +344,12 @@ export class Game {
         root.quaternion.set(s.quat[0], s.quat[1], s.quat[2], s.quat[3]);
         rv.model.updateWheels(s.wh);
         rv.model.setLights(!!s.lights);
+        rv.model.setBrake(!!s.brk);
+        rv.model.setReverse(s.vel[0] * (2 * (s.quat[0] * s.quat[2] + s.quat[3] * s.quat[1])) + s.vel[2] * (1 - 2 * (s.quat[0] * s.quat[0] + s.quat[1] * s.quat[1])) < -0.3);
         const dist = root.position.distanceTo(this.renderer.camera.position);
         rv.tag.visible = dist < 450;
         rv.tag.scale.set(3.2 * Math.max(1, dist / 30), 0.8 * Math.max(1, dist / 30), 1);
-        others.push({ pos: root.position, quat: root.quaternion, vel: this._v.set(s.vel[0], s.vel[1], s.vel[2]).clone(), spheres: this.sphereCache.get(s.truck) });
+        others.push({ pos: root.position, quat: root.quaternion, vel: this._v.set(s.vel[0], s.vel[1], s.vel[2]).clone(), spheres: rv.spheres });
         // their winch on us: pulled toward their fairlead
         const w = s.winch;
         if (w && w.to === this.net.id) {
@@ -343,6 +445,7 @@ export class Game {
     const c = { ...ctrl };
     if (this.paused || this.chatOpen) { c.throttle = 0; c.brake = 0; c.handbrake = 1; c.steer = 0; c.winch = 0; }
     if (!this.settings.assist) c.analogSteer = true;
+    if (this.garageOpen) { c.throttle = 0; c.brake = 0; c.handbrake = 1; c.steer = 0; c.winch = 0; }
     W.motor = W.attached ? c.winch : 0;
     // winching a friend out: hold our own truck on the brakes (as you'd put it in park); winching to a tree, roll free
     c.hold = W.attached && W.kind === 'truck' && W.motor !== 0 && c.throttle < 0.05 ? 0.8 : 0;
@@ -357,7 +460,15 @@ export class Game {
       }
     } else W.anchorVel = null;
 
+    // the station's air line: air up for free there
+    v.airSupply = this.nearGarage(26) || (this.stationSpot && Math.hypot(v.pos.x - this.stationSpot.x, v.pos.z - this.stationSpot.z) < 22);
+    const wasFlooded = v.flooded, wasRunning = v.dt.running;
     this.carry = simulate(v, c, this.world, dt, this.carry);
+    if (v.flooded && !wasFlooded) {
+      this.hud.toast(this.spec.snorkel ? 'Water over the snorkel: the engine has stopped' : 'Water in the air intake: the engine has stopped. Get it out of the water (winch!)', true, 6);
+      this.audio.stall?.();
+    }
+    if (v.dt.running && !wasRunning) this.hud.hint('Engine running again', 2);
 
     // keep inside the valley
     if (!this.world.inBounds(v.pos.x, v.pos.z, 14) || v.pos.y < -50 || !Number.isFinite(v.pos.x)) {
@@ -382,7 +493,10 @@ export class Game {
     const night = this.renderer.night;
     const lights = this.lightsOn || night;
     m.setLights(lights);
+    m.setBrake(v.pedalBrake > 0.1);
+    m.setReverse(v.dt.gear < 0);
     for (const h of this.heads) h.intensity = lights ? 60 : 0;
+    if (this.barLight) this.barLight.intensity = lights ? 160 : 0;
     // mud on the paint: picked up in mud and wet ground, washed off in water
     let mud = 0;
     for (const w of v.wheels) if (w.contact && (w.surf.name === 'mud' || w.surf.name === 'riverbed' || w.surf.name === 'snow')) mud += (Math.abs(v.speed) * 0.02 + w.slipSpeed * 0.03);
@@ -427,7 +541,7 @@ export class Game {
           ? { to: 'tree', a: [W.anchor.x, W.anchor.y, W.anchor.z], f: [W.fairlead.x, W.fairlead.y, W.fairlead.z], len: W.len, ten: W.tension }
           : { to: W.target, a: [W.anchorLocal.x, W.anchorLocal.y, W.anchorLocal.z], f: [W.fairlead.x, W.fairlead.y, W.fairlead.z], len: W.len, ten: W.tension };
       }
-      this.net.sendState(dt, v, { truck: this.truckId, paint: this.myColor, lights, winch });
+      this.net.sendState(dt, v, { truck: this.truckId, cfg: this.build, paint: this.myColor, lights, winch });
     }
 
     // HUD
@@ -439,6 +553,8 @@ export class Game {
       this.hudT = 0;
       this.hud.drawGauges(v);
       this.hud.drawChips(v);
+      this.garageHintT = (this.garageHintT || 0) + 1 / 30;
+      if (this.nearGarage(14) && Math.abs(v.speed) < 1 && this.garageHintT > 8) { this.garageHintT = 0; this.hud.hint('Station garage: press U to fit parts', 4); }
       this.hud.drawWinch(v, this.hookName);
       this.hud.drawCompass(heading, v.pos, mates);
     }

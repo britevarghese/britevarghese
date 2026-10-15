@@ -1,5 +1,6 @@
-// Drivetrain: engine -> torque converter (+ lockup clutch) -> automatic gearbox -> two-speed transfer case
-// (high / low, part-time 4WD) -> front and rear axles with open or locked differentials -> wheels.
+// Drivetrain: engine -> torque converter (+ lockup clutch) and automatic gearbox, or clutch and manual gearbox ->
+// two-speed transfer case (high / low, part-time 4WD) -> front and rear axles with open, limited-slip or locking
+// differentials -> wheels.
 //
 // Rotating parts are 1-D bodies: the four wheels, the gearbox output shaft (the transfer case input) and the engine.
 // The torque converter is a force element (its torque follows the pump and turbine speeds). Everything that is
@@ -8,13 +9,20 @@
 //   front axle:  (wFL + wFR) / 2 * G = wOut           only in 4WD (the transfer case locks the axles together)
 //   locker:      wL = wR                              locked differential: both wheels turn together
 //   lockup:      wEngine = gear * wOut                bounded by the lockup clutch's torque capacity
+//   clutch:      wEngine = gear * wOut                manual gearbox: bounded by the clutch's capacity as it engages
+//   LSD:         wL = wR                              bounded by its clutch packs: preload + a share of the axle torque
 //   brakes:      w = 0                                bounded by each brake's torque
 // (G = transfer case ratio * axle ratio). Bounded constraints that would need more torque than they have are
 // clamped and the system solved again without them (an active-set pass), which is what lets wheels lock under
 // braking, a clutch slip, or a brake hold a truck on a hill.
 //
 // So the classic off-road behaviour falls out of the mechanics: with open diffs a wheel in the air spins up and the
-// one on the ground gets no more torque than it does; lock the diff and the wheel with grip gets the torque.
+// one on the ground gets no more torque than it does; lock the diff and the wheel with grip gets the torque. A
+// limited-slip diff sends the grippy wheel up to ~2.6 times the torque of the other, which is little when the other
+// is in the air: a touch of brake (raising the slipping wheel's torque) gets more through, as drivers do.
+//
+// The manual gearbox has an automatic clutch, as a driver would work it: it slips to pull away, stays in while the
+// engine is above idle (engine braking downhill), and opens rather than let the engine stall. No creep at idle.
 
 import { clamp, solveDense, smoothstep } from './math.js';
 
@@ -32,6 +40,7 @@ export const DEFAULT_ENGINE = {
 };
 
 export const DEFAULT_TRANS = {
+  type: 'auto',                    // 'auto': torque converter; 'manual': clutch
   gears: [2.48, 1.48, 1.0],        // 3-speed automatic
   reverse: 2.08,
   high: 1.0,
@@ -63,9 +72,23 @@ const OUT = 4, ENG = 5;
 const MAXC = 10;
 
 export class Drivetrain {
-  constructor(engine = {}, trans = {}) {
+  constructor(engine = {}, trans = {}, diffs = {}) {
     this.e = { ...DEFAULT_ENGINE, ...engine };
     this.t = { ...DEFAULT_TRANS, ...trans };
+    this.diffs = { front: diffs.front || 'open', rear: diffs.rear || 'open' };
+    this.manual = this.t.type === 'manual';
+    let peak = 0;
+    for (let rpm = 500; rpm < this.e.redline; rpm += 100) peak = Math.max(peak, torqueAt(this.e.torque, rpm));
+    this.clutchCap = 2.2 * peak;     // Nm, clutch fully in
+    this.clutch = 0;                 // clutch engagement 0..1 (manual)
+    this.running = true;
+    this.crankT = 0;                 // starter motor running (s left)
+    this.lamAcc = new Float64Array(MAXC);
+    this.propRear = 0;               // Nm in the rear / front propshafts (torque twist, sounds)
+    this.propFront = 0;
+    this.outTorque = 0;              // Nm into the transfer case
+    this.couple = 0;                 // Nm through the clutch / lockup
+    this.lsdIdx = -1;
     this.wEngine = this.e.idleRpm / RPM;
     this.wOut = 0;
     this.gear = 1;               // -1 reverse, 0 neutral, 1..n
@@ -134,11 +157,21 @@ export class Drivetrain {
     return true;
   }
 
+  /** Engage or release a locker; false if that axle has none, or when too fast to engage. */
   setLocker(axle, on, speed) {
-    if (on && Math.abs(speed) > 8) return false;
+    if (on && (this.diffs[axle] !== 'locker' || Math.abs(speed) > 8)) return false;
     if (axle === 'front') this.lockFront = on; else this.lockRear = on;
     return true;
   }
+
+  /** The gear an automatic shift starts in: second in high range with a granny-low first. */
+  get firstGear() { return !this.low && this.t.gears[0] > 4 && this.t.gears.length > 3 ? 2 : 1; }
+
+  /** Stall the engine (water in the intake). */
+  stall() { this.running = false; this.crankT = 0; this.lockupOn = false; }
+
+  /** Crank it over; it runs after the starter has turned it for a moment. */
+  start() { if (!this.running && this.crankT <= 0) this.crankT = 0.75; }
 
   /** Automatic shift logic, run every substep. thr: driver throttle 0..1. */
   autoShift(dt, thrIn) {
@@ -148,17 +181,20 @@ export class Drivetrain {
     this.sinceShift = (this.sinceShift || 0) + dt;
     const thr = Math.max(this.thrS, thrIn > 0.95 ? thrIn : 0);          // floored throttle: kickdown at once
     if (this.shiftT > 0) { this.shiftT = Math.max(0, this.shiftT - dt); return; }
-    if (!this.auto || this.gear <= 0 || this.sinceShift < 0.9) return;
+    if (!this.auto || this.gear <= 0) return;
+    if (this.gear < this.firstGear) { this.gear = this.firstGear; return; }
+    if (this.sinceShift < 0.9) return;
     const n = this.t.gears.length;
     const turbineRpm = (g) => this.wOut * this.t.gears[g - 1] * RPM;
     // upshift from ~1800 rpm cruising to just under the redline flat out; downshift well below (the ratio step)
     const top = this.e.redline - 150, light = this.low ? 2100 : 1750;
     const up = light + (top - light) * thr;
     const down = (this.low ? 900 : 1000) + (top * 0.55 - 1000) * thr;
+    const shiftTime = this.t.shiftTime * (this.manual ? 1.4 : 1);
     if (this.gear < n && turbineRpm(this.gear) > up) {
-      this.gear++; this.shiftT = this.t.shiftTime; this.lockupOn = false; this.sinceShift = 0;
-    } else if (this.gear > 1 && turbineRpm(this.gear) < down && turbineRpm(this.gear - 1) < up - 500) {
-      this.gear--; this.shiftT = this.t.shiftTime * 0.8; this.lockupOn = false; this.sinceShift = 0;
+      this.gear++; this.shiftT = shiftTime; this.lockupOn = false; this.sinceShift = 0;
+    } else if (this.gear > this.firstGear && turbineRpm(this.gear) < down && turbineRpm(this.gear - 1) < up - 500) {
+      this.gear--; this.shiftT = shiftTime * 0.8; this.lockupOn = false; this.sinceShift = 0;
     }
   }
 
@@ -200,22 +236,48 @@ export class Drivetrain {
     const G = this.axleGear;
     this.autoShift(dt, input.throttle);
 
-    // ---- engine: idle governor, rev limiter, net torque
+    // ---- engine: idle governor, rev limiter, net torque (or the starter, when it isn't running)
     const rpm = this.wEngine * RPM;
-    const err = (e.idleRpm - rpm) / e.idleRpm;
-    this.idleI = clamp(this.idleI + err * dt * 2.5, -0.1, 0.25);
-    const idleThr = clamp(0.03 + err * 3 + this.idleI, 0, 0.4);
-    if (rpm > e.limiter) this.limiterCut = true; else if (rpm < e.redline) this.limiterCut = false;
-    let thr = Math.max(input.throttle, idleThr);
-    if (this.limiterCut) thr = 0;
-    this.throttle = thr;
-    const fric = e.friction[0] + e.friction[1] * rpm;
-    const Teng = thr * torqueAt(e.torque, rpm) - (1 - thr) * fric;
+    let Teng;
+    if (this.running) {
+      const err = (e.idleRpm - rpm) / e.idleRpm;
+      this.idleI = clamp(this.idleI + err * dt * 2.5, -0.1, 0.25);
+      const idleThr = clamp(0.03 + err * 3 + this.idleI, 0, 0.4);
+      if (rpm > e.limiter) this.limiterCut = true; else if (rpm < e.redline) this.limiterCut = false;
+      let thr = Math.max(input.throttle, idleThr);
+      if (this.limiterCut) thr = 0;
+      this.throttle = thr;
+      const fric = e.friction[0] + e.friction[1] * rpm;
+      Teng = thr * torqueAt(e.torque, rpm) - (1 - thr) * fric;
+    } else {
+      this.throttle = 0; this.idleI = 0;
+      Teng = -(e.friction[0] + e.friction[1] * rpm) * Math.tanh(this.wEngine / 4);
+      if (this.crankT > 0) {
+        Teng += 75 * Math.max(0, 1 - rpm / 260);                       // the starter turns it at ~200 rpm
+        this.crankT -= dt;
+        if (this.crankT <= 0) { this.running = true; this.crankT = 0; }
+      }
+    }
     this.engineTorque = Teng;
 
-    // ---- torque converter (not when the lockup clutch carries it, nor in neutral)
+    // ---- manual: the automatic clutch (see the header)
+    if (this.manual) {
+      const inRpm = this.wOut * g * RPM;                               // gearbox input shaft
+      let target = 0;
+      if (g !== 0 && this.shiftT === 0 && this.running) {
+        if (input.throttle > 0.02) {
+          const launch = e.idleRpm + 400 + 1600 * input.throttle;
+          target = smoothstep(e.idleRpm + 50, launch, rpm);
+          if (this.clutch > 0.98 && Math.abs(inRpm) > e.idleRpm * 0.85) target = 1;
+        } else if (Math.abs(inRpm) > e.idleRpm * 0.8 && rpm > e.idleRpm * 0.6) target = 1;
+      }
+      const rate = target > this.clutch ? 3 : 12;
+      this.clutch += clamp(target - this.clutch, -rate * dt, rate * dt);
+    }
+
+    // ---- torque converter (automatic; not when the lockup clutch carries it, nor in neutral)
     let Tpump = 0, Tturb = 0;
-    if (g !== 0 && !this.lockupOn) {
+    if (!this.manual && g !== 0 && !this.lockupOn) {
       const wt = this.wOut * g;
       [Tpump, Tturb] = this.converter(this.wEngine, wt);
       if (this.shiftT > t.shiftTime * 0.55) Tturb *= 0.45;           // torque dip while the band changes over
@@ -223,7 +285,7 @@ export class Drivetrain {
     this.turbineTorque = Tturb;
 
     // ---- lockup clutch logic
-    if (g > 0 && this.gear >= 2 && this.shiftT === 0) {
+    if (!this.manual && g > 0 && this.gear >= 2 && this.shiftT === 0 && this.running) {
       const sr = this.wEngine > 1 ? (this.wOut * g) / this.wEngine : 0;
       const turb = this.wOut * g * RPM;
       if (!this.lockupOn && sr > 0.9 && turb > 1350 && input.throttle < 0.9) this.lockupOn = true;
@@ -241,8 +303,10 @@ export class Drivetrain {
     const Iout = t.outInertia + t.turbineInertia * g * g;
     m[OUT] = Iout;
     const eff = t.efficiency - (this.fourWD ? 0.03 : 0);
-    // losses: the driving torque arrives reduced; coasting, the engine sees the wheels' torque reduced the same way
-    v[OUT] = this.wOut + dt * (g * Tturb * (g * Tturb * this.wOut >= 0 ? eff : 1 / eff) - 0.015 * this.wOut) / Iout;
+    // losses: the driving torque arrives reduced; coasting, the engine sees the wheels' torque reduced the same way.
+    // Through a clutch (lockup or manual) the loss is a drag on the output, from the last substep's torque.
+    const loss = (1 - eff) * Math.abs(this.couple * g) * Math.tanh(this.wOut * 4);
+    v[OUT] = this.wOut + dt * (g * Tturb * (g * Tturb * this.wOut >= 0 ? eff : 1 / eff) - 0.015 * this.wOut - loss) / Iout;
     m[ENG] = e.inertia;
     v[ENG] = this.wEngine + dt * (Teng - Tpump) / e.inertia;
 
@@ -253,18 +317,29 @@ export class Drivetrain {
     // rear axle (always: the gearbox output turns with the rear propshaft)
     J[n * NB + 2] = G / 2; J[n * NB + 3] = G / 2; J[n * NB + OUT] = -1; bound[n] = Infinity; n++;
     if (this.fourWD) { J[n * NB + 0] = G / 2; J[n * NB + 1] = G / 2; J[n * NB + OUT] = -1; bound[n] = Infinity; n++; }
-    if (this.lockRear) { J[n * NB + 2] = 1; J[n * NB + 3] = -1; bound[n] = Infinity; n++; }
+    if (this.lockRear) { J[n * NB + 2] = 1; J[n * NB + 3] = -1; bound[n] = Infinity; n++; } else if (this.diffs.rear === 'lsd') {
+      J[n * NB + 2] = 1; J[n * NB + 3] = -1; bound[n] = (100 + 0.45 * Math.abs(this.propRear * t.axle)) * dt; n++;
+    }
     if (this.lockFront) { J[n * NB + 0] = 1; J[n * NB + 1] = -1; bound[n] = Infinity; n++; }
-    if (this.lockupOn) { J[n * NB + ENG] = 1; J[n * NB + OUT] = -g; bound[n] = t.lockup * dt; n++; }
+    let ic = -1;
+    if (this.lockupOn) { ic = n; J[n * NB + ENG] = 1; J[n * NB + OUT] = -g; bound[n] = t.lockup * dt; n++; }
+    if (this.manual && g !== 0 && this.clutch > 0.001) { ic = n; J[n * NB + ENG] = 1; J[n * NB + OUT] = -g; bound[n] = this.clutch * this.clutchCap * dt; n++; }
     for (let i = 0; i < 4; i++) {
       const Tb = input.brakeTorque[i];
       if (Tb > 0) { J[n * NB + i] = 1; bound[n] = Tb * dt; n++; }
     }
+    this.lamAcc.fill(0, 0, n);
     this.solve(n);
+    // torques in the propshafts (constraint 0: rear, 1: front in 4WD) and through the clutch
+    const R = this.rangeRatio;
+    this.propRear = R * this.lamAcc[0] / dt;
+    this.propFront = this.fourWD ? R * this.lamAcc[1] / dt : 0;
+    this.outTorque = (this.lamAcc[0] + (this.fourWD ? this.lamAcc[1] : 0)) / dt;
+    this.couple = ic >= 0 ? this.lamAcc[ic] / dt : 0;
 
     for (let i = 0; i < 4; i++) wheels[i].omega = v[i];
     this.wOut = v[OUT];
-    this.wEngine = Math.max(v[ENG], 300 / RPM);
+    this.wEngine = Math.max(v[ENG], this.running ? 300 / RPM : 0);
   }
 
   /** Solve the n constraints in this.J against velocities this.v, masses this.m (active set for the bounded ones). */
@@ -314,6 +389,7 @@ export class Drivetrain {
   }
 
   applyImpulse(i, lam) {
+    this.lamAcc[i] += lam;
     const J = this.J, v = this.v, m = this.m, o = i * NB;
     for (let q = 0; q < NB; q++) { const j = J[o + q]; if (j !== 0) v[q] += j * lam / m[q]; }
   }

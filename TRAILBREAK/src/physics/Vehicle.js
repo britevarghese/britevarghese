@@ -18,12 +18,17 @@
 // (its roll centre); the rest of its moment acts on the axle and shifts load between the tyres.
 //
 // Soft ground: a tyre presses mud, sand and snow down to the depth its contact pressure can hold up
-// (pressure-sinkage), and a spinning tyre digs itself deeper. The ground keeps the ruts.
+// (pressure-sinkage), and a spinning tyre digs itself deeper. The ground keeps the ruts. Airing the tyres down
+// lengthens and widens the footprint, so it sinks less and floats over sand, and the soft carcass wraps over rock.
+//
+// Under the truck: the diff housings and the spring plates hang below the axles (the lowest points of a beam axle
+// truck, raised only by bigger tyres), the belly (frame, transfer case) and the bumpers ride on the body, raised by
+// a lift too. The air intake has to stay out of the water or the engine stops.
 
 import { V3, Quat, clamp, smoothstep, lerp } from './math.js';
 import { tyreForce, corneringStiffness, slipStiffness } from './Tire.js';
 import { Drivetrain } from './Drivetrain.js';
-import { surfaceById } from './Surfaces.js';
+import { surfaceById, SURFACES, SURFACE } from './Surfaces.js';
 
 export const PHYS_DT = 1 / 480;
 export const GRAVITY = 9.81;
@@ -61,10 +66,13 @@ export class Vehicle {
     this.mass = spec.mass;
     this.unsprung = spec.axles.reduce((s, a) => s + a.mass, 0);
     this.sprung = this.mass - this.unsprung;
-    const [W, H, L] = spec.inertiaBox;
     const m = this.mass;
-    // body-frame inertia (x = left: pitch, y = up: yaw, z = forward: roll)
-    this.I = new V3(m / 12 * (H * H + L * L), m / 12 * (L * L + W * W) * 1.05, m / 12 * (W * W + H * H) * 0.95);
+    // body-frame inertia (x = left: pitch, y = up: yaw, z = forward: roll): from the build (Upgrades.js), or a box
+    if (spec.inertia) this.I = new V3(spec.inertia[0], spec.inertia[1], spec.inertia[2]);
+    else {
+      const [W, H, L] = spec.inertiaBox;
+      this.I = new V3(m / 12 * (H * H + L * L), m / 12 * (L * L + W * W) * 1.05, m / 12 * (W * W + H * H) * 0.95);
+    }
     this.invI = new V3(1 / this.I.x, 1 / this.I.y, 1 / this.I.z);
     this.cg = new V3(0, spec.cgHeight, spec.cgZ || 0);            // design frame -> CG frame offset
 
@@ -90,6 +98,13 @@ export class Vehicle {
       ax.M11 = m11; ax.M12 = m12;
       const det = m11 * m11 - m12 * m12;
       ax.iM11 = m11 / det; ax.iM12 = -m12 / det;
+      // what hangs below the beam: the diff housing (its bottom, and its rounded front and back) and the spring
+      // plates under the leaf springs; x across (+ left), drop below the axle centre, dz along
+      const dd = a.diffDrop || 0.16, dxd = a.diffX || 0, sp = s / 2;
+      ax.under = [
+        { x: dxd, drop: dd, dz: 0 }, { x: dxd, drop: dd - 0.035, dz: 0.09 }, { x: dxd, drop: dd - 0.035, dz: -0.09 },
+        { x: sp, drop: 0.085, dz: 0 }, { x: -sp, drop: 0.085, dz: 0 },
+      ];
       return ax;
     });
     // spring preload so the truck sits at its design ride height: sprung weight shared by axle position
@@ -117,23 +132,25 @@ export class Vehicle {
         cxDamp: 0, cyDamp: 0, Fshape: 0, FyShape: 0, rr: 0,
       });
     }
-    this.dt = new Drivetrain(spec.engine, spec.trans);
+    this.dt = new Drivetrain(spec.engine, spec.trans, spec.diffs);
     this.drivetrain = this.dt;
 
     // hull: collision boxes (CG frame) and contact points on them
-    this.boxes = spec.hull.map((b) => ({ c: new V3(b.c[0], b.c[1] - this.cg.y, b.c[2] - this.cg.z), h: new V3(...b.h) }));
+    this.boxes = spec.hull.map((b) => ({ c: new V3(b.c[0], b.c[1] - this.cg.y, b.c[2] - this.cg.z), h: new V3(...b.h), pts: b.pts, thin: !!b.thin }));
     this.hullPoints = [];
-    this.boxes.forEach((b, bi) => {
+    this.boxes.forEach((b) => {
       const { c, h } = b;
       for (const sx of [-1, 1]) for (const sy of [-1, 1]) for (const sz of [-1, 1]) this.hullPoints.push(new V3(c.x + sx * h.x, c.y + sy * h.y, c.z + sz * h.z));
-      // bottom of the main box: edge midpoints and centre (skid plates, the belly that gets high-centred);
-      // top of the cab: the roof, for when it goes over
-      const ys = bi === 0 ? -1 : 1;
-      for (const [sx, sz] of [[0, -1], [0, 1], [-1, 0], [1, 0], [0, 0], [0.5, 0.5], [-0.5, 0.5], [0.5, -0.5], [-0.5, -0.5]]) this.hullPoints.push(new V3(c.x + sx * h.x, c.y + ys * h.y, c.z + sz * h.z));
+      // bottom of the body and belly: edge midpoints and centre (bumpers, sills, skid plates, the belly that gets
+      // high-centred); top of the cab: the roof, for when it goes over
+      const ys = b.pts === 'bottom' ? -1 : b.pts === 'top' ? 1 : 0;
+      if (ys) for (const [sx, sz] of [[0, -1], [0, 1], [-1, 0], [1, 0], [0, 0], [0.5, 0.5], [-0.5, 0.5], [0.5, -0.5], [-0.5, -0.5]]) this.hullPoints.push(new V3(c.x + sx * h.x, c.y + ys * h.y, c.z + sz * h.z));
     });
+    this.hullFriction = spec.hullFriction ?? 1;
     // spheres approximating the hull, for other trucks to collide with
     this.hullSpheres = [];
     for (const b of this.boxes) {
+      if (b.thin) continue;
       const r = Math.min(b.h.x, b.h.y) * 1.02;
       const nx = Math.max(1, Math.round(b.h.x / r)), nz = Math.max(1, Math.round(b.h.z / r));
       for (let i = 0; i < nx; i++) for (let k = 0; k < nz; k++) {
@@ -143,6 +160,17 @@ export class Vehicle {
     }
 
     this.winch = { attached: false, kind: null, target: null, anchor: new V3(), anchorLocal: new V3(), len: 0, tension: 0, motor: 0, maxLen: spec.winch.maxLen, fairlead: new V3(spec.winch.fairlead[0], spec.winch.fairlead[1] - this.cg.y, spec.winch.fairlead[2] - this.cg.z) };
+    // air intake (CG frame); flooded: water got in and stopped the engine
+    const ip = spec.intake || [0, 1, (spec.axles[0].z || 1) + 0.1];
+    this.intake = new V3(ip[0], ip[1] - this.cg.y, ip[2] - this.cg.z);
+    this.flooded = false;
+    this.floodClear = 0;
+    this.intakeWet = false;
+    // tyre pressure (psi): the tyres the physics uses are the spec's at this pressure
+    this.psi = -1;
+    this.psiTarget = tyre.psiStock || 30;
+    this.airSupply = false;        // at the station's air line (the game sets it)
+    this.setPressure(this.psiTarget);
     this.hullContact = 0;          // strongest hull impact this frame (for sounds)
     this.impact = 0;
     this.waterDepth = 0;
@@ -194,6 +222,8 @@ export class Vehicle {
     for (const ax of this.axles) { ax.zL = ax.zR = ax.spec.sag; ax.vL = ax.vR = 0; }
     for (const w of this.wheels) { w.omega = 0; w.dx = 0; w.dy = 0; }
     this.dt.wOut = 0;
+    if (!this.dt.running) { this.dt.running = true; this.dt.crankT = 0; this.dt.wEngine = this.dt.e.idleRpm * Math.PI / 30; }
+    this.flooded = false; this.intakeWet = false;
     this.detachWinch();
     this.updateBasis();
   }
@@ -277,8 +307,9 @@ export class Vehicle {
    *   ground: see the header of world/Ground.js
    */
   step(ctrl = NO_CONTROLS, ground) {
-    const dt = PHYS_DT, spec = this.spec, tyre = spec.tyre, r = tyre.radius;
+    const dt = PHYS_DT, spec = this.spec, tyre = this.tyre, r = tyre.radius;
     this.time += dt;
+    if (this.psi !== this.psiTarget) this.airStep(dt);
     this.updateBasis();
     const F = this.force.set(0, -this.sprung * GRAVITY, 0), T = this.torque.set(0, 0, 0);
     const u = this.up, left = this.left, fwd = this.fwd;
@@ -382,8 +413,8 @@ export class Vehicle {
       const mq = this.mass / 4;
       w.cxDamp = 2 * 0.55 * Math.sqrt(slipStiffness(N, surf, tyre) / tyre.relaxX * mq) * adh * low;
       w.cyDamp = 2 * 0.6 * Math.sqrt(corneringStiffness(N, surf, tyre) / tyre.relaxY * mq) * adh * low;
-      // rolling resistance (more in soft ground and in water)
-      const crr = surf.rr + surf.drag * w.sink + (w.water > 0.15 ? 0.04 : 0);
+      // rolling resistance (more in soft ground and in water; mud tyres and soft tyres roll harder on firm ground)
+      const crr = surf.rr * (surf.sink > 0 ? tyre.rrMul || 1 : tyre.rrFirm || 1) + surf.drag * w.sink + (w.water > 0.15 ? 0.04 : 0);
       w.rr = crr * N;
       w.torque = -r * w.Fshape + r * w.cxDamp * vx - crr * N * r * Math.tanh(w.omega * 2) - 0.6 * Math.tanh(w.omega);
       w.damp = w.cxDamp * r * r;
@@ -408,6 +439,15 @@ export class Vehicle {
 
     // ---------------------------------------------------------------- tyre forces on chassis and axles
     for (const ax of this.axles) { ax.QL = 0; ax.QR = 0; ax.rollM = 0; }
+    // torque twist: a propshaft's torque rolls its axle housing against the chassis, lifting the right-hand wheel
+    // under power (the classic one-wheel peel with an open diff), and the engine's reaction rolls the body the other
+    // way (left side up). Engine rotation clockwise seen from the front.
+    {
+      const [axF, axR] = this.axles, tr = dtr.propRear, tf = dtr.propFront;
+      axR.QL -= tr / axR.T; axR.QR += tr / axR.T;
+      axF.QL -= tf / axF.T; axF.QR += tf / axF.T;
+      T.x += fwd.x * (tr + tf); T.y += fwd.y * (tr + tf); T.z += fwd.z * (tr + tf);
+    }
     for (const w of this.wheels) {
       w.angle += w.omega * dt;
       if (w.angle > 1e4 || w.angle < -1e4) w.angle %= Math.PI * 2;
@@ -438,15 +478,17 @@ export class Vehicle {
       _q.subVectors(w.hub, _p);
       ax.rollM += lat * _q.dot(u);
 
-      // soft ground: press it down, dig while spinning
+      // soft ground: press it down, dig while spinning. The footprint: the chord the tyre's deflection cuts, made
+      // longer and wider by a soft carcass (aired down)
       if (surf.sink > 0 && ground.deform) {
-        const contactLen = Math.max(0.22, 2 * Math.sqrt(Math.max(0, 2 * r * Math.min(w.pen, r * 0.5))));
-        const pKPa = w.N / (tyre.width * contactLen) / 1000;
+        const contactLen = Math.max(0.22, 2 * Math.sqrt(Math.max(0, 2 * r * Math.min(w.pen, r * 0.5)))) * tyre.footL;
+        const pKPa = w.N / (tyre.footW * contactLen) / 1000;
         const zEq = Math.min(surf.maxSink, Math.pow(pKPa / surf.sink, 1 / surf.n));
         const dig = surf.dig * Math.max(0, slipV - 0.6) * dt;
-        w.sink = ground.deform(w.cx, w.cz, w.fX, w.fZ, tyre.width * 0.5, contactLen * 0.5, zEq, dig);
+        w.sink = ground.deform(w.cx, w.cz, w.fX, w.fZ, tyre.footW * 0.5, contactLen * 0.5, zEq, dig);
       } else w.sink = 0;
     }
+    this.axleContacts(ground);
 
     // ---------------------------------------------------------------- springs, dampers, limits
     for (const ax of this.axles) {
@@ -468,7 +510,7 @@ export class Vehicle {
         const z = near, zv = vNear;
         let Fl = 0;
         if (z < 0) Fl = 3e5 * -z - 6000 * Math.min(0, zv);
-        const bsStart = a.travel - 0.05;
+        const bsStart = (a.bumpTravel ?? a.travel) - 0.05;
         if (z > bsStart) { const e = z - bsStart; Fl = -(4e5 * e + 2.5e7 * e * e * e) - 9000 * Math.max(0, zv); }
         if (Fl !== 0) {
           if (side === 0) ax.QL += Fl; else ax.QR += Fl;
@@ -505,6 +547,7 @@ export class Vehicle {
       this.applyForce(_a, _p);
     }
     this.waterStep(ground);
+    this.intakeStep(ground, dt);
     const v2 = this.vel.lengthSq();
     if (v2 > 0.01) {
       const k = -0.5 * RHO_AIR * spec.drag.cd * spec.drag.area * Math.sqrt(v2);
@@ -553,7 +596,7 @@ export class Vehicle {
       ax.vL += accL * dt; ax.vR += accR * dt;
       ax.zL += ax.vL * dt; ax.zR += ax.vR * dt;
       // hard safety limits
-      const lo = -0.06, hi = ax.spec.travel + 0.04;
+      const lo = -0.06, hi = (ax.spec.bumpTravel ?? ax.spec.travel) + 0.04;
       if (ax.zL < lo) { ax.zL = lo; if (ax.vL < 0) ax.vL = 0; } else if (ax.zL > hi) { ax.zL = hi; if (ax.vL > 0) ax.vL = 0; }
       if (ax.zR < lo) { ax.zR = lo; if (ax.vR < 0) ax.vR = 0; } else if (ax.zR > hi) { ax.zR = hi; if (ax.vR > 0) ax.vR = 0; }
     }
@@ -599,8 +642,101 @@ export class Vehicle {
       groundNormal(ground, _p.x, _p.z, _n);
       const pen = (h - _p.y) * _n.y;
       const surf = ground.surfaceAt(_p.x, _p.z);
-      const Fn = this.penalty(_p, _n, pen, kh, ch, surf.hull);
+      const Fn = this.penalty(_p, _n, pen, kh, ch, surf.hull * this.hullFriction);
       this.hullContact = Math.max(this.hullContact, Fn / 2e4);
+    }
+  }
+
+  /**
+   * The diffs and spring plates against the ground. The force along the chassis' up axis goes into the beam's two
+   * degrees of freedom (shared by where along the beam it acts) and reaches the chassis through the springs and bump
+   * stops; the rest (the scrape, the shove of a ledge) goes to the chassis there.
+   */
+  axleContacts(ground) {
+    const u = this.up, k = 3e5, c = 6000;
+    for (const ax of this.axles) {
+      for (const pt of ax.under) {
+        const fl = 0.5 + pt.x / ax.T, fr = 0.5 - pt.x / ax.T;
+        const yA = ax.yDroop + ax.zL * fl + ax.zR * fr;
+        _p.set(pt.x, yA - pt.drop, ax.zc + pt.dz);
+        this.toWorld(_p, _q);
+        const h = ground.height(_q.x, _q.z);
+        if (_q.y >= h) continue;
+        groundNormal(ground, _q.x, _q.z, _n);
+        const pen = Math.min((h - _q.y) * _n.y, 0.15);
+        this.pointVel(_q, _v).addScaled(u, ax.vL * fl + ax.vR * fr);
+        const vn = _v.dot(_n);
+        let Fn = k * pen - c * vn;
+        if (Fn <= 0) continue;
+        _a.copy(_n).scale(Fn);
+        _b.copy(_v).addScaled(_n, -vn);
+        const vt = _b.length();
+        if (vt > 1e-4) {
+          const mu = ground.surfaceAt(_q.x, _q.z).hull * 1.1;
+          _a.addScaled(_b, -Math.min(mu * Fn, 3000 * vt) / vt);
+        }
+        const along = _a.dot(u);
+        ax.QL += along * fl; ax.QR += along * fr;
+        _a.addScaled(u, -along);
+        this.applyForce(_a, _q);
+        this.hullContact = Math.max(this.hullContact, Fn / 2e4);
+      }
+    }
+  }
+
+  // ---------------------------------------------------------------- tyre pressure
+  /** Tyres at a pressure (psi): the spec's tyre (at its stock pressure) made softer or firmer. */
+  setPressure(psi) {
+    const s = this.spec.tyre;
+    psi = clamp(psi, s.minPsi || 14, 35);
+    this.psiAir = psi;
+    if (psi === this.psi) return;
+    this.psi = psi;
+    const f = clamp(psi / (s.psiStock || 30), 0.2, 1.2), d = 1 - f;
+    const t = this.tyre = { ...s };
+    t.stiffness = s.stiffness * (0.32 + 0.68 * f);             // the air carries most of the load
+    t.alphaPeak = s.alphaPeak * (1 + 0.45 * d);                // a soft sidewall: vague steering, slow to respond
+    t.relaxY = s.relaxY * (1 + 0.5 * d);
+    t.kappaPeak = s.kappaPeak * (1 + 0.25 * d);
+    t.footW = s.width * (1 + 0.25 * d);                        // footprint: wider and longer
+    t.footL = 1 + 0.6 * d;
+    t.rrFirm = (s.rrMul || 1) * (1 + 0.9 * d);                 // flexing carcass: drags on firm ground
+    const grip = s.grip || SURFACES.map(() => 1);
+    t.grip = grip.map((g, id) => g * (id === SURFACE.ROCK ? 1 + 0.16 * d : SURFACES[id].C <= 1.0001 ? 1 + 0.1 * d : 1));
+  }
+
+  /** Let air out (any time, nearly stopped) or pump it in (onboard compressor, or the station's air line). */
+  airStep(dt) {
+    const s = this.spec.tyre;
+    this.psiTarget = clamp(this.psiTarget, s.minPsi || 14, 35);
+    const slow = Math.abs(this.vel.dot(this.fwd)) < 2.5;
+    let p = this.psiAir;
+    if (this.psiTarget < p) { if (slow) p = Math.max(this.psiTarget, p - 1.6 * dt); } else if (s.compressor || this.airSupply) p = Math.min(this.psiTarget, p + (this.airSupply ? 4 : 1) * dt);
+    else this.psiTarget = p;                                   // no air to put back in
+    this.psiAir = p;
+    if (Math.abs(p - this.psi) >= 0.05 || p === this.psiTarget) this.setPressure(p);
+  }
+
+  // ---------------------------------------------------------------- air intake
+  /**
+   * The engine breathes through the intake (the air cleaner under the bonnet, or a snorkel up the pillar). Water
+   * there stops it; a bow wave raises the water at the front when driving in too fast. It starts again once the
+   * intake has been out of the water for a few seconds.
+   */
+  intakeStep(ground, dt) {
+    let wet = false;
+    if (ground.water && this.waterDepth > 0.05) {
+      this.toWorld(this.intake, _p);
+      const level = ground.water(_p.x, _p.z);
+      const sp = Math.max(0, this.vel.dot(this.fwd));
+      wet = level > -1e8 && level + Math.min(0.4, 0.05 * sp * sp) > _p.y;
+    }
+    this.intakeWet = wet;
+    const dtr = this.dt;
+    if (wet && dtr.running) { dtr.stall(); this.flooded = true; this.floodClear = 0; }
+    if (this.flooded) {
+      if (wet) this.floodClear = 0;
+      else if ((this.floodClear += dt) > 2.5) { this.flooded = false; dtr.start(); }
     }
   }
 

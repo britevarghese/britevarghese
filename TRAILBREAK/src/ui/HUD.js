@@ -104,7 +104,7 @@ export class HUD {
     const kmh = Math.abs(v.speed) * 3.6;
     const e = v.dt.e;
     dial(268, 86, 80, kmh, 140, String(Math.round(kmh)), 'kmh');
-    dial(92, 96, 70, v.dt.rpm, 5000, v.dt.gearLabel, 'rpm', e.redline / 5000);
+    dial(92, 96, 70, v.dt.rpm, 5000, v.dt.running ? v.dt.gearLabel : 'OFF', 'rpm', e.redline / 5000);
   }
 
   drawChips(v) {
@@ -112,8 +112,14 @@ export class HUD {
     const set = (id, text, cls) => { const el = $(id); if (el.textContent !== text) el.textContent = text; el.className = 'chip' + (cls ? ' ' + cls : ''); };
     set('m-range', d.low ? 'LOW' : 'HIGH', d.low ? 'on' : '');
     set('m-4wd', d.fourWD ? '4WD' : '2WD', d.fourWD ? 'on' : '');
-    set('m-lock', d.lockFront && d.lockRear ? 'LOCK F+R' : d.lockRear ? 'LOCK R' : 'OPEN', d.lockRear ? 'on2' : '');
-    set('m-box', d.auto ? `AUTO ${d.gearLabel}` : `MAN ${d.gearLabel}`, d.auto ? '' : 'on2');
+    const lsd = d.diffs.rear === 'lsd';
+    set('m-lock', d.lockFront && d.lockRear ? 'LOCK F+R' : d.lockRear ? 'LOCK R' : lsd ? 'LSD' : 'OPEN', d.lockRear ? 'on2' : '');
+    set('m-box', `${d.manual ? 'STICK' : 'AUTO'} ${d.auto ? '' : 'M'}${d.gearLabel}`, d.auto ? '' : 'on2');
+    const psi = Math.round(v.psiAir ?? v.psi), dir = v.psiTarget < psi - 0.4 ? ' ↓' : v.psiTarget > psi + 0.4 ? ' ↑' : '';
+    set('m-psi', `${psi} PSI${dir}`, psi < 25 ? 'on2' : '');
+    const eng = $('m-eng');
+    eng.classList.toggle('hidden', d.running);
+    if (!d.running) eng.textContent = d.crankT > 0 ? 'CRANKING' : v.flooded ? 'FLOODED' : 'ENGINE OFF';
     const sway = $('m-sway');
     sway.classList.toggle('hidden', !v.swayDisconnected);
   }

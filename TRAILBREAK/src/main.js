@@ -2,6 +2,8 @@
 import { generateWorld } from './world/WorldGen.js';
 import { World } from './world/World.js';
 import { TRUCKS, TRUCK_IDS } from './physics/trucks.js';
+import { buildSummary, decodeBuild } from './physics/Upgrades.js';
+import { Garage } from './ui/Garage.js';
 import { Renderer } from './render/Renderer.js';
 import { TerrainRenderer } from './render/Terrain.js';
 import { Vegetation } from './render/Vegetation.js';
@@ -20,10 +22,12 @@ const $ = (id) => document.getElementById(id);
 const PAINTS = ['#b5532c', '#3d6b8c', '#6b7d3e', '#c9a227', '#8c2f2f', '#e6e1d3', '#2f4f3a', '#4a4a4a'];
 const STORE = 'trailbreak.settings';
 
-const settings = Object.assign({ name: '', truck: 'ranger', paint: PAINTS[0], hour: 16.5, shadows: true, sound: true, assist: true, quality: 'high', autoQuality: true }, (() => {
+const settings = Object.assign({ name: '', truck: 'ranger', paint: PAINTS[0], hour: 16.5, shadows: true, sound: true, assist: true, quality: 'high', autoQuality: true, builds: {} }, (() => {
   try { return JSON.parse(localStorage.getItem(STORE) || '{}'); } catch { return {}; }
 })());
+if (!settings.builds || typeof settings.builds !== 'object') settings.builds = {};
 const save = () => { try { localStorage.setItem(STORE, JSON.stringify(settings)); } catch { /* storage blocked */ } };
+const garage = new Garage();
 
 // ---------------------------------------------------------------- lobby
 function lobby() {
@@ -31,14 +35,23 @@ function lobby() {
   $('name').value = settings.name || '';
   $('room').value = (params.get('room') || '').toUpperCase();
   const trucksEl = $('trucks');
+  const showBuild = () => {
+    const base = TRUCKS[settings.truck] || TRUCKS.ranger;
+    $('build-name').textContent = `Build: ${buildSummary(base, decodeBuild(base, settings.builds[base.id] || ''))}`;
+  };
   for (const id of TRUCK_IDS) {
     const t = TRUCKS[id];
     const b = document.createElement('button');
     b.className = 'truck-opt' + (settings.truck === id ? ' sel' : '');
     b.innerHTML = `<b>${t.name}</b><span>${t.blurb}</span>`;
-    b.onclick = () => { settings.truck = id; for (const c of trucksEl.children) c.classList.remove('sel'); b.classList.add('sel'); };
+    b.onclick = () => { settings.truck = id; for (const c of trucksEl.children) c.classList.remove('sel'); b.classList.add('sel'); showBuild(); save(); };
     trucksEl.appendChild(b);
   }
+  showBuild();
+  $('open-garage').onclick = async () => {
+    const code = await garage.open({ truckId: settings.truck, code: settings.builds[settings.truck], paint: settings.paint, fitLabel: 'Use this build' });
+    if (code) { settings.builds[settings.truck] = code; save(); showBuild(); }
+  };
   const paintsEl = $('paints');
   for (const p of PAINTS) {
     const b = document.createElement('button');
@@ -112,9 +125,10 @@ async function start() {
   const hud = new HUD(world, terrain);
   const input = new Input();
   const game = new Game({
-    world, renderer, terrain, vegetation, rocks, water, landmarks, effects, rope, audio, net, hud, input, settings,
-    truckId: settings.truck, paint: settings.paint, name: settings.name,
+    world, renderer, terrain, vegetation, rocks, water, landmarks, effects, rope, audio, net, hud, input, settings, garage,
+    truckId: settings.truck, build: settings.builds[settings.truck] || '', paint: settings.paint, name: settings.name,
   });
+  game.onBuild = (id, code) => { settings.builds[id] = code; save(); };
   window.game = game;                              // (handy in the console)
   await audio.setLocalEngine(game.spec).catch(() => {});
   if (net) {
@@ -176,6 +190,7 @@ function wireMenus(game, net) {
   $('opt-assist').onchange = () => { s.assist = $('opt-assist').checked; save(); };
   $('resume').onclick = () => game.togglePause(false);
   $('respawn').onclick = () => { game.togglePause(false); game.spawn(); };
+  $('menu-garage').onclick = () => game.openGarage();
   const help = (on) => $('help').classList.toggle('hidden', !on);
   $('show-help').onclick = () => help(true);
   $('close-help').onclick = () => help(false);

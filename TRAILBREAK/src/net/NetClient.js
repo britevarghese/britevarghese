@@ -117,7 +117,7 @@ export class NetClient {
     const t = (Date.now() + this.offset) / 1000 - DELAY;
     let a = snaps[0], b = null;
     for (let i = snaps.length - 1; i >= 0; i--) if (snaps[i].t <= t) { a = snaps[i]; b = snaps[i + 1] || null; break; }
-    const out = r.view || (r.view = { pos: [0, 0, 0], quat: [0, 0, 0, 1], vel: [0, 0, 0], wh: [[0, 0, 0], [0, 0, 0], [0, 0, 0], [0, 0, 0]], rpm: 800, thr: 0, truck: 'ranger', paint: '#b5532c', lights: 0, winch: null });
+    const out = r.view || (r.view = { pos: [0, 0, 0], quat: [0, 0, 0, 1], vel: [0, 0, 0], wh: [[0, 0, 0], [0, 0, 0], [0, 0, 0], [0, 0, 0]], rpm: 800, thr: 0, truck: 'ranger', cfg: '', paint: '#b5532c', lights: 0, winch: null });
     const sa = a.s;
     if (b) {
       const k = Math.min(1, Math.max(0, (t - a.t) / Math.max(1e-3, b.t - a.t)));
@@ -138,7 +138,7 @@ export class NetClient {
       for (let w = 0; w < 4; w++) for (let k = 0; k < 3; k++) out.wh[w][k] = sa.wh[w][k];
       out.rpm = sa.rpm; out.thr = sa.thr;
     }
-    out.truck = sa.truck; out.paint = sa.paint; out.lights = sa.lights; out.winch = (b ? b.s : sa).winch; out.brk = sa.brk;
+    out.truck = sa.truck; out.cfg = sa.cfg || ''; out.paint = sa.paint; out.lights = sa.lights; out.winch = (b ? b.s : sa).winch; out.brk = sa.brk;
     out.stale = t - snaps[snaps.length - 1].t > 3;
     return out;
   }
@@ -153,7 +153,7 @@ export class NetClient {
       v: [v.vel.x, v.vel.y, v.vel.z], w: [v.angVel.x, v.angVel.y, v.angVel.z],
       wh: [0, 1, 2, 3].map((i) => v.wheelState(i)),
       rpm: v.dt.rpm, thr: v.dt.throttle, brk: v.pedalBrake > 0.1 ? 1 : 0,
-      truck: extra.truck, paint: extra.paint, lights: extra.lights ? 1 : 0, warp: this.warp,
+      truck: extra.truck, cfg: extra.cfg || '', paint: extra.paint, lights: extra.lights ? 1 : 0, warp: this.warp,
       winch: extra.winch || null,
     };
     this.send({ t: 'state', s });

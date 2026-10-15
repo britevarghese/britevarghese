@@ -73,6 +73,19 @@ test('snapshots carry each player state to the room only', () => {
   assert.deepEqual(c.last('snapshot').players.map((p) => p.name), ['C']);
 });
 
+test('a truck\'s build (garage parts) travels with its state; junk is dropped', () => {
+  const lobby = new Lobby();
+  const a = join(lobby, 'A', 'GEARS');
+  const room = lobby.rooms.get('GEARS');
+  const me = () => [...room.players.values()][0].s;
+  a.msg(state(1, { cfg: '23123132101210' }));
+  assert.equal(me().cfg, '23123132101210');
+  a.msg(state(2, { cfg: '<script>' }));
+  assert.equal(me().cfg, '23123132101210', 'keeps the last good one');
+  a.msg(state(3, { cfg: 'x'.repeat(40) }));
+  assert.equal(me().cfg, '23123132101210');
+});
+
 test('teleports are rejected unless announced', () => {
   const lobby = new Lobby();
   const a = join(lobby, 'A', 'WARPS');

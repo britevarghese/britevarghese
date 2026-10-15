@@ -2,7 +2,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { Vehicle, PHYS_DT, GRAVITY } from '../src/physics/Vehicle.js';
-import { TRUCKS } from '../src/physics/trucks.js';
+import { TRUCKS, truckSpec } from '../src/physics/trucks.js';
 import { SURFACE } from '../src/physics/Surfaces.js';
 import { flat, slope, soft, slopeWithIce, ledge } from './grounds.mjs';
 
@@ -16,8 +16,8 @@ function run(v, ground, seconds, ctrl = IDLE) {
   }
 }
 
-function truck(id = 'ranger', ground = flat(), x = 0, z = 0, yaw = 0) {
-  const v = new Vehicle(TRUCKS[id]);
+function truck(id = 'ranger', ground = flat(), x = 0, z = 0, yaw = 0, build = undefined) {
+  const v = new Vehicle(truckSpec(id, build));
   v.place(ground, x, z, yaw);
   return v;
 }
@@ -53,7 +53,9 @@ test('accelerates like an old V8 4x4 and tops out believably', () => {
   assert.ok(t60 !== null && t60 > 5 && t60 < 10.5, `0-60 km/h in ${t60?.toFixed(1)} s`);
   const top = v.speed * 3.6;
   assert.ok(top > 115 && top < 175, `top speed ${top.toFixed(0)} km/h`);
-  assert.ok(Math.abs(v.pos.x) < 0.2, `drives straight (drift ${v.pos.x.toFixed(2)} m)`);
+  // straight, give or take the pull of torque twist (the right rear tyre a little lighter than the left)
+  const heading = Math.atan2(v.fwd.x, v.fwd.z) * 180 / Math.PI;
+  assert.ok(Math.abs(heading) < 2, `drives straight (heading ${heading.toFixed(2)} deg after ${v.pos.z.toFixed(0)} m)`);
 });
 
 test('low range crawls at walking pace and multiplies torque', () => {
@@ -97,12 +99,12 @@ test('low range climbs a 30 degree slope from rest', () => {
 });
 
 test('open diffs: with a diagonal pair of tyres on ice the truck goes nowhere; locking both diffs climbs', () => {
-  const setup = () => {
+  const setup = (build) => {
     // ice under the front-left and rear-right tyres (the cross-axle case), dirt under the other two
-    const R = TRUCKS.hauler, half = R.axles[0].track / 2, zf = R.axles[0].z - R.cgZ, zr = R.axles[1].z - R.cgZ;
+    const R = truckSpec('hauler'), half = R.axles[0].track / 2, zf = R.axles[0].z - R.cgZ, zr = R.axles[1].z - R.cgZ;
     const patches = [[half - 0.45, zr + 1.0, half + 0.45, 99], [-half - 0.45, -99, -half + 0.45, zf - 1.0]];
     const g = slopeWithIce(12, patches);
-    const v = truck('hauler', g);
+    const v = truck('hauler', g, 0, 0, 0, build);
     v.dt.setRange(true, 0);
     manual(v, 1);
     run(v, g, 1, { ...IDLE, brake: 1 });
@@ -121,8 +123,8 @@ test('open diffs: with a diagonal pair of tyres on ice the truck goes nowhere; l
     assert.ok(v.pos.z - z0 < 0.1, `open diffs moved it ${(v.pos.z - z0).toFixed(2)} m`);
   }
   {
-    const { g, v } = setup();
-    v.dt.setLocker('front', true, 0); v.dt.setLocker('rear', true, 0);
+    const { g, v } = setup({ diffs: 3 });
+    assert.ok(v.dt.setLocker('front', true, 0) && v.dt.setLocker('rear', true, 0), 'lockers fitted');
     const z0 = v.pos.z;
     run(v, g, 3, { ...IDLE, throttle: 0.7 });
     assert.ok(v.pos.z - z0 > 0.6, `lockers moved it ${(v.pos.z - z0).toFixed(2)} m`);
@@ -173,11 +175,14 @@ test('mud: tyres leave ruts, and a spinning tyre digs deeper than a rolling one'
   const tree = { x: v2.pos.x, y: 0, z: v2.pos.z + 2.5, r: 0.4 };
   g2.treesNear = (x, z, r, out) => { out.length = 0; out.push(tree); return out; };
   run(v2, g2, 1, IDLE);
-  const before = g2.grid.get(v2.wheels[2].cx, v2.wheels[2].cz);
+  const before = [2, 3].map((i) => g2.grid.get(v2.wheels[i].cx, v2.wheels[i].cz));
   run(v2, g2, 3, { ...IDLE, throttle: 1 });
-  const after = g2.grid.get(v2.wheels[2].cx, v2.wheels[2].cz);
-  assert.ok(v2.wheels[2].slipSpeed > 2, `rear tyre slipping at ${v2.wheels[2].slipSpeed.toFixed(1)} m/s`);
-  assert.ok(after > before + 0.08 || after >= 0.35, `dug from ${before.toFixed(3)} to ${after.toFixed(3)} m`);
+  // torque twist lightens the right rear: with an open diff that is the one that spins (one-wheel peel)
+  const spin = v2.wheels[3];
+  assert.ok(spin.slipSpeed > 2, `right rear tyre slipping at ${spin.slipSpeed.toFixed(1)} m/s`);
+  assert.ok(v2.wheels[2].slipSpeed < spin.slipSpeed, 'the left rear, with more weight on it, spins less');
+  const after = g2.grid.get(spin.cx, spin.cz);
+  assert.ok(after > before[1] + 0.08 || after >= 0.35, `dug from ${before[1].toFixed(3)} to ${after.toFixed(3)} m`);
 });
 
 test('the winch drags a truck in neutral toward the anchor, and stalls at its rated pull', () => {
@@ -204,7 +209,7 @@ test('the winch drags a truck in neutral toward the anchor, and stalls at its ra
   let maxT = 0;
   const n = Math.round(10 / PHYS_DT);
   for (let i = 0; i < n; i++) { v2.step({ ...IDLE, brake: 1 }, g2); maxT = Math.max(maxT, v2.winch.tension); }
-  assert.ok(maxT < TRUCKS.hauler.winch.stallPull * 1.25, `peak tension ${maxT.toFixed(0)} N`);
+  assert.ok(maxT < v2.spec.winch.stallPull * 1.25, `peak tension ${maxT.toFixed(0)} N`);
 });
 
 test('a truck on its roof can be put back on its wheels', () => {

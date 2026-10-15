@@ -1,9 +1,9 @@
 // On-screen controls for phones and tablets: steering on the left, pedals on the right, and buttons for the winch,
-// recovery, transfer case, lockers, camera, map and menu. Shown only on touch screens.
+// recovery, transfer case, lockers, tyre pressure, camera, map and menu. Shown only on touch screens.
 
 const BUTTONS = [
   ['cam', 'camera', 'CAM'], ['hook', 'hook', 'WINCH'], ['rec', 'recover', 'RESET'],
-  ['rng', 'range', 'LOW'], ['lck', 'locks', 'LOCK'], ['map', 'map', 'MAP'], ['esc', 'pause', '☰'],
+  ['rng', 'range', 'LOW'], ['lck', 'locks', 'LOCK'], ['air', 'air', 'AIR'], ['map', 'map', 'MAP'], ['esc', 'pause', '☰'],
 ];
 
 export function isTouchDevice() {

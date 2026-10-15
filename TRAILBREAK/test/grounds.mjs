@@ -57,3 +57,16 @@ export function slopeWithIce(deg, patches, surface = SURFACE.DIRT) {
     },
   };
 }
+
+/** Flat ground with a block of rock (x0..x1, z0..z1, h high) on it: a boulder between the wheels. */
+export function block(x0, x1, z0, z1, h, surface = SURFACE.DIRT) {
+  return {
+    height: (x, z) => (x >= x0 && x <= x1 && z >= z0 && z <= z1 ? h : 0),
+    surfaceAt: (x, z) => SURFACES[x >= x0 && x <= x1 && z >= z0 && z <= z1 ? SURFACE.ROCK : surface],
+  };
+}
+
+/** Any ground under water at `level` (water(x, z) as the game world gives it). */
+export function flooded(ground, level) {
+  return { ...ground, water: () => level };
+}

@@ -112,6 +112,24 @@ export class Audio {
     this.winchGain = ctx.createGain(); this.winchGain.gain.value = 0;
     this.winchOsc.connect(wf).connect(this.winchGain).connect(this.master);
     this.winchOsc.start();
+    // the starter motor: a saw whirring, chopped by the compression strokes
+    this.starterOsc = ctx.createOscillator(); this.starterOsc.type = 'sawtooth'; this.starterOsc.frequency.value = 95;
+    this.starterLfo = ctx.createOscillator(); this.starterLfo.frequency.value = 7;
+    const sLfoG = ctx.createGain(); sLfoG.gain.value = 0.5;
+    const sf = ctx.createBiquadFilter(); sf.type = 'lowpass'; sf.frequency.value = 700;
+    this.starterGain = ctx.createGain(); this.starterGain.gain.value = 0;
+    const chop = ctx.createGain(); chop.gain.value = 0.5;
+    this.starterLfo.connect(sLfoG).connect(chop.gain);
+    this.starterOsc.connect(sf).connect(chop).connect(this.starterGain).connect(this.master);
+    this.starterOsc.start(); this.starterLfo.start();
+    // air: hissing out of a valve, or the compressor pumping it back
+    this.air = noiseVoice(ctx, this.white, this.master, 'highpass', 3500, 0.7);
+    // mud-terrain tyres hum on hard ground: a tone at the lug passing frequency
+    this.humOsc = ctx.createOscillator(); this.humOsc.type = 'triangle'; this.humOsc.frequency.value = 120;
+    const hf = ctx.createBiquadFilter(); hf.type = 'bandpass'; hf.frequency.value = 300; hf.Q.value = 0.8;
+    this.humGain = ctx.createGain(); this.humGain.gain.value = 0;
+    this.humOsc.connect(hf).connect(this.humGain).connect(this.master);
+    this.humOsc.start();
     // forest ambience
     this.forest = noiseVoice(ctx, this.pink, this.master, 'highpass', 2500, 0.3);
     this.forest.g.gain.value = 0.012;
@@ -165,6 +183,12 @@ export class Audio {
     src.start(t, Math.random()); src.stop(t + 0.4);
   }
 
+  /** The engine dies: a cough and a shudder. */
+  stall() {
+    this.bang(0.7, true);
+    setTimeout(() => this.bang(0.4, true), 160);
+  }
+
   chirp() {
     const ctx = this.ctx, t = ctx.currentTime;
     const n = 2 + Math.floor(Math.random() * 4), base = 2400 + Math.random() * 2200;
@@ -197,8 +221,18 @@ export class Audio {
     if (v) {
       const e = v.dt.e;
       const rpmN = (v.dt.rpm - e.idleRpm) / (e.redline - e.idleRpm);
-      this.engine?.drive(rpmN, Math.max(v.dt.throttle, 0.05), 0.95);
+      this.engine?.drive(rpmN, Math.max(v.dt.throttle, 0.05), v.dt.running ? 0.95 : 0);
+      glide(this.starterGain.gain, v.dt.crankT > 0 ? 0.07 : 0, t, 0.03);
       const speed = Math.abs(v.speed);
+      // air in or out of the tyres
+      const airing = Math.abs((v.psiAir ?? v.psi) - v.psiTarget) > 0.05 && (v.psiTarget > v.psi || speed < 2.5);
+      glide(this.air.g.gain, airing ? (v.psiTarget < v.psi ? 0.09 : 0.04) : 0, t, 0.08);
+      // tread hum on road and rock, louder for mud tyres
+      let hard = 0;
+      for (const w of v.wheels) if (w.contact && (w.surf.name === 'road' || w.surf.name === 'rock')) hard += 0.25;
+      const noise = [0.25, 0.7, 1][v.spec.tyre.tread || 0];
+      glide(this.humGain.gain, hard * noise * Math.min(1, speed / 12) * 0.05, t, 0.1);
+      glide(this.humOsc.frequency, Math.max(40, speed / ([0.055, 0.085, 0.13][v.spec.tyre.tread || 0])), t, 0.1);
       // ground under the tyres
       let roll = 0, crunch = 0, slip = 0, mud = 0, water = 0, n = 0;
       for (const w of v.wheels) {

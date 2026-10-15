@@ -38,8 +38,9 @@ export const DEFAULT_TYRE = {
   inertia: 2.4,          // kg m^2 about the axle, incl. hub and brake drum
   stiffness: 230000,     // N/m vertical
   damping: 2200,         // N s/m vertical
-  mu: 1.0,               // tread grip multiplier (all-terrain = 1)
-  looseBonus: 1.0,       // extra grip on loose ground (mud-terrain tread > 1)
+  mu: 1.0,               // grip multiplier
+  looseBonus: 1.0,       // extra grip on loose ground
+  grip: null,            // per-surface grip of the tread (index: surface id), relative to an all-terrain
   kappaPeak: 0.13,       // slip ratio at peak force on firm ground
   alphaPeak: 0.19,       // slip angle (rad) at peak lateral force on firm ground
   relaxX: 0.22,          // m, longitudinal relaxation length
@@ -62,7 +63,7 @@ export function tyreForce(out, N, kappa, tanA, surf, tyre) {
   if (N <= 0) { out.fx = 0; out.fy = 0; out.s = 0; out.mu = 0; return out; }
   const loose = surf.C <= 1.0001;
   const load = clamp(1 - tyre.loadSens * (N / tyre.loadNominal - 1), 0.65, 1.12);
-  const mu = surf.mu * tyre.mu * (loose ? tyre.looseBonus : 1) * load;
+  const mu = gripOn(surf, tyre) * (loose ? tyre.looseBonus : 1) * load;
   const kp = tyre.kappaPeak * surf.slip, ap = tyre.alphaPeak * surf.slip;
   const sx = kappa / kp, sy = tanA / ap;
   const s = Math.sqrt(sx * sx + sy * sy);
@@ -77,13 +78,18 @@ export function tyreForce(out, N, kappa, tanA, surf, tyre) {
   return out;
 }
 
+/** Friction coefficient of this tyre (tread, pressure) on this surface. */
+export function gripOn(surf, tyre) {
+  return surf.mu * tyre.mu * (tyre.grip ? tyre.grip[surf.id] : 1);
+}
+
 /** The tyre's cornering stiffness (N per unit tan alpha) at load N on surface surf, for the low-speed damping. */
 export function corneringStiffness(N, surf, tyre) {
   const k = curve(surf.C);
-  return surf.mu * tyre.mu * N * k.slope / (tyre.alphaPeak * surf.slip);
+  return gripOn(surf, tyre) * N * k.slope / (tyre.alphaPeak * surf.slip);
 }
 
 export function slipStiffness(N, surf, tyre) {
   const k = curve(surf.C);
-  return surf.mu * tyre.mu * N * k.slope / (tyre.kappaPeak * surf.slip);
+  return gripOn(surf, tyre) * N * k.slope / (tyre.kappaPeak * surf.slip);
 }
