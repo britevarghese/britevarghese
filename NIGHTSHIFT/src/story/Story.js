@@ -829,7 +829,13 @@ export class Story {
           if (s.timeLeft <= 0) { this.fail(A.m.job?.kind === 'taxi' ? 'The passenger got out and walked.' : 'You ran out of time.'); return; }
         }
         if (s.needCar && inCar) { s.needCar = false; this._objective(st.text); }
-        const d = Math.hypot(f.x - s.target.x, f.z - s.target.z), sp = Math.hypot(f.vx || 0, f.vz || 0);
+        let d = Math.hypot(f.x - s.target.x, f.z - s.target.z);
+        // (a place kilometres off is put on the nearest road loaded when the step starts, maybe not its own: worked out
+        // again once its roads are in. Chirakkal's spot was left 60 m from any road, the step never done)
+        if (typeof st.to === 'string' && st.to !== 'giver' && !s.reTarget && d < 400) {
+          s.reTarget = true; s.target = target = this._resolve(st.to, A.m); d = Math.hypot(f.x - s.target.x, f.z - s.target.z);
+        }
+        const sp = Math.hypot(f.vx || 0, f.vz || 0);
         // someone to pick up or drop off here: he comes to the car (or gets out) before the step is done
         const R = this._riderFor(st, s, d);
         if (R) { if (this._riderStop(R, st, s, d, sp, dt)) { this._next(); return; } if (s.boarding || s.dropping) target = null; break; }
@@ -926,7 +932,7 @@ export class Story {
         v.sync(dt, g.camera.position, g.env.state);
         arrowOn = v;
         const d = Math.hypot(v.state.x - f.x, v.state.z - f.z);
-        const atEnd = Math.hypot(v.state.x - s.end[0], v.state.z - s.end[1]) < 18 && ai.idx >= s.route.length - 3;
+        const atEnd = Math.hypot(v.state.x - s.end[0], v.state.z - s.end[1]) < 18 && ai.idx >= ai.route.length - 3;
         if (st.type !== 'race' && !s.moving) { /* waiting */ }
         else if (st.type === 'tail') {
           const close = d < 16, far = d > 170;

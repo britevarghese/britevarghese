@@ -131,7 +131,11 @@ export class KeralaRouter {
         // (only the point two lanes share at a junction, or one on top of another: dropping every point within 6 m
         // of the last left out the start of the next lane, and the route cut across the corner, a metre off the
         // lane, into a bridge's parapet)
-        if (last && Math.hypot(P[i][0] - last.x, P[i][1] - last.z) < 1.5) continue;
+        // (and only those: across a narrow junction one lane ends 1.4 m from the next one's start, and dropping that
+        // start ran the route from the kerb to the lane's next point 105 m on, a car's width off the lane all along,
+        // into a house's wall; moving the last lane's end onto it instead skewed that lane's last 45 m, into a canal's
+        // parapet. The two points kept, the AI rounds the turn between them)
+        if (last && Math.hypot(P[i][0] - last.x, P[i][1] - last.z) < 0.5) continue;
         out.push(N.length); N.push({ id: N.length, x: P[i][0], z: P[i][1], type: 'wp' });
       }
     }
