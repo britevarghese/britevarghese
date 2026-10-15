@@ -569,6 +569,8 @@ export class KeralaTrees {
       const V = tile.visCanvas.getContext('2d'), RS = tile.visCanvas.width / TILE;
       V.fillStyle = 'rgba(22,40,16,0.32)';
       for (let i = 0; i < N; i++) {
+        // (a pause when it's time: a canvas circle a tree, tens of thousands, took up to a twelfth of a second)
+        if ((i & 1023) === 1023 && performance.now() - ys > 3) { yield 'trees+'; ys = performance.now(); V.fillStyle = 'rgba(22,40,16,0.32)'; }
         const k = P[i * 7 + 3]; if (k === KIND.bush || k === KIND.grass) continue;
         const r = (k === KIND.broad ? 3.6 : k === KIND.palm ? 2.6 : k === KIND.rubber ? 2.2 : k === KIND.bamboo ? 2.4 : 1.4) * P[i * 7 + 4] * RS;
         V.beginPath(); V.arc(P[i * 7] * RS, (TILE - P[i * 7 + 1]) * RS, Math.max(0.6, r), 0, 6.283); V.fill();

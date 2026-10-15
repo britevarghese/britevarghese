@@ -56,6 +56,35 @@ export function faceUp(g) {
 }
 // vertex normals as three's computeVertexNormals makes them (each face's (C - B) x (A - B) added to its corners, then
 // normalised), in typed arrays: three's goes through accessor calls per corner, a tile's slowest part of a few steps
+// mergeGeometries in steps: the parts copied into the merged arrays a few at a time, a pause between when the build's
+// slice of the frame is up (`due`). One merge of ~40k vertices of a tile's walls took up to an eighth of a second.
+// Interleaved or mixed parts: the library's own merge, at once
+export function* mergeSteps(geos, due) {
+  if (!geos.length) return null;
+  const names = Object.keys(geos[0].attributes), indexed = !!geos[0].index;
+  for (const g of geos) {
+    if (!!g.index !== indexed || Object.keys(g.attributes).length !== names.length) return mergeGeometries(geos);
+    for (const n of names) { const a = g.attributes[n], a0 = geos[0].attributes[n]; if (!a || a.isInterleavedBufferAttribute || a.itemSize !== a0.itemSize || a.array.constructor !== a0.array.constructor || a.normalized !== a0.normalized) return mergeGeometries(geos); }
+  }
+  let nv = 0, ni = 0;
+  for (const g of geos) { nv += g.attributes.position.count; if (indexed) ni += g.index.count; }
+  const arrs = {};
+  for (const n of names) { const a = geos[0].attributes[n]; arrs[n] = new a.array.constructor(nv * a.itemSize); }
+  const idx = indexed ? (nv > 65535 ? new Uint32Array(ni) : new Uint16Array(ni)) : null;
+  let vo = 0, io = 0;
+  for (let k = 0; k < geos.length; k++) {
+    const g = geos[k], c = g.attributes.position.count;
+    for (const n of names) { const a = g.attributes[n]; arrs[n].set(a.array.length === c * a.itemSize ? a.array : a.array.subarray(0, c * a.itemSize), vo * a.itemSize); }
+    if (indexed) { const I = g.index.array, m = g.index.count; for (let i = 0; i < m; i++) idx[io + i] = I[i] + vo; io += m; }
+    vo += c;
+    if ((k & 7) === 7 && due()) yield 'merge+';
+  }
+  const out = new THREE.BufferGeometry();
+  for (const n of names) { const a = geos[0].attributes[n]; out.setAttribute(n, new THREE.BufferAttribute(arrs[n], a.itemSize, a.normalized)); }
+  if (idx) out.setIndex(new THREE.BufferAttribute(idx, 1));
+  return out;
+}
+
 export function fastNormals(g) {
   const P = g.attributes.position.array, I = g.index ? g.index.array : null, n = I ? I.length : P.length / 3, N = new Float32Array(P.length);
   for (let t = 0; t + 2 < n; t += 3) {
@@ -179,7 +208,7 @@ export class KeralaTile {
     yield* this._gradeRoads();
     this.h0r = null;
     yield 'tile:carve';
-    this._carveWaterways();
+    yield* this._carveSteps();
     yield 'tile:grade';
     g.add(this._terrain(M));
     yield 'tile:water';
@@ -337,9 +366,10 @@ export class KeralaTile {
   // Canals, rivers and streams the map draws as lines: a channel with stone walls and the water well below its banks
   // (they were a flat sheet of water lying on the ground, roads and all, that people walked and drove on). Kept clear
   // of the roads (a road crosses on its own graded level: a culvert or a bridge with its parapets).
-  _carveWaterways() {
+  _carveWaterways() { const it = this._carveSteps(); while (!it.next().done); }
+  *_carveSteps() {
     this._hPre = this.h.slice();
-    this._canals();
+    yield* this._canalsSteps();
   }
 
   // the open stretches of every canal, river and stream line (broken where a road crosses), and from them: a 2 m mask
@@ -347,8 +377,18 @@ export class KeralaTile {
   // for the ground in it (the bed, under the water)
   _canals() {
     if (this._cn) return this._cn;
+    const it = this._canalsSteps();
+    let r;
+    while (!(r = it.next()).done);
+    return r.value;
+  }
+  // (in steps, a pause when the build's slice of the frame is up: the lines, the mask drawn, read back and turned
+  // over, all at once, took up to a seventh of a second)
+  *_canalsSteps() {
+    if (this._cn) return this._cn;
     const out = this._cn = [];
     for (const w of this.data.wl || []) {
+      if (this._due()) { yield 'tile:canals+'; this._ys = performance.now(); }
       if (w[0] === 3) continue;
       const pts = decodeLine(w, 2), hw = Math.max(1.5, w[1] / 20);
       let cur = [];
@@ -398,6 +438,7 @@ export class KeralaTile {
     }
     // the mask (1024 px, rows from the south, as the terrain's uv runs)
     if ((out.length || polys.length) && typeof document !== 'undefined') {
+      yield 'tile:canals+'; this._ys = performance.now();
       const R = 1024, k = R / TILE, cv = document.createElement('canvas'); cv.width = cv.height = R;
       const g = cv.getContext('2d', { willReadFrequently: true });
       g.strokeStyle = '#fff'; g.lineCap = 'butt'; g.lineJoin = 'round';
@@ -408,8 +449,12 @@ export class KeralaTile {
       g.globalCompositeOperation = 'destination-out'; g.lineCap = 'round';
       for (const r of this.roads) { if (r.flags & 4 || r.cls > 8 || r.deck) continue; g.lineWidth = (ROAD_HALF[r.cls] * 2 + 1) * k; g.beginPath(); r.pts.forEach(([e, n], i) => { const x = e * k, y = (TILE - n) * k; if (i) g.lineTo(x, y); else g.moveTo(x, y); }); g.stroke(); }
       g.globalCompositeOperation = 'source-over';
+      yield 'tile:canals+'; this._ys = performance.now();
       const src = g.getImageData(0, 0, R, R).data, a = new Uint8Array(R * R);
-      for (let y = 0; y < R; y++) for (let x = 0; x < R; x++) a[(R - 1 - y) * R + x] = src[(y * R + x) * 4];
+      for (let y = 0; y < R; y++) {
+        if ((y & 63) === 63 && this._due()) { yield 'tile:canals+'; this._ys = performance.now(); }
+        for (let x = 0; x < R; x++) a[(R - 1 - y) * R + x] = src[(y * R + x) * 4];
+      }
       const t = this.canalMask = new THREE.DataTexture(a, R, R, THREE.RedFormat);
       t.magFilter = THREE.LinearFilter; t.minFilter = THREE.LinearFilter; t.needsUpdate = true;
     }
@@ -1215,7 +1260,7 @@ export class KeralaTile {
     const g = new THREE.BufferGeometry();
     g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
     g.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
-    g.setIndex(new THREE.BufferAttribute(all.subarray(0, fullGrid), 1)); g.computeVertexNormals();   // (normals from the full grid)
+    g.setIndex(new THREE.BufferAttribute(all.subarray(0, fullGrid), 1)); fastNormals(g);   // (normals from the full grid)
     const N3 = g.attributes.normal.array;
     edge.forEach(([i, j], q) => { const k = (j * n + i) * 3; N3.set([N3[k], N3[k + 1], N3[k + 2]], (nv + q) * 3); });
     // (one index buffer holding every level; the draw range picks the level)
@@ -1276,8 +1321,8 @@ export class KeralaTile {
       if (g) { g.deleteAttribute('uv'); geos.push(faceUp(g)); }
     }
     if (!geos.length) return null;
-    for (const g of geos) if (!g.attributes.normal) g.computeVertexNormals();
-    const merged = mergeGeometries(geos.map((g) => { g.deleteAttribute('normal'); g.computeVertexNormals(); return g; }));
+    for (const g of geos) if (!g.attributes.normal) fastNormals(g);
+    const merged = mergeGeometries(geos.map((g) => { g.deleteAttribute('normal'); fastNormals(g); return g; }));
     if (!merged) return null;
     const m = new THREE.Mesh(merged, M.klWater || M.water);
     m.name = 'water';
@@ -1364,7 +1409,7 @@ export class KeralaTile {
     sg.setAttribute('color', new THREE.BufferAttribute(col, 3));
     sg.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
     sg.setAttribute('uv', new THREE.Float32BufferAttribute(new Float32Array(pos.length / 3 * 2), 2));
-    sg.setIndex(idx); faceUp(sg); sg.computeVertexNormals();
+    sg.setIndex(idx); faceUp(sg); fastNormals(sg);
     return sg;
   }
 
@@ -1404,7 +1449,7 @@ export class KeralaTile {
       const c0 = [m.e + m.ne * m.w / 2 - m.ue * 2.1, m.n + m.nn * m.w / 2 - m.un * 2.1], c1 = [m.e + m.ne * m.w / 2 + m.ue * 2.1, m.n + m.nn * m.w / 2 + m.un * 2.1];
       const y = (m.y0 + m.y1) / 2 + 0.07 + (10 - m.cls) * 0.004 - 0.005;
       const gq = this._ribbon([c0, c1], m.w / 2 + 0.25, () => y, 7);
-      if (gq) { gq.computeVertexNormals(); const n0 = gq.attributes.position.count; gq.setAttribute('junc', new THREE.BufferAttribute(new Float32Array(n0).fill(1), 1)); paved.push(gq); }
+      if (gq) { fastNormals(gq); const n0 = gq.attributes.position.count; gq.setAttribute('junc', new THREE.BufferAttribute(new Float32Array(n0).fill(1), 1)); paved.push(gq); }
     }
     // wider classes sit a hair higher so junctions don't flicker
     for (const r of this.roads) {
@@ -1430,7 +1475,7 @@ export class KeralaTile {
       const g = this._ribbon(P, hw, ys(0), 7, rows);
       if (!g) continue;
       r.drawn = { rows, hw };   // (what the wheels drive on: see _drawnAt)
-      g.computeVertexNormals();
+      fastNormals(g);
       if (!r.dirt) {
         // in a junction the strips overlap: no ragged edge or verge dust there (it would show on the other road)
         const Pp = g.attributes.position, J = new Float32Array(Pp.count);
@@ -1438,6 +1483,7 @@ export class KeralaTile {
         g.setAttribute('junc', new THREE.BufferAttribute(J, 1));
       }
       (r.dirt ? dirt : paved).push(g);
+      if (this._due()) { yield 'tile:roads+'; this._ys = performance.now(); }
       const sk = r.deck ? null : this._shoulder(g, this.roads.indexOf(r));  // (a road with a bridge: its approaches are banked up instead)
       if (sk) shoulders.push(sk);
       if (r.dirt || r.cls > 4) continue;  // village and town lanes carry no paint
@@ -1447,15 +1493,18 @@ export class KeralaTile {
       if (r.cls <= 3) for (const side of [1, -1]) { const e = this._dashes(r.pts, side * (hw - 0.35), 0.08, 0, 0, ys(0.012)); if (e) (r.cls <= 1 ? yellow : white).push(e); }
     }
     this._junctions = [...seen].filter(([, [c]]) => c >= 3).map(([k, [c, hw]]) => { const [e, n] = k.split(',').map(Number); return { e, n, c, r: hw + 2.5 }; });
-    const out = [];
-    const add = (list, mat, name) => { if (!list.length) return; const gg = mergeGeometries(list); if (!gg) return; const m = new THREE.Mesh(gg, mat); m.receiveShadow = true; m.name = name; out.push(m); };
-    add(paved, M.klRoad || M.road, 'roads');
-    add(dirt, M.klDirtRoad || M.dirt, 'tracks');
-    add(shoulders, M.klShoulder || M.klDirtRoad || M.dirt, 'shoulders');
-    const br = this._bridges();
-    if (br) { const m = new THREE.Mesh(br, M.klBridge || M.klKerb); m.name = 'bridges'; m.castShadow = true; m.receiveShadow = true; out.push(m); }
-    add(white, M.klLineWhite, 'lines');
-    add(yellow, M.klLineYellow, 'linesY');
+    // (each kind merged in steps: the whole tile's roads in one merge took up to a ninth of a second)
+    const out = [], due = () => { if (!this._due()) return false; this._ys = performance.now(); return true; };
+    const kinds = [[paved, M.klRoad || M.road, 'roads'], [dirt, M.klDirtRoad || M.dirt, 'tracks'], [shoulders, M.klShoulder || M.klDirtRoad || M.dirt, 'shoulders'], 'bridges', [white, M.klLineWhite, 'lines'], [yellow, M.klLineYellow, 'linesY']];
+    for (const k of kinds) {
+      if (this._due()) { yield 'tile:roads+'; this._ys = performance.now(); }
+      if (k === 'bridges') { const br = this._bridges(); if (br) { const m = new THREE.Mesh(br, M.klBridge || M.klKerb); m.name = 'bridges'; m.castShadow = true; m.receiveShadow = true; out.push(m); } continue; }
+      const [list, mat, name] = k;
+      if (!list.length) continue;
+      const gg = yield* mergeSteps(list, due);
+      if (!gg) continue;
+      const m = new THREE.Mesh(gg, mat); m.receiveShadow = true; m.name = name; out.push(m);
+    }
     return out;
   }
 
@@ -1519,6 +1568,8 @@ export class KeralaTile {
         };
         let A = prof(0);
         for (let i = 1; i < P.length; i++) {
+          // (a pause every few points when it's time: one long road's two sides in one go took up to a sixth of a second)
+          if ((i & 15) === 0 && this._due()) { yield 'tile:street+'; this._ys = performance.now(); }
           const B = prof(i);
           const mid = [(P[i][0] + P[i - 1][0]) / 2, (P[i][1] + P[i - 1][1]) / 2];
           if ((runLeft -= 3) < 0) { cover = !cover; runLeft = cover ? 12 + rnd() * 30 : 3 + rnd() * 8; }   // (mostly slabbed over in town)
@@ -1601,7 +1652,7 @@ export class KeralaTile {
           for (let o = -hw + 0.6; o <= hw - 0.5; o += 1.1) {
             const se = ce - un * o, sn = cn + ue * o;
             const g = this._ribbon([[se - ue * 1.6, sn - un * 1.6], [se + ue * 1.6, sn + un * 1.6]], 0.28, y, 1e9);
-            if (g) { g.computeVertexNormals(); zebra.push(g); }
+            if (g) { fastNormals(g); zebra.push(g); }
           }
           (this.crossings || (this.crossings = [])).push({ x: -(this.E0 + ce), z: this.N0 + cn, fx: -ue, fz: un, hw });
         }
@@ -1752,7 +1803,7 @@ export class KeralaTile {
       const g = new THREE.BufferGeometry();
       g.setAttribute('position', new THREE.Float32BufferAttribute(K.p, 3));
       g.setAttribute('color', byteColors(K.c, 3));
-      g.computeVertexNormals();
+      fastNormals(g);
       const m = new THREE.Mesh(g, M.klKerb); m.name = 'kerbs'; m.receiveShadow = true;
       m.userData.cc = [(c % 4) * 500 + 250, Math.floor(c / 4) * 500 + 250]; m.userData.far = 450;
       out.push(m);
@@ -1784,8 +1835,8 @@ export class KeralaTile {
     const g = new THREE.BufferGeometry();
     g.setAttribute('position', new THREE.Float32BufferAttribute(p, 3));
     g.setAttribute('color', new THREE.Float32BufferAttribute(c, 3));
-    g.computeVertexNormals();
-    if (g.attributes.normal.getY(0) < 0) { const P = g.attributes.position.array; for (let i = 0; i < P.length; i += 9) for (let q = 0; q < 3; q++) { const t = P[i + 3 + q]; P[i + 3 + q] = P[i + 6 + q]; P[i + 6 + q] = t; } g.computeVertexNormals(); }
+    fastNormals(g);
+    if (g.attributes.normal.getY(0) < 0) { const P = g.attributes.position.array; for (let i = 0; i < P.length; i += 9) for (let q = 0; q < 3; q++) { const t = P[i + 3 + q]; P[i + 3 + q] = P[i + 6 + q]; P[i + 6 + q] = t; } fastNormals(g); }
     return g;
   }
 
@@ -1924,7 +1975,7 @@ export class KeralaTile {
         return parts.length ? mergeGeometries(parts) : null;
       }
     }
-    if (!dash) return (() => { const g = this._ribbon(P, hw, yOf, 1e9); if (g) g.computeVertexNormals(); return g; })();
+    if (!dash) return (() => { const g = this._ribbon(P, hw, yOf, 1e9); if (g) fastNormals(g); return g; })();
     const geos = [];
     let acc = 0, on = true, seg = [P[0]];
     for (let i = 1; i < P.length; i++) {
@@ -1937,7 +1988,7 @@ export class KeralaTile {
         if (on) seg.push([me, mn]);
         acc += step; L -= step; ae = me; an = mn;
         if (acc >= (on ? dash : gap) - 1e-6) {
-          if (on && seg.length > 1) { const g = this._ribbon(seg, hw, yOf, 1e9); if (g) { g.computeVertexNormals(); geos.push(g); } }
+          if (on && seg.length > 1) { const g = this._ribbon(seg, hw, yOf, 1e9); if (g) { fastNormals(g); geos.push(g); } }
           on = !on; acc = 0; seg = [[ae, an]];
         }
       }
@@ -2169,7 +2220,7 @@ export class KeralaTile {
     if (!pos.length) return null;
     const g = new THREE.BufferGeometry();
     g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
-    g.computeVertexNormals();
+    fastNormals(g);
     return g;
   }
 
@@ -2356,7 +2407,7 @@ export class KeralaTile {
       const wg = new THREE.BufferGeometry();
       wg.setAttribute('position', new THREE.BufferAttribute(pos, 3));
       wg.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
-      wg.setIndex(idx); wg.computeVertexNormals();
+      wg.setIndex(idx); fastNormals(wg);
       // facade: houses in Kerala's paint colours, shops / flats / offices concrete, places of worship white
       // Kerala plaster in a painted tint for homes and most shops / flats; churches, temples and mosques white;
       // industrial sheds corrugated metal; a few concrete office blocks
@@ -2381,7 +2432,7 @@ export class KeralaTile {
         const pg = new THREE.BufferGeometry();
         pg.setAttribute('position', new THREE.Float32BufferAttribute(ip, 3));
         pg.setAttribute('uv', new THREE.Float32BufferAttribute(iu, 2));
-        pg.setIndex(ii); pg.computeVertexNormals();
+        pg.setIndex(ii); fastNormals(pg);
         push(fac, pg);
       }
       // a concrete sunshade (chajja) over every window, exactly where the texture paints it: 2.58-2.69 m above
@@ -2426,7 +2477,7 @@ export class KeralaTile {
         const rg = new THREE.BufferGeometry();
         rg.setAttribute('position', new THREE.Float32BufferAttribute(rp, 3));
         rg.setAttribute('uv', new THREE.Float32BufferAttribute(ru, 2));
-        rg.setIndex(ri); faceUp(rg); rg.computeVertexNormals();
+        rg.setIndex(ri); faceUp(rg); fastNormals(rg);
         roofsTile.push(rg);
       } else {
         // flat concrete terrace; most homes keep a black water tank up there
@@ -2437,7 +2488,7 @@ export class KeralaTile {
         const ri = []; for (const t of tris) ri.push(t[0], t[2], t[1]);
         const rg = new THREE.BufferGeometry();
         rg.setAttribute('position', new THREE.Float32BufferAttribute(rp, 3));
-        rg.setIndex(ri); faceUp(rg); rg.computeVertexNormals();
+        rg.setIndex(ri); faceUp(rg); fastNormals(rg);
         roofsFlat.push(rg);
       }
       // collider: the footprint's oriented box (principal axes)
@@ -2486,9 +2537,10 @@ export class KeralaTile {
     // (merged in batches of ~40k vertices, a pause between: one merge of a whole tile's walls of a kind took a tenth of
     // a second, the game stalling with it)
     const batches = (geos) => { const B = [[]]; let nv = 0; for (const g of geos) { const c = g.attributes.position.count; if (nv + c > 40000 && B[B.length - 1].length) { B.push([]); nv = 0; } B[B.length - 1].push(g); nv += c; } return B; };
-    for (const [fac, geos] of byMat) for (const part of batches(geos)) { if (this._due()) { yield 'tile:bmerge+'; this._ys = performance.now(); } const g = mergeGeometries(part); if (g) { const m = new THREE.Mesh(g, M.facades[fac] || M.facades[6]); m.castShadow = !!opts.shadows; m.receiveShadow = true; out.push(m); } }
+    const due = () => { if (!this._due()) return false; this._ys = performance.now(); return true; };
+    for (const [fac, geos] of byMat) for (const part of batches(geos)) { if (this._due()) { yield 'tile:bmerge+'; this._ys = performance.now(); } const g = yield* mergeSteps(part, due); if (g) { const m = new THREE.Mesh(g, M.facades[fac] || M.facades[6]); m.castShadow = !!opts.shadows; m.receiveShadow = true; out.push(m); } }
     const strip = (gs) => gs.map((g) => { for (const k of Object.keys(g.attributes)) if (k !== 'position' && k !== 'normal') g.deleteAttribute(k); return g; });
-    for (const part of roofsTile.length ? batches(roofsTile) : []) { if (this._due()) { yield 'tile:bmerge+'; this._ys = performance.now(); } const g = mergeGeometries(part); if (g) { const m = new THREE.Mesh(g, M.klRoofTile); m.castShadow = !!opts.shadows; m.name = 'roofsTile'; out.push(m); } }
+    for (const part of roofsTile.length ? batches(roofsTile) : []) { if (this._due()) { yield 'tile:bmerge+'; this._ys = performance.now(); } const g = yield* mergeSteps(part, due); if (g) { const m = new THREE.Mesh(g, M.klRoofTile); m.castShadow = !!opts.shadows; m.name = 'roofsTile'; out.push(m); } }
     // ledges in 500 m chunks, so only the ones near the camera are drawn (3 quads each: top, front, underside)
     // (straight into typed arrays: built as JS lists, with three's normals, a chunk took up to a tenth of a second)
     const byChunk = Array.from({ length: 16 }, () => []), Q = [0, 2, 1, 1, 2, 3, 2, 4, 3, 3, 4, 5, 4, 6, 5, 5, 6, 7];
@@ -2712,7 +2764,7 @@ export class KeralaTile {
       const g = new THREE.BufferGeometry();
       g.setAttribute('position', new THREE.Float32BufferAttribute(A.p, 3));
       g.setAttribute('color', byteColors(A.c, cols));
-      g.computeVertexNormals();
+      fastNormals(g);
       const m = new THREE.Mesh(g, mat); m.name = name; m.userData.far = far; return m;
     };
     for (const [c, A] of D.walls.entries()) {

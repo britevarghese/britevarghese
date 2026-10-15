@@ -172,6 +172,15 @@ the game. Newly found problems go at the end of their section.
   and up to 8 of them were drawn that way at once on High (12 on Ultra), shadows on top. The nearest cars still get
   full detail, within a triangle budget per quality level (High: 1M; a short drive peaked at 1.0M, was 1.33M)
 
+- [x] Hitches while driving into new country (a tile's build stalling a frame): every step of a tile's build timed
+  on a drive (headless, its CPU about half a desktop's). The worst were the ground's mesh (up to a quarter of a second:
+  its normals by three's general routine), the first street of a tile (a long road's kerbs in one go, a sixth of a
+  second), a tile's roads or walls merged at once (an eighth), the canals' mask (a seventh) and the canopy shade (a
+  twelfth). Now the normals are worked out straight from the arrays (several times faster), the long loops pause when
+  the frame's share is used, the merges copy a few parts at a time with a pause between, the mask is drawn, read and
+  turned over in pieces. Frames over 40 ms on the same drive 21 -> 18, the worst 269 -> ~130 ms; what's left is mostly
+  the garbage collector and shaders compiling (in the test, without a GPU)
+
 ## People
 - [x] Clothing: men in plain shirts over dark trousers, khaki or a white mundu, black hair; women in sarees; no kurtas or western dress in crowds, drivers or riders
 - [x] More women: four saree models (two new: yellow and rose), and churidars (a kurta-coloured top over leggings) on the two women avatars; models with their origin at the waist now come out the right size
