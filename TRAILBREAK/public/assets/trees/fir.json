@@ -1,0 +1,38 @@
+{
+ "name": "fir",
+ "height": 0.04,
+ "radius": 0.278,
+ "groups": [
+  {
+   "kind": "bark",
+   "vertices": 1420,
+   "indices": 5685,
+   "position": 0,
+   "normal": 17040,
+   "uv": 21300,
+   "index": 32660,
+   "map": "fir_0_color.webp",
+   "mapSize": [
+    512,
+    512
+   ],
+   "normalMap": "fir_0_normal.webp"
+  },
+  {
+   "kind": "leaf",
+   "vertices": 3200,
+   "indices": 7680,
+   "position": 44032,
+   "normal": 82432,
+   "uv": 92032,
+   "index": 117632,
+   "map": "fir_1_color.webp",
+   "mapSize": [
+    1024,
+    1024
+   ],
+   "normalMap": "fir_1_normal.webp",
+   "alphaCutoff": 0.246
+  }
+ ]
+}

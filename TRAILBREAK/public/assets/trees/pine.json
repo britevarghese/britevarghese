@@ -1,0 +1,38 @@
+{
+ "name": "pine",
+ "height": 0.05,
+ "radius": 0.209,
+ "groups": [
+  {
+   "kind": "bark",
+   "vertices": 2914,
+   "indices": 13617,
+   "position": 0,
+   "normal": 34968,
+   "uv": 43712,
+   "index": 67024,
+   "map": "pine_0_color.webp",
+   "mapSize": [
+    256,
+    512
+   ],
+   "normalMap": "pine_0_normal.webp"
+  },
+  {
+   "kind": "leaf",
+   "vertices": 1088,
+   "indices": 3264,
+   "position": 94260,
+   "normal": 107316,
+   "uv": 110580,
+   "index": 119284,
+   "map": "pine_1_color.webp",
+   "mapSize": [
+    1024,
+    1024
+   ],
+   "normalMap": "pine_1_normal.webp",
+   "alphaCutoff": 0.208
+  }
+ ]
+}

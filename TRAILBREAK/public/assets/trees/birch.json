@@ -1,0 +1,38 @@
+{
+ "name": "birch",
+ "height": 0.08,
+ "radius": 0.342,
+ "groups": [
+  {
+   "kind": "bark",
+   "vertices": 2678,
+   "indices": 13005,
+   "position": 0,
+   "normal": 32136,
+   "uv": 40172,
+   "index": 61596,
+   "map": "birch_0_color.webp",
+   "mapSize": [
+    512,
+    512
+   ],
+   "normalMap": "birch_0_normal.webp"
+  },
+  {
+   "kind": "leaf",
+   "vertices": 3182,
+   "indices": 9234,
+   "position": 87608,
+   "normal": 125792,
+   "uv": 135340,
+   "index": 160796,
+   "map": "birch_1_color.webp",
+   "mapSize": [
+    1024,
+    1024
+   ],
+   "normalMap": "birch_1_normal.webp",
+   "alphaCutoff": 0.215
+  }
+ ]
+}

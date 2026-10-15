@@ -1,0 +1,53 @@
+{
+ "name": "spruce",
+ "height": 0.11,
+ "radius": 0.16,
+ "groups": [
+  {
+   "kind": "bark",
+   "vertices": 3529,
+   "indices": 17478,
+   "position": 0,
+   "normal": 42348,
+   "uv": 52936,
+   "index": 81168,
+   "map": "spruce_0_color.webp",
+   "mapSize": [
+    256,
+    512
+   ],
+   "normalMap": "spruce_0_normal.webp"
+  },
+  {
+   "kind": "leaf",
+   "vertices": 1749,
+   "indices": 5508,
+   "position": 116124,
+   "normal": 137112,
+   "uv": 142360,
+   "index": 156352,
+   "map": "spruce_1_color.webp",
+   "mapSize": [
+    1024,
+    1024
+   ],
+   "alphaCutoff": 0.24
+  },
+  {
+   "kind": "leaf",
+   "vertices": 200,
+   "indices": 480,
+   "position": 167368,
+   "normal": 169768,
+   "uv": 170368,
+   "index": 171968,
+   "map": "spruce_2_color.webp",
+   "mapSize": [
+    1024,
+    1024
+   ],
+   "normalMap": "spruce_2_normal.webp",
+   "alphaCutoff": 0.209
+  }
+ ]
+}

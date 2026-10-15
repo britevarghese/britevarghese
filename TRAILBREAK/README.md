@@ -6,8 +6,9 @@ valley's 15 survey beacons, and you winch each other out when one of you gets st
 
 Nothing to install for players: they open the server's address in Chrome, Edge or Firefox.
 
-- **Engine:** three.js (WebGL2), everything procedural: the valley is generated identically on every client from a
-  fixed seed, and the trucks, trees, rocks and buildings are built from code. No model or texture downloads.
+- **Engine:** three.js (WebGL2). The valley is generated identically on every client from a fixed seed, and the
+  trucks, rocks and buildings are built from code. The trees are four real species (game models, 1.5 MB): the full
+  model close up, and beyond that a picture of it rendered when the game starts.
 - **Physics:** written for off-roading, running at 480 Hz (see [The physics](#the-physics)).
 - **Server:** Node.js 18+ with no npm dependencies. Static files, http and https on one port, and WebSocket rooms.
 
@@ -222,5 +223,6 @@ test/                     node --test suites
 
 ## Credits
 
-Engine sounds: see `public/assets/audio/CREDITS.md` (Freesound, CC BY 4.0). three.js is MIT licensed
-(`public/vendor/three/LICENSE`). Everything else is original.
+Engine sounds: see `public/assets/audio/CREDITS.md` (Freesound, CC BY 4.0). Tree models: pine, fir, spruce and birch
+by evolveduk on Sketchfab, CC BY 4.0, see `public/assets/trees/CREDITS.md` (converted with `tools/trees.py`). three.js
+is MIT licensed (`public/vendor/three/LICENSE`). Everything else is original.

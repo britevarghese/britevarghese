@@ -115,7 +115,7 @@ async function start() {
   const terrain = new TerrainRenderer(world, renderer.scene, { onProgress: (f) => setLoad(0.64 + f * 0.16) });
   setLoad(0.82, 'Growing the trees');
   await new Promise((r) => setTimeout(r, 0));
-  const vegetation = new Vegetation(world, renderer.scene);
+  const vegetation = await Vegetation.create(world, renderer);
   const rocks = new Rocks(world, renderer.scene);
   const water = new Water(world, renderer.scene);
   const landmarks = new Landmarks(world, renderer.scene);
