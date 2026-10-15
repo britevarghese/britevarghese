@@ -28,6 +28,18 @@ export function soft(surface = SURFACE.MUD, h = 0) {
   };
 }
 
+/** Soft ground that keeps ruts, rising toward +z at `deg` degrees. */
+export function softSlope(deg, surface = SURFACE.SAND) {
+  const grid = new DeformGrid();
+  const s = SURFACES[surface], t = Math.tan(deg * Math.PI / 180);
+  return {
+    grid,
+    height: (x, z) => z * t - grid.get(x, z),
+    surfaceAt: () => s,
+    deform: (x, z, fx, fz, hw, hl, press, dig) => grid.stamp(x, z, fx, fz, hw, hl, press, dig, () => s.maxSink),
+  };
+}
+
 /** A slope with pits (holes) at the given [x0, z0, x1, z1] rectangles. */
 export function slopeWithPits(deg, pits, depth = 0.8, surface = SURFACE.DIRT) {
   const t = Math.tan(deg * Math.PI / 180);

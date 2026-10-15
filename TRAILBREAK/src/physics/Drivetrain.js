@@ -188,9 +188,17 @@ export class Drivetrain {
     if (this.shiftT > 0) { this.shiftT = Math.max(0, this.shiftT - dt); return; }
     if (!this.auto || this.gear <= 0) return;
     if (this.gear < this.firstGear) { this.gear = this.firstGear; return; }
-    if (this.sinceShift < 0.9) return;
     const n = this.t.gears.length;
     const turbineRpm = (g) => this.wOut * this.t.gears[g - 1] * RPM;
+    // crawling in low range off the throttle (a steep way down): hold the gear and drop to first for the engine to
+    // hold the truck back, as a driver puts the selector in 1
+    if (this.low && thrIn < 0.05) {
+      if (this.gear > this.firstGear && this.sinceShift > 0.6 && turbineRpm(this.gear - 1) < this.e.redline - 400) {
+        this.gear--; this.shiftT = this.t.shiftTime * (this.manual ? 1.1 : 0.8); this.lockupOn = false; this.sinceShift = 0;
+      }
+      return;
+    }
+    if (this.sinceShift < 0.9) return;
     // upshift from ~1800 rpm cruising to just under the redline flat out; downshift well below (the ratio step)
     const top = this.e.redline - 150, light = this.low ? 2100 : 1750;
     const up = light + (top - light) * thr;

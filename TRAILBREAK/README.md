@@ -224,6 +224,12 @@ Everything that makes off-roading off-roading is simulated, not faked:
   of gravel and rock, mud judder and hard hits; an Android phone buzzes; the camera trembles. Browsers can't drive a
   steering wheel's force-feedback motor, so wheels don't rumble.
 
+The ground is checked against what real 4x4s do on it (`test/surfaces.test.mjs`): a stock truck in low range climbs
+about 35 degrees of rock, 30 of dirt or gravel, 25 of grass, 12-15 of soft sand, mud or snow (several degrees more
+aired down to 15 psi) and 4 of ice; it stops from 50 km/h in about 13 m on the road, 17 m on grass and 100 m on ice;
+soft sand and mud drag like a brake. Down a steep hill in low range the gearbox holds first and the engine holds the
+truck back (a granny-geared four-speed crawls down at walking pace).
+
 The behaviours are checked by tests (`npm test`): ride height and weight on the tyres, holding on a 25 degree
 slope, sliding in mud, acceleration, low range climbing 30 degrees, open versus locked diffs on split friction,
 climbing a ledge, steering and body roll, tipping on a side slope, ruts and digging (and which tyre spins), the winch,
