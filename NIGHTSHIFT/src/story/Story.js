@@ -19,6 +19,27 @@ import { CrewMember } from './Crew.js';
 import { passengerProfile } from '../vehicles/Interaction.js';
 
 const YELLOW = 0xffc53d;
+// where a route turns right round: the way it comes in over the last 8 m and goes on over the next 8 m more than 150
+// degrees apart (a lane's hook into a junction's centre is no turn round). The index, or -1
+function uTurnAt(R) {
+  const n = R.length;
+  if (n < 3) return -1;
+  const cum = [0];
+  for (let i = 1; i < n; i++) cum.push(cum[i - 1] + Math.hypot(R[i][0] - R[i - 1][0], R[i][1] - R[i - 1][1]));
+  const at = (s) => {
+    s = Math.max(0, Math.min(cum[n - 1], s));
+    let lo = 0, hi = n - 1;
+    while (hi - lo > 1) { const m = (lo + hi) >> 1; if (cum[m] <= s) lo = m; else hi = m; }
+    const k = (s - cum[lo]) / ((cum[hi] - cum[lo]) || 1);
+    return [R[lo][0] + (R[hi][0] - R[lo][0]) * k, R[lo][1] + (R[hi][1] - R[lo][1]) * k];
+  };
+  for (let i = 1; i < n - 1; i++) {
+    const a = at(cum[i] - 8), b = R[i], c = at(cum[i] + 8);
+    const ux = b[0] - a[0], uz = b[1] - a[1], vx = c[0] - b[0], vz = c[1] - b[1], lu = Math.hypot(ux, uz), lv = Math.hypot(vx, vz);
+    if (lu > 3 && lv > 3 && (ux * vx + uz * vz) / (lu * lv) < -0.87) return i;
+  }
+  return -1;
+}
 const _a = new THREE.Vector3(), _b = new THREE.Vector3();
 const h = (tag, cls, html) => { const e = document.createElement(tag); if (cls) e.className = cls; if (html !== undefined) e.innerHTML = html; return e; };
 
@@ -116,9 +137,22 @@ export class Story {
     return v;
   }
 
-  _route(points, m) {
+  _route(points, m, big = false) {
     const wps = points.map((p) => { const s = this._resolve(p, m); return { x: s.x, z: s.z }; });
-    return this.game.races.prepare({ type: 'sprint', waypoints: wps }).route;
+    let route = this.game.races.prepare({ type: 'sprint', waypoints: wps, big }).route;
+    // a waypoint the route has to turn round at (a place up a dead end, a junction it goes past and comes back to):
+    // dropped, the route on from the one before (an AI car can't turn round in a lane: the truck you were tailing
+    // stood there for good)
+    for (let k = 0; k < 3 && wps.length > 2; k++) {
+      const u = uTurnAt(route);
+      if (u < 0) break;
+      let bi = -1, bd = 150;
+      for (let i = 1; i < wps.length - 1; i++) { const d = Math.hypot(wps[i].x - route[u][0], wps[i].z - route[u][1]); if (d < bd) { bd = d; bi = i; } }
+      if (bi < 0) break;
+      wps.splice(bi, 1);
+      route = this.game.races.prepare({ type: 'sprint', waypoints: wps, big }).route;
+    }
+    return route;
   }
 
   // ------------------------------------------------------------------ riders
@@ -477,16 +511,21 @@ export class Story {
       // (Kerala: the AI's route needs the roads along it built; until they are, build those first and try again)
       if (g.world.kerala && (s.nextTry || 0) > s.t) return false;
       const pts = st.route || [st.from || 'giver', st.to];
-      const route = this._route(pts, m);
+      if (g.world.kerala && s.t < 15) {
+        const need = pts.filter((q) => typeof q === 'string').map((q) => this.placeAt?.(q)).filter((p) => p && !(g.traffic.graph.nearest(p.x, p.z)?.dist < 150));
+        if (need.length) { s.nextTry = s.t + 1; g.world.prioritize?.(need); return false; }
+      }
+      const route = this._route(pts, m, (TRAFFIC_VEHICLES[type]?.params?.length || 0) > 6);
       if (g.world.kerala && route.length < 4) { s.nextTry = s.t + 1; g.world.prioritize?.(pts.map((q) => this._resolve(q, m))); return false; }
       let spot;
       if (st.type === 'race') {
-        // line up beside the player, facing the first leg
+        // line up beside the player, facing the first leg (Kerala: the rival in the lane, you beside him in the other
+        // one: 1.8 m either side of a narrow lane's centre had him half on the verge)
         const p = g.player.state, a = route[0], b = route[1] || route[0];
-        const yaw = Math.atan2(b[0] - a[0], b[1] - a[1]);
-        g.player.place(a[0] - Math.cos(yaw) * 1.8, a[1] + Math.sin(yaw) * 1.8, yaw);
+        const yaw = Math.atan2(b[0] - a[0], b[1] - a[1]), [oL, oR] = g.world.kerala ? [0, 3] : [1.8, 1.8];
+        g.player.place(a[0] - Math.cos(yaw) * oR, a[1] + Math.sin(yaw) * oR, yaw);
         g.camCtl.snap(g.player);
-        spot = { x: a[0] + Math.cos(yaw) * 1.8, z: a[1] - Math.sin(yaw) * 1.8, yaw };
+        spot = { x: a[0] + Math.cos(yaw) * oL, z: a[1] - Math.sin(yaw) * oL, yaw };
         s.countdown = 3.5; void p;
       } else {
         const a = route[0], b = route[1] || route[0];
@@ -503,6 +542,28 @@ export class Story {
       if (st.type === 'ram') s.hits = 0;
     }
     return true;
+  }
+
+  // the marker on the ground (Kerala's isn't at sea level: a ring at 0 was under the road), kept for the spot
+  _groundY(x, z) {
+    const c = this._gy;
+    if (c && c.x === x && c.z === z && c.y) return c.y;
+    const y = this.game.world.layout.groundHeight?.(x, z) || 0;
+    this._gy = { x, z, y };
+    return y;
+  }
+
+  // a step still waiting for its car (Kerala: not put there until the roads round the place are built, which is when
+  // you're a few kilometres off): the marker and the GPS on the place meanwhile, so you know where to go
+  _pendingWay(st, s, dt) {
+    const g = this.game, name = st.at || st.from || st.route?.[0];
+    const p = typeof name === 'string' ? this.placeAt?.(name) : null;
+    if (!p) return;
+    this.dest.visible = true; this.arrow.visible = false;
+    this.dest.position.set(p.x, this._groundY(p.x, p.z), p.z);
+    if (!s.gpsT || s.gpsT <= 0) { g.setGPS(p.x, p.z); s.gpsT = 2.5; }
+    s.gpsT -= dt;
+    this.target = { x: p.x, z: p.z };
   }
 
   // taxi passengers: one waits on the pavement at the pickup; the one you drop off walks away
@@ -552,7 +613,7 @@ export class Story {
     const A = this.active, st = A.m.steps[A.i], s = A.st;
     if (!st || !s) return;
     s.t += dt;
-    if (s.pending) { if (this._spawnPending(st, s)) s.pending = false; else return; }
+    if (s.pending) { if (this._spawnPending(st, s)) s.pending = false; else { this._pendingWay(st, s, dt); return; } }
     const f = g.focusState;
     const inCar = !g.onFoot.active;
     const P = g.player;
@@ -708,7 +769,7 @@ export class Story {
     // markers / GPS
     this.dest.visible = !!target && !arrowOn;
     if (target) {
-      this.dest.position.set(target.x, 0, target.z);
+      this.dest.position.set(target.x, this._groundY(target.x, target.z), target.z);
       this.dest.children[1].material.opacity = 0.6 + Math.sin(performance.now() / 250) * 0.25;
       if (!s.gpsT || s.gpsT <= 0 || s.gpsTo !== target) { g.setGPS(target.x, target.z); s.gpsT = 2.5; s.gpsTo = target; }
       s.gpsT -= dt;
@@ -768,7 +829,14 @@ export class Story {
   }
 
   // after the rest of the frame's interactions, so the mission prompt wins
-  late() { this.active?.script?.late(); if (this.promptHtml) this.game.hud.setPrompt(this.promptHtml); }
+  late() {
+    // (a contact's offer cleared once you've moved off or taken the job: nothing else clears a prompt while driving,
+    // and 'press E' stayed up all through the mission)
+    if (this._prompted && !this.promptHtml) this.game.hud.setPrompt(null);
+    this._prompted = !!this.promptHtml;
+    this.active?.script?.late();
+    if (this.promptHtml) this.game.hud.setPrompt(this.promptHtml);
+  }
 
   blips() {
     const out = [];

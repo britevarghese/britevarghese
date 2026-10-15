@@ -90,9 +90,11 @@ export class RaceManager {
     const gates = [];
     const nodeAt = (p) => L.nearestNode(p[0], p[1]);
     const legs = def.type === 'circuit' ? [...wps, wps[0]] : wps;
-    let broken = false;
+    let broken = false, after = null;
     for (let i = 0; i < legs.length - 1; i++) {
-      const ids = L.route(nodeAt(legs[i]), nodeAt(legs[i + 1]));
+      // (Kerala: each leg on from the way the last one came in, not turned round at the waypoint)
+      const ids = L.route(nodeAt(legs[i]), nodeAt(legs[i + 1]), after, def.big ? { big: true } : null);
+      after = L.lastLane || null;
       if (!ids.length && Math.hypot(legs[i][0] - legs[i + 1][0], legs[i][1] - legs[i + 1][1]) > 30) broken = true;
       for (let j = i === 0 ? 0 : 1; j < ids.length; j++) {
         const n = L.nodes[ids[j]];

@@ -286,6 +286,16 @@ export class Game {
     ai.needsReset = false;
     const s = vehicle.state;
     if (Math.hypot(s.x - this.camera.position.x, s.z - this.camera.position.z) < 45) return false;
+    // on its own route a little ahead, facing along it (the nearest lane can run the other way: stuck again, facing
+    // back the way it came)
+    const R = ai.route;
+    if (!ai.loop && ai.mode !== 'pursue' && R?.length > 2 && ai.idx < R.length - 2) {
+      let i = ai.idx;
+      for (let d = 0; i < R.length - 2 && d < 12; i++) d += Math.hypot(R[i + 1][0] - R[i][0], R[i + 1][1] - R[i][1]);
+      vehicle.place(R[i][0], R[i][1], Math.atan2(R[i + 1][0] - R[i][0], R[i + 1][1] - R[i][1]));
+      ai.idx = i;
+      return true;
+    }
     const spot = this._laneSpot(s.x, s.z);
     vehicle.place(spot.x, spot.z, spot.yaw);
     return true;

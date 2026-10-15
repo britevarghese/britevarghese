@@ -80,7 +80,8 @@ export class KeralaWorld {
     this.layout = {
       get nodes() { return router.nodes; },
       nearestNode: (x, z) => router.nearestNode(x, z),
-      route: (a, b) => router.route(a, b),
+      route: (a, b, after, opts) => router.route(a, b, after, opts),
+      get lastLane() { return router.lastLane; },
       edgeBetween: () => null,
       edges: [], blocks: [], ringSamples: [], nodeMap: new Map(),
       groundHeight: (x, z, y) => W.groundHeight(x, z, y),

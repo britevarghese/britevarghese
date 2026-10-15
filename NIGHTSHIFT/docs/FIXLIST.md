@@ -318,3 +318,26 @@ the game. Newly found problems go at the end of their section.
   off and back in when you return; at Leena's he gets out and walks over to her. Driving off without him fails it
 - [x] A contact stays for the last words when a job ends with them (Leena vanished the moment the mission passed);
   lines from someone standing with you aren't phone calls
+- [x] Every mission played through by a test (the driving done by teleports, the AI cars watched over their whole
+  routes). Found and fixed:
+  - [x] 'Spice Route': the pickup you tail stood facing the way it came, for good, 3 km in. Its route was made
+    before the roads round two of its places had loaded, so a place was taken as a junction a kilometre off and the
+    route went there and back. A mission car's route now waits (up to 15 s) until the roads at every place on it
+    are there, and a place the route would have to turn round at is left out
+  - [x] Routes (missions, races, the GPS, police) don't turn right round at a junction unless there's no other way,
+    and take an acute turn (a Y-junction taken backwards) only when it saves a good deal; a race's or a mission's
+    route goes on through each place the way it came in. (A lane's last metre hooks into the junction's centre: the
+    turn is judged over the last and first 6 m, or every right turn looked like turning round)
+  - [x] A mission car stuck out of sight is put back on its own route a little ahead, facing along it (it was set
+    on the nearest lane, which could run the other way)
+  - [x] Lorries and buses on mission routes keep to the main roads where they can and take corners a quarter
+    slower. Still: in 'Lorry War' the only way out of Attadappa has a 100-degree turn at a Y-junction that the
+    lorry can't make in its lane; it cuts across the point of the Y and lodges there (easy to ram: the job still
+    passes). A lorry swinging wide for a tight turn is still to do
+  - [x] A mission car not put in place yet (its roads not loaded, kilometres off) left the objective with no marker
+    and no GPS: both now show the way to the place meanwhile
+  - [x] 'press E' for a contact's mission stayed on screen through the whole mission
+  - [x] The yellow destination marker stood at sea level: in Kerala its ring was under the road (18 m down at
+    Puzhathi), only the top of the beam showing. It stands on the ground now
+  - [x] A race against a story rival lined you both up 1.8 m either side of the lane's centre: him half on the
+    verge on a narrow road. He's in the lane now, you beside him in the other

@@ -18,6 +18,11 @@ export class AIDriver {
     this.loop = false;
   }
 
+  // a lorry or a bus takes a corner slower than a car (a quarter slower at 8 m long): its turning circle is wider and it
+  // leans on its tyres sooner (an 8 m lorry took a 100-degree junction turn at a car's speed, ran wide onto the verge
+  // and into a wall)
+  get bulkK() { return 1 - 0.3 * clamp(((this.v?.p?.length || 4.5) - 4.6) / 4, 0, 1); }
+
   // (Kerala's routes are the lanes themselves, keep-left: followed as they are. A road's centre line elsewhere:
   // driven on its right-hand side, an offset polyline)
   setRoute(points, loop = false, offset = this.laneOffset ?? (this.v?.physics?.world?.kerala ? 0 : 2.6)) {
@@ -129,7 +134,7 @@ export class AIDriver {
       const a1 = Math.min(Math.PI, Math.abs(turns[j][1]));
       if (a < 0.2 && a1 < 0.35) continue;
       // (a tight junction turn at walking pace: the steering lock is less at speed)
-      const v = Math.min(a >= 0.2 ? Math.sqrt(5 * this.skill * Math.max(6, span) / a) : Infinity, a1 >= 0.35 ? Math.sqrt(5 * this.skill * 6 / a1) : Infinity) + 0.5;
+      const v = (Math.min(a >= 0.2 ? Math.sqrt(5 * this.skill * Math.max(6, span) / a) : Infinity, a1 >= 0.35 ? Math.sqrt(5 * this.skill * 6 / a1) : Infinity) + 0.5) * this.bulkK;
       const n = -(2 * 5.5 * Math.max(0, turns[j][0] - 8) + v * v);
       if (Math.max(a, a1) > maxTurn) maxTurn = Math.max(a, a1);
       if (n > need) { need = n; vc = v; turnDist = turns[j][0]; }
@@ -240,7 +245,7 @@ export class AIDriver {
     }
     // (and not on the throttle while still steering hard: out of a sharp junction turn it sped up at full lock and
     // swung wide, into a bridge's parapet just past the junction)
-    if (this.mode !== 'pursue' && Math.abs(steer) > 0.7) targetSpeed = Math.min(targetSpeed, 6);
+    if (this.mode !== 'pursue' && Math.abs(steer) > 0.7) targetSpeed = Math.min(targetSpeed, 6 * this.bulkK);
     const err = targetSpeed - speed;
     c.steer = steer;
     c.throttle = err > 0 ? clamp(err / 6, 0.25, 1) * this.powerScale : 0;

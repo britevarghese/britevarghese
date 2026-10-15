@@ -2,6 +2,28 @@
 // (nodes[id].x/z, nearestNode(x, z) -> node, route(fromNode, toNode) -> ids) so police and the GPS work unchanged.
 // Nodes are the junctions of the loaded lane graph; route() follows the lanes (keep left) and returns the
 // lane points as temporary waypoint nodes appended after the junctions, valid until the next route() call.
+// the way a lane runs at its end (or start), over its last (first) 6 m: lanes hook into a junction's centre over the
+// last metre or two, and by their last segment alone a plain turn looked like turning round
+function dirAt(P, end) {
+  const n = P.length, i = end ? n - 1 : 0, st = end ? -1 : 1;
+  let j = i;
+  for (let d = 0; d < 6 && j + st >= 0 && j + st < n; j += st) d += Math.hypot(P[j + st][0] - P[j][0], P[j + st][1] - P[j][1]);
+  const dx = (P[i][0] - P[j][0]) * -st, dz = (P[i][1] - P[j][1]) * -st, l = Math.hypot(dx, dz) || 1;
+  return [dx / l, dz / l];
+}
+// the cost of turning from lane a into lane b at a junction, in metres of road: turning right round (back the way a
+// came) only when there's no other way; an acute turn (a Y-junction taken backwards) a little; and for a lorry or a
+// bus a sharp turn into a side street too (a lorry on a mission route cut such a corner into a house)
+function turnCost(a, b, big) {
+  if (a.pts.length < 2 || b.pts.length < 2) return 0;
+  const [ax, az] = (a._dirE ||= dirAt(a.pts, true)), [bx, bz] = (b._dirS ||= dirAt(b.pts, false));
+  const c = ax * bx + az * bz;
+  if (c < -0.85) return 600;                                     // (more than ~150 degrees)
+  if (c < -0.34) return big ? 500 : 120;                         // (more than ~110)
+  if (big && c < 0.42 && b.edge?.cls > 4) return 200;            // (more than ~65, into a side street)
+  return 0;
+}
+
 export class KeralaRouter {
   constructor(lanes) {
     this.lanes = lanes;
@@ -51,8 +73,12 @@ export class KeralaRouter {
     return this.list[best < 0 ? 0 : best] || null;
   }
 
-  // A* over the junctions; returns waypoint ids (lane points), [] when unreachable
-  route(from, to) {
+  // A* over the junctions; returns waypoint ids (lane points), [] when unreachable. `after`: the lane the route so far
+  // came into `from` by (the leg before, through a race's or a mission's waypoints: not turned round at the waypoint).
+  // opts.big: a lorry or a bus, kept to the main roads where it can (the side streets' corners are too tight for it:
+  // a lorry on a mission route cut a corner into a house)
+  route(from, to, after = null, opts = null) {
+    const minorW = opts?.big ? 4 : 1;
     this._sync();
     if (from && typeof from === 'object') from = from.id;
     if (to && typeof to === 'object') to = to.id;
@@ -66,9 +92,11 @@ export class KeralaRouter {
     while (heap.length && steps++ < 60000) {
       const [, u] = pop();
       if (u === to) { found = true; break; }
-      const gu = g.get(u);
+      const gu = g.get(u), lin = prev.get(u) || (u === from ? after : null);
       for (const { to: v, lane } of this.adj[u]) {
-        const gv = gu + lane.length;
+        // (turning right round at a junction only when there's no other way: round the block instead, as a driver
+        // would. An AI car can't turn in a lane: a truck on a story route stood facing the way it came for good)
+        const gv = gu + lane.length * (lane.edge?.cls > 4 ? minorW : 1) + (lin ? turnCost(lin, lane, opts?.big) : 0);
         if (gv < (g.get(v) ?? Infinity)) { g.set(v, gv); prev.set(v, lane); push([gv + Math.hypot(N[v].x - goal.x, N[v].z - goal.z), v]); }
       }
     }
@@ -76,6 +104,7 @@ export class KeralaRouter {
     const path = [];
     for (let v = to; v !== from && path.length < 5000;) { const lane = prev.get(v); path.push(lane); v = this.ids.get(lane.from); }
     path.reverse();
+    this.lastLane = path[path.length - 1] || null;
     const out = [];
     for (const lane of path) {
       const P = lane.pts;
