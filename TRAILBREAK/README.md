@@ -62,7 +62,9 @@ there. Free services sleep after ~15 minutes idle; the first visit afterwards ta
 | Controls | F1 | |
 
 Steering wheels are detected by name and get the full steering range; keys and thumbsticks get a steering assist
-(full lock at walking pace, gentler at speed) that you can turn off in the pause menu.
+(full lock at walking pace, gentler at speed) that you can turn off in the pause menu. On phones and tablets,
+on-screen controls appear: steering on the left, pedals on the right, buttons for the winch, recovery, range, locks,
+camera, map and menu (play in landscape).
 
 ## The physics
 

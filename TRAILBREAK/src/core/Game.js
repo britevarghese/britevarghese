@@ -451,6 +451,7 @@ export class Game {
       if (this.mapOpen) this.hud.drawMap(v.pos, heading, mates);
     }
 
+    this.touch?.update(this);
     if (!this.noRender) this.renderer.render();
     this.perf(dt);
     I.endFrame();

@@ -25,6 +25,7 @@ export class Input {
     this.padPrev = {};
     this.device = 'keyboard';
     this.mouse = { dx: 0, dy: 0, drag: false, last: 0 };
+    this.touch = { steer: 0, throttle: 0, brake: 0, winch: 0 };   // on-screen controls (ui/Touch.js)
     addEventListener('keydown', (e) => this.key(e, true));
     addEventListener('keyup', (e) => this.key(e, false));
     addEventListener('blur', () => this.down.clear());
@@ -74,12 +75,14 @@ export class Input {
     let throttle = this.any('KeyW', 'ArrowUp') ? 1 : 0;
     let brake = this.any('KeyS', 'ArrowDown') ? 1 : 0;
     const l = this.any('KeyA', 'ArrowLeft'), r = this.any('KeyD', 'ArrowRight');
-    const target = (r ? 1 : 0) - (l ? 1 : 0);
+    const target = clamp((r ? 1 : 0) - (l ? 1 : 0) + this.touch.steer, -1, 1);
+    throttle = Math.max(throttle, this.touch.throttle);
+    brake = Math.max(brake, this.touch.brake);
     const rate = target === 0 || Math.sign(target) !== Math.sign(this.steerKey) ? 6 : 2.6;
     this.steerKey += clamp(target - this.steerKey, -rate * dt, rate * dt);
     let steer = this.steerKey;
     let handbrake = this.any('Space') ? 1 : 0;
-    let winch = (this.any('KeyE') ? 1 : 0) - (this.any('KeyQ') ? 1 : 0);
+    let winch = (this.any('KeyE') ? 1 : 0) - (this.any('KeyQ') ? 1 : 0) || this.touch.winch;
     let lookX = 0, lookY = 0, analog = false;
 
     const pad = this.pad();

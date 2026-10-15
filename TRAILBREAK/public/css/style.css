@@ -142,3 +142,30 @@ input:focus { border-color: var(--accent-2); }
   #gauges { width: 240px; height: 113px; }
 }
 select { font: inherit; color: var(--ink); background: rgba(0, 0, 0, 0.3); border: 1px solid var(--line); border-radius: 8px; padding: 5px 8px; margin-left: 6px; }
+
+/* ---------- touch controls */
+#touch { position: fixed; inset: 0; pointer-events: none; z-index: 12; user-select: none; -webkit-user-select: none; }
+#touch button { pointer-events: auto; touch-action: none; background: rgba(20, 25, 22, 0.55); border: 1px solid rgba(243, 234, 215, 0.25);
+  color: var(--ink); font-weight: 700; border-radius: 16px; -webkit-tap-highlight-color: transparent; }
+#touch button.on { background: rgba(232, 137, 58, 0.55); }
+.t-steer { position: absolute; left: 14px; bottom: 18px; display: flex; gap: 12px; }
+.t-steer button { width: 84px; height: 84px; font-size: 28px; }
+.t-pedals { position: absolute; right: 14px; bottom: 18px; display: flex; gap: 12px; align-items: flex-end; }
+.t-pedals .t-gas { width: 82px; height: 130px; }
+.t-pedals .t-brake { width: 82px; height: 92px; }
+.t-winch { position: absolute; right: 14px; bottom: 164px; display: flex; gap: 10px; }
+.t-winch button { width: 70px; height: 52px; }
+.t-buttons { position: absolute; top: 56px; right: 12px; display: grid; grid-template-columns: repeat(2, 64px); gap: 8px; }
+.t-buttons button { height: 40px; font-size: 12px; padding: 0; }
+body.touch #minimap { bottom: 120px; width: 120px; height: 120px; }
+body.touch #dash { right: 190px; bottom: 10px; }
+body.touch #gauges { width: 220px; height: 104px; }
+body.touch #players { top: 10px; left: 12px; right: auto; text-align: left; }
+body.touch #chat { display: none; }
+@media (max-width: 700px) {
+  body.touch #dash { right: auto; left: 50%; transform: translateX(-50%); bottom: 112px; }
+  body.touch #drive-modes { display: none; }
+  .t-steer button { width: 70px; height: 70px; }
+  .t-pedals .t-gas { width: 70px; height: 112px; }
+  .t-pedals .t-brake { width: 70px; height: 80px; }
+}

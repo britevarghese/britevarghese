@@ -14,6 +14,7 @@ import { Game } from './core/Game.js';
 import { Audio } from './audio/Audio.js';
 import { NetClient } from './net/NetClient.js';
 import { HUD } from './ui/HUD.js';
+import { TouchControls, isTouchDevice } from './ui/Touch.js';
 
 const $ = (id) => document.getElementById(id);
 const PAINTS = ['#b5532c', '#3d6b8c', '#6b7d3e', '#c9a227', '#8c2f2f', '#e6e1d3', '#2f4f3a', '#4a4a4a'];
@@ -134,6 +135,10 @@ async function start() {
   hud.toast(net ? `Room ${net.room}: press Esc for the invite link` : 'Driving alone. Press F1 for the controls', false, 6);
   hud.toast('Find the survey beacons: follow the orange light beams', false, 6);
   wireMenus(game, net);
+  if (isTouchDevice()) {
+    const touch = new TouchControls(input);
+    game.touch = touch;
+  }
 
   let last = performance.now();
   const loop = (now) => {
