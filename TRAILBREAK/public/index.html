@@ -84,6 +84,16 @@
       <div class="tension"><div id="winch-ten"></div></div>
     </div>
     <div id="hint"></div>
+    <div id="stuck" class="hidden">
+      <div class="stuck-title" id="st-title">Stuck?</div>
+      <div class="stuck-actions">
+        <button id="st-flip"><b>R</b> Flip upright here</button>
+        <button id="st-dry"><b>R</b> Back to dry ground</button>
+        <button id="st-call"><b>T</b> Call friends for a tow</button>
+        <button id="st-station"><b>&#9003;</b> Back to the station</button>
+      </div>
+      <div class="stuck-tip" id="st-tip"></div>
+    </div>
     <div id="toasts"></div>
     <div id="chat">
       <div id="chat-log"></div>
@@ -169,7 +179,8 @@
         <dl>
           <dt>F</dt><dd>Winch: hook the nearest tree or friend ahead / unhook</dd>
           <dt>E / Q (hold)</dt><dd>Winch in / pay out</dd>
-          <dt>R</dt><dd>Recover (put the truck back on its wheels)</dd>
+          <dt>R</dt><dd>Recover: back on its wheels, or back to dry ground when stuck</dd>
+          <dt>T</dt><dd>Call your friends for a tow (they see where you are)</dd>
           <dt>Backspace</dt><dd>Back to the ranger station</dd>
           <dt>C</dt><dd>Camera (drag the mouse to look around)</dd>
           <dt>H</dt><dd>Headlights</dd>

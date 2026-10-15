@@ -56,6 +56,17 @@ export class Game {
     this._v = new THREE.Vector3(); this._q = new THREE.Quaternion(); this._v2 = new THREE.Vector3();
     this.attachLights();
     this.rope.mat.color.set(this.spec.winch.synthetic ? 0xd0571e : 0x2b2b28);
+    // getting unstuck: the last places the truck drove on firm, dry ground; the stuck panel; calling friends
+    this.drySpots = [];
+    this.dryT = 0; this.stuckT = 0; this.boggedT = 0; this.helpOn = false; this.helpMoveT = 0; this.towHintT = 0;
+    this.stuckEl = document.getElementById('stuck');
+    if (this.stuckEl) {
+      const btn = (id, fn) => { document.getElementById(id).onclick = (e) => { e.currentTarget.blur(); fn(); this.renderer.renderer.domElement.focus(); }; };
+      btn('st-flip', () => this.recover('flip'));
+      btn('st-dry', () => this.recover('dry'));
+      btn('st-call', () => this.callHelp());
+      btn('st-station', () => this.spawn());
+    }
     this.spawn(true);
     this.applySettings();
   }
@@ -148,6 +159,9 @@ export class Game {
   spawn(first = false) {
     const p = this.spawnPoint();
     this.vehicle.place(this.world, p.x, p.z, p.yaw);
+    this.drySpots = [{ x: p.x, z: p.z, yaw: p.yaw }];
+    this.stuckT = 0; this.boggedT = 0;
+    if (this.helpOn) this.setHelp(false);
     this.vehicle.psiTarget = this.spec.tyre.psiStock || 30;      // the station's air line
     this.vehicle.setPressure(this.vehicle.psiTarget);
     this.carry = 0;
@@ -156,12 +170,112 @@ export class Game {
     this.cam.heading = null;
   }
 
-  recover() {
+  /**
+   * R: back on the wheels where it lies ('flip'), or back to the last firm, dry ground it drove on ('dry'). With no
+   * mode: flip when it is over on dry land, dry ground when it is in deep water or stuck.
+   */
+  recover(mode) {
     const v = this.vehicle;
-    if (v.vel.length() > 4 && v.up.y > 0.3) { this.hud.hint('Slow down to recover'); return; }
-    v.rightSideUp(this.world);
+    const over = v.up.y < 0.5, wet = v.flooded || v.waterDepth > 0.6;
+    if (!mode) mode = over && !wet ? 'flip' : wet || this.isStuck ? 'dry' : 'flip';
+    if (mode === 'flip') {
+      if (v.vel.length() > 4 && v.up.y > 0.3) { this.hud.hint('Slow down to recover'); return; }
+      v.rightSideUp(this.world);
+      this.hud.hint('Back on your wheels');
+    } else {
+      const spot = this.lastDry();
+      if (!spot) { this.spawn(); return; }
+      v.place(this.world, spot.x, spot.z, spot.yaw);
+      this.cam.heading = null;
+      this.hud.hint('Back on dry ground', 2.5);
+    }
     if (this.net) this.net.warp++;
-    this.hud.hint('Back on your wheels');
+    this.carry = 0;
+    this.stuckT = 0; this.boggedT = 0;
+    if (this.helpOn) this.setHelp(false);
+  }
+
+  /** The newest firm, dry place the truck drove that is clear of where it is now. */
+  lastDry() {
+    const p = this.vehicle.pos;
+    for (let i = this.drySpots.length - 1; i >= 0; i--) {
+      const sp = this.drySpots[i];
+      if (Math.hypot(sp.x - p.x, sp.z - p.z) > 12) return sp;
+    }
+    return this.drySpots[0] || null;
+  }
+
+  /** Remember where the truck drives on firm, dry ground (for 'back to dry ground'). */
+  trackDry(dt) {
+    const v = this.vehicle;
+    this.dryT += dt;
+    if (this.dryT < 1 || !v.settled || v.up.y < 0.92 || Math.abs(v.speed) < 1.2 || v.waterDepth > 0.02 || v.flooded) return;
+    for (const w of v.wheels) if (w.water > 0.05 || (w.surf.sink > 0 && w.sink > 0.12)) return;
+    this.dryT = 0;
+    const last = this.drySpots[this.drySpots.length - 1];
+    if (last && Math.hypot(last.x - v.pos.x, last.z - v.pos.z) < 6) return;
+    this.drySpots.push({ x: v.pos.x, z: v.pos.z, yaw: Math.atan2(v.fwd.x, v.fwd.z) });
+    if (this.drySpots.length > 40) this.drySpots.shift();
+  }
+
+  /** In trouble? Upside down, drowned, or wheels turning and going nowhere: show what helps. */
+  checkStuck(dt, ctrl) {
+    const v = this.vehicle;
+    const over = v.up.y < 0.5, wet = v.flooded || v.waterDepth > 0.9;
+    const pushing = (ctrl.throttle > 0.3 || ctrl.brake > 0.3) && Math.abs(v.speed) < 0.5;
+    this.boggedT = pushing ? this.boggedT + dt : Math.max(0, this.boggedT - dt * 2);
+    this.stuckT = over || wet ? this.stuckT + dt : 0;
+    this.isStuck = this.stuckT > 1.5 || this.boggedT > 7;
+    this.stuckWhy = over ? 'over' : v.flooded ? 'flooded' : wet ? 'water' : this.boggedT > 7 ? 'bogged' : '';
+    if (this.helpOn) {
+      this.helpMoveT = Math.abs(v.speed) > 3 ? this.helpMoveT + dt : 0;
+      if (this.helpMoveT > 3) this.setHelp(false, 'Rolling again: tow call over');
+    }
+  }
+
+  /** T: ask the friends in the room for a tow (they see where you are), or stop asking. */
+  callHelp() {
+    if (this.helpOn) { this.setHelp(false, 'Tow call cancelled'); return; }
+    const friends = [...this.remotes.values()].some((r) => r.state);
+    if (!this.net?.connected || !friends) {
+      this.hud.hint(this.net?.connected
+        ? 'Nobody else in this room yet: send your friends the invite link (Esc). Meanwhile R gets you to dry ground, F winches to a tree'
+        : 'Driving alone: R gets you back to dry ground, F winches to a tree, Backspace goes back to the station', 6);
+      return;
+    }
+    this.setHelp(true);
+  }
+
+  setHelp(on, msg) {
+    if (this.helpOn === on) return;
+    this.helpOn = on; this.helpMoveT = 0;
+    if (on) this.hud.toast('Tow called: your friends see where you are. They hook you with F and winch you out with E', false, 7);
+    else if (msg) this.hud.hint(msg, 2.5);
+  }
+
+  /** The stuck panel: shown while in trouble or waiting for a tow. */
+  updateStuckPanel() {
+    const el = this.stuckEl;
+    if (!el) return;
+    const show = (this.isStuck || this.helpOn) && !this.paused && !this.garageOpen && !this.mapOpen;
+    el.classList.toggle('hidden', !show);
+    if (!show) return;
+    const v = this.vehicle, W = v.winch, $ = (id) => document.getElementById(id);
+    const titles = { over: 'Upside down', flooded: 'Engine flooded', water: 'In deep water', bogged: 'Stuck?' };
+    const title = this.helpOn ? 'Waiting for a tow' : titles[this.stuckWhy] || 'Stuck?';
+    if ($('st-title').textContent !== title) $('st-title').textContent = title;
+    $('st-flip').classList.toggle('hidden', !(v.up.y < 0.5));
+    // R does whichever suits: flip where it lies on dry land, otherwise back to dry ground
+    const rFlips = v.up.y < 0.5 && !(v.flooded || v.waterDepth > 0.6);
+    const flipHtml = `${rFlips ? '<b>R</b> ' : ''}Flip upright here`, dryHtml = `${rFlips ? '' : '<b>R</b> '}Back to dry ground`;
+    if ($('st-flip').innerHTML !== flipHtml) $('st-flip').innerHTML = flipHtml;
+    if ($('st-dry').innerHTML !== dryHtml) $('st-dry').innerHTML = dryHtml;
+    const friends = [...this.remotes.values()].some((r) => r.state);
+    $('st-call').classList.toggle('hidden', !(this.net?.connected && friends));
+    const call = this.helpOn ? '<b>T</b> Cancel the tow call' : '<b>T</b> Call friends for a tow';
+    if ($('st-call').innerHTML !== call) $('st-call').innerHTML = call;
+    const tip = W.attached ? 'Hold E to winch in (and give it a little throttle)' : v.flooded ? 'Once the intake is out of the water the engine starts again' : 'Or winch out: point the bumper at a tree or a friend, F to hook, hold E';
+    if ($('st-tip').textContent !== tip) $('st-tip').textContent = tip;
   }
 
   applySettings() {
@@ -215,6 +329,7 @@ export class Game {
     }
     if (I.consume('hook')) this.toggleHook();
     if (I.consume('recover')) this.recover();
+    if (I.consume('tow')) this.callHelp();
     if (I.consume('respawn')) this.spawn();
   }
 
@@ -278,7 +393,7 @@ export class Game {
       const dx = x - F.x, dz = z - F.z, d = Math.hypot(dx, dz);
       if (d < 1 || d > W.maxLen - 1) return;
       const cos = (dx * f.x + dz * f.z) / (d * Math.hypot(f.x, f.z));
-      if (cos < 0.35) return;                                         // ahead of the bumper (within ~70 degrees)
+      if (cos < (cand.kind === 'truck' ? 0.1 : 0.35)) return;        // ahead of the bumper (a tree ~70, a truck ~85 degrees)
       // prefer what the bumper points at, then what is near; a friend's truck over a tree beside it
       const score = d * (1 + 2.5 * (1 - cos)) * (cand.kind === 'truck' ? 0.6 : 1);
       if (score < bd) { bd = score; best = cand; }
@@ -289,8 +404,12 @@ export class Game {
     }
     for (const r of this.remotes.values()) {
       if (!r.state) continue;
-      const hook = this.hookPoint(r.spec);
-      const p = hook.clone().applyQuaternion(r.model.root.quaternion).add(r.model.root.position);
+      // their nearer recovery point, front or rear
+      let hook = null, p = null, pd = Infinity;
+      for (const h of this.hookPoints(r.spec)) {
+        const q = h.clone().applyQuaternion(r.model.root.quaternion).add(r.model.root.position), d = q.distanceTo(F);
+        if (d < pd) { pd = d; hook = h; p = q; }
+      }
       consider(p.x, p.y, p.z, { kind: 'truck', id: r.id, local: hook, x: p.x, y: p.y, z: p.z, name: `${r.name}'s ${r.spec.name}` });
     }
     if (!best) { this.hud.hint(`Nothing to hook within ${W.maxLen} m ahead: point the bumper at a tree or a friend`); return; }
@@ -300,10 +419,10 @@ export class Game {
     if (ok) { this.hookName = best.name; this.hud.hint(`Hooked to ${best.name}. Hold E to winch in, Q to pay out, F to unhook`, 4); }
   }
 
-  /** The rear tow point of a truck, in its CG frame. */
-  hookPoint(spec) {
-    const rear = spec.hull[0].c[2] - spec.hull[0].h[2];
-    return new THREE.Vector3(0, spec.hull[0].c[1] - spec.hull[0].h[1] + 0.12 - spec.cgHeight, rear - 0.05 - (spec.cgZ || 0));
+  /** A truck's recovery points, front and rear, in its CG frame. */
+  hookPoints(spec) {
+    const b = spec.hull[0], y = b.c[1] - b.h[1] + 0.12 - spec.cgHeight, z0 = spec.cgZ || 0;
+    return [new THREE.Vector3(0, y, b.c[2] + b.h[2] + 0.05 - z0), new THREE.Vector3(0, y, b.c[2] - b.h[2] - 0.05 - z0)];
   }
 
   // ---------------------------------------------------------------- remote players
@@ -350,12 +469,21 @@ export class Game {
         rv.tag.visible = dist < 450;
         rv.tag.scale.set(3.2 * Math.max(1, dist / 30), 0.8 * Math.max(1, dist / 30), 1);
         others.push({ pos: root.position, quat: root.quaternion, vel: this._v.set(s.vel[0], s.vel[1], s.vel[2]).clone(), spheres: rv.spheres });
-        // their winch on us: pulled toward their fairlead
+        // their winch on us: pulled toward their fairlead (if they called for a tow, we are their anchor)
         const w = s.winch;
         if (w && w.to === this.net.id) {
           const target = new THREE.Vector3(...w.f).applyQuaternion(root.quaternion).add(root.position);
-          pulls.push({ local: new THREE.Vector3(...w.a), target, tension: w.ten });
+          pulls.push({ local: new THREE.Vector3(...w.a), target, tension: w.ten, anchorMe: !!s.help });
         }
+        // a friend calling for a tow
+        if (s.help && !rv.help) {
+          const d = root.position.distanceTo(this.vehicle.pos), dirs = ['north', 'north-east', 'east', 'south-east', 'south', 'south-west', 'west', 'north-west'];
+          const a = Math.atan2(root.position.x - this.vehicle.pos.x, -(root.position.z - this.vehicle.pos.z));
+          const dir = dirs[(Math.round(a / (Math.PI / 4)) + 8) % 8];
+          this.hud.toast(`${r.name} needs a tow! ${d < 1000 ? Math.round(d) + ' m' : (d / 1000).toFixed(1) + ' km'} ${dir} (red ! on the compass)`, true, 8);
+          this.audio.chirp?.();
+        }
+        rv.help = !!s.help;
         this.remoteRuts(rv, s);
         this.remoteEffects(rv, s, dt);
       }
@@ -447,10 +575,13 @@ export class Game {
     if (!this.settings.assist) c.analogSteer = true;
     if (this.garageOpen) { c.throttle = 0; c.brake = 0; c.handbrake = 1; c.steer = 0; c.winch = 0; }
     W.motor = W.attached ? c.winch : 0;
-    // winching a friend out: hold our own truck on the brakes (as you'd put it in park); winching to a tree, roll free
-    c.hold = W.attached && W.kind === 'truck' && W.motor !== 0 && c.throttle < 0.05 ? 0.8 : 0;
 
     this.updateRemotes(dt);
+    // winching a friend out: hold our own truck on the brakes (as you'd put it in park); winching to a tree, or
+    // winching ourselves out of trouble on a friend's truck, roll free. A friend in trouble winching on us: hold still.
+    const inTrouble = this.helpOn || v.flooded || v.waterDepth > 0.6 || v.up.y < 0.5;
+    c.hold = W.attached && W.kind === 'truck' && W.motor !== 0 && c.throttle < 0.05 && !inTrouble ? 0.8 : 0;
+    if (!c.hold && v.pulls.some((p) => p.anchorMe) && c.throttle < 0.05 && c.brake < 0.05) c.hold = 1;
     // a truck we're winching toward moves: follow its tow point
     if (W.attached && W.kind === 'truck') {
       const rv = this.remotes.get(W.target);
@@ -469,6 +600,17 @@ export class Game {
       this.audio.stall?.();
     }
     if (v.dt.running && !wasRunning) this.hud.hint('Engine running again', 2);
+    this.trackDry(dt);
+    this.checkStuck(dt, c);
+    // a friend who called for a tow, within reach of our winch
+    this.towHintT -= dt;
+    if (!W.attached && this.towHintT <= 0) {
+      for (const r of this.remotes.values()) {
+        if (!r.help || !r.state) continue;
+        const d = r.model.root.position.distanceTo(v.pos);
+        if (d < W.maxLen + 2) { this.hud.hint(`${r.name} needs a tow: point your bumper at the truck, F to hook, hold E to pull`, 5); this.towHintT = 9; break; }
+      }
+    }
 
     // keep inside the valley
     if (!this.world.inBounds(v.pos.x, v.pos.z, 14) || v.pos.y < -50 || !Number.isFinite(v.pos.x)) {
@@ -541,14 +683,14 @@ export class Game {
           ? { to: 'tree', a: [W.anchor.x, W.anchor.y, W.anchor.z], f: [W.fairlead.x, W.fairlead.y, W.fairlead.z], len: W.len, ten: W.tension }
           : { to: W.target, a: [W.anchorLocal.x, W.anchorLocal.y, W.anchorLocal.z], f: [W.fairlead.x, W.fairlead.y, W.fairlead.z], len: W.len, ten: W.tension };
       }
-      this.net.sendState(dt, v, { truck: this.truckId, cfg: this.build, paint: this.myColor, lights, winch });
+      this.net.sendState(dt, v, { truck: this.truckId, cfg: this.build, help: this.helpOn, paint: this.myColor, lights, winch });
     }
 
     // HUD
     this.hud.update(dt);
     this.hudT += dt; this.miniT += dt;
     const heading = Math.atan2(v.fwd.x, -v.fwd.z);
-    const mates = [...this.remotes.values()].filter((r) => r.state).map((r) => ({ x: r.model.root.position.x, z: r.model.root.position.z, color: r.color, name: r.name }));
+    const mates = [...this.remotes.values()].filter((r) => r.state).map((r) => ({ x: r.model.root.position.x, z: r.model.root.position.z, color: r.color, name: r.name, help: !!r.help }));
     if (this.hudT > 1 / 30) {
       this.hudT = 0;
       this.hud.drawGauges(v);
@@ -556,13 +698,14 @@ export class Game {
       this.garageHintT = (this.garageHintT || 0) + 1 / 30;
       if (this.nearGarage(14) && Math.abs(v.speed) < 1 && this.garageHintT > 8) { this.garageHintT = 0; this.hud.hint('Station garage: press U to fit parts', 4); }
       this.hud.drawWinch(v, this.hookName);
+      this.updateStuckPanel();
       this.hud.drawCompass(heading, v.pos, mates);
     }
     if (this.miniT > 1 / 12) {
       this.miniT = 0;
       this.hud.drawMinimap(v.pos, heading, mates);
       this.hud.drawObjective(v.pos);
-      const list = [{ name: this.name, color: this.myColor, me: true }, ...mates.map((r) => ({ name: r.name, color: r.color }))];
+      const list = [{ name: this.name, color: this.myColor, me: true, help: this.helpOn }, ...mates.map((r) => ({ name: r.name, color: r.color, help: r.help }))];
       this.hud.drawPlayers(list);
       if (this.mapOpen) this.hud.drawMap(v.pos, heading, mates);
     }

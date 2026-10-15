@@ -138,7 +138,7 @@ export class NetClient {
       for (let w = 0; w < 4; w++) for (let k = 0; k < 3; k++) out.wh[w][k] = sa.wh[w][k];
       out.rpm = sa.rpm; out.thr = sa.thr;
     }
-    out.truck = sa.truck; out.cfg = sa.cfg || ''; out.paint = sa.paint; out.lights = sa.lights; out.winch = (b ? b.s : sa).winch; out.brk = sa.brk;
+    out.truck = sa.truck; out.cfg = sa.cfg || ''; out.help = sa.help ? 1 : 0; out.paint = sa.paint; out.lights = sa.lights; out.winch = (b ? b.s : sa).winch; out.brk = sa.brk;
     out.stale = t - snaps[snaps.length - 1].t > 3;
     return out;
   }
@@ -153,7 +153,7 @@ export class NetClient {
       v: [v.vel.x, v.vel.y, v.vel.z], w: [v.angVel.x, v.angVel.y, v.angVel.z],
       wh: [0, 1, 2, 3].map((i) => v.wheelState(i)),
       rpm: v.dt.rpm, thr: v.dt.throttle, brk: v.pedalBrake > 0.1 ? 1 : 0,
-      truck: extra.truck, cfg: extra.cfg || '', paint: extra.paint, lights: extra.lights ? 1 : 0, warp: this.warp,
+      truck: extra.truck, cfg: extra.cfg || '', help: extra.help ? 1 : 0, paint: extra.paint, lights: extra.lights ? 1 : 0, warp: this.warp,
       winch: extra.winch || null,
     };
     this.send({ t: 'state', s });

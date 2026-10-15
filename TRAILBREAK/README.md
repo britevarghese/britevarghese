@@ -67,7 +67,8 @@ Without the Blueprint: **New > Web Service** with this repository, branch `claud
 | Gearbox AUTO / MANUAL (manual: Shift up, Ctrl down) | G | |
 | Winch: hook the nearest tree or friend ahead / unhook | F | X |
 | Winch in / pay out (hold) | E / Q | RB / LB |
-| Recover (back on the wheels) | R | B |
+| Recover: back on the wheels, or back to dry ground when stuck | R | B |
+| Call your friends for a tow (they see where you are) | T | |
 | Back to the ranger station | Backspace | |
 | Camera: chase, far, bonnet, cab (drag to look around) | C | Y, right stick |
 | Headlights | H | D-pad right |
@@ -83,6 +84,19 @@ Steering wheels are detected by name and get the full steering range; keys and t
 (full lock at walking pace, gentler at speed) that you can turn off in the pause menu. On phones and tablets,
 on-screen controls appear: steering on the left, pedals on the right, buttons for the winch, recovery, range, locks,
 camera, map and menu (play in landscape).
+
+## Stuck?
+
+When the truck is upside down, in deep water or going nowhere, a panel offers the ways out: flip it upright where it
+lies, go back to the last firm, dry ground you drove on, call your friends for a tow, or go back to the station.
+
+- **Call for a tow (T):** your friends get a message with where you are, a red **!** on their compass and a ring on
+  their map. When one gets within winch range, the game tells them how: point the bumper at your truck, **F** to hook
+  it (the line goes to your nearer recovery point, front or rear), hold **E** to pull. Their truck holds on its brakes
+  while it pulls.
+- **Winch yourself out on a friend:** while you are calling for a tow, hook your friend's truck and winch in. Their
+  truck becomes the anchor and holds still; yours comes out (a little throttle helps).
+- **Alone:** hook a tree with the winch, or **R**.
 
 ## The trucks
 

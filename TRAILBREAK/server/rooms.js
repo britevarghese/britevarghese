@@ -9,7 +9,7 @@
  *   server -> client  {t:'welcome', id, room, tickRate, maxPlayers, players:[{id,name}], beacons:[id...]}
  *   client -> server  {t:'state', s:{p:[x,y,z], q:[x,y,z,w], v:[x,y,z], w:[x,y,z], wh:[[susp, spin, steer] x4],
  *                       rpm, thr, brk, lights, truck, cfg, paint, warp, winch}}
- *                       cfg: the truck's build (garage parts), a short [0-9a-z] code
+ *                       cfg: the truck's build (garage parts), a short [0-9a-z] code; help: 1 when calling for a tow
  *                       winch: null, or {to:'tree'|<player id>, a:[x,y,z] (tree: world anchor; player: point in
  *                       that truck's frame), f:[x,y,z] (our fairlead, our frame), len, ten}
  *   server -> clients {t:'snapshot', time, players:[{id, name, s}]}          (at tickRate, to the room)
@@ -178,6 +178,7 @@ class Room {
       lights: s.lights ? 1 : 0,
       truck: cleanStr(s.truck, 24, prev ? prev.truck : 'ranger'),
       cfg: typeof s.cfg === 'string' && /^[0-9a-z]{1,24}$/.test(s.cfg) ? s.cfg : (prev ? prev.cfg : ''),
+      help: s.help ? 1 : 0,
       paint: /^#[0-9a-fA-F]{6}$/.test(s.paint) ? s.paint : (prev ? prev.paint : '#b5532c'),
       warp,
       winch,

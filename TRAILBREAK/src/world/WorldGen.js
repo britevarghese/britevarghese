@@ -226,7 +226,7 @@ export async function generateWorld({ onProgress = () => {}, yieldEvery = 64 } =
         if (fd < 28) { const k = smoothstep(28, 8, fd); half *= 1 + 0.6 * k; depth = lerp(depth, 0.42, k); }
       }
       rpLevel[p] = n.level; rpHalf[p] = half; rpDepth[p] = depth;
-      const R = Math.ceil(half + 12);
+      const R = Math.ceil(half + 42);
       const ci = Math.round(px - GRID_ORIGIN), ck = Math.round(pz - GRID_ORIGIN);
       for (let k = Math.max(0, ck - R); k <= Math.min(N - 1, ck + R); k++) {
         const dz = GRID_ORIGIN + k - pz;
@@ -243,11 +243,17 @@ export async function generateWorld({ onProgress = () => {}, yieldEvery = 64 } =
       if (rD[idx] === 255) continue;
       const d = rD[idx] / 4, p = rI[idx], half = rpHalf[p], level = rpLevel[p];
       let h = H[idx];
-      if (d < half) h = Math.min(h, level - rpDepth[p] * (1 - 0.8 * (d / half) ** 2));
-      else {
-        const bank = level + 0.25 + (d - half) * 0.3;
-        if (h > bank) h = lerp(h, bank, smoothstep(half + 18, half, d));
-        else if (d < half + 6) h = Math.max(h, level + 0.1);            // no low ground lying beside the channel
+      if (d < half) {
+        // the bed rises smoothly to the water's edge: no step there
+        h = Math.min(h, level - 0.05 - rpDepth[p] * (1 - (d / half) ** 2));
+      } else {
+        // the banks rise no steeper than about 20 degrees for 25 m (a truck in the river can climb out anywhere),
+        // then the limit relaxes so the valley side meets the land without a step. It follows the water level of
+        // the nearest stretch of river, so it never cuts below a river running downhill.
+        const k = d - half;
+        const cap = level + 0.12 + 0.36 * k + (k > 25 ? 0.06 * (k - 25) ** 2 : 0);
+        if (h > cap) h = cap;
+        else if (k < 6) h = Math.max(h, level + 0.12 * Math.min(1, k / 1.5));   // no low ground beside the channel
       }
       H[idx] = h;
       if (d < half + 1.5) { const i = idx % N; setWater(GRID_ORIGIN + i, GRID_ORIGIN + (idx - i) / N, level); }
@@ -481,7 +487,7 @@ export async function generateWorld({ onProgress = () => {}, yieldEvery = 64 } =
       if (h > SNOW_LINE + 40) dens *= 0.3;
       dens = clamp(dens - 0.12, 0, 0.9) ** 1.9;
       if (R() > dens) continue;
-      const nearWater = riverD(idx) < 40 || hyp(px - lake.x, pz - lake.z) < lake.r + 60;
+      const nearWater = riverD(idx) < riverHalf(idx) + 12 || hyp(px - lake.x, pz - lake.z) < lake.r + 60;
       const type = nearWater && R() < 0.55 ? 2 : (h > 200 || R() < 0.35) ? 1 : (R() < 0.02 ? 3 : 0);
       const ht = type === 2 ? 9 + R() * 7 : type === 1 ? 11 + R() * 10 : type === 3 ? 7 + R() * 6 : 12 + R() * 11;
       trees.x.push(px); trees.y.push(hAt(px, pz)); trees.z.push(pz);

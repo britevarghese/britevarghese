@@ -144,7 +144,7 @@ export class HUD {
       const a = Math.atan2(b.x - here.x, -(b.z - here.z));
       marks.push({ a, text: '◆', cls: 'bcn' + (this.found.has(b.id) ? ' done' : '') });
     }
-    for (const m of mates) marks.push({ a: Math.atan2(m.x - here.x, -(m.z - here.z)), text: '●', cls: 'mate', color: m.color });
+    for (const m of mates) marks.push({ a: Math.atan2(m.x - here.x, -(m.z - here.z)), text: m.help ? '!' : '●', cls: m.help ? 'mate help' : 'mate', color: m.help ? null : m.color });
     let html = '';
     for (const m of marks) {
       let d = m.a - heading;
@@ -170,7 +170,7 @@ export class HUD {
   }
 
   drawPlayers(list) {
-    const html = list.map((p) => `<div>${escapeHtml(p.name)}${p.me ? ' (you)' : ''}<span class="dot" style="background:${p.color}"></span></div>`).join('');
+    const html = list.map((p) => `<div>${escapeHtml(p.name)}${p.me ? ' (you)' : ''}${p.help ? '<span class="help">needs a tow</span>' : ''}<span class="dot" style="background:${p.color}"></span></div>`).join('');
     const el = $('players');
     if (el.innerHTML !== html) el.innerHTML = html;
   }
@@ -202,7 +202,10 @@ export class HUD {
       g.beginPath(); g.moveTo(px, py - 5); g.lineTo(px + 4, py); g.lineTo(px, py + 5); g.lineTo(px - 4, py); g.closePath(); g.fill();
       if (edge) { g.strokeStyle = 'rgba(0,0,0,0.5)'; g.stroke(); }
     });
-    for (const m of mates) put(m.x, m.z, (px, py) => { g.fillStyle = m.color; g.beginPath(); g.arc(px, py, 4.5, 0, TAU); g.fill(); g.strokeStyle = '#fff'; g.lineWidth = 1; g.stroke(); });
+    for (const m of mates) put(m.x, m.z, (px, py) => {
+      if (m.help) { g.strokeStyle = '#e0563b'; g.lineWidth = 2.5; g.beginPath(); g.arc(px, py, 8 + 3 * Math.sin(performance.now() / 160), 0, TAU); g.stroke(); }
+      g.fillStyle = m.color; g.beginPath(); g.arc(px, py, 4.5, 0, TAU); g.fill(); g.strokeStyle = '#fff'; g.lineWidth = 1; g.stroke();
+    });
     // us
     g.fillStyle = '#f3ead7'; g.strokeStyle = '#1c241f'; g.lineWidth = 1.5;
     g.beginPath(); g.moveTo(0, -8); g.lineTo(6, 6); g.lineTo(0, 3); g.lineTo(-6, 6); g.closePath(); g.fill(); g.stroke();
@@ -223,8 +226,9 @@ export class HUD {
       g.fillStyle = '#f3ead7'; g.fillText(b.name, x, y - 12);
     }
     for (const m of mates) {
-      g.fillStyle = m.color; g.beginPath(); g.arc(toPx(m.x), toPx(m.z), 6, 0, TAU); g.fill(); g.strokeStyle = '#fff'; g.stroke();
-      g.fillStyle = '#fff'; g.fillText(m.name, toPx(m.x), toPx(m.z) + 20);
+      if (m.help) { g.strokeStyle = '#e0563b'; g.lineWidth = 3; g.beginPath(); g.arc(toPx(m.x), toPx(m.z), 13, 0, TAU); g.stroke(); }
+      g.fillStyle = m.color; g.beginPath(); g.arc(toPx(m.x), toPx(m.z), 6, 0, TAU); g.fill(); g.strokeStyle = '#fff'; g.lineWidth = 1.5; g.stroke();
+      g.fillStyle = '#fff'; g.fillText(m.help ? `${m.name}: needs a tow` : m.name, toPx(m.x), toPx(m.z) + 20);
     }
     g.save(); g.translate(toPx(here.x), toPx(here.z)); g.rotate(heading);
     g.fillStyle = '#f3ead7'; g.strokeStyle = '#1c241f'; g.lineWidth = 2;
