@@ -5,9 +5,11 @@
  * so a link keeps working after a server restart.
  *
  * Protocol (JSON text frames over /ws):
- *   client -> server  {t:'hello', name, room?, map?, truck?, paint?}
+ *   client -> server  {t:'hello', name, room?, map?, quick?, truck?, paint?}
  *                       map: the map a new room is opened on (one who joins an open room drives its map)
- *   server -> client  {t:'welcome', id, room, map, tickRate, maxPlayers, players:[{id,name}], beacons:[id...]}
+ *                       quick: true (and no room): a quick match, into the fullest public room on that map with a
+ *                       seat free, or a new public room (rooms opened by code stay private: only their link gets in)
+ *   server -> client  {t:'welcome', id, room, map, public, tickRate, maxPlayers, players:[{id,name}], beacons:[id...]}
  *   client -> server  {t:'state', s:{p:[x,y,z], q:[x,y,z,w], v:[x,y,z], w:[x,y,z], wh:[[susp, spin, steer] x4],
  *                       rpm, thr, brk, lights, truck, cfg, paint, warp, winch}}
  *                       cfg: the truck's build (garage parts), a short [0-9a-z] code; help: 1 when calling for a tow
@@ -98,6 +100,7 @@ class Room {
   constructor(code, { tickRate = 20, maxPlayers = 4, log = () => {}, map = DEFAULT_MAP } = {}) {
     this.code = code;
     this.map = map;                // which map the room drives (the first player's pick)
+    this.public = false;           // a quick-match room: anyone looking for a game may be put in it
     this.tickRate = tickRate;
     this.maxPlayers = maxPlayers;
     this.log = log;
@@ -115,7 +118,7 @@ class Room {
     this.players.set(player.id, player);
     this.emptySince = 0;
     this.send(player, {
-      t: 'welcome', id: player.id, room: this.code, map: this.map, tickRate: this.tickRate, maxPlayers: this.maxPlayers,
+      t: 'welcome', id: player.id, room: this.code, map: this.map, public: this.public ? 1 : 0, tickRate: this.tickRate, maxPlayers: this.maxPlayers,
       players: [...this.players.values()].filter((p) => p !== player).map((p) => ({ id: p.id, name: p.name, ...(p.dmg ? { dmg: p.dmg } : {}), ...(p.voice ? { voice: 1, mic: p.mic ? 1 : 0, mute: p.mute ? 1 : 0 } : {}) })),
       beacons: [...this.beacons.keys()],
       race: this.race ? { id: this.race.id, at: this.race.at, racers: this.racerList() } : null,
@@ -359,6 +362,19 @@ class Lobby {
     return r;
   }
 
+  /** A quick match on `map`: the fullest public room there with a seat free, or a new public one. */
+  quickRoom(map = DEFAULT_MAP) {
+    let best = null;
+    for (const r of this.rooms.values()) {
+      if (!r.public || r.map !== map || r.size === 0 || r.size >= r.maxPlayers) continue;
+      if (!best || r.size > best.size) best = r;
+    }
+    if (best) return best;
+    const r = this.room(this.newCode(), map);
+    if (r) r.public = true;
+    return r;
+  }
+
   addConnection(ws) {
     const player = { id: 0, ws, name: null, room: null, s: null, lastUpdate: 0, msgWindowStart: Date.now(), msgCount: 0 };
     const send = (obj) => ws.send(JSON.stringify(obj));
@@ -384,8 +400,9 @@ class Lobby {
           send({ t: 'error', msg: 'That room code is not valid.' });
           return ws.close(1008, 'bad room code');
         }
-        const code = asked || this.newCode();
-        const room = this.room(code, typeof msg.map === 'string' && MAP_RX.test(msg.map) ? msg.map : DEFAULT_MAP);
+        const map = typeof msg.map === 'string' && MAP_RX.test(msg.map) ? msg.map : DEFAULT_MAP;
+        const room = msg.quick === true && !asked ? this.quickRoom(map) : this.room(asked || this.newCode(), map);
+        const code = room?.code;
         if (!room) { send({ t: 'error', msg: 'The server is busy. Try again later.' }); return ws.close(1013, 'busy'); }
         if (room.size >= room.maxPlayers) {
           send({ t: 'error', msg: `Room ${code} is full (${room.maxPlayers} drivers).` });

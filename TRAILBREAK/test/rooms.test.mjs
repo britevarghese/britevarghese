@@ -71,6 +71,24 @@ test('a room everyone has left opens again on the map of whoever comes back firs
   assert.equal(join(lobby, 'Ben', code, 'kerala').last('welcome').map, 'ashwood', 'and friends join it there');
 });
 
+test('quick match: players looking for a game share a public room on their map; private rooms stay private', () => {
+  let n = 0;
+  const lobby = new Lobby({ maxPlayers: 2, rand: () => ((n++ * 0.137) % 1) });
+  const quick = (name, map) => { const ws = new FakeWs(); lobby.addConnection(ws); ws.msg({ t: 'hello', name, map, quick: true }); return ws.last('welcome'); };
+  const pat = join(lobby, 'Pat').last('welcome');           // a room of friends, by code
+  assert.equal(pat.public, 0);
+  const a = quick('Ana'), b = quick('Ben');
+  assert.equal(a.public, 1);
+  assert.equal(b.room, a.room, 'the second one looking joins the first');
+  assert.notEqual(a.room, pat.room, 'never into a private room');
+  const c = quick('Cal');
+  assert.notEqual(c.room, a.room, 'that room is full: a new one');
+  const k = quick('Kai', 'kerala');
+  assert.notEqual(k.room, c.room, 'another map: its own room');
+  assert.equal(k.map, 'kerala');
+  assert.equal(quick('Dee').room, c.room, 'into the one with a seat free');
+});
+
 test('rooms fill up at their limit', () => {
   const lobby = new Lobby({ maxPlayers: 2 });
   const a = join(lobby, 'A', 'TRAPS');

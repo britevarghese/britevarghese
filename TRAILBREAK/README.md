@@ -32,6 +32,9 @@ and press **Drive**.
   for the invite link (`http://host:3000/?room=K7QMP&map=kerala`) and send it to your friends: whoever joins a room
   drives its map. Rooms hold 4 drivers (`multiplayer.maxPlayers` in
   `config.json`). A link keeps working after a server restart: the room is created again by whoever arrives first.
+- **Quick match:** **Quick match: play online** puts you in a public room with other players looking for a game on
+  the map you picked (the fullest one with a seat free), or opens one that the next to look will join. Rooms started
+  with a code stay private: only their link gets in.
 - **Alone:** **Drive alone (offline)** needs no connection after the page has loaded. Your beacon progress on each
   map is kept in the browser.
 - **Steering wheel or gamepad on another PC:** browsers only give controllers to secure pages, so open

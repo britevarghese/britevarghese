@@ -426,3 +426,7 @@ body.has-ev #toasts { top: 196px; }
   .mc-body { font-size: 12.5px; margin: 6px 0 8px; }
   .mc-actions button { padding: 6px 12px; }
 }
+
+/* ---------- quick match */
+button.quick { background: var(--accent-2); border-color: var(--accent-2); color: #0f2421; font-weight: 700; letter-spacing: .02em; }
+button.quick:hover { background: #63c4ba; }

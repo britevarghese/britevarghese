@@ -135,13 +135,14 @@ function lobby() {
     paintsEl.appendChild(b);
   }
   return new Promise((resolve) => {
-    const go = (online) => {
+    const go = (online, quick = false) => {
       settings.name = ($('name').value.trim() || 'Driver').slice(0, 20);
       save();
       view.dispose();                                 // the game wants the GPU
-      resolve({ online, room: $('room').value.trim().toUpperCase(), map: settings.map });
+      resolve({ online, quick, room: quick ? '' : $('room').value.trim().toUpperCase(), map: settings.map });
     };
     $('go').onclick = () => go(true);
+    $('quick').onclick = () => go(true, true);
     $('solo').onclick = () => go(false);
     $('room').addEventListener('keydown', (e) => { if (e.key === 'Enter') go(true); });
     $('name').addEventListener('keydown', (e) => { if (e.key === 'Enter') go(true); });
@@ -163,7 +164,7 @@ async function start() {
     audio.start().catch(() => {});                  // inside the click: browsers allow sound to start here
     if (!choice.online) break;
     $('lobby-msg').textContent = 'Connecting...';
-    net = new NetClient({ name: settings.name, room: choice.room, map: choice.map });
+    net = new NetClient({ name: settings.name, room: choice.room, map: choice.map, quick: choice.quick });
     try {
       welcome = await net.connect();
       break;
@@ -241,7 +242,10 @@ async function start() {
   $('loading').classList.add('hidden');
   hud.show(true);
   renderer.renderer.domElement.focus();
-  hud.toast(net ? `Room ${net.room} (${M.name}): press Esc for the invite link` : `Driving alone in ${M.name}. Press F1 for the controls`, false, 6);
+  const others = net ? net.remotes.size : 0;
+  hud.toast(!net ? `Driving alone in ${M.name}. Press F1 for the controls`
+    : net.public ? `Quick match in ${M.name}: ${others ? `${others} other driver${others > 1 ? 's' : ''} here` : 'you are the first here: others looking for a game will join you'}. Enter to chat`
+    : `Room ${net.room} (${M.name}): press Esc for the invite link`, false, 7);
   if (otherMap) hud.toast(`Room ${net.room} was opened on ${M.name}, so you drive it here. For ${MAPS[otherMap].name}, leave the room code empty.`, false, 9);
   hud.toast('Find the survey beacons: follow the orange light beams', false, 6);
   wireMenus(game, net);
