@@ -25,6 +25,14 @@ const clamp = (x, a, b) => (x < a ? a : x > b ? b : x);
 const fmtDist = (m) => (m < 1000 ? `${Math.round(m / 10) * 10} m` : `${(m / 1000).toFixed(1)} km`);
 const MATE_COLORS = ['#4fb3a9', '#e0b33b', '#c46bd6', '#6aa8e8', '#e0563b', '#7cc36a', '#e88fb0', '#c9c06a'];
 
+/** A truck's model; if its parts can't be drawn (a fault in a model's layout), the stock truck rather than none. */
+function modelFor(spec, truckId, paint) {
+  try { return new TruckModel(spec, paint); } catch (e) {
+    console.error(`truck model ${truckId} ${spec.buildCode}:`, e);
+    return new TruckModel(truckSpec(truckId), paint);
+  }
+}
+
 function nameTag(text, color) {
   const c = document.createElement('canvas'); c.width = 256; c.height = 64;
   const x = c.getContext('2d');
@@ -53,7 +61,7 @@ export class Game {
     this.build = this.spec.buildCode;
     this.vehicle = new Vehicle(this.spec);
     this.vehicle.damage.setLevel(this.settings.damage);
-    this.model = new TruckModel(this.spec, this.paint);
+    this.model = modelFor(this.spec, this.truckId, this.paint);
     this.scene.add(this.model.root);
     this.garageSpot = this.world.landmarks.find((L) => L.type === 'garage');
     this.stationSpot = this.world.landmarks.find((L) => L.type === 'station');
@@ -285,7 +293,7 @@ export class Game {
     v.damage.setLevel(this.settings.damage);
     v.dt.low = old.dt.low; v.dt.fourWD = old.dt.fourWD;
     this.scene.remove(this.model.root); this.model.dispose();
-    this.model = new TruckModel(this.spec, this.paint);
+    this.model = modelFor(this.spec, this.truckId, this.paint);
     this.model.setDirt(this.dirt);
     this.scene.add(this.model.root);
     this.attachLights();
@@ -734,7 +742,7 @@ export class Game {
       if (rv) { this.scene.remove(rv.model.root); rv.model.dispose(); }
       const spec = truckSpec(s.truck, s.cfg || undefined);
       const color = MATE_COLORS[r.id % MATE_COLORS.length];
-      rv = { id: r.id, name: r.name, truckId: s.truck, cfg: s.cfg, spec, model: new TruckModel(spec, s.paint), color, paint: s.paint };
+      rv = { id: r.id, name: r.name, truckId: s.truck, cfg: s.cfg, spec, model: modelFor(spec, s.truck, s.paint), color, paint: s.paint };
       rv.tag = nameTag(r.name, color);
       rv.model.root.add(rv.tag);
       rv.tag.position.set(0, spec.roofY + spec.raise - spec.cgHeight + 0.5, 0);

@@ -115,5 +115,10 @@
  },
  "sill": 0.55,
  "ownChassis": true,
- "glb": "bronco.glb?v=54e172beae"
+ "glb": "bronco.glb?v=54e172beae",
+ "roofY": 1.93,
+ "roofZ": [
+  -2.05,
+  0.45
+ ]
 }
