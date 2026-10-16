@@ -194,7 +194,10 @@ export class VehiclePhysics {
     const muF = mu * 1.02 * (1 - understeer), muR = mu * this.rearGripMul;
     let Fyf = 0, Fyr = 0;
     const vxa = Math.max(Math.abs(vx), 1.0);
-    const af = Math.atan2(vy + p.a * r, vxa) - delta * sign(vx || 1);
+    // (the steer angle as the floored speed sees it: rolling round at full lock below 1 m/s read as the front tyres
+    // sliding sideways, a brake - a lorry crawling round a tight corner stopped dead on the throttle)
+    const dEff = Math.atan2(Math.abs(vx) * Math.tan(delta), vxa);
+    const af = Math.atan2(vy + p.a * r, vxa) - dEff * sign(vx || 1);
     const ar = Math.atan2(vy - p.b * r, vxa);
     const tire = (alpha) => Math.sin(1.45 * Math.atan(11 * alpha));
     // friction circle on the rear: wheelspin under power (power oversteer)
@@ -240,7 +243,10 @@ export class VehiclePhysics {
     if (s.onGround) {
       const rKin = vx * Math.tan(delta) / L;
       r = lerp(rKin, r, k);
-      vy = lerp(vy * 0.85, vy, k);
+      // (sideways at what rolling round that turn takes - the body's centre swings out about the rear axle - not
+      // nothing: held at nothing, both axles slid and the front tyres braked the car at full lock)
+      const vyKin = p.b * r;
+      vy = lerp(vyKin + (vy - vyKin) * 0.85, vy, k);
       if (Math.abs(vx) < 0.15 && driveIn === 0) { vx *= 0.9; }
       // motorcycles turn by leaning: above walking pace the turn rate is what the lean supports
       // (ay = g tan(lean)), so the bike tips in first and then carves, and it does not slide sideways

@@ -353,6 +353,11 @@ the game. Newly found problems go at the end of their section.
   a crossing found that way is levelled across too. At a narrow fork the levelling runs on for as long as the two
   carriageways overlap (two branches 30 degrees apart were 0.17 m different 8 m out) - not where a highway's two
   carriageways part (they're levelled side by side already). Kannur's worst step 29 -> 13 cm
+- [x] A side road crossing a divided highway climbed 0.95 m across the median, from one carriageway to the other (a
+  0.33 m jolt on the link between them): the two carriageways were tied together only loosely, the junctions along
+  them kept the heights taken before that and pulled them apart again, and the link counted as much as the highway
+  at its ends. The carriageways are graded level with each other now, the junctions move with them, and a link meets
+  the road it links at that road's level. Iritty's crossing 0.33 -> 0.13 m; no step over 13 cm in Kannur or Iritty
 
 ## Story
 - [x] The story begins like GTA's: a prologue, 'The Kayal Job', starts on a new game in Kerala (Esc skips a scene;
@@ -415,6 +420,13 @@ the game. Newly found problems go at the end of their section.
     An AI car on the throttle and not moving now backs off and tries again (a lorry wanting a slow corner speed
     never counted as stuck). Still: in 'Lorry War' the only way out of Attadappa bends 100 degrees in 6 m; the lorry
     leaves the road there and stays in the roadside drain (easy to ram: the job still passes)
+  - [x] ...that lorry wasn't off the road: every vehicle turning at walking pace on full lock was braked by its own
+    front tyres (below 5 m/s the model held the body from swinging out about the rear axle, so both axles slid, and
+    below 1 m/s it read the wheels as sliding sideways). It stopped dead in the bend for 14 s, throttle on. Slow turns
+    roll round now: it takes that bend at 16 km/h, its longest stop on the whole 7.6 km 2 s
+  - [x] A mission's AI vehicle was put down wherever the roads had loaded when its step began: with the way between
+    not built yet, the 'Lorry War' lorry started 1.5 km along its route, by a 110-degree corner it couldn't take from
+    a standstill, and sat in the drain for good. It waits for its route to start at its place now (a minute at most)
   - [x] A mission car not put in place yet (its roads not loaded, kilometres off) left the objective with no marker
     and no GPS: both now show the way to the place meanwhile
   - [x] 'press E' for a contact's mission stayed on screen through the whole mission

@@ -1031,7 +1031,9 @@ export class KeralaTile {
           // main road doesn't dip or rise to meet them); roads of the same class share the average
           const k = key(x.r.pts[pi]); joins.push([i, k]);
           if (!nodeW.has(k)) nodeW.set(k, []); nodeW.get(k).push(x.r.flags & 8 ? -1 : x.r.cls, x.hw, x);
-          const o = node.get(k); const c = x.r.flags & 8 ? -1 : x.r.cls;   // (a roundabout's ring first)
+          // (a roundabout's ring first; a link road after the roads of its class it links: a highway's two
+          // carriageways each met the link across the median at the link's own level there, 0.95 m apart)
+          const o = node.get(k); const c = x.r.flags & 8 ? -1 : x.r.cls + (x.r.flags & 16 ? 0.5 : 0);
           if (!o || c < o[2]) node.set(k, [yy[i], 1, c, (o?.[3] || 0) + 1, raised[map[i]], o?.[5], o?.[6]]); else if (c === o[2]) { o[0] += yy[i]; o[1]++; o[3]++; o[4] |= raised[map[i]]; } else o[3]++;
           const q = node.get(k); if (raised[map[i]] && !(q[5] >= yy[i])) { q[5] = yy[i]; q[6] = c; }
         });
@@ -1039,7 +1041,7 @@ export class KeralaTile {
           if (raised[map[i]]) continue;   // (a bridge ramp passing over: no junction there)
           joins.push([i, k]);
           if (!nodeW.has(k)) nodeW.set(k, []); nodeW.get(k).push(x.r.flags & 8 ? -1 : x.r.cls, x.hw, x);
-          const o = node.get(k), c = x.r.flags & 8 ? -1 : x.r.cls;
+          const o = node.get(k), c = x.r.flags & 8 ? -1 : x.r.cls + (x.r.flags & 16 ? 0.5 : 0);
           if (!o || c < o[2]) node.set(k, [yy[i], 1, c, (o?.[3] || 0) + 1, raised[map[i]]]); else if (c === o[2]) { o[0] += yy[i]; o[1]++; o[3]++; o[4] |= raised[map[i]]; } else o[3]++;
         }
         roads.push((x.R = { hw: x.hw, P: x.P, prof: yy, joins, wet: ww, cls: x.r.cls, up: map.map((ci) => raised[ci]), tj: x.tj, tjOn: x.tjOn, src: x }));
@@ -1069,10 +1071,13 @@ export class KeralaTile {
               const L = G.get((ge + a) * 100000 + gn + b); if (!L) continue;
               for (let q = 0; q < L.length; q += 2) {
                 const o = roads[L[q]]; if (o === R) continue;
-                const j = L[q + 1], [oe, on] = o.P[j], d = Math.hypot(oe - e, on - n), gap = R.hw + o.hw + 6;
+                // (a highway's two carriageways: one road, level with each other. Tied as loosely as the rest, two
+                // 11 m apart stayed 0.95 m apart, and the link across the median between them a 16 % ramp)
+                const dual = R.cls <= 3 && o.cls === R.cls && (R.src.r.flags & o.src.r.flags & 1);
+                const j = L[q + 1], [oe, on] = o.P[j], d = Math.hypot(oe - e, on - n), gap = R.hw + o.hw + (dual ? 14 : 6);
                 if (d > gap || Math.abs(o.prof[j] - R.prof[i]) > 3) continue;
                 const [vx, vy] = dir(o, j); if (Math.abs(ux * vx + uy * vy) < 0.8) continue;
-                const w = (1 - d / gap) * 0.5, c = best.get(L[q]); if (!c || w > c[0]) best.set(L[q], [w, o.prof[j]]);
+                const w = dual ? 1 - (d / gap) ** 2 : (1 - d / gap) * 0.5, c = best.get(L[q]); if (!c || w > c[0]) best.set(L[q], [w, o.prof[j]]);
               }
             }
             let sw = 1, sy = R.prof[i];
@@ -1088,6 +1093,12 @@ export class KeralaTile {
         const deltas = [];
         for (const R of roads) { if (this._due()) { yield 'grade:side+'; this._ys = performance.now(); } deltas.push(shift(R)); }
         roads.forEach((R, ri) => { for (let i = 0; i < R.P.length; i++) R.prof[i] += deltas[ri][i]; });
+        // (and the junctions' levels with them: taken before, they pulled each road back where it was - a highway's
+        // two carriageways, levelled together, went back to 1 m apart at the junctions along them)
+        roads.forEach((R, ri) => {
+          const c = R.src.r.flags & 8 ? -1 : R.cls + (R.src.r.flags & 16 ? 0.5 : 0);
+          for (const [i, k] of R.joins) { const o = node.get(k); if (o && o[2] === c) o[0] += deltas[ri][i]; }
+        });
       }
     }
     // (the most important roads first: a side road ending on one without a shared point meets it at its final level)

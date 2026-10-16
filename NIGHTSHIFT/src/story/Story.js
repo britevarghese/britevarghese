@@ -161,7 +161,7 @@ export class Story {
 
   _route(points, m, big = false) {
     const wps = points.map((p) => { const s = this._resolve(p, m); return { x: s.x, z: s.z }; });
-    let route = this.game.races.prepare({ type: 'sprint', waypoints: wps, big }).route;
+    let P = this.game.races.prepare({ type: 'sprint', waypoints: wps, big }), route = P.route;
     // a waypoint the route has to turn round at (a place up a dead end, a junction it goes past and comes back to):
     // dropped, the route on from the one before (an AI car can't turn round in a lane: the truck you were tailing
     // stood there for good)
@@ -172,8 +172,9 @@ export class Story {
       for (let i = 1; i < wps.length - 1; i++) { const d = Math.hypot(wps[i].x - route[u][0], wps[i].z - route[u][1]); if (d < bd) { bd = d; bi = i; } }
       if (bi < 0) break;
       wps.splice(bi, 1);
-      route = this.game.races.prepare({ type: 'sprint', waypoints: wps, big }).route;
+      P = this.game.races.prepare({ type: 'sprint', waypoints: wps, big }); route = P.route;
     }
+    route.broken = P.broken;   // (a leg with no way through the roads built so far)
     return route;
   }
 
@@ -704,7 +705,13 @@ export class Story {
         if (need.length) { s.nextTry = s.t + 1; g.world.prioritize?.(need); return false; }
       }
       const route = this._route(pts, m, (TRAFFIC_VEHICLES[type]?.params?.length || 0) > 6);
-      if (g.world.kerala && route.length < 4) { s.nextTry = s.t + 1; g.world.prioritize?.(pts.map((q) => this._resolve(q, m))); return false; }
+      // (and from its first place, the whole way: with the roads between not built yet a leg was left out, and the
+      // route began wherever roads had been - a lorry put down 1.5 km along its way, by a corner it couldn't take
+      // from a standstill, and stuck there)
+      const p0 = typeof pts[0] === 'string' ? this.placeAt?.(pts[0]) : null;
+      const short = route.length < 4 || (s.t < 60 && p0 && Math.hypot(route[0][0] - p0.x, route[0][1] - p0.z) > 150) || (s.t < 15 && route.broken);
+      // (the places' own tiles first: the nearest lane to a place not built yet is wherever roads are)
+      if (g.world.kerala && short) { s.nextTry = s.t + 1; g.world.prioritize?.(pts.map((q) => (typeof q === 'string' && this.placeAt?.(q)) || this._resolve(q, m))); return false; }
       let spot;
       if (st.type === 'race') {
         // line up beside the player, facing the first leg (Kerala: the rival in the lane, you beside him in the other
