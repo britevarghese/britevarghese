@@ -98,7 +98,14 @@ camera, map and menu (play in landscape).
 
 ## Damage
 
-Trucks break the way real ones do (physics/Damage.js), so drive like it's yours:
+Trucks break the way real ones do (physics/Damage.js). How hard is the **Damage** setting (Esc menu):
+
+- **Forgiving** (the default): it takes a proper crash to break anything (about twice the speeds below), a holed
+  radiator leaks slowly, an overheating or oil-starved engine runs rough and loses power but never seizes, and water
+  in the intake stalls it rather than bending a rod (unless it is revving flat out). Tie rods only bend in a big hit,
+  and then only a little.
+- **Realistic**: what follows, so drive like it's yours.
+
 
 - **Crashes and roll-overs** dent the body where it hits (closing faster than about 8 km/h; steel bumpers and rock
   sliders shrug off what would crease a fender or a sill), crack the windscreen and then shatter it, smash headlamps.
@@ -125,7 +132,8 @@ steam.
 ## Money, the dealer and events
 
 Each driver has a career, kept in their own browser: money, the trucks and parts they own, their best times. You
-start with $2,500 and the Ranger.
+start with $2,500. **For now every truck is free**: pick any of the nine in the lobby or at the dealer and drive it
+(`FREE_TRUCKS` in `src/game/Career.js` turns the dealer's prices back on).
 
 - **Earning:** surveying a beacon pays a $600 bounty (friends in the room get a share when you find one), towing a
   friend out pays a rescue fee, and events pay prize money.
@@ -278,7 +286,7 @@ Everything that makes off-roading off-roading is simulated, not faked:
   out, or hook a friend's truck: your truck holds on its brakes and theirs feels the line tension.
 - **Steering kickback:** the forces on the front tyres turn the wheels about their kingpins (a tyre shoved back by a
   rock or a ledge acts at the scrub radius, side forces act behind the kingpin and centre the wheel). The sudden part
-  kicks the steering wheel (you see it in the cab) and turns the road wheels a degree or two against your grip, as on
+  kicks the steering wheel (you see it in the cab) and turns the road wheels a little against your grip, as on
   a real beam-axle truck. With **Vibration** on (pause menu), a gamepad rumbles with the shake of the ground, the buzz
   of gravel and rock, mud judder and hard hits; an Android phone buzzes; the camera trembles. Browsers can't drive a
   steering wheel's force-feedback motor, so wheels don't rumble.

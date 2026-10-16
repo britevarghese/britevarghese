@@ -996,7 +996,7 @@ export class Vehicle {
     const a = 0.08 / (0.08 + dt);
     this._kHP = a * (this._kHP + Tk - this._kT);
     this._kT = Tk;
-    this.kickAngle += (clamp(this._kHP / 6000, -0.035, 0.035) - this.kickAngle) * Math.min(1, dt / 0.02);
+    this.kickAngle += (clamp(this._kHP / 6000, -0.012, 0.012) - this.kickAngle) * Math.min(1, dt / 0.02);
     const rim = (this._kHP / 17.5) * 0.25;
     f.kick += (rim - f.kick) * Math.min(1, dt / 0.015);
     // the ground through the tyres

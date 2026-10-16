@@ -79,7 +79,7 @@ export class Input {
     const target = clamp((r ? 1 : 0) - (l ? 1 : 0) + this.touch.steer, -1, 1);
     throttle = Math.max(throttle, this.touch.throttle);
     brake = Math.max(brake, this.touch.brake);
-    const rate = target === 0 || Math.sign(target) !== Math.sign(this.steerKey) ? 6 : 2.6;
+    const rate = target === 0 || Math.sign(target) !== Math.sign(this.steerKey) ? 7 : 3.6;
     this.steerKey += clamp(target - this.steerKey, -rate * dt, rate * dt);
     let steer = this.steerKey;
     let handbrake = this.any('Space') ? 1 : 0;

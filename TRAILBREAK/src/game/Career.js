@@ -16,11 +16,17 @@ export const DEBT_LIMIT = -5000;
 export const TRUCK_PRICES = { gecko: 4500, mule: 6500, trekker: 8000, ranger: 9500, shepherd: 13000, hauler: 14500, drover: 16000, bruiser: 24000, rhino: 42000 };
 /** The dealer's trucks, cheapest first. */
 export const DEALER_ORDER = Object.keys(TRUCK_PRICES).sort((a, b) => TRUCK_PRICES[a] - TRUCK_PRICES[b]);
+/** For now every truck is free: every driver has the whole dealer's yard to drive (false sells them again). */
+export const FREE_TRUCKS = true;
 
 export class Career {
-  /** grandfather: the truck and builds a player had before careers existed (they keep them). */
-  constructor({ truck = 'ranger', builds = {} } = {}, storage = globalThis.localStorage) {
+  /**
+   * grandfather: the truck and builds a player had before careers existed (they keep them). freeTrucks: every truck
+   * is the driver's (FREE_TRUCKS).
+   */
+  constructor({ truck = 'ranger', builds = {}, freeTrucks = FREE_TRUCKS } = {}, storage = globalThis.localStorage) {
     this.storage = storage;
+    this.freeTrucks = freeTrucks;
     let data = null;
     try { data = JSON.parse(storage?.getItem(STORE) || 'null'); } catch { data = null; }
     if (!data || typeof data !== 'object') {
@@ -41,7 +47,7 @@ export class Career {
   save() { try { this.storage?.setItem(STORE, JSON.stringify(this.d)); } catch { /* storage blocked */ } }
 
   get money() { return this.d.money; }
-  get trucks() { return this.d.trucks; }
+  get trucks() { return this.freeTrucks ? DEALER_ORDER.filter((id) => id === this.d.trucks[0]).concat(DEALER_ORDER.filter((id) => id !== this.d.trucks[0])) : this.d.trucks; }
   get log() { return this.d.log; }
 
   /** Change the balance (+ earned, - spent) with a line in the log. */
@@ -71,7 +77,7 @@ export class Career {
     return can;
   }
 
-  ownsTruck(id) { return this.d.trucks.includes(id); }
+  ownsTruck(id) { return this.freeTrucks ? TRUCK_PRICES[id] !== undefined : this.d.trucks.includes(id); }
 
   buyTruck(id) {
     if (this.ownsTruck(id)) return true;

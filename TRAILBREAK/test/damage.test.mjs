@@ -53,9 +53,10 @@ test('a roll onto the roof dents it, breaks the glass and stops the engine', () 
   assert.equal(v.dt.running, true);
 });
 
-test('into a tree at 20 km/h: the radiator holes, the coolant runs out, it overheats and loses power', () => {
+test('realistic: into a tree at 20 km/h the radiator holes, the coolant runs out, it overheats and loses power', () => {
   const g = withTree(0, 12);
   const v = new Vehicle(truckSpec('ranger'));
+  v.damage.setLevel('realistic');
   v.place(g, 0, 0, 0);
   run(v, g, (t, s) => ({ throttle: s.pos.z < 7 && s.vel.length() * 3.6 < 20 ? 1 : 0, brake: 0, steer: 0, handbrake: 0 }), 4);
   const D = v.damage;
@@ -72,10 +73,11 @@ test('into a tree at 20 km/h: the radiator holes, the coolant runs out, it overh
   assert.ok(D.power < P0 * 0.85, `power ${D.power}`);
 });
 
-test('a slower knock on a tree only scuffs: no dent below ~8 km/h, a dent above', () => {
+test('realistic: a slower knock on a tree only scuffs: no dent below ~8 km/h, a dent above', () => {
   const knock = (kmh) => {
     const g = withTree(0, 12);
     const v = new Vehicle(truckSpec('ranger'));
+    v.damage.setLevel('realistic');
     v.place(g, 0, 8, 0);
     v.vel.set(0, 0, kmh / 3.6);                              // rolling at kmh, coasting into the trunk
     for (const w of v.wheels) w.omega = kmh / 3.6 / v.spec.tyre.radius;
@@ -130,8 +132,9 @@ test('a snapped rear shaft: an open diff stops driving (2WD goes nowhere, 4WD ge
   assert.ok(go(false, 'crawler', true) > 3, 'rear locker in: the other rear wheel drives');
 });
 
-test('water in the intake at revs bends a rod; at idle it only stalls', () => {
+test('realistic: water in the intake at revs bends a rod; at idle it only stalls', () => {
   const v = new Vehicle(truckSpec('ranger'));
+  v.damage.setLevel('realistic');
   const deep = flooded(flat(SURFACE.RIVERBED), 1.2);
   v.place(flat(SURFACE.RIVERBED), 0, 0, 0);
   v.damage.hydrolock(800);
@@ -145,6 +148,33 @@ test('water in the intake at revs bends a rod; at idle it only stalls', () => {
   v.dt.start();
   assert.equal(v.dt.crankT, 0, 'a seized engine will not crank');
   void deep;
+});
+
+test('forgiving (the default): a 20 km/h tree only scuffs, a hard crash leaks slowly, and the engine never seizes from heat or water', () => {
+  const tree = (kmh) => {
+    const g = withTree(0, 12);
+    const v = new Vehicle(truckSpec('ranger'));
+    assert.equal(v.damage.level, 'forgiving');
+    v.place(g, 0, 8, 0);
+    v.vel.set(0, 0, kmh / 3.6);
+    for (const w of v.wheels) w.omega = kmh / 3.6 / v.spec.tyre.radius;
+    run(v, g, { throttle: 0, brake: 0, steer: 0, handbrake: 0 }, 4);
+    return v;
+  };
+  const knock = tree(20).damage;
+  assert.equal(knock.radiator, 0, 'no leak at 20 km/h');
+  assert.equal(knock.toe, 0, 'the steering is true');
+  // a 40 km/h crash holes it; driven on for minutes the engine overheats and loses power but keeps running
+  const v = tree(40), D = v.damage;
+  assert.ok(D.radiator > 0, 'a crash holes the radiator');
+  const g2 = flat(SURFACE.DIRT);
+  v.place(g2, 50, 0, 0);
+  run(v, g2, (t) => ({ throttle: t % 20 < 10 ? 0.8 : 0, brake: t % 20 < 10 ? 0 : 1, steer: 0, handbrake: 0 }), 600);
+  assert.ok(!D.seized && v.dt.running, `still running (engine ${D.engine.toFixed(2)}, ${D.temp.toFixed(0)} C)`);
+  // water in the intake at 3000 rpm: it stalls and knocks, but it will start again
+  const w = new Vehicle(truckSpec('ranger'));
+  w.damage.hydrolock(3000);
+  assert.ok(!w.damage.seized && w.damage.engine > 0.9, `engine ${w.damage.engine}`);
 });
 
 test('the workshop mends everything; the bill reflects the damage', () => {

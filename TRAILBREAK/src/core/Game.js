@@ -41,6 +41,7 @@ export class Game {
     this.spec = truckSpec(this.truckId, this.build);
     this.build = this.spec.buildCode;
     this.vehicle = new Vehicle(this.spec);
+    this.vehicle.damage.setLevel(this.settings.damage);
     this.model = new TruckModel(this.spec, this.paint);
     this.scene.add(this.model.root);
     this.garageSpot = this.world.landmarks.find((L) => L.type === 'garage');
@@ -131,6 +132,7 @@ export class Game {
     this.spec = truckSpec(this.truckId, code);
     this.build = this.spec.buildCode;
     const v = this.vehicle = new Vehicle(this.spec);
+    v.damage.setLevel(this.settings.damage);
     v.dt.low = old.dt.low; v.dt.fourWD = old.dt.fourWD;
     this.scene.remove(this.model.root); this.model.dispose();
     this.model = new TruckModel(this.spec, this.paint);
