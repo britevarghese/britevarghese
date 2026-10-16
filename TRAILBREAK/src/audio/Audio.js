@@ -84,6 +84,9 @@ export class Audio {
     this.sets = new Map();
     this.remote = new Map();
     this.thumpCool = 0;
+    this.mutes = new Set();
+    // a hidden tab is silent: no engine idling away behind the other tabs (the audio stops altogether until it's back)
+    if (typeof document !== 'undefined') document.addEventListener('visibilitychange', () => this.onVisibility());
   }
 
   async start() {
@@ -92,7 +95,10 @@ export class Audio {
     if (!AC) return;
     const ctx = this.ctx = new AC();
     if (ctx.state === 'suspended') await ctx.resume().catch(() => {});
-    this.master = ctx.createGain(); this.master.gain.value = this.enabled ? 0.9 : 0;
+    this.master = ctx.createGain(); this.master.gain.value = this.volume;
+    // a browser that wouldn't resume the sound by itself (coming back to the tab) does on the next touch or key
+    const wake = () => { if (ctx.state !== 'running' && !document.hidden) ctx.resume().catch(() => {}); };
+    addEventListener('pointerdown', wake, true); addEventListener('keydown', wake, true);
     const comp = ctx.createDynamicsCompressor(); comp.threshold.value = -14; comp.ratio.value = 4;
     this.master.connect(comp).connect(ctx.destination);
     this.white = noiseBuffer(ctx, 2, 'white');
@@ -136,9 +142,27 @@ export class Audio {
     this.birdT = 3;
   }
 
-  setEnabled(on) {
-    this.enabled = on;
-    if (this.master) this.master.gain.setTargetAtTime(on ? 0.9 : 0, this.ctx.currentTime, 0.1);
+  /** The master volume: nothing with the sound off, or while there is any reason to be quiet. */
+  get volume() { return this.enabled && !this.mutes.size ? 0.9 : 0; }
+
+  setEnabled(on) { this.enabled = on; this.applyVolume(); }
+
+  /** Quiet for a reason ('pause': the pause menu; 'menu': the garage and the like; 'hidden': another tab) while on. */
+  setMuted(reason, on) {
+    if (on) this.mutes.add(reason); else this.mutes.delete(reason);
+    this.applyVolume();
+  }
+
+  applyVolume() { if (this.master) this.master.gain.setTargetAtTime(this.volume, this.ctx.currentTime, 0.05); }
+
+  onVisibility() {
+    const hidden = document.visibilityState === 'hidden';
+    this.setMuted('hidden', hidden);
+    if (!this.ctx) return;
+    clearTimeout(this.sleepT);
+    // faded out, then stopped (no sound, no work) a moment later
+    if (hidden) this.sleepT = setTimeout(() => { if (document.hidden) this.ctx.suspend().catch(() => {}); }, 250);
+    else this.ctx.resume().catch(() => {});
   }
 
   async loadSet(name) {

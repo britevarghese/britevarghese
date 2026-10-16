@@ -91,7 +91,8 @@ export class Game {
     const el = document.getElementById('events'), list = document.getElementById('ev-list');
     if (this.paused) this.togglePause(false);
     this.input.enabled = false;
-    const close = () => { el.classList.add('hidden'); this.input.enabled = !this.paused && !this.chatOpen; this.renderer.renderer.domElement.focus(); };
+    this.audio.setMuted('menu', true);
+    const close = () => { el.classList.add('hidden'); this.audio.setMuted('menu', false); this.input.enabled = !this.paused && !this.chatOpen; this.renderer.renderer.domElement.focus(); };
     list.innerHTML = this.events.listHtml();
     list.onclick = (e) => {
       const b = e.target.closest('[data-go]');
@@ -173,12 +174,14 @@ export class Game {
     if (!here && this.brokenDown && S && Math.hypot(p.x - S.x, p.z - S.z) < 200) { this.towToWorkshop(); return; }
     this.garageOpen = true;
     this.input.enabled = false;
+    this.audio.setMuted('menu', true);
     const code = await this.garage.open({
       truckId: this.truckId, code: this.build, paint: this.myColor, career: this.career,
       fitLabel: here ? 'Fit these parts' : 'Fit them at the station',
       note: here ? '' : 'You are out on the trail: fitting parts takes the truck back to the station garage.',
     });
     this.garageOpen = false;
+    this.audio.setMuted('menu', false);
     this.input.enabled = !this.paused && !this.chatOpen;
     this.renderer.renderer.domElement.focus();
     if (code && code !== this.build) this.applyBuild(code, !here);
@@ -193,8 +196,9 @@ export class Game {
     if (this.paused) this.togglePause(false);
     this.dealerOpen = true;
     this.input.enabled = false;
+    this.audio.setMuted('menu', true);
     const el = $('dealer');
-    const close = () => { el.classList.add('hidden'); this.dealerOpen = false; this.input.enabled = !this.paused && !this.chatOpen; this.renderer.renderer.domElement.focus(); };
+    const close = () => { el.classList.add('hidden'); this.dealerOpen = false; this.audio.setMuted('menu', false); this.input.enabled = !this.paused && !this.chatOpen; this.renderer.renderer.domElement.focus(); };
     const render = () => {
       $('d-money').innerHTML = `You have <b>${money(C.money)}</b>.`;
       const list = $('d-list');
@@ -449,6 +453,7 @@ export class Game {
     this.paused = force ?? !this.paused;
     document.getElementById('menu').classList.toggle('hidden', !this.paused);
     this.input.enabled = !this.paused && !this.chatOpen;
+    this.audio.setMuted('pause', this.paused);           // paused, all quiet
   }
 
   toggleMap() {

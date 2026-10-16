@@ -18,15 +18,18 @@ export const TRUCK_PRICES = { gecko: 4500, mule: 6500, trekker: 8000, ranger: 95
 export const DEALER_ORDER = Object.keys(TRUCK_PRICES).sort((a, b) => TRUCK_PRICES[a] - TRUCK_PRICES[b]);
 /** For now every truck is free: every driver has the whole dealer's yard to drive (false sells them again). */
 export const FREE_TRUCKS = true;
+/** And every part: the garage fits anything to any truck at no charge (false prices them again). */
+export const FREE_PARTS = true;
 
 export class Career {
   /**
    * grandfather: the truck and builds a player had before careers existed (they keep them). freeTrucks: every truck
-   * is the driver's (FREE_TRUCKS).
+   * is the driver's (FREE_TRUCKS); freeParts: and every part (FREE_PARTS).
    */
-  constructor({ truck = 'ranger', builds = {}, freeTrucks = FREE_TRUCKS } = {}, storage = globalThis.localStorage) {
+  constructor({ truck = 'ranger', builds = {}, freeTrucks = FREE_TRUCKS, freeParts = FREE_PARTS } = {}, storage = globalThis.localStorage) {
     this.storage = storage;
     this.freeTrucks = freeTrucks;
+    this.freeParts = freeParts;
     let data = null;
     try { data = JSON.parse(storage?.getItem(STORE) || 'null'); } catch { data = null; }
     if (!data || typeof data !== 'object') {
@@ -90,6 +93,7 @@ export class Career {
 
   // ---- parts
   ownsPart(id, cat, v) {
+    if (this.freeParts) return true;
     const base = truckBase(id);
     if (stockBuild(base)[cat] === v) return true;
     return !!this.d.parts[id]?.[cat]?.includes(v);

@@ -86,6 +86,9 @@ Without the Blueprint: **New > Web Service** with this repository, branch `claud
 | Pause, invite link, settings | Esc | Start |
 | Controls | F1 | |
 
+The sound goes off while the game is paused, in the garage, the dealer and the events list, and whenever the game's
+tab is hidden (another tab, or the browser minimised); it comes back when you drive on.
+
 While you drive, the HUD shows the transfer case range, 2WD or 4WD, the lockers (or LSD), the gearbox (AUTO or STICK,
 with M when you shift yourself) and the tyre pressure. ENGINE OFF / FLOODED appears when water has got into the intake
 (press the throttle to start it again). The coolant temperature shows once the radiator leaks, and what is broken
@@ -132,8 +135,9 @@ steam.
 ## Money, the dealer and events
 
 Each driver has a career, kept in their own browser: money, the trucks and parts they own, their best times. You
-start with $2,500. **For now every truck is free**: pick any of the nine in the lobby or at the dealer and drive it
-(`FREE_TRUCKS` in `src/game/Career.js` turns the dealer's prices back on).
+start with $2,500. **For now every truck and every garage part is free**: pick any of the nine in the lobby or at the
+dealer and drive it, and fit it with anything in the garage at no charge (`FREE_TRUCKS` and `FREE_PARTS` in
+`src/game/Career.js` turn the dealer's and the garage's prices back on).
 
 - **Earning:** surveying a beacon pays a $600 bounty (friends in the room get a share when you find one), towing a
   friend out pays a rescue fee, and events pay prize money.

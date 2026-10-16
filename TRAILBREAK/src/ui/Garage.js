@@ -135,7 +135,7 @@ export class Garage {
         b.dataset.cat = cat.id; b.dataset.i = i;
         b.textContent = optLabel(cat, o, this.base);
         b.title = o.name;
-        if (this.career) {
+        if (this.career && !this.career.freeParts) {
           const v = cat.id === 'tyre' ? TYRE_SIZES[i] : i, price = partPrice(this.base, cat.id, v);
           if (price > 0) {
             const tag = document.createElement('span');
@@ -210,7 +210,10 @@ export class Garage {
     if (this.preview && code !== this.shown) { this.preview.show(spec, this.paint); this.shown = code; }
     // the bill: parts in this build not yet owned
     const bill = $('g-bill'), fit = $('g-fit');
-    if (this.career) {
+    if (this.career?.freeParts) {
+      bill.innerHTML = 'Every part is <b>free</b> for now';
+      bill.classList.remove('short'); fit.disabled = false; fit.textContent = this.fitLabel;
+    } else if (this.career) {
       const q = this.career.quote(this.truckId, b), ok = this.career.canAfford(q.total);
       bill.innerHTML = q.total ? `Parts to buy <b>${money(q.total)}</b> · you have ${money(this.career.money)}` : `You have ${money(this.career.money)}`;
       bill.classList.toggle('short', !ok);

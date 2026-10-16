@@ -61,7 +61,7 @@ test('medals and prize money: each medal level pays once, scaled by the event; p
 
 test('the career: money, the dealer, parts, repairs on credit, best times', () => {
   const mem = new Map(), storage = { getItem: (k) => mem.get(k) ?? null, setItem: (k, v) => mem.set(k, v) };
-  const C = new Career({ truck: 'ranger', freeTrucks: false }, storage);
+  const C = new Career({ truck: 'ranger', freeTrucks: false, freeParts: false }, storage);
   assert.equal(C.money, START_MONEY);
   assert.ok(C.ownsTruck('ranger') && !C.ownsTruck('hauler'));
   assert.equal(C.buyTruck('hauler'), false, 'not enough money');
@@ -85,7 +85,7 @@ test('the career: money, the dealer, parts, repairs on credit, best times', () =
   assert.equal(C.record('bogdash', { time: 22, medal: 'silver' }), true);
   assert.deepEqual(C.best('bogdash'), { time: 22, medal: 'silver' });
   // it is kept: a new Career on the same storage has it all
-  const again = new Career({ freeTrucks: false }, storage);
+  const again = new Career({ freeTrucks: false, freeParts: false }, storage);
   assert.equal(again.money, DEBT_LIMIT);
   assert.ok(again.ownsTruck('hauler'));
   assert.deepEqual(again.best('bogdash'), { time: 22, medal: 'silver' });
