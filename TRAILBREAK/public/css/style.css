@@ -173,7 +173,21 @@ input:focus { border-color: var(--accent-2); }
 #chat-log { font-size: 13px; line-height: 1.5; max-height: 140px; overflow: hidden; display: flex; flex-direction: column; justify-content: flex-end; }
 #chat-log div { opacity: .92; }
 #chat-log b { color: var(--accent); }
-#chat-input { margin-top: 6px; }
+#chat-panel { pointer-events: auto; background: rgba(20, 25, 22, .92); border: 1px solid var(--line); border-radius: 14px; padding: 10px 12px; display: flex; flex-direction: column; gap: 8px; max-height: min(430px, 72vh); text-shadow: none; box-shadow: 0 12px 34px rgba(0, 0, 0, .4); }
+.chat-head { display: flex; justify-content: space-between; align-items: center; font-size: 13px; letter-spacing: .04em; }
+.chat-head button { padding: 2px 8px; background: transparent; border: none; }
+#chat-history { overflow-y: auto; font-size: 13.5px; line-height: 1.5; min-height: 40px; flex: 1 1 auto; max-height: 210px; }
+#chat-history:empty::before { content: 'Nothing said yet. Say hello, or tap a phrase below.'; color: var(--ink-dim); font-size: 12.5px; }
+#chat-history .ct { color: var(--ink-dim); font-size: 11px; margin-right: 3px; }
+#chat-quick { display: flex; flex-wrap: wrap; gap: 6px; }
+#chat-quick button { padding: 5px 11px; font-size: 12.5px; border-radius: 999px; }
+.chat-row { display: flex; gap: 6px; }
+.chat-row button { padding: 8px 14px; }
+body.chat-open #chat-log { display: none; }
+.side-btns { display: flex; gap: 8px; }
+.chat-btn { pointer-events: auto; position: relative; width: 38px; height: 38px; padding: 8px; border-radius: 50%; background: rgba(20, 25, 22, .6); border: 1px solid rgba(243, 234, 215, .25); color: var(--ink); touch-action: manipulation; }
+.chat-btn svg { display: block; }
+.chat-unread { position: absolute; top: -5px; right: -5px; min-width: 18px; height: 18px; border-radius: 9px; background: var(--warn); color: #fff; font-size: 11px; font-weight: 700; line-height: 18px; padding: 0 4px; text-shadow: none; }
 @media (max-width: 760px) {
   #minimap { width: 120px; height: 120px; }
   #chat { left: 150px; }
@@ -200,7 +214,9 @@ body.touch #dash { right: 190px; bottom: 10px; }
 body.touch #gauges { width: 220px; height: 104px; }
 body.touch #side { top: 10px; left: 12px; right: auto; align-items: flex-start; }
 body.touch #players { text-align: left; }
-body.touch #chat { display: none; }
+body.touch #chat { left: 50%; transform: translateX(-50%); bottom: auto; top: 46px; width: min(560px, 92vw); z-index: 14; }
+body.touch #chat-log { display: none; }
+body.touch #side { top: 40px; }
 @media (max-width: 700px) {
   body.touch #dash { right: auto; left: 50%; transform: translateX(-50%); bottom: 112px; }
   body.touch #drive-modes { display: none; }

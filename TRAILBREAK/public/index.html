@@ -73,7 +73,7 @@
   <div id="hud" class="hidden">
     <div id="compass"><div id="compass-strip"></div><div id="compass-needle"></div></div>
     <div id="objective"></div>
-    <div id="side"><div id="players"></div><button id="voice-btn" class="voice-btn hidden" aria-label="Voice chat"></button></div>
+    <div id="side"><div id="players"></div><div class="side-btns"><button id="chat-btn" class="chat-btn hidden" aria-label="Chat"></button><button id="voice-btn" class="voice-btn hidden" aria-label="Voice chat"></button></div></div>
     <div id="money" class="money"></div>
     <canvas id="minimap" width="220" height="220"></canvas>
     <div id="dash">
@@ -116,7 +116,12 @@
     <div id="toasts"></div>
     <div id="chat">
       <div id="chat-log"></div>
-      <input id="chat-input" maxlength="160" placeholder="Say something (Enter to send, Esc to cancel)" class="hidden">
+      <div id="chat-panel" class="hidden">
+        <div class="chat-head"><b>Room chat</b><button id="chat-close" aria-label="Close the chat">&#10005;</button></div>
+        <div id="chat-history"></div>
+        <div id="chat-quick"></div>
+        <div class="chat-row"><input id="chat-input" maxlength="160" placeholder="Say something (Enter to send, Esc to close)" autocomplete="off" enterkeyhint="send"><button id="chat-send" class="primary">Send</button></div>
+      </div>
     </div>
   </div>
 
@@ -251,7 +256,7 @@
           <dt>C</dt><dd>Camera (drag the mouse to look around)</dd>
           <dt>H</dt><dd>Headlights</dd>
           <dt>M</dt><dd>Map: tap a place or the ground to set a route; fast travel</dd>
-          <dt>Enter</dt><dd>Chat</dd>
+          <dt>Enter</dt><dd>Chat (or the chat button): quick phrases, history</dd>
           <dt>V</dt><dd>Voice chat: join, then mute and unmute (push to talk: hold it)</dd>
           <dt>Esc</dt><dd>Pause, invite link, settings</dd>
         </dl>

@@ -282,9 +282,9 @@ export class HUD {
 
   clearHint() { this.hintEl.classList.remove('show'); this.hintT = 0; }
 
-  chat(name, text) {
+  chat(name, text, color) {
     const d = document.createElement('div');
-    d.innerHTML = name ? `<b>${escapeHtml(name)}:</b> ${escapeHtml(text)}` : `<i>${escapeHtml(text)}</i>`;
+    d.innerHTML = name ? `<b${color ? ` style="color:${color}"` : ''}>${escapeHtml(name)}:</b> ${escapeHtml(text)}` : `<i>${escapeHtml(text)}</i>`;
     this.chatLog.appendChild(d);
     while (this.chatLog.children.length > 8) this.chatLog.firstChild.remove();
     setTimeout(() => { d.style.transition = 'opacity 1s'; d.style.opacity = '0'; setTimeout(() => d.remove(), 1000); }, 20000);

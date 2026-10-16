@@ -270,7 +270,7 @@ export class EventPlay {
         g.hud.toast(`Race open: ${e.name}. Your friends have ${Math.round((m.at - this.serverNow()) / 1000)} s to press J and join`, true, 6);
       } else {
         g.hud.toast(`${m.name} opened a race: ${e.name}. Press J within ${Math.round((m.at - this.serverNow()) / 1000)} s to join`, true, 8);
-        g.hud.chat(null, `${m.name} opened a race: ${e.name} (J to join)`);
+        g.chat.system(`${m.name} opened a race: ${e.name} (J to join)`);
       }
     } else if (m.k === 'join' && this.race) {
       this.race.racers = m.racers;
@@ -280,10 +280,10 @@ export class EventPlay {
         this.lineUp(e, m.racers.findIndex((r) => r.id === me));
         this.startRun(e, this.toLocal(this.race.at));
         g.hud.toast(`Lined up for the ${e.name}`, false, 4);
-      } else if (m.pid !== me) g.hud.chat(null, `${m.name} joined the ${e?.name || 'race'}`);
+      } else if (m.pid !== me) g.chat.system(`${m.name} joined the ${e?.name || 'race'}`);
     } else if (m.k === 'done' && this.race) {
       this.race.times.set(m.pid, m.time);
-      if (m.pid !== me) g.hud.chat(null, Number.isFinite(m.time) ? `${m.name} finished: ${fmt(m.time)}` : `${m.name} gave up`);
+      if (m.pid !== me) g.chat.system(Number.isFinite(m.time) ? `${m.name} finished: ${fmt(m.time)}` : `${m.name} gave up`);
     } else if (m.k === 'end') {
       this.race = null;
       if (!e || !m.results.some((r) => r.id === me)) return;

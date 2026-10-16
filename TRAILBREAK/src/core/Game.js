@@ -16,6 +16,7 @@ import { KIND } from '../render/Effects.js';
 import { RouteGraph, along } from '../game/Route.js';
 import { RouteLine } from '../render/RouteLine.js';
 import { WorldMap, keyOf } from '../ui/WorldMap.js';
+import { Chat, bubbleCanvas } from '../ui/Chat.js';
 
 const clamp = (x, a, b) => (x < a ? a : x > b ? b : x);
 const fmtDist = (m) => (m < 1000 ? `${Math.round(m / 10) * 10} m` : `${(m / 1000).toFixed(1)} km`);
@@ -102,6 +103,16 @@ export class Game {
       travel: (item) => this.fastTravel(item),
       close: () => { if (this.mapOpen) this.toggleMap(); },
     });
+    // room chat (ui/Chat.js)
+    this.chat = new Chat(this.hud, {
+      send: (text) => this.net?.send({ t: 'chat', text }),
+      onOpen: (open) => {
+        this.chatOpen = open;
+        this.input.enabled = !this.paused && !open && !this.mapOpen;
+        if (!open) this.renderer.renderer.domElement.focus();
+      },
+    });
+    this.chat.setAvailable(!!this.net?.connected);
     const mini = document.getElementById('minimap');
     if (mini) mini.onclick = () => { if (!this.mapOpen && !this.paused) this.toggleMap(); };
   }
@@ -604,22 +615,26 @@ export class Game {
     if (!this.mapOpen) this.renderer.renderer.domElement.focus();
   }
 
-  openChat() {
-    const el = document.getElementById('chat-input');
-    this.chatOpen = true; this.input.enabled = false;
-    el.classList.remove('hidden'); el.value = ''; el.focus();
-    el.onkeydown = (e) => {
-      if (e.key === 'Enter') { const t = el.value.trim(); if (t) this.net.send({ t: 'chat', text: t }); this.closeChat(); e.preventDefault(); }
-      else if (e.key === 'Escape') { this.closeChat(); e.preventDefault(); }
-      e.stopPropagation();
-    };
+  openChat() { this.chat.open(); }
+
+  closeChat() { this.chat.close(); }
+
+  /** What a friend said, in a bubble over their truck for a few seconds. */
+  showBubble(rv, text) {
+    this.dropBubble(rv);
+    const c = bubbleCanvas(text);
+    const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace;
+    const b = new THREE.Sprite(new THREE.SpriteMaterial({ map: t, depthTest: false, transparent: true }));
+    b.renderOrder = 6;
+    b.userData.w = c.width / 50; b.userData.h = c.height / 50;         // (m, at the name tag's scale)
+    rv.model.root.add(b);
+    rv.bubble = b; rv.bubbleT = Math.min(10, 4 + text.length * 0.08);
   }
 
-  closeChat() {
-    const el = document.getElementById('chat-input');
-    this.chatOpen = false; el.classList.add('hidden'); el.blur();
-    this.input.enabled = !this.paused;
-    this.renderer.renderer.domElement.focus();
+  dropBubble(rv) {
+    if (!rv.bubble) return;
+    rv.model.root.remove(rv.bubble); rv.bubble.material.map.dispose(); rv.bubble.material.dispose();
+    rv.bubble = null;
   }
 
   // ---------------------------------------------------------------- winch
@@ -868,6 +883,15 @@ export class Game {
         const dist = root.position.distanceTo(this.renderer.camera.position);
         rv.tag.visible = dist < 450;
         rv.tag.scale.set(3.2 * Math.max(1, dist / 30), 0.8 * Math.max(1, dist / 30), 1);
+        if (rv.bubble) {
+          const k = Math.max(1, dist / 24), B = rv.bubble.userData;
+          rv.bubbleT -= dt;
+          rv.bubble.scale.set(B.w * k, B.h * k, 1);
+          rv.bubble.position.set(0, rv.tag.position.y + (0.45 + B.h * 0.5) * k, 0);
+          rv.bubble.material.opacity = clamp(rv.bubbleT / 0.6, 0, 1);
+          rv.bubble.visible = rv.tag.visible;
+          if (rv.bubbleT <= 0) this.dropBubble(rv);
+        }
         others.push({ pos: root.position, quat: root.quaternion, vel: this._v.set(s.vel[0], s.vel[1], s.vel[2]).clone(), spheres: rv.spheres });
         // their winch on us: pulled toward their fairlead (if they called for a tow, we are their anchor). We see their
         // truck and their rope a moment late (net.lead): both brought on to now, as they go, the rope's pull is worked
@@ -902,7 +926,7 @@ export class Game {
     }
     for (const [id, rv] of this.remotes) {
       if (live.has(id)) continue;
-      this.scene.remove(rv.model.root); rv.model.dispose(); this.remotes.delete(id);
+      this.dropBubble(rv); this.scene.remove(rv.model.root); rv.model.dispose(); this.remotes.delete(id);
       if (this.vehicle.winch.target === id) { this.vehicle.detachWinch(); this.hud.hint('Winch line dropped'); }
     }
     this.vehicle.others = others;
@@ -982,9 +1006,13 @@ export class Game {
 
   onNet(m) {
     if (m.t === 'beacon') this.markFound(m.id, m.by === this.name ? null : m.by);
-    else if (m.t === 'join') { this.hud.toast(`${m.name} joined`); this.hud.chat(null, `${m.name} joined the room`); }
-    else if (m.t === 'leave') { this.hud.toast(`${m.name} left`); this.hud.chat(null, `${m.name} left`); }
-    else if (m.t === 'chat') this.hud.chat(m.name, m.text);
+    else if (m.t === 'join') { this.hud.toast(`${m.name} joined`); this.chat.system(`${m.name} joined the room`); }
+    else if (m.t === 'leave') { this.hud.toast(`${m.name} left`); this.chat.system(`${m.name} left`); }
+    else if (m.t === 'chat') {
+      const mine = m.id === this.net?.id, rv = this.remotes.get(m.id);
+      this.chat.add(m.name, m.text, mine ? this.myColor : rv?.color, mine);
+      if (rv && !mine) this.showBubble(rv, m.text);
+    }
     else if (m.t === 'disconnected') this.hud.toast('Lost the connection to the server. Reload to rejoin.', true, 8);
     else if (m.t === 'correction') this.net.warp++;
     else if (m.t === 'ev') this.events.onNet(m);
@@ -1153,6 +1181,7 @@ export class Game {
     }
     if (this.miniT > 1 / 12) {
       this.miniT = 0;
+      if (this.chat.available !== !!this.net?.connected) this.chat.setAvailable(!!this.net?.connected);
       this.hud.drawMinimap(v.pos, heading, mates, this.route);
       this.hud.drawObjective(v.pos, this.route);
       const vp = this.voicePanel;

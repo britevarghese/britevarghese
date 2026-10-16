@@ -82,7 +82,7 @@ Without the Blueprint: **New > Web Service** with this repository, branch `claud
 | Camera: chase, far, bonnet, cab (drag to look around) | C | Y, right stick |
 | Headlights | H | D-pad right |
 | Map (zoom, pan, set a route, fast travel; or tap the minimap) | M | View |
-| Chat | Enter | |
+| Chat: the room's messages, quick phrases (or the chat button) | Enter | |
 | Voice chat: join it, then mute and unmute your mic (push-to-talk: hold it) | V | the mic button |
 | Pause, invite link, settings | Esc | Start |
 | Controls | F1 | |
@@ -95,6 +95,11 @@ on the map, on the minimap, on the compass and as a line of chevrons on the grou
 leave it, and a route to a friend follows them. **Fast travel** takes you to the station, the garage, an event's
 start line, a beacon you have found or a friend (not in the middle of a run). While the map is open your truck stands
 on its handbrake.
+
+**Chat** (in a room): Enter, or the chat button beside the mic, opens the room chat: everything said since you
+joined, a line to type in (Enter sends, Esc closes) and quick phrases to send with a tap (Follow me, Need a tow!,
+Race?, GG...). While it is closed the latest lines float up beside the minimap, the button counts what you haven't
+read, and what a friend says shows in a bubble over their truck for a few seconds.
 
 **Voice chat** (in a room): press V, or the mic button under the players list, to join it; the browser asks for the
 microphone once. Then V mutes and unmutes you, or, with push-to-talk picked in the pause menu, you talk while you hold V
