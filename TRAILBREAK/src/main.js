@@ -298,7 +298,6 @@ function wireMenus(game, net) {
   $('show-help').onclick = () => help(true);
   $('close-help').onclick = () => help(false);
   game.onHelp = () => help($('help').classList.contains('hidden'));
-  $('map').onclick = () => game.toggleMap();
 }
 
 start().catch((e) => {

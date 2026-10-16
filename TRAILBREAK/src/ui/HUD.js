@@ -155,7 +155,7 @@ export class HUD {
   }
 
   // ---------------------------------------------------------------- compass, objective, players
-  drawCompass(heading, here, mates) {
+  drawCompass(heading, here, mates, route) {
     // heading: radians, 0 = north (-z), clockwise
     const strip = this.strip, width = strip.parentElement.clientWidth, pxPerRad = width / 2.2;
     const marks = [];
@@ -168,6 +168,7 @@ export class HUD {
     for (const m of mates) marks.push({ a: Math.atan2(m.x - here.x, -(m.z - here.z)), text: m.help ? '!' : '●', cls: m.help ? 'mate help' : 'mate', color: m.help ? null : m.color });
     const next = this.eventMarks?.next;
     if (next) marks.push({ a: Math.atan2(next.x - here.x, -(next.z - here.z)), text: '▼', cls: 'gate' });
+    if (route) marks.push({ a: Math.atan2(route.target.x - here.x, -(route.target.z - here.z)), text: '⬤', cls: 'route' });
     let html = '';
     for (const m of marks) {
       let d = m.a - heading;
@@ -179,7 +180,7 @@ export class HUD {
     if (html !== this.lastStrip) { strip.innerHTML = html; this.lastStrip = html; }
   }
 
-  drawObjective(here) {
+  drawObjective(here, route) {
     let best = null, bd = Infinity;
     for (const b of this.world.beacons) {
       if (this.found.has(b.id)) continue;
@@ -188,7 +189,9 @@ export class HUD {
     }
     const el = $('objective');
     const n = this.found.size, total = this.world.beacons.length;
-    const text = best ? `Beacons <b>${n}/${total}</b> · nearest: <b>${best.name}</b> ${bd < 1000 ? Math.round(bd) + ' m' : (bd / 1000).toFixed(1) + ' km'}` : `All <b>${total}</b> beacons surveyed. The valley is mapped!`;
+    const dist = (m) => (m < 1000 ? Math.round(m) + ' m' : (m / 1000).toFixed(1) + ' km');
+    const text = route ? `<span class="route">➤</span> Route to <b>${escapeHtml(route.target.name)}</b> ${dist(route.left)}`
+      : best ? `Beacons <b>${n}/${total}</b> · nearest: <b>${best.name}</b> ${dist(bd)}` : `All <b>${total}</b> beacons surveyed. The valley is mapped!`;
     if (el.innerHTML !== text) el.innerHTML = text;
   }
 
@@ -213,7 +216,7 @@ export class HUD {
   }
 
   // ---------------------------------------------------------------- maps
-  drawMinimap(here, heading, mates) {
+  drawMinimap(here, heading, mates, route) {
     const g = this.mini, S = 220, scale = 1.25;                 // px per metre
     const img = this.mapImage, k = img.width / (2 * MAP_HALF);
     g.save();
@@ -223,6 +226,14 @@ export class HUD {
     g.rotate(-heading);
     g.scale(scale / k, scale / k);
     g.drawImage(img, -(here.x + MAP_HALF) * k, -(here.z + MAP_HALF) * k);
+    // the satnav's route
+    if (route?.points?.length > 1) {
+      g.beginPath();
+      route.points.forEach(([x, z], i) => { const px = (x - here.x) * k, pz = (z - here.z) * k; if (i) g.lineTo(px, pz); else g.moveTo(px, pz); });
+      g.lineJoin = 'round'; g.lineCap = 'round';
+      g.strokeStyle = 'rgba(255,255,255,0.85)'; g.lineWidth = 6.5 * k / scale; g.stroke();
+      g.strokeStyle = '#3fb6ff'; g.lineWidth = 3.6 * k / scale; g.stroke();
+    }
     g.restore();
     g.save();
     g.translate(S / 2, S / 2);
@@ -251,39 +262,6 @@ export class HUD {
     g.fillStyle = '#f3ead7'; g.strokeStyle = '#1c241f'; g.lineWidth = 1.5;
     g.beginPath(); g.moveTo(0, -8); g.lineTo(6, 6); g.lineTo(0, 3); g.lineTo(-6, 6); g.closePath(); g.fill(); g.stroke();
     g.restore();
-  }
-
-  drawMap(here, heading, mates) {
-    const cv = $('map-canvas'), g = cv.getContext('2d'), S = cv.width;
-    g.drawImage(this.mapImage, 0, 0, S, S);
-    const toPx = (v) => (v + MAP_HALF) / (2 * MAP_HALF) * S;
-    g.font = 'bold 13px sans-serif'; g.textAlign = 'center';
-    for (const b of this.world.beacons) {
-      const x = toPx(b.x), y = toPx(b.z), done = this.found.has(b.id);
-      g.fillStyle = done ? '#7cc36a' : '#e8893a';
-      g.beginPath(); g.moveTo(x, y - 8); g.lineTo(x + 6, y); g.lineTo(x, y + 8); g.lineTo(x - 6, y); g.closePath(); g.fill();
-      g.strokeStyle = '#1c241f'; g.lineWidth = 1.5; g.stroke();
-      g.fillStyle = 'rgba(20,25,22,0.8)'; g.fillText(b.name, x + 1, y - 11);
-      g.fillStyle = '#f3ead7'; g.fillText(b.name, x, y - 12);
-    }
-    for (const e of this.eventMarks?.starts || []) {
-      const x = toPx(e.x), y = toPx(e.z);
-      flag(g, x, y, 1.5);
-      g.fillStyle = 'rgba(20,25,22,0.8)'; g.fillText(e.name, x + 1, y + 21);
-      g.fillStyle = '#ffd08a'; g.fillText(e.name, x, y + 20);
-    }
-    const next = this.eventMarks?.next;
-    if (next) { g.strokeStyle = '#ffb340'; g.lineWidth = 3; g.beginPath(); g.arc(toPx(next.x), toPx(next.z), 10, 0, TAU); g.stroke(); }
-    for (const m of mates) {
-      if (m.help) { g.strokeStyle = '#e0563b'; g.lineWidth = 3; g.beginPath(); g.arc(toPx(m.x), toPx(m.z), 13, 0, TAU); g.stroke(); }
-      g.fillStyle = m.color; g.beginPath(); g.arc(toPx(m.x), toPx(m.z), 6, 0, TAU); g.fill(); g.strokeStyle = '#fff'; g.lineWidth = 1.5; g.stroke();
-      g.fillStyle = '#fff'; g.fillText(m.help ? `${m.name}: needs a tow` : m.name, toPx(m.x), toPx(m.z) + 20);
-    }
-    g.save(); g.translate(toPx(here.x), toPx(here.z)); g.rotate(heading);
-    g.fillStyle = '#f3ead7'; g.strokeStyle = '#1c241f'; g.lineWidth = 2;
-    g.beginPath(); g.moveTo(0, -12); g.lineTo(8, 9); g.lineTo(0, 4); g.lineTo(-8, 9); g.closePath(); g.fill(); g.stroke();
-    g.restore();
-    $('map-legend').textContent = `◆ survey beacons (${this.found.size}/${this.world.beacons.length} found) · ⚑ event start lines (J there) · trails dashed · M to close`;
   }
 
   // ---------------------------------------------------------------- messages

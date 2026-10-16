@@ -81,11 +81,20 @@ Without the Blueprint: **New > Web Service** with this repository, branch `claud
 | Back to the ranger station (broken down: the tow truck takes it into the workshop) | Backspace | |
 | Camera: chase, far, bonnet, cab (drag to look around) | C | Y, right stick |
 | Headlights | H | D-pad right |
-| Map | M | View |
+| Map (zoom, pan, set a route, fast travel; or tap the minimap) | M | View |
 | Chat | Enter | |
 | Voice chat: join it, then mute and unmute your mic (push-to-talk: hold it) | V | the mic button |
 | Pause, invite link, settings | Esc | Start |
 | Controls | F1 | |
+
+**The map** (M, the MAP button, or a tap on the minimap) works like Forza's: drag to move about, the wheel, a pinch
+or + and - to zoom, the buttons to centre on your truck and to show or hide the events, beacons, places, trail names
+and friends. Tap anything on it, or any spot on the ground, for what it is and **Set route**: the satnav plots the
+quickest way there by road and trail (src/game/Route.js), straight across country where that is quicker, and shows it
+on the map, on the minimap, on the compass and as a line of chevrons on the ground ahead; it plots it again when you
+leave it, and a route to a friend follows them. **Fast travel** takes you to the station, the garage, an event's
+start line, a beacon you have found or a friend (not in the middle of a run). While the map is open your truck stands
+on its handbrake.
 
 **Voice chat** (in a room): press V, or the mic button under the players list, to join it; the browser asks for the
 microphone once. Then V mutes and unmutes you, or, with push-to-talk picked in the pause menu, you talk while you hold V

@@ -13,8 +13,12 @@ import { BEACON_RADIUS, MAP_HALF } from '../world/maps/index.js';
 import { EventPlay } from '../game/EventPlay.js';
 import { EventCourse } from '../render/EventCourse.js';
 import { KIND } from '../render/Effects.js';
+import { RouteGraph, along } from '../game/Route.js';
+import { RouteLine } from '../render/RouteLine.js';
+import { WorldMap, keyOf } from '../ui/WorldMap.js';
 
 const clamp = (x, a, b) => (x < a ? a : x > b ? b : x);
+const fmtDist = (m) => (m < 1000 ? `${Math.round(m / 10) * 10} m` : `${(m / 1000).toFixed(1)} km`);
 const MATE_COLORS = ['#4fb3a9', '#e0b33b', '#c46bd6', '#6aa8e8', '#e0563b', '#7cc36a', '#e88fb0', '#c9c06a'];
 
 function nameTag(text, color) {
@@ -87,6 +91,118 @@ export class Game {
     // events: the start lines, runs and races (game/EventPlay.js), their banners and gates on the ground
     this.events = new EventPlay(this);
     this.course = new EventCourse(this.scene, this.world, this.events.events);
+    // the satnav and the full map (ui/WorldMap.js): a route by road and trail, and its line on the ground ahead
+    this.satnav = new RouteGraph(this.world.data.trails);
+    this.routeLine = new RouteLine(this.scene);
+    this.route = null;
+    this.worldMap = new WorldMap(this.world, this.hud.mapImage, {
+      state: () => this.mapState(),
+      route: (item) => this.setRoute(item),
+      clear: () => this.clearRoute(),
+      travel: (item) => this.fastTravel(item),
+      close: () => { if (this.mapOpen) this.toggleMap(); },
+    });
+    const mini = document.getElementById('minimap');
+    if (mini) mini.onclick = () => { if (!this.mapOpen && !this.paused) this.toggleMap(); };
+  }
+
+  // ---------------------------------------------------------------- the map and the satnav
+  /** What the full map shows. */
+  mapState() {
+    const v = this.vehicle;
+    return {
+      me: { x: v.pos.x, z: v.pos.z, heading: Math.atan2(v.fwd.x, -v.fwd.z) },
+      mates: [...this.remotes.values()].filter((r) => r.state).map((r) => ({ kind: 'friend', id: r.id, name: r.name, color: r.color, help: !!r.help, x: r.model.root.position.x, z: r.model.root.position.z })),
+      events: this.events.events.map((e) => ({ kind: 'event', event: e, name: e.name, x: e.start.x, z: e.start.z, best: this.career?.best(e.id)?.time })),
+      beacons: this.world.beacons.map((b) => ({ kind: 'beacon', id: b.id, name: b.name, x: b.x, z: b.z, found: this.found.has(b.id) })),
+      route: this.route,
+      racing: this.events.racing,
+    };
+  }
+
+  /** Set the satnav's waypoint to a thing on the map (a friend: their truck, wherever it goes). */
+  setRoute(item) {
+    this.route = { target: { kind: item.kind, key: keyOf(item), name: item.name, x: item.x, z: item.z, friend: item.kind === 'friend' ? item.id : null }, points: null, left: 0, hint: 0, t: 0 };
+    this.replan();
+    this.hud.toast(`Route set: ${item.name}, ${fmtDist(this.route.left)}`, false, 3);
+  }
+
+  replan() {
+    const R = this.route, p = this.vehicle.pos;
+    const r = this.satnav.route(p.x, p.z, R.target.x, R.target.z);
+    R.points = r.points; R.left = r.length; R.hint = 0; R.t = 0; R.stale = false;
+  }
+
+  clearRoute() { this.route = null; }
+
+  /** Follow the route: how far is left, arriving, and plotting it again when we leave it. */
+  updateRoute(dt) {
+    const R = this.route;
+    if (!R) return;
+    const p = this.vehicle.pos;
+    if (R.target.friend != null) {
+      const rv = this.remotes.get(R.target.friend);
+      if (!rv?.state) { this.hud.toast(`${R.target.name} has left: route cleared`); this.route = null; return; }
+      const q = rv.model.root.position;
+      if (Math.hypot(q.x - R.target.x, q.z - R.target.z) > 25) { R.target.x = q.x; R.target.z = q.z; R.stale = true; }
+    }
+    const a = along(R.points, p.x, p.z, R.hint);
+    R.hint = a.seg; R.left = a.left + a.off;
+    R.t += dt;
+    if (Math.hypot(R.target.x - p.x, R.target.z - p.z) < (R.target.friend != null ? 12 : 18)) {
+      this.hud.toast(`Arrived: ${R.target.name}`, false, 3);
+      this.route = null;
+      return;
+    }
+    // off the route (or the friend moved on): plot it again, not too often
+    if ((a.off > 28 || R.stale) && R.t > 2) this.replan();
+  }
+
+  /** Fast travel to a thing on the map; null when done, else why not. */
+  fastTravel(item) {
+    if (this.events.racing) return 'No fast travel in the middle of a run';
+    const v = this.vehicle;
+    if (item.kind === 'event') { this.toggleMap(); this.events.goTo(item.event.id); this.arrivedAt(item); return null; }
+    if (item.kind === 'place' && item.type === 'station') { this.toggleMap(); this.spawn(); this.arrivedAt(item); return null; }
+    let spot;
+    if (item.kind === 'place' && item.type === 'garage') {
+      this.toggleMap(); this.placeAtGarage();
+    } else {
+      spot = this.spotNear(item.x, item.z, item.kind === 'friend' ? 7 : 9);
+      if (!spot) return 'Nowhere clear to stop there';
+      this.toggleMap();
+      if (item.kind === 'friend') { const rv = this.remotes.get(item.id); if (rv) { const f = new THREE.Vector3(0, 0, 1).applyQuaternion(rv.model.root.quaternion); spot.yaw = Math.atan2(f.x, f.z); } }
+      v.place(this.world, spot.x, spot.z, spot.yaw);
+    }
+    if (v.winch.attached) v.detachWinch();
+    if (this.helpOn) this.setHelp(false);
+    this.carry = 0; this.stuckT = 0; this.boggedT = 0;
+    if (this.net) this.net.warp++;
+    this.cam.heading = null;
+    this.hud.toast(`Fast travel: ${item.name}`, false, 3);
+    this.arrivedAt(item);
+    return null;
+  }
+
+  /** (the route to where we just fast-travelled to is done with) */
+  arrivedAt(item) { if (this.route && this.route.target.key === keyOf(item)) this.route = null; }
+
+  /** A clear, dry, level spot to put the truck down near (x, z), facing it; or null. */
+  spotNear(x, z, r0 = 8) {
+    const W = this.world;
+    for (let r = r0; r < 90; r += 4) {
+      for (let k = 0; k < 16; k++) {
+        const a = (k / 16) * Math.PI * 2 + r * 0.37, px = x + Math.cos(a) * r, pz = z + Math.sin(a) * r;
+        if (!W.inBounds(px, pz, 20)) continue;
+        if (W.water(px, pz) > W.height(px, pz) - 0.1) continue;
+        const sl = Math.max(Math.abs(W.height(px + 2, pz) - W.height(px - 2, pz)), Math.abs(W.height(px, pz + 2) - W.height(px, pz - 2))) / 4;
+        if (sl > 0.22) continue;
+        if (W.boulderTop(px, pz) > W.terrain(px, pz) - 0.02) continue;
+        if (W.treesNear(px, pz, 3.2, this.tmpTrees).length) continue;
+        return { x: px, z: pz, yaw: Math.atan2(x - px, z - pz) };
+      }
+    }
+    return null;
   }
 
   /** The Events list (pause menu): each event, its par times and your best, and a way to its start line. */
@@ -413,6 +529,7 @@ export class Game {
     }
     if (I.consume('pause')) { if (this.chatOpen) this.closeChat(); else if (this.mapOpen) this.toggleMap(); else this.togglePause(); }
     if (this.paused) return;
+    if (this.mapOpen) { if (I.consume('map')) this.toggleMap(); return; }
     if (I.consume('chat') && this.net?.connected) this.openChat();
     if (I.consume('map')) this.toggleMap();
     if (I.consume('help')) this.onHelp?.();
@@ -481,7 +598,10 @@ export class Game {
 
   toggleMap() {
     this.mapOpen = !this.mapOpen;
-    document.getElementById('map').classList.toggle('hidden', !this.mapOpen);
+    if (this.mapOpen) this.worldMap.open(); else this.worldMap.close();
+    this.input.enabled = !this.paused && !this.chatOpen && !this.mapOpen;
+    this.touch?.show(!this.mapOpen);
+    if (!this.mapOpen) this.renderer.renderer.domElement.focus();
   }
 
   openChat() {
@@ -880,7 +1000,7 @@ export class Game {
     const c = { ...ctrl };
     if (this.paused || this.chatOpen) { c.throttle = 0; c.brake = 0; c.handbrake = 1; c.steer = 0; c.winch = 0; }
     if (!this.settings.assist) c.analogSteer = true;
-    if (this.garageOpen) { c.throttle = 0; c.brake = 0; c.handbrake = 1; c.steer = 0; c.winch = 0; }
+    if (this.garageOpen || this.mapOpen) { c.throttle = 0; c.brake = 0; c.handbrake = 1; c.steer = 0; c.winch = 0; }
     W.motor = W.attached ? c.winch : 0;
 
     this.updateRemotes(dt);
@@ -969,6 +1089,8 @@ export class Game {
     if (v.hullContact > 0.8) this.cam.shake = Math.max(this.cam.shake, Math.min(0.12, v.hullContact * 0.04));
     if (v.impact > 0.5) this.cam.shake = Math.max(this.cam.shake, Math.min(0.2, v.impact * 0.05));
     this.feelGround(dt);
+    this.updateRoute(dt);
+    this.routeLine.update(this.route?.points, v.pos, this.world, dt);
 
     // camera and world
     this.cam.update(dt, m, ctrl);
@@ -1027,19 +1149,19 @@ export class Game {
       if (this.nearGarage(14) && Math.abs(v.speed) < 1 && this.garageHintT > 8) { this.garageHintT = 0; this.hud.hint('Station garage: press U to fit parts', 4); }
       this.hud.drawWinch(v, this.hookName);
       this.updateStuckPanel();
-      this.hud.drawCompass(heading, v.pos, mates);
+      this.hud.drawCompass(heading, v.pos, mates, this.route);
     }
     if (this.miniT > 1 / 12) {
       this.miniT = 0;
-      this.hud.drawMinimap(v.pos, heading, mates);
-      this.hud.drawObjective(v.pos);
+      this.hud.drawMinimap(v.pos, heading, mates, this.route);
+      this.hud.drawObjective(v.pos, this.route);
       const vp = this.voicePanel;
       const list = [{ name: this.name, color: this.myColor, me: true, help: this.helpOn, tag: this.events.tagFor(this.net?.id), voice: vp?.stateOf(null) },
         ...mates.map((r) => ({ name: r.name, color: r.color, help: r.help, tag: this.events.tagFor(r.id), voice: vp?.stateOf(this.voice.peers.get(r.id)) }))];
       vp?.tick();
       this.hud.drawPlayers(list);
-      if (this.mapOpen) this.hud.drawMap(v.pos, heading, mates);
     }
+    if (this.mapOpen) this.worldMap.draw();
 
     this.touch?.update(this);
     if (!this.noRender) this.renderer.render();
