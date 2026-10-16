@@ -175,9 +175,14 @@ export class KeralaLaneGraph {
     // a piece's end at its road's own graded height there: a lane on the ground and a bridge's deck over it meet in
     // the map at a point, not in the world (a side road 6.5 m under a bridge was joined to it: traffic turned off
     // the deck and dropped onto it, and drove up a wall the other way)
+    // (the pieces come in order along each road: found from where the last one ended, one of its own points; only an
+    // end moved onto another road by joinDeadEnds is looked for all along it - every end so took a tile's lanes 30 % longer)
+    let yr = null, yc = 0;
     const yAt = (r, q) => {
       const S = r.surf; if (!S) return null;
+      if (r !== yr) { yr = r; yc = 0; }
       const e = -q[0] - t.E0, n = q[1] - t.N0;
+      for (let i = yc; i < S.P.length; i++) if (Math.abs(S.P[i][0] - e) < 0.01 && Math.abs(S.P[i][1] - n) < 0.01) { yc = i; return S.y[i]; }
       let bd = Infinity, y = null;
       for (let i = 0; i < S.P.length; i++) { const d = (S.P[i][0] - e) ** 2 + (S.P[i][1] - n) ** 2; if (d < bd) { bd = d; y = S.y[i]; } }
       return y;
