@@ -111,6 +111,8 @@ export class KeralaRouter {
       if (u === to) { found = true; break; }
       const gu = g.get(u), lin = prev.get(u) || (u === from ? after : null);
       for (const { to: v, lane } of this.adj[u]) {
+        // (not from a road on the ground onto a deck over it, or off the deck down onto it: they meet in the map only)
+        if (lin && lin.yTo != null && lane.yFrom != null && Math.abs(lin.yTo - lane.yFrom) > 1.5) continue;
         // (turning right round at a junction only when there's no other way: round the block instead, as a driver
         // would. An AI car can't turn in a lane: a truck on a story route stood facing the way it came for good)
         const gv = gu + lane.length * (lane.edge?.cls > 4 ? minorW : 1) + (lin ? turnCost(lin, lane, opts?.big) : 0) + (opts?.big && (lane._sharp ??= sharpOf(lane.pts)) > 1.5 ? 1500 : 0);

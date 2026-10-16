@@ -172,6 +172,16 @@ export class KeralaLaneGraph {
     joinDeadEnds(driven);
     const uses = new Map();
     for (const { P } of driven) for (const k of new Set(P.map((q) => nodeKey(...q)))) uses.set(k, (uses.get(k) || 0) + 1);
+    // a piece's end at its road's own graded height there: a lane on the ground and a bridge's deck over it meet in
+    // the map at a point, not in the world (a side road 6.5 m under a bridge was joined to it: traffic turned off
+    // the deck and dropped onto it, and drove up a wall the other way)
+    const yAt = (r, q) => {
+      const S = r.surf; if (!S) return null;
+      const e = -q[0] - t.E0, n = q[1] - t.N0;
+      let bd = Infinity, y = null;
+      for (let i = 0; i < S.P.length; i++) { const d = (S.P[i][0] - e) ** 2 + (S.P[i][1] - n) ** 2; if (d < bd) { bd = d; y = S.y[i]; } }
+      return y;
+    };
     const pieces = [];
     for (const { r, P } of driven) {
       let a = 0;
@@ -186,7 +196,7 @@ export class KeralaLaneGraph {
       const edge = { id: EDGE_ID++, type: { lanes: per }, cls: r.cls, name: r.name, one, hw: r.cls <= 2 && r.lanes ? Math.max(ROAD_HALF[r.cls], r.lanes * 1.75) : ROAD_HALF[r.cls] };
       // (lanes as wide as the road allows: on a narrow village road both ways share it, a car keeps off the edge)
       edge.lw = Math.min(LANE_W, one ? 2 * edge.hw / per : edge.hw / per);
-      const a = nodeKey(...P[0]), b = nodeKey(...P[P.length - 1]);
+      const a = nodeKey(...P[0]), b = nodeKey(...P[P.length - 1]), yA = yAt(r, P[0]), yB = yAt(r, P[P.length - 1]);
       for (const dir of one ? [1] : [1, -1]) {
         const C = dir > 0 ? P : [...P].reverse();
         const from = dir > 0 ? a : b, to = dir > 0 ? b : a;
@@ -197,6 +207,7 @@ export class KeralaLaneGraph {
           pts = trim(pts, 2.5, 2.5);
           if (pts.length < 2) continue;
           const lane = new Path(pts, { kind: 'lane', edge, dir, speed: SPEED[r.cls], laneIndex: li, lanes: per, from, to, signal: false, axis: 'x', tile: k, siblings: [], deck: !!r.deck });
+          lane.yFrom = dir > 0 ? yA : yB; lane.yTo = dir > 0 ? yB : yA;
           lane.next = [];
           mine.push(lane);
           if (!this.outs.has(from)) this.outs.set(from, []);
@@ -267,6 +278,8 @@ export class KeralaLaneGraph {
 
   // rebuild the connectors at a junction
   _relink(node) {
+    // (not between a road on the ground and one on a deck over it: no way from one to the other there)
+    const apart = (a, b) => a.yTo != null && b.yFrom != null && Math.abs(a.yTo - b.yFrom) > 1.5;
     const ins = this.ins.get(node) || [], outs = this.outs.get(node) || [];
     for (const lin of ins) {
       for (const c of lin.next) c.dead = true;
@@ -279,7 +292,7 @@ export class KeralaLaneGraph {
       for (const strict of [true, false]) {
       if (cands.length) break;
       for (const lout of outs) {
-        if (lout.edge === lin.edge) continue;
+        if (lout.edge === lin.edge || apart(lin, lout)) continue;
         const st = lout.pts[0], st2 = lout.pts[1];
         const d1 = norm(st2[0] - st[0], st2[1] - st[1]);
         const cross = d0[0] * d1[1] - d0[1] * d1[0], dot = d0[0] * d1[0] + d0[1] * d1[1];
@@ -302,7 +315,7 @@ export class KeralaLaneGraph {
       if (!cands.length) {
         let best = null;
         for (const o of this.lanesNear(end[0], end[1], 0, 30)) {
-          if (o.edge === lin.edge || o.from === node || o.dead) continue;
+          if (o.edge === lin.edge || o.from === node || o.dead || apart(lin, o)) continue;
           const st = o.pts[0], st2 = o.pts[1], dd = Math.hypot(st[0] - end[0], st[1] - end[1]);
           if (dd > 15) continue;
           const d1 = norm(st2[0] - st[0], st2[1] - st[1]), dot = d0[0] * d1[0] + d0[1] * d1[1];

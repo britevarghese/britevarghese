@@ -824,6 +824,12 @@ export class KeralaTile {
     // (every road's points, by where they are: the roads meeting at a junction)
     const vtx = new Map();
     for (const x of E) { const ri = this.roads.indexOf(x.r); for (const pt of x.r.pts) { const k = key(pt); if (!vtx.has(k)) vtx.set(k, new Set()); vtx.get(k).add(ri); } }
+    // (and every road's two ends, by where they are: a side road ending on a ramp)
+    const endsAt = new Map(), eg = (e, n) => Math.floor(e / 16) * 100000 + Math.floor(n / 16);
+    for (const x of E) {
+      const ri = this.roads.indexOf(x.r);
+      for (const pt of [x.r.pts[0], x.r.pts[x.r.pts.length - 1]]) { const k = eg(pt[0], pt[1]); if (!endsAt.has(k)) endsAt.set(k, []); endsAt.get(k).push(pt[0], pt[1], ri, x.r.cls); }
+    }
     // 2. chains: where exactly two road ends meet (and nothing else passes), it is one road in OSM's pieces (a bridge
     //    is usually its own short way): graded as one, so a bridge's ramps run on into its approaches
     const ends = new Map(), through = new Set();
@@ -1008,8 +1014,21 @@ export class KeralaTile {
           // junction stays up, the side road climbing to meet it (a junction on a ramp, below). Brought down there, it
           // dipped 1.5 m in a V. A flyover's ramp still comes down to the junction at its foot)
           const atJ = (i) => { const J = vtx.get(key(P[i])); return J && wet.some((w, k) => w && Math.abs(D[k] - D[i]) < 12) ? new Set([...mine, ...J]) : mine; };
+          // (nor where a lesser road ends on it: that one climbs to meet the ramp. Brought down to it, a main road's
+          // approach dipped 0.3 m in a V where a lane ended on it, the lane meeting it at the bottom, 0.4 m below its
+          // edge. A road crossing it still brings it down)
+          const rc = Math.min(...ch.map(([ei]) => E[ei].r.cls)), rr = Math.max(...ch.map(([ei]) => E[ei].hw)) + 2;
+          const tees = (i, S) => {
+            const [e, n] = P[i], ge = Math.floor(e / 16), gn = Math.floor(n / 16);
+            let out = S;
+            for (let a = -1; a <= 1; a++) for (let b = -1; b <= 1; b++) {
+              const L = endsAt.get((ge + a) * 100000 + gn + b); if (!L) continue;
+              for (let q = 0; q < L.length; q += 4) if (L[q + 3] > rc && Math.hypot(L[q] - e, L[q + 1] - n) < rr) { if (out === S) out = new Set(S); out.add(L[q + 2]); }
+            }
+            return out;
+          };
           let any = false;
-          for (let i = 0; i < P.length; i++) if (!wet[i] && ex[i] > 0.05 && this.onRoad(P[i][0], P[i][1], 0.5, atJ(i), 8)) { ex[i] = 0; any = true; }
+          for (let i = 0; i < P.length; i++) if (!wet[i] && ex[i] > 0.05 && this.onRoad(P[i][0], P[i][1], 0.5, tees(i, atJ(i)), 8)) { ex[i] = 0; any = true; }
           if (any) {
             for (let i = 1; i < P.length; i++) if (!wet[i]) ex[i] = Math.min(ex[i], ex[i - 1] + (D[i] - D[i - 1]) * 0.12);
             for (let i = P.length - 2; i >= 0; i--) if (!wet[i]) ex[i] = Math.min(ex[i], ex[i + 1] + (D[i + 1] - D[i]) * 0.12);
@@ -1191,8 +1210,9 @@ export class KeralaTile {
           const { i, y, j, u } = t, Y = y.R, ci = at[i];
           if (!Y || up[ci] || y.r.cls > R.cls + 1) continue;   // (a main road ending on a lane: no)
           const dy = Y.prof[j - 1] + (Y.prof[j] - Y.prof[j - 1]) * u - prof[ci];
-          // (passing under or beside a ramp: its own level)
-          if ((Y.up[j - 1] || Y.up[j]) && Math.abs(dy) > 1.5) continue;
+          // (passing under or beside a ramp: its own level. Not under one less than 3.5 m up: no room to pass under
+          // that, the road climbs to meet it - kept 1.7 m below, a lane ending on a bridge's approach met its side)
+          if ((Y.up[j - 1] || Y.up[j]) && Math.abs(dy) > 3.5) continue;
           if (!had.has(ci)) { had.add(ci); J.push([D[ci], dy, fade(dy)]); t.lvl = prof[ci] + dy; if (y.r.cls <= R.cls) flats.push([D[ci], t.lvl, Y.hw + 0.5, Y]); }
         }
         // and a road ending on this one that way, graded already (a more important one, or one of its own kind): this
@@ -1215,14 +1235,16 @@ export class KeralaTile {
           const onRamp = o[5] !== undefined && o[6] <= o[2] + 2;
           const dy = (onRamp ? o[5] : o[0] / o[1]) - prof[ci];
           // (a lane joined in the map to a flyover's or bridge's ramp passes under or beside it: it keeps its own level)
-          if ((o[4] || onRamp) && Math.abs(dy) > 1.5 && R.cls > Math.min(o[2], onRamp ? o[6] : 99) + 2) continue;
+          if ((o[4] || onRamp) && Math.abs(dy) > 3.5 && R.cls > Math.min(o[2], onRamp ? o[6] : 99) + 2) continue;
           // (long enough for no more than 8 % extra grade, and for the dip or rise to be a gentle curve: under
           // 0.3 m of bend over 16 m at its middle)
           had.add(ci); J.push([D[ci], dy, fade(dy)]);
           // (a road ending here, one passing through a more important road's junction, or through a junction of its
           // own kind - OSM splits every piece at a crossroads and the straight ones are graded as one: a fork's two lanes
-          // overlapped there at different grades. Not a main road passing a link road: that isn't flattened to it)
-          if (!onRamp && !o[4] && o[2] <= R.cls) {
+          // overlapped there at different grades. Not a main road passing a link road: that isn't flattened to it.
+          // A road meeting a bridge's ramp too, along the ramp's slope - only its centre line met, a side road joining
+          // a ramp 0.3 m up was 0.24 m below it at its edge. Not the raised road itself)
+          if (!up[ci] && o[2] <= R.cls) {
             const end = ci === 0 || ci === C.length - 1, W = nodeW.get(k) || []; let w = 0, Y = null;
             for (let q = 0; q < W.length; q += 3) {
               const X = W[q + 2]; if (W[q] > R.cls || X === R.src || W[q + 1] <= w) continue;

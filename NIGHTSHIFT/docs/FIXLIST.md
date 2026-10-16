@@ -363,6 +363,13 @@ the game. Newly found problems go at the end of their section.
   it), to police checkpoints, people on the pavement or an AI working out its way round a corner. Near an edge the
   next tile's roads count too. AI junction turns round Kannur: 29 -> 30 of 33 clean (the rest are acute, 106-140
   degrees)
+- [x] Bridges and their ramps (Thalassery, the road over the railway): a side road passing 6.5 m under the bridge
+  was joined to it in the map, and the lanes joined them too - traffic and routes turned off the deck and dropped
+  onto the road below, or drove up a wall the other way. Lanes are joined only where the roads meet at a height now.
+  A lane ending on the bridge's approach brought the approach down to it, a 0.3 m dip in the main road; it climbs to
+  meet the approach now, level across it along its slope (no road can pass under a ramp less than 3.5 m up: a road
+  ending on one climbs to it, not left 1.7 m below its side). Thalassery's worst junction step 20 -> 19 cm, the
+  5.7 m one gone; Kannur, Iritty unchanged; tile edges still meet exactly
 
 ## Story
 - [x] The story begins like GTA's: a prologue, 'The Kayal Job', starts on a new game in Kerala (Esc skips a scene;
