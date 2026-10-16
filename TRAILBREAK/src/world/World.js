@@ -5,6 +5,7 @@
 //   height(x, z)                 ground height: terrain - ruts, or the top of a boulder
 //   surfaceAt(x, z)              surface record (physics/Surfaces.js)
 //   water(x, z)                  water surface height there, or -Infinity
+// (and for the renderer, waterSurface(x, z): the water's surface as it is drawn)
 //   deform(x, z, fx, fz, hw, hl, press, dig)   press soft ground under a tyre, returns the rut depth
 //   treesNear(x, z, r, out)      trunks and wall posts { x, y, z, r } near (x, z)
 
@@ -120,6 +121,19 @@ export class World {
     if (i < 0 || k < 0 || i >= this.WN || k >= this.WN) return -Infinity;
     const w = this.W[k * this.WN + i];
     return w === NO_WATER ? -Infinity : w;
+  }
+
+  /**
+   * The water's surface as render/Water.js draws it: across the triangles between its grid points (each cell cut
+   * corner (i+1, k) to (i, k+1)), so what floats on it (foam, ripples) sits on the drawn surface, not under it.
+   */
+  waterSurface(x, z) {
+    const fx = (x - this.origin) / this.WR, fz = (z - this.origin) / this.WR, i = Math.floor(fx), k = Math.floor(fz), u = fx - i, v = fz - k;
+    const N = this.WN, W = this.W;
+    if (i < 0 || k < 0 || i + 1 >= N || k + 1 >= N) return this.water(x, z);
+    const a = W[k * N + i], b = W[k * N + i + 1], c = W[(k + 1) * N + i], e = W[(k + 1) * N + i + 1];
+    if (a === NO_WATER || b === NO_WATER || c === NO_WATER || e === NO_WATER) return this.water(x, z);
+    return u + v <= 1 ? a + (b - a) * u + (c - a) * v : e + (c - e) * (1 - u) + (b - e) * (1 - v);
   }
 
   /**

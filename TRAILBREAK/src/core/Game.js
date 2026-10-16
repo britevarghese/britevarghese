@@ -12,6 +12,7 @@ import { CameraRig } from './CameraRig.js';
 import { BEACON_RADIUS, MAP_HALF } from '../world/maps/index.js';
 import { EventPlay } from '../game/EventPlay.js';
 import { EventCourse } from '../render/EventCourse.js';
+import { KIND } from '../render/Effects.js';
 
 const clamp = (x, a, b) => (x < a ? a : x > b ? b : x);
 const MATE_COLORS = ['#4fb3a9', '#e0b33b', '#c46bd6', '#6aa8e8', '#e0563b', '#7cc36a', '#e88fb0', '#c9c06a'];
@@ -646,7 +647,7 @@ export class Game {
     for (let k = 0; k < 80; k++) {
       const a = Math.random() * Math.PI * 2, sp = 1 + Math.random() * 2.5;
       this.effects.spawn(p.x + (Math.random() - 0.5) * 1.4, p.y + (Math.random() - 0.5) * 0.4, p.z + (Math.random() - 0.5) * 1.6,
-        Math.cos(a) * sp, 0.5 + Math.random() * 1.5, Math.sin(a) * sp, 0.025 + Math.random() * 0.025, 0.7 + Math.random() * 0.8, [0.8, 0.9, 0.92], 0.9, 0, 0.3, 9.81);
+        Math.cos(a) * sp, 0.5 + Math.random() * 1.5, Math.sin(a) * sp, 0.012 + Math.random() * 0.012, 1.6 + Math.random() * 1.2, [0.7, 0.82, 0.84], 0.9, 0, 0.3, 9.81, KIND.SHARD);
     }
   }
 
@@ -810,15 +811,20 @@ export class Game {
   remoteEffects(rv, s, dt) {
     const root = rv.model.root;
     if (root.position.distanceToSquared(this.renderer.camera.position) > 150 * 150) return;
-    const speed = Math.hypot(s.vel[0], s.vel[2]);
     const fwd = this._v.set(0, 0, 1).applyQuaternion(root.quaternion);
+    const speed = s.vel[0] * fwd.x + s.vel[2] * fwd.z, R = rv.spec.tyre.radius;
     for (let i = 0; i < 4; i++) {
       const ax = rv.spec.axles[i < 2 ? 0 : 1], side = i % 2 === 0 ? 1 : -1;
-      const hub = new THREE.Vector3(side * ax.track / 2, rv.spec.tyre.radius - rv.spec.cgHeight, ax.z - (rv.spec.cgZ || 0)).applyQuaternion(root.quaternion).add(root.position);
+      const hub = new THREE.Vector3(side * ax.track / 2, R - rv.spec.cgHeight, ax.z - (rv.spec.cgZ || 0)).applyQuaternion(root.quaternion).add(root.position);
       const surf = this.world.surfaceAt(hub.x, hub.z), wl = this.world.water(hub.x, hub.z);
-      const w = { contact: true, surf, slipSpeed: s.thr > 0.6 && speed < 3 && surf.sink ? 4 : 0, omega: 1, water: Math.max(0, wl - (hub.y - rv.spec.tyre.radius)) };
-      this.effects.wheel(`r${rv.id}-${i}`, w, dt, speed, hub.x, hub.y, hub.z, fwd.x, fwd.z);
+      // (we don't hear how fast their wheels turn: spinning when they floor it and hardly move on soft ground)
+      const slip = s.thr > 0.6 && Math.abs(speed) < 3 && surf.sink ? 4 : 0;
+      const w = { contact: true, surf, slipSpeed: slip, omega: (speed + slip * (speed < -0.3 ? -1 : 1)) / R, water: Math.max(0, wl - (hub.y - R)) };
+      this.effects.wheel(`r${rv.id}-${i}`, w, dt, speed, hub.x, hub.y, hub.z, fwd.x, fwd.z, R);
     }
+    const p = root.position, b = rv.spec.hull[0], cgZ = rv.spec.cgZ || 0;
+    const wl = this.world.water(p.x, p.z), bottom = p.y + b.c[1] - b.h[1] - rv.spec.cgHeight;
+    this.effects.hull(`r${rv.id}`, dt, p.x, p.y, p.z, s.vel[0], s.vel[2], fwd.x, fwd.z, b.h[0], b.c[2] + b.h[2] - cgZ, wl > -1e8 ? Math.max(0, wl - bottom) : 0, wl);
   }
 
   // ---------------------------------------------------------------- beacons
@@ -955,7 +961,11 @@ export class Game {
 
     // effects from our tyres
     const speed = v.speed;
-    for (const w of v.wheels) this.effects.wheel(`me-${w.index}`, w, dt, speed, w.hub.x, w.hub.y, w.hub.z, w.headX, w.headZ);
+    const R = v.spec.tyre.radius;
+    for (const w of v.wheels) this.effects.wheel(`me-${w.index}`, w, dt, speed, w.hub.x, w.hub.y, w.hub.z, w.headX, w.headZ, R);
+    // ... and from the hull pushing through water
+    const hb = v.spec.hull[0];
+    this.effects.hull('me', dt, v.pos.x, v.pos.y, v.pos.z, v.vel.x, v.vel.z, v.fwd.x, v.fwd.z, hb.h[0], hb.c[2] + hb.h[2] - (v.spec.cgZ || 0), v.waterDepth, this.world.water(v.pos.x, v.pos.z));
     if (v.hullContact > 0.8) this.cam.shake = Math.max(this.cam.shake, Math.min(0.12, v.hullContact * 0.04));
     if (v.impact > 0.5) this.cam.shake = Math.max(this.cam.shake, Math.min(0.2, v.impact * 0.05));
     this.feelGround(dt);
@@ -971,7 +981,9 @@ export class Game {
     this.water.update(this.renderer.camera, dt, this.renderer.sky.state.horizon);
     this.landmarks.update(this.renderer.camera, dt);
     this.course.update(dt);
-    this.effects.update(dt, this.world, this.renderer.camera, this.renderer.renderer.domElement.height);
+    const Rn = this.renderer;
+    this.effects.setLight(Rn.sky.sunDir, Rn.sun.color, Rn.sun.intensity, Rn.hemi.color, Rn.hemi.groundColor, Rn.hemi.intensity);
+    this.effects.update(dt, this.world, Rn.camera);
     if (W.attached) {
       const a = this.fairleadWorld(new THREE.Vector3());
       const b = new THREE.Vector3(W.anchor.x, W.anchor.y, W.anchor.z);

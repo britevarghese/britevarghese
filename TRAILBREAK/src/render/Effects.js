@@ -1,41 +1,153 @@
-// Particles thrown up by the tyres: clods of mud and dirt from spinning wheels, dust behind a truck on dry ground,
-// spray in water, snow puffs. One pool of soft round points, drawn with additive-free alpha blending.
+// What the tyres and the hull throw up. A spinning tread flings clods and wet drops of mud along its tangent as it
+// lifts off the ground (a rolling one in mud sheds some too), sand goes up in a spray of grains, dust rolls up behind
+// a truck on dry ground. In water the tyres throw rooster tails off the tread and sheets out to the sides, a tyre
+// driving in splashes, the nose pushes a bow wave up and out, and foam and ripple rings spread on the surface behind.
+// Steam, smoke and broken glass go through here too.
+//
+// One pool of quads, drawn in one call: most face the camera, drops and spray are stretched along their motion,
+// rings and foam lie flat on the water (on its surface as drawn: World.waterSurface). Lit by the sun and the sky:
+// clods shaded as lumps (wet mud glints), spray and dust as soft volumes that glow when the sun is behind them.
 import * as THREE from 'three';
 import { SURFACE } from '../physics/Surfaces.js';
 
-const MAX = 2400;
+const MAX = 4000;
+export const KIND = { PUFF: 0, CHUNK: 1, DROP: 2, MIST: 3, RING: 4, FOAM: 5, SHARD: 6, SPRAY: 7 };
 
 const vert = /* glsl */`
-uniform float uScale;
-attribute float aSize;
-attribute float aAlpha;
-attribute vec3 aColor;
-varying float vAlpha;
-varying vec3 vColor;
+attribute vec2 corner;
+attribute vec3 iPos;
+attribute vec3 iVel;
+attribute vec4 iCol;
+attribute vec4 iMisc;
+uniform float uStretch;
+varying vec2 vUv;
+varying vec4 vCol;
+varying float vKind;
+varying float vSeed;
+varying vec3 vWorld;
 #include <common>
 #include <fog_pars_vertex>
 #include <logdepthbuf_pars_vertex>
 void main() {
-  vAlpha = aAlpha; vColor = aColor;
-  vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
+  float size = iMisc.x, kind = iMisc.y, rot = iMisc.z;
+  vUv = corner; vCol = iCol; vKind = kind; vSeed = iMisc.w;
+  vec3 camRight = vec3(viewMatrix[0][0], viewMatrix[1][0], viewMatrix[2][0]);
+  vec3 camUp = vec3(viewMatrix[0][1], viewMatrix[1][1], viewMatrix[2][1]);
+  vec3 camFwd = -vec3(viewMatrix[0][2], viewMatrix[1][2], viewMatrix[2][2]);
+  vec3 wp;
+  if (kind > 3.5 && kind < 5.5) {
+    // rings and foam lie flat on the water
+    float c = cos(rot), s = sin(rot);
+    wp = iPos + (vec3(c, 0.0, s) * corner.x + vec3(s, 0.0, -c) * corner.y) * size;
+  } else if ((kind > 1.5 && kind < 2.5) || kind > 6.5) {
+    // a drop (or a clump of spray) streaks along its motion, as the camera sees it
+    vec3 v = iVel - dot(iVel, camFwd) * camFwd;
+    float sp = length(v);
+    vec3 dir = sp > 0.05 ? v / sp : camUp;
+    vec3 side = normalize(cross(camFwd, dir));
+    float st = kind > 6.5 ? uStretch * 0.5 : uStretch;
+    wp = iPos + side * corner.x * size + dir * corner.y * size * (1.0 + sp * st);
+  } else {
+    float c = cos(rot), s = sin(rot);
+    vec2 q = vec2(c * corner.x - s * corner.y, s * corner.x + c * corner.y);
+    wp = iPos + (camRight * q.x + camUp * q.y) * size;
+  }
+  vWorld = wp;
+  vec4 mvPosition = viewMatrix * vec4(wp, 1.0);
   gl_Position = projectionMatrix * mvPosition;
-  gl_PointSize = aSize * (uScale / max(0.5, -mvPosition.z));
   #include <logdepthbuf_vertex>
   #include <fog_vertex>
 }`;
+
 const frag = /* glsl */`
-varying float vAlpha;
-varying vec3 vColor;
+uniform vec3 uSunDir;
+uniform vec3 uSunCol;
+uniform vec3 uSky;
+uniform vec3 uGround;
+varying vec2 vUv;
+varying vec4 vCol;
+varying float vKind;
+varying float vSeed;
+varying vec3 vWorld;
 #include <common>
 #include <fog_pars_fragment>
 #include <logdepthbuf_pars_fragment>
+float h21(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+float vnoise(vec2 p) {
+  vec2 i = floor(p), f = fract(p);
+  f = f * f * (3.0 - 2.0 * f);
+  return mix(mix(h21(i), h21(i + vec2(1.0, 0.0)), f.x), mix(h21(i + vec2(0.0, 1.0)), h21(i + vec2(1.0, 1.0)), f.x), f.y);
+}
 void main() {
   #include <logdepthbuf_fragment>
-  vec2 c = gl_PointCoord - 0.5;
-  float d = dot(c, c);
-  if (d > 0.25) discard;
-  float a = vAlpha * (1.0 - smoothstep(0.12, 0.25, d));
-  gl_FragColor = vec4(vColor, a);
+  vec2 p = vUv;
+  float r = length(p);
+  vec3 col = vCol.rgb;
+  float a = vCol.a;
+  vec3 amb = mix(uGround, uSky, 0.62);
+  vec3 sunV = normalize((viewMatrix * vec4(uSunDir, 0.0)).xyz);
+  vec3 viewDir = normalize(vWorld - cameraPosition);
+  float behind = max(0.0, dot(viewDir, uSunDir));
+  if (vKind > 0.5 && vKind < 1.5) {
+    // a lump: an uneven outline, shaded as a rounded clod lit from the sun; wet (dark) mud glints
+    float ang = atan(p.y, p.x);
+    float edge = 0.74 + 0.15 * sin(ang * 3.0 + vSeed * 6.3) + 0.08 * sin(ang * 5.0 + vSeed * 17.0);
+    if (r > edge) discard;
+    vec2 q = p / edge;
+    vec3 n = normalize(vec3(q * 0.95, sqrt(max(0.04, 1.0 - dot(q, q)))));
+    float dif = max(0.0, dot(n, sunV));
+    float wet = 1.0 - smoothstep(0.12, 0.35, dot(col, vec3(0.333)));
+    float spec = pow(max(0.0, dot(reflect(-sunV, n), vec3(0.0, 0.0, 1.0))), 22.0) * wet;
+    col = col * (amb * 0.6 + uSunCol * dif * 0.6) + uSunCol * spec * 0.35;
+    a *= smoothstep(edge, edge - 0.1, r);
+  } else if (vKind > 1.5 && vKind < 2.5) {
+    // a drop: soft across, rounded at the ends, a glint down its middle
+    float across = abs(p.x), along = abs(p.y);
+    float m = (1.0 - smoothstep(0.35, 1.0, across)) * (1.0 - smoothstep(0.5, 1.0, along));
+    if (m < 0.02) discard;
+    float g = (1.0 - across) * (1.0 - across);
+    col = col * (amb * 0.8 + uSunCol * 0.42) + uSunCol * (0.2 * g + 0.25 * pow(behind, 6.0));
+    a *= m;
+  } else if (vKind < 0.5 || (vKind > 2.5 && vKind < 3.5)) {
+    // dust, steam, smoke and spray mist: a soft volume, lit by the sky, the sun through it when it is behind
+    if (r > 1.0) discard;
+    float m = exp(-r * r * 2.4) * (1.0 - smoothstep(0.75, 1.0, r));
+    m *= 0.75 + 0.5 * vnoise(p * 2.2 + vSeed * 9.0);
+    float mist = step(2.5, vKind);
+    col = col * (amb * 0.85 + uSunCol * 0.3) + uSunCol * pow(behind, 5.0) * (0.18 + 0.3 * mist);
+    a *= m;
+  } else if (vKind > 3.5 && vKind < 4.5) {
+    // a ripple ring spreading on the water: a thin bright rim
+    if (r > 1.0) discard;
+    float m = (1.0 - smoothstep(0.0, 0.12, abs(r - 0.84))) * (0.7 + 0.3 * vnoise(p * 6.0 + vSeed * 5.0));
+    if (m < 0.02) discard;
+    col = mix(col, uSky, 0.35) + uSunCol * 0.15;
+    a *= m;
+  } else if (vKind > 4.5 && vKind < 5.5) {
+    // foam: white, broken up into patches and bubbles, thinning at its edge
+    if (r > 1.0) discard;
+    float n = vnoise(p * 3.1 + vSeed * 7.0) * 0.6 + vnoise(p * 8.3 + vSeed * 3.0) * 0.4;
+    float m = smoothstep(0.5, 0.7, n + (0.3 - r * 0.45)) * (1.0 - smoothstep(0.6, 1.0, r));
+    if (m < 0.02) discard;
+    col = col * (amb * 0.9 + uSunCol * 0.5);
+    a *= m;
+  } else if (vKind > 6.5) {
+    // a clump of spray: a dense core breaking up at its edge, bright where the sun catches it
+    if (r > 1.0) discard;
+    float n = vnoise(p * 2.7 + vSeed * 11.0);
+    float m = (1.0 - smoothstep(0.2 + 0.4 * n, 1.0, r)) * (0.8 + 0.4 * vnoise(p * 6.0 - vSeed * 5.0));
+    if (m < 0.02) discard;
+    col = col * (amb * 0.9 + uSunCol * 0.55) + uSunCol * pow(behind, 4.0) * 0.4;
+    a *= min(1.0, m);
+  } else {
+    // broken glass: little cubes that catch the light
+    float m = 1.0 - smoothstep(0.35, 0.9, max(abs(p.x), abs(p.y)));
+    if (m < 0.02) discard;
+    float glint = step(0.82, fract(sin(vSeed * 91.7 + vWorld.y * 3.0) * 43758.5));
+    col = col * amb * 0.8 + uSunCol * (0.25 + 0.8 * glint);
+    a *= m;
+  }
+  gl_FragColor = vec4(col, a);
   #include <tonemapping_fragment>
   #include <colorspace_fragment>
   #include <fog_fragment>
@@ -47,133 +159,375 @@ const COLORS = {
   [SURFACE.RIVERBED]: [0.3, 0.27, 0.2], [SURFACE.ROCK]: [0.45, 0.43, 0.4], [SURFACE.ROAD]: [0.4, 0.37, 0.33],
   [SURFACE.TEA]: [0.14, 0.2, 0.07],
 };
+// what a spinning tread throws, per ground: clods a second per m/s of wheelspin (and per m/s of tread a rolling
+// tyre sheds), the share that goes as wet drops, clod sizes (m) and the odd big one, a spray of grains, a haze
+const LOOSE = {
+  [SURFACE.MUD]: { clod: 50, roll: 4, drop: 0.4, size: [0.03, 0.075], big: 0.08, grain: 0, haze: 0, spray: 0.08 },
+  [SURFACE.RIVERBED]: { clod: 18, roll: 0.6, drop: 0.35, size: [0.018, 0.04], big: 0, grain: 0, haze: 0 },
+  [SURFACE.DIRT]: { clod: 18, roll: 0, drop: 0, size: [0.022, 0.05], big: 0.05, grain: 10, haze: 2.4 },
+  [SURFACE.GRASS]: { clod: 14, roll: 0, drop: 0, size: [0.022, 0.05], big: 0.05, grain: 0, haze: 0 },
+  [SURFACE.TEA]: { clod: 12, roll: 0, drop: 0, size: [0.022, 0.045], big: 0.03, grain: 0, haze: 0 },
+  [SURFACE.GRAVEL]: { clod: 16, roll: 0, drop: 0, size: [0.014, 0.032], big: 0, grain: 8, haze: 1.6 },
+  [SURFACE.SAND]: { clod: 5, roll: 0, drop: 0, size: [0.02, 0.04], big: 0, grain: 34, haze: 3 },
+  [SURFACE.SNOW]: { clod: 16, roll: 1, drop: 0, size: [0.05, 0.11], big: 0.1, grain: 14, haze: 2.4 },
+};
+const WATER = [0.8, 0.86, 0.9], MUDDY_WATER = [0.3, 0.23, 0.15];
+const SPRAY = [0.86, 0.9, 0.93], MUDDY_SPRAY = [0.4, 0.33, 0.24];
+const FOAM = [0.95, 0.96, 0.97], MUDDY_FOAM = [0.6, 0.52, 0.41];
+const rnd = (a = 1) => (Math.random() * 2 - 1) * a;
+const lerp = (a, b, t) => a + (b - a) * t;
 
 export class Effects {
   constructor(scene) {
-    const g = new THREE.BufferGeometry();
+    const g = new THREE.InstancedBufferGeometry();
+    g.setAttribute('corner', new THREE.BufferAttribute(new Float32Array([-1, -1, 1, -1, 1, 1, -1, 1]), 2));
+    g.setAttribute('position', new THREE.BufferAttribute(new Float32Array(12), 3));     // (unused: three wants one)
+    g.setIndex([0, 1, 2, 0, 2, 3]);
     this.pos = new Float32Array(MAX * 3);
     this.vel = new Float32Array(MAX * 3);
-    this.size = new Float32Array(MAX);
-    this.alpha = new Float32Array(MAX);
-    this.color = new Float32Array(MAX * 3);
+    this.col = new Float32Array(MAX * 4);
+    this.misc = new Float32Array(MAX * 4);           // size, kind, rotation, seed
     this.life = new Float32Array(MAX);
     this.maxLife = new Float32Array(MAX);
     this.grow = new Float32Array(MAX);
     this.drag = new Float32Array(MAX);
     this.grav = new Float32Array(MAX);
+    this.spin = new Float32Array(MAX);
     this.a0 = new Float32Array(MAX);
-    g.setAttribute('position', new THREE.BufferAttribute(this.pos, 3).setUsage(THREE.DynamicDrawUsage));
-    g.setAttribute('aSize', new THREE.BufferAttribute(this.size, 1).setUsage(THREE.DynamicDrawUsage));
-    g.setAttribute('aAlpha', new THREE.BufferAttribute(this.alpha, 1).setUsage(THREE.DynamicDrawUsage));
-    g.setAttribute('aColor', new THREE.BufferAttribute(this.color, 3).setUsage(THREE.DynamicDrawUsage));
+    this.attr = {
+      iPos: new THREE.InstancedBufferAttribute(this.pos, 3).setUsage(THREE.DynamicDrawUsage),
+      iVel: new THREE.InstancedBufferAttribute(this.vel, 3).setUsage(THREE.DynamicDrawUsage),
+      iCol: new THREE.InstancedBufferAttribute(this.col, 4).setUsage(THREE.DynamicDrawUsage),
+      iMisc: new THREE.InstancedBufferAttribute(this.misc, 4).setUsage(THREE.DynamicDrawUsage),
+    };
+    for (const [k, a] of Object.entries(this.attr)) g.setAttribute(k, a);
+    g.instanceCount = MAX;
     g.boundingSphere = new THREE.Sphere(new THREE.Vector3(), 1e6);
+    this.uniforms = {
+      uStretch: { value: 0.09 },
+      uSunDir: { value: new THREE.Vector3(0.3, 0.8, 0.2).normalize() },
+      uSunCol: { value: new THREE.Color(1, 1, 1) },
+      uSky: { value: new THREE.Color(0.75, 0.82, 0.92) },
+      uGround: { value: new THREE.Color(0.32, 0.3, 0.24) },
+    };
     const mat = new THREE.ShaderMaterial({
-      vertexShader: vert, fragmentShader: frag, transparent: true, depthWrite: false, fog: true,
-      uniforms: THREE.UniformsUtils.merge([THREE.UniformsLib.fog, { uScale: { value: 600 } }]),
+      vertexShader: vert, fragmentShader: frag, transparent: true, depthWrite: false, fog: true, side: THREE.DoubleSide,
+      uniforms: THREE.UniformsUtils.merge([THREE.UniformsLib.fog]),
     });
-    this.points = new THREE.Points(g, mat);
-    this.points.frustumCulled = false;
-    this.points.renderOrder = 3;
-    scene.add(this.points);
+    Object.assign(mat.uniforms, this.uniforms);
+    this.mesh = new THREE.Mesh(g, mat);
+    this.mesh.frustumCulled = false;
+    this.mesh.renderOrder = 3;
+    scene.add(this.mesh);
     this.next = 0;
+    this.live = 0;
     this.acc = new Map();
+    this.hulls = new Map();
     this.colors = { ...COLORS };
+    this.ground = null;
   }
 
   /** A map's own colours of dust and mud thrown up from each ground (Kerala's red laterite). */
   setPalette(p = {}) { Object.assign(this.colors, p); }
 
-  spawn(x, y, z, vx, vy, vz, size, life, color, alpha = 1, grow = 0, drag = 0.6, grav = 9.81) {
+  /** The sun and the sky to light the particles by (render/Renderer.js). */
+  setLight(sunDir, sunColor, sunIntensity, sky, ground, hemiIntensity) {
+    const u = this.uniforms;
+    u.uSunDir.value.copy(sunDir);
+    u.uSunCol.value.copy(sunColor).multiplyScalar(Math.min(1.1, sunIntensity / 2.8));
+    u.uSky.value.copy(sky).multiplyScalar(Math.min(1.2, hemiIntensity * 1.15));
+    u.uGround.value.copy(ground).multiplyScalar(Math.min(1.2, hemiIntensity * 1.15));
+  }
+
+  spawn(x, y, z, vx, vy, vz, size, life, color, alpha = 1, grow = 0, drag = 0.6, grav = 9.81, kind = grav > 1 ? KIND.CHUNK : KIND.PUFF) {
     const i = this.next;
     this.next = (this.next + 1) % MAX;
     this.pos[i * 3] = x; this.pos[i * 3 + 1] = y; this.pos[i * 3 + 2] = z;
     this.vel[i * 3] = vx; this.vel[i * 3 + 1] = vy; this.vel[i * 3 + 2] = vz;
-    this.size[i] = size; this.life[i] = life; this.maxLife[i] = life; this.grow[i] = grow; this.drag[i] = drag; this.grav[i] = grav;
-    this.color[i * 3] = color[0]; this.color[i * 3 + 1] = color[1]; this.color[i * 3 + 2] = color[2];
-    this.a0[i] = alpha; this.alpha[i] = alpha;
+    this.col[i * 4] = color[0]; this.col[i * 4 + 1] = color[1]; this.col[i * 4 + 2] = color[2]; this.col[i * 4 + 3] = alpha;
+    this.misc[i * 4] = size; this.misc[i * 4 + 1] = kind; this.misc[i * 4 + 2] = Math.random() * 6.283; this.misc[i * 4 + 3] = Math.random();
+    this.life[i] = life; this.maxLife[i] = life; this.grow[i] = grow; this.drag[i] = drag; this.grav[i] = grav;
+    this.spin[i] = kind === KIND.CHUNK || kind === KIND.SHARD ? rnd(9) : kind === KIND.PUFF || kind === KIND.MIST ? rnd(0.6) : 0;
+    this.a0[i] = alpha;
+    return i;
   }
 
-  /** Emit for one wheel of a truck this frame. w: physics wheel (or a remote's estimate). */
-  wheel(key, w, dt, speed, hubX, hubY, hubZ, headX, headZ) {
-    if (!w.contact) return;
+  /** The water's surface at (x, z) as it is drawn, or -Infinity. */
+  surface(x, z) {
+    const g = this.ground;
+    return !g ? -Infinity : g.waterSurface ? g.waterSurface(x, z) : g.water ? g.water(x, z) : -Infinity;
+  }
+
+  /** Something flat on the water at (x, z): a ripple ring or a patch of foam, spreading as it fades. */
+  ring(x, z, size, grow, life, alpha = 0.5, foam = false, color = FOAM) {
+    const wy = this.surface(x, z);
+    if (!(wy > -1e8)) return -1;
+    return this.spawn(x, wy + 0.02, z, 0, 0, 0, size, life, color, alpha, grow, 0, 0, foam ? KIND.FOAM : KIND.RING);
+  }
+
+  /** A drop of water (or of muddy water), streaking as it flies. */
+  drop(x, y, z, vx, vy, vz, muddy, big = 1) {
+    return this.spawn(x, y, z, vx, vy, vz, (0.022 + Math.random() * 0.03) * big, 0.8 + Math.random() * 0.6, muddy ? MUDDY_WATER : WATER, muddy ? 0.92 : 0.78, 0, 0.35, 9.81, KIND.DROP);
+  }
+
+  /** A clump of spray: the body of a splash, falling back with the drops. */
+  spray(x, y, z, vx, vy, vz, muddy, size = 0.16) {
+    return this.spawn(x, y, z, vx, vy, vz, size * (0.7 + Math.random() * 0.6), 0.7 + Math.random() * 0.5, muddy ? MUDDY_SPRAY : SPRAY, muddy ? 0.5 : 0.34, size * 0.8, 1.1, 7.5, KIND.SPRAY);
+  }
+
+  /** Fine spray hanging in the air after a splash. */
+  mist(x, y, z, vx, vy, vz, muddy, size = 0.4) {
+    return this.spawn(x, y, z, vx, vy, vz, size * (0.7 + Math.random() * 0.6), 0.6 + Math.random() * 0.5, muddy ? [0.45, 0.38, 0.3] : [0.88, 0.92, 0.95], muddy ? 0.28 : 0.22, 1.6, 1.5, 0.4, KIND.MIST);
+  }
+
+  /**
+   * Emit for one wheel of a truck this frame. w: physics wheel (or a remote's estimate): contact, surf, slipSpeed,
+   * omega, water (depth over the tyre's bottom). speed: the truck's speed along its heading (headX, headZ). r: tyre
+   * radius.
+   */
+  wheel(key, w, dt, speed, hubX, hubY, hubZ, headX, headZ, r = 0.4) {
+    let st = this.acc.get(key);
+    if (!st) { st = { clod: 0, grain: 0, dust: 0, tail: 0, sheet: 0, wet: 0 }; this.acc.set(key, st); }
+    if (!w.contact) { st.wet = 0; return; }
     const s = w.surf?.id ?? SURFACE.GRASS;
     const col = this.colors[s] || this.colors[SURFACE.DIRT];
     const slip = w.slipSpeed || 0;
-    const r = 0.4;
-    let acc = this.acc.get(key) || 0;
-    // thrown clods from a spinning tyre: off the back of the tread
-    const loose = s === SURFACE.MUD || s === SURFACE.DIRT || s === SURFACE.SAND || s === SURFACE.SNOW || s === SURFACE.GRAVEL || s === SURFACE.GRASS || s === SURFACE.RIVERBED;
-    if (loose && slip > 1.2) {
-      acc += dt * Math.min(140, slip * (s === SURFACE.MUD ? 26 : 14));
-      const dir = Math.sign(w.omega || 1);
-      while (acc > 1) {
-        acc -= 1;
-        const v = Math.min(14, slip * 0.7) * (0.6 + Math.random() * 0.6);
-        const sz = s === SURFACE.MUD ? 0.07 + Math.random() * 0.1 : s === SURFACE.SNOW ? 0.12 + Math.random() * 0.15 : 0.05 + Math.random() * 0.07;
-        this.spawn(hubX - headX * r * 0.8 * dir + (Math.random() - 0.5) * 0.25, hubY - r * 0.6, hubZ - headZ * r * 0.8 * dir + (Math.random() - 0.5) * 0.25,
-          -headX * v * dir + (Math.random() - 0.5) * 1.5, v * (0.45 + Math.random() * 0.6), -headZ * v * dir + (Math.random() - 0.5) * 1.5,
-          sz, 0.6 + Math.random() * 0.6, col, 1, 0, 0.3, 9.81);
+    const tread = Math.abs((w.omega || 0) * r);                        // the tread's speed round the hub
+    const dir = Math.sign(w.omega || speed || 1);
+    const sideX = headZ, sideZ = -headX;
+    const fx = headX * speed, fz = headZ * speed;                       // the hub's own motion
+    const water = w.water || 0, inWater = water > 0.05, sp = Math.abs(speed);
+    const L = LOOSE[s];
+    // off the back of the tread as it lifts: clods (and from wet mud, drops) along its tangent, at its speed round
+    // the hub on top of the truck's own. In water the tread throws water instead (below)
+    if (L && water < 0.08) {
+      const rate = slip > 0.5 ? slip * L.clod : 0;
+      st.clod += dt * Math.min(240, rate + Math.max(0, tread - 2.5) * L.roll);
+      while (st.clod > 1) {
+        st.clod -= 1;
+        const th = (slip > 0.5 ? 0.2 : 0.6) + Math.random() * 0.95;        // where it leaves: up the back of the tyre
+        const v = Math.min(20, tread) * (0.6 + Math.random() * 0.45);
+        const bx = hubX - headX * r * Math.sin(th) * dir + rnd(0.1), by = hubY - r * Math.cos(th), bz = hubZ - headZ * r * Math.sin(th) * dir + rnd(0.1);
+        const ux = -headX * Math.cos(th) * dir, uy = Math.sin(th) * 0.9 + 0.2, uz = -headZ * Math.cos(th) * dir;
+        const out = rnd(0.22) * v;
+        if (L.spray && slip > 2 && Math.random() < L.spray) {
+          // wet mud flung off in a sheet
+          this.spawn(bx, by, bz, fx + ux * v + sideX * out, uy * v, fz + uz * v + sideZ * out, 0.07 + Math.random() * 0.08, 0.6 + Math.random() * 0.4,
+            [col[0] * 1.2, col[1] * 1.15, col[2] * 1.1], 0.6, 0.12, 1.2, 8.5, KIND.SPRAY);
+        } else if (Math.random() < L.drop) {
+          const c = [col[0] * 0.75, col[1] * 0.72, col[2] * 0.7];
+          this.spawn(bx, by, bz, fx + ux * v * 1.08 + sideX * out, uy * v * 1.08, fz + uz * v * 1.08 + sideZ * out,
+            0.018 + Math.random() * 0.022, 0.8 + Math.random() * 0.5, c, 0.95, 0, 0.3, 9.81, KIND.DROP);
+        } else {
+          const big = Math.random() < L.big;
+          const sz = big ? L.size[1] * (1.3 + Math.random() * 0.7) : lerp(L.size[0], L.size[1], Math.random() ** 1.6);
+          const k = 0.85 + Math.random() * 0.3, c = [col[0] * k, col[1] * k, col[2] * k];
+          this.spawn(bx, by, bz, fx + ux * v * (big ? 0.8 : 1) + sideX * out, uy * v * (big ? 0.8 : 1), fz + uz * v * (big ? 0.8 : 1) + sideZ * out,
+            sz, 1 + Math.random() * 0.8, c, 1, 0, 0.25, 9.81, KIND.CHUNK);
+        }
+      }
+      // sand, dry dirt, gravel and snow: a spray of grains with the clods, and a haze where the tyre digs
+      if (L.grain && slip > 0.8) {
+        st.grain += dt * Math.min(200, slip * L.grain);
+        const c = [col[0] * 1.1, col[1] * 1.1, col[2] * 1.1];
+        while (st.grain > 1) {
+          st.grain -= 1;
+          const th = 0.15 + Math.random() * 0.8, v = Math.min(20, tread) * (0.5 + Math.random() * 0.6);
+          this.spawn(hubX - headX * r * Math.sin(th) * dir + rnd(0.12), hubY - r * Math.cos(th), hubZ - headZ * r * Math.sin(th) * dir + rnd(0.12),
+            fx - headX * Math.cos(th) * dir * v + sideX * rnd(0.3) * v, (Math.sin(th) * 0.8 + 0.25) * v, fz - headZ * Math.cos(th) * dir * v + sideZ * rnd(0.3) * v,
+            0.01 + Math.random() * 0.012, 0.6 + Math.random() * 0.4, c, 0.85, 0, 0.5, 9.81, KIND.DROP);
+        }
+      }
+      if (L.haze && slip > 0.8 && Math.random() < dt * slip * L.haze) {
+        const c = s === SURFACE.SNOW ? [0.95, 0.96, 0.98] : [col[0] * 1.3 + 0.1, col[1] * 1.3 + 0.08, col[2] * 1.3 + 0.06];
+        this.spawn(hubX - headX * r * dir, hubY - r * 0.6, hubZ - headZ * r * dir, fx * 0.3 - headX * dir * 2 + rnd(0.8), 0.6 + Math.random(), fz * 0.3 - headZ * dir * 2 + rnd(0.8),
+          0.3 + Math.random() * 0.35, 1.5 + Math.random(), c, s === SURFACE.SNOW ? 0.3 : 0.18, 1, 1.1, -0.2, KIND.PUFF);
       }
     }
-    // dust on dry ground at speed
+    // dust rolling up behind on dry ground at speed
     const dry = s === SURFACE.DIRT || s === SURFACE.GRAVEL || s === SURFACE.SAND || s === SURFACE.ROAD;
-    if (dry && Math.abs(speed) > 4 && !(w.water > 0)) {
-      acc += dt * Math.min(30, Math.abs(speed) * 0.9);
-      while (acc > 1) {
-        acc -= 1;
+    if (dry && sp > 4 && !inWater) {
+      st.dust += dt * Math.min(32, sp * 0.95);
+      while (st.dust > 1) {
+        st.dust -= 1;
         const c = [col[0] * 1.4 + 0.12, col[1] * 1.4 + 0.1, col[2] * 1.4 + 0.08];
-        this.spawn(hubX + (Math.random() - 0.5) * 0.6, hubY - r * 0.7, hubZ + (Math.random() - 0.5) * 0.6,
-          (Math.random() - 0.5) * 1.2, 0.4 + Math.random() * 0.9, (Math.random() - 0.5) * 1.2,
-          0.35 + Math.random() * 0.35, 1.6 + Math.random() * 1.4, c, 0.14, 0.9, 1.2, -0.25);
+        this.spawn(hubX + rnd(0.3) - headX * r, hubY - r * 0.7, hubZ + rnd(0.3) - headZ * r,
+          fx * 0.25 + rnd(0.6), 0.35 + Math.random() * 0.9, fz * 0.25 + rnd(0.6),
+          0.35 + Math.random() * 0.35, 1.8 + Math.random() * 1.6, c, 0.15, 0.95, 1.3, -0.22, KIND.PUFF);
       }
     }
-    // water spray (muddy in the bog and the puddles)
-    if (w.water > 0.05 && Math.abs(speed) > 1) {
-      acc += dt * Math.min(110, Math.abs(speed) * 9);
-      const muddy = s === SURFACE.MUD;
-      const c = muddy ? [0.2, 0.15, 0.1] : [0.62, 0.7, 0.74];
-      while (acc > 1) {
-        acc -= 1;
-        const v = Math.min(7, Math.abs(speed) * 0.6) * (0.5 + Math.random() * 0.7);
-        this.spawn(hubX + (Math.random() - 0.5) * 0.4, hubY - r + w.water, hubZ + (Math.random() - 0.5) * 0.4,
-          (Math.random() - 0.5) * v * 0.8, v * (0.5 + Math.random() * 0.5), (Math.random() - 0.5) * v * 0.8,
-          0.04 + Math.random() * 0.06, 0.6 + Math.random() * 0.4, c, muddy ? 0.9 : 0.55, 0.15, 0.4, 9.81);
+    if (inWater) {
+      const muddy = s === SURFACE.MUD;                                    // (water over mud is brown)
+      const depth = Math.min(water, r * 1.2);
+      const wy = hubY - r + water;                                         // the water's surface here
+      // driving into the water: the tyre splashes it up round itself
+      if (st.wet < 0.05 && sp > 1.8) {
+        const n = Math.min(90, Math.round(sp * sp * (0.8 + depth * 4)));
+        for (let k = 0; k < n; k++) {
+          const a = Math.random() * Math.PI * 2, out = sp * (0.2 + Math.random() * 0.45);
+          this.drop(hubX + rnd(0.25), wy, hubZ + rnd(0.25), fx * 0.5 + Math.cos(a) * out, sp * (0.35 + Math.random() * 0.7), fz * 0.5 + Math.sin(a) * out, muddy, 1.2);
+        }
+        for (let k = 0; k < n / 6; k++) this.spray(hubX + rnd(0.3), wy + 0.05, hubZ + rnd(0.3), fx * 0.5 + rnd(sp * 0.3), sp * (0.3 + Math.random() * 0.5), fz * 0.5 + rnd(sp * 0.3), muddy, 0.18);
+        this.ring(hubX, hubZ, 0.3, 1.8, 1.4, 0.45, false);
+      }
+      // rooster tail: off the back of the tread where it comes up out of the water
+      if (water < r * 1.8 && tread > 1.2) {
+        st.tail += dt * Math.min(170, tread * (8 + 36 * depth) + slip * 12);
+        const th0 = Math.acos(Math.max(-1, Math.min(1, (r - water) / r)));
+        while (st.tail > 1) {
+          st.tail -= 1;
+          const th = Math.max(0.2, th0) + Math.random() * 0.5;
+          const v = Math.min(16, tread) * (0.55 + Math.random() * 0.5);
+          const x = hubX - headX * r * Math.sin(th) * dir + rnd(0.1), z = hubZ - headZ * r * Math.sin(th) * dir + rnd(0.1), y = Math.max(wy, hubY - r * Math.cos(th));
+          const vx = fx - headX * Math.cos(th) * dir * v + sideX * rnd(0.3) * v, vy = (Math.sin(th) * 0.8 + 0.3) * v, vz = fz - headZ * Math.cos(th) * dir * v + sideZ * rnd(0.3) * v;
+          if (Math.random() < 0.14) this.spray(x, y, z, vx * 0.9, vy * 0.9, vz * 0.9, muddy, 0.1 + depth * 0.15);
+          else this.drop(x, y, z, vx, vy, vz, muddy);
+        }
+      }
+      // sheets thrown out sideways (and ahead) from where the tyre ploughs through
+      if (sp > 1) {
+        st.sheet += dt * Math.min(170, sp * sp * depth * 12);
+        while (st.sheet > 1) {
+          st.sheet -= 1;
+          const out = Math.random() < 0.5 ? -1 : 1, v = Math.min(10, sp * 0.7) * (0.5 + Math.random() * 0.6);
+          const x = hubX + sideX * out * 0.15 + headX * r * 0.6 + rnd(0.1), z = hubZ + sideZ * out * 0.15 + headZ * r * 0.6 + rnd(0.1);
+          const vx = fx * 0.7 + sideX * out * v + rnd(0.5), vy = v * (0.5 + Math.random() * 0.6), vz = fz * 0.7 + sideZ * out * v + rnd(0.5);
+          if (Math.random() < 0.18) this.spray(x, wy, z, vx, vy * 0.9, vz, muddy, 0.12 + depth * 0.2);
+          else this.drop(x, wy, z, vx, vy, vz, muddy);
+        }
+        if (Math.random() < dt * sp * 0.8) this.mist(hubX, wy + 0.15, hubZ, fx * 0.5 + rnd(0.6), 0.6 + Math.random() * 0.6, fz * 0.5 + rnd(0.6), muddy, 0.3 + depth * 0.4);
+      }
+      // foam where the tyre stirs the surface
+      if ((sp > 0.3 || tread > 0.8) && Math.random() < dt * (1 + sp * 0.9 + tread * 0.3)) {
+        this.ring(hubX + rnd(0.25), hubZ + rnd(0.25), 0.18 + Math.random() * 0.14, 0.3 + sp * 0.08, 1.2 + Math.random() * 0.8, 0.5, true, muddy ? MUDDY_FOAM : FOAM);
       }
     }
-    this.acc.set(key, acc);
+    st.wet = water;
+  }
+
+  /**
+   * Emit for a truck's hull in water this frame: the bow wave where it pushes in, the wake and ripples spreading
+   * behind, and a big splash when it drives in fast. (x, z): the truck's position; (vx, vz) its velocity; (fx, fz)
+   * its heading; halfW, nose: half its width and how far ahead its nose is; depth: water over the bottom of its body;
+   * wy: the water's surface there (or -Infinity dry).
+   */
+  hull(key, dt, x, y, z, vx, vz, fx, fz, halfW, nose, depth, wy) {
+    let st = this.hulls.get(key);
+    if (!st) { st = { depth: 0, wake: 0, bow: 0, spray: 0 }; this.hulls.set(key, st); }
+    const wet = wy > -1e8 && depth > 0.06;
+    const sp = Math.hypot(vx, vz);
+    if (wet) {
+      const muddy = this.ground?.surfaceAt?.(x, z)?.id === SURFACE.MUD;
+      const d = Math.min(depth, 1.2);
+      // the end that pushes into the water (the tail, backing up) and the truck's right
+      const lead = vx * fx + vz * fz >= 0 ? 1 : -1;
+      const bx = fx * lead, bz = fz * lead, sx = bz, sz = -bx;
+      const reach = nose * (lead > 0 ? 1 : 0.95);
+      // driving in fast: the water bursts up round the front
+      if (st.depth < 0.06 && sp > 2.5) {
+        const n = Math.min(320, Math.round(sp * sp * (0.6 + d) * 7));
+        for (let k = 0; k < n; k++) {
+          const a = Math.random() * Math.PI * 2, out = sp * (0.25 + Math.random() * 0.5);
+          this.drop(x + bx * reach * 0.7 + rnd(halfW), wy, z + bz * reach * 0.7 + rnd(halfW),
+            vx * 0.5 + Math.cos(a) * out, sp * (0.4 + Math.random() * 0.9) * Math.min(1, 0.4 + d), vz * 0.5 + Math.sin(a) * out, muddy, 1.3);
+        }
+        for (let k = 0; k < Math.min(70, n / 4); k++) {
+          const a = Math.random() * Math.PI * 2, out = sp * (0.15 + Math.random() * 0.4);
+          this.spray(x + bx * reach * 0.6 + rnd(halfW * 1.1), wy + 0.1, z + bz * reach * 0.6 + rnd(halfW * 1.1),
+            vx * 0.4 + Math.cos(a) * out, sp * (0.3 + Math.random() * 0.7) * Math.min(1, 0.4 + d), vz * 0.4 + Math.sin(a) * out, muddy, 0.22 + d * 0.15);
+        }
+        for (let k = 0; k < Math.min(24, n / 10); k++) this.mist(x + bx * reach * 0.5 + rnd(halfW * 1.2), wy + 0.3, z + bz * reach * 0.5 + rnd(halfW * 1.2), vx * 0.3 + rnd(2), 1 + Math.random() * 2, vz * 0.3 + rnd(2), muddy, 0.6);
+        for (let k = 0; k < 8; k++) this.ring(x + rnd(halfW * 1.5), z + rnd(halfW * 1.5), k % 3 === 0 ? 0.4 : 0.6, k % 3 === 0 ? 1.2 : 2.6, 1.8, 0.45, k % 3 === 0, muddy ? MUDDY_FOAM : FOAM);
+      }
+      if (sp > 0.5) {
+        // the bow wave: water heaped up at the front, thrown up and out to both sides
+        st.bow += dt * Math.min(300, sp * sp * d * 22);
+        st.spray += dt * Math.min(80, sp * sp * d * 5);
+        const up = Math.min(1, d * 1.6 + 0.3);
+        while (st.bow > 1 || st.spray > 1) {
+          const isSpray = st.spray > 1 && (st.bow <= 1 || Math.random() < 0.25);
+          if (isSpray) st.spray -= 1; else st.bow -= 1;
+          const out = Math.random() < 0.5 ? -1 : 1, along = Math.random() ** 0.7;
+          const v = sp * (0.3 + Math.random() * 0.5);
+          const px = x + bx * reach + sx * out * halfW * along, pz = z + bz * reach + sz * out * halfW * along;
+          const ovx = vx * 0.8 + sx * out * v * (0.3 + along) + rnd(0.3), ovy = v * (0.6 + Math.random() * 0.7) * up, ovz = vz * 0.8 + sz * out * v * (0.3 + along) + rnd(0.3);
+          if (isSpray) this.spray(px, wy + 0.04, pz, ovx, ovy, ovz, muddy, 0.14 + d * 0.16);
+          else this.drop(px, wy + 0.02, pz, ovx, ovy, ovz, muddy);
+        }
+        if (Math.random() < dt * sp * d * 4) this.mist(x + bx * reach + rnd(halfW), wy + 0.2, z + bz * reach + rnd(halfW), vx * 0.6 + rnd(1), 0.5 + Math.random(), vz * 0.6 + rnd(1), muddy, 0.45);
+        // the wake: foam peeling off both sides of the bow and down the flanks, rings spreading out behind
+        st.wake -= dt;
+        if (st.wake <= 0) {
+          st.wake = Math.max(0.07, 0.2 - sp * 0.015);
+          const fc = muddy ? MUDDY_FOAM : FOAM;
+          for (const out of [-1, 1]) {
+            this.ring(x + bx * reach * 0.8 + sx * out * halfW * 1.05, z + bz * reach * 0.8 + sz * out * halfW * 1.05, 0.26, 0.35 + sp * 0.15, 1.6 + d, 0.55, true, fc);
+            if (Math.random() < 0.5) this.ring(x - bx * reach * 0.3 + sx * out * halfW * 1.15, z - bz * reach * 0.3 + sz * out * halfW * 1.15, 0.26, 0.3 + sp * 0.18, 2 + d, 0.42, true, fc);
+            this.ring(x - bx * reach * 0.5 + sx * out * halfW * 1.1, z - bz * reach * 0.5 + sz * out * halfW * 1.1, 0.4, 0.6 + sp * 0.35, 2.6, 0.4, false);
+          }
+          if (Math.random() < 0.5) this.ring(x - bx * reach + rnd(halfW * 0.7), z - bz * reach + rnd(halfW * 0.7), 0.3, 0.3 + sp * 0.12, 2.2, 0.45, true, fc);
+        }
+      } else if (Math.random() < dt * 1.4) {
+        // standing in the water: ripples lapping out now and then
+        this.ring(x + rnd(halfW), z + rnd(halfW), 0.45, 0.7, 2.4, 0.35, false);
+      }
+    }
+    st.depth = wet ? depth : 0;
   }
 
   /** A burst (a hard landing in water, a crash). */
   burst(x, y, z, n, color, speed = 4, size = 0.12) {
     for (let k = 0; k < n; k++) {
       const a = Math.random() * Math.PI * 2, v = speed * (0.4 + Math.random() * 0.8);
-      this.spawn(x, y, z, Math.cos(a) * v, speed * (0.5 + Math.random()), Math.sin(a) * v, size * (0.6 + Math.random()), 0.6 + Math.random() * 0.6, color, 0.85, 0.5, 0.4, 9.81);
+      this.spawn(x, y, z, Math.cos(a) * v, speed * (0.5 + Math.random()), Math.sin(a) * v, size * (0.4 + Math.random() * 0.6), 0.6 + Math.random() * 0.6, color, 0.85, 0, 0.35, 9.81, KIND.DROP);
     }
   }
 
-  update(dt, ground, camera, height) {
-    if (camera) this.points.material.uniforms.uScale.value = height / (2 * Math.tan(camera.fov * Math.PI / 360));
-    const P = this.pos, Vv = this.vel;
+  update(dt, ground, camera) {
+    this.ground = ground;
+    const P = this.pos, Vv = this.vel, M = this.misc, C = this.col;
+    const hasWater = !!ground?.water;
+    let live = 0;
     for (let i = 0; i < MAX; i++) {
-      if (this.life[i] <= 0) { this.alpha[i] = 0; continue; }
+      if (this.life[i] <= 0) { C[i * 4 + 3] = 0; continue; }
       this.life[i] -= dt;
+      live++;
+      const kind = M[i * 4 + 1];
       const k = Math.max(0, 1 - this.drag[i] * dt);
       Vv[i * 3] *= k; Vv[i * 3 + 1] = Vv[i * 3 + 1] * k - this.grav[i] * dt; Vv[i * 3 + 2] *= k;
       P[i * 3] += Vv[i * 3] * dt; P[i * 3 + 1] += Vv[i * 3 + 1] * dt; P[i * 3 + 2] += Vv[i * 3 + 2] * dt;
-      this.size[i] += this.grow[i] * dt;
-      const t = this.life[i] / this.maxLife[i];
-      this.alpha[i] = this.a0[i] * Math.min(1, t * 2.5);
-      // clods stop on the ground
-      if (this.grav[i] > 1 && ground && (i & 3) === 0) {
-        const h = ground.height(P[i * 3], P[i * 3 + 2]);
-        if (P[i * 3 + 1] < h) { this.life[i] = Math.min(this.life[i], 0.25); P[i * 3 + 1] = h + 0.02; Vv[i * 3] = Vv[i * 3 + 1] = Vv[i * 3 + 2] = 0; }
+      M[i * 4] += this.grow[i] * dt;
+      M[i * 4 + 2] += this.spin[i] * dt;
+      const t = Math.max(0, this.life[i] / this.maxLife[i]);
+      // flat things fade as they spread; the rest fade out at the end of their life (and in at the start, softly)
+      C[i * 4 + 3] = this.a0[i] * (kind === KIND.RING || kind === KIND.FOAM ? t * Math.min(1, (1 - t) * 12) : Math.min(1, t * 2.5));
+      // what falls stops on the ground or in the water (checked every other frame, by halves of the pool)
+      if (this.grav[i] > 1 && ground && ((i + this._tick) & 1) === 0) {
+        const x = P[i * 3], z = P[i * 3 + 2], y = P[i * 3 + 1];
+        const wl = hasWater ? ground.water(x, z) : -1e9;
+        if (wl > -1e8 && y < wl && Vv[i * 3 + 1] < 0) {
+          // back into the water: a little ring where a drop lands, a patch of foam where spray does
+          if (kind === KIND.DROP && Math.random() < 0.1) this.ring(x, z, 0.06 + Math.random() * 0.05, 0.55, 0.7, 0.4, false);
+          else if (kind === KIND.SPRAY && Math.random() < 0.12) this.ring(x, z, M[i * 4] * 0.7, 0.3, 1, 0.4, true, C[i * 4] < 0.5 ? MUDDY_FOAM : FOAM);
+          this.life[i] = 0; C[i * 4 + 3] = 0; continue;
+        }
+        const h = ground.height(x, z);
+        if (y < h) {
+          if (kind === KIND.CHUNK) {
+            // a clod lands and stays a moment, squashed flat
+            if (Vv[i * 3 + 1] < -0.5) { this.life[i] = Math.min(this.life[i], 1.4); this.maxLife[i] = Math.max(this.life[i], 0.01); this.grow[i] = 0; this.spin[i] = 0; }
+            P[i * 3 + 1] = h + 0.015; Vv[i * 3] = Vv[i * 3 + 1] = Vv[i * 3 + 2] = 0; this.grav[i] = 0;
+          } else if (kind === KIND.SHARD) {
+            P[i * 3 + 1] = h + 0.01; Vv[i * 3] = Vv[i * 3 + 1] = Vv[i * 3 + 2] = 0; this.grav[i] = 0; this.spin[i] = 0;
+          } else { this.life[i] = 0; C[i * 4 + 3] = 0; }
+        }
       }
     }
-    const g = this.points.geometry;
-    g.attributes.position.needsUpdate = true;
-    g.attributes.aSize.needsUpdate = true;
-    g.attributes.aAlpha.needsUpdate = true;
-    g.attributes.aColor.needsUpdate = true;
+    this._tick = (this._tick || 0) + 1;
+    // (nothing to draw and nothing that was: no upload)
+    if (live || this.live) for (const a of Object.values(this.attr)) a.needsUpdate = true;
+    this.live = live;
+    void camera;
   }
 }
 

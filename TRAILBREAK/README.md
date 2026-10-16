@@ -341,8 +341,14 @@ Everything that makes off-roading off-roading is simulated, not faked:
   itself into its own ruts; wet mud also drags harder the faster you plough through it. Ruts stay in the ground for the
   next truck (where soft ground meets firm, a rut runs out up a ramp), and friends' trucks press their ruts into your
   ground too.
-- **Water:** buoyancy and drag on the hull, extra rolling resistance, and the air intake: water there stops the
-  engine until it is out again.
+- **Water:** buoyancy and drag on the hull, extra rolling resistance, and the air intake: water there chokes the
+  engine (on Cosmetic damage it keeps running on a third of its power; on Forgiving and Realistic it stops until it
+  is out again).
+- **What the tyres throw up:** a spinning tread flings clods and wet drops of mud along its tangent at its speed
+  round the hub (a rolling one sheds some in mud), sand goes up in a spray of grains, dust rolls up behind on dry
+  ground. In water each tyre splashes as it drives in, throws a rooster tail off the tread and sheets out to the
+  sides, the nose pushes up a bow wave, and foam and ripple rings spread behind on the surface as it is drawn. All of
+  it is lit by the sun and the sky (render/Effects.js), and you see it round your friends' trucks too.
 - **Winch:** a steel line with a stall-limited motor (line speed falls with load). Hook a tree to pull yourself
   out, or hook a friend's truck: your truck holds on its brakes and theirs feels the line tension.
 - **Steering kickback:** the forces on the front tyres turn the wheels about their kingpins (a tyre shoved back by a
