@@ -1,8 +1,10 @@
 // The garage: choose the parts for a truck, see on the truck and in the numbers what they change, and fit them.
 // Opens from the start screen, and in the valley with U or from the pause menu (parts are fitted at the station).
+// Each part is a row with a list of what fits and what it changes against the factory part; the truck turns in the
+// middle; under it, a grade for the build off-road and the numbers that matter there.
 import {
   CATEGORIES, PRESETS, optionsFor, tyreFor, normalizeBuild, presetBuild, encodeBuild, decodeBuild, buildStats, maxTyre,
-  LIFTS, TYRE_SIZES, TYRES, partPrice,
+  stockBuild, LIFTS, TYRE_SIZES, partPrice,
 } from '../physics/Upgrades.js';
 import { money } from '../game/Career.js';
 import { truckBase, truckSpec } from '../physics/trucks.js';
@@ -11,30 +13,79 @@ import { loadTruckAsset, truckAsset, MODEL_BODIES } from '../render/TruckAssets.
 
 const $ = (id) => document.getElementById(id);
 const esc = (t) => String(t).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const ic = (name) => `<svg class="ic"><use href="#i-${name}"/></svg>`;
+const mm = (v) => `${Math.round(v * 1000).toLocaleString('en-US')} mm`;
 
-/** Numbers the garage shows: key, label, unit, format, which way is better (+1 higher, -1 lower). */
-const STATS = [
-  ['clearance', 'Under the diffs', 'cm', (v) => (v * 100).toFixed(0), 1],
-  ['belly', 'Under the belly', 'cm', (v) => (v * 100).toFixed(0), 1],
-  ['approach', 'Approach angle', '°', (v) => v.toFixed(0), 1],
-  ['departure', 'Departure angle', '°', (v) => v.toFixed(0), 1],
-  ['breakover', 'Breakover angle', '°', (v) => v.toFixed(0), 1],
-  ['travel', 'Wheel travel', 'cm', (v) => (v * 100).toFixed(0), 1],
-  ['wading', 'Wading depth', 'cm', (v) => (v * 100).toFixed(0), 1],
-  ['tip', 'Tips over at', '°', (v) => v.toFixed(0), 1],
-  ['crawl', 'Crawl ratio', ':1', (v) => v.toFixed(0), 1],
-  ['idleCrawl', 'Crawl at idle', 'km/h', (v) => v.toFixed(1), -1],
-  ['peakTorque', 'Torque', 'Nm', (v) => v.toFixed(0), 1],
-  ['powerKw', 'Power', 'kW', (v) => v.toFixed(0), 1],
-  ['topSpeed', 'Top speed', 'km/h', (v) => v.toFixed(0), 1],
-  ['mass', 'Weight', 'kg', (v) => v.toFixed(0), -1],
-  ['cgHeight', 'Centre of gravity', 'cm', (v) => (v * 100).toFixed(0), -1],
+/** Each part's row: its icon, what it is, and the number it changes most (a stat; +1 more is better, -1 less). */
+const ROWS = {
+  lift: ['spring', 'Suspension lift', 'belly', 'Belly height', 1],
+  tyre: ['tyre', 'Tyre diameter', 'clearance', 'Clearance', 1],
+  tread: ['tread', 'Tyre tread'],
+  wheels: ['wheel', 'Wheels and tyre air', 'minPsi', 'Air down', -1],
+  gears: ['gear', 'Final drive ratio', 'crawl', 'Crawl ratio', 1],
+  tcase: ['tcase', 'High / low range', 'crawl', 'Crawl ratio', 1],
+  diffs: ['axle', 'Open, limited-slip or locked'],
+  trans: ['shift', 'Transmission', 'crawl', 'Crawl ratio', 1],
+  engine: ['engine', 'Engine', 'powerKw', 'Power', 1],
+  intake: ['snorkel', 'Air intake', 'wading', 'Wading', 1],
+  winch: ['winch', 'Winch capacity', 'pull', 'Pull', 1],
+  armor: ['shield', 'Body protection', 'mass', 'Weight', -1],
+  lights: ['lightbar', 'Light bar and auxiliaries'],
+  rack: ['rack', 'Roof rack and storage', 'mass', 'Weight', -1],
+};
+
+/** The numbers under the truck: key, label, icon, format, which way is better. */
+const PERF = [
+  ['powerKw', 'Power', 'bolt', (v) => `${Math.round(v * 1.341)} hp`, 1],
+  ['peakTorque', 'Torque', 'gear', (v) => `${Math.round(v).toLocaleString('en-US')} Nm`, 1],
+  ['mass', 'Weight', 'weight', (v) => `${Math.round(v).toLocaleString('en-US')} kg`, -1],
 ];
+const KEYS = [
+  ['clearance', 'Clearance', 'ground', mm, 1, 'Ground clearance under the diffs'],
+  ['approach', 'Approach', 'angle', (v) => `${v.toFixed(0)}°`, 1, 'Approach angle'],
+  ['departure', 'Departure', 'angle', (v) => `${v.toFixed(0)}°`, 1, 'Departure angle'],
+  ['breakover', 'Breakover', 'angle', (v) => `${v.toFixed(0)}°`, 1, 'Breakover angle'],
+  ['travel', 'Travel', 'spring', mm, 1, 'Wheel travel'],
+  ['wading', 'Wading', 'water', mm, 1, 'Wading depth'],
+  ['crawl', 'Crawl ratio', 'gear', (v) => `${v.toFixed(0)}:1`, 1, 'Crawl ratio: first gear, low range and the axles'],
+  ['tip', 'Stability', 'stable', (v) => (v >= 45 ? 'High' : v >= 39 ? 'Medium' : 'Low'), 1, 'How far it leans before it tips'],
+];
+const MORE = [
+  ['tip', 'Tips over at', (v) => `${v.toFixed(0)}°`],
+  ['belly', 'Under the belly', (v) => `${(v * 100).toFixed(0)} cm`],
+  ['idleCrawl', 'Crawl at idle', (v) => `${v.toFixed(1)} km/h`],
+  ['topSpeed', 'Top speed', (v) => `${v.toFixed(0)} km/h`],
+  ['cgHeight', 'Centre of gravity', (v) => `${(v * 100).toFixed(0)} cm`],
+];
+/** The views of the truck: [yaw, pitch]. */
+const ANGLES = { front: [0.35, 0.12], side: [Math.PI / 2, 0.08], rear: [Math.PI - 0.45, 0.14], threeq: [0.8, 0.2], top: [0.6, 0.85] };
+
+/** The stats of a spec, with the winch's pull. */
+function statsOf(spec) { return { ...buildStats(spec), pull: spec.winch?.stallPull || 0 }; }
+
+/** How much better (or worse) v is than v0, as a tag: '+12% Crawl ratio', green if better, red if worse. */
+function delta(v, v0, better, label) {
+  if (!(Math.abs(v0) > 1e-9)) return '';
+  const pct = ((v - v0) / Math.abs(v0)) * 100;
+  if (Math.abs(pct) < 0.5) return '';
+  const good = Math.sign(pct) === better;
+  return `<span class="g-delta ${good ? 'good' : 'bad'}">${pct > 0 ? '▲ +' : '▼ '}${Math.abs(pct) >= 10 ? pct.toFixed(0) : pct.toFixed(1)}%${label ? ` <em>${label}</em>` : ''}</span>`;
+}
+
+/** The build's grade off-road, from its clearance, angles, travel, wading, gearing, lockers and stability. */
+export function gradeOf(st, build) {
+  const n = (v, lo, hi) => Math.max(0, Math.min(1, (v - lo) / (hi - lo)));
+  const lock = { 0: 0, 1: 0.3, 2: 0.65, 3: 1, 4: 0.75 }[build.diffs] ?? 0;
+  const s = [n(st.clearance, 0.18, 0.42), n(st.approach, 25, 60), n(st.departure, 20, 50), n(st.breakover, 15, 34), n(st.travel, 0.15, 0.42),
+    n(st.wading, 0.45, 1.3), n(st.crawl, 25, 110), lock, n(st.tip, 35, 50)];
+  const score = s.reduce((a, x) => a + x, 0) / s.length;
+  return { score, grade: score >= 0.8 ? 'S' : score >= 0.64 ? 'A' : score >= 0.48 ? 'B' : score >= 0.32 ? 'C' : 'D' };
+}
 
 /** Label of option i in a category. */
 function optLabel(cat, o, base) {
-  if (cat.id === 'tcase' && !o.low) return base.stock.low > 1 ? `${base.stock.low.toFixed(2)}` : 'none';
-  return o.short || o.name;
+  if (cat.id === 'tcase' && !o.low) return base.stock.low > 1 ? `Stock (${base.stock.low.toFixed(2)}:1)` : 'Single-speed';
+  return o.name || o.short;
 }
 
 export class Garage {
@@ -47,9 +98,11 @@ export class Garage {
 
   /**
    * Open the garage for a truck. Resolves with the build code to fit, or null when cancelled.
-   *   truckId, code: current build; paint: hex; fitLabel: the fit button's text; note: a line under the parts
+   *   truckId, code: current build; paint: hex; fitLabel: the fit button's text; note: a line by the buttons;
+   *   career: the wallet; players: { n, max } in a room; nav: the side bar (in the game): picking races, map, dealer or
+   *   settings there closes the garage with navTo set to it, for the game to open
    */
-  open({ truckId, code, paint = '#b5532c', fitLabel = 'Fit these parts', note = '', career = null }) {
+  open({ truckId, code, paint = '#b5532c', fitLabel = 'Fit these parts', note = '', career = null, players = null, nav = false }) {
     if (this.isOpen) return Promise.resolve(null);
     this.isOpen = true;
     this.base = truckBase(truckId);
@@ -58,15 +111,29 @@ export class Garage {
     this.build = decodeBuild(this.base, code || '');
     this.career = career;
     this.fitLabel = fitLabel;
-    this.stockStats = buildStats(truckSpec(this.truckId));
+    this.stock = stockBuild(this.base);
+    this.stockStats = statsOf(truckSpec(this.truckId));
     this.focus = null;
+    this.navTo = null;
     this.el.classList.remove('hidden');
     $('g-truck').textContent = this.base.name;
-    $('g-fit').textContent = fitLabel;
+    $('g-truck2').textContent = this.base.name;
+    const spec0 = truckSpec(this.truckId), axles = spec0.axles.length * 2;
+    $('g-drive').textContent = `${axles}x${axles}`;
+    $('g-class').textContent = spec0.mass < 1700 ? 'Light 4x4' : spec0.mass < 2300 ? 'Mid-size 4x4' : spec0.mass < 3000 ? 'Full-size 4x4' : 'Heavy off-road';
+    $('g-fit-t').textContent = fitLabel;
     $('g-note').textContent = note;
+    $('g-note').parentElement.classList.toggle('hidden', !note);
+    $('g-money').classList.toggle('hidden', !career);
+    if (career) $('g-money-t').textContent = Math.round(career.money).toLocaleString('en-US');
+    $('g-online').classList.toggle('hidden', !players);
+    if (players) $('g-online-n').textContent = `${players.n}/${players.max}`;
+    $('g-nav').classList.toggle('hidden', !nav);
+    $('g-nav').parentElement.classList.toggle('nonav', !nav);
     if (!this.preview) {
       try { this.preview = new GaragePreview($('g-view')); } catch (e) { console.warn('garage preview', e); }
     }
+    this.wireView();
     this.renderPresets();
     this.renderParts();
     this.update();
@@ -79,8 +146,9 @@ export class Garage {
     };
     this.raf = requestAnimationFrame(loop);
     return new Promise((resolve) => {
-      const done = (val) => {
+      const done = (val, navTo = null) => {
         this.isOpen = false;
+        this.navTo = navTo;
         cancelAnimationFrame(this.raf);
         this.el.classList.add('hidden');
         removeEventListener('keydown', onKey, true);
@@ -90,21 +158,74 @@ export class Garage {
       addEventListener('keydown', onKey, true);
       $('g-fit').onclick = () => {
         // the parts not yet owned are bought now
-        if (this.career && !this.career.buyBuild(this.truckId, this.build)) { $('g-note').textContent = 'Not enough money for those parts.'; return; }
+        if (this.career && !this.career.buyBuild(this.truckId, this.build)) { this.say('Not enough money for those parts.'); return; }
         done(encodeBuild(this.build));
       };
       $('g-cancel').onclick = () => done(null);
       $('g-close').onclick = () => done(null);
+      for (const b of $('g-nav').querySelectorAll('[data-nav]')) b.onclick = () => done(null, b.dataset.nav);
     });
+  }
+
+  /** A line by the buttons (what just happened). */
+  say(text) {
+    $('g-note').textContent = text;
+    $('g-note').parentElement.classList.toggle('hidden', !text);
+  }
+
+  /** The view's buttons: turning by itself, zoom, a picture, and the angles. */
+  wireView() {
+    const P = this.preview;
+    this.el.querySelector('.g-tools [data-v="spin"]').classList.toggle('sel', !!P?.spin);
+    if (!P || this.viewWired) return;
+    this.viewWired = true;
+    const tools = this.el.querySelector('.g-tools'), angle = $('g-angle');
+    const spinBtn = tools.querySelector('[data-v="spin"]');
+    spinBtn.classList.toggle('sel', P.spin);
+    tools.onclick = (e) => {
+      const b = e.target.closest('[data-v]');
+      if (!b) return;
+      const v = b.dataset.v;
+      if (v === 'spin') P.spin = !P.spin;
+      else if (v === 'in' || v === 'out') { P.fitR = 0; P.dist = Math.max(4.5, Math.min(14, P.dist * (v === 'in' ? 0.85 : 1.18))); P.dirty = true; }
+      else if (v === 'photo') this.photo();
+      spinBtn.classList.toggle('sel', P.spin);
+    };
+    const go = (name) => { const [yaw, pitch] = ANGLES[name] || ANGLES.front; P.spin = false; P.yaw = yaw; P.pitch = pitch; P.dirty = true; spinBtn.classList.remove('sel'); };
+    angle.onchange = () => go(angle.value);
+    for (const b of this.el.querySelectorAll('.g-angle [data-a]')) {
+      b.onclick = () => {
+        const opts = [...angle.options].map((o) => o.value), i = (opts.indexOf(angle.value) + Number(b.dataset.a) + opts.length) % opts.length;
+        angle.value = opts[i];
+        go(angle.value);
+      };
+    }
+    // a drag stops it turning: the button shows it
+    $('g-view').addEventListener('pointerdown', () => spinBtn.classList.remove('sel'));
+  }
+
+  /** Save a picture of the truck as it is in the view. */
+  photo() {
+    const P = this.preview;
+    if (!P?.model) return;
+    P.dirty = true; P.frame(0);
+    try {
+      const a = document.createElement('a');
+      a.href = P.canvas.toDataURL('image/png');
+      a.download = `${this.base.name.replace(/[^\w]+/g, '-').toLowerCase()}-offroad-legends.png`;
+      a.click();
+      this.say('Picture saved to your downloads.');
+    } catch { this.say('Could not save the picture.'); }
   }
 
   renderPresets() {
     const el = $('g-presets');
     el.innerHTML = '';
+    const icons = { stock: 'gear', trail: 'mountain', crawler: 'mountain', mudder: 'water', overland: 'map' };
     for (const p of PRESETS) {
       const b = document.createElement('button');
       b.className = 'g-preset';
-      b.textContent = p.name;
+      b.innerHTML = `${ic(icons[p.id] || 'chev')}${esc(p.name)}`;
       b.title = p.desc;
       b.dataset.id = p.id;
       b.onclick = () => { this.focus = { name: p.name, desc: p.desc }; this.setBuild(presetBuild(this.base, p.id)); };
@@ -116,41 +237,42 @@ export class Garage {
     const el = $('g-parts');
     el.innerHTML = '';
     let group = null;
+    this.selects = new Map();
     for (const cat of CATEGORIES) {
       if (cat.group !== group) {
         group = cat.group;
         const h = document.createElement('h3');
-        h.textContent = group;
+        h.className = 'g-h';
+        h.innerHTML = `${ic('chev')}${esc(group)}`;
         el.appendChild(h);
       }
+      const [icon, sub] = ROWS[cat.id] || ['gear', ''];
       const row = document.createElement('div');
       row.className = 'g-row';
-      row.innerHTML = `<span class="g-cat">${esc(cat.name)}</span><div class="g-opts"></div>`;
-      const opts = row.querySelector('.g-opts');
+      row.dataset.cat = cat.id;
+      row.innerHTML = `${ic(icon)}<div class="g-name"><b>${esc(cat.name)}</b><small>${esc(sub)}</small></div><div class="g-pick"><select aria-label="${esc(cat.name)}"></select></div><span class="g-eff"></span>`;
+      const sel = row.querySelector('select');
       // a truck without a low range (its gearbox crawls on its own) shows that for its transfer case
       const single = (o, i) => (cat.id === 'tcase' && i === 0 && this.base.stock.low <= 1
         ? { ...o, name: 'Single-speed transfer case', desc: 'No low range: the gearbox\'s own crawler first does that job.' } : o);
-      optionsFor(cat, this.truckId).map(single).forEach((o, i) => {
-        const b = document.createElement('button');
-        b.className = 'g-opt';
-        b.dataset.cat = cat.id; b.dataset.i = i;
-        b.textContent = optLabel(cat, o, this.base);
-        b.title = o.name;
+      const opts = optionsFor(cat, this.truckId).map(single);
+      opts.forEach((o, i) => {
+        const opt = document.createElement('option');
+        opt.value = String(i);
+        let label = optLabel(cat, o, this.base);
         if (this.career && !this.career.freeParts) {
           const v = cat.id === 'tyre' ? TYRE_SIZES[i] : i, price = partPrice(this.base, cat.id, v);
-          if (price > 0) {
-            const tag = document.createElement('span');
-            tag.className = 'price';
-            tag.textContent = money(price);
-            b.appendChild(tag);
-            b.classList.toggle('owned', this.career.ownsPart(this.truckId, cat.id, v));
-          }
+          if (price > 0) label += this.career.ownsPart(this.truckId, cat.id, v) ? ' (owned)' : ` · ${money(price)}`;
         }
-        b.onclick = () => this.pick(cat, i, o);
-        b.onmouseenter = () => this.describe(cat, o);
-        b.onmouseleave = () => this.describe(null);
-        opts.appendChild(b);
+        opt.textContent = label;
+        sel.appendChild(opt);
       });
+      sel.onchange = () => { const i = Number(sel.value); this.pick(cat, i, opts[i]); };
+      const show = () => this.describe(cat, opts[Number(sel.value)]);
+      row.onmouseenter = show;
+      sel.onfocus = show;
+      row.onmouseleave = () => this.describe(null);
+      this.selects.set(cat.id, { sel, row, opts });
       el.appendChild(row);
     }
   }
@@ -175,38 +297,52 @@ export class Garage {
 
   setBuild(b, note = '') {
     this.build = normalizeBuild(this.base, b);
-    $('g-note').textContent = note;
+    this.say(note);
     this.update();
   }
 
-  /** Selected states, stats, the description and the 3D view. */
+  /** The lists, what each part changes, the grade and the numbers, the description and the 3D view. */
   update() {
-    const b = this.build, code = encodeBuild(b);
-    for (const btn of $('g-parts').querySelectorAll('.g-opt')) {
-      const id = btn.dataset.cat, i = Number(btn.dataset.i);
-      const on = id === 'tyre' ? TYRE_SIZES[i] === b.tyre : b[id] === i;
-      btn.classList.toggle('sel', on);
+    const b = this.build, code = encodeBuild(b), base = this.base;
+    const spec = truckSpec(this.truckId, b), st = statsOf(spec), s0 = this.stockStats;
+    for (const [id, { sel, row, opts }] of this.selects) {
+      const i = id === 'tyre' ? TYRE_SIZES.indexOf(b.tyre) : b[id];
+      if (sel.value !== String(i)) sel.value = String(i);
       if (id === 'tyre') {
-        const d = TYRE_SIZES[i];
-        btn.classList.toggle('need', d > maxTyre(this.base, b.lift));
-        btn.classList.toggle('hide', d < this.base.stock.tyre || d > maxTyre(this.base, LIFTS.length - 1));   // smaller than stock, or too big for any lift
+        [...sel.options].forEach((opt, k) => {
+          const d = TYRE_SIZES[k];
+          opt.hidden = d < base.stock.tyre || d > maxTyre(base, LIFTS.length - 1);       // smaller than stock, or too big for any lift
+          opt.disabled = opt.hidden;
+        });
       }
+      // what this part does against the factory one: on the number it changes most
+      const [, , key, label, better] = ROWS[id] || [];
+      const isStock = id === 'tyre' ? b.tyre === this.stock.tyre : b[id] === this.stock[id];
+      let eff = '';
+      if (isStock) eff = '<span class="g-delta stock">Factory</span>';
+      else if (key) {
+        const other = truckSpec(this.truckId, { ...b, [id]: this.stock[id] }), v0 = statsOf(other)[key];
+        eff = key === 'minPsi' ? `<span class="g-delta good">Down to ${st.minPsi} psi</span>`
+          : key === 'pull' && !v0 ? `<span class="g-delta good">${(st.pull / 1000).toFixed(0)} kN <em>pull</em></span>`
+            : delta(st[key], v0, better, label) || `<span class="g-delta stock">${esc(opts[i]?.short || 'fitted')}</span>`;
+      } else eff = `<span class="g-delta good">${esc(opts[i]?.short || 'fitted')}</span>`;
+      const effEl = row.querySelector('.g-eff');
+      if (effEl.innerHTML !== eff) effEl.innerHTML = eff;
+      row.classList.toggle('changed', !isStock);
     }
-    for (const btn of $('g-presets').children) btn.classList.toggle('sel', encodeBuild(presetBuild(this.base, btn.dataset.id)) === code);
-    const spec = truckSpec(this.truckId, b);
-    const st = buildStats(spec), s0 = this.stockStats;
-    const rows = STATS.map(([k, label, unit, fmt, better]) => {
-      const v = st[k], v0 = s0[k], dv = Number(fmt(v)) - Number(fmt(v0));
-      let delta = '';
-      if (Math.abs(dv) > 1e-9) {
-        const good = Math.sign(dv) === better;
-        delta = `<span class="d ${good ? 'good' : 'bad'}">${dv > 0 ? '▲' : '▼'} ${Math.abs(dv) % 1 ? Math.abs(dv).toFixed(1) : Math.abs(dv)}</span>`;
-      }
-      return `<div class="g-stat"><span>${label}</span><b>${fmt(v)}<small>${unit}</small></b>${delta}</div>`;
-    });
-    const t = tyreFor(truckBase(this.truckId), b.tyre);
-    const warn = st.rub > 0 ? `<p class="g-warn">The ${t.d}" tyres rub at full bump: the bump stops are extended ${(st.bumpLoss * 100).toFixed(0)} cm.</p>` : '';
-    $('g-stats').innerHTML = `<div class="g-tyre">${esc(st.tyre)} · ${esc(t.label)} · down to ${st.minPsi} psi</div>${rows.join('')}${warn}`;
+    for (const btn of $('g-presets').children) btn.classList.toggle('sel', encodeBuild(presetBuild(base, btn.dataset.id)) === code);
+    // the grade and the numbers, each against the factory truck
+    const g = gradeOf(st, b);
+    $('g-grade').textContent = g.grade;
+    $('g-grade').className = `grade-${g.grade.toLowerCase()}`;
+    $('g-grade').title = `Off-road score ${Math.round(g.score * 100)} of 100: clearance, angles, travel, wading, gearing, lockers and stability`;
+    const cell = ([k, label, icon, fmt, better, tip]) => `<div class="g-stat"${tip ? ` title="${esc(tip)}"` : ''}>${ic(icon)}<span>${label}</span><b>${fmt(st[k])}</b>${delta(st[k], s0[k], better) || '<span class="g-delta none"></span>'}</div>`;
+    $('g-key3').innerHTML = PERF.map(cell).join('');
+    $('g-stats').innerHTML = KEYS.map(cell).join('');
+    const t = tyreFor(base, b.tyre);
+    $('g-more').innerHTML = `<span>${esc(st.tyre)} · ${esc(t.label)} · down to ${st.minPsi} psi</span>${MORE.map(([k, label, fmt]) => `<span>${label} <b>${fmt(st[k])}</b></span>`).join('')}`
+      + (st.rub > 0 ? `<span class="g-warn">The ${t.d}" tyres rub at full bump: the bump stops are extended ${(st.bumpLoss * 100).toFixed(0)} cm.</span>` : '');
+    $('g-sub').textContent = `${Math.round(st.powerKw * 1.341)} hp · ${Math.round(st.peakTorque).toLocaleString('en-US')} Nm · ${st.tyre} · ${spec.trans.gears.length}-speed`;
     this.describe(null);
     if (this.preview && code !== this.shown) {
       this.preview.show(spec, this.paint); this.shown = code;
@@ -216,19 +352,19 @@ export class Garage {
     // the bill: parts in this build not yet owned
     const bill = $('g-bill'), fit = $('g-fit');
     if (this.career?.freeParts) {
-      bill.innerHTML = 'Every part is <b>free</b> for now';
-      bill.classList.remove('short'); fit.disabled = false; fit.textContent = this.fitLabel;
+      bill.innerHTML = `${ic('gear')}<b>Free parts</b>`;
+      bill.classList.remove('short'); fit.disabled = false; $('g-fit-t').textContent = this.fitLabel;
     } else if (this.career) {
       const q = this.career.quote(this.truckId, b), ok = this.career.canAfford(q.total);
-      bill.innerHTML = q.total ? `Parts to buy <b>${money(q.total)}</b> · you have ${money(this.career.money)}` : `You have ${money(this.career.money)}`;
+      bill.innerHTML = q.total ? `Parts to buy <b>${money(q.total)}</b>` : '';
       bill.classList.toggle('short', !ok);
       fit.disabled = !ok;
-      fit.textContent = q.total ? `${this.fitLabel} (${money(q.total)})` : this.fitLabel;
-    } else { bill.textContent = ''; fit.disabled = false; fit.textContent = this.fitLabel; }
+      $('g-fit-t').textContent = q.total ? `${this.fitLabel} (${money(q.total)})` : this.fitLabel;
+    } else { bill.textContent = ''; fit.disabled = false; $('g-fit-t').textContent = this.fitLabel; }
   }
 
   describe(cat, o) {
     const f = cat ? { name: o.name, desc: o.desc } : this.focus?.o ? { name: this.focus.o.name, desc: this.focus.o.desc } : this.focus;
-    $('g-desc').innerHTML = f ? `<b>${esc(f.name)}</b>${f.desc ? ` ${esc(f.desc)}` : ''}` : '<span class="dim">Pick the parts. Drag the truck to turn it.</span>';
+    $('g-desc').innerHTML = f ? `<b>${esc(f.name)}</b>${f.desc ? ` ${esc(f.desc)}` : ''}` : '<span class="dim">Pick the parts. Drag the truck to turn it, scroll to zoom.</span>';
   }
 }

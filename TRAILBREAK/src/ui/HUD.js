@@ -5,6 +5,7 @@ import { MAP_HALF } from '../world/maps/index.js';
 
 const $ = (id) => document.getElementById(id);
 const TAU = Math.PI * 2;
+const DISPLAY = '"Barlow Condensed", "Arial Narrow", sans-serif', BODY = 'Barlow, "Segoe UI", Arial, sans-serif';
 
 export class HUD {
   constructor(world, terrainRenderer) {
@@ -21,6 +22,11 @@ export class HUD {
     this.t = 0;
     this.hintT = 0;
     this.compassMarks = [];
+    // the dial's type is drawn on a canvas, so fetch its faces now (and draw the face again once they are here)
+    if (document.fonts?.load) {
+      Promise.all([`italic 700 15px ${DISPLAY}`, `italic 800 64px ${DISPLAY}`, `italic 900 27px ${DISPLAY}`, `600 10px ${BODY}`, `700 13px ${BODY}`].map((f) => document.fonts.load(f)))
+        .then(() => { this.dialKey = null; }).catch(() => {});
+    }
   }
 
   show(on) { this.el.classList.toggle('hidden', !on); }
@@ -75,44 +81,63 @@ export class HUD {
   }
 
   // ---------------------------------------------------------------- dials
+  /**
+   * One dial: the revs round the rim (an orange arc up to the needle, the redline in red), the speed big in the
+   * middle, the gear at the bottom. Drawn in a 260 x 230 box at whatever size the canvas is shown, so it stays sharp.
+   */
   drawGauges(v) {
-    const g = this.gauges, W = 360, H = 170;
-    g.clearRect(0, 0, W, H);
-    const dial = (cx, cy, r, value, max, label, unit, red) => {
-      g.save();
-      g.translate(cx, cy);
-      g.fillStyle = 'rgba(20,25,22,0.72)';
-      g.beginPath(); g.arc(0, 0, r, 0, TAU); g.fill();
-      g.strokeStyle = 'rgba(243,234,215,0.16)'; g.lineWidth = 1.5; g.stroke();
-      const a0 = Math.PI * 0.75, a1 = Math.PI * 2.25;
-      if (red) {
-        g.strokeStyle = 'rgba(224,86,59,0.8)'; g.lineWidth = 5;
-        g.beginPath(); g.arc(0, 0, r - 9, a0 + (a1 - a0) * red, a1); g.stroke();
-      }
-      const ticks = 10;
-      for (let i = 0; i <= ticks * 2; i++) {
-        const a = a0 + (a1 - a0) * i / (ticks * 2), big = i % 2 === 0;
-        g.strokeStyle = big ? '#f3ead7' : 'rgba(243,234,215,0.45)'; g.lineWidth = big ? 2 : 1;
-        g.beginPath(); g.moveTo(Math.cos(a) * (r - 6), Math.sin(a) * (r - 6)); g.lineTo(Math.cos(a) * (r - (big ? 15 : 11)), Math.sin(a) * (r - (big ? 15 : 11))); g.stroke();
-        if (big && i % 4 === 0) {
-          g.fillStyle = 'rgba(243,234,215,0.8)'; g.font = '11px sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle';
-          g.fillText(String(Math.round(max * i / (ticks * 2) / (unit === 'rpm' ? 1000 : 1))), Math.cos(a) * (r - 26), Math.sin(a) * (r - 26));
-        }
-      }
-      const a = a0 + (a1 - a0) * Math.max(0, Math.min(1.02, value / max));
-      g.strokeStyle = '#e8893a'; g.lineWidth = 3; g.lineCap = 'round';
-      g.beginPath(); g.moveTo(-Math.cos(a) * 8, -Math.sin(a) * 8); g.lineTo(Math.cos(a) * (r - 12), Math.sin(a) * (r - 12)); g.stroke();
-      g.fillStyle = '#e8893a'; g.beginPath(); g.arc(0, 0, 4, 0, TAU); g.fill();
-      g.fillStyle = '#f3ead7'; g.font = 'bold 20px sans-serif'; g.textAlign = 'center';
-      g.fillText(label, 0, r * 0.5);
-      g.fillStyle = 'rgba(243,234,215,0.6)'; g.font = '10px sans-serif';
-      g.fillText(unit === 'rpm' ? 'x1000 rpm' : 'km/h', 0, r * 0.5 + 16);
-      g.restore();
+    const cv = this.gauges.canvas, g = this.gauges, cw = cv.clientWidth;
+    if (!cw) return;
+    const dpr = Math.min(2, window.devicePixelRatio || 1), bw = Math.round(cw * dpr), bh = Math.round(bw * 230 / 260);
+    if (cv.width !== bw || cv.height !== bh) { cv.width = bw; cv.height = bh; }
+    const e = v.dt.e, max = Math.ceil(((e.limiter || e.redline + 300) + 200) / 1000) * 1000;
+    const key = `${bw}|${max}|${e.redline}`;
+    if (this.dialKey !== key) { this.dialKey = key; this.dialFace = dialFace(bw, bh, max, e.redline); }
+    const k = bw / 260, cx = 130, cy = 120, R = 104, a0 = Math.PI * 0.75, a1 = Math.PI * 2.25;
+    g.setTransform(1, 0, 0, 1, 0, 0);
+    g.clearRect(0, 0, bw, bh);
+    g.drawImage(this.dialFace, 0, 0);
+    g.setTransform(k, 0, 0, k, 0, 0);
+    const d = v.dt, rpm = d.running ? d.rpm : 0, at = (r) => a0 + (a1 - a0) * Math.max(0, Math.min(1, r / max));
+    const a = at(rpm), aRed = at(e.redline);
+    // the revs: orange up to the redline, red past it
+    g.lineCap = 'butt'; g.lineWidth = 8;
+    if (a > a0 + 0.001) {
+      g.strokeStyle = this.dialGrad || (this.dialGrad = (() => { const gr = g.createLinearGradient(30, 0, 230, 0); gr.addColorStop(0, '#ff9a3d'); gr.addColorStop(1, '#f06a0f'); return gr; })());
+      g.shadowColor = 'rgba(255,122,26,0.7)'; g.shadowBlur = 10 * k;
+      g.beginPath(); g.arc(cx, cy, R - 12, a0, Math.min(a, aRed)); g.stroke();
+      if (a > aRed) { g.strokeStyle = '#ff3b45'; g.shadowColor = 'rgba(255,59,69,0.8)'; g.beginPath(); g.arc(cx, cy, R - 12, aRed, a); g.stroke(); }
+      g.shadowBlur = 0;
+    }
+    // the needle's tip, across the band and the ticks
+    const ca = Math.cos(a), sa = Math.sin(a);
+    g.strokeStyle = '#fff'; g.lineWidth = 3.5; g.lineCap = 'round';
+    g.shadowColor = 'rgba(255,150,60,0.9)'; g.shadowBlur = 8 * k;
+    g.beginPath(); g.moveTo(cx + ca * (R - 34), cy + sa * (R - 34)); g.lineTo(cx + ca * (R - 5), cy + sa * (R - 5)); g.stroke();
+    g.shadowBlur = 0;
+    // the speed
+    const kmh = Math.round(Math.abs(v.speed) * 3.6);
+    g.textAlign = 'center'; g.textBaseline = 'middle';
+    g.fillStyle = '#fff'; g.font = `italic 800 64px ${DISPLAY}`;
+    g.fillText(String(kmh), cx - 2, cy + 4);
+    g.fillStyle = 'rgba(255,255,255,0.6)'; g.font = `700 13px ${BODY}`;
+    g.fillText('KM/H', cx, cy + 40);
+    // the gear: D (and which) in the automatic, the number in the manual, R, N; OFF with the engine off
+    const box = (text, small, hot) => {
+      const w = 46, h = 34, x = cx - w / 2, y = cy + 64;
+      g.fillStyle = hot ? 'rgba(255,122,26,0.16)' : 'rgba(255,255,255,0.06)';
+      g.strokeStyle = hot ? 'rgba(255,140,50,0.9)' : 'rgba(255,255,255,0.22)'; g.lineWidth = 2;
+      roundRect(g, x, y, w, h, 8); g.fill(); g.stroke();
+      g.fillStyle = hot ? '#fff' : 'rgba(255,255,255,0.55)';
+      g.font = `italic 900 ${text.length > 1 ? 18 : 27}px ${DISPLAY}`;
+      g.fillText(text, cx - (small ? 4 : 0), y + h / 2 + 1);
+      if (small) { g.font = `italic 800 14px ${DISPLAY}`; g.fillStyle = 'rgba(255,190,130,0.95)'; g.fillText(small, cx + 11, y + 11); }
     };
-    const kmh = Math.abs(v.speed) * 3.6;
-    const e = v.dt.e;
-    dial(268, 86, 80, kmh, 140, String(Math.round(kmh)), 'kmh');
-    dial(92, 96, 70, v.dt.rpm, 5000, v.dt.running ? v.dt.gearLabel : 'OFF', 'rpm', e.redline / 5000);
+    if (!d.running) box('OFF', '', false);
+    else if (d.gear < 0) box('R', '', true);
+    else if (d.gear === 0) box('N', '', false);
+    else if (d.auto) box('D', String(d.gear), true);
+    else box(String(d.gear), '', true);
   }
 
   drawChips(v) {
@@ -120,9 +145,13 @@ export class HUD {
     const set = (id, text, cls) => { const el = $(id); if (el.textContent !== text) el.textContent = text; el.className = 'chip' + (cls ? ' ' + cls : ''); };
     set('m-range', d.low ? 'LOW' : 'HIGH', d.low ? 'on' : '');
     set('m-4wd', d.fourWD ? '4WD' : '2WD', d.fourWD ? 'on' : '');
+    // the badge by the dial: which wheels drive (4LO in low range)
+    const badge = $('m-drive'), bc = `drive-badge ${d.fourWD ? 'four' : 'two'}`, bt = d.fourWD ? (d.low ? '4LO' : '4WD') : '2WD';
+    if (badge.className !== bc) badge.className = bc;
+    if ($('m-drive-t').textContent !== bt) $('m-drive-t').textContent = bt;
     const lsd = d.diffs.rear === 'lsd', mld = d.diffs.rear === 'auto';
-    set('m-lock', d.lockFront && d.lockRear ? 'LOCK F+R' : d.lockRear ? 'LOCK R' : mld ? (d.autoLock ? 'MLD LOCKED' : 'MLD') : lsd ? 'LSD' : 'OPEN', d.lockRear || d.autoLock ? 'on2' : '');
-    set('m-box', `${d.manual ? 'STICK' : 'AUTO'} ${d.auto ? '' : 'M'}${d.gearLabel}`, d.auto ? '' : 'on2');
+    set('m-lock', d.lockFront && d.lockRear ? 'LOCK F+R' : d.lockRear ? 'LOCK R' : mld ? (d.autoLock ? 'MLD LOCKED' : 'MLD') : lsd ? 'LSD' : 'DIFF OPEN', d.lockRear || d.autoLock ? 'on2' : '');
+    set('m-box', d.auto ? 'AUTO' : 'MANUAL', d.auto ? '' : 'on2');
     const psi = Math.round(v.psiAir ?? v.psi), dir = v.psiTarget < psi - 0.4 ? ' ↓' : v.psiTarget > psi + 0.4 ? ' ↑' : '';
     set('m-psi', `${psi} PSI${dir}`, psi < 25 ? 'on2' : '');
     const eng = $('m-eng');
@@ -158,9 +187,25 @@ export class HUD {
   drawCompass(heading, here, mates, route) {
     // heading: radians, 0 = north (-z), clockwise
     const strip = this.strip, width = strip.parentElement.clientWidth, pxPerRad = width / 2.2;
+    if (!width) return;
+    if (this.scaleW !== width) {
+      // the scale, built once per size: N E S W and the degrees every 15, a tick every 5, from -180 to 540 so it
+      // never runs out as it slides
+      this.scaleW = width;
+      const names = { 0: 'N', 45: 'NE', 90: 'E', 135: 'SE', 180: 'S', 225: 'SW', 270: 'W', 315: 'NW' }, ppd = pxPerRad * Math.PI / 180;
+      let html = '';
+      for (let d = -180; d <= 540; d += 5) {
+        const x = (d * ppd).toFixed(1), n = ((d % 360) + 360) % 360;
+        html += `<span class="tick${d % 15 === 0 ? ' big' : ''}" style="left:${x}px"></span>`;
+        if (d % 15 === 0) html += names[n] ? `<span class="${n === 0 ? 'north' : ''}" style="left:${x}px">${names[n]}</span>` : `<span class="deg" style="left:${x}px">${n}</span>`;
+      }
+      if (!this.scaleEl) { strip.innerHTML = '<div class="cs-scale"></div><div class="cs-marks"></div>'; this.scaleEl = strip.firstChild; this.marksEl = strip.lastChild; }
+      this.scaleEl.innerHTML = html;
+    }
+    const hd = ((heading * 180 / Math.PI) % 360 + 360) % 360;
+    this.scaleEl.style.transform = `translateX(${(width / 2 - hd * pxPerRad * Math.PI / 180).toFixed(1)}px)`;
+    // what moves on it: beacons, friends, the next gate, the satnav's destination
     const marks = [];
-    const names = { 0: 'N', 45: 'NE', 90: 'E', 135: 'SE', 180: 'S', 225: 'SW', 270: 'W', 315: 'NW' };
-    for (let d = 0; d < 360; d += 15) marks.push({ a: d * Math.PI / 180, text: names[d] || '·', cls: names[d] ? '' : 'minor' });
     for (const b of this.world.beacons) {
       const a = Math.atan2(b.x - here.x, -(b.z - here.z));
       marks.push({ a, text: '◆', cls: 'bcn' + (this.found.has(b.id) ? ' done' : '') });
@@ -177,7 +222,35 @@ export class HUD {
       const x = width / 2 + d * pxPerRad;
       html += `<span class="${m.cls}" style="left:${x.toFixed(1)}px${m.color ? `;color:${m.color}` : ''}">${m.text}</span>`;
     }
-    if (html !== this.lastStrip) { strip.innerHTML = html; this.lastStrip = html; }
+    if (html !== this.lastStrip) { this.marksEl.innerHTML = html; this.lastStrip = html; }
+  }
+
+  /**
+   * Top right: the connection (online and the ping, or offline), the driver (name, level and how far to the next,
+   * from what they have earned) and how many are in the room.
+   */
+  drawTopRight({ name, level, net, players }) {
+    const set = (id, text) => { const el = $(id); if (el && el.textContent !== text) el.textContent = text; };
+    set('p-name', name);
+    if (level) {
+      set('p-level', `Lv. ${level.level}`);
+      const w = `${Math.round(level.progress * 100)}%`, xp = $('p-xp');
+      if (xp.style.width !== w) xp.style.width = w;
+      const tip = `Level ${level.level}: $${level.earned.toLocaleString('en-US')} earned, $${(level.next - level.earned).toLocaleString('en-US')} to level ${level.level + 1}`;
+      const pr = $('profile');
+      if (pr.title !== tip) pr.title = tip;
+    }
+    $('profile').querySelector('.xp').classList.toggle('hidden', !level);
+    $('p-level').classList.toggle('hidden', !level);
+    const pill = $('net-pill');
+    pill.classList.remove('hidden');
+    const on = !!net?.connected;
+    pill.classList.toggle('off', !on);
+    set('net-text', on ? 'Online' : net ? 'Reconnecting' : 'Offline');
+    set('net-ping', on && net.ping > 0 ? `${Math.round(net.ping)} ms` : '');
+    const count = $('p-count');
+    count.classList.toggle('hidden', !net);
+    if (net) set('p-count-n', `${players}/${net.maxPlayers || players}`);
   }
 
   drawObjective(here, route) {
@@ -200,7 +273,7 @@ export class HUD {
     const el = document.getElementById('money');
     if (!el) return;
     const fmt = (n) => `${n < 0 ? '-' : ''}$${Math.abs(Math.round(n)).toLocaleString('en-US')}`;
-    el.innerHTML = `<span class="bal${balance < 0 ? ' red' : ''}">${fmt(balance)}</span>`;
+    el.innerHTML = `<span class="bal${balance < 0 ? ' red' : ''}"><i class="coin">$</i>${balance < 0 ? '-' : ''}${Math.abs(Math.round(balance)).toLocaleString('en-US')}</span>`;
     if (delta) {
       const d = document.createElement('span');
       d.className = `delta ${delta > 0 ? 'plus' : 'minus'}`;
@@ -269,6 +342,9 @@ export class HUD {
       if (m.help) { g.strokeStyle = '#e0563b'; g.lineWidth = 2.5; g.beginPath(); g.arc(px, py, 8 + 3 * Math.sin(performance.now() / 160), 0, TAU); g.stroke(); }
       g.fillStyle = m.color; g.beginPath(); g.arc(px, py, 4.5, 0, TAU); g.fill(); g.strokeStyle = '#fff'; g.lineWidth = 1; g.stroke();
     });
+    // the N on the rim, where north is as the map turns
+    const nEl = this.mmN || (this.mmN = document.querySelector('#minimap-wrap .mm-n'));
+    if (nEl) { const L = `${(50 - 50 * Math.sin(heading)).toFixed(2)}%`, T = `${(50 - 50 * Math.cos(heading)).toFixed(2)}%`; if (nEl.style.left !== L) { nEl.style.left = L; nEl.style.top = T; } }
     // us
     g.fillStyle = '#f3ead7'; g.strokeStyle = '#1c241f'; g.lineWidth = 1.5;
     g.beginPath(); g.moveTo(0, -8); g.lineTo(6, 6); g.lineTo(0, 3); g.lineTo(-6, 6); g.closePath(); g.fill(); g.stroke();
@@ -305,6 +381,46 @@ export class HUD {
     this.t += dt;
     if (this.hintT > 0) { this.hintT -= dt; if (this.hintT <= 0) this.hintEl.classList.remove('show'); }
   }
+}
+
+/** The dial's face (the disc, the band, the ticks and numbers, the redline) for a dial w x h pixels, revs to max. */
+function dialFace(w, h, max, redline) {
+  const c = document.createElement('canvas'); c.width = w; c.height = h;
+  const g = c.getContext('2d'), k = w / 260, cx = 130, cy = 120, R = 104, a0 = Math.PI * 0.75, a1 = Math.PI * 2.25;
+  g.setTransform(k, 0, 0, k, 0, 0);
+  const at = (r) => a0 + (a1 - a0) * r / max;
+  const bg = g.createRadialGradient(cx, cy - 30, 8, cx, cy, R);
+  bg.addColorStop(0, 'rgba(30,37,47,0.92)'); bg.addColorStop(1, 'rgba(8,11,15,0.9)');
+  g.fillStyle = bg; g.beginPath(); g.arc(cx, cy, R, 0, TAU); g.fill();
+  g.strokeStyle = 'rgba(255,255,255,0.14)'; g.lineWidth = 1.5; g.stroke();
+  // the band the revs fill, and the red past the redline
+  g.lineWidth = 8;
+  g.strokeStyle = 'rgba(255,255,255,0.08)'; g.beginPath(); g.arc(cx, cy, R - 12, a0, a1); g.stroke();
+  g.strokeStyle = 'rgba(239,59,69,0.45)'; g.beginPath(); g.arc(cx, cy, R - 12, at(redline), a1); g.stroke();
+  // ticks every 250 rpm (every 1000 long, with the number)
+  g.textAlign = 'center'; g.textBaseline = 'middle';
+  for (let r = 0; r <= max + 1; r += 250) {
+    const a = at(r), big = r % 1000 === 0, half = r % 500 === 0, ca = Math.cos(a), sa = Math.sin(a), red = r >= redline;
+    const r0 = R - 21, r1 = R - (big ? 31 : half ? 27 : 25);
+    g.strokeStyle = red ? 'rgba(255,90,90,0.95)' : big ? 'rgba(255,255,255,0.95)' : 'rgba(255,255,255,0.4)';
+    g.lineWidth = big ? 2.5 : 1.3; g.lineCap = 'butt';
+    g.beginPath(); g.moveTo(cx + ca * r0, cy + sa * r0); g.lineTo(cx + ca * r1, cy + sa * r1); g.stroke();
+    if (big) {
+      g.fillStyle = red ? '#ff6a6a' : 'rgba(255,255,255,0.85)';
+      g.font = `italic 700 15px ${DISPLAY}`;
+      g.fillText(String(r / 1000), cx + ca * (R - 43), cy + sa * (R - 43));
+    }
+  }
+  g.fillStyle = 'rgba(255,255,255,0.45)'; g.font = `600 10px ${BODY}`;
+  g.fillText('RPM x1000', cx, cy - 38);
+  return c;
+}
+
+/** A rounded rectangle path (ctx.roundRect is missing from older Safari). */
+function roundRect(g, x, y, w, h, r) {
+  g.beginPath();
+  g.moveTo(x + r, y); g.arcTo(x + w, y, x + w, y + h, r); g.arcTo(x + w, y + h, x, y + h, r); g.arcTo(x, y + h, x, y, r); g.arcTo(x, y, x + w, y, r);
+  g.closePath();
 }
 
 /** A little chequered flag on a pole at (x, y) (the event start lines on the maps). */

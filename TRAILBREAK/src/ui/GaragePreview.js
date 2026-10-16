@@ -36,10 +36,10 @@ export class GaragePreview {
     r.shadowMap.type = THREE.PCFShadowMap;
     r.setPixelRatio(Math.min(2, window.devicePixelRatio || 1));
     const s = this.scene = new THREE.Scene();
-    s.background = new THREE.Color(0x232822);
+    s.background = new THREE.Color(0x161a1f);
     s.environment = studioEnvironment(r);
     s.environmentIntensity = 0.35;
-    s.fog = new THREE.Fog(0x232822, 14, 30);
+    s.fog = new THREE.Fog(0x161a1f, 13, 28);
     s.add(new THREE.HemisphereLight(0xdfe6ee, 0x3a3226, 0.9));
     const sun = this.sun = new THREE.DirectionalLight(0xfff1dc, 2.4);
     sun.position.set(5, 9, 6);

@@ -1,6 +1,6 @@
-# TRAILBREAK
+# TRAILBREAK: Offroad Legends
 
-A co-op off-road driving game that runs in the browser. You and up to three friends take old 4x4s into one of two
+**Offroad Legends** (the TRAILBREAK project) is a co-op off-road driving game that runs in the browser. You and up to three friends take old 4x4s into one of two
 maps: **Ashwood Valley** (mountain trails, a river with fords, a mud bog, a rock garden, snow on the peaks) or the
 **Kerala Ghats** (tea estates on misty hills, a waterfall, flooded paddy fields, red laterite tracks through rubber and
 coconut, a granite dome). Together you find each map's 15 survey beacons, and you winch each other out when one of you
@@ -16,6 +16,30 @@ Nothing to install for players: they open the server's address in Chrome, Edge o
   everything is lit by (and the paint and water reflect) that sky. Water is as clear or as muddy as it is deep.
 - **Physics:** written for off-roading, running at 480 Hz (see [The physics](#the-physics)).
 - **Server:** Node.js 18+ with no npm dependencies. Static files, http and https on one port, and WebSocket rooms.
+
+## The screens
+
+Dark glass panels over the game, an orange accent and condensed italic type (Barlow and Barlow Condensed).
+
+- **Lobby:** the map, your name, a room code, the truck (turning in 3D above the list), its paint and the garage; Drive
+  (a room for your friends), Quick match or Drive alone.
+- **Driving:** a compass along the top with the degrees, the survey beacons, your friends and the next gate on it;
+  top right, whether you are online (and your ping), your name and driver level, how many are in the room, and the
+  menu. Bottom left, the minimap turns with the truck (the N on its rim shows where north is; tap it for the full
+  map). Bottom right, one dial: the revs round the rim (red past the redline), the speed in the middle, the gear
+  under it (D and which gear in the automatic), the 2WD / 4WD / 4LO badge beside it, and the range, lockers, gearbox
+  and tyre pressure under it. Your **level** comes from all the money you have ever earned (level 2 at $1,000, 3 at
+  $4,000, 4 at $9,000...), so spending never takes it down.
+- **Paused (Esc):** room and invite link, voice chat, the world and gameplay settings (time of day, shadows, sound,
+  steering assist, vibration, graphics, damage), Resume ride, and the garage, modes and races, map builder, dealer,
+  back to the station and the controls.
+- **Modes & races (N):** a card for each: free roam, the map builder, the party modes, the checkpoint races and the
+  events, with a picture of it (rendered in the game), the par times, your best and what gold pays; Start lines you
+  up, Go to the start sets the satnav. The side bar shows one kind at a time, or opens the garage or the settings.
+- **Garage (U):** the parts in rows, each with what fits and what it changes against the factory part (+31% crawl
+  ratio, +23% belly height...); presets; the truck turning in the middle (rotate, zoom, five views, and Photo saves a
+  picture of it); under it, a grade for the build off-road (D to S, from clearance, angles, travel, wading, gearing,
+  lockers and stability), power, torque and weight, and the key off-road numbers, each against stock.
 
 ## Quick start
 
@@ -498,6 +522,8 @@ src/core/                 Game (the loop), Input, CameraRig
 src/game/                 Career (money, trucks, parts, best times), Events (the courses, runs, medals, races),
                           EventPlay (events in the game: start lines, countdown, clock, prizes, races with friends)
 src/audio/, src/net/, src/ui/   sound, multiplayer client, HUD and maps, the garage (Garage, GaragePreview)
+public/index.html, css/   the screens and their icons; public/assets/fonts (Barlow), public/assets/ui (the lobby's
+                          picture and the Modes & races cards' pictures, rendered in the game)
 public/preview.html       developer view: ?cam=x,y,z&look=x,y,z&mods=Vegetation,Water,...
 public/trucks.html        developer view of one truck: ?truck=hauler&build=overland (a preset or a build code)
 test/                     node --test suites
@@ -515,4 +541,6 @@ Haven and ambientCG, see `public/assets/ground/CREDITS.md` (packed with `tools/g
 spruce, birch, coconut palm, oak (as mango), elm (as rubber), banana and bamboo by evolveduk, and the jungle tree by
 kobaltsecond6c7d6150917a4267, on Sketchfab, CC BY 4.0, see `public/assets/trees/CREDITS.md` (converted with
 `tools/trees.py`). three.js
-is MIT licensed (`public/vendor/three/LICENSE`). Everything else is original.
+is MIT licensed (`public/vendor/three/LICENSE`). Type: Barlow and Barlow Condensed by The Barlow Project Authors, SIL
+Open Font License 1.1 (`public/assets/fonts/OFL.txt`). Icons: most are Material Icons by Google, Apache License 2.0.
+The lobby's and the cards' pictures are rendered in the game. Everything else is original.

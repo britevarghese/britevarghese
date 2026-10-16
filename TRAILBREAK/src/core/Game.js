@@ -241,14 +241,18 @@ export class Game {
     return null;
   }
 
-  /** The Events list (pause menu): each event, its par times and your best, and a way to its start line. */
+  /** Modes & races (N, or the pause menu): a card for each mode, race and event, with a way to its start line. */
   openEvents() {
     const el = document.getElementById('events'), list = document.getElementById('ev-list');
     if (this.paused) this.togglePause(false);
     this.input.enabled = false;
     this.audio.setMuted('menu', true);
-    const close = () => { el.classList.add('hidden'); this.audio.setMuted('menu', false); this.input.enabled = !this.paused && !this.chatOpen; this.renderer.renderer.domElement.focus(); };
-    list.innerHTML = this.events.listHtml();
+    const onKey = (e) => { if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); close(); } };
+    const close = () => {
+      el.classList.add('hidden'); window.removeEventListener('keydown', onKey, true);
+      this.audio.setMuted('menu', false); this.input.enabled = !this.paused && !this.chatOpen; this.renderer.renderer.domElement.focus();
+    };
+    list.innerHTML = this.events.listHtml(this.builderPicture());
     list.onclick = (e) => {
       const go = e.target.closest('[data-go]'), start = e.target.closest('[data-start]'), free = e.target.closest('[data-free]'), build = e.target.closest('[data-build]');
       if (!go && !start && !free && !build) return;
@@ -257,8 +261,35 @@ export class Game {
       else if (start) this.events.startNow(start.dataset.start);
       else if (build) this.builder.open();
     };
+    // the side: a section of the list, or the garage, or the settings (the pause menu)
+    for (const b of el.querySelectorAll('.nav-i')) {
+      b.onclick = () => {
+        if (b.dataset.nav === 'garage') { close(); this.openGarage(); return; }
+        if (b.dataset.nav === 'settings') { close(); this.togglePause(true); return; }
+        for (const o of el.querySelectorAll('.nav-i')) o.classList.toggle('sel', o === b);
+        list.dataset.sec = b.dataset.sec;
+        list.scrollTop = 0;
+      };
+      b.classList.toggle('sel', b.dataset.sec === 'all');
+    }
+    list.dataset.sec = 'all';
     document.getElementById('ev-close').onclick = close;
+    window.addEventListener('keydown', onKey, true);
     el.classList.remove('hidden');
+    list.scrollTop = 0;
+  }
+
+  /** The map builder's card: this map, from above, round the station (made once). */
+  builderPicture() {
+    if (this.builderPic !== undefined) return this.builderPic;
+    try {
+      const img = this.hud.mapImage, c = document.createElement('canvas'), W = 480, H = 200;
+      c.width = W; c.height = H;
+      const g = c.getContext('2d'), k = img.width / (2 * MAP_HALF), S = this.stationSpot || { x: 0, z: 0 }, span = 900 * k;
+      g.drawImage(img, (S.x + MAP_HALF) * k - span / 2, (S.z + MAP_HALF) * k - span * H / W / 2, span, span * H / W, 0, 0, W, H);
+      this.builderPic = c.toDataURL('image/jpeg', 0.82);
+    } catch { this.builderPic = ''; }
+    return this.builderPic;
   }
 
   /** Headlights (and the light bar's driving lamps) on the local truck's model. */
@@ -333,15 +364,22 @@ export class Game {
     this.input.enabled = false;
     this.audio.setMuted('menu', true);
     const code = await this.garage.open({
-      truckId: this.truckId, code: this.build, paint: this.myColor, career: this.career,
-      fitLabel: here ? 'Fit these parts' : 'Fit them at the station',
-      note: here ? '' : 'You are out on the trail: fitting parts takes the truck back to the station garage.',
+      truckId: this.truckId, code: this.build, paint: this.myColor, career: this.career, nav: true,
+      players: this.net?.connected ? { n: this.remotes.size + 1, max: this.net.maxPlayers || this.remotes.size + 1 } : null,
+      fitLabel: here ? 'Fit these parts' : 'Fit at station',
+      note: here ? '' : 'Fitting parts will take the truck back to the station garage.',
     });
     this.garageOpen = false;
     this.audio.setMuted('menu', false);
     this.input.enabled = !this.paused && !this.chatOpen;
     this.renderer.renderer.domElement.focus();
     if (code && code !== this.build) this.applyBuild(code, !here);
+    // the side bar: another screen
+    const go = this.garage.navTo;
+    if (go === 'races') this.openEvents();
+    else if (go === 'map') { if (!this.mapOpen) this.toggleMap(); }
+    else if (go === 'dealer') this.openDealer();
+    else if (go === 'settings') this.togglePause(true);
   }
 
   get myColor() { return '#' + new THREE.Color(this.paint).getHexString(); }
@@ -1248,7 +1286,8 @@ export class Game {
       const list = [{ name: this.name, color: this.myColor, me: true, help: this.helpOn, tag: this.events.tagFor(this.net?.id), voice: vp?.stateOf(null) },
         ...mates.map((r) => ({ name: r.name, color: r.color, help: r.help, tag: this.events.tagFor(r.id), voice: vp?.stateOf(this.voice.peers.get(r.id)) }))];
       vp?.tick();
-      this.hud.drawPlayers(list);
+      this.hud.drawPlayers(this.net ? list : []);          // (alone: no list of one)
+      this.hud.drawTopRight({ name: this.name, level: this.career?.level, net: this.net, players: list.length });
     }
     if (this.mapOpen) this.worldMap.draw();
 

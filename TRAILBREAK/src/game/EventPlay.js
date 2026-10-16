@@ -437,26 +437,62 @@ export class EventPlay {
   }
 
   // ---------------------------------------------------------------- the Events list (pause menu)
-  listHtml() {
-    const g = this.g, friends = this.friendsHere();
-    const row = (e) => {
-      const best = g.career?.best(e.id);
-      const medal = best?.medal;
-      const par = e.higher ? `Last ${fmt(e.par.bronze)} for bronze, ${fmt(e.par.silver)} silver, ${fmt(e.par.gold)} gold` : `Par: gold ${fmt(e.par.gold)} · silver ${fmt(e.par.silver)} · bronze ${fmt(e.par.bronze)}`;
-      return `<div class="dealer-row ev-row${medal ? ' mine' : ''}">
-        <b>${escapeHtml(e.name)}${medal ? ` <span class="ev-medal ${medal}">${MEDAL_NAME[medal]}</span>` : ''} <span class="ev-kind">${kindOf(e)}</span></b>
-        <span class="blurb">${escapeHtml(e.desc)}</span>
-        <span class="stats">${par}${best ? ` · your best ${fmt(best.time)}` : ''} · gold pays ${money(runPrize(e, 'gold', null).medal)}</span>
-        <span class="ev-acts"><button class="primary small" data-start="${e.id}">${friends ? 'Start: friends join' : 'Start'}</button><button class="ghost small" data-go="${e.id}">Go to the start</button></span>
-      </div>`;
+  /**
+   * The Modes & races cards: free roam and the map builder, then the party modes, the checkpoint races and the events,
+   * each with its picture (assets/ui/modes/<map>-<id>.webp, rendered in the game), what it is, the par times, your best
+   * and what gold pays. builderImg: a picture of this map for the builder's card.
+   */
+  listHtml(builderImg = '') {
+    const g = this.g, friends = this.friendsHere(), mapId = g.world.map?.id || 'ashwood';
+    const pic = (name) => `<img src="assets/ui/modes/${mapId}-${name}.webp" alt="" loading="lazy" onerror="this.remove()">`;
+    const ic = (name) => `<svg class="ic"><use href="#i-${name}"/></svg>`;
+    const feat = (icon, text) => `<li>${ic(icon)}${text}</li>`;
+    const card = (o) => `<article class="mode-card e-${o.edge}" data-sec="${o.sec}">
+        <div class="mc-img">${o.image || ''}</div>
+        <div class="mc-body"><h4>${ic(o.icon)}<span>${o.title}</span><em class="tag t-${o.edge}">${o.tag}</em>${o.medal || ''}</h4>
+          <p>${o.desc}</p><ul class="mc-feats">${o.feats.join('')}</ul></div>
+        <div class="mc-act">${o.acts}</div>
+      </article>`;
+    const group = (sec, icon, title, note) => `<h3 class="mode-group" data-sec="${sec}">${ic(icon)}${title}${note ? `<small>${note}</small>` : ''}</h3>`;
+    const W = g.world, found = g.found?.size || 0, total = W.beacons.length, others = friends;
+    const cards = [card({
+      sec: 'free', edge: 'green', icon: 'mountain', title: 'Free roam', tag: 'Explore', image: pic('free'),
+      desc: 'Explore the map, find the survey beacons and drive the trails, alone or with your friends. The satnav (M) finds the way anywhere.',
+      feats: [feat('beacon', `Beacons ${found}/${total}`), feat('map', 'Open world'), feat('people', others ? `${others} friend${others > 1 ? 's' : ''} here` : 'Play together')],
+      acts: `<button class="mc-btn b-orange" data-free>${ic('arrow')}Explore</button>`,
+    }), card({
+      sec: 'free', edge: 'blue', icon: 'map', title: 'Map builder', tag: 'Create', image: builderImg ? `<img src="${builderImg}" alt="">` : '',
+      desc: 'Build your own ramps, kickers, mud pits and checkpoints on this map. Share it with a link, and race your friends on it.',
+      feats: [feat('mountain', 'Ramps &amp; obstacles'), feat('pin', 'Checkpoints'), feat('people', 'Build together'), feat('arrow', 'Share a link')],
+      acts: `<button class="mc-btn b-blue" data-build>${ic('wrench')}Build</button>`,
+    })];
+    const fmtLen = (m) => (m < 1000 ? `${Math.round(m)} m` : `${(m / 1000).toFixed(1)} km`);
+    const eventCard = (e) => {
+      const best = g.career?.best(e.id), medal = best?.medal, race = !!e.race;
+      const edge = e.kind === 'zone' ? 'red' : e.kind === 'hill' ? 'yellow' : race ? 'orange' : 'purple';
+      const icon = e.kind === 'zone' ? 'target' : e.kind === 'hill' ? 'crown' : race ? 'flag' : 'timer';
+      const tag = { zone: 'Last truck in', hill: 'Hold the hill', circuit: 'Circuit', rally: 'Rally', slalom: 'Trials', trail: 'Hill climb' }[e.kind] || 'Dash';
+      const feats = [];
+      if (e.kind === 'circuit') feats.push(feat('loop', `${e.laps} laps`));
+      if (e.length && (race || e.kind === 'rally')) feats.push(feat('pin', fmtLen(e.length)));
+      const cps = e.gates?.length || 0;
+      if (cps && !e.mode) feats.push(feat('flag', `${cps} ${race ? 'checkpoints' : 'gates'}`));
+      if (e.mode) feats.push(feat('people', friends ? 'Against your friends' : 'Solo: against the clock'));
+      if (e.par) feats.push(feat('trophy', e.higher ? `Gold: last ${fmt(e.par.gold)}` : `Gold ${fmt(e.par.gold)}`));
+      if (best) feats.push(feat('timer', `Your best ${fmt(best.time)}`));
+      if (e.par) feats.push(feat('cash', `Gold pays ${money(runPrize(e, 'gold', null).medal)}`));
+      return card({
+        sec: e.mode ? 'party' : race ? 'race' : 'event', edge, icon, title: escapeHtml(e.name), tag, image: pic(e.id), feats,
+        medal: medal ? `<em class="tag medal ${medal}">${MEDAL_NAME[medal]}</em>` : '',
+        desc: escapeHtml(e.desc || ''),
+        acts: `<button class="mc-btn b-${edge}" data-start="${e.id}">${ic('play')}${friends ? 'Start: friends join' : 'Start'}</button><button class="mc-link" data-go="${e.id}">${ic('arrow')}Go to the start</button>`,
+      });
     };
-    const group = (title, note, list) => (list.length ? `<h3 class="ev-group">${title}${note ? ` <small>${note}</small>` : ''}</h3>${list.map(row).join('')}` : '');
-    return `<h3 class="ev-group">Free roam <small>explore, survey the beacons, winch your friends out</small></h3>
-      <div class="dealer-row ev-row"><span class="blurb">The whole map is yours: the satnav (M) finds the way anywhere.</span><span class="ev-acts"><button class="ghost small" data-free>Drive</button></span></div>
-      <div class="dealer-row ev-row"><b>Map builder <span class="ev-kind">Build your own</span></b><span class="blurb">Ramps, kickers, containers, logs, rocks, barriers and mud pits on this map, and a start line and checkpoints to race it. Share it with a link; in a room, your friends build with you.</span><span class="ev-acts"><button class="primary small" data-build>Build</button></span></div>
-      ${group('Party modes', friends ? 'Start one and your friends have 15 s to press J and join' : 'best with friends in the room; alone, against the clock', this.events.filter((e) => e.mode))}
-      ${group('Checkpoint races', 'circuits and rallies through numbered arches', this.events.filter((e) => e.race))}
-      ${group('Events', 'climbs, dashes and trials', this.events.filter((e) => !e.mode && !e.race))}`;
+    const party = this.events.filter((e) => e.mode), races = this.events.filter((e) => e.race), evs = this.events.filter((e) => !e.mode && !e.race);
+    return `${group('free', 'mountain', 'Free roam', 'the open map, and your own on it')}${cards.join('')}
+      ${party.length ? group('party', 'people', 'Party modes', friends ? 'start one and your friends have 15 s to press J and join' : 'best with friends in the room; alone, against the clock') + party.map(eventCard).join('') : ''}
+      ${races.length ? group('race', 'trophy', 'Checkpoint races', 'circuits and rallies through numbered arches; with friends, the places pay') + races.map(eventCard).join('') : ''}
+      ${evs.length ? group('event', 'timer', 'Events', 'climbs, dashes and trials: beat the par times for medal money') + evs.map(eventCard).join('') : ''}`;
   }
 
   /** From the list: line up for an event now (with friends here: open it for them to join). */

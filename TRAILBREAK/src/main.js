@@ -285,13 +285,22 @@ function wireMenus(game, net) {
     $('room-code').textContent = net.room;
     const link = new URL(location.href); link.search = `?room=${net.room}&map=${game.world.map.id}`;
     $('invite-link').value = link.toString();
+    const copyText = $('copy-link').querySelector('span');
     $('copy-link').onclick = async () => {
-      try { await navigator.clipboard.writeText($('invite-link').value); $('copy-link').textContent = 'Copied'; } catch { $('invite-link').select(); document.execCommand?.('copy'); }
-      setTimeout(() => { $('copy-link').textContent = 'Copy'; }, 1500);
+      try { await navigator.clipboard.writeText($('invite-link').value); copyText.textContent = 'Copied'; } catch { $('invite-link').select(); document.execCommand?.('copy'); }
+      setTimeout(() => { copyText.textContent = 'Copy'; }, 1500);
     };
+    $('pause-sub').textContent = 'Your truck waits with the handbrake on: the room drives on';
   }
+  $('to-lobby').onclick = () => { location.href = location.pathname; };
+  // the time of day, and its name: 17:30 · Evening
+  const todName = () => {
+    const h = s.hour, name = h < 6.5 ? 'Dawn' : h < 11 ? 'Morning' : h < 14 ? 'Midday' : h < 17 ? 'Afternoon' : h < 19.5 ? 'Evening' : 'Dusk';
+    $('tod-name').textContent = `${String(Math.floor(h)).padStart(2, '0')}:${String(Math.round((h % 1) * 60)).padStart(2, '0')} · ${name}`;
+  };
   $('tod').value = s.hour;
-  $('tod').oninput = () => { s.hour = Number($('tod').value); game.renderer.setTime(s.hour); save(); };
+  todName();
+  $('tod').oninput = () => { s.hour = Number($('tod').value); game.renderer.setTime(s.hour); save(); todName(); };
   $('opt-shadows').checked = s.shadows;
   $('opt-shadows').onchange = () => { s.shadows = $('opt-shadows').checked; game.applySettings(); save(); };
   $('opt-sound').checked = s.sound;
@@ -306,6 +315,7 @@ function wireMenus(game, net) {
   $('opt-rumble').checked = s.rumble;
   $('opt-rumble').onchange = () => { s.rumble = $('opt-rumble').checked; save(); };
   $('resume').onclick = () => game.togglePause(false);
+  $('hud-menu').onclick = (e) => { e.currentTarget.blur(); if (!game.mapOpen) game.togglePause(true); };
   $('respawn').onclick = () => { game.togglePause(false); game.towHome(); };
   $('menu-garage').onclick = () => game.openGarage();
   $('menu-dealer').onclick = () => game.openDealer();

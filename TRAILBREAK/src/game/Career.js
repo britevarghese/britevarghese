@@ -11,6 +11,16 @@ import { truckBase } from '../physics/trucks.js';
 const STORE = 'trailbreak.career';
 export const START_MONEY = 2500;
 export const DEBT_LIMIT = -5000;
+/** The driver's level comes from everything they have earned: n * n times this for level n + 1. */
+export const LEVEL_STEP = 1000;
+
+/** Level 1 from the start, 2 at $1,000 earned, 3 at $4,000, 4 at $9,000...; with how far it is to the next. */
+export function levelFor(earned) {
+  earned = Math.max(0, Math.round(earned) || 0);
+  const level = Math.floor(Math.sqrt(earned / LEVEL_STEP)) + 1;
+  const from = (level - 1) ** 2 * LEVEL_STEP, next = level ** 2 * LEVEL_STEP;
+  return { level, earned, next, progress: (earned - from) / (next - from) };
+}
 
 /** The dealer's prices (US dollars): sound used trucks, ready for the trail. */
 export const TRUCK_PRICES = { gecko: 4500, mule: 6500, trekker: 8000, ranger: 9500, shepherd: 13000, hauler: 14500, thar: 15500, wrangler: 18000, bronco: 21000, drover: 16000, bruiser: 24000, hummer: 32000, rhino: 42000 };
@@ -38,6 +48,8 @@ export class Career {
       for (const [id, code] of Object.entries(builds || {})) if (code) this.own(id, decodeBuild(truckBase(id), code), data);
     }
     data.money = Number.isFinite(data.money) ? data.money : START_MONEY;
+    // all ever earned (careers from before it was kept: at least what the balance is up on the start)
+    data.earned = Number.isFinite(data.earned) ? data.earned : Math.max(0, data.money - START_MONEY);
     data.trucks = Array.isArray(data.trucks) && data.trucks.length ? data.trucks : ['ranger'];
     data.parts = data.parts && typeof data.parts === 'object' ? data.parts : {};
     data.best = data.best && typeof data.best === 'object' ? data.best : {};
@@ -52,12 +64,14 @@ export class Career {
   get money() { return this.d.money; }
   get trucks() { return this.freeTrucks ? DEALER_ORDER.filter((id) => id === this.d.trucks[0]).concat(DEALER_ORDER.filter((id) => id !== this.d.trucks[0])) : this.d.trucks; }
   get log() { return this.d.log; }
+  get level() { return levelFor(this.d.earned); }
 
   /** Change the balance (+ earned, - spent) with a line in the log. */
   add(amount, why) {
     amount = Math.round(amount);
     if (!amount) return;
     this.d.money += amount;
+    if (amount > 0) this.d.earned += amount;
     this.d.log.push({ t: Date.now(), amount, why });
     if (this.d.log.length > 40) this.d.log.shift();
     this.save();

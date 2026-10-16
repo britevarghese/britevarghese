@@ -3,7 +3,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { EventRun, medalFor, runPrize, standings, eventsFor, gridFor, MEDAL_PRIZE, FINISH_PRIZE, RACE_PRIZE, TOUCH_PENALTY, TIME_LIMIT } from '../src/game/Events.js';
-import { Career, START_MONEY, DEBT_LIMIT, TRUCK_PRICES } from '../src/game/Career.js';
+import { Career, START_MONEY, DEBT_LIMIT, TRUCK_PRICES, levelFor } from '../src/game/Career.js';
 import { generateWorld } from '../src/world/WorldGen.js';
 import { World } from '../src/world/World.js';
 import { Vehicle } from '../src/physics/Vehicle.js';
@@ -89,6 +89,22 @@ test('the career: money, the dealer, parts, repairs on credit, best times', () =
   assert.equal(again.money, DEBT_LIMIT);
   assert.ok(again.ownsTruck('hauler'));
   assert.deepEqual(again.best('bogdash'), { time: 22, medal: 'silver' });
+  // the level counts what was earned, not what is left: spending never takes it down
+  assert.equal(again.level.earned, 20000);
+  assert.equal(again.level.level, 5);
+});
+
+test('the driver level: from all that was earned; careers from before it start from what the balance is up', () => {
+  assert.deepEqual([0, 999, 1000, 3999, 4000, 9000, 100000].map((e) => levelFor(e).level), [1, 1, 2, 2, 3, 4, 11]);
+  const l = levelFor(2500);
+  assert.equal(l.next, 4000);
+  assert.equal(l.progress, 0.5);
+  const mem = new Map([['trailbreak.career', JSON.stringify({ money: START_MONEY + 1600, trucks: ['ranger'], parts: {}, best: {}, log: [] })]]);
+  const C = new Career({}, { getItem: (k) => mem.get(k) ?? null, setItem: (k, v) => mem.set(k, v) });
+  assert.equal(C.level.earned, 1600);
+  C.add(600, 'a beacon'); C.charge(250, 'the tow truck');
+  assert.equal(C.level.earned, 2200);
+  assert.equal(C.level.level, 2);
 });
 
 test('the valley: every trail a stock truck can drive (no pitch over 27 degrees, no bend tighter than 9 m), and the courses', async () => {

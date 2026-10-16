@@ -37,7 +37,7 @@ export class VoicePanel {
     $('v-mute').onchange = () => voice.setSelfMuted($('v-mute').checked);
     $('v-deaf').onchange = () => voice.setDeaf($('v-deaf').checked);
     $('v-vol').value = voice.volume;
-    $('v-vol').oninput = () => { voice.setVolume(Number($('v-vol').value)); vs.volume = voice.volume; save(); };
+    $('v-vol').oninput = () => { voice.setVolume(Number($('v-vol').value)); vs.volume = voice.volume; save(); this.volText(); };
     $('v-peers').addEventListener('change', (e) => { const id = Number(e.target.closest('[data-id]')?.dataset.id); if (e.target.matches('[data-mute]')) voice.setPeerMuted(id, e.target.checked); });
     $('v-peers').addEventListener('input', (e) => { const id = Number(e.target.closest('[data-id]')?.dataset.id); if (e.target.matches('[data-vol]')) voice.setPeerVolume(id, Number(e.target.value)); });
     voice.onChange = () => this.render();
@@ -79,17 +79,20 @@ export class VoicePanel {
     $('v-note').textContent = joined ? (v.micNote || (v.mode === 'ptt' ? 'hold V to talk' : v.selfMuted ? 'your mic is muted' : 'your mic is on (V mutes it)'))
       : 'talk to the others in this room';
     $('v-mute').checked = v.selfMuted; $('v-deaf').checked = v.deaf; $('v-mode').value = v.mode;
+    this.volText();
     const list = v.others;
     const html = list.length ? list.map((p) => {
       const state = !p.voice ? 'not in voice chat' : [LINK[p.link], !p.mic ? 'no microphone' : p.mute ? 'mic muted' : ''].filter(Boolean).join(' · ');
       return `<div class="v-peer" data-id="${p.id}"><span class="vic">${micIcon(!p.voice || !p.mic || p.mute)}</span><b>${esc(p.name)}</b><span class="dim">${esc(state)}</span>
         <label><input type="checkbox" data-mute ${p.muted ? 'checked' : ''}> Mute</label><input type="range" data-vol min="0" max="2" step="0.05" value="${p.vol}" aria-label="${esc(p.name)}'s volume"></div>`;
-    }).join('') : '<p class="dim">Nobody else in the room yet.</p>';
+    }).join('') : '<div class="v-alone"><svg class="ic"><use href="#i-people"/></svg>You\'re the only driver in this room.</div>';
     // (rebuilt only when it changes: not under a slider being dragged)
     const key = list.map((p) => `${p.id}${p.name}${p.voice}${p.mic}${p.mute}${p.muted}${p.link}`).join('|') + joined;
     if (key !== this.key) { this.key = key; $('v-peers').innerHTML = html; }
     this.tick();
   }
+
+  volText() { const el = $('v-vol-n'); if (el) el.textContent = `${Math.round(this.v.volume * 100)}%`; }
 
   /** The talking lights (a few times a second). */
   tick() {
