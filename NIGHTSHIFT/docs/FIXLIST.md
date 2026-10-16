@@ -358,6 +358,11 @@ the game. Newly found problems go at the end of their section.
   them kept the heights taken before that and pulled them apart again, and the link counted as much as the highway
   at its ends. The carriageways are graded level with each other now, the junctions move with them, and a link meets
   the road it links at that road's level. Iritty's crossing 0.33 -> 0.13 m; no step over 13 cm in Kannur or Iritty
+- [x] A road running along a map tile's edge is that tile's alone, and its carriageway over the line was nothing to
+  the tile there: grass under a car's wheels (off-road drag), no road to traffic (a car in that lane counted as off
+  it), to police checkpoints, people on the pavement or an AI working out its way round a corner. Near an edge the
+  next tile's roads count too. AI junction turns round Kannur: 29 -> 30 of 33 clean (the rest are acute, 106-140
+  degrees)
 
 ## Story
 - [x] The story begins like GTA's: a prologue, 'The Kayal Job', starts on a new game in Kerala (Esc skips a scene;

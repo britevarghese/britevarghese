@@ -21,6 +21,7 @@ const BASE = '/assets/world/kerala/';
 const RADIUS = IS_MOBILE ? 1 : 2;
 function dropArray() { this.array = null; }
 const KEEP = IS_MOBILE ? 2 : 3;
+const NONE = [];
 
 // where the game starts: Kannur town (Caltex junction, by the old bus stand), the home of the story
 export const START = { x: 98566, z: 209513, name: 'Kannur' };
@@ -448,12 +449,29 @@ export class KeralaWorld {
     return t?._bg ? t.bumpAhead(x, z, fx, fz, range) : -1;
   }
 
+  // the built tiles next to (x, z)'s own across an edge or a corner within m of it. A road is one tile's: running
+  // along the edge, its carriageway over the line was nothing to the tile there - grass to a car's wheels, no road
+  // to traffic (a car keeping to that lane counted as off it) or to an AI working out its way round a corner
+  _edgeTiles(t, x, z, m = 12) {
+    const e = -x - t.E0, n = z - t.N0, de = e < m ? -1 : e > TILE - m ? 1 : 0, dn = n < m ? -1 : n > TILE - m ? 1 : 0;
+    if (!de && !dn) return NONE;
+    const out = [];
+    for (const [a, b] of [[de, 0], [0, dn], [de, dn]]) {
+      if (!a && !b) continue;
+      const o = this.tiles.get(this.key(t.tx + a, t.tz + b));
+      if (o?.ready && !out.includes(o)) out.push(o);
+    }
+    return out;
+  }
+
   // open country (paddy, groves, forest, sand) rather than a road or a town street
   offRoad(x, z) {
     const t = this.tileAt(x, z);
     if (!t?.cls) return false;
     const c = t.classAt(-x - t.E0, z - t.N0);
-    return c !== C.road && c !== C.town && c !== C.commercial && c !== C.industrial;
+    if (c === C.road || c === C.town || c === C.commercial || c === C.industrial) return false;
+    for (const o of this._edgeTiles(t, x, z)) if (o.onRoad(-x - o.E0, z - o.N0, 0.3)) return false;
+    return true;
   }
 
   inWater(x, z) {
@@ -507,7 +525,10 @@ export class KeralaWorld {
 
   onCarriageway(x, z, margin = 0) {
     const t = this.tileAt(x, z);
-    return !!t?.ready && t.onRoad(-x - t.E0, z - t.N0, margin, -1, 7);
+    if (!t?.ready) return false;
+    if (t.onRoad(-x - t.E0, z - t.N0, margin, -1, 7)) return true;
+    for (const o of this._edgeTiles(t, x, z, 12 + margin)) if (o.onRoad(-x - o.E0, z - o.N0, margin, -1, 7)) return true;
+    return false;
   }
 
   _pedSeg(l, R) {
