@@ -216,7 +216,7 @@ export class HUD {
   }
 
   // ---------------------------------------------------------------- maps
-  drawMinimap(here, heading, mates, route) {
+  drawMinimap(here, heading, mates, route, mode) {
     const g = this.mini, S = 220, scale = 1.25;                 // px per metre
     const img = this.mapImage, k = img.width / (2 * MAP_HALF);
     g.save();
@@ -250,6 +250,17 @@ export class HUD {
       g.beginPath(); g.moveTo(px, py - 5); g.lineTo(px + 4, py); g.lineTo(px, py + 5); g.lineTo(px - 4, py); g.closePath(); g.fill();
       if (edge) { g.strokeStyle = 'rgba(0,0,0,0.5)'; g.stroke(); }
     });
+    // a party mode: the zone (and the circle it is closing to), the hill's ring
+    if (mode?.zone && mode.zone.r > 0) {
+      const z = mode.zone, n = z.next;
+      const at = (x, zz) => { const dx = (x - here.x) * scale, dz = (zz - here.z) * scale, c = Math.cos(-heading), s = Math.sin(-heading); return [dx * c - dz * s, dx * s + dz * c]; };
+      g.save(); g.beginPath(); g.arc(0, 0, S / 2 - 1, 0, TAU); g.clip();
+      const [cx, cy] = at(z.x, z.z);
+      g.strokeStyle = '#3fb6ff'; g.lineWidth = 3; g.beginPath(); g.arc(cx, cy, z.r * scale, 0, TAU); g.stroke();
+      if (n && n.r > 0 && (n.r < z.r - 1)) { const [nx, ny] = at(n.x, n.z); g.setLineDash([5, 4]); g.strokeStyle = 'rgba(255,255,255,0.8)'; g.lineWidth = 1.5; g.beginPath(); g.arc(nx, ny, n.r * scale, 0, TAU); g.stroke(); g.setLineDash([]); }
+      g.restore();
+    }
+    if (mode?.hill) put(mode.hill.x, mode.hill.z, (px, py, edge) => { g.strokeStyle = '#ffc04a'; g.lineWidth = 3; g.beginPath(); g.arc(px, py, edge ? 6 : Math.max(5, mode.hill.r * scale), 0, TAU); g.stroke(); });
     // event start lines (flags), and the next gate of a run
     for (const e of this.eventMarks?.starts || []) put(e.x, e.z, (px, py, edge) => { if (!edge) flag(g, px, py, 1); });
     const next = this.eventMarks?.next;

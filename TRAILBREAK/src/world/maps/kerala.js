@@ -675,6 +675,17 @@ export const RACES = [
     trail: 'Anapara Track', cps: 4, r: 8, par: { gold: 94, silver: 113, bronze: 138 }, prize: 1 },
 ];
 
+/**
+ * The party modes' places (game/Modes.js): the elimination arena round the town, and the king of the hill's rise
+ * on the reservoir track, raced to from the quarry road.
+ */
+export const MODES = {
+  arena: { x: 40, z: 130, yaw: 0 },
+  hill: { x: -167, z: 652, r: 16, name: 'Reservoir Rise' },
+  hillStart: [50, 95],
+  hillPar: { gold: 150, silver: 185, bronze: 230 },
+};
+
 /** The map, as the game and the generator see it. */
 export const KERALA = {
   id: 'kerala', name: 'Kerala Ghats', short: 'Kerala',
@@ -683,7 +694,7 @@ export const KERALA = {
   seed: SEED, station: STATION, spawn: SPAWN, dealer: 'Ponmala Motors',
   baseHeight, roughOf, gen,
   river: RIVER, lake: LAKE, peaks: PEAKS,
-  trails: TRAILS, beacons: BEACONS, landmarks: LANDMARKS, events: EVENTS, races: RACES,
+  trails: TRAILS, beacons: BEACONS, landmarks: LANDMARKS, events: EVENTS, races: RACES, modes: MODES,
   roadSurface: SURFACE.ROAD, puddles: 6,
   // ground levelled under the buildings (m round them)
   pads: { teafactory: 16, bungalow: 9, chaistall: 5, house: 7, busstop: 3, laterite: 3 },

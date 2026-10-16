@@ -262,6 +262,16 @@ export class WorldMap {
         g.stroke();
       }
     }
+    // a party mode: the zone (and where it is closing to), the hill's ring
+    const md = s.mode;
+    if (md?.zone && md.zone.r > 0) {
+      const [cx, cy] = this.toScreen(md.zone.x, md.zone.z);
+      g.strokeStyle = '#3fb6ff'; g.lineWidth = 3; g.fillStyle = 'rgba(63,182,255,0.08)';
+      g.beginPath(); g.arc(cx, cy, md.zone.r * Z, 0, TAU); g.fill(); g.stroke();
+      const n = md.zone.next;
+      if (n && n.r > 0 && n.r < md.zone.r - 1) { const [nx, ny] = this.toScreen(n.x, n.z); g.setLineDash([8, 6]); g.strokeStyle = '#ffffff'; g.lineWidth = 2; g.beginPath(); g.arc(nx, ny, n.r * Z, 0, TAU); g.stroke(); g.setLineDash([]); }
+    }
+    if (md?.hill) { const [hx, hy] = this.toScreen(md.hill.x, md.hill.z); g.strokeStyle = '#ffc04a'; g.lineWidth = 3; g.beginPath(); g.arc(hx, hy, Math.max(8, md.hill.r * Z), 0, TAU); g.stroke(); }
     this.hits.length = 0;
     const F = getComputedStyle(document.body).fontFamily;
     // houses: dots

@@ -17,6 +17,7 @@ import { RouteGraph, along } from '../game/Route.js';
 import { RouteLine } from '../render/RouteLine.js';
 import { WorldMap, keyOf } from '../ui/WorldMap.js';
 import { Chat, bubbleCanvas } from '../ui/Chat.js';
+import { ModeView } from '../render/ModeView.js';
 
 const clamp = (x, a, b) => (x < a ? a : x > b ? b : x);
 const fmtDist = (m) => (m < 1000 ? `${Math.round(m / 10) * 10} m` : `${(m / 1000).toFixed(1)} km`);
@@ -92,6 +93,7 @@ export class Game {
     // events: the start lines, runs and races (game/EventPlay.js), their banners and gates on the ground
     this.events = new EventPlay(this);
     this.course = new EventCourse(this.scene, this.world, this.events.events);
+    this.modeView = new ModeView(this.scene, this.world);
     // the satnav and the full map (ui/WorldMap.js): a route by road and trail, and its line on the ground ahead
     this.satnav = new RouteGraph(this.world.data.trails);
     this.routeLine = new RouteLine(this.scene);
@@ -118,6 +120,15 @@ export class Game {
   }
 
   // ---------------------------------------------------------------- the map and the satnav
+  /** The party mode in play, for the maps: the zone (and where it is going) or the hill. */
+  modeMarks() {
+    const run = this.events.run;
+    if (!run || run.phase === 'finished') return null;
+    if (run.event.kind === 'zone') return { zone: run.zone };
+    if (run.event.kind === 'hill') return { hill: run.event.hill };
+    return null;
+  }
+
   /** What the full map shows. */
   mapState() {
     const v = this.vehicle;
@@ -128,14 +139,15 @@ export class Game {
       beacons: this.world.beacons.map((b) => ({ kind: 'beacon', id: b.id, name: b.name, x: b.x, z: b.z, found: this.found.has(b.id) })),
       route: this.route,
       racing: this.events.racing,
+      mode: this.modeMarks(),
     };
   }
 
   /** Set the satnav's waypoint to a thing on the map (a friend: their truck, wherever it goes). */
-  setRoute(item) {
+  setRoute(item, quiet = false) {
     this.route = { target: { kind: item.kind, key: keyOf(item), name: item.name, x: item.x, z: item.z, friend: item.kind === 'friend' ? item.id : null }, points: null, left: 0, hint: 0, t: 0 };
     this.replan();
-    this.hud.toast(`Route set: ${item.name}, ${fmtDist(this.route.left)}`, false, 3);
+    if (!quiet) this.hud.toast(`Route set: ${item.name}, ${fmtDist(this.route.left)}`, false, 3);
   }
 
   replan() {
@@ -225,10 +237,11 @@ export class Game {
     const close = () => { el.classList.add('hidden'); this.audio.setMuted('menu', false); this.input.enabled = !this.paused && !this.chatOpen; this.renderer.renderer.domElement.focus(); };
     list.innerHTML = this.events.listHtml();
     list.onclick = (e) => {
-      const b = e.target.closest('[data-go]');
-      if (!b) return;
+      const go = e.target.closest('[data-go]'), start = e.target.closest('[data-start]'), free = e.target.closest('[data-free]');
+      if (!go && !start && !free) return;
       close();
-      this.events.goTo(b.dataset.go);
+      if (go) this.events.goTo(go.dataset.go);
+      else if (start) this.events.startNow(start.dataset.start);
     };
     document.getElementById('ev-close').onclick = close;
     el.classList.remove('hidden');
@@ -544,6 +557,7 @@ export class Game {
     if (this.mapOpen) { if (I.consume('map')) this.toggleMap(); return; }
     if (I.consume('chat') && this.net?.connected) this.openChat();
     if (I.consume('map')) this.toggleMap();
+    if (I.consume('modes')) this.openEvents();
     if (I.consume('help')) this.onHelp?.();
     if (I.consume('camera')) this.hud.hint(`Camera: ${this.cam.next()}`, 1.2);
     if (I.consume('lights')) { this.lightsOn = !this.lightsOn; this.hud.hint(this.lightsOn ? 'Headlights on' : 'Headlights off', 1.2); }
@@ -1009,7 +1023,7 @@ export class Game {
   onNet(m) {
     if (m.t === 'beacon') this.markFound(m.id, m.by === this.name ? null : m.by);
     else if (m.t === 'join') { this.hud.toast(`${m.name} joined`); this.chat.system(`${m.name} joined the room`); }
-    else if (m.t === 'leave') { this.hud.toast(`${m.name} left`); this.chat.system(`${m.name} left`); }
+    else if (m.t === 'leave') { this.hud.toast(`${m.name} left`); this.chat.system(`${m.name} left`); this.events.onLeave(m.id); }
     else if (m.t === 'chat') {
       const mine = m.id === this.net?.id, rv = this.remotes.get(m.id);
       this.chat.add(m.name, m.text, mine ? this.myColor : rv?.color, mine);
@@ -1119,6 +1133,12 @@ export class Game {
     if (v.hullContact > 0.8) this.cam.shake = Math.max(this.cam.shake, Math.min(0.12, v.hullContact * 0.04));
     if (v.impact > 0.5) this.cam.shake = Math.max(this.cam.shake, Math.min(0.2, v.impact * 0.05));
     this.feelGround(dt);
+    // king of the hill: the satnav finds the way to the hill
+    const mrun = this.events.run;
+    if (mrun?.event.kind === 'hill' && mrun.phase !== 'finished' && !this.route) {
+      const H = mrun.event.hill;
+      if (Math.hypot(H.x - v.pos.x, H.z - v.pos.z) > 30) this.setRoute({ kind: 'point', name: H.name, x: H.x, z: H.z }, true);
+    }
     this.updateRoute(dt);
     // the line on the ground: a run's course while it is on, else the satnav's route
     const runLine = this.events.run && this.events.run.phase !== 'finished' ? this.events.run.event.line : null;
@@ -1135,6 +1155,7 @@ export class Game {
     this.water.update(this.renderer.camera, dt, this.renderer.sky.state.horizon);
     this.landmarks.update(this.renderer.camera, dt);
     this.course.update(dt);
+    this.modeView.update(this.events.run, v.pos, dt);
     const Rn = this.renderer;
     this.effects.setLight(Rn.sky.sunDir, Rn.sun.color, Rn.sun.intensity, Rn.hemi.color, Rn.hemi.groundColor, Rn.hemi.intensity);
     this.effects.update(dt, this.world, Rn.camera);
@@ -1187,7 +1208,7 @@ export class Game {
       this.miniT = 0;
       if (this.chat.available !== !!this.net?.connected) this.chat.setAvailable(!!this.net?.connected);
       const run = this.events.run, courseLine = run && run.phase !== 'finished' && run.event.line;
-      this.hud.drawMinimap(v.pos, heading, mates, courseLine ? { points: courseLine } : this.route);
+      this.hud.drawMinimap(v.pos, heading, mates, courseLine ? { points: courseLine } : this.route, this.modeMarks());
       this.hud.drawObjective(v.pos, this.route);
       const vp = this.voicePanel;
       const list = [{ name: this.name, color: this.myColor, me: true, help: this.helpOn, tag: this.events.tagFor(this.net?.id), voice: vp?.stateOf(null) },

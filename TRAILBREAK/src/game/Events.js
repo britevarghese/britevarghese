@@ -86,6 +86,8 @@ export function eventsFor(world) {
 /** Medal for a time against the par times, or null. */
 export function medalFor(event, time) {
   const p = event.par;
+  // (higher: a score to beat, how long you lasted)
+  if (event.higher) return time >= p.gold ? 'gold' : time >= p.silver ? 'silver' : time >= p.bronze ? 'bronze' : null;
   return time <= p.gold ? 'gold' : time <= p.silver ? 'silver' : time <= p.bronze ? 'bronze' : null;
 }
 
@@ -182,7 +184,7 @@ export class EventRun {
  */
 export function standings(results, event = {}) {
   const k = event.prize ?? 1;
-  const done = results.filter((r) => Number.isFinite(r.time)).sort((a, b) => a.time - b.time);
+  const done = results.filter((r) => Number.isFinite(r.time)).sort((a, b) => (event.higher ? b.time - a.time : a.time - b.time));
   const out = results.filter((r) => !Number.isFinite(r.time));
   const n = results.length;
   return [...done.map((r, i) => ({ ...r, place: i + 1, prize: n > 1 ? Math.round((RACE_PRIZE[i] || 0) * k) : 0 })), ...out.map((r) => ({ ...r, place: null, prize: 0 }))];

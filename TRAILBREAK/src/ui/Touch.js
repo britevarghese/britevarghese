@@ -4,7 +4,7 @@
 
 const BUTTONS = [
   ['cam', 'camera', 'CAM'], ['hook', 'hook', 'WINCH'], ['rec', 'recover', 'RESET'],
-  ['rng', 'range', 'LOW'], ['lck', 'locks', 'LOCK'], ['air', 'air', 'AIR'], ['tow', 'tow', 'HELP'], ['map', 'map', 'MAP'], ['ev', 'event', 'EVENT'], ['esc', 'pause', '☰'],
+  ['rng', 'range', 'LOW'], ['lck', 'locks', 'LOCK'], ['air', 'air', 'AIR'], ['tow', 'tow', 'HELP'], ['map', 'map', 'MAP'], ['ev', 'event', 'EVENT'], ['mod', 'modes', 'MODES'], ['esc', 'pause', '☰'],
 ];
 
 export function isTouchDevice() {

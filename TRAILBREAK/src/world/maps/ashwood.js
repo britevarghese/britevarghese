@@ -160,17 +160,28 @@ export const EVENTS = [
 export const RACES = [
   { id: 'bogcircuit', kind: 'circuit', name: 'Bog Loop Circuit', desc: 'Two laps of the Bog Loop, round the edge of the Cattail Bog and back by the station: four checkpoints a lap.',
     via: [[20, 411], [215, 300], [320, 400], [140, 480], [-21, 441], [-24, 422]], laps: 2, cps: 4, r: 8, par: { gold: 270, silver: 325, bronze: 400 }, prize: 1.5 },
-  { id: 'eastford', kind: 'rally', name: 'East Ford Rally', desc: 'From the station round the bog, through the East Ford and up the Rock Garden Trail to the edge of the rocks.',
-    via: [[-58, 430], [265, 330], [347, 264], [541, -79]], cps: 6, r: 8, par: { gold: 112, silver: 134, bronze: 165 }, prize: 1.4 },
+  { id: 'eastford', kind: 'rally', name: 'East Ford Rally', desc: 'Round the edge of the bog, through the East Ford and up the Rock Garden Trail to the edge of the rocks.',
+    via: [[120, 360], [265, 330], [347, 264], [541, -79]], cps: 6, r: 8, par: { gold: 112, silver: 134, bronze: 165 }, prize: 1.4 },
   { id: 'pinecrest', kind: 'rally', name: 'Pinecrest Forest Sprint', desc: 'Flat out under the old pines from the Gorge Track junction to the fire tower.',
     trail: 'Pinecrest Trail', cps: 4, r: 8, par: { gold: 45, silver: 54, bronze: 66 }, prize: 1 },
   { id: 'meadows', kind: 'rally', name: 'South Meadows Rally', desc: 'Down the old valley road from the station and out across the South Meadows to the cabin.',
-    via: [[-58, 430], [-30, 760], [300, 838]], cps: 5, r: 8, par: { gold: 67, silver: 80, bronze: 98 }, prize: 1 },
+    via: [[-60, 470], [-30, 760], [300, 838]], cps: 5, r: 8, par: { gold: 67, silver: 80, bronze: 98 }, prize: 1 },
   { id: 'mirrorlake', kind: 'rally', name: 'Mirror Lake Run', desc: 'From the station along the Mirror Lake Trail to the far shore of the lake.',
-    trail: 'Mirror Lake Trail', cps: 4, r: 8, par: { gold: 49, silver: 58, bronze: 72 }, prize: 1 },
+    trail: 'Mirror Lake Trail', from: [-100, 443], cps: 4, r: 8, par: { gold: 49, silver: 58, bronze: 72 }, prize: 1 },
   { id: 'gorgerun', kind: 'rally', name: 'Gorge Track Rally', desc: 'Down the Gorge Track from the Pinecrest junction to the head of the gorge, through rock and pine.',
     trail: 'Gorge Track', to: [-850, -560], cps: 5, r: 8, par: { gold: 50, silver: 60, bronze: 73 }, prize: 1.3 },
 ];
+
+/**
+ * The party modes' places (game/Modes.js): the elimination arena (its first circle round the station's meadows) and
+ * the king of the hill's rise on the South Meadows, raced to from the old valley road.
+ */
+export const MODES = {
+  arena: { x: -20, z: 480, yaw: 0 },
+  hill: { x: 297, z: 837, r: 16, name: 'Meadow Rise' },
+  hillStart: [-50, 600],
+  hillPar: { gold: 100, silver: 125, bronze: 160 },
+};
 
 /** The map, as the game and the generator see it. */
 export const ASHWOOD = {
@@ -179,6 +190,6 @@ export const ASHWOOD = {
   tagline: 'Old trucks, real physics, good friends. Find the survey beacons of Ashwood Valley together.',
   seed: WORLD_SEED, station: STATION, spawn: SPAWN, dealer: 'Ashwood 4x4 Sales',
   river: RIVER, lake: LAKE, peaks: PEAKS, bog: BOG, rockGarden: ROCK_GARDEN, sandWash: SAND_WASH, sandStrip: SAND_STRIP,
-  snowLine: SNOW_LINE, trails: TRAILS, beacons: BEACONS, landmarks: LANDMARKS, events: EVENTS, races: RACES,
+  snowLine: SNOW_LINE, trails: TRAILS, beacons: BEACONS, landmarks: LANDMARKS, events: EVENTS, races: RACES, modes: MODES,
   ground: 'ashwood', trees: 'ashwood',
 };

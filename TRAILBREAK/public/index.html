@@ -101,8 +101,8 @@
       <div id="ev-name"></div>
       <div class="ev-bar">
         <div class="ev-box ev-cp"><svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M12 2.5a6.5 6.5 0 0 0-6.5 6.5c0 4.9 6.5 12.5 6.5 12.5s6.5-7.6 6.5-12.5A6.5 6.5 0 0 0 12 2.5zm0 9a2.5 2.5 0 1 1 0-5 2.5 2.5 0 0 1 0 5z" fill="currentColor"/></svg><b id="ev-cpn">0/0</b></div>
-        <div class="ev-box ev-clock"><span class="ev-lbl">CURRENT TIME</span><b id="ev-time"></b><span id="ev-best" class="ev-lbl"></span></div>
-        <div class="ev-box hidden" id="ev-lapbox"><span class="ev-lbl">LAP</span><b id="ev-lap">1/1</b></div>
+        <div class="ev-box ev-clock"><span class="ev-lbl" id="ev-timelbl">CURRENT TIME</span><b id="ev-time"></b><span id="ev-best" class="ev-lbl"></span></div>
+        <div class="ev-box hidden" id="ev-lapbox"><span class="ev-lbl" id="ev-laplbl">LAP</span><b id="ev-lap">1/1</b></div>
       </div>
       <div id="ev-info"></div>
       <div class="ev-btns"><button id="ev-restart">RESTART</button><button id="ev-leave" class="leave">LEAVE</button></div>
@@ -179,7 +179,7 @@
       <div class="menu-actions">
         <button id="resume" class="primary">Resume</button>
         <button id="menu-garage" class="ghost">Garage</button>
-        <button id="menu-events" class="ghost">Events</button>
+        <button id="menu-events" class="ghost">Modes &amp; races</button>
         <button id="menu-dealer" class="ghost">Dealer</button>
         <button id="respawn" class="ghost">Back to the station</button>
         <button id="show-help" class="ghost">Controls</button>
@@ -190,10 +190,10 @@
   <!-- events -->
   <section id="events" class="screen hidden">
     <div class="menu-card wide">
-      <h2>Events <button id="ev-close" class="ghost icon" aria-label="Close">&#x2715;</button></h2>
-      <p class="dim">Drive to a start line (the flags on the map) and press <b>J</b>. Beat the par times for medal money: each
-        medal level pays once, and every finish pays a little. With friends in the room, J opens a race: they have 15 s
-        to press J and line up beside you, and the places pay out.</p>
+      <h2>Modes &amp; races <button id="ev-close" class="ghost icon" aria-label="Close">&#x2715;</button></h2>
+      <p class="dim"><b>Start</b> lines you up and counts down; or drive to a start line (the flags on the map) and press <b>J</b>.
+        Beat the par times for medal money: each medal level pays once, and every finish pays a little. With friends in the
+        room, starting opens it for them: they have 15 s to press J and line up beside you, and the places pay out.</p>
       <div id="ev-list" class="dealer-list"></div>
     </div>
   </section>
@@ -262,6 +262,7 @@
           <dt>C</dt><dd>Camera (drag the mouse to look around)</dd>
           <dt>H</dt><dd>Headlights</dd>
           <dt>M</dt><dd>Map: tap a place or the ground to set a route; fast travel</dd>
+          <dt>N</dt><dd>Modes &amp; races: party modes, checkpoint races, events</dd>
           <dt>Enter</dt><dd>Chat (or the chat button): quick phrases, history</dd>
           <dt>V</dt><dd>Voice chat: join, then mute and unmute (push to talk: hold it)</dd>
           <dt>Esc</dt><dd>Pause, invite link, settings</dd>

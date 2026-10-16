@@ -133,10 +133,10 @@ export class Career {
   // ---- events
   best(eventId) { return this.d.best[eventId] || null; }
 
-  /** Record a result { time, medal }; returns true if it is a personal best. */
-  record(eventId, result) {
+  /** Record a result { time, medal } (higher: the more the better); returns true if it is a personal best. */
+  record(eventId, result, higher = false) {
     const b = this.d.best[eventId];
-    if (b && b.time <= result.time) return false;
+    if (b && (higher ? b.time >= result.time : b.time <= result.time)) return false;
     this.d.best[eventId] = { time: result.time, medal: result.medal || (b && b.medal) || null };
     this.save();
     return true;

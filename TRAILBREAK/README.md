@@ -87,6 +87,7 @@ Without the Blueprint: **New > Web Service** with this repository, branch `claud
 | Map (zoom, pan, set a route, fast travel; or tap the minimap) | M | View |
 | Chat: the room's messages, quick phrases (or the chat button) | Enter | |
 | Voice chat: join it, then mute and unmute your mic (push-to-talk: hold it) | V | the mic button |
+| Modes & races: party modes, checkpoint races, events | N | |
 | Pause, invite link, settings | Esc | Start |
 | Controls | F1 | |
 
@@ -245,6 +246,20 @@ puts you back at the last checkpoint passed, facing the next, while the clock ru
 
 The races live in each map's `races` list (src/world/maps/), built by src/game/Races.js onto the trails as they are
 (the world's ground isn't changed by them).
+
+**Party modes** (Esc > Modes & races, **N**, or MODES on a phone), best in a room with friends; alone you play them
+against the clock:
+
+- **Elimination:** everyone starts in a wide circle round the station that holds, then shrinks, again and again, to
+  nothing, behind a glowing wall (on the minimap and the map too, the next circle dashed). Outside it your truck
+  loses a tenth of its health a second; at none you're out. The last truck in wins; alone, last as long as you can
+  (3:37, the whole way, for gold). Every truck in the room works out the same circles from the match's start time.
+- **King of the Hill:** race to the rise (Meadow Rise on Ashwood, Reservoir Rise in Kerala: the satnav shows the way)
+  and hold it: 45 s inside its ring with nobody else in it wins (contested, nobody's time counts). Push them out!
+
+The **Modes & races** list (Esc, N) has them all, grouped: free roam, the party modes, the checkpoint races and the
+events, each with **Start** (lined up and counted down at once; with friends in the room it opens it for them to join)
+and **Go to the start**.
 
 With friends in the room, J opens a race instead: they get a message and 15 seconds to press J, which lines them up
 beside you; everyone's clock starts together (the server's), and the places pay out (1st $2,500, 2nd $1,200, 3rd

@@ -430,3 +430,13 @@ body.has-ev #toasts { top: 196px; }
 /* ---------- quick match */
 button.quick { background: var(--accent-2); border-color: var(--accent-2); color: #0f2421; font-weight: 700; letter-spacing: .02em; }
 button.quick:hover { background: #63c4ba; }
+
+#ev-panel.danger .ev-box { border-color: rgba(224, 86, 59, .9); background: rgba(80, 18, 12, .72); }
+#ev-panel.danger #ev-info { color: #ff8a73; font-weight: 700; }
+.ev-r-note { color: var(--accent-2); font-weight: 700; margin-top: 4px; }
+
+/* ---------- modes & races list */
+.ev-group { margin: 16px 0 6px; font-size: 13px; letter-spacing: .1em; text-transform: uppercase; color: var(--accent); }
+.ev-group small { text-transform: none; letter-spacing: 0; color: var(--ink-dim); font-weight: 400; margin-left: 6px; font-size: 12px; }
+.ev-acts { display: flex; gap: 6px; flex-wrap: wrap; }
+.ev-cp.mode svg { display: none; }

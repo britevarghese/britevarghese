@@ -4,6 +4,7 @@
 // and are lined up beside you, everyone's clock starts together, and the server collects the times (server/rooms.js).
 import { eventsFor, EventRun, medalFor, clock, runPrize, standings, gridFor, COUNTDOWN, TOUCH_PENALTY } from './Events.js';
 import { racesFor } from './Races.js';
+import { modesFor, ZoneRun, HillRun, HOLD } from './Modes.js';
 import { money } from './Career.js';
 import { escapeHtml } from '../ui/HUD.js';
 
@@ -12,13 +13,15 @@ const $ = (id) => document.getElementById(id);
 const MEDAL_NAME = { gold: 'Gold', silver: 'Silver', bronze: 'Bronze' };
 const fmt = (t) => (t < 60 ? `${t.toFixed(1)} s` : clock(t));
 /** What sort of event it is, for the lists and the map. */
-export const kindOf = (e) => (e.kind === 'circuit' ? `Circuit · ${e.laps} laps` : e.kind === 'rally' ? `Rally · ${(e.length / 1000).toFixed(1)} km` : e.kind === 'slalom' ? 'Trials' : e.kind === 'trail' ? 'Hill climb' : 'Dash');
+export const kindOf = (e) => (e.kind === 'circuit' ? `Circuit · ${e.laps} laps` : e.kind === 'rally' ? `Rally · ${(e.length / 1000).toFixed(1)} km` : e.kind === 'slalom' ? 'Trials'
+  : e.kind === 'trail' ? 'Hill climb' : e.kind === 'zone' ? 'Party mode · last truck in' : e.kind === 'hill' ? 'Party mode · hold the hill' : 'Dash');
 
 export class EventPlay {
   constructor(game) {
     this.g = game;
-    // the map's events, then its checkpoint races (game/Races.js)
-    this.events = [...eventsFor(game.world), ...racesFor(game.world)];
+    // the map's events, its checkpoint races (game/Races.js) and its party modes (game/Modes.js)
+    this.events = [...eventsFor(game.world), ...racesFor(game.world), ...modesFor(game.world)];
+    this.picked = null;            // the one last picked in the list or on the map: J starts it where starts are close
     this.byId = new Map(this.events.map((e) => [e.id, e]));
     this.grids = new Map(this.events.map((e) => [e.id, gridFor(game.world, e)]));
     this.simT = 0;
@@ -30,7 +33,7 @@ export class EventPlay {
     this.lastCount = null;
     this.promptT = 0;
     this.panel = { el: $('ev-panel'), name: $('ev-name'), time: $('ev-time'), info: $('ev-info'), count: $('ev-count'), result: $('ev-result'),
-      cp: $('ev-cpn'), lap: $('ev-lap'), lapBox: $('ev-lapbox'), best: $('ev-best'), restart: $('ev-restart'), leave: $('ev-leave') };
+      cp: $('ev-cpn'), lap: $('ev-lap'), lapBox: $('ev-lapbox'), lapLbl: $('ev-laplbl'), timeLbl: $('ev-timelbl'), best: $('ev-best'), restart: $('ev-restart'), leave: $('ev-leave') };
     const tap = (el, fn) => el?.addEventListener('click', (e) => { e.preventDefault(); e.currentTarget.blur(); fn(); this.g.renderer.renderer.domElement.focus(); });
     tap(this.panel.restart, () => this.restart());
     tap(this.panel.leave, () => this.leave());
@@ -51,11 +54,13 @@ export class EventPlay {
 
   friendsHere() { return !!this.g.net?.connected && [...this.g.remotes.values()].some((r) => r.state); }
 
-  /** The event whose start line we are at, or null. */
+  /** The event whose start line we are at (the one last picked, else the nearest), or null. */
   startHere() {
-    const p = this.g.vehicle.pos;
-    for (const e of this.events) if (Math.hypot(p.x - e.start.x, p.z - e.start.z) < NEAR) return e;
-    return null;
+    const p = this.g.vehicle.pos, d = (e) => Math.hypot(p.x - e.start.x, p.z - e.start.z);
+    if (this.picked && d(this.picked) < NEAR) return this.picked;
+    let best = null;
+    for (const e of this.events) if (d(e) < NEAR && (!best || d(e) < d(best))) best = e;
+    return best;
   }
 
   // ---------------------------------------------------------------- J
@@ -97,6 +102,7 @@ export class EventPlay {
   goTo(id) {
     const e = this.byId.get(id);
     if (!e || this.racing) return;
+    this.picked = e;
     this.lineUp(e, 0);
     this.hold = false;
     this.g.hud.toast(`${e.name}: J to start${this.friendsHere() ? ' a race (friends can join)' : ''}`, false, 5);
@@ -122,9 +128,10 @@ export class EventPlay {
     this.hold = true;
   }
 
-  startRun(e, startAt) {
+  /** seed: a match's start (server ms) when racing friends, so everyone works out the same zones. */
+  startRun(e, startAt, seed = Date.now()) {
     this.g.hud.clearHint?.();
-    this.run = new EventRun(e, startAt);
+    this.run = e.kind === 'zone' ? new ZoneRun(e, startAt, this.g.world.data.trails, seed) : e.kind === 'hill' ? new HillRun(e, startAt) : new EventRun(e, startAt);
     this.lastEvent = e;
     this.hold = true;
     this.lastCount = null;
@@ -191,7 +198,7 @@ export class EventPlay {
     this.giveUpT = Math.max(0, this.giveUpT - dt);
     if (this.resultT > 0 && (this.resultT -= dt) <= 0) this.closeResult();
     if (run) {
-      const r = run.update(this.now, v.pos, knock);
+      const r = run.update(this.now, v.pos, knock, run instanceof HillRun ? this.othersAt() : undefined);
       if (run.phase === 'countdown') {
         const left = run.countdown(this.now);
         const n = Math.ceil(left);
@@ -236,22 +243,32 @@ export class EventPlay {
     const set = (el, text) => { if (el && el.textContent !== text) el.textContent = text; };
     if (run) {
       const e = run.event, n = e.gates.length, laps = e.laps || 1;
-      set(P.name, e.name + (this.inRace ? ` · race of ${this.race.racers.length}` : ''));
-      set(P.cp, `${Math.min(run.gate, n)}/${n}`);
-      P.lapBox?.classList.toggle('hidden', laps < 2);
-      if (laps > 1) set(P.lap, `${Math.min(e.gates[run.gate]?.lap ?? laps, laps)}/${laps}`);
+      set(P.name, e.name + (this.inRace ? ` · ${this.race.racers.length} trucks` : ''));
       const best = this.g.career?.best(e.id);
       set(P.best, best ? `BEST ${clock(best.time)}` : `GOLD ${clock(e.par.gold)}`);
+      P.el.classList.toggle('danger', run instanceof ZoneRun && run.outside && run.phase === 'running');
+      if (run instanceof ZoneRun || run instanceof HillRun) {
+        this.drawMode(run);
+        set(P.timeLbl, run instanceof ZoneRun ? 'SURVIVED' : 'CURRENT TIME');
+      } else {
+        set(P.timeLbl, 'CURRENT TIME');
+        set(P.cp, `${Math.min(run.gate, n)}/${n}`);
+        P.lapBox?.classList.toggle('hidden', laps < 2);
+        set(P.lapLbl, 'LAP');
+        if (laps > 1) set(P.lap, `${Math.min(e.gates[run.gate]?.lap ?? laps, laps)}/${laps}`);
+      }
       P.restart?.classList.toggle('hidden', this.inRace);
+      const isMode = run instanceof ZoneRun || run instanceof HillRun;
+      P.cp?.parentElement.classList.toggle('mode', isMode);
       if (run.phase === 'countdown') {
         const left = run.countdown(this.now);
         set(P.time, '0:00.0');
-        set(P.info, left > COUNTDOWN + 0.6 ? `Lined up. Starts in ${Math.ceil(left)} s${this.inRace ? ': friends press J to join' : ''}` : `Gold ${fmt(e.par.gold)} · silver ${fmt(e.par.silver)} · bronze ${fmt(e.par.bronze)}`);
+        if (!isMode || left > COUNTDOWN + 0.6) set(P.info, left > COUNTDOWN + 0.6 ? `Lined up. Starts in ${Math.ceil(left)} s${this.inRace ? ': friends press J to join' : ''}` : `Gold ${fmt(e.par.gold)} · silver ${fmt(e.par.silver)} · bronze ${fmt(e.par.bronze)}`);
         if (left <= COUNTDOWN) count = String(Math.ceil(left));
       } else {
         set(P.time, clock(run.time));
         const pen = run.penalty ? `+${run.penalty} s penalties · ` : '';
-        set(P.info, run.phase === 'finished' ? (this.inRace ? 'Finished: waiting for the others' : 'Finished') : `${pen}R: back to the last checkpoint`);
+        if (!(run instanceof ZoneRun || run instanceof HillRun)) set(P.info, run.phase === 'finished' ? (this.inRace ? 'Finished: waiting for the others' : 'Finished') : `${pen}R: back to the last checkpoint`);
         if (this.goT > 0) count = 'GO';
       }
     } else if (raceWait) {
@@ -262,6 +279,28 @@ export class EventPlay {
     if (P.count.textContent !== count) { P.count.textContent = count; P.count.classList.toggle('hidden', !count); P.count.classList.toggle('go', count === 'GO'); }
   }
 
+  /** The other trucks in the room (King of the Hill: who is on the hill with us). */
+  othersAt() { return [...this.g.remotes.values()].filter((r) => r.state).map((r) => r.model.root.position); }
+
+  /** The party modes' readouts: health and the zone (elimination), the hill held (king of the hill). */
+  drawMode(run) {
+    const P = this.panel, set = (el, text) => { if (el && el.textContent !== text) el.textContent = text; };
+    P.lapBox?.classList.remove('hidden');
+    if (run instanceof ZoneRun) {
+      set(P.cp, `♥ ${Math.ceil(run.health)}`);
+      const alive = this.inRace ? this.race.racers.filter((r) => !this.race.times.has(r.id)).length : 1;
+      set(P.lapLbl, 'IN'); set(P.lap, this.inRace ? `${alive}/${this.race.racers.length}` : '1');
+      const z = run.zone;
+      if (run.phase === 'countdown') set(P.info, 'Stay inside the circle: it shrinks, again and again. Outside it, your truck takes damage');
+      else set(P.info, run.outside ? 'OUTSIDE THE ZONE! Get back in' : z.r <= 0 ? 'The zone has closed' : z.shrinking ? `The zone is closing: ${Math.ceil(z.left)} s` : `The zone shrinks in ${Math.ceil(z.left)} s`);
+    } else {
+      const H = run.event.hill, p = this.g.vehicle.pos, d = Math.hypot(p.x - H.x, p.z - H.z);
+      set(P.cp, `${Math.floor(run.held)}/${HOLD} s`);
+      set(P.lapLbl, 'HILL'); set(P.lap, run.inside ? 'ON IT' : d < 1000 ? `${Math.round(d)} m` : `${(d / 1000).toFixed(1)} km`);
+      set(P.info, run.phase === 'countdown' ? `First to hold ${H.name} for ${HOLD} s, alone in its ring, wins` : run.contested ? 'CONTESTED: push them out!' : run.inside ? `Holding ${H.name}` : `Get to ${H.name}: follow the line`);
+    }
+  }
+
   /** Our run is over: medal and prize money, personal best, and (racing) our time to the room. */
   finished() {
     const g = this.g, run = this.run, e = run.event, time = run.time;
@@ -269,21 +308,21 @@ export class EventPlay {
     g.audio.beep?.(1568, 0.5, 0.1);
     const medal = medalFor(e, time), before = g.career?.best(e.id);
     const prize = runPrize(e, medal, before?.medal);
-    const pb = !before || time < before.time;
+    const pb = !before || (e.higher ? time > before.time : time < before.time);
     if (g.career) {
       if (prize.medal) g.career.add(prize.medal, `${MEDAL_NAME[medal]}: ${e.name}`);
       g.career.add(prize.finish, `Finished the ${e.name}`);
-      g.career.record(e.id, { time, medal });
+      g.career.record(e.id, { time, medal }, !!e.higher);
     }
     if (this.inRace) {
       g.net.send({ t: 'ev', k: 'done', time });
       (this.race.times || (this.race.times = new Map())).set(g.net.id, time);
     }
-    this.showResult({ e, time, medal, prize, pb, before, penalty: run.penalty });
+    this.showResult({ e, time, medal, prize, pb, before, penalty: run.penalty, note: run instanceof ZoneRun ? (run.out ? 'Out of the zone' : 'The last truck in!') : run instanceof HillRun && run.held < HOLD ? 'Someone else held the hill' : '' });
     this.run = null;
   }
 
-  showResult({ e, time, medal, prize, pb, before, penalty, table }) {
+  showResult({ e, time, medal, prize, pb, before, penalty, table, note }) {
     const el = this.panel.result;
     if (!el) return;
     const rows = table ? `<table class="ev-table">${table.map((r) => `<tr class="${r.me ? 'me' : ''}"><td>${r.place ?? '–'}</td><td>${escapeHtml(r.name)}</td><td>${Number.isFinite(r.time) ? fmt(r.time) : 'did not finish'}</td><td>${r.prize ? money(r.prize) : ''}</td></tr>`).join('')}</table>` : '';
@@ -292,9 +331,10 @@ export class EventPlay {
     if (prize?.finish) lines.push(`${money(prize.finish)} for finishing`);
     el.innerHTML = `
       <div class="ev-r-name">${escapeHtml(e.name)}</div>
+      ${note ? `<div class="ev-r-note">${escapeHtml(note)}</div>` : ''}
       ${time !== undefined ? `<div class="ev-r-time">${fmt(time)}${penalty ? ` <small>(${penalty} s of penalties)</small>` : ''}</div>
-      <div class="ev-r-medal ${medal || 'none'}">${medal ? `${MEDAL_NAME[medal]} medal` : `No medal: bronze is ${fmt(e.par.bronze)}`}</div>
-      <div class="ev-r-pb">${pb ? (before ? `Personal best! (was ${fmt(before.time)})` : 'Your first time on this course') : `Your best: ${fmt(before.time)}`}</div>` : ''}
+      <div class="ev-r-medal ${medal || 'none'}">${medal ? `${MEDAL_NAME[medal]} medal` : `No medal: bronze is ${e.higher ? 'lasting ' : ''}${fmt(e.par.bronze)}`}</div>
+      <div class="ev-r-pb">${pb ? (before ? `Personal best! (was ${fmt(before.time)})` : e.mode ? 'Your first go at it' : 'Your first time on this course') : `Your best: ${fmt(before.time)}`}</div>` : ''}
       ${lines.length ? `<div class="ev-r-prize">${lines.join(' · ')}</div>` : ''}
       ${rows}
       <div class="ev-r-actions"><button data-again class="primary">Again (J)</button><button data-close class="ghost">Close</button></div>`;
@@ -314,7 +354,7 @@ export class EventPlay {
       if (m.by === me) {
         if (this.racing) this.giveUp('You left your run for the race');
         this.lineUp(e, 0);
-        this.startRun(e, this.toLocal(m.at));
+        this.startRun(e, this.toLocal(m.at), m.at);
         g.hud.toast(`Race open: ${e.name}. Your friends have ${Math.round((m.at - this.serverNow()) / 1000)} s to press J and join`, true, 6);
       } else {
         g.hud.toast(`${m.name} opened a race: ${e.name}. Press J within ${Math.round((m.at - this.serverNow()) / 1000)} s to join`, true, 8);
@@ -326,12 +366,13 @@ export class EventPlay {
         if (this.racing) this.giveUp('You left your run for the race');
         this.closeResult();
         this.lineUp(e, m.racers.findIndex((r) => r.id === me));
-        this.startRun(e, this.toLocal(this.race.at));
+        this.startRun(e, this.toLocal(this.race.at), this.race.at);
         g.hud.toast(`Lined up for the ${e.name}`, false, 4);
       } else if (m.pid !== me) g.chat.system(`${m.name} joined the ${e?.name || 'race'}`);
     } else if (m.k === 'done' && this.race) {
       this.race.times.set(m.pid, m.time);
-      if (m.pid !== me) g.chat.system(Number.isFinite(m.time) ? `${m.name} finished: ${fmt(m.time)}` : `${m.name} gave up`);
+      if (m.pid !== me) g.chat.system(Number.isFinite(m.time) ? `${m.name} ${e?.kind === 'zone' ? `is out after ${fmt(m.time)}` : e?.kind === 'hill' ? `: ${fmt(m.time)}` : `finished: ${fmt(m.time)}`}` : `${m.name} gave up`);
+      if (m.pid !== me) this.othersDone(Number.isFinite(m.time) ? m.time : null);
     } else if (m.k === 'end') {
       this.race = null;
       if (!e || !m.results.some((r) => r.id === me)) return;
@@ -343,6 +384,31 @@ export class EventPlay {
       this.showResult({ e, table });
       g.hud.toast(place ? `${place} in the ${e.name}${mine.prize ? `: ${money(mine.prize)}` : ''}` : `${e.name}: race over`, true, 6);
     }
+  }
+
+  /**
+   * Someone else's match is over. King of the hill: one of them held it, so ours ends where we stand. Elimination:
+   * everyone else is out, so we are the last truck in.
+   */
+  // (each truck times its own run on its own clock, a little apart: the order is what counts, so the winner of a hill
+  // stands ahead of us, and the last truck in ahead of all the others)
+  othersDone(time) {
+    const run = this.run, me = this.g.net?.id;
+    if (!run || run.phase !== 'running' || !this.inRace) return;
+    if (run instanceof HillRun && time !== null) { run.time = Math.max(run.standing(), time + 0.1); run.phase = 'finished'; this.finished(); return; }
+    if (run instanceof ZoneRun && this.race.racers.every((r) => r.id === me || this.race.times.has(r.id))) {
+      const longest = Math.max(0, ...[...this.race.times.values()].filter(Number.isFinite));
+      run.time = Math.max(run.time, longest + 0.1);
+      run.phase = 'finished';
+      this.finished();
+    }
+  }
+
+  /** A player left the room: out of the race. */
+  onLeave(id) {
+    if (!this.race || !this.race.racers.some((r) => r.id === id) || this.race.times.has(id)) return;
+    this.race.times.set(id, null);
+    this.othersDone(null);
   }
 
   /** Joining a room with a race on (the welcome). */
@@ -362,16 +428,32 @@ export class EventPlay {
 
   // ---------------------------------------------------------------- the Events list (pause menu)
   listHtml() {
-    const g = this.g;
-    return this.events.map((e) => {
+    const g = this.g, friends = this.friendsHere();
+    const row = (e) => {
       const best = g.career?.best(e.id);
       const medal = best?.medal;
+      const par = e.higher ? `Last ${fmt(e.par.bronze)} for bronze, ${fmt(e.par.silver)} silver, ${fmt(e.par.gold)} gold` : `Par: gold ${fmt(e.par.gold)} · silver ${fmt(e.par.silver)} · bronze ${fmt(e.par.bronze)}`;
       return `<div class="dealer-row ev-row${medal ? ' mine' : ''}">
         <b>${escapeHtml(e.name)}${medal ? ` <span class="ev-medal ${medal}">${MEDAL_NAME[medal]}</span>` : ''} <span class="ev-kind">${kindOf(e)}</span></b>
         <span class="blurb">${escapeHtml(e.desc)}</span>
-        <span class="stats">Par: gold ${fmt(e.par.gold)} · silver ${fmt(e.par.silver)} · bronze ${fmt(e.par.bronze)}${best ? ` · your best ${fmt(best.time)}` : ''} · gold pays ${money(runPrize(e, 'gold', null).medal)}</span>
-        <button class="ghost" data-go="${e.id}">Go to the start</button>
+        <span class="stats">${par}${best ? ` · your best ${fmt(best.time)}` : ''} · gold pays ${money(runPrize(e, 'gold', null).medal)}</span>
+        <span class="ev-acts"><button class="primary small" data-start="${e.id}">${friends ? 'Start: friends join' : 'Start'}</button><button class="ghost small" data-go="${e.id}">Go to the start</button></span>
       </div>`;
-    }).join('');
+    };
+    const group = (title, note, list) => (list.length ? `<h3 class="ev-group">${title}${note ? ` <small>${note}</small>` : ''}</h3>${list.map(row).join('')}` : '');
+    return `<h3 class="ev-group">Free roam <small>explore, survey the beacons, winch your friends out</small></h3>
+      <div class="dealer-row ev-row"><span class="blurb">The whole map is yours: the satnav (M) finds the way anywhere.</span><span class="ev-acts"><button class="ghost small" data-free>Drive</button></span></div>
+      ${group('Party modes', friends ? 'Start one and your friends have 15 s to press J and join' : 'best with friends in the room; alone, against the clock', this.events.filter((e) => e.mode))}
+      ${group('Checkpoint races', 'circuits and rallies through numbered arches', this.events.filter((e) => e.race))}
+      ${group('Events', 'climbs, dashes and trials', this.events.filter((e) => !e.mode && !e.race))}`;
+  }
+
+  /** From the list: line up for an event now (with friends here: open it for them to join). */
+  startNow(id) {
+    const e = this.byId.get(id);
+    if (!e || this.racing) return;
+    this.picked = e;
+    this.lineUp(e, 0);
+    this.begin(e);
   }
 }
