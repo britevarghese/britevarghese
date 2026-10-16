@@ -112,9 +112,13 @@ camera, map and menu (play in landscape).
 
 ## Damage
 
-Trucks break the way real ones do (physics/Damage.js). How hard is the **Damage** setting (Esc menu):
+Trucks can break the way real ones do (physics/Damage.js). How much is the **Damage** setting (Esc menu):
 
-- **Forgiving** (the default): it takes a proper crash to break anything (about twice the speeds below), a holed
+- **Cosmetic** (the default): crashes only show. The panels take a few shallow dents (a dozen at most, never deeper
+  than 6 cm), the windscreen cracks and the windows shatter, a headlamp can break; nothing mechanical goes. No leaks or
+  overheating, no bent steering, broken springs, snapped shafts or flat tyres, and the engine never seizes or stalls:
+  upside down it keeps running, and with water in the intake it only coughs and loses power until it breathes again.
+- **Forgiving**: it takes a proper crash to break anything (about twice the speeds below), a holed
   radiator leaks slowly, an overheating or oil-starved engine runs rough and loses power but never seizes, and water
   in the intake stalls it rather than bending a rod (unless it is revving flat out). Tie rods only bend in a big hit,
   and then only a little.

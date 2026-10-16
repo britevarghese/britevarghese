@@ -487,7 +487,8 @@ export class Vehicle {
     this._dtIn = this._dtIn || { throttle: 0, brakeTorque: bt };
     this._dtIn.throttle = throttle;
     const D = this.damage;
-    dtr.powerMul = D.power;
+    // (cosmetic damage: water in the intake doesn't stop the engine, it chokes it: it coughs and makes a third)
+    dtr.powerMul = D.power * (this.intakeWet && D.k.runs ? 0.35 : 1);
     dtr.seized = D.seized;
     dtr.broken = D.shafts;
     dtr.step(dt, this._dtIn, this.wheels);
@@ -827,7 +828,7 @@ export class Vehicle {
   /**
    * The engine breathes through the intake (the air cleaner under the bonnet, or a snorkel up the pillar). Water
    * there stops it; a bow wave raises the water at the front when driving in too fast. It starts again once the
-   * intake has been out of the water for a few seconds.
+   * intake has been out of the water for a few seconds. (With cosmetic damage it only chokes: see the power above.)
    */
   intakeStep(ground, dt) {
     let wet = false;
@@ -843,7 +844,7 @@ export class Vehicle {
     }
     this.intakeWet = wet;
     const dtr = this.dt;
-    if (wet && dtr.running) { this.damage.hydrolock(dtr.rpm); dtr.stall(); this.flooded = true; this.floodClear = 0; }
+    if (wet && dtr.running && !this.damage.k.runs) { this.damage.hydrolock(dtr.rpm); dtr.stall(); this.flooded = true; this.floodClear = 0; }
     if (this.flooded) {
       if (wet) this.floodClear = 0;
       else if ((this.floodClear += dt) > 2.5) { this.flooded = false; dtr.start(); }

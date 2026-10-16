@@ -183,16 +183,20 @@ test('crawl ratio: the crawler build creeps up a 35 degree rock slope that stops
   assert.ok(crawler > 3 && crawler > stock + 1, `35 degree rock: stock ${stock.toFixed(2)} m, crawler ${crawler.toFixed(2)} m`);
 });
 
-test('snorkel: deep water stops the stock engine; with a snorkel it keeps running', () => {
-  const wade = (build) => {
+test('snorkel: deep water stops the stock engine (cosmetic damage: chokes it); with a snorkel it keeps running', () => {
+  const wade = (build, level = 'forgiving') => {
     const g = flooded(flat(), 1.05);
     const v = truck('ranger', build, g);
+    v.damage.setLevel(level);
     run(v, g, 3, { ...IDLE, throttle: 0.2 });
     return v;
   };
   const stock = wade(undefined), snork = wade({ intake: 1 });
   assert.ok(stock.flooded && !stock.dt.running, 'stock air cleaner under water: stalled');
   assert.ok(!snork.flooded && snork.dt.running, 'snorkel: running');
+  const choked = wade(undefined, 'cosmetic'), breathing = wade({ intake: 1 }, 'cosmetic');
+  assert.ok(!choked.flooded && choked.dt.running && choked.dt.powerMul < 0.5, `cosmetic: still running, choked (${choked.dt.powerMul})`);
+  assert.equal(breathing.dt.powerMul, 1, 'snorkel: full power');
   // out of the water it starts again after a few seconds
   const dry = flat();
   run(stock, dry, 4, IDLE);

@@ -21,9 +21,12 @@
 // The renderer takes the new dents (newDents) and the state for glass, lights, steam and smoke.
 //
 // How hard things break is the damage level (the game's setting). Realistic: all of the above, as on a real truck.
-// Forgiving (the default): it takes a proper crash to break anything, a holed radiator leaks slowly, an overheating or
-// leaking engine runs rough and loses power but never seizes, and water in the intake stalls it (only flat out does it
-// bend a rod).
+// Forgiving: it takes a proper crash to break anything, a holed radiator leaks slowly, an overheating or leaking engine
+// runs rough and loses power but never seizes, and water in the intake stalls it (only flat out does it bend a rod).
+// Cosmetic (the default): crashes only show. The panels dent (a few shallow dents, not a crumpled wreck), the glass
+// cracks and shatters and a headlamp can break, but nothing mechanical goes: no leaks, no overheating, no bent
+// steering, broken springs, snapped shafts or flat tyres, and the engine never seizes or stalls (upside down or with
+// water in the intake it only coughs and loses power until it breathes again).
 
 const share = (spec) => (spec.mass * 9.81) / 4;
 
@@ -43,8 +46,14 @@ export const DAMAGE_LEVELS = {
     dent: 3.6, glass: 4.5, lamp: 5.5, radiator: 7.5, leak: 0.035, pan: 5.5, panLeak: 0.015, tieRod: 9, toe: 0.0012, toeMax: 0.018,
     shock: 19, spring: 24, cut: 0.25, bead: 0.25, shaft: 1.35, cook: 0.0008, wear: 0.0012, limp: 0.4, hydro: 3200, hydroSpan: 6000,
   },
+  // looks only: dents a third as deep (at most 6 cm), a dozen of them at most, and the glass and lamps; the rest never
+  cosmetic: {
+    dent: 4.2, dentDepth: 0.35, dentMax: 0.06, dents: 12, glass: 5, lamp: 6.5, radiator: Infinity, leak: 0, pan: Infinity, panLeak: 0,
+    tieRod: Infinity, toe: 0, toeMax: 0, shock: Infinity, spring: Infinity, cut: 0, bead: 0, shaft: Infinity, cook: 0, wear: 0, limp: 1,
+    hydro: Infinity, hydroSpan: 1, runs: true,
+  },
 };
-export const DAMAGE_LEVEL = 'forgiving';
+export const DAMAGE_LEVEL = 'cosmetic';
 export const DENT_SPEED = DAMAGE_LEVELS.realistic.dent;          // m/s closing speed that starts to dent panels (realistic)
 
 export class Damage {
@@ -54,7 +63,7 @@ export class Damage {
     this.reset();
   }
 
-  /** How hard things break: 'forgiving' or 'realistic' (see DAMAGE_LEVELS). */
+  /** How hard things break: 'cosmetic', 'forgiving' or 'realistic' (see DAMAGE_LEVELS). */
   setLevel(level) {
     this.level = DAMAGE_LEVELS[level] ? level : DAMAGE_LEVEL;
     this.k = DAMAGE_LEVELS[this.level];
@@ -110,8 +119,11 @@ export class Damage {
     else if ((front || rear) && y < 0.75) tough = 1.6;
     else if (s.sliders && y < 0.65) tough = 2.5;
     const over = v / tough - k.dent;
-    if (over > 0 && !belly) {
-      const depth = Math.min(0.2, 0.03 * Math.pow(over, 1.15)), r = 0.32 + 0.05 * v;
+    // (cosmetic: a few shallow dents; a panel already pushed in as far as it goes takes no more)
+    const full = k.dents && (this.dentCount >= k.dents
+      || this.dents.some((d) => d.depth >= k.dentMax * 0.8 && Math.hypot(d.p[0] - p.x, d.p[1] - p.y, d.p[2] - p.z) < d.r * 0.8));
+    if (over > 0 && !belly && !full) {
+      const depth = Math.min(k.dentMax ?? 0.2, 0.03 * (k.dentDepth ?? 1) * Math.pow(over, 1.15)), r = (0.32 + 0.05 * v) * (k.dents ? 0.8 : 1);
       const dent = { p: [p.x, p.y, p.z], d: [n.x, n.y, n.z], depth, r };
       this.dents.push(dent);
       this.dentCount++;
@@ -212,10 +224,10 @@ export class Damage {
     }
   }
 
-  /** Water got into the intake at rpm: a bent rod above the level's revs (realistic: ~1300 rpm). */
+  /** Water got into the intake at rpm: a bent rod above the level's revs (realistic: ~1300 rpm; cosmetic: never). */
   hydrolock(rpm) {
     const k = this.k;
-    if (rpm < k.hydro) return;
+    if (!(rpm >= k.hydro)) return;
     this.engine = Math.max(0, this.engine - (rpm - k.hydro) / k.hydroSpan);
     this.say(this.engine <= 0 ? 'Water in the engine at speed: a rod is bent. It won\'t turn over: get a tow' : 'Water in the engine: it knocks and has lost power', 'bad');
   }
@@ -238,8 +250,8 @@ export class Damage {
       const floor = Math.min(this.engine, this.k.limp);
       if (this.temp > 125) this.engine = Math.max(floor, this.engine - dt * (this.temp - 125) * this.k.cook);
       if (this.oil) this.engine = Math.max(floor, this.engine - dt * this.oil * (0.2 + load) * this.k.wear);
-      // upside down: oil and fuel starve and it stops
-      this.upside = upY < -0.25 ? this.upside + dt : 0;
+      // upside down: oil and fuel starve and it stops (cosmetic: it keeps running)
+      this.upside = upY < -0.25 && !this.k.runs ? this.upside + dt : 0;
       if (this.upside > 1.5) { dtr.stall(); this.upside = 0; this.say('Engine stalled upside down: right the truck and restart it (E)'); }
       if (this.engine <= 0) { dtr.stall(); this.say('Engine seized: it needs a tow to the station', 'bad'); }
     }

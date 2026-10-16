@@ -36,8 +36,9 @@ test('ordinary driving breaks nothing: accelerating, braking, weaving, crawling 
   assert.ok(!w.damage.any, `damage crawling a ledge: ${JSON.stringify(w.damage.summary())}`);
 });
 
-test('a roll onto the roof dents it, breaks the glass and stops the engine', () => {
+test('forgiving: a roll onto the roof dents it, breaks the glass and stops the engine', () => {
   const v = new Vehicle(truckSpec('ranger'));
+  v.damage.setLevel('forgiving');
   const g = flat(SURFACE.DIRT);
   v.place(g, 0, 0, 0);
   v.pos.y += 2.2;
@@ -151,11 +152,11 @@ test('realistic: water in the intake at revs bends a rod; at idle it only stalls
   void deep;
 });
 
-test('forgiving (the default): a 20 km/h tree only scuffs, a hard crash leaks slowly, and the engine never seizes from heat or water', () => {
+test('forgiving: a 20 km/h tree only scuffs, a hard crash leaks slowly, and the engine never seizes from heat or water', () => {
   const tree = (kmh) => {
     const g = withTree(0, 12);
     const v = new Vehicle(truckSpec('ranger'));
-    assert.equal(v.damage.level, 'forgiving');
+    v.damage.setLevel('forgiving');
     v.place(g, 0, 8, 0);
     v.vel.set(0, 0, kmh / 3.6);
     for (const w of v.wheels) w.omega = kmh / 3.6 / v.spec.tyre.radius;
@@ -174,8 +175,57 @@ test('forgiving (the default): a 20 km/h tree only scuffs, a hard crash leaks sl
   assert.ok(!D.seized && v.dt.running, `still running (engine ${D.engine.toFixed(2)}, ${D.temp.toFixed(0)} C)`);
   // water in the intake at 3000 rpm: it stalls and knocks, but it will start again
   const w = new Vehicle(truckSpec('ranger'));
+  w.damage.setLevel('forgiving');
   w.damage.hydrolock(3000);
   assert.ok(!w.damage.seized && w.damage.engine > 0.9, `engine ${w.damage.engine}`);
+});
+
+test('cosmetic (the default): crashes only dent the panels and break the glass; nothing mechanical breaks, the engine runs on', () => {
+  const crash = (kmh) => {
+    const g = withTree(0, 12);
+    const v = new Vehicle(truckSpec('ranger'));
+    assert.equal(v.damage.level, 'cosmetic');
+    v.place(g, 0, 8, 0);
+    v.vel.set(0, 0, kmh / 3.6);
+    for (const w of v.wheels) w.omega = kmh / 3.6 / v.spec.tyre.radius;
+    run(v, g, { throttle: 0, brake: 0, steer: 0, handbrake: 0 }, 4);
+    return v;
+  };
+  const v = crash(45), D = v.damage;
+  assert.ok(D.dents.length > 0, 'a 45 km/h tree dents the front');
+  assert.ok(D.dents.every((d) => d.depth <= 0.06 + 1e-9), `shallow dents: ${D.dents.map((d) => d.depth.toFixed(3))}`);
+  assert.equal(D.radiator, 0, 'no leak');
+  assert.equal(D.toe, 0, 'the steering is true');
+  assert.equal(D.engine, 1, 'the engine is sound');
+  assert.ok(D.springs.every((x) => x === 0) && D.shocks.every((x) => x === 0) && !D.flat.some(Boolean) && !D.shafts.some(Boolean), 'suspension, tyres and shafts whole');
+  // crash after crash: only a few dents, never a crumpled wreck
+  for (let k = 0; k < 40; k++) D.hit({ x: 0.9, y: 0.9, z: (k % 9) * 0.3 - 1.2 }, { x: -1, y: 0, z: 0 }, 12, 'side' + k, k);
+  assert.ok(D.dentCount <= 12, `dents: ${D.dentCount}`);
+  // a roll onto the roof: dents and broken glass, and the engine keeps running
+  const r = new Vehicle(truckSpec('ranger'));
+  const g = flat(SURFACE.DIRT);
+  r.place(g, 0, 0, 0);
+  r.pos.y += 2.2;
+  r.quat.set(0, 0, 1, 0);
+  run(r, g, { throttle: 0.2, brake: 0, steer: 0, handbrake: 0 }, 4);
+  assert.ok(r.up.y < -0.5, 'on its roof');
+  assert.ok(r.damage.dents.length > 0 && r.damage.glass >= 0.35, `dents ${r.damage.dents.length}, glass ${r.damage.glass}`);
+  assert.equal(r.dt.running, true, 'still running upside down');
+  // water in the intake, even flat out: no harm, no stall
+  r.damage.hydrolock(5000);
+  assert.equal(r.damage.engine, 1);
+  assert.ok(!r.damage.seized);
+});
+
+test('cosmetic: driving into deep water with the intake under, the engine coughs and loses power but never stops', () => {
+  const g = flooded(flat(SURFACE.RIVERBED), 1.6);
+  const v = new Vehicle(truckSpec('ranger'));
+  v.place(g, 0, 0, 0);
+  run(v, g, { throttle: 0.6, brake: 0, steer: 0, handbrake: 0 }, 3);
+  assert.ok(v.intakeWet, 'the intake is under water');
+  assert.equal(v.dt.running, true, 'running');
+  assert.equal(v.flooded, false, 'not flooded');
+  assert.ok(v.dt.powerMul < 0.5, `choked: ${v.dt.powerMul}`);
 });
 
 test('the workshop mends everything; the bill reflects the damage', () => {
