@@ -73,6 +73,17 @@ export class KeralaRouter {
     this.list = list; this.nj = list.length; this.adj = adj; this.grid = grid; this.ids = ids;
   }
 
+  // a junction node that is the end of a road (no way on but back the way it came): no place to send a car cruising
+  // on, it can only turn round there
+  deadEnd(id) {
+    this._sync();
+    if (id && typeof id === 'object') id = id.id;
+    const out = this.adj[id];
+    if (!out) return false;
+    const to = new Set(out.map((o) => o.to));
+    return to.size === 0 || (to.size === 1 && this.adj[[...to][0]].some((o) => o.to === id));
+  }
+
   nearestNode(x, z) {
     this._sync();
     const cx = Math.floor(x / 100), cz = Math.floor(z / 100);

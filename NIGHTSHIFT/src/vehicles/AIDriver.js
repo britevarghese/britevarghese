@@ -59,13 +59,28 @@ export function roundCorners(points, R, onRoad = null, halfW = 0.9) {
   // (the room before or after a corner: the run straight on through points that hardly turn, not just the next piece.
   // A route met a 100-degree junction turn by a 3.9 m hop in line with the lane before it, from one lane's end to the
   // next one's start: rounded within that hop, 2 m across, the car swung its nose a metre and a half off the road)
+  // (all of it up to where a gentle bend starts, which isn't rounded; half of it up to a corner, whose own arc takes
+  // the other half. A side road bending gently away from a junction left its turn half the room it had: rounded to
+  // 3.9 m, tighter than the car could steer, and it ran wide off the road)
   const room = (i, back) => {
     let L = 0;
     for (let k = i; ;) {
       const k2 = back ? k - 1 : k + 1;
       L += Math.hypot(P[k2][0] - P[k][0], P[k2][1] - P[k][1]);
-      if (k2 <= 0 || k2 >= P.length - 1 || Math.abs(turn(dir(P[k2 - 1], P[k2]), dir(P[k2], P[k2 + 1]))) >= 0.12) return L;
+      if (k2 <= 0 || k2 >= P.length - 1) return [L, 0.95];
+      const t = Math.abs(turn(dir(P[k2 - 1], P[k2]), dir(P[k2], P[k2 + 1])));
+      if (t >= 0.12) return [L, t < 0.5 ? 0.95 : 0.48];
       k = k2;
+    }
+  };
+  // (the point `d` along the route from point i, back or on, and the index of the first point past it)
+  const along = (i, d, back) => {
+    for (let k = i, L = 0; ;) {
+      const k2 = back ? k - 1 : k + 1;
+      if (k2 < 0 || k2 > P.length - 1) return [[P[k][0], P[k][1]], k];
+      const l = Math.hypot(P[k2][0] - P[k][0], P[k2][1] - P[k][1]);
+      if (L + l >= d) { const f = (d - L) / (l || 1); return [[P[k][0] + (P[k2][0] - P[k][0]) * f, P[k][1] + (P[k2][1] - P[k][1]) * f], k2]; }
+      L += l; k = k2;
     }
   };
   const out = [P[0]];
@@ -91,10 +106,12 @@ export function roundCorners(points, R, onRoad = null, halfW = 0.9) {
       const df = wrapAngle(f1 - f0), m = Math.max(2, Math.ceil(a * r / 1.5));
       const arc = [];
       for (let k = 0; k <= m; k++) { const f = f0 + df * k / m; arc.push([cx + Math.cos(f) * r, cz + Math.sin(f) * r]); }
-      let best = 0, fewest = 0;
+      let best = 0, fewest = 0, off = 0;
       if (onRoad) {
         fewest = Infinity;
-        for (const e of [0, -0.5, 0.6, -1, 1.2, 1.8, 2.4, 3]) {
+        // (out to 4.6 m: an acute turn at a Y-junction's tip, moved out 3 m, still clipped the tip; the junction's
+        // mouth had room for it)
+        for (const e of [0, -0.5, 0.6, -1, 1.2, 1.8, 2.4, 3, 3.8, 4.6]) {
           let inner = 0, outer = 0;
           for (const [x, z] of arc) {
             const qx = x - bx * e, qz = z - bz * e, rx = (cx - x) / r, rz = (cz - z) / r;
@@ -102,31 +119,45 @@ export function roundCorners(points, R, onRoad = null, halfW = 0.9) {
             if (!onRoad(qx - rx * (halfW + 0.4), qz - rz * (halfW + 0.4))) outer++;
           }
           const score = inner * 3 + outer * 2 + Math.abs(e) * 0.1;
-          if (score < fewest) { fewest = score; best = e; }
+          if (score < fewest) { fewest = score; best = e; off = inner + outer; }
           if (!inner && !outer) break;
         }
       }
-      return { T, arc, best, fewest };
+      return { T, arc, best, fewest, off };
     };
     // (rounded as widely as the car needs where the road allows; within the pieces next to the corner where it doesn't.
     // Not an acute turn to the left, the kerb's side (keeping left): rounded that widely, its arc cut deep across the
     // inside of the corner, through the walls there. One to the right crosses the junction's open middle)
-    const segIn = room(i, true), segOut = room(i, false), acuteLeft = a > 1.9 && turn(u, w) < 0;
-    let A = acuteLeft ? null : fit(Math.min(R * tn, segIn * 0.48, segOut * 0.48));
+    // (unless the wide arc, moved out into the junction's mouth, keeps to the road all round: a 140-degree turn at a
+    // Y-junction, too sharp for any arc within the corner, had the car shunting back and forth for 13 s)
+    const [segIn, kIn] = room(i, true), [segOut, kOut] = room(i, false), acuteLeft = a > 1.9 && turn(u, w) < 0;
+    let A = fit(Math.min(R * tn, segIn * kIn, segOut * kOut));
+    if (acuteLeft && A?.off !== 0) A = null;
+    // (the tighter arc only where the car can still drive it: R has a tenth to spare over its lock at junction pace, and
+    // one rounded to 3.9 m, tighter than it can steer, it ran wide off the road at the end of)
     const T0 = Math.min(R * tn, near(i - 1) * 0.48, near(i + 1) * 0.48);
-    if (!A || T0 < A.T - 0.1) { const B = fit(T0); if (B && (!A || B.fewest < A.fewest)) { A = B; A.short = true; } }
+    if (!A || (T0 < A.T - 0.1 && T0 / tn > R / 1.17)) { const B = fit(T0); if (B && (!A || B.fewest < A.fewest)) { A = B; A.short = true; } }
     if (!A) { out.push(P[i]); continue; }
     const { T, arc, best } = A, sIn = A.short ? near(i - 1) : segIn, sOut = A.short ? near(i + 1) : segOut;
     // (moved across over the last few metres before it and the first few after, not the whole way from the corner
     // before: the slant over a 45 m straight ran a race's rival along the road's edge into a canal's parapet)
     const sw = Math.min(20, Math.max(5, Math.abs(best) * 7));
     const pre = best && sIn * 0.9 > T + sw ? T + sw : T, post = best && sOut * 0.9 > T + sw ? T + sw : T;
+    // (where the move across starts and ends: that far along the route itself, on the lane - put that far along the
+    // straight line out of the corner, 2 m off a lane bending gently away, it took a car to the road's edge and a
+    // barrier)
+    const preQ = pre > T ? along(i, pre, true) : null, postQ = post > T ? along(i, post, false) : null;
     // (the points it passes by - in line before or after it - go)
-    while (out.length > 1 && (P[i][0] - out[out.length - 1][0]) * u[0] + (P[i][1] - out[out.length - 1][1]) * u[1] < pre - 0.05) out.pop();
-    for (skip = i + 1; skip < P.length - 1 && (P[skip][0] - P[i][0]) * w[0] + (P[skip][1] - P[i][1]) * w[1] < post - 0.05; skip++);
-    if (pre > T) out.push([P[i][0] - u[0] * pre, P[i][1] - u[1] * pre]);
-    for (const [x, z] of arc) out.push([x - bx * best, z - bz * best]);
-    if (post > T) out.push([P[i][0] + w[0] * post, P[i][1] + w[1] * post]);
+    if (preQ) { const by = new Set(P.slice(preQ[1] + 1, i)); while (out.length > 1 && by.has(out[out.length - 1])) out.pop(); }
+    else while (out.length > 1 && (P[i][0] - out[out.length - 1][0]) * u[0] + (P[i][1] - out[out.length - 1][1]) * u[1] < pre - 0.05) out.pop();
+    if (postQ) skip = postQ[1];
+    else for (skip = i + 1; skip < P.length - 1 && (P[skip][0] - P[i][0]) * w[0] + (P[skip][1] - P[i][1]) * w[1] < post - 0.05; skip++);
+    // (an arc that doesn't keep to the road all round, however it's moved - a junction too tight for the turn - is
+    // marked: the car steers for a point ahead there, cutting in as it must, rather than holding to it)
+    const mark = (q) => { if (A.off) q.loose = true; return q; };
+    if (preQ) out.push(mark(preQ[0]));
+    for (const [x, z] of arc) out.push(mark([x - bx * best, z - bz * best]));
+    if (postQ) out.push(mark(postQ[0]));
   }
   out.push(P[P.length - 1]);
   return out;
@@ -145,6 +176,8 @@ export class AIDriver {
     this.powerScale = 1;
     this.avoid = 0;
     this.loop = false;
+    // drives on through the route's end (a race's finish line) rather than pulling up there
+    this.runOn = opts.runOn ?? false;
   }
 
   // a lorry or a bus takes a corner slower than a car (a quarter slower at 8 m long): its turning circle is wider and it
@@ -160,6 +193,7 @@ export class AIDriver {
   // what the car can steer. A road's centre line elsewhere: driven on its right-hand side, an offset polyline)
   setRoute(points, loop = false, offset = this.laneOffset ?? (this.v?.physics?.world?.kerala ? 0 : 2.6)) {
     const W = this.v?.physics?.world;
+    this.raw = points; this.offset = offset;
     if (W?.kerala && points.length > 2) points = roundCorners(points, this.turnR, (x, z) => W.onCarriageway(x, z), (this.v?.p?.width || 1.8) / 2);
     // drive on the right-hand side of the road (offset polyline), not on the center line
     if (offset && points.length > 1) {
@@ -171,15 +205,49 @@ export class AIDriver {
       }
       points = out;
     }
+    // (a point on top of the last one dropped: a piece of no length has no way, and followed, it read as a sharp kink)
+    points = points.filter((q, i) => !i || Math.hypot(q[0] - points[i - 1][0], q[1] - points[i - 1][1]) > 0.05);
     this.route = points; this.idx = 0; this.loop = loop; this.mode = 'route';
-    // skip route points that are behind the car and close (avoids U-turns into curbs)
+    // on from the piece of the route beside the car, running its way, within the route's first 60 m (one begun at a
+    // junction behind it, on the road it's on: not back to that junction first). And from the start when there's none:
+    // skipping every point behind it, one that turned round first had the car head for its 21st point, 50 m off
+    // across the corner, into a barrier
     const s = this.v.state;
     const fx = Math.sin(s.yaw), fz = Math.cos(s.yaw);
-    while (!loop && this.idx < points.length - 2) {
-      const p = points[this.idx + 1];
-      const dx = p[0] - s.x, dz = p[1] - s.z;
-      if (dx * fx + dz * fz < 0 && Math.hypot(dx, dz) < 60) this.idx++; else break;
+    if (!loop) {
+      let best = 0, bd = Infinity;
+      for (let i = 0, len = 0; i < points.length - 1 && len < 60; i++) {
+        const a = points[i], b = points[i + 1], dx = b[0] - a[0], dz = b[1] - a[1], L = Math.hypot(dx, dz) || 1e-6;
+        const t = clamp(((s.x - a[0]) * dx + (s.z - a[1]) * dz) / (L * L), 0, 1), d = Math.hypot(s.x - a[0] - dx * t, s.z - a[1] - dz * t);
+        if ((dx * fx + dz * fz) / L > 0.3 && d < bd - 0.01) { bd = d; best = i; }
+        len += L;
+      }
+      if (bd < 8) this.idx = best;
     }
+  }
+
+  // more route on the end of this one (a cruise's next leg, starting where this one ends): the corner where they join
+  // planned for and braked for like any other (handed a new route at the last one's end, a sharp turn met there at
+  // 58 km/h ran a car off the road into a house's wall)
+  extendRoute(points) {
+    const raw = this.raw, s = this.v.state;
+    if (!raw?.length || this.loop || this.mode !== 'route') { this.setRoute(points, false, this.offset); return; }
+    // (from two points before the car's nearest: the corner it's in rounded as it was)
+    let j = 0, bd = Infinity;
+    for (let i = 0; i < raw.length; i++) { const d = (raw[i][0] - s.x) ** 2 + (raw[i][1] - s.z) ** 2; if (d < bd) { bd = d; j = i; } }
+    const keep = raw.slice(Math.max(0, j - 2)), last = keep[keep.length - 1];
+    this.setRoute([...keep, ...(Math.hypot(points[0][0] - last[0], points[0][1] - last[1]) < 0.5 ? points.slice(1) : points)], false, this.offset);
+  }
+
+  // the distance left along the route to its end (counted up to `cap`)
+  remaining(cap = Infinity) {
+    const r = this.route, s = this.v.state;
+    if (this.loop) return Infinity;
+    if (!r.length) return 0;
+    if (this.idx >= r.length - 1) return Math.hypot(r[r.length - 1][0] - s.x, r[r.length - 1][1] - s.z);
+    let d = Math.hypot(r[this.idx + 1][0] - s.x, r[this.idx + 1][1] - s.z);
+    for (let i = this.idx + 1; i < r.length - 1 && d < cap; i++) d += Math.hypot(r[i + 1][0] - r[i][0], r[i + 1][1] - r[i][1]);
+    return d;
   }
 
   // progress helper: index of nearest segment ahead
@@ -228,6 +296,53 @@ export class AIDriver {
     return r.length ? r[r.length - 1] : [x, z];
   }
 
+  // following the route itself: the steering that keeps the car on it from where it is - the route's turning a moment
+  // ahead (the steering's lag) as a wheel angle, the car's heading off the route's, and the distance off it. Each point
+  // of the route turns it evenly over a stretch about it: half the pieces either side at most (an arc's points 1.5 m
+  // apart, its curvature), and no longer than the turn needs (15 m a radian: a kink between long straights a gentle
+  // bend, and an arc's first point at the end of a straight not the whole of its second half). Measured from the
+  // nearest place on the route, on the piece the car is on or one either side (a car inside a junction's arc is nearer
+  // the next piece before it's past this one's end)
+  _track(speed) {
+    const s = this.v.state, r = this.route, n = r.length, p = this.v.p || {};
+    const seg = (i) => Math.hypot(r[i + 1][0] - r[i][0], r[i + 1][1] - r[i][1]) || 1e-6;
+    const hd = (i) => Math.atan2(r[i + 1][0] - r[i][0], r[i + 1][1] - r[i][1]);
+    // (point j's turn, and the stretch before and after it the turn is spread over)
+    const vtx = (j) => { const tau = wrapAngle(hd(j) - hd(j - 1)), half = Math.max(0.75, Math.abs(tau) * 7.5); return [tau, Math.min(seg(j - 1) / 2, half), Math.min(seg(j) / 2, half)]; };
+    let bi = -1, bt = 0, bd = Infinity, e = 0;
+    for (let i = Math.max(0, this.idx - 1); i <= Math.min(n - 2, this.idx + 2); i++) {
+      const a = r[i], dx = r[i + 1][0] - a[0], dz = r[i + 1][1] - a[1], L = seg(i), t = clamp(((s.x - a[0]) * dx + (s.z - a[1]) * dz) / L, 0, L);
+      const d = Math.hypot(s.x - a[0] - dx / L * t, s.z - a[1] - dz / L * t);
+      if (d < bd - 1e-3) { bd = d; bi = i; bt = t; e = ((s.x - a[0]) * -dz + (s.z - a[1]) * dx) / L; }   // (+: right of it)
+    }
+    if (bi < 0) return 0;
+    const Li = seg(bi);
+    let h = hd(bi);
+    if (bi > 0) { const [tau, l, rr] = vtx(bi); if (bt < rr) h = hd(bi - 1) + tau * (bt + l) / (l + rr); }
+    if (bi < n - 2) { const [tau, l, rr] = vtx(bi + 1); if (bt > Li - l) h = hd(bi) + tau * (bt - Li + l) / (l + rr); }
+    // (the curvature `dp` on: that of the point whose stretch it falls in, if any; and the most over the next few metres)
+    const dp = 0.2 + speed * 0.08, ahead = 3 + speed * 0.5;
+    let k = 0, kMax = 0;
+    for (let j = Math.max(1, bi), cum = j === bi ? -bt : Li - bt; j < n - 1 && cum - 30 < ahead; cum += seg(j), j++) {
+      const [tau, l, rr] = vtx(j), kj = tau / Math.max(0.3, l + rr);
+      if (dp >= cum - l && dp <= cum + rr) k = kj;
+      // (nor a sharp corner left unrounded - too tight for any arc: spread into a curve, it ran across the grass
+      // inside a Y-junction)
+      if (cum + rr > 0 && cum - l < ahead) kMax = Math.max(kMax, r[j].loose || Math.abs(tau) > 0.6 ? Infinity : Math.abs(kj));
+    }
+    // (the way the car is going, not the way it points: turning, its middle runs inside its heading - the rear wheels
+    // follow the inside line - and kept pointing along the route it settled 0.6 m inside a junction's arc)
+    const sk = clamp(speed / 55, 0, 1), lock = (p.steeringAngle || 0.56) * (1 - 0.66 * sk * (2 - sk)), wb = p.wheelBase || 2.6;   // (as the physics allows)
+    const course = speed > 1 && s.vx * Math.sin(s.yaw) + s.vz * Math.cos(s.yaw) > 0 ? Math.atan2(s.vx, s.vz) : s.yaw;
+    const delta = Math.atan(wb * k) + wrapAngle(h - course) + Math.atan(1.5 * e / (speed + 1));
+    // (a route tighter than the car can steer - an acute turn rounded as tight as the corner allows - isn't followed
+    // to the letter: the point ahead steered for cuts in early, as it must. Followed, the car turned in late, at its
+    // lock, and ran wide over the far side of a Y-junction)
+    const kCar = Math.tan(lock) / wb;
+    this._trackW = clamp((1.2 * kCar - kMax) / (0.2 * kCar), 0, 1);
+    return clamp(-delta / lock, -1, 1);
+  }
+
   // the turning of the route over the next `dist` metres from the car (signed, summed: a lane-change wiggle cancels
   // out) and the length it is spread over
   _bendAhead(x, z, dist) {
@@ -264,15 +379,23 @@ export class AIDriver {
     let maxTurn = 0, turnDist = dist, vc = Infinity, need = -Infinity;
     for (let j = 0; j < turns.length; j++) {
       if (turns[j][0] > dist) break;
-      let sum = 0, span = 0;
-      for (let k = j; k < turns.length && turns[k][0] - turns[j][0] <= 20; k++) { sum += turns[k][1]; span = turns[k][0] - turns[j][0]; }
+      let sum = 0, span = 0, rT = Infinity;
+      for (let k = j, n = 1; k < turns.length && turns[k][0] - turns[j][0] <= 20; k++, n++) {
+        sum += turns[k][1]; span = turns[k][0] - turns[j][0];
+        // (and the tightest stretch of it 6 m long or more, each point's turning spread over the gap to the next)
+        if (n > 1 && span * n / (n - 1) >= 6) rT = Math.min(rT, span * n / (n - 1) / Math.max(0.2, Math.abs(sum)));
+      }
       const a = Math.min(Math.PI, Math.abs(sum));
       // (and a sharp corner at one point on its own: two sharp opposite corners close together - a jog through a
       // junction - cancelled out in the sum, and the car came at the first one at 55 km/h)
       const a1 = Math.min(Math.PI, Math.abs(turns[j][1]));
       if (a < 0.2 && a1 < 0.35) continue;
+      // (a junction's turn as slow as its tightest part needs, on less of the tyres' grip the tighter it is: the steering
+      // takes time to wind on. Its speed from the whole 20 m it turns over, the lane's bending on after the turn's arc
+      // too, a 5.5 m radius turn into a side road was taken at 21 km/h, on the tyres' limit, and the car ran wide)
+      const vT = a >= 1 && rT < 12 ? Math.sqrt(5 * this.skill * clamp(rT / 10, 0.6, 1) * rT) : Infinity;
       // (a tight junction turn at walking pace: the steering lock is less at speed)
-      const v = (Math.min(a >= 0.2 ? Math.sqrt(5 * this.skill * Math.max(6, span) / a) : Infinity, a1 >= 0.35 ? Math.sqrt(5 * this.skill * 6 / a1) : Infinity) + 0.5) * this.bulkK;
+      const v = (Math.min(a >= 0.2 ? Math.sqrt(5 * this.skill * Math.max(6, span) / a) : Infinity, a1 >= 0.35 ? Math.sqrt(5 * this.skill * 6 / a1) : Infinity, vT) + 0.5) * this.bulkK;
       const n = -(2 * 5.5 * Math.max(0, turns[j][0] - 8) + v * v);
       if (Math.max(a, a1) > maxTurn) maxTurn = Math.max(a, a1);
       if (n > need) { need = n; vc = v; turnDist = turns[j][0]; }
@@ -351,6 +474,9 @@ export class AIDriver {
         const end = this.route[this.route.length - 1];
         if (Math.hypot(end[0] - s.x, end[1] - s.z) < 12) targetSpeed = 0;
       }
+      // and braked for in time to stop there (slowed only in its last 12 m, a car came up to a route's end at 58 km/h
+      // and ran on past it), unless it runs on through it
+      if (!this.loop && !this.runOn) { const rem = this.remaining(120); if (rem < 120) targetSpeed = Math.min(targetSpeed, Math.sqrt(8 * Math.max(0, rem - 3))); }
     } else { c.throttle = 0; c.brake = speed > 0.6 ? 0.5 : 0; c.handbrake = speed > 0.6 ? 0 : 1; c.steer = 0; return; }
 
     // obstacle avoidance (traffic cars / other vehicles ahead)
@@ -386,27 +512,55 @@ export class AIDriver {
       // well off it (come out of a junction wide): slowed until back in the lane, as a driver would (it sped up while
       // swinging back across, and over-ran the lane into a bridge's parapet)
       if (Math.abs(eR) > 1) targetSpeed = Math.min(targetSpeed, 5 + 7 / Math.abs(eR));
+      // and close to the line at junction pace, steered along it: the turning the route has a little ahead wound on as it
+      // comes (as a driver turns the wheel into a corner), the heading off the route's and the distance off it taken
+      // out. (Steered only for a point a few metres on, a car turned in early, inside a junction's arc and pointing
+      // less round it than the arc, then couldn't get round its end: 0.9 m wide off a 5.5 m radius turn into a side
+      // road.) Not a lorry or a bus, which keeps to the outside of a turn; nor at speed, where the point ahead does
+      const w = this.bulkK > 0.97 ? clamp((14 - speed) / 4, 0, 1) * clamp(2 - Math.abs(eR), 0, 1) : 0;
+      if (w > 0) { const t = this._track(speed), wt = w * this._trackW; steer = steer * (1 - wt) + t * wt; }
     }
     // counter-steer when sliding
     if (s.slip > 0.25) steer = clamp(steer - Math.sign(s.yawRate) * 0.3, -1, 1);
     // stuck detection -> reverse
-    if (this.reverseT > 0) {
-      this.reverseT -= dt;
-      c.throttle = 0; c.brake = 1; c.steer = -steer; c.handbrake = 0; c.nitro = false;
-      return;
+    // (backing up at walking pace, and only while there's road behind: a car turning round at a dead end backed off
+    // at 25 km/h, into a barrier)
+    const Wk = v.physics?.world?.kerala ? v.physics.world : null, half = (v.p?.length || 4.4) / 2 + 1.2;
+    // (checked a metre or so past each end, and half a metre over the road's edge: in a lane hardly longer than the car
+    // is wide, held to the tarmac itself, it turned round in 10 cm shuffles)
+    const rearOK = !Wk || Wk.onCarriageway(s.x - fx * half, s.z - fz * half, 0.5), frontOK = !Wk || Wk.onCarriageway(s.x + fx * (half + 0.6), s.z + fz * (half + 0.6), 0.5);
+    const back = -(s.vx * fx + s.vz * fz);
+    const reverse = (st) => { c.throttle = back > 2.5 ? 0.4 : 0; c.brake = back > 2 ? 0 : 1; c.steer = st; c.handbrake = 0; c.nitro = false; };
+    // target behind (or well round to the side with the car near stopped: a turn too sharp to steer round, a
+    // 140-degree one at a Y-junction): three-point turn - forward on full lock toward it as far as the road goes, back
+    // on full opposite lock as far as the road behind goes or until it points near enough the way on, and again, each
+    // leg a moment at least. (Steered only as hard as the point ahead asked, a car shuffled a metre back and forth at
+    // that junction for 14 s; and a reverse called off the moment it began, another sat nosed into a road's edge)
+    if (!this.turning && ((Math.abs(diff) > 2.2 && speed < 6) || (Math.abs(diff) > 1.5 && speed < 1.5))) {
+      this.turning = rearOK && Math.abs(diff) > 2.2 ? 'back' : 'fwd'; this.turnSide = Math.sign(diff) || 1; this.legT = 0; this.turnT = 0;
     }
+    if (this.turning) {
+      this.legT += dt; this.turnT += dt;
+      const blocked = speed < 0.5 && this.legT > 1.2;   // (forward against something: back again)
+      if (Math.abs(diff) < 0.35 || this.turnT > 25) this.turning = false;
+      else if (this.turning === 'back' ? !rearOK || this.legT > 2.5 || Math.abs(diff) < 1 : rearOK && Math.abs(diff) >= 1 && this.legT > 0.4 && (!frontOK || blocked)) {
+        this.turning = this.turning === 'back' ? 'fwd' : 'back'; this.legT = 0;
+      }
+    }
+    if (this.turning === 'back') { reverse(this.turnSide); return; }
+    if (this.reverseT > 0 && rearOK) { this.reverseT -= dt; reverse(-steer); return; }
+    this.reverseT = 0;
     // (or on the throttle and not moving: pushing against something at a slow corner speed, a lorry at 3 m/s wanted
     // never counted as stuck and pushed at a wall for good)
     const pushing = speed < 0.5 && c.throttle > 0.3;
-    if (speed < 1.2 && (targetSpeed > 3 || pushing)) { this.stuckT += dt; if (this.stuckT > 1.6) { this.reverseT = 1.3; this.stuckT = 0; } } else this.stuckT = 0;
-    if (Math.abs(diff) > 2.2 && speed < 6) { // target behind: three-point turn
-      this.reverseT = 0.9;
-    }
+    if (!this.turning && speed < 1.2 && (targetSpeed > 3 || pushing)) { this.stuckT += dt; if (this.stuckT > 1.6) { this.reverseT = 1.3; this.stuckT = 0; } } else this.stuckT = 0;
+    if (this.turning) { steer = -this.turnSide; targetSpeed = Math.min(targetSpeed, 2.5); }
     // progress watchdog: repeatedly stuck -> ask the owner to reset us onto a lane
     this.watchT = (this.watchT || 0) + dt;
     if (this.watchT > 5) {
       const moved = this.watchPos ? Math.hypot(s.x - this.watchPos[0], s.z - this.watchPos[1]) : 99;
-      this.needsReset = moved < 4 && (targetSpeed > 3 || pushing);
+      // (not while turning round: a three-point turn in a narrow lane gets nowhere for a while, and was reset)
+      this.needsReset = !this.turning && moved < 4 && (targetSpeed > 3 || pushing);
       this.watchPos = [s.x, s.z]; this.watchT = 0;
     }
     // (and not on the throttle while still steering hard: out of a sharp junction turn it sped up at full lock and
@@ -415,7 +569,10 @@ export class AIDriver {
     const err = targetSpeed - speed;
     c.steer = steer;
     c.throttle = err > 0 ? clamp(err / 6, 0.25, 1) * this.powerScale : 0;
-    c.brake = err < -1 ? clamp(-err / 4, 0.3, 1) : 0;   // (firmly: the speed plan counts on real braking)
+    // (firmly: the speed plan counts on real braking. And from half a metre a second over: let run to 1 m/s over, a car
+    // came into a junction's tight turn 3.6 km/h faster than planned - a fifth faster, half as much again sideways - and
+    // ran wide off the road at its exit)
+    c.brake = err < -0.5 ? clamp(-err / 4, 0.2, 1) : 0;
     c.handbrake = Math.abs(diff) > 1.1 && speed > 12 && speed < 30 ? 1 : 0;
     // (stopped where it means to stop: held there)
     if (targetSpeed < 0.5 && speed < 0.8) { c.brake = 0; c.throttle = 0; c.handbrake = 1; }

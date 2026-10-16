@@ -122,11 +122,19 @@ export class StreetRivals {
     this.rivals.push(r);
   }
 
-  _newCruise(r) {
-    const L = this.game.world.layout, s = r.v.state;
-    const cands = L.nodes.filter((n) => { const d = Math.hypot(n.x - s.x, n.z - s.z); return d > 500 && d < 1100 && n.type !== 'ring'; });
-    const dest = cands[Math.floor(Math.random() * cands.length)] || L.nearestNode(s.x + 600, s.z);
+  // the next leg of a rival's cruise: on from the end of the one it's on (`on`), the way it came in, before it gets
+  // there (a new route handed over at the end turned the car at speed, into whatever stood beside the junction)
+  _newCruise(r, on = false) {
+    const L = this.game.world.layout, s = r.v.state, end = on ? r.ai.route[r.ai.route.length - 1] : [s.x, s.z];
+    const cands = L.nodes.filter((n) => { const d = Math.hypot(n.x - end[0], n.z - end[1]); return d > 500 && d < 1100 && n.type !== 'ring' && n.type !== 'wp' && !L.deadEnd?.(n.id); });
+    const dest = cands[Math.floor(Math.random() * cands.length)] || L.nearestNode(end[0] + 600, end[1]);
+    if (on) {
+      const pts = L.route(L.nearestNode(end[0], end[1]), dest, r.lastLane).map((id) => [L.nodes[id].x, L.nodes[id].z]);
+      if (pts.length > 1) { r.lastLane = L.lastLane; r.ai.extendRoute(pts); }
+      return;
+    }
     const ev = this.game.races.prepare({ type: 'sprint', waypoints: [{ x: s.x, z: s.z }, { x: dest.x, z: dest.z }] });
+    r.lastLane = L.lastLane;
     r.ai.setRoute([[s.x, s.z], ...ev.route]);
   }
 
@@ -188,6 +196,7 @@ export class StreetRivals {
       r.ai.update(dt, obstacles);
       if (r.ai.needsReset) g.recoverAI(v, r.ai);
       if (r.ai.idx >= r.ai.route.length - 2) this._newCruise(r);
+      else if ((r.cruiseT = (r.cruiseT || 0) - dt) <= 0 && r.ai.remaining(90) < 90) { r.cruiseT = 2; this._newCruise(r, true); }
       v.update(dt);
       VehiclePhysics.resolvePair(g.player.physics, v.physics);
       v.sync(dt, g.camera.position, g.env.state);

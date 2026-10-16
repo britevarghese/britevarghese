@@ -81,6 +81,7 @@ export class KeralaWorld {
     this.layout = {
       get nodes() { return router.nodes; },
       nearestNode: (x, z) => router.nearestNode(x, z),
+      deadEnd: (id) => router.deadEnd(id),
       route: (a, b, after, opts) => router.route(a, b, after, opts),
       get lastLane() { return router.lastLane; },
       edgeBetween: () => null,

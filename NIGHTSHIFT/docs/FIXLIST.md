@@ -186,6 +186,39 @@ the game. Newly found problems go at the end of their section.
   16 -> 25 of 28; most of the rest turn back sharper than 120 degrees, which wants a three-point turn). The lorry in
   'Lorry War', stuck in the drain 0.8 km into its route, now drives all 7.6 km of it; a race's rival that stopped
   dead against a canal's parapet finishes
+- [x] An AI car handed its next route only once it reached the end of the last one (police on patrol, street rivals
+  cruising) met whatever turn the new one began with at speed: riding the roads round Thalassery, a car took a right
+  turn at 58 km/h, off the road and into a house. The next leg is added on before the end now, on from where the last
+  one ends and the way it came in, so the turn where they join is braked for like any other. A car slows in time to
+  stop at its route's end (it braked only in the last 12 m, and came up to the end at 58 km/h); racers and police in
+  a chase run on through. A cruise never heads for a dead end, and a car turning round backs up at walking pace and
+  only while there's road behind it (turning at a dead end, one backed off at 25 km/h into a barrier)
+  - [x] ...a route that has to turn round first is driven from its start: every point of it behind the car was
+    skipped, and the car headed for its 21st point, 50 m off across the corner, at 45 km/h into a barrier. It starts
+    from the piece beside the car running its way now, if there is one. A three-point turn is forward on full lock as
+    far as the road goes, back on full opposite lock as far as the road behind goes, and again, each leg a moment at
+    least (a reverse called off the moment it began had a car sitting nosed into a road's edge); in a narrow lane it
+    may use half a metre of the verge, and it isn't taken for being stuck while it's at it (cars were reset mid-turn)
+- [x] AI cars still ran wide at some tight junction turns (Mattannur: 0.9 m off a 110-degree right turn into a side
+  road). The turn's speed was worked out over all the turning in 20 m, the side road's bend after it too, so a turn of
+  5.5 m radius was planned at 20 km/h; the brake came on only at 1 m/s over the plan; where the side road bent gently
+  away from the junction the arc got half the room, and was rounded to 3.9 m, tighter than the car can steer; and
+  steering for a point a few metres ahead turned the car in early, inside the arc and pointing less round it, so it
+  couldn't get round the end. Now a junction turn's speed comes from its tightest stretch (15 km/h there), the brake
+  comes on from 0.5 m/s over, an arc has the room up to a gentle bend, and at junction pace the car follows the route
+  itself: the route's own curvature a moment ahead as the wheel angle, with the way the car is going against the
+  route's heading and its distance off it taken out (a route tighter than the car can steer - an acute turn - is
+  still steered for a point ahead, which cuts in as it must). Through that turn the car keeps within 0.3 m of its line
+  - [x] ...and the acute turns: an arc can be moved out up to 4.6 m into a junction's mouth (3 m at most before, and
+    a 125-degree turn round a Y-junction's tip clipped the tip); an acute left is rounded widely too where that keeps
+    to the road all round; a corner too sharp for any arc is a proper three-point turn, forward on full lock as far as
+    the road goes and back on full opposite lock (steered only as hard as the point ahead asked, a car shuffled a
+    metre back and forth at a 140-degree Y-junction for 14 s); and the swing back to the lane after an arc moved out
+    ends on the lane (it was put that far along the straight line out of the corner, 2 m off a lane bending gently
+    away, and a car went to the road's edge and into a barrier). Every sharp junction turn round Kannur, Thalassery
+    and Mattannur driven from 30 km/h: 96 -> 98 of 99 clean (Kannur 32 of 33, Thalassery 35, Mattannur 31); the last
+    is a 140-degree turn at a Y-junction, done as a three-point turn in 13 s, half a metre onto the verge. Rides of
+    4 km round each of the three towns: no incidents
 
 - [x] Hitches while driving into new country (a tile's build stalling a frame): every step of a tile's build timed
   on a drive (headless, its CPU about half a desktop's). The worst were the ground's mesh (up to a quarter of a second:

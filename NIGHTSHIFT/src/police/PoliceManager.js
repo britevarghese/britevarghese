@@ -311,17 +311,28 @@ export class PoliceManager {
         v.controls.throttle = 0; v.controls.brake = 1; v.controls.steer = 0;
         if (d > 260) this._removeUnit(u);
       } else if (u.role === 'patrol') {
+        u.ai.runOn = false;
         u.replanT -= dt;
-        if (u.replanT <= 0 || u.ai.idx >= u.ai.route.length - 2) {
-          u.replanT = 20;
-          const L = this.world.layout;
-          const from = L.nearestNode(s.x, s.z);
-          const target = L.nodes[Math.floor(this.R() * L.nodes.length)];
-          if (Math.hypot(target.x - p.x, target.z - p.z) < 500) u.ai.setRoute(L.route(from, target).map((id) => [L.nodes[id].x, L.nodes[id].z]));
+        // (on from the end of the route it's on, the way it came in, before it gets there: a new route handed over at
+        // the end turned the car at speed, into whatever stood beside the junction)
+        const r = u.ai.route, on = u.ai.mode === 'route' && r.length > 1 && u.ai.idx < r.length - 2;
+        if (!on || (u.replanT <= 0 && u.ai.remaining(90) < 90)) {
+          u.replanT = 2;
+          const L = this.world.layout, end = on ? r[r.length - 1] : [s.x, s.z], from = L.nearestNode(end[0], end[1]);
+          for (let k = 0; k < 8; k++) {
+            const target = L.nodes[Math.floor(this.R() * L.nodes.length)];
+            if (!target || target.type === 'wp' || L.deadEnd?.(target.id) || Math.hypot(target.x - p.x, target.z - p.z) > 500 || Math.hypot(target.x - from.x, target.z - from.z) < 150) continue;
+            const pts = L.route(from, target, on ? u.lastLane : null).map((id) => [L.nodes[id].x, L.nodes[id].z]);
+            if (pts.length < 2) continue;
+            u.lastLane = L.lastLane;
+            if (on) u.ai.extendRoute(pts); else u.ai.setRoute(pts);
+            break;
+          }
         }
         u.ai.maxSpeed = 15;
         u.ai.update(dt, obstacles);
       } else if (u.role === 'pursuit') {
+        u.ai.runOn = true;   // (its route ends where the player was: driven through, not pulled up at)
         const see = d < rules.sight && !this.world.collision.blocked(s.x, s.z, p.x, p.z, 3);
         if (see && d < 90) {
           u.ai.mode = 'pursue';

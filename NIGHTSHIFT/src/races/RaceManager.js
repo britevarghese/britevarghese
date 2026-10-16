@@ -191,7 +191,7 @@ export class RaceManager {
         else if (def.rivalColor) v.renderer.applyCustom({ paint: def.rivalColor, paint2: '#111', vinyl: 1 + (def.rival.length % 5), finish: 'metallic', wheel: def.rival.length % 4, spoiler: 2, tint: 0.7, wheelColor: '#1a1a1c' });
         else v.renderer.applyCustom({ paint: PAINTS[(i * 5 + 3) % PAINTS.length], paint2: '#111', vinyl: (i % 5) + 1, finish: 'metallic', wheel: i % 4, spoiler: 1 + (i % 3), hood: i % 3, bumper: i % 2, tint: 0.6, wheelColor: '#222428' });
         game.scene.add(v.renderer.group);
-        const ai = new AIDriver(v, { skill: 0.9 + i * 0.04 + Math.min(0.12, playerRating / 5000), maxSpeed: params.maxSpeed });
+        const ai = new AIDriver(v, { skill: 0.9 + i * 0.04 + Math.min(0.12, playerRating / 5000), maxSpeed: params.maxSpeed, runOn: true });
         ai.setRoute(ev.route.map((p) => [p[0], p[1]]), def.type === 'circuit');
         ai.useNitro = true;
         race.opponents.push({ v, ai, name: def.rivalNames?.[i] || OPP_NAMES[i], gate: 0, lap: 1, finished: false, time: 0, prev: { x: v.state.x, z: v.state.z } });

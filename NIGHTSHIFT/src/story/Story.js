@@ -729,7 +729,7 @@ export class Story {
       const v = this._spawnVehicle(type, spot, st.paint);
       if (!v) return false;
       const speed = st.type === 'tail' ? 15 : st.type === 'escort' ? (st.speed || 17) : st.type === 'ram' ? (st.speed || 26) : v.p.maxSpeed;
-      const ai = new AIDriver(v, { skill: st.type === 'race' ? 0.96 : 0.82, maxSpeed: speed });
+      const ai = new AIDriver(v, { skill: st.type === 'race' ? 0.96 : 0.82, maxSpeed: speed, runOn: st.type === 'race' });
       ai.setRoute(route.map((p) => [p[0], p[1]]));
       ai.useNitro = st.type === 'race';
       s.v = v; s.ai = ai; s.route = route; s.end = route[route.length - 1];
