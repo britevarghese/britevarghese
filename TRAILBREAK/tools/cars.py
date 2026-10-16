@@ -274,6 +274,25 @@ def main(src_dir, cfg_path, out_dir):
     if np.linalg.det(A) < 0:                                 # a mirroring axis swap turns the triangles inside out
         tris = tris[:, [0, 2, 1]]; nors = nors[:, [0, 2, 1]]; uvs = uvs[:, [0, 2, 1]]
 
+    # a model whose wheels aren't parts of their own (a scan, one skin over the whole car; or its materials merged into
+    # one): told apart by where they are, in the model's units and the design axes: {"z": [front, rear], "x": half the
+    # track, "y": axle height, "r": tyre radius, "w": tyre width, "rim": rim radius}
+    if cfg.get('wheelsAt'):
+        W = cfg['wheelsAt']
+        c0 = tris.mean(1)
+        for z in W['z']:
+            for sx in (1, -1):
+                d = np.hypot(c0[:, 1] - W['y'], c0[:, 2] - z)
+                inw = (np.abs(c0[:, 0] - sx * W['x']) < W['w'] / 2) & (d < W['r'])
+                roles[inw] = 'tyre'
+                # the rim: inside its radius on the wheel's outer half (on the inner half: the brake and the hub)
+                outer = c0[:, 0] * sx > W['x'] - W['w'] * W.get('hubAt', 0.15)
+                roles[inw & (d < W['rim']) & outer] = 'rim'
+                roles[inw & (d < W['rim']) & ~outer] = 'hub'
+    # (and the ground a scan caught around the wheels: below this height and not a wheel)
+    if 'groundBelow' in cfg:
+        roles[(tris.mean(1)[:, 1] < cfg['groundBelow']) & ~np.isin(roles, list(WHEEL_ROLES))] = 'drop'
+
     # ---- the wheels: where they are and how big, then the scale and the origin
     wl = split_wheels(tris, roles, cfg)
     if cfg.get('rimInTyre'):
@@ -319,7 +338,7 @@ def main(src_dir, cfg_path, out_dir):
         rr = np.sqrt(rv[..., 1] ** 2 + rv[..., 2] ** 2).max()
         rim = {'tris': rv / rr, 'nors': nors[rim_sel], 'uvs': uvs[rim_sel], 'mats': mats[rim_sel], 'hasuv': hasuv[rim_sel], 'radius': rr, 'width': (rv[..., 0].max() - rv[..., 0].min())}
 
-    keep = wl == None                                         # noqa: E711 (object array)
+    keep = (wl == None) & (roles != 'drop')                   # noqa: E711 (object array)
     # parts to clear, each whole where it lies inside a box (design frame, after placing): [x0, y0, z0, x1, y1, z1,
     # (materials)] (a model's static axles, springs and arms: the game draws its own, moving with the wheels)
     if cfg.get('dropParts'):
@@ -429,6 +448,9 @@ def main(src_dir, cfg_path, out_dir):
             if 'alphaCutoff' in src: m['alphaCutoff'] = src['alphaCutoff']
             # (no glow: the game lights the lamps itself)
         if 'color' in over: m['pbrMetallicRoughness']['baseColorFactor'] = srgb_to_lin(over['color'][:3]) + [over['color'][3] if len(over['color']) > 3 else 1]
+        if 'alpha' in over:                                   # (e.g. an atlas marked see-through that isn't: "OPAQUE")
+            m['alphaMode'] = over['alpha']
+            if over['alpha'] != 'MASK': m.pop('alphaCutoff', None)
         for k in ('metallic', 'roughness'):
             if k in over: m['pbrMetallicRoughness'][k + 'Factor'] = over[k]
         out.j['materials'].append(m)

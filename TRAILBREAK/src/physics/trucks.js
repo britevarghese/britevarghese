@@ -6,7 +6,7 @@
 //   Gecko     micro 4x4 (the little Japanese and Indian jeeps)         Mule     the Willys MB, the original jeep (a real model)
 //   Ranger    the UAZ Hunter (a real model)                            Trekker  compact pickup (the eighties' tough one)
 //   Shepherd  British utility wagon (the long-wheelbase classic)       Drover   big six-cylinder wagon (the outback one)
-//   Hauler    three-quarter-ton pickup                                  Bruiser  one-ton crew-cab turbo-diesel
+//   Hauler    three-quarter-ton pickup                                  Bruiser  the Ram 2500 Power Wagon (a real model)
 //   Rhino     portal-axle expedition truck (the German unstoppable)
 //
 // Each entry is the truck as it leaves the factory: stock height, stock tyres. Upgrades.js turns it and a build
@@ -216,28 +216,33 @@ export const TRUCKS = {
     style: 'drover', look: { top: 'hard', leaf: 0.66 },
   },
   bruiser: {
-    id: 'bruiser', name: 'Bruiser',
-    blurb: 'One-ton crew-cab pickup: 156" wheelbase, 5.9 turbo-diesel six, heavy-duty five-speed. Pulls anything; long and three and a half tons.',
-    mass: 3350, cgHeight: 0.92, cgZ: 0.4, inertiaBox: [1.95, 1.5, 6.2],
+    // the Ram 2500 Power Wagon crew cab (2019-2022): 3,795 mm wheelbase, 6,070 mm long, 2,010 mm wide, three and a
+    // quarter tons, coil springs on beam axles at both ends, e-lockers front and rear, a front sway bar that
+    // disconnects (a real model: render/TruckAssets.js)
+    id: 'bruiser', name: 'Ram 2500 Power Wagon',
+    blurb: 'Ram 2500 Power Wagon crew cab: 149" wheelbase, the 6.4 HEMI V8, a six-speed automatic and a 2.64 low range, lockers at both ends, a front sway bar that disconnects, coils all round, 35s. Three and a quarter tons that climb like a jeep.',
+    mass: 3280, cgHeight: 0.94, cgZ: 0.27, inertiaBox: [1.95, 1.5, 5.6],
     axles: [
-      { z: 1.98, track: 1.74, springTrack: 1.02, rate: 95000, bump: 4800, rebound: 9600, travel: 0.2, sag: 0.075, mass: 190, steer: 0.5, brake: 5800, swayBar: 60000, diffDrop: 0.19, diffX: -0.24 },
-      { z: -1.98, track: 1.7, springTrack: 1.16, rate: 105000, bump: 4600, rebound: 9200, travel: 0.22, sag: 0.07, mass: 200, steer: 0, brake: 3600, handbrake: 5000, diffDrop: 0.2, diffX: -0.08 },
+      { z: 1.8975, track: 1.762, springTrack: 1.05, rate: 84000, bump: 4400, rebound: 8800, travel: 0.24, sag: 0.09, mass: 175, steer: 0.5, brake: 5600, swayBar: 30000, diffDrop: 0.19, diffX: -0.2 },
+      { z: -1.8975, track: 1.74, springTrack: 1.12, rate: 90000, bump: 4400, rebound: 8800, travel: 0.25, sag: 0.085, mass: 190, steer: 0, brake: 3600, handbrake: 5000, diffDrop: 0.2, diffX: -0.06 },
     ],
-    trans: { tcK: 7.5 },
-    stock: { tyre: 33, axle: 4.10, trans: 5, fit: 35, low: 2.72, psi: 50 },
+    trans: { tcK: 8 },
+    stock: { tyre: 35, axle: 4.10, trans: 8, fit: 37, low: 2.64, diffs: 3, psi: 45 },
+    axleRatios: [3.73, 4.10, 4.30, 4.56, 4.88, 5.13, 5.38],
+    stockTyre: { label: 'LT315/70 R17 M/T', radius: 0.437, width: 0.315, rim: 17, desc: '35-inch mud-terrains on 17" black wheels.' },
     hull: [
-      { c: [0, 0.95, -0.125], h: [1.0, 0.35, 3.055], pts: 'bottom' },       // body and bed: bumpers 0.6 m, rails 1.3
-      { c: [0, 0.55, 0.2], h: [0.48, 0.13, 1.6], pts: 'bottom' },           // belly 0.42 m up
-      { c: [0, 1.64, 0.3], h: [0.9, 0.34, 1.05], pts: 'top' },              // crew cab, roof 1.98 m
+      { c: [0, 1.01, -0.13], h: [1.04, 0.46, 3.02], pts: 'bottom' },       // body and bed: bumpers 0.55 m up, bonnet and bed rails 1.47
+      { c: [0, 0.58, 0.1], h: [0.5, 0.1, 1.6], pts: 'bottom' },             // belly: the transfer case 0.48 m up
+      { c: [0, 1.73, -0.05], h: [0.95, 0.27, 0.9], pts: 'top' },            // crew cab, roof 2.0 m
     ],
-    roofY: 1.98, cabZ: 1.0, noseZ: 2.93, rackZ: -1.95,
-    intakePos: [-0.5, 1.15, 2.4], snorkelPos: [-1.02, 2.06, 1.3],
-    winch: { fairlead: [0, 0.75, 3.0] },
-    eye: [0.45, 1.72, 0.65], hoodEye: [0, 1.55, 2.2],
-    drag: { cd: 0.62, area: 3.6 },
+    roofY: 2.0, cabZ: -0.1, noseZ: 2.87, rackZ: -2.05,
+    intakePos: [-0.6, 1.3, 2.0], snorkelPos: [-1.05, 2.0, 0.95],
+    winch: { fairlead: [0, 0.75, 2.88] },
+    eye: [0.45, 1.72, 0.2], hoodEye: [0, 1.6, 1.6],
+    drag: { cd: 0.6, area: 3.7 },
     buoyancy: 0.27,
-    shafts: [14000, 15000], tyreK: 1.6, tyreLoad: 8000, parts: 1.3,
-    style: 'bruiser', look: { bed: true, leaf: 0.8 },
+    shafts: [14000, 15000], tyreK: 1.5, tyreLoad: 8000, parts: 1.3, tc: true,
+    style: 'bruiser', look: { bed: true, coils: true },
   },
   rhino: {
     id: 'rhino', name: 'Rhino',

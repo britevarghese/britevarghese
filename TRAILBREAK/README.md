@@ -149,10 +149,10 @@ draws on firings recorded pulling and slowing. The banks (public/assets/audio/en
 | --- | --- | --- |
 | `d4` | Toyota Hilux turbo-diesel four (the top of the revs from a VW TDI) | Thar diesel, UAZ Hunter diesel |
 | `d4t` | VW 1.9 TDI turbo-diesel four | Defender 110 |
-| `d6` | Ram 5.9 Cummins turbo-diesel six (the top of the revs from the TDI) | Bruiser, Rhino, Drover's TD swap |
+| `d6` | Ram 5.9 Cummins turbo-diesel six (the top of the revs from the TDI) | Rhino, Drover's TD swap, the Power Wagon's Cummins swap |
 | `d8` | Ford F-350 turbo-diesel V8 (the top of the revs from the TDI) | Hummer H1 |
 | `v6` | Acura 3.2 V6, a mic at the exhaust while driving | Wrangler, Bronco |
-| `v8` | 1978 Cadillac 425 V8 (the top of the revs from the V6) | Hauler, the V8 swaps |
+| `v8` | 1978 Cadillac 425 V8 (the top of the revs from the V6) | Hauler, Ram Power Wagon, the V8 swaps |
 | `v8m` | a cammed V8 | tuned V8s, the Wrangler's 392 HEMI |
 | `i6` | Jaguar E-type 4.2 straight six | Drover |
 | `i4` | Suzuki Jimny four | Gecko, Trekker, Willys MB, UAZ Hunter, Thar petrol |
@@ -323,8 +323,8 @@ lies, go back to the last firm, dry ground you drove on, call your friends for a
 ## The trucks
 
 Real trucks with real 3D models (the Mahindra Thar you start in, the Willys MB, the UAZ Hunter, the Jeep Wrangler
-Rubicon, the Ford Bronco, the Hummer H1, the electric GMC Hummer EV and the Land Rover Defender 110) and the original
-designs, each built to the real numbers of the kind of truck it is, from a one-ton micro 4x4 to a
+Rubicon, the Ford Bronco, the Ram 2500 Power Wagon, the Hummer H1, the electric GMC Hummer EV and the Land Rover Defender
+110) and the original designs, each built to the real numbers of the kind of truck it is, from a one-ton micro 4x4 to a
 six-ton portal-axle expedition truck. Every one takes every part in the garage.
 
 | Truck | Price | Kind | Wheelbase | Weight | Engine | Gearbox | Low range / axles | Stock tyres | Under the diffs | Approach / departure / breakover |
@@ -339,13 +339,13 @@ six-ton portal-axle expedition truck. Every one takes every part in the garage.
 | Ford Bronco | $21,000 | the Badlands four-door with the Sasquatch package: independent front, five-link rear, lockers both ends, brake traction control | 2.95 m (116") | 2380 kg | 2.7 EcoBoost twin-turbo V6, 563 Nm | 10-speed automatic | 3.06 / 4.70 | 315/70 R17 (35") | 29 cm | 43 / 35 / 32 degrees |
 | Hauler | $14,500 | three-quarter-ton pickup | 3.34 m (131") | 2250 kg | 6.6 V8, 410 Nm | 4-speed manual, 6.55:1 granny | 1.96 / 4.10 | 33x12.5R15 | 20 cm | 35 / 24 / 25 degrees |
 | Drover | $16,000 | big six-cylinder wagon | 2.73 m (107") | 2150 kg | 4.2 six, 285 Nm | 4-speed automatic | 1.96 / 4.10 | 31x10.5R15 | 19 cm | 34 / 25 / 30 degrees |
-| Bruiser | $24,000 | one-ton crew-cab pickup | 3.96 m (156") | 3350 kg | 5.9 turbo-diesel six, 570 Nm | heavy-duty 5-speed, 5.61:1 granny | 2.72 / 4.10 | 33x12.5R15 | 20 cm | 36 / 29 / 25 degrees |
+| Ram 2500 Power Wagon | $24,000 | the crew-cab Power Wagon: coils on beam axles at both ends, lockers front and rear, a front sway bar that disconnects, traction control | 3.80 m (149") | 3280 kg | 6.4 HEMI V8, 582 Nm | 6-speed automatic | 2.64 / 4.10 | LT315/70 R17 M/T (35") | 22 cm | 32 / 25 / 29 degrees |
 | Hummer H1 | $32,000 | the H1 Alpha hard top, the civilian Humvee: independent suspension at both ends on geared hubs, tyre inflation from the cab, Torsen rear, brake traction control | 3.30 m (130") | 3650 kg | 6.6 Duramax turbo-diesel V8, 705 Nm | Allison 5-speed automatic | 2.72 / 5.24 (with the hub gears) | 37x12.50 R17 | 38 cm | 49 / 41 / 32 degrees |
 | GMC Hummer EV | $38,000 | the Edition 1 pickup, electric: three motors, e-lockers at both ends, independent suspension on air springs (at its raised Terrain height), traction control | 3.45 m (136") | 4110 kg | three electric motors, 746 kW (1,000 hp), ~1,400 Nm from a standstill | single-speed reduction | none / 12.5 | LT315/70 R17 (35") | 33 cm | 44 / 33 / 22 degrees |
 | Rhino | $42,000 | portal-axle expedition truck | 3.25 m (128") | 6200 kg | 5.7 diesel six, 363 Nm | 8-speed truck box, 9:1 first | none / 7.17 | 395/85R20 (42") | 45 cm | 43 / 40 / 50 degrees |
 
 They drive like what they are. The Gecko weighs a ton and floats over mud, but it is slow and narrow on a side slope.
-The heavy trucks run their tyres harder (50 psi on the Bruiser, 55 on the Rhino: P steps down through two-thirds and
+The heavy trucks run their tyres harder (45 psi on the Power Wagon, 55 on the Rhino: P steps down through two-thirds and
 two-fifths of that to the wheels' minimum), carry stiffer tyres and stronger axle shafts, and their parts cost more to
 buy and fit. The Rhino's portal axles ride the diffs high above the hubs: 45 cm under them on stock tyres. It has
 lockers at both ends, onboard air and a raised intake from the factory, and wades 1.5 m. It is also slow: 0-60 km/h
@@ -543,7 +543,8 @@ test/                     node --test suites
 ## Credits
 
 Truck models: the Mahindra Thar, "THAR 4X4" by MB_Mahesh; the Willys MB, "Willys Jeep UN" by Mateusz Woliński
-(jeandiz); the UAZ Hunter, "UAZ Hunter expedition" by zhe_kan; the Jeep Wrangler, "Jeep Wrangler 3D Model" by Suyog modak;
+(jeandiz); the UAZ Hunter, "UAZ Hunter expedition" by zhe_kan; the Ram 2500 Power Wagon, "Dodge Ram 2500" by VanuaG;
+the Jeep Wrangler, "Jeep Wrangler 3D Model" by Suyog modak;
 the Ford Bronco, "Bronco Car Animation (Red)" by neshallads; the Hummer H1, "Hummer H1 (Retry School)" by Voxel_CG;
 the Land Rover Defender 110, "Land Rover Defender 110" by
 meeww; the GMC Hummer EV, "GMC Hummer EV 2022" by Unn Interativa; on Sketchfab, CC BY 4.0, see

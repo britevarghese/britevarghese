@@ -35,3 +35,7 @@ light), and the textures resized to WebP.
   https://sketchfab.com/3d-models/uaz-hunter-expedition-e6db8a23a6c8406a8ad876f1c7a3290f (https://sketchfab.com/zhe_kan);
   narrowed 5%, its axles, springs, shocks, roof rack and roof lamps removed (the game fits its own), its orange paint
   given the game's paint and the rest of that texture plain black, the dense parts simplified.
+- `bruiser.glb` (Ram 2500 Power Wagon): "Dodge Ram 2500" by VanuaG,
+  https://sketchfab.com/3d-models/dodge-ram-2500-b4259af6d85d472b8fde9517bcd38154 (https://sketchfab.com/VanuaG);
+  widened 5% to the Ram's real track, its wheels told apart by where they are (its parts share one texture), its
+  orange paint given the game's paint, the headlamp and tail-lamp lenses the game's lamps.
