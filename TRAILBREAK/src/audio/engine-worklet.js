@@ -54,7 +54,7 @@ class EngineProcessor extends AudioWorkletProcessor {
     ];
   }
 
-  constructor() {
+  constructor(options) {
     super();
     this.bank = null;
     this.cfg = { idle: 800, pitch: 1 };
@@ -65,7 +65,6 @@ class EngineProcessor extends AudioWorkletProcessor {
     this.seed = 0x9e3779b9;
     this.loadS = 0;
     this.hpX = 0; this.hpY = 0;
-    this.jit = 0;
     this.ms = 0.01; this.corr = 1;
     this.msK = 1 - Math.exp(-1 / (0.3 * sampleRate));
     this.corrK = 1 - Math.exp(-1 / (0.05 * sampleRate));
@@ -79,6 +78,10 @@ class EngineProcessor extends AudioWorkletProcessor {
       if (d.bank) this.setBank(d.bank);
       if (d.config) Object.assign(this.cfg, d.config);
     };
+    // (or given at the start: then it sounds from the first sample)
+    const o = options?.processorOptions;
+    if (o?.config) Object.assign(this.cfg, o.config);
+    if (o?.bank) this.setBank(o.bank);
   }
 
   rand() { this.seed = (Math.imul(this.seed, 1664525) + 1013904223) >>> 0; return this.seed / 4294967296; }
@@ -191,11 +194,9 @@ class EngineProcessor extends AudioWorkletProcessor {
         const L = Math.min(LOOK, b.prev[k] / q), R = Math.min(LOOK, b.next[k] / q);
         const g = this.pool[gi++];
         g.c = b.pos[k] + s.off; g.L = L; g.R = R; g.q = q;
-        // overlapping windows add up to about (their length / the spacing): keep the level where it is; stretched
-        // past what was recorded, each firing's level wanders a little, as a real engine's does
-        const rough = ext > 1.15 ? Math.min(0.25, (ext - 1.15) * 0.4) : 0;
-        g.amp = b.g[k] * w * share * Math.min(2, To / (0.5 * (L + R))) * (1 + rough * (this.rand() * 2 - 1));
-        if (rough > 0) s.seq = 1500;                                  // (and no long repeats of the same few)
+        // overlapping windows add up to about (their length / the spacing): keep the level where it is (past what was
+        // recorded too: random wobbles of level or timing there only came out as hiss)
+        g.amp = b.g[k] * w * share * Math.min(2, To / (0.5 * (L + R)));
         this.next.push(g);
       }
     }
@@ -216,8 +217,6 @@ class EngineProcessor extends AudioWorkletProcessor {
     const fT = rt * b.fIdle * cfg.pitch;                       // firings per second
     const To = sampleRate / Math.max(fT, 2);
     const wOn = Math.sqrt(this.loadS), wOff = Math.sqrt(1 - this.loadS);
-    // past the top of the recordings: the firing times wander a touch (up to 1.5%)
-    this.jit = rt > b.rMax * 1.15 ? Math.min(0.015, (rt / b.rMax - 1.15) * 0.03) : 0;
     const data = b.data, D = data.length - 2;
     for (let i = 0; i < n; i++) {
       const t = this.now + i;
@@ -233,7 +232,7 @@ class EngineProcessor extends AudioWorkletProcessor {
             if (!g) break;
             g.on = true; g.c = p.c; g.T = this.T; g.L = p.L; g.R = p.R; g.q = p.q; g.amp = p.amp;
           }
-          this.T += To * (1 + this.jit * (this.rand() * 2 - 1));
+          this.T += To;
           this.planned = false;
         }
       } else this.planned = false;

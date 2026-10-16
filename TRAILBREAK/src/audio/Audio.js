@@ -94,33 +94,38 @@ async function fetchBank(name) {
 /** Cylinders of the engine each bank was recorded from (for the starter's compression strokes). */
 const BANK_CYL = { v6: 6, i6: 6, d6: 6, v8: 8, v8m: 8, d8: 8, i4: 4, d4: 4, d4t: 4 };
 
-/** One engine from a bank: the worklet node, steered by rpm, load and a loudness. */
+/**
+ * One engine from a bank: the worklet node, steered by rpm, load and a loudness, through a low-pass that opens with
+ * the revs (the note is in the firings' harmonics, below a kilohertz or two; above them the recordings and the
+ * overlapping firings leave a hiss that, flat out, sounded like noise rather than an engine).
+ */
 class GrainVoice {
   constructor(audio, bank, out, cfg) {
     const ctx = audio.ctx;
     this.ctx = ctx; this.grain = true;
-    this.node = new AudioWorkletNode(ctx, 'tb-engine', { numberOfInputs: 0, numberOfOutputs: 1, outputChannelCount: [1] });
-    this.node.port.postMessage({ bank });
-    this.node.port.postMessage({ config: cfg });
+    this.node = new AudioWorkletNode(ctx, 'tb-engine', { numberOfInputs: 0, numberOfOutputs: 1, outputChannelCount: [1], processorOptions: { bank, config: cfg } });
     this.rpm = this.node.parameters.get('rpm'); this.load = this.node.parameters.get('load'); this.gain = this.node.parameters.get('gain');
-    this.node.connect(out);
+    this.tone = ctx.createBiquadFilter(); this.tone.type = 'lowpass'; this.tone.frequency.value = 1600; this.tone.Q.value = 0.6;
+    this.node.connect(this.tone).connect(out);
   }
 
   /** rpm, the engine's idle and redline, load 0..1 (on throttle .. overrun), vol 0..1. */
   drive(rpm, idle, red, load, vol) {
     const t = this.ctx.currentTime;
     const rn = clamp((rpm - idle) / Math.max(1, red - idle), 0, 1.2);
-    // louder with revs and with load (closed throttle at speed: the overrun is quieter than the pull)
-    const loud = (0.5 + 0.5 * Math.pow(rn, 0.7)) * (0.62 + 0.38 * load);
+    // louder with revs and with load (closed throttle at speed: the overrun is quieter than the pull): about 8 dB
+    // from idle to flat out at the redline
+    const loud = (0.55 + 0.45 * Math.pow(rn, 0.8)) * (0.72 + 0.28 * load);
     glide(this.rpm, rpm, t, 0.02);
     glide(this.load, clamp(load, 0, 1), t, 0.05);
-    glide(this.gain, 4.5 * loud * vol, t, 0.08);
+    glide(this.gain, 3.8 * loud * vol, t, 0.08);
+    glide(this.tone.frequency, 1500 + 0.45 * rpm + 600 * load, t, 0.08);
   }
 
   stop() {
     const t = this.ctx.currentTime;
     glide(this.gain, 0, t, 0.05);
-    setTimeout(() => { try { this.node.disconnect(); this.node.port.close(); } catch { /* gone */ } }, 500);
+    setTimeout(() => { try { this.node.disconnect(); this.tone.disconnect(); this.node.port.close(); } catch { /* gone */ } }, 500);
   }
 }
 
