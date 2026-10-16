@@ -31,6 +31,11 @@ export const TREE_SETS = {
 };
 const FAR = 2400;
 const TILE_W = 256, TILE_H = 512;
+// a tree changes from its model to its picture across a band short of its near range (its share of each pixel
+// dithered between the two, so neither pops); the lists it is in are kept wide of the band by the refill step
+const BAND = 0.25, MARGIN = 14;
+// a stable per-pixel threshold for the dither (interleaved gradient noise)
+const IGN = 'float ign(vec2 p) { return fract(52.9829189 * fract(dot(p, vec2(0.06711056, 0.00583715)))); }';
 
 let NEAR = 80;
 
@@ -73,7 +78,7 @@ export async function loadTrees(set = TREE_SETS.ashwood, base = 'assets/trees/')
 
 // ---------------------------------------------------------------- shaders
 /** Wind, a soft rounded crown and light through the leaves, added to a standard material. */
-function treeMaterial(group, uniforms, radius, impostorBake = false, crownY = 0.62) {
+function treeMaterial(group, uniforms, radius, impostorBake = false, crownY = 0.62, fade = null) {
   const leaf = group.kind === 'leaf';
   const mat = new THREE.MeshStandardMaterial({
     map: group.map, normalMap: group.normalMap, roughness: leaf ? 0.8 : 0.93, metalness: 0,
@@ -86,11 +91,14 @@ function treeMaterial(group, uniforms, radius, impostorBake = false, crownY = 0.
     sh.uniforms.uSunDirW = uniforms.uSunDirW;
     sh.uniforms.uSunColor = uniforms.uSunColor;
     sh.uniforms.uRadius = { value: radius };
+    if (fade) sh.uniforms.uFade = fade;
     sh.vertexShader = sh.vertexShader
       .replace('#include <common>', `#include <common>
 uniform float uTime;
 uniform float uRadius;
-varying float vAO;`)
+uniform vec2 uFade;
+varying float vAO;
+varying float vFade;`)
       .replace('#include <beginnormal_vertex>', `#include <beginnormal_vertex>
 ${leaf ? `{
   // leaves lit as a rounded crown, not as the flat cards they are
@@ -105,6 +113,8 @@ ${leaf ? `{
   ip = vec3(instanceMatrix[3][0], instanceMatrix[3][1], instanceMatrix[3][2]);
 #endif
   float sway = sin(uTime * 1.1 + ip.x * 0.11 + ip.z * 0.07) * 0.6 + sin(uTime * 2.3 + ip.z * 0.3 + ip.x * 0.05) * 0.25;
+  // (out toward its near range the model gives way to the tree's picture)
+  vFade = ${fade ? '1.0 - smoothstep(uFade.x, uFade.y, length(ip.xz - cameraPosition.xz))' : '1.0'};
   transformed.x += sway * ${impostorBake ? '0.0' : '0.011'} * k;
   transformed.z += sway * ${impostorBake ? '0.0' : '0.007'} * k;
 ${leaf && !impostorBake ? '  transformed += normal * sin(uTime * 6.0 + dot(position, vec3(41.0, 23.0, 37.0)) * 4.0) * 0.003 * k;' : ''}
@@ -115,7 +125,11 @@ ${leaf && !impostorBake ? '  transformed += normal * sin(uTime * 6.0 + dot(posit
       .replace('#include <common>', `#include <common>
 uniform vec3 uSunDirW;
 uniform vec3 uSunColor;
-varying float vAO;`)
+varying float vAO;
+varying float vFade;
+${IGN}`)
+      .replace('#include <clipping_planes_fragment>', `#include <clipping_planes_fragment>
+if (ign(gl_FragCoord.xy) >= vFade) discard;`)
       .replace('#include <color_fragment>', `#include <color_fragment>
 diffuseColor.rgb *= vAO;`)
       // both sides of a leaf card face out of the crown (don't flip the normal on back faces)
@@ -174,6 +188,8 @@ export class Vegetation {
     this.kinds = set.kinds;
     this.widthOf = this.kinds.map((k) => set.width?.[k] ?? 1);
     this.nearOf = this.kinds.map((k) => set.near?.[k] ?? 1);
+    this.fade = this.kinds.map(() => ({ value: new THREE.Vector2() }));
+    this.setFade();
     this.renderer = renderer;
     this.trees = world.trees;
     this.assets = assets;
@@ -194,7 +210,7 @@ export class Vegetation {
       const a = assets[name], cap = Math.max(1, Math.min(perKind[k], 2500));
       let matrix = null, color = null;
       const meshes = a.groups.map((gr) => {
-        const m = new THREE.InstancedMesh(gr.geometry, treeMaterial(gr, this.uniforms, a.radius, false, set.crown?.[name] ?? 0.62), cap);
+        const m = new THREE.InstancedMesh(gr.geometry, treeMaterial(gr, this.uniforms, a.radius, false, set.crown?.[name] ?? 0.62, this.fade[k]), cap);
         if (!matrix) { matrix = m.instanceMatrix; matrix.setUsage(THREE.DynamicDrawUsage); color = new THREE.InstancedBufferAttribute(new Float32Array(cap * 3), 3); }
         m.instanceMatrix = matrix;
         m.instanceColor = color;
@@ -270,6 +286,8 @@ export class Vegetation {
     this.impOffset = new THREE.InstancedBufferAttribute(new Float32Array(cap * 3), 3).setUsage(THREE.DynamicDrawUsage);
     this.impSize = new THREE.InstancedBufferAttribute(new Float32Array(cap * 2), 2).setUsage(THREE.DynamicDrawUsage);
     this.impTile = new THREE.InstancedBufferAttribute(new Float32Array(cap * 3), 3).setUsage(THREE.DynamicDrawUsage);   // u0, du, tint
+    this.impNear = new THREE.InstancedBufferAttribute(new Float32Array(cap), 1).setUsage(THREE.DynamicDrawUsage);
+    g.setAttribute('aNear', this.impNear);
     g.setAttribute('aOffset', this.impOffset);
     g.setAttribute('aSize', this.impSize);
     g.setAttribute('aTile', this.impTile);
@@ -286,6 +304,8 @@ export class Vegetation {
 attribute vec3 aOffset;
 attribute vec2 aSize;
 attribute vec3 aTile;
+attribute float aNear;
+varying float vFade;
 varying vec3 vRightW;
 varying vec3 vToCamW;
 varying float vFlip;
@@ -300,16 +320,21 @@ vec3 toCam = cameraPosition - aOffset; toCam.y = 0.0;
 toCam = normalize(toCam + vec3(1e-4, 0.0, 0.0));
 vec3 rightW = vec3(toCam.z, 0.0, -toCam.x);
 vRightW = rightW; vToCamW = toCam; vFlip = sign(aSize.x); vTint = aTile.z;
+vFade = aNear > 0.0 ? smoothstep(aNear * ${(1 - BAND).toFixed(3)}, aNear, length(aOffset.xz - cameraPosition.xz)) : 1.0;
 vec3 transformed = aOffset + rightW * position.x * abs(aSize.x) * vFlip + vec3(0.0, position.y * aSize.y, 0.0);`);
       sh.fragmentShader = sh.fragmentShader
         .replace('#include <common>', `#include <common>
 uniform sampler2D uNormalAtlas;
 uniform vec3 uSunDirW;
 uniform vec3 uSunColor;
+varying float vFade;
+${IGN}
 varying vec3 vRightW;
 varying vec3 vToCamW;
 varying float vFlip;
 varying float vTint;`)
+        .replace('#include <clipping_planes_fragment>', `#include <clipping_planes_fragment>
+if (ign(gl_FragCoord.xy) < 1.0 - vFade) discard;`)
         .replace('#include <color_fragment>', `#include <color_fragment>
 diffuseColor.rgb *= vTint;`)
         .replace('#include <normal_fragment_begin>', `
@@ -340,9 +365,11 @@ gl_Position = projectionMatrix * mvPosition;`).replace('#include <worldpos_verte
     const T = this.trees, n = T.count, K = this.kindOf;
     const counts = new Array(this.kinds.length).fill(0);
     const m = this._m, q = this._q, s = this._s, p = this._p, c = this._c;
-    const off = this.impOffset.array, size = this.impSize.array, tile = this.impTile.array;
+    const off = this.impOffset.array, size = this.impSize.array, tile = this.impTile.array, nearA = this.impNear.array;
     let ni = 0;
-    const near2 = NEAR * NEAR, far2 = FAR * FAR;
+    const far2 = FAR * FAR;
+    const rIn = this.kinds.map((_, k) => Math.max(0, NEAR * this.nearOf[k] * (1 - BAND) - MARGIN) ** 2);
+    const rOut = this.kinds.map((_, k) => (NEAR * this.nearOf[k] + MARGIN) ** 2);
     for (let i = 0; i < n; i++) {
       const dx = T.x[i] - cam.x, dz = T.z[i] - cam.z;
       const d2 = dx * dx + dz * dz;
@@ -352,10 +379,11 @@ gl_Position = projectionMatrix * mvPosition;`).replace('#include <worldpos_verte
       const h2 = Math.sin(i * 78.233) * 12543.123, r2 = h2 - Math.floor(h2);
       const ht = T.h[i], wd = ht * (0.88 + r2 * 0.24) * this.widthOf[k];
       const tint = 0.84 + r2 * 0.3;
-      if (d2 < near2 * this.nearOf[k] * this.nearOf[k]) {
+      let card = d2 > rIn[k], fades = true;
+      if (d2 < rOut[k]) {
         const nk = this.near[k];
         const j = counts[k];
-        if (j >= nk.cap) continue;
+        if (j >= nk.cap) { card = true; fades = false; } else {
         counts[k]++;
         q.setFromAxisAngle(this._up, r1 * 6.283);
         s.set(wd, ht, wd);
@@ -364,11 +392,14 @@ gl_Position = projectionMatrix * mvPosition;`).replace('#include <worldpos_verte
         m.toArray(nk.matrix.array, j * 16);
         c.setRGB(tint * (0.96 + r1 * 0.08), tint, tint * (0.93 + r1 * 0.07));
         c.toArray(nk.color.array, j * 3);
-      } else {
+        }
+      }
+      if (card) {
         const t = this.tiles[k];
         off[ni * 3] = T.x[i]; off[ni * 3 + 1] = T.y[i] - 0.12; off[ni * 3 + 2] = T.z[i];
         size[ni * 2] = t.r * wd * (r1 < 0.5 ? -1 : 1); size[ni * 2 + 1] = ht * 1.02;
         tile[ni * 3] = t.u0; tile[ni * 3 + 1] = t.u1 - t.u0; tile[ni * 3 + 2] = tint;
+        nearA[ni] = fades ? NEAR * this.nearOf[k] : 0;              // (over the models' cap: the card stands in, whole)
         ni++;
       }
     }
@@ -378,7 +409,7 @@ gl_Position = projectionMatrix * mvPosition;`).replace('#include <worldpos_verte
       nk.color.needsUpdate = true;
     });
     this.impostors.geometry.instanceCount = ni;
-    this.impOffset.needsUpdate = true; this.impSize.needsUpdate = true; this.impTile.needsUpdate = true;
+    this.impOffset.needsUpdate = true; this.impSize.needsUpdate = true; this.impTile.needsUpdate = true; this.impNear.needsUpdate = true;
     this.nearCount = counts.reduce((a, b) => a + b, 0);
     this.farCount = ni;
   }
@@ -401,7 +432,10 @@ gl_Position = projectionMatrix * mvPosition;`).replace('#include <worldpos_verte
   setShadows(on) { for (const nk of this.near) for (const m of nk.meshes) m.castShadow = on; }
 
   /** How far out trees are drawn in full ('high' 340, 'medium' 240, 'low' 150, as the game passes it). */
-  setDetailRange(mid) { NEAR = mid >= 300 ? 85 : mid >= 200 ? 60 : 38; this.lastFill.set(1e9, 0, 1e9); }
+  setDetailRange(mid) { NEAR = mid >= 300 ? 85 : mid >= 200 ? 60 : 38; this.setFade(); this.lastFill.set(1e9, 0, 1e9); }
+
+  /** Each kind's band where its model gives way to its picture. */
+  setFade() { this.kinds.forEach((_, k) => { const d = NEAR * this.nearOf[k]; this.fade[k].value.set(d * (1 - BAND), d); }); }
 }
 
 export async function preview(world, r) { const v = await Vegetation.create(world, r); v.update(r.camera, 0); return v; }

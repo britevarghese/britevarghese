@@ -851,7 +851,7 @@ export class Vehicle {
   }
 
   /** Closest point on a box (CG frame) to a world point: returns penetration depth for a sphere of radius rad. */
-  sphereVsBoxes(center, rad, outP, outN) {
+  sphereVsBoxes(center, rad, outP, outN, upright = false) {
     // into the chassis frame
     _q.subVectors(center, this.pos).applyQuatInv(this.quat);
     let best = 0;
@@ -860,10 +860,12 @@ export class Vehicle {
       const cx = clamp(lx, -b.h.x, b.h.x), cy = clamp(ly, -b.h.y, b.h.y), cz = clamp(lz, -b.h.z, b.h.z);
       let dx = lx - cx, dy = ly - cy, dz = lz - cz;
       let d = Math.sqrt(dx * dx + dy * dy + dz * dz);
-      let pen;
+      let pen, deep = false;
       if (d > 1e-6) { pen = rad - d; dx /= d; dy /= d; dz /= d; } else {
+        deep = true;
         // centre inside the box: push out along the shallowest face
-        const ex = b.h.x - Math.abs(lx), ey = b.h.y - Math.abs(ly), ez = b.h.z - Math.abs(lz);
+        // (a trunk, upright: out through a side or an end, never the top or the bottom)
+        const ex = b.h.x - Math.abs(lx), ey = upright ? Infinity : b.h.y - Math.abs(ly), ez = b.h.z - Math.abs(lz);
         if (ex <= ey && ex <= ez) { dx = Math.sign(lx) || 1; dy = 0; dz = 0; pen = rad + ex; } else if (ey <= ez) { dx = 0; dy = Math.sign(ly) || 1; dz = 0; pen = rad + ey; } else { dx = 0; dy = 0; dz = Math.sign(lz) || 1; pen = rad + ez; }
       }
       if (pen > best) {
@@ -871,6 +873,7 @@ export class Vehicle {
         // contact point on the box surface and normal (from the box toward the sphere: the push on the sphere)
         outP.set(b.c.x + cx, b.c.y + cy, b.c.z + cz).applyQuat(this.quat).add(this.pos);
         outN.set(dx, dy, dz).applyQuat(this.quat);
+        this.sphereDeep = deep;
       }
     }
     return best;
@@ -878,17 +881,28 @@ export class Vehicle {
 
   treeContacts(ground) {
     const trees = ground.treesNear(this.pos.x, this.pos.z, 6, this.trees);
+    if (!this.treeNormals || this.treeNormals.size > 64) this.treeNormals = new Map();      // (each trunk's last push)
     if (!trees.length) return;
     const tyreR = this.spec.tyre.radius;
     for (const t of trees) {
       for (const hgt of [0.35, 0.9, 1.5, 2.1]) {
         _c.set(t.x, t.y + hgt, t.z);
-        const pen = this.sphereVsBoxes(_c, t.r, _p, _n);
+        const pen = this.sphereVsBoxes(_c, t.r, _p, _n, true);
         if (pen > 0) {
-          // normal points from the box to the trunk; the chassis is pushed the other way
+          // normal points from the box to the trunk; the chassis is pushed the other way, level (the trunk stands
+          // upright). Where the box meets it nearly flat-on (its top or bottom on the trunk), straight away from the
+          // trunk instead: a near-vertical normal levelled would push hard in a direction that means nothing
           _n.scale(-1);
-          _n.y = 0; _n.normalize();
-          const Fn = this.penalty(_p, _n, pen, 6e5, 3e4, 0.3);
+          _n.y = 0;
+          if (Math.hypot(_n.x, _n.z) < 0.35) _n.set(_p.x - t.x, 0, _p.z - t.z);
+          if (_n.lengthSq() < 1e-8) continue;
+          _n.normalize();
+          // a trunk right inside the body: out the way it came in (the nearest face flips as it goes deeper)
+          const key = t.x * 7919 + t.z;
+          if (this.sphereDeep && this.treeNormals.has(key)) _n.copy(this.treeNormals.get(key));
+          else this.treeNormals.set(key, _n.clone());
+          // (the damping comes in over the first few cm, so the first touch is not a jolt)
+          const Fn = this.penalty(_p, _n, pen, 6e5, 3e4 * Math.min(1, pen / 0.03), 0.3);
           this.impact = Math.max(this.impact, Fn / 3e4);
           if (this.lastClose > 2) {
             _hl.copy(_p).sub(this.pos).applyQuatInv(this.quat);
@@ -903,7 +917,7 @@ export class Vehicle {
         if (pen > 0 && w.hub.y > t.y - 0.5 && w.hub.y < t.y + 3) {
           _n.set(dx / d, 0, dz / d);
           _p.copy(w.hub).addScaled(_n, -tyreR * 0.9);
-          this.penalty(_p, _n, pen, 4e5, 2e4, 0.4);
+          this.penalty(_p, _n, pen, 4e5, 2e4 * Math.min(1, pen / 0.03), 0.4);
           if (w.index < 2) this.damage.steeringHit(w.side, this.lastClose);
         }
       }

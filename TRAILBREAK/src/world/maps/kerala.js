@@ -135,6 +135,14 @@ const ZC = 4;                                   // zone grid (m)
 // paddy plots: a grid along the valley (u down it, v across), each plot flat at its own level, bunds between
 const PHI = Math.atan2(750, -880), PC = Math.cos(PHI), PS = Math.sin(PHI);
 const PU = 34, PV = 24, BUND = 0.3, BUND_SIDE = 1.3, BUND_H = 0.25;
+// the Paddy Field Dash's line: the paddies are always laid out along it
+const DASH = [[22, -66], [-151, 82]];
+/** How far a point is from the Dash's line. */
+function dashD(x, z) {
+  const [[ax, az], [bx, bz]] = DASH, dx = bx - ax, dz = bz - az;
+  const t = clamp(((x - ax) * dx + (z - az) * dz) / (dx * dx + dz * dz), 0, 1);
+  return hyp(x - ax - dx * t, z - az - dz * t);
+}
 const plotOf = (x, z) => [Math.floor((x * PC + z * PS) / PU), Math.floor((-x * PS + z * PC) / PV)];
 const plotKey = (pu, pv) => (pu + 2048) * 4096 + (pv + 2048);
 
@@ -190,10 +198,13 @@ function prepare(c) {
       } else if (P > 0.06) zn = ZONE.SHOLA;                          // the escarpment's evergreen forest
       else {
         const st = hyp(x - STATION.x, z - STATION.z);
-        if (r.s > fallS + 0.03 && r.d < 175 && r.d > 18 && h < r.level + 8 && sl < 0.12) zn = ZONE.PADDY;
+        // the paddies: on the flattest of the floor beside the river, in a few broad fields (grazing land and coconut
+        // between them), and always round the Dash's line
+        const fields = fbm(x / 230, z / 230, 2, S + 64) > 0.05 || dashD(x, z) < 75;
+        if (r.s > fallS + 0.03 && r.d < 125 && r.d > 18 && h < r.level + 8 && sl < 0.12 && fields) zn = ZONE.PADDY;
         else if (st < 230 + 40 * fbm(x / 80, z / 80, 2, S + 62)) zn = ZONE.VILLAGE;
         else if (r.d < 55) zn = ZONE.BANK;
-        else if (x < 120 && st > 280 && sl < 0.8 && fbm(x / 280, z / 280, 3, S + 70) > -0.08) zn = ZONE.RUBBER;
+        else if (x < 120 && st > 280 && r.d > 150 && sl < 0.8 && fbm(x / 280, z / 280, 3, S + 70) > -0.08) zn = ZONE.RUBBER;   // (up off the valley floor)
       }
       K.zone[k * ZN + i] = zn;
     }
@@ -429,8 +440,8 @@ const gen = {
           case ZONE.SHOLA: dens = 0.62 + 0.2 * patch; break;
           case ZONE.GRASSLAND: dens = 0.012; break;
           case ZONE.VILLAGE: dens = 0.16 + 0.1 * patch; break;
-          case ZONE.BANK: dens = 0.4; break;
-          case ZONE.OPEN: dens = 0.2 + 0.25 * patch; break;
+          case ZONE.BANK: dens = 0.12; break;                                  // coconut and bamboo along the river
+          case ZONE.OPEN: dens = riverD(idx) < 150 ? 0.03 : 0.2 + 0.25 * patch; break;   // (the valley floor: open)
           case ZONE.DOME: dens = 0.02; break;
           default: dens = 0;
         }
@@ -439,7 +450,9 @@ const gen = {
         if (zn === ZONE.SHOLA) { if (nearRiver && pick < 0.5) bamboo(px, pz); else if (pick < 0.55) jungle(px, pz); else mango(px, pz); continue; }
         if (zn === ZONE.GRASSLAND || zn === ZONE.DOME) { mango(px, pz); continue; }
         if (zn === ZONE.BANK) { if (pick < 0.4) coconut(px, pz); else if (pick < 0.8) bamboo(px, pz); else mango(px, pz); continue; }
-        // farmland and homesteads: coconut above all, banana, mango and jack, the odd big tree and bamboo clump
+        // farmland and homesteads: coconut above all, banana, mango and jack, the odd big tree and bamboo clump (on the
+        // open valley floor: coconut palms and the odd mango)
+        if (zn === ZONE.OPEN && riverD(idx) < 150) { if (pick < 0.8) coconut(px, pz); else mango(px, pz); continue; }
         if (pick < 0.48) coconut(px, pz);
         else if (pick < (zn === ZONE.VILLAGE ? 0.72 : 0.58)) banana(px, pz);
         else if (pick < 0.86) mango(px, pz);
@@ -463,9 +476,9 @@ const gen = {
     for (const p of K.plots.values()) {
       for (const [du, dv, along] of [[-1, 0, 'v'], [1, 0, 'v'], [0, -1, 'u'], [0, 1, 'u']]) {
         if (K.plots.has(plotKey(p.pu + du, p.pv + dv))) continue;
-        const n = along === 'v' ? 3 : 4;
+        const n = along === 'v' ? 2 : 3;
         for (let q = 0; q < n; q++) {
-          if (R() < 0.35) continue;
+          if (R() < 0.6) continue;
           const t = (q + 0.3 + R() * 0.4) / n;
           const u = (p.pu + (du === 1 ? 1 : 0) + (along === 'u' ? t : 0)) * PU + du * 2.2, v = (p.pv + (dv === 1 ? 1 : 0) + (along === 'v' ? t : 0)) * PV + dv * 2.2;
           const x = u * PC - v * PS, z = u * PS + v * PC;
@@ -642,7 +655,7 @@ export const EVENTS = [
   { id: 'teaclimb', kind: 'trail', name: 'Kurinji Hill Climb', desc: 'From the tea factory up the jeep track through the estates to the viewpoint on Kurinji Top.',
     trail: 'Kurinji Jeep Track', from: [50, -650], gap: 110, r: 9, dy: 5, par: { gold: 110, silver: 135, bronze: 165 }, prize: 1.5 },
   { id: 'paddydash', kind: 'line', name: 'Paddy Field Dash', desc: 'Off the estate road and across five flooded paddy fields and the bunds between them. The mud drags harder the faster you go.',
-    line: [[22, -66], [-151, 82]], at: [0.35, 0.68, 1], r: 14, par: { gold: 28.5, silver: 35, bronze: 45 }, prize: 1 },
+    line: DASH, at: [0.35, 0.68, 1], r: 14, par: { gold: 28.5, silver: 35, bronze: 45 }, prize: 1 },
   { id: 'rocktrials', kind: 'slalom', name: 'Anapara Rock Trials', desc: 'Tight gates through the boulders at the foot of the dome and up its granite slab. Each hard knock of the body: +5 s.',
     start: [312, 212], gates: [[340, 196], [362, 214], [382, 184], [402, 204], [425, 186], [452, 176]], r: 6, par: { gold: 58, silver: 75, bronze: 100 }, prize: 1.2, touch: true },
   { id: 'riverrun', kind: 'line', name: 'Kadavu River Run', desc: 'Flat out down the shallows of the Ponmala river and through the ford, spray everywhere.',
