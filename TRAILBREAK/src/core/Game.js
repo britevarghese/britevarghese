@@ -6,6 +6,7 @@ import { money, TRUCK_PRICES, DEALER_ORDER } from '../game/Career.js';
 import { buildSummary, buildStats } from '../physics/Upgrades.js';
 import { SURFACES } from '../physics/Surfaces.js';
 import { TruckModel } from '../render/TruckModel.js';
+import { TruckView } from '../ui/TruckView.js';
 import { CameraRig } from './CameraRig.js';
 import { BEACON_RADIUS, MAP_HALF } from '../world/maps/index.js';
 import { EventPlay } from '../game/EventPlay.js';
@@ -198,7 +199,16 @@ export class Game {
     this.input.enabled = false;
     this.audio.setMuted('menu', true);
     const el = $('dealer');
-    const close = () => { el.classList.add('hidden'); this.dealerOpen = false; this.audio.setMuted('menu', false); this.input.enabled = !this.paused && !this.chatOpen; this.renderer.renderer.domElement.focus(); };
+    const close = () => { el.classList.add('hidden'); this.dealerView?.stop(); this.dealerOpen = false; this.audio.setMuted('menu', false); this.input.enabled = !this.paused && !this.chatOpen; this.renderer.renderer.domElement.focus(); };
+    // the 3D view: the truck you drive, then whichever you tap
+    this.dealerView ??= new TruckView($('d-view'));
+    const mark = () => { for (const r of $('d-list').children) r.classList.toggle('view', r.dataset.id === this.dealerLook); };
+    const look = (id) => {
+      this.dealerLook = id;
+      this.dealerView.show(id, this.settings.builds?.[id] || '', this.myColor);
+      $('d-view-name').textContent = TRUCKS[id].name;
+      mark();
+    };
     const render = () => {
       $('d-money').innerHTML = `You have <b>${money(C.money)}</b>.`;
       const list = $('d-list');
@@ -208,6 +218,8 @@ export class Game {
         const st = buildStats(truckSpec(id));
         const row = document.createElement('div');
         row.className = 'dealer-row' + (owned ? ' mine' : '');
+        row.dataset.id = id;
+        row.onclick = (e) => { if (!e.target.closest('button')) look(id); };
         row.innerHTML = `<b>${t.name}</b><span class="blurb">${t.blurb}</span>
           <span class="stats">${Math.round(st.powerKw)} kW · ${Math.round(st.peakTorque)} Nm · ${Math.round(st.mass)} kg · ${Math.round(st.clearance * 100)} cm under the diffs · wades ${Math.round(st.wading * 100)} cm</span>`;
         const b = document.createElement('button');
@@ -222,10 +234,12 @@ export class Game {
         row.appendChild(b);
         list.appendChild(row);
       }
+      mark();
     };
     render();
     $('d-close').onclick = close;
     el.classList.remove('hidden');
+    look(this.truckId);
   }
 
   /** Drive another of your trucks: it is waiting at the station garage, with its last build. */

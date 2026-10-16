@@ -5,6 +5,7 @@ import { World } from './world/World.js';
 import { TRUCKS, TRUCK_IDS } from './physics/trucks.js';
 import { buildSummary, decodeBuild } from './physics/Upgrades.js';
 import { Garage } from './ui/Garage.js';
+import { TruckView } from './ui/TruckView.js';
 import { Career, TRUCK_PRICES, DEALER_ORDER, money } from './game/Career.js';
 import { Renderer } from './render/Renderer.js';
 import { TerrainRenderer } from './render/Terrain.js';
@@ -61,10 +62,17 @@ function lobby() {
   $('room').addEventListener('input', showMaps);
   showMaps();
   const trucksEl = $('trucks');
+  // the picked truck in 3D, with its build and paint
+  const view = new TruckView($('truck-view'));
+  const showView = () => {
+    view.show(settings.truck, settings.builds[settings.truck], settings.paint);
+    $('truck-view-name').textContent = (TRUCKS[settings.truck] || TRUCKS.ranger).name;
+  };
   const showBuild = () => {
     const base = TRUCKS[settings.truck] || TRUCKS.ranger;
     $('build-name').textContent = `Build: ${buildSummary(base, decodeBuild(base, settings.builds[base.id] || ''))}`;
     $('lobby-money').innerHTML = `Your money: <b>${money(career.money)}</b>`;
+    showView();
   };
   // the trucks: yours to drive, or the dealer's price
   const showTrucks = () => {
@@ -102,13 +110,14 @@ function lobby() {
     b.className = 'paint' + (settings.paint === p ? ' sel' : '');
     b.style.background = p;
     b.title = p;
-    b.onclick = () => { settings.paint = p; for (const c of paintsEl.children) c.classList.remove('sel'); b.classList.add('sel'); };
+    b.onclick = () => { settings.paint = p; for (const c of paintsEl.children) c.classList.remove('sel'); b.classList.add('sel'); showView(); };
     paintsEl.appendChild(b);
   }
   return new Promise((resolve) => {
     const go = (online) => {
       settings.name = ($('name').value.trim() || 'Driver').slice(0, 20);
       save();
+      view.dispose();                                 // the game wants the GPU
       resolve({ online, room: $('room').value.trim().toUpperCase(), map: settings.map });
     };
     $('go').onclick = () => go(true);

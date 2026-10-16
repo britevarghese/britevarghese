@@ -77,7 +77,7 @@ export class GaragePreview {
     });
     const up = () => { drag = null; };
     canvas.addEventListener('pointerup', up); canvas.addEventListener('pointercancel', up);
-    canvas.addEventListener('wheel', (e) => { this.dist = Math.max(4.5, Math.min(14, this.dist * (e.deltaY > 0 ? 1.08 : 0.93))); this.dirty = true; e.preventDefault(); }, { passive: false });
+    canvas.addEventListener('wheel', (e) => { this.fitR = 0; this.dist = Math.max(4.5, Math.min(14, this.dist * (e.deltaY > 0 ? 1.08 : 0.93))); this.dirty = true; e.preventDefault(); }, { passive: false });
   }
 
   /** Show a truck (physics spec with a build) in a paint colour. */
@@ -90,6 +90,14 @@ export class GaragePreview {
     m.setLights(true);
     this.focusY = 0.25 + spec.cgHeight * 0.6;
     this.dist = Math.max(this.dist, 2.2 * (spec.hull[0].h[2] + 0.2) + 1.5);
+    this.dirty = true;
+  }
+
+  /** Frame the whole truck, whatever the shape of the view: its bounding sphere in the narrower field of view. */
+  fit() {
+    const box = new THREE.Box3().setFromObject(this.model.root);
+    this.fitR = box.getSize(new THREE.Vector3()).length() / 2;
+    this.focusY = box.getCenter(new THREE.Vector3()).y;
     this.dirty = true;
   }
 
@@ -110,6 +118,10 @@ export class GaragePreview {
     if (this.spin) { this.yaw += dt * 0.25; this.dirty = true; }
     if (!this.dirty || !this.model) return;
     this.dirty = false;
+    if (this.fitR) {
+      const v = THREE.MathUtils.degToRad(this.camera.fov), h = 2 * Math.atan(Math.tan(v / 2) * this.camera.aspect);
+      this.dist = this.fitR / Math.sin(Math.min(v, h) / 2) * 0.7;
+    }
     const c = this.camera, y = this.focusY || 0.8;
     c.position.set(Math.sin(this.yaw) * Math.cos(this.pitch) * this.dist, y + Math.sin(this.pitch) * this.dist, Math.cos(this.yaw) * Math.cos(this.pitch) * this.dist);
     c.lookAt(0, y, 0);

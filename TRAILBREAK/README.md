@@ -137,7 +137,8 @@ steam.
 Each driver has a career, kept in their own browser: money, the trucks and parts they own, their best times. You
 start with $2,500. **For now every truck and every garage part is free**: pick any of the nine in the lobby or at the
 dealer and drive it, and fit it with anything in the garage at no charge (`FREE_TRUCKS` and `FREE_PARTS` in
-`src/game/Career.js` turn the dealer's and the garage's prices back on).
+`src/game/Career.js` turn the dealer's and the garage's prices back on). The truck you pick in the lobby turns in 3D above
+the list, in its build and paint (drag to turn it); at the dealer, tap any truck to see it the same way.
 
 - **Earning:** surveying a beacon pays a $600 bounty (friends in the room get a share when you find one), towing a
   friend out pays a rescue fee, and events pay prize money.

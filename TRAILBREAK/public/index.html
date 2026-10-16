@@ -36,6 +36,7 @@
           <label>Truck</label>
           <div id="lobby-money" class="lobby-money"></div>
           <p class="free-note">Every truck and every garage part is free for now: pick any of them.</p>
+          <div class="truck-view"><canvas id="truck-view"></canvas><b id="truck-view-name" class="tv-name"></b><span class="tv-hint">drag to turn</span></div>
           <div id="trucks" class="truck-list"></div>
           <div class="build-row"><span id="build-name" class="build-name"></span><button id="open-garage" class="ghost small">Garage</button></div>
         </div>
@@ -173,6 +174,7 @@
     <div class="menu-card wide">
       <h2>Ashwood 4x4 Sales <button id="d-close" class="ghost icon" aria-label="Close">&#x2715;</button></h2>
       <p id="d-money" class="dim"></p>
+      <div class="truck-view dealer-view"><canvas id="d-view"></canvas><b id="d-view-name" class="tv-name"></b><span class="tv-hint">tap a truck to see it · drag to turn</span></div>
       <div id="d-list" class="dealer-list"></div>
       <p class="fine">A truck you buy is delivered to the station garage. Earn money by surveying beacons, winning events
         and towing friends out; repairs and the tow truck cost money.</p>
