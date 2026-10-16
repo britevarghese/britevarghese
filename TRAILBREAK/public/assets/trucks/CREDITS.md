@@ -39,3 +39,7 @@ light), and the textures resized to WebP.
   https://sketchfab.com/3d-models/dodge-ram-2500-b4259af6d85d472b8fde9517bcd38154 (https://sketchfab.com/VanuaG);
   widened 5% to the Ram's real track, its wheels told apart by where they are (its parts share one texture), its
   orange paint given the game's paint, the headlamp and tail-lamp lenses the game's lamps.
+- `hauler.glb` (Chevrolet K20 Suburban): "1970 Truck" by Raphael Escamilla (Raffey),
+  https://sketchfab.com/3d-models/1970-truck-e0953a2cfb7349dab78fa363fe6545e8 (https://sketchfab.com/Raffey);
+  narrowed 9% to the Suburban's real width, its axles, springs, wheels and wheel trims taken off (the game fits steel
+  wheels), its orange paint given the game's paint (the cream band kept).

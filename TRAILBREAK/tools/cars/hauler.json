@@ -1,0 +1,144 @@
+{
+ "id": "hauler",
+ "model": {
+  "title": "1970 Truck",
+  "url": "https://sketchfab.com/3d-models/1970-truck-e0953a2cfb7349dab78fa363fe6545e8",
+  "author": "Raphael Escamilla (Raffey)",
+  "authorUrl": "https://sketchfab.com/Raffey",
+  "license": "CC BY 4.0"
+ },
+ "axes": {
+  "left": "+z",
+  "up": "+y",
+  "forward": "-x"
+ },
+ "wheelbase": 3.289,
+ "scaleX": 0.91,
+ "spare": null,
+ "nodes": [
+  [
+   "fronttire_low",
+   "tyre"
+  ],
+  [
+   "frontring_low",
+   "drop"
+  ],
+  [
+   "frontbar_low",
+   "drop"
+  ],
+  [
+   "SuspensionA_low",
+   "drop"
+  ],
+  [
+   "underconnectors_low",
+   "drop"
+  ],
+  [
+   "Underscrews_low",
+   "drop"
+  ],
+  [
+   "headlights_low",
+   "head"
+  ],
+  [
+   "backlights_low",
+   "tail"
+  ],
+  [
+   "frontreflectors_low",
+   "amber"
+  ],
+  [
+   "sidereflectors_low",
+   "amber"
+  ],
+  [
+   "frontwindow_low",
+   "glass"
+  ],
+  [
+   "frontrigthw_low",
+   "glass"
+  ],
+  [
+   "Passwindows_low",
+   "glass"
+  ],
+  [
+   "backdoorwin_low",
+   "glass"
+  ],
+  [
+   "windowback_low",
+   "glass"
+  ]
+ ],
+ "materials": {},
+ "byTexture": [
+  {
+   "mat": 0,
+   "vote": true,
+   "paint": [
+    204,
+    84,
+    36
+   ],
+   "tol": 0.25
+  },
+  {
+   "mat": 1,
+   "vote": true,
+   "paint": [
+    204,
+    84,
+    36
+   ],
+   "tol": 0.25
+  }
+ ],
+ "override": {
+  "0": {
+   "alpha": "OPAQUE"
+  },
+  "2": {
+   "alpha": "OPAQUE"
+  }
+ },
+ "texSize": 2048,
+ "layout": {
+  "bumperF": {
+   "z": 2.43,
+   "y": 0.45,
+   "w": 1.95
+  },
+  "bumperR": {
+   "z": -2.87,
+   "y": 0.45,
+   "w": 1.95
+  },
+  "spare": {
+   "x": 0,
+   "z": -2.45,
+   "mount": "under"
+  },
+  "frame": {
+   "x": 0.48,
+   "y": 0.55,
+   "z0": -2.7,
+   "z1": 2.3
+  },
+  "coilY": 0.6,
+  "half": 1.0,
+  "sill": 0.5,
+  "roofY": 1.84,
+  "roofZ": [
+   -2.6,
+   0.7
+  ],
+  "ownChassis": true
+ }
+}

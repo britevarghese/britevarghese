@@ -6,7 +6,7 @@
 //   Gecko     micro 4x4 (the little Japanese and Indian jeeps)         Mule     the Willys MB, the original jeep (a real model)
 //   Ranger    the UAZ Hunter (a real model)                            Trekker  compact pickup (the eighties' tough one)
 //   Shepherd  British utility wagon (the long-wheelbase classic)       Drover   big six-cylinder wagon (the outback one)
-//   Hauler    three-quarter-ton pickup                                  Bruiser  the Ram 2500 Power Wagon (a real model)
+//   Hauler    the Chevrolet K20 Suburban (a real model)                 Bruiser  the Ram 2500 Power Wagon (a real model)
 //   Rhino     portal-axle expedition truck (the German unstoppable)
 //
 // Each entry is the truck as it leaves the factory: stock height, stock tyres. Upgrades.js turns it and a build
@@ -67,28 +67,31 @@ export const TRUCKS = {
     style: 'ranger', look: { coils: true },
   },
   hauler: {
-    id: 'hauler', name: 'Hauler',
-    blurb: 'Three-quarter-ton pickup: 131" wheelbase, 6.6 V8, four-speed with a granny low. Heavy, long and strong.',
-    mass: 2250, cgHeight: 0.8, cgZ: 0.22, inertiaBox: [1.8, 1.2, 4.9],
+    // the Chevrolet K20 Suburban, the square-body three-quarter-ton wagon (1973-1991): 129.5" wheelbase, 5.57 m long,
+    // 2.02 m wide, leaf springs on a Dana 60 and a 14-bolt, an NP205 transfer case (a real model: render/TruckAssets.js)
+    id: 'hauler', name: 'Chevrolet K20 Suburban',
+    blurb: 'Chevrolet K20 Suburban, the square-body three-quarter-ton wagon: 129.5" wheelbase, the 6.6 V8, a four-speed with a 6.55 granny first, an NP205 and leaf springs on a Dana 60 and a 14-bolt. Long, heavy and strong.',
+    mass: 2480, cgHeight: 0.86, cgZ: 0.2, inertiaBox: [1.85, 1.35, 5.0],
     axles: [
-      { z: 1.67, track: 1.68, springTrack: 1.0, rate: 55600, bump: 3200, rebound: 6400, travel: 0.23, sag: 0.09, mass: 135, steer: 0.52, brake: 3300, swayBar: 38000, diffDrop: 0.19, diffX: -0.22 },
-      { z: -1.67, track: 1.63, springTrack: 1.08, rate: 62900, bump: 3000, rebound: 6000, travel: 0.25, sag: 0.09, mass: 150, steer: 0, brake: 2100, handbrake: 3200, diffDrop: 0.2, diffX: -0.06 },
+      { z: 1.6445, track: 1.7, springTrack: 0.96, rate: 58000, bump: 3300, rebound: 6600, travel: 0.23, sag: 0.09, mass: 140, steer: 0.52, brake: 3500, swayBar: 38000, diffDrop: 0.19, diffX: -0.22 },
+      { z: -1.6445, track: 1.68, springTrack: 1.08, rate: 66000, bump: 3200, rebound: 6400, travel: 0.25, sag: 0.09, mass: 155, steer: 0, brake: 2300, handbrake: 3400, diffDrop: 0.2, diffX: -0.06 },
     ],
     trans: { tcK: 9.4 },
-    stock: { tyre: 33, axle: 4.10, trans: 2, fit: 33, low: 1.96 },
+    stock: { tyre: 31, axle: 4.10, trans: 2, fit: 33, low: 1.96 },
+    stockTyre: { label: 'LT235/85 R16 A/T', radius: 0.4025, width: 0.235, rim: 16, desc: 'The three-quarter-ton\'s tall, narrow LT235/85 R16s (32") on eight-lug steel wheels.' },
     hull: [
-      { c: [0, 0.85, -0.185], h: [1.0, 0.35, 2.695], pts: 'bottom' },       // body and bed: bumpers 0.5 m, rails 1.2
-      { c: [0, 0.49, 0], h: [0.46, 0.13, 1.4], pts: 'bottom' },             // belly 0.36 m up
-      { c: [0, 1.54, 0.11], h: [0.84, 0.34, 0.49], pts: 'top' },            // cab, roof 1.88 m
+      { c: [0, 0.86, -0.22], h: [1.0, 0.41, 2.65], pts: 'bottom' },        // body: bumpers 0.45 m up, the beltline 1.27
+      { c: [0, 0.5, 0.2], h: [0.45, 0.12, 1.2], pts: 'bottom' },            // belly: transfer case 0.38 m up
+      { c: [0, 1.56, -0.95], h: [0.98, 0.3, 1.7], pts: 'top' },             // the wagon's roof, 1.86 m
     ],
-    roofY: 1.88, cabZ: 0.56, noseZ: 2.51, rackZ: -1.7,
-    intakePos: [0, 1.02, 1.95], snorkelPos: [-0.96, 1.96, 0.62],
-    winch: { fairlead: [0, 0.66, 2.56] },
-    eye: [0.42, 1.6, -0.02], hoodEye: [0, 1.4, 1.75],          // driver's eyes, the bonnet camera
-    drag: { cd: 0.6, area: 3.15 },
+    roofY: 1.86, cabZ: 0.3, noseZ: 2.43, rackZ: -1.0,
+    intakePos: [-0.55, 1.05, 1.8], snorkelPos: [-1.0, 1.85, 0.75],
+    winch: { fairlead: [0, 0.6, 2.45] },
+    eye: [0.45, 1.6, 0.25], hoodEye: [0, 1.45, 1.5],          // driver's eyes, the bonnet camera
+    drag: { cd: 0.62, area: 3.6 },
     buoyancy: 0.3,
     shafts: [11000, 12000], parts: 1.15,
-    style: 'hauler', look: { bed: true, leaf: 0.72 },
+    style: 'hauler', look: { leaf: 0.72 },
   },
   mule: {
     // the Willys MB (1941-1945), the jeep that went to war: 80" wheelbase, 3,360 mm long, 1,575 mm wide, 1,113 kg

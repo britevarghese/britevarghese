@@ -152,7 +152,7 @@ draws on firings recorded pulling and slowing. The banks (public/assets/audio/en
 | `d6` | Ram 5.9 Cummins turbo-diesel six (the top of the revs from the TDI) | Rhino, Drover's TD swap, the Power Wagon's Cummins swap |
 | `d8` | Ford F-350 turbo-diesel V8 (the top of the revs from the TDI) | Hummer H1 |
 | `v6` | Acura 3.2 V6, a mic at the exhaust while driving | Wrangler, Bronco |
-| `v8` | 1978 Cadillac 425 V8 (the top of the revs from the V6) | Hauler, Ram Power Wagon, the V8 swaps |
+| `v8` | 1978 Cadillac 425 V8 (the top of the revs from the V6) | K20 Suburban, Ram Power Wagon, the V8 swaps |
 | `v8m` | a cammed V8 | tuned V8s, the Wrangler's 392 HEMI |
 | `i6` | Jaguar E-type 4.2 straight six | Drover |
 | `i4` | Suzuki Jimny four | Gecko, Trekker, Willys MB, UAZ Hunter, Thar petrol |
@@ -322,9 +322,9 @@ lies, go back to the last firm, dry ground you drove on, call your friends for a
 
 ## The trucks
 
-Real trucks with real 3D models (the Mahindra Thar you start in, the Willys MB, the UAZ Hunter, the Jeep Wrangler
-Rubicon, the Ford Bronco, the Ram 2500 Power Wagon, the Hummer H1, the electric GMC Hummer EV and the Land Rover Defender
-110) and the original designs, each built to the real numbers of the kind of truck it is, from a one-ton micro 4x4 to a
+Real trucks with real 3D models (the Mahindra Thar you start in, the Willys MB, the UAZ Hunter, the Chevrolet K20
+Suburban, the Jeep Wrangler Rubicon, the Ford Bronco, the Ram 2500 Power Wagon, the Hummer H1, the electric GMC Hummer EV
+and the Land Rover Defender 110) and the original designs, each built to the real numbers of the kind of truck it is, from a one-ton micro 4x4 to a
 six-ton portal-axle expedition truck. Every one takes every part in the garage.
 
 | Truck | Price | Kind | Wheelbase | Weight | Engine | Gearbox | Low range / axles | Stock tyres | Under the diffs | Approach / departure / breakover |
@@ -337,7 +337,7 @@ six-ton portal-axle expedition truck. Every one takes every part in the garage.
 | Mahindra Thar | $15,500 | the 2020 Thar LX hard top: independent front, five-link rear, rear auto-locker (MLD) and front brake locking | 2.45 m (96") | 1850 kg | mHawk 2.2 turbo-diesel four, 300 Nm | 6-speed manual | 2.48 / 4.27 | 255/65 R18 (31") | 21 cm | 39 / 31 / 30 degrees |
 | Jeep Wrangler | $18,000 | the JK Rubicon two-door: lockers both ends, brake traction control, a 4:1 Rock-Trac low range, a front sway bar that disconnects | 2.42 m (95") | 2000 kg | 3.6 Pentastar V6, 353 Nm | 5-speed automatic | 4.0 / 4.10 | LT255/75 R17 (32") | 22 cm | 34 / 33 / 34 degrees |
 | Ford Bronco | $21,000 | the Badlands four-door with the Sasquatch package: independent front, five-link rear, lockers both ends, brake traction control | 2.95 m (116") | 2380 kg | 2.7 EcoBoost twin-turbo V6, 563 Nm | 10-speed automatic | 3.06 / 4.70 | 315/70 R17 (35") | 29 cm | 43 / 35 / 32 degrees |
-| Hauler | $14,500 | three-quarter-ton pickup | 3.34 m (131") | 2250 kg | 6.6 V8, 410 Nm | 4-speed manual, 6.55:1 granny | 1.96 / 4.10 | 33x12.5R15 | 20 cm | 35 / 24 / 25 degrees |
+| Chevrolet K20 Suburban | $14,500 | the square-body three-quarter-ton wagon: leaf springs on a Dana 60 and a 14-bolt, an NP205 | 3.29 m (129.5") | 2480 kg | 6.6 V8, 410 Nm | 4-speed manual, 6.55:1 granny | 1.96 / 4.10 | LT235/85 R16 (32") | 17 cm | 34 / 21 / 27 degrees |
 | Drover | $16,000 | big six-cylinder wagon | 2.73 m (107") | 2150 kg | 4.2 six, 285 Nm | 4-speed automatic | 1.96 / 4.10 | 31x10.5R15 | 19 cm | 34 / 25 / 30 degrees |
 | Ram 2500 Power Wagon | $24,000 | the crew-cab Power Wagon: coils on beam axles at both ends, lockers front and rear, a front sway bar that disconnects, traction control | 3.80 m (149") | 3280 kg | 6.4 HEMI V8, 582 Nm | 6-speed automatic | 2.64 / 4.10 | LT315/70 R17 M/T (35") | 22 cm | 32 / 25 / 29 degrees |
 | Hummer H1 | $32,000 | the H1 Alpha hard top, the civilian Humvee: independent suspension at both ends on geared hubs, tyre inflation from the cab, Torsen rear, brake traction control | 3.30 m (130") | 3650 kg | 6.6 Duramax turbo-diesel V8, 705 Nm | Allison 5-speed automatic | 2.72 / 5.24 (with the hub gears) | 37x12.50 R17 | 38 cm | 49 / 41 / 32 degrees |
@@ -543,8 +543,8 @@ test/                     node --test suites
 ## Credits
 
 Truck models: the Mahindra Thar, "THAR 4X4" by MB_Mahesh; the Willys MB, "Willys Jeep UN" by Mateusz Woliński
-(jeandiz); the UAZ Hunter, "UAZ Hunter expedition" by zhe_kan; the Ram 2500 Power Wagon, "Dodge Ram 2500" by VanuaG;
-the Jeep Wrangler, "Jeep Wrangler 3D Model" by Suyog modak;
+(jeandiz); the UAZ Hunter, "UAZ Hunter expedition" by zhe_kan; the Chevrolet K20 Suburban, "1970 Truck" by Raphael Escamilla
+(Raffey); the Ram 2500 Power Wagon, "Dodge Ram 2500" by VanuaG; the Jeep Wrangler, "Jeep Wrangler 3D Model" by Suyog modak;
 the Ford Bronco, "Bronco Car Animation (Red)" by neshallads; the Hummer H1, "Hummer H1 (Retry School)" by Voxel_CG;
 the Land Rover Defender 110, "Land Rover Defender 110" by
 meeww; the GMC Hummer EV, "GMC Hummer EV 2022" by Unn Interativa; on Sketchfab, CC BY 4.0, see
