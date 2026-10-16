@@ -27,6 +27,11 @@ export const TREE_SETS = {
     crown: { coconut: 0.86, banana: 0.62, bamboo: 0.6 },
     // (the rainforest's giants and the mango trees are the heaviest models, and the shola stands thick with them)
     near: { jungle: 0.5, mango: 0.75 },
+    // the giants' hanging moss left off: near-white wisps that blur into pale grey sheets a little way off (hung over
+    // the roads like ghosts of trees) and thin to nothing as you come up to them. Its own materials, and in the two
+    // leaf atlases the strip of it across their tops (the cards drawn wholly from above v = 0.295)
+    skip: { jungle: [1, 5, 7] },
+    cut: { jungle: { 4: 0.295, 6: 0.295 } },
   },
 };
 const FAR = 2400;
@@ -34,6 +39,7 @@ const TILE_W = 256, TILE_H = 512;
 // a tree changes from its model to its picture across a band short of its near range (its share of each pixel
 // dithered between the two, so neither pops); the lists it is in are kept wide of the band by the refill step
 const BAND = 0.25, MARGIN = 14;
+const CELL = 32;               // the grid the trees are found in round the camera (m)
 // a stable per-pixel threshold for the dither (interleaved gradient noise)
 const IGN = 'float ign(vec2 p) { return fract(52.9829189 * fract(dot(p, vec2(0.06711056, 0.00583715)))); }';
 
@@ -58,12 +64,22 @@ export async function loadTrees(set = TREE_SETS.ashwood, base = 'assets/trees/')
       fetch(base + name + '.json').then((r) => r.json()),
       fetch(base + name + '.bin').then((r) => r.arrayBuffer()),
     ]);
-    const groups = await Promise.all(info.groups.map(async (gr) => {
+    const skip = set.skip?.[name] || [], cut = set.cut?.[name] || {};
+    const groups = await Promise.all(info.groups.map((gr, i) => [gr, i]).filter(([, i]) => !skip.includes(i)).map(async ([gr, i]) => {
       const g = new THREE.BufferGeometry();
+      const uv = new Float32Array(bin, gr.uv, gr.vertices * 2);
+      let index = new Uint16Array(bin, gr.index, gr.indices);
+      if (cut[i] !== undefined) {
+        const keep = [];
+        for (let t = 0; t < index.length; t += 3) {
+          if (Math.max(uv[index[t] * 2 + 1], uv[index[t + 1] * 2 + 1], uv[index[t + 2] * 2 + 1]) > cut[i]) keep.push(index[t], index[t + 1], index[t + 2]);
+        }
+        index = new Uint16Array(keep);
+      }
       g.setAttribute('position', new THREE.BufferAttribute(new Float32Array(bin, gr.position, gr.vertices * 3), 3));
       g.setAttribute('normal', new THREE.BufferAttribute(new Int8Array(bin, gr.normal, gr.vertices * 3), 3, true));
-      g.setAttribute('uv', new THREE.BufferAttribute(new Float32Array(bin, gr.uv, gr.vertices * 2), 2));
-      g.setIndex(new THREE.BufferAttribute(new Uint16Array(bin, gr.index, gr.indices), 1));
+      g.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
+      g.setIndex(new THREE.BufferAttribute(index, 1));
       g.computeBoundingSphere();
       return {
         kind: gr.kind, geometry: g, alphaCutoff: gr.alphaCutoff || 0,
@@ -224,6 +240,8 @@ export class Vegetation {
       return { meshes, matrix, color, cap };
     });
     this.bakeImpostors(renderer.renderer);
+    this.buildGrid();
+    this.fillCards();
     this.lastFill = new THREE.Vector3(1e9, 0, 1e9);
     this._m = new THREE.Matrix4(); this._q = new THREE.Quaternion(); this._s = new THREE.Vector3(); this._p = new THREE.Vector3();
     this._c = new THREE.Color(); this._up = new THREE.Vector3(0, 1, 0);
@@ -277,15 +295,16 @@ export class Vegetation {
     gl.toneMapping = prevTone;
     this.impostorColor = colorRT; this.impostorNormal = normalRT;
 
-    // one card per tree beyond the near range: per-instance position, size (signed width: mirrored), atlas tile, tint
+    // one card per tree, made once (fillCards): per-instance position, size (signed width: mirrored), atlas tile, tint,
+    // and the range inside which its model stands in for it (0: none does, the card stays)
     const cap = this.trees.count;
     const g = new THREE.InstancedBufferGeometry();
     g.setAttribute('position', new THREE.Float32BufferAttribute([-1, 0, 0, 1, 0, 0, 1, 1, 0, -1, 1, 0], 3));
     g.setAttribute('uv', new THREE.Float32BufferAttribute([0, 0, 1, 0, 1, 1, 0, 1], 2));
     g.setIndex([0, 1, 2, 0, 2, 3]);
-    this.impOffset = new THREE.InstancedBufferAttribute(new Float32Array(cap * 3), 3).setUsage(THREE.DynamicDrawUsage);
-    this.impSize = new THREE.InstancedBufferAttribute(new Float32Array(cap * 2), 2).setUsage(THREE.DynamicDrawUsage);
-    this.impTile = new THREE.InstancedBufferAttribute(new Float32Array(cap * 3), 3).setUsage(THREE.DynamicDrawUsage);   // u0, du, tint
+    this.impOffset = new THREE.InstancedBufferAttribute(new Float32Array(cap * 3), 3);
+    this.impSize = new THREE.InstancedBufferAttribute(new Float32Array(cap * 2), 2);
+    this.impTile = new THREE.InstancedBufferAttribute(new Float32Array(cap * 3), 3);   // u0, du, tint
     this.impNear = new THREE.InstancedBufferAttribute(new Float32Array(cap), 1).setUsage(THREE.DynamicDrawUsage);
     g.setAttribute('aNear', this.impNear);
     g.setAttribute('aOffset', this.impOffset);
@@ -320,7 +339,8 @@ vec3 toCam = cameraPosition - aOffset; toCam.y = 0.0;
 toCam = normalize(toCam + vec3(1e-4, 0.0, 0.0));
 vec3 rightW = vec3(toCam.z, 0.0, -toCam.x);
 vRightW = rightW; vToCamW = toCam; vFlip = sign(aSize.x); vTint = aTile.z;
-vFade = aNear > 0.0 ? smoothstep(aNear * ${(1 - BAND).toFixed(3)}, aNear, length(aOffset.xz - cameraPosition.xz)) : 1.0;
+float dCam = length(aOffset.xz - cameraPosition.xz);
+vFade = aNear > 0.0 ? smoothstep(aNear * ${(1 - BAND).toFixed(3)}, aNear, dCam) : 1.0;
 vec3 transformed = aOffset + rightW * position.x * abs(aSize.x) * vFlip + vec3(0.0, position.y * aSize.y, 0.0);`);
       sh.fragmentShader = sh.fragmentShader
         .replace('#include <common>', `#include <common>
@@ -350,9 +370,11 @@ vec3 nonPerturbedNormal = normal;`)
   reflectedLight.indirectDiffuse += diffuseColor.rgb * uSunColor * back * 0.45;
 }`);
       // a modelMatrix-free world position: the cards are placed in world space
+      // (a card wholly given way to its model, or past the far range, is put out of view, not drawn and discarded)
       sh.vertexShader = sh.vertexShader.replace('#include <project_vertex>', `
 vec4 mvPosition = viewMatrix * vec4(transformed, 1.0);
-gl_Position = projectionMatrix * mvPosition;`).replace('#include <worldpos_vertex>', `vec4 worldPosition = vec4(transformed, 1.0);`);
+gl_Position = projectionMatrix * mvPosition;
+if (vFade <= 0.0 || dCam > ${FAR.toFixed(1)}) gl_Position = vec4(0.0, 0.0, -2.0, 1.0);`).replace('#include <worldpos_vertex>', `vec4 worldPosition = vec4(transformed, 1.0);`);
     };
     this.impostors = new THREE.Mesh(g, mat);
     this.impostors.frustumCulled = false;
@@ -361,57 +383,117 @@ gl_Position = projectionMatrix * mvPosition;`).replace('#include <worldpos_verte
     this.group.add(this.impostors);
   }
 
-  fill(cam) {
+  /** The trees by 32 m cell, to find the ones round the camera without going through them all. */
+  buildGrid() {
+    const T = this.trees, n = T.count;
+    if (!n) { this.grid = null; return; }
+    let x0 = Infinity, z0 = Infinity, x1 = -Infinity, z1 = -Infinity;
+    for (let i = 0; i < n; i++) { x0 = Math.min(x0, T.x[i]); x1 = Math.max(x1, T.x[i]); z0 = Math.min(z0, T.z[i]); z1 = Math.max(z1, T.z[i]); }
+    const nx = Math.floor((x1 - x0) / CELL) + 1, nz = Math.floor((z1 - z0) / CELL) + 1, cells = nx * nz;
+    const start = new Uint32Array(cells + 1), cellOf = new Uint32Array(n), idx = new Uint32Array(n);
+    for (let i = 0; i < n; i++) { const c = Math.floor((T.z[i] - z0) / CELL) * nx + Math.floor((T.x[i] - x0) / CELL); cellOf[i] = c; start[c + 1]++; }
+    for (let c = 0; c < cells; c++) start[c + 1] += start[c];
+    const at = start.slice(0, cells);
+    for (let i = 0; i < n; i++) idx[at[cellOf[i]]++] = i;
+    this.grid = { x0, z0, nx, nz, start, idx };
+  }
+
+  /** A tree's own random numbers (its turn, mirror and tint; its width), the same for its model and its card. */
+  rand(i) {
+    const h1 = Math.sin(i * 12.9898) * 43758.5453, h2 = Math.sin(i * 78.233) * 12543.123;
+    return [h1 - Math.floor(h1), h2 - Math.floor(h2)];
+  }
+
+  /**
+   * Every tree's card, once. Close to the camera the shader fades a card out as its model fades in (so the list never
+   * changes as you drive); only a tree whose kind has run out of models keeps its card there (the overflow, fill).
+   */
+  fillCards() {
     const T = this.trees, n = T.count, K = this.kindOf;
-    const counts = new Array(this.kinds.length).fill(0);
-    const m = this._m, q = this._q, s = this._s, p = this._p, c = this._c;
-    const off = this.impOffset.array, size = this.impSize.array, tile = this.impTile.array, nearA = this.impNear.array;
-    let ni = 0;
-    const far2 = FAR * FAR;
-    const rIn = this.kinds.map((_, k) => Math.max(0, NEAR * this.nearOf[k] * (1 - BAND) - MARGIN) ** 2);
-    const rOut = this.kinds.map((_, k) => (NEAR * this.nearOf[k] + MARGIN) ** 2);
+    const off = this.impOffset.array, size = this.impSize.array, tile = this.impTile.array;
     for (let i = 0; i < n; i++) {
-      const dx = T.x[i] - cam.x, dz = T.z[i] - cam.z;
-      const d2 = dx * dx + dz * dz;
-      if (d2 >= far2) continue;
-      const k = K[i];
-      const h1 = Math.sin(i * 12.9898) * 43758.5453, r1 = h1 - Math.floor(h1);
-      const h2 = Math.sin(i * 78.233) * 12543.123, r2 = h2 - Math.floor(h2);
+      const k = K[i], [r1, r2] = this.rand(i), t = this.tiles[k];
       const ht = T.h[i], wd = ht * (0.88 + r2 * 0.24) * this.widthOf[k];
-      const tint = 0.84 + r2 * 0.3;
-      let card = d2 > rIn[k], fades = true;
-      if (d2 < rOut[k]) {
-        const nk = this.near[k];
-        const j = counts[k];
-        if (j >= nk.cap) { card = true; fades = false; } else {
-        counts[k]++;
+      off[i * 3] = T.x[i]; off[i * 3 + 1] = T.y[i] - 0.12; off[i * 3 + 2] = T.z[i];
+      size[i * 2] = t.r * wd * (r1 < 0.5 ? -1 : 1); size[i * 2 + 1] = ht * 1.02;
+      tile[i * 3] = t.u0; tile[i * 3 + 1] = t.u1 - t.u0; tile[i * 3 + 2] = 0.84 + r2 * 0.3;
+    }
+    this.overflow = new Set();
+    this.setCardNear();
+    this.impostors.geometry.instanceCount = n;
+    this.impOffset.needsUpdate = true; this.impSize.needsUpdate = true; this.impTile.needsUpdate = true;
+    this.farCount = n;
+  }
+
+  /** Each card's range inside which its model stands in for it (none for the overflow). */
+  setCardNear() {
+    const n = this.trees.count, K = this.kindOf, a = this.impNear.array, r = this.nearOf.map((f) => NEAR * f);
+    for (let i = 0; i < n; i++) a[i] = r[K[i]];
+    for (const i of this.overflow) a[i] = 0;
+    this.impNear.needsUpdate = true;
+  }
+
+  /** The models round the camera: each kind's nearest trees, as many as it has models for. */
+  fill(cam) {
+    const T = this.trees, K = this.kindOf, G = this.grid, nk = this.kinds.length;
+    const counts = new Array(nk).fill(0);
+    const m = this._m, q = this._q, s = this._s, p = this._p, c = this._c;
+    const rOut = this.kinds.map((_, k) => (NEAR * this.nearOf[k] + MARGIN) ** 2);
+    const cand = this._cand || (this._cand = this.kinds.map(() => []));
+    for (const l of cand) l.length = 0;
+    if (G) {
+      const R = Math.sqrt(Math.max(...rOut));
+      const i0 = Math.max(0, Math.floor((cam.x - R - G.x0) / CELL)), i1 = Math.min(G.nx - 1, Math.floor((cam.x + R - G.x0) / CELL));
+      const k0 = Math.max(0, Math.floor((cam.z - R - G.z0) / CELL)), k1 = Math.min(G.nz - 1, Math.floor((cam.z + R - G.z0) / CELL));
+      for (let kz = k0; kz <= k1; kz++) for (let ix = i0; ix <= i1; ix++) {
+        const cl = kz * G.nx + ix;
+        for (let e = G.start[cl]; e < G.start[cl + 1]; e++) {
+          const i = G.idx[e], dx = T.x[i] - cam.x, dz = T.z[i] - cam.z, d2 = dx * dx + dz * dz, k = K[i];
+          if (d2 < rOut[k]) cand[k].push(d2, i);
+        }
+      }
+    }
+    const over = new Set();
+    for (let k = 0; k < nk; k++) {
+      const nkk = this.near[k], l = cand[k];
+      let list = [];
+      for (let e = 0; e < l.length; e += 2) list.push(l[e + 1]);
+      if (list.length > nkk.cap) {
+        // more trees of the kind about than it has models for: the nearest get them, the rest keep their cards
+        const order = [];
+        for (let e = 0; e < l.length; e += 2) order.push(e);
+        order.sort((a, b) => l[a] - l[b]);
+        list = order.map((e) => l[e + 1]);
+        for (let j = nkk.cap; j < list.length; j++) over.add(list[j]);
+        list.length = nkk.cap;
+      }
+      for (const i of list) {
+        const [r1, r2] = this.rand(i), ht = T.h[i], wd = ht * (0.88 + r2 * 0.24) * this.widthOf[k], tint = 0.84 + r2 * 0.3, j = counts[k]++;
         q.setFromAxisAngle(this._up, r1 * 6.283);
         s.set(wd, ht, wd);
         p.set(T.x[i], T.y[i] - 0.12, T.z[i]);
         m.compose(p, q, s);
-        m.toArray(nk.matrix.array, j * 16);
+        m.toArray(nkk.matrix.array, j * 16);
         c.setRGB(tint * (0.96 + r1 * 0.08), tint, tint * (0.93 + r1 * 0.07));
-        c.toArray(nk.color.array, j * 3);
-        }
-      }
-      if (card) {
-        const t = this.tiles[k];
-        off[ni * 3] = T.x[i]; off[ni * 3 + 1] = T.y[i] - 0.12; off[ni * 3 + 2] = T.z[i];
-        size[ni * 2] = t.r * wd * (r1 < 0.5 ? -1 : 1); size[ni * 2 + 1] = ht * 1.02;
-        tile[ni * 3] = t.u0; tile[ni * 3 + 1] = t.u1 - t.u0; tile[ni * 3 + 2] = tint;
-        nearA[ni] = fades ? NEAR * this.nearOf[k] : 0;              // (over the models' cap: the card stands in, whole)
-        ni++;
+        c.toArray(nkk.color.array, j * 3);
       }
     }
-    this.near.forEach((nk, k) => {
-      for (const mesh of nk.meshes) mesh.count = counts[k];
-      nk.matrix.needsUpdate = true;
-      nk.color.needsUpdate = true;
+    // the overflow's cards stay up close (and the ones no longer in it fade again)
+    let changed = over.size !== this.overflow.size;
+    if (!changed) for (const i of over) if (!this.overflow.has(i)) { changed = true; break; }
+    if (changed) {
+      const a = this.impNear.array;
+      for (const i of this.overflow) a[i] = NEAR * this.nearOf[K[i]];
+      for (const i of over) a[i] = 0;
+      this.overflow = over;
+      this.impNear.needsUpdate = true;
+    }
+    this.near.forEach((nkk, k) => {
+      for (const mesh of nkk.meshes) mesh.count = counts[k];
+      nkk.matrix.needsUpdate = true;
+      nkk.color.needsUpdate = true;
     });
-    this.impostors.geometry.instanceCount = ni;
-    this.impOffset.needsUpdate = true; this.impSize.needsUpdate = true; this.impTile.needsUpdate = true; this.impNear.needsUpdate = true;
     this.nearCount = counts.reduce((a, b) => a + b, 0);
-    this.farCount = ni;
   }
 
   update(camera, dt) {
@@ -432,7 +514,7 @@ gl_Position = projectionMatrix * mvPosition;`).replace('#include <worldpos_verte
   setShadows(on) { for (const nk of this.near) for (const m of nk.meshes) m.castShadow = on; }
 
   /** How far out trees are drawn in full ('high' 340, 'medium' 240, 'low' 150, as the game passes it). */
-  setDetailRange(mid) { NEAR = mid >= 300 ? 85 : mid >= 200 ? 60 : 38; this.setFade(); this.lastFill.set(1e9, 0, 1e9); }
+  setDetailRange(mid) { NEAR = mid >= 300 ? 85 : mid >= 200 ? 60 : 38; this.setFade(); this.setCardNear(); this.lastFill.set(1e9, 0, 1e9); }
 
   /** Each kind's band where its model gives way to its picture. */
   setFade() { this.kinds.forEach((_, k) => { const d = NEAR * this.nearOf[k]; this.fade[k].value.set(d * (1 - BAND), d); }); }
