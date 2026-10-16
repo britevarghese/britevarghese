@@ -228,12 +228,16 @@ it with `--no-multiplayer`.
 - Get out with F and take any car: traffic, a stopped police cruiser, a street rival's car, or a
   car another player left parked. The server hands a parked car to whoever asks first, and its
   owner gets a message.
-- Traffic, police, races and missions are simulated separately by each player.
+- Street traffic is shared: players within about 450 m of each other see the same cars (the
+  lowest-numbered of them runs it). Police, races and missions are each player's own.
+- If the connection drops, the game reconnects by itself (and says so).
 
 Protocol: JSON over `/ws`. Clients send their state at 20 Hz: position, rotation, velocity,
-vehicle, paint, on-foot flag, parked cars, and a teleport counter for respawns and resets. The
-server validates each update (speed is clamped and unannounced jumps over 60 m are rejected),
-then broadcasts snapshots at 20 Hz. Clients interpolate the other players 120 ms behind.
+vehicle, paint, on-foot flag, parked cars, a teleport counter for respawns and resets, and the
+time of the last snapshot they have had. The server keeps positions to the map and clamps speeds,
+passes any jump over 60 m on as a teleport, and broadcasts snapshots at 20 Hz; a player more than
+0.8 s behind (a slow link) gets one a second until they catch up, rather than a growing backlog.
+Clients interpolate the other players 120 ms behind.
 
 ## Regenerating models
 

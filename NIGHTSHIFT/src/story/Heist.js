@@ -178,8 +178,9 @@ export class Heist {
     const P = interactionProfile(car), dS = P.seat, pS = this.pp?.seat || new THREE.Vector3(-dS.x, dS.y, dS.z);
     const y0 = site.floor;
     const shots = [
-      // 1. high over the street, the town round it, drifting down toward the bank
-      { dur: 6, cam: { pos: (k, o) => o.set(fr.x + ox * (70 - 30 * k) + ax * (60 - 25 * k), y0 + 46 - 18 * k, fr.z + oz * (70 - 30 * k) + az * (60 - 25 * k)), look: (k, o) => o.set(fr.x + ox * 8, y0 + 2, fr.z + oz * 8), fov: 52 },
+      // 1. down the street at the rooftops, easing down toward the bank (it began 46 m up and came down out of the sky:
+      // the game seemed to open with the car falling from above)
+      { dur: 6, cam: { pos: (k, o) => o.set(fr.x + ox * (30 - 8 * k) + ax * (38 - 14 * k), y0 + 11 - 5 * k, fr.z + oz * (30 - 8 * k) + az * (38 - 14 * k)), look: (k, o) => o.set(fr.x + ox * 8, y0 + 2, fr.z + oz * 8), fov: 52 },
         on: [[0.4, () => titleCard(this.story, 'NIGHTSHIFT', 'Kannur, Kerala &nbsp;·&nbsp; 10:20 AM', 5.4)]] },
       // 2. across the road at the bank's board, the Scorpio waiting down the road
       { dur: 4.2, cam: { pos: (k, o) => o.set(fr.x + ox * 11.5 + ax * (5 - 3 * k), y0 + 1.5, fr.z + oz * 11.5 + az * (5 - 3 * k)), look: (k, o) => o.set(fr.x + ax * (1.5 - 3 * k), y0 + 2.4 - 0.9 * k, fr.z + az * (1.5 - 3 * k)), fov: 46 } },

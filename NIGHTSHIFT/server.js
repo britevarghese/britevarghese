@@ -125,34 +125,49 @@ const compressCache = new Map();
 let compressCacheBytes = 0;
 const COMPRESS_CACHE_LIMIT = 128 * 1024 * 1024;
 
-function getCompressed(file, stat, encoding) {
+// (compressed off the main thread: done there - brotli at quality 9 on a 3 MB file, the better part of a second - a
+// friend's first load of the game stalled the server, the multiplayer room and everyone's connection with it. One
+// job per file however many ask for it at once)
+const compressing = new Map();
+function getCompressed(file, stat, encoding, done) {
   const key = `${encoding}|${file}|${stat.mtimeMs}|${stat.size}`;
   const hit = compressCache.get(key);
   if (hit) {
     compressCache.delete(key); compressCache.set(key, hit); // LRU bump
-    return hit;
+    return done(null, hit);
   }
-  const raw = fs.readFileSync(file);
-  const out = encoding === 'br'
-    ? zlib.brotliCompressSync(raw, {
-      params: {
-        [zlib.constants.BROTLI_PARAM_QUALITY]: 9,
-        [zlib.constants.BROTLI_PARAM_SIZE_HINT]: raw.length,
-      },
-    })
-    : zlib.gzipSync(raw, { level: 9 });
-  // Drop stale versions of the same file.
-  for (const k of compressCache.keys()) {
-    if (k.startsWith(`${encoding}|${file}|`)) { compressCacheBytes -= compressCache.get(k).length; compressCache.delete(k); }
-  }
-  compressCache.set(key, out);
-  compressCacheBytes += out.length;
-  while (compressCacheBytes > COMPRESS_CACHE_LIMIT && compressCache.size > 1) {
-    const oldest = compressCache.keys().next().value;
-    compressCacheBytes -= compressCache.get(oldest).length;
-    compressCache.delete(oldest);
-  }
-  return out;
+  const waiting = compressing.get(key);
+  if (waiting) { waiting.push(done); return; }
+  const queue = [done];
+  compressing.set(key, queue);
+  const finish = (err, out) => {
+    compressing.delete(key);
+    if (!err) {
+      // Drop stale versions of the same file.
+      for (const k of compressCache.keys()) {
+        if (k.startsWith(`${encoding}|${file}|`)) { compressCacheBytes -= compressCache.get(k).length; compressCache.delete(k); }
+      }
+      compressCache.set(key, out);
+      compressCacheBytes += out.length;
+      while (compressCacheBytes > COMPRESS_CACHE_LIMIT && compressCache.size > 1) {
+        const oldest = compressCache.keys().next().value;
+        compressCacheBytes -= compressCache.get(oldest).length;
+        compressCache.delete(oldest);
+      }
+    }
+    for (const cb of queue) cb(err, out);
+  };
+  fs.readFile(file, (err, raw) => {
+    if (err) return finish(err);
+    if (encoding === 'br') {
+      zlib.brotliCompress(raw, {
+        params: {
+          [zlib.constants.BROTLI_PARAM_QUALITY]: raw.length > 512 * 1024 ? 7 : 9,
+          [zlib.constants.BROTLI_PARAM_SIZE_HINT]: raw.length,
+        },
+      }, finish);
+    } else zlib.gzip(raw, { level: 9 }, finish);
+  });
 }
 
 function pickEncoding(req) {
@@ -238,14 +253,15 @@ function serveStatic(req, res, pathname) {
   }
 
   if (encoding) {
-    let body;
-    try { body = getCompressed(file, stat, encoding); } catch (e) {
-      return sendText(res, 500, '500 Internal Server Error');
-    }
-    headers['Content-Encoding'] = encoding;
-    headers['Content-Length'] = body.length;
-    res.writeHead(200, headers);
-    return res.end(req.method === 'HEAD' ? undefined : body);
+    getCompressed(file, stat, encoding, (err, body) => {
+      if (res.destroyed) return;
+      if (err) return sendText(res, 500, '500 Internal Server Error');
+      headers['Content-Encoding'] = encoding;
+      headers['Content-Length'] = body.length;
+      res.writeHead(200, headers);
+      res.end(req.method === 'HEAD' ? undefined : body);
+    });
+    return;
   }
 
   // Uncompressed: stream, with single-range support (useful for audio seeking).

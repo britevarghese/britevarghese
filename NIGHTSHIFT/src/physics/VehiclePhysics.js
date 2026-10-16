@@ -72,6 +72,9 @@ export class VehiclePhysics {
     this.pitchDyn = this.rollDyn = this.pitchVel = this.rollVel = 0;
     s.onGround = true; this.airTime = 0;
     this.down = null; this.lean = 0; this.leanVel = 0; this.attP = this.attR = undefined;
+    // (put down where the map isn't built yet - a saved game far off, a teleport - it stood on whatever was there, the
+    // bare hillside or nothing, and dropped onto the road when the road came in: held where it is until it's built)
+    this.held = !!this.world?.kerala && y === undefined && !this.world.tileAt?.(x, z)?.ready;
   }
 
   // Motorcycle crash: the bike goes down on its side (side +1 = falls to its left) and slides to a stop with no
@@ -81,6 +84,10 @@ export class VehiclePhysics {
   // controls: {throttle, brake, steer, handbrake, nitro}
   step(dt, c) {
     const p = this.p, s = this.s;
+    if (this.held) {
+      if (!this.world.tileAt?.(s.x, s.z)?.ready) { s.vx = s.vz = s.vy = 0; s.yawRate = 0; s.speed = 0; this.vUp = 0; return; }
+      this.held = false; s.y = this.world.layout.groundHeight(s.x, s.z); s.onGround = true;
+    }
     if (this.down) { this.down.t += dt; c = NO_CONTROL; }
     s.down = !!this.down;
     this.steerIn = c.steer;

@@ -127,6 +127,11 @@ the game. Newly found problems go at the end of their section.
 - [x] Canal bridge parapets stood 12 cm onto the carriageway (their road face inside the road's edge): moved just off it
 - [x] Traffic vehicles with panels missing (a Scorpio's doors and front see-through): parts made of single faces were
   drawn one side only; they are drawn both sides now, as the model has them
+- [x] The car (or you) dropped out of the sky when the game started: a saved game loaded somewhere other than Kannur put
+  the car down before that part of the map was built - at the last height looked up anywhere, 22 m over Kannur's
+  road, where Thalassery's was at 9 m - and it fell 13 m once the roads came in. The map round a saved game is built
+  first now, and any car put down where the map isn't built yet is held where it is until it is, then set on the road.
+  And the prologue opened on a camera 46 m up, coming down out of the sky onto the bank: it starts at the rooftops now
 
 ## Police and traffic
 - [x] Police start a chase when their own car hits you (fault check: whoever drove into whom)
@@ -508,3 +513,26 @@ the game. Newly found problems go at the end of their section.
   - [x] A mission's 'go to' a place kilometres off was put on the nearest road loaded when the step began, not
     necessarily its own: Chirakkal's spot ended 60 m from any road, the marker in a field and the step never done.
     It's worked out again once that place's roads are in
+
+## Multiplayer
+- [x] A friend who joined got disconnected after a while, and in Kerala nobody saw anybody anyway:
+  - every position sent from Kerala was thrown away by the server, as outside the world (its limit was 100 km from the
+    map's corner; Kannur is 210 km up it), so friends were never shown; and the shared street traffic arrived empty, the
+    server knowing only the old city's six kinds of vehicle (no autos, buses, scooters or lorries). Both fixed: two
+    players together in Kannur for 6 minutes, each sees the other's car, and the one not running the traffic sees the
+    other's 16-23 vehicles, autos to KSRTC buses
+  - a friend on a slow link (Wi-Fi, a VPN) fell further and further behind: the server queued every update for them -
+    20 snapshots and 10 traffic updates a second - however slowly they were taken off, and the heartbeat, stuck behind
+    the queue, timed out and dropped them (at 20 KB/s: a minute behind, then cut off, 79 s in). The game now tells the
+    server which snapshot it last had; a player more than 0.8 s behind gets one a second until they catch up, and
+    stays connected (the same link: under 3 s behind for 3 minutes, still in). The heartbeat waits for three missed
+    answers (45 s) rather than one, and anything the player sends counts as an answer
+  - once disconnected the game tried to reconnect once, and gave up if the server didn't answer that moment: it keeps
+    trying now (2, 4, 8, then every 15 s) and says when it's back; the server stopped for 20 s mid-game, the game was
+    back in about 15 s of its return
+  - the server compressed each file the first time it was asked for, holding everything else up meanwhile (the better
+    part of a second for the biggest): done off to the side now, once per file however many ask
+  - with positions getting through at last, the server's check on teleports came into play: a jump it hadn't been
+    told of (a mission's teleport moments after another, a reset) had the player snapped back to where they'd been -
+    in a mission, back at its start, its car never coming. A jump is passed on to the others as a teleport now, never
+    undone

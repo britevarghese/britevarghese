@@ -754,9 +754,12 @@ export class Game {
     this.save.save();
     return ok;
   }
-  loadSlot(i) {
+  async loadSlot(i) {
     const slot = Storage.load('slot' + i, null);
     if (!slot) return false;
+    // (the roads where it was saved built before the car is put down there: placed first, on the bare hillside, it
+    // dropped onto them from above as they came in)
+    if (this.world.kerala) { this.ui.toast('Loading...', '', 2); await this.world.preload(new THREE.Vector3(slot.pos.x, 0, slot.pos.z)); }
     Object.assign(this.save.data, structuredClone(slot.data));
     this.save.save();
     if (typeof slot.hour === 'number' && this.env.mode !== 'real') this.env.hour = slot.hour;

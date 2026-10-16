@@ -49,6 +49,7 @@ class WebSocketConnection extends EventEmitter {
   }
 
   _onData(chunk) {
+    this.isAlive = true;
     this.buf = this.buf.length ? Buffer.concat([this.buf, chunk]) : chunk;
     try {
       while (this.open && this._parseFrame()) { /* keep parsing */ }
@@ -143,6 +144,9 @@ class WebSocketConnection extends EventEmitter {
     if (!this.socket.destroyed && this.socket.writable) this.socket.write(buf);
   }
 
+  // bytes written but not yet sent on (the connection's backlog: a slow link's)
+  get backlog() { return this.socket.writableLength || 0; }
+
   send(data) {
     if (!this.open) return;
     if (typeof data === 'string') this._write(encodeFrame(OP.TEXT, Buffer.from(data, 'utf8')));
@@ -151,6 +155,7 @@ class WebSocketConnection extends EventEmitter {
 
   ping() {
     if (!this.open) return;
+    if (this.isAlive) this.missed = 0; else this.missed = (this.missed || 0) + 1;
     this.isAlive = false;
     this._write(encodeFrame(OP.PING, Buffer.alloc(0)));
   }
@@ -217,10 +222,12 @@ function attachWebSocketServer(httpServer, options) {
     options.onConnection(ws, req);
   });
 
-  // Heartbeat: drop clients that stop answering pings.
+  // Heartbeat: drop clients that stop answering pings - three in a row, 45 s or more with no word back. (One missed
+  // answer dropped them: a friend on a slow link whose answer was stuck behind the game's updates, or anyone at all
+  // while the server was busy for a moment, was cut off mid-game. Data from them counts as an answer too)
   const hb = setInterval(() => {
     for (const ws of clients) {
-      if (!ws.isAlive) { ws.terminate(); continue; }
+      if (!ws.isAlive && (ws.missed || 0) >= 2) { ws.terminate(); continue; }
       ws.ping();
     }
   }, 15000);

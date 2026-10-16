@@ -90,15 +90,23 @@ export class NetworkClient {
   get name() { return (this.game.settings.gameplay.playerName || '').trim() || this._rand || (this._rand = `Driver${Math.floor(Math.random() * 900 + 100)}`); }
   get online() { return this.connected ? this.remotes.size + 1 : 0; }
 
+  // (again in a moment, a little longer between tries each time - after losing the connection, until it's back: one
+  // failed try gave up for good, and a blip on a friend's link or the server restarting took them out of the game)
+  _retry() {
+    clearTimeout(this.retryT);
+    this.retryT = setTimeout(() => this.connect(), Math.min(15000, 2000 * 2 ** (this.retries || 0)));
+    this.retries = (this.retries || 0) + 1;
+  }
+
   async connect() {
     let cfg;
-    try { cfg = await (await fetch('/api/config')).json(); } catch { return false; }
+    try { cfg = await (await fetch('/api/config', { cache: 'no-store' })).json(); } catch { if (this.retries) this._retry(); return false; }
     if (!cfg?.multiplayer?.enabled) { this.status = 'off'; return false; }
     this.cfg = cfg.multiplayer;
     this.status = 'connecting';
     const url = `${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}${cfg.multiplayer.path || '/ws'}`;
     return new Promise((resolve) => {
-      try { this.ws = new WebSocket(url); } catch { this.status = 'error'; resolve(false); return; }
+      try { this.ws = new WebSocket(url); } catch { this.status = 'error'; if (this.retries) this._retry(); resolve(false); return; }
       this.ws.onopen = () => { this.ws.send(JSON.stringify({ t: 'hello', name: this.name })); };
       this.ws.onmessage = (e) => this._onMessage(e.data, resolve);
       this.ws.onclose = () => {
@@ -106,7 +114,8 @@ export class NetworkClient {
         this.connected = false; this.status = 'disconnected';
         for (const r of this.remotes.values()) this._disposeRemote(r);
         this.remotes.clear();
-        if (was) { bus.emit('toast', { text: 'Multiplayer: disconnected, retrying...', type: 'err' }); setTimeout(() => this.connect(), 4000); }
+        if (was) { this.retries = 0; bus.emit('toast', { text: 'Multiplayer: disconnected, reconnecting...', type: 'err' }); }
+        if (was || this.retries) this._retry();
         resolve(false);
       };
       this.ws.onerror = () => resolve(false);
@@ -115,6 +124,7 @@ export class NetworkClient {
 
   // reconnect with a new name (settings)
   rename() {
+    clearTimeout(this.retryT); this.retries = 0;
     if (this.ws) { this.ws.onclose = null; this.ws.onmessage = null; try { this.ws.close(); } catch { /* already closed */ } }
     this.connected = false; this.status = 'connecting';
     for (const r of this.remotes.values()) this._disposeRemote(r);
@@ -122,12 +132,15 @@ export class NetworkClient {
     this.connect();
   }
 
-  _send(o) { if (this.connected && this.ws.readyState === 1) this.ws.send(JSON.stringify(o)); }
+  // (the many-times-a-second updates - our state, the traffic we run - skipped while the connection is behind: queued
+  // up on a slow link they only add lag; the next one is along in a moment)
+  _send(o, live = false) { if (this.connected && this.ws.readyState === 1 && !(live && this.ws.bufferedAmount > 64 * 1024)) this.ws.send(JSON.stringify(o)); }
 
   _onMessage(data, resolve) {
     let m; try { m = JSON.parse(data); } catch { return; }
     if (m.t === 'welcome') {
-      this.id = m.id; this.tickRate = m.tickRate; this.connected = true; this.status = 'connected';
+      if (this.retries) bus.emit('toast', { text: 'Multiplayer: reconnected' });
+      this.id = m.id; this.tickRate = m.tickRate; this.connected = true; this.status = 'connected'; this.retries = 0;
       for (const p of m.players || []) this.names.set(p.id, p.name);
       const others = (m.players || []).length;
       bus.emit('toast', { text: `Online as ${this.name}${others ? ` · ${others} other player${others > 1 ? 's' : ''} in the city` : ''}` });
@@ -136,6 +149,7 @@ export class NetworkClient {
       this.names.set(m.id, m.name);
       bus.emit('toast', { text: `${m.name} joined the city` });
     } else if (m.t === 'snapshot') {
+      this.lastSnapT = m.time;
       for (const pl of m.players) {
         if (pl.id === this.id || !pl.s) continue;
         this.names.set(pl.id, pl.name);
@@ -341,7 +355,8 @@ export class NetworkClient {
       parked.push({ k: v.netKey, car: v.carId, paint: paintOf(v), p: [v.state.x, v.state.y, v.state.z], yaw: v.state.yaw });
     }
     const car = foot ? (pl.gone ? 'sedan' : pl.carId) : pl.carId;
-    this._send({ t: 'state', s: { p: [s.x, s.y, s.z], q: [_q.x, _q.y, _q.z, _q.w], v: [s.vx || 0, s.vy || 0, s.vz || 0], car, paint: paintOf(pl), foot: foot ? 1 : 0, warp: this.warp, parked } });
+    // (and the last snapshot we've had: the server holds back what we're too far behind to use)
+    this._send({ t: 'state', ack: this.lastSnapT, s: { p: [s.x, s.y, s.z], q: [_q.x, _q.y, _q.z, _q.w], v: [s.vx || 0, s.vy || 0, s.vz || 0], car, paint: paintOf(pl), foot: foot ? 1 : 0, warp: this.warp, parked } }, true);
   }
 
   // ------------------------------------------------------------------ shared traffic
@@ -385,7 +400,7 @@ export class NetworkClient {
   _sendTraffic(tm) {
     const r2 = (v) => Math.round(v * 100) / 100;
     const cars = tm.cars.map((c) => [c.id, c.type, r2(c.x), r2(c.y), r2(c.z), r2(c.yaw), r2(c.state === 'drive' ? c.v : Math.hypot(c.s2.vx, c.s2.vz)), c.brake ? 1 : 0, c.color.getHex()]);
-    this._send({ t: 'traffic', cars });
+    this._send({ t: 'traffic', cars }, true);
   }
 
   // the host's cars, interpolated between its last two messages

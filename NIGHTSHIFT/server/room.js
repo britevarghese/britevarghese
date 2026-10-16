@@ -5,12 +5,13 @@
  * Protocol (JSON text frames):
  *   client -> server  {t:'hello', name}
  *   server -> client  {t:'welcome', id, tickRate}
- *   client -> server  {t:'state', s:{p:[x,y,z], q:[x,y,z,w], v:[x,y,z], car, paint, foot, warp, parked:[...]}}
+ *   client -> server  {t:'state', ack, s:{p:[x,y,z], q:[x,y,z,w], v:[x,y,z], car, paint, foot, warp, parked:[...]}}
+ *                       ack: the time of the last snapshot the client has had (a client too far behind is sent
+ *                       one snapshot a second, and no traffic, until it catches up)
  *                       foot: 1 when the player is walking (p = the character, car = the car they left)
  *                       warp: counter the client bumps on a deliberate teleport (respawn, reset, mission)
  *                       parked: up to 4 cars the player left in the street {k, car, paint, p, yaw}
  *   server -> clients {t:'snapshot', time, players:[{id, name, s}]}   (at tickRate)
- *   server -> client  {t:'correction', s}   (when an update was rejected)
  *   client -> server  {t:'take', owner, k}            take another player's parked car
  *   server -> taker   {t:'take-ok', owner, k, car, paint, p, yaw} | {t:'take-fail', owner, k}
  *   server -> owner   {t:'taken', k, by}                (drop it from your parked list)
@@ -21,18 +22,22 @@
  *                       Shared street traffic: players close together form a group and the lowest id
  *                       in it simulates the cars for everyone (the others render and collide with them).
  *
- * The server is authoritative for sanity only: speeds are clamped and
- * unannounced teleports are rejected. Physics still runs on the clients.
+ * The server is authoritative for sanity only: speeds are clamped, positions kept to the map, and a jump the
+ * client didn't announce is passed on as a teleport. Physics still runs on the clients.
  */
 
 const MAX_SPEED = 120;      // m/s
 const MAX_TELEPORT = 60;    // m between consecutive accepted updates
-const MAX_COORD = 1e5;      // world bounds sanity
+const MAX_COORD = 1e6;      // world bounds sanity (Kerala's map runs to 600 km north: at 1e5 every update from Kannur,
+                            // 210 km up, was thrown away and nobody saw anybody)
 const MAX_MSG_RATE = 60;    // messages per second per client (soft limit)
 const MAX_PARKED = 4;
-const WARP_COOLDOWN = 400;  // ms between accepted teleports
 const MAX_TRAFFIC = 120;    // cars per traffic message
-const TRAFFIC_TYPES = new Set(['sedan', 'hatch', 'suv', 'van', 'truck', 'bus']);
+// (any of the game's vehicle types by its id: a list of the old city's six left every Kerala vehicle - autos, buses,
+// scooters, lorries - out of the shared traffic)
+const TRAFFIC_TYPE = /^[a-z][a-z0-9_]{0,23}$/;
+const LIVE_BACKLOG = 64 * 1024; // bytes queued to a player beyond which live updates to them are skipped
+const LIVE_LAG = 800;           // ms a player's game may be behind the snapshots before they're held back
 
 function isNum(n) { return typeof n === 'number' && Number.isFinite(n); }
 function vec(a, n) {
@@ -111,6 +116,7 @@ class Room {
     }
     if (msg.t === 'state') {
       if (!player.id) return;
+      if (isNum(msg.ack)) player.ack = msg.ack;   // (the last snapshot their game has had: how far behind it is)
       const s = this.validate(player, msg.s);
       if (s) { player.s = s; player.lastUpdate = Date.now(); }
       return;
@@ -131,12 +137,12 @@ class Room {
       if (!player.id || !Array.isArray(msg.cars)) return;
       const cars = [];
       for (const c of msg.cars.slice(0, MAX_TRAFFIC)) {
-        if (!Array.isArray(c) || c.length !== 9 || !TRAFFIC_TYPES.has(c[1])) continue;
+        if (!Array.isArray(c) || c.length !== 9 || typeof c[1] !== 'string' || !TRAFFIC_TYPE.test(c[1])) continue;
         const n = [c[0], c[2], c[3], c[4], c[5], c[6], c[7], c[8]];
         if (!n.every(isNum) || Math.abs(c[2]) > MAX_COORD || Math.abs(c[4]) > MAX_COORD) continue;
         cars.push([c[0] | 0, c[1], round(c[2]), round(c[3]), round(c[4]), round(c[5]), round(c[6]), c[7] ? 1 : 0, c[8] | 0]);
       }
-      this.broadcast({ t: 'traffic', from: player.id, cars }, player);
+      this.broadcast({ t: 'traffic', from: player.id, cars }, player, true);
       return;
     }
     if (msg.t === 'ping') {
@@ -158,17 +164,13 @@ class Room {
     if (speed > MAX_SPEED) v = v.map((c) => (c / speed) * MAX_SPEED);
 
     const prev = player.s;
-    const warp = isNum(s.warp) ? s.warp | 0 : 0;
-    if (prev) {
-      const d = Math.hypot(s.p[0] - prev.p[0], s.p[1] - prev.p[1], s.p[2] - prev.p[2]);
-      const now = Date.now();
-      const announced = warp !== prev.warp && now - (player.lastWarp || 0) > WARP_COOLDOWN;
-      if (d > MAX_TELEPORT && !announced) {
-        this.send(player.ws, { t: 'correction', s: prev });
-        return null;
-      }
-      if (announced) player.lastWarp = now;
-    }
+    const raw = isNum(s.warp) ? s.warp | 0 : 0;
+    // (a jump the game didn't announce - a mission's or a reset's teleport moments after another - is taken as one
+    // all the same, so the others see a jump and not a drive across the map. Snapped back to where the player had
+    // been instead, a story mission put them back at its start, its car never came, and it went no further)
+    if (prev && raw === player.rawWarp && Math.hypot(s.p[0] - prev.p[0], s.p[1] - prev.p[1], s.p[2] - prev.p[2]) > MAX_TELEPORT) player.jumps = (player.jumps || 0) + 1;
+    player.rawWarp = raw;
+    const warp = raw + (player.jumps || 0);
     const parked = [];
     if (Array.isArray(s.parked)) {
       for (const c of s.parked.slice(0, MAX_PARKED)) {
@@ -198,14 +200,26 @@ class Room {
     for (const p of this.players.values()) {
       if (p.s) players.push({ id: p.id, name: p.name, s: p.s });
     }
-    this.broadcast({ t: 'snapshot', time: Date.now(), players });
+    this.broadcast({ t: 'snapshot', time: Date.now(), players }, null, true);
   }
 
   send(ws, obj) { ws.send(JSON.stringify(obj)); }
 
-  broadcast(obj, except = null) {
-    const data = JSON.stringify(obj);
-    for (const p of this.players.values()) if (p !== except) p.ws.send(data);
+  // (the many-times-a-second updates - snapshots, traffic - are held back from a player whose connection is behind:
+  // queued up on a slow link they built up into a minute of lag, until the heartbeat, stuck behind them, timed out
+  // and the player was dropped. How far behind: the time of the last snapshot their game says it has had. Behind,
+  // they get one snapshot a second until they catch up - and nothing else live)
+  behind(p, now) { return (p.ack !== undefined && now - p.ack > LIVE_LAG) || p.ws.backlog > LIVE_BACKLOG; }
+  broadcast(obj, except = null, live = false) {
+    const data = JSON.stringify(obj), now = Date.now();
+    for (const p of this.players.values()) {
+      if (p === except) continue;
+      if (live && this.behind(p, now)) {
+        if (obj.t !== 'snapshot' || now - (p.trickleT || 0) < 1000) continue;
+        p.trickleT = now;
+      }
+      p.ws.send(data);
+    }
   }
 }
 
