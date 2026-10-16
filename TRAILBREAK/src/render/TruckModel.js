@@ -98,11 +98,15 @@ class PartList {
 }
 
 // ---------------------------------------------------------------- materials
+/** The colour of the mud the tyres throw up the bodywork (linear RGB; a map sets its own: Kerala's is red). */
+export const MUD_TINT = new THREE.Color(0.085, 0.06, 0.04);
+
 function paintMaterial(hex, uniforms) {
   // solid enamel under a clear coat: the sky and the trees slide across it
   const mat = new THREE.MeshPhysicalMaterial({ color: hex, metalness: 0.05, roughness: 0.38, clearcoat: 1, clearcoatRoughness: 0.07 });
   mat.onBeforeCompile = (sh) => {
     sh.uniforms.uDirt = uniforms.uDirt;
+    sh.uniforms.uMudTint = { value: MUD_TINT };
     sh.vertexShader = sh.vertexShader
       .replace('#include <common>', '#include <common>\nvarying vec3 vLocal;')
       .replace('#include <begin_vertex>', '#include <begin_vertex>\nvLocal = position;');
@@ -110,6 +114,7 @@ function paintMaterial(hex, uniforms) {
       .replace('#include <common>', `#include <common>
 varying vec3 vLocal;
 uniform float uDirt;
+uniform vec3 uMudTint;
 float gMud = 0.0;
 float dh(vec3 p) { return fract(sin(dot(p, vec3(12.9898, 78.233, 37.719))) * 43758.5453); }
 float dn(vec3 p) { vec3 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
@@ -121,7 +126,7 @@ float dn(vec3 p) { vec3 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
   float lowness = 1.0 - smoothstep(0.55, 1.45, vLocal.y);
   float splash = dn(vLocal * 7.0) * 0.6 + dn(vLocal * 19.0) * 0.4;
   float m = clamp(uDirt * 1.6 * lowness - (1.0 - splash) * 0.6, 0.0, 1.0);
-  diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.085, 0.06, 0.04), m * 0.92);
+  diffuseColor.rgb = mix(diffuseColor.rgb, uMudTint, m * 0.92);
   gMud = m;
 }`)
       // mud dulls the shine

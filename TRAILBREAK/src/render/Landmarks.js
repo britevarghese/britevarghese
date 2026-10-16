@@ -1,7 +1,8 @@
-// Buildings and props (the ranger station, garage, flagpole, fire tower, the old mine, the summit lookout, the radio
-// mast, cabins) and the survey beacons with their light beams.
+// Buildings and props (Ashwood's ranger station, garage, flagpole, fire tower, the old mine, the summit lookout, the
+// radio mast, cabins; Kerala's in render/KeralaBuildings.js) and the survey beacons with their light beams.
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
+import { KERALA_BUILD } from './KeralaBuildings.js';
 
 const mat = {
   log: new THREE.MeshStandardMaterial({ color: 0x7a5636, roughness: 0.9 }),
@@ -89,7 +90,7 @@ const BUILD = {
     for (const z of [-2, 2]) B.box(mat.glass, 0.1, 1.0, 1.3, 5.07, 1.8, z);
     B.box(mat.stone, 1.0, 6.6, 1.0, -4.0, 3.3, -2.0);
     const g = B.build(L);
-    const sign = new THREE.Mesh(new THREE.PlaneGeometry(5.2, 0.98), new THREE.MeshStandardMaterial({ map: signTexture('ASHWOOD RANGER STATION'), roughness: 0.8 }));
+    const sign = new THREE.Mesh(new THREE.PlaneGeometry(5.2, 0.98), new THREE.MeshStandardMaterial({ map: signTexture((L.sign || 'Ashwood Ranger Station').toUpperCase()), roughness: 0.8 }));
     sign.position.set(0, top + 0.75, 4.2);
     g.add(sign);
     return g;
@@ -190,8 +191,11 @@ export class Landmarks {
     this.group = new THREE.Group();
     scene.add(this.group);
     this.flags = [];
-    for (const L of world.landmarks) {
-      const b = BUILD[L.type]?.(L);
+    for (const L0 of world.landmarks) {
+      const L = L0.type === 'station' && !L0.sign ? { ...L0, sign: world.map.station.name } : L0;
+      // (Kerala's style of a building where it has one, or a building only Kerala has)
+      const kerala = KERALA_BUILD[L.type] && (L.style === 'kerala' || !BUILD[L.type]);
+      const b = kerala ? KERALA_BUILD[L.type](new Builder(), L) : BUILD[L.type]?.(L);
       if (!b) continue;
       this.group.add(b);
       if (b.userData.flag) this.flags.push(b.userData);

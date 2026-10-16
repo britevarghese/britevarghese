@@ -15,10 +15,10 @@ class FakeWs extends EventEmitter {
   last(t) { for (let i = this.sent.length - 1; i >= 0; i--) if (this.sent[i].t === t) return this.sent[i]; return null; }
 }
 
-function join(lobby, name, room) {
+function join(lobby, name, room, map) {
   const ws = new FakeWs();
   lobby.addConnection(ws);
-  ws.msg({ t: 'hello', name, room });
+  ws.msg({ t: 'hello', name, room, map });
   return ws;
 }
 
@@ -44,6 +44,16 @@ test('a new player gets a fresh room; friends join it by code', () => {
   // someone else without a code lands in a different room
   const c = join(lobby, 'Cy');
   assert.notEqual(c.last('welcome').room, w.room);
+});
+
+test('a room drives the map its first player picked; friends who join drive it too', () => {
+  const lobby = new Lobby({ maxPlayers: 4, rand: () => 0.25 });
+  const a = join(lobby, 'Ana', undefined, 'kerala');
+  const w = a.last('welcome');
+  assert.equal(w.map, 'kerala');
+  assert.equal(join(lobby, 'Ben', w.room, 'ashwood').last('welcome').map, 'kerala', 'the room\'s map, not the one asked for');
+  assert.equal(join(lobby, 'Cy').last('welcome').map, 'ashwood', 'no pick: the first map');
+  assert.equal(join(lobby, 'Di', undefined, '../../etc').last('welcome').map, 'ashwood', 'junk: the first map');
 });
 
 test('rooms fill up at their limit', () => {

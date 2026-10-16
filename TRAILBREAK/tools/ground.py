@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Download the ground textures (CC0 photo scans from Poly Haven and ambientCG) and pack them for the game.
 
-usage: python3 -I tools/ground.py <download dir> public/assets/ground
+usage: python3 -I tools/ground.py <download dir> public/assets/ground [map ...]   (all maps without names)
 
 For each source this writes two WebP files, named after it:
   <id>_c.webp  colour (albedo), 1024 x 1024
@@ -9,14 +9,16 @@ For each source this writes two WebP files, named after it:
                is up the picture) and the height (stretched to the full 0..255 range)
 and for each map a manifest <map>.json: its layers in order (the shader's layer numbers), with each one's files,
 how many metres one copy of the texture covers, its roughness and its average colour (linear RGB, the colour the
-terrain shows from far away). Greyscale panels keep the data out of WebP's half-resolution colour channels.
+terrain shows from far away), and a colour gain where the map wants its scan darker or lighter than photographed.
+Greyscale panels keep the data out of WebP's half-resolution colour channels.
 Needs numpy and Pillow.
 """
 import io, json, os, sys, urllib.request, zipfile
 import numpy as np
 from PIL import Image
 
-# name, source, id, metres per copy, roughness
+# name, source, id, metres per copy, roughness[, options: 'far' the colour from far away (linear RGB) when it isn't the
+# texture's, 'gain' a colour gain (render/Ground.js has each ground's usual one)]
 MAPS = {
     'ashwood': [
         ('grass', 'ambientcg', 'Grass004', 2.4, 0.95),
@@ -28,6 +30,20 @@ MAPS = {
         ('sand', 'polyhaven', 'coast_sand_01', 4.0, 0.92),
         ('snow', 'polyhaven', 'snow_02', 2.5, 0.7),
         ('pebbles', 'polyhaven', 'ganges_river_pebbles', 2.16, 0.72),
+    ],
+    'kerala': [
+        ('grass', 'ambientcg', 'Grass004', 2.4, 0.95),
+        ('forest', 'polyhaven', 'brown_mud_leaves_01', 2.4, 0.9),
+        ('dirt', 'polyhaven', 'red_laterite_soil_stones', 2.0, 0.88),
+        ('gravel', 'polyhaven', 'river_small_rocks', 2.9, 0.85),
+        ('rock', 'polyhaven', 'rock_surface', 4.0, 0.78),
+        # (wet: darker than the dry scan)
+        ('mud', 'polyhaven', 'red_dirt_mud_01', 1.5, 0.45, {'gain': [0.55, 0.5, 0.5]}),
+        ('sand', 'polyhaven', 'coast_sand_01', 4.0, 0.92),
+        ('pebbles', 'polyhaven', 'ganges_river_pebbles', 2.16, 0.72),
+        ('road', 'polyhaven', 'road_damaged', 3.0, 0.8),
+        # the soil between the tea rows; from far away, the bushes' green
+        ('tea', 'polyhaven', 'brown_mud_leaves_01', 2.4, 0.9, {'far': [0.06, 0.15, 0.03]}),
     ],
 }
 COLOR, DATA = 1024, 512
@@ -97,12 +113,18 @@ def main():
     os.makedirs(dl, exist_ok=True)
     os.makedirs(out_dir, exist_ok=True)
     for name, layers in MAPS.items():
+        if sys.argv[3:] and name not in sys.argv[3:]:
+            continue
         manifest = {'layers': []}
-        for layer, source, sid, size, rough in layers:
+        for layer, source, sid, size, rough, *opts in layers:
+            opts = opts[0] if opts else {}
             print(name, layer, source, sid, flush=True)
             avg = pack(download(dl, source, sid), out_dir, sid)
-            manifest['layers'].append({'name': layer, 'color': f'{sid.lower()}_c.webp', 'data': f'{sid.lower()}_d.webp',
-                                       'size': size, 'rough': rough, 'avg': avg, 'source': f'{source}:{sid}'})
+            entry = {'name': layer, 'color': f'{sid.lower()}_c.webp', 'data': f'{sid.lower()}_d.webp',
+                     'size': size, 'rough': rough, 'avg': opts.get('far', avg), 'source': f'{source}:{sid}'}
+            if 'gain' in opts:
+                entry['gain'] = opts['gain']
+            manifest['layers'].append(entry)
         with open(os.path.join(out_dir, f'{name}.json'), 'w') as f:
             json.dump(manifest, f, indent=1)
 

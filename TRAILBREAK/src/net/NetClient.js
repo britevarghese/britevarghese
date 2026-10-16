@@ -20,9 +20,11 @@ function slerp(a, b, t, out) {
 const angLerp = (a, b, t) => { let d = b - a; while (d > Math.PI) d -= Math.PI * 2; while (d < -Math.PI) d += Math.PI * 2; return a + d * t; };
 
 export class NetClient {
-  constructor({ name, room, onEvent }) {
+  constructor({ name, room, map, onEvent }) {
     this.name = name;
     this.roomAsk = room || '';
+    this.mapAsk = map || '';
+    this.map = null;                   // the room's map (the one it was opened on)
     this.onEvent = onEvent || (() => {});
     this.ws = null;
     this.id = 0;
@@ -47,7 +49,7 @@ export class NetClient {
       const ws = this.ws = new WebSocket(this.url());
       const fail = (msg) => { if (!settled) { settled = true; reject(new Error(msg)); } };
       const timer = setTimeout(() => { fail('The server did not answer.'); try { ws.close(); } catch { /* closed */ } }, 8000);
-      ws.onopen = () => ws.send(JSON.stringify({ t: 'hello', name: this.name, room: this.roomAsk }));
+      ws.onopen = () => ws.send(JSON.stringify({ t: 'hello', name: this.name, room: this.roomAsk, map: this.mapAsk }));
       ws.onerror = () => fail('Could not reach the server.');
       ws.onclose = () => {
         clearTimeout(timer);
@@ -61,7 +63,7 @@ export class NetClient {
         try { m = JSON.parse(e.data); } catch { return; }
         if (m.t === 'welcome') {
           clearTimeout(timer);
-          this.id = m.id; this.room = m.room; this.tickRate = m.tickRate; this.maxPlayers = m.maxPlayers;
+          this.id = m.id; this.room = m.room; this.tickRate = m.tickRate; this.maxPlayers = m.maxPlayers; this.map = m.map || null;
           this.connected = true;
           for (const p of m.players) { const r = this.remote(p.id, p.name); if (p.dmg) r.dmg = p.dmg; }
           settled = true;

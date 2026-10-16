@@ -5,7 +5,8 @@
 //
 // A map's manifest (public/assets/ground/<map>.json) lists its layers in order. For each: the files, how many metres
 // one copy covers, the roughness, the average colour (what the ground looks like from far away), and here the
-// height weight (how much its relief wins the blend) and a gain for scans photographed darker than the real thing.
+// height weight (how much its relief wins the blend) and a gain for scans photographed darker than the real thing
+// (a manifest can set its own, as Kerala's wet red mud does).
 
 import * as THREE from 'three';
 
@@ -77,7 +78,8 @@ export async function loadGround(map = 'ashwood', quality = 'high') {
     return t;
   };
   const layers = manifest.layers.map((l) => {
-    const [heightW, gain] = TUNE[l.name] || [0.4, [1, 1, 1]];
+    const [heightW, usual] = TUNE[l.name] || [0.4, [1, 1, 1]];
+    const gain = l.gain || usual;
     return { name: l.name, size: l.size, rough: l.rough, avg: l.avg.map((v, c) => v * gain[c]), heightW, gain };
   });
   const index = {};

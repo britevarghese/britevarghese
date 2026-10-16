@@ -1,22 +1,24 @@
-// Developer preview: renders the valley from a camera given in the URL, for screenshots while building.
-//   preview.html?cam=x,y,z&look=x,y,z&hour=16.5
+// Developer preview: renders a map from a camera given in the URL, for screenshots while building.
+//   preview.html?map=kerala&cam=x,y,z&look=x,y,z&hour=16.5&mods=Vegetation,Water
 import * as THREE from 'three';
 import { generateWorld } from '../world/WorldGen.js';
 import { World } from '../world/World.js';
 import { Renderer } from '../render/Renderer.js';
 import { TerrainRenderer } from '../render/Terrain.js';
 import { loadGround } from '../render/Ground.js';
+import { mapById } from '../world/maps/index.js';
 
 const q = new URLSearchParams(location.search);
 const vec = (s, d) => (s ? s.split(',').map(Number) : d);
 const info = document.getElementById('info');
 const t0 = performance.now();
-const data = await generateWorld({ onProgress: (f, l) => { info.textContent = `${l} ${(f * 100).toFixed(0)}%`; } });
+const M = mapById(q.get('map'));
+const data = await generateWorld({ map: M, onProgress: (f, l) => { info.textContent = `${l} ${(f * 100).toFixed(0)}%`; } });
 const world = new World(data);
 window.world = world;
 const r = new Renderer(document.getElementById('app'));
 r.setTime(Number(q.get('hour') || 16.5));
-const ground = await loadGround('ashwood').catch(() => null);
+const ground = await loadGround(M.ground).catch(() => null);
 const terrain = new TerrainRenderer(world, r.scene, { ground });
 terrain.budget = 4000;
 const [cx, cy, cz] = vec(q.get('cam'), [-60, 140, 620]);

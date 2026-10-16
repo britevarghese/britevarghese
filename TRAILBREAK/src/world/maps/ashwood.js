@@ -1,12 +1,11 @@
-// The valley's layout: hand-placed features the terrain generator builds around. World axes: +x east, +z south,
-// +y up, metres. The drivable map is the square |x|, |z| < MAP_HALF.
+// Ashwood Valley: hand-placed features the terrain generator builds around (world/WorldGen.js). World axes: +x east,
+// +z south, +y up, metres. The drivable map is the square |x|, |z| < MAP_HALF (maps/index.js).
 //
-// Ashwood Valley: the Corrie Range to the north (snow on the Summit), a river that runs from the north-west gorge
-// down through the valley to the south-east, Mirror Lake in the south-west, the east ridge with its rock garden and
-// the old Alder mine, and the Pinecrest hills to the west with the fire tower. The ranger station sits on a
-// terrace above the river, where everyone starts.
+// The Corrie Range to the north (snow on the Summit), a river that runs from the north-west gorge down through the
+// valley to the south-east, Mirror Lake in the south-west, the east ridge with its rock garden and the old Alder mine,
+// and the Pinecrest hills to the west with the fire tower. The ranger station sits on a terrace above the river,
+// where everyone starts.
 
-export const MAP_HALF = 1024;
 export const WORLD_SEED = 7331;
 
 export const STATION = { x: -60, z: 430, name: 'Ashwood Ranger Station' };
@@ -86,7 +85,6 @@ export const TRAILS = [
 ];
 
 // survey beacons: the shared goal of a session (drive within BEACON_RADIUS of each)
-export const BEACON_RADIUS = 9;
 export const BEACONS = [
   { id: 0, name: 'Corrie Summit', x: -200, z: -778 },
   { id: 1, name: 'North Spire', x: 252, z: -706 },
@@ -119,3 +117,49 @@ export const LANDMARKS = [
 ];
 
 export const SPAWN = { x: -58, z: 450, yaw: Math.atan2(-50, -100) };   // facing up the Summit Trail (north-north-west)
+
+// ---------------------------------------------------------------- events (game/Events.js builds them)
+const along = (a, b, t) => [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t];
+// the bog's length, 8 m off its middle, clear of the pond in the centre
+const BOG_LINE = (() => {
+  const c = Math.cos(BOG.rot), s = Math.sin(BOG.rot), L0 = BOG.rx + 45, L1 = BOG.rx - 23, ox = BOG.x - s * 8, oz = BOG.z - c * 8;
+  return [[ox - L0 * c, oz + L0 * s], [ox + L1 * c, oz - L1 * s]];
+})();
+// the trials: a slalom of gates up through the rock garden. Along the line between them the world beds the big boulders
+// down to rocks a truck can crawl (WorldGen); the rest flank it
+const TRIALS = (() => {
+  const a = [ROCK_GARDEN.x - 70, ROCK_GARDEN.z + 62], b = [ROCK_GARDEN.x + 62, ROCK_GARDEN.z - 72];
+  const dx = b[0] - a[0], dz = b[1] - a[1], l = Math.hypot(dx, dz), nx = -dz / l, nz = dx / l;
+  const gates = [0.16, 0.32, 0.48, 0.64, 0.8].map((t, k) => { const p = along(a, b, t), o = (k % 2 ? -1 : 1) * 9; return [p[0] + nx * o, p[1] + nz * o]; });
+  gates.push(b);
+  const g0 = gates[0], gl = Math.hypot(g0[0] - a[0], g0[1] - a[1]);
+  return { start: [a[0] - (g0[0] - a[0]) / gl * 6, a[1] - (g0[1] - a[1]) / gl * 6], gates };
+})();
+// the hill climb: the Summit Trail from just over the Summit Ford (its control point [-170, -10]) to the top
+const SUMMIT_FROM = TRAILS.find((t) => t.name === 'Summit Trail').points[5];
+
+/**
+ * The events: a trail climb (gates along a trail from one of its control points, every `gap` m), straight courses
+ * (line gates across the line at fractions of it), a slalom (round gates; one per map, its line kept crawlable).
+ */
+export const EVENTS = [
+  { id: 'hillclimb', kind: 'trail', name: 'Summit Hill Climb', desc: 'From the Summit Ford up the trail\'s switchbacks to the lookout on Corrie Summit: 1.3 km and 260 m of climb.',
+    trail: 'Summit Trail', from: SUMMIT_FROM, gap: 120, r: 9, dy: 5, par: { gold: 195, silver: 235, bronze: 290 }, prize: 1.6 },
+  { id: 'bogdash', kind: 'line', name: 'Cattail Bog Dash', desc: 'A run-up, then the length of the bog, straight through the mud.',
+    line: BOG_LINE, at: [0.4, 0.7, 1], r: 14, par: { gold: 20.5, silver: 25, bronze: 32 }, prize: 1 },
+  { id: 'trials', kind: 'slalom', name: 'Rock Garden Trials', desc: 'A slalom of tight gates up through the boulders. Each hard knock of the body: +5 s.',
+    start: TRIALS.start, gates: TRIALS.gates, r: 6, par: { gold: 70, silver: 90, bronze: 120 }, prize: 1.2, touch: true },
+  { id: 'sanddrag', kind: 'line', name: 'Sand Wash Drag', desc: 'A hundred metres flat out across the soft sand of the wash floor.',
+    line: SAND_STRIP, at: [0.5, 1], r: 14, par: { gold: 11.5, silver: 13.5, bronze: 16 }, prize: 0.8 },
+];
+
+/** The map, as the game and the generator see it. */
+export const ASHWOOD = {
+  id: 'ashwood', name: 'Ashwood Valley', short: 'Ashwood',
+  blurb: 'Pine and birch forest under a snow-capped summit: a river with gravel fords, a cattail bog, a rock garden, a sand wash and Mirror Lake.',
+  tagline: 'Old trucks, real physics, good friends. Find the survey beacons of Ashwood Valley together.',
+  seed: WORLD_SEED, station: STATION, spawn: SPAWN, dealer: 'Ashwood 4x4 Sales',
+  river: RIVER, lake: LAKE, peaks: PEAKS, bog: BOG, rockGarden: ROCK_GARDEN, sandWash: SAND_WASH, sandStrip: SAND_STRIP,
+  snowLine: SNOW_LINE, trails: TRAILS, beacons: BEACONS, landmarks: LANDMARKS, events: EVENTS,
+  ground: 'ashwood', trees: 'ashwood',
+};

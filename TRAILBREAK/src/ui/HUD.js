@@ -1,7 +1,6 @@
 // The heads-up display: dials, drivetrain chips, winch, compass with beacons and friends, the next beacon, the
 // players, a rotating minimap and the full map, toasts, hints and chat.
-import { MAP_HALF } from '../world/MapData.js';
-import { BEACONS, BEACON_RADIUS } from '../world/MapData.js';
+import { MAP_HALF } from '../world/maps/index.js';
 
 const $ = (id) => document.getElementById(id);
 const TAU = Math.PI * 2;
@@ -330,4 +329,3 @@ export function escapeHtml(s) {
   return String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 }
 
-export { BEACONS, BEACON_RADIUS };

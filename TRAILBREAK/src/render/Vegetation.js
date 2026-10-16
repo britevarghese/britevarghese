@@ -1,21 +1,42 @@
-// Trees: four real tree species (game models by evolveduk, CC BY 4.0: see public/assets/trees/CREDITS.md). Near the
-// camera each tree is the full model, instanced, swaying in the wind and casting leaf-shaped shadows. Beyond that it
-// is an impostor: a picture of the same tree, rendered from the model when the game starts (colour and normals), on
-// a card that turns to face the camera and is lit by the sun like the real thing. Dead trees are the spruce without
-// its needles.
+// Trees: each map's own species (game models, CC BY 4.0: see public/assets/trees/CREDITS.md). Near the camera each
+// tree is the full model, instanced, swaying in the wind and casting leaf-shaped shadows. Beyond that it is an
+// impostor: a picture of the same tree, rendered from the model when the game starts (colour and normals), on a card
+// that turns to face the camera and is lit by the sun like the real thing.
 
 import * as THREE from 'three';
 
-export const KINDS = ['pine', 'fir', 'spruce', 'birch', 'snag'];
-const SOURCES = ['pine', 'fir', 'spruce', 'birch'];
+/**
+ * The species of each map's trees: kinds (one model each; `derived` ones are made from another), how the world's tree
+ * types map onto them (with the tree's height and a random number), how wide each grows for its height, where its
+ * crown is (for the leaves' rounded lighting), and how close (as a fraction of the full-model range) the heavy models
+ * are drawn in full.
+ */
+export const TREE_SETS = {
+  // Ashwood: pine, fir and spruce (the tall firs), birch by the water, and dead trees (the spruce without its needles)
+  ashwood: {
+    kinds: ['pine', 'fir', 'spruce', 'birch', 'snag'],
+    kindOf: (t, h, r) => (t === 0 ? 0 : t === 1 ? (h > 17 || r < 0.45 ? 2 : 1) : t === 2 ? 3 : 4),
+    derived: { snag: (a) => ({ name: 'snag', radius: a.spruce.radius * 0.8, groups: a.spruce.groups.filter((g) => g.kind === 'bark') }) },
+  },
+  // Kerala: coconut palms, the rainforest's giants, mango and jack trees, rubber (and the estates' shade trees),
+  // banana and bamboo; the tree types are the kinds
+  kerala: {
+    kinds: ['coconut', 'jungle', 'mango', 'rubber', 'banana', 'bamboo'],
+    kindOf: (t) => t,
+    width: { rubber: 0.62, bamboo: 0.85, coconut: 0.95 },
+    crown: { coconut: 0.86, banana: 0.62, bamboo: 0.6 },
+    // (the rainforest's giants and the mango trees are the heaviest models, and the shola stands thick with them)
+    near: { jungle: 0.5, mango: 0.75 },
+  },
+};
 const FAR = 2400;
 const TILE_W = 256, TILE_H = 512;
 
 let NEAR = 80;
 
 // ---------------------------------------------------------------- loading
-/** Geometry and textures of every species (from tools/trees.py's files). */
-export async function loadTrees(base = 'assets/trees/') {
+/** Geometry and textures of a set's species (from tools/trees.py's files). */
+export async function loadTrees(set = TREE_SETS.ashwood, base = 'assets/trees/') {
   const loader = new THREE.TextureLoader();
   const tex = async (file, color) => {
     const t = await loader.loadAsync(base + file);
@@ -26,7 +47,8 @@ export async function loadTrees(base = 'assets/trees/') {
     return t;
   };
   const out = {};
-  await Promise.all(SOURCES.map(async (name) => {
+  const sources = set.kinds.filter((k) => !set.derived?.[k]);
+  await Promise.all(sources.map(async (name) => {
     const [info, bin] = await Promise.all([
       fetch(base + name + '.json').then((r) => r.json()),
       fetch(base + name + '.bin').then((r) => r.arrayBuffer()),
@@ -45,14 +67,13 @@ export async function loadTrees(base = 'assets/trees/') {
     }));
     out[name] = { name, radius: info.radius, groups };
   }));
-  // the dead tree: the spruce's trunk and bare branches
-  out.snag = { name: 'snag', radius: out.spruce.radius * 0.8, groups: out.spruce.groups.filter((g) => g.kind === 'bark') };
+  for (const [name, make] of Object.entries(set.derived || {})) out[name] = make(out);
   return out;
 }
 
 // ---------------------------------------------------------------- shaders
 /** Wind, a soft rounded crown and light through the leaves, added to a standard material. */
-function treeMaterial(group, uniforms, radius, impostorBake = false) {
+function treeMaterial(group, uniforms, radius, impostorBake = false, crownY = 0.62) {
   const leaf = group.kind === 'leaf';
   const mat = new THREE.MeshStandardMaterial({
     map: group.map, normalMap: group.normalMap, roughness: leaf ? 0.8 : 0.93, metalness: 0,
@@ -73,7 +94,7 @@ varying float vAO;`)
       .replace('#include <beginnormal_vertex>', `#include <beginnormal_vertex>
 ${leaf ? `{
   // leaves lit as a rounded crown, not as the flat cards they are
-  vec3 radial = normalize(vec3(position.x, (position.y - 0.62) * 0.55, position.z) + vec3(0.0, 0.06, 0.0));
+  vec3 radial = normalize(vec3(position.x, (position.y - ${crownY.toFixed(3)}) * 0.55, position.z) + vec3(0.0, 0.06, 0.0));
   objectNormal = normalize(mix(objectNormal, radial, 0.62));
 }` : ''}`)
       .replace('#include <begin_vertex>', `#include <begin_vertex>
@@ -142,34 +163,38 @@ function bakeNormalMaterial(group) {
 export class Vegetation {
   /** world: the generated world; renderer: render/Renderer.js (for the impostor pictures and the sun). */
   static async create(world, renderer) {
-    const trees = await loadTrees();
-    return new Vegetation(world, renderer, trees);
+    const set = TREE_SETS[world.map.trees] || TREE_SETS.ashwood;
+    const trees = await loadTrees(set);
+    return new Vegetation(world, renderer, trees, set);
   }
 
-  constructor(world, renderer, assets) {
+  constructor(world, renderer, assets, set = TREE_SETS.ashwood) {
     this.world = world;
+    this.set = set;
+    this.kinds = set.kinds;
+    this.widthOf = this.kinds.map((k) => set.width?.[k] ?? 1);
+    this.nearOf = this.kinds.map((k) => set.near?.[k] ?? 1);
     this.renderer = renderer;
     this.trees = world.trees;
     this.assets = assets;
     this.uniforms = { uTime: { value: 0 }, uSunDirW: { value: new THREE.Vector3(0, 1, 0) }, uSunColor: { value: new THREE.Color(1, 1, 1) } };
     this.group = new THREE.Group();
     renderer.scene.add(this.group);
-    // which species each tree in the world is (types: 0 pine, 1 fir, 2 birch, 3 dead)
+    // which species each tree in the world is
     const T = this.trees, n = T.count;
     this.kindOf = new Uint8Array(n);
-    const perKind = new Array(KINDS.length).fill(0);
+    const perKind = new Array(this.kinds.length).fill(0);
     for (let i = 0; i < n; i++) {
       const h = Math.sin(i * 91.7) * 43758.5453, r = h - Math.floor(h);
-      const t = T.type[i];
-      const k = t === 0 ? 0 : t === 1 ? (T.h[i] > 17 || r < 0.45 ? 2 : 1) : t === 2 ? 3 : 4;
+      const k = Math.min(this.kinds.length - 1, set.kindOf(T.type[i], T.h[i], r));
       this.kindOf[i] = k; perKind[k]++;
     }
     // near: the models (one instanced mesh per species and material, sharing the species' instance matrices)
-    this.near = KINDS.map((name, k) => {
+    this.near = this.kinds.map((name, k) => {
       const a = assets[name], cap = Math.max(1, Math.min(perKind[k], 2500));
       let matrix = null, color = null;
       const meshes = a.groups.map((gr) => {
-        const m = new THREE.InstancedMesh(gr.geometry, treeMaterial(gr, this.uniforms, a.radius), cap);
+        const m = new THREE.InstancedMesh(gr.geometry, treeMaterial(gr, this.uniforms, a.radius, false, set.crown?.[name] ?? 0.62), cap);
         if (!matrix) { matrix = m.instanceMatrix; matrix.setUsage(THREE.DynamicDrawUsage); color = new THREE.InstancedBufferAttribute(new Float32Array(cap * 3), 3); }
         m.instanceMatrix = matrix;
         m.instanceColor = color;
@@ -190,7 +215,7 @@ export class Vegetation {
 
   /** Pictures of each species from the side (colour with alpha, and normals), and the cards that show them. */
   bakeImpostors(gl) {
-    const N = KINDS.length, W = TILE_W * N, H = TILE_H;
+    const N = this.kinds.length, W = TILE_W * N, H = TILE_H;
     const colorRT = new THREE.WebGLRenderTarget(W, H, { colorSpace: THREE.SRGBColorSpace, generateMipmaps: true, minFilter: THREE.LinearMipmapLinearFilter, magFilter: THREE.LinearFilter, samples: 0 });
     const normalRT = new THREE.WebGLRenderTarget(W, H, { generateMipmaps: true, minFilter: THREE.LinearMipmapLinearFilter, magFilter: THREE.LinearFilter });
     const scene = new THREE.Scene();
@@ -208,7 +233,7 @@ export class Vegetation {
       gl.setRenderTarget(pass.rt);
       gl.setClearColor(new THREE.Color(...pass.clear), 0);
       gl.clear(true, true, true);
-      KINDS.forEach((name, k) => {
+      this.kinds.forEach((name, k) => {
         const a = this.assets[name], r = a.radius * 1.04;
         const cam = new THREE.OrthographicCamera(-r, r, 1.01, -0.01, 0.1, 10);
         cam.position.set(0, 0, 5); cam.lookAt(0, 0.5, 0); cam.position.set(0, 0, 5);
@@ -313,7 +338,7 @@ gl_Position = projectionMatrix * mvPosition;`).replace('#include <worldpos_verte
 
   fill(cam) {
     const T = this.trees, n = T.count, K = this.kindOf;
-    const counts = new Array(KINDS.length).fill(0);
+    const counts = new Array(this.kinds.length).fill(0);
     const m = this._m, q = this._q, s = this._s, p = this._p, c = this._c;
     const off = this.impOffset.array, size = this.impSize.array, tile = this.impTile.array;
     let ni = 0;
@@ -325,9 +350,9 @@ gl_Position = projectionMatrix * mvPosition;`).replace('#include <worldpos_verte
       const k = K[i];
       const h1 = Math.sin(i * 12.9898) * 43758.5453, r1 = h1 - Math.floor(h1);
       const h2 = Math.sin(i * 78.233) * 12543.123, r2 = h2 - Math.floor(h2);
-      const ht = T.h[i], wd = ht * (0.88 + r2 * 0.24);
+      const ht = T.h[i], wd = ht * (0.88 + r2 * 0.24) * this.widthOf[k];
       const tint = 0.84 + r2 * 0.3;
-      if (d2 < near2) {
+      if (d2 < near2 * this.nearOf[k] * this.nearOf[k]) {
         const nk = this.near[k];
         const j = counts[k];
         if (j >= nk.cap) continue;

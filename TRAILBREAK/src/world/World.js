@@ -1,4 +1,4 @@
-// The valley at run time: the ground the physics drives on (heights with ruts and boulders, surfaces, water,
+// A map's world at run time: the ground the physics drives on (heights with ruts and boulders, surfaces, water,
 // trees and walls to hit) and the data the renderer draws.
 //
 // Ground interface used by physics/Vehicle.js:
@@ -10,8 +10,8 @@
 
 import { SURFACES, SURFACE } from '../physics/Surfaces.js';
 import { DeformGrid } from './Deform.js';
-import { farHeight, NO_WATER } from './WorldGen.js';
-import { MAP_HALF } from './MapData.js';
+import { NO_WATER } from './WorldGen.js';
+import { MAP_HALF, mapById } from './maps/index.js';
 import { rockTop, shapeOf } from './RockShapes.js';
 
 const OB_CELL = 16;          // obstacle (tree, post) grid cell (m)
@@ -20,6 +20,8 @@ const BO_CELL = 8;           // boulder grid cell (m)
 export class World {
   constructor(data) {
     this.data = data;
+    this.map = data.map || mapById();
+    this.farHeight = data.farHeight;
     this.N = data.N; this.origin = data.origin;
     this.H = data.heights; this.S = data.surface;
     this.W = data.water; this.WN = data.waterN; this.WR = data.waterRes;
@@ -38,13 +40,15 @@ export class World {
     P.forEach((p, k) => { const i = T.count + k; this.ob.x[i] = p.x; this.ob.y[i] = p.y; this.ob.z[i] = p.z; this.ob.r[i] = p.r; });
     this.obN = Math.ceil(MAP_HALF * 2 / OB_CELL);
     const cellOf = (x, z) => Math.min(this.obN - 1, Math.max(0, Math.floor((z + MAP_HALF) / OB_CELL))) * this.obN + Math.min(this.obN - 1, Math.max(0, Math.floor((x + MAP_HALF) / OB_CELL)));
+    // (soft plants, a map's bananas, are not obstacles: a truck pushes through them)
+    const soft = new Set(this.map.softTrees || []), solid = (i) => i >= T.count || !soft.has(T.type[i]);
     const counts = new Uint32Array(this.obN * this.obN + 1);
-    for (let i = 0; i < n; i++) counts[cellOf(this.ob.x[i], this.ob.z[i]) + 1]++;
+    for (let i = 0; i < n; i++) if (solid(i)) counts[cellOf(this.ob.x[i], this.ob.z[i]) + 1]++;
     for (let c = 1; c < counts.length; c++) counts[c] += counts[c - 1];
     this.obStart = counts;
     this.obIdx = new Uint32Array(n);
     const fill = counts.slice();
-    for (let i = 0; i < n; i++) this.obIdx[fill[cellOf(this.ob.x[i], this.ob.z[i])]++] = i;
+    for (let i = 0; i < n; i++) if (solid(i)) this.obIdx[fill[cellOf(this.ob.x[i], this.ob.z[i])]++] = i;
     this.obPool = [];
     for (let i = 0; i < 64; i++) this.obPool.push({ x: 0, y: 0, z: 0, r: 0 });
 
@@ -70,7 +74,7 @@ export class World {
   terrain(x, z) {
     const fx = x - this.origin, fz = z - this.origin;
     const N = this.N;
-    if (fx < 0 || fz < 0 || fx >= N - 1 || fz >= N - 1) return farHeight(x, z);
+    if (fx < 0 || fz < 0 || fx >= N - 1 || fz >= N - 1) return this.farHeight(x, z);
     const i = Math.floor(fx), k = Math.floor(fz), tx = fx - i, tz = fz - k;
     const o = k * N + i, H = this.H;
     return (H[o] * (1 - tx) + H[o + 1] * tx) * (1 - tz) + (H[o + N] * (1 - tx) + H[o + N + 1] * tx) * tz;
@@ -118,8 +122,18 @@ export class World {
     return w === NO_WATER ? -Infinity : w;
   }
 
+  /**
+   * The deepest a rut can go at a point: each ground's own, blended across its 1 m cells, so a rut in mud runs out
+   * onto firm ground up a ramp (as the mud thins out at its edge) rather than ending at a wall.
+   */
+  maxSinkAt(x, z) {
+    const fx = x - this.origin, fz = z - this.origin, i = Math.floor(fx), k = Math.floor(fz), tx = fx - i, tz = fz - k;
+    const m = (a, b) => (a < 0 || b < 0 || a >= this.N || b >= this.N ? 0 : SURFACES[this.S[b * this.N + a]].maxSink);
+    return (m(i, k) * (1 - tx) + m(i + 1, k) * tx) * (1 - tz) + (m(i, k + 1) * (1 - tx) + m(i + 1, k + 1) * tx) * tz;
+  }
+
   deform(x, z, fx, fz, hw, hl, press, dig) {
-    return this.deformGrid.stamp(x, z, fx, fz, hw, hl, press, dig, (px, pz) => SURFACES[this.surfaceId(px, pz)].maxSink);
+    return this.deformGrid.stamp(x, z, fx, fz, hw, hl, press, dig, (px, pz) => this.maxSinkAt(px, pz));
   }
 
   /** Trunks and posts within r of (x, z) (reuses its result objects: copy what you keep). */

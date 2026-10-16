@@ -1,0 +1,83 @@
+{
+ "name": "coconut",
+ "height": 6.28,
+ "radius": 0.559,
+ "groups": [
+  {
+   "kind": "bark",
+   "vertices": 516,
+   "indices": 2640,
+   "position": 0,
+   "normal": 6192,
+   "uv": 7740,
+   "index": 11868,
+   "map": "coconut_0_color.webp",
+   "mapSize": [
+    512,
+    512
+   ],
+   "normalMap": "coconut_0_normal.webp"
+  },
+  {
+   "kind": "bark",
+   "vertices": 88,
+   "indices": 336,
+   "position": 17148,
+   "normal": 18204,
+   "uv": 18468,
+   "index": 19172,
+   "map": "coconut_1_color.webp",
+   "mapSize": [
+    512,
+    512
+   ],
+   "normalMap": "coconut_1_normal.webp"
+  },
+  {
+   "kind": "leaf",
+   "vertices": 1800,
+   "indices": 7776,
+   "position": 19844,
+   "normal": 41444,
+   "uv": 46844,
+   "index": 61244,
+   "map": "coconut_2_color.webp",
+   "mapSize": [
+    1024,
+    1024
+   ],
+   "normalMap": "coconut_2_normal.webp",
+   "alphaCutoff": 0.258
+  },
+  {
+   "kind": "bark",
+   "vertices": 882,
+   "indices": 3258,
+   "position": 76796,
+   "normal": 87380,
+   "uv": 90028,
+   "index": 97084,
+   "map": "coconut_3_color.webp",
+   "mapSize": [
+    32,
+    512
+   ],
+   "normalMap": "coconut_3_normal.webp"
+  },
+  {
+   "kind": "bark",
+   "vertices": 1506,
+   "indices": 5880,
+   "position": 103600,
+   "normal": 121672,
+   "uv": 126192,
+   "index": 138240,
+   "map": "coconut_4_color.webp",
+   "mapSize": [
+    512,
+    512
+   ],
+   "normalMap": "coconut_4_normal.webp"
+  }
+ ]
+}

@@ -1,15 +1,11 @@
-// Events: timed competitions on the valley's own ground. Each is a start line and gates to drive through in order,
-// the last one the finish. Alone you race the par times for a medal; with friends in the room, whoever starts an event
-// invites the others, everyone who joins lines up at the start, and the prize money goes by finishing order.
+// Events: timed competitions on a map's own ground. Each is a start line and gates to drive through in order, the last
+// one the finish. Alone you race the par times for a medal; with friends in the room, whoever starts an event invites
+// the others, everyone who joins lines up at the start, and the prize money goes by finishing order.
 //
-//   Summit Hill Climb   up the Summit Trail's switchbacks from the ford to Corrie Summit: power and grip uphill
-//   Cattail Bog Dash    straight down the bog: momentum, the right line and tyres that clean themselves
-//   Rock Garden Trials  tight gates zig-zagging through the boulders; every hard knock of the body costs 5 seconds
-//   Sand Wash Drag      100 m flat out across the soft sand of the wash: power, and the right tyre pressure
+// Each map lists its events (world/maps/): a climb along one of its trails, straight courses (a bog dash, a sand drag,
+// a paddy field), a slalom through rocks. This module turns those into gates on the ground, and runs and scores them.
 //
 // Pure logic (runs in Node for the tests): the game draws the gates, the HUD shows the run.
-
-import { BOG, ROCK_GARDEN, SAND_STRIP, TRAILS } from '../world/MapData.js';
 
 /**
  * Prize money: solo medals (paid once per medal level per event), and by finishing place in a race with friends; an
@@ -25,34 +21,21 @@ export const TIME_LIMIT = 600;               // s
 
 const along = (a, b, t) => [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t];
 
-// the straight courses (start, finish)
-// (the bog's length, 8 m off its middle, clear of the pond in the centre)
-const BOG_LINE = (() => {
-  const c = Math.cos(BOG.rot), s = Math.sin(BOG.rot), L0 = BOG.rx + 45, L1 = BOG.rx - 23, ox = BOG.x - s * 8, oz = BOG.z - c * 8;
-  return [[ox - L0 * c, oz + L0 * s], [ox + L1 * c, oz - L1 * s]];
-})();
-const SAND_LINE = SAND_STRIP;
-// the hill climb: the Summit Trail from just over the Summit Ford (its control point [-170, -10]) to the top
-const SUMMIT = TRAILS.find((t) => t.name === 'Summit Trail').points, HILL_FROM = 5;
-const HILL_GAP = 120;                        // m of trail between gates
+/** A trail event's stretch of its trail's control points, from its start on. */
+function trailFrom(M, spec) {
+  const pts = M.trails.find((t) => t.name === spec.trail).points;
+  return pts.slice(Math.max(0, pts.findIndex((p) => p[0] === spec.from[0] && p[1] === spec.from[1])));
+}
 
-// the trials: a slalom of gates up through the rock garden. Along the line between them the world beds the big boulders
-// down to rocks a truck can crawl (WorldGen); the rest flank it
-const TRIALS = (() => {
-  const a = [ROCK_GARDEN.x - 70, ROCK_GARDEN.z + 62], b = [ROCK_GARDEN.x + 62, ROCK_GARDEN.z - 72];
-  const dx = b[0] - a[0], dz = b[1] - a[1], l = Math.hypot(dx, dz), nx = -dz / l, nz = dx / l;
-  const gates = [0.16, 0.32, 0.48, 0.64, 0.8].map((t, k) => { const p = along(a, b, t), o = (k % 2 ? -1 : 1) * 9; return [p[0] + nx * o, p[1] + nz * o]; });
-  gates.push(b);
-  const g0 = gates[0], gl = Math.hypot(g0[0] - a[0], g0[1] - a[1]);
-  return { start: [a[0] - (g0[0] - a[0]) / gl * 6, a[1] - (g0[1] - a[1]) / gl * 6], gates };
-})();
+/** The courses as polylines (straight ones and trail climbs), for the world to keep puddles, boulders and trees off. */
+export function courseLines(M) {
+  return (M.events || []).filter((e) => e.kind !== 'slalom').map((e) => (e.kind === 'line' ? e.line : trailFrom(M, e)));
+}
 
-/** The trials line: start, then the gates. */
-export function trialsLine() { return [TRIALS.start, ...TRIALS.gates]; }
-
-/** The courses as polylines, for the world to keep puddles, boulders and trees off them (WorldGen). */
-export function coursePaths() {
-  return [BOG_LINE, SAND_LINE, SUMMIT.slice(HILL_FROM)];
+/** A map's slalom line (start, then the gates), along which the world beds its boulders down; or null. */
+export function slalomLine(M) {
+  const e = (M.events || []).find((v) => v.kind === 'slalom');
+  return e ? [e.start, ...e.gates] : null;
 }
 
 /**
@@ -60,57 +43,42 @@ export function coursePaths() {
  * passed within r of its centre { x, z, r, y, dy }, or, with dir, by crossing its line { x, z, r, dir: [dx, dz] }.
  */
 export function eventsFor(world) {
-  const ev = [];
+  const M = world.map || world.data?.map;
   // a line across a straight course (crossed going the course's way, within r of its middle)
   const linesOn = (pts, a, b, r) => { const dx = b[0] - a[0], dz = b[1] - a[1], l = Math.hypot(dx, dz); return pts.map(([x, z]) => ({ x, z, r, dir: [dx / l, dz / l] })); };
   const startAt = (a, b, back = 0) => {
     const dx = b[0] - a[0], dz = b[1] - a[1], l = Math.hypot(dx, dz);
     return { x: a[0] - (dx / l) * back, z: a[1] - (dz / l) * back, yaw: Math.atan2(dx, dz) };
   };
-
-  // up the Summit Trail from just over the ford to the lookout on Corrie Summit, a gate every ~120 m of trail (each
-  // only counts from the trail itself, not from the switchback below it)
-  {
-    const line = world.data?.trails?.find((t) => t.name === 'Summit Trail')?.points || SUMMIT;
-    const [sx, sz] = SUMMIT[HILL_FROM];
-    let i0 = 0;
-    line.forEach(([x, z], i) => { if (Math.hypot(x - sx, z - sz) < Math.hypot(line[i0][0] - sx, line[i0][1] - sz)) i0 = i; });
-    const gates = [];
-    let acc = 0;
-    for (let i = i0 + 1; i < line.length; i++) {
-      acc += Math.hypot(line[i][0] - line[i - 1][0], line[i][1] - line[i - 1][1]);
-      if (acc >= HILL_GAP || i === line.length - 1) {
-        if (i === line.length - 1 && acc < HILL_GAP * 0.4 && gates.length) gates.pop();
-        gates.push({ x: line[i][0], z: line[i][1], r: 9, dy: 5 });
-        acc = 0;
+  const ev = (M?.events || []).map((spec) => {
+    const { kind, line: _l, at: _a, from: _f, gap: _g, r, dy, gates: _gs, start: _s, ...rest } = spec;
+    if (kind === 'trail') {
+      // up the trail from one of its control points, a gate every `gap` m of trail (each only counts from the trail
+      // itself, not from the switchback below it)
+      const line = world.data?.trails?.find((t) => t.name === spec.trail)?.points || trailFrom(M, spec);
+      const [sx, sz] = spec.from;
+      let i0 = 0;
+      line.forEach(([x, z], i) => { if (Math.hypot(x - sx, z - sz) < Math.hypot(line[i0][0] - sx, line[i0][1] - sz)) i0 = i; });
+      const gates = [];
+      let acc = 0;
+      for (let i = i0 + 1; i < line.length; i++) {
+        acc += Math.hypot(line[i][0] - line[i - 1][0], line[i][1] - line[i - 1][1]);
+        if (acc >= spec.gap || i === line.length - 1) {
+          if (i === line.length - 1 && acc < spec.gap * 0.4 && gates.length) gates.pop();
+          gates.push({ x: line[i][0], z: line[i][1], r, dy });
+          acc = 0;
+        }
       }
+      return { ...rest, start: startAt(line[i0], line[Math.min(line.length - 1, i0 + 2)]), gates };
     }
-    ev.push({
-      id: 'hillclimb', name: 'Summit Hill Climb', desc: 'From the Summit Ford up the trail\'s switchbacks to the lookout on Corrie Summit: 1.3 km and 260 m of climb.',
-      start: startAt(line[i0], line[Math.min(line.length - 1, i0 + 2)]), gates, par: { gold: 195, silver: 235, bronze: 290 }, prize: 1.6, trail: 'Summit Trail',
-    });
-  }
-  // the long way down the bog, with a run-up
-  {
-    const [a, b] = BOG_LINE;
-    ev.push({
-      id: 'bogdash', name: 'Cattail Bog Dash', desc: 'A run-up, then the length of the bog, straight through the mud.',
-      start: startAt(a, b), gates: linesOn([along(a, b, 0.4), along(a, b, 0.7), b], a, b, 14), par: { gold: 20.5, silver: 25, bronze: 32 }, prize: 1,
-    });
-  }
-  // a slalom of tight gates up through the boulders
-  ev.push({
-    id: 'trials', name: 'Rock Garden Trials', desc: 'A slalom of tight gates up through the boulders. Each hard knock of the body: +5 s.',
-    start: startAt(TRIALS.start, TRIALS.gates[0]), gates: TRIALS.gates.map(([x, z]) => ({ x, z, r: 6 })), par: { gold: 70, silver: 90, bronze: 120 }, prize: 1.2, touch: true,
+    if (kind === 'line') {
+      // a straight course with a run-up: line gates across it at fractions of the way (1: the finish)
+      const [a, b] = spec.line;
+      return { ...rest, start: startAt(a, b), gates: linesOn(spec.at.map((t) => (t === 1 ? b : along(a, b, t))), a, b, r) };
+    }
+    // a slalom of round gates
+    return { ...rest, start: startAt(spec.start, spec.gates[0]), gates: spec.gates.map(([x, z]) => ({ x, z, r })) };
   });
-  // a hundred metres of soft sand down the wash's levelled floor, as sand drags are run
-  {
-    const [a, b] = SAND_LINE;
-    ev.push({
-      id: 'sanddrag', name: 'Sand Wash Drag', desc: 'A hundred metres flat out across the soft sand of the wash floor.',
-      start: startAt(a, b), gates: linesOn([along(a, b, 0.5), b], a, b, 14), par: { gold: 11.5, silver: 13.5, bronze: 16 }, prize: 0.8,
-    });
-  }
   for (const e of ev) for (const g of e.gates) g.y = world.terrain(g.x, g.z);
   return ev;
 }

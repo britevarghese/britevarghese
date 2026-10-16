@@ -1,0 +1,38 @@
+{
+ "name": "bamboo",
+ "height": 4.4,
+ "radius": 0.296,
+ "groups": [
+  {
+   "kind": "bark",
+   "vertices": 322,
+   "indices": 1260,
+   "position": 0,
+   "normal": 3864,
+   "uv": 4832,
+   "index": 7408,
+   "map": "bamboo_0_color.webp",
+   "mapSize": [
+    512,
+    512
+   ],
+   "normalMap": "bamboo_0_normal.webp"
+  },
+  {
+   "kind": "leaf",
+   "vertices": 1584,
+   "indices": 5280,
+   "position": 9928,
+   "normal": 28936,
+   "uv": 33688,
+   "index": 46360,
+   "map": "bamboo_1_color.webp",
+   "mapSize": [
+    1024,
+    1024
+   ],
+   "normalMap": "bamboo_1_normal.webp",
+   "alphaCutoff": 0.221
+  }
+ ]
+}

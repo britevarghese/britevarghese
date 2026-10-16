@@ -44,6 +44,16 @@ export class Renderer {
     addEventListener('resize', () => this.resize());
   }
 
+  /**
+   * A map's air: how thick the haze is (fog density) and how much of the sky is cloud (0.47 fair; lower, more cloud):
+   * Kerala's humid hills are hazier and cloudier than Ashwood's.
+   */
+  setAtmosphere({ fog = 0.00038, cover = 0.47 } = {}) {
+    this.fog.density = fog;
+    this.sky.uniforms.uCover.value = cover;
+    this.sky.envDirty = true;
+  }
+
   setTime(hour) {
     this.hour = hour;
     const s = this.sky.setTime(hour);

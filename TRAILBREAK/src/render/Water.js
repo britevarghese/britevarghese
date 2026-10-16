@@ -8,7 +8,7 @@
 // sun glinting in it. Ripples drift with the current (two phases of a flowing normal map, so they never stretch),
 // and the river froths a little over its shallow riffles.
 import * as THREE from 'three';
-import { BOG } from '../world/MapData.js';
+import { SURFACE } from '../physics/Surfaces.js';
 
 /** A tileable picture of ripples: the normal's x and y, and the height. */
 function rippleTexture(size = 256) {
@@ -62,13 +62,15 @@ function waterMaterial(uniforms) {
 attribute float aDepth;
 attribute vec2 aFlow;
 attribute float aMud;
+attribute float aFall;
 varying float vDepth;
 varying vec2 vFlow;
 varying float vMud;
+varying float vFall;
 varying vec3 vWPos;`)
       .replace('#include <worldpos_vertex>', `#include <worldpos_vertex>
 vWPos = (modelMatrix * vec4(transformed, 1.0)).xyz;
-vDepth = aDepth; vFlow = aFlow; vMud = aMud;`);
+vDepth = aDepth; vFlow = aFlow; vMud = aMud; vFall = aFall;`);
     sh.fragmentShader = sh.fragmentShader
       .replace('#include <common>', `#include <common>
 uniform float uTime;
@@ -76,6 +78,7 @@ uniform sampler2D uRipple;
 varying float vDepth;
 varying vec2 vFlow;
 varying float vMud;
+varying float vFall;
 varying vec3 vWPos;
 float wA;
 vec3 wN;
@@ -106,6 +109,17 @@ vec2 ripple(vec2 uv) { return texture2D(uRipple, uv).rg * 2.0 - 1.0; }`)
   float froth = smoothstep(0.32, 0.08, depth) * smoothstep(0.6, 1.6, speed) * smoothstep(0.55, 0.85, texture2D(uRipple, p0 * 0.5).b * 0.6 + texture2D(uRipple, p1 * 1.3).b * 0.4) * (1.0 - vMud);
   diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.85), froth);
   wA = max(wA, froth * 0.9 * smoothstep(0.0, 0.04, depth));
+  // white water where the river falls steeply (a cascade): streaks racing down it, and between the foam, tongues of
+  // glassy green water slipping over the rocks
+  if (vFall > 0.0) {
+    vec2 q = vWPos.xz - vFlow * fract(t * 0.9) * 4.0;
+    float streak = texture2D(uRipple, q * 0.21).b * 0.6 + texture2D(uRipple, q * 0.63 + 0.37).b * 0.4;
+    float tongue = smoothstep(0.35, 0.65, texture2D(uRipple, vWPos.xz * 0.043 + 0.21).b);
+    float white = vFall * clamp(0.2 + smoothstep(0.25, 0.75, streak) * (0.45 + 0.55 * tongue), 0.0, 1.0);
+    diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.92, 0.95, 0.95), white);
+    wA = max(wA, white * 0.96);
+    wN = normalize(wN + vec3(r.x, 0.0, r.y) * vFall * 0.6);
+  }
 }`)
       .replace('#include <normal_fragment_maps>', `#include <normal_fragment_maps>
 normal = normalize((viewMatrix * vec4(wN, 0.0)).xyz);`)
@@ -134,9 +148,11 @@ export class Water {
     const has = (i, k) => i >= 0 && k >= 0 && i < N && k < N && W[k * N + i] > -1e8;
     // vertices at the grid points with a water level, and quads where all four corners have one
     const index = new Int32Array(N * N).fill(-1);
-    const pos = [], depth = [], flow = [], mud = [], idx = [];
+    const pos = [], depth = [], flow = [], mud = [], fall = [], idx = [];
     const puddles = d.puddles.filter((p) => p.level !== undefined);
-    const cb = Math.cos(BOG.rot), sb = Math.sin(BOG.rot);
+    // muddy water: the bog's pools and the puddles, and wherever the ground under the water is mud (paddy fields)
+    const BOG = world.map.bog, cb = BOG ? Math.cos(BOG.rot) : 1, sb = BOG ? Math.sin(BOG.rot) : 0;
+    const mudUnder = !BOG;
     for (let k = 0; k < N; k++) {
       for (let i = 0; i < N; i++) {
         if (!has(i, k)) continue;
@@ -149,8 +165,10 @@ export class Water {
         const lz = has(i, k + 1) && has(i, k - 1) ? (W[(k + 1) * N + i] - W[(k - 1) * N + i]) / (2 * res) : 0;
         const g = Math.hypot(lx, lz), sp = g > 1e-4 ? Math.min(2.4, 0.5 + g * 220) / g : 0;
         flow.push(-lx * sp, -lz * sp);
-        const bx = x - BOG.x, bz = z - BOG.z, bu = (bx * cb - bz * sb) / BOG.rx, bv = (bx * sb + bz * cb) / BOG.rz;
-        const muddy = bu * bu + bv * bv < 0.7 || puddles.some((p) => Math.hypot(x - p.x, z - p.z) < p.r + 2);
+        fall.push(Math.min(1, Math.max(0, (g - 0.06) / 0.18)));            // a steep fall: white water
+        let muddy = puddles.some((p) => Math.hypot(x - p.x, z - p.z) < p.r + 2);
+        if (BOG) { const bx = x - BOG.x, bz = z - BOG.z, bu = (bx * cb - bz * sb) / BOG.rx, bv = (bx * sb + bz * cb) / BOG.rz; muddy ||= bu * bu + bv * bv < 0.7; }
+        if (mudUnder && !muddy) muddy = world.surfaceId(x, z) === SURFACE.MUD;
         mud.push(muddy ? 1 : 0);
       }
     }
@@ -168,6 +186,7 @@ export class Water {
     g.setAttribute('aDepth', new THREE.Float32BufferAttribute(depth, 1));
     g.setAttribute('aFlow', new THREE.Float32BufferAttribute(flow, 2));
     g.setAttribute('aMud', new THREE.Float32BufferAttribute(mud, 1));
+    g.setAttribute('aFall', new THREE.Float32BufferAttribute(fall, 1));
     g.setIndex(idx);
     g.computeBoundingSphere();
     this.mesh = new THREE.Mesh(g, waterMaterial(this.uniforms));

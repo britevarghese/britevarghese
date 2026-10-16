@@ -12,11 +12,10 @@
 
 import * as THREE from 'three';
 import { SURFACE } from '../physics/Surfaces.js';
-import { farHeight } from '../world/WorldGen.js';
-import { MAP_HALF } from '../world/MapData.js';
+import { MAP_HALF } from '../world/maps/index.js';
 import { DeformGrid } from '../world/Deform.js';
 import { vnoise } from '../world/Noise.js';
-import { SNOW_LINE } from '../world/MapData.js';
+import { TEA_ROW, TEA_RANGE } from './Tea.js';
 
 const GRID = 32;
 const V = GRID + 1;
@@ -29,11 +28,14 @@ const MAX_CACHE = 700;
 // textures could not be loaded.
 const LAYER_OF = {
   [SURFACE.GRASS]: 'grass', [SURFACE.DIRT]: 'dirt', [SURFACE.GRAVEL]: 'gravel', [SURFACE.ROCK]: 'rock', [SURFACE.MUD]: 'mud',
-  [SURFACE.SAND]: 'sand', [SURFACE.SNOW]: 'snow', [SURFACE.ROAD]: 'gravel', [SURFACE.RIVERBED]: 'pebbles', [SURFACE.ICE]: 'snow',
+  [SURFACE.SAND]: 'sand', [SURFACE.SNOW]: 'snow', [SURFACE.ROAD]: 'road', [SURFACE.RIVERBED]: 'pebbles', [SURFACE.ICE]: 'snow',
+  [SURFACE.TEA]: 'tea',
 };
+// a map without a layer of its own for a ground shows another
+const FALLBACK = { road: 'gravel', tea: 'forest', forest: 'grass' };
 const PLAIN = {
   grass: 0x6f8c3c, forest: 0x4f4430, dirt: 0x8d7454, gravel: 0x958b7c, rock: 0x8a857d, mud: 0x5e4a33, sand: 0xc8b088,
-  snow: 0xeef1f4, pebbles: 0x5f5946,
+  snow: 0xeef1f4, pebbles: 0x5f5946, tea: 0x3a6420,
 };
 // tints of the grass: lush hollows, dry knolls, thin alpine turf
 const LUSH = [0.78, 0.93, 0.8], DRY = [1.5, 1.24, 1.3], ALPINE = [1.22, 1.08, 1.15];
@@ -72,6 +74,8 @@ export class TerrainRenderer {
     this.world = world;
     this.scene = scene;
     this.ground = ground;
+    this.snowLine = world.map.snowLine ?? 1e6;                // (no snow on a tropical map)
+    this.litter = world.map.litter;                            // how much each type of tree carpets the ground
     this.layers = ground ? ground.layers : Object.keys(PLAIN).map((name) => ({ name, avg: lin(PLAIN[name]), rough: 0.95 }));
     this.layerIndex = {};
     this.layers.forEach((l, i) => { this.layerIndex[l.name] = i; });
@@ -105,8 +109,9 @@ export class TerrainRenderer {
         uLay: { value: this.layers.map((l) => new THREE.Vector4(1 / l.size, l.rough, l.heightW, 0)) },
         uGain: { value: this.layers.map((l) => new THREE.Vector3(...l.gain)) },
         uSplatO: { value: new THREE.Vector2(w.origin, w.origin) }, uSplatN: { value: w.N }, uMapHalf: { value: MAP_HALF },
-        uTexFar: { value: 320 }, uIds: { value: new THREE.Vector3(this.layerIndex.grass, this.layerIndex.rock, this.layerIndex.snow) },
-        uSnowLine: { value: SNOW_LINE + 40 }, uRelief: { value: 1 },
+        uTexFar: { value: 320 }, uIds: { value: new THREE.Vector3(this.layerIndex.grass, this.layerIndex.rock, this.layerIndex.snow ?? this.layerIndex.rock) },
+        uSnowLine: { value: this.snowLine + 40 }, uRelief: { value: 1 },
+        uTea: { value: this.layerIndex.tea ?? -1 }, uTeaNear: { value: TEA_RANGE.high },
       });
     }
     this.uniforms = uniforms;
@@ -144,6 +149,18 @@ uniform float uTexFar;
 uniform vec3 uIds;
 uniform float uSnowLine;
 uniform float uRelief;
+uniform float uTea;
+uniform float uTeaNear;
+// a tea estate beyond the hedges (render/Tea.js): the rows as stripes along the contours, leaves over the soil
+vec3 gTea(vec3 soil, float dist) {
+  float ph = fract(vWPos.y / ${TEA_ROW.toFixed(3)});
+  float band = smoothstep(0.06, 0.26, ph) * smoothstep(0.99, 0.72, ph);
+  float aa = clamp(fwidth(vWPos.y / ${TEA_ROW.toFixed(3)}) * 2.0 - 0.4, 0.0, 1.0);
+  band = mix(band, 0.68, aa);
+  float lum = dot(soil, vec3(0.3, 0.5, 0.2));
+  vec3 leaf = vec3(0.06, 0.15, 0.03) * (0.7 + 2.2 * lum);
+  return mix(soil, leaf, band * smoothstep(uTeaNear * 0.8, uTeaNear, dist));
+}
 // the projections (top, and the two sides for steep ground), their weights and screen-space derivatives
 vec2 gPT, gPX, gPZ, gDTx, gDTy, gDXx, gDXy, gDZx, gDZy;
 float gwT, gwX, gwZ, gSX, gSZ;
@@ -222,6 +239,7 @@ ${G ? `
       if (j >= gn) break;
       vec4 lay = uLay[int(gL[j])];
       cs[j] = gColor(gL[j], lay.x);
+      if (gL[j] == uTea) cs[j].rgb = gTea(cs[j].rgb, dist);
       hs[j] = gW[j] + cs[j].a * lay.z;
       top = max(top, hs[j]);
     }
@@ -258,6 +276,7 @@ normal = normalize((viewMatrix * vec4(gNW, 0.0)).xyz);`);
     if (!this.uniforms.uTexFar) return;
     this.uniforms.uTexFar.value = q === 'high' ? 320 : q === 'medium' ? 240 : 150;
     this.uniforms.uRelief.value = q === 'low' ? 0 : 1;
+    this.uniforms.uTeaNear.value = TEA_RANGE[q] || TEA_RANGE.high;
   }
 
   /**
@@ -268,7 +287,7 @@ normal = normalize((viewMatrix * vec4(gNW, 0.0)).xyz);`);
     const T = this.world.trees, n = Math.ceil(MAP_HALF * 2 / 2) + 1, g = new Float32Array(n * n);
     for (let t = 0; t < T.count; t++) {
       // conifers carpet the ground with needles; birches (type 2) and dead trees much less
-      const litter = T.type[t] === 2 ? 0.35 : T.type[t] === 3 ? 0.5 : 1;
+      const litter = this.litter ? this.litter[T.type[t]] ?? 1 : T.type[t] === 2 ? 0.35 : T.type[t] === 3 ? 0.5 : 1;
       const R = 1.5 + T.h[t] * 0.3, cx = (T.x[t] + MAP_HALF) / 2, cz = (T.z[t] + MAP_HALF) / 2, r = R / 2;
       for (let k = Math.max(0, Math.floor(cz - r)); k <= Math.min(n - 1, Math.ceil(cz + r)); k++) {
         for (let i = Math.max(0, Math.floor(cx - r)); i <= Math.min(n - 1, Math.ceil(cx + r)); i++) {
@@ -286,7 +305,8 @@ normal = normalize((viewMatrix * vec4(gNW, 0.0)).xyz);`);
 
   /** Texture layer of a cell: its surface's, or the forest floor where trees stand on grass. */
   layerAt(s, x, z, canopy) {
-    const name = LAYER_OF[s] || 'grass';
+    let name = LAYER_OF[s] || 'grass';
+    while (this.layerIndex[name] === undefined && FALLBACK[name]) name = FALLBACK[name];
     if (name === 'grass' && this.layerIndex.forest !== undefined && canopy(x, z) + 0.7 * (vnoise(x / 7, z / 7, 907) - 0.5) + 0.6 * (vnoise(x / 2.2, z / 2.2, 908) - 0.5) > 1.15) return this.layerIndex.forest;
     return this.layerIndex[name] ?? 0;
   }
@@ -364,14 +384,14 @@ normal = normalize((viewMatrix * vec4(gNW, 0.0)).xyz);`);
       this.mips.push(prev);
     }
     const li = this.layerIndex;
-    this.farRock = avg[li.rock]; this.farGrass = avg[li.grass]; this.farSnow = avg[li.snow];
+    this.farRock = avg[li.rock]; this.farGrass = avg[li.grass]; this.farSnow = avg[li.snow ?? li.rock];
     this.farForest = [avg[li.grass][0] * 0.55, avg[li.grass][1] * 0.68, avg[li.grass][2] * 0.55];
   }
 
   /** Past the map: the layer the shader shows (rock on the steeps, snow on the tops, grass below). */
   farLayer(h, ny) {
     const li = this.layerIndex;
-    return ny < 0.7 ? li.rock : h > SNOW_LINE + 40 ? li.snow : li.grass;
+    return ny < 0.7 ? li.rock : h > this.snowLine + 40 ? li.snow ?? li.rock : li.grass;
   }
 
   /** Colour (linear RGB) at (x, z) for a patch with vertex spacing `spacing`. */
@@ -394,7 +414,7 @@ normal = normalize((viewMatrix * vec4(gNW, 0.0)).xyz);`);
     const n = vnoise(x / 400, z / 400, 905);
     const base = n > 0.55 ? this.farForest : this.farGrass;
     const rock = Math.min(1, Math.max(0, (slope - 0.75) * 2.5));
-    const snow = Math.min(1, Math.max(0, (h - SNOW_LINE - 30 - 40 * n) / 40));
+    const snow = Math.min(1, Math.max(0, (h - this.snowLine - 30 - 40 * n) / 40));
     for (let c = 0; c < 3; c++) out[c] = base[c] + (this.farRock[c] - base[c]) * rock;
     for (let c = 0; c < 3; c++) out[c] += (this.farSnow[c] - out[c]) * snow;
     return out;
@@ -407,7 +427,7 @@ normal = normalize((viewMatrix * vec4(gNW, 0.0)).xyz);`);
       if (withRuts) h -= w.deformGrid.get(x, z);
       return h;
     }
-    return farHeight(x, z);
+    return this.world.farHeight(x, z);
   }
 
   build(node) {

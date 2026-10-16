@@ -1,0 +1,38 @@
+{
+ "name": "mango",
+ "height": 8.83,
+ "radius": 0.723,
+ "groups": [
+  {
+   "kind": "bark",
+   "vertices": 4774,
+   "indices": 22020,
+   "position": 0,
+   "normal": 57288,
+   "uv": 71612,
+   "index": 109804,
+   "map": "mango_0_color.webp",
+   "mapSize": [
+    512,
+    512
+   ],
+   "normalMap": "mango_0_normal.webp"
+  },
+  {
+   "kind": "leaf",
+   "vertices": 1752,
+   "indices": 3072,
+   "position": 153844,
+   "normal": 174868,
+   "uv": 180124,
+   "index": 194140,
+   "map": "mango_1_color.webp",
+   "mapSize": [
+    1024,
+    1024
+   ],
+   "normalMap": "mango_1_normal.webp",
+   "alphaCutoff": 0.289
+  }
+ ]
+}

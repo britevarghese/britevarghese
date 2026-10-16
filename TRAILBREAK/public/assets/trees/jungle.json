@@ -1,0 +1,146 @@
+{
+ "name": "jungle",
+ "height": 31.51,
+ "radius": 0.503,
+ "groups": [
+  {
+   "kind": "bark",
+   "vertices": 4947,
+   "indices": 5481,
+   "position": 0,
+   "normal": 59364,
+   "uv": 74208,
+   "index": 113784,
+   "map": "jungle_0_color.webp",
+   "mapSize": [
+    512,
+    512
+   ]
+  },
+  {
+   "kind": "leaf",
+   "vertices": 544,
+   "indices": 558,
+   "position": 124748,
+   "normal": 131276,
+   "uv": 132908,
+   "index": 137260,
+   "map": "jungle_1_color.webp",
+   "mapSize": [
+    512,
+    512
+   ],
+   "normalMap": "jungle_1_normal.webp",
+   "alphaCutoff": 0.429
+  },
+  {
+   "kind": "leaf",
+   "vertices": 207,
+   "indices": 489,
+   "position": 138376,
+   "normal": 140860,
+   "uv": 141484,
+   "index": 143140,
+   "map": "jungle_2_color.webp",
+   "mapSize": [
+    512,
+    1024
+   ],
+   "normalMap": "jungle_2_normal.webp",
+   "alphaCutoff": 0.532
+  },
+  {
+   "kind": "bark",
+   "vertices": 7978,
+   "indices": 19440,
+   "position": 144120,
+   "normal": 239856,
+   "uv": 263792,
+   "index": 327616,
+   "map": "jungle_3_color.webp",
+   "mapSize": [
+    512,
+    512
+   ]
+  },
+  {
+   "kind": "leaf",
+   "vertices": 2049,
+   "indices": 4011,
+   "position": 366496,
+   "normal": 391084,
+   "uv": 397232,
+   "index": 413624,
+   "map": "jungle_4_color.webp",
+   "mapSize": [
+    512,
+    1024
+   ],
+   "normalMap": "jungle_4_normal.webp",
+   "alphaCutoff": 0.465
+  },
+  {
+   "kind": "leaf",
+   "vertices": 168,
+   "indices": 168,
+   "position": 421648,
+   "normal": 423664,
+   "uv": 424168,
+   "index": 425512,
+   "map": "jungle_5_color.webp",
+   "mapSize": [
+    512,
+    512
+   ],
+   "normalMap": "jungle_5_normal.webp",
+   "alphaCutoff": 0.429
+  },
+  {
+   "kind": "leaf",
+   "vertices": 10602,
+   "indices": 20778,
+   "position": 425848,
+   "normal": 553072,
+   "uv": 584880,
+   "index": 669696,
+   "map": "jungle_6_color.webp",
+   "mapSize": [
+    512,
+    1024
+   ],
+   "normalMap": "jungle_6_normal.webp",
+   "alphaCutoff": 0.465
+  },
+  {
+   "kind": "leaf",
+   "vertices": 828,
+   "indices": 828,
+   "position": 711252,
+   "normal": 721188,
+   "uv": 723672,
+   "index": 730296,
+   "map": "jungle_7_color.webp",
+   "mapSize": [
+    512,
+    512
+   ],
+   "normalMap": "jungle_7_normal.webp",
+   "alphaCutoff": 0.429
+  },
+  {
+   "kind": "bark",
+   "vertices": 48,
+   "indices": 162,
+   "position": 731952,
+   "normal": 732528,
+   "uv": 732672,
+   "index": 733056,
+   "map": "jungle_8_color.webp",
+   "mapSize": [
+    512,
+    512
+   ],
+   "normalMap": "jungle_8_normal.webp"
+  }
+ ]
+}

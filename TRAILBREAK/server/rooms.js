@@ -5,8 +5,9 @@
  * so a link keeps working after a server restart.
  *
  * Protocol (JSON text frames over /ws):
- *   client -> server  {t:'hello', name, room?, truck?, paint?}
- *   server -> client  {t:'welcome', id, room, tickRate, maxPlayers, players:[{id,name}], beacons:[id...]}
+ *   client -> server  {t:'hello', name, room?, map?, truck?, paint?}
+ *                       map: the map a new room is opened on (one who joins an open room drives its map)
+ *   server -> client  {t:'welcome', id, room, map, tickRate, maxPlayers, players:[{id,name}], beacons:[id...]}
  *   client -> server  {t:'state', s:{p:[x,y,z], q:[x,y,z,w], v:[x,y,z], w:[x,y,z], wh:[[susp, spin, steer] x4],
  *                       rpm, thr, brk, lights, truck, cfg, paint, warp, winch}}
  *                       cfg: the truck's build (garage parts), a short [0-9a-z] code; help: 1 when calling for a tow
@@ -46,6 +47,8 @@ const CODE_RX = /^[A-HJ-NP-Z2-9]{4,8}$/;
 const RACE_LEAD = 15000;       // ms from opening a race to the start: time for friends to join
 const RACE_MAX = 11 * 60 * 1000;   // ms after the start a race is called (the events' own limit is 10 min)
 const EVENT_RX = /^[a-z]{2,16}$/;
+const MAP_RX = /^[a-z]{2,16}$/;
+const DEFAULT_MAP = 'ashwood';
 
 function isNum(n) { return typeof n === 'number' && Number.isFinite(n); }
 function vec(a, n) { return Array.isArray(a) && a.length === n && a.every(isNum); }
@@ -81,8 +84,9 @@ function randomCode(len = 5, rand = Math.random) {
 }
 
 class Room {
-  constructor(code, { tickRate = 20, maxPlayers = 4, log = () => {} } = {}) {
+  constructor(code, { tickRate = 20, maxPlayers = 4, log = () => {}, map = DEFAULT_MAP } = {}) {
     this.code = code;
+    this.map = map;                // which map the room drives (the first player's pick)
     this.tickRate = tickRate;
     this.maxPlayers = maxPlayers;
     this.log = log;
@@ -100,7 +104,7 @@ class Room {
     this.players.set(player.id, player);
     this.emptySince = 0;
     this.send(player, {
-      t: 'welcome', id: player.id, room: this.code, tickRate: this.tickRate, maxPlayers: this.maxPlayers,
+      t: 'welcome', id: player.id, room: this.code, map: this.map, tickRate: this.tickRate, maxPlayers: this.maxPlayers,
       players: [...this.players.values()].filter((p) => p !== player).map((p) => (p.dmg ? { id: p.id, name: p.name, dmg: p.dmg } : { id: p.id, name: p.name })),
       beacons: [...this.beacons.keys()],
       race: this.race ? { id: this.race.id, at: this.race.at, racers: this.racerList() } : null,
@@ -310,11 +314,12 @@ class Lobby {
     return randomCode(8, this.rand);
   }
 
-  room(code) {
+  /** The room with a code, opened on `map` if it doesn't exist yet. */
+  room(code, map = DEFAULT_MAP) {
     let r = this.rooms.get(code);
     if (!r) {
       if (this.rooms.size >= MAX_ROOMS) { this.sweep(); if (this.rooms.size >= MAX_ROOMS) return null; }
-      r = new Room(code, { tickRate: this.tickRate, maxPlayers: this.maxPlayers, log: this.log });
+      r = new Room(code, { tickRate: this.tickRate, maxPlayers: this.maxPlayers, log: this.log, map });
       this.rooms.set(code, r);
     }
     return r;
@@ -341,7 +346,7 @@ class Lobby {
           return ws.close(1008, 'bad room code');
         }
         const code = asked || this.newCode();
-        const room = this.room(code);
+        const room = this.room(code, typeof msg.map === 'string' && MAP_RX.test(msg.map) ? msg.map : DEFAULT_MAP);
         if (!room) { send({ t: 'error', msg: 'The server is busy. Try again later.' }); return ws.close(1013, 'busy'); }
         if (room.size >= room.maxPlayers) {
           send({ t: 'error', msg: `Room ${code} is full (${room.maxPlayers} drivers).` });

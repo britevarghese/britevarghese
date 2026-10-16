@@ -45,6 +45,7 @@ const COLORS = {
   [SURFACE.MUD]: [0.16, 0.11, 0.07], [SURFACE.DIRT]: [0.3, 0.22, 0.14], [SURFACE.SAND]: [0.62, 0.52, 0.36],
   [SURFACE.GRAVEL]: [0.4, 0.37, 0.33], [SURFACE.GRASS]: [0.24, 0.3, 0.12], [SURFACE.SNOW]: [0.92, 0.94, 0.97],
   [SURFACE.RIVERBED]: [0.3, 0.27, 0.2], [SURFACE.ROCK]: [0.45, 0.43, 0.4], [SURFACE.ROAD]: [0.4, 0.37, 0.33],
+  [SURFACE.TEA]: [0.14, 0.2, 0.07],
 };
 
 export class Effects {
@@ -76,7 +77,11 @@ export class Effects {
     scene.add(this.points);
     this.next = 0;
     this.acc = new Map();
+    this.colors = { ...COLORS };
   }
+
+  /** A map's own colours of dust and mud thrown up from each ground (Kerala's red laterite). */
+  setPalette(p = {}) { Object.assign(this.colors, p); }
 
   spawn(x, y, z, vx, vy, vz, size, life, color, alpha = 1, grow = 0, drag = 0.6, grav = 9.81) {
     const i = this.next;
@@ -92,7 +97,7 @@ export class Effects {
   wheel(key, w, dt, speed, hubX, hubY, hubZ, headX, headZ) {
     if (!w.contact) return;
     const s = w.surf?.id ?? SURFACE.GRASS;
-    const col = COLORS[s] || COLORS[SURFACE.DIRT];
+    const col = this.colors[s] || this.colors[SURFACE.DIRT];
     const slip = w.slipSpeed || 0;
     const r = 0.4;
     let acc = this.acc.get(key) || 0;

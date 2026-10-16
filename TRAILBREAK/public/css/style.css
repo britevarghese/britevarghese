@@ -50,7 +50,19 @@ input:focus { border-color: var(--accent-2); }
 .lobby-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px 18px; }
 .field label { display: block; font-size: 12px; letter-spacing: .12em; text-transform: uppercase; color: var(--ink-dim); margin-bottom: 6px; }
 .field label small { text-transform: none; letter-spacing: 0; }
-.field:nth-child(2) { grid-row: span 2; }
+.lobby-grid { grid-template-rows: auto auto 1fr; }
+.field:nth-child(2) { grid-row: span 3; }
+.map-field { margin-bottom: 14px; }
+.map-list { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.map-opt { text-align: left; padding: 10px 12px 10px 14px; border-radius: 10px; position: relative; overflow: hidden; }
+.map-opt b { display: block; font-size: 15px; }
+.map-opt span { font-size: 12px; color: var(--ink-dim); }
+.map-opt.sel { border-color: var(--accent); background: rgba(232, 137, 58, .14); }
+.map-opt::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 5px; }
+.map-ashwood::before { background: linear-gradient(#e9eef2, #5b7a4a 40%, #2f4a32); }
+.map-kerala::before { background: linear-gradient(#7fbf4a, #3f8a3a 45%, #b0502c); }
+.map-note { font-size: 12px; color: var(--ink-dim); margin: 6px 0 0; min-height: 0; }
+.map-note:empty { display: none; }
 .truck-list { display: grid; gap: 6px; max-height: 46vh; overflow: auto; position: relative; padding-right: 4px; }
 .truck-opt { text-align: left; padding: 8px 12px; border-radius: 10px; }
 .truck-opt b { display: block; font-size: 15px; }

@@ -1,12 +1,14 @@
 #!/usr/bin/env python3
 """Convert the Sketchfab tree downloads (glTF) into the game's compact tree files.
 
-usage: python3 tools/trees.py <download dir> public/assets/trees
+usage: python3 tools/trees.py <download dir> public/assets/trees [name[=folder] ...]
 
-<download dir> holds one folder per tree (pine, fir, spruce, birch), each the unzipped glTF download of the model
-listed in public/assets/trees/CREDITS.md. For each tree this writes <name>.json (layout), <name>.bin (geometry,
+<download dir> holds one folder per tree, each the unzipped glTF download of the model listed in
+public/assets/trees/CREDITS.md (the folder is the tree's name unless given: mango=oak converts the oak download as the
+game's mango tree). Without names: Ashwood's pine, fir, spruce and birch. For each tree this writes <name>.json (layout), <name>.bin (geometry,
 normalised to 1 m tall with the trunk at the origin) and its textures as WebP: colour (with alpha for foliage) and
-normal maps. Needs numpy and Pillow.
+normal maps. A tree in THIN keeps only that share of its leaf cards, each grown to cover what its neighbours did (a
+lighter model with as full a crown). Needs numpy and Pillow.
 """
 import json, os, struct, sys
 import numpy as np
@@ -14,6 +16,36 @@ from PIL import Image
 
 COMP = {5120: np.int8, 5121: np.uint8, 5122: np.int16, 5123: np.uint16, 5125: np.uint32, 5126: np.float32}
 NCOMP = {'SCALAR': 1, 'VEC2': 2, 'VEC3': 3, 'VEC4': 4, 'MAT4': 16}
+# the share of leaf cards kept (the rainforest giant comes with tens of thousands)
+THIN = {'jungle': 0.4}
+
+
+def thin(pos, nor, uv, idx, keep, seed):
+    """Keep a share of the cards (the pieces of connected triangles) of a leaf group, each scaled up about its middle."""
+    tri = idx.reshape(-1, 3)
+    parent = np.arange(len(pos))
+    def find(a):
+        while parent[a] != a:
+            parent[a] = parent[parent[a]]
+            a = parent[a]
+        return a
+    for a, b, c in tri:
+        ra, rb, rc = find(a), find(b), find(c)
+        parent[rb] = ra; parent[find(rc)] = ra
+    card = np.array([find(v) for v in range(len(pos))])
+    ids = np.unique(card[tri[:, 0]])
+    kept = set(ids[np.random.default_rng(seed).random(len(ids)) < keep].tolist())
+    keep_tri = np.array([card[t[0]] in kept for t in tri])
+    tri = tri[keep_tri]
+    used = np.unique(tri)
+    remap = -np.ones(len(pos), dtype=np.int64); remap[used] = np.arange(len(used))
+    grow = min(1.5, 1 / np.sqrt(keep))
+    pos = pos.copy()
+    for cid in kept:
+        vs = np.where(card == cid)[0]
+        mid = pos[vs].mean(axis=0)
+        pos[vs] = mid + (pos[vs] - mid) * grow
+    return pos[used], nor[used], uv[used], remap[tri].reshape(-1).astype(np.uint32)
 
 
 def accessor(g, binary, i):
@@ -112,6 +144,8 @@ def convert(src_dir, name, out_dir):
         leaf = mat.get('alphaMode') == 'MASK'
         pos = np.concatenate(gr['pos']); nor = np.concatenate(gr['nor']); uv = np.concatenate(gr['uv']); idx = np.concatenate(gr['idx'])
         pos = (pos - [cx, y0, cz]) / height
+        if leaf and name in THIN:
+            pos, nor, uv, idx = thin(pos, nor, uv, idx, THIN[name], len(layout))
         assert len(pos) < 65536
         ent = {'kind': 'leaf' if leaf else 'bark', 'vertices': len(pos), 'indices': len(idx)}
         align(); ent['position'] = len(out); out += pos.astype(np.float32).tobytes()
@@ -139,5 +173,9 @@ def convert(src_dir, name, out_dir):
 if __name__ == '__main__':
     src, dst = sys.argv[1], sys.argv[2]
     os.makedirs(dst, exist_ok=True)
-    for name in ('pine', 'fir', 'spruce', 'birch'):
-        convert(os.path.join(src, name), name, dst)
+    for arg in sys.argv[3:] or ('pine', 'fir', 'spruce', 'birch'):
+        name, _, folder = arg.partition('=')
+        d = os.path.join(src, folder or name)
+        if not os.path.exists(os.path.join(d, 'scene.gltf')) and os.path.exists(os.path.join(d, 'x', 'scene.gltf')):
+            d = os.path.join(d, 'x')
+        convert(d, name, dst)

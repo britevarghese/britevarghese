@@ -1,16 +1,18 @@
 # TRAILBREAK
 
-A co-op off-road driving game that runs in the browser. You and up to three friends take old 4x4s into Ashwood
-Valley: mountain trails, a river with fords, a mud bog, a rock garden, snow on the peaks. Together you find the
-valley's 15 survey beacons, and you winch each other out when one of you gets stuck.
+A co-op off-road driving game that runs in the browser. You and up to three friends take old 4x4s into one of two
+maps: **Ashwood Valley** (mountain trails, a river with fords, a mud bog, a rock garden, snow on the peaks) or the
+**Kerala Ghats** (tea estates on misty hills, a waterfall, flooded paddy fields, red laterite tracks through rubber and
+coconut, a granite dome). Together you find each map's 15 survey beacons, and you winch each other out when one of you
+gets stuck.
 
 Nothing to install for players: they open the server's address in Chrome, Edge or Firefox.
 
-- **Engine:** three.js (WebGL2). The valley is generated identically on every client from a fixed seed, and the
+- **Engine:** three.js (WebGL2). Each map is generated identically on every client from a fixed seed, and the
   trucks, boulders and buildings are built from code. The ground wears photo-scanned textures (grass, pine-needle
-  forest floor, trail dirt, gravel, rock, mud, sand, snow, river stones: 5 MB), blended per metre by their height maps.
-  The trees are four real species (game models, 1.5 MB): the full model close up, and beyond that a picture of it
-  rendered when the game starts. Meadow grass grows in tufts around you, the sky has drifting clouds and stars, and
+  forest floor, trail dirt, gravel, rock, mud, sand, snow, river stones; for Kerala red laterite, granite, red mud,
+  the leaf litter and the roads: 9 MB in all), blended per metre by their height maps. The trees are ten real species
+  (game models, 5 MB): the full model close up, and beyond that a picture of it rendered when the game starts. Meadow grass grows in tufts around you, the sky has drifting clouds and stars, and
   everything is lit by (and the paint and water reflect) that sky. Water is as clear or as muddy as it is deep.
 - **Physics:** written for off-roading, running at 480 Hz (see [The physics](#the-physics)).
 - **Server:** Node.js 18+ with no npm dependencies. Static files, http and https on one port, and WebSocket rooms.
@@ -23,14 +25,15 @@ Nothing to install for players: they open the server's address in Chrome, Edge o
 | Linux / macOS | `./start.sh` or `node server.js` |
 
 The server prints every address players can use (`http://localhost:3000` on this PC, `http://192.168.x.x:3000` on
-the LAN). Open it, enter a name, pick a truck and a paint colour, set it up in the **Garage** if you like, and press
-**Drive**.
+the LAN). Open it, enter a name, pick a map, a truck and a paint colour, set it up in the **Garage** if you like,
+and press **Drive**.
 
-- **Playing together:** leave the room code empty to start a new room. Press Esc in the valley for the invite link
-  (`http://host:3000/?room=K7QMP`) and send it to your friends. Rooms hold 4 drivers (`multiplayer.maxPlayers` in
+- **Playing together:** leave the room code empty to start a new room on the map you picked. Press Esc in the game
+  for the invite link (`http://host:3000/?room=K7QMP&map=kerala`) and send it to your friends: whoever joins a room
+  drives its map. Rooms hold 4 drivers (`multiplayer.maxPlayers` in
   `config.json`). A link keeps working after a server restart: the room is created again by whoever arrives first.
-- **Alone:** **Drive alone (offline)** needs no connection after the page has loaded. Your beacon progress is kept in
-  the browser.
+- **Alone:** **Drive alone (offline)** needs no connection after the page has loaded. Your beacon progress on each
+  map is kept in the browser.
 - **Steering wheel or gamepad on another PC:** browsers only give controllers to secure pages, so open
   `https://host:3000` instead (the same port). The certificate is self-made, so the first time choose
   *Advanced > Proceed*.
@@ -83,7 +86,7 @@ Without the Blueprint: **New > Web Service** with this repository, branch `claud
 | Pause, invite link, settings | Esc | Start |
 | Controls | F1 | |
 
-In the valley the HUD shows the transfer case range, 2WD or 4WD, the lockers (or LSD), the gearbox (AUTO or STICK,
+While you drive, the HUD shows the transfer case range, 2WD or 4WD, the lockers (or LSD), the gearbox (AUTO or STICK,
 with M when you shift yourself) and the tyre pressure. ENGINE OFF / FLOODED appears when water has got into the intake
 (press the throttle to start it again). The coolant temperature shows once the radiator leaks, and what is broken
 (FLAT FL, AXLE R, STEERING, SPRING, ENGINE 60%) shows beside it: see [Damage](#damage).
@@ -131,9 +134,12 @@ start with $2,500 and the Ranger.
   bought for that truck (once bought, a part is yours to fit and take off again). Repairs and the tow truck cost money,
   and can run you into the red (down to -$5,000): a truck is never left broken.
 
-**Events** (pause menu > Events, or the chequered flags on the map): drive to a start line and press **J**. The truck
-is lined up and counted down; drive through the gates in order to the finish. Beat the par times for a medal: each
-medal level pays once (bronze, then silver, then gold come to the gold prize), and every finish pays a little.
+**Events** (pause menu > Events, or the chequered flags on the map): each map has four. Drive to a start line and
+press **J**. The truck is lined up and counted down; drive through the gates in order to the finish. Beat the par
+times for a medal: each medal level pays once (bronze, then silver, then gold come to the gold prize), and every
+finish pays a little.
+
+Ashwood Valley:
 
 | Event | What it asks for | Par (gold / silver / bronze) |
 |---|---|---|
@@ -141,6 +147,15 @@ medal level pays once (bronze, then silver, then gold come to the gold prize), a
 | Cattail Bog Dash | a run-up, then the length of the bog flat out | 20.5 / 25 / 32 s |
 | Rock Garden Trials | a slalom of tight gates up through the boulders; each hard knock of the body is +5 s | 1:10 / 1:30 / 2:00 |
 | Sand Wash Drag | 100 m of soft sand: power, and the right tyre pressure (air down) | 11.5 / 13.5 / 16 s |
+
+Kerala Ghats:
+
+| Event | What it asks for | Par (gold / silver / bronze) |
+|---|---|---|
+| Kurinji Hill Climb | 760 m up 140 m from the tea factory, the jeep track through the estates to Kurinji Top | 1:50 / 2:15 / 2:45 |
+| Paddy Field Dash | across five flooded paddy fields and over their bunds: hit one too fast and a spring cracks | 32 / 39 / 50 s |
+| Anapara Rock Trials | tight gates through the boulders at the foot of the granite dome and up its slab; +5 s a knock | 0:58 / 1:15 / 1:40 |
+| Kadavu River Run | 150 m flat out down the river's shallows and through the ford | 10.5 / 12.5 / 15.5 s |
 
 With friends in the room, J opens a race instead: they get a message and 15 seconds to press J, which lines them up
 beside you; everyone's clock starts together (the server's), and the places pay out (1st $2,500, 2nd $1,200, 3rd
@@ -191,7 +206,7 @@ reverse lamps, and every garage part on the truck.
 
 ## The garage
 
-Open it from the start screen, or press U in the valley (out on the trail, fitting parts takes the truck back to
+Open it from the start screen, or press U while driving (out on the trail, fitting parts takes the truck back to
 the station garage). Pick parts one by one or start from a ready-made build (Weekend trail, Rock crawler, Mud bogger,
 Overlander). The truck turns on a stand in front of you with its parts on it, and the numbers show what they change
 against stock: clearances, approach, departure and breakover angles, wheel travel, wading depth, the angle it tips at,
@@ -250,10 +265,11 @@ Everything that makes off-roading off-roading is simulated, not faked:
 - **Torque twist:** the propshaft's torque rolls the axle housing against the frame. Under power the right rear tyre
   goes light (with an open diff it is the one that spins: the classic one-wheel peel) and the engine rolls the body
   the other way.
-- **Ground:** 10 surfaces (grass, dirt, gravel, rock, mud, sand, snow, road, riverbed, ice), each with its own grip
-  and force curve. Firm ground peaks then falls off. Loose ground keeps pulling at high slip, and in it the tyre
-  sinks to the depth its contact pressure can hold up (pressure-sinkage). A spinning tyre digs itself deeper. Ruts
-  stay in the ground for the next truck, and friends' trucks press their ruts into your valley too.
+- **Ground:** 11 surfaces (grass, dirt, gravel, rock, mud, sand, snow, road, riverbed, ice, and Kerala's tea), each
+  with its own grip and force curve. Firm ground peaks then falls off. Loose ground keeps pulling at high slip, and in
+  it the tyre sinks to the depth its contact pressure can hold up (pressure-sinkage). A spinning tyre digs itself
+  deeper. Ruts stay in the ground for the next truck (where soft ground meets firm, a rut runs out up a ramp), and
+  friends' trucks press their ruts into your ground too.
 - **Water:** buoyancy and drag on the hull, extra rolling resistance, and the air intake: water there stops the
   engine until it is out again.
 - **Winch:** a steel line with a stall-limited motor (line speed falls with load). Hook a tree to pull yourself
@@ -294,14 +310,37 @@ by a search over the land for the gentlest way up, with bends a long truck can t
 in ramps, and puddles only lie where the ground is level. A stock truck in low range can drive every trail; the last
 pitches onto the summit are the steepest (about 25 degrees, on gravel).
 
+## Kerala Ghats
+
+The Western Ghats, about 2 km across and 450 m from the paddy fields up to the tops. Everyone starts at the Ponmala
+Forest Station in the midland valley, among village houses with red tiled roofs and coconut palms. The Ponmala river
+comes off the high ranges in the north-east, tumbles down the escarpment through the forest in the Thoovanam cascade,
+and winds across the valley to the south-west: its floor is terraced into flooded paddy fields (bunds between the
+plots, the roads across them on embankments), and below the village it runs broad and shallow over the Kadavu ford.
+The Estate Road climbs the escarpment in hairpins through the shola (the evergreen forest) to the Ponmala tea factory
+and the estate bungalow; above them tea bushes cover the hills along the contours, clipped waist high with paths
+between the rows, shola fills the hollows and grassland the tops, with the lookout on Kurinji Top and the mast on
+Tower Hill. To the west a rubber estate grows in rows; to the east rises Anapara, a granite dome with a field of
+boulders at its foot; to the south are a laterite quarry (its ramp down the west face, rain standing in its floor)
+and the Ponmala reservoir. A chai stall stands by the river where the Thoovanam Pool track leaves the road.
+
+The ground plays as it looks: a truck can push into the tea, slowly, flattening a lane through the bushes; the paddy
+fields are soft red mud under a hand of water, and their bunds jolt the springs; the tracks are red laterite, the
+dome bare granite, and a rut in mud runs out onto firm ground up a ramp, not against a wall. The air is humid, so the
+hills fade into haze sooner, and the dust and the mud the tyres throw are red. There is no snow.
+
 ## Project layout
 
 ```
 server.js, server/        static host + https + WebSocket rooms (rooms.js)
 src/physics/              Vehicle (chassis, axles, tyre contact, winch, water), Tire, Drivetrain, Surfaces, trucks,
                           Upgrades (the garage's parts and what each does to the physics)
-src/world/                WorldGen (the valley), World (ground for the physics), Deform (ruts), MapData, Noise
-src/render/               Renderer, Sky, Terrain (LOD patches), Vegetation, Rocks, Water, Landmarks, TruckModel
+src/world/                WorldGen (a map's world, from its definition), World (ground for the physics), Deform
+                          (ruts), Noise
+src/world/maps/           the maps: index (the list), ashwood, kerala (each one's land, river, trails, beacons,
+                          buildings, events and its own generator hooks: Kerala's tea, paddies and quarry)
+src/render/               Renderer, Sky, Terrain (LOD patches), Vegetation, Tea (the estates' rows of bushes), Rocks,
+                          Water, Landmarks and KeralaBuildings, TruckModel
                           (chassis, axles, wheels, parts) and TruckBodies (the newer trucks' bodies), Effects
                           (particles, winch line), EventCourse (start banners, gates)
 src/core/                 Game (the loop), Input, CameraRig
@@ -316,6 +355,8 @@ test/                     node --test suites
 ## Credits
 
 Engine sounds: see `public/assets/audio/CREDITS.md` (Freesound, CC BY 4.0). Ground textures: CC0 scans from Poly
-Haven and ambientCG, see `public/assets/ground/CREDITS.md` (packed with `tools/ground.py`). Tree models: pine, fir, spruce and birch
-by evolveduk on Sketchfab, CC BY 4.0, see `public/assets/trees/CREDITS.md` (converted with `tools/trees.py`). three.js
+Haven and ambientCG, see `public/assets/ground/CREDITS.md` (packed with `tools/ground.py`). Tree models: pine, fir,
+spruce, birch, coconut palm, oak (as mango), elm (as rubber), banana and bamboo by evolveduk, and the jungle tree by
+kobaltsecond6c7d6150917a4267, on Sketchfab, CC BY 4.0, see `public/assets/trees/CREDITS.md` (converted with
+`tools/trees.py`). three.js
 is MIT licensed (`public/vendor/three/LICENSE`). Everything else is original.

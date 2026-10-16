@@ -1,0 +1,37 @@
+{
+ "name": "rubber",
+ "height": 9.5,
+ "radius": 0.239,
+ "groups": [
+  {
+   "kind": "bark",
+   "vertices": 1710,
+   "indices": 7704,
+   "position": 0,
+   "normal": 20520,
+   "uv": 25652,
+   "index": 39332,
+   "map": "rubber_0_color.webp",
+   "mapSize": [
+    512,
+    512
+   ]
+  },
+  {
+   "kind": "leaf",
+   "vertices": 2365,
+   "indices": 5832,
+   "position": 54740,
+   "normal": 83120,
+   "uv": 90216,
+   "index": 109136,
+   "map": "rubber_1_color.webp",
+   "mapSize": [
+    1024,
+    1024
+   ],
+   "normalMap": "rubber_1_normal.webp",
+   "alphaCutoff": 0.258
+  }
+ ]
+}

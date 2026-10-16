@@ -1,5 +1,6 @@
-// Start screen -> join a room (or drive alone) -> build the valley -> drive.
+// Start screen -> join a room (or drive alone) -> build the map's world -> drive.
 import { generateWorld } from './world/WorldGen.js';
+import { MAPS, MAP_IDS, DEFAULT_MAP, mapById } from './world/maps/index.js';
 import { World } from './world/World.js';
 import { TRUCKS, TRUCK_IDS } from './physics/trucks.js';
 import { buildSummary, decodeBuild } from './physics/Upgrades.js';
@@ -10,12 +11,14 @@ import { TerrainRenderer } from './render/Terrain.js';
 import { loadGround } from './render/Ground.js';
 import { Vegetation } from './render/Vegetation.js';
 import { Grass } from './render/Grass.js';
+import { Tea } from './render/Tea.js';
 import { Rocks } from './render/Rocks.js';
 import { Water } from './render/Water.js';
 import { Landmarks } from './render/Landmarks.js';
 import { Effects, Rope } from './render/Effects.js';
+import { MUD_TINT } from './render/TruckModel.js';
 import { Input } from './core/Input.js';
-import { Game } from './core/Game.js';
+import { Game, soloBeaconsKey } from './core/Game.js';
 import { Audio } from './audio/Audio.js';
 import { NetClient } from './net/NetClient.js';
 import { HUD } from './ui/HUD.js';
@@ -25,7 +28,7 @@ const $ = (id) => document.getElementById(id);
 const PAINTS = ['#b5532c', '#3d6b8c', '#6b7d3e', '#c9a227', '#8c2f2f', '#e6e1d3', '#2f4f3a', '#4a4a4a'];
 const STORE = 'trailbreak.settings';
 
-const settings = Object.assign({ name: '', truck: 'ranger', paint: PAINTS[0], hour: 16.5, shadows: true, sound: true, assist: true, rumble: true, quality: 'high', autoQuality: true, builds: {} }, (() => {
+const settings = Object.assign({ name: '', map: DEFAULT_MAP, truck: 'ranger', paint: PAINTS[0], hour: 16.5, shadows: true, sound: true, assist: true, rumble: true, quality: 'high', autoQuality: true, builds: {} }, (() => {
   try { return JSON.parse(localStorage.getItem(STORE) || '{}'); } catch { return {}; }
 })());
 if (!settings.builds || typeof settings.builds !== 'object') settings.builds = {};
@@ -40,6 +43,23 @@ function lobby() {
   const params = new URLSearchParams(location.search);
   $('name').value = settings.name || '';
   $('room').value = (params.get('room') || '').toUpperCase();
+  // the maps (an invite link names its room's map)
+  if (MAP_IDS.includes(params.get('map'))) settings.map = params.get('map');
+  if (!MAP_IDS.includes(settings.map)) settings.map = DEFAULT_MAP;
+  const mapsEl = $('maps');
+  const showMaps = () => {
+    mapsEl.innerHTML = '';
+    for (const id of MAP_IDS) {
+      const M = MAPS[id], b = document.createElement('button');
+      b.className = 'map-opt map-' + id + (settings.map === id ? ' sel' : '');
+      b.innerHTML = `<b>${M.name}</b><span>${M.blurb}</span>`;
+      b.onclick = () => { settings.map = id; save(); showMaps(); };
+      mapsEl.appendChild(b);
+    }
+    $('map-note').textContent = $('room').value.trim() ? 'Joining a room: you drive the map it was opened on.' : '';
+  };
+  $('room').addEventListener('input', showMaps);
+  showMaps();
   const trucksEl = $('trucks');
   const showBuild = () => {
     const base = TRUCKS[settings.truck] || TRUCKS.ranger;
@@ -89,7 +109,7 @@ function lobby() {
     const go = (online) => {
       settings.name = ($('name').value.trim() || 'Driver').slice(0, 20);
       save();
-      resolve({ online, room: $('room').value.trim().toUpperCase() });
+      resolve({ online, room: $('room').value.trim().toUpperCase(), map: settings.map });
     };
     $('go').onclick = () => go(true);
     $('solo').onclick = () => go(false);
@@ -106,13 +126,14 @@ function setLoad(f, label) {
 // ---------------------------------------------------------------- start
 async function start() {
   const audio = new Audio();
-  let net = null, welcome = null;
+  let net = null, welcome = null, mapId = settings.map;
   for (;;) {
     const choice = await lobby();
+    mapId = choice.map;
     audio.start().catch(() => {});                  // inside the click: browsers allow sound to start here
     if (!choice.online) break;
     $('lobby-msg').textContent = 'Connecting...';
-    net = new NetClient({ name: settings.name, room: choice.room });
+    net = new NetClient({ name: settings.name, room: choice.room, map: choice.map });
     try {
       welcome = await net.connect();
       break;
@@ -123,35 +144,45 @@ async function start() {
     }
   }
   if (net) {
+    // the room drives the map it was opened on
+    if (net.map && MAP_IDS.includes(net.map)) mapId = net.map;
     const url = new URL(location.href);
     url.searchParams.set('room', net.room);
+    url.searchParams.set('map', mapId);
     history.replaceState(null, '', url);
   }
+  const M = mapById(mapId);
+  document.querySelector('#loading h2').textContent = M.name;
+  document.querySelector('#dealer h2').firstChild.textContent = `${M.dealer} `;
 
   $('lobby').classList.add('hidden');
   $('loading').classList.remove('hidden');
   setLoad(0.02, 'Surveying the valley');
-  const data = await generateWorld({ onProgress: (f, label) => setLoad(0.02 + f * 0.6, label) });
+  const data = await generateWorld({ map: M, onProgress: (f, label) => setLoad(0.02 + f * 0.6, label) });
   const world = new World(data);
   setLoad(0.64, 'Painting the ground');
   await new Promise((r) => setTimeout(r, 0));
   const renderer = new Renderer($('app'));
-  const ground = await loadGround('ashwood', settings.quality).catch((e) => { console.warn('ground textures', e); return null; });
+  renderer.setAtmosphere(M.atmosphere);
+  const ground = await loadGround(M.ground, settings.quality).catch((e) => { console.warn('ground textures', e); return null; });
   const terrain = new TerrainRenderer(world, renderer.scene, { ground, onProgress: (f) => setLoad(0.64 + f * 0.16) });
   setLoad(0.82, 'Growing the trees');
   await new Promise((r) => setTimeout(r, 0));
   const vegetation = await Vegetation.create(world, renderer);
   const rocks = new Rocks(world, renderer.scene, ground);
   const grass = new Grass(world, terrain, renderer.scene, ground, vegetation.uniforms);
+  const tea = M.tea ? new Tea(world, renderer.scene) : null;
   const water = new Water(world, renderer.scene);
   const landmarks = new Landmarks(world, renderer.scene);
   const effects = new Effects(renderer.scene);
+  effects.setPalette(M.dust);
+  if (M.mudTint) MUD_TINT.setRGB(...M.mudTint);
   const rope = new Rope(renderer.scene);
   setLoad(0.9, 'Warming up the engine');
   const hud = new HUD(world, terrain);
   const input = new Input();
   const game = new Game({
-    world, renderer, terrain, vegetation, grass, rocks, water, landmarks, effects, rope, audio, net, hud, input, settings, garage, career,
+    world, renderer, terrain, vegetation, grass, tea, rocks, water, landmarks, effects, rope, audio, net, hud, input, settings, garage, career,
     truckId: settings.truck, build: settings.builds[settings.truck] || '', paint: settings.paint, name: settings.name,
   });
   game.onBuild = (id, code) => { settings.truck = id; settings.builds[id] = code; save(); };
@@ -163,18 +194,19 @@ async function start() {
     for (const id of welcome.beacons || []) game.found.add(id);
     game.events.welcome(welcome.race);
   } else {
-    try { for (const id of JSON.parse(localStorage.getItem('trailbreak.solo.beacons') || '[]')) { game.found.add(id); landmarks.setFound(id, true); } } catch { /* none */ }
+    try { for (const id of JSON.parse(localStorage.getItem(soloBeaconsKey(M)) || '[]')) { game.found.add(id); landmarks.setFound(id, true); } } catch { /* none */ }
   }
   for (const id of game.found) landmarks.setFound(id, true);
   // build the patches around the start before the first frame
   terrain.budget = 400;
   game.frame(0.016);
+  tea?.prime(renderer.camera);
   terrain.budget = 6;
   setLoad(1, 'Ready');
   $('loading').classList.add('hidden');
   hud.show(true);
   renderer.renderer.domElement.focus();
-  hud.toast(net ? `Room ${net.room}: press Esc for the invite link` : 'Driving alone. Press F1 for the controls', false, 6);
+  hud.toast(net ? `Room ${net.room} (${M.name}): press Esc for the invite link` : `Driving alone in ${M.name}. Press F1 for the controls`, false, 6);
   hud.toast('Find the survey beacons: follow the orange light beams', false, 6);
   wireMenus(game, net);
   if (isTouchDevice()) {
@@ -198,7 +230,7 @@ function wireMenus(game, net) {
   if (net) {
     $('invite').classList.remove('hidden');
     $('room-code').textContent = net.room;
-    const link = new URL(location.href); link.search = `?room=${net.room}`;
+    const link = new URL(location.href); link.search = `?room=${net.room}&map=${game.world.map.id}`;
     $('invite-link').value = link.toString();
     $('copy-link').onclick = async () => {
       try { await navigator.clipboard.writeText($('invite-link').value); $('copy-link').textContent = 'Copied'; } catch { $('invite-link').select(); document.execCommand?.('copy'); }

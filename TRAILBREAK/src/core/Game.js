@@ -7,7 +7,7 @@ import { buildSummary, buildStats } from '../physics/Upgrades.js';
 import { SURFACES } from '../physics/Surfaces.js';
 import { TruckModel } from '../render/TruckModel.js';
 import { CameraRig } from './CameraRig.js';
-import { SPAWN, BEACON_RADIUS, MAP_HALF } from '../world/MapData.js';
+import { BEACON_RADIUS, MAP_HALF } from '../world/maps/index.js';
 import { EventPlay } from '../game/EventPlay.js';
 import { EventCourse } from '../render/EventCourse.js';
 
@@ -31,10 +31,12 @@ function nameTag(text, color) {
 }
 
 const BOUNTY = 600, BOUNTY_SHARE = 150, RESCUE_FEE = 300, TOW_FEE = 250;
+/** Where the beacons found driving alone on a map are kept (Ashwood keeps its original key). */
+export const soloBeaconsKey = (M) => (M.id === 'ashwood' ? 'trailbreak.solo.beacons' : `trailbreak.solo.beacons.${M.id}`);
 
 export class Game {
   constructor(o) {
-    Object.assign(this, o);          // world, renderer, terrain, vegetation, grass, rocks, water, landmarks, effects, rope, audio, net, hud, input, settings, garage, career, build
+    Object.assign(this, o);          // world, renderer, terrain, vegetation, grass, tea, rocks, water, landmarks, effects, rope, audio, net, hud, input, settings, garage, career, build
     this.scene = this.renderer.scene;
     this.spec = truckSpec(this.truckId, this.build);
     this.build = this.spec.buildCode;
@@ -230,8 +232,8 @@ export class Game {
   spawnPoint() {
     const slot = this.net?.id ? (this.net.id - 1) % 6 : 0;
     const side = (slot % 2 ? 1 : -1) * Math.ceil(slot / 2) * 5.5;
-    const c = Math.cos(SPAWN.yaw), s = Math.sin(SPAWN.yaw);
-    return { x: SPAWN.x + c * side, z: SPAWN.z - s * side, yaw: SPAWN.yaw };
+    const SP = this.world.map.spawn, c = Math.cos(SP.yaw), s = Math.sin(SP.yaw);
+    return { x: SP.x + c * side, z: SP.z - s * side, yaw: SP.yaw };
   }
 
   spawn(first = false) {
@@ -244,7 +246,7 @@ export class Game {
     this.vehicle.setPressure(this.vehicle.psiTarget);
     this.carry = 0;
     if (this.net) this.net.warp++;
-    if (!first) this.hud.toast('Back at the ranger station');
+    if (!first) this.hud.toast(`Back at ${this.world.map.station.name}`);
     this.cam.heading = null;
   }
 
@@ -371,6 +373,7 @@ export class Game {
     this.renderer.setShadows(s.shadows);
     this.terrain.shadows = s.shadows;
     this.vegetation.setShadows(s.shadows);
+    this.tea?.setShadows(s.shadows);
     this.rocks.setShadows(s.shadows);
     this.audio.setEnabled(s.sound);
     this.applyQuality();
@@ -791,15 +794,15 @@ export class Game {
     const n = this.found.size, total = this.world.beacons.length;
     if (b) this.hud.toast(by ? `${by} surveyed ${b.name} (${n}/${total})` : `Surveyed ${b.name} (${n}/${total})`, true, 5);
     if (b && this.career) {
-      const paid = this.career.d.bounties || (this.career.d.bounties = []), key = `ashwood:${id}`;
+      const paid = this.career.d.bounties || (this.career.d.bounties = []), key = `${this.world.map.id}:${id}`;
       if (!paid.includes(key)) {
         paid.push(key);
         this.career.add(by ? BOUNTY_SHARE : BOUNTY, by ? `Share of ${by}'s survey bounty (${b.name})` : `Survey bounty: ${b.name}`);
       }
     }
-    if (n === total) this.hud.toast('Every beacon in Ashwood Valley is surveyed. Great work!', true, 8);
+    if (n === total) this.hud.toast(`Every beacon in ${this.world.map.name} is surveyed. Great work!`, true, 8);
     if (!this.net?.connected) {
-      try { localStorage.setItem('trailbreak.solo.beacons', JSON.stringify([...this.found])); } catch { /* storage blocked */ }
+      try { localStorage.setItem(soloBeaconsKey(this.world.map), JSON.stringify([...this.found])); } catch { /* storage blocked */ }
     }
   }
 
@@ -890,7 +893,7 @@ export class Game {
 
     // ruts -> terrain
     const dirty = this.world.deformGrid.takeDirty();
-    if (dirty) { this.terrain.markDirty(dirty); this.grass.markDirty(dirty); }
+    if (dirty) { this.terrain.markDirty(dirty); this.grass.markDirty(dirty); this.tea?.markDirty(dirty); }
 
     // the truck
     const m = this.model;
@@ -925,6 +928,7 @@ export class Game {
     this.vegetation.update(this.renderer.camera, dt);
     this.rocks.update(this.renderer.camera);
     this.grass.update(this.renderer.camera, dt, this.grassPush());
+    this.tea?.update(this.renderer.camera);
     this.water.update(this.renderer.camera, dt, this.renderer.sky.state.horizon);
     this.landmarks.update(this.renderer.camera, dt);
     this.course.update(dt);
@@ -1010,6 +1014,7 @@ export class Game {
     this.terrain.split = q === 'high' ? 2.1 : q === 'medium' ? 1.8 : 1.5;
     this.terrain.setQuality(q);
     this.grass.setQuality(q);
+    this.tea?.setQuality(q);
   }
 
   updateRemoteRopes() {
