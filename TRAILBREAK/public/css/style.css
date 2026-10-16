@@ -440,3 +440,35 @@ button.quick:hover { background: #63c4ba; }
 .ev-group small { text-transform: none; letter-spacing: 0; color: var(--ink-dim); font-weight: 400; margin-left: 6px; font-size: 12px; }
 .ev-acts { display: flex; gap: 6px; flex-wrap: wrap; }
 .ev-cp.mode svg { display: none; }
+
+/* ---------- the map builder (ui/Builder.js) */
+#builder { position: fixed; inset: 0; z-index: 15; pointer-events: none; }
+#builder > * { pointer-events: auto; }
+.b-top { position: absolute; top: 10px; left: 10px; right: 10px; display: flex; gap: 6px; align-items: center; flex-wrap: wrap; background: rgba(20, 25, 22, .86); border: 1px solid var(--line); border-radius: 12px; padding: 8px; }
+.b-top button { padding: 7px 11px; font-size: 13px; }
+.b-top button:disabled { opacity: .4; cursor: default; }
+#b-name { width: 200px; padding: 7px 10px; font-size: 14px; }
+.b-count { font-size: 12px; color: var(--ink-dim); min-width: 52px; text-align: center; }
+.b-sp { flex: 1; }
+.b-hint { position: absolute; top: 70px; left: 50%; transform: translateX(-50%); background: rgba(20, 25, 22, .72); border-radius: 8px; padding: 5px 12px; font-size: 13px; color: var(--ink); pointer-events: none !important; max-width: calc(100vw - 24px); text-align: center; }
+.b-palette { position: absolute; left: 10px; right: 10px; bottom: 10px; display: flex; gap: 10px; overflow-x: auto; background: rgba(20, 25, 22, .86); border: 1px solid var(--line); border-radius: 12px; padding: 8px 10px; }
+.b-group { display: flex; flex-direction: column; gap: 4px; }
+.b-group > span { font-size: 10.5px; letter-spacing: .12em; text-transform: uppercase; color: var(--ink-dim); }
+.b-group > div { display: flex; gap: 5px; }
+.b-palette button { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 6px 7px; min-width: 62px; border-radius: 9px; background: rgba(243, 234, 215, .06); }
+.b-palette button i { font-style: normal; font-size: 10.5px; color: var(--ink); white-space: nowrap; }
+.b-palette button.on { background: rgba(63, 182, 255, .25); border-color: #3fb6ff; }
+.b-box { position: absolute; top: 110px; left: 50%; transform: translateX(-50%); width: min(520px, calc(100vw - 24px)); background: rgba(24, 31, 27, .97); border: 1px solid var(--line); border-radius: 14px; padding: 14px 16px; box-shadow: 0 16px 40px rgba(0, 0, 0, .45); }
+.b-box .invite-row { margin-top: 10px; display: flex; gap: 6px; flex-wrap: wrap; }
+.b-maps { max-height: 240px; overflow-y: auto; margin-top: 8px; display: flex; flex-direction: column; gap: 5px; }
+.b-maprow { display: flex; gap: 6px; align-items: center; }
+.b-maprow span { flex: 1; } .b-maprow small { color: var(--ink-dim); margin-left: 6px; }
+@media (max-width: 760px), (max-height: 520px) {
+  .b-top { top: 6px; left: 6px; right: 6px; padding: 5px; gap: 4px; }
+  .b-top button { padding: 5px 8px; font-size: 12px; }
+  #b-name { width: 130px; }
+  .b-hint { top: auto; bottom: 108px; font-size: 12px; }
+  .b-palette { bottom: 6px; left: 6px; right: 6px; padding: 6px; }
+  .b-palette button { min-width: 52px; padding: 4px 5px; }
+  .b-palette button svg { width: 22px; height: 22px; }
+}

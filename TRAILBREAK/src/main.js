@@ -21,6 +21,7 @@ import { MUD_TINT } from './render/TruckModel.js';
 import { loadTruckAsset } from './render/TruckAssets.js';
 import { Input } from './core/Input.js';
 import { Game, soloBeaconsKey } from './core/Game.js';
+import { decodeLayout } from './game/Props.js';
 import { Audio } from './audio/Audio.js';
 import { NetClient } from './net/NetClient.js';
 import { Voice } from './net/Voice.js';
@@ -225,14 +226,25 @@ async function start() {
   $('m-dmg').onclick = () => game.fitSpare();          // (a tap on phones)
   window.game = game;                              // (handy in the console)
   await audio.setLocalEngine(game.spec).catch(() => {});
+  // a map from a link (?layout=, the builder's SHARE), else the room's (whoever built in it), onto this map
+  const linkLayout = new URLSearchParams(location.search).get('layout');
   if (net) {
     net.onEvent = (m) => game.onNet(m);
     for (const id of welcome.beacons || []) game.found.add(id);
     game.events.welcome(welcome.race);
+    if (welcome.layout && !linkLayout) game.takeLayout(welcome.layout, null);
   } else {
     try { for (const id of JSON.parse(localStorage.getItem(soloBeaconsKey(M)) || '[]')) { game.found.add(id); landmarks.setFound(id, true); } } catch { /* none */ }
   }
   for (const id of game.found) landmarks.setFound(id, true);
+  if (linkLayout) {
+    const L = decodeLayout(linkLayout);
+    if (L && (!L.map || L.map === M.id)) {
+      game.builder.load(L, !!net);
+      hud.toast(`${L.name ? `"${L.name}"` : 'A map'} from a link: ${L.props.length} props${game.events.byId.has('custom') ? '. Modes & races (N): the race on it' : ''}. Esc > Map builder to build on it`, true, 8);
+    }
+    const url = new URL(location.href); url.searchParams.delete('layout'); history.replaceState(null, '', url);
+  }
   // build the patches around the start before the first frame
   terrain.budget = 400;
   game.frame(0.016);
@@ -298,6 +310,7 @@ function wireMenus(game, net) {
   $('menu-garage').onclick = () => game.openGarage();
   $('menu-dealer').onclick = () => game.openDealer();
   $('menu-events').onclick = () => game.openEvents();
+  $('menu-build').onclick = () => { game.togglePause(false); game.builder.open(); };
   const help = (on) => $('help').classList.toggle('hidden', !on);
   $('show-help').onclick = () => help(true);
   $('close-help').onclick = () => help(false);

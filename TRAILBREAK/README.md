@@ -257,6 +257,21 @@ against the clock:
 - **King of the Hill:** race to the rise (Meadow Rise on Ashwood, Reservoir Rise in Kerala: the satnav shows the way)
   and hold it: 45 s inside its ring with nobody else in it wins (contested, nobody's time counts). Push them out!
 
+**Map builder** (Esc > Map builder, or Modes & races): build your own course on the map you are on, from a camera over
+it. Pick a prop from the palette (ramps, a big ramp, kickers, dirt mounds, shipping containers, crates, logs, log piles,
+rocks and boulders, barrels, tyre stacks, concrete barriers, fences, mud pits, a start line and checkpoints) and click
+or tap the ground to put it down: Q and E (or the turn buttons) turn it, and checkpoints face on from the last one.
+With nothing picked, click a prop to pick it, drag it to move it, Del to take it away; Ctrl+Z undoes. Drag the ground
+to move about, right-drag (two fingers) to turn the view, the wheel (pinch) to zoom, W A S D to move too.
+
+Everything you put down is part of the ground at once, with the same physics as the rocks: tyres climb ramps and
+launch off them, logs bump, containers stop you, mud pits rut. **Test drive** puts your truck in it; with a start line
+and checkpoints it is a race (**Race it**, or in Modes & races, with medals from its length). The map you are
+building is kept in the browser as you go (one per map), **My maps** keeps copies under a name, and **Share** gives
+a link that opens your map for anyone (`?map=ashwood&layout=...`). In a room your friends see it as you build it,
+and can build on it too; whoever joins later gets the room's map (src/game/Props.js, src/ui/Builder.js,
+src/render/PropView.js).
+
 The **Modes & races** list (Esc, N) has them all, grouped: free roam, the party modes, the checkpoint races and the
 events, each with **Start** (lined up and counted down at once; with friends in the room it opens it for them to join)
 and **Go to the start**.

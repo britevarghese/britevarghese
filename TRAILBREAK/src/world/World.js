@@ -8,12 +8,14 @@
 // (and for the renderer, waterSurface(x, z): the water's surface as it is drawn)
 //   deform(x, z, fx, fz, hw, hl, press, dig)   press soft ground under a tyre, returns the rut depth
 //   treesNear(x, z, r, out)      trunks and wall posts { x, y, z, r } near (x, z)
+// (a custom layout's props, from the map builder, are part of the ground: setProps; game/Props.js)
 
 import { SURFACES, SURFACE } from '../physics/Surfaces.js';
 import { DeformGrid } from './Deform.js';
 import { NO_WATER } from './WorldGen.js';
 import { MAP_HALF, mapById } from './maps/index.js';
 import { rockTop, shapeOf } from './RockShapes.js';
+import { PROP_TYPES, propTop, paintAt, reach, settle } from '../game/Props.js';
 
 const OB_CELL = 16;          // obstacle (tree, post) grid cell (m)
 const BO_CELL = 8;           // boulder grid cell (m)
@@ -52,6 +54,7 @@ export class World {
     for (let i = 0; i < n; i++) if (solid(i)) this.obIdx[fill[cellOf(this.ob.x[i], this.ob.z[i])]++] = i;
     this.obPool = [];
     for (let i = 0; i < 64; i++) this.obPool.push({ x: 0, y: 0, z: 0, r: 0 });
+    this.props = []; this.paints = []; this.propCells = new Map();
 
     // boulders: each listed in every cell its footprint touches
     this.boN = Math.ceil(MAP_HALF * 2 / BO_CELL);
@@ -81,6 +84,37 @@ export class World {
     return (H[o] * (1 - tx) + H[o + 1] * tx) * (1 - tz) + (H[o + N] * (1 - tx) + H[o + N + 1] * tx) * tz;
   }
 
+  /** A custom layout's props (game/Props.js), each settled on the ground; they replace any there were. */
+  setProps(list) {
+    this.props = (list || []).filter((p) => PROP_TYPES[p.type]).map((p) => settle({ type: p.type, x: p.x, z: p.z, yaw: p.yaw || 0 }, (x, z) => this.terrain(x, z)));
+    this.paints = this.props.filter((p) => PROP_TYPES[p.type].shape === 'paint');
+    this.propCells = new Map();
+    this.props.forEach((p, i) => {
+      const R = reach(p.type);
+      for (let k = Math.floor((p.z - R + MAP_HALF) / BO_CELL); k <= Math.floor((p.z + R + MAP_HALF) / BO_CELL); k++) {
+        for (let c = Math.floor((p.x - R + MAP_HALF) / BO_CELL); c <= Math.floor((p.x + R + MAP_HALF) / BO_CELL); c++) {
+          const key = k * this.boN + c;
+          let list = this.propCells.get(key);
+          if (!list) this.propCells.set(key, (list = []));
+          list.push(i);
+        }
+      }
+    });
+  }
+
+  /** The prop whose top is highest at (x, z), and that top: { p, top }, or null. */
+  propAt(x, z) {
+    if (!this.props.length) return null;
+    const list = this.propCells.get(Math.floor((z + MAP_HALF) / BO_CELL) * this.boN + Math.floor((x + MAP_HALF) / BO_CELL));
+    if (!list) return null;
+    let best = null, top = -Infinity;
+    for (let n = 0; n < list.length; n++) {
+      const p = this.props[list[n]], t = propTop(p, x, z);
+      if (t > top) { top = t; best = p; }
+    }
+    return best ? { p: best, top } : null;
+  }
+
   /** Top of the highest boulder at (x, z), or -Infinity. */
   boulderTop(x, z) {
     const key = Math.floor((z + MAP_HALF) / BO_CELL) * this.boN + Math.floor((x + MAP_HALF) / BO_CELL);
@@ -102,16 +136,20 @@ export class World {
     let h = this.terrain(x, z);
     if (this.deformGrid.chunks.size) h -= this.deformGrid.get(x, z);
     const b = this.boulderTop(x, z);
-    return b > h ? b : h;
+    if (b > h) h = b;
+    if (this.props.length) { const q = this.propAt(x, z); if (q && q.top > h) h = q.top; }
+    return h;
   }
 
   surfaceId(x, z) {
+    for (let n = 0; n < this.paints.length; n++) if (paintAt(this.paints[n], x, z)) return PROP_TYPES[this.paints[n].type].surface;
     const i = Math.round(x - this.origin), k = Math.round(z - this.origin);
     if (i < 0 || k < 0 || i >= this.N || k >= this.N) return SURFACE.ROCK;
     return this.S[k * this.N + i];
   }
 
   surfaceAt(x, z) {
+    if (this.props.length) { const q = this.propAt(x, z); if (q && q.top > this.terrain(x, z) - 0.02) return SURFACES[PROP_TYPES[q.p.type].surface]; }
     if (this.boulderTop(x, z) > this.terrain(x, z) - 0.02) return SURFACES[SURFACE.ROCK];
     return SURFACES[this.surfaceId(x, z)];
   }
@@ -141,6 +179,7 @@ export class World {
    * onto firm ground up a ramp (as the mud thins out at its edge) rather than ending at a wall.
    */
   maxSinkAt(x, z) {
+    for (let n = 0; n < this.paints.length; n++) if (paintAt(this.paints[n], x, z)) return SURFACES[PROP_TYPES[this.paints[n].type].surface].maxSink;
     const fx = x - this.origin, fz = z - this.origin, i = Math.floor(fx), k = Math.floor(fz), tx = fx - i, tz = fz - k;
     const m = (a, b) => (a < 0 || b < 0 || a >= this.N || b >= this.N ? 0 : SURFACES[this.S[b * this.N + a]].maxSink);
     return (m(i, k) * (1 - tx) + m(i + 1, k) * tx) * (1 - tz) + (m(i, k + 1) * (1 - tx) + m(i + 1, k + 1) * tx) * tz;

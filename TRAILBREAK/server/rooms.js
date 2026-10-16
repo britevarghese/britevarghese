@@ -19,6 +19,8 @@
  *   server -> client  {t:'correction', s}                                    (an update was rejected)
  *   client -> server  {t:'beacon', id}         -> room {t:'beacon', id, by}  (shared survey progress)
  *   client -> server  {t:'chat', text}         -> room {t:'chat', id, name, text}
+ *   client -> server  {t:'layout', code}       -> room {t:'layout', id, name, code}   (the map builder's props, a share
+ *                       code, src/game/Props.js; the room keeps the last one for whoever joins: welcome's layout)
  *   client -> server  {t:'damage', d}          -> room {t:'damage', id, d}   (what is broken on that truck: glass, lamps,
  *                       flat tyres, steam, smoke, toe and the latest dents; kept for whoever joins later)
  *   client -> server  {t:'ping', time}         -> client {t:'pong', time, echo}
@@ -60,6 +62,7 @@ const CODE_RX = /^[A-HJ-NP-Z2-9]{4,8}$/;
 const RACE_LEAD = 15000;       // ms from opening a race to the start: time for friends to join
 const RACE_MAX = 11 * 60 * 1000;   // ms after the start a race is called (the events' own limit is 10 min)
 const EVENT_RX = /^[a-z]{2,16}$/;
+const LAYOUT_RX = /^[A-Za-z0-9_-]{0,24000}$/;   // a layout's share code (base64url)
 const MAP_RX = /^[a-z]{2,16}$/;
 const DEFAULT_MAP = 'ashwood';
 
@@ -107,6 +110,7 @@ class Room {
     this.players = new Map();
     this.beacons = new Map();      // id -> name of the player who surveyed it
     this.race = null;              // { id, at, racers: Map(player id -> { name, time: undefined | null | s }) }
+    this.layout = null;            // the map builder's props here (a share code), for whoever joins
     this.nextId = 1;
     this.emptySince = Date.now();
   }
@@ -122,6 +126,7 @@ class Room {
       players: [...this.players.values()].filter((p) => p !== player).map((p) => ({ id: p.id, name: p.name, ...(p.dmg ? { dmg: p.dmg } : {}), ...(p.voice ? { voice: 1, mic: p.mic ? 1 : 0, mute: p.mute ? 1 : 0 } : {}) })),
       beacons: [...this.beacons.keys()],
       race: this.race ? { id: this.race.id, at: this.race.at, racers: this.racerList() } : null,
+      ...(this.layout ? { layout: this.layout } : {}),
     });
     this.broadcast({ t: 'join', id: player.id, name: player.name }, player);
     this.log(`[room ${this.code}] ${player.name} (#${player.id}) joined, ${this.size}/${this.maxPlayers}`);
@@ -166,6 +171,15 @@ class Room {
         if (now - (player.lastChat || 0) < 500) return;
         player.lastChat = now;
         this.broadcast({ t: 'chat', id: player.id, name: player.name, text });
+        return;
+      }
+      case 'layout': {
+        if (typeof msg.code !== 'string' || !LAYOUT_RX.test(msg.code)) return;
+        const now = Date.now();
+        if (now - (player.lastLayout || 0) < 300) return;
+        player.lastLayout = now;
+        this.layout = msg.code || null;
+        this.broadcast({ t: 'layout', id: player.id, name: player.name, code: msg.code }, player);
         return;
       }
       case 'ping':

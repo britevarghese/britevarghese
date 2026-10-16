@@ -18,6 +18,8 @@ import { RouteLine } from '../render/RouteLine.js';
 import { WorldMap, keyOf } from '../ui/WorldMap.js';
 import { Chat, bubbleCanvas } from '../ui/Chat.js';
 import { ModeView } from '../render/ModeView.js';
+import { Builder } from '../ui/Builder.js';
+import { encodeLayout, decodeLayout } from '../game/Props.js';
 
 const clamp = (x, a, b) => (x < a ? a : x > b ? b : x);
 const fmtDist = (m) => (m < 1000 ? `${Math.round(m / 10) * 10} m` : `${(m / 1000).toFixed(1)} km`);
@@ -94,6 +96,9 @@ export class Game {
     this.events = new EventPlay(this);
     this.course = new EventCourse(this.scene, this.world, this.events.events);
     this.modeView = new ModeView(this.scene, this.world);
+    // the map builder (ui/Builder.js): this map's own layout of props, on the ground at once
+    this.building = false;
+    this.builder = new Builder(this);
     // the satnav and the full map (ui/WorldMap.js): a route by road and trail, and its line on the ground ahead
     this.satnav = new RouteGraph(this.world.data.trails);
     this.routeLine = new RouteLine(this.scene);
@@ -237,11 +242,12 @@ export class Game {
     const close = () => { el.classList.add('hidden'); this.audio.setMuted('menu', false); this.input.enabled = !this.paused && !this.chatOpen; this.renderer.renderer.domElement.focus(); };
     list.innerHTML = this.events.listHtml();
     list.onclick = (e) => {
-      const go = e.target.closest('[data-go]'), start = e.target.closest('[data-start]'), free = e.target.closest('[data-free]');
-      if (!go && !start && !free) return;
+      const go = e.target.closest('[data-go]'), start = e.target.closest('[data-start]'), free = e.target.closest('[data-free]'), build = e.target.closest('[data-build]');
+      if (!go && !start && !free && !build) return;
       close();
       if (go) this.events.goTo(go.dataset.go);
       else if (start) this.events.startNow(start.dataset.start);
+      else if (build) this.builder.open();
     };
     document.getElementById('ev-close').onclick = close;
     el.classList.remove('hidden');
@@ -546,6 +552,8 @@ export class Game {
   // ---------------------------------------------------------------- actions
   actions() {
     const I = this.input, v = this.vehicle, d = v.dt, sp = v.speed;
+    // (the builder has its keys to itself: ui/Builder.js)
+    if (this.building) { I.pressed.clear(); return; }
     // voice chat: V joins it, then mutes and unmutes (push-to-talk: talk while it's held), paused or not
     if (this.voicePanel) {
       const V = this.voice;
@@ -634,6 +642,21 @@ export class Game {
   openChat() { this.chat.open(); }
 
   closeChat() { this.chat.close(); }
+
+  /** The layout changed here: the room gets it (a moment after the last change: building is many small steps). */
+  shareLayout(L) {
+    if (!this.net?.connected) return;
+    clearTimeout(this.layoutT);
+    this.layoutT = setTimeout(() => this.net?.send({ t: 'layout', code: encodeLayout({ ...L, map: this.world.map.id }) }), 700);
+  }
+
+  /** A friend's layout (or the room's, joining): the same props here. */
+  takeLayout(code, by) {
+    const L = decodeLayout(code);
+    if (!L || (L.map && L.map !== this.world.map.id)) return;
+    this.builder.load(L, false);
+    if (by) this.hud.hint(`${by} is building: the map changed`, 2.5);
+  }
 
   /** What a friend said, in a bubble over their truck for a few seconds. */
   showBubble(rv, text) {
@@ -1024,6 +1047,7 @@ export class Game {
     if (m.t === 'beacon') this.markFound(m.id, m.by === this.name ? null : m.by);
     else if (m.t === 'join') { this.hud.toast(`${m.name} joined`); this.chat.system(`${m.name} joined the room`); }
     else if (m.t === 'leave') { this.hud.toast(`${m.name} left`); this.chat.system(`${m.name} left`); this.events.onLeave(m.id); }
+    else if (m.t === 'layout') { if (m.id !== this.net?.id) this.takeLayout(m.code, m.name); }
     else if (m.t === 'chat') {
       const mine = m.id === this.net?.id, rv = this.remotes.get(m.id);
       this.chat.add(m.name, m.text, mine ? this.myColor : rv?.color, mine);
@@ -1044,7 +1068,7 @@ export class Game {
     const c = { ...ctrl };
     if (this.paused || this.chatOpen) { c.throttle = 0; c.brake = 0; c.handbrake = 1; c.steer = 0; c.winch = 0; }
     if (!this.settings.assist) c.analogSteer = true;
-    if (this.garageOpen || this.mapOpen) { c.throttle = 0; c.brake = 0; c.handbrake = 1; c.steer = 0; c.winch = 0; }
+    if (this.garageOpen || this.mapOpen || this.building) { c.throttle = 0; c.brake = 0; c.handbrake = 1; c.steer = 0; c.winch = 0; }
     W.motor = W.attached ? c.winch : 0;
 
     this.updateRemotes(dt);
@@ -1145,7 +1169,9 @@ export class Game {
     this.routeLine.update(runLine || this.route?.points, v.pos, this.world, dt);
 
     // camera and world
-    this.cam.update(dt, m, ctrl);
+    if (this.building) this.builder.update(dt); else this.cam.update(dt, m, ctrl);
+    // (a custom race's own arches show while it is run: the builder's markers step aside)
+    this.builder.view.setMarkersVisible(!(this.events.run?.event.custom && this.events.run.phase !== 'finished'));
     const camPos = this.renderer.camera.position;
     this.terrain.update(camPos);
     this.vegetation.update(this.renderer.camera, dt);

@@ -131,6 +131,27 @@
     </div>
   </div>
 
+  <!-- the map builder (ui/Builder.js) -->
+  <section id="builder" class="hidden">
+    <div class="b-top">
+      <input id="b-name" maxlength="40" placeholder="Name your map" autocomplete="off" spellcheck="false">
+      <span id="b-count" class="b-count"></span>
+      <button id="b-undo" title="Undo (Ctrl+Z)">&#x21B6; Undo</button>
+      <button id="b-left" title="Turn left (Q)">&#x27F2;</button><button id="b-right" title="Turn right (E)">&#x27F3;</button>
+      <button id="b-del" title="Take away (Del)">&#x1F5D1; Delete</button>
+      <button id="b-clear" class="ghost">Clear all</button>
+      <span class="b-sp"></span>
+      <button id="b-maps" class="ghost">My maps</button>
+      <button id="b-share" class="ghost">Share</button>
+      <button id="b-drive" class="quick">&#x25B6; Test drive</button>
+      <button id="b-race" class="primary hidden">&#x1F3C1; Race it</button>
+      <button id="b-exit" class="ghost" aria-label="Close the builder">&#x2715;</button>
+    </div>
+    <div id="b-hint" class="b-hint"></div>
+    <div id="b-sharebox" class="b-box hidden"></div>
+    <div id="b-palette" class="b-palette"></div>
+  </section>
+
   <!-- full map (ui/WorldMap.js) -->
   <section id="map" class="hidden">
     <canvas id="map-canvas"></canvas>
@@ -180,6 +201,7 @@
         <button id="resume" class="primary">Resume</button>
         <button id="menu-garage" class="ghost">Garage</button>
         <button id="menu-events" class="ghost">Modes &amp; races</button>
+        <button id="menu-build" class="ghost">Map builder</button>
         <button id="menu-dealer" class="ghost">Dealer</button>
         <button id="respawn" class="ghost">Back to the station</button>
         <button id="show-help" class="ghost">Controls</button>

@@ -40,6 +40,40 @@ function boardTexture(big, small) {
   return t;
 }
 
+/** The materials of the checkpoint arches (shared: one set per user). */
+export function archMaterials() {
+  return {
+    arch: new THREE.MeshStandardMaterial({ map: archTexture(false), roughness: 0.45, metalness: 0 }),
+    next: new THREE.MeshStandardMaterial({ map: archTexture(false), roughness: 0.45, emissive: 0xff8a1a, emissiveIntensity: 0.9 }),
+    finish: new THREE.MeshStandardMaterial({ map: archTexture(true), roughness: 0.5 }),
+    finishNext: new THREE.MeshStandardMaterial({ map: archTexture(true), roughness: 0.5, emissive: 0xffd28a, emissiveIntensity: 0.55 }),
+  };
+}
+
+/**
+ * An inflatable arch across (dx, dz) at (x, z) on the ground (`height`): a tube over from one foot to the other and a
+ * board under its span (big: its number or FINISH; small: a line above). Returns a group (userData.tube, .finish).
+ */
+export function makeArch(height, mats, x, z, dx, dz, half, big, small, finish) {
+  const g = new THREE.Group(), ax = dz, az = -dx;
+  const yL = height(x - ax * half, z - az * half), yR = height(x + ax * half, z + az * half), top = Math.max(yL, yR) + ARCH_H;
+  const pts = [];
+  for (let i = 0; i <= 16; i++) {
+    const a = Math.PI * (1 - i / 16), u = Math.cos(a) * half, base = i < 8 ? yL : yR;
+    pts.push(new THREE.Vector3(x + ax * u, base - 0.25 + (top - base + 0.25) * Math.pow(Math.sin(a), 0.32), z + az * u));
+  }
+  const tube = new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 56, 0.34, 10, false), finish ? mats.finish : mats.arch);
+  tube.castShadow = true;
+  g.add(tube);
+  const board = new THREE.Mesh(new THREE.PlaneGeometry(2.3, 1.15), new THREE.MeshStandardMaterial({ map: boardTexture(big, small), side: THREE.DoubleSide, roughness: 0.8 }));
+  board.userData.board = true;
+  board.position.set(x, top - 1.05, z);
+  board.rotation.y = Math.atan2(dx, dz) + Math.PI;                    // its face to the trucks coming up to it
+  g.add(board);
+  g.userData.tube = tube; g.userData.finish = finish;
+  return g;
+}
+
 function bannerTexture(text, chequer = false) {
   const c = document.createElement('canvas'); c.width = 1024; c.height = 128;
   const x = c.getContext('2d');
@@ -66,10 +100,9 @@ export class EventCourse {
     this.flagMat = new THREE.MeshStandardMaterial({ color: 0xe8642a, emissive: 0x000000, side: THREE.DoubleSide, roughness: 0.8 });
     this.nextMat = new THREE.MeshStandardMaterial({ color: 0xffb340, emissive: 0xff8a1a, emissiveIntensity: 1.6, side: THREE.DoubleSide, roughness: 0.6 });
     this.postMat = new THREE.MeshStandardMaterial({ color: 0x5a4632, roughness: 0.9 });
-    this.archMat = new THREE.MeshStandardMaterial({ map: archTexture(false), roughness: 0.45, metalness: 0 });
-    this.archNextMat = new THREE.MeshStandardMaterial({ map: archTexture(false), roughness: 0.45, emissive: 0xff8a1a, emissiveIntensity: 0.9 });
-    this.archFinishMat = new THREE.MeshStandardMaterial({ map: archTexture(true), roughness: 0.5 });
-    this.archFinishNextMat = new THREE.MeshStandardMaterial({ map: archTexture(true), roughness: 0.5, emissive: 0xffd28a, emissiveIntensity: 0.55 });
+    const am = archMaterials();
+    this.archMat = am.arch; this.archNextMat = am.next; this.archFinishMat = am.finish; this.archFinishNextMat = am.finishNext;
+    this.archMats = am;
     // the start banners
     this.starts = new THREE.Group();
     for (const e of events) this.starts.add(this.banner(e.start.x, e.start.z, e.start.yaw, 5.2, e.name));
@@ -178,26 +211,9 @@ export class EventCourse {
     });
   }
 
-  /** An inflatable arch across (dx, dz) at (x, z): a tube over from one foot to the other, a board under its span. */
+  /** An inflatable arch across (dx, dz) at (x, z) (makeArch). */
   arch(x, z, dx, dz, half, big, small, finish) {
-    const g = new THREE.Group(), ax = dz, az = -dx;
-    const W = this.world;
-    const yL = W.height(x - ax * half, z - az * half), yR = W.height(x + ax * half, z + az * half), top = Math.max(yL, yR) + ARCH_H;
-    const pts = [];
-    for (let i = 0; i <= 16; i++) {
-      const a = Math.PI * (1 - i / 16), u = Math.cos(a) * half, base = i < 8 ? yL : yR;
-      pts.push(new THREE.Vector3(x + ax * u, base - 0.25 + (top - base + 0.25) * Math.pow(Math.sin(a), 0.32), z + az * u));
-    }
-    const tube = new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 56, 0.34, 10, false), finish ? this.archFinishMat : this.archMat);
-    tube.castShadow = true;
-    g.add(tube);
-    const board = new THREE.Mesh(new THREE.PlaneGeometry(2.3, 1.15), new THREE.MeshStandardMaterial({ map: boardTexture(big, small), side: THREE.DoubleSide, roughness: 0.8 }));
-    board.userData.board = true;
-    board.position.set(x, top - 1.05, z);
-    board.rotation.y = Math.atan2(dx, dz) + Math.PI;                    // its face to the trucks coming up to it
-    g.add(board);
-    g.userData.tube = tube; g.userData.finish = finish;
-    return g;
+    return makeArch((px, pz) => this.world.height(px, pz), this.archMats, x, z, dx, dz, half, big, small, finish);
   }
 
   update(dt) {

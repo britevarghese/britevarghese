@@ -5,6 +5,7 @@
 import { eventsFor, EventRun, medalFor, clock, runPrize, standings, gridFor, COUNTDOWN, TOUCH_PENALTY } from './Events.js';
 import { racesFor } from './Races.js';
 import { modesFor, ZoneRun, HillRun, HOLD } from './Modes.js';
+import { customRace } from './Props.js';
 import { money } from './Career.js';
 import { escapeHtml } from '../ui/HUD.js';
 
@@ -137,6 +138,15 @@ export class EventPlay {
     this.lastCount = null;
     this.giveUpT = 0;
     this.g.course?.setActive(e, 0);
+  }
+
+  /** The map builder's race (a layout with a start line and checkpoints), or none: in the list as 'custom'. */
+  setCustom(L) {
+    const old = this.byId.get('custom');
+    if (old) { this.events.splice(this.events.indexOf(old), 1); this.byId.delete('custom'); this.grids.delete('custom'); }
+    const e = L && customRace(L, (x, z) => this.g.world.height(x, z));
+    if (!e) return;
+    this.events.push(e); this.byId.set('custom', e); this.grids.set('custom', gridFor(this.g.world, e));
   }
 
   /** RESTART (Backspace): line up at the start again and count down afresh (alone; not in a race with friends). */
@@ -443,6 +453,7 @@ export class EventPlay {
     const group = (title, note, list) => (list.length ? `<h3 class="ev-group">${title}${note ? ` <small>${note}</small>` : ''}</h3>${list.map(row).join('')}` : '');
     return `<h3 class="ev-group">Free roam <small>explore, survey the beacons, winch your friends out</small></h3>
       <div class="dealer-row ev-row"><span class="blurb">The whole map is yours: the satnav (M) finds the way anywhere.</span><span class="ev-acts"><button class="ghost small" data-free>Drive</button></span></div>
+      <div class="dealer-row ev-row"><b>Map builder <span class="ev-kind">Build your own</span></b><span class="blurb">Ramps, kickers, containers, logs, rocks, barriers and mud pits on this map, and a start line and checkpoints to race it. Share it with a link; in a room, your friends build with you.</span><span class="ev-acts"><button class="primary small" data-build>Build</button></span></div>
       ${group('Party modes', friends ? 'Start one and your friends have 15 s to press J and join' : 'best with friends in the room; alone, against the clock', this.events.filter((e) => e.mode))}
       ${group('Checkpoint races', 'circuits and rallies through numbered arches', this.events.filter((e) => e.race))}
       ${group('Events', 'climbs, dashes and trials', this.events.filter((e) => !e.mode && !e.race))}`;

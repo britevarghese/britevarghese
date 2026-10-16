@@ -89,6 +89,20 @@ test('quick match: players looking for a game share a public room on their map; 
   assert.equal(quick('Dee').room, c.room, 'into the one with a seat free');
 });
 
+test('the map builder: a layout goes to the room, and to whoever joins later; junk is dropped', () => {
+  const lobby = new Lobby({ maxPlayers: 4, rand: () => 0.3 });
+  const a = join(lobby, 'Ana'), room = a.last('welcome').room;
+  const b = join(lobby, 'Ben', room);
+  a.msg({ t: 'layout', code: 'WzEsImFzaHdvb2QiLCIiLFtdXQ' });
+  assert.equal(b.last('layout').code, 'WzEsImFzaHdvb2QiLCIiLFtdXQ');
+  assert.equal(b.last('layout').name, 'Ana');
+  assert.equal(a.last('layout'), null, 'not back to its builder');
+  const c = join(lobby, 'Cal', room);
+  assert.equal(c.last('welcome').layout, 'WzEsImFzaHdvb2QiLCIiLFtdXQ');
+  b.msg({ t: 'layout', code: '<script>' });
+  assert.equal(c.last('layout'), null);
+});
+
 test('rooms fill up at their limit', () => {
   const lobby = new Lobby({ maxPlayers: 2 });
   const a = join(lobby, 'A', 'TRAPS');
