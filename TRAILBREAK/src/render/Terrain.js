@@ -9,11 +9,16 @@
 // colour of the land (lush or dry grass, alpine, wet by the water, worn ruts). Far away the textures fade into the
 // vertex colour: each layer's average colour times the tint, baked once into a 1 m colour grid with mip levels so
 // distant patches show the average colour of the ground they cover.
+//
+// Wet ground: mud is always wet (wetter in places), darker and glossy with it; the ruts pressed into it are wetter
+// still, and in the deep ones water stands, filling the hollows of the ground's relief first: flat, dark and shiny,
+// mirroring the sky. Where there are ruts close to the camera the patches go finer (8 m, a vertex every 25 cm, the
+// ruts' own grid), so each rut has its walls and its floor.
 
 import * as THREE from 'three';
 import { SURFACE } from '../physics/Surfaces.js';
 import { MAP_HALF } from '../world/maps/index.js';
-import { DeformGrid } from '../world/Deform.js';
+import { DeformGrid, DEFORM_SPAN } from '../world/Deform.js';
 import { vnoise } from '../world/Noise.js';
 import { TEA_ROW, TEA_RANGE } from './Tea.js';
 
@@ -21,8 +26,10 @@ const GRID = 32;
 const V = GRID + 1;
 const ROOT = 8192;
 const MIN = 16;
+const FINE = 8;                 // (rutted ground close up)
 const SPLIT_DEFAULT = 2.1;
 const MAX_CACHE = 700;
+const RUT_BUDGET = 2;           // patches with fresh ruts rebuilt a frame (the longest waiting first)
 
 // Which texture layer each surface shows (grass under the trees shows the forest floor). Colours for when the
 // textures could not be loaded.
@@ -37,6 +44,11 @@ const PLAIN = {
   grass: 0x6f8c3c, forest: 0x4f4430, dirt: 0x8d7454, gravel: 0x958b7c, rock: 0x8a857d, mud: 0x5e4a33, sand: 0xc8b088,
   snow: 0xeef1f4, pebbles: 0x5f5946, tea: 0x3a6420,
 };
+// the mud a rut pushes up beside it (drawn only, on the finest patches: the tyres ride the pressed ground): how high,
+// for how much deeper the ruts round it (35 to 50 cm away) are
+const BERM = 1.1;
+// how wet each ground is (0 to 1): mud always, the riverbed's silt a little
+const WET = { [SURFACE.MUD]: 0.5, [SURFACE.RIVERBED]: 0.3 };
 // tints of the grass: lush hollows, dry knolls, thin alpine turf
 const LUSH = [0.78, 0.93, 0.8], DRY = [1.5, 1.24, 1.3], ALPINE = [1.22, 1.08, 1.15];
 
@@ -89,8 +101,11 @@ export class TerrainRenderer {
     this.material = this.makeMaterial();
     this.shadows = true;
     this.tmpH = new Float32Array((V + 2) * (V + 2));
+    this.tmpD = new Float32Array(V * V);
+    this.tmpE = new Float32Array((V + 6) * (V + 6));
     this.budget = 6;
     this.split = SPLIT_DEFAULT;
+    this.fine = true;
   }
 
   makeMaterial() {
@@ -114,24 +129,32 @@ export class TerrainRenderer {
         uTea: { value: this.layerIndex.tea ?? -1 }, uTeaNear: { value: TEA_RANGE.high },
       });
     }
+    // muddy water standing in the ruts (linear RGB): the map's mud (red in Kerala), darker
+    const mt = w.map.mudTint || [0.085, 0.06, 0.04];
+    uniforms.uPuddle = { value: new THREE.Color(mt[0] * 0.35, mt[1] * 0.35, mt[2] * 0.35) };
     this.uniforms = uniforms;
     mat.onBeforeCompile = (sh) => {
       Object.assign(sh.uniforms, uniforms);
       sh.vertexShader = sh.vertexShader
         .replace('#include <common>', `#include <common>
 attribute vec3 tint;
+attribute vec2 wet;
 varying vec3 vWPos;
 varying vec3 vWNormal;
-varying vec3 vTint;`)
+varying vec3 vTint;
+varying vec2 vWet;`)
         .replace('#include <worldpos_vertex>', `#include <worldpos_vertex>
 vWPos = (modelMatrix * vec4(transformed, 1.0)).xyz;
 vWNormal = objectNormal;
-vTint = tint * 2.0;`);
+vTint = tint * 2.0;
+vWet = wet;`);
       sh.fragmentShader = sh.fragmentShader
         .replace('#include <common>', `#include <common>
 varying vec3 vWPos;
 varying vec3 vWNormal;
 varying vec3 vTint;
+varying vec2 vWet;
+uniform vec3 uPuddle;
 float th(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
 float tn(vec2 p) { vec2 i = floor(p), f = fract(p); vec2 u = f * f * (3.0 - 2.0 * f);
   return mix(mix(th(i), th(i + vec2(1, 0)), u.x), mix(th(i + vec2(0, 1)), th(i + vec2(1, 1)), u.x), u.y); }
@@ -196,6 +219,9 @@ vec3 gTilt(float L, float sc) {
         .replace('#include <color_fragment>', `#include <color_fragment>
 vec3 gNW = normalize(vWNormal);
 float gRough = -1.0;
+float gH = 0.5;
+float gPool = 0.0;
+float gWet = 0.0;
 {
   float dist = length(vWPos - cameraPosition);
   float mid = clamp(1.0 - dist / 900.0, 0.0, 1.0);
@@ -245,7 +271,7 @@ ${G ? `
     }
     float near = (1.0 - smoothstep(25.0, 140.0, dist)) * uRelief;
     vec3 alb = vec3(0.0), tilt = vec3(0.0);
-    float rough = 0.0, sum = 0.0;
+    float rough = 0.0, sum = 0.0, hgt = 0.0;
     for (int j = 0; j < 4; j++) {
       if (j >= gn) break;
       int li = int(gL[j]);
@@ -254,19 +280,44 @@ ${G ? `
       sum += b;
       alb += cs[j].rgb * uGain[li] * b;
       rough += lay.y * b;
+      hgt += cs[j].a * b;
       if (near > 0.0) tilt += gTilt(gL[j], lay.x) * b;
     }
     alb /= sum; rough /= sum; tilt /= sum;
     diffuseColor.rgb = mix(diffuseColor.rgb, alb * vTint, tex);
     gRough = mix(0.95, rough, tex);
+    gH = mix(0.5, hgt / sum, tex);
     gNW = normalize(gNW + tilt * near * 0.9);
   }` : ''}
   diffuseColor.rgb *= vary;
+  // wet ground, darker and glossier; and water standing in the ruts, in the hollows first, flat and shiny
+  if (vWet.x + vWet.y > 0.004) {
+    float pool = clamp((vWet.y * 1.3 - gH) * 6.0, 0.0, 1.0);
+    // (the water lies in the hollows of the ground's relief; its bumps stand drier)
+    float wv = max(clamp(vWet.x * (1.6 - 1.4 * gH), 0.0, 1.0), pool);
+    diffuseColor.rgb *= 1.0 - 0.45 * wv;
+    gRough = mix(gRough < 0.0 ? 0.95 : gRough, 0.34, wv * 0.8);
+    diffuseColor.rgb = mix(diffuseColor.rgb, uPuddle, pool * 0.85);
+    // (its surface lies flat before it is smooth: a half-filled hollow is not a tilted mirror catching the sun)
+    gRough = mix(gRough, 0.06, pool * pool);
+    gNW = normalize(mix(gNW, vec3(0.0, 1.0, 0.0), smoothstep(0.0, 0.45, pool)));
+    gPool = pool; gWet = wv;
+  }
 }`)
         .replace('#include <roughnessmap_fragment>', `#include <roughnessmap_fragment>
 if (gRough >= 0.0) roughnessFactor = gRough;`)
         .replace('#include <normal_fragment_maps>', `#include <normal_fragment_maps>
-normal = normalize((viewMatrix * vec4(gNW, 0.0)).xyz);`);
+normal = normalize((viewMatrix * vec4(gNW, 0.0)).xyz);`)
+        // wet ground: a film of water, which reflects half what the material's usual surface does (water's F0 is
+        // 0.02, not 0.04); it mirrors the sky, but low down it would mirror the hills and the trees, not the bright
+        // sky the light comes from; and the water in the ruts is murky
+        .replace('#include <aomap_fragment>', `#include <aomap_fragment>
+if (gWet > 0.0) {
+  vec3 gR = reflect(normalize(vWPos - cameraPosition), gNW);
+  float gSky = mix(0.3, 1.0, smoothstep(-0.02, 0.32, gR.y));
+  reflectedLight.indirectSpecular *= mix(1.0, gSky, gWet) * (1.0 - 0.25 * gPool);
+  reflectedLight.directSpecular *= 1.0 - 0.5 * gWet;
+}`);
     };
     return mat;
   }
@@ -276,6 +327,7 @@ normal = normalize((viewMatrix * vec4(gNW, 0.0)).xyz);`);
     if (!this.uniforms.uTexFar) return;
     this.uniforms.uTexFar.value = q === 'high' ? 320 : q === 'medium' ? 240 : 150;
     this.uniforms.uRelief.value = q === 'low' ? 0 : 1;
+    this.fine = q !== 'low';
     this.uniforms.uTeaNear.value = TEA_RANGE[q] || TEA_RANGE.high;
   }
 
@@ -420,13 +472,31 @@ normal = normalize((viewMatrix * vec4(gNW, 0.0)).xyz);`);
     return out;
   }
 
-  heightAt(x, z, withRuts) {
-    const w = this.world;
-    if (Math.abs(x) < MAP_HALF && Math.abs(z) < MAP_HALF) {
-      let h = w.terrain(x, z);
-      if (withRuts) h -= w.deformGrid.get(x, z);
-      return h;
+  /**
+   * How wet the ground is at a vertex (0 to 1, into out[o]) and how deep the water stands in its rut (out[o + 1]):
+   * mud is wet, more in places, its ruts wetter the deeper they are, and the deep ones hold water; the ground at the
+   * water's edge is wet too. d: the rut's depth (m).
+   */
+  wetAt(x, z, h, d, out, o) {
+    const w = this.world, s = w.surfaceId(x, z);
+    let wv = 0, pv = 0;
+    const base = WET[s];
+    if (base) {
+      wv = base * (0.6 + 0.8 * vnoise(x / 13, z / 13, 911));
+      if (d > 0.004) {
+        wv = Math.max(wv, Math.min(0.8, 0.3 + d * 4));
+        // (the water lies in the rut's floor, more of it in the deeper ones)
+        const t = Math.min(1, Math.max(0, (d - 0.05) / 0.11));
+        pv = t * t * (3 - 2 * t) * (0.55 + 0.45 * vnoise(x / 3, z / 3, 912));
+      }
     }
+    const wl = w.water(x, z);
+    if (wl > -1e8 && h < wl + 0.5) wv = Math.max(wv, h < wl ? 0.6 : 0.85 * (1 - (h - wl) / 0.5));
+    out[o] = Math.round(wv * 255); out[o + 1] = Math.round(pv * 255);
+  }
+
+  heightAt(x, z) {
+    if (Math.abs(x) < MAP_HALF && Math.abs(z) < MAP_HALF) return this.world.terrain(x, z);
     return this.world.farHeight(x, z);
   }
 
@@ -435,11 +505,31 @@ normal = normalize((viewMatrix * vec4(gNW, 0.0)).xyz);`);
     const sp = size / GRID;
     const near = sp <= 1;
     // heights with a one-vertex border for the normals
-    const T = this.tmpH, VB = V + 2;
-    for (let k = -1; k <= V; k++) for (let i = -1; i <= V; i++) T[(k + 1) * VB + (i + 1)] = this.heightAt(x0 + i * sp, z0 + k * sp, near);
+    const T = this.tmpH, VB = V + 2, D = this.tmpD, w = this.world, ruts = near && w.deformGrid.chunks.size > 0;
+    for (let k = -1; k <= V; k++) for (let i = -1; i <= V; i++) T[(k + 1) * VB + (i + 1)] = this.heightAt(x0 + i * sp, z0 + k * sp);
+    // the ruts (kept for their colour and wetness too)
+    D.fill(0);
+    if (ruts) {
+      // (with a wider border on the finest patches, for the ring round each point their berms are reckoned from)
+      const fine = sp < 0.5, B = fine ? 3 : 1, EB = V + 2 * B, E = this.tmpE;
+      for (let k = -B; k < V + B; k++) for (let i = -B; i < V + B; i++) {
+        const x = x0 + i * sp, z = z0 + k * sp;
+        E[(k + B) * EB + i + B] = Math.abs(x) < MAP_HALF && Math.abs(z) < MAP_HALF ? w.deformGrid.get(x, z) : 0;
+      }
+      for (let k = -1; k <= V; k++) for (let i = -1; i <= V; i++) {
+        const e = (k + B) * EB + i + B, d = E[e];
+        let dh = d;
+        if (fine) {
+          const ring = E[e - 2] + E[e + 2] + E[e - 2 * EB] + E[e + 2 * EB] + E[e - EB - 1] + E[e - EB + 1] + E[e + EB - 1] + E[e + EB + 1];
+          dh -= Math.max(0, ring / 8 - d) * BERM;
+        }
+        T[(k + 1) * VB + i + 1] -= dh;
+        if (i >= 0 && k >= 0 && i < V && k < V) D[k * V + i] = d;
+      }
+    }
     const nV = V * V + 4 * V;
-    const pos = new Float32Array(nV * 3), nor = new Int8Array(nV * 3), col = new Uint8Array(nV * 3), tint = new Uint8Array(nV * 3);
-    const c3 = [0, 0, 0], t3 = [0, 0, 0], w = this.world;
+    const pos = new Float32Array(nV * 3), nor = new Int8Array(nV * 3), col = new Uint8Array(nV * 3), tint = new Uint8Array(nV * 3), wet = new Uint8Array(nV * 2);
+    const c3 = [0, 0, 0], t3 = [0, 0, 0];
     const inMap = (x, z) => Math.abs(x) < MAP_HALF && Math.abs(z) < MAP_HALF;
     let minY = Infinity, maxY = -Infinity;
     for (let k = 0; k < V; k++) for (let i = 0; i < V; i++) {
@@ -455,15 +545,14 @@ normal = normalize((viewMatrix * vec4(gNW, 0.0)).xyz);`);
       // the tint over the textures: the land's own, or past the map the far colour over the layer the shader shows
       if (inMap(x, z)) this.tintAt(this.splat[Math.round(z - w.origin) * w.N + Math.round(x - w.origin)], x, z, h, slope, t3);
       else { const a = this.layers[this.farLayer(h, ny)].avg; for (let c = 0; c < 3; c++) t3[c] = Math.min(2, Math.max(0.4, c3[c] / a[c])); }
-      if (near) {
-        const d = w.deformGrid.get(x, z);
-        if (d > 0.004) {
-          // pressed and churned ground in the ruts
-          const f = 1 - Math.min(0.45, d * 2.6);
-          c3[0] *= f; c3[1] *= f * 0.97; c3[2] *= f * 0.94;
-          t3[0] *= f; t3[1] *= f * 0.97; t3[2] *= f * 0.94;
-        }
+      const d = D[v];
+      if (d > 0.004) {
+        // pressed and churned ground in the ruts
+        const f = 1 - Math.min(0.45, d * 2.6);
+        c3[0] *= f; c3[1] *= f * 0.97; c3[2] *= f * 0.94;
+        t3[0] *= f; t3[1] *= f * 0.97; t3[2] *= f * 0.94;
       }
+      if (inMap(x, z)) this.wetAt(x, z, h, d, wet, v * 2);
       col[v * 3] = Math.round(Math.sqrt(c3[0]) * 255); col[v * 3 + 1] = Math.round(Math.sqrt(c3[1]) * 255); col[v * 3 + 2] = Math.round(Math.sqrt(c3[2]) * 255);
       for (let c = 0; c < 3; c++) tint[v * 3 + c] = Math.min(255, Math.round(t3[c] * 127.5));
       if (h < minY) minY = h; if (h > maxY) maxY = h;
@@ -475,6 +564,7 @@ normal = normalize((viewMatrix * vec4(gNW, 0.0)).xyz);`);
       const src = edgeIdx[e](t), dst = V * V + e * V + t;
       pos[dst * 3] = pos[src * 3]; pos[dst * 3 + 1] = pos[src * 3 + 1] - drop; pos[dst * 3 + 2] = pos[src * 3 + 2];
       for (let c = 0; c < 3; c++) { nor[dst * 3 + c] = nor[src * 3 + c]; col[dst * 3 + c] = col[src * 3 + c]; tint[dst * 3 + c] = tint[src * 3 + c]; }
+      wet[dst * 2] = wet[src * 2]; wet[dst * 2 + 1] = wet[src * 2 + 1];
     }
     // colours are stored gamma-2 encoded: decode in the attribute by squaring? Keep simple: convert to linear floats
     const colF = new Float32Array(nV * 3);
@@ -484,6 +574,7 @@ normal = normalize((viewMatrix * vec4(gNW, 0.0)).xyz);`);
     g.setAttribute('normal', new THREE.BufferAttribute(nor, 3, true));
     g.setAttribute('color', new THREE.BufferAttribute(colF, 3));
     g.setAttribute('tint', new THREE.BufferAttribute(tint, 3, true));
+    g.setAttribute('wet', new THREE.BufferAttribute(wet, 2, true));
     g.setIndex(this.index);
     g.boundingSphere = new THREE.Sphere(new THREE.Vector3(size / 2, (minY + maxY) / 2, size / 2), Math.sqrt(2 * (size / 2) ** 2 + ((maxY - minY + drop) / 2) ** 2));
     g.boundingBox = new THREE.Box3(new THREE.Vector3(0, minY - drop, 0), new THREE.Vector3(size, maxY, size));
@@ -511,26 +602,36 @@ normal = normalize((viewMatrix * vec4(gNW, 0.0)).xyz);`);
     return n;
   }
 
+  /** Has a 16 m patch ruts in it? (One rut chunk exactly: both are on the same 16 m grid.) */
+  rutted(n) {
+    const G = this.world.deformGrid;
+    return G.chunks.size > 0 && G.chunks.has(DeformGrid.key(Math.round(n.x0 / DEFORM_SPAN), Math.round(n.z0 / DEFORM_SPAN)));
+  }
+
   /** Mark patches that show ruts in the given world rectangles as needing a rebuild. */
   markDirty(chunkKeys) {
+    const taken = this.world.deformGrid.taken;
     for (const key of chunkKeys) {
-      const [x0, z0, x1, z1] = DeformGrid.bounds(key);
+      const [x0, z0, x1, z1] = DeformGrid.bounds(key), q = taken.get(key) ?? 15;
       for (const n of this.cache.values()) {
         if (!n.built || n.size / GRID > 1) continue;
-        if (n.x0 < x1 && n.x0 + n.size > x0 && n.z0 < z1 && n.z0 + n.size > z0) n.dirty = true;
+        if (!(n.x0 < x1 && n.x0 + n.size > x0 && n.z0 < z1 && n.z0 + n.size > z0)) continue;
+        // (a fine patch: only if its quarter of the chunk changed)
+        if (n.size < DEFORM_SPAN && !(q & (1 << ((n.x0 - x0 >= n.size ? 1 : 0) + (n.z0 - z0 >= n.size ? 2 : 0))))) continue;
+        if (!n.dirty) { n.dirty = true; n.dirtySince = this.frame; }
       }
     }
   }
 
   update(camPos) {
     this.frame++;
-    const visible = [];
+    const visible = [], dirty = [];
     let budget = this.budget;
     const want = (n) => {
       const cx = n.x0 + n.size / 2, cz = n.z0 + n.size / 2;
       const dx = Math.max(0, Math.abs(camPos.x - cx) - n.size / 2), dz = Math.max(0, Math.abs(camPos.z - cz) - n.size / 2);
       const dy = n.built ? Math.max(0, camPos.y - n.maxY, n.minY - camPos.y) : 0;
-      return n.size > MIN && Math.sqrt(dx * dx + dy * dy + dz * dz) < n.size * this.split * 0.5;
+      return (n.size > MIN || (n.size > FINE && this.fine && this.rutted(n))) && Math.sqrt(dx * dx + dy * dy + dz * dz) < n.size * this.split * 0.5;
     };
     const visit = (n) => {
       n.used = this.frame;
@@ -543,11 +644,17 @@ normal = normalize((viewMatrix * vec4(gNW, 0.0)).xyz);`);
         if (ready || !n.built) { for (const k of kids) visit(k); return; }
       }
       if (!n.built) this.build(n);
-      if (n.dirty && budget > 0) { this.build(n); budget--; }
+      if (n.dirty) dirty.push(n);
       visible.push(n);
     };
     // the root's four children are always there
     for (let iz = 0; iz < 2; iz++) for (let ix = 0; ix < 2; ix++) visit(this.node(1, ix, iz));
+    // fresh ruts: a truck ploughing new mud changes the ground under it every frame, so its patches are rebuilt in
+    // turn, a couple a frame
+    if (dirty.length) {
+      dirty.sort((a, b) => a.dirtySince - b.dirtySince);
+      for (let i = 0; i < dirty.length && i < RUT_BUDGET && budget > 0; i++, budget--) this.build(dirty[i]);
+    }
     // swap the visible set into the scene
     const g = this.group;
     for (let i = g.children.length - 1; i >= 0; i--) g.remove(g.children[i]);

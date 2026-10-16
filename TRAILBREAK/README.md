@@ -417,6 +417,10 @@ Everything that makes off-roading off-roading is simulated, not faked:
   ground. In water each tyre splashes as it drives in, throws a rooster tail off the tread and sheets out to the
   sides, the nose pushes up a bow wave, and foam and ripple rings spread behind on the surface as it is drawn. All of
   it is lit by the sun and the sky (render/Effects.js), and you see it round your friends' trucks too.
+- **Wet mud:** mud is drawn wet, darker and glossy, wetter in places, and the ground at the water's edge is wet too.
+  The ruts are wetter still, with mud pushed up in ridges either side, and in the deep ones water stands, filling
+  the hollows first and mirroring the sky. Close to the camera, ground with ruts in it is drawn at the ruts' own
+  25 cm grid (from Medium graphics up), so each rut has its walls and its floor (render/Terrain.js).
 - **Winch:** a steel line with a stall-limited motor (line speed falls with load). Hook a tree to pull yourself
   out, or hook a friend's truck: your truck holds on its brakes and theirs feels the line tension.
 - **Steering kickback:** the forces on the front tyres turn the wheels about their kingpins (a tyre shoved back by a

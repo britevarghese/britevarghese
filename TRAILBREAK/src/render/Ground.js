@@ -15,7 +15,7 @@ const BASE = 'assets/ground/';
 /** Per layer: height weight, colour gain (red, green, blue). */
 const TUNE = {
   grass: [0.45, [1, 1, 1]], forest: [0.4, [0.62, 0.74, 0.86]], dirt: [0.5, [1, 1, 1]], gravel: [0.6, [1, 1, 1]],
-  rock: [0.7, [1.6, 1.6, 1.6]], mud: [0.15, [1, 1, 1]], sand: [0.25, [1, 1, 1]], snow: [0.2, [1.9, 1.9, 1.9]],
+  rock: [0.7, [1.6, 1.6, 1.6]], mud: [0.15, [1, 0.82, 0.62]], sand: [0.25, [1, 1, 1]], snow: [0.2, [1.9, 1.9, 1.9]],
   pebbles: [0.8, [1, 1, 1]],
 };
 
