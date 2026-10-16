@@ -80,6 +80,25 @@ test('the brakes hold a truck on a 25 degree dirt slope', () => {
   assert.ok(dist(v.pos, p0) < 0.05, `crept ${dist(v.pos, p0).toFixed(3)} m`);
 });
 
+test('the handbrake stops the truck and holds it: on a 30 degree slope in 2WD, and with the throttle on', () => {
+  for (const id of ['thar', 'hummer']) {
+    const g = slope(30, SURFACE.DIRT);
+    const v = truck(id, g);
+    v.dt.fourWD = false;
+    run(v, g, 1.5, { ...IDLE, handbrake: 1 });
+    const p0 = v.pos.clone();
+    run(v, g, 5, { ...IDLE, handbrake: 1, throttle: 0.6 });
+    assert.ok(dist(v.pos, p0) < 0.05, `${id} moved ${dist(v.pos, p0).toFixed(2)} m`);
+    // from 54 km/h on the flat
+    const f = flat(), w = truck(id, f);
+    run(w, f, 1, { ...IDLE, handbrake: 1 });
+    w.vel.set(w.fwd.x * 15, 0, w.fwd.z * 15);
+    for (const wh of w.wheels) wh.omega = 15 / w.spec.tyre.radius;
+    run(w, f, 3, { ...IDLE, handbrake: 1 });
+    assert.ok(w.speed < 0.1, `${id} still at ${w.speed.toFixed(2)} m/s after 3 s`);
+  }
+});
+
 test('locked wheels slide down a 25 degree mud slope', () => {
   const g = slope(25, SURFACE.MUD);
   const v = truck('ranger', g);

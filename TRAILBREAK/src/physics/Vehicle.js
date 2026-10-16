@@ -360,6 +360,10 @@ export class Vehicle {
       if (dtr.gear === 0) dtr.selectGear(1, speed);
     }
     if (ctrl.hold) brake = Math.max(brake, ctrl.hold);                 // brakes on without asking for reverse
+    // the handbrake (Space) stops the truck and keeps it there: the brakes on at every wheel (and the parking brake on
+    // the rear ones), the drive taken off
+    const hand = ctrl.handbrake || 0;
+    if (hand > 0) { brake = Math.max(brake, hand); throttle *= 1 - hand; }
     this.pedalThrottle = throttle; this.pedalBrake = brake;
     // traction control (a modern truck's): when every driven wheel spins well past the ground, the engine is throttled
     // back until they bite again (generous off the road: some wheel speed clears mud and snow from the tread)
@@ -439,9 +443,10 @@ export class Vehicle {
       const avx = Math.abs(vx);
       w.dx = (w.dx + (w.omega * rw - vx) * dt) / (1 + avx * dt / tyre.relaxX);
       w.dy = (w.dy + vy * dt) / (1 + avx * dt / tyre.relaxY);
-      // keep the deflection within a few times the peak slip (the force is saturated there anyway)
-      const surf = w.surf;
-      const dxMax = tyre.kappaPeak * surf.slip * tyre.relaxX * 6, dyMax = tyre.alphaPeak * surf.slip * tyre.relaxY * 6;
+      // keep the deflection within a few times the peak slip (the force is saturated there anyway); coming to rest no
+      // more than the peak's own (a tyre slid to a stop doesn't spring the truck back a hand's width)
+      const surf = w.surf, still = Math.max(avx, Math.abs(w.omega * rw)), room = still < 1 ? 1 + 5 * still : 6;
+      const dxMax = tyre.kappaPeak * surf.slip * tyre.relaxX * room, dyMax = tyre.alphaPeak * surf.slip * tyre.relaxY * room;
       w.dx = clamp(w.dx, -dxMax, dxMax); w.dy = clamp(w.dy, -dyMax, dyMax);
       const kappa = w.dx / tyre.relaxX, tanA = w.dy / tyre.relaxY;
       w.kappa = kappa; w.tanA = tanA;
@@ -472,7 +477,7 @@ export class Vehicle {
         const w = this.wheels[i];
         b = Math.min(b, Math.max(250, 1.15 * (w.mu || 0.8) * (w.N || 0) * r));
       }
-      bt[i] = b + (ctrl.handbrake || 0) * (ax.handbrake || 0);
+      bt[i] = b + hand * (ax.handbrake || 0);
     }
     // brake locking (the Thar's front diff; a modern truck's traction control on both axles): under power, a wheel
     // spinning away from the other on its axle is braked, so the open diff sends the torque to the wheel with grip

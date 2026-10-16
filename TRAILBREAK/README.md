@@ -67,7 +67,7 @@ Without the Blueprint: **New > Web Service** with this repository, branch `claud
 |---|---|---|
 | Throttle / brake (hold brake when stopped to reverse) | W / S | RT / LT |
 | Steer | A / D | Left stick |
-| Handbrake | Space | A |
+| Handbrake (stops the truck and holds it, on any slope it can grip) | Space | A |
 | Transfer case HIGH / LOW (nearly stopped) | L | D-pad up |
 | 2WD / 4WD | 4 | D-pad left |
 | Diff lockers (if fitted): open, rear, front + rear | X | D-pad down |
