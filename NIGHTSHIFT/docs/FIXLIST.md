@@ -346,6 +346,13 @@ the game. Newly found problems go at the end of their section.
   overlapped at different grades, a 0.25 m step). Not past a link road; and only as far towards the next junction as
   leaves room to climb to it (two T junctions 7 m apart and 0.64 m different, levelled at both, had a 15 % ramp
   between, 0.29 m under the road forking off). Kannur: flagged spots 54 -> 40; Iritty 12 -> 10. All 12 missions pass
+- [x] More junction steps: a road ending on another without a shared point was levelled to that one's height before
+  that one was graded, which then moved it (a main road ending on a lane met it 0.2 m up); and where such an end
+  ran on just over the other's line it was a crossing as well, each road brought to the other's old height (0.28 m
+  apart). The road it ends on now stays at the height it was met at, levelled across it like at a shared point, and
+  a crossing found that way is levelled across too. At a narrow fork the levelling runs on for as long as the two
+  carriageways overlap (two branches 30 degrees apart were 0.17 m different 8 m out) - not where a highway's two
+  carriageways part (they're levelled side by side already). Kannur's worst step 29 -> 13 cm
 
 ## Story
 - [x] The story begins like GTA's: a prologue, 'The Kayal Job', starts on a new game in Kerala (Esc skips a scene;

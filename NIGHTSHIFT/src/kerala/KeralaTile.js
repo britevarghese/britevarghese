@@ -768,7 +768,7 @@ export class KeralaTile {
               if (seen.has(xi + k) || x.r.pts.some((p2) => Math.hypot(p2[0] - pe, p2[1] - pn) < 6 && y.r.pts.some((p3) => Math.abs(p3[0] - p2[0]) < 0.5 && Math.abs(p3[1] - p2[1]) < 0.5))) continue;
               seen.add(xi + k);
               const near = (P, pi) => (Math.hypot(P[pi - 1][0] - pe, P[pi - 1][1] - pn) < Math.hypot(P[pi][0] - pe, P[pi][1] - pn) ? pi - 1 : pi);
-              (x.xj ||= []).push([near(x.P, i), k]); (y.xj ||= []).push([near(y.P, j), k]);
+              (x.xj ||= []).push([near(x.P, i), k, y, pe, pn]); (y.xj ||= []).push([near(y.P, j), k, x, pe, pn]);
             }
           }
         }
@@ -795,8 +795,12 @@ export class KeralaTile {
           // (not where the two share a point: that junction is in already)
           const shared = x.r.pts.some((p2) => Math.hypot(p2[0] - e0, p2[1] - n0) < 6 && best.y.r.pts.some((p3) => Math.abs(p3[0] - p2[0]) < 0.5 && Math.abs(p3[1] - p2[1]) < 0.5));
           if (shared) continue;
+          // (nor where its end runs on over the other's line: that crossing is the junction. Both, each road was
+          // brought to the other's level there, and the two missed each other by 0.3 m)
+          if (x.xj?.some((c) => c[2] === best.y && Math.hypot(c[3] - e0, c[4] - n0) < 6)) continue;
           // (the ending road is brought to the other's level there once that is settled: see the junctions below)
-          (x.tj ||= []).push({ i, y: best.y, j: best.j, u: best.u });
+          const t = { i, y: best.y, j: best.j, u: best.u, x };
+          (x.tj ||= []).push(t); (best.y.tjOn ||= []).push(t);
         }
       });
     }
@@ -1034,10 +1038,11 @@ export class KeralaTile {
         for (const [i, k] of x.xj || []) {
           if (raised[map[i]]) continue;   // (a bridge ramp passing over: no junction there)
           joins.push([i, k]);
+          if (!nodeW.has(k)) nodeW.set(k, []); nodeW.get(k).push(x.r.flags & 8 ? -1 : x.r.cls, x.hw, x);
           const o = node.get(k), c = x.r.flags & 8 ? -1 : x.r.cls;
           if (!o || c < o[2]) node.set(k, [yy[i], 1, c, (o?.[3] || 0) + 1, raised[map[i]]]); else if (c === o[2]) { o[0] += yy[i]; o[1]++; o[3]++; o[4] |= raised[map[i]]; } else o[3]++;
         }
-        roads.push((x.R = { hw: x.hw, P: x.P, prof: yy, joins, wet: ww, cls: x.r.cls, up: map.map((ci) => raised[ci]), tj: x.tj, src: x }));
+        roads.push((x.R = { hw: x.hw, P: x.P, prof: yy, joins, wet: ww, cls: x.r.cls, up: map.map((ci) => raised[ci]), tj: x.tj, tjOn: x.tjOn, src: x }));
         x.r.surf = { P: x.P, y: yy, hw: x.hw };   // the road's own surface (drawn and driven on): see _surfAt
       }
     }
@@ -1127,7 +1132,7 @@ export class KeralaTile {
     }
     for (const { parts, C, joints } of runs.sort((a, b) => a.cls - b.cls)) {
       if (this._due()) { yield 'grade:junctions+'; this._ys = performance.now(); }
-      const P = C.map(([R, i]) => R.P[i]), prof = C.map(([R, i]) => R.prof[i]), up = C.map(([R, i]) => R.up[i]);
+      const P = C.map(([R, i]) => R.P[i]), prof = C.map(([R, i]) => R.prof[i]), up = C.map(([R, i]) => R.up[i]), runX = new Set(parts.map(([R]) => R.src));
       // distance along the road
       const D = [0]; for (let i = 1; i < P.length; i++) D.push(D[i - 1] + Math.hypot(P[i][0] - P[i - 1][0], P[i][1] - P[i - 1][1]));
       const J = [], had = new Set(), fade = (dy) => Math.min(150, Math.max(45, Math.abs(dy) / 0.08, Math.sqrt(1300 * Math.abs(dy))));
@@ -1151,29 +1156,44 @@ export class KeralaTile {
       // J's first nj entries. Not a side road meeting a main road: its edge is what matters there)
       const flats = [];
       let nj = 0;
-      const flat = (ci, yJ, w, Y, lim) => {
-        w = Math.min(w, D[D.length - 1] / 4);   // (a short link between two carriageways isn't all plateau and cliff)
+      // (along a fork - another road leaving the junction close beside this one - as far as the two overlap, and flat
+      // there: the other branch is held level over the same stretch. Each on its own grade, two branches 30 degrees
+      // apart were 0.17 m different where their carriageways still overlapped 8 m out)
+      const flat = (d0, yJ, w, Y, lim, fk) => {
         for (const sg of [-1, 1]) {
-          let dd = w;
+          const f = fk?.[sg > 0 ? 1 : 0] || 0, fork = f > w;
+          // (a short link between two carriageways isn't all plateau and cliff)
+          let dd = Math.min(fork ? f : w, D[D.length - 1] / 4);
           if (lim) for (let q = 0; q < nj; q++) {
-            const g = (J[q][0] - D[ci]) * sg; if (g < 0.5) continue;
+            const g = (J[q][0] - d0) * sg; if (g < 0.5) continue;
             const dy = Math.abs(atD(J[q][0]) + J[q][1] - yJ); dd = Math.min(dd, (g - dy / (dy / g + 0.02)) / 2);
           }
-          const d = D[ci] + sg * dd; if (dd < 0.5 || d <= 0.5 || d >= D[D.length - 1] - 0.5) continue;
+          const d = d0 + sg * dd; if (dd < 0.5 || d <= 0.5 || d >= D[D.length - 1] - 0.5) continue;
           // (the other road's slope there, from the junction's level: its own correction to that level is the same
           // a few metres either side, whether it is graded yet or not)
-          const y1 = Y ? levelOn(Y, atD(d, P)) : null, y0 = Y ? levelOn(Y, P[ci]) : null;
+          const y1 = Y && !fork ? levelOn(Y, atD(d, P)) : null, y0 = Y && !fork ? levelOn(Y, atD(d0, P)) : null;
           const yE = y1 != null && y0 != null ? yJ + y1 - y0 : null, dy = (yE ?? yJ) - atD(d); J.push([d, dy, fade(dy)]);
         }
       };
       for (const [R, at] of parts) {
-        for (const { i, y, j, u } of R.tj || []) {
-          const Y = y.R, ci = at[i];
+        for (const t of R.tj || []) {
+          const { i, y, j, u } = t, Y = y.R, ci = at[i];
           if (!Y || up[ci] || y.r.cls > R.cls + 1) continue;   // (a main road ending on a lane: no)
           const dy = Y.prof[j - 1] + (Y.prof[j] - Y.prof[j - 1]) * u - prof[ci];
           // (passing under or beside a ramp: its own level)
           if ((Y.up[j - 1] || Y.up[j]) && Math.abs(dy) > 1.5) continue;
-          if (!had.has(ci)) { had.add(ci); J.push([D[ci], dy, fade(dy)]); if (y.r.cls <= R.cls) flats.push([ci, prof[ci] + dy, Y.hw + 0.5, Y]); }
+          if (!had.has(ci)) { had.add(ci); J.push([D[ci], dy, fade(dy)]); t.lvl = prof[ci] + dy; if (y.r.cls <= R.cls) flats.push([D[ci], t.lvl, Y.hw + 0.5, Y]); }
+        }
+        // and a road ending on this one that way, graded already (a more important one, or one of its own kind): this
+        // one stays at the level it met it at there, and level across its width, as at a shared point. Graded after
+        // it, this one's own junctions moved it: a main road ending on a lane met it 0.3 m above it
+        for (const t of R.tjOn || []) {
+          const c0 = at[t.j - 1], c1 = at[t.j], X = t.x;
+          if (t.lvl == null || c0 == null || c1 == null || up[c0] || up[c1]) continue;
+          const d = D[c0] + (D[c1] - D[c0]) * t.u;
+          if (J.some((q) => Math.abs(q[0] - d) < 1)) continue;
+          const dy = t.lvl - atD(d); J.push([d, dy, fade(dy)]);
+          if (X.r.cls < R.cls || (X.r.cls === R.cls && !(X.r.flags & 16))) flats.push([d, t.lvl, X.hw + 0.5, X.R, X.r.cls === R.cls]);
         }
         for (const [j, k] of R.joins) {
           const o = node.get(k), ci = at[j];
@@ -1198,12 +1218,30 @@ export class KeralaTile {
               if (!end && W[q] === R.cls && (X.r.flags & 16)) continue;
               w = W[q + 1]; Y = X.R;
             }
-            if (w) flats.push([ci, prof[ci] + dy, w + 0.5, Y, !end && o[2] === R.cls]);
+            // (not a dual carriageway's two halves parting: the two are levelled side by side already, and a 16 m
+            // plateau on one of them stood 0.35 m over the other)
+            let fk = null;
+            if (!(R.src.r.flags & 1)) for (let q = 0; q < W.length; q += 3) {
+              const X = W[q + 2]; if (W[q] > R.cls || runX.has(X) || (X.r.flags & 17)) continue;
+              const p = X.R?.joins.find((jk) => jk[1] === k)?.[0]; if (p == null) continue;
+              for (const sg of [-1, 1]) {
+                const a = P[ci + sg]; if (!a) continue;
+                const ux = a[0] - P[ci][0], uz = a[1] - P[ci][1], ul = Math.hypot(ux, uz) || 1;
+                for (const xs of [-1, 1]) {
+                  const b = X.P[p + xs]; if (!b) continue;
+                  const vx = b[0] - X.P[p][0], vz = b[1] - X.P[p][1], c = (ux * vx + uz * vz) / ul / (Math.hypot(vx, vz) || 1);
+                  if (c < 0.5) continue;   // (more than 60 degrees apart)
+                  const L = Math.min(16, (R.hw + X.hw) / Math.sqrt(Math.max(1e-4, 1 - c * c))), side = sg > 0 ? 1 : 0;
+                  (fk ||= [0, 0])[side] = Math.max(fk[side], L);
+                }
+              }
+            }
+            if (w) flats.push([D[ci], prof[ci] + dy, w + 0.5, Y, !end && o[2] === R.cls, fk]);
           }
         }
       }
       nj = J.length;
-      for (const [ci, yJ, w, Y, lim] of flats) flat(ci, yJ, w, Y, lim);
+      for (const [d0, yJ, w, Y, lim, fk] of flats) flat(d0, yJ, w, Y, lim, fk);
       // (where the road runs out over the tile's edge it stays at the level both tiles agree on: a junction near the
       // edge, which the neighbour doesn't know of, pulled its end up or down, the road meeting its other half there
       // a step of up to a metre higher or lower)
