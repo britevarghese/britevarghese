@@ -46,8 +46,10 @@ export function roundCorners(points, R, onRoad = null, halfW = 0.9) {
       // it, short of its next point)
       const ex = P[j][0] - P[i][0], ez = P[j][1] - P[i][1];
       const s = (ex * w[1] - ez * w[0]) / cr, t = (ex * u[1] - ez * u[0]) / cr;   // (P[i] + u s = P[j] + w t)
-      const segB = Math.hypot(P[j + 1][0] - P[j][0], P[j + 1][1] - P[j][1]);
-      if (s < -0.5 || s > 8 || t < -8 || t > Math.min(8, segB - 1)) continue;
+      // (and up to 4 m back along the way in: the lane out starting 2 m behind the lane in's end, the lines met short
+      // of it - left unmerged, the corner was rounded within that 2 m hook, and the car ran on past it into a pole)
+      const segB = Math.hypot(P[j + 1][0] - P[j][0], P[j + 1][1] - P[j][1]), segA = Math.hypot(P[i][0] - P[i - 1][0], P[i][1] - P[i - 1][1]);
+      if (s < Math.max(-4, 0.5 - segA) || s > 8 || t < -8 || t > Math.min(8, segB - 1)) continue;
       J = j; X = [P[i][0] + u[0] * s, P[i][1] + u[1] * s];
     }
     if (J < 0) continue;

@@ -392,6 +392,10 @@ the game. Newly found problems go at the end of their section.
   for an acute turn to the left, the kerb's side, where the wider arc cut across the corner's walls. Junction turns
   round Thalassery: 32 -> 35 of 35 clean; Kannur 30 of 33 (three acute turns left). The Lorry War lorry's longest
   stop 2 -> 0.3 s. Taliparamba scanned too: worst step 12 cm, tile edges meet within 1.3 cm
+  - [x] ...and where the lane out started 2 m behind the lane in's end (the map's pieces overlapping at the junction),
+    the two lanes' lines met short of that end and the corner wasn't treated as one: rounded within the 2 m hook,
+    the turn was near square and the car ran on into a pole. Kannur 31, Mattannur 30 of 31, Thalassery 35 of 35
+    clean; the Lorry War lorry never stops now. Payyanur scanned: worst step 7 cm
 
 ## Story
 - [x] The story begins like GTA's: a prologue, 'The Kayal Job', starts on a new game in Kerala (Esc skips a scene;
