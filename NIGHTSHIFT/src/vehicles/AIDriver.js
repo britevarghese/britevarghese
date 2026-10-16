@@ -152,12 +152,12 @@ export function roundCorners(points, R, onRoad = null, halfW = 0.9) {
     else while (out.length > 1 && (P[i][0] - out[out.length - 1][0]) * u[0] + (P[i][1] - out[out.length - 1][1]) * u[1] < pre - 0.05) out.pop();
     if (postQ) skip = postQ[1];
     else for (skip = i + 1; skip < P.length - 1 && (P[skip][0] - P[i][0]) * w[0] + (P[skip][1] - P[i][1]) * w[1] < post - 0.05; skip++);
-    // (an arc that doesn't keep to the road all round, however it's moved - a junction too tight for the turn - is
-    // marked: the car steers for a point ahead there, cutting in as it must, rather than holding to it)
-    const mark = (q) => { if (A.off) q.loose = true; return q; };
-    if (preQ) out.push(mark(preQ[0]));
-    for (const [x, z] of arc) out.push(mark([x - bx * best, z - bz * best]));
-    if (postQ) out.push(mark(postQ[0]));
+    // (held to even where it doesn't keep to the road all round, however it's moved - a junction too tight for the
+    // turn: steered for a point ahead there instead, cutting in, a car's inside rear corner went 0.6 m over the tip of
+    // a Y-junction)
+    if (preQ) out.push(preQ[0]);
+    for (const [x, z] of arc) out.push([x - bx * best, z - bz * best]);
+    if (postQ) out.push(postQ[0]);
   }
   out.push(P[P.length - 1]);
   return out;
@@ -301,19 +301,28 @@ export class AIDriver {
   // of the route turns it evenly over a stretch about it: half the pieces either side at most (an arc's points 1.5 m
   // apart, its curvature), and no longer than the turn needs (15 m a radian: a kink between long straights a gentle
   // bend, and an arc's first point at the end of a straight not the whole of its second half). Measured from the
-  // nearest place on the route, on the piece the car is on or one either side (a car inside a junction's arc is nearer
-  // the next piece before it's past this one's end)
+  // nearest place on the route, on the piece the car is on, one or two on or a few back (a car inside a junction's arc
+  // is nearer the next piece before it's past this one's end; and the rear axle trails the car's middle).
+  // All of it for the one place on the car that goes the way it points: the middle of the rear axle (nearer the
+  // middle of the car at speed, the rear tyres slipping out a little). The middle itself runs inside the way it
+  // points round a bend - steered on its heading it settled 0.6 m inside a junction's arc - and steered on the way it
+  // was going, at an arc's end the still-turned wheel had it going along the straight while it pointed 13 degrees
+  // short of it: the wheel came straight, it set off along its nose, 0.4 m wide across the lane, into the corner of a
+  // building. The rear axle on the arc, the car points along the straight as it comes to it
   _track(speed) {
     const s = this.v.state, r = this.route, n = r.length, p = this.v.p || {};
     const seg = (i) => Math.hypot(r[i + 1][0] - r[i][0], r[i + 1][1] - r[i][1]) || 1e-6;
     const hd = (i) => Math.atan2(r[i + 1][0] - r[i][0], r[i + 1][1] - r[i][1]);
     // (point j's turn, and the stretch before and after it the turn is spread over)
     const vtx = (j) => { const tau = wrapAngle(hd(j) - hd(j - 1)), half = Math.max(0.75, Math.abs(tau) * 7.5); return [tau, Math.min(seg(j - 1) / 2, half), Math.min(seg(j) / 2, half)]; };
+    const sk = clamp(speed / 55, 0, 1), lock = (p.steeringAngle || 0.56) * (1 - 0.66 * sk * (2 - sk)), wb = p.wheelBase || 2.6;   // (as the physics allows)
+    const fx = Math.sin(s.yaw), fz = Math.cos(s.yaw), back = s.vx * fx + s.vz * fz < -0.5;
+    const arm = back ? 0 : Math.max(0, (p.b ?? wb / 2) - speed * speed / 150), X = s.x - fx * arm, Z = s.z - fz * arm;
     let bi = -1, bt = 0, bd = Infinity, e = 0;
-    for (let i = Math.max(0, this.idx - 1); i <= Math.min(n - 2, this.idx + 2); i++) {
-      const a = r[i], dx = r[i + 1][0] - a[0], dz = r[i + 1][1] - a[1], L = seg(i), t = clamp(((s.x - a[0]) * dx + (s.z - a[1]) * dz) / L, 0, L);
-      const d = Math.hypot(s.x - a[0] - dx / L * t, s.z - a[1] - dz / L * t);
-      if (d < bd - 1e-3) { bd = d; bi = i; bt = t; e = ((s.x - a[0]) * -dz + (s.z - a[1]) * dx) / L; }   // (+: right of it)
+    for (let i = Math.max(0, this.idx - 3); i <= Math.min(n - 2, this.idx + 2); i++) {
+      const a = r[i], dx = r[i + 1][0] - a[0], dz = r[i + 1][1] - a[1], L = seg(i), t = clamp(((X - a[0]) * dx + (Z - a[1]) * dz) / L, 0, L);
+      const d = Math.hypot(X - a[0] - dx / L * t, Z - a[1] - dz / L * t);
+      if (d < bd - 1e-3) { bd = d; bi = i; bt = t; e = ((X - a[0]) * -dz + (Z - a[1]) * dx) / L; }   // (+: right of it)
     }
     if (bi < 0) return 0;
     const Li = seg(bi);
@@ -321,20 +330,16 @@ export class AIDriver {
     if (bi > 0) { const [tau, l, rr] = vtx(bi); if (bt < rr) h = hd(bi - 1) + tau * (bt + l) / (l + rr); }
     if (bi < n - 2) { const [tau, l, rr] = vtx(bi + 1); if (bt > Li - l) h = hd(bi) + tau * (bt - Li + l) / (l + rr); }
     // (the curvature `dp` on: that of the point whose stretch it falls in, if any; and the most over the next few metres)
-    const dp = 0.2 + speed * 0.08, ahead = 3 + speed * 0.5;
+    const dp = 0.2 + speed * 0.08, ahead = 3 + arm + speed * 0.5;
     let k = 0, kMax = 0;
     for (let j = Math.max(1, bi), cum = j === bi ? -bt : Li - bt; j < n - 1 && cum - 30 < ahead; cum += seg(j), j++) {
       const [tau, l, rr] = vtx(j), kj = tau / Math.max(0.3, l + rr);
       if (dp >= cum - l && dp <= cum + rr) k = kj;
       // (nor a sharp corner left unrounded - too tight for any arc: spread into a curve, it ran across the grass
       // inside a Y-junction)
-      if (cum + rr > 0 && cum - l < ahead) kMax = Math.max(kMax, r[j].loose || Math.abs(tau) > 0.6 ? Infinity : Math.abs(kj));
+      if (cum + rr > 0 && cum - l < ahead) kMax = Math.max(kMax, Math.abs(tau) > 0.6 ? Infinity : Math.abs(kj));
     }
-    // (the way the car is going, not the way it points: turning, its middle runs inside its heading - the rear wheels
-    // follow the inside line - and kept pointing along the route it settled 0.6 m inside a junction's arc)
-    const sk = clamp(speed / 55, 0, 1), lock = (p.steeringAngle || 0.56) * (1 - 0.66 * sk * (2 - sk)), wb = p.wheelBase || 2.6;   // (as the physics allows)
-    const course = speed > 1 && s.vx * Math.sin(s.yaw) + s.vz * Math.cos(s.yaw) > 0 ? Math.atan2(s.vx, s.vz) : s.yaw;
-    const delta = Math.atan(wb * k) + wrapAngle(h - course) + Math.atan(1.5 * e / (speed + 1));
+    const delta = Math.atan(wb * k) + wrapAngle(h - s.yaw) + Math.atan(1.5 * e / (speed + 1));
     // (a route tighter than the car can steer - an acute turn rounded as tight as the corner allows - isn't followed
     // to the letter: the point ahead steered for cuts in early, as it must. Followed, the car turned in late, at its
     // lock, and ran wide over the far side of a Y-junction)
@@ -536,7 +541,19 @@ export class AIDriver {
     // on full opposite lock as far as the road behind goes or until it points near enough the way on, and again, each
     // leg a moment at least. (Steered only as hard as the point ahead asked, a car shuffled a metre back and forth at
     // that junction for 14 s; and a reverse called off the moment it began, another sat nosed into a road's edge)
-    if (!this.turning && ((Math.abs(diff) > 2.2 && speed < 6) || (Math.abs(diff) > 1.5 && speed < 1.5))) {
+    // (or the point it steers for inside the circle the car turns on at full lock, whichever side it's on: the way on
+    // doubles back tighter than the car can turn - a Y-junction's two forks, 155 degrees from one to the other in two
+    // corners 4 m apart - and swept round on full lock, the car ran 2.2 m off the far side of the road)
+    let inCircle = false;
+    if (!this.turning && this.mode === 'route' && speed < 6 && targetSpeed > 1) {   // (not pulling up at the route's end)
+      const p = v.p || {}, wb = p.wheelBase || 2.6, sk = clamp(speed / 55, 0, 1), arm = p.b ?? wb / 2;
+      const Rr = wb / Math.tan((p.steeringAngle || 0.56) * (1 - 0.66 * sk * (2 - sk)));
+      const side = Math.sign((tx - s.x) * -fz + (tz - s.z) * fx) || 1;   // (+: to the right, (-fz, fx))
+      // (the circle's middle level with the rear axle, out to that side)
+      const cx = s.x - fx * arm - fz * Rr * side, cz = s.z - fz * arm + fx * Rr * side;
+      inCircle = Math.hypot(tx - cx, tz - cz) < Rr - 0.5;
+    }
+    if (!this.turning && ((Math.abs(diff) > 2.2 && speed < 6) || (Math.abs(diff) > 1.5 && speed < 1.5) || inCircle)) {
       this.turning = rearOK && Math.abs(diff) > 2.2 ? 'back' : 'fwd'; this.turnSide = Math.sign(diff) || 1; this.legT = 0; this.turnT = 0;
     }
     if (this.turning) {

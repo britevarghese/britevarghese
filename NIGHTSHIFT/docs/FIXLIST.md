@@ -224,6 +224,28 @@ the game. Newly found problems go at the end of their section.
     and Mattannur driven from 30 km/h: 96 -> 98 of 99 clean (Kannur 32 of 33, Thalassery 35, Mattannur 31); the last
     is a 140-degree turn at a Y-junction, done as a three-point turn in 13 s, half a metre onto the verge. Rides of
     4 km round each of the three towns: no incidents
+- [x] The same again round Taliparamba, Payyanur and Iritty, and what was left over from the first round:
+  - [x] An AI car came out of a right turn 0.4 m wide and into the corner of a house standing just off a narrow street
+    (Taliparamba). A car's middle runs inside the way it points round a bend, so the car was steered by the way it
+    was going - and at the arc's end, the wheel coming straight, it still pointed 13 degrees short of the road out
+    and set off along its nose. It's steered for its rear axle now, the one place on a car that goes the way it
+    points: on that turn it comes out pointing along the road, within 0.16 m of its line
+  - [x] A turn that doubles back tighter than the car can turn - from one fork of a Y-junction into the other, 155
+    degrees in two corners 4 m apart (Iritty), or an acute left with no room for an arc - was swept round on full
+    lock, 2 m off the far side of the road. A car whose next point lies inside the circle it turns on at full lock
+    does a three-point turn there and then. (The 140-degree Y-junction turn in Kannur left over last time is clean
+    now too)
+  - [x] An arc moved out into a Y-junction's mouth that still didn't keep to the road all round was only steered for a
+    point ahead, cutting in: the car's inside rear corner went 0.6 m over the junction's tip (Payyanur). Steered for
+    its rear axle, the car holds to the arc
+  - [x] The nearest junction to a place - where the GPS's way starts, a police car's or a rival's route, the way to an
+    incident - was looked for 100 m square by square and the first one found taken: in a test, one time in ten not
+    the nearest, up to 90 m further. A car in Payyanur was routed from a junction 53 m off behind the houses, not the
+    one 29 m up its own road, and set off across the verge for it, into a tree. It's the nearest now
+  - Every sharp junction turn round the six towns from 30 km/h: 188 of 189 clean (Kannur 33 of 33, Thalassery 35,
+    Mattannur 31, Taliparamba 28, Payyanur 31, Iritty 30 of 31). The one left is a 134-degree left in Iritty: a
+    three-point turn, on the road, slower than the test's 14 s. 5-minute rides round Taliparamba, Payyanur, Iritty and
+    Kannur: no incidents
 
 - [x] Hitches while driving into new country (a tile's build stalling a frame): every step of a tile's build timed
   on a drive (headless, its CPU about half a desktop's). The worst were the ground's mesh (up to a quarter of a second:

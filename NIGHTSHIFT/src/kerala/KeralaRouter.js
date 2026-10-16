@@ -88,8 +88,12 @@ export class KeralaRouter {
     this._sync();
     const cx = Math.floor(x / 100), cz = Math.floor(z / 100);
     let best = -1, bd = Infinity;
-    for (let r = 0; r < 40 && best < 0; r++) {
-      // rings of cells outwards until something is found (one more ring once found would be exact; close enough)
+    for (let r = 0; r < 40; r++) {
+      // rings of cells outwards, until no ring left can hold anything nearer than what's found: ring r is at least
+      // r - 1 cells off. (Stopped at the first ring with anything in it, a car by a cell's edge was given a junction
+      // 53 m off behind the houses, with one 29 m up its own road just over the edge: an AI car set off for it
+      // across the verge, and the GPS showed the way from there)
+      if (best >= 0 && (r - 1) * 100 > Math.sqrt(bd)) break;
       for (let dz = -r; dz <= r; dz++) for (let dx = -r; dx <= r; dx++) {
         if (Math.max(Math.abs(dx), Math.abs(dz)) !== r) continue;
         for (const i of this.grid.get(`${cx + dx},${cz + dz}`) || []) {
