@@ -148,6 +148,11 @@ const ENGINE = {
   // the Willys MB's L134 Go Devil: a 2.2 side-valve four, 45 kW at 4,000 rpm, 142 Nm at 2,000
   I4_22: { name: 'Go Devil 2.2', idleRpm: 600, redline: 4000, limiter: 4200, inertia: 0.16, friction: [8, 0.014], bank: 'i4', bankPitch: 0.8, turbo: 0, sound: 'i6_bmw', pitch: 0.9, mass: 0, cyl: 4,
     torque: [[400, 90], [800, 120], [1200, 132], [1600, 139], [2000, 142], [2500, 140], [3000, 134], [3500, 122], [4000, 107], [4400, 72]] },
+  // the UAZ Hunter's ZMZ-409 2.7 four: 94 kW at 4,600 rpm, 209 Nm at 3,900; and the ZMZ-514 2.2 turbo-diesel
+  I4_27: { name: 'ZMZ 2.7', idleRpm: 750, redline: 4800, limiter: 5000, inertia: 0.17, friction: [10, 0.017], bank: 'i4', bankPitch: 0.86, turbo: 0, sound: 'i6_bmw', pitch: 0.96, mass: 0, cyl: 4,
+    torque: [[500, 118], [1000, 160], [1500, 178], [2000, 188], [2500, 196], [3000, 202], [3500, 207], [3900, 209], [4300, 204], [4600, 196], [5000, 168], [5300, 120]] },
+  D22Z: { name: 'ZMZ 2.2 turbo-diesel', idleRpm: 750, redline: 4000, limiter: 4200, inertia: 0.23, friction: [14, 0.024], bank: 'd4', bankPitch: 0.96, turbo: 1, sound: 'i6_bmw', pitch: 0.68, mass: 40, cyl: 4, diesel: true,
+    torque: [[500, 110], [800, 150], [1000, 190], [1300, 245], [1600, 270], [2400, 270], [2800, 262], [3200, 245], [3600, 222], [4000, 190], [4300, 120]] },
   I4_24: { name: 'I4 2.4', idleRpm: 750, redline: 5000, limiter: 5300, inertia: 0.15, friction: [9, 0.016], bank: 'i4', bankPitch: 0.84, turbo: 0, sound: 'i6_bmw', pitch: 0.98, mass: 0,
     torque: [[500, 95], [1000, 145], [1500, 160], [2000, 168], [2500, 173], [2800, 175], [3500, 170], [4000, 163], [4500, 153], [4800, 145], [5300, 112]] },
   I4_25TD: { name: 'I4 2.5 turbo-diesel', idleRpm: 700, redline: 4000, limiter: 4200, inertia: 0.22, friction: [12, 0.02], bank: 'd4t', bankPitch: 0.92, turbo: 1, sound: 'i6_bmw', pitch: 0.66, mass: 0,
@@ -202,7 +207,7 @@ const tunedBy = (k, revs = 200) => (e) => ({ ...e, name: `${e.name} tuned`, redl
   torque: e.torque.map(([r, t]) => [r, Math.round(t * (r < 1000 ? 1 + (k - 1) * 0.3 : k))]) });
 const tuned = tunedBy(1.13);
 export const ENGINES = {
-  ranger: [{ ...ENGINE.V8_50, short: 'stock', desc: 'Stock 5.0 V8.' }, { ...tuned(ENGINE.V8_50), short: 'tuned', desc: 'Cam, four-barrel carburettor and headers: +13% torque.' }, { ...ENGINE.V8_75, short: '7.5 swap', desc: 'Big-block swap: +60% torque, 80 kg more over the front axle.' }],
+  ranger: [{ ...ENGINE.I4_27, short: 'stock', desc: 'Stock ZMZ 2.7 four: 94 kW, 209 Nm high up at 3,900 rpm. It needs revs.' }, { ...tuned(ENGINE.I4_27), short: 'tuned', desc: 'A cam, a freer exhaust and a remap: +13% torque.' }, { ...ENGINE.D22Z, short: 'diesel', desc: 'The ZMZ 2.2 turbo-diesel: 270 Nm from 1,600 rpm, +29% torque low down, 40 kg more over the front axle.' }],
   hauler: [{ ...ENGINE.V8_66, short: 'stock', desc: 'Stock 6.6 V8.' }, { ...tuned(ENGINE.V8_66), short: 'tuned', desc: 'Cam, carburettor and headers: +13% torque.' }, { ...ENGINE.V8_75, short: '7.5 swap', mass: 45, desc: 'Big-block swap: +27% torque.' }],
   mule: [{ ...ENGINE.I4_22, short: 'stock', desc: 'Stock 2.2 Go Devil four: 45 kW, 142 Nm at 2,000 rpm. It plods.' }, { ...tuned(ENGINE.I4_22), short: 'tuned', desc: 'Higher compression, a bigger carburettor and a split manifold: +13% torque.' }, { ...ENGINE.V8_50, short: 'V8 swap', mass: 75, desc: 'The hot-rodder\'s small-block V8: more than twice the torque, 75 kg more over the front axle.' }],
   gecko: [{ ...ENGINE.I4_13, short: 'stock', desc: 'Stock 1.3 four-cylinder: 47 kW, 101 Nm. It needs revs.' }, { ...tuned(ENGINE.I4_13), short: 'tuned', desc: 'Cam, exhaust and a bigger carburettor: +13% torque.' }, { ...ENGINE.I4_16, short: '1.6 swap', desc: 'The 16-valve 1.6 from the long-wheelbase model: +29% torque, 70 kW.' }],

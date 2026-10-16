@@ -4,7 +4,7 @@
 // eight-speed box instead).
 //
 //   Gecko     micro 4x4 (the little Japanese and Indian jeeps)         Mule     the Willys MB, the original jeep (a real model)
-//   Ranger    compact two-door wagon (the early American wagons)       Trekker  compact pickup (the eighties' tough one)
+//   Ranger    the UAZ Hunter (a real model)                            Trekker  compact pickup (the eighties' tough one)
 //   Shepherd  British utility wagon (the long-wheelbase classic)       Drover   big six-cylinder wagon (the outback one)
 //   Hauler    three-quarter-ton pickup                                  Bruiser  one-ton crew-cab turbo-diesel
 //   Rhino     portal-axle expedition truck (the German unstoppable)
@@ -38,28 +38,33 @@ import { buildSpec, decodeBuild, normalizeBuild, encodeBuild, TRUCK_BASES, EV_TR
 
 export const TRUCKS = {
   ranger: {
-    id: 'ranger', name: 'Ranger',
-    blurb: 'Compact two-door wagon: 92" wheelbase, 5.0 V8, three-speed automatic. Nimble on tight trails.',
-    mass: 1760, cgHeight: 0.74, cgZ: 0.09, inertiaBox: [1.62, 1.15, 3.5],
+    // the UAZ Hunter (UAZ-315195, 2003-) in its Expedition dress: 2,380 mm wheelbase, 4,230 mm long over the bull bar,
+    // a ladder frame, beam axles on coil springs in front and leaf springs behind, 210 mm under the diffs (a real model:
+    // render/TruckAssets.js)
+    id: 'ranger', name: 'UAZ Hunter',
+    blurb: 'UAZ Hunter Expedition, the Soviet army jeep\'s heir: 94" wheelbase, a ladder frame and beam axles, the 2.7 four, a five-speed and a two-speed transfer case, a bull bar, winch and side steps from the factory. Simple, tough and slow.',
+    mass: 2000, cgHeight: 0.8, cgZ: 0.08, inertiaBox: [1.75, 1.35, 3.9],
     axles: [
-      { z: 1.1685, track: 1.458, springTrack: 0.96, rate: 37500, bump: 2300, rebound: 4600, travel: 0.25, sag: 0.095, mass: 95, steer: 0.58, brake: 2600, swayBar: 30000, diffDrop: 0.16, diffX: -0.2 },
-      { z: -1.1685, track: 1.458, springTrack: 1.0, rate: 39500, bump: 2200, rebound: 4400, travel: 0.26, sag: 0.1, mass: 85, steer: 0, brake: 1600, handbrake: 2600, diffDrop: 0.16, diffX: -0.05 },
+      { z: 1.19, track: 1.525, springTrack: 1.06, rate: 42000, bump: 2400, rebound: 4800, travel: 0.23, sag: 0.095, mass: 105, steer: 0.55, brake: 2900, swayBar: 18000, diffDrop: 0.17, diffX: -0.1 },
+      { z: -1.19, track: 1.52, springTrack: 1.06, rate: 46000, bump: 2400, rebound: 4800, travel: 0.24, sag: 0.1, mass: 110, steer: 0, brake: 1900, handbrake: 3000, diffDrop: 0.17, diffX: 0 },
     ],
-    trans: { tcK: 10.2 },
-    stock: { tyre: 31, axle: 4.10, trans: 0, fit: 31, low: 2.46 },
+    trans: { tcK: 10 },
+    stock: { tyre: 31, axle: 4.625, trans: 3, fit: 31, low: 1.94 },
+    axleRatios: [4.1, 4.625, 5.125, 5.38, 5.89, 6.53],
+    stockTyre: { label: '245/75 R16 M/T', radius: 0.392, width: 0.245, rim: 16, desc: 'The Expedition\'s 245/75 R16 mud-terrains (31") on red-lipped steel wheels.' },
     hull: [
-      { c: [0, 0.785, -0.12], h: [0.865, 0.335, 1.92], pts: 'bottom' },     // body: bumpers 0.45 m up, beltline 1.12
-      { c: [0, 0.45, 0], h: [0.42, 0.13, 0.9], pts: 'bottom' },             // belly: transfer case 0.32 m up
-      { c: [0, 1.455, -0.79], h: [0.8, 0.335, 1.21], pts: 'top' },          // hardtop, roof 1.79 m
+      { c: [0, 0.83, -0.035], h: [0.88, 0.37, 2.105], pts: 'bottom' },     // body: the bull bar 0.46 m up, the bonnet 1.33
+      { c: [0, 0.47, 0], h: [0.42, 0.1, 1.0], pts: 'bottom' },              // belly: transfer case 0.37 m up
+      { c: [0, 1.66, -0.72], h: [0.86, 0.32, 1.15], pts: 'top' },           // the hard top, roof 1.98 m
     ],
-    roofY: 1.79, cabZ: 0.42, noseZ: 1.8, rackZ: -0.8,
-    intakePos: [0, 0.92, 1.3], snorkelPos: [-0.86, 1.86, 0.46],
-    winch: { fairlead: [0, 0.6, 1.86] },
-    eye: [0.38, 1.5, -0.2], hoodEye: [0, 1.33, 1.05],          // driver's eyes, the bonnet camera
-    drag: { cd: 0.56, area: 2.6 },
-    buoyancy: 0.32,
-    shafts: [6000, 7500],
-    style: 'ranger',
+    roofY: 1.98, cabZ: 0.3, noseZ: 2.06, rackZ: -0.75,
+    intakePos: [-0.55, 0.95, 1.5], snorkelPos: [-0.92, 1.95, 0.5],
+    winch: { fairlead: [0, 0.72, 2.06] },
+    eye: [0.42, 1.62, -0.05], hoodEye: [0, 1.48, 1.2],          // driver's eyes, the bonnet camera
+    drag: { cd: 0.6, area: 3.1 },
+    buoyancy: 0.3,
+    shafts: [6500, 7500], parts: 0.9,
+    style: 'ranger', look: { coils: true },
   },
   hauler: {
     id: 'hauler', name: 'Hauler',

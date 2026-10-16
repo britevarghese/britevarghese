@@ -44,7 +44,7 @@ for (const id of Object.keys(TRUCKS)) {
 
 test('accelerates like an old V8 4x4 and tops out believably', () => {
   const g = flat();
-  const v = truck('ranger', g);
+  const v = truck('hauler', g);
   run(v, g, 1, { ...IDLE, handbrake: 1 });
   let t60 = null;
   const n = Math.round(40 / PHYS_DT);
@@ -62,11 +62,11 @@ test('accelerates like an old V8 4x4 and tops out believably', () => {
 
 test('low range crawls at walking pace and multiplies torque', () => {
   const g = flat();
-  const v = truck('ranger', g);
+  const v = truck('shepherd', g);
   v.dt.setRange(true, 0);
   run(v, g, 12, { ...IDLE, throttle: 1 });
   const kmh = v.speed * 3.6;
-  // low range in top gear: 4650 rpm limiter / (1.0 * 2.72 * 4.1) -> ~60 km/h
+  // the Defender's 2.74:1 low range in top gear: 4200 rpm limiter / (0.85 * 2.74 * 4.1) -> ~65 km/h, and it gets there slowly
   assert.ok(kmh > 25 && kmh < 70, `low range speed after 12 s: ${kmh.toFixed(1)} km/h`);
 });
 

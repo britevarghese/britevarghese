@@ -57,7 +57,7 @@ test('on the real ground: up a ramp and into the air, over a log, stopped by a c
   const run = (props, steps, throttle = 0.8) => {
     world.setProps(props);
     world.deformGrid.chunks.clear();
-    const v = new Vehicle(truckSpec('ranger'));
+    const v = new Vehicle(truckSpec('wrangler'));          // (an automatic: the running start finds its gear)
     v.place(world, x0, z0, yaw);
     v.dt.setFourWD(true, 0);
     // a running start: 12 m/s

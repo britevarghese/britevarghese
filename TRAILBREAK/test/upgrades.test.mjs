@@ -83,7 +83,7 @@ test('a lift raises the body but not the diffs; bigger tyres raise both', () => 
 test('bigger tyres blunt the acceleration; deeper axle gears give it back', () => {
   const t50 = (build) => {
     const g = flat();
-    const v = truck('ranger', build, g);
+    const v = truck('wrangler', build, g);
     run(v, g, 1, { ...IDLE, handbrake: 1 });
     for (let i = 0; i < 20 / PHYS_DT; i++) {
       v.step({ ...IDLE, throttle: 1 }, g);
@@ -157,7 +157,7 @@ test('lockers work only when fitted; a limited-slip diff gets further with one t
 
 test('manual gearbox: no creep at idle, and the engine holds the truck back downhill', () => {
   const g = flat();
-  const auto = truck('ranger', undefined, g), stick = truck('mule', undefined, g);
+  const auto = truck('wrangler', undefined, g), stick = truck('mule', undefined, g);
   run(auto, g, 4); run(stick, g, 4);
   assert.ok(auto.speed > 0.3, `the automatic creeps at idle (${auto.speed.toFixed(2)} m/s)`);
   assert.ok(Math.abs(stick.speed) < 0.05, `the manual sits still (${stick.speed.toFixed(3)} m/s)`);

@@ -246,23 +246,30 @@ def main(src_dir, cfg_path, out_dir):
     for tm in cfg.get('byTexture', []):
         sel = np.where(mats == tm['mat'])[0]
         src = g['materials'][tm['mat']]
+        # where to look: the triangle's middle, or ("vote") its corners, its edges' middles and its middle, a role going
+        # to what most of them show (a seam or a speck under a painted panel's triangle doesn't leave it unpainted)
+        bary = np.array([[1 / 3, 1 / 3, 1 / 3]] + ([[1, 0, 0], [0, 1, 0], [0, 0, 1], [0.5, 0.5, 0], [0, 0.5, 0.5], [0.5, 0, 0.5]] if tm.get('vote') else []))
         def sample(tex_info, mode):
             im = np.asarray(tex_image(g, src_dir, tex_info['index']).convert(mode)).astype(np.float64) / 255.0
-            uvc = uvs[sel].mean(1)
-            px = (np.mod(uvc[:, 0], 1.0) * (im.shape[1] - 1)).round().astype(int)
-            py = (np.mod(uvc[:, 1], 1.0) * (im.shape[0] - 1)).round().astype(int)
-            return im[py, px]
+            uvk = np.einsum('kj,tjc->tkc', bary, uvs[sel])
+            px = (np.mod(uvk[..., 0], 1.0) * (im.shape[1] - 1)).round().astype(int)
+            py = (np.mod(uvk[..., 1], 1.0) * (im.shape[0] - 1)).round().astype(int)
+            return im[py, px]                                 # [triangle, sample, channel]
+        most = lambda hit: hit.mean(1) >= 0.5
         col = sample(src['pbrMetallicRoughness']['baseColorTexture'], 'RGBA')
         role = np.array([roles[i] for i in sel], dtype=object)
         if 'paint' in tm:
-            near = np.linalg.norm(col[:, :3] - np.array(tm['paint']) / 255.0, axis=1) < tm.get('tol', 0.25)
+            near = most(np.linalg.norm(col[..., :3] - np.array(tm['paint']) / 255.0, axis=-1) < tm.get('tol', 0.25))
             role[near] = 'paint'
+        # (and any colour to a role: [[r, g, b, tolerance, role], ...], e.g. a lamps' texture: red the tail, orange amber)
+        for r, g_, b, tol, rl in tm.get('colors', []):
+            role[most(np.linalg.norm(col[..., :3] - np.array([r, g_, b]) / 255.0, axis=-1) < tol)] = rl
         if 'emissiveTexture' in src and tm.get('lamps', True):
             em = sample(src['emissiveTexture'], 'RGB')
-            lit = em.max(1) > tm.get('lit', 0.5)
+            lit = most(em.max(-1) > tm.get('lit', 0.5))
             zc = tris[sel].mean(1)[:, 2]
             role[lit] = np.where(zc[lit] > np.median(tris.reshape(-1, 3)[:, 2]), 'head', 'tail')
-        if 'glass' in tm: role[col[:, 3] < tm['glass']] = 'glass'
+        if 'glass' in tm: role[most(col[..., 3] < tm['glass'])] = 'glass'
         roles[sel] = role
     if np.linalg.det(A) < 0:                                 # a mirroring axis swap turns the triangles inside out
         tris = tris[:, [0, 2, 1]]; nors = nors[:, [0, 2, 1]]; uvs = uvs[:, [0, 2, 1]]
@@ -464,7 +471,8 @@ def main(src_dir, cfg_path, out_dir):
         red = cfg.get('reduce', 0)
         if isinstance(red, dict): red = red.get(role, red.get('*', 0))      # (per role: {"paint": 0.5, "*": 0.75})
         red = cfg.get('reduceMat', {}).get(str(mi), red)                    # (and per material: {"0": 0.95})
-        if red and len(tri) > cfg.get('reduceOver', 3000) and role not in ('glass', 'screen', 'rim'):
+        if role == 'rim': red = cfg.get('rimReduce', 0)                      # (a rim drawn on every wheel: only if asked)
+        if red and len(tri) > cfg.get('reduceOver', 3000) and role not in ('glass', 'screen'):
             pos, nor, uv, tri = simplify(flat, fnr, fuv, hu, red)
         out.mesh(name, pos, nor, uv if hu else None, tri, mat)
 

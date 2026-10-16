@@ -31,3 +31,7 @@ light), and the textures resized to WebP.
   https://sketchfab.com/3d-models/willys-jeep-un-133bed35638e47fc8bacf12319ee369a (https://sketchfab.com/jeandiz);
   widened 3% to the MB's real track, its static axles and drive shaft removed, its white UN paint (and markings) given
   the game's paint, its rims darkened, the dense parts simplified.
+- `ranger.glb` (UAZ Hunter): "UAZ Hunter expedition" by zhe_kan,
+  https://sketchfab.com/3d-models/uaz-hunter-expedition-e6db8a23a6c8406a8ad876f1c7a3290f (https://sketchfab.com/zhe_kan);
+  narrowed 5%, its axles, springs, shocks, roof rack and roof lamps removed (the game fits its own), its orange paint
+  given the game's paint and the rest of that texture plain black, the dense parts simplified.

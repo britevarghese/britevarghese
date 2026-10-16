@@ -134,9 +134,9 @@ test('the valley: every trail a stock truck can drive (no pitch over 27 degrees,
     assert.equal(grid.length, 4);
     for (const s of grid) assert.ok(world.water(s.x, s.z) < world.terrain(s.x, s.z), `${e.id}: a grid slot in water`);
   }
-  // a stock ranger, flat out at 30 psi, gets down the sand drag inside the bronze par
+  // a stock Thar (the truck everyone starts in), flat out at 30 psi, gets down the sand drag inside the bronze par
   const drag = events.find((e) => e.id === 'sanddrag');
-  const v = new Vehicle(truckSpec('ranger'));
+  const v = new Vehicle(truckSpec('thar'));
   v.place(world, drag.start.x, drag.start.z, drag.start.yaw);
   v.dt.setFourWD(true, 0);
   const run = new EventRun(drag, 0);
