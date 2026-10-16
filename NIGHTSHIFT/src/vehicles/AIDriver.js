@@ -54,45 +54,77 @@ export function roundCorners(points, R, onRoad = null, halfW = 0.9) {
     P.splice(i, J - i + 1, X);
     i--;   // (and again from there: one corner made of more pieces than these)
   }
+  // (the room before or after a corner: the run straight on through points that hardly turn, not just the next piece.
+  // A route met a 100-degree junction turn by a 3.9 m hop in line with the lane before it, from one lane's end to the
+  // next one's start: rounded within that hop, 2 m across, the car swung its nose a metre and a half off the road)
+  const room = (i, back) => {
+    let L = 0;
+    for (let k = i; ;) {
+      const k2 = back ? k - 1 : k + 1;
+      L += Math.hypot(P[k2][0] - P[k][0], P[k2][1] - P[k][1]);
+      if (k2 <= 0 || k2 >= P.length - 1 || Math.abs(turn(dir(P[k2 - 1], P[k2]), dir(P[k2], P[k2 + 1]))) >= 0.12) return L;
+      k = k2;
+    }
+  };
   const out = [P[0]];
+  let skip = 0;
   for (let i = 1; i < P.length - 1; i++) {
+    if (i < skip) continue;   // (inside the last corner's arc)
     const u = dir(P[i - 1], P[i]), w = dir(P[i], P[i + 1]), a = Math.abs(turn(u, w));
     // (a gentle turn is a bend, which the steering follows; a hairpin is left as it is)
     if (a < 0.5 || a > 2.6) { out.push(P[i]); continue; }
-    const segIn = Math.hypot(P[i][0] - P[i - 1][0], P[i][1] - P[i - 1][1]), segOut = Math.hypot(P[i + 1][0] - P[i][0], P[i + 1][1] - P[i][1]);
-    const tn = Math.tan(a / 2), T = Math.min(R * tn, segIn * 0.48, segOut * 0.48), r = T / tn;
-    if (r < 1.5) { out.push(P[i]); continue; }
+    const near = (k) => Math.hypot(P[k][0] - P[i][0], P[k][1] - P[i][1]);
+    const tn = Math.tan(a / 2);
     let bx = w[0] - u[0], bz = w[1] - u[1]; const bl = Math.hypot(bx, bz); bx /= bl; bz /= bl;   // (into the turn)
-    const cx = P[i][0] + bx * r / Math.cos(a / 2), cz = P[i][1] + bz * r / Math.cos(a / 2);
-    const f0 = Math.atan2(P[i][1] - u[1] * T - cz, P[i][0] - u[0] * T - cx), f1 = Math.atan2(P[i][1] + w[1] * T - cz, P[i][0] + w[0] * T - cx);
-    const df = wrapAngle(f1 - f0), m = Math.max(2, Math.ceil(a * r / 1.5));
-    const arc = [];
-    for (let k = 0; k <= m; k++) { const f = f0 + df * k / m; arc.push([cx + Math.cos(f) * r, cz + Math.sin(f) * r]); }
+    // the arc for a given tangent length, and how well it keeps to the road
     // (on the road with the car's width either side of it - on the inside, and what the steering cuts off a curve and
     // the rear wheels' running inside the front's; on the outside the front corner's swing - or moved across, out or
     // in, until it is: a car turning into a side street at the arc's exit swept its front corner into the end of a
     // compound wall at the street's mouth)
-    let best = 0;
-    if (onRoad) {
-      let fewest = Infinity;
-      for (const e of [0, -0.5, 0.6, -1, 1.2, 1.8, 2.4, 3]) {
-        let inner = 0, outer = 0;
-        for (const [x, z] of arc) {
-          const qx = x - bx * e, qz = z - bz * e, rx = (cx - x) / r, rz = (cz - z) / r;
-          if (!onRoad(qx + rx * (halfW + 0.45), qz + rz * (halfW + 0.45))) inner++;
-          if (!onRoad(qx - rx * (halfW + 0.4), qz - rz * (halfW + 0.4))) outer++;
+    const fit = (T) => {
+      const r = T / tn;
+      if (r < 1.5) return null;
+      const cx = P[i][0] + bx * r / Math.cos(a / 2), cz = P[i][1] + bz * r / Math.cos(a / 2);
+      const f0 = Math.atan2(P[i][1] - u[1] * T - cz, P[i][0] - u[0] * T - cx), f1 = Math.atan2(P[i][1] + w[1] * T - cz, P[i][0] + w[0] * T - cx);
+      const df = wrapAngle(f1 - f0), m = Math.max(2, Math.ceil(a * r / 1.5));
+      const arc = [];
+      for (let k = 0; k <= m; k++) { const f = f0 + df * k / m; arc.push([cx + Math.cos(f) * r, cz + Math.sin(f) * r]); }
+      let best = 0, fewest = 0;
+      if (onRoad) {
+        fewest = Infinity;
+        for (const e of [0, -0.5, 0.6, -1, 1.2, 1.8, 2.4, 3]) {
+          let inner = 0, outer = 0;
+          for (const [x, z] of arc) {
+            const qx = x - bx * e, qz = z - bz * e, rx = (cx - x) / r, rz = (cz - z) / r;
+            if (!onRoad(qx + rx * (halfW + 0.45), qz + rz * (halfW + 0.45))) inner++;
+            if (!onRoad(qx - rx * (halfW + 0.4), qz - rz * (halfW + 0.4))) outer++;
+          }
+          const score = inner * 3 + outer * 2 + Math.abs(e) * 0.1;
+          if (score < fewest) { fewest = score; best = e; }
+          if (!inner && !outer) break;
         }
-        const score = inner * 3 + outer * 2 + Math.abs(e) * 0.1;
-        if (score < fewest) { fewest = score; best = e; }
-        if (!inner && !outer) break;
       }
-    }
+      return { T, arc, best, fewest };
+    };
+    // (rounded as widely as the car needs where the road allows; within the pieces next to the corner where it doesn't.
+    // Not an acute turn to the left, the kerb's side (keeping left): rounded that widely, its arc cut deep across the
+    // inside of the corner, through the walls there. One to the right crosses the junction's open middle)
+    const segIn = room(i, true), segOut = room(i, false), acuteLeft = a > 1.9 && turn(u, w) < 0;
+    let A = acuteLeft ? null : fit(Math.min(R * tn, segIn * 0.48, segOut * 0.48));
+    const T0 = Math.min(R * tn, near(i - 1) * 0.48, near(i + 1) * 0.48);
+    if (!A || T0 < A.T - 0.1) { const B = fit(T0); if (B && (!A || B.fewest < A.fewest)) { A = B; A.short = true; } }
+    if (!A) { out.push(P[i]); continue; }
+    const { T, arc, best } = A, sIn = A.short ? near(i - 1) : segIn, sOut = A.short ? near(i + 1) : segOut;
     // (moved across over the last few metres before it and the first few after, not the whole way from the corner
     // before: the slant over a 45 m straight ran a race's rival along the road's edge into a canal's parapet)
     const sw = Math.min(20, Math.max(5, Math.abs(best) * 7));
-    if (best && segIn * 0.9 > T + sw) out.push([P[i][0] - u[0] * (T + sw), P[i][1] - u[1] * (T + sw)]);
+    const pre = best && sIn * 0.9 > T + sw ? T + sw : T, post = best && sOut * 0.9 > T + sw ? T + sw : T;
+    // (the points it passes by - in line before or after it - go)
+    while (out.length > 1 && (P[i][0] - out[out.length - 1][0]) * u[0] + (P[i][1] - out[out.length - 1][1]) * u[1] < pre - 0.05) out.pop();
+    for (skip = i + 1; skip < P.length - 1 && (P[skip][0] - P[i][0]) * w[0] + (P[skip][1] - P[i][1]) * w[1] < post - 0.05; skip++);
+    if (pre > T) out.push([P[i][0] - u[0] * pre, P[i][1] - u[1] * pre]);
     for (const [x, z] of arc) out.push([x - bx * best, z - bz * best]);
-    if (best && segOut * 0.9 > T + sw) out.push([P[i][0] + w[0] * (T + sw), P[i][1] + w[1] * (T + sw)]);
+    if (post > T) out.push([P[i][0] + w[0] * post, P[i][1] + w[1] * post]);
   }
   out.push(P[P.length - 1]);
   return out;

@@ -385,6 +385,13 @@ the game. Newly found problems go at the end of their section.
   Worst steps: Kannur 13, Iritty 37 (a lane climbing 3.9 m in 21 m from the highway up to a road on the hillside,
   the junctions at its two ends leaving it little room; was 52), Thalassery 14, Mattannur 10 cm. All tile edges
   across the four towns meet exactly
+- [x] AI junction turns where the route reached the corner through a short hop in line with the lane before it (one
+  lane's end to the next one's start, 3.9 m): the turn was rounded within that hop, 2 m across - tighter than a car
+  can steer - and the car swung its nose 1.5 m off the road. The room for the arc is the straight run up to the corner
+  now, and of the two (that and the pieces next to the corner) the one that keeps to the road better is used; not
+  for an acute turn to the left, the kerb's side, where the wider arc cut across the corner's walls. Junction turns
+  round Thalassery: 32 -> 35 of 35 clean; Kannur 30 of 33 (three acute turns left). The Lorry War lorry's longest
+  stop 2 -> 0.3 s. Taliparamba scanned too: worst step 12 cm, tile edges meet within 1.3 cm
 
 ## Story
 - [x] The story begins like GTA's: a prologue, 'The Kayal Job', starts on a new game in Kerala (Esc skips a scene;
