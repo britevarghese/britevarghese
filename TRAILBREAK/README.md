@@ -146,14 +146,14 @@ Ashwood Valley:
 | Summit Hill Climb | 1.3 km of switchbacks up 260 m from the Summit Ford to the lookout | 3:15 / 3:55 / 4:50 |
 | Cattail Bog Dash | a run-up, then the length of the bog flat out | 20.5 / 25 / 32 s |
 | Rock Garden Trials | a slalom of tight gates up through the boulders; each hard knock of the body is +5 s | 1:10 / 1:30 / 2:00 |
-| Sand Wash Drag | 100 m of soft sand: power, and the right tyre pressure (air down) | 11.5 / 13.5 / 16 s |
+| Sand Wash Drag | 100 m of soft sand: power, and the right tyre pressure (air down) | 9.4 / 10.8 / 12.8 s |
 
 Kerala Ghats:
 
 | Event | What it asks for | Par (gold / silver / bronze) |
 |---|---|---|
 | Kurinji Hill Climb | 760 m up 140 m from the tea factory, the jeep track through the estates to Kurinji Top | 1:50 / 2:15 / 2:45 |
-| Paddy Field Dash | across five flooded paddy fields and over their bunds: hit one too fast and a spring cracks | 32 / 39 / 50 s |
+| Paddy Field Dash | across five flooded paddy fields and over their bunds, the mud dragging harder the faster you go | 28.5 / 35 / 45 s |
 | Anapara Rock Trials | tight gates through the boulders at the foot of the granite dome and up its slab; +5 s a knock | 0:58 / 1:15 / 1:40 |
 | Kadavu River Run | 150 m flat out down the river's shallows and through the ford | 10.5 / 12.5 / 15.5 s |
 
@@ -268,8 +268,10 @@ Everything that makes off-roading off-roading is simulated, not faked:
 - **Ground:** 11 surfaces (grass, dirt, gravel, rock, mud, sand, snow, road, riverbed, ice, and Kerala's tea), each
   with its own grip and force curve. Firm ground peaks then falls off. Loose ground keeps pulling at high slip, and in
   it the tyre sinks to the depth its contact pressure can hold up (pressure-sinkage). A spinning tyre digs itself
-  deeper. Ruts stay in the ground for the next truck (where soft ground meets firm, a rut runs out up a ramp), and
-  friends' trucks press their ruts into your ground too.
+  deeper. The soil sinks under the load a tyre carries, not under each jolt of it, so a fast truck doesn't hammer
+  itself into its own ruts; wet mud also drags harder the faster you plough through it. Ruts stay in the ground for the
+  next truck (where soft ground meets firm, a rut runs out up a ramp), and friends' trucks press their ruts into your
+  ground too.
 - **Water:** buoyancy and drag on the hull, extra rolling resistance, and the air intake: water there stops the
   engine until it is out again.
 - **Winch:** a steel line with a stall-limited motor (line speed falls with load). Hook a tree to pull yourself

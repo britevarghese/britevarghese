@@ -641,8 +641,8 @@ export const LANDMARKS = [
 export const EVENTS = [
   { id: 'teaclimb', kind: 'trail', name: 'Kurinji Hill Climb', desc: 'From the tea factory up the jeep track through the estates to the viewpoint on Kurinji Top.',
     trail: 'Kurinji Jeep Track', from: [50, -650], gap: 110, r: 9, dy: 5, par: { gold: 110, silver: 135, bronze: 165 }, prize: 1.5 },
-  { id: 'paddydash', kind: 'line', name: 'Paddy Field Dash', desc: 'Off the estate road and across five flooded paddy fields, over the bunds between them. Hit a bund too fast and a spring cracks.',
-    line: [[22, -66], [-151, 82]], at: [0.35, 0.68, 1], r: 14, par: { gold: 32, silver: 39, bronze: 50 }, prize: 1 },
+  { id: 'paddydash', kind: 'line', name: 'Paddy Field Dash', desc: 'Off the estate road and across five flooded paddy fields and the bunds between them. The mud drags harder the faster you go.',
+    line: [[22, -66], [-151, 82]], at: [0.35, 0.68, 1], r: 14, par: { gold: 28.5, silver: 35, bronze: 45 }, prize: 1 },
   { id: 'rocktrials', kind: 'slalom', name: 'Anapara Rock Trials', desc: 'Tight gates through the boulders at the foot of the dome and up its granite slab. Each hard knock of the body: +5 s.',
     start: [312, 212], gates: [[340, 196], [362, 214], [382, 184], [402, 204], [425, 186], [452, 176]], r: 6, par: { gold: 58, silver: 75, bronze: 100 }, prize: 1.2, touch: true },
   { id: 'riverrun', kind: 'line', name: 'Kadavu River Run', desc: 'Flat out down the shallows of the Ponmala river and through the ford, spray everywhere.',

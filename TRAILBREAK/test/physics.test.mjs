@@ -177,10 +177,12 @@ test('mud: tyres leave ruts, and a spinning tyre digs deeper than a rolling one'
   run(v2, g2, 1, IDLE);
   const before = [2, 3].map((i) => g2.grid.get(v2.wheels[i].cx, v2.wheels[i].cz));
   run(v2, g2, 3, { ...IDLE, throttle: 1 });
-  // torque twist lightens the right rear: with an open diff that is the one that spins (one-wheel peel)
+  // torque twist lightens the right rear: with an open diff that is the one that spins (one-wheel peel), digging until
+  // it hangs in its hole on the axle's droop (so its spin is measured, not its slip at that instant)
+  const spinV = (w) => w.omega * v2.spec.tyre.radius - v2.vel.dot(v2.fwd);
   const spin = v2.wheels[3];
-  assert.ok(spin.slipSpeed > 2, `right rear tyre slipping at ${spin.slipSpeed.toFixed(1)} m/s`);
-  assert.ok(v2.wheels[2].slipSpeed < spin.slipSpeed, 'the left rear, with more weight on it, spins less');
+  assert.ok(spinV(spin) > 2, `right rear tyre spinning at ${spinV(spin).toFixed(1)} m/s over the ground`);
+  assert.ok(spinV(v2.wheels[2]) < spinV(spin), 'the left rear, with more weight on it, spins less');
   const after = g2.grid.get(spin.cx, spin.cz);
   assert.ok(after > before[1] + 0.08 || after >= 0.35, `dug from ${before[1].toFixed(3)} to ${after.toFixed(3)} m`);
 });

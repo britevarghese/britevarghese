@@ -37,6 +37,9 @@ const RHO_AIR = 1.2;
 const RHO_WATER = 1000;
 const RAY_ANGLES = [-1.4, -1.05, -0.7, -0.35, 0, 0.35, 0.7, 1.05, 1.4];   // rad around the bottom of the tyre (+ = forward)
 const RAY_STEP = 0.35;
+// how long the soil takes to give way under a tyre's load (s): it sinks under the load the tyre carries, not under each
+// jolt of it
+const SOIL_TAU = 0.1;
 const NO_CONTROLS = { throttle: 0, brake: 0, steer: 0, handbrake: 0 };
 
 /** Ground normal by central differences. */
@@ -133,7 +136,7 @@ export class Vehicle {
         index: i, axle: ax, side: i % 2 === 0 ? 1 : -1,            // +1 left, -1 right
         omega: 0, angle: 0, steer: 0, dx: 0, dy: 0,
         inertia: tyre.inertia, torque: 0, damp: 0,
-        contact: false, N: 0, pen: 0, slip: 0, slipSpeed: 0, surf: surfaceById(0), sink: 0, water: 0,
+        contact: false, N: 0, pen: 0, slip: 0, slipSpeed: 0, surf: surfaceById(0), sink: 0, water: 0, nSoil: 0, penSoil: 0,
         cx: 0, cy: 0, cz: 0, nx: 0, ny: 1, nz: 0,                  // contact point and normal (world)
         hub: new V3(), vHub: new V3(), fx: 0, fy: 0, kappa: 0, tanA: 0, vx: 0, vy: 0,
         cxDamp: 0, cyDamp: 0, Fshape: 0, FyShape: 0, rr: 0,
@@ -395,6 +398,7 @@ export class Vehicle {
       w.water = ground.water ? Math.max(0, ground.water(w.hub.x, w.hub.z) - (w.hub.y - r)) : 0;
       if (!this.contact(w, ground, _f, _w)) {
         w.N = 0; w.fx = 0; w.fy = 0; w.slip = 0; w.slipSpeed = 0; w.sink = 0;
+        w.nSoil *= 1 - Math.min(1, dt / SOIL_TAU); w.penSoil *= 1 - Math.min(1, dt / SOIL_TAU);
         // free tyre: the bristles relax as the tread leaves the ground
         w.dx *= 0.9; w.dy *= 0.9;
         w.torque = -0.6 * Math.tanh(w.omega);                          // bearing drag
@@ -439,7 +443,7 @@ export class Vehicle {
       w.cxDamp = 2 * 0.55 * Math.sqrt(slipStiffness(N, surf, tyre) / tyre.relaxX * mq) * adh * low;
       w.cyDamp = 2 * 0.6 * Math.sqrt(corneringStiffness(N, surf, tyre) / tyre.relaxY * mq) * adh * low;
       // rolling resistance (more in soft ground and in water; mud tyres and soft tyres roll harder on firm ground)
-      const crr = surf.rr * (surf.sink > 0 ? tyre.rrMul || 1 : tyre.rrFirm || 1) + surf.drag * w.sink + (w.water > 0.15 ? 0.04 : 0) + (flat ? 0.09 : 0);
+      const crr = surf.rr * (surf.sink > 0 ? tyre.rrMul || 1 : tyre.rrFirm || 1) + surf.drag * w.sink + (surf.visc || 0) * avx + (w.water > 0.15 ? 0.04 : 0) + (flat ? 0.09 : 0);
       w.rr = crr * N;
       w.torque = -rw * w.Fshape + rw * w.cxDamp * vx - crr * N * rw * Math.tanh(w.omega * 2) - 0.6 * Math.tanh(w.omega);
       w.damp = w.cxDamp * rw * rw;
@@ -519,10 +523,13 @@ export class Vehicle {
       ax.rollM += lat * _q.dot(u);
 
       // soft ground: press it down, dig while spinning. The footprint: the chord the tyre's deflection cuts, made
-      // longer and wider by a soft carcass (aired down)
+      // longer and wider by a soft carcass (aired down). The soil takes its set under the load and deflection averaged
+      // over SOIL_TAU: a jolt doesn't punch a hole that the tyre then drops into and hits again
+      const ks = Math.min(1, dt / SOIL_TAU);
+      w.nSoil += (w.N - w.nSoil) * ks; w.penSoil += (w.pen - w.penSoil) * ks;
       if (surf.sink > 0 && ground.deform) {
-        const contactLen = Math.max(0.22, 2 * Math.sqrt(Math.max(0, 2 * r * Math.min(w.pen, r * 0.5)))) * tyre.footL;
-        const pKPa = w.N / (tyre.footW * contactLen) / 1000;
+        const contactLen = Math.max(0.22, 2 * Math.sqrt(Math.max(0, 2 * r * Math.min(w.penSoil, r * 0.5)))) * tyre.footL;
+        const pKPa = w.nSoil / (tyre.footW * contactLen) / 1000;
         const zEq = Math.min(surf.maxSink, Math.pow(pKPa / surf.sink, 1 / surf.n));
         const dig = surf.dig * Math.max(0, slipV - 0.6) * dt;
         w.sink = ground.deform(w.cx, w.cz, w.fX, w.fZ, tyre.footW * 0.5, contactLen * 0.5, zEq, dig);

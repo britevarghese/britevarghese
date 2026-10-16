@@ -150,7 +150,7 @@ export const EVENTS = [
   { id: 'trials', kind: 'slalom', name: 'Rock Garden Trials', desc: 'A slalom of tight gates up through the boulders. Each hard knock of the body: +5 s.',
     start: TRIALS.start, gates: TRIALS.gates, r: 6, par: { gold: 70, silver: 90, bronze: 120 }, prize: 1.2, touch: true },
   { id: 'sanddrag', kind: 'line', name: 'Sand Wash Drag', desc: 'A hundred metres flat out across the soft sand of the wash floor.',
-    line: SAND_STRIP, at: [0.5, 1], r: 14, par: { gold: 11.5, silver: 13.5, bronze: 16 }, prize: 0.8 },
+    line: SAND_STRIP, at: [0.5, 1], r: 14, par: { gold: 9.4, silver: 10.8, bronze: 12.8 }, prize: 0.8 },
 ];
 
 /** The map, as the game and the generator see it. */
