@@ -41,6 +41,7 @@ const RAY_STEP = 0.35;
 // jolt of it
 const SOIL_TAU = 0.1;
 const NO_CONTROLS = { throttle: 0, brake: 0, steer: 0, handbrake: 0 };
+const STEER_DAMP = 0.08;              // keys / sticks: wheel angle (rad) taken off per rad/s the yaw rate runs ahead
 
 /** Ground normal by central differences. */
 export function groundNormal(ground, x, z, out, e = 0.3) {
@@ -381,8 +382,20 @@ export class Vehicle {
     // to about 0.6 g of cornering; a real steering wheel gets the whole range
     const wb = fa.zc - this.axles[1].zc;
     const lock = ctrl.analogSteer ? maxLock : Math.min(maxLock, Math.max(0.09, Math.atan(0.6 * GRAVITY * wb / Math.max(1, speed * speed))));
-    const target = -ctrl.steer * lock;                                  // + = left
-    const rate = 2.6 * dt;
+    let target = -ctrl.steer * lock;                                    // + = left
+    let rate = 2.6 * dt;
+    // keys and thumbsticks: the turn eases in more gently the faster the truck goes (the whole lock in 0.2 s crawling,
+    // 0.45 s at speed), and a yaw damper takes a little steering off while the truck swings round faster than it has
+    // been (into a turn, or rocking on its springs), so it settles into the turn instead of lurching and wobbling
+    const yaw = this.angVel.dot(u);                                     // + = turning left
+    this.yawLP = (this.yawLP ?? yaw) + (yaw - (this.yawLP ?? yaw)) * Math.min(1, dt / 0.45);
+    if (!ctrl.analogSteer) {
+      const fast = smoothstep(6, 16, Math.abs(speed)), faster = smoothstep(12, 26, Math.abs(speed));
+      rate = Math.max(0.08, lock / (0.2 + 0.25 * fast + 0.35 * faster)) * dt;
+      // (only a swing growing: never against the truck straightening up when the steering is let go)
+      const ahead = yaw - this.yawLP;
+      if (ahead * yaw > 0) target -= fast * clamp(STEER_DAMP * (1 + 2 * faster) * ahead, -0.45 * lock, 0.45 * lock);
+    }
     this.steerAngle = (this.steerAngle || 0) + clamp(target - (this.steerAngle || 0), -rate, rate);
     // Ackermann: the inner wheel turns tighter
     const L = fa.zc - this.axles[1].zc;

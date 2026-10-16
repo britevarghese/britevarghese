@@ -147,7 +147,9 @@ with M when you shift yourself) and the tyre pressure. ENGINE OFF / FLOODED appe
 (FLAT FL, AXLE R, STEERING, SPRING, ENGINE 60%) shows beside it: see [Damage](#damage).
 
 Steering wheels are detected by name and get the full steering range; keys and thumbsticks get a steering assist
-(full lock at walking pace, gentler at speed) that you can turn off in the pause menu. On phones and tablets,
+(full lock at walking pace, gentler at speed: the wheels ease round more slowly the faster you go, and the truck's swing
+into a turn is damped, so it settles into the turn instead of lurching and wobbling) that you can turn off in the
+pause menu. On phones and tablets,
 on-screen controls appear: steering on the left, pedals on the right, buttons for the winch, recovery, range, locks,
 camera, map and menu (play in landscape).
 
