@@ -246,6 +246,32 @@ the game. Newly found problems go at the end of their section.
     Mattannur 31, Taliparamba 28, Payyanur 31, Iritty 30 of 31). The one left is a 134-degree left in Iritty: a
     three-point turn, on the road, slower than the test's 14 s. 5-minute rides round Taliparamba, Payyanur, Iritty and
     Kannur: no incidents
+- [x] The streets round the player, watched for 3 minutes at a time in the middle of each of the six towns (the player's
+  car stopped in the road, the traffic and the people going about):
+  - [x] A traffic car near the player drives on the real vehicle physics, and it took every junction turn at up to
+    27 km/h however tight: through a 90-degree right turn 5 m long it ran 7 m wide, over the verge to a wall
+    (Taliparamba). Cars near the player slow for the bends and turns ahead now, as two-wheelers did. And one run off
+    its line was meant to go back to the traffic model there and then: within the physics' range the next frame made
+    it a new body where it stood, so it pushed at the wall for good, its place on its lane running on ahead at 8 m/s,
+    and the traffic behind queued for two minutes. It's put back on its lane now
+  - [x] Traffic queued behind the player's car stopped in the road, for good, honking. A car or bus behind one that's
+    been stopped a while now waits a car's length back and goes round it when nothing's coming the other way and it
+    isn't at a junction, slowed to 25 km/h going by; two-wheelers filter past; on a street too narrow to get by, it
+    waits. A car coming the other way on a narrow street stopped for the player's car parked in the other lane, 2 m
+    across: only what its body would come within half a metre of counts now. Traffic goes round a wreck that has lain
+    still a while the same way (a scooter down at a street's mouth held up everything behind it, and the junction)
+  - [x] ...and waiting to pull out round it, a car waited for one standing in its own lane further on, itself waiting
+    at the junction the queue had blocked: the street locked solid. A car standing still beyond the stretch needed to
+    get by counts no more, nor one an officer clearing a jam is holding for it. That officer walked off after 8 s
+    whenever every car stuck there was one he was holding (nothing counted as stuck): he stays till the jam's gone
+    now, and waves the other lot on straight away when there's no one in the lot he's waving
+  - [x] AI cars (police, story drivers, rivals, an ambulance on its way to an accident) came up to a car stopped in
+    the queue at 3.5 m/s and shunted it: they stop short now. And they steered away from and slowed for a car coming
+    the other way in its own lane on a narrow street
+  - [x] Parked cars and scooters were put down where the player's car stood (a scooter parked into it was knocked flat)
+  - Then: no traffic driving off the road anywhere (it was 650 car-seconds in 3 minutes in Taliparamba), nothing
+    stuck in five of the six towns (the sixth: Mattannur, the player stopped 12 m into a narrow street off a busy
+    junction), traffic standing still 2-18% of the time in those five (was 16-33%)
 
 - [x] Hitches while driving into new country (a tile's build stalling a frame): every step of a tile's build timed
   on a drive (headless, its CPU about half a desktop's). The worst were the ground's mesh (up to a quarter of a second:
@@ -282,6 +308,14 @@ the game. Newly found problems go at the end of their section.
   cash racks hidden), and could end up behind an electric pole or a tree. Up close it now goes over the right
   shoulder and looks on past it; the line to the character is checked every quarter metre, so a pole or a trunk
   brings the camera in front of it at once (easing back out after); low walls and counters below it don't count
+- [x] People standing or walking in the road, round the six towns' centres: a tea stall's drinkers stood in a ring 3.6 m
+  out in front of it whatever the room, in the road 1.6 m from the lane's middle; a bus queue was spread along the
+  map's north-south and east-west lines, so across a north-south road; a walk along the road's edge was checked
+  against the carriageway at five points only, and a side road's mouth between two of them was walked across;
+  someone who crossed the road walked on along the far side on the near side's walk moved across, which a road
+  joining there or a one-way street's other edge put in the carriageway; and an accident's onlookers stood round it
+  anywhere, in the lane the traffic was being waved past in. All of them keep to the road's side now (in the
+  carriageway, not crossing: 295 of 4,300 looks in Taliparamba, none now)
 
 ## Roads and world
 - [x] The game hung for a moment every so often while driving: building each new 2 km piece of the map ran some

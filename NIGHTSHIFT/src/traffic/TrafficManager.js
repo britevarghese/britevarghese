@@ -73,6 +73,15 @@ function kerbRoom(path) {
   return Math.max(0, e.hw - off - 1.0);
 }
 
+// how far a vehicle on this lane can move over to the right (out round something stopped in the lane) and keep its
+// wheels on the road
+function passRoom(path, c) {
+  const e = path.edge, per = path.lanes || e?.type?.lanes || 1;
+  if (!e?.hw) return 2.6;
+  const left = e.one ? ((per - 1) / 2 - (path.laneIndex || 0)) * 3.2 : (per - (path.laneIndex || 0) - 0.5) * 3.2;   // (the lane's line, left of the road's middle)
+  return Math.max(0, left + e.hw - c.spec.w / 2 - 0.2);
+}
+
 export class TrafficManager {
   constructor(world, preset, renderer) {
     this.world = world;
@@ -132,13 +141,17 @@ export class TrafficManager {
     return null;
   }
 
-  _spawnParked(focus) {
+  _spawnParked(focus, dynamic = []) {
     const R = this.R;
     // (on the district roads: a village street is too narrow, one parked car there blocks the way)
     const lanes = this.graph.lanesNear(focus.x, focus.z, 60, 220).filter((l) => l.kind === 'lane' && l.laneIndex === 0 && (l.edge.cls ?? 0) >= 4 && (l.edge.cls ?? 0) <= 5 && l.length > 25);
     if (!lanes.length) return;
     const lane = lanes[Math.floor(R() * lanes.length)], s = 6 + R() * (lane.length - 12);
     if (lane.cars.some((o) => Math.abs(o.s - s) < 10)) return;
+    // (nor where the player's car or a police car is standing: a scooter parked into the player's car stopped by the
+    // kerb was knocked flat on the spot)
+    lane.sample(s, tmp);
+    if (dynamic.some((v) => Math.hypot(v.physics.s.x - tmp.x, v.physics.s.z - tmp.z) < 8)) return;
     const pool = ['m800', 'dzire', 'brezza', 'ertiga', 'scorpio', 'thar', 'bolero', 'minitruck', 'auto', 'scooter', 'commuter'].filter((t) => this.renderer?.types?.[t]);
     if (!pool.length) return;
     const type = pool[Math.floor(R() * pool.length)], sp = TYPE_SPECS[type];
@@ -253,8 +266,13 @@ export class TrafficManager {
       const f = foci.length && (this.frame + k) % (foci.length + 1) ? foci[(this.frame + k) % (foci.length + 1) - 1] : focus;
       this.spawnNear(f.x, f.z, this.cars.length < max * 0.5 ? 45 : 80, 240, f === focus ? forward : null);
     }
+    // how long each of the player's, the police's, the racers' vehicles has stood still (traffic goes round one
+    // stopped a while)
+    const dstop = this._dynStop ||= new Map();
+    for (const v of dynamic) { const s = v.physics.s; dstop.set(v, Math.hypot(s.vx, s.vz) < 0.5 ? (dstop.get(v) || 0) + dt : 0); }
+    if (dstop.size > dynamic.length + 8) for (const k of dstop.keys()) if (!dynamic.includes(k)) dstop.delete(k);
     // cars parked half on the road along town and village streets (Kerala has few car parks)
-    if (this.world.kerala && this.frame % 20 === 0 && this.cars.filter((c) => c.state === 'parked').length < (this.preset.traffic > 20 ? 10 : 5)) this._spawnParked(focus);
+    if (this.world.kerala && this.frame % 20 === 0 && this.cars.filter((c) => c.state === 'parked').length < (this.preset.traffic > 20 ? 10 : 5)) this._spawnParked(focus, dynamic);
     for (const c of [...this.cars]) {
       const d = Math.hypot(c.x - focus.x, c.z - focus.z);
       c.dist = d;
@@ -368,12 +386,30 @@ export class TrafficManager {
   // Kinematic traffic (beyond the physics range) merging at a junction can nose into another car: the one behind
   // holds until the other has gone (if each has the other ahead of it, side by side, the lower id goes first)
   // nothing coming the other way within d metres ahead, near our line (a car about to pull out round a parked one)
-  _oncomingClear(c, d) {
+  // out round something standing in the lane (the player's car or a police car stopped a while, a wreck), as round a
+  // parked car: if there's room on the road to the right of it and nothing's coming the other way, and not at a
+  // junction. (x, z): its middle, half: how far it reaches across the lane, ahead/g: how far on it is and the gap
+  _goRound(c, path, x, z, half, ahead, g) {
+    if (g >= 25 || path.kind !== 'lane' || path.length - c.s - ahead <= 12) return false;
+    // (how far over it stands from the lane's line, there: from where this car is, a car on the vehicle physics
+    // lagging behind the line it's steering for, it read wider than it was and the pass was called off halfway)
+    path.sample(Math.min(path.length, c.s + ahead), tmp);
+    const off = (x - tmp.x) * -tmp.dz + (z - tmp.z) * tmp.dx, need = off + half + c.spec.w / 2 + 0.6;
+    if (need >= passRoom(path, c) || !(c.passT > 0 || this._oncomingClear(c, g + 2 * half + 30, g + 2 * half + 10))) return false;
+    // (and slowed to 25 km/h going by: at 36 km/h a car went past with a third of a metre to spare)
+    c.passT = 2; c.passLat = Math.max(c.passLat || 0, need); c.passSlow = 1.2;
+    return true;
+  }
+
+  // (one standing still further on than dStill only if it's alongside: a car stopped in its own lane beyond the
+  // stretch needed to get by is no danger - waiting for one that was itself waiting at the junction behind, held up
+  // by the queue there, the street locked solid)
+  _oncomingClear(c, d, dStill = d) {
     const fx = Math.sin(c.yaw), fz = Math.cos(c.yaw);
     for (const o of this.cars) {
-      if (o === c || o.state !== 'drive' || o.spec.bike) continue;
+      if (o === c || o.state !== 'drive' || o.spec.bike || (c.jamGo && o.jamHold)) continue;   // (held by an officer clearing a jam: this one goes)
       const dx = o.x - c.x, dz = o.z - c.z, ah = dx * fx + dz * fz;
-      if (ah < 0 || ah > d) continue;
+      if (ah < 0 || ah > d || (o.v < 0.5 && ah > dStill)) continue;
       if (Math.abs(-dx * fz + dz * fx) > 5) continue;
       if (Math.sin(o.yaw) * fx + Math.cos(o.yaw) * fz < -0.5) return false;
     }
@@ -456,7 +492,10 @@ export class TrafficManager {
     // there: 3 m off its line, or 1.5 s off the carriageway altogether (never driving on across a lawn or a yard)
     c.path.sample(c.s, tmp);
     c.offT = this.world.onCarriageway && !this.world.onCarriageway(s.x, s.z, 0.6) ? (c.offT || 0) + dt : 0;
-    if (Math.hypot(tmp.x - tmp.dz * c.lat - s.x, tmp.z + tmp.dx * c.lat - s.z) > 3 || c.offT > 1.5) { c.phys = null; c.offT = 0; }
+    // (put back on its lane there and then, and kept to the traffic model a moment: within the physics' range the next
+    // frame made it a new body where it stood, so a car run wide into a wall stayed against it for good, its place
+    // on its lane running on ahead at 8 m/s)
+    if (Math.hypot(tmp.x - tmp.dz * c.lat - s.x, tmp.z + tmp.dx * c.lat - s.z) > 3 || c.offT > 1.5) { c.phys = null; c.offT = 0; c.kinT = 2; this._place(c); }
   }
 
   // A two-wheeler near the player rides like one: it steers (pure pursuit) at a point ahead on its line, its turn
@@ -602,11 +641,22 @@ export class TrafficManager {
       const dx = s.x - c.x, dz = s.z - c.z;
       const ahead = dx * fx + dz * fz;
       if (ahead < 0 || ahead > 35) continue;
-      const lat = Math.abs(-dx * fz + dz * fx);
-      if (lat > 2.6) continue;
-      const g = ahead - (c.spec.l / 2 + 2.4);
+      const latS = -dx * fz + dz * fx, lat = Math.abs(latS);   // (+: to the right)
+      if (lat > 5) continue;
+      // (in the way only if its body reaches within half a metre of this one's: within 2.6 m of its line, a car coming the
+      // other way on a narrow street stopped for the player's car parked in the other lane, 2 m across, for good)
+      const P = v.physics.p || {}, cosA = Math.abs(Math.sin(s.yaw) * fx + Math.cos(s.yaw) * fz);
+      const half = ((P.width || 1.8) * cosA + (P.length || 4.4) * Math.sqrt(Math.max(0, 1 - cosA * cosA))) / 2;
+      if (lat - half - c.spec.w / 2 > 0.45) continue;
+      // stopped a while (the player pulled up or out of the car, a police car stopped): round it as round a parked
+      // car, when nothing's coming the other way and not at a junction - and waiting behind it, a car's length back,
+      // with room to pull out round it. (Traffic queued nose to tail behind a player's car stopped in the road, for
+      // good: the one behind decided to go round, but 2 m back it couldn't steer out, and shuffled on the spot)
+      const stopT = this._dynStop?.get(v) || 0, vsp = Math.hypot(s.vx, s.vz);
+      const g = ahead - (c.spec.l / 2 + 2.4) - (stopT > 1 ? 2.5 : 0);
+      if (stopT > 3 && this._goRound(c, path, s.x, s.z, half, ahead, g)) continue;
       if (g < gap) { gap = g; leadV = Math.max(0, s.vx * fx + s.vz * fz); }
-      if (g < 8 && c.honk <= 0 && Math.hypot(s.vx, s.vz) < 3) { c.honk = 6; bus.emit('traffic:honk', { x: c.x, z: c.z }); }
+      if (g < 8 && c.honk <= 0 && vsp < 3) { c.honk = 6; bus.emit('traffic:honk', { x: c.x, z: c.z }); }
     }
     // any other traffic in front, whatever path it is on: cars crossing the junction from another road, merging,
     // turning across. Of two cars that see each other (nose to nose across a junction) only one gives way.
@@ -635,8 +685,12 @@ export class TrafficManager {
       const dx = o.x - c.x, dz = o.z - c.z;
       const ahead = dx * fx + dz * fz;
       if (ahead < 0 || ahead > 30) continue;
-      if (Math.abs(-dx * fz + dz * fx) > 2.4) continue;
+      // (in the way only if its body reaches within half a metre of this one's; and gone round once it's lain still
+      // a while: a scooter down at a street's mouth held up everything behind it, and a junction, for good)
+      const cosA = Math.abs(Math.sin(o.yaw) * fx + Math.cos(o.yaw) * fz), half = (o.spec.w * cosA + o.spec.l * Math.sqrt(Math.max(0, 1 - cosA * cosA))) / 2;
+      if (Math.abs(-dx * fz + dz * fx) - half - c.spec.w / 2 > 0.45) continue;
       const g = ahead - (c.spec.l + o.spec.l) / 2;
+      if (o.knockT > 4 && Math.hypot(o.s2.vx, o.s2.vz) < 0.3 && this._goRound(c, path, o.x, o.z, half, ahead, g)) continue;
       if (g < gap) { gap = g; leadV = 0; }
     }
     c.honk -= dt;
@@ -692,6 +746,7 @@ export class TrafficManager {
     // --- IDM ---
     let v0 = path.speed * c.speedFactor;
     if (c.blockT > 0) { c.blockT -= dt; v0 = 0; c.v = Math.min(c.v, 0.5); }   // (held: nosed into another car, see _separate)
+    if (c.passSlow > 0) { c.passSlow -= dt; v0 = Math.min(v0, 7); }
     if (path.kind === 'connector' && path.turn !== 'straight') v0 = Math.min(v0, 7.5);
     if (c.next && c.next.kind === 'connector' && c.next.turn !== 'straight') {
       const d = path.length - c.s;
@@ -699,8 +754,11 @@ export class TrafficManager {
     }
     // two-wheelers ease off for the bends and junction turns ahead (Kerala's lanes meet at the junction with a
     // kink, no connector): the path's heading every 4 m over the next ~45 m gives each bend's radius; a rider
-    // leans into it at a comfortable ~2.8 m/s² and brakes for it in time
-    if (bike && c.dist < 160) {
+    // leans into it at a comfortable ~2.8 m/s² and brakes for it in time. So does a car driven on the real vehicle
+    // physics round the player: taken at the 7.5 m/s every turn gets, a 90-degree right turn 5 m long, a car ran
+    // 7 m wide through the verge to a wall
+    const physNear = this.world.kerala && !bike && c.dist < 90 && TRAFFIC_VEHICLES[c.type]?.params;
+    if ((bike && c.dist < 160) || physNear) {
       let px = 0, pz = 0, ph = null;
       for (let i = 0, d = 0; d <= 44; i++, d += 4) {
         const P = this._pointAhead(c, d, _pb);
@@ -711,7 +769,7 @@ export class TrafficManager {
             if (ph !== null) {
               let dh = h - ph; while (dh > Math.PI) dh -= Math.PI * 2; while (dh < -Math.PI) dh += Math.PI * 2;
               if (Math.abs(dh) > 0.06) {
-                const vc = Math.max(3.6, Math.sqrt(2.8 * seg / Math.abs(dh)));
+                const vc = Math.max(bike ? 3.6 : 2.6, Math.sqrt(2.8 * seg / Math.abs(dh)));
                 v0 = Math.min(v0, Math.sqrt(vc * vc + 2 * 2.6 * Math.max(0, d - 6)));
               }
             }
@@ -756,7 +814,8 @@ export class TrafficManager {
       } else c.laneChangeCD = 1.5;
     }
     c.lat = lerp(c.lat, c.latT || 0, 1 - Math.exp(-dt * (c.spec.bike ? 3 : 1.3)));
-    if (this.world.kerala && !c.spec.bike && c.dist < 70 && TRAFFIC_VEHICLES[c.type]?.params) { this._physDrive(c, dt, c.v); c.prevYaw = c.yaw; return; }
+    if (c.kinT > 0) c.kinT -= dt;
+    if (this.world.kerala && !c.spec.bike && c.dist < 70 && !(c.kinT > 0) && TRAFFIC_VEHICLES[c.type]?.params) { this._physDrive(c, dt, c.v); c.prevYaw = c.yaw; return; }
     if (c.phys) { c.phys = null; }            // left the player's surroundings: back on the lane
     if (c.spec.bike && c.dist < 160) { this._bikeDrive(c, dt); c.prevYaw = c.yaw; return; }
     c.bk = null;

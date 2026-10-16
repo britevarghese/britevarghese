@@ -487,14 +487,23 @@ export class AIDriver {
     // obstacle avoidance (traffic cars / other vehicles ahead)
     const fx = Math.sin(s.yaw), fz = Math.cos(s.yaw);
     let avoid = 0;
+    const myL = v.p?.length || 4.4, myW = (v.p?.width || 1.8) / 2;
     for (const o of obstacles) {
       const dx = o.x - s.x, dz = o.z - s.z;
       const ahead = dx * fx + dz * fz;
       if (ahead < 2 || ahead > 18 + speed * 0.8) continue;
       const lat = -dx * fz + dz * fx; // + = to the right? right = (-fz, fx)
-      if (Math.abs(lat) > 2.8) continue;
+      // (only what this car's body would come within half a metre of: steered away from and slowed for anything
+      // within 2.8 m of its middle, a car met one coming the other way in its own lane on a narrow street, 2 m across)
+      if (Math.abs(lat) - (o.spec?.w ?? 1.8) / 2 - myW > 0.5) continue;
       avoid += (lat > 0 ? -1 : 1) * (1 - ahead / (18 + speed * 0.8));
-      if (ahead < 14 + speed * 0.5 && Math.abs(lat) < 2.2 && this.mode !== 'pursue') targetSpeed = Math.min(targetSpeed, (o.v ?? 0) + 2 + ahead * 0.3);
+      // (and slowed to stop short of it: allowed its speed + 2 m/s + 0.3 m/s a metre off, an ambulance on its way to
+      // an accident came up to a car stopped in the queue at 3.5 m/s and shunted it off the road. Its speed the way
+      // this one's going: one coming the other way gives no leave to drive at it)
+      if (ahead < 14 + speed * 0.5 && this.mode !== 'pursue') {
+        const gap = ahead - (myL + (o.spec?.l ?? 4.4)) / 2 - 1.2, along = (o.v ?? 0) * Math.max(0, o.yaw === undefined ? 1 : Math.sin(o.yaw) * fx + Math.cos(o.yaw) * fz);
+        targetSpeed = Math.min(targetSpeed, along + Math.sqrt(2 * 3.5 * Math.max(0, gap)));
+      }
     }
     this.avoid = avoid;
 

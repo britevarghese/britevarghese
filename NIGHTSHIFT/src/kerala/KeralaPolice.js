@@ -358,8 +358,12 @@ export class KeralaPolice {
     this._face(h, J.x, J.z, dt, 3);
     if (nh) this._stopArm(h, 'Right', hx / nh, hz / nh);
     if (ng) { const fx = Math.sin(J.turn ? J.ref + Math.PI : J.ref), fz = Math.cos(J.turn ? J.ref + Math.PI : J.ref); this._waveArm(h, 'Left', gx / ng - fx * 10, gz / ng - fz * 10, gx / ng + fx * 15, gz / ng + fz * 15, this.T); }
-    const stuck = near.some((c) => !c.jamHold && c.v < 0.3 && (c.stuckT || 0) > 4);   // (not the ones he is holding)
+    // (not the ones he is holding - unless still stuck after his last wave their way: with all of them in the lot he
+    // was holding, nothing counted as stuck, and 8 s later he walked off and left them all as they were)
+    const stuck = near.some((c) => c.v < 0.3 && ((!c.jamHold && (c.stuckT || 0) > 4) || (c.stuckT || 0) > 25));
     J.clear = stuck ? 0 : J.clear + dt;
+    // (nobody in the lot he's waving on: the other lot's turn now, not in 10 s)
+    if (!ng && nh && J.t > 1) { J.t = 0; J.turn ^= 1; }
     if (J.clear > 8 || J.total > 120 || Math.hypot(J.x - focus.x, J.z - focus.z) > 400) { release(); J.phase = 'walkOut'; }
     J.total = (J.total || 0) + dt;
   }

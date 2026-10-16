@@ -92,6 +92,8 @@ export class KeralaWorld {
       offRoad: (x, z) => W.offRoad(x, z),
       pedSegment: (focus, R) => W.pedSegment(focus, R),
       standSpots: (x, z, r) => W.standSpots(x, z, r),
+      onCarriageway: (x, z, m) => W.onCarriageway(x, z, m),
+      pedWalkClear: (g) => W.pedWalkClear(g),
     };
     this.planner = { colliders: [], props: [], parked: [], buildings: [] };
     this.chunks = {
@@ -538,10 +540,18 @@ export class KeralaWorld {
     if (!lanes.length) return null;
     for (let tries = 0; tries < 6; tries++) {
       const g = this._pedSeg(lanes[Math.floor(R() * lanes.length)], R);
-      // the walk must stay off every carriageway (near junctions the verge of one road runs across another)
-      if (g && [0, 0.25, 0.5, 0.75, 1].every((k) => !this.onCarriageway(g.ax + (g.bx - g.ax) * k, g.az + (g.bz - g.az) * k, -0.3))) return g;
+      // the walk must stay off every carriageway (near junctions the verge of one road runs across another), looked
+      // at every 2 m (at five points along a long stretch, a side road's mouth between two of them was walked across)
+      if (g && this.pedWalkClear(g)) return g;
     }
     return null;
+  }
+
+  // a walk along the road's edge (a pedSegment) that stays off every carriageway
+  pedWalkClear(g) {
+    const L = Math.hypot(g.bx - g.ax, g.bz - g.az), n = Math.max(4, Math.ceil(L / 2));
+    for (let k = 0; k <= n; k++) if (this.onCarriageway(g.ax + (g.bx - g.ax) * k / n, g.az + (g.bz - g.az) * k / n, -0.3)) return false;
+    return true;
   }
 
   onCarriageway(x, z, margin = 0) {

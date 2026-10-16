@@ -117,9 +117,14 @@ export class Pedestrians {
       if (this.groups.has(sp.key) || this.peds.length >= this.max + 12) continue;
       const R = this.R, n = sp.kind === 'tea' ? 2 + Math.floor(R() * 3) : 1 + Math.floor(R() * 3);
       const members = [];
-      // the road side of the stall / the shelter; tea drinkers stand round in a loose ring
-      const fx = Math.sin(sp.yaw), fz = Math.cos(sp.yaw);
-      const cx = sp.x + fx * (sp.kind === 'tea' ? 3.6 : 1.1), cz = sp.z + fz * (sp.kind === 'tea' ? 3.6 : 1.1);
+      // the road side of the stall / the shelter; tea drinkers stand round in a loose ring. Between it and the road,
+      // never in it: a tea stall's ring was put 3.6 m out in front of it whatever the room, its drinkers standing
+      // in the road 1.6 m from the lane's middle
+      const fx = Math.sin(sp.yaw), fz = Math.cos(sp.yaw), onRd = this.layout.onCarriageway;
+      let edge = 9;
+      if (onRd) for (let d = 0.5; d < 9; d += 0.25) if (onRd(sp.x + fx * d, sp.z + fz * d, 0.3)) { edge = d; break; }
+      const front = sp.kind === 'tea' ? Math.min(3.6, Math.max(1.3, edge - 1.6)) : Math.min(1.1, Math.max(0.6, edge - 0.5));
+      const cx = sp.x + fx * front, cz = sp.z + fz * front;
       for (let i = 0; i < n; i++) {
         const n0 = this.peds.length;
         this._spawn(focus);
@@ -127,7 +132,10 @@ export class Pedestrians {
         const p = this.peds[this.peds.length - 1];
         if (!p || members.includes(p)) continue;
         const a = (i / n) * Math.PI * 2 + R(), r = sp.kind === 'tea' ? 0.9 + R() * 0.4 : 0.5 + R() * 1.6;
-        const x = sp.kind === 'tea' ? cx + Math.cos(a) * r : cx + (R() - 0.5) * 3, z = sp.kind === 'tea' ? cz + Math.sin(a) * r : cz + (R() - 0.5) * 1.2;
+        // (a bus queue along the road, not across it: spread on the world's axes, people stood in a north-south road)
+        const u = (R() - 0.5) * 3, w = (R() - 0.5) * 1.2;
+        let x = sp.kind === 'tea' ? cx + Math.cos(a) * r : cx + fz * u + fx * w, z = sp.kind === 'tea' ? cz + Math.sin(a) * r : cz - fx * u + fz * w;
+        if (onRd) for (let k = 0; k < 14 && onRd(x, z, 0.2); k++) { x -= fx * 0.3; z -= fz * 0.3; }
         p.seg = null; p.cross = null;
         p.stand = { x, z, yaw: sp.kind === 'tea' ? Math.atan2(cx - x, cz - z) : sp.yaw, talk: sp.kind === 'tea' || R() < 0.3, spot: sp.key, kind: sp.kind };
         p.x = x; p.z = z; p.yaw = p.stand.yaw;
@@ -277,7 +285,10 @@ export class Pedestrians {
       // crossing the road: wait for a gap, walk straight over, carry on along the far side
       if (!p.fight && !p.flee && !p.crossing && p.seg?.cross && !p.stagger && this.R() < dt * 0.0025) {
         const X = p.seg.cross, near = (this.traffic || []).some((c) => c.state === 'drive' && c.v > 2 && Math.hypot(c.x - p.x, c.z - p.z) < 14 + c.v * 1.5);
-        if (!near) p.crossing = { x: p.x, z: p.z, nx: X.nx, nz: X.nz, len: X.len, t: 0 };
+        // (and only to a walk on the far side: the near side's walk moved across the road, a road joining over there
+        // or a one-way street's other edge had people walking along the carriageway)
+        const g = p.seg, ox = X.nx * X.len, oz = X.nz * X.len;
+        if (!near && (!this.layout.pedWalkClear || this.layout.pedWalkClear({ ax: g.ax + ox, az: g.az + oz, bx: g.bx + ox, bz: g.bz + oz }))) p.crossing = { x: p.x, z: p.z, nx: X.nx, nz: X.nz, len: X.len, t: 0 };
       }
       let yaw;
       if (p.crossing) {
