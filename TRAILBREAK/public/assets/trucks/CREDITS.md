@@ -27,3 +27,7 @@ light), and the textures resized to WebP.
 - `hummerev.glb` (GMC Hummer EV): "GMC Hummer EV 2022" by Unn Interativa,
   https://sketchfab.com/3d-models/gmc-hummer-ev-2022-b686365d37a94cbdbb3a01d169f5a0de (https://sketchfab.com/unninterativa);
   its wheels, brakes and the plates' logo taken off, the interior and the trim simplified.
+- `mule.glb` (Willys MB): "Willys Jeep UN" by Mateusz Woliński (jeandiz),
+  https://sketchfab.com/3d-models/willys-jeep-un-133bed35638e47fc8bacf12319ee369a (https://sketchfab.com/jeandiz);
+  widened 3% to the MB's real track, its static axles and drive shaft removed, its white UN paint (and markings) given
+  the game's paint, its rims darkened, the dense parts simplified.

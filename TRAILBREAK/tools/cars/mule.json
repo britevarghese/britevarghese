@@ -1,0 +1,96 @@
+{
+ "id": "mule",
+ "model": {
+  "title": "Willys Jeep UN",
+  "url": "https://sketchfab.com/3d-models/willys-jeep-un-133bed35638e47fc8bacf12319ee369a",
+  "author": "Mateusz Woliński (jeandiz)",
+  "authorUrl": "https://sketchfab.com/jeandiz",
+  "license": "CC BY 4.0"
+ },
+ "axes": {
+  "left": "-z",
+  "up": "+y",
+  "forward": "+x"
+ },
+ "wheelbase": 2.032,
+ "scaleX": 1.03,
+ "spare": null,
+ "rimFrom": "RL",
+ "materials": {
+  "0": "glass",
+  "4": "head",
+  "1": "tail",
+  "2": "amber",
+  "7": "tyre",
+  "8": "rim",
+  "9": "tyre",
+  "10": "paint",
+  "11": "paint",
+  "3": "drop"
+ },
+ "reduce": {
+  "paint": 0.6,
+  "*": 0.75
+ },
+ "texSize": 1024,
+ "layout": {
+  "bumperF": {
+   "z": 1.6,
+   "y": 0.44,
+   "w": 1.42
+  },
+  "bumperR": {
+   "z": -1.62,
+   "y": 0.43,
+   "w": 1.3
+  },
+  "spare": {
+   "x": -0.368,
+   "y": 0.896,
+   "z": -1.56,
+   "mount": "rear"
+  },
+  "frame": {
+   "x": 0.36,
+   "y": 0.47,
+   "z0": -1.55,
+   "z1": 1.5
+  },
+  "half": 0.78,
+  "sill": 0.5,
+  "roofY": 1.66,
+  "roofZ": [
+   -1.45,
+   0.24
+  ],
+  "bedZ": [
+   -1.5,
+   -0.35
+  ],
+  "ownChassis": true
+ },
+ "nodes": [
+  [
+   "Cylinder.004",
+   "spare"
+  ]
+ ],
+ "override": {
+  "8": {
+   "color": [
+    0.2,
+    0.21,
+    0.18
+   ],
+   "roughness": 0.6,
+   "metallic": 0.3
+  },
+  "9": {
+   "color": [
+    0.2,
+    0.21,
+    0.18
+   ]
+  }
+ }
+}

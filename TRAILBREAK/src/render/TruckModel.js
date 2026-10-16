@@ -230,7 +230,7 @@ function shared() {
 // ---------------------------------------------------------------- wheels (cached: shared by every wheel of that size)
 const geoCache = new Map();
 function cached(key, make) {
-  if (!geoCache.has(key)) { const g = make(); g.userData.cached = true; geoCache.set(key, g); }
+  if (!geoCache.has(key)) { const g = make(); for (const x of [].concat(g)) x.userData.cached = true; geoCache.set(key, g); }   // (one or a few)
   return geoCache.get(key);
 }
 

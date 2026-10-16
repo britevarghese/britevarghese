@@ -3,7 +3,7 @@
 // manual or automatic gearbox and a two-speed part-time transfer case (the expedition truck: portal axles and an
 // eight-speed box instead).
 //
-//   Gecko     micro 4x4 (the little Japanese and Indian jeeps)         Mule     open utility (the classic CJ)
+//   Gecko     micro 4x4 (the little Japanese and Indian jeeps)         Mule     the Willys MB, the original jeep (a real model)
 //   Ranger    compact two-door wagon (the early American wagons)       Trekker  compact pickup (the eighties' tough one)
 //   Shepherd  British utility wagon (the long-wheelbase classic)       Drover   big six-cylinder wagon (the outback one)
 //   Hauler    three-quarter-ton pickup                                  Bruiser  one-ton crew-cab turbo-diesel
@@ -86,28 +86,32 @@ export const TRUCKS = {
     style: 'hauler', look: { bed: true, leaf: 0.72 },
   },
   mule: {
-    id: 'mule', name: 'Mule',
-    blurb: 'Open utility 4x4: 83" wheelbase, 4.2 straight six, three-speed stick. Light and narrow, but tippy.',
-    mass: 1300, cgHeight: 0.7, cgZ: 0.07, inertiaBox: [1.45, 1.1, 3.1],
+    // the Willys MB (1941-1945), the jeep that went to war: 80" wheelbase, 3,360 mm long, 1,575 mm wide, 1,113 kg
+    // empty, leaf springs on beam axles at both ends, 8.75" under the diffs (a real model: render/TruckAssets.js)
+    id: 'mule', name: 'Willys MB',
+    blurb: 'Willys MB, the original jeep: 80" wheelbase, the 2.2 Go Devil four, a three-speed stick and a two-speed transfer case, leaf springs at both ends, a ton and a bit. Light, narrow and nimble; slow, and tippy on a side slope.',
+    mass: 1220, cgHeight: 0.66, cgZ: 0.06, inertiaBox: [1.45, 1.05, 3.0],
     axles: [
-      { z: 1.06, track: 1.31, springTrack: 0.82, rate: 36600, bump: 1900, rebound: 3800, travel: 0.23, sag: 0.09, mass: 70, steer: 0.6, brake: 2000, swayBar: 18000, diffDrop: 0.15, diffX: -0.18 },
-      { z: -1.06, track: 1.27, springTrack: 0.86, rate: 35800, bump: 1760, rebound: 3500, travel: 0.24, sag: 0.09, mass: 75, steer: 0, brake: 1300, handbrake: 2000, diffDrop: 0.15, diffX: -0.05 },
+      { z: 1.016, track: 1.24, springTrack: 0.74, rate: 34000, bump: 1800, rebound: 3600, travel: 0.2, sag: 0.085, mass: 65, steer: 0.6, brake: 1900, swayBar: 9000, diffDrop: 0.14, diffX: -0.18 },
+      { z: -1.016, track: 1.23, springTrack: 0.74, rate: 33000, bump: 1700, rebound: 3400, travel: 0.22, sag: 0.09, mass: 70, steer: 0, brake: 1250, handbrake: 1900, diffDrop: 0.14, diffX: -0.05 },
     ],
     trans: { tcK: 11.5 },
-    stock: { tyre: 30, axle: 3.54, trans: 1, fit: 31, low: 2.03 },
+    stock: { tyre: 28, axle: 4.88, trans: 1, fit: 30, low: 1.97 },
+    axleRatios: [4.27, 4.56, 4.88, 5.13, 5.38, 5.89],
+    stockTyre: { label: '6.00-16 NDT', radius: 0.365, width: 0.165, rim: 16, desc: 'The army\'s 6.00-16 non-directional treads on split-rim steel wheels.' },
     hull: [
-      { c: [0, 0.71, -0.13], h: [0.8, 0.29, 1.75], pts: 'bottom' },         // tub: bumpers 0.42 m up, top 1.0
-      { c: [0, 0.43, 0], h: [0.4, 0.11, 0.8], pts: 'bottom' },              // belly 0.32 m up
-      { c: [0, 1.36, -0.67], h: [0.74, 0.36, 0.95], pts: 'top' },           // roll bar and soft top, 1.72 m
+      { c: [0, 0.765, -0.01], h: [0.78, 0.325, 1.61], pts: 'bottom' },     // body: bumpers 0.44 m up, the bonnet 1.09
+      { c: [0, 0.42, 0], h: [0.36, 0.08, 0.72], pts: 'bottom' },            // belly: transfer case 0.34 m up
+      { c: [0, 1.42, 0.24], h: [0.72, 0.29, 0.1], pts: 'top' },             // the windscreen frame, 1.71 m (no roof)
     ],
-    roofY: 1.72, cabZ: 0.28, noseZ: 1.62, rackZ: -0.75,
-    intakePos: [0, 0.86, 1.2], snorkelPos: [-0.8, 1.78, 0.36],
-    winch: { fairlead: [0, 0.58, 1.68] },
-    eye: [0.32, 1.42, -0.32], hoodEye: [0, 1.25, 0.95],          // driver's eyes, the bonnet camera
-    drag: { cd: 0.62, area: 2.25 },
+    roofY: 1.71, cabZ: 0.1, noseZ: 1.6, rackZ: -0.9,
+    intakePos: [0.3, 0.92, 1.1], snorkelPos: [-0.74, 1.55, 0.36],
+    winch: { fairlead: [0, 0.52, 1.62] },
+    eye: [0.3, 1.36, -0.25], hoodEye: [0, 1.22, 0.95],          // driver's eyes, the bonnet camera
+    drag: { cd: 0.72, area: 2.0 },
     buoyancy: 0.33,
-    shafts: [5000, 6500], parts: 0.9,
-    style: 'mule', look: { top: 'canvas' },
+    shafts: [4000, 5500], parts: 0.85,
+    style: 'mule', look: { bed: true, leaf: 0.48 },
   },
   gecko: {
     id: 'gecko', name: 'Gecko',

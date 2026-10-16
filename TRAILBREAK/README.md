@@ -154,8 +154,8 @@ draws on firings recorded pulling and slowing. The banks (public/assets/audio/en
 | `v6` | Acura 3.2 V6, a mic at the exhaust while driving | Wrangler, Bronco |
 | `v8` | 1978 Cadillac 425 V8 (the top of the revs from the V6) | Ranger, Hauler, the V8 swaps |
 | `v8m` | a cammed V8 | tuned V8s, the Wrangler's 392 HEMI |
-| `i6` | Jaguar E-type 4.2 straight six | Mule, Drover |
-| `i4` | Suzuki Jimny four | Gecko, Trekker, Thar petrol |
+| `i6` | Jaguar E-type 4.2 straight six | Drover |
+| `i4` | Suzuki Jimny four | Gecko, Trekker, Willys MB, Thar petrol |
 
 On top: the starter (a motor chopped by the compression strokes, slower and heavier on a diesel; the engine turning
 over on it), the turbo on turbo engines (its whistle spools up with boost and winds down after a lift), and the gearbox
@@ -322,14 +322,14 @@ lies, go back to the last firm, dry ground you drove on, call your friends for a
 
 ## The trucks
 
-Real trucks with real 3D models (the Mahindra Thar you start in, the Jeep Wrangler Rubicon, the Ford Bronco, the Hummer
-H1, the electric GMC Hummer EV and the Land Rover Defender 110) and the original designs, each built to the real numbers of the kind of truck it is, from a one-ton micro 4x4 to a
+Real trucks with real 3D models (the Mahindra Thar you start in, the Willys MB, the Jeep Wrangler Rubicon, the Ford
+Bronco, the Hummer H1, the electric GMC Hummer EV and the Land Rover Defender 110) and the original designs, each built to the real numbers of the kind of truck it is, from a one-ton micro 4x4 to a
 six-ton portal-axle expedition truck. Every one takes every part in the garage.
 
 | Truck | Price | Kind | Wheelbase | Weight | Engine | Gearbox | Low range / axles | Stock tyres | Under the diffs | Approach / departure / breakover |
 |---|---|---|---|---|---|---|---|---|---|---|
 | Gecko | $4,500 | micro 4x4 | 2.03 m (80") | 1050 kg | 1.3 four, 101 Nm | 5-speed manual | 1.65 / 5.38 | 205/75R15 (27") | 20 cm | 41 / 31 / 32 degrees |
-| Mule | $6,500 | open utility 4x4 | 2.12 m (83") | 1300 kg | 4.2 six, 268 Nm | 3-speed manual | 2.03 / 3.54 | 30x9.5R15 | 22 cm | 46 / 30 / 35 degrees |
+| Willys MB | $6,500 | the original jeep (1941-45): leaf springs on beam axles at both ends, a fold-down windscreen and no roof | 2.03 m (80") | 1220 kg | Go Devil 2.2 four, 142 Nm | 3-speed manual | 1.97 / 4.88 | 6.00-16 NDT (28") | 21 cm | 45 / 43 / 39 degrees |
 | Trekker | $8,000 | compact pickup | 2.62 m (103") | 1480 kg | 2.4 four, 175 Nm | 5-speed manual | 2.28 / 4.10 | 31x10.5R15 | 21 cm | 31 / 27 / 29 degrees |
 | Ranger | $9,500 | compact two-door wagon | 2.34 m (92") | 1760 kg | 5.0 V8, 318 Nm | 3-speed automatic | 2.46 / 4.10 | 31x10.5R15 | 21 cm | 43 / 30 / 32 degrees |
 | Land Rover Defender 110 | $13,000 | the 110 station wagon on coils, with its bull bar and side steps | 2.79 m (110") | 2050 kg | 2.5 turbo-diesel four, 203 Nm | 5-speed manual | 2.74 / 4.10 | 31x10.5R15 | 20 cm | 42 / 28 / 28 degrees |
@@ -400,7 +400,7 @@ Every part changes the physics, the way it does on a real truck:
   and wider, so the tyre floats over sand and mud instead of digging in, and wraps over rock; on firm ground it rolls
   harder and steers vaguely. Without a compressor you can only air back up at the station.
 - **Axle gears (3.54 to 7.17), 4:1 crawl box, gearbox (seven, from a 3-speed automatic to an 8-speed truck box):** the
-  crawl ratio, from 21:1 on a stock Mule to 258:1 on a Rhino with the crawl box (walking pace at idle, and slower). The
+  crawl ratio, from 22.5:1 on a stock Drover to 258:1 on a Rhino with the crawl box (walking pace at idle, and slower). The
   manual gearboxes have no torque converter: no creep, and in low range the engine holds the truck back down steep
   hills.
 - **Differentials:** open (the wheel with the least grip gets the power), a clutch-type limited-slip rear (always on, up
@@ -480,7 +480,7 @@ and re-gearing brings it back, aired-down tyres sink less in sand, steel wheels 
 lockers only when fitted, a limited-slip diff beats an open one, a manual doesn't creep and holds the truck downhill,
 the crawler climbs a 35 degree rock slope the stock truck can't, a stock intake floods where a snorkel doesn't, tyres
 too big for the lift rub, a rock between the wheels stops the stock truck on its diff but not one on 35s, and on a
-tilt table the stock Mule lifts its wheels at about 38 degrees, a tall build at about 30.
+tilt table the stock Willys MB lifts its wheels at about 38 degrees, a tall build at about 25.
 
 ## Ashwood Valley
 
@@ -541,7 +541,8 @@ test/                     node --test suites
 
 ## Credits
 
-Truck models: the Mahindra Thar, "THAR 4X4" by MB_Mahesh; the Jeep Wrangler, "Jeep Wrangler 3D Model" by Suyog modak;
+Truck models: the Mahindra Thar, "THAR 4X4" by MB_Mahesh; the Willys MB, "Willys Jeep UN" by Mateusz Woliński
+(jeandiz); the Jeep Wrangler, "Jeep Wrangler 3D Model" by Suyog modak;
 the Ford Bronco, "Bronco Car Animation (Red)" by neshallads; the Hummer H1, "Hummer H1 (Retry School)" by Voxel_CG;
 the Land Rover Defender 110, "Land Rover Defender 110" by
 meeww; the GMC Hummer EV, "GMC Hummer EV 2022" by Unn Interativa; on Sketchfab, CC BY 4.0, see
