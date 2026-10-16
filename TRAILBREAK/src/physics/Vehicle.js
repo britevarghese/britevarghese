@@ -361,6 +361,15 @@ export class Vehicle {
     }
     if (ctrl.hold) brake = Math.max(brake, ctrl.hold);                 // brakes on without asking for reverse
     this.pedalThrottle = throttle; this.pedalBrake = brake;
+    // traction control (a modern truck's): when every driven wheel spins well past the ground, the engine is throttled
+    // back until they bite again (generous off the road: some wheel speed clears mud and snow from the tread)
+    if (this.spec.tc && throttle > 0) {
+      let slip = Infinity;
+      for (const w of this.wheels) if (w.contact && (w.index >= 2 || dtr.fourWD)) slip = Math.min(slip, w.slipSpeed ?? 0);
+      const over = slip === Infinity ? -1 : slip - (1.5 + 0.2 * Math.abs(speed));
+      this.tcCut = clamp((this.tcCut ?? 1) + (over > 0 ? -2.5 * dt * Math.min(1, over) : 1.2 * dt), 0.35, 1);
+      throttle *= this.tcCut;
+    } else this.tcCut = 1;
 
     const fa = this.axles[0];
     const maxLock = fa.spec.steer;
@@ -465,13 +474,16 @@ export class Vehicle {
       }
       bt[i] = b + (ctrl.handbrake || 0) * (ax.handbrake || 0);
     }
-    // brake-locking front differential (the Thar's BLD): in 4WD under power, a front wheel spinning away from the other
-    // is braked, so the open diff sends the torque to the wheel with grip
-    if (this.spec.diffs?.front === 'bld' && dtr.fourWD && throttle > 0.15) {
-      const dw = this.wheels[0].omega - this.wheels[1].omega, a = Math.abs(dw);
-      if (a > 4) bt[dw > 0 ? 0 : 1] += Math.min(1400, (a - 4) * 160);
-      this.bldOn = a > 4;
-    } else this.bldOn = false;
+    // brake locking (the Thar's front diff; a modern truck's traction control on both axles): under power, a wheel
+    // spinning away from the other on its axle is braked, so the open diff sends the torque to the wheel with grip
+    this.bldOn = false;
+    if (throttle > 0.15) {
+      for (const [k, on] of [[0, this.spec.bld?.front && dtr.fourWD], [2, this.spec.bld?.rear]]) {
+        if (!on) continue;
+        const dw = this.wheels[k].omega - this.wheels[k + 1].omega, a = Math.abs(dw);
+        if (a > 4) { bt[dw > 0 ? k : k + 1] += Math.min(1400, (a - 4) * 160); this.bldOn = true; }
+      }
+    }
     this._dtIn = this._dtIn || { throttle: 0, brakeTorque: bt };
     this._dtIn.throttle = throttle;
     const D = this.damage;

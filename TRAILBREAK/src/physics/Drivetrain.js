@@ -188,6 +188,10 @@ export class Drivetrain {
     // after each shift, so the box doesn't hunt between two gears
     this.thrS = (this.thrS ?? thrIn) + (thrIn - (this.thrS ?? thrIn)) * Math.min(1, dt / 0.6);
     this.sinceShift = (this.sinceShift || 0) + dt;
+    // how fast the truck gains or loses speed (a share of its speed per second, smoothed)
+    const wNow = Math.abs(this.wOut), wWas = this.wWas ?? wNow;
+    this.wWas = wNow;
+    this.aRel = (this.aRel || 0) + ((wNow - wWas) / dt / Math.max(wNow, 5) - (this.aRel || 0)) * Math.min(1, dt / 0.5);
     const thr = Math.max(this.thrS, thrIn > 0.95 ? thrIn : 0);          // floored throttle: kickdown at once
     if (this.shiftT > 0) { this.shiftT = Math.max(0, this.shiftT - dt); return; }
     if (!this.auto || this.gear <= 0) return;
@@ -213,10 +217,15 @@ export class Drivetrain {
     const up = light + (top - light) * thr;
     const down = (this.low ? 900 : 1000) + (top * 0.55 - 1000) * thr;
     const shiftTime = this.t.shiftTime * (this.manual ? 1.4 : 1);
-    if (this.gear < n && turbineRpm(this.gear) > up && groundRpm(this.gear) > up - 300) {
+    // a modern automatic (six speeds or more) reads the grade: it doesn't shift up while the truck slows under power
+    const modern = !this.manual && n >= 6, climbing = modern && thr > 0.1 && this.aRel < -0.04;
+    if (this.gear < n && turbineRpm(this.gear) > up && groundRpm(this.gear) > up - 300 && !climbing) {
       this.gear++; this.shiftT = shiftTime; this.lockupOn = false; this.sinceShift = 0;
     } else if (this.gear > this.firstGear && turbineRpm(this.gear) < down && turbineRpm(this.gear - 1) < up - 500) {
-      this.gear--; this.shiftT = shiftTime * 0.8; this.lockupOn = false; this.sinceShift = 0;
+      // (and skips straight down to the gear the speed wants)
+      let g = this.gear - 1;
+      if (modern) while (g > this.firstGear && turbineRpm(g) < down && turbineRpm(g - 1) < up - 500) g--;
+      this.gear = g; this.shiftT = shiftTime * 0.8; this.lockupOn = false; this.sinceShift = 0;
     }
   }
 

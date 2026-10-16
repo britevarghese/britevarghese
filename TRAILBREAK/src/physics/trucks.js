@@ -29,6 +29,8 @@
 //   roofY, cabZ, noseZ, rackZ, intakePos, snorkelPos   where the accessories go
 //   shafts               axle shaft strength, front and rear (N m); tyreK, tyreLoad: tyre stiffness factor and the
 //                        load its grip is rated at (heavy trucks); parts: price factor for its parts
+//   tc                   brake traction control on both axles (a modern truck's): the brakes hold back a wheel that
+//                        spins away from the other, with the diffs open
 //   look                 for the model: top ('hard', 'canvas', 'paint'), bed (a pickup), coils, portal, leaf (half
 //                        length of the leaf springs)
 
@@ -303,8 +305,36 @@ export const TRUCKS = {
     eye: [0.37, 1.48, -0.2], hoodEye: [0, 1.36, 1.0],
     drag: { cd: 0.58, area: 3.0 },
     buoyancy: 0.3,
-    shafts: [6000, 7000], parts: 1.1,
+    shafts: [6000, 7000], parts: 1.1, tc: true,
     style: 'wrangler', look: { top: 'black', coils: true },
+  },
+  bronco: {
+    // the Ford Bronco Badlands four-door with the Sasquatch package (2021-): 4,811 mm long, 1,928 mm wide, 295 mm under
+    // the rear diff
+    id: 'bronco', name: 'Ford Bronco',
+    blurb: 'Bronco Badlands four-door with the Sasquatch package: 116" wheelbase, 2.7 EcoBoost twin-turbo V6, ten-speed automatic, 35s, lockers both ends, independent front on long-travel coil-overs, a five-link rear axle.',
+    mass: 2380, cgHeight: 0.77, cgZ: 0.03, inertiaBox: [1.75, 1.35, 4.3],      // (static stability 1.12)
+    axles: [
+      { z: 1.475, track: 1.72, springTrack: 1.09, rate: 43000, bump: 2700, rebound: 5400, travel: 0.22, sag: 0.09, mass: 90, steer: 0.55, brake: 3400, swayBar: 26000, ifs: true },
+      { z: -1.475, track: 1.72, springTrack: 1.08, rate: 47000, bump: 2700, rebound: 5400, travel: 0.26, sag: 0.1, mass: 120, steer: 0, brake: 2300, handbrake: 3000, diffDrop: 0.12, diffX: 0.06 },
+    ],
+    trans: { tcK: 10 },
+    stock: { tyre: 35, axle: 4.70, trans: 11, fit: 35, low: 3.06, diffs: 3 },
+    axleRatios: [3.73, 4.27, 4.46, 4.70, 5.13, 5.38, 5.89],
+    stockTyre: { label: '315/70 R17 M/T', radius: 0.437, width: 0.315, rim: 17, desc: 'The Sasquatch package\'s 315/70 R17 mud-terrains (35"), on 17" wheels.' },
+    hull: [
+      { c: [0, 0.89, -0.075], h: [0.95, 0.35, 2.295], pts: 'bottom' },     // body: bumpers 0.54 m up, beltline 1.24
+      { c: [0, 0.5, 0], h: [0.42, 0.1, 1.0], pts: 'bottom' },               // belly: frame and transfer case 0.4 m up
+      { c: [0, 1.6, -0.85], h: [0.88, 0.36, 1.35], pts: 'top' },            // hard top, roof 1.96 m
+    ],
+    roofY: 1.96, cabZ: 0.45, noseZ: 2.25, rackZ: -0.9,
+    intakePos: [-0.55, 1.05, 1.55], snorkelPos: [-0.95, 1.9, 0.62],
+    winch: { fairlead: [0, 0.62, 2.22] },
+    eye: [0.42, 1.56, -0.25], hoodEye: [0, 1.45, 1.15],
+    drag: { cd: 0.56, area: 3.3 },
+    buoyancy: 0.3,
+    shafts: [6500, 8000], parts: 1.15, tc: true,
+    style: 'bronco', look: { top: 'paint', coils: true, alloy: true },
   },
 };
 // (the options that depend on the truck, Upgrades.optionsFor, look trucks up here)

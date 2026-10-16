@@ -1,0 +1,36 @@
+{
+ "id": "bronco",
+ "model": {
+  "title": "Bronco Car Animation (Red)",
+  "url": "https://sketchfab.com/3d-models/bronco-car-animation-red-0f5a7d85d82540ab9436527fb8bbe4f7",
+  "author": "neshallads",
+  "authorUrl": "https://sketchfab.com/neshallads",
+  "license": "CC BY 4.0"
+ },
+ "axes": { "left": "+x", "up": "+y", "forward": "+z" },
+ "wheelbase": 2.95,
+ "scaleX": 0.975,
+ "spare": null,
+ "nodes": [["polySurface1_", "spare"], ["polySurface10_", "spare"]],
+ "materials": { "0": "tyre" },
+ "rimInTyre": 0.535,
+ "byTexture": [
+  { "mat": 1, "paint": [150, 40, 38], "tol": 0.3, "glass": 0.6, "lit": 0.5 },
+  { "mat": 5, "paint": [150, 20, 20], "tol": 0.3 },
+  { "mat": 7, "lit": 0.5 }
+ ],
+ "glassAbove": 1.25,
+ "dropParts": [
+  [-0.85, 0.2, 1.2, 0.85, 1.01, 1.72, [7]],
+  [-0.85, 0.2, -1.62, 0.85, 1.0, -1.0, [7]]
+ ],
+ "texSize": 1024,
+ "layout": {
+  "bumperF": { "z": 2.2, "y": 0.52, "w": 1.81 },
+  "bumperR": { "z": -2.37, "y": 0.48, "w": 1.82 },
+  "spare": { "x": 0, "y": 1.15, "z": -2.21, "mount": "rear" },
+  "frame": { "x": 0.45, "y": 0.45, "z0": -2.1, "z1": 2.0 },
+  "sill": 0.55,
+  "ownChassis": true
+ }
+}

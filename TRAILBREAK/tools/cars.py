@@ -137,6 +137,24 @@ def split_wheels(tris, roles, cfg):
     return out
 
 
+def parts_of(tris, mats):
+    """Each triangle's connected part: triangles of one material sharing a corner (by position) are one part."""
+    key = np.c_[np.round(tris.reshape(-1, 3) * 1e4).astype(np.int64), np.repeat(mats, 3)]
+    _, vid = np.unique(key, axis=0, return_inverse=True)
+    vid = vid.reshape(-1, 3)
+    up = np.arange(vid.max() + 1)
+
+    def root(v):
+        while up[v] != v:
+            up[v] = up[up[v]]; v = up[v]
+        return v
+    for a, b, c in vid.tolist():
+        ra, rb, rc = root(a), root(b), root(c)
+        up[rb] = ra; up[rc] = ra
+    roots = np.array([root(v) for v in vid[:, 0].tolist()])
+    return np.unique(roots, return_inverse=True)[1]
+
+
 def tex_image(g, src_dir, tex_index):
     t = g['textures'][tex_index]
     src = t.get('source')
@@ -221,11 +239,41 @@ def main(src_dir, cfg_path, out_dir):
         R += [role] * len(p['tri']); MT += [p['mat']] * len(p['tri']); HASUV += [p['uv'] is not None] * len(p['tri'])
     tris, nors, uvs = np.concatenate(T), np.concatenate(N), np.concatenate(U)
     roles, mats, hasuv = np.array(R, dtype=object), np.array(MT), np.array(HASUV)
+    # a body whose paint, glass and lamps are all one textured material: told apart by the texture under each
+    # triangle (see-through: glass; glowing: a lamp, head or tail by which end; the paint's colour: paint)
+    for tm in cfg.get('byTexture', []):
+        sel = np.where(mats == tm['mat'])[0]
+        src = g['materials'][tm['mat']]
+        def sample(tex_info, mode):
+            im = np.asarray(tex_image(g, src_dir, tex_info['index']).convert(mode)).astype(np.float64) / 255.0
+            uvc = uvs[sel].mean(1)
+            px = (np.mod(uvc[:, 0], 1.0) * (im.shape[1] - 1)).round().astype(int)
+            py = (np.mod(uvc[:, 1], 1.0) * (im.shape[0] - 1)).round().astype(int)
+            return im[py, px]
+        col = sample(src['pbrMetallicRoughness']['baseColorTexture'], 'RGBA')
+        role = np.array([roles[i] for i in sel], dtype=object)
+        if 'paint' in tm:
+            near = np.linalg.norm(col[:, :3] - np.array(tm['paint']) / 255.0, axis=1) < tm.get('tol', 0.25)
+            role[near] = 'paint'
+        if 'emissiveTexture' in src and tm.get('lamps', True):
+            em = sample(src['emissiveTexture'], 'RGB')
+            lit = em.max(1) > tm.get('lit', 0.5)
+            zc = tris[sel].mean(1)[:, 2]
+            role[lit] = np.where(zc[lit] > np.median(tris.reshape(-1, 3)[:, 2]), 'head', 'tail')
+        if 'glass' in tm: role[col[:, 3] < tm['glass']] = 'glass'
+        roles[sel] = role
     if np.linalg.det(A) < 0:                                 # a mirroring axis swap turns the triangles inside out
         tris = tris[:, [0, 2, 1]]; nors = nors[:, [0, 2, 1]]; uvs = uvs[:, [0, 2, 1]]
 
     # ---- the wheels: where they are and how big, then the scale and the origin
     wl = split_wheels(tris, roles, cfg)
+    if cfg.get('rimInTyre'):
+        # a wheel modelled whole (tyre and rim one mesh): what lies within this share of the tyre's radius is its rim
+        c0 = tris.mean(1)
+        for k in ('FL', 'FR', 'RL', 'RR'):
+            sel = (wl == k) & (roles == 'tyre')
+            v = tris[sel].reshape(-1, 3); lo, hi = v.min(0), v.max(0); cc = (lo + hi) / 2
+            roles[sel & (np.hypot(c0[:, 1] - cc[1], c0[:, 2] - cc[2]) < (hi[1] - lo[1]) / 2 * cfg['rimInTyre'])] = 'rim'
     wheels = {}
     for k in ('FL', 'FR', 'RL', 'RR', 'spare'):
         sel = wl == k
@@ -263,6 +311,18 @@ def main(src_dir, cfg_path, out_dir):
         rim = {'tris': rv / rr, 'nors': nors[rim_sel], 'uvs': uvs[rim_sel], 'mats': mats[rim_sel], 'hasuv': hasuv[rim_sel], 'radius': rr, 'width': (rv[..., 0].max() - rv[..., 0].min())}
 
     keep = wl == None                                         # noqa: E711 (object array)
+    # parts to clear, each whole where it lies inside a box (design frame, after placing): [x0, y0, z0, x1, y1, z1,
+    # (materials)] (a model's static axles, springs and arms: the game draws its own, moving with the wheels)
+    if cfg.get('dropParts'):
+        part = parts_of(tris, mats)
+        n = part.max() + 1
+        plo, phi = np.full((n, 3), np.inf), np.full((n, 3), -np.inf)
+        np.minimum.at(plo, part, tris.min(1)); np.maximum.at(phi, part, tris.max(1))
+        pmat = np.zeros(n, dtype=np.int64); pmat[part] = mats
+        for b in cfg['dropParts']:
+            inb = np.all((plo >= np.array(b[:3])) & (phi <= np.array(b[3:6])), axis=1)
+            if len(b) > 6: inb &= np.isin(pmat, b[6])
+            keep &= ~inb[part]
     for r in cfg.get('keepWheels', []): keep |= wl == r       # (e.g. a spare to leave on its carrier)
     tris, nors, uvs, roles, mats, hasuv = tris[keep], nors[keep], uvs[keep], roles[keep], mats[keep], hasuv[keep]
 
@@ -270,6 +330,10 @@ def main(src_dir, cfg_path, out_dir):
     c = tris.mean(1)
     fn = np.cross(tris[:, 1] - tris[:, 0], tris[:, 2] - tris[:, 0])
     fn /= np.linalg.norm(fn, axis=1, keepdims=True) + 1e-12
+    if 'glassAbove' in cfg:
+        # (see-through below the windows: the lamps' lenses, head lamps in front and tail lamps behind)
+        low = (roles == 'glass') & (c[:, 1] < cfg['glassAbove'])
+        roles[low] = np.where(c[low, 2] > 0, 'head', 'tail')
     gl = roles == 'glass'
     ws = gl & (np.abs(fn[:, 2]) > cfg.get('screenNormal', 0.5)) & (c[:, 2] > cfg.get('screenZ', 0.0))
     roles[ws] = 'screen'

@@ -2,6 +2,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { Vehicle, PHYS_DT, GRAVITY } from '../src/physics/Vehicle.js';
+import { Drivetrain } from '../src/physics/Drivetrain.js';
 import { TRUCKS, truckSpec } from '../src/physics/trucks.js';
 import { SURFACE } from '../src/physics/Surfaces.js';
 import { flat, slope, soft, slopeWithIce, ledge } from './grounds.mjs';
@@ -129,6 +130,73 @@ test('open diffs: with a diagonal pair of tyres on ice the truck goes nowhere; l
     run(v, g, 3, { ...IDLE, throttle: 0.7 });
     assert.ok(v.pos.z - z0 > 0.6, `lockers moved it ${(v.pos.z - z0).toFixed(2)} m`);
   }
+});
+
+test('brake traction control: on the same cross-axle ice a modern truck, its lockers off, climbs on its brakes', () => {
+  const S = truckSpec('bronco'), half = S.axles[0].track / 2, zf = S.axles[0].z - S.cgZ, zr = S.axles[1].z - S.cgZ;
+  const g = slopeWithIce(12, [[half - 0.45, zr + 1.0, half + 0.45, 99], [-half - 0.45, -99, -half + 0.45, zf - 1.0]]);
+  const go = (spec) => {
+    const v = new Vehicle(spec);
+    v.place(g, 0, 0, 0);
+    v.dt.setFourWD(true, 0); v.dt.setRange(true, 0);
+    manual(v, 1);
+    run(v, g, 1, { ...IDLE, brake: 1 });
+    assert.equal(v.wheels[0].surf.name, 'ice');
+    assert.equal(v.wheels[3].surf.name, 'ice');
+    assert.ok(!v.dt.lockFront && !v.dt.lockRear, 'lockers off');
+    const z0 = v.pos.z;
+    run(v, g, 3, { ...IDLE, throttle: 0.7 });
+    return v.pos.z - z0;
+  };
+  const without = go({ ...S, tc: false, bld: { front: false, rear: false } }), withTc = go(S);
+  assert.ok(without < 0.1, `open diffs alone moved it ${without.toFixed(2)} m`);
+  assert.ok(withTc > 0.6, `braking the spinning wheels moved it ${withTc.toFixed(2)} m`);
+});
+
+test('traction control: flat out up a snowy slope the tyres spin far less, and the truck climbs as well', () => {
+  const g = slope(8, SURFACE.SNOW);
+  const go = (spec) => {
+    const v = new Vehicle(spec);
+    v.place(g, 0, 0, 0);
+    v.dt.setFourWD(true, 0);
+    run(v, g, 1, { ...IDLE, handbrake: 1 });
+    const z0 = v.pos.z;
+    let slip = 0;
+    run(v, g, 2, { ...IDLE, throttle: 1 });
+    run(v, g, 2, (vv) => { slip += vv.wheels.reduce((s, w) => s + w.slipSpeed, 0) / 4; return { ...IDLE, throttle: 1 }; });
+    return { climbed: v.pos.z - z0, slip: slip / Math.round(2 / PHYS_DT) };
+  };
+  const S = truckSpec('bronco'), off = go({ ...S, tc: false, bld: { front: false, rear: false } }), on = go(S);
+  assert.ok(on.slip < off.slip * 0.5, `wheelspin ${on.slip.toFixed(1)} m/s with it, ${off.slip.toFixed(1)} without`);
+  assert.ok(on.climbed > off.climbed * 0.9, `climbed ${on.climbed.toFixed(1)} m with it, ${off.climbed.toFixed(1)} without`);
+});
+
+test('a modern automatic kicks straight down to the gear it needs and holds its gear on a climb; an older one steps', () => {
+  const box = (id) => { const s = truckSpec(id); return new Drivetrain(s.engine, s.trans, s.diffs); };
+  // flat out at a crawl in low range in a tall gear: the ten-speed drops to first at once, the five-speed one gear
+  const ten = box('bronco'), five = box('wrangler');
+  for (const d of [ten, five]) {
+    d.setRange(true, 0); d.shiftT = 0;
+    d.gear = d.t.gears.length - 2; d.sinceShift = 5; d.wOut = 25;
+    d.autoShift(PHYS_DT, 1, null);
+  }
+  assert.equal(ten.gear, 1, 'the ten-speed in first');
+  assert.equal(five.gear, 2, 'the five-speed one gear down');
+  // part throttle, the revs high enough to shift up, while a climb slows the truck: the ten-speed holds third
+  const climb = (d, slowing) => {
+    d.gear = 3; d.wOut = 4000 / (d.t.gears[2] * 30 / Math.PI);
+    for (let i = 0; i < Math.round(1 / PHYS_DT); i++) {
+      d.sinceShift = 0;
+      if (slowing) d.wOut *= 1 - 0.12 * PHYS_DT;
+      d.autoShift(PHYS_DT, 0.3, null);
+    }
+    d.sinceShift = 5;
+    d.autoShift(PHYS_DT, 0.3, null);
+    return d.gear;
+  };
+  assert.equal(climb(box('bronco'), true), 3, 'holds third as the climb slows it');
+  assert.equal(climb(box('bronco'), false), 4, 'shifts up at a steady speed');
+  assert.equal(climb(box('wrangler'), true), 4, 'the five-speed shifts up anyway');
 });
 
 test('a tyre climbs a rock ledge a third of its height', () => {
