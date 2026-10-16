@@ -746,15 +746,16 @@ export class KeralaTile {
       E.push({ r, hw, P, at, raw: P.map(([e, n]) => rawAt(e, n)), water, across, over: cross.length > 0, cross });
     }
     yield 'grade:cross';
-    // two roads crossing in the map without a shared point (neither a bridge): a junction all the same, one level
+    // two roads crossing in the map without a shared point: a junction all the same, one level. A bridge's too: raised
+    // there, it isn't one (see the junctions below); left on the ground (no room for its ramps), it crosses the other
+    // road at its level - left out, a highway mapped as a bridge crossed a street 0.24 m above it
     {
       const SG = new Map(), gk = (e, n) => Math.floor(e / 40) * 100000 + Math.floor(n / 40);
-      E.forEach((x, xi) => { if (x.over || x.r.flags & 2) return; for (let i = 1; i < x.P.length; i++) { const k = gk(...x.P[i]); if (!SG.has(k)) SG.set(k, []); SG.get(k).push(xi, i); } });
+      E.forEach((x, xi) => { for (let i = 1; i < x.P.length; i++) { const k = gk(...x.P[i]); if (!SG.has(k)) SG.set(k, []); SG.get(k).push(xi, i); } });
       const o = (p, q, s2) => (q[0] - p[0]) * (s2[1] - p[1]) - (q[1] - p[1]) * (s2[0] - p[0]), seen = new Set();
       for (let xi = 0; xi < E.length; xi++) {
         if (this._due()) { yield 'grade:cross+'; this._ys = performance.now(); }
         const x = E[xi];
-        if (x.over || x.r.flags & 2) continue;
         for (let i = 1; i < x.P.length; i++) {
           const a = x.P[i - 1], b = x.P[i], ge = Math.floor(b[0] / 40), gn = Math.floor(b[1] / 40);
           for (let A = -1; A <= 1; A++) for (let B = -1; B <= 1; B++) {
@@ -942,7 +943,7 @@ export class KeralaTile {
       const wet = water.map((w, i) => w || over[i]);
       const cls = Math.min(...ch.map(([ei]) => E[ei].r.cls)), raised = new Uint8Array(P.length);
       if (wet.some(Boolean)) {
-        const want = new Array(P.length).fill(-Infinity);
+        const want = new Array(P.length).fill(-Infinity), river = new Uint8Array(P.length);
         let bigSpan = false;
         for (let i = 0; i < P.length;) {
           if (!wet[i]) { i++; continue; }
@@ -978,6 +979,7 @@ export class KeralaTile {
           // (a main road's bridge over a river clears the water by a boat's height)
           const lift = span < 32 ? 0.3 : cls <= 3 ? 2.5 : cls <= 5 ? 2 : 1.5, clear = span < 32 ? 0.6 : span >= 80 && cls <= 3 ? 6 : 2;
           if (span >= 32 || over[i]) bigSpan = true;
+          if (span >= 32) for (let k = i; k <= j; k++) river[k] = 1;
           // (a hill stream or pond lies below its banks: the coarse survey can put its level well above them)
           // (but a river 60 m and more across is drawn at its surveyed level: the bridge clears that)
           const wy = (k) => { const y = this._waterY(P[k][0], P[k][1]); return Number.isFinite(bank) && span < 60 && this._h0At(P[k][0], P[k][1]) >= INLAND ? Math.min(y, bank - 0.3) : y; };
@@ -1003,8 +1005,9 @@ export class KeralaTile {
         const ex = want.map((w, i) => w - prof[i]), rk = bigSpan ? 0.07 : 0.04;
         for (let i = 1; i < P.length; i++) ex[i] = Math.max(ex[i], ex[i - 1] - (D[i] - D[i - 1]) * rk);
         for (let i = P.length - 2; i >= 0; i--) ex[i] = Math.max(ex[i], ex[i + 1] - (D[i + 1] - D[i]) * rk);
-        // (a bridge over water running off the edge: the neighbour sees the water too)
-        const held = [...atEdge, ...[0, P.length - 1].filter((i) => edge[i] < 1.5 && water[i])];
+        // (a bridge over a river running off the edge: the neighbour sees the water too. Not a canal's: a stream along
+        // the edge one tile saw and the other didn't, the road met its other half 0.72 m lower there)
+        const held = [...atEdge, ...[0, P.length - 1].filter((i) => edge[i] < 1.5 && water[i] && river[i])];
         for (let i = 0; i < P.length; i++) if (!held.some((a) => Math.abs(D[a] - D[i]) < 200)) ex[i] = Math.min(ex[i], edge[i] * rk);
         // a ramp is back on the ground where it crosses another road's carriageway (held up, it was a slab across the
         // street from nowhere); from there it may climb more steeply (12 %) to the span. The span itself as it is
@@ -1172,13 +1175,13 @@ export class KeralaTile {
       // (at the other road's own level where the edge is reached, not the junction point's: a side road meeting a
       // highway at a slant, the highway falling 6 % past the junction, met its edge 0.26 m above it)
       const atD = (d, A = prof) => { let k = 1; while (k < D.length - 1 && D[k] < d) k++; const t = Math.max(0, Math.min(1, (d - D[k - 1]) / ((D[k] - D[k - 1]) || 1))); return Array.isArray(A[0]) ? [A[k - 1][0] + (A[k][0] - A[k - 1][0]) * t, A[k - 1][1] + (A[k][1] - A[k - 1][1]) * t] : A[k - 1] + (A[k] - A[k - 1]) * t; };
-      const levelOn = (Y, [e, n]) => {
+      const levelOn = (Y, [e, n], reach = Y.hw + 1.5) => {
         let bd = Infinity, y = null;
         for (let k = 1; k < Y.P.length; k++) {
           const a = Y.P[k - 1], b = Y.P[k], de = b[0] - a[0], dn = b[1] - a[1], u = Math.max(0, Math.min(1, ((e - a[0]) * de + (n - a[1]) * dn) / (de * de + dn * dn || 1)));
           const dd = Math.hypot(a[0] + de * u - e, a[1] + dn * u - n); if (dd < bd) { bd = dd; y = Y.prof[k - 1] + (Y.prof[k] - Y.prof[k - 1]) * u; }
         }
-        return bd < Y.hw + 1.5 ? y : null;
+        return bd < reach ? y : null;
       };
       // (a road passing through a junction of its own kind: only so far towards the next junction along that the
       // climb between them is no more than 2 % steeper for it. Two T junctions 7 m apart and 0.64 m different, a
@@ -1186,14 +1189,15 @@ export class KeralaTile {
       // J's first nj entries. Not a side road meeting a main road: its edge is what matters there)
       const flats = [];
       let nj = 0;
-      // (along a fork - another road leaving the junction close beside this one - as far as the two overlap, and flat
-      // there: the other branch is held level over the same stretch. Each on its own grade, two branches 30 degrees
-      // apart were 0.17 m different where their carriageways still overlapped 8 m out)
+      // (along a fork - another road leaving the junction close beside this one - as far as the two overlap, at the
+      // other branch's level there: each on its own grade, two branches 30 degrees apart were 0.17 m different where
+      // their carriageways still overlapped 8 m out. Following its slope: held flat, a lane forking off a highway that
+      // falls 10 % there stood 1 m above it, still on its carriageway)
       const flat = (d0, yJ, w, Y, lim, fk) => {
         for (const sg of [-1, 1]) {
-          const f = fk?.[sg > 0 ? 1 : 0] || 0, fork = f > w;
+          const f = fk?.[sg > 0 ? 1 : 0], fork = !!f && f.L > w;
           // (a short link between two carriageways isn't all plateau and cliff)
-          let dd = Math.min(fork ? f : w, D[D.length - 1] / 4);
+          let dd = Math.min(fork ? f.L : w, D[D.length - 1] / 4);
           if (lim) for (let q = 0; q < nj; q++) {
             const g = (J[q][0] - d0) * sg; if (g < 0.5) continue;
             const dy = Math.abs(atD(J[q][0]) + J[q][1] - yJ); dd = Math.min(dd, (g - dy / (dy / g + 0.02)) / 2);
@@ -1201,7 +1205,8 @@ export class KeralaTile {
           const d = d0 + sg * dd; if (dd < 0.5 || d <= 0.5 || d >= D[D.length - 1] - 0.5) continue;
           // (the other road's slope there, from the junction's level: its own correction to that level is the same
           // a few metres either side, whether it is graded yet or not)
-          const y1 = Y && !fork ? levelOn(Y, atD(d, P)) : null, y0 = Y && !fork ? levelOn(Y, atD(d0, P)) : null;
+          const YY = fork ? f.Y : Y, rr = fork ? f.reach : undefined;
+          const y1 = YY ? levelOn(YY, atD(d, P), rr) : null, y0 = YY ? levelOn(YY, atD(d0, P), rr) : null;
           const yE = y1 != null && y0 != null ? yJ + y1 - y0 : null, dy = (yE ?? yJ) - atD(d); J.push([d, dy, fade(dy)]);
         }
       };
@@ -1265,7 +1270,8 @@ export class KeralaTile {
                   const vx = b[0] - X.P[p][0], vz = b[1] - X.P[p][1], c = (ux * vx + uz * vz) / ul / (Math.hypot(vx, vz) || 1);
                   if (c < 0.5) continue;   // (more than 60 degrees apart)
                   const L = Math.min(16, (R.hw + X.hw) / Math.sqrt(Math.max(1e-4, 1 - c * c))), side = sg > 0 ? 1 : 0;
-                  (fk ||= [0, 0])[side] = Math.max(fk[side], L);
+                  fk ||= [null, null];
+                  if (!fk[side] || L > fk[side].L) fk[side] = { L, Y: X.R, reach: R.hw + X.hw + 2 };
                 }
               }
             }

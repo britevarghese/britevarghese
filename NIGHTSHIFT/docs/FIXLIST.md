@@ -370,6 +370,21 @@ the game. Newly found problems go at the end of their section.
   meet the approach now, level across it along its slope (no road can pass under a ramp less than 3.5 m up: a road
   ending on one climbs to it, not left 1.7 m below its side). Thalassery's worst junction step 20 -> 19 cm, the
   5.7 m one gone; Kannur, Iritty unchanged; tile edges still meet exactly
+- [x] Scanned Thalassery, Mattannur and all of Iritty with every tile round them built (the road scan, and the check
+  that roads meet across tile edges, had been reading tiles still being built, or not loaded at all), and fixed:
+  - a canal bridge running off a tile's edge was held up at the edge (as a river bridge is: the neighbour sees the
+    river too) where the neighbour didn't see the canal - the road met its other half 0.72 m lower. Only a river's
+    bridge is held up at the edge now
+  - a road's lane running over the tile's edge (a road meeting the edge at a slant) stood on the next tile's ground,
+    0.13 m under the road: the road's surface counts there too, where the next tile has no road of its own
+  - a highway mapped as a bridge, left on the ground (no room for its ramps), crossed a street at the street's own
+    level, not as a junction: 0.24 m apart where the street left its carriageway. Crossings of such bridges are
+    junctions now; one raised over the other still isn't
+  - a lane forking off a highway that falls 10 % there was held flat beside it (the fork rule above) and stood 1 m
+    over it while still on its carriageway: a fork follows the other road's slope now
+  Worst steps: Kannur 13, Iritty 37 (a lane climbing 3.9 m in 21 m from the highway up to a road on the hillside,
+  the junctions at its two ends leaving it little room; was 52), Thalassery 14, Mattannur 10 cm. All tile edges
+  across the four towns meet exactly
 
 ## Story
 - [x] The story begins like GTA's: a prologue, 'The Kayal Job', starts on a new game in Kerala (Esc skips a scene;

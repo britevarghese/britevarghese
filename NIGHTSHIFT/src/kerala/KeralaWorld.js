@@ -438,7 +438,7 @@ export class KeralaWorld {
     if (!t) return this._lastH ?? 0;
     const e = -x - t.E0, n = z - t.N0;
     let h = t.heightAt(e, n);
-    if (t.ready) { const cb = t.canalBedAt(e, n); if (cb > -1e9) h = cb; h = Math.max(h, t.roadSurface(e, n, y)); }   // (in a canal: down to its bed)
+    if (t.ready) { const cb = t.canalBedAt(e, n); if (cb > -1e9) h = cb; h = Math.max(h, t.roadSurface(e, n, y), this._edgeRoadY(t, x, z, y, e, n)); }   // (in a canal: down to its bed)
     this._lastH = h;
     return t._bg ? h + t.bumpAt(x, z) : h;
   }
@@ -462,6 +462,26 @@ export class KeralaWorld {
       if (o?.ready && !out.includes(o)) out.push(o);
     }
     return out;
+  }
+
+  // the carriageway of a road of the next tile's over the edge at (x, z) (its strip runs on a little past the edge, and
+  // a road along the edge has its lane over the line): -Infinity where there's none. A lane ending on a road that met
+  // the edge at a slant ran 3.7 m on the next tile's ground, 0.13 m under the road
+  // (only off this tile's own roads: on one, its surface rules as within the tile - a side road of the next tile's
+  // stood 0.2 m up on a main road's lane by the edge)
+  _edgeRoadY(t, x, z, y, e, n, m = 8) {
+    const de = e < m ? -1 : e > TILE - m ? 1 : 0, dn = n < m ? -1 : n > TILE - m ? 1 : 0;
+    if ((!de && !dn) || t.onRoad(e, n, 0)) return -Infinity;
+    let best = -Infinity;
+    for (let q = 0; q < 3; q++) {
+      const a = q === 1 ? 0 : de, b = q === 0 ? 0 : dn;
+      if ((!a && !b) || (q === 2 && (!a || !b))) continue;
+      const o = this.tiles.get(this.key(t.tx + a, t.tz + b));
+      if (!o?.ready) continue;
+      const eo = -x - o.E0, no = z - o.N0;
+      if (o.onRoad(eo, no, 0)) best = Math.max(best, o.roadSurface(eo, no, y));
+    }
+    return best;
   }
 
   // open country (paddy, groves, forest, sand) rather than a road or a town street
