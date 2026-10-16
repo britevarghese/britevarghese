@@ -34,7 +34,7 @@
 //   look                 for the model: top ('hard', 'canvas', 'paint'), bed (a pickup), coils, portal, leaf (half
 //                        length of the leaf springs)
 
-import { buildSpec, decodeBuild, normalizeBuild, encodeBuild, TRUCK_BASES } from './Upgrades.js';
+import { buildSpec, decodeBuild, normalizeBuild, encodeBuild, TRUCK_BASES, EV_TRANS } from './Upgrades.js';
 
 export const TRUCKS = {
   ranger: {
@@ -363,6 +363,39 @@ export const TRUCKS = {
     buoyancy: 0.28,
     shafts: [9000, 11000], tyreK: 1.4, tyreLoad: 9000, parts: 1.5, tc: true,
     style: 'hummer', look: { top: 'paint', coils: true },
+  },
+  hummerev: {
+    // the GMC Hummer EV pickup, Edition 1 (2022): 3,445 mm wheelbase, 5,507 mm long, 2,202 mm wide, four tons and a
+    // bit (1,326 kg of it the battery, low in the floor), three motors and four-wheel independent suspension on air
+    // springs (here at its raised Terrain height), front and rear e-lockers, 35-inch mud-terrains
+    id: 'hummerev', name: 'GMC Hummer EV',
+    blurb: 'GMC Hummer EV Edition 1: the electric supertruck. 136" wheelbase, three motors and 1,000 hp, all of its torque from a standstill, e-lockers at both ends, air suspension, 35s. Four tons, silent, very quick.',
+    mass: 4110, cgHeight: 0.8, cgZ: 0, inertiaBox: [2.0, 1.25, 4.8],
+    axles: [
+      { z: 1.7225, track: 1.87, springTrack: 1.32, rate: 88000, bump: 4700, rebound: 9400, travel: 0.25, sag: 0.1, mass: 145, steer: 0.55, brake: 7600, swayBar: 30000, ifs: true, armDrop: 0.08 },
+      { z: -1.7225, track: 1.87, springTrack: 1.32, rate: 90000, bump: 4700, rebound: 9400, travel: 0.25, sag: 0.1, mass: 145, steer: 0, brake: 5800, handbrake: 6400, ifs: true, armDrop: 0.08 },
+    ],
+    trans: { tcK: 8, efficiency: 0.94 },
+    stock: { tyre: 35, tread: 1, axle: 12.5, trans: EV_TRANS, fit: 37, low: 1, diffs: 3, wheels: 0, psi: 40 },
+    axleRatios: [12.5],
+    // (what an electric truck can't swap: its reduction gears and gearbox, a low range it hasn't got, an air intake it
+    // doesn't need)
+    only: { gears: [0], trans: [EV_TRANS], tcase: [0], intake: [0] },
+    stockTyre: { label: 'LT315/70 R17 M/T', radius: 0.437, width: 0.315, rim: 17, desc: 'The Edition 1\'s 35-inch Goodyear Wrangler Territory mud-terrains on 17" beadlock-capable wheels.' },
+    hull: [
+      { c: [0, 1.06, -0.15], h: [1.1, 0.36, 2.76], pts: 'bottom' },        // body: the front and rear ends 0.70 m up, beltline 1.42
+      { c: [0, 0.43, 0], h: [0.6, 0.1, 1.5], pts: 'bottom' },              // belly: the battery's skid plate, 0.33 m up
+      { c: [0, 1.71, -0.15], h: [1.0, 0.28, 1.05], pts: 'top' },          // the crew cab under the removable roof panels, 1.99 m
+    ],
+    roofY: 1.935, cabZ: -0.15, noseZ: 2.6, rackZ: -1.95,
+    // (no air intake: the drive units and the battery are sealed to 32 inches of water)
+    intakePos: [0.6, 0.89, 1.6], snorkelPos: [0.6, 0.89, 1.6],
+    winch: { fairlead: [0, 0.72, 2.58] },
+    eye: [0.42, 1.6, -0.1], hoodEye: [0, 1.52, 1.25],
+    drag: { cd: 0.5, area: 3.9 },
+    buoyancy: 0.22,
+    shafts: [11000, 13000], tyreK: 1.5, tyreLoad: 10000, parts: 1.6, tc: true,
+    style: 'hummerev', look: { top: 'paint', coils: true, bed: true },
   },
 };
 // (the options that depend on the truck, Upgrades.optionsFor, look trucks up here)

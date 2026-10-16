@@ -129,6 +129,54 @@ class GrainVoice {
   }
 }
 
+/**
+ * An electric truck: no engine to hear, the motors and their inverters. A whine that climbs with the motor speed (the
+ * motor's own tone and two higher partials, the reduction gears meshing), louder pulling or regenerating; the
+ * inverter's high hiss pulling hard; and the soft hum it plays at walking pace (its pedestrian warning: a low synth
+ * chord that fades out by 30 km/h).
+ */
+class ElectricVoice {
+  constructor(audio, out) {
+    const ctx = audio.ctx;
+    this.ctx = ctx; this.electric = true;
+    this.out = ctx.createGain(); this.out.gain.value = 0; this.out.connect(out);
+    this.oscs = [];
+    const osc = (type, f, dest) => { const o = ctx.createOscillator(); o.type = type; o.frequency.value = f; const g = ctx.createGain(); g.gain.value = 0; o.connect(g).connect(dest); o.start(); this.oscs.push(o); return { o, g }; };
+    this.m1 = osc('sine', 100, this.out);
+    this.m2 = osc('sine', 260, this.out);
+    this.f3 = ctx.createBiquadFilter(); this.f3.type = 'bandpass'; this.f3.frequency.value = 1500; this.f3.Q.value = 3; this.f3.connect(this.out);
+    this.m3 = osc('triangle', 600, this.f3);
+    this.hiss = noiseVoice(ctx, audio.white, this.out, 'bandpass', 5200, 2.5);
+    this.hf = ctx.createBiquadFilter(); this.hf.type = 'lowpass'; this.hf.frequency.value = 260; this.hf.Q.value = 1.2; this.hf.connect(this.out);
+    this.h1 = osc('sawtooth', 55, this.hf);
+    this.h2 = osc('sawtooth', 82.5, this.hf);
+  }
+
+  /** rpm: the motors' speed; load 0..1 (pulling, or regenerating); speed m/s; vol 0..1. */
+  drive(rpm, load, speed, vol) {
+    const t = this.ctx.currentTime, r = Math.abs(rpm), spin = clamp(r / 2500, 0, 1), L = clamp(load, 0, 1);
+    glide(this.m1.o.frequency, 30 + r * 0.075, t, 0.03);
+    glide(this.m2.o.frequency, 30 + r * 0.19, t, 0.03);
+    glide(this.m3.o.frequency, 40 + r * 0.42, t, 0.03);
+    glide(this.f3.frequency, 220 + r * 0.42, t, 0.05);
+    glide(this.m1.g.gain, spin * (0.08 + 0.2 * L), t, 0.06);
+    glide(this.m2.g.gain, spin * (0.035 + 0.085 * L), t, 0.06);
+    glide(this.m3.g.gain, spin * 0.14 * L, t, 0.06);
+    glide(this.hiss.g.gain, 0.03 * L * spin, t, 0.06);
+    const slow = clamp(1 - speed / 8.3, 0, 1);
+    glide(this.h1.g.gain, 0.08 * slow * (0.45 + 0.55 * Math.min(1, speed / 1.5 + L)), t, 0.1);
+    glide(this.h2.g.gain, 0.05 * slow * (0.45 + 0.55 * Math.min(1, speed / 1.5 + L)), t, 0.1);
+    glide(this.h1.o.frequency, 55 + speed * 7, t, 0.1); glide(this.h2.o.frequency, 82.5 + speed * 10.5, t, 0.1);
+    glide(this.out.gain, vol, t, 0.1);
+  }
+
+  stop() {
+    const t = this.ctx.currentTime;
+    glide(this.out.gain, 0, t, 0.05);
+    setTimeout(() => { try { for (const o of this.oscs) o.stop(); this.hiss.src.stop(); this.out.disconnect(); } catch { /* gone */ } }, 500);
+  }
+}
+
 /** A looping noise through a filter, with a gain. */
 function noiseVoice(ctx, buf, out, type, freq, q = 0.8) {
   const src = ctx.createBufferSource(); src.buffer = buf; src.loop = true;
@@ -281,6 +329,7 @@ export class Audio {
 
   /** The engine voice for a truck: its bank through the grain engine, else the loops. */
   async makeVoice(spec, out) {
+    if (spec.engine?.electric) return new ElectricVoice(this, out);
     if (spec.engineBank && await this.grainsReady) {
       const bank = await this.loadBank(spec.engineBank).catch((e) => { console.warn('engine bank', spec.engineBank, e); return null; });
       if (bank) return new GrainVoice(this, bank, out, { idle: spec.engine.idleRpm, pitch: spec.bankPitch || 1 });
@@ -303,7 +352,9 @@ export class Audio {
   /** Feed an engine voice: grain voices take the revs as they are, loops a 0..1 share of the range. */
   driveVoice(voice, spec, rpm, thr, vol) {
     const e = spec.engine;
-    if (voice.grain) voice.drive(rpm, e.idleRpm, e.redline, thr, vol);
+    // (an electric truck: its speed from the motors' through the reduction)
+    if (voice.electric) voice.drive(rpm, thr, Math.abs(rpm) * Math.PI / 30 / (spec.trans.axle * (spec.trans.gears[0] || 1)) * spec.tyre.radius, vol);
+    else if (voice.grain) voice.drive(rpm, e.idleRpm, e.redline, thr, vol);
     else voice.drive((rpm - e.idleRpm) / (e.redline - e.idleRpm), Math.max(thr, 0.05), vol);
   }
 
@@ -369,8 +420,8 @@ export class Audio {
       // the load the engine sounds under: the throttle, and how hard it is pulling (or being pulled: overrun)
       const dtr = v.dt, e = dtr.e;
       const peak = e._peak || (e._peak = e.torque.reduce((m, q) => Math.max(m, q[1]), 1));
-      const pull = clamp(dtr.engineTorque / peak, 0, 1);
-      this.loadS = (this.loadS ?? 0) + ((0.65 * dtr.throttle + 0.35 * pull) - (this.loadS ?? 0)) * Math.min(1, dt * 8);
+      const pull = clamp(dtr.engineTorque / peak, 0, 1), regen = dtr.electric ? clamp(-dtr.engineTorque / peak, 0, 1) * 2.5 : 0;
+      this.loadS = (this.loadS ?? 0) + ((0.65 * dtr.throttle + 0.35 * pull + regen) - (this.loadS ?? 0)) * Math.min(1, dt * 8);
       // cranking: the engine turns over on the starter (its firings come slow and soft: compression, no bang)
       const cranking = dtr.crankT > 0;
       if (this.engine) this.driveVoice(this.engine, this.engineSpec || v.spec, cranking ? Math.max(dtr.rpm, 150) : dtr.rpm, cranking ? 0.15 : this.loadS, dtr.running ? 0.95 : cranking ? 0.32 : 0);

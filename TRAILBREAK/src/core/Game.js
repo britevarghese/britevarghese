@@ -616,7 +616,8 @@ export class Game {
     if (I.consume('camera')) this.hud.hint(`Camera: ${this.cam.next()}`, 1.2);
     if (I.consume('lights')) { this.lightsOn = !this.lightsOn; this.hud.hint(this.lightsOn ? 'Headlights on' : 'Headlights off', 1.2); }
     if (I.consume('range')) {
-      if (d.setRange(!d.low, sp)) this.hud.hint(d.low ? 'Transfer case: LOW range' : 'Transfer case: HIGH range');
+      if (!(d.t.low > 1)) this.hud.hint(d.electric ? 'No low range: the motors crawl as slowly as you like' : 'No low range on this transfer case');
+      else if (d.setRange(!d.low, sp)) this.hud.hint(d.low ? 'Transfer case: LOW range' : 'Transfer case: HIGH range');
       else this.hud.hint('Stop (or nearly) to change range');
     }
     if (I.consume('4wd')) {
@@ -639,7 +640,10 @@ export class Game {
     if (I.consume('air')) this.cyclePressure();
     if (I.consume('garage')) this.openGarage();
     if (I.consume('sway')) { v.swayDisconnected = !v.swayDisconnected; this.hud.hint(v.swayDisconnected ? 'Front anti-roll bar disconnected: more articulation, more lean' : 'Anti-roll bar connected'); }
-    if (I.consume('gearMode')) { d.auto = !d.auto; if (!d.auto && d.gear <= 0) d.selectGear(1, sp); this.hud.hint(d.auto ? 'Automatic' : 'Manual: Shift up, Ctrl down'); }
+    if (I.consume('gearMode')) {
+      if (d.direct) this.hud.hint('One gear: nothing to shift');
+      else { d.auto = !d.auto; if (!d.auto && d.gear <= 0) d.selectGear(1, sp); this.hud.hint(d.auto ? 'Automatic' : 'Manual: Shift up, Ctrl down'); }
+    }
     if (!d.auto) {
       if (I.consume('shiftUp')) d.selectGear(d.gear + 1 > d.t.gears.length ? d.gear : d.gear + 1, sp);
       if (I.consume('shiftDown')) { if (!d.selectGear(d.gear - 1, sp)) this.hud.hint('Stop to select reverse'); }
@@ -1137,7 +1141,7 @@ export class Game {
     v.airSupply = this.nearGarage(26) || (this.stationSpot && Math.hypot(v.pos.x - this.stationSpot.x, v.pos.z - this.stationSpot.z) < 22);
     const wasFlooded = v.flooded, wasRunning = v.dt.running;
     if (!v.dt.running && !v.flooded && v.dt.crankT <= 0 && c.throttle > 0.5) {
-      if (v.damage.seized) { if ((this.seizedHintT = (this.seizedHintT || 0) - dt) <= 0) { this.hud.hint('The engine is seized: it needs a tow to the station', 3); this.seizedHintT = 3; } } else { v.dt.start(); this.hud.hint('Starting the engine', 1.2); }
+      if (v.damage.seized) { if ((this.seizedHintT = (this.seizedHintT || 0) - dt) <= 0) { this.hud.hint('The engine is seized: it needs a tow to the station', 3); this.seizedHintT = 3; } } else { v.dt.start(); this.hud.hint(v.dt.electric ? 'Ready to drive' : 'Starting the engine', 1.2); }
     }
     this.events.control(c);
     this.carry = simulate(v, c, this.world, dt, this.carry);
@@ -1146,7 +1150,9 @@ export class Game {
       this.hud.toast(this.spec.snorkel ? 'Water over the snorkel: the engine has stopped' : 'Water in the air intake: the engine has stopped. Get it out of the water (winch!)', true, 6);
       this.audio.stall?.();
     }
-    if (v.dt.running && !wasRunning) this.hud.hint('Engine running again', 2);
+    if (v.dt.running && !wasRunning) this.hud.hint(v.dt.electric ? 'Drive on again' : 'Engine running again', 2);
+    // an electric truck in deeper than it is sealed for: its battery management cuts the power back
+    if (v.dt.electric && v.intakeWet && (this.evWetT = (this.evWetT || 0) - dt) <= 0) { this.hud.hint('Deeper than the battery is sealed for: power cut back', 3); this.evWetT = 6; }
     this.trackDry(dt);
     this.checkStuck(dt, c);
     // a friend who called for a tow, within reach of our winch

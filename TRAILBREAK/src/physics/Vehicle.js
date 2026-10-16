@@ -248,7 +248,7 @@ export class Vehicle {
     for (const ax of this.axles) { ax.zL = ax.zR = ax.spec.sag; ax.vL = ax.vR = 0; }
     for (const w of this.wheels) { w.omega = 0; w.dx = 0; w.dy = 0; }
     this.dt.wOut = 0;
-    if (!this.dt.running && !this.damage?.seized) { this.dt.running = true; this.dt.crankT = 0; this.dt.wEngine = this.dt.e.idleRpm * Math.PI / 30; }
+    if (!this.dt.running && !this.damage?.seized) { this.dt.running = true; this.dt.crankT = 0; this.dt.wEngine = this.dt.electric ? 0 : this.dt.e.idleRpm * Math.PI / 30; }
     this.flooded = false; this.intakeWet = false;
     this.detachWinch();
     this.updateBasis();
@@ -367,12 +367,16 @@ export class Vehicle {
     if (hand > 0) { brake = Math.max(brake, hand); throttle *= 1 - hand; }
     this.pedalThrottle = throttle; this.pedalBrake = brake;
     // traction control (a modern truck's): when every driven wheel spins well past the ground, the engine is throttled
-    // back until they bite again (generous off the road: some wheel speed clears mud and snow from the tread)
+    // back until they bite again (generous off the road: some wheel speed clears mud and snow from the tread). An
+    // electric truck's motors answer in milliseconds and have far more torque than the ground takes: theirs cuts
+    // deeper and faster
     if (this.spec.tc && throttle > 0) {
       let slip = Infinity;
       for (const w of this.wheels) if (w.contact && (w.index >= 2 || dtr.fourWD)) slip = Math.min(slip, w.slipSpeed ?? 0);
-      const over = slip === Infinity ? -1 : slip - (1.5 + 0.2 * Math.abs(speed));
-      this.tcCut = clamp((this.tcCut ?? 1) + (over > 0 ? -2.5 * dt * Math.min(1, over) : 1.2 * dt), 0.35, 1);
+      // (airborne, no driven wheel on the ground: an electric truck holds its motors back, or they would be at the
+      // limiter when it lands)
+      const ev = dtr.electric, over = slip === Infinity ? (ev ? 1 : -1) : slip - (1.5 + 0.2 * Math.abs(speed));
+      this.tcCut = clamp((this.tcCut ?? 1) + (over > 0 ? -(ev ? 12 : 2.5) * dt * Math.min(1, over) : (ev ? 2 : 1.2) * dt), ev ? 0.06 : 0.35, 1);
       throttle *= this.tcCut;
     } else this.tcCut = 1;
 
@@ -505,8 +509,9 @@ export class Vehicle {
     this._dtIn = this._dtIn || { throttle: 0, brakeTorque: bt };
     this._dtIn.throttle = throttle;
     const D = this.damage;
-    // (cosmetic damage: water in the intake doesn't stop the engine, it chokes it: it coughs and makes a third)
-    dtr.powerMul = D.power * (this.intakeWet && D.k.runs ? 0.35 : 1);
+    // (cosmetic damage: water in the intake doesn't stop the engine, it chokes it: it coughs and makes a third; an
+    // electric truck in over its sealing: its battery management cuts the power)
+    dtr.powerMul = D.power * (this.intakeWet && (D.k.runs || dtr.electric) ? 0.35 : 1);
     dtr.seized = D.seized;
     dtr.broken = D.shafts;
     dtr.step(dt, this._dtIn, this.wheels);
@@ -862,7 +867,7 @@ export class Vehicle {
     }
     this.intakeWet = wet;
     const dtr = this.dt;
-    if (wet && dtr.running && !this.damage.k.runs) { this.damage.hydrolock(dtr.rpm); dtr.stall(); this.flooded = true; this.floodClear = 0; }
+    if (wet && dtr.running && !this.damage.k.runs && !dtr.electric) { this.damage.hydrolock(dtr.rpm); dtr.stall(); this.flooded = true; this.floodClear = 0; }
     if (this.flooded) {
       if (wet) this.floodClear = 0;
       else if ((this.floodClear += dt) > 2.5) { this.flooded = false; dtr.start(); }

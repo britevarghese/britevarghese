@@ -84,27 +84,31 @@ export class HUD {
   /**
    * One dial: the revs round the rim (an orange arc up to the needle, the redline in red), the speed big in the
    * middle, the gear at the bottom. Drawn in a 260 x 230 box at whatever size the canvas is shown, so it stays sharp.
+   * An electric truck's rim shows the power instead (kW; green while it regenerates).
    */
   drawGauges(v) {
     const cv = this.gauges.canvas, g = this.gauges, cw = cv.clientWidth;
     if (!cw) return;
     const dpr = Math.min(2, window.devicePixelRatio || 1), bw = Math.round(cw * dpr), bh = Math.round(bw * 230 / 260);
     if (cv.width !== bw || cv.height !== bh) { cv.width = bw; cv.height = bh; }
-    const e = v.dt.e, max = Math.ceil(((e.limiter || e.redline + 300) + 200) / 1000) * 1000;
-    const key = `${bw}|${max}|${e.redline}`;
-    if (this.dialKey !== key) { this.dialKey = key; this.dialFace = dialFace(bw, bh, max, e.redline); }
+    const e = v.dt.e, ev = !!e.electric;
+    const peakKw = ev ? (e._peakKw || (e._peakKw = e.torque.reduce((m, [r, t]) => Math.max(m, t * r * Math.PI / 30000), 1))) : 0;
+    const max = ev ? Math.ceil(peakKw / 100) * 100 : Math.ceil(((e.limiter || e.redline + 300) + 200) / 1000) * 1000;
+    const key = `${bw}|${max}|${ev ? 'ev' : e.redline}`;
+    if (this.dialKey !== key) { this.dialKey = key; this.dialFace = dialFace(bw, bh, max, ev ? Infinity : e.redline, ev); }
     const k = bw / 260, cx = 130, cy = 120, R = 104, a0 = Math.PI * 0.75, a1 = Math.PI * 2.25;
     g.setTransform(1, 0, 0, 1, 0, 0);
     g.clearRect(0, 0, bw, bh);
     g.drawImage(this.dialFace, 0, 0);
     g.setTransform(k, 0, 0, k, 0, 0);
-    const d = v.dt, rpm = d.running ? d.rpm : 0, at = (r) => a0 + (a1 - a0) * Math.max(0, Math.min(1, r / max));
-    const a = at(rpm), aRed = at(e.redline);
+    const d = v.dt, kw = ev ? d.engineTorque * d.wEngine / 1000 : 0, regen = ev && kw < -1;
+    const rpm = !d.running ? 0 : ev ? Math.abs(kw) : d.rpm, at = (r) => a0 + (a1 - a0) * Math.max(0, Math.min(1, r / max));
+    const a = at(rpm), aRed = ev ? a1 + 1 : at(e.redline);
     // the revs: orange up to the redline, red past it
     g.lineCap = 'butt'; g.lineWidth = 8;
     if (a > a0 + 0.001) {
-      g.strokeStyle = this.dialGrad || (this.dialGrad = (() => { const gr = g.createLinearGradient(30, 0, 230, 0); gr.addColorStop(0, '#ff9a3d'); gr.addColorStop(1, '#f06a0f'); return gr; })());
-      g.shadowColor = 'rgba(255,122,26,0.7)'; g.shadowBlur = 10 * k;
+      g.strokeStyle = regen ? '#3ddc84' : this.dialGrad || (this.dialGrad = (() => { const gr = g.createLinearGradient(30, 0, 230, 0); gr.addColorStop(0, '#ff9a3d'); gr.addColorStop(1, '#f06a0f'); return gr; })());
+      g.shadowColor = regen ? 'rgba(61,220,132,0.7)' : 'rgba(255,122,26,0.7)'; g.shadowBlur = 10 * k;
       g.beginPath(); g.arc(cx, cy, R - 12, a0, Math.min(a, aRed)); g.stroke();
       if (a > aRed) { g.strokeStyle = '#ff3b45'; g.shadowColor = 'rgba(255,59,69,0.8)'; g.beginPath(); g.arc(cx, cy, R - 12, aRed, a); g.stroke(); }
       g.shadowBlur = 0;
@@ -136,7 +140,7 @@ export class HUD {
     if (!d.running) box('OFF', '', false);
     else if (d.gear < 0) box('R', '', true);
     else if (d.gear === 0) box('N', '', false);
-    else if (d.auto) box('D', String(d.gear), true);
+    else if (d.auto) box('D', d.t.gears.length > 1 ? String(d.gear) : '', true);
     else box(String(d.gear), '', true);
   }
 
@@ -144,6 +148,8 @@ export class HUD {
     const d = v.dt;
     const set = (id, text, cls) => { const el = $(id); if (el.textContent !== text) el.textContent = text; el.className = 'chip' + (cls ? ' ' + cls : ''); };
     set('m-range', d.low ? 'LOW' : 'HIGH', d.low ? 'on' : '');
+    // (no low range, or nothing to shift: an electric truck)
+    $('m-range').classList.toggle('hidden', !(d.t.low > 1));
     set('m-4wd', d.fourWD ? '4WD' : '2WD', d.fourWD ? 'on' : '');
     // the badge by the dial: which wheels drive (4LO in low range)
     const badge = $('m-drive'), bc = `drive-badge ${d.fourWD ? 'four' : 'two'}`, bt = d.fourWD ? (d.low ? '4LO' : '4WD') : '2WD';
@@ -152,6 +158,7 @@ export class HUD {
     const lsd = d.diffs.rear === 'lsd', mld = d.diffs.rear === 'auto';
     set('m-lock', d.lockFront && d.lockRear ? 'LOCK F+R' : d.lockRear ? 'LOCK R' : mld ? (d.autoLock ? 'MLD LOCKED' : 'MLD') : lsd ? 'LSD' : 'DIFF OPEN', d.lockRear || d.autoLock ? 'on2' : '');
     set('m-box', d.auto ? 'AUTO' : 'MANUAL', d.auto ? '' : 'on2');
+    $('m-box').classList.toggle('hidden', !!d.direct);
     const psi = Math.round(v.psiAir ?? v.psi), dir = v.psiTarget < psi - 0.4 ? ' ↓' : v.psiTarget > psi + 0.4 ? ' ↑' : '';
     set('m-psi', `${psi} PSI${dir}`, psi < 25 ? 'on2' : '');
     const eng = $('m-eng');
@@ -383,8 +390,9 @@ export class HUD {
   }
 }
 
-/** The dial's face (the disc, the band, the ticks and numbers, the redline) for a dial w x h pixels, revs to max. */
-function dialFace(w, h, max, redline) {
+/** The dial's face (the disc, the band, the ticks and numbers, the redline) for a dial w x h pixels, revs to max
+ *  (an electric truck's: kilowatts to max, no redline). */
+function dialFace(w, h, max, redline, ev = false) {
   const c = document.createElement('canvas'); c.width = w; c.height = h;
   const g = c.getContext('2d'), k = w / 260, cx = 130, cy = 120, R = 104, a0 = Math.PI * 0.75, a1 = Math.PI * 2.25;
   g.setTransform(k, 0, 0, k, 0, 0);
@@ -396,11 +404,12 @@ function dialFace(w, h, max, redline) {
   // the band the revs fill, and the red past the redline
   g.lineWidth = 8;
   g.strokeStyle = 'rgba(255,255,255,0.08)'; g.beginPath(); g.arc(cx, cy, R - 12, a0, a1); g.stroke();
-  g.strokeStyle = 'rgba(239,59,69,0.45)'; g.beginPath(); g.arc(cx, cy, R - 12, at(redline), a1); g.stroke();
-  // ticks every 250 rpm (every 1000 long, with the number)
+  if (Number.isFinite(redline)) { g.strokeStyle = 'rgba(239,59,69,0.45)'; g.beginPath(); g.arc(cx, cy, R - 12, at(redline), a1); g.stroke(); }
+  // ticks every 250 rpm (every 1000 long, with the number); electric: every 25 kW (every 100 long)
   g.textAlign = 'center'; g.textBaseline = 'middle';
-  for (let r = 0; r <= max + 1; r += 250) {
-    const a = at(r), big = r % 1000 === 0, half = r % 500 === 0, ca = Math.cos(a), sa = Math.sin(a), red = r >= redline;
+  const unit = ev ? 100 : 1000, stepT = unit / 4;
+  for (let r = 0; r <= max + 1; r += stepT) {
+    const a = at(r), big = r % unit === 0, half = r % (unit / 2) === 0, ca = Math.cos(a), sa = Math.sin(a), red = r >= redline;
     const r0 = R - 21, r1 = R - (big ? 31 : half ? 27 : 25);
     g.strokeStyle = red ? 'rgba(255,90,90,0.95)' : big ? 'rgba(255,255,255,0.95)' : 'rgba(255,255,255,0.4)';
     g.lineWidth = big ? 2.5 : 1.3; g.lineCap = 'butt';
@@ -408,11 +417,11 @@ function dialFace(w, h, max, redline) {
     if (big) {
       g.fillStyle = red ? '#ff6a6a' : 'rgba(255,255,255,0.85)';
       g.font = `italic 700 15px ${DISPLAY}`;
-      g.fillText(String(r / 1000), cx + ca * (R - 43), cy + sa * (R - 43));
+      g.fillText(String(r / unit), cx + ca * (R - 43), cy + sa * (R - 43));
     }
   }
   g.fillStyle = 'rgba(255,255,255,0.45)'; g.font = `600 10px ${BODY}`;
-  g.fillText('RPM x1000', cx, cy - 38);
+  g.fillText(ev ? 'kW x100' : 'RPM x1000', cx, cy - 38);
   return c;
 }
 

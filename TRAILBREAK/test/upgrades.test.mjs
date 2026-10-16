@@ -55,7 +55,12 @@ test('builds: codes round-trip, presets are valid, stock reproduces the factory 
     assert.equal(odd.lift, 3);
     assert.equal(odd.engine, 0);
     assert.ok(odd.tyre <= maxTyre(base, odd.lift));
-    for (const cat of CATEGORIES) assert.ok(optionsFor(cat, id).length > 1, `${cat.id} has options`);
+    // every category has a choice, but what a truck rules out (an electric truck: its fixed reduction, no gearbox or
+    // transfer case swaps, no air intake)
+    for (const cat of CATEGORIES) {
+      const only = base.only?.[cat.id];
+      assert.ok(only ? only.length >= 1 && only.every((i) => i < optionsFor(cat, id).length) : optionsFor(cat, id).length > 1, `${id}: ${cat.id} has options`);
+    }
   }
 });
 

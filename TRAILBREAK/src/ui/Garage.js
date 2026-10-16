@@ -61,7 +61,7 @@ const MORE = [
 const ANGLES = { front: [0.35, 0.12], side: [Math.PI / 2, 0.08], rear: [Math.PI - 0.45, 0.14], threeq: [0.8, 0.2], top: [0.6, 0.85] };
 
 /** The stats of a spec, with the winch's pull. */
-function statsOf(spec) { return { ...buildStats(spec), pull: spec.winch?.stallPull || 0 }; }
+function statsOf(spec) { return { ...buildStats(spec), pull: spec.winch?.stallPull || 0, electric: !!spec.engine?.electric }; }
 
 /** How much better (or worse) v is than v0, as a tag: '+12% Crawl ratio', green if better, red if worse. */
 function delta(v, v0, better, label) {
@@ -77,7 +77,7 @@ export function gradeOf(st, build) {
   const n = (v, lo, hi) => Math.max(0, Math.min(1, (v - lo) / (hi - lo)));
   const lock = { 0: 0, 1: 0.3, 2: 0.65, 3: 1, 4: 0.75 }[build.diffs] ?? 0;
   const s = [n(st.clearance, 0.18, 0.42), n(st.approach, 25, 60), n(st.departure, 20, 50), n(st.breakover, 15, 34), n(st.travel, 0.15, 0.42),
-    n(st.wading, 0.45, 1.3), n(st.crawl, 25, 110), lock, n(st.tip, 35, 50)];
+    n(st.wading, 0.45, 1.3), st.electric ? 0.9 : n(st.crawl, 25, 110), lock, n(st.tip, 35, 50)];
   const score = s.reduce((a, x) => a + x, 0) / s.length;
   return { score, grade: score >= 0.8 ? 'S' : score >= 0.64 ? 'A' : score >= 0.48 ? 'B' : score >= 0.32 ? 'C' : 'D' };
 }
@@ -256,9 +256,11 @@ export class Garage {
       const single = (o, i) => (cat.id === 'tcase' && i === 0 && this.base.stock.low <= 1
         ? { ...o, name: 'Single-speed transfer case', desc: 'No low range: the gearbox\'s own crawler first does that job.' } : o);
       const opts = optionsFor(cat, this.truckId).map(single);
+      const only = this.base.only?.[cat.id];
       opts.forEach((o, i) => {
         const opt = document.createElement('option');
         opt.value = String(i);
+        if (only && !only.includes(i)) opt.hidden = opt.disabled = true;
         let label = optLabel(cat, o, this.base);
         if (this.career && !this.career.freeParts) {
           const v = cat.id === 'tyre' ? TYRE_SIZES[i] : i, price = partPrice(this.base, cat.id, v);
@@ -267,6 +269,7 @@ export class Garage {
         opt.textContent = label;
         sel.appendChild(opt);
       });
+      sel.disabled = (only?.length === 1) || (cat.id !== 'tyre' && opts.length < 2);
       sel.onchange = () => { const i = Number(sel.value); this.pick(cat, i, opts[i]); };
       const show = () => this.describe(cat, opts[Number(sel.value)]);
       row.onmouseenter = show;
@@ -340,9 +343,10 @@ export class Garage {
     $('g-key3').innerHTML = PERF.map(cell).join('');
     $('g-stats').innerHTML = KEYS.map(cell).join('');
     const t = tyreFor(base, b.tyre);
-    $('g-more').innerHTML = `<span>${esc(st.tyre)} · ${esc(t.label)} · down to ${st.minPsi} psi</span>${MORE.map(([k, label, fmt]) => `<span>${label} <b>${fmt(st[k])}</b></span>`).join('')}`
+    const more = MORE.filter(([k]) => !(k === 'idleCrawl' && spec.engine.electric));
+    $('g-more').innerHTML = `<span>${esc(st.tyre)} · ${esc(t.label)} · down to ${st.minPsi} psi</span>${more.map(([k, label, fmt]) => `<span>${label} <b>${fmt(st[k])}</b></span>`).join('')}`
       + (st.rub > 0 ? `<span class="g-warn">The ${t.d}" tyres rub at full bump: the bump stops are extended ${(st.bumpLoss * 100).toFixed(0)} cm.</span>` : '');
-    $('g-sub').textContent = `${Math.round(st.powerKw * 1.341)} hp · ${Math.round(st.peakTorque).toLocaleString('en-US')} Nm · ${st.tyre} · ${spec.trans.gears.length}-speed`;
+    $('g-sub').textContent = `${Math.round(st.powerKw * 1.341)} hp · ${Math.round(st.peakTorque).toLocaleString('en-US')} Nm · ${st.tyre} · ${spec.engine.electric ? 'electric' : `${spec.trans.gears.length}-speed`}`;
     this.describe(null);
     if (this.preview && code !== this.shown) {
       this.preview.show(spec, this.paint); this.shown = code;

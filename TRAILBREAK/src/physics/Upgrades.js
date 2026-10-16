@@ -98,7 +98,10 @@ export const TRANSMISSIONS = [
   { name: '6-speed manual (NSG370)', short: 'NSG370', type: 'manual', gears: [4.46, 2.61, 1.72, 1.25, 1.0, 0.84], reverse: 4.06, desc: 'The Wrangler\'s six-speed manual: a 4.46 first for the rocks, an overdrive top.' },
   { name: '10-speed automatic (10R60)', short: '10-spd auto', type: 'auto', gears: [4.7, 2.99, 2.15, 1.77, 1.52, 1.28, 1.0, 0.85, 0.69, 0.64], reverse: 4.87, desc: 'The Bronco\'s ten-speed automatic: a 4.70 first through a torque converter, close steps all the way, two overdrives.' },
   { name: '5-speed automatic (Allison 1000)', short: 'Allison', type: 'auto', gears: [3.1, 1.81, 1.41, 1.0, 0.71], reverse: 4.49, desc: 'The H1 Alpha\'s heavy-duty Allison five-speed: built for a diesel\'s torque, a 3.10 first, an overdrive top.' },
+  { name: 'Single-speed reduction (electric)', short: 'direct', type: 'direct', gears: [1.0], reverse: 1.0, desc: 'Electric drive units: the motors geared straight to the axles, one ratio, full torque from a standstill. No clutch, no torque converter, nothing to shift.' },
 ];
+/** The electric drive units' gearbox (TRANSMISSIONS index). */
+export const EV_TRANS = TRANSMISSIONS.length - 1;
 
 export const INTAKES = [
   { name: 'Stock air cleaner', short: 'stock', desc: 'Breathes from under the bonnet: water over it stops the engine. Ford slowly, or the bow wave gets there first.' },
@@ -181,6 +184,11 @@ const ENGINE = {
     torque: [[500, 340], [800, 480], [1200, 620], [1500, 690], [1800, 705], [2400, 700], [2800, 685], [3200, 668], [3500, 540], [3800, 300]] },
   V8_66L5P: { name: '6.6 Duramax L5P', idleRpm: 680, redline: 3300, limiter: 3500, inertia: 0.52, friction: [25, 0.031], bank: 'd8', bankPitch: 0.98, turbo: 1, sound: 'v8_muscle', pitch: 0.72, mass: 30, diesel: true,
     torque: [[500, 520], [800, 820], [1200, 1100], [1600, 1234], [2000, 1220], [2400, 1160], [2800, 1132], [3200, 960], [3500, 700], [3800, 380]] },
+  // the GMC Hummer EV Edition 1's three motors (one front, two rear): 746 kW (1,000 hp) all told, ~1,400 Nm at the
+  // motors (about 17,500 Nm at the wheels through the 12.5:1 reduction) from a standstill to ~4,800 rpm, then constant
+  // power to 13,000; friction here is the regeneration off the throttle (Nm + Nm per rpm), and the "idle" only a floor
+  E_3M: { name: 'Three motors (Edition 1)', electric: true, idleRpm: 300, redline: 13000, limiter: 13400, inertia: 0.09, friction: [0, 0.035], bank: null, turbo: 0, sound: 'electric', pitch: 1, mass: 0,
+    torque: [[100, 1400], [4800, 1400], [6000, 1187], [7000, 1018], [8000, 890], [9000, 792], [10000, 712], [11000, 648], [12000, 594], [13000, 548], [13600, 300]] },
   I6_60TD: { name: 'I6 6.0 turbo-diesel', idleRpm: 650, redline: 2800, limiter: 3000, inertia: 0.8, friction: [30, 0.036], bank: 'd6', bankPitch: 0.95, turbo: 1, sound: 'i6_bmw', pitch: 0.52, mass: 70,
     torque: [[500, 320], [800, 450], [1200, 570], [1500, 600], [1800, 592], [2200, 560], [2600, 505], [2800, 470], [3100, 300]] },
 };
@@ -203,6 +211,11 @@ export const ENGINES = {
   hummer: [{ ...ENGINE.V8_66D, short: 'stock', desc: 'Stock 6.6 Duramax turbo-diesel V8: 224 kW at 3,200 rpm, 705 Nm at 1,800.' }, { ...tunedBy(1.2, 100)(ENGINE.V8_66D), short: 'tuned', desc: 'A tune, bigger injectors and an intercooler: +20% torque.' }, { ...ENGINE.V8_66L5P, short: 'L5P swap', desc: 'The later L5P Duramax: 332 kW and 1,234 Nm, +75% torque, 30 kg heavier.' }],
   bronco: [{ ...ENGINE.V6_27T, short: 'stock', desc: 'Stock 2.7 EcoBoost twin-turbo V6: 246 kW at 5,250 rpm, 563 Nm at 3,100.' }, { ...tunedBy(1.12, 200)(ENGINE.V6_27T), short: 'tuned', desc: 'A tune, a bigger intercooler and a downpipe: +12% torque.' }, { ...ENGINE.V6_30T, short: '3.0 Raptor', desc: 'The Bronco Raptor\'s 3.0 EcoBoost V6: 312 kW and 597 Nm, 25 kg heavier.' }],
   thar: [{ ...ENGINE.D22, short: 'stock', desc: 'Stock mHawk 2.2 turbo-diesel: 96 kW, 300 Nm from 1,600 to 2,800 rpm.' }, { ...tunedBy(1.2, 100)(ENGINE.D22), short: 'remap', desc: 'An ECU remap and a bigger intercooler: 360 Nm, 115 kW.' }, { ...ENGINE.P20, short: 'petrol', desc: 'The mStallion 2.0 turbo-petrol: 112 kW and 320 Nm, revs to 5,500, 20 kg lighter.' }],
+  hummerev: [{ ...ENGINE.E_3M, short: 'stock', desc: 'Three motors, one in front and two at the back: 746 kW (1,000 hp), and all of their torque from a standstill.' },
+    { ...ENGINE.E_3M, name: 'Three motors, Watts to Freedom', short: 'WTF', desc: 'The launch mode\'s calibration kept on: the battery let out harder, +10% torque.',
+      torque: ENGINE.E_3M.torque.map(([r, t]) => [r, Math.round(t * 1.1)]) },
+    { ...ENGINE.E_3M, name: 'Two motors (EV2X)', short: '2 motors', mass: -110, desc: 'One motor front and one rear: 425 kW (570 hp), 110 kg lighter.',
+      torque: ENGINE.E_3M.torque.map(([r, t]) => [r, Math.round(t * 0.6)]) }],
   rhino: [{ ...ENGINE.I6_57D, short: 'stock', desc: 'Stock 5.7 diesel six: 96 kW, 363 Nm. Governed at 2,800 rpm.' }, { ...tunedBy(1.3, 0)(ENGINE.I6_57D), turbo: 1, short: 'turbo', desc: 'A turbocharger: +30% torque, 125 kW.' }, { ...ENGINE.I6_60TD, short: '6.0 swap', desc: 'A 6.0 turbo-intercooled six: 600 Nm, +65% torque.' }],
 };
 
@@ -277,7 +290,7 @@ export function partPrice(base, cat, v) {
 export function stockBuild(base) {
   const st = base.stock;
   return {
-    lift: 0, tyre: st.tyre, tread: 0, wheels: st.wheels ?? 0, gears: ratiosFor(base).indexOf(st.axle), tcase: 0,
+    lift: 0, tyre: st.tyre, tread: st.tread ?? 0, wheels: st.wheels ?? 0, gears: ratiosFor(base).indexOf(st.axle), tcase: 0,
     diffs: st.diffs ?? 0, trans: st.trans, engine: 0, intake: st.intake ?? 0, winch: 0, armor: 0, lights: 0, rack: 0,
   };
 }
@@ -300,8 +313,10 @@ export const PRESETS = [
 
 export function presetBuild(base, id) {
   const p = PRESETS.find((x) => x.id === id) || PRESETS[0], s = stockBuild(base), b = p.make(s, base);
-  // a preset never takes away what the truck came with (factory lockers, onboard air, a raised intake)
+  // a preset never takes away what the truck came with (factory lockers, onboard air, a raised intake, its power)
   if (DIFF_RANK[b.diffs] < DIFF_RANK[s.diffs]) b.diffs = s.diffs;
+  const eng = ENGINES[base.id], peak = (e) => Math.max(...e.torque.map((q) => q[1]));
+  if (eng && eng[b.engine] && peak(eng[b.engine]) < peak(eng[s.engine])) b.engine = s.engine;
   for (const cat of ['wheels', 'intake']) b[cat] = Math.max(b[cat], s[cat]);
   return normalizeBuild(base, b);
 }
@@ -337,6 +352,7 @@ export function normalizeBuild(base, build) {
     if (cat.id === 'tyre') continue;
     const n = optionsFor(cat, base.id).length;
     b[cat.id] = Number.isInteger(b[cat.id]) ? clamp(b[cat.id], 0, n - 1) : s[cat.id];
+    if (base.only?.[cat.id] && !base.only[cat.id].includes(b[cat.id])) b[cat.id] = s[cat.id];
   }
   if (!TYRE_SIZES.includes(b.tyre) || b.tyre < base.stock.tyre) b.tyre = s.tyre;
   while (b.tyre > maxTyre(base, b.lift)) b.tyre = TYRE_SIZES[TYRE_SIZES.indexOf(b.tyre) - 1];

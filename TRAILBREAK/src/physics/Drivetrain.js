@@ -26,6 +26,11 @@
 //
 // The manual gearbox has an automatic clutch, as a driver would work it: it slips to pull away, stays in while the
 // engine is above idle (engine braking downhill), and opens rather than let the engine stall. No creep at idle.
+//
+// An electric truck (engine.electric, gearbox type 'direct'): the motors are geared straight to the axles, one ratio
+// each way, so the motor turns with the wheels (rigidly, both ways) and gives its torque from a standstill: full torque
+// to its base speed, then constant power. No idle, no clutch or converter; off the throttle it brakes itself,
+// regenerating (engine.friction), down to nothing at a standstill.
 
 import { clamp, solveDense, smoothstep } from './math.js';
 
@@ -81,6 +86,8 @@ export class Drivetrain {
     this.t = { ...DEFAULT_TRANS, ...trans };
     this.diffs = { front: diffs.front || 'open', rear: diffs.rear || 'open' };
     this.manual = this.t.type === 'manual';
+    this.direct = this.t.type === 'direct';
+    this.electric = !!this.e.electric;
     let peak = 0;
     for (let rpm = 500; rpm < this.e.redline; rpm += 100) peak = Math.max(peak, torqueAt(this.e.torque, rpm));
     this.clutchCap = 2.2 * peak;     // Nm, clutch fully in
@@ -97,7 +104,7 @@ export class Drivetrain {
     this.outTorque = 0;              // Nm into the transfer case
     this.couple = 0;                 // Nm through the clutch / lockup
     this.lsdIdx = -1;
-    this.wEngine = this.e.idleRpm / RPM;
+    this.wEngine = this.electric ? 0 : this.e.idleRpm / RPM;
     this.wOut = 0;
     this.gear = 1;               // -1 reverse, 0 neutral, 1..n
     this.low = false;            // transfer case range
@@ -179,8 +186,12 @@ export class Drivetrain {
   /** Stall the engine (water in the intake). */
   stall() { this.running = false; this.crankT = 0; this.lockupOn = false; }
 
-  /** Crank it over; it runs after the starter has turned it for a moment. */
-  start() { if (!this.running && this.crankT <= 0 && !this.seized) this.crankT = 0.75; }
+  /** Crank it over; it runs after the starter has turned it for a moment (an electric truck: at once). */
+  start() {
+    if (this.running || this.seized) return;
+    if (this.electric) { this.running = true; this.crankT = 0; return; }
+    if (this.crankT <= 0) this.crankT = 0.75;
+  }
 
   /** Automatic shift logic, run every substep. thr: driver throttle 0..1. */
   autoShift(dt, thrIn, wheels) {
@@ -270,7 +281,15 @@ export class Drivetrain {
     // ---- engine: idle governor, rev limiter, net torque (or the starter, when it isn't running)
     const rpm = this.wEngine * RPM;
     let Teng;
-    if (this.running) {
+    if (this.running && this.electric) {
+      // the motors: their torque at the speed they turn (either way), cut above the top speed; off the throttle the
+      // regeneration brakes them; out of gear, nothing
+      if (Math.abs(rpm) > e.limiter) this.limiterCut = true; else if (Math.abs(rpm) < e.redline) this.limiterCut = false;
+      const thr = this.limiterCut || g === 0 ? 0 : input.throttle;
+      this.throttle = thr;
+      const regen = e.friction[0] * Math.sign(rpm) + e.friction[1] * rpm;
+      Teng = g === 0 ? -0.5 * this.wEngine : thr * torqueAt(e.torque, Math.max(e.torque[0][0], Math.abs(rpm))) * this.powerMul - (1 - thr) * regen;
+    } else if (this.running) {
       const err = (e.idleRpm - rpm) / e.idleRpm;
       this.idleI = clamp(this.idleI + err * dt * 2.5, -0.1, 0.25);
       const idleThr = clamp(0.03 + err * 3 + this.idleI, 0, 0.4);
@@ -308,7 +327,7 @@ export class Drivetrain {
 
     // ---- torque converter (automatic; not when the lockup clutch carries it, nor in neutral)
     let Tpump = 0, Tturb = 0;
-    if (!this.manual && g !== 0 && !this.lockupOn) {
+    if (!this.manual && !this.direct && g !== 0 && !this.lockupOn) {
       const wt = this.wOut * g;
       [Tpump, Tturb] = this.converter(this.wEngine, wt);
       if (this.shiftT > t.shiftTime * 0.55) Tturb *= 0.45;           // torque dip while the band changes over
@@ -316,7 +335,7 @@ export class Drivetrain {
     this.turbineTorque = Tturb;
 
     // ---- lockup clutch logic
-    if (!this.manual && g > 0 && this.gear >= 2 && this.shiftT === 0 && this.running) {
+    if (!this.manual && !this.direct && g > 0 && this.gear >= 2 && this.shiftT === 0 && this.running) {
       const sr = this.wEngine > 1 ? (this.wOut * g) / this.wEngine : 0;
       const turb = this.wOut * g * RPM;
       if (!this.lockupOn && sr > 0.9 && turb > 1350 && input.throttle < 0.9) this.lockupOn = true;
@@ -380,6 +399,8 @@ export class Drivetrain {
     let ic = -1;
     if (this.lockupOn) { ic = n; J[n * NB + ENG] = 1; J[n * NB + OUT] = -g; bound[n] = t.lockup * dt; n++; }
     if (this.manual && g !== 0 && this.clutch > 0.001) { ic = n; J[n * NB + ENG] = 1; J[n * NB + OUT] = -g; bound[n] = this.clutch * this.clutchCap * dt; n++; }
+    // (electric: the motor geared to the output, rigidly, in gear)
+    if (this.direct && g !== 0) { ic = n; J[n * NB + ENG] = 1; J[n * NB + OUT] = -g; bound[n] = Infinity; n++; }
     for (let i = 0; i < 4; i++) {
       const Tb = input.brakeTorque[i];
       if (Tb > 0) { J[n * NB + i] = 1; bound[n] = Tb * dt; n++; }
@@ -401,7 +422,7 @@ export class Drivetrain {
 
     for (let i = 0; i < 4; i++) wheels[i].omega = v[i];
     this.wOut = v[OUT];
-    this.wEngine = Math.max(v[ENG], this.running ? 300 / RPM : 0);
+    this.wEngine = this.electric ? v[ENG] : Math.max(v[ENG], this.running ? 300 / RPM : 0);
   }
 
   /** Solve the n constraints in this.J against velocities this.v, masses this.m (active set for the bounded ones). */

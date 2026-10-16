@@ -129,7 +129,9 @@ def split_wheels(tris, roles, cfg):
         elif spare == 'high': sp = c[:, 1] > ylow + 2.3 * R
         elif spare == 'under': sp = np.abs(c[:, 2] - (zf + zr) / 2) < abs(zf - zr) * 0.3
         zf, zr, front = axles(~sp)
-    left = c[:, 0] > np.median(c[~sp, 0])
+    # (left of the middle between the outermost wheel parts: a median can land inside one side's wheels when the two
+    # sides are near-equal in triangles)
+    left = c[:, 0] > (c[~sp, 0].min() + c[~sp, 0].max()) / 2
     lab = np.where(front, np.where(left, 'FL', 'FR'), np.where(left, 'RL', 'RR')).astype(object)
     lab[sp] = 'spare'
     out = np.full(len(tris), None, dtype=object)
@@ -428,7 +430,7 @@ def main(src_dir, cfg_path, out_dir):
 
     cell = cfg.get('cell', 0)
 
-    def cluster(t, n, u, hu):
+    def cluster(t, n, u, hu, cell):
         """Vertex clustering: corners in the same small cell (and, textured, near the same spot of the texture) become
         one, triangles left with fewer than three corners go (bolts, over-fine curves; the shape holds to the cell)."""
         k = np.floor(t.reshape(-1, 3) / cell).astype(np.int64)
@@ -442,8 +444,15 @@ def main(src_dir, cfg_path, out_dir):
         return mean[inv[keep]], n[keep], u[keep]
 
     def emit(name, t, n, u, mi, role, hu):
-        if cell and role not in ('glass', 'screen', 'rim') and len(t) > 64:
-            t, n, u = cluster(t, n, u, hu)
+        mat = material(mi, role)
+        # (no texture on it: no uvs either, and the corners weld without them)
+        mj = out.j['materials'][mat]
+        if hu and not ('baseColorTexture' in mj['pbrMetallicRoughness'] or 'metallicRoughnessTexture' in mj['pbrMetallicRoughness'] or 'normalTexture' in mj):
+            hu = False
+            u = np.zeros_like(u)
+        cm = cfg.get('cellMat', {}).get(str(mi), cell)                     # (per material too: {"0": 0.02})
+        if cm and role not in ('glass', 'screen', 'rim') and len(t) > 64:
+            t, n, u = cluster(t, n, u, hu, cm)
             if not len(t): return
         # (vertices shared where position, normal and uv all match: the source's own indexing comes back)
         flat = t.reshape(-1, 3); fnr = n.reshape(-1, 3); fuv = u.reshape(-1, 2)
@@ -454,16 +463,18 @@ def main(src_dir, cfg_path, out_dir):
         tri = inv.reshape(-1, 3)
         red = cfg.get('reduce', 0)
         if isinstance(red, dict): red = red.get(role, red.get('*', 0))      # (per role: {"paint": 0.5, "*": 0.75})
+        red = cfg.get('reduceMat', {}).get(str(mi), red)                    # (and per material: {"0": 0.95})
         if red and len(tri) > cfg.get('reduceOver', 3000) and role not in ('glass', 'screen', 'rim'):
-            pos, nor, uv, tri = simplify(flat, fuv, hu, red)
-        out.mesh(name, pos, nor, uv if hu else None, tri, material(mi, role))
+            pos, nor, uv, tri = simplify(flat, fnr, fuv, hu, red)
+        out.mesh(name, pos, nor, uv if hu else None, tri, mat)
 
-    def simplify(flat, fuv, hu, red):
+    def simplify(flat, fnr, fuv, hu, red):
         """Quadric edge collapses on the surface welded whole (by position, and by uv where it is textured: the
         seams stay), then normals again with a crease: smooth across gentle bends, a hard edge where faces meet
-        at more than 35 degrees (the panels' edges stay sharp)."""
+        at more than 35 degrees (the panels' edges stay sharp). Corners whose normals point apart stay apart: a panel
+        modelled with its inside face (a thin shell) is two surfaces, not one whose normals cancel out."""
         import fast_simplification as fs
-        key = np.round(flat * 1e4).astype(np.int64)
+        key = np.c_[np.round(flat * 1e4).astype(np.int64), np.round(fnr * 2).astype(np.int64)]
         if hu: key = np.c_[key, np.round(fuv * 1e4).astype(np.int64)]
         _, first, inv = np.unique(key, axis=0, return_index=True, return_inverse=True)
         P0, U0, T0 = flat[first], fuv[first], inv.reshape(-1, 3)

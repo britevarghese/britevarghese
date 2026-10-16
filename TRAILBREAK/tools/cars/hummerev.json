@@ -1,0 +1,83 @@
+{
+ "id": "hummerev",
+ "model": {
+  "title": "GMC Hummer EV 2022",
+  "url": "https://sketchfab.com/3d-models/gmc-hummer-ev-2022-b686365d37a94cbdbb3a01d169f5a0de",
+  "author": "Unn Interativa",
+  "authorUrl": "https://sketchfab.com/unninterativa",
+  "license": "CC BY 4.0"
+ },
+ "axes": {
+  "left": "+x",
+  "up": "+y",
+  "forward": "+z"
+ },
+ "wheelbase": 3.445,
+ "spare": null,
+ "materials": {
+  "16": "paint",
+  "22": "glass",
+  "19": "head",
+  "4": "head",
+  "21": "tail",
+  "27": "tail",
+  "23": "tail",
+  "13": "tail",
+  "10": "amber",
+  "9": "tyre",
+  "25": "rim",
+  "17": "rim",
+  "5": "hub",
+  "6": "hub",
+  "12": "hub",
+  "30": "drop"
+ },
+ "reduce": {
+  "paint": 0.6,
+  "*": 0.82
+ },
+ "reduceMat": {
+  "0": 0.975,
+  "3": 0.92,
+  "8": 0.94,
+  "1": 0.9,
+  "11": 0.88,
+  "20": 0.88,
+  "17": 0.8
+ },
+ "cellMat": {
+  "0": 0.025,
+  "8": 0.02
+ },
+ "texSize": 1024,
+ "layout": {
+  "bumperF": {
+   "z": 2.56,
+   "y": 0.6,
+   "w": 1.9
+  },
+  "bumperR": {
+   "z": -2.86,
+   "y": 0.62,
+   "w": 1.95
+  },
+  "frame": {
+   "x": 0.48,
+   "y": 0.42,
+   "z0": -2.55,
+   "z1": 2.25
+  },
+  "half": 1.1,
+  "sill": 0.68,
+  "roofY": 1.935,
+  "roofZ": [
+   -0.95,
+   0.62
+  ],
+  "bedZ": [
+   -2.62,
+   -1.3
+  ],
+  "ownChassis": true
+ }
+}

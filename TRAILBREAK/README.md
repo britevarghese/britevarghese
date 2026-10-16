@@ -323,7 +323,7 @@ lies, go back to the last firm, dry ground you drove on, call your friends for a
 ## The trucks
 
 Real trucks with real 3D models (the Mahindra Thar you start in, the Jeep Wrangler Rubicon, the Ford Bronco, the Hummer
-H1 and the Land Rover Defender 110) and the original designs, each built to the real numbers of the kind of truck it is, from a one-ton micro 4x4 to a
+H1, the electric GMC Hummer EV and the Land Rover Defender 110) and the original designs, each built to the real numbers of the kind of truck it is, from a one-ton micro 4x4 to a
 six-ton portal-axle expedition truck. Every one takes every part in the garage.
 
 | Truck | Price | Kind | Wheelbase | Weight | Engine | Gearbox | Low range / axles | Stock tyres | Under the diffs | Approach / departure / breakover |
@@ -340,6 +340,7 @@ six-ton portal-axle expedition truck. Every one takes every part in the garage.
 | Drover | $16,000 | big six-cylinder wagon | 2.73 m (107") | 2150 kg | 4.2 six, 285 Nm | 4-speed automatic | 1.96 / 4.10 | 31x10.5R15 | 19 cm | 34 / 25 / 30 degrees |
 | Bruiser | $24,000 | one-ton crew-cab pickup | 3.96 m (156") | 3350 kg | 5.9 turbo-diesel six, 570 Nm | heavy-duty 5-speed, 5.61:1 granny | 2.72 / 4.10 | 33x12.5R15 | 20 cm | 36 / 29 / 25 degrees |
 | Hummer H1 | $32,000 | the H1 Alpha hard top, the civilian Humvee: independent suspension at both ends on geared hubs, tyre inflation from the cab, Torsen rear, brake traction control | 3.30 m (130") | 3650 kg | 6.6 Duramax turbo-diesel V8, 705 Nm | Allison 5-speed automatic | 2.72 / 5.24 (with the hub gears) | 37x12.50 R17 | 38 cm | 49 / 41 / 32 degrees |
+| GMC Hummer EV | $38,000 | the Edition 1 pickup, electric: three motors, e-lockers at both ends, independent suspension on air springs (at its raised Terrain height), traction control | 3.45 m (136") | 4110 kg | three electric motors, 746 kW (1,000 hp), ~1,400 Nm from a standstill | single-speed reduction | none / 12.5 | LT315/70 R17 (35") | 33 cm | 44 / 33 / 22 degrees |
 | Rhino | $42,000 | portal-axle expedition truck | 3.25 m (128") | 6200 kg | 5.7 diesel six, 363 Nm | 8-speed truck box, 9:1 first | none / 7.17 | 395/85R20 (42") | 45 cm | 43 / 40 / 50 degrees |
 
 They drive like what they are. The Gecko weighs a ton and floats over mud, but it is slow and narrow on a side slope.
@@ -349,7 +350,16 @@ buy and fit. The Rhino's portal axles ride the diffs high above the hubs: 45 cm 
 lockers at both ends, onboard air and a raised intake from the factory, and wades 1.5 m. It is also slow: 0-60 km/h
 takes 20 seconds and it tops out at 84 km/h.
 
-The Thar's, the Wrangler's, the Bronco's, the Hummer's and the Defender's bodies are real 3D models (see [Credits](#credits)), converted by
+The **GMC Hummer EV** is electric. Its motors are geared straight to the axles (12.5:1, one gear), so it has all of its
+torque from a standstill and nothing to shift: 0-100 km/h in under 4 seconds, four tons and all. There is no idle, so
+it doesn't creep: it sits silent until you press the pedal. Lift off and the motors brake it, charging the battery
+(one-pedal driving, stronger than an engine in gear). Its traction control is a motor's: it cuts the torque in
+milliseconds when every wheel spins, and holds the motors back in the air. No air intake to drown: in deeper water
+than its battery is sealed for (32 inches) the power is cut back instead. The dial shows its power (kW) instead of the
+revs, green while it regenerates, and it sounds like an electric truck: the motors' whine rising with the speed, the
+inverters, and a low hum at walking pace. The garage takes everything but a gearbox, a crawl box or a snorkel.
+
+The Thar's, the Wrangler's, the Bronco's, the Hummers' and the Defender's bodies are real 3D models (see [Credits](#credits)), converted by
 `tools/cars.py` into the game's frame (narrowed to the real trucks' widths, the dense ones simplified): the
 game paints it any colour, cracks its glass, lights its lamps and fits its own wheels, axles and suspension under it,
 and every garage part goes on it as on the others (the lift raises the model, the tyres grow in its arches). Its front
@@ -534,7 +544,7 @@ test/                     node --test suites
 Truck models: the Mahindra Thar, "THAR 4X4" by MB_Mahesh; the Jeep Wrangler, "Jeep Wrangler 3D Model" by Suyog modak;
 the Ford Bronco, "Bronco Car Animation (Red)" by neshallads; the Hummer H1, "Hummer H1 (Retry School)" by Voxel_CG;
 the Land Rover Defender 110, "Land Rover Defender 110" by
-meeww; on Sketchfab, CC BY 4.0, see
+meeww; the GMC Hummer EV, "GMC Hummer EV 2022" by Unn Interativa; on Sketchfab, CC BY 4.0, see
 `public/assets/trucks/CREDITS.md` (converted with `tools/cars.py`). Engine sounds: see `public/assets/audio/CREDITS.md`
 (Freesound, CC0 and CC BY 4.0; built with `tools/sounds/build_grains.py`). Ground textures: CC0 scans from Poly
 Haven and ambientCG, see `public/assets/ground/CREDITS.md` (packed with `tools/ground.py`). Tree models: pine, fir,
