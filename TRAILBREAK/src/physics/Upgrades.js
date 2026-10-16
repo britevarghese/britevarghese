@@ -66,17 +66,22 @@ export const WHEELS = [
 
 // (the last three: portal axles, the ring and pinion times the reduction in the hubs)
 export const AXLE_RATIOS = [3.54, 4.10, 4.56, 5.13, 5.38, 5.89, 6.53, 7.17];
+/** A truck's ring and pinion sets, shallowest first (its own, when its factory ratio isn't one of the usual). */
+export const ratiosFor = (base) => base.axleRatios || AXLE_RATIOS;
 
 export const TCASES = [
   { name: 'Stock transfer case', short: 'stock', desc: 'Two speeds: high, and a low range for the hard stuff.', low: null },
   { name: '4:1 crawl box', short: '4:1', desc: 'A 4:1 low range: creep up ledges at walking pace with the engine barely above idle.', low: 4.0, mass: 18 },
 ];
 
+/** How much each diff option locks (for keeping the better one): the auto-locker between a rear locker and both. */
+export const DIFF_RANK = [0, 1, 2, 3, 2.5];
 export const DIFFS = [
   { name: 'Open differentials', short: 'open', desc: 'Stock. Power goes to the wheel with the least grip.', front: 'open', rear: 'open' },
   { name: 'Rear limited-slip', short: 'LSD', desc: 'Clutches in the rear diff push some torque to the wheel with grip. Always on, no button.', front: 'open', rear: 'lsd' },
   { name: 'Rear selectable locker', short: 'R lock', desc: 'Lock the rear axle solid on demand (X).', front: 'open', rear: 'locker', mass: 4 },
   { name: 'Front and rear lockers', short: 'F+R lock', desc: 'Both axles lock on demand. Unlock to turn.', front: 'locker', rear: 'locker', mass: 9 },
+  { name: 'Rear auto-locker (MLD), front brake locking', short: 'MLD', desc: 'The Thar\'s mechanical locking differential locks the rear axle by itself when a wheel spins (below about 30 km/h) and frees it to turn; in 4WD the brakes hold a spinning front wheel back so the other drives.', front: 'bld', rear: 'auto', mass: 5 },
 ];
 
 export const TRANSMISSIONS = [
@@ -87,6 +92,8 @@ export const TRANSMISSIONS = [
   { name: '4-speed automatic, overdrive', short: '4-spd auto', type: 'auto', gears: [2.8, 1.53, 1.0, 0.71], reverse: 2.39, desc: 'A torque converter and an overdrive: easy to drive, relaxed at speed.' },
   { name: 'Heavy-duty 5-speed, granny low', short: 'HD 5-spd', type: 'manual', gears: [5.61, 3.04, 1.67, 1.0, 0.73], reverse: 5.04, desc: 'A one-ton truck\'s gearbox: a 5.61 granny first and an overdrive. Heavy, unbreakable.' },
   { name: '8-speed truck gearbox', short: '8-spd', type: 'manual', gears: [9.0, 6.4, 4.6, 3.3, 2.4, 1.75, 1.3, 1.0], reverse: 9.6, desc: 'Eight close ratios from a 9:1 crawler first: no low range needed.' },
+  { name: '6-speed manual (6R320M)', short: '6-spd', type: 'manual', gears: [3.96, 2.24, 1.42, 1.0, 0.81, 0.72], reverse: 3.76, desc: 'The Thar\'s six-speed: a 3.96 first, two overdrives for the highway.' },
+  { name: '6-speed automatic', short: '6-spd auto', type: 'auto', gears: [3.6, 2.09, 1.47, 1.0, 0.74, 0.63], reverse: 3.25, desc: 'A six-speed torque-converter automatic: smooth, and it crawls without a clutch.' },
 ];
 
 export const INTAKES = [
@@ -147,6 +154,12 @@ const ENGINE = {
     torque: [[500, 340], [800, 560], [1200, 780], [1600, 870], [2000, 880], [2400, 840], [2800, 760], [3200, 650], [3500, 400]] },
   I6_57D: { name: 'I6 5.7 diesel', idleRpm: 650, redline: 2800, limiter: 3000, inertia: 0.75, friction: [28, 0.035], sound: 'i6_bmw', pitch: 0.5, mass: 0,
     torque: [[500, 230], [800, 300], [1200, 345], [1600, 363], [2000, 355], [2400, 340], [2800, 320], [3100, 210]] },
+  // the Thar's 2.2 mHawk 130: 96 kW at 3,750 rpm, 300 Nm from 1,600 to 2,800 (the turbo comes in from ~1,300)
+  D22: { name: 'mHawk 2.2 turbo-diesel', idleRpm: 800, redline: 4200, limiter: 4400, inertia: 0.24, friction: [16, 0.026], sound: 'i6_bmw', pitch: 0.7, mass: 0, cyl: 4, diesel: true,
+    torque: [[600, 118], [800, 150], [1000, 185], [1200, 226], [1400, 270], [1600, 300], [2200, 300], [2800, 300], [3200, 284], [3750, 246], [4000, 222], [4400, 150]] },
+  // and its 2.0 mStallion petrol: 112 kW at 5,000 rpm, 320 Nm from 1,500 to 3,000
+  P20: { name: 'mStallion 2.0 turbo-petrol', idleRpm: 750, redline: 5500, limiter: 5800, inertia: 0.16, friction: [10, 0.017], sound: 'i6_bmw', pitch: 1.02, mass: -20, cyl: 4,
+    torque: [[600, 135], [1000, 215], [1250, 280], [1500, 320], [3000, 320], [3600, 300], [4200, 268], [5000, 214], [5500, 184], [6000, 120]] },
   I6_60TD: { name: 'I6 6.0 turbo-diesel', idleRpm: 650, redline: 2800, limiter: 3000, inertia: 0.8, friction: [30, 0.036], sound: 'i6_bmw', pitch: 0.52, mass: 70,
     torque: [[500, 320], [800, 450], [1200, 570], [1500, 600], [1800, 592], [2200, 560], [2600, 505], [2800, 470], [3100, 300]] },
 };
@@ -163,8 +176,11 @@ export const ENGINES = {
   shepherd: [{ ...ENGINE.I4_25TD, short: 'stock', desc: 'Stock 2.5 turbo-diesel: 63 kW, 203 Nm low down. Slow, frugal, tireless.' }, { ...tunedBy(1.2)(ENGINE.I4_25TD), short: 'tuned', desc: 'Fuel pump turned up, an intercooler: +20% torque.' }, { ...ENGINE.V8_39, short: 'V8 3.9', desc: 'The light alloy 3.9 V8: 134 kW and +54% torque, 20 kg lighter than the diesel.' }],
   drover: [{ ...ENGINE.I6_42P, short: 'stock', desc: 'Stock 4.2 petrol six: 101 kW, 285 Nm off idle.' }, { ...tuned(ENGINE.I6_42P), short: 'tuned', desc: 'Headers, a cam and a bigger carburettor: +13% torque.' }, { ...ENGINE.I6_42TD, short: 'TD swap', desc: 'The 4.2 turbo-diesel six: 122 kW and +26% torque, 60 kg heavier.' }],
   bruiser: [{ ...ENGINE.I6_59TD, short: 'stock', desc: 'Stock 5.9 turbo-diesel six: 134 kW, 570 Nm at 1,600 rpm.' }, { ...tunedBy(1.25, 100)(ENGINE.I6_59TD), short: 'tuned', desc: 'Pump turned up, bigger injectors, a hotter turbo: +25% torque (and black smoke).' }, { ...ENGINE.I6_67CR, short: '6.7 swap', desc: 'A 6.7 common-rail six: 880 Nm, +54% torque.' }],
+  thar: [{ ...ENGINE.D22, short: 'stock', desc: 'Stock mHawk 2.2 turbo-diesel: 96 kW, 300 Nm from 1,600 to 2,800 rpm.' }, { ...tunedBy(1.2, 100)(ENGINE.D22), short: 'remap', desc: 'An ECU remap and a bigger intercooler: 360 Nm, 115 kW.' }, { ...ENGINE.P20, short: 'petrol', desc: 'The mStallion 2.0 turbo-petrol: 112 kW and 320 Nm, revs to 5,500, 20 kg lighter.' }],
   rhino: [{ ...ENGINE.I6_57D, short: 'stock', desc: 'Stock 5.7 diesel six: 96 kW, 363 Nm. Governed at 2,800 rpm.' }, { ...tunedBy(1.3, 0)(ENGINE.I6_57D), short: 'turbo', desc: 'A turbocharger: +30% torque, 125 kW.' }, { ...ENGINE.I6_60TD, short: '6.0 swap', desc: 'A 6.0 turbo-intercooled six: 600 Nm, +65% torque.' }],
 };
+
+const gearOption = (r) => ({ name: `${r.toFixed(2)}:1 ring and pinion`, short: r.toFixed(2), ratio: r, desc: 'Deeper (bigger number) gears turn the wheels slower and harder: they bring back the pull bigger tyres take away, and lower the top speed.' });
 
 // ---------------------------------------------------------------- categories (garage order)
 export const CATEGORIES = [
@@ -177,7 +193,7 @@ export const CATEGORIES = [
   { id: 'wheels', group: 'Suspension and tyres', name: 'Wheels and air', options: WHEELS },
   {
     id: 'gears', group: 'Drivetrain', name: 'Axle gears',
-    options: AXLE_RATIOS.map((r) => ({ name: `${r.toFixed(2)}:1 ring and pinion`, short: r.toFixed(2), ratio: r, desc: 'Deeper (bigger number) gears turn the wheels slower and harder: they bring back the pull bigger tyres take away, and lower the top speed.' })),
+    options: AXLE_RATIOS.map((r) => gearOption(r)),
   },
   { id: 'tcase', group: 'Drivetrain', name: 'Transfer case', options: TCASES },
   { id: 'diffs', group: 'Drivetrain', name: 'Differentials', options: DIFFS },
@@ -190,7 +206,17 @@ export const CATEGORIES = [
   { id: 'rack', group: 'Equipment', name: 'Roof', options: RACKS },
 ];
 export const CATEGORY_IDS = CATEGORIES.map((c) => c.id);
-export const optionsFor = (cat, truckId) => (cat.id === 'engine' ? ENGINES[truckId] || ENGINES.ranger : cat.options);
+export function optionsFor(cat, truckId) {
+  if (cat.id === 'engine') return ENGINES[truckId] || ENGINES.ranger;
+  const base = TRUCK_BASES[truckId];
+  if (cat.id === 'gears' && base?.axleRatios) return base.axleRatios.map(gearOption);
+  if (cat.id === 'tyre' && base?.stockTyre) return cat.options.map((o) => (o.d === base.stock.tyre ? { ...o, name: `${o.d}" tyres (${base.stockTyre.label}, factory)`, desc: base.stockTyre.desc || o.desc } : o));
+  return cat.options;
+}
+/** The trucks' stock specs, registered by trucks.js (for the options that depend on the truck). */
+export const TRUCK_BASES = {};
+/** A truck's tyre of a size: its factory tyre in the stock size (when it has its own), else the usual one. */
+export const tyreFor = (base, d) => (d === base.stock.tyre && base.stockTyre ? { ...TYRES[d], ...base.stockTyre } : TYRES[d]);
 
 // ---------------------------------------------------------------- prices (US dollars, parts and fitting)
 /** What each part costs to buy and fit; the truck's factory parts are free. Tyres are a set of five. */
@@ -201,8 +227,8 @@ export const PRICES = {
   wheels: [0, 650, 2100],
   gears: 1600,                       // any ratio but the factory one: both axles re-geared
   tcase: [0, 1900],
-  diffs: [0, 750, 1100, 2200],
-  trans: [1800, 1200, 1600, 1500, 2200, 2400, 5200],  // a different gearbox swapped in
+  diffs: [0, 750, 1100, 2200, 900],
+  trans: [1800, 1200, 1600, 1500, 2200, 2400, 5200, 1900, 2600],  // a different gearbox swapped in
   engine: [0, 1500, 4800],
   intake: [0, 450],
   winch: [0, 1300],
@@ -225,30 +251,32 @@ export function partPrice(base, cat, v) {
 export function stockBuild(base) {
   const st = base.stock;
   return {
-    lift: 0, tyre: st.tyre, tread: 0, wheels: st.wheels ?? 0, gears: AXLE_RATIOS.indexOf(st.axle), tcase: 0,
+    lift: 0, tyre: st.tyre, tread: 0, wheels: st.wheels ?? 0, gears: ratiosFor(base).indexOf(st.axle), tcase: 0,
     diffs: st.diffs ?? 0, trans: st.trans, engine: 0, intake: st.intake ?? 0, winch: 0, armor: 0, lights: 0, rack: 0,
   };
 }
 
 const step = (list, v, k) => list[clamp(list.indexOf(v) + k, 0, list.length - 1)];
-const truckBox = (b, t) => (TRANSMISSIONS[b.trans]?.gears[0] > 8 ? b.trans : t);          // (an 8-speed truck keeps its own)
+// (a truck with an eight-speed or a six-speed keeps its own: the crawl box does the rest)
+const truckBox = (b, t) => { const g = TRANSMISSIONS[b.trans]?.gears; return g && (g[0] > 8 || g.length >= 6) ? b.trans : t; };
 /** Ready-made builds, relative to the truck's stock sizes. */
 export const PRESETS = [
   { id: 'stock', name: 'Stock', desc: 'As it left the factory.', make: (b) => b },
   { id: 'trail', name: 'Weekend trail', desc: '2" lift, one size bigger A/Ts, deeper gears, rear locker, skids, onboard air.',
-    make: (b) => ({ ...b, lift: 1, tyre: step(TYRE_SIZES, b.tyre, 1), wheels: 1, gears: Math.min(b.gears + 1, AXLE_RATIOS.length - 1), diffs: 2, armor: 1, rack: 1 }) },
+    make: (b, base) => ({ ...b, lift: 1, tyre: step(TYRE_SIZES, b.tyre, 1), wheels: 1, gears: Math.min(b.gears + 1, ratiosFor(base).length - 1), diffs: 2, armor: 1, rack: 1 }) },
   { id: 'crawler', name: 'Rock crawler', desc: '4" lift, 35" M/Ts on beadlocks (bigger on a big truck), deeper gears, lockers both ends, 4:1 box, granny gearbox, armour.',
-    make: (b) => ({ ...b, lift: 2, tyre: b.tyre <= 33 ? 35 : step(TYRE_SIZES, b.tyre, 1), tread: 1, wheels: 2, gears: Math.max(3, b.gears), tcase: 1, diffs: 3, trans: truckBox(b, 2), engine: 1, winch: 1, armor: 2, lights: 1, rack: 0 }) },
+    make: (b, base) => ({ ...b, lift: 2, tyre: b.tyre <= 33 ? 35 : step(TYRE_SIZES, b.tyre, 1), tread: 1, wheels: 2, gears: Math.max(Math.min(3, ratiosFor(base).length - 2), b.gears), tcase: 1, diffs: 3, trans: truckBox(b, 2), engine: 1, winch: 1, armor: 2, lights: 1, rack: 0 }) },
   { id: 'mudder', name: 'Mud bogger', desc: '6" long-travel, 37" bias-ply mudders (bigger on a big truck), the deepest gears, lockers, snorkel, engine swap, light bar.',
-    make: (b) => ({ ...b, lift: 3, tyre: b.tyre <= 35 ? 37 : step(TYRE_SIZES, b.tyre, 2), tread: 2, wheels: 1, gears: Math.max(4, b.gears), tcase: 0, diffs: 3, trans: truckBox(b, 0), engine: 2, intake: 1, winch: 1, armor: 1, lights: 1, rack: 0 }) },
+    make: (b, base) => ({ ...b, lift: 3, tyre: b.tyre <= 35 ? 37 : step(TYRE_SIZES, b.tyre, 2), tread: 2, wheels: 1, gears: Math.max(Math.min(4, ratiosFor(base).length - 1), b.gears), tcase: 0, diffs: 3, trans: truckBox(b, 0), engine: 2, intake: 1, winch: 1, armor: 1, lights: 1, rack: 0 }) },
   { id: 'overland', name: 'Overlander', desc: 'Mild lift and A/Ts, snorkel, rear locker, big winch, armour, roof rack with fuel and water.',
-    make: (b) => ({ ...b, lift: 1, tyre: step(TYRE_SIZES, b.tyre, 1), wheels: 1, gears: Math.min(b.gears + 1, AXLE_RATIOS.length - 1), diffs: 2, engine: 1, intake: 1, winch: 1, armor: 2, lights: 1, rack: 2 }) },
+    make: (b, base) => ({ ...b, lift: 1, tyre: step(TYRE_SIZES, b.tyre, 1), wheels: 1, gears: Math.min(b.gears + 1, ratiosFor(base).length - 1), diffs: 2, engine: 1, intake: 1, winch: 1, armor: 2, lights: 1, rack: 2 }) },
 ];
 
 export function presetBuild(base, id) {
-  const p = PRESETS.find((x) => x.id === id) || PRESETS[0], s = stockBuild(base), b = p.make(s);
+  const p = PRESETS.find((x) => x.id === id) || PRESETS[0], s = stockBuild(base), b = p.make(s, base);
   // a preset never takes away what the truck came with (factory lockers, onboard air, a raised intake)
-  for (const cat of ['diffs', 'wheels', 'intake']) b[cat] = Math.max(b[cat], s[cat]);
+  if (DIFF_RANK[b.diffs] < DIFF_RANK[s.diffs]) b.diffs = s.diffs;
+  for (const cat of ['wheels', 'intake']) b[cat] = Math.max(b[cat], s[cat]);
   return normalizeBuild(base, b);
 }
 
@@ -262,7 +290,7 @@ export function buildSummary(base, build) {
   const s = stockBuild(base), out = [];
   if (b.lift !== s.lift) out.push(`${LIFTS[b.lift].inches}" lift`);
   if (b.tyre !== s.tyre || b.tread !== s.tread) out.push(`${b.tyre}" ${TREADS[b.tread].short}`);
-  if (b.gears !== s.gears) out.push(`${AXLE_RATIOS[b.gears].toFixed(2)}s`);
+  if (b.gears !== s.gears) out.push(`${ratiosFor(base)[b.gears].toFixed(2)}s`);
   if (b.diffs !== s.diffs) out.push(DIFFS[b.diffs].short);
   if (b.tcase !== s.tcase) out.push('4:1 box');
   if (b.trans !== s.trans) out.push(TRANSMISSIONS[b.trans].short);
@@ -334,7 +362,7 @@ function addedParts(base, b) {
 export function buildSpec(base, buildIn) {
   const b = normalizeBuild(base, buildIn);
   const spec = JSON.parse(JSON.stringify(base));
-  const T0 = TYRES[base.stock.tyre], T = TYRES[b.tyre];
+  const T0 = tyreFor(base, base.stock.tyre), T = tyreFor(base, b.tyre);
   const tread = TREADS[b.tread], wheels = WHEELS[b.wheels], lift = LIFTS[b.lift];
   const dR = T.radius - T0.radius;
   const raise = lift.lift + dR;                                       // the body rises by the lift and the tyre growth
@@ -420,7 +448,7 @@ export function buildSpec(base, buildIn) {
   const tr = TRANSMISSIONS[b.trans];
   spec.trans = {
     ...base.trans, type: tr.type, gears: tr.gears.slice(), reverse: tr.reverse,
-    low: TCASES[b.tcase].low || base.stock.low, axle: AXLE_RATIOS[b.gears],
+    low: TCASES[b.tcase].low || base.stock.low, axle: ratiosFor(base)[b.gears],
   };
   spec.diffs = { front: DIFFS[b.diffs].front, rear: DIFFS[b.diffs].rear };
   // axle shafts (N m before they snap): the truck's own, chromoly with a locker

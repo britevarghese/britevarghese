@@ -93,17 +93,19 @@ export class Vehicle {
       const half = a.track / 2;
       const yStatic = rStatic - this.cg.y;                         // hub height at static ride, CG frame
       const yDroop = yStatic - a.sag;                              // hub at full droop
-      const T = a.track, s = a.springTrack;
+      const T = a.track, s = a.springTrack, ifs = !!a.ifs;
       const ax = {
-        spec: a, zc, half, T, yDroop,
-        ka: 0.5 + s / (2 * T), kb: 0.5 - s / (2 * T),             // spring deflection = ka * zNear + kb * zFar
+        spec: a, zc, half, T, yDroop, ifs,
+        // spring deflection = ka * zNear + kb * zFar (a beam: the far wheel's travel tilts it; independent: its own)
+        ka: ifs ? 1 : 0.5 + s / (2 * T), kb: ifs ? 0 : 0.5 - s / (2 * T),
         zL: a.sag, zR: a.sag, vL: 0, vR: 0,
         pre: 0, mountY: yDroop + a.travel + 0.12,
         // mass matrix of the beam (heave + roll), and its inverse
         M11: 0, M12: 0, iM11: 0, iM12: 0, iM22: 0,
       };
       const ma = a.mass, Ia = a.mass * half * half * 0.8;          // roll inertia of the beam, wheels at the ends
-      const m11 = ma / 4 + Ia / (T * T), m12 = ma / 4 - Ia / (T * T);
+      // (independent: each wheel, its knuckle and half the arms move alone)
+      const m11 = ifs ? ma / 2 : ma / 4 + Ia / (T * T), m12 = ifs ? 0 : ma / 4 - Ia / (T * T);
       ax.M11 = m11; ax.M12 = m12;
       const det = m11 * m11 - m12 * m12;
       ax.iM11 = m11 / det; ax.iM12 = -m12 / det;
@@ -111,7 +113,8 @@ export class Vehicle {
       // plates under the leaf springs; x across (+ left), drop below the axle centre, dz along
       // (portal axles carry the tube and the diff above the hubs: little hangs below the wheel centres)
       const dd = a.diffDrop ?? 0.16, dxd = a.diffX || 0, sp = s / 2, pd = a.plateDrop ?? 0.085;
-      ax.under = [
+      // (independent: the diff sits up on the frame, and the lower arms' outer ends hang just inboard of each wheel)
+      ax.under = ifs ? [{ x: half - 0.24, drop: 0.11, dz: 0 }, { x: -(half - 0.24), drop: 0.11, dz: 0 }] : [
         { x: dxd, drop: dd, dz: 0 }, { x: dxd, drop: dd - 0.035, dz: 0.09 }, { x: dxd, drop: dd - 0.035, dz: -0.09 },
         { x: sp, drop: pd, dz: 0 }, { x: -sp, drop: pd, dz: 0 },
       ];
@@ -388,7 +391,7 @@ export class Vehicle {
       const zDot = w.side > 0 ? w.axle.vL : w.axle.vR;
       w.vHub.addScaled(u, zDot);
       // the wheel stands square to its beam axle, which tilts against the chassis as it articulates
-      const ax = w.axle, tilt = ax.zL - ax.zR, il = 1 / Math.sqrt(ax.T * ax.T + tilt * tilt);
+      const ax = w.axle, tilt = ax.ifs ? 0 : ax.zL - ax.zR, il = 1 / Math.sqrt(ax.T * ax.T + tilt * tilt);
       _w.set(u.x * ax.T - left.x * tilt, u.y * ax.T - left.y * tilt, u.z * ax.T - left.z * tilt).scale(il);
       w.upX = _w.x; w.upY = _w.y; w.upZ = _w.z;
       // heading of the wheel (steered), in the wheel's plane
@@ -462,6 +465,13 @@ export class Vehicle {
       }
       bt[i] = b + (ctrl.handbrake || 0) * (ax.handbrake || 0);
     }
+    // brake-locking front differential (the Thar's BLD): in 4WD under power, a front wheel spinning away from the other
+    // is braked, so the open diff sends the torque to the wheel with grip
+    if (this.spec.diffs?.front === 'bld' && dtr.fourWD && throttle > 0.15) {
+      const dw = this.wheels[0].omega - this.wheels[1].omega, a = Math.abs(dw);
+      if (a > 4) bt[dw > 0 ? 0 : 1] += Math.min(1400, (a - 4) * 160);
+      this.bldOn = a > 4;
+    } else this.bldOn = false;
     this._dtIn = this._dtIn || { throttle: 0, brakeTorque: bt };
     this._dtIn.throttle = throttle;
     const D = this.damage;
@@ -515,12 +525,19 @@ export class Vehicle {
       const lat = _b.dot(left);
       _c.copy(left).scale(lat);                                       // lateral (chassis frame)
       _b.sub(_c);                                                     // longitudinal
-      this.applyForce(_c, w.hub);
       _p.set(w.cx, w.cy, w.cz);
+      if (ax.ifs) {
+        // double wishbones: the lateral force reaches the body through the arms at the roll centre, just above the
+        // ground (no beam to roll)
+        _q.copy(_p).addScaled(u, 0.12);
+        this.applyForce(_c, _q);
+      } else {
+        this.applyForce(_c, w.hub);
+        // the lateral force acts below the hub: its moment rolls the axle (load moves to the outer tyre)
+        _q.subVectors(w.hub, _p);
+        ax.rollM += lat * _q.dot(u);
+      }
       this.applyForce(_b, _p);
-      // the lateral force acts below the hub: its moment rolls the axle (load moves to the outer tyre)
-      _q.subVectors(w.hub, _p);
-      ax.rollM += lat * _q.dot(u);
 
       // soft ground: press it down, dig while spinning. The footprint: the chord the tyre's deflection cuts, made
       // longer and wider by a soft carcass (aired down). The soil takes its set under the load and deflection averaged

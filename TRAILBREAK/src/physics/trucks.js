@@ -32,7 +32,7 @@
 //   look                 for the model: top ('hard', 'canvas', 'paint'), bed (a pickup), coils, portal, leaf (half
 //                        length of the leaf springs)
 
-import { buildSpec, decodeBuild, normalizeBuild, encodeBuild } from './Upgrades.js';
+import { buildSpec, decodeBuild, normalizeBuild, encodeBuild, TRUCK_BASES } from './Upgrades.js';
 
 export const TRUCKS = {
   ranger: {
@@ -252,7 +252,36 @@ export const TRUCKS = {
     shafts: [30000, 32000], tyreK: 2.8, tyreLoad: 15000, parts: 1.8,
     style: 'rhino', look: { top: 'paint', coils: true, portal: true },
   },
+  thar: {
+    // the 2020 Mahindra Thar LX: 3,985 mm long, 1,820 mm wide, 226 mm under the rear axle, right-hand drive
+    id: 'thar', name: 'Mahindra Thar',
+    blurb: 'The new Thar: 96" wheelbase, mHawk 2.2 turbo-diesel, six-speed manual, independent front on coil-overs, a five-link rear axle with an auto-locker. Short, light and keen.',
+    mass: 1850, cgHeight: 0.78, cgZ: 0.12, inertiaBox: [1.6, 1.3, 3.7],
+    axles: [
+      { z: 1.225, track: 1.56, springTrack: 0.96, rate: 34000, bump: 2400, rebound: 4800, travel: 0.2, sag: 0.085, mass: 80, steer: 0.6, brake: 2800, swayBar: 22000, ifs: true },
+      { z: -1.225, track: 1.48, springTrack: 0.98, rate: 38000, bump: 2300, rebound: 4600, travel: 0.25, sag: 0.095, mass: 90, steer: 0, brake: 1800, handbrake: 2600, diffDrop: 0.16, diffX: 0 },
+    ],
+    trans: { tcK: 10 },
+    stock: { tyre: 31, axle: 4.27, trans: 7, fit: 31, low: 2.48, diffs: 4 },
+    axleRatios: [3.73, 4.27, 4.56, 4.88, 5.13, 5.38, 5.89],
+    stockTyre: { label: '255/65 R18 A/T', radius: 0.3944, width: 0.255, rim: 18, desc: 'The factory 255/65 R18 all-terrains on diamond-cut alloys.' },
+    hull: [
+      { c: [0, 0.74, -0.07], h: [0.9, 0.33, 1.94], pts: 'bottom' },         // body: bumpers 0.41 m up, beltline 1.07
+      { c: [0, 0.42, 0], h: [0.38, 0.11, 0.85], pts: 'bottom' },            // belly: transfer case 0.31 m up
+      { c: [0, 1.555, -0.8], h: [0.86, 0.37, 1.15], pts: 'top' },          // hard top, roof 1.93 m
+    ],
+    roofY: 1.93, cabZ: 0.3, noseZ: 1.88, rackZ: -0.75,
+    intakePos: [0.55, 0.95, 1.35], snorkelPos: [0.88, 1.85, 0.6],        // (the snorkel up the left pillar)
+    winch: { fairlead: [0, 0.58, 1.9] },
+    eye: [-0.38, 1.5, -0.22], hoodEye: [0, 1.38, 1.0],                   // (right-hand drive)
+    drag: { cd: 0.55, area: 2.8 },
+    buoyancy: 0.3,
+    shafts: [5000, 6500], parts: 1.0,
+    style: 'thar', look: { top: 'black', coils: true, alloy: true },
+  },
 };
+// (the options that depend on the truck, Upgrades.optionsFor, look trucks up here)
+Object.assign(TRUCK_BASES, TRUCKS);
 
 export const TRUCK_IDS = Object.keys(TRUCKS);
 export const truckBase = (id) => TRUCKS[id] || TRUCKS.ranger;

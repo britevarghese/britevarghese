@@ -10,6 +10,7 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { geckoBody, trekkerBody, shepherdBody, droverBody, bruiserBody, rhinoBody } from './TruckBodies.js';
+import { truckAsset } from './TruckAssets.js';
 
 const GRAV = 9.81;
 const IN = 0.0254;
@@ -221,6 +222,8 @@ function shared() {
   MATS.wood = std(0x7a5a3a, 0.85, 0);
   MATS.synth = std(0xd0571e, 0.7, 0);
   MATS.cable = std(0x55534e, 0.45, 0.8);
+  MATS.alloy = std(0xc3c6c9, 0.24, 0.9);             // diamond-cut alloy faces
+  MATS.alloyDark = std(0x3a3d41, 0.4, 0.7);           // their painted pockets
   return MATS;
 }
 
@@ -307,6 +310,34 @@ function rimGeometry(r, w, beadlock) {
       const lip = new THREE.TorusGeometry(rr, 0.012, 5, 28); lip.rotateY(Math.PI / 2); lip.translate(hw, 0, 0); parts.push(clean(lip));
     }
     return mergeGeometries(parts);
+  });
+}
+
+/**
+ * Alloy wheel (the Thar's 18" diamond-cut five twin-spoke): the barrel, five pairs of machined spokes over a dark face,
+ * the centre cap and five nuts; outer face toward +x. Two geometries: the bright face and the dark parts.
+ */
+function alloyGeometry(r, w) {
+  return cached(`a${r.toFixed(3)}:${w.toFixed(3)}`, () => {
+    const hw = w * 0.42, bright = [], dark = [];
+    const barrel = new THREE.CylinderGeometry(r, r, 2 * hw, 32, 1, true); barrel.rotateZ(Math.PI / 2); dark.push(clean(barrel));
+    const face = new THREE.CylinderGeometry(r * 0.94, r * 0.94, 0.02, 32); face.rotateZ(Math.PI / 2); face.translate(hw * 0.55, 0, 0); dark.push(clean(face));
+    const lip = new THREE.TorusGeometry(r * 0.985, 0.014, 6, 36); lip.rotateY(Math.PI / 2); lip.translate(hw, 0, 0); bright.push(clean(lip));
+    for (let i = 0; i < 5; i++) for (const d of [-0.11, 0.11]) {
+      const a = (i / 5) * Math.PI * 2 + d;
+      const sp = new THREE.BoxGeometry(0.03, r * 0.72, r * 0.11);
+      sp.translate(hw * 0.78, r * 0.52, 0);
+      sp.rotateX(a);
+      bright.push(clean(sp));
+    }
+    const hub = new THREE.CylinderGeometry(r * 0.26, r * 0.3, 0.05, 20); hub.rotateZ(Math.PI / 2); hub.translate(hw * 0.8, 0, 0); bright.push(clean(hub));
+    const cap = new THREE.CylinderGeometry(r * 0.12, r * 0.12, 0.02, 16); cap.rotateZ(Math.PI / 2); cap.translate(hw * 0.8 + 0.03, 0, 0); dark.push(clean(cap));
+    for (let i = 0; i < 5; i++) {
+      const a = (i / 5) * Math.PI * 2 + Math.PI / 5;
+      const nut = new THREE.CylinderGeometry(0.012, 0.012, 0.03, 6); nut.rotateZ(Math.PI / 2);
+      nut.translate(hw * 0.8 + 0.025, Math.cos(a) * r * 0.2, Math.sin(a) * r * 0.2); bright.push(clean(nut));
+    }
+    return [mergeGeometries(bright), mergeGeometries(dark)];
   });
 }
 
@@ -527,7 +558,45 @@ function muleBody(P, M, paint, top, spec) {
   };
 }
 
-const BUILDERS = { ranger: rangerBody, hauler: haulerBody, mule: muleBody, gecko: geckoBody, trekker: trekkerBody, shepherd: shepherdBody, drover: droverBody, bruiser: bruiserBody, rhino: rhinoBody };
+// (a truck with a model body, render/TruckAssets.js, stands in another's built-in body until its model is loaded)
+const BUILDERS = { ranger: rangerBody, hauler: haulerBody, mule: muleBody, gecko: geckoBody, trekker: trekkerBody, shepherd: shepherdBody, drover: droverBody, bruiser: bruiserBody, rhino: rhinoBody, thar: rangerBody };
+
+/**
+ * A body from a real model (render/TruckAssets.js): its meshes in the body group (own copies: they dent), the game's
+ * paint, glass and lamps on those parts. Returns the layout the rest of the truck is built around: the converter's
+ * measurements and the model config's entries (tools/cars/<id>.json).
+ */
+function modelBody(model, asset, M) {
+  const L = asset.layout;
+  const mats = { paint: model.paint, glass: M.glass, screen: M.screen, head_l: model.lampMats[0], head_r: model.lampMats[1], tail: model.brakeMat, reverse: model.revMat, amber: M.amber };
+  for (const part of asset.parts) {
+    const g = part.geometry.clone();
+    g.userData = {};
+    const mat = mats[part.role] || part.material;
+    const m = new THREE.Mesh(g, mat);
+    m.castShadow = !mat.transparent; m.receiveShadow = !mat.transparent;
+    model.body.add(m);
+  }
+  return {
+    heads: L.heads, tails: [], reverse: [], ownLamps: true, ownBumpers: true, ownChassis: !!L.ownChassis,
+    bumperF: L.bumperF, bumperR: L.bumperR, spare: L.spare || null, wheel: L.steering || null, frame: L.frame,
+    flaps: !!L.flaps, sill: L.sill, half: L.half, roofY: L.roofY ?? L.bbox[1][1], roofZ: L.roofZ, coilY: L.coilY, bedZ: L.bedZ,
+  };
+}
+
+/** A model body keeps its own bumpers: the winch hides behind the front one, its fairlead and rope showing. */
+function fairlead(P, M, spec, x, winch) {
+  const bf = x.bumperF, fl = spec.winch.fairlead, fy = fl[1] - (spec.raise || 0), fz = Math.max(fl[2], bf.z);
+  if (winch.synthetic) {
+    P.box(M.alu, [0.26, 0.09, 0.025], [0, fy, fz + 0.012], { r: 0.01 });
+    P.box(M.black, [0.17, 0.03, 0.03], [0, fy, fz + 0.016], { r: 0.012 });
+  } else {
+    P.box(M.satin, [0.28, 0.12, 0.04], [0, fy, fz + 0.02], { r: 0.01 });
+    P.cyl(M.chrome, 0.018, 0.018, 0.18, [0, fy + 0.03, fz + 0.04], { axis: 'x' });
+    P.cyl(M.chrome, 0.018, 0.018, 0.18, [0, fy - 0.03, fz + 0.04], { axis: 'x' });
+  }
+  P.box(M.red, [0.05, 0.08, 0.06], [0, fy - 0.06, fz + 0.07], { r: 0.012 });
+}
 
 // ---------------------------------------------------------------- chassis, bumpers and the build's parts
 function chassis(P, M, spec, x) {
@@ -654,7 +723,9 @@ export class TruckModel {
     this.uniforms = { uDirt: { value: 0 } };
     this.paint = paintMaterial(paintHex, this.uniforms);
     const look = spec.look || {}, canvasTop = look.top === 'canvas';
-    this.top = look.top === 'paint' ? this.paint : new THREE.MeshStandardMaterial({ color: canvasTop ? 0x8f8467 : 0xece6d6, roughness: canvasTop ? 0.95 : 0.45, metalness: canvasTop ? 0 : 0.15 });
+    this.top = look.top === 'paint' ? this.paint : look.top === 'black'
+      ? new THREE.MeshPhysicalMaterial({ color: 0x141416, roughness: 0.4, metalness: 0.1, clearcoat: 0.6, clearcoatRoughness: 0.2 })
+      : new THREE.MeshStandardMaterial({ color: canvasTop ? 0x8f8467 : 0xece6d6, roughness: canvasTop ? 0.95 : 0.45, metalness: canvasTop ? 0 : 0.15 });
     this.lightMat = new THREE.MeshStandardMaterial({ color: 0xfff6dc, emissive: 0xfff2c8, emissiveIntensity: 0.15, roughness: 0.15 });
     this.barMat = new THREE.MeshStandardMaterial({ color: 0xfff6dc, emissive: 0xfff2c8, emissiveIntensity: 0.1, roughness: 0.15 });
     this.brakeMat = new THREE.MeshStandardMaterial({ color: 0x8a1a12, emissive: 0xff2010, emissiveIntensity: 0.05, roughness: 0.3 });
@@ -668,17 +739,28 @@ export class TruckModel {
     const t = spec.tyre, R = t.radius, Wt = t.width;
     const base = { rackZ: spec.rackZ ?? -0.8 };
     const rimR = (t.rim || (t.size >= 37 ? 17 : 15)) * IN / 2 + 0.03;
+    const alloy = !!look.alloy && !t.beadlock;                      // the truck's alloys (beadlocks replace them)
+    const rimModel = !t.beadlock && truckAsset(spec.style)?.rim.length ? truckAsset(spec.style) : null;
+    // the model's own rim (unit radius, face to +x): to the rim's size, as wide as the tyre's bead
+    const modelRim = () => {
+      const g = new THREE.Group(), L = rimModel.layout.rim, unitW = L.width / L.radius;
+      for (const r of rimModel.rim) { const m = new THREE.Mesh(r.geometry, r.material); m.castShadow = true; g.add(m); }
+      g.scale.set(Wt * 0.84 / unitW, rimR, rimR);
+      return g;
+    };
 
     // ---- body, chassis, bumpers, build
     const P = new PartList();
-    const x = BUILDERS[spec.style](P, M, this.paint, this.top, spec);
-    this.layout = x;
-    chassis(P, M, spec, x);
-    bumpers(P, M, spec, x, spec.winch || {});
-    buildParts(P, M, spec, x, base, this.barMat);
     this.lampMats = [this.lightMat, this.lightMat.clone()];           // left (+x), right
+    const asset = truckAsset(spec.style);
+    this.modelBody = !!asset;
+    const x = asset ? modelBody(this, asset, M) : BUILDERS[spec.style](P, M, this.paint, this.top, spec);
+    this.layout = x;
+    if (!x.ownChassis) chassis(P, M, spec, x);
+    if (x.ownBumpers) fairlead(P, M, spec, x, spec.winch || {}); else bumpers(P, M, spec, x, spec.winch || {});
+    buildParts(P, M, spec, x, base, this.barMat);
     this.lamps = [];
-    for (const [hx, hy, hz, hr] of x.heads) {
+    for (const [hx, hy, hz, hr] of x.ownLamps ? [] : x.heads) {
       [1, -1].forEach((sx, side) => {
         const lamp = new THREE.Mesh(new THREE.CylinderGeometry(hr, hr, 0.03, 18).rotateX(Math.PI / 2), this.lampMats[side]);
         lamp.position.set(sx * hx, hy, hz);
@@ -698,13 +780,21 @@ export class TruckModel {
         tg.rotateZ(Math.PI / 2); rg.rotateZ(Math.PI / 2); pos = [x.spare.x, x.spare.y + Wt / 2, x.spare.z];
       } else {
         tg.rotateY(Math.PI / 2); rg.rotateY(Math.PI / 2);
-        pos = [x.spare.x, Math.max(x.sill + R + 0.12, 0.98), x.spare.z - Wt / 2 - 0.05];
+        pos = [x.spare.x, x.spare.y ?? Math.max(x.sill + R + 0.12, 0.98), x.spare.z - Wt / 2 - 0.05];
         P.box(M.black, [0.06, 0.4, 0.06], [x.spare.x, pos[1] - 0.12, x.spare.z - 0.02], { r: 0.01 });
       }
-      P.add(M.tire, tg, pos); P.add(t.beadlock ? M.bead : M.steel, rg, pos);
+      P.add(M.tire, tg, pos);
+      if (rimModel) {
+        const sg = modelRim();
+        if (x.spare.mount === 'under' || x.spare.mount === 'bed') sg.rotation.z = Math.PI / 2; else sg.rotation.y = Math.PI / 2;      // (face out the back)
+        sg.position.set(...pos);
+        this.spareRim = sg;
+        rg.dispose();
+      } else if (alloy) { const [ab, ad] = alloyGeometry(rimR, Wt); const b2 = ab.clone(), d2 = ad.clone(); for (const g of [b2, d2]) g.rotateY(Math.PI / 2); P.add(M.alloy, b2, pos); P.add(M.alloyDark, d2, pos); rg.dispose(); } else P.add(t.beadlock ? M.bead : M.steel, rg, pos);
     }
     P.build(this.body);
     for (const l of this.lamps) this.body.add(l);
+    if (this.spareRim) this.body.add(this.spareRim);
     // this truck's own glass, so it can crack and shatter
     // this truck's own glass: the windscreen (laminated: it crazes) and the side and back windows (toughened: they burst)
     this.screenMesh = this.body.children.find((m) => m.material === M.screen);
@@ -725,8 +815,8 @@ export class TruckModel {
     this.dentMeshes = this.body.children.filter((m) => m.isMesh && !m.material.transparent);
     this.rimR = rimR;
 
-    // ---- steering wheel (turns with the front wheels)
-    {
+    // ---- steering wheel (turns with the front wheels; a model body's own stays put)
+    if (x.wheel) {
       const w = x.wheel, g = new THREE.Group();
       g.position.set(w.x, w.y, w.z);
       g.rotation.x = w.tilt;
@@ -753,6 +843,7 @@ export class TruckModel {
       const heavy = a.mass > 110, tubeR = a.mass > 300 ? 0.075 : heavy ? 0.052 : 0.044, dd = a.diffDrop ?? 0.16;
       const portal = !!look.portal, up = this.tubeUp = portal ? 0.21 : 0, rp = portal ? 0.16 : dd * 0.82, dy = rp - dd;
       const AP = new PartList();
+      if (!a.ifs) {
       AP.cyl(M.under, tubeR, tubeR, a.track - Wt - (portal ? 0.36 : 0.08), [0, up, 0], { axis: 'x' });
       AP.add(M.under, new THREE.SphereGeometry(rp, 14, 10).scale(1.05, 1, 0.9), [a.diffX || 0, dy, 0]);
       AP.cyl(M.satin, rp * 0.82, rp * 0.82, 0.03, [a.diffX || 0, dy + 0.005, ai === 0 ? rp * 0.8 : -rp * 0.8], { axis: 'z', seg: 16 });
@@ -770,6 +861,11 @@ export class TruckModel {
         }
       }
       if (ai === 0) AP.cyl(M.satin, 0.018, 0.018, a.track - 0.5, [0, up - 0.02, -0.17], { axis: 'x' });
+      } else {
+        // independent: the diff bolted to the frame (at ride height: this group stays at full droop), a crossmember
+        AP.add(M.under, new THREE.SphereGeometry(0.12, 14, 10).scale(1.15, 0.95, 1), [0, a.sag, 0.02]);
+        AP.box(M.under, [a.track - Wt - 0.7, 0.07, 0.09], [0, a.sag + 0.2, -0.12], { r: 0.012 });
+      }
       AP.build(group);
       const wheels = [1, -1].map((side) => {
         const knuckle = new THREE.Group();
@@ -786,14 +882,29 @@ export class TruckModel {
         const spin = new THREE.Group();
         knuckle.add(spin);
         const tire = new THREE.Mesh(tireGeometry(R, Wt, t.tread), M.tire);
-        const rim = new THREE.Mesh(rimGeometry(rimR, Wt, t.beadlock), t.beadlock ? M.bead : M.steel);
+        let rim;
+        if (rimModel) rim = modelRim();
+        else if (alloy) {
+          const [ab, ad] = alloyGeometry(rimR, Wt);
+          rim = new THREE.Group();
+          rim.add(new THREE.Mesh(ab, M.alloy), new THREE.Mesh(ad, M.alloyDark));
+          rim.children.forEach((m) => { m.castShadow = true; });
+        } else rim = new THREE.Mesh(rimGeometry(rimR, Wt, t.beadlock), t.beadlock ? M.bead : M.steel);
         if (side < 0) rim.rotation.y = Math.PI;              // outer face out on both sides
         tire.castShadow = true; rim.castShadow = true;
         spin.add(tire, rim);
         return { knuckle, spin, tire, tireGeo: tire.geometry };
       });
-      return { group, wheels, yDroop, half, spec: a };
+      return { group, wheels, yDroop, half, spec: a, ifs: !!a.ifs };
     });
+    // independent suspension (front, or both ends): wishbones (upper and lower each side) and the drive shafts from the
+    // diff on the frame, placed every frame between the frame and the knuckles
+    this.ifsAxles = this.axles.filter((ax) => ax.ifs);
+    if (this.ifsAxles.length) {
+      this.arms = new THREE.InstancedMesh(new THREE.CylinderGeometry(0.022, 0.022, 1, 8).translate(0, 0.5, 0), M.under, 6 * this.ifsAxles.length);
+      this.arms.castShadow = true; this.arms.frustumCulled = false;
+      this.root.add(this.arms);
+    }
 
     // ---- leaf springs (two halves per side) or coils, shocks (body and shaft), propshafts: placed every frame
     const nLeaf = look.coils ? 4 : 8, nShock = 4;
@@ -926,8 +1037,14 @@ export class TruckModel {
     for (let ai = 0; ai < 2; ai++) {
       const ax = this.axles[ai];
       const zL = wheels[ai * 2][0], zR = wheels[ai * 2 + 1][0];
-      ax.group.position.y = ax.yDroop + (zL + zR) / 2;
-      ax.group.rotation.z = Math.atan2(zL - zR, ax.spec.track);
+      if (ax.ifs) {
+        // each knuckle on its own wishbones: the group stays at full droop, square to the body
+        ax.group.position.y = ax.yDroop; ax.group.rotation.z = 0;
+        ax.wheels[0].knuckle.position.y = zL; ax.wheels[1].knuckle.position.y = zR;
+      } else {
+        ax.group.position.y = ax.yDroop + (zL + zR) / 2;
+        ax.group.rotation.z = Math.atan2(zL - zR, ax.spec.track);
+      }
       for (let s = 0; s < 2; s++) {
         const w = wheels[ai * 2 + s], wm = ax.wheels[s];
         wm.knuckle.rotation.y = w[2];
@@ -942,20 +1059,33 @@ export class TruckModel {
     for (let ai = 0; ai < 2; ai++) {
       const ax = this.axles[ai], mt = this.mounts[ai], s = ax.spec.springTrack / 2;
       for (const side of [1, -1]) {
+        const ky = ax.ifs ? ax.wheels[side > 0 ? 0 : 1].knuckle.position.y : 0;      // (independent: on that wheel's arm)
         if (this.coils) {
-          const seat = w.set(side * s, (this.tubeUp || 0) + 0.1, 0).applyMatrix4(ax.group.matrix).clone();
+          const seat = w.set(side * s, (this.tubeUp || 0) + 0.1 + ky, 0).applyMatrix4(ax.group.matrix).clone();
           this.bodyPoint(mt.coilTop, v, side); this.segment(this.leaves, li++, seat, v);
         } else {
           const seatC = w.set(side * s, 0.06, 0).applyMatrix4(ax.group.matrix).clone();
           this.bodyPoint(mt.hanger, v, side); this.segment(this.leaves, li++, v, seatC);
           this.bodyPoint(mt.shackle, v, side); this.segment(this.leaves, li++, seatC, v);
         }
-        const low = w.set(side * mt.shockLow[0], mt.shockLow[1], mt.shockLow[2]).applyMatrix4(ax.group.matrix);
+        const low = w.set(side * mt.shockLow[0], mt.shockLow[1] + ky, mt.shockLow[2]).applyMatrix4(ax.group.matrix);
         const top = this.bodyPoint(mt.shockTop, v, side);
         const len = top.distanceTo(low);
         this.segment(this.shockBody, si, top, low, Math.min(len, 0.34));
         this.segment(this.shockRod, si++, low, top, Math.max(0.05, len - 0.3));
       }
+    }
+    // the wishbones and drive shafts of independent suspension: frame -> knuckle, diff -> hub
+    let k = 0;
+    for (const ax of this.ifsAxles || []) {
+      const G = ax.group.matrix, h = ax.half, ys = ax.spec.sag;
+      for (let si2 = 0; si2 < 2; si2++) {
+        const side = si2 === 0 ? 1 : -1, yk = ax.wheels[si2].knuckle.position.y;
+        for (const [a, b] of [[[h - 0.5, ys + 0.17, 0], [h - 0.17, yk + 0.15, 0]], [[h - 0.56, ys - 0.1, 0], [h - 0.13, yk - 0.13, 0]], [[0.13, ys, 0.04], [h - 0.09, yk, 0]]]) {
+          this.segment(this.arms, k++, v.set(side * a[0], a[1], a[2]).applyMatrix4(G), w.set(side * b[0], b[1], b[2]).applyMatrix4(G));
+        }
+      }
+      this.arms.instanceMatrix.needsUpdate = true;
     }
     this.leaves.instanceMatrix.needsUpdate = true;
     this.shockBody.instanceMatrix.needsUpdate = true;
@@ -963,7 +1093,7 @@ export class TruckModel {
     // propshafts: transfer case -> pinion
     for (let ai = 0; ai < 2; ai++) {
       const ax = this.axles[ai], sh = this.shafts[ai], a = ax.spec, rp = this.tubeUp ? 0.16 : (a.diffDrop ?? 0.16) * 0.82;
-      const end = this._w.set((a.diffX || 0) * 0.9, this.tubeUp || 0, ai === 0 ? -rp - 0.1 : rp + 0.1).applyMatrix4(ax.group.matrix);
+      const end = this._w.set((a.diffX || 0) * 0.9, ax.ifs ? a.sag : this.tubeUp || 0, ai === 0 ? -rp - 0.1 : rp + 0.1).applyMatrix4(ax.group.matrix);
       const st = this.tcase, len = st.distanceTo(end);
       sh.position.copy(st).add(end).multiplyScalar(0.5);
       sh.scale.set(1, len, 1);

@@ -11,6 +11,9 @@
 //   lockup:      wEngine = gear * wOut                bounded by the lockup clutch's torque capacity
 //   clutch:      wEngine = gear * wOut                manual gearbox: bounded by the clutch's capacity as it engages
 //   LSD:         wL = wR                              bounded by its clutch packs: preload + a share of the axle torque
+//   auto-locker: wL = wR                              (a mechanical locker, as the Thar's MLD) while it is locked: it
+//                                                     locks itself when one wheel spins away, and frees itself when
+//                                                     the drive comes off or the truck goes faster than ~30 km/h
 //   brakes:      w = 0                                bounded by each brake's torque
 // (G = transfer case ratio * axle ratio). Bounded constraints that would need more torque than they have are
 // clamped and the system solved again without them (an active-set pass), which is what lets wheels lock under
@@ -101,6 +104,7 @@ export class Drivetrain {
     this.fourWD = true;
     this.lockFront = false;
     this.lockRear = false;
+    this.autoLock = false; this.autoT = 0;           // the auto-locker's state (diffs.rear 'auto')
     this.auto = true;            // automatic shifting
     this.lockupOn = false;
     this.shiftT = 0;
@@ -341,11 +345,24 @@ export class Drivetrain {
       const k = B[l] ? r : l;
       J[n * NB + k] = G; J[n * NB + OUT] = -1; bound[n] = Infinity; return n++;
     };
+    // the mechanical auto-locker: flyweights lock it when one rear wheel spins ~100 rpm faster than the other below
+    // about 30 km/h (the wheels' 22 rad/s); then it stays locked while it drives, and frees itself when the torque
+    // comes off (lift off, or the wheels' own speeds pull apart turning) or above that speed
+    if (this.diffs.rear === 'auto') {
+      const wl = wheels[2].omega, wr = wheels[3].omega, avg = Math.abs(wl + wr) / 2;
+      if (!this.autoLock) {
+        if (Math.abs(wl - wr) > 10.5 && avg < 22) { this.autoLock = true; this.autoT = 0; }
+      } else {
+        this.autoT = Math.abs(this.propRear) < 150 ? this.autoT + dt : 0;
+        if (this.autoT > 0.3 || avg > 24) this.autoLock = false;
+      }
+    } else this.autoLock = false;
+    const lockR = this.lockRear || this.autoLock;
     // rear axle (the gearbox output turns with the rear propshaft), front axle in 4WD
-    const iRear = axle(2, 3, this.lockRear);
+    const iRear = axle(2, 3, lockR);
     const iFront = this.fourWD ? axle(0, 1, this.lockFront) : -1;
     if (!B[2] && !B[3]) {
-      if (this.lockRear) { J[n * NB + 2] = 1; J[n * NB + 3] = -1; bound[n] = Infinity; n++; } else if (this.diffs.rear === 'lsd') {
+      if (lockR) { J[n * NB + 2] = 1; J[n * NB + 3] = -1; bound[n] = Infinity; n++; } else if (this.diffs.rear === 'lsd') {
         J[n * NB + 2] = 1; J[n * NB + 3] = -1; bound[n] = (100 + 0.45 * Math.abs(this.propRear * t.axle)) * dt; n++;
       }
     }

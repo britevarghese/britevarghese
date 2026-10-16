@@ -7,6 +7,7 @@ import { buildSummary, buildStats } from '../physics/Upgrades.js';
 import { SURFACES } from '../physics/Surfaces.js';
 import { TruckModel } from '../render/TruckModel.js';
 import { TruckView } from '../ui/TruckView.js';
+import { loadTruckAsset, truckAsset, MODEL_BODIES } from '../render/TruckAssets.js';
 import { CameraRig } from './CameraRig.js';
 import { BEACON_RADIUS, MAP_HALF } from '../world/maps/index.js';
 import { EventPlay } from '../game/EventPlay.js';
@@ -243,8 +244,9 @@ export class Game {
   }
 
   /** Drive another of your trucks: it is waiting at the station garage, with its last build. */
-  switchTruck(id) {
+  async switchTruck(id) {
     if (!this.career?.ownsTruck(id) || id === this.truckId) return;
+    await loadTruckAsset(id);                         // (its model body, if it has one)
     this.truckId = id;
     this.applyBuild(this.settings.builds?.[id] || '', true);
   }
@@ -324,7 +326,7 @@ export class Game {
     const over = v.up.y < 0.5, wet = v.flooded || v.waterDepth > 0.9;
     const D = v.damage, d = v.dt, sh = D.shafts;
     const drives = (l, r, locked) => (!sh[l] && !sh[r]) || (locked && !(sh[l] && sh[r]));
-    const dead = D.seized || (!drives(2, 3, d.lockRear) && !(d.fourWD && drives(0, 1, d.lockFront)));
+    const dead = D.seized || (!drives(2, 3, d.lockRear || d.autoLock) && !(d.fourWD && drives(0, 1, d.lockFront)));
     const pushing = (ctrl.throttle > 0.3 || ctrl.brake > 0.3) && Math.abs(v.speed) < 0.5;
     this.boggedT = pushing ? this.boggedT + dt : Math.max(0, this.boggedT - dt * 2);
     this.stuckT = over || wet || dead ? this.stuckT + dt : 0;
@@ -426,7 +428,7 @@ export class Game {
     if (I.consume('locks')) {
       // cycle through what is fitted: open -> rear -> front + rear -> open
       const F = d.diffs.front === 'locker', Rr = d.diffs.rear === 'locker';
-      if (!F && !Rr) this.hud.hint(d.diffs.rear === 'lsd' ? 'Limited-slip rear diff: it works by itself. Lockers: see the garage (U)' : 'No lockers fitted: open diffs. See the garage (U)', 3);
+      if (!F && !Rr) this.hud.hint(d.diffs.rear === 'auto' ? 'Mechanical locking rear diff: it locks by itself when a wheel spins' : d.diffs.rear === 'lsd' ? 'Limited-slip rear diff: it works by itself. Lockers: see the garage (U)' : 'No lockers fitted: open diffs. See the garage (U)', 3);
       else {
         const next = !d.lockRear ? [false, true] : !d.lockFront && F ? [true, true] : [false, false];
         if (next[1] && Math.abs(sp) > 8) this.hud.hint('Too fast to lock the diffs');
@@ -550,7 +552,10 @@ export class Game {
   remoteView(r) {
     let rv = this.remotes.get(r.id);
     const s = r.view;
-    if (!rv || rv.truckId !== s.truck || rv.cfg !== s.cfg) {
+    // (a truck with a model body: the built-in one stands in while it loads, then the truck is built again)
+    const style = truckSpec(s.truck).style, modelReady = !!truckAsset(style);
+    if (MODEL_BODIES.has(style) && !modelReady) loadTruckAsset(style);
+    if (!rv || rv.truckId !== s.truck || rv.cfg !== s.cfg || rv.model.modelBody !== modelReady) {
       if (rv) { this.scene.remove(rv.model.root); rv.model.dispose(); }
       const spec = truckSpec(s.truck, s.cfg || undefined);
       const color = MATE_COLORS[r.id % MATE_COLORS.length];

@@ -2,7 +2,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { Vehicle } from '../src/physics/Vehicle.js';
-import { truckSpec } from '../src/physics/trucks.js';
+import { truckSpec, TRUCKS } from '../src/physics/trucks.js';
+import { presetBuild } from '../src/physics/Upgrades.js';
 import { SURFACES, SURFACE } from '../src/physics/Surfaces.js';
 import { flat, ledge, flooded } from './grounds.mjs';
 
@@ -129,7 +130,7 @@ test('a snapped rear shaft: an open diff stops driving (2WD goes nowhere, 4WD ge
   };
   assert.ok(go(false) < 0.3, '2WD, open rear diff: no drive');
   assert.ok(go(true) > 3, '4WD: the front pulls');
-  assert.ok(go(false, 'crawler', true) > 3, 'rear locker in: the other rear wheel drives');
+  assert.ok(go(false, presetBuild(TRUCKS.ranger, 'crawler'), true) > 3, 'rear locker in: the other rear wheel drives');
 });
 
 test('realistic: water in the intake at revs bends a rod; at idle it only stalls', () => {

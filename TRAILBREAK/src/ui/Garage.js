@@ -1,12 +1,13 @@
 // The garage: choose the parts for a truck, see on the truck and in the numbers what they change, and fit them.
 // Opens from the start screen, and in the valley with U or from the pause menu (parts are fitted at the station).
 import {
-  CATEGORIES, PRESETS, optionsFor, normalizeBuild, presetBuild, encodeBuild, decodeBuild, buildStats, maxTyre,
+  CATEGORIES, PRESETS, optionsFor, tyreFor, normalizeBuild, presetBuild, encodeBuild, decodeBuild, buildStats, maxTyre,
   LIFTS, TYRE_SIZES, TYRES, partPrice,
 } from '../physics/Upgrades.js';
 import { money } from '../game/Career.js';
 import { truckBase, truckSpec } from '../physics/trucks.js';
 import { GaragePreview } from './GaragePreview.js';
+import { loadTruckAsset, truckAsset, MODEL_BODIES } from '../render/TruckAssets.js';
 
 const $ = (id) => document.getElementById(id);
 const esc = (t) => String(t).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
@@ -203,11 +204,15 @@ export class Garage {
       }
       return `<div class="g-stat"><span>${label}</span><b>${fmt(v)}<small>${unit}</small></b>${delta}</div>`;
     });
-    const t = TYRES[b.tyre];
+    const t = tyreFor(truckBase(this.truckId), b.tyre);
     const warn = st.rub > 0 ? `<p class="g-warn">The ${t.d}" tyres rub at full bump: the bump stops are extended ${(st.bumpLoss * 100).toFixed(0)} cm.</p>` : '';
     $('g-stats').innerHTML = `<div class="g-tyre">${esc(st.tyre)} · ${esc(t.label)} · down to ${st.minPsi} psi</div>${rows.join('')}${warn}`;
     this.describe(null);
-    if (this.preview && code !== this.shown) { this.preview.show(spec, this.paint); this.shown = code; }
+    if (this.preview && code !== this.shown) {
+      this.preview.show(spec, this.paint); this.shown = code;
+      // a model body not loaded yet: shown again when it is
+      if (MODEL_BODIES.has(spec.style) && !truckAsset(spec.style)) loadTruckAsset(spec.style).then((a) => { if (a && this.isOpen) { this.shown = null; this.update(); } });
+    }
     // the bill: parts in this build not yet owned
     const bill = $('g-bill'), fit = $('g-fit');
     if (this.career?.freeParts) {

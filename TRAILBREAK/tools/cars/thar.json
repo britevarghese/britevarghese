@@ -1,0 +1,79 @@
+{
+ "id": "thar",
+ "model": {
+  "title": "THAR 4X4",
+  "url": "https://sketchfab.com/3d-models/thar-4x4-66ee970b18014c98a1750064b65657b0",
+  "author": "MB_Mahesh",
+  "authorUrl": "https://sketchfab.com/MB_Mahesh",
+  "license": "CC BY 4.0"
+ },
+ "axes": {
+  "left": "+x",
+  "up": "+y",
+  "forward": "+z"
+ },
+ "wheelbase": 2.45,
+ "spare": "rear",
+ "materials": {
+  "9": "paint",
+  "11": "paint",
+  "18": "paint",
+  "22": "paint",
+  "28": "paint",
+  "31": "paint",
+  "32": "paint",
+  "35": "paint",
+  "26": "tyre",
+  "27": "rim",
+  "29": "glass",
+  "30": "tail",
+  "25": "reverse",
+  "39": "trim",
+  "40": "head",
+  "19": "drop",
+  "21": "drop",
+  "41": "drop"
+ },
+ "layout": {
+  "bumperF": {
+   "z": 1.83,
+   "y": 0.42,
+   "w": 1.8
+  },
+  "bumperR": {
+   "z": -1.95,
+   "y": 0.45,
+   "w": 1.7
+  },
+  "spare": {
+   "x": 0,
+   "y": 1.19,
+   "z": -1.88,
+   "mount": "rear"
+  },
+  "frame": {
+   "x": 0.42,
+   "y": 0.45,
+   "z0": -1.9,
+   "z1": 1.75
+  },
+  "sill": 0.45,
+  "roofZ": [
+   -1.95,
+   0.3
+  ],
+  "flaps": false
+ },
+ "scaleX": 0.917,
+ "override": {
+  "39": {
+   "color": [
+    0.86,
+    0.87,
+    0.88
+   ],
+   "metallic": 1.0,
+   "roughness": 0.12
+  }
+ }
+}

@@ -120,8 +120,8 @@ export class HUD {
     const set = (id, text, cls) => { const el = $(id); if (el.textContent !== text) el.textContent = text; el.className = 'chip' + (cls ? ' ' + cls : ''); };
     set('m-range', d.low ? 'LOW' : 'HIGH', d.low ? 'on' : '');
     set('m-4wd', d.fourWD ? '4WD' : '2WD', d.fourWD ? 'on' : '');
-    const lsd = d.diffs.rear === 'lsd';
-    set('m-lock', d.lockFront && d.lockRear ? 'LOCK F+R' : d.lockRear ? 'LOCK R' : lsd ? 'LSD' : 'OPEN', d.lockRear ? 'on2' : '');
+    const lsd = d.diffs.rear === 'lsd', mld = d.diffs.rear === 'auto';
+    set('m-lock', d.lockFront && d.lockRear ? 'LOCK F+R' : d.lockRear ? 'LOCK R' : mld ? (d.autoLock ? 'MLD LOCKED' : 'MLD') : lsd ? 'LSD' : 'OPEN', d.lockRear || d.autoLock ? 'on2' : '');
     set('m-box', `${d.manual ? 'STICK' : 'AUTO'} ${d.auto ? '' : 'M'}${d.gearLabel}`, d.auto ? '' : 'on2');
     const psi = Math.round(v.psiAir ?? v.psi), dir = v.psiTarget < psi - 0.4 ? ' ↓' : v.psiTarget > psi + 0.4 ? ' ↑' : '';
     set('m-psi', `${psi} PSI${dir}`, psi < 25 ? 'on2' : '');

@@ -2,6 +2,7 @@
 // dealer, with its build and paint. Drag to turn it (the garage's own 3D view, GaragePreview, does the drawing).
 import { GaragePreview } from './GaragePreview.js';
 import { truckSpec } from '../physics/trucks.js';
+import { loadTruckAsset } from '../render/TruckAssets.js';
 
 export class TruckView {
   constructor(canvas) {
@@ -13,7 +14,11 @@ export class TruckView {
   }
 
   /** Show truck id with build code (blank: stock) in a paint (#hex); starts the view turning. */
-  show(id, code, paint) {
+  async show(id, code, paint) {
+    this.want = `${id}:${code || ''}:${paint}`;
+    const want = this.want;
+    await loadTruckAsset(id);                        // (a model body loads first; meanwhile the last truck stays)
+    if (want !== this.want) return;                  // (another was picked while it loaded)
     if (!this.preview) {
       try { this.preview = new GaragePreview(this.canvas); } catch (e) { console.warn('truck view', e); this.canvas.closest('.truck-view')?.classList.add('hidden'); return; }
     }
