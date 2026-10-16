@@ -3,6 +3,7 @@
 // room, J opens a race instead: the server gives it a start time a little ahead (RACE_LEAD), friends press J to join
 // and are lined up beside you, everyone's clock starts together, and the server collects the times (server/rooms.js).
 import { eventsFor, EventRun, medalFor, clock, runPrize, standings, gridFor, COUNTDOWN, TOUCH_PENALTY } from './Events.js';
+import { racesFor } from './Races.js';
 import { money } from './Career.js';
 import { escapeHtml } from '../ui/HUD.js';
 
@@ -10,11 +11,14 @@ const NEAR = 14;                   // m from a start line to start there with J
 const $ = (id) => document.getElementById(id);
 const MEDAL_NAME = { gold: 'Gold', silver: 'Silver', bronze: 'Bronze' };
 const fmt = (t) => (t < 60 ? `${t.toFixed(1)} s` : clock(t));
+/** What sort of event it is, for the lists and the map. */
+export const kindOf = (e) => (e.kind === 'circuit' ? `Circuit · ${e.laps} laps` : e.kind === 'rally' ? `Rally · ${(e.length / 1000).toFixed(1)} km` : e.kind === 'slalom' ? 'Trials' : e.kind === 'trail' ? 'Hill climb' : 'Dash');
 
 export class EventPlay {
   constructor(game) {
     this.g = game;
-    this.events = eventsFor(game.world);
+    // the map's events, then its checkpoint races (game/Races.js)
+    this.events = [...eventsFor(game.world), ...racesFor(game.world)];
     this.byId = new Map(this.events.map((e) => [e.id, e]));
     this.grids = new Map(this.events.map((e) => [e.id, gridFor(game.world, e)]));
     this.simT = 0;
@@ -25,7 +29,11 @@ export class EventPlay {
     this.resultT = 0;
     this.lastCount = null;
     this.promptT = 0;
-    this.panel = { el: $('ev-panel'), name: $('ev-name'), time: $('ev-time'), info: $('ev-info'), count: $('ev-count'), result: $('ev-result') };
+    this.panel = { el: $('ev-panel'), name: $('ev-name'), time: $('ev-time'), info: $('ev-info'), count: $('ev-count'), result: $('ev-result'),
+      cp: $('ev-cpn'), lap: $('ev-lap'), lapBox: $('ev-lapbox'), best: $('ev-best'), restart: $('ev-restart'), leave: $('ev-leave') };
+    const tap = (el, fn) => el?.addEventListener('click', (e) => { e.preventDefault(); e.currentTarget.blur(); fn(); this.g.renderer.renderer.domElement.focus(); });
+    tap(this.panel.restart, () => this.restart());
+    tap(this.panel.leave, () => this.leave());
     this.panel.result?.addEventListener('click', (e) => { if (e.target.closest('[data-close]')) this.closeResult(); else if (e.target.closest('[data-again]')) this.again(); });
   }
 
@@ -124,6 +132,39 @@ export class EventPlay {
     this.g.course?.setActive(e, 0);
   }
 
+  /** RESTART (Backspace): line up at the start again and count down afresh (alone; not in a race with friends). */
+  restart() {
+    const run = this.run;
+    if (!run || this.inRace) return false;
+    const e = run.event;
+    run.phase = 'out';
+    this.run = null;
+    this.lineUp(e, 0);
+    this.startRun(e, this.now + COUNTDOWN + 0.6);
+    this.g.hud.hint('Restarted', 1.2);
+    return true;
+  }
+
+  /** LEAVE: out of the run (or the race) at once. */
+  leave() { if (this.run) this.giveUp(this.inRace ? 'You left the race' : 'You left the run'); }
+
+  /** R in a run: back to the last checkpoint passed (or the start), facing the next one. The clock keeps running. */
+  resetToCheckpoint() {
+    const run = this.run, g = this.g, v = g.vehicle;
+    if (!run || run.phase !== 'running') return false;
+    const e = run.event, last = run.gate > 0 ? e.gates[run.gate - 1] : null, next = e.gates[run.gate];
+    const at = last || e.start;
+    let yaw = last?.dir ? Math.atan2(last.dir[0], last.dir[1]) : e.start.yaw;
+    if (!last?.dir && last && next) yaw = Math.atan2(next.x - last.x, next.z - last.z);
+    if (v.winch.attached) v.detachWinch();
+    v.place(g.world, at.x, at.z, yaw);
+    g.carry = 0; g.stuckT = 0; g.boggedT = 0;
+    if (g.net) g.net.warp++;
+    g.cam.heading = null;
+    g.hud.hint(last ? 'Back at the last checkpoint' : 'Back at the start', 1.5);
+    return true;
+  }
+
   giveUp(why) {
     if (!this.run) return;
     this.run.phase = 'out';
@@ -192,24 +233,31 @@ export class EventPlay {
     P.el.classList.toggle('hidden', !run && !raceWait);
     document.body.classList.toggle('has-ev', !!(run || raceWait));
     let count = '';
+    const set = (el, text) => { if (el && el.textContent !== text) el.textContent = text; };
     if (run) {
-      const e = run.event;
-      P.name.textContent = e.name + (this.inRace ? ` · race of ${this.race.racers.length}` : '');
+      const e = run.event, n = e.gates.length, laps = e.laps || 1;
+      set(P.name, e.name + (this.inRace ? ` · race of ${this.race.racers.length}` : ''));
+      set(P.cp, `${Math.min(run.gate, n)}/${n}`);
+      P.lapBox?.classList.toggle('hidden', laps < 2);
+      if (laps > 1) set(P.lap, `${Math.min(e.gates[run.gate]?.lap ?? laps, laps)}/${laps}`);
+      const best = this.g.career?.best(e.id);
+      set(P.best, best ? `BEST ${clock(best.time)}` : `GOLD ${clock(e.par.gold)}`);
+      P.restart?.classList.toggle('hidden', this.inRace);
       if (run.phase === 'countdown') {
         const left = run.countdown(this.now);
-        P.time.textContent = '0:00.0';
-        P.info.textContent = left > COUNTDOWN + 0.6 ? `Lined up. Starts in ${Math.ceil(left)} s${this.inRace ? ': friends press J to join' : ''}` : `${e.gates.length} gates · gold ${fmt(e.par.gold)} · silver ${fmt(e.par.silver)} · bronze ${fmt(e.par.bronze)}`;
+        set(P.time, '0:00.0');
+        set(P.info, left > COUNTDOWN + 0.6 ? `Lined up. Starts in ${Math.ceil(left)} s${this.inRace ? ': friends press J to join' : ''}` : `Gold ${fmt(e.par.gold)} · silver ${fmt(e.par.silver)} · bronze ${fmt(e.par.bronze)}`);
         if (left <= COUNTDOWN) count = String(Math.ceil(left));
       } else {
-        P.time.textContent = clock(run.time);
-        const pen = run.penalty ? ` · +${run.penalty} s penalties` : '';
-        P.info.textContent = run.phase === 'finished' ? (this.inRace ? 'Finished: waiting for the others' : 'Finished') : `Gate ${Math.min(run.gate + 1, e.gates.length)} of ${e.gates.length}${pen} · J J to give up`;
+        set(P.time, clock(run.time));
+        const pen = run.penalty ? `+${run.penalty} s penalties · ` : '';
+        set(P.info, run.phase === 'finished' ? (this.inRace ? 'Finished: waiting for the others' : 'Finished') : `${pen}R: back to the last checkpoint`);
         if (this.goT > 0) count = 'GO';
       }
     } else if (raceWait) {
-      P.name.textContent = this.byId.get(this.race.id)?.name || 'Race';
-      P.time.textContent = '';
-      P.info.textContent = 'Waiting for the others';
+      set(P.name, this.byId.get(this.race.id)?.name || 'Race');
+      set(P.time, '');
+      set(P.info, 'Waiting for the others');
     }
     if (P.count.textContent !== count) { P.count.textContent = count; P.count.classList.toggle('hidden', !count); P.count.classList.toggle('go', count === 'GO'); }
   }
@@ -319,7 +367,7 @@ export class EventPlay {
       const best = g.career?.best(e.id);
       const medal = best?.medal;
       return `<div class="dealer-row ev-row${medal ? ' mine' : ''}">
-        <b>${escapeHtml(e.name)}${medal ? ` <span class="ev-medal ${medal}">${MEDAL_NAME[medal]}</span>` : ''}</b>
+        <b>${escapeHtml(e.name)}${medal ? ` <span class="ev-medal ${medal}">${MEDAL_NAME[medal]}</span>` : ''} <span class="ev-kind">${kindOf(e)}</span></b>
         <span class="blurb">${escapeHtml(e.desc)}</span>
         <span class="stats">Par: gold ${fmt(e.par.gold)} · silver ${fmt(e.par.silver)} · bronze ${fmt(e.par.bronze)}${best ? ` · your best ${fmt(best.time)}` : ''} · gold pays ${money(runPrize(e, 'gold', null).medal)}</span>
         <button class="ghost" data-go="${e.id}">Go to the start</button>

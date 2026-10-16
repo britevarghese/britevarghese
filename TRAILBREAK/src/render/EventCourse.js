@@ -1,14 +1,42 @@
 // The events on the ground: a start banner at each event's start line (always there: it is where you press J), and for
-// the run in progress its gates, a pair of striped marker poles with flags each, the next pair lit and an arrow over it.
+// the run in progress its gates: on the courses and the races, numbered checkpoint arches (inflatable, striped, the
+// next one glowing, the finish chequered); in the trials, a pair of striped marker poles with flags each, the next
+// pair lit. An arrow turns over the next one.
 import * as THREE from 'three';
 
-const POLE_H = 3.2;
+const POLE_H = 3.2, ARCH_H = 4.4;
 
 function stripes() {
   const c = document.createElement('canvas'); c.width = 8; c.height = 64;
   const x = c.getContext('2d');
   for (let i = 0; i < 8; i++) { x.fillStyle = i % 2 ? '#f2eee4' : '#e8642a'; x.fillRect(0, i * 8, 8, 8); }
   const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace;
+  return t;
+}
+
+/** Bands round an arch's tube (along it: u), orange and white, or the finish's chequer. */
+function archTexture(chequer) {
+  const c = document.createElement('canvas'); c.width = 64; c.height = 16;
+  const x = c.getContext('2d');
+  for (let i = 0; i < 8; i++) {
+    if (chequer) for (let j = 0; j < 2; j++) { x.fillStyle = (i + j) % 2 ? '#141414' : '#f2eee4'; x.fillRect(i * 8, j * 8, 8, 8); }
+    else { x.fillStyle = i % 2 ? '#f2eee4' : '#e8642a'; x.fillRect(i * 8, 0, 8, 16); }
+  }
+  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace;
+  t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(chequer ? 10 : 6, 1);
+  return t;
+}
+
+/** The board under an arch's span: its number, or FINISH. */
+function boardTexture(big, small) {
+  const c = document.createElement('canvas'); c.width = 256; c.height = 128;
+  const x = c.getContext('2d');
+  x.fillStyle = '#1f2a24'; x.fillRect(0, 0, 256, 128);
+  x.fillStyle = '#e8893a'; x.fillRect(0, 0, 256, 8); x.fillRect(0, 120, 256, 8);
+  x.textAlign = 'center'; x.textBaseline = 'middle'; x.fillStyle = '#f3ead7';
+  x.font = '700 22px sans-serif'; x.fillText(small, 128, 30);
+  x.font = `800 ${big.length > 3 ? 46 : 64}px sans-serif`; x.fillText(big, 128, 80);
+  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4;
   return t;
 }
 
@@ -38,6 +66,10 @@ export class EventCourse {
     this.flagMat = new THREE.MeshStandardMaterial({ color: 0xe8642a, emissive: 0x000000, side: THREE.DoubleSide, roughness: 0.8 });
     this.nextMat = new THREE.MeshStandardMaterial({ color: 0xffb340, emissive: 0xff8a1a, emissiveIntensity: 1.6, side: THREE.DoubleSide, roughness: 0.6 });
     this.postMat = new THREE.MeshStandardMaterial({ color: 0x5a4632, roughness: 0.9 });
+    this.archMat = new THREE.MeshStandardMaterial({ map: archTexture(false), roughness: 0.45, metalness: 0 });
+    this.archNextMat = new THREE.MeshStandardMaterial({ map: archTexture(false), roughness: 0.45, emissive: 0xff8a1a, emissiveIntensity: 0.9 });
+    this.archFinishMat = new THREE.MeshStandardMaterial({ map: archTexture(true), roughness: 0.5 });
+    this.archFinishNextMat = new THREE.MeshStandardMaterial({ map: archTexture(true), roughness: 0.5, emissive: 0xffd28a, emissiveIntensity: 0.55 });
     // the start banners
     this.starts = new THREE.Group();
     for (const e of events) this.starts.add(this.banner(e.start.x, e.start.z, e.start.yaw, 5.2, e.name));
@@ -75,19 +107,31 @@ export class EventCourse {
     if (event === this.event && next === this.next) return;
     if (event !== this.event) this.build(event);
     this.event = event; this.next = next;
+    // (a circuit's laps go through the same arches: all of them stay, the next one lit)
+    const per = this.perLap, k = per ? next % per : next;
     this.gates.children.forEach((g, i) => {
-      g.visible = i >= next;
-      for (const f of g.userData.flags || []) f.material = i === next ? this.nextMat : this.flagMat;
+      g.visible = per ? true : i >= next;
+      for (const f of g.userData.flags || []) f.material = i === k ? this.nextMat : this.flagMat;
+      if (g.userData.tube) g.userData.tube.material = g.userData.finish ? (i === k ? this.archFinishNextMat : this.archFinishMat) : i === k ? this.archNextMat : this.archMat;
     });
     const g = event?.gates[next];
     this.arrow.visible = !!g;
-    if (g) this.arrowAt = [g.x, (g.y ?? this.world.terrain(g.x, g.z)) + POLE_H + 2.6, g.z];
+    if (g) this.arrowAt = [g.x, (g.y ?? this.world.terrain(g.x, g.z)) + (this.arches ? ARCH_H + 2.2 : POLE_H + 2.6), g.z];
   }
 
   build(event) {
-    for (const c of [...this.gates.children]) { this.gates.remove(c); c.traverse((o) => { if (o.geometry && o.geometry !== this.poleGeo && o.geometry !== this.flagGeo) o.geometry.dispose(); }); }
+    for (const c of [...this.gates.children]) {
+      this.gates.remove(c);
+      c.traverse((o) => {
+        if (o.geometry && o.geometry !== this.poleGeo && o.geometry !== this.flagGeo) o.geometry.dispose();
+        if (o.userData.board) { o.material.map.dispose(); o.material.dispose(); }
+      });
+    }
     this.flags = [];
+    this.perLap = 0;
+    this.arches = false;
     if (!event) return;
+    if (event.kind !== 'slalom') { this.buildArches(event); return; }
     let px = event.start.x, pz = event.start.z;
     event.gates.forEach((gate, i) => {
       // across the course at this gate: its line, or square to the way from the last one
@@ -116,8 +160,50 @@ export class EventCourse {
     });
   }
 
+  /** Checkpoint arches across the course, one at each gate (a circuit: one lap's worth). */
+  buildArches(event) {
+    this.arches = true;
+    const circuit = event.kind === 'circuit' && event.laps > 1;
+    const per = circuit ? event.cps + 1 : event.gates.length;
+    this.perLap = circuit ? per : 0;
+    let px = event.start.x, pz = event.start.z;
+    event.gates.slice(0, per).forEach((gate, i) => {
+      let dx, dz;
+      if (gate.dir) [dx, dz] = gate.dir; else { dx = gate.x - px; dz = gate.z - pz; const l = Math.hypot(dx, dz) || 1; dx /= l; dz /= l; }
+      px = gate.x; pz = gate.z;
+      const finish = i === per - 1;
+      const half = Math.max(3.6, Math.min(gate.dir ? 6 : gate.r - 1.5, 6.5));
+      const big = finish ? 'FINISH' : String(gate.cp ?? i + 1), small = finish ? (circuit ? 'START · FINISH' : '') : 'CHECKPOINT';
+      this.gates.add(this.arch(gate.x, gate.z, dx, dz, half, big, small, finish));
+    });
+  }
+
+  /** An inflatable arch across (dx, dz) at (x, z): a tube over from one foot to the other, a board under its span. */
+  arch(x, z, dx, dz, half, big, small, finish) {
+    const g = new THREE.Group(), ax = dz, az = -dx;
+    const W = this.world;
+    const yL = W.height(x - ax * half, z - az * half), yR = W.height(x + ax * half, z + az * half), top = Math.max(yL, yR) + ARCH_H;
+    const pts = [];
+    for (let i = 0; i <= 16; i++) {
+      const a = Math.PI * (1 - i / 16), u = Math.cos(a) * half, base = i < 8 ? yL : yR;
+      pts.push(new THREE.Vector3(x + ax * u, base - 0.25 + (top - base + 0.25) * Math.pow(Math.sin(a), 0.32), z + az * u));
+    }
+    const tube = new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 56, 0.34, 10, false), finish ? this.archFinishMat : this.archMat);
+    tube.castShadow = true;
+    g.add(tube);
+    const board = new THREE.Mesh(new THREE.PlaneGeometry(2.3, 1.15), new THREE.MeshStandardMaterial({ map: boardTexture(big, small), side: THREE.DoubleSide, roughness: 0.8 }));
+    board.userData.board = true;
+    board.position.set(x, top - 1.05, z);
+    board.rotation.y = Math.atan2(dx, dz) + Math.PI;                    // its face to the trucks coming up to it
+    g.add(board);
+    g.userData.tube = tube; g.userData.finish = finish;
+    return g;
+  }
+
   update(dt) {
     this.t += dt;
+    this.archNextMat.emissiveIntensity = 0.7 + 0.5 * Math.sin(this.t * 5);
+    this.archFinishNextMat.emissiveIntensity = 0.35 + 0.3 * Math.sin(this.t * 5);
     for (const f of this.flags) {
       if (!f.parent?.visible) continue;
       const p = f.geometry.attributes.position, base = f.userData.base;

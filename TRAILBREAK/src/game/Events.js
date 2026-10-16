@@ -69,15 +69,15 @@ export function eventsFor(world) {
           acc = 0;
         }
       }
-      return { ...rest, start: startAt(line[i0], line[Math.min(line.length - 1, i0 + 2)]), gates };
+      return { ...rest, kind, start: startAt(line[i0], line[Math.min(line.length - 1, i0 + 2)]), gates, line: line.slice(i0) };
     }
     if (kind === 'line') {
       // a straight course with a run-up: line gates across it at fractions of the way (1: the finish)
       const [a, b] = spec.line;
-      return { ...rest, start: startAt(a, b), gates: linesOn(spec.at.map((t) => (t === 1 ? b : along(a, b, t))), a, b, r) };
+      return { ...rest, kind, start: startAt(a, b), gates: linesOn(spec.at.map((t) => (t === 1 ? b : along(a, b, t))), a, b, r), line: [a, b] };
     }
     // a slalom of round gates
-    return { ...rest, start: startAt(spec.start, spec.gates[0]), gates: spec.gates.map(([x, z]) => ({ x, z, r })) };
+    return { ...rest, kind, start: startAt(spec.start, spec.gates[0]), gates: spec.gates.map(([x, z]) => ({ x, z, r })) };
   });
   for (const e of ev) for (const g of e.gates) g.y = world.terrain(g.x, g.z);
   return ev;
@@ -160,7 +160,8 @@ export class EventRun {
     if (E.touch && hullContact > 1 && now - this.touchAt > 1) { this.touchAt = now; this.penalty += TOUCH_PENALTY; this.time += TOUCH_PENALTY; return 'touch'; }
     const g = E.gates[this.gate];
     const ox = pos.x - g.x, oz = pos.z - g.z;
-    const through = g.dir ? ox * g.dir[0] + oz * g.dir[1] >= 0 && Math.abs(ox * g.dir[1] - oz * g.dir[0]) < g.r : Math.hypot(ox, oz) < g.r;
+    // (a race's checkpoint also counts passed close by: near; on a corner the line can be cut)
+    const through = g.dir ? (ox * g.dir[0] + oz * g.dir[1] >= 0 && Math.abs(ox * g.dir[1] - oz * g.dir[0]) < g.r) || (g.near && Math.hypot(ox, oz) < g.near) : Math.hypot(ox, oz) < g.r;
     if (through && Math.abs(pos.y - (g.y ?? pos.y)) < (g.dy ?? 12)) {
       this.splits.push(this.time);
       this.gate++;

@@ -6,6 +6,7 @@
 // can be fast-travelled to (not in the middle of a run).
 import { MAP_HALF } from '../world/maps/index.js';
 import { escapeHtml } from './HUD.js';
+import { kindOf } from '../game/EventPlay.js';
 
 const $ = (id) => document.getElementById(id);
 const TAU = Math.PI * 2;
@@ -191,7 +192,9 @@ export class WorldMap {
     let title = item.name, sub = '', body = '';
     if (item.kind === 'event') {
       const e = item.event, best = item.best;
-      sub = 'Event';
+      sub = e.race ? 'Race' : 'Event';
+      title = `${item.name}`;
+      sub += ` · ${kindOf(e)}${e.race ? ` · ${e.gates.length} checkpoints` : ''}`;
       body = `${escapeHtml(e.desc || '')}<div class="mc-par"><span class="g">Gold ${fmtT(e.par.gold)}</span><span class="s">Silver ${fmtT(e.par.silver)}</span><span class="b">Bronze ${fmtT(e.par.bronze)}</span></div>${best ? `<div class="mc-best">Your best: ${fmtT(best)}</div>` : ''}<div class="mc-dim">Drive to the start line and press J (EVENT) to start.</div>`;
     } else if (item.kind === 'place') { sub = 'Place'; body = escapeHtml(item.desc || ''); }
     else if (item.kind === 'beacon') { sub = 'Survey beacon'; body = item.found ? 'Surveyed.' : 'Not found yet: drive into its orange light beam.'; }

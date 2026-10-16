@@ -98,8 +98,13 @@
     <div id="hint"></div>
     <div id="ev-panel" class="hidden">
       <div id="ev-name"></div>
-      <div id="ev-time"></div>
+      <div class="ev-bar">
+        <div class="ev-box ev-cp"><svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M12 2.5a6.5 6.5 0 0 0-6.5 6.5c0 4.9 6.5 12.5 6.5 12.5s6.5-7.6 6.5-12.5A6.5 6.5 0 0 0 12 2.5zm0 9a2.5 2.5 0 1 1 0-5 2.5 2.5 0 0 1 0 5z" fill="currentColor"/></svg><b id="ev-cpn">0/0</b></div>
+        <div class="ev-box ev-clock"><span class="ev-lbl">CURRENT TIME</span><b id="ev-time"></b><span id="ev-best" class="ev-lbl"></span></div>
+        <div class="ev-box hidden" id="ev-lapbox"><span class="ev-lbl">LAP</span><b id="ev-lap">1/1</b></div>
+      </div>
       <div id="ev-info"></div>
+      <div class="ev-btns"><button id="ev-restart">RESTART</button><button id="ev-leave" class="leave">LEAVE</button></div>
     </div>
     <div id="ev-count" class="hidden"></div>
     <div id="ev-result" class="hidden"></div>

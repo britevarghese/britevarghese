@@ -490,7 +490,8 @@ export class Game {
   updateStuckPanel() {
     const el = this.stuckEl;
     if (!el) return;
-    const show = (this.isStuck || this.helpOn) && !this.paused && !this.garageOpen && !this.mapOpen;
+    // (not in a run: there R puts you back at the last checkpoint, and the run's panel says so)
+    const show = (this.isStuck || this.helpOn) && !this.paused && !this.garageOpen && !this.mapOpen && !this.events?.racing;
     el.classList.toggle('hidden', !show);
     if (!show) return;
     const v = this.vehicle, W = v.winch, $ = (id) => document.getElementById(id);
@@ -578,9 +579,10 @@ export class Game {
     if (I.consume('spare')) this.fitSpare();
     if (I.consume('event')) this.events.press();
     if (I.consume('hook')) this.toggleHook();
-    if (I.consume('recover')) this.recover();
+    // (in a run: R back to the last checkpoint, Backspace restarts it)
+    if (I.consume('recover')) { if (!this.events.resetToCheckpoint()) this.recover(); }
     if (I.consume('tow')) this.callHelp();
-    if (I.consume('respawn')) this.towHome();
+    if (I.consume('respawn')) { if (!(this.events.racing && this.events.restart())) this.towHome(); }
   }
 
   /** P: next tyre pressure. Down any time (stopped); up only with onboard air or at the station. */
@@ -1118,7 +1120,9 @@ export class Game {
     if (v.impact > 0.5) this.cam.shake = Math.max(this.cam.shake, Math.min(0.2, v.impact * 0.05));
     this.feelGround(dt);
     this.updateRoute(dt);
-    this.routeLine.update(this.route?.points, v.pos, this.world, dt);
+    // the line on the ground: a run's course while it is on, else the satnav's route
+    const runLine = this.events.run && this.events.run.phase !== 'finished' ? this.events.run.event.line : null;
+    this.routeLine.update(runLine || this.route?.points, v.pos, this.world, dt);
 
     // camera and world
     this.cam.update(dt, m, ctrl);
@@ -1182,7 +1186,8 @@ export class Game {
     if (this.miniT > 1 / 12) {
       this.miniT = 0;
       if (this.chat.available !== !!this.net?.connected) this.chat.setAvailable(!!this.net?.connected);
-      this.hud.drawMinimap(v.pos, heading, mates, this.route);
+      const run = this.events.run, courseLine = run && run.phase !== 'finished' && run.event.line;
+      this.hud.drawMinimap(v.pos, heading, mates, courseLine ? { points: courseLine } : this.route);
       this.hud.drawObjective(v.pos, this.route);
       const vp = this.voicePanel;
       const list = [{ name: this.name, color: this.myColor, me: true, help: this.helpOn, tag: this.events.tagFor(this.net?.id), voice: vp?.stateOf(null) },

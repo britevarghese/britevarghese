@@ -331,13 +331,24 @@ body.touch #stuck { bottom: 120px; }
 .money .bal.red { color: #ff9a7a; }
 
 /* events: the run's panel, the countdown, the result card, the list */
-#ev-panel { position: absolute; top: 84px; left: 50%; transform: translateX(-50%); min-width: 260px; padding: 8px 18px 10px; text-align: center; background: rgba(20, 26, 22, .72); border: 1px solid rgba(243, 234, 215, .16); border-radius: 12px; pointer-events: none; }
-#ev-name { font-size: 12px; letter-spacing: .12em; text-transform: uppercase; color: var(--accent, #e8893a); font-weight: 700; }
-#ev-time { font-size: 34px; font-weight: 700; font-variant-numeric: tabular-nums; line-height: 1.15; }
+#ev-panel { position: absolute; top: 80px; left: 50%; transform: translateX(-50%); min-width: 300px; text-align: center; pointer-events: none; display: flex; flex-direction: column; align-items: center; gap: 5px; }
+#ev-name { font-size: 12px; letter-spacing: .14em; text-transform: uppercase; color: var(--accent, #e8893a); font-weight: 700; }
+.ev-bar { display: flex; gap: 6px; align-items: stretch; }
+.ev-box { background: rgba(10, 14, 12, .72); border: 1px solid rgba(243, 234, 215, .18); border-radius: 6px; padding: 4px 12px; display: flex; flex-direction: column; justify-content: center; align-items: center; min-width: 64px; }
+.ev-box b { font-size: 20px; font-variant-numeric: tabular-nums; line-height: 1.1; }
+.ev-cp { flex-direction: row; gap: 6px; color: #f3ead7; }
+.ev-cp svg { color: var(--accent, #e8893a); }
+.ev-lbl { font-size: 10px; letter-spacing: .14em; color: var(--ink-dim); font-weight: 600; }
+.ev-clock { min-width: 150px; }
+#ev-time { font-size: 30px; font-weight: 700; font-variant-numeric: tabular-nums; line-height: 1.1; }
 #ev-time:empty { display: none; }
 #ev-info { font-size: 12.5px; color: var(--ink-dim); }
-body.has-ev #toasts { top: 168px; }
-#ev-count { position: absolute; top: 34%; left: 50%; transform: translate(-50%, -50%); font-size: 120px; font-weight: 800; color: #f3ead7; text-shadow: 0 4px 24px rgba(0, 0, 0, .6); pointer-events: none; }
+.ev-btns { display: flex; gap: 6px; pointer-events: auto; }
+.ev-btns button { padding: 4px 14px; font-size: 11.5px; font-weight: 700; letter-spacing: .1em; border-radius: 5px; background: rgba(243, 234, 215, .9); color: #1c241f; border: none; }
+.ev-btns button.leave { background: #d8433a; color: #fff; }
+.ev-kind { font-size: 11px; font-weight: 600; letter-spacing: .06em; color: var(--ink-dim); margin-left: 6px; text-transform: uppercase; }
+body.has-ev #toasts { top: 196px; }
+#ev-count { position: absolute; top: 46%; left: 50%; transform: translate(-50%, -50%); font-size: 120px; font-weight: 800; color: #f3ead7; text-shadow: 0 4px 24px rgba(0, 0, 0, .6); pointer-events: none; }
 #ev-count.go { color: #7cc36a; }
 #ev-result { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: min(440px, calc(100vw - 32px)); padding: 18px 22px; text-align: center; background: rgba(20, 26, 22, .92); border: 1px solid rgba(243, 234, 215, .2); border-radius: 14px; pointer-events: auto; }
 .ev-r-name { font-size: 13px; letter-spacing: .12em; text-transform: uppercase; color: var(--accent, #e8893a); font-weight: 700; }
@@ -359,8 +370,9 @@ body.has-ev #toasts { top: 168px; }
 #events h2 { display: flex; justify-content: space-between; align-items: center; }
 #players .tag { margin-left: 6px; font-size: 11px; color: var(--accent, #e8893a); }
 @media (max-width: 700px) {
-  #ev-panel { top: 76px; min-width: 200px; padding: 6px 12px 8px; }
-  #ev-time { font-size: 26px; }
+  #ev-panel { top: 72px; min-width: 200px; }
+  #ev-time { font-size: 24px; }
+  .ev-box b { font-size: 17px; }
   #ev-count { font-size: 84px; }
 }
 #compass-strip span.gate { color: #ffb340; font-size: 18px; }

@@ -222,6 +222,27 @@ Kerala Ghats:
 | Anapara Rock Trials | tight gates through the boulders at the foot of the granite dome and up its slab; +5 s a knock | 0:58 / 1:15 / 1:40 |
 | Kadavu River Run | 150 m flat out down the river's shallows and through the ford | 10.5 / 12.5 / 15.5 s |
 
+**Checkpoint races** (as in Off-Road League; pause menu > Events, or their flags on the map): circuits of laps and
+point-to-point rallies along the trails, through numbered inflatable checkpoint arches (the next one glows; the finish
+is chequered) with the course as a line of chevrons on the ground. The screen shows the checkpoints passed (2/10), the
+lap, the clock and your best (or the gold time), with **RESTART** (Backspace) and **LEAVE** buttons; in a run, **R**
+puts you back at the last checkpoint passed, facing the next, while the clock runs on.
+
+| Race | Map | What it is | Par (gold / silver / bronze) |
+|---|---|---|---|
+| Bog Loop Circuit | Ashwood | two laps round the edge of the Cattail Bog, four checkpoints a lap | 4:30 / 5:25 / 6:40 |
+| East Ford Rally | Ashwood | from the station round the bog, through the East Ford and up to the Rock Garden | 1:52 / 2:14 / 2:45 |
+| Pinecrest Forest Sprint | Ashwood | under the old pines to the fire tower | 45 / 54 / 66 s |
+| South Meadows Rally | Ashwood | down the old valley road and across the meadows to the cabin | 1:07 / 1:20 / 1:38 |
+| Mirror Lake Run | Ashwood | the Mirror Lake Trail to the far shore | 49 / 58 / 72 s |
+| Gorge Track Rally | Ashwood | down the Gorge Track through rock and pine | 50 / 60 / 73 s |
+| Estate Road Rally | Kerala | 1.6 km of hairpins up through the tea to the factory gates | 3:40 / 4:23 / 5:22 |
+| Paddy and Rubber Rally | Kerala | across the paddies on the bunds and into the rubber trees | 2:05 / 2:30 / 3:03 |
+| Anapara Sprint | Kerala | east out of town to the great rock | 1:34 / 1:53 / 2:18 |
+
+The races live in each map's `races` list (src/world/maps/), built by src/game/Races.js onto the trails as they are
+(the world's ground isn't changed by them).
+
 With friends in the room, J opens a race instead: they get a message and 15 seconds to press J, which lines them up
 beside you; everyone's clock starts together (the server's), and the places pay out (1st $2,500, 2nd $1,200, 3rd
 $600, 4th $300, more for the hill climb and less for the drag). The par times came from driving each course in every

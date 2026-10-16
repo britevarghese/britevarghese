@@ -662,6 +662,19 @@ export const EVENTS = [
     line: [[-330, 85], [-356, 230]], at: [0.5, 1], r: 16, par: { gold: 10.5, silver: 12.5, bronze: 15.5 }, prize: 0.9 },
 ];
 
+/**
+ * The checkpoint races (game/Races.js): rallies along the estate road and the tracks. Not part of the ground's making
+ * (the generator never reads them): they run on the tracks as they are.
+ */
+export const RACES = [
+  { id: 'estaterally', kind: 'rally', name: 'Estate Road Rally', desc: 'Up the estate road through the tea, from the town to the factory gates: 1.6 km of hairpins.',
+    trail: 'Estate Road', cps: 8, r: 8, par: { gold: 220, silver: 263, bronze: 322 }, prize: 1.6 },
+  { id: 'paddyrally', kind: 'rally', name: 'Paddy and Rubber Rally', desc: 'Out of town on the bunds across the paddies, and on into the rubber trees.',
+    trail: 'Paddy and Rubber Track', cps: 6, r: 8, par: { gold: 125, silver: 150, bronze: 183 }, prize: 1.3 },
+  { id: 'anapara', kind: 'rally', name: 'Anapara Sprint', desc: 'East out of town along the track to the great rock of Anapara.',
+    trail: 'Anapara Track', cps: 4, r: 8, par: { gold: 94, silver: 113, bronze: 138 }, prize: 1 },
+];
+
 /** The map, as the game and the generator see it. */
 export const KERALA = {
   id: 'kerala', name: 'Kerala Ghats', short: 'Kerala',
@@ -670,7 +683,7 @@ export const KERALA = {
   seed: SEED, station: STATION, spawn: SPAWN, dealer: 'Ponmala Motors',
   baseHeight, roughOf, gen,
   river: RIVER, lake: LAKE, peaks: PEAKS,
-  trails: TRAILS, beacons: BEACONS, landmarks: LANDMARKS, events: EVENTS,
+  trails: TRAILS, beacons: BEACONS, landmarks: LANDMARKS, events: EVENTS, races: RACES,
   roadSurface: SURFACE.ROAD, puddles: 6,
   // ground levelled under the buildings (m round them)
   pads: { teafactory: 16, bungalow: 9, chaistall: 5, house: 7, busstop: 3, laterite: 3 },
