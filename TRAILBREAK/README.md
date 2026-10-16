@@ -97,6 +97,29 @@ where two networks can't link directly, the audio goes through the game server i
 talking). Talking needs the https:// address (or localhost); without a microphone you can still listen. Voices stay on
 while the game is paused or in another tab: mute everyone to silence them.
 
+Every truck sounds like its own kind of engine: real recordings, cut into single firings, played back at the rate the
+game's engine fires (src/audio/engine-worklet.js, an AudioWorklet). The exhaust and the block keep their real
+resonances at any revs, because each firing plays as recorded, only spaced to the new revs; on throttle and off it
+draws on firings recorded pulling and slowing. The banks (public/assets/audio/engines/*.grains.*, built by
+`tools/sounds/build_grains.py` from `tools/sounds/sources.json`):
+
+| Bank | Recording | Trucks |
+| --- | --- | --- |
+| `d4` | Toyota Hilux turbo-diesel four (the top of the revs from a VW TDI) | Thar diesel |
+| `d4t` | VW 1.9 TDI turbo-diesel four | Defender 110 |
+| `d6` | Ram 5.9 Cummins turbo-diesel six (the top of the revs from the TDI) | Bruiser, Rhino, Drover's TD swap |
+| `d8` | Ford F-350 turbo-diesel V8 (the top of the revs from the TDI) | Hummer H1 |
+| `v6` | Acura 3.2 V6, a mic at the exhaust while driving | Wrangler, Bronco |
+| `v8` | 1978 Cadillac 425 V8 (the top of the revs from the V6) | Ranger, Hauler, the V8 swaps |
+| `v8m` | a cammed V8 | tuned V8s, the Wrangler's 392 HEMI |
+| `i6` | Jaguar E-type 4.2 straight six | Mule, Drover |
+| `i4` | Suzuki Jimny four | Gecko, Trekker, Thar petrol |
+
+On top: the starter (a motor chopped by the compression strokes, slower and heavier on a diesel; the engine turning
+over on it), the turbo on turbo engines (its whistle spools up with boost and winds down after a lift), and the gearbox
+and transfer case whining under load, louder in low range and in reverse. Without AudioWorklet the engine falls back
+to recorded loops crossfaded by rpm and throttle.
+
 The sound goes off while the game is paused, in the garage, the dealer and the events list, and whenever the game's
 tab is hidden (another tab, or the browser minimised); it comes back when you drive on.
 
@@ -407,7 +430,7 @@ the Ford Bronco, "Bronco Car Animation (Red)" by neshallads; the Hummer H1, "Hum
 the Land Rover Defender 110, "Land Rover Defender 110" by
 meeww; on Sketchfab, CC BY 4.0, see
 `public/assets/trucks/CREDITS.md` (converted with `tools/cars.py`). Engine sounds: see `public/assets/audio/CREDITS.md`
-(Freesound, CC BY 4.0). Ground textures: CC0 scans from Poly
+(Freesound, CC0 and CC BY 4.0; built with `tools/sounds/build_grains.py`). Ground textures: CC0 scans from Poly
 Haven and ambientCG, see `public/assets/ground/CREDITS.md` (packed with `tools/ground.py`). Tree models: pine, fir,
 spruce, birch, coconut palm, oak (as mango), elm (as rubber), banana and bamboo by evolveduk, and the jungle tree by
 kobaltsecond6c7d6150917a4267, on Sketchfab, CC BY 4.0, see `public/assets/trees/CREDITS.md` (converted with

@@ -1,0 +1,1180 @@
+{
+ "_about": "Engine recordings for TRAILBREAK's grain engine (Freesound previews, CC0 / CC BY). Each bank is one engine: parts are recordings with the stretches used (t, seconds), the pitch range tracked (f, Hz: the firing frequency unless 'unit' says otherwise), anchors [t, Hz] the track must pass, how fast the revs may move (slew), and 'load': 'drive' for recordings made on the road. cyl and idleRpm are the recorded engine's. Build: python3 -I tools/sounds/build_grains.py <cache_dir>",
+ "banks": {
+  "v6": {
+   "about": "Honda / Acura 3.2 V6 (J32: a 60-degree even-firing V6 like the Pentastar), a microphone just above the exhaust",
+   "cyl": 6,
+   "idleRpm": 682,
+   "budget": 14,
+   "idleBudget": 3,
+   "parts": [
+    {
+     "id": 754777,
+     "user": "EvanBoyerman",
+     "title": "Sports Car Idling - Exhaust",
+     "lic": "CC-BY",
+     "t": [
+      [
+       0.5,
+       12
+      ],
+      [
+       15.6,
+       21.2
+      ]
+     ],
+     "f": [
+      25,
+      60
+     ],
+     "anchor": [
+      [
+       5,
+       34.1
+      ],
+      [
+       18,
+       34.1
+      ]
+     ],
+     "slew": 3
+    },
+    {
+     "id": 754776,
+     "user": "EvanBoyerman",
+     "title": "Sports Car Accelerating/Speeding Up Medium - Exhaust",
+     "lic": "CC-BY",
+     "t": [
+      [
+       0.3,
+       11.0,
+       40,
+       140
+      ],
+      [
+       11.0,
+       28.5,
+       62,
+       100
+      ]
+     ],
+     "f": [
+      30,
+      140
+     ],
+     "anchor": [
+      [
+       0.5,
+       50
+      ],
+      [
+       1,
+       67
+      ],
+      [
+       2,
+       88.5
+      ],
+      [
+       4,
+       112
+      ],
+      [
+       6,
+       106
+      ],
+      [
+       9.5,
+       92.5
+      ],
+      [
+       12,
+       75.5
+      ],
+      [
+       15,
+       80
+      ],
+      [
+       17.5,
+       86
+      ],
+      [
+       22.5,
+       85
+      ],
+      [
+       26.5,
+       74
+      ],
+      [
+       27.2,
+       79
+      ]
+     ],
+     "slew": 6,
+     "load": "drive"
+    },
+    {
+     "id": 754775,
+     "user": "EvanBoyerman",
+     "title": "Sports Car Accelerating/Speeding Up Fast - Exhaust",
+     "lic": "CC-BY",
+     "t": [
+      [
+       0.3,
+       22.4
+      ]
+     ],
+     "f": [
+      40,
+      190
+     ],
+     "anchor": [
+      [
+       0.5,
+       56
+      ],
+      [
+       1.5,
+       77.5
+      ],
+      [
+       3,
+       90
+      ],
+      [
+       5,
+       109.5
+      ],
+      [
+       18,
+       155
+      ],
+      [
+       21,
+       164.5
+      ]
+     ],
+     "slew": 6,
+     "load": "drive"
+    }
+   ]
+  },
+  "d4": {
+   "about": "Toyota Hilux 4x4 turbo-diesel four (the closest free recording to the Thar's mHawk 2.2): idle and revs",
+   "cyl": 4,
+   "idleRpm": 740,
+   "budget": 12,
+   "idleBudget": 2.5,
+   "cohMin": 0.2,
+   "parts": [
+    {
+     "id": 379914,
+     "user": "Alex_hears_things",
+     "title": "4WD Engine & Rev.wav",
+     "lic": "CC0",
+     "t": [
+      [
+       23.0,
+       34.4
+      ]
+     ],
+     "f": [
+      18,
+      70
+     ],
+     "anchor": [
+      [
+       24,
+       25
+      ],
+      [
+       25.5,
+       37
+      ],
+      [
+       26,
+       45
+      ],
+      [
+       27.3,
+       58
+      ],
+      [
+       28.7,
+       58
+      ],
+      [
+       30,
+       24
+      ],
+      [
+       32.3,
+       48
+      ]
+     ],
+     "slew": 6
+    },
+    {
+     "id": 448217,
+     "user": "Evilmikie",
+     "title": "vw diesel engine.mp3",
+     "lic": "CC0",
+     "t": [
+      [
+       21.0,
+       66.5
+      ],
+      [
+       76.5,
+       99.5
+      ]
+     ],
+     "f": [
+      25,
+      125
+     ],
+     "anchor": [
+      [
+       23,
+       38
+      ],
+      [
+       26,
+       106
+      ],
+      [
+       28,
+       82
+      ],
+      [
+       32,
+       60
+      ],
+      [
+       36,
+       106
+      ],
+      [
+       40,
+       73
+      ],
+      [
+       45,
+       78
+      ],
+      [
+       50,
+       102
+      ],
+      [
+       60,
+       58
+      ],
+      [
+       66,
+       71
+      ],
+      [
+       78,
+       82
+      ],
+      [
+       84,
+       73
+      ]
+     ],
+     "slew": 5,
+     "cyl": 4,
+     "idleRpm": 900,
+     "cohMin": 0.35,
+     "rMin": 2.2
+    }
+   ]
+  },
+  "d4t": {
+   "about": "VW 1.9 TDI turbo-diesel four (a Defender's 2.5 TD is its bigger, slower cousin): idle, revs and holds",
+   "cyl": 4,
+   "idleRpm": 900,
+   "budget": 12,
+   "idleBudget": 2.5,
+   "cohMin": 0.35,
+   "parts": [
+    {
+     "id": 448217,
+     "user": "Evilmikie",
+     "title": "vw diesel engine.mp3",
+     "lic": "CC0",
+     "t": [
+      [
+       15.5,
+       21.0,
+       26,
+       34,
+       0.08
+      ],
+      [
+       21.0,
+       66.5,
+       25,
+       125
+      ],
+      [
+       66.5,
+       76.5,
+       26,
+       34,
+       0.08
+      ],
+      [
+       76.5,
+       99.5,
+       25,
+       125
+      ]
+     ],
+     "f": [
+      25,
+      125
+     ],
+     "anchor": [
+      [
+       17,
+       30
+      ],
+      [
+       18.5,
+       30
+      ],
+      [
+       20,
+       30
+      ],
+      [
+       23,
+       38
+      ],
+      [
+       26,
+       106
+      ],
+      [
+       28,
+       82
+      ],
+      [
+       32,
+       60
+      ],
+      [
+       36,
+       106
+      ],
+      [
+       40,
+       73
+      ],
+      [
+       45,
+       78
+      ],
+      [
+       50,
+       102
+      ],
+      [
+       60,
+       58
+      ],
+      [
+       66,
+       71
+      ],
+      [
+       68,
+       30
+      ],
+      [
+       71,
+       30
+      ],
+      [
+       74,
+       30
+      ],
+      [
+       78,
+       82
+      ],
+      [
+       84,
+       73
+      ]
+     ],
+     "slew": 5
+    }
+   ]
+  },
+  "i6": {
+   "about": "Jaguar E-type 4.2 XK straight six (the size of a Jeep or Land Cruiser 4.2 six), engine side: idle and a rev",
+   "cyl": 6,
+   "idleRpm": 672,
+   "budget": 10,
+   "idleBudget": 3,
+   "cohMin": 0.4,
+   "parts": [
+    {
+     "id": 614700,
+     "user": "Dan_AudioFile",
+     "title": "E-type Jaguar, car engine, rev, idle ,mono.wav",
+     "lic": "CC-BY",
+     "t": [
+      [
+       0.5,
+       30
+      ]
+     ],
+     "f": [
+      25,
+      125
+     ],
+     "anchor": [
+      [
+       5,
+       33.6
+      ],
+      [
+       25,
+       33.6
+      ]
+     ],
+     "slew": 6
+    },
+    {
+     "id": 754775,
+     "user": "EvanBoyerman",
+     "title": "Sports Car Accelerating/Speeding Up Fast - Exhaust",
+     "lic": "CC-BY",
+     "t": [
+      [
+       0.3,
+       22.4
+      ]
+     ],
+     "f": [
+      40,
+      190
+     ],
+     "anchor": [
+      [
+       0.5,
+       56
+      ],
+      [
+       1.5,
+       77.5
+      ],
+      [
+       3,
+       90
+      ],
+      [
+       5,
+       109.5
+      ],
+      [
+       18,
+       155
+      ],
+      [
+       21,
+       164.5
+      ]
+     ],
+     "slew": 6,
+     "load": "drive",
+     "cyl": 6,
+     "idleRpm": 682,
+     "cohMin": 0.6,
+     "rMin": 3.0
+    }
+   ]
+  },
+  "i4": {
+   "about": "Suzuki Jimny four: idle and gentle revs",
+   "cyl": 4,
+   "idleRpm": 1320,
+   "budget": 11,
+   "idleBudget": 2.5,
+   "cohMin": 0.3,
+   "parts": [
+    {
+     "id": 655653,
+     "user": "221316",
+     "title": "Car being turned on, revved and off( Suzuki Jimny).wav",
+     "lic": "CC-BY",
+     "t": [
+      [
+       9,
+       44
+      ]
+     ],
+     "f": [
+      30,
+      130
+     ],
+     "anchor": [
+      [
+       15,
+       44
+      ],
+      [
+       31,
+       65
+      ],
+      [
+       41,
+       40
+      ]
+     ],
+     "slew": 6
+    },
+    {
+     "id": 754775,
+     "user": "EvanBoyerman",
+     "title": "Sports Car Accelerating/Speeding Up Fast - Exhaust",
+     "lic": "CC-BY",
+     "t": [
+      [
+       0.3,
+       22.4
+      ]
+     ],
+     "f": [
+      40,
+      190
+     ],
+     "anchor": [
+      [
+       0.5,
+       56
+      ],
+      [
+       1.5,
+       77.5
+      ],
+      [
+       3,
+       90
+      ],
+      [
+       5,
+       109.5
+      ],
+      [
+       18,
+       155
+      ],
+      [
+       21,
+       164.5
+      ]
+     ],
+     "slew": 6,
+     "load": "drive",
+     "cyl": 6,
+     "idleRpm": 682,
+     "cohMin": 0.6,
+     "rMin": 1.6
+    },
+    {
+     "id": 754776,
+     "user": "EvanBoyerman",
+     "title": "Sports Car Accelerating/Speeding Up Medium - Exhaust",
+     "lic": "CC-BY",
+     "t": [
+      [
+       0.3,
+       11.0,
+       40,
+       140
+      ],
+      [
+       11.0,
+       28.5,
+       62,
+       100
+      ]
+     ],
+     "f": [
+      30,
+      140
+     ],
+     "anchor": [
+      [
+       0.5,
+       50
+      ],
+      [
+       1,
+       67
+      ],
+      [
+       2,
+       88.5
+      ],
+      [
+       4,
+       112
+      ],
+      [
+       6,
+       106
+      ],
+      [
+       9.5,
+       92.5
+      ],
+      [
+       12,
+       75.5
+      ],
+      [
+       15,
+       80
+      ],
+      [
+       17.5,
+       86
+      ],
+      [
+       22.5,
+       85
+      ],
+      [
+       26.5,
+       74
+      ],
+      [
+       27.2,
+       79
+      ]
+     ],
+     "slew": 6,
+     "load": "drive",
+     "cyl": 6,
+     "idleRpm": 682,
+     "cohMin": 0.6,
+     "rMin": 1.6
+    }
+   ]
+  },
+  "v8": {
+   "about": "1978 Cadillac Eldorado 425 V8 at the exhaust: fast idle",
+   "cyl": 8,
+   "idleRpm": 1380,
+   "budget": 11,
+   "idleBudget": 3,
+   "cohMin": 0.3,
+   "parts": [
+    {
+     "id": 873856,
+     "user": "inspire153",
+     "title": "1978 Cadillac Eldorado Biarritz - Engine Start, Exhaust Idle, Revving and Shutdown",
+     "lic": "CC0",
+     "t": [
+      [
+       7,
+       46.5
+      ]
+     ],
+     "f": [
+      70,
+      400
+     ],
+     "anchor": [
+      [
+       20,
+       92
+      ],
+      [
+       30,
+       92
+      ],
+      [
+       40,
+       92
+      ]
+     ],
+     "slew": 8
+    },
+    {
+     "id": 754775,
+     "user": "EvanBoyerman",
+     "title": "Sports Car Accelerating/Speeding Up Fast - Exhaust",
+     "lic": "CC-BY",
+     "t": [
+      [
+       0.3,
+       22.4
+      ]
+     ],
+     "f": [
+      40,
+      190
+     ],
+     "anchor": [
+      [
+       0.5,
+       56
+      ],
+      [
+       1.5,
+       77.5
+      ],
+      [
+       3,
+       90
+      ],
+      [
+       5,
+       109.5
+      ],
+      [
+       18,
+       155
+      ],
+      [
+       21,
+       164.5
+      ]
+     ],
+     "slew": 6,
+     "load": "drive",
+     "cyl": 6,
+     "idleRpm": 682,
+     "cohMin": 0.6,
+     "rMin": 1.5
+    },
+    {
+     "id": 754776,
+     "user": "EvanBoyerman",
+     "title": "Sports Car Accelerating/Speeding Up Medium - Exhaust",
+     "lic": "CC-BY",
+     "t": [
+      [
+       0.3,
+       11.0,
+       40,
+       140
+      ],
+      [
+       11.0,
+       28.5,
+       62,
+       100
+      ]
+     ],
+     "f": [
+      30,
+      140
+     ],
+     "anchor": [
+      [
+       0.5,
+       50
+      ],
+      [
+       1,
+       67
+      ],
+      [
+       2,
+       88.5
+      ],
+      [
+       4,
+       112
+      ],
+      [
+       6,
+       106
+      ],
+      [
+       9.5,
+       92.5
+      ],
+      [
+       12,
+       75.5
+      ],
+      [
+       15,
+       80
+      ],
+      [
+       17.5,
+       86
+      ],
+      [
+       22.5,
+       85
+      ],
+      [
+       26.5,
+       74
+      ],
+      [
+       27.2,
+       79
+      ]
+     ],
+     "slew": 6,
+     "load": "drive",
+     "cyl": 6,
+     "idleRpm": 682,
+     "cohMin": 0.6,
+     "rMin": 1.5
+    }
+   ]
+  },
+  "v8m": {
+   "about": "A cammed V8 (wikusv's 'Idle and Rev'): the lope at idle",
+   "cyl": 8,
+   "idleRpm": 657,
+   "budget": 11,
+   "idleBudget": 3,
+   "cohMin": 0.35,
+   "parts": [
+    {
+     "id": 232272,
+     "user": "wikusv",
+     "title": "Idle and Rev - Engine.wav",
+     "lic": "CC-BY",
+     "t": [
+      [
+       0,
+       33
+      ]
+     ],
+     "f": [
+      35,
+      330
+     ],
+     "anchor": [
+      [
+       15,
+       43.8
+      ],
+      [
+       32,
+       43.8
+      ]
+     ],
+     "slew": 12
+    },
+    {
+     "id": 754775,
+     "user": "EvanBoyerman",
+     "title": "Sports Car Accelerating/Speeding Up Fast - Exhaust",
+     "lic": "CC-BY",
+     "t": [
+      [
+       0.3,
+       22.4
+      ]
+     ],
+     "f": [
+      40,
+      190
+     ],
+     "anchor": [
+      [
+       0.5,
+       56
+      ],
+      [
+       1.5,
+       77.5
+      ],
+      [
+       3,
+       90
+      ],
+      [
+       5,
+       109.5
+      ],
+      [
+       18,
+       155
+      ],
+      [
+       21,
+       164.5
+      ]
+     ],
+     "slew": 6,
+     "load": "drive",
+     "cyl": 6,
+     "idleRpm": 682,
+     "cohMin": 0.6,
+     "rMin": 2.0
+    }
+   ]
+  },
+  "d8": {
+   "about": "Ford F-350 turbo-diesel V8: idle",
+   "cyl": 8,
+   "idleRpm": 600,
+   "budget": 11,
+   "idleBudget": 3,
+   "cohMin": 0.3,
+   "parts": [
+    {
+     "id": 443319,
+     "user": "DAVESTALKER",
+     "title": "Diesel Start-Idle-Revs MZ000004.wav",
+     "lic": "CC0",
+     "t": [
+      [
+       1.5,
+       11.0,
+       34,
+       46,
+       0.2
+      ],
+      [
+       11.0,
+       14.0
+      ],
+      [
+       14.0,
+       18.0,
+       34,
+       46,
+       0.2
+      ],
+      [
+       18.0,
+       20.5
+      ],
+      [
+       20.5,
+       26,
+       34,
+       46,
+       0.2
+      ]
+     ],
+     "f": [
+      30,
+      200
+     ],
+     "anchor": [
+      [
+       5,
+       40
+      ],
+      [
+       22,
+       40
+      ]
+     ],
+     "slew": 6
+    },
+    {
+     "id": 448217,
+     "user": "Evilmikie",
+     "title": "vw diesel engine.mp3",
+     "lic": "CC0",
+     "t": [
+      [
+       21.0,
+       66.5
+      ],
+      [
+       76.5,
+       99.5
+      ]
+     ],
+     "f": [
+      25,
+      125
+     ],
+     "anchor": [
+      [
+       23,
+       38
+      ],
+      [
+       26,
+       106
+      ],
+      [
+       28,
+       82
+      ],
+      [
+       32,
+       60
+      ],
+      [
+       36,
+       106
+      ],
+      [
+       40,
+       73
+      ],
+      [
+       45,
+       78
+      ],
+      [
+       50,
+       102
+      ],
+      [
+       60,
+       58
+      ],
+      [
+       66,
+       71
+      ],
+      [
+       78,
+       82
+      ],
+      [
+       84,
+       73
+      ]
+     ],
+     "slew": 5,
+     "cyl": 4,
+     "idleRpm": 900,
+     "cohMin": 0.35,
+     "rMin": 1.6
+    }
+   ]
+  },
+  "d6": {
+   "about": "Ram 5.9 Cummins straight-six turbo-diesel: idle",
+   "cyl": 6,
+   "idleRpm": 750,
+   "budget": 11,
+   "idleBudget": 3,
+   "cohMin": 0.3,
+   "parts": [
+    {
+     "id": 610771,
+     "user": "Therancher01",
+     "title": "Ram 5.9 cummins-startup-idle.m4a",
+     "lic": "CC0",
+     "t": [
+      [
+       3,
+       60,
+       30,
+       46,
+       0.2
+      ]
+     ],
+     "f": [
+      28,
+      60
+     ],
+     "anchor": [
+      [
+       10,
+       38
+      ],
+      [
+       50,
+       38
+      ]
+     ],
+     "slew": 3
+    },
+    {
+     "id": 448217,
+     "user": "Evilmikie",
+     "title": "vw diesel engine.mp3",
+     "lic": "CC0",
+     "t": [
+      [
+       21.0,
+       66.5
+      ],
+      [
+       76.5,
+       99.5
+      ]
+     ],
+     "f": [
+      25,
+      125
+     ],
+     "anchor": [
+      [
+       23,
+       38
+      ],
+      [
+       26,
+       106
+      ],
+      [
+       28,
+       82
+      ],
+      [
+       32,
+       60
+      ],
+      [
+       36,
+       106
+      ],
+      [
+       40,
+       73
+      ],
+      [
+       45,
+       78
+      ],
+      [
+       50,
+       102
+      ],
+      [
+       60,
+       58
+      ],
+      [
+       66,
+       71
+      ],
+      [
+       78,
+       82
+      ],
+      [
+       84,
+       73
+      ]
+     ],
+     "slew": 5,
+     "cyl": 4,
+     "idleRpm": 900,
+     "cohMin": 0.35,
+     "rMin": 1.5
+    }
+   ]
+  }
+ }
+}

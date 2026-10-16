@@ -1,6 +1,7 @@
-// Sound: recorded engine loops (crossfaded by rpm and throttle, as NIGHTSHIFT does), and synthesised tyre roll on
-// each surface, wheelspin, mud, water, wind, suspension knocks and bangs, the winch motor and a quiet forest.
-// Other players' engines play from where their trucks are.
+// Sound: each truck's own kind of engine, rebuilt a firing at a time from real recordings (audio/engine-worklet.js,
+// banks from tools/sounds), and synthesised tyre roll on each surface, wheelspin, mud, water, wind, suspension knocks
+// and bangs, the winch motor and a quiet forest. Other players' engines play from where their trucks are. Without
+// AudioWorklet (or a bank) the engine falls back to recorded loops crossfaded by rpm and throttle.
 
 const clamp = (x, a, b) => (x < a ? a : x > b ? b : x);
 
@@ -67,6 +68,62 @@ class EngineVoice {
   }
 }
 
+/** An engine bank: the recording's firings (tools/sounds/build_grains.py), ready for the worklet. */
+async function fetchBank(name) {
+  const base = '/assets/audio/engines/';
+  const meta = await (await fetch(base + name + '.grains.json', { cache: 'no-cache' })).json();
+  const wav = await (await fetch(`${base}${name}.grains.wav?v=${meta.ver || 0}`)).arrayBuffer();
+  const v = new DataView(wav);
+  let p = 12, data = null;
+  while (p + 8 <= wav.byteLength) {
+    const id = String.fromCharCode(v.getUint8(p), v.getUint8(p + 1), v.getUint8(p + 2), v.getUint8(p + 3)), len = v.getUint32(p + 4, true);
+    if (id === 'data') {
+      const n = len >> 1;
+      data = new Float32Array(n);
+      for (let i = 0; i < n; i++) data[i] = v.getInt16(p + 8 + i * 2, true) / 32768;
+      break;
+    }
+    p += 8 + len + (len & 1);
+  }
+  if (!data) throw new Error('bank without audio: ' + name);
+  const arr = (b64, T) => { const s = atob(b64), u = new Uint8Array(s.length); for (let i = 0; i < s.length; i++) u[i] = s.charCodeAt(i); return new T(u.buffer); };
+  return { data, sr: meta.sr, cyl: meta.cyl, idleRpm: meta.idleRpm, pos: arr(meta.pos, Int32Array), r: arr(meta.r, Float32Array),
+    g: arr(meta.g, Float32Array), cls: arr(meta.cls, Uint8Array), run: arr(meta.run, Uint16Array) };
+}
+
+/** Cylinders of the engine each bank was recorded from (for the starter's compression strokes). */
+const BANK_CYL = { v6: 6, i6: 6, d6: 6, v8: 8, v8m: 8, d8: 8, i4: 4, d4: 4, d4t: 4 };
+
+/** One engine from a bank: the worklet node, steered by rpm, load and a loudness. */
+class GrainVoice {
+  constructor(audio, bank, out, cfg) {
+    const ctx = audio.ctx;
+    this.ctx = ctx; this.grain = true;
+    this.node = new AudioWorkletNode(ctx, 'tb-engine', { numberOfInputs: 0, numberOfOutputs: 1, outputChannelCount: [1] });
+    this.node.port.postMessage({ bank });
+    this.node.port.postMessage({ config: cfg });
+    this.rpm = this.node.parameters.get('rpm'); this.load = this.node.parameters.get('load'); this.gain = this.node.parameters.get('gain');
+    this.node.connect(out);
+  }
+
+  /** rpm, the engine's idle and redline, load 0..1 (on throttle .. overrun), vol 0..1. */
+  drive(rpm, idle, red, load, vol) {
+    const t = this.ctx.currentTime;
+    const rn = clamp((rpm - idle) / Math.max(1, red - idle), 0, 1.2);
+    // louder with revs and with load (closed throttle at speed: the overrun is quieter than the pull)
+    const loud = (0.5 + 0.5 * Math.pow(rn, 0.7)) * (0.62 + 0.38 * load);
+    glide(this.rpm, rpm, t, 0.02);
+    glide(this.load, clamp(load, 0, 1), t, 0.05);
+    glide(this.gain, 4.5 * loud * vol, t, 0.08);
+  }
+
+  stop() {
+    const t = this.ctx.currentTime;
+    glide(this.gain, 0, t, 0.05);
+    setTimeout(() => { try { this.node.disconnect(); this.node.port.close(); } catch { /* gone */ } }, 500);
+  }
+}
+
 /** A looping noise through a filter, with a gain. */
 function noiseVoice(ctx, buf, out, type, freq, q = 0.8) {
   const src = ctx.createBufferSource(); src.buffer = buf; src.loop = true;
@@ -82,6 +139,7 @@ export class Audio {
     this.ctx = null;
     this.enabled = true;
     this.sets = new Map();
+    this.banks = new Map();
     this.remote = new Map();
     this.thumpCool = 0;
     this.mutes = new Set();
@@ -95,6 +153,10 @@ export class Audio {
     if (!AC) return;
     const ctx = this.ctx = new AC();
     if (ctx.state === 'suspended') await ctx.resume().catch(() => {});
+    // the grain engine (falls back to loops where AudioWorklet isn't there)
+    this.grainsReady = ctx.audioWorklet
+      ? ctx.audioWorklet.addModule(new URL('./engine-worklet.js', import.meta.url)).then(() => true, (e) => { console.warn('engine worklet:', e); return false; })
+      : Promise.resolve(false);
     this.master = ctx.createGain(); this.master.gain.value = this.volume;
     // a browser that wouldn't resume the sound by itself (coming back to the tab) does on the next touch or key
     const wake = () => { if (ctx.state !== 'running' && !document.hidden) ctx.resume().catch(() => {}); };
@@ -128,6 +190,28 @@ export class Audio {
     this.starterLfo.connect(sLfoG).connect(chop.gain);
     this.starterOsc.connect(sf).connect(chop).connect(this.starterGain).connect(this.master);
     this.starterOsc.start(); this.starterLfo.start();
+    // the starter's high whine (its pinion on the ring gear), riding on the motor
+    this.pinionOsc = ctx.createOscillator(); this.pinionOsc.type = 'triangle'; this.pinionOsc.frequency.value = 820;
+    const pf = ctx.createBiquadFilter(); pf.type = 'bandpass'; pf.frequency.value = 900; pf.Q.value = 2;
+    this.pinionGain = ctx.createGain(); this.pinionGain.gain.value = 0;
+    this.pinionOsc.connect(pf).connect(this.pinionGain).connect(chop);
+    this.pinionOsc.start();
+    // turbo: the compressor wheel's whistle (two partials, rising with the shaft speed) and the air rushing through
+    this.turboOsc = ctx.createOscillator(); this.turboOsc.type = 'sine'; this.turboOsc.frequency.value = 3000;
+    this.turboOsc2 = ctx.createOscillator(); this.turboOsc2.type = 'sine'; this.turboOsc2.frequency.value = 4500;
+    this.turboGain = ctx.createGain(); this.turboGain.gain.value = 0;
+    const tg2 = ctx.createGain(); tg2.gain.value = 0.3;
+    this.turboOsc.connect(this.turboGain); this.turboOsc2.connect(tg2).connect(this.turboGain);
+    this.turboGain.connect(this.master);
+    this.turboOsc.start(); this.turboOsc2.start();
+    this.turboAir = noiseVoice(ctx, this.pink, this.master, 'bandpass', 2500, 1.1);
+    this.boost = 0;
+    // the gearbox and transfer case singing under load (straight-cut reverse and low range louder)
+    this.whineOsc = ctx.createOscillator(); this.whineOsc.type = 'triangle'; this.whineOsc.frequency.value = 400;
+    this.whineF = ctx.createBiquadFilter(); this.whineF.type = 'bandpass'; this.whineF.frequency.value = 700; this.whineF.Q.value = 1.4;
+    this.whineGain = ctx.createGain(); this.whineGain.gain.value = 0;
+    this.whineOsc.connect(this.whineF).connect(this.whineGain).connect(this.master);
+    this.whineOsc.start();
     // air: hissing out of a valve, or the compressor pumping it back
     this.air = noiseVoice(ctx, this.white, this.master, 'highpass', 3500, 0.7);
     // mud-terrain tyres hum on hard ground: a tone at the lug passing frequency
@@ -185,13 +269,37 @@ export class Audio {
     return pr;
   }
 
+  loadBank(name) {
+    if (!this.banks.has(name)) this.banks.set(name, fetchBank(name));
+    return this.banks.get(name);
+  }
+
+  /** The engine voice for a truck: its bank through the grain engine, else the loops. */
+  async makeVoice(spec, out) {
+    if (spec.engineBank && await this.grainsReady) {
+      const bank = await this.loadBank(spec.engineBank).catch((e) => { console.warn('engine bank', spec.engineBank, e); return null; });
+      if (bank) return new GrainVoice(this, bank, out, { idle: spec.engine.idleRpm, pitch: spec.bankPitch || 1 });
+    }
+    const set = await this.loadSet(spec.engineSound).catch(() => null);
+    return set ? new EngineVoice(this, set, out, spec.soundPitch || 1) : null;
+  }
+
   async setLocalEngine(spec) {
     if (!this.ctx) return;
-    const set = await this.loadSet(spec.engineSound).catch(() => null);
-    if (!set) return;
+    const want = (this.engineWant = (this.engineWant || 0) + 1);
+    const voice = await this.makeVoice(spec, this.engineBus);
+    if (!voice) return;
+    if (want !== this.engineWant) { voice.stop(); return; }          // (a newer truck was asked for meanwhile)
     this.engine?.stop();
-    this.engine = new EngineVoice(this, set, this.engineBus, spec.soundPitch || 1);
+    this.engine = voice;
     this.engineSpec = spec;
+  }
+
+  /** Feed an engine voice: grain voices take the revs as they are, loops a 0..1 share of the range. */
+  driveVoice(voice, spec, rpm, thr, vol) {
+    const e = spec.engine;
+    if (voice.grain) voice.drive(rpm, e.idleRpm, e.redline, thr, vol);
+    else voice.drive((rpm - e.idleRpm) / (e.redline - e.idleRpm), Math.max(thr, 0.05), vol);
   }
 
   /** A one-shot knock or bang: filtered noise burst. */
@@ -253,10 +361,42 @@ export class Audio {
     } else { L.setPosition?.(p.x, p.y, p.z); L.setOrientation?.(fx, fy, fz, 0, 1, 0); }
 
     if (v) {
-      const e = v.dt.e;
-      const rpmN = (v.dt.rpm - e.idleRpm) / (e.redline - e.idleRpm);
-      this.engine?.drive(rpmN, Math.max(v.dt.throttle, 0.05), v.dt.running ? 0.95 : 0);
-      glide(this.starterGain.gain, v.dt.crankT > 0 ? 0.07 : 0, t, 0.03);
+      // the load the engine sounds under: the throttle, and how hard it is pulling (or being pulled: overrun)
+      const dtr = v.dt, e = dtr.e;
+      const peak = e._peak || (e._peak = e.torque.reduce((m, q) => Math.max(m, q[1]), 1));
+      const pull = clamp(dtr.engineTorque / peak, 0, 1);
+      this.loadS = (this.loadS ?? 0) + ((0.65 * dtr.throttle + 0.35 * pull) - (this.loadS ?? 0)) * Math.min(1, dt * 8);
+      // cranking: the engine turns over on the starter (its firings come slow and soft: compression, no bang)
+      const cranking = dtr.crankT > 0;
+      if (this.engine) this.driveVoice(this.engine, this.engineSpec || v.spec, cranking ? Math.max(dtr.rpm, 150) : dtr.rpm, cranking ? 0.15 : this.loadS, dtr.running ? 0.95 : cranking ? 0.32 : 0);
+      // the starter: a motor chopped by the compression strokes (a diesel's heavier and slower)
+      const bank = v.spec.engineBank || '';
+      const cyl = e.cyl || BANK_CYL[bank] || 6, diesel = !!e.diesel || bank[0] === 'd';
+      glide(this.starterGain.gain, cranking ? (diesel ? 0.085 : 0.07) : 0, t, 0.03);
+      glide(this.pinionGain.gain, cranking ? 0.05 : 0, t, 0.03);
+      glide(this.starterLfo.frequency, Math.max(4, dtr.rpm * cyl / 120), t, 0.05);
+      glide(this.starterOsc.frequency, diesel ? 80 : 98, t, 0.05);
+      // turbo (spec.turbo 1: turbo-diesel, 2: twin-turbo petrol): boost builds with load once the revs are up,
+      // the wheel spools up behind it and winds down after a lift
+      const T = v.spec.turbo || 0, idle = e.idleRpm;
+      const rr = dtr.rpm / idle;
+      const want = T && dtr.running ? clamp((this.loadS - 0.2) / 0.7, 0, 1) * clamp((rr - 1.4) / 2.0, 0, 1) : 0;
+      this.boost += (want - this.boost) * Math.min(1, dt / (want > this.boost ? (T === 1 ? 0.8 : 0.5) : 0.4));
+      const shaft = 0.12 + 0.88 * Math.sqrt(this.boost);
+      const fW = (T === 2 ? 3000 : 2000) + shaft * (T === 2 ? 4500 : 3000);
+      glide(this.turboOsc.frequency, fW, t, 0.05); glide(this.turboOsc2.frequency, fW * 1.52, t, 0.05);
+      glide(this.turboGain.gain, T ? (T === 2 ? 0.0032 : 0.0045) * this.boost * (0.4 + 0.6 * this.loadS) : 0, t, 0.06);
+      glide(this.turboAir.g.gain, T ? 0.022 * this.boost * (0.3 + 0.7 * this.loadS) : 0, t, 0.06);
+      glide(this.turboAir.f.frequency, 1400 + 2600 * shaft, t, 0.06);
+      // gear whine: the gearbox output (the transfer case input) turning, louder pulling hard, in low range and
+      // in reverse (straight-cut)
+      const gb = Math.abs(dtr.wOut) * (dtr.low ? dtr.t.low : dtr.t.high) * 60 / (2 * Math.PI);
+      const fWh = gb / 60 * 33;
+      const pullAmt = clamp(Math.abs(dtr.engineTorque) / peak, 0, 1);
+      const whine = fWh > 60 ? Math.min(1, gb / 1800) * (0.3 + 0.7 * pullAmt) * (dtr.low ? 2.2 : 1) * (dtr.gear < 0 ? 2.6 : 1) : 0;
+      glide(this.whineOsc.frequency, Math.max(40, fWh), t, 0.05);
+      glide(this.whineF.frequency, clamp(fWh * 1.1, 200, 4000), t, 0.05);
+      glide(this.whineGain.gain, Math.min(0.03, 0.0065 * whine), t, 0.08);
       const speed = Math.abs(v.speed);
       // air in or out of the tyres
       const airing = Math.abs((v.psiAir ?? v.psi) - v.psiTarget) > 0.05 && (v.psiTarget > v.psi || speed < 2.5);
@@ -314,18 +454,18 @@ export class Audio {
         rv = { voice: null, panner: null, loading: false };
         this.remote.set(r.id, rv);
         rv.loading = true;
-        this.loadSet(r.spec.engineSound).then((set) => {
-          if (!this.remote.has(r.id)) return;
-          const pan = this.ctx.createPanner();
-          pan.panningModel = 'equalpower'; pan.distanceModel = 'inverse'; pan.refDistance = 7; pan.maxDistance = 600; pan.rolloffFactor = 1.2;
-          pan.connect(this.engineBus);
-          rv.panner = pan;
-          rv.voice = new EngineVoice(this, set, pan, r.spec.soundPitch || 1);
+        const pan = this.ctx.createPanner();
+        pan.panningModel = 'equalpower'; pan.distanceModel = 'inverse'; pan.refDistance = 7; pan.maxDistance = 600; pan.rolloffFactor = 1.2;
+        pan.connect(this.engineBus);
+        rv.panner = pan;
+        this.makeVoice(r.spec, pan).then((voice) => {
+          if (!this.remote.has(r.id)) { voice?.stop(); return; }
+          rv.voice = voice;
         }).catch(() => {});
       }
       if (rv.voice) {
-        const e = r.spec.engine;
-        rv.voice.drive((r.rpm - e.idleRpm) / (e.redline - e.idleRpm), Math.max(0.05, r.thr), 0.8);
+        rv.voice.thrS = (rv.voice.thrS ?? 0) + (r.thr - (rv.voice.thrS ?? 0)) * Math.min(1, dt * 8);
+        this.driveVoice(rv.voice, r.spec, r.rpm, rv.voice.thrS, 0.8);
         if (rv.panner.positionX) { rv.panner.positionX.value = r.pos.x; rv.panner.positionY.value = r.pos.y; rv.panner.positionZ.value = r.pos.z; } else rv.panner.setPosition(r.pos.x, r.pos.y, r.pos.z);
       }
     }
