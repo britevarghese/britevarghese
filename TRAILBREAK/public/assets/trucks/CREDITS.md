@@ -16,6 +16,10 @@ light), and the textures resized to WebP.
   https://sketchfab.com/3d-models/bronco-car-animation-red-0f5a7d85d82540ab9436527fb8bbe4f7 (https://sketchfab.com/neshallads);
   narrowed 2.5% to the Sasquatch Bronco's track, its springs, shocks, arms and rear axle removed, its rims cut from its
   wheels.
+- `hummer.glb` (Hummer H1): "Hummer H1 (Retry School)" by Voxel_CG,
+  https://sketchfab.com/3d-models/hummer-h1-retry-school-580511d3b2df43f2bd2edda79655428c (https://sketchfab.com/voxel_cg);
+  narrowed 6% toward the H1's real track and width, its springs, shocks and wishbones removed, the dense parts
+  simplified, its tan panels given the game's paint.
 - `shepherd.glb` (Land Rover Defender 110): "Land Rover Defender 110" by meeww,
   https://sketchfab.com/3d-models/land-rover-defender-110-5773ec04488b46148816b5f7a9f3f44f (https://sketchfab.com/meeww);
   narrowed 7% to the 110's real track, its axles, springs, roof rack and a prop removed, the parts but its panels

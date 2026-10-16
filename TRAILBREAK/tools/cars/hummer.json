@@ -1,0 +1,107 @@
+{
+ "id": "hummer",
+ "model": {
+  "title": "Hummer H1 (Retry School)",
+  "url": "https://sketchfab.com/3d-models/hummer-h1-retry-school-580511d3b2df43f2bd2edda79655428c",
+  "author": "Voxel_CG",
+  "authorUrl": "https://sketchfab.com/voxel_cg",
+  "license": "CC BY 4.0"
+ },
+ "axes": {
+  "left": "-x",
+  "up": "+y",
+  "forward": "-z"
+ },
+ "wheelbase": 3.302,
+ "scaleX": 0.94,
+ "spare": null,
+ "nodes": [
+  [
+   "Wheel_D",
+   "tyre",
+   [
+    7
+   ]
+  ],
+  [
+   "Wheel_D",
+   "rim",
+   [
+    3
+   ]
+  ],
+  [
+   "Wheel_D",
+   "hub",
+   [
+    5
+   ]
+  ]
+ ],
+ "materials": {
+  "0": "paint",
+  "11": "glass",
+  "4": "head",
+  "6": "amber",
+  "9": "tail",
+  "10": "tail",
+  "2": "paint",
+  "3": "paint"
+ },
+ "reduce": {
+  "paint": 0.6,
+  "*": 0.75
+ },
+ "texSize": 1024,
+ "layout": {
+  "bumperF": {
+   "z": 2.44,
+   "y": 0.83,
+   "w": 2.0
+  },
+  "bumperR": {
+   "z": -2.8,
+   "y": 0.68,
+   "w": 2.1
+  },
+  "frame": {
+   "x": 0.32,
+   "y": 0.52,
+   "z0": -2.4,
+   "z1": 2.1
+  },
+  "sill": 0.75,
+  "roofY": 1.95,
+  "roofZ": [
+   -2.2,
+   0.6
+  ],
+  "ownChassis": true
+ },
+ "dropParts": [
+  [
+   -0.9,
+   0.4,
+   1.4,
+   0.9,
+   1.06,
+   1.96,
+   [
+    7,
+    1
+   ]
+  ],
+  [
+   -0.9,
+   0.4,
+   -1.96,
+   0.9,
+   1.06,
+   -1.33,
+   [
+    7,
+    1
+   ]
+  ]
+ ]
+}

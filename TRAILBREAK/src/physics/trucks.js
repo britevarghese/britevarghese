@@ -336,6 +336,34 @@ export const TRUCKS = {
     shafts: [6500, 8000], parts: 1.15, tc: true,
     style: 'bronco', look: { top: 'paint', coils: true, alloy: true },
   },
+  hummer: {
+    // the AM General Hummer H1 Alpha hard top (2006): 3,302 mm wheelbase, 2,197 mm wide, 406 mm under the diffs (geared
+    // hubs carry the axles up above the wheel centres), tyre inflation from the cab
+    id: 'hummer', name: 'Hummer H1',
+    blurb: 'Hummer H1 Alpha: the civilian Humvee. 130" wheelbase, 6.6 Duramax turbo-diesel V8, Allison five-speed, independent suspension at both ends on geared hubs, 16" under the diffs, 37s with tyre inflation from the cab. Three and a half tons, as wide as a lane.',
+    mass: 3650, cgHeight: 0.86, cgZ: 0.1, inertiaBox: [2.0, 1.4, 4.4],
+    axles: [
+      { z: 1.651, track: 1.93, springTrack: 1.3, rate: 76000, bump: 4200, rebound: 8400, travel: 0.24, sag: 0.1, mass: 160, steer: 0.52, brake: 6200, swayBar: 30000, ifs: true, armDrop: 0.07 },
+      { z: -1.651, track: 1.93, springTrack: 1.3, rate: 82000, bump: 4200, rebound: 8400, travel: 0.24, sag: 0.1, mass: 160, steer: 0, brake: 4600, handbrake: 6000, ifs: true, armDrop: 0.07 },
+    ],
+    trans: { tcK: 8 },
+    stock: { tyre: 37, axle: 5.24, trans: 12, fit: 37, low: 2.72, diffs: 1, wheels: 1 },
+    axleRatios: [4.71, 5.24, 5.89, 6.53],
+    stockTyre: { label: '37x12.50 R17 M/T', radius: 0.475, width: 0.318, rim: 17, desc: 'The Alpha\'s 37x12.50 R17 mud-terrains, run-flat inserts and tyre inflation from the cab.' },
+    hull: [
+      { c: [0, 1.06, -0.08], h: [1.06, 0.38, 2.52], pts: 'bottom' },        // body: bumpers 0.68 m up, beltline 1.44
+      { c: [0, 0.56, 0], h: [0.46, 0.1, 1.25], pts: 'bottom' },             // belly: the drivetrain up in its tunnel, 0.46 m up
+      { c: [0, 1.72, -0.75], h: [1.0, 0.27, 1.5], pts: 'top' },             // hard top, roof 1.99 m
+    ],
+    roofY: 1.99, cabZ: 0.6, noseZ: 2.44, rackZ: -0.9,
+    intakePos: [-0.75, 1.1, 1.3], snorkelPos: [-0.95, 1.95, 0.75],
+    winch: { fairlead: [0, 0.95, 2.4] },
+    eye: [0.55, 1.68, 0.05], hoodEye: [0, 1.6, 1.4],
+    drag: { cd: 0.68, area: 4.0 },
+    buoyancy: 0.28,
+    shafts: [9000, 11000], tyreK: 1.4, tyreLoad: 9000, parts: 1.5, tc: true,
+    style: 'hummer', look: { top: 'paint', coils: true },
+  },
 };
 // (the options that depend on the truck, Upgrades.optionsFor, look trucks up here)
 Object.assign(TRUCK_BASES, TRUCKS);

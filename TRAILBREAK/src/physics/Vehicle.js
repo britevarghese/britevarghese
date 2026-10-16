@@ -114,7 +114,7 @@ export class Vehicle {
       // (portal axles carry the tube and the diff above the hubs: little hangs below the wheel centres)
       const dd = a.diffDrop ?? 0.16, dxd = a.diffX || 0, sp = s / 2, pd = a.plateDrop ?? 0.085;
       // (independent: the diff sits up on the frame, and the lower arms' outer ends hang just inboard of each wheel)
-      ax.under = ifs ? [{ x: half - 0.24, drop: 0.11, dz: 0 }, { x: -(half - 0.24), drop: 0.11, dz: 0 }] : [
+      ax.under = ifs ? [{ x: half - 0.24, drop: a.armDrop ?? 0.11, dz: 0 }, { x: -(half - 0.24), drop: a.armDrop ?? 0.11, dz: 0 }] : [
         { x: dxd, drop: dd, dz: 0 }, { x: dxd, drop: dd - 0.035, dz: 0.09 }, { x: dxd, drop: dd - 0.035, dz: -0.09 },
         { x: sp, drop: pd, dz: 0 }, { x: -sp, drop: pd, dz: 0 },
       ];

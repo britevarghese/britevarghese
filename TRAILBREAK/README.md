@@ -201,8 +201,8 @@ lies, go back to the last firm, dry ground you drove on, call your friends for a
 
 ## The trucks
 
-Real trucks with real 3D models (the Mahindra Thar you start in, the Jeep Wrangler Rubicon, the Ford Bronco and the Land
-Rover Defender 110) and the original designs, each built to the real numbers of the kind of truck it is, from a one-ton micro 4x4 to a
+Real trucks with real 3D models (the Mahindra Thar you start in, the Jeep Wrangler Rubicon, the Ford Bronco, the Hummer
+H1 and the Land Rover Defender 110) and the original designs, each built to the real numbers of the kind of truck it is, from a one-ton micro 4x4 to a
 six-ton portal-axle expedition truck. Every one takes every part in the garage.
 
 | Truck | Price | Kind | Wheelbase | Weight | Engine | Gearbox | Low range / axles | Stock tyres | Under the diffs | Approach / departure / breakover |
@@ -218,6 +218,7 @@ six-ton portal-axle expedition truck. Every one takes every part in the garage.
 | Hauler | $14,500 | three-quarter-ton pickup | 3.34 m (131") | 2250 kg | 6.6 V8, 410 Nm | 4-speed manual, 6.55:1 granny | 1.96 / 4.10 | 33x12.5R15 | 20 cm | 35 / 24 / 25 degrees |
 | Drover | $16,000 | big six-cylinder wagon | 2.73 m (107") | 2150 kg | 4.2 six, 285 Nm | 4-speed automatic | 1.96 / 4.10 | 31x10.5R15 | 19 cm | 34 / 25 / 30 degrees |
 | Bruiser | $24,000 | one-ton crew-cab pickup | 3.96 m (156") | 3350 kg | 5.9 turbo-diesel six, 570 Nm | heavy-duty 5-speed, 5.61:1 granny | 2.72 / 4.10 | 33x12.5R15 | 20 cm | 36 / 29 / 25 degrees |
+| Hummer H1 | $32,000 | the H1 Alpha hard top, the civilian Humvee: independent suspension at both ends on geared hubs, tyre inflation from the cab, Torsen rear, brake traction control | 3.30 m (130") | 3650 kg | 6.6 Duramax turbo-diesel V8, 705 Nm | Allison 5-speed automatic | 2.72 / 5.24 (with the hub gears) | 37x12.50 R17 | 38 cm | 49 / 41 / 32 degrees |
 | Rhino | $42,000 | portal-axle expedition truck | 3.25 m (128") | 6200 kg | 5.7 diesel six, 363 Nm | 8-speed truck box, 9:1 first | none / 7.17 | 395/85R20 (42") | 45 cm | 43 / 40 / 50 degrees |
 
 They drive like what they are. The Gecko weighs a ton and floats over mud, but it is slow and narrow on a side slope.
@@ -227,7 +228,7 @@ buy and fit. The Rhino's portal axles ride the diffs high above the hubs: 45 cm 
 lockers at both ends, onboard air and a raised intake from the factory, and wades 1.5 m. It is also slow: 0-60 km/h
 takes 20 seconds and it tops out at 84 km/h.
 
-The Thar's, the Wrangler's, the Bronco's and the Defender's bodies are real 3D models (see [Credits](#credits)), converted by
+The Thar's, the Wrangler's, the Bronco's, the Hummer's and the Defender's bodies are real 3D models (see [Credits](#credits)), converted by
 `tools/cars.py` into the game's frame (narrowed to the real trucks' widths, the dense ones simplified): the
 game paints it any colour, cracks its glass, lights its lamps and fits its own wheels, axles and suspension under it,
 and every garage part goes on it as on the others (the lift raises the model, the tyres grow in its arches). Its front
@@ -398,7 +399,8 @@ test/                     node --test suites
 ## Credits
 
 Truck models: the Mahindra Thar, "THAR 4X4" by MB_Mahesh; the Jeep Wrangler, "Jeep Wrangler 3D Model" by Suyog modak;
-the Ford Bronco, "Bronco Car Animation (Red)" by neshallads; the Land Rover Defender 110, "Land Rover Defender 110" by
+the Ford Bronco, "Bronco Car Animation (Red)" by neshallads; the Hummer H1, "Hummer H1 (Retry School)" by Voxel_CG;
+the Land Rover Defender 110, "Land Rover Defender 110" by
 meeww; on Sketchfab, CC BY 4.0, see
 `public/assets/trucks/CREDITS.md` (converted with `tools/cars.py`). Engine sounds: see `public/assets/audio/CREDITS.md`
 (Freesound, CC BY 4.0). Ground textures: CC0 scans from Poly
