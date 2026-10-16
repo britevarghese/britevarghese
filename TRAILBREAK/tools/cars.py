@@ -13,7 +13,8 @@ This writes:
              into their material's colour.
   <id>.json  what was measured: the wheel centres, radius and width, the tracks and wheelbase, the extent of the body,
              the head and tail lamps, the roof, the bumpers, the mirrors' reach; plus the config's own layout entries.
-Needs numpy and Pillow.
+Needs numpy and Pillow; a config with "reduce" (the share of a dense mesh's triangles to take away) also needs
+fast-simplification (pip install fast-simplification).
 """
 import hashlib, io, json, math, os, struct, sys
 import numpy as np
@@ -25,7 +26,7 @@ AXIS = {'+x': (0, 1), '-x': (0, -1), '+y': (1, 1), '-y': (1, -1), '+z': (2, 1), 
 # roles the game draws with its own materials (the paint takes the player's colour and the mud; glass cracks; lamps
 # light up), and the ones taken off
 GAME_ROLES = {'paint', 'glass', 'screen', 'head', 'tail', 'reverse', 'amber'}
-WHEEL_ROLES = {'tyre', 'rim', 'hub'}
+WHEEL_ROLES = {'tyre', 'rim', 'hub', 'spare'}           # ('spare': the parts of a spare wheel, when a config names them)
 
 
 def node_matrix(n):
@@ -66,8 +67,9 @@ def load(path):
 
     prims = []
 
-    def visit(i, parent):
+    def visit(i, parent, path=''):
         n = g['nodes'][i]; m = parent @ node_matrix(n)
+        path = f"{path}/{n.get('name', '')}"
         if 'mesh' in n:
             for p in g['meshes'][n['mesh']]['primitives']:
                 if p.get('mode', 4) != 4: continue
@@ -80,8 +82,8 @@ def load(path):
                 uv = acc(p['attributes']['TEXCOORD_0']).astype(np.float64) if 'TEXCOORD_0' in p['attributes'] else None
                 tri = (acc(p['indices']).reshape(-1) if 'indices' in p else np.arange(len(pos))).astype(np.int64).reshape(-1, 3)
                 if np.linalg.det(m[:3, :3]) < 0: tri = tri[:, [0, 2, 1]]
-                prims.append({'node': i, 'name': n.get('name', ''), 'mat': p.get('material', -1), 'pos': pw, 'nor': nw, 'uv': uv, 'tri': tri})
-        for c in n.get('children', []): visit(c, m)
+                prims.append({'node': i, 'name': path, 'mat': p.get('material', -1), 'pos': pw, 'nor': nw, 'uv': uv, 'tri': tri})
+        for c in n.get('children', []): visit(c, m, path)
 
     for r in g['scenes'][g.get('scene', 0)]['nodes']: visit(r, np.eye(4))
     return g, prims
@@ -98,8 +100,8 @@ def axes_matrix(cfg):
 
 
 def role_of(cfg, prim):
-    for rule in cfg.get('nodes', []):                        # by node name: [substring, role]
-        if rule[0] in prim['name']: return rule[1]
+    for rule in cfg.get('nodes', []):                        # by name (the node's or its parents'): [substring, role, (materials)]
+        if rule[0] in prim['name'] and (len(rule) < 3 or prim['mat'] in rule[2]): return rule[1]
     return cfg['materials'].get(str(prim['mat']), cfg.get('default', 'trim'))
 
 
@@ -107,7 +109,7 @@ def split_wheels(tris, roles, cfg):
     """Wheel triangles -> 'FL', 'FR', 'RL', 'RR' or 'spare' by where they are (None: not a wheel)."""
     wheel = np.array([r in WHEEL_ROLES for r in roles])
     c = tris[wheel].mean(1)
-    sp = np.zeros(len(c), dtype=bool)
+    sp = np.array([r == 'spare' for r in roles[wheel]])
 
     def axles(sel):
         zf, zr = np.percentile(c[sel, 2], 85), np.percentile(c[sel, 2], 15)
@@ -118,7 +120,7 @@ def split_wheels(tris, roles, cfg):
 
     zf, zr, front = axles(~sp)
     spare = cfg.get('spare')
-    if spare:
+    if spare and not sp.any():
         # the spare: past an axle (on the tailgate or the bonnet), above the road wheels (on the roof) or between them
         ylow = np.percentile(c[:, 1], 2)
         R = (np.percentile(c[:, 1], 60) - ylow)
@@ -227,7 +229,7 @@ def main(src_dir, cfg_path, out_dir):
     wheels = {}
     for k in ('FL', 'FR', 'RL', 'RR', 'spare'):
         sel = wl == k
-        tyre = sel & (roles == 'tyre')
+        tyre = sel & np.isin(roles, ['tyre', 'spare'])
         if not sel.any(): continue
         v = tris[tyre if tyre.any() else sel].reshape(-1, 3)
         lo, hi = v.min(0), v.max(0)
@@ -250,10 +252,12 @@ def main(src_dir, cfg_path, out_dir):
         w['r'] *= s * cfg.get('scaleY', 1.0); w['w'] *= s * cfg.get('scaleX', 1.0)
 
     # ---- one rim, apart: the front left's, centred, unit radius, face toward +x (outward on the left)
-    rim_sel = (wl == 'FL') & np.isin(roles, ['rim', 'hub'])
+    # (or another left wheel's, rimFrom, where the model's front tyres carry their rims in them)
+    rim_from = cfg.get('rimFrom', 'FL')
+    rim_sel = (wl == rim_from) & np.isin(roles, ['rim', 'hub'])
     rim = None
     if rim_sel.any():
-        W = wheels['FL']
+        W = wheels[rim_from]
         rv = tris[rim_sel] - W['c']
         rr = np.sqrt(rv[..., 1] ** 2 + rv[..., 2] ** 2).max()
         rim = {'tris': rv / rr, 'nors': nors[rim_sel], 'uvs': uvs[rim_sel], 'mats': mats[rim_sel], 'hasuv': hasuv[rim_sel], 'radius': rr, 'width': (rv[..., 0].max() - rv[..., 0].min())}
@@ -358,14 +362,64 @@ def main(src_dir, cfg_path, out_dir):
         mat_cache[key] = len(out.j['materials']) - 1
         return mat_cache[key]
 
+    cell = cfg.get('cell', 0)
+
+    def cluster(t, n, u, hu):
+        """Vertex clustering: corners in the same small cell (and, textured, near the same spot of the texture) become
+        one, triangles left with fewer than three corners go (bolts, over-fine curves; the shape holds to the cell)."""
+        k = np.floor(t.reshape(-1, 3) / cell).astype(np.int64)
+        if hu: k = np.c_[k, np.floor(u.reshape(-1, 2) * 48).astype(np.int64)]
+        _, first, inv = np.unique(k, axis=0, return_index=True, return_inverse=True)
+        inv = inv.reshape(-1, 3)
+        keep = (inv[:, 0] != inv[:, 1]) & (inv[:, 1] != inv[:, 2]) & (inv[:, 0] != inv[:, 2])
+        # each cluster at the mean of its corners
+        flat = t.reshape(-1, 3); cnt = np.bincount(inv.reshape(-1), minlength=len(first)).astype(np.float64)
+        mean = np.stack([np.bincount(inv.reshape(-1), flat[:, a], len(first)) for a in range(3)], 1) / cnt[:, None]
+        return mean[inv[keep]], n[keep], u[keep]
+
     def emit(name, t, n, u, mi, role, hu):
+        if cell and role not in ('glass', 'screen', 'rim') and len(t) > 64:
+            t, n, u = cluster(t, n, u, hu)
+            if not len(t): return
         # (vertices shared where position, normal and uv all match: the source's own indexing comes back)
         flat = t.reshape(-1, 3); fnr = n.reshape(-1, 3); fuv = u.reshape(-1, 2)
         key = np.round(np.c_[flat * 1e4, fnr * 1e3, fuv * 1e4]).astype(np.int64)
         _, first, inv = np.unique(key, axis=0, return_index=True, return_inverse=True)
         pos, nor, uv = flat[first], fnr[first], fuv[first]
         nor /= np.linalg.norm(nor, axis=1, keepdims=True) + 1e-12
-        out.mesh(name, pos, nor, uv if hu else None, inv.reshape(-1, 3), material(mi, role))
+        tri = inv.reshape(-1, 3)
+        red = cfg.get('reduce', 0)
+        if isinstance(red, dict): red = red.get(role, red.get('*', 0))      # (per role: {"paint": 0.5, "*": 0.75})
+        if red and len(tri) > cfg.get('reduceOver', 3000) and role not in ('glass', 'screen', 'rim'):
+            pos, nor, uv, tri = simplify(flat, fuv, hu, red)
+        out.mesh(name, pos, nor, uv if hu else None, tri, material(mi, role))
+
+    def simplify(flat, fuv, hu, red):
+        """Quadric edge collapses on the surface welded whole (by position, and by uv where it is textured: the
+        seams stay), then normals again with a crease: smooth across gentle bends, a hard edge where faces meet
+        at more than 35 degrees (the panels' edges stay sharp)."""
+        import fast_simplification as fs
+        key = np.round(flat * 1e4).astype(np.int64)
+        if hu: key = np.c_[key, np.round(fuv * 1e4).astype(np.int64)]
+        _, first, inv = np.unique(key, axis=0, return_index=True, return_inverse=True)
+        P0, U0, T0 = flat[first], fuv[first], inv.reshape(-1, 3)
+        _, _, coll = fs.simplify(P0.astype(np.float32), T0.astype(np.int32), target_reduction=red, return_collapses=True)
+        P1, T1, mapping = fs.replay_simplification(P0.astype(np.float32), T0.astype(np.int32), coll)
+        src = np.zeros(len(P1), dtype=np.int64); src[mapping] = np.arange(len(mapping))
+        P1, T1, U1 = P1.astype(np.float64), T1.astype(np.int64), U0[src]
+        fn = np.cross(P1[T1[:, 1]] - P1[T1[:, 0]], P1[T1[:, 2]] - P1[T1[:, 0]])
+        vn = np.zeros_like(P1)
+        for k in range(3): np.add.at(vn, T1[:, k], fn)
+        fn /= np.linalg.norm(fn, axis=1, keepdims=True) + 1e-12
+        vn /= np.linalg.norm(vn, axis=1, keepdims=True) + 1e-12
+        cn = vn[T1]                                          # (corner normals: the smooth one, or the face's on a crease)
+        crease = (cn * fn[:, None, :]).sum(-1) < np.cos(np.radians(35))
+        cn[crease] = np.repeat(fn[:, None, :], 3, 1)[crease]
+        # back to an indexed mesh: corners shared where position, normal and uv agree
+        cp, cuv = P1[T1].reshape(-1, 3), U1[T1].reshape(-1, 2)
+        k2 = np.c_[np.round(cp * 1e4), np.round(cn.reshape(-1, 3) * 1e3), np.round(cuv * 1e4)].astype(np.int64)
+        _, f2, i2 = np.unique(k2, axis=0, return_index=True, return_inverse=True)
+        return cp[f2], cn.reshape(-1, 3)[f2], cuv[f2], i2.reshape(-1, 3)
 
     order = sorted(set(zip(roles.tolist(), mats.tolist())), key=lambda rm: (rm[0], rm[1]))
     for role, mi in order:
@@ -381,6 +435,7 @@ def main(src_dir, cfg_path, out_dir):
     layout['glb'] = f'{tid}.glb?v={hashlib.sha1(open(os.path.join(out_dir, f"{tid}.glb"), "rb").read()).hexdigest()[:10]}'
     json.dump(layout, open(os.path.join(out_dir, f'{tid}.json'), 'w'), indent=1)
     size = os.path.getsize(os.path.join(out_dir, f'{tid}.glb'))
+    layout['tris'] = int(sum(out.j['accessors'][pr['indices']]['count'] for m in out.j['meshes'] for pr in m['primitives']) // 3)
     print(f'{tid}: {layout["tris"]} triangles, {len(out.j["meshes"])} meshes, {len(out.j["images"])} textures, {size / 1e6:.2f} MB; scale {s:.4f}')
     print(' wheels', {k: (v['c'], v['r']) for k, v in layout['wheels'].items()})
     print(' track', layout['track'], 'bbox', layout['bbox'], 'half', layout['half'])

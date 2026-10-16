@@ -9,7 +9,7 @@
 
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
-import { geckoBody, trekkerBody, shepherdBody, droverBody, bruiserBody, rhinoBody } from './TruckBodies.js';
+import { geckoBody, trekkerBody, shepherdBody, droverBody, bruiserBody, rhinoBody, cabin } from './TruckBodies.js';
 import { truckAsset } from './TruckAssets.js';
 
 const GRAV = 9.81;
@@ -559,15 +559,16 @@ function muleBody(P, M, paint, top, spec) {
 }
 
 // (a truck with a model body, render/TruckAssets.js, stands in another's built-in body until its model is loaded)
-const BUILDERS = { ranger: rangerBody, hauler: haulerBody, mule: muleBody, gecko: geckoBody, trekker: trekkerBody, shepherd: shepherdBody, drover: droverBody, bruiser: bruiserBody, rhino: rhinoBody, thar: rangerBody };
+const BUILDERS = { ranger: rangerBody, hauler: haulerBody, mule: muleBody, gecko: geckoBody, trekker: trekkerBody, shepherd: shepherdBody, drover: droverBody, bruiser: bruiserBody, rhino: rhinoBody, thar: rangerBody, wrangler: muleBody };
 
 /**
  * A body from a real model (render/TruckAssets.js): its meshes in the body group (own copies: they dent), the game's
  * paint, glass and lamps on those parts. Returns the layout the rest of the truck is built around: the converter's
  * measurements and the model config's entries (tools/cars/<id>.json).
  */
-function modelBody(model, asset, M) {
+function modelBody(model, asset, M, P) {
   const L = asset.layout;
+  if (L.cabin) cabin(P, M, L.cabin);                     // (a model with an empty cab: seats and a dash)
   const mats = { paint: model.paint, glass: M.glass, screen: M.screen, head_l: model.lampMats[0], head_r: model.lampMats[1], tail: model.brakeMat, reverse: model.revMat, amber: M.amber };
   for (const part of asset.parts) {
     const g = part.geometry.clone();
@@ -754,7 +755,7 @@ export class TruckModel {
     this.lampMats = [this.lightMat, this.lightMat.clone()];           // left (+x), right
     const asset = truckAsset(spec.style);
     this.modelBody = !!asset;
-    const x = asset ? modelBody(this, asset, M) : BUILDERS[spec.style](P, M, this.paint, this.top, spec);
+    const x = asset ? modelBody(this, asset, M, P) : BUILDERS[spec.style](P, M, this.paint, this.top, spec);
     this.layout = x;
     if (!x.ownChassis) chassis(P, M, spec, x);
     if (x.ownBumpers) fairlead(P, M, spec, x, spec.winch || {}); else bumpers(P, M, spec, x, spec.winch || {});

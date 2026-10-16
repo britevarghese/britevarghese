@@ -1,0 +1,86 @@
+{
+ "id": "wrangler",
+ "model": {
+  "title": "Jeep Wrangler 3D Model",
+  "url": "https://sketchfab.com/3d-models/jeep-wrangler-3d-model-531f120594d946be8cd9d87b5095f856",
+  "author": "Suyog modak",
+  "authorUrl": "https://sketchfab.com/Suyogmdk",
+  "license": "CC BY 4.0"
+ },
+ "axes": {
+  "left": "+x",
+  "up": "+y",
+  "forward": "+z"
+ },
+ "wheelbase": 2.424,
+ "spare": null,
+ "nodes": [
+  [
+   "polySurface853",
+   "drop"
+  ],
+  [
+   "pCylinder18",
+   "drop"
+  ]
+ ],
+ "materials": {
+  "1": "drop",
+  "3": "rim",
+  "10": "tyre",
+  "12": "paint",
+  "14": "glass",
+  "4": "head",
+  "2": "tail",
+  "5": "tail",
+  "0": "amber",
+  "9": "amber",
+  "19": "drop"
+ },
+ "layout": {
+  "bumperF": {
+   "z": 2.0,
+   "y": 0.45,
+   "w": 1.9
+  },
+  "bumperR": {
+   "z": -1.98,
+   "y": 0.45,
+   "w": 1.75
+  },
+  "spare": {
+   "x": 0,
+   "y": 1.08,
+   "z": -1.84,
+   "mount": "rear"
+  },
+  "frame": {
+   "x": 0.43,
+   "y": 0.5,
+   "z0": -1.9,
+   "z1": 1.85
+  },
+  "sill": 0.5,
+  "roofZ": [
+   -1.95,
+   0.25
+  ],
+  "cabin": {
+   "floorY": 0.68,
+   "z0": -1.55,
+   "z1": 0.55,
+   "x": 0.37,
+   "w": 0.48,
+   "rear": -1.15,
+   "dashZ": 0.42,
+   "dashY": 1.08
+  },
+  "steering": {
+   "x": 0.37,
+   "y": 1.22,
+   "z": 0.2,
+   "tilt": 0.42
+  }
+ },
+ "scaleX": 0.875
+}

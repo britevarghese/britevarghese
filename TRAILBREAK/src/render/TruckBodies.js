@@ -33,7 +33,7 @@ function windscreen(P, M, paint, bottom, top, halfW, pillar = 0.05) {
 }
 
 /** Seats, a floor and a dash with gauges. */
-function cabin(P, M, { floorY, z0, z1, x = 0.38, w = 0.5, rear = null, dashZ, dashY, bench = false }) {
+export function cabin(P, M, { floorY, z0, z1, x = 0.38, w = 0.5, rear = null, dashZ, dashY, bench = false }) {
   P.box(M.black, [2 * x + w, 0.03, z1 - z0], [0, floorY, (z0 + z1) / 2], { r: 0 });
   const sz = dashZ - 0.62;
   if (bench) {

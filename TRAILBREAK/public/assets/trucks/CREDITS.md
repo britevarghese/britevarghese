@@ -9,3 +9,10 @@ light), and the textures resized to WebP.
 
 - `thar.glb` (Mahindra Thar): "THAR 4X4" by MB_Mahesh, https://sketchfab.com/3d-models/thar-4x4-66ee970b18014c98a1750064b65657b0
   (https://sketchfab.com/MB_Mahesh); narrowed 8% to the Thar's real width, its static axles, shocks and discs removed.
+- `wrangler.glb` (Jeep Wrangler): "Jeep Wrangler 3D Model" by Suyog modak,
+  https://sketchfab.com/3d-models/jeep-wrangler-3d-model-531f120594d946be8cd9d87b5095f856 (https://sketchfab.com/Suyogmdk);
+  narrowed 12.5% to the JK's real track, its brake discs, spare rim and ground disc removed.
+- `shepherd.glb` (Land Rover Defender 110): "Land Rover Defender 110" by meeww,
+  https://sketchfab.com/3d-models/land-rover-defender-110-5773ec04488b46148816b5f7a9f3f44f (https://sketchfab.com/meeww);
+  narrowed 7% to the 110's real track, its axles, springs, roof rack and a prop removed, the parts but its panels
+  simplified.

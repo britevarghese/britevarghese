@@ -94,6 +94,8 @@ export const TRANSMISSIONS = [
   { name: '8-speed truck gearbox', short: '8-spd', type: 'manual', gears: [9.0, 6.4, 4.6, 3.3, 2.4, 1.75, 1.3, 1.0], reverse: 9.6, desc: 'Eight close ratios from a 9:1 crawler first: no low range needed.' },
   { name: '6-speed manual (6R320M)', short: '6-spd', type: 'manual', gears: [3.96, 2.24, 1.42, 1.0, 0.81, 0.72], reverse: 3.76, desc: 'The Thar\'s six-speed: a 3.96 first, two overdrives for the highway.' },
   { name: '6-speed automatic', short: '6-spd auto', type: 'auto', gears: [3.6, 2.09, 1.47, 1.0, 0.74, 0.63], reverse: 3.25, desc: 'A six-speed torque-converter automatic: smooth, and it crawls without a clutch.' },
+  { name: '5-speed automatic (W5A580)', short: '5-spd auto', type: 'auto', gears: [3.59, 2.19, 1.41, 1.0, 0.83], reverse: 3.16, desc: 'The Wrangler\'s five-speed automatic: a 3.59 first through a torque converter, an overdrive top.' },
+  { name: '6-speed manual (NSG370)', short: 'NSG370', type: 'manual', gears: [4.46, 2.61, 1.72, 1.25, 1.0, 0.84], reverse: 4.06, desc: 'The Wrangler\'s six-speed manual: a 4.46 first for the rocks, an overdrive top.' },
 ];
 
 export const INTAKES = [
@@ -160,6 +162,11 @@ const ENGINE = {
   // and its 2.0 mStallion petrol: 112 kW at 5,000 rpm, 320 Nm from 1,500 to 3,000
   P20: { name: 'mStallion 2.0 turbo-petrol', idleRpm: 750, redline: 5500, limiter: 5800, inertia: 0.16, friction: [10, 0.017], sound: 'i6_bmw', pitch: 1.02, mass: -20, cyl: 4,
     torque: [[600, 135], [1000, 215], [1250, 280], [1500, 320], [3000, 320], [3600, 300], [4200, 268], [5000, 214], [5500, 184], [6000, 120]] },
+  // the Wrangler's 3.6 Pentastar V6: 213 kW at 6,400 rpm, 353 Nm at 4,800; and the 6.4 HEMI V8 (the 392): 350 kW, 637 Nm
+  V6_36: { name: '3.6 Pentastar V6', idleRpm: 650, redline: 6400, limiter: 6600, inertia: 0.19, friction: [12, 0.018], sound: 'i6_bmw', pitch: 0.95, mass: 0,
+    torque: [[600, 210], [1000, 262], [1500, 290], [2000, 305], [2500, 316], [3000, 326], [3500, 336], [4000, 345], [4800, 353], [5500, 342], [6000, 328], [6400, 318], [6800, 240]] },
+  V8_64: { name: '6.4 HEMI V8', idleRpm: 650, redline: 6000, limiter: 6400, inertia: 0.36, friction: [20, 0.026], sound: 'v8_muscle', pitch: 0.96, mass: 60,
+    torque: [[600, 380], [1000, 480], [1500, 540], [2000, 575], [3000, 610], [4300, 637], [5000, 625], [6000, 557], [6400, 500], [6800, 340]] },
   I6_60TD: { name: 'I6 6.0 turbo-diesel', idleRpm: 650, redline: 2800, limiter: 3000, inertia: 0.8, friction: [30, 0.036], sound: 'i6_bmw', pitch: 0.52, mass: 70,
     torque: [[500, 320], [800, 450], [1200, 570], [1500, 600], [1800, 592], [2200, 560], [2600, 505], [2800, 470], [3100, 300]] },
 };
@@ -176,6 +183,7 @@ export const ENGINES = {
   shepherd: [{ ...ENGINE.I4_25TD, short: 'stock', desc: 'Stock 2.5 turbo-diesel: 63 kW, 203 Nm low down. Slow, frugal, tireless.' }, { ...tunedBy(1.2)(ENGINE.I4_25TD), short: 'tuned', desc: 'Fuel pump turned up, an intercooler: +20% torque.' }, { ...ENGINE.V8_39, short: 'V8 3.9', desc: 'The light alloy 3.9 V8: 134 kW and +54% torque, 20 kg lighter than the diesel.' }],
   drover: [{ ...ENGINE.I6_42P, short: 'stock', desc: 'Stock 4.2 petrol six: 101 kW, 285 Nm off idle.' }, { ...tuned(ENGINE.I6_42P), short: 'tuned', desc: 'Headers, a cam and a bigger carburettor: +13% torque.' }, { ...ENGINE.I6_42TD, short: 'TD swap', desc: 'The 4.2 turbo-diesel six: 122 kW and +26% torque, 60 kg heavier.' }],
   bruiser: [{ ...ENGINE.I6_59TD, short: 'stock', desc: 'Stock 5.9 turbo-diesel six: 134 kW, 570 Nm at 1,600 rpm.' }, { ...tunedBy(1.25, 100)(ENGINE.I6_59TD), short: 'tuned', desc: 'Pump turned up, bigger injectors, a hotter turbo: +25% torque (and black smoke).' }, { ...ENGINE.I6_67CR, short: '6.7 swap', desc: 'A 6.7 common-rail six: 880 Nm, +54% torque.' }],
+  wrangler: [{ ...ENGINE.V6_36, short: 'stock', desc: 'Stock 3.6 Pentastar V6: 213 kW at 6,400 rpm, 353 Nm at 4,800. It likes revs.' }, { ...tunedBy(1.12, 200)(ENGINE.V6_36), short: 'tuned', desc: 'A cold-air intake, an exhaust and a tune: +12% torque.' }, { ...ENGINE.V8_64, short: '392 HEMI', desc: 'The 6.4 HEMI V8 swap: 350 kW and 637 Nm, +80% torque, 60 kg heavier.' }],
   thar: [{ ...ENGINE.D22, short: 'stock', desc: 'Stock mHawk 2.2 turbo-diesel: 96 kW, 300 Nm from 1,600 to 2,800 rpm.' }, { ...tunedBy(1.2, 100)(ENGINE.D22), short: 'remap', desc: 'An ECU remap and a bigger intercooler: 360 Nm, 115 kW.' }, { ...ENGINE.P20, short: 'petrol', desc: 'The mStallion 2.0 turbo-petrol: 112 kW and 320 Nm, revs to 5,500, 20 kg lighter.' }],
   rhino: [{ ...ENGINE.I6_57D, short: 'stock', desc: 'Stock 5.7 diesel six: 96 kW, 363 Nm. Governed at 2,800 rpm.' }, { ...tunedBy(1.3, 0)(ENGINE.I6_57D), short: 'turbo', desc: 'A turbocharger: +30% torque, 125 kW.' }, { ...ENGINE.I6_60TD, short: '6.0 swap', desc: 'A 6.0 turbo-intercooled six: 600 Nm, +65% torque.' }],
 };
@@ -228,7 +236,7 @@ export const PRICES = {
   gears: 1600,                       // any ratio but the factory one: both axles re-geared
   tcase: [0, 1900],
   diffs: [0, 750, 1100, 2200, 900],
-  trans: [1800, 1200, 1600, 1500, 2200, 2400, 5200, 1900, 2600],  // a different gearbox swapped in
+  trans: [1800, 1200, 1600, 1500, 2200, 2400, 5200, 1900, 2600, 2400, 1800],  // a different gearbox swapped in
   engine: [0, 1500, 4800],
   intake: [0, 450],
   winch: [0, 1300],

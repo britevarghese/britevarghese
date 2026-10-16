@@ -62,7 +62,23 @@
    -1.95,
    0.3
   ],
-  "flaps": false
+  "flaps": false,
+  "cabin": {
+   "floorY": 0.66,
+   "z0": -1.6,
+   "z1": 0.55,
+   "x": 0.37,
+   "w": 0.48,
+   "rear": -1.2,
+   "dashZ": 0.42,
+   "dashY": 1.05
+  },
+  "steering": {
+   "x": -0.37,
+   "y": 1.18,
+   "z": 0.2,
+   "tilt": 0.42
+  }
  },
  "scaleX": 0.917,
  "override": {

@@ -156,8 +156,9 @@ export const TRUCKS = {
     style: 'trekker', look: { bed: true, leaf: 0.62 },
   },
   shepherd: {
-    id: 'shepherd', name: 'Shepherd',
-    blurb: 'British utility wagon: 110" wheelbase, 2.5 turbo-diesel, five-speed, coil springs and long travel. Boxy, tall and tireless.',
+    // the Land Rover Defender 110 station wagon (a real model: render/TruckAssets.js)
+    id: 'shepherd', name: 'Land Rover Defender 110',
+    blurb: 'Defender 110 station wagon: 110" wheelbase, 2.5 turbo-diesel, five-speed, coil springs and long travel, a bull bar and side steps. Tall, tireless and unstoppable.',
     mass: 2050, cgHeight: 0.86, cgZ: -0.06, inertiaBox: [1.7, 1.4, 4.2],
     axles: [
       { z: 1.397, track: 1.486, springTrack: 0.9, rate: 39000, bump: 2300, rebound: 4600, travel: 0.24, sag: 0.1, mass: 95, steer: 0.55, brake: 3000, swayBar: 15000, diffDrop: 0.17, diffX: -0.12 },
@@ -166,11 +167,11 @@ export const TRUCKS = {
     trans: { tcK: 10 },
     stock: { tyre: 31, axle: 4.10, trans: 3, fit: 31, low: 2.74 },
     hull: [
-      { c: [0, 0.82, -0.155], h: [0.89, 0.33, 2.245], pts: 'bottom' },      // body: bumpers 0.49 m up, waist 1.15
+      { c: [0, 0.8, -0.22], h: [0.89, 0.33, 2.13], pts: 'bottom' },        // body: bumpers 0.47 m up, waist 1.13
       { c: [0, 0.45, 0], h: [0.4, 0.11, 1.0], pts: 'bottom' },              // belly: transfer case 0.34 m up
-      { c: [0, 1.59, -0.6], h: [0.87, 0.44, 1.75], pts: 'top' },            // station wagon body, roof 2.03 m
+      { c: [0, 1.52, -0.6], h: [0.87, 0.44, 1.75], pts: 'top' },            // station wagon body, roof 1.96 m
     ],
-    roofY: 2.03, cabZ: 0.55, noseZ: 2.09, rackZ: -0.6,
+    roofY: 1.96, cabZ: 0.55, noseZ: 1.95, rackZ: -0.6,
     intakePos: [-0.62, 0.98, 1.7], snorkelPos: [-0.9, 2.05, 0.95],
     winch: { fairlead: [0, 0.66, 2.15] },
     eye: [0.42, 1.6, 0.0], hoodEye: [0, 1.42, 1.45],
@@ -278,6 +279,32 @@ export const TRUCKS = {
     buoyancy: 0.3,
     shafts: [5000, 6500], parts: 1.0,
     style: 'thar', look: { top: 'black', coils: true, alloy: true },
+  },
+  wrangler: {
+    // the Jeep Wrangler JK Rubicon two-door (2012-2018): 4,223 mm long with its spare, 1,873 mm wide, 259 mm under the diffs
+    id: 'wrangler', name: 'Jeep Wrangler',
+    blurb: 'Wrangler Rubicon two-door: 95" wheelbase, 3.6 V6, five-speed automatic, a 4:1 Rock-Trac low range, lockers both ends, a front sway bar that disconnects. Built for the rocks.',
+    mass: 2000, cgHeight: 0.72, cgZ: 0.05, inertiaBox: [1.65, 1.3, 3.8],      // (static stability 1.11: NHTSA's figure)
+    axles: [
+      { z: 1.212, track: 1.572, springTrack: 0.96, rate: 36000, bump: 2300, rebound: 4600, travel: 0.26, sag: 0.1, mass: 110, steer: 0.58, brake: 3000, swayBar: 26000, diffDrop: 0.17, diffX: -0.15 },
+      { z: -1.212, track: 1.572, springTrack: 1.04, rate: 40000, bump: 2300, rebound: 4600, travel: 0.28, sag: 0.105, mass: 105, steer: 0, brake: 2000, handbrake: 2800, diffDrop: 0.17, diffX: 0 },
+    ],
+    trans: { tcK: 10 },
+    stock: { tyre: 33, axle: 4.10, trans: 9, fit: 33, low: 4.0, diffs: 3 },
+    stockTyre: { label: 'LT255/75 R17 M/T', radius: 0.4072, width: 0.259, rim: 17, desc: 'The Rubicon\'s LT255/75 R17 mud-terrains (32"), on black alloys.' },
+    hull: [
+      { c: [0, 0.8, -0.01], h: [0.92, 0.35, 2.0], pts: 'bottom' },          // body: bumpers 0.45 m up, beltline 1.15
+      { c: [0, 0.46, 0], h: [0.4, 0.11, 0.85], pts: 'bottom' },             // belly: transfer case 0.35 m up
+      { c: [0, 1.5, -0.75], h: [0.86, 0.3, 1.15], pts: 'top' },             // hard top, roof 1.8 m
+    ],
+    roofY: 1.8, cabZ: 0.3, noseZ: 2.0, rackZ: -0.75,
+    intakePos: [-0.55, 1.0, 1.4], snorkelPos: [-0.9, 1.8, 0.55],
+    winch: { fairlead: [0, 0.62, 2.03] },
+    eye: [0.37, 1.48, -0.2], hoodEye: [0, 1.36, 1.0],
+    drag: { cd: 0.58, area: 3.0 },
+    buoyancy: 0.3,
+    shafts: [6000, 7000], parts: 1.1,
+    style: 'wrangler', look: { top: 'black', coils: true },
   },
 };
 // (the options that depend on the truck, Upgrades.optionsFor, look trucks up here)

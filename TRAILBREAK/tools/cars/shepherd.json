@@ -1,0 +1,158 @@
+{
+ "id": "shepherd",
+ "model": {
+  "title": "Land Rover Defender 110",
+  "url": "https://sketchfab.com/3d-models/land-rover-defender-110-5773ec04488b46148816b5f7a9f3f44f",
+  "author": "meeww",
+  "authorUrl": "https://sketchfab.com/meeww",
+  "license": "CC BY 4.0"
+ },
+ "axes": {
+  "left": "+x",
+  "up": "+y",
+  "forward": "+z"
+ },
+ "wheelbase": 2.794,
+ "spare": "rear",
+ "nodes": [
+  [
+   "backlefttire.001",
+   "spare"
+  ],
+  [
+   "backleftrim.001",
+   "spare"
+  ],
+  [
+   "backleftwheelbolts.001",
+   "spare"
+  ],
+  [
+   "Plane.072",
+   "drop"
+  ],
+  [
+   "spring",
+   "drop"
+  ],
+  [
+   "strap",
+   "drop"
+  ],
+  [
+   "drivetrain",
+   "drop"
+  ],
+  [
+   "roofbar",
+   "drop"
+  ],
+  [
+   "backframe.008",
+   "drop"
+  ],
+  [
+   "backframe.009",
+   "drop"
+  ],
+  [
+   "backframe.010",
+   "drop"
+  ],
+  [
+   "backframe.011",
+   "drop"
+  ],
+  [
+   "tire",
+   "tyre"
+  ],
+  [
+   "rim",
+   "rim"
+  ],
+  [
+   "backleftwheelbolts_",
+   "hub"
+  ],
+  [
+   "backrightwheelbolts_",
+   "hub"
+  ],
+  [
+   "frontleftheadlight_",
+   "head",
+   [
+    6
+   ]
+  ],
+  [
+   "frontrightheadlightcover_",
+   "head",
+   [
+    6
+   ]
+  ],
+  [
+   "foglightcover",
+   "head",
+   [
+    20
+   ]
+  ],
+  [
+   "front axle",
+   "drop"
+  ],
+  [
+   "rear axle",
+   "drop"
+  ]
+ ],
+ "materials": {
+  "1": "glass",
+  "4": "paint",
+  "6": "tail",
+  "20": "amber",
+  "11": "amber",
+  "9": "drop",
+  "22": "drop",
+  "10": "tyre"
+ },
+ "layout": {
+  "bumperF": {
+   "z": 1.9,
+   "y": 0.42,
+   "w": 1.75
+  },
+  "bumperR": {
+   "z": -2.33,
+   "y": 0.45,
+   "w": 1.7
+  },
+  "spare": {
+   "x": 0,
+   "y": 1.13,
+   "z": -2.29,
+   "mount": "rear"
+  },
+  "frame": {
+   "x": 0.42,
+   "y": 0.5,
+   "z0": -2.3,
+   "z1": 1.8
+  },
+  "sill": 0.5,
+  "roofZ": [
+   -2.3,
+   0.1
+  ],
+  "ownChassis": true
+ },
+ "rimFrom": "RL",
+ "scaleX": 0.933,
+ "reduce": {
+  "paint": 0.0,
+  "*": 0.75
+ }
+}
