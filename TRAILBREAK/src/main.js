@@ -49,8 +49,9 @@ function lobby() {
   const params = new URLSearchParams(location.search);
   $('name').value = settings.name || '';
   $('room').value = (params.get('room') || '').toUpperCase();
-  // the maps (an invite link names its room's map)
-  if (MAP_IDS.includes(params.get('map'))) settings.map = params.get('map');
+  // the maps (an invite link, or the address after a game in a room, names its room and that room's map)
+  const linkRoom = (params.get('room') || '').toUpperCase(), linkMap = MAP_IDS.includes(params.get('map')) ? params.get('map') : null;
+  if (linkMap) settings.map = linkMap;
   if (!MAP_IDS.includes(settings.map)) settings.map = DEFAULT_MAP;
   const mapsEl = $('maps');
   const showMaps = () => {
@@ -59,10 +60,23 @@ function lobby() {
       const M = MAPS[id], b = document.createElement('button');
       b.className = 'map-opt map-' + id + (settings.map === id ? ' sel' : '');
       b.innerHTML = `<b>${M.name}</b><span>${M.blurb}</span>`;
-      b.onclick = () => { settings.map = id; save(); showMaps(); };
+      b.onclick = () => {
+        settings.map = id; save();
+        // another map than the link's room drives: that room code goes, and a new room opens on the map picked
+        if (linkRoom && linkMap && id !== linkMap && $('room').value.trim().toUpperCase() === linkRoom) {
+          $('room').value = '';
+          const url = new URL(location.href);
+          url.searchParams.delete('room'); url.searchParams.delete('map');
+          history.replaceState(null, '', url);
+        }
+        showMaps();
+      };
       mapsEl.appendChild(b);
     }
-    $('map-note').textContent = $('room').value.trim() ? 'Joining a room: you drive the map it was opened on.' : '';
+    const code = $('room').value.trim().toUpperCase();
+    $('map-note').textContent = !code ? ''
+      : code === linkRoom && linkMap && settings.map === linkMap ? `Room ${code} drives ${MAPS[linkMap].name}. Pick another map to open a new room on it.`
+        : 'Joining a room: you drive the map it was opened on.';
   };
   $('room').addEventListener('input', showMaps);
   showMaps();
@@ -157,9 +171,10 @@ async function start() {
       $('trucks').innerHTML = ''; $('paints').innerHTML = '';
     }
   }
+  let otherMap = null;
   if (net) {
     // the room drives the map it was opened on
-    if (net.map && MAP_IDS.includes(net.map)) mapId = net.map;
+    if (net.map && MAP_IDS.includes(net.map)) { if (net.map !== mapId) otherMap = mapId; mapId = net.map; }
     const url = new URL(location.href);
     url.searchParams.set('room', net.room);
     url.searchParams.set('map', mapId);
@@ -225,6 +240,7 @@ async function start() {
   hud.show(true);
   renderer.renderer.domElement.focus();
   hud.toast(net ? `Room ${net.room} (${M.name}): press Esc for the invite link` : `Driving alone in ${M.name}. Press F1 for the controls`, false, 6);
+  if (otherMap) hud.toast(`Room ${net.room} was opened on ${M.name}, so you drive it here. For ${MAPS[otherMap].name}, leave the room code empty.`, false, 9);
   hud.toast('Find the survey beacons: follow the orange light beams', false, 6);
   wireMenus(game, net);
   if (isTouchDevice()) {

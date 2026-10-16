@@ -3,6 +3,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { Vehicle, PHYS_DT, GRAVITY } from '../src/physics/Vehicle.js';
 import { Drivetrain } from '../src/physics/Drivetrain.js';
+import { Quat } from '../src/physics/math.js';
 import { TRUCKS, truckSpec } from '../src/physics/trucks.js';
 import { SURFACE } from '../src/physics/Surfaces.js';
 import { flat, slope, soft, slopeWithIce, ledge } from './grounds.mjs';
@@ -280,6 +281,46 @@ test('the winch drags a truck in neutral toward the anchor, and stalls at its ra
   const n = Math.round(10 / PHYS_DT);
   for (let i = 0; i < n; i++) { v2.step({ ...IDLE, brake: 1 }, g2); maxT = Math.max(maxT, v2.winch.tension); }
   assert.ok(maxT < v2.spec.winch.stallPull * 1.25, `peak tension ${maxT.toFixed(0)} N`);
+});
+
+test('a friend winches a truck in over a laggy link: it comes at the winch\'s pace, the rope stays taut, the friend stays put', () => {
+  // as core/Game.js wires it: each sees the other's truck (and the rope's length) a moment late, 20 times a second,
+  // and brings it on to now along its velocity; the pulled truck works out the rope's pull from where it is
+  const g = flat(), age = 0.08 + 0.12, rate = 20;
+  const B = truck('thar', g, 0, 0, 0, '00000000010000'), A = truck('thar', g, 0, 16, Math.PI);
+  run(B, g, 1, { ...IDLE, handbrake: 1 }); run(A, g, 1);
+  const hook = A.winch.fairlead.clone();
+  const world = (s, p) => p.clone().applyQuat(s.q).add(s.p);
+  const mix = (a, b, k) => a.clone().scale(1 - k).addScaled(b, k);
+  const snap = (v, w) => ({ p: v.pos.clone(), q: new Quat().copy(v.quat), vel: v.vel.clone(), w });
+  const seen = (h, t) => {
+    const tt = t - age;
+    let i = h.length - 1;
+    while (i > 0 && h[i].t > tt) i--;
+    const a = h[i], b = h[i + 1] || a, k = b === a ? 0 : Math.min(1, Math.max(0, (tt - a.t) / (b.t - a.t)));
+    const s = { p: mix(a.s.p, b.s.p, k), q: k < 0.5 ? a.s.q : b.s.q, vel: mix(a.s.vel, b.s.vel, k), w: b.s.w };
+    if (a.s.w && b.s.w) { s.len = a.s.w.len + (b.s.w.len - a.s.w.len) * k; s.rate = b.s.w.rate; }
+    return s;
+  };
+  B.attachWinch('truck', world(snap(A), hook), 1, hook);
+  const hA = [], hB = [], z0 = A.pos.z;
+  let t = 0, top = 0, slack = 0, taut = false;
+  for (let i = 0, n = Math.round(14 / PHYS_DT); i < n; i++) {
+    t += PHYS_DT;
+    if (i % Math.round(1 / (rate * PHYS_DT)) === 0) { hA.push({ t, s: snap(A) }); hB.push({ t, s: snap(B, { len: B.winch.len, rate: B.winch.rate }) }); }
+    const a = seen(hA, t), b = seen(hB, t);
+    B.winch.anchor.copy(world(a, hook).addScaled(a.vel, age)); B.winch.anchorVel = a.vel; B.winch.motor = 1;
+    A.pulls = [{ local: hook, target: world(b, B.winch.fairlead).addScaled(b.vel, age), targetVel: b.vel, len: Math.max(0.6, (b.len ?? B.winch.len) + (b.rate || 0) * age), rope: B.spec.winch }];
+    A.step(IDLE, g); B.step({ ...IDLE, hold: 0.8 }, g);
+    top = Math.max(top, -A.vel.z);
+    const felt = A.pulls[0].felt;
+    if (t > 2) { if (taut && felt === 0) slack++; taut = felt > 300; }
+  }
+  const pace = B.spec.winch.lineSpeed;
+  assert.ok(z0 - A.pos.z > 4, `came in ${(z0 - A.pos.z).toFixed(1)} m`);
+  assert.ok(top < pace * 1.6, `top speed ${top.toFixed(2)} m/s against a line speed of ${pace} m/s`);
+  assert.ok(slack <= 2, `the rope went slack ${slack} times`);
+  assert.ok(Math.abs(B.pos.z) < 0.3, `the friend's truck moved ${B.pos.z.toFixed(2)} m`);
 });
 
 test('a truck on its roof can be put back on its wheels', () => {

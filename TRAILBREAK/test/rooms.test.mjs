@@ -57,6 +57,20 @@ test('a room drives the map its first player picked; friends who join drive it t
   assert.equal(join(lobby, 'Di', undefined, '../../etc').last('welcome').map, 'ashwood', 'junk: the first map');
 });
 
+test('a room everyone has left opens again on the map of whoever comes back first, without the old map\'s beacons', () => {
+  const lobby = new Lobby({ maxPlayers: 4, rand: () => 0.3 });
+  const a = join(lobby, 'Ana', undefined, 'kerala'), code = a.last('welcome').room;
+  a.msg({ t: 'beacon', id: 3 });
+  const b = join(lobby, 'Ben', code, 'ashwood');
+  assert.equal(b.last('welcome').map, 'kerala', 'someone is in it: its map');
+  assert.deepEqual(b.last('welcome').beacons, [3]);
+  a.close(); b.close();
+  const c = join(lobby, 'Ana', code, 'ashwood');
+  assert.equal(c.last('welcome').map, 'ashwood', 'empty: the map asked for');
+  assert.deepEqual(c.last('welcome').beacons, [], 'no beacons from the other map');
+  assert.equal(join(lobby, 'Ben', code, 'kerala').last('welcome').map, 'ashwood', 'and friends join it there');
+});
+
 test('rooms fill up at their limit', () => {
   const lobby = new Lobby({ maxPlayers: 2 });
   const a = join(lobby, 'A', 'TRAPS');
@@ -114,9 +128,11 @@ test('winch lines to another player are relayed; to a stranger they are dropped'
   const a = join(lobby, 'A', 'WNCHX');
   const b = join(lobby, 'B', 'WNCHX');
   const idB = b.last('welcome').id;
-  a.msg(state(0, { winch: { to: idB, a: [0, 0.5, -2.4], f: [0, 0.6, 2.1], len: 12, ten: 30000 } }));
+  a.msg(state(0, { winch: { to: idB, a: [0, 0.5, -2.4], f: [0, 0.6, 2.1], len: 12, ten: 30000, rate: -0.42 } }));
   const room = lobby.rooms.get('WNCHX');
-  assert.deepEqual(room.players.get(1).s.winch, { to: idB, a: [0, 0.5, -2.4], f: [0, 0.6, 2.1], len: 12, ten: 30000 });
+  assert.deepEqual(room.players.get(1).s.winch, { to: idB, a: [0, 0.5, -2.4], f: [0, 0.6, 2.1], len: 12, ten: 30000, rate: -0.42 }, 'with the line\'s speed');
+  a.msg(state(0.2, { winch: { to: idB, a: [0, 0.5, -2.4], f: [0, 0.6, 2.1], len: 11.9, ten: 3e4, rate: 'fast' } }));
+  assert.equal(room.players.get(1).s.winch.rate, 0, 'junk speed: none');
   a.msg(state(0.5, { winch: { to: 99, a: [0, 0, 0], f: [0, 0, 0], len: 3 } }));
   assert.equal(room.players.get(1).s.winch, null);
 });

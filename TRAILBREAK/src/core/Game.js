@@ -748,11 +748,15 @@ export class Game {
         rv.tag.visible = dist < 450;
         rv.tag.scale.set(3.2 * Math.max(1, dist / 30), 0.8 * Math.max(1, dist / 30), 1);
         others.push({ pos: root.position, quat: root.quaternion, vel: this._v.set(s.vel[0], s.vel[1], s.vel[2]).clone(), spheres: rv.spheres });
-        // their winch on us: pulled toward their fairlead (if they called for a tow, we are their anchor)
+        // their winch on us: pulled toward their fairlead (if they called for a tow, we are their anchor). We see their
+        // truck and their rope a moment late (net.lead): both brought on to now, as they go, the rope's pull is worked
+        // out here from where our truck is (physics/Vehicle.js)
         const w = s.winch;
         if (w && w.to === this.net.id) {
-          const target = new THREE.Vector3(...w.f).applyQuaternion(root.quaternion).add(root.position);
-          pulls.push({ local: new THREE.Vector3(...w.a), target, tension: w.ten, anchorMe: !!s.help });
+          const lead = this.net.lead, vel = new THREE.Vector3(...s.vel);
+          const target = new THREE.Vector3(...w.f).applyQuaternion(root.quaternion).add(root.position).addScaledVector(vel, lead);
+          const len = Math.max(0.6, (s.winchLen || w.len) + (s.winchRate || 0) * lead);
+          pulls.push({ local: new THREE.Vector3(...w.a), target, targetVel: vel, len, rope: rv.spec.winch, tension: w.ten, anchorMe: !!s.help });
         }
         // a friend calling for a tow
         if (s.help && !rv.help) {
@@ -880,12 +884,12 @@ export class Game {
     const inTrouble = this.helpOn || v.flooded || v.waterDepth > 0.6 || v.up.y < 0.5;
     c.hold = W.attached && W.kind === 'truck' && W.motor !== 0 && c.throttle < 0.05 && !inTrouble ? 0.8 : 0;
     if (!c.hold && v.pulls.some((p) => p.anchorMe) && c.throttle < 0.05 && c.brake < 0.05) c.hold = 1;
-    // a truck we're winching toward moves: follow its tow point
+    // a truck we're winching toward moves: follow its tow point (brought on to now: we see it a moment late)
     if (W.attached && W.kind === 'truck') {
       const rv = this.remotes.get(W.target);
       if (rv?.state) {
-        W.anchor.copy(new THREE.Vector3().copy(W.anchorLocal).applyQuaternion(rv.model.root.quaternion).add(rv.model.root.position));
         W.anchorVel = new THREE.Vector3(...rv.state.vel);
+        W.anchor.copy(new THREE.Vector3().copy(W.anchorLocal).applyQuaternion(rv.model.root.quaternion).add(rv.model.root.position).addScaledVector(W.anchorVel, this.net.lead));
       }
     } else W.anchorVel = null;
 
@@ -971,6 +975,9 @@ export class Game {
     if (W.attached) {
       const a = this.fairleadWorld(new THREE.Vector3());
       const b = new THREE.Vector3(W.anchor.x, W.anchor.y, W.anchor.z);
+      // (on a friend's truck: to its hook as it is drawn, not where the winch reckons it is by now)
+      const rv = W.kind === 'truck' ? this.remotes.get(W.target) : null;
+      if (rv) b.copy(W.anchorLocal).applyQuaternion(rv.model.root.quaternion).add(rv.model.root.position);
       this.rope.update(a, b, W.len - a.distanceTo(b));
     } else this.rope.update(null);
     // friends' winch lines
@@ -990,7 +997,7 @@ export class Game {
       if (W.attached) {
         winch = W.kind === 'tree'
           ? { to: 'tree', a: [W.anchor.x, W.anchor.y, W.anchor.z], f: [W.fairlead.x, W.fairlead.y, W.fairlead.z], len: W.len, ten: W.tension }
-          : { to: W.target, a: [W.anchorLocal.x, W.anchorLocal.y, W.anchorLocal.z], f: [W.fairlead.x, W.fairlead.y, W.fairlead.z], len: W.len, ten: W.tension };
+          : { to: W.target, a: [W.anchorLocal.x, W.anchorLocal.y, W.anchorLocal.z], f: [W.fairlead.x, W.fairlead.y, W.fairlead.z], len: W.len, ten: W.tension, rate: W.rate || 0 };
       }
       this.net.sendState(dt, v, { truck: this.truckId, cfg: this.build, help: this.helpOn, paint: this.myColor, lights, winch });
     }

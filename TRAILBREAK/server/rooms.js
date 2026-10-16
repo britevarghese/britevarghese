@@ -259,7 +259,7 @@ class Room {
     if (W && typeof W === 'object' && vec(W.a, 3) && vec(W.f, 3) && isNum(W.len)) {
       const to = W.to === 'tree' ? 'tree' : (Number.isInteger(W.to) && this.players.has(W.to) && W.to !== player.id ? W.to : null);
       if (to !== null && W.a.every((c) => Math.abs(c) <= MAX_COORD) && W.f.every((c) => Math.abs(c) < 10)) {
-        winch = { to, a: W.a.map((c) => round(c)), f: W.f.map((c) => round(c)), len: round(clamp(W.len, 0, 100)), ten: round(clamp(isNum(W.ten) ? W.ten : 0, 0, 1e6), 1) };
+        winch = { to, a: W.a.map((c) => round(c)), f: W.f.map((c) => round(c)), len: round(clamp(W.len, 0, 100)), ten: round(clamp(isNum(W.ten) ? W.ten : 0, 0, 1e6), 1), rate: round(clamp(isNum(W.rate) ? W.rate : 0, -5, 5)) };
       }
     }
 
@@ -346,9 +346,11 @@ class Lobby {
     return randomCode(8, this.rand);
   }
 
-  /** The room with a code, opened on `map` if it doesn't exist yet. */
+  /** The room with a code, opened on `map` if it doesn't exist yet, or if nobody is in it (whoever comes back to an
+   *  empty room opens it again, on their map: the beacons found and any race were the old map's). */
   room(code, map = DEFAULT_MAP) {
     let r = this.rooms.get(code);
+    if (r && r.size === 0 && r.map !== map) { this.rooms.delete(code); r = null; }
     if (!r) {
       if (this.rooms.size >= MAX_ROOMS) { this.sweep(); if (this.rooms.size >= MAX_ROOMS) return null; }
       r = new Room(code, { tickRate: this.tickRate, maxPlayers: this.maxPlayers, log: this.log, map });

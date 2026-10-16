@@ -619,13 +619,26 @@ export class Vehicle {
     if (this.others.length) this.otherContacts();
     if (this.hullContact > this.hullPeak) this.hullPeak = this.hullContact;   // (the frame's hardest, for the game)
     this.winchStep(dt, ground);
-    // other players' winch lines hooked to this truck: pulled toward their fairlead at the tension they report
+    // other players' winch lines hooked to this truck: pulled toward their fairlead. The rope's pull is worked out here,
+    // from where this truck is now and the rope's length their winch reports (the tension their side works out comes
+    // from where they saw this truck a moment ago: taking it would yank the truck on and let it run on past the slack)
     for (const pl of this.pulls) {
       this.toWorld(pl.local, _p);
       _d.subVectors(pl.target, _p);
-      const len = _d.length();
-      if (len < 0.3 || !(pl.tension > 0)) continue;
-      _a.copy(_d).scale(Math.min(pl.tension, 120000) / len);
+      const dist = _d.length();
+      pl.felt = 0;
+      if (dist < 0.3) continue;
+      _d.scale(1 / dist);
+      let ten;
+      if (pl.rope && pl.len > 0) {
+        const r = pl.rope, stretch = dist - pl.len;
+        this.pointVel(_p, _v);
+        const stretchRate = -(_v.dot(_d) - (pl.targetVel ? pl.targetVel.x * _d.x + pl.targetVel.y * _d.y + pl.targetVel.z * _d.z : 0));
+        ten = stretch > 0 ? clamp(r.stiffness * stretch + r.damping * stretchRate, 0, r.breakLoad) : 0;
+      } else ten = Math.min(pl.tension || 0, 120000);
+      pl.felt = ten;
+      if (!(ten > 0)) continue;
+      _a.copy(_d).scale(ten);
       this.applyForce(_a, _p);
     }
     this.waterStep(ground);
@@ -942,7 +955,7 @@ export class Vehicle {
     return true;
   }
 
-  detachWinch() { const W = this.winch; W.attached = false; W.kind = null; W.target = null; W.tension = 0; W.motor = 0; }
+  detachWinch() { const W = this.winch; W.attached = false; W.kind = null; W.target = null; W.tension = 0; W.motor = 0; W.rate = 0; }
 
   /** W.motor: +1 reel in, -1 pay out, 0 hold. W.anchor must be current (the caller moves it for a truck). */
   winchStep(dt) {
@@ -963,12 +976,14 @@ export class Vehicle {
     ten = Math.min(ten, spec.breakLoad);
     W.tension = ten;
     // the motor: line speed falls with load and stalls at its rated pull
+    const len0 = W.len;
     if (W.motor > 0) {
       const speed = spec.lineSpeed * Math.max(0, 1 - ten / spec.stallPull);
       W.len = Math.max(0.6, W.len - speed * dt);
     } else if (W.motor < 0) {
       W.len = Math.min(W.maxLen, W.len + spec.lineSpeed * 1.6 * dt);
     }
+    W.rate = (W.len - len0) / dt;
     // a slack line hangs: pull it in to the distance when nobody holds the motor, so it doesn't stay loose forever
     if (ten > 0) {
       _a.copy(_d).scale(ten);

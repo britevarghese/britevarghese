@@ -117,6 +117,10 @@ export class NetClient {
   /** A voice frame, dropped when the connection is backed up (late speech is worse than a gap). */
   sendBinary(b) { if (this.connected && this.ws.readyState === 1 && this.ws.bufferedAmount < 32768) this.ws.send(b); }
 
+  /** How old (s) a remote truck's state is when sample() shows it: the interpolation delay, its trip up to the server
+   *  (about half our ping) and the wait for its next send and the server's next tick. */
+  get lead() { return DELAY + this.ping / 2000 + 1 / this.tickRate; }
+
   /** Interpolated state of a remote player at render time, or null. */
   sample(r) {
     const snaps = r.snaps;
@@ -137,6 +141,9 @@ export class NetClient {
         out.wh[w][2] = lerp(sa.wh[w][2], sb.wh[w][2], k);
       }
       out.rpm = lerp(sa.rpm, sb.rpm, k); out.thr = lerp(sa.thr, sb.thr, k);
+      const wa = sa.winch, wb = sb.winch, same = wa && wb && wa.to === wb.to;
+      out.winchLen = same ? lerp(wa.len, wb.len, k) : wb ? wb.len : 0;
+      out.winchRate = wb && Number.isFinite(wb.rate) ? wb.rate : same ? (wb.len - wa.len) / Math.max(1e-3, b.t - a.t) : 0;
     } else {
       // late: carry on along the last velocity for a moment
       const dt = Math.min(MAX_EXTRAP, Math.max(0, t - a.t));
@@ -144,6 +151,8 @@ export class NetClient {
       for (let i = 0; i < 4; i++) out.quat[i] = sa.q[i];
       for (let w = 0; w < 4; w++) for (let k = 0; k < 3; k++) out.wh[w][k] = sa.wh[w][k];
       out.rpm = sa.rpm; out.thr = sa.thr;
+      out.winchRate = sa.winch && Number.isFinite(sa.winch.rate) ? sa.winch.rate : 0;
+      out.winchLen = sa.winch ? sa.winch.len + out.winchRate * dt : 0;                 // (the line runs on with it)
     }
     out.truck = sa.truck; out.cfg = sa.cfg || ''; out.help = sa.help ? 1 : 0; out.paint = sa.paint; out.lights = sa.lights; out.winch = (b ? b.s : sa).winch; out.brk = sa.brk;
     out.stale = t - snaps[snaps.length - 1].t > 3;
