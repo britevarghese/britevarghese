@@ -46,3 +46,7 @@ light), and the textures resized to WebP.
 - `trekker.glb` (Ford Ranger Raptor): "Ford ranger raptor" by haraldina,
   https://sketchfab.com/3d-models/ford-ranger-raptor-fffd6f07668a467095718c5e062348e2 (https://sketchfab.com/haraldina);
   widened 2% to the Raptor's real track, its wheels, brakes, springs and headlamp LEDs taken off, the trim simplified.
+- `gecko.glb` (Lada Niva): "Lada Niva" by Greg McKechnie (mckechniegreg6),
+  https://sketchfab.com/3d-models/lada-niva-26ebf5872bce4ff4ad2baee41882d6b2 (https://sketchfab.com/mckechniegreg6);
+  its axles, springs and wishbones taken off, its weathered paint (and its rust and primer patches) given the game's
+  paint, the trim simplified and the textures halved.

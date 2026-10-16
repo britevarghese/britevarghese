@@ -147,7 +147,7 @@ draws on firings recorded pulling and slowing. The banks (public/assets/audio/en
 
 | Bank | Recording | Trucks |
 | --- | --- | --- |
-| `d4` | Toyota Hilux turbo-diesel four (the top of the revs from a VW TDI) | Thar diesel, UAZ Hunter diesel |
+| `d4` | Toyota Hilux turbo-diesel four (the top of the revs from a VW TDI) | Thar diesel, the UAZ's and the Niva's diesels |
 | `d4t` | VW 1.9 TDI turbo-diesel four | Defender 110, Ranger Raptor |
 | `d6` | Ram 5.9 Cummins turbo-diesel six (the top of the revs from the TDI) | Rhino, Drover's TD swap, the Power Wagon's Cummins swap |
 | `d8` | Ford F-350 turbo-diesel V8 (the top of the revs from the TDI) | Hummer H1 |
@@ -155,7 +155,7 @@ draws on firings recorded pulling and slowing. The banks (public/assets/audio/en
 | `v8` | 1978 Cadillac 425 V8 (the top of the revs from the V6) | K20 Suburban, Ram Power Wagon, the V8 swaps |
 | `v8m` | a cammed V8 | tuned V8s, the Wrangler's 392 HEMI |
 | `i6` | Jaguar E-type 4.2 straight six | Drover |
-| `i4` | Suzuki Jimny four | Gecko, Willys MB, UAZ Hunter, Thar petrol |
+| `i4` | Suzuki Jimny four | Lada Niva, Willys MB, UAZ Hunter, Thar petrol |
 
 On top: the starter (a motor chopped by the compression strokes, slower and heavier on a diesel; the engine turning
 over on it), the turbo on turbo engines (its whistle spools up with boost and winds down after a lift), and the gearbox
@@ -322,14 +322,14 @@ lies, go back to the last firm, dry ground you drove on, call your friends for a
 
 ## The trucks
 
-Real trucks with real 3D models (the Mahindra Thar you start in, the Willys MB, the UAZ Hunter, the Chevrolet K20
+Real trucks with real 3D models (the Mahindra Thar you start in, the Lada Niva, the Willys MB, the UAZ Hunter, the Chevrolet K20
 Suburban, the Jeep Wrangler Rubicon, the Ford Bronco, the Ford Ranger Raptor, the Ram 2500 Power Wagon, the Hummer H1,
 the electric GMC Hummer EV and the Land Rover Defender 110) and the original designs, each built to the real numbers of the kind of truck it is, from a one-ton micro 4x4 to a
 six-ton portal-axle expedition truck. Every one takes every part in the garage.
 
 | Truck | Price | Kind | Wheelbase | Weight | Engine | Gearbox | Low range / axles | Stock tyres | Under the diffs | Approach / departure / breakover |
 |---|---|---|---|---|---|---|---|---|---|---|
-| Gecko | $4,500 | micro 4x4 | 2.03 m (80") | 1050 kg | 1.3 four, 101 Nm | 5-speed manual | 1.65 / 5.38 | 205/75R15 (27") | 20 cm | 41 / 31 / 32 degrees |
+| Lada Niva | $4,500 | the Soviet small 4x4: permanent four-wheel drive, wishbones in front and a five-link coil axle behind | 2.20 m (87") | 1290 kg | VAZ 1.7 four, 127 Nm | 5-speed manual | 1.78 / 4.68 | 175/80 R16 (26") | 20 cm | 38 / 30 / 32 degrees |
 | Willys MB | $6,500 | the original jeep (1941-45): leaf springs on beam axles at both ends, a fold-down windscreen and no roof | 2.03 m (80") | 1220 kg | Go Devil 2.2 four, 142 Nm | 3-speed manual | 1.97 / 4.88 | 6.00-16 NDT (28") | 21 cm | 45 / 43 / 39 degrees |
 | Ford Ranger Raptor | $22,500 | the 2019 desert runner: wishbones and long-travel Fox shocks in front, coils on a Watt's-linked axle behind, a rear locker, traction control | 3.22 m (127") | 2410 kg | EcoBlue 2.0 bi-turbo diesel, 500 Nm | 10-speed automatic | 2.72 / 4.10 | LT285/70 R17 (33") | 24 cm | 26 / 21 / 26 degrees |
 | UAZ Hunter | $9,500 | the Hunter Expedition: a ladder frame, beam axles on coils in front and leaf springs behind, a bull bar, winch and side steps | 2.38 m (94") | 2000 kg | ZMZ 2.7 four, 209 Nm | 5-speed manual | 1.94 / 4.625 | 245/75 R16 M/T (31") | 20 cm | 31 / 28 / 36 degrees |
@@ -344,7 +344,7 @@ six-ton portal-axle expedition truck. Every one takes every part in the garage.
 | GMC Hummer EV | $38,000 | the Edition 1 pickup, electric: three motors, e-lockers at both ends, independent suspension on air springs (at its raised Terrain height), traction control | 3.45 m (136") | 4110 kg | three electric motors, 746 kW (1,000 hp), ~1,400 Nm from a standstill | single-speed reduction | none / 12.5 | LT315/70 R17 (35") | 33 cm | 44 / 33 / 22 degrees |
 | Rhino | $42,000 | portal-axle expedition truck | 3.25 m (128") | 6200 kg | 5.7 diesel six, 363 Nm | 8-speed truck box, 9:1 first | none / 7.17 | 395/85R20 (42") | 45 cm | 43 / 40 / 50 degrees |
 
-They drive like what they are. The Gecko weighs a ton and floats over mud, but it is slow and narrow on a side slope.
+They drive like what they are. The Niva weighs 1.3 tons and floats over mud, but it is slow and narrow on a side slope.
 The heavy trucks run their tyres harder (45 psi on the Power Wagon, 55 on the Rhino: P steps down through two-thirds and
 two-fifths of that to the wheels' minimum), carry stiffer tyres and stronger axle shafts, and their parts cost more to
 buy and fit. The Rhino's portal axles ride the diffs high above the hubs: 45 cm under them on stock tyres. It has
@@ -542,7 +542,7 @@ test/                     node --test suites
 
 ## Credits
 
-Truck models: the Mahindra Thar, "THAR 4X4" by MB_Mahesh; the Willys MB, "Willys Jeep UN" by Mateusz Woliński
+Truck models: the Mahindra Thar, "THAR 4X4" by MB_Mahesh; the Lada Niva, "Lada Niva" by Greg McKechnie; the Willys MB, "Willys Jeep UN" by Mateusz Woliński
 (jeandiz); the UAZ Hunter, "UAZ Hunter expedition" by zhe_kan; the Chevrolet K20 Suburban, "1970 Truck" by Raphael Escamilla
 (Raffey); the Ford Ranger Raptor, "Ford ranger raptor" by haraldina; the Ram 2500 Power Wagon, "Dodge Ram 2500" by
 VanuaG; the Jeep Wrangler, "Jeep Wrangler 3D Model" by Suyog modak;

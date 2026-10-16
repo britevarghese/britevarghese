@@ -3,7 +3,7 @@
 // manual or automatic gearbox and a two-speed part-time transfer case (the expedition truck: portal axles and an
 // eight-speed box instead).
 //
-//   Gecko     micro 4x4 (the little Japanese and Indian jeeps)         Mule     the Willys MB, the original jeep (a real model)
+//   Gecko     the Lada Niva (a real model)                             Mule     the Willys MB, the original jeep (a real model)
 //   Ranger    the UAZ Hunter (a real model)                            Trekker  the Ford Ranger Raptor (a real model)
 //   Shepherd  British utility wagon (the long-wheelbase classic)       Drover   big six-cylinder wagon (the outback one)
 //   Hauler    the Chevrolet K20 Suburban (a real model)                 Bruiser  the Ram 2500 Power Wagon (a real model)
@@ -122,28 +122,33 @@ export const TRUCKS = {
     style: 'mule', look: { bed: true, leaf: 0.48 },
   },
   gecko: {
-    id: 'gecko', name: 'Gecko',
-    blurb: 'Micro 4x4: 80" wheelbase, 1.3 four-cylinder, five-speed, a ton all in. Floats over mud and slips between the trees; slow, and narrow on a side slope.',
-    mass: 1050, cgHeight: 0.62, cgZ: 0.05, inertiaBox: [1.4, 1.0, 2.9],
+    // the Lada Niva (VAZ-2121, 1977- , here the 1.7 21214): 2,200 mm wheelbase, 3,740 mm long, 1,680 mm wide, a
+    // monocoque on double wishbones in front and a five-link coil axle behind, permanent four-wheel drive with a lockable
+    // centre diff, 220 mm under the diffs (a real model: render/TruckAssets.js)
+    id: 'gecko', name: 'Lada Niva',
+    blurb: 'Lada Niva, the Soviet small 4x4: 87" wheelbase, the 1.7 four, a five-speed, permanent four-wheel drive and a low range, independent front, coils all round, 1.3 tons. Light, nimble and stubborn; slow, and narrow on a side slope.',
+    mass: 1290, cgHeight: 0.66, cgZ: 0.1, inertiaBox: [1.45, 1.1, 3.0],
     axles: [
-      { z: 1.015, track: 1.21, springTrack: 0.74, rate: 22000, bump: 1200, rebound: 2400, travel: 0.19, sag: 0.08, mass: 42, steer: 0.6, brake: 1300, swayBar: 9000, diffDrop: 0.13, diffX: -0.15 },
-      { z: -1.015, track: 1.22, springTrack: 0.78, rate: 21000, bump: 1150, rebound: 2300, travel: 0.2, sag: 0.085, mass: 45, steer: 0, brake: 800, handbrake: 1300, diffDrop: 0.13, diffX: -0.05 },
+      { z: 1.1, track: 1.43, springTrack: 1.0, rate: 26000, bump: 1500, rebound: 3000, travel: 0.2, sag: 0.09, mass: 60, steer: 0.6, brake: 1900, swayBar: 12000, ifs: true, armDrop: 0.1 },
+      { z: -1.1, track: 1.4, springTrack: 1.0, rate: 28000, bump: 1500, rebound: 3000, travel: 0.22, sag: 0.09, mass: 75, steer: 0, brake: 1100, handbrake: 1700, diffDrop: 0.11, diffX: 0 },
     ],
-    trans: { tcK: 13 },
-    stock: { tyre: 27, axle: 5.38, trans: 3, fit: 28, low: 1.65 },
+    trans: { tcK: 12 },
+    stock: { tyre: 27, axle: 4.68, trans: 3, fit: 29, low: 1.78 },
+    axleRatios: [4.3, 4.68, 5.13, 5.38, 5.89],
+    stockTyre: { label: '175/80 R16', radius: 0.33, width: 0.175, rim: 16, desc: 'The Niva\'s skinny 175/80 R16s on steel wheels (its 3.9 axles through the transfer box\'s 1.2 high range: 4.68 all told).' },
     hull: [
-      { c: [0, 0.71, -0.095], h: [0.73, 0.29, 1.715], pts: 'bottom' },     // body: bumpers 0.42 m up, beltline 1.0
-      { c: [0, 0.36, 0], h: [0.34, 0.08, 0.75], pts: 'bottom' },            // belly: transfer case 0.28 m up
-      { c: [0, 1.345, -0.75], h: [0.69, 0.345, 1.0], pts: 'top' },          // canvas top, 1.69 m
+      { c: [0, 0.745, -0.085], h: [0.82, 0.305, 1.855], pts: 'bottom' },   // body: bumpers 0.44 m up, the bonnet 1.05
+      { c: [0, 0.38, 0], h: [0.36, 0.08, 0.7], pts: 'bottom' },             // belly: 0.30 m up
+      { c: [0, 1.33, -0.65], h: [0.78, 0.26, 1.05], pts: 'top' },           // roof 1.59 m
     ],
-    roofY: 1.69, cabZ: 0.2, noseZ: 1.62, rackZ: -0.8,
-    intakePos: [0, 0.8, 0.95], snorkelPos: [-0.72, 1.62, 0.2],
-    winch: { fairlead: [0, 0.52, 1.68] },
-    eye: [0.3, 1.38, -0.3], hoodEye: [0, 1.18, 0.85],
-    drag: { cd: 0.55, area: 2.1 },
+    roofY: 1.59, cabZ: 0, noseZ: 1.77, rackZ: -0.7,
+    intakePos: [0.35, 0.85, 1.3], snorkelPos: [-0.85, 1.55, 0.45],
+    winch: { fairlead: [0, 0.5, 1.78] },
+    eye: [0.35, 1.38, -0.15], hoodEye: [0, 1.25, 0.8],
+    drag: { cd: 0.5, area: 2.3 },
     buoyancy: 0.34,
-    shafts: [3500, 4500], tyreK: 0.8, tyreLoad: 2600, parts: 0.7,
-    style: 'gecko', look: { top: 'canvas', leaf: 0.5 },
+    shafts: [3500, 4500], tyreK: 0.8, tyreLoad: 2800, parts: 0.7,
+    style: 'gecko', look: { coils: true },
   },
   trekker: {
     // the Ford Ranger Raptor (2019-2022), the desert runner: 3,220 mm wheelbase, 5,398 mm long, 2,180 mm wide, double
