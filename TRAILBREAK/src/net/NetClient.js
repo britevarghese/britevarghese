@@ -47,6 +47,7 @@ export class NetClient {
     return new Promise((resolve, reject) => {
       let settled = false;
       const ws = this.ws = new WebSocket(this.url());
+      ws.binaryType = 'arraybuffer';                  // (voice through the server: net/Voice.js)
       const fail = (msg) => { if (!settled) { settled = true; reject(new Error(msg)); } };
       const timer = setTimeout(() => { fail('The server did not answer.'); try { ws.close(); } catch { /* closed */ } }, 8000);
       ws.onopen = () => ws.send(JSON.stringify({ t: 'hello', name: this.name, room: this.roomAsk, map: this.mapAsk }));
@@ -59,13 +60,14 @@ export class NetClient {
         if (was) this.onEvent({ t: 'disconnected' });
       };
       ws.onmessage = (e) => {
+        if (typeof e.data !== 'string') { this.onBinary?.(e.data); return; }
         let m;
         try { m = JSON.parse(e.data); } catch { return; }
         if (m.t === 'welcome') {
           clearTimeout(timer);
           this.id = m.id; this.room = m.room; this.tickRate = m.tickRate; this.maxPlayers = m.maxPlayers; this.map = m.map || null;
           this.connected = true;
-          for (const p of m.players) { const r = this.remote(p.id, p.name); if (p.dmg) r.dmg = p.dmg; }
+          for (const p of m.players) { const r = this.remote(p.id, p.name); if (p.dmg) r.dmg = p.dmg; r.voice = p.voice; r.mic = p.mic; r.mute = p.mute; }
           settled = true;
           resolve(m);
           this.pingTimer = setInterval(() => this.send({ t: 'ping', time: performance.now() }), 2000);
@@ -112,6 +114,8 @@ export class NetClient {
   }
 
   send(o) { if (this.connected && this.ws.readyState === 1) this.ws.send(JSON.stringify(o)); }
+  /** A voice frame, dropped when the connection is backed up (late speech is worse than a gap). */
+  sendBinary(b) { if (this.connected && this.ws.readyState === 1 && this.ws.bufferedAmount < 32768) this.ws.send(b); }
 
   /** Interpolated state of a remote player at render time, or null. */
   sample(r) {

@@ -73,7 +73,7 @@
   <div id="hud" class="hidden">
     <div id="compass"><div id="compass-strip"></div><div id="compass-needle"></div></div>
     <div id="objective"></div>
-    <div id="players"></div>
+    <div id="side"><div id="players"></div><button id="voice-btn" class="voice-btn hidden" aria-label="Voice chat"></button></div>
     <div id="money" class="money"></div>
     <canvas id="minimap" width="220" height="220"></canvas>
     <div id="dash">
@@ -133,6 +133,18 @@
       <div id="invite" class="hidden">
         <p>Room <b id="room-code"></b>. Send your friends this link:</p>
         <div class="invite-row"><input id="invite-link" readonly><button id="copy-link">Copy</button></div>
+      </div>
+      <div id="voice-box" class="voice-box hidden">
+        <div class="voice-head"><b>Voice chat</b><span id="v-note" class="dim"></span><button id="v-join" class="primary small">Join voice</button></div>
+        <div id="v-controls" class="hidden">
+          <div class="menu-row">
+            <label>Microphone <select id="v-mode"><option value="open">Open (V mutes it)</option><option value="ptt">Push to talk (hold V)</option></select></label>
+            <label><input id="v-mute" type="checkbox"> Mute my mic</label>
+            <label><input id="v-deaf" type="checkbox"> Mute everyone</label>
+            <label>Voices <input id="v-vol" type="range" min="0" max="2" step="0.05" value="1"></label>
+          </div>
+          <div id="v-peers" class="v-peers"></div>
+        </div>
       </div>
       <div class="menu-row">
         <label>Time of day <input id="tod" type="range" min="5" max="21" step="0.25" value="16.5"></label>
@@ -234,6 +246,7 @@
           <dt>H</dt><dd>Headlights</dd>
           <dt>M</dt><dd>Map</dd>
           <dt>Enter</dt><dd>Chat</dd>
+          <dt>V</dt><dd>Voice chat: join, then mute and unmute (push to talk: hold it)</dd>
           <dt>Esc</dt><dd>Pause, invite link, settings</dd>
         </dl>
       </div>

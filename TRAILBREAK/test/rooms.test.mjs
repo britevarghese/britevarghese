@@ -8,8 +8,9 @@ const require = createRequire(import.meta.url);
 const { Lobby, normalizeCode } = require('../server/rooms.js');
 
 class FakeWs extends EventEmitter {
-  constructor() { super(); this.sent = []; this.closed = null; }
-  send(data) { this.sent.push(JSON.parse(data)); }
+  constructor() { super(); this.sent = []; this.bins = []; this.closed = null; }
+  send(data) { if (Buffer.isBuffer(data)) this.bins.push(data); else this.sent.push(JSON.parse(data)); }
+  bin(buf) { this.emit('message', buf, true); }
   close(code, reason) { this.closed = { code, reason }; this.emit('close'); }
   msg(obj) { this.emit('message', JSON.stringify(obj), false); }
   last(t) { for (let i = this.sent.length - 1; i >= 0; i--) if (this.sent[i].t === t) return this.sent[i]; return null; }
@@ -202,4 +203,43 @@ test('races: junk event ids are ignored; a race is called after its time limit',
   room.tick();
   assert.equal(room.race, null);
   assert.deepEqual(a.last('ev').results, [{ id: 1, name: 'Ana', time: null }]);
+});
+
+test('voice chat: who is in it, connection offers passed between two in it, audio relayed to the rest of it', () => {
+  const lobby = new Lobby({ maxPlayers: 4, rand: () => 0.3 });
+  const a = join(lobby, 'Ana'), code = a.last('welcome').room;
+  const b = join(lobby, 'Ben', code), c = join(lobby, 'Cy', code);
+  const idA = a.last('welcome').id, idB = b.last('welcome').id, idC = c.last('welcome').id;
+  // an offer before both are in voice goes nowhere
+  a.msg({ t: 'rtc', to: idB, d: { type: 'offer', sdp: 'v=0' } });
+  assert.equal(b.last('rtc'), null);
+  a.msg({ t: 'voice', on: 1, mic: 1 });
+  assert.deepEqual(b.last('voice'), { t: 'voice', id: idA, on: 1, mic: 1, mute: 0 });
+  assert.equal(a.last('voice'), null, 'not echoed back');
+  b.msg({ t: 'voice', on: 1, mic: 1, mute: 1 });
+  a.msg({ t: 'rtc', to: idB, d: { type: 'offer', sdp: 'v=0' } });
+  assert.deepEqual(b.last('rtc'), { t: 'rtc', from: idA, d: { type: 'offer', sdp: 'v=0' } });
+  assert.equal(c.last('rtc'), null, 'only to the one it is for');
+  a.msg({ t: 'rtc', to: idC, d: { type: 'offer', sdp: 'v=0' } });
+  assert.equal(c.last('rtc'), null, 'not to one outside the voice chat');
+  a.msg({ t: 'rtc', to: idB, d: { sdp: 'x'.repeat(20000) } });
+  assert.equal(b.sent.filter((m) => m.t === 'rtc').length, 1, 'an oversized offer is dropped');
+  // a relayed frame: to the others in voice, with who said it; not to Cy, not back to Ana
+  a.bin(Buffer.from([1, 0, 7, 9, 8, 7, 6, 5]));
+  assert.equal(b.bins.length, 1);
+  assert.deepEqual([...b.bins[0]], [1, 0, idA, 0, 7, 9, 8, 7, 6, 5]);
+  assert.equal(c.bins.length, 0);
+  assert.equal(a.bins.length, 0);
+  // too many frames in a second: the rest are dropped
+  for (let i = 0; i < 60; i++) a.bin(Buffer.from([1, 0, i, 1, 2, 3, 4, 5]));
+  assert.ok(b.bins.length <= 41, `${b.bins.length} frames in a second`);
+  // whoever joins later sees who is in voice
+  const d = join(lobby, 'Di', code);
+  const ps = d.last('welcome').players;
+  assert.deepEqual(ps.map((p) => [p.name, p.voice || 0, p.mic || 0, p.mute || 0]), [['Ana', 1, 1, 0], ['Ben', 1, 1, 1], ['Cy', 0, 0, 0]]);
+  // leaving the voice chat
+  a.msg({ t: 'voice', on: 0 });
+  assert.deepEqual(b.last('voice'), { t: 'voice', id: idA, on: 0, mic: 0, mute: 0 });
+  a.bin(Buffer.from([1, 0, 99, 1, 2, 3, 4, 5]));
+  assert.ok(!b.bins.some((f) => f[4] === 99), 'out of the voice chat: nothing relayed');
 });

@@ -83,8 +83,19 @@ Without the Blueprint: **New > Web Service** with this repository, branch `claud
 | Headlights | H | D-pad right |
 | Map | M | View |
 | Chat | Enter | |
+| Voice chat: join it, then mute and unmute your mic (push-to-talk: hold it) | V | the mic button |
 | Pause, invite link, settings | Esc | Start |
 | Controls | F1 | |
+
+**Voice chat** (in a room): press V, or the mic button under the players list, to join it; the browser asks for the
+microphone once. Then V mutes and unmutes you, or, with push-to-talk picked in the pause menu, you talk while you hold V
+(or the button). The pause menu's Voice chat panel has the rest: open mic or push-to-talk, mute your mic, mute
+everyone, the voices' volume, and for each player a mute and a volume, with how they are connected. The players list
+shows a mic beside everyone in the voice chat, green while they talk. Each pair of players links directly (WebRTC,
+through Google's public STUN servers), so a friend can see your internet address, as in any peer-to-peer voice chat;
+where two networks can't link directly, the audio goes through the game server instead (16 kHz, 64 kbit/s, only while
+talking). Talking needs the https:// address (or localhost); without a microphone you can still listen. Voices stay on
+while the game is paused or in another tab: mute everyone to silence them.
 
 The sound goes off while the game is paused, in the garage, the dealer and the events list, and whenever the game's
 tab is hidden (another tab, or the browser minimised); it comes back when you drive on.

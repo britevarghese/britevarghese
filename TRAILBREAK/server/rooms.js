@@ -27,6 +27,14 @@
  *   client -> server  {t:'ev', k:'done', time} -> room {t:'ev', k:'done', id, pid, name, time}   (time null: gave up)
  *   server -> room    {t:'ev', k:'end', id, results:[{id, name, time}]}   (everyone done, gone, or out of time)
  *                       welcome carries race: {id, at, racers} while one is open or running
+ *   voice chat (src/net/Voice.js): players who join the room's voice talk to each other directly (WebRTC), the server
+ *   passing on their connection offers; where no direct link can be made, the audio comes through here instead:
+ *   client -> server  {t:'voice', on, mic, mute} -> room {t:'voice', id, on, mic, mute}   (in the voice chat; has a
+ *                       microphone; has muted it)
+ *   client -> server  {t:'rtc', to, d}        -> that player {t:'rtc', from, d}   (an offer or answer, as it is)
+ *   client -> server  binary [1, seq hi, seq lo, audio...] -> everyone else in voice [1, id hi, id lo, seq hi, seq lo, audio...]
+ *                       (40 ms of 16 kHz speech, 4-bit ADPCM)
+ *                       welcome's players carry voice: 1, mic and mute for those already in it
  *   server -> clients {t:'join', id, name} / {t:'leave', id, name}
  *   server -> client  {t:'error', msg}
  *
@@ -38,6 +46,9 @@ const MAX_SPEED = 70;          // m/s (250 km/h: far above any truck here)
 const MAX_TELEPORT = 50;       // m between consecutive accepted updates without an announced warp
 const MAX_COORD = 1e5;
 const MAX_MSG_RATE = 60;       // messages per second per client (soft limit)
+const MAX_VOICE_RATE = 40;     // relayed voice frames per second per client (25 when talking)
+const MAX_VOICE_FRAME = 1400;  // bytes
+const MAX_RTC = 16000;         // characters of a connection offer
 const WARP_COOLDOWN = 400;     // ms between accepted teleports
 const EMPTY_ROOM_TTL = 30 * 60 * 1000;
 const MAX_ROOMS = 500;
@@ -105,7 +116,7 @@ class Room {
     this.emptySince = 0;
     this.send(player, {
       t: 'welcome', id: player.id, room: this.code, map: this.map, tickRate: this.tickRate, maxPlayers: this.maxPlayers,
-      players: [...this.players.values()].filter((p) => p !== player).map((p) => (p.dmg ? { id: p.id, name: p.name, dmg: p.dmg } : { id: p.id, name: p.name })),
+      players: [...this.players.values()].filter((p) => p !== player).map((p) => ({ id: p.id, name: p.name, ...(p.dmg ? { dmg: p.dmg } : {}), ...(p.voice ? { voice: 1, mic: p.mic ? 1 : 0, mute: p.mute ? 1 : 0 } : {}) })),
       beacons: [...this.beacons.keys()],
       race: this.race ? { id: this.race.id, at: this.race.at, racers: this.racerList() } : null,
     });
@@ -157,6 +168,18 @@ class Room {
       case 'ping':
         this.send(player, { t: 'pong', time: Date.now(), echo: isNum(msg.time) ? msg.time : 0 });
         return;
+      case 'voice':
+        player.voice = !!msg.on; player.mic = player.voice && !!msg.mic; player.mute = player.mic && !!msg.mute;
+        this.broadcast({ t: 'voice', id: player.id, on: player.voice ? 1 : 0, mic: player.mic ? 1 : 0, mute: player.mute ? 1 : 0 }, player);
+        return;
+      case 'rtc': {
+        // a voice connection offer or answer, between two players in the voice chat
+        const to = this.players.get(msg.to);
+        if (!to || to === player || !player.voice || !to.voice || !msg.d || typeof msg.d !== 'object') return;
+        if (JSON.stringify(msg.d).length > MAX_RTC) return;
+        this.send(to, { t: 'rtc', from: player.id, d: msg.d });
+        return;
+      }
       case 'ev':
         this.event(player, msg);
         return;
@@ -267,6 +290,15 @@ class Room {
     this.broadcast({ t: 'snapshot', time: Date.now(), players });
   }
 
+  /** A voice frame to relay (binary [1, seq hi, seq lo, audio...]): to everyone else in voice, with who said it. */
+  voiceFrame(player, data) {
+    if (!player.voice || !player.mic || data.length < 4 || data.length > MAX_VOICE_FRAME || data[0] !== 1) return;
+    const out = Buffer.allocUnsafe(data.length + 2);
+    out[0] = 1; out.writeUInt16BE(player.id & 0xffff, 1);
+    data.copy(out, 3, 1);
+    for (const p of this.players.values()) if (p !== player && p.voice) p.ws.send(out);
+  }
+
   send(player, obj) { player.ws.send(JSON.stringify(obj)); }
 
   broadcast(obj, except = null) {
@@ -330,8 +362,13 @@ class Lobby {
     const send = (obj) => ws.send(JSON.stringify(obj));
 
     ws.on('message', (data, isBinary) => {
-      if (isBinary) return;
       const now = Date.now();
+      if (isBinary) {
+        // voice: its own budget (a talking player sends 25 frames a second besides the truck's state)
+        if (now - (player.voiceWindow || 0) > 1000) { player.voiceWindow = now; player.voiceCount = 0; }
+        if (++player.voiceCount <= MAX_VOICE_RATE && player.room) player.room.voiceFrame(player, data);
+        return;
+      }
       if (now - player.msgWindowStart > 1000) { player.msgWindowStart = now; player.msgCount = 0; }
       if (++player.msgCount > MAX_MSG_RATE) return;
       let msg;

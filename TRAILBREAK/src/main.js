@@ -22,6 +22,8 @@ import { Input } from './core/Input.js';
 import { Game, soloBeaconsKey } from './core/Game.js';
 import { Audio } from './audio/Audio.js';
 import { NetClient } from './net/NetClient.js';
+import { Voice } from './net/Voice.js';
+import { VoicePanel } from './ui/VoicePanel.js';
 import { HUD } from './ui/HUD.js';
 import { TouchControls, isTouchDevice } from './ui/Touch.js';
 
@@ -190,8 +192,11 @@ async function start() {
   setLoad(0.9, 'Warming up the engine');
   const hud = new HUD(world, terrain);
   const input = new Input();
+  // voice chat with the others in the room (net/Voice.js)
+  const voice = net ? new Voice(net) : null;
+  if (net) net.onBinary = (b) => voice.onBinary(b);
   const game = new Game({
-    world, renderer, terrain, vegetation, grass, tea, rocks, water, landmarks, effects, rope, audio, net, hud, input, settings, garage, career,
+    world, renderer, terrain, vegetation, grass, tea, rocks, water, landmarks, effects, rope, audio, net, voice, hud, input, settings, garage, career,
     truckId: settings.truck, build: settings.builds[settings.truck] || '', paint: settings.paint, name: settings.name,
   });
   game.onBuild = (id, code) => { settings.truck = id; settings.builds[id] = code; save(); };
@@ -236,6 +241,7 @@ async function start() {
 
 function wireMenus(game, net) {
   const s = game.settings;
+  if (game.voice) game.voicePanel = new VoicePanel(game.voice, s, save, (text, t) => game.hud.hint(text, t));
   if (net) {
     $('invite').classList.remove('hidden');
     $('room-code').textContent = net.room;

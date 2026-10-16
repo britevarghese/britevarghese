@@ -1,5 +1,6 @@
 // The heads-up display: dials, drivetrain chips, winch, compass with beacons and friends, the next beacon, the
 // players, a rotating minimap and the full map, toasts, hints and chat.
+import { micIcon } from './VoicePanel.js';
 import { MAP_HALF } from '../world/maps/index.js';
 
 const $ = (id) => document.getElementById(id);
@@ -206,7 +207,7 @@ export class HUD {
   }
 
   drawPlayers(list) {
-    const html = list.map((p) => `<div>${escapeHtml(p.name)}${p.me ? ' (you)' : ''}${p.tag ? `<span class="tag">${escapeHtml(p.tag)}</span>` : ''}${p.help ? '<span class="help">needs a tow</span>' : ''}<span class="dot" style="background:${p.color}"></span></div>`).join('');
+    const html = list.map((p) => `<div>${escapeHtml(p.name)}${p.me ? ' (you)' : ''}${p.tag ? `<span class="tag">${escapeHtml(p.tag)}</span>` : ''}${p.help ? '<span class="help">needs a tow</span>' : ''}${p.voice ? `<span class="vic ${p.voice}">${micIcon(p.voice === 'muted')}</span>` : ''}<span class="dot" style="background:${p.color}"></span></div>`).join('');
     const el = $('players');
     if (el.innerHTML !== html) el.innerHTML = html;
   }

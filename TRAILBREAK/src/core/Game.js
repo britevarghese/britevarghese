@@ -402,6 +402,12 @@ export class Game {
   // ---------------------------------------------------------------- actions
   actions() {
     const I = this.input, v = this.vehicle, d = v.dt, sp = v.speed;
+    // voice chat: V joins it, then mutes and unmutes (push-to-talk: talk while it's held), paused or not
+    if (this.voicePanel) {
+      const V = this.voice;
+      if (V.joined && V.mode === 'ptt') { V.setPtt(!this.chatOpen && I.any('KeyV') || this.voicePanel.btnHeld); I.consume('voice'); }
+      else if (I.consume('voice') && !this.chatOpen) this.voicePanel.key();
+    }
     if (I.consume('pause')) { if (this.chatOpen) this.closeChat(); else if (this.mapOpen) this.toggleMap(); else this.togglePause(); }
     if (this.paused) return;
     if (I.consume('chat') && this.net?.connected) this.openChat();
@@ -847,6 +853,8 @@ export class Game {
     else if (m.t === 'disconnected') this.hud.toast('Lost the connection to the server. Reload to rejoin.', true, 8);
     else if (m.t === 'correction') this.net.warp++;
     else if (m.t === 'ev') this.events.onNet(m);
+    if (this.voice && (m.t === 'voice' || m.t === 'rtc' || m.t === 'join' || m.t === 'leave')) this.voice.onNet(m);
+    if (m.t === 'join' && this.voice && !this.voice.joined && !this.voiceHinted) { this.voiceHinted = true; this.hud.hint(`${m.name} is here: press V to join the voice chat`, 5); }
   }
 
   // ---------------------------------------------------------------- frame
@@ -861,6 +869,7 @@ export class Game {
     W.motor = W.attached ? c.winch : 0;
 
     this.updateRemotes(dt);
+    this.voice?.update();
     // winching a friend out: hold our own truck on the brakes (as you'd put it in park); winching to a tree, or
     // winching ourselves out of trouble on a friend's truck, roll free. A friend in trouble winching on us: hold still.
     const inTrouble = this.helpOn || v.flooded || v.waterDepth > 0.6 || v.up.y < 0.5;
@@ -1000,7 +1009,10 @@ export class Game {
       this.miniT = 0;
       this.hud.drawMinimap(v.pos, heading, mates);
       this.hud.drawObjective(v.pos);
-      const list = [{ name: this.name, color: this.myColor, me: true, help: this.helpOn, tag: this.events.tagFor(this.net?.id) }, ...mates.map((r) => ({ name: r.name, color: r.color, help: r.help, tag: this.events.tagFor(r.id) }))];
+      const vp = this.voicePanel;
+      const list = [{ name: this.name, color: this.myColor, me: true, help: this.helpOn, tag: this.events.tagFor(this.net?.id), voice: vp?.stateOf(null) },
+        ...mates.map((r) => ({ name: r.name, color: r.color, help: r.help, tag: this.events.tagFor(r.id), voice: vp?.stateOf(this.voice.peers.get(r.id)) }))];
+      vp?.tick();
       this.hud.drawPlayers(list);
       if (this.mapOpen) this.hud.drawMap(v.pos, heading, mates);
     }
