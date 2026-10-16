@@ -4,7 +4,7 @@
 // eight-speed box instead).
 //
 //   Gecko     micro 4x4 (the little Japanese and Indian jeeps)         Mule     the Willys MB, the original jeep (a real model)
-//   Ranger    the UAZ Hunter (a real model)                            Trekker  compact pickup (the eighties' tough one)
+//   Ranger    the UAZ Hunter (a real model)                            Trekker  the Ford Ranger Raptor (a real model)
 //   Shepherd  British utility wagon (the long-wheelbase classic)       Drover   big six-cylinder wagon (the outback one)
 //   Hauler    the Chevrolet K20 Suburban (a real model)                 Bruiser  the Ram 2500 Power Wagon (a real model)
 //   Rhino     portal-axle expedition truck (the German unstoppable)
@@ -146,28 +146,33 @@ export const TRUCKS = {
     style: 'gecko', look: { top: 'canvas', leaf: 0.5 },
   },
   trekker: {
-    id: 'trekker', name: 'Trekker',
-    blurb: 'Compact pickup: 103" wheelbase, 2.4 four-cylinder, five-speed, leaf springs both ends. Light, simple and unbreakable.',
-    mass: 1480, cgHeight: 0.72, cgZ: 0.16, inertiaBox: [1.6, 1.15, 4.3],
+    // the Ford Ranger Raptor (2019-2022), the desert runner: 3,220 mm wheelbase, 5,398 mm long, 2,180 mm wide, double
+    // wishbones and long-travel Fox shocks in front, coil springs on a Watt's-linked beam axle behind, 283 mm under it
+    // (a real model: render/TruckAssets.js)
+    id: 'trekker', name: 'Ford Ranger Raptor',
+    blurb: 'Ford Ranger Raptor: the desert-runner mid-size pickup. 127" wheelbase, the 2.0 bi-turbo diesel, a ten-speed automatic, long-travel Fox shocks on wishbones in front and coils on a Watt\'s-linked axle behind, a rear locker, 33s. Fast across the rough.',
+    mass: 2410, cgHeight: 0.84, cgZ: 0.15, inertiaBox: [1.85, 1.35, 4.8],
     axles: [
-      { z: 1.3075, track: 1.41, springTrack: 0.86, rate: 33000, bump: 1800, rebound: 3600, travel: 0.21, sag: 0.085, mass: 70, steer: 0.6, brake: 2300, swayBar: 20000, diffDrop: 0.16, diffX: -0.18 },
-      { z: -1.3075, track: 1.39, springTrack: 0.98, rate: 30000, bump: 1700, rebound: 3400, travel: 0.22, sag: 0.08, mass: 72, steer: 0, brake: 1300, handbrake: 2200, diffDrop: 0.17, diffX: -0.04 },
+      { z: 1.61, track: 1.71, springTrack: 1.12, rate: 52000, bump: 3000, rebound: 6000, travel: 0.25, sag: 0.1, mass: 95, steer: 0.55, brake: 4200, swayBar: 22000, ifs: true, armDrop: 0.1 },
+      { z: -1.61, track: 1.71, springTrack: 1.08, rate: 56000, bump: 3000, rebound: 6000, travel: 0.28, sag: 0.11, mass: 125, steer: 0, brake: 2700, handbrake: 3400, diffDrop: 0.15, diffX: -0.05 },
     ],
-    trans: { tcK: 11 },
-    stock: { tyre: 31, axle: 4.10, trans: 3, fit: 31, low: 2.28 },
+    trans: { tcK: 8.5 },
+    stock: { tyre: 33, axle: 4.10, trans: 11, fit: 35, low: 2.717, diffs: 2 },
+    axleRatios: [3.73, 4.10, 4.56, 4.88, 5.13, 5.38],
+    stockTyre: { label: 'LT285/70 R17 A/T', radius: 0.415, width: 0.285, rim: 17, desc: 'The Raptor\'s BFGoodrich LT285/70 R17 all-terrains (33").' },
     hull: [
-      { c: [0, 0.77, -0.05], h: [0.845, 0.32, 2.22], pts: 'bottom' },       // body and bed: bumpers 0.45 m, rails 1.09
-      { c: [0, 0.42, 0.1], h: [0.38, 0.1, 1.0], pts: 'bottom' },            // belly 0.32 m up
-      { c: [0, 1.42, 0.12], h: [0.8, 0.33, 0.5], pts: 'top' },              // cab, roof 1.75 m
+      { c: [0, 0.85, -0.125], h: [1.02, 0.42, 2.69], pts: 'bottom' },      // body and bed: bumpers 0.43 m up, bonnet and bed rails 1.27
+      { c: [0, 0.46, 0], h: [0.45, 0.1, 1.4], pts: 'bottom' },              // belly: the skid plates 0.36 m up
+      { c: [0, 1.55, -0.33], h: [0.95, 0.25, 0.65], pts: 'top' },           // double cab, roof 1.8 m
     ],
-    roofY: 1.75, cabZ: 0.45, noseZ: 2.17, rackZ: -1.4,
-    intakePos: [0, 0.95, 1.6], snorkelPos: [-0.83, 1.8, 0.62],
-    winch: { fairlead: [0, 0.6, 2.22] },
-    eye: [0.36, 1.48, 0.05], hoodEye: [0, 1.3, 1.45],
-    drag: { cd: 0.52, area: 2.5 },
-    buoyancy: 0.3,
-    shafts: [6000, 7000], tyreLoad: 3700, parts: 0.85,
-    style: 'trekker', look: { bed: true, leaf: 0.62 },
+    roofY: 1.8, cabZ: -0.3, noseZ: 2.55, rackZ: -1.95,
+    intakePos: [-0.55, 1.15, 1.9], snorkelPos: [-1.0, 1.75, 0.55],
+    winch: { fairlead: [0, 0.6, 2.56] },
+    eye: [0.42, 1.55, -0.2], hoodEye: [0, 1.45, 1.4],
+    drag: { cd: 0.5, area: 3.3 },
+    buoyancy: 0.28,
+    shafts: [7000, 8500], parts: 1.1, tc: true,
+    style: 'trekker', look: { bed: true, coils: true },
   },
   shepherd: {
     // the Land Rover Defender 110 station wagon (a real model: render/TruckAssets.js)

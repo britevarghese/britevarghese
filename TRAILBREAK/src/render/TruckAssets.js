@@ -10,7 +10,7 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 
 /** The trucks with a model body (the rest are built from code in TruckModel.js and TruckBodies.js). */
-export const MODEL_BODIES = new Set(['thar', 'wrangler', 'shepherd', 'bronco', 'hummer', 'hummerev', 'mule', 'ranger', 'bruiser', 'hauler']);
+export const MODEL_BODIES = new Set(['thar', 'wrangler', 'shepherd', 'bronco', 'hummer', 'hummerev', 'mule', 'ranger', 'bruiser', 'hauler', 'trekker']);
 /** Roles the game draws in its own materials: merged into one geometry each (position and normal only). */
 const OWN = new Set(['paint', 'glass', 'screen', 'head_l', 'head_r', 'tail', 'reverse', 'amber']);
 

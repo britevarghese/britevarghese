@@ -1,0 +1,100 @@
+{
+ "id": "trekker",
+ "model": {
+  "title": "Ford ranger raptor",
+  "url": "https://sketchfab.com/3d-models/ford-ranger-raptor-fffd6f07668a467095718c5e062348e2",
+  "author": "haraldina",
+  "authorUrl": "https://sketchfab.com/haraldina",
+  "license": "CC BY 4.0"
+ },
+ "axes": {
+  "left": "-z",
+  "up": "+y",
+  "forward": "+x"
+ },
+ "wheelbase": 3.22,
+ "scaleX": 1.02,
+ "spare": null,
+ "nodes": [
+  [
+   "teker",
+   "tyre",
+   [
+    17
+   ]
+  ],
+  [
+   "teker",
+   "rim",
+   [
+    18
+   ]
+  ],
+  [
+   "teker",
+   "hub",
+   [
+    7
+   ]
+  ],
+  [
+   "tormoz",
+   "drop"
+  ],
+  [
+   "pruzzyn",
+   "drop"
+  ]
+ ],
+ "materials": {
+  "0": "paint",
+  "4": "glass",
+  "8": "head",
+  "10": "glass",
+  "12": "drop"
+ },
+ "glassAbove": 1.05,
+ "rimFrom": "FL",
+ "rimReduce": 0.6,
+ "reduce": {
+  "paint": 0.0,
+  "*": 0.6
+ },
+ "texSize": 1024,
+ "layout": {
+  "bumperF": {
+   "z": 2.55,
+   "y": 0.45,
+   "w": 1.9
+  },
+  "bumperR": {
+   "z": -2.8,
+   "y": 0.5,
+   "w": 1.8
+  },
+  "spare": {
+   "x": 0,
+   "z": -2.3,
+   "mount": "under"
+  },
+  "frame": {
+   "x": 0.5,
+   "y": 0.5,
+   "z0": -2.6,
+   "z1": 2.3
+  },
+  "coilY": 0.85,
+  "half": 1.02,
+  "sill": 0.5,
+  "roofY": 1.8,
+  "roofZ": [
+   -0.95,
+   0.3
+  ],
+  "bedZ": [
+   -2.7,
+   -1.15
+  ],
+  "ownChassis": true
+ }
+}

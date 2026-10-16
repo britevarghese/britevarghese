@@ -43,3 +43,6 @@ light), and the textures resized to WebP.
   https://sketchfab.com/3d-models/1970-truck-e0953a2cfb7349dab78fa363fe6545e8 (https://sketchfab.com/Raffey);
   narrowed 9% to the Suburban's real width, its axles, springs, wheels and wheel trims taken off (the game fits steel
   wheels), its orange paint given the game's paint (the cream band kept).
+- `trekker.glb` (Ford Ranger Raptor): "Ford ranger raptor" by haraldina,
+  https://sketchfab.com/3d-models/ford-ranger-raptor-fffd6f07668a467095718c5e062348e2 (https://sketchfab.com/haraldina);
+  widened 2% to the Raptor's real track, its wheels, brakes, springs and headlamp LEDs taken off, the trim simplified.
