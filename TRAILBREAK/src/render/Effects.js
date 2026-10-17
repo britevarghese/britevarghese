@@ -11,7 +11,7 @@ import * as THREE from 'three';
 import { SURFACE } from '../physics/Surfaces.js';
 
 const MAX = 4000;
-export const KIND = { PUFF: 0, CHUNK: 1, DROP: 2, MIST: 3, RING: 4, FOAM: 5, SHARD: 6, SPRAY: 7 };
+export const KIND = { PUFF: 0, CHUNK: 1, DROP: 2, MIST: 3, RING: 4, FOAM: 5, SHARD: 6, SPRAY: 7, FLAME: 8 };
 
 const vert = /* glsl */`
 attribute vec2 corner;
@@ -131,6 +131,13 @@ void main() {
     if (m < 0.02) discard;
     col = col * (amb * 0.9 + uSunCol * 0.5);
     a *= m;
+  } else if (vKind > 7.5) {
+    // a flash of flame from the exhaust: alight by itself, white-hot at the core, orange out to a ragged edge
+    if (r > 1.0) discard;
+    float m = 1.0 - smoothstep(0.25 + 0.35 * vnoise(p * 3.0 + vSeed * 13.0), 1.0, r);
+    if (m < 0.02) discard;
+    col = mix(col, vec3(1.0, 0.92, 0.75), 0.8 * (1.0 - smoothstep(0.0, 0.45, r))) * 2.4;
+    a *= m;
   } else if (vKind > 6.5) {
     // a clump of spray: a dense core breaking up at its edge, bright where the sun catches it
     if (r > 1.0) discard;
@@ -175,6 +182,7 @@ const WATER = [0.8, 0.86, 0.9], MUDDY_WATER = [0.3, 0.23, 0.15];
 const SPRAY = [0.86, 0.9, 0.93], MUDDY_SPRAY = [0.4, 0.33, 0.24];
 const FOAM = [0.95, 0.96, 0.97], MUDDY_FOAM = [0.6, 0.52, 0.41];
 const rnd = (a = 1) => (Math.random() * 2 - 1) * a;
+const FLAME = [1.0, 0.48, 0.1], EXHAUST_SMOKE = [0.3, 0.3, 0.31];
 const lerp = (a, b, t) => a + (b - a) * t;
 
 export class Effects {
@@ -476,6 +484,21 @@ export class Effects {
   }
 
   /** A burst (a hard landing in water, a crash). */
+  /**
+   * An exhaust pop at the tailpipe (x, y, z), blowing out along (dx, dz) from a truck moving at (vx, vz): a flash of
+   * flame in a few tongues and a puff of grey smoke drifting up. k: how big (0..1).
+   */
+  exhaust(x, y, z, dx, dz, vx, vz, k) {
+    for (let i = 0, n = 2 + Math.round(2 * k); i < n; i++) {
+      const s = 2 + 3 * Math.random();
+      this.spawn(x, y, z, vx + dx * s + rnd(0.5), 0.2 + rnd(0.3), vz + dz * s + rnd(0.5), (0.08 + 0.08 * k) * (0.7 + 0.6 * Math.random()),
+        0.05 + 0.06 * Math.random(), FLAME, 0.95, 3, 3, 0, KIND.FLAME);
+    }
+    for (let i = 0; i < 2; i++) {
+      this.spawn(x, y, z, vx + dx * 1.2 + rnd(0.3), 0.3, vz + dz * 1.2 + rnd(0.3), 0.12 + 0.1 * k, 0.7 + 0.4 * Math.random(), EXHAUST_SMOKE, 0.2, 1.2, 1.6, -0.25, KIND.PUFF);
+    }
+  }
+
   burst(x, y, z, n, color, speed = 4, size = 0.12) {
     for (let k = 0; k < n; k++) {
       const a = Math.random() * Math.PI * 2, v = speed * (0.4 + Math.random() * 0.8);

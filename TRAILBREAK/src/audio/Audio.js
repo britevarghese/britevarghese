@@ -97,16 +97,27 @@ const BANK_CYL = { v6: 6, i6: 6, d6: 6, v8: 8, v8m: 8, d8: 8, i4: 4, d4: 4, d4t:
 /**
  * One engine from a bank: the worklet node, steered by rpm, load and a loudness, through a low-pass that opens with
  * the revs (the note is in the firings' harmonics, below a kilohertz or two; above them the recordings and the
- * overlapping firings leave a hiss that, flat out, sounded like noise rather than an engine).
+ * overlapping firings leave a hiss that, flat out, sounded like noise rather than an engine). A big engine is louder
+ * (cfg.loud) and has more of its low end (cfg.bass, dB on a shelf under 140 Hz: a V8's firings thump, a big diesel
+ * rumbles). The last gain is the gear changes': the throttle shut for a moment as the next gear goes in.
  */
 class GrainVoice {
   constructor(audio, bank, out, cfg) {
     const ctx = audio.ctx;
-    this.ctx = ctx; this.grain = true;
+    this.ctx = ctx; this.grain = true; this.loud = cfg.loud || 1;
     this.node = new AudioWorkletNode(ctx, 'tb-engine', { numberOfInputs: 0, numberOfOutputs: 1, outputChannelCount: [1], processorOptions: { bank, config: cfg } });
     this.rpm = this.node.parameters.get('rpm'); this.load = this.node.parameters.get('load'); this.gain = this.node.parameters.get('gain');
+    this.bass = ctx.createBiquadFilter(); this.bass.type = 'lowshelf'; this.bass.frequency.value = 140; this.bass.gain.value = cfg.bass || 0;
     this.tone = ctx.createBiquadFilter(); this.tone.type = 'lowpass'; this.tone.frequency.value = 1600; this.tone.Q.value = 0.6;
-    this.node.connect(this.tone).connect(out);
+    this.post = ctx.createGain();
+    this.node.connect(this.bass).connect(this.tone).connect(this.post).connect(out);
+  }
+
+  /** The throttle shut for `len` s as a gear goes in: the engine drops to a mutter and comes back. */
+  cut(len = 0.08, depth = 0.3) {
+    const t = this.ctx.currentTime, g = this.post.gain;
+    g.cancelScheduledValues(t); g.setValueAtTime(g.value, t);
+    g.linearRampToValueAtTime(depth, t + 0.015); g.setValueAtTime(depth, t + len); g.linearRampToValueAtTime(1, t + len + 0.06);
   }
 
   /** rpm, the engine's idle and redline, load 0..1 (on throttle .. overrun), vol 0..1. */
@@ -118,51 +129,75 @@ class GrainVoice {
     const loud = (0.55 + 0.45 * Math.pow(rn, 0.8)) * (0.72 + 0.28 * load);
     glide(this.rpm, rpm, t, 0.02);
     glide(this.load, clamp(load, 0, 1), t, 0.05);
-    glide(this.gain, 3.8 * loud * vol, t, 0.08);
+    glide(this.gain, 3.8 * this.loud * loud * vol, t, 0.08);
     glide(this.tone.frequency, 1500 + 0.45 * rpm + 600 * load, t, 0.08);
   }
 
   stop() {
     const t = this.ctx.currentTime;
     glide(this.gain, 0, t, 0.05);
-    setTimeout(() => { try { this.node.disconnect(); this.tone.disconnect(); this.node.port.close(); } catch { /* gone */ } }, 500);
+    setTimeout(() => { try { this.node.disconnect(); this.bass.disconnect(); this.tone.disconnect(); this.post.disconnect(); this.node.port.close(); } catch { /* gone */ } }, 500);
   }
 }
 
 /**
- * An electric truck: no engine to hear, the motors and their inverters. A whine that climbs with the motor speed (the
- * motor's own tone and two higher partials, the reduction gears meshing), louder pulling or regenerating; the
- * inverter's high hiss pulling hard; and the soft hum it plays at walking pace (its pedestrian warning: a low synth
- * chord that fades out by 30 km/h).
+ * An electric truck: no engine to hear, the motors and their inverters, and the sound the truck plays as it pulls.
+ *  - The drive units' whine: three orders of the motor speed (the second reduction stage's mesh, the first stage's,
+ *    and the motor's own electromagnetic order beating against it), each a narrow band of noise round its pitch with a
+ *    little pure tone at its heart, wavering slightly, so it sings and breathes as a real gearbox does rather than
+ *    hums like a synthesiser. Louder pulling or regenerating, quiet coasting.
+ *  - The inverters' high hiss pulling hard, and their switching whistle at walking pace.
+ *  - The propulsion sound the Hummer EV plays through its speakers: a deep two-note drone that rises with the speed and
+ *    swells and brightens with the power asked for (felt more than heard at a cruise).
+ *  - Its pedestrian warning at walking pace: a soft low chord that fades out by 30 km/h.
  */
 class ElectricVoice {
   constructor(audio, out) {
     const ctx = audio.ctx;
     this.ctx = ctx; this.electric = true;
     this.out = ctx.createGain(); this.out.gain.value = 0; this.out.connect(out);
-    this.oscs = [];
+    this.oscs = []; this.noises = [];
     const osc = (type, f, dest) => { const o = ctx.createOscillator(); o.type = type; o.frequency.value = f; const g = ctx.createGain(); g.gain.value = 0; o.connect(g).connect(dest); o.start(); this.oscs.push(o); return { o, g }; };
-    this.m1 = osc('sine', 100, this.out);
-    this.m2 = osc('sine', 260, this.out);
-    this.f3 = ctx.createBiquadFilter(); this.f3.type = 'bandpass'; this.f3.frequency.value = 1500; this.f3.Q.value = 3; this.f3.connect(this.out);
-    this.m3 = osc('triangle', 600, this.f3);
-    this.hiss = noiseVoice(ctx, audio.white, this.out, 'bandpass', 5200, 2.5);
+    // the whine's orders: [Hz per motor rpm, its share]
+    this.orders = [[0.145, 1], [0.383, 0.8], [0.4, 0.45]].map(([k, share]) => {
+      const n = noiseVoice(ctx, audio.pink, this.out, 'bandpass', 500, 28);
+      this.noises.push(n);
+      return { k, share, n, tone: osc('sine', 500, this.out), wob: Math.random() * 6 };
+    });
+    this.hiss = noiseVoice(ctx, audio.white, this.out, 'bandpass', 5200, 2.5); this.noises.push(this.hiss);
+    this.pwm = osc('sine', 8000, this.out);
+    // the drone: a root and its fifth (a hair sharp, so they beat) and the octave, through a low-pass that opens with power
+    this.dl = ctx.createBiquadFilter(); this.dl.type = 'lowpass'; this.dl.frequency.value = 200; this.dl.Q.value = 2; this.dl.connect(this.out);
+    this.d1 = osc('sawtooth', 40, this.dl); this.d2 = osc('sawtooth', 60, this.dl); this.d3 = osc('triangle', 80, this.dl);
+    // the pedestrian warning
     this.hf = ctx.createBiquadFilter(); this.hf.type = 'lowpass'; this.hf.frequency.value = 260; this.hf.Q.value = 1.2; this.hf.connect(this.out);
     this.h1 = osc('sawtooth', 55, this.hf);
     this.h2 = osc('sawtooth', 82.5, this.hf);
+    this.t0 = ctx.currentTime;
   }
 
   /** rpm: the motors' speed; load 0..1 (pulling, or regenerating); speed m/s; vol 0..1. */
   drive(rpm, load, speed, vol) {
     const t = this.ctx.currentTime, r = Math.abs(rpm), spin = clamp(r / 2500, 0, 1), L = clamp(load, 0, 1);
-    glide(this.m1.o.frequency, 30 + r * 0.075, t, 0.03);
-    glide(this.m2.o.frequency, 30 + r * 0.19, t, 0.03);
-    glide(this.m3.o.frequency, 40 + r * 0.42, t, 0.03);
-    glide(this.f3.frequency, 220 + r * 0.42, t, 0.05);
-    glide(this.m1.g.gain, spin * (0.08 + 0.2 * L), t, 0.06);
-    glide(this.m2.g.gain, spin * (0.035 + 0.085 * L), t, 0.06);
-    glide(this.m3.g.gain, spin * 0.14 * L, t, 0.06);
-    glide(this.hiss.g.gain, 0.03 * L * spin, t, 0.06);
+    const pull = 0.25 + 0.75 * L, tt = t - this.t0;
+    for (const o of this.orders) {
+      // (a slow waver in pitch and level, as a real drive unit's whine has under a changing load)
+      const f = Math.max(30, r * o.k) * (1 + 0.004 * Math.sin(tt * 2.3 + o.wob)), a = spin * o.share * pull * (0.85 + 0.15 * Math.sin(tt * 1.7 + o.wob * 2));
+      glide(o.n.f.frequency, f, t, 0.03); glide(o.tone.o.frequency, f, t, 0.03);
+      glide(o.n.g.gain, 1.6 * a, t, 0.06); glide(o.tone.g.gain, 0.022 * a, t, 0.06);
+    }
+    glide(this.hiss.g.gain, 0.025 * L * spin, t, 0.06);
+    // the inverters' switching whistle, high and thin, heard at walking pace when the motors are working
+    const crawl = clamp(1 - speed / 6, 0, 1);
+    glide(this.pwm.o.frequency, 7600 + 900 * Math.min(1, r / 1200), t, 0.1);
+    glide(this.pwm.g.gain, 0.0035 * crawl * L, t, 0.08);
+    // the drone: 38 Hz at a standstill rising to about 120 at the top speed
+    const fd = 38 + Math.min(speed, 50) * 1.65;
+    glide(this.d1.o.frequency, fd, t, 0.05); glide(this.d2.o.frequency, fd * 1.503, t, 0.05); glide(this.d3.o.frequency, fd * 2, t, 0.05);
+    glide(this.dl.frequency, 140 + 900 * L + speed * 4, t, 0.08);
+    const drone = 0.05 * (0.15 + 0.85 * L) * clamp(speed / 3 + L, 0, 1);
+    glide(this.d1.g.gain, drone, t, 0.08); glide(this.d2.g.gain, drone * 0.55, t, 0.08); glide(this.d3.g.gain, drone * 0.4, t, 0.08);
+    // the pedestrian warning
     const slow = clamp(1 - speed / 8.3, 0, 1);
     glide(this.h1.g.gain, 0.08 * slow * (0.45 + 0.55 * Math.min(1, speed / 1.5 + L)), t, 0.1);
     glide(this.h2.g.gain, 0.05 * slow * (0.45 + 0.55 * Math.min(1, speed / 1.5 + L)), t, 0.1);
@@ -173,7 +208,7 @@ class ElectricVoice {
   stop() {
     const t = this.ctx.currentTime;
     glide(this.out.gain, 0, t, 0.05);
-    setTimeout(() => { try { for (const o of this.oscs) o.stop(); this.hiss.src.stop(); this.out.disconnect(); } catch { /* gone */ } }, 500);
+    setTimeout(() => { try { for (const o of this.oscs) o.stop(); for (const n of this.noises) n.src.stop(); this.out.disconnect(); } catch { /* gone */ } }, 500);
   }
 }
 
@@ -332,7 +367,7 @@ export class Audio {
     if (spec.engine?.electric) return new ElectricVoice(this, out);
     if (spec.engineBank && await this.grainsReady) {
       const bank = await this.loadBank(spec.engineBank).catch((e) => { console.warn('engine bank', spec.engineBank, e); return null; });
-      if (bank) return new GrainVoice(this, bank, out, { idle: spec.engine.idleRpm, pitch: spec.bankPitch || 1 });
+      if (bank) return new GrainVoice(this, bank, out, { idle: spec.engine.idleRpm, pitch: spec.bankPitch || 1, loud: spec.engineLoud || 1, bass: spec.engineBass || 0 });
     }
     const set = await this.loadSet(spec.engineSound).catch(() => null);
     return set ? new EngineVoice(this, set, out, spec.soundPitch || 1) : null;
@@ -347,6 +382,7 @@ export class Audio {
     this.engine?.stop();
     this.engine = voice;
     this.engineSpec = spec;
+    this.lastGear = undefined; this.thrHi = 0;                         // (a new truck: no gear change heard from the last)
   }
 
   /** Feed an engine voice: grain voices take the revs as they are, loops a 0..1 share of the range. */
@@ -369,6 +405,60 @@ export class Audio {
     g.gain.exponentialRampToValueAtTime(0.001, t + (low ? 0.28 : 0.18));
     src.connect(f).connect(g).connect(this.master);
     src.start(t, Math.random()); src.stop(t + 0.4);
+  }
+
+  /**
+   * A gear going in: the gearbox's clunk (a heavier one going down, the revs blipped to match), and pulling hard on an
+   * upshift the exhaust's crack: the engine is cut for a moment as the gear goes in and the unburnt fuel lights in the
+   * hot pipe, a sharp pop or two over a low boom, bigger from a big engine and high revs (a diesel only chuffs).
+   *   up: an upshift; rf: the revs, 0 idle .. 1 redline; load 0..1; big 0..1 (a four .. a big V8); vol 0..1
+   */
+  shiftSound(up, rf, load, big, diesel, vol) {
+    const ctx = this.ctx, t = ctx.currentTime;
+    const burst = (buf, type, freq, q, gain, at, len, attack = 0.002) => {
+      const src = ctx.createBufferSource(); src.buffer = buf;
+      const f = ctx.createBiquadFilter(); f.type = type; f.frequency.value = freq; f.Q.value = q;
+      const g = ctx.createGain();
+      g.gain.setValueAtTime(0, t + at); g.gain.linearRampToValueAtTime(gain, t + at + attack);
+      g.gain.exponentialRampToValueAtTime(0.0008, t + at + len);
+      src.connect(f).connect(g).connect(this.master);
+      src.start(t + at, Math.random() * 1.5); src.stop(t + at + len + 0.05);
+    };
+    // the clunk of the next gear (and the driveline taking up its slack)
+    burst(this.brown, 'lowpass', up ? 260 : 200, 0.9, (up ? 0.22 : 0.3) * vol, 0, 0.07, 0.003);
+    burst(this.white, 'bandpass', 2400, 2.5, 0.035 * vol, 0.004, 0.02);
+    const hard = clamp((rf - 0.45) / 0.45, 0, 1) * clamp((load - 0.35) / 0.5, 0, 1);
+    if (!up || hard <= 0) return 0;
+    const v = hard * vol * (0.55 + 0.45 * big);
+    if (diesel) {
+      // a diesel's chuff: a soft low puff of air
+      burst(this.brown, 'lowpass', 160, 0.7, 0.55 * v, 0.01, 0.16, 0.01);
+      return hard * 0.4;
+    }
+    // the boom, and a crack or two on top of it
+    burst(this.brown, 'lowpass', 130 + 60 * big, 0.8, 1.1 * v, 0.012, 0.15, 0.003);
+    const n = 1 + Math.floor(Math.random() * 2 + hard);
+    for (let i = 0; i < n; i++) burst(this.white, 'bandpass', 700 + Math.random() * 900, 1.3, (0.55 - 0.15 * i) * v, 0.015 + i * (0.035 + Math.random() * 0.03), 0.04);
+    return hard;
+  }
+
+  /**
+   * Lifting off from high revs: the exhaust crackles and pops for a moment (fuel lighting in the pipe on the overrun),
+   * a few sharp snaps and a low pop or two scattered over half a second. rf: the revs (0 idle .. 1 redline).
+   */
+  crackle(rf, big, vol) {
+    const ctx = this.ctx, t = ctx.currentTime, k = clamp((rf - 0.5) / 0.5, 0, 1);
+    const n = 2 + Math.floor(Math.random() * 3 + 3 * k);
+    for (let i = 0; i < n; i++) {
+      const at = 0.05 + Math.random() * 0.55, low = Math.random() < 0.35;
+      const src = ctx.createBufferSource(); src.buffer = low ? this.brown : this.white;
+      const f = ctx.createBiquadFilter(); f.type = low ? 'lowpass' : 'bandpass'; f.frequency.value = low ? 180 + 80 * big : 900 + Math.random() * 1400; f.Q.value = low ? 0.8 : 1.6;
+      const g = ctx.createGain(), a = (low ? 0.6 : 0.32) * (0.4 + 0.6 * k) * (0.6 + 0.4 * big) * vol * (0.6 + 0.4 * Math.random());
+      g.gain.setValueAtTime(0, t + at); g.gain.linearRampToValueAtTime(a, t + at + 0.0015);
+      g.gain.exponentialRampToValueAtTime(0.0008, t + at + (low ? 0.09 : 0.03));
+      src.connect(f).connect(g).connect(this.master);
+      src.start(t + at, Math.random() * 1.5); src.stop(t + at + 0.15);
+    }
   }
 
   /**
@@ -444,6 +534,9 @@ export class Audio {
     }
   }
 
+  /** An exhaust pop since the last ask (0..1, how big), for the flash and puff at the tailpipe; 0 if none. */
+  takePop() { const p = this.pop || 0; this.pop = 0; return p; }
+
   /**
    * v: the local Vehicle; listener: camera; remotes: [{ id, spec, pos, rpm, thr }]
    */
@@ -467,6 +560,26 @@ export class Audio {
       // cranking: the engine turns over on the starter (its firings come slow and soft: compression, no bang)
       const cranking = dtr.crankT > 0;
       if (this.engine) this.driveVoice(this.engine, this.engineSpec || v.spec, cranking ? Math.max(dtr.rpm, 150) : dtr.rpm, cranking ? 0.15 : this.loadS, dtr.running ? 0.95 : cranking ? 0.32 : 0);
+      // gear changes and the overrun: the clunk, an upshift's crack from the exhaust (its flash and puff: this.pop, for
+      // the game to draw), and lifting off from high revs, a moment of crackling
+      if (dtr.running && !dtr.electric) {
+        const rf = clamp((dtr.rpm - e.idleRpm) / Math.max(1, e.redline - e.idleRpm), 0, 1.2);
+        const bk = v.spec.engineBank || '', big = clamp(((e.cyl || BANK_CYL[bk] || 6) - 4) / 4, 0, 1) * 0.7 + 0.3 * clamp(((v.spec.engineLoud || 1) - 1) / 0.6, 0, 1);
+        const diesel = !!e.diesel || bk[0] === 'd', g = dtr.gear;
+        if (this.lastGear !== undefined && g !== this.lastGear && g > 0 && this.lastGear > 0) {
+          const up = g > this.lastGear, hard = this.shiftSound(up, this.lastRf ?? rf, this.loadS, big, diesel, 0.9);
+          if (hard > 0) { this.engine?.cut?.(0.06 + 0.04 * hard, 0.35); this.pop = Math.max(this.pop || 0, hard); }
+        }
+        const pedal = v.pedalThrottle ?? 0;
+        this.thrHi = Math.max(pedal, (this.thrHi ?? 0) - dt * 2.5);
+        if (!diesel && pedal < 0.08 && this.thrHi > 0.6 && rf > 0.55) {
+          this.crackle(rf, big, 0.9);
+          this.pop = Math.max(this.pop || 0, 0.5 * clamp((rf - 0.5) / 0.5, 0, 1));
+          this.thrHi = 0;
+        }
+        this.lastRf = rf;
+      }
+      this.lastGear = dtr.gear;
       // the starter: a motor chopped by the compression strokes (a diesel's heavier and slower)
       const bank = v.spec.engineBank || '';
       const cyl = e.cyl || BANK_CYL[bank] || 6, diesel = !!e.diesel || bank[0] === 'd';

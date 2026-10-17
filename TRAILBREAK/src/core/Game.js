@@ -1264,6 +1264,15 @@ export class Game {
     const remotes = [...this.remotes.values()].filter((r) => r.state).map((r) => ({ id: r.id, spec: r.spec, pos: r.model.root.position, rpm: r.state.rpm, thr: r.state.thr }));
     this.audio.update(dt, v, this.renderer.camera, remotes);
     v.impact = 0;
+    // an exhaust pop (a hard upshift, or lifting off from high revs): a flash and a puff at the tailpipe, low on the
+    // right at the back of the hull
+    const pop = this.audio.takePop();
+    if (pop > 0) {
+      const hb = v.boxes[0], lx = -(hb.h.x - 0.28), ly = hb.c.y - hb.h.y + 0.12, lz = hb.c.z - hb.h.z - 0.05;   // (+x: left)
+      const px = v.pos.x + v.left.x * lx + v.up.x * ly + v.fwd.x * lz, py = v.pos.y + v.left.y * lx + v.up.y * ly + v.fwd.y * lz;
+      const pz = v.pos.z + v.left.z * lx + v.up.z * ly + v.fwd.z * lz;
+      this.effects.exhaust(px, py, pz, -v.fwd.x, -v.fwd.z, v.vel.x, v.vel.z, pop);
+    }
 
     // network
     if (this.net) {

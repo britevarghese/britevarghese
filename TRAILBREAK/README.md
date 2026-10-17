@@ -155,15 +155,26 @@ draws on firings recorded pulling and slowing. The banks (public/assets/audio/en
 | `d6` | Ram 5.9 Cummins turbo-diesel six (the top of the revs from the TDI) | Unimog, the Power Wagon's Cummins swap |
 | `d8` | Ford F-350 turbo-diesel V8 (the top of the revs from the TDI) | Hummer H1 |
 | `v6` | Acura 3.2 V6, a mic at the exhaust while driving | Wrangler, Bronco, the Pajero's V6 |
-| `v8` | 1978 Cadillac 425 V8 (the top of the revs from the V6) | K20 Suburban, Ram Power Wagon, the V8 swaps |
-| `v8m` | a cammed V8 | tuned V8s, the Wrangler's 392 HEMI |
+| `v8` | 1978 Cadillac 425 V8 (the top of the revs from the V6) | K20 Suburban, the V8 swaps |
+| `v8m` | a cammed V8 | Ram Power Wagon's 6.4 HEMI, tuned V8s, the Wrangler's 392 HEMI |
 | `i6` | Jaguar E-type 4.2 straight six | (none in the roster now) |
 | `i4` | Suzuki Jimny four | Lada Niva, Willys MB, UAZ Hunter, Thar petrol |
 
+A big engine is louder than a small one and has more of its low end (a shelf under 140 Hz): the Power Wagon's 6.4
+HEMI most of all, deep and loud, then the 392 swap, the old big-blocks and the big diesels' rumble.
+
 On top: the starter (a motor chopped by the compression strokes, slower and heavier on a diesel; the engine turning
 over on it), the turbo on turbo engines (its whistle spools up with boost and winds down after a lift), and the gearbox
-and transfer case whining under load, louder in low range and in reverse. Without AudioWorklet the engine falls back
-to recorded loops crossfaded by rpm and throttle.
+and transfer case whining under load, louder in low range and in reverse. Each gear change clunks as the gear goes in;
+pulling hard, an upshift cuts the engine for a moment and the exhaust cracks (a pop or two over a low boom, with a
+flash of flame and a puff of smoke at the tailpipe; a diesel only chuffs), and lifting off from high revs the exhaust
+crackles and pops for a moment. Without AudioWorklet the engine falls back to recorded loops crossfaded by rpm and
+throttle.
+
+The Hummer EV has no engine to hear: its drive units whine (three orders of the motor speed, each a narrow band of
+noise round its pitch, so they sing and breathe like a real gearbox), the inverters hiss pulling hard and whistle at
+walking pace, the deep two-note drone it plays through its speakers rises with the speed and swells with the power,
+and at walking pace it plays its pedestrian warning.
 
 The sound goes off while the game is paused, in the garage, the dealer and the events list, and whenever the game's
 tab is hidden (another tab, or the browser minimised); it comes back when you drive on.

@@ -132,15 +132,16 @@ export const RACKS = [
 ];
 
 /** Engines: each truck's stock unit, the same tuned, and the classic swap. Diesels make their torque low and rev out
- *  early; sound: one of the recorded engines (pitched for the size and the number of cylinders). */
+ *  early; sound: one of the recorded engines (pitched for the size and the number of cylinders), `loud` as much louder
+ *  than a small engine, and `bass` dB more of its low end (a big V8's chest-thump, a big diesel's rumble). */
 const ENGINE = {
-  V8_50: { name: 'V8 5.0', idleRpm: 700, redline: 4400, limiter: 4650, inertia: 0.32, friction: [17, 0.024], bank: 'v8', bankPitch: 0.8, turbo: 0, sound: 'v8_muscle', pitch: 1, mass: 0,
+  V8_50: { name: 'V8 5.0', idleRpm: 700, redline: 4400, limiter: 4650, inertia: 0.32, friction: [17, 0.024], bank: 'v8', bankPitch: 0.8, turbo: 0, sound: 'v8_muscle', pitch: 1, mass: 0, loud: 1.2, bass: 4,
     torque: [[400, 130], [800, 230], [1200, 280], [1800, 302], [2400, 318], [3000, 310], [3600, 290], [4200, 262], [4700, 200], [5200, 130]] },
-  V8_66: { name: 'V8 6.6', idleRpm: 650, redline: 4200, limiter: 4400, inertia: 0.38, friction: [20, 0.027], bank: 'v8', bankPitch: 0.72, turbo: 0, sound: 'v8_muscle', pitch: 0.86, mass: 0,
+  V8_66: { name: 'V8 6.6', idleRpm: 650, redline: 4200, limiter: 4400, inertia: 0.38, friction: [20, 0.027], bank: 'v8', bankPitch: 0.72, turbo: 0, sound: 'v8_muscle', pitch: 0.86, mass: 0, loud: 1.25, bass: 5,
     torque: [[400, 160], [800, 285], [1200, 350], [1800, 395], [2400, 410], [3000, 396], [3600, 365], [4200, 310], [4600, 240], [5000, 150]] },
   I6_42: { name: 'I6 4.2', idleRpm: 650, redline: 4300, limiter: 4500, inertia: 0.26, friction: [14, 0.021], bank: 'i6', bankPitch: 1, turbo: 0, sound: 'i6_bmw', pitch: 0.78, mass: 0,
     torque: [[400, 120], [800, 205], [1200, 240], [1800, 262], [2400, 268], [3000, 258], [3600, 238], [4200, 205], [4600, 160], [5000, 110]] },
-  V8_75: { name: 'V8 7.5 big-block', idleRpm: 650, redline: 4300, limiter: 4500, inertia: 0.44, friction: [23, 0.03], bank: 'v8', bankPitch: 0.68, turbo: 0, sound: 'v8_muscle', pitch: 0.8, mass: 80,
+  V8_75: { name: 'V8 7.5 big-block', idleRpm: 650, redline: 4300, limiter: 4500, inertia: 0.44, friction: [23, 0.03], bank: 'v8', bankPitch: 0.68, turbo: 0, sound: 'v8_muscle', pitch: 0.8, mass: 80, loud: 1.35, bass: 6,
     torque: [[400, 200], [800, 360], [1200, 445], [1800, 500], [2400, 520], [3000, 505], [3600, 465], [4200, 395], [4600, 300], [5000, 180]] },
   I4_13: { name: 'I4 1.3', idleRpm: 850, redline: 6000, limiter: 6300, inertia: 0.09, friction: [6, 0.011], bank: 'i4', bankPitch: 1, turbo: 0, sound: 'i6_bmw', pitch: 1.18, mass: 0,
     torque: [[600, 58], [1000, 76], [1500, 85], [2000, 91], [2500, 96], [3000, 99], [3500, 101], [4000, 100], [4500, 97], [5000, 92], [5500, 85], [6000, 76], [6500, 58]] },
@@ -161,15 +162,15 @@ const ENGINE = {
     torque: [[500, 95], [1000, 145], [1500, 160], [2000, 168], [2500, 173], [2800, 175], [3500, 170], [4000, 163], [4500, 153], [4800, 145], [5300, 112]] },
   I4_25TD: { name: 'I4 2.5 turbo-diesel', idleRpm: 700, redline: 4000, limiter: 4200, inertia: 0.22, friction: [12, 0.02], bank: 'd4t', bankPitch: 0.92, turbo: 1, sound: 'i6_bmw', pitch: 0.66, mass: 0,
     torque: [[500, 105], [1000, 168], [1500, 196], [1800, 203], [2200, 200], [2800, 190], [3400, 175], [3800, 160], [4000, 150], [4400, 90]] },
-  V8_39: { name: 'V8 3.9', idleRpm: 700, redline: 5000, limiter: 5300, inertia: 0.24, friction: [14, 0.02], bank: 'v8', bankPitch: 0.92, turbo: 0, sound: 'v8_muscle', pitch: 1.08, mass: -20,
+  V8_39: { name: 'V8 3.9', idleRpm: 700, redline: 5000, limiter: 5300, inertia: 0.24, friction: [14, 0.02], bank: 'v8', bankPitch: 0.92, turbo: 0, sound: 'v8_muscle', pitch: 1.08, mass: -20, loud: 1.1, bass: 3,
     torque: [[500, 160], [1000, 250], [1500, 285], [2000, 300], [2500, 310], [3000, 313], [3500, 308], [4000, 296], [4750, 270], [5300, 200]] },
   I6_42P: { name: 'I6 4.2', idleRpm: 650, redline: 4000, limiter: 4300, inertia: 0.3, friction: [15, 0.022], bank: 'i6', bankPitch: 0.96, turbo: 0, sound: 'i6_bmw', pitch: 0.74, mass: 0,
     torque: [[400, 150], [800, 245], [1200, 274], [1800, 285], [2400, 282], [3000, 275], [3600, 265], [4000, 245], [4400, 195]] },
   I6_42TD: { name: 'I6 4.2 turbo-diesel', idleRpm: 650, redline: 4000, limiter: 4200, inertia: 0.36, friction: [18, 0.024], bank: 'd6', bankPitch: 1.05, turbo: 1, sound: 'i6_bmw', pitch: 0.6, mass: 60,
     torque: [[500, 170], [1000, 262], [1500, 322], [2000, 350], [2500, 360], [3000, 352], [3600, 324], [4000, 290], [4300, 190]] },
-  I6_59TD: { name: 'I6 5.9 turbo-diesel', idleRpm: 750, redline: 3000, limiter: 3200, inertia: 0.62, friction: [25, 0.03], bank: 'd6', bankPitch: 1, turbo: 1, sound: 'i6_bmw', pitch: 0.55, mass: 0,
+  I6_59TD: { name: 'I6 5.9 turbo-diesel', idleRpm: 750, redline: 3000, limiter: 3200, inertia: 0.62, friction: [25, 0.03], bank: 'd6', bankPitch: 1, turbo: 1, sound: 'i6_bmw', pitch: 0.55, mass: 0, loud: 1.15, bass: 5,
     torque: [[500, 300], [800, 420], [1200, 540], [1600, 570], [2000, 560], [2400, 520], [2800, 470], [3000, 440], [3300, 290]] },
-  I6_67CR: { name: 'I6 6.7 common-rail', idleRpm: 700, redline: 3200, limiter: 3400, inertia: 0.66, friction: [26, 0.03], bank: 'd6', bankPitch: 0.97, turbo: 1, sound: 'i6_bmw', pitch: 0.56, mass: 45,
+  I6_67CR: { name: 'I6 6.7 common-rail', idleRpm: 700, redline: 3200, limiter: 3400, inertia: 0.66, friction: [26, 0.03], bank: 'd6', bankPitch: 0.97, turbo: 1, sound: 'i6_bmw', pitch: 0.56, mass: 45, loud: 1.2, bass: 5,
     torque: [[500, 340], [800, 560], [1200, 780], [1600, 870], [2000, 880], [2400, 840], [2800, 760], [3200, 650], [3500, 400]] },
   I6_57D: { name: 'OM 352 5.7 diesel six', idleRpm: 650, redline: 2800, limiter: 3000, inertia: 0.75, friction: [28, 0.035], bank: 'd6', bankPitch: 0.92, turbo: 0, sound: 'i6_bmw', pitch: 0.5, mass: 0,
     torque: [[500, 230], [800, 300], [1200, 345], [1600, 363], [2000, 355], [2400, 340], [2800, 320], [3100, 210]] },
@@ -182,7 +183,7 @@ const ENGINE = {
   // the Wrangler's 3.6 Pentastar V6: 213 kW at 6,400 rpm, 353 Nm at 4,800; and the 6.4 HEMI V8 (the 392): 350 kW, 637 Nm
   V6_36: { name: '3.6 Pentastar V6', idleRpm: 650, redline: 6400, limiter: 6600, inertia: 0.19, friction: [12, 0.018], bank: 'v6', bankPitch: 1, turbo: 0, sound: 'i6_bmw', pitch: 0.95, mass: 0,
     torque: [[600, 210], [1000, 262], [1500, 290], [2000, 305], [2500, 316], [3000, 326], [3500, 336], [4000, 345], [4800, 353], [5500, 342], [6000, 328], [6400, 318], [6800, 240]] },
-  V8_64: { name: '6.4 HEMI V8', idleRpm: 650, redline: 6000, limiter: 6400, inertia: 0.36, friction: [20, 0.026], bank: 'v8m', bankPitch: 0.95, turbo: 0, sound: 'v8_muscle', pitch: 0.96, mass: 60,
+  V8_64: { name: '6.4 HEMI V8', idleRpm: 650, redline: 6000, limiter: 6400, inertia: 0.36, friction: [20, 0.026], bank: 'v8m', bankPitch: 0.95, turbo: 0, sound: 'v8_muscle', pitch: 0.96, mass: 60, loud: 1.4, bass: 7,
     torque: [[600, 380], [1000, 480], [1500, 540], [2000, 575], [3000, 610], [4300, 637], [5000, 625], [6000, 557], [6400, 500], [6800, 340]] },
   // the Bronco's 2.7 EcoBoost twin-turbo V6: 246 kW at 5,250 rpm, 563 Nm at 3,100; and the Bronco Raptor's 3.0
   // EcoBoost: 312 kW at 5,750, 597 Nm at 3,500
@@ -200,13 +201,13 @@ const ENGINE = {
   D20BT: { name: 'EcoBlue 2.0 bi-turbo diesel', idleRpm: 750, redline: 4200, limiter: 4400, inertia: 0.2, friction: [14, 0.024], bank: 'd4t', bankPitch: 1.02, turbo: 2, sound: 'i6_bmw', pitch: 0.72, mass: 0, cyl: 4, diesel: true,
     torque: [[600, 230], [1000, 360], [1400, 460], [1750, 500], [2000, 500], [2500, 472], [3000, 445], [3750, 400], [4200, 340], [4500, 200]] },
   // the Ram HD's 6.4 HEMI V8 (the trucks' tune): 306 kW at 5,600 rpm, 582 Nm at 4,000
-  V8_64HD: { name: '6.4 HEMI V8', idleRpm: 650, redline: 5800, limiter: 6100, inertia: 0.36, friction: [20, 0.026], bank: 'v8', bankPitch: 0.92, turbo: 0, sound: 'v8_muscle', pitch: 0.95, mass: 0,
+  V8_64HD: { name: '6.4 HEMI V8', idleRpm: 650, redline: 5800, limiter: 6100, inertia: 0.36, friction: [20, 0.026], bank: 'v8m', bankPitch: 0.84, turbo: 0, sound: 'v8_muscle', pitch: 0.92, mass: 0, loud: 2.6, bass: 9,
     torque: [[600, 340], [1000, 430], [1500, 485], [2000, 520], [2500, 545], [3000, 562], [3500, 575], [4000, 582], [4500, 575], [5000, 560], [5600, 520], [6000, 470], [6400, 330]] },
   // the H1 Alpha's 6.6 Duramax (LLY) turbo-diesel V8: 224 kW at 3,200 rpm, 705 Nm at 1,800; and the later L5P Duramax:
   // 332 kW at 2,800, 1,234 Nm at 1,600
-  V8_66D: { name: '6.6 Duramax turbo-diesel V8', idleRpm: 680, redline: 3300, limiter: 3500, inertia: 0.5, friction: [24, 0.03], bank: 'd8', bankPitch: 1, turbo: 1, sound: 'v8_muscle', pitch: 0.7, mass: 0, diesel: true,
+  V8_66D: { name: '6.6 Duramax turbo-diesel V8', idleRpm: 680, redline: 3300, limiter: 3500, inertia: 0.5, friction: [24, 0.03], bank: 'd8', bankPitch: 1, turbo: 1, sound: 'v8_muscle', pitch: 0.7, mass: 0, loud: 1.2, bass: 5, diesel: true,
     torque: [[500, 340], [800, 480], [1200, 620], [1500, 690], [1800, 705], [2400, 700], [2800, 685], [3200, 668], [3500, 540], [3800, 300]] },
-  V8_66L5P: { name: '6.6 Duramax L5P', idleRpm: 680, redline: 3300, limiter: 3500, inertia: 0.52, friction: [25, 0.031], bank: 'd8', bankPitch: 0.98, turbo: 1, sound: 'v8_muscle', pitch: 0.72, mass: 30, diesel: true,
+  V8_66L5P: { name: '6.6 Duramax L5P', idleRpm: 680, redline: 3300, limiter: 3500, inertia: 0.52, friction: [25, 0.031], bank: 'd8', bankPitch: 0.98, turbo: 1, sound: 'v8_muscle', pitch: 0.72, mass: 30, loud: 1.25, bass: 6, diesel: true,
     torque: [[500, 520], [800, 820], [1200, 1100], [1600, 1234], [2000, 1220], [2400, 1160], [2800, 1132], [3200, 960], [3500, 700], [3800, 380]] },
   // the GMC Hummer EV Edition 1's three motors (one front, two rear): 746 kW (1,000 hp) all told, ~1,400 Nm at the
   // motors (about 17,500 Nm at the wheels through the 12.5:1 reduction) from a standstill to ~4,800 rpm, then constant
@@ -520,6 +521,7 @@ export function buildSpec(base, buildIn) {
   spec.engine = { ...eng };
   spec.engineSound = eng.sound; spec.soundPitch = eng.pitch;          // (the recorded loops: the fallback)
   spec.engineBank = eng.bank; spec.bankPitch = eng.bankPitch || 1;     // the grain engine's bank (audio/engine-worklet.js)
+  spec.engineLoud = eng.loud || 1; spec.engineBass = eng.bass || 0;
   spec.turbo = eng.turbo || 0;                                         // 1 turbo-diesel, 2 twin-turbo petrol
   const tr = TRANSMISSIONS[b.trans];
   spec.trans = {
