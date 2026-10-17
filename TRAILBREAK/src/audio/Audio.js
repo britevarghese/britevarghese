@@ -367,7 +367,7 @@ export class Audio {
     if (spec.engine?.electric) return new ElectricVoice(this, out);
     if (spec.engineBank && await this.grainsReady) {
       const bank = await this.loadBank(spec.engineBank).catch((e) => { console.warn('engine bank', spec.engineBank, e); return null; });
-      if (bank) return new GrainVoice(this, bank, out, { idle: spec.engine.idleRpm, pitch: spec.bankPitch || 1, loud: spec.engineLoud || 1, bass: spec.engineBass || 0 });
+      if (bank) return new GrainVoice(this, bank, out, { idle: spec.engine.idleRpm, loud: spec.engineLoud || 1, bass: spec.engineBass || 0 });
     }
     const set = await this.loadSet(spec.engineSound).catch(() => null);
     return set ? new EngineVoice(this, set, out, spec.soundPitch || 1) : null;

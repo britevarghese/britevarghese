@@ -328,14 +328,14 @@ def write_credits(cache, src):
     lines = ['# Sound credits', '',
              'Engine recordings from [Freesound](https://freesound.org), used under their licences. Each engine bank is cut',
              'into single firings (tools/sounds/build_grains.py) that the game plays back at its own engine\'s revs',
-             '(src/audio/engine-worklet.js); recordings from another engine fill the top of the rev range where the bank\'s',
-             'own stop, filtered to match it.', '']
+             '(src/audio/engine-worklet.js); recordings from another engine fill the rev range where the bank\'s own stop,',
+             'filtered to match it.', '']
     for name, bank in src['banks'].items():
         lines.append(f"- Bank `{name}` ({bank.get('about', '')}):")
         for part in bank['parts']:
             fetch(cache, part)
             ln, lu = license_of(cache, part)
-            role = ' (the top of the revs)' if part.get('rMin') else ''
+            role = f" ({part.get('role', 'the top of the revs')})" if part.get('rMin') else ''
             lines.append(f"  - \"{part['title']}\" by {part['user']}, https://freesound.org/s/{part['id']}/ ({ln}, {lu}){role}")
     lines += ['', 'Fallback engine loops (browsers without AudioWorklet), cut at six rpm points for NIGHTSHIFT and reused here:']
     for name, part in FALLBACK:

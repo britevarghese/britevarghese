@@ -2,8 +2,8 @@
 
 Engine recordings from [Freesound](https://freesound.org), used under their licences. Each engine bank is cut
 into single firings (tools/sounds/build_grains.py) that the game plays back at its own engine's revs
-(src/audio/engine-worklet.js); recordings from another engine fill the top of the rev range where the bank's
-own stop, filtered to match it.
+(src/audio/engine-worklet.js); recordings from another engine fill the rev range where the bank's own stop,
+filtered to match it.
 
 - Bank `v6` (Honda / Acura 3.2 V6 (J32: a 60-degree even-firing V6 like the Pentastar), a microphone just above the exhaust):
   - "Sports Car Idling - Exhaust" by EvanBoyerman, https://freesound.org/s/754777/ (CC BY 4.0, https://creativecommons.org/licenses/by/4.0/)
@@ -17,17 +17,17 @@ own stop, filtered to match it.
 - Bank `i6` (Jaguar E-type 4.2 XK straight six (the size of a Jeep or Land Cruiser 4.2 six), engine side: idle and a rev):
   - "E-type Jaguar, car engine, rev, idle ,mono.wav" by Dan_AudioFile, https://freesound.org/s/614700/ (CC BY 4.0, https://creativecommons.org/licenses/by/4.0/)
   - "Sports Car Accelerating/Speeding Up Fast - Exhaust" by EvanBoyerman, https://freesound.org/s/754775/ (CC BY 4.0, https://creativecommons.org/licenses/by/4.0/) (the top of the revs)
-- Bank `i4` (Suzuki Jimny four: idle and gentle revs):
+- Bank `i4` (Suzuki Jimny four at its idle; Rover 216 GSi (a 1.6 sixteen-valve four) revving to 6,900 rpm):
   - "Car being turned on, revved and off( Suzuki Jimny).wav" by 221316, https://freesound.org/s/655653/ (CC BY 4.0, https://creativecommons.org/licenses/by/4.0/)
-  - "Sports Car Accelerating/Speeding Up Fast - Exhaust" by EvanBoyerman, https://freesound.org/s/754775/ (CC BY 4.0, https://creativecommons.org/licenses/by/4.0/) (the top of the revs)
-  - "Sports Car Accelerating/Speeding Up Medium - Exhaust" by EvanBoyerman, https://freesound.org/s/754776/ (CC BY 4.0, https://creativecommons.org/licenses/by/4.0/) (the top of the revs)
-- Bank `v8` (1978 Cadillac Eldorado 425 V8 at the exhaust: fast idle):
-  - "1978 Cadillac Eldorado Biarritz - Engine Start, Exhaust Idle, Revving and Shutdown" by inspire153, https://freesound.org/s/873856/ (CC0 1.0, https://creativecommons.org/publicdomain/zero/1.0/)
-  - "Sports Car Accelerating/Speeding Up Fast - Exhaust" by EvanBoyerman, https://freesound.org/s/754775/ (CC BY 4.0, https://creativecommons.org/licenses/by/4.0/) (the top of the revs)
-  - "Sports Car Accelerating/Speeding Up Medium - Exhaust" by EvanBoyerman, https://freesound.org/s/754776/ (CC BY 4.0, https://creativecommons.org/licenses/by/4.0/) (the top of the revs)
-- Bank `v8m` (A cammed V8 (wikusv's 'Idle and Rev'): the lope at idle):
+  - "car engine revving up to 7000 rpm (Rover 216 GSi).aif" by Tomlija, https://freesound.org/s/106553/ (CC BY 3.0, https://creativecommons.org/licenses/by/3.0/)
+- Bank `v8` (Chevrolet Caprice V8 at the exhaust: idle and holds; Dodge Ram 1500 5.7 V8 by the mufflers, pulling on the road; above 2,100 rpm, a V6 at the exhaust):
+  - "Chevrolet Caprice (motor at different speeds & driving away)" by romanholtwick, https://freesound.org/s/391671/ (CC0 1.0, https://creativecommons.org/publicdomain/zero/1.0/)
+  - "V8 Dodge RAM 1500 Engine Starting, Idling, then Driving for around 1:30 minutes." by sketchy.dog, https://freesound.org/s/760153/ (CC BY 4.0, https://creativecommons.org/licenses/by/4.0/) (pulling on the road, above about 1,000 rpm)
+  - "Sports Car Accelerating/Speeding Up Fast - Exhaust" by EvanBoyerman, https://freesound.org/s/754775/ (CC BY 4.0, https://creativecommons.org/licenses/by/4.0/) (the top of the revs, above 2,100 rpm)
+- Bank `v8m` (A cammed V8 (wikusv's 'Idle and Rev'): the lope at idle; Dodge Ram 1500 5.7 HEMI V8 by the mufflers, pulling on the road; above 2,100 rpm, a V6 at the exhaust):
   - "Idle and Rev - Engine.wav" by wikusv, https://freesound.org/s/232272/ (CC BY 4.0, https://creativecommons.org/licenses/by/4.0/)
-  - "Sports Car Accelerating/Speeding Up Fast - Exhaust" by EvanBoyerman, https://freesound.org/s/754775/ (CC BY 4.0, https://creativecommons.org/licenses/by/4.0/) (the top of the revs)
+  - "V8 Dodge RAM 1500 Engine Starting, Idling, then Driving for around 1:30 minutes." by sketchy.dog, https://freesound.org/s/760153/ (CC BY 4.0, https://creativecommons.org/licenses/by/4.0/) (pulling on the road, above about 1,000 rpm)
+  - "Sports Car Accelerating/Speeding Up Fast - Exhaust" by EvanBoyerman, https://freesound.org/s/754775/ (CC BY 4.0, https://creativecommons.org/licenses/by/4.0/) (the top of the revs, above 2,100 rpm)
 - Bank `d8` (Ford F-350 turbo-diesel V8: idle):
   - "Diesel Start-Idle-Revs MZ000004.wav" by DAVESTALKER, https://freesound.org/s/443319/ (CC0 1.0, https://creativecommons.org/publicdomain/zero/1.0/)
   - "vw diesel engine.mp3" by Evilmikie, https://freesound.org/s/448217/ (CC0 1.0, https://creativecommons.org/publicdomain/zero/1.0/) (the top of the revs)
