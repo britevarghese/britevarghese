@@ -1,13 +1,13 @@
-// The trucks: original designs modelled on the classic four-wheel drives of the world, with their real wheelbases,
-// tracks, weights, engines and gearing. Body-on-frame, a solid (beam) axle at each end on leaf or coil springs, a
-// manual or automatic gearbox and a two-speed part-time transfer case (the expedition truck: portal axles and an
-// eight-speed box instead).
+// The trucks: real four-wheel drives of the world (each body a real 3D model: render/TruckAssets.js), with their real
+// wheelbases, tracks, weights, engines and gearing. Most are body-on-frame on beam axles (leaf or coil springs), some
+// independent at one end or both; a manual or automatic gearbox and a two-speed transfer case (the Unimog: portal axles
+// and an eight-speed box; the Hummer EV: electric motors and one gear).
 //
 //   Gecko     the Lada Niva (a real model)                             Mule     the Willys MB, the original jeep (a real model)
 //   Ranger    the UAZ Hunter (a real model)                            Trekker  the Ford Ranger Raptor (a real model)
 //   Shepherd  the Land Rover Defender 110 (a real model)               Drover   the Mitsubishi Pajero (a real model)
 //   Hauler    the Chevrolet K20 Suburban (a real model)                 Bruiser  the Ram 2500 Power Wagon (a real model)
-//   Rhino     portal-axle expedition truck (the German unstoppable)
+//   Rhino     the Mercedes-Benz Unimog U1300L (a real model)
 //
 // Each entry is the truck as it leaves the factory: stock height, stock tyres. Upgrades.js turns it and a build
 // (lift, tyres, gears, lockers...) into the spec the physics drives: use truckSpec(id, build).
@@ -262,25 +262,30 @@ export const TRUCKS = {
     style: 'bruiser', look: { bed: true, coils: true },
   },
   rhino: {
-    id: 'rhino', name: 'Rhino',
-    blurb: 'Portal-axle expedition truck: 128" wheelbase, 5.7 diesel six, eight-speed, lockers both ends, tyre inflation from the cab, 44 cm under the diffs. Six tons; nothing stops it.',
-    mass: 6200, cgHeight: 1.25, cgZ: 0.3, inertiaBox: [2.2, 2.0, 5.2],
+    // the Mercedes-Benz Unimog U1300L (the 435, built from 1975, the German army's two-tonner): 3,250 mm wheelbase,
+    // portal axles on coil springs at both ends, diff locks front and rear, the cab over the front axle, and here a box
+    // body on the back (a real model: render/TruckAssets.js)
+    id: 'rhino', name: 'Mercedes-Benz Unimog U1300L',
+    blurb: 'Unimog U1300L with a box body: 128" wheelbase, the OM 352 5.7 diesel six, an eight-speed box, portal axles on coils, diff locks at both ends, tyre inflation from the cab, 46 cm under the diffs. Six tons that go where nothing else can.',
+    mass: 6200, cgHeight: 1.25, cgZ: 0.15, inertiaBox: [2.2, 2.2, 5.4],
     axles: [
       { z: 1.625, track: 1.86, springTrack: 1.1, rate: 260000, bump: 9000, rebound: 18000, travel: 0.3, sag: 0.09, mass: 420, steer: 0.5, brake: 14000, swayBar: 80000, diffDrop: 0.06, plateDrop: -0.12, diffX: 0 },
       { z: -1.625, track: 1.86, springTrack: 1.1, rate: 240000, bump: 8500, rebound: 17000, travel: 0.32, sag: 0.1, mass: 430, steer: 0, brake: 9000, handbrake: 14000, diffDrop: 0.06, plateDrop: -0.12, diffX: 0 },
     ],
     trans: { tcK: 6 },
     stock: { tyre: 42, axle: 7.17, trans: 6, fit: 44, low: 1.0, diffs: 3, wheels: 1, intake: 1, psi: 55 },
+    stockTyre: { label: '12.5 R20', radius: 0.54, width: 0.318, rim: 20, desc: 'Military-pattern 12.5 R20 radials on 20" steel wheels, 1.08 m tall.' },
+    only: { intake: [1] },                                                  // (its own raised intake, behind the cab)
     hull: [
-      { c: [0, 1.17, -0.045], h: [1.1, 0.33, 2.77], pts: 'bottom' },        // chassis and bed floor: bumpers 0.84 m up
-      { c: [0, 0.82, 0], h: [0.45, 0.12, 1.1], pts: 'bottom' },             // belly: 0.7 m up
-      { c: [0, 2.2, 1.45], h: [1.05, 0.63, 0.95], pts: 'top' },             // cab over the front axle, roof 2.83 m
-      { c: [0, 1.75, -1.2], h: [1.1, 0.2, 1.6], pts: 'top' },               // the bed's drop sides
+      { c: [0, 1.205, -0.22], h: [1.08, 0.525, 2.79], pts: 'bottom' },      // chassis and bonnet: bumpers 0.68 m up, the bonnet 1.73
+      { c: [0, 0.68, 0.1], h: [0.83, 0.22, 0.68], pts: 'bottom' },          // belly: the tanks and boxes between the axles, 0.46 m up
+      { c: [0, 2.14, 0.98], h: [1.04, 0.41, 0.62], pts: 'top' },            // the cab over the front axle, roof 2.55 m
+      { c: [0, 1.96, -1.345], h: [1.08, 0.835, 1.665], pts: 'top' },        // the box body, 2.8 m
     ],
-    roofY: 2.83, cabZ: 1.4, noseZ: 2.725, rackZ: 1.45,
-    intakePos: [-0.6, 1.25, 2.0], snorkelPos: [-1.0, 1.55, 0.6],
-    winch: { fairlead: [0, 0.95, 2.78] },
-    eye: [0.5, 2.35, 1.9], hoodEye: [0, 2.0, 2.6],
+    roofY: 2.55, cabZ: 1.0, noseZ: 2.57, rackZ: 1.0,
+    intakePos: [-0.6, 1.2, 2.0], snorkelPos: [-0.95, 1.28, 0.4],
+    winch: { fairlead: [0, 0.8, 2.58] },
+    eye: [0.5, 2.13, 1.1], hoodEye: [0, 1.9, 2.3],
     drag: { cd: 0.8, area: 6.2 },
     buoyancy: 0.25,
     shafts: [30000, 32000], tyreK: 2.8, tyreLoad: 15000, parts: 1.8,

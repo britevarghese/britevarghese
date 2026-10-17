@@ -8,12 +8,13 @@ gets stuck.
 
 Nothing to install for players: they open the server's address in Chrome, Edge or Firefox.
 
-- **Engine:** three.js (WebGL2). Each map is generated identically on every client from a fixed seed, and the
-  trucks, boulders and buildings are built from code. The ground wears photo-scanned textures (grass, pine-needle
-  forest floor, trail dirt, gravel, rock, mud, sand, snow, river stones; for Kerala red laterite, granite, red mud,
-  the leaf litter and the roads: 9 MB in all), blended per metre by their height maps. The trees are ten real species
-  (game models, 5 MB): the full model close up, and beyond that a picture of it rendered when the game starts. Meadow grass grows in tufts around you, the sky has drifting clouds and stars, and
-  everything is lit by (and the paint and water reflect) that sky. Water is as clear or as muddy as it is deep.
+- **Engine:** three.js (WebGL2). Each map is generated identically on every client from a fixed seed, the trucks are
+  real 3D models, and the boulders and buildings are built from code. The ground wears photo-scanned textures (grass,
+  pine-needle forest floor, trail dirt, gravel, rock, mud, sand, snow, river stones; for Kerala red laterite, granite,
+  red mud, the leaf litter and the roads: 9 MB in all), blended per metre by their height maps. The trees are ten real
+  species (game models, 5 MB): the full model close up, and beyond that a picture of it rendered when the game starts.
+  Meadow grass grows in tufts around you, the sky has drifting clouds and stars, and everything is lit by (and the paint
+  and water reflect) that sky. Water is as clear or as muddy as it is deep.
 - **Physics:** written for off-roading, running at 480 Hz (see [The physics](#the-physics)).
 - **Server:** Node.js 18+ with no npm dependencies. Static files, http and https on one port, and WebSocket rooms.
 
@@ -149,7 +150,7 @@ draws on firings recorded pulling and slowing. The banks (public/assets/audio/en
 | --- | --- | --- |
 | `d4` | Toyota Hilux turbo-diesel four (the top of the revs from a VW TDI) | Thar diesel, Pajero, the UAZ's and the Niva's diesels |
 | `d4t` | VW 1.9 TDI turbo-diesel four | Defender 110, Ranger Raptor |
-| `d6` | Ram 5.9 Cummins turbo-diesel six (the top of the revs from the TDI) | Rhino, the Power Wagon's Cummins swap |
+| `d6` | Ram 5.9 Cummins turbo-diesel six (the top of the revs from the TDI) | Unimog, the Power Wagon's Cummins swap |
 | `d8` | Ford F-350 turbo-diesel V8 (the top of the revs from the TDI) | Hummer H1 |
 | `v6` | Acura 3.2 V6, a mic at the exhaust while driving | Wrangler, Bronco, the Pajero's V6 |
 | `v8` | 1978 Cadillac 425 V8 (the top of the revs from the V6) | K20 Suburban, Ram Power Wagon, the V8 swaps |
@@ -217,17 +218,17 @@ steam.
 ## Money, the dealer and events
 
 Each driver has a career, kept in their own browser: money, the trucks and parts they own, their best times. You
-start with $2,500. **For now every truck and every garage part is free**: pick any of the nine in the lobby or at the
-dealer and drive it, and fit it with anything in the garage at no charge (`FREE_TRUCKS` and `FREE_PARTS` in
+start with $2,500. **For now every truck and every garage part is free**: pick any of the fourteen in the lobby or at
+the dealer and drive it, and fit it with anything in the garage at no charge (`FREE_TRUCKS` and `FREE_PARTS` in
 `src/game/Career.js` turn the dealer's and the garage's prices back on). The truck you pick in the lobby turns in 3D above
 the list, in its build and paint (drag to turn it); at the dealer, tap any truck to see it the same way.
 
 - **Earning:** surveying a beacon pays a $600 bounty (friends in the room get a share when you find one), towing a
   friend out pays a rescue fee, and events pay prize money.
-- **Spending:** the dealer (pause menu, or the truck list in the lobby) sells nine trucks, from the $4,500 Gecko to
-  the $42,000 Rhino (see [The trucks](#the-trucks)); the garage prices every part and bills only for parts you haven't
-  bought for that truck (once bought, a part is yours to fit and take off again). Repairs and the tow truck cost money,
-  and can run you into the red (down to -$5,000): a truck is never left broken.
+- **Spending:** the dealer (pause menu, or the truck list in the lobby) sells fourteen trucks, from the $4,500 Lada Niva
+  to the $42,000 Unimog (see [The trucks](#the-trucks)); the garage prices every part and bills only for parts you
+  haven't bought for that truck (once bought, a part is yours to fit and take off again). Repairs and the tow truck cost
+  money, and can run you into the red (down to -$5,000): a truck is never left broken.
 
 **Events** (pause menu > Events, or the chequered flags on the map): each map has four. Drive to a start line and
 press **J**. The truck is lined up and counted down; drive through the gates in order to the finish. Beat the par
@@ -322,11 +323,11 @@ lies, go back to the last firm, dry ground you drove on, call your friends for a
 
 ## The trucks
 
-Real trucks with real 3D models (the Mahindra Thar you start in, the Lada Niva, the Willys MB, the UAZ Hunter, the
+Real trucks with real 3D models: the Mahindra Thar you start in, the Lada Niva, the Willys MB, the UAZ Hunter, the
 Chevrolet K20 Suburban, the Mitsubishi Pajero, the Jeep Wrangler Rubicon, the Ford Bronco, the Ford Ranger Raptor, the
-Ram 2500 Power Wagon, the Hummer H1, the electric GMC Hummer EV and the Land Rover Defender 110) and the original
-designs, each built to the real numbers of the kind of truck it is, from a one-ton micro 4x4 to a six-ton portal-axle
-expedition truck. Every one takes every part in the garage.
+Ram 2500 Power Wagon, the Hummer H1, the electric GMC Hummer EV, the Land Rover Defender 110 and the Mercedes-Benz
+Unimog U1300L, each built to its real numbers, from a one-ton jeep to a six-ton portal-axle truck. Every one takes every
+part in the garage.
 
 | Truck | Price | Kind | Wheelbase | Weight | Engine | Gearbox | Low range / axles | Stock tyres | Under the diffs | Approach / departure / breakover |
 |---|---|---|---|---|---|---|---|---|---|---|
@@ -343,14 +344,14 @@ expedition truck. Every one takes every part in the garage.
 | Ram 2500 Power Wagon | $24,000 | the crew-cab Power Wagon: coils on beam axles at both ends, lockers front and rear, a front sway bar that disconnects, traction control | 3.80 m (149") | 3280 kg | 6.4 HEMI V8, 582 Nm | 6-speed automatic | 2.64 / 4.10 | LT315/70 R17 M/T (35") | 22 cm | 32 / 25 / 29 degrees |
 | Hummer H1 | $32,000 | the H1 Alpha hard top, the civilian Humvee: independent suspension at both ends on geared hubs, tyre inflation from the cab, Torsen rear, brake traction control | 3.30 m (130") | 3650 kg | 6.6 Duramax turbo-diesel V8, 705 Nm | Allison 5-speed automatic | 2.72 / 5.24 (with the hub gears) | 37x12.50 R17 | 38 cm | 49 / 41 / 32 degrees |
 | GMC Hummer EV | $38,000 | the Edition 1 pickup, electric: three motors, e-lockers at both ends, independent suspension on air springs (at its raised Terrain height), traction control | 3.45 m (136") | 4110 kg | three electric motors, 746 kW (1,000 hp), ~1,400 Nm from a standstill | single-speed reduction | none / 12.5 | LT315/70 R17 (35") | 33 cm | 44 / 33 / 22 degrees |
-| Rhino | $42,000 | portal-axle expedition truck | 3.25 m (128") | 6200 kg | 5.7 diesel six, 363 Nm | 8-speed truck box, 9:1 first | none / 7.17 | 395/85R20 (42") | 45 cm | 43 / 40 / 50 degrees |
+| Mercedes-Benz Unimog U1300L | $42,000 | the 435 two-tonner with a box body: portal axles on coils at both ends, diff locks front and rear, tyre inflation from the cab | 3.25 m (128") | 6200 kg | OM 352 5.7 diesel six, 363 Nm | 8-speed truck box, 9:1 first | none / 7.17 | 12.5 R20 (42") | 46 cm | 42 / 28 / 33 degrees |
 
 They drive like what they are. The Niva weighs 1.3 tons and floats over mud, but it is slow and narrow on a side slope.
-The heavy trucks run their tyres harder (45 psi on the Power Wagon, 55 on the Rhino: P steps down through two-thirds and
-two-fifths of that to the wheels' minimum), carry stiffer tyres and stronger axle shafts, and their parts cost more to
-buy and fit. The Rhino's portal axles ride the diffs high above the hubs: 45 cm under them on stock tyres. It has
-lockers at both ends, onboard air and a raised intake from the factory, and wades 1.5 m. It is also slow: 0-60 km/h
-takes 20 seconds and it tops out at 84 km/h.
+The heavy trucks run their tyres harder (45 psi on the Power Wagon, 55 on the Unimog: P steps down through two-thirds
+and two-fifths of that to the wheels' minimum), carry stiffer tyres and stronger axle shafts, and their parts cost more
+to buy and fit. The Unimog's portal axles ride the diffs high above the hubs: 46 cm under them on stock tyres. It has
+diff locks at both ends, onboard air and its air intake high up behind the cab from the factory, and wades 1.2 m. It is
+also slow: 0-60 km/h takes 21 seconds and it tops out at 85 km/h.
 
 The **GMC Hummer EV** is electric. Its motors are geared straight to the axles (12.5:1, one gear), so it has all of its
 torque from a standstill and nothing to shift: 0-100 km/h in under 4 seconds, four tons and all. There is no idle, so
@@ -361,23 +362,20 @@ than its battery is sealed for (32 inches) the power is cut back instead. The di
 revs, green while it regenerates, and it sounds like an electric truck: the motors' whine rising with the speed, the
 inverters, and a low hum at walking pace. The garage takes everything but a gearbox, a crawl box or a snorkel.
 
-The Thar's, the Wrangler's, the Bronco's, the Hummers' and the Defender's bodies are real 3D models (see [Credits](#credits)), converted by
-`tools/cars.py` into the game's frame (narrowed to the real trucks' widths, the dense ones simplified): the
-game paints it any colour, cracks its glass, lights its lamps and fits its own wheels, axles and suspension under it,
-and every garage part goes on it as on the others (the lift raises the model, the tyres grow in its arches). Its front
-is independent: each front wheel rides its own wishbones, and the springs carry each wheel alone. Its rear auto-locker
-locks the rear axle by itself when a wheel spins below about 30 km/h (the HUD shows MLD LOCKED), and in 4WD the brakes
-hold back a spinning front wheel. The mHawk diesel pulls its 300 Nm from 1,600 to 2,800 rpm; the garage has a remap,
-the mStallion 2.0 turbo-petrol and the six-speed automatic for it. The Bronco and the Wrangler have traction control:
-with the lockers off, the brakes hold back a wheel that spins away from the other on either axle, and when every wheel
-spins, the engine is throttled back until they bite. The Bronco's
-ten-speed automatic (as the garage's six-speed) reads the grade: it holds its gear while a climb slows the truck, and
-skips straight down several gears when it must.
+Every truck's body is a real 3D model (see [Credits](#credits)), converted by `tools/cars.py` into the game's frame
+(scaled to the real truck's wheelbase and width, the dense ones simplified): the game paints it any colour, cracks its
+glass, lights its lamps and fits its own wheels, axles and suspension under it (leaf or coil springs and shocks that
+flex with the axles, wishbones on the independent ones, the Unimog's portal hubs), and every garage part goes on it (the
+lift raises the model, the tyres grow in its arches).
 
-The other models are built from code: body panels with real wheel arches, opening seams, glass you can see the interior
-through (the steering wheel turns), a ladder frame with the engine, gearbox, transfer case, tank and exhaust under it,
-leaf or coil springs and shocks that flex with the axles (and the Rhino's portal hubs and spring towers), brake and
-reverse lamps, and every garage part on the truck.
+The Thar's front is independent: each front wheel rides its own wishbones, and the springs carry each wheel alone. Its
+rear auto-locker locks the rear axle by itself when a wheel spins below about 30 km/h (the HUD shows MLD LOCKED), and in
+4WD the brakes hold back a spinning front wheel. The mHawk diesel pulls its 300 Nm from 1,600 to 2,800 rpm; the garage
+has a remap, the mStallion 2.0 turbo-petrol and the six-speed automatic for it. The Bronco and the Wrangler have
+traction control: with the lockers off, the brakes hold back a wheel that spins away from the other on either axle, and
+when every wheel spins, the engine is throttled back until they bite. The Bronco's ten-speed automatic (as the garage's
+six-speed) reads the grade: it holds its gear while a climb slows the truck, and skips straight down several gears when
+it must.
 
 ## The garage
 
@@ -401,10 +399,10 @@ Every part changes the physics, the way it does on a real truck:
 - **Wheels and air:** steel wheels can be aired down to 14 psi, beadlocks to 6. Aired down, the footprint gets longer
   and wider, so the tyre floats over sand and mud instead of digging in, and wraps over rock; on firm ground it rolls
   harder and steers vaguely. Without a compressor you can only air back up at the station.
-- **Axle gears (3.54 to 7.17), 4:1 crawl box, gearbox (seven, from a 3-speed automatic to an 8-speed truck box):** the
-  crawl ratio, from 28.7:1 on a stock Willys MB to 258:1 on a Rhino with the crawl box (walking pace at idle, and slower). The
-  manual gearboxes have no torque converter: no creep, and in low range the engine holds the truck back down steep
-  hills.
+- **Axle gears (3.54 to 7.17), 4:1 crawl box, gearbox (fourteen, from a 3-speed manual to a 10-speed automatic and an
+  8-speed truck box):** the crawl ratio, from 28.7:1 on a stock Willys MB to 258:1 on a Unimog with the crawl box
+  (walking pace at idle, and slower). The manual gearboxes have no torque converter: no creep, and in low range the
+  engine holds the truck back down steep hills.
 - **Differentials:** open (the wheel with the least grip gets the power), a clutch-type limited-slip rear (always on, up
   to 2.6 times the torque to the wheel with grip, a dab of brake helps it), or selectable lockers.
 - **Engine:** stock, tuned (+13% torque), or a swap (the big-block weighs 45-80 kg more over the front axle).
@@ -527,9 +525,9 @@ src/world/                WorldGen (a map's world, from its definition), World (
 src/world/maps/           the maps: index (the list), ashwood, kerala (each one's land, river, trails, beacons,
                           buildings, events and its own generator hooks: Kerala's tea, paddies and quarry)
 src/render/               Renderer, Sky, Terrain (LOD patches), Vegetation, Tea (the estates' rows of bushes), Rocks,
-                          Water, Landmarks and KeralaBuildings, TruckModel
-                          (chassis, axles, wheels, parts) and TruckBodies (the newer trucks' bodies), Effects
-                          (particles, winch line), EventCourse (start banners, gates)
+                          Water, Landmarks and KeralaBuildings, TruckModel (chassis, axles, wheels, parts), TruckAssets
+                          (each truck's real model) and TruckBodies (built-in bodies that stand in while a model loads),
+                          Effects (particles, winch line), EventCourse (start banners, gates)
 src/core/                 Game (the loop), Input, CameraRig
 src/game/                 Career (money, trucks, parts, best times), Events (the courses, runs, medals, races),
                           EventPlay (events in the game: start lines, countdown, clock, prizes, races with friends)
@@ -549,13 +547,13 @@ Suburban, "1970 Truck" by Raphael Escamilla (Raffey); the Mitsubishi Pajero, "Mi
 Ford Ranger Raptor, "Ford ranger raptor" by haraldina; the Ram 2500 Power Wagon, "Dodge Ram 2500" by VanuaG; the Jeep
 Wrangler, "Jeep Wrangler 3D Model" by Suyog modak; the Ford Bronco, "Bronco Car Animation (Red)" by neshallads; the
 Hummer H1, "Hummer H1 (Retry School)" by Voxel_CG; the Land Rover Defender 110, "Land Rover Defender 110" by meeww; the
-GMC Hummer EV, "GMC Hummer EV 2022" by Unn Interativa; on Sketchfab, CC BY 4.0, see
-`public/assets/trucks/CREDITS.md` (converted with `tools/cars.py`). Engine sounds: see `public/assets/audio/CREDITS.md`
-(Freesound, CC0 and CC BY 4.0; built with `tools/sounds/build_grains.py`). Ground textures: CC0 scans from Poly
-Haven and ambientCG, see `public/assets/ground/CREDITS.md` (packed with `tools/ground.py`). Tree models: pine, fir,
-spruce, birch, coconut palm, oak (as mango), elm (as rubber), banana and bamboo by evolveduk, and the jungle tree by
-kobaltsecond6c7d6150917a4267, on Sketchfab, CC BY 4.0, see `public/assets/trees/CREDITS.md` (converted with
-`tools/trees.py`). three.js
-is MIT licensed (`public/vendor/three/LICENSE`). Type: Barlow and Barlow Condensed by The Barlow Project Authors, SIL
-Open Font License 1.1 (`public/assets/fonts/OFL.txt`). Icons: most are Material Icons by Google, Apache License 2.0.
-The lobby's and the cards' pictures are rendered in the game. Everything else is original.
+GMC Hummer EV, "GMC Hummer EV 2022" by Unn Interativa; the Mercedes-Benz Unimog U1300L, "Unimog Truck" by Levi Giovani;
+on Sketchfab, CC BY 4.0, see `public/assets/trucks/CREDITS.md` (converted with `tools/cars.py`). Engine sounds: see
+`public/assets/audio/CREDITS.md` (Freesound, CC0 and CC BY 4.0; built with `tools/sounds/build_grains.py`). Ground
+textures: CC0 scans from Poly Haven and ambientCG, see `public/assets/ground/CREDITS.md` (packed with
+`tools/ground.py`). Tree models: pine, fir, spruce, birch, coconut palm, oak (as mango), elm (as rubber), banana and
+bamboo by evolveduk, and the jungle tree by kobaltsecond6c7d6150917a4267, on Sketchfab, CC BY 4.0, see
+`public/assets/trees/CREDITS.md` (converted with `tools/trees.py`). three.js is MIT licensed
+(`public/vendor/three/LICENSE`). Type: Barlow and Barlow Condensed by The Barlow Project Authors, SIL Open Font License
+1.1 (`public/assets/fonts/OFL.txt`). Icons: most are Material Icons by Google, Apache License 2.0. The lobby's and the
+cards' pictures are rendered in the game. Everything else is original.

@@ -171,7 +171,7 @@ const ENGINE = {
     torque: [[500, 300], [800, 420], [1200, 540], [1600, 570], [2000, 560], [2400, 520], [2800, 470], [3000, 440], [3300, 290]] },
   I6_67CR: { name: 'I6 6.7 common-rail', idleRpm: 700, redline: 3200, limiter: 3400, inertia: 0.66, friction: [26, 0.03], bank: 'd6', bankPitch: 0.97, turbo: 1, sound: 'i6_bmw', pitch: 0.56, mass: 45,
     torque: [[500, 340], [800, 560], [1200, 780], [1600, 870], [2000, 880], [2400, 840], [2800, 760], [3200, 650], [3500, 400]] },
-  I6_57D: { name: 'I6 5.7 diesel', idleRpm: 650, redline: 2800, limiter: 3000, inertia: 0.75, friction: [28, 0.035], bank: 'd6', bankPitch: 0.92, turbo: 0, sound: 'i6_bmw', pitch: 0.5, mass: 0,
+  I6_57D: { name: 'OM 352 5.7 diesel six', idleRpm: 650, redline: 2800, limiter: 3000, inertia: 0.75, friction: [28, 0.035], bank: 'd6', bankPitch: 0.92, turbo: 0, sound: 'i6_bmw', pitch: 0.5, mass: 0,
     torque: [[500, 230], [800, 300], [1200, 345], [1600, 363], [2000, 355], [2400, 340], [2800, 320], [3100, 210]] },
   // the Thar's 2.2 mHawk 130: 96 kW at 3,750 rpm, 300 Nm from 1,600 to 2,800 (the turbo comes in from ~1,300)
   D22: { name: 'mHawk 2.2 turbo-diesel', idleRpm: 800, redline: 4200, limiter: 4400, inertia: 0.24, friction: [16, 0.026], bank: 'd4', bankPitch: 1, turbo: 1, sound: 'i6_bmw', pitch: 0.7, mass: 0, cyl: 4, diesel: true,
@@ -240,7 +240,7 @@ export const ENGINES = {
       torque: ENGINE.E_3M.torque.map(([r, t]) => [r, Math.round(t * 1.1)]) },
     { ...ENGINE.E_3M, name: 'Two motors (EV2X)', short: '2 motors', mass: -110, desc: 'One motor front and one rear: 425 kW (570 hp), 110 kg lighter.',
       torque: ENGINE.E_3M.torque.map(([r, t]) => [r, Math.round(t * 0.6)]) }],
-  rhino: [{ ...ENGINE.I6_57D, short: 'stock', desc: 'Stock 5.7 diesel six: 96 kW, 363 Nm. Governed at 2,800 rpm.' }, { ...tunedBy(1.3, 0)(ENGINE.I6_57D), turbo: 1, short: 'turbo', desc: 'A turbocharger: +30% torque, 125 kW.' }, { ...ENGINE.I6_60TD, short: '6.0 swap', desc: 'A 6.0 turbo-intercooled six: 600 Nm, +65% torque.' }],
+  rhino: [{ ...ENGINE.I6_57D, short: 'stock', desc: 'Stock OM 352 5.7 diesel six: 96 kW (130 hp), 363 Nm. Governed at 2,800 rpm.' }, { ...tunedBy(1.3, 0)(ENGINE.I6_57D), turbo: 1, short: 'turbo', desc: 'A turbocharger: +30% torque, 125 kW.' }, { ...ENGINE.I6_60TD, short: '6.0 swap', desc: 'A 6.0 turbo-intercooled six: 600 Nm, +65% torque.' }],
 };
 
 const gearOption = (r) => ({ name: `${r.toFixed(2)}:1 ring and pinion`, short: r.toFixed(2), ratio: r, desc: 'Deeper (bigger number) gears turn the wheels slower and harder: they bring back the pull bigger tyres take away, and lower the top speed.' });

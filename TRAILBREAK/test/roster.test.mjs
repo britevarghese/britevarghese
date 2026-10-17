@@ -82,7 +82,7 @@ test('every preset build of every truck settles and drives off', () => {
   }
 });
 
-test('a heavy truck airs down and back up to its own road pressure (55 psi on the Rhino), not a light truck\'s', () => {
+test('a heavy truck airs down and back up to its own road pressure (55 psi on the Unimog), not a light truck\'s', () => {
   const g = flat(SURFACE.SAND), v = new Vehicle(truckSpec('rhino'));
   v.place(g, 0, 0, 0);
   assert.equal(v.psi, 55);

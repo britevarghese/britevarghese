@@ -316,8 +316,10 @@ def main(src_dir, cfg_path, out_dir):
     s = cfg['wheelbase'] / (zF - zR)
     ground = min(w['lo'][1] for w in road)
     origin = np.array([np.mean([w['c'][0] for w in road]), ground, (zF + zR) / 2])
-    # (a model drawn a little wide or narrow for its wheelbase: scaleX brings it to the real car's width)
+    # (a model drawn a little wide or narrow for its wheelbase: scaleX brings it to the real car's width; one drawn on
+    # smaller wheels than the real car's: lift raises the body to where the real ones, which the game fits, carry it)
     k3 = np.array([s * cfg.get('scaleX', 1.0), s * cfg.get('scaleY', 1.0), s])
+    origin[1] -= cfg.get('lift', 0.0) / k3[1]
     place = lambda p: (p - origin) * k3
     tris = place(tris)
     if cfg.get('scaleX', 1.0) != 1.0 or cfg.get('scaleY', 1.0) != 1.0:

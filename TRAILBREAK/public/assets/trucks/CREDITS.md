@@ -55,3 +55,8 @@ light), and the textures resized to WebP.
   (https://sketchfab.com/rileylane); narrowed 5% to the Pajero's real width, its wheels told apart by where they are,
   its rusty red paint given the game's paint and its windows and lamps the game's glass and lamps (told apart by the
   colour of its one texture).
+- `rhino.glb` (Mercedes-Benz Unimog U1300L): "Unimog Truck" by Levi Giovani,
+  https://sketchfab.com/3d-models/unimog-truck-72caf995b6064890b7bc62371cc79f36 (https://sketchfab.com/levigiovani);
+  widened 10% to the U1300L's real track and raised 8.7 cm onto its real 12.5 R20 tyres (the model's own are smaller),
+  its static axles, springs and propshafts removed, its weathered cab paint given the game's paint and its windows and
+  lamps the game's glass and lamps (told apart by the colour of its texture); the box body keeps its own white.

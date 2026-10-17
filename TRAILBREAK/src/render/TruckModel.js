@@ -581,7 +581,7 @@ function modelBody(model, asset, M, P) {
   return {
     heads: L.heads, tails: [], reverse: [], ownLamps: true, ownBumpers: true, ownChassis: !!L.ownChassis,
     bumperF: L.bumperF, bumperR: L.bumperR, spare: L.spare || null, wheel: L.steering || null, frame: L.frame,
-    flaps: !!L.flaps, sill: L.sill, half: L.half, roofY: L.roofY ?? L.bbox[1][1], coilY: L.coilY, bedZ: L.bedZ,
+    flaps: !!L.flaps, sill: L.sill, half: L.half, roofY: L.roofY ?? L.bbox[1][1], coilY: L.coilY, bedZ: L.bedZ, ownSnorkel: !!L.ownSnorkel,
     // (the roof, for the rack and the light bar: if a layout leaves it out, from the tail to a metre short of the front
     // axle, roughly where a wagon's roof runs)
     roofZ: L.roofZ || [L.bbox[0][2] + 0.3, (L.axleZ ? L.axleZ[0] : L.bbox[1][2] - 1.2) - 1.0],
