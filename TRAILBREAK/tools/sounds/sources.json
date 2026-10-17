@@ -378,6 +378,56 @@
      "cohMin": 0.12
     }
    ]
+  },
+  "f6": {
+   "about": "Porsche 911 flat-six at a dealership: its idle (each bank of three beating at half the firing rate) and its steadiest revs; the Jaguar six and, at the top, the Acura V6 fill the revs",
+   "cyl": 6,
+   "idleRpm": 700,
+   "budget": 12,
+   "idleBudget": 3,
+   "cohMin": 0.35,
+   "parts": [
+    {
+     "id": 772802,
+     "user": "jerry.berumen",
+     "title": "vehicle car porsche 911 revving engine motor boxer",
+     "lic": "CC-BY",
+     "t": [[2.5, 8.8, 28, 44], [27.0, 46.5, 28, 200]],
+     "f": [28, 200],
+     "anchor": [[5, 35], [27, 35]],
+     "slew": 10
+    },
+    {
+     "id": 614700,
+     "user": "Dan_AudioFile",
+     "title": "E-type Jaguar, car engine, rev, idle ,mono.wav",
+     "lic": "CC-BY",
+     "t": [[0.5, 30]],
+     "f": [25, 125],
+     "anchor": [[5, 33.6], [25, 33.6]],
+     "slew": 6,
+     "cyl": 6,
+     "idleRpm": 672,
+     "cohMin": 0.4,
+     "rMin": 1.3,
+     "role": "the revs, above 1.3 times idle"
+    },
+    {
+     "id": 754775,
+     "user": "EvanBoyerman",
+     "title": "Sports Car Accelerating/Speeding Up Fast - Exhaust",
+     "lic": "CC-BY",
+     "t": [[0.3, 22.4]],
+     "f": [40, 190],
+     "anchor": [[0.5, 56], [1.5, 77.5], [3, 90], [5, 109.5], [18, 155], [21, 164.5]],
+     "slew": 6,
+     "load": "drive",
+     "cyl": 6,
+     "idleRpm": 682,
+     "cohMin": 0.6,
+     "rMin": 3.0
+    }
+   ]
   }
  }
 }

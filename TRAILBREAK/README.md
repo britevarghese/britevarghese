@@ -164,7 +164,8 @@ turn and its sound repeats every pair of firings, so its bank is cut in pairs an
 | `v8` | Chevrolet Caprice V8 (idle and holds), a Dodge Ram 1500 5.7 V8 pulling on the road, the V6 above 2,100 rpm | K20 Suburban, the V8 swaps, the Corvette Stingray |
 | `v8m` | a cammed V8 at idle, the Ram 1500's 5.7 HEMI pulling on the road, the V6 above 2,100 rpm | Ram Power Wagon's 6.4 HEMI, tuned V8s, the Wrangler's 392 HEMI, the G 63, the AMG GT |
 | `v10` | Audi R8 V10 (idle, the fall from 4,100 rpm, holds from 2,100 to 4,100), cut in pairs of firings | Lamborghini Huracán, Audi R8 |
-| `i6` | Jaguar E-type 4.2 straight six | BMW M4 CSL, Toyota Supra, Skyline GT-R (R34), Porsche 911 Turbo (930) |
+| `i6` | Jaguar E-type 4.2 straight six | BMW M4 CSL, Toyota Supra, Skyline GT-R (R34) |
+| `f6` | a Porsche 911 flat-six at idle and revving (each bank of three beating at half the firing rate), the Jaguar six and the Acura V6 filling the revs | Porsche 911 Turbo (930) |
 | `i4` | Suzuki Jimny four at idle, a Rover 216 GSi four revving to 6,900 rpm | Lada Niva, Willys MB, UAZ Hunter, Thar petrol; BMW M3 (E30), Mazda RX-7, Subaru Impreza STi |
 
 A big engine is louder than a small one and has more of its low end (a shelf under 140 Hz): the Power Wagon's 6.4

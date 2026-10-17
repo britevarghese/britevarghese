@@ -92,7 +92,7 @@ async function fetchBank(name) {
 }
 
 /** Cylinders of the engine each bank was recorded from (for the starter's compression strokes). */
-const BANK_CYL = { v6: 6, i6: 6, d6: 6, v8: 8, v8m: 8, d8: 8, i4: 4, d4: 4, d4t: 4, v10: 10 };
+const BANK_CYL = { v6: 6, i6: 6, d6: 6, v8: 8, v8m: 8, d8: 8, i4: 4, d4: 4, d4t: 4, v10: 10, f6: 6 };
 
 /**
  * One engine from a bank: the worklet node, steered by rpm, load and a loudness, through a low-pass that opens with

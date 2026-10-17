@@ -300,9 +300,9 @@ const ENGINE = {
     torque: [[800, 215], [2000, 255], [3000, 272], [4000, 284], [5300, 304], [6000, 300], [7300, 283], [7800, 260], [8000, 230], [8300, 140]] },
   // the 930 Turbo's 3.0 flat-six with one turbo: 191 kW at 5,500 rpm, 343 Nm at 4,000, and nearly nothing below 3,000;
   // and the intercooled 3.3 of 1978: 221 kW, 412 Nm
-  F6_30T: { name: '3.0 turbo flat-six', idleRpm: 900, redline: 6800, limiter: 7000, inertia: 0.14, friction: [11, 0.018], bank: 'i6', turbo: 2, sound: 'i6_bmw', pitch: 1, mass: 0, cyl: 6, loud: 1.15, bass: 2,
+  F6_30T: { name: '3.0 turbo flat-six', idleRpm: 900, redline: 6800, limiter: 7000, inertia: 0.14, friction: [11, 0.018], bank: 'f6', turbo: 2, sound: 'i6_bmw', pitch: 1, mass: 0, cyl: 6, loud: 1.15, bass: 2,
     torque: [[900, 150], [1500, 180], [2500, 215], [3000, 265], [3500, 315], [4000, 343], [4500, 340], [5500, 332], [6000, 310], [6500, 270], [6900, 150]] },
-  F6_33T: { name: '3.3 turbo flat-six (intercooled)', idleRpm: 900, redline: 6800, limiter: 7000, inertia: 0.14, friction: [11, 0.018], bank: 'i6', turbo: 2, sound: 'i6_bmw', pitch: 1, mass: 12, cyl: 6, loud: 1.2, bass: 2,
+  F6_33T: { name: '3.3 turbo flat-six (intercooled)', idleRpm: 900, redline: 6800, limiter: 7000, inertia: 0.14, friction: [11, 0.018], bank: 'f6', turbo: 2, sound: 'i6_bmw', pitch: 1, mass: 12, cyl: 6, loud: 1.2, bass: 2,
     torque: [[900, 170], [1500, 205], [2500, 250], [3000, 320], [3500, 385], [4000, 412], [4500, 405], [5500, 384], [6000, 360], [6500, 300], [6900, 160]] },
   // the R34 GT-R's RB26DETT 2.6 twin-turbo straight-six: 206 kW and 392 Nm on paper (the Japanese makers' gentlemen's
   // agreement), about 235 kW at 6,800 rpm and 440 Nm at 4,400 on a dyno; and the Nismo Z-tune's 2.8: 368 kW, 540 Nm
