@@ -3,7 +3,9 @@
 //   motion blur: at speed, what the camera rushes past streaks along its path on the screen, the nearer the longer
 //     (the verge and the road's edge at the bottom and sides, hardly the hills), and the whole picture smears as the
 //     camera swings round; the player's own truck, which moves with the camera, stays sharp (and so does the cab
-//     from the driver's seat)
+//     from the driver's seat). The truck is found pixel by pixel: it is drawn again on its own, its distance in a
+//     mask, and only what is the truck there stays sharp: the ground beside it, and grass or dust in front of it,
+//     streak as the rest of the world does
 //   bloom: the brightest light (the sun, its glints on paint, chrome and water, lamps at night) glows into what is
 //     around it
 //   grade: a filmic tone curve (ACES), a little more contrast and colour, cool shadows and warm highlights, a soft
@@ -26,8 +28,7 @@ uniform sampler2D tDepth;
 uniform float uFwd;        // how far the camera travels forward while the shutter is open (m)
 uniform vec2 uLat;         // ... and sideways and up, times the projection's scale
 uniform vec2 uPan;         // how far the picture slides (uv) as the camera turns while the shutter is open
-uniform vec4 uSpare;       // the player's truck on the screen: its middle and half size (uv)
-uniform vec2 uSpareZ;      // ... and its near and far sides (m): what shows in front of it or past it there still blurs
+uniform sampler2D tMask;   // the player's truck: 1 / its distance (m) where it is on the screen, 0 elsewhere
 uniform float uNear;       // nearer than this (m): the truck the camera rides on (the cab, the bonnet)
 uniform float uLogFar;     // log2(far + 1): the logarithmic depth buffer's scale
 uniform float uAspect;
@@ -36,10 +37,9 @@ varying vec2 vUv;
 ${IGN}
 float viewZ(vec2 uv) { return exp2(texture2D(tDepth, uv).r * uLogFar) - 1.0; }
 float spared(vec2 uv, float z) {
-  vec2 q = abs(uv - uSpare.xy) / max(uSpare.zw, vec2(1e-5));
-  q *= q;
-  float r = sqrt(sqrt(dot(q, q)));                       // (a rounded rectangle: the truck's outline on the screen)
-  float onTruck = (1.0 - smoothstep(0.92, 1.0, r)) * step(uSpareZ.x, z) * step(z, uSpareZ.y);
+  float m = texture2D(tMask, uv).r, tz = 1.0 / max(m, 1e-6);
+  // the truck itself where the picture shows it (or its cab, seen through its glass): not grass or dust in front
+  float onTruck = step(1e-6, m) * step(tz - 0.12 - 0.02 * tz, z) * step(z, tz + 3.0);
   return max(onTruck, step(z, uNear));
 }
 void main() {
@@ -58,12 +58,41 @@ void main() {
   for (int i = 0; i < SAMPLES; i++) {
     vec2 uv = vUv + v * ((float(i) + 0.5 + j) / float(SAMPLES) - 0.5);
     // (a sample on the sharp truck doesn't smear it into what's behind it)
-    float ws = 1.0 - spared(uv, viewZ(uv));
+    float ws = 1.0 - max(step(1e-6, texture2D(tMask, uv).r), uNear > 0.0 ? step(viewZ(uv), uNear) : 0.0);
     acc += texture2D(tColor, uv).rgb * ws;
     w += ws;
   }
   gl_FragColor = vec4(acc / w, 1.0);
 }`;
+
+// the player's truck drawn alone for the blur: 1 / its distance where it is (0, cleared, everywhere else)
+const MASK_VERT = /* glsl */`
+#include <common>
+#include <batching_pars_vertex>
+#include <morphtarget_pars_vertex>
+#include <skinning_pars_vertex>
+#include <logdepthbuf_pars_vertex>
+varying float vZ;
+void main() {
+  #include <batching_vertex>
+  #include <skinbase_vertex>
+  #include <begin_vertex>
+  #include <morphinstance_vertex>
+  #include <morphtarget_vertex>
+  #include <skinning_vertex>
+  #include <project_vertex>
+  #include <logdepthbuf_vertex>
+  vZ = -mvPosition.z;
+}`;
+const MASK_FRAG = /* glsl */`
+#include <logdepthbuf_pars_fragment>
+varying float vZ;
+void main() {
+  #include <logdepthbuf_fragment>
+  gl_FragColor = vec4(1.0 / max(vZ, 0.01), 0.0, 0.0, 1.0);
+}`;
+/** The layer the player's truck is also on, for drawing it alone. */
+const MASK_LAYER = 5;
 
 // bloom: a chain of half-size copies (a 13-tap filter each step down, the first keeping only the bright light),
 // added back up through a tent filter (Jimenez, "Next generation post processing in Call of Duty")
@@ -141,7 +170,7 @@ void main() {
 
 const LEVELS = 5;
 const _v = new THREE.Vector3(), _t = new THREE.Vector3(), _d = new THREE.Vector3(), _q = new THREE.Quaternion(), _m = new THREE.Matrix4();
-const _size = new THREE.Vector2();
+const _size = new THREE.Vector2(), _clear = new THREE.Color();
 const CORNERS = Array.from({ length: 8 }, () => new THREE.Vector3());
 
 export class Post {
@@ -154,6 +183,9 @@ export class Post {
     this.sceneRT = new THREE.WebGLRenderTarget(1, 1, { type: THREE.HalfFloatType, samples: 4, depthTexture: this.depth });
     const rt = () => new THREE.WebGLRenderTarget(1, 1, { type: THREE.HalfFloatType, depthBuffer: false });
     this.blurRT = rt();
+    this.maskRT = new THREE.WebGLRenderTarget(1, 1, { type: THREE.HalfFloatType, format: THREE.RedFormat, depthBuffer: true,
+      minFilter: THREE.NearestFilter, magFilter: THREE.NearestFilter });
+    this.maskMat = new THREE.ShaderMaterial({ vertexShader: MASK_VERT, fragmentShader: MASK_FRAG, side: THREE.DoubleSide });
     this.mips = Array.from({ length: LEVELS }, rt);
     const quad = (frag, uniforms, defines = {}, extra = {}) => {
       const m = new THREE.Mesh(TRI, new THREE.ShaderMaterial({ vertexShader: VERT, fragmentShader: frag, uniforms, defines, depthTest: false, depthWrite: false, ...extra }));
@@ -162,7 +194,7 @@ export class Post {
     };
     this.blur = quad(BLUR, {
       tColor: { value: this.sceneRT.texture }, tDepth: { value: this.depth }, uFwd: { value: 0 }, uLat: { value: new THREE.Vector2() },
-      uPan: { value: new THREE.Vector2() }, uSpare: { value: new THREE.Vector4() }, uSpareZ: { value: new THREE.Vector2() }, uNear: { value: 0 },
+      uPan: { value: new THREE.Vector2() }, tMask: { value: this.maskRT.texture }, uNear: { value: 0 },
       uLogFar: { value: 1 }, uAspect: { value: 1 }, uMax: { value: 0.045 },
     }, { SAMPLES: 12 });
     this.down = quad(DOWN, { tSrc: { value: null }, uTexel: { value: new THREE.Vector2() }, uFirst: { value: 0 }, uKnee: { value: new THREE.Vector2(1.3, 0.6) } });
@@ -196,6 +228,7 @@ export class Post {
     this.size.set(w, h);
     this.sceneRT.setSize(w, h);
     this.blurRT.setSize(w, h);
+    this.maskRT.setSize(w, h);
     let mw = w, mh = h;
     for (const m of this.mips) { mw = Math.max(1, mw >> 1); mh = Math.max(1, mh >> 1); m.setSize(mw, mh); }
   }
@@ -231,30 +264,19 @@ export class Post {
       }
     }
     (this.prevDir ||= new THREE.Vector3()).copy(_v);
-    // the player's truck: its box's corners on the screen, or (the camera in it or on it) everything near
-    u.uSpare.value.set(0, 0, 0, 0); u.uSpareZ.value.set(0, 0); u.uNear.value = 0;
+    // the player's truck (its mask is drawn in render), and with the camera in it or on it, everything as near
+    u.uNear.value = 0;
     if (subject) {
       const box = subject.userData.localBox || (subject.userData.localBox = localBox(subject));
       subject.updateMatrixWorld();
-      let inside = false, near = 1e9, far = 0, x0 = 1e9, x1 = -1e9, y0 = 1e9, y1 = -1e9;
+      let inside = false, far = 0;
       for (let i = 0; i < 8; i++) {
         const c = CORNERS[i].set(i & 1 ? box.max.x : box.min.x, i & 2 ? box.max.y : box.min.y, i & 4 ? box.max.z : box.min.z).applyMatrix4(subject.matrixWorld);
-        const dist = c.distanceTo(p);
-        near = Math.min(near, dist); far = Math.max(far, dist);
-        c.applyMatrix4(camera.matrixWorldInverse);
-        if (c.z > -0.3) { inside = true; continue; }
-        c.applyMatrix4(camera.projectionMatrix);
-        x0 = Math.min(x0, c.x); x1 = Math.max(x1, c.x); y0 = Math.min(y0, c.y); y1 = Math.max(y1, c.y);
+        far = Math.max(far, c.distanceTo(p));
+        if (c.applyMatrix4(camera.matrixWorldInverse).z > -0.3) inside = true;
       }
       _m.copy(subject.matrixWorld).invert();
-      const local = _v.copy(p).applyMatrix4(_m);
-      if (inside || box.containsPoint(local)) u.uNear.value = far + 0.3;
-      else {
-        u.uSpare.value.set((x0 + x1) / 4 + 0.5, (y0 + y1) / 4 + 0.5, (x1 - x0) / 4 * 1.08, (y1 - y0) / 4 * 1.08);
-        // (the distances are along the view, as the depth buffer has them: the corners' straight-line distance
-        // overstates the far side a little, which only spares a little more)
-        u.uSpareZ.value.set(Math.max(0, near * 0.85 - 0.3), far + 0.3);
-      }
+      if (inside || box.containsPoint(_v.copy(p).applyMatrix4(_m))) u.uNear.value = far + 0.3;
     }
     return Math.abs(u.uFwd.value) + Math.abs(u.uLat.value.x) + Math.abs(u.uLat.value.y) > 0.004 || pan.lengthSq() > 0;
   }
@@ -278,6 +300,7 @@ export class Post {
     gl.autoClear = false;
     let src = this.sceneRT.texture;
     if (moving) {
+      this.drawMask(scene, camera, subject);
       gl.setRenderTarget(this.blurRT);
       gl.render(this.blur, ORTHO);
       src = this.blurRT.texture;
@@ -307,8 +330,31 @@ export class Post {
     gl.info.autoReset = true;
   }
 
+  /** The player's truck alone, its distance in the mask (none: the mask is empty). */
+  drawMask(scene, camera, subject) {
+    const gl = this.gl, bg = scene.background, over = scene.overrideMaterial, layers = camera.layers.mask;
+    gl.getClearColor(_clear);
+    const alpha = gl.getClearAlpha();
+    gl.setRenderTarget(this.maskRT);
+    gl.setClearColor(0x000000, 0);
+    gl.clear(true, true, false);
+    if (subject) {
+      // (every frame: the driver and parts join the truck after it is built)
+      subject.traverse((o) => { if (o.isMesh) o.layers.enable(MASK_LAYER); });
+      scene.background = null;
+      scene.overrideMaterial = this.maskMat;
+      camera.layers.set(MASK_LAYER);
+      gl.render(scene, camera);
+      camera.layers.mask = layers;
+      scene.overrideMaterial = over;
+      scene.background = bg;
+    }
+    gl.setClearColor(_clear, alpha);
+  }
+
   dispose() {
-    for (const t of [this.sceneRT, this.blurRT, ...this.mips]) t.dispose();
+    for (const t of [this.sceneRT, this.blurRT, this.maskRT, ...this.mips]) t.dispose();
+    this.maskMat.dispose();
     this.depth.dispose();
     for (const q of [this.blur, this.down, this.up, this.grade]) q.material.dispose();
   }

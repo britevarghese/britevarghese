@@ -7,6 +7,7 @@ import { Quat } from '../src/physics/math.js';
 import { TRUCKS, truckSpec } from '../src/physics/trucks.js';
 import { SURFACE } from '../src/physics/Surfaces.js';
 import { flat, slope, soft, slopeWithIce, ledge } from './grounds.mjs';
+import { keysBend } from './drive.mjs';
 
 const IDLE = { throttle: 0, brake: 0, steer: 0, handbrake: 0 };
 
@@ -258,6 +259,17 @@ test('turning on the keys at speed uses the tyres\' grip: at 30 and 45 km/h on t
     const a = circle(id, 30), b = circle(id, 45);
     assert.ok(a < r30, `${id} at 30 km/h: a ${a.toFixed(1)} m circle`);
     assert.ok(b < r45, `${id} at 45 km/h: a ${b.toFixed(1)} m circle`);
+  }
+});
+
+test('on grass at speed the keys turn a truck at its grip, its path following the wheels instead of crabbing wide', () => {
+  const grass = flat(SURFACE.GRASS);
+  for (const id of ['shepherd', 'thar', 'bronco']) for (const kmh of [60, 100]) {
+    const v = truck(id, grass);
+    run(v, grass, 0.5, { ...IDLE, handbrake: 1 });
+    const r = keysBend(v, grass, kmh);
+    assert.ok(r.g > 0.44, `${id} at ${kmh} km/h on grass: ${r.g.toFixed(2)} g round the bend`);
+    assert.ok(r.slip * 180 / Math.PI < 6, `${id} at ${kmh} km/h on grass: pointing ${(r.slip * 180 / Math.PI).toFixed(1)} degrees inside its path`);
   }
 });
 

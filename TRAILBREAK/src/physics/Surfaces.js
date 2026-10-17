@@ -23,7 +23,7 @@
 export const SURFACE = { GRASS: 0, DIRT: 1, GRAVEL: 2, ROCK: 3, MUD: 4, SAND: 5, SNOW: 6, ROAD: 7, RIVERBED: 8, ICE: 9, TEA: 10 };
 
 export const SURFACES = [
-  { id: 0, name: 'grass', mu: 0.62, slip: 1.3, C: 1.25, rr: 0.05, sink: 0, n: 1, maxSink: 0, dig: 0, drag: 0, hull: 0.4 },
+  { id: 0, name: 'grass', mu: 0.7, slip: 1.15, C: 1.25, rr: 0.05, sink: 0, n: 1, maxSink: 0, dig: 0, drag: 0, hull: 0.4 },
   { id: 1, name: 'dirt', mu: 0.78, slip: 1.15, C: 1.35, rr: 0.03, sink: 0, n: 1, maxSink: 0, dig: 0, drag: 0, hull: 0.5 },
   { id: 2, name: 'gravel', mu: 0.66, slip: 1.6, C: 1.12, rr: 0.03, sink: 0, n: 1, maxSink: 0, dig: 0, drag: 0, hull: 0.45 },
   { id: 3, name: 'rock', mu: 1.02, slip: 1.0, C: 1.4, rr: 0.012, sink: 0, n: 1, maxSink: 0, dig: 0, drag: 0, hull: 0.42 },

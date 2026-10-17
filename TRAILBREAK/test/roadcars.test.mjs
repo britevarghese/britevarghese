@@ -7,6 +7,7 @@ import { ROAD_IDS, OFFROAD_IDS, truckSpec, truckBase } from '../src/physics/truc
 import { SURFACE, SURFACES } from '../src/physics/Surfaces.js';
 import { CATEGORIES, optionsFor, optionAllowed, presetsFor, presetBuild, buildStats, TYRE_SIZES } from '../src/physics/Upgrades.js';
 import { flat } from './grounds.mjs';
+import { keysBend } from './drive.mjs';
 
 const IDLE = { throttle: 0, brake: 0, steer: 0, handbrake: 0 };
 
@@ -116,4 +117,18 @@ test('downforce: the wings press a road car onto the road with the square of its
   const q = 0.5 * 1.2 * (200 / 3.6) ** 2, expect = q * (spec.aero[0] + spec.aero[1]);
   const added = load(200) - load(30);
   assert.ok(Math.abs(added - expect) < 0.35 * expect, `${added.toFixed(0)} N more at 200 km/h (the wings: ${expect.toFixed(0)})`);
+});
+
+test('on the keys, full lock at speed: a road car holds the bend its tyres grip, its stability control catching the tail', () => {
+  // (the 930 most of all: its engine behind the rear axle, its tail light on lift-off)
+  for (const [id, surf, g] of [['p930', SURFACE.ROAD, 0.8], ['m4csl', SURFACE.ROAD, 1.0], ['senna', SURFACE.ROAD, 1.0], ['huracan', SURFACE.GRASS, 0.4], ['m4csl', SURFACE.GRASS, 0.35]]) {
+    for (const kmh of [60, 120]) {
+      const ground = flat(surf), v = new Vehicle(truckSpec(id));
+      v.place(ground, 0, 0, 0);
+      run(v, ground, 0.5, { ...IDLE, handbrake: 1 });
+      const r = keysBend(v, ground, kmh), at = `${id} at ${kmh} km/h on ${surf === SURFACE.ROAD ? 'the road' : 'grass'}`;
+      assert.ok(r.worst * 180 / Math.PI < 16, `${at}: slid ${(r.worst * 180 / Math.PI).toFixed(0)} degrees`);
+      assert.ok(r.g > g, `${at}: ${r.g.toFixed(2)} g round the bend`);
+    }
+  }
 });

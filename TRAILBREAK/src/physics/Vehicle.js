@@ -45,6 +45,7 @@ const STEER_DAMP = 0.08;              // keys / sticks: wheel angle (rad) taken 
 const TC_KP = 1, TC_KI = 10;          // electric traction control: power taken off per unit of excess spin, and how fast it settles (1/s)
 const BLD_A = 1.5, BLD_K = 1500;      // brake locking: spin (rad/s) between an axle's wheels before it brakes, Nm per rad/s past that
 const ESC_K = 1, ESC_OFF = 8, ESC_ON = 2;  // stability control: power off per unit of slide, how fast it comes off and back (1/s)
+const ESC_YAW = 6000;                 // ... and the brake (N m) on the outer front wheel per rad/s it swings round faster than asked
 // keys / sticks: the share of the front tyres' grip the steering asks for at speed, the slip angle (in their best one)
 // it allows them on top, the share of the pull that would lift a truck's inside wheels it asks no more than, and how far
 // over to one side its weight may go (1: all of it) before the wheels turn no further in
@@ -443,6 +444,8 @@ export class Vehicle {
     const turnIn = AS_SLIP * this.spec.tyre.alphaPeak * (this.wheels[0].surf?.slip ?? 1);
     const lock = ctrl.analogSteer ? maxLock : Math.min(maxLock, Math.atan(ay * wb / Math.max(1, speed * speed)) + turnIn);
     let target = -ctrl.steer * lock;                                    // + = left
+    // (the turn the driver asks for: the yaw rate these wheels would turn the truck at, for the stability control)
+    this.yawAsk = speed * Math.tan(target) / (fa.zc - this.axles[1].zc);
     let rate = 2.6 * dt;
     // keys and thumbsticks: the turn eases in more gently the faster the truck goes (the whole lock in 0.2 s crawling,
     // half a second at speed: more and it answered the keys late at speed), and a yaw damper takes a little steering
@@ -471,6 +474,17 @@ export class Vehicle {
       const roll = this.ltrF > LTR_HOLD && Math.abs(speed * yaw) > 0.25 * GRAVITY ? clamp(1 - (this.ltrF - LTR_HOLD) * 3, 0.45, 1) : 1;
       this.rollGov = (this.rollGov ?? 1) + clamp(roll - (this.rollGov ?? 1), -5 * dt, 0.7 * dt);
       if (target * at >= 0) target *= 1 - fast * (1 - this.rollGov);
+      // the tail sliding out (the rear tyres past the slip angle that grips best, the truck pointing well inside the
+      // way it is going, and further each moment): the front wheels steer towards where the front axle is going, as a
+      // driver catches a slide; let go again as it comes back, so it doesn't swing over the other way
+      const fv = Math.max(2, Math.abs(this.vel.dot(fwd))), out = Math.sign(yaw) * -Math.atan2(this.vel.dot(left), fv);
+      this.outRate = (this.outRate ?? 0) + ((out - (this.outLast ?? out)) / dt - (this.outRate ?? 0)) * Math.min(1, dt / 0.1);
+      this.outLast = out;
+      const k = fast * smoothstep(0.9, 1.3, side[1]) * smoothstep(0.04, 0.12, out) * smoothstep(-0.15, 0.1, this.outRate);
+      if (k > 0) {
+        const cs = clamp(Math.atan2(this.vel.dot(left) + yaw * fa.zc, fv), -maxLock, maxLock);
+        if (cs * yaw < 0) { target += (cs - target) * k; rate = Math.max(rate, 0.8 * dt); }
+      }
     }
     this.steerAngle = (this.steerAngle || 0) + clamp(target - (this.steerAngle || 0), -rate, rate);
     // Ackermann: the inner wheel turns tighter
@@ -610,6 +624,16 @@ export class Vehicle {
           const cap = Math.max(1400, 0.8 * Math.max((wl.mu || 0.8) * (wl.N || 0), (wr.mu || 0.8) * (wr.N || 0)) * r);
           bt[dw > 0 ? k : k + 1] += Math.min(cap, (a - BLD_A) * BLD_K); this.bldOn = true;
         }
+      }
+    }
+    // the stability control's brakes: the truck swinging round faster than the driver asks (the tail stepping out),
+    // the outer front wheel is braked, which turns it back; the further past, the harder, up to what that tyre grips
+    // (not with the handbrake pulled: that turn is asked for)
+    if ((this.spec.tc || !ctrl.analogSteer) && speed > 8 && hand < 0.1) {
+      const ask = this.yawAsk || 0, over = Math.abs(yaw) - (yaw * ask >= 0 ? Math.abs(ask) * 1.1 + 0.06 : 0.06);
+      if (over > 0) {
+        const w = this.wheels[yaw > 0 ? 1 : 0];                         // (turning left: the right front)
+        if (w.contact) bt[w.index] += Math.min(0.85 * (w.mu || 0.8) * (w.N || 0) * r, over * ESC_YAW);
       }
     }
     this._dtIn = this._dtIn || { throttle: 0, brakeTorque: bt };

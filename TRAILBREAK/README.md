@@ -205,9 +205,12 @@ far as the front tyres grip on that ground (on a road, about 0.65 g of cornering
 manage), but no further, so the nose doesn't plough on wide, and no further than a tall truck can take: it asks well
 short of the pull that would lift the inside wheels, and stops turning in once the weight has gone over onto the
 outside ones, so the Unimog and the Willys stay on their wheels with the steering snapped to full lock at 80 km/h.
-You can turn it off in the pause menu. With it on, every truck also gets stability control, as the modern trucks have
-anyway: floored round a bend, the power comes off the moment the nose starts to plough wide or the tail steps out, and
-comes back as the tyres grip again, so the truck holds the line its tyres can hold instead of spinning round. On phones
+When the tail slides out, it steers into the slide for you, towards where the front wheels are going, and lets go as
+the car comes back, so a rear-engined Porsche 930 holds a fast bend instead of spinning. You can turn it off in the
+pause menu. With it on, every truck also gets stability control, as the modern trucks have anyway: floored round a
+bend, the power comes off the moment the nose starts to plough wide or the tail steps out, and comes back as the tyres
+grip again, and while the truck swings round faster than you are steering, the outer front wheel is braked to turn it
+back, so the truck holds the line its tyres can hold instead of spinning round. On phones
 and tablets, on-screen controls appear: steering on the left, pedals on the right, buttons for the winch, recovery,
 range, locks, camera, map and menu (play in landscape).
 
