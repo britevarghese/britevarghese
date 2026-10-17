@@ -296,8 +296,9 @@ the game. Newly found problems go at the end of their section.
     player, then straight at them. Now it's on along its own lane to the junction ahead, through the junctions, and up
     the player's lane to where they'll be - or their road's other lane, met head on, whichever's the shorter way. The
     wrong way down the player's lane where no lane leads into its start yet: on a one-way street in Taliparamba's
-    middle, starting at the edge of a map tile not built yet, no unit found a way to them and none came. A hairpin at a junction counts as a good way round (at a junction its
-    way doubled back at, a unit spent 11 s on a three-point turn)
+    middle, starting at the edge of a map tile not built yet, no unit found a way to them and none came. A hairpin at
+    a junction counts as a good way round (at a junction its way doubled back at, a unit spent 11 s on a three-point
+    turn)
   - [x] Where no way was found (the player turning through a junction, between the lanes), the old one was swapped in
     for the route the unit was on: at 117 km/h one turned for a junction behind it and went into a building at 100. A
     unit keeps its route then, and a new way that turns sooner than it can slow for waits for the next look
