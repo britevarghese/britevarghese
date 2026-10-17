@@ -276,6 +276,9 @@ the game. Newly found problems go at the end of their section.
     told to go round at 7 m/s rode into the back of the player's car before it had leant out of line: it brakes for
     it till then. A car, a lorry, a KSRTC bus and a scooter each get by in 4-12 s on a wide road, a car and a scooter
     on a narrow street (a bus on a 5 m street waits: too narrow)
+  - [x] Autos arriving in a narrow Kannur street, no room at its kerb, stopped on top of one another for seconds at a
+    time: one pulling in took the one already stopped there for a parked car to go round, but its own pulling in held
+    it to the line. It pulls in behind it now
   - Then: no traffic driving off the road anywhere (it was 650 car-seconds in 3 minutes in Taliparamba; now one
     car-second in all six towns), no crashes between traffic, nobody standing in the road, nothing stuck in five of
     the six towns (the sixth: Mattannur, the player stopped 12 m into a narrow street off a busy junction - 4 m
@@ -292,8 +295,8 @@ the game. Newly found problems go at the end of their section.
   - [x] Its way to the player went from the junction nearest it (often the one behind it) to the one nearest the
     player, then straight at them. Now it's on along its own lane to the junction ahead, through the junctions, and up
     the player's lane to where they'll be - or their road's other lane, met head on, whichever's the shorter way. The
-    wrong way down the player's lane where no lane leads into its start: on a one-way street in Taliparamba's middle,
-    no unit found a way to them and none came. A hairpin at a junction counts as a good way round (at a junction its
+    wrong way down the player's lane where no lane leads into its start yet: on a one-way street in Taliparamba's
+    middle, starting at the edge of a map tile not built yet, no unit found a way to them and none came. A hairpin at a junction counts as a good way round (at a junction its
     way doubled back at, a unit spent 11 s on a three-point turn)
   - [x] Where no way was found (the player turning through a junction, between the lanes), the old one was swapped in
     for the route the unit was on: at 117 km/h one turned for a junction behind it and went into a building at 100. A
@@ -320,8 +323,8 @@ the game. Newly found problems go at the end of their section.
     heat 4 (80 s, eight units and a three-jeep roadblock) and Payyanur; away in Mattannur after 53 s (the units kept
     ~100 m back, out of sight round the buildings). Units come in on their lanes facing their way, nothing over 30 km/h
     hits anything (it was 74-100 km/h into buildings), and traffic pulls over for them (up to 3 minutes' worth of
-    car-seconds a chase). Left: Thalassery's middle, where the player's street is a dead end in the map's lanes and the
-    only way in is a long way round - units take 40-60 s to get there
+    car-seconds a chase). Left: Thalassery's middle, where the player's street (the bus stand road) ends at two service
+    roads with no traffic on them, so the only way in by road is a long way round - units take 40-60 s to get there
 
 - [x] Hitches while driving into new country (a tile's build stalling a frame): every step of a tile's build timed
   on a drive (headless, its CPU about half a desktop's). The worst were the ground's mesh (up to a quarter of a second:
@@ -366,6 +369,9 @@ the game. Newly found problems go at the end of their section.
   joining there or a one-way street's other edge put in the carriageway; and an accident's onlookers stood round it
   anywhere, in the lane the traffic was being waved past in. All of them keep to the road's side now (in the
   carriageway, not crossing: 295 of 4,300 looks in Taliparamba, none now)
+- [x] People getting on a bus walked to its middle, half a bus's width out in the road, stepping out into the
+  carriageway: they go to its door, on the kerb side by the front (Thalassery's middle: 23 looks in the road in 3
+  minutes, 3 after)
 
 ## Roads and world
 - [x] The game hung for a moment every so often while driving: building each new 2 km piece of the map ran some

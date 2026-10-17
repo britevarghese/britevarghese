@@ -619,8 +619,11 @@ export class TrafficManager {
         if (c.filterT > 0 && g0 > -o.spec.l) continue;
         if (g0 < 18 && o.v < c.v + 0.5 && path.speed > 6) { c.filterT = 3 + this.R() * 2; continue; }
       }
-      // pulled over at the kerb (a bus at its stop, an auto, a parked car): swing out round it
-      if ((o.pulled || o.state === 'parked') && !c.pulled) {
+      // pulled over at the kerb (a bus at its stop, an auto, a parked car): swing out round it - or, pulling in itself,
+      // in behind it (out round it, its own pulling in held it to the kerb line: autos arriving in a narrow Kannur
+      // street, no room at its kerb, stopped on top of one another)
+      if ((o.pulled || o.state === 'parked') && !c.pulled && c.pullAt) c.pullAt = Math.min(c.pullAt, o.s - (o.spec.l + c.spec.l) / 2 - 1);
+      else if ((o.pulled || o.state === 'parked') && !c.pulled) {
         const g0 = o.s - c.s - (o.spec.l + c.spec.l) / 2;
         const need = o.spec.w / 2 + c.spec.w / 2 + 0.3 + (o.lat ?? 0);
         // (out round it only when nothing is coming the other way: else wait behind it, as drivers do)

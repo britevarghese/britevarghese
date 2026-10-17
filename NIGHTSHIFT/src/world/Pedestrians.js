@@ -150,9 +150,12 @@ export class Pedestrians {
     this.peds.push({ t: 0, per: 1, dir: 1, speed: 1.1, phase: R() * 6, shirt: KL_TOPS[Math.floor(R() * KL_TOPS.length)], pants: R() < 0.45 ? 0xf2efe6 : KL_LOWER[Math.floor(R() * KL_LOWER.length)], skin: KL_SKIN[Math.floor(R() * KL_SKIN.length)], hair: 0x0e0c0a, shoes: SHOES[Math.floor(R() * SHOES.length)], model: Math.floor(R() * 1000), build: 0.88 + R() * 0.3, scale: 0.9 + R() * 0.14, brave: R() * 0.8, umb: R() < 0.7 ? 0x141414 : 0, wait: 0, dodge: 0, dx: 0, dz: 0, x: 0, z: 0, yaw: 0 });
   }
 
-  // a bus has stopped at (x, z): the people waiting there get on
-  busArrived(x, z) {
-    for (const p of this.peds) if (p.stand?.kind === 'bus' && Math.hypot(p.x - x, p.z - z) < 14) { p.board = { x, z }; p.stand = null; }
+  // a bus has stopped at (x, z): the people waiting there get on - at its door, on the kerb side by the front (walking
+  // to its middle, half a bus's width out in the road, they stepped out into the carriageway to it)
+  busArrived(x, z, car = null) {
+    let bx = x, bz = z;
+    if (car) { const fx = Math.sin(car.yaw), fz = Math.cos(car.yaw), w = car.spec?.w ?? 2.5, l = car.spec?.l ?? 10; bx += fz * (w / 2 + 0.3) + fx * (l / 2 - 1.8); bz += -fx * (w / 2 + 0.3) + fz * (l / 2 - 1.8); }
+    for (const p of this.peds) if (p.stand?.kind === 'bus' && Math.hypot(p.x - x, p.z - z) < 14) { p.board = { x: bx, z: bz, door: true }; p.stand = null; }
   }
 
   // a rider knocked off a two-wheeler: a person thrown from the seat with the bike's speed, tumbling to the road
@@ -275,7 +278,7 @@ export class Pedestrians {
       if (p.board) {
         const dx = p.board.x - p.x, dz = p.board.z - p.z, l = Math.hypot(dx, dz);
         // walking over to something: get on the bus (gone), or stand there (an onlooker)
-        if (l < 1.2) {
+        if (l < (p.board.door ? 0.5 : 1.2)) {
           if (p.board.then) { p.stand = p.board.then; p.board = null; p.ox = p.oz = 0; continue; }
           this._release(p); this.peds.splice(i, 1); continue;
         }

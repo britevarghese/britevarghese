@@ -277,8 +277,8 @@ export class PoliceManager {
       const b = G.laneAt(p.x, p.z, fx * k, fz * k, chase ? 15 : 60) || ((fx || fz) && G.laneAt(p.x, p.z, fx * k, fz * k, 15, 0));
       if (!b) continue;
       // (from behind: to where they'll be in a moment. And the wrong way down their lane when there's no way in at
-      // its start: a one-way street in Taliparamba's middle that no lane leads into - the player on it, no unit sent
-      // after them could find a way, and none came)
+      // its start: on a one-way street in Taliparamba's middle starting at the edge of a map tile not built yet, no
+      // unit sent after the player could find a way to them, and none came)
       for (const against of [false, true]) {
         const pts = R.pathBetween(a, k > 0 && !against ? { lane: b.lane, s: Math.min(b.lane.length, b.s + sp * 1.5) } : b, POLICE_ROUTE, against);
         let len = against ? 60 : 0;   // (the wrong way only when it's well the shorter)
