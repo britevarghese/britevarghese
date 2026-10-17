@@ -5,12 +5,14 @@ import { GaragePreview } from '../ui/GaragePreview.js';
 import { truckSpec, truckBase } from '../physics/trucks.js';
 import { presetBuild, PRESETS } from '../physics/Upgrades.js';
 import { loadTruckAsset } from '../render/TruckAssets.js';
+import { loadDriverAssets } from '../render/DriverAssets.js';
 
 const q = new URLSearchParams(location.search);
 const id = q.get('truck') || 'ranger', b = q.get('build') || 'stock';
 const build = PRESETS.some((p) => p.id === b) ? presetBuild(truckBase(id), b) : b;
 const spec = truckSpec(id, build);
 await loadTruckAsset(spec.style);                    // (a model body: loaded before the truck is built)
+if (q.has('driver') && q.get('driver') !== 'drawn') await loadDriverAssets();
 const view = new GaragePreview(document.getElementById('c'));
 view.showDriver = q.has('driver');                   // (driver=1: the driver in the seat; steer=rad: the wheel turned)
 view.show(spec, '#' + (q.get('paint') || 'b5532c'));

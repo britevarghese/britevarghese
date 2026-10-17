@@ -373,10 +373,13 @@ part in the garage.
 
 Each has its cab and a driver at the wheel. The steering wheels are the models' own, cut out of their dashboards so they
 turn (the Thar, the Wrangler, the Raptor and the Pajero came with empty cabs: the game builds their seats, dash,
-footwells and wheel). The driver's gloved hands turn the wheel with the road wheels and go hand over hand on a big turn,
-one hand always holding; a quick lock on the keys slides the wheel through them, and driving straight again they go back
-to ten to two. In the cab view (C) you see your arms and hands on the wheel; from outside, the driver through the
-windows. The garage and the dealer show the seat empty.
+footwells and wheel). The driver is a lifelike man in a hoodie and jeans (a real 3D character), seated with his feet to
+the pedals, his arms reaching the wheel and his fingers round its rim. His hands turn the wheel with the road wheels and
+steer push-pull: past their reach they let go and take the rim again further back, one hand always holding, never
+crossing over the top; a quick lock on the keys slides the wheel through them, and driving straight again they go back
+to a quarter to three. In the cab view (C) you sit in his place and see your gloved hands on the wheel (the same driving
+gloves and sleeves as NIGHTSHIFT's); from outside, you see him through the windows. The garage and the dealer show the
+seat empty.
 
 | Truck | Price | Kind | Wheelbase | Weight | Engine | Gearbox | Low range / axles | Stock tyres | Under the diffs | Approach / departure / breakover |
 |---|---|---|---|---|---|---|---|---|---|---|
@@ -607,7 +610,8 @@ src/world/maps/           the maps: index (the list), ashwood, kerala, coast (ea
                           sea, beach and town)
 src/render/               Renderer, Sky, Terrain (LOD patches), Vegetation, Tea (the estates' rows of bushes), Rocks,
                           Water (and the coast's sea), RoadMarkings (the coast's lane lines), Landmarks and
-                          KeralaBuildings, TruckModel (chassis, axles, wheels, parts), TruckAssets
+                          KeralaBuildings, TruckModel (chassis, axles, wheels, parts), Person and Hands (the driver,
+                          his hands on the wheel; DriverAssets loads him, Driver draws one while he loads), TruckAssets
                           (each truck's real model) and TruckBodies (built-in bodies that stand in while a model loads),
                           Effects (particles, winch line), EventCourse (start banners, gates)
 src/core/                 Game (the loop), Input, CameraRig
@@ -630,7 +634,10 @@ Ford Ranger Raptor, "Ford ranger raptor" by haraldina; the Ram 2500 Power Wagon,
 Wrangler, "Jeep Wrangler 3D Model" by Suyog modak; the Ford Bronco, "Bronco Car Animation (Red)" by neshallads; the
 Hummer H1, "Hummer H1 (Retry School)" by Voxel_CG; the Land Rover Defender 110, "Land Rover Defender 110" by meeww; the
 GMC Hummer EV, "GMC Hummer EV 2022" by Unn Interativa; the Mercedes-Benz Unimog U1300L, "Unimog Truck" by Levi Giovani;
-on Sketchfab, CC BY 4.0, see `public/assets/trucks/CREDITS.md` (converted with `tools/cars.py`). Engine sounds: see
+on Sketchfab, CC BY 4.0, see `public/assets/trucks/CREDITS.md` (converted with `tools/cars.py`). The driver: "indian
+man" by madmak21199 and his gloved hands, "Hand With Gloves" by teenjust500, on Sketchfab, CC BY 4.0, see
+`public/assets/driver/CREDITS.md` (converted for NIGHTSHIFT; the meshoptimizer decoder, MIT, is in
+`public/vendor/three/addons/libs`). Engine sounds: see
 `public/assets/audio/CREDITS.md` (Freesound, CC0 and CC BY 4.0; built with `tools/sounds/build_grains.py`). Ground
 textures: CC0 scans from Poly Haven and ambientCG, see `public/assets/ground/CREDITS.md` (packed with
 `tools/ground.py`). Tree models: pine, fir, spruce, birch, coconut palm, oak (as mango), elm (as rubber), banana and

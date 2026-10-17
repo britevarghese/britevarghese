@@ -994,6 +994,7 @@ export class Game {
         rv.model.setReverse(s.vel[0] * (2 * (s.quat[0] * s.quat[2] + s.quat[3] * s.quat[1])) + s.vel[2] * (1 - 2 * (s.quat[0] * s.quat[0] + s.quat[1] * s.quat[1])) < -0.3);
         const dist = root.position.distanceTo(this.renderer.camera.position);
         rv.tag.visible = dist < 450;
+        if (rv.model.driver) rv.model.driver.group.visible = dist < 90;      // (too small to see further off: not posed)
         rv.tag.scale.set(3.2 * Math.max(1, dist / 30), 0.8 * Math.max(1, dist / 30), 1);
         if (rv.bubble) {
           const k = Math.max(1, dist / 24), B = rv.bubble.userData;
@@ -1212,8 +1213,8 @@ export class Game {
     const m = this.model;
     m.root.position.set(v.pos.x, v.pos.y, v.pos.z);
     m.root.quaternion.set(v.quat.x, v.quat.y, v.quat.z, v.quat.w);
-    m.updateWheels([0, 1, 2, 3].map((i) => v.wheelState(i)), dt);
     m.setSeatView(this.cam.mode === 'cab');
+    m.updateWheels([0, 1, 2, 3].map((i) => v.wheelState(i)), dt);
     const night = this.renderer.night;
     const lights = this.lightsOn || night;
     m.setLights(lights);

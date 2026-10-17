@@ -1,17 +1,18 @@
-// The driver's hands on the steering wheel (pure: render/Driver.js draws them, the tests drive them).
+// The driver's hands on the steering wheel (pure: render/Person.js and render/Driver.js draw them, the tests drive them).
 //
-// Each hand holds the rim at a grip (an angle round the rim, in the wheel's own turning frame) and turns with the wheel
-// while that stays within reach of its shoulder; past that it lets go and takes the rim again further back while the
-// other hand holds on: hand over hand, one hand always on the wheel. Driving straight again, they go back to ten to
-// two, one at a time. A wheel spun faster than hands can take hold again (a keyboard's quick lock, crawling) slides
-// round under them.
+// Push-pull steering, as driving schools teach it: each hand holds the rim at a grip (an angle round the rim, in the
+// wheel's own turning frame) and turns with the wheel while that stays within reach of its side; past that it lets go
+// and takes the rim again further back while the other hand holds on, so one hand is always on the wheel and the arms
+// never cross over the top of it (filling the view from the driver's seat). Driving straight again, they go back to a
+// quarter to three, one at a time. A wheel spun faster than hands can take hold again (a keyboard's quick lock,
+// crawling) slides round under them.
 //
 // Angles are round the wheel as its frame has them: 0 on the driver's left (nine o'clock), pi/2 at the top.
 
-/** Where the hands rest: ten to two (left, right). */
-export const REST = [0.5, Math.PI - 0.5];
+/** Where the hands rest: a quarter to three, a little above the middle of the wheel (left, right). */
+export const REST = [0.17, Math.PI - 0.17];
 /** How far (rad) either side of its rest a hand keeps hold; past REACH_MAX it lets go even if the other hand is off. */
-export const REACH = 1.15, REACH_MAX = 1.9;
+export const REACH = 0.9, REACH_MAX = 1.4;
 /** Seconds from letting go to holding again; of a steady wheel before the hands go back to rest. */
 export const GRIP_T = 0.22, SETTLE = 0.8;
 /** rad/s: a wheel turning faster slides round under the hands. */
@@ -33,8 +34,9 @@ export class Hands {
     const spin = dt > 0 ? Math.abs(wheel - this.wheel) / dt : 0;
     this.still = spin > 0.3 ? 0 : this.still + dt;
     this.wheel = wheel;
-    // (a hand in the air is quicker the faster the wheel turns: it never misses more than 0.6 rad of it)
-    const rate = Math.max(1 / GRIP_T, spin / 0.6);
+    // (a hand in the air is quicker the faster the wheel turns: it never misses more than 0.4 rad of it, less than the
+    // other hand can go on holding past its reach)
+    const rate = Math.max(1 / GRIP_T, spin / 0.4);
     this.hands.forEach((h, i) => {
       const other = this.hands[1 - i];
       if (h.on) {

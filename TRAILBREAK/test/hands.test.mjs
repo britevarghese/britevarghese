@@ -1,5 +1,5 @@
-// The driver's hands on the steering wheel (render/Hands.js): they hold ten to two, turn with the wheel, go hand over
-// hand on a big turn with one always holding, and settle back when the wheel is straight again.
+// The driver's hands on the steering wheel (render/Hands.js): they hold a quarter to three, turn with the wheel, take
+// new grips on a big turn (push-pull) with one always holding, and settle back when the wheel is straight again.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { Hands, REST, REACH, REACH_MAX, SLIDE } from '../src/render/Hands.js';
@@ -7,7 +7,7 @@ import { Hands, REST, REACH, REACH_MAX, SLIDE } from '../src/render/Hands.js';
 const wrap = (a) => a - 2 * Math.PI * Math.round(a / (2 * Math.PI));
 const DT = 1 / 60;
 
-test('at rest: ten to two, both holding', () => {
+test('at rest: a quarter to three, both holding', () => {
   const h = new Hands();
   for (let i = 0; i < 60; i++) h.update(0, DT);
   h.hands.forEach((x, i) => { assert.ok(x.on); assert.equal(x.lift, 0); assert.ok(Math.abs(wrap(x.at - REST[i])) < 1e-9); });
@@ -19,7 +19,7 @@ test('a small turn: both hands keep hold and turn with the wheel', () => {
   h.hands.forEach((x, i) => { assert.ok(x.on, `hand ${i} let go`); assert.ok(Math.abs(wrap(x.at - REST[i] - 0.8)) < 1e-9); });
 });
 
-test('lock to lock: hand over hand, one hand always on the wheel, neither past its reach', () => {
+test('lock to lock: push-pull, one hand always on the wheel, neither past its reach, never crossing the top', () => {
   const h = new Hands();
   let regrips = 0, bothOff = 0, worst = 0;
   const was = h.hands.map((x) => x.on);
@@ -31,6 +31,9 @@ test('lock to lock: hand over hand, one hand always on the wheel, neither past i
       if (was[i] && !x.on) regrips++;
       was[i] = x.on;
       if (x.on) worst = Math.max(worst, Math.abs(wrap(x.at - REST[i])));
+      // (each hand on its own side of the wheel: the left one never past the top to the right, nor the right one left)
+      const side = Math.cos(x.at);
+      assert.ok(i === 0 ? side > -0.05 : side < 0.05, `hand ${i} crossed over at ${x.at.toFixed(2)}`);
       assert.ok(x.lift >= 0 && x.lift <= 1);
     });
     if (!h.hands[0].on && !h.hands[1].on) bothOff++;
@@ -49,7 +52,7 @@ test('spun faster than hands can take hold (the keyboard at a crawl): the wheel 
   assert.ok(8 / 0.2 > SLIDE);
 });
 
-test('straight again and steady: both hands back at ten to two', () => {
+test('straight again and steady: both hands back at a quarter to three', () => {
   const h = new Hands();
   for (let t = 0; t <= 1; t += DT) h.update(3 * t, DT);           // a big turn: grips all round the rim
   for (let t = 0; t <= 0.5; t += DT) h.update(3 - 3 * t / 0.5, DT); // and back

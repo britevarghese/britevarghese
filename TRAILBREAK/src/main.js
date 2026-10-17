@@ -20,6 +20,7 @@ import { Landmarks } from './render/Landmarks.js';
 import { Effects, Rope } from './render/Effects.js';
 import { MUD_TINT } from './render/TruckModel.js';
 import { loadTruckAsset } from './render/TruckAssets.js';
+import { loadDriverAssets } from './render/DriverAssets.js';
 import { Input } from './core/Input.js';
 import { Game, soloBeaconsKey } from './core/Game.js';
 import { decodeLayout } from './game/Props.js';
@@ -226,7 +227,8 @@ async function start() {
   if (M.mudTint) MUD_TINT.setRGB(...M.mudTint);
   const rope = new Rope(renderer.scene);
   setLoad(0.9, 'Warming up the engine');
-  await loadTruckAsset(settings.truck);             // (a model body: loaded before the truck is built)
+  // (a model body, and the driver: loaded before the truck is built)
+  await Promise.all([loadTruckAsset(settings.truck), loadDriverAssets()]);
   const hud = new HUD(world, terrain);
   const input = new Input();
   // voice chat with the others in the room (net/Voice.js)

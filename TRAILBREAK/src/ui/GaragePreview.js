@@ -83,10 +83,9 @@ export class GaragePreview {
   /** Show a truck (physics spec with a build) in a paint colour. */
   show(spec, paint) {
     let m;
-    try { m = new TruckModel(spec, paint); } catch (e) { console.error('garage model:', e); return; }   // (keep the last one)
+    try { m = new TruckModel(spec, paint, { driver: this.showDriver === true }); } catch (e) { console.error('garage model:', e); return; }   // (keep the last one)
     if (this.model) { this.scene.remove(this.model.root); this.model.dispose(); }
     this.model = m;
-    if (m.driver) m.driver.group.visible = this.showDriver === true;       // (an empty seat in the garage)
     this.scene.add(m.root);
     m.root.position.set(0, spec.cgHeight, spec.cgZ || 0);
     m.updateWheels(spec.axles.flatMap((a, i) => [[a.sag, 0.3, i === 0 ? 0.28 : 0], [a.sag, 0.3, i === 0 ? 0.28 : 0]]));
