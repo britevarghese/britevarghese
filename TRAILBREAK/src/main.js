@@ -327,6 +327,24 @@ function wireMenus(game, net) {
   $('opt-damage').onchange = () => { s.damage = $('opt-damage').value; game.vehicle.damage.setLevel(s.damage); save(); };
   $('opt-rumble').checked = s.rumble;
   $('opt-rumble').onchange = () => { s.rumble = $('opt-rumble').checked; save(); };
+  // a steering wheel's gear paddles (the browser shows a wheel once a button on it is pressed): click, pull the paddle
+  const I = game.input;
+  I.shifters = s.shifters ||= {};
+  const wheelUI = () => {
+    const pad = I.wheelPad(), S = pad && I.shiftersFor(pad);
+    $('wheel-name').textContent = pad ? pad.id.replace(/^[0-9a-f]{4}-[0-9a-f]{4}-/i, '').replace(/\s*\(.*\)\s*$/, '') || 'Steering wheel' : 'No steering wheel (press a button on it)';
+    for (const k of ['up', 'down']) {
+      const b = $('wheel-' + k), learning = I.learning?.which === k;
+      b.disabled = !pad;
+      b.classList.toggle('learn', learning);
+      b.textContent = learning ? 'Pull the paddle…' : `Gear ${k}: ${S ? 'button ' + (S[k] + 1) : '–'}`;
+    }
+  };
+  for (const k of ['up', 'down']) $('wheel-' + k).onclick = () => { I.learn(k, () => { save(); wheelUI(); }); wheelUI(); };
+  addEventListener('gamepadconnected', wheelUI);
+  addEventListener('gamepaddisconnected', wheelUI);
+  game.onPause = (on) => { if (on) wheelUI(); };
+  wheelUI();
   $('opt-full').checked = s.fullscreen !== false;
   $('opt-full').onchange = () => {
     s.fullscreen = $('opt-full').checked; save();

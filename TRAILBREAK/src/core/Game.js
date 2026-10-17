@@ -7,7 +7,7 @@ import { buildSummary, buildStats } from '../physics/Upgrades.js';
 import { SURFACES } from '../physics/Surfaces.js';
 import { TruckModel } from '../render/TruckModel.js';
 import { TruckView } from '../ui/TruckView.js';
-import { loadTruckAsset, truckAsset, MODEL_BODIES } from '../render/TruckAssets.js';
+import { loadTruckAsset, truckAsset, truckAssetProgress, MODEL_BODIES } from '../render/TruckAssets.js';
 import { CameraRig } from './CameraRig.js';
 import { BEACON_RADIUS, MAP_HALF } from '../world/maps/index.js';
 import { EventPlay } from '../game/EventPlay.js';
@@ -442,7 +442,17 @@ export class Game {
   /** Drive another of your trucks: it is waiting at the station garage, with its last build. */
   async switchTruck(id) {
     if (!this.career?.ownsTruck(id) || id === this.truckId) return;
-    await loadTruckAsset(id);                         // (its model body, if it has one)
+    this.switchingTo = id;
+    if (!truckAsset(id) && MODEL_BODIES.has(id)) {
+      // its model body first: megabytes, some seconds on a slow line, so say how far it has got
+      const name = TRUCKS[id]?.name || 'truck';
+      const say = () => { const p = truckAssetProgress(id); this.hud.hint(`Bringing the ${name} round${p != null ? `: ${Math.round(p * 100)}%` : '…'}`, 1); };
+      say();
+      const timer = setInterval(say, 300);
+      await loadTruckAsset(id).finally(() => clearInterval(timer));
+    }
+    if (this.switchingTo !== id) return;               // (another was picked meanwhile)
+    this.switchingTo = null;
     this.truckId = id;
     this.applyBuild(this.settings.builds?.[id] || '', true);
   }
@@ -645,11 +655,20 @@ export class Game {
     if (I.consume('sway')) { v.swayDisconnected = !v.swayDisconnected; this.hud.hint(v.swayDisconnected ? 'Front anti-roll bar disconnected: more articulation, more lean' : 'Anti-roll bar connected'); }
     if (I.consume('gearMode')) {
       if (d.direct) this.hud.hint('One gear: nothing to shift');
-      else { d.auto = !d.auto; if (!d.auto && d.gear <= 0) d.selectGear(1, sp); this.hud.hint(d.auto ? 'Automatic' : 'Manual: Shift up, Ctrl down'); }
+      else { d.auto = !d.auto; if (!d.auto && d.gear <= 0) d.selectGear(1, sp); this.hud.hint(d.auto ? 'Automatic' : 'Manual: Shift up, Ctrl down (or the wheel\'s paddles)'); }
     }
+    // a steering wheel's paddles shift (an automatic box goes to manual for them, as a paddle-shift automatic does), and
+    // its H-pattern shifter puts the box in the gear its stick is in
+    const paddle = I.consume('paddleUp') ? 1 : I.consume('paddleDown') ? -1 : 0, gate = I.consume('gate');
+    if ((paddle || gate) && d.direct) this.hud.hint('One gear: nothing to shift');
+    else if ((paddle || gate) && d.auto) { d.auto = false; this.hud.hint(gate ? 'Manual: the shifter picks the gear (G for automatic)' : 'Manual: the paddles shift (G for automatic)', 2.5); }
     if (!d.auto) {
-      if (I.consume('shiftUp')) d.selectGear(d.gear + 1 > d.t.gears.length ? d.gear : d.gear + 1, sp);
-      if (I.consume('shiftDown')) { if (!d.selectGear(d.gear - 1, sp)) this.hud.hint('Stop to select reverse'); }
+      if (I.consume('shiftUp') || paddle > 0) d.selectGear(d.gear + 1 > d.t.gears.length ? d.gear : d.gear + 1, sp);
+      if (I.consume('shiftDown') || paddle < 0) { if (!d.selectGear(d.gear - 1, sp)) this.hud.hint('Stop to select reverse'); }
+      if (gate) {
+        const want = I.gate < 0 ? -1 : Math.min(I.gate, d.t.gears.length);
+        if (!d.selectGear(want, sp)) this.hud.hint(want < 0 ? 'Stop to select reverse' : 'Stop before you take it out of reverse');
+      }
     }
     if (I.consume('spare')) this.fitSpare();
     if (I.consume('event')) this.events.press();
@@ -682,6 +701,7 @@ export class Game {
     document.getElementById('menu').classList.toggle('hidden', !this.paused);
     this.input.enabled = !this.paused && !this.chatOpen;
     this.audio.setMuted('pause', this.paused);           // paused, all quiet
+    this.onPause?.(this.paused);
   }
 
   toggleMap() {

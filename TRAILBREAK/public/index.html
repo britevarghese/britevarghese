@@ -291,6 +291,11 @@
             <label class="p-sel"><svg class="ic"><use href="#i-monitor"/></svg><span>Graphics</span><select id="opt-quality"><option value="high">High</option><option value="medium">Medium</option><option value="low">Low</option></select></label>
             <label class="p-sel" title="Cosmetic: crashes dent the panels and break the glass, nothing else. Forgiving: it takes a real crash to break anything, and the engine never seizes from heat. Realistic: things break as they would on a real truck"><svg class="ic"><use href="#i-wrench"/></svg><span>Damage</span><select id="opt-damage"><option value="cosmetic">Cosmetic</option><option value="forgiving">Forgiving</option><option value="realistic">Realistic</option></select></label>
           </div>
+          <div class="p-wheel" title="A steering wheel's gear paddles: click one, then pull that paddle on the wheel">
+            <span class="p-wheel-name"><svg class="ic"><use href="#i-wheel"/></svg><span id="wheel-name">No steering wheel</span></span>
+            <button id="wheel-up" class="ghost" disabled>Gear up</button>
+            <button id="wheel-down" class="ghost" disabled>Gear down</button>
+          </div>
         </section>
         <div class="pause-actions">
           <button id="resume" class="resume-btn"><svg class="ic"><use href="#i-play"/></svg><span><b>Resume ride</b><small>Get back on the trail</small></span></button>
@@ -411,7 +416,7 @@
           <dt>P</dt><dd>Tyre pressure: air down (stopped), or back up with a compressor or at the station</dd>
           <dt>U</dt><dd>Garage (parts are fitted at the station)</dd>
           <dt>B</dt><dd>Disconnect the front anti-roll bar (more articulation)</dd>
-          <dt>G</dt><dd>Gearbox AUTO / MANUAL; manual: Shift up, Ctrl down</dd>
+          <dt>G</dt><dd>Gearbox AUTO / MANUAL; manual: Shift up, Ctrl down (or a steering wheel's paddles)</dd>
         </dl>
         <dl>
           <dt>F</dt><dd>Winch: hook the nearest tree or friend ahead / unhook</dd>
@@ -432,6 +437,8 @@
       </div>
       <p class="fine">Gamepad: RT / LT pedals, left stick steer, A handbrake, X winch hook, RB / LB winch in / out, Y camera,
         B recover, d-pad: up range, down locks, left 4WD, right lights. Right stick looks around.</p>
+      <p class="fine">Steering wheel: its paddles shift gears (pulling one puts the box in manual; G back to automatic) and an
+        H-pattern shifter picks the gear its stick is in. Paddles on other buttons: set them in the settings (Esc).</p>
       <p class="fine">Tips: open diffs send power to the wheel with the least grip. Lock them in ruts and rocks, unlock them to
         turn. Low range for crawling, momentum for mud. Spinning tyres dig. Air down for sand, mud and rock (and air
         back up for the road). Ford deep water slowly: the bow wave reaches the intake first.</p>

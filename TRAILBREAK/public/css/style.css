@@ -134,6 +134,10 @@ input[type=checkbox]:checked::after { transform: translateX(16px); background: #
 .truck-view canvas:active { cursor: grabbing; }
 .truck-view .tv-name { position: absolute; left: 12px; bottom: 8px; font: italic 800 20px var(--display); letter-spacing: .03em; text-transform: uppercase; text-shadow: 0 1px 4px rgba(0, 0, 0, .8); pointer-events: none; }
 .truck-view .tv-hint { position: absolute; right: 12px; bottom: 10px; font-size: 11.5px; color: var(--ink-dim); text-shadow: 0 1px 3px rgba(0, 0, 0, .7); pointer-events: none; }
+.truck-view .tv-load { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; background: rgba(10, 13, 18, .62);
+  font: italic 800 16px var(--display); letter-spacing: .05em; text-transform: uppercase; color: #fff; text-align: center; padding: 0 16px; pointer-events: none; }
+.truck-view .tv-load i { width: min(60%, 260px); height: 6px; border-radius: 3px; background: rgba(255, 255, 255, .14); overflow: hidden; }
+.truck-view .tv-load b { display: block; height: 100%; width: 0; background: var(--accent-grad); transition: width .15s; }
 .dealer-view { aspect-ratio: auto; height: min(30vh, 260px); }
 .truck-opt { text-align: left; padding: 9px 12px; border-radius: 10px; background: var(--card); }
 .truck-opt b { display: block; font: italic 700 17px var(--display); letter-spacing: .02em; }
@@ -230,6 +234,12 @@ input[type=checkbox]:checked::after { transform: translateX(16px); background: #
 .p-sel span { flex: 1; }
 .p-sel .ic { color: var(--ink-dim); }
 .p-sel select { margin: 0; min-width: 46%; height: 40px; text-transform: uppercase; font-size: 13.5px; letter-spacing: .04em; }
+.p-wheel { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr) minmax(0, 1fr); gap: 10px; margin-top: 10px; }
+.p-wheel-name { display: flex; align-items: center; gap: 12px; padding: 6px 14px; min-height: 52px; border-radius: 10px; background: rgba(255, 255, 255, .03); border: 1px solid var(--line); font-size: 14.5px; font-weight: 500; min-width: 0; }
+.p-wheel-name .ic { width: 22px; height: 22px; color: var(--ink-dim); flex: none; }
+.p-wheel-name span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.p-wheel button { font-size: 13.5px; padding: 8px 10px; }
+.p-wheel button.learn { border-color: var(--accent); background: rgba(255, 122, 26, .12); color: #fff; }
 .pause-actions { grid-column: 1 / -1; display: grid; grid-template-columns: minmax(250px, 300px) minmax(0, 1fr); gap: 14px; }
 .resume-btn { display: flex; align-items: center; gap: 18px; padding: 18px 24px; border-radius: 14px; text-align: left; background: var(--accent-grad); border: 1px solid rgba(255, 170, 90, .7); color: #fff;
   box-shadow: 0 10px 30px rgba(240, 106, 15, .35), inset 0 1px 0 rgba(255, 255, 255, .3); }
@@ -254,7 +264,7 @@ input[type=checkbox]:checked::after { transform: translateX(16px); background: #
   .pause-title { border: 0; padding: 0; }
   .pause-title h2 { font-size: 36px; }
   .pause-body { padding: 12px; }
-  .p-selects, .pa-grid { grid-template-columns: minmax(0, 1fr); }
+  .p-selects, .pa-grid, .p-wheel { grid-template-columns: minmax(0, 1fr); }
   #tod-name { min-width: 0; }
 }
 .help-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 24px; }

@@ -94,14 +94,14 @@ Without the Blueprint: **New > Web Service** with this repository, branch `claud
 |---|---|---|
 | Throttle / brake (hold brake when stopped to reverse) | W / S | RT / LT |
 | Steer | A / D | Left stick |
-| Handbrake (stops the truck and holds it, on any slope it can grip) | Space | A |
+| Handbrake (stops the truck and holds it, on any slope it can grip; the clutch held down, so the throttle revs the engine on the spot, and letting go launches) | Space | A |
 | Transfer case HIGH / LOW (nearly stopped) | L | D-pad up |
 | 2WD / 4WD | 4 | D-pad left |
 | Diff lockers (if fitted): open, rear, front + rear | X | D-pad down |
 | Tyre pressure: air down (stopped) / back up | P | |
 | Garage (parts are fitted at the station; at the garage it first mends any damage) | U | |
 | Disconnect the front anti-roll bar | B | |
-| Gearbox AUTO / MANUAL (manual: Shift up, Ctrl down) | G | |
+| Gearbox AUTO / MANUAL (manual: Shift up, Ctrl down; a steering wheel's paddles and H-shifter, below) | G | |
 | Winch: hook the nearest tree or friend ahead / unhook | F | X |
 | Winch in / pay out (hold) | E / Q | RB / LB |
 | Recover: back on the wheels, or back to dry ground when stuck | R | B |
@@ -183,6 +183,14 @@ While you drive, the HUD shows the transfer case range, 2WD or 4WD, the lockers 
 with M when you shift yourself) and the tyre pressure. ENGINE OFF / FLOODED appears when water has got into the intake
 (press the throttle to start it again). The coolant temperature shows once the radiator leaks, and what is broken
 (FLAT FL, AXLE R, STEERING, SPRING, ENGINE 60%) shows beside it: see [Damage](#damage).
+
+**A steering wheel's shifters:** its paddles change gear (pulling one puts an automatic box in manual, as a
+paddle-shift automatic would; G goes back to automatic), and an H-pattern shifter puts the box in the gear its stick is
+in (out of every gate: neutral; reverse only stopped). The paddles are found by the wheel's make: a Logitech (G29, G920,
+G923) has the right paddle on button 5 and the left on 6, and its shifter's gates on 13 to 19; a Thrustmaster has its
+paddles on 1 and 2; a wheel the browser reads as an Xbox pad has them on the bumpers. Any other, or paddles you would
+rather have elsewhere: the pause menu shows the wheel and its **Gear up** and **Gear down** buttons; click one and pull
+the paddle. On a wheel the paddles and the shifter do nothing else (the winch stays on E and Q).
 
 Steering wheels are detected by name and get the full steering range; keys and thumbsticks get a steering assist
 (full lock at walking pace, gentler at speed: the wheels ease round more slowly the faster you go, and the truck's swing

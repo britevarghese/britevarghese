@@ -371,9 +371,12 @@ export class Vehicle {
     }
     if (ctrl.hold) brake = Math.max(brake, ctrl.hold);                 // brakes on without asking for reverse
     // the handbrake (Space) stops the truck and keeps it there: the brakes on at every wheel (and the parking brake on
-    // the rear ones), the drive taken off
+    // the rear ones), the drive taken off: the clutch held down (an automatic in neutral), so the throttle revs the
+    // engine freely, as you would on the spot or before a launch, and letting go puts the drive back in (an electric
+    // truck's motors are its drive: its throttle goes)
     const hand = ctrl.handbrake || 0;
-    if (hand > 0) { brake = Math.max(brake, hand); throttle *= 1 - hand; }
+    let declutch = false;
+    if (hand > 0) { brake = Math.max(brake, hand); if (dtr.direct || hand < 0.5) throttle *= 1 - hand; else declutch = true; }
     this.pedalThrottle = throttle; this.pedalBrake = brake;
     // how far each axle's tyres are into their grip sideways (1: at the slip angle that grips best on this ground), for
     // the traction and stability control
@@ -595,6 +598,7 @@ export class Vehicle {
     }
     this._dtIn = this._dtIn || { throttle: 0, brakeTorque: bt };
     this._dtIn.throttle = throttle;
+    this._dtIn.declutch = declutch;
     const D = this.damage;
     // (cosmetic damage: water in the intake doesn't stop the engine, it chokes it: it coughs and makes a third; an
     // electric truck in over its sealing: its battery management cuts the power)

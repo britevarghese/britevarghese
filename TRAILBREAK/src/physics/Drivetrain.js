@@ -274,7 +274,8 @@ export class Drivetrain {
    */
   step(dt, input, wheels) {
     const e = this.e, t = this.t;
-    const g = this.gearRatio;
+    // (input.declutch: the clutch held down, or an automatic slipped into neutral, whatever gear it shows)
+    const g = input.declutch ? 0 : this.gearRatio;
     const G = this.axleGear;
     this.autoShift(dt, input.throttle, wheels);
 
@@ -449,8 +450,17 @@ export class Drivetrain {
         }
       }
       if (!solveDense(A, b, k, x)) {
-        // degenerate (e.g. lockers fighting a locked brake): fall back to dropping the last constraint
-        active[idx[k - 1]] = 0;
+        // degenerate (e.g. lockers fighting a locked brake): drop a row that ties two wheels together (a locker or a
+        // limited-slip's: with both wheels' brakes holding them it has nothing to add), else the last. (The last is a
+        // brake's: dropping it let a braked wheel roll, an H1 in neutral on its handbrake sliding down a slope)
+        let drop = idx[k - 1];
+        for (let r = 0; r < k; r++) {
+          const ir = idx[r] * NB;
+          let wheelsIn = 0;
+          for (let q = 0; q < 4; q++) if (J[ir + q] !== 0) wheelsIn++;
+          if (wheelsIn === 2 && J[ir + OUT] === 0 && J[ir + ENG] === 0) { drop = idx[r]; break; }
+        }
+        active[drop] = 0;
         continue;
       }
       // the worst violation of a bound, if any

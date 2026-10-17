@@ -126,34 +126,64 @@ const compressCache = new Map();
 let compressCacheBytes = 0;
 const COMPRESS_CACHE_LIMIT = 128 * 1024 * 1024;
 
+// (compressions under way: a second request for the same file waits for the first's)
+const compressing = new Map();
+
+/**
+ * A file's compressed bytes (a promise), made once and kept. Off the main thread (zlib's pool): a truck's model is
+ * megabytes, and compressing it in line held up every other request and the rooms' traffic for seconds. Big files get
+ * a faster brotli: on models and textures the best setting saves little and costs many times the time.
+ */
 function getCompressed(file, stat, encoding) {
   const key = `${encoding}|${file}|${stat.mtimeMs}|${stat.size}`;
   const hit = compressCache.get(key);
   if (hit) {
     compressCache.delete(key); compressCache.set(key, hit); // LRU bump
-    return hit;
+    return Promise.resolve(hit);
   }
-  const raw = fs.readFileSync(file);
-  const out = encoding === 'br'
-    ? zlib.brotliCompressSync(raw, {
-      params: {
-        [zlib.constants.BROTLI_PARAM_QUALITY]: 9,
-        [zlib.constants.BROTLI_PARAM_SIZE_HINT]: raw.length,
-      },
-    })
-    : zlib.gzipSync(raw, { level: 9 });
-  // Drop stale versions of the same file.
-  for (const k of compressCache.keys()) {
-    if (k.startsWith(`${encoding}|${file}|`)) { compressCacheBytes -= compressCache.get(k).length; compressCache.delete(k); }
-  }
-  compressCache.set(key, out);
-  compressCacheBytes += out.length;
-  while (compressCacheBytes > COMPRESS_CACHE_LIMIT && compressCache.size > 1) {
-    const oldest = compressCache.keys().next().value;
-    compressCacheBytes -= compressCache.get(oldest).length;
-    compressCache.delete(oldest);
-  }
-  return out;
+  if (compressing.has(key)) return compressing.get(key);
+  const job = fs.promises.readFile(file).then((raw) => new Promise((resolve, reject) => {
+    const done = (err, out) => (err ? reject(err) : resolve(out));
+    if (encoding === 'br') {
+      zlib.brotliCompress(raw, {
+        params: {
+          [zlib.constants.BROTLI_PARAM_QUALITY]: raw.length > 1024 * 1024 ? 5 : 9,
+          [zlib.constants.BROTLI_PARAM_SIZE_HINT]: raw.length,
+        },
+      }, done);
+    } else zlib.gzip(raw, { level: raw.length > 1024 * 1024 ? 6 : 9 }, done);
+  })).then((out) => {
+    // Drop stale versions of the same file.
+    for (const k of compressCache.keys()) {
+      if (k.startsWith(`${encoding}|${file}|`)) { compressCacheBytes -= compressCache.get(k).length; compressCache.delete(k); }
+    }
+    compressCache.set(key, out);
+    compressCacheBytes += out.length;
+    while (compressCacheBytes > COMPRESS_CACHE_LIMIT && compressCache.size > 1) {
+      const oldest = compressCache.keys().next().value;
+      compressCacheBytes -= compressCache.get(oldest).length;
+      compressCache.delete(oldest);
+    }
+    return out;
+  }).finally(() => compressing.delete(key));
+  compressing.set(key, job);
+  return job;
+}
+
+/** Compress the trucks' models ahead of the first player who wants one (after a start, one at a time). */
+function warmTruckModels() {
+  const dir = path.join(PUBLIC_DIR, 'assets', 'trucks');
+  let files = [];
+  try { files = fs.readdirSync(dir).filter((f) => f.endsWith('.glb')); } catch { return; }
+  const next = () => {
+    const f = files.shift();
+    if (!f) return;
+    const file = path.join(dir, f);
+    let stat;
+    try { stat = fs.statSync(file); } catch { return next(); }
+    getCompressed(file, stat, 'br').catch(() => {}).finally(() => setTimeout(next, 50));
+  };
+  setTimeout(next, 2000);
 }
 
 function pickEncoding(req) {
@@ -218,11 +248,13 @@ function serveStatic(req, res, pathname) {
 
   const ext = path.extname(file).toLowerCase();
   const type = MIME[ext] || 'application/octet-stream';
+  // (a file asked for by its version, ?v=..., never changes under that address: kept for good)
+  const versioned = /[?&]v=/.test(req.url);
   const headers = {
     'Content-Type': type,
     'Last-Modified': stat.mtime.toUTCString(),
     'X-Content-Type-Options': 'nosniff',
-    'Cache-Control': LONG_CACHE.has(ext) ? 'public, max-age=86400' : 'no-cache',
+    'Cache-Control': LONG_CACHE.has(ext) ? (versioned ? 'public, max-age=31536000, immutable' : 'public, max-age=86400') : 'no-cache',
   };
 
   const compressible = COMPRESSIBLE.has(ext) && stat.size > 256 && stat.size <= MAX_COMPRESS_SIZE;
@@ -239,14 +271,15 @@ function serveStatic(req, res, pathname) {
   }
 
   if (encoding) {
-    let body;
-    try { body = getCompressed(file, stat, encoding); } catch (e) {
-      return sendText(res, 500, '500 Internal Server Error');
-    }
-    headers['Content-Encoding'] = encoding;
-    headers['Content-Length'] = body.length;
-    res.writeHead(200, headers);
-    return res.end(req.method === 'HEAD' ? undefined : body);
+    // (X-File-Size: the size it unpacks to, which the page's loader counts its progress against)
+    getCompressed(file, stat, encoding).then((body) => {
+      headers['Content-Encoding'] = encoding;
+      headers['Content-Length'] = body.length;
+      headers['X-File-Size'] = stat.size;
+      res.writeHead(200, headers);
+      res.end(req.method === 'HEAD' ? undefined : body);
+    }, () => { if (!res.headersSent) sendText(res, 500, '500 Internal Server Error'); else res.destroy(); });
+    return;
   }
 
   // Uncompressed: stream, with single-range support (useful for audio seeking).
@@ -442,7 +475,7 @@ if (!fs.existsSync(path.join(PUBLIC_DIR, 'index.html'))) {
   console.warn('Warning: public/index.html not found - the game page will not load.');
 }
 
-front.listen(config.port, config.host, () => console.log(banner()));
+front.listen(config.port, config.host, () => { console.log(banner()); warmTruckModels(); });
 
 function shutdown() {
   console.log('\nStopping TRAILBREAK server...');

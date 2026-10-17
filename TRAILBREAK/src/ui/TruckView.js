@@ -1,8 +1,8 @@
 // A truck turning slowly on the garage floor in a small canvas: what's picked in the lobby's truck list and at the
 // dealer, with its build and paint. Drag to turn it (the garage's own 3D view, GaragePreview, does the drawing).
 import { GaragePreview } from './GaragePreview.js';
-import { truckSpec } from '../physics/trucks.js';
-import { loadTruckAsset } from '../render/TruckAssets.js';
+import { truckSpec, TRUCKS } from '../physics/trucks.js';
+import { loadTruckAsset, truckAsset, truckAssetProgress, MODEL_BODIES } from '../render/TruckAssets.js';
 
 export class TruckView {
   constructor(canvas) {
@@ -17,8 +17,11 @@ export class TruckView {
   async show(id, code, paint) {
     this.want = `${id}:${code || ''}:${paint}`;
     const want = this.want;
-    await loadTruckAsset(id);                        // (a model body loads first; meanwhile the last truck stays)
+    // (a model body loads first: meanwhile the last truck stays, dimmed, under how far the new one has come)
+    if (!truckAsset(id) && MODEL_BODIES.has(id)) this.loading(id);
+    await loadTruckAsset(id);
     if (want !== this.want) return;                  // (another was picked while it loaded)
+    this.loading(null);
     if (!this.preview) {
       try { this.preview = new GaragePreview(this.canvas); } catch (e) { console.warn('truck view', e); this.canvas.closest('.truck-view')?.classList.add('hidden'); return; }
     }
@@ -34,6 +37,23 @@ export class TruckView {
     this.start();
   }
 
+  /** Over the view while truck id's model comes down (null: done): its name and how far it has got. */
+  loading(id) {
+    clearInterval(this.loadT);
+    const host = this.canvas.parentElement;
+    let el = host?.querySelector('.tv-load');
+    if (!id) { el?.remove(); return; }
+    if (!host) return;
+    if (!el) { el = document.createElement('div'); el.className = 'tv-load'; el.innerHTML = '<span></span><i><b></b></i>'; host.appendChild(el); }
+    const tick = () => {
+      const p = truckAssetProgress(id);
+      el.querySelector('span').textContent = `Loading the ${TRUCKS[id]?.name || 'truck'}${p != null ? ` · ${Math.round(p * 100)}%` : '…'}`;
+      el.querySelector('b').style.width = `${Math.round((p ?? 0) * 100)}%`;
+    };
+    tick();
+    this.loadT = setInterval(tick, 150);
+  }
+
   start() {
     if (this.raf || !this.preview) return;
     let last = performance.now();
@@ -45,7 +65,7 @@ export class TruckView {
     this.raf = requestAnimationFrame(loop);
   }
 
-  stop() { cancelAnimationFrame(this.raf); this.raf = 0; }
+  stop() { cancelAnimationFrame(this.raf); this.raf = 0; this.loading(null); }
 
   /** Free the view's WebGL context (the lobby's, before the game takes the GPU). */
   dispose() {

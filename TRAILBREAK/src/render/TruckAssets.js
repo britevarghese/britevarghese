@@ -16,9 +16,13 @@ const OWN = new Set(['paint', 'glass', 'screen', 'head_l', 'head_r', 'tail', 're
 
 const loading = new Map();             // id -> Promise<asset | null>
 const loaded = new Map();              // id -> asset
+const progress = new Map();            // id -> the share of its model come down, while it loads
 
 /** A loaded body, or null (not loaded yet, or the truck has none). */
 export const truckAsset = (id) => loaded.get(id) || null;
+
+/** How far a truck's model has come down while it loads, 0..1 (null: not loading, or not yet known). */
+export const truckAssetProgress = (id) => progress.get(id) ?? null;
 
 /** Load a truck's model body (resolves null for a truck without one, or when it can't be had). */
 export function loadTruckAsset(id, base = '/assets/trucks/') {
@@ -27,12 +31,14 @@ export function loadTruckAsset(id, base = '/assets/trucks/') {
   if (!loading.has(id)) {
     // the layout first (it names the model by its content, so a cached old one is never used)
     loading.set(id, fetch(base + id + '.json').then((r) => { if (!r.ok) throw new Error(r.status); return r.json(); })
-      .then((layout) => new GLTFLoader().loadAsync(base + (layout.glb || id + '.glb')).then((gltf) => [gltf, layout]))
+      // (its progress counted against the size it unpacks to, which the server sends as X-File-Size)
+      .then((layout) => new GLTFLoader().loadAsync(base + (layout.glb || id + '.glb'), (e) => { if (e.total) progress.set(id, Math.min(1, e.loaded / e.total)); }).then((gltf) => [gltf, layout]))
       .then(([gltf, layout]) => {
       const asset = build(id, gltf, layout);
       loaded.set(id, asset);
       return asset;
-    }).catch((e) => { console.warn(`truck body ${id}:`, e); loading.delete(id); return null; }));
+    }).catch((e) => { console.warn(`truck body ${id}:`, e); loading.delete(id); return null; })
+      .finally(() => progress.delete(id)));
   }
   return loading.get(id);
 }
