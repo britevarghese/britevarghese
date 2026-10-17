@@ -33,7 +33,7 @@ const $ = (id) => document.getElementById(id);
 const PAINTS = ['#b5532c', '#3d6b8c', '#6b7d3e', '#c9a227', '#8c2f2f', '#e6e1d3', '#2f4f3a', '#4a4a4a'];
 const STORE = 'trailbreak.settings';
 
-const settings = Object.assign({ name: '', map: DEFAULT_MAP, truck: 'thar', paint: PAINTS[0], hour: 16.5, shadows: true, sound: true, assist: true, rumble: true, quality: 'high', autoQuality: true, damage: 'cosmetic', builds: {} }, (() => {
+const settings = Object.assign({ name: '', map: DEFAULT_MAP, truck: 'thar', paint: PAINTS[0], hour: 16.5, shadows: true, sound: true, assist: true, rumble: true, fullscreen: true, quality: 'high', autoQuality: true, damage: 'cosmetic', builds: {} }, (() => {
   try { return JSON.parse(localStorage.getItem(STORE) || '{}'); } catch { return {}; }
 })());
 if (!settings.builds || typeof settings.builds !== 'object') settings.builds = {};
@@ -137,6 +137,7 @@ function lobby() {
   }
   return new Promise((resolve) => {
     const go = (online, quick = false) => {
+      fullscreen();                                   // (inside the click: the only time a browser allows it)
       settings.name = ($('name').value.trim() || 'Driver').slice(0, 20);
       save();
       view.dispose();                                 // the game wants the GPU
@@ -148,6 +149,17 @@ function lobby() {
     $('room').addEventListener('keydown', (e) => { if (e.key === 'Enter') go(true); });
     $('name').addEventListener('keydown', (e) => { if (e.key === 'Enter') go(true); });
   });
+}
+
+/**
+ * The game full screen (a browser allows it only from a click or a key press: the lobby's buttons), and a phone held
+ * landscape where it lets a page ask. Unless the settings turn it off.
+ */
+function fullscreen() {
+  if (settings.fullscreen === false || document.fullscreenElement || document.webkitFullscreenElement) return;
+  const el = document.documentElement, req = el.requestFullscreen || el.webkitRequestFullscreen;
+  if (!req) return;
+  Promise.resolve(req.call(el, { navigationUI: 'hide' })).then(() => screen.orientation?.lock?.('landscape')).catch(() => {});
 }
 
 function setLoad(f, label) {
@@ -314,6 +326,11 @@ function wireMenus(game, net) {
   $('opt-damage').onchange = () => { s.damage = $('opt-damage').value; game.vehicle.damage.setLevel(s.damage); save(); };
   $('opt-rumble').checked = s.rumble;
   $('opt-rumble').onchange = () => { s.rumble = $('opt-rumble').checked; save(); };
+  $('opt-full').checked = s.fullscreen !== false;
+  $('opt-full').onchange = () => {
+    s.fullscreen = $('opt-full').checked; save();
+    if (s.fullscreen) fullscreen(); else if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
+  };
   $('resume').onclick = () => game.togglePause(false);
   $('hud-menu').onclick = (e) => { e.currentTarget.blur(); if (!game.mapOpen) game.togglePause(true); };
   $('respawn').onclick = () => { game.togglePause(false); game.towHome(); };

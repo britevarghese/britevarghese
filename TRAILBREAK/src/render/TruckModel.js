@@ -570,11 +570,20 @@ function modelBody(model, asset, M, P) {
   const L = asset.layout;
   if (L.cabin) cabin(P, M, L.cabin);                     // (a model with an empty cab: seats and a dash)
   const mats = { paint: model.paint, glass: M.glass, screen: M.screen, head_l: model.lampMats[0], head_r: model.lampMats[1], tail: model.brakeMat, reverse: model.revMat, amber: M.amber };
+  // a part the model draws double-sided gets the game's material drawn from both sides too (this truck's own paint
+  // and lamps turned so; a shared one through its double-sided twin)
+  const own = new Set([model.paint, ...model.lampMats, model.brakeMat, model.revMat]);
+  const both = (m) => {
+    if (m.side === THREE.DoubleSide) return m;
+    if (own.has(m)) { m.side = THREE.DoubleSide; return m; }
+    return (m.userData.both ||= Object.assign(m.clone(), { side: THREE.DoubleSide }));
+  };
   for (const part of asset.parts) {
     const g = part.geometry.clone();
     g.userData = {};
-    const mat = mats[part.role] || part.material;
+    const mat = mats[part.role] ? (part.doubleSided ? both(mats[part.role]) : mats[part.role]) : part.material;
     const m = new THREE.Mesh(g, mat);
+    m.userData.role = part.role;
     m.castShadow = !mat.transparent; m.receiveShadow = !mat.transparent;
     model.body.add(m);
   }
@@ -801,21 +810,24 @@ export class TruckModel {
     if (this.spareRim) this.body.add(this.spareRim);
     // this truck's own glass, so it can crack and shatter
     // this truck's own glass: the windscreen (laminated: it crazes) and the side and back windows (toughened: they burst)
-    this.screenMesh = this.body.children.find((m) => m.material === M.screen);
-    if (this.screenMesh) {
+    const screens = this.body.children.filter((m) => m.material === M.screen || m.material === M.screen.userData.both);
+    if (screens.length) {
       this.screen = M.screen.clone();
-      this.screenMesh.material = this.screen;
-      // the parts lose their texture coordinates when merged: map the cracks across the pane, flat on from the front
-      const g = this.screenMesh.geometry, p = g.attributes.position;
-      g.computeBoundingBox();
-      const b = g.boundingBox, uv = new Float32Array(p.count * 2);
-      for (let i = 0; i < p.count; i++) {
-        uv[i * 2] = (p.getX(i) - b.min.x) / (b.max.x - b.min.x || 1);
-        uv[i * 2 + 1] = (p.getY(i) - b.min.y) / (b.max.y - b.min.y || 1);
+      if (screens.some((m) => m.material.side === THREE.DoubleSide)) this.screen.side = THREE.DoubleSide;
+      for (const sm of screens) {
+        sm.material = this.screen;
+        // the parts lose their texture coordinates when merged: map the cracks across the pane, flat on from the front
+        const g = sm.geometry, p = g.attributes.position;
+        g.computeBoundingBox();
+        const b = g.boundingBox, uv = new Float32Array(p.count * 2);
+        for (let i = 0; i < p.count; i++) {
+          uv[i * 2] = (p.getX(i) - b.min.x) / (b.max.x - b.min.x || 1);
+          uv[i * 2 + 1] = (p.getY(i) - b.min.y) / (b.max.y - b.min.y || 1);
+        }
+        g.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
       }
-      g.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
     }
-    this.glassMesh = this.body.children.find((m) => m.material === M.glass);
+    this.glassMeshes = this.body.children.filter((m) => m.material === M.glass || m.material === M.glass.userData.both);
     this.dentMeshes = this.body.children.filter((m) => m.isMesh && !m.material.transparent);
     this.rimR = rimR;
 
@@ -1010,7 +1022,7 @@ export class TruckModel {
         this.screen.map = null; this.screen.color.set(0x1a262b); this.screen.opacity = 0.38; this.screen.needsUpdate = true;
       }
     }
-    if (this.glassMesh) this.glassMesh.visible = glass < 2;
+    for (const gm of this.glassMeshes) gm.visible = glass < 2;
     this.broken = [!lights[0], !lights[1]];
     this.lampMats.forEach((m, i) => { m.color.set(this.broken[i] ? 0x2a2a28 : 0xfff6dc); });
     this.setLights(this.lightsOn);

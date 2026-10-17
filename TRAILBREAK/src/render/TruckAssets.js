@@ -50,14 +50,19 @@ function build(id, gltf, layout) {
       plain.setAttribute('position', g.attributes.position);
       plain.setAttribute('normal', g.attributes.normal);
       plain.setIndex(g.index);
-      if (!own.has(role)) own.set(role, []);
-      own.get(role).push(plain);
+      // (what the model's maker drew double-sided, a panel seen from inside as well as out, stays so in the game's
+      // own materials: kept apart from the rest of its role)
+      const key = o.material.side === THREE.DoubleSide ? role + '|both' : role;
+      if (!own.has(key)) own.set(key, []);
+      own.get(key).push(plain);
       return;
     }
-    o.material.side = o.material.side || THREE.FrontSide;
     parts.push({ role, geometry: g, material: o.material });
   });
-  for (const [role, list] of own) parts.push({ role, geometry: list.length > 1 ? mergeGeometries(list) : list[0], material: null });
+  for (const [key, list] of own) {
+    const [role, both] = key.split('|');
+    parts.push({ role, geometry: list.length > 1 ? mergeGeometries(list) : list[0], material: null, doubleSided: !!both });
+  }
   for (const p of parts) { p.geometry.computeBoundingSphere(); p.geometry.userData.cached = true; }
   for (const r of rim) r.geometry.userData.cached = true;
   return { id, layout, parts, rim };

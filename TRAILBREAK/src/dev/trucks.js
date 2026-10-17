@@ -18,7 +18,16 @@ if (q.get('pitch')) view.pitch = Number(q.get('pitch'));
 if (q.get('dist')) view.dist = Number(q.get('dist'));
 if (q.get('focus')) view.focusY = Number(q.get('focus'));
 if (q.get('dirt')) view.model.setDirt(Number(q.get('dirt')));
-view.frame(0);
+if (q.get('eye')) {
+  // from the driver's seat (eye=1, or eye=x,y,z in the design frame): look=yaw (rad, + to the left), down=pitch
+  const e = q.get('eye') === '1' ? spec.eye : q.get('eye').split(',').map(Number), lk = Number(q.get('look') || 0), dn = Number(q.get('down') || 0.15);
+  const cam = view.camera, y = e[1] + (spec.raise || 0);
+  view.resize();
+  cam.fov = Number(q.get('fov') || 70); cam.near = 0.02; cam.updateProjectionMatrix();
+  cam.position.set(e[0], y, e[2]);
+  cam.lookAt(e[0] + Math.sin(lk) * Math.cos(dn), y - Math.sin(dn), e[2] + Math.cos(lk) * Math.cos(dn));
+  view.renderer.render(view.scene, cam);
+} else view.frame(0);
 const info = view.renderer.info.render;
 document.getElementById('info').textContent = `${spec.name} ${spec.buildCode} raise ${(spec.raise * 100).toFixed(1)} cm, ${info.triangles} tris, ${info.calls} calls`;
 window.view = view;
