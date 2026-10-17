@@ -194,7 +194,8 @@ test('traction control: flat out up a snowy slope the tyres spin far less, and t
 });
 
 test('stability control: floored round a full-lock bend on the keys, a truck circles at its grip instead of spinning or crawling', () => {
-  for (const [id, surf, kmh, g] of [['hummerev', SURFACE.ROAD, 25, 0.5], ['hummerev', SURFACE.GRASS, 22, 0.38], ['bronco', SURFACE.DIRT, 45, 0.45], ['thar', SURFACE.GRASS, 35, 0.35]]) {
+  // (on tarmac the tyres grip at a small slip angle: at full lock the truck circles tight, about 8.5 m, so slower)
+  for (const [id, surf, kmh, g] of [['hummerev', SURFACE.ROAD, 22, 0.5], ['hummerev', SURFACE.GRASS, 22, 0.38], ['bronco', SURFACE.DIRT, 45, 0.45], ['thar', SURFACE.GRASS, 35, 0.35]]) {
     const ground = flat(surf), v = truck(id, ground);
     run(v, ground, 0.5);
     v.vel.set(0, 0, 25 / 3.6);

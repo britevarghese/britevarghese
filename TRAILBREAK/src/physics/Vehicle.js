@@ -460,12 +460,13 @@ export class Vehicle {
         const hold = Math.max(0, Math.abs(at) - Math.max(0, side[0] - 1.1) * 0.05);
         target = Math.sign(at) * (Math.abs(target) + (hold - Math.abs(target)) * fast);
       }
-      // and no further once the truck's weight has gone well over onto its outside wheels: let back a little if the
-      // inside ones are about to lift (as a modern truck's roll stability control would)
-      if (fast > 0 && ltr > LTR_HOLD && target * at > 0 && Math.abs(target) > Math.abs(at) - 0.08 && Math.abs(speed * yaw) > 0.25 * GRAVITY) {
-        const hold = Math.max(0, Math.abs(at) - Math.max(0, ltr - LTR_HOLD - 0.08) * 0.6);
-        target = Math.sign(at) * Math.min(Math.abs(target), Math.abs(target) + (hold - Math.abs(target)) * fast);
-      }
+      // and less far in once the truck's weight has gone well over onto its outside wheels (as a modern truck's roll
+      // stability control would), the more so the nearer the inside ones are to lifting: the lean smoothed and the
+      // lock given back slowly, so the truck settles into a fast bend instead of pulsing in and out of it
+      this.ltrF = (this.ltrF ?? ltr) + (ltr - (this.ltrF ?? ltr)) * Math.min(1, dt / 0.15);
+      const roll = this.ltrF > LTR_HOLD && Math.abs(speed * yaw) > 0.25 * GRAVITY ? clamp(1 - (this.ltrF - LTR_HOLD) * 3, 0.45, 1) : 1;
+      this.rollGov = (this.rollGov ?? 1) + clamp(roll - (this.rollGov ?? 1), -5 * dt, 0.7 * dt);
+      if (target * at >= 0) target *= 1 - fast * (1 - this.rollGov);
     }
     this.steerAngle = (this.steerAngle || 0) + clamp(target - (this.steerAngle || 0), -rate, rate);
     // Ackermann: the inner wheel turns tighter

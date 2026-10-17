@@ -51,11 +51,16 @@ export class CameraRig {
     const fwd = this._f.set(0, 0, 1).applyQuaternion(q);
     const yawTruck = Math.atan2(fwd.x, fwd.z);
     if (this.heading === null) this.heading = yawTruck;
-    // the chase view turns with the truck's heading, lagging a little (and not at all when it's upside down)
+    // the chase view turns with the truck's heading, lagging a little (and not at all when it's upside down); less at
+    // speed, where trailing round a fast bend would show the truck's side as if it were sliding
     let dh = yawTruck - this.heading;
     while (dh > Math.PI) dh -= Math.PI * 2;
     while (dh < -Math.PI) dh += Math.PI * 2;
-    this.heading += dh * (1 - Math.exp(-dt * 3.2));
+    const moved = this.lastP ? Math.hypot(p.x - this.lastP.x, p.z - this.lastP.z) / Math.max(dt, 1e-3) : 0;
+    (this.lastP ||= new THREE.Vector3()).copy(p);
+    this.speedLP = (this.speedLP || 0) + (Math.min(moved, 80) - (this.speedLP || 0)) * Math.min(1, dt * 2);
+    const follow = 3.2 + 3.3 * THREE.MathUtils.smoothstep(this.speedLP, 8, 28);
+    this.heading += dh * (1 - Math.exp(-dt * follow));
     // look around
     if (controls) {
       this.yaw -= controls.lookX * 1.0;
