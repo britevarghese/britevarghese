@@ -43,13 +43,25 @@ export function loadTruckAsset(id, base = '/assets/trucks/') {
   return loading.get(id);
 }
 
+/** A geometry with every attribute as plain floats (a quantized model's 16- and 8-bit ones, read as they're meant). */
+function floats(geometry) {
+  const g = geometry.clone();
+  for (const [name, a] of Object.entries(g.attributes)) {
+    if (a.array instanceof Float32Array && !a.isInterleavedBufferAttribute) continue;
+    const n = a.count, k = a.itemSize, out = new Float32Array(n * k);
+    for (let i = 0; i < n; i++) for (let c = 0; c < k; c++) out[i * k + c] = a.getComponent(i, c);
+    g.setAttribute(name, new THREE.BufferAttribute(out, k));
+  }
+  return g;
+}
+
 function build(id, gltf, layout) {
   const own = new Map(), parts = [], rim = [];
   gltf.scene.updateMatrixWorld(true);
   gltf.scene.traverse((o) => {
     if (!o.isMesh) return;
     const role = (o.material.name || '').split(':')[0];
-    const g = o.geometry.clone().applyMatrix4(o.matrixWorld);
+    const g = floats(o.geometry).applyMatrix4(o.matrixWorld);
     if (role === 'rim') { rim.push({ geometry: g, material: o.material }); return; }
     if (OWN.has(role)) {
       const plain = new THREE.BufferGeometry();

@@ -13,6 +13,8 @@ This writes:
              into their material's colour.
   <id>.json  what was measured: the wheel centres, radius and width, the tracks and wheelbase, the extent of the body,
              the head and tail lamps, the roof, the bumpers, the mirrors' reach; plus the config's own layout entries.
+A config with "quantize": true writes the corners as 16-bit integers and the normals as 8-bit (KHR_mesh_quantization,
+which the game's loader reads as floats again): about half the bytes, so a model keeps more of its detail for its size.
 Needs numpy and Pillow; a config with "reduce" (the share of a dense mesh's triangles to take away) also needs
 fast-simplification (pip install fast-simplification).
 """
@@ -175,17 +177,21 @@ class GLB:
                   'accessors': [], 'bufferViews': [], 'buffers': [{'byteLength': 0}], 'extensionsUsed': ['EXT_texture_webp'], 'extensionsRequired': ['EXT_texture_webp']}
         self.bin = bytearray()
 
-    def view(self, data, target=None):
+    def view(self, data, target=None, stride=0):
         while len(self.bin) % 4: self.bin.append(0)
         v = {'buffer': 0, 'byteOffset': len(self.bin), 'byteLength': len(data)}
         if target: v['target'] = target
+        if stride: v['byteStride'] = stride
         self.bin += data
         self.j['bufferViews'].append(v)
         return len(self.j['bufferViews']) - 1
 
-    def accessor(self, arr, kind, comp, target, minmax=False):
-        a = {'bufferView': self.view(arr.tobytes(), target), 'componentType': comp, 'count': int(arr.shape[0]), 'type': kind}
-        if minmax: a['min'] = arr.min(0).tolist(); a['max'] = arr.max(0).tolist()
+    def accessor(self, arr, kind, comp, target, minmax=False, normalized=False, width=None):
+        # (width: the components used of each padded element, e.g. a 16-bit VEC3 laid out 4 wide for 4-byte alignment)
+        used = arr if width is None else arr[:, :width]
+        a = {'bufferView': self.view(arr.tobytes(), target, arr.strides[0] if width is not None else 0), 'componentType': comp, 'count': int(arr.shape[0]), 'type': kind}
+        if normalized: a['normalized'] = True
+        if minmax: a['min'] = used.min(0).tolist(); a['max'] = used.max(0).tolist()
         self.j['accessors'].append(a)
         return len(self.j['accessors']) - 1
 
@@ -196,13 +202,32 @@ class GLB:
         self.j['textures'].append({'sampler': 0, 'extensions': {'EXT_texture_webp': {'source': len(self.j['images']) - 1}}})
         return len(self.j['textures']) - 1
 
-    def mesh(self, name, pos, nor, uv, tri, material):
-        attrs = {'POSITION': self.accessor(pos.astype(np.float32), 'VEC3', 5126, 34962, True), 'NORMAL': self.accessor(nor.astype(np.float32), 'VEC3', 5126, 34962)}
-        if uv is not None: attrs['TEXCOORD_0'] = self.accessor(uv.astype(np.float32), 'VEC2', 5126, 34962)
+    def mesh(self, name, pos, nor, uv, tri, material, quantize=False):
+        node = {'name': name}
+        if quantize:
+            # KHR_mesh_quantization: the corners as 16-bit integers across the mesh's extent (its node's scale and
+            # translation bring them back: one scale on all three axes, so the normals need no correcting), the
+            # normals as 8-bit, texture coordinates as 16-bit where they lie within 0..1. About half the bytes.
+            if 'KHR_mesh_quantization' not in self.j['extensionsUsed']:
+                self.j['extensionsUsed'].append('KHR_mesh_quantization'); self.j['extensionsRequired'].append('KHR_mesh_quantization')
+            lo, hi = pos.min(0), pos.max(0)
+            mid, half = (lo + hi) / 2, max(float((hi - lo).max()) / 2, 1e-6)
+            q = np.zeros((len(pos), 4), np.int16); q[:, :3] = np.round((pos - mid) / half * 32767)
+            nq = np.zeros((len(nor), 4), np.int8); nq[:, :3] = np.round(np.clip(nor, -1, 1) * 127)
+            attrs = {'POSITION': self.accessor(q, 'VEC3', 5122, 34962, True, True, 3), 'NORMAL': self.accessor(nq, 'VEC3', 5120, 34962, False, True, 3)}
+            if uv is not None:
+                if uv.min() >= 0 and uv.max() <= 1:
+                    attrs['TEXCOORD_0'] = self.accessor(np.round(uv * 65535).astype(np.uint16), 'VEC2', 5123, 34962, False, True)
+                else: attrs['TEXCOORD_0'] = self.accessor(uv.astype(np.float32), 'VEC2', 5126, 34962)
+            node['translation'] = [float(x) for x in mid]; node['scale'] = [half, half, half]
+        else:
+            attrs = {'POSITION': self.accessor(pos.astype(np.float32), 'VEC3', 5126, 34962, True), 'NORMAL': self.accessor(nor.astype(np.float32), 'VEC3', 5126, 34962)}
+            if uv is not None: attrs['TEXCOORD_0'] = self.accessor(uv.astype(np.float32), 'VEC2', 5126, 34962)
         idx = tri.reshape(-1)
         ind = self.accessor(idx.astype(np.uint16 if len(pos) < 65536 else np.uint32), 'SCALAR', 5123 if len(pos) < 65536 else 5125, 34963)
         self.j['meshes'].append({'name': name, 'primitives': [{'attributes': attrs, 'indices': ind, 'material': material}]})
-        self.j['nodes'].append({'name': name, 'mesh': len(self.j['meshes']) - 1})
+        node['mesh'] = len(self.j['meshes']) - 1
+        self.j['nodes'].append(node)
         self.j['scenes'][0]['nodes'].append(len(self.j['nodes']) - 1)
 
     def save(self, path):
@@ -520,7 +545,7 @@ def main(src_dir, cfg_path, out_dir):
         if role == 'rim': red = cfg.get('rimReduce', 0)                      # (a rim drawn on every wheel: only if asked)
         if red and len(tri) > cfg.get('reduceOver', 3000) and role not in ('glass', 'screen'):
             pos, nor, uv, tri = simplify(flat, fnr, fuv, hu, red)
-        out.mesh(name, pos, nor, uv if hu else None, tri, mat)
+        out.mesh(name, pos, nor, uv if hu else None, tri, mat, cfg.get('quantize', False))
 
     def simplify(flat, fnr, fuv, hu, red):
         """Quadric edge collapses on the surface welded whole (by position, and by uv where it is textured: the
