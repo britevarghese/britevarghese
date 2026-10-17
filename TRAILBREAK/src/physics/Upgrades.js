@@ -284,9 +284,9 @@ const ENGINE = {
     torque: [[900, 400], [2000, 470], [3000, 510], [4500, 575], [6300, 623], [7500, 612], [8400, 567], [8800, 490], [9100, 300]] },
   // the Huracán LP 610-4's 5.2 V10: 449 kW at 8,250 rpm, 560 Nm at 6,500; and the Performante's: 470 kW at 8,000,
   // 600 Nm at 6,500
-  V10_52: { name: '5.2 V10', idleRpm: 900, redline: 8500, limiter: 8700, inertia: 0.15, friction: [14, 0.021], bank: 'v6', turbo: 0, sound: 'v8_muscle', pitch: 1, mass: 0, cyl: 10, loud: 1.35, bass: 3,
+  V10_52: { name: '5.2 V10', idleRpm: 900, redline: 8500, limiter: 8700, inertia: 0.15, friction: [14, 0.021], bank: 'v10', turbo: 0, sound: 'v8_muscle', pitch: 1, mass: 0, cyl: 10, loud: 1.35, bass: 3,
     torque: [[900, 400], [2000, 440], [3000, 470], [4000, 500], [5000, 530], [6500, 560], [7500, 548], [8250, 520], [8700, 470], [9000, 300]] },
-  V10_52P: { name: '5.2 V10 (Performante)', idleRpm: 900, redline: 8500, limiter: 8700, inertia: 0.15, friction: [14, 0.021], bank: 'v6', turbo: 0, sound: 'v8_muscle', pitch: 1, mass: 0, cyl: 10, loud: 1.4, bass: 3,
+  V10_52P: { name: '5.2 V10 (Performante)', idleRpm: 900, redline: 8500, limiter: 8700, inertia: 0.15, friction: [14, 0.021], bank: 'v10', turbo: 0, sound: 'v8_muscle', pitch: 1, mass: 0, cyl: 10, loud: 1.4, bass: 3,
     torque: [[900, 420], [2000, 470], [3000, 505], [4000, 540], [5000, 570], [6500, 600], [7500, 585], [8000, 561], [8700, 490], [9000, 320]] },
   // the E30 M3's S14 2.3 four: 147 kW at 6,750 rpm, 240 Nm at 4,750; and the Sport Evolution's 2.5: 175 kW at 7,000
   S14: { name: 'S14 2.3 four', idleRpm: 900, redline: 7250, limiter: 7450, inertia: 0.11, friction: [8, 0.014], bank: 'i4', turbo: 0, sound: 'i6_bmw', pitch: 1, mass: 0, cyl: 4, loud: 1.1,
@@ -338,9 +338,9 @@ const ENGINE = {
   // single-turbo conversion on the stock block, the tuners' favourite: about 600 kW
   // the R8 V10 plus's 5.2 FSI V10: 449 kW at 8,250 rpm, 560 Nm at 6,500; and the 2019 V10 performance's: 456 kW at
   // 8,000, 580 Nm at 6,600
-  V10_R8: { name: '5.2 FSI V10', idleRpm: 800, redline: 8700, limiter: 8900, inertia: 0.15, friction: [14, 0.021], bank: 'v6', turbo: 0, sound: 'v8_muscle', pitch: 1, mass: 0, cyl: 10, loud: 1.35, bass: 3,
+  V10_R8: { name: '5.2 FSI V10', idleRpm: 800, redline: 8700, limiter: 8900, inertia: 0.15, friction: [14, 0.021], bank: 'v10', turbo: 0, sound: 'v8_muscle', pitch: 1, mass: 0, cyl: 10, loud: 1.35, bass: 3,
     torque: [[800, 290], [2000, 390], [3000, 450], [4000, 490], [5000, 520], [6000, 550], [6500, 560], [7500, 540], [8250, 520], [8700, 490], [9000, 300]] },
-  V10_R8P: { name: '5.2 FSI V10 (performance)', idleRpm: 800, redline: 8700, limiter: 8900, inertia: 0.15, friction: [14, 0.021], bank: 'v6', turbo: 0, sound: 'v8_muscle', pitch: 1, mass: 0, cyl: 10, loud: 1.4, bass: 3,
+  V10_R8P: { name: '5.2 FSI V10 (performance)', idleRpm: 800, redline: 8700, limiter: 8900, inertia: 0.15, friction: [14, 0.021], bank: 'v10', turbo: 0, sound: 'v8_muscle', pitch: 1, mass: 0, cyl: 10, loud: 1.4, bass: 3,
     torque: [[800, 300], [2000, 405], [3000, 465], [4000, 505], [5000, 540], [6000, 568], [6600, 580], [7500, 562], [8000, 544], [8700, 500], [9000, 310]] },
   // the G 63's M157 5.5 twin-turbo V8 (2015): 420 kW at 5,500 rpm, 760 Nm from 1,750 to 5,250; and the G 65's M279
   // 6.0 twin-turbo V12: 463 kW at 4,800-5,100, 1,000 Nm from 2,300 to 4,300

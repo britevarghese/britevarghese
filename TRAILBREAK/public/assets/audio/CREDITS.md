@@ -34,6 +34,8 @@ filtered to match it.
 - Bank `d6` (Ram 5.9 Cummins straight-six turbo-diesel: idle):
   - "Ram 5.9 cummins-startup-idle.m4a" by Therancher01, https://freesound.org/s/610771/ (CC0 1.0, https://creativecommons.org/publicdomain/zero/1.0/)
   - "vw diesel engine.mp3" by Evilmikie, https://freesound.org/s/448217/ (CC0 1.0, https://creativecommons.org/publicdomain/zero/1.0/) (the top of the revs)
+- Bank `v10` (Audi R8 V10 (the 5.2 FSI V10, the Huracán's too), a Sound Devices 633 and an MKH-416 above it: idle, and holds from 2,100 to 4,100 rpm; marked at every pair of firings, one from each bank of five, as a V10's sound repeats):
+  - "Audi R8 Idling Reving Backfire.wav" by Jonas_Jocys, https://freesound.org/s/457733/ (CC BY 4.0, https://creativecommons.org/licenses/by/4.0/)
 
 Fallback engine loops (browsers without AudioWorklet), cut at six rpm points for NIGHTSHIFT and reused here:
 - `v8_muscle`: "Idle and Rev - Engine.wav" by wikusv, https://freesound.org/s/232272/ (CC BY 4.0, https://creativecommons.org/licenses/by/4.0/), trimmed.

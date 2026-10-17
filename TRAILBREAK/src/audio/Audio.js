@@ -87,12 +87,12 @@ async function fetchBank(name) {
   }
   if (!data) throw new Error('bank without audio: ' + name);
   const arr = (b64, T) => { const s = atob(b64), u = new Uint8Array(s.length); for (let i = 0; i < s.length; i++) u[i] = s.charCodeAt(i); return new T(u.buffer); };
-  return { data, sr: meta.sr, cyl: meta.cyl, idleRpm: meta.idleRpm, pos: arr(meta.pos, Int32Array), r: arr(meta.r, Float32Array),
+  return { data, sr: meta.sr, cyl: meta.cyl, engineCyl: meta.engineCyl || meta.cyl, idleRpm: meta.idleRpm, pos: arr(meta.pos, Int32Array), r: arr(meta.r, Float32Array),
     g: arr(meta.g, Float32Array), cls: arr(meta.cls, Uint8Array), run: arr(meta.run, Uint16Array) };
 }
 
 /** Cylinders of the engine each bank was recorded from (for the starter's compression strokes). */
-const BANK_CYL = { v6: 6, i6: 6, d6: 6, v8: 8, v8m: 8, d8: 8, i4: 4, d4: 4, d4t: 4 };
+const BANK_CYL = { v6: 6, i6: 6, d6: 6, v8: 8, v8m: 8, d8: 8, i4: 4, d4: 4, d4t: 4, v10: 10 };
 
 /**
  * One engine from a bank: the worklet node, steered by rpm, load and a loudness, through a low-pass that opens with

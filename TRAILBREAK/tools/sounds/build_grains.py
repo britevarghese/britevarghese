@@ -80,6 +80,9 @@ def analyse(x, part, bank):
                 sal = np.full(len(t), 2.0)
         else:
             mk = marks(seg, SR, t, f)
+        # (tracking a whole multiple of the bank's marks, as a V10's single firings at idle where its pairs are faint:
+        # every h-th firing starts a mark)
+        if h0 > 1 and float(h0).is_integer(): mk = mk[::int(h0)]
         if len(mk) < 8: continue
         # the revs at each mark (relative to the bank's idle) and how fast they are changing
         tm = mk / SR
@@ -97,6 +100,8 @@ def analyse(x, part, bank):
         cls = np.where(rpm < idle * 1.12, 0, np.where(slope > 0.12, 1, np.where(slope < -0.12, 2, 3)))
         out.append({'pos': mk + a, 'rpm': rpm, 'slope': slope, 'rms': rms, 'conf': conf, 'coh': coh, 'half': half, 'cls': cls, 'load': load, 'seg': (a, b),
                     'cohMin': st[4] if len(st) > 4 else part.get('cohMin', bank.get('cohMin', 0.6)),
+                    # (two alike halves to a mark: the pitch an octave low; unless a bank marks pairs of firings)
+                    'halfMax': part.get('halfMax', bank.get('halfMax', 0.45)),
                     'rMin': part.get('rMin', 0) * idle})
     return out
 
@@ -145,7 +150,7 @@ def choose(stretches, budget_s, idle_s, cyl=4, coh_min=0.6):
             while c1 < len(pos) - 1 and pos[c1] - pos[c0] < 0.4 * SR: c1 += 1
             sel = slice(c0, c1 + 1)
             # only firings that repeat (the pitch tracked right: not an octave or a fifth off) and a clear track
-            good = (s['conf'][sel] > 0.6) & (s['coh'][sel] > s['cohMin']) & (s['half'][sel] < 0.45) & (s['rpm'][sel] >= s['rMin'])
+            good = (s['conf'][sel] > 0.6) & (s['coh'][sel] > s['cohMin']) & (s['half'][sel] < s['halfMax']) & (s['rpm'][sel] >= s['rMin'])
             if good.mean() > 0.85:
                 chunks.append({'s': si, 'a': c0, 'b': c1, 'r': s['rpm'][sel], 'cls': s['cls'][sel], 'dur': (pos[c1] - pos[c0]) / SR})
             c0 = c1
@@ -306,6 +311,9 @@ def build(cache, name, bank):
     meta = {
         'ver': hashlib.sha1(q.tobytes()).hexdigest()[:10],          # (the audio's version: the game asks for this one)
         'sr': SR, 'cyl': bank['cyl'], 'idleRpm': bank['idleRpm'], 'n': len(M['pos']),
+        # (marks per engine cycle are 'cyl'; the engine recorded may fire more often: a V10's bank marks every pair
+        # of firings, one from each bank of cylinders, as its sound repeats)
+        **({'engineCyl': bank['engineCyl']} if bank.get('engineCyl') else {}),
         'pos': b64(M['pos'], '<i4'), 'r': b64(np.round(M['r'], 4), '<f4'), 'g': b64(np.round(gain * ref / peak * 3, 4), '<f4'),
         'cls': b64(M['cls'], 'u1'), 'run': b64(M['run'], '<u2'),
         'runs': where,                                     # [recording id, from s, to s, at s in the bank]
@@ -332,7 +340,10 @@ def write_credits(cache, src):
              'filtered to match it.', '']
     for name, bank in src['banks'].items():
         lines.append(f"- Bank `{name}` ({bank.get('about', '')}):")
+        seen = set()
         for part in bank['parts']:
+            if part['id'] in seen: continue                 # (one recording cut two ways is one credit)
+            seen.add(part['id'])
             fetch(cache, part)
             ln, lu = license_of(cache, part)
             role = f" ({part.get('role', 'the top of the revs')})" if part.get('rMin') else ''

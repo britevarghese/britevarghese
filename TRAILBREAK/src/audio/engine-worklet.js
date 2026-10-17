@@ -21,7 +21,8 @@
 // revs as the recording within a few hundred rpm of revving.
 //
 // Parameters: rpm (the game engine's), load (0..1), gain. Config message: { idle: the game engine's idle rpm }.
-// Bank message: { data: Float32Array, sr, cyl, idleRpm, pos: Int32Array, r: Float32Array, g: Float32Array,
+// Bank message: { data: Float32Array, sr, cyl (marks per engine cycle), engineCyl (the recorded engine's cylinders),
+// idleRpm, pos: Int32Array, r: Float32Array, g: Float32Array,
 // cls: Uint8Array (0 idle, 1 accelerating, 2 slowing, 3 holding; +4 recorded on the road), run: Uint16Array }.
 
 const MAXG = 40;          // grains sounding at once (at most)
@@ -243,7 +244,9 @@ class EngineProcessor extends AudioWorkletProcessor {
     this.loadS += (params.load[0] - this.loadS) * 0.08;
     const cfg = this.cfg;
     const running = rpm > 120;
-    const fT = Math.max(2, rpm * (cfg.cyl || b.cyl) / 120);    // firings per second (the engine's own cylinders: a V10 on a V8's bank)
+    // firings per second (the engine's own cylinders: a V10 on a V8's bank), counted as the bank marks them (a V10's
+    // marks every pair of firings, as its sound repeats)
+    const fT = Math.max(2, rpm * (cfg.cyl || b.engineCyl || b.cyl) / 120 * b.cyl / (b.engineCyl || b.cyl));
     // the recording's revs to pick from (relative to its idle): the game's idle is the recording's, and the difference
     // between the two idles fades out over the first revs (below idle: slower idle firings)
     const rIdle = b.idleRpm;

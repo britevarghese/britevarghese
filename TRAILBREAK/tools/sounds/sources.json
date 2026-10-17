@@ -1,5 +1,5 @@
 {
- "_about": "Engine recordings for TRAILBREAK's grain engine (Freesound previews, CC0 / CC BY). Each bank is one engine: parts are recordings with the stretches used (t, seconds), the pitch range tracked (f, Hz: the firing frequency unless 'unit' says otherwise), anchors [t, Hz] the track must pass, how fast the revs may move (slew), and 'load': 'drive' for recordings made on the road. cyl and idleRpm are the recorded engine's. Build: python3 -I tools/sounds/build_grains.py <cache_dir>",
+ "_about": "Engine recordings for TRAILBREAK's grain engine (Freesound previews, CC0 / CC BY). Each bank is one engine: parts are recordings with the stretches used (t, seconds), the pitch range tracked (f, Hz: the firing frequency unless 'unit' says otherwise), anchors [t, Hz] the track must pass, how fast the revs may move (slew), and 'load': 'drive' for recordings made on the road. cyl and idleRpm are the recorded engine's (cyl: marks per engine cycle; engineCyl, when it fires more often than it is marked: a V10 marked at every pair of firings). Build: python3 -I tools/sounds/build_grains.py <cache_dir>",
  "banks": {
   "v6": {
    "about": "Honda / Acura 3.2 V6 (J32: a 60-degree even-firing V6 like the Pentastar), a microphone just above the exhaust",
@@ -332,6 +332,50 @@
      "idleRpm": 900,
      "cohMin": 0.35,
      "rMin": 1.5
+    }
+   ]
+  },
+  "v10": {
+   "about": "Audi R8 V10 (the 5.2 FSI V10, the Huracán's too), a Sound Devices 633 and an MKH-416 above it: idle, and holds from 2,100 to 4,100 rpm; marked at every pair of firings, one from each bank of five, as a V10's sound repeats",
+   "cyl": 5,
+   "engineCyl": 10,
+   "idleRpm": 930,
+   "budget": 14,
+   "idleBudget": 3,
+   "cohMin": 0.35,
+   "halfMax": 1,
+   "parts": [
+    {
+     "id": 457733,
+     "user": "Jonas_Jocys",
+     "title": "Audi R8 Idling Reving Backfire.wav",
+     "lic": "CC-BY",
+     "t": [[14.5, 25.0, 65, 95]],
+     "f": [60, 100],
+     "anchor": [[15, 77.5], [20, 81]],
+     "slew": 6,
+     "h": 2
+    },
+    {
+     "id": 457733,
+     "user": "Jonas_Jocys",
+     "title": "Audi R8 Idling Reving Backfire.wav",
+     "lic": "CC-BY",
+     "t": [[29.3, 46.8, 80, 150], [47.2, 54.3, 158, 186]],
+     "f": [60, 380],
+     "anchor": [[30, 88], [32, 106], [35, 115.5], [40, 122], [44, 135], [49, 171], [53, 173]],
+     "slew": 6
+    },
+    {
+     "id": 457733,
+     "user": "Jonas_Jocys",
+     "title": "Audi R8 Idling Reving Backfire.wav",
+     "lic": "CC-BY",
+     "t": [[54.2, 59.2, 30, 186]],
+     "f": [30, 186],
+     "anchor": [[54.25, 172], [57.5, 38.5]],
+     "slew": 10,
+     "cohMin": 0.12
     }
    ]
   }
