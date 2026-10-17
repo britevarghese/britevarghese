@@ -243,6 +243,7 @@ async function start() {
   if (net) {
     net.onEvent = (m) => game.onNet(m);
     for (const id of welcome.beacons || []) game.found.add(id);
+    for (const k of welcome.broken || []) world.breakKey(k, 0, 1, 0, true);   // (what friends have knocked down here)
     game.events.welcome(welcome.race);
     if (welcome.layout && !linkLayout) game.takeLayout(welcome.layout, null);
   } else {

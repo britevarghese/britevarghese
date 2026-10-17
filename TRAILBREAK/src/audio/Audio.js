@@ -371,6 +371,48 @@ export class Audio {
     src.start(t, Math.random()); src.stop(t + 0.4);
   }
 
+  /**
+   * Something breaks (render/BreakView.js): 'tree' (the trunk cracking, its leaves swishing, the thud of it landing a
+   * moment later: `fall` s), 'wood' (posts and rails splintering), 'metal' (a steel drum's hollow bong), 'plastic'
+   * (a water drum's dull knock). vol: 0..1, by how hard and how near.
+   */
+  breakSound(kind, vol, fall = 0) {
+    if (!this.ctx || vol < 0.02) return;
+    const ctx = this.ctx, t = ctx.currentTime, v = Math.min(1, vol);
+    const burst = (buf, type, freq, q, gain, at, len, attack = 0.004) => {
+      const src = ctx.createBufferSource(); src.buffer = buf;
+      const f = ctx.createBiquadFilter(); f.type = type; f.frequency.value = freq; f.Q.value = q;
+      const g = ctx.createGain();
+      g.gain.setValueAtTime(0, t + at); g.gain.linearRampToValueAtTime(gain, t + at + attack);
+      g.gain.exponentialRampToValueAtTime(0.0008, t + at + len);
+      src.connect(f).connect(g).connect(this.master);
+      src.start(t + at, Math.random() * 1.5); src.stop(t + at + len + 0.05);
+    };
+    if (kind === 'tree' || kind === 'wood') {
+      // the crack: a sharp bright snap, then the fibres tearing in a few quick crackles
+      burst(this.white, 'bandpass', 2600, 0.9, 0.9 * v, 0, 0.09, 0.002);
+      for (let i = 0; i < (kind === 'tree' ? 5 : 3); i++) burst(this.white, 'bandpass', 1500 + Math.random() * 2500, 2, 0.35 * v, 0.03 + i * (0.03 + Math.random() * 0.05), 0.05);
+      burst(this.brown, 'lowpass', 260, 0.7, 0.8 * v, 0, 0.18);                     // (the knock of the hit itself)
+    }
+    if (kind === 'tree') {
+      // the crown swishing through the air as it goes over, and the thud as it lands
+      burst(this.white, 'bandpass', 900, 0.6, 0.18 * v, 0.1, Math.max(0.5, fall), Math.max(0.2, fall * 0.6));
+      if (fall > 0) burst(this.brown, 'lowpass', 160, 0.8, 1.1 * v, fall, 0.45, 0.006);
+    } else if (kind === 'metal') {
+      // a steel drum: a hollow bong with a couple of rings, and its rattle as it rolls off
+      for (const [f0, g0, len] of [[190, 0.5, 0.7], [410, 0.25, 0.45], [770, 0.12, 0.3]]) {
+        const o = ctx.createOscillator(), g = ctx.createGain();
+        o.type = 'sine'; o.frequency.setValueAtTime(f0 * (0.95 + Math.random() * 0.1), t);
+        g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(g0 * v, t + 0.004); g.gain.exponentialRampToValueAtTime(0.0008, t + len);
+        o.connect(g).connect(this.master); o.start(t); o.stop(t + len + 0.05);
+      }
+      burst(this.white, 'bandpass', 3200, 1.5, 0.25 * v, 0, 0.08);
+    } else if (kind === 'plastic') {
+      burst(this.brown, 'lowpass', 420, 1.2, 0.9 * v, 0, 0.16);
+      burst(this.white, 'bandpass', 1100, 1.5, 0.2 * v, 0, 0.07);
+    }
+  }
+
   /** The engine dies: a cough and a shudder. */
   stall() {
     this.bang(0.7, true);

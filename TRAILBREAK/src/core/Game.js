@@ -12,6 +12,7 @@ import { CameraRig } from './CameraRig.js';
 import { BEACON_RADIUS, MAP_HALF } from '../world/maps/index.js';
 import { EventPlay } from '../game/EventPlay.js';
 import { EventCourse } from '../render/EventCourse.js';
+import { BreakView } from '../render/BreakView.js';
 import { KIND } from '../render/Effects.js';
 import { RouteGraph, along } from '../game/Route.js';
 import { RouteLine } from '../render/RouteLine.js';
@@ -104,6 +105,8 @@ export class Game {
     this.events = new EventPlay(this);
     this.course = new EventCourse(this.scene, this.world, this.events.events);
     this.modeView = new ModeView(this.scene, this.world);
+    // what breaks: the roadside things standing, and the trees and things knocked down (render/BreakView.js)
+    this.breakView = new BreakView(this.scene, this.world, this.vegetation, this.effects, this.audio);
     // the map builder (ui/Builder.js): this map's own layout of props, on the ground at once
     this.building = false;
     this.builder = new Builder(this);
@@ -1106,6 +1109,7 @@ export class Game {
     else if (m.t === 'disconnected') this.hud.toast('Lost the connection to the server. Reload to rejoin.', true, 8);
     else if (m.t === 'correction') this.net.warp++;
     else if (m.t === 'ev') this.events.onNet(m);
+    else if (m.t === 'brk') this.world.breakKey(m.k, m.d?.[0] ?? 0, m.d?.[1] ?? 1, m.v ?? 0);
     if (this.voice && (m.t === 'voice' || m.t === 'rtc' || m.t === 'join' || m.t === 'leave')) this.voice.onNet(m);
     if (m.t === 'join' && this.voice && !this.voice.joined && !this.voiceHinted) { this.voiceHinted = true; this.hud.hint(`${m.name} is here: press V to join the voice chat`, 5); }
   }
@@ -1145,6 +1149,10 @@ export class Game {
     }
     this.events.control(c);
     this.carry = simulate(v, c, this.world, dt, this.carry);
+    // what broke: drawn and heard here, and told to the room (its direction and speed: friends see it go the same way)
+    for (const e of this.breakView.take(this.renderer.camera.position)) {
+      this.net?.send({ t: 'brk', k: e.key, d: [Math.round(e.dx * 100) / 100, Math.round(e.dz * 100) / 100], v: Math.round(e.v * 10) / 10 });
+    }
     this.events.update(dt);
     if (v.flooded && !wasFlooded) {
       this.hud.toast(this.spec.snorkel ? 'Water over the snorkel: the engine has stopped' : 'Water in the air intake: the engine has stopped. Get it out of the water (winch!)', true, 6);
@@ -1234,6 +1242,7 @@ export class Game {
     this.landmarks.update(this.renderer.camera, dt);
     this.course.update(dt);
     this.modeView.update(this.events.run, v.pos, dt);
+    this.breakView.update(dt, [{ pos: v.pos, vel: v.vel }, ...[...this.remotes.values()].filter((r) => r.state?.vel).map((r) => ({ pos: r.model.root.position, vel: { x: r.state.vel[0], y: r.state.vel[1], z: r.state.vel[2] } }))]);
     const Rn = this.renderer;
     this.effects.setLight(Rn.sky.sunDir, Rn.sun.color, Rn.sun.intensity, Rn.hemi.color, Rn.hemi.groundColor, Rn.hemi.intensity);
     this.effects.update(dt, this.world, Rn.camera);

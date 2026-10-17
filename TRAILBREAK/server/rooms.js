@@ -21,6 +21,9 @@
  *   client -> server  {t:'chat', text}         -> room {t:'chat', id, name, text}
  *   client -> server  {t:'layout', code}       -> room {t:'layout', id, name, code}   (the map builder's props, a share
  *                       code, src/game/Props.js; the room keeps the last one for whoever joins: welcome's layout)
+ *   client -> server  {t:'brk', k, d, v}       -> room {t:'brk', k, d, v}    (a tree or a roadside thing knocked down:
+ *                       its key, 't' + tree or 'o' + roadside thing (world/World.js), the way it went [dx, dz] and how
+ *                       fast; the room keeps what is down for whoever joins: welcome's broken)
  *   client -> server  {t:'damage', d}          -> room {t:'damage', id, d}   (what is broken on that truck: glass, lamps,
  *                       flat tyres, steam, smoke, toe and the latest dents; kept for whoever joins later)
  *   client -> server  {t:'ping', time}         -> client {t:'pong', time, echo}
@@ -57,6 +60,8 @@ const WARP_COOLDOWN = 400;     // ms between accepted teleports
 const EMPTY_ROOM_TTL = 30 * 60 * 1000;
 const MAX_ROOMS = 500;
 const BEACON_COUNT = 64;       // beacon ids are 0..63
+const MAX_BROKEN = 6000;       // trees and roadside things a room remembers as knocked down
+const BREAK_RX = /^[to]\d{1,7}$/;
 const CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';   // no 0/O, 1/I
 const CODE_RX = /^[A-HJ-NP-Z2-9]{4,8}$/;
 const RACE_LEAD = 15000;       // ms from opening a race to the start: time for friends to join
@@ -111,6 +116,7 @@ class Room {
     this.beacons = new Map();      // id -> name of the player who surveyed it
     this.race = null;              // { id, at, racers: Map(player id -> { name, time: undefined | null | s }) }
     this.layout = null;            // the map builder's props here (a share code), for whoever joins
+    this.broken = new Set();       // what has been knocked down here (World keys), for whoever joins
     this.nextId = 1;
     this.emptySince = Date.now();
   }
@@ -127,6 +133,7 @@ class Room {
       beacons: [...this.beacons.keys()],
       race: this.race ? { id: this.race.id, at: this.race.at, racers: this.racerList() } : null,
       ...(this.layout ? { layout: this.layout } : {}),
+      ...(this.broken.size ? { broken: [...this.broken] } : {}),
     });
     this.broadcast({ t: 'join', id: player.id, name: player.name }, player);
     this.log(`[room ${this.code}] ${player.name} (#${player.id}) joined, ${this.size}/${this.maxPlayers}`);
@@ -162,6 +169,15 @@ class Room {
         if (!d) return;
         player.dmg = d;
         this.broadcast({ t: 'damage', id: player.id, d }, player);
+        return;
+      }
+      case 'brk': {
+        const k = msg.k;
+        if (typeof k !== 'string' || !BREAK_RX.test(k) || this.broken.has(k) || this.broken.size >= MAX_BROKEN) return;
+        this.broken.add(k);
+        const d = Array.isArray(msg.d) && msg.d.length === 2 && msg.d.every(isNum) ? msg.d.map((x) => Math.max(-1, Math.min(1, x))) : [0, 1];
+        const v = isNum(msg.v) ? Math.max(0, Math.min(MAX_SPEED, msg.v)) : 0;
+        this.broadcast({ t: 'brk', k, d, v }, player);
         return;
       }
       case 'chat': {

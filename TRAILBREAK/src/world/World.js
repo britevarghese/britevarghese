@@ -7,8 +7,13 @@
 //   water(x, z)                  water surface height there, or -Infinity
 // (and for the renderer, waterSurface(x, z): the water's surface as it is drawn)
 //   deform(x, z, fx, fz, hw, hl, press, dig)   press soft ground under a tyre, returns the rut depth
-//   treesNear(x, z, r, out)      trunks and wall posts { x, y, z, r } near (x, z)
+//   treesNear(x, z, r, out)      trunks, wall posts and roadside posts { x, y, z, r, cap, top, u, i } near (x, z)
+//   strike(i, moment, vx, vz)    a truck bends obstacle i that hard (N m): breaks it if it gives way (true)
 // (a custom layout's props, from the map builder, are part of the ground: setProps; game/Props.js)
+//
+// What breaks (world/Breakables.js): the trees slender enough, the young trees and the roadside things, each a unit
+// (a tree, or a whole fence panel, sign or barrel) by key ('t' + tree, 'o' + roadside thing). Breaks queue in
+// `breaks` for the game to draw, sound and share with the room ({ key, x, y, z, dx, dz, v, local, quiet }).
 
 import { SURFACES, SURFACE } from '../physics/Surfaces.js';
 import { DeformGrid } from './Deform.js';
@@ -16,6 +21,7 @@ import { NO_WATER } from './WorldGen.js';
 import { MAP_HALF, mapById } from './maps/index.js';
 import { rockTop, shapeOf } from './RockShapes.js';
 import { PROP_TYPES, propTop, paintAt, reach, settle } from '../game/Props.js';
+import { growYoung, placeRoadside, placedObstacles, trunkCap, WINCH_CAP } from './Breakables.js';
 
 const OB_CELL = 16;          // obstacle (tree, post) grid cell (m)
 const BO_CELL = 8;           // boulder grid cell (m)
@@ -29,32 +35,40 @@ export class World {
     this.H = data.heights; this.S = data.surface;
     this.W = data.water; this.WN = data.waterN; this.WR = data.waterRes;
     this.deformGrid = new DeformGrid();
+    this.props = []; this.paints = []; this.propCells = new Map();
+    // the young trees (joining the map's own) and the roadside things, once the ground is there to stand them on
+    growYoung(data, this);
+    this.roadside = placeRoadside(data, this);
     this.trees = data.trees;
     this.boulders = data.boulders;
     this.beacons = data.beacons;
     this.landmarks = data.landmarks;
     this.lake = data.lake;
 
-    // obstacles: trees then posts, bucketed by cell (counting sort into flat arrays)
-    const T = data.trees, P = data.posts;
-    const n = T.count + P.length;
-    this.ob = { x: new Float32Array(n), y: new Float32Array(n), z: new Float32Array(n), r: new Float32Array(n) };
-    for (let i = 0; i < T.count; i++) { this.ob.x[i] = T.x[i]; this.ob.y[i] = T.y[i]; this.ob.z[i] = T.z[i]; this.ob.r[i] = T.r[i]; }
-    P.forEach((p, k) => { const i = T.count + k; this.ob.x[i] = p.x; this.ob.y[i] = p.y; this.ob.z[i] = p.z; this.ob.r[i] = p.r; });
+    // obstacles: trees, wall posts, then the roadside things' posts, bucketed by cell (counting sort into flat arrays);
+    // each with what it takes to break (N m at its foot; Infinity: nothing does), how tall it stands, and the unit it
+    // breaks with (-1: a wall's)
+    const T = data.trees, P = data.posts, road = this.roadside.map((it) => placedObstacles(it, (x, z) => this.terrain(x, z)));
+    const n = T.count + P.length + road.reduce((a, l) => a + l.length, 0);
+    this.ob = { x: new Float32Array(n), y: new Float32Array(n), z: new Float32Array(n), r: new Float32Array(n), cap: new Float32Array(n), top: new Float32Array(n), unit: new Int32Array(n) };
+    const ob = this.ob;
+    for (let i = 0; i < T.count; i++) { ob.x[i] = T.x[i]; ob.y[i] = T.y[i]; ob.z[i] = T.z[i]; ob.r[i] = T.r[i]; ob.cap[i] = trunkCap(this.map, T.type[i], T.r[i]); ob.top[i] = T.h[i]; ob.unit[i] = i; }
+    P.forEach((p, k) => { const i = T.count + k; ob.x[i] = p.x; ob.y[i] = p.y; ob.z[i] = p.z; ob.r[i] = p.r; ob.cap[i] = Infinity; ob.top[i] = 6; ob.unit[i] = -1; });
+    let i = T.count + P.length;
+    road.forEach((list, j) => { for (const o of list) { ob.x[i] = o.x; ob.y[i] = o.y; ob.z[i] = o.z; ob.r[i] = o.r; ob.cap[i] = o.cap; ob.top[i] = o.top; ob.unit[i] = T.count + j; i++; } });
+    this.broken = new Uint8Array(T.count + this.roadside.length);
+    this.breaks = [];
     this.obN = Math.ceil(MAP_HALF * 2 / OB_CELL);
     const cellOf = (x, z) => Math.min(this.obN - 1, Math.max(0, Math.floor((z + MAP_HALF) / OB_CELL))) * this.obN + Math.min(this.obN - 1, Math.max(0, Math.floor((x + MAP_HALF) / OB_CELL)));
-    // (soft plants, a map's bananas, are not obstacles: a truck pushes through them)
-    const soft = new Set(this.map.softTrees || []), solid = (i) => i >= T.count || !soft.has(T.type[i]);
     const counts = new Uint32Array(this.obN * this.obN + 1);
-    for (let i = 0; i < n; i++) if (solid(i)) counts[cellOf(this.ob.x[i], this.ob.z[i]) + 1]++;
+    for (let k = 0; k < n; k++) counts[cellOf(ob.x[k], ob.z[k]) + 1]++;
     for (let c = 1; c < counts.length; c++) counts[c] += counts[c - 1];
     this.obStart = counts;
     this.obIdx = new Uint32Array(n);
     const fill = counts.slice();
-    for (let i = 0; i < n; i++) if (solid(i)) this.obIdx[fill[cellOf(this.ob.x[i], this.ob.z[i])]++] = i;
+    for (let k = 0; k < n; k++) this.obIdx[fill[cellOf(ob.x[k], ob.z[k])]++] = k;
     this.obPool = [];
-    for (let i = 0; i < 64; i++) this.obPool.push({ x: 0, y: 0, z: 0, r: 0 });
-    this.props = []; this.paints = []; this.propCells = new Map();
+    for (let k = 0; k < 64; k++) this.obPool.push({ x: 0, y: 0, z: 0, r: 0, cap: Infinity, top: 0, u: -1, i: 0 });
 
     // boulders: each listed in every cell its footprint touches
     this.boN = Math.ceil(MAP_HALF * 2 / BO_CELL);
@@ -199,11 +213,12 @@ export class World {
       for (let c = Math.max(0, c0); c <= Math.min(this.obN - 1, c1); c++) {
         const cell = k * this.obN + c;
         for (let s = this.obStart[cell]; s < this.obStart[cell + 1]; s++) {
-          const i = this.obIdx[s];
+          const i = this.obIdx[s], u = ob.unit[i];
+          if (u >= 0 && this.broken[u]) continue;
           const dx = ob.x[i] - x, dz = ob.z[i] - z, rr = r + ob.r[i];
           if (dx * dx + dz * dz > rr * rr || out.length >= this.obPool.length) continue;
           const o = this.obPool[out.length];
-          o.x = ob.x[i]; o.y = ob.y[i]; o.z = ob.z[i]; o.r = ob.r[i]; o.i = i;
+          o.x = ob.x[i]; o.y = ob.y[i]; o.z = ob.z[i]; o.r = ob.r[i]; o.cap = ob.cap[i]; o.top = ob.top[i]; o.u = u; o.i = i;
           out.push(o);
         }
       }
@@ -211,12 +226,49 @@ export class World {
     return out;
   }
 
-  /** Nearest tree (not a wall post) within reach of a point, for the winch. */
+  /**
+   * A truck bends obstacle i (its trunk, or a roadside thing's post) with `moment` N m at its foot, going (vx, vz):
+   * if it gives way, its unit breaks (true).
+   */
+  strike(i, moment, vx, vz) {
+    const u = this.ob.unit[i];
+    if (u < 0 || this.broken[u] || !(moment >= this.ob.cap[i])) return false;
+    this.breakUnit(u, vx, vz, true, false);
+    return true;
+  }
+
+  /** Break a unit (a tree, or a roadside thing): it stops being in the way, and the game hears of it in `breaks`. */
+  breakUnit(u, vx = 0, vz = 0, local = false, quiet = false) {
+    if (u < 0 || u >= this.broken.length || this.broken[u]) return false;
+    this.broken[u] = 1;
+    const T = this.trees, tree = u < T.count, it = tree ? null : this.roadside[u - T.count];
+    const v = Math.hypot(vx, vz), x = tree ? T.x[u] : it.x, z = tree ? T.z[u] : it.z;
+    this.breaks.push({ key: tree ? 't' + u : 'o' + (u - T.count), tree: tree ? u : -1, item: tree ? -1 : u - T.count, x, y: tree ? T.y[u] : it.y, z, dx: v > 0.01 ? vx / v : 0, dz: v > 0.01 ? vz / v : 1, v, local, quiet });
+    return true;
+  }
+
+  /** Break by key (a friend's break, or the room's list when joining); false if there is no such thing or it is gone. */
+  breakKey(key, dx = 0, dz = 1, v = 0, quiet = false) {
+    const m = /^([to])(\d{1,7})$/.exec(String(key));
+    if (!m) return false;
+    const u = m[1] === 't' ? Number(m[2]) : this.trees.count + Number(m[2]);
+    if (m[1] === 't' && u >= this.trees.count) return false;
+    return this.breakUnit(u, dx * v, dz * v, false, quiet);
+  }
+
+  /** Every broken unit's key (for the room). */
+  brokenKeys() {
+    const out = [], n = this.trees.count;
+    for (let u = 0; u < this.broken.length; u++) if (this.broken[u]) out.push(u < n ? 't' + u : 'o' + (u - n));
+    return out;
+  }
+
+  /** Nearest tree (not a wall post, not one too slender to hold the pull, not a broken one) within reach of a point, for the winch. */
   nearestTree(x, z, maxDist, filter = null) {
     const out = this.treesNear(x, z, maxDist, []);
     let best = null, bd = Infinity;
     for (const t of out) {
-      if (t.i >= this.trees.count) continue;
+      if (t.i >= this.trees.count || t.cap < WINCH_CAP) continue;
       if (filter && !filter(t)) continue;
       const d = Math.hypot(t.x - x, t.z - z);
       if (d < bd) { bd = d; best = { ...t }; }

@@ -44,6 +44,9 @@ const CELL = 32;               // the grid the trees are found in round the came
 const IGN = 'float ign(vec2 p) { return fract(52.9829189 * fract(dot(p, vec2(0.06711056, 0.00583715)))); }';
 
 let NEAR = 80;
+// a tree shorter than NEAR_H (m) has its model drawn only out to that share of the range (no less than NEAR_MIN)
+const NEAR_H = 8, NEAR_MIN = 0.35;
+const nearShare = (h) => Math.min(1, Math.max(NEAR_MIN, h / NEAR_H));
 
 // ---------------------------------------------------------------- loading
 /** Geometry and textures of a set's species (from tools/trees.py's files). */
@@ -130,7 +133,12 @@ ${leaf ? `{
 #endif
   float sway = sin(uTime * 1.1 + ip.x * 0.11 + ip.z * 0.07) * 0.6 + sin(uTime * 2.3 + ip.z * 0.3 + ip.x * 0.05) * 0.25;
   // (out toward its near range the model gives way to the tree's picture)
-  vFade = ${fade ? '1.0 - smoothstep(uFade.x, uFade.y, length(ip.xz - cameraPosition.xz))' : '1.0'};
+  // (a small tree, young or a banana, gives way sooner: its range shrinks with its height, as its card's does)
+  float nearK = 1.0;
+#ifdef USE_INSTANCING
+  nearK = clamp(length(instanceMatrix[1].xyz) / ${NEAR_H.toFixed(1)}, ${NEAR_MIN.toFixed(2)}, 1.0);
+#endif
+  vFade = ${fade ? '1.0 - smoothstep(uFade.x * nearK, uFade.y * nearK, length(ip.xz - cameraPosition.xz))' : '1.0'};
   transformed.x += sway * ${impostorBake ? '0.0' : '0.011'} * k;
   transformed.z += sway * ${impostorBake ? '0.0' : '0.007'} * k;
 ${leaf && !impostorBake ? '  transformed += normal * sin(uTime * 6.0 + dot(position, vec3(41.0, 23.0, 37.0)) * 4.0) * 0.003 * k;' : ''}
@@ -214,6 +222,7 @@ export class Vegetation {
     renderer.scene.add(this.group);
     // which species each tree in the world is
     const T = this.trees, n = T.count;
+    this.hidden = new Uint8Array(n);
     this.kindOf = new Uint8Array(n);
     const perKind = new Array(this.kinds.length).fill(0);
     for (let i = 0; i < n; i++) {
@@ -427,8 +436,8 @@ if (vFade <= 0.0 || dCam > ${FAR.toFixed(1)}) gl_Position = vec4(0.0, 0.0, -2.0,
 
   /** Each card's range inside which its model stands in for it (none for the overflow). */
   setCardNear() {
-    const n = this.trees.count, K = this.kindOf, a = this.impNear.array, r = this.nearOf.map((f) => NEAR * f);
-    for (let i = 0; i < n; i++) a[i] = r[K[i]];
+    const n = this.trees.count, K = this.kindOf, a = this.impNear.array, r = this.nearOf.map((f) => NEAR * f), H = this.trees.h;
+    for (let i = 0; i < n; i++) a[i] = r[K[i]] * nearShare(H[i]);
     for (const i of this.overflow) a[i] = 0;
     this.impNear.needsUpdate = true;
   }
@@ -449,7 +458,7 @@ if (vFade <= 0.0 || dCam > ${FAR.toFixed(1)}) gl_Position = vec4(0.0, 0.0, -2.0,
         const cl = kz * G.nx + ix;
         for (let e = G.start[cl]; e < G.start[cl + 1]; e++) {
           const i = G.idx[e], dx = T.x[i] - cam.x, dz = T.z[i] - cam.z, d2 = dx * dx + dz * dz, k = K[i];
-          if (d2 < rOut[k]) cand[k].push(d2, i);
+          if (d2 < rOut[k] && !this.hidden[i] && (T.h[i] >= NEAR_H || d2 < (NEAR * this.nearOf[k] * nearShare(T.h[i]) + MARGIN) ** 2)) cand[k].push(d2, i);
         }
       }
     }
@@ -483,7 +492,7 @@ if (vFade <= 0.0 || dCam > ${FAR.toFixed(1)}) gl_Position = vec4(0.0, 0.0, -2.0,
     if (!changed) for (const i of over) if (!this.overflow.has(i)) { changed = true; break; }
     if (changed) {
       const a = this.impNear.array;
-      for (const i of this.overflow) a[i] = NEAR * this.nearOf[K[i]];
+      for (const i of this.overflow) a[i] = NEAR * this.nearOf[K[i]] * nearShare(T.h[i]);
       for (const i of over) a[i] = 0;
       this.overflow = over;
       this.impNear.needsUpdate = true;
@@ -496,8 +505,41 @@ if (vFade <= 0.0 || dCam > ${FAR.toFixed(1)}) gl_Position = vec4(0.0, 0.0, -2.0,
     this.nearCount = counts.reduce((a, b) => a + b, 0);
   }
 
+  /** A broken tree off the map: no card, no model (it is drawn falling and fallen by render/BreakView.js). */
+  hideTree(i) {
+    if (this.hidden[i]) return;
+    this.hidden[i] = 1;
+    this.impSize.array[i * 2] = 0; this.impSize.array[i * 2 + 1] = 0;
+    this.cardsDirty = true;
+    this.lastFill.set(1e9, 0, 1e9);
+  }
+
+  /** How tree i stands, as its model is drawn: { kind, x, y, z, ht, wd, yaw, tint }. */
+  treePose(i) {
+    const T = this.trees, k = this.kindOf[i], [r1, r2] = this.rand(i), ht = T.h[i];
+    return { kind: k, x: T.x[i], y: T.y[i] - 0.12, z: T.z[i], ht, wd: ht * (0.88 + r2 * 0.24) * this.widthOf[k], yaw: r1 * 6.283, tint: 0.84 + r2 * 0.3, r1 };
+  }
+
+  /** Instanced models of a species for the fallen trees (no wind, no fading out): { meshes, matrix, color, cap }. */
+  fallenOf(k, cap = 24) {
+    this.fallen ||= [];
+    if (this.fallen[k]) return this.fallen[k];
+    const a = this.assets[this.kinds[k]];
+    let matrix = null, color = null;
+    const meshes = a.groups.map((gr) => {
+      const m = new THREE.InstancedMesh(gr.geometry, treeMaterial(gr, this.uniforms, a.radius, true, this.set.crown?.[this.kinds[k]] ?? 0.62, null), cap);
+      if (!matrix) { matrix = m.instanceMatrix; matrix.setUsage(THREE.DynamicDrawUsage); color = new THREE.InstancedBufferAttribute(new Float32Array(cap * 3).fill(1), 3); }
+      m.instanceMatrix = matrix; m.instanceColor = color;
+      m.count = 0; m.castShadow = true; m.receiveShadow = true; m.frustumCulled = false;
+      this.group.add(m);
+      return m;
+    });
+    return (this.fallen[k] = { meshes, matrix, color, cap });
+  }
+
   update(camera, dt) {
     this.uniforms.uTime.value += dt;
+    if (this.cardsDirty) { this.cardsDirty = false; this.impSize.needsUpdate = true; }
     const r = this.renderer;
     if (r.sun) {
       // the light the shadows come from: the sun, or the moon after dusk

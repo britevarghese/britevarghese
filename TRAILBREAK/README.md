@@ -435,6 +435,14 @@ Everything that makes off-roading off-roading is simulated, not faked:
   differentials. They are solved as exact constraints every substep. So with open diffs the wheel in the air or on
   ice gets all the power and the truck sits there, and locking the diffs gets you out. In low range the truck crawls
   at idle and a manual holds it back downhill.
+- **Trees and things in the way:** a trunk meets the truck stiff, as its crumple zones do, so a heavy truck stops in
+  a short crush instead of sinking into the tree, and the trunk rubs past rather than being climbed. Whether it gives
+  way is the bending the truck puts on it (each push times its height up the trunk) against what green wood of that
+  thickness takes: young trees and banana plants snap at walking pace, a coconut palm, rubber tree or birch goes to a
+  truck at town speeds (a heavy one sooner), a dead snag easily, and the big pines, mango trees and forest giants
+  stand. It falls the way it was pushed, its stump left standing. Young trees grow along the trails' edges and in the
+  woods round them; fences, trail markers and signs line the trails, barrels, crates and woodpiles stand by the
+  buildings, and each goes flying when hit. What is knocked down stays down, for everyone in the room.
 - **Torque twist:** the propshaft's torque rolls the axle housing against the frame. Under power the right rear tyre
   goes light (with an open diff it is the one that spins: the classic one-wheel peel) and the engine rolls the body
   the other way.

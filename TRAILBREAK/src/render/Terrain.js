@@ -337,7 +337,7 @@ if (gWet > 0.0) {
    */
   canopy() {
     const T = this.world.trees, n = Math.ceil(MAP_HALF * 2 / 2) + 1, g = new Float32Array(n * n);
-    for (let t = 0; t < T.count; t++) {
+    for (let t = 0; t < (T.base ?? T.count); t++) {                 // (the map's own trees: not the young ones)
       // conifers carpet the ground with needles; birches (type 2) and dead trees much less
       const litter = this.litter ? this.litter[T.type[t]] ?? 1 : T.type[t] === 2 ? 0.35 : T.type[t] === 3 ? 0.5 : 1;
       const R = 1.5 + T.h[t] * 0.3, cx = (T.x[t] + MAP_HALF) / 2, cz = (T.z[t] + MAP_HALF) / 2, r = R / 2;

@@ -700,7 +700,23 @@ export const KERALA = {
   pads: { teafactory: 16, bungalow: 9, chaistall: 5, house: 7, busstop: 3, laterite: 3 },
   // how much each kind of tree carpets the ground with leaves (the forest floor shows under them)
   litter: [0.3, 1, 1, 1, 0.3, 0.8],
-  softTrees: [4],                                                 // banana plants: a truck pushes through them
+  // what each kind of tree takes when a truck hits it, as a share of a sound green trunk's (world/Breakables.js):
+  // coconut (fibrous: tough), the forest giants, mango and jack, rubber, banana (a stem of water and leaf: it folds at a
+  // touch), a bamboo clump
+  treeStrength: [1, 1, 1, 0.8, 0.05, 1.5],
+  // young trees along the tracks and in the woods round them: of the nearest grown tree's kind (the giants' gaps fill
+  // with mango and jack, no young bamboo), heights (m), trunks (m), how likely along an edge and in the woods
+  young: {
+    from: [0, 2, 2, 3, 4, null], alone: 2, h: { default: [2.2, 5.5], 0: [2.5, 4.5], 4: [2.2, 4] },
+    r: { 0: (h) => 0.05 + 0.006 * h, 4: () => 0.09 }, edge: 0.3, wood: 0.35, open: 0.15, on: [SURFACE.GRASS, SURFACE.DIRT],
+  },
+  // the roadside: bamboo fences along the tracks by the homes, signs at the tracks' ends, woodpiles and water drums by
+  // the houses, the chai stall and the tea factory
+  roadside: {
+    fence: 'bamboo', fenceBy: ['house'], fenceReach: 32,
+    byBuilding: { house: ['woodpile', 'drum'], chaistall: ['drum', 'crate', 'drum'], teafactory: ['drum', 'drum', 'crate', 'crate'], station: ['drum', 'crate'], garage: ['barrel', 'barrel', 'crate'], bungalow: ['woodpile'] },
+    ring: { house: 7.5, chaistall: 5, teafactory: 15, station: 8.5, garage: 6.5, bungalow: 9 },
+  },
   // red laterite: the dust and the mud the tyres throw (and the mud on the trucks)
   dust: { [SURFACE.DIRT]: [0.42, 0.17, 0.08], [SURFACE.MUD]: [0.24, 0.09, 0.04], [SURFACE.ROAD]: [0.32, 0.22, 0.16] },
   mudTint: [0.13, 0.045, 0.022],

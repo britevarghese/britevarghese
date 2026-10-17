@@ -58,7 +58,7 @@ export class HUD {
     // the woods: each tree's crown
     const T = w.trees;
     x.fillStyle = 'rgba(42,66,32,0.5)';
-    for (let t = 0; t < T.count; t++) {
+    for (let t = 0; t < (T.base ?? T.count); t++) {
       x.beginPath();
       x.arc(toPx(T.x[t]), toPx(T.z[t]), Math.max(0.9, (T.h[t] * 0.16) / step), 0, 6.2832);
       x.fill();

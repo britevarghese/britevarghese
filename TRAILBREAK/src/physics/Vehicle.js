@@ -58,7 +58,7 @@ const _q = new V3(), _a = new V3(), _b = new V3(), _c = new V3(), _d = new V3(),
 // How much a surface's texture buzzes through the tyres at speed (by surface id: grass, dirt, gravel, rock, mud, sand,
 // snow, road, river bed, ice).
 const TEXTURE = [0.25, 0.3, 0.65, 0.9, 0.2, 0.2, 0.12, 0.08, 0.55, 0.05];
-const _hn = new V3(), _hl = new V3();
+const _hn = new V3(), _hl = new V3(), _at = new V3();
 
 export class Vehicle {
   constructor(spec) {
@@ -734,7 +734,7 @@ export class Vehicle {
   }
 
   /** Penalty contact at world point p with normal n (pointing out of the obstacle) and depth pen. */
-  penalty(p, n, pen, k, c, mu) {
+  penalty(p, n, pen, k, c, mu, level = false, at = p) {
     this.pointVel(p, _v);
     const vn = _v.dot(n);
     this.lastClose = -vn;                                              // closing speed (for damage)
@@ -742,14 +742,15 @@ export class Vehicle {
     if (Fn <= 0) return 0;
     Fn = Math.min(Fn, k * 0.5);                                         // cap a deep overlap
     _a.copy(n).scale(Fn);
-    // friction (regularised Coulomb)
+    // friction (regularised Coulomb); against an upright trunk only along the ground (it rubs past, it can't be climbed)
     _b.copy(_v).addScaled(n, -vn);
+    if (level) _b.y = 0;
     const vt = _b.length();
     if (vt > 1e-4) {
       const Ft = Math.min(mu * Fn, 4000 * vt);
       _a.addScaled(_b, -Ft / vt);
     }
-    this.applyForce(_a, p);
+    this.applyForce(_a, at);
     return Fn;
   }
 
@@ -908,9 +909,16 @@ export class Vehicle {
     if (!this.treeNormals || this.treeNormals.size > 64) this.treeNormals = new Map();      // (each trunk's last push)
     if (!trees.length) return;
     const tyreR = this.spec.tyre.radius;
+    // a trunk is stiff against the whole truck (as its crumple zones are): a heavy truck stops in about as short a
+    // crush as a light one, rather than sinking a metre into the tree at speed (and being shoved out of it any which way)
+    const kt = this.mass * 900, ct = this.mass * 24;
     for (const t of trees) {
+      // the bending at its foot: each push times its height up the trunk (world/Breakables.js: does it give way)
+      const top = t.top ?? Infinity, cap = t.cap ?? Infinity;
+      let moment = 0;
       for (const hgt of [0.35, 0.9, 1.5, 2.1]) {
-        _c.set(t.x, t.y + hgt, t.z);
+        if (hgt > top + 0.1 && hgt > 0.35) continue;                  // (a barrel, a crate: only as high as it stands)
+        _c.set(t.x, t.y + Math.min(hgt, top), t.z);
         const pen = this.sphereVsBoxes(_c, t.r, _p, _n, true);
         if (pen > 0) {
           // normal points from the box to the trunk; the chassis is pushed the other way, level (the trunk stands
@@ -925,10 +933,14 @@ export class Vehicle {
           const key = t.x * 7919 + t.z;
           if (this.sphereDeep && this.treeNormals.has(key)) _n.copy(this.treeNormals.get(key));
           else this.treeNormals.set(key, _n.clone());
-          // (the damping comes in over the first few cm, so the first touch is not a jolt)
-          const Fn = this.penalty(_p, _n, pen, 6e5, 3e4 * Math.min(1, pen / 0.03), 0.3);
+          // (the damping comes in over the first few cm, so the first touch is not a jolt). It bears on the truck low,
+          // toward the height of its middle: a trunk meets a truck at its bumpers, frame and sills (a cab narrows to
+          // its roof), so a hit spins it round or stops it, and doesn't lever it over
+          _at.copy(_p); _at.y = this.pos.y + (_p.y - this.pos.y) * 0.35;
+          const Fn = this.penalty(_p, _n, pen, kt, ct * Math.min(1, pen / 0.03), 0.25, true, _at);
+          moment += Fn * Math.min(hgt, top);
           this.impact = Math.max(this.impact, Fn / 3e4);
-          if (this.lastClose > 2) {
+          if (this.lastClose > 2 && cap > 2e4) {
             _hl.copy(_p).sub(this.pos).applyQuatInv(this.quat);
             this.hitAt(_hl, _n, this.lastClose, `t${Math.round(t.x * 10)},${Math.round(t.z * 10)},${hgt}`);
           }
@@ -938,13 +950,16 @@ export class Vehicle {
       for (const w of this.wheels) {
         const dx = w.hub.x - t.x, dz = w.hub.z - t.z, d = Math.hypot(dx, dz);
         const pen = t.r + tyreR * 0.9 - d;
-        if (pen > 0 && w.hub.y > t.y - 0.5 && w.hub.y < t.y + 3) {
+        if (pen > 0 && w.hub.y > t.y - 0.5 && w.hub.y < t.y + Math.max(Math.min(top, 3), 0.3) + tyreR) {
           _n.set(dx / d, 0, dz / d);
           _p.copy(w.hub).addScaled(_n, -tyreR * 0.9);
-          this.penalty(_p, _n, pen, 4e5, 2e4 * Math.min(1, pen / 0.03), 0.4);
-          if (w.index < 2) this.damage.steeringHit(w.side, this.lastClose);
+          const Fn = this.penalty(_p, _n, pen, kt * 0.6, ct * 0.6 * Math.min(1, pen / 0.03), 0.3, true);
+          moment += Fn * Math.max(0.1, Math.min(w.hub.y - t.y, top));
+          if (w.index < 2 && cap > 2e4) this.damage.steeringHit(w.side, this.lastClose);
         }
       }
+      // too much for it: it goes (and stops pushing back from the next step)
+      if (moment > 0 && cap < Infinity && ground.strike) ground.strike(t.i, moment, this.vel.x, this.vel.z);
     }
   }
 

@@ -5,6 +5,7 @@
 // valley to the south-east, Mirror Lake in the south-west, the east ridge with its rock garden and the old Alder mine,
 // and the Pinecrest hills to the west with the fire tower. The ranger station sits on a terrace above the river,
 // where everyone starts.
+import { SURFACE } from '../../physics/Surfaces.js';
 
 export const WORLD_SEED = 7331;
 
@@ -192,4 +193,17 @@ export const ASHWOOD = {
   river: RIVER, lake: LAKE, peaks: PEAKS, bog: BOG, rockGarden: ROCK_GARDEN, sandWash: SAND_WASH, sandStrip: SAND_STRIP,
   snowLine: SNOW_LINE, trails: TRAILS, beacons: BEACONS, landmarks: LANDMARKS, events: EVENTS, races: RACES, modes: MODES,
   ground: 'ashwood', trees: 'ashwood',
+  // what each kind of tree takes when a truck hits it, as a share of a sound green trunk's (world/Breakables.js):
+  // pine, fir and spruce, birch, the dead snags (dry and rotten: brittle)
+  treeStrength: [1, 1, 0.85, 0.3],
+  // young trees along the trails' edges and in the woods round them: of the nearest grown tree's kind (a snag's
+  // seedlings are firs), heights (m), how likely along an edge and in the woods (and in the open, as a share of that)
+  young: { from: [0, 1, 2, 1], alone: 0, h: { default: [2.2, 6.5], 2: [2.5, 6] }, edge: 0.34, wood: 0.4, open: 0.12, on: [SURFACE.GRASS, SURFACE.DIRT, SURFACE.SNOW] },
+  // the roadside: split-rail fences by the station and the cabins, a marker post every 170 m along the trails, signs
+  // at their ends; barrels, crates and woodpiles by the buildings (and how far out round each)
+  roadside: {
+    fence: 'rail', fenceBy: ['station', 'cabin'], fenceReach: 70, markers: 170,
+    byBuilding: { station: ['barrel', 'crate', 'barrel', 'crate', 'barrel'], garage: ['barrel', 'barrel', 'crate'], mine: ['barrel', 'barrel', 'crate', 'barrel', 'crate', 'crate'], cabin: ['woodpile', 'crate', 'woodpile'], firetower: ['crate', 'crate'] },
+    ring: { station: 8.5, garage: 6.5, mine: 7.5, cabin: 6, firetower: 4.5 },
+  },
 };
