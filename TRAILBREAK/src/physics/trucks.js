@@ -60,7 +60,7 @@ export const TRUCKS = {
     roofY: 1.98, cabZ: 0.3, noseZ: 2.06, rackZ: -0.75,
     intakePos: [-0.55, 0.95, 1.5], snorkelPos: [-0.92, 1.95, 0.5],
     winch: { fairlead: [0, 0.72, 2.06] },
-    eye: [0.42, 1.62, -0.05], hoodEye: [0, 1.48, 1.2],          // driver's eyes, the bonnet camera
+    eye: [0.4, 1.62, -0.2], hoodEye: [0, 1.48, 1.2],          // driver's eyes, the bonnet camera
     drag: { cd: 0.6, area: 3.1 },
     buoyancy: 0.3,
     shafts: [6500, 7500], parts: 0.9,
@@ -87,7 +87,7 @@ export const TRUCKS = {
     roofY: 1.86, cabZ: 0.3, noseZ: 2.43, rackZ: -1.0,
     intakePos: [-0.55, 1.05, 1.8], snorkelPos: [-1.0, 1.85, 0.75],
     winch: { fairlead: [0, 0.6, 2.45] },
-    eye: [0.45, 1.6, 0.25], hoodEye: [0, 1.45, 1.5],          // driver's eyes, the bonnet camera
+    eye: [0.47, 1.6, 0.25], hoodEye: [0, 1.45, 1.5],          // driver's eyes, the bonnet camera
     drag: { cd: 0.62, area: 3.6 },
     buoyancy: 0.3,
     shafts: [11000, 12000], parts: 1.15,
@@ -115,7 +115,7 @@ export const TRUCKS = {
     roofY: 1.71, cabZ: 0.1, noseZ: 1.6, rackZ: -0.9,
     intakePos: [0.3, 0.92, 1.1], snorkelPos: [-0.74, 1.55, 0.36],
     winch: { fairlead: [0, 0.52, 1.62] },
-    eye: [0.3, 1.36, -0.25], hoodEye: [0, 1.22, 0.95],          // driver's eyes, the bonnet camera
+    eye: [0.31, 1.36, -0.25], hoodEye: [0, 1.22, 0.95],          // driver's eyes, the bonnet camera
     drag: { cd: 0.72, area: 2.0 },
     buoyancy: 0.33,
     shafts: [4000, 5500], parts: 0.85,
@@ -144,7 +144,7 @@ export const TRUCKS = {
     roofY: 1.59, cabZ: 0, noseZ: 1.77, rackZ: -0.7,
     intakePos: [0.35, 0.85, 1.3], snorkelPos: [-0.85, 1.55, 0.45],
     winch: { fairlead: [0, 0.5, 1.78] },
-    eye: [0.35, 1.38, -0.15], hoodEye: [0, 1.25, 0.8],
+    eye: [0.41, 1.38, -0.15], hoodEye: [0, 1.25, 0.8],
     drag: { cd: 0.5, area: 2.3 },
     buoyancy: 0.34,
     shafts: [3500, 4500], tyreK: 0.8, tyreLoad: 2800, parts: 0.7,
@@ -198,7 +198,7 @@ export const TRUCKS = {
     roofY: 1.96, cabZ: 0.55, noseZ: 1.95, rackZ: -0.6,
     intakePos: [-0.62, 0.98, 1.7], snorkelPos: [-0.9, 2.05, 0.95],
     winch: { fairlead: [0, 0.66, 2.15] },
-    eye: [-0.42, 1.6, 0.0], hoodEye: [0, 1.42, 1.45],                    // (right-hand drive, as the model is)
+    eye: [-0.49, 1.6, 0.03], hoodEye: [0, 1.42, 1.45],                    // (right-hand drive, as the model is)
     drag: { cd: 0.65, area: 3.2 },
     buoyancy: 0.3,
     shafts: [5500, 7000], tyreLoad: 5000, parts: 1.0,
@@ -226,7 +226,7 @@ export const TRUCKS = {
     roofY: 1.95, cabZ: 0, noseZ: 2.25, rackZ: -0.9,
     intakePos: [-0.55, 1.1, 1.7], snorkelPos: [-0.95, 1.9, 0.6],
     winch: { fairlead: [0, 0.6, 2.27] },
-    eye: [0.4, 1.62, 0.0], hoodEye: [0, 1.5, 1.2],
+    eye: [0.4, 1.62, -0.18], hoodEye: [0, 1.5, 1.2],
     drag: { cd: 0.45, area: 3.2 },
     buoyancy: 0.3,
     shafts: [8000, 9000], tyreLoad: 5300, parts: 1.05, tc: true,
@@ -255,7 +255,7 @@ export const TRUCKS = {
     roofY: 2.0, cabZ: -0.1, noseZ: 2.87, rackZ: -2.05,
     intakePos: [-0.6, 1.3, 2.0], snorkelPos: [-1.05, 2.0, 0.95],
     winch: { fairlead: [0, 0.75, 2.88] },
-    eye: [0.45, 1.72, 0.2], hoodEye: [0, 1.6, 1.6],
+    eye: [0.46, 1.74, 0.5], hoodEye: [0, 1.6, 1.6],
     drag: { cd: 0.6, area: 3.7 },
     buoyancy: 0.27,
     shafts: [14000, 15000], tyreK: 1.5, tyreLoad: 8000, parts: 1.3, tc: true,
@@ -285,7 +285,7 @@ export const TRUCKS = {
     roofY: 2.55, cabZ: 1.0, noseZ: 2.57, rackZ: 1.0,
     intakePos: [-0.6, 1.2, 2.0], snorkelPos: [-0.95, 1.28, 0.4],
     winch: { fairlead: [0, 0.8, 2.58] },
-    eye: [0.5, 2.13, 1.1], hoodEye: [0, 1.9, 2.3],
+    eye: [0.48, 2.13, 1.1], hoodEye: [0, 1.9, 2.3],
     drag: { cd: 0.8, area: 6.2 },
     buoyancy: 0.25,
     shafts: [30000, 32000], tyreK: 2.8, tyreLoad: 15000, parts: 1.8,
@@ -366,7 +366,7 @@ export const TRUCKS = {
     roofY: 1.96, cabZ: 0.45, noseZ: 2.25, rackZ: -0.9,
     intakePos: [-0.55, 1.05, 1.55], snorkelPos: [-0.95, 1.9, 0.62],
     winch: { fairlead: [0, 0.62, 2.22] },
-    eye: [0.42, 1.56, -0.25], hoodEye: [0, 1.45, 1.15],
+    eye: [0.38, 1.56, -0.08], hoodEye: [0, 1.45, 1.15],
     drag: { cd: 0.56, area: 3.3 },
     buoyancy: 0.3,
     shafts: [6500, 8000], parts: 1.15, tc: true,
@@ -394,7 +394,7 @@ export const TRUCKS = {
     roofY: 1.99, cabZ: 0.6, noseZ: 2.44, rackZ: -0.9,
     intakePos: [-0.75, 1.1, 1.3], snorkelPos: [-0.95, 1.95, 0.75],
     winch: { fairlead: [0, 0.95, 2.4] },
-    eye: [0.55, 1.68, 0.05], hoodEye: [0, 1.6, 1.4],
+    eye: [0.63, 1.7, -0.1], hoodEye: [0, 1.6, 1.4],
     drag: { cd: 0.68, area: 4.0 },
     buoyancy: 0.28,
     shafts: [9000, 11000], tyreK: 1.4, tyreLoad: 9000, parts: 1.5, tc: true,
@@ -427,7 +427,7 @@ export const TRUCKS = {
     // (no air intake: the drive units and the battery are sealed to 32 inches of water)
     intakePos: [0.6, 0.89, 1.6], snorkelPos: [0.6, 0.89, 1.6],
     winch: { fairlead: [0, 0.72, 2.58] },
-    eye: [0.42, 1.6, -0.1], hoodEye: [0, 1.52, 1.25],
+    eye: [0.44, 1.68, 0.17], hoodEye: [0, 1.52, 1.25],
     drag: { cd: 0.5, area: 3.9 },
     buoyancy: 0.22,
     shafts: [11000, 13000], tyreK: 1.5, tyreLoad: 10000, parts: 1.6, tc: true,

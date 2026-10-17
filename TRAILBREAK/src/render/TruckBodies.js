@@ -32,10 +32,16 @@ function windscreen(P, M, paint, bottom, top, halfW, pillar = 0.05) {
   return rake;
 }
 
-/** Seats, a floor and a dash with gauges. */
-export function cabin(P, M, { floorY, z0, z1, x = 0.38, w = 0.5, rear = null, dashZ, dashY, bench = false }) {
-  P.box(M.black, [2 * x + w, 0.03, z1 - z0], [0, floorY, (z0 + z1) / 2], { r: 0 });
-  const sz = dashZ - 0.62;
+/**
+ * Seats, a floor and a dash with gauges. The front seats' cushions are centred at seatZ (by default 0.62 m behind the
+ * dash); the dash is dashD deep (front to back), its middle at dashZ. The floor and the dash reach `inner` either side
+ * (the doors; by default the seats' outer edges). well: close the footwells (a model with no firewall, where the wheels
+ * and the ground show under the dash): the bulkhead at z1 and the kick panels beside them.
+ */
+export function cabin(P, M, { floorY, z0, z1, x = 0.38, w = 0.5, inner = null, rear = null, dashZ, dashY, dashD = 0.24, seatZ = null, bench = false, well = false }) {
+  const hw = inner ?? x + w / 2;
+  P.box(M.black, [2 * hw, 0.03, z1 - z0], [0, floorY, (z0 + z1) / 2], { r: 0 });
+  const sz = seatZ ?? dashZ - 0.62;
   if (bench) {
     P.box(M.seat, [2 * x + w - 0.1, 0.13, 0.5], [0, floorY + 0.18, sz], { r: 0.04 });
     P.box(M.seat, [2 * x + w - 0.1, 0.55, 0.12], [0, floorY + 0.48, sz - 0.26], { r: 0.04, rot: [-0.1, 0, 0] });
@@ -47,8 +53,13 @@ export function cabin(P, M, { floorY, z0, z1, x = 0.38, w = 0.5, rear = null, da
     P.box(M.seat, [2 * x + w - 0.1, 0.12, 0.48], [0, floorY + 0.18, rear], { r: 0.04 });
     P.box(M.seat, [2 * x + w - 0.1, 0.5, 0.1], [0, floorY + 0.44, rear - 0.26], { r: 0.04, rot: [-0.12, 0, 0] });
   }
-  P.box(M.black, [2 * x + w, 0.17, 0.24], [0, dashY, dashZ], { r: 0.03 });
-  for (const gx of [x - 0.08, x + 0.08]) P.cyl(M.chrome, 0.045, 0.045, 0.02, [gx, dashY + 0.04, dashZ - 0.13], { axis: 'z', seg: 14 });
+  P.box(M.black, [2 * hw, 0.17, dashD], [0, dashY, dashZ], { r: 0.03 });
+  if (well) {
+    const h = dashY - floorY;
+    P.box(M.black, [2 * hw, h, 0.03], [0, floorY + h / 2, z1], { r: 0 });
+    P.box(M.black, [0.03, h, 0.7], [hw - 0.015, floorY + h / 2, z1 - 0.35], { r: 0, mirror: true });
+  }
+  for (const gx of [x - 0.08, x + 0.08]) P.cyl(M.chrome, 0.045, 0.045, 0.02, [gx, dashY + 0.04, dashZ - dashD / 2 - 0.01], { axis: 'z', seg: 14 });
 }
 
 // ---------------------------------------------------------------- Gecko: the micro 4x4 with a canvas top

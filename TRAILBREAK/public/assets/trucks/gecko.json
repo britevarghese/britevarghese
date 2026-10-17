@@ -106,5 +106,15 @@
   0.3
  ],
  "ownChassis": true,
+ "steering": {
+  "x": 0.4108,
+  "y": 1.0164,
+  "z": 0.2299,
+  "tilt": 0.6102,
+  "yaw": -0.0,
+  "r": 0.1818,
+  "tube": 0.028,
+  "cut": true
+ },
  "glb": "gecko.glb?v=5950a5c5f6"
 }

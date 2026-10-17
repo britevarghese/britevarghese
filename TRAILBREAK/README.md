@@ -371,6 +371,13 @@ Ram 2500 Power Wagon, the Hummer H1, the electric GMC Hummer EV, the Land Rover 
 Unimog U1300L, each built to its real numbers, from a one-ton jeep to a six-ton portal-axle truck. Every one takes every
 part in the garage.
 
+Each has its cab and a driver at the wheel. The steering wheels are the models' own, cut out of their dashboards so they
+turn (the Thar, the Wrangler, the Raptor and the Pajero came with empty cabs: the game builds their seats, dash,
+footwells and wheel). The driver's gloved hands turn the wheel with the road wheels and go hand over hand on a big turn,
+one hand always holding; a quick lock on the keys slides the wheel through them, and driving straight again they go back
+to ten to two. In the cab view (C) you see your arms and hands on the wheel; from outside, the driver through the
+windows. The garage and the dealer show the seat empty.
+
 | Truck | Price | Kind | Wheelbase | Weight | Engine | Gearbox | Low range / axles | Stock tyres | Under the diffs | Approach / departure / breakover |
 |---|---|---|---|---|---|---|---|---|---|---|
 | Lada Niva | $4,500 | the Soviet small 4x4: permanent four-wheel drive, wishbones in front and a five-link coil axle behind | 2.20 m (87") | 1290 kg | VAZ 1.7 four, 127 Nm | 5-speed manual | 1.78 / 4.68 | 175/80 R16 (26") | 20 cm | 38 / 30 / 32 degrees |

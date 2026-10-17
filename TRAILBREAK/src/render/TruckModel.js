@@ -11,6 +11,7 @@ import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { geckoBody, trekkerBody, shepherdBody, droverBody, bruiserBody, rhinoBody, cabin } from './TruckBodies.js';
 import { truckAsset } from './TruckAssets.js';
+import { Driver } from './Driver.js';
 
 const GRAV = 9.81;
 const IN = 0.0254;
@@ -578,6 +579,7 @@ function modelBody(model, asset, M, P) {
     if (own.has(m)) { m.side = THREE.DoubleSide; return m; }
     return (m.userData.both ||= Object.assign(m.clone(), { side: THREE.DoubleSide }));
   };
+  const wheel = [];                                      // (the model's own steering wheel, in its own frame)
   for (const part of asset.parts) {
     const g = part.geometry.clone();
     g.userData = {};
@@ -585,11 +587,11 @@ function modelBody(model, asset, M, P) {
     const m = new THREE.Mesh(g, mat);
     m.userData.role = part.role;
     m.castShadow = !mat.transparent; m.receiveShadow = !mat.transparent;
-    model.body.add(m);
+    if (part.steer) wheel.push(m); else model.body.add(m);
   }
   return {
     heads: L.heads, tails: [], reverse: [], ownLamps: true, ownBumpers: true, ownChassis: !!L.ownChassis,
-    bumperF: L.bumperF, bumperR: L.bumperR, spare: L.spare || null, wheel: L.steering || null, frame: L.frame,
+    bumperF: L.bumperF, bumperR: L.bumperR, spare: L.spare || null, wheel: L.steering || null, wheelParts: wheel, frame: L.frame,
     flaps: !!L.flaps, sill: L.sill, half: L.half, roofY: L.roofY ?? L.bbox[1][1], coilY: L.coilY, bedZ: L.bedZ, ownSnorkel: !!L.ownSnorkel,
     // (the roof, for the rack and the light bar: if a layout leaves it out, from the tail to a metre short of the front
     // axle, roughly where a wagon's roof runs)
@@ -831,18 +833,28 @@ export class TruckModel {
     this.dentMeshes = this.body.children.filter((m) => m.isMesh && !m.material.transparent);
     this.rimR = rimR;
 
-    // ---- steering wheel (turns with the front wheels; a model body's own stays put)
+    // ---- steering wheel (turns with the front wheels): the model's own, cut out of its dash (render/TruckAssets.js),
+    // or one built here for a model with an empty cab
     if (x.wheel) {
       const w = x.wheel, g = new THREE.Group();
       g.position.set(w.x, w.y, w.z);
-      g.rotation.x = w.tilt;
-      const ring = new THREE.Mesh(new THREE.TorusGeometry(0.19, 0.016, 8, 24), M.black);
-      const spokes = new THREE.Mesh(mergeGeometries([0, 2.1, 4.2].map((a) => clean(new THREE.BoxGeometry(0.17, 0.02, 0.012).translate(0.085, 0, 0).rotateZ(a + Math.PI / 2)))), M.satin);
-      const col = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.03, 0.4, 8).rotateX(Math.PI / 2).translate(0, 0, 0.2), M.black);
+      g.rotation.set(w.tilt, w.yaw || 0, 0, 'YXZ');
       this.steeringWheel = new THREE.Group();
-      this.steeringWheel.add(ring, spokes);
-      g.add(this.steeringWheel, col);
+      if (x.wheelParts?.length) this.steeringWheel.add(...x.wheelParts);
+      else {
+        const ring = new THREE.Mesh(new THREE.TorusGeometry(0.19, 0.016, 8, 24), M.black);
+        const spokes = new THREE.Mesh(mergeGeometries([0, 2.1, 4.2].map((a) => clean(new THREE.BoxGeometry(0.17, 0.02, 0.012).translate(0.085, 0, 0).rotateZ(a + Math.PI / 2)))), M.satin);
+        const col = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.03, 0.4, 8).rotateX(Math.PI / 2).translate(0, 0, 0.2), M.black);
+        this.steeringWheel.add(ring, spokes);
+        g.add(col);
+      }
+      g.add(this.steeringWheel);
       this.body.add(g);
+      // the driver, hands on it
+      if (spec.eye) {
+        this.driver = new Driver(g, w.r || 0.19, spec.eye);
+        this.body.add(this.driver.group);
+      }
     }
 
     // ---- axles and wheels (CG frame; the physics moves them)
@@ -1048,8 +1060,11 @@ export class TruckModel {
   /** A design-frame point on the body -> CG frame (into v). */
   bodyPoint(p, v, mirror = 1) { return v.set(p[0] * mirror, p[1], p[2]).add(this.bodyOffset); }
 
-  /** wheels: [4] of [travel (from full droop), spin angle, steer angle] for FL, FR, RL, RR. */
-  updateWheels(wheels) {
+  /** In the driver's-seat view, the driver's head is where the camera is: hidden. */
+  setSeatView(on) { this.driver?.setSeatView(on); }
+
+  /** wheels: [4] of [travel (from full droop), spin angle, steer angle] for FL, FR, RL, RR; dt: s since the last. */
+  updateWheels(wheels, dt = 1 / 60) {
     for (let ai = 0; ai < 2; ai++) {
       const ax = this.axles[ai];
       const zL = wheels[ai * 2][0], zR = wheels[ai * 2 + 1][0];
@@ -1069,6 +1084,7 @@ export class TruckModel {
       ax.group.updateMatrix();
     }
     if (this.steeringWheel) this.steeringWheel.rotation.z = -((wheels[0][2] + wheels[1][2]) / 2 - (this.toe || 0)) * 14;
+    this.driver?.update(this.steeringWheel.rotation.z, dt);
     // leaf springs: hanger -> seat on the axle -> shackle; shocks: frame mount -> axle mount
     const v = this._v, w = this._w;
     let li = 0, si = 0;

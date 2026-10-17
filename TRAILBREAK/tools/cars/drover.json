@@ -78,7 +78,27 @@
    -2.0,
    0.3
   ],
-  "ownChassis": true
+  "ownChassis": true,
+  "cabin": {
+   "floorY": 0.64,
+   "z0": -2.1,
+   "z1": 0.85,
+   "x": 0.4,
+   "w": 0.5,
+   "inner": 0.76,
+   "rear": -1.0,
+   "dashZ": 0.62,
+   "dashY": 1.25,
+   "dashD": 0.4,
+   "seatZ": -0.2,
+   "well": true
+  },
+  "steering": {
+   "x": 0.4,
+   "y": 1.22,
+   "z": 0.3,
+   "tilt": 0.45
+  }
  },
  "wheelsAt": {
   "z": [

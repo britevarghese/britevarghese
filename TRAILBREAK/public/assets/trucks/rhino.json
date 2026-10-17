@@ -100,5 +100,16 @@
  ],
  "ownChassis": true,
  "ownSnorkel": true,
+ "steering": {
+  "x": 0.4842,
+  "y": 1.6835,
+  "z": 1.4124,
+  "tilt": 0.9599,
+  "yaw": 0.0,
+  "r": 0.2052,
+  "tube": 0.0083,
+  "sx": 0.90909,
+  "cut": true
+ },
  "glb": "rhino.glb?v=1e177df2ce"
 }

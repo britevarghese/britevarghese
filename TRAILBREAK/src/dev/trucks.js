@@ -1,5 +1,6 @@
 // Developer view of one truck in the garage light: trucks.html?truck=ranger&build=crawler&yaw=0.7&pitch=0.15&dist=8
-//   build: a preset id or a 14-character build code; paint: hex without #
+//   build: a preset id or a 14-character build code; paint: hex without #; driver=1: the driver in the seat;
+//   steer=rad: the steering wheel turned
 import { GaragePreview } from '../ui/GaragePreview.js';
 import { truckSpec, truckBase } from '../physics/trucks.js';
 import { presetBuild, PRESETS } from '../physics/Upgrades.js';
@@ -11,7 +12,13 @@ const build = PRESETS.some((p) => p.id === b) ? presetBuild(truckBase(id), b) : 
 const spec = truckSpec(id, build);
 await loadTruckAsset(spec.style);                    // (a model body: loaded before the truck is built)
 const view = new GaragePreview(document.getElementById('c'));
+view.showDriver = q.has('driver');                   // (driver=1: the driver in the seat; steer=rad: the wheel turned)
 view.show(spec, '#' + (q.get('paint') || 'b5532c'));
+if (q.get('steer') && view.model.steeringWheel) {
+  // turned there smoothly (the hands taking new grips on the way), as the game would
+  const to = Number(q.get('steer'));
+  for (let i = 1; i <= 90; i++) { view.model.steeringWheel.rotation.z = to * i / 90; view.model.driver?.update(view.model.steeringWheel.rotation.z, 1 / 60); }
+}
 view.spin = false;
 if (q.get('yaw')) view.yaw = Number(q.get('yaw'));
 if (q.get('pitch')) view.pitch = Number(q.get('pitch'));

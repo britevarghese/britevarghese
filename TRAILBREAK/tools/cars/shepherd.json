@@ -147,7 +147,18 @@
    -2.3,
    0.1
   ],
-  "ownChassis": true
+  "ownChassis": true,
+  "steering": {
+   "x": -0.4867,
+   "y": 1.1386,
+   "z": 0.4806,
+   "tilt": 0.4716,
+   "yaw": 0.0408,
+   "r": 0.2034,
+   "tube": 0.0172,
+   "sx": 1.07181,
+   "cut": true
+  }
  },
  "rimFrom": "RL",
  "scaleX": 0.933,

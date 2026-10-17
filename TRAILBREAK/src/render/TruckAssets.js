@@ -55,14 +55,72 @@ function floats(geometry) {
   return g;
 }
 
+/**
+ * Where a model's own steering wheel is (layout.steering with `cut`: its centre, the column's tilt and yaw, the rim's
+ * radius and thickness, and how far the cut reaches in front of the rim and back down the column to the boss): a test
+ * for a point inside its dish, and the move into the wheel's own frame (x across, y up the rim, z down the column),
+ * drawn round (a model squeezed across the body by the converter, sx, is unsqueezed about the wheel).
+ */
+function wheelDish(S) {
+  const sx = S.sx || 1, toWheel = new THREE.Matrix4().makeRotationFromEuler(new THREE.Euler(S.tilt, S.yaw || 0, 0, 'YXZ')).transpose();
+  const { front = 0.05, back = 0.045, hub = 0.12, pad = 0.02 } = S.cut === true ? {} : S.cut;
+  const reach = S.r + (S.tube || 0.018) + pad;
+  return {
+    local: (x, y, z, out) => out.set((x - S.x) * sx, y - S.y, z - S.z).applyMatrix4(toWheel),
+    normal: (x, y, z, out) => out.set(x / sx, y, z).applyMatrix4(toWheel).normalize(),
+    inside: (p) => {
+      const rho = Math.hypot(p.x, p.y);
+      return rho < reach && p.z > -front && p.z < back + (hub - back) * Math.min(1, Math.max(0, 1 - rho / S.r));
+    },
+  };
+}
+
+/** A geometry split by the wheel's dish: [what stays, the wheel's triangles in its own frame (or null)]. */
+function cutWheel(g, dish) {
+  const pos = g.attributes.position, n = pos.count, idx = g.index, p = new THREE.Vector3();
+  const inV = new Uint8Array(n);
+  for (let i = 0; i < n; i++) inV[i] = dish.inside(dish.local(pos.getX(i), pos.getY(i), pos.getZ(i), p)) ? 1 : 0;
+  const keep = [], cut = [], count = idx ? idx.count : n;
+  for (let t = 0; t < count; t += 3) {
+    const a = idx ? idx.getX(t) : t, b = idx ? idx.getX(t + 1) : t + 1, c = idx ? idx.getX(t + 2) : t + 2;
+    (inV[a] && inV[b] && inV[c] ? cut : keep).push(a, b, c);
+  }
+  if (!cut.length) return [g, null];
+  const Index = n > 65535 ? Uint32Array : Uint16Array;
+  g.setIndex(new THREE.BufferAttribute(new Index(keep), 1));
+  // the wheel: its own vertices (only those it uses), moved into its frame
+  const map = new Int32Array(n).fill(-1), used = [];
+  const tris = new Index(cut.length);
+  cut.forEach((v, k) => { if (map[v] < 0) { map[v] = used.length; used.push(v); } tris[k] = map[v]; });
+  const w = new THREE.BufferGeometry();
+  for (const [name, a] of Object.entries(g.attributes)) {
+    const out = new Float32Array(used.length * a.itemSize);
+    used.forEach((v, k) => {
+      if (name === 'position') dish.local(a.getX(v), a.getY(v), a.getZ(v), p).toArray(out, k * 3);
+      else if (name === 'normal') dish.normal(a.getX(v), a.getY(v), a.getZ(v), p).toArray(out, k * 3);
+      else for (let c = 0; c < a.itemSize; c++) out[k * a.itemSize + c] = a.getComponent(v, c);
+    });
+    w.setAttribute(name, new THREE.BufferAttribute(out, a.itemSize));
+  }
+  w.setIndex(new THREE.BufferAttribute(tris, 1));
+  return [g, w];
+}
+
 function build(id, gltf, layout) {
   const own = new Map(), parts = [], rim = [];
+  const dish = layout.steering?.cut ? wheelDish(layout.steering) : null;
   gltf.scene.updateMatrixWorld(true);
   gltf.scene.traverse((o) => {
     if (!o.isMesh) return;
     const role = (o.material.name || '').split(':')[0];
-    const g = floats(o.geometry).applyMatrix4(o.matrixWorld);
+    let g = floats(o.geometry).applyMatrix4(o.matrixWorld);
     if (role === 'rim') { rim.push({ geometry: g, material: o.material }); return; }
+    // (the steering wheel, out of whatever it is drawn in, to turn with the steering: TruckModel holds it)
+    if (dish) {
+      const [rest, wheel] = cutWheel(g, dish);
+      g = rest;
+      if (wheel) parts.push({ role, geometry: wheel, material: OWN.has(role) ? null : o.material, steer: true, doubleSided: o.material.side === THREE.DoubleSide });
+    }
     if (OWN.has(role)) {
       const plain = new THREE.BufferGeometry();
       plain.setAttribute('position', g.attributes.position);

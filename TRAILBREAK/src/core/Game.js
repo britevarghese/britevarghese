@@ -988,7 +988,7 @@ export class Game {
         const root = rv.model.root;
         root.position.set(s.pos[0], s.pos[1], s.pos[2]);
         root.quaternion.set(s.quat[0], s.quat[1], s.quat[2], s.quat[3]);
-        rv.model.updateWheels(s.wh);
+        rv.model.updateWheels(s.wh, dt);
         rv.model.setLights(!!s.lights);
         rv.model.setBrake(!!s.brk);
         rv.model.setReverse(s.vel[0] * (2 * (s.quat[0] * s.quat[2] + s.quat[3] * s.quat[1])) + s.vel[2] * (1 - 2 * (s.quat[0] * s.quat[0] + s.quat[1] * s.quat[1])) < -0.3);
@@ -1212,7 +1212,8 @@ export class Game {
     const m = this.model;
     m.root.position.set(v.pos.x, v.pos.y, v.pos.z);
     m.root.quaternion.set(v.quat.x, v.quat.y, v.quat.z, v.quat.w);
-    m.updateWheels([0, 1, 2, 3].map((i) => v.wheelState(i)));
+    m.updateWheels([0, 1, 2, 3].map((i) => v.wheelState(i)), dt);
+    m.setSeatView(this.cam.mode === 'cab');
     const night = this.renderer.night;
     const lights = this.lightsOn || night;
     m.setLights(lights);

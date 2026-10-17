@@ -115,5 +115,25 @@
   -1.15
  ],
  "ownChassis": true,
+ "cabin": {
+  "floorY": 0.62,
+  "z0": -1.15,
+  "z1": 1.2,
+  "x": 0.42,
+  "w": 0.5,
+  "inner": 0.8,
+  "rear": -0.75,
+  "dashZ": 0.95,
+  "dashY": 1.18,
+  "dashD": 0.5,
+  "seatZ": -0.2,
+  "well": true
+ },
+ "steering": {
+  "x": 0.42,
+  "y": 1.17,
+  "z": 0.38,
+  "tilt": 0.42
+ },
  "glb": "trekker.glb?v=be56fe4779"
 }

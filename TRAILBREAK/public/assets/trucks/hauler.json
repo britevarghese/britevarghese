@@ -108,5 +108,16 @@
   0.7
  ],
  "ownChassis": true,
+ "steering": {
+  "x": 0.4743,
+  "y": 1.2073,
+  "z": 0.6745,
+  "tilt": 0.5236,
+  "yaw": 0.0,
+  "r": 0.1875,
+  "tube": 0.0099,
+  "sx": 1.0989,
+  "cut": true
+ },
  "glb": "hauler.glb?v=38746a37f0"
 }
