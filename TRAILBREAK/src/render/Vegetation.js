@@ -42,8 +42,9 @@ const FAR = 2400;
 // camera has on it, turned as its model is (so the card is the model as it stands, not one side of it for every tree)
 const VIEWS = 8;
 // a tree changes from its model to its picture across a band short of its near range (its share of each pixel
-// dithered between the two, so neither pops); the lists it is in are kept wide of the band by the refill step
-const BAND = 0.25, MARGIN = 14;
+// dithered between the two, so neither pops: a narrow band, a few metres, so a tree is seen dotted only as it crosses
+// it, not the whole ring of trees from 45 m out); the lists it is in are kept wide of the band by the refill step
+const BAND = 0.07, MARGIN = 14;
 const CELL = 32;               // the grid the trees are found in round the camera (m)
 // a stable per-pixel threshold for the dither (interleaved gradient noise)
 const IGN = 'float ign(vec2 p) { return fract(52.9829189 * fract(dot(p, vec2(0.06711056, 0.00583715)))); }';
@@ -380,14 +381,18 @@ varying float vView;
 varying float vTint;`)
         .replace('#include <clipping_planes_fragment>', `#include <clipping_planes_fragment>
 if (ign(gl_FragCoord.xy) < 1.0 - vFade) discard;
-// the pictures from the two bearings either side of the camera's, dithered between as it turns
-float vLow = floor(vView), vPick = mod(ign(gl_FragCoord.yx + 7.0) < vView - vLow ? vLow + 1.0 : vLow, ${VIEWS.toFixed(1)});
-vec2 tUv = vec2(vMapUv.x, (vPick + vMapUv.y) / ${VIEWS.toFixed(1)});`)
-        .replace('#include <map_fragment>', `diffuseColor *= texture2D(map, tUv);`)
+// the pictures from the two bearings either side of the camera's, blended as it turns, each by its cover (a leaf in one
+// and sky in the other keeps the leaf's colour, at half its cover; picking one or the other pixel by pixel left the
+// crowns dotted wherever the two differ)
+float vLow = floor(vView), vW = vView - vLow;
+vec2 uvA = vec2(vMapUv.x, (vLow + vMapUv.y) / ${VIEWS.toFixed(1)}), uvB = vec2(vMapUv.x, (mod(vLow + 1.0, ${VIEWS.toFixed(1)}) + vMapUv.y) / ${VIEWS.toFixed(1)});`)
+        .replace('#include <map_fragment>', `vec4 tA = texture2D(map, uvA), tB = texture2D(map, uvB);
+float wA = tA.a * (1.0 - vW), wB = tB.a * vW;
+diffuseColor *= vec4((tA.rgb * wA + tB.rgb * wB) / max(wA + wB, 1e-4), wA + wB);`)
         .replace('#include <color_fragment>', `#include <color_fragment>
 diffuseColor.rgb *= vTint;`)
         .replace('#include <normal_fragment_begin>', `
-vec3 nT = texture2D(uNormalAtlas, tUv).xyz * 2.0 - 1.0;
+vec3 nT = normalize((texture2D(uNormalAtlas, uvA).xyz * 2.0 - 1.0) * wA + (texture2D(uNormalAtlas, uvB).xyz * 2.0 - 1.0) * wB + vec3(0.0, 0.0, 1e-4));
 vec3 nW = normalize(vRightW * nT.x + vec3(0.0, 1.0, 0.0) * nT.y + vToCamW * nT.z);
 vec3 normal = normalize((viewMatrix * vec4(nW, 0.0)).xyz);
 vec3 nonPerturbedNormal = normal;`)
