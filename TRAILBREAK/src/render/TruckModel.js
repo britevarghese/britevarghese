@@ -9,7 +9,7 @@
 
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
-import { geckoBody, trekkerBody, shepherdBody, droverBody, bruiserBody, rhinoBody, cabin } from './TruckBodies.js';
+import { geckoBody, trekkerBody, shepherdBody, droverBody, bruiserBody, rhinoBody, coupeBody, cabin } from './TruckBodies.js';
 import { truckAsset } from './TruckAssets.js';
 import { Driver } from './Driver.js';
 import { Person } from './Person.js';
@@ -237,10 +237,14 @@ function cached(key, make) {
   return geoCache.get(key);
 }
 
-/** Tyre with its tread: 0 all-terrain (small blocks), 1 mud-terrain (big blocks, open voids), 2 bias mud (paddles). */
+/**
+ * Tyre with its tread: 0 all-terrain (small blocks), 1 mud-terrain (big blocks, open voids), 2 bias mud (paddles),
+ * 3 summer performance (ribs between straight grooves, slanted shoulder blocks), 4 track semi-slick (a nearly smooth
+ * face, two grooves on its inner side).
+ */
 function tireGeometry(r, w, tread = 0) {
   return cached(`t${r.toFixed(3)}:${w.toFixed(3)}:${tread}`, () => {
-    const hw = w / 2, rim = r * 0.58, depth = [0.011, 0.02, 0.032][tread];
+    const hw = w / 2, rim = r * 0.58, depth = [0.011, 0.02, 0.032, 0.008, 0.005][tread] ?? 0.011;
     const rc = r - depth;                                    // carcass under the lugs
     const prof = [[rim, -hw * 0.9], [rc * 0.9, -hw], [rc * 0.985, -hw * 0.85], [rc, -hw * 0.55], [rc, hw * 0.55], [rc * 0.985, hw * 0.85], [rc * 0.9, hw], [rim, hw * 0.9]]
       .map(([a, b]) => new THREE.Vector2(a, b));
@@ -261,6 +265,22 @@ function tireGeometry(r, w, tread = 0) {
         lug(a, -hw * 0.6, C / n * 0.62, w * 0.26);
         lug(a + Math.PI / n, 0, C / n * 0.62, w * 0.3);
         lug(a, hw * 0.6, C / n * 0.62, w * 0.26);
+      }
+    } else if (tread === 3 || tread === 4) {
+      // a road tyre's face: ribs round the tyre with straight grooves between them (each rib from y0 to y1 across, in
+      // half widths), and on a summer tyre the shoulders cut into blocks by slanted grooves
+      const ribs = tread === 3 ? [[-0.42, 0.04], [0.16, 0.56]] : [[-0.98, -0.62], [-0.5, -0.16], [-0.04, 0.98]];
+      for (const [y0, y1] of ribs) {
+        const ring = [[rc, y0 * hw], [r, y0 * hw + 0.002], [r, y1 * hw - 0.002], [rc, y1 * hw]];
+        parts.push(clean(new THREE.LatheGeometry(ring.map(([a, b]) => new THREE.Vector2(a, b)), 72)));
+      }
+      if (tread === 3) {
+        const n = Math.round(C / 0.032);
+        for (let i = 0; i < n; i++) {
+          const a = (i / n) * Math.PI * 2;
+          lug(a, -hw * 0.75, C / n * 0.84, w * 0.23, 0.3);
+          lug(a + Math.PI / n, hw * 0.82, C / n * 0.84, w * 0.16, -0.3);
+        }
       }
     } else if (tread === 1) {
       const n = Math.round(C / 0.085);
@@ -571,7 +591,7 @@ const BUILDERS = { ranger: rangerBody, hauler: haulerBody, mule: muleBody, gecko
  */
 function modelBody(model, asset, M, P) {
   const L = asset.layout;
-  if (L.cabin) cabin(P, M, L.cabin);                     // (a model with an empty cab: seats and a dash)
+  if (L.cabin) cabin(P, M, { ...L.cabin, side: Math.sign(L.steering?.x || 1) });   // (a model with an empty cab: seats and a dash)
   const mats = { paint: model.paint, glass: M.glass, screen: M.screen, head_l: model.lampMats[0], head_r: model.lampMats[1], tail: model.brakeMat, reverse: model.revMat, amber: M.amber };
   // a part the model draws double-sided gets the game's material drawn from both sides too (this truck's own paint
   // and lamps turned so; a shared one through its double-sided twin)
@@ -582,10 +602,23 @@ function modelBody(model, asset, M, P) {
     return (m.userData.both ||= Object.assign(m.clone(), { side: THREE.DoubleSide }));
   };
   const wheel = [];                                      // (the model's own steering wheel, in its own frame)
+  // the head lamps: the model's own lenses, reflectors and bulbs, in this truck's own copies of their materials that
+  // glow when its lights are on (each side's apart, so a broken lamp goes dark alone: setLights)
+  const lit = new Map();
+  const headMat = (m, side) => {
+    const key = `${side}:${m.uuid}`;
+    if (!lit.has(key)) {
+      const c = m.clone();
+      c.emissive?.set(0xfff2c8); c.emissiveIntensity = 0;
+      c.userData = { glow: m.transparent ? 1.6 : 2.6 };
+      lit.set(key, c); model.headMats[side].push(c);
+    }
+    return lit.get(key);
+  };
   for (const part of asset.parts) {
     const g = part.geometry.clone();
     g.userData = {};
-    const mat = mats[part.role] ? (part.doubleSided ? both(mats[part.role]) : mats[part.role]) : part.material;
+    const mat = part.role === 'head' ? headMat(part.material, part.side) : mats[part.role] ? (part.doubleSided ? both(mats[part.role]) : mats[part.role]) : part.material;
     const m = new THREE.Mesh(g, mat);
     m.userData.role = part.role;
     m.castShadow = !mat.transparent; m.receiveShadow = !mat.transparent;
@@ -818,12 +851,15 @@ export class TruckModel {
     // ---- body, chassis, bumpers, build
     const P = new PartList();
     this.lampMats = [this.lightMat, this.lightMat.clone()];           // left (+x), right
+    this.headMats = [[], []];                                         // a model body's own head lamps, left and right
     const asset = truckAsset(spec.style);
     this.modelBody = !!asset;
-    const x = asset ? modelBody(this, asset, M, P) : BUILDERS[spec.style](P, M, this.paint, this.top, spec);
+    // (a body of its own until the model comes: a road car's a generic coupe, another truck's a wagon)
+    const x = asset ? modelBody(this, asset, M, P) : (BUILDERS[spec.style] || (spec.road ? coupeBody : droverBody))(P, M, this.paint, this.top, spec);
     this.layout = x;
     if (!x.ownChassis) chassis(P, M, spec, x);
-    if (x.ownBumpers) fairlead(P, M, spec, x, spec.winch || {}); else bumpers(P, M, spec, x, spec.winch || {});
+    // (a road car's recovery rope goes on its tow eye: no winch bumper, no fairlead)
+    if (!spec.road) { if (x.ownBumpers) fairlead(P, M, spec, x, spec.winch || {}); else bumpers(P, M, spec, x, spec.winch || {}); }
     buildParts(P, M, spec, x, base, this.barMat);
     this.lamps = [];
     for (const [hx, hy, hz, hr] of x.ownLamps ? [] : x.heads) {
@@ -1026,6 +1062,7 @@ export class TruckModel {
   setPaint(hex) { this.paint.color.set(hex); }
   setLights(on) {
     this.lampMats.forEach((m, i) => { m.emissiveIntensity = this.broken?.[i] ? 0 : on ? 3.5 : 0.15; });
+    this.headMats.forEach((list, i) => { for (const m of list) m.emissiveIntensity = this.broken?.[i] || !on ? 0 : m.userData.glow; });
     this.barMat.emissiveIntensity = on ? 4 : 0.1; this.lightsOn = on; this.setBrake(this.braking);
   }
 
@@ -1197,7 +1234,7 @@ export class TruckModel {
 
   dispose() {
     this.root.traverse((o) => { if (o.geometry && !o.geometry.userData.cached) o.geometry.dispose(); });
-    for (const m of [this.paint, this.top, ...this.lampMats, this.barMat, this.brakeMat, this.revMat, this.screen]) m?.dispose();
+    for (const m of [this.paint, this.top, ...this.lampMats, ...this.headMats.flat(), this.barMat, this.brakeMat, this.revMat, this.screen]) m?.dispose();
   }
 }
 

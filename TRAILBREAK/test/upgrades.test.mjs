@@ -5,7 +5,8 @@ import { Vehicle, PHYS_DT } from '../src/physics/Vehicle.js';
 import { TRUCKS, TRUCK_IDS, truckSpec, truckBase } from '../src/physics/trucks.js';
 import { SURFACE, SURFACES } from '../src/physics/Surfaces.js';
 import {
-  PRESETS, CATEGORIES, presetBuild, stockBuild, encodeBuild, decodeBuild, normalizeBuild, buildStats, optionsFor, maxTyre,
+  PRESETS, CATEGORIES, presetBuild, presetsFor, stockBuild, encodeBuild, decodeBuild, normalizeBuild, buildStats, optionsFor, maxTyre,
+  TYRE_SIZES, optionAllowed,
 } from '../src/physics/Upgrades.js';
 import { flat, softSlope, slope, soft, slopeWithIce, block, flooded } from './grounds.mjs';
 
@@ -43,7 +44,7 @@ test('builds: codes round-trip, presets are valid, stock reproduces the factory 
     const stock = truckSpec(id);
     assert.equal(stock.mass, base.mass);
     assert.ok(Math.abs(stock.cgHeight - base.cgHeight) < 1e-9 && Math.abs(stock.cgZ - base.cgZ) < 1e-9, 'same centre of gravity');
-    for (const p of PRESETS) {
+    for (const p of presetsFor(base)) {
       const b = presetBuild(base, p.id);
       assert.deepEqual(decodeBuild(base, encodeBuild(b)), b, `${id} ${p.id} round trip`);
       assert.deepEqual(normalizeBuild(base, b), b, `${id} ${p.id} is a valid build`);
@@ -52,14 +53,16 @@ test('builds: codes round-trip, presets are valid, stock reproduces the factory 
     // garbage in, stock out; out-of-range choices are clamped
     assert.deepEqual(decodeBuild(base, '!!'), stockBuild(base));
     const odd = normalizeBuild(base, { lift: 9, engine: -3, tyre: 37 });
-    assert.equal(odd.lift, 3);
+    assert.equal(odd.lift, base.road ? 0 : 3);                     // (a road car: no lift taller than its 2")
     assert.equal(odd.engine, 0);
-    assert.ok(odd.tyre <= maxTyre(base, odd.lift));
+    assert.ok(odd.tyre <= maxTyre(base, odd.lift) && optionAllowed(base, 'tyre', TYRE_SIZES.indexOf(odd.tyre)));
     // every category has a choice, but what a truck rules out (an electric truck: its fixed reduction, no gearbox or
-    // transfer case swaps, no air intake)
+    // transfer case swaps, no air intake; a road car: its own tyres and gearboxes, no off-road parts). A tyre is named
+    // by its size
     for (const cat of CATEGORIES) {
       const only = base.only?.[cat.id];
-      assert.ok(only ? only.length >= 1 && only.every((i) => i < optionsFor(cat, id).length) : optionsFor(cat, id).length > 1, `${id}: ${cat.id} has options`);
+      const ok = (i) => (cat.id === 'tyre' ? TYRE_SIZES.includes(i) : i < optionsFor(cat, id).length);
+      assert.ok(only ? only.length >= 1 && only.every(ok) : optionsFor(cat, id).length > 1, `${id}: ${cat.id} has options`);
     }
   }
 });

@@ -36,9 +36,10 @@ function windscreen(P, M, paint, bottom, top, halfW, pillar = 0.05) {
  * Seats, a floor and a dash with gauges. The front seats' cushions are centred at seatZ (by default 0.62 m behind the
  * dash); the dash is dashD deep (front to back), its middle at dashZ. The floor and the dash reach `inner` either side
  * (the doors; by default the seats' outer edges). well: close the footwells (a model with no firewall, where the wheels
- * and the ground show under the dash): the bulkhead at z1 and the kick panels beside them.
+ * and the ground show under the dash): the bulkhead at z1 and the kick panels beside them. side: where the driver sits
+ * (1 left, -1 right): the gauges are in front of him.
  */
-export function cabin(P, M, { floorY, z0, z1, x = 0.38, w = 0.5, inner = null, rear = null, dashZ, dashY, dashD = 0.24, seatZ = null, bench = false, well = false }) {
+export function cabin(P, M, { floorY, z0, z1, x = 0.38, w = 0.5, inner = null, rear = null, dashZ, dashY, dashD = 0.24, seatZ = null, bench = false, well = false, side = 1 }) {
   const hw = inner ?? x + w / 2;
   P.box(M.black, [2 * hw, 0.03, z1 - z0], [0, floorY, (z0 + z1) / 2], { r: 0 });
   const sz = seatZ ?? dashZ - 0.62;
@@ -59,7 +60,7 @@ export function cabin(P, M, { floorY, z0, z1, x = 0.38, w = 0.5, inner = null, r
     P.box(M.black, [2 * hw, h, 0.03], [0, floorY + h / 2, z1], { r: 0 });
     P.box(M.black, [0.03, h, 0.7], [hw - 0.015, floorY + h / 2, z1 - 0.35], { r: 0, mirror: true });
   }
-  for (const gx of [x - 0.08, x + 0.08]) P.cyl(M.chrome, 0.045, 0.045, 0.02, [gx, dashY + 0.04, dashZ - dashD / 2 - 0.01], { axis: 'z', seg: 14 });
+  for (const gx of [x - 0.08, x + 0.08]) P.cyl(M.chrome, 0.045, 0.045, 0.02, [side * gx, dashY + 0.04, dashZ - dashD / 2 - 0.01], { axis: 'z', seg: 14 });
 }
 
 // ---------------------------------------------------------------- Gecko: the micro 4x4 with a canvas top
@@ -403,5 +404,41 @@ export function rhinoBody(P, M, paint, top, spec) {
     wheel: { x: 0.5, y: 2.12, z: cab1 - 0.38, tilt: 0.95 },
     frame: { x: 0.38, y: 1.0, z0: zB + 0.1, z1: zF - 0.15 }, coilY: 1.3,
     flaps: false, sill: 0.8, half: 1.1, roofY: cabTop + 0.05, roofZ: [cab0 + 0.08, cab1 - 0.08], bedZ: [b0 + 0.04, b1 - 0.06], ownSnorkel: true,
+  };
+}
+
+// ---------------------------------------------------------------- Coupe: any road car, while its model comes down
+export function coupeBody(P, M, paint, top, spec) {
+  const zf = spec.axles[0].z, zr = spec.axles[1].z, R = spec.tyre.radius, side = Math.sign(spec.eye?.[0] || 1);
+  const body = spec.hull[0], half = Math.min(0.94, body.h[0]);
+  const zF = body.c[2] + body.h[2], zB = body.c[2] - body.h[2];
+  const sill = body.c[1] - body.h[1] + 0.04, belt = body.c[1] + body.h[1], roof = spec.roofY, ar = R + 0.04;
+  // the body's side: a low nose rising to the beltline, a short tail, the two arches cut out of it
+  const s = new THREE.Shape();
+  s.moveTo(zF, sill + 0.05);
+  s.lineTo(zF, belt - 0.24); s.quadraticCurveTo(zF, belt - 0.14, zF - 0.3, belt - 0.12);
+  s.lineTo(zf + 0.2, belt - 0.03);
+  s.lineTo(zB + 0.15, belt); s.quadraticCurveTo(zB, belt, zB, belt - 0.12);
+  s.lineTo(zB, sill + 0.05);
+  arch(s, zr, R, ar, sill, sill);
+  arch(s, zf, R, ar, sill, sill);
+  s.lineTo(zF, sill + 0.05);
+  P.add(paint, slab(s, half, 0.04));
+  for (const z of [zf, zr]) liner(P, M, z, R, ar, 2 * half - 0.1);
+  // the glasshouse: a raked windscreen, the roof, side and back glass
+  const ws0 = [zf - 0.55, belt], ws1 = [zf - 1.45, roof - 0.02], rz1 = zr + 0.35;
+  windscreen(P, M, paint, ws0, ws1, half - 0.18, 0.05);
+  P.box(paint, [2 * (half - 0.2), 0.04, ws1[0] - rz1], [0, roof - 0.02, (ws1[0] + rz1) / 2], { r: 0.02 });
+  P.box(M.glass, [0.02, roof - belt - 0.06, ws1[0] - rz1 + 0.3], [half - 0.18, (roof + belt) / 2, (ws1[0] + rz1) / 2 + 0.1], { r: 0, mirror: true });
+  P.box(M.glass, [2 * (half - 0.22), 0.02, 0.7], [0, (roof + belt) / 2, rz1 - 0.3], { r: 0, rot: [-1.05, 0, 0] });
+  cabin(P, M, { floorY: sill + 0.08, z0: rz1 - 0.2, z1: ws0[0] + 0.2, x: 0.37, w: 0.46, dashZ: ws0[0] - 0.05, dashY: belt - 0.05 });
+  return {
+    heads: [[half - 0.25, belt - 0.22, zF - 0.02, 0.07]],
+    tails: [[half - 0.2, belt - 0.12, zB - 0.01, 0.2, 0.06]], reverse: [],
+    bumperF: { z: zF, y: sill + 0.1, w: 2 * half - 0.1 }, bumperR: { z: zB, y: sill + 0.12, w: 2 * half - 0.1 },
+    spare: null,
+    wheel: { x: side * 0.37, y: belt + 0.02, z: ws0[0] - 0.3, tilt: 0.35 },
+    frame: { x: 0.4, y: sill, z0: zB + 0.2, z1: zF - 0.2 },
+    flaps: false, sill, half, roofY: roof, roofZ: [rz1, ws1[0]], ownChassis: true, ownBumpers: true,
   };
 }

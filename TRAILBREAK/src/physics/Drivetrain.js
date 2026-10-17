@@ -26,11 +26,22 @@
 //
 // The manual gearbox has an automatic clutch, as a driver would work it: it slips to pull away, stays in while the
 // engine is above idle (engine braking downhill), and opens rather than let the engine stall. No creep at idle.
+// A dual-clutch box (trans.dct) shifts up without a gap in the drive: the next gear's clutch takes over at once,
+// slipping with about the engine's own torque while the ignition is cut and the revs come down to the new gear's speed
+// (the clutch alone, biting hard, would throw the engine's spin into the tyres).
 //
 // An electric truck (engine.electric, gearbox type 'direct'): the motors are geared straight to the axles, one ratio
 // each way, so the motor turns with the wheels (rigidly, both ways) and gives its torque from a standstill: full torque
 // to its base speed, then constant power. No idle, no clutch or converter; off the throttle it brakes itself,
 // regenerating (engine.friction), down to nothing at a standstill.
+//
+// Road cars (trans.drive): 'rwd' drives the rear axle alone (no front axle to engage); 'awd' drives both all the
+// time through a centre differential that splits the torque (trans.split: the front's share) and a coupling that
+// holds the axles together up to its torque (trans.centre: [preload, share of the drive torque], N m at the wheels:
+// a viscous or multi-plate clutch, as in a Haldex or ATTESA), so a slipping axle sends the drive to the other:
+//   centre diff: split * (wFL + wFR) / 2 * G + (1 - split) * (wRL + wRR) / 2 * G = wOut
+//   coupling:    (wFL + wFR) / 2 = (wRL + wRR) / 2                bounded by its torque
+// A lockable centre (trans.centreLock, the G-class's) locks it solid instead: the part-time 4WD's rigid shafts.
 
 import { clamp, solveDense, smoothstep } from './math.js';
 
@@ -108,13 +119,17 @@ export class Drivetrain {
     this.wOut = 0;
     this.gear = 1;               // -1 reverse, 0 neutral, 1..n
     this.low = false;            // transfer case range
-    this.fourWD = true;
+    this.drive = this.t.drive || '4wd';   // part-time 4WD; or a road car's 'rwd' or 'awd' (see the header)
+    this.fourWD = this.drive !== 'rwd';
+    this.lockCentre = false;     // an AWD's lockable centre diff, locked
     this.lockFront = false;
     this.lockRear = false;
     this.autoLock = false; this.autoT = 0;           // the auto-locker's state (diffs.rear 'auto')
     this.auto = true;            // automatic shifting
     this.lockupOn = false;
     this.shiftT = 0;
+    this.upT = 0;                // a dual-clutch upshift's ignition cut (s left)
+    this.launching = false;      // a road car's launch control at work
     this.idleI = 0;
     this.limiterCut = false;
     this.throttle = 0;           // effective throttle after idle control and limiter
@@ -151,8 +166,10 @@ export class Drivetrain {
     g = clamp(g | 0, -1, this.t.gears.length);
     if (g === this.gear) return true;
     if ((g < 0 && speed > 1.5) || (this.gear < 0 && g > 0 && speed < -1.5)) return false;
+    const dctUp = this.t.dct && g > this.gear && this.gear > 0;
+    if (dctUp) this.upT = 0.4;
     this.gear = g;
-    this.shiftT = this.t.shiftTime;
+    this.shiftT = dctUp ? 0 : this.t.shiftTime;
     this.lockupOn = false;
     return true;
   }
@@ -167,9 +184,18 @@ export class Drivetrain {
   }
 
   setFourWD(on, speed) {
+    // (rear-wheel drive has no front axle to engage, all-wheel drive none to let go: only part-time 4WD shifts)
+    if (this.drive !== '4wd') return on === this.fourWD;
     if (on === this.fourWD) return true;
     if (on && Math.abs(speed) > 20) return false;
     this.fourWD = on;
+    return true;
+  }
+
+  /** Lock or free an all-wheel drive's centre diff (false if it can't be locked, or when too fast to lock it). */
+  setCentreLock(on, speed) {
+    if (on && (this.drive !== 'awd' || !this.t.centreLock || Math.abs(speed) > 8)) return false;
+    this.lockCentre = on;
     return true;
   }
 
@@ -180,8 +206,18 @@ export class Drivetrain {
     return true;
   }
 
-  /** The gear an automatic shift starts in: second in high range with a granny-low first. */
-  get firstGear() { return !this.low && this.t.gears[0] > 4 && this.t.gears.length > 3 ? 2 : 1; }
+  /** The revs a road car's launch control holds while its clutch slips (where its engine makes its torque). */
+  launchRpm(throttle) {
+    if (this._launch === undefined) {
+      const e = this.e, peak = Math.max(...e.torque.map((q) => q[1]));
+      // the lowest revs with nine tenths of the peak torque, but no less than 3,000
+      this._launch = Math.max(3000, e.torque.find((q) => q[1] >= 0.9 * peak)?.[0] ?? 3000);
+    }
+    return this.e.idleRpm + (this._launch - this.e.idleRpm) * throttle;
+  }
+
+  /** The gear an automatic shift starts in: second in high range with a granny-low first (not a road car's short one). */
+  get firstGear() { return !this.low && !this.t.road && this.t.gears[0] > 4 && this.t.gears.length > 3 ? 2 : 1; }
 
   /** Stall the engine (water in the intake). */
   stall() { this.running = false; this.crankT = 0; this.lockupOn = false; }
@@ -231,7 +267,9 @@ export class Drivetrain {
     // a modern automatic (six speeds or more) reads the grade: it doesn't shift up while the truck slows under power
     const modern = !this.manual && n >= 6, climbing = modern && thr > 0.1 && this.aRel < -0.04;
     if (this.gear < n && turbineRpm(this.gear) > up && groundRpm(this.gear) > up - 300 && !climbing) {
-      this.gear++; this.shiftT = shiftTime; this.lockupOn = false; this.sinceShift = 0;
+      // (a dual-clutch box's next clutch takes the drive over at once: no gap, only the revs to bring down)
+      this.gear++; this.shiftT = this.t.dct ? 0 : shiftTime; this.lockupOn = false; this.sinceShift = 0;
+      if (this.t.dct) this.upT = 0.4;
     } else if (this.gear > this.firstGear && turbineRpm(this.gear) < down && turbineRpm(this.gear - 1) < up - 500) {
       // (and skips straight down to the gear the speed wants)
       let g = this.gear - 1;
@@ -277,7 +315,8 @@ export class Drivetrain {
     // (input.declutch: the clutch held down, or an automatic slipped into neutral, whatever gear it shows)
     const g = input.declutch ? 0 : this.gearRatio;
     const G = this.axleGear;
-    this.autoShift(dt, input.throttle, wheels);
+    // (the gearbox shifts by the driver's pedal, not by what the traction control lets through to the engine)
+    this.autoShift(dt, input.pedal ?? input.throttle, wheels);
 
     // ---- engine: idle governor, rev limiter, net torque (or the starter, when it isn't running)
     const rpm = this.wEngine * RPM;
@@ -297,6 +336,8 @@ export class Drivetrain {
       if (rpm > e.limiter) this.limiterCut = true; else if (rpm < e.redline) this.limiterCut = false;
       let thr = Math.max(input.throttle, idleThr);
       if (this.limiterCut) thr = 0;
+      // (a dual-clutch upshift: no spark until the engine is down to the new gear's speed)
+      if (this.upT > 0) { this.upT -= dt; if (rpm > Math.abs(this.wOut * this.gearRatio * RPM) + 250) thr = 0; else this.upT = 0; }
       this.throttle = thr;
       const fric = e.friction[0] + e.friction[1] * rpm;
       Teng = thr * torqueAt(e.torque, rpm) * this.powerMul - (1 - thr) * fric;
@@ -316,13 +357,21 @@ export class Drivetrain {
       const inRpm = this.wOut * g * RPM;                               // gearbox input shaft
       let target = 0;
       if (g !== 0 && this.shiftT === 0 && this.running) {
-        if (input.throttle > 0.02) {
+        this.launching = input.throttle > 0.02 && this.t.road && Math.abs(inRpm) < this.launchRpm(input.throttle) - 200;
+        if (this.launching) {
+          // a road car's launch control: the clutch in, but slipping, carrying the engine's own torque (so a cut in it,
+          // the traction control's, reaches the tyres) and a little more above its launch revs, less below them, to
+          // hold it there until the car has caught up with them (see the clutch's bound below)
+          target = 1;
+        } else if (input.throttle > 0.02) {
           const launch = e.idleRpm + 400 + 1600 * input.throttle;
           target = smoothstep(e.idleRpm + 50, launch, rpm);
           if (this.clutch > 0.98 && Math.abs(inRpm) > e.idleRpm * 0.85) target = 1;
+          if (this.t.road && Math.abs(inRpm) >= this.launchRpm(input.throttle) - 200) target = 1;
         } else if (Math.abs(inRpm) > e.idleRpm * 0.8 && rpm > e.idleRpm * 0.6) target = 1;
       }
-      const rate = target > this.clutch ? 3 : 12;
+      // (it bites slowly pulling away; a dual-clutch box's next clutch at once on the move)
+      const rate = target > this.clutch ? (this.t.dct && Math.abs(inRpm) > e.idleRpm * 1.5 ? 10 : 3) : 12;
       this.clutch += clamp(target - this.clutch, -rate * dt, rate * dt);
     }
 
@@ -335,12 +384,14 @@ export class Drivetrain {
     } else this.tcSlip = 0;
     this.turbineTorque = Tturb;
 
-    // ---- lockup clutch logic
-    if (!this.manual && !this.direct && g > 0 && this.gear >= 2 && this.shiftT === 0 && this.running) {
+    // ---- lockup clutch logic (a road car's sports automatic locks up from first gear, flat out too, as soon as the
+    // converter has stopped multiplying: it only slips to pull away and to shift)
+    const sport = !!this.t.road;
+    if (!this.manual && !this.direct && g > 0 && (this.gear >= 2 || sport) && this.shiftT === 0 && this.running) {
       const sr = this.wEngine > 1 ? (this.wOut * g) / this.wEngine : 0;
       const turb = this.wOut * g * RPM;
-      if (!this.lockupOn && sr > 0.9 && turb > 1350 && input.throttle < 0.9) this.lockupOn = true;
-      else if (this.lockupOn && (turb < 1150 || input.throttle > 0.97)) this.lockupOn = false;
+      if (!this.lockupOn && sr > (sport ? 0.85 : 0.9) && turb > 1350 && (sport || input.throttle < 0.9)) this.lockupOn = true;
+      else if (this.lockupOn && (turb < 1150 || (!sport && input.throttle > 0.97))) this.lockupOn = false;
     } else this.lockupOn = false;
 
     // ---- predicted velocities (unconstrained)
@@ -387,9 +438,21 @@ export class Drivetrain {
       }
     } else this.autoLock = false;
     const lockR = this.lockRear || this.autoLock;
-    // rear axle (the gearbox output turns with the rear propshaft), front axle in 4WD
-    const iRear = axle(2, 3, lockR);
-    const iFront = this.fourWD ? axle(0, 1, this.lockFront) : -1;
+    // rear axle (the gearbox output turns with the rear propshaft), front axle in 4WD; or an all-wheel drive's centre
+    // diff and its coupling (with a shaft snapped, or the centre locked: the axles rigidly, as part-time 4WD)
+    let iRear = -1, iFront = -1, iCentre = -1, iCouple = -1;
+    const split = this.t.split ?? 0.4;
+    if (this.drive === 'awd' && !this.lockCentre && !B[0] && !B[1] && !B[2] && !B[3]) {
+      const g2 = G / 2;
+      J[n * NB + 0] = g2 * split; J[n * NB + 1] = g2 * split; J[n * NB + 2] = g2 * (1 - split); J[n * NB + 3] = g2 * (1 - split);
+      J[n * NB + OUT] = -1; bound[n] = Infinity; iCentre = n++;
+      const [pre, k] = this.t.centre || [200, 0.3];
+      J[n * NB + 0] = 0.5; J[n * NB + 1] = 0.5; J[n * NB + 2] = -0.5; J[n * NB + 3] = -0.5;
+      bound[n] = (pre + k * Math.abs(this.outTorque * G)) * dt; iCouple = n++;
+    } else {
+      iRear = axle(2, 3, lockR);
+      iFront = this.fourWD ? axle(0, 1, this.lockFront) : -1;
+    }
     if (!B[2] && !B[3]) {
       if (lockR) { J[n * NB + 2] = 1; J[n * NB + 3] = -1; bound[n] = Infinity; n++; } else if (this.diffs.rear === 'lsd') {
         J[n * NB + 2] = 1; J[n * NB + 3] = -1; bound[n] = (100 + 0.45 * Math.abs(this.propRear * t.axle)) * dt; n++;
@@ -399,7 +462,13 @@ export class Drivetrain {
     const nDrive = n;
     let ic = -1;
     if (this.lockupOn) { ic = n; J[n * NB + ENG] = 1; J[n * NB + OUT] = -g; bound[n] = t.lockup * dt; n++; }
-    if (this.manual && g !== 0 && this.clutch > 0.001) { ic = n; J[n * NB + ENG] = 1; J[n * NB + OUT] = -g; bound[n] = this.clutch * this.clutchCap * dt; n++; }
+    if (this.manual && g !== 0 && this.clutch > 0.001) {
+      // (a dual-clutch upshift's clutch carries about the engine's own torque while it pulls the revs down; a launch,
+      // what the engine makes, more above the launch revs and less below)
+      let cap = this.upT > 0 ? Math.min(this.clutchCap, 1.1 * torqueAt(e.torque, rpm)) : this.clutchCap;
+      if (this.launching) { const L = this.launchRpm(input.throttle); cap = Math.min(cap, Math.max(0, this.throttle * torqueAt(e.torque, rpm) * (1 + 2 * (rpm - L) / L))); }
+      ic = n; J[n * NB + ENG] = 1; J[n * NB + OUT] = -g; bound[n] = this.clutch * cap * dt; n++;
+    }
     // (electric: the motor geared to the output, rigidly, in gear)
     if (this.direct && g !== 0) { ic = n; J[n * NB + ENG] = 1; J[n * NB + OUT] = -g; bound[n] = Infinity; n++; }
     for (let i = 0; i < 4; i++) {
@@ -408,9 +477,14 @@ export class Drivetrain {
     }
     this.lamAcc.fill(0, 0, n);
     this.solve(n);
-    // torques in the propshafts and through the clutch, and in each axle shaft
+    // torques in the propshafts and through the clutch, and in each axle shaft (an all-wheel drive's: the centre diff's
+    // split, and what its coupling moved from one axle to the other)
     const R = this.rangeRatio;
-    const lr = iRear >= 0 ? this.lamAcc[iRear] : 0, lf = iFront >= 0 ? this.lamAcc[iFront] : 0;
+    let lr = iRear >= 0 ? this.lamAcc[iRear] : 0, lf = iFront >= 0 ? this.lamAcc[iFront] : 0;
+    if (iCentre >= 0) {
+      const lc = this.lamAcc[iCentre], lk = this.lamAcc[iCouple];
+      lr = (1 - split) * lc - lk / G; lf = split * lc + lk / G;
+    }
     this.propRear = R * lr / dt;
     this.propFront = R * lf / dt;
     this.outTorque = (lr + lf) / dt;

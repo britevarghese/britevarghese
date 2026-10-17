@@ -184,7 +184,8 @@ and at walking pace it plays its pedestrian warning.
 The sound goes off while the game is paused, in the garage, the dealer and the events list, and whenever the game's
 tab is hidden (another tab, or the browser minimised); it comes back when you drive on.
 
-While you drive, the HUD shows the transfer case range, 2WD or 4WD, the lockers (or LSD), the gearbox (AUTO or STICK,
+While you drive, the HUD shows the transfer case range, 2WD or 4WD (RWD or AWD on a sports car, AWD LOCK on the G 63
+with its centre diff locked), the lockers (or LSD), the gearbox (AUTO or STICK,
 with M when you shift yourself) and the tyre pressure. ENGINE OFF / FLOODED appears when water has got into the intake
 (press the throttle to start it again). The coolant temperature shows once the radiator leaks, and what is broken
 (FLAT FL, AXLE R, STEERING, SPRING, ENGINE 60%) shows beside it: see [Damage](#damage).
@@ -250,15 +251,16 @@ steam.
 ## Money, the dealer and events
 
 Each driver has a career, kept in their own browser: money, the trucks and parts they own, their best times. You
-start with $2,500. **For now every truck and every garage part is free**: pick any of the fourteen in the lobby or at
-the dealer and drive it, and fit it with anything in the garage at no charge (`FREE_TRUCKS` and `FREE_PARTS` in
+start with $2,500. **For now every truck and every garage part is free**: pick any of the fifteen trucks or the
+fourteen sports cars in the lobby or at the dealer and drive it, and fit it with anything in the garage at no charge (`FREE_TRUCKS` and `FREE_PARTS` in
 `src/game/Career.js` turn the dealer's and the garage's prices back on). The truck you pick in the lobby turns in 3D above
 the list, in its build and paint (drag to turn it); at the dealer, tap any truck to see it the same way.
 
 - **Earning:** surveying a beacon pays a $600 bounty (friends in the room get a share when you find one), towing a
   friend out pays a rescue fee, and events pay prize money.
-- **Spending:** the dealer (pause menu, or the truck list in the lobby) sells fourteen trucks, from the $4,500 Lada Niva
-  to the $42,000 Unimog (see [The trucks](#the-trucks)); the garage prices every part and bills only for parts you
+- **Spending:** the dealer (pause menu, or the truck list in the lobby) sells fifteen trucks, from the $4,500 Lada Niva
+  to the $95,000 G 63 (see [The trucks](#the-trucks)), and fourteen sports cars, from the $45,000 Impreza STi to the
+  $1,150,000 McLaren Senna (see [The sports cars](#the-sports-cars)); the garage prices every part and bills only for parts you
   haven't bought for that truck (once bought, a part is yours to fit and take off again). Repairs and the tow truck cost
   money, and can run you into the red (down to -$5,000): a truck is never left broken.
 
@@ -371,9 +373,9 @@ lies, go back to the last firm, dry ground you drove on, call your friends for a
 
 Real trucks with real 3D models: the Mahindra Thar you start in, the Lada Niva, the Willys MB, the UAZ Hunter, the
 Chevrolet K20 Suburban, the Mitsubishi Pajero, the Jeep Wrangler Rubicon, the Ford Bronco, the Ford Ranger Raptor, the
-Ram 2500 Power Wagon, the Hummer H1, the electric GMC Hummer EV, the Land Rover Defender 110 and the Mercedes-Benz
-Unimog U1300L, each built to its real numbers, from a one-ton jeep to a six-ton portal-axle truck. Every one takes every
-part in the garage.
+Ram 2500 Power Wagon, the Hummer H1, the electric GMC Hummer EV, the Land Rover Defender 110, the Mercedes-AMG G 63 and
+the Mercedes-Benz Unimog U1300L, each built to its real numbers, from a one-ton jeep to a six-ton portal-axle truck.
+Every one takes every part in the garage.
 
 Each has its cab and a driver at the wheel. The steering wheels are the models' own, cut out of their dashboards so they
 turn (the Thar, the Wrangler, the Raptor and the Pajero came with empty cabs: the game builds their seats, dash,
@@ -401,6 +403,7 @@ seat empty.
 | Hummer H1 | $32,000 | the H1 Alpha hard top, the civilian Humvee: independent suspension at both ends on geared hubs, tyre inflation from the cab, Torsen rear, brake traction control | 3.30 m (130") | 3650 kg | 6.6 Duramax turbo-diesel V8, 705 Nm | Allison 5-speed automatic | 2.72 / 5.24 (with the hub gears) | 37x12.50 R17 | 38 cm | 49 / 41 / 32 degrees |
 | GMC Hummer EV | $38,000 | the Edition 1 pickup, electric: three motors, e-lockers at both ends, independent suspension on air springs (at its raised Terrain height), traction control | 3.45 m (136") | 4110 kg | three electric motors, 746 kW (1,000 hp), ~1,400 Nm from a standstill | single-speed reduction | none / 12.5 | LT315/70 R17 (35") | 33 cm | 44 / 33 / 22 degrees |
 | Mercedes-Benz Unimog U1300L | $42,000 | the 435 two-tonner with a box body: portal axles on coils at both ends, diff locks front and rear, tyre inflation from the cab | 3.25 m (128") | 6200 kg | OM 352 5.7 diesel six, 363 Nm | 8-speed truck box, 9:1 first | none / 7.17 | 12.5 R20 (42") | 46 cm | 42 / 28 / 33 degrees |
+| Mercedes-AMG G 63 | $95,000 | the W463 G-Wagen: a ladder frame, coils on beam axles at both ends, permanent four-wheel drive with three diff locks (centre, front and rear), traction control | 2.85 m (112") | 2625 kg | M157 5.5 twin-turbo V8, 760 Nm | 7-speed automatic | 2.16 / 4.0 | 275/50 R20 (31") | 19 cm | 36 / 34 / 20 degrees |
 
 They drive like what they are. The Niva weighs 1.3 tons and floats over mud, but it is slow and narrow on a side slope.
 The heavy trucks run their tyres harder (45 psi on the Power Wagon, 55 on the Unimog: P steps down through two-thirds
@@ -421,6 +424,11 @@ than its battery is sealed for (32 inches) the power is cut back instead. The di
 revs, green while it regenerates, and it sounds like an electric truck: the motors' whine rising with the speed, the
 inverters, and a low hum at walking pace. The garage takes everything but a gearbox, a crawl box or a snorkel.
 
+The **Mercedes-AMG G 63** has permanent four-wheel drive: a centre differential sends 40% of the drive to the front
+axle and 60% to the rear, and lets them turn at their own speeds on a road. Off the road, press **4** (below about
+30 km/h) to lock it (the HUD shows AWD LOCK): the axles turn together, as the part-time trucks' do in 4WD, and with the
+front and rear lockers in, all four wheels pull. Its 571 PS V8 takes it to 100 km/h in about five seconds.
+
 Every truck's body is a real 3D model (see [Credits](#credits)), converted by `tools/cars.py` into the game's frame
 (scaled to the real truck's wheelbase and width, the dense ones simplified): the game paints it any colour, cracks its
 glass, lights its lamps and fits its own wheels, axles and suspension under it (leaf or coil springs and shocks that
@@ -439,11 +447,71 @@ they bite, sooner while the tyres are also turning the truck. The Bronco's ten-s
 six-speed) reads the grade: it holds its gear while a climb slows the truck, and skips straight down several gears when
 it must.
 
+## The sports cars
+
+Fourteen sports cars and supercars, on real 3D models (see [Credits](#credits)), for the Konkan Coast's roads and
+highway (and for anyone who wants to take a Lamborghini up a mud track): the BMW M4 CSL, the Mercedes-AMG GT S, the
+Chevrolet Corvette Stingray (C8), the Lamborghini Huracán, the Audi R8 V10 plus (in a widebody kit), the BMW M3 (E30),
+the Honda NSX, the Porsche 911 Turbo (930), the Nissan Skyline GT-R (R34), the Nissan GT-R (R35), the Mazda RX-7 (FD),
+the McLaren Senna, the Subaru Impreza WRX STi and the Toyota Supra (A80). The lobby and the dealer list them under
+**Sports cars**, with the maker's 0-100 km/h time and top speed.
+
+| Car | Price | Layout | Wheelbase | Weight | Engine | Gearbox | Factory tyres | The maker: 0-100 km/h, top speed | In the game: 0-100, 100-0 |
+|---|---|---|---|---|---|---|---|---|---|
+| Subaru Impreza WRX STi (GC8) | $45,000 | front engine, all-wheel drive (40:60 through a centre diff), right-hand drive | 2.52 m | 1345 kg | EJ20 2.0 turbo flat-four, 280 PS, 353 Nm | 5-speed manual | 205/55 R15 | 4.9 s, 250 km/h | 5.3 s, 38 m |
+| Mazda RX-7 (FD) | $52,000 | front-mid engine, rear-wheel drive | 2.43 m | 1325 kg | 13B-REW twin-rotor Wankel, twin turbos, 255 PS, 294 Nm | 5-speed manual | 225/50 ZR16 | 5.3 s, 250 km/h | 5.8 s, 38 m |
+| Chevrolet Corvette Stingray (C8) | $75,000 | mid engine, rear-wheel drive, the Z51 package | 2.72 m | 1730 kg | LT2 6.2 V8, 495 hp, 637 Nm | 8-speed dual-clutch | 245/35 ZR19 · 305/30 ZR20 | 3.5 s, 312 km/h | 4.1 s, 36 m |
+| BMW M3 (E30) | $88,000 | front engine, rear-wheel drive, a limited-slip diff | 2.56 m | 1275 kg | S14 2.3 four, 200 PS, 240 Nm | 5-speed dog-leg manual | 205/55 VR15 | 6.7 s, 235 km/h | 7.2 s, 38 m |
+| Mercedes-AMG GT S | $90,000 | front-mid engine, rear transaxle, rear-wheel drive | 2.63 m | 1645 kg | M178 4.0 twin-turbo V8, 510 PS, 650 Nm | 7-speed dual-clutch | 265/35 ZR19 · 295/30 ZR20 | 3.8 s, 310 km/h | 4.2 s, 36 m |
+| Toyota Supra Turbo (A80) | $98,000 | front engine, rear-wheel drive, right-hand drive | 2.55 m | 1585 kg | 2JZ-GTE 3.0 twin-turbo six, 326 PS, 427 Nm | 6-speed manual | 235/45 ZR17 · 255/40 ZR17 | 4.9 s, 285 km/h | 5.5 s, 38 m |
+| Honda NSX (NA1) | $105,000 | mid engine, rear-wheel drive, right-hand drive | 2.53 m | 1440 kg | C30A 3.0 VTEC V6, 274 PS, 284 Nm | 5-speed manual | 205/50 ZR15 · 225/50 ZR16 | 5.7 s, 270 km/h | 6.3 s, 36 m |
+| Nissan GT-R (R35) | $120,000 | front engine, rear transaxle, all-wheel drive (ATTESA E-TS) | 2.78 m | 1815 kg | VR38DETT 3.8 twin-turbo V6, 485 PS, 588 Nm | 6-speed dual-clutch | 255/40 ZRF20 · 285/35 ZRF20 | 3.5 s, 310 km/h | 4.0 s, 39 m |
+| BMW M4 CSL | $135,000 | front engine, rear-wheel drive | 2.86 m | 1700 kg | S58 3.0 twin-turbo six, 550 PS, 650 Nm | 8-speed automatic | 275/35 R19 · 285/30 R20 Cup 2 R | 3.7 s, 307 km/h | 3.9 s, 32 m |
+| Porsche 911 Turbo (930) | $145,000 | rear engine, rear-wheel drive | 2.27 m | 1215 kg | 3.0 turbo flat-six, 260 PS, 343 Nm | 4-speed manual | 205/55 VR16 · 225/50 VR16 | 5.5 s, 250 km/h | 6.0 s, 35 m |
+| Audi R8 V10 plus (widebody) | $165,000 | mid engine, quattro all-wheel drive | 2.65 m | 1630 kg | 5.2 V10, 610 PS, 560 Nm | 7-speed dual-clutch | 245/30 R20 · 305/30 R20 | 3.2 s, 330 km/h | 3.5 s, 37 m |
+| Lamborghini Huracán LP 610-4 | $230,000 | mid engine, all-wheel drive | 2.62 m | 1610 kg | 5.2 V10, 610 PS, 560 Nm | 7-speed dual-clutch | 245/30 R20 · 305/30 R20 | 3.2 s, 325 km/h | 3.5 s, 39 m |
+| Nissan Skyline GT-R (R34) | $280,000 | front engine, all-wheel drive (ATTESA E-TS), right-hand drive | 2.67 m | 1635 kg | RB26DETT 2.6 twin-turbo six, 280 PS (about 320 in fact), 440 Nm | 6-speed manual | 245/40 ZR18 | 4.9 s, 260 km/h | 5.4 s, 39 m |
+| McLaren Senna | $1,150,000 | mid engine, rear-wheel drive, 800 kg of downforce at 250 km/h | 2.67 m | 1385 kg | M840TR 4.0 twin-turbo V8, 800 PS, 800 Nm | 7-speed dual-clutch | 245/35 R19 · 315/30 R20 Trofeo R | 2.8 s, 340 km/h | 3.3 s, 29 m |
+
+(The weights are with fuel and a driver; the game's times are from a standstill on a flat road, a little slower than
+the makers', who launch on warm, rubbered-in surfaces. Every car's top speed in the game is within 6% of its maker's.)
+
+They drive as they are built:
+
+- **Rear-wheel drive** (the BMWs, the AMG, the Corvette, the NSX, the 930, the RX-7, the Supra, the Senna): the rear
+  wheels take all the drive, the front ones only steer.
+- **All-wheel drive** (the Huracán, the R8, both GT-Rs, the STi): a centre differential splits the drive between the
+  axles (40% to the front on the STi, 30% on the Huracán and the R8, 10% on the GT-Rs) and a coupling holds the axles
+  together, sending more of it to the axle that grips when the other spins: they pull away on gravel, grass or ice where
+  a rear-wheel-drive car spins its tyres.
+- **Gearboxes:** a dual-clutch box changes up with no break in the drive: the next gear's clutch takes over at once,
+  and the ignition is cut for an instant while the revs drop to the new gear. Pulling away, the manual and dual-clutch
+  cars use **launch control**: the clutch slips at the revs where the engine pulls hardest (fewer at part throttle) and
+  takes up the drive as the car catches up with them. The M4's automatic locks its torque converter from first gear.
+  **Traction control** holds the driven tyres near the slip that grips best.
+- **Downforce:** the wings and the floor press the car onto the road with the square of its speed, front and rear
+  separately: the Senna makes 800 kg of it at 250 km/h, more than half its weight.
+- **Low:** a hand's width under the floor (12 cm): anything taller grounds them.
+- **Lights:** the models' own headlamps light up at night.
+
+**The garage** fits a road car with a road car's parts: summer performance tyres or track semi-slicks (or all-terrain
+tyres for gravel, as the 911 Dakar and the Huracán Sterrato have), forged alloys, a 2" lift, a limited-slip diff, its
+tuned engine and its engine swaps (the M4's S63 V8, the Corvette's Z06 LT6, the RX-7's three-rotor 20B, the Supra's
+big single turbo...), the axle ratios its maker offered, its gearbox and the others a road car could take, and a roof
+rack. Its tyres stay its own size (front and rear as it came). No lockers, crawl box, snorkel, armour, winch or light
+bar: they are a truck's. The ready-made builds are **Track day** (semi-slicks, a limited-slip diff and the engine tuned),
+**Safari** (raised 2" on all-terrain tyres, a roof rack) and **Flat out** (the strongest engine, semi-slicks and the
+limited-slip diff).
+
+Every car has its cabin and the driver at the wheel, and the steering wheel turns: the models' own (cut out of their
+dashboards) in most; the C8, the NSX, the R34 and the STi came with empty cabins, so the game builds their seats, dash
+and wheel, with the gauges on the right side for the right-hand-drive Japanese cars.
+
 ## The garage
 
 Open it from the start screen, or press U while driving (out on the trail, fitting parts takes the truck back to
 the station garage). Pick parts one by one or start from a ready-made build (Weekend trail, Rock crawler, Mud bogger,
-Overlander). The truck turns on a stand in front of you with its parts on it, and the numbers show what they change
+Overlander; a sports car has its own: see [The sports cars](#the-sports-cars)). The truck turns on a stand in front of you with its parts on it, and the numbers show what they change
 against stock: clearances, approach, departure and breakover angles, wheel travel, wading depth, the angle it tips at,
 crawl ratio, power, top speed, weight and centre of gravity. Builds are kept per truck in the browser, and your
 friends see your build.
@@ -453,16 +521,20 @@ Every part changes the physics, the way it does on a real truck:
 - **Lift (2", 4", 6" long travel):** raises the body, the belly, the bumpers and the centre of gravity, but not the
   diffs (only bigger tyres lift those). Makes room for bigger tyres. The long-travel kit has soft springs and much more
   articulation, and leans a lot more on side slopes.
-- **Tyres (27" to 46", from the factory size up to what the tallest lift clears):** more clearance under the diffs, better angles, they roll over bigger rocks and sink less.
+- **Tyres (27" to 46", from the factory size up to what the tallest lift clears; a sports car keeps its own):** more clearance under the diffs, better angles, they roll over bigger rocks and sink less.
   They also weigh more, add rotating inertia and gear the truck taller: 35s on stock gears are slow off the line until
   you re-gear. Tyres too big for the lift rub, and the bump stops are extended to stop them hitting the body.
 - **Tread:** all-terrain, mud-terrain (more grip in mud, snow and grass, a little less on rock and road, louder) or
-  bias-ply mud tyres (the most in the bog, poor on rock and tarmac), each with its own rolling resistance.
-- **Wheels and air:** steel wheels can be aired down to 14 psi, beadlocks to 6. Aired down, the footprint gets longer
+  bias-ply mud tyres (the most in the bog, poor on rock and tarmac), each with its own rolling resistance. A sports car
+  takes summer performance tyres or track semi-slicks (the most grip on a dry road, and they let go sooner past their
+  peak; hopeless on anything loose), or all-terrains.
+- **Wheels and air:** steel wheels can be aired down to 14 psi, beadlocks to 6 (a sports car's forged alloys, on
+  low-profile tyres, to 26). Aired down, the footprint gets longer
   and wider, so the tyre floats over sand and mud instead of digging in, and wraps over rock; on firm ground it rolls
   harder and steers vaguely. Without a compressor you can only air back up at the station.
-- **Axle gears (3.54 to 7.17), 4:1 crawl box, gearbox (fourteen, from a 3-speed manual to a 10-speed automatic and an
-  8-speed truck box):** the crawl ratio, from 28.7:1 on a stock Willys MB to 258:1 on a Unimog with the crawl box
+- **Axle gears (3.54 to 7.17), 4:1 crawl box, gearbox (sixteen, from a 3-speed manual to a 10-speed automatic and an
+  8-speed truck box; a sports car has the axle ratios its maker offered and sixteen sports gearboxes of its own, from
+  the 930's four-speed to dual-clutch boxes with six to eight speeds):** the crawl ratio, from 28.7:1 on a stock Willys MB to 258:1 on a Unimog with the crawl box
   (walking pace at idle, and slower). The manual gearboxes have no torque converter: no creep, and in low range the
   engine holds the truck back down steep hills.
 - **Differentials:** open (the wheel with the least grip gets the power), a clutch-type limited-slip rear (always on, up
@@ -496,7 +568,11 @@ Everything that makes off-roading off-roading is simulated, not faked:
   and opens rather than stall). Then a two-speed transfer case, part-time 4WD and open, limited-slip or locked
   differentials. They are solved as exact constraints every substep. So with open diffs the wheel in the air or on
   ice gets all the power and the truck sits there, and locking the diffs gets you out. In low range the truck crawls
-  at idle and a manual holds it back downhill.
+  at idle and a manual holds it back downhill. The sports cars drive the rear wheels alone, or all four through a
+  centre differential that splits the torque between the axles and a coupling that limits their difference (the G 63's
+  centre diff locks solid); a dual-clutch box shifts with no break in the drive, a launch control holds the clutch at
+  the engine's strongest revs pulling away, and their wings and floors press them down, front and rear, with the
+  square of the speed.
 - **Trees and things in the way:** a trunk meets the truck stiff, as its crumple zones do, so a heavy truck stops in
   a short crush instead of sinking into the tree, and the trunk rubs past rather than being climbed. Whether it gives
   way is the bending the truck puts on it (each push times its height up the trunk) against what green wood of that
@@ -656,7 +732,14 @@ Ford Ranger Raptor, "Ford ranger raptor" by haraldina; the Ram 2500 Power Wagon,
 Wrangler, "Jeep Wrangler 3D Model" by Suyog modak; the Ford Bronco, "Bronco Car Animation (Red)" by neshallads; the
 Hummer H1, "Hummer H1 (Retry School)" by Voxel_CG; the Land Rover Defender 110, "Land Rover Defender 110" by
 hartwelkisaka; the GMC Hummer EV, "GMC Hummer EV 2022" by Unn Interativa; the Mercedes-Benz Unimog U1300L, "Unimog
-Truck" by Levi Giovani; on Sketchfab, CC BY 4.0, see `public/assets/trucks/CREDITS.md` (converted with `tools/cars.py`).
+Truck" by Levi Giovani; the Mercedes-AMG G 63, "Mercedes Benz G-class W263" by Lexyc16. Sports cars: the BMW M4 CSL,
+"BMW M4 CSL" by Mpgs Studios; the Mercedes-AMG GT S, "Mercedes-Benz AMG-GT 2015" by Márcio Meireles (MMC Works); the
+Corvette, "Chevrolet Corvette" by Waven; the Huracán, "Lamborghini huracan" by jkazulyblanco; the R8, "Audi R8" by
+wallon; the M3, "[FREE] BMW M3 E30" by Martin Trafas; the NSX, "Honda NSX 1990" by Lexyc16; the 930, "FREE 1975
+Porsche 911 (930) Turbo" by Lionsharp Studios; the R34, "Nissan Skyline R34 GT-R" by Lexyc16; the R35, "Nissan GT-R
+2008" by TGRRRR (PolyTigr); the RX-7, "Mazda RX-7 FD" by Lexyc16; the Senna, "McLaren senna" and "McLaren senna's
+tire" by hartwelkisaka; the STi, "Subaru Impreza WRX 1996" by Mac CGI; the Supra, "Toyota Supra MK IV (1994)" by
+Martin Trafas. All on Sketchfab, CC BY 4.0, see `public/assets/trucks/CREDITS.md` (converted with `tools/cars.py`).
 The driver: "indian man" by madmak21199 and his gloved hands, "Hand With Gloves" by teenjust500, on Sketchfab, CC BY
 4.0, see `public/assets/driver/CREDITS.md` (converted for NIGHTSHIFT; the meshoptimizer decoder, MIT, is in
 `public/vendor/three/addons/libs`). Engine sounds: see `public/assets/audio/CREDITS.md` (Freesound, CC0, CC BY 3.0

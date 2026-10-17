@@ -243,7 +243,7 @@ class EngineProcessor extends AudioWorkletProcessor {
     this.loadS += (params.load[0] - this.loadS) * 0.08;
     const cfg = this.cfg;
     const running = rpm > 120;
-    const fT = Math.max(2, rpm * b.cyl / 120);                 // firings per second
+    const fT = Math.max(2, rpm * (cfg.cyl || b.cyl) / 120);    // firings per second (the engine's own cylinders: a V10 on a V8's bank)
     // the recording's revs to pick from (relative to its idle): the game's idle is the recording's, and the difference
     // between the two idles fades out over the first revs (below idle: slower idle firings)
     const rIdle = b.idleRpm;

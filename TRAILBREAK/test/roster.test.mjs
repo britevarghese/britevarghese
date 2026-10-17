@@ -3,9 +3,9 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { Vehicle, PHYS_DT } from '../src/physics/Vehicle.js';
-import { TRUCK_IDS, truckSpec, truckBase } from '../src/physics/trucks.js';
+import { TRUCK_IDS, OFFROAD_IDS, truckSpec, truckBase } from '../src/physics/trucks.js';
 import { SURFACE } from '../src/physics/Surfaces.js';
-import { PRESETS, presetBuild, stockBuild, buildStats, maxTyre, LIFTS, TYRE_SIZES } from '../src/physics/Upgrades.js';
+import { PRESETS, presetsFor, presetBuild, stockBuild, buildStats, maxTyre, LIFTS, TYRE_SIZES } from '../src/physics/Upgrades.js';
 import { TRUCK_PRICES, DEALER_ORDER } from '../src/game/Career.js';
 import { flat, slope } from './grounds.mjs';
 
@@ -23,7 +23,8 @@ function run(v, ground, seconds, ctrl, until) {
 test('the dealer sells every truck, cheapest first, and every truck takes the whole catalogue', () => {
   assert.deepEqual([...DEALER_ORDER].sort(), [...TRUCK_IDS].sort());
   for (let i = 1; i < DEALER_ORDER.length; i++) assert.ok(TRUCK_PRICES[DEALER_ORDER[i]] > TRUCK_PRICES[DEALER_ORDER[i - 1]]);
-  for (const id of TRUCK_IDS) {
+  // (the road cars: test/roadcars.test.mjs)
+  for (const id of OFFROAD_IDS) {
     const base = truckBase(id), stock = stockBuild(base), st0 = buildStats(truckSpec(id));
     // tyres: from the factory size up to what the tallest lift clears, at least three sizes to choose from
     const sizes = TYRE_SIZES.filter((d) => d >= base.stock.tyre && d <= maxTyre(base, LIFTS.length - 1));
@@ -42,7 +43,7 @@ test('the dealer sells every truck, cheapest first, and every truck takes the wh
   }
 });
 
-for (const id of TRUCK_IDS) {
+for (const id of OFFROAD_IDS) {
   test(`${id}: gets up to 50 km/h on the road, stops from 50 in 10-16 m, climbs a 25 degree dirt slope in low range`, () => {
     const road = flat(SURFACE.ROAD);
     let v = new Vehicle(truckSpec(id));
@@ -70,7 +71,7 @@ for (const id of TRUCK_IDS) {
 test('every preset build of every truck settles and drives off', () => {
   const g = flat(SURFACE.DIRT);
   for (const id of TRUCK_IDS) {
-    for (const p of PRESETS) {
+    for (const p of presetsFor(truckBase(id))) {
       const v = new Vehicle(truckSpec(id, presetBuild(truckBase(id), p.id)));
       v.place(g, 0, 0, 0);
       run(v, g, 1, { ...IDLE, handbrake: 1 });

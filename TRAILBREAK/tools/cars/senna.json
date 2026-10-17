@@ -1,0 +1,235 @@
+{
+ "id": "senna",
+ "model": {
+  "title": "McLaren senna",
+  "url": "https://sketchfab.com/3d-models/mclaren-senna-f3ada11a4618463cac2e082c008cc340",
+  "author": "hartwelkisaka",
+  "authorUrl": "https://sketchfab.com/hartwelkisaka",
+  "license": "CC BY 4.0"
+ },
+ "wheelModel": {
+  "title": "McLaren senna's tire",
+  "url": "https://sketchfab.com/3d-models/mclaren-sennas-tire-a2f9f3674e3242a082a6cf97e247d3cd",
+  "author": "hartwelkisaka",
+  "authorUrl": "https://sketchfab.com/hartwelkisaka",
+  "license": "CC BY 4.0",
+  "note": "the body has no wheels: four copies of this wheel model were placed in its arches before converting (scratchpad sports/senna_hk/d_merge.py), so the rim kept is this one"
+ },
+ "axes": {
+  "left": "+x",
+  "up": "+y",
+  "forward": "+z"
+ },
+ "wheelbase": 2.67,
+ "spare": null,
+ "materials": {
+  "0": "trim",
+  "1": "trim",
+  "2": "trim",
+  "3": "trim",
+  "4": "trim",
+  "5": "paint",
+  "6": "amber",
+  "7": "glass",
+  "8": "head",
+  "9": "trim",
+  "10": "trim",
+  "11": "tail",
+  "12": "trim",
+  "13": "drop",
+  "14": "trim",
+  "15": "trim",
+  "16": "trim",
+  "17": "trim",
+  "18": "trim",
+  "19": "trim",
+  "20": "trim",
+  "21": "trim",
+  "22": "trim",
+  "23": "tyre",
+  "24": "hub",
+  "25": "drop",
+  "26": "rim",
+  "27": "rim"
+ },
+ "where": [
+  [
+   8,
+   "reverse",
+   [
+    -1.5,
+    0.0,
+    -3.0,
+    1.5,
+    1.5,
+    -1.5
+   ]
+  ],
+  [
+   7,
+   "screen",
+   [
+    -0.605,
+    0.6,
+    0.5,
+    0.605,
+    1.25,
+    0.65
+   ]
+  ],
+  [
+   7,
+   "screen",
+   [
+    -0.64,
+    0.6,
+    0.65,
+    0.64,
+    1.25,
+    0.75
+   ]
+  ],
+  [
+   7,
+   "screen",
+   [
+    -0.67,
+    0.6,
+    0.75,
+    0.67,
+    1.25,
+    0.85
+   ]
+  ],
+  [
+   7,
+   "screen",
+   [
+    -0.705,
+    0.6,
+    0.85,
+    0.705,
+    1.25,
+    0.95
+   ]
+  ],
+  [
+   7,
+   "screen",
+   [
+    -0.735,
+    0.6,
+    0.95,
+    0.735,
+    1.25,
+    1.05
+   ]
+  ],
+  [
+   7,
+   "screen",
+   [
+    -0.76,
+    0.6,
+    1.05,
+    0.76,
+    1.25,
+    1.6
+   ]
+  ]
+ ],
+ "override": {
+  "2": {
+   "color": [
+    0.04,
+    0.04,
+    0.045
+   ],
+   "metallic": 0.0,
+   "roughness": 0.85
+  }
+ },
+ "quantize": true,
+ "reduce": {
+  "paint": 0.0,
+  "*": 0.15
+ },
+ "rimReduce": 0.6,
+ "texSize": 1024,
+ "layout": {
+  "bumperF": {
+   "z": 2.55,
+   "y": 0.3,
+   "w": 1.8
+  },
+  "bumperR": {
+   "z": -2.18,
+   "y": 0.4,
+   "w": 1.75
+  },
+  "frame": {
+   "x": 0.45,
+   "y": 0.2,
+   "z0": -1.9,
+   "z1": 2.0
+  },
+  "half": 0.98,
+  "sill": 0.12,
+  "roofY": 1.22,
+  "roofZ": [
+   -0.4,
+   0.25
+  ],
+  "ownChassis": true,
+  "steering": {
+   "x": 0.3058,
+   "y": 0.7197,
+   "z": 0.7097,
+   "tilt": 0.245,
+   "yaw": 0.0,
+   "r": 0.15,
+   "tube": 0.02,
+   "cut": {
+    "front": 0.05,
+    "back": 0.045,
+    "hub": 0.07,
+    "pad": 0.02
+   }
+  },
+  "roofMap": {
+   "x0": -1.0,
+   "z0": -0.6,
+   "d": 0.1,
+   "nx": 21,
+   "nz": 11,
+   "h": [
+    "- - 91 90 89 100 106 107 109 112 114 112 109 107 106 100 89 90 91 - -",
+    "- - 90 89 - 103 109 110 111 116 118 116 111 110 109 103 - 89 90 - -",
+    "- - 89 88 92 106 110 112 113 119 120 119 113 112 110 106 92 88 89 - -",
+    "- - - - 95 109 112 114 115 121 122 121 115 114 112 109 95 - - - -",
+    "- - - - 98 111 114 116 117 118 117 118 117 116 114 111 98 - - - -",
+    "- - - - 101 113 116 117 118 119 119 119 118 117 116 113 101 - - - -",
+    "- - - - 102 114 117 118 119 120 120 120 119 118 117 114 102 - - - -",
+    "- - - 88 104 115 117 119 120 120 120 120 120 119 117 115 104 88 - - -",
+    "- - - 90 105 115 117 119 119 120 120 120 119 119 117 115 105 90 - - -",
+    "- - - 91 106 114 116 118 119 119 119 119 119 118 116 114 106 91 - - -",
+    "- - - 91 106 113 115 116 117 118 118 118 117 116 115 113 106 91 - - -"
+   ]
+  }
+ },
+ "screenNormal": 0.99,
+ "gentle": [
+  {
+   "box": [
+    -0.75,
+    0.1,
+    -0.5,
+    0.75,
+    1.25,
+    1.45
+   ],
+   "reduce": 0.0,
+   "cell": 0
+  }
+ ]
+}

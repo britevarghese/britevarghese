@@ -2,6 +2,8 @@
 // the design frame (the wheels off: the game fits its own on the physics), each mesh's material named "<role>:..."
 // (paint, glass, screen, head_l, head_r, tail, reverse, amber, rim, or anything else for parts kept as modelled), and
 // <id>.json what the converter measured (wheels, lamps, the body's extent) with the config's layout for the game.
+// The head lamps (head:..., each side's meshes named head_l or head_r) keep the model's own glass, reflectors and
+// bulbs: TruckModel lights them.
 //
 // TruckModel builds synchronously, so a body is loaded before its truck is built (loadTruckAsset); until then (another
 // player's truck arriving) the built-in body stands in.
@@ -10,7 +12,8 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 
 /** The trucks with a model body: all of them (TruckBodies.js's built-in bodies stand in while a model loads). */
-export const MODEL_BODIES = new Set(['thar', 'wrangler', 'shepherd', 'bronco', 'hummer', 'hummerev', 'mule', 'ranger', 'bruiser', 'hauler', 'trekker', 'gecko', 'drover', 'rhino']);
+export const MODEL_BODIES = new Set(['thar', 'wrangler', 'shepherd', 'bronco', 'hummer', 'hummerev', 'mule', 'ranger', 'bruiser', 'hauler', 'trekker', 'gecko', 'drover', 'rhino', 'gclass',
+  'm4csl', 'amggt', 'c8', 'huracan', 'r8', 'm3e30', 'nsx', 'p930', 'r34', 'r35', 'rx7', 'senna', 'sti', 'supra']);
 /** Roles the game draws in its own materials: merged into one geometry each (position and normal only). */
 const OWN = new Set(['paint', 'glass', 'screen', 'head_l', 'head_r', 'tail', 'reverse', 'amber']);
 
@@ -113,13 +116,15 @@ function build(id, gltf, layout) {
   gltf.scene.traverse((o) => {
     if (!o.isMesh) return;
     const role = (o.material.name || '').split(':')[0];
+    // (a head lamp's side is in its mesh's name, head_l or head_r: tools/cars.py names the material by the role alone)
+    const side = role === 'head' ? (/^head_r/.test(o.name) ? 1 : 0) : undefined;
     let g = floats(o.geometry).applyMatrix4(o.matrixWorld);
     if (role === 'rim') { rim.push({ geometry: g, material: o.material }); return; }
     // (the steering wheel, out of whatever it is drawn in, to turn with the steering: TruckModel holds it)
     if (dish) {
       const [rest, wheel] = cutWheel(g, dish);
       g = rest;
-      if (wheel) parts.push({ role, geometry: wheel, material: OWN.has(role) ? null : o.material, steer: true, doubleSided: o.material.side === THREE.DoubleSide });
+      if (wheel) parts.push({ role, side, geometry: wheel, material: OWN.has(role) ? null : o.material, steer: true, doubleSided: o.material.side === THREE.DoubleSide });
     }
     if (OWN.has(role)) {
       const plain = new THREE.BufferGeometry();
@@ -133,7 +138,7 @@ function build(id, gltf, layout) {
       own.get(key).push(plain);
       return;
     }
-    parts.push({ role, geometry: g, material: o.material });
+    parts.push({ role, side, geometry: g, material: o.material });
   });
   for (const [key, list] of own) {
     const [role, both] = key.split('|');

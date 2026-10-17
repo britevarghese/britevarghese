@@ -402,9 +402,11 @@ export class Vehicle {
     // deeper and faster. (Wheelspin only: a truck sliding round a bend is the stability control's, below)
     if (this.spec.tc && throttle > 0) {
       let slip = Infinity, give = 1;
+      // (a road car's counts wheelspin alone, the way the wheels are driven: not a wheel slowed by the clutch biting)
+      const way = dtr.gear < 0 ? -1 : 1;
       for (const w of this.wheels) {
         if (!w.contact || !(w.index >= 2 || dtr.fourWD)) continue;
-        slip = Math.min(slip, Math.abs(w.spin ?? 0));
+        slip = Math.min(slip, this.spec.road ? Math.max(0, way * (w.spin ?? 0)) : Math.abs(w.spin ?? 0));
         give = Math.max(give, w.surf?.slip ?? 1);
       }
       // it holds the wheels near the slip that grips best (a tyre spun well past it has little left for steering), more
@@ -412,8 +414,10 @@ export class Vehicle {
       // round a bend (spinning at its best grip forward, a tyre has none left to turn with); an electric truck's
       // motors, answering in milliseconds, hold it tighter. (Airborne, no driven wheel on the ground: an electric
       // truck holds its motors back, or they would be at the limiter when it lands)
+      // A road car's launch control works the same way, close to its stiff tyres' peak: about a tenth of slip.
       const lat = Math.min(1, Math.max(side[1], dtr.fourWD ? side[0] : 0)), turning = Math.sqrt(Math.max(0.1, 1 - lat * lat));
-      const ev = dtr.electric, allow = (ev ? 0.45 + 0.1 * Math.abs(speed) : 0.9 + 0.15 * Math.abs(speed)) * give * turning;
+      const ev = dtr.electric || this.spec.road;
+      const allow = (dtr.electric ? 0.45 + 0.1 * Math.abs(speed) : this.spec.road ? 0.3 + 0.11 * Math.abs(speed) : 0.9 + 0.15 * Math.abs(speed)) * give * turning;
       if (ev) {
         // (the motors' controller holds the spin there: it takes power off at once as the wheels spin up past it, and
         // settles on what the ground takes, giving it back as they find grip, instead of pulsing)
@@ -610,6 +614,7 @@ export class Vehicle {
     }
     this._dtIn = this._dtIn || { throttle: 0, brakeTorque: bt };
     this._dtIn.throttle = throttle;
+    this._dtIn.pedal = this.pedalThrottle;                             // (the shift schedule follows the driver's foot)
     this._dtIn.declutch = declutch;
     const D = this.damage;
     // (cosmetic damage: water in the intake doesn't stop the engine, it chokes it: it coughs and makes a third; an
@@ -776,6 +781,16 @@ export class Vehicle {
     if (v2 > 0.01) {
       const k = -0.5 * RHO_AIR * spec.drag.cd * spec.drag.area * Math.sqrt(v2);
       F.addScaled(this.vel, k);
+      // downforce (a road car's wings, splitter and diffuser: spec.aero, the lift coefficient times the area at each
+      // axle, m^2): the air along the body pressing each end onto the road with the square of the speed
+      const va = spec.aero ? this.vel.dot(fwd) : 0;
+      if (va > 1) {
+        const q = 0.5 * RHO_AIR * va * va;
+        for (let k2 = 0; k2 < 2; k2++) {
+          _p.set(0, 0, this.axles[k2].zc); this.toWorld(_p, _q);
+          _a.copy(u).scale(-q * spec.aero[k2]); this.applyForce(_a, _q);
+        }
+      }
     }
 
     // ---------------------------------------------------------------- integrate the chassis

@@ -28,7 +28,7 @@ export class Probe {
     this.meshes = [];
     this.mats = [];
     this.intensity = intensity;
-    const own = new Set([model.paint, model.top, model.screen, model.lightMat, model.barMat, model.brakeMat, model.revMat, ...(model.lampMats || [])]);
+    const own = new Set([model.paint, model.top, model.screen, model.lightMat, model.barMat, model.brakeMat, model.revMat, ...(model.lampMats || []), ...(model.headMats?.flat() || [])]);
     const copies = new Map();
     const give = (m) => {
       if (!m || !m.isMeshStandardMaterial) return m;

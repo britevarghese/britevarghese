@@ -367,7 +367,7 @@ export class Audio {
     if (spec.engine?.electric) return new ElectricVoice(this, out);
     if (spec.engineBank && await this.grainsReady) {
       const bank = await this.loadBank(spec.engineBank).catch((e) => { console.warn('engine bank', spec.engineBank, e); return null; });
-      if (bank) return new GrainVoice(this, bank, out, { idle: spec.engine.idleRpm, loud: spec.engineLoud || 1, bass: spec.engineBass || 0 });
+      if (bank) return new GrainVoice(this, bank, out, { idle: spec.engine.idleRpm, cyl: spec.engine.cyl || 0, loud: spec.engineLoud || 1, bass: spec.engineBass || 0 });
     }
     const set = await this.loadSet(spec.engineSound).catch(() => null);
     return set ? new EngineVoice(this, set, out, spec.soundPitch || 1) : null;
@@ -612,12 +612,12 @@ export class Audio {
       // air in or out of the tyres
       const airing = Math.abs((v.psiAir ?? v.psi) - v.psiTarget) > 0.05 && (v.psiTarget > v.psi || speed < 2.5);
       glide(this.air.g.gain, airing ? (v.psiTarget < v.psi ? 0.09 : 0.04) : 0, t, 0.08);
-      // tread hum on road and rock, louder for mud tyres
+      // tread hum on road and rock, louder for mud tyres, a quiet roar from a road car's (its tread blocks' pitch, m)
       let hard = 0;
       for (const w of v.wheels) if (w.contact && (w.surf.name === 'road' || w.surf.name === 'rock')) hard += 0.25;
-      const noise = [0.25, 0.7, 1][v.spec.tyre.tread || 0];
+      const tread = v.spec.tyre.tread || 0, noise = [0.25, 0.7, 1, 0.15, 0.1][tread] ?? 0.25;
       glide(this.humGain.gain, hard * noise * Math.min(1, speed / 12) * 0.05, t, 0.1);
-      glide(this.humOsc.frequency, Math.max(40, speed / ([0.055, 0.085, 0.13][v.spec.tyre.tread || 0])), t, 0.1);
+      glide(this.humOsc.frequency, Math.max(40, speed / ([0.055, 0.085, 0.13, 0.032, 0.04][tread] ?? 0.055)), t, 0.1);
       // ground under the tyres
       let roll = 0, crunch = 0, slip = 0, mud = 0, water = 0, n = 0;
       for (const w of v.wheels) {

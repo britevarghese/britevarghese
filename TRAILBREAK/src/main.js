@@ -103,8 +103,17 @@ function lobby() {
   const showTrucks = () => {
     trucksEl.innerHTML = '';
     let sel = null;
-    for (const id of DEALER_ORDER.filter((id) => TRUCK_IDS.includes(id))) {
+    // (the off-road trucks, then the road cars: each cheapest first)
+    let kind = null;
+    for (const id of DEALER_ORDER.filter((id) => TRUCK_IDS.includes(id)).sort((a, b) => !!TRUCKS[a].road - !!TRUCKS[b].road)) {
       const t = TRUCKS[id], owned = career.ownsTruck(id), price = TRUCK_PRICES[id] ?? 0, on = settings.truck === id;
+      if (kind !== !!t.road) {
+        kind = !!t.road;
+        const h = document.createElement('div');
+        h.className = 'truck-group';
+        h.textContent = kind ? 'Sports cars' : 'Off-road trucks';
+        trucksEl.appendChild(h);
+      }
       const b = document.createElement('button');
       b.className = 'truck-opt' + (on ? ' sel' : '') + (owned ? '' : ' locked');
       // the kind of truck in the list; the whole description for the one picked

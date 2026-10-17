@@ -18,9 +18,13 @@ const clamp = (x, a, b) => (x < a ? a : x > b ? b : x);
 // ---------------------------------------------------------------- parts
 /**
  * Tyres: overall diameter (in), section width, mounted weight with a steel wheel, rotating inertia, rim diameter. From
- * the micro 4x4's 27s through the light-truck sizes to the 46" military and expedition tyres.
+ * the micro 4x4's 27s through the light-truck sizes to the 46" military and expedition tyres; and below them the road
+ * cars' low-profile sizes (`road`: only for road cars; each one's factory tyre is its own, `stockTyre` in trucks.js).
  */
 export const TYRES = {
+  24: { d: 24, label: '205/55R15', radius: 12 * IN, width: 0.205, mass: 18, inertia: 0.85, rim: 15, road: true },
+  25: { d: 25, label: '225/45R17', radius: 12.5 * IN, width: 0.225, mass: 20, inertia: 1.0, rim: 17, road: true },
+  26: { d: 26, label: '255/35R19', radius: 13 * IN, width: 0.255, mass: 22, inertia: 1.15, rim: 19, road: true },
   27: { d: 27, label: '205/75R15', radius: 13.5 * IN, width: 0.205, mass: 21, inertia: 1.4, rim: 15 },
   28: { d: 28, label: '28x8.5R15', radius: 14 * IN, width: 0.216, mass: 24, inertia: 1.65, rim: 15 },
   29: { d: 29, label: '29x9.5R15', radius: 14.5 * IN, width: 0.241, mass: 27, inertia: 1.9, rim: 15 },
@@ -34,9 +38,9 @@ export const TYRES = {
   44: { d: 44, label: '44x18.5R20', radius: 22 * IN, width: 0.47, mass: 104, inertia: 15.5, rim: 20 },
   46: { d: 46, label: '46x16.5R20', radius: 23 * IN, width: 0.42, mass: 112, inertia: 18.5, rim: 20 },
 };
-export const TYRE_SIZES = [27, 28, 29, 30, 31, 33, 35, 37, 40, 42, 44, 46];
+export const TYRE_SIZES = [24, 25, 26, 27, 28, 29, 30, 31, 33, 35, 37, 40, 42, 44, 46];
 // (build codes store a tyre as its place in this list: sizes are only ever added at the end, so old codes still read)
-const TYRE_CODES = [30, 31, 33, 35, 37, 27, 28, 29, 40, 42, 44, 46];
+const TYRE_CODES = [30, 31, 33, 35, 37, 27, 28, 29, 40, 42, 44, 46, 24, 25, 26];
 
 /** Tread patterns: grip by surface relative to an all-terrain, rolling resistance, road noise. */
 export const TREADS = [
@@ -48,6 +52,18 @@ export const TREADS = [
   {
     name: 'Bias-ply mud tyre', short: 'MUD', desc: 'Tall paddle lugs on a stiff bias-ply carcass: the king of the bog, poor on rock and tarmac.',
     grip: { mud: 1.25, snow: 1.07, sand: 0.98, grass: 1.1, riverbed: 1.08, rock: 0.9, road: 0.84, dirt: 0.95, gravel: 0.95, ice: 0.8 }, rr: 1.16, noise: 1, stiff: 1.12,
+  },
+  // the road cars' (`road`): a soft compound on a shallow, stiff tread, which grips tarmac at a smaller slip than a
+  // truck's tyre (`tyre`: its slip curve) and lets go sooner past it; little bite on anything loose, and none in snow
+  {
+    name: 'Summer performance', short: 'summer', desc: 'Ultra-high-performance road tyres: a soft compound, a stiff shallow tread. Superb on dry tarmac; hopeless in mud, snow and wet grass.',
+    grip: { road: 1.25, rock: 1.0, dirt: 0.84, gravel: 0.8, grass: 0.72, mud: 0.55, sand: 0.66, snow: 0.42, ice: 0.7, riverbed: 0.72, tea: 0.78 }, rr: 0.85, noise: 0.12, road: true,
+    tyre: { alphaPeak: 0.15, relaxY: 0.38, relaxX: 0.18 },
+  },
+  {
+    name: 'Track semi-slick', short: 'track', desc: 'Road-legal semi-slicks (Cup 2 R, Trofeo R): the most grip there is on a dry road, and it lets go suddenly at the limit. Useless on anything loose.',
+    grip: { road: 1.45, rock: 1.02, dirt: 0.76, gravel: 0.72, grass: 0.62, mud: 0.45, sand: 0.58, snow: 0.34, ice: 0.6, riverbed: 0.64, tea: 0.7 }, rr: 0.9, noise: 0.15, road: true,
+    tyre: { alphaPeak: 0.13, relaxY: 0.34, relaxX: 0.16 },
   },
 ];
 
@@ -62,6 +78,7 @@ export const WHEELS = [
   { name: 'Steel wheels', short: 'steel', desc: 'Air down to 14 psi; air back up only at the station.', beadlock: false, compressor: false, minPsi: 14, mass: 0 },
   { name: 'Steel wheels + onboard air', short: 'steel + air', desc: 'A compressor under the bonnet: air back up anywhere.', beadlock: false, compressor: true, minPsi: 14, mass: 9 },
   { name: 'Beadlocks + onboard air', short: 'beadlocks', desc: 'Rings bolt the bead to the rim: crawl at 6 psi without rolling a tyre off.', beadlock: true, compressor: true, minPsi: 6, mass: 9, wheelMass: 3 },
+  { name: 'Forged alloys', short: 'alloys', desc: 'Light forged wheels on low-profile tyres: there is too little sidewall to air them down much.', beadlock: false, compressor: false, minPsi: 26, mass: 0, road: true },
 ];
 
 // (the last three: portal axles, the ring and pinion times the reduction in the hubs)
@@ -101,9 +118,36 @@ export const TRANSMISSIONS = [
   { name: 'Single-speed reduction (electric)', short: 'direct', type: 'direct', gears: [1.0], reverse: 1.0, desc: 'Electric drive units: the motors geared straight to the axles, one ratio, full torque from a standstill. No clutch, no torque converter, nothing to shift.' },
   { name: '5-speed automatic (INVECS-II)', short: '5-spd auto', type: 'auto', gears: [3.79, 2.06, 1.42, 1.0, 0.73], reverse: 3.48, desc: 'The Pajero\'s five-speed automatic with its sport-shift gate: a 3.79 first through a torque converter, an overdrive top.' },
   { name: '8-speed automatic (ZF 8HP)', short: '8-spd auto', type: 'auto', gears: [5.5, 3.52, 2.2, 1.72, 1.317, 1.0, 0.823, 0.64], reverse: 3.993, desc: 'The Defender\'s ZF eight-speed automatic: a 5.50 first through a torque converter, close steps all the way, two overdrives.' },
+  // the road cars' (`road`): close ratios and no low range. A dual-clutch box (`dct`) shifts as a manual does, through
+  // its own clutches, in a tenth of a second (shiftTime) and by itself unless the driver takes the paddles
+  { name: '6-speed manual (Getrag)', short: 'Getrag 6', type: 'manual', road: true, gears: [3.827, 2.36, 1.685, 1.312, 1.0, 0.793], reverse: 3.28, desc: 'The Getrag six-speed of the Supra and the Skyline GT-R: built for big turbo torque, close ratios, an overdrive top.' },
+  { name: '5-speed manual, dog-leg (Getrag 265)', short: 'dog-leg 5', type: 'manual', road: true, gears: [3.72, 2.4, 1.77, 1.26, 1.0], reverse: 4.23, desc: 'The E30 M3\'s close-ratio five-speed: first down and to the left, the four racing ratios in an H, fifth direct.' },
+  { name: '5-speed manual (NSX)', short: 'NSX 5', type: 'manual', road: true, gears: [3.071, 1.952, 1.4, 1.033, 0.771], reverse: 2.727, desc: 'The NSX\'s five-speed transaxle: short, precise throws and a tall fifth.' },
+  { name: '5-speed manual (RX-7)', short: 'RX-7 5', type: 'manual', road: true, gears: [3.483, 2.015, 1.391, 1.0, 0.719], reverse: 3.288, desc: 'The FD RX-7\'s five-speed: close enough to keep a rotary on the boil, an overdrive fifth.' },
+  { name: '5-speed manual (STi)', short: 'STi 5', type: 'manual', road: true, gears: [3.166, 1.882, 1.296, 0.972, 0.738], reverse: 3.333, desc: 'The Impreza STi\'s close-ratio five-speed, behind its turbo flat-four.' },
+  { name: '4-speed manual (930)', short: '930 4', type: 'manual', road: true, gears: [2.25, 1.304, 0.893, 0.656], reverse: 2.437, desc: 'The 930 Turbo\'s four-speed: four gears were all the torque of the turbo needed, and all the box could take.' },
+  { name: '5-speed manual (F40)', short: 'F40 5', type: 'manual', road: true, gears: [2.769, 1.631, 1.158, 0.891, 0.725], reverse: 2.92, desc: 'The F40\'s five-speed in its open gate: a heavy clutch, a metal click on every shift.' },
+  { name: '6-speed manual (BMW M)', short: 'M 6', type: 'manual', road: true, gears: [4.11, 2.315, 1.542, 1.179, 1.0, 0.846], reverse: 3.727, desc: 'The M3 and M4\'s six-speed manual: a short first, close steps and a gentle overdrive.' },
+  { name: '7-speed dual-clutch (PDK)', short: 'PDK', type: 'manual', dct: true, shiftTime: 0.1, road: true, gears: [3.75, 2.38, 1.72, 1.34, 1.11, 0.96, 0.84], reverse: 3.42, desc: 'Porsche\'s PDK: two clutches, the next gear always waiting; shifts in a tenth of a second, by itself or on the paddles.' },
+  { name: '7-speed dual-clutch (S tronic)', short: 'S tronic', type: 'manual', dct: true, shiftTime: 0.1, road: true, gears: [3.13, 2.59, 1.96, 1.55, 1.24, 1.0, 0.8], reverse: 2.79, desc: 'The seven-speed dual-clutch of the R8 and the Huracán: close ratios, shifts in a tenth of a second.' },
+  { name: '7-speed dual-clutch (SSG)', short: 'SSG', type: 'manual', dct: true, shiftTime: 0.09, road: true, gears: [3.98, 2.61, 1.91, 1.48, 1.18, 0.95, 0.75], reverse: 3.0, desc: 'McLaren\'s seamless-shift seven-speed: the drive barely breaks between gears.' },
+  { name: '8-speed dual-clutch (Tremec)', short: 'Tremec 8', type: 'manual', dct: true, shiftTime: 0.1, road: true, gears: [2.91, 1.76, 1.22, 0.88, 0.65, 0.51, 0.4, 0.33], reverse: 2.33, desc: 'The mid-engined Corvette\'s eight-speed dual-clutch: six close ratios and two tall overdrives for the highway.' },
+  { name: '6-speed dual-clutch (GR6)', short: 'GR6', type: 'manual', dct: true, shiftTime: 0.12, road: true, gears: [4.056, 2.301, 1.595, 1.248, 1.001, 0.796], reverse: 3.383, desc: 'The GT-R\'s rear transaxle: six speeds, two clutches, built to put 600 Nm through four wheels.' },
+  { name: '7-speed dual-clutch (AMG Speedshift)', short: 'Speedshift', type: 'manual', dct: true, shiftTime: 0.1, road: true, gears: [3.4, 2.19, 1.63, 1.29, 1.03, 0.84, 0.63], reverse: 2.53, desc: 'The AMG GT\'s seven-speed dual-clutch transaxle, at the back for the balance.' },
+  { name: '8-speed automatic (M Steptronic)', short: 'Steptronic', type: 'auto', road: true, gears: [5.0, 3.2, 2.143, 1.72, 1.314, 1.0, 0.822, 0.64], reverse: 3.456, desc: 'The M4\'s ZF eight-speed: a torque converter that locks up at once, quick shifts, a short first.' },
+  { name: '7-speed ISR', short: 'ISR', type: 'manual', dct: true, shiftTime: 0.12, road: true, gears: [3.91, 2.44, 1.81, 1.46, 1.19, 0.97, 0.83], reverse: 2.9, desc: 'Lamborghini\'s single-clutch independent-shifting-rod box: fifty milliseconds a shift, and you feel every one.' },
+  { name: '7-speed automatic (7G-Tronic)', short: '7G', type: 'auto', gears: [4.38, 2.86, 1.92, 1.37, 1.0, 0.82, 0.73], reverse: 3.42, desc: 'The G 63\'s AMG seven-speed automatic: a 4.38 first through a torque converter, two overdrives.' },
 ];
 /** The electric drive units' gearbox (TRANSMISSIONS index). */
 export const EV_TRANS = TRANSMISSIONS.findIndex((t) => t.type === 'direct');
+/** A gearbox by its short name (TRANSMISSIONS index). */
+export const transIndex = (short) => TRANSMISSIONS.findIndex((t) => t.short === short);
+/** What a road car can take (its `only`, with its tyre sizes): a 2" lift at most (a safari build), its own treads and
+ *  an all-terrain, its forged wheels, no low range, no lockers, snorkel, armour or light bar, the road gearboxes. */
+export const ROAD_ONLY = {
+  lift: [0, 1], tread: [3, 4, 0], wheels: [3], tcase: [0], diffs: [0, 1], intake: [0], winch: [0], armor: [0], lights: [0],
+  trans: TRANSMISSIONS.map((t, i) => (t.road ? i : -1)).filter((i) => i >= 0),
+};
 
 export const INTAKES = [
   { name: 'Stock air cleaner', short: 'stock', desc: 'Breathes from under the bonnet: water over it stops the engine. Ford slowly, or the bow wave gets there first.' },
@@ -219,6 +263,95 @@ const ENGINE = {
     torque: [[600, 360], [1000, 500], [1400, 650], [1800, 750], [5855, 750], [6500, 686], [7000, 637], [7400, 420]] },
   I6_60TD: { name: 'I6 6.0 turbo-diesel', idleRpm: 650, redline: 2800, limiter: 3000, inertia: 0.8, friction: [30, 0.036], bank: 'd6', turbo: 1, sound: 'i6_bmw', pitch: 0.52, mass: 70,
     torque: [[500, 320], [800, 450], [1200, 570], [1500, 600], [1800, 592], [2200, 560], [2600, 505], [2800, 470], [3100, 300]] },
+  // ---- the road cars' (makers' figures): light flywheels, high redlines
+  // the M4 CSL's S58 3.0 twin-turbo straight-six: 405 kW at 6,250 rpm, 650 Nm from 2,750 to 5,950; and the M5 CS's
+  // S63 4.4 twin-turbo V8: 467 kW at 6,000, 750 Nm from 1,800 to 5,950
+  S58: { name: 'S58 3.0 twin-turbo straight-six', idleRpm: 750, redline: 7200, limiter: 7400, inertia: 0.16, friction: [12, 0.02], bank: 'i6', turbo: 2, sound: 'i6_bmw', pitch: 1, mass: 0, cyl: 6, loud: 1.2, bass: 3,
+    torque: [[700, 300], [1200, 430], [2000, 590], [2750, 650], [5950, 650], [6250, 619], [6800, 560], [7200, 505], [7600, 300]] },
+  S63: { name: 'S63 4.4 twin-turbo V8', idleRpm: 700, redline: 7000, limiter: 7200, inertia: 0.2, friction: [14, 0.022], bank: 'v8m', turbo: 2, sound: 'v8_muscle', pitch: 1, mass: 45, cyl: 8, loud: 1.35, bass: 5,
+    torque: [[700, 400], [1200, 560], [1800, 750], [5950, 750], [6500, 668], [7000, 600], [7400, 350]] },
+  // the AMG GT S's M178 4.0 twin-turbo V8 (its turbos inside the vee): 375 kW at 6,250, 650 Nm from 1,750 to 4,750;
+  // and the GT R's: 430 kW at 6,250, 700 Nm from 1,900 to 5,500
+  M178S: { name: 'M178 4.0 twin-turbo V8', idleRpm: 700, redline: 7000, limiter: 7200, inertia: 0.19, friction: [14, 0.022], bank: 'v8m', turbo: 2, sound: 'v8_muscle', pitch: 1, mass: 0, cyl: 8, loud: 1.4, bass: 6,
+    torque: [[700, 380], [1200, 540], [1750, 650], [4750, 650], [5500, 620], [6250, 573], [6800, 515], [7200, 460], [7600, 280]] },
+  M178R: { name: 'M178 4.0 twin-turbo V8 (GT R)', idleRpm: 700, redline: 7200, limiter: 7400, inertia: 0.19, friction: [14, 0.022], bank: 'v8m', turbo: 2, sound: 'v8_muscle', pitch: 1, mass: 0, cyl: 8, loud: 1.45, bass: 6,
+    torque: [[700, 400], [1200, 570], [1900, 700], [5500, 700], [6250, 657], [6900, 590], [7200, 540], [7600, 300]] },
+  // the C8 Stingray's LT2 6.2 pushrod V8 (with the Z51's exhaust): 369 kW at 6,450 rpm, 637 Nm at 5,150; and the Z06's
+  // LT6 5.5 flat-plane V8: 499 kW at 8,400, 623 Nm at 6,300
+  LT2: { name: 'LT2 6.2 V8', idleRpm: 650, redline: 6600, limiter: 6800, inertia: 0.22, friction: [16, 0.024], bank: 'v8', turbo: 0, sound: 'v8_muscle', pitch: 1, mass: 0, cyl: 8, loud: 1.4, bass: 6,
+    torque: [[650, 470], [1500, 560], [2500, 590], [3500, 610], [4500, 630], [5150, 637], [6000, 600], [6450, 546], [6800, 490], [7100, 300]] },
+  LT6: { name: 'LT6 5.5 flat-plane V8', idleRpm: 900, redline: 8600, limiter: 8800, inertia: 0.15, friction: [14, 0.02], bank: 'v6', turbo: 0, sound: 'v8_muscle', pitch: 1, mass: 15, cyl: 8, loud: 1.4, bass: 3,
+    torque: [[900, 400], [2000, 470], [3000, 510], [4500, 575], [6300, 623], [7500, 612], [8400, 567], [8800, 490], [9100, 300]] },
+  // the Huracán LP 610-4's 5.2 V10: 449 kW at 8,250 rpm, 560 Nm at 6,500; and the Performante's: 470 kW at 8,000,
+  // 600 Nm at 6,500
+  V10_52: { name: '5.2 V10', idleRpm: 900, redline: 8500, limiter: 8700, inertia: 0.15, friction: [14, 0.021], bank: 'v6', turbo: 0, sound: 'v8_muscle', pitch: 1, mass: 0, cyl: 10, loud: 1.35, bass: 3,
+    torque: [[900, 400], [2000, 440], [3000, 470], [4000, 500], [5000, 530], [6500, 560], [7500, 548], [8250, 520], [8700, 470], [9000, 300]] },
+  V10_52P: { name: '5.2 V10 (Performante)', idleRpm: 900, redline: 8500, limiter: 8700, inertia: 0.15, friction: [14, 0.021], bank: 'v6', turbo: 0, sound: 'v8_muscle', pitch: 1, mass: 0, cyl: 10, loud: 1.4, bass: 3,
+    torque: [[900, 420], [2000, 470], [3000, 505], [4000, 540], [5000, 570], [6500, 600], [7500, 585], [8000, 561], [8700, 490], [9000, 320]] },
+  // the E30 M3's S14 2.3 four: 147 kW at 6,750 rpm, 240 Nm at 4,750; and the Sport Evolution's 2.5: 175 kW at 7,000
+  S14: { name: 'S14 2.3 four', idleRpm: 900, redline: 7250, limiter: 7450, inertia: 0.11, friction: [8, 0.014], bank: 'i4', turbo: 0, sound: 'i6_bmw', pitch: 1, mass: 0, cyl: 4, loud: 1.1,
+    torque: [[900, 150], [1500, 180], [2500, 205], [3500, 220], [4750, 240], [5500, 236], [6750, 208], [7250, 190], [7600, 110]] },
+  S14E: { name: 'S14 2.5 four (Sport Evolution)', idleRpm: 900, redline: 7500, limiter: 7700, inertia: 0.11, friction: [8, 0.014], bank: 'i4', turbo: 0, sound: 'i6_bmw', pitch: 1, mass: 2, cyl: 4, loud: 1.15,
+    torque: [[900, 160], [1500, 190], [2500, 215], [3500, 230], [4750, 240], [5500, 240], [6500, 238], [7000, 239], [7500, 200], [7900, 110]] },
+  // the NSX's C30A 3.0 VTEC V6: 201 kW at 7,100 rpm, 284 Nm at 5,300; and the NSX-R's C32B 3.2: 216 kW at 7,300
+  C30A: { name: 'C30A 3.0 VTEC V6', idleRpm: 800, redline: 8000, limiter: 8200, inertia: 0.12, friction: [10, 0.017], bank: 'v6', turbo: 0, sound: 'i6_bmw', pitch: 1, mass: 0, cyl: 6, loud: 1.15,
+    torque: [[800, 200], [2000, 240], [3000, 255], [4000, 265], [5300, 284], [6000, 280], [7100, 270], [7600, 250], [8000, 220], [8300, 130]] },
+  C32B: { name: 'C32B 3.2 VTEC V6', idleRpm: 800, redline: 8000, limiter: 8200, inertia: 0.12, friction: [10, 0.017], bank: 'v6', turbo: 0, sound: 'i6_bmw', pitch: 1, mass: 5, cyl: 6, loud: 1.2,
+    torque: [[800, 215], [2000, 255], [3000, 272], [4000, 284], [5300, 304], [6000, 300], [7300, 283], [7800, 260], [8000, 230], [8300, 140]] },
+  // the 930 Turbo's 3.0 flat-six with one turbo: 191 kW at 5,500 rpm, 343 Nm at 4,000, and nearly nothing below 3,000;
+  // and the intercooled 3.3 of 1978: 221 kW, 412 Nm
+  F6_30T: { name: '3.0 turbo flat-six', idleRpm: 900, redline: 6800, limiter: 7000, inertia: 0.14, friction: [11, 0.018], bank: 'i6', turbo: 2, sound: 'i6_bmw', pitch: 1, mass: 0, cyl: 6, loud: 1.15, bass: 2,
+    torque: [[900, 150], [1500, 180], [2500, 215], [3000, 265], [3500, 315], [4000, 343], [4500, 340], [5500, 332], [6000, 310], [6500, 270], [6900, 150]] },
+  F6_33T: { name: '3.3 turbo flat-six (intercooled)', idleRpm: 900, redline: 6800, limiter: 7000, inertia: 0.14, friction: [11, 0.018], bank: 'i6', turbo: 2, sound: 'i6_bmw', pitch: 1, mass: 12, cyl: 6, loud: 1.2, bass: 2,
+    torque: [[900, 170], [1500, 205], [2500, 250], [3000, 320], [3500, 385], [4000, 412], [4500, 405], [5500, 384], [6000, 360], [6500, 300], [6900, 160]] },
+  // the R34 GT-R's RB26DETT 2.6 twin-turbo straight-six: 206 kW and 392 Nm on paper (the Japanese makers' gentlemen's
+  // agreement), about 235 kW at 6,800 rpm and 440 Nm at 4,400 on a dyno; and the Nismo Z-tune's 2.8: 368 kW, 540 Nm
+  RB26: { name: 'RB26DETT 2.6 twin-turbo straight-six', idleRpm: 900, redline: 8000, limiter: 8200, inertia: 0.15, friction: [11, 0.019], bank: 'i6', turbo: 2, sound: 'i6_bmw', pitch: 1, mass: 0, cyl: 6, loud: 1.2, bass: 2,
+    torque: [[900, 240], [1500, 290], [2500, 360], [3500, 415], [4400, 440], [5000, 432], [6000, 375], [6800, 330], [7500, 285], [8000, 228], [8300, 130]] },
+  RB26Z: { name: 'RB26 2.8 (Nismo Z-tune)', idleRpm: 900, redline: 8000, limiter: 8200, inertia: 0.15, friction: [11, 0.019], bank: 'i6', turbo: 2, sound: 'i6_bmw', pitch: 1, mass: 10, cyl: 6, loud: 1.3, bass: 3,
+    torque: [[900, 250], [1500, 300], [2500, 380], [3500, 470], [4500, 525], [5200, 540], [6000, 535], [6800, 517], [7500, 470], [8000, 400], [8300, 200]] },
+  // the R35 GT-R's VR38DETT 3.8 twin-turbo V6 (2008): 357 kW at 6,400 rpm, 588 Nm from 3,200 to 5,200; and the
+  // Nismo's (2017): 441 kW at 6,800, 652 Nm
+  VR38: { name: 'VR38DETT 3.8 twin-turbo V6', idleRpm: 750, redline: 7000, limiter: 7200, inertia: 0.18, friction: [13, 0.021], bank: 'v6', turbo: 2, sound: 'i6_bmw', pitch: 1, mass: 0, cyl: 6, loud: 1.25, bass: 3,
+    torque: [[750, 300], [1500, 420], [2500, 540], [3200, 588], [5200, 588], [6000, 565], [6400, 533], [6800, 480], [7200, 300]] },
+  VR38N: { name: 'VR38DETT (Nismo)', idleRpm: 750, redline: 7100, limiter: 7300, inertia: 0.18, friction: [13, 0.021], bank: 'v6', turbo: 2, sound: 'i6_bmw', pitch: 1, mass: 0, cyl: 6, loud: 1.3, bass: 3,
+    torque: [[750, 320], [1500, 450], [2500, 580], [3600, 652], [5600, 652], [6400, 640], [6800, 619], [7100, 560], [7400, 320]] },
+  // the FD RX-7's 13B-REW twin-rotor Wankel with sequential twin turbos: 188 kW at 6,500 rpm, 294 Nm at 5,000 (a twin
+  // rotor fires as often as a four); and the Cosmo's 20B-REW three-rotor: 206 kW, 403 Nm at 1,800 (as a six)
+  R13B: { name: '13B-REW twin-rotor (sequential turbos)', idleRpm: 850, redline: 8000, limiter: 8200, inertia: 0.11, friction: [11, 0.02], bank: 'i4', turbo: 2, sound: 'i6_bmw', pitch: 1, mass: 0, cyl: 4, loud: 1.15,
+    torque: [[850, 140], [1500, 170], [2500, 240], [3500, 270], [4500, 280], [5000, 294], [6000, 290], [6500, 276], [7500, 230], [8000, 200], [8300, 100]] },
+  R20B: { name: '20B-REW three-rotor', idleRpm: 850, redline: 8000, limiter: 8200, inertia: 0.13, friction: [13, 0.022], bank: 'i4', turbo: 2, sound: 'i6_bmw', pitch: 1, mass: 30, cyl: 6, loud: 1.25,
+    torque: [[850, 200], [1500, 330], [1800, 403], [3000, 400], [4500, 380], [5500, 340], [6500, 302], [7500, 250], [8000, 200], [8300, 100]] },
+  // the Senna's M840TR 4.0 twin-turbo flat-plane V8: 588 kW at 7,250 rpm, 800 Nm from 5,500 to 6,700; and the Senna
+  // GTR's: 607 kW
+  M840TR: { name: 'M840TR 4.0 twin-turbo V8', idleRpm: 900, redline: 8250, limiter: 8450, inertia: 0.15, friction: [14, 0.021], bank: 'v6', turbo: 2, sound: 'v8_muscle', pitch: 1, mass: 0, cyl: 8, loud: 1.45, bass: 4,
+    torque: [[900, 380], [1500, 420], [2500, 560], [3500, 680], [4500, 760], [5500, 800], [6700, 800], [7250, 774], [7750, 700], [8250, 610], [8500, 350]] },
+  M840TRG: { name: 'M840TR 4.0 twin-turbo V8 (Senna GTR)', idleRpm: 900, redline: 8250, limiter: 8450, inertia: 0.15, friction: [14, 0.021], bank: 'v6', turbo: 2, sound: 'v8_muscle', pitch: 1, mass: 0, cyl: 8, loud: 1.5, bass: 4,
+    torque: [[900, 380], [1500, 420], [2500, 560], [3500, 680], [4500, 760], [5500, 800], [7250, 800], [7750, 725], [8250, 640], [8500, 360]] },
+  // the Impreza STi's EJ20 2.0 turbo boxer four: 206 kW at 6,500 rpm, 353 Nm at 4,000; and the 22B's EJ22 2.2: 206 kW
+  // at 6,000, 363 Nm at 3,200
+  EJ20: { name: 'EJ20 2.0 turbo boxer four', idleRpm: 850, redline: 7500, limiter: 7700, inertia: 0.13, friction: [10, 0.017], bank: 'i4', turbo: 2, sound: 'i6_bmw', pitch: 1, mass: 0, cyl: 4, loud: 1.2, bass: 2,
+    torque: [[850, 140], [1500, 170], [2500, 250], [3000, 300], [4000, 353], [5000, 345], [6500, 302], [7000, 280], [7500, 240], [7900, 130]] },
+  EJ22: { name: 'EJ22 2.2 turbo boxer four (22B)', idleRpm: 850, redline: 7200, limiter: 7400, inertia: 0.14, friction: [10, 0.018], bank: 'i4', turbo: 2, sound: 'i6_bmw', pitch: 1, mass: 5, cyl: 4, loud: 1.25, bass: 2,
+    torque: [[850, 160], [1500, 200], [2500, 300], [3200, 363], [4500, 355], [5500, 340], [6000, 328], [6800, 280], [7300, 140]] },
+  // the Supra's 2JZ-GTE 3.0 twin-turbo straight-six (export): 239 kW at 5,600 rpm, 427 Nm at 4,000; and a big
+  // single-turbo conversion on the stock block, the tuners' favourite: about 600 kW
+  // the R8 V10 plus's 5.2 FSI V10: 449 kW at 8,250 rpm, 560 Nm at 6,500; and the 2019 V10 performance's: 456 kW at
+  // 8,000, 580 Nm at 6,600
+  V10_R8: { name: '5.2 FSI V10', idleRpm: 800, redline: 8700, limiter: 8900, inertia: 0.15, friction: [14, 0.021], bank: 'v6', turbo: 0, sound: 'v8_muscle', pitch: 1, mass: 0, cyl: 10, loud: 1.35, bass: 3,
+    torque: [[800, 290], [2000, 390], [3000, 450], [4000, 490], [5000, 520], [6000, 550], [6500, 560], [7500, 540], [8250, 520], [8700, 490], [9000, 300]] },
+  V10_R8P: { name: '5.2 FSI V10 (performance)', idleRpm: 800, redline: 8700, limiter: 8900, inertia: 0.15, friction: [14, 0.021], bank: 'v6', turbo: 0, sound: 'v8_muscle', pitch: 1, mass: 0, cyl: 10, loud: 1.4, bass: 3,
+    torque: [[800, 300], [2000, 405], [3000, 465], [4000, 505], [5000, 540], [6000, 568], [6600, 580], [7500, 562], [8000, 544], [8700, 500], [9000, 310]] },
+  // the G 63's M157 5.5 twin-turbo V8 (2015): 420 kW at 5,500 rpm, 760 Nm from 1,750 to 5,250; and the G 65's M279
+  // 6.0 twin-turbo V12: 463 kW at 4,800-5,100, 1,000 Nm from 2,300 to 4,300
+  M157: { name: 'M157 5.5 twin-turbo V8', idleRpm: 650, redline: 6500, limiter: 6700, inertia: 0.24, friction: [17, 0.025], bank: 'v8m', turbo: 2, sound: 'v8_muscle', pitch: 1, mass: 0, cyl: 8, loud: 1.4, bass: 6,
+    torque: [[650, 400], [1000, 520], [1500, 690], [1750, 760], [5250, 760], [5500, 729], [6000, 640], [6500, 560], [6800, 300]] },
+  M279: { name: 'M279 6.0 twin-turbo V12', idleRpm: 600, redline: 6000, limiter: 6200, inertia: 0.3, friction: [20, 0.028], bank: 'v8m', turbo: 2, sound: 'v8_muscle', pitch: 1, mass: 90, cyl: 12, loud: 1.4, bass: 6,
+    torque: [[600, 500], [1000, 700], [1500, 900], [2300, 1000], [4300, 1000], [5100, 867], [5600, 760], [6000, 600], [6300, 320]] },
+  JZ2: { name: '2JZ-GTE 3.0 twin-turbo straight-six', idleRpm: 750, redline: 6800, limiter: 7000, inertia: 0.17, friction: [12, 0.02], bank: 'i6', turbo: 2, sound: 'i6_bmw', pitch: 1, mass: 0, cyl: 6, loud: 1.2, bass: 3,
+    torque: [[750, 220], [1500, 280], [2500, 360], [3500, 410], [4000, 427], [4800, 425], [5600, 407], [6200, 370], [6800, 320], [7100, 160]] },
+  JZ2S: { name: '2JZ single-turbo conversion', idleRpm: 800, redline: 7800, limiter: 8000, inertia: 0.17, friction: [12, 0.02], bank: 'i6', turbo: 2, sound: 'i6_bmw', pitch: 1, mass: 15, cyl: 6, loud: 1.4, bass: 4,
+    torque: [[800, 220], [2000, 300], [3000, 450], [4000, 700], [5000, 880], [5500, 900], [6500, 880], [7200, 800], [7800, 700], [8200, 350]] },
 };
 /** The same engine tuned: more torque (k) above idle, a little more revs (for a diesel: more fuel, more boost); a
  * petrol V8 with a cam sounds it (the cammed V8's bank). */
@@ -245,6 +378,52 @@ export const ENGINES = {
     { ...ENGINE.E_3M, name: 'Two motors (EV2X)', short: '2 motors', mass: -110, desc: 'One motor front and one rear: 425 kW (570 hp), 110 kg lighter.',
       torque: ENGINE.E_3M.torque.map(([r, t]) => [r, Math.round(t * 0.6)]) }],
   rhino: [{ ...ENGINE.I6_57D, short: 'stock', desc: 'Stock OM 352 5.7 diesel six: 96 kW (130 hp), 363 Nm. Governed at 2,800 rpm.' }, { ...tunedBy(1.3, 0)(ENGINE.I6_57D), turbo: 1, short: 'turbo', desc: 'A turbocharger: +30% torque, 125 kW.' }, { ...ENGINE.I6_60TD, short: '6.0 swap', desc: 'A 6.0 turbo-intercooled six: 600 Nm, +65% torque.' }],
+  gclass: [{ ...ENGINE.M157, short: 'stock', desc: 'Stock M157 5.5 twin-turbo V8: 420 kW (571 PS) at 5,500 rpm, 760 Nm from 1,750 to 5,250.' },
+    { ...tunedBy(1.1, 0)(ENGINE.M157), short: 'tuned', desc: 'A remap and freer downpipes: +10% torque.' },
+    { ...ENGINE.M279, short: 'G 65 V12', desc: 'The G 65\'s M279 6.0 twin-turbo V12: 463 kW and 1,000 Nm, 90 kg more over the front axle.' }],
+  // ---- the road cars
+  m4csl: [{ ...ENGINE.S58, short: 'stock', desc: 'Stock S58 3.0 twin-turbo straight-six in the CSL\'s tune: 405 kW (550 PS) at 6,250 rpm, 650 Nm from 2,750 to 5,950.' },
+    { ...tunedBy(1.12, 0)(ENGINE.S58), short: 'tuned', desc: 'A remap, downpipes and a bigger intercooler: +12% torque.' },
+    { ...ENGINE.S63, short: 'V8 swap', desc: 'The M5 CS\'s S63 4.4 twin-turbo V8: 467 kW and 750 Nm, 45 kg more over the front axle.' }],
+  amggt: [{ ...ENGINE.M178S, short: 'stock', desc: 'Stock M178 4.0 twin-turbo V8 of the GT S, its turbos inside the vee: 375 kW (510 PS) at 6,250 rpm, 650 Nm from 1,750 to 4,750.' },
+    { ...tunedBy(1.12, 0)(ENGINE.M178S), short: 'tuned', desc: 'A remap and freer downpipes: +12% torque.' },
+    { ...ENGINE.M178R, short: 'GT R', desc: 'The GT R\'s M178: bigger turbos, 430 kW (585 PS) and 700 Nm.' }],
+  c8: [{ ...ENGINE.LT2, short: 'stock', desc: 'Stock LT2 6.2 pushrod V8 with the Z51\'s exhaust: 369 kW (495 hp) at 6,450 rpm, 637 Nm at 5,150.' },
+    { ...tunedBy(1.08, 200)(ENGINE.LT2), short: 'tuned', desc: 'Long-tube headers, a cold-air intake and a tune: +8% torque, 200 rpm more.' },
+    { ...ENGINE.LT6, short: 'Z06 LT6', desc: 'The Z06\'s LT6 5.5 flat-plane V8: 499 kW (670 hp) at 8,400 rpm, and a howl to 8,600.' }],
+  huracan: [{ ...ENGINE.V10_52, short: 'stock', desc: 'Stock 5.2 V10: 449 kW (610 PS) at 8,250 rpm, 560 Nm at 6,500.' },
+    { ...tunedBy(1.06, 0)(ENGINE.V10_52), short: 'tuned', desc: 'A freer exhaust and a remap: +6% torque.' },
+    { ...ENGINE.V10_52P, short: 'Performante', desc: 'The Performante\'s V10: titanium valves, 470 kW (640 PS) and 600 Nm.' }],
+  r8: [{ ...ENGINE.V10_R8, short: 'stock', desc: 'Stock 5.2 FSI V10 of the V10 plus: 449 kW (610 PS) at 8,250 rpm, 560 Nm at 6,500.' },
+    { ...tunedBy(1.06, 0)(ENGINE.V10_R8), short: 'tuned', desc: 'A freer exhaust and a remap: +6% torque.' },
+    { ...ENGINE.V10_R8P, short: 'performance', desc: 'The 2019 V10 performance\'s: 456 kW (620 PS) and 580 Nm.' }],
+  m3e30: [{ ...ENGINE.S14, short: 'stock', desc: 'Stock S14 2.3 four: 147 kW (200 PS) at 6,750 rpm, 240 Nm at 4,750. It wants revs.' },
+    { ...tunedBy(1.08, 200)(ENGINE.S14), short: 'tuned', desc: 'Sharper cams, a freer exhaust and a chip: +8% torque, 200 rpm more.' },
+    { ...ENGINE.S14E, short: 'Evo 2.5', desc: 'The Sport Evolution\'s 2.5 S14: 175 kW (238 PS) at 7,000 rpm.' }],
+  nsx: [{ ...ENGINE.C30A, short: 'stock', desc: 'Stock C30A 3.0 VTEC V6: 201 kW (274 PS) at 7,100 rpm, 284 Nm at 5,300; VTEC kicks in at 5,800.' },
+    { ...tunedBy(1.07, 200)(ENGINE.C30A), short: 'tuned', desc: 'Headers, an intake and a remap: +7% torque, 200 rpm more.' },
+    { ...ENGINE.C32B, short: 'C32B 3.2', desc: 'The later C32B 3.2 VTEC V6: 216 kW (294 PS) and 304 Nm.' }],
+  p930: [{ ...ENGINE.F6_30T, short: 'stock', desc: 'Stock 3.0 turbo flat-six: 191 kW (260 PS) at 5,500 rpm, 343 Nm at 4,000, and almost nothing until the turbo wakes at 3,000.' },
+    { ...tunedBy(1.15, 0)(ENGINE.F6_30T), short: 'tuned', desc: 'More boost and a richer injection map: +15% torque.' },
+    { ...ENGINE.F6_33T, short: '3.3 IC', desc: 'The 1978 Turbo\'s intercooled 3.3: 221 kW (300 PS) and 412 Nm.' }],
+  r34: [{ ...ENGINE.RB26, short: 'stock', desc: 'Stock RB26DETT 2.6 twin-turbo straight-six: 280 PS on paper, about 320 PS (235 kW) at 6,800 rpm and 440 Nm at 4,400 in fact.' },
+    { ...tunedBy(1.25, 0)(ENGINE.RB26), short: 'boost up', desc: 'The tuners\' classic: more boost, a front-mount intercooler, a remap. +25% torque.' },
+    { ...ENGINE.RB26Z, short: 'Z-tune', desc: 'The Nismo Z-tune\'s 2.8 RB26: 368 kW (500 PS) and 540 Nm.' }],
+  r35: [{ ...ENGINE.VR38, short: 'stock', desc: 'Stock VR38DETT 3.8 twin-turbo V6, hand-built: 357 kW (485 PS) at 6,400 rpm, 588 Nm from 3,200 to 5,200.' },
+    { ...tunedBy(1.15, 0)(ENGINE.VR38), short: 'tuned', desc: 'A remap, an intake and downpipes: +15% torque.' },
+    { ...ENGINE.VR38N, short: 'Nismo', desc: 'The Nismo\'s VR38: GT3 turbos, 441 kW (600 PS) and 652 Nm.' }],
+  rx7: [{ ...ENGINE.R13B, short: 'stock', desc: 'Stock 13B-REW twin-rotor Wankel, sequential twin turbos: 188 kW (255 PS) at 6,500 rpm, 294 Nm at 5,000.' },
+    { ...tunedBy(1.15, 0)(ENGINE.R13B), short: 'tuned', desc: 'A bigger intercooler, more boost and a remap: +15% torque.' },
+    { ...ENGINE.R20B, short: '20B swap', desc: 'The Cosmo\'s 20B-REW three-rotor: 206 kW and 403 Nm from 1,800 rpm, 30 kg more.' }],
+  senna: [{ ...ENGINE.M840TR, short: 'stock', desc: 'Stock M840TR 4.0 twin-turbo flat-plane V8: 588 kW (800 PS) at 7,250 rpm, 800 Nm from 5,500 to 6,700.' },
+    { ...tunedBy(1.06, 0)(ENGINE.M840TR), short: 'tuned', desc: 'A remap: +6% torque.' },
+    { ...ENGINE.M840TRG, short: 'GTR', desc: 'The Senna GTR\'s: 607 kW (825 PS), and 800 Nm to 7,250 rpm.' }],
+  sti: [{ ...ENGINE.EJ20, short: 'stock', desc: 'Stock EJ20 2.0 turbo boxer four: 206 kW (280 PS) at 6,500 rpm, 353 Nm at 4,000, and the boxer\'s burble.' },
+    { ...tunedBy(1.18, 0)(ENGINE.EJ20), short: 'tuned', desc: 'A bigger turbo and a remap: +18% torque.' },
+    { ...ENGINE.EJ22, short: '22B 2.2', desc: 'The 22B\'s EJ22 2.2: 206 kW and 363 Nm at 3,200, more of it lower down.' }],
+  supra: [{ ...ENGINE.JZ2, short: 'stock', desc: 'Stock 2JZ-GTE 3.0 twin-turbo straight-six: 239 kW (326 PS) at 5,600 rpm, 427 Nm at 4,000.' },
+    { ...tunedBy(1.25, 0)(ENGINE.JZ2), short: 'tuned', desc: 'More boost, bigger injectors and a remap: +25% torque. The block shrugs.' },
+    { ...ENGINE.JZ2S, short: 'single turbo', desc: 'A big single-turbo conversion on the stock bottom end: about 600 kW (800 hp) and 900 Nm.' }],
 };
 
 const gearOption = (r) => ({ name: `${r.toFixed(2)}:1 ring and pinion`, short: r.toFixed(2), ratio: r, desc: 'Deeper (bigger number) gears turn the wheels slower and harder: they bring back the pull bigger tyres take away, and lower the top speed.' });
@@ -289,13 +468,14 @@ export const tyreFor = (base, d) => (d === base.stock.tyre && base.stockTyre ? {
 /** What each part costs to buy and fit; the truck's factory parts are free. Tyres are a set of five. */
 export const PRICES = {
   lift: [0, 900, 2200, 5800],
-  tyre: { 27: 520, 28: 600, 29: 720, 30: 850, 31: 950, 33: 1300, 35: 1750, 37: 2400, 40: 3300, 42: 4500, 44: 5900, 46: 7400 },
-  tread: [0, 400, 350],
-  wheels: [0, 650, 2100],
+  tyre: { 24: 1100, 25: 1400, 26: 1800, 27: 520, 28: 600, 29: 720, 30: 850, 31: 950, 33: 1300, 35: 1750, 37: 2400, 40: 3300, 42: 4500, 44: 5900, 46: 7400 },
+  tread: [0, 400, 350, 900, 1500],
+  wheels: [0, 650, 2100, 0],
   gears: 1600,                       // any ratio but the factory one: both axles re-geared
   tcase: [0, 1900],
   diffs: [0, 750, 1100, 2200, 900],
-  trans: [1800, 1200, 1600, 1500, 2200, 2400, 5200, 1900, 2600, 2400, 1800, 3200, 3600, 0, 2400, 3400],  // a different gearbox swapped in
+  trans: [1800, 1200, 1600, 1500, 2200, 2400, 5200, 1900, 2600, 2400, 1800, 3200, 3600, 0, 2400, 3400,  // a different gearbox swapped in
+    4200, 3800, 3600, 3400, 3200, 3000, 6500, 4000, 9500, 9000, 12000, 8500, 9000, 8800, 6800, 11000, 5200],
   engine: [0, 1500, 4800],
   intake: [0, 450],
   winch: [0, 1300],
@@ -339,8 +519,18 @@ export const PRESETS = [
     make: (b, base) => ({ ...b, lift: 1, tyre: step(TYRE_SIZES, b.tyre, 1), wheels: 1, gears: Math.min(b.gears + 1, ratiosFor(base).length - 1), diffs: 2, engine: 1, intake: 1, winch: 1, armor: 2, lights: 1, rack: 2 }) },
 ];
 
+/** A road car's ready-made builds (the off-road ones would only bottom it out). */
+export const ROAD_PRESETS = [
+  { id: 'stock', name: 'Stock', desc: 'As it left the factory.', make: (b) => b },
+  { id: 'track', name: 'Track day', desc: 'Semi-slick tyres, a limited-slip diff and the engine tuned.', make: (b) => ({ ...b, tread: 4, diffs: 1, engine: 1 }) },
+  { id: 'safari', name: 'Safari', desc: 'Raised 2" on all-terrain tyres, a roof rack: a supercar for the gravel, as the 911 Dakar and the Huracán Sterrato are.', make: (b) => ({ ...b, lift: 1, tread: 0, rack: 1 }) },
+  { id: 'max', name: 'Flat out', desc: 'The strongest engine, semi-slicks and a limited-slip diff.', make: (b) => ({ ...b, tread: 4, diffs: 1, engine: 2 }) },
+];
+/** The ready-made builds for a truck (or a road car). */
+export const presetsFor = (base) => (base?.road ? ROAD_PRESETS : PRESETS);
+
 export function presetBuild(base, id) {
-  const p = PRESETS.find((x) => x.id === id) || PRESETS[0], s = stockBuild(base), b = p.make(s, base);
+  const list = presetsFor(base), p = list.find((x) => x.id === id) || list[0], s = stockBuild(base), b = p.make(s, base);
   // a preset never takes away what the truck came with (factory lockers, onboard air, a raised intake, its power)
   if (DIFF_RANK[b.diffs] < DIFF_RANK[s.diffs]) b.diffs = s.diffs;
   const eng = ENGINES[base.id], peak = (e) => Math.max(...e.torque.map((q) => q[1]));
@@ -355,7 +545,7 @@ export const maxTyre = (base, lift) => base.stock.fit + LIFTS[lift].inches + 2;
 /** A few words for a build: its preset's name, or what has changed from stock. */
 export function buildSummary(base, build) {
   const b = normalizeBuild(base, build), code = encodeBuild(b);
-  for (const p of PRESETS) if (encodeBuild(presetBuild(base, p.id)) === code) return p.name;
+  for (const p of presetsFor(base)) if (encodeBuild(presetBuild(base, p.id)) === code) return p.name;
   const s = stockBuild(base), out = [];
   if (b.lift !== s.lift) out.push(`${LIFTS[b.lift].inches}" lift`);
   if (b.tyre !== s.tyre || b.tread !== s.tread) out.push(`${b.tyre}" ${TREADS[b.tread].short}`);
@@ -373,15 +563,22 @@ export function buildSummary(base, build) {
   return out.length ? out.join(', ') : 'Stock';
 }
 
-/** Clamp every choice to a valid one; missing ones come from stock. */
-/** Whether a truck can take option i of a category: not what its own `only` leaves out, and the electric gearbox only
- *  behind electric motors. */
+/**
+ * Whether a truck can take option i of a category: not what its own `only` leaves out (for tyres, the diameters it
+ * takes), a road car's parts (`road`) only on a road car, and the electric gearbox only behind electric motors.
+ */
 export function optionAllowed(base, catId, i) {
+  if (catId === 'tyre') {
+    const d = TYRE_SIZES[i];
+    return !!TYRES[d] && !(TYRES[d].road && !base.road) && !(base.only?.tyre && !base.only.tyre.includes(d));
+  }
   if (base.only?.[catId] && !base.only[catId].includes(i)) return false;
+  if (CATEGORIES.find((c) => c.id === catId)?.options?.[i]?.road && !base.road) return false;
   if (catId === 'trans' && TRANSMISSIONS[i]?.type === 'direct' && !ENGINES[base.id]?.[0]?.electric) return false;
   return true;
 }
 
+/** Clamp every choice to a valid one; missing ones come from stock. */
 export function normalizeBuild(base, build) {
   const s = stockBuild(base), b = { ...s, ...(build || {}) };
   for (const cat of CATEGORIES) {
@@ -390,8 +587,10 @@ export function normalizeBuild(base, build) {
     b[cat.id] = Number.isInteger(b[cat.id]) ? clamp(b[cat.id], 0, n - 1) : s[cat.id];
     if (!optionAllowed(base, cat.id, b[cat.id])) b[cat.id] = s[cat.id];
   }
-  if (!TYRE_SIZES.includes(b.tyre) || b.tyre < base.stock.tyre) b.tyre = s.tyre;
+  const tyreOk = (d) => TYRE_SIZES.includes(d) && d >= base.stock.tyre && optionAllowed(base, 'tyre', TYRE_SIZES.indexOf(d));
+  if (!tyreOk(b.tyre)) b.tyre = s.tyre;
   while (b.tyre > maxTyre(base, b.lift)) b.tyre = TYRE_SIZES[TYRE_SIZES.indexOf(b.tyre) - 1];
+  if (!tyreOk(b.tyre)) b.tyre = s.tyre;
   return b;
 }
 
@@ -474,7 +673,7 @@ export function buildSpec(base, buildIn) {
   // ---- tyres (a heavy truck's are built for its weight: stiffer carcasses, more plies, higher pressures)
   const tk = base.tyreK ?? 1;
   spec.tyre = {
-    ...DEFAULT_TYRE, ...(base.tyre || {}),
+    ...DEFAULT_TYRE, ...(base.tyre || {}), ...(tread.tyre || {}),
     radius: T.radius, width: T.width, mass: wheelMass, inertia: T.inertia * (wheels.beadlock ? 1.07 : 1),
     stiffness: 230000 * Math.pow(T.width / 0.267, 0.4) * (tread.stiff || 1) * tk,
     damping: DEFAULT_TYRE.damping * Math.sqrt(tk), loadNominal: base.tyreLoad ?? DEFAULT_TYRE.loadNominal,
@@ -529,7 +728,8 @@ export function buildSpec(base, buildIn) {
   const tr = TRANSMISSIONS[b.trans];
   spec.trans = {
     ...base.trans, type: tr.type, gears: tr.gears.slice(), reverse: tr.reverse,
-    low: TCASES[b.tcase].low || base.stock.low, axle: ratiosFor(base)[b.gears],
+    low: TCASES[b.tcase].low || base.stock.low, axle: ratiosFor(base)[b.gears], road: !!base.road,
+    ...(tr.shiftTime ? { shiftTime: tr.shiftTime } : {}), ...(tr.dct ? { dct: true } : {}),
   };
   spec.diffs = { front: DIFFS[b.diffs].front, rear: DIFFS[b.diffs].rear };
   spec.bld = { front: spec.diffs.front === 'bld' || !!base.tc, rear: !!base.tc };   // (brakes holding a spinning wheel)

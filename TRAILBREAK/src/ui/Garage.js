@@ -3,7 +3,7 @@
 // Each part is a row with a list of what fits and what it changes against the factory part; the truck turns in the
 // middle; under it, a grade for the build off-road and the numbers that matter there.
 import {
-  CATEGORIES, PRESETS, optionsFor, tyreFor, normalizeBuild, presetBuild, encodeBuild, decodeBuild, buildStats, maxTyre,
+  CATEGORIES, presetsFor, optionsFor, tyreFor, normalizeBuild, presetBuild, encodeBuild, decodeBuild, buildStats, maxTyre,
   stockBuild, LIFTS, TYRE_SIZES, partPrice, optionAllowed,
 } from '../physics/Upgrades.js';
 import { money } from '../game/Career.js';
@@ -221,8 +221,8 @@ export class Garage {
   renderPresets() {
     const el = $('g-presets');
     el.innerHTML = '';
-    const icons = { stock: 'gear', trail: 'mountain', crawler: 'mountain', mudder: 'water', overland: 'map' };
-    for (const p of PRESETS) {
+    const icons = { stock: 'gear', trail: 'mountain', crawler: 'mountain', mudder: 'water', overland: 'map', track: 'flag', safari: 'map', max: 'bolt' };
+    for (const p of presetsFor(this.base)) {
       const b = document.createElement('button');
       b.className = 'g-preset';
       b.innerHTML = `${ic(icons[p.id] || 'chev')}${esc(p.name)}`;
@@ -252,9 +252,12 @@ export class Garage {
       row.dataset.cat = cat.id;
       row.innerHTML = `${ic(icon)}<div class="g-name"><b>${esc(cat.name)}</b><small>${esc(sub)}</small></div><div class="g-pick"><select aria-label="${esc(cat.name)}"></select></div><span class="g-eff"></span>`;
       const sel = row.querySelector('select');
-      // a truck without a low range (its gearbox crawls on its own) shows that for its transfer case
+      // a truck without a low range (its gearbox crawls on its own) shows that for its transfer case; a road car, how
+      // its wheels are driven
+      const drive = this.base.trans?.drive, road = { rwd: ['Rear-wheel drive', 'No transfer case: the engine drives the rear wheels alone.'],
+        awd: ['All-wheel drive', 'A centre differential shares the drive between the axles all the time; no low range.'] }[drive];
       const single = (o, i) => (cat.id === 'tcase' && i === 0 && this.base.stock.low <= 1
-        ? { ...o, name: 'Single-speed transfer case', desc: 'No low range: the gearbox\'s own crawler first does that job.' } : o);
+        ? (road ? { ...o, name: road[0], short: drive.toUpperCase(), desc: road[1] } : { ...o, name: 'Single-speed transfer case', desc: 'No low range: the gearbox\'s own crawler first does that job.' }) : o);
       const opts = optionsFor(cat, this.truckId).map(single);
       opts.forEach((o, i) => {
         const opt = document.createElement('option');
@@ -313,7 +316,8 @@ export class Garage {
       if (id === 'tyre') {
         [...sel.options].forEach((opt, k) => {
           const d = TYRE_SIZES[k];
-          opt.hidden = d < base.stock.tyre || d > maxTyre(base, LIFTS.length - 1);       // smaller than stock, or too big for any lift
+          // smaller than stock, too big for any lift, or not for this truck (a road car takes its own sizes)
+          opt.hidden = d < base.stock.tyre || d > maxTyre(base, LIFTS.length - 1) || !optionAllowed(base, 'tyre', k);
           opt.disabled = opt.hidden;
         });
       }

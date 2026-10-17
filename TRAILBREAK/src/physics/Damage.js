@@ -176,7 +176,7 @@ export class Damage {
     // a sharp rock hit at speed can cut the sidewall (once per hit: not again for half a second)
     if (onRock && r > 4 && Math.abs(vx) > 4 && t - (this._cutAt?.[i] ?? -1) > 0.5) {
       (this._cutAt || (this._cutAt = []))[i] = t;
-      if (Math.random() < Math.min(0.25, (r - 4) * 0.03) * (tyre.tread === 'mt' || tyre.tread === 'mud' ? 0.5 : 1) * this.k.cut) this.goFlat(i, 'cut by a rock');
+      if (Math.random() < Math.min(0.25, (r - 4) * 0.03) * (tyre.tread === 1 || tyre.tread === 2 ? 0.5 : 1) * this.k.cut) this.goFlat(i, 'cut by a rock');
     }
     // aired down and pushed sideways, a tyre without beadlocks comes off its bead
     if (!tyre.beadlock && psi < 16 && N > 1000) {

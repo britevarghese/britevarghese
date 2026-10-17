@@ -326,7 +326,9 @@ export class Game {
     this.build = this.spec.buildCode;
     const v = this.vehicle = new Vehicle(this.spec);
     v.damage.setLevel(this.settings.damage);
-    v.dt.low = old.dt.low; v.dt.fourWD = old.dt.fourWD;
+    // (the range and the front axle as they were, when both trucks shift them: a road car drives as it's built)
+    if (v.dt.t.low > 1 && old.dt.t.low > 1) v.dt.low = old.dt.low;
+    if (v.dt.drive === '4wd' && old.dt.drive === '4wd') v.dt.fourWD = old.dt.fourWD;
     this.scene.remove(this.model.root); this.model.dispose();
     this.model = modelFor(this.spec, this.truckId, this.paint);
     this.model.setDirt(this.dirt);
@@ -412,15 +414,25 @@ export class Game {
       $('d-money').innerHTML = `You have <b>${money(C.money)}</b>.`;
       const list = $('d-list');
       list.innerHTML = '';
-      for (const id of DEALER_ORDER.filter((id) => TRUCK_IDS.includes(id))) {
+      let kind = null;
+      for (const id of DEALER_ORDER.filter((id) => TRUCK_IDS.includes(id)).sort((a, b) => !!TRUCKS[a].road - !!TRUCKS[b].road)) {
         const t = TRUCKS[id], owned = C.ownsTruck(id), price = TRUCK_PRICES[id] ?? 0, here = id === this.truckId;
         const st = buildStats(truckSpec(id));
+        if (kind !== !!t.road) {
+          kind = !!t.road;
+          const h = document.createElement('div');
+          h.className = 'truck-group';
+          h.textContent = kind ? 'Sports cars' : 'Off-road trucks';
+          list.appendChild(h);
+        }
         const row = document.createElement('div');
         row.className = 'dealer-row' + (owned ? ' mine' : '');
         row.dataset.id = id;
         row.onclick = (e) => { if (!e.target.closest('button')) look(id); };
         row.innerHTML = `<b>${t.name}</b><span class="blurb">${t.blurb}</span>
-          <span class="stats">${Math.round(st.powerKw)} kW · ${Math.round(st.peakTorque)} Nm · ${Math.round(st.mass)} kg · ${Math.round(st.clearance * 100)} cm under the diffs · wades ${Math.round(st.wading * 100)} cm</span>`;
+          <span class="stats">${Math.round(st.powerKw)} kW · ${Math.round(st.peakTorque)} Nm · ${Math.round(st.mass)} kg · ${t.road
+    ? `0-100 km/h in ${t.real.t100} s · ${t.real.vmax} km/h (the maker's figures)`
+    : `${Math.round(st.clearance * 100)} cm under the diffs · wades ${Math.round(st.wading * 100)} cm`}</span>`;
         const b = document.createElement('button');
         if (here) { b.textContent = 'Driving it'; b.disabled = true; b.className = 'ghost'; }
         else if (owned) { b.textContent = 'Drive this one'; b.className = 'primary'; b.onclick = () => { close(); this.switchTruck(id); }; }
@@ -636,7 +648,13 @@ export class Game {
       else this.hud.hint('Stop (or nearly) to change range');
     }
     if (I.consume('4wd')) {
-      if (d.setFourWD(!d.fourWD, sp)) this.hud.hint(d.fourWD ? '4WD engaged' : '2WD (rear)');
+      if (d.drive === 'rwd') this.hud.hint('Rear-wheel drive: no front axle to engage');
+      else if (d.drive === 'awd') {
+        // an all-wheel drive: always on; a lockable centre diff locks and frees instead
+        if (!d.t.centreLock) this.hud.hint('All-wheel drive: always on, the centre diff shares the drive by itself');
+        else if (d.setCentreLock(!d.lockCentre, sp)) this.hud.hint(d.lockCentre ? 'Centre diff locked' : 'Centre diff free');
+        else this.hud.hint('Too fast to lock the centre diff');
+      } else if (d.setFourWD(!d.fourWD, sp)) this.hud.hint(d.fourWD ? '4WD engaged' : '2WD (rear)');
       else this.hud.hint('Too fast to engage 4WD');
     }
     if (I.consume('locks')) {

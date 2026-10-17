@@ -144,6 +144,7 @@ input[type=checkbox]:checked::after { transform: translateX(16px); background: #
 .truck-opt b { display: block; font: italic 700 17px var(--display); letter-spacing: .02em; }
 .truck-opt span { font-size: 12.5px; color: var(--ink-dim); font-weight: 500; }
 .truck-opt.sel { border-color: var(--accent); background: rgba(255, 122, 26, .12); }
+.truck-group { font: italic 700 12px var(--display); letter-spacing: .14em; text-transform: uppercase; color: var(--accent); padding: 10px 4px 2px; }
 .paint-list { display: flex; flex-wrap: wrap; gap: 9px; }
 .paint { width: 34px; height: 34px; border-radius: 50%; padding: 0; border: 2px solid rgba(255, 255, 255, .15); }
 .paint.sel { border-color: #fff; box-shadow: 0 0 0 3px rgba(255, 122, 26, .55); }

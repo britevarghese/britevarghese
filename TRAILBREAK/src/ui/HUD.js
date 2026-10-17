@@ -150,9 +150,11 @@ export class HUD {
     set('m-range', d.low ? 'LOW' : 'HIGH', d.low ? 'on' : '');
     // (no low range, or nothing to shift: an electric truck)
     $('m-range').classList.toggle('hidden', !(d.t.low > 1));
-    set('m-4wd', d.fourWD ? '4WD' : '2WD', d.fourWD ? 'on' : '');
-    // the badge by the dial: which wheels drive (4LO in low range)
-    const badge = $('m-drive'), bc = `drive-badge ${d.fourWD ? 'four' : 'two'}`, bt = d.fourWD ? (d.low ? '4LO' : '4WD') : '2WD';
+    // which wheels drive: part-time 4WD in or out (4LO in low range), or a road car's rear or all-wheel drive (its
+    // centre diff locked: AWD LOCK)
+    const dl = d.drive === 'rwd' ? 'RWD' : d.drive === 'awd' ? (d.lockCentre ? 'AWD LOCK' : 'AWD') : null;
+    set('m-4wd', dl || (d.fourWD ? '4WD' : '2WD'), d.fourWD ? 'on' : '');
+    const badge = $('m-drive'), bc = `drive-badge ${d.fourWD ? 'four' : 'two'}`, bt = dl ? dl.split(' ')[0] : d.fourWD ? (d.low ? '4LO' : '4WD') : '2WD';
     if (badge.className !== bc) badge.className = bc;
     if ($('m-drive-t').textContent !== bt) $('m-drive-t').textContent = bt;
     const lsd = d.diffs.rear === 'lsd', mld = d.diffs.rear === 'auto';

@@ -7,8 +7,20 @@
 //   Ranger    the UAZ Hunter (a real model)                            Trekker  the Ford Ranger Raptor (a real model)
 //   Shepherd  the Land Rover Defender 110, 2026 (a real model)         Drover   the Mitsubishi Pajero (a real model)
 //   Hauler    the Chevrolet K20 Suburban (a real model)                 Bruiser  the Ram 2500 Power Wagon (a real model)
-//   Rhino     the Mercedes-Benz Unimog U1300L (a real model)
+//   Rhino     the Mercedes-Benz Unimog U1300L (a real model)          G 63     the Mercedes-AMG G-Class (a real model)
 //
+// And the road cars (`road`, at the end): sports cars and supercars, rear- or all-wheel drive, on their own tyres.
+//
+//   M4 CSL    the BMW M4 CSL                                           AMG GT   the Mercedes-AMG GT S
+//   C8        the Chevrolet Corvette Stingray                          Huracán  the Lamborghini Huracán LP 610-4
+//   R8        the Audi R8 V10 plus, widebody                           M3       the BMW M3 (E30)
+//   NSX       the Honda NSX (NA1)                                      930      the Porsche 911 Turbo (930)
+//   R34       the Nissan Skyline GT-R (R34)                            R35      the Nissan GT-R (R35)
+//   RX-7      the Mazda RX-7 (FD)                                      Senna    the McLaren Senna
+//   STi       the Subaru Impreza WRX STi (GC8)                         Supra    the Toyota Supra Turbo (A80)
+// (each one a real model too)
+//
+// (real: the makers' 0-100 km/h time and top speed, which the tests hold the physics to)
 // Each entry is the truck as it leaves the factory: stock height, stock tyres. Upgrades.js turns it and a build
 // (lift, tyres, gears, lockers...) into the spec the physics drives: use truckSpec(id, build).
 //
@@ -34,7 +46,7 @@
 //   look                 for the model: top ('hard', 'canvas', 'paint'), bed (a pickup), coils, portal, leaf (half
 //                        length of the leaf springs)
 
-import { buildSpec, decodeBuild, normalizeBuild, encodeBuild, TRUCK_BASES, EV_TRANS } from './Upgrades.js';
+import { buildSpec, decodeBuild, normalizeBuild, encodeBuild, TRUCK_BASES, EV_TRANS, ROAD_ONLY, transIndex } from './Upgrades.js';
 
 export const TRUCKS = {
   ranger: {
@@ -438,11 +450,260 @@ export const TRUCKS = {
     shafts: [11000, 13000], tyreK: 1.5, tyreLoad: 10000, parts: 1.6, tc: true,
     style: 'hummerev', look: { top: 'paint', coils: true, bed: true },
   },
+
+  gclass: {
+    // the Mercedes-AMG G 63 (W463, 2015-2018): 2,850 mm wheelbase, 4,763 mm long with its spare, 1,855 mm wide, a ladder
+    // frame and beam axles on coil springs at both ends, permanent four-wheel drive with three diff locks (centre, front,
+    // rear) and a 2.16 low range, 210 mm under the diffs (a real model: render/TruckAssets.js)
+    id: 'gclass', name: 'Mercedes-AMG G 63',
+    blurb: 'Mercedes-AMG G 63: the G-Wagen with a 5.5 twin-turbo V8 (571 PS), a seven-speed automatic, permanent four-wheel drive with a low range and three diff locks, beam axles on coils. Absurdly fast for a box, and a real off-roader underneath.',
+    mass: 2625, cgHeight: 0.85, cgZ: 0.09, inertiaBox: [1.75, 1.45, 4.2],
+    axles: [
+      { z: 1.425, track: 1.559, springTrack: 1.0, rate: 60000, bump: 3400, rebound: 6800, travel: 0.22, sag: 0.09, mass: 130, steer: 0.55, brake: 5000, swayBar: 32000, diffDrop: 0.17, diffX: -0.1 },
+      { z: -1.425, track: 1.559, springTrack: 1.05, rate: 66000, bump: 3400, rebound: 6800, travel: 0.24, sag: 0.095, mass: 140, steer: 0, brake: 3500, handbrake: 4400, diffDrop: 0.17, diffX: 0 },
+    ],
+    // (the centre diff open, 40:60, until it is locked: the 4WD key)
+    trans: { tcK: 8.6, drive: 'awd', split: 0.4, centre: [0, 0], centreLock: true },
+    stock: { tyre: 31, axle: 4.0, trans: transIndex('7G'), fit: 33, low: 2.16, diffs: 3, psi: 36 },
+    axleRatios: [3.7, 4.0, 4.38, 4.88, 5.13],
+    stockTyre: { label: '275/50 R20', radius: 0.3915, width: 0.275, rim: 20, desc: 'The G 63\'s 275/50 R20s on 20-inch AMG wheels.' },
+    hull: [
+      { c: [0, 0.88, -0.02], h: [0.93, 0.4, 2.23], pts: 'bottom' },         // body: bumpers 0.49 m up, the beltline 1.28
+      { c: [0, 0.33, 0], h: [0.45, 0.09, 1.2], pts: 'bottom' },             // belly: the floor tray 0.24 m up
+      { c: [0, 1.6, -0.86], h: [0.88, 0.35, 1.2], pts: 'top' },             // the upright cabin, roof 1.95 m
+    ],
+    roofY: 1.948, cabZ: -0.5, noseZ: 2.2, rackZ: -0.9,
+    intakePos: [-0.6, 0.7, 1.6], snorkelPos: [-0.95, 1.9, 0.6],
+    winch: { fairlead: [0, 0.55, 2.2] },
+    eye: [0.38, 1.66, -0.36], hoodEye: [0, 1.58, 1.3],
+    drag: { cd: 0.54, area: 3.2 },
+    buoyancy: 0.3,
+    shafts: [8000, 9000], tyreLoad: 6000, parts: 1.6, tc: true,
+    style: 'gclass', look: { top: 'paint', coils: true },
+  },
+  // ---------------------------------------------------------------- road cars (`road`: see roadCar below): sports cars
+  // and supercars on their own tyres and gearboxes, rear- or all-wheel drive, with their downforce. Ground clearance is
+  // the car's: a hand's width. Each body is the model's extent (render/TruckAssets.js).
+  m4csl: roadCar({
+    // the BMW M4 CSL (G82, 2022): 2,857 mm wheelbase, 4,801 mm long, 1,887 mm wide, 1,625 kg (DIN), 52% of it on the
+    // front axle; the S58 straight-six, an eight-speed M Steptronic, rear-wheel drive through the Active M differential,
+    // carbon-ceramic brakes and Cup 2 R tyres
+    id: 'm4csl', name: 'BMW M4 CSL', real: { t100: 3.7, vmax: 307 },
+    blurb: 'BMW M4 CSL: the lightest and fastest M4. The S58 3.0 twin-turbo straight-six with 550 PS, an eight-speed M Steptronic, rear-wheel drive through the Active M differential, a carbon roof and bonnet, Cup 2 R tyres. 0-100 km/h in 3.7 s, 307 km/h.',
+    mass: 1700, cgHeight: 0.47, weightFront: 0.52, wheelbase: 2.857, track: [1.623, 1.625],
+    body: [-2.512, 2.319, 0.944, 0.138, 1.41, [-0.8, 0.25]], springs: [52000, 56000], brakes: [3800, 2300],
+    tyre: { d: 27, label: '275/35 R19 · 285/30 R20 Cup 2 R', radius: 0.3427, width: 0.28, rim: 20, mass: 24, inertia: 1.6, desc: 'The CSL\'s Michelin Pilot Sport Cup 2 R semi-slicks, 275/35 R19 in front and 285/30 R20 behind, on forged wheels.' },
+    drive: 'rwd', box: 'Steptronic', tcK: 8.2, lockup: 1300, final: 3.154, finals: [2.85, 3.154, 3.46, 3.73], tread: 4,
+    eye: [0.41, 1.15, -0.24], hoodEye: [0, 1.02, 1.25], cd: 0.36, area: 2.2, aero: [0.12, 0.18], parts: 2.0,
+  }),
+  amggt: roadCar({
+    // the Mercedes-AMG GT S (C190, 2015): 2,630 mm wheelbase, 4,546 mm long, 1,939 mm wide, 1,570 kg (DIN), 47% of it
+    // on the front axle (the engine behind the front axle, the gearbox at the back), the M178 4.0 twin-turbo V8, a
+    // seven-speed dual-clutch transaxle, rear-wheel drive and an electronic limited-slip diff
+    id: 'amggt', name: 'Mercedes-AMG GT S', real: { t100: 3.8, vmax: 310 },
+    blurb: 'Mercedes-AMG GT S: a long bonnet over the M178 4.0 twin-turbo V8 (510 PS), a seven-speed dual-clutch transaxle at the back, rear-wheel drive and a limited-slip diff. 0-100 km/h in 3.8 s, 310 km/h, and a V8 that crackles.',
+    mass: 1645, cgHeight: 0.45, weightFront: 0.47, wheelbase: 2.63, track: [1.595, 1.63],
+    body: [-2.329, 2.201, 0.97, 0.122, 1.265, [-0.95, -0.1]], springs: [46000, 54000], brakes: [3600, 2400],
+    tyre: { d: 27, label: '265/35 ZR19 · 295/30 ZR20', radius: 0.3425, width: 0.28, rim: 20, mass: 25, inertia: 1.6, desc: 'The GT S\'s Michelin Pilot Super Sports, 265/35 ZR19 in front and 295/30 ZR20 behind, on forged AMG wheels.' },
+    drive: 'rwd', box: 'Speedshift', final: 3.67, finals: [3.27, 3.67, 3.92],
+    eye: [0.39, 1.03, -0.5], hoodEye: [0, 0.98, 1.0], cd: 0.36, area: 2.05, aero: [0.08, 0.2], parts: 1.9,
+  }),
+  c8: roadCar({
+    // the Chevrolet Corvette Stingray (C8, 2020) with the Z51 package: 2,722 mm wheelbase, 4,630 mm long, 1,933 mm
+    // wide, 1,655 kg, 40% of it on the front axle: the LT2 6.2 V8 behind the seats, an eight-speed dual-clutch, rear-wheel
+    // drive through an electronic limited-slip diff
+    id: 'c8', name: 'Chevrolet Corvette Stingray', real: { t100: 3.5, vmax: 312 },
+    blurb: 'Corvette Stingray (C8) Z51: the first mid-engined Corvette. The LT2 6.2 pushrod V8 behind the seats with 495 hp, an eight-speed dual-clutch, rear-wheel drive and an electronic limited-slip diff. 0-100 km/h in 3.5 s, 312 km/h.',
+    mass: 1730, cgHeight: 0.45, weightFront: 0.4, wheelbase: 2.722, track: [1.571, 1.571],
+    body: [-2.272, 2.41, 0.965, 0.109, 1.23, [-0.45, 0.35]], springs: [44000, 62000],
+    tyre: { d: 27, label: '245/35 ZR19 · 305/30 ZR20', radius: 0.3428, width: 0.29, rim: 20, mass: 25, inertia: 1.6, desc: 'The Z51\'s Michelin Pilot Sport 4S, 245/35 ZR19 in front and 305/30 ZR20 behind.' },
+    drive: 'rwd', box: 'Tremec 8', final: 5.56, finals: [5.17, 5.56, 5.88],
+    eye: [0.38, 1.0, -0.17], hoodEye: [0, 0.88, 1.2], cd: 0.36, area: 2.1, aero: [0.1, 0.2], parts: 1.7,
+  }),
+  huracan: roadCar({
+    // the Lamborghini Huracán LP 610-4 (2014): 2,620 mm wheelbase, 4,459 mm long, 1,924 mm wide, 1,532 kg, 42% of it
+    // on the front axle; the 5.2 V10 behind the seats, the seven-speed dual-clutch, all-wheel drive through a
+    // multi-plate coupling to the front axle
+    id: 'huracan', name: 'Lamborghini Huracán', real: { t100: 3.2, vmax: 325 },
+    blurb: 'Lamborghini Huracán LP 610-4: the 5.2 V10 behind the seats with 610 PS and a scream to 8,500 rpm, a seven-speed dual-clutch, all-wheel drive through a coupling to the front axle. 0-100 km/h in 3.2 s, 325 km/h.',
+    mass: 1610, cgHeight: 0.44, weightFront: 0.42, wheelbase: 2.62, track: [1.633, 1.633],
+    body: [-2.083, 2.386, 0.965, 0.133, 1.17, [-0.55, 0.35]], springs: [46000, 60000],
+    tyre: { d: 27, label: '245/30 R20 · 305/30 R20', radius: 0.3445, width: 0.28, rim: 20, mass: 24, inertia: 1.55, desc: 'Pirelli P Zeros, 245/30 R20 in front and 305/30 R20 behind.' },
+    drive: 'awd', split: 0.3, centre: [400, 0.35], box: 'S tronic', final: 3.94, finals: [3.73, 3.94, 4.25],
+    eye: [0.37, 0.98, -0.1], hoodEye: [0, 0.84, 1.15], cd: 0.39, area: 1.98, aero: [0.08, 0.16], parts: 2.4,
+  }),
+  r8: roadCar({
+    // the Audi R8 V10 plus (Type 4S, 2016) under a widebody kit, on deep-dish wheels: 2,650 mm wheelbase, 4,570 mm long
+    // with its splitter, 2,210 mm across the flared arches, 1,555 kg, 40% of it on the front axle; the 5.2 V10 behind
+    // the seats, the seven-speed S tronic, quattro all-wheel drive through a multi-plate coupling to the front axle
+    id: 'r8', name: 'Audi R8 V10 plus (widebody)', real: { t100: 3.2, vmax: 330 },
+    blurb: 'Audi R8 V10 plus under a widebody kit: the 5.2 V10 behind the seats with 610 PS and a scream to 8,700 rpm, a seven-speed S tronic, quattro all-wheel drive. Flared arches, a splitter and deep-dish wheels on a supercar you can use every day.',
+    mass: 1630, cgHeight: 0.45, weightFront: 0.4, wheelbase: 2.65, track: [1.769, 1.855],
+    body: [-2.09, 2.479, 1.106, 0.099, 1.278, [-0.55, 0.45]], springs: [46000, 60000],
+    tyre: { d: 27, label: '245/30 R20 · 305/30 R20', radius: 0.338, width: 0.28, rim: 20, mass: 24, inertia: 1.55, desc: '245/30 R20 in front and 305/30 R20 behind, on deep-dish five-spoke wheels.' },
+    drive: 'awd', split: 0.3, centre: [400, 0.35], box: 'S tronic', final: 3.97, finals: [3.73, 3.97, 4.25],
+    eye: [0.44, 1.09, 0.06], hoodEye: [0, 1.06, 1.1], cd: 0.37, area: 2.2, aero: [0.08, 0.14], parts: 2.2,
+  }),
+  m3e30: roadCar({
+    // the BMW M3 (E30, 1986): 2,562 mm wheelbase, 4,345 mm long, 1,680 mm wide, 1,200 kg, half of it on each axle;
+    // the S14 2.3 four, the Getrag dog-leg five-speed, rear-wheel drive through a 25% limited-slip diff
+    id: 'm3e30', name: 'BMW M3 (E30)', real: { t100: 6.7, vmax: 235 },
+    blurb: 'BMW M3 (E30): the touring-car homologation special. The S14 2.3 four with 200 PS and a howl to 7,250 rpm, a dog-leg five-speed, rear-wheel drive and a limited-slip diff, 1.2 tons. Light, balanced, and a joy on a twisty road.',
+    mass: 1275, cgHeight: 0.5, weightFront: 0.5, wheelbase: 2.562, track: [1.379, 1.403],
+    body: [-2.269, 2.044, 0.84, 0.139, 1.336, [-1.1, 0.1]], springs: [30000, 34000],
+    tyre: { d: 24, label: '205/55 VR15', radius: 0.3081, width: 0.205, rim: 15, mass: 19, inertia: 0.95, desc: 'Period 205/55 VR15 performance tyres on the M3\'s cross-spoke wheels.' },
+    drive: 'rwd', box: 'dog-leg 5', final: 3.25, finals: [3.15, 3.25, 3.46, 3.73, 4.1],
+    eye: [0.31, 1.13, -0.22], hoodEye: [0, 1.02, 1.0], cd: 0.37, area: 1.9, aero: [0, 0.05], parts: 1.3,
+  }),
+  nsx: roadCar({
+    // the Honda NSX (NA1, 1990), right-hand drive: 2,530 mm wheelbase, 4,405 mm long, 1,810 mm wide, an aluminium
+    // monocoque, 1,365 kg, 42% of it on the front axle; the C30A 3.0 VTEC V6 behind the seats, a five-speed manual
+    id: 'nsx', name: 'Honda NSX', real: { t100: 5.7, vmax: 270 },
+    blurb: 'Honda NSX (NA1): the everyday supercar, an aluminium body tuned with Ayrton Senna. The C30A 3.0 VTEC V6 behind the seats revving to 8,000, a five-speed manual, rear-wheel drive. Light, precise and forgiving.',
+    mass: 1440, cgHeight: 0.46, weightFront: 0.42, wheelbase: 2.53, track: [1.557, 1.557],
+    body: [-2.236, 2.176, 0.91, 0.104, 1.16, [-0.55, 0.15]], springs: [36000, 46000],
+    tyre: { d: 24, label: '205/50 ZR15 · 225/50 ZR16', radius: 0.296, width: 0.215, rim: 16, mass: 19, inertia: 0.95, desc: '205/50 ZR15 in front and 225/50 ZR16 behind, as it came.' },
+    drive: 'rwd', box: 'NSX 5', final: 4.062, finals: [3.73, 4.062, 4.235],
+    eye: [-0.34, 0.95, -0.22], hoodEye: [0, 0.9, 1.25], cd: 0.34, area: 1.8, aero: [0, 0.04], parts: 1.5,
+  }),
+  p930: roadCar({
+    // the Porsche 911 Turbo (930, 1975): 2,272 mm wheelbase, 4,291 mm long, 1,775 mm wide, 1,140 kg, 38% of it on the
+    // front axle (the engine behind the rear one); the 3.0 flat-six with one big turbo, a four-speed manual
+    id: 'p930', name: 'Porsche 911 Turbo (930)', real: { t100: 5.5, vmax: 250 },
+    blurb: 'Porsche 911 Turbo (930): the widowmaker. A 3.0 flat-six behind the rear axle with one big turbo (260 PS, all of it at once), a four-speed manual, rear-wheel drive and a whale-tail spoiler. Mind the lift-off oversteer.',
+    mass: 1215, cgHeight: 0.5, weightFront: 0.38, wheelbase: 2.272, track: [1.459, 1.496],
+    body: [-2.238, 2.054, 0.887, 0.09, 1.287, [-0.8, 0.1]], springs: [24000, 38000],
+    tyre: { d: 25, label: '205/55 VR16 · 225/50 VR16 P7', radius: 0.3206, width: 0.215, rim: 16, mass: 19, inertia: 1.0, desc: 'Pirelli P7s, 205/55 VR16 in front and 225/50 VR16 behind, on 16-inch Fuchs forged wheels.' },
+    drive: 'rwd', box: '930 4', final: 4.222, finals: [4.0, 4.222, 4.429], diffs: 0,
+    eye: [0.285, 1.09, -0.29], hoodEye: [0, 0.95, 1.0], cd: 0.39, area: 1.79, aero: [0, 0.08], parts: 1.6,
+  }),
+  r34: roadCar({
+    // the Nissan Skyline GT-R (R34, 1999), right-hand drive: 2,665 mm wheelbase, 4,600 mm long, 1,785 mm wide,
+    // 1,560 kg, 55% of it on the front axle; the RB26DETT 2.6 twin-turbo straight-six, a Getrag six-speed, ATTESA E-TS
+    // four-wheel drive (the rear driven, the front through a clutch when the rear slips)
+    id: 'r34', name: 'Nissan Skyline GT-R (R34)', real: { t100: 4.9, vmax: 260 },
+    blurb: 'Nissan Skyline GT-R (R34): Godzilla. The RB26DETT 2.6 twin-turbo straight-six (280 PS on paper, much more in the tuners\' hands), a Getrag six-speed, ATTESA E-TS all-wheel drive. Fast anywhere, in any weather.',
+    mass: 1635, cgHeight: 0.5, weightFront: 0.55, wheelbase: 2.665, track: [1.421, 1.421],
+    body: [-2.351, 2.258, 0.885, 0.127, 1.343, [-0.9, 0.25]], springs: [44000, 40000],
+    tyre: { d: 26, label: '245/40 ZR18', radius: 0.3243, width: 0.245, rim: 18, mass: 23, inertia: 1.25, desc: '245/40 ZR18 Bridgestone Potenzas on the GT-R\'s six-spoke wheels.' },
+    drive: 'awd', split: 0.1, centre: [300, 0.45], box: 'Getrag 6', final: 3.545, finals: [3.357, 3.545, 3.9, 4.111],
+    eye: [-0.35, 1.1, -0.32], hoodEye: [0, 1.05, 1.3], cd: 0.34, area: 2.0, aero: [0.05, 0.1], parts: 1.8,
+  }),
+  r35: roadCar({
+    // the Nissan GT-R (R35, 2008): 2,780 mm wheelbase, 4,655 mm long, 1,895 mm wide, 1,740 kg, 54% of it on the front
+    // axle; the VR38DETT 3.8 twin-turbo V6, the six-speed dual-clutch transaxle, ATTESA E-TS all-wheel drive
+    id: 'r35', name: 'Nissan GT-R (R35)', real: { t100: 3.5, vmax: 310 },
+    blurb: 'Nissan GT-R (R35): the supercar killer. The hand-built VR38DETT 3.8 twin-turbo V6 with 485 PS, a six-speed dual-clutch transaxle, ATTESA E-TS all-wheel drive. Heavy, and devastatingly quick off the line.',
+    mass: 1815, cgHeight: 0.48, weightFront: 0.54, wheelbase: 2.78, track: [1.53, 1.53],
+    body: [-2.355, 2.28, 0.938, 0.142, 1.38, [-0.95, 0.15]], springs: [52000, 50000],
+    tyre: { d: 28, label: '255/40 ZRF20 · 285/35 ZRF20', radius: 0.3721, width: 0.27, rim: 20, mass: 27, inertia: 1.8, desc: 'Run-flat Dunlop SP Sport Maxx GT600s, 255/40 ZRF20 in front and 285/35 ZRF20 behind.' },
+    drive: 'awd', split: 0.1, centre: [400, 0.5], box: 'GR6', final: 3.7, finals: [3.54, 3.7, 3.92],
+    eye: [0.41, 1.1, -0.4], hoodEye: [0, 1.05, 1.35], cd: 0.27, area: 2.09, aero: [0.08, 0.12], parts: 1.8,
+  }),
+  rx7: roadCar({
+    // the Mazda RX-7 (FD3S, 1992): 2,425 mm wheelbase, 4,295 mm long, 1,760 mm wide, 1,250 kg, half of it on each
+    // axle; the 13B-REW twin-rotor Wankel with sequential twin turbos, a five-speed manual, a Torsen limited-slip diff
+    id: 'rx7', name: 'Mazda RX-7 (FD)', real: { t100: 5.3, vmax: 250 },
+    blurb: 'Mazda RX-7 (FD): the rotary. The 13B-REW twin-rotor Wankel with sequential twin turbos (255 PS) revving to 8,000, a five-speed manual, a Torsen limited-slip diff, perfect balance and 1.25 tons.',
+    mass: 1325, cgHeight: 0.46, weightFront: 0.5, wheelbase: 2.425, track: [1.45, 1.45],
+    body: [-2.214, 2.051, 0.894, 0.154, 1.26, [-0.85, -0.1]], springs: [34000, 36000],
+    tyre: { d: 25, label: '225/50 ZR16', radius: 0.3241, width: 0.225, rim: 17, mass: 21, inertia: 1.1, desc: '225/50 ZR16 Bridgestone Expedias on the RX-7\'s own wheels.' },
+    drive: 'rwd', box: 'RX-7 5', final: 4.1, finals: [3.9, 4.1, 4.3, 4.44],
+    eye: [0.34, 1.05, -0.38], hoodEye: [0, 0.91, 1.05], cd: 0.34, area: 1.9, aero: [0.02, 0.06], parts: 1.3,
+  }),
+  senna: roadCar({
+    // the McLaren Senna (2018): 2,670 mm wheelbase, 4,744 mm long, 1,958 mm wide, 1,198 kg dry, 42% of it on the front
+    // axle; the M840TR 4.0 twin-turbo V8, a seven-speed dual-clutch, rear-wheel drive, and 800 kg of downforce at 250
+    // km/h from its active wing and diffuser
+    id: 'senna', name: 'McLaren Senna', real: { t100: 2.8, vmax: 340 },
+    blurb: 'McLaren Senna: a road-legal track car. The M840TR 4.0 twin-turbo V8 with 800 PS, a seven-speed dual-clutch, rear-wheel drive, 1.2 tons, carbon everything and 800 kg of downforce at 250 km/h. 0-100 km/h in 2.8 s, 340 km/h.',
+    mass: 1385, cgHeight: 0.42, weightFront: 0.42, wheelbase: 2.67, track: [1.636, 1.616],
+    body: [-2.2, 2.573, 0.98, 0.066, 1.22, [-0.4, 0.25]], springs: [62000, 76000], brakes: [3600, 2600],
+    tyre: { d: 27, label: '245/35 R19 · 315/30 R20 Trofeo R', radius: 0.338, width: 0.29, rim: 19, mass: 22, inertia: 1.4, desc: 'Pirelli P Zero Trofeo R semi-slicks, 245/35 R19 in front and 315/30 R20 behind.' },
+    drive: 'rwd', box: 'SSG', final: 3.31, finals: [3.1, 3.31, 3.54], tread: 4,
+    eye: [0.31, 1.03, 0.07], hoodEye: [0, 0.87, 1.18], cd: 0.5, area: 1.95, aero: [1.1, 1.6], parts: 3.0,
+  }),
+  sti: roadCar({
+    // the Subaru Impreza WRX STi (GC8, the 1996 body), right-hand drive: 2,520 mm wheelbase, 4,350 mm long, 1,690 mm
+    // wide, 1,270 kg, 58% of it on the front axle (the boxer ahead of it); the EJ20 2.0 turbo flat-four, a five-speed
+    // manual, all-wheel drive through a viscous centre diff
+    id: 'sti', name: 'Subaru Impreza WRX STi (GC8)', real: { t100: 4.9, vmax: 250 },
+    blurb: 'Subaru Impreza WRX STi (GC8), the 1996 car: the rally car for the road. The EJ20 2.0 turbo boxer four with 280 PS and its burble, a five-speed manual, all-wheel drive through a centre diff. At home on gravel and in the wet.',
+    mass: 1345, cgHeight: 0.52, weightFront: 0.58, wheelbase: 2.52, track: [1.446, 1.446],
+    body: [-2.137, 2.095, 0.846, 0.172, 1.395, [-0.95, 0.1]], springs: [34000, 32000],
+    tyre: { d: 24, label: '205/55 R15', radius: 0.3028, width: 0.205, rim: 15, mass: 19, inertia: 0.95, desc: '205/55 R15 performance tyres on gold rally-style wheels.' },
+    drive: 'awd', split: 0.4, centre: [300, 0.4], box: 'STi 5', final: 4.444, finals: [3.9, 4.111, 4.444],
+    eye: [-0.37, 1.17, -0.3], hoodEye: [0, 1.04, 1.1], cd: 0.4, area: 2.0, aero: [0, 0.04], parts: 1.2,
+  }),
+  supra: roadCar({
+    // the Toyota Supra Turbo (A80, 1994), right-hand drive: 2,550 mm wheelbase, 4,515 mm long, 1,810 mm wide,
+    // 1,510 kg, 53% of it on the front axle; the 2JZ-GTE 3.0 twin-turbo straight-six, a Getrag six-speed, a Torsen
+    // limited-slip diff
+    id: 'supra', name: 'Toyota Supra Turbo (A80)', real: { t100: 4.9, vmax: 285 },
+    blurb: 'Toyota Supra Turbo (A80): the 2JZ-GTE 3.0 twin-turbo straight-six with 326 PS (and room for a thousand), a Getrag six-speed, rear-wheel drive and a Torsen limited-slip diff. A legend of the tuning world.',
+    mass: 1585, cgHeight: 0.5, weightFront: 0.53, wheelbase: 2.55, track: [1.496, 1.496],
+    body: [-2.296, 2.235, 0.906, 0.157, 1.278, [-0.95, 0.1]], springs: [40000, 42000],
+    tyre: { d: 25, label: '235/45 ZR17 · 255/40 ZR17', radius: 0.3353, width: 0.245, rim: 17, mass: 22, inertia: 1.2, desc: '235/45 ZR17 in front and 255/40 ZR17 behind on the Supra\'s five-spoke wheels.' },
+    drive: 'rwd', box: 'Getrag 6', final: 3.266, finals: [3.133, 3.266, 3.769],
+    eye: [-0.31, 1.04, -0.27], hoodEye: [0, 1.0, 1.25], cd: 0.32, area: 1.95, aero: [0.04, 0.1], parts: 1.4,
+  }),
 };
+
+// ---------------------------------------------------------------- road cars
+/**
+ * A road car's entry from what makes it itself and what every one shares: independent suspension at both ends (wheel
+ * rates `springs`, front and rear, N/m; dampers and travel to match), brakes that can lock its tyres (or its own,
+ * `brakes`, N m a wheel), a hand's width under the floor, a road car's parts (Upgrades.ROAD_ONLY and its own tyre
+ * size), forged wheels at 36 psi, traction and stability control, and its collision boxes from its body:
+ *   body: the model's extent [rear, front, half width at the waist, floor, roof, [the roof's rear, front]] (m)
+ *   weightFront: the share of its weight on the front axle; tyre: its factory tyre (size d in inches, and the rest of a
+ *   stockTyre); drive: 'rwd' or 'awd' (with split and centre: see physics/Drivetrain.js); box: its gearbox (the short
+ *   name in Upgrades.TRANSMISSIONS), tcK and lockup an automatic's; final and finals: its final drive and the others
+ */
+function roadCar(c) {
+  const wb = c.wheelbase, [zR, zF, half, floor, roof, roofZ] = c.body, belt = roof - 0.43, T = c.tyre, r = T.radius;
+  const lockMass = c.mass * 9.81 * r;
+  const axle = (z, track, rate, brake, front) => ({
+    z, track, springTrack: +(track - 0.3).toFixed(3), rate, bump: Math.round(rate * 0.062), rebound: Math.round(rate * 0.124),
+    travel: 0.13, sag: 0.065, mass: front ? 55 : 60, steer: front ? 0.58 : 0, brake,
+    ...(front ? { swayBar: Math.round(c.mass * 24) } : { handbrake: brake }), ifs: true, armDrop: +(r - 0.13).toFixed(3),
+  });
+  const zc = (roofZ[0] + roofZ[1]) / 2;
+  return {
+    id: c.id, name: c.name, road: true, real: c.real, blurb: c.blurb,
+    mass: c.mass, cgHeight: c.cgHeight, cgZ: +((c.weightFront - 0.5) * wb).toFixed(3),
+    inertiaBox: [+(2 * half - 0.1).toFixed(2), +(0.72 * roof).toFixed(2), +(0.88 * (zF - zR)).toFixed(2)],
+    axles: [
+      axle(wb / 2, c.track[0], c.springs[0], c.brakes?.[0] ?? Math.round(lockMass * 0.62), true),
+      axle(-wb / 2, c.track[1], c.springs[1], c.brakes?.[1] ?? Math.round(lockMass * 0.38), false),
+    ],
+    trans: { drive: c.drive, ...(c.drive === 'awd' ? { split: c.split, centre: c.centre } : {}), ...(c.tcK ? { tcK: c.tcK, lockup: c.lockup } : {}) },
+    stock: { tyre: T.d, axle: c.final, trans: transIndex(c.box), fit: T.d, low: 1, diffs: c.diffs ?? 1, tread: c.tread ?? 3, wheels: 3, psi: 36 },
+    axleRatios: c.finals,
+    stockTyre: { label: T.label, radius: r, width: T.width, rim: T.rim, mass: T.mass, inertia: T.inertia, desc: T.desc },
+    only: { ...ROAD_ONLY, tyre: [T.d] },
+    hull: [
+      { c: [0, (floor + belt) / 2, (zR + zF) / 2], h: [half, (belt - floor) / 2, (zF - zR) / 2], pts: 'bottom' },   // the body
+      { c: [0, floor + 0.035, 0], h: [Math.min(0.55, half - 0.35), 0.035, wb / 2 - 0.3], pts: 'bottom' },         // the floor
+      { c: [0, (belt + roof) / 2, zc], h: [half - 0.26, (roof - belt) / 2, (roofZ[1] - roofZ[0]) / 2 + 0.3], pts: 'top' },  // the roof
+    ],
+    roofY: roof, cabZ: zc, noseZ: zF - 0.02, rackZ: zc,
+    // (its air intakes behind the grille or in the flanks, near the road: no snorkel for a road car)
+    intakePos: [-0.3, floor + 0.42, zF - 0.3], snorkelPos: [-0.3, floor + 0.42, zF - 0.3],
+    winch: { fairlead: [0, floor + 0.17, zF] },                            // (the tow eye in the front bumper)
+    eye: c.eye, hoodEye: c.hoodEye,
+    drag: { cd: c.cd, area: c.area }, aero: c.aero,
+    buoyancy: 0.3, shafts: [3500, 4500], tyreK: 1.3, tyreLoad: 5000, parts: c.parts ?? 2, tc: true,
+    style: c.id, look: { coils: true },
+  };
+}
 // (the options that depend on the truck, Upgrades.optionsFor, look trucks up here)
 Object.assign(TRUCK_BASES, TRUCKS);
 
 export const TRUCK_IDS = Object.keys(TRUCKS);
+/** The road cars, and the off-road trucks. */
+export const ROAD_IDS = TRUCK_IDS.filter((id) => TRUCKS[id].road);
+export const OFFROAD_IDS = TRUCK_IDS.filter((id) => !TRUCKS[id].road);
 export const truckBase = (id) => TRUCKS[id] || TRUCKS.ranger;
 
 /** The physics spec for a truck and a build (object, 14-character code, or nothing for stock), cached per build. */
