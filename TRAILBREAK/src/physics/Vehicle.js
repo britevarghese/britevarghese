@@ -441,13 +441,14 @@ export class Vehicle {
     let target = -ctrl.steer * lock;                                    // + = left
     let rate = 2.6 * dt;
     // keys and thumbsticks: the turn eases in more gently the faster the truck goes (the whole lock in 0.2 s crawling,
-    // 0.45 s at speed), and a yaw damper takes a little steering off while the truck swings round faster than it has
-    // been (into a turn, or rocking on its springs), so it settles into the turn instead of lurching and wobbling
+    // half a second at speed: more and it answered the keys late at speed), and a yaw damper takes a little steering
+    // off while the truck swings round faster than it has been (into a turn, or rocking on its springs), so it settles
+    // into the turn instead of lurching and wobbling
     const yaw = this.angVel.dot(u);                                     // + = turning left
     this.yawLP = (this.yawLP ?? yaw) + (yaw - (this.yawLP ?? yaw)) * Math.min(1, dt / 0.45);
     if (!ctrl.analogSteer) {
       const fast = smoothstep(6, 16, Math.abs(speed)), faster = smoothstep(12, 26, Math.abs(speed));
-      rate = Math.max(0.08, lock / (0.2 + 0.25 * fast + 0.35 * faster)) * dt;
+      rate = Math.max(0.08, lock / (0.2 + 0.15 * fast + 0.15 * faster)) * dt;
       // (only a swing growing: never against the truck straightening up when the steering is let go)
       const ahead = yaw - this.yawLP;
       if (ahead * yaw > 0) target -= fast * clamp(STEER_DAMP * (1 + 2 * faster) * ahead, -0.45 * lock, 0.45 * lock);
