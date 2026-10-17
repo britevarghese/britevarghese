@@ -71,6 +71,29 @@ test('low range crawls at walking pace and multiplies torque', () => {
   assert.ok(kmh > 25 && kmh < 62, `low range speed after 12 s: ${kmh.toFixed(1)} km/h`);
 });
 
+test('ABS: braking hard, a truck still steers, and a straight stop runs straight (all four brakes working)', () => {
+  for (const id of ['thar', 'shepherd', 'mule']) {
+    const cruise = (brake, steer) => {
+      const g = flat(SURFACE.ROAD), v = truck(id, g);
+      run(v, g, 0.3);
+      v.vel.set(0, 0, 80 / 3.6);
+      for (const w of v.wheels) w.omega = 80 / 3.6 / v.spec.tyre.radius;
+      run(v, g, 2, { ...IDLE, throttle: 0.25 });
+      const h0 = Math.atan2(v.fwd.x, v.fwd.z);
+      let locked = 0, n = 0;
+      run(v, g, 1.5, (w) => {
+        // (a front wheel on the ground, at speed: one lifted off it in the turn stops, as it would)
+        if (w.speed > 8) for (const wh of w.wheels.slice(0, 2)) if (wh.contact && wh.N > 500) { n++; if (Math.abs(wh.omega * w.spec.tyre.radius) < 0.2 * w.speed) locked++; }
+        return { ...IDLE, brake, steer };
+      });
+      return { turned: Math.abs(Math.atan2(v.fwd.x, v.fwd.z) - h0) * 180 / Math.PI, locked: locked / Math.max(1, n) };
+    };
+    const straight = cruise(1, 0), turning = cruise(1, 0.6);
+    assert.ok(straight.turned < 1, `${id}: a straight stop pulled ${straight.turned.toFixed(1)} deg`);
+    assert.ok(turning.turned > 20 && turning.locked < 0.2, `${id}: braking and steering turned ${turning.turned.toFixed(1)} deg, the fronts locked ${(turning.locked * 100).toFixed(0)}% of the time`);
+  }
+});
+
 test('the brakes hold a truck on a 25 degree dirt slope', () => {
   const g = slope(25, SURFACE.DIRT);
   const v = truck('ranger', g);

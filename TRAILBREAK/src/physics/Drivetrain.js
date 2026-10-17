@@ -437,19 +437,34 @@ export class Drivetrain {
       let k = 0;
       for (let i = 0; i < n; i++) if (active[i]) idx[k++] = i;
       if (k === 0) return;
-      for (let r = 0; r < k; r++) {
-        const ir = idx[r] * NB;
-        let rhs = 0;
-        for (let q = 0; q < NB; q++) rhs -= J[ir + q] * v[q];
-        b[r] = rhs;
-        for (let c = 0; c < k; c++) {
-          const ic = idx[c] * NB;
-          let s = 0;
-          for (let q = 0; q < NB; q++) { const jr = J[ir + q]; if (jr !== 0) s += jr * J[ic + q] / m[q]; }
-          A[r * k + c] = s;
+      const system = (give) => {
+        for (let r = 0; r < k; r++) {
+          const ir = idx[r] * NB;
+          let rhs = 0;
+          for (let q = 0; q < NB; q++) rhs -= J[ir + q] * v[q];
+          b[r] = rhs;
+          for (let c = 0; c < k; c++) {
+            const ic = idx[c] * NB;
+            let s = 0;
+            for (let q = 0; q < NB; q++) { const jr = J[ir + q]; if (jr !== 0) s += jr * J[ic + q] / m[q]; }
+            A[r * k + c] = s;
+          }
         }
+        let d = 0;
+        for (let r = 0; r < k; r++) d = Math.max(d, A[r * k + r]);
+        for (let r = 0; r < k; r++) A[r * k + r] += give * d;
+      };
+      system(0);
+      let solved = solveDense(A, b, k, x);
+      if (!solved) {
+        // redundant constraints: braking all four wheels in four-wheel drive, with the engine let go (in neutral, the
+        // clutch out, an automatic's converter unlocked), says the same about the shafts as the two diffs do. A touch
+        // of give on each lets them share the load and every brake still does its part (dropping one, as below,
+        // left a rear wheel unbraked: the truck pulled to one side as it stopped)
+        system(1e-7);
+        solved = solveDense(A, b, k, x);
       }
-      if (!solveDense(A, b, k, x)) {
+      if (!solved) {
         // degenerate (e.g. lockers fighting a locked brake): drop a row that ties two wheels together (a locker or a
         // limited-slip's: with both wheels' brakes holding them it has nothing to add), else the last. (The last is a
         // brake's: dropping it let a braked wheel roll, an H1 in neutral on its handbrake sliding down a slope)

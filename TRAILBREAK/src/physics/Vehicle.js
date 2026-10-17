@@ -569,16 +569,26 @@ export class Vehicle {
     }
 
     // ---------------------------------------------------------------- drivetrain (wheel spin)
-    const bt = this._bt || (this._bt = [0, 0, 0, 0]);
+    const bt = this._bt || (this._bt = [0, 0, 0, 0]), abs = this._abs || (this._abs = [1, 1, 1, 1]);
+    // ABS: a wheel braked past its tyre's peak slip has its pressure let off until it rolls again, so the tyre stays
+    // near its best grip and keeps steering (a locked tyre slides straight on, wherever the wheels point). Loose
+    // ground has no peak to hold (and a locked tyre ploughs a wedge that helps it stop): there it lets the wheel slip
+    // further. Both wheels of an axle get the pressure the one nearer locking can take, so a hard stop runs straight.
+    // Not the handbrake, which locks the rear wheels to turn on the spot
     for (let i = 0; i < 4; i++) {
-      const ax = this.axles[i < 2 ? 0 : 1].spec;
-      let b = brake * ax.brake;
+      const w = this.wheels[i];
+      abs[i] = 1;
+      if (brake > 0 && w.contact && Math.abs(w.vx) > 1) {
+        const lock = -Math.sign(w.vx) * w.kappa / (tyre.kappaPeak * w.surf.slip), peak = w.surf.C > 1.0001 ? 1 : 1.8;
+        abs[i] = 1 - 0.9 * smoothstep(peak * 0.8, peak * 1.3, lock);
+      }
+    }
+    for (let i = 0; i < 4; i++) {
+      const ax = this.axles[i < 2 ? 0 : 1].spec, w = this.wheels[i];
+      let b = brake * ax.brake * Math.min(abs[i & 2], abs[(i & 2) + 1]);
       // load-sensing proportioning valve: the rear brakes get no more pressure than the (lightly loaded) rear tyres
       // can use, so a hard stop doesn't lock the rear and spin the truck
-      if (i >= 2) {
-        const w = this.wheels[i];
-        b = Math.min(b, Math.max(250, 1.15 * (w.mu || 0.8) * (w.N || 0) * r));
-      }
+      if (i >= 2) b = Math.min(b, Math.max(250, 1.15 * (w.mu || 0.8) * (w.N || 0) * r));
       bt[i] = b + hand * (ax.handbrake || 0);
     }
     // brake locking (the Thar's front diff; a modern truck's traction control on both axles): under power, a wheel
