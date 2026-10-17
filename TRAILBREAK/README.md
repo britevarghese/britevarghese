@@ -627,8 +627,8 @@ Everything that makes off-roading off-roading is simulated, not faked:
   steering wheel's force-feedback motor, so wheels don't rumble.
 
 The ground is checked against what real 4x4s do on it (`test/surfaces.test.mjs`): a stock truck in low range climbs
-about 35 degrees of rock, 30 of dirt or gravel, 25 of grass, 12-15 of soft sand, mud or snow (several degrees more
-aired down to 15 psi) and 4 of ice; it stops from 50 km/h in about 13 m on the road, 17 m on grass and 100 m on ice;
+about 35 degrees of rock, 30 of dirt, gravel or grass, 12-15 of soft sand, mud or snow (several degrees more aired
+down to 15 psi) and 4 of ice; it stops from 50 km/h in about 12 m on the road, 15 m on grass and 100 m on ice;
 soft sand and mud drag like a brake. Down a steep hill in low range the gearbox holds first and the engine holds the
 truck back (a granny-geared four-speed crawls down at walking pace).
 
