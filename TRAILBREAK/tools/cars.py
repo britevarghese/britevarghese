@@ -475,6 +475,26 @@ def main(src_dir, cfg_path, out_dir):
         return mean[inv[keep]], n[keep], u[keep]
 
     def emit(name, t, n, u, mi, role, hu):
+        # where the eye goes (the cab seen from the driver's seat, the bed from the chase camera) is kept finer than the
+        # rest: cfg "gentle", boxes in the game's frame [x0, y0, z0, x1, y1, z1] with their own (lighter) reduction and
+        # clustering cell; a triangle goes to the first box its middle is in
+        regions = cfg.get('gentle', [])
+        if regions and len(t) > 64 and role not in ('glass', 'screen', 'rim'):
+            c, done = t.mean(1), np.zeros(len(t), bool)
+            for gi, rg in enumerate(regions):
+                b = np.array(rg['box'])
+                inside = ~done & np.all((c >= b[:3]) & (c <= b[3:]), axis=1)
+                if inside.any():
+                    emit_one(f'{name}:g{gi}', t[inside], n[inside], u[inside], mi, role, hu, rg)
+                    stats[gi] = stats.get(gi, 0) + int(inside.sum())
+                done |= inside
+            t, n, u = t[~done], n[~done], u[~done]
+            if not len(t): return
+        emit_one(name, t, n, u, mi, role, hu, None)
+
+    stats = {}
+
+    def emit_one(name, t, n, u, mi, role, hu, region):
         mat = material(mi, role)
         # (no texture on it: no uvs either, and the corners weld without them)
         mj = out.j['materials'][mat]
@@ -482,6 +502,7 @@ def main(src_dir, cfg_path, out_dir):
             hu = False
             u = np.zeros_like(u)
         cm = cfg.get('cellMat', {}).get(str(mi), cell)                     # (per material too: {"0": 0.02})
+        if region is not None: cm = min(cm, region.get('cell', 0)) if cm else 0
         if cm and role not in ('glass', 'screen', 'rim') and len(t) > 64:
             t, n, u = cluster(t, n, u, hu, cm)
             if not len(t): return
@@ -495,6 +516,7 @@ def main(src_dir, cfg_path, out_dir):
         red = cfg.get('reduce', 0)
         if isinstance(red, dict): red = red.get(role, red.get('*', 0))      # (per role: {"paint": 0.5, "*": 0.75})
         red = cfg.get('reduceMat', {}).get(str(mi), red)                    # (and per material: {"0": 0.95})
+        if region is not None: red = min(red, region.get('reduce', red))
         if role == 'rim': red = cfg.get('rimReduce', 0)                      # (a rim drawn on every wheel: only if asked)
         if red and len(tri) > cfg.get('reduceOver', 3000) and role not in ('glass', 'screen'):
             pos, nor, uv, tri = simplify(flat, fnr, fuv, hu, red)
@@ -547,6 +569,7 @@ def main(src_dir, cfg_path, out_dir):
     print(' wheels', {k: (v['c'], v['r']) for k, v in layout['wheels'].items()})
     print(' track', layout['track'], 'bbox', layout['bbox'], 'half', layout['half'])
     print(' heads', layout['heads'], 'tails', layout['tails'], 'rim', layout['rim'])
+    if stats: print(' gentle regions (source triangles in each):', stats)
 
 
 if __name__ == '__main__':
