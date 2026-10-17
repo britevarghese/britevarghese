@@ -27,7 +27,7 @@
 
 import { V3, Quat, clamp, smoothstep, lerp } from './math.js';
 import { Damage } from './Damage.js';
-import { tyreForce, corneringStiffness, slipStiffness } from './Tire.js';
+import { tyreForce, corneringStiffness, slipStiffness, gripOn } from './Tire.js';
 import { Drivetrain } from './Drivetrain.js';
 import { surfaceById, SURFACES, SURFACE } from './Surfaces.js';
 
@@ -42,6 +42,9 @@ const RAY_STEP = 0.35;
 const SOIL_TAU = 0.1;
 const NO_CONTROLS = { throttle: 0, brake: 0, steer: 0, handbrake: 0 };
 const STEER_DAMP = 0.08;              // keys / sticks: wheel angle (rad) taken off per rad/s the yaw rate runs ahead
+const TC_KP = 1, TC_KI = 10;          // electric traction control: power taken off per unit of excess spin, and how fast it settles (1/s)
+const BLD_A = 1.5, BLD_K = 1500;      // brake locking: spin (rad/s) between an axle's wheels before it brakes, Nm per rad/s past that
+const ESC_K = 1, ESC_OFF = 8, ESC_ON = 2;  // stability control: power off per unit of slide, how fast it comes off and back (1/s)
 
 /** Ground normal by central differences. */
 export function groundNormal(ground, x, z, out, e = 0.3) {
@@ -140,7 +143,7 @@ export class Vehicle {
         index: i, axle: ax, side: i % 2 === 0 ? 1 : -1,            // +1 left, -1 right
         omega: 0, angle: 0, steer: 0, dx: 0, dy: 0,
         inertia: tyre.inertia, torque: 0, damp: 0,
-        contact: false, N: 0, pen: 0, slip: 0, slipSpeed: 0, surf: surfaceById(0), sink: 0, water: 0, nSoil: 0, penSoil: 0,
+        contact: false, N: 0, pen: 0, slip: 0, slipSpeed: 0, spin: 0, surf: surfaceById(0), sink: 0, water: 0, nSoil: 0, penSoil: 0,
         cx: 0, cy: 0, cz: 0, nx: 0, ny: 1, nz: 0,                  // contact point and normal (world)
         hub: new V3(), vHub: new V3(), fx: 0, fy: 0, kappa: 0, tanA: 0, vx: 0, vy: 0,
         cxDamp: 0, cyDamp: 0, Fshape: 0, FyShape: 0, rr: 0,
@@ -366,26 +369,58 @@ export class Vehicle {
     const hand = ctrl.handbrake || 0;
     if (hand > 0) { brake = Math.max(brake, hand); throttle *= 1 - hand; }
     this.pedalThrottle = throttle; this.pedalBrake = brake;
+    // how far each axle's tyres are into their grip sideways (1: at the slip angle that grips best on this ground), for
+    // the traction and stability control
+    const ap = this.spec.tyre.alphaPeak, side = this._side || (this._side = [0, 0]);
+    for (let k = 0; k < 2; k++) {
+      let sa = 0, n = 0;
+      for (let j = 2 * k; j < 2 * k + 2; j++) {
+        const w = this.wheels[j];
+        if (w.contact && w.surf) { sa += Math.abs(Math.atan2(w.vy, Math.abs(w.vx) + 0.5)) / (ap * w.surf.slip); n++; }
+      }
+      side[k] = n ? sa / n : 0;
+    }
     // traction control (a modern truck's): when every driven wheel spins well past the ground, the engine is throttled
     // back until they bite again (generous off the road: some wheel speed clears mud and snow from the tread). An
     // electric truck's motors answer in milliseconds and have far more torque than the ground takes: theirs cuts
-    // deeper and faster
+    // deeper and faster. (Wheelspin only: a truck sliding round a bend is the stability control's, below)
     if (this.spec.tc && throttle > 0) {
-      let slip = Infinity;
-      for (const w of this.wheels) if (w.contact && (w.index >= 2 || dtr.fourWD)) slip = Math.min(slip, w.slipSpeed ?? 0);
-      // (airborne, no driven wheel on the ground: an electric truck holds its motors back, or they would be at the
-      // limiter when it lands)
-      const ev = dtr.electric, over = slip === Infinity ? (ev ? 1 : -1) : slip - (1.5 + 0.2 * Math.abs(speed));
-      this.tcCut = clamp((this.tcCut ?? 1) + (over > 0 ? -(ev ? 12 : 2.5) * dt * Math.min(1, over) : (ev ? 2 : 1.2) * dt), ev ? 0.06 : 0.35, 1);
+      let slip = Infinity, give = 1;
+      for (const w of this.wheels) {
+        if (!w.contact || !(w.index >= 2 || dtr.fourWD)) continue;
+        slip = Math.min(slip, Math.abs(w.spin ?? 0));
+        give = Math.max(give, w.surf?.slip ?? 1);
+      }
+      // it holds the wheels near the slip that grips best (a tyre spun well past it has little left for steering), more
+      // of it on loose ground, where the peak comes at far more slip, less while the tyres are also holding the truck
+      // round a bend (spinning at its best grip forward, a tyre has none left to turn with); an electric truck's
+      // motors, answering in milliseconds, hold it tighter. (Airborne, no driven wheel on the ground: an electric
+      // truck holds its motors back, or they would be at the limiter when it lands)
+      const lat = Math.min(1, Math.max(side[1], dtr.fourWD ? side[0] : 0)), turning = Math.sqrt(Math.max(0.1, 1 - lat * lat));
+      const ev = dtr.electric, allow = (ev ? 0.45 + 0.1 * Math.abs(speed) : 0.9 + 0.15 * Math.abs(speed)) * give * turning;
+      if (ev) {
+        // (the motors' controller holds the spin there: it takes power off at once as the wheels spin up past it, and
+        // settles on what the ground takes, giving it back as they find grip, instead of pulsing)
+        const e = slip === Infinity ? 1 : clamp((slip - allow) / allow, -1, 2);
+        this.tcI = clamp((this.tcI ?? 1) - TC_KI * dt * Math.min(1, e), 0.06, 1);
+        this.tcCut = clamp(this.tcI - TC_KP * Math.max(0, e), 0.06, 1);
+      } else {
+        const over = slip === Infinity ? -1 : slip - allow;
+        this.tcCut = clamp((this.tcCut ?? 1) + (over > 0 ? -2.5 * dt * Math.min(1, over) : 1.2 * dt), 0.35, 1);
+      }
       throttle *= this.tcCut;
-    } else this.tcCut = 1;
+    } else { this.tcCut = 1; this.tcI = 1; }
 
     const fa = this.axles[0];
     const maxLock = fa.spec.steer;
     // keys and thumbsticks get a steering assist that keeps full lock for slow work but limits the wheel angle at speed
-    // to about 0.6 g of cornering; a real steering wheel gets the whole range
+    // to about 0.6 g of cornering, or what the front tyres grip on this ground if that is less; a real steering wheel
+    // gets the whole range
     const wb = fa.zc - this.axles[1].zc;
-    const lock = ctrl.analogSteer ? maxLock : Math.min(maxLock, Math.max(0.09, Math.atan(0.6 * GRAVITY * wb / Math.max(1, speed * speed))));
+    let muF = 0, nF = 0;
+    for (let k = 0; k < 2; k++) { const w = this.wheels[k]; if (w.contact && w.surf) { muF += gripOn(w.surf, this.spec.tyre); nF++; } }
+    const ay = Math.min(0.6, nF ? 0.85 * muF / nF : 0.6) * GRAVITY;
+    const lock = ctrl.analogSteer ? maxLock : Math.min(maxLock, Math.max(0.09, Math.atan(ay * wb / Math.max(1, speed * speed))));
     let target = -ctrl.steer * lock;                                    // + = left
     let rate = 2.6 * dt;
     // keys and thumbsticks: the turn eases in more gently the faster the truck goes (the whole lock in 0.2 s crawling,
@@ -399,6 +434,14 @@ export class Vehicle {
       // (only a swing growing: never against the truck straightening up when the steering is let go)
       const ahead = yaw - this.yawLP;
       if (ahead * yaw > 0) target -= fast * clamp(STEER_DAMP * (1 + 2 * faster) * ahead, -0.45 * lock, 0.45 * lock);
+      // at speed, the wheels turn no further into a bend than the front tyres grip: past the slip angle that grips
+      // best they only scrub and the nose ploughs on wide, so they are held there, and let back a little if the
+      // front has gone well past it
+      const at = this.steerAngle || 0;
+      if (fast > 0 && side[0] > 0.95 && target * at > 0 && Math.abs(target) > Math.abs(at)) {
+        const hold = Math.max(0, Math.abs(at) - Math.max(0, side[0] - 1.1) * 0.05);
+        target = Math.sign(at) * (Math.abs(target) + (hold - Math.abs(target)) * fast);
+      }
     }
     this.steerAngle = (this.steerAngle || 0) + clamp(target - (this.steerAngle || 0), -rate, rate);
     // Ackermann: the inner wheel turns tighter
@@ -411,6 +454,23 @@ export class Vehicle {
     }
     const toe = this.damage.toe;
     this.wheels[0].steer = dl + this.kickAngle + toe; this.wheels[1].steer = dr + this.kickAngle + toe; this.wheels[2].steer = 0; this.wheels[3].steer = 0;
+    // stability (a modern truck's ESC, and the driving assists): under power, the power comes off as soon as either end
+    // slides past what its tyres hold (the nose ploughing on wide, or the tail stepping out and swinging round), and
+    // is given back as they grip again: floored round a bend, the truck holds the line its tyres can hold instead of
+    // ploughing wide or spinning
+    if ((this.spec.tc || !ctrl.analogSteer) && throttle > 0 && speed > 3) {
+      // (the tail sooner: the rear tyres nearing the slip angle that grips best, the nose past it)
+      let over = Math.max((side[0] - 1.15) / 0.4, (side[1] - 0.9) / 0.3, 0);
+      // (the tail swinging round: turning much faster than the wheels point)
+      if (Math.abs(this.steerAngle) > 0.02 || Math.abs(yaw) > 0.3) {
+        const want = Math.abs(speed * Math.tan(this.steerAngle)) / L;
+        if (Math.abs(yaw) > want * 1.35 + 0.15) over = Math.max(over, 1);
+      }
+      // (as much off as it is past: a little slide takes a little power off, smoothly, instead of all of it in pulses)
+      const aim = clamp(1 - ESC_K * over, 0.15, 1), cut = this.escCut ?? 1;
+      this.escCut = cut + (aim - cut) * Math.min(1, (aim < cut ? ESC_OFF : ESC_ON) * dt);
+    } else this.escCut = Math.min(1, (this.escCut ?? 1) + 1.5 * dt);
+    throttle *= this.escCut;
 
     // ---------------------------------------------------------------- tyres: contact, load, slip
     const qx = this.quat;
@@ -430,7 +490,7 @@ export class Vehicle {
       w.headX = _f.x; w.headY = _f.y; w.headZ = _f.z;
       w.water = ground.water ? Math.max(0, ground.water(w.hub.x, w.hub.z) - (w.hub.y - r)) : 0;
       if (!this.contact(w, ground, _f, _w)) {
-        w.N = 0; w.fx = 0; w.fy = 0; w.slip = 0; w.slipSpeed = 0; w.sink = 0;
+        w.N = 0; w.fx = 0; w.fy = 0; w.slip = 0; w.slipSpeed = 0; w.spin = 0; w.sink = 0;
         w.nSoil *= 1 - Math.min(1, dt / SOIL_TAU); w.penSoil *= 1 - Math.min(1, dt / SOIL_TAU);
         // free tyre: the bristles relax as the tread leaves the ground
         w.dx *= 0.9; w.dy *= 0.9;
@@ -497,13 +557,20 @@ export class Vehicle {
       bt[i] = b + hand * (ax.handbrake || 0);
     }
     // brake locking (the Thar's front diff; a modern truck's traction control on both axles): under power, a wheel
-    // spinning away from the other on its axle is braked, so the open diff sends the torque to the wheel with grip
+    // spinning away from the other on its axle is braked, so the open diff sends the torque to the wheel with grip.
+    // What a turn asks of the two is left alone (the outer wheel rolls further: turning left, the right one), and the
+    // brake rises with the spin, up to about what the tyre on the ground can push with
     this.bldOn = false;
     if (throttle > 0.15) {
       for (const [k, on] of [[0, this.spec.bld?.front && dtr.fourWD], [2, this.spec.bld?.rear]]) {
         if (!on) continue;
-        const dw = this.wheels[k].omega - this.wheels[k + 1].omega, a = Math.abs(dw);
-        if (a > 4) { bt[dw > 0 ? k : k + 1] += Math.min(1400, (a - 4) * 160); this.bldOn = true; }
+        // (+: the left wheel spinning away from the right, in the way the truck is driving)
+        const wl = this.wheels[k], wr = this.wheels[k + 1];
+        const dw = (dtr.gear < 0 ? -1 : 1) * (wl.omega - wr.omega + yaw * this.axles[k >> 1].T / r), a = Math.abs(dw);
+        if (a > BLD_A) {
+          const cap = Math.max(1400, 0.8 * Math.max((wl.mu || 0.8) * (wl.N || 0), (wr.mu || 0.8) * (wr.N || 0)) * r);
+          bt[dw > 0 ? k : k + 1] += Math.min(cap, (a - BLD_A) * BLD_K); this.bldOn = true;
+        }
       }
     }
     this._dtIn = this._dtIn || { throttle: 0, brakeTorque: bt };
@@ -525,8 +592,9 @@ export class Vehicle {
     for (const ax of this.axles) { ax.QL = 0; ax.QR = 0; ax.rollM = 0; }
     // torque twist: a propshaft's torque rolls its axle housing against the chassis, lifting the right-hand wheel
     // under power (the classic one-wheel peel with an open diff), and the engine's reaction rolls the body the other
-    // way (left side up). Engine rotation clockwise seen from the front.
-    {
+    // way (left side up). Engine rotation clockwise seen from the front. (An electric truck has neither: its motors sit
+    // across the truck, turning the half-shafts)
+    if (!dtr.electric) {
       const [axF, axR] = this.axles, tr = dtr.propRear, tf = dtr.propFront;
       axR.QL -= tr / axR.T; axR.QR += tr / axR.T;
       axF.QL -= tf / axF.T; axF.QR += tf / axF.T;
@@ -547,6 +615,7 @@ export class Vehicle {
       w.fx = fx; w.fy = fy;
       const slipV = Math.hypot(w.omega * rw - w.vx, w.vy);
       w.slipSpeed = slipV;
+      w.spin = w.omega * rw - w.vx;                                      // wheelspin alone (+ = turning faster than it rolls)
       // world force: normal + friction
       _a.set(w.nx * w.N + w.fX * fx + w.sX * fy, w.ny * w.N + w.fY * fx + w.sY * fy, w.nz * w.N + w.fZ * fx + w.sZ * fy);
       // along the wheel's heading (a ledge pushes back through the tilted normal) and across it (left), for the steering

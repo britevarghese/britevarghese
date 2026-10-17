@@ -58,3 +58,29 @@ test('the Hummer EV in a metre of water: sealed, the power cut back, it keeps dr
     assert.ok(spec.engine.electric, `${p.id}: electric`);
   }
 });
+
+test('the Hummer EV flat out on grass digs in: its wheels spin evenly, near the slip that grips best, steadily, and the nose rises', () => {
+  const grass = flat(SURFACE.GRASS), v = new Vehicle(truckSpec('hummerev'));
+  v.place(grass, 0, 0, 0);
+  run(v, grass, 1, IDLE);
+  const pitch0 = Math.asin(v.fwd.y);
+  let rise = 0, apart = 0, spin = 0, n = 0;
+  const cuts = [];
+  const t40 = run(v, grass, 4, { ...IDLE, throttle: 1 }, (w) => {
+    rise = Math.max(rise, Math.asin(w.fwd.y) - pitch0);
+    if (w.tcCut < 1 || n) {                                          // once the traction control has the wheels
+      apart += (Math.abs(w.wheels[0].spin - w.wheels[1].spin) + Math.abs(w.wheels[2].spin - w.wheels[3].spin)) / 2;
+      spin += w.wheels.reduce((s, x) => s + Math.abs(x.spin), 0) / 4;
+      cuts.push(w.tcCut); n++;
+    }
+    return w.speed * 3.6 >= 40;
+  });
+  assert.ok(t40 !== null && t40 < 2.1, `0-40 km/h on grass in ${t40?.toFixed(2)} s`);
+  assert.ok(n > 50, 'the traction control at work');
+  assert.ok(apart / n < 0.3, `the wheels of an axle ${(apart / n).toFixed(2)} m/s apart`);
+  assert.ok(spin / n < 2, `wheelspin ${(spin / n).toFixed(2)} m/s`);
+  const m = cuts.reduce((a, b) => a + b, 0) / n, sd = Math.sqrt(cuts.reduce((a, b) => a + (b - m) ** 2, 0) / n);
+  assert.ok(sd < 0.06, `the power cut swings by ${sd.toFixed(3)} (mean ${m.toFixed(2)})`);
+  assert.ok(rise * 180 / Math.PI > 2, `the nose rose ${(rise * 180 / Math.PI).toFixed(2)} degrees`);
+});
+

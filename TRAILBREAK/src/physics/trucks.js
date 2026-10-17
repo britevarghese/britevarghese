@@ -408,8 +408,8 @@ export const TRUCKS = {
     blurb: 'GMC Hummer EV Edition 1: the electric supertruck. 136" wheelbase, three motors and 1,000 hp, all of its torque from a standstill, e-lockers at both ends, air suspension, 35s. Four tons, silent, very quick.',
     mass: 4110, cgHeight: 0.8, cgZ: 0, inertiaBox: [2.0, 1.25, 4.8],
     axles: [
-      { z: 1.7225, track: 1.87, springTrack: 1.32, rate: 88000, bump: 4700, rebound: 9400, travel: 0.25, sag: 0.1, mass: 145, steer: 0.55, brake: 7600, swayBar: 30000, ifs: true, armDrop: 0.08 },
-      { z: -1.7225, track: 1.87, springTrack: 1.32, rate: 90000, bump: 4700, rebound: 9400, travel: 0.25, sag: 0.1, mass: 145, steer: 0, brake: 5800, handbrake: 6400, ifs: true, armDrop: 0.08 },
+      { z: 1.7225, track: 1.87, springTrack: 1.32, rate: 64000, bump: 4500, rebound: 9000, travel: 0.25, sag: 0.1, mass: 145, steer: 0.55, brake: 7600, swayBar: 30000, ifs: true, armDrop: 0.08 },
+      { z: -1.7225, track: 1.87, springTrack: 1.32, rate: 66000, bump: 4500, rebound: 9000, travel: 0.25, sag: 0.1, mass: 145, steer: 0, brake: 5800, handbrake: 6400, ifs: true, armDrop: 0.08 },
     ],
     trans: { tcK: 8, efficiency: 0.94 },
     stock: { tyre: 35, tread: 1, axle: 12.5, trans: EV_TRANS, fit: 37, low: 1, diffs: 3, wheels: 0, psi: 40 },

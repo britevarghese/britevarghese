@@ -191,6 +191,26 @@ test('traction control: flat out up a snowy slope the tyres spin far less, and t
   assert.ok(on.climbed > off.climbed * 0.9, `climbed ${on.climbed.toFixed(1)} m with it, ${off.climbed.toFixed(1)} without`);
 });
 
+test('stability control: floored round a full-lock bend on the keys, a truck circles at its grip instead of spinning or crawling', () => {
+  for (const [id, surf, kmh, g] of [['hummerev', SURFACE.ROAD, 45, 0.55], ['hummerev', SURFACE.GRASS, 40, 0.4], ['bronco', SURFACE.DIRT, 55, 0.4], ['thar', SURFACE.GRASS, 40, 0.3]]) {
+    const ground = flat(surf), v = truck(id, ground);
+    run(v, ground, 0.5);
+    v.vel.set(0, 0, 25 / 3.6);
+    let slide = 0, sp = 0, ay = 0, n = 0, i = 0;
+    const N = Math.round(5 / PHYS_DT);
+    run(v, ground, 5, (w) => {
+      const s = Math.hypot(w.vel.x, w.vel.z);
+      if (s > 3) slide = Math.max(slide, Math.abs(Math.atan2(w.vel.dot(w.right), w.vel.dot(w.fwd))));
+      if (i++ > N - 2 / PHYS_DT) { sp += s; ay += s * Math.abs(w.angVel.y); n++; }
+      return { ...IDLE, throttle: 1, steer: 1 };
+    });
+    const at = `${id} on ${Object.keys(SURFACE).find((k) => SURFACE[k] === surf)}`;
+    assert.ok(slide * 180 / Math.PI < 16, `${at}: slid ${(slide * 180 / Math.PI).toFixed(1)} degrees`);
+    assert.ok(sp / n * 3.6 > kmh, `${at}: circling at ${(sp / n * 3.6).toFixed(0)} km/h`);
+    assert.ok(ay / n / GRAVITY > g, `${at}: ${(ay / n / GRAVITY).toFixed(2)} g round the bend`);
+  }
+});
+
 test('a modern automatic kicks straight down to the gear it needs and holds its gear on a climb; an older one steps', () => {
   const box = (id) => { const s = truckSpec(id); return new Drivetrain(s.engine, s.trans, s.diffs); };
   // flat out at a crawl in low range in a tall gear: the ten-speed drops to first at once, the five-speed one gear

@@ -173,8 +173,11 @@ with M when you shift yourself) and the tyre pressure. ENGINE OFF / FLOODED appe
 
 Steering wheels are detected by name and get the full steering range; keys and thumbsticks get a steering assist
 (full lock at walking pace, gentler at speed: the wheels ease round more slowly the faster you go, and the truck's swing
-into a turn is damped, so it settles into the turn instead of lurching and wobbling) that you can turn off in the
-pause menu. On phones and tablets,
+into a turn is damped, so it settles into the turn instead of lurching and wobbling; at speed they turn no further than
+the front tyres grip on that ground, so the nose doesn't plough on wide) that you can turn off in the pause menu. With
+it on, every truck also gets stability control, as the modern trucks have anyway: floored round a bend, the power comes
+off the moment the nose starts to plough wide or the tail steps out, and comes back as the tyres grip again, so the
+truck holds the line its tyres can hold instead of spinning round. On phones and tablets,
 on-screen controls appear: steering on the left, pedals on the right, buttons for the winch, recovery, range, locks,
 camera, map and menu (play in landscape).
 
@@ -356,8 +359,11 @@ also slow: 0-60 km/h takes 21 seconds and it tops out at 85 km/h.
 The **GMC Hummer EV** is electric. Its motors are geared straight to the axles (12.5:1, one gear), so it has all of its
 torque from a standstill and nothing to shift: 0-100 km/h in under 4 seconds, four tons and all. There is no idle, so
 it doesn't creep: it sits silent until you press the pedal. Lift off and the motors brake it, charging the battery
-(one-pedal driving, stronger than an engine in gear). Its traction control is a motor's: it cuts the torque in
-milliseconds when every wheel spins, and holds the motors back in the air. No air intake to drown: in deeper water
+(one-pedal driving, stronger than an engine in gear). Its traction control is a motor's: it holds the wheels at the
+slip that grips best, taking torque off the instant they spin past it and giving it back as they bite (less spin still
+while the tyres are holding it round a bend), and the brakes stop any wheel spinning away from the other on its axle,
+so even on grass it digs in and goes instead of spinning; in the air it holds the motors back. On its air springs the
+nose rises and the tail squats as it launches, as the real truck's does. No air intake to drown: in deeper water
 than its battery is sealed for (32 inches) the power is cut back instead. The dial shows its power (kW) instead of the
 revs, green while it regenerates, and it sounds like an electric truck: the motors' whine rising with the speed, the
 inverters, and a low hum at walking pace. The garage takes everything but a gearbox, a crawl box or a snorkel.
@@ -372,8 +378,9 @@ The Thar's front is independent: each front wheel rides its own wishbones, and t
 rear auto-locker locks the rear axle by itself when a wheel spins below about 30 km/h (the HUD shows MLD LOCKED), and in
 4WD the brakes hold back a spinning front wheel. The mHawk diesel pulls its 300 Nm from 1,600 to 2,800 rpm; the garage
 has a remap, the mStallion 2.0 turbo-petrol and the six-speed automatic for it. The Bronco and the Wrangler have
-traction control: with the lockers off, the brakes hold back a wheel that spins away from the other on either axle, and
-when every wheel spins, the engine is throttled back until they bite. The Bronco's ten-speed automatic (as the garage's
+traction control: with the lockers off, the brakes hold back a wheel that spins away from the other on either axle
+(but not the outer wheel rolling further round a bend), and when every wheel spins, the engine is throttled back until
+they bite, sooner while the tyres are also turning the truck. The Bronco's ten-speed automatic (as the garage's
 six-speed) reads the grade: it holds its gear while a climb slows the truck, and skips straight down several gears when
 it must.
 
