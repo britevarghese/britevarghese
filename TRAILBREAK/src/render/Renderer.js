@@ -3,6 +3,7 @@
 import * as THREE from 'three';
 import { Sky } from './Sky.js';
 import { Post } from './Post.js';
+import { Probe } from './Probe.js';
 
 // The haze (every material's fog, replacing three.js's): the air between the camera and what it sees scatters light
 // toward the eye (Beer-Lambert: a share 1 - exp(-optical depth) of the colour becomes the haze's), and the air thins
@@ -79,10 +80,12 @@ export class Renderer {
     this.focus = new THREE.Vector3();
     this.hour = 16.5;
     this.setTime(this.hour);
-    // post-processing, where the browser can draw into floating-point targets; subject: the player's truck (it moves
-    // with the camera: the motion blur leaves it sharp)
+    // post-processing, where the browser can draw into floating-point targets; subject: the player's truck model (it
+    // moves with the camera: the motion blur leaves it sharp; on 'high' it reflects the world round it, render/Probe.js)
     this.post = Post.supported(this.renderer) ? new Post(this.renderer) : null;
     this.postOn = !!this.post;
+    this.probe = null;
+    this.probeOn = !!this.post;
     this.subject = null;
 
     this.resize();
@@ -134,6 +137,8 @@ export class Renderer {
     }
     this.postOn = !!this.post && q !== 'low';
     if (this.postOn) this.post.setQuality(q);
+    this.probeOn = !!this.post && q === 'high';
+    if (!this.probeOn) this.probe?.detach();
     this.resize();
   }
 
@@ -171,7 +176,13 @@ export class Renderer {
       this.envAt = now;
     }
     this.sky.follow(this.camera);
-    if (this.postOn) this.post.render(this.scene, this.camera, this.frameDt ?? 1 / 60, this.subject);
+    if (this.postOn) this.post.render(this.scene, this.camera, this.frameDt ?? 1 / 60, this.subject?.root);
     else this.renderer.render(this.scene, this.camera);
+    // a face of the world round the player's truck, for its reflections (after the frame: its shadows are drawn)
+    if (this.probeOn && this.subject) {
+      this.probe ||= new Probe();
+      if (this.probe.model !== this.subject) this.probe.attach(this.subject, this.scene.environmentIntensity);
+      this.probe.update(this.renderer, this.scene);
+    }
   }
 }

@@ -536,7 +536,8 @@ Everything that makes off-roading off-roading is simulated, not faked:
   brightest light (the sun, its glints on paint, chrome and water, lamps at night) blooms into what is round it. A
   filmic tone curve, a little more contrast and colour, cool shadows and warm highlights and a soft vignette finish
   it. The haze thickens with distance and thins with height (valleys are hazier than the hilltops) and glows toward
-  the sun.
+  the sun. On High your truck's paint, glass and chrome reflect the world round it, the road, the trees and the sky
+  going by (a small cube map drawn a face a frame, render/Probe.js), not the sky alone.
 - **Winch:** a steel line with a stall-limited motor (line speed falls with load). Hook a tree to pull yourself
   out, or hook a friend's truck: your truck holds on its brakes and theirs feels the line tension.
 - **Steering kickback:** the forces on the front tyres turn the wheels about their kingpins (a tyre shoved back by a
@@ -634,7 +635,7 @@ src/render/               Renderer, Sky, Terrain (LOD patches), Vegetation, Tea 
                           his hands on the wheel; DriverAssets loads him, Driver draws one while he loads), TruckAssets
                           (each truck's real model) and TruckBodies (built-in bodies that stand in while a model loads),
                           Effects (particles, winch line), EventCourse (start banners, gates), Post (motion blur,
-                          bloom and the grade)
+                          bloom and the grade), Probe (the reflections on the player's truck)
 src/core/                 Game (the loop), Input, CameraRig
 src/game/                 Career (money, trucks, parts, best times), Events (the courses, runs, medals, races),
                           EventPlay (events in the game: start lines, countdown, clock, prizes, races with friends)

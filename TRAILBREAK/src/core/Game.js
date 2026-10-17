@@ -64,7 +64,7 @@ export class Game {
     this.vehicle.damage.setLevel(this.settings.damage);
     this.model = modelFor(this.spec, this.truckId, this.paint);
     this.scene.add(this.model.root);
-    this.renderer.subject = this.model.root;
+    this.renderer.subject = this.model;
     this.garageSpot = this.world.landmarks.find((L) => L.type === 'garage');
     this.stationSpot = this.world.landmarks.find((L) => L.type === 'station');
     this.cam = new CameraRig(this.renderer.camera, this.world);
@@ -331,7 +331,7 @@ export class Game {
     this.model = modelFor(this.spec, this.truckId, this.paint);
     this.model.setDirt(this.dirt);
     this.scene.add(this.model.root);
-    this.renderer.subject = this.model.root;
+    this.renderer.subject = this.model;
     this.attachLights();
     this.rope.mat.color.set(this.spec.winch.synthetic ? 0xd0571e : 0x2b2b28);
     if (toGarage) this.placeAtGarage(); else v.place(this.world, pose.x, pose.z, pose.yaw);
