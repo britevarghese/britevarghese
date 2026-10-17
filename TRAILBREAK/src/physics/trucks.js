@@ -198,7 +198,7 @@ export const TRUCKS = {
     roofY: 1.96, cabZ: 0.55, noseZ: 1.95, rackZ: -0.6,
     intakePos: [-0.62, 0.98, 1.7], snorkelPos: [-0.9, 2.05, 0.95],
     winch: { fairlead: [0, 0.66, 2.15] },
-    eye: [0.42, 1.6, 0.0], hoodEye: [0, 1.42, 1.45],
+    eye: [-0.42, 1.6, 0.0], hoodEye: [0, 1.42, 1.45],                    // (right-hand drive, as the model is)
     drag: { cd: 0.65, area: 3.2 },
     buoyancy: 0.3,
     shafts: [5500, 7000], tyreLoad: 5000, parts: 1.0,
