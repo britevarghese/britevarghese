@@ -12,7 +12,9 @@ Nothing to install for players: they open the server's address in Chrome, Edge o
   real 3D models, and the boulders and buildings are built from code. The ground wears photo-scanned textures (grass,
   pine-needle forest floor, trail dirt, gravel, rock, mud, sand, snow, river stones; for Kerala red laterite, granite,
   red mud, the leaf litter and the roads: 9 MB in all), blended per metre by their height maps. The trees are ten real
-  species (game models, 5 MB): the full model close up, and beyond that a picture of it rendered when the game starts.
+  species (game models, 5 MB): the full model close up, and beyond that pictures of it rendered from eight sides when
+  the game starts, each far tree showing the one from the side you see its model from (so it doesn't change shape, or
+  lean another way, as its model takes over when you drive up).
   Meadow grass grows in tufts around you, the sky has drifting clouds and stars, and everything is lit by (and the paint
   and water reflect) that sky. Water is as clear or as muddy as it is deep.
 - **Physics:** written for off-roading, running at 480 Hz (see [The physics](#the-physics)).

@@ -30,12 +30,17 @@ export const TREE_SETS = {
     // the giants' hanging moss left off: near-white wisps that blur into pale grey sheets a little way off (hung over
     // the roads like ghosts of trees) and thin to nothing as you come up to them. Its own materials, and in the two
     // leaf atlases the strip of it across their tops (the cards drawn wholly from above v = 0.295)
-    skip: { jungle: [1, 5, 7] },
+    // And their lianas (material 3, nothing else): 370 dark strands hanging from the crown's edge to a few metres off
+    // the ground, a few metres out from the trunk, that over a road read from a little way off as thin trunks standing
+    // in it.
+    skip: { jungle: [1, 3, 5, 7] },
     cut: { jungle: { 4: 0.295, 6: 0.295 } },
   },
 };
 const FAR = 2400;
-const TILE_W = 256, TILE_H = 512;
+// each species is pictured from VIEWS bearings round it, and a far tree's card shows the picture from the bearing the
+// camera has on it, turned as its model is (so the card is the model as it stands, not one side of it for every tree)
+const VIEWS = 8;
 // a tree changes from its model to its picture across a band short of its near range (its share of each pixel
 // dithered between the two, so neither pops); the lists it is in are kept wide of the band by the refill step
 const BAND = 0.25, MARGIN = 14;
@@ -256,9 +261,11 @@ export class Vegetation {
     this._c = new THREE.Color(); this._up = new THREE.Vector3(0, 1, 0);
   }
 
-  /** Pictures of each species from the side (colour with alpha, and normals), and the cards that show them. */
+  /** Pictures of each species from VIEWS bearings round it (colour with alpha, and normals), and the cards. */
   bakeImpostors(gl) {
-    const N = this.kinds.length, W = TILE_W * N, H = TILE_H;
+    // (a picture 192 x 384 where the graphics card takes a texture tall enough for all the bearings, else 128 x 256)
+    const TW = gl.capabilities.maxTextureSize >= 384 * VIEWS ? 192 : 128, TH = TW * 2;
+    const N = this.kinds.length, W = TW * N, H = TH * VIEWS;
     const colorRT = new THREE.WebGLRenderTarget(W, H, { colorSpace: THREE.SRGBColorSpace, generateMipmaps: true, minFilter: THREE.LinearMipmapLinearFilter, magFilter: THREE.LinearFilter, samples: 0 });
     const normalRT = new THREE.WebGLRenderTarget(W, H, { generateMipmaps: true, minFilter: THREE.LinearMipmapLinearFilter, magFilter: THREE.LinearFilter });
     const scene = new THREE.Scene();
@@ -279,19 +286,23 @@ export class Vegetation {
       this.kinds.forEach((name, k) => {
         const a = this.assets[name], r = a.radius * 1.04;
         const cam = new THREE.OrthographicCamera(-r, r, 1.01, -0.01, 0.1, 10);
-        cam.position.set(0, 0, 5); cam.lookAt(0, 0.5, 0); cam.position.set(0, 0, 5);
-        cam.lookAt(new THREE.Vector3(0, 0, 0));
         cam.updateProjectionMatrix();
         const mats = [];
         for (const gr of a.groups) {
           const m = pass.mat(gr); mats.push(m);
           scene.add(new THREE.Mesh(gr.geometry, m));
         }
-        gl.setViewport(k * TILE_W, 0, TILE_W, TILE_H);
-        gl.setScissor(k * TILE_W, 0, TILE_W, TILE_H);
-        gl.setScissorTest(true);
-        gl.render(scene, cam);
-        gl.setScissorTest(false);
+        // (bearing v: the camera at v / VIEWS of a turn round the model, from +z toward +x; a row of the atlas each)
+        for (let v = 0; v < VIEWS; v++) {
+          const b = v / VIEWS * Math.PI * 2;
+          cam.position.set(5 * Math.sin(b), 0, 5 * Math.cos(b));
+          cam.lookAt(0, 0, 0);
+          gl.setViewport(k * TW, v * TH, TW, TH);
+          gl.setScissor(k * TW, v * TH, TW, TH);
+          gl.setScissorTest(true);
+          gl.render(scene, cam);
+          gl.setScissorTest(false);
+        }
         for (let i = scene.children.length - 1; i >= 0; i--) if (scene.children[i].isMesh) scene.remove(scene.children[i]);
         for (const m of mats) m.dispose();
         if (pass.rt === colorRT) this.tiles[k] = { u0: k / N, u1: (k + 1) / N, r };
@@ -304,7 +315,7 @@ export class Vegetation {
     gl.toneMapping = prevTone;
     this.impostorColor = colorRT; this.impostorNormal = normalRT;
 
-    // one card per tree, made once (fillCards): per-instance position, size (signed width: mirrored), atlas tile, tint,
+    // one card per tree, made once (fillCards): per-instance position, size, atlas tile, tint, the turn its model has,
     // and the range inside which its model stands in for it (0: none does, the card stays)
     const cap = this.trees.count;
     const g = new THREE.InstancedBufferGeometry();
@@ -314,11 +325,13 @@ export class Vegetation {
     this.impOffset = new THREE.InstancedBufferAttribute(new Float32Array(cap * 3), 3);
     this.impSize = new THREE.InstancedBufferAttribute(new Float32Array(cap * 2), 2);
     this.impTile = new THREE.InstancedBufferAttribute(new Float32Array(cap * 3), 3);   // u0, du, tint
+    this.impYaw = new THREE.InstancedBufferAttribute(new Float32Array(cap), 1);
     this.impNear = new THREE.InstancedBufferAttribute(new Float32Array(cap), 1).setUsage(THREE.DynamicDrawUsage);
     g.setAttribute('aNear', this.impNear);
     g.setAttribute('aOffset', this.impOffset);
     g.setAttribute('aSize', this.impSize);
     g.setAttribute('aTile', this.impTile);
+    g.setAttribute('aYaw', this.impYaw);
     g.instanceCount = 0;
     g.boundingSphere = new THREE.Sphere(new THREE.Vector3(), 1e6);
     const mat = new THREE.MeshStandardMaterial({ map: colorRT.texture, alphaTest: 0.45, roughness: 0.85, metalness: 0 });
@@ -332,11 +345,12 @@ export class Vegetation {
 attribute vec3 aOffset;
 attribute vec2 aSize;
 attribute vec3 aTile;
+attribute float aYaw;
 attribute float aNear;
 varying float vFade;
 varying vec3 vRightW;
 varying vec3 vToCamW;
-varying float vFlip;
+varying float vView;
 varying float vTint;`)
         .replace('#include <uv_vertex>', `#include <uv_vertex>
 #ifdef USE_MAP
@@ -347,10 +361,12 @@ varying float vTint;`)
 vec3 toCam = cameraPosition - aOffset; toCam.y = 0.0;
 toCam = normalize(toCam + vec3(1e-4, 0.0, 0.0));
 vec3 rightW = vec3(toCam.z, 0.0, -toCam.x);
-vRightW = rightW; vToCamW = toCam; vFlip = sign(aSize.x); vTint = aTile.z;
+vRightW = rightW; vToCamW = toCam; vTint = aTile.z;
+// the camera's bearing on the tree in the model's own turn, in pictures (0 .. VIEWS)
+vView = fract((atan(toCam.x, toCam.z) - aYaw) / 6.2831853) * ${VIEWS.toFixed(1)};
 float dCam = length(aOffset.xz - cameraPosition.xz);
 vFade = aNear > 0.0 ? smoothstep(aNear * ${(1 - BAND).toFixed(3)}, aNear, dCam) : 1.0;
-vec3 transformed = aOffset + rightW * position.x * abs(aSize.x) * vFlip + vec3(0.0, position.y * aSize.y, 0.0);`);
+vec3 transformed = aOffset + rightW * position.x * aSize.x + vec3(0.0, position.y * aSize.y, 0.0);`);
       sh.fragmentShader = sh.fragmentShader
         .replace('#include <common>', `#include <common>
 uniform sampler2D uNormalAtlas;
@@ -360,15 +376,19 @@ varying float vFade;
 ${IGN}
 varying vec3 vRightW;
 varying vec3 vToCamW;
-varying float vFlip;
+varying float vView;
 varying float vTint;`)
         .replace('#include <clipping_planes_fragment>', `#include <clipping_planes_fragment>
-if (ign(gl_FragCoord.xy) < 1.0 - vFade) discard;`)
+if (ign(gl_FragCoord.xy) < 1.0 - vFade) discard;
+// the pictures from the two bearings either side of the camera's, dithered between as it turns
+float vLow = floor(vView), vPick = mod(ign(gl_FragCoord.yx + 7.0) < vView - vLow ? vLow + 1.0 : vLow, ${VIEWS.toFixed(1)});
+vec2 tUv = vec2(vMapUv.x, (vPick + vMapUv.y) / ${VIEWS.toFixed(1)});`)
+        .replace('#include <map_fragment>', `diffuseColor *= texture2D(map, tUv);`)
         .replace('#include <color_fragment>', `#include <color_fragment>
 diffuseColor.rgb *= vTint;`)
         .replace('#include <normal_fragment_begin>', `
-vec3 nT = texture2D(uNormalAtlas, vMapUv).xyz * 2.0 - 1.0;
-vec3 nW = normalize(vRightW * nT.x * vFlip + vec3(0.0, 1.0, 0.0) * nT.y + vToCamW * nT.z);
+vec3 nT = texture2D(uNormalAtlas, tUv).xyz * 2.0 - 1.0;
+vec3 nW = normalize(vRightW * nT.x + vec3(0.0, 1.0, 0.0) * nT.y + vToCamW * nT.z);
 vec3 normal = normalize((viewMatrix * vec4(nW, 0.0)).xyz);
 vec3 nonPerturbedNormal = normal;`)
         .replace('#include <normal_fragment_maps>', '')
@@ -407,7 +427,7 @@ if (vFade <= 0.0 || dCam > ${FAR.toFixed(1)}) gl_Position = vec4(0.0, 0.0, -2.0,
     this.grid = { x0, z0, nx, nz, start, idx };
   }
 
-  /** A tree's own random numbers (its turn, mirror and tint; its width), the same for its model and its card. */
+  /** A tree's own random numbers (its turn and tint; its width), the same for its model and its card. */
   rand(i) {
     const h1 = Math.sin(i * 12.9898) * 43758.5453, h2 = Math.sin(i * 78.233) * 12543.123;
     return [h1 - Math.floor(h1), h2 - Math.floor(h2)];
@@ -419,18 +439,19 @@ if (vFade <= 0.0 || dCam > ${FAR.toFixed(1)}) gl_Position = vec4(0.0, 0.0, -2.0,
    */
   fillCards() {
     const T = this.trees, n = T.count, K = this.kindOf;
-    const off = this.impOffset.array, size = this.impSize.array, tile = this.impTile.array;
+    const off = this.impOffset.array, size = this.impSize.array, tile = this.impTile.array, yaw = this.impYaw.array;
     for (let i = 0; i < n; i++) {
       const k = K[i], [r1, r2] = this.rand(i), t = this.tiles[k];
       const ht = T.h[i], wd = ht * (0.88 + r2 * 0.24) * this.widthOf[k];
       off[i * 3] = T.x[i]; off[i * 3 + 1] = T.y[i] - 0.12; off[i * 3 + 2] = T.z[i];
-      size[i * 2] = t.r * wd * (r1 < 0.5 ? -1 : 1); size[i * 2 + 1] = ht * 1.02;
+      size[i * 2] = t.r * wd; size[i * 2 + 1] = ht * 1.02;
       tile[i * 3] = t.u0; tile[i * 3 + 1] = t.u1 - t.u0; tile[i * 3 + 2] = 0.84 + r2 * 0.3;
+      yaw[i] = r1 * 6.283;                                             // (as its model is turned: fill)
     }
     this.overflow = new Set();
     this.setCardNear();
     this.impostors.geometry.instanceCount = n;
-    this.impOffset.needsUpdate = true; this.impSize.needsUpdate = true; this.impTile.needsUpdate = true;
+    this.impOffset.needsUpdate = true; this.impSize.needsUpdate = true; this.impTile.needsUpdate = true; this.impYaw.needsUpdate = true;
     this.farCount = n;
   }
 
