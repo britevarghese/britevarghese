@@ -851,7 +851,7 @@ export class Game {
   feelGround(dt) {
     const f = this.vehicle.feel, on = this.settings.rumble !== false;
     const hit = Math.max(f.bump, Math.min(1, this.vehicle.impact / 4));
-    const seat = this.cam.mode === 'cab' || this.cam.mode === 'hood';
+    const seat = this.cam.mode !== 'chase' && this.cam.mode !== 'far';            // (a camera on the body)
     this.cam.jitter = on ? (f.texture * 0.0035 + Math.min(1, f.rough) * 0.012 + f.judder * 0.006) * (seat ? 1 : 0.4) : 0;
     if (!on) return;
     this.rumbleIn = (this.rumbleIn || 0) - dt;

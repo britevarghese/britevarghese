@@ -110,7 +110,7 @@ Without the Blueprint: **New > Web Service** with this repository, branch `claud
 | Fit the spare in place of a flat tyre (stopped) | Y | |
 | Events: start one at its start line (with friends: open a race, or join one); twice to give up | J | Right stick press |
 | Back to the ranger station (broken down: the tow truck takes it into the workshop) | Backspace | |
-| Camera: chase, far, bonnet, cab (drag to look around) | C | Y, right stick |
+| Camera: chase, far, bonnet, driver's seat, side mirror, wheel (along the front tyre and its suspension), bumper (drag to look around) | C | Y, right stick |
 | Headlights | H | D-pad right |
 | Map (zoom, pan, set a route, fast travel; or tap the minimap) | M | View |
 | Chat: the room's messages, quick phrases (or the chat button) | Enter | |

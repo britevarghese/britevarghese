@@ -1,8 +1,11 @@
-// Camera: chase (near / far), bonnet and driver's seat views. Drag the mouse (or the right stick) to look around;
-// the chase view drifts back behind the truck when you stop. The camera keeps above the ground.
+// Camera: chase (near / far), bonnet and driver's seat views, and cameras fixed to the body as a film crew would rig
+// them: in the driver's door mirror looking back along the side, low beside a front wheel looking along the tyre and
+// its suspension at work, and on the front bumper. Drag the mouse (or the right stick) to look around; the chase view
+// drifts back behind the truck when you stop. The camera keeps above the ground.
 import * as THREE from 'three';
 
-const MODES = ['chase', 'far', 'hood', 'cab'];
+const MODES = ['chase', 'far', 'hood', 'cab', 'mirror', 'wheel', 'bumper'];
+const LABELS = { chase: 'chase', far: 'far', hood: 'bonnet', cab: "driver's seat", mirror: 'side mirror', wheel: 'wheel', bumper: 'bumper' };
 
 export class CameraRig {
   constructor(camera, world) {
@@ -42,7 +45,24 @@ export class CameraRig {
   next() {
     this.mode = MODES[(MODES.indexOf(this.mode) + 1) % MODES.length];
     this.yaw = 0;
-    return this.mode;
+    return LABELS[this.mode];
+  }
+
+  /** Where a body-mounted camera sits, in the truck's frame (m: x left, height above the ground at rest, z forward),
+   *  which way it looks (rad about the vertical, 0 ahead) and its field of view. */
+  mount(spec) {
+    const e = spec.eye || [0.36, 1.6, 0], side = Math.sign(e[0]) || 1, a = spec.axles[0], r = spec.tyre.radius;
+    const half = Math.max(a.track / 2 + spec.tyre.width / 2, spec.hull?.[0] ? spec.hull[0].h[0] : 0);
+    const raise = spec.raise || 0;
+    switch (this.mode) {
+      case 'hood': { const h = spec.hoodEye || e; return [h[0], h[1] + raise, h[2], 0, 64]; }
+      // (the mirror ahead of the driver, out past the door, looking back past the flank and the rear wheel)
+      case 'mirror': return [side * (half + 0.12), e[1] + raise - 0.12, e[2] + 0.55, Math.PI - side * 0.1, 52];
+      // (out past the driver's front wheel at hub height, behind it, looking forward along the tyre)
+      case 'wheel': return [side * (half + 0.3), r + 0.08, a.z - 1.05, side * 0.2, 75];
+      case 'bumper': return [0, Math.min(0.75, r + 0.25), (spec.noseZ ?? a.z + 0.9) + 0.12, 0, 72];
+      default: return [e[0], e[1] + raise, e[2], 0, 70];
+    }
   }
 
   update(dt, truck, controls) {
@@ -88,18 +108,19 @@ export class CameraRig {
       cam.lookAt(target);
       cam.fov = 62;
     } else {
-      // seat positions in the truck's frame
+      // seats and mounts in the truck's frame (heights above the ground at rest: the frame's origin is the centre of
+      // gravity), moving with the body: over bumps the wheels and the ground move in the picture, not the truck
       const spec = truck.spec;
-      const e = (this.mode === 'hood' ? spec.hoodEye : spec.eye) || [0.36, 1.6, 0];
-      const eye = this._v.set(e[0], e[1] + (spec.raise || 0) - spec.cgHeight, e[2] - (spec.cgZ || 0));
+      const [x, h, z, look, fov] = this.mount(spec);
+      const eye = this._v.set(x, h - spec.cgHeight, z - (spec.cgZ || 0));
       eye.applyQuaternion(q).add(p);
       cam.position.copy(eye);
-      this._q.setFromAxisAngle(this._v.set(0, 1, 0), Math.PI + this.yaw);
+      this._q.setFromAxisAngle(this._v.set(0, 1, 0), Math.PI + look + this.yaw);
       cam.quaternion.copy(q).multiply(this._q);
       // a little pitch from looking
       this._q.setFromAxisAngle(this._v.set(1, 0, 0), -(this.pitch - 0.18) * 0.8);
       cam.quaternion.multiply(this._q);
-      cam.fov = this.mode === 'cab' ? 70 : 64;
+      cam.fov = fov;
       this.pos.copy(cam.position);
     }
     if (this.jitter > 0) {
