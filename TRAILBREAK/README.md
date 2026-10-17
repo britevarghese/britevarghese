@@ -162,7 +162,8 @@ turn and its sound repeats every pair of firings, so its bank is cut in pairs an
 | `d8` | Ford F-350 turbo-diesel V8 (the top of the revs from the TDI) | Hummer H1 |
 | `v6` | Acura 3.2 V6, a mic at the exhaust while driving | Wrangler, Bronco, the Pajero's V6; the NSX, the GT-R (R35), the McLaren Senna's and the Corvette Z06's flat-plane V8s |
 | `v8` | Chevrolet Caprice V8 (idle and holds), a Dodge Ram 1500 5.7 V8 pulling on the road, the V6 above 2,100 rpm | K20 Suburban, the V8 swaps, the Corvette Stingray |
-| `v8m` | a cammed V8 at idle, the Ram 1500's 5.7 HEMI pulling on the road, the V6 above 2,100 rpm | Ram Power Wagon's 6.4 HEMI, tuned V8s, the Wrangler's 392 HEMI, the G 63, the AMG GT |
+| `v8m` | a cammed V8 at idle, the Ram 1500's 5.7 HEMI pulling on the road, the V6 above 2,100 rpm | Ram Power Wagon's 6.4 HEMI, tuned V8s, the Wrangler's 392 HEMI |
+| `v8s` | a Land Rover 5.0 V8 at idle (a modern V8's smooth idle, not a cammed one's lope), the Ram 1500's 5.7 HEMI pulling on the road, the V6 above 2,100 rpm | the G 63 (and its V12), the AMG GT, the Defender's OCTA V8, the M4 CSL's S63 swap |
 | `v10` | Audi R8 V10 (idle, the fall from 4,100 rpm, holds from 2,100 to 4,100), cut in pairs of firings | Lamborghini Huracán, Audi R8 |
 | `i6` | Jaguar E-type 4.2 straight six | BMW M4 CSL, Toyota Supra, Skyline GT-R (R34) |
 | `f6` | a Porsche 911 flat-six at idle and revving (each bank of three beating at half the firing rate), the Jaguar six and the Acura V6 filling the revs | Porsche 911 Turbo (930) |

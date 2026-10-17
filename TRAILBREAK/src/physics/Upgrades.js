@@ -259,7 +259,7 @@ const ENGINE = {
   // 3,000; and the Defender OCTA's 4.4 twin-turbo V8, mild hybrid: 467 kW at 6,000-7,000, 750 Nm from 1,800 to 5,855
   D30I6: { name: 'D350 3.0 straight-six diesel', idleRpm: 700, redline: 4500, limiter: 4700, inertia: 0.3, friction: [16, 0.024], bank: 'd6', turbo: 2, sound: 'i6_bmw', pitch: 0.64, mass: 0, loud: 1.05, bass: 3, diesel: true,
     torque: [[600, 300], [1000, 520], [1250, 640], [1500, 700], [3000, 700], [3500, 668], [4000, 613], [4400, 545], [4700, 430], [5000, 200]] },
-  V8_44TT: { name: '4.4 twin-turbo V8', idleRpm: 650, redline: 7000, limiter: 7200, inertia: 0.26, friction: [17, 0.022], bank: 'v8', turbo: 2, sound: 'v8_muscle', pitch: 1.04, mass: 40, loud: 1.3, bass: 5,
+  V8_44TT: { name: '4.4 twin-turbo V8', idleRpm: 650, redline: 7000, limiter: 7200, inertia: 0.26, friction: [17, 0.022], bank: 'v8s', turbo: 2, sound: 'v8_muscle', pitch: 1.04, mass: 40, loud: 1.3, bass: 5,
     torque: [[600, 360], [1000, 500], [1400, 650], [1800, 750], [5855, 750], [6500, 686], [7000, 637], [7400, 420]] },
   I6_60TD: { name: 'I6 6.0 turbo-diesel', idleRpm: 650, redline: 2800, limiter: 3000, inertia: 0.8, friction: [30, 0.036], bank: 'd6', turbo: 1, sound: 'i6_bmw', pitch: 0.52, mass: 70,
     torque: [[500, 320], [800, 450], [1200, 570], [1500, 600], [1800, 592], [2200, 560], [2600, 505], [2800, 470], [3100, 300]] },
@@ -268,13 +268,13 @@ const ENGINE = {
   // S63 4.4 twin-turbo V8: 467 kW at 6,000, 750 Nm from 1,800 to 5,950
   S58: { name: 'S58 3.0 twin-turbo straight-six', idleRpm: 750, redline: 7200, limiter: 7400, inertia: 0.16, friction: [12, 0.02], bank: 'i6', turbo: 2, sound: 'i6_bmw', pitch: 1, mass: 0, cyl: 6, loud: 1.2, bass: 3,
     torque: [[700, 300], [1200, 430], [2000, 590], [2750, 650], [5950, 650], [6250, 619], [6800, 560], [7200, 505], [7600, 300]] },
-  S63: { name: 'S63 4.4 twin-turbo V8', idleRpm: 700, redline: 7000, limiter: 7200, inertia: 0.2, friction: [14, 0.022], bank: 'v8m', turbo: 2, sound: 'v8_muscle', pitch: 1, mass: 45, cyl: 8, loud: 1.35, bass: 5,
+  S63: { name: 'S63 4.4 twin-turbo V8', idleRpm: 700, redline: 7000, limiter: 7200, inertia: 0.2, friction: [14, 0.022], bank: 'v8s', turbo: 2, sound: 'v8_muscle', pitch: 1, mass: 45, cyl: 8, loud: 1.35, bass: 5,
     torque: [[700, 400], [1200, 560], [1800, 750], [5950, 750], [6500, 668], [7000, 600], [7400, 350]] },
   // the AMG GT S's M178 4.0 twin-turbo V8 (its turbos inside the vee): 375 kW at 6,250, 650 Nm from 1,750 to 4,750;
   // and the GT R's: 430 kW at 6,250, 700 Nm from 1,900 to 5,500
-  M178S: { name: 'M178 4.0 twin-turbo V8', idleRpm: 700, redline: 7000, limiter: 7200, inertia: 0.19, friction: [14, 0.022], bank: 'v8m', turbo: 2, sound: 'v8_muscle', pitch: 1, mass: 0, cyl: 8, loud: 1.4, bass: 6,
+  M178S: { name: 'M178 4.0 twin-turbo V8', idleRpm: 700, redline: 7000, limiter: 7200, inertia: 0.19, friction: [14, 0.022], bank: 'v8s', turbo: 2, sound: 'v8_muscle', pitch: 1, mass: 0, cyl: 8, loud: 1.4, bass: 6,
     torque: [[700, 380], [1200, 540], [1750, 650], [4750, 650], [5500, 620], [6250, 573], [6800, 515], [7200, 460], [7600, 280]] },
-  M178R: { name: 'M178 4.0 twin-turbo V8 (GT R)', idleRpm: 700, redline: 7200, limiter: 7400, inertia: 0.19, friction: [14, 0.022], bank: 'v8m', turbo: 2, sound: 'v8_muscle', pitch: 1, mass: 0, cyl: 8, loud: 1.45, bass: 6,
+  M178R: { name: 'M178 4.0 twin-turbo V8 (GT R)', idleRpm: 700, redline: 7200, limiter: 7400, inertia: 0.19, friction: [14, 0.022], bank: 'v8s', turbo: 2, sound: 'v8_muscle', pitch: 1, mass: 0, cyl: 8, loud: 1.45, bass: 6,
     torque: [[700, 400], [1200, 570], [1900, 700], [5500, 700], [6250, 657], [6900, 590], [7200, 540], [7600, 300]] },
   // the C8 Stingray's LT2 6.2 pushrod V8 (with the Z51's exhaust): 369 kW at 6,450 rpm, 637 Nm at 5,150; and the Z06's
   // LT6 5.5 flat-plane V8: 499 kW at 8,400, 623 Nm at 6,300
@@ -344,9 +344,9 @@ const ENGINE = {
     torque: [[800, 300], [2000, 405], [3000, 465], [4000, 505], [5000, 540], [6000, 568], [6600, 580], [7500, 562], [8000, 544], [8700, 500], [9000, 310]] },
   // the G 63's M157 5.5 twin-turbo V8 (2015): 420 kW at 5,500 rpm, 760 Nm from 1,750 to 5,250; and the G 65's M279
   // 6.0 twin-turbo V12: 463 kW at 4,800-5,100, 1,000 Nm from 2,300 to 4,300
-  M157: { name: 'M157 5.5 twin-turbo V8', idleRpm: 650, redline: 6500, limiter: 6700, inertia: 0.24, friction: [17, 0.025], bank: 'v8m', turbo: 2, sound: 'v8_muscle', pitch: 1, mass: 0, cyl: 8, loud: 1.4, bass: 6,
+  M157: { name: 'M157 5.5 twin-turbo V8', idleRpm: 650, redline: 6500, limiter: 6700, inertia: 0.24, friction: [17, 0.025], bank: 'v8s', turbo: 2, sound: 'v8_muscle', pitch: 1, mass: 0, cyl: 8, loud: 1.4, bass: 6,
     torque: [[650, 400], [1000, 520], [1500, 690], [1750, 760], [5250, 760], [5500, 729], [6000, 640], [6500, 560], [6800, 300]] },
-  M279: { name: 'M279 6.0 twin-turbo V12', idleRpm: 600, redline: 6000, limiter: 6200, inertia: 0.3, friction: [20, 0.028], bank: 'v8m', turbo: 2, sound: 'v8_muscle', pitch: 1, mass: 90, cyl: 12, loud: 1.4, bass: 6,
+  M279: { name: 'M279 6.0 twin-turbo V12', idleRpm: 600, redline: 6000, limiter: 6200, inertia: 0.3, friction: [20, 0.028], bank: 'v8s', turbo: 2, sound: 'v8_muscle', pitch: 1, mass: 90, cyl: 12, loud: 1.4, bass: 6,
     torque: [[600, 500], [1000, 700], [1500, 900], [2300, 1000], [4300, 1000], [5100, 867], [5600, 760], [6000, 600], [6300, 320]] },
   JZ2: { name: '2JZ-GTE 3.0 twin-turbo straight-six', idleRpm: 750, redline: 6800, limiter: 7000, inertia: 0.17, friction: [12, 0.02], bank: 'i6', turbo: 2, sound: 'i6_bmw', pitch: 1, mass: 0, cyl: 6, loud: 1.2, bass: 3,
     torque: [[750, 220], [1500, 280], [2500, 360], [3500, 410], [4000, 427], [4800, 425], [5600, 407], [6200, 370], [6800, 320], [7100, 160]] },

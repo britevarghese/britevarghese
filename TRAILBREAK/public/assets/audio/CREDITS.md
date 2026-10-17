@@ -40,6 +40,10 @@ filtered to match it.
   - "vehicle car porsche 911 revving engine motor boxer" by jerry.berumen, https://freesound.org/s/772802/ (CC BY 4.0, https://creativecommons.org/licenses/by/4.0/)
   - "E-type Jaguar, car engine, rev, idle ,mono.wav" by Dan_AudioFile, https://freesound.org/s/614700/ (CC BY 4.0, https://creativecommons.org/licenses/by/4.0/) (the revs, above 1.3 times idle)
   - "Sports Car Accelerating/Speeding Up Fast - Exhaust" by EvanBoyerman, https://freesound.org/s/754775/ (CC BY 4.0, https://creativecommons.org/licenses/by/4.0/) (the top of the revs)
+- Bank `v8s` (Land Rover 5.0 V8 at idle (a modern V8's smooth idle, not a cammed one's lope); the Ram 1500's 5.7 HEMI pulling on the road; above 2,100 rpm, a V6 at the exhaust):
+  - "vehicle truck land rover v8 engin startup idle running" by jerry.berumen, https://freesound.org/s/772826/ (CC BY 4.0, https://creativecommons.org/licenses/by/4.0/)
+  - "V8 Dodge RAM 1500 Engine Starting, Idling, then Driving for around 1:30 minutes." by sketchy.dog, https://freesound.org/s/760153/ (CC BY 4.0, https://creativecommons.org/licenses/by/4.0/) (pulling on the road, above about 1,000 rpm)
+  - "Sports Car Accelerating/Speeding Up Fast - Exhaust" by EvanBoyerman, https://freesound.org/s/754775/ (CC BY 4.0, https://creativecommons.org/licenses/by/4.0/) (the top of the revs, above 2,100 rpm)
 
 Fallback engine loops (browsers without AudioWorklet), cut at six rpm points for NIGHTSHIFT and reused here:
 - `v8_muscle`: "Idle and Rev - Engine.wav" by wikusv, https://freesound.org/s/232272/ (CC BY 4.0, https://creativecommons.org/licenses/by/4.0/), trimmed.
