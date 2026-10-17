@@ -529,6 +529,14 @@ Everything that makes off-roading off-roading is simulated, not faked:
   The ruts are wetter still, with mud pushed up in ridges either side, and in the deep ones water stands, filling
   the hollows first and mirroring the sky. Close to the camera, ground with ruts in it is drawn at the ruts' own
   25 cm grid (from Medium graphics up), so each rut has its walls and its floor (render/Terrain.js).
+- **The picture** (High and Medium graphics; render/Post.js): drawn in high dynamic range, its edges smoothed by
+  multisampling (4x, 2x on Medium), then finished as a racing game's is. At speed what the camera rushes past streaks
+  along its path, the nearer the longer (the verge and the road's edge, hardly the hills), and the whole picture
+  smears as the camera swings round; your own truck stays sharp, and so does the cab from the driver's seat. The
+  brightest light (the sun, its glints on paint, chrome and water, lamps at night) blooms into what is round it. A
+  filmic tone curve, a little more contrast and colour, cool shadows and warm highlights and a soft vignette finish
+  it. The haze thickens with distance and thins with height (valleys are hazier than the hilltops) and glows toward
+  the sun.
 - **Winch:** a steel line with a stall-limited motor (line speed falls with load). Hook a tree to pull yourself
   out, or hook a friend's truck: your truck holds on its brakes and theirs feels the line tension.
 - **Steering kickback:** the forces on the front tyres turn the wheels about their kingpins (a tyre shoved back by a
@@ -625,7 +633,8 @@ src/render/               Renderer, Sky, Terrain (LOD patches), Vegetation, Tea 
                           KeralaBuildings, TruckModel (chassis, axles, wheels, parts), Person and Hands (the driver,
                           his hands on the wheel; DriverAssets loads him, Driver draws one while he loads), TruckAssets
                           (each truck's real model) and TruckBodies (built-in bodies that stand in while a model loads),
-                          Effects (particles, winch line), EventCourse (start banners, gates)
+                          Effects (particles, winch line), EventCourse (start banners, gates), Post (motion blur,
+                          bloom and the grade)
 src/core/                 Game (the loop), Input, CameraRig
 src/game/                 Career (money, trucks, parts, best times), Events (the courses, runs, medals, races),
                           EventPlay (events in the game: start lines, countdown, clock, prizes, races with friends)

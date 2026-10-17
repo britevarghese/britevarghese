@@ -134,8 +134,7 @@ normal = normalize((viewMatrix * vec4(wN, 0.0)).xyz);`)
   gl_FragColor = vec4(diff * wA * (1.0 - R) + spec, a);
 }`)
       .replace('#include <fog_fragment>', `#ifdef USE_FOG
-  float fogFactor = 1.0 - exp(- fogDensity * fogDensity * vFogDepth * vFogDepth);
-  gl_FragColor.rgb = mix(gl_FragColor.rgb, fogColor * gl_FragColor.a, fogFactor);
+  gl_FragColor.rgb = mix(gl_FragColor.rgb, fogColor * gl_FragColor.a, fogAmount());
 #endif`);
   };
   return mat;
