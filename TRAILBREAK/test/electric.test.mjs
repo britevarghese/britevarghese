@@ -5,7 +5,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { Vehicle, PHYS_DT } from '../src/physics/Vehicle.js';
 import { truckSpec, truckBase } from '../src/physics/trucks.js';
-import { SURFACE } from '../src/physics/Surfaces.js';
+import { SURFACE, SURFACES } from '../src/physics/Surfaces.js';
 import { PRESETS, presetBuild, EV_TRANS } from '../src/physics/Upgrades.js';
 import { flat, flooded } from './grounds.mjs';
 
@@ -82,5 +82,25 @@ test('the Hummer EV flat out on grass digs in: its wheels spin evenly, near the 
   const m = cuts.reduce((a, b) => a + b, 0) / n, sd = Math.sqrt(cuts.reduce((a, b) => a + (b - m) ** 2, 0) / n);
   assert.ok(sd < 0.06, `the power cut swings by ${sd.toFixed(3)} (mean ${m.toFixed(2)})`);
   assert.ok(rise * 180 / Math.PI > 2, `the nose rose ${(rise * 180 / Math.PI).toFixed(2)} degrees`);
+});
+
+test('a light truck driven into a deep pond floats level: the water lifts its low side back, it does not roll over', () => {
+  // dry bank, then the bed slopes down to 1.8 m under the water over 6 m
+  const bed = (x, z) => (z < 8 ? 0.4 : z < 14 ? 0.4 - 2.2 * (z - 8) / 6 : -1.8);
+  const g = { height: bed, surfaceAt: (x, z) => SURFACES[z < 8 ? SURFACE.GRASS : SURFACE.MUD], water: () => 0 };
+  for (const [id, steer] of [['thar', 0], ['thar', 1], ['ranger', 1]]) {
+    const v = new Vehicle(truckSpec(id));
+    v.place(g, 0, -6, 0);
+    run(v, g, 0.5, IDLE);
+    v.vel.set(0, 0, 12 / 3.6);
+    let roll = 0;
+    // (turning, once at the water's edge)
+    for (let i = 0; i < Math.round(8 / PHYS_DT); i++) {
+      v.step({ ...IDLE, throttle: 0.5, steer: v.pos.z > 6 ? steer : 0 }, g);
+      roll = Math.max(roll, Math.abs(Math.asin(Math.max(-1, Math.min(1, v.right.y)))));
+    }
+    assert.ok(v.waterDepth > 0.8, `${id}: in deep water (${v.waterDepth.toFixed(2)} m over its floor)`);
+    assert.ok(roll * 180 / Math.PI < 15, `${id}${steer ? ', steering' : ''}: rolled ${(roll * 180 / Math.PI).toFixed(0)} degrees`);
+  }
 });
 

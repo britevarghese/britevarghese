@@ -173,13 +173,16 @@ with M when you shift yourself) and the tyre pressure. ENGINE OFF / FLOODED appe
 
 Steering wheels are detected by name and get the full steering range; keys and thumbsticks get a steering assist
 (full lock at walking pace, gentler at speed: the wheels ease round more slowly the faster you go, and the truck's swing
-into a turn is damped, so it settles into the turn instead of lurching and wobbling; at speed they turn no further than
-the front tyres grip on that ground, so the nose doesn't plough on wide) that you can turn off in the pause menu. With
-it on, every truck also gets stability control, as the modern trucks have anyway: floored round a bend, the power comes
-off the moment the nose starts to plough wide or the tail steps out, and comes back as the tyres grip again, so the
-truck holds the line its tyres can hold instead of spinning round. On phones and tablets,
-on-screen controls appear: steering on the left, pedals on the right, buttons for the winch, recovery, range, locks,
-camera, map and menu (play in landscape).
+into a turn is damped, so it settles into the turn instead of lurching and wobbling). At speed it turns the wheels as
+far as the front tyres grip on that ground (on a road, about 0.65 g of cornering on off-road tyres, as the real trucks
+manage), but no further, so the nose doesn't plough on wide, and no further than a tall truck can take: it asks well
+short of the pull that would lift the inside wheels, and stops turning in once the weight has gone over onto the
+outside ones, so the Unimog and the Willys stay on their wheels with the steering snapped to full lock at 80 km/h.
+You can turn it off in the pause menu. With it on, every truck also gets stability control, as the modern trucks have
+anyway: floored round a bend, the power comes off the moment the nose starts to plough wide or the tail steps out, and
+comes back as the tyres grip again, so the truck holds the line its tyres can hold instead of spinning round. On phones
+and tablets, on-screen controls appear: steering on the left, pedals on the right, buttons for the winch, recovery,
+range, locks, camera, map and menu (play in landscape).
 
 ## Damage
 
@@ -462,7 +465,9 @@ Everything that makes off-roading off-roading is simulated, not faked:
   ground too.
 - **Water:** buoyancy and drag on the hull, extra rolling resistance, and the air intake: water there chokes the
   engine (on Cosmetic damage it keeps running on a third of its power; on Forgiving and Realistic it stops until it
-  is out again).
+  is out again). The water lifts the hull in the middle of its part under water, so a truck deep enough to float sits
+  level: heeled over, its low side, deeper in, is lifted back. Drag meets the area the flow does (the front going
+  ahead, the side going sideways), so a truck driven into a pond pushes a bow wave and slows hard, nose down.
 - **What the tyres throw up:** a spinning tread flings clods and wet drops of mud along its tangent at its speed
   round the hub (a rolling one sheds some in mud), sand goes up in a spray of grains, dust rolls up behind on dry
   ground. In water each tyre splashes as it drives in, throws a rooster tail off the tread and sheets out to the

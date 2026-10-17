@@ -45,6 +45,10 @@ const STEER_DAMP = 0.08;              // keys / sticks: wheel angle (rad) taken 
 const TC_KP = 1, TC_KI = 10;          // electric traction control: power taken off per unit of excess spin, and how fast it settles (1/s)
 const BLD_A = 1.5, BLD_K = 1500;      // brake locking: spin (rad/s) between an axle's wheels before it brakes, Nm per rad/s past that
 const ESC_K = 1, ESC_OFF = 8, ESC_ON = 2;  // stability control: power off per unit of slide, how fast it comes off and back (1/s)
+// keys / sticks: the share of the front tyres' grip the steering asks for at speed, the slip angle (in their best one)
+// it allows them on top, the share of the pull that would lift a truck's inside wheels it asks no more than, and how far
+// over to one side its weight may go (1: all of it) before the wheels turn no further in
+const AS_MU = 0.9, AS_SLIP = 0.35, AS_TIP = 0.7, LTR_HOLD = 0.8;
 
 /** Ground normal by central differences. */
 export function groundNormal(ground, x, z, out, e = 0.3) {
@@ -88,6 +92,8 @@ export class Vehicle {
     }
     this.invI = new V3(1 / this.I.x, 1 / this.I.y, 1 / this.I.z);
     this.cg = new V3(0, spec.cgHeight, spec.cgZ || 0);            // design frame -> CG frame offset
+    // the sideways pull (in g) that would lift its inside wheels on level ground: half its track over its CG height
+    this.tipG = Math.min(...spec.axles.map((a) => a.track)) / 2 / spec.cgHeight;
 
     // axles (positions in the CG frame)
     const rStatic = tyre.radius - (m * GRAVITY / 4) / tyre.stiffness;
@@ -380,6 +386,13 @@ export class Vehicle {
       }
       side[k] = n ? sa / n : 0;
     }
+    // how far its weight has gone over to the wheels on one side (1: the other side's wheels are off the ground)
+    let ltr = 0;
+    for (let k = 0; k < 4; k += 2) {
+      const nl = this.wheels[k].contact ? this.wheels[k].N : 0, nr = this.wheels[k + 1].contact ? this.wheels[k + 1].N : 0;
+      if (nl + nr > 1) ltr = Math.max(ltr, Math.abs(nl - nr) / (nl + nr));
+    }
+    this.ltr = ltr;
     // traction control (a modern truck's): when every driven wheel spins well past the ground, the engine is throttled
     // back until they bite again (generous off the road: some wheel speed clears mud and snow from the tread). An
     // electric truck's motors answer in milliseconds and have far more torque than the ground takes: theirs cuts
@@ -414,13 +427,14 @@ export class Vehicle {
     const fa = this.axles[0];
     const maxLock = fa.spec.steer;
     // keys and thumbsticks get a steering assist that keeps full lock for slow work but limits the wheel angle at speed
-    // to about 0.6 g of cornering, or what the front tyres grip on this ground if that is less; a real steering wheel
-    // gets the whole range
+    // to what the front tyres grip on this ground (and the slip angle they turn the truck with), and to well short of
+    // the pull that would lift a tall truck's inside wheels; a real steering wheel gets the whole range
     const wb = fa.zc - this.axles[1].zc;
     let muF = 0, nF = 0;
     for (let k = 0; k < 2; k++) { const w = this.wheels[k]; if (w.contact && w.surf) { muF += gripOn(w.surf, this.spec.tyre); nF++; } }
-    const ay = Math.min(0.6, nF ? 0.85 * muF / nF : 0.6) * GRAVITY;
-    const lock = ctrl.analogSteer ? maxLock : Math.min(maxLock, Math.max(0.09, Math.atan(ay * wb / Math.max(1, speed * speed))));
+    const ay = Math.min(AS_MU * (nF ? muF / nF : 0.7), AS_TIP * this.tipG) * GRAVITY;
+    const turnIn = AS_SLIP * this.spec.tyre.alphaPeak * (this.wheels[0].surf?.slip ?? 1);
+    const lock = ctrl.analogSteer ? maxLock : Math.min(maxLock, Math.atan(ay * wb / Math.max(1, speed * speed)) + turnIn);
     let target = -ctrl.steer * lock;                                    // + = left
     let rate = 2.6 * dt;
     // keys and thumbsticks: the turn eases in more gently the faster the truck goes (the whole lock in 0.2 s crawling,
@@ -441,6 +455,12 @@ export class Vehicle {
       if (fast > 0 && side[0] > 0.95 && target * at > 0 && Math.abs(target) > Math.abs(at)) {
         const hold = Math.max(0, Math.abs(at) - Math.max(0, side[0] - 1.1) * 0.05);
         target = Math.sign(at) * (Math.abs(target) + (hold - Math.abs(target)) * fast);
+      }
+      // and no further once the truck's weight has gone well over onto its outside wheels: let back a little if the
+      // inside ones are about to lift (as a modern truck's roll stability control would)
+      if (fast > 0 && ltr > LTR_HOLD && target * at > 0 && Math.abs(target) > Math.abs(at) - 0.08 && Math.abs(speed * yaw) > 0.25 * GRAVITY) {
+        const hold = Math.max(0, Math.abs(at) - Math.max(0, ltr - LTR_HOLD - 0.08) * 0.6);
+        target = Math.sign(at) * Math.min(Math.abs(target), Math.abs(target) + (hold - Math.abs(target)) * fast);
       }
     }
     this.steerAngle = (this.steerAngle || 0) + clamp(target - (this.steerAngle || 0), -rate, rate);
@@ -1122,7 +1142,8 @@ export class Vehicle {
     const wl = ground.water(this.pos.x, this.pos.z);
     if (!(wl > -1e8)) return;
     let any = false;
-    // 3 x 3 columns over the main hull box
+    const area = (b.h.x * 2 / 3) * (b.h.z * 2 / 3), up = this.up;
+    // 3 x 3 columns over the main hull box (and the cab above it)
     for (let i = -1; i <= 1; i++) for (let k = -1; k <= 1; k++) {
       _p.set(b.c.x + i * b.h.x * 0.67, b.c.y - b.h.y, b.c.z + k * b.h.z * 0.67);
       this.toWorld(_p, _q);
@@ -1130,15 +1151,23 @@ export class Vehicle {
       const depth = clamp(level - _q.y, 0, b.h.y * 2 + 0.6);
       if (depth <= 0) continue;
       any = true;
-      const area = (b.h.x * 2 / 3) * (b.h.z * 2 / 3);
       const vol = area * depth * this.spec.buoyancy;
       _a.set(0, RHO_WATER * GRAVITY * vol, 0);
-      _q.y += depth / 2;
+      // the lift acts in the middle of the column's part under water, up the truck's own column: so it turns with
+      // the truck, and heeled over the low side's columns, deeper in, lift it back (the lift a column's foot alone
+      // would give, with the foot swinging up to the high side, rolled a floating truck over)
+      _q.addScaled(up, depth / 2);
       this.applyForce(_a, _q);
-      // drag through the water
+      // drag through the water, on the area the flow meets: across the front going ahead, along the side going
+      // sideways, under the floor bobbing (each column a ninth of the hull's)
       this.pointVel(_q, _v);
       const sp = _v.length();
-      if (sp > 1e-3) { _a.copy(_v).scale(-0.5 * RHO_WATER * 0.9 * (b.h.x * 0.67) * depth * sp); this.applyForce(_a, _q); }
+      if (sp > 1e-3) {
+        const fa = Math.abs(_v.dot(this.fwd)) / sp, sa = Math.abs(_v.dot(this.right)) / sp, va = Math.abs(_v.dot(up)) / sp;
+        const A = depth * (fa * b.h.x * 2 + sa * b.h.z * 2) / 9 + va * area;
+        _a.copy(_v).scale(-0.5 * RHO_WATER * 0.9 * A * sp);
+        this.applyForce(_a, _q);
+      }
       this.waterDepth = Math.max(this.waterDepth, depth);
     }
     if (any) this.angVel.scale(1 - 0.3 * PHYS_DT);

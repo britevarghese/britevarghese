@@ -192,7 +192,7 @@ test('traction control: flat out up a snowy slope the tyres spin far less, and t
 });
 
 test('stability control: floored round a full-lock bend on the keys, a truck circles at its grip instead of spinning or crawling', () => {
-  for (const [id, surf, kmh, g] of [['hummerev', SURFACE.ROAD, 45, 0.55], ['hummerev', SURFACE.GRASS, 40, 0.4], ['bronco', SURFACE.DIRT, 55, 0.4], ['thar', SURFACE.GRASS, 40, 0.3]]) {
+  for (const [id, surf, kmh, g] of [['hummerev', SURFACE.ROAD, 25, 0.5], ['hummerev', SURFACE.GRASS, 22, 0.38], ['bronco', SURFACE.DIRT, 45, 0.45], ['thar', SURFACE.GRASS, 35, 0.35]]) {
     const ground = flat(surf), v = truck(id, ground);
     run(v, ground, 0.5);
     v.vel.set(0, 0, 25 / 3.6);
@@ -208,6 +208,42 @@ test('stability control: floored round a full-lock bend on the keys, a truck cir
     assert.ok(slide * 180 / Math.PI < 16, `${at}: slid ${(slide * 180 / Math.PI).toFixed(1)} degrees`);
     assert.ok(sp / n * 3.6 > kmh, `${at}: circling at ${(sp / n * 3.6).toFixed(0)} km/h`);
     assert.ok(ay / n / GRAVITY > g, `${at}: ${(ay / n / GRAVITY).toFixed(2)} g round the bend`);
+  }
+});
+
+test('turning on the keys at speed uses the tyres\' grip: at 30 and 45 km/h on the road a truck turns well inside the old circles', () => {
+  const road = flat(SURFACE.ROAD);
+  const circle = (id, kmh) => {
+    const v = truck(id, road);
+    run(v, road, 0.5);
+    const vt = kmh / 3.6;
+    v.vel.set(0, 0, vt);
+    let R = 0, n = 0, i = 0;
+    const N = Math.round(8 / PHYS_DT);
+    run(v, road, 8, (w) => {
+      if (i++ > N - 3 / PHYS_DT) { R += Math.hypot(w.vel.x, w.vel.z) / Math.max(1e-3, Math.abs(w.angVel.y)); n++; }
+      const e = vt - w.vel.dot(w.fwd);
+      return { ...IDLE, throttle: Math.max(0, Math.min(1, 0.2 + e * 0.6)), brake: Math.max(0, Math.min(1, -e * 0.4)), steer: 1 };
+    });
+    return R / n;
+  };
+  for (const [id, r30, r45] of [['bronco', 12, 27], ['thar', 12, 27], ['hummerev', 12.5, 28]]) {
+    const a = circle(id, 30), b = circle(id, 45);
+    assert.ok(a < r30, `${id} at 30 km/h: a ${a.toFixed(1)} m circle`);
+    assert.ok(b < r45, `${id} at 45 km/h: a ${b.toFixed(1)} m circle`);
+  }
+});
+
+test('the steering assist keeps tall, narrow trucks on their wheels: full lock snapped on at 60 and 80 km/h, on and off the power', () => {
+  for (const id of ['rhino', 'mule', 'shepherd', 'thar']) {
+    for (const surf of [SURFACE.ROAD, SURFACE.DIRT]) for (const kmh of [60, 80]) for (const throttle of [0.6, 0]) {
+      const ground = flat(surf), v = truck(id, ground);
+      run(v, ground, 0.3);
+      v.vel.set(0, 0, kmh / 3.6);
+      let up = 1;
+      run(v, ground, 5, (w) => { up = Math.min(up, w.up.y); return { ...IDLE, throttle, steer: 1 }; });
+      assert.ok(up > 0.5, `${id} at ${kmh} km/h on ${surf === SURFACE.ROAD ? 'the road' : 'dirt'}${throttle ? '' : ', off the power'}: tipped to up.y ${up.toFixed(2)}`);
+    }
   }
 });
 
