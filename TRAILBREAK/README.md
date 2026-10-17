@@ -421,7 +421,9 @@ Every truck's body is a real 3D model (see [Credits](#credits)), converted by `t
 (scaled to the real truck's wheelbase and width, the dense ones simplified): the game paints it any colour, cracks its
 glass, lights its lamps and fits its own wheels, axles and suspension under it (leaf or coil springs and shocks that
 flex with the axles, wishbones on the independent ones, the Unimog's portal hubs), and every garage part goes on it (the
-lift raises the model, the tyres grow in its arches).
+lift raises the model, the tyres grow in its arches). `tools/racks.py` measures each body's roof and bed rails: a roof
+rack's towers and the light bar's brackets stand on the roof where it is, a bed rack's legs clamp onto the pickup's
+rails.
 
 The Thar's front is independent: each front wheel rides its own wishbones, and the springs carry each wheel alone. Its
 rear auto-locker locks the rear axle by itself when a wheel spins below about 30 km/h (the HUD shows MLD LOCKED), and in

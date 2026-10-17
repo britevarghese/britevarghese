@@ -595,6 +595,7 @@ function modelBody(model, asset, M, P) {
     heads: L.heads, tails: [], reverse: [], ownLamps: true, ownBumpers: true, ownChassis: !!L.ownChassis,
     bumperF: L.bumperF, bumperR: L.bumperR, spare: L.spare || null, wheel: L.steering || null, wheelParts: wheel, frame: L.frame,
     flaps: !!L.flaps, sill: L.sill, half: L.half, roofY: L.roofY ?? L.bbox[1][1], coilY: L.coilY, bedZ: L.bedZ, ownSnorkel: !!L.ownSnorkel,
+    roofMap: L.roofMap || null, bedRail: L.bedRail || null,
     // (the roof, for the rack and the light bar: if a layout leaves it out, from the tail to a metre short of the front
     // axle, roughly where a wagon's roof runs)
     roofZ: L.roofZ || [L.bbox[0][2] + 0.3, (L.axleZ ? L.axleZ[0] : L.bbox[1][2] - 1.2) - 1.0],
@@ -678,16 +679,35 @@ function buildParts(P, M, spec, x, base, lightBar) {
     P.box(M.satin, [0.11, 0.09, 0.02], [sx, sy, sz + 0.17], { r: 0.01 });
     P.box(M.satin, [0.03, 0.04, 0.08], [sx + 0.05, belt + 0.25, sz + 0.1], { r: 0.008 });
   }
-  // roof rack: a tubular basket (a bed rack on the pickup), with fuel, water and a spare on the loaded one
+  // roof rack: a tubular basket (a bed rack on the pickup), with fuel, water and a spare on the loaded one. On a model
+  // body its feet stand on the roof where the roof is (the layout's roofMap, measured by tools/racks.py), a bed rack's
+  // legs on the bed rails (bedRail), the basket level with the cab roof
   if (b.rack) {
     const roof = x.roofY, z0 = Math.max(x.roofZ[0] + 0.08, base.rackZ - 0.9), z1 = Math.min(x.roofZ[1] - 0.08, base.rackZ + 0.9);
-    const bed = !!spec.look?.bed, hw = bed ? x.half - 0.14 : Math.min(0.7, x.half - 0.08), y = bed ? roof + 0.02 : roof + 0.1;
+    const bed = !!spec.look?.bed, rail = bed && x.bedRail;
     const zA = bed ? (x.bedZ ? x.bedZ[0] + 0.05 : base.rackZ - 1.0) : z0, zB = bed ? (x.bedZ ? x.bedZ[1] - 0.05 : base.rackZ + 1.0) : z1, zc = (zA + zB) / 2;
+    // the feet: on the roof, inside its edges at each end of the rack
+    const feet = !bed && x.roofMap ? [zA + 0.1, zB - 0.1].map((z) => roofFoot(x.roofMap, z)) : null;
+    const hw = rail ? rail[0] : feet ? Math.min(feet[0].x, feet[1].x) : bed ? x.half - 0.14 : Math.min(0.7, x.half - 0.08);
+    const y = bed ? roof + 0.02 : feet ? Math.max(feet[0].y, feet[1].y) + 0.09 : roof + 0.1;
     P.path(M.black, [[hw, y, zA], [hw, y, zB], [-hw, y, zB], [-hw, y, zA], [hw, y, zA]], 0.018);
     P.path(M.black, [[hw, y + 0.1, zA], [hw, y + 0.1, zB], [-hw, y + 0.1, zB], [-hw, y + 0.1, zA], [hw, y + 0.1, zA]], 0.014);
     for (let i = 0; i <= 4; i++) { const z = zA + (zB - zA) * i / 4; P.tube(M.black, [hw, y, z], [-hw, y, z], 0.012); P.tube(M.black, [hw, y, z], [hw, y + 0.1, z], 0.01, { mirror: true }); }
-    if (bed) for (const z of [zA, zB]) P.tube(M.black, [hw + 0.08, spec.hull[0].c[1] + spec.hull[0].h[1] - raise, z], [hw, y, z], 0.022, { mirror: true });
-    else for (const z of [zA + 0.1, zB - 0.1]) P.box(M.black, [0.06, 0.1, 0.06], [hw - 0.02, roof + 0.04, z], { r: 0.01, mirror: true });
+    if (rail) {
+      // legs straight up from clamps on the rails
+      for (const z of [zA + 0.06, zc, zB - 0.06]) {
+        P.tube(M.black, [hw, rail[1], z], [hw, y, z], 0.022, { mirror: true });
+        P.box(M.black, [0.07, 0.05, 0.1], [hw, rail[1] + 0.02, z], { r: 0.01, mirror: true });
+      }
+    } else if (bed) for (const z of [zA, zB]) P.tube(M.black, [hw + 0.08, spec.hull[0].c[1] + spec.hull[0].h[1] - raise, z], [hw, y, z], 0.022, { mirror: true });
+    else if (feet) {
+      // towers from the roof up to the basket, a pad under each
+      for (const f of feet) for (const sx of [1, -1]) {
+        const fy = roofAt(x.roofMap, sx * hw, f.z) ?? f.y;
+        P.box(M.black, [0.05, y - fy, 0.05], [sx * hw, (y + fy) / 2, f.z], { r: 0.008 });
+        P.box(M.rubber, [0.09, 0.02, 0.12], [sx * hw, fy + 0.01, f.z], { r: 0.006 });
+      }
+    } else for (const z of [zA + 0.1, zB - 0.1]) P.box(M.black, [0.06, 0.1, 0.06], [hw - 0.02, roof + 0.04, z], { r: 0.01, mirror: true });
     if (b.rack === 2) {
       for (let i = 0; i < 3; i++) P.box(i === 2 ? M.red : M.olive, [0.17, 0.34, 0.46], [hw - 0.15 - i * 0.2, y + 0.18, zA + 0.3], { r: 0.02 });
       P.box(M.wood, [0.6, 0.26, 0.42], [-0.25, y + 0.14, zc + 0.15], { r: 0.015 });
@@ -698,9 +718,11 @@ function buildParts(P, M, spec, x, base, lightBar) {
   }
   // light bar: four driving lamps on a bar across the front of the roof
   if (spec.lightBar) {
-    const roof = x.roofY, z = x.roofZ[1] - 0.05, y = roof + 0.12;
+    // (on a model body, its brackets stand on the roof where the roof is: a curved roof falls away at the sides)
+    const z = x.roofZ[1] - 0.05, feet = [0.62, -0.62].map((sx) => (x.roofMap && roofAt(x.roofMap, sx, z - 0.04)) ?? x.roofY - 0.01);
+    const y = Math.max(...feet) + 0.13;
     P.box(M.black, [1.3, 0.05, 0.06], [0, y, z], { r: 0.015 });
-    for (const sx of [0.62, -0.62]) P.box(M.black, [0.04, 0.12, 0.05], [sx, y - 0.07, z - 0.04], { r: 0.01 });
+    [0.62, -0.62].forEach((sx, i) => P.box(M.black, [0.04, y - feet[i], 0.05], [sx, (y + feet[i]) / 2, z - 0.04], { r: 0.01 }));
     for (const lx of [0.45, 0.15, -0.15, -0.45]) {
       P.cyl(M.black, 0.075, 0.07, 0.08, [lx, y + 0.08, z + 0.02], { axis: 'z', seg: 16 });
       P.cyl(lightBar, 0.064, 0.064, 0.012, [lx, y + 0.08, z + 0.063], { axis: 'z', seg: 16 });
@@ -728,6 +750,32 @@ function buildParts(P, M, spec, x, base, lightBar) {
   if (b.engine) P.cyl(M.chrome, 0.032, 0.032, 0.14, [-x.frame.x - 0.12, x.frame.y + 0.02, x.bumperR.z + 0.06], { axis: 'z', mirror: true });
   // onboard air: a tank on the frame
   if (spec.tyre.compressor) P.cyl(M.alu, 0.07, 0.07, 0.5, [x.frame.x + 0.12, x.frame.y + 0.04, 0.05], { axis: 'z', seg: 14 });
+}
+
+/** The roof's height (m) at (x, z) from a layout's roofMap (tools/racks.py), or null off the roof. */
+function roofAt(map, x, z) {
+  map.rows ||= map.h.map((r) => r.split(' ').map((v) => (v === '-' ? null : v / 100)));
+  const fx = (x - map.x0) / map.d, fz = (z - map.z0) / map.d, ix = Math.floor(fx), iz = Math.floor(fz);
+  let s = 0, w = 0;
+  for (const [i, k, wt] of [[ix, iz, (1 - fx + ix) * (1 - fz + iz)], [ix + 1, iz, (fx - ix) * (1 - fz + iz)], [ix, iz + 1, (1 - fx + ix) * (fz - iz)], [ix + 1, iz + 1, (fx - ix) * (fz - iz)]]) {
+    const v = map.rows[k]?.[i];
+    if (v != null && wt > 0) { s += v * wt; w += wt; }
+  }
+  return w > 0.05 ? s / w : null;
+}
+
+/** Where a roof rack's foot goes at one end: inside the roof's edges there (no wider than a rack is), on the roof. */
+function roofFoot(map, z) {
+  map.rows ||= map.h.map((r) => r.split(' ').map((v) => (v === '-' ? null : v / 100)));
+  const row = map.rows[Math.min(map.nz - 1, Math.max(0, Math.round((z - map.z0) / map.d)))] || [];
+  let edge = Infinity;
+  for (const dir of [1, -1]) {
+    let out = 0;
+    row.forEach((v, i) => { const xx = map.x0 + i * map.d; if (v != null && xx * dir > out) out = xx * dir; });
+    edge = Math.min(edge, out);
+  }
+  const x = Math.max(0.3, Math.min(0.7, edge - 0.1));
+  return { x, z, y: Math.max(roofAt(map, x, z) ?? 0, roofAt(map, -x, z) ?? 0) };
 }
 
 // ---------------------------------------------------------------- the model
