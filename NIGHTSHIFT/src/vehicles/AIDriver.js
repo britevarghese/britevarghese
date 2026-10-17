@@ -419,7 +419,9 @@ export class AIDriver {
       const d = Math.hypot(t.x - s.x, t.z - s.z);
       const lead = clamp(d / 40, 0, 1.2);
       tx = t.x + (t.vx || 0) * lead; tz = t.z + (t.vz || 0) * lead;
-      targetSpeed = d < 12 ? Math.max(Math.hypot(t.vx || 0, t.vz || 0) + 4, 8) : this.maxSpeed;
+      // (closing on them no faster than it can slow back to their pace in the room left: at 166 km/h 90 m off, a police
+      // car couldn't follow the player's turn and went on into a building)
+      targetSpeed = Math.min(this.maxSpeed, Math.max(Math.hypot(t.vx || 0, t.vz || 0) + 4, 8) + 0.25 * Math.max(0, d - 12));
     } else if (this.route.length > 1) {
       this._advanceIndex(s.x, s.z);
       // shorten the lookahead before sharp corners so the car doesn't cut through blocks
@@ -496,7 +498,10 @@ export class AIDriver {
       // (only what this car's body would come within half a metre of: steered away from and slowed for anything
       // within 2.8 m of its middle, a car met one coming the other way in its own lane on a narrow street, 2 m across)
       if (Math.abs(lat) - (o.spec?.w ?? 1.8) / 2 - myW > 0.5) continue;
-      avoid += (lat > 0 ? -1 : 1) * (1 - ahead / (18 + speed * 0.8));
+      // (one pulled over to the kerb for this one's siren: steered round, not slowed for)
+      const making = this.siren && o.yieldT > 0 && Math.abs(lat) > 0.8;
+      avoid += (lat > 0 ? -1 : 1) * (1 - ahead / (18 + speed * 0.8)) * (making ? 2 : 1);
+      if (making) continue;
       // (and slowed to stop short of it: allowed its speed + 2 m/s + 0.3 m/s a metre off, an ambulance on its way to
       // an accident came up to a car stopped in the queue at 3.5 m/s and shunted it off the road. Its speed the way
       // this one's going: one coming the other way gives no leave to drive at it)

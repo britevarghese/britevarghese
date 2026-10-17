@@ -14,12 +14,12 @@ function dirAt(P, end) {
 // the cost of turning from lane a into lane b at a junction, in metres of road: turning right round (back the way a
 // came) only when there's no other way; an acute turn (a Y-junction taken backwards) a little; and for a lorry or a
 // bus a sharp turn into a side street too (a lorry on a mission route cut such a corner into a house)
-function turnCost(a, b, big) {
+function turnCost(a, b, big, sharp = 120) {
   if (a.pts.length < 2 || b.pts.length < 2) return 0;
   const [ax, az] = (a._dirE ||= dirAt(a.pts, true)), [bx, bz] = (b._dirS ||= dirAt(b.pts, false));
   const c = ax * bx + az * bz;
   if (c < -0.85) return big ? 4000 : 600;                        // (more than ~150 degrees)
-  if (c < -0.34) return big ? 2500 : 120;                         // (more than ~110: a lorry can't, short of backing up)
+  if (c < -0.34) return big ? 2500 : sharp;                       // (more than ~110: a lorry can't, short of backing up)
   if (big && c < 0.42 && b.edge?.cls > 4) return 200;            // (more than ~65, into a side street)
   return 0;
 }
@@ -84,6 +84,14 @@ export class KeralaRouter {
     return to.size === 0 || (to.size === 1 && this.adj[[...to][0]].some((o) => o.to === id));
   }
 
+  // the junctions within r of (x, z) (by the 100 m squares: some a little further)
+  nodesNear(x, z, r) {
+    this._sync();
+    const out = [], c0 = Math.floor(x / 100), c1 = Math.floor(z / 100), k = Math.ceil(r / 100);
+    for (let dz = -k; dz <= k; dz++) for (let dx = -k; dx <= k; dx++) for (const i of this.grid.get(`${c0 + dx},${c1 + dz}`) || []) out.push(this.list[i]);
+    return out;
+  }
+
   nearestNode(x, z) {
     this._sync();
     const cx = Math.floor(x / 100), cz = Math.floor(z / 100);
@@ -105,10 +113,39 @@ export class KeralaRouter {
     return this.list[best < 0 ? 0 : best] || null;
   }
 
+  // the way by road from a place on one lane to a place on another (each { lane, s }), as points: on along the first
+  // to its junction, through the junctions between, and along the second up to the place - or, against: to the
+  // second's far end and back down it the wrong way (a police car after someone). null when there's none
+  pathBetween(a, b, opts = null, against = false) {
+    this._sync();
+    const out = [], tmp = {};
+    const add = (x, z) => { const q = out[out.length - 1]; if (!q || Math.hypot(q[0] - x, q[1] - z) > 0.5) out.push([x, z]); };
+    const along = (l, s0, s1) => {
+      l.sample(s0, tmp); add(tmp.x, tmp.z);
+      for (let i = 1; i < l.pts.length - 1; i++) if (l.cum[i] > s0 && l.cum[i] < s1) add(l.pts[i][0], l.pts[i][1]);
+      l.sample(s1, tmp); add(tmp.x, tmp.z);
+    };
+    if (a.lane === b.lane && b.s >= a.s) { along(a.lane, a.s, b.s); return out; }
+    const from = this.ids.get(a.lane.to), to = this.ids.get(against ? b.lane.to : b.lane.from);
+    if (from == null || to == null) { this.lastWhy = 'no junction'; return null; }
+    const ids = from === to ? [] : this.route(from, to, a.lane, opts);
+    if (from !== to && !ids.length) { this.lastWhy = `no way ${from}->${to} (${this.lastSteps} steps)`; return null; }
+    along(a.lane, a.s, a.lane.length);
+    for (const id of ids) add(this.list[id].x, this.list[id].z);
+    if (!against) along(b.lane, 0, b.s);
+    else {
+      const l = b.lane;
+      for (let i = l.pts.length - 2; i > 0; i--) if (l.cum[i] > b.s) add(l.pts[i][0], l.pts[i][1]);
+      l.sample(b.s, tmp); add(tmp.x, tmp.z);
+    }
+    return out;
+  }
+
   // A* over the junctions; returns waypoint ids (lane points), [] when unreachable. `after`: the lane the route so far
   // came into `from` by (the leg before, through a race's or a mission's waypoints: not turned round at the waypoint).
   // opts.big: a lorry or a bus, kept to the main roads where it can (the side streets' corners are too tight for it:
-  // a lorry on a mission route cut a corner into a house)
+  // a lorry on a mission route cut a corner into a house). opts.sharp: what a turn of more than ~110 degrees costs
+  // (a three-point turn); opts.maxSteps: how far to look before giving up
   route(from, to, after = null, opts = null) {
     const minorW = opts?.big ? 4 : 1;
     this._sync();
@@ -121,7 +158,7 @@ export class KeralaRouter {
     const push = (e) => { heap.push(e); let i = heap.length - 1; while (i) { const p = (i - 1) >> 1; if (heap[p][0] <= heap[i][0]) break; [heap[p], heap[i]] = [heap[i], heap[p]]; i = p; } };
     const pop = () => { const top = heap[0], last = heap.pop(); if (heap.length) { heap[0] = last; let i = 0; for (;;) { const a = 2 * i + 1, b = a + 1; let m = i; if (a < heap.length && heap[a][0] < heap[m][0]) m = a; if (b < heap.length && heap[b][0] < heap[m][0]) m = b; if (m === i) break; [heap[m], heap[i]] = [heap[i], heap[m]]; i = m; } } return top; };
     let found = false, steps = 0;
-    while (heap.length && steps++ < 60000) {
+    while (heap.length && steps++ < (opts?.maxSteps || 60000)) {
       const [, u] = pop();
       if (u === to) { found = true; break; }
       const gu = g.get(u), lin = prev.get(u) || (u === from ? after : null);
@@ -130,7 +167,7 @@ export class KeralaRouter {
         if (lin && lin.yTo != null && lane.yFrom != null && Math.abs(lin.yTo - lane.yFrom) > 1.5) continue;
         // (turning right round at a junction only when there's no other way: round the block instead, as a driver
         // would. An AI car can't turn in a lane: a truck on a story route stood facing the way it came for good)
-        const gv = gu + lane.length * (lane.edge?.cls > 4 ? minorW : 1) + (lin ? turnCost(lin, lane, opts?.big) : 0) + (opts?.big && (lane._sharp ??= sharpOf(lane.pts)) > 1.5 ? 1500 : 0);
+        const gv = gu + lane.length * (lane.edge?.cls > 4 ? minorW : 1) + (lin ? turnCost(lin, lane, opts?.big, opts?.sharp) : 0) + (opts?.big && (lane._sharp ??= sharpOf(lane.pts)) > 1.5 ? 1500 : 0);
         if (gv < (g.get(v) ?? Infinity)) { g.set(v, gv); prev.set(v, lane); push([gv + Math.hypot(N[v].x - goal.x, N[v].z - goal.z), v]); }
       }
     }

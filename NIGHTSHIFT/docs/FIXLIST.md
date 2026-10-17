@@ -269,9 +269,59 @@ the game. Newly found problems go at the end of their section.
     the queue at 3.5 m/s and shunted it: they stop short now. And they steered away from and slowed for a car coming
     the other way in its own lane on a narrow street
   - [x] Parked cars and scooters were put down where the player's car stood (a scooter parked into it was knocked flat)
-  - Then: no traffic driving off the road anywhere (it was 650 car-seconds in 3 minutes in Taliparamba), nothing
-    stuck in five of the six towns (the sixth: Mattannur, the player stopped 12 m into a narrow street off a busy
-    junction), traffic standing still 2-18% of the time in those five (was 16-33%)
+  - [x] Going round the player's stopped car: one set off with the road clear and met the traffic coming the other way
+    half way out, and neither could move again. It looks again until it's half way out, and pulls back in behind if
+    something's coming. A car on the vehicle physics settled a few inches short of the line it was given and stood
+    beside the player's car for good: it's aimed a little further out, and goes by once its front is clear. A scooter
+    told to go round at 7 m/s rode into the back of the player's car before it had leant out of line: it brakes for
+    it till then. A car, a lorry, a KSRTC bus and a scooter each get by in 4-12 s on a wide road, a car and a scooter
+    on a narrow street (a bus on a 5 m street waits: too narrow)
+  - Then: no traffic driving off the road anywhere (it was 650 car-seconds in 3 minutes in Taliparamba; now one
+    car-second in all six towns), no crashes between traffic, nobody standing in the road, nothing stuck in five of
+    the six towns (the sixth: Mattannur, the player stopped 12 m into a narrow street off a busy junction - 4 m
+    across, neither way can get by, and the queue backs into the junction), traffic standing still 2-21% of the time
+    in those five (was 16-33%), and 7 one-second overlaps between traffic vehicles in all six (15 before)
+- [x] Police chases through the towns, at heat 1 to 5, with the player's car driven off along random routes through
+  the traffic (or left standing), in all six towns:
+  - [x] A unit came in at a junction's middle facing one of the old grid city's right angles - 108 to 177 degrees off
+    its lane in Kannur - and set off with a three-point turn. It comes in now a little way along a lane out of the
+    junction, facing its way (the one heading most toward the player), clear of the traffic, and only where there's a
+    way by road to the player (on a stretch the lanes don't join to theirs, units stood for good with nowhere to go).
+    And from the junctions round the player: drawn from every junction loaded, few fell in the ring (in Taliparamba at
+    heat 4, two units came of five)
+  - [x] Its way to the player went from the junction nearest it (often the one behind it) to the one nearest the
+    player, then straight at them. Now it's on along its own lane to the junction ahead, through the junctions, and up
+    the player's lane to where they'll be - or their road's other lane, met head on, whichever's the shorter way. The
+    wrong way down the player's lane where no lane leads into its start: on a one-way street in Taliparamba's middle,
+    no unit found a way to them and none came. A hairpin at a junction counts as a good way round (at a junction its
+    way doubled back at, a unit spent 11 s on a three-point turn)
+  - [x] Where no way was found (the player turning through a junction, between the lanes), the old one was swapped in
+    for the route the unit was on: at 117 km/h one turned for a junction behind it and went into a building at 100. A
+    unit keeps its route then, and a new way that turns sooner than it can slow for waits for the next look
+  - [x] Straight at the player when close and in sight only where the way there is all road, or they've left the road
+    (straight at them at 42 km/h, a unit left the road and hit a tree). No faster than two and a half times the
+    traffic's pace on the road it's on (one did 160 km/h through Payyanur's streets), and closing on the player no
+    faster than it can slow back to their pace (at 166 km/h 90 m off, one couldn't follow their turn, into a building)
+  - [x] Traffic makes way for a siren: over to the kerb and down to a crawl as a police car or an ambulance comes up
+    behind, or at it head on in its lane (it never did: units queued behind a scooter). A unit steers round a car
+    pulled over for it instead of slowing
+  - [x] Heat 4 and 5's roadblocks were never put up in Kerala (the grid city's junctions were looked for). Now the road
+    ahead of the player is followed ~240 m, the straightest way at each junction, and two jeeps parked across it out
+    of their sight (three on a wide road, one on a narrow one), angled in toward them, staggered so they don't touch
+    each other or the kerb (spread evenly, they overlapped and were thrown apart at up to 25 km/h, one into a
+    building)
+  - [x] The chase's "last seen" place started at the grid city's middle, 200 km off (or where the last chase lost the
+    player): a chase that went quiet before any unit had seen them sent the units to search there. It's where the
+    chase starts now. A player sitting still in the open got away 26 s in without moving, the units not there yet:
+    out of sight counts once they're 60 m from where they were last seen, or after a minute unseen
+  - [x] Heat going up gave the Bolero the old interceptor's engine and grip; it's scaled from its own now. A unit left
+    400 m behind out of sight (550 m in sight) goes, and a fresh one comes in nearer
+  - Then, the last round: busted in Iritty at heat 5 (21 s, the roadblock up at 1.6 s), Kannur (87 s), Taliparamba at
+    heat 4 (80 s, eight units and a three-jeep roadblock) and Payyanur; away in Mattannur after 53 s (the units kept
+    ~100 m back, out of sight round the buildings). Units come in on their lanes facing their way, nothing over 30 km/h
+    hits anything (it was 74-100 km/h into buildings), and traffic pulls over for them (up to 3 minutes' worth of
+    car-seconds a chase). Left: Thalassery's middle, where the player's street is a dead end in the map's lanes and the
+    only way in is a long way round - units take 40-60 s to get there
 
 - [x] Hitches while driving into new country (a tile's build stalling a frame): every step of a tile's build timed
   on a drive (headless, its CPU about half a desktop's). The worst were the ground's mesh (up to a quarter of a second:

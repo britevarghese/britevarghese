@@ -395,10 +395,23 @@ export class TrafficManager {
     // lagging behind the line it's steering for, it read wider than it was and the pass was called off halfway)
     path.sample(Math.min(path.length, c.s + ahead), tmp);
     const off = (x - tmp.x) * -tmp.dz + (z - tmp.z) * tmp.dx, need = off + half + c.spec.w / 2 + 0.6;
-    if (need >= passRoom(path, c) || !(c.passT > 0 || this._oncomingClear(c, g + 2 * half + 30, g + 2 * half + 10))) return false;
-    // (and slowed to 25 km/h going by: at 36 km/h a car went past with a third of a metre to spare)
-    c.passT = 2; c.passLat = Math.max(c.passLat || 0, need); c.passSlow = 1.2;
-    return true;
+    if (need >= passRoom(path, c)) return false;
+    // (the way the other side looked to, until it's half way out: started out round a car and a fallen scooter with the
+    // road clear, a car met the traffic coming the other way stopped there - and neither could move again. Not half
+    // out yet, it pulls back in behind instead)
+    // (out at its front, which is what has to get by first: a bus's middle only gets out as it goes, and crept up
+    // to the car in the way, one waited for its middle for good)
+    const hl = c.spec.l / 2, fx = Math.sin(c.yaw), fz = Math.cos(c.yaw);
+    path.sample(Math.min(path.length, c.s + hl), tmp);
+    const out = (c.x + fx * hl - tmp.x) * -tmp.dz + (c.z + fz * hl - tmp.z) * tmp.dx;
+    if (!(c.passT > 0 && out > need * 0.5) && !this._oncomingClear(c, g + 2 * half + 30, g + 2 * half + 10)) return false;
+    // (and slowed to 25 km/h going by: at 36 km/h a car went past with a third of a metre to spare. Aimed a little
+    // further out than it needs: on the vehicle physics a car settles a few inches short of the line it's given)
+    c.passT = 2; c.passLat = Math.max(c.passLat || 0, Math.min(passRoom(path, c), need + 0.2)); c.passSlow = 1.2;
+    // going by only once its front is out far enough to clear it; till then it's still in the way, braked for - but
+    // crept up to, a car only moving out as it goes. (Told to go round at 7 m/s, a scooter rode on into the back of
+    // the player's car before it had leant out of line)
+    return out >= need - 0.55 ? 'by' : 'out';
   }
 
   // (one standing still further on than dStill only if it's alongside: a car stopped in its own lane beyond the
@@ -652,11 +665,28 @@ export class TrafficManager {
       // car, when nothing's coming the other way and not at a junction - and waiting behind it, a car's length back,
       // with room to pull out round it. (Traffic queued nose to tail behind a player's car stopped in the road, for
       // good: the one behind decided to go round, but 2 m back it couldn't steer out, and shuffled on the spot)
-      const stopT = this._dynStop?.get(v) || 0, vsp = Math.hypot(s.vx, s.vz);
-      const g = ahead - (c.spec.l / 2 + 2.4) - (stopT > 1 ? 2.5 : 0);
-      if (stopT > 3 && this._goRound(c, path, s.x, s.z, half, ahead, g)) continue;
+      const stopT = this._dynStop?.get(v) || 0, vsp = Math.hypot(s.vx, s.vz), g0 = ahead - (c.spec.l / 2 + 2.4);
+      let g = g0 - (stopT > 1 ? 2.5 : 0);
+      const round = stopT > 3 && this._goRound(c, path, s.x, s.z, half, ahead, g);
+      if (round === 'by') continue;
+      if (round === 'out') g = g0 + 1.7;   // (up to half a metre off its back, steering out as it comes)
       if (g < gap) { gap = g; leadV = Math.max(0, s.vx * fx + s.vz * fz); }
       if (g < 8 && c.honk <= 0 && vsp < 3) { c.honk = 6; bus.emit('traffic:honk', { x: c.x, z: c.z }); }
+    }
+    // a police car (an ambulance) with its siren going, coming up behind on this road or at this one head on in its
+    // lane: over to the kerb and down to a crawl till it's by, as Kerala's traffic does
+    for (const v of dynamic) {
+      if (!v.renderer?.sirenOn) continue;
+      const s = v.physics.s, dx = s.x - c.x, dz = s.z - c.z;
+      if (Math.abs(dx) > 50 || Math.abs(dz) > 50) continue;
+      const vs = Math.hypot(s.vx, s.vz), al = dx * fx + dz * fz, lat = Math.abs(-dx * fz + dz * fx);
+      if (vs < 4 || lat > 6) continue;
+      const way = (s.vx * fx + s.vz * fz) / vs;
+      if ((al < 0 && al > -45 && way > 0.6 && vs > c.v + 1) || (al > 0 && al < 40 && way < -0.6 && lat < 3)) c.yieldT = 1.5;
+    }
+    if (c.yieldT > 0) {
+      c.yieldT -= dt;
+      if (!c.pulled) c.latT = bike ? -0.85 : -Math.min(1.3, kerbRoom(path));
     }
     // any other traffic in front, whatever path it is on: cars crossing the junction from another road, merging,
     // turning across. Of two cars that see each other (nose to nose across a junction) only one gives way.
@@ -689,8 +719,10 @@ export class TrafficManager {
       // a while: a scooter down at a street's mouth held up everything behind it, and a junction, for good)
       const cosA = Math.abs(Math.sin(o.yaw) * fx + Math.cos(o.yaw) * fz), half = (o.spec.w * cosA + o.spec.l * Math.sqrt(Math.max(0, 1 - cosA * cosA))) / 2;
       if (Math.abs(-dx * fz + dz * fx) - half - c.spec.w / 2 > 0.45) continue;
-      const g = ahead - (c.spec.l + o.spec.l) / 2;
-      if (o.knockT > 4 && Math.hypot(o.s2.vx, o.s2.vz) < 0.3 && this._goRound(c, path, o.x, o.z, half, ahead, g)) continue;
+      let g = ahead - (c.spec.l + o.spec.l) / 2;
+      const round = o.knockT > 4 && Math.hypot(o.s2.vx, o.s2.vz) < 0.3 && this._goRound(c, path, o.x, o.z, half, ahead, g);
+      if (round === 'by') continue;
+      if (round === 'out') g += 1.7;
       if (g < gap) { gap = g; leadV = 0; }
     }
     c.honk -= dt;
@@ -747,6 +779,7 @@ export class TrafficManager {
     let v0 = path.speed * c.speedFactor;
     if (c.blockT > 0) { c.blockT -= dt; v0 = 0; c.v = Math.min(c.v, 0.5); }   // (held: nosed into another car, see _separate)
     if (c.passSlow > 0) { c.passSlow -= dt; v0 = Math.min(v0, 7); }
+    if (c.yieldT > 0) v0 = Math.min(v0, 2.5);   // (making way for a siren)
     if (path.kind === 'connector' && path.turn !== 'straight') v0 = Math.min(v0, 7.5);
     if (c.next && c.next.kind === 'connector' && c.next.turn !== 'straight') {
       const d = path.length - c.s;

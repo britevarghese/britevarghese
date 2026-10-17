@@ -360,6 +360,31 @@ export class KeralaLaneGraph {
     return out;
   }
 
+  // the lane a car at (x, z) going (fx, fz) is on: the nearest within maxD running within ~45 degrees of its way (or
+  // minDot: the cosine allowed; no way given: the nearest either way). { lane, s, dist }
+  laneAt(x, z, fx, fz, maxD = 12, minDot = 0.7) {
+    let best = null, bd = maxD;
+    const dir = fx || fz, tx = Math.floor(-x / TILE), tz = Math.floor(z / TILE);
+    // (every lane any point of which can be that near: a lane's middle point by its points' count can be most of its
+    // length from one end, where its points bunch round a bend - lanesNear allows for half a length)
+    const cand = [];
+    for (let dz = -1; dz <= 1; dz++) for (let dx = -1; dx <= 1; dx++) for (const l of this.byTile.get(`${tx + dx},${tz + dz}`) || []) {
+      const m = l.pts[Math.floor(l.pts.length / 2)];
+      if (Math.hypot(m[0] - x, m[1] - z) < maxD + l.length) cand.push(l);
+    }
+    for (const l of cand) {
+      const P = l.pts;
+      for (let i = 1; i < P.length; i++) {
+        const dx = P[i][0] - P[i - 1][0], dz = P[i][1] - P[i - 1][1], L2 = dx * dx + dz * dz, L = Math.sqrt(L2);
+        if (L < 0.01 || (dir && (dx * fx + dz * fz) / L < minDot)) continue;
+        const t = Math.max(0, Math.min(1, ((x - P[i - 1][0]) * dx + (z - P[i - 1][1]) * dz) / L2));
+        const d = Math.hypot(P[i - 1][0] + dx * t - x, P[i - 1][1] + dz * t - z);
+        if (d < bd) { bd = d; best = { lane: l, s: l.cum[i - 1] + L * t, dist: d }; }
+      }
+    }
+    return best;
+  }
+
   nearest(x, z, filter) {
     let best = null;
     const tmp = {};
