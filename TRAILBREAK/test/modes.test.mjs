@@ -60,7 +60,7 @@ test('king of the hill: time in the ring counts only alone in it; first to the h
 });
 
 test('each map has an elimination arena and a hill to hold', async () => {
-  for (const map of ['ashwood', 'kerala']) {
+  for (const map of ['ashwood', 'kerala', 'coast']) {
     const world = new World(await generateWorld({ map }));
     const modes = modesFor(world);
     assert.deepEqual(modes.map((m) => m.id), ['elimination', 'kingofhill']);

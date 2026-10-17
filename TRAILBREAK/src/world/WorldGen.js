@@ -405,16 +405,22 @@ export async function generateWorld({ map, onProgress = () => {}, yieldEvery = 6
   const R = rng(S + 99);
   const puddles = [];
   // every trail point in one list: target height, half-width, kind (1 trail, 2 road), its ford's depth (a causeway's
-  // is shallow)
-  const tpH = [], tpW = [], tpK = [], tpX = [], tpZ = [], tpF = [];
+  // is shallow); and a paved road's own: the shoulder its bed blends into the land over, and whether it is laid
+  // level across (a highway's tarmac) and crosses the river on a bridge
+  const tpH = [], tpW = [], tpK = [], tpX = [], tpZ = [], tpF = [], tpS = [], tpL = [], tpB = [];
   const tD = new Uint8Array(N * N).fill(255), tI = new Uint16Array(N * N);   // distance in 0.1 m units
   const trailLines = [];
   for (const tr of M.trails) {
     const pts = spline(tr.points, 1);
-    trailLines.push({ name: tr.name, kind: tr.kind, points: spline(tr.points, 6) });
-    // the trail's own grade: the ground along it, smoothed (a road more than a trail)
-    let hs = pts.map(([x, z]) => hAt(x, z));
-    const win = tr.kind === 'road' ? 18 : 10;
+    // (a road with lanes: its width and lanes go to the renderer, for the markings)
+    trailLines.push({ name: tr.name, kind: tr.kind, points: spline(tr.points, 6), ...(tr.lanes !== undefined ? { lanes: tr.lanes, width: tr.width, ...(tr.runway ? { runway: true } : {}) } : {}) });
+    // the trail's own grade: the ground along it, smoothed (a road more than a trail; a highway over a longer stretch,
+    // tr.smooth points). A bridge's deck stands clear of the river under it.
+    let hs = pts.map(([x, z]) => {
+      if (tr.bridge) { const idx = cellOf(x, z); if (riverD(idx) < riverHalf(idx) + 4) return riverLvl(idx) + 2; }
+      return hAt(x, z);
+    });
+    const win = tr.smooth ?? (tr.kind === 'road' ? 18 : 10);
     for (let pass = 0; pass < 3; pass++) {
       const out = new Array(hs.length);
       for (let c = 0; c < hs.length; c++) {
@@ -432,10 +438,11 @@ export async function generateWorld({ map, onProgress = () => {}, yieldEvery = 6
     const step = pts.map((q, c) => (c ? hyp(q[0] - pts[c - 1][0], q[1] - pts[c - 1][1]) * gmax : 0));
     // (by at most 3 m either way: a climb steeper than that on average stays steep rather than becoming a cutting or
     // an embankment)
-    const cut = limitGrade(hs, step, Math.min), fill = limitGrade(hs, step, Math.max);
-    hs = hs.map((h, c) => clamp((cut[c] + fill[c]) / 2, h - 3, h + 3));
-    // where it fords the river it dips to the bed, and the banks are cut down to it in ramps
-    for (let p = 0; p < pts.length; p++) {
+    // (a highway's cuttings and embankments go deeper: tr.cut metres)
+    const cut = limitGrade(hs, step, Math.min), fill = limitGrade(hs, step, Math.max), cm = tr.cut ?? 3;
+    hs = hs.map((h, c) => clamp((cut[c] + fill[c]) / 2, h - cm, h + cm));
+    // where it fords the river it dips to the bed, and the banks are cut down to it in ramps (a bridge doesn't)
+    for (let p = 0; p < pts.length && !tr.bridge; p++) {
       const ci = Math.round(pts[p][0] - GRID_ORIGIN), ck = Math.round(pts[p][1] - GRID_ORIGIN);
       if (ci < 0 || ck < 0 || ci >= N || ck >= N) continue;
       const idx = ck * N + ci;
@@ -454,8 +461,12 @@ export async function generateWorld({ map, onProgress = () => {}, yieldEvery = 6
       }
     }
     const base = tpH.length;
-    for (let p = 0; p < pts.length; p++) { tpH.push(hs[p]); tpW.push(tr.width); tpK.push(tr.kind === 'road' ? 2 : 1); tpX.push(pts[p][0]); tpZ.push(pts[p][1]); tpF.push(tr.ford); }
-    const Rr = Math.ceil(tr.width + 6);
+    const shoulder = tr.shoulder ?? 6;
+    for (let p = 0; p < pts.length; p++) {
+      tpH.push(hs[p]); tpW.push(tr.width); tpK.push(tr.kind === 'road' ? 2 : 1); tpX.push(pts[p][0]); tpZ.push(pts[p][1]); tpF.push(tr.ford);
+      tpS.push(shoulder); tpL.push(tr.level ? 1 : 0.97); tpB.push(!!tr.bridge);
+    }
+    const Rr = Math.ceil(tr.width + shoulder);
     for (let p = 0; p < pts.length; p++) {
       const [px, pz] = pts[p];
       const ci = Math.round(px - GRID_ORIGIN), ck = Math.round(pz - GRID_ORIGIN);
@@ -490,10 +501,10 @@ export async function generateWorld({ map, onProgress = () => {}, yieldEvery = 6
   for (let idx = 0; idx < N * N; idx++) {
     if (tD[idx] === 255) continue;
     const d = tD[idx] / 10, p = tI[idx], width = tpW[p];
-    const w = d <= width ? 1 : smoothstep(width + 6, width, d);
-    let h = lerp(H[idx], tpH[p], w * 0.97);
+    const w = d <= width ? 1 : smoothstep(width + tpS[p], width, d);
+    let h = lerp(H[idx], tpH[p], w * tpL[p]);
     if (tpK[p] === 1 && d < width) h -= 0.07 * Math.exp(-(((d - 0.8) / 0.22) ** 2));       // two-track ruts
-    if (riverD(idx) < riverHalf(idx)) h = Math.min(h, riverLvl(idx) - (tpF[p] !== undefined ? tpF[p] - 0.05 : 0.3));   // keep fords wet
+    if (riverD(idx) < riverHalf(idx) && !tpB[p]) h = Math.min(h, riverLvl(idx) - (tpF[p] !== undefined ? tpF[p] - 0.05 : 0.3));   // keep fords wet
     H[idx] = h;
   }
   // carve the puddles (only where the ground all round is level: on a side slope one would be a pothole with a wall)

@@ -1,20 +1,21 @@
 # TRAILBREAK: Offroad Legends
 
-**Offroad Legends** (the TRAILBREAK project) is a co-op off-road driving game that runs in the browser. You and up to three friends take old 4x4s into one of two
-maps: **Ashwood Valley** (mountain trails, a river with fords, a mud bog, a rock garden, snow on the peaks) or the
+**Offroad Legends** (the TRAILBREAK project) is a co-op off-road driving game that runs in the browser. You and up to three friends take old 4x4s into one of three
+maps: **Ashwood Valley** (mountain trails, a river with fords, a mud bog, a rock garden, snow on the peaks), the
 **Kerala Ghats** (tea estates on misty hills, a waterfall, flooded paddy fields, red laterite tracks through rubber and
-coconut, a granite dome). Together you find each map's 15 survey beacons, and you winch each other out when one of you
-gets stuck.
+coconut, a granite dome), or the **Konkan Coast** (tarmac for driving fast: a four-lane highway round the coast, a ghat
+road in hairpins over the hills, an airstrip, a beach and a lighthouse). Together you find each map's 15 survey beacons,
+and you winch each other out when one of you gets stuck.
 
 Nothing to install for players: they open the server's address in Chrome, Edge or Firefox.
 
 - **Engine:** three.js (WebGL2). Each map is generated identically on every client from a fixed seed, the trucks are
   real 3D models, and the boulders and buildings are built from code. The ground wears photo-scanned textures (grass,
   pine-needle forest floor, trail dirt, gravel, rock, mud, sand, snow, river stones; for Kerala red laterite, granite,
-  red mud, the leaf litter and the roads: 9 MB in all), blended per metre by their height maps. The trees are ten real
-  species (game models, 5 MB): the full model close up, and beyond that pictures of it rendered from eight sides when
-  the game starts, each far tree showing the one from the side you see its model from (so it doesn't change shape, or
-  lean another way, as its model takes over when you drive up).
+  red mud, the leaf litter and the roads; for the coast clean tarmac: 9 MB in all), blended per metre by their height
+  maps. The trees are ten real species (game models, 5 MB): the full model close up, and beyond that pictures of it
+  rendered from eight sides when the game starts, each far tree showing the one from the side you see its model from (so
+  it doesn't change shape, or lean another way, as its model takes over when you drive up).
   Meadow grass grows in tufts around you, the sky has drifting clouds and stars, and everything is lit by (and the paint
   and water reflect) that sky. Water is as clear or as muddy as it is deep.
 - **Physics:** written for off-roading, running at 480 Hz (see [The physics](#the-physics)).
@@ -257,10 +258,10 @@ the list, in its build and paint (drag to turn it); at the dealer, tap any truck
   haven't bought for that truck (once bought, a part is yours to fit and take off again). Repairs and the tow truck cost
   money, and can run you into the red (down to -$5,000): a truck is never left broken.
 
-**Events** (pause menu > Events, or the chequered flags on the map): each map has four. Drive to a start line and
-press **J**. The truck is lined up and counted down; drive through the gates in order to the finish. Beat the par
-times for a medal: each medal level pays once (bronze, then silver, then gold come to the gold prize), and every
-finish pays a little.
+**Events** (pause menu > Events, or the chequered flags on the map): Ashwood and Kerala have four each, the Konkan Coast
+three. Drive to a start line and press **J**. The truck is lined up and counted down; drive through the gates in order
+to the finish. Beat the par times for a medal: each medal level pays once (bronze, then silver, then gold come to the
+gold prize), and every finish pays a little.
 
 Ashwood Valley:
 
@@ -280,6 +281,14 @@ Kerala Ghats:
 | Anapara Rock Trials | tight gates through the boulders at the foot of the granite dome and up its slab; +5 s a knock | 0:58 / 1:15 / 1:40 |
 | Kadavu River Run | 150 m flat out down the river's shallows and through the ford | 10.5 / 12.5 / 15.5 s |
 
+Konkan Coast:
+
+| Event | What it asks for | Par (gold / silver / bronze) |
+|---|---|---|
+| Runway Drag | a quarter mile flat out from a standing start down the airstrip's runway | 17.5 / 20.5 / 25 s |
+| Ghat Hill Climb | 660 m of hairpins up 44 m from the edge of Ponnur to the top of the pass | 0:52 / 1:02 / 1:16 |
+| Beach Dash | 280 m along the water's edge on Ponnur Beach's soft sand: air the tyres down for it | 21 / 25 / 31 s |
+
 **Checkpoint races** (as in Off-Road League; pause menu > Events, or their flags on the map): circuits of laps and
 point-to-point rallies along the trails, through numbered inflatable checkpoint arches (the next one glows; the finish
 is chequered) with the course as a line of chevrons on the ground. The screen shows the checkpoints passed (2/10), the
@@ -297,6 +306,10 @@ puts you back at the last checkpoint passed, facing the next, while the clock ru
 | Estate Road Rally | Kerala | 1.6 km of hairpins up through the tea to the factory gates | 3:40 / 4:23 / 5:22 |
 | Paddy and Rubber Rally | Kerala | across the paddies on the bunds and into the rubber trees | 2:05 / 2:30 / 3:03 |
 | Anapara Sprint | Kerala | east out of town to the great rock | 1:34 / 1:53 / 2:18 |
+| Coast Ring Circuit | Coast | a 5.6 km lap of the four-lane ring: up the coast, across the north, down the inland straight and back by the south bay | 3:35 / 4:20 / 5:20 |
+| Coast Highway Sprint | Coast | 1.1 km north from the river bridge up the coastal straight to the north cape | 46 / 55 / 68 s |
+| Inland Straight Sprint | Coast | 1.1 km south down the inland highway past the airfield, the longest straight on the coast | 44 / 53 / 65 s |
+| Ghat Road Rally | Coast | 1.7 km from Ponnur over the ghat: the main street, the hairpins and the long bends down to the inland highway | 1:35 / 1:55 / 2:20 |
 
 The races live in each map's `races` list (src/world/maps/), built by src/game/Races.js onto the trails as they are
 (the world's ground isn't changed by them).
@@ -304,12 +317,14 @@ The races live in each map's `races` list (src/world/maps/), built by src/game/R
 **Party modes** (Esc > Modes & races, **N**, or MODES on a phone), best in a room with friends; alone you play them
 against the clock:
 
-- **Elimination:** everyone starts in a wide circle round the station that holds, then shrinks, again and again, to
-  nothing, behind a glowing wall (on the minimap and the map too, the next circle dashed). Outside it your truck
-  loses a tenth of its health a second; at none you're out. The last truck in wins; alone, last as long as you can
-  (3:37, the whole way, for gold). Every truck in the room works out the same circles from the match's start time.
-- **King of the Hill:** race to the rise (Meadow Rise on Ashwood, Reservoir Rise in Kerala: the satnav shows the way)
-  and hold it: 45 s inside its ring with nobody else in it wins (contested, nobody's time counts). Push them out!
+- **Elimination:** everyone starts in a wide circle round the station (on the coast, the airfield's apron) that holds,
+  then shrinks, again and again, to nothing, behind a glowing wall (on the minimap and the map too, the next circle
+  dashed). Outside it your truck loses a tenth of its health a second; at none you're out. The last truck in wins;
+  alone, last as long as you can (3:37, the whole way, for gold). Every truck in the room works out the same circles
+  from the match's start time.
+- **King of the Hill:** race to the rise (Meadow Rise on Ashwood, Reservoir Rise in Kerala, the Ghat Top on the coast:
+  the satnav shows the way) and hold it: 45 s inside its ring with nobody else in it wins (contested, nobody's time
+  counts). Push them out!
 
 **Map builder** (Esc > Map builder, or Modes & races): build your own course on the map you are on, from a camera over
 it. Pick a prop from the palette (ramps, a big ramp, kickers, dirt mounds, shipping containers, crates, logs, log piles,
@@ -555,6 +570,23 @@ fields are soft red mud under a hand of water, and their bunds jolt the springs;
 dome bare granite, and a rut in mud runs out onto firm ground up a ramp, not against a wall. The air is humid, so the
 hills fade into haze sooner, and the dust and the mud the tyres throw are red. There is no snow.
 
+## Konkan Coast
+
+The map for driving fast, on tarmac, about 2 km across between the Arabian Sea and the hills. Everyone starts at the
+Ponnur Motor Station in Ponnur, a seaside town of red tiled roofs, chai stalls and bus stops. Round the whole map runs
+the Coast Highway, a 5.6 km ring of four lanes (dashed lane lines, a double yellow line down the middle, white edge
+lines) graded almost flat (nowhere steeper than 2 degrees) with sweeping bends: north along the coast behind the beach
+(over the bridge where the river meets the sea), across the north cape, down the long inland straight past the airfield,
+and back along the south bay. From the town the Ghat Road (two lanes, 1.8 km) climbs in hairpins to the top of the pass
+by the Ghat Top lookout, 52 m up, and runs down long bends to the inland highway. The airstrip has a 760 m runway (its
+centre line, edge lines and threshold bars), a taxiway, an apron and a radio mast; the Market, Temple and Lighthouse
+roads lead out of town, the last to the red and white lighthouse on the point. Coconut palms grow along the shore,
+mango, jungle and bamboo on the hills, and the sea runs out past the edge of the map.
+
+The roads are clean, grippy asphalt, kept clear of trees; off them the ground is Kerala's red laterite and grass, and
+the beach is soft sand, where airing down pays. Survey beacons stand by the roads, from the lighthouse and the market
+square to the runway's end and the hairpin bend.
+
 ## Project layout
 
 ```
@@ -563,10 +595,12 @@ src/physics/              Vehicle (chassis, axles, tyre contact, winch, water), 
                           Upgrades (the garage's parts and what each does to the physics)
 src/world/                WorldGen (a map's world, from its definition), World (ground for the physics), Deform
                           (ruts), Noise
-src/world/maps/           the maps: index (the list), ashwood, kerala (each one's land, river, trails, beacons,
-                          buildings, events and its own generator hooks: Kerala's tea, paddies and quarry)
+src/world/maps/           the maps: index (the list), ashwood, kerala, coast (each one's land, river, trails, beacons,
+                          buildings, events and its own generator hooks: Kerala's tea, paddies and quarry, the coast's
+                          sea, beach and town)
 src/render/               Renderer, Sky, Terrain (LOD patches), Vegetation, Tea (the estates' rows of bushes), Rocks,
-                          Water, Landmarks and KeralaBuildings, TruckModel (chassis, axles, wheels, parts), TruckAssets
+                          Water (and the coast's sea), RoadMarkings (the coast's lane lines), Landmarks and
+                          KeralaBuildings, TruckModel (chassis, axles, wheels, parts), TruckAssets
                           (each truck's real model) and TruckBodies (built-in bodies that stand in while a model loads),
                           Effects (particles, winch line), EventCourse (start banners, gates)
 src/core/                 Game (the loop), Input, CameraRig

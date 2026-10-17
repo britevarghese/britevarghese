@@ -45,6 +45,18 @@ MAPS = {
         # the soil between the tea rows; from far away, the bushes' green
         ('tea', 'polyhaven', 'brown_mud_leaves_01', 2.4, 0.9, {'far': [0.06, 0.15, 0.03]}),
     ],
+    # the Konkan Coast: Kerala's grounds (red laterite, the same grass and sand), and clean tarmac on its roads
+    'coast': [
+        ('grass', 'ambientcg', 'Grass004', 2.4, 0.95),
+        ('forest', 'polyhaven', 'brown_mud_leaves_01', 2.4, 0.9),
+        ('dirt', 'polyhaven', 'red_laterite_soil_stones', 2.0, 0.88),
+        ('gravel', 'polyhaven', 'river_small_rocks', 2.9, 0.85),
+        ('rock', 'polyhaven', 'rock_surface', 4.0, 0.78),
+        ('mud', 'polyhaven', 'red_dirt_mud_01', 1.5, 0.45, {'gain': [0.55, 0.5, 0.5]}),
+        ('sand', 'polyhaven', 'coast_sand_01', 4.0, 0.92),
+        ('pebbles', 'polyhaven', 'ganges_river_pebbles', 2.16, 0.72),
+        ('road', 'polyhaven', 'clean_asphalt', 2.1, 0.86),
+    ],
 }
 COLOR, DATA = 1024, 512
 

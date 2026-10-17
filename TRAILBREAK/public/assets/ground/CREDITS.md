@@ -31,4 +31,12 @@ Photo-scanned ground materials, all CC0 (public domain), packed for the game by 
 | river stones | [Ganges River Pebbles](https://polyhaven.com/a/ganges_river_pebbles) by Amal Kumar, Poly Haven |
 | roads | [Road Damaged](https://polyhaven.com/a/road_damaged) by Dimitrios Savva, Poly Haven |
 
-On both maps the boulders wear the rock layer.
+## Konkan Coast
+
+Kerala's ground layers (red laterite, grass, leaf litter, shingle, granite, red mud, sand, river stones), and:
+
+| Layer | Source |
+|---|---|
+| roads, the runway and the apron | [Clean Asphalt](https://polyhaven.com/a/clean_asphalt) by Dimitrios Savva, Poly Haven |
+
+On every map the boulders wear the rock layer.

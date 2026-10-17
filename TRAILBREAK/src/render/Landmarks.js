@@ -163,6 +163,30 @@ const BUILD = {
     for (let i = 0; i < 5; i++) B.put(mat.stone, new THREE.DodecahedronGeometry(0.5 - i * 0.07), 5, 0.4 + i * 0.6, 3, i);
     return B.build(L);
   },
+  // a lighthouse on the point: a tapering tower in white and red bands, its gallery and lantern room, the keeper's
+  // house at its foot; the lamp glows (it shines at night)
+  lighthouse(L) {
+    const B = new Builder();
+    const H = 24, bands = 6, r0 = 3.1, r1 = 2.0;
+    for (let k = 0; k < bands; k++) {
+      const a = r0 + (r1 - r0) * k / bands, b = r0 + (r1 - r0) * (k + 1) / bands;
+      B.cyl(k % 2 ? mat.red : mat.white, b, a, H / bands, 0, H / bands * (k + 0.5), 0, 20);
+    }
+    B.cyl(mat.dark, 2.7, 2.7, 0.3, 0, H + 0.15, 0, 20);                       // the gallery
+    for (let k = 0; k < 16; k++) { const a = k / 16 * Math.PI * 2; B.box(mat.dark, 0.06, 1.0, 0.06, Math.cos(a) * 2.6, H + 0.8, Math.sin(a) * 2.6); }
+    B.cyl(mat.dark, 2.62, 2.62, 0.06, 0, H + 1.28, 0, 20);                   // its rail
+    B.cyl(mat.glass, 1.45, 1.45, 2.2, 0, H + 1.4, 0, 12);                     // the lantern room
+    B.cyl(mat.red, 0.25, 1.75, 1.3, 0, H + 3.15, 0, 12);                      // its roof
+    B.cyl(mat.dark, 0.06, 0.06, 1.2, 0, H + 4.3, 0, 4);                       // the vane's rod
+    B.box(mat.white, 6.5, 3.2, 5, 6.8, 1.6, 0);                               // the keeper's house
+    B.box(mat.red, 7.1, 0.25, 5.6, 6.8, 3.3, 0);
+    B.box(mat.dark, 1.0, 2.0, 0.1, 6.8, 1.0, 2.53);
+    const g = B.build(L);
+    const lamp = new THREE.Mesh(new THREE.SphereGeometry(0.7, 12, 10), new THREE.MeshStandardMaterial({ color: 0xfff2c0, emissive: 0xffe8a0, emissiveIntensity: 2.5 }));
+    lamp.position.set(0, H + 1.4, 0);
+    g.add(lamp);
+    return g;
+  },
   mast(L) {
     const B = new Builder();
     const H = 26;

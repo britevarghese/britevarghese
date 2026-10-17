@@ -51,25 +51,28 @@ export function eventsFor(world) {
     return { x: a[0] - (dx / l) * back, z: a[1] - (dz / l) * back, yaw: Math.atan2(dx, dz) };
   };
   const ev = (M?.events || []).map((spec) => {
-    const { kind, line: _l, at: _a, from: _f, gap: _g, r, dy, gates: _gs, start: _s, ...rest } = spec;
+    const { kind, line: _l, at: _a, from: _f, to: _t, gap: _g, r, dy, gates: _gs, start: _s, ...rest } = spec;
     if (kind === 'trail') {
-      // up the trail from one of its control points, a gate every `gap` m of trail (each only counts from the trail
-      // itself, not from the switchback below it)
+      // up the trail from one of its control points (to the point of it nearest `to`, else to its end), a gate every
+      // `gap` m of trail (each only counts from the trail itself, not from the switchback below it)
       const line = world.data?.trails?.find((t) => t.name === spec.trail)?.points || trailFrom(M, spec);
-      const [sx, sz] = spec.from;
-      let i0 = 0;
-      line.forEach(([x, z], i) => { if (Math.hypot(x - sx, z - sz) < Math.hypot(line[i0][0] - sx, line[i0][1] - sz)) i0 = i; });
+      const near = ([px, pz], from = 0) => {
+        let k = from;
+        for (let i = from; i < line.length; i++) if (Math.hypot(line[i][0] - px, line[i][1] - pz) < Math.hypot(line[k][0] - px, line[k][1] - pz)) k = i;
+        return k;
+      };
+      const i0 = near(spec.from), i1 = spec.to ? Math.max(i0 + 1, near(spec.to, i0)) : line.length - 1;
       const gates = [];
       let acc = 0;
-      for (let i = i0 + 1; i < line.length; i++) {
+      for (let i = i0 + 1; i <= i1; i++) {
         acc += Math.hypot(line[i][0] - line[i - 1][0], line[i][1] - line[i - 1][1]);
-        if (acc >= spec.gap || i === line.length - 1) {
-          if (i === line.length - 1 && acc < spec.gap * 0.4 && gates.length) gates.pop();
+        if (acc >= spec.gap || i === i1) {
+          if (i === i1 && acc < spec.gap * 0.4 && gates.length) gates.pop();
           gates.push({ x: line[i][0], z: line[i][1], r, dy });
           acc = 0;
         }
       }
-      return { ...rest, kind, start: startAt(line[i0], line[Math.min(line.length - 1, i0 + 2)]), gates, line: line.slice(i0) };
+      return { ...rest, kind, start: startAt(line[i0], line[Math.min(line.length - 1, i0 + 2)]), gates, line: line.slice(i0, i1 + 1) };
     }
     if (kind === 'line') {
       // a straight course with a run-up: line gates across it at fractions of the way (1: the finish)

@@ -194,6 +194,33 @@ export class Water {
     this.mesh.renderOrder = 2;
     scene.add(this.mesh);
     this.group = this.mesh;
+    // a map on the sea (world.map.sea): the open sea beyond the map's west edge to the horizon, and past its north and
+    // south ends off the coast (the map's own water grid has it inside the map)
+    if (world.map.sea) {
+      const L = world.map.sea.level, E = -O, far = 9000, coast = world.map.sea.reach ?? -600;
+      const sp = [], si = [];
+      const quad = (x0, z0, x1, z1) => {
+        const v = sp.length / 3;
+        sp.push(x0, L, z0, x1, L, z0, x0, L, z1, x1, L, z1);
+        si.push(v, v + 2, v + 1, v + 1, v + 2, v + 3);
+      };
+      quad(-far, -far, -E + 2, far);
+      quad(-E + 2, -far, coast, -E + 2);
+      quad(-E + 2, E - 2, coast, far);
+      const n = sp.length / 3, sg = new THREE.BufferGeometry();
+      sg.setAttribute('position', new THREE.Float32BufferAttribute(sp, 3));
+      sg.setAttribute('normal', new THREE.Float32BufferAttribute(new Float32Array(n * 3).map((_, j) => (j % 3 === 1 ? 1 : 0)), 3));
+      sg.setAttribute('aDepth', new THREE.Float32BufferAttribute(new Float32Array(n).fill(12), 1));
+      sg.setAttribute('aFlow', new THREE.Float32BufferAttribute(new Float32Array(n * 2), 2));
+      sg.setAttribute('aMud', new THREE.Float32BufferAttribute(new Float32Array(n), 1));
+      sg.setAttribute('aFall', new THREE.Float32BufferAttribute(new Float32Array(n), 1));
+      sg.setIndex(si);
+      sg.computeBoundingSphere();
+      this.sea = new THREE.Mesh(sg, this.mesh.material);
+      this.sea.renderOrder = 2;
+      this.sea.frustumCulled = false;
+      scene.add(this.sea);
+    }
   }
 
   update(camera, dt) {

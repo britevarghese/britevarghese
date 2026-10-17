@@ -273,6 +273,8 @@ const WALLS = {
   teafactory: box(13, 6.5), bungalow: box(6, 5), chaistall: box(2.2, 1.6), house: box(4.2, 3.4), laterite: box(1.6, 1),
   busstop: (L, wall) => { for (const [a, b] of [[-1.8, -0.8], [1.8, -0.8]]) wall(L, a, b, a, b, 0.2); },
 };
+/** Kerala's buildings' colliders, for another map that builds them (the coast's town). */
+export const KERALA_WALLS = WALLS;
 
 const gen = {
   prepare,

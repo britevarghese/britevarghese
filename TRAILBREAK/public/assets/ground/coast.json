@@ -1,0 +1,126 @@
+{
+ "layers": [
+  {
+   "name": "grass",
+   "color": "grass004_c.webp",
+   "data": "grass004_d.webp",
+   "size": 2.4,
+   "rough": 0.95,
+   "avg": [
+    0.12689,
+    0.16117,
+    0.03431
+   ],
+   "source": "ambientcg:Grass004"
+  },
+  {
+   "name": "forest",
+   "color": "brown_mud_leaves_01_c.webp",
+   "data": "brown_mud_leaves_01_d.webp",
+   "size": 2.4,
+   "rough": 0.9,
+   "avg": [
+    0.13934,
+    0.10073,
+    0.03697
+   ],
+   "source": "polyhaven:brown_mud_leaves_01"
+  },
+  {
+   "name": "dirt",
+   "color": "red_laterite_soil_stones_c.webp",
+   "data": "red_laterite_soil_stones_d.webp",
+   "size": 2.0,
+   "rough": 0.88,
+   "avg": [
+    0.1325,
+    0.05,
+    0.02813
+   ],
+   "source": "polyhaven:red_laterite_soil_stones"
+  },
+  {
+   "name": "gravel",
+   "color": "river_small_rocks_c.webp",
+   "data": "river_small_rocks_d.webp",
+   "size": 2.9,
+   "rough": 0.85,
+   "avg": [
+    0.19712,
+    0.15604,
+    0.11007
+   ],
+   "source": "polyhaven:river_small_rocks"
+  },
+  {
+   "name": "rock",
+   "color": "rock_surface_c.webp",
+   "data": "rock_surface_d.webp",
+   "size": 4.0,
+   "rough": 0.78,
+   "avg": [
+    0.1606,
+    0.11919,
+    0.08373
+   ],
+   "source": "polyhaven:rock_surface"
+  },
+  {
+   "name": "mud",
+   "color": "red_dirt_mud_01_c.webp",
+   "data": "red_dirt_mud_01_d.webp",
+   "size": 1.5,
+   "rough": 0.45,
+   "avg": [
+    0.22526,
+    0.09851,
+    0.04141
+   ],
+   "source": "polyhaven:red_dirt_mud_01",
+   "gain": [
+    0.55,
+    0.5,
+    0.5
+   ]
+  },
+  {
+   "name": "sand",
+   "color": "coast_sand_01_c.webp",
+   "data": "coast_sand_01_d.webp",
+   "size": 4.0,
+   "rough": 0.92,
+   "avg": [
+    0.2269,
+    0.17373,
+    0.10967
+   ],
+   "source": "polyhaven:coast_sand_01"
+  },
+  {
+   "name": "pebbles",
+   "color": "ganges_river_pebbles_c.webp",
+   "data": "ganges_river_pebbles_d.webp",
+   "size": 2.16,
+   "rough": 0.72,
+   "avg": [
+    0.23262,
+    0.1956,
+    0.15542
+   ],
+   "source": "polyhaven:ganges_river_pebbles"
+  },
+  {
+   "name": "road",
+   "color": "clean_asphalt_c.webp",
+   "data": "clean_asphalt_d.webp",
+   "size": 2.1,
+   "rough": 0.86,
+   "avg": [
+    0.05955,
+    0.06152,
+    0.06213
+   ],
+   "source": "polyhaven:clean_asphalt"
+  }
+ ]
+}

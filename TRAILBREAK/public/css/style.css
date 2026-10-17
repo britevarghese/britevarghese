@@ -126,6 +126,7 @@ input[type=checkbox]:checked::after { transform: translateX(16px); background: #
 .map-opt::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 5px; }
 .map-ashwood::before { background: linear-gradient(#e9eef2, #5b7a4a 40%, #2f4a32); }
 .map-kerala::before { background: linear-gradient(#7fbf4a, #3f8a3a 45%, #b0502c); }
+.map-coast::before { background: linear-gradient(#5fb0d8, #3a3d42 45%, #d8c08a); }
 .map-note { font-size: 12.5px; color: var(--ink-dim); margin: 6px 0 0; }
 .map-note:empty { display: none; }
 .truck-list { display: grid; gap: 6px; max-height: 30vh; overflow: auto; position: relative; padding-right: 4px; }

@@ -9,7 +9,7 @@ import { EventRun, gridFor } from '../src/game/Events.js';
 
 const EVENT_RX = /^[a-z]{2,16}$/;           // (server/rooms.js: what a race's id may be)
 
-for (const [map, ids] of [['ashwood', ['bogcircuit', 'eastford', 'pinecrest', 'meadows', 'mirrorlake', 'gorgerun']], ['kerala', ['estaterally', 'paddyrally', 'anapara']]]) {
+for (const [map, ids] of [['ashwood', ['bogcircuit', 'eastford', 'pinecrest', 'meadows', 'mirrorlake', 'gorgerun']], ['kerala', ['estaterally', 'paddyrally', 'anapara']], ['coast', ['ringcircuit', 'coastsprint', 'inlandsprint', 'ghatrally']]]) {
   test(`${map}: the checkpoint races`, async () => {
     const world = new World(await generateWorld({ map }));
     const races = racesFor(world);
@@ -24,14 +24,16 @@ for (const [map, ids] of [['ashwood', ['bogcircuit', 'eastford', 'pinecrest', 'm
       // the course keeps to the trails (a via circuit's closing cut aside)
       const off = r.line.filter(([x, z]) => Math.min(...trailPts.map(([a, b]) => Math.hypot(a - x, b - z))) > 9).length;
       assert.ok(off <= 4, `${r.id}: ${off} points of its line off the trails`);
-      // driven along its line, every checkpoint in order, to the finish
+      // driven along its line, every checkpoint in order, to the finish (the clock running at about 20 m/s, so the
+      // coast's long ring is inside the time limit)
       const run = new EventRun(r, 0);
       let t = 0.01;
       const L = r.line;
       for (let k = 1; k < L.length && run.phase !== 'finished'; k++) {
+        const seg = Math.hypot(L[k][0] - L[k - 1][0], L[k][1] - L[k - 1][1]);
         for (let u = 0; u <= 1; u += 0.25) {
           const x = L[k - 1][0] + (L[k][0] - L[k - 1][0]) * u, z = L[k - 1][1] + (L[k][1] - L[k - 1][1]) * u;
-          t += 0.1;
+          t += 0.01 + seg / 80;
           run.update(t, { x, y: world.terrain(x, z) + 0.8, z }, 0);
         }
       }
