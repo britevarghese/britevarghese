@@ -590,12 +590,17 @@ lines) graded almost flat (nowhere steeper than 2 degrees) with sweeping bends: 
 and back along the south bay. From the town the Ghat Road (two lanes, 1.8 km) climbs in hairpins to the top of the pass
 by the Ghat Top lookout, 52 m up, and runs down long bends to the inland highway. The airstrip has a 760 m runway (its
 centre line, edge lines and threshold bars), a taxiway, an apron and a radio mast; the Market, Temple and Lighthouse
-roads lead out of town, the last to the red and white lighthouse on the point. Coconut palms grow along the shore,
-mango, jungle and bamboo on the hills, and the sea runs out past the edge of the map.
+roads lead out of town, the last to the red and white lighthouse on the point. The country is open, as a driving game's
+is: coconut palms in groves along the shore with sand and grass between them, a copse here and there on the plain, woods
+with clearings on the hills; and the sea runs out past the edge of the map.
 
-The roads are clean, grippy asphalt, kept clear of trees; off them the ground is Kerala's red laterite and grass, and
-the beach is soft sand, where airing down pays. Survey beacons stand by the roads, from the lighthouse and the market
-square to the runway's end and the hairpin bend.
+The roads are asphalt that has seen some traffic and some monsoons: wheel paths polished darker, oil down the middle of
+each lane, repair patches with their seams sealed, cracks filled with tar, the paint worn, the edges crumbling with red
+earth washed onto them, and mud carried onto the lanes from the puddles on the verges and the field gates, smeared down
+the wheel paths. The puddles are real (water standing in a dip just off the tarmac, the ground round it trodden to mud),
+and the verges are kept clear of trees. Off the road the ground is Kerala's red laterite and grass, and the beach is
+soft sand, where airing down pays. Survey beacons stand by the roads, from the lighthouse and the market square to the
+runway's end and the hairpin bend.
 
 ## Project layout
 
@@ -609,7 +614,8 @@ src/world/maps/           the maps: index (the list), ashwood, kerala, coast (ea
                           buildings, events and its own generator hooks: Kerala's tea, paddies and quarry, the coast's
                           sea, beach and town)
 src/render/               Renderer, Sky, Terrain (LOD patches), Vegetation, Tea (the estates' rows of bushes), Rocks,
-                          Water (and the coast's sea), RoadMarkings (the coast's lane lines), Landmarks and
+                          Water (and the coast's sea), RoadMarkings and RoadWear (the coast's lane lines; the wear,
+                          cracks and mud on its tarmac), Landmarks and
                           KeralaBuildings, TruckModel (chassis, axles, wheels, parts), Person and Hands (the driver,
                           his hands on the wheel; DriverAssets loads him, Driver draws one while he loads), TruckAssets
                           (each truck's real model) and TruckBodies (built-in bodies that stand in while a model loads),

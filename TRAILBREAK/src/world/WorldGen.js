@@ -493,6 +493,17 @@ export async function generateWorld({ map, onProgress = () => {}, yieldEvery = 6
         if (grade < 0.035 && !onCourse(pd.x, pd.z, pd.r + 6)) puddles.push(pd);
       }
     }
+    // a paved road's verges (tr.verge.puddles: so many a km): rain standing in the dips just off the tarmac, the
+    // ground round it trodden to mud (kept off the road itself, another road's and the courses)
+    if (tr.verge?.puddles) {
+      for (let n = Math.round(tr.verge.puddles * pts.length / 1000); n > 0; n--) {
+        const p = Math.floor((0.03 + 0.94 * R()) * pts.length), side = R() < 0.5 ? 1 : -1, r = 1.1 + R() * 1.3;
+        const a = pts[Math.max(0, p - 1)], b = pts[Math.min(pts.length - 1, p + 1)], l = hyp(b[0] - a[0], b[1] - a[1]) || 1;
+        const off = side * (tr.width + 1.6 + r);
+        const pd = { x: pts[p][0] - (b[1] - a[1]) / l * off, z: pts[p][1] + (b[0] - a[0]) / l * off, r, depth: 0.12 + R() * 0.1, verge: true };
+        if (!onCourse(pd.x, pd.z, pd.r + 4)) puddles.push(pd);
+      }
+    }
   }
   const trailD = (idx) => (tD[idx] === 255 ? 1e9 : tD[idx] / 10);
   const trailW = (idx) => (tD[idx] === 255 ? 0 : tpW[tI[idx]]);
@@ -510,6 +521,11 @@ export async function generateWorld({ map, onProgress = () => {}, yieldEvery = 6
   // carve the puddles (only where the ground all round is level: on a side slope one would be a pothole with a wall)
   for (const pd of puddles) {
     const ci = Math.round(pd.x - GRID_ORIGIN), ck = Math.round(pd.z - GRID_ORIGIN), Rr = Math.ceil(pd.r + 2);
+    // (a verge's: not on any road's tarmac, nor in the river)
+    if (pd.verge) {
+      const idx = cellOf(pd.x, pd.z);
+      if (trailD(idx) < trailW(idx) + pd.r + 1 || riverD(idx) < riverHalf(idx) + pd.r + 3) { pd.skip = true; continue; }
+    }
     let rim = Infinity, rimTop = -Infinity;
     for (let k = ck - Rr; k <= ck + Rr; k++) for (let i = ci - Rr; i <= ci + Rr; i++) {
       if (i < 0 || k < 0 || i >= N || k >= N) continue;

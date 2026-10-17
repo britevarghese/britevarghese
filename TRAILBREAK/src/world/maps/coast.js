@@ -114,11 +114,11 @@ const GHAT = road([
   [470, 170, 220], [620, 220, 200], [E, 240],
 ], 6);
 export const TRAILS = [
-  { name: 'Coast Highway', kind: 'road', width: 7, lanes: 4, grade: 0.06, smooth: 60, cut: 8, shoulder: 12, level: true, bridge: true, points: RING },
-  { name: 'Ghat Road', kind: 'road', width: 4.2, lanes: 2, grade: 0.11, smooth: 24, cut: 7, shoulder: 9, level: true, points: GHAT },
-  { name: 'Market Road', kind: 'road', width: 3.6, lanes: 2, grade: 0.08, cut: 4, level: true, points: road([[-470, 40], [-471, -60, 150], [-462, -130]]) },
-  { name: 'Temple Road', kind: 'road', width: 3.6, lanes: 2, grade: 0.08, cut: 4, level: true, points: road([[-400, 41], [-399, 140, 150], [-410, 205]]) },
-  { name: 'Lighthouse Road', kind: 'road', width: 3.6, lanes: 2, grade: 0.08, cut: 4, level: true, points: road([[W, -300], [-630, -305, 60], [-668, -360, 120], [-700, -515]]) },
+  { name: 'Coast Highway', kind: 'road', width: 7, lanes: 4, grade: 0.06, smooth: 60, cut: 8, shoulder: 12, level: true, bridge: true, verge: { puddles: 5 }, points: RING },
+  { name: 'Ghat Road', kind: 'road', width: 4.2, lanes: 2, grade: 0.11, smooth: 24, cut: 7, shoulder: 9, level: true, verge: { puddles: 8 }, points: GHAT },
+  { name: 'Market Road', kind: 'road', width: 3.6, lanes: 2, grade: 0.08, cut: 4, level: true, verge: { puddles: 6 }, points: road([[-470, 40], [-471, -60, 150], [-462, -130]]) },
+  { name: 'Temple Road', kind: 'road', width: 3.6, lanes: 2, grade: 0.08, cut: 4, level: true, verge: { puddles: 6 }, points: road([[-400, 41], [-399, 140, 150], [-410, 205]]) },
+  { name: 'Lighthouse Road', kind: 'road', width: 3.6, lanes: 2, grade: 0.08, cut: 4, level: true, verge: { puddles: 6 }, points: road([[W, -300], [-630, -305, 60], [-668, -360, 120], [-700, -515]]) },
   { name: 'Runway', kind: 'road', width: 15, lanes: 0, runway: true, grade: 0.006, smooth: 80, cut: 10, shoulder: 14, level: true, points: road(RUNWAY, 20) },
   { name: 'Taxiway', kind: 'road', width: 5, lanes: 0, grade: 0.03, smooth: 30, cut: 6, shoulder: 8, level: true, points: road([[540, -310], [E, -305]], 15) },
 ];
@@ -244,8 +244,8 @@ const gen = {
     // kinds (the Kerala set): 0 coconut, 1 jungle giant, 2 mango/jack, 3 rubber, 4 banana, 5 bamboo
     const blocked = (x, z) => {
       const idx = cellOf(x, z), tw = trailW(idx);
-      // (the highway and the runway kept clear well back: the view ahead at speed)
-      if (trailD(idx) < tw + (tw >= 7 ? 12 : 4)) return true;
+      // (the highway and the runway kept clear well back, the other roads a verge's width: the view ahead at speed)
+      if (trailD(idx) < tw + (tw >= 7 ? 20 : 7)) return true;
       if (riverD(idx) < riverHalf(idx) + 3) return true;
       const wl = waterAt(x, z);
       if (wl > -1e8 && H[idx] < wl + 0.3) return true;
@@ -261,11 +261,15 @@ const gen = {
         const idx = cellOf(px, pz), s = surf[idx];
         if (bare(s)) continue;
         const d = px - shoreX(pz), h = H[idx], patch = fbm(px / 150, pz / 150, 2, S + 100);
+        // the trees in clumps, open country between them (as a driving game's countryside opens up round its roads):
+        // groves of coconut behind the beach with sand and grass between, woods with clearings on the hills, a copse
+        // here and there on the plain
+        const clump = patch + 0.6 * fbm(px / 70, pz / 70, 2, S + 140);
         const town = hyp(px - TOWN.x, pz - TOWN.z) < TOWN.r;
         let dens;
-        if (d < 420) dens = town ? 0.05 : 0.2 + 0.22 * patch;                // the coconut groves behind the beach
-        else if (h > 30) dens = 0.3 + 0.25 * patch;                          // the wooded hills
-        else dens = 0.03 + 0.05 * Math.max(0, patch);                        // the plain: open, a tree here and there
+        if (d < 420) dens = town ? 0.03 : 0.006 + 0.15 * smoothstep(0.1, 0.45, clump);
+        else if (h > 30) dens = 0.012 + 0.2 * smoothstep(0.05, 0.45, clump);
+        else dens = 0.002 + 0.04 * smoothstep(0.3, 0.6, clump);
         if (roll > dens || blocked(px, pz)) continue;
         if (d < 420) {
           if (town) { if (pick < 0.5) add(px, pz, 0, 10 + R() * 9, 0.17); else if (pick < 0.8) add(px, pz, 4, 3 + R() * 2.2, 0.1); else add(px, pz, 2, 8 + R() * 7, 0.28); }

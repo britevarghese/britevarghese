@@ -59,6 +59,22 @@ export class RoadMarkings {
     g.setIndex(idx);
     g.computeBoundingSphere();
     const mat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.62, metalness: 0, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -4 });
+    // worn paint: rubbed off in patches by the tyres and the weather, the asphalt showing through (and the dirt on it,
+    // render/RoadWear.js, lying over it)
+    mat.onBeforeCompile = (sh) => {
+      sh.vertexShader = sh.vertexShader
+        .replace('#include <common>', '#include <common>\nvarying vec3 vWPos;')
+        .replace('#include <worldpos_vertex>', '#include <worldpos_vertex>\nvWPos = (modelMatrix * vec4(transformed, 1.0)).xyz;');
+      sh.fragmentShader = sh.fragmentShader
+        .replace('#include <common>', `#include <common>
+varying vec3 vWPos;
+float mh(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+float mn(vec2 p) { vec2 i = floor(p), f = fract(p); vec2 u = f * f * (3.0 - 2.0 * f);
+  return mix(mix(mh(i), mh(i + vec2(1, 0)), u.x), mix(mh(i + vec2(0, 1)), mh(i + vec2(1, 1)), u.x), u.y); }`)
+        .replace('#include <color_fragment>', `#include <color_fragment>
+float wear = smoothstep(0.5, 0.85, mn(vWPos.xz * 1.6)) * 0.7 + mn(vWPos.xz * 7.0) * 0.2;
+diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.025), clamp(wear, 0.0, 0.85));`);
+    };
     this.mesh = new THREE.Mesh(g, mat);
     this.mesh.receiveShadow = true;
     scene.add(this.mesh);

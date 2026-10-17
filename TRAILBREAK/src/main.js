@@ -16,6 +16,7 @@ import { Tea } from './render/Tea.js';
 import { Rocks } from './render/Rocks.js';
 import { Water } from './render/Water.js';
 import { RoadMarkings } from './render/RoadMarkings.js';
+import { RoadWear } from './render/RoadWear.js';
 import { Landmarks } from './render/Landmarks.js';
 import { Effects, Rope } from './render/Effects.js';
 import { MUD_TINT } from './render/TruckModel.js';
@@ -221,6 +222,7 @@ async function start() {
   const tea = M.tea ? new Tea(world, renderer.scene) : null;
   const water = new Water(world, renderer.scene);
   new RoadMarkings(world, renderer.scene);                       // (the lines on a map's tarmac, if it has any)
+  new RoadWear(world, renderer.scene);                           // (and its wear, cracks and mud)
   const landmarks = new Landmarks(world, renderer.scene);
   const effects = new Effects(renderer.scene);
   effects.setPalette(M.dust);
