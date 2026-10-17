@@ -5,7 +5,7 @@
 //
 //   Gecko     the Lada Niva (a real model)                             Mule     the Willys MB, the original jeep (a real model)
 //   Ranger    the UAZ Hunter (a real model)                            Trekker  the Ford Ranger Raptor (a real model)
-//   Shepherd  the Land Rover Defender 110 (a real model)               Drover   the Mitsubishi Pajero (a real model)
+//   Shepherd  the Land Rover Defender 110, 2026 (a real model)         Drover   the Mitsubishi Pajero (a real model)
 //   Hauler    the Chevrolet K20 Suburban (a real model)                 Bruiser  the Ram 2500 Power Wagon (a real model)
 //   Rhino     the Mercedes-Benz Unimog U1300L (a real model)
 //
@@ -180,29 +180,34 @@ export const TRUCKS = {
     style: 'trekker', look: { bed: true, coils: true },
   },
   shepherd: {
-    // the Land Rover Defender 110 station wagon (a real model: render/TruckAssets.js)
+    // the Land Rover Defender 110 (L663, the 2026 model year): 3,022 mm wheelbase, 5,018 mm long over the spare wheel,
+    // 1,996 mm wide, an aluminium monocoque with independent suspension at all four corners (double wishbones in front,
+    // integral links behind) on air springs, a two-speed transfer box and an active centre diff, 218 mm under it at
+    // its normal height (Land Rover's technical data; a real model: render/TruckAssets.js)
     id: 'shepherd', name: 'Land Rover Defender 110',
-    blurb: 'Defender 110 station wagon: 110" wheelbase, 2.5 turbo-diesel, five-speed, coil springs and long travel, a bull bar and side steps. Tall, tireless and unstoppable.',
-    mass: 2050, cgHeight: 0.86, cgZ: -0.06, inertiaBox: [1.7, 1.4, 4.2],
+    blurb: 'Land Rover Defender 110 (2026): 119" wheelbase, the D350 3.0 straight-six turbo-diesel with a mild hybrid, a ZF eight-speed automatic and a two-speed transfer box, air suspension and independent at all four corners, Terrain Response, traction control and a rear limited-slip diff. Quick, quiet and very capable.',
+    mass: 2430, cgHeight: 0.78, cgZ: 0.02, inertiaBox: [1.85, 1.35, 4.5],
     axles: [
-      { z: 1.397, track: 1.486, springTrack: 0.9, rate: 39000, bump: 2300, rebound: 4600, travel: 0.24, sag: 0.1, mass: 95, steer: 0.55, brake: 3000, swayBar: 15000, diffDrop: 0.17, diffX: -0.12 },
-      { z: -1.397, track: 1.486, springTrack: 1.0, rate: 46000, bump: 2500, rebound: 5000, travel: 0.27, sag: 0.11, mass: 100, steer: 0, brake: 2000, handbrake: 3000, diffDrop: 0.17, diffX: -0.12 },
+      { z: 1.511, track: 1.704, springTrack: 1.2, rate: 46000, bump: 2800, rebound: 5600, travel: 0.24, sag: 0.1, mass: 95, steer: 0.58, brake: 4000, swayBar: 26000, ifs: true, armDrop: 0.1 },
+      { z: -1.511, track: 1.7, springTrack: 1.2, rate: 50000, bump: 2800, rebound: 5600, travel: 0.26, sag: 0.1, mass: 95, steer: 0, brake: 2700, handbrake: 3400, ifs: true, armDrop: 0.1 },
     ],
-    trans: { tcK: 10 },
-    stock: { tyre: 31, axle: 4.10, trans: 3, fit: 31, low: 2.74 },
+    trans: { tcK: 9.4 },
+    stock: { tyre: 31, axle: 3.31, trans: 15, fit: 33, low: 2.93, diffs: 1 },
+    axleRatios: [3.31, 3.55, 4.1, 4.56, 4.88, 5.13],
+    stockTyre: { label: '255/60 R20 A/T', radius: 0.407, width: 0.255, rim: 20, desc: 'The Defender\'s 255/60 R20 all-terrains (32") on 20" alloys.' },
     hull: [
-      { c: [0, 0.8, -0.22], h: [0.89, 0.33, 2.13], pts: 'bottom' },        // body: bumpers 0.47 m up, waist 1.13
-      { c: [0, 0.45, 0], h: [0.4, 0.11, 1.0], pts: 'bottom' },              // belly: transfer case 0.34 m up
-      { c: [0, 1.52, -0.6], h: [0.87, 0.44, 1.75], pts: 'top' },            // station wagon body, roof 1.96 m
+      { c: [0, 0.83, -0.14], h: [0.99, 0.41, 2.47], pts: 'bottom' },       // body: the bumpers and sills 0.42 m up, beltline 1.24
+      { c: [0, 0.32, 0], h: [0.5, 0.1, 1.15], pts: 'bottom' },              // belly: 218 mm under the subframes
+      { c: [0, 1.61, -0.75], h: [0.93, 0.33, 1.6], pts: 'top' },            // the five-door body, roof 1.94 m
     ],
-    roofY: 1.96, cabZ: 0.55, noseZ: 1.95, rackZ: -0.6,
-    intakePos: [-0.62, 0.98, 1.7], snorkelPos: [-0.9, 2.05, 0.95],
-    winch: { fairlead: [0, 0.66, 2.15] },
-    eye: [-0.49, 1.6, 0.03], hoodEye: [0, 1.42, 1.45],                    // (right-hand drive, as the model is)
-    drag: { cd: 0.65, area: 3.2 },
+    roofY: 1.94, cabZ: 0.1, noseZ: 2.32, rackZ: -1.0,
+    intakePos: [-0.6, 1.05, 1.7], snorkelPos: [-1.0, 1.85, 0.6],
+    winch: { fairlead: [0, 0.55, 2.3] },
+    eye: [0.41, 1.6, -0.17], hoodEye: [0, 1.42, 1.4],
+    drag: { cd: 0.41, area: 3.4 },
     buoyancy: 0.3,
-    shafts: [5500, 7000], tyreLoad: 5000, parts: 1.0,
-    style: 'shepherd', look: { top: 'hard', coils: true },
+    shafts: [8000, 9000], tyreLoad: 5600, parts: 1.4, tc: true,
+    style: 'shepherd', look: { coils: true },
   },
   drover: {
     // the Mitsubishi Pajero (third generation, 1999-2006) long-wheelbase five-door: 2,780 mm wheelbase, 4,775 mm long,

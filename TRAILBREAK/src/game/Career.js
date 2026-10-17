@@ -23,7 +23,7 @@ export function levelFor(earned) {
 }
 
 /** The dealer's prices (US dollars): sound used trucks, ready for the trail. */
-export const TRUCK_PRICES = { gecko: 4500, mule: 6500, trekker: 22500, ranger: 9500, shepherd: 13000, hauler: 14500, thar: 15500, wrangler: 18000, bronco: 21000, drover: 16000, bruiser: 24000, hummer: 32000, hummerev: 38000, rhino: 42000 };
+export const TRUCK_PRICES = { gecko: 4500, mule: 6500, trekker: 22500, ranger: 9500, shepherd: 36000, hauler: 14500, thar: 15500, wrangler: 18000, bronco: 21000, drover: 16000, bruiser: 24000, hummer: 32000, hummerev: 38000, rhino: 42000 };
 /** The dealer's trucks, cheapest first. */
 export const DEALER_ORDER = Object.keys(TRUCK_PRICES).sort((a, b) => TRUCK_PRICES[a] - TRUCK_PRICES[b]);
 /** For now every truck is free: every driver has the whole dealer's yard to drive (false sells them again). */

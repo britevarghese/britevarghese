@@ -152,8 +152,8 @@ draws on firings recorded pulling and slowing. The banks (public/assets/audio/en
 | Bank | Recording | Trucks |
 | --- | --- | --- |
 | `d4` | Toyota Hilux turbo-diesel four (the top of the revs from a VW TDI) | Thar diesel, Pajero, the UAZ's and the Niva's diesels |
-| `d4t` | VW 1.9 TDI turbo-diesel four | Defender 110, Ranger Raptor |
-| `d6` | Ram 5.9 Cummins turbo-diesel six (the top of the revs from the TDI) | Unimog, the Power Wagon's Cummins swap |
+| `d4t` | VW 1.9 TDI turbo-diesel four | Ranger Raptor |
+| `d6` | Ram 5.9 Cummins turbo-diesel six (the top of the revs from the TDI) | Defender 110, Unimog, the Power Wagon's Cummins swap |
 | `d8` | Ford F-350 turbo-diesel V8 (the top of the revs from the TDI) | Hummer H1 |
 | `v6` | Acura 3.2 V6, a mic at the exhaust while driving | Wrangler, Bronco, the Pajero's V6 |
 | `v8` | 1978 Cadillac 425 V8 (the top of the revs from the V6) | K20 Suburban, the V8 swaps |
@@ -387,7 +387,7 @@ seat empty.
 | Willys MB | $6,500 | the original jeep (1941-45): leaf springs on beam axles at both ends, a fold-down windscreen and no roof | 2.03 m (80") | 1220 kg | Go Devil 2.2 four, 142 Nm | 3-speed manual | 1.97 / 4.88 | 6.00-16 NDT (28") | 21 cm | 45 / 43 / 39 degrees |
 | Ford Ranger Raptor | $22,500 | the 2019 desert runner: wishbones and long-travel Fox shocks in front, coils on a Watt's-linked axle behind, a rear locker, traction control | 3.22 m (127") | 2410 kg | EcoBlue 2.0 bi-turbo diesel, 500 Nm | 10-speed automatic | 2.72 / 4.10 | LT285/70 R17 (33") | 24 cm | 26 / 21 / 26 degrees |
 | UAZ Hunter | $9,500 | the Hunter Expedition: a ladder frame, beam axles on coils in front and leaf springs behind, a bull bar, winch and side steps | 2.38 m (94") | 2000 kg | ZMZ 2.7 four, 209 Nm | 5-speed manual | 1.94 / 4.625 | 245/75 R16 M/T (31") | 20 cm | 31 / 28 / 36 degrees |
-| Land Rover Defender 110 | $13,000 | the 110 station wagon on coils, with its bull bar and side steps | 2.79 m (110") | 2050 kg | 2.5 turbo-diesel four, 203 Nm | 5-speed manual | 2.74 / 4.10 | 31x10.5R15 | 20 cm | 42 / 28 / 28 degrees |
+| Land Rover Defender 110 | $36,000 | the 2026 110: an aluminium monocoque, independent suspension at all four corners on air springs, a rear limited-slip diff, traction control | 3.02 m (119") | 2430 kg | D350 3.0 straight-six turbo-diesel, 700 Nm | 8-speed automatic | 2.93 / 3.31 | 255/60 R20 (32") | 22 cm | 30 / 38 / 22 degrees |
 | Mahindra Thar | $15,500 | the 2020 Thar LX hard top: independent front, five-link rear, rear auto-locker (MLD) and front brake locking | 2.45 m (96") | 1850 kg | mHawk 2.2 turbo-diesel four, 300 Nm | 6-speed manual | 2.48 / 4.27 | 255/65 R18 (31") | 21 cm | 39 / 31 / 30 degrees |
 | Jeep Wrangler | $18,000 | the JK Rubicon two-door: lockers both ends, brake traction control, a 4:1 Rock-Trac low range, a front sway bar that disconnects | 2.42 m (95") | 2000 kg | 3.6 Pentastar V6, 353 Nm | 5-speed automatic | 4.0 / 4.10 | LT255/75 R17 (32") | 22 cm | 34 / 33 / 34 degrees |
 | Ford Bronco | $21,000 | the Badlands four-door with the Sasquatch package: independent front, five-link rear, lockers both ends, brake traction control | 2.95 m (116") | 2380 kg | 2.7 EcoBoost twin-turbo V6, 563 Nm | 10-speed automatic | 3.06 / 4.70 | 315/70 R17 (35") | 29 cm | 43 / 35 / 32 degrees |
@@ -638,17 +638,16 @@ Truck models: the Mahindra Thar, "THAR 4X4" by MB_Mahesh; the Lada Niva, "Lada N
 Suburban, "1970 Truck" by Raphael Escamilla (Raffey); the Mitsubishi Pajero, "Mitsubishi Pajero 4WD" by rileylane; the
 Ford Ranger Raptor, "Ford ranger raptor" by haraldina; the Ram 2500 Power Wagon, "Dodge Ram 2500" by VanuaG; the Jeep
 Wrangler, "Jeep Wrangler 3D Model" by Suyog modak; the Ford Bronco, "Bronco Car Animation (Red)" by neshallads; the
-Hummer H1, "Hummer H1 (Retry School)" by Voxel_CG; the Land Rover Defender 110, "Land Rover Defender 110" by meeww; the
-GMC Hummer EV, "GMC Hummer EV 2022" by Unn Interativa; the Mercedes-Benz Unimog U1300L, "Unimog Truck" by Levi Giovani;
-on Sketchfab, CC BY 4.0, see `public/assets/trucks/CREDITS.md` (converted with `tools/cars.py`). The driver: "indian
-man" by madmak21199 and his gloved hands, "Hand With Gloves" by teenjust500, on Sketchfab, CC BY 4.0, see
-`public/assets/driver/CREDITS.md` (converted for NIGHTSHIFT; the meshoptimizer decoder, MIT, is in
-`public/vendor/three/addons/libs`). Engine sounds: see
-`public/assets/audio/CREDITS.md` (Freesound, CC0 and CC BY 4.0; built with `tools/sounds/build_grains.py`). Ground
-textures: CC0 scans from Poly Haven and ambientCG, see `public/assets/ground/CREDITS.md` (packed with
-`tools/ground.py`). Tree models: pine, fir, spruce, birch, coconut palm, oak (as mango), elm (as rubber), banana and
-bamboo by evolveduk, and the jungle tree by kobaltsecond6c7d6150917a4267, on Sketchfab, CC BY 4.0, see
-`public/assets/trees/CREDITS.md` (converted with `tools/trees.py`). three.js is MIT licensed
+Hummer H1, "Hummer H1 (Retry School)" by Voxel_CG; the Land Rover Defender 110, "Land Rover Defender 110" by
+hartwelkisaka; the GMC Hummer EV, "GMC Hummer EV 2022" by Unn Interativa; the Mercedes-Benz Unimog U1300L, "Unimog
+Truck" by Levi Giovani; on Sketchfab, CC BY 4.0, see `public/assets/trucks/CREDITS.md` (converted with `tools/cars.py`).
+The driver: "indian man" by madmak21199 and his gloved hands, "Hand With Gloves" by teenjust500, on Sketchfab, CC BY
+4.0, see `public/assets/driver/CREDITS.md` (converted for NIGHTSHIFT; the meshoptimizer decoder, MIT, is in
+`public/vendor/three/addons/libs`). Engine sounds: see `public/assets/audio/CREDITS.md` (Freesound, CC0 and CC BY 4.0;
+built with `tools/sounds/build_grains.py`). Ground textures: CC0 scans from Poly Haven and ambientCG, see
+`public/assets/ground/CREDITS.md` (packed with `tools/ground.py`). Tree models: pine, fir, spruce, birch, coconut palm,
+oak (as mango), elm (as rubber), banana and bamboo by evolveduk, and the jungle tree by kobaltsecond6c7d6150917a4267, on
+Sketchfab, CC BY 4.0, see `public/assets/trees/CREDITS.md` (converted with `tools/trees.py`). three.js is MIT licensed
 (`public/vendor/three/LICENSE`). Type: Barlow and Barlow Condensed by The Barlow Project Authors, SIL Open Font License
 1.1 (`public/assets/fonts/OFL.txt`). Icons: most are Material Icons by Google, Apache License 2.0. The lobby's and the
 cards' pictures are rendered in the game. Everything else is original.

@@ -317,6 +317,27 @@ def main(src_dir, cfg_path, out_dir):
     # (and the ground a scan caught around the wheels: below this height and not a wheel)
     if 'groundBelow' in cfg:
         roles[(tris.mean(1)[:, 1] < cfg['groundBelow']) & ~np.isin(roles, list(WHEEL_ROLES))] = 'drop'
+    # a material the wheels share with the body (the rims in the body's "chrome", the brakes in the suspension's): each
+    # part of it (see parts_of) that lies whole inside a wheel, within its tyre's radius and between its faces (or as
+    # far inside them as "inWheelDepth"), takes the role given for its material: {"9": "rim", "20": "drop"}
+    if cfg.get('inWheel'):
+        wl0 = split_wheels(tris, roles, cfg)                  # (the wheels as their tyres alone have them)
+        part = parts_of(tris, mats)
+        n = part.max() + 1
+        pmat = np.zeros(n, dtype=np.int64); pmat[part] = mats
+        depth = cfg.get('inWheelDepth', 0.05)
+        inside = np.zeros(n, bool)
+        for k in ('FL', 'FR', 'RL', 'RR'):
+            v = tris[wl0 == k].reshape(-1, 3)
+            lo, hi = v.min(0), v.max(0); cc = (lo + hi) / 2; r = (hi[1] - lo[1]) / 2
+            rad = np.hypot(tris[..., 1] - cc[1], tris[..., 2] - cc[2]).max(1)
+            far = np.zeros(n); np.maximum.at(far, part, rad)
+            xlo, xhi = np.full(n, np.inf), np.full(n, -np.inf)
+            np.minimum.at(xlo, part, tris[..., 0].min(1)); np.maximum.at(xhi, part, tris[..., 0].max(1))
+            inside |= (far < r * 1.02) & (xlo > lo[0] - depth) & (xhi < hi[0] + depth)
+        for mk, role in cfg['inWheel'].items():
+            hit = inside & (pmat == int(mk))
+            roles[hit[part]] = role
 
     # ---- the wheels: where they are and how big, then the scale and the origin
     wl = split_wheels(tris, roles, cfg)
@@ -381,8 +402,13 @@ def main(src_dir, cfg_path, out_dir):
     for r in cfg.get('keepWheels', []): keep |= wl == r       # (e.g. a spare to leave on its carrier)
     tris, nors, uvs, roles, mats, hasuv = tris[keep], nors[keep], uvs[keep], roles[keep], mats[keep], hasuv[keep]
 
-    # ---- glass: the windscreen apart (it cracks and stays in; the side and back glass bursts)
     c = tris.mean(1)
+    # a material with more than one role by where it lies (a lamp's glowing parts: the head lamps' in front, the
+    # reversing lamps' behind): [[material, role, [x0, y0, z0, x1, y1, z1]], ...] in the game's frame, the last box that
+    # holds a triangle's middle deciding
+    for mk, role, b in cfg.get('where', []):
+        roles[(mats == mk) & np.all((c >= np.array(b[:3])) & (c <= np.array(b[3:])), axis=1)] = role
+    # ---- glass: the windscreen apart (it cracks and stays in; the side and back glass bursts)
     fn = np.cross(tris[:, 1] - tris[:, 0], tris[:, 2] - tris[:, 0])
     fn /= np.linalg.norm(fn, axis=1, keepdims=True) + 1e-12
     if 'glassAbove' in cfg:

@@ -62,12 +62,13 @@ test('accelerates like an old V8 4x4 and tops out believably', () => {
 
 test('low range crawls at walking pace and multiplies torque', () => {
   const g = flat();
-  const v = truck('shepherd', g);
+  const v = truck('mule', g);
   v.dt.setRange(true, 0);
   run(v, g, 12, { ...IDLE, throttle: 1 });
   const kmh = v.speed * 3.6;
-  // the Defender's 2.74:1 low range in top gear: 4200 rpm limiter / (0.85 * 2.74 * 4.1) -> ~65 km/h, and it gets there slowly
-  assert.ok(kmh > 25 && kmh < 70, `low range speed after 12 s: ${kmh.toFixed(1)} km/h`);
+  // the Willys's 1.97:1 low range in top gear: 4200 rpm limiter / (1.0 * 1.97 * 4.88) on 28" tyres -> ~60 km/h, and it
+  // gets there slowly
+  assert.ok(kmh > 25 && kmh < 62, `low range speed after 12 s: ${kmh.toFixed(1)} km/h`);
 });
 
 test('the brakes hold a truck on a 25 degree dirt slope', () => {

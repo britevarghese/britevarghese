@@ -100,6 +100,7 @@ export const TRANSMISSIONS = [
   { name: '5-speed automatic (Allison 1000)', short: 'Allison', type: 'auto', gears: [3.1, 1.81, 1.41, 1.0, 0.71], reverse: 4.49, desc: 'The H1 Alpha\'s heavy-duty Allison five-speed: built for a diesel\'s torque, a 3.10 first, an overdrive top.' },
   { name: 'Single-speed reduction (electric)', short: 'direct', type: 'direct', gears: [1.0], reverse: 1.0, desc: 'Electric drive units: the motors geared straight to the axles, one ratio, full torque from a standstill. No clutch, no torque converter, nothing to shift.' },
   { name: '5-speed automatic (INVECS-II)', short: '5-spd auto', type: 'auto', gears: [3.79, 2.06, 1.42, 1.0, 0.73], reverse: 3.48, desc: 'The Pajero\'s five-speed automatic with its sport-shift gate: a 3.79 first through a torque converter, an overdrive top.' },
+  { name: '8-speed automatic (ZF 8HP)', short: '8-spd auto', type: 'auto', gears: [5.5, 3.52, 2.2, 1.72, 1.317, 1.0, 0.823, 0.64], reverse: 3.993, desc: 'The Defender\'s ZF eight-speed automatic: a 5.50 first through a torque converter, close steps all the way, two overdrives.' },
 ];
 /** The electric drive units' gearbox (TRANSMISSIONS index). */
 export const EV_TRANS = TRANSMISSIONS.findIndex((t) => t.type === 'direct');
@@ -160,10 +161,6 @@ const ENGINE = {
     torque: [[500, 110], [800, 150], [1000, 190], [1300, 245], [1600, 270], [2400, 270], [2800, 262], [3200, 245], [3600, 222], [4000, 190], [4300, 120]] },
   I4_24: { name: 'I4 2.4', idleRpm: 750, redline: 5000, limiter: 5300, inertia: 0.15, friction: [9, 0.016], bank: 'i4', bankPitch: 0.84, turbo: 0, sound: 'i6_bmw', pitch: 0.98, mass: 0,
     torque: [[500, 95], [1000, 145], [1500, 160], [2000, 168], [2500, 173], [2800, 175], [3500, 170], [4000, 163], [4500, 153], [4800, 145], [5300, 112]] },
-  I4_25TD: { name: 'I4 2.5 turbo-diesel', idleRpm: 700, redline: 4000, limiter: 4200, inertia: 0.22, friction: [12, 0.02], bank: 'd4t', bankPitch: 0.92, turbo: 1, sound: 'i6_bmw', pitch: 0.66, mass: 0,
-    torque: [[500, 105], [1000, 168], [1500, 196], [1800, 203], [2200, 200], [2800, 190], [3400, 175], [3800, 160], [4000, 150], [4400, 90]] },
-  V8_39: { name: 'V8 3.9', idleRpm: 700, redline: 5000, limiter: 5300, inertia: 0.24, friction: [14, 0.02], bank: 'v8', bankPitch: 0.92, turbo: 0, sound: 'v8_muscle', pitch: 1.08, mass: -20, loud: 1.1, bass: 3,
-    torque: [[500, 160], [1000, 250], [1500, 285], [2000, 300], [2500, 310], [3000, 313], [3500, 308], [4000, 296], [4750, 270], [5300, 200]] },
   I6_42P: { name: 'I6 4.2', idleRpm: 650, redline: 4000, limiter: 4300, inertia: 0.3, friction: [15, 0.022], bank: 'i6', bankPitch: 0.96, turbo: 0, sound: 'i6_bmw', pitch: 0.74, mass: 0,
     torque: [[400, 150], [800, 245], [1200, 274], [1800, 285], [2400, 282], [3000, 275], [3600, 265], [4000, 245], [4400, 195]] },
   I6_42TD: { name: 'I6 4.2 turbo-diesel', idleRpm: 650, redline: 4000, limiter: 4200, inertia: 0.36, friction: [18, 0.024], bank: 'd6', bankPitch: 1.05, turbo: 1, sound: 'i6_bmw', pitch: 0.6, mass: 60,
@@ -214,6 +211,12 @@ const ENGINE = {
   // power to 13,000; friction here is the regeneration off the throttle (Nm + Nm per rpm), and the "idle" only a floor
   E_3M: { name: 'Three motors (Edition 1)', electric: true, idleRpm: 300, redline: 13000, limiter: 13400, inertia: 0.09, friction: [0, 0.035], bank: null, turbo: 0, sound: 'electric', pitch: 1, mass: 0,
     torque: [[100, 1400], [4800, 1400], [6000, 1187], [7000, 1018], [8000, 890], [9000, 792], [10000, 712], [11000, 648], [12000, 594], [13000, 548], [13600, 300]] },
+  // the Defender's D350 Ingenium 3.0 straight-six turbo-diesel, mild hybrid: 257 kW at 4,000 rpm, 700 Nm from 1,500 to
+  // 3,000; and the Defender OCTA's 4.4 twin-turbo V8, mild hybrid: 467 kW at 6,000-7,000, 750 Nm from 1,800 to 5,855
+  D30I6: { name: 'D350 3.0 straight-six diesel', idleRpm: 700, redline: 4500, limiter: 4700, inertia: 0.3, friction: [16, 0.024], bank: 'd6', bankPitch: 1.06, turbo: 2, sound: 'i6_bmw', pitch: 0.64, mass: 0, loud: 1.05, bass: 3, diesel: true,
+    torque: [[600, 300], [1000, 520], [1250, 640], [1500, 700], [3000, 700], [3500, 668], [4000, 613], [4400, 545], [4700, 430], [5000, 200]] },
+  V8_44TT: { name: '4.4 twin-turbo V8', idleRpm: 650, redline: 7000, limiter: 7200, inertia: 0.26, friction: [17, 0.022], bank: 'v8', bankPitch: 1.12, turbo: 2, sound: 'v8_muscle', pitch: 1.04, mass: 40, loud: 1.3, bass: 5,
+    torque: [[600, 360], [1000, 500], [1400, 650], [1800, 750], [5855, 750], [6500, 686], [7000, 637], [7400, 420]] },
   I6_60TD: { name: 'I6 6.0 turbo-diesel', idleRpm: 650, redline: 2800, limiter: 3000, inertia: 0.8, friction: [30, 0.036], bank: 'd6', bankPitch: 0.95, turbo: 1, sound: 'i6_bmw', pitch: 0.52, mass: 70,
     torque: [[500, 320], [800, 450], [1200, 570], [1500, 600], [1800, 592], [2200, 560], [2600, 505], [2800, 470], [3100, 300]] },
 };
@@ -229,7 +232,7 @@ export const ENGINES = {
   mule: [{ ...ENGINE.I4_22, short: 'stock', desc: 'Stock 2.2 Go Devil four: 45 kW, 142 Nm at 2,000 rpm. It plods.' }, { ...tuned(ENGINE.I4_22), short: 'tuned', desc: 'Higher compression, a bigger carburettor and a split manifold: +13% torque.' }, { ...ENGINE.V8_50, short: 'V8 swap', mass: 75, desc: 'The hot-rodder\'s small-block V8: more than twice the torque, 75 kg more over the front axle.' }],
   gecko: [{ ...ENGINE.I4_17, short: 'stock', desc: 'Stock VAZ 1.7 four: 59.5 kW, 127 Nm. It needs revs.' }, { ...tuned(ENGINE.I4_17), short: 'tuned', desc: 'A cam, a freer exhaust and a remap: +13% torque.' }, { ...ENGINE.D22Z, short: 'diesel', desc: 'A 2.2 turbo-diesel squeezed in: 270 Nm from 1,600 rpm, more than twice the torque, 40 kg more over the front axle.' }],
   trekker: [{ ...ENGINE.D20BT, short: 'stock', desc: 'Stock EcoBlue 2.0 bi-turbo diesel: 157 kW, 500 Nm from 1,750 rpm.' }, { ...tunedBy(1.15, 100)(ENGINE.D20BT), short: 'remap', desc: 'An ECU remap: +15% torque.' }, { ...ENGINE.V6_30T, short: '3.0 V6', desc: 'The next Raptor\'s 3.0 EcoBoost twin-turbo V6 petrol: 312 kW and 597 Nm, 25 kg heavier.' }],
-  shepherd: [{ ...ENGINE.I4_25TD, short: 'stock', desc: 'Stock 2.5 turbo-diesel: 63 kW, 203 Nm low down. Slow, frugal, tireless.' }, { ...tunedBy(1.2)(ENGINE.I4_25TD), short: 'tuned', desc: 'Fuel pump turned up, an intercooler: +20% torque.' }, { ...ENGINE.V8_39, short: 'V8 3.9', desc: 'The light alloy 3.9 V8: 134 kW and +54% torque, 20 kg lighter than the diesel.' }],
+  shepherd: [{ ...ENGINE.D30I6, short: 'stock', desc: 'Stock D350 3.0 straight-six turbo-diesel, mild hybrid: 257 kW, 700 Nm from 1,500 to 3,000 rpm.' }, { ...tunedBy(1.12, 100)(ENGINE.D30I6), short: 'remap', desc: 'An ECU remap: +12% torque.' }, { ...ENGINE.V8_44TT, short: 'OCTA V8', desc: 'The Defender OCTA\'s 4.4 twin-turbo V8, mild hybrid: 467 kW and 750 Nm, revs to 7,000, 40 kg heavier.' }],
   drover: [{ ...ENGINE.D32, short: 'stock', desc: 'Stock 3.2 DI-D turbo-diesel four: 118 kW, 373 Nm from 2,000 rpm.' }, { ...tunedBy(1.15, 100)(ENGINE.D32), short: 'remap', desc: 'An ECU remap and a bigger intercooler: +15% torque.' }, { ...ENGINE.V6_38M, short: '3.8 V6', desc: 'The 3.8 MIVEC V6 petrol: 184 kW, revs to 6,000, 30 kg lighter.' }],
   bruiser: [{ ...ENGINE.V8_64HD, short: 'stock', desc: 'Stock 6.4 HEMI V8: 306 kW at 5,600 rpm, 582 Nm at 4,000.' }, { ...tunedBy(1.1, 200)(ENGINE.V8_64HD), short: 'tuned', desc: 'A cold-air intake, headers and a tune: +10% torque.' }, { ...ENGINE.I6_67CR, short: 'Cummins', mass: 300, desc: 'The 6.7 Cummins turbo-diesel six: 880 Nm, half as much again, and 300 kg more over the front axle.' }],
   wrangler: [{ ...ENGINE.V6_36, short: 'stock', desc: 'Stock 3.6 Pentastar V6: 213 kW at 6,400 rpm, 353 Nm at 4,800. It likes revs.' }, { ...tunedBy(1.12, 200)(ENGINE.V6_36), short: 'tuned', desc: 'A cold-air intake, an exhaust and a tune: +12% torque.' }, { ...ENGINE.V8_64, short: '392 HEMI', desc: 'The 6.4 HEMI V8 swap: 350 kW and 637 Nm, +80% torque, 60 kg heavier.' }],
@@ -292,7 +295,7 @@ export const PRICES = {
   gears: 1600,                       // any ratio but the factory one: both axles re-geared
   tcase: [0, 1900],
   diffs: [0, 750, 1100, 2200, 900],
-  trans: [1800, 1200, 1600, 1500, 2200, 2400, 5200, 1900, 2600, 2400, 1800, 3200, 3600, 0, 2400],  // a different gearbox swapped in
+  trans: [1800, 1200, 1600, 1500, 2200, 2400, 5200, 1900, 2600, 2400, 1800, 3200, 3600, 0, 2400, 3400],  // a different gearbox swapped in
   engine: [0, 1500, 4800],
   intake: [0, 450],
   winch: [0, 1300],

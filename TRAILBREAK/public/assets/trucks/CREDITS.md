@@ -20,10 +20,9 @@ light), and the textures resized to WebP.
   https://sketchfab.com/3d-models/hummer-h1-retry-school-580511d3b2df43f2bd2edda79655428c (https://sketchfab.com/voxel_cg);
   narrowed 6% toward the H1's real track and width, its springs, shocks and wishbones removed, the dense parts
   simplified, its tan panels given the game's paint.
-- `shepherd.glb` (Land Rover Defender 110): "Land Rover Defender 110" by meeww,
-  https://sketchfab.com/3d-models/land-rover-defender-110-5773ec04488b46148816b5f7a9f3f44f (https://sketchfab.com/meeww);
-  narrowed 7% to the 110's real track, its axles, springs, roof rack and a prop removed, the parts but its panels
-  simplified.
+- `shepherd.glb` (Land Rover Defender 110, the 2026 model): "Land Rover Defender 110" by hartwelkisaka,
+  https://sketchfab.com/3d-models/land-rover-defender-110-0048bbc91b0f4c4289533e08de716806 (https://sketchfab.com/hartwelkisaka);
+  its suspension's brakes and hubs removed, the parts simplified (its cab less than the rest).
 - `hummerev.glb` (GMC Hummer EV): "GMC Hummer EV 2022" by Unn Interativa,
   https://sketchfab.com/3d-models/gmc-hummer-ev-2022-b686365d37a94cbdbb3a01d169f5a0de (https://sketchfab.com/unninterativa);
   its wheels, brakes and the plates' logo taken off, the interior and the trim simplified.
