@@ -143,14 +143,15 @@ where two networks can't link directly, the audio goes through the game server i
 talking). Talking needs the https:// address (or localhost); without a microphone you can still listen. Voices stay on
 while the game is paused or in another tab: mute everyone to silence them.
 
-Every truck sounds like its own kind of engine: real recordings, cut into single firings, played back at the rate the
-game's engine fires (src/audio/engine-worklet.js, an AudioWorklet). The note is where the tachometer says: a firing
+Every truck and car sounds like its own kind of engine: real recordings, cut into single firings, played back at the
+rate the game's engine fires (src/audio/engine-worklet.js, an AudioWorklet). The note is where the tachometer says: a firing
 for every cylinder every two turns of the crank, so a V8 at 650 rpm idles at 43 Hz. The exhaust and the block keep
 their real resonances at any revs, because each firing plays as recorded, only spaced to the new revs. The firings
 come in runs, in their recorded order, from where the recording's revs were nearest the game's (the game's idle plays
 the recording's idle). On throttle and off it draws on firings recorded pulling and slowing, and from holds at steady
 revs. A run gives way to another when it drifts from the revs, lined up on the waveform, never to a firing just
-played (a few firings going round and round is what made the old sound buzz). The banks
+played (a few firings going round and round is what made the old sound buzz). A V10's two banks of five fire in
+turn and its sound repeats every pair of firings, so its bank is cut in pairs and played at their rate. The banks
 (public/assets/audio/engines/*.grains.*, built by `tools/sounds/build_grains.py` from `tools/sounds/sources.json`):
 
 | Bank | Recording | Trucks |
@@ -159,11 +160,12 @@ played (a few firings going round and round is what made the old sound buzz). Th
 | `d4t` | VW 1.9 TDI turbo-diesel four | Ranger Raptor |
 | `d6` | Ram 5.9 Cummins turbo-diesel six (the top of the revs from the TDI) | Defender 110, Unimog, the Power Wagon's Cummins swap |
 | `d8` | Ford F-350 turbo-diesel V8 (the top of the revs from the TDI) | Hummer H1 |
-| `v6` | Acura 3.2 V6, a mic at the exhaust while driving | Wrangler, Bronco, the Pajero's V6 |
-| `v8` | Chevrolet Caprice V8 (idle and holds), a Dodge Ram 1500 5.7 V8 pulling on the road, the V6 above 2,100 rpm | K20 Suburban, the V8 swaps |
-| `v8m` | a cammed V8 at idle, the Ram 1500's 5.7 HEMI pulling on the road, the V6 above 2,100 rpm | Ram Power Wagon's 6.4 HEMI, tuned V8s, the Wrangler's 392 HEMI |
-| `i6` | Jaguar E-type 4.2 straight six | (none in the roster now) |
-| `i4` | Suzuki Jimny four at idle, a Rover 216 GSi four revving to 6,900 rpm | Lada Niva, Willys MB, UAZ Hunter, Thar petrol |
+| `v6` | Acura 3.2 V6, a mic at the exhaust while driving | Wrangler, Bronco, the Pajero's V6; the NSX, the GT-R (R35), the McLaren Senna's and the Corvette Z06's flat-plane V8s |
+| `v8` | Chevrolet Caprice V8 (idle and holds), a Dodge Ram 1500 5.7 V8 pulling on the road, the V6 above 2,100 rpm | K20 Suburban, the V8 swaps, the Corvette Stingray |
+| `v8m` | a cammed V8 at idle, the Ram 1500's 5.7 HEMI pulling on the road, the V6 above 2,100 rpm | Ram Power Wagon's 6.4 HEMI, tuned V8s, the Wrangler's 392 HEMI, the G 63, the AMG GT |
+| `v10` | Audi R8 V10 (idle, the fall from 4,100 rpm, holds from 2,100 to 4,100), cut in pairs of firings | Lamborghini Huracán, Audi R8 |
+| `i6` | Jaguar E-type 4.2 straight six | BMW M4 CSL, Toyota Supra, Skyline GT-R (R34), Porsche 911 Turbo (930) |
+| `i4` | Suzuki Jimny four at idle, a Rover 216 GSi four revving to 6,900 rpm | Lada Niva, Willys MB, UAZ Hunter, Thar petrol; BMW M3 (E30), Mazda RX-7, Subaru Impreza STi |
 
 A big engine is louder than a small one and has more of its low end (a shelf under 140 Hz): the Power Wagon's 6.4
 HEMI most of all, deep and loud, then the 392 swap, the old big-blocks and the big diesels' rumble.
