@@ -45,6 +45,10 @@ const VIEWS = 8;
 // dithered between the two, so neither pops: a narrow band, a few metres, so a tree is seen dotted only as it crosses
 // it, not the whole ring of trees from 45 m out); the lists it is in are kept wide of the band by the refill step
 const BAND = 0.07, MARGIN = 14;
+// the near range is measured from a point ahead of the camera, this share of the range out along the way it looks: the
+// trees you drive toward have their models that much sooner (and the ones behind give them up as much sooner); the
+// point swings round with the view over half a second, so looking about doesn't flick trees between the two
+const AHEAD = 0.35;
 const CELL = 32;               // the grid the trees are found in round the camera (m)
 // a stable per-pixel threshold for the dither (interleaved gradient noise)
 const IGN = 'float ign(vec2 p) { return fract(52.9829189 * fract(dot(p, vec2(0.06711056, 0.00583715)))); }';
@@ -116,12 +120,14 @@ function treeMaterial(group, uniforms, radius, impostorBake = false, crownY = 0.
     sh.uniforms.uSunDirW = uniforms.uSunDirW;
     sh.uniforms.uSunColor = uniforms.uSunColor;
     sh.uniforms.uRadius = { value: radius };
+    sh.uniforms.uLod = uniforms.uLod;
     if (fade) sh.uniforms.uFade = fade;
     sh.vertexShader = sh.vertexShader
       .replace('#include <common>', `#include <common>
 uniform float uTime;
 uniform float uRadius;
 uniform vec2 uFade;
+uniform vec2 uLod;
 varying float vAO;
 varying float vFade;`)
       .replace('#include <beginnormal_vertex>', `#include <beginnormal_vertex>
@@ -144,7 +150,7 @@ ${leaf ? `{
 #ifdef USE_INSTANCING
   nearK = clamp(length(instanceMatrix[1].xyz) / ${NEAR_H.toFixed(1)}, ${NEAR_MIN.toFixed(2)}, 1.0);
 #endif
-  vFade = ${fade ? '1.0 - smoothstep(uFade.x * nearK, uFade.y * nearK, length(ip.xz - cameraPosition.xz))' : '1.0'};
+  vFade = ${fade ? '1.0 - smoothstep(uFade.x * nearK, uFade.y * nearK, length(ip.xz - uLod))' : '1.0'};
   transformed.x += sway * ${impostorBake ? '0.0' : '0.011'} * k;
   transformed.z += sway * ${impostorBake ? '0.0' : '0.007'} * k;
 ${leaf && !impostorBake ? '  transformed += normal * sin(uTime * 6.0 + dot(position, vec3(41.0, 23.0, 37.0)) * 4.0) * 0.003 * k;' : ''}
@@ -223,7 +229,8 @@ export class Vegetation {
     this.renderer = renderer;
     this.trees = world.trees;
     this.assets = assets;
-    this.uniforms = { uTime: { value: 0 }, uSunDirW: { value: new THREE.Vector3(0, 1, 0) }, uSunColor: { value: new THREE.Color(1, 1, 1) } };
+    this.uniforms = { uTime: { value: 0 }, uSunDirW: { value: new THREE.Vector3(0, 1, 0) }, uSunColor: { value: new THREE.Color(1, 1, 1) }, uLod: { value: new THREE.Vector2() } };
+    this.lodAhead = new THREE.Vector2();             // (the near range's middle, from the camera: see AHEAD)
     this.group = new THREE.Group();
     renderer.scene.add(this.group);
     // which species each tree in the world is
@@ -339,6 +346,7 @@ export class Vegetation {
     mat.alphaToCoverage = true;
     mat.onBeforeCompile = (sh) => {
       sh.uniforms.uNormalAtlas = { value: normalRT.texture };
+      sh.uniforms.uLod = this.uniforms.uLod;
       sh.uniforms.uSunDirW = this.uniforms.uSunDirW;
       sh.uniforms.uSunColor = this.uniforms.uSunColor;
       sh.vertexShader = sh.vertexShader
@@ -348,6 +356,7 @@ attribute vec2 aSize;
 attribute vec3 aTile;
 attribute float aYaw;
 attribute float aNear;
+uniform vec2 uLod;
 varying float vFade;
 varying vec3 vRightW;
 varying vec3 vToCamW;
@@ -365,7 +374,7 @@ vec3 rightW = vec3(toCam.z, 0.0, -toCam.x);
 vRightW = rightW; vToCamW = toCam; vTint = aTile.z;
 // the camera's bearing on the tree in the model's own turn, in pictures (0 .. VIEWS)
 vView = fract((atan(toCam.x, toCam.z) - aYaw) / 6.2831853) * ${VIEWS.toFixed(1)};
-float dCam = length(aOffset.xz - cameraPosition.xz);
+float dCam = length(aOffset.xz - uLod);
 vFade = aNear > 0.0 ? smoothstep(aNear * ${(1 - BAND).toFixed(3)}, aNear, dCam) : 1.0;
 vec3 transformed = aOffset + rightW * position.x * aSize.x + vec3(0.0, position.y * aSize.y, 0.0);`);
       sh.fragmentShader = sh.fragmentShader
@@ -523,8 +532,11 @@ if (vFade <= 0.0 || dCam > ${FAR.toFixed(1)}) gl_Position = vec4(0.0, 0.0, -2.0,
       this.overflow = over;
       this.impNear.needsUpdate = true;
     }
+    // (only what is used goes up to the GPU: a kind's whole buffer is thousands of trees, sent every 12 m)
     this.near.forEach((nkk, k) => {
       for (const mesh of nkk.meshes) mesh.count = counts[k];
+      nkk.matrix.clearUpdateRanges(); nkk.matrix.addUpdateRange(0, Math.max(1, counts[k]) * 16);
+      nkk.color.clearUpdateRanges(); nkk.color.addUpdateRange(0, Math.max(1, counts[k]) * 3);
       nkk.matrix.needsUpdate = true;
       nkk.color.needsUpdate = true;
     });
@@ -572,10 +584,14 @@ if (vFade <= 0.0 || dCam > ${FAR.toFixed(1)}) gl_Position = vec4(0.0, 0.0, -2.0,
       this.uniforms.uSunDirW.value.subVectors(r.sun.position, r.sun.target.position).normalize();
       this.uniforms.uSunColor.value.copy(r.sun.color).multiplyScalar(Math.min(1.2, r.sun.intensity * 0.35));
     }
-    const cam = camera.position;
-    if (Math.hypot(cam.x - this.lastFill.x, cam.z - this.lastFill.z) > 12) {
-      this.fill(cam);
-      this.lastFill.copy(cam);
+    // the near range's middle: ahead of the camera the way it looks (on the level), swinging round with the view
+    const cam = camera.position, d = camera.getWorldDirection(this._dir || (this._dir = new THREE.Vector3()));
+    const h = Math.hypot(d.x, d.z), k = h > 0.2 ? AHEAD * NEAR / h : 0, a = this.lodAhead;
+    a.x += (d.x * k - a.x) * Math.min(1, dt * 2); a.y += (d.z * k - a.y) * Math.min(1, dt * 2);
+    const c = this.uniforms.uLod.value.set(cam.x + a.x, cam.z + a.y);
+    if (Math.hypot(c.x - this.lastFill.x, c.y - this.lastFill.z) > 12) {
+      this.fill({ x: c.x, z: c.y });
+      this.lastFill.set(c.x, 0, c.y);
     }
   }
 
