@@ -284,6 +284,17 @@ ${G ? `
       if (near > 0.0) tilt += gTilt(gL[j], lay.x) * b;
     }
     alb /= sum; rough /= sum; tilt /= sum;
+    // a meadow: tufts and clumps of grass in it, lighter and darker (render/Grass.js stands its blades on the near
+    // part), so it isn't a flat green out past the blades; a pattern finer than a pixel evens out to its mean
+    float mw = 0.0;
+    for (int j = 0; j < 4; j++) { if (j >= gn) break; if (gL[j] == uIds.x) mw += max(0.0, hs[j] - top + 0.16); }
+    mw /= sum;
+    if (mw > 0.0) {
+      float px = length(fwidth(vWPos.xz));
+      float t1 = tn(vWPos.xz * 1.6 + 3.1), t2 = tn(vWPos.xz * 0.42 + 7.7);
+      float m = mix(0.5, t1, 1.0 - smoothstep(0.2, 0.5, px * 1.6)) * 0.55 + mix(0.5, t2, 1.0 - smoothstep(0.2, 0.5, px * 0.42)) * 0.45;
+      alb *= 1.0 + (m - 0.5) * 0.55 * mw;
+    }
     diffuseColor.rgb = mix(diffuseColor.rgb, alb * vTint, tex);
     gRough = mix(0.95, rough, tex);
     gH = mix(0.5, hgt / sum, tex);

@@ -6,7 +6,9 @@
 // A map's manifest (public/assets/ground/<map>.json) lists its layers in order. For each: the files, how many metres
 // one copy covers, the roughness, the average colour (what the ground looks like from far away), and here the
 // height weight (how much its relief wins the blend) and a gain for scans photographed darker than the real thing
-// (a manifest can set its own, as Kerala's wet red mud does).
+// (a manifest can set its own, as Kerala's wet red mud does), or lighter: the grass scan, taken from above in bright
+// sun, is lighter and yellower than a meadow seen across, its blades shading each other (and than the tufts of
+// render/Grass.js standing on it).
 
 import * as THREE from 'three';
 
@@ -14,7 +16,7 @@ const BASE = 'assets/ground/';
 
 /** Per layer: height weight, colour gain (red, green, blue). */
 const TUNE = {
-  grass: [0.45, [1, 1, 1]], forest: [0.4, [0.62, 0.74, 0.86]], dirt: [0.5, [1, 1, 1]], gravel: [0.6, [1, 1, 1]],
+  grass: [0.45, [0.72, 0.8, 0.8]], forest: [0.4, [0.62, 0.74, 0.86]], dirt: [0.5, [1, 1, 1]], gravel: [0.6, [1, 1, 1]],
   rock: [0.7, [1.6, 1.6, 1.6]], mud: [0.15, [1, 0.82, 0.62]], sand: [0.25, [1, 1, 1]], snow: [0.2, [1.9, 1.9, 1.9]],
   pebbles: [0.8, [1, 1, 1]],
 };

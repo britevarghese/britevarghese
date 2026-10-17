@@ -3,7 +3,7 @@
 // on a jittered grid over the cells whose ground is grass, so the grass grows exactly where the textured ground shows
 // it. The blades take their colour from the scanned grass texture under the tuft and the land's tint (lush hollows,
 // dry knolls); they sway in the wind, glow when the sun is behind them, and are pressed flat by the wheels. Far out
-// the tufts thin (the survivors grow wider) and fade.
+// the tufts thin (the survivors grow wider) and sink into the ground, whose meadow goes on beyond them.
 //
 // Tufts are made per 8 m chunk (cached) and gathered when the camera crosses into another chunk.
 
@@ -138,11 +138,12 @@ varying float vT;`)
 float cs = cos(aPos.w), sn = sin(aPos.w);
 vec3 objectNormal = vec3(normal.x * cs - normal.z * sn, normal.y, normal.x * sn + normal.z * cs);`)
         .replace('#include <begin_vertex>', `
-// thin out with distance: each tuft has its turn to go, the ones left grow wider to cover
+// thin out with distance (each tuft has its turn to go, the ones left grow wider to cover) and sink into the
+// ground, so the meadow goes on past the last of them (a few wide tufts standing alone looked like scraps)
 float dist = distance(cameraPosition.xz, aPos.xz);
-float keep = mix(1.0, 0.3, smoothstep(12.0, uRange, dist));
+float keep = mix(1.0, 0.55, smoothstep(12.0, uRange, dist));
 float alive = 1.0 - smoothstep(keep - 0.08, keep, aSize.z);
-float fade = 1.0 - smoothstep(uRange * 0.82, uRange, dist);
+float fade = 1.0 - smoothstep(uRange * 0.5, uRange, dist);
 float hgt = aSize.x * alive * fade;
 float wid = aSize.y / sqrt(keep);
 vec3 p = vec3(position.x * wid, position.y * hgt, position.z * wid);
@@ -172,7 +173,7 @@ vMapUv = vec2((floor(aSize.z * ${VARIANTS}.0) + uv.x) / ${VARIANTS}.0, uv.y);
 #endif
 vec3 base = vec3(0.12, 0.16, 0.035);
 ${G ? `base = textureLod(uGC, vec3(vec2(aPos.x, -aPos.z) * ${grassScale.toFixed(5)} + vec2(aSize.z * 0.07, aSize.z * 0.13), ${grassL.toFixed(1)}), 3.0).rgb;` : ''}
-vGrass = base * aTint * (0.92 + 0.16 * fract(aSize.z * 37.0)) * 1.1;`)
+vGrass = base * aTint * (0.92 + 0.16 * fract(aSize.z * 37.0)) * 1.3;`)
         .replace('#include <project_vertex>', `
 vec4 mvPosition = viewMatrix * vec4(transformed, 1.0);
 gl_Position = projectionMatrix * mvPosition;`)
@@ -267,7 +268,7 @@ normal = normalize(vNormal);`)
         const c = this.chunk(cx + i, cz + k);
         // the shader thins the far tufts; leave out the ones it would drop even a chunk closer
         const near = Math.max(0, Math.hypot(dx, dz) - CHUNK * 1.5), t = Math.min(1, Math.max(0, (near - 12) / (this.range - 12)));
-        const keep = 1 - 0.7 * t * t * (3 - 2 * t);
+        const keep = 1 - 0.45 * t * t * (3 - 2 * t);
         for (let j = 0; j < c.length && m < this.cap; j += 10) {
           if (c[j + 6] > keep) continue;
           P[m * 4] = c[j]; P[m * 4 + 1] = c[j + 1]; P[m * 4 + 2] = c[j + 2]; P[m * 4 + 3] = c[j + 3];
