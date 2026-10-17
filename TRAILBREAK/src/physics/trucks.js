@@ -5,7 +5,7 @@
 //
 //   Gecko     the Lada Niva (a real model)                             Mule     the Willys MB, the original jeep (a real model)
 //   Ranger    the UAZ Hunter (a real model)                            Trekker  the Ford Ranger Raptor (a real model)
-//   Shepherd  British utility wagon (the long-wheelbase classic)       Drover   big six-cylinder wagon (the outback one)
+//   Shepherd  the Land Rover Defender 110 (a real model)               Drover   the Mitsubishi Pajero (a real model)
 //   Hauler    the Chevrolet K20 Suburban (a real model)                 Bruiser  the Ram 2500 Power Wagon (a real model)
 //   Rhino     portal-axle expedition truck (the German unstoppable)
 //
@@ -205,28 +205,32 @@ export const TRUCKS = {
     style: 'shepherd', look: { top: 'hard', coils: true },
   },
   drover: {
-    id: 'drover', name: 'Drover',
-    blurb: 'Big six-cylinder wagon: 107" wheelbase, 4.2 straight six, four-speed automatic, leaf springs. Heavy, smooth and built to last.',
-    mass: 2150, cgHeight: 0.82, cgZ: 0.05, inertiaBox: [1.75, 1.35, 4.4],
+    // the Mitsubishi Pajero (third generation, 1999-2006) long-wheelbase five-door: 2,780 mm wheelbase, 4,775 mm long,
+    // 1,875 mm wide, a monocoque with independent suspension at all four corners, Super Select four-wheel drive, 235 mm
+    // under it (a real model: render/TruckAssets.js)
+    id: 'drover', name: 'Mitsubishi Pajero',
+    blurb: 'Mitsubishi Pajero, the Dakar winner\'s road car: 109" wheelbase, the 3.2 DI-D turbo-diesel, a five-speed automatic, Super Select four-wheel drive with a low range, independent suspension at all four corners, traction control. Quick and comfortable on rough tracks.',
+    mass: 2180, cgHeight: 0.84, cgZ: 0.08, inertiaBox: [1.8, 1.35, 4.4],
     axles: [
-      { z: 1.365, track: 1.475, springTrack: 0.92, rate: 44000, bump: 2500, rebound: 5000, travel: 0.22, sag: 0.09, mass: 110, steer: 0.55, brake: 3200, swayBar: 30000, diffDrop: 0.18, diffX: -0.2 },
-      { z: -1.365, track: 1.46, springTrack: 1.04, rate: 48000, bump: 2600, rebound: 5200, travel: 0.23, sag: 0.095, mass: 115, steer: 0, brake: 2000, handbrake: 3200, diffDrop: 0.18, diffX: -0.05 },
+      { z: 1.39, track: 1.58, springTrack: 1.1, rate: 46000, bump: 2600, rebound: 5200, travel: 0.2, sag: 0.09, mass: 90, steer: 0.55, brake: 3400, swayBar: 24000, ifs: true, armDrop: 0.1 },
+      { z: -1.39, track: 1.58, springTrack: 1.1, rate: 50000, bump: 2600, rebound: 5200, travel: 0.22, sag: 0.095, mass: 95, steer: 0, brake: 2300, handbrake: 3200, ifs: true, armDrop: 0.1 },
     ],
-    trans: { tcK: 9.8 },
-    stock: { tyre: 31, axle: 4.10, trans: 4, fit: 31, low: 1.96 },
+    trans: { tcK: 9.6 },
+    stock: { tyre: 31, axle: 4.10, trans: 14, fit: 31, low: 1.9 },
+    stockTyre: { label: '265/70 R16 A/T', radius: 0.39, width: 0.265, rim: 16, desc: 'The Pajero\'s 265/70 R16 all-terrains (31") on alloys.' },
     hull: [
-      { c: [0, 0.815, -0.145], h: [0.9, 0.315, 2.37], pts: 'bottom' },     // body: bumpers 0.5 m up, waist 1.13
-      { c: [0, 0.47, 0], h: [0.42, 0.12, 1.05], pts: 'bottom' },            // belly 0.35 m up
-      { c: [0, 1.475, -0.75], h: [0.86, 0.345, 1.7], pts: 'top' },          // wagon roof 1.82 m
+      { c: [0, 0.87, -0.06], h: [0.94, 0.42, 2.32], pts: 'bottom' },       // body: bumpers 0.45 m up, the beltline 1.29
+      { c: [0, 0.47, 0], h: [0.45, 0.1, 1.2], pts: 'bottom' },              // belly: 0.37 m up
+      { c: [0, 1.65, -0.85], h: [0.9, 0.33, 1.2], pts: 'top' },             // roof 1.98 m
     ],
-    roofY: 1.82, cabZ: 0.6, noseZ: 2.225, rackZ: -0.9,
-    intakePos: [-0.6, 1.0, 1.7], snorkelPos: [-0.9, 1.85, 0.9],
-    winch: { fairlead: [0, 0.66, 2.29] },
-    eye: [0.42, 1.55, 0.1], hoodEye: [0, 1.38, 1.6],
-    drag: { cd: 0.58, area: 3.0 },
+    roofY: 1.95, cabZ: 0, noseZ: 2.25, rackZ: -0.9,
+    intakePos: [-0.55, 1.1, 1.7], snorkelPos: [-0.95, 1.9, 0.6],
+    winch: { fairlead: [0, 0.6, 2.27] },
+    eye: [0.4, 1.62, 0.0], hoodEye: [0, 1.5, 1.2],
+    drag: { cd: 0.45, area: 3.2 },
     buoyancy: 0.3,
-    shafts: [8500, 10000], tyreLoad: 5300, parts: 1.05,
-    style: 'drover', look: { top: 'hard', leaf: 0.66 },
+    shafts: [8000, 9000], tyreLoad: 5300, parts: 1.05, tc: true,
+    style: 'drover', look: { coils: true },
   },
   bruiser: {
     // the Ram 2500 Power Wagon crew cab (2019-2022): 3,795 mm wheelbase, 6,070 mm long, 2,010 mm wide, three and a

@@ -1,0 +1,95 @@
+{
+ "id": "drover",
+ "model": {
+  "title": "Mitsubishi Pajero 4WD [FREE / GAMEREADY]",
+  "url": "https://sketchfab.com/3d-models/mitsubishi-pajero-4wd-free-gameready-bec38f586d9349ee9c1f295b6f5569cb",
+  "author": "rileylane",
+  "authorUrl": "https://sketchfab.com/rileylane",
+  "license": "CC BY 4.0"
+ },
+ "axes": {
+  "left": "+x",
+  "up": "+y",
+  "forward": "+z"
+ },
+ "wheelbase": 2.78,
+ "spare": null,
+ "materials": {
+  "0": "trim"
+ },
+ "byTexture": [
+  {
+   "mat": 1,
+   "vote": true,
+   "paint": [
+    75,
+    36,
+    36
+   ],
+   "tol": 0.16,
+   "colors": [
+    [
+     115,
+     115,
+     115,
+     0.09,
+     "glass"
+    ],
+    [
+     100,
+     125,
+     150,
+     0.12,
+     "head"
+    ],
+    [
+     190,
+     40,
+     40,
+     0.2,
+     "tail"
+    ]
+   ]
+  }
+ ],
+ "texSize": 2048,
+ "layout": {
+  "bumperF": {
+   "z": 2.25,
+   "y": 0.48,
+   "w": 1.85
+  },
+  "bumperR": {
+   "z": -2.2,
+   "y": 0.45,
+   "w": 1.85
+  },
+  "frame": {
+   "x": 0.46,
+   "y": 0.5,
+   "z0": -2.0,
+   "z1": 2.0
+  },
+  "coilY": 0.85,
+  "half": 0.94,
+  "sill": 0.45,
+  "roofY": 1.95,
+  "roofZ": [
+   -2.0,
+   0.3
+  ],
+  "ownChassis": true
+ },
+ "wheelsAt": {
+  "z": [
+   0.626,
+   -0.5755
+  ],
+  "x": 0.332,
+  "y": -0.254,
+  "r": 0.185,
+  "w": 0.2,
+  "rim": 0.115
+ },
+ "scaleX": 0.95
+}

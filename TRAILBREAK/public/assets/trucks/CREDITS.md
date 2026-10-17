@@ -50,3 +50,8 @@ light), and the textures resized to WebP.
   https://sketchfab.com/3d-models/lada-niva-26ebf5872bce4ff4ad2baee41882d6b2 (https://sketchfab.com/mckechniegreg6);
   its axles, springs and wishbones taken off, its weathered paint (and its rust and primer patches) given the game's
   paint, the trim simplified and the textures halved.
+- `drover.glb` (Mitsubishi Pajero): "Mitsubishi Pajero 4WD [FREE / GAMEREADY]" by rileylane,
+  https://sketchfab.com/3d-models/mitsubishi-pajero-4wd-free-gameready-bec38f586d9349ee9c1f295b6f5569cb
+  (https://sketchfab.com/rileylane); narrowed 5% to the Pajero's real width, its wheels told apart by where they are,
+  its rusty red paint given the game's paint and its windows and lamps the game's glass and lamps (told apart by the
+  colour of its one texture).

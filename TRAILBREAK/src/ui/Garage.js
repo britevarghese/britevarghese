@@ -4,7 +4,7 @@
 // middle; under it, a grade for the build off-road and the numbers that matter there.
 import {
   CATEGORIES, PRESETS, optionsFor, tyreFor, normalizeBuild, presetBuild, encodeBuild, decodeBuild, buildStats, maxTyre,
-  stockBuild, LIFTS, TYRE_SIZES, partPrice,
+  stockBuild, LIFTS, TYRE_SIZES, partPrice, optionAllowed,
 } from '../physics/Upgrades.js';
 import { money } from '../game/Career.js';
 import { truckBase, truckSpec } from '../physics/trucks.js';
@@ -256,11 +256,10 @@ export class Garage {
       const single = (o, i) => (cat.id === 'tcase' && i === 0 && this.base.stock.low <= 1
         ? { ...o, name: 'Single-speed transfer case', desc: 'No low range: the gearbox\'s own crawler first does that job.' } : o);
       const opts = optionsFor(cat, this.truckId).map(single);
-      const only = this.base.only?.[cat.id];
       opts.forEach((o, i) => {
         const opt = document.createElement('option');
         opt.value = String(i);
-        if (only && !only.includes(i)) opt.hidden = opt.disabled = true;
+        if (!optionAllowed(this.base, cat.id, i)) opt.hidden = opt.disabled = true;
         let label = optLabel(cat, o, this.base);
         if (this.career && !this.career.freeParts) {
           const v = cat.id === 'tyre' ? TYRE_SIZES[i] : i, price = partPrice(this.base, cat.id, v);
@@ -269,7 +268,7 @@ export class Garage {
         opt.textContent = label;
         sel.appendChild(opt);
       });
-      sel.disabled = (only?.length === 1) || (cat.id !== 'tyre' && opts.length < 2);
+      sel.disabled = cat.id !== 'tyre' && opts.filter((o, i) => optionAllowed(this.base, cat.id, i)).length < 2;
       sel.onchange = () => { const i = Number(sel.value); this.pick(cat, i, opts[i]); };
       const show = () => this.describe(cat, opts[Number(sel.value)]);
       row.onmouseenter = show;

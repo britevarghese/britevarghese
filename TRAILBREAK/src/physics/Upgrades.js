@@ -99,9 +99,10 @@ export const TRANSMISSIONS = [
   { name: '10-speed automatic (10R60)', short: '10-spd auto', type: 'auto', gears: [4.7, 2.99, 2.15, 1.77, 1.52, 1.28, 1.0, 0.85, 0.69, 0.64], reverse: 4.87, desc: 'The Bronco\'s ten-speed automatic: a 4.70 first through a torque converter, close steps all the way, two overdrives.' },
   { name: '5-speed automatic (Allison 1000)', short: 'Allison', type: 'auto', gears: [3.1, 1.81, 1.41, 1.0, 0.71], reverse: 4.49, desc: 'The H1 Alpha\'s heavy-duty Allison five-speed: built for a diesel\'s torque, a 3.10 first, an overdrive top.' },
   { name: 'Single-speed reduction (electric)', short: 'direct', type: 'direct', gears: [1.0], reverse: 1.0, desc: 'Electric drive units: the motors geared straight to the axles, one ratio, full torque from a standstill. No clutch, no torque converter, nothing to shift.' },
+  { name: '5-speed automatic (INVECS-II)', short: '5-spd auto', type: 'auto', gears: [3.79, 2.06, 1.42, 1.0, 0.73], reverse: 3.48, desc: 'The Pajero\'s five-speed automatic with its sport-shift gate: a 3.79 first through a torque converter, an overdrive top.' },
 ];
 /** The electric drive units' gearbox (TRANSMISSIONS index). */
-export const EV_TRANS = TRANSMISSIONS.length - 1;
+export const EV_TRANS = TRANSMISSIONS.findIndex((t) => t.type === 'direct');
 
 export const INTAKES = [
   { name: 'Stock air cleaner', short: 'stock', desc: 'Breathes from under the bonnet: water over it stops the engine. Ford slowly, or the bow wave gets there first.' },
@@ -189,6 +190,12 @@ const ENGINE = {
     torque: [[600, 240], [1000, 330], [1500, 430], [2000, 505], [2500, 545], [3100, 563], [3500, 560], [4000, 540], [4500, 505], [5250, 447], [5800, 395], [6200, 250]] },
   V6_30T: { name: '3.0 EcoBoost V6', idleRpm: 650, redline: 6200, limiter: 6400, inertia: 0.22, friction: [14, 0.02], bank: 'v6', bankPitch: 0.94, turbo: 2, sound: 'i6_bmw', pitch: 0.9, mass: 25,
     torque: [[600, 260], [1000, 350], [1500, 455], [2000, 540], [2500, 580], [3500, 597], [4000, 592], [4500, 575], [5000, 552], [5750, 518], [6200, 470], [6600, 300]] },
+  // the Pajero's 4M41 3.2 DI-D turbo-diesel four: 118 kW at 3,800 rpm, 373 Nm from 2,000; and its 3.8 MIVEC V6 petrol:
+  // 184 kW at 6,000, 329 Nm at 2,750
+  D32: { name: '3.2 DI-D turbo-diesel', idleRpm: 750, redline: 4000, limiter: 4200, inertia: 0.26, friction: [15, 0.026], bank: 'd4', bankPitch: 0.94, turbo: 1, sound: 'i6_bmw', pitch: 0.66, mass: 0, cyl: 4, diesel: true,
+    torque: [[600, 170], [1000, 260], [1500, 340], [2000, 373], [2500, 373], [3000, 360], [3500, 335], [3800, 310], [4000, 290], [4300, 180]] },
+  V6_38M: { name: '3.8 MIVEC V6', idleRpm: 650, redline: 6000, limiter: 6300, inertia: 0.2, friction: [12, 0.018], bank: 'v6', bankPitch: 0.98, turbo: 0, sound: 'i6_bmw', pitch: 0.94, mass: -30,
+    torque: [[600, 200], [1000, 262], [1500, 300], [2000, 318], [2750, 329], [3500, 325], [4500, 312], [5500, 298], [6000, 292], [6400, 250]] },
   // the Ranger Raptor's EcoBlue 2.0 bi-turbo diesel: 157 kW at 3,750 rpm, 500 Nm from 1,750 to 2,000
   D20BT: { name: 'EcoBlue 2.0 bi-turbo diesel', idleRpm: 750, redline: 4200, limiter: 4400, inertia: 0.2, friction: [14, 0.024], bank: 'd4t', bankPitch: 1.02, turbo: 2, sound: 'i6_bmw', pitch: 0.72, mass: 0, cyl: 4, diesel: true,
     torque: [[600, 230], [1000, 360], [1400, 460], [1750, 500], [2000, 500], [2500, 472], [3000, 445], [3750, 400], [4200, 340], [4500, 200]] },
@@ -222,7 +229,7 @@ export const ENGINES = {
   gecko: [{ ...ENGINE.I4_17, short: 'stock', desc: 'Stock VAZ 1.7 four: 59.5 kW, 127 Nm. It needs revs.' }, { ...tuned(ENGINE.I4_17), short: 'tuned', desc: 'A cam, a freer exhaust and a remap: +13% torque.' }, { ...ENGINE.D22Z, short: 'diesel', desc: 'A 2.2 turbo-diesel squeezed in: 270 Nm from 1,600 rpm, more than twice the torque, 40 kg more over the front axle.' }],
   trekker: [{ ...ENGINE.D20BT, short: 'stock', desc: 'Stock EcoBlue 2.0 bi-turbo diesel: 157 kW, 500 Nm from 1,750 rpm.' }, { ...tunedBy(1.15, 100)(ENGINE.D20BT), short: 'remap', desc: 'An ECU remap: +15% torque.' }, { ...ENGINE.V6_30T, short: '3.0 V6', desc: 'The next Raptor\'s 3.0 EcoBoost twin-turbo V6 petrol: 312 kW and 597 Nm, 25 kg heavier.' }],
   shepherd: [{ ...ENGINE.I4_25TD, short: 'stock', desc: 'Stock 2.5 turbo-diesel: 63 kW, 203 Nm low down. Slow, frugal, tireless.' }, { ...tunedBy(1.2)(ENGINE.I4_25TD), short: 'tuned', desc: 'Fuel pump turned up, an intercooler: +20% torque.' }, { ...ENGINE.V8_39, short: 'V8 3.9', desc: 'The light alloy 3.9 V8: 134 kW and +54% torque, 20 kg lighter than the diesel.' }],
-  drover: [{ ...ENGINE.I6_42P, short: 'stock', desc: 'Stock 4.2 petrol six: 101 kW, 285 Nm off idle.' }, { ...tuned(ENGINE.I6_42P), short: 'tuned', desc: 'Headers, a cam and a bigger carburettor: +13% torque.' }, { ...ENGINE.I6_42TD, short: 'TD swap', desc: 'The 4.2 turbo-diesel six: 122 kW and +26% torque, 60 kg heavier.' }],
+  drover: [{ ...ENGINE.D32, short: 'stock', desc: 'Stock 3.2 DI-D turbo-diesel four: 118 kW, 373 Nm from 2,000 rpm.' }, { ...tunedBy(1.15, 100)(ENGINE.D32), short: 'remap', desc: 'An ECU remap and a bigger intercooler: +15% torque.' }, { ...ENGINE.V6_38M, short: '3.8 V6', desc: 'The 3.8 MIVEC V6 petrol: 184 kW, revs to 6,000, 30 kg lighter.' }],
   bruiser: [{ ...ENGINE.V8_64HD, short: 'stock', desc: 'Stock 6.4 HEMI V8: 306 kW at 5,600 rpm, 582 Nm at 4,000.' }, { ...tunedBy(1.1, 200)(ENGINE.V8_64HD), short: 'tuned', desc: 'A cold-air intake, headers and a tune: +10% torque.' }, { ...ENGINE.I6_67CR, short: 'Cummins', mass: 300, desc: 'The 6.7 Cummins turbo-diesel six: 880 Nm, half as much again, and 300 kg more over the front axle.' }],
   wrangler: [{ ...ENGINE.V6_36, short: 'stock', desc: 'Stock 3.6 Pentastar V6: 213 kW at 6,400 rpm, 353 Nm at 4,800. It likes revs.' }, { ...tunedBy(1.12, 200)(ENGINE.V6_36), short: 'tuned', desc: 'A cold-air intake, an exhaust and a tune: +12% torque.' }, { ...ENGINE.V8_64, short: '392 HEMI', desc: 'The 6.4 HEMI V8 swap: 350 kW and 637 Nm, +80% torque, 60 kg heavier.' }],
   hummer: [{ ...ENGINE.V8_66D, short: 'stock', desc: 'Stock 6.6 Duramax turbo-diesel V8: 224 kW at 3,200 rpm, 705 Nm at 1,800.' }, { ...tunedBy(1.2, 100)(ENGINE.V8_66D), short: 'tuned', desc: 'A tune, bigger injectors and an intercooler: +20% torque.' }, { ...ENGINE.V8_66L5P, short: 'L5P swap', desc: 'The later L5P Duramax: 332 kW and 1,234 Nm, +75% torque, 30 kg heavier.' }],
@@ -284,7 +291,7 @@ export const PRICES = {
   gears: 1600,                       // any ratio but the factory one: both axles re-geared
   tcase: [0, 1900],
   diffs: [0, 750, 1100, 2200, 900],
-  trans: [1800, 1200, 1600, 1500, 2200, 2400, 5200, 1900, 2600, 2400, 1800, 3200, 3600],  // a different gearbox swapped in
+  trans: [1800, 1200, 1600, 1500, 2200, 2400, 5200, 1900, 2600, 2400, 1800, 3200, 3600, 0, 2400],  // a different gearbox swapped in
   engine: [0, 1500, 4800],
   intake: [0, 450],
   winch: [0, 1300],
@@ -363,13 +370,21 @@ export function buildSummary(base, build) {
 }
 
 /** Clamp every choice to a valid one; missing ones come from stock. */
+/** Whether a truck can take option i of a category: not what its own `only` leaves out, and the electric gearbox only
+ *  behind electric motors. */
+export function optionAllowed(base, catId, i) {
+  if (base.only?.[catId] && !base.only[catId].includes(i)) return false;
+  if (catId === 'trans' && TRANSMISSIONS[i]?.type === 'direct' && !ENGINES[base.id]?.[0]?.electric) return false;
+  return true;
+}
+
 export function normalizeBuild(base, build) {
   const s = stockBuild(base), b = { ...s, ...(build || {}) };
   for (const cat of CATEGORIES) {
     if (cat.id === 'tyre') continue;
     const n = optionsFor(cat, base.id).length;
     b[cat.id] = Number.isInteger(b[cat.id]) ? clamp(b[cat.id], 0, n - 1) : s[cat.id];
-    if (base.only?.[cat.id] && !base.only[cat.id].includes(b[cat.id])) b[cat.id] = s[cat.id];
+    if (!optionAllowed(base, cat.id, b[cat.id])) b[cat.id] = s[cat.id];
   }
   if (!TYRE_SIZES.includes(b.tyre) || b.tyre < base.stock.tyre) b.tyre = s.tyre;
   while (b.tyre > maxTyre(base, b.lift)) b.tyre = TYRE_SIZES[TYRE_SIZES.indexOf(b.tyre) - 1];
