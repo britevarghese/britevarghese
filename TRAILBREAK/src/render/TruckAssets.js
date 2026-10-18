@@ -145,6 +145,9 @@ function build(id, gltf, layout) {
     parts.push({ role, geometry: list.length > 1 ? mergeGeometries(list) : list[0], material: null, doubleSided: !!both });
   }
   for (const p of parts) { p.geometry.computeBoundingSphere(); p.geometry.userData.cached = true; }
-  for (const r of rim) r.geometry.userData.cached = true;
-  return { id, layout, parts, rim };
+  // (how far the rim reaches along its axle, in its unit radius: a whole rim spans the tyre's bead; some models draw
+  // only its face, the spokes, out at the tyre's outer wall)
+  let x0 = Infinity, x1 = -Infinity;
+  for (const r of rim) { r.geometry.userData.cached = true; r.geometry.computeBoundingBox(); x0 = Math.min(x0, r.geometry.boundingBox.min.x); x1 = Math.max(x1, r.geometry.boundingBox.max.x); }
+  return { id, layout, parts, rim, rimX: rim.length ? [x0, x1] : null };
 }

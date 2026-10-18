@@ -183,6 +183,10 @@ function crackTexture() {
   return CRACKS;
 }
 
+// a rim's barrel, for a model that draws only the rim's face: unit radius, along x
+const RIM_BARREL = new THREE.CylinderGeometry(0.97, 0.97, 1, 28, 1, true).rotateZ(Math.PI / 2);
+RIM_BARREL.userData.cached = true;
+
 /** A flat tyre: the tyre squashed against the ground under its rim, the sidewalls bulging. drop: how far it sank. */
 function flatTyre(src, R, drop) {
   const g = src.clone();
@@ -840,12 +844,26 @@ export class TruckModel {
     const rimR = (t.rim || (t.size >= 37 ? 17 : 15)) * IN / 2 + 0.03;
     const alloy = !!look.alloy && !t.beadlock;                      // the truck's alloys (beadlocks replace them)
     const rimModel = !t.beadlock && truckAsset(spec.style)?.rim.length ? truckAsset(spec.style) : null;
-    // the model's own rim (unit radius, face to +x): to the rim's size, as wide as the tyre's bead
+    // the model's own rim (unit radius, face to +x), to the rim's size: a whole rim (barrel and face) across the tyre's
+    // bead, centred; a rim's face alone (the spokes, as some models draw it) as modelled, out at the tyre's outer bead,
+    // with a barrel behind it (stretched across the bead, a face stood out from the tyre like a spacer)
     const modelRim = () => {
-      const g = new THREE.Group(), L = rimModel.layout.rim, unitW = L.width / L.radius;
+      const g = new THREE.Group(), [x0, x1] = rimModel.rimX, bead = Wt * 0.42;
       for (const r of rimModel.rim) { const m = new THREE.Mesh(r.geometry, r.material); m.castShadow = true; g.add(m); }
-      g.scale.set(Wt * 0.84 / unitW, rimR, rimR);
-      return g;
+      if ((x1 - x0) * rimR < bead) {
+        g.scale.setScalar(rimR);
+        g.position.x = bead - x1 * rimR;
+        const barrel = new THREE.Mesh(RIM_BARREL, M.alloyDark.userData.both ||= Object.assign(M.alloyDark.clone(), { side: THREE.DoubleSide }));
+        barrel.scale.x = 2 * bead / rimR;
+        barrel.position.x = -g.position.x / rimR;
+        g.add(barrel);
+      } else {
+        const sx = 2 * bead / (x1 - x0);
+        g.scale.set(sx, rimR, rimR);
+        g.position.x = -(x0 + x1) / 2 * sx;
+      }
+      // (in a group of its own: turned to face out on the right, or stood up as the spare, it keeps its offset)
+      return new THREE.Group().add(g);
     };
 
     // ---- body, chassis, bumpers, build
