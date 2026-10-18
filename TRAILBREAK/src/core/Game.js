@@ -1160,8 +1160,11 @@ export class Game {
     const I = this.input, v = this.vehicle, W = v.winch;
     const ctrl = I.update(dt);
     this.actions();
+    // paused: the whole game stops where it is (our truck, its sound, the camera, the clocks); only friends' trucks
+    // in an online room go on (their games aren't paused), and they see ours standing still
+    if (this.paused) { this.pausedFrame(dt); I.endFrame(); return; }
     const c = { ...ctrl };
-    if (this.paused || this.chatOpen) { c.throttle = 0; c.brake = 0; c.handbrake = 1; c.steer = 0; c.winch = 0; }
+    if (this.chatOpen) { c.throttle = 0; c.brake = 0; c.handbrake = 1; c.steer = 0; c.winch = 0; }
     if (!this.settings.assist) c.analogSteer = true;
     if (this.garageOpen || this.mapOpen || this.building) { c.throttle = 0; c.brake = 0; c.handbrake = 1; c.steer = 0; c.winch = 0; }
     W.motor = W.attached ? c.winch : 0;
@@ -1317,15 +1320,7 @@ export class Game {
     }
 
     // network
-    if (this.net) {
-      let winch = null;
-      if (W.attached) {
-        winch = W.kind === 'tree'
-          ? { to: 'tree', a: [W.anchor.x, W.anchor.y, W.anchor.z], f: [W.fairlead.x, W.fairlead.y, W.fairlead.z], len: W.len, ten: W.tension }
-          : { to: W.target, a: [W.anchorLocal.x, W.anchorLocal.y, W.anchorLocal.z], f: [W.fairlead.x, W.fairlead.y, W.fairlead.z], len: W.len, ten: W.tension, rate: W.rate || 0 };
-      }
-      this.net.sendState(dt, v, { truck: this.truckId, cfg: this.build, help: this.helpOn, paint: this.myColor, lights, winch });
-    }
+    if (this.net) this.net.sendState(dt, v, this.netExtra(lights));
 
     // HUD
     this.hud.update(dt);
@@ -1361,6 +1356,32 @@ export class Game {
     if (!this.noRender) this.renderer.render();
     this.perf(dt);
     I.endFrame();
+  }
+
+  /** What the room hears about us beside the truck's motion: which truck, its build, paint, lights and winch line. */
+  netExtra(lights) {
+    const W = this.vehicle.winch;
+    let winch = null;
+    if (W.attached) {
+      winch = W.kind === 'tree'
+        ? { to: 'tree', a: [W.anchor.x, W.anchor.y, W.anchor.z], f: [W.fairlead.x, W.fairlead.y, W.fairlead.z], len: W.len, ten: W.tension }
+        : { to: W.target, a: [W.anchorLocal.x, W.anchorLocal.y, W.anchorLocal.z], f: [W.fairlead.x, W.fairlead.y, W.fairlead.z], len: W.len, ten: W.tension, rate: W.rate || 0 };
+    }
+    return { truck: this.truckId, cfg: this.build, help: this.helpOn, paint: this.myColor, lights, winch };
+  }
+
+  /** A frame while paused: friends' trucks (and voice) go on, ours stands still for them, and the picture holds. */
+  pausedFrame(dt) {
+    this.updateRemotes(dt);
+    this.voice?.update();
+    this.updateRemoteRopes();
+    if (this.net) {
+      // our truck as it stands, told as still (it keeps its speed for when the game goes on)
+      const v = this.vehicle;
+      this._still = this._still || { vel: new THREE.Vector3(), angVel: new THREE.Vector3() };
+      this.net.sendState(dt, Object.create(v, { vel: { value: this._still.vel }, angVel: { value: this._still.angVel } }), this.netExtra(this.lightsOn || this.renderer.night));
+    }
+    if (!this.noRender) this.renderer.render();
   }
 
   /** Watch the frame rate; step the graphics down if it can't keep up. */
