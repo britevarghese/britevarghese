@@ -635,6 +635,8 @@ export class Game {
     }
     if (I.consume('pause')) { if (this.chatOpen) this.closeChat(); else if (this.mapOpen) this.toggleMap(); else this.togglePause(); }
     if (this.paused) return;
+    // a controller steering as a gamepad might be a wheel the browser took for an Xbox pad: say how to make it one
+    if (I.device === 'gamepad' && !this.padHinted) { this.padHinted = true; this.hud.hint('Using a steering wheel? Calibrate it in the pause menu (Esc): its whole turn becomes the whole lock', 6); }
     if (this.mapOpen) { if (I.consume('map')) this.toggleMap(); return; }
     if (I.consume('chat') && this.net?.connected) this.openChat();
     if (I.consume('map')) this.toggleMap();

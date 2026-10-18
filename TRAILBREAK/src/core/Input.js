@@ -44,6 +44,8 @@ export class Input {
     this.device = 'keyboard';
     this.shifters = {};          // a wheel's paddles as the player set them: { [pad id]: { up, down } } (the settings')
     this.learning = null;        // waiting for a button to pull: { which: 'up' | 'down', done }
+    this.wheelCal = {};          // a steering wheel's travel as the player calibrated it: { [pad id]: { axis, lo, mid, hi } }
+    this.calib = null;           // calibrating one (calibrate())
     this.gate = 0;               // the gear an H-pattern shifter's stick is in (-1 reverse, 0 neutral), once it is used
     this.hShifter = false;
     this.mouse = { dx: 0, dy: 0, drag: false, last: 0 };
@@ -84,13 +86,51 @@ export class Input {
   pad() {
     let pads = [];
     try { pads = [...(navigator.getGamepads?.() || [])].filter(Boolean); } catch { /* blocked */ }
-    return pads.find((p) => WHEEL_RX.test(p.id)) || pads[0] || null;
+    return pads.find((p) => this.wheelCal[p.id]) || pads.find((p) => WHEEL_RX.test(p.id)) || pads[0] || null;
   }
 
-  isWheel(pad) { return WHEEL_RX.test(pad.id) || pad.mapping !== 'standard'; }
+  // (a wheel that passes itself off as an Xbox pad, as many do, is one once the player has calibrated it)
+  isWheel(pad) { return !!this.wheelCal[pad.id] || WHEEL_RX.test(pad.id) || pad.mapping !== 'standard'; }
 
   /** The steering wheel connected (the browser shows one once a button on it is pressed), or null. */
   wheelPad() { const p = this.pad(); return p && this.isWheel(p) ? p : null; }
+
+  /** A wheel's steering, -1 (full left) to 1 (full right): over the travel it was calibrated to, else its first axis. */
+  wheelSteer(pad) {
+    const C = this.wheelCal[pad.id];
+    if (!C) return clamp(pad.axes[0] || 0, -1, 1);
+    const v = pad.axes[C.axis] || 0;
+    return clamp(v >= C.mid ? (v - C.mid) / Math.max(1e-3, C.hi - C.mid) : (v - C.mid) / Math.max(1e-3, C.mid - C.lo), -1, 1);
+  }
+
+  /**
+   * Calibrate the steering of the controller connected: the player turns it all the way left and right and lets it
+   * back to the centre. The axis that moved the most is the steering; its two ends become full lock (a little short of
+   * them, so full lock is easy to reach). update({ pos, left, right }) as it goes, done(cal) at the end; cancel() stops.
+   */
+  calibrate(update, done) { this.calib = { update, done, a0: null, lo: [], hi: [], restT: 0 }; }
+  cancelCalibrate() { this.calib = null; }
+
+  calibFrom(pad, dt) {
+    const K = this.calib;
+    if (!pad) { K.update?.({ none: true }); return; }
+    const ax = pad.axes.map((a) => a || 0);
+    if (!K.a0) { K.a0 = ax.slice(); K.lo = ax.slice(); K.hi = ax.slice(); }
+    ax.forEach((a, i) => { K.lo[i] = Math.min(K.lo[i], a); K.hi[i] = Math.max(K.hi[i], a); });
+    let axis = 0;
+    ax.forEach((_, i) => { if (K.hi[i] - K.lo[i] > K.hi[axis] - K.lo[axis]) axis = i; });
+    const mid = K.a0[axis], v = ax[axis], lo = K.lo[axis], hi = K.hi[axis];
+    const left = mid - lo > 0.15, right = hi - mid > 0.15;
+    // both ends seen, and the wheel back at the centre a moment: done
+    K.restT = left && right && Math.abs(v - mid) < 0.06 * (hi - lo) ? K.restT + Math.min(0.1, dt) : 0;
+    K.update?.({ pos: v >= mid ? (v - mid) / Math.max(1e-3, hi - mid) : (v - mid) / Math.max(1e-3, mid - lo), left, right });
+    if (K.restT > 0.7) {
+      const cal = { axis, mid: v, lo: v + (lo - v) * 0.96, hi: v + (hi - v) * 0.96 };
+      this.wheelCal[pad.id] = cal;
+      this.calib = null;
+      K.done?.(cal, pad);
+    }
+  }
 
   /** A wheel's shifters: its layout's, with the paddles the player set. */
   shiftersFor(pad) { return { ...wheelShifters(pad), ...(this.shifters[pad.id] || {}) }; }
@@ -120,6 +160,7 @@ export class Input {
   update(dt) {
     const c = this.controls;
     if (this.learning) this.learnFrom(this.pad());
+    if (this.calib) this.calibFrom(this.pad(), dt);
     if (!this.enabled) {
       c.throttle = c.brake = c.steer = c.handbrake = c.winch = 0;
       this.mouse.dx = this.mouse.dy = 0;
@@ -153,7 +194,9 @@ export class Input {
       const held = (i) => free(i) && !!pad.buttons[i]?.pressed;
       const ax = pad.axes[0] || 0;
       if (wheel) {
-        if (Math.abs(ax) > 0.01) { steer = clamp(ax, -1, 1); analog = true; }
+        // a wheel: its whole travel is the whole lock, straight (no curve, no dead zone)
+        const w = this.wheelSteer(pad);
+        if (Math.abs(w) > 0.01) { steer = w; analog = true; }
       } else {
         const s = dz(ax);
         if (s !== 0) { steer = clamp(Math.sign(s) * Math.pow(Math.abs(s), 1.4), -1, 1); this.device = 'gamepad'; }

@@ -345,9 +345,16 @@ function wireMenus(game, net) {
   // a steering wheel's gear paddles (the browser shows a wheel once a button on it is pressed): click, pull the paddle
   const I = game.input;
   I.shifters = s.shifters ||= {};
+  I.wheelCal = s.wheelCal ||= {};
   const wheelUI = () => {
-    const pad = I.wheelPad(), S = pad && I.shiftersFor(pad);
-    $('wheel-name').textContent = pad ? pad.id.replace(/^[0-9a-f]{4}-[0-9a-f]{4}-/i, '').replace(/\s*\(.*\)\s*$/, '') || 'Steering wheel' : 'No steering wheel (press a button on it)';
+    // (any controller can be calibrated: many wheels pass themselves off as an Xbox pad, and steer like a thumbstick
+    // until they are)
+    const any = I.pad(), pad = I.wheelPad(), S = pad && I.shiftersFor(pad);
+    const name = (p) => p.id.replace(/^[0-9a-f]{4}-[0-9a-f]{4}-/i, '').replace(/\s*\(.*\)\s*$/, '');
+    $('wheel-name').textContent = pad ? name(pad) || 'Steering wheel' : any ? `${name(any) || 'Controller'} (as a gamepad)` : 'No steering wheel (press a button on it)';
+    $('wheel-cal').disabled = !any;
+    $('wheel-cal').textContent = I.calib ? 'Cancel' : any && I.wheelCal[any.id] ? 'Recalibrate steering' : 'Calibrate steering';
+    $('wheel-cal-box').classList.toggle('hidden', !I.calib);
     for (const k of ['up', 'down']) {
       const b = $('wheel-' + k), learning = I.learning?.which === k;
       b.disabled = !pad;
@@ -356,9 +363,22 @@ function wireMenus(game, net) {
     }
   };
   for (const k of ['up', 'down']) $('wheel-' + k).onclick = () => { I.learn(k, () => { save(); wheelUI(); }); wheelUI(); };
+  $('wheel-cal').onclick = (e) => {
+    e.currentTarget.blur();
+    if (I.calib) { I.cancelCalibrate(); wheelUI(); return; }
+    $('wheel-cal-text').textContent = 'Turn the wheel all the way left, then all the way right, then let it back to the centre';
+    I.calibrate((st) => {
+      if (st.none) return;
+      $('wheel-cal-pos').style.left = `${50 + 46 * Math.max(-1, Math.min(1, st.pos))}%`;
+      document.querySelector('#wheel-cal-box .wc-l').classList.toggle('on', st.left);
+      document.querySelector('#wheel-cal-box .wc-r').classList.toggle('on', st.right);
+      if (st.left && st.right) $('wheel-cal-text').textContent = 'Now let the wheel back to the centre';
+    }, () => { save(); wheelUI(); game.hud.hint('Steering calibrated: the whole turn of your wheel is the whole lock', 3); });
+    wheelUI();
+  };
   addEventListener('gamepadconnected', wheelUI);
   addEventListener('gamepaddisconnected', wheelUI);
-  game.onPause = (on) => { if (on) wheelUI(); };
+  game.onPause = (on) => { if (on) wheelUI(); else if (I.calib) I.cancelCalibrate(); };
   wheelUI();
   $('opt-full').checked = s.fullscreen !== false;
   $('opt-full').onchange = () => {

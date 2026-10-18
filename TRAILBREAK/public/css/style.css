@@ -236,7 +236,13 @@ input[type=checkbox]:checked::after { transform: translateX(16px); background: #
 .p-sel span { flex: 1; }
 .p-sel .ic { color: var(--ink-dim); }
 .p-sel select { margin: 0; min-width: 46%; height: 40px; text-transform: uppercase; font-size: 13.5px; letter-spacing: .04em; }
-.p-wheel { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr) minmax(0, 1fr); gap: 10px; margin-top: 10px; }
+.p-wheel { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1.1fr) minmax(0, 0.8fr) minmax(0, 0.8fr); gap: 10px; margin-top: 10px; }
+.p-wheel-cal { margin-top: 10px; padding: 10px 14px; border-radius: 10px; border: 1px solid var(--accent); background: rgba(255, 122, 26, .08); font-size: 13.5px; display: grid; gap: 8px; }
+.wc-bar { position: relative; height: 10px; border-radius: 5px; background: rgba(255, 255, 255, .08); overflow: hidden; }
+.wc-bar i { position: absolute; top: 0; bottom: 0; width: 8%; background: rgba(255, 255, 255, .12); }
+.wc-bar i.wc-l { left: 0; } .wc-bar i.wc-r { right: 0; }
+.wc-bar i.on { background: #3ad07a; }
+.wc-bar b { position: absolute; top: -1px; bottom: -1px; width: 4px; margin-left: -2px; left: 50%; border-radius: 2px; background: var(--accent); }
 .p-wheel-name { display: flex; align-items: center; gap: 12px; padding: 6px 14px; min-height: 52px; border-radius: 10px; background: rgba(255, 255, 255, .03); border: 1px solid var(--line); font-size: 14.5px; font-weight: 500; min-width: 0; }
 .p-wheel-name .ic { width: 22px; height: 22px; color: var(--ink-dim); flex: none; }
 .p-wheel-name span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

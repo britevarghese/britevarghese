@@ -202,7 +202,14 @@ paddles on 1 and 2; a wheel the browser reads as an Xbox pad has them on the bum
 rather have elsewhere: the pause menu shows the wheel and its **Gear up** and **Gear down** buttons; click one and pull
 the paddle. On a wheel the paddles and the shifter do nothing else (the winch stays on E and Q).
 
-Steering wheels are detected by name and get the full steering range; keys and thumbsticks get a steering assist
+**Calibrating a steering wheel:** many wheels pass themselves off as an Xbox pad, and the browser can't tell them from
+one: such a wheel steered like a thumbstick (a dead zone, a curve, and the assist below), so a quarter turn of a 900°
+wheel barely moved the car's wheels. In the pause menu, **Calibrate steering** and turn the wheel all the way left and
+right, then let it back to the centre: from then on it is a wheel, and its whole turn is the car's whole lock, in
+proportion (half the turn, half the lock). The game finds the axis that moved, and keeps the calibration for that
+controller. It works for a wheel the game does know too, to set how far you turn it (a 900° wheel turned 270°).
+
+Steering wheels are detected by name (or calibrated) and get the full steering range; keys and thumbsticks get a steering assist
 (full lock at walking pace, gentler at speed: the wheels ease round more slowly the faster you go, and the truck's swing
 into a turn is damped, so it settles into the turn instead of lurching and wobbling). At speed it turns the wheels as
 far as the front tyres grip on that ground (on a road, about 0.65 g of cornering on off-road tyres, as the real trucks
