@@ -225,9 +225,9 @@ export class EventPlay {
     }
     this.goT = Math.max(0, (this.goT || 0) - dt);
     this.drawPanel();
-    // at a start line: say what it is
+    // at a start line: say what it is (not over a result: the hint showed through its panel)
     this.promptT -= dt;
-    if (!this.run && this.promptT <= 0 && Math.abs(g.vehicle.speed) < 3) {
+    if (!this.run && this.resultT <= 0 && this.promptT <= 0 && Math.abs(g.vehicle.speed) < 3) {
       const e = this.startHere();
       if (e && e !== this.prompted) {
         const best = g.career?.best(e.id);
@@ -349,6 +349,7 @@ export class EventPlay {
       ${rows}
       <div class="ev-r-actions"><button data-again class="primary">Again (J)</button><button data-close class="ghost">Close</button></div>`;
     el.classList.remove('hidden');
+    this.g.hud.clearHint?.();
     this.resultT = table ? 20 : 14;
     this.lastEvent = e;
   }
