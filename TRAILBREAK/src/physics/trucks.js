@@ -1,13 +1,14 @@
 // The trucks: real four-wheel drives of the world (each body a real 3D model: render/TruckAssets.js), with their real
 // wheelbases, tracks, weights, engines and gearing. Most are body-on-frame on beam axles (leaf or coil springs), some
 // independent at one end or both; a manual or automatic gearbox and a two-speed transfer case (the Unimog: portal axles
-// and an eight-speed box; the Hummer EV: electric motors and one gear).
+// and an eight-speed box; the Hummer EV and the Cybertruck: electric motors and one gear).
 //
 //   Gecko     the Lada Niva (a real model)                             Mule     the Willys MB, the original jeep (a real model)
 //   Ranger    the UAZ Hunter (a real model)                            Trekker  the Ford Ranger Raptor (a real model)
 //   Shepherd  the Land Rover Defender 110, 2026 (a real model)         Drover   the Mitsubishi Pajero (a real model)
 //   Hauler    the Chevrolet K20 Suburban (a real model)                 Bruiser  the Ram 2500 Power Wagon (a real model)
 //   Rhino     the Mercedes-Benz Unimog U1300L (a real model)          G 63     the Mercedes-AMG G-Class (a real model)
+//   Roxx      the Mahindra Thar Roxx, five doors (a real model)       Cybertruck  the Tesla Cybertruck Cyberbeast (a real model)
 //
 // And the road cars (`road`, at the end): sports cars and supercars, rear- or all-wheel drive, on their own tyres.
 //
@@ -335,6 +336,36 @@ export const TRUCKS = {
     shafts: [5000, 6500], parts: 1.0,
     style: 'thar', look: { top: 'black', coils: true, alloy: true },
   },
+  roxx: {
+    // the Mahindra Thar Roxx AX7L 4x4 diesel automatic (2024): the five-door Thar, 4,428 mm long, 1,870 mm wide,
+    // 2,850 mm wheelbase, 1,580 mm track, 226 mm under the rear axle, right-hand drive; double wishbones in front, a
+    // five-link rear axle on coils with an electronic locker. (Mahindra publishes no kerb weight: 2,100 kg here is
+    // the three-door Thar's and the longer body's, with a driver and a full tank)
+    id: 'roxx', name: 'Mahindra Thar Roxx',
+    blurb: 'The five-door Thar: 112" wheelbase, the mHawk 2.2 turbo-diesel at 175 PS and 370 Nm, a six-speed automatic, double wishbones in front and a five-link rear axle with an electronic locker. Longer, roomier, steadier.',
+    mass: 2100, cgHeight: 0.8, cgZ: 0.1, inertiaBox: [1.7, 1.35, 4.2],
+    axles: [
+      { z: 1.425, track: 1.58, springTrack: 1.0, rate: 40000, bump: 2700, rebound: 5400, travel: 0.2, sag: 0.085, mass: 85, steer: 0.58, brake: 3300, swayBar: 24000, ifs: true },
+      { z: -1.425, track: 1.58, springTrack: 1.0, rate: 44000, bump: 2600, rebound: 5200, travel: 0.25, sag: 0.095, mass: 95, steer: 0, brake: 2100, handbrake: 3000, diffDrop: 0.16, diffX: 0 },
+    ],
+    trans: { tcK: 10 },
+    stock: { tyre: 31, axle: 4.27, trans: transIndex('6-spd auto'), fit: 31, low: 2.48, diffs: 2 },
+    axleRatios: [3.73, 4.27, 4.56, 4.88, 5.13, 5.38, 5.89],
+    stockTyre: { label: '255/60 R19', radius: 0.3943, width: 0.255, rim: 19, desc: 'The AX7L\'s 255/60 R19s on diamond-cut alloys.' },
+    hull: [
+      { c: [0, 0.83, -0.015], h: [0.93, 0.39, 2.085], pts: 'bottom' },     // body: bumpers 0.44 m up, beltline 1.22
+      { c: [0, 0.45, 0], h: [0.38, 0.11, 1.0], pts: 'bottom' },            // belly: transfer case 0.34 m up
+      { c: [0, 1.54, -0.79], h: [0.86, 0.32, 1.21], pts: 'top' },          // the hard top over both rows, roof 1.86 m
+    ],
+    roofY: 1.86, cabZ: 0.35, noseZ: 2.07, rackZ: -0.8,
+    intakePos: [0.55, 0.95, 1.55], snorkelPos: [0.9, 1.8, 0.75],        // (the snorkel up the left pillar)
+    winch: { fairlead: [0, 0.6, 2.09] },
+    eye: [-0.38, 1.47, -0.08], hoodEye: [0, 1.36, 1.15],                 // (right-hand drive)
+    drag: { cd: 0.55, area: 3.0 },
+    buoyancy: 0.3,
+    shafts: [5500, 7000], parts: 1.05, tc: true,
+    style: 'roxx', look: { top: 'black', coils: true, alloy: true },
+  },
   wrangler: {
     // the Jeep Wrangler JK Rubicon two-door (2012-2018): 4,223 mm long with its spare, 1,873 mm wide, 259 mm under the diffs
     id: 'wrangler', name: 'Jeep Wrangler',
@@ -449,6 +480,40 @@ export const TRUCKS = {
     buoyancy: 0.22,
     shafts: [11000, 13000], tyreK: 1.5, tyreLoad: 10000, parts: 1.6, tc: true,
     style: 'hummerev', look: { top: 'paint', coils: true, bed: true },
+  },
+
+  cybertruck: {
+    // the Tesla Cybertruck Cyberbeast (2024): 3,635 mm wheelbase, 1,772 mm track, 5,683 mm long, 3,113 kg; three motors
+    // (630 kW), one 15.02:1 reduction, adaptive air suspension on double wishbones at all four corners (here at its
+    // raised off-road height: up to 406 mm under it), a locking front differential and a rear one locked by its two
+    // rear motors, LT285/65 R20 all-terrains. The body is the 2019 show truck's (a real model: render/TruckAssets.js)
+    id: 'cybertruck', name: 'Tesla Cybertruck',
+    blurb: 'Tesla Cybertruck Cyberbeast: a stainless-steel wedge on 35s. 143" wheelbase, three motors and 845 hp, a locked front and rear for the dirt, air suspension raised for the trail. Three tons, silent, and quicker off the line than the supercars.',
+    mass: 3190, cgHeight: 0.78, cgZ: 0, inertiaBox: [2.0, 1.25, 5.0],
+    axles: [
+      { z: 1.8175, track: 1.772, springTrack: 1.3, rate: 52000, bump: 4000, rebound: 8000, travel: 0.25, sag: 0.1, mass: 130, steer: 0.55, brake: 6200, swayBar: 28000, ifs: true, armDrop: 0.08 },
+      { z: -1.8175, track: 1.772, springTrack: 1.3, rate: 54000, bump: 4000, rebound: 8000, travel: 0.25, sag: 0.1, mass: 135, steer: 0, brake: 4800, handbrake: 5200, ifs: true, armDrop: 0.08 },
+    ],
+    trans: { tcK: 8, efficiency: 0.95 },
+    stock: { tyre: 35, axle: 15.02, trans: EV_TRANS, fit: 37, low: 1, diffs: 3, wheels: 0, psi: 48 },
+    axleRatios: [15.02],
+    // (as the Hummer EV: no reduction gears, gearbox, low range or air intake to swap)
+    only: { gears: [0], trans: [EV_TRANS], tcase: [0], intake: [0] },
+    stockTyre: { label: 'LT285/65 R20 A/T', radius: 0.4393, width: 0.285, rim: 20, desc: 'The Cybertruck\'s 35-inch Goodyear Wrangler Territory RT all-terrains on 20" wheels behind their aero covers.' },
+    hull: [
+      { c: [0, 1.1, -0.11], h: [1.05, 0.45, 2.86], pts: 'bottom' },       // body: the nose and the tail 0.65 m up, the bed's sides 1.55
+      { c: [0, 0.48, 0], h: [0.7, 0.08, 1.6], pts: 'bottom' },             // belly: the battery's armour, 0.40 m up
+      { c: [0, 1.62, 0], h: [0.95, 0.3, 1.0], pts: 'top' },               // the cab under its ridge, 1.92 m
+    ],
+    roofY: 1.92, cabZ: 0.3, noseZ: 2.75, rackZ: -2.0,
+    // (no air intake: sealed drive units and battery)
+    intakePos: [0.6, 0.9, 2.0], snorkelPos: [0.6, 0.9, 2.0],
+    winch: { fairlead: [0, 0.75, 2.7] },
+    eye: [0.57, 1.5, 0.33], hoodEye: [0, 1.45, 2.05],
+    drag: { cd: 0.39, area: 3.5 },
+    buoyancy: 0.22,
+    shafts: [11000, 13000], tyreK: 1.4, tyreLoad: 9000, parts: 1.5, tc: true,
+    style: 'cybertruck', look: { top: 'paint', coils: true, bed: true },
   },
 
   gclass: {

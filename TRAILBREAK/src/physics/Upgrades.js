@@ -218,6 +218,13 @@ const ENGINE = {
   // the Thar's 2.2 mHawk 130: 96 kW at 3,750 rpm, 300 Nm from 1,600 to 2,800 (the turbo comes in from ~1,300)
   D22: { name: 'mHawk 2.2 turbo-diesel', idleRpm: 800, redline: 4200, limiter: 4400, inertia: 0.24, friction: [16, 0.026], bank: 'd4', turbo: 1, sound: 'i6_bmw', pitch: 0.7, mass: 0, cyl: 4, diesel: true,
     torque: [[600, 118], [800, 150], [1000, 185], [1200, 226], [1400, 270], [1600, 300], [2200, 300], [2800, 300], [3200, 284], [3750, 246], [4000, 222], [4400, 150]] },
+  // the Thar Roxx's mHawk 2.2 in its four-wheel-drive automatic's tune: 129 kW (175 PS) at 3,500 rpm, 370 Nm from 1,500
+  // to 3,000
+  D22R: { name: 'mHawk 2.2 turbo-diesel (175 PS)', idleRpm: 800, redline: 4200, limiter: 4400, inertia: 0.24, friction: [16, 0.026], bank: 'd4', turbo: 1, sound: 'i6_bmw', pitch: 0.7, mass: 0, cyl: 4, diesel: true,
+    torque: [[600, 140], [800, 180], [1000, 228], [1200, 284], [1400, 340], [1500, 370], [3000, 370], [3500, 351], [3750, 318], [4000, 282], [4400, 180]] },
+  // and the Roxx's mStallion 2.0 turbo-petrol (automatic): 130 kW (177 PS) at 5,000 rpm, 380 Nm from 1,750 to 3,000
+  P20R: { name: 'mStallion 2.0 turbo-petrol (177 PS)', idleRpm: 750, redline: 5500, limiter: 5800, inertia: 0.16, friction: [10, 0.017], bank: 'i4', turbo: 2, sound: 'i6_bmw', pitch: 1.02, mass: -20, cyl: 4,
+    torque: [[600, 150], [1000, 250], [1250, 320], [1750, 380], [3000, 380], [3500, 368], [4000, 338], [4500, 296], [5000, 248], [5500, 215], [6000, 130]] },
   // and its 2.0 mStallion petrol: 112 kW at 5,000 rpm, 320 Nm from 1,500 to 3,000
   P20: { name: 'mStallion 2.0 turbo-petrol', idleRpm: 750, redline: 5500, limiter: 5800, inertia: 0.16, friction: [10, 0.017], bank: 'i4', turbo: 2, sound: 'i6_bmw', pitch: 1.02, mass: -20, cyl: 4,
     torque: [[600, 135], [1000, 215], [1250, 280], [1500, 320], [3000, 320], [3600, 300], [4200, 268], [5000, 214], [5500, 184], [6000, 120]] },
@@ -255,6 +262,10 @@ const ENGINE = {
   // power to 13,000; friction here is the regeneration off the throttle (Nm + Nm per rpm), and the "idle" only a floor
   E_3M: { name: 'Three motors (Edition 1)', electric: true, idleRpm: 300, redline: 13000, limiter: 13400, inertia: 0.09, friction: [0, 0.035], bank: null, turbo: 0, sound: 'electric', pitch: 1, mass: 0,
     torque: [[100, 1400], [4800, 1400], [6000, 1187], [7000, 1018], [8000, 890], [9000, 792], [10000, 712], [11000, 648], [12000, 594], [13000, 548], [13600, 300]] },
+  // the Cybertruck Cyberbeast's three motors (one front, two rear): 630 kW all told, ~930 Nm at the motors (10,296 lb-ft,
+  // ~14,000 Nm, at the wheels through the 15.02:1 reduction) to ~6,500 rpm, then constant power to ~19,000 (209 km/h)
+  E_CB: { name: 'Three motors (Cyberbeast)', electric: true, idleRpm: 300, redline: 19000, limiter: 19100, inertia: 0.06, friction: [0, 0.024], bank: null, turbo: 0, sound: 'electric', pitch: 1, mass: 0,
+    torque: [[100, 929], [6450, 929], [8000, 752], [10000, 602], [12000, 501], [14000, 430], [16000, 376], [18000, 334], [19000, 317], [19600, 150]] },
   // the Defender's D350 Ingenium 3.0 straight-six turbo-diesel, mild hybrid: 257 kW at 4,000 rpm, 700 Nm from 1,500 to
   // 3,000; and the Defender OCTA's 4.4 twin-turbo V8, mild hybrid: 467 kW at 6,000-7,000, 750 Nm from 1,800 to 5,855
   D30I6: { name: 'D350 3.0 straight-six diesel', idleRpm: 700, redline: 4500, limiter: 4700, inertia: 0.3, friction: [16, 0.024], bank: 'd6m', turbo: 2, sound: 'i6_bmw', pitch: 0.64, mass: 0, loud: 1.05, bass: 3, diesel: true,
@@ -372,11 +383,17 @@ export const ENGINES = {
   hummer: [{ ...ENGINE.V8_66D, short: 'stock', desc: 'Stock 6.6 Duramax turbo-diesel V8: 224 kW at 3,200 rpm, 705 Nm at 1,800.' }, { ...tunedBy(1.2, 100)(ENGINE.V8_66D), short: 'tuned', desc: 'A tune, bigger injectors and an intercooler: +20% torque.' }, { ...ENGINE.V8_66L5P, short: 'L5P swap', desc: 'The later L5P Duramax: 332 kW and 1,234 Nm, +75% torque, 30 kg heavier.' }],
   bronco: [{ ...ENGINE.V6_27T, short: 'stock', desc: 'Stock 2.7 EcoBoost twin-turbo V6: 246 kW at 5,250 rpm, 563 Nm at 3,100.' }, { ...tunedBy(1.12, 200)(ENGINE.V6_27T), short: 'tuned', desc: 'A tune, a bigger intercooler and a downpipe: +12% torque.' }, { ...ENGINE.V6_30T, short: '3.0 Raptor', desc: 'The Bronco Raptor\'s 3.0 EcoBoost V6: 312 kW and 597 Nm, 25 kg heavier.' }],
   thar: [{ ...ENGINE.D22, short: 'stock', desc: 'Stock mHawk 2.2 turbo-diesel: 96 kW, 300 Nm from 1,600 to 2,800 rpm.' }, { ...tunedBy(1.2, 100)(ENGINE.D22), short: 'remap', desc: 'An ECU remap and a bigger intercooler: 360 Nm, 115 kW.' }, { ...ENGINE.P20, short: 'petrol', desc: 'The mStallion 2.0 turbo-petrol: 112 kW and 320 Nm, revs to 5,500, 20 kg lighter.' }],
+  roxx: [{ ...ENGINE.D22R, short: 'stock', desc: 'Stock mHawk 2.2 turbo-diesel in the Roxx\'s tune: 129 kW (175 PS), 370 Nm from 1,500 to 3,000 rpm.' }, { ...tunedBy(1.15, 100)(ENGINE.D22R), short: 'remap', desc: 'An ECU remap and a bigger intercooler: +15% torque.' }, { ...ENGINE.P20R, short: 'petrol', desc: 'The Roxx\'s mStallion 2.0 turbo-petrol: 130 kW and 380 Nm, revs to 5,500, 20 kg lighter.' }],
   hummerev: [{ ...ENGINE.E_3M, short: 'stock', desc: 'Three motors, one in front and two at the back: 746 kW (1,000 hp), and all of their torque from a standstill.' },
     { ...ENGINE.E_3M, name: 'Three motors, Watts to Freedom', short: 'WTF', desc: 'The launch mode\'s calibration kept on: the battery let out harder, +10% torque.',
       torque: ENGINE.E_3M.torque.map(([r, t]) => [r, Math.round(t * 1.1)]) },
     { ...ENGINE.E_3M, name: 'Two motors (EV2X)', short: '2 motors', mass: -110, desc: 'One motor front and one rear: 425 kW (570 hp), 110 kg lighter.',
       torque: ENGINE.E_3M.torque.map(([r, t]) => [r, Math.round(t * 0.6)]) }],
+  cybertruck: [{ ...ENGINE.E_CB, short: 'stock', desc: 'Three motors, one in front and two at the back: 630 kW (845 hp), all of their torque from a standstill.' },
+    { ...ENGINE.E_CB, name: 'Three motors, Beast Mode', short: 'Beast', desc: 'The launch mode\'s calibration kept on: the battery let out harder, +10% torque.',
+      torque: ENGINE.E_CB.torque.map(([r, t]) => [r, Math.round(t * 1.1)]) },
+    { ...ENGINE.E_CB, name: 'Two motors (AWD)', short: '2 motors', mass: -95, desc: 'The all-wheel-drive Cybertruck\'s pair, one front and one rear: 447 kW (600 hp), 95 kg lighter.',
+      torque: ENGINE.E_CB.torque.map(([r, t]) => [r, Math.round(t * 0.72)]) }],
   rhino: [{ ...ENGINE.I6_57D, short: 'stock', desc: 'Stock OM 352 5.7 diesel six: 96 kW (130 hp), 363 Nm. Governed at 2,800 rpm.' }, { ...tunedBy(1.3, 0)(ENGINE.I6_57D), turbo: 1, short: 'turbo', desc: 'A turbocharger: +30% torque, 125 kW.' }, { ...ENGINE.I6_60TD, short: '6.0 swap', desc: 'A 6.0 turbo-intercooled six: 600 Nm, +65% torque.' }],
   gclass: [{ ...ENGINE.M157, short: 'stock', desc: 'Stock M157 5.5 twin-turbo V8: 420 kW (571 PS) at 5,500 rpm, 760 Nm from 1,750 to 5,250.' },
     { ...tunedBy(1.1, 0)(ENGINE.M157), short: 'tuned', desc: 'A remap and freer downpipes: +10% torque.' },

@@ -274,7 +274,7 @@ steam.
 ## Money, the dealer and events
 
 Each driver has a career, kept in their own browser: money, the trucks and parts they own, their best times. You
-start with $2,500. **For now every truck and every garage part is free**: pick any of the fifteen trucks or the
+start with $2,500. **For now every truck and every garage part is free**: pick any of the seventeen trucks or the
 fourteen sports cars in the lobby or at the dealer and drive it, and fit it with anything in the garage at no charge (`FREE_TRUCKS` and `FREE_PARTS` in
 `src/game/Career.js` turn the dealer's and the garage's prices back on). The truck you pick turns in 3D in the lobby,
 in its build and paint (drag to turn it).
@@ -292,7 +292,7 @@ colour it's known in).
 
 - **Earning:** surveying a beacon pays a $600 bounty (friends in the room get a share when you find one), towing a
   friend out pays a rescue fee, and events pay prize money.
-- **Spending:** the dealer (pause menu, or the lobby's showroom) sells fifteen trucks, from the $4,500 Lada Niva
+- **Spending:** the dealer (pause menu, or the lobby's showroom) sells seventeen trucks, from the $4,500 Lada Niva
   to the $95,000 G 63 (see [The trucks](#the-trucks)), and fourteen sports cars, from the $45,000 Impreza STi to the
   $1,150,000 McLaren Senna (see [The sports cars](#the-sports-cars)); the garage prices every part and bills only for parts you
   haven't bought for that truck (once bought, a part is yours to fit and take off again). Repairs and the tow truck cost
@@ -405,9 +405,9 @@ lies, go back to the last firm, dry ground you drove on, call your friends for a
 
 ## The trucks
 
-Real trucks with real 3D models: the Mahindra Thar you start in, the Lada Niva, the Willys MB, the UAZ Hunter, the
+Real trucks with real 3D models: the Mahindra Thar you start in and its five-door sister the Thar Roxx, the Lada Niva, the Willys MB, the UAZ Hunter, the
 Chevrolet K20 Suburban, the Mitsubishi Pajero, the Jeep Wrangler Rubicon, the Ford Bronco, the Ford Ranger Raptor, the
-Ram 2500 Power Wagon, the Hummer H1, the electric GMC Hummer EV, the Land Rover Defender 110, the Mercedes-AMG G 63 and
+Ram 2500 Power Wagon, the Hummer H1, the electric GMC Hummer EV and Tesla Cybertruck, the Land Rover Defender 110, the Mercedes-AMG G 63 and
 the Mercedes-Benz Unimog U1300L, each built to its real numbers, from a one-ton jeep to a six-ton portal-axle truck.
 Every one takes every part in the garage.
 
@@ -429,6 +429,7 @@ seat empty.
 | UAZ Hunter | $9,500 | the Hunter Expedition: a ladder frame, beam axles on coils in front and leaf springs behind, a bull bar, winch and side steps | 2.38 m (94") | 2000 kg | ZMZ 2.7 four, 209 Nm | 5-speed manual | 1.94 / 4.625 | 245/75 R16 M/T (31") | 20 cm | 31 / 28 / 36 degrees |
 | Land Rover Defender 110 | $36,000 | the 2026 110: an aluminium monocoque, independent suspension at all four corners on air springs, a rear limited-slip diff, traction control | 3.02 m (119") | 2430 kg | D350 3.0 straight-six turbo-diesel, 700 Nm | 8-speed automatic | 2.93 / 3.31 | 255/60 R20 (32") | 22 cm | 30 / 38 / 22 degrees |
 | Mahindra Thar | $15,500 | the 2020 Thar LX hard top: independent front, five-link rear, rear auto-locker (MLD) and front brake locking | 2.45 m (96") | 1850 kg | mHawk 2.2 turbo-diesel four, 300 Nm | 6-speed manual | 2.48 / 4.27 | 255/65 R18 (31") | 21 cm | 39 / 31 / 30 degrees |
+| Mahindra Thar Roxx | $23,500 | the 2024 five-door Thar, AX7L 4x4 automatic: double wishbones in front, a five-link rear axle on coils, an electronic rear locker, traction control | 2.85 m (112") | about 2100 kg (Mahindra publishes no kerb weight: an estimate) | mHawk 2.2 turbo-diesel four, 370 Nm | 6-speed automatic | 2.48 / 4.27 | 255/60 R19 (31") | 21 cm | 41 / 39 / 28 degrees |
 | Jeep Wrangler | $18,000 | the JK Rubicon two-door: lockers both ends, brake traction control, a 4:1 Rock-Trac low range, a front sway bar that disconnects | 2.42 m (95") | 2000 kg | 3.6 Pentastar V6, 353 Nm | 5-speed automatic | 4.0 / 4.10 | LT255/75 R17 (32") | 22 cm | 34 / 33 / 34 degrees |
 | Ford Bronco | $21,000 | the Badlands four-door with the Sasquatch package: independent front, five-link rear, lockers both ends, brake traction control | 2.95 m (116") | 2380 kg | 2.7 EcoBoost twin-turbo V6, 563 Nm | 10-speed automatic | 3.06 / 4.70 | 315/70 R17 (35") | 29 cm | 43 / 35 / 32 degrees |
 | Chevrolet K20 Suburban | $14,500 | the square-body three-quarter-ton wagon: leaf springs on a Dana 60 and a 14-bolt, an NP205 | 3.29 m (129.5") | 2480 kg | 6.6 V8, 410 Nm | 4-speed manual, 6.55:1 granny | 1.96 / 4.10 | LT235/85 R16 (32") | 17 cm | 34 / 21 / 27 degrees |
@@ -436,6 +437,7 @@ seat empty.
 | Ram 2500 Power Wagon | $24,000 | the crew-cab Power Wagon: coils on beam axles at both ends, lockers front and rear, a front sway bar that disconnects, traction control | 3.80 m (149") | 3280 kg | 6.4 HEMI V8, 582 Nm | 6-speed automatic | 2.64 / 4.10 | LT315/70 R17 M/T (35") | 22 cm | 32 / 25 / 29 degrees |
 | Hummer H1 | $32,000 | the H1 Alpha hard top, the civilian Humvee: independent suspension at both ends on geared hubs, tyre inflation from the cab, Torsen rear, brake traction control | 3.30 m (130") | 3650 kg | 6.6 Duramax turbo-diesel V8, 705 Nm | Allison 5-speed automatic | 2.72 / 5.24 (with the hub gears) | 37x12.50 R17 | 38 cm | 49 / 41 / 32 degrees |
 | GMC Hummer EV | $38,000 | the Edition 1 pickup, electric: three motors, e-lockers at both ends, independent suspension on air springs (at its raised Terrain height), traction control | 3.45 m (136") | 4110 kg | three electric motors, 746 kW (1,000 hp), ~1,400 Nm from a standstill | single-speed reduction | none / 12.5 | LT315/70 R17 (35") | 33 cm | 44 / 33 / 22 degrees |
+| Tesla Cybertruck | $39,500 | the Cyberbeast, electric: three motors, a locking front differential and a rear one locked by its two rear motors, independent suspension on air springs (at its raised off-road height), traction control | 3.64 m (143") | 3190 kg | three electric motors, 630 kW (845 hp), ~930 Nm from a standstill | single-speed reduction | none / 15.02 | LT285/65 R20 (35") | 34 cm | 40 / 32 / 25 degrees |
 | Mercedes-Benz Unimog U1300L | $42,000 | the 435 two-tonner with a box body: portal axles on coils at both ends, diff locks front and rear, tyre inflation from the cab | 3.25 m (128") | 6200 kg | OM 352 5.7 diesel six, 363 Nm | 8-speed truck box, 9:1 first | none / 7.17 | 12.5 R20 (42") | 46 cm | 42 / 28 / 33 degrees |
 | Mercedes-AMG G 63 | $95,000 | the W463 G-Wagen: a ladder frame, coils on beam axles at both ends, permanent four-wheel drive with three diff locks (centre, front and rear), traction control | 2.85 m (112") | 2625 kg | M157 5.5 twin-turbo V8, 760 Nm | 7-speed automatic | 2.16 / 4.0 | 275/50 R20 (31") | 19 cm | 36 / 34 / 20 degrees |
 
@@ -457,6 +459,13 @@ nose rises and the tail squats as it launches, as the real truck's does. No air 
 than its battery is sealed for (32 inches) the power is cut back instead. The dial shows its power (kW) instead of the
 revs, green while it regenerates, and it sounds like an electric truck: the motors' whine rising with the speed, the
 inverters, and a low hum at walking pace. The garage takes everything but a gearbox, a crawl box or a snorkel.
+
+The **Tesla Cybertruck** (the three-motor Cyberbeast) drives the same way: 630 kW through one 15.02:1 reduction, 209 km/h
+flat out, three tons on 35-inch all-terrains, both axles locked for the dirt (its front locker, and its two rear motors
+holding the rear wheels together), its air springs raised. Its model is the 2019 show truck, which had cameras for
+mirrors: the game fits the production truck's door mirrors (and, as the real one, no rear-view mirror). The
+**Thar Roxx** is the Thar stretched to five doors: 40 cm more wheelbase, the mHawk diesel turned up to 175 PS behind a
+six-speed automatic, an electronic rear locker; steadier and roomier than the three-door, and heavier.
 
 The **Mercedes-AMG G 63** has permanent four-wheel drive: a centre differential sends 40% of the drive to the front
 axle and 60% to the rear, and lets them turn at their own speeds on a road. Off the road, press **4** (below about
@@ -805,7 +814,7 @@ Suburban, "1970 Truck" by Raphael Escamilla (Raffey); the Mitsubishi Pajero, "Mi
 Ford Ranger Raptor, "Ford ranger raptor" by haraldina; the Ram 2500 Power Wagon, "Dodge Ram 2500" by VanuaG; the Jeep
 Wrangler, "Jeep Wrangler 3D Model" by Suyog modak; the Ford Bronco, "Bronco Car Animation (Red)" by neshallads; the
 Hummer H1, "Hummer H1 (Retry School)" by Voxel_CG; the Land Rover Defender 110, "Land Rover Defender 110" by
-hartwelkisaka; the GMC Hummer EV, "GMC Hummer EV 2022" by Unn Interativa; the Mercedes-Benz Unimog U1300L, "Unimog
+hartwelkisaka; the GMC Hummer EV, "GMC Hummer EV 2022" by Unn Interativa; the Mahindra Thar Roxx, "Mahindra - Thar Roxx" by ansari_studios; the Tesla Cybertruck, "Tesla Cybertruck" by TAIGA-ZOE; the Mercedes-Benz Unimog U1300L, "Unimog
 Truck" by Levi Giovani; the Mercedes-AMG G 63, "Mercedes Benz G-class W263" by Lexyc16. Sports cars: the BMW M4 CSL,
 "BMW M4 CSL" by Mpgs Studios; the Mercedes-AMG GT S, "Mercedes-Benz AMG-GT 2015" by Márcio Meireles (MMC Works); the
 Corvette, "Chevrolet Corvette" by Waven; the Huracán, "Lamborghini huracan" by jkazulyblanco; the R8, "Audi R8" by

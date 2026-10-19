@@ -59,6 +59,16 @@ light), and the textures resized to WebP.
   widened 10% to the U1300L's real track and raised 8.7 cm onto its real 12.5 R20 tyres (the model's own are smaller),
   its static axles, springs and propshafts removed, its weathered cab paint given the game's paint and its windows and
   lamps the game's glass and lamps (told apart by the colour of its texture); the box body keeps its own white.
+- `roxx.glb` (Mahindra Thar Roxx): "Mahindra - Thar Roxx" by ansari_studios,
+  https://sketchfab.com/3d-models/mahindra-thar-roxx-f85210fe98774b7fab1199d8ee151ead (https://sketchfab.com/ansari_studios);
+  widened 2.7% to the Roxx's real track and width, its wheels told apart by where they are (they share the body's
+  materials), the dark panel behind its windscreen taken out (the game's glass is see-through); its cab is empty, so the
+  game draws its seats and dash.
+- `cybertruck.glb` (Tesla Cybertruck): "Tesla Cybertruck" by TAIGA-ZOE,
+  https://sketchfab.com/3d-models/tesla-cybertruck-8950fc178e254c9198b2a8555ef1590a (https://sketchfab.com/TAIGA-ZOE);
+  the 2019 show truck, scaled to the production truck's wheelbase; its wheels told apart from the suspension they share
+  a mesh with by where they are, the suspension removed, its stainless panels given the game's paint and its black trim
+  kept (told apart by the colour of its texture); the game fits door mirrors.
 - `gclass.glb` (Mercedes-AMG G 63): "Mercedes Benz G-class W263" by Lexyc16,
   https://sketchfab.com/3d-models/mercedes-benz-g-class-w263-1a2a52b16cad4e618af347461817895c (https://sketchfab.com/Lexyc16);
   scaled to the W463 G 63's wheelbase and lowered 1.2 cm onto its real 275/50 R20 tyres, its covered spare taken off

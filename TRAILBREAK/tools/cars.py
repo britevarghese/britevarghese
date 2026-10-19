@@ -301,17 +301,20 @@ def main(src_dir, cfg_path, out_dir):
 
     # a model whose wheels aren't parts of their own (a scan, one skin over the whole car; or its materials merged into
     # one): told apart by where they are, in the model's units and the design axes: {"z": [front, rear], "x": half the
-    # track, "y": axle height, "r": tyre radius, "w": tyre width, "rim": rim radius}
+    # track, "y": axle height, "r": tyre radius, "w": tyre width, "rim": rim radius, "x0": the car's middle across, if
+    # the model isn't drawn about it, "mats": only these materials, if the body reaches into the wheels' room}
     if cfg.get('wheelsAt'):
         W = cfg['wheelsAt']
         c0 = tris.mean(1)
+        x0 = W.get('x0', 0.0)
         for z in W['z']:
             for sx in (1, -1):
                 d = np.hypot(c0[:, 1] - W['y'], c0[:, 2] - z)
-                inw = (np.abs(c0[:, 0] - sx * W['x']) < W['w'] / 2) & (d < W['r'])
+                inw = (np.abs(c0[:, 0] - x0 - sx * W['x']) < W['w'] / 2) & (d < W['r'])
+                if 'mats' in W: inw &= np.isin(mats, W['mats'])
                 roles[inw] = 'tyre'
                 # the rim: inside its radius on the wheel's outer half (on the inner half: the brake and the hub)
-                outer = c0[:, 0] * sx > W['x'] - W['w'] * W.get('hubAt', 0.15)
+                outer = (c0[:, 0] - x0) * sx > W['x'] - W['w'] * W.get('hubAt', 0.15)
                 roles[inw & (d < W['rim']) & outer] = 'rim'
                 roles[inw & (d < W['rim']) & ~outer] = 'hub'
     # (and the ground a scan caught around the wheels: below this height and not a wheel)
@@ -388,7 +391,8 @@ def main(src_dir, cfg_path, out_dir):
 
     keep = (wl == None) & (roles != 'drop')                   # noqa: E711 (object array)
     # parts to clear, each whole where it lies inside a box (design frame, after placing): [x0, y0, z0, x1, y1, z1,
-    # (materials)] (a model's static axles, springs and arms: the game draws its own, moving with the wheels)
+    # (materials), (smallest size)] (a model's static axles, springs and arms: the game draws its own, moving with the
+    # wheels; a panel blacking out a window, the wipers in front of it spared by their size)
     if cfg.get('dropParts'):
         part = parts_of(tris, mats)
         n = part.max() + 1
@@ -398,6 +402,7 @@ def main(src_dir, cfg_path, out_dir):
         for b in cfg['dropParts']:
             inb = np.all((plo >= np.array(b[:3])) & (phi <= np.array(b[3:6])), axis=1)
             if len(b) > 6: inb &= np.isin(pmat, b[6])
+            if len(b) > 7: inb &= (phi - plo).max(1) >= b[7]
             keep &= ~inb[part]
     for r in cfg.get('keepWheels', []): keep |= wl == r       # (e.g. a spare to leave on its carrier)
     tris, nors, uvs, roles, mats, hasuv = tris[keep], nors[keep], uvs[keep], roles[keep], mats[keep], hasuv[keep]

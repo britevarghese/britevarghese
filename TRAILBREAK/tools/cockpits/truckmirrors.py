@@ -23,6 +23,12 @@ MIRRORS = {
     'trekker': ([G([1.082, 1.33, 0.678], 0.145, 0.146)], G([0, 1.61, 0.47], 0.24, 0.065, arm=[0, 1.69, 0.53])),
     'gecko': ([G([0.911, 1.113, 0.317], 0.12, 0.18)], G([-0.001, 1.448, 0.182], 0.27, 0.094)),
     'drover': ([G([0.966, 1.425, 0.516], 0.178, 0.177)], G([0, 1.78, 0.35], 0.24, 0.065, arm=[0, 1.86, 0.41])),
+    # the Thar Roxx's model has an empty cab: the door mirror's glass as modelled, a rear-view mirror built under the
+    # windscreen's top
+    'roxx': ([G([0.927, 1.322, 0.33], 0.14, 0.165)], G([0, 1.62, 0.36], 0.24, 0.065, arm=[0, 1.7, 0.4])),
+    # the Cybertruck's model is the 2019 show truck, with cameras for mirrors: the production truck's door mirrors built
+    # on its doors' front corners; it has no rear-view mirror (a camera on the screen)
+    'cybertruck': ([G([1.12, 1.42, 1.52], 0.2, 0.12, arm=[0.95, 1.35, 1.58])], None),
     # the Unimog: a truck's pair on each side, the main mirror and a wide-angle one under it; no rear-view mirror
     'rhino': ([G([1.19, 2.06, 1.457], 0.14, 0.18), G([1.19, 1.78, 1.457], 0.14, 0.2)], None),
 }

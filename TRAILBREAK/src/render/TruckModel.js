@@ -588,7 +588,7 @@ function muleBody(P, M, paint, top, spec) {
 }
 
 // (a truck with a model body, render/TruckAssets.js, stands in another's built-in body until its model is loaded)
-const BUILDERS = { ranger: rangerBody, hauler: haulerBody, mule: muleBody, gecko: geckoBody, trekker: trekkerBody, shepherd: shepherdBody, drover: droverBody, bruiser: bruiserBody, rhino: rhinoBody, thar: rangerBody, wrangler: muleBody, bronco: droverBody, hummer: droverBody, hummerev: haulerBody };
+const BUILDERS = { ranger: rangerBody, hauler: haulerBody, mule: muleBody, gecko: geckoBody, trekker: trekkerBody, shepherd: shepherdBody, drover: droverBody, bruiser: bruiserBody, rhino: rhinoBody, thar: rangerBody, roxx: rangerBody, wrangler: muleBody, bronco: droverBody, hummer: droverBody, hummerev: haulerBody, cybertruck: haulerBody };
 
 /**
  * A body from a real model (render/TruckAssets.js): its meshes in the body group (own copies: they dent), the game's
