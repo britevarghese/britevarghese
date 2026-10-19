@@ -45,6 +45,7 @@ export class Input {
     this.shifters = {};          // a wheel's paddles as the player set them: { [pad id]: { up, down } } (the settings')
     this.learning = null;        // waiting for a button to pull: { which: 'up' | 'down', done }
     this.wheelCal = {};          // a steering wheel's travel as the player calibrated it: { [pad id]: { axis, lo, mid, hi } }
+    this.wheelRot = {};          // how far a steering wheel turns lock to lock, as the player set it (degrees): { [pad id]: deg }
     this.calib = null;           // calibrating one (calibrate())
     this.gate = 0;               // the gear an H-pattern shifter's stick is in (-1 reverse, 0 neutral), once it is used
     this.hShifter = false;
@@ -94,6 +95,15 @@ export class Input {
 
   /** The steering wheel connected (the browser shows one once a button on it is pressed), or null. */
   wheelPad() { const p = this.pad(); return p && this.isWheel(p) ? p : null; }
+
+  /**
+   * How far a steering wheel turns lock to lock (degrees): as the player set it, else as its make's usually do (a
+   * Logitech, a Thrustmaster, a Fanatec and the direct-drive wheels 900; a wheel the game doesn't know, 270).
+   */
+  rotationOf(pad) {
+    if (this.wheelRot[pad.id]) return this.wheelRot[pad.id];
+    return /046d|logitech|044f|thrustmaster|fanatec|moza|simucube|simagic|cammus/i.test(pad.id) ? 900 : 270;
+  }
 
   /** A wheel's steering, -1 (full left) to 1 (full right): over the travel it was calibrated to, else its first axis. */
   wheelSteer(pad) {
@@ -177,7 +187,7 @@ export class Input {
     let steer = this.steerKey;
     let handbrake = this.any('Space') ? 1 : 0;
     let winch = (this.any('KeyE') ? 1 : 0) - (this.any('KeyQ') ? 1 : 0) || this.touch.winch;
-    let lookX = 0, lookY = 0, analog = false;
+    let lookX = 0, lookY = 0, analog = false, turned = null;
 
     const pad = this.pad();
     if (pad) {
@@ -197,6 +207,8 @@ export class Input {
         // a wheel: its whole travel is the whole lock, straight (no curve, no dead zone)
         const w = this.wheelSteer(pad);
         if (Math.abs(w) > 0.01) { steer = w; analog = true; }
+        // (the steering wheel in the cab turns as the player's own does: as far as their hands turn it)
+        turned = w * (this.rotationOf(pad) / 2) * Math.PI / 180;
       } else {
         const s = dz(ax);
         if (s !== 0) { steer = clamp(Math.sign(s) * Math.pow(Math.abs(s), 1.4), -1, 1); this.device = 'gamepad'; }
@@ -224,6 +236,7 @@ export class Input {
     }
     c.throttle = throttle; c.brake = brake; c.steer = clamp(steer, -1, 1); c.handbrake = handbrake; c.winch = winch;
     c.analogSteer = analog;
+    c.wheelTurn = turned;
     c.lookX = lookX + this.mouse.dx * 0.005; c.lookY = lookY + this.mouse.dy * 0.004;
     c.looking = this.mouse.drag || performance.now() - this.mouse.last < 2500 || Math.abs(lookX) + Math.abs(lookY) > 0.05;
     this.mouse.dx = this.mouse.dy = 0;

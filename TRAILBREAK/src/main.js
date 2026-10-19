@@ -336,6 +336,7 @@ function wireMenus(game, net) {
   const I = game.input;
   I.shifters = s.shifters ||= {};
   I.wheelCal = s.wheelCal ||= {};
+  I.wheelRot = s.wheelRot ||= {};
   const wheelUI = () => {
     // (any controller can be calibrated: many wheels pass themselves off as an Xbox pad, and steer like a thumbstick
     // until they are)
@@ -345,6 +346,8 @@ function wireMenus(game, net) {
     $('wheel-cal').disabled = !any;
     $('wheel-cal').textContent = I.calib ? 'Cancel' : any && I.wheelCal[any.id] ? 'Recalibrate steering' : 'Calibrate steering';
     $('wheel-cal-box').classList.toggle('hidden', !I.calib);
+    $('wheel-rot').disabled = !any;
+    if (any) $('wheel-rot').value = String(I.rotationOf(any));
     for (const k of ['up', 'down']) {
       const b = $('wheel-' + k), learning = I.learning?.which === k;
       b.disabled = !pad;
@@ -353,6 +356,7 @@ function wireMenus(game, net) {
     }
   };
   for (const k of ['up', 'down']) $('wheel-' + k).onclick = () => { I.learn(k, () => { save(); wheelUI(); }); wheelUI(); };
+  $('wheel-rot').onchange = () => { const any = I.pad(); if (any) { I.wheelRot[any.id] = Number($('wheel-rot').value); save(); } };
   $('wheel-cal').onclick = (e) => {
     e.currentTarget.blur();
     if (I.calib) { I.cancelCalibrate(); wheelUI(); return; }

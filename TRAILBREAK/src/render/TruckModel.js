@@ -1260,7 +1260,9 @@ export class TruckModel {
       }
       ax.group.updateMatrix();
     }
-    if (this.steeringWheel) this.steeringWheel.rotation.z = -((wheels[0][2] + wheels[1][2]) / 2 - (this.toe || 0)) * 14;
+    // the steering wheel: as far as the player's own steering wheel turns (handWheel: radians), else as a car's does,
+    // 14 times the front wheels' angle
+    if (this.steeringWheel) this.steeringWheel.rotation.z = this.handWheel ?? -((wheels[0][2] + wheels[1][2]) / 2 - (this.toe || 0)) * 14;
     if (this.driver?.group.visible) this.driver.update(this.steeringWheel.rotation.z, dt);
     // leaf springs: hanger -> seat on the axle -> shackle; shocks: frame mount -> axle mount
     const v = this._v, w = this._w;

@@ -211,6 +211,11 @@ right, then let it back to the centre: from then on it is a wheel, and its whole
 proportion (half the turn, half the lock). The game finds the axis that moved, and keeps the calibration for that
 controller. It works for a wheel the game does know too, to set how far you turn it (a 900° wheel turned 270°).
 
+**The steering wheel in the cab turns as far as yours does:** with a steering wheel, the one you see (and the driver's
+hands on it) follows yours, not a car's ratio (a car's turns about 14 times the front wheels' angle, one and a quarter
+turns each way to full lock, where a 270° wheel turns 135°). Set how far your wheel turns lock to lock in the pause
+menu (**Rotation**: 180° to 1080°; a Logitech, Thrustmaster or Fanatec wheel starts at 900°, any other at 270°).
+
 Steering wheels are detected by name (or calibrated) and get the full steering range; keys and thumbsticks get a steering assist
 (full lock at walking pace, gentler at speed: the wheels ease round more slowly the faster you go, and the truck's swing
 into a turn is damped, so it settles into the turn instead of lurching and wobbling). At speed it turns the wheels as

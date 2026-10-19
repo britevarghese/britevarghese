@@ -1202,6 +1202,7 @@ export class Game {
     m.root.quaternion.set(v.quat.x, v.quat.y, v.quat.z, v.quat.w);
     m.setSeatView(this.cam.mode === 'cab');
     if (m.gauges && this.cam.mode === 'cab') m.updateGauges(v.dt.rpm, Math.abs(v.speed) * 3.6, v.dt.gear < 0 ? 'R' : v.dt.gear === 0 ? 'N' : String(v.dt.gear));
+    m.handWheel = this.input.enabled ? ctrl.wheelTurn ?? null : null;
     m.updateWheels([0, 1, 2, 3].map((i) => v.wheelState(i)), dt);
     const night = this.renderer.night;
     const lights = this.lightsOn || night;
