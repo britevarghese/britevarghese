@@ -10,13 +10,13 @@ const _pa = new THREE.Vector3(), _pb = new THREE.Vector3(), _pc = new THREE.Vect
 const UP = new THREE.Vector3(0, 1, 0);
 
 export class Mirror {
-  /** w, h: the glass's size (m); res: its picture's [width, height] in pixels. */
-  constructor(w, h, res) {
+  /** w, h: the glass's size (m); res: its picture's [width, height] in pixels; round: a round glass, w across. */
+  constructor(w, h, res, round = false) {
     this.w = w; this.h = h;
     this.rt = new THREE.WebGLRenderTarget(res[0], res[1], { type: THREE.HalfFloatType });
     this.cam = new THREE.PerspectiveCamera();
     // (seen from behind the glass, the camera's left is the glass's right: the picture goes on turned round)
-    const g = new THREE.PlaneGeometry(w, h), uv = g.attributes.uv;
+    const g = round ? new THREE.CircleGeometry(w / 2, 28).scale(1, h / w, 1) : new THREE.PlaneGeometry(w, h), uv = g.attributes.uv;
     for (let i = 0; i < uv.count; i++) uv.setX(i, 1 - uv.getX(i));
     // (dark glass until its first picture is drawn: on low graphics, for good)
     this.mesh = new THREE.Mesh(g, new THREE.MeshBasicMaterial({ color: 0x1c2228 }));

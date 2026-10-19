@@ -556,7 +556,10 @@ whole picture lands on it), set as a driver sets them. They are small pictures, 
 frame on medium graphics; on low the glass stays dark), and only from the driver's seat (`src/render/Mirrors.js`). The
 door mirrors' glass was found in each model (the part standing out from the side ahead of the door, its face turned
 back). `python3 -I tools/cockpits/interiors.py .` measures every car (`cabmeasure.py`, `mirrors.py`) and writes its
-`layout.interior` into `tools/cars/<id>.json` and `public/assets/trucks/<id>.json`.
+`layout.interior` into `tools/cars/<id>.json` and `public/assets/trucks/<id>.json`. Every 4x4 has them too
+(`tools/cockpits/truckmirrors.py`, the glass measured off each model the same way): the Unimog its two on each side,
+the Willys its one round mirror on a stalk, and where a model has none (the Thar's mirrors, the rear-view mirror of the
+Wrangler, H1, UAZ, Ranger Raptor and Pajero) a housing is built for it, on an arm or a stalk.
 
 ## The garage
 

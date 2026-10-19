@@ -4,7 +4,7 @@
 import { GaragePreview } from '../ui/GaragePreview.js';
 import { truckSpec, truckBase } from '../physics/trucks.js';
 import { presetBuild, PRESETS } from '../physics/Upgrades.js';
-import { loadTruckAsset } from '../render/TruckAssets.js';
+import { loadTruckAsset, truckAsset } from '../render/TruckAssets.js';
 import { loadDriverAssets } from '../render/DriverAssets.js';
 
 const q = new URLSearchParams(location.search);
@@ -27,6 +27,12 @@ if (q.get('pitch')) view.pitch = Number(q.get('pitch'));
 if (q.get('dist')) view.dist = Number(q.get('dist'));
 if (q.get('focus')) view.focusY = Number(q.get('focus'));
 if (q.get('dirt')) view.model.setDirt(Number(q.get('dirt')));
+if (q.has('mirrors')) {
+  // mirrors=1: the player's mirrors (its layout's), seen from the eye; mirror=x,y,z,w,h: a door mirror's glass tried there
+  const I = { ...truckAsset(spec.style)?.layout.interior };
+  if (q.get('mirror')) { const [x, y, z, w, h] = q.get('mirror').split(',').map(Number); I.mirrors = [{ c: [x, y, z], w, h }]; }
+  view.model.buildMirrors(I, spec);
+}
 if (q.get('eye')) {
   // from the driver's seat (eye=1, or eye=x,y,z in the design frame): look=yaw (rad, + to the left), down=pitch
   const e = q.get('eye') === '1' ? spec.eye : q.get('eye').split(',').map(Number), lk = Number(q.get('look') || 0), dn = Number(q.get('down') || 0.15);
@@ -35,6 +41,7 @@ if (q.get('eye')) {
   cam.fov = Number(q.get('fov') || 70); cam.near = 0.02; cam.updateProjectionMatrix();
   cam.position.set(e[0], y, e[2]);
   cam.lookAt(e[0] + Math.sin(lk) * Math.cos(dn), y - Math.sin(dn), e[2] + Math.cos(lk) * Math.cos(dn));
+  view.model.mirrors?.update(view.renderer, view.scene, cam.position);
   view.renderer.render(view.scene, cam);
 } else view.frame(0);
 const info = view.renderer.info.render;

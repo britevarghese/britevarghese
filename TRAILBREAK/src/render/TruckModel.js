@@ -1189,18 +1189,31 @@ export class TruckModel {
    */
   buildMirrors(I, spec) {
     const list = [], eye = new THREE.Vector3(...spec.eye);
+    const back = MATS.mirrorBack ||= new THREE.MeshStandardMaterial({ color: 0x2a2a2c, roughness: 0.6, emissive: 0x2a2a2c, emissiveIntensity: 0.6 });
+    // a glass (g: its middle c, size w x h, round), and for a model without that mirror (g.arm: the point on the body
+    // it is bolted to) its housing too, on an arm or a stalk from there
     const add = (g, look, res, housing) => {
-      const m = new Mirror(g.w, g.h, res);
+      const m = new Mirror(g.w, g.h, res, g.round);
       m.aim(new THREE.Vector3(...g.c), eye, look);
-      if (housing) {
-        const h = new THREE.Mesh(new THREE.BoxGeometry(g.w + 0.024, g.h + 0.02, 0.032), MATS.mirrorBack ||= new THREE.MeshStandardMaterial({ color: 0x2a2a2c, roughness: 0.6, emissive: 0x2a2a2c, emissiveIntensity: 0.6 }));
-        h.position.z = -0.02;
+      if (housing || g.arm) {
+        const deep = g.arm && g.c[0] ? 0.06 : 0.032;
+        const h = new THREE.Mesh(new THREE.BoxGeometry(g.w + 0.024, g.h + 0.02, deep), back);
+        h.position.z = -0.004 - deep / 2;
         m.mesh.add(h);
+      }
+      if (g.arm) {
+        const a = new THREE.Vector3(...g.arm), d = new THREE.Vector3(...g.c).sub(a), len = d.length();
+        const arm = new THREE.Mesh(new THREE.BoxGeometry(0.026, 0.026, len), back);
+        arm.position.copy(a).addScaledVector(d, 0.5);
+        arm.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), d.divideScalar(len));
+        this.body.add(arm);
       }
       this.body.add(m.mesh);
       list.push(m);
     };
-    for (const g of I.mirrors || []) if (g) for (const s of [1, -1]) add({ ...g, c: [s * g.c[0], g.c[1], g.c[2]] }, new THREE.Vector3(s * 0.15, 0, -1), [160, 120]);
+    // the door mirrors: each given as the left one, the right its mirror image (but `one`: that one alone)
+    const side = (p, s) => p && [s * p[0], p[1], p[2]];
+    for (const g of I.mirrors || []) if (g) for (const s of g.one ? [1] : [1, -1]) add({ ...g, c: side(g.c, s), arm: side(g.arm, s) }, new THREE.Vector3(s * 0.15, 0, -1), [160, 120]);
     const cm = this.cockpitMirror, rv = cm ? { c: cm.position.toArray(), w: cm.w, h: cm.h } : I.rearView;
     if (rv) add(rv, new THREE.Vector3(0, 0.02, -1), [288, 80], !!cm);
     this.mirrors = list.length ? new Mirrors(list) : null;
