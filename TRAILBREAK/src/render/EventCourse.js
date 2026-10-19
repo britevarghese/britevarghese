@@ -65,12 +65,20 @@ export function makeArch(height, mats, x, z, dx, dz, half, big, small, finish) {
   const tube = new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 56, 0.34, 10, false), finish ? mats.finish : mats.arch);
   tube.castShadow = true;
   g.add(tube);
-  const board = new THREE.Mesh(new THREE.PlaneGeometry(2.3, 1.15), new THREE.MeshStandardMaterial({ map: boardTexture(big, small), side: THREE.DoubleSide, roughness: 0.8 }));
-  board.userData.board = true;
+  const board = twoFaced(new THREE.PlaneGeometry(2.3, 1.15), new THREE.MeshStandardMaterial({ map: boardTexture(big, small), roughness: 0.8 }));
+  board.children[0].userData.board = true;                            // (the faces share it: freed once)
   board.position.set(x, top - 1.05, z);
   board.rotation.y = Math.atan2(dx, dz) + Math.PI;                    // its face to the trucks coming up to it
   g.add(board);
   g.userData.tube = tube; g.userData.finish = finish;
+  return g;
+}
+
+/** A sign printed on both faces, reading the right way round from either side: two planes back to back (one plane
+ *  drawn on both sides reads backwards from behind). */
+function twoFaced(geo, mat) {
+  const g = new THREE.Group();
+  for (const r of [0, Math.PI]) { const m = new THREE.Mesh(geo, mat); m.rotation.y = r; g.add(m); }
   return g;
 }
 
@@ -127,10 +135,10 @@ export class EventCourse {
       post.castShadow = true;
       g.add(post);
     }
-    const cloth = new THREE.Mesh(new THREE.PlaneGeometry(half * 2, 1.0), new THREE.MeshStandardMaterial({ map: bannerTexture(text, chequer), side: THREE.DoubleSide, roughness: 0.9 }));
+    const cloth = twoFaced(new THREE.PlaneGeometry(half * 2, 1.0), new THREE.MeshStandardMaterial({ map: bannerTexture(text, chequer), roughness: 0.9, shadowSide: THREE.DoubleSide }));
     cloth.position.set(x, top - 0.35, z);
     cloth.rotation.y = yaw + Math.PI;                                  // its face to the trucks coming up to it
-    cloth.castShadow = true;
+    cloth.children[0].castShadow = true;
     g.add(cloth);
     return g;
   }
