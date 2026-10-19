@@ -710,6 +710,36 @@ export class Game {
     this.layoutT = setTimeout(() => this.net?.send({ t: 'layout', code: encodeLayout({ ...L, map: this.world.map.id }) }), 700);
   }
 
+  /**
+   * The connection to the server lost: back into the room by itself, tried again and again further apart (a server
+   * restart drops everyone; the room is made again by its code), the truck going on where it is meanwhile.
+   */
+  async reconnect() {
+    if (this.reconnecting || !this.net) return;
+    this.reconnecting = true;
+    this.hud.toast('Lost the connection to the server: reconnecting...', true, 6);
+    for (let k = 0; ; k++) {
+      await new Promise((r) => setTimeout(r, Math.min(30000, 1000 * 2 ** k)));
+      try {
+        const w = await this.net.reconnect();
+        for (const id of w.beacons || []) if (!this.found.has(id)) { this.found.add(id); this.landmarks.setFound(id, true); }
+        for (const k2 of w.broken || []) this.world.breakKey(k2, 0, 1, 0, true);
+        // (a race the room had is gone with the old connection: a run under way goes on as our own)
+        this.events.race = null;
+        this.events.welcome(w.race);
+        if (w.layout) this.takeLayout(w.layout, null);
+        else if (this.builder?.layout?.props?.length) this.shareLayout(this.builder.layout);
+        this.voice?.rejoined();
+        this.hud.toast(`Back in room ${this.net.room}`, false, 4);
+        this.chat.system(`Reconnected to room ${this.net.room}`);
+        break;
+      } catch {
+        if (k === 4) this.hud.toast('Still no connection to the server: trying again (or reload the page to rejoin)', true, 8);
+      }
+    }
+    this.reconnecting = false;
+  }
+
   /** A friend's layout (or the room's, joining): the same props here. */
   takeLayout(code, by) {
     const L = decodeLayout(code);
@@ -1114,7 +1144,7 @@ export class Game {
       this.chat.add(m.name, m.text, mine ? this.myColor : rv?.color, mine);
       if (rv && !mine) this.showBubble(rv, m.text);
     }
-    else if (m.t === 'disconnected') this.hud.toast('Lost the connection to the server. Reload to rejoin.', true, 8);
+    else if (m.t === 'disconnected') this.reconnect();
     else if (m.t === 'correction') this.net.warp++;
     else if (m.t === 'ev') this.events.onNet(m);
     else if (m.t === 'brk') this.world.breakKey(m.k, m.d?.[0] ?? 0, m.d?.[1] ?? 1, m.v ?? 0);

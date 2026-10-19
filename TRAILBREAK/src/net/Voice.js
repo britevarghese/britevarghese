@@ -143,6 +143,16 @@ export class Voice {
     this.changed();
   }
 
+  /** The connection came back (a new id in the room, and the others' too): the links made again from scratch, and our
+   *  voice announced again if we were talking. */
+  rejoined() {
+    for (const p of this.peers.values()) { this.unlink(p); p.gain?.disconnect(); }
+    this.peers.clear();
+    for (const r of this.net.remotes.values()) this.peer(r.id, r.name, r.voice, r.mic, r.mute);
+    if (this.joined) { this.announced = false; this.applyTalk(); for (const p of this.peers.values()) if (p.voice) this.link(p); }
+    this.changed();
+  }
+
   // ---- the controls
   setMode(mode) { this.mode = mode === 'ptt' ? 'ptt' : 'open'; this.applyTalk(); }
   setSelfMuted(on) { this.selfMuted = !!on; this.applyTalk(); }

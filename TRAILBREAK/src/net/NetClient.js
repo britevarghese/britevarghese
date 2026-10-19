@@ -179,4 +179,15 @@ export class NetClient {
   }
 
   close() { clearInterval(this.pingTimer); try { this.ws?.close(); } catch { /* closed */ } }
+
+  /**
+   * Back into the same room after the connection was lost (a server restart drops everyone, and a room is made again
+   * by its code): a new id, the others as the welcome lists them. Resolves with the welcome, as connect() does.
+   */
+  reconnect() {
+    clearInterval(this.pingTimer);
+    this.roomAsk = this.room || this.roomAsk; this.mapAsk = this.map || this.mapAsk; this.quick = false;
+    this.remotes.clear(); this.lastError = null;
+    return this.connect();
+  }
 }
