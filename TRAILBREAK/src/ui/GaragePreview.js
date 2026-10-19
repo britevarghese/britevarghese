@@ -1,7 +1,9 @@
-// The garage's 3D view: one truck on a concrete floor under workshop lights, in its own small renderer. Drag to turn
-// it around (or it turns slowly on its own). Renders only when something changed.
+// The garage's 3D view: one truck on a concrete floor under workshop lights (or, choosing a car, in a showroom:
+// ShowroomStage), in its own small renderer. Drag to turn it around (or it turns slowly on its own), wheel or pinch
+// to come closer. Renders only when something changed.
 import * as THREE from 'three';
 import { TruckModel } from '../render/TruckModel.js';
+import { buildShowroom } from './ShowroomStage.js';
 
 /** A soft studio environment for reflections: a grey room with a few bright panels, prefiltered. */
 function studioEnvironment(renderer) {
@@ -26,7 +28,8 @@ function studioEnvironment(renderer) {
 }
 
 export class GaragePreview {
-  constructor(canvas) {
+  /** opts.showroom: the dealer's showroom instead of the workshop floor. */
+  constructor(canvas, opts = {}) {
     this.canvas = canvas;
     const r = this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: false, preserveDrawingBuffer: false });
     r.outputColorSpace = THREE.SRGBColorSpace;
@@ -47,37 +50,51 @@ export class GaragePreview {
     sun.shadow.mapSize.set(2048, 2048);
     Object.assign(sun.shadow.camera, { left: -4.5, right: 4.5, top: 4.5, bottom: -4.5, near: 1, far: 30 });
     sun.shadow.bias = -0.0005;
+    sun.shadow.normalBias = 0.02;                   // (no speckles of its own shadow on the paint)
     s.add(sun);
     const rim = new THREE.DirectionalLight(0xbfd4ff, 0.9);
     rim.position.set(-6, 4, -7);
     s.add(rim);
-    // floor: stained concrete with painted bay lines
-    const floor = new THREE.Mesh(new THREE.CircleGeometry(16, 48), new THREE.MeshStandardMaterial({ color: 0x5a5852, roughness: 0.92, metalness: 0 }));
-    floor.rotation.x = -Math.PI / 2;
-    floor.receiveShadow = true;
-    s.add(floor);
-    for (const x of [-1.6, 1.6]) {
-      const l = new THREE.Mesh(new THREE.PlaneGeometry(0.08, 7), new THREE.MeshStandardMaterial({ color: 0xc9a227, roughness: 0.8 }));
-      l.rotation.x = -Math.PI / 2; l.position.set(x, 0.002, 0);
-      s.add(l);
+    if (opts.showroom) this.stage = buildShowroom(s, r);
+    else {
+      // floor: stained concrete with painted bay lines
+      const floor = new THREE.Mesh(new THREE.CircleGeometry(16, 48), new THREE.MeshStandardMaterial({ color: 0x5a5852, roughness: 0.92, metalness: 0 }));
+      floor.rotation.x = -Math.PI / 2;
+      floor.receiveShadow = true;
+      s.add(floor);
+      for (const x of [-1.6, 1.6]) {
+        const l = new THREE.Mesh(new THREE.PlaneGeometry(0.08, 7), new THREE.MeshStandardMaterial({ color: 0xc9a227, roughness: 0.8 }));
+        l.rotation.x = -Math.PI / 2; l.position.set(x, 0.002, 0);
+        s.add(l);
+      }
     }
     this.camera = new THREE.PerspectiveCamera(30, 1, 0.1, 80);
     this.yaw = 0.75; this.pitch = 0.16; this.dist = 8.5; this.spin = true;
     this.model = null;
     this.dirty = true;
-    // drag to turn, wheel to zoom
+    // drag to turn, wheel (or two fingers pinching) to zoom
     let drag = null;
-    canvas.addEventListener('pointerdown', (e) => { drag = [e.clientX, e.clientY]; this.spin = false; canvas.setPointerCapture?.(e.pointerId); });
+    const touches = new Map();
+    let pinch = 0;
+    const zoom = (k) => { this.fitR = 0; this.dist = Math.max(3.2, Math.min(14, this.dist * k)); this.dirty = true; };
+    canvas.addEventListener('pointerdown', (e) => { drag = [e.clientX, e.clientY]; this.spin = false; canvas.setPointerCapture?.(e.pointerId); touches.set(e.pointerId, [e.clientX, e.clientY]); pinch = 0; });
     canvas.addEventListener('pointermove', (e) => {
+      if (touches.has(e.pointerId)) touches.set(e.pointerId, [e.clientX, e.clientY]);
+      if (touches.size === 2) {
+        const [a, b] = [...touches.values()], d = Math.hypot(a[0] - b[0], a[1] - b[1]);
+        if (pinch) zoom(pinch / d);
+        pinch = d;
+        return;
+      }
       if (!drag) return;
       this.yaw -= (e.clientX - drag[0]) * 0.008;
       this.pitch = Math.max(-0.02, Math.min(0.9, this.pitch + (e.clientY - drag[1]) * 0.005));
       drag = [e.clientX, e.clientY];
       this.dirty = true;
     });
-    const up = () => { drag = null; };
+    const up = (e) => { drag = null; touches.delete(e.pointerId); pinch = 0; };
     canvas.addEventListener('pointerup', up); canvas.addEventListener('pointercancel', up);
-    canvas.addEventListener('wheel', (e) => { this.fitR = 0; this.dist = Math.max(4.5, Math.min(14, this.dist * (e.deltaY > 0 ? 1.08 : 0.93))); this.dirty = true; e.preventDefault(); }, { passive: false });
+    canvas.addEventListener('wheel', (e) => { zoom(e.deltaY > 0 ? 1.08 : 0.93); e.preventDefault(); }, { passive: false });
   }
 
   /** Show a truck (physics spec with a build) in a paint colour. */
@@ -90,6 +107,7 @@ export class GaragePreview {
     m.root.position.set(0, spec.cgHeight, spec.cgZ || 0);
     m.updateWheels(spec.axles.flatMap((a, i) => [[a.sag, 0.3, i === 0 ? 0.28 : 0], [a.sag, 0.3, i === 0 ? 0.28 : 0]]));
     m.setLights(true);
+    this.stage?.reflect(m);
     this.focusY = 0.25 + spec.cgHeight * 0.6;
     this.dist = Math.max(this.dist, 2.2 * (spec.hull[0].h[2] + 0.2) + 1.5);
     this.dirty = true;
@@ -132,6 +150,7 @@ export class GaragePreview {
 
   dispose() {
     if (this.model) { this.scene.remove(this.model.root); this.model.dispose(); this.model = null; }
+    this.stage?.reflect(null);
     this.scene.environment?.dispose();
     this.renderer.dispose();
   }

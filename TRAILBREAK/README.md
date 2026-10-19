@@ -34,9 +34,11 @@ Dark glass panels over the game, an orange accent and condensed italic type (Bar
   under it (D and which gear in the automatic), the 2WD / 4WD / 4LO badge beside it, and the range, lockers, gearbox
   and tyre pressure under it. Your **level** comes from all the money you have ever earned (level 2 at $1,000, 3 at
   $4,000, 4 at $9,000...), so spending never takes it down.
-- **Paused (Esc):** room and invite link, voice chat, the world and gameplay settings (time of day, shadows, sound,
-  steering assist, vibration, graphics, damage), Resume ride, and the garage, modes and races, map builder, dealer,
-  back to the station and the controls.
+- **Paused (Esc):** the whole game stops where it is (your truck, its sound, the camera, the clocks; in an online
+  room friends' trucks go on, theirs aren't paused, and they see yours standing still). The menu has the room and
+  invite link, voice chat, the world and gameplay settings (time of day, shadows, sound, steering assist, vibration,
+  graphics, damage, a steering wheel's calibration and paddles), Resume ride, and the garage, modes and races, map
+  builder, dealer, back to the station and the controls.
 - **Modes & races (N):** a card for each: free roam, the map builder, the party modes, the checkpoint races and the
   events, with a picture of it (rendered in the game), the par times, your best and what gold pays; Start lines you
   up, Go to the start sets the satnav. The side bar shows one kind at a time, or opens the garage or the settings.
@@ -267,12 +269,22 @@ steam.
 Each driver has a career, kept in their own browser: money, the trucks and parts they own, their best times. You
 start with $2,500. **For now every truck and every garage part is free**: pick any of the fifteen trucks or the
 fourteen sports cars in the lobby or at the dealer and drive it, and fit it with anything in the garage at no charge (`FREE_TRUCKS` and `FREE_PARTS` in
-`src/game/Career.js` turn the dealer's and the garage's prices back on). The truck you pick in the lobby turns in 3D above
-the list, in its build and paint (drag to turn it); at the dealer, tap any truck to see it the same way.
+`src/game/Career.js` turn the dealer's and the garage's prices back on). The truck you pick turns in 3D in the lobby,
+in its build and paint (drag to turn it).
+
+**The showroom** (the lobby's **Choose your car**, and the dealer: the map's Motors, Konkan Motors on the Konkan Coast)
+is where a car is chosen. The car stands on a turntable ringed with light in a dark showroom, its reflection in the
+polished floor (drag to turn it, the mouse wheel or a pinch to come closer); beside it its maker and model, how rare
+it is, its price, and its figures: power and torque, and for a sports car the maker's 0-100 km/h and top speed, for a
+4x4 how high it clears and how deep it wades; then the button that takes it (select it, drive it, or buy it). Under
+them every car is on a rail of cards (all of them, the sports cars or the 4x4s; the arrow keys step through them).
+Rarity goes by price: **common** under $20,000, **rare** under $60,000, **epic** under $130,000, **legendary** above. The
+cards' pictures are drawn by `tools/thumbs.cjs` (the cars in the showroom, from the front three-quarters, each in a
+colour it's known in).
 
 - **Earning:** surveying a beacon pays a $600 bounty (friends in the room get a share when you find one), towing a
   friend out pays a rescue fee, and events pay prize money.
-- **Spending:** the dealer (pause menu, or the truck list in the lobby) sells fifteen trucks, from the $4,500 Lada Niva
+- **Spending:** the dealer (pause menu, or the lobby's showroom) sells fifteen trucks, from the $4,500 Lada Niva
   to the $95,000 G 63 (see [The trucks](#the-trucks)), and fourteen sports cars, from the $45,000 Impreza STi to the
   $1,150,000 McLaren Senna (see [The sports cars](#the-sports-cars)); the garage prices every part and bills only for parts you
   haven't bought for that truck (once bought, a part is yours to fit and take off again). Repairs and the tow truck cost
@@ -517,9 +529,28 @@ bar: they are a truck's. The ready-made builds are **Track day** (semi-slicks, a
 **Safari** (raised 2" on all-terrain tyres, a roof rack) and **Flat out** (the strongest engine, semi-slicks and the
 limited-slip diff).
 
-Every car has its cabin and the driver at the wheel, and the steering wheel turns: the models' own (cut out of their
-dashboards) in most; the C8, the NSX, the R34 and the STi came with empty cabins, so the game builds their seats, dash
-and wheel, with the gauges on the right side for the right-hand-drive Japanese cars.
+Every car has its cabin and the driver at the wheel, and the steering wheel turns. The Huracán, the GT-R (R35) and
+the Senna keep the cockpits their models came with. The other eleven (and the G 63) came with cockpits unfinished,
+half-built or empty, so their own is taken out (`layout.interior.cut` in their `tools/cars/<id>.json`: the regions
+inside the doors and behind the windscreen, as it curves back at its sides) and the game builds one, fitted to what was
+measured of each car (the foot and top of its windscreen, its windows' sill, how far in its doors are) and to where the
+driver sits (`src/render/Cockpit.js`): a dashboard under the windscreen, with the instruments where the driver sees them
+through the top of the wheel (on the dash face under a brow, or in a pod on the dash where the wheel stands higher)
+and live (the revs, the speed, the gear: analog dials, the big centre rev counter of the RX-7, the Supra and the 930,
+or a screen in the modern cars), the centre stack (a screen, or a radio and its dials), vents, the console with its
+gear lever (a stick, or a selector), door cards, bucket seats (and a bench behind them in the 2+2s and saloons), the
+roof lined, the pillars trimmed, sun visors and a leather sports wheel (with paddles where the car has them), each in
+the colours of the real car's (the 930's tan leather, the STi's blue cloth, the M3's grey with the M stripes, the M4
+CSL's red stripes). From the driver's seat the body's inside is trim, not paint, and the side glass is clear (it caught
+the sky white).
+
+**The mirrors** work from the driver's seat: the rear-view mirror and both door mirrors show what is behind, each a
+picture drawn from where the driver's eye is reflected behind its glass (through the glass's own rectangle, so the
+whole picture lands on it), set as a driver sets them. They are small pictures, drawn one mirror a frame (every other
+frame on medium graphics; on low the glass stays dark), and only from the driver's seat (`src/render/Mirrors.js`). The
+door mirrors' glass was found in each model (the part standing out from the side ahead of the door, its face turned
+back). `python3 -I tools/cockpits/interiors.py .` measures every car (`cabmeasure.py`, `mirrors.py`) and writes its
+`layout.interior` into `tools/cars/<id>.json` and `public/assets/trucks/<id>.json`.
 
 ## The garage
 

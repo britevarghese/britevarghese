@@ -47,6 +47,7 @@
  "texSize": 2048,
  "screenNormal": 0.3,
  "layout": {
+  "interior": {"replace": true, "mirrors": [{"c": [0.985, 0.901, 0.653], "w": 0.092, "h": 0.078}], "cowl": [0.853, 1.329], "top": [1.196, 0.602], "wsHalf": 0.679, "belt": [0.867, 0.713], "sideZ": [-0.521, 0.754], "doorX": 0.922, "floorY": 0.15, "rear": null, "style": {"seat": "#141415", "bolster": "#1a1a1c", "stripe": "#a3191d", "accent": "#3b3d40", "cluster": "digital", "screen": false, "stick": "auto", "paddles": true, "accentText": "#e2232a"}, "cut": [{"box": [-0.897, 0.03, -0.601, 0.897, 0.873, 1.319]}, {"box": [-0.693, 0.843, -0.601, 0.693, 1.266, 1.329], "plane": [0, 0.904, 0.427, 1.309, 0.2188]}]},
   "bumperF": {
    "z": 2.42,
    "y": 0.35,

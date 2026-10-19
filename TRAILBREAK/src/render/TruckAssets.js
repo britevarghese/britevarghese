@@ -109,9 +109,56 @@ function cutWheel(g, dish) {
   return [g, w];
 }
 
+/**
+ * A geometry with the triangles whose middles lie in any of the regions taken out: each { box: [x0, y0, z0, x1, y1, z1],
+ * plane, plane2: [nx, ny, nz, d, q] (optional: only where n.p + q x^2 < d as well: behind a sloping windscreen that
+ * curves back at its sides, in front of the rear window) } (null: nothing left).
+ */
+function cutRegions(g, regions) {
+  const pos = g.attributes.position, idx = g.index, n = idx ? idx.count : pos.count, keep = [];
+  for (let t = 0; t < n; t += 3) {
+    const a = idx ? idx.getX(t) : t, b = idx ? idx.getX(t + 1) : t + 1, c = idx ? idx.getX(t + 2) : t + 2;
+    const x = (pos.getX(a) + pos.getX(b) + pos.getX(c)) / 3, y = (pos.getY(a) + pos.getY(b) + pos.getY(c)) / 3, z = (pos.getZ(a) + pos.getZ(b) + pos.getZ(c)) / 3;
+    const under = (L) => !L || L[0] * x + L[1] * y + L[2] * z + (L[4] || 0) * x * x < L[3];
+    const out = !regions.some(({ box: B, plane, plane2 }) => x > B[0] && x < B[3] && y > B[1] && y < B[4] && z > B[2] && z < B[5] && under(plane) && under(plane2));
+    if (out) keep.push(a, b, c);
+  }
+  if (!keep.length) return null;
+  if (keep.length === n) return g;
+  g.setIndex(new THREE.BufferAttribute(new (pos.count > 65535 ? Uint32Array : Uint16Array)(keep), 1));
+  return g;
+}
+
+/**
+ * A model's body skins that face into its cabin (the inside of the doors, the pillars, the roof: modelled as a second
+ * skin, they showed paint in the cockpit) taken out of a geometry: triangles inside the cabin turned toward its middle
+ * line, or down from under the roof. C: { x, y0, y1, belt, z0, z1 } (the doors' outside, floor to roof, along the cabin).
+ */
+function cutInnerSkin(g, C) {
+  const pos = g.attributes.position, idx = g.index, n = idx ? idx.count : pos.count, keep = [];
+  const a = new THREE.Vector3(), b = new THREE.Vector3(), c = new THREE.Vector3(), e1 = new THREE.Vector3(), e2 = new THREE.Vector3();
+  for (let t = 0; t < n; t += 3) {
+    const i = idx ? idx.getX(t) : t, j = idx ? idx.getX(t + 1) : t + 1, k = idx ? idx.getX(t + 2) : t + 2;
+    a.fromBufferAttribute(pos, i); b.fromBufferAttribute(pos, j); c.fromBufferAttribute(pos, k);
+    const mx = (a.x + b.x + c.x) / 3, my = (a.y + b.y + c.y) / 3, mz = (a.z + b.z + c.z) / 3;
+    let inner = false;
+    if (Math.abs(mx) < C.x && my > C.y0 && my < C.y1 && mz > C.z0 && mz < C.z1) {
+      const nn = e1.subVectors(b, a).cross(e2.subVectors(c, a)).normalize();
+      inner = -Math.sign(mx) * nn.x > 0.55 || (my > C.belt && nn.y < -0.55);
+    }
+    if (!inner) keep.push(i, j, k);
+  }
+  if (keep.length === n) return g;
+  if (!keep.length) return null;
+  g.setIndex(new THREE.BufferAttribute(new (pos.count > 65535 ? Uint32Array : Uint16Array)(keep), 1));
+  return g;
+}
+
 function build(id, gltf, layout) {
   const own = new Map(), parts = [], rim = [];
   const dish = layout.steering?.cut ? wheelDish(layout.steering) : null;
+  // a model whose cockpit is unfinished: it comes out, and the game builds one (render/Cockpit.js), its wheel too
+  const cockpit = layout.interior?.replace ? layout.interior : null;
   gltf.scene.updateMatrixWorld(true);
   gltf.scene.traverse((o) => {
     if (!o.isMesh) return;
@@ -124,7 +171,14 @@ function build(id, gltf, layout) {
     if (dish) {
       const [rest, wheel] = cutWheel(g, dish);
       g = rest;
-      if (wheel) parts.push({ role, side, geometry: wheel, material: OWN.has(role) ? null : o.material, steer: true, doubleSided: o.material.side === THREE.DoubleSide });
+      if (wheel && !cockpit) parts.push({ role, side, geometry: wheel, material: OWN.has(role) ? null : o.material, steer: true, doubleSided: o.material.side === THREE.DoubleSide });
+    }
+    if (cockpit?.cut && !OWN.has(role) && role !== 'head') { g = cutRegions(g, cockpit.cut); if (!g) return; }
+    if (cockpit && role === 'paint') {
+      // (behind a two-seater's seats as far as its rear pillars: the skins round the window behind the driver)
+      const I = cockpit, back = I.rear != null ? I.rear - 0.45 : I.sideZ[0] - 0.3;
+      g = cutInnerSkin(g, { x: I.doorX + 0.01, y0: I.floorY - 0.05, y1: (layout.roofY || 2) + 0.02, belt: I.belt[0], z0: back, z1: I.cowl[1] });
+      if (!g) return;
     }
     if (OWN.has(role)) {
       const plain = new THREE.BufferGeometry();

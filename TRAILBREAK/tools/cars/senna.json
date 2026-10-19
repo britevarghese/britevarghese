@@ -157,6 +157,7 @@
  "rimReduce": 0.6,
  "texSize": 1024,
  "layout": {
+  "interior": {"replace": false, "mirrors": [{"c": [1.024, 0.846, 0.794], "w": 0.126, "h": 0.109}]},
   "bumperF": {
    "z": 2.55,
    "y": 0.3,

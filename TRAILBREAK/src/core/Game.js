@@ -1,12 +1,12 @@
 // The game loop: input -> physics (fixed 480 Hz substeps) -> models, camera, effects, sound -> network -> HUD -> frame.
 import * as THREE from 'three';
 import { Vehicle, simulate } from '../physics/Vehicle.js';
-import { truckSpec, TRUCKS, TRUCK_IDS } from '../physics/trucks.js';
-import { money, TRUCK_PRICES, DEALER_ORDER } from '../game/Career.js';
-import { buildSummary, buildStats } from '../physics/Upgrades.js';
+import { truckSpec, TRUCKS } from '../physics/trucks.js';
+import { money, TRUCK_PRICES } from '../game/Career.js';
+import { buildSummary } from '../physics/Upgrades.js';
 import { SURFACES } from '../physics/Surfaces.js';
 import { TruckModel } from '../render/TruckModel.js';
-import { TruckView } from '../ui/TruckView.js';
+import { Showroom } from '../ui/Showroom.js';
 import { loadTruckAsset, truckAsset, truckAssetProgress, MODEL_BODIES } from '../render/TruckAssets.js';
 import { CameraRig } from './CameraRig.js';
 import { BEACON_RADIUS, MAP_HALF } from '../world/maps/index.js';
@@ -27,10 +27,10 @@ const fmtDist = (m) => (m < 1000 ? `${Math.round(m / 10) * 10} m` : `${(m / 1000
 const MATE_COLORS = ['#4fb3a9', '#e0b33b', '#c46bd6', '#6aa8e8', '#e0563b', '#7cc36a', '#e88fb0', '#c9c06a'];
 
 /** A truck's model; if its parts can't be drawn (a fault in a model's layout), the stock truck rather than none. */
-function modelFor(spec, truckId, paint) {
-  try { return new TruckModel(spec, paint); } catch (e) {
+function modelFor(spec, truckId, paint, opts = {}) {
+  try { return new TruckModel(spec, paint, opts); } catch (e) {
     console.error(`truck model ${truckId} ${spec.buildCode}:`, e);
-    return new TruckModel(truckSpec(truckId), paint);
+    return new TruckModel(truckSpec(truckId), paint, opts);
   }
 }
 
@@ -62,7 +62,7 @@ export class Game {
     this.build = this.spec.buildCode;
     this.vehicle = new Vehicle(this.spec);
     this.vehicle.damage.setLevel(this.settings.damage);
-    this.model = modelFor(this.spec, this.truckId, this.paint);
+    this.model = modelFor(this.spec, this.truckId, this.paint, { mirrors: true });
     this.scene.add(this.model.root);
     this.renderer.subject = this.model;
     this.garageSpot = this.world.landmarks.find((L) => L.type === 'garage');
@@ -330,7 +330,7 @@ export class Game {
     if (v.dt.t.low > 1 && old.dt.t.low > 1) v.dt.low = old.dt.low;
     if (v.dt.drive === '4wd' && old.dt.drive === '4wd') v.dt.fourWD = old.dt.fourWD;
     this.scene.remove(this.model.root); this.model.dispose();
-    this.model = modelFor(this.spec, this.truckId, this.paint);
+    this.model = modelFor(this.spec, this.truckId, this.paint, { mirrors: true });
     this.model.setDirt(this.dirt);
     this.scene.add(this.model.root);
     this.renderer.subject = this.model;
@@ -391,66 +391,29 @@ export class Game {
 
   get myColor() { return '#' + new THREE.Color(this.paint).getHexString(); }
 
-  /** The dealer: buy a truck, or swap to one you own (delivered to the station garage). */
+  /** The dealer: the showroom (ui/Showroom.js); buy a car, or swap to one you own (delivered to the station garage). */
   openDealer() {
     if (!this.career) return;
-    const $ = (id) => document.getElementById(id), C = this.career;
+    const C = this.career;
     if (this.paused) this.togglePause(false);
     this.dealerOpen = true;
     this.input.enabled = false;
     this.audio.setMuted('menu', true);
-    const el = $('dealer');
-    const close = () => { el.classList.add('hidden'); this.dealerView?.stop(); this.dealerOpen = false; this.audio.setMuted('menu', false); this.input.enabled = !this.paused && !this.chatOpen; this.renderer.renderer.domElement.focus(); };
-    // the 3D view: the truck you drive, then whichever you tap
-    this.dealerView ??= new TruckView($('d-view'));
-    const mark = () => { for (const r of $('d-list').children) r.classList.toggle('view', r.dataset.id === this.dealerLook); };
-    const look = (id) => {
-      this.dealerLook = id;
-      this.dealerView.show(id, this.settings.builds?.[id] || '', this.myColor);
-      $('d-view-name').textContent = TRUCKS[id].name;
-      mark();
-    };
-    const render = () => {
-      $('d-money').innerHTML = `You have <b>${money(C.money)}</b>.`;
-      const list = $('d-list');
-      list.innerHTML = '';
-      let kind = null;
-      for (const id of DEALER_ORDER.filter((id) => TRUCK_IDS.includes(id)).sort((a, b) => !!TRUCKS[a].road - !!TRUCKS[b].road)) {
-        const t = TRUCKS[id], owned = C.ownsTruck(id), price = TRUCK_PRICES[id] ?? 0, here = id === this.truckId;
-        const st = buildStats(truckSpec(id));
-        if (kind !== !!t.road) {
-          kind = !!t.road;
-          const h = document.createElement('div');
-          h.className = 'truck-group';
-          h.textContent = kind ? 'Sports cars' : 'Off-road trucks';
-          list.appendChild(h);
-        }
-        const row = document.createElement('div');
-        row.className = 'dealer-row' + (owned ? ' mine' : '');
-        row.dataset.id = id;
-        row.onclick = (e) => { if (!e.target.closest('button')) look(id); };
-        row.innerHTML = `<b>${t.name}</b><span class="blurb">${t.blurb}</span>
-          <span class="stats">${Math.round(st.powerKw)} kW · ${Math.round(st.peakTorque)} Nm · ${Math.round(st.mass)} kg · ${t.road
-    ? `0-100 km/h in ${t.real.t100} s · ${t.real.vmax} km/h (the maker's figures)`
-    : `${Math.round(st.clearance * 100)} cm under the diffs · wades ${Math.round(st.wading * 100)} cm`}</span>`;
-        const b = document.createElement('button');
-        if (here) { b.textContent = 'Driving it'; b.disabled = true; b.className = 'ghost'; }
-        else if (owned) { b.textContent = 'Drive this one'; b.className = 'primary'; b.onclick = () => { close(); this.switchTruck(id); }; }
-        else {
-          b.textContent = `Buy ${money(price)}`;
-          b.className = C.canAfford(price) ? 'primary' : 'ghost';
-          b.disabled = !C.canAfford(price);
-          b.onclick = () => { if (C.buyTruck(id)) { this.hud.toast(`You bought the ${t.name}: it waits at the station garage`, false, 5); render(); } };
-        }
-        row.appendChild(b);
-        list.appendChild(row);
-      }
-      mark();
-    };
-    render();
-    $('d-close').onclick = close;
-    el.classList.remove('hidden');
-    look(this.truckId);
+    this.showroom ??= new Showroom(document.getElementById('showroom'));
+    const S = this.showroom;
+    this.showroom.open({
+      title: `${(this.mapName || 'Offroad').split(' ')[0]} Motors`,
+      current: this.truckId, paint: this.myColor, builds: this.settings.builds || {},
+      owns: (id) => C.ownsTruck(id),
+      action: (id) => {
+        const price = TRUCK_PRICES[id] ?? 0, name = TRUCKS[id].name;
+        if (id === this.truckId) return { label: 'Driving it', enabled: false, note: `You have ${money(C.money)}.` };
+        if (C.ownsTruck(id)) return { label: 'Drive this one', enabled: true, run: () => { S.close(); this.switchTruck(id); }, note: 'Yours: it waits at the station garage.' };
+        if (!C.canAfford(price)) return { label: `Need ${money(price)}`, enabled: false, note: `You have ${money(C.money)}: survey beacons, win events and tow friends out to earn it.` };
+        return { label: `Buy for ${money(price)}`, enabled: true, run: () => { if (C.buyTruck(id)) { this.hud.toast(`You bought the ${name}: it waits at the station garage`, false, 5); S.look(id); } }, note: `You have ${money(C.money)}.` };
+      },
+      onClose: () => { this.dealerOpen = false; this.audio.setMuted('menu', false); this.input.enabled = !this.paused && !this.chatOpen; this.renderer.renderer.domElement.focus(); },
+    });
   }
 
   /** Drive another of your trucks: it is waiting at the station garage, with its last build. */
@@ -1239,6 +1202,7 @@ export class Game {
     m.root.position.set(v.pos.x, v.pos.y, v.pos.z);
     m.root.quaternion.set(v.quat.x, v.quat.y, v.quat.z, v.quat.w);
     m.setSeatView(this.cam.mode === 'cab');
+    if (m.gauges && this.cam.mode === 'cab') m.updateGauges(v.dt.rpm, Math.abs(v.speed) * 3.6, v.dt.gear < 0 ? 'R' : v.dt.gear === 0 ? 'N' : String(v.dt.gear));
     m.updateWheels([0, 1, 2, 3].map((i) => v.wheelState(i)), dt);
     const night = this.renderer.night;
     const lights = this.lightsOn || night;
@@ -1355,6 +1319,11 @@ export class Game {
     if (this.mapOpen) this.worldMap.draw();
 
     this.touch?.update(this);
+    // the mirrors, while they can be seen (from the driver's seat): one drawn a frame (every other on medium graphics)
+    const q = this.settings.quality || 'high';
+    if (m.mirrors && this.cam.mode === 'cab' && q !== 'low' && !this.noRender) {
+      m.mirrors.update(this.renderer.renderer, this.scene, this.renderer.camera.position, q === 'high' ? 1 : 2, [this.grass.mesh, this.tea?.mesh].filter(Boolean));
+    }
     if (!this.noRender) this.renderer.render();
     this.perf(dt);
     I.endFrame();

@@ -105,6 +105,7 @@
  "quantize": true,
  "texSize": 1024,
  "layout": {
+  "interior": {"replace": false, "mirrors": [{"c": [1.014, 0.8, 0.622], "w": 0.144, "h": 0.05}], "rearView": {"c": [0.003, 1.037, 0.582], "w": 0.183, "h": 0.099}},
   "bumperF": {
    "z": 2.37,
    "y": 0.3,

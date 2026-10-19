@@ -2,11 +2,12 @@
 import { generateWorld } from './world/WorldGen.js';
 import { MAPS, MAP_IDS, DEFAULT_MAP, mapById } from './world/maps/index.js';
 import { World } from './world/World.js';
-import { TRUCKS, TRUCK_IDS } from './physics/trucks.js';
+import { TRUCKS } from './physics/trucks.js';
 import { buildSummary, decodeBuild } from './physics/Upgrades.js';
 import { Garage } from './ui/Garage.js';
 import { TruckView } from './ui/TruckView.js';
-import { Career, TRUCK_PRICES, DEALER_ORDER, money } from './game/Career.js';
+import { Showroom } from './ui/Showroom.js';
+import { Career, TRUCK_PRICES, money } from './game/Career.js';
 import { Renderer } from './render/Renderer.js';
 import { TerrainRenderer } from './render/Terrain.js';
 import { loadGround } from './render/Ground.js';
@@ -86,7 +87,6 @@ function lobby() {
   };
   $('room').addEventListener('input', showMaps);
   showMaps();
-  const trucksEl = $('trucks');
   // the picked truck in 3D, with its build and paint
   const view = new TruckView($('truck-view'));
   const showView = () => {
@@ -99,37 +99,28 @@ function lobby() {
     $('lobby-money').innerHTML = `Your money: <b>${money(career.money)}</b>`;
     showView();
   };
-  // the trucks: yours to drive, or the dealer's price
+  // the car: chosen in the showroom (ui/Showroom.js), yours to drive or the dealer's price
+  const showroom = new Showroom($('showroom'));
   const showTrucks = () => {
-    trucksEl.innerHTML = '';
-    let sel = null;
-    // (the off-road trucks, then the road cars: each cheapest first)
-    let kind = null;
-    for (const id of DEALER_ORDER.filter((id) => TRUCK_IDS.includes(id)).sort((a, b) => !!TRUCKS[a].road - !!TRUCKS[b].road)) {
-      const t = TRUCKS[id], owned = career.ownsTruck(id), price = TRUCK_PRICES[id] ?? 0, on = settings.truck === id;
-      if (kind !== !!t.road) {
-        kind = !!t.road;
-        const h = document.createElement('div');
-        h.className = 'truck-group';
-        h.textContent = kind ? 'Sports cars' : 'Off-road trucks';
-        trucksEl.appendChild(h);
-      }
-      const b = document.createElement('button');
-      b.className = 'truck-opt' + (on ? ' sel' : '') + (owned ? '' : ' locked');
-      // the kind of truck in the list; the whole description for the one picked
-      b.innerHTML = `<b>${t.name}${owned ? '' : ` <em>${money(price)}</em>`}</b><span>${on ? t.blurb : t.blurb.split(':')[0]}</span>`;
-      if (on) sel = b;
-      b.onclick = () => {
-        if (!owned) {
-          if (!career.canAfford(price)) { $('lobby-msg').textContent = `The ${t.name} costs ${money(price)} and you have ${money(career.money)}: win events, survey beacons and tow friends out to earn it.`; return; }
-          if (!confirm(`Buy the ${t.name} for ${money(price)}? You have ${money(career.money)}.`)) return;
-          career.buyTruck(id);
-        }
-        settings.truck = id; save(); showTrucks(); showBuild();
-      };
-      trucksEl.appendChild(b);
-    }
-    if (sel) trucksEl.scrollTop = Math.max(0, sel.offsetTop - 60);
+    const t = TRUCKS[settings.truck] || TRUCKS.ranger;
+    $('choose-car-sub').textContent = `${t.name} · ${t.road ? 'sports car' : 'off-road'}`;
+  };
+  $('choose-car').onclick = () => {
+    view.stop();
+    showroom.open({
+      title: `${(MAPS[settings.map] || MAPS[DEFAULT_MAP]).name.split(' ')[0]} Motors`,
+      current: settings.truck, paint: settings.paint, builds: settings.builds,
+      owns: (id) => career.ownsTruck(id),
+      action: (id) => {
+        const t = TRUCKS[id], price = TRUCK_PRICES[id] ?? 0;
+        if (id === settings.truck) return { label: 'Selected', enabled: false };
+        const pick = () => { settings.truck = id; save(); showroom.close(); };
+        if (career.ownsTruck(id)) return { label: 'Select this one', enabled: true, run: pick };
+        if (!career.canAfford(price)) return { label: `Need ${money(price)}`, enabled: false, note: `The ${t.name} costs ${money(price)} and you have ${money(career.money)}: win events, survey beacons and tow friends out to earn it.` };
+        return { label: `Buy for ${money(price)}`, enabled: true, run: () => { if (career.buyTruck(id)) pick(); } };
+      },
+      onClose: () => { showTrucks(); showBuild(); },
+    });
   };
   showTrucks();
   showBuild();
@@ -247,7 +238,7 @@ async function start() {
   if (net) net.onBinary = (b) => voice.onBinary(b);
   const game = new Game({
     world, renderer, terrain, vegetation, grass, tea, rocks, water, landmarks, effects, rope, audio, net, voice, hud, input, settings, garage, career,
-    truckId: settings.truck, build: settings.builds[settings.truck] || '', paint: settings.paint, name: settings.name,
+    truckId: settings.truck, build: settings.builds[settings.truck] || '', paint: settings.paint, name: settings.name, mapName: M.name,
   });
   game.onBuild = (id, code) => { settings.truck = id; settings.builds[id] = code; save(); };
   $('m-dmg').onclick = () => game.fitSpare();          // (a tap on phones)

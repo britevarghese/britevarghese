@@ -14,6 +14,8 @@ import { truckAsset } from './TruckAssets.js';
 import { Driver } from './Driver.js';
 import { Person } from './Person.js';
 import { driverAssets } from './DriverAssets.js';
+import { buildCockpit, sportsWheel, sportsColumn } from './Cockpit.js';
+import { Mirror, Mirrors } from './Mirrors.js';
 
 const GRAV = 9.81;
 const IN = 0.0254;
@@ -595,7 +597,16 @@ const BUILDERS = { ranger: rangerBody, hauler: haulerBody, mule: muleBody, gecko
  */
 function modelBody(model, asset, M, P) {
   const L = asset.layout;
-  if (L.cabin) cabin(P, M, { ...L.cabin, side: Math.sign(L.steering?.x || 1) });   // (a model with an empty cab: seats and a dash)
+  if (L.cabin && !L.interior?.replace) cabin(P, M, { ...L.cabin, side: Math.sign(L.steering?.x || 1) });   // (a model with an empty cab: seats and a dash)
+  // a model whose own cockpit was unfinished (TruckAssets took it out): one built for it, fitted to it
+  let cockpit = null;
+  if (L.interior?.replace && L.steering) {
+    const extra = [];
+    cockpit = buildCockpit(P, L.interior, L.steering, model.spec.eye, L.roofMap ? (x, z) => roofAt(L.roofMap, x, z) : null, extra, model.spec);
+    for (const m of extra) model.body.add(m);
+    model.gauges = cockpit.gauges;
+    model.cockpitMirror = cockpit.mirror;
+  }
   const mats = { paint: model.paint, glass: M.glass, screen: M.screen, head_l: model.lampMats[0], head_r: model.lampMats[1], tail: model.brakeMat, reverse: model.revMat, amber: M.amber };
   // a part the model draws double-sided gets the game's material drawn from both sides too (this truck's own paint
   // and lamps turned so; a shared one through its double-sided twin)
@@ -630,7 +641,8 @@ function modelBody(model, asset, M, P) {
   }
   return {
     heads: L.heads, tails: [], reverse: [], ownLamps: true, ownBumpers: true, ownChassis: !!L.ownChassis,
-    bumperF: L.bumperF, bumperR: L.bumperR, spare: L.spare || null, wheel: L.steering || null, wheelParts: wheel, frame: L.frame,
+    bumperF: L.bumperF, bumperR: L.bumperR, spare: L.spare || null, wheel: L.steering || null, frame: L.frame,
+    wheelParts: cockpit ? [sportsWheel(L.steering.r || 0.18, L.interior.style)] : wheel, wheelColumn: cockpit ? sportsColumn(L.interior.style) : null,
     flaps: !!L.flaps, sill: L.sill, half: L.half, roofY: L.roofY ?? L.bbox[1][1], coilY: L.coilY, bedZ: L.bedZ, ownSnorkel: !!L.ownSnorkel,
     roofMap: L.roofMap || null, bedRail: L.bedRail || null,
     // (the roof, for the rack and the light bar: if a layout leaves it out, from the tail to a metre short of the front
@@ -945,7 +957,7 @@ export class TruckModel {
       g.position.set(w.x, w.y, w.z);
       g.rotation.set(w.tilt, w.yaw || 0, 0, 'YXZ');
       this.steeringWheel = new THREE.Group();
-      if (x.wheelParts?.length) this.steeringWheel.add(...x.wheelParts);
+      if (x.wheelParts?.length) { this.steeringWheel.add(...x.wheelParts); if (x.wheelColumn) g.add(x.wheelColumn); }
       else {
         const ring = new THREE.Mesh(new THREE.TorusGeometry(0.19, 0.016, 8, 24), M.black);
         const spokes = new THREE.Mesh(mergeGeometries([0, 2.1, 4.2].map((a) => clean(new THREE.BoxGeometry(0.17, 0.02, 0.012).translate(0.085, 0, 0).rotateZ(a + Math.PI / 2)))), M.satin);
@@ -962,6 +974,9 @@ export class TruckModel {
         this.body.add(this.driver.group);
       }
     }
+
+    // ---- the mirrors, on the player's own car
+    if (opts.mirrors && asset?.layout.interior && spec.eye) this.buildMirrors(asset.layout.interior, spec);
 
     // ---- axles and wheels (CG frame; the physics moves them)
     const rStatic = R - (spec.mass * GRAV / 4) / t.stiffness;
@@ -1167,8 +1182,63 @@ export class TruckModel {
   /** A design-frame point on the body -> CG frame (into v). */
   bodyPoint(p, v, mirror = 1) { return v.set(p[0] * mirror, p[1], p[2]).add(this.bodyOffset); }
 
-  /** In the driver's-seat view, the driver's head is where the camera is: hidden. */
-  setSeatView(on) { this.driver?.setSeatView(on); }
+  /**
+   * The mirrors, for the player's own car (render/Mirrors.js): the door mirrors' glass where the model has it (I:
+   * layout.interior), and the rear-view mirror (a built cockpit's, in a housing of its own, or the model's), each set
+   * as a driver would set it: between the eye and straight back (a door mirror a little out from the car's side).
+   */
+  buildMirrors(I, spec) {
+    const list = [], eye = new THREE.Vector3(...spec.eye);
+    const add = (g, look, res, housing) => {
+      const m = new Mirror(g.w, g.h, res);
+      m.aim(new THREE.Vector3(...g.c), eye, look);
+      if (housing) {
+        const h = new THREE.Mesh(new THREE.BoxGeometry(g.w + 0.024, g.h + 0.02, 0.032), MATS.mirrorBack ||= new THREE.MeshStandardMaterial({ color: 0x2a2a2c, roughness: 0.6, emissive: 0x2a2a2c, emissiveIntensity: 0.6 }));
+        h.position.z = -0.02;
+        m.mesh.add(h);
+      }
+      this.body.add(m.mesh);
+      list.push(m);
+    };
+    for (const g of I.mirrors || []) if (g) for (const s of [1, -1]) add({ ...g, c: [s * g.c[0], g.c[1], g.c[2]] }, new THREE.Vector3(s * 0.15, 0, -1), [160, 120]);
+    const cm = this.cockpitMirror, rv = cm ? { c: cm.position.toArray(), w: cm.w, h: cm.h } : I.rearView;
+    if (rv) add(rv, new THREE.Vector3(0, 0.02, -1), [288, 80], !!cm);
+    this.mirrors = list.length ? new Mirrors(list) : null;
+  }
+
+  /** The cockpit's instruments (a built one's: render/Cockpit.js), to the revs, the speed and the gear. */
+  updateGauges(rpm, kmh, gear) { this.gauges?.draw(rpm, kmh, gear); }
+
+  /**
+   * In the driver's-seat view, the driver's head is where the camera is: hidden. A sports car's body from inside is
+   * trim, not paint (the paint's inside faces drawn dark), and its glass is clear from inside (out there, at the
+   * angles the cab sees it, it caught the sky white).
+   */
+  setSeatView(on) {
+    this.driver?.setSeatView(on);
+    if (!this.spec.road || this.seatView === on) return;
+    this.seatView = on;
+    if (!this.insideTrim) {
+      const trim = MATS.insideTrim ||= new THREE.MeshStandardMaterial({ color: 0x3a3a3d, roughness: 0.9, side: THREE.BackSide, emissive: 0x3a3a3d, emissiveIntensity: 0.9 });
+      this.insideTrim = this.body.children.filter((m) => m.isMesh && m.userData.role === 'paint').map((m) => {
+        const t = new THREE.Mesh(m.geometry, trim);
+        t.position.copy(m.position); t.quaternion.copy(m.quaternion); t.scale.copy(m.scale);
+        t.visible = false; t.castShadow = false;
+        this.body.add(t);
+        return t;
+      });
+      this.paintSide = this.paint.side;
+      // (the windscreen keeps its own: it shows its cracks)
+      this.glassAll = this.body.children.filter((m) => m.isMesh && m.userData.role === 'glass');
+      this.glassOut = this.glassAll.map((m) => m.material);
+      const clear = (g) => (g.userData.inside ||= Object.assign(g.clone(), { opacity: 0.14, clearcoat: 0, envMapIntensity: 0.15, side: THREE.DoubleSide }));
+      this.glassIn = this.glassOut.map(clear);
+    }
+    for (const t of this.insideTrim) t.visible = on;
+    this.paint.side = on ? THREE.FrontSide : this.paintSide;
+    this.paint.needsUpdate = true;
+    this.glassAll.forEach((m, i) => { m.material = on ? this.glassIn[i] : this.glassOut[i]; });
+  }
 
   /** wheels: [4] of [travel (from full droop), spin angle, steer angle] for FL, FR, RL, RR; dt: s since the last. */
   updateWheels(wheels, dt = 1 / 60) {
@@ -1251,6 +1321,7 @@ export class TruckModel {
   setDirt(d) { this.dirt = d; this.uniforms.uDirt.value = d; }
 
   dispose() {
+    this.mirrors?.dispose();
     this.root.traverse((o) => { if (o.geometry && !o.geometry.userData.cached) o.geometry.dispose(); });
     for (const m of [this.paint, this.top, ...this.lampMats, ...this.headMats.flat(), this.barMat, this.brakeMat, this.revMat, this.screen]) m?.dispose();
   }

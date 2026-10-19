@@ -5,8 +5,10 @@ import { truckSpec, TRUCKS } from '../physics/trucks.js';
 import { loadTruckAsset, truckAsset, truckAssetProgress, MODEL_BODIES } from '../render/TruckAssets.js';
 
 export class TruckView {
-  constructor(canvas) {
+  /** opts: for the 3D view (GaragePreview): { showroom }. */
+  constructor(canvas, opts = {}) {
     this.canvas = canvas;
+    this.opts = opts;
     this.preview = null;
     this.raf = 0;
     this.shown = '';
@@ -23,7 +25,7 @@ export class TruckView {
     if (want !== this.want) return;                  // (another was picked while it loaded)
     this.loading(null);
     if (!this.preview) {
-      try { this.preview = new GaragePreview(this.canvas); } catch (e) { console.warn('truck view', e); this.canvas.closest('.truck-view')?.classList.add('hidden'); return; }
+      try { this.preview = new GaragePreview(this.canvas, this.opts); } catch (e) { console.warn('truck view', e); this.canvas.closest('.truck-view')?.classList.add('hidden'); return; }
     }
     const key = `${id}:${code || ''}`;
     if (key !== this.shown) {
