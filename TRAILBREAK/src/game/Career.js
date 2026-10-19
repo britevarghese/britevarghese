@@ -30,6 +30,12 @@ export const TRUCK_PRICES = { gecko: 4500, mule: 6500, trekker: 22500, ranger: 9
   p930: 145000, r8: 165000, huracan: 230000, r34: 280000, senna: 1150000 };
 /** The dealer's trucks, cheapest first. */
 export const DEALER_ORDER = Object.keys(TRUCK_PRICES).sort((a, b) => TRUCK_PRICES[a] - TRUCK_PRICES[b]);
+/**
+ * The Konkan Coast's first map, 2 km across, had courses under ids its 8 km map uses again for far longer ones: a best
+ * on one of them under this many seconds can only be from the old course, and is dropped, once (its medal with it: the
+ * new course pays its medals again). The drag is the same quarter mile on both, and keeps its bests.
+ */
+const OLD_COAST = { ghatclimb: 160, beachdash: 50, coastsprint: 255, ghatrally: 405 };
 /** For now every truck is free: every driver has the whole dealer's yard to drive (false sells them again). */
 export const FREE_TRUCKS = true;
 /** And every part: the garage fits anything to any truck at no charge (false prices them again). */
@@ -57,6 +63,10 @@ export class Career {
     data.trucks = Array.isArray(data.trucks) && data.trucks.length ? data.trucks : ['ranger'];
     data.parts = data.parts && typeof data.parts === 'object' ? data.parts : {};
     data.best = data.best && typeof data.best === 'object' ? data.best : {};
+    if (!data.coast8) {
+      for (const [id, under] of Object.entries(OLD_COAST)) if (data.best[id]?.time < under) delete data.best[id];
+      data.coast8 = true;
+    }
     data.log = Array.isArray(data.log) ? data.log.slice(-40) : [];
     this.d = data;
     this.save();

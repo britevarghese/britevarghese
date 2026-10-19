@@ -94,6 +94,23 @@ test('the career: money, the dealer, parts, repairs on credit, best times', () =
   assert.equal(again.level.level, 5);
 });
 
+test('the career drops the bests from the Konkan Coast\'s first, small map\'s courses, once', () => {
+  const mem = new Map([['trailbreak.career', JSON.stringify({ money: 3000, trucks: ['thar'], parts: {}, log: [], best: {
+    coastsprint: { time: 50, medal: 'gold' }, ghatclimb: { time: 230, medal: 'bronze' }, beachdash: { time: 24, medal: 'silver' },
+    runwaydrag: { time: 16, medal: 'gold' }, bogdash: { time: 22, medal: 'silver' } } })]]);
+  const storage = { getItem: (k) => mem.get(k) ?? null, setItem: (k, v) => mem.set(k, v) };
+  const C = new Career({ freeTrucks: false, freeParts: false }, storage);
+  assert.equal(C.best('coastsprint'), null, 'faster than the new 8.9 km course can be driven');
+  assert.equal(C.best('beachdash'), null);
+  assert.deepEqual(C.best('ghatclimb'), { time: 230, medal: 'bronze' }, 'a time on the new course stays');
+  assert.deepEqual(C.best('runwaydrag'), { time: 16, medal: 'gold' }, 'the same quarter mile');
+  assert.deepEqual(C.best('bogdash'), { time: 22, medal: 'silver' });
+  assert.equal(C.money, 3000);
+  // only once: what is driven from now on is kept
+  C.record('beachdash', { time: 45, medal: 'gold' });
+  assert.deepEqual(new Career({ freeTrucks: false, freeParts: false }, storage).best('beachdash'), { time: 45, medal: 'gold' });
+});
+
 test('the driver level: from all that was earned; careers from before it start from what the balance is up', () => {
   assert.deepEqual([0, 999, 1000, 3999, 4000, 9000, 100000].map((e) => levelFor(e).level), [1, 1, 2, 2, 3, 4, 11]);
   const l = levelFor(2500);
