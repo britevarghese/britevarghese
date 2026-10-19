@@ -528,6 +528,10 @@ body.touch #side { top: 54px; left: 12px; right: auto; align-items: flex-start; 
 body.touch #compass { width: min(400px, 48vw); }
 body.touch #chat { left: 50%; transform: translateX(-50%); bottom: auto; top: 46px; width: min(560px, 92vw); z-index: 14; }
 body.touch #chat-log { display: none; }
+@media (max-width: 700px) and (orientation: portrait) {
+  /* (a phone held upright: the buttons below the compass and the objective, not over them; there's height to spare) */
+  .t-buttons { top: 96px; }
+}
 @media (max-width: 700px) {
   body.touch #dash { right: auto; left: 50%; transform: translateX(-50%); bottom: 112px; }
   body.touch #drive-modes { display: none; }
