@@ -402,7 +402,7 @@ export class Game {
     this.showroom ??= new Showroom(document.getElementById('showroom'));
     const S = this.showroom;
     this.showroom.open({
-      title: `${(this.mapName || 'Offroad').split(' ')[0]} Motors`,
+      title: this.dealerName || `${(this.mapName || 'Offroad').split(' ')[0]} Motors`,
       current: this.truckId, paint: this.myColor, builds: this.settings.builds || {},
       owns: (id) => C.ownsTruck(id),
       action: (id) => {

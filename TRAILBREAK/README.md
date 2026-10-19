@@ -272,7 +272,8 @@ fourteen sports cars in the lobby or at the dealer and drive it, and fit it with
 `src/game/Career.js` turn the dealer's and the garage's prices back on). The truck you pick turns in 3D in the lobby,
 in its build and paint (drag to turn it).
 
-**The showroom** (the lobby's **Choose your car**, and the dealer: the map's Motors, Konkan Motors on the Konkan Coast)
+**The showroom** (the lobby's **Choose your car**, and the dealer: each map's own, Ashwood 4x4 Sales, Ponmala Motors in
+Kerala, Konkan Motors on the Konkan Coast)
 is where a car is chosen. The car stands on a turntable ringed with light in a dark showroom, its reflection in the
 polished floor (drag to turn it, the mouse wheel or a pinch to come closer); beside it its maker and model, how rare
 it is, its price, and its figures: power and torque, and for a sports car the maker's 0-100 km/h and top speed, for a

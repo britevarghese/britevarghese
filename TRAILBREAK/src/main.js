@@ -108,7 +108,7 @@ function lobby() {
   $('choose-car').onclick = () => {
     view.stop();
     showroom.open({
-      title: `${(MAPS[settings.map] || MAPS[DEFAULT_MAP]).name.split(' ')[0]} Motors`,
+      title: (MAPS[settings.map] || MAPS[DEFAULT_MAP]).dealer || 'Motors',
       current: settings.truck, paint: settings.paint, builds: settings.builds,
       owns: (id) => career.ownsTruck(id),
       action: (id) => {
@@ -201,7 +201,6 @@ async function start() {
   }
   const M = mapById(mapId);
   document.querySelector('#loading h2').textContent = M.name;
-  document.querySelector('#dealer h2').firstChild.textContent = `${M.dealer} `;
 
   $('lobby').classList.add('hidden');
   $('loading').classList.remove('hidden');
@@ -238,7 +237,7 @@ async function start() {
   if (net) net.onBinary = (b) => voice.onBinary(b);
   const game = new Game({
     world, renderer, terrain, vegetation, grass, tea, rocks, water, landmarks, effects, rope, audio, net, voice, hud, input, settings, garage, career,
-    truckId: settings.truck, build: settings.builds[settings.truck] || '', paint: settings.paint, name: settings.name, mapName: M.name,
+    truckId: settings.truck, build: settings.builds[settings.truck] || '', paint: settings.paint, name: settings.name, mapName: M.name, dealerName: M.dealer,
   });
   game.onBuild = (id, code) => { settings.truck = id; settings.builds[id] = code; save(); };
   $('m-dmg').onclick = () => game.fitSpare();          // (a tap on phones)
