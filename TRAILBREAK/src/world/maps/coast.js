@@ -211,7 +211,11 @@ export const APRON = { u: 0, v: 95, hu: 60, hv: 40 };
 const runwayFrame = (x, z) => { const dx = x - RW_MID[0], dz = z - RW_MID[1]; return [dx * RU[0] + dz * RU[1], dx * RV[0] + dz * RV[1]]; };
 const fromRunway = (u, v) => [RW_MID[0] + RU[0] * u + RV[0] * v, RW_MID[1] + RU[1] * u + RV[1] * v];
 const APRON_MID = fromRunway(APRON.u, APRON.v);
-const TAXI_TO = nearestOn(PLATEAU_RD, APRON_MID[0], APRON_MID[1]);
+// the taxiway down to the plateau road: straight down the slope, then turning to meet the road at a slant, 160 m along
+// from the nearest point, where the ground beside the road is level (met head on, its last pitch was a 12 degree drop)
+const TAXI_NEAR = nearestOn(PLATEAU_RD, APRON_MID[0], APRON_MID[1]);
+const TAXI_TURN = (() => { const dx = APRON_MID[0] - TAXI_NEAR.x, dz = APRON_MID[1] - TAXI_NEAR.z, l = hyp(dx, dz); return [TAXI_NEAR.x + dx / l * 100, TAXI_NEAR.z + dz / l * 100, 40]; })();
+const TAXI_TO = along(PLATEAU_RD, TAXI_NEAR.s - 160);
 
 export const TRAILS = [
   { name: 'Coast Road', kind: 'road', width: 3.8, lanes: 2, grade: 0.08, smooth: 40, cut: 6, shoulder: 9, level: true, verge: { puddles: 3 }, points: COAST_RD },
@@ -220,7 +224,9 @@ export const TRAILS = [
   { name: 'Plateau Road', kind: 'road', width: 4.0, lanes: 2, grade: 0.07, smooth: 40, cut: 8, shoulder: 10, level: true, verge: { puddles: 2 }, points: PLATEAU_RD },
   { name: 'Ridge Track', kind: 'trail', width: 2.3, grade: 0.22, smooth: 12, cut: 2, shoulder: 5, points: RIDGE },
   { name: 'Runway', kind: 'road', width: 15, lanes: 0, runway: true, grade: 0.006, smooth: 80, cut: 10, shoulder: 14, level: true, points: road(RUNWAY, 20) },
-  { name: 'Taxiway', kind: 'road', width: 5, lanes: 0, grade: 0.05, smooth: 30, cut: 6, shoulder: 8, level: true, points: road([fromRunway(0, 0).map(Math.round), APRON_MID.map(Math.round), [Math.round(TAXI_TO.x), Math.round(TAXI_TO.z)]], 10) },
+  // (an access road's grade, not an airfield's: it falls 65 m to the plateau road, and kept to 5 % it was cut down into
+  // a canyon 36 m deep, across the apron where the elimination starts)
+  { name: 'Taxiway', kind: 'road', width: 5, lanes: 0, grade: 0.12, smooth: 30, cut: 6, shoulder: 8, level: true, points: road([fromRunway(0, 0).map(Math.round), APRON_MID.map(Math.round), TAXI_TURN.map(Math.round), TAXI_TO.slice(0, 2).map(Math.round)], 10) },
 ];
 
 // ---------------------------------------------------------------- the places
