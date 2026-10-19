@@ -44,6 +44,9 @@ filtered to match it.
   - "vehicle truck land rover v8 engin startup idle running" by jerry.berumen, https://freesound.org/s/772826/ (CC BY 4.0, https://creativecommons.org/licenses/by/4.0/)
   - "V8 Dodge RAM 1500 Engine Starting, Idling, then Driving for around 1:30 minutes." by sketchy.dog, https://freesound.org/s/760153/ (CC BY 4.0, https://creativecommons.org/licenses/by/4.0/) (pulling on the road, above about 1,000 rpm)
   - "Sports Car Accelerating/Speeding Up Fast - Exhaust" by EvanBoyerman, https://freesound.org/s/754775/ (CC BY 4.0, https://creativecommons.org/licenses/by/4.0/) (the top of the revs, above 2,100 rpm)
+- Bank `d6m` (a modern common-rail diesel at idle (a Skoda TDI: soft injection ticks, not an old truck diesel's clatter); the VW 1.9 TDI revving above 1.5 times idle):
+  - "skoda_tdi_idle.wav" by Mihacappy, https://freesound.org/s/827862/ (CC0 1.0, https://creativecommons.org/publicdomain/zero/1.0/)
+  - "vw diesel engine.mp3" by Evilmikie, https://freesound.org/s/448217/ (CC0 1.0, https://creativecommons.org/publicdomain/zero/1.0/) (the top of the revs)
 
 Fallback engine loops (browsers without AudioWorklet), cut at six rpm points for NIGHTSHIFT and reused here:
 - `v8_muscle`: "Idle and Rev - Engine.wav" by wikusv, https://freesound.org/s/232272/ (CC BY 4.0, https://creativecommons.org/licenses/by/4.0/), trimmed.

@@ -480,6 +480,42 @@
      "role": "the top of the revs, above 2,100 rpm"
     }
    ]
+  },
+  "d6m": {
+   "about": "a modern common-rail diesel at idle (a Skoda TDI: soft injection ticks, not an old truck diesel's clatter); the VW 1.9 TDI revving above 1.5 times idle",
+   "cyl": 6,
+   "idleRpm": 750,
+   "budget": 11,
+   "idleBudget": 3,
+   "cohMin": 0.3,
+   "parts": [
+    {
+     "id": 827862,
+     "user": "Mihacappy",
+     "title": "skoda_tdi_idle.wav",
+     "lic": "CC0",
+     "t": [[1.0, 18.5, 24, 33, 0.1]],
+     "f": [22, 34],
+     "anchor": [[3, 28], [15, 28]],
+     "slew": 3,
+     "cyl": 4,
+     "idleRpm": 840
+    },
+    {
+     "id": 448217,
+     "user": "Evilmikie",
+     "title": "vw diesel engine.mp3",
+     "lic": "CC0",
+     "t": [[21.0, 66.5], [76.5, 99.5]],
+     "f": [25, 125],
+     "anchor": [[23, 38], [26, 106], [28, 82], [32, 60], [36, 106], [40, 73], [45, 78], [50, 102], [60, 58], [66, 71], [78, 82], [84, 73]],
+     "slew": 5,
+     "cyl": 4,
+     "idleRpm": 900,
+     "cohMin": 0.35,
+     "rMin": 1.5
+    }
+   ]
   }
  }
 }

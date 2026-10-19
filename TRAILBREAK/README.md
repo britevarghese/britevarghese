@@ -161,7 +161,8 @@ turn and its sound repeats every pair of firings, so its bank is cut in pairs an
 | --- | --- | --- |
 | `d4` | Toyota Hilux turbo-diesel four (the top of the revs from a VW TDI) | Thar diesel, Pajero, the UAZ's and the Niva's diesels |
 | `d4t` | VW 1.9 TDI turbo-diesel four | Ranger Raptor |
-| `d6` | Ram 5.9 Cummins turbo-diesel six (the top of the revs from the TDI) | Defender 110, Unimog, the Power Wagon's Cummins swap |
+| `d6` | Ram 5.9 Cummins turbo-diesel six (the top of the revs from the TDI) | Unimog, the Power Wagon's Cummins swap |
+| `d6m` | a modern common-rail diesel at idle (a Skoda TDI: soft injection ticks, not an old truck diesel's clatter), the VW TDI revving | Defender 110 (its D350 straight six) |
 | `d8` | Ford F-350 turbo-diesel V8 (the top of the revs from the TDI) | Hummer H1 |
 | `v6` | Acura 3.2 V6, a mic at the exhaust while driving | Wrangler, Bronco, the Pajero's V6; the NSX, the GT-R (R35), the McLaren Senna's and the Corvette Z06's flat-plane V8s |
 | `v8` | Chevrolet Caprice V8 (idle and holds), a Dodge Ram 1500 5.7 V8 pulling on the road, the V6 above 2,100 rpm | K20 Suburban, the V8 swaps, the Corvette Stingray |
