@@ -9,7 +9,7 @@
 // for each map), MY MAPS keeps copies under a name, and SHARE gives a link that opens it for anyone. In a room your
 // friends see it as you build it (and can build on it too).
 import * as THREE from 'three';
-import { PROP_TYPES, PROP_IDS, MAX_PROPS, reach, encodeLayout, decodeLayout } from '../game/Props.js';
+import { PROP_TYPES, PROP_IDS, MAX_PROPS, reach, encodeLayout, decodeLayout, oldCoastAside } from '../game/Props.js';
 import { PropView } from '../render/PropView.js';
 import { escapeHtml } from './HUD.js';
 
@@ -54,8 +54,8 @@ export class Builder {
 
   // ---------------------------------------------------------------- storage
   loadStore() {
-    try { const s = JSON.parse(localStorage.getItem(STORE)); if (s && s.current && Array.isArray(s.saved)) return s; } catch { /* none */ }
-    return { current: {}, saved: [] };
+    try { const s = JSON.parse(localStorage.getItem(STORE)); if (s && s.current && Array.isArray(s.saved)) return oldCoastAside(s); } catch { /* none */ }
+    return { current: {}, saved: [], coast8: true };
   }
   saveStore() { try { localStorage.setItem(STORE, JSON.stringify(this.store)); } catch { /* full or blocked */ } }
 

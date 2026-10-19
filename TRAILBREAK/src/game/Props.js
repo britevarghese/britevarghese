@@ -136,3 +136,17 @@ export function customRace(L, terrain) {
   return { id: 'custom', kind: 'rally', race: true, custom: true, name: L.name || 'Custom race', desc: `Your own course: ${cps.length} checkpoint${cps.length > 1 ? 's' : ''}, ${Math.round(length)} m.`,
     laps: 1, cps: cps.length - 1, start: { x: start.x, z: start.z, yaw }, gates, line: pts, length, par: { gold: t(11), silver: t(8.5), bronze: t(6) }, prize: 0.5 };
 }
+
+/**
+ * The Konkan Coast's first map was 2 km across; the coast is now 8 km of other ground. What was built on the old one
+ * (every prop inside its 2 km) would land anywhere on the new one, across its roads, so it is put aside under its own
+ * map id, once: kept, not applied. What has props beyond the old 2 km was built on the new map, and stays.
+ */
+export function oldCoastAside(s) {
+  if (s.coast8) return s;
+  const old = (L) => L?.props?.length && L.props.every((p) => Math.abs(p.x) <= 1024 && Math.abs(p.z) <= 1024);
+  if (old(s.current.coast)) { s.current['coast-2km'] = { ...s.current.coast, map: 'coast-2km' }; delete s.current.coast; }
+  for (const c of s.saved) if (c.map === 'coast' && old(c)) c.map = 'coast-2km';
+  s.coast8 = true;
+  return s;
+}

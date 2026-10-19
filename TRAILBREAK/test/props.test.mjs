@@ -2,7 +2,7 @@
 // with the real physics: up a ramp and into the air, over a log, stopped by a container.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { PROP_TYPES, propTop, settle, encodeLayout, decodeLayout, customRace, paintAt } from '../src/game/Props.js';
+import { PROP_TYPES, propTop, settle, encodeLayout, decodeLayout, customRace, paintAt, oldCoastAside } from '../src/game/Props.js';
 import { SURFACE } from '../src/physics/Surfaces.js';
 import { generateWorld } from '../src/world/WorldGen.js';
 import { World } from '../src/world/World.js';
@@ -83,4 +83,17 @@ test('on the real ground: up a ramp and into the air, over a log, stopped by a c
   assert.equal(world.surfaceAt(x0 + 2, z0).id, SURFACE.MUD);
   world.setProps([]);
   assert.notEqual(world.surfaceAt(x0 + 2, z0).id, SURFACE.MUD);
+});
+
+test('what was built on the old 2 km coast map is put aside, once; what was built on the 8 km one stays', () => {
+  const P = (x, z) => ({ type: 'ramp', x, z, yaw: 0 });
+  const s = oldCoastAside({ current: { coast: { v: 1, map: 'coast', props: [P(100, -300), P(-900, 700)] }, ashwood: { v: 1, map: 'ashwood', props: [P(10, 10)] } },
+    saved: [{ map: 'coast', name: 'old', props: [P(0, 0)] }, { map: 'coast', name: 'new', props: [P(-1800, -900)] }, { map: 'kerala', name: 'k', props: [P(5, 5)] }] });
+  assert.equal(s.current.coast, undefined, 'not applied to the new map');
+  assert.equal(s.current['coast-2km'].props.length, 2, 'but kept');
+  assert.equal(s.current.ashwood.props.length, 1);
+  assert.deepEqual(s.saved.map((c) => c.map), ['coast-2km', 'coast', 'kerala']);
+  // once: from then on everything built on the coast is the new map's
+  s.current.coast = { v: 1, map: 'coast', props: [P(50, 50)] };
+  assert.equal(oldCoastAside(s).current.coast.props.length, 1);
 });
