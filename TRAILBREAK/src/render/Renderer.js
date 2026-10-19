@@ -43,6 +43,34 @@ THREE.ShaderChunk.fog_fragment = `#ifdef USE_FOG
 // (lit materials know the sun: the first directional light)
 THREE.ShaderChunk.lights_pars_begin = THREE.ShaderChunk.lights_pars_begin + '\n#if NUM_DIR_LIGHTS > 0\n#define FOG_SUN\n#endif\n';
 
+// The sun's shadow in two cascades: the wide map (the sun's own, 140 m across) and a near one (40 m across round what
+// the camera follows, its texels under a third the size: the truck's shadow and the leaves' under it sharp), cast by a
+// second sun that gives no light of its own. Where the near map covers, its shadow; faded into the wide one's at its
+// edge. (Only where two directional lights cast shadows: the game's world; the garage's one sun is as it was.)
+THREE.ShaderChunk.shadowmap_pars_fragment += `
+#if defined( USE_SHADOWMAP ) && NUM_DIR_LIGHT_SHADOWS > 1
+  float sunShadow() {
+    vec3 p = vDirectionalShadowCoord[ 1 ].xyz / vDirectionalShadowCoord[ 1 ].w;
+    float edge = max( abs( p.x - 0.5 ), abs( p.y - 0.5 ) ) * 2.0;
+    bool inNear = edge < 1.0 && p.z <= 1.0;
+    float wide = 1.0;
+    if ( !inNear || edge > 0.8 ) wide = getShadow( directionalShadowMap[ 0 ], directionalLightShadows[ 0 ].shadowMapSize, directionalLightShadows[ 0 ].shadowIntensity, directionalLightShadows[ 0 ].shadowBias, directionalLightShadows[ 0 ].shadowRadius, vDirectionalShadowCoord[ 0 ] );
+    if ( !inNear ) return wide;
+    float near = getShadow( directionalShadowMap[ 1 ], directionalLightShadows[ 1 ].shadowMapSize, directionalLightShadows[ 1 ].shadowIntensity, directionalLightShadows[ 1 ].shadowBias, directionalLightShadows[ 1 ].shadowRadius, vDirectionalShadowCoord[ 1 ] );
+    return mix( near, wide, smoothstep( 0.8, 1.0, edge ) );
+  }
+#endif`;
+const DIR_SHADOW = 'directLight.color *= ( directLight.visible && receiveShadow ) ? getShadow( directionalShadowMap[ i ], directionalLightShadow.shadowMapSize, directionalLightShadow.shadowIntensity, directionalLightShadow.shadowBias, directionalLightShadow.shadowRadius, vDirectionalShadowCoord[ i ] ) : 1.0;';
+const CASCADES = THREE.ShaderChunk.lights_fragment_begin.includes(DIR_SHADOW);
+if (CASCADES) {
+  THREE.ShaderChunk.lights_fragment_begin = THREE.ShaderChunk.lights_fragment_begin.replace(DIR_SHADOW, `
+    #if ( UNROLLED_LOOP_INDEX == 0 ) && NUM_DIR_LIGHT_SHADOWS > 1
+      directLight.color *= ( directLight.visible && receiveShadow ) ? sunShadow() : 1.0;
+    #elif ( UNROLLED_LOOP_INDEX != 1 ) || NUM_DIR_LIGHT_SHADOWS < 2
+      ${DIR_SHADOW}
+    #endif`);
+} else console.warn('shadows: three.js\'s light chunk has changed; one shadow cascade only');
+
 export class Renderer {
   constructor(container) {
     this.renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance', logarithmicDepthBuffer: true });
@@ -77,6 +105,16 @@ export class Renderer {
     this.sun.shadow.normalBias = 0.05;
     this.scene.add(this.sun);
     this.scene.add(this.sun.target);
+    // the near cascade's sun (no light: its colour stays black; added after the sun, so the sun stays the first)
+    this.sunNear = new THREE.DirectionalLight(0x000000, 0);
+    this.sunNear.castShadow = CASCADES;
+    this.sunNear.shadow.mapSize.set(2048, 2048);
+    const nc = this.sunNear.shadow.camera;
+    nc.left = -20; nc.right = 20; nc.top = 20; nc.bottom = -20; nc.near = 10; nc.far = 600;
+    this.sunNear.shadow.bias = -0.0003;
+    this.sunNear.shadow.normalBias = 0.02;
+    this.scene.add(this.sunNear);
+    this.scene.add(this.sunNear.target);
     this.focus = new THREE.Vector3();
     this.hour = 16.5;
     this.setTime(this.hour);
@@ -135,6 +173,9 @@ export class Renderer {
       this.sun.shadow.mapSize.set(size, size);
       this.sun.shadow.map?.dispose(); this.sun.shadow.map = null;
     }
+    // (the near cascade on 'high' and 'medium': on 'low', the one wide map)
+    this.cascades = CASCADES && q !== 'low';
+    this.sunNear.castShadow = this.cascades && this.renderer.shadowMap.enabled;
     this.postOn = !!this.post && q !== 'low';
     if (this.postOn) this.post.setQuality(q);
     this.probeOn = !!this.post && q === 'high';
@@ -145,6 +186,7 @@ export class Renderer {
   setShadows(on) {
     this.renderer.shadowMap.enabled = on;
     this.sun.castShadow = on;
+    this.sunNear.castShadow = on && (this.cascades ?? CASCADES);
     this.scene.traverse((o) => { if (o.material) o.material.needsUpdate = true; });
   }
 
@@ -163,6 +205,12 @@ export class Renderer {
     this.sun.target.position.set(fx, fy, fz);
     this.sun.position.set(fx + d.x * 300, fy + Math.max(0.15, d.y) * 300, fz + d.z * 300);
     this.sun.target.updateMatrixWorld();
+    // the near cascade: the same sun, its box snapped to its own (smaller) texels
+    const tn = 40 / this.sunNear.shadow.mapSize.x;
+    const nx = Math.round(focus.x / tn) * tn, ny = Math.round(focus.y / tn) * tn, nz = Math.round(focus.z / tn) * tn;
+    this.sunNear.target.position.set(nx, ny, nz);
+    this.sunNear.position.set(nx + d.x * 300, ny + Math.max(0.15, d.y) * 300, nz + d.z * 300);
+    this.sunNear.target.updateMatrixWorld();
   }
 
   render() {

@@ -159,7 +159,7 @@ turn and its sound repeats every pair of firings, so its bank is cut in pairs an
 
 | Bank | Recording | Trucks |
 | --- | --- | --- |
-| `d4` | Toyota Hilux turbo-diesel four (the top of the revs from a VW TDI) | Thar diesel, Pajero, the UAZ's and the Niva's diesels |
+| `d4` | Toyota Hilux turbo-diesel four (the top of the revs from a VW TDI) | Thar and Thar Roxx diesels, Pajero, the UAZ's and the Niva's diesels |
 | `d4t` | VW 1.9 TDI turbo-diesel four | Ranger Raptor |
 | `d6` | Ram 5.9 Cummins turbo-diesel six (the top of the revs from the TDI) | Unimog, the Power Wagon's Cummins swap |
 | `d6m` | a modern common-rail diesel at idle (a Skoda TDI: soft injection ticks, not an old truck diesel's clatter), the VW TDI revving | Defender 110 (its D350 straight six) |
@@ -171,7 +171,7 @@ turn and its sound repeats every pair of firings, so its bank is cut in pairs an
 | `v10` | Audi R8 V10 (idle, the fall from 4,100 rpm, holds from 2,100 to 4,100), cut in pairs of firings | Lamborghini Huracán, Audi R8 |
 | `i6` | Jaguar E-type 4.2 straight six | BMW M4 CSL, Toyota Supra, Skyline GT-R (R34) |
 | `f6` | a Porsche 911 flat-six at idle and revving (each bank of three beating at half the firing rate), the Jaguar six and the Acura V6 filling the revs | Porsche 911 Turbo (930) |
-| `i4` | Suzuki Jimny four at idle, a Rover 216 GSi four revving to 6,900 rpm | Lada Niva, Willys MB, UAZ Hunter, Thar petrol; BMW M3 (E30), Mazda RX-7, Subaru Impreza STi |
+| `i4` | Suzuki Jimny four at idle, a Rover 216 GSi four revving to 6,900 rpm | Lada Niva, Willys MB, UAZ Hunter, the Thar's and the Roxx's petrols; BMW M3 (E30), Mazda RX-7, Subaru Impreza STi |
 
 A big engine is louder than a small one and has more of its low end (a shelf under 140 Hz): the Power Wagon's 6.4
 HEMI most of all, deep and loud, then the 392 swap, the old big-blocks and the big diesels' rumble.
@@ -184,10 +184,10 @@ flash of flame and a puff of smoke at the tailpipe; a diesel only chuffs), and l
 crackles and pops for a moment. Without AudioWorklet the engine falls back to recorded loops crossfaded by rpm and
 throttle.
 
-The Hummer EV has no engine to hear: its drive units whine (three orders of the motor speed, each a narrow band of
+The Hummer EV and the Cybertruck have no engine to hear: their drive units whine (three orders of the motor speed, each a narrow band of
 noise round its pitch, so they sing and breathe like a real gearbox), the inverters hiss pulling hard and whistle at
-walking pace, the deep two-note drone it plays through its speakers rises with the speed and swells with the power,
-and at walking pace it plays its pedestrian warning.
+walking pace, a deep two-note drone through the speakers (the Hummer's) rises with the speed and swells with the
+power, and at walking pace they play a pedestrian warning.
 
 The sound goes off while the game is paused, in the garage, the dealer and the events list, and whenever the game's
 tab is hidden (another tab, or the browser minimised); it comes back when you drive on.
@@ -678,7 +678,9 @@ Everything that makes off-roading off-roading is simulated, not faked:
   filmic tone curve, a little more contrast and colour, cool shadows and warm highlights and a soft vignette finish
   it. The haze thickens with distance and thins with height (valleys are hazier than the hilltops) and glows toward
   the sun. On High your truck's paint, glass and chrome reflect the world round it, the road, the trees and the sky
-  going by (a small cube map drawn a face a frame, render/Probe.js), not the sky alone.
+  going by (a small cube map drawn a face a frame, render/Probe.js), not the sky alone. The sun's shadows come in two
+  cascades: a wide map 140 m across, and on High and Medium a near one 40 m across round your truck with texels under
+  a third the size, so its shadow and the dappled leaves' round it are sharp (render/Renderer.js).
 - **Winch:** a steel line with a stall-limited motor (line speed falls with load). Hook a tree to pull yourself
   out, or hook a friend's truck: your truck holds on its brakes and theirs feels the line tension.
 - **Steering kickback:** the forces on the front tyres turn the wheels about their kingpins (a tyre shoved back by a
