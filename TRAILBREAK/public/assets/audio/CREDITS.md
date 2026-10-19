@@ -40,8 +40,9 @@ filtered to match it.
 - Bank `d6` (Ram 5.9 Cummins straight-six turbo-diesel: idle):
   - "Ram 5.9 cummins-startup-idle.m4a" by Therancher01, https://freesound.org/s/610771/ (CC0 1.0, https://creativecommons.org/publicdomain/zero/1.0/)
   - "vw diesel engine.mp3" by Evilmikie, https://freesound.org/s/448217/ (CC0 1.0, https://creativecommons.org/publicdomain/zero/1.0/) (the top of the revs)
-- Bank `v10` (Audi R8 V10 (the 5.2 FSI V10, the Huracán's too), a Sound Devices 633 and an MKH-416 above it: idle, and holds from 2,100 to 4,100 rpm; marked at every pair of firings, one from each bank of five, as a V10's sound repeats):
+- Bank `v10` (Audi R8 V10 (the 5.2 FSI V10, the Huracán's too), a Sound Devices 633 and an MKH-416 above it: idle, and holds from 2,100 to 4,100 rpm; marked at every pair of firings, one from each bank of five, as a V10's sound repeats; above 4,100 rpm, a supercharged GM V8 pulling on a dyno to 7,750, marked at every second firing):
   - "Audi R8 Idling Reving Backfire.wav" by Jonas_Jocys, https://freesound.org/s/457733/ (CC BY 4.0, https://creativecommons.org/licenses/by/4.0/)
+  - "DR015dynoRunupLateModelGMHoldenV8Supercharged951hp.mp3" by Ears68, https://freesound.org/s/177184/ (CC0 1.0, https://creativecommons.org/publicdomain/zero/1.0/) (above 4,100 rpm, a supercharged GM V8 pulling on a chassis dyno to 7,750 rpm, marked at every second firing (a V10's pair takes a fifth of a turn, the V8's a quarter))
 - Bank `f6` (Porsche 911 flat-six at a dealership: its idle (each bank of three beating at half the firing rate) and its steadiest revs; the Jaguar six and the Acura V6 fill the revs; above 3,650 rpm, a Supra's turbo straight six (fired as evenly) pulling on a dyno to 8,250):
   - "vehicle car porsche 911 revving engine motor boxer" by jerry.berumen, https://freesound.org/s/772802/ (CC BY 4.0, https://creativecommons.org/licenses/by/4.0/)
   - "E-type Jaguar, car engine, rev, idle ,mono.wav" by Dan_AudioFile, https://freesound.org/s/614700/ (CC BY 4.0, https://creativecommons.org/licenses/by/4.0/) (the revs, above 1.3 times idle)
