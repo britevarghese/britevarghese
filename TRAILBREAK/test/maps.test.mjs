@@ -6,6 +6,7 @@ import { MAPS, MAP_IDS, DEFAULT_MAP, MAP_HALF, mapById } from '../src/world/maps
 import { generateWorld, spline } from '../src/world/WorldGen.js';
 import { World } from '../src/world/World.js';
 import { eventsFor, gridFor, EventRun } from '../src/game/Events.js';
+import { racesFor } from '../src/game/Races.js';
 import { Vehicle } from '../src/physics/Vehicle.js';
 import { truckSpec } from '../src/physics/trucks.js';
 import { SURFACE } from '../src/physics/Surfaces.js';
@@ -190,6 +191,11 @@ test('the Konkan Coast: 8 km of the real coast, its roads fit to drive, the sea 
   for (let t = 0; t <= 1; t += 0.05) {
     const [a, b] = events[2].line;
     assert.equal(world.surfaceId(a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t), SURFACE.SAND, 'the beach dash on the sand');
+  }
+  // the races keep to the roads: no straight cut across country between two of them
+  for (const r of racesFor(world)) {
+    const gap = Math.max(...r.line.slice(1).map(([x, z], k) => Math.hypot(x - r.line[k][0], z - r.line[k][1])));
+    assert.ok(gap < 30, `${r.id}: a ${gap.toFixed(0)} m cut across country`);
   }
   const drag = events[0], v = new Vehicle(truckSpec('thar'));
   v.place(world, drag.start.x, drag.start.z, drag.start.yaw);

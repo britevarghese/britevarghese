@@ -326,8 +326,8 @@ Konkan Coast:
 | Event | What it asks for | Par (gold / silver / bronze) |
 |---|---|---|
 | Airstrip Drag | a quarter mile flat out from a standing start down the plateau airstrip's runway | 17.5 / 20.5 / 25 s |
-| Kashid Ghat Hill Climb | 3.6 km of the ghat's hairpins up 246 m from Kashid to the edge of the tableland | 3:10 / 3:40 / 4:25 |
-| Kashid Beach Dash | 850 m along the middle of Kashid's soft sand: air the tyres down for it | 48 / 57 / 70 s |
+| Kashid Ghat Hill Climb | 3.6 km of the ghat's hairpins up 246 m from Kashid to the edge of the tableland | 3:30 / 4:35 / 5:40 |
+| Kashid Beach Dash | 850 m along the middle of Kashid's soft sand: air the tyres down for it | 1:02 / 1:22 / 1:42 |
 
 **Checkpoint races** (as in Off-Road League; pause menu > Events, or their flags on the map): circuits of laps and
 point-to-point rallies along the trails, through numbered inflatable checkpoint arches (the next one glows; the finish
@@ -346,10 +346,10 @@ puts you back at the last checkpoint passed, facing the next, while the clock ru
 | Estate Road Rally | Kerala | 1.6 km of hairpins up through the tea to the factory gates | 3:40 / 4:23 / 5:22 |
 | Paddy and Rubber Rally | Kerala | across the paddies on the bunds and into the rubber trees | 2:05 / 2:30 / 3:03 |
 | Anapara Sprint | Kerala | east out of town to the great rock | 1:34 / 1:53 / 2:18 |
-| Konkan Loop | Coast | a 15.1 km lap of the hills: south along the coast road, up the south ghat, across the plateau and down the Kashid ghat's hairpins | 9:20 / 11:00 / 13:20 |
-| Coast Road Sprint | Coast | the coast road end to end, 8.9 km: round the northern headland, behind Kashid beach and down the shore | 5:30 / 6:30 / 7:50 |
-| Kashid Ghat Rally | Coast | 10.4 km from Kashid over the ghat to the map's eastern edge: the hairpins, then the tableland and its valleys | 7:20 / 8:20 / 10:00 |
-| Plateau Sprint | Coast | 2.5 km across the tableland from the Kashid ghat to the south ghat, past the airstrip | 78 / 90 / 108 s |
+| Konkan Loop | Coast | an 11.6 km lap of the hills: south along the coast road, up the south ghat, across the plateau and down the Kashid ghat's hairpins | 10:50 / 14:00 / 17:30 |
+| Coast Road Sprint | Coast | the coast road end to end, 8.9 km: round the northern headland, behind Kashid beach and down the shore | 5:40 / 7:15 / 9:00 |
+| Kashid Ghat Rally | Coast | 10.4 km from Kashid over the ghat to the map's eastern edge: the hairpins, then the tableland and its valleys | 9:00 / 11:30 / 14:20 |
+| Plateau Sprint | Coast | 2.5 km across the tableland from the Kashid ghat to the south ghat, past the airstrip | 1:37 / 1:58 / 2:25 |
 
 The races live in each map's `races` list (src/world/maps/), built by src/game/Races.js onto the trails as they are
 (the world's ground isn't changed by them).
@@ -750,9 +750,9 @@ so the hairpins stay where the slope needs them. Everyone starts at Kashid Motor
 coast road. The Coast Road (9.0 km, two lanes) runs the length of the map by the sea, round the northern headland and
 behind Kashid beach and down the shore to the south. The Kashid Ghat (10.4 km) climbs from the village in hairpins
 (down to 9 m round) to the edge of the tableland, 260 m up, with a lookout over the sea, and crosses it to the map's
-eastern edge; the South Ghat (7.6 km) climbs out of the paddy valley to the south. The Plateau Road (2.6 km) joins the
+eastern edge; the South Ghat (7.6 km) climbs out of the paddy valley to the south. The Plateau Road (2.5 km) joins the
 two across the top, past the airstrip: a 1.1 km runway levelled into the laterite, a taxiway and apron, a radio mast.
-The coast road, the south ghat, the plateau road and the Kashid ghat make the Konkan Loop, 15 km. For the 4x4s the
+The coast road, the south ghat, the plateau road and the Kashid ghat make the Konkan Loop, 11.6 km. For the 4x4s the
 Ridge Track (3.9 km of dirt) leaves the ghat along a ridge and drops into the valley past the reservoir to the map's
 northern edge.
 

@@ -311,31 +311,32 @@ export const EVENTS = [
   { id: 'runwaydrag', kind: 'line', name: 'Airstrip Drag', desc: 'A quarter mile flat out from a standing start down the plateau airstrip.',
     line: [DRAG_FROM.map(Math.round), DRAG_TO.map(Math.round)], at: [0.5, 1], r: 18, par: { gold: 17.5, silver: 20.5, bronze: 25 }, prize: 1 },
   { id: 'ghatclimb', kind: 'trail', name: 'Kashid Ghat Hill Climb', desc: 'From Kashid up the hairpins of the ghat to the edge of the plateau.',
-    trail: 'Kashid Ghat', from: along(KASHID_GHAT, 160).slice(0, 2).map(Math.round), to: GHAT_TOP, gap: 150, r: 10, dy: 6, par: { gold: 190, silver: 220, bronze: 265 }, prize: 1.5 },
-  { id: 'beachdash', kind: 'line', name: 'Kashid Beach Dash', desc: 'Along the water\'s edge on the soft sand of Kashid beach.',
-    line: [[-2270, -1500], [-1994, -700]], at: [0.35, 0.7, 1], r: 14, par: { gold: 48, silver: 57, bronze: 70 }, prize: 0.9 },
+    trail: 'Kashid Ghat', from: along(KASHID_GHAT, 160).slice(0, 2).map(Math.round), to: GHAT_TOP, gap: 150, r: 10, dy: 6, par: { gold: 210, silver: 275, bronze: 340 }, prize: 1.5 },
+  { id: 'beachdash', kind: 'line', name: 'Kashid Beach Dash', desc: 'Down the middle of Kashid beach\'s soft sand: air the tyres down for it.',
+    line: [[-2270, -1500], [-1994, -700]], at: [0.35, 0.7, 1], r: 14, par: { gold: 62, silver: 82, bronze: 102 }, prize: 0.9 },
 ];
 
 /**
  * The checkpoint races (game/Races.js): the loop over the hills, the coast road end to end, the ghat over the
  * plateau, and the plateau road.
  */
+// (through each junction itself: the satnav's router would cut across country between two roads near each other)
 const loopVia = [
-  along(COAST_RD, KASHID_S + 200), along(COAST_RD, (KASHID_S + SOUTH_S) / 2), along(COAST_RD, SOUTH_S - 120),
-  along(SOUTH_GHAT, 1500), along(SOUTH_GHAT, plateauS - 400),
-  along(PLATEAU_RD, 600), along(PLATEAU_RD, 1500), along(PLATEAU_RD, 2300),
-  along(KASHID_GHAT, plateauN - 900), along(KASHID_GHAT, 1400), along(KASHID_GHAT, 300),
+  along(COAST_RD, KASHID_S + 200), along(COAST_RD, (KASHID_S + SOUTH_S) / 2), along(COAST_RD, SOUTH_S - 120), SOUTH_GHAT[0],
+  along(SOUTH_GHAT, 1500), along(SOUTH_GHAT, plateauS - 400), along(SOUTH_GHAT, plateauS),
+  along(PLATEAU_RD, -300), along(PLATEAU_RD, 1300), along(PLATEAU_RD, 400), PLATEAU_RD[0],
+  along(KASHID_GHAT, plateauN - 900), along(KASHID_GHAT, 1400), along(KASHID_GHAT, 300), KASHID_GHAT[0],
   along(COAST_RD, KASHID_S + 60),
 ].map(([x, z]) => [Math.round(x), Math.round(z)]);
 export const RACES = [
   { id: 'konkanloop', kind: 'circuit', name: 'Konkan Loop', desc: 'A lap of the hills: south along the coast, up the south ghat, across the plateau and down the Kashid ghat\'s hairpins.',
-    via: loopVia, laps: 1, cps: 12, r: 14, par: { gold: 560, silver: 660, bronze: 800 }, prize: 2.4 },
+    via: loopVia, laps: 1, cps: 12, r: 14, par: { gold: 650, silver: 840, bronze: 1050 }, prize: 2.4 },
   { id: 'coastsprint', kind: 'rally', name: 'Coast Road Sprint', desc: 'The coast road from end to end: round the northern headland, behind Kashid beach and down the shore to the south.',
-    trail: 'Coast Road', from: COAST_RD[6], cps: 8, r: 14, par: { gold: 330, silver: 390, bronze: 470 }, prize: 1.8 },
+    trail: 'Coast Road', from: COAST_RD[6], cps: 8, r: 14, par: { gold: 340, silver: 435, bronze: 540 }, prize: 1.8 },
   { id: 'ghatrally', kind: 'rally', name: 'Kashid Ghat Rally', desc: 'Kashid to the eastern edge of the map over the ghat: the hairpins, then across the tableland and its valleys.',
-    trail: 'Kashid Ghat', from: KASHID_GHAT[4], cps: 9, r: 10, par: { gold: 440, silver: 500, bronze: 600 }, prize: 1.8 },
+    trail: 'Kashid Ghat', from: KASHID_GHAT[4], cps: 9, r: 10, par: { gold: 540, silver: 690, bronze: 860 }, prize: 1.8 },
   { id: 'plateausprint', kind: 'rally', name: 'Plateau Sprint', desc: 'Across the Phansad tableland from the Kashid ghat to the south ghat, past the airstrip.',
-    trail: 'Plateau Road', from: PLATEAU_RD[3], cps: 5, r: 14, par: { gold: 78, silver: 90, bronze: 108 }, prize: 1.2 },
+    trail: 'Plateau Road', from: PLATEAU_RD[3], cps: 5, r: 14, par: { gold: 97, silver: 118, bronze: 145 }, prize: 1.2 },
 ];
 
 /** The party modes' places (game/Modes.js): the elimination arena on the airstrip's apron, the hill a ghat lookout. */
@@ -344,7 +345,7 @@ export const MODES = {
   arena: { x: Math.round(APRON_MID[0]), z: Math.round(APRON_MID[1]), yaw: Math.atan2(RU[0], RU[1]) },
   hill: { x: HILL[0], z: HILL[1], r: 16, name: 'Ghat Viewpoint' },
   hillStart: [Math.round(KASHID.x), Math.round(KASHID.z)],
-  hillPar: { gold: 110, silver: 130, bronze: 160 },
+  hillPar: { gold: 215, silver: 270, bronze: 320 },
 };
 
 // ---------------------------------------------------------------- the generator's hooks
