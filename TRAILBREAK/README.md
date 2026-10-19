@@ -86,8 +86,9 @@ To play with friends anywhere, put the server on [Render](https://render.com) (f
 
 New commits on that branch deploy by themselves. Rooms hold 4 drivers (`multiplayer.maxPlayers` in `config.json`).
 A free service sleeps after 15 minutes with nobody connected; the first visit after that takes about a minute to wake
-it. While anyone is driving it stays awake. Render can restart a free service now and then: everyone gets "Lost the
-connection", reloads the page, and is back in the same room (the beacons found in that room start again).
+it. While anyone is driving it stays awake. Render restarts the service now and then (and with each new commit):
+everyone's game reconnects by itself, back into the same room by its code within a few seconds, each truck where it was
+(the beacons found in that room start again on the server; each game keeps its own).
 
 Without the Blueprint: **New > Web Service** with this repository, branch `claude/sweet-volta-hxo6tl`, root directory
 `TRAILBREAK`, runtime Node, build command `node --version`, start command `node server.js`, instance type Free.
