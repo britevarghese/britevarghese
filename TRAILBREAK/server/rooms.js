@@ -128,7 +128,7 @@ class Room {
     this.players.set(player.id, player);
     this.emptySince = 0;
     this.send(player, {
-      t: 'welcome', id: player.id, room: this.code, map: this.map, public: this.public ? 1 : 0, tickRate: this.tickRate, maxPlayers: this.maxPlayers,
+      t: 'welcome', id: player.id, room: this.code, map: this.map, public: this.public ? 1 : 0, tickRate: this.tickRate, maxPlayers: this.maxPlayers, time: Date.now(),
       players: [...this.players.values()].filter((p) => p !== player).map((p) => ({ id: p.id, name: p.name, ...(p.dmg ? { dmg: p.dmg } : {}), ...(p.voice ? { voice: 1, mic: p.mic ? 1 : 0, mute: p.mute ? 1 : 0 } : {}) })),
       beacons: [...this.beacons.keys()],
       race: this.race ? { id: this.race.id, at: this.race.at, racers: this.racerList() } : null,
@@ -152,6 +152,7 @@ class Room {
   handle(player, msg) {
     switch (msg.t) {
       case 'state': {
+        player.driving = true;
         const s = this.validate(player, msg.s);
         if (s) { player.s = s; player.lastUpdate = Date.now(); }
         return;
@@ -320,7 +321,10 @@ class Room {
     if (this.size === 0) return;
     const players = [];
     for (const p of this.players.values()) if (p.s) players.push({ id: p.id, name: p.name, s: p.s });
-    this.broadcast({ t: 'snapshot', time: Date.now(), players });
+    // only to those driving: one still loading the map (it joins first, then loads) has no use for them, and twenty a
+    // second piled up for it to work through as it started
+    const data = JSON.stringify({ t: 'snapshot', time: Date.now(), players });
+    for (const p of this.players.values()) if (p.driving) p.ws.send(data);
   }
 
   /** A voice frame to relay (binary [1, seq hi, seq lo, audio...]): to everyone else in voice, with who said it. */

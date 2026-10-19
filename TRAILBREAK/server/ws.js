@@ -41,6 +41,7 @@ class WebSocketConnection extends EventEmitter {
     this.fragments = null; // { opcode, parts: [], size }
     this.closeSent = false;
     this.isAlive = true;
+    this.missed = 0;                                    // heartbeat rounds in a row with nothing from it
 
     socket.setNoDelay(true);
     socket.on('data', (chunk) => this._onData(chunk));
@@ -49,6 +50,8 @@ class WebSocketConnection extends EventEmitter {
   }
 
   _onData(chunk) {
+    this.isAlive = true;                                // (anything from it will do, not just the pong)
+    this.missed = 0;
     this.buf = this.buf.length ? Buffer.concat([this.buf, chunk]) : chunk;
     try {
       while (this.open && this._parseFrame()) { /* keep parsing */ }
@@ -217,10 +220,12 @@ function attachWebSocketServer(httpServer, options) {
     options.onConnection(ws, req);
   });
 
-  // Heartbeat: drop clients that stop answering pings.
+  // Heartbeat: drop clients that have sent nothing, not even the pong, for three rounds (45 s). A browser busy loading
+  // the map answers late (13 s seen on a busy machine), and with one round (a pong within 15 s) a player who had just
+  // joined was dropped from the room while their game went on alone.
   const hb = setInterval(() => {
     for (const ws of clients) {
-      if (!ws.isAlive) { ws.terminate(); continue; }
+      if (!ws.isAlive && ++ws.missed >= 3) { ws.terminate(); continue; }
       ws.ping();
     }
   }, 15000);

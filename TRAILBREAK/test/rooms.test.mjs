@@ -37,6 +37,7 @@ test('a new player gets a fresh room; friends join it by code', () => {
   const a = join(lobby, 'Ana');
   const w = a.last('welcome');
   assert.ok(w && w.room.length === 5 && w.id === 1);
+  assert.ok(Math.abs(w.time - Date.now()) < 1000);                 // (the server's clock, for the race countdowns)
   const b = join(lobby, 'Ben', w.room.toLowerCase());
   const wb = b.last('welcome');
   assert.equal(wb.room, w.room);
@@ -128,6 +129,19 @@ test('snapshots carry each player state to the room only', () => {
   assert.deepEqual(snap.players.map((p) => p.name).sort(), ['A', 'B']);
   assert.equal(snap.players.find((p) => p.name === 'A').s.p[0], 5);
   assert.deepEqual(c.last('snapshot').players.map((p) => p.name), ['C']);
+});
+
+test('no snapshots for a player still loading the map, until it drives', () => {
+  const lobby = new Lobby();
+  const a = join(lobby, 'A', 'SANDY');
+  const b = join(lobby, 'B', 'SANDY');
+  a.msg(state(5));
+  for (const r of lobby.rooms.values()) r.tick();
+  assert.ok(a.last('snapshot'));
+  assert.equal(b.last('snapshot'), null);
+  b.msg(state(7));
+  for (const r of lobby.rooms.values()) r.tick();
+  assert.deepEqual(b.last('snapshot').players.map((p) => p.name).sort(), ['A', 'B']);
 });
 
 test('a truck\'s build (garage parts) travels with its state; junk is dropped', () => {

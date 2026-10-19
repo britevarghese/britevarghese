@@ -68,6 +68,7 @@ export class NetClient {
         if (m.t === 'welcome') {
           clearTimeout(timer);
           this.id = m.id; this.room = m.room; this.tickRate = m.tickRate; this.maxPlayers = m.maxPlayers; this.map = m.map || null; this.public = !!m.public;
+          if (Number.isFinite(m.time)) this.offset = m.time - Date.now();   // (the snapshots refine it: none come while the map loads)
           this.connected = true;
           for (const p of m.players) { const r = this.remote(p.id, p.name); if (p.dmg) r.dmg = p.dmg; r.voice = p.voice; r.mic = p.mic; r.mute = p.mute; }
           settled = true;
