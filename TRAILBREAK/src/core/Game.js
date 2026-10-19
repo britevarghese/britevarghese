@@ -289,8 +289,8 @@ export class Game {
     try {
       const img = this.hud.mapImage, c = document.createElement('canvas'), W = 480, H = 200;
       c.width = W; c.height = H;
-      const g = c.getContext('2d'), k = img.width / (2 * MAP_HALF), S = this.stationSpot || { x: 0, z: 0 }, span = 900 * k;
-      g.drawImage(img, (S.x + MAP_HALF) * k - span / 2, (S.z + MAP_HALF) * k - span * H / W / 2, span, span * H / W, 0, 0, W, H);
+      const HALF = this.world.half, g = c.getContext('2d'), k = img.width / (2 * HALF), S = this.stationSpot || { x: 0, z: 0 }, span = 900 * k;
+      g.drawImage(img, (S.x + HALF) * k - span / 2, (S.z + HALF) * k - span * H / W / 2, span, span * H / W, 0, 0, W, H);
       this.builderPic = c.toDataURL('image/jpeg', 0.82);
     } catch { this.builderPic = ''; }
     return this.builderPic;

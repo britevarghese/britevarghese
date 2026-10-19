@@ -1,19 +1,23 @@
-// The Konkan Coast: a stretch of India's west coast laid out for driving on tarmac. World axes: +x east, +z south, +y
-// up, metres.
+// The Konkan Coast: 8 x 8 km of the real coast of Raigad, Maharashtra, round Kashid beach (18.44 N, 72.922 E). World
+// axes: +x east, +z south, +y up, metres from the middle.
 //
-// The Arabian Sea along the west, a beach of pale sand and a grove of coconut palms behind it. A four-lane highway
-// runs round the whole map in a ring (5.5 km: two long straights north to south, the coastal one behind the palms
-// and the inland one across the plain, joined by sweeping bends); the ghat road leaves the coastal highway at Ponnur,
-// the little coastal town where everyone starts, and climbs over the wooded hills in the middle in hairpins to the
-// inland highway. On the plain inland lies an airstrip, its runway long enough to find a truck's top speed; a river
-// comes down from the hills to the sea under the coastal highway's bridge, and a lighthouse stands on the point to
-// the north of the town.
+// The ground is the real one (tools/konkan.py bakes it): SRTM heights, and what grows or stands on every 10 m from
+// ESA WorldCover. The Arabian Sea along the west; Kashid's long crescent of pale sand between two wooded headlands,
+// the village behind it and its paddy fields; then the escarpment, two hundred and fifty metres of forest climbing to
+// the laterite tableland of the Phansad hills, cut by deep valleys, with a reservoir in one of them to the north.
 //
-// The generator (world/WorldGen.js) builds the common ground; the hooks in `gen` add the sea, the beach, the town's
-// and the airfield's level ground, and the trees.
-import { fbm, ridged } from '../Noise.js';
+// The roads are routed over that ground (tools/konkan.py roads: world/maps/coastRoads.js): the coast road along the
+// shore the whole length of the map, behind the beach and round the northern headland; the Kashid ghat climbing from
+// the village in hairpins to the tableland and across it to the east; the south ghat up from the paddy valley to the
+// south; the plateau road between the two across the top, past an airstrip; and a dirt track along a ridge and down
+// to the reservoir. The coast road, the south ghat, the plateau road and the Kashid ghat make a loop of about 12 km.
+//
+// The generator (world/WorldGen.js) builds the common ground on a 2 m grid (a big map's); the hooks in `gen` add the
+// sea and the reservoir, the ground's surfaces from its land cover, the airstrip's level ground, the trees.
+import { fbm, vnoise } from '../Noise.js';
 import { SURFACE } from '../../physics/Surfaces.js';
 import { KERALA_WALLS } from './kerala.js';
+import { ROUTES } from './coastRoads.js';
 
 export const SEED = 4410;
 const S = SEED;
@@ -21,46 +25,108 @@ const clamp = (x, a, b) => (x < a ? a : x > b ? b : x);
 const lerp = (a, b, t) => a + (b - a) * t;
 const smoothstep = (a, b, x) => { const t = clamp((x - a) / (b - a), 0, 1); return t * t * (3 - 2 * t); };
 const hyp = (a, b) => Math.sqrt(a * a + b * b);
+const P = Math.PI;
 
-// ---------------------------------------------------------------- the landform
+/** The map's half-size (m): 8 km across. */
+export const HALF = 4000;
 /** The sea's level (m). */
-export const SEA = 1;
-/** The waterline: x at which the sea meets the beach, for each z (a coast with a few gentle bays). */
-export const shoreX = (z) => -735 + 30 * Math.sin(z / 240 + 0.6) + 14 * Math.sin(z / 83 + 2.1);
-// the wooded hills in the middle: centre, height above the plain, radius
-export const PEAKS = [
-  { x: 60, z: -440, h: 140, r: 200, name: 'Kanthari Hill' },
-  { x: 70, z: -70, h: 105, r: 150, name: 'Ghat Top' },
-  { x: 130, z: 210, h: 95, r: 170 },
-  { x: -60, z: 560, h: 60, r: 180 },
-  { x: 260, z: -230, h: 45, r: 150 },
-];
-// the airfield on the plain inland: the runway's line (north end, south end), its apron to the east of its middle
-export const RUNWAY = [[540, -690], [540, 70]];
-export const APRON = { x: 610, z: -310, hw: 50, hd: 40 };
-// the town's level ground round its main street
-export const TOWN = { x: -430, z: 40, r: 150 };
+export const SEA = 0;
 
-/** The ground before the river is cut: the sea floor, the beach, the plain rising slowly inland, the hills, the
- *  ranges round the edges (north, east and south; the sea is the edge to the west). */
-function baseHeight(x, z) {
-  const d = x - shoreX(z);
-  let h = d < 0 ? SEA - 0.8 - Math.min(9, -d * 0.045) : SEA - 0.6 + Math.min(d, 60) * 0.06 + Math.max(0, d - 60) * 0.012;
-  h += smoothstep(40, 220, d) * 3 * fbm(x / 420, z / 420, 3, S + 3);
-  let mount = 0;
-  for (const p of PEAKS) {
-    const dx = x - p.x, dz = z - p.z, d2 = (dx * dx + dz * dz) / (p.r * p.r);
-    if (d2 < 4) mount += p.h * Math.exp(-d2 * 2.3);
+// ---------------------------------------------------------------- the real ground (public/assets/maps/coast)
+// heights every 10 m over 8.4 km, every 40 m over 24 km (beyond the map's edge), the land cover every 10 m
+const HG = { n: 841, res: 10, o: -4200 }, FG = { n: 601, res: 40, o: -12000 }, CG = { n: 801, res: 10, o: -4000 };
+let HGT = null, FAR = null, COV = null, SHORE = null;
+// WorldCover's classes (and the bake's: 80 the sea, 81 inland water)
+export const COVER = { TREES: 10, SHRUB: 20, GRASS: 30, CROPS: 40, BUILT: 50, BARE: 60, SEA: 80, LAKE: 81, WETLAND: 90, MANGROVE: 95 };
+
+/** Heights from the bake: uint16 in 5 cm steps from -50 m, each row as differences along it. */
+function decode(buf, n) {
+  const d = new Uint16Array(buf.buffer, buf.byteOffset, n * n), out = new Float32Array(n * n);
+  for (let k = 0; k < n; k++) {
+    let q = 0;
+    for (let i = 0; i < n; i++) { q = (q + d[k * n + i]) & 0xffff; out[k * n + i] = q / 20 - 50; }
   }
-  if (mount > 0.5) h += mount * (0.55 + 0.6 * ridged(x / 260, z / 260, 5, S + 10));
-  const e = Math.max(x, Math.abs(z));
-  if (e > 900) h += smoothstep(900, 1180, e) * (160 + 100 * ridged(x / 240, z / 240, 4, S + 20));
+  return out;
+}
+
+/** How far each 10 m cell is from the sea (m), by two sweeps of a chamfer distance (0 at sea). */
+function shoreDistance(C, n) {
+  const D = new Float32Array(n * n).fill(1e6), d1 = 10, d2 = 14.142;
+  for (let i = 0; i < n * n; i++) if (C[i] === COVER.SEA) D[i] = 0;
+  for (let k = 0; k < n; k++) for (let i = 0; i < n; i++) {
+    const o = k * n + i; let v = D[o];
+    if (i > 0) v = Math.min(v, D[o - 1] + d1);
+    if (k > 0) { v = Math.min(v, D[o - n] + d1); if (i > 0) v = Math.min(v, D[o - n - 1] + d2); if (i < n - 1) v = Math.min(v, D[o - n + 1] + d2); }
+    D[o] = v;
+  }
+  for (let k = n - 1; k >= 0; k--) for (let i = n - 1; i >= 0; i--) {
+    const o = k * n + i; let v = D[o];
+    if (i < n - 1) v = Math.min(v, D[o + 1] + d1);
+    if (k < n - 1) { v = Math.min(v, D[o + n] + d1); if (i < n - 1) v = Math.min(v, D[o + n + 1] + d2); if (i > 0) v = Math.min(v, D[o + n - 1] + d2); }
+    D[o] = v;
+  }
+  return D;
+}
+
+async function read(name) {
+  if (typeof window === 'undefined') {
+    const fs = await import('node:fs/promises');
+    return new Uint8Array(await fs.readFile(new URL(`../../../public/assets/maps/coast/${name}.bin`, import.meta.url)));
+  }
+  const r = await fetch(`/assets/maps/coast/${name}.bin`);
+  if (!r.ok) throw new Error(`the Konkan Coast's ${name}: ${r.status}`);
+  return new Uint8Array(await r.arrayBuffer());
+}
+
+/** Fetch the ground's grids (once), and lay out what stands on them (the villages' houses). */
+async function load() {
+  if (HGT) return;
+  const [h, f, c] = await Promise.all(['height', 'far', 'cover'].map(read));
+  HGT = decode(h, HG.n); FAR = decode(f, FG.n); COV = c;
+  SHORE = shoreDistance(COV, CG.n);
+  villages();
+}
+
+/** Bicubic (Catmull-Rom) height on a grid. */
+function cubic(G, g, x, z) {
+  const n = g.n, fx = clamp((x - g.o) / g.res, 1, n - 2.001), fz = clamp((z - g.o) / g.res, 1, n - 2.001);
+  const i = Math.floor(fx), k = Math.floor(fz), tx = fx - i, tz = fz - k;
+  const w = (t) => [((-t + 2) * t - 1) * t / 2, ((3 * t - 5) * t * t + 2) / 2, ((-3 * t + 4) * t + 1) * t / 2, (t - 1) * t * t / 2];
+  const wx = w(tx), wz = w(tz);
+  let h = 0;
+  for (let b = 0; b < 4; b++) {
+    const o = (k - 1 + b) * n + i - 1;
+    h += (G[o] * wx[0] + G[o + 1] * wx[1] + G[o + 2] * wx[2] + G[o + 3] * wx[3]) * wz[b];
+  }
   return h;
 }
-const roughOf = (h) => clamp((h - 20) / 120, 0.15, 1);
+
+/** The real ground's height: the 10 m grid over the map and just round it, the 40 m grid beyond, blended between. */
+export function groundHeight(x, z) {
+  const e = Math.max(Math.abs(x), Math.abs(z));
+  if (e < 4100) return cubic(HGT, HG, x, z);
+  const far = cubic(FAR, FG, x, z);
+  return e >= 4180 ? far : lerp(cubic(HGT, HG, x, z), far, (e - 4100) / 80);
+}
+
+const cell = (x, z) => clamp(Math.round((z - CG.o) / CG.res), 0, CG.n - 1) * CG.n + clamp(Math.round((x - CG.o) / CG.res), 0, CG.n - 1);
+/** The land cover at a point (WorldCover's class). */
+export const coverAt = (x, z) => COV[cell(x, z)];
+/**
+ * The land cover with its edges frayed: looked up a few metres off, by a noise (the 10 m cells' squares would show
+ * on the ground as stairs along the edge of a beach, a field or a village).
+ */
+const softCover = (x, z) => COV[cell(x + 14 * (vnoise(x / 13, z / 13, S + 61) - 0.5), z + 14 * (vnoise(x / 13 + 5.3, z / 13 - 2.9, S + 62) - 0.5))];
+/** How far a point is from the sea (m; bilinear between the 10 m cells). */
+export function shoreAt(x, z) {
+  const fx = clamp((x - CG.o) / CG.res, 0, CG.n - 1.001), fz = clamp((z - CG.o) / CG.res, 0, CG.n - 1.001);
+  const i = Math.floor(fx), k = Math.floor(fz), tx = fx - i, tz = fz - k, n = CG.n, o = k * n + i;
+  return (SHORE[o] * (1 - tx) + SHORE[o + 1] * tx) * (1 - tz) + (SHORE[o + n] * (1 - tx) + SHORE[o + n + 1] * tx) * tz;
+}
+
+const roughOf = () => 0.12;                   // (the real ground has its own hills: only a little roughness on it)
 
 // ---------------------------------------------------------------- the roads
-const P = Math.PI;
 /**
  * A road's line from its corners: [x, z, r] (r: the corner's radius, m), each corner rounded off with an arc of its
  * radius (less where the legs either side are too short for it), then points every `step` metres along it. Even
@@ -95,214 +161,352 @@ function road(corners, step = 8) {
   if (hyp(out[out.length - 1][0] - last[0], out[out.length - 1][1] - last[1]) > step * 0.3) out.push(last); else out[out.length - 1] = last;
   return out.map(([x, z]) => [Math.round(x * 10) / 10, Math.round(z * 10) / 10]);
 }
+/** A routed road's corners, each to be rounded with radius r. */
+const rounded = (name, r) => ROUTES[name].map(([x, z], i, a) => (i === 0 || i === a.length - 1 ? [x, z] : [x, z, r]));
 
-// the ring: from the middle of its coastal side round clockwise (north, east, south, west) back to where it began; its
-// four bends 230 m round, the gentlest of kinks along its sides
-const W = -560, E = 770, NZ = -820, SZ = 820;
-const RING = road([
-  [W, 40], [W + 4, -160, 1500], [W - 6, -400, 1500], [W, NZ, 230], [-60, NZ - 6, 1500], [300, NZ + 4, 1500], [E, NZ, 230],
-  [E, -300, 1500], [E + 6, 20, 1500], [E, SZ, 230], [300, SZ + 4, 1500], [-60, SZ - 4, 1500], [W, SZ, 230],
-  [W - 6, 400, 1500], [W + 5, 220, 1500], [W, 40],
-]);
+/** The point at distance d (m) along a line; a negative d counts back from its end. */
+function along(pts, d) {
+  let total = 0;
+  for (let i = 1; i < pts.length; i++) total += hyp(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]);
+  let s = d < 0 ? total + d : d;
+  for (let i = 1; i < pts.length; i++) {
+    const L = hyp(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]);
+    if (s <= L) { const t = s / L; return [lerp(pts[i - 1][0], pts[i][0], t), lerp(pts[i - 1][1], pts[i][1], t), Math.atan2(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1])]; }
+    s -= L;
+  }
+  const a = pts[pts.length - 2], b = pts[pts.length - 1];
+  return [b[0], b[1], Math.atan2(b[0] - a[0], b[1] - a[1])];
+}
+/** The point of a line nearest (x, z), and how far along the line it is. */
+function nearestOn(pts, x, z) {
+  let best = Infinity, out = null, run = 0;
+  for (let i = 1; i < pts.length; i++) {
+    const [ax, az] = pts[i - 1], [bx, bz] = pts[i], dx = bx - ax, dz = bz - az, l2 = dx * dx + dz * dz, L = Math.sqrt(l2);
+    const t = clamp(((x - ax) * dx + (z - az) * dz) / l2, 0, 1), px = ax + dx * t, pz = az + dz * t, d = hyp(x - px, z - pz);
+    if (d < best) { best = d; out = { x: px, z: pz, s: run + L * t, d, yaw: Math.atan2(dx, dz) }; }
+    run += L;
+  }
+  return out;
+}
+/** A point beside a road: at distance s along it, off to its side (+ left, going along it) by `off` metres. */
+function beside(pts, s, off) {
+  const [x, z, yaw] = along(pts, s);
+  return [Math.round(x + Math.cos(yaw) * off), Math.round(z - Math.sin(yaw) * off), yaw];
+}
 
-// the ghat road: Ponnur's main street, then up the hills' west face in two hairpins (21 m round) to the top, and down
-// their east side in long bends to the inland highway
-const GHAT = road([
-  [W, 40], [-490, 40, 300], [-420, 41, 300], [-350, 39, 200], [-290, 32, 120], [-195, 0, 90],
-  [-140, -24, 60], [-122, -70, 60], [-122, -126, 21], [-80, -126, 21], [-80, 41, 21], [-38, 41, 21],
-  [-38, -60, 50], [-5, -135, 60], [40, -152, 60], [95, -145, 70], [170, -80, 140], [300, 50, 200],
-  [470, 170, 220], [620, 220, 200], [E, 240],
-], 6);
+const COAST_RD = road(rounded('Coast Road', 250), 8);
+const KASHID_GHAT = road(rounded('Kashid Ghat', 90), 6);
+const SOUTH_GHAT = road(rounded('South Ghat', 90), 6);
+const PLATEAU_RD = road(rounded('Plateau Road', 250), 8);
+const RIDGE = road(rounded('Ridge Track', 40), 6);
+
+// the airstrip on the tableland: its runway's line (north-west end, south-east end), its apron beside the middle (in
+// the runway's frame: u along it from its middle, v across it, + to the south-west, toward the plateau road), and a
+// taxiway from the runway across the apron to the road
+export const RUNWAY = [[1225, -376], [1775, 576]];
+const RW_LEN = hyp(RUNWAY[1][0] - RUNWAY[0][0], RUNWAY[1][1] - RUNWAY[0][1]);
+const RU = [(RUNWAY[1][0] - RUNWAY[0][0]) / RW_LEN, (RUNWAY[1][1] - RUNWAY[0][1]) / RW_LEN], RV = [-RU[1], RU[0]];
+const RW_MID = [(RUNWAY[0][0] + RUNWAY[1][0]) / 2, (RUNWAY[0][1] + RUNWAY[1][1]) / 2];
+export const APRON = { u: 0, v: 95, hu: 60, hv: 40 };
+const runwayFrame = (x, z) => { const dx = x - RW_MID[0], dz = z - RW_MID[1]; return [dx * RU[0] + dz * RU[1], dx * RV[0] + dz * RV[1]]; };
+const fromRunway = (u, v) => [RW_MID[0] + RU[0] * u + RV[0] * v, RW_MID[1] + RU[1] * u + RV[1] * v];
+const APRON_MID = fromRunway(APRON.u, APRON.v);
+const TAXI_TO = nearestOn(PLATEAU_RD, APRON_MID[0], APRON_MID[1]);
+
 export const TRAILS = [
-  { name: 'Coast Highway', kind: 'road', width: 7, lanes: 4, grade: 0.06, smooth: 60, cut: 8, shoulder: 12, level: true, bridge: true, verge: { puddles: 5 }, points: RING },
-  { name: 'Ghat Road', kind: 'road', width: 4.2, lanes: 2, grade: 0.11, smooth: 24, cut: 7, shoulder: 9, level: true, verge: { puddles: 8 }, points: GHAT },
-  { name: 'Market Road', kind: 'road', width: 3.6, lanes: 2, grade: 0.08, cut: 4, level: true, verge: { puddles: 6 }, points: road([[-470, 40], [-471, -60, 150], [-462, -130]]) },
-  { name: 'Temple Road', kind: 'road', width: 3.6, lanes: 2, grade: 0.08, cut: 4, level: true, verge: { puddles: 6 }, points: road([[-400, 41], [-399, 140, 150], [-410, 205]]) },
-  { name: 'Lighthouse Road', kind: 'road', width: 3.6, lanes: 2, grade: 0.08, cut: 4, level: true, verge: { puddles: 6 }, points: road([[W, -300], [-630, -305, 60], [-668, -360, 120], [-700, -515]]) },
+  { name: 'Coast Road', kind: 'road', width: 3.8, lanes: 2, grade: 0.08, smooth: 40, cut: 6, shoulder: 9, level: true, verge: { puddles: 3 }, points: COAST_RD },
+  { name: 'Kashid Ghat', kind: 'road', width: 3.6, lanes: 2, grade: 0.11, smooth: 24, cut: 7, shoulder: 8, level: true, verge: { puddles: 3 }, points: KASHID_GHAT },
+  { name: 'South Ghat', kind: 'road', width: 3.6, lanes: 2, grade: 0.11, smooth: 24, cut: 7, shoulder: 8, level: true, verge: { puddles: 3 }, points: SOUTH_GHAT },
+  { name: 'Plateau Road', kind: 'road', width: 4.0, lanes: 2, grade: 0.07, smooth: 40, cut: 8, shoulder: 10, level: true, verge: { puddles: 2 }, points: PLATEAU_RD },
+  { name: 'Ridge Track', kind: 'trail', width: 2.3, grade: 0.22, smooth: 12, cut: 2, shoulder: 5, points: RIDGE },
   { name: 'Runway', kind: 'road', width: 15, lanes: 0, runway: true, grade: 0.006, smooth: 80, cut: 10, shoulder: 14, level: true, points: road(RUNWAY, 20) },
-  { name: 'Taxiway', kind: 'road', width: 5, lanes: 0, grade: 0.03, smooth: 30, cut: 6, shoulder: 8, level: true, points: road([[540, -310], [E, -305]], 15) },
+  { name: 'Taxiway', kind: 'road', width: 5, lanes: 0, grade: 0.05, smooth: 30, cut: 6, shoulder: 8, level: true, points: road([fromRunway(0, 0).map(Math.round), APRON_MID.map(Math.round), [Math.round(TAXI_TO.x), Math.round(TAXI_TO.z)]], 10) },
 ];
-
-// the river: down from the hills between their southern summits and out to sea under the coastal highway
-export const RIVER = {
-  points: [[150, 420], [60, 430], [-40, 450], [-150, 470], [-260, 482], [-380, 496], [-480, 510], [-560, 520], [-640, 528], [-720, 536], [-820, 545], [-1000, 552], [-1180, 560]],
-  widthStart: 8, widthEnd: 18, depthStart: 0.9, depthEnd: 1.6, cut: 1.6,
-  fords: [],
-};
-
-export const STATION = { x: -425, z: 74, name: 'Ponnur Motor Station' };
-export const SPAWN = { x: -432, z: 41, yaw: -P / 2 };                 // on the main street, facing the coast highway
 
 // ---------------------------------------------------------------- the places
+// Kashid: where the ghat leaves the coast road, the village round it; the station on the inland side of the junction
+const KASHID = { x: KASHID_GHAT[0][0], z: KASHID_GHAT[0][1] };
+const [SPX, SPZ, SPYAW] = (() => { const q = nearestOn(COAST_RD, KASHID.x, KASHID.z); return along(COAST_RD, q.s + 40); })();
+const ST = beside(COAST_RD, nearestOn(COAST_RD, KASHID.x, KASHID.z).s + 70, -26);
+export const STATION = { x: ST[0], z: ST[1], name: 'Kashid Motor Station' };
+// the start: on the coast road by the station, facing south along it
+export const SPAWN = { x: Math.round(SPX), z: Math.round(SPZ), yaw: SPYAW };
+
+const coastLen = (() => { let L = 0; for (let i = 1; i < COAST_RD.length; i++) L += hyp(COAST_RD[i][0] - COAST_RD[i - 1][0], COAST_RD[i][1] - COAST_RD[i - 1][1]); return L; })();
+const KASHID_S = nearestOn(COAST_RD, KASHID.x, KASHID.z).s;
+const SOUTH_S = nearestOn(COAST_RD, SOUTH_GHAT[0][0], SOUTH_GHAT[0][1]).s;
+const plateauN = nearestOn(KASHID_GHAT, PLATEAU_RD[0][0], PLATEAU_RD[0][1]).s;
+const plateauS = nearestOn(SOUTH_GHAT, PLATEAU_RD[PLATEAU_RD.length - 1][0], PLATEAU_RD[PLATEAU_RD.length - 1][1]).s;
+const ridgeAt = nearestOn(KASHID_GHAT, RIDGE[0][0], RIDGE[0][1]).s;
+
+const B = (id, name, [x, z]) => ({ id, name, x, z });
 export const BEACONS = [
-  { id: 0, name: 'Ponnur Lighthouse', x: -696, z: -522 },
-  { id: 1, name: 'Ponnur Beach', x: -662, z: -340 },
-  { id: 2, name: 'Market Square', x: -462, z: -128 },
-  { id: 3, name: 'Temple Tank', x: -410, z: 204 },
-  { id: 4, name: 'River Bridge', x: -548, z: 525 },
-  { id: 5, name: 'Ghat Top', x: 72, z: -146 },
-  { id: 6, name: 'Hairpin Bend', x: -101, z: -126 },
-  { id: 7, name: 'Airfield Tower', x: 636, z: -338 },
-  { id: 8, name: 'Runway End', x: 540, z: -676 },
-  { id: 9, name: 'North Cape', x: -470, z: -790 },
-  { id: 10, name: 'Toll Plaza', x: 300, z: -810 },
-  { id: 11, name: 'East Highway', x: 780, z: 20 },
-  { id: 12, name: 'South Bay', x: -300, z: 818 },
-  { id: 13, name: 'Palm Grove', x: -585, z: 300 },
-  { id: 14, name: 'Ghat Foot', x: 676, z: 236 },
+  B(0, 'Kashid Beach', beside(COAST_RD, KASHID_S + 380, 22)),
+  B(1, 'Kashid Village', beside(COAST_RD, KASHID_S - 160, -14)),
+  B(2, 'First Hairpin', beside(KASHID_GHAT, 700, 9)),
+  B(3, 'Ghat Viewpoint', beside(KASHID_GHAT, ridgeAt - 180, 10)),
+  B(4, 'Phansad Plateau', beside(KASHID_GHAT, plateauN + 900, 10)),
+  B(5, 'East Ghat', beside(KASHID_GHAT, -350, 9)),
+  B(6, 'Airstrip Apron', fromRunway(APRON.u + 30, APRON.v + 20).map(Math.round)),
+  B(7, 'Plateau Crossing', beside(PLATEAU_RD, 1300, 10)),
+  B(8, 'South Ghat Foot', beside(SOUTH_GHAT, 900, 9)),
+  B(9, 'Paddy Valley', beside(SOUTH_GHAT, 2200, -10)),
+  B(10, 'South Plateau', beside(SOUTH_GHAT, plateauS + 1500, 9)),
+  B(11, 'North Headland', beside(COAST_RD, 1500, 10)),
+  B(12, 'Rocky Point', beside(COAST_RD, 3600, -12)),
+  B(13, 'South Shore', beside(COAST_RD, coastLen - 1600, -12)),
+  B(14, 'South Cove', beside(COAST_RD, coastLen - 500, -12)),
+  B(15, 'Ridge Track', beside(RIDGE, 1500, 6)),
+  B(16, 'Reservoir Dam', beside(RIDGE, -1100, 7)),
+  B(17, 'North Valley', beside(RIDGE, -250, 7)),
 ];
 
+/** The landmarks: fixed ones here; the villages' houses are added once the ground is loaded (villages()). */
 export const LANDMARKS = [
-  { type: 'station', style: 'kerala', x: -425, z: 74, yaw: P, sign: 'Ponnur Motor Station' },
-  { type: 'garage', style: 'kerala', x: -470, z: 74, yaw: P },
-  { type: 'lighthouse', x: -712, z: -540, yaw: 0 },
-  { type: 'house', x: -505, z: 18, yaw: P }, { type: 'house', x: -380, z: 16, yaw: P }, { type: 'house', x: -345, z: 66, yaw: 0 },
-  { type: 'house', x: -492, z: -50, yaw: P / 2 }, { type: 'house', x: -448, z: -95, yaw: -P / 2 }, { type: 'house', x: -420, z: 140, yaw: -P / 2 },
-  { type: 'house', x: -380, z: 180, yaw: P / 2 }, { type: 'house', x: -520, z: 70, yaw: 0 },
-  { type: 'chaistall', x: -455, z: 16, yaw: P }, { type: 'chaistall', x: -308, z: 54, yaw: 0 },
-  { type: 'busstop', x: -405, z: 20, yaw: P }, { type: 'busstop', x: 700, z: 222, yaw: P },
-  { type: 'lookout', x: 82, z: -168, yaw: 0.3 },
-  { type: 'mast', x: 646, z: -350, yaw: 0 },
+  { type: 'station', style: 'kerala', x: STATION.x, z: STATION.z, yaw: SPYAW + P, sign: STATION.name },
+  { type: 'garage', style: 'kerala', ...(([x, z]) => ({ x, z }))(beside(COAST_RD, KASHID_S + 115, -24)), yaw: SPYAW + P },
+  { type: 'busstop', ...(([x, z]) => ({ x, z }))(beside(COAST_RD, KASHID_S - 40, -9)), yaw: SPYAW + P / 2 },
+  { type: 'chaistall', ...(([x, z]) => ({ x, z }))(beside(COAST_RD, KASHID_S + 260, 12)), yaw: SPYAW - P / 2 },
+  { type: 'chaistall', ...(([x, z]) => ({ x, z }))(beside(KASHID_GHAT, ridgeAt - 150, -11)), yaw: 0 },
+  { type: 'lookout', ...(([x, z]) => ({ x, z }))(beside(KASHID_GHAT, ridgeAt - 200, 22)), yaw: 0.3 },
+  { type: 'mast', ...(([x, z]) => ({ x, z }))(fromRunway(APRON.u + 75, APRON.v + 30).map(Math.round)), yaw: 0 },
+  { type: 'busstop', ...(([x, z]) => ({ x, z }))(beside(SOUTH_GHAT, 260, -9)), yaw: 0 },
+  { type: 'chaistall', ...(([x, z]) => ({ x, z }))(beside(SOUTH_GHAT, 520, 11)), yaw: 0 },
 ];
+const FIXED = LANDMARKS.length;
+
+/**
+ * The villages: a house wherever WorldCover sees built-up land (one in every few of its cells, not on a road, not in
+ * the water, not too steep), facing the nearest road.
+ */
+function villages() {
+  LANDMARKS.length = FIXED;
+  const roads = [COAST_RD, KASHID_GHAT, SOUTH_GHAT, PLATEAU_RD];
+  const taken = [];
+  for (let k = 2; k < CG.n - 2; k += 2) for (let i = 2; i < CG.n - 2; i += 2) {
+    if (COV[k * CG.n + i] !== COVER.BUILT) continue;
+    const x = CG.o + i * CG.res + (vnoise(i * 0.37, k * 0.37, S + 5) - 0.5) * 8, z = CG.o + k * CG.res + (vnoise(i * 0.37, k * 0.37, S + 6) - 0.5) * 8;
+    if (vnoise(x / 9, z / 9, S + 7) < 0.35) continue;
+    let near = null;
+    for (const r of roads) { const q = nearestOn(r, x, z); if (!near || q.d < near.d) near = q; }
+    if (near.d < 12 || near.d > 400) continue;
+    if (taken.some(([a, b]) => hyp(a - x, b - z) < 16)) continue;
+    const h0 = groundHeight(x, z), sl = Math.max(Math.abs(groundHeight(x + 6, z) - groundHeight(x - 6, z)), Math.abs(groundHeight(x, z + 6) - groundHeight(x, z - 6))) / 12;
+    if (h0 < SEA + 1.2 || sl > 0.2 || hyp(x - STATION.x, z - STATION.z) < 40) continue;
+    taken.push([x, z]);
+    const yaw = Math.round(Math.atan2(near.x - x, near.z - z) / (P / 2)) * (P / 2);
+    LANDMARKS.push({ type: vnoise(x / 30, z / 30, S + 8) > 0.8 ? 'chaistall' : 'house', x: Math.round(x), z: Math.round(z), yaw });
+  }
+}
 
 // ---------------------------------------------------------------- events (game/Events.js builds them)
+const DRAG_FROM = fromRunway(RW_LEN / 2 - 60, 0), DRAG_TO = fromRunway(RW_LEN / 2 - 60 - 402, 0);
+// (the top of the escarpment, where the ghat comes over onto the tableland: the highest of its climb from Kashid; and
+// the straightest stretch of Kashid's sand, down its middle)
+const GHAT_TOP = [261, -948];
 /**
- * The events: the drag down the runway, the hill climb up the ghat road, and a dash along the beach's sand.
+ * The events: the drag down the airstrip, the hill climb up the Kashid ghat, and a dash along Kashid's sand.
  */
 export const EVENTS = [
-  { id: 'runwaydrag', kind: 'line', name: 'Runway Drag', desc: 'A quarter mile flat out from a standing start down the airstrip\'s runway.',
-    line: [[540, 40], [540, -362]], at: [0.5, 1], r: 18, par: { gold: 17.5, silver: 20.5, bronze: 25 }, prize: 1 },
-  { id: 'ghatclimb', kind: 'trail', name: 'Ghat Hill Climb', desc: 'From the edge of Ponnur up the hairpins of the ghat road to the top of the pass.',
-    trail: 'Ghat Road', from: [-240, 18], to: [49, -151], gap: 110, r: 10, dy: 6, par: { gold: 52, silver: 62, bronze: 76 }, prize: 1.4 },
-  { id: 'beachdash', kind: 'line', name: 'Beach Dash', desc: 'Along the water\'s edge on the soft sand of Ponnur Beach.',
-    line: [[-698, -240], [-702, 40]], at: [0.35, 0.7, 1], r: 14, par: { gold: 21, silver: 25, bronze: 31 }, prize: 0.9 },
+  { id: 'runwaydrag', kind: 'line', name: 'Airstrip Drag', desc: 'A quarter mile flat out from a standing start down the plateau airstrip.',
+    line: [DRAG_FROM.map(Math.round), DRAG_TO.map(Math.round)], at: [0.5, 1], r: 18, par: { gold: 17.5, silver: 20.5, bronze: 25 }, prize: 1 },
+  { id: 'ghatclimb', kind: 'trail', name: 'Kashid Ghat Hill Climb', desc: 'From Kashid up the hairpins of the ghat to the edge of the plateau.',
+    trail: 'Kashid Ghat', from: along(KASHID_GHAT, 160).slice(0, 2).map(Math.round), to: GHAT_TOP, gap: 150, r: 10, dy: 6, par: { gold: 190, silver: 220, bronze: 265 }, prize: 1.5 },
+  { id: 'beachdash', kind: 'line', name: 'Kashid Beach Dash', desc: 'Along the water\'s edge on the soft sand of Kashid beach.',
+    line: [[-2270, -1500], [-1994, -700]], at: [0.35, 0.7, 1], r: 14, par: { gold: 48, silver: 57, bronze: 70 }, prize: 0.9 },
 ];
 
 /**
- * The checkpoint races (game/Races.js): the whole ring, its two long straights, the ghat road end to end.
+ * The checkpoint races (game/Races.js): the loop over the hills, the coast road end to end, the ghat over the
+ * plateau, and the plateau road.
  */
+const loopVia = [
+  along(COAST_RD, KASHID_S + 200), along(COAST_RD, (KASHID_S + SOUTH_S) / 2), along(COAST_RD, SOUTH_S - 120),
+  along(SOUTH_GHAT, 1500), along(SOUTH_GHAT, plateauS - 400),
+  along(PLATEAU_RD, 600), along(PLATEAU_RD, 1500), along(PLATEAU_RD, 2300),
+  along(KASHID_GHAT, plateauN - 900), along(KASHID_GHAT, 1400), along(KASHID_GHAT, 300),
+  along(COAST_RD, KASHID_S + 60),
+].map(([x, z]) => [Math.round(x), Math.round(z)]);
 export const RACES = [
-  { id: 'ringcircuit', kind: 'circuit', name: 'Coast Ring Circuit', desc: 'A lap of the four-lane ring: up the coast, across the north, down the inland straight and back by the south bay.',
-    via: [[-556, -100], [-480, -775], [200, -818], [770, -380], [770, 380], [200, 822], [-480, 778], [-560, 200], [-560, 60]], laps: 1, cps: 10, r: 14, par: { gold: 215, silver: 260, bronze: 320 }, prize: 1.8 },
-  { id: 'coastsprint', kind: 'rally', name: 'Coast Highway Sprint', desc: 'North from the river bridge along the coastal straight to the north cape.',
-    via: [[-558, 470], [-556, 100], [-560, -380], [-555, -560]], cps: 5, r: 14, par: { gold: 46, silver: 55, bronze: 68 }, prize: 1.2 },
-  { id: 'inlandsprint', kind: 'rally', name: 'Inland Straight Sprint', desc: 'South down the inland highway past the airfield: the longest straight on the coast.',
-    via: [[770, -560], [775, -200], [775, 200], [770, 560]], cps: 5, r: 14, par: { gold: 44, silver: 53, bronze: 65 }, prize: 1.2 },
-  { id: 'ghatrally', kind: 'rally', name: 'Ghat Road Rally', desc: 'Ponnur to the inland highway over the ghat: the main street, the hairpins and the long bends down the far side.',
-    trail: 'Ghat Road', from: [-420, 41], cps: 7, r: 10, par: { gold: 95, silver: 115, bronze: 140 }, prize: 1.5 },
+  { id: 'konkanloop', kind: 'circuit', name: 'Konkan Loop', desc: 'A lap of the hills: south along the coast, up the south ghat, across the plateau and down the Kashid ghat\'s hairpins.',
+    via: loopVia, laps: 1, cps: 12, r: 14, par: { gold: 560, silver: 660, bronze: 800 }, prize: 2.4 },
+  { id: 'coastsprint', kind: 'rally', name: 'Coast Road Sprint', desc: 'The coast road from end to end: round the northern headland, behind Kashid beach and down the shore to the south.',
+    trail: 'Coast Road', from: COAST_RD[6], cps: 8, r: 14, par: { gold: 330, silver: 390, bronze: 470 }, prize: 1.8 },
+  { id: 'ghatrally', kind: 'rally', name: 'Kashid Ghat Rally', desc: 'Kashid to the eastern edge of the map over the ghat: the hairpins, then across the tableland and its valleys.',
+    trail: 'Kashid Ghat', from: KASHID_GHAT[4], cps: 9, r: 10, par: { gold: 440, silver: 500, bronze: 600 }, prize: 1.8 },
+  { id: 'plateausprint', kind: 'rally', name: 'Plateau Sprint', desc: 'Across the Phansad tableland from the Kashid ghat to the south ghat, past the airstrip.',
+    trail: 'Plateau Road', from: PLATEAU_RD[3], cps: 5, r: 14, par: { gold: 78, silver: 90, bronze: 108 }, prize: 1.2 },
 ];
 
-/** The party modes' places (game/Modes.js): the elimination arena on the airfield's apron, the hill on the ghat top. */
+/** The party modes' places (game/Modes.js): the elimination arena on the airstrip's apron, the hill a ghat lookout. */
+const HILL = beside(KASHID_GHAT, ridgeAt - 200, 3);
 export const MODES = {
-  arena: { x: 610, z: -310, yaw: 0 },
-  hill: { x: 72, z: -146, r: 16, name: 'Ghat Top' },
-  hillStart: [-420, 41],
-  hillPar: { gold: 75, silver: 92, bronze: 115 },
+  arena: { x: Math.round(APRON_MID[0]), z: Math.round(APRON_MID[1]), yaw: Math.atan2(RU[0], RU[1]) },
+  hill: { x: HILL[0], z: HILL[1], r: 16, name: 'Ghat Viewpoint' },
+  hillStart: [Math.round(KASHID.x), Math.round(KASHID.z)],
+  hillPar: { gold: 110, silver: 130, bronze: 160 },
 };
 
 // ---------------------------------------------------------------- the generator's hooks
-const runwayLen = hyp(RUNWAY[1][0] - RUNWAY[0][0], RUNWAY[1][1] - RUNWAY[0][1]);
-let apronLevel = 0, townLevel = 0;
+let apronLevel = 0;
+const lakeLevels = new Map();                       // (each inland water's cell -> its level, found once)
 const gen = {
-  // the town's buildings as Kerala's; the lighthouse's tower a ring of posts
-  walls: { ...KERALA_WALLS, lighthouse: (L, wall) => { for (let k = 0; k < 8; k++) { const a = k / 8 * 2 * P, b = (k + 1) / 8 * 2 * P; wall(L, 3.2 * Math.cos(a), 3.2 * Math.sin(a), 3.2 * Math.cos(b), 3.2 * Math.sin(b), 0.4); } } },
+  // the villages' buildings as Kerala's
+  walls: { ...KERALA_WALLS },
   prepare({ coarseAt }) {
-    // the apron level with the runway's middle; the town on the level of its main street
+    // the airstrip level with its runway's middle
     let s = 0;
     for (let k = 0; k <= 20; k++) s += coarseAt(lerp(RUNWAY[0][0], RUNWAY[1][0], k / 20), lerp(RUNWAY[0][1], RUNWAY[1][1], k / 20));
     apronLevel = s / 21;
-    townLevel = coarseAt(TOWN.x, TOWN.z);
   },
-  // the plain and the town smooth; the hills keep their bumps
-  detail(x, z) { return x - shoreX(z) < 300 || x > 420 ? 0.35 : 1; },
+  // the coastal plain and the tableland smooth; the slopes keep their bumps
+  detail(x, z) { return shoreAt(x, z) < 400 ? 0.35 : 0.8; },
   fine(x, z, h) {
-    // the town's level ground, the airfield's apron and the land along the runway
-    const td = hyp(x - TOWN.x, z - TOWN.z);
-    if (td < TOWN.r * 1.4) h = lerp(h, townLevel + 0.3 * fbm(x / 60, z / 60, 2, S + 30), smoothstep(TOWN.r * 1.4, TOWN.r, td) * 0.85);
-    const ax = Math.abs(x - APRON.x) - APRON.hw, az = Math.abs(z - APRON.z) - APRON.hd, ad = Math.max(ax, az);
+    // the airstrip's level ground: the apron, and the land along the runway
+    const [u, v] = runwayFrame(x, z);
+    const ad = Math.max(Math.abs(u - APRON.u) - APRON.hu, Math.abs(v - APRON.v) - APRON.hv);
     if (ad < 25) h = lerp(h, apronLevel, smoothstep(25, 0, ad));
-    const t = clamp(((x - RUNWAY[0][0]) * (RUNWAY[1][0] - RUNWAY[0][0]) + (z - RUNWAY[0][1]) * (RUNWAY[1][1] - RUNWAY[0][1])) / (runwayLen * runwayLen), -0.08, 1.08);
-    const rd = hyp(x - lerp(RUNWAY[0][0], RUNWAY[1][0], t), z - lerp(RUNWAY[0][1], RUNWAY[1][1], t));
-    if (rd < 70) h = lerp(h, apronLevel, smoothstep(70, 30, rd) * 0.9);
+    const ru = Math.abs(u) - RW_LEN / 2 - 40, rd = Math.max(ru, Math.abs(v) - 30);
+    if (rd < 45) h = lerp(h, apronLevel, smoothstep(45, 0, rd) * 0.9);
     return h;
   },
-  // the sea: everything west of the waterline, at the sea's level
-  water({ setWater }) {
-    for (let z = -1024; z <= 1024; z += 2) for (let x = -1024; x < shoreX(z) + 6; x += 2) setWater(x, z, SEA);
+  // the sea (its water reaching up under the beach), and the reservoir and the ponds at their levels
+  water({ setWater, hAt, waterRes }) {
+    const lakes = new Map();
+    for (let z = -HALF; z <= HALF; z += waterRes) {
+      for (let x = -HALF; x <= HALF; x += waterRes) {
+        const c = coverAt(x, z);
+        if (c === COVER.SEA || (shoreAt(x, z) < 40 && hAt(x, z) < SEA + 0.1)) setWater(x, z, SEA);
+        else if (c >= COVER.LAKE && c < COVER.WETLAND) {
+          let lv = lakeLevels.get(cell(x, z));
+          if (lv === undefined) lv = lakeLevel(x, z);
+          setWater(x, z, lv);
+          lakes.set(lv, true);
+        }
+      }
+    }
   },
   surface(x, z, h, sl, s) {
-    const d = x - shoreX(z);
-    if (d < 58 + 14 * fbm(x / 40, z / 40, 2, S + 40) && h < SEA + 4.5) return SURFACE.SAND;          // the beach
-    const ax = Math.abs(x - APRON.x) - APRON.hw, az = Math.abs(z - APRON.z) - APRON.hd;
-    if (ax < 0 && az < 0) return SURFACE.ROAD;                                                         // the apron
-    if (s === SURFACE.DIRT && hyp(x - TOWN.x, z - TOWN.z) > TOWN.r) return SURFACE.GRASS;           // (dirt only in town)
+    const c = softCover(x, z), d = shoreAt(x, z);
+    if (s === SURFACE.ROCK) return s;
+    // the beach: WorldCover's bare sand by the sea, and the strip at the waterline
+    if ((c === COVER.BARE && d < 250) || (d < 30 + 12 * vnoise(x / 30, z / 30, S + 40) && h < SEA + 3.5) || c === COVER.SEA) return SURFACE.SAND;
+    const [u, v] = runwayFrame(x, z);
+    if (Math.abs(u - APRON.u) < APRON.hu && Math.abs(v - APRON.v) < APRON.hv) return SURFACE.ROAD;   // the apron
+    if (c === COVER.WETLAND || c === COVER.MANGROVE) return SURFACE.MUD;
+    if (c === COVER.BARE) return vnoise(x / 14, z / 14, S + 41) > 0.5 ? SURFACE.ROCK : SURFACE.DIRT;   // laterite
+    // paddy fields (dry: stubble and bare earth), village ground trodden to dirt
+    if (c === COVER.CROPS) return vnoise(x / 9, z / 9, S + 42) > 0.45 ? SURFACE.DIRT : SURFACE.GRASS;
+    if (c === COVER.BUILT) return vnoise(x / 6, z / 6, S + 43) > 0.4 ? SURFACE.DIRT : SURFACE.GRASS;
+    if (s === SURFACE.DIRT) return SURFACE.GRASS;
     return s;
   },
   trees(ctx) {
-    const { H, surf, R, trees: T, clear, cellOf, trailD, trailW, riverD, riverHalf, waterAt, hAt, onCourse } = ctx;
+    const { H, surf, R, trees: T, clear, cellOf, trailD, trailW, waterAt, hAt, onCourse } = ctx;
     const add = (x, z, type, ht, r) => { T.x.push(x); T.y.push(hAt(x, z)); T.z.push(z); T.h.push(ht); T.r.push(r); T.type.push(type); };
+    // how far each 50 m cell is from a road: the woods thick along the roads (what you see), thinner far off them
+    const RC = 50, rn = Math.ceil(2 * HALF / RC) + 1, roadD = new Float32Array(rn * rn).fill(1e6);
+    for (const t of TRAILS) for (const [x, z] of t.points) roadD[Math.round((z + HALF) / RC) * rn + Math.round((x + HALF) / RC)] = 0;
+    for (let pass = 0; pass < 2; pass++) {
+      const [a, b, st] = pass ? [rn * rn - 1, -1, -1] : [0, rn * rn, 1];
+      for (let o = a; o !== b; o += st) {
+        const i = o % rn; let v = roadD[o];
+        const nb = pass ? [[1, 0], [0, 1], [1, 1], [-1, 1]] : [[-1, 0], [0, -1], [-1, -1], [1, -1]];
+        for (const [di, dk] of nb) { const ii = i + di, q = o + dk * rn + di; if (ii >= 0 && ii < rn && q >= 0 && q < rn * rn) v = Math.min(v, roadD[q] + RC * hyp(di, dk)); }
+        roadD[o] = v;
+      }
+    }
+    const nearRoad = (x, z) => roadD[clamp(Math.round((z + HALF) / RC), 0, rn - 1) * rn + clamp(Math.round((x + HALF) / RC), 0, rn - 1)];
     // kinds (the Kerala set): 0 coconut, 1 jungle giant, 2 mango/jack, 3 rubber, 4 banana, 5 bamboo
     const blocked = (x, z) => {
       const idx = cellOf(x, z), tw = trailW(idx);
-      // (the highway and the runway kept clear well back, the other roads a verge's width: the view ahead at speed)
-      if (trailD(idx) < tw + (tw >= 7 ? 20 : 7)) return true;
-      if (riverD(idx) < riverHalf(idx) + 3) return true;
+      // (the roads kept clear a verge's width, the airstrip well back)
+      if (trailD(idx) < tw + (tw >= 7 ? 22 : 6)) return true;
       const wl = waterAt(x, z);
       if (wl > -1e8 && H[idx] < wl + 0.3) return true;
-      if (Math.abs(x - APRON.x) < APRON.hw + 25 && Math.abs(z - APRON.z) < APRON.hd + 25) return true;
+      const [u, v] = runwayFrame(x, z);
+      if (Math.abs(u) < RW_LEN / 2 + 80 && Math.abs(v) < 60 + (Math.abs(u - APRON.u) < APRON.hu + 25 ? 100 : 0)) return true;
       for (const [cx, cz, cr] of clear) if (Math.abs(x - cx) < cr && Math.abs(z - cz) < cr && hyp(x - cx, z - cz) < cr) return true;
       return onCourse(x, z);
     };
     const bare = (s) => s === SURFACE.MUD || s === SURFACE.SAND || s === SURFACE.RIVERBED || s === SURFACE.GRAVEL || s === SURFACE.ROCK || s === SURFACE.ROAD;
-    const STEP = 4;
-    for (let z = -1021; z < 1021; z += STEP) {
-      for (let x = -1021; x < 1021; x += STEP) {
+    const STEP = 6;
+    for (let z = -HALF + 3; z < HALF - 3; z += STEP) {
+      for (let x = -HALF + 3; x < HALF - 3; x += STEP) {
         const px = x + (R() - 0.5) * STEP * 0.9, pz = z + (R() - 0.5) * STEP * 0.9, roll = R(), pick = R();
+        const c = coverAt(px, pz);
+        if (c === COVER.SEA || c === COVER.LAKE) continue;
         const idx = cellOf(px, pz), s = surf[idx];
         if (bare(s)) continue;
-        const d = px - shoreX(pz), h = H[idx], patch = fbm(px / 150, pz / 150, 2, S + 100);
-        // the trees in clumps, open country between them (as a driving game's countryside opens up round its roads):
-        // groves of coconut behind the beach with sand and grass between, woods with clearings on the hills, a copse
-        // here and there on the plain
-        const clump = patch + 0.6 * fbm(px / 70, pz / 70, 2, S + 140);
-        const town = hyp(px - TOWN.x, pz - TOWN.z) < TOWN.r;
+        const d = shoreAt(px, pz), h = H[idx], rd = nearRoad(px, pz);
+        const patch = fbm(px / 150, pz / 150, 2, S + 100) + 0.6 * fbm(px / 60, pz / 60, 2, S + 140);
+        // the forest thick by the roads, thinning away from them (beyond, the ground's own colour carries the woods);
+        // groves of coconut behind the beach, mango and jack round the villages and among the paddy, a few trees
+        // out on the open grass
+        const near = smoothstep(700, 120, rd);
         let dens;
-        if (d < 420) dens = town ? 0.03 : 0.006 + 0.15 * smoothstep(0.1, 0.45, clump);
-        else if (h > 30) dens = 0.012 + 0.2 * smoothstep(0.05, 0.45, clump);
-        else dens = 0.002 + 0.04 * smoothstep(0.3, 0.6, clump);
+        if (c === COVER.TREES) dens = (0.06 + 0.3 * near) * (0.75 + 0.5 * smoothstep(-0.2, 0.4, patch));
+        else if (c === COVER.SHRUB) dens = 0.05 + 0.06 * near;
+        else if (c === COVER.BUILT) dens = 0.08;
+        else if (c === COVER.CROPS) dens = 0.015 + 0.05 * smoothstep(0.2, 0.6, patch);
+        else dens = 0.01 + 0.03 * smoothstep(0.3, 0.6, patch);
+        if (d < 500) dens = Math.max(dens, c === COVER.TREES || c === COVER.BUILT ? 0.22 : 0.06);
         if (roll > dens || blocked(px, pz)) continue;
-        if (d < 420) {
-          if (town) { if (pick < 0.5) add(px, pz, 0, 10 + R() * 9, 0.17); else if (pick < 0.8) add(px, pz, 4, 3 + R() * 2.2, 0.1); else add(px, pz, 2, 8 + R() * 7, 0.28); }
-          else if (pick < 0.86) add(px, pz, 0, 11 + R() * 11, 0.17);
-          else if (pick < 0.94) add(px, pz, 2, 8 + R() * 8, 0.28);
+        if (d < 500 || (c === COVER.BUILT && pick < 0.5)) {
+          if (pick < 0.7) add(px, pz, 0, 11 + R() * 11, 0.17);
+          else if (pick < 0.88) add(px, pz, 2, 8 + R() * 8, 0.28);
           else add(px, pz, 4, 3 + R() * 2.2, 0.1);
           continue;
         }
-        if (h > 30) {
-          if (riverD(idx) < riverHalf(idx) + 25 && pick < 0.4) add(px, pz, 5, 9 + R() * 7, 0.55);
-          else if (pick < 0.4) { const ht = 18 + R() * 12; add(px, pz, 1, ht, 0.35 + ht * 0.012); }
-          else add(px, pz, 2, 8 + R() * 8, 0.28);
+        if (c === COVER.TREES) {
+          // the Phansad forest: the tall evergreen giants and teak on the slopes, mango and jack, bamboo in the hollows
+          const hollow = vnoise(px / 90, pz / 90, S + 150) > 0.72;
+          if (hollow && pick < 0.5) add(px, pz, 5, 9 + R() * 7, 0.55);
+          else if (pick < 0.55) { const ht = 16 + R() * 14; add(px, pz, 1, ht, 0.32 + ht * 0.012); }
+          else add(px, pz, 2, 8 + R() * 9, 0.28);
           continue;
         }
-        if (pick < 0.6) add(px, pz, 2, 8 + R() * 8, 0.28); else add(px, pz, 0, 10 + R() * 10, 0.17);
+        if (pick < 0.65) add(px, pz, 2, 7 + R() * 8, 0.28); else add(px, pz, 0, 10 + R() * 10, 0.17);
       }
     }
   },
 };
 
+/** An inland water's level: a little under the lowest of the ground round it (each cell of it remembered). */
+function lakeLevel(x, z) {
+  // the water's cells, by a fill over the cover grid, and the lowest ground on its shore
+  const start = cell(x, z), code = COV[start], seen = new Set([start]), list = [start];
+  let shore = Infinity;
+  for (let q = 0; q < list.length; q++) {
+    const o = list[q], i = o % CG.n, k = (o - i) / CG.n;
+    for (const [di, dk] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+      const ii = i + di, kk = k + dk;
+      if (ii < 0 || kk < 0 || ii >= CG.n || kk >= CG.n) continue;
+      const nb = kk * CG.n + ii;
+      if (seen.has(nb)) continue;
+      if (COV[nb] === code) { seen.add(nb); list.push(nb); } else shore = Math.min(shore, HGT[(kk + 20) * HG.n + ii + 20]);
+    }
+  }
+  const level = shore - 0.3;
+  for (const o of list) lakeLevels.set(o, level);
+  return level;
+}
+
 /** The map, as the game and the generator see it. */
 export const COAST = {
   id: 'coast', name: 'Konkan Coast', short: 'Coast',
-  blurb: 'Tarmac by the Arabian Sea: a four-lane highway ring with long straights, a ghat road in hairpins over the hills, a beach town and an airstrip.',
-  tagline: 'Old trucks, real physics, good friends. Drive the Konkan Coast together: race the ring, climb the ghat, find its survey beacons.',
+  blurb: 'Eight kilometres of the real Konkan coast round Kashid beach: a coast road by the Arabian Sea, ghat roads in hairpins up to the Phansad tableland, an airstrip on top.',
+  tagline: 'Old trucks, real physics, good friends. Drive the Konkan Coast together: race the loop, climb the ghats, find its survey beacons.',
   seed: SEED, station: STATION, spawn: SPAWN, dealer: 'Konkan Motors',
-  baseHeight, roughOf, gen,
-  river: RIVER, peaks: PEAKS,
+  // 8 km across on a 2 m grid, its landform on 4 m, its water on 4 m (maps/index.js)
+  half: HALF, res: 2, coarse: 4, waterRes: 4,
+  load, baseHeight: groundHeight, roughOf, gen,
+  river: null, peaks: [],
   trails: TRAILS, beacons: BEACONS, landmarks: LANDMARKS, events: EVENTS, races: RACES, modes: MODES,
-  roadSurface: SURFACE.ROAD, puddles: 0,
-  // the sea to the horizon (render/Water.js)
-  sea: { level: SEA },
-  pads: { chaistall: 5, house: 7, busstop: 3, lighthouse: 9 },
+  roadSurface: SURFACE.ROAD, puddles: 0, sandBed: true, boulderMax: 2500,
+  // the sea to the horizon (render/Water.js): drawn as one sheet, not on the water grid
+  sea: { level: SEA, sheet: true },
+  pads: { chaistall: 5, house: 7, busstop: 3, lookout: 7 },
   litter: [0.3, 1, 1, 1, 0.3, 0.8],
   treeStrength: [1, 1, 1, 0.8, 0.05, 1.5],
   young: {
@@ -311,12 +515,12 @@ export const COAST = {
   },
   roadside: {
     fence: 'bamboo', fenceBy: ['house'], fenceReach: 26,
-    byBuilding: { house: ['woodpile', 'drum'], chaistall: ['drum', 'crate', 'drum'], station: ['drum', 'crate'], garage: ['barrel', 'barrel', 'crate'], lighthouse: ['crate', 'drum'] },
-    ring: { house: 7.5, chaistall: 5, station: 8.5, garage: 6.5, lighthouse: 7 },
+    byBuilding: { house: ['woodpile', 'drum'], chaistall: ['drum', 'crate', 'drum'], station: ['drum', 'crate'], garage: ['barrel', 'barrel', 'crate'] },
+    ring: { house: 7.5, chaistall: 5, station: 8.5, garage: 6.5 },
   },
   dust: { [SURFACE.DIRT]: [0.42, 0.17, 0.08], [SURFACE.MUD]: [0.24, 0.09, 0.04], [SURFACE.ROAD]: [0.36, 0.33, 0.3], [SURFACE.SAND]: [0.62, 0.55, 0.42] },
   mudTint: [0.13, 0.045, 0.022],
   ground: 'coast', trees: 'kerala',
-  // sea air: clearer than the ghats, fair-weather cloud
-  atmosphere: { fog: 0.00042, cover: 0.3 },
+  // sea air: clear enough to see the coast from the plateau, fair-weather cloud
+  atmosphere: { fog: 0.00028, cover: 0.3 },
 };

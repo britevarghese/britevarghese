@@ -131,50 +131,66 @@ test('Kerala: the trails a stock truck can drive, the courses, the beacons all r
   assert.ok(!seen.has(SURFACE.SNOW) && !seen.has(SURFACE.ICE), 'no snow in Kerala');
 });
 
-test('the Konkan Coast: tarmac fit for speed, the sea to the west, every place reachable, the town on dry ground', async () => {
+test('the Konkan Coast: 8 km of the real coast, its roads fit to drive, the sea to the west, every place reachable', async () => {
   const data = await generateWorld({ map: 'coast' });
   const world = new World(data);
   assert.equal(world.map.id, 'coast');
+  // the big map: 8 km across on a 2 m grid, the real ground (Kashid beach at sea level, the tableland 200-300 m up)
+  assert.equal(world.half, 4000);
+  assert.equal(data.res, 2);
+  assert.equal(data.N, 4001);
+  assert.ok(world.terrain(400, -900) > 200 && world.terrain(400, -900) < 330, `the tableland at ${world.terrain(400, -900).toFixed(0)} m`);
   const shape = Object.fromEntries(data.trails.map((t) => [t.name, trailShape(world, t.points)]));
-  // the ring and the runway: level and sweeping; the ghat road steep and tight, but within a stock truck
-  assert.ok(shape['Coast Highway'].maxG < 4, `the ring's steepest pitch ${shape['Coast Highway'].maxG.toFixed(1)} degrees`);
-  assert.ok(shape['Coast Highway'].minR > 90, `the ring's tightest bend ${shape['Coast Highway'].minR.toFixed(0)} m`);
-  assert.ok(shape.Runway.maxG < 1, 'the runway is level');
+  // the coast road and the plateau road: gentle; the ghats steeper, round hairpins a truck takes in one go; the ridge
+  // track a 4x4's
+  for (const n of ['Coast Road', 'Plateau Road']) assert.ok(shape[n].maxG < 9, `${n}: its steepest pitch ${shape[n].maxG.toFixed(1)} degrees`);
+  assert.ok(shape['Coast Road'].minR > 15, `the coast road's tightest bend ${shape['Coast Road'].minR.toFixed(0)} m`);
+  assert.ok(shape.Runway.maxG < 1.5, 'the runway is level');
   for (const [name, s] of Object.entries(shape)) {
-    assert.ok(s.maxG < 15, `${name}: a ${s.maxG.toFixed(1)} degree pitch`);
-    assert.ok(s.minR > 15, `${name}: a ${s.minR.toFixed(1)} m bend`);
+    assert.ok(s.maxG < (name === 'Ridge Track' ? 20 : 12), `${name}: a ${s.maxG.toFixed(1)} degree pitch`);
+    assert.ok(s.minR > 8, `${name}: a ${s.minR.toFixed(1)} m bend`);
   }
-  // every road paved, and the lines on it known (lanes and width for the markings)
+  // every road paved (the ridge track dirt), and the lines on it known (lanes and width for the markings)
   for (const t of data.trails) {
-    assert.equal(world.surfaceId(t.points[t.points.length >> 1][0], t.points[t.points.length >> 1][1]), SURFACE.ROAD, `${t.name} paved`);
-    assert.ok(t.lanes !== undefined && t.width > 0, `${t.name}: its lanes`);
+    const mid = t.points[t.points.length >> 1];
+    assert.equal(world.surfaceId(mid[0], mid[1]), t.kind === 'road' ? SURFACE.ROAD : SURFACE.DIRT, `${t.name}'s surface`);
+    if (t.kind === 'road') assert.ok(t.lanes !== undefined && t.width > 0, `${t.name}: its lanes`);
   }
-  // the sea along the west, the beach between it and the land
-  assert.ok(depth(world, -950, 0) > 3, 'deep water offshore');
-  assert.equal(world.surfaceId(-690, 0), SURFACE.SAND);
-  // each beacon on dry ground near a road; every building dry; the start by the station, on the main street
+  // the sea along the west, Kashid's sand between it and the land, the reservoir inland
+  assert.ok(depth(world, -3500, 0) > 8, 'deep water offshore');
+  assert.equal(world.surfaceId(-2131, -1100), SURFACE.SAND);
+  assert.ok(depth(world, 960, -3280) > 3, 'the reservoir');
+  // each beacon on dry ground near a road; every building dry; the start by the station, on the coast road
   const pts = data.trails.flatMap((t) => t.points);
   for (const b of data.beacons) {
     assert.ok(depth(world, b.x, b.z) < 0.25, `${b.name}: in water`);
     const near = Math.min(...pts.map(([x, z]) => Math.hypot(x - b.x, z - b.z)));
     assert.ok(near < 40, `${b.name}: ${near.toFixed(0)} m from the nearest road`);
   }
+  assert.ok(data.landmarks.filter((L) => L.type === 'house').length > 60, 'the villages, where the land cover sees them');
   for (const L of data.landmarks) assert.equal(depth(world, L.x, L.z), 0, `${L.type} at ${L.x},${L.z}: in water`);
   const s = world.map.spawn;
   assert.equal(depth(world, s.x, s.z), 0);
-  assert.ok(Math.hypot(s.x - world.map.station.x, s.z - world.map.station.z) < 40);
-  // no tree on the tarmac
+  assert.equal(world.surfaceId(s.x, s.z), SURFACE.ROAD);
+  assert.ok(Math.hypot(s.x - world.map.station.x, s.z - world.map.station.z) < 60);
+  // the forest, and no tree on the tarmac
+  assert.ok(data.trees.count > 120000 && data.trees.count < 260000, `${data.trees.count} trees`);
   for (let i = 0; i < data.trees.count; i++) assert.notEqual(world.surfaceId(data.trees.x[i], data.trees.z[i]), SURFACE.ROAD, `a tree on the road at ${data.trees.x[i]},${data.trees.z[i]}`);
-  // the events: on the ground, a grid of four; a stock Thar flat out down the runway inside the bronze par
+  // the events: on the ground, a grid of four; a stock Thar flat out down the airstrip inside the bronze par
   const events = eventsFor(world);
   assert.deepEqual(events.map((e) => e.id), ['runwaydrag', 'ghatclimb', 'beachdash']);
   for (const e of events) {
     assert.ok(e.gates.length >= 2 && e.gates.every((g) => Number.isFinite(g.y)), `${e.id}: gates on the ground`);
     assert.equal(gridFor(world, e).length, 4);
   }
-  // the hill climb finishes at the top of the pass (not over it and down the far side)
+  // the hill climb finishes at the top of the escarpment (not over it and down the far side); the beach dash is on sand
   const climb = events[1], top = climb.gates.at(-1);
   assert.ok(climb.line.every(([x, z]) => world.terrain(x, z) <= world.terrain(top.x, top.z) + 0.5), 'the climb ends at the top');
+  assert.ok(world.terrain(top.x, top.z) - world.terrain(climb.start.x, climb.start.z) > 200, 'two hundred metres of climb');
+  for (let t = 0; t <= 1; t += 0.05) {
+    const [a, b] = events[2].line;
+    assert.equal(world.surfaceId(a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t), SURFACE.SAND, 'the beach dash on the sand');
+  }
   const drag = events[0], v = new Vehicle(truckSpec('thar'));
   v.place(world, drag.start.x, drag.start.z, drag.start.yaw);
   const run = new EventRun(drag, 0);

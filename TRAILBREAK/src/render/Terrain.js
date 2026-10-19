@@ -3,8 +3,8 @@
 // follow the far landform out to the horizon. Patches are built on demand (a few per frame), cached, and rebuilt
 // where tyres have pressed ruts into the ground. Skirts hide the cracks between patches of different sizes.
 //
-// Ground: close up, photo-scanned textures of each kind of ground (render/Ground.js), one layer per 1 m cell of the
-// map (a texture the shader reads), blended between cells by their height maps so stones stand proud of the mud and
+// Ground: close up, photo-scanned textures of each kind of ground (render/Ground.js), one layer per cell of the map
+// (1 m; a big map's bigger: a texture the shader reads), blended between cells by their height maps so stones stand proud of the mud and
 // grass grows over the edge of a trail; steep ground is textured from the side. Each vertex carries a tint for the
 // colour of the land (lush or dry grass, alpine, wet by the water, worn ruts). Far away the textures fade into the
 // vertex colour: each layer's average colour times the tint, baked once into a 1 m colour grid with mip levels so
@@ -17,14 +17,13 @@
 
 import * as THREE from 'three';
 import { SURFACE } from '../physics/Surfaces.js';
-import { MAP_HALF } from '../world/maps/index.js';
 import { DeformGrid, DEFORM_SPAN } from '../world/Deform.js';
 import { vnoise } from '../world/Noise.js';
 import { TEA_ROW, TEA_RANGE } from './Tea.js';
 
 const GRID = 32;
 const V = GRID + 1;
-const ROOT = 8192;
+const ROOT = 8192;              // (a 2 km map's quadtree: the map and the far land round it; a big map's is wider)
 const MIN = 16;
 const FINE = 8;                 // (rutted ground close up)
 const SPLIT_DEFAULT = 2.1;
@@ -86,6 +85,8 @@ export class TerrainRenderer {
     this.world = world;
     this.scene = scene;
     this.ground = ground;
+    this.half = world.half; this.res = world.res;
+    this.root = world.half > 1024 ? 32768 : ROOT;
     this.snowLine = world.map.snowLine ?? 1e6;                // (no snow on a tropical map)
     this.litter = world.map.litter;                            // how much each type of tree carpets the ground
     this.layers = ground ? ground.layers : Object.keys(PLAIN).map((name) => ({ name, avg: lin(PLAIN[name]), rough: 0.95 }));
@@ -123,7 +124,7 @@ export class TerrainRenderer {
         uGC: { value: G.color }, uGN: { value: G.normal }, uSplat: { value: splat },
         uLay: { value: this.layers.map((l) => new THREE.Vector4(1 / l.size, l.rough, l.heightW, 0)) },
         uGain: { value: this.layers.map((l) => new THREE.Vector3(...l.gain)) },
-        uSplatO: { value: new THREE.Vector2(w.origin, w.origin) }, uSplatN: { value: w.N }, uMapHalf: { value: MAP_HALF },
+        uSplatO: { value: new THREE.Vector2(w.origin, w.origin) }, uSplatN: { value: w.N }, uSplatRes: { value: w.res }, uMapHalf: { value: this.half },
         uTexFar: { value: 320 }, uIds: { value: new THREE.Vector3(this.layerIndex.grass, this.layerIndex.rock, this.layerIndex.snow ?? this.layerIndex.rock) },
         uSnowLine: { value: this.snowLine + 40 }, uRelief: { value: 1 },
         uTea: { value: this.layerIndex.tea ?? -1 }, uTeaNear: { value: TEA_RANGE.high },
@@ -167,6 +168,7 @@ uniform vec4 uLay[NLAYERS];
 uniform vec3 uGain[NLAYERS];
 uniform vec2 uSplatO;
 uniform float uSplatN;
+uniform float uSplatRes;
 uniform float uMapHalf;
 uniform float uTexFar;
 uniform vec3 uIds;
@@ -244,7 +246,7 @@ ${G ? `
   float tws = gwT + gwX + gwZ; gwT /= tws; gwX /= tws; gwZ /= tws;
   if (tex > 0.0) {
     // the layers of the four cells around this point, weighted by distance
-    vec2 g = vWPos.xz - uSplatO;
+    vec2 g = (vWPos.xz - uSplatO) / uSplatRes;
     vec2 gi = floor(g), f = g - gi;
     ivec2 c = ivec2(gi);
     float i0, i1, i2, i3;
@@ -343,15 +345,16 @@ if (gWet > 0.0) {
   }
 
   /**
-   * The ground under the woods: how many trees stand over each 2 m cell (each tree counts fully under its crown and
-   * less out to the edge of the needles and leaves it drops).
+   * The ground under the woods: how many trees stand over each 2 m cell (a big map's 4 m: each tree counts fully under
+   * its crown and less out to the edge of the needles and leaves it drops).
    */
   canopy() {
-    const T = this.world.trees, n = Math.ceil(MAP_HALF * 2 / 2) + 1, g = new Float32Array(n * n);
+    const HALF = this.half, CS = 2 * this.res;
+    const T = this.world.trees, n = Math.ceil(HALF * 2 / CS) + 1, g = new Float32Array(n * n);
     for (let t = 0; t < (T.base ?? T.count); t++) {                 // (the map's own trees: not the young ones)
       // conifers carpet the ground with needles; birches (type 2) and dead trees much less
       const litter = this.litter ? this.litter[T.type[t]] ?? 1 : T.type[t] === 2 ? 0.35 : T.type[t] === 3 ? 0.5 : 1;
-      const R = 1.5 + T.h[t] * 0.3, cx = (T.x[t] + MAP_HALF) / 2, cz = (T.z[t] + MAP_HALF) / 2, r = R / 2;
+      const R = 1.5 + T.h[t] * 0.3, cx = (T.x[t] + HALF) / CS, cz = (T.z[t] + HALF) / CS, r = R / CS;
       for (let k = Math.max(0, Math.floor(cz - r)); k <= Math.min(n - 1, Math.ceil(cz + r)); k++) {
         for (let i = Math.max(0, Math.floor(cx - r)); i <= Math.min(n - 1, Math.ceil(cx + r)); i++) {
           const d = Math.hypot(i - cx, k - cz) / r;
@@ -360,7 +363,7 @@ if (gWet > 0.0) {
       }
     }
     return { n, g, at: (x, z) => {
-      const fx = Math.min(n - 1.001, Math.max(0, (x + MAP_HALF) / 2)), fz = Math.min(n - 1.001, Math.max(0, (z + MAP_HALF) / 2));
+      const fx = Math.min(n - 1.001, Math.max(0, (x + HALF) / CS)), fz = Math.min(n - 1.001, Math.max(0, (z + HALF) / CS));
       const i = Math.floor(fx), k = Math.floor(fz), tx = fx - i, tz = fz - k;
       return (g[k * n + i] * (1 - tx) + g[k * n + i + 1] * tx) * (1 - tz) + (g[(k + 1) * n + i] * (1 - tx) + g[(k + 1) * n + i + 1] * tx) * tz;
     } };
@@ -401,22 +404,22 @@ if (gWet > 0.0) {
     return out;
   }
 
-  /** The layer of every 1 m cell (for the shader), and the colour grid and its mip levels (for far away). */
+  /** The layer of every cell (for the shader), and the colour grid and its mip levels (for far away). */
   buildColors(onProgress) {
-    const w = this.world, N = w.N, O = w.origin;
+    const w = this.world, N = w.N, O = w.origin, RES = this.res;
     const col = new Uint8Array(N * N * 3), splat = new Uint8Array(N * N);
     const H = w.H, S = w.S, avg = this.layers.map((l) => l.avg), t3 = [0, 0, 0];
     const can = this.can = this.canopy().at;
     for (let k = 0; k < N; k++) {
-      const z = O + k;
+      const z = O + k * RES;
       for (let i = 0; i < N; i++) {
-        const x = O + i;
+        const x = O + i * RES;
         const idx = k * N + i;
         const L = this.layerAt(S[idx], x, z, can);
         splat[idx] = L;
         const h = H[idx];
         const i0 = Math.max(0, i - 1), i1 = Math.min(N - 1, i + 1), k0 = Math.max(0, k - 1), k1 = Math.min(N - 1, k + 1);
-        const gx = (H[k * N + i1] - H[k * N + i0]) / (i1 - i0), gz = (H[k1 * N + i] - H[k0 * N + i]) / (k1 - k0);
+        const gx = (H[k * N + i1] - H[k * N + i0]) / ((i1 - i0) * RES), gz = (H[k1 * N + i] - H[k0 * N + i]) / ((k1 - k0) * RES);
         this.tintAt(L, x, z, h, Math.sqrt(gx * gx + gz * gz), t3);
         const a = avg[L];
         col[idx * 3] = Math.min(255, Math.round(Math.sqrt(a[0] * t3[0]) * 255));       // stored ~gamma 2 for precision
@@ -426,8 +429,8 @@ if (gWet > 0.0) {
       if (onProgress && k % 256 === 0) onProgress(k / N);
     }
     this.splat = splat;
-    // mips: level L has cells 2^L m wide (a box filter of the level below)
-    this.mips = [{ n: N, step: 1, data: col }];
+    // mips: level L has cells 2^L cells wide (a box filter of the level below)
+    this.mips = [{ n: N, step: RES, data: col }];
     let prev = this.mips[0];
     while (prev.n > 3) {
       const n = Math.floor((prev.n - 1) / 2) + 1, data = new Uint8Array(n * n * 3);
@@ -460,7 +463,7 @@ if (gWet > 0.0) {
   /** Colour (linear RGB) at (x, z) for a patch with vertex spacing `spacing`. */
   colorAt(x, z, spacing, h, slope, out) {
     const w = this.world;
-    if (Math.abs(x) <= MAP_HALF && Math.abs(z) <= MAP_HALF) {
+    if (Math.abs(x) <= this.half && Math.abs(z) <= this.half) {
       let L = 0;
       while (L < this.mips.length - 1 && this.mips[L].step * 2 <= spacing) L++;
       const m = this.mips[L];
@@ -507,7 +510,7 @@ if (gWet > 0.0) {
   }
 
   heightAt(x, z) {
-    if (Math.abs(x) < MAP_HALF && Math.abs(z) < MAP_HALF) return this.world.terrain(x, z);
+    if (Math.abs(x) < this.half && Math.abs(z) < this.half) return this.world.terrain(x, z);
     return this.world.farHeight(x, z);
   }
 
@@ -525,7 +528,7 @@ if (gWet > 0.0) {
       const fine = sp < 0.5, B = fine ? 3 : 1, EB = V + 2 * B, E = this.tmpE;
       for (let k = -B; k < V + B; k++) for (let i = -B; i < V + B; i++) {
         const x = x0 + i * sp, z = z0 + k * sp;
-        E[(k + B) * EB + i + B] = Math.abs(x) < MAP_HALF && Math.abs(z) < MAP_HALF ? w.deformGrid.get(x, z) : 0;
+        E[(k + B) * EB + i + B] = Math.abs(x) < this.half && Math.abs(z) < this.half ? w.deformGrid.get(x, z) : 0;
       }
       for (let k = -1; k <= V; k++) for (let i = -1; i <= V; i++) {
         const e = (k + B) * EB + i + B, d = E[e];
@@ -541,7 +544,7 @@ if (gWet > 0.0) {
     const nV = V * V + 4 * V;
     const pos = new Float32Array(nV * 3), nor = new Int8Array(nV * 3), col = new Uint8Array(nV * 3), tint = new Uint8Array(nV * 3), wet = new Uint8Array(nV * 2);
     const c3 = [0, 0, 0], t3 = [0, 0, 0];
-    const inMap = (x, z) => Math.abs(x) < MAP_HALF && Math.abs(z) < MAP_HALF;
+    const inMap = (x, z) => Math.abs(x) < this.half && Math.abs(z) < this.half;
     let minY = Infinity, maxY = -Infinity;
     for (let k = 0; k < V; k++) for (let i = 0; i < V; i++) {
       const v = k * V + i;
@@ -554,7 +557,7 @@ if (gWet > 0.0) {
       const x = x0 + i * sp, z = z0 + k * sp, slope = Math.sqrt(gx * gx + gz * gz);
       this.colorAt(x, z, sp, h, slope, c3);
       // the tint over the textures: the land's own, or past the map the far colour over the layer the shader shows
-      if (inMap(x, z)) this.tintAt(this.splat[Math.round(z - w.origin) * w.N + Math.round(x - w.origin)], x, z, h, slope, t3);
+      if (inMap(x, z)) this.tintAt(this.splat[Math.round((z - w.origin) / w.res) * w.N + Math.round((x - w.origin) / w.res)], x, z, h, slope, t3);
       else { const a = this.layers[this.farLayer(h, ny)].avg; for (let c = 0; c < 3; c++) t3[c] = Math.min(2, Math.max(0.4, c3[c] / a[c])); }
       const d = D[v];
       if (d > 0.004) {
@@ -606,8 +609,8 @@ if (gWet > 0.0) {
     const key = level * 1e8 + ix * 1e4 + iz;
     let n = this.cache.get(key);
     if (!n) {
-      const size = ROOT / (1 << level);
-      n = { key, level, ix, iz, size, x0: -ROOT / 2 + ix * size, z0: -ROOT / 2 + iz * size, mesh: null, built: false, used: 0, minY: 0, maxY: 0 };
+      const size = this.root / (1 << level);
+      n = { key, level, ix, iz, size, x0: -this.root / 2 + ix * size, z0: -this.root / 2 + iz * size, mesh: null, built: false, used: 0, minY: 0, maxY: 0 };
       this.cache.set(key, n);
     }
     return n;

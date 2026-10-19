@@ -4,7 +4,6 @@
 // route there: the satnav (game/Route.js) plots it by road and trail, and it shows here, on the minimap and as a line
 // on the ground ahead. The station, the garage, the event start lines, the beacons you have found and your friends
 // can be fast-travelled to (not in the middle of a run).
-import { MAP_HALF } from '../world/maps/index.js';
 import { escapeHtml } from './HUD.js';
 import { kindOf } from '../game/EventPlay.js';
 
@@ -62,7 +61,7 @@ export class WorldMap {
     $('map-title').textContent = world.map.name || 'Map';
   }
 
-  get minZoom() { return Math.min(this.w, this.h) / (2 * MAP_HALF) * 0.95; }
+  get minZoom() { return Math.min(this.w, this.h) / (2 * this.world.half) * 0.95; }
 
   open() {
     this.isOpen = true;
@@ -112,7 +111,7 @@ export class WorldMap {
   /** Keep the valley on the screen: centred when it all fits, else no further than a little past its edges. */
   clampView() {
     const v = this.view;
-    const lim = (half) => (half >= MAP_HALF ? 0 : MAP_HALF - half * 0.85);
+    const H = this.world.half, lim = (half) => (half >= H ? 0 : H - half * 0.85);
     const mx = lim(this.w / 2 / v.zoom), mz = lim(this.h / 2 / v.zoom);
     v.x = Math.max(-mx, Math.min(mx, v.x)); v.z = Math.max(-mz, Math.min(mz, v.z));
   }
@@ -230,7 +229,7 @@ export class WorldMap {
     g.setTransform(dpr, 0, 0, dpr, 0, 0);
     g.fillStyle = '#18201b'; g.fillRect(0, 0, this.w, this.h);
     // the ground
-    const [ox, oy] = this.toScreen(-MAP_HALF, -MAP_HALF), size = 2 * MAP_HALF * Z;
+    const HALF = this.world.half, [ox, oy] = this.toScreen(-HALF, -HALF), size = 2 * HALF * Z;
     g.imageSmoothingEnabled = true; g.imageSmoothingQuality = 'high';
     g.drawImage(this.image, ox, oy, size, size);
     // roads and trails: a dark casing, then the road light and the trails dashed

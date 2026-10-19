@@ -9,7 +9,7 @@ import { EventRun, gridFor } from '../src/game/Events.js';
 
 const EVENT_RX = /^[a-z]{2,16}$/;           // (server/rooms.js: what a race's id may be)
 
-for (const [map, ids] of [['ashwood', ['bogcircuit', 'eastford', 'pinecrest', 'meadows', 'mirrorlake', 'gorgerun']], ['kerala', ['estaterally', 'paddyrally', 'anapara']], ['coast', ['ringcircuit', 'coastsprint', 'inlandsprint', 'ghatrally']]]) {
+for (const [map, ids] of [['ashwood', ['bogcircuit', 'eastford', 'pinecrest', 'meadows', 'mirrorlake', 'gorgerun']], ['kerala', ['estaterally', 'paddyrally', 'anapara']], ['coast', ['konkanloop', 'coastsprint', 'ghatrally', 'plateausprint']]]) {
   test(`${map}: the checkpoint races`, async () => {
     const world = new World(await generateWorld({ map }));
     const races = racesFor(world);

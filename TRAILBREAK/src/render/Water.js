@@ -144,7 +144,9 @@ export class Water {
   constructor(world, scene) {
     this.uniforms = { uTime: { value: 0 }, uRipple: { value: rippleTexture() } };
     const d = world.data, N = d.waterN, res = d.waterRes, O = d.origin, W = d.water;
-    const has = (i, k) => i >= 0 && k >= 0 && i < N && k < N && W[k * N + i] > -1e8;
+    // (a map whose sea is drawn as a sheet of its own: the sea's cells left out of the water grid's mesh)
+    const SL = world.map.sea?.sheet ? world.map.sea.level : null;
+    const has = (i, k) => i >= 0 && k >= 0 && i < N && k < N && W[k * N + i] > -1e8 && W[k * N + i] !== SL;
     // vertices at the grid points with a water level, and quads where all four corners have one
     const index = new Int32Array(N * N).fill(-1);
     const pos = [], depth = [], flow = [], mud = [], fall = [], idx = [];
@@ -193,9 +195,13 @@ export class Water {
     this.mesh.renderOrder = 2;
     scene.add(this.mesh);
     this.group = this.mesh;
+    // a sea drawn as a sheet (world.map.sea.sheet): over the map wherever the water grid has the sea (a vertex every
+    // 16 m, its depth there for the colour and the surf), out under the beach (the ground hides it there), and beyond
+    // the map's edges all round to the horizon (the land out there stands above it)
+    if (SL !== null) this.seaSheet(world, SL);
     // a map on the sea (world.map.sea): the open sea beyond the map's west edge to the horizon, and past its north and
     // south ends off the coast (the map's own water grid has it inside the map)
-    if (world.map.sea) {
+    else if (world.map.sea) {
       const L = world.map.sea.level, E = -O, far = 9000, coast = world.map.sea.reach ?? -600;
       const sp = [], si = [];
       const quad = (x0, z0, x1, z1) => {
@@ -220,6 +226,56 @@ export class Water {
       this.sea.frustumCulled = false;
       scene.add(this.sea);
     }
+  }
+
+  seaSheet(world, L) {
+    const d = world.data, N = d.waterN, res = d.waterRes, O = d.origin, W = d.water, half = world.half, far = 9000;
+    const SP = 16, n = Math.round(2 * half / SP) + 1;
+    const sea = (x, z) => { const i = Math.round((x - O) / res), k = Math.round((z - O) / res); return i >= 0 && k >= 0 && i < N && k < N && W[k * N + i] === L; };
+    // the sea's vertices, and two rows round them (out under the beach)
+    const at = new Uint8Array(n * n);
+    for (let k = 0; k < n; k++) for (let i = 0; i < n; i++) if (sea(-half + i * SP, -half + k * SP)) at[k * n + i] = 1;
+    for (let pass = 0; pass < 2; pass++) {
+      const prev = at.slice();
+      for (let k = 0; k < n; k++) for (let i = 0; i < n; i++) {
+        if (prev[k * n + i]) continue;
+        if ((i > 0 && prev[k * n + i - 1]) || (i < n - 1 && prev[k * n + i + 1]) || (k > 0 && prev[(k - 1) * n + i]) || (k < n - 1 && prev[(k + 1) * n + i])) at[k * n + i] = 2;
+      }
+    }
+    const pos = [], depth = [], idx = [], index = new Int32Array(n * n).fill(-1);
+    for (let k = 0; k < n; k++) for (let i = 0; i < n; i++) {
+      if (!at[k * n + i]) continue;
+      const x = -half + i * SP, z = -half + k * SP;
+      index[k * n + i] = pos.length / 3;
+      pos.push(x, L, z);
+      depth.push(L - world.terrain(x, z));
+    }
+    for (let k = 0; k < n - 1; k++) for (let i = 0; i < n - 1; i++) {
+      const a = index[k * n + i], b = index[k * n + i + 1], c = index[(k + 1) * n + i], e = index[(k + 1) * n + i + 1];
+      if (a >= 0 && b >= 0 && c >= 0 && e >= 0) idx.push(a, c, b, b, c, e);
+    }
+    // beyond the edges: four strips round the map, to the horizon
+    const quad = (x0, z0, x1, z1) => {
+      const v = pos.length / 3;
+      pos.push(x0, L, z0, x1, L, z0, x0, L, z1, x1, L, z1);
+      depth.push(12, 12, 12, 12);
+      idx.push(v, v + 2, v + 1, v + 1, v + 2, v + 3);
+    };
+    quad(-far, -far, -half, far); quad(half, -far, far, far); quad(-half, -far, half, -half); quad(-half, half, half, far);
+    const m = pos.length / 3, g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+    g.setAttribute('normal', new THREE.Float32BufferAttribute(new Float32Array(m * 3).map((_, j) => (j % 3 === 1 ? 1 : 0)), 3));
+    g.setAttribute('aDepth', new THREE.Float32BufferAttribute(depth, 1));
+    g.setAttribute('aFlow', new THREE.Float32BufferAttribute(new Float32Array(m * 2), 2));
+    g.setAttribute('aMud', new THREE.Float32BufferAttribute(new Float32Array(m), 1));
+    g.setAttribute('aFall', new THREE.Float32BufferAttribute(new Float32Array(m), 1));
+    g.setIndex(idx);
+    g.computeBoundingSphere();
+    this.sea = new THREE.Mesh(g, this.mesh.material);
+    this.sea.renderOrder = 2;
+    this.sea.receiveShadow = true;
+    this.sea.frustumCulled = false;
+    this.mesh.parent.add(this.sea);
   }
 
   update(camera, dt) {

@@ -15,7 +15,6 @@
 import { SURFACE } from '../physics/Surfaces.js';
 import { rng } from './Noise.js';
 import { courseLines, slalomLine } from '../game/Events.js';
-import { MAP_HALF } from './maps/index.js';
 
 /** Green wood in bending, as a truck meets it: what a trunk d across takes at its foot is C d^3 (N m). */
 export const WOOD_C = 4e6;
@@ -155,7 +154,7 @@ export function growYoung(data, world) {
   const allowed = new Set(Y.on || [SURFACE.GRASS, SURFACE.DIRT]);
   const add = { x: [], y: [], z: [], r: [], h: [], type: [] }, mine = new Map();
   const tryAt = (x, z, maxEdge) => {
-    if (Math.abs(x) > MAP_HALF - 20 || Math.abs(z) > MAP_HALF - 20) return;
+    if (Math.abs(x) > world.half - 20 || Math.abs(z) > world.half - 20) return;
     const e = edge(x, z);
     if (e < 0.5 || e > maxEdge || courses(x, z) < 7 || blocked(x, z)) return;
     if (!allowed.has(world.surfaceId(x, z))) return;
@@ -220,7 +219,7 @@ export function placeRoadside(data, world) {
   const posts = data.posts || [];
   const items = [];
   const clear = (x, z, r) => {
-    if (Math.abs(x) > MAP_HALF - 20 || Math.abs(z) > MAP_HALF - 20) return false;
+    if (Math.abs(x) > world.half - 20 || Math.abs(z) > world.half - 20) return false;
     if (world.water(x, z) > world.terrain(x, z) - 0.25 || courses(x, z) < 6) return false;
     const s = world.surfaceId(x, z);
     if (s === SURFACE.MUD || s === SURFACE.RIVERBED || s === SURFACE.SAND) return false;

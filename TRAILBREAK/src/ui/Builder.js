@@ -159,7 +159,7 @@ export class Builder {
     const fx = Math.sin(C.yaw), fz = Math.cos(C.yaw);
     const fwd = (I.any('KeyW', 'ArrowUp') ? 1 : 0) - (I.any('KeyS', 'ArrowDown') ? 1 : 0), side = (I.any('KeyD', 'ArrowRight') ? 1 : 0) - (I.any('KeyA', 'ArrowLeft') ? 1 : 0);
     C.x += (fx * fwd - fz * side) * k; C.z += (fz * fwd + fx * side) * k;
-    const lim = 1000;
+    const lim = this.world.half - 24;
     C.x = Math.max(-lim, Math.min(lim, C.x)); C.z = Math.max(-lim, Math.min(lim, C.z));
     const ty = this.world.height(C.x, C.z), cp = Math.cos(C.pitch);
     const cam = this.g.renderer.camera;

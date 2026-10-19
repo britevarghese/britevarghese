@@ -2,7 +2,7 @@
 // friends. Alone (or alone in the room), J at a start line lines the truck up and counts it down. With friends in the
 // room, J opens a race instead: the server gives it a start time a little ahead (RACE_LEAD), friends press J to join
 // and are lined up beside you, everyone's clock starts together, and the server collects the times (server/rooms.js).
-import { eventsFor, EventRun, medalFor, clock, runPrize, standings, gridFor, COUNTDOWN, TOUCH_PENALTY } from './Events.js';
+import { eventsFor, EventRun, medalFor, clock, runPrize, standings, gridFor, timeLimit, COUNTDOWN, TOUCH_PENALTY } from './Events.js';
 import { racesFor } from './Races.js';
 import { modesFor, ZoneRun, HillRun, HOLD } from './Modes.js';
 import { customRace } from './Props.js';
@@ -221,7 +221,7 @@ export class EventPlay {
       if (r === 'gate') { g.audio.beep?.(990, 0.1, 0.08); g.course?.setActive(run.event, run.gate); }
       else if (r === 'touch') { g.hud.hint(`Touched: +${TOUCH_PENALTY} s`, 1.5); g.audio.bang?.(0.4, false); }
       else if (r === 'finish') this.finished();
-      else if (r === 'timeout') this.giveUp(`Out of time: ${run.event.name} has a ${Math.round(600 / 60)} minute limit`);
+      else if (r === 'timeout') this.giveUp(`Out of time: ${run.event.name} has a ${Math.round(timeLimit(run.event) / 60)} minute limit`);
     }
     this.goT = Math.max(0, (this.goT || 0) - dt);
     this.drawPanel();

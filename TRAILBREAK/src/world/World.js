@@ -32,6 +32,8 @@ export class World {
     this.map = data.map || mapById();
     this.farHeight = data.farHeight;
     this.N = data.N; this.origin = data.origin;
+    // the map's half-size and its fine grid's cell (m): a 2 km map's 1 m, a big map's bigger
+    this.half = data.half ?? MAP_HALF; this.res = data.res ?? 1;
     this.H = data.heights; this.S = data.surface;
     this.W = data.water; this.WN = data.waterN; this.WR = data.waterRes;
     this.deformGrid = new DeformGrid();
@@ -58,8 +60,9 @@ export class World {
     road.forEach((list, j) => { for (const o of list) { ob.x[i] = o.x; ob.y[i] = o.y; ob.z[i] = o.z; ob.r[i] = o.r; ob.cap[i] = o.cap; ob.top[i] = o.top; ob.unit[i] = T.count + j; i++; } });
     this.broken = new Uint8Array(T.count + this.roadside.length);
     this.breaks = [];
-    this.obN = Math.ceil(MAP_HALF * 2 / OB_CELL);
-    const cellOf = (x, z) => Math.min(this.obN - 1, Math.max(0, Math.floor((z + MAP_HALF) / OB_CELL))) * this.obN + Math.min(this.obN - 1, Math.max(0, Math.floor((x + MAP_HALF) / OB_CELL)));
+    const HALF = this.half;
+    this.obN = Math.ceil(HALF * 2 / OB_CELL);
+    const cellOf = (x, z) => Math.min(this.obN - 1, Math.max(0, Math.floor((z + HALF) / OB_CELL))) * this.obN + Math.min(this.obN - 1, Math.max(0, Math.floor((x + HALF) / OB_CELL)));
     const counts = new Uint32Array(this.obN * this.obN + 1);
     for (let k = 0; k < n; k++) counts[cellOf(ob.x[k], ob.z[k]) + 1]++;
     for (let c = 1; c < counts.length; c++) counts[c] += counts[c - 1];
@@ -71,14 +74,14 @@ export class World {
     for (let k = 0; k < 64; k++) this.obPool.push({ x: 0, y: 0, z: 0, r: 0, cap: Infinity, top: 0, u: -1, i: 0 });
 
     // boulders: each listed in every cell its footprint touches
-    this.boN = Math.ceil(MAP_HALF * 2 / BO_CELL);
+    this.boN = Math.ceil(HALF * 2 / BO_CELL);
     this.boCells = new Map();
     this.boulders.forEach((b, i) => {
       const R = Math.max(b.rx, b.rz);
       b.cos = Math.cos(b.yaw); b.sin = Math.sin(b.yaw);
       b.shape = shapeOf(i);
-      const i0 = Math.floor((b.x - R + MAP_HALF) / BO_CELL), i1 = Math.floor((b.x + R + MAP_HALF) / BO_CELL);
-      const k0 = Math.floor((b.z - R + MAP_HALF) / BO_CELL), k1 = Math.floor((b.z + R + MAP_HALF) / BO_CELL);
+      const i0 = Math.floor((b.x - R + HALF) / BO_CELL), i1 = Math.floor((b.x + R + HALF) / BO_CELL);
+      const k0 = Math.floor((b.z - R + HALF) / BO_CELL), k1 = Math.floor((b.z + R + HALF) / BO_CELL);
       for (let k = k0; k <= k1; k++) for (let ii = i0; ii <= i1; ii++) {
         const key = k * this.boN + ii;
         let list = this.boCells.get(key);
@@ -88,9 +91,9 @@ export class World {
     });
   }
 
-  /** Terrain height without ruts or boulders (bilinear on the 1 m grid, the far landform outside it). */
+  /** Terrain height without ruts or boulders (bilinear on the fine grid, the far landform outside it). */
   terrain(x, z) {
-    const fx = x - this.origin, fz = z - this.origin;
+    const fx = (x - this.origin) / this.res, fz = (z - this.origin) / this.res;
     const N = this.N;
     if (fx < 0 || fz < 0 || fx >= N - 1 || fz >= N - 1) return this.farHeight(x, z);
     const i = Math.floor(fx), k = Math.floor(fz), tx = fx - i, tz = fz - k;
@@ -105,8 +108,8 @@ export class World {
     this.propCells = new Map();
     this.props.forEach((p, i) => {
       const R = reach(p.type);
-      for (let k = Math.floor((p.z - R + MAP_HALF) / BO_CELL); k <= Math.floor((p.z + R + MAP_HALF) / BO_CELL); k++) {
-        for (let c = Math.floor((p.x - R + MAP_HALF) / BO_CELL); c <= Math.floor((p.x + R + MAP_HALF) / BO_CELL); c++) {
+      for (let k = Math.floor((p.z - R + this.half) / BO_CELL); k <= Math.floor((p.z + R + this.half) / BO_CELL); k++) {
+        for (let c = Math.floor((p.x - R + this.half) / BO_CELL); c <= Math.floor((p.x + R + this.half) / BO_CELL); c++) {
           const key = k * this.boN + c;
           let list = this.propCells.get(key);
           if (!list) this.propCells.set(key, (list = []));
@@ -119,7 +122,7 @@ export class World {
   /** The prop whose top is highest at (x, z), and that top: { p, top }, or null. */
   propAt(x, z) {
     if (!this.props.length) return null;
-    const list = this.propCells.get(Math.floor((z + MAP_HALF) / BO_CELL) * this.boN + Math.floor((x + MAP_HALF) / BO_CELL));
+    const list = this.propCells.get(Math.floor((z + this.half) / BO_CELL) * this.boN + Math.floor((x + this.half) / BO_CELL));
     if (!list) return null;
     let best = null, top = -Infinity;
     for (let n = 0; n < list.length; n++) {
@@ -131,7 +134,7 @@ export class World {
 
   /** Top of the highest boulder at (x, z), or -Infinity. */
   boulderTop(x, z) {
-    const key = Math.floor((z + MAP_HALF) / BO_CELL) * this.boN + Math.floor((x + MAP_HALF) / BO_CELL);
+    const key = Math.floor((z + this.half) / BO_CELL) * this.boN + Math.floor((x + this.half) / BO_CELL);
     const list = this.boCells.get(key);
     if (!list) return -Infinity;
     let top = -Infinity;
@@ -157,7 +160,7 @@ export class World {
 
   surfaceId(x, z) {
     for (let n = 0; n < this.paints.length; n++) if (paintAt(this.paints[n], x, z)) return PROP_TYPES[this.paints[n].type].surface;
-    const i = Math.round(x - this.origin), k = Math.round(z - this.origin);
+    const i = Math.round((x - this.origin) / this.res), k = Math.round((z - this.origin) / this.res);
     if (i < 0 || k < 0 || i >= this.N || k >= this.N) return SURFACE.ROCK;
     return this.S[k * this.N + i];
   }
@@ -189,12 +192,12 @@ export class World {
   }
 
   /**
-   * The deepest a rut can go at a point: each ground's own, blended across its 1 m cells, so a rut in mud runs out
+   * The deepest a rut can go at a point: each ground's own, blended across its cells, so a rut in mud runs out
    * onto firm ground up a ramp (as the mud thins out at its edge) rather than ending at a wall.
    */
   maxSinkAt(x, z) {
     for (let n = 0; n < this.paints.length; n++) if (paintAt(this.paints[n], x, z)) return SURFACES[PROP_TYPES[this.paints[n].type].surface].maxSink;
-    const fx = x - this.origin, fz = z - this.origin, i = Math.floor(fx), k = Math.floor(fz), tx = fx - i, tz = fz - k;
+    const fx = (x - this.origin) / this.res, fz = (z - this.origin) / this.res, i = Math.floor(fx), k = Math.floor(fz), tx = fx - i, tz = fz - k;
     const m = (a, b) => (a < 0 || b < 0 || a >= this.N || b >= this.N ? 0 : SURFACES[this.S[b * this.N + a]].maxSink);
     return (m(i, k) * (1 - tx) + m(i + 1, k) * tx) * (1 - tz) + (m(i, k + 1) * (1 - tx) + m(i + 1, k + 1) * tx) * tz;
   }
@@ -206,8 +209,8 @@ export class World {
   /** Trunks and posts within r of (x, z) (reuses its result objects: copy what you keep). */
   treesNear(x, z, r, out) {
     out.length = 0;
-    const c0 = Math.floor((x - r + MAP_HALF) / OB_CELL), c1 = Math.floor((x + r + MAP_HALF) / OB_CELL);
-    const k0 = Math.floor((z - r + MAP_HALF) / OB_CELL), k1 = Math.floor((z + r + MAP_HALF) / OB_CELL);
+    const c0 = Math.floor((x - r + this.half) / OB_CELL), c1 = Math.floor((x + r + this.half) / OB_CELL);
+    const k0 = Math.floor((z - r + this.half) / OB_CELL), k1 = Math.floor((z + r + this.half) / OB_CELL);
     const ob = this.ob;
     for (let k = Math.max(0, k0); k <= Math.min(this.obN - 1, k1); k++) {
       for (let c = Math.max(0, c0); c <= Math.min(this.obN - 1, c1); c++) {
@@ -276,5 +279,5 @@ export class World {
     return best;
   }
 
-  inBounds(x, z, margin = 0) { return Math.abs(x) < MAP_HALF - margin && Math.abs(z) < MAP_HALF - margin; }
+  inBounds(x, z, margin = 0) { return Math.abs(x) < this.half - margin && Math.abs(z) < this.half - margin; }
 }

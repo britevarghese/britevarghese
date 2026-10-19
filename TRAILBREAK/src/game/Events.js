@@ -18,6 +18,8 @@ export const RACE_PRIZE = [2500, 1200, 600, 300];
 export const TOUCH_PENALTY = 5;              // s per hard knock in the trials
 export const COUNTDOWN = 3;                  // s
 export const TIME_LIMIT = 600;               // s
+/** How long a run of an event may take before it is out: TIME_LIMIT, or a long race's half again its bronze par. */
+export const timeLimit = (event) => Math.max(TIME_LIMIT, (event.par?.bronze || 0) * 1.5);
 
 const along = (a, b, t) => [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t];
 
@@ -173,7 +175,7 @@ export class EventRun {
       if (this.gate >= E.gates.length) { this.phase = 'finished'; return 'finish'; }
       return 'gate';
     }
-    if (now - this.startAt > TIME_LIMIT) { this.phase = 'out'; return 'timeout'; }
+    if (now - this.startAt > timeLimit(E)) { this.phase = 'out'; return 'timeout'; }
     return null;
   }
 

@@ -1,5 +1,5 @@
-// Builds a map's world from its definition (world/maps/): heights on a 1 m grid, ground surfaces, river and lake water
-// levels, trees, boulders, beacons and building colliders. Deterministic (each map has its own seed), pure JS (also
+// Builds a map's world from its definition (world/maps/): heights on a fine grid (1 m cells; a big map's bigger),
+// ground surfaces, river and lake water levels, trees, boulders, beacons and building colliders. Deterministic (each map has its own seed), pure JS (also
 // runs in Node for the tests), so every player's world is identical without sending it over the network.
 //
 // Order: macro landform on a 4 m grid (rolling hills, mountains, the river valley carved along a level profile that
@@ -9,16 +9,9 @@
 
 import { fbm, ridged, vnoise, rng } from './Noise.js';
 import { SURFACE } from '../physics/Surfaces.js';
-import { MAP_HALF, mapById } from './maps/index.js';
+import { gridOf, mapById } from './maps/index.js';
 import { courseLines, slalomLine } from '../game/Events.js';
 
-export const GRID_RES = 1;
-export const GRID_N = MAP_HALF * 2 / GRID_RES + 1;          // 2049
-export const GRID_ORIGIN = -MAP_HALF;
-const COARSE = 4;
-const CN = MAP_HALF * 2 / COARSE + 1;                        // 513
-export const WATER_RES = 2;
-export const WATER_N = MAP_HALF * 2 / WATER_RES + 1;         // 1025
 export const NO_WATER = -1e9;
 
 const clamp = (x, a, b) => (x < a ? a : x > b ? b : x);
@@ -65,7 +58,8 @@ const LANDFORMS = new Map();
 export function landform(M) {
   let L = LANDFORMS.get(M.id);
   if (L) return L;
-  const S = M.seed, RV = M.river;
+  // (a map without a river: one far off the map, which nothing comes near)
+  const S = M.seed, RV = M.river || { points: [[-1e6, -1e6], [-1e6 + 100, -1e6]], widthStart: 0, widthEnd: 0, depthStart: 0, depthEnd: 0, fords: [], none: true };
   const riverCoarsePts = spline(RV.points, 25);
   const riverArc = [0];
   for (let i = 1; i < riverCoarsePts.length; i++) riverArc.push(riverArc[i - 1] + hyp(riverCoarsePts[i][0] - riverCoarsePts[i - 1][0], riverCoarsePts[i][1] - riverCoarsePts[i - 1][1]));
@@ -93,7 +87,7 @@ export function landform(M) {
   // waterfall keeps its step (the smoothing passes leave the points either side of it alone)
   const riverLevel = (() => {
     const cut = RV.cut ?? 3.5, minDrop = RV.minDrop ?? 0.007;
-    const raw = riverCoarsePts.map(([x, z]) => baseHeight(x, z) - cut);
+    const raw = riverCoarsePts.map(([x, z]) => (RV.none ? 0 : baseHeight(x, z) - cut));
     const lv = new Float64Array(raw.length);
     const drop = (i) => (riverArc[i] - riverArc[i - 1]) * minDrop;
     const keep = new Set();
@@ -200,9 +194,14 @@ export async function generateWorld({ map, onProgress = () => {}, yieldEvery = 6
   const M = map && typeof map === 'object' ? map : mapById(map);
   const t0 = Date.now();
   const tick = async (f, label) => { onProgress(f, label); await new Promise((r) => setTimeout(r, 0)); };
+  await M.load?.();                                 // (a map made from real data: its grids, fetched once)
   const S = M.seed, LF = landform(M), G = M.gen || {};
+  // the grids (maps/index.js): 2049 x 2049 1 m cells on a 2 km map, its landform on a 4 m grid, its water on 2 m
+  const { half: HALF, res: RES, coarse: COARSE, waterRes: WATER_RES } = gridOf(M);
+  const GRID_ORIGIN = -HALF, GRID_N = HALF * 2 / RES + 1, CN = HALF * 2 / COARSE + 1, WATER_N = HALF * 2 / WATER_RES + 1;
   const { macroHeight, lumps, riverNear, roughOf } = LF;
   const RIVER = M.river, LAKE = M.lake, BOG = M.bog, STATION = M.station, BEACONS = M.beacons;
+  const RVR = RIVER || { points: [[-1e6, -1e6], [-1e6 + 100, -1e6]], widthStart: 0, widthEnd: 0 };
   const SNOW_LINE = M.snowLine ?? Infinity;
   const K = {};                                     // the map's own working state, shared by its hooks
 
@@ -253,18 +252,18 @@ export async function generateWorld({ map, onProgress = () => {}, yieldEvery = 6
       return hyp(x - wx0 - wux * t, z - wz0 - wuz * t);
     };
   }
-  G.prepare?.({ M, K, coarseAt, LF, origin: GRID_ORIGIN, N: GRID_N, half: MAP_HALF });
+  G.prepare?.({ M, K, coarseAt, LF, origin: GRID_ORIGIN, N: GRID_N, half: HALF, res: RES });
 
-  // ---- fine grid (1 m): macro + bumps + lake + bog + station terrace (+ the map's own shaping)
+  // ---- fine grid (1 m, or the map's own cell): macro + bumps + lake + bog + station terrace (+ the map's own shaping)
   const N = GRID_N;
   const H = new Float32Array(N * N);
   const surf = new Uint8Array(N * N);
   const bogC = BOG ? Math.cos(BOG.rot) : 1, bogS = BOG ? Math.sin(BOG.rot) : 0;
   const lakeR2 = lake ? (lake.r * 1.5 * (lake.lobes ? 1 + lake.lobes : 1)) ** 2 : 0;
   for (let j = 0; j < N; j++) {
-    const z = GRID_ORIGIN + j;
+    const z = GRID_ORIGIN + j * RES;
     for (let i = 0; i < N; i++) {
-      const x = GRID_ORIGIN + i;
+      const x = GRID_ORIGIN + i * RES;
       let h = bil(coarse, x, z);
       const rough = bil(coarseRough, x, z);
       const dk = G.detail ? G.detail(x, z, K) : 1;                // (smooth hillsides on a map that asks for them)
@@ -312,10 +311,10 @@ export async function generateWorld({ map, onProgress = () => {}, yieldEvery = 6
     if (level > W[idx]) W[idx] = level;
   };
   // per cell: distance to the river (0.25 m units, 255 = far) and which river point is nearest
-  const riverFine = spline(RIVER.points, 1.5);
+  const riverFine = RIVER ? spline(RIVER.points, 1.5) : [];
   const RP = riverFine.length;
   const rpLevel = new Float32Array(RP), rpHalf = new Float32Array(RP), rpDepth = new Float32Array(RP);
-  const rD = new Uint8Array(N * N).fill(255), rI = new Uint16Array(N * N);
+  const rD = new Uint8Array(N * N).fill(255), rI = new Uint16Array(RIVER ? N * N : 1);     // (read only where rD < 255)
   {
     let arc = 0;
     for (let p = 0; p < RP; p++) {
@@ -334,12 +333,12 @@ export async function generateWorld({ map, onProgress = () => {}, yieldEvery = 6
         if (sd < sh.r + 25) { const k = smoothstep(sh.r + 25, sh.r, sd); half *= 1 + (sh.widen ?? 0.6) * k; depth = lerp(depth, sh.depth ?? 0.4, k); }
       }
       rpLevel[p] = n.level; rpHalf[p] = half; rpDepth[p] = depth;
-      const R = Math.ceil(half + 42);
-      const ci = Math.round(px - GRID_ORIGIN), ck = Math.round(pz - GRID_ORIGIN);
+      const R = Math.ceil((half + 42) / RES);
+      const ci = Math.round((px - GRID_ORIGIN) / RES), ck = Math.round((pz - GRID_ORIGIN) / RES);
       for (let k = Math.max(0, ck - R); k <= Math.min(N - 1, ck + R); k++) {
-        const dz = GRID_ORIGIN + k - pz;
+        const dz = GRID_ORIGIN + k * RES - pz;
         for (let i = Math.max(0, ci - R); i <= Math.min(N - 1, ci + R); i++) {
-          const dx = GRID_ORIGIN + i - px;
+          const dx = GRID_ORIGIN + i * RES - px;
           const q = Math.min(254, Math.round(Math.sqrt(dx * dx + dz * dz) * 4));
           const idx = k * N + i;
           if (q < rD[idx]) { rD[idx] = q; rI[idx] = p; }
@@ -364,7 +363,7 @@ export async function generateWorld({ map, onProgress = () => {}, yieldEvery = 6
         else if (k < 6) h = Math.max(h, level + 0.12 * Math.min(1, k / 1.5));   // no low ground beside the channel
       }
       H[idx] = h;
-      if (d < half + 1.5) { const i = idx % N; setWater(GRID_ORIGIN + i, GRID_ORIGIN + (idx - i) / N, level); }
+      if (d < half + 1.5) { const i = idx % N; setWater(GRID_ORIGIN + i * RES, GRID_ORIGIN + (idx - i) / N * RES, level); }
     }
   }
   const riverD = (idx) => (rD[idx] === 255 ? 1e9 : rD[idx] / 4);
@@ -376,7 +375,7 @@ export async function generateWorld({ map, onProgress = () => {}, yieldEvery = 6
       const z = GRID_ORIGIN + k * WATER_RES;
       for (let i = 0; i < WATER_N; i++) {
         const x = GRID_ORIGIN + i * WATER_RES;
-        if (lake && lakeD(x - lake.x, z - lake.z) < lake.r * 1.3 && (!lake.lobes || H[clamp(Math.round(z - GRID_ORIGIN), 0, N - 1) * N + clamp(Math.round(x - GRID_ORIGIN), 0, N - 1)] < lake.level + 0.5)) W[k * WATER_N + i] = Math.max(W[k * WATER_N + i], lake.level);
+        if (lake && lakeD(x - lake.x, z - lake.z) < lake.r * 1.3 && (!lake.lobes || H[clamp(Math.round((z - GRID_ORIGIN) / RES), 0, N - 1) * N + clamp(Math.round((x - GRID_ORIGIN) / RES), 0, N - 1)] < lake.level + 0.5)) W[k * WATER_N + i] = Math.max(W[k * WATER_N + i], lake.level);
         if (BOG) {
           const bx = x - BOG.x, bz = z - BOG.z, bu = (bx * bogC + bz * bogS) / BOG.rx, bv = (-bx * bogS + bz * bogC) / BOG.rz;
           if (bu * bu + bv * bv < 0.45) W[k * WATER_N + i] = Math.max(W[k * WATER_N + i], bogFloor - 0.06);
@@ -384,17 +383,34 @@ export async function generateWorld({ map, onProgress = () => {}, yieldEvery = 6
       }
     }
   }
-  const hAt = (x, z) => H[clamp(Math.round(z - GRID_ORIGIN), 0, N - 1) * N + clamp(Math.round(x - GRID_ORIGIN), 0, N - 1)];
-  const cellOf = (x, z) => clamp(Math.round(z - GRID_ORIGIN), 0, N - 1) * N + clamp(Math.round(x - GRID_ORIGIN), 0, N - 1);
-  const ctx = { M, K, N, H, surf, W, origin: GRID_ORIGIN, setWater, hAt, cellOf, riverD, riverHalf, riverLvl, riverFine, coarseAt, lake };
+  const hAt = (x, z) => H[clamp(Math.round((z - GRID_ORIGIN) / RES), 0, N - 1) * N + clamp(Math.round((x - GRID_ORIGIN) / RES), 0, N - 1)];
+  const cellOf = (x, z) => clamp(Math.round((z - GRID_ORIGIN) / RES), 0, N - 1) * N + clamp(Math.round((x - GRID_ORIGIN) / RES), 0, N - 1);
+  const ctx = { M, K, N, H, surf, W, origin: GRID_ORIGIN, res: RES, half: HALF, waterN: WATER_N, waterRes: WATER_RES, setWater, hAt, cellOf, riverD, riverHalf, riverLvl, riverFine, coarseAt, lake };
 
   // the event courses are kept clear of puddles, boulders and trees
-  const courses = courseLines(M);
+  // (the segments bucketed by 64 m cell, each in every cell its box touches: a point near none of them looks at few)
+  const courses = courseLines(M), CC = 64, segCells = new Map();
+  for (const path of courses) for (let k = 1; k < path.length; k++) {
+    const [ax, az] = path[k - 1], [bx, bz] = path[k];
+    for (let cz = Math.floor(Math.min(az, bz) / CC); cz <= Math.floor(Math.max(az, bz) / CC); cz++) {
+      for (let cx = Math.floor(Math.min(ax, bx) / CC); cx <= Math.floor(Math.max(ax, bx) / CC); cx++) {
+        const key = cz * 100003 + cx;
+        if (!segCells.has(key)) segCells.set(key, []);
+        segCells.get(key).push(ax, az, bx, bz);
+      }
+    }
+  }
   const onCourse = (x, z, w = 7) => {
-    for (const path of courses) for (let k = 1; k < path.length; k++) {
-      const [ax, az] = path[k - 1], [bx, bz] = path[k], dx = bx - ax, dz = bz - az, l2 = dx * dx + dz * dz;
-      const t = clamp(((x - ax) * dx + (z - az) * dz) / l2, 0, 1);
-      if (hyp(x - ax - dx * t, z - az - dz * t) < w) return true;
+    for (let cz = Math.floor((z - w) / CC); cz <= Math.floor((z + w) / CC); cz++) {
+      for (let cx = Math.floor((x - w) / CC); cx <= Math.floor((x + w) / CC); cx++) {
+        const list = segCells.get(cz * 100003 + cx);
+        if (!list) continue;
+        for (let q = 0; q < list.length; q += 4) {
+          const ax = list[q], az = list[q + 1], dx = list[q + 2] - ax, dz = list[q + 3] - az, l2 = dx * dx + dz * dz;
+          const t = clamp(((x - ax) * dx + (z - az) * dz) / l2, 0, 1);
+          if (hyp(x - ax - dx * t, z - az - dz * t) < w) return true;
+        }
+      }
     }
     return false;
   };
@@ -408,10 +424,12 @@ export async function generateWorld({ map, onProgress = () => {}, yieldEvery = 6
   // is shallow); and a paved road's own: the shoulder its bed blends into the land over, and whether it is laid
   // level across (a highway's tarmac) and crosses the river on a bridge
   const tpH = [], tpW = [], tpK = [], tpX = [], tpZ = [], tpF = [], tpS = [], tpL = [], tpB = [];
-  const tD = new Uint8Array(N * N).fill(255), tI = new Uint16Array(N * N);   // distance in 0.1 m units
+  // (a point every grid cell along each trail: on a big map's roads more of them than 16 bits count)
+  const trailPts = M.trails.map((tr) => spline(tr.points, RES));
+  const tD = new Uint8Array(N * N).fill(255), tI = new (trailPts.reduce((a, p) => a + p.length, 0) > 65535 ? Uint32Array : Uint16Array)(N * N);   // distance in 0.1 m units
   const trailLines = [];
-  for (const tr of M.trails) {
-    const pts = spline(tr.points, 1);
+  for (const [ti, tr] of M.trails.entries()) {
+    const pts = trailPts[ti];
     // (a road with lanes: its width and lanes go to the renderer, for the markings)
     trailLines.push({ name: tr.name, kind: tr.kind, points: spline(tr.points, 6), ...(tr.lanes !== undefined ? { lanes: tr.lanes, width: tr.width, ...(tr.runway ? { runway: true } : {}) } : {}) });
     // the trail's own grade: the ground along it, smoothed (a road more than a trail; a highway over a longer stretch,
@@ -420,7 +438,7 @@ export async function generateWorld({ map, onProgress = () => {}, yieldEvery = 6
       if (tr.bridge) { const idx = cellOf(x, z); if (riverD(idx) < riverHalf(idx) + 4) return riverLvl(idx) + 2; }
       return hAt(x, z);
     });
-    const win = tr.smooth ?? (tr.kind === 'road' ? 18 : 10);
+    const win = Math.max(1, Math.round((tr.smooth ?? (tr.kind === 'road' ? 18 : 10)) / RES));
     for (let pass = 0; pass < 3; pass++) {
       const out = new Array(hs.length);
       for (let c = 0; c < hs.length; c++) {
@@ -443,7 +461,7 @@ export async function generateWorld({ map, onProgress = () => {}, yieldEvery = 6
     hs = hs.map((h, c) => clamp((cut[c] + fill[c]) / 2, h - cm, h + cm));
     // where it fords the river it dips to the bed, and the banks are cut down to it in ramps (a bridge doesn't)
     for (let p = 0; p < pts.length && !tr.bridge; p++) {
-      const ci = Math.round(pts[p][0] - GRID_ORIGIN), ck = Math.round(pts[p][1] - GRID_ORIGIN);
+      const ci = Math.round((pts[p][0] - GRID_ORIGIN) / RES), ck = Math.round((pts[p][1] - GRID_ORIGIN) / RES);
       if (ci < 0 || ck < 0 || ci >= N || ck >= N) continue;
       const idx = ck * N + ci;
       if (riverD(idx) < riverHalf(idx) + 3) hs[p] = Math.min(hs[p], riverLvl(idx) - (tr.ford ?? 0.38));
@@ -466,14 +484,14 @@ export async function generateWorld({ map, onProgress = () => {}, yieldEvery = 6
       tpH.push(hs[p]); tpW.push(tr.width); tpK.push(tr.kind === 'road' ? 2 : 1); tpX.push(pts[p][0]); tpZ.push(pts[p][1]); tpF.push(tr.ford);
       tpS.push(shoulder); tpL.push(tr.level ? 1 : 0.97); tpB.push(!!tr.bridge);
     }
-    const Rr = Math.ceil(tr.width + shoulder);
+    const Rr = Math.ceil((tr.width + shoulder) / RES);
     for (let p = 0; p < pts.length; p++) {
       const [px, pz] = pts[p];
-      const ci = Math.round(px - GRID_ORIGIN), ck = Math.round(pz - GRID_ORIGIN);
+      const ci = Math.round((px - GRID_ORIGIN) / RES), ck = Math.round((pz - GRID_ORIGIN) / RES);
       for (let k = Math.max(0, ck - Rr); k <= Math.min(N - 1, ck + Rr); k++) {
-        const dz = GRID_ORIGIN + k - pz;
+        const dz = GRID_ORIGIN + k * RES - pz;
         for (let i = Math.max(0, ci - Rr); i <= Math.min(N - 1, ci + Rr); i++) {
-          const dx = GRID_ORIGIN + i - px;
+          const dx = GRID_ORIGIN + i * RES - px;
           const q = Math.min(254, Math.round(Math.sqrt(dx * dx + dz * dz) * 10));
           const idx = k * N + i;
           if (q < tD[idx]) { tD[idx] = q; tI[idx] = base + p; }
@@ -520,7 +538,7 @@ export async function generateWorld({ map, onProgress = () => {}, yieldEvery = 6
   }
   // carve the puddles (only where the ground all round is level: on a side slope one would be a pothole with a wall)
   for (const pd of puddles) {
-    const ci = Math.round(pd.x - GRID_ORIGIN), ck = Math.round(pd.z - GRID_ORIGIN), Rr = Math.ceil(pd.r + 2);
+    const ci = Math.round((pd.x - GRID_ORIGIN) / RES), ck = Math.round((pd.z - GRID_ORIGIN) / RES), Rr = Math.ceil((pd.r + 2) / RES);
     // (a verge's: not on any road's tarmac, nor in the river)
     if (pd.verge) {
       const idx = cellOf(pd.x, pd.z);
@@ -529,14 +547,14 @@ export async function generateWorld({ map, onProgress = () => {}, yieldEvery = 6
     let rim = Infinity, rimTop = -Infinity;
     for (let k = ck - Rr; k <= ck + Rr; k++) for (let i = ci - Rr; i <= ci + Rr; i++) {
       if (i < 0 || k < 0 || i >= N || k >= N) continue;
-      const d = hyp(GRID_ORIGIN + i - pd.x, GRID_ORIGIN + k - pd.z);
+      const d = hyp(GRID_ORIGIN + i * RES - pd.x, GRID_ORIGIN + k * RES - pd.z);
       if (d > pd.r && d < pd.r + 1.5) { rim = Math.min(rim, H[k * N + i]); rimTop = Math.max(rimTop, H[k * N + i]); }
     }
     if (!Number.isFinite(rim) || rimTop - rim > 0.45) { pd.skip = true; continue; }
     pd.level = rim - 0.1;
     for (let k = ck - Rr; k <= ck + Rr; k++) for (let i = ci - Rr; i <= ci + Rr; i++) {
       if (i < 0 || k < 0 || i >= N || k >= N) continue;
-      const d = hyp(GRID_ORIGIN + i - pd.x, GRID_ORIGIN + k - pd.z);
+      const d = hyp(GRID_ORIGIN + i * RES - pd.x, GRID_ORIGIN + k * RES - pd.z);
       if (d >= pd.r) continue;
       const idx = k * N + i;
       H[idx] = Math.min(H[idx], rim - pd.depth * (1 - (d / pd.r) ** 2) - 0.02);
@@ -557,11 +575,11 @@ export async function generateWorld({ map, onProgress = () => {}, yieldEvery = 6
     L.y = hAt(L.x, L.z);
     if (!pad) continue;
     const h0 = L.y;
-    const ci = Math.round(L.x - GRID_ORIGIN), ck = Math.round(L.z - GRID_ORIGIN), Rr = pad + 6;
+    const ci = Math.round((L.x - GRID_ORIGIN) / RES), ck = Math.round((L.z - GRID_ORIGIN) / RES), Rr = Math.ceil((pad + 6) / RES);
     for (let k = ck - Rr; k <= ck + Rr; k++) for (let i = ci - Rr; i <= ci + Rr; i++) {
       if (i < 0 || k < 0 || i >= N || k >= N) continue;
       const idx = k * N + i;
-      H[idx] = lerp(H[idx], h0, smoothstep(pad + 6, pad, hyp(GRID_ORIGIN + i - L.x, GRID_ORIGIN + k - L.z)));
+      H[idx] = lerp(H[idx], h0, smoothstep(pad + 6, pad, hyp(GRID_ORIGIN + i * RES - L.x, GRID_ORIGIN + k * RES - L.z)));
     }
   }
   ctx.landmarks = landmarks;
@@ -577,14 +595,14 @@ export async function generateWorld({ map, onProgress = () => {}, yieldEvery = 6
   const GARDEN = M.rockGarden, WASH = M.sandWash;
   const lakeShoreR2 = lake ? (lake.r * 1.3 * (lake.lobes ? 1 + lake.lobes : 1)) ** 2 : 0, washR2 = WASH ? 1.3 * WASH.r * WASH.r : 0, gardenR2 = GARDEN ? 1.3 * GARDEN.r * GARDEN.r : 0;
   for (let k = 0; k < N; k++) {
-    const z = GRID_ORIGIN + k;
+    const z = GRID_ORIGIN + k * RES;
     const k0 = Math.max(0, k - 1), k1 = Math.min(N - 1, k + 1);
     for (let i = 0; i < N; i++) {
-      const x = GRID_ORIGIN + i;
+      const x = GRID_ORIGIN + i * RES;
       const idx = k * N + i;
       const h = H[idx];
       const i0 = Math.max(0, i - 1), i1 = Math.min(N - 1, i + 1);
-      const gx = (H[k * N + i1] - H[k * N + i0]) / (i1 - i0), gz = (H[k1 * N + i] - H[k0 * N + i]) / (k1 - k0);
+      const gx = (H[k * N + i1] - H[k * N + i0]) / ((i1 - i0) * RES), gz = (H[k1 * N + i] - H[k0 * N + i]) / ((k1 - k0) * RES);
       const sl = Math.sqrt(gx * gx + gz * gz);
       let s = SURFACE.GRASS;
       if (vnoise(x / 13, z / 13, S + 70) > 0.8) s = SURFACE.DIRT;
@@ -624,16 +642,16 @@ export async function generateWorld({ map, onProgress = () => {}, yieldEvery = 6
       else if (td < tw + 1.6 && (s === SURFACE.GRASS || s === M.vergeOf) && vnoise(x / 3, z / 3, S + 78) > 0.4) s = SURFACE.DIRT;
       // under water
       const wl = waterAt(x, z);
-      if (wl > NO_WATER && h < wl - 0.05 && !(M.roadSurface !== undefined && s === M.roadSurface)) s = rd < rh + 1 ? SURFACE.RIVERBED : s === SURFACE.MUD ? SURFACE.MUD : SURFACE.RIVERBED;
+      if (wl > NO_WATER && h < wl - 0.05 && !(M.roadSurface !== undefined && s === M.roadSurface)) s = rd < rh + 1 ? SURFACE.RIVERBED : s === SURFACE.MUD ? SURFACE.MUD : s === SURFACE.SAND && M.sandBed ? SURFACE.SAND : SURFACE.RIVERBED;
       surf[idx] = s;
     }
     if (k % yieldEvery === 0) await tick(0.7 + 0.12 * k / N, 'Laying the ground');
   }
   for (const pd of puddles) {
-    const ci = Math.round(pd.x - GRID_ORIGIN), ck = Math.round(pd.z - GRID_ORIGIN), Rr = Math.ceil(pd.r + 1.5);
+    const ci = Math.round((pd.x - GRID_ORIGIN) / RES), ck = Math.round((pd.z - GRID_ORIGIN) / RES), Rr = Math.ceil((pd.r + 1.5) / RES);
     for (let k = ck - Rr; k <= ck + Rr; k++) for (let i = ci - Rr; i <= ci + Rr; i++) {
       if (i < 0 || k < 0 || i >= N || k >= N) continue;
-      if (hyp(GRID_ORIGIN + i - pd.x, GRID_ORIGIN + k - pd.z) < pd.r + 1.2 && surf[k * N + i] !== SURFACE.SNOW) surf[k * N + i] = SURFACE.MUD;
+      if (hyp(GRID_ORIGIN + i * RES - pd.x, GRID_ORIGIN + k * RES - pd.z) < pd.r + 1.2 && surf[k * N + i] !== SURFACE.SNOW) surf[k * N + i] = SURFACE.MUD;
     }
   }
 
@@ -654,8 +672,10 @@ export async function generateWorld({ map, onProgress = () => {}, yieldEvery = 6
     }
   }
   // along the river and on the rocky steeps
-  for (let n = 0; n < 9000 && boulders.length < 1400; n++) {
-    const x = (R() * 2 - 1) * (MAP_HALF - 30), z = (R() * 2 - 1) * (MAP_HALF - 30);
+  // (as many as the map's area holds, unless it says how many)
+  const area = (HALF / 1024) ** 2, bDraws = Math.round(9000 * area), bMax = M.boulderMax ?? Math.round(1400 * area);
+  for (let n = 0; n < bDraws && boulders.length < bMax; n++) {
+    const x = (R() * 2 - 1) * (HALF - 30), z = (R() * 2 - 1) * (HALF - 30);
     const idx = cellOf(x, z), s = surf[idx];
     const nearRiver = riverD(idx) < riverHalf(idx) + 6;
     const p = s === SURFACE.ROCK ? 0.35 : nearRiver ? 0.25 : s === SURFACE.SNOW ? 0.05 : 0.012;
@@ -691,8 +711,8 @@ export async function generateWorld({ map, onProgress = () => {}, yieldEvery = 6
   const clear = [...landmarks.map((L) => [L.x, L.z, L.type === 'station' ? 45 : 16]), ...BEACONS.map((b) => [b.x, b.z, 12]), [STATION.x, STATION.z, 60]];
   if (G.trees) G.trees({ ...ctx, R, trees, clear, lake, boulders }); else {
     const STEP = 5;
-    for (let z = GRID_ORIGIN + 3; z < MAP_HALF - 3; z += STEP) {
-      for (let x = GRID_ORIGIN + 3; x < MAP_HALF - 3; x += STEP) {
+    for (let z = GRID_ORIGIN + 3; z < HALF - 3; z += STEP) {
+      for (let x = GRID_ORIGIN + 3; x < HALF - 3; x += STEP) {
         const px = x + (R() - 0.5) * STEP * 0.9, pz = z + (R() - 0.5) * STEP * 0.9;
         const idx = cellOf(px, pz);
         const s = surf[idx], h = H[idx];
@@ -737,13 +757,13 @@ export async function generateWorld({ map, onProgress = () => {}, yieldEvery = 6
   await tick(1, 'Ready');
   return {
     map: M, farHeight: LF.farHeight,
-    N, res: GRID_RES, origin: GRID_ORIGIN, heights: H, surface: surf,
+    N, res: RES, origin: GRID_ORIGIN, half: HALF, heights: H, surface: surf,
     water: W, waterN: WATER_N, waterRes: WATER_RES,
     lake, bogFloor, puddles,
     trees: { x: Float32Array.from(trees.x), y: Float32Array.from(trees.y), z: Float32Array.from(trees.z), r: Float32Array.from(trees.r), h: Float32Array.from(trees.h), type: Uint8Array.from(trees.type), count: trees.x.length },
     boulders, beacons, landmarks, posts,
     trails: trailLines,
-    river: { points: spline(RIVER.points, 6).map(([x, z]) => { const n = riverNear(x, z); return [x, z, n.level, lerp(RIVER.widthStart, RIVER.widthEnd, n.s) / 2]; }) },
+    river: { points: RIVER ? spline(RVR.points, 6).map(([x, z]) => { const n = riverNear(x, z); return [x, z, n.level, lerp(RVR.widthStart, RVR.widthEnd, n.s) / 2]; }) : [] },
     extra: K.out || {},
     genMs: Date.now() - t0,
   };

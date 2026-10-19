@@ -1,7 +1,6 @@
 // The heads-up display: dials, drivetrain chips, winch, compass with beacons and friends, the next beacon, the
 // players, a rotating minimap and the full map, toasts, hints and chat.
 import { micIcon } from './VoicePanel.js';
-import { MAP_HALF } from '../world/maps/index.js';
 
 const $ = (id) => document.getElementById(id);
 const TAU = Math.PI * 2;
@@ -33,14 +32,15 @@ export class HUD {
 
   /** The valley as a picture: ground colours with hill shading, water, trails, buildings. */
   buildMapImage(tr) {
-    const S = 1024, c = document.createElement('canvas'); c.width = S; c.height = S;
+    // (2 m a pixel on a 2 km map; a big map's 4 m)
+    const w = this.world, HALF = w.half, S = HALF > 1024 ? 2048 : 1024, c = document.createElement('canvas'); c.width = S; c.height = S;
     const x = c.getContext('2d');
     const img = x.createImageData(S, S);
-    const w = this.world, step = (2 * MAP_HALF) / S;
+    const step = (2 * HALF) / S;
     const out = [0, 0, 0];
     for (let j = 0; j < S; j++) {
       for (let i = 0; i < S; i++) {
-        const px = -MAP_HALF + (i + 0.5) * step, pz = -MAP_HALF + (j + 0.5) * step;
+        const px = -HALF + (i + 0.5) * step, pz = -HALF + (j + 0.5) * step;
         const h = w.terrain(px, pz);
         const hx = w.terrain(px + step, pz) - w.terrain(px - step, pz), hz = w.terrain(px, pz + step) - w.terrain(px, pz - step);
         const nx = -hx / (2 * step), nz = -hz / (2 * step);
@@ -54,7 +54,7 @@ export class HUD {
       }
     }
     x.putImageData(img, 0, 0);
-    const toPx = (v) => (v + MAP_HALF) / (2 * MAP_HALF) * S;
+    const toPx = (v) => (v + HALF) / (2 * HALF) * S;
     // the woods: each tree's crown
     const T = w.trees;
     x.fillStyle = 'rgba(42,66,32,0.5)';
@@ -300,14 +300,14 @@ export class HUD {
   // ---------------------------------------------------------------- maps
   drawMinimap(here, heading, mates, route, mode) {
     const g = this.mini, S = 220, scale = 1.25;                 // px per metre
-    const img = this.mapImage, k = img.width / (2 * MAP_HALF);
+    const img = this.mapImage, HALF = this.world.half, k = img.width / (2 * HALF);
     g.save();
     g.clearRect(0, 0, S, S);
     g.beginPath(); g.arc(S / 2, S / 2, S / 2, 0, TAU); g.clip();
     g.translate(S / 2, S / 2);
     g.rotate(-heading);
     g.scale(scale / k, scale / k);
-    g.drawImage(img, -(here.x + MAP_HALF) * k, -(here.z + MAP_HALF) * k);
+    g.drawImage(img, -(here.x + HALF) * k, -(here.z + HALF) * k);
     // the satnav's route
     if (route?.points?.length > 1) {
       g.beginPath();

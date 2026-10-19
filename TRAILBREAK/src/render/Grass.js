@@ -212,8 +212,8 @@ normal = normalize(vNormal);`)
       for (let i = 0; i < n; i++) {
         const x = cx * CHUNK + (i + hash(i + cx * n, k + cz * n, 1)) * SPACING;
         const z = cz * CHUNK + (k + hash(i + cx * n, k + cz * n, 2)) * SPACING;
-        if (Math.abs(x) >= 1023 || Math.abs(z) >= 1023) continue;
-        const cell = Math.round(z - w.origin) * w.N + Math.round(x - w.origin);
+        if (Math.abs(x) >= w.half - 1 || Math.abs(z) >= w.half - 1) continue;
+        const cell = Math.round((z - w.origin) / w.res) * w.N + Math.round((x - w.origin) / w.res);
         const L = T.splat[cell];
         const r = hash(x, z, 3);
         if (L !== grassL && !(L === forestL && r < 0.12)) continue;

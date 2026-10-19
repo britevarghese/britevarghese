@@ -113,7 +113,7 @@ export function decodeLayout(code) {
     const a = JSON.parse(unb64(s + '='.repeat((4 - (s.length % 4)) % 4)));
     if (!Array.isArray(a) || a[0] !== 1 || !Array.isArray(a[3])) return null;
     const num = (n) => typeof n === 'number' && Number.isFinite(n);
-    const props = a[3].slice(0, MAX_PROPS).filter((q) => Array.isArray(q) && q.length === 4 && q.every(num) && PROP_IDS[q[0]] && Math.abs(q[1]) < 12000 && Math.abs(q[2]) < 12000)
+    const props = a[3].slice(0, MAX_PROPS).filter((q) => Array.isArray(q) && q.length === 4 && q.every(num) && PROP_IDS[q[0]] && Math.abs(q[1]) < 50000 && Math.abs(q[2]) < 50000)
       .map((q) => ({ type: PROP_IDS[q[0]], x: q[1] / 10, z: q[2] / 10, yaw: q[3] / 100 }));
     return { v: 1, map: typeof a[1] === 'string' ? a[1].slice(0, 16) : '', name: typeof a[2] === 'string' ? a[2].slice(0, 40) : '', props };
   } catch { return null; }

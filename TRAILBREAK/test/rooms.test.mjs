@@ -247,7 +247,7 @@ test('races: junk event ids are ignored; a race is called after its time limit',
   a.msg({ t: 'ev', k: 'open', id: 7 });
   assert.equal(room.race, null);
   a.msg({ t: 'ev', k: 'open', id: 'hillclimb' });
-  room.race.at = Date.now() - 12 * 60 * 1000;
+  room.race.at = Date.now() - 22 * 60 * 1000;
   room.tick();
   assert.equal(room.race, null);
   assert.deepEqual(a.last('ev').results, [{ id: 1, name: 'Ana', time: null }]);

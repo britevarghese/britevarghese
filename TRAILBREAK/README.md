@@ -3,9 +3,10 @@
 **Offroad Legends** (the TRAILBREAK project) is a co-op off-road driving game that runs in the browser. You and up to three friends take old 4x4s into one of three
 maps: **Ashwood Valley** (mountain trails, a river with fords, a mud bog, a rock garden, snow on the peaks), the
 **Kerala Ghats** (tea estates on misty hills, a waterfall, flooded paddy fields, red laterite tracks through rubber and
-coconut, a granite dome), or the **Konkan Coast** (tarmac for driving fast: a four-lane highway round the coast, a ghat
-road in hairpins over the hills, an airstrip, a beach and a lighthouse). Together you find each map's 15 survey beacons,
-and you winch each other out when one of you gets stuck.
+coconut, a granite dome), or the **Konkan Coast** (8 km across, the real coast round Kashid beach in Maharashtra from
+open elevation and land-cover data: a coast road by the Arabian Sea, ghat roads in hairpins up to a forested tableland,
+an airstrip on top). Together you find each map's survey beacons, and you winch each other out when one of you gets
+stuck.
 
 Nothing to install for players: they open the server's address in Chrome, Edge or Firefox.
 
@@ -323,9 +324,9 @@ Konkan Coast:
 
 | Event | What it asks for | Par (gold / silver / bronze) |
 |---|---|---|
-| Runway Drag | a quarter mile flat out from a standing start down the airstrip's runway | 17.5 / 20.5 / 25 s |
-| Ghat Hill Climb | 660 m of hairpins up 44 m from the edge of Ponnur to the top of the pass | 0:52 / 1:02 / 1:16 |
-| Beach Dash | 280 m along the water's edge on Ponnur Beach's soft sand: air the tyres down for it | 21 / 25 / 31 s |
+| Airstrip Drag | a quarter mile flat out from a standing start down the plateau airstrip's runway | 17.5 / 20.5 / 25 s |
+| Kashid Ghat Hill Climb | 3.6 km of the ghat's hairpins up 246 m from Kashid to the edge of the tableland | 3:10 / 3:40 / 4:25 |
+| Kashid Beach Dash | 850 m along the middle of Kashid's soft sand: air the tyres down for it | 48 / 57 / 70 s |
 
 **Checkpoint races** (as in Off-Road League; pause menu > Events, or their flags on the map): circuits of laps and
 point-to-point rallies along the trails, through numbered inflatable checkpoint arches (the next one glows; the finish
@@ -344,10 +345,10 @@ puts you back at the last checkpoint passed, facing the next, while the clock ru
 | Estate Road Rally | Kerala | 1.6 km of hairpins up through the tea to the factory gates | 3:40 / 4:23 / 5:22 |
 | Paddy and Rubber Rally | Kerala | across the paddies on the bunds and into the rubber trees | 2:05 / 2:30 / 3:03 |
 | Anapara Sprint | Kerala | east out of town to the great rock | 1:34 / 1:53 / 2:18 |
-| Coast Ring Circuit | Coast | a 5.6 km lap of the four-lane ring: up the coast, across the north, down the inland straight and back by the south bay | 3:35 / 4:20 / 5:20 |
-| Coast Highway Sprint | Coast | 1.1 km north from the river bridge up the coastal straight to the north cape | 46 / 55 / 68 s |
-| Inland Straight Sprint | Coast | 1.1 km south down the inland highway past the airfield, the longest straight on the coast | 44 / 53 / 65 s |
-| Ghat Road Rally | Coast | 1.7 km from Ponnur over the ghat: the main street, the hairpins and the long bends down to the inland highway | 1:35 / 1:55 / 2:20 |
+| Konkan Loop | Coast | a 15.1 km lap of the hills: south along the coast road, up the south ghat, across the plateau and down the Kashid ghat's hairpins | 9:20 / 11:00 / 13:20 |
+| Coast Road Sprint | Coast | the coast road end to end, 8.9 km: round the northern headland, behind Kashid beach and down the shore | 5:30 / 6:30 / 7:50 |
+| Kashid Ghat Rally | Coast | 10.4 km from Kashid over the ghat to the map's eastern edge: the hairpins, then the tableland and its valleys | 7:20 / 8:20 / 10:00 |
+| Plateau Sprint | Coast | 2.5 km across the tableland from the Kashid ghat to the south ghat, past the airstrip | 78 / 90 / 108 s |
 
 The races live in each map's `races` list (src/world/maps/), built by src/game/Races.js onto the trails as they are
 (the world's ground isn't changed by them).
@@ -360,7 +361,7 @@ against the clock:
   dashed). Outside it your truck loses a tenth of its health a second; at none you're out. The last truck in wins;
   alone, last as long as you can (3:37, the whole way, for gold). Every truck in the room works out the same circles
   from the match's start time.
-- **King of the Hill:** race to the rise (Meadow Rise on Ashwood, Reservoir Rise in Kerala, the Ghat Top on the coast:
+- **King of the Hill:** race to the rise (Meadow Rise on Ashwood, Reservoir Rise in Kerala, the Ghat Viewpoint on the coast:
   the satnav shows the way) and hold it: 45 s inside its ring with nobody else in it wins (contested, nobody's time
   counts). Push them out!
 
@@ -728,25 +729,38 @@ hills fade into haze sooner, and the dust and the mud the tyres throw are red. T
 
 ## Konkan Coast
 
-The map for driving fast, on tarmac, about 2 km across between the Arabian Sea and the hills. Everyone starts at the
-Ponnur Motor Station in Ponnur, a seaside town of red tiled roofs, chai stalls and bus stops. Round the whole map runs
-the Coast Highway, a 5.6 km ring of four lanes (dashed lane lines, a double yellow line down the middle, white edge
-lines) graded almost flat (nowhere steeper than 2 degrees) with sweeping bends: north along the coast behind the beach
-(over the bridge where the river meets the sea), across the north cape, down the long inland straight past the airfield,
-and back along the south bay. From the town the Ghat Road (two lanes, 1.8 km) climbs in hairpins to the top of the pass
-by the Ghat Top lookout, 52 m up, and runs down long bends to the inland highway. The airstrip has a 760 m runway (its
-centre line, edge lines and threshold bars), a taxiway, an apron and a radio mast; the Market, Temple and Lighthouse
-roads lead out of town, the last to the red and white lighthouse on the point. The country is open, as a driving game's
-is: coconut palms in groves along the shore with sand and grass between them, a copse here and there on the plain, woods
-with clearings on the hills; and the sea runs out past the edge of the map.
+A real place: 8 km by 8 km of the Konkan coast of Raigad, Maharashtra, round Kashid beach (18.44 N, 72.92 E), sixteen
+times the other maps' 2 km. Its ground is the real ground, from open data (`tools/konkan.py`): the heights from the
+SRTM survey (a sample every 30 m, smoothed and drawn through bicubically), and what covers every 10 m of it from ESA's
+WorldCover (forest, grass, paddy, villages, bare sand, water). The Arabian Sea along the west, its floor shelving away
+from the waterline; Kashid's long crescent of pale sand between two wooded headlands, the village behind it among
+coconut palms and paddy fields, red laterite earth; then the escarpment, forest climbing two hundred and fifty metres
+to the tableland of the Phansad hills (up to 330 m), cut by deep valleys, with a reservoir in one of them to the north.
+SRTM's coastline is blocky and lies out to sea in places, so the coast is WorldCover's: the land is shaped down to the
+waterline over its last 150 m (a beach where WorldCover sees sand, a steeper shore elsewhere), and the waterline itself
+is smoothed out of WorldCover's 10 m squares. The villages' 141 houses and 24 chai stalls stand where WorldCover sees
+built-up land, facing the nearest road. Beyond the map's edge the real land and sea go on, from the same survey every
+40 m, out to 12 km.
 
-The roads are asphalt that has seen some traffic and some monsoons: wheel paths polished darker, oil down the middle of
-each lane, repair patches with their seams sealed, cracks filled with tar, the paint worn, the edges crumbling with red
-earth washed onto them, and mud carried onto the lanes from the puddles on the verges and the field gates, smeared down
-the wheel paths. The puddles are real (water standing in a dip just off the tarmac, the ground round it trodden to mud),
-and the verges are kept clear of trees. Off the road the ground is Kerala's red laterite and grass, and the beach is
-soft sand, where airing down pays. Survey beacons stand by the roads, from the lighthouse and the market square to the
-runway's end and the hairpin bend.
+The roads are routed over that ground (`tools/konkan.py roads`, into `src/world/maps/coastRoads.js`): the least costly
+way on a 10 m grid, a step costing its length and more for its grade (steeply past the road's limit) and the fall
+across it, never across water; then the line is pulled smooth except where that would make it steeper than its limit,
+so the hairpins stay where the slope needs them. Everyone starts at Kashid Motor Station, where the ghat leaves the
+coast road. The Coast Road (9.0 km, two lanes) runs the length of the map by the sea, round the northern headland and
+behind Kashid beach and down the shore to the south. The Kashid Ghat (10.4 km) climbs from the village in hairpins
+(down to 9 m round) to the edge of the tableland, 260 m up, with a lookout over the sea, and crosses it to the map's
+eastern edge; the South Ghat (7.6 km) climbs out of the paddy valley to the south. The Plateau Road (2.6 km) joins the
+two across the top, past the airstrip: a 1.1 km runway levelled into the laterite, a taxiway and apron, a radio mast.
+The coast road, the south ghat, the plateau road and the Kashid ghat make the Konkan Loop, 15 km. For the 4x4s the
+Ridge Track (3.9 km of dirt) leaves the ghat along a ridge and drops into the valley past the reservoir to the map's
+northern edge.
+
+The forest is thick along the roads (what you see from them) and thinner away from them, where the ground's own
+colour carries the woods: about 225,000 trees in all, the evergreen giants, mango and jack, bamboo in the hollows, and
+coconut groves along the shore. The roads are worn asphalt with mud on the verges; the beach is soft sand, where airing
+down pays. The sea is one sheet over the map's water and out to the horizon. The map is generated on a 2 m grid (the
+others on 1 m): in Node it builds in about 15 s; in a test here, headless Chromium without a graphics card took 30 s
+to load it and about 370 MB of JavaScript memory.
 
 ## Project layout
 
@@ -756,9 +770,12 @@ src/physics/              Vehicle (chassis, axles, tyre contact, winch, water), 
                           Upgrades (the garage's parts and what each does to the physics)
 src/world/                WorldGen (a map's world, from its definition), World (ground for the physics), Deform
                           (ruts), Noise
-src/world/maps/           the maps: index (the list), ashwood, kerala, coast (each one's land, river, trails, beacons,
-                          buildings, events and its own generator hooks: Kerala's tea, paddies and quarry, the coast's
-                          sea, beach and town)
+src/world/maps/           the maps: index (the list, and each map's grids: its size and cell), ashwood, kerala,
+                          coast (each one's land, river, trails, beacons, buildings, events and its own generator
+                          hooks: Kerala's tea, paddies and quarry; the coast's real ground, sea, villages and forest),
+                          coastRoads (the coast's routed roads)
+tools/konkan.py           the Konkan Coast's ground from open data (fetch, bake into public/assets/maps/coast) and
+                          its roads (routed over it)
 src/render/               Renderer, Sky, Terrain (LOD patches), Vegetation, Tea (the estates' rows of bushes), Rocks,
                           Water (and the coast's sea), RoadMarkings and RoadWear (the coast's lane lines; the wear,
                           cracks and mud on its tarmac), Landmarks and
@@ -797,7 +814,10 @@ tire" by hartwelkisaka; the STi, "Subaru Impreza WRX 1996" by Mac CGI; the Supra
 Martin Trafas. All on Sketchfab, CC BY 4.0, see `public/assets/trucks/CREDITS.md` (converted with `tools/cars.py`).
 The driver: "indian man" by madmak21199 and his gloved hands, "Hand With Gloves" by teenjust500, on Sketchfab, CC BY
 4.0, see `public/assets/driver/CREDITS.md` (converted for NIGHTSHIFT; the meshoptimizer decoder, MIT, is in
-`public/vendor/three/addons/libs`). Engine sounds: see `public/assets/audio/CREDITS.md` (Freesound, CC0, CC BY 3.0
+`public/vendor/three/addons/libs`). The Konkan Coast's ground: elevation from SRTM 1 arc-second, courtesy of the U.S.
+Geological Survey (NASA/NGA; public domain), via the AWS Terrain Tiles (Mapzen); land cover © ESA WorldCover project
+2021 / contains modified Copernicus Sentinel data (2021) processed by the ESA WorldCover consortium, CC BY 4.0; see
+`public/assets/maps/coast/CREDITS.md`. Engine sounds: see `public/assets/audio/CREDITS.md` (Freesound, CC0, CC BY 3.0
 and 4.0; built with `tools/sounds/build_grains.py`). Ground textures: CC0 scans from Poly Haven and ambientCG, see
 `public/assets/ground/CREDITS.md` (packed with `tools/ground.py`). Tree models: pine, fir, spruce, birch, coconut palm,
 oak (as mango), elm (as rubber), banana and bamboo by evolveduk, and the jungle tree by kobaltsecond6c7d6150917a4267, on
