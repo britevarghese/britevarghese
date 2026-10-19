@@ -57,12 +57,12 @@ export const TREADS = [
   // truck's tyre (`tyre`: its slip curve) and lets go sooner past it; little bite on anything loose, and none in snow
   {
     name: 'Summer performance', short: 'summer', desc: 'Ultra-high-performance road tyres: a soft compound, a stiff shallow tread. Superb on dry tarmac; hopeless in mud, snow and wet grass.',
-    grip: { road: 1.25, rock: 1.0, dirt: 0.84, gravel: 0.8, grass: 0.72, mud: 0.55, sand: 0.66, snow: 0.42, ice: 0.7, riverbed: 0.72, tea: 0.78 }, rr: 0.85, noise: 0.12, road: true,
+    grip: { road: 1.25, rock: 1.0, dirt: 0.84, gravel: 0.8, grass: 0.86, mud: 0.55, sand: 0.66, snow: 0.42, ice: 0.7, riverbed: 0.72, tea: 0.78 }, rr: 0.85, noise: 0.12, road: true,
     tyre: { alphaPeak: 0.15, relaxY: 0.38, relaxX: 0.18 },
   },
   {
     name: 'Track semi-slick', short: 'track', desc: 'Road-legal semi-slicks (Cup 2 R, Trofeo R): the most grip there is on a dry road, and it lets go suddenly at the limit. Useless on anything loose.',
-    grip: { road: 1.45, rock: 1.02, dirt: 0.76, gravel: 0.72, grass: 0.62, mud: 0.45, sand: 0.58, snow: 0.34, ice: 0.6, riverbed: 0.64, tea: 0.7 }, rr: 0.9, noise: 0.15, road: true,
+    grip: { road: 1.45, rock: 1.02, dirt: 0.76, gravel: 0.72, grass: 0.78, mud: 0.45, sand: 0.58, snow: 0.34, ice: 0.6, riverbed: 0.64, tea: 0.7 }, rr: 0.9, noise: 0.15, road: true,
     tyre: { alphaPeak: 0.13, relaxY: 0.34, relaxX: 0.16 },
   },
 ];
