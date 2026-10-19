@@ -316,13 +316,16 @@ export class EventPlay {
     const g = this.g, run = this.run, e = run.event, time = run.time;
     g.course?.setActive(null);
     g.audio.beep?.(1568, 0.5, 0.1);
-    const medal = medalFor(e, time), before = g.career?.best(e.id);
+    // a hill someone else held: our time is where we'd stand (the match so far and the hold we still needed), for the
+    // race's table, not a time of ours: no medal or best for it (quick to lose, it came out a gold)
+    const lost = run instanceof HillRun && run.held < HOLD;
+    const medal = lost ? null : medalFor(e, time), before = g.career?.best(e.id);
     const prize = runPrize(e, medal, before?.medal);
-    const pb = !before || (e.higher ? time > before.time : time < before.time);
+    const pb = !lost && (!before || (e.higher ? time > before.time : time < before.time));
     if (g.career) {
       if (prize.medal) g.career.add(prize.medal, `${MEDAL_NAME[medal]}: ${e.name}`);
       g.career.add(prize.finish, `Finished the ${e.name}`);
-      g.career.record(e.id, { time, medal }, !!e.higher);
+      if (!lost) g.career.record(e.id, { time, medal }, !!e.higher);
     }
     if (this.inRace) {
       g.net.send({ t: 'ev', k: 'done', time });
@@ -344,7 +347,7 @@ export class EventPlay {
       ${note ? `<div class="ev-r-note">${escapeHtml(note)}</div>` : ''}
       ${time !== undefined ? `<div class="ev-r-time">${fmt(time)}${penalty ? ` <small>(${penalty} s of penalties)</small>` : ''}</div>
       <div class="ev-r-medal ${medal || 'none'}">${medal ? `${MEDAL_NAME[medal]} medal` : `No medal: bronze is ${e.higher ? 'lasting ' : ''}${fmt(e.par.bronze)}`}</div>
-      <div class="ev-r-pb">${pb ? (before ? `Personal best! (was ${fmt(before.time)})` : e.mode ? 'Your first go at it' : 'Your first time on this course') : `Your best: ${fmt(before.time)}`}</div>` : ''}
+      <div class="ev-r-pb">${pb ? (before ? `Personal best! (was ${fmt(before.time)})` : e.mode ? 'Your first go at it' : 'Your first time on this course') : before ? `Your best: ${fmt(before.time)}` : ''}</div>` : ''}
       ${lines.length ? `<div class="ev-r-prize">${lines.join(' · ')}</div>` : ''}
       ${rows}
       <div class="ev-r-actions"><button data-again class="primary">Again (J)</button><button data-close class="ghost">Close</button></div>`;
