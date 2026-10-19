@@ -1210,13 +1210,13 @@ export class TruckModel {
   updateGauges(rpm, kmh, gear) { this.gauges?.draw(rpm, kmh, gear); }
 
   /**
-   * In the driver's-seat view, the driver's head is where the camera is: hidden. A sports car's body from inside is
+   * In the driver's-seat view, the driver's head is where the camera is: hidden. A sports car's (or a built cockpit's) body from inside is
    * trim, not paint (the paint's inside faces drawn dark), and its glass is clear from inside (out there, at the
    * angles the cab sees it, it caught the sky white).
    */
   setSeatView(on) {
     this.driver?.setSeatView(on);
-    if (!this.spec.road || this.seatView === on) return;
+    if ((!this.spec.road && !this.gauges) || this.seatView === on) return;       // (a sports car, or one with a cockpit built for it)
     this.seatView = on;
     if (!this.insideTrim) {
       const trim = MATS.insideTrim ||= new THREE.MeshStandardMaterial({ color: 0x3a3a3d, roughness: 0.9, side: THREE.BackSide, emissive: 0x3a3a3d, emissiveIntensity: 0.9 });
