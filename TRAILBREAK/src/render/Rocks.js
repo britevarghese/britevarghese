@@ -3,6 +3,7 @@
 // from the three axes in world space so no face stretches, with its relief in the lighting, moss and lichen on the
 // faces that look up, and darker undersides where they sit in the ground.
 import * as THREE from 'three';
+import { HASH21 } from './ShaderHash.js';
 import { mergeVertices } from 'three/addons/utils/BufferGeometryUtils.js';
 import { rockShape, shapeOf, ROCK_SHAPES } from '../world/RockShapes.js';
 
@@ -65,7 +66,8 @@ uniform vec3 uGain;
 varying vec3 vRPos;
 varying vec3 vRNor;
 varying float vRY;
-float rh(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+${HASH21}
+float rh(vec2 p) { return hash21(p); }
 float rn(vec2 p) { vec2 i = floor(p), f = fract(p); vec2 u = f * f * (3.0 - 2.0 * f);
   return mix(mix(rh(i), rh(i + vec2(1, 0)), u.x), mix(rh(i + vec2(0, 1)), rh(i + vec2(1, 1)), u.x), u.y); }
 vec3 gRockN;`)

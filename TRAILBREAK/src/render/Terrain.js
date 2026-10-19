@@ -16,6 +16,7 @@
 // ruts' own grid), so each rut has its walls and its floor.
 
 import * as THREE from 'three';
+import { HASH21 } from './ShaderHash.js';
 import { SURFACE } from '../physics/Surfaces.js';
 import { DeformGrid, DEFORM_SPAN } from '../world/Deform.js';
 import { vnoise } from '../world/Noise.js';
@@ -156,7 +157,8 @@ varying vec3 vWNormal;
 varying vec3 vTint;
 varying vec2 vWet;
 uniform vec3 uPuddle;
-float th(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+${HASH21}
+float th(vec2 p) { return hash21(p); }
 float tn(vec2 p) { vec2 i = floor(p), f = fract(p); vec2 u = f * f * (3.0 - 2.0 * f);
   return mix(mix(th(i), th(i + vec2(1, 0)), u.x), mix(th(i + vec2(0, 1)), th(i + vec2(1, 1)), u.x), u.y); }
 ${G ? `

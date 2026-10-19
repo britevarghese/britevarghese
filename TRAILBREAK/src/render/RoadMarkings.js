@@ -3,6 +3,7 @@
 // highway or a dashed white one on a two-lane road; a runway's dashed centre line, edge lines and the bars across its
 // thresholds. Strips a few centimetres over the ground, drawn just in front of it.
 import * as THREE from 'three';
+import { HASH21 } from './ShaderHash.js';
 import { spline } from '../world/WorldGen.js';
 
 const WHITE = [0.86, 0.86, 0.82], YELLOW = [0.85, 0.62, 0.12];
@@ -68,7 +69,8 @@ export class RoadMarkings {
       sh.fragmentShader = sh.fragmentShader
         .replace('#include <common>', `#include <common>
 varying vec3 vWPos;
-float mh(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+${HASH21}
+float mh(vec2 p) { return hash21(p); }
 float mn(vec2 p) { vec2 i = floor(p), f = fract(p); vec2 u = f * f * (3.0 - 2.0 * f);
   return mix(mix(mh(i), mh(i + vec2(1, 0)), u.x), mix(mh(i + vec2(0, 1)), mh(i + vec2(1, 1)), u.x), u.y); }`)
         .replace('#include <color_fragment>', `#include <color_fragment>

@@ -2,6 +2,7 @@
 // block walls, corrugated sheet sheds, a hill estate's tea factory with its rows of windows, roof vents and chimney.
 // Each builder takes a landmark { x, y, z, yaw, ... } and a Builder (render/Landmarks.js) and returns the group.
 import * as THREE from 'three';
+import { HASH21 } from './ShaderHash.js';
 
 const std = (color, roughness = 0.85, metalness = 0, extra = {}) => new THREE.MeshStandardMaterial({ color, roughness, metalness, ...extra });
 
@@ -15,7 +16,8 @@ function tileMaterial(color) {
     sh.fragmentShader = sh.fragmentShader
       .replace('#include <common>', `#include <common>
 varying vec3 vTileW;
-float kh(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }`)
+${HASH21}
+float kh(vec2 p) { return hash21(p); }`)
       .replace('#include <color_fragment>', `#include <color_fragment>
 {
   float course = fract(vTileW.y / 0.13);

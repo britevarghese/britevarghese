@@ -8,6 +8,7 @@
 // rings and foam lie flat on the water (on its surface as drawn: World.waterSurface). Lit by the sun and the sky:
 // clods shaded as lumps (wet mud glints), spray and dust as soft volumes that glow when the sun is behind them.
 import * as THREE from 'three';
+import { HASH21 } from './ShaderHash.js';
 import { SURFACE } from '../physics/Surfaces.js';
 
 const MAX = 4000;
@@ -72,7 +73,8 @@ varying vec3 vWorld;
 #include <common>
 #include <fog_pars_fragment>
 #include <logdepthbuf_pars_fragment>
-float h21(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+${HASH21}
+float h21(vec2 p) { return hash21(p); }
 float vnoise(vec2 p) {
   vec2 i = floor(p), f = fract(p);
   f = f * f * (3.0 - 2.0 * f);

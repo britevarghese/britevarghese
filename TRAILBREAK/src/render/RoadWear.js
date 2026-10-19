@@ -7,6 +7,7 @@
 // its look all in the shader (from where each point is along and across the road); the fine detail fades out with
 // distance rather than shimmer.
 import * as THREE from 'three';
+import { HASH21 } from './ShaderHash.js';
 import { spline } from '../world/WorldGen.js';
 
 const STEP = 2;                                   // (m along a road between the strip's rows)
@@ -107,7 +108,8 @@ vWPos = (modelMatrix * vec4(transformed, 1.0)).xyz;`);
 varying vec4 vRoad;
 varying float vMud;
 varying vec3 vWPos;
-float rh(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+${HASH21}
+float rh(vec2 p) { return hash21(p); }
 float rn(vec2 p) { vec2 i = floor(p), f = fract(p); vec2 u = f * f * (3.0 - 2.0 * f);
   return mix(mix(rh(i), rh(i + vec2(1, 0)), u.x), mix(rh(i + vec2(0, 1)), rh(i + vec2(1, 1)), u.x), u.y); }
 float rf(vec2 p) { return 0.5 * rn(p) + 0.3 * rn(p * 2.07) + 0.2 * rn(p * 4.31); }
