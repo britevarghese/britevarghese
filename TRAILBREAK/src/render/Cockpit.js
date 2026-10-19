@@ -248,24 +248,69 @@ export function buildCockpit(P, I, S, eye, roofAt, extra, spec) {
     P.add(M.seat, rbox(w, 0.12, 0.45, 0.04), [0, hy - 0.05, rz + 0.1]);
     P.add(M.seat, rbox(w, 0.55, 0.1, 0.04), [0, hy + 0.23, rz - 0.15], [-0.25, 0, 0]);
   }
-  // the roof lined: under the roof wherever the layout's roof map has it, 3 cm down
+  // the roof lined: under the roof panel, 3.5 cm down, where the layout's roof map has it. Only the roof itself: across
+  // the car the map runs on down over the side windows' frames to the doors, below the driver's eyes, and lined there
+  // it stood as a wall in his view. So each row of the lining runs between where the roof falls to that height on
+  // either side (found between the map's points: its edge runs smooth, not in steps), and along each side, where it
+  // ends, the roof's rail is trimmed; across the front, a header down to the windscreen's top.
   if (roofAt) {
     const x0 = -xIn + 0.04, x1 = xIn - 0.04, z0 = zBack + 0.05, z1 = zT - 0.04, nx = 12, nz = Math.max(4, Math.round((z1 - z0) / 0.1));
-    const pos = [], idx = [], at = [];
-    for (let k = 0; k <= nz; k++) for (let i = 0; i <= nx; i++) {
-      const x = x0 + (x1 - x0) * i / nx, z = z0 + (z1 - z0) * k / nz, y = roofAt(x, z);
-      at.push(y != null ? pos.length / 3 : -1);
-      if (y != null) pos.push(x, y - 0.035, z);
+    const lineY = (x, z) => { const y = roofAt(x, z); return y == null ? null : y - 0.035; };
+    // (from the middle out toward x1, the last x the lining reaches: where it falls below `low`, or the roof ends)
+    const reach = (z, low, to) => {
+      const n = 48;
+      let px = 0, py = lineY(0, z);
+      for (let i = 1; i <= n; i++) {
+        const x = to * i / n, y = lineY(x, z);
+        if (y == null || y < low) return y == null ? px : px + (x - px) * (py - low) / Math.max(1e-6, py - y);
+        px = x; py = y;
+      }
+      return to;
+    };
+    const rows = [];
+    for (let k = 0; k <= nz; k++) {
+      const z = z0 + (z1 - z0) * k / nz, mid = lineY(0, z);
+      const low = Math.max(eye[1] + 0.06, (mid ?? yT) - 0.12);
+      if (mid == null || mid < low) { rows.push(null); continue; }
+      const xa = reach(z, low, x0), xb = reach(z, low, x1);
+      const row = [];
+      for (let i = 0; i <= nx; i++) { const x = xa + (xb - xa) * i / nx; row.push([x, Math.max(low, lineY(x, z) ?? low), z]); }
+      rows.push(row);
     }
-    for (let k = 0; k < nz; k++) for (let i = 0; i < nx; i++) {
-      const a = at[k * (nx + 1) + i], b = at[k * (nx + 1) + i + 1], c = at[(k + 1) * (nx + 1) + i], d = at[(k + 1) * (nx + 1) + i + 1];
-      if (a >= 0 && b >= 0 && c >= 0 && d >= 0) idx.push(a, c, b, b, c, d);
+    const pos = [], idx = [];
+    for (let k = 0; k < rows.length; k++) {
+      if (!rows[k]) continue;
+      const base = pos.length / 3;
+      for (const v of rows[k]) pos.push(...v);
+      if (k > 0 && rows[k - 1]) {
+        const prev = base - (nx + 1);
+        for (let i = 0; i < nx; i++) idx.push(prev + i, base + i, prev + i + 1, prev + i + 1, base + i, base + i + 1);
+      }
     }
     if (idx.length) {
       const g = new THREE.BufferGeometry();
       g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
       g.setIndex(idx); g.computeVertexNormals();
       P.add(M.lining, g);
+      const strip = (a, b) => {
+        const sp = [];
+        for (let k = 0; k < a.length; k++) sp.push(...a[k], ...b[k]);
+        const si = [];
+        for (let k = 0; k + 1 < a.length; k++) si.push(2 * k, 2 * k + 1, 2 * k + 2, 2 * k + 1, 2 * k + 3, 2 * k + 2);
+        const sg = new THREE.BufferGeometry();
+        sg.setAttribute('position', new THREE.Float32BufferAttribute(sp, 3));
+        sg.setIndex(si); sg.computeVertexNormals();
+        P.add(M.lining, sg);
+      };
+      const lined = rows.filter(Boolean);
+      // the rails: a strip falling a little outward from the lining's edge (the trim over the side windows' tops)
+      for (const [end, out] of [[nx, Math.sign(x1)], [0, Math.sign(x0)]]) {
+        const edge = lined.map((r) => r[end]);
+        if (edge.length > 1) strip(edge, edge.map(([x, y, z]) => [x + out * 0.05, y - 0.045, z]));
+      }
+      // the header: from the lining's front edge down to the windscreen's top
+      const front = lined[lined.length - 1];
+      if (front) strip(front, front.map(([x, y]) => [x, Math.min(y, yT + 0.01), zT + 0.01]));
     }
   }
   // the windscreen's pillars trimmed inside, and the pillar behind the doors
@@ -274,8 +319,12 @@ export function buildCockpit(P, I, S, eye, roofAt, extra, spec) {
     const yr = roofAt?.(sx * (xIn - 0.05), I.sideZ[0]) ?? yT;
     P.tube(M.lining, [sx * (xIn + 0.01), yB, I.sideZ[0] - 0.02], [sx * (xIn - 0.03), yr - 0.03, I.sideZ[0] - 0.05], 0.045);
   }
-  // sun visors folded up, the rear-view mirror on the screen's top
-  for (const sx of [1, -1]) P.add(M.lining, rbox(0.34, 0.016, 0.16, 0.006), [sx * 0.3, yT - 0.03, zT - 0.1], [-0.12, 0, 0]);
+  // sun visors folded up against the lining over the windscreen's top (not hanging in front of it), the rear-view
+  // mirror on the screen's top
+  for (const sx of [1, -1]) {
+    const vy = Math.max(yT - 0.03, (roofAt?.(sx * 0.3, zT - 0.12) ?? yT) - 0.055);
+    P.add(M.lining, rbox(0.34, 0.016, 0.16, 0.006), [sx * 0.3, vy, zT - 0.12], [-0.06, 0, 0]);
+  }
   const mirror = { position: new THREE.Vector3(0, yT - 0.085, zT - 0.08), normal: new THREE.Vector3(0, 0, -1), w: 0.23, h: 0.06 };
   P.add(M.vent, new THREE.CylinderGeometry(0.008, 0.008, 0.07, 6), [0, yT - 0.035, zT - 0.05]);
   return { gauges, mirror };
