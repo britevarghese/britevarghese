@@ -347,7 +347,9 @@ export class WorldMap {
     const Z = this.view.zoom, target = 110 / Z;
     const steps = [10, 20, 50, 100, 200, 250, 500, 1000, 2000];
     const m = steps.find((s) => s >= target * 0.6) || 2000, px = m * Z;
-    const x = 18, y = this.h - 22;
+    // (above the layer chips where a small screen puts them along the bottom)
+    const chips = document.getElementById('map-filters')?.getBoundingClientRect();
+    const x = 18, y = chips && chips.height && chips.top > this.h / 2 ? Math.min(this.h - 22, chips.top - 8) : this.h - 22;
     g.strokeStyle = 'rgba(20,25,22,0.85)'; g.lineWidth = 5; g.beginPath(); g.moveTo(x, y); g.lineTo(x + px, y); g.stroke();
     g.strokeStyle = '#f3ead7'; g.lineWidth = 2; g.beginPath(); g.moveTo(x, y - 4); g.lineTo(x, y); g.lineTo(x + px, y); g.lineTo(x + px, y - 4); g.stroke();
     g.font = `600 12px ${F}`; g.textAlign = 'left'; g.textBaseline = 'bottom'; g.fillStyle = '#f3ead7';
