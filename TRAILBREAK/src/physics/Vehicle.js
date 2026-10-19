@@ -456,6 +456,8 @@ export class Vehicle {
     if (!ctrl.analogSteer) {
       const fast = smoothstep(6, 16, Math.abs(speed)), faster = smoothstep(12, 26, Math.abs(speed));
       rate = Math.max(0.08, lock / (0.2 + 0.15 * fast + 0.15 * faster)) * dt;
+      // (a steering wheel's position comes from the driver's hands, already smooth: it follows them three times as fast)
+      if (ctrl.wheelAssist) rate *= 3;
       // (only a swing growing: never against the truck straightening up when the steering is let go)
       const ahead = yaw - this.yawLP;
       if (ahead * yaw > 0) target -= fast * clamp(STEER_DAMP * (1 + 2 * faster) * ahead, -0.45 * lock, 0.45 * lock);

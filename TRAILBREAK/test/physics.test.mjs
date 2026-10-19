@@ -262,6 +262,27 @@ test('turning on the keys at speed uses the tyres\' grip: at 30 and 45 km/h on t
   }
 });
 
+test('a steering wheel with the assist on: nudged a tenth of its travel at 90 km/h it turns the car gently, not round; at walking pace it still has the whole lock', () => {
+  const road = flat(SURFACE.ROAD);
+  const nudge = (id, ctrl) => {
+    const v = truck(id, road);
+    v.dt.setFourWD(false, 0);
+    v.vel.set(0, 0, 25); for (const w of v.wheels) w.omega = 25 / v.spec.tyre.radius;
+    let yaw = 0;
+    run(v, road, 1.5, (w) => { yaw = Math.max(yaw, Math.abs(w.angVel.y)); return { ...IDLE, throttle: 0.3, steer: 0.1, ...ctrl }; });
+    return { yaw, up: v.up.y };
+  };
+  for (const id of ['thar', 'm4csl']) {
+    const raw = nudge(id, { analogSteer: true }), held = nudge(id, { wheelAssist: true });
+    assert.ok(raw.yaw > 0.6, `${id}: raw, the nudge spins it (${(raw.yaw * 57.3).toFixed(0)} deg/s)`);
+    assert.ok(held.yaw < 0.35 && held.yaw < raw.yaw / 3 && held.up > 0.95, `${id}: with the assist, ${(held.yaw * 57.3).toFixed(0)} deg/s`);
+    const v = truck(id, road);
+    v.vel.set(0, 0, 2);
+    run(v, road, 1, { ...IDLE, throttle: 0.2, steer: 1, wheelAssist: true });
+    assert.ok(Math.abs(v.steerAngle) > 0.95 * v.spec.axles[0].steer, `${id}: full lock crawling (${v.steerAngle.toFixed(3)} rad)`);
+  }
+});
+
 test('on grass at speed the keys turn a truck at its grip, its path following the wheels instead of crabbing wide', () => {
   const grass = flat(SURFACE.GRASS);
   for (const id of ['shepherd', 'thar', 'bronco']) for (const kmh of [60, 100]) {

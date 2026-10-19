@@ -218,8 +218,11 @@ hands on it) follows yours, not a car's ratio (a car's turns about 14 times the 
 turns each way to full lock, where a 270° wheel turns 135°). Set how far your wheel turns lock to lock in the pause
 menu (**Rotation**: 180° to 1080°; a Logitech, Thrustmaster or Fanatec wheel starts at 900°, any other at 270°).
 
-Steering wheels are detected by name (or calibrated) and get the full steering range; keys and thumbsticks get a steering assist
-(full lock at walking pace, gentler at speed: the wheels ease round more slowly the faster you go, and the truck's swing
+Steering wheels are detected by name (or calibrated): their whole travel is the whole lock. A thumbstick steers on a
+curve (a third of the way over is a ninth of the lock), so a small push is a small turn. With the steering assist on
+(the default) every control gets it, keys, sticks and steering wheels alike, a wheel following your hands three times
+as fast as the keys (so a nudge of the wheel at 90 km/h is a gentle turn, not the spin it was without it): full lock
+at walking pace, gentler at speed (the wheels ease round more slowly the faster you go, and the truck's swing
 into a turn is damped, so it settles into the turn instead of lurching and wobbling). At speed it turns the wheels as
 far as the front tyres grip on that ground (on a road, about 0.65 g of cornering on off-road tyres, as the real trucks
 manage), but no further, so the nose doesn't plough on wide, and no further than a tall truck can take: it asks well

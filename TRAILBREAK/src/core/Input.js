@@ -210,8 +210,10 @@ export class Input {
         // (the steering wheel in the cab turns as the player's own does: as far as their hands turn it)
         turned = w * (this.rotationOf(pad) / 2) * Math.PI / 180;
       } else {
+        // a stick: squared, so a small push steers a little (a third of the way over, a ninth of the lock) and the whole
+        // push the whole lock
         const s = dz(ax);
-        if (s !== 0) { steer = clamp(Math.sign(s) * Math.pow(Math.abs(s), 1.4), -1, 1); this.device = 'gamepad'; }
+        if (s !== 0) { steer = clamp(Math.sign(s) * s * s, -1, 1); this.device = 'gamepad'; }
       }
       const rt = pad.buttons[7]?.value || 0, lt = pad.buttons[6]?.value || 0;
       throttle = Math.max(throttle, rt); brake = Math.max(brake, lt);

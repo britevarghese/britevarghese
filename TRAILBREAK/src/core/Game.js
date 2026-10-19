@@ -1129,6 +1129,11 @@ export class Game {
     if (this.paused) { this.pausedFrame(dt); I.endFrame(); return; }
     const c = { ...ctrl };
     if (this.chatOpen) { c.throttle = 0; c.brake = 0; c.handbrake = 1; c.steer = 0; c.winch = 0; }
+    // a steering wheel with the assist on gets it as the keys and sticks do (its whole travel is the whole lock at walking
+    // pace, at speed as far as the tyres grip, with stability control: raw, a nudge at speed turned the front wheels hard
+    // over and spun the car), answering as quickly as the hands turn it; with the assist off, everything is raw
+    c.wheelAssist = this.settings.assist && c.analogSteer;
+    if (c.wheelAssist) c.analogSteer = false;
     if (!this.settings.assist) c.analogSteer = true;
     if (this.garageOpen || this.mapOpen || this.building) { c.throttle = 0; c.brake = 0; c.handbrake = 1; c.steer = 0; c.winch = 0; }
     W.motor = W.attached ? c.winch : 0;
