@@ -263,8 +263,15 @@ async function start() {
     }
     const url = new URL(location.href); url.searchParams.delete('layout'); history.replaceState(null, '', url);
   }
-  // build the patches around the start before the first frame
+  // build the patches around the start before the first frame (not drawn), then compile the shaders they need, all at
+  // once where the browser can (KHR_parallel_shader_compile: one by one, each waited on, they held the loading screen
+  // for most of its time on a slow graphics chip)
   terrain.budget = 400;
+  game.noRender = true;
+  game.frame(0.016);
+  game.noRender = false;
+  setLoad(0.96, 'Warming up the shaders');
+  await renderer.renderer.compileAsync(renderer.scene, renderer.camera).catch((e) => console.warn('shaders', e));
   game.frame(0.016);
   tea?.prime(renderer.camera);
   terrain.budget = 6;

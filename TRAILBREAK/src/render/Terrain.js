@@ -404,10 +404,13 @@ if (gWet > 0.0) {
     return out;
   }
 
-  /** The layer of every cell (for the shader), and the colour grid and its mip levels (for far away). */
+  /**
+   * The layer of every cell (for the shader), and the colour grid and its mip levels (for far away). A big map's colour
+   * grid has a point every other cell (the colour shows only on ground far enough off to be past its textures).
+   */
   buildColors(onProgress) {
-    const w = this.world, N = w.N, O = w.origin, RES = this.res;
-    const col = new Uint8Array(N * N * 3), splat = new Uint8Array(N * N);
+    const w = this.world, N = w.N, O = w.origin, RES = this.res, CS = RES > 1 ? 2 : 1, CN = Math.floor((N - 1) / CS) + 1;
+    const col = new Uint8Array(CN * CN * 3), splat = new Uint8Array(N * N);
     const H = w.H, S = w.S, avg = this.layers.map((l) => l.avg), t3 = [0, 0, 0];
     const can = this.can = this.canopy().at;
     for (let k = 0; k < N; k++) {
@@ -417,20 +420,21 @@ if (gWet > 0.0) {
         const idx = k * N + i;
         const L = this.layerAt(S[idx], x, z, can);
         splat[idx] = L;
+        if (k % CS || i % CS) continue;
         const h = H[idx];
         const i0 = Math.max(0, i - 1), i1 = Math.min(N - 1, i + 1), k0 = Math.max(0, k - 1), k1 = Math.min(N - 1, k + 1);
         const gx = (H[k * N + i1] - H[k * N + i0]) / ((i1 - i0) * RES), gz = (H[k1 * N + i] - H[k0 * N + i]) / ((k1 - k0) * RES);
         this.tintAt(L, x, z, h, Math.sqrt(gx * gx + gz * gz), t3);
-        const a = avg[L];
-        col[idx * 3] = Math.min(255, Math.round(Math.sqrt(a[0] * t3[0]) * 255));       // stored ~gamma 2 for precision
-        col[idx * 3 + 1] = Math.min(255, Math.round(Math.sqrt(a[1] * t3[1]) * 255));
-        col[idx * 3 + 2] = Math.min(255, Math.round(Math.sqrt(a[2] * t3[2]) * 255));
+        const a = avg[L], c = ((k / CS) * CN + i / CS) * 3;
+        col[c] = Math.min(255, Math.round(Math.sqrt(a[0] * t3[0]) * 255));       // stored ~gamma 2 for precision
+        col[c + 1] = Math.min(255, Math.round(Math.sqrt(a[1] * t3[1]) * 255));
+        col[c + 2] = Math.min(255, Math.round(Math.sqrt(a[2] * t3[2]) * 255));
       }
       if (onProgress && k % 256 === 0) onProgress(k / N);
     }
     this.splat = splat;
     // mips: level L has cells 2^L cells wide (a box filter of the level below)
-    this.mips = [{ n: N, step: RES, data: col }];
+    this.mips = [{ n: CN, step: RES * CS, data: col }];
     let prev = this.mips[0];
     while (prev.n > 3) {
       const n = Math.floor((prev.n - 1) / 2) + 1, data = new Uint8Array(n * n * 3);

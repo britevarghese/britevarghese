@@ -417,6 +417,15 @@ const gen = {
       }
     }
     const nearRoad = (x, z) => roadD[clamp(Math.round((z + HALF) / RC), 0, rn - 1) * rn + clamp(Math.round((x + HALF) / RC), 0, rn - 1)];
+    // the clearings round the buildings and the beacons, by 64 m cell (each in every cell it reaches)
+    const CC = 64, near = new Map();
+    for (const q of clear) {
+      for (let k = Math.floor((q[1] - q[2]) / CC); k <= Math.floor((q[1] + q[2]) / CC); k++) for (let i = Math.floor((q[0] - q[2]) / CC); i <= Math.floor((q[0] + q[2]) / CC); i++) {
+        const key = k * 1000 + i;
+        if (!near.has(key)) near.set(key, []);
+        near.get(key).push(q);
+      }
+    }
     // kinds (the Kerala set): 0 coconut, 1 jungle giant, 2 mango/jack, 3 rubber, 4 banana, 5 bamboo
     const blocked = (x, z) => {
       const idx = cellOf(x, z), tw = trailW(idx);
@@ -426,7 +435,7 @@ const gen = {
       if (wl > -1e8 && H[idx] < wl + 0.3) return true;
       const [u, v] = runwayFrame(x, z);
       if (Math.abs(u) < RW_LEN / 2 + 80 && Math.abs(v) < 60 + (Math.abs(u - APRON.u) < APRON.hu + 25 ? 100 : 0)) return true;
-      for (const [cx, cz, cr] of clear) if (Math.abs(x - cx) < cr && Math.abs(z - cz) < cr && hyp(x - cx, z - cz) < cr) return true;
+      for (const [cx, cz, cr] of near.get(Math.floor(z / CC) * 1000 + Math.floor(x / CC)) || []) if (Math.abs(x - cx) < cr && Math.abs(z - cz) < cr && hyp(x - cx, z - cz) < cr) return true;
       return onCourse(x, z);
     };
     const bare = (s) => s === SURFACE.MUD || s === SURFACE.SAND || s === SURFACE.RIVERBED || s === SURFACE.GRAVEL || s === SURFACE.ROCK || s === SURFACE.ROAD;

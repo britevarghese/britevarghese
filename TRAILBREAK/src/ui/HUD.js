@@ -33,36 +33,53 @@ export class HUD {
   /** The valley as a picture: ground colours with hill shading, water, trails, buildings. */
   buildMapImage(tr) {
     // (2 m a pixel on a 2 km map; a big map's 4 m)
-    const w = this.world, HALF = w.half, S = HALF > 1024 ? 2048 : 1024, c = document.createElement('canvas'); c.width = S; c.height = S;
+    const w = this.world, HALF = w.half, S = HALF > 1024 ? Math.round(HALF / 2) : 1024, c = document.createElement('canvas'); c.width = S; c.height = S;
     const x = c.getContext('2d');
     const img = x.createImageData(S, S);
     const step = (2 * HALF) / S;
     const out = [0, 0, 0];
+    // (each pixel's middle on a grid point, two cells a pixel: read off the grids, not sampled; else sampled)
+    const N = w.N, H = w.H, k = step / w.res, m1 = tr.mips.find((m) => m.step === step);
+    const exact = k === 2 && !!m1;
+    const put = (i, j, h, nx, nz) => {
+      const shade = Math.max(0.35, Math.min(1.35, 0.92 + (nx * -0.6 + nz * -0.5) * 1.2));
+      let r = Math.sqrt(out[0]) * shade, g = Math.sqrt(out[1]) * shade, b = Math.sqrt(out[2]) * shade;
+      const wl = w.water(-HALF + (i + 0.5) * step, -HALF + (j + 0.5) * step);
+      if (wl > -1e8 && h < wl) { r = 0.22; g = 0.42; b = 0.5; }
+      const o = (j * S + i) * 4;
+      img.data[o] = Math.min(255, r * 255); img.data[o + 1] = Math.min(255, g * 255); img.data[o + 2] = Math.min(255, b * 255); img.data[o + 3] = 255;
+    };
     for (let j = 0; j < S; j++) {
       for (let i = 0; i < S; i++) {
+        if (exact) {
+          const gi = 2 * i + 1, gk = 2 * j + 1, o = gk * N + gi;
+          const h = H[o], hx = H[gk * N + Math.min(N - 1, gi + 2)] - H[gk * N + gi - 1 - (gi > 1 ? 1 : 0)], hz = H[Math.min(N - 1, gk + 2) * N + gi] - H[(gk - 1 - (gk > 1 ? 1 : 0)) * N + gi];
+          // the colour: the mean of the four 2-cell colour cells round the pixel's middle
+          const mn = m1.n, d = m1.data, a = (j * mn + i) * 3;
+          for (let q = 0; q < 3; q++) { const v = (d[a + q] + d[a + 3 + q] + d[a + mn * 3 + q] + d[a + mn * 3 + 3 + q]) / 4 / 255; out[q] = v * v; }
+          put(i, j, h, -hx / (2 * step), -hz / (2 * step));
+          continue;
+        }
         const px = -HALF + (i + 0.5) * step, pz = -HALF + (j + 0.5) * step;
         const h = w.terrain(px, pz);
         const hx = w.terrain(px + step, pz) - w.terrain(px - step, pz), hz = w.terrain(px, pz + step) - w.terrain(px, pz - step);
         const nx = -hx / (2 * step), nz = -hz / (2 * step);
-        const shade = Math.max(0.35, Math.min(1.35, 0.92 + (nx * -0.6 + nz * -0.5) * 1.2));
         tr.colorAt(px, pz, step, h, Math.hypot(nx, nz), out);
-        let r = Math.sqrt(out[0]) * shade, g = Math.sqrt(out[1]) * shade, b = Math.sqrt(out[2]) * shade;
-        const wl = w.water(px, pz);
-        if (wl > -1e8 && h < wl) { r = 0.22; g = 0.42; b = 0.5; }
-        const o = (j * S + i) * 4;
-        img.data[o] = Math.min(255, r * 255); img.data[o + 1] = Math.min(255, g * 255); img.data[o + 2] = Math.min(255, b * 255); img.data[o + 3] = 255;
+        put(i, j, h, nx, nz);
       }
     }
     x.putImageData(img, 0, 0);
     const toPx = (v) => (v + HALF) / (2 * HALF) * S;
-    // the woods: each tree's crown
+    // the woods: each tree's crown (all in one path: a fill a tree took seconds on a big map)
     const T = w.trees;
     x.fillStyle = 'rgba(42,66,32,0.5)';
+    x.beginPath();
     for (let t = 0; t < (T.base ?? T.count); t++) {
-      x.beginPath();
-      x.arc(toPx(T.x[t]), toPx(T.z[t]), Math.max(0.9, (T.h[t] * 0.16) / step), 0, 6.2832);
-      x.fill();
+      const cx = toPx(T.x[t]), cy = toPx(T.z[t]), r = Math.max(0.9, (T.h[t] * 0.16) / step);
+      x.moveTo(cx + r, cy);
+      x.arc(cx, cy, r, 0, 6.2832);
     }
+    x.fill();
     // trails
     for (const t of w.data.trails) {
       x.beginPath();

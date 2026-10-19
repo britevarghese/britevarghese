@@ -760,8 +760,9 @@ The forest is thick along the roads (what you see from them) and thinner away fr
 colour carries the woods: about 225,000 trees in all, the evergreen giants, mango and jack, bamboo in the hollows, and
 coconut groves along the shore. The roads are worn asphalt with mud on the verges; the beach is soft sand, where airing
 down pays. The sea is one sheet over the map's water and out to the horizon. The map is generated on a 2 m grid (the
-others on 1 m): in Node it builds in about 15 s; in a test here, headless Chromium without a graphics card took 30 s
-to load it and about 370 MB of JavaScript memory.
+others on 1 m): in Node it builds in about 13 s; in a test here, headless Chromium without a graphics card took 17 s
+to load it (Kerala 14 s) and about 345 MB of JavaScript memory. Every map's shaders are compiled together before the
+first frame (in parallel where the browser can), not one by one as each is first drawn.
 
 ## Project layout
 
