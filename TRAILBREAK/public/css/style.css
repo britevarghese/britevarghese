@@ -705,7 +705,10 @@ button.small { padding: 6px 12px; font-size: 13px; border-radius: 8px; }
 
 /* ---------- stuck panel and friends who need a tow */
 #stuck { position: absolute; left: 50%; bottom: 150px; transform: translateX(-50%); background: var(--panel); border: 1px solid var(--line);
-  border-radius: 14px; padding: 12px 14px; text-align: center; box-shadow: 0 12px 40px rgba(0, 0, 0, .35); max-width: calc(100vw - 24px); pointer-events: auto; }
+  border-radius: 14px; padding: 12px 14px; text-align: center; box-shadow: 0 12px 40px rgba(0, 0, 0, .35); pointer-events: auto;
+  /* (as wide as it needs: left at 50%, it was given half the screen to fit in, its buttons stacked in a column and on
+     a phone held sideways its title went off the top) */
+  width: max-content; max-width: min(640px, calc(100vw - 24px)); }
 .stuck-title { font-weight: 800; letter-spacing: .08em; text-transform: uppercase; color: var(--accent); margin-bottom: 8px; }
 .stuck-actions { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; }
 .stuck-actions button { padding: 8px 12px; font-size: 14px; }

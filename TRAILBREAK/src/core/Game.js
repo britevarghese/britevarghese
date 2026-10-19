@@ -564,7 +564,10 @@ export class Game {
     const call = this.helpOn ? '<b>T</b> Cancel the tow call' : '<b>T</b> Call friends for a tow';
     if ($('st-call').innerHTML !== call) $('st-call').innerHTML = call;
     const D = v.damage;
-    const tip = W.attached ? 'Hold E to winch in (and give it a little throttle)' : v.flooded ? 'Once the intake is out of the water the engine starts again'
+    const puller = v.pulls.find((p) => !p.anchorMe);
+    const tip = W.attached ? 'Hold E to winch in (and give it a little throttle)'
+      : puller ? `${puller.by} is winching you out: stay off the pedals and steer, or give it a little throttle to help`
+      : v.flooded ? 'Once the intake is out of the water the engine starts again'
       : this.stuckWhy === 'broken' ? (D.seized ? 'The engine is seized: it won\'t turn over. Backspace calls the tow truck, which takes it into the station workshop to be mended (you pay the bill). Or friends can tow you there (F to hook)' : 'A broken axle shaft: try 4WD (4) or the lockers (X). Backspace: the tow truck takes it to the station workshop to be mended')
         : 'Or winch out: point the bumper at a tree or a friend, F to hook, hold E';
     if ($('st-tip').textContent !== tip) $('st-tip').textContent = tip;
@@ -998,7 +1001,7 @@ export class Game {
           const lead = this.net.lead, vel = new THREE.Vector3(...s.vel);
           const target = new THREE.Vector3(...w.f).applyQuaternion(root.quaternion).add(root.position).addScaledVector(vel, lead);
           const len = Math.max(0.6, (s.winchLen || w.len) + (s.winchRate || 0) * lead);
-          pulls.push({ local: new THREE.Vector3(...w.a), target, targetVel: vel, len, rope: rv.spec.winch, tension: w.ten, anchorMe: !!s.help });
+          pulls.push({ local: new THREE.Vector3(...w.a), target, targetVel: vel, len, rope: rv.spec.winch, tension: w.ten, anchorMe: !!s.help, by: rv.name });
         }
         // a friend calling for a tow
         if (s.help && !rv.help) {
@@ -1145,6 +1148,10 @@ export class Game {
     const inTrouble = this.helpOn || v.flooded || v.waterDepth > 0.6 || v.up.y < 0.5;
     c.hold = W.attached && W.kind === 'truck' && W.motor !== 0 && c.throttle < 0.05 && !inTrouble ? 0.8 : 0;
     if (!c.hold && v.pulls.some((p) => p.anchorMe) && c.throttle < 0.05 && c.brake < 0.05) c.hold = 1;
+    // a friend winching us out, and we're off the pedals: the drive out (an automatic in neutral, as a manual's clutch
+    // already is at idle), so the truck rolls to the rope. In gear an automatic crept off against it at idle, and as each
+    // of us moves only our own truck, the creep dragged the friend's truck along on its brakes instead
+    if (!c.hold && v.pulls.length && c.throttle < 0.05 && c.brake < 0.05) c.neutral = 1;
     // a truck we're winching toward moves: follow its tow point (brought on to now: we see it a moment late)
     if (W.attached && W.kind === 'truck') {
       const rv = this.remotes.get(W.target);

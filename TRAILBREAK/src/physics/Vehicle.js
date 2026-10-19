@@ -376,7 +376,7 @@ export class Vehicle {
     // engine freely, as you would on the spot or before a launch, and letting go puts the drive back in (an electric
     // truck's motors are its drive: its throttle goes)
     const hand = ctrl.handbrake || 0;
-    let declutch = false;
+    let declutch = !!ctrl.neutral && !dtr.direct;                          // (out of gear: being winched out, Game.js)
     if (hand > 0) { brake = Math.max(brake, hand); if (dtr.direct || hand < 0.5) throttle *= 1 - hand; else declutch = true; }
     this.pedalThrottle = throttle; this.pedalBrake = brake;
     // how far each axle's tyres are into their grip sideways (1: at the slip angle that grips best on this ground), for
