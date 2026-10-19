@@ -179,6 +179,8 @@ function build(id, gltf, layout) {
       const I = cockpit, back = I.rear != null ? I.rear - 0.45 : I.sideZ[0] - 0.3;
       g = cutInnerSkin(g, { x: I.doorX + 0.01, y0: I.floorY - 0.05, y1: (layout.roofY || 2) + 0.02, belt: I.belt[0], z0: back, z1: I.cowl[1] });
       if (!g) return;
+      // (a model whose dash and seats are blocks of body paint: those too, whichever way they face)
+      if (I.cutPaint) { g = cutRegions(g, I.cutPaint); if (!g) return; }
     }
     if (OWN.has(role)) {
       const plain = new THREE.BufferGeometry();

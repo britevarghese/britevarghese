@@ -18,7 +18,11 @@ STYLES = {
     'supra': dict(seat='#1a1a1b', bolster='#232325', accent='#2b2b2c', accentMetal=0, lining='#47474a', cluster='tach', screen=False, stick='manual', rear=True),
     'rx7': dict(seat='#19191a', bolster='#222224', accent='#2b2b2c', accentMetal=0, lining='#2e2e30', cluster='tach', screen=False, stick='manual', rear=False),
     'gclass': dict(seat='#19191a', bolster='#1f1f21', stripe='#6e6a64', accent='#8f9397', cluster='digital', screen=True, stick='auto', rear=True),
+    # the Hummer H1: its model's cabin is all body paint and blocks; the Alpha's tan cloth, grey plastics, round dials
+    'hummer': dict(seat='#5b5246', bolster='#463f36', accent='#3b3c3e', accentMetal=0, lining='#5e5a52', cluster='analog', screen=False, stick='auto', rear=True, paintCut=True),
 }
+# door mirrors the detector (mirrors.py) misses or misjudges: the glass as measured off the model by hand
+MIRROR = {'hummer': {'c': [1.165, 1.63, 0.697], 'w': 0.17, 'h': 0.27}}
 KEEP = ['huracan', 'r35', 'senna']                     # (cockpits of their own, finished: only their mirrors)
 EYE = json.loads(subprocess.run(['node', '-e', f"""import('{ROOT}/src/physics/trucks.js').then((T) => console.log(JSON.stringify(Object.fromEntries({json.dumps(list(STYLES))}.map((id) => [id, T.truckSpec(id).eye])))))"""], capture_output=True, text=True, check=True).stdout)
 mirr = {}
@@ -39,6 +43,7 @@ for id, style in STYLES.items():
     yC, zC = m['cowl']; yT, zT = m['wsTop']; yB, xB = m['belt']; doorX = m['doorX']
     floor = (m['cabin'] or {}).get('floorY') or max(L.get('sill', 0.15), 0.12) + 0.03
     rear = r3(eye[2] - 0.85) if style.pop('rear') else None
+    paintCut = style.pop('paintCut', False)            # (its dash and seats modelled in body paint: cut out too)
     W = L['wheels']; aF, aR = L['axleZ']; R = W['FL']['r']; wF = W['FL']['c'][0] - W['FL']['w'] / 2 - 0.08; wR = W['RL']['c'][0] - W['RL']['w'] / 2 - 0.08
     xc = doorX - 0.025
     zBack = (rear - 0.45) if rear is not None else m['sideZ'][0] - 0.08
@@ -65,8 +70,9 @@ for id, style in STYLES.items():
     z1 = min(zC + 0.3, aF - R - 0.08)
     if z1 > zC: cut.append({'box': [-wF, floor - 0.12, zC - 0.02, wF, yC - 0.08, z1]})
     for c in cut: c['box'] = [r3(v) for v in c['box']]
-    I = {'replace': True, 'mirrors': [glass(mirr[id][0])], 'cowl': [r3(yC), r3(zC)], 'top': [r3(yT), r3(zT)], 'wsHalf': r3(m['wsHalf']), 'belt': [r3(yB), r3(xB)],
-         'sideZ': [r3(v) for v in m['sideZ']], 'doorX': r3(doorX), 'floorY': r3(floor), 'rear': rear, 'style': style, 'cut': cut}
+    I = {'replace': True, 'mirrors': [MIRROR.get(id) or glass(mirr[id][0])], 'cowl': [r3(yC), r3(zC)], 'top': [r3(yT), r3(zT)], 'wsHalf': r3(m['wsHalf']), 'belt': [r3(yB), r3(xB)],
+         'sideZ': [r3(v) for v in m['sideZ']], 'doorX': r3(doorX), 'floorY': r3(floor), 'rear': rear, 'style': style, 'cut': cut,
+         **({'cutPaint': [c for c in cut if 'plane' not in c]} if paintCut else {})}
     L['interior'] = I
     json.dump(L, open(pub, 'w'), indent=1)
     # the converter's config: its layout carries the same (one line, the file's own formatting kept)
