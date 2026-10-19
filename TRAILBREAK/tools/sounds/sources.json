@@ -2,7 +2,7 @@
  "_about": "Engine recordings for TRAILBREAK's grain engine (Freesound previews, CC0 / CC BY). Each bank is one engine: parts are recordings with the stretches used (t, seconds), the pitch range tracked (f, Hz: the firing frequency unless 'unit' says otherwise), anchors [t, Hz] the track must pass, how fast the revs may move (slew), and 'load': 'drive' for recordings made on the road. cyl and idleRpm are the recorded engine's (cyl: marks per engine cycle; engineCyl, when it fires more often than it is marked: a V10 marked at every pair of firings). Build: python3 -I tools/sounds/build_grains.py <cache_dir>",
  "banks": {
   "v6": {
-   "about": "Honda / Acura 3.2 V6 (J32: a 60-degree even-firing V6 like the Pentastar), a microphone just above the exhaust",
+   "about": "Honda / Acura 3.2 V6 (J32: a 60-degree even-firing V6 like the Pentastar), a microphone just above the exhaust; above 3,650 rpm, a Supra's turbo straight six (fired as evenly) pulling on a dyno to 8,250",
    "cyl": 6,
    "idleRpm": 682,
    "budget": 14,
@@ -39,11 +39,31 @@
      "anchor": [[0.5, 56], [1.5, 77.5], [3, 90], [5, 109.5], [18, 155], [21, 164.5]],
      "slew": 6,
      "load": "drive"
+    },
+    {
+     "id": 496171,
+     "user": "editboy23",
+     "title": "Import car revs on Chassis Dyno with Turbo.wav",
+     "lic": "CC0",
+     "t": [[18.4, 20.6, 172, 222], [20.4, 22.1, 200, 265], [21.9, 23.6, 245, 350], [23.4, 25.45, 315, 430], [25.6, 26.9, 250, 420], [26.7, 28.1, 150, 280], [27.9, 29.6, 80, 175]],
+     "f": [80, 430],
+     "anchor": [[13.0, 165.1], [13.25, 166.4], [13.5, 166.6], [13.75, 167.4], [14.0, 168.2], [14.25, 169.3], [14.5, 170.3], [14.75, 171.1], [15.0, 171.9], [15.25, 172.9], [15.5, 172.9], [15.75, 174.3], [16.0, 174.6], [16.25, 175.4], [16.5, 176.0], [16.75, 176.6], [17.0, 177.2], [17.25, 178.0], [17.5, 178.6], [17.75, 179.0], [18.0, 179.7], [18.25, 180.6], [18.5, 182.5], [18.75, 184.4], [19.0, 186.1], [19.25, 188.0], [19.5, 191.8], [19.75, 195.8], [20.0, 200.5], [20.25, 204.8], [20.5, 209.9], [20.75, 215.6], [21.0, 220.8], [21.25, 228.6], [21.5, 235.4], [21.75, 242.2], [22.0, 251.1], [22.25, 260.9], [22.5, 271.4], [22.75, 284.9], [23.0, 306.9], [23.25, 319.2], [23.5, 333.7], [23.75, 345.0], [24.0, 361.0], [24.25, 372.9], [24.5, 384.1], [24.75, 393.9], [25.0, 401.9], [25.25, 411.4], [25.6, 393.9], [25.8, 371.8], [26.0, 344.5], [26.2, 317.6], [26.4, 298.0], [26.6, 278.2], [26.8, 261.0], [27.0, 245.6], [27.2, 223.4], [27.4, 204.7], [27.6, 191.8], [27.8, 171.3], [28.0, 162.5], [28.2, 146.3], [28.4, 131.2], [28.6, 121.4], [28.8, 108.9], [29.0, 91.3], [29.2, 92.2], [29.4, 88.1], [29.6, 86.4]],
+     "slew": 10,
+     "slopeSpan": 0.4,
+     "hp": 50,
+     "keep": true,
+     "chunkGood": 0.6,
+     "rpmFromAnchors": true,
+     "load": "drive",
+     "cyl": 6,
+     "cohMin": 0.1,
+     "rMin": 5.4,
+     "role": "a Toyota Supra's turbo straight six pulling on a chassis dyno from 3,650 to 8,250 rpm, and its overrun"
     }
    ]
   },
   "d4": {
-   "about": "Toyota Hilux 4x4 turbo-diesel four (the closest free recording to the Thar's mHawk 2.2): idle and revs",
+   "about": "Toyota Hilux 4x4 turbo-diesel four (the closest free recording to the Thar's mHawk 2.2): idle and revs; a Peugeot 1.5 BlueHDi revving to its 3,900 rpm cut for the top",
    "cyl": 4,
    "idleRpm": 740,
    "budget": 12,
@@ -73,14 +93,27 @@
      "idleRpm": 900,
      "cohMin": 0.35,
      "rMin": 2.2
+    },
+    {
+     "id": 865222,
+     "user": "Mihacappy",
+     "title": "3008gtrevving.wav",
+     "lic": "CC0",
+     "t": [[8.0, 72.0]],
+     "f": [24, 140],
+     "slew": 6,
+     "cyl": 4,
+     "cohMin": 0.3,
+     "rMin": 3.0,
+     "role": "the revs from 2,200 rpm to the injection pump's cut at 3,900 rpm"
     }
    ]
   },
   "d4t": {
-   "about": "VW 1.9 TDI turbo-diesel four (a Defender's 2.5 TD is its bigger, slower cousin): idle, revs and holds",
+   "about": "VW 1.9 TDI turbo-diesel four (a Defender's 2.5 TD is its bigger, slower cousin): idle, revs and holds; a Peugeot 1.5 BlueHDi revving to its 3,900 rpm cut for the top",
    "cyl": 4,
    "idleRpm": 900,
-   "budget": 12,
+   "budget": 16,
    "idleBudget": 2.5,
    "cohMin": 0.35,
    "parts": [
@@ -93,11 +126,24 @@
      "f": [25, 125],
      "anchor": [[17, 30], [18.5, 30], [20, 30], [23, 38], [26, 106], [28, 82], [32, 60], [36, 106], [40, 73], [45, 78], [50, 102], [60, 58], [66, 71], [68, 30], [71, 30], [74, 30], [78, 82], [84, 73]],
      "slew": 5
+    },
+    {
+     "id": 865222,
+     "user": "Mihacappy",
+     "title": "3008gtrevving.wav",
+     "lic": "CC0",
+     "t": [[8.0, 72.0]],
+     "f": [24, 140],
+     "slew": 6,
+     "cyl": 4,
+     "cohMin": 0.3,
+     "rMin": 3.0,
+     "role": "the revs from 2,700 rpm to the injection pump's cut at 3,900 rpm"
     }
    ]
   },
   "i6": {
-   "about": "Jaguar E-type 4.2 XK straight six (the size of a Jeep or Land Cruiser 4.2 six), engine side: idle and a rev",
+   "about": "Jaguar E-type 4.2 XK straight six (the size of a Jeep or Land Cruiser 4.2 six), engine side: idle and a rev; above 3,650 rpm, a Supra's turbo six pulling on a dyno to 8,250",
    "cyl": 6,
    "idleRpm": 672,
    "budget": 10,
@@ -128,6 +174,26 @@
      "idleRpm": 682,
      "cohMin": 0.6,
      "rMin": 3.0
+    },
+    {
+     "id": 496171,
+     "user": "editboy23",
+     "title": "Import car revs on Chassis Dyno with Turbo.wav",
+     "lic": "CC0",
+     "t": [[18.4, 20.6, 172, 222], [20.4, 22.1, 200, 265], [21.9, 23.6, 245, 350], [23.4, 25.45, 315, 430], [25.6, 26.9, 250, 420], [26.7, 28.1, 150, 280], [27.9, 29.6, 80, 175]],
+     "f": [80, 430],
+     "anchor": [[13.0, 165.1], [13.25, 166.4], [13.5, 166.6], [13.75, 167.4], [14.0, 168.2], [14.25, 169.3], [14.5, 170.3], [14.75, 171.1], [15.0, 171.9], [15.25, 172.9], [15.5, 172.9], [15.75, 174.3], [16.0, 174.6], [16.25, 175.4], [16.5, 176.0], [16.75, 176.6], [17.0, 177.2], [17.25, 178.0], [17.5, 178.6], [17.75, 179.0], [18.0, 179.7], [18.25, 180.6], [18.5, 182.5], [18.75, 184.4], [19.0, 186.1], [19.25, 188.0], [19.5, 191.8], [19.75, 195.8], [20.0, 200.5], [20.25, 204.8], [20.5, 209.9], [20.75, 215.6], [21.0, 220.8], [21.25, 228.6], [21.5, 235.4], [21.75, 242.2], [22.0, 251.1], [22.25, 260.9], [22.5, 271.4], [22.75, 284.9], [23.0, 306.9], [23.25, 319.2], [23.5, 333.7], [23.75, 345.0], [24.0, 361.0], [24.25, 372.9], [24.5, 384.1], [24.75, 393.9], [25.0, 401.9], [25.25, 411.4], [25.6, 393.9], [25.8, 371.8], [26.0, 344.5], [26.2, 317.6], [26.4, 298.0], [26.6, 278.2], [26.8, 261.0], [27.0, 245.6], [27.2, 223.4], [27.4, 204.7], [27.6, 191.8], [27.8, 171.3], [28.0, 162.5], [28.2, 146.3], [28.4, 131.2], [28.6, 121.4], [28.8, 108.9], [29.0, 91.3], [29.2, 92.2], [29.4, 88.1], [29.6, 86.4]],
+     "slew": 10,
+     "slopeSpan": 0.4,
+     "hp": 50,
+     "keep": true,
+     "chunkGood": 0.6,
+     "rpmFromAnchors": true,
+     "load": "drive",
+     "cyl": 6,
+     "cohMin": 0.1,
+     "rMin": 5.4,
+     "role": "a Toyota Supra's turbo straight six pulling on a chassis dyno from 3,650 to 8,250 rpm, and its overrun"
     }
    ]
   },
@@ -163,7 +229,7 @@
    ]
   },
   "v8": {
-   "about": "Chevrolet Caprice V8 at the exhaust: idle and holds; Dodge Ram 1500 5.7 V8 by the mufflers, pulling on the road; above 2,100 rpm, a V6 at the exhaust",
+   "about": "Chevrolet Caprice V8 at the exhaust: idle and holds; Dodge Ram 1500 5.7 V8 by the mufflers, pulling on the road; above 2,100 rpm, a V6 at the exhaust; above 3,500 rpm, a supercharged GM V8 pulling on a dyno to 7,750",
    "cyl": 8,
    "idleRpm": 700,
    "budget": 12,
@@ -212,11 +278,31 @@
      "cohMin": 0.6,
      "rMin": 3.0,
      "role": "the top of the revs, above 2,100 rpm"
+    },
+    {
+     "id": 177184,
+     "user": "Ears68",
+     "title": "DR015dynoRunupLateModelGMHoldenV8Supercharged951hp.mp3",
+     "lic": "CC0",
+     "t": [[64.0, 66.3, 215, 335], [66.9, 72.95, 360, 530], [97.0, 104.05, 285, 540]],
+     "f": [215, 540],
+     "anchor": [[64.0, 235.0], [64.1, 235.0], [64.2, 237.0], [64.3, 240.0], [64.4, 262.0], [64.5, 266.0], [64.6, 274.6], [64.7, 281.3], [64.8, 293.3], [64.9, 296.4], [65.0, 299.0], [65.1, 303.1], [65.2, 310.5], [65.3, 313.0], [65.4, 312.6], [65.5, 309.8], [65.6, 305.6], [65.7, 304.3], [65.8, 303.6], [65.9, 305.0], [66.0, 304.5], [66.1, 304.5], [66.2, 305.5], [66.3, 305.6], [66.9, 379.3], [67.15, 382.9], [67.4, 386.2], [67.65, 390.5], [67.9, 395.6], [68.15, 400.8], [68.4, 406.0], [68.65, 410.3], [68.9, 416.1], [69.15, 420.1], [69.4, 424.8], [69.65, 428.5], [69.9, 430.4], [70.15, 435.9], [70.4, 441.8], [70.65, 446.3], [70.9, 454.0], [71.15, 463.6], [71.4, 471.0], [71.65, 479.8], [71.9, 490.7], [72.15, 496.7], [72.4, 503.3], [72.65, 507.1], [72.9, 508.8], [97.0, 299.4], [97.25, 304.3], [97.5, 321.8], [97.75, 342.2], [98.0, 366.8], [98.25, 381.5], [98.5, 390.6], [98.75, 393.8], [99.0, 395.7], [99.25, 402.0], [99.5, 406.9], [99.75, 412.8], [100.0, 417.5], [100.25, 422.7], [100.5, 427.2], [100.75, 432.1], [101.0, 435.1], [101.25, 440.8], [101.5, 447.4], [101.75, 454.5], [102.0, 461.4], [102.25, 470.3], [102.5, 476.9], [102.75, 484.7], [103.0, 492.9], [103.25, 501.0], [103.5, 506.9], [103.75, 511.6], [104.0, 515.1]],
+     "slew": 10,
+     "slopeSpan": 0.4,
+     "hp": 50,
+     "keep": true,
+     "chunkGood": 0.6,
+     "rpmFromAnchors": true,
+     "load": "drive",
+     "cyl": 8,
+     "cohMin": 0.1,
+     "rMin": 5.0,
+     "role": "a supercharged GM V8 in a Holden on a chassis dyno, pulling from 3,500 to 7,750 rpm"
     }
    ]
   },
   "v8m": {
-   "about": "A cammed V8 (wikusv's 'Idle and Rev'): the lope at idle; Dodge Ram 1500 5.7 HEMI V8 by the mufflers, pulling on the road; above 2,100 rpm, a V6 at the exhaust",
+   "about": "A cammed V8 (wikusv's 'Idle and Rev'): the lope at idle; Dodge Ram 1500 5.7 HEMI V8 by the mufflers, pulling on the road; above 2,100 rpm, a V6 at the exhaust; above 3,500 rpm, a supercharged GM V8 pulling on a dyno to 7,750",
    "cyl": 8,
    "idleRpm": 657,
    "budget": 11,
@@ -264,6 +350,26 @@
      "cohMin": 0.6,
      "rMin": 3.2,
      "role": "the top of the revs, above 2,100 rpm"
+    },
+    {
+     "id": 177184,
+     "user": "Ears68",
+     "title": "DR015dynoRunupLateModelGMHoldenV8Supercharged951hp.mp3",
+     "lic": "CC0",
+     "t": [[64.0, 66.3, 215, 335], [66.9, 72.95, 360, 530], [97.0, 104.05, 285, 540]],
+     "f": [215, 540],
+     "anchor": [[64.0, 235.0], [64.1, 235.0], [64.2, 237.0], [64.3, 240.0], [64.4, 262.0], [64.5, 266.0], [64.6, 274.6], [64.7, 281.3], [64.8, 293.3], [64.9, 296.4], [65.0, 299.0], [65.1, 303.1], [65.2, 310.5], [65.3, 313.0], [65.4, 312.6], [65.5, 309.8], [65.6, 305.6], [65.7, 304.3], [65.8, 303.6], [65.9, 305.0], [66.0, 304.5], [66.1, 304.5], [66.2, 305.5], [66.3, 305.6], [66.9, 379.3], [67.15, 382.9], [67.4, 386.2], [67.65, 390.5], [67.9, 395.6], [68.15, 400.8], [68.4, 406.0], [68.65, 410.3], [68.9, 416.1], [69.15, 420.1], [69.4, 424.8], [69.65, 428.5], [69.9, 430.4], [70.15, 435.9], [70.4, 441.8], [70.65, 446.3], [70.9, 454.0], [71.15, 463.6], [71.4, 471.0], [71.65, 479.8], [71.9, 490.7], [72.15, 496.7], [72.4, 503.3], [72.65, 507.1], [72.9, 508.8], [97.0, 299.4], [97.25, 304.3], [97.5, 321.8], [97.75, 342.2], [98.0, 366.8], [98.25, 381.5], [98.5, 390.6], [98.75, 393.8], [99.0, 395.7], [99.25, 402.0], [99.5, 406.9], [99.75, 412.8], [100.0, 417.5], [100.25, 422.7], [100.5, 427.2], [100.75, 432.1], [101.0, 435.1], [101.25, 440.8], [101.5, 447.4], [101.75, 454.5], [102.0, 461.4], [102.25, 470.3], [102.5, 476.9], [102.75, 484.7], [103.0, 492.9], [103.25, 501.0], [103.5, 506.9], [103.75, 511.6], [104.0, 515.1]],
+     "slew": 10,
+     "slopeSpan": 0.4,
+     "hp": 50,
+     "keep": true,
+     "chunkGood": 0.6,
+     "rpmFromAnchors": true,
+     "load": "drive",
+     "cyl": 8,
+     "cohMin": 0.1,
+     "rMin": 5.3,
+     "role": "a supercharged GM V8 in a Holden on a chassis dyno, pulling from 3,500 to 7,750 rpm"
     }
    ]
   },
@@ -380,7 +486,7 @@
    ]
   },
   "f6": {
-   "about": "Porsche 911 flat-six at a dealership: its idle (each bank of three beating at half the firing rate) and its steadiest revs; the Jaguar six and, at the top, the Acura V6 fill the revs",
+   "about": "Porsche 911 flat-six at a dealership: its idle (each bank of three beating at half the firing rate) and its steadiest revs; the Jaguar six and the Acura V6 fill the revs; above 3,650 rpm, a Supra's turbo straight six (fired as evenly) pulling on a dyno to 8,250",
    "cyl": 6,
    "idleRpm": 700,
    "budget": 12,
@@ -426,11 +532,31 @@
      "idleRpm": 682,
      "cohMin": 0.6,
      "rMin": 3.0
+    },
+    {
+     "id": 496171,
+     "user": "editboy23",
+     "title": "Import car revs on Chassis Dyno with Turbo.wav",
+     "lic": "CC0",
+     "t": [[18.4, 20.6, 172, 222], [20.4, 22.1, 200, 265], [21.9, 23.6, 245, 350], [23.4, 25.45, 315, 430], [25.6, 26.9, 250, 420], [26.7, 28.1, 150, 280], [27.9, 29.6, 80, 175]],
+     "f": [80, 430],
+     "anchor": [[13.0, 165.1], [13.25, 166.4], [13.5, 166.6], [13.75, 167.4], [14.0, 168.2], [14.25, 169.3], [14.5, 170.3], [14.75, 171.1], [15.0, 171.9], [15.25, 172.9], [15.5, 172.9], [15.75, 174.3], [16.0, 174.6], [16.25, 175.4], [16.5, 176.0], [16.75, 176.6], [17.0, 177.2], [17.25, 178.0], [17.5, 178.6], [17.75, 179.0], [18.0, 179.7], [18.25, 180.6], [18.5, 182.5], [18.75, 184.4], [19.0, 186.1], [19.25, 188.0], [19.5, 191.8], [19.75, 195.8], [20.0, 200.5], [20.25, 204.8], [20.5, 209.9], [20.75, 215.6], [21.0, 220.8], [21.25, 228.6], [21.5, 235.4], [21.75, 242.2], [22.0, 251.1], [22.25, 260.9], [22.5, 271.4], [22.75, 284.9], [23.0, 306.9], [23.25, 319.2], [23.5, 333.7], [23.75, 345.0], [24.0, 361.0], [24.25, 372.9], [24.5, 384.1], [24.75, 393.9], [25.0, 401.9], [25.25, 411.4], [25.6, 393.9], [25.8, 371.8], [26.0, 344.5], [26.2, 317.6], [26.4, 298.0], [26.6, 278.2], [26.8, 261.0], [27.0, 245.6], [27.2, 223.4], [27.4, 204.7], [27.6, 191.8], [27.8, 171.3], [28.0, 162.5], [28.2, 146.3], [28.4, 131.2], [28.6, 121.4], [28.8, 108.9], [29.0, 91.3], [29.2, 92.2], [29.4, 88.1], [29.6, 86.4]],
+     "slew": 10,
+     "slopeSpan": 0.4,
+     "hp": 50,
+     "keep": true,
+     "chunkGood": 0.6,
+     "rpmFromAnchors": true,
+     "load": "drive",
+     "cyl": 6,
+     "cohMin": 0.1,
+     "rMin": 5.3,
+     "role": "a Toyota Supra's turbo straight six pulling on a chassis dyno from 3,650 to 8,250 rpm, and its overrun"
     }
    ]
   },
   "v8s": {
-   "about": "Land Rover 5.0 V8 at idle (a modern V8's smooth idle, not a cammed one's lope); the Ram 1500's 5.7 HEMI pulling on the road; above 2,100 rpm, a V6 at the exhaust",
+   "about": "Land Rover 5.0 V8 at idle (a modern V8's smooth idle, not a cammed one's lope); the Ram 1500's 5.7 HEMI pulling on the road; above 2,100 rpm, a V6 at the exhaust; above 3,500 rpm, a supercharged GM V8 pulling on a dyno to 7,750",
    "cyl": 8,
    "idleRpm": 727,
    "budget": 11,
@@ -478,6 +604,26 @@
      "cohMin": 0.6,
      "rMin": 3.2,
      "role": "the top of the revs, above 2,100 rpm"
+    },
+    {
+     "id": 177184,
+     "user": "Ears68",
+     "title": "DR015dynoRunupLateModelGMHoldenV8Supercharged951hp.mp3",
+     "lic": "CC0",
+     "t": [[64.0, 66.3, 215, 335], [66.9, 72.95, 360, 530], [97.0, 104.05, 285, 540]],
+     "f": [215, 540],
+     "anchor": [[64.0, 235.0], [64.1, 235.0], [64.2, 237.0], [64.3, 240.0], [64.4, 262.0], [64.5, 266.0], [64.6, 274.6], [64.7, 281.3], [64.8, 293.3], [64.9, 296.4], [65.0, 299.0], [65.1, 303.1], [65.2, 310.5], [65.3, 313.0], [65.4, 312.6], [65.5, 309.8], [65.6, 305.6], [65.7, 304.3], [65.8, 303.6], [65.9, 305.0], [66.0, 304.5], [66.1, 304.5], [66.2, 305.5], [66.3, 305.6], [66.9, 379.3], [67.15, 382.9], [67.4, 386.2], [67.65, 390.5], [67.9, 395.6], [68.15, 400.8], [68.4, 406.0], [68.65, 410.3], [68.9, 416.1], [69.15, 420.1], [69.4, 424.8], [69.65, 428.5], [69.9, 430.4], [70.15, 435.9], [70.4, 441.8], [70.65, 446.3], [70.9, 454.0], [71.15, 463.6], [71.4, 471.0], [71.65, 479.8], [71.9, 490.7], [72.15, 496.7], [72.4, 503.3], [72.65, 507.1], [72.9, 508.8], [97.0, 299.4], [97.25, 304.3], [97.5, 321.8], [97.75, 342.2], [98.0, 366.8], [98.25, 381.5], [98.5, 390.6], [98.75, 393.8], [99.0, 395.7], [99.25, 402.0], [99.5, 406.9], [99.75, 412.8], [100.0, 417.5], [100.25, 422.7], [100.5, 427.2], [100.75, 432.1], [101.0, 435.1], [101.25, 440.8], [101.5, 447.4], [101.75, 454.5], [102.0, 461.4], [102.25, 470.3], [102.5, 476.9], [102.75, 484.7], [103.0, 492.9], [103.25, 501.0], [103.5, 506.9], [103.75, 511.6], [104.0, 515.1]],
+     "slew": 10,
+     "slopeSpan": 0.4,
+     "hp": 50,
+     "keep": true,
+     "chunkGood": 0.6,
+     "rpmFromAnchors": true,
+     "load": "drive",
+     "cyl": 8,
+     "cohMin": 0.1,
+     "rMin": 4.8,
+     "role": "a supercharged GM V8 in a Holden on a chassis dyno, pulling from 3,500 to 7,750 rpm"
     }
    ]
   },

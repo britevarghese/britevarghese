@@ -78,6 +78,8 @@ def analyse(x, part, bank):
                 fm_k = np.r_[SR / per, SR / per[-1]]
                 t = mk / SR; f = np.convolve(np.pad(fm_k, 2, mode='edge'), np.ones(5) / 5, mode='valid')
                 sal = np.full(len(t), 2.0)
+        elif part.get('rpmFromAnchors') and len(anchors) > 1:
+            mk = anchor_marks(seg, anchors)
         else:
             mk = marks(seg, SR, t, f)
         # (tracking a whole multiple of the bank's marks, as a V10's single firings at idle where its pairs are faint:
@@ -87,9 +89,15 @@ def analyse(x, part, bank):
         # the revs at each mark (relative to the bank's idle) and how fast they are changing
         tm = mk / SR
         fm = np.interp(tm, t, f)
+        if part.get('rpmFromAnchors') and len(anchors) > 1:
+            # (a recording traced finely by hand: the revs at each firing from the trace, not from a track that can
+            # slip to a neighbouring harmonic for a firing or two)
+            at = np.array(anchors, float)
+            fm = np.exp(np.interp(tm, at[:, 0], np.log(at[:, 1])))
         rpm = fm / h0 * 120 / cyl * part.get('rpmScale', 1) * rel
         lr = np.log(np.maximum(rpm, 1))
-        k = max(3, int(0.12 * np.median(fm)))              # ~0.12 s of firings
+        # ~0.12 s of firings (longer for a part whose marks jitter: a pull read as pulling, not pulling and slowing)
+        k = max(3, int(part.get('slopeSpan', 0.12) * np.median(fm)))
         ls = np.convolve(np.pad(lr, k, mode='edge'), np.ones(2 * k + 1) / (2 * k + 1), mode='valid')
         slope = np.gradient(ls, tm)                         # d ln rpm / dt
         # loudness around each firing (two periods), and the tracker's confidence there
@@ -102,8 +110,28 @@ def analyse(x, part, bank):
                     'cohMin': st[4] if len(st) > 4 else part.get('cohMin', bank.get('cohMin', 0.6)),
                     # (two alike halves to a mark: the pitch an octave low; unless a bank marks pairs of firings)
                     'halfMax': part.get('halfMax', bank.get('halfMax', 0.45)),
-                    'rMin': part.get('rMin', 0) * idle})
+                    'rMin': part.get('rMin', 0) * idle,
+                    # (a pull kept whole: one long run, not a firing or two per rev band that would loop)
+                    'keep': bool(part.get('keep')), 'chunkGood': part.get('chunkGood', 0.85)})
     return out
+
+
+def anchor_marks(seg, anchors):
+    """Marks a firing apart along a pitch traced by hand (the anchors): where the firings' phase, the traced pitch
+    summed over time, passes each whole number; the whole train shifted to sit on the firing pulses as best it can
+    (a noisy recording's pulses wander, one by one, more than its pitch does)."""
+    at = np.array(anchors, float)
+    tt = np.arange(len(seg)) / SR
+    ff = np.exp(np.interp(tt, at[:, 0], np.log(at[:, 1])))
+    ph = np.cumsum(ff) / SR
+    from scipy.signal import butter, sosfiltfilt
+    env = sosfiltfilt(butter(2, float(np.median(ff)) * 2.5, 'lowpass', fs=SR, output='sos'), seg)
+    best, bv = None, -1e9
+    for o in np.linspace(0, 1, 24, endpoint=False):
+        mk = np.flatnonzero(np.diff(np.floor(ph + o)) > 0) + 1
+        v = np.mean(env[mk]) if len(mk) else -1e9
+        if v > bv: best, bv = mk, v
+    return best.astype(np.int64)
 
 
 def follow_marks(seg, t, f, sal, f_lo, f_hi, anchors):
@@ -151,7 +179,7 @@ def choose(stretches, budget_s, idle_s, cyl=4, coh_min=0.6):
             sel = slice(c0, c1 + 1)
             # only firings that repeat (the pitch tracked right: not an octave or a fifth off) and a clear track
             good = (s['conf'][sel] > 0.6) & (s['coh'][sel] > s['cohMin']) & (s['half'][sel] < s['halfMax']) & (s['rpm'][sel] >= s['rMin'])
-            if good.mean() > 0.85:
+            if good.mean() > s['chunkGood']:
                 chunks.append({'s': si, 'a': c0, 'b': c1, 'r': s['rpm'][sel], 'cls': s['cls'][sel], 'dur': (pos[c1] - pos[c0]) / SR})
             c0 = c1
     if not chunks: return []
@@ -178,6 +206,12 @@ def choose(stretches, budget_s, idle_s, cyl=4, coh_min=0.6):
             c, ce = cand.pop(i)
             for key, k in ce.items(): have[key] = have.get(key, 0) + k
             picked.append(c); total += c['dur']
+    # the pulls kept whole (on top of the budget: the rest of the bank is chosen as it would be without them)
+    for i in range(len(cand) - 1, -1, -1):
+        if stretches[cand[i][0]['s']]['keep']:
+            c, ce = cand.pop(i)
+            for key, n in ce.items(): have[key] = have.get(key, 0) + n
+            picked.append(c)
     # then the revs, accelerating, holding and slowing: what adds the most coverage per second, joined up where it can
     while cand and total < budget_s:
         best, bv = None, 0
@@ -229,10 +263,17 @@ def match_donor(x_own, own_spans, x_don, don_spans):
     return np.fft.irfft(X, len(x_don))
 
 
+def highpass(x, part):
+    """A recording with rumble under the engine's own note (a dyno's rollers): cut below part['hp'] Hz, zero phase."""
+    if not part.get('hp'): return x
+    from scipy.signal import butter, sosfiltfilt
+    return sosfiltfilt(butter(4, part['hp'], 'highpass', fs=SR, output='sos'), x)
+
+
 def build(cache, name, bank):
     stretches, x_of = [], {}
     for part in bank['parts']:
-        x = fetch(cache, part)
+        x = highpass(fetch(cache, part), part)
         x_of[part['id']] = x
         for s in analyse(x, part, bank):
             s['part'] = part['id']
@@ -252,7 +293,7 @@ def build(cache, name, bank):
             ds = [s for s in stretches if s['part'] == part['id']]
             lo = part['rMin'] * bank['idleRpm']
             don_spans = [(s['pos'][k] - 400, s['pos'][k] + 400) for s in ds for k in range(len(s['pos'])) if lo <= s['rpm'][k] <= lo * 1.5]
-            x_of[part['id']] = match_donor(own_x, own_spans, x_of[part['id']], don_spans)
+            x_of[part['id']] = highpass(match_donor(own_x, own_spans, x_of[part['id']], don_spans), part)
             # (the loudness of each firing, again, from the matched recording)
             xd = x_of[part['id']]
             for s in ds:

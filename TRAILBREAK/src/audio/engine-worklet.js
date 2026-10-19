@@ -52,6 +52,8 @@ const CLASS_COST = [[[0.03, 0, 0.12, 0.02], [0.03, 0.015, 0.1, 0]], [[0.02, 0.12
 class Stream {
   constructor() {
     this.cur = -1; this.off = 0;          // the firing playing, and the offset its run plays at (samples)
+    this.dir = 1;                         // the way the run plays: on (+1), or back through its firings (-1)
+    this.turn = 0.6;                      // how far past the game's revs it goes before it turns (share of its sway)
     this.rep = false;                     // (it was played twice running)
     this.recent = new Int32Array(32).fill(-1); this.ri = 0;     // the firings it played last
   }
@@ -128,26 +130,41 @@ class EngineProcessor extends AudioWorkletProcessor {
    */
   pick(s, rt, band, cost) {
     const b = this.bank, S = this.sorted, lt = Math.log(rt);
-    // the neighbourhood: up to 24 firings either side of the target, and how near the nearest comes
+    // the neighbourhood: up to 24 firings either side of the target, and how near the nearest comes (of those not
+    // played lately: where the recording has few firings near the target, one just played set a mark the run
+    // couldn't meet, and the stream hopped from firing to firing)
     const i0 = S.at(rt), lo = Math.max(0, i0 - 24), hi = Math.min(S.idx.length, i0 + 24);
     let best = 1e9;
     for (let i = lo; i < hi; i++) {
       const k = S.idx[i], c = Math.abs(b.lr[k] - lt) + cost[b.cls[k] & 3];
-      if (c < best) best = c;
+      if (c < best && !s.lately(k)) best = c;
     }
     // the run carries on: the next firing, or, where the recording's revs move slower or faster than the game's, the
     // same one once more or the one after next (where the recording has a gap in its revs, as near as the nearest
-    // will do)
+    // will do). Or it turns back through the firings it has just played: where the game's revs hold and the
+    // recording's climb (a pull) or fall away, the run sways about the game's revs, firing by firing as recorded,
+    // instead of jumping back to where it was (a seam a few times a second). Turning costs most of the band, so
+    // the run sways as wide as it may and doesn't dither between two firings.
+    // Where the recording sweeps through the revs much faster than the game's are moving (a dyno pull, the game
+    // holding), the run may sway further (up to 9%): a swing of a tenth of a second, over and over, came out as a
+    // flutter. Where it turns is drawn afresh each time, so the swing doesn't settle into a beat.
     if (s.cur >= 0) {
-      let kc = -1, cc = 1e9;
-      for (let j = 0; j < 3; j++) {
-        const k = s.cur + j;
-        if (k >= b.n || b.run[k] !== b.run[s.cur] || (j === 0 && s.rep)) continue;
-        const c = Math.abs(b.lr[k] - lt) + cost[b.cls[k] & 3] + (j === 1 ? 0 : 0.012);
-        if (c < cc) { cc = c; kc = k; }
+      const kn = s.cur + 1 < b.n && b.run[s.cur + 1] === b.run[s.cur] ? s.cur + 1 : s.cur - 1;
+      const rec = kn >= 0 && b.run[kn] === b.run[s.cur] ? Math.abs(b.lr[kn] - b.lr[s.cur]) * b.sr / b.next[s.cur] : 0;
+      const sway = Math.min(0.09, Math.max(band, 0.3 * rec));
+      let kc = -1, cc = 1e9, dc = s.dir;
+      for (let t = 0; t < 2; t++) {
+        const d = t ? -s.dir : s.dir;
+        for (let j = t; j < 4; j++) {
+          const k = s.cur + j * d;
+          if (k < 0 || k >= b.n || b.run[k] !== b.run[s.cur] || (j === 0 && s.rep)) continue;
+          const c = Math.abs(b.lr[k] - lt) + cost[b.cls[k] & 3] + (j === 1 ? 0 : 0.012 * Math.max(1, j - 1)) + (t ? s.turn * sway : 0);
+          if (c < cc) { cc = c; kc = k; dc = d; }
+        }
       }
-      if (kc >= 0 && cc <= best + band) {
-        s.rep = kc === s.cur; s.cur = kc; s.played(kc);
+      if (kc >= 0 && cc <= best + sway) {
+        if (dc !== s.dir) s.turn = 0.35 + 0.5 * this.rand();
+        s.rep = kc === s.cur; s.cur = kc; s.dir = dc; s.played(kc);
         return kc;
       }
     }
@@ -174,7 +191,7 @@ class EngineProcessor extends AudioWorkletProcessor {
         if (a.v > bestV) { bestV = a.v; k = cand[i]; off = a.o; }
       }
     }
-    s.cur = k; s.off = off; s.rep = false; s.played(k);
+    s.cur = k; s.off = off; s.rep = false; s.dir = 1; s.played(k);
     return k;
   }
 
@@ -259,7 +276,7 @@ class EngineProcessor extends AudioWorkletProcessor {
     if (!this.lrPrev) this.lrPrev = lr;
     this.slope += ((lr - this.lrPrev) / dtB - this.slope) * (1 - Math.exp(-dtB / 0.1));
     this.lrPrev = lr;
-    const band = Math.min(0.15, 0.035 + 0.06 * Math.abs(this.slope));
+    const band = Math.min(0.15, 0.035 + 0.12 * Math.abs(this.slope));
     const wOn = Math.sqrt(this.loadS), wOff = Math.sqrt(1 - this.loadS);
     const data = b.data, D = data.length - 2;
     for (let i = 0; i < n; i++) {

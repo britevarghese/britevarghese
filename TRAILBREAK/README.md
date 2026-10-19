@@ -153,25 +153,34 @@ their real resonances at any revs, because each firing plays as recorded, only s
 come in runs, in their recorded order, from where the recording's revs were nearest the game's (the game's idle plays
 the recording's idle). On throttle and off it draws on firings recorded pulling and slowing, and from holds at steady
 revs. A run gives way to another when it drifts from the revs, lined up on the waveform, never to a firing just
-played (a few firings going round and round is what made the old sound buzz). A V10's two banks of five fire in
+played (a few firings going round and round is what made the old sound buzz). Where the game's revs hold and the
+recording's climb (a pull on a dyno), the run sways: on past the game's revs, then back through the firings it has
+just played, turning at a different point each time, instead of jumping back over and over. A V10's two banks of five fire in
 turn and its sound repeats every pair of firings, so its bank is cut in pairs and played at their rate. The banks
 (public/assets/audio/engines/*.grains.*, built by `tools/sounds/build_grains.py` from `tools/sounds/sources.json`):
 
 | Bank | Recording | Trucks |
 | --- | --- | --- |
-| `d4` | Toyota Hilux turbo-diesel four (the top of the revs from a VW TDI) | Thar and Thar Roxx diesels, Pajero, the UAZ's and the Niva's diesels |
-| `d4t` | VW 1.9 TDI turbo-diesel four | Ranger Raptor |
+| `d4` | Toyota Hilux turbo-diesel four, a VW TDI revving, and a Peugeot 1.5 BlueHDi revving to its pump's 3,900 rpm cut | Thar and Thar Roxx diesels, Pajero, the UAZ's and the Niva's diesels |
+| `d4t` | VW 1.9 TDI turbo-diesel four, the Peugeot BlueHDi above 2,700 rpm | Ranger Raptor |
 | `d6` | Ram 5.9 Cummins turbo-diesel six (the top of the revs from the TDI) | Unimog, the Power Wagon's Cummins swap |
 | `d6m` | a modern common-rail diesel at idle (a Skoda TDI: soft injection ticks, not an old truck diesel's clatter), the VW TDI revving | Defender 110 (its D350 straight six) |
 | `d8` | Ford F-350 turbo-diesel V8 (the top of the revs from the TDI) | Hummer H1 |
-| `v6` | Acura 3.2 V6, a mic at the exhaust while driving | Wrangler, Bronco, the Pajero's V6; the NSX, the GT-R (R35), the McLaren Senna's and the Corvette Z06's flat-plane V8s |
-| `v8` | Chevrolet Caprice V8 (idle and holds), a Dodge Ram 1500 5.7 V8 pulling on the road, the V6 above 2,100 rpm | K20 Suburban, the V8 swaps, the Corvette Stingray |
-| `v8m` | a cammed V8 at idle, the Ram 1500's 5.7 HEMI pulling on the road, the V6 above 2,100 rpm | Ram Power Wagon's 6.4 HEMI, tuned V8s, the Wrangler's 392 HEMI |
-| `v8s` | a Land Rover 5.0 V8 at idle (a modern V8's smooth idle, not a cammed one's lope), the Ram 1500's 5.7 HEMI pulling on the road, the V6 above 2,100 rpm | the G 63 (and its V12), the AMG GT, the Defender's OCTA V8, the M4 CSL's S63 swap |
+| `v6` | Acura 3.2 V6, a mic at the exhaust while driving; above 3,650 rpm a Toyota Supra's turbo straight six (it fires as evenly) pulling on a dyno to 8,250 | Wrangler, Bronco, the Pajero's V6; the NSX, the GT-R (R35), the McLaren Senna's and the Corvette Z06's flat-plane V8s |
+| `v8` | Chevrolet Caprice V8 (idle and holds), a Dodge Ram 1500 5.7 V8 pulling on the road, the V6 above 2,100 rpm, and above 3,500 rpm a supercharged GM V8 pulling on a dyno to 7,750 | K20 Suburban, the V8 swaps, the Corvette Stingray |
+| `v8m` | a cammed V8 at idle, the Ram 1500's 5.7 HEMI pulling on the road, the V6 above 2,100 rpm, the supercharged GM V8 above 3,500 | Ram Power Wagon's 6.4 HEMI, tuned V8s, the Wrangler's 392 HEMI |
+| `v8s` | a Land Rover 5.0 V8 at idle (a modern V8's smooth idle, not a cammed one's lope), the Ram 1500's 5.7 HEMI pulling on the road, the V6 above 2,100 rpm, the supercharged GM V8 above 3,500 | the G 63 (and its V12), the AMG GT, the Defender's OCTA V8, the M4 CSL's S63 swap |
 | `v10` | Audi R8 V10 (idle, the fall from 4,100 rpm, holds from 2,100 to 4,100), cut in pairs of firings | Lamborghini Huracán, Audi R8 |
-| `i6` | Jaguar E-type 4.2 straight six | BMW M4 CSL, Toyota Supra, Skyline GT-R (R34) |
-| `f6` | a Porsche 911 flat-six at idle and revving (each bank of three beating at half the firing rate), the Jaguar six and the Acura V6 filling the revs | Porsche 911 Turbo (930) |
+| `i6` | Jaguar E-type 4.2 straight six, the Acura V6, and above 3,650 rpm the Supra's turbo six on the dyno to 8,250 | BMW M4 CSL, Toyota Supra, Skyline GT-R (R34) |
+| `f6` | a Porsche 911 flat-six at idle and revving (each bank of three beating at half the firing rate), the Jaguar six and the Acura V6 filling the revs, the Supra's six above 3,650 rpm | Porsche 911 Turbo (930) |
 | `i4` | Suzuki Jimny four at idle, a Rover 216 GSi four revving to 6,900 rpm | Lada Niva, Willys MB, UAZ Hunter, the Thar's and the Roxx's petrols; BMW M3 (E30), Mazda RX-7, Subaru Impreza STi |
+
+Most banks now have recordings up to their engines' redlines, so the top of the revs plays real firings at their own
+speed (it used to play the top two percent of a recording two to three times faster: the thin buzz at full revs).
+Still short: the V10 (the R8's recording stops at 4,100 rpm; the R8 and the Huracán rev to 8,500 and more), the Hummer
+H1's diesel (its recordings reach 2,300 rpm of its 3,300), the Defender's (2,900 of 4,500) and the Power Wagon's
+Cummins swap (2,900 of 3,200): above those the top firings still play faster. No free recording of them revving
+higher has turned up yet.
 
 A big engine is louder than a small one and has more of its low end (a shelf under 140 Hz): the Power Wagon's 6.4
 HEMI most of all, deep and loud, then the 392 swap, the old big-blocks and the big diesels' rumble.
