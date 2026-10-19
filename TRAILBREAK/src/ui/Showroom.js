@@ -9,6 +9,12 @@ import { TRUCK_PRICES, DEALER_ORDER } from '../game/Career.js';
 const MAKERS = ['Mercedes-AMG', 'Mercedes-Benz', 'Land Rover', 'Lamborghini', 'McLaren', 'Porsche', 'Chevrolet', 'Mitsubishi', 'Mahindra',
   'Nissan', 'Toyota', 'Mazda', 'Subaru', 'Honda', 'Audi', 'BMW', 'Ford', 'Jeep', 'Hummer', 'GMC', 'Ram', 'Lada', 'UAZ', 'Willys'];
 
+/** The maker's badge: its initials where its name is long. */
+const BADGE = { 'Mercedes-AMG': 'AMG', 'Mercedes-Benz': 'MB', 'Land Rover': 'LR', Lamborghini: 'LAMBO', Chevrolet: 'CHEVY', Mitsubishi: 'MMC', Mahindra: 'M&M', McLaren: 'McL' };
+
+/** The showroom on a screen: one for it, the lobby's and the dealer's both (each key goes to one of them). */
+export const showroomFor = (el) => (el.showroom ||= new Showroom(el));
+
 /** A car's maker and model, from its name ("BMW M4 CSL": BMW, M4 CSL). */
 export function makeAndModel(name) {
   const m = MAKERS.find((k) => name.startsWith(k + ' '));
@@ -96,7 +102,9 @@ export class Showroom {
     this.id = id;
     this.view.show(id, o.builds?.[id] || '', o.paint);
     const [maker, model] = makeAndModel(t.name), price = TRUCK_PRICES[id] ?? 0, r = rarity(price);
-    this.$('.sr-badge').textContent = (maker || model).replace('Mercedes-', '').split(/[ -]/)[0].toUpperCase();
+    const badge = this.$('.sr-badge'), bt = BADGE[maker] || (maker || model.split(' ')[0]).toUpperCase();
+    badge.textContent = bt;
+    badge.style.fontSize = `${bt.length <= 3 ? 13 : bt.length <= 5 ? 11 : 9}px`;
     this.$('.sr-maker').textContent = maker;
     this.$('.sr-model').textContent = model;
     const rt = this.$('.sr-rarity'); rt.textContent = r; rt.className = 'sr-rarity ' + r;

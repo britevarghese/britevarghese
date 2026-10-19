@@ -6,7 +6,7 @@ import { TRUCKS } from './physics/trucks.js';
 import { buildSummary, decodeBuild } from './physics/Upgrades.js';
 import { Garage } from './ui/Garage.js';
 import { TruckView } from './ui/TruckView.js';
-import { Showroom } from './ui/Showroom.js';
+import { showroomFor } from './ui/Showroom.js';
 import { Career, TRUCK_PRICES, money } from './game/Career.js';
 import { Renderer } from './render/Renderer.js';
 import { TerrainRenderer } from './render/Terrain.js';
@@ -100,7 +100,7 @@ function lobby() {
     showView();
   };
   // the car: chosen in the showroom (ui/Showroom.js), yours to drive or the dealer's price
-  const showroom = new Showroom($('showroom'));
+  const showroom = showroomFor($('showroom'));
   const showTrucks = () => {
     const t = TRUCKS[settings.truck] || TRUCKS.ranger;
     $('choose-car-sub').textContent = `${t.name} · ${t.road ? 'sports car' : 'off-road'}`;

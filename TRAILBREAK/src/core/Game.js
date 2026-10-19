@@ -6,7 +6,7 @@ import { money, TRUCK_PRICES } from '../game/Career.js';
 import { buildSummary } from '../physics/Upgrades.js';
 import { SURFACES } from '../physics/Surfaces.js';
 import { TruckModel } from '../render/TruckModel.js';
-import { Showroom } from '../ui/Showroom.js';
+import { showroomFor } from '../ui/Showroom.js';
 import { loadTruckAsset, truckAsset, truckAssetProgress, MODEL_BODIES } from '../render/TruckAssets.js';
 import { CameraRig } from './CameraRig.js';
 import { BEACON_RADIUS, MAP_HALF } from '../world/maps/index.js';
@@ -399,9 +399,8 @@ export class Game {
     this.dealerOpen = true;
     this.input.enabled = false;
     this.audio.setMuted('menu', true);
-    this.showroom ??= new Showroom(document.getElementById('showroom'));
-    const S = this.showroom;
-    this.showroom.open({
+    const S = showroomFor(document.getElementById('showroom'));
+    S.open({
       title: this.dealerName || `${(this.mapName || 'Offroad').split(' ')[0]} Motors`,
       current: this.truckId, paint: this.myColor, builds: this.settings.builds || {},
       owns: (id) => C.ownsTruck(id),
