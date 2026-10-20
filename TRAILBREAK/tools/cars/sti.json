@@ -20,6 +20,7 @@
  "screenNormal": 0.35,
  "screenZ": 0.2,
  "quantize": true,
+ "weldCreases": true,
  "reduce": { "paint": 0.15, "*": 0.5 },
  "reduceMat": { "1": 0.85, "5": 0.85, "6": 0.85, "18": 0.9, "28": 0.6, "4": 0.5, "17": 0.6, "21": 0.6 },
  "rimReduce": 0.6,

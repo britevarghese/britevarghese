@@ -56,6 +56,7 @@
  "glassAbove": 1.05,
  "rimFrom": "FL",
  "rimReduce": 0.6,
+ "weldCreases": true,
  "reduce": {
   "paint": 0.0,
   "*": 0.6

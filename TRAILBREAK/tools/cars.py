@@ -582,9 +582,17 @@ def main(src_dir, cfg_path, out_dir):
         """Quadric edge collapses on the surface welded whole (by position, and by uv where it is textured: the
         seams stay), then normals again with a crease: smooth across gentle bends, a hard edge where faces meet
         at more than 35 degrees (the panels' edges stay sharp). Corners whose normals point apart stay apart: a panel
-        modelled with its inside face (a thin shell) is two surfaces, not one whose normals cancel out."""
+        modelled with its inside face (a thin shell) is two surfaces, not one whose normals cancel out. A config with
+        "weldCreases": true keeps apart only those (the corners facing against the first one there): split along its
+        every crease, a surface can come apart there as each piece is simplified alone (holes in the paint, the black
+        underneath showing through)."""
         import fast_simplification as fs
-        key = np.c_[np.round(flat * 1e4).astype(np.int64), np.round(fnr * 2).astype(np.int64)]
+        pk = np.round(flat * 1e4).astype(np.int64)
+        if cfg.get('weldCreases'):
+            _, pf, pinv = np.unique(pk, axis=0, return_index=True, return_inverse=True)
+            key = np.c_[pk, ((fnr * fnr[pf][pinv.ravel()]).sum(1) < 0).astype(np.int64)]
+        else:
+            key = np.c_[pk, np.round(fnr * 2).astype(np.int64)]
         if hu: key = np.c_[key, np.round(fuv * 1e4).astype(np.int64)]
         _, first, inv = np.unique(key, axis=0, return_index=True, return_inverse=True)
         P0, U0, T0 = flat[first], fuv[first], inv.reshape(-1, 3)

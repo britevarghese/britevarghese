@@ -45,6 +45,7 @@
   "14": "glass",
   "16": "head"
  },
+ "weldCreases": true,
  "reduce": {
   "paint": 0.6,
   "*": 0.8

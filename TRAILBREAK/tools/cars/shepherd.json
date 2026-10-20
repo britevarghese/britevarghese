@@ -64,6 +64,7 @@
  ],
  "glassAbove": 1.25,
  "quantize": true,
+ "weldCreases": true,
  "reduce": {
   "paint": 0,
   "*": 0.55

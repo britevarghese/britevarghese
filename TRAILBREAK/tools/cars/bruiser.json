@@ -47,6 +47,7 @@
    "alpha": "OPAQUE"
   }
  },
+ "weldCreases": true,
  "reduce": {
   "paint": 0.3,
   "*": 0.0

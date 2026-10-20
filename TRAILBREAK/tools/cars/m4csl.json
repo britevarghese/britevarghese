@@ -126,6 +126,7 @@
   }
  },
  "quantize": true,
+ "weldCreases": true,
  "reduce": {
   "paint": 0.45,
   "*": 0.6

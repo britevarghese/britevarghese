@@ -32,6 +32,7 @@
   "12": "hub",
   "30": "drop"
  },
+ "weldCreases": true,
  "reduce": {
   "paint": 0.35,
   "*": 0.5
