@@ -237,10 +237,13 @@ export class Post {
   motion(camera, dt, subject) {
     const u = this.blur.material.uniforms, p = camera.position;
     camera.getWorldDirection(_v);
-    // the camera's velocity, smoothed a little (a cut, such as a respawn, is no motion at all)
+    // the camera's velocity, smoothed a little (a cut, such as a respawn, a jump faster than any car drives, or a switch
+    // to another view (the rig marks it), is no motion at all)
+    let cut = !!camera.userData.cut;
+    camera.userData.cut = false;
     if (this.prevPos && dt > 0) {
-      const dx = p.x - this.prevPos.x, dy = p.y - this.prevPos.y, dz = p.z - this.prevPos.z;
-      const cut = dx * dx + dy * dy + dz * dz > 400;
+      const dx = p.x - this.prevPos.x, dy = p.y - this.prevPos.y, dz = p.z - this.prevPos.z, d2 = dx * dx + dy * dy + dz * dz;
+      cut ||= d2 > 400 || d2 > (150 * dt) ** 2;
       const k = 1 - Math.exp(-dt * 25);
       if (cut) this.vel.set(0, 0, 0);
       else this.vel.x += (dx / dt - this.vel.x) * k, this.vel.y += (dy / dt - this.vel.y) * k, this.vel.z += (dz / dt - this.vel.z) * k;
@@ -254,7 +257,7 @@ export class Post {
     u.uLat.value.set(T.x * P[0], T.y * P[5]);
     // the turn: where last frame's view direction is now on the screen, per frame, over the shutter (slow turns: none)
     const pan = u.uPan.value.set(0, 0);
-    if (this.prevDir && dt > 0) {
+    if (this.prevDir && dt > 0 && !cut) {
       const d = _d.copy(this.prevDir).applyQuaternion(_q);
       if (d.z < -0.94) {                                    // (a cut to another view is no turn)
         const k = Math.min(2, this.shutter / dt) * 0.5;

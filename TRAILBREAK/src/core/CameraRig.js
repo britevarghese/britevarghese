@@ -45,6 +45,7 @@ export class CameraRig {
   next() {
     this.mode = MODES[(MODES.indexOf(this.mode) + 1) % MODES.length];
     this.yaw = 0;
+    this.camera.userData.cut = true;       // (a cut to another view: the motion blur takes it for no motion)
     return LABELS[this.mode];
   }
 
