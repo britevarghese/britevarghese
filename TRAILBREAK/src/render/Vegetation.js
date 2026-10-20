@@ -37,6 +37,19 @@ export const TREE_SETS = {
     cut: { jungle: { 4: 0.295, 6: 0.295 } },
   },
 };
+/**
+ * A tree's colour (its model's, its card's and its falling self's alike, from its two random numbers): lighter or
+ * darker, and a little warmer (yellow-green) or cooler (blue-green), as a stand's trees are. With the lightness alone
+ * a hillside of one species read as one green quilt.
+ */
+export function treeColor(r1, r2) {
+  const t = 0.84 + r2 * 0.3, w = (r1 * 7.13 + r2 * 3.71) % 1;
+  return [t * (0.93 + 0.14 * w), t, t * (1.04 - 0.16 * w)];
+}
+const TREE_COLOR_GLSL = `vec3 treeColor(float r1, float r2) {
+  float t = 0.84 + r2 * 0.3, w = fract(r1 * 7.13 + r2 * 3.71);
+  return t * vec3(0.93 + 0.14 * w, 1.0, 1.04 - 0.16 * w);
+}`;
 const FAR = 2400;
 // each species is pictured from VIEWS bearings round it, and a far tree's card shows the picture from the bearing the
 // camera has on it, turned as its model is (so the card is the model as it stands, not one side of it for every tree)
@@ -361,7 +374,8 @@ varying float vFade;
 varying vec3 vRightW;
 varying vec3 vToCamW;
 varying float vView;
-varying float vTint;`)
+varying vec3 vTint;
+${TREE_COLOR_GLSL}`)
         .replace('#include <uv_vertex>', `#include <uv_vertex>
 #ifdef USE_MAP
   vMapUv = vec2(aTile.x + uv.x * aTile.y, uv.y);
@@ -371,7 +385,7 @@ varying float vTint;`)
 vec3 toCam = cameraPosition - aOffset; toCam.y = 0.0;
 toCam = normalize(toCam + vec3(1e-4, 0.0, 0.0));
 vec3 rightW = vec3(toCam.z, 0.0, -toCam.x);
-vRightW = rightW; vToCamW = toCam; vTint = aTile.z;
+vRightW = rightW; vToCamW = toCam; vTint = treeColor(aYaw / 6.283, (aTile.z - 0.84) / 0.3);
 // the camera's bearing on the tree in the model's own turn, in pictures (0 .. VIEWS)
 vView = fract((atan(toCam.x, toCam.z) - aYaw) / 6.2831853) * ${VIEWS.toFixed(1)};
 float dCam = length(aOffset.xz - uLod);
@@ -387,7 +401,7 @@ ${IGN}
 varying vec3 vRightW;
 varying vec3 vToCamW;
 varying float vView;
-varying float vTint;`)
+varying vec3 vTint;`)
         .replace('#include <clipping_planes_fragment>', `#include <clipping_planes_fragment>
 if (ign(gl_FragCoord.xy) < 1.0 - vFade) discard;
 // the pictures from the two bearings either side of the camera's, blended as it turns, each by its cover (a leaf in one
@@ -512,13 +526,13 @@ if (vFade <= 0.0 || dCam > ${FAR.toFixed(1)}) gl_Position = vec4(0.0, 0.0, -2.0,
         list.length = nkk.cap;
       }
       for (const i of list) {
-        const [r1, r2] = this.rand(i), ht = T.h[i], wd = ht * (0.88 + r2 * 0.24) * this.widthOf[k], tint = 0.84 + r2 * 0.3, j = counts[k]++;
+        const [r1, r2] = this.rand(i), ht = T.h[i], wd = ht * (0.88 + r2 * 0.24) * this.widthOf[k], j = counts[k]++;
         q.setFromAxisAngle(this._up, r1 * 6.283);
         s.set(wd, ht, wd);
         p.set(T.x[i], T.y[i] - 0.12, T.z[i]);
         m.compose(p, q, s);
         m.toArray(nkk.matrix.array, j * 16);
-        c.setRGB(tint * (0.96 + r1 * 0.08), tint, tint * (0.93 + r1 * 0.07));
+        c.setRGB(...treeColor(r1, r2));
         c.toArray(nkk.color.array, j * 3);
       }
     }
@@ -552,10 +566,10 @@ if (vFade <= 0.0 || dCam > ${FAR.toFixed(1)}) gl_Position = vec4(0.0, 0.0, -2.0,
     this.lastFill.set(1e9, 0, 1e9);
   }
 
-  /** How tree i stands, as its model is drawn: { kind, x, y, z, ht, wd, yaw, tint }. */
+  /** How tree i stands, as its model is drawn: { kind, x, y, z, ht, wd, yaw, tint, color }. */
   treePose(i) {
     const T = this.trees, k = this.kindOf[i], [r1, r2] = this.rand(i), ht = T.h[i];
-    return { kind: k, x: T.x[i], y: T.y[i] - 0.12, z: T.z[i], ht, wd: ht * (0.88 + r2 * 0.24) * this.widthOf[k], yaw: r1 * 6.283, tint: 0.84 + r2 * 0.3, r1 };
+    return { kind: k, x: T.x[i], y: T.y[i] - 0.12, z: T.z[i], ht, wd: ht * (0.88 + r2 * 0.24) * this.widthOf[k], yaw: r1 * 6.283, tint: 0.84 + r2 * 0.3, color: treeColor(r1, r2) };
   }
 
   /** Instanced models of a species for the fallen trees (no wind, no fading out): { meshes, matrix, color, cap }. */

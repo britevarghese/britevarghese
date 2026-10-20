@@ -295,7 +295,7 @@ export class BreakView {
       this.falling.splice(this.falling.indexOf(old), 1);
     }
     fall.born = performance.now();
-    F.color.setXYZ(fall.slot, pose.tint * (0.96 + pose.r1 * 0.08), pose.tint, pose.tint * (0.93 + pose.r1 * 0.07));
+    F.color.setXYZ(fall.slot, ...pose.color);
     F.color.needsUpdate = true;
     for (const m of F.meshes) m.count = Math.max(m.count, fall.slot + 1);
     this.falling.push(fall);
