@@ -216,7 +216,9 @@ export class Renderer {
 
   render() {
     const now = performance.now();
-    this.frameDt = Math.min(0.1, (now - (this.lastRender ?? now)) / 1000);
+    const gap = (now - (this.lastRender ?? now)) / 1000;
+    this.frameDt = Math.min(0.1, gap);
+    if (gap > 0.25) this.camera.userData.cut = true;     // (after a long stall, such as a hidden tab: no motion to blur)
     this.sky.update(this.frameDt);
     this.lastRender = now;
     // the sky's light, made again (at most a few times a second) when the time of day changes
