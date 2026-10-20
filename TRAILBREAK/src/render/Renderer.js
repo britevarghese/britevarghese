@@ -160,6 +160,7 @@ export class Renderer {
     this.fog.color.copy(s.fog);
     this.renderer.setClearColor(s.fog);
     this.night = s.el < 2;
+    this.dark = Math.min(1, Math.max(0, (3 - s.el) / 6));      // (0 by day, 1 when the sun is 3 degrees down)
     return s;
   }
 

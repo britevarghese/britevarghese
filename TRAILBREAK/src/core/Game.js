@@ -19,6 +19,7 @@ import { RouteLine } from '../render/RouteLine.js';
 import { WorldMap, keyOf } from '../ui/WorldMap.js';
 import { Chat, bubbleCanvas } from '../ui/Chat.js';
 import { ModeView } from '../render/ModeView.js';
+import { windowGlow } from '../render/KeralaBuildings.js';
 import { Builder } from '../ui/Builder.js';
 import { encodeLayout, decodeLayout } from '../game/Props.js';
 
@@ -1247,6 +1248,7 @@ export class Game {
     m.handWheel = this.input.enabled ? ctrl.wheelTurn ?? null : null;
     m.updateWheels([0, 1, 2, 3].map((i) => v.wheelState(i)), dt);
     const night = this.renderer.night;
+    windowGlow(this.renderer.dark || 0);                             // (the villages' lit windows)
     const lights = this.lightsOn || night;
     m.setLights(lights);
     m.setBrake(v.pedalBrake > 0.1);

@@ -37,7 +37,12 @@ export const KMAT = {
   glass: std(0x1c2a30, 0.15, 0.3), dark: std(0x161412, 1), steel: std(0x6b6d6e, 0.55, 0.5), sheet: std(0x7e8a8c, 0.5, 0.55),
   rust: std(0x7a4a34, 0.75, 0.35), brick: std(0x8d3f2b, 0.9), concrete: std(0xa8a49a, 0.95), white: std(0xf2efe6, 0.7),
   sign: std(0x1f5a36, 0.6), banana: std(0x6e8a2a, 0.8), yellow: std(0xd9a62a, 0.7),
+  // a window with a light on inside: the glass by day, a warm glow after dusk (windowGlow)
+  lit: std(0x1c2a30, 0.15, 0.3, { emissive: 0xffa24a, emissiveIntensity: 0 }),
 };
+
+/** How far into the night it is (0 by day, 1 at night): the lit windows glow that much. */
+export function windowGlow(dark) { KMAT.lit.emissiveIntensity = 2.4 * dark; }
 
 /** A hipped roof over a w x d plan at height y (ridge `rise` up), eaves `over` out: two trapezoids and two triangles. */
 export function hipRoof(B, w, d, y, rise, m, over = 0.9) {
@@ -66,7 +71,7 @@ function sheetRoof(B, w, d, y, rise, m, over = 0.4) {
 }
 
 /** Walls of a w x d room, h tall, with a door on the front (+z) and windows: plain boxes. */
-function room(B, w, d, h, wall, { door = true, windows = 2, sideWindows = 1, shutter = KMAT.green } = {}) {
+function room(B, w, d, h, wall, { door = true, windows = 2, sideWindows = 1, shutter = KMAT.green, glass = KMAT.glass } = {}) {
   B.box(wall, w, h, 0.22, 0, h / 2, -d / 2 + 0.11);
   B.box(wall, w, h, 0.22, 0, h / 2, d / 2 - 0.11);
   B.box(wall, 0.22, h, d, -w / 2 + 0.11, h / 2, 0);
@@ -75,11 +80,11 @@ function room(B, w, d, h, wall, { door = true, windows = 2, sideWindows = 1, shu
   for (let i = 0; i < windows; i++) {
     const x = (i - (windows - 1) / 2) * (w / (windows + 1)) * 1.6 + (windows === 1 ? w / 4 : 0);
     if (door && Math.abs(x) < 1) continue;
-    B.box(KMAT.glass, 0.9, 1.0, 0.05, x, 1.55, d / 2 + 0.01);
+    B.box(glass, 0.9, 1.0, 0.05, x, 1.55, d / 2 + 0.01);
     B.box(shutter, 0.42, 1.04, 0.04, x - 0.66, 1.55, d / 2 + 0.03);
     B.box(shutter, 0.42, 1.04, 0.04, x + 0.66, 1.55, d / 2 + 0.03);
   }
-  for (let i = 0; i < sideWindows; i++) for (const s of [-1, 1]) B.box(KMAT.glass, 0.05, 1.0, 0.9, s * (w / 2 + 0.01), 1.55, (i - (sideWindows - 1) / 2) * 2.2);
+  for (let i = 0; i < sideWindows; i++) for (const s of [-1, 1]) B.box(glass, 0.05, 1.0, 0.9, s * (w / 2 + 0.01), 1.55, (i - (sideWindows - 1) / 2) * 2.2);
 }
 
 /** A verandah along the front: a raised floor, pillars, and the roof carried over it. */
@@ -111,11 +116,13 @@ function sign(g, text, w, h, x, y, z, ry = 0, bg, fg) {
 
 const WALLS = [KMAT.wash, KMAT.cream, KMAT.sky, KMAT.pink, KMAT.lemon];
 const pick = (L, n) => Math.abs(Math.round(L.x * 13 + L.z * 7)) % n;
+// whether someone's home tonight (three houses in four), on its own numbers: not tied to the house's colours
+const home = (L) => (Math.abs(Math.round(L.x * 5 + L.z * 11)) % 4 ? KMAT.lit : KMAT.glass);
 
 export const KERALA_BUILD = {
   // the forest station: whitewashed, a red tiled hip roof, a deep verandah, the department's green board
   station(B, L) {
-    room(B, 10, 7, 3.2, KMAT.wash, { windows: 3, sideWindows: 2 });
+    room(B, 10, 7, 3.2, KMAT.wash, { windows: 3, sideWindows: 2, glass: KMAT.lit });            // (staffed day and night)
     B.box(KMAT.plinth, 10.4, 0.45, 7.4, 0, 0.22, 0);
     verandah(B, 10, 3.5, 2.6, 5);
     hipRoof(B, 10, 7 + 2.6, 3.2, 2.4, KMAT.tile, 0.9);
@@ -163,7 +170,7 @@ export const KERALA_BUILD = {
   },
   // the estate manager's bungalow: white, a steep tiled roof, a chimney, a verandah
   bungalow(B, L) {
-    room(B, 11, 8, 3.4, KMAT.wash, { windows: 4, sideWindows: 2, shutter: KMAT.green });
+    room(B, 11, 8, 3.4, KMAT.wash, { windows: 4, sideWindows: 2, shutter: KMAT.green, glass: KMAT.lit });
     B.box(KMAT.plinth, 11.4, 0.6, 8.4, 0, 0.3, 0);
     verandah(B, 11, 4, 2.8, 6, KMAT.white);
     hipRoof(B, 11, 8 + 2.8, 3.4, 3.4, KMAT.tileOld, 0.8);
@@ -173,7 +180,7 @@ export const KERALA_BUILD = {
   // a village house: pastel walls, a red tiled hip roof, a sit-out verandah at the front
   house(B, L) {
     const wall = WALLS[pick(L, WALLS.length)];
-    room(B, 8, 6, 3.0, wall, { windows: 2, sideWindows: 1, shutter: pick(L, 2) ? KMAT.blue : KMAT.green });
+    room(B, 8, 6, 3.0, wall, { windows: 2, sideWindows: 1, shutter: pick(L, 2) ? KMAT.blue : KMAT.green, glass: home(L) });
     B.box(KMAT.plinth, 8.3, 0.5, 6.3, 0, 0.25, 0);
     verandah(B, 6, 3, 2.0, 3, wall);
     hipRoof(B, 8, 6 + 1.2, 3.0, 2.2, pick(L, 3) ? KMAT.tile : KMAT.tileOld, 0.8);
