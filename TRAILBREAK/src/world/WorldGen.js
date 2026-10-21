@@ -87,7 +87,8 @@ export function landform(M) {
   // waterfall keeps its step (the smoothing passes leave the points either side of it alone)
   const riverLevel = (() => {
     const cut = RV.cut ?? 3.5, minDrop = RV.minDrop ?? 0.007;
-    const raw = riverCoarsePts.map(([x, z]) => (RV.none ? 0 : baseHeight(x, z) - cut));
+    // (a river that carries on from another map's has its levels given: levelAt(fraction along it))
+    const raw = riverCoarsePts.map(([x, z], i) => (RV.none ? 0 : RV.levelAt ? RV.levelAt(riverArc[i] / riverLen) : baseHeight(x, z) - cut));
     const lv = new Float64Array(raw.length);
     const drop = (i) => (riverArc[i] - riverArc[i - 1]) * minDrop;
     const keep = new Set();
@@ -583,6 +584,8 @@ export async function generateWorld({ map, onProgress = () => {}, yieldEvery = 6
     }
   }
   ctx.landmarks = landmarks;
+  // the map's last word on its ground, once everything is cut into it (a stretch between two maps meets them here)
+  G.finish?.(ctx);
   await tick(0.7, 'Laying the ground');
 
   // ---- surfaces
