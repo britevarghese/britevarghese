@@ -146,24 +146,34 @@ export class Water {
     const d = world.data, N = d.waterN, res = d.waterRes, O = d.origin, W = d.water;
     // (a map whose sea is drawn as a sheet of its own: the sea's cells left out of the water grid's mesh)
     const SL = world.map.sea?.sheet ? world.map.sea.level : null;
-    const has = (i, k) => i >= 0 && k >= 0 && i < N && k < N && W[k * N + i] > -1e8 && W[k * N + i] !== SL;
+    const puddles = d.puddles.filter((p) => p.level !== undefined);
+    // a puddle's surface drawn on out past its basin's rim (the ground hides it beyond its shore): drawn only over the
+    // grid points that have its water it was a square, its sides cut straight across the water a cell inside the shore
+    const out = new Map();
+    for (const p of puddles) {
+      const R = p.r + 1.5 * res, i0 = Math.ceil((p.x - R - O) / res), i1 = Math.floor((p.x + R - O) / res), k0 = Math.ceil((p.z - R - O) / res), k1 = Math.floor((p.z + R - O) / res);
+      for (let k = Math.max(0, k0); k <= Math.min(N - 1, k1); k++) for (let i = Math.max(0, i0); i <= Math.min(N - 1, i1); i++) {
+        if (W[k * N + i] <= -1e8 && Math.hypot(O + i * res - p.x, O + k * res - p.z) <= R) out.set(k * N + i, p.level);
+      }
+    }
+    const lvl = (j) => (W[j] > -1e8 ? W[j] : out.get(j) ?? W[j]);
+    const has = (i, k) => i >= 0 && k >= 0 && i < N && k < N && lvl(k * N + i) > -1e8 && lvl(k * N + i) !== SL;
     // vertices at the grid points with a water level, and quads where all four corners have one
     const index = new Int32Array(N * N).fill(-1);
     const pos = [], depth = [], flow = [], mud = [], fall = [], idx = [];
-    const puddles = d.puddles.filter((p) => p.level !== undefined);
     // muddy water: the bog's pools and the puddles, and wherever the ground under the water is mud (paddy fields)
     const BOG = world.map.bog, cb = BOG ? Math.cos(BOG.rot) : 1, sb = BOG ? Math.sin(BOG.rot) : 0;
     const mudUnder = !BOG;
     for (let k = 0; k < N; k++) {
       for (let i = 0; i < N; i++) {
         if (!has(i, k)) continue;
-        const x = O + i * res, z = O + k * res, level = W[k * N + i];
+        const x = O + i * res, z = O + k * res, level = lvl(k * N + i);
         index[k * N + i] = pos.length / 3;
         pos.push(x, level, z);
         depth.push(level - world.terrain(x, z));
         // downstream: down the slope of the water's surface, faster where it falls faster
-        const lx = has(i + 1, k) && has(i - 1, k) ? (W[k * N + i + 1] - W[k * N + i - 1]) / (2 * res) : 0;
-        const lz = has(i, k + 1) && has(i, k - 1) ? (W[(k + 1) * N + i] - W[(k - 1) * N + i]) / (2 * res) : 0;
+        const lx = has(i + 1, k) && has(i - 1, k) ? (lvl(k * N + i + 1) - lvl(k * N + i - 1)) / (2 * res) : 0;
+        const lz = has(i, k + 1) && has(i, k - 1) ? (lvl((k + 1) * N + i) - lvl((k - 1) * N + i)) / (2 * res) : 0;
         const g = Math.hypot(lx, lz), sp = g > 1e-4 ? Math.min(2.4, 0.5 + g * 220) / g : 0;
         flow.push(-lx * sp, -lz * sp);
         fall.push(Math.min(1, Math.max(0, (g - 0.06) / 0.18)));            // a steep fall: white water
