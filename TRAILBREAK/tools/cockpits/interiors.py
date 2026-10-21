@@ -70,9 +70,13 @@ for id, style in STYLES.items():
     z1 = min(zC + 0.3, aF - R - 0.08)
     if z1 > zC: cut.append({'box': [-wF, floor - 0.12, zC - 0.02, wF, yC - 0.08, z1]})
     for c in cut: c['box'] = [r3(v) for v in c['box']]
+    # (the body paint cut out short of the doors: their linings face in, cut as the inner skins are, and their outer
+    # skins are body paint too: the dash and seats it is for stand inside the doors' depth)
+    xp = doorX - 0.15
+    paint = [{**c, 'box': [r3(max(c['box'][0], -xp)), *c['box'][1:3], r3(min(c['box'][3], xp)), *c['box'][4:]]} for c in cut if 'plane' not in c]
     I = {'replace': True, 'mirrors': [MIRROR.get(id) or glass(mirr[id][0])], 'cowl': [r3(yC), r3(zC)], 'top': [r3(yT), r3(zT)], 'wsHalf': r3(m['wsHalf']), 'belt': [r3(yB), r3(xB)],
          'sideZ': [r3(v) for v in m['sideZ']], 'doorX': r3(doorX), 'floorY': r3(floor), 'rear': rear, 'style': style, 'cut': cut,
-         **({'cutPaint': [c for c in cut if 'plane' not in c]} if paintCut else {})}
+         **({'cutPaint': paint} if paintCut else {})}
     L['interior'] = I
     json.dump(L, open(pub, 'w'), indent=1)
     # the converter's config: its layout carries the same (one line, the file's own formatting kept)
