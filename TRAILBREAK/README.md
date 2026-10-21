@@ -1,7 +1,8 @@
 # TRAILBREAK: Offroad Legends
 
-**Offroad Legends** (the TRAILBREAK project) is a co-op off-road driving game that runs in the browser. You and up to three friends take old 4x4s into one of three
-maps: **Ashwood Valley** (mountain trails, a river with fords, a mud bog, a rock garden, snow on the peaks), the
+**Offroad Legends** (the TRAILBREAK project) is a co-op off-road driving game that runs in the browser. You and up to three friends take old 4x4s into the
+**Open World** (every map below joined into one, 12 km across, driven from the sea to the snow with no loading screen
+on the way: see [The open world](#the-open-world)), or into one of its three maps alone: **Ashwood Valley** (mountain trails, a river with fords, a mud bog, a rock garden, snow on the peaks), the
 **Kerala Ghats** (tea estates on misty hills, a waterfall, flooded paddy fields, red laterite tracks through rubber and
 coconut, a granite dome), or the **Konkan Coast** (8 km across, the real coast round Kashid beach in Maharashtra from
 open elevation and land-cover data: a coast road by the Arabian Sea, ghat roads in hairpins up to a forested tableland,
@@ -787,6 +788,59 @@ others on 1 m): in Node it builds in about 13 s; in a test here, headless Chromi
 to load it (Kerala 14 s) and about 345 MB of JavaScript memory. Every map's shaders are compiled together before the
 first frame (in parallel where the browser can), not one by one as each is first drawn.
 
+## The open world
+
+The lobby's first choice: the Konkan Coast, the Kerala Ghats and Ashwood Valley side by side in one world 12 km across
+(`src/world/maps/world.js`), with two stretches of new country between them, so you can drive from Kashid beach up the
+ghat, across the upland, into Kerala's tea hills and over the pass to Ashwood's snow without a loading screen. The
+satnav plots a way between any two places in it by road and track (from the coast's station to Ashwood's: 18.6 km).
+
+- **The Konkan Ghat** (2 km, east of the coast): the coast's tableland carried on east, its broad upland falling to
+  the river that comes out of Kerala (the same river, at the same level, running on across it and out of the world)
+  and rising into Kerala's forested ridges. The **Konkan Ghat Road** (2.1 km of two-lane tarmac) carries the Kashid
+  ghat road on from the coast's edge, down through the gap in the ridges into Kerala; the **Kundalika River Track**
+  leaves it for the riverbank. Ghat Dhaba (a chai stall and a bus stop) stands by the road.
+- **The Ashwood Pass** (2 km, north of Kerala): a range of ridges with a saddle through it. The **Ashwood Pass Road**
+  (2.1 km) climbs from Kerala's tea plateau (276 m) and drops through the saddle to Ashwood's valley (82 m); the
+  **Cairn Ridge Trail** loops off it over the ridge to the west. A hut and a flag at the top.
+
+Each map is generated as it is when it is driven alone, in its own frame, and stands at its own place in the world.
+Where a road leaves one, its edge ridge is cut down to a pass and a spur of road runs out through it (built after the
+map's own trails, so its trees and boulders fall where they always do): the coast's ghat road carried on east, a road
+west out of Kerala off the paddy and rubber track, a road north off the Kurinji jeep track, and Ashwood's old valley
+road south. The stretches are generated after the maps either side of them and laid onto their edges: their ground
+gives way to the neighbour's over the last 220 m, carried on at the neighbour's own slope, and once everything is cut
+into it the edge is the neighbour's height at every point, so nothing steps where two maps meet (the stretches are on
+1 m grids, as Kerala and Ashwood are, so the points along a seam are the same points). Their roads are laid on graded
+ground: the ground along each line smoothed and kept within the road's grade, cut into the rises and built up over the
+dips as deep as that takes, its ends held to the roads they meet, and the land laid onto it with banks either side
+(no stretch of the roads between the maps is steeper than 16%, measured over 10 m). In Node the whole world builds in
+about 25 s, and a test (`test/world.test.mjs`) checks the seams, the grades across them, the river at the Kerala seam,
+the satnav's route from the coast to Ashwood, and a truck driving over each join on the real physics.
+
+**Loading like Forza.** The maps are built in Web Workers, several at once (`src/world/WorldLoader.js`,
+`worldWorker.js`), the coast first: the game starts as soon as the coast is ready, and the others join the world while
+you drive, each stretch as soon as the maps either side of it are in. A map that comes in is drawn by its own
+renderers (`src/render/WorldView.js`: its terrain, trees, grass, water, rocks, buildings, road markings and what
+breaks, in a group at its centre), its colours baked a few milliseconds at a time between frames; until then its
+ground is the far land, and nobody gets near it before it is there. Every map is kept in the browser's storage
+(IndexedDB, under a fingerprint of the generator's code and the coast's data: a change to either builds them afresh),
+so the next visit skips building them. In a test here (headless Chromium drawing in software, without a graphics card,
+much slower than a real computer), the open world was ready to drive 126 s after the click on the first visit and 37
+s on the next, with the other four maps all in 39 s after that; the Konkan Coast alone took 99.5 s on the same machine.
+With every map in, the browser held about 680 MB of JavaScript memory.
+
+At run time (`src/world/OpenWorld.js`) the world answers as one map does, in world coordinates: the ground, the water,
+the trees and what breaks go to whichever map's square holds the point. Its beacons, buildings, roads, events, races
+and party modes are every map's (each map's events where they are on it; the party modes once per map: Elimination ·
+Kerala and so on). Around it all, one more terrain draws the far land: each map's own landform carried on past its
+edge, met to its edge, blended between maps. What a room shares carries the map: a tree knocked down in Kerala is
+`kerala:t123`; a beacon's number is its map's place in the world times 100 and its own.
+
+Where one map's ground meets the next the textures change from one set to the other (the coast's tarmac ends where
+Kerala's road begins), and the trucks' events, races and builder layouts are those of each map, not new ones across
+the world.
+
 ## Project layout
 
 ```
@@ -794,14 +848,18 @@ server.js, server/        static host + https + WebSocket rooms (rooms.js)
 src/physics/              Vehicle (chassis, axles, tyre contact, winch, water), Tire, Drivetrain, Surfaces, trucks,
                           Upgrades (the garage's parts and what each does to the physics)
 src/world/                WorldGen (a map's world, from its definition), World (ground for the physics), Deform
-                          (ruts), Noise
+                          (ruts), Noise; the open world: BigWorldGen (its maps, the stretches laid onto their
+                          neighbours), OpenWorld (one ground of them all), WorldLoader and worldWorker (built in
+                          workers, kept in the browser's storage)
 src/world/maps/           the maps: index (the list, and each map's grids: its size and cell), ashwood, kerala,
                           coast (each one's land, river, trails, beacons, buildings, events and its own generator
                           hooks: Kerala's tea, paddies and quarry; the coast's real ground, sea, villages and forest),
-                          coastRoads (the coast's routed roads)
+                          coastRoads (the coast's routed roads), world (the open world: where each map stands, its
+                          passes and spurs, the Konkan Ghat and the Ashwood Pass)
 tools/konkan.py           the Konkan Coast's ground from open data (fetch, bake into public/assets/maps/coast) and
                           its roads (routed over it)
-src/render/               Renderer, Sky, Terrain (LOD patches), Vegetation, Tea (the estates' rows of bushes), Rocks,
+src/render/               Renderer, Sky, Terrain (LOD patches), WorldView (the open world: each map's renderers, the
+                          far land), Vegetation, Tea (the estates' rows of bushes), Rocks,
                           Water (and the coast's sea), RoadMarkings and RoadWear (the coast's lane lines; the wear,
                           cracks and mud on its tarmac), Landmarks and
                           KeralaBuildings, TruckModel (chassis, axles, wheels, parts), Person and Hands (the driver,

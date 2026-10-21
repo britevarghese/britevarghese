@@ -11,9 +11,10 @@ const CELL = 24;                         // spatial hash cell (m)
 export class RouteGraph {
   /**
    * trails: [{ kind: 'road' | 'trail', points: [[x, z], ...] }]. Costs are seconds-like weights per metre: a road 1,
-   * a trail `trail`, across country `offroad`; trails within `join` m of each other meet.
+   * a trail `trail`, across country `offroad`; trails within `join` m of each other meet. hubs: [{ x, z, r }], yards
+   * the trails run into without touching (a town square): the ends of the trails within r of one are joined across it.
    */
-  constructor(trails, { trail = 1.3, offroad = 2.8, join = 9 } = {}) {
+  constructor(trails, { trail = 1.3, offroad = 2.8, join = 9, hubs = [] } = {}) {
     this.offroad = offroad;
     const X = [], Z = [], adj = [];
     const link = (a, b, w) => { adj[a].push(b, w); adj[b].push(a, w); };
@@ -51,6 +52,19 @@ export class RouteGraph {
         if (!b || d < b.d) best.set(this.trailOf[j], { j, d });
       });
       for (const { j, d } of best.values()) if (j > i) link(i, j, Math.max(0.5, d));
+    }
+    // across the yards: every trail end in one to every other
+    for (const H of hubs) {
+      const ends = [];
+      let n = 0;
+      for (const t of trails || []) {
+        for (const e of [n, n + t.points.length - 1]) if (Math.hypot(X[e] - H.x, Z[e] - H.z) < H.r) ends.push(e);
+        n += t.points.length;
+      }
+      for (let a = 0; a < ends.length; a++) for (let b = a + 1; b < ends.length; b++) {
+        const i = ends[a], j = ends[b];
+        if (this.trailOf[i] !== this.trailOf[j]) link(i, j, Math.max(0.5, Math.hypot(X[i] - X[j], Z[i] - Z[j]) * trail));
+      }
     }
   }
 

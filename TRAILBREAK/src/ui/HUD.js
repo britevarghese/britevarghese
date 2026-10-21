@@ -30,8 +30,70 @@ export class HUD {
 
   show(on) { this.el.classList.toggle('hidden', !on); }
 
+  /**
+   * The open world as a picture (8 m a pixel): each map drawn on it as it comes in (drawRegion), the rest of it the far
+   * land's colour.
+   */
+  buildWorldImage(tr) {
+    const B = this.world.mapBox, S = Math.round(B.size / 8), c = document.createElement('canvas');
+    c.width = S; c.height = S;
+    const x = c.getContext('2d');
+    x.fillStyle = '#56603f'; x.fillRect(0, 0, S, S);
+    this.mapTr = tr;
+    this.mapImage = c;
+    for (const r of this.world.regions) this.drawRegion(r);
+    return c;
+  }
+
+  /** One map of the open world onto its picture: its ground, then its woods, roads and tracks, and buildings. */
+  drawRegion(region) {
+    // (once its renderers are there: its colours are theirs)
+    if ((this.drawn ||= new Set()).has(region.id) || (this.world.view && !this.world.view.viewOf(region.id))) return;
+    this.drawn.add(region.id);
+    const c = this.mapImage, x = c.getContext('2d'), B = this.world.mapBox, S = c.width, step = B.size / S, tr = this.mapTr, W = region.world;
+    const i0 = Math.max(0, Math.round((region.cx - region.half - B.x0) / step)), i1 = Math.min(S, Math.round((region.cx + region.half - B.x0) / step));
+    const k0 = Math.max(0, Math.round((region.cz - region.half - B.z0) / step)), k1 = Math.min(S, Math.round((region.cz + region.half - B.z0) / step));
+    const img = x.createImageData(i1 - i0, k1 - k0), out = [0, 0, 0];
+    for (let j = k0; j < k1; j++) {
+      for (let i = i0; i < i1; i++) {
+        const lx = B.x0 + (i + 0.5) * step - region.cx, lz = B.z0 + (j + 0.5) * step - region.cz;
+        const h = W.terrain(lx, lz), nx = -(W.terrain(lx + step, lz) - W.terrain(lx - step, lz)) / (2 * step), nz = -(W.terrain(lx, lz + step) - W.terrain(lx, lz - step)) / (2 * step);
+        tr.colorAt(lx + region.cx, lz + region.cz, step, h, Math.hypot(nx, nz), out);
+        const shade = Math.max(0.35, Math.min(1.35, 0.92 + (nx * -0.6 + nz * -0.5) * 1.2));
+        let r = Math.sqrt(out[0]) * shade, g = Math.sqrt(out[1]) * shade, b = Math.sqrt(out[2]) * shade;
+        const wl = W.water(lx, lz);
+        if (wl > -1e8 && h < wl) { r = 0.22; g = 0.42; b = 0.5; }
+        const o = ((j - k0) * (i1 - i0) + (i - i0)) * 4;
+        img.data[o] = Math.min(255, r * 255); img.data[o + 1] = Math.min(255, g * 255); img.data[o + 2] = Math.min(255, b * 255); img.data[o + 3] = 255;
+      }
+    }
+    x.putImageData(img, i0, k0);
+    const px = (v) => (v - B.x0) / step, pz = (v) => (v - B.z0) / step, T = W.trees;
+    x.fillStyle = 'rgba(42,66,32,0.5)';
+    x.beginPath();
+    for (let t = 0; t < (T.base ?? T.count); t++) {
+      const cx = px(T.x[t] + region.cx), cy = pz(T.z[t] + region.cz), r = Math.max(0.6, (T.h[t] * 0.16) / step);
+      x.moveTo(cx + r, cy);
+      x.arc(cx, cy, r, 0, 6.2832);
+    }
+    x.fill();
+    for (const t of this.world.data.trails) {
+      if (t.region !== region.id) continue;
+      x.beginPath();
+      t.points.forEach(([qx, qz], k) => (k ? x.lineTo(px(qx), pz(qz)) : x.moveTo(px(qx), pz(qz))));
+      x.strokeStyle = t.kind === 'road' ? 'rgba(235,225,200,0.85)' : 'rgba(120,80,45,0.9)';
+      x.lineWidth = t.kind === 'road' ? 1.6 : 1;
+      x.setLineDash(t.kind === 'road' ? [] : [3, 2]);
+      x.stroke();
+    }
+    x.setLineDash([]);
+    x.fillStyle = '#3a2a1e';
+    for (const L of this.world.landmarks) if (L.region === region.id) x.fillRect(px(L.x) - 1.5, pz(L.z) - 1.5, 3, 3);
+  }
+
   /** The valley as a picture: ground colours with hill shading, water, trails, buildings. */
   buildMapImage(tr) {
+    if (this.world.regions) return this.buildWorldImage(tr);
     // (2 m a pixel on a 2 km map; a big map's 4 m)
     const w = this.world, HALF = w.half, S = HALF > 1024 ? Math.round(HALF / 2) : 1024, c = document.createElement('canvas'); c.width = S; c.height = S;
     const x = c.getContext('2d');
@@ -317,14 +379,14 @@ export class HUD {
   // ---------------------------------------------------------------- maps
   drawMinimap(here, heading, mates, route, mode) {
     const g = this.mini, S = 220, scale = 1.25;                 // px per metre
-    const img = this.mapImage, HALF = this.world.half, k = img.width / (2 * HALF);
+    const img = this.mapImage, B = this.world.mapBox, k = img.width / B.size;
     g.save();
     g.clearRect(0, 0, S, S);
     g.beginPath(); g.arc(S / 2, S / 2, S / 2, 0, TAU); g.clip();
     g.translate(S / 2, S / 2);
     g.rotate(-heading);
     g.scale(scale / k, scale / k);
-    g.drawImage(img, -(here.x + HALF) * k, -(here.z + HALF) * k);
+    g.drawImage(img, -(here.x - B.x0) * k, -(here.z - B.z0) * k);
     // the satnav's route
     if (route?.points?.length > 1) {
       g.beginPath();

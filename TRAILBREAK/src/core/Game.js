@@ -108,12 +108,15 @@ export class Game {
     this.course = new EventCourse(this.scene, this.world, this.events.events);
     this.modeView = new ModeView(this.scene, this.world);
     // what breaks: the roadside things standing, and the trees and things knocked down (render/BreakView.js)
-    this.breakView = new BreakView(this.scene, this.world, this.vegetation, this.effects, this.audio);
+    // (the open world's: each map's own, render/WorldView.js)
+    this.breakView ||= new BreakView(this.scene, this.world, this.vegetation, this.effects, this.audio);
     // the map builder (ui/Builder.js): this map's own layout of props, on the ground at once
     this.building = false;
     this.builder = new Builder(this);
     // the satnav and the full map (ui/WorldMap.js): a route by road and trail, and its line on the ground ahead
-    this.satnav = new RouteGraph(this.world.data.trails);
+    // (the trails that run into a town's yard are joined across it)
+    const st = this.world.map.station;
+    this.satnav = new RouteGraph(this.world.data.trails, { hubs: this.world.hubs || (st ? [{ x: st.x, z: st.z, r: 90 }] : []) });
     this.routeLine = new RouteLine(this.scene);
     this.route = null;
     this.worldMap = new WorldMap(this.world, this.hud.mapImage, {
@@ -135,6 +138,25 @@ export class Game {
     this.chat.setAvailable(!!this.net?.connected);
     const mini = document.getElementById('minimap');
     if (mini) mini.onclick = () => { if (!this.mapOpen && !this.paused) this.toggleMap(); };
+    // (the open world's maps in it already: those that come in later, regionIn)
+    this.knownRegions = new Set((this.world.regions || []).map((r) => r.id));
+    for (const r of this.world.regions || []) this.hud.drawRegion(r);
+  }
+
+  /**
+   * The open world (world/OpenWorld.js): a map has come in and is drawn (render/WorldView.js). Its events, its roads
+   * for the satnav, its part of the maps.
+   */
+  regionIn(region) {
+    if (this.knownRegions.has(region.id)) return;
+    this.knownRegions.add(region.id);
+    const ev = this.world.eventsOf(region);
+    this.events.add(ev);
+    this.course.addStarts(ev);
+    this.satnav = new RouteGraph(this.world.data.trails, { hubs: this.world.hubs });
+    if (this.route) this.replan();
+    this.hud.drawRegion?.(region);
+    this.worldMap.refresh();
   }
 
   // ---------------------------------------------------------------- the map and the satnav
@@ -290,8 +312,8 @@ export class Game {
     try {
       const img = this.hud.mapImage, c = document.createElement('canvas'), W = 480, H = 200;
       c.width = W; c.height = H;
-      const HALF = this.world.half, g = c.getContext('2d'), k = img.width / (2 * HALF), S = this.stationSpot || { x: 0, z: 0 }, span = 900 * k;
-      g.drawImage(img, (S.x + HALF) * k - span / 2, (S.z + HALF) * k - span * H / W / 2, span, span * H / W, 0, 0, W, H);
+      const B = this.world.mapBox, g = c.getContext('2d'), k = img.width / B.size, S = this.stationSpot || { x: 0, z: 0 }, span = 900 * k;
+      g.drawImage(img, (S.x - B.x0) * k - span / 2, (S.z - B.z0) * k - span * H / W / 2, span, span * H / W, 0, 0, W, H);
       this.builderPic = c.toDataURL('image/jpeg', 0.82);
     } catch { this.builderPic = ''; }
     return this.builderPic;
@@ -788,7 +810,7 @@ export class Game {
       if (score < bd) { bd = score; best = cand; }
     };
     for (const t of this.world.treesNear(F.x, F.z, W.maxLen, this.tmpTrees)) {
-      if (t.i >= this.world.trees.count) continue;                   // a wall post
+      if (!t.tree) continue;                                           // a wall post
       consider(t.x, t.y, t.z, { kind: 'tree', x: t.x, y: t.y + 0.9, z: t.z, name: 'a tree' });
     }
     for (const r of this.remotes.values()) {
@@ -1366,7 +1388,7 @@ export class Game {
     // the mirrors, while they can be seen (from the driver's seat): one drawn a frame (every other on medium graphics)
     const q = this.settings.quality || 'high';
     if (m.mirrors && this.cam.mode === 'cab' && q !== 'low' && !this.noRender) {
-      m.mirrors.update(this.renderer.renderer, this.scene, this.renderer.camera.position, q === 'high' ? 1 : 2, [this.grass.mesh, this.tea?.mesh].filter(Boolean));
+      m.mirrors.update(this.renderer.renderer, this.scene, this.renderer.camera.position, q === 'high' ? 1 : 2, [...(this.grass.meshes || [this.grass.mesh]), this.tea?.mesh].filter(Boolean));
     }
     if (!this.noRender) this.renderer.render();
     this.perf(dt);

@@ -21,7 +21,8 @@ export class EventPlay {
   constructor(game) {
     this.g = game;
     // the map's events, its checkpoint races (game/Races.js) and its party modes (game/Modes.js)
-    this.events = [...eventsFor(game.world), ...racesFor(game.world), ...modesFor(game.world)];
+    // (the open world's: every map's, world/OpenWorld.js)
+    this.events = game.world.events ? game.world.events() : [...eventsFor(game.world), ...racesFor(game.world), ...modesFor(game.world)];
     this.picked = null;            // the one last picked in the list or on the map: J starts it where starts are close
     this.byId = new Map(this.events.map((e) => [e.id, e]));
     this.grids = new Map(this.events.map((e) => [e.id, gridFor(game.world, e)]));
@@ -141,6 +142,14 @@ export class EventPlay {
   }
 
   /** The map builder's race (a layout with a start line and checkpoints), or none: in the list as 'custom'. */
+  /** More events (the open world's, as a map comes in). */
+  add(list) {
+    for (const e of list) {
+      if (this.byId.has(e.id)) continue;
+      this.events.push(e); this.byId.set(e.id, e); this.grids.set(e.id, gridFor(this.g.world, e));
+    }
+  }
+
   setCustom(L) {
     const old = this.byId.get('custom');
     if (old) { this.events.splice(this.events.indexOf(old), 1); this.byId.delete('custom'); this.grids.delete('custom'); }

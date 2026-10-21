@@ -113,7 +113,7 @@ export class EventCourse {
     this.archMats = am;
     // the start banners
     this.starts = new THREE.Group();
-    for (const e of events) this.starts.add(this.banner(e.start.x, e.start.z, e.start.yaw, 5.2, e.name));
+    this.addStarts(events);
     scene.add(this.starts);
     // the active course
     this.gates = new THREE.Group();
@@ -124,6 +124,9 @@ export class EventCourse {
     scene.add(this.arrow);
     this.event = null; this.next = -1;
   }
+
+  /** Start banners for events (more of them in the open world as its maps come in). */
+  addStarts(events) { for (const e of events) this.starts.add(this.banner(e.start.x, e.start.z, e.start.yaw, 5.2, e.name)); }
 
   /** Two posts and a banner across a line at (x, z), facing along yaw. */
   banner(x, z, yaw, half, text, chequer = false) {

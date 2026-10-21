@@ -305,3 +305,13 @@ test('voice chat: who is in it, connection offers passed between two in it, audi
   a.bin(Buffer.from([1, 0, 99, 1, 2, 3, 4, 5]));
   assert.ok(!b.bins.some((f) => f[4] === 99), 'out of the voice chat: nothing relayed');
 });
+
+test('what is knocked down is shared and kept: a map\'s keys, and the open world\'s with their map', () => {
+  const lobby = new Lobby();
+  const a = join(lobby, 'A', 'TREES');
+  const b = join(lobby, 'B', 'TREES');
+  for (const k of ['t12', 'o3', 'kerala:t40', 'ghat:o2', 'bad key', 'Kerala:t1', 'toolongmapname:t1']) a.msg({ t: 'brk', k, d: [1, 0], v: 4 });
+  assert.deepEqual(b.sent.filter((m) => m.t === 'brk').map((m) => m.k), ['t12', 'o3', 'kerala:t40', 'ghat:o2']);
+  const c = join(lobby, 'C', 'TREES');
+  assert.deepEqual(c.last('welcome').broken, ['t12', 'o3', 'kerala:t40', 'ghat:o2']);
+});

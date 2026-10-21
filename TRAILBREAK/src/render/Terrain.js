@@ -81,13 +81,18 @@ function makeIndex() {
 }
 
 export class TerrainRenderer {
-  /** ground: the loaded textures (render/Ground.js), or null to colour the ground without them. */
-  constructor(world, scene, { onProgress, ground = null } = {}) {
+  /**
+   * ground: the loaded textures (render/Ground.js), or null to colour the ground without them. In the open world
+   * (render/WorldView.js) a map's terrain stands in a group at its centre (centre: [x, z]) and draws only its own square
+   * (clip); and one more draws the far land all round them (far), leaving their squares (holes: [[x0, z0, x1, z1]]).
+   */
+  constructor(world, scene, { onProgress, ground = null, centre = [0, 0], clip = false, far = false, holes = [], defer = false } = {}) {
     this.world = world;
     this.scene = scene;
     this.ground = ground;
     this.half = world.half; this.res = world.res;
-    this.root = world.half > 1024 ? 32768 : ROOT;
+    this.root = far ? 65536 : world.half > 1024 ? 32768 : ROOT;
+    this.centre = centre; this.clip = clip; this.far = far; this.holes = holes;
     this.snowLine = world.map.snowLine ?? 1e6;                // (no snow on a tropical map)
     this.litter = world.map.litter;                            // how much each type of tree carpets the ground
     this.layers = ground ? ground.layers : Object.keys(PLAIN).map((name) => ({ name, avg: lin(PLAIN[name]), rough: 0.95 }));
@@ -99,8 +104,8 @@ export class TerrainRenderer {
     this.index = makeIndex();
     this.cache = new Map();
     this.frame = 0;
-    this.buildColors(onProgress);
-    this.material = this.makeMaterial();
+    // (a map coming into the open world while the game runs: its colours a slice at a time, `ready`)
+    if (!defer) { this.buildColors(onProgress); this.material = this.makeMaterial(); }
     this.shadows = true;
     this.tmpH = new Float32Array((V + 2) * (V + 2));
     this.tmpD = new Float32Array(V * V);
@@ -126,6 +131,7 @@ export class TerrainRenderer {
         uLay: { value: this.layers.map((l) => new THREE.Vector4(1 / l.size, l.rough, l.heightW, 0)) },
         uGain: { value: this.layers.map((l) => new THREE.Vector3(...l.gain)) },
         uSplatO: { value: new THREE.Vector2(w.origin, w.origin) }, uSplatN: { value: w.N }, uSplatRes: { value: w.res }, uMapHalf: { value: this.half },
+        uCentre: { value: new THREE.Vector2(...this.centre) },
         uTexFar: { value: 320 }, uIds: { value: new THREE.Vector3(this.layerIndex.grass, this.layerIndex.rock, this.layerIndex.snow ?? this.layerIndex.rock) },
         uSnowLine: { value: this.snowLine + 40 }, uRelief: { value: 1 },
         uTea: { value: this.layerIndex.tea ?? -1 }, uTeaNear: { value: TEA_RANGE.high },
@@ -134,7 +140,14 @@ export class TerrainRenderer {
     // muddy water standing in the ruts (linear RGB): the map's mud (red in Kerala), darker
     const mt = w.map.mudTint || [0.085, 0.06, 0.04];
     uniforms.uPuddle = { value: new THREE.Color(mt[0] * 0.35, mt[1] * 0.35, mt[2] * 0.35) };
+    // (the open world: a map's own square only, round it the far land's)
+    uniforms.uClipC = { value: new THREE.Vector3(this.centre[0], this.centre[1], this.clip ? this.half + 0.02 : 0) };
+    const NH = this.holes.length;
+    if (NH) uniforms.uHoles = { value: this.holes.map(([x0, z0, x1, z1]) => new THREE.Vector4(x0 + 0.02, z0 + 0.02, x1 - 0.02, z1 - 0.02)) };
     this.uniforms = uniforms;
+    // (three.js keys its compiled shaders by this function's text: the open world's terrains differ in what is written
+    // into theirs, their layers and the far land's holes)
+    mat.customProgramCacheKey = () => `terrain ${G ? this.layers.length : 0} ${NH}`;
     mat.onBeforeCompile = (sh) => {
       Object.assign(sh.uniforms, uniforms);
       sh.vertexShader = sh.vertexShader
@@ -157,6 +170,8 @@ varying vec3 vWNormal;
 varying vec3 vTint;
 varying vec2 vWet;
 uniform vec3 uPuddle;
+uniform vec3 uClipC;
+${NH ? `uniform vec4 uHoles[${NH}];` : ''}
 ${HASH21}
 float th(vec2 p) { return hash21(p); }
 float tn(vec2 p) { vec2 i = floor(p), f = fract(p); vec2 u = f * f * (3.0 - 2.0 * f);
@@ -172,6 +187,7 @@ uniform vec2 uSplatO;
 uniform float uSplatN;
 uniform float uSplatRes;
 uniform float uMapHalf;
+uniform vec2 uCentre;
 uniform float uTexFar;
 uniform vec3 uIds;
 uniform float uSnowLine;
@@ -220,6 +236,9 @@ vec3 gTilt(float L, float sc) {
   if (gwZ > 0.0) { vec2 t = textureGrad(uGN, vec3(gPZ * sc, L), gDZx * sc, gDZy * sc).rg * 2.0 - 1.0; d += vec3(gSZ * t.x, t.y, 0.0) * gwZ; }
   return d;
 }` : ''}`)
+        .replace('#include <clipping_planes_fragment>', `#include <clipping_planes_fragment>
+if (uClipC.z > 0.0 && (abs(vWPos.x - uClipC.x) > uClipC.z || abs(vWPos.z - uClipC.y) > uClipC.z)) discard;
+${NH ? `for (int i = 0; i < ${NH}; i++) { vec4 h = uHoles[i]; if (vWPos.x > h.x && vWPos.x < h.z && vWPos.z > h.y && vWPos.z < h.w) discard; }` : ''}`)
         .replace('#include <color_fragment>', `#include <color_fragment>
 vec3 gNW = normalize(vWNormal);
 float gRough = -1.0;
@@ -248,11 +267,11 @@ ${G ? `
   float tws = gwT + gwX + gwZ; gwT /= tws; gwX /= tws; gwZ /= tws;
   if (tex > 0.0) {
     // the layers of the four cells around this point, weighted by distance
-    vec2 g = (vWPos.xz - uSplatO) / uSplatRes;
+    vec2 g = (vWPos.xz - uCentre - uSplatO) / uSplatRes;
     vec2 gi = floor(g), f = g - gi;
     ivec2 c = ivec2(gi);
     float i0, i1, i2, i3;
-    if (abs(vWPos.x) < uMapHalf && abs(vWPos.z) < uMapHalf) {
+    if (abs(vWPos.x - uCentre.x) < uMapHalf && abs(vWPos.z - uCentre.y) < uMapHalf) {
       i0 = gId(c); i1 = gId(c + ivec2(1, 0)); i2 = gId(c + ivec2(0, 1)); i3 = gId(c + ivec2(1, 1));
     } else {
       // past the edge of the map: rock on the steeps, snow on the tops, grass below
@@ -410,7 +429,19 @@ if (gWet > 0.0) {
    * The layer of every cell (for the shader), and the colour grid and its mip levels (for far away). A big map's colour
    * grid has a point every other cell (the colour shows only on ground far enough off to be past its textures).
    */
-  buildColors(onProgress) {
+  buildColors(onProgress) { for (const _ of this.colorSteps(onProgress)); }   // eslint-disable-line no-unused-vars
+
+  /** A deferred terrain's colours, a few ms at a time between frames, then its material. */
+  async ready(onProgress, slice = 6) {
+    let t = performance.now();
+    for (const _ of this.colorSteps(onProgress)) {                              // eslint-disable-line no-unused-vars
+      if (performance.now() - t > slice) { await new Promise((r) => setTimeout(r, 0)); t = performance.now(); }
+    }
+    this.material = this.makeMaterial();
+  }
+
+  /** buildColors, a step at a time (every few rows of the grid, every mip level). */
+  *colorSteps(onProgress) {
     const w = this.world, N = w.N, O = w.origin, RES = this.res, CS = RES > 1 ? 2 : 1, CN = Math.floor((N - 1) / CS) + 1;
     const col = new Uint8Array(CN * CN * 3), splat = new Uint8Array(N * N);
     const H = w.H, S = w.S, avg = this.layers.map((l) => l.avg), t3 = [0, 0, 0];
@@ -433,6 +464,7 @@ if (gWet > 0.0) {
         col[c + 2] = Math.min(255, Math.round(Math.sqrt(a[2] * t3[2]) * 255));
       }
       if (onProgress && k % 256 === 0) onProgress(k / N);
+      if (k % 16 === 15) yield;
     }
     this.splat = splat;
     // mips: level L has cells 2^L cells wide (a box filter of the level below)
@@ -454,6 +486,7 @@ if (gWet > 0.0) {
       }
       prev = { n, step: prev.step * 2, data };
       this.mips.push(prev);
+      yield;
     }
     const li = this.layerIndex;
     this.farRock = avg[li.rock]; this.farGrass = avg[li.grass]; this.farSnow = avg[li.snow ?? li.rock];
@@ -516,7 +549,7 @@ if (gWet > 0.0) {
   }
 
   heightAt(x, z) {
-    if (Math.abs(x) < this.half && Math.abs(z) < this.half) return this.world.terrain(x, z);
+    if (Math.abs(x) <= this.half && Math.abs(z) <= this.half) return this.world.terrain(x, z);
     return this.world.farHeight(x, z);
   }
 
@@ -550,7 +583,7 @@ if (gWet > 0.0) {
     const nV = V * V + 4 * V;
     const pos = new Float32Array(nV * 3), nor = new Int8Array(nV * 3), col = new Uint8Array(nV * 3), tint = new Uint8Array(nV * 3), wet = new Uint8Array(nV * 2);
     const c3 = [0, 0, 0], t3 = [0, 0, 0];
-    const inMap = (x, z) => Math.abs(x) < this.half && Math.abs(z) < this.half;
+    const inMap = (x, z) => Math.abs(x) <= this.half && Math.abs(z) <= this.half;
     let minY = Infinity, maxY = -Infinity;
     for (let k = 0; k < V; k++) for (let i = 0; i < V; i++) {
       const v = k * V + i;
@@ -605,7 +638,8 @@ if (gWet > 0.0) {
       node.mesh.updateMatrix();
       node.mesh.receiveShadow = true;
     }
-    node.mesh.castShadow = this.shadows && sp <= 4;
+    node.edge = this.clip && (x0 < -this.half || z0 < -this.half || x0 + size > this.half || z0 + size > this.half);
+    node.mesh.castShadow = this.casts(node);
     node.minY = minY; node.maxY = maxY;
     node.built = true;
     node.dirty = false;
@@ -643,6 +677,32 @@ if (gWet > 0.0) {
     }
   }
 
+  /**
+   * The open world's far land: a map come in. Its square is left to it from now on, and the far land round it (which
+   * now meets its edge) is made again.
+   */
+  setHole(i, rect, margin = 1500) {
+    this.holes[i] = rect;
+    const [x0, z0, x1, z1] = rect;
+    this.uniforms.uHoles?.value[i].set(x0 + 0.02, z0 + 0.02, x1 - 0.02, z1 - 0.02);
+    for (const [k, n] of this.cache) {
+      if (!(n.x0 < x1 + margin && n.x0 + n.size > x0 - margin && n.z0 < z1 + margin && n.z0 + n.size > z0 - margin)) continue;
+      if (n.mesh) { n.mesh.geometry.dispose(); n.mesh.removeFromParent(); }
+      this.cache.delete(k);
+    }
+  }
+
+  /** Does a patch cast the sun's shadow: a near one, of a map's own ground. */
+  casts(n) { return this.shadows && !this.far && !n.edge && n.size / GRID <= 4; }
+
+  /** A patch none of which is drawn: in the open world, wholly off its map's square, or (the far land) on a map's. */
+  skip(n) {
+    const x0 = n.x0, z0 = n.z0, x1 = x0 + n.size, z1 = z0 + n.size;
+    if (this.clip) return x1 <= -this.half || x0 >= this.half || z1 <= -this.half || z0 >= this.half;
+    for (const [hx0, hz0, hx1, hz1] of this.holes) if (x0 >= hx0 && x1 <= hx1 && z0 >= hz0 && z1 <= hz1) return true;
+    return false;
+  }
+
   update(camPos) {
     this.frame++;
     const visible = [], dirty = [];
@@ -655,11 +715,12 @@ if (gWet > 0.0) {
     };
     const visit = (n) => {
       n.used = this.frame;
+      if ((this.clip || this.far) && this.skip(n)) return;
       if (want(n)) {
         const kids = [this.node(n.level + 1, n.ix * 2, n.iz * 2), this.node(n.level + 1, n.ix * 2 + 1, n.iz * 2), this.node(n.level + 1, n.ix * 2, n.iz * 2 + 1), this.node(n.level + 1, n.ix * 2 + 1, n.iz * 2 + 1)];
         let ready = true;
         for (const k of kids) {
-          if (!k.built) { if (budget > 0) { this.build(k); budget--; } else ready = false; }
+          if (!k.built && !((this.clip || this.far) && this.skip(k))) { if (budget > 0) { this.build(k); budget--; } else ready = false; }
         }
         if (ready || !n.built) { for (const k of kids) visit(k); return; }
       }
@@ -678,7 +739,7 @@ if (gWet > 0.0) {
     // swap the visible set into the scene
     const g = this.group;
     for (let i = g.children.length - 1; i >= 0; i--) g.remove(g.children[i]);
-    for (const n of visible) { g.add(n.mesh); n.mesh.castShadow = this.shadows && n.size / GRID <= 4; }
+    for (const n of visible) { g.add(n.mesh); n.mesh.castShadow = this.casts(n); }
     this.visibleCount = visible.length;
     // evict patches unused for a while
     if (this.cache.size > MAX_CACHE) {

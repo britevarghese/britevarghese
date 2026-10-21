@@ -7,7 +7,7 @@
 //   water(x, z)                  water surface height there, or -Infinity
 // (and for the renderer, waterSurface(x, z): the water's surface as it is drawn)
 //   deform(x, z, fx, fz, hw, hl, press, dig)   press soft ground under a tyre, returns the rut depth
-//   treesNear(x, z, r, out)      trunks, wall posts and roadside posts { x, y, z, r, cap, top, u, i } near (x, z)
+//   treesNear(x, z, r, out)      trunks, wall posts and roadside posts { x, y, z, r, cap, top, u, i, tree } near (x, z)
 //   strike(i, moment, vx, vz)    a truck bends obstacle i that hard (N m): breaks it if it gives way (true)
 // (a custom layout's props, from the map builder, are part of the ground: setProps; game/Props.js)
 //
@@ -71,7 +71,7 @@ export class World {
     const fill = counts.slice();
     for (let k = 0; k < n; k++) this.obIdx[fill[cellOf(ob.x[k], ob.z[k])]++] = k;
     this.obPool = [];
-    for (let k = 0; k < 64; k++) this.obPool.push({ x: 0, y: 0, z: 0, r: 0, cap: Infinity, top: 0, u: -1, i: 0 });
+    for (let k = 0; k < 64; k++) this.obPool.push({ x: 0, y: 0, z: 0, r: 0, cap: Infinity, top: 0, u: -1, i: 0, tree: false });
 
     // boulders: each listed in every cell its footprint touches
     this.boN = Math.ceil(HALF * 2 / BO_CELL);
@@ -95,8 +95,9 @@ export class World {
   terrain(x, z) {
     const fx = (x - this.origin) / this.res, fz = (z - this.origin) / this.res;
     const N = this.N;
-    if (fx < 0 || fz < 0 || fx >= N - 1 || fz >= N - 1) return this.farHeight(x, z);
-    const i = Math.floor(fx), k = Math.floor(fz), tx = fx - i, tz = fz - k;
+    if (fx < 0 || fz < 0 || fx > N - 1 || fz > N - 1) return this.farHeight(x, z);
+    // (the grid's last row and column its own: in the open world they are the next map's first)
+    const i = Math.min(N - 2, Math.floor(fx)), k = Math.min(N - 2, Math.floor(fz)), tx = fx - i, tz = fz - k;
     const o = k * N + i, H = this.H;
     return (H[o] * (1 - tx) + H[o + 1] * tx) * (1 - tz) + (H[o + N] * (1 - tx) + H[o + N + 1] * tx) * tz;
   }
@@ -221,7 +222,7 @@ export class World {
           const dx = ob.x[i] - x, dz = ob.z[i] - z, rr = r + ob.r[i];
           if (dx * dx + dz * dz > rr * rr || out.length >= this.obPool.length) continue;
           const o = this.obPool[out.length];
-          o.x = ob.x[i]; o.y = ob.y[i]; o.z = ob.z[i]; o.r = ob.r[i]; o.cap = ob.cap[i]; o.top = ob.top[i]; o.u = u; o.i = i;
+          o.x = ob.x[i]; o.y = ob.y[i]; o.z = ob.z[i]; o.r = ob.r[i]; o.cap = ob.cap[i]; o.top = ob.top[i]; o.u = u; o.i = i; o.tree = i < this.trees.count;
           out.push(o);
         }
       }
@@ -271,7 +272,7 @@ export class World {
     const out = this.treesNear(x, z, maxDist, []);
     let best = null, bd = Infinity;
     for (const t of out) {
-      if (t.i >= this.trees.count || t.cap < WINCH_CAP) continue;
+      if (!t.tree || t.cap < WINCH_CAP) continue;
       if (filter && !filter(t)) continue;
       const d = Math.hypot(t.x - x, t.z - z);
       if (d < bd) { bd = d; best = { ...t }; }
@@ -280,4 +281,7 @@ export class World {
   }
 
   inBounds(x, z, margin = 0) { return Math.abs(x) < this.half - margin && Math.abs(z) < this.half - margin; }
+
+  /** The square the maps draw: { x0, z0, size } (the open world's is round all its maps). */
+  get mapBox() { return { x0: -this.half, z0: -this.half, size: 2 * this.half }; }
 }

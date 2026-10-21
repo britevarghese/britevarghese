@@ -5,6 +5,11 @@ import assert from 'node:assert/strict';
 import { generateBigWorld, heightIn } from '../src/world/BigWorldGen.js';
 import { REGIONS, regionById } from '../src/world/maps/world.js';
 import { spline } from '../src/world/WorldGen.js';
+import { OpenWorld, BEACON_STRIDE } from '../src/world/OpenWorld.js';
+import { RouteGraph } from '../src/game/Route.js';
+import { Vehicle } from '../src/physics/Vehicle.js';
+import { truckSpec } from '../src/physics/trucks.js';
+import { followPath, densify } from './drive.mjs';
 
 const built = generateBigWorld({ yieldEvery: 1e9 });
 
@@ -64,4 +69,53 @@ test('the open world: the river out of Kerala runs on into the Konkan Ghat at it
     assert.ok(Math.abs(a - b) < 0.15, `water ${a.toFixed(2)} | ${b.toFixed(2)} m at z ${z}`);
   }
   assert.ok(both >= 4, 'the river crosses the join');
+});
+
+/** The world at run time, every map in. */
+const opened = built.then((done) => {
+  const W = new OpenWorld();
+  for (const R of REGIONS) W.add(R.id, done.get(R.id));
+  return W;
+});
+
+test('the open world at run time: one ground, its places and events gathered from every map', async () => {
+  const W = await opened;
+  assert.ok(W.complete);
+  // a seam is no edge; the world's own edges are
+  const K = regionById('kerala'), G = regionById('ghat');
+  assert.equal(W.regionAt(K.at[0] - 1023, K.at[1]).id, 'kerala');
+  assert.equal(W.regionAt(G.at[0] + 1023, G.at[1]).id, 'ghat');
+  assert.ok(W.inBounds(K.at[0] - 1024, K.at[1], 14), 'across the Kerala / Ghat seam');
+  assert.ok(!W.inBounds(K.at[0] + 1020, K.at[1], 14), 'Kerala\'s east edge');
+  assert.ok(Math.abs(W.terrain(K.at[0] - 1024.5, K.at[1] + 40) - W.terrain(K.at[0] - 1023.5, K.at[1] + 40)) < 0.3);
+  // beacons: one id each, every map's
+  const ids = W.beacons.map((b) => b.id);
+  assert.equal(new Set(ids).size, ids.length);
+  for (const R of REGIONS) assert.equal(W.beacons.filter((b) => Math.floor(b.id / BEACON_STRIDE) === REGIONS.indexOf(R)).length, R.map.beacons.length);
+  // events: every map's, one id each, their starts on that map's ground
+  const ev = W.events();
+  assert.equal(new Set(ev.map((e) => e.id)).size, ev.length);
+  for (const e of ev) assert.equal(W.regionAt(e.start.x, e.start.z)?.id, e.region, e.id);
+  // a tree found from the world, struck and broken by its key there
+  const R = W.byId.get('kerala'), T = R.world.trees;
+  const t = W.treesNear(T.x[0] + R.cx, T.z[0] + R.cz, 2, []).find((o) => o.tree);
+  assert.ok(t && Math.abs(t.x - (T.x[0] + R.cx)) < 3);
+  assert.ok(W.breakKey('kerala:t0', 1, 0, 5, true));
+  assert.ok(W.brokenKeys().includes('kerala:t0'));
+});
+
+test('the open world: the satnav finds the way from the coast to Ashwood by road, and a truck drives across the joins', async () => {
+  const W = await opened, g = new RouteGraph(W.data.trails, { hubs: W.hubs });
+  const r = g.route(3940, -712, 7090, -3800);
+  assert.ok(r.length > 6000 && r.onTrail > r.length * 0.97, `${(r.length / 1000).toFixed(1)} km, ${(r.onTrail / 1000).toFixed(1)} km of it on roads and tracks`);
+  // each join driven: on along the road over it, into the next map
+  for (const [a, b, into] of [[[3940, -712], [4300, -650], 'ghat'], [[5900, -668], [6300, -655], 'kerala'], [[7089, -1470], [7100, -2000], 'pass'], [[7120, -3600], [7090, -3850], 'ashwood']]) {
+    const path = densify(g.route(...a, ...b).points);
+    const v = new Vehicle(truckSpec('thar'));
+    v.place(W, path[0][0], path[0][1], Math.atan2(path[4][0] - path[0][0], path[4][1] - path[0][1]));
+    v.dt.setFourWD(true, 0);
+    const run = followPath(v, W, path, { seconds: 240 });
+    assert.ok(run.reached, `to ${into}: stuck at (${run.at.map(Math.round)})`);
+    assert.equal(run.regions.at(-1), into);
+  }
 });

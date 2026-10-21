@@ -69,7 +69,8 @@ function shoreDistance(C, n) {
 }
 
 async function read(name) {
-  if (typeof window === 'undefined') {
+  // (in Node, from the disk; in a page or a worker, from the server)
+  if (typeof process !== 'undefined' && process.versions?.node) {
     const fs = await import('node:fs/promises');
     return new Uint8Array(await fs.readFile(new URL(`../../../public/assets/maps/coast/${name}.bin`, import.meta.url)));
   }

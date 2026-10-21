@@ -43,10 +43,7 @@ export class WorldMap {
     this.hits = [];
     this.isOpen = false;
     this.ptrs = new Map();
-    this.places = world.landmarks.filter((L) => PLACE[L.type]).map((L) => ({ kind: 'place', type: L.type, x: L.x, z: L.z, ...PLACE[L.type],
-      name: L.type === 'station' ? world.map.station?.name || PLACE.station.name : PLACE[L.type].name }));
-    // (houses are just dots)
-    this.houses = world.landmarks.filter((L) => L.type === 'house');
+    this.refresh();
     this.bindInput();
     for (const [id, key] of [['map-f-events', 'events'], ['map-f-beacons', 'beacons'], ['map-f-places', 'places'], ['map-f-names', 'names'], ['map-f-friends', 'friends']]) {
       const b = $(id);
@@ -61,7 +58,17 @@ export class WorldMap {
     $('map-title').textContent = world.map.name || 'Map';
   }
 
-  get minZoom() { return Math.min(this.w, this.h) / (2 * this.world.half) * 0.95; }
+  /** The places on it (the open world's, again as its maps come in). */
+  refresh() {
+    const w = this.world;
+    this.places = w.landmarks.filter((L) => PLACE[L.type]).map((L) => ({ kind: 'place', type: L.type, x: L.x, z: L.z, ...PLACE[L.type],
+      name: L.type === 'station' ? (L.region ? w.regionDef(L.region).map.station?.name : w.map.station?.name) || PLACE.station.name : PLACE[L.type].name }));
+    // (houses are just dots)
+    this.houses = w.landmarks.filter((L) => L.type === 'house');
+    this.dirty = true;
+  }
+
+  get minZoom() { return Math.min(this.w, this.h) / this.world.mapBox.size * 0.95; }
 
   open() {
     this.isOpen = true;
@@ -110,10 +117,10 @@ export class WorldMap {
 
   /** Keep the valley on the screen: centred when it all fits, else no further than a little past its edges. */
   clampView() {
-    const v = this.view;
-    const H = this.world.half, lim = (half) => (half >= H ? 0 : H - half * 0.85);
+    const v = this.view, B = this.world.mapBox;
+    const H = B.size / 2, cx = B.x0 + H, cz = B.z0 + H, lim = (half) => (half >= H ? 0 : H - half * 0.85);
     const mx = lim(this.w / 2 / v.zoom), mz = lim(this.h / 2 / v.zoom);
-    v.x = Math.max(-mx, Math.min(mx, v.x)); v.z = Math.max(-mz, Math.min(mz, v.z));
+    v.x = Math.max(cx - mx, Math.min(cx + mx, v.x)); v.z = Math.max(cz - mz, Math.min(cz + mz, v.z));
   }
 
   bindInput() {
@@ -229,7 +236,7 @@ export class WorldMap {
     g.setTransform(dpr, 0, 0, dpr, 0, 0);
     g.fillStyle = '#18201b'; g.fillRect(0, 0, this.w, this.h);
     // the ground
-    const HALF = this.world.half, [ox, oy] = this.toScreen(-HALF, -HALF), size = 2 * HALF * Z;
+    const B = this.world.mapBox, [ox, oy] = this.toScreen(B.x0, B.z0), size = B.size * Z;
     g.imageSmoothingEnabled = true; g.imageSmoothingQuality = 'high';
     g.drawImage(this.image, ox, oy, size, size);
     // roads and trails: a dark casing, then the road light and the trails dashed

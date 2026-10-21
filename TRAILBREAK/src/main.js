@@ -1,7 +1,11 @@
 // Start screen -> join a room (or drive alone) -> build the map's world -> drive.
 import { generateWorld } from './world/WorldGen.js';
-import { MAPS, MAP_IDS, DEFAULT_MAP, mapById } from './world/maps/index.js';
+import { MAPS as ONE_MAPS, DEFAULT_MAP, mapById } from './world/maps/index.js';
 import { World } from './world/World.js';
+import { WORLD } from './world/maps/world.js';
+import { OpenWorld } from './world/OpenWorld.js';
+import { WorldLoader } from './world/WorldLoader.js';
+import { WorldView } from './render/WorldView.js';
 import { TRUCKS } from './physics/trucks.js';
 import { buildSummary, decodeBuild } from './physics/Upgrades.js';
 import { Garage } from './ui/Garage.js';
@@ -34,6 +38,8 @@ import { HUD } from './ui/HUD.js';
 import { TouchControls, isTouchDevice } from './ui/Touch.js';
 
 const $ = (id) => document.getElementById(id);
+// the maps to pick: the open world (every map joined into one) first, then each map alone
+const MAPS = { [WORLD.id]: WORLD, ...ONE_MAPS }, MAP_IDS = Object.keys(MAPS);
 const PAINTS = ['#b5532c', '#3d6b8c', '#6b7d3e', '#c9a227', '#8c2f2f', '#e6e1d3', '#2f4f3a', '#4a4a4a'];
 const STORE = 'trailbreak.settings';
 
@@ -199,33 +205,62 @@ async function start() {
     url.searchParams.set('map', mapId);
     history.replaceState(null, '', url);
   }
-  const M = mapById(mapId);
+  const open = mapId === WORLD.id, M = open ? WORLD : mapById(mapId);
   document.querySelector('#loading h2').textContent = M.name;
 
   $('lobby').classList.add('hidden');
   $('loading').classList.remove('hidden');
   setLoad(0.02, 'Surveying the valley');
-  const data = await generateWorld({ map: M, onProgress: (f, label) => setLoad(0.02 + f * 0.6, label) });
-  const world = new World(data);
-  setLoad(0.64, 'Painting the ground');
-  await new Promise((r) => setTimeout(r, 0));
-  const renderer = new Renderer($('app'));
-  renderer.setAtmosphere(M.atmosphere);
-  const ground = await loadGround(M.ground, settings.quality).catch((e) => { console.warn('ground textures', e); return null; });
-  const terrain = new TerrainRenderer(world, renderer.scene, { ground, onProgress: (f) => setLoad(0.64 + f * 0.16) });
-  setLoad(0.82, 'Growing the trees');
-  await new Promise((r) => setTimeout(r, 0));
-  const vegetation = await Vegetation.create(world, renderer);
-  const rocks = new Rocks(world, renderer.scene, ground);
-  const grass = new Grass(world, terrain, renderer.scene, ground, vegetation.uniforms);
-  const tea = M.tea ? new Tea(world, renderer.scene) : null;
-  const water = new Water(world, renderer.scene);
-  new RoadMarkings(world, renderer.scene);                       // (the lines on a map's tarmac, if it has any)
-  new RoadWear(world, renderer.scene);                           // (and its wear, cracks and mud)
-  const landmarks = new Landmarks(world, renderer.scene);
-  const effects = new Effects(renderer.scene);
-  effects.setPalette(M.dust);
-  if (M.mudTint) MUD_TINT.setRGB(...M.mudTint);
+  let world, renderer, terrain, vegetation, rocks, grass, tea, water, landmarks, effects, breakView = null, game = null, loader = null, goLive;
+  const live = new Promise((r) => { goLive = r; });
+  if (open) {
+    // the open world: its maps built in workers (or taken from storage), the start map first; the game starts on it
+    // and the others join as they come in, with no loading screen for them
+    world = new OpenWorld();
+    renderer = new Renderer($('app'));
+    effects = new Effects(renderer.scene);
+    const S = world.regionDef(WORLD.start).map;
+    renderer.setAtmosphere(S.atmosphere);
+    effects.setPalette(S.dust);
+    if (S.mudTint) MUD_TINT.setRGB(...S.mudTint);
+    const view = await WorldView.create(world, renderer, { quality: settings.quality, audio, effects });
+    loader = new WorldLoader({ onProgress: (id, f, label) => { if (id === WORLD.start && !game) setLoad(0.02 + f * 0.6, label); } });
+    let started;
+    const first = new Promise((r) => { started = r; });
+    world.loading = loader.load(WORLD.start, async (id, data) => {
+      // (the others once the game is under way: the start map's loading screen is for it alone)
+      if (id !== WORLD.start) await live;
+      const region = world.add(id, data);
+      if (region.id === WORLD.start) setLoad(0.64, 'Painting the ground');
+      await view.add(region, region.id === WORLD.start ? { onProgress: (f) => setLoad(0.64 + f * 0.16), slice: Infinity } : {});
+      if (region.id === WORLD.start) started(); else game?.regionIn(region);
+    }).catch((e) => { console.error('the open world', e); game?.hud.toast(`Part of the world could not be built: ${e.message}`, true, 8); });
+    await first;
+    ({ terrain, vegetation, grass, tea, rocks, water, landmarks, breakView } = view);
+    world.view = view;
+  } else {
+    const data = await generateWorld({ map: M, onProgress: (f, label) => setLoad(0.02 + f * 0.6, label) });
+    world = new World(data);
+    setLoad(0.64, 'Painting the ground');
+    await new Promise((r) => setTimeout(r, 0));
+    renderer = new Renderer($('app'));
+    renderer.setAtmosphere(M.atmosphere);
+    const ground = await loadGround(M.ground, settings.quality).catch((e) => { console.warn('ground textures', e); return null; });
+    terrain = new TerrainRenderer(world, renderer.scene, { ground, onProgress: (f) => setLoad(0.64 + f * 0.16) });
+    setLoad(0.82, 'Growing the trees');
+    await new Promise((r) => setTimeout(r, 0));
+    vegetation = await Vegetation.create(world, renderer);
+    rocks = new Rocks(world, renderer.scene, ground);
+    grass = new Grass(world, terrain, renderer.scene, ground, vegetation.uniforms);
+    tea = M.tea ? new Tea(world, renderer.scene) : null;
+    water = new Water(world, renderer.scene);
+    new RoadMarkings(world, renderer.scene);                       // (the lines on a map's tarmac, if it has any)
+    new RoadWear(world, renderer.scene);                           // (and its wear, cracks and mud)
+    landmarks = new Landmarks(world, renderer.scene);
+    effects = new Effects(renderer.scene);
+    effects.setPalette(M.dust);
+  }
+  if (!open && M.mudTint) MUD_TINT.setRGB(...M.mudTint);
   const rope = new Rope(renderer.scene);
   setLoad(0.9, 'Warming up the engine');
   // (a model body, and the driver: loaded before the truck is built)
@@ -235,8 +270,8 @@ async function start() {
   // voice chat with the others in the room (net/Voice.js)
   const voice = net ? new Voice(net) : null;
   if (net) net.onBinary = (b) => voice.onBinary(b);
-  const game = new Game({
-    world, renderer, terrain, vegetation, grass, tea, rocks, water, landmarks, effects, rope, audio, net, voice, hud, input, settings, garage, career,
+  game = new Game({
+    world, renderer, terrain, vegetation, grass, tea, rocks, water, landmarks, breakView, effects, rope, audio, net, voice, hud, input, settings, garage, career,
     truckId: settings.truck, build: settings.builds[settings.truck] || '', paint: settings.paint, name: settings.name, mapName: M.name, dealerName: M.dealer,
   });
   game.onBuild = (id, code) => { settings.truck = id; settings.builds[id] = code; save(); };
@@ -300,6 +335,7 @@ async function start() {
   };
   requestAnimationFrame(loop);
   window.__ready = true;
+  goLive();
 }
 
 function wireMenus(game, net) {

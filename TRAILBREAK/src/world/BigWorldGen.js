@@ -36,24 +36,35 @@ export function seamOf(stretch, side, n, nd) {
   return { side, at0: -half, step, h, g };
 }
 
-/** A region's definition, ready to generate: a stretch's with its neighbours' edges (done: id -> generated data). */
-export function regionMap(id, done) {
+/** A stretch's neighbours' edges (done: id -> generated data), or null for a map of its own. */
+export function seamsFor(id, done) {
   const R = regionById(id);
-  if (!R.seams) return R.map;
-  const seams = Object.entries(R.seams).map(([side, nid]) => {
+  if (!R.seams) return null;
+  return Object.entries(R.seams).map(([side, nid]) => {
     const nd = done.get(nid);
     if (!nd) throw new Error(`${id}: ${nid} must be built first`);
     return seamOf(R, side, regionById(nid), nd);
   });
-  return { ...R.map, seams };
+}
+
+/** A region's definition, ready to generate: a stretch's with its neighbours' edges. */
+export function regionMap(id, done) {
+  const seams = seamsFor(id, done);
+  return seams ? { ...regionById(id).map, seams } : regionById(id).map;
 }
 
 /** What a region needs built before it (its neighbours, for a stretch). */
 export const needs = (id) => Object.values(regionById(id).seams || {});
 
+/** Build one region, given its seams (seamsFor; in a worker: world/worldWorker.js). */
+export async function generateRegionWith(id, seams, opts = {}) {
+  const R = regionById(id);
+  return generateWorld({ ...opts, map: seams ? { ...R.map, seams } : R.map });
+}
+
 /** Build one region (done: the regions built so far). */
 export async function generateRegion(id, done, opts = {}) {
-  return generateWorld({ ...opts, map: regionMap(id, done) });
+  return generateRegionWith(id, seamsFor(id, done), opts);
 }
 
 /** Build the whole world in order (Node): Map id -> data, each in its own frame. */

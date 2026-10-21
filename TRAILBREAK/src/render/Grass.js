@@ -84,8 +84,11 @@ function tuftGeometry() {
 }
 
 export class Grass {
-  /** terrain: render/Terrain.js (the layer of each cell and the land's tint); ground: render/Ground.js textures. */
-  constructor(world, terrain, scene, ground, uniforms) {
+  /**
+   * terrain: render/Terrain.js (the layer of each cell and the land's tint); ground: render/Ground.js textures. centre:
+   * where the map stands in the open world (render/WorldView.js: its tufts are placed in its own frame).
+   */
+  constructor(world, terrain, scene, ground, uniforms, { centre = [0, 0] } = {}) {
     this.world = world;
     this.terrain = terrain;
     this.ground = ground;
@@ -105,6 +108,7 @@ export class Grass {
       uTime: uniforms?.uTime || { value: 0 }, uSunDirW: uniforms?.uSunDirW || { value: new THREE.Vector3(0, 1, 0) },
       uSunColor: uniforms?.uSunColor || { value: new THREE.Color(1, 1, 1) },
       uRange: { value: this.range }, uPush: { value: Array.from({ length: 6 }, () => new THREE.Vector4(0, 0, 0, 0)) },
+      uCentre: { value: new THREE.Vector2(...centre) },
     };
     this.ownTime = !uniforms?.uTime;
     this.mesh = new THREE.Mesh(g, this.material());
@@ -120,6 +124,8 @@ export class Grass {
     mat.alphaToCoverage = true;
     const G = this.ground, U = this.uniforms;
     const grassL = G ? G.index.grass : 0, grassScale = G ? 1 / G.layers[grassL].size : 1;
+    // (its texture layer and scale are written into its shader: one per map's ground in the open world)
+    mat.customProgramCacheKey = () => `grass ${G ? `${grassL} ${grassScale}` : '-'}`;
     mat.onBeforeCompile = (sh) => {
       Object.assign(sh.uniforms, U);
       if (G) sh.uniforms.uGC = { value: G.color };
@@ -131,6 +137,7 @@ attribute vec3 aTint;
 uniform float uTime;
 uniform float uRange;
 uniform vec4 uPush[6];
+uniform vec2 uCentre;
 ${G ? 'uniform highp sampler2DArray uGC;' : ''}
 varying vec3 vGrass;
 varying float vT;`)
@@ -140,7 +147,7 @@ vec3 objectNormal = vec3(normal.x * cs - normal.z * sn, normal.y, normal.x * sn 
         .replace('#include <begin_vertex>', `
 // thin out with distance (each tuft has its turn to go, the ones left grow wider to cover) and sink into the
 // ground, so the meadow goes on past the last of them (a few wide tufts standing alone looked like scraps)
-float dist = distance(cameraPosition.xz, aPos.xz);
+float dist = distance(cameraPosition.xz - uCentre, aPos.xz);
 float keep = mix(1.0, 0.55, smoothstep(12.0, uRange, dist));
 float alive = 1.0 - smoothstep(keep - 0.08, keep, aSize.z);
 float fade = 1.0 - smoothstep(uRange * 0.5, uRange, dist);
@@ -214,7 +221,7 @@ normal = normalize(vNormal);`)
       for (let i = 0; i < n; i++) {
         const x = cx * CHUNK + (i + hash(i + cx * n, k + cz * n, 1)) * SPACING;
         const z = cz * CHUNK + (k + hash(i + cx * n, k + cz * n, 2)) * SPACING;
-        if (Math.abs(x) >= w.half - 1 || Math.abs(z) >= w.half - 1) continue;
+        if (Math.abs(x) > w.half || Math.abs(z) > w.half) continue;
         const cell = Math.round((z - w.origin) / w.res) * w.N + Math.round((x - w.origin) / w.res);
         const L = T.splat[cell];
         const r = hash(x, z, 3);

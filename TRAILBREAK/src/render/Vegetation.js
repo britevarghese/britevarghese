@@ -128,6 +128,8 @@ function treeMaterial(group, uniforms, radius, impostorBake = false, crownY = 0.
     normalScale: new THREE.Vector2(0.8, 0.8),
   });
   if (leaf) mat.alphaToCoverage = true;
+  // (each species' crown, and leaves or bark, baked or fading, are written into its shader)
+  mat.customProgramCacheKey = () => `tree ${leaf ? 1 : 0}${impostorBake ? 1 : 0}${fade ? 1 : 0} ${crownY.toFixed(3)}`;
   mat.onBeforeCompile = (sh) => {
     sh.uniforms.uTime = uniforms.uTime;
     sh.uniforms.uSunDirW = uniforms.uSunDirW;
@@ -243,6 +245,8 @@ export class Vegetation {
     this.trees = world.trees;
     this.assets = assets;
     this.uniforms = { uTime: { value: 0 }, uSunDirW: { value: new THREE.Vector3(0, 1, 0) }, uSunColor: { value: new THREE.Color(1, 1, 1) }, uLod: { value: new THREE.Vector2() } };
+    // (where the map stands in the open world, render/WorldView.js: the cards are placed in the world themselves)
+    this.origin = { value: new THREE.Vector3() };
     this.lodAhead = new THREE.Vector2();             // (the near range's middle, from the camera: see AHEAD)
     this.group = new THREE.Group();
     renderer.scene.add(this.group);
@@ -360,6 +364,7 @@ export class Vegetation {
     mat.onBeforeCompile = (sh) => {
       sh.uniforms.uNormalAtlas = { value: normalRT.texture };
       sh.uniforms.uLod = this.uniforms.uLod;
+      sh.uniforms.uOrigin = this.origin;
       sh.uniforms.uSunDirW = this.uniforms.uSunDirW;
       sh.uniforms.uSunColor = this.uniforms.uSunColor;
       sh.vertexShader = sh.vertexShader
@@ -368,6 +373,7 @@ attribute vec3 aOffset;
 attribute vec2 aSize;
 attribute vec3 aTile;
 attribute float aYaw;
+uniform vec3 uOrigin;
 attribute float aNear;
 uniform vec2 uLod;
 varying float vFade;
@@ -382,7 +388,7 @@ ${TREE_COLOR_GLSL}`)
 #endif`)
         .replace('#include <beginnormal_vertex>', `vec3 objectNormal = vec3(0.0, 0.0, 1.0);`)
         .replace('#include <begin_vertex>', `
-vec3 toCam = cameraPosition - aOffset; toCam.y = 0.0;
+vec3 toCam = cameraPosition - (aOffset + uOrigin); toCam.y = 0.0;
 toCam = normalize(toCam + vec3(1e-4, 0.0, 0.0));
 vec3 rightW = vec3(toCam.z, 0.0, -toCam.x);
 vRightW = rightW; vToCamW = toCam; vTint = treeColor(aYaw / 6.283, (aTile.z - 0.84) / 0.3);
@@ -390,7 +396,7 @@ vRightW = rightW; vToCamW = toCam; vTint = treeColor(aYaw / 6.283, (aTile.z - 0.
 vView = fract((atan(toCam.x, toCam.z) - aYaw) / 6.2831853) * ${VIEWS.toFixed(1)};
 float dCam = length(aOffset.xz - uLod);
 vFade = aNear > 0.0 ? smoothstep(aNear * ${(1 - BAND).toFixed(3)}, aNear, dCam) : 1.0;
-vec3 transformed = aOffset + rightW * position.x * aSize.x + vec3(0.0, position.y * aSize.y, 0.0);`);
+vec3 transformed = aOffset + uOrigin + rightW * position.x * aSize.x + vec3(0.0, position.y * aSize.y, 0.0);`);
       sh.fragmentShader = sh.fragmentShader
         .replace('#include <common>', `#include <common>
 uniform sampler2D uNormalAtlas;
@@ -610,6 +616,9 @@ if (vFade <= 0.0 || dCam > ${FAR.toFixed(1)}) gl_Position = vec4(0.0, 0.0, -2.0,
   }
 
   setShadows(on) { for (const nk of this.near) for (const m of nk.meshes) m.castShadow = on; }
+
+  /** Where the map stands in the open world (its group is placed there; its cards are placed here). */
+  setOrigin(x, z) { this.origin.value.set(x, 0, z); }
 
   /** How far out trees are drawn in full ('high' 340, 'medium' 240, 'low' 150, as the game passes it). */
   setDetailRange(mid) { NEAR = mid >= 300 ? 85 : mid >= 200 ? 60 : 38; this.setFade(); this.setCardNear(); this.lastFill.set(1e9, 0, 1e9); }
