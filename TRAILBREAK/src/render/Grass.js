@@ -206,7 +206,9 @@ normal = normalize(vNormal);`)
     let c = this.chunks.get(key);
     if (c) return c;
     const T = this.terrain, w = this.world, out = [], tint = [0, 0, 0];
-    const grassL = T.layerIndex.grass, forestL = T.layerIndex.forest;
+    const grassL = T.layerIndex.grass, forestL = T.layerIndex.forest, dirtL = T.layerIndex.dirt, N = w.N;
+    // (bare earth beside the meadow: grass straggles out onto it, so the meadow has no hard edge)
+    const byGrass = (cell) => T.splat[cell - 1] === grassL || T.splat[cell + 1] === grassL || T.splat[cell - N] === grassL || T.splat[cell + N] === grassL;
     const n = Math.round(CHUNK / SPACING);
     for (let k = 0; k < n; k++) {
       for (let i = 0; i < n; i++) {
@@ -216,16 +218,17 @@ normal = normalize(vNormal);`)
         const cell = Math.round((z - w.origin) / w.res) * w.N + Math.round((x - w.origin) / w.res);
         const L = T.splat[cell];
         const r = hash(x, z, 3);
-        if (L !== grassL && !(L === forestL && r < 0.12)) continue;
+        const edge = L === dirtL && dirtL !== undefined && r < 0.45 && byGrass(cell);
+        if (L !== grassL && !(L === forestL && r < 0.12) && !edge) continue;
         if (w.deformGrid.get(x, z) > 0.03) continue;                    // flattened into the ruts
         const y = w.terrain(x, z);
         const wl = w.water(x, z);
         if (wl > -1e8 && y < wl + 0.05) continue;
         // taller in the lush hollows, short on the dry knolls and the high pasture
-        T.tintAt(L, x, z, y, 0, tint);
+        T.tintAt(edge ? grassL : L, x, z, y, 0, tint);
         const lush = Math.max(0, 1.2 - tint[0]);
         const alpine = Math.min(1, Math.max(0, (y - 140) / 160));
-        const h = (0.3 + 0.32 * lush + 0.16 * hash(x, z, 4)) * (1 - 0.45 * alpine) * (L === forestL ? 0.7 : 1);
+        const h = (0.3 + 0.32 * lush + 0.16 * hash(x, z, 4)) * (1 - 0.45 * alpine) * (L === forestL ? 0.7 : edge ? 0.6 : 1);
         out.push(x, y - 0.03, z, hash(x, z, 5) * 6.283, h, 0.55 + 0.35 * hash(x, z, 6), r, tint[0], tint[1], tint[2]);
       }
     }
