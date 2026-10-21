@@ -218,12 +218,14 @@ export function buildCockpit(P, I, S, eye, roofAt, extra, spec) {
   // the doors: a card on each from the floor up to the window's sill, an armrest and a pull, the handle, a speaker
   const zD0 = I.sideZ[0] + 0.05, zD1 = Math.min(zR - 0.02, I.sideZ[1] - 0.05), dz = zD1 - zD0, dc = (zD0 + zD1) / 2;
   if (dz > 0.2) {
-    const hD = yB - floor - 0.02;
-    P.add(M.trim, rbox(0.05, hD, dz, 0.02), [xIn + 0.02, floor + 0.02 + hD / 2, dc], null, true);
-    P.add(M.seat, rbox(0.07, 0.05, dz * 0.45, 0.02), [xIn - 0.02, yB - 0.24, dc - dz * 0.05], null, true);
-    P.add(M.accent, rbox(0.012, 0.03, dz * 0.6, 0.01), [xIn - 0.005, yB - 0.08, dc], null, true);
-    P.add(M.chrome, rbox(0.02, 0.025, 0.08, 0.008), [xIn - 0.01, yB - 0.12, zD1 - 0.12], null, true);
-    P.add(M.vent, new THREE.CylinderGeometry(0.075, 0.075, 0.01, 20).rotateZ(Math.PI / 2), [xIn - 0.004, floor + 0.17, zD1 - 0.2], null, true);
+    // (the card, and all on it, a little inside the doors' skin where that is near: a slab-sided body's windows stand
+    // almost flush with its doors, and the card stood out through them)
+    const xD = Math.min(xIn, (I.skinX ?? Infinity) - 0.057), hD = yB - floor - 0.02;
+    P.add(M.trim, rbox(0.05, hD, dz, 0.02), [xD + 0.02, floor + 0.02 + hD / 2, dc], null, true);
+    P.add(M.seat, rbox(0.07, 0.05, dz * 0.45, 0.02), [xD - 0.02, yB - 0.24, dc - dz * 0.05], null, true);
+    P.add(M.accent, rbox(0.012, 0.03, dz * 0.6, 0.01), [xD - 0.005, yB - 0.08, dc], null, true);
+    P.add(M.chrome, rbox(0.02, 0.025, 0.08, 0.008), [xD - 0.01, yB - 0.12, zD1 - 0.12], null, true);
+    P.add(M.vent, new THREE.CylinderGeometry(0.075, 0.075, 0.01, 20).rotateZ(Math.PI / 2), [xD - 0.004, floor + 0.17, zD1 - 0.2], null, true);
   }
   // carpet, and the sills
   const zBack = I.rear != null ? I.rear - 0.45 : I.sideZ[0] - 0.05;

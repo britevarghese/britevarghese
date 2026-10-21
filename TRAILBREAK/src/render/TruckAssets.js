@@ -154,6 +154,32 @@ function cutInnerSkin(g, C) {
   return g;
 }
 
+/**
+ * How far out the doors' skins are, below the windows along the cabin (I: layout.interior): the body paint facing out
+ * there, the innermost tenth of it by area (an arch's flare or a handle stands out further than the door itself).
+ */
+function doorSkin(geos, I) {
+  const y0 = I.floorY + 0.15, y1 = I.belt[0] - 0.05, z0 = I.sideZ[0] + 0.05, z1 = I.sideZ[1] - 0.05, xMin = I.belt[1] - 0.1;
+  const a = new THREE.Vector3(), b = new THREE.Vector3(), c = new THREE.Vector3(), e1 = new THREE.Vector3(), e2 = new THREE.Vector3();
+  const found = [];
+  for (const g of geos) {
+    const pos = g.attributes.position, idx = g.index, n = idx ? idx.count : pos.count;
+    for (let t = 0; t < n; t += 3) {
+      a.fromBufferAttribute(pos, idx ? idx.getX(t) : t); b.fromBufferAttribute(pos, idx ? idx.getX(t + 1) : t + 1); c.fromBufferAttribute(pos, idx ? idx.getX(t + 2) : t + 2);
+      const mx = Math.abs(a.x + b.x + c.x) / 3, my = (a.y + b.y + c.y) / 3, mz = (a.z + b.z + c.z) / 3;
+      if (my < y0 || my > y1 || mz < z0 || mz > z1 || mx < xMin) continue;
+      const nn = e1.subVectors(b, a).cross(e2.subVectors(c, a)), area = nn.length() / 2;
+      if (area > 0 && Math.sign(a.x + b.x + c.x) * nn.x / (2 * area) > 0.7) found.push([mx, area]);
+    }
+  }
+  if (!found.length) return null;
+  found.sort((p, q) => p[0] - q[0]);
+  const total = found.reduce((s, f) => s + f[1], 0);
+  let s = 0;
+  for (const [x, area] of found) if ((s += area) >= total * 0.1) return x;
+  return null;
+}
+
 function build(id, gltf, layout) {
   const own = new Map(), parts = [], rim = [];
   const dish = layout.steering?.cut ? wheelDish(layout.steering) : null;
@@ -196,6 +222,8 @@ function build(id, gltf, layout) {
     }
     parts.push({ role, side, geometry: g, material: o.material });
   });
+  // (where the doors' skins are, for the cockpit built in: its door cards stand inside them)
+  if (cockpit?.belt && cockpit.sideZ) cockpit.skinX = doorSkin([...(own.get('paint') || []), ...(own.get('paint|both') || [])], cockpit);
   for (const [key, list] of own) {
     const [role, both] = key.split('|');
     parts.push({ role, geometry: list.length > 1 ? mergeGeometries(list) : list[0], material: null, doubleSided: !!both });
