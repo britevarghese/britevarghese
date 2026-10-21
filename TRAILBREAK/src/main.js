@@ -193,7 +193,7 @@ async function start() {
     } catch (e) {
       $('lobby-msg').textContent = `${e.message} You can still drive alone.`;
       net = null;
-      $('trucks').innerHTML = ''; $('paints').innerHTML = '';
+      $('paints').innerHTML = '';                     // (the lobby lays its paints out again)
     }
   }
   let otherMap = null;

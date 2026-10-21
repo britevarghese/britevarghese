@@ -86,13 +86,16 @@ export class TerrainRenderer {
    * (render/WorldView.js) a map's terrain stands in a group at its centre (centre: [x, z]) and draws only its own square
    * (clip); and one more draws the far land all round them (far), leaving their squares (holes: [[x0, z0, x1, z1]]).
    */
-  constructor(world, scene, { onProgress, ground = null, centre = [0, 0], clip = false, far = false, holes = [], defer = false } = {}) {
+  constructor(world, scene, { onProgress, ground = null, centre = [0, 0], clip = false, far = false, holes = [], defer = false, blend = null } = {}) {
     this.world = world;
     this.scene = scene;
     this.ground = ground;
     this.half = world.half; this.res = world.res;
     this.root = far ? 65536 : world.half > 1024 ? 32768 : ROOT;
     this.centre = centre; this.clip = clip; this.far = far; this.holes = holes;
+    // (the open world: a stretch's ground textures giving way to its neighbour's set towards their seam, so both sides
+    // of it are textured alike: { ground, side, band })
+    this.blend = ground && blend?.ground ? blend : null;
     this.snowLine = world.map.snowLine ?? 1e6;                // (no snow on a tropical map)
     this.litter = world.map.litter;                            // how much each type of tree carpets the ground
     this.layers = ground ? ground.layers : Object.keys(PLAIN).map((name) => ({ name, avg: lin(PLAIN[name]), rough: 0.95 }));
@@ -136,6 +139,19 @@ export class TerrainRenderer {
         uSnowLine: { value: this.snowLine + 40 }, uRelief: { value: 1 },
         uTea: { value: this.layerIndex.tea ?? -1 }, uTeaNear: { value: TEA_RANGE.high },
       });
+      const B = this.blend;
+      if (B) {
+        // each of this ground's layers, as the neighbour's set has it (by name; -1: none, this one's own stays)
+        const other = this.layers.map((l) => B.ground.layers[B.ground.index[l.name]] || null);
+        const axisX = B.side === 'east' || B.side === 'west', sign = B.side === 'east' || B.side === 'south' ? 1 : -1;
+        Object.assign(uniforms, {
+          uGC2: { value: B.ground.color },
+          uMap2: { value: this.layers.map((l) => B.ground.index[l.name] ?? -1) },
+          uLay2: { value: other.map((o, i) => new THREE.Vector4(o ? 1 / o.size : 1 / this.layers[i].size, 0, 0, 0)) },
+          uGain2: { value: other.map((o, i) => new THREE.Vector3(...(o || this.layers[i]).gain)) },
+          uSeam: { value: new THREE.Vector4(axisX ? 1 : 0, sign, this.half, B.band ?? 160) },
+        });
+      }
     }
     // muddy water standing in the ruts (linear RGB): the map's mud (red in Kerala), darker
     const mt = w.map.mudTint || [0.085, 0.06, 0.04];
@@ -147,7 +163,7 @@ export class TerrainRenderer {
     this.uniforms = uniforms;
     // (three.js keys its compiled shaders by this function's text: the open world's terrains differ in what is written
     // into theirs, their layers and the far land's holes)
-    mat.customProgramCacheKey = () => `terrain ${G ? this.layers.length : 0} ${NH}`;
+    mat.customProgramCacheKey = () => `terrain ${G ? this.layers.length : 0} ${NH} ${this.blend ? 1 : 0}`;
     mat.onBeforeCompile = (sh) => {
       Object.assign(sh.uniforms, uniforms);
       sh.vertexShader = sh.vertexShader
@@ -183,6 +199,13 @@ uniform highp sampler2DArray uGN;
 uniform highp sampler2D uSplat;
 uniform vec4 uLay[NLAYERS];
 uniform vec3 uGain[NLAYERS];
+${this.blend ? `#define SEAM
+uniform highp sampler2DArray uGC2;
+uniform float uMap2[NLAYERS];
+uniform vec4 uLay2[NLAYERS];
+uniform vec3 uGain2[NLAYERS];
+uniform vec4 uSeam;` : ''}
+float gSeamW = 0.0;
 uniform vec2 uSplatO;
 uniform float uSplatN;
 uniform float uSplatRes;
@@ -221,6 +244,15 @@ void gAdd(float id, float w) {
   }
   gL[gn] = id; gW[gn] = w; gn++;
 }
+#ifdef SEAM
+vec4 gColor2(float L, float sc) {
+  vec4 c = vec4(0.0);
+  if (gwT > 0.0) c += textureGrad(uGC2, vec3(gPT * sc, L), gDTx * sc, gDTy * sc) * gwT;
+  if (gwX > 0.0) c += textureGrad(uGC2, vec3(gPX * sc, L), gDXx * sc, gDXy * sc) * gwX;
+  if (gwZ > 0.0) c += textureGrad(uGC2, vec3(gPZ * sc, L), gDZx * sc, gDZy * sc) * gwZ;
+  return c;
+}
+#endif
 vec4 gColor(float L, float sc) {
   vec4 c = vec4(0.0);
   if (gwT > 0.0) c += textureGrad(uGC, vec3(gPT * sc, L), gDTx * sc, gDTy * sc) * gwT;
@@ -254,6 +286,9 @@ float gWet = 0.0;
   float vary = 0.9 + 0.1 * n1 * (1.0 - smoothstep(60.0, 220.0, dist)) + 0.12 * n2 * mid + 0.08 * n3;
 ${G ? `
   float tex = 1.0 - smoothstep(uTexFar * 0.55, uTexFar, dist);
+#ifdef SEAM
+  { vec2 lp = vWPos.xz - uCentre; gSeamW = 1.0 - smoothstep(0.0, uSeam.w, uSeam.z - mix(lp.y, lp.x, uSeam.x) * uSeam.y); }
+#endif
   vec3 n = gNW;
   // projections and their derivatives, taken here where every pixel runs the same code
   gSX = n.x >= 0.0 ? 1.0 : -1.0; gSZ = n.z >= 0.0 ? 1.0 : -1.0;
@@ -288,6 +323,9 @@ ${G ? `
       if (j >= gn) break;
       vec4 lay = uLay[int(gL[j])];
       cs[j] = gColor(gL[j], lay.x);
+#ifdef SEAM
+      if (gSeamW > 0.0) { int li2 = int(gL[j]); float m = uMap2[li2]; if (m >= 0.0) cs[j] = mix(cs[j], gColor2(m, uLay2[li2].x), gSeamW); }
+#endif
       if (gL[j] == uTea) cs[j].rgb = gTea(cs[j].rgb, dist);
       hs[j] = gW[j] + cs[j].a * lay.z;
       top = max(top, hs[j]);
@@ -301,7 +339,11 @@ ${G ? `
       vec4 lay = uLay[li];
       float b = max(0.0, hs[j] - top + 0.16);
       sum += b;
+#ifdef SEAM
+      alb += cs[j].rgb * mix(uGain[li], uGain2[li], uMap2[li] >= 0.0 ? gSeamW : 0.0) * b;
+#else
       alb += cs[j].rgb * uGain[li] * b;
+#endif
       rough += lay.y * b;
       hgt += cs[j].a * b;
       if (near > 0.0) tilt += gTilt(gL[j], lay.x) * b;

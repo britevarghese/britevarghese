@@ -837,9 +837,11 @@ Kerala and so on). Around it all, one more terrain draws the far land: each map'
 edge, met to its edge, blended between maps. What a room shares carries the map: a tree knocked down in Kerala is
 `kerala:t123`; a beacon's number is its map's place in the world times 100 and its own.
 
-Where one map's ground meets the next the textures change from one set to the other (the coast's tarmac ends where
-Kerala's road begins), and the trucks' events, races and builder layouts are those of each map, not new ones across
-the world.
+Where a stretch meets a map whose ground has textures of another set (the ghat and the pass, at Kerala), the stretch's
+own give way to that map's over the last 160 m, so both sides of the seam are textured alike; the land's colours
+still change there (Kerala's forest floor meets the pass's meadow). The station and the workshop are the nearest
+ones: towed home, a truck goes back to the yard of the map it is on. The events, races and builder layouts are each
+map's own, not new ones across the world.
 
 ## Project layout
 

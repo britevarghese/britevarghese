@@ -66,8 +66,6 @@ export class Game {
     this.model = modelFor(this.spec, this.truckId, this.paint, { mirrors: true });
     this.scene.add(this.model.root);
     this.renderer.subject = this.model;
-    this.garageSpot = this.world.landmarks.find((L) => L.type === 'garage');
-    this.stationSpot = this.world.landmarks.find((L) => L.type === 'station');
     this.cam = new CameraRig(this.renderer.camera, this.world);
     if (this.career) {
       this.career.onChange = (amount, why) => this.hud.money(this.career.money, amount, why);
@@ -456,15 +454,30 @@ export class Game {
     this.applyBuild(this.settings.builds?.[id] || '', true);
   }
 
-  spawnPoint() {
+  /** The nearest building of a kind (in the open world, the station and its garage are each map's own). */
+  nearest(type) {
+    const p = this.vehicle?.pos || { x: 0, z: 0 };
+    let best = null, bd = Infinity;
+    for (const L of this.world.landmarks) {
+      if (L.type !== type) continue;
+      const d = Math.hypot(L.x - p.x, L.z - p.z);
+      if (d < bd) { bd = d; best = L; }
+    }
+    return best;
+  }
+  get garageSpot() { return this.nearest('garage'); }
+  get stationSpot() { return this.nearest('station'); }
+
+  /** Where the truck starts, or is towed back to: the station's yard (the open world's nearest one, after the first). */
+  spawnPoint(first = false) {
     const slot = this.net?.id ? (this.net.id - 1) % 6 : 0;
     const side = (slot % 2 ? 1 : -1) * Math.ceil(slot / 2) * 5.5;
-    const SP = this.world.map.spawn, c = Math.cos(SP.yaw), s = Math.sin(SP.yaw);
-    return { x: SP.x + c * side, z: SP.z - s * side, yaw: SP.yaw };
+    const SP = (!first && this.world.spawnNear?.(this.vehicle.pos)) || this.world.map.spawn, c = Math.cos(SP.yaw), s = Math.sin(SP.yaw);
+    return { x: SP.x + c * side, z: SP.z - s * side, yaw: SP.yaw, name: SP.name || this.world.map.station.name };
   }
 
   spawn(first = false) {
-    const p = this.spawnPoint();
+    const p = this.spawnPoint(first);
     this.vehicle.place(this.world, p.x, p.z, p.yaw);
     this.drySpots = [{ x: p.x, z: p.z, yaw: p.yaw }];
     this.stuckT = 0; this.boggedT = 0;
@@ -473,7 +486,7 @@ export class Game {
     this.vehicle.setPressure(this.vehicle.psiTarget);
     this.carry = 0;
     if (this.net) this.net.warp++;
-    if (!first) this.hud.toast(`Back at ${this.world.map.station.name}`);
+    if (!first) this.hud.toast(`Back at ${p.name}`);
     this.cam.heading = null;
   }
 

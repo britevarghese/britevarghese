@@ -79,6 +79,18 @@ export class OpenWorld {
     };
   }
 
+  /** The station yard nearest a point, of the maps in: { x, z, yaw, name } (where a truck is towed back to). */
+  spawnNear(p) {
+    let best = null, bd = Infinity;
+    for (const r of this.regions) {
+      const M = r.map;
+      if (!M.spawn || !M.station) continue;
+      const d = Math.hypot(M.station.x + r.cx - p.x, M.station.z + r.cz - p.z);
+      if (d < bd) { bd = d; best = { x: M.spawn.x + r.cx, z: M.spawn.z + r.cz, yaw: M.spawn.yaw, name: M.station.name }; }
+    }
+    return best;
+  }
+
   /** A map of the world's definition (world/maps/world.js), by id. */
   regionDef(id) { return REGIONS.find((R) => R.id === id); }
 

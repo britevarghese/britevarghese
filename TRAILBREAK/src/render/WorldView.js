@@ -46,7 +46,13 @@ export class RegionView {
   /** slice: how long (ms) its ground's colours may hold up a frame (the start map's, on the loading screen: all of it). */
   static async create(region, renderer, { quality = 'high', audio = null, effects = null, onProgress, slice = 6 } = {}) {
     const M = region.map, ground = await groundOf(M.ground, quality);
-    const v = new RegionView(region, renderer, ground, { audio, effects });
+    // (a stretch next to a map with ground textures of another set: its own give way to those towards their seam)
+    let blend = null;
+    for (const [side, nid] of Object.entries(REGIONS[region.index].seams || {})) {
+      const N = REGIONS.find((R) => R.id === nid).map;
+      if (N.ground !== M.ground) blend = { side, ground: await groundOf(N.ground, quality), band: 160 };
+    }
+    const v = new RegionView(region, renderer, ground, { audio, effects, blend });
     await v.terrain.ready(onProgress, slice);
     v.vegetation = await Vegetation.create(region.world, v.host);
     v.grass = new Grass(region.world, v.terrain, v.group, ground, v.vegetation.uniforms, { centre: [region.cx, region.cz] });
@@ -55,7 +61,7 @@ export class RegionView {
     return v;
   }
 
-  constructor(region, renderer, ground, { audio, effects }) {
+  constructor(region, renderer, ground, { audio, effects, blend }) {
     this.region = region;
     const { cx, cz } = region, W = region.world;
     this.group = new THREE.Group();
@@ -66,7 +72,7 @@ export class RegionView {
     // (what the forest needs of the renderer: the scene it goes in, the GL context, the sun)
     this.host = { scene: this.group, renderer: renderer.renderer, get sun() { return renderer.sun; } };
     this.local = new LocalCamera(cx, cz);
-    this.terrain = new TerrainRenderer(W, this.group, { ground, centre: [cx, cz], clip: true, defer: true });
+    this.terrain = new TerrainRenderer(W, this.group, { ground, centre: [cx, cz], clip: true, defer: true, blend });
     this.rocks = new Rocks(W, this.group, ground);
     this.tea = region.map.tea ? new Tea(W, this.group) : null;
     this.water = new Water(W, this.group);
