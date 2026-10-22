@@ -620,7 +620,21 @@ if (vFade <= 0.0 || dCam > ${FAR.toFixed(1)}) gl_Position = vec4(0.0, 0.0, -2.0,
     return (this.fallen[k] = { meshes, matrix, color, cap });
   }
 
+  /**
+   * Out of the camera's range (an open-world map it has driven away from: render/WorldView.js): no models, every tree
+   * its card again, until update is called once more.
+   */
+  rest() {
+    if (this.resting) return;
+    this.resting = true;
+    for (const nkk of this.near) for (const m of nkk.meshes) m.count = 0;
+    this.nearCount = 0;
+    this.uniforms.uLod.value.set(1e9, 1e9);
+    this.lastFill.set(1e9, 0, 1e9);
+  }
+
   update(camera, dt) {
+    this.resting = false;
     this.uniforms.uTime.value += dt;
     if (this.cardsDirty) { this.cardsDirty = false; this.impSize.needsUpdate = true; }
     const r = this.renderer;

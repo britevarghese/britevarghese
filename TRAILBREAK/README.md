@@ -836,8 +836,11 @@ breaks, in a group at its centre), its colours baked a few milliseconds at a tim
 ground is the far land, and nobody gets near it before it is there. Every map is kept in the browser's storage
 (IndexedDB, under a fingerprint of the generator's code and the coast's data: a change to either builds them afresh),
 so the next visit skips building them. In a test here (headless Chromium drawing in software, without a graphics card,
-much slower than a real computer), the open world was ready to drive 126 s after the click on the first visit and 37
-s on the next, with the other four maps all in 39 s after that; the Konkan Coast alone took 99.5 s on the same machine.
+much slower than a real computer), the open world was first ready to drive 126 s after the click on the first visit
+and 37 s on the next, with the other four maps all in 39 s after that; the Konkan Coast alone took 99.5 s on the same
+machine. Measured again after the changes below: 56 s on the first visit (20 s of it building the coast in its worker)
+and 34 s on the next, of which 22 s, either way, is the software renderer compiling the shaders (a graphics card does
+that in a few seconds).
 With every map in, the browser held about 680 MB of JavaScript memory before the changes below; measured the same way
 (every map in, a frame drawn in each), 763 MB before them and 560 MB after. Most of what it holds now is the maps' own
 grids (heights, surfaces and water, which the physics reads): the ground textures' pixels are let go once the graphics
@@ -851,7 +854,9 @@ and one set of their pictures for far off (the Ghat and Kerala the coast's, the 
 ripples are made once for all of them; its parts are built a step at a time with the game running between them; and
 its shaders are compiled in the background (`compileAsync`) before it is shown, so its first frame on screen doesn't
 wait for them. The trees' shaders no longer differ by species (the height of a crown is a uniform), so every map's
-trees share the same few. In the same software-drawing test, the page's own thread was busy for 45 s while the other
+trees share the same few. A map the camera has left (beyond 2.6 km of its square) puts its tree models away and shows
+every tree as its card again (until then the models it had round the camera stayed drawn: 0.33 M triangles of the
+coast's trees, seen from the pass 3 km off). In the same software-drawing test, the page's own thread was busy for 45 s while the other
 four maps came in, and 32 s after these changes (most of what is left is drawing Ashwood's tree pictures, which a
 graphics card does in a moment).
 

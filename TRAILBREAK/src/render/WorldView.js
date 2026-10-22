@@ -168,7 +168,7 @@ export class WorldView {
     const cam = (v, camera) => v.local.of(camera);
     const near = (v, camera, d) => v.away(camera.position.x, camera.position.z) < d;
     this.vegetation = {
-      update: (camera, dt) => each((v) => { if (near(v, camera, NEAR.veg)) v.vegetation.update(cam(v, camera), dt); }),
+      update: (camera, dt) => each((v) => { if (near(v, camera, NEAR.veg)) v.vegetation.update(cam(v, camera), dt); else v.vegetation.rest(); }),
       setDetailRange: (m) => { self.settings.detail = m; each((v) => v.vegetation.setDetailRange(m)); },
       setShadows: (on) => { self.settings.shadows = on; each((v) => v.vegetation.setShadows(on)); },
     };
