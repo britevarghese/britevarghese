@@ -108,6 +108,23 @@ test('the open world at run time: one ground, its places and events gathered fro
   assert.ok(W.brokenKeys().includes('kerala:t0'));
 });
 
+test('the open world: the far land meets every map\'s open edge (no step for it to hang in the air over)', async () => {
+  const W = await opened;
+  for (const r of W.regions) {
+    let n = 0, worst = 0;
+    for (const [nx, nz] of [[-1, 0], [1, 0], [0, -1], [0, 1]]) {
+      for (let t = -r.half; t <= r.half; t += 16) {
+        const x = r.cx + (nx ? nx * r.half : t), z = r.cz + (nz ? nz * r.half : t);
+        if (W.regionAt(x + nx * 1.5, z + nz * 1.5)) continue;       // (a seam: another map beyond)
+        worst = Math.max(worst, Math.abs(r.world.terrain(x - nx * 0.01 - r.cx, z - nz * 0.01 - r.cz) - W.farHeight(x + nx * 0.02, z + nz * 0.02)));
+        n++;
+      }
+    }
+    assert.ok(n > 0, `${r.id} has an open edge`);
+    assert.ok(worst < 0.5, `${r.id}: the far land ${worst.toFixed(2)} m off its edge`);
+  }
+});
+
 test('the open world: the satnav finds the way from the coast to Ashwood by road, and a truck drives across the joins', async () => {
   const W = await opened, g = new RouteGraph(W.data.trails, { hubs: W.hubs });
   const r = g.route(3940, -712, 7090, -3800);

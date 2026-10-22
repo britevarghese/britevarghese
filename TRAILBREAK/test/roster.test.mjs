@@ -1,6 +1,7 @@
 // The dealer's roster: every truck, stock and built, is a sound truck that drives, stops and climbs like its kind, and
 // every one takes the garage's parts.
 import { test } from 'node:test';
+import fs from 'node:fs';
 import assert from 'node:assert/strict';
 import { Vehicle, PHYS_DT } from '../src/physics/Vehicle.js';
 import { TRUCK_IDS, OFFROAD_IDS, truckSpec, truckBase } from '../src/physics/trucks.js';
@@ -67,6 +68,19 @@ for (const id of OFFROAD_IDS) {
     assert.ok(up !== null && v.up.y > 0.8, `${id}: did not climb 25 degrees (got to z ${v.pos.z.toFixed(1)})`);
   });
 }
+
+test('a driver sits in his seat: every car with its model\'s own seats has where his hips go in it', () => {
+  // (the game's own seats are built round the driver: 28 cm ahead of his eyes; a model's own were measured, spec.hip)
+  for (const id of TRUCK_IDS) {
+    const f = new URL(`../public/assets/trucks/${id}.json`, import.meta.url);
+    if (!fs.existsSync(f)) continue;
+    const L = JSON.parse(fs.readFileSync(f, 'utf8')), s = truckSpec(id);
+    if (L.interior?.replace) { assert.equal(s.hip, undefined, `${id}: the game builds its seats`); continue; }
+    assert.ok(Number.isFinite(s.hip), `${id}: no hip for its own seats`);
+    // (in front of where his eyes are by no more than his lap, behind them by no more than a reclined back)
+    assert.ok(s.hip - s.eye[2] > -0.45 && s.hip - s.eye[2] < 0.45, `${id}: hip ${s.hip} against eye ${s.eye[2]}`);
+  }
+});
 
 test('every preset build of every truck settles and drives off', () => {
   const g = flat(SURFACE.DIRT);
