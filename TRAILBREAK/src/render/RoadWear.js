@@ -156,12 +156,13 @@ vec3 pc = vec3(0.0); float pa = 0.0, pr = 0.0;
     float dP = min(min(s - p0, p1 - s), min(v - l0, l1 - v)) + jag;     // (m inside the patch's edge; < 0 outside)
     float has = step(h1, 0.38);
     LAY(vec3(0.012, 0.012, 0.013), has * smoothstep(-0.01, 0.02, dP) * (0.42 + 0.08 * rn(w * 0.8)), 0.7);
-    LAY(vec3(0.003), has * (1.0 - smoothstep(0.02, 0.05, abs(dP))) * 0.5 * mid, 0.35);
+    LAY(vec3(0.003), has * (1.0 - smoothstep(0.02, 0.05, abs(dP))) * 0.5 * mid, 0.65);
     // cracks: across the road every so often, wandering, and a web of them along the edges, all filled with tar
     float cj = floor(s / 9.0), cs = cj * 9.0 + rh(vec2(cj, 2.0 * W)) * 9.0 + sin(v * 1.7 + cj) * 0.35;
     float across = step(rh(vec2(cj, W + 5.0)), 0.45) * (1.0 - smoothstep(0.015, 0.04, abs(s - cs))) * step(av, W - 0.3 - rh(vec2(cj, 9.0)) * W);
     float web = (1.0 - smoothstep(0.012, 0.035, abs(rn(w * 1.9) - 0.5))) * smoothstep(W - 1.7, W - 0.7, av);
-    LAY(vec3(0.002), max(across, web) * 0.7 * fine * paved, 0.45);
+    // (weathered sealant, dull: a glossier one mirrors the sky at a low angle, and the black lines read as white)
+    LAY(vec3(0.002), max(across, web) * 0.7 * fine * paved, 0.75);
   } else if (lanes < -0.5) {
     // a runway: the rubber the tyres leave where they touch down, black streaks down its middle
     float L = -lanes, td = max(1.0 - smoothstep(60.0, 260.0, abs(s - 140.0)), 1.0 - smoothstep(60.0, 260.0, abs(s - (L - 140.0))));
