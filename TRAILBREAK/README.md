@@ -706,10 +706,15 @@ Everything that makes off-roading off-roading is simulated, not faked:
   going by (a small cube map drawn a face a frame, render/Probe.js), not the sky alone. The sun's shadows come in two
   cascades: a wide map 140 m across, and on High and Medium a near one 40 m across round your truck with texels under
   a third the size, so its shadow and the dappled leaves' round it are sharp (render/Renderer.js).
-- **Far trees:** beyond 85 m (60 on Medium, 38 on Low) each tree is a picture of its model on a card, taken when the
-  game starts. The pictures now carry the shade the model has where it stands: its inner crown and low branches, and
-  its trunk under the crown in the crown's shadow. Without it every trunk out there was pale against the dark of the
-  woods, and a row of the coast's evergreen giants read as cut-outs (pale cones under flat discs).
+- **Far trees:** on High every tree within 160 m is its full model (85 m before; 60 m on Medium, 38 on Low), and
+  beyond that a picture of its model on a card, taken when the game starts. The pictures carry the shade the model has
+  where it stands: its inner crown and low branches, and its trunk under the crown in the crown's shadow (without it
+  every trunk out there was pale against the dark of the woods, and a row of the coast's evergreen giants read as
+  cut-outs, pale cones under flat discs). Only the models within 110 m of the camera cast shadows (the wide shadow map
+  is 140 m square round the truck): drawn into the shadow maps, the rest would only cost the time. Measured with the
+  models out to 160 m instead of 85: on the coast road 4.7 M triangles a frame instead of 3.0 M, in Kerala's forest
+  and Ashwood's pines 11.3 M instead of 6.1 M (and in the forest about 470 trees, 4 M triangles, kept out of the two
+  shadow maps). No kind of tree runs out of models anywhere tried.
 - **Graphics level:** if the frame rate stays under 30 fps for two 4-second spells running, the game steps the
   graphics down a level (and says so), and once it runs at 55 fps or more for 12 s it steps back up toward the level
   you chose (not again if the last step up was soon stepped down). Only for the session: it used to keep the lowered

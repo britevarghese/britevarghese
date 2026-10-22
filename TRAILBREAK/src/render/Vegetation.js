@@ -69,6 +69,9 @@ const CELL = 32;               // the grid the trees are found in round the came
 const IGN = 'float ign(vec2 p) { return fract(52.9829189 * fract(dot(p, vec2(0.06711056, 0.00583715)))); }';
 
 let NEAR = 80;
+// m from the camera within which the models cast shadows (the wide shadow map is 140 m square round the truck: its
+// corners are 99 m from it, and the camera a few metres behind it; it reaches no further)
+const SHADOW_R = 110;
 // a tree shorter than NEAR_H (m) has its model drawn only out to that share of the range (no less than NEAR_MIN)
 const NEAR_H = 8, NEAR_MIN = 0.35;
 const nearShare = (h) => Math.min(1, Math.max(NEAR_MIN, h / NEAR_H));
@@ -308,22 +311,28 @@ export class Vegetation {
       this.kindOf[i] = k; perKind[k]++;
     }
     // near: the models (one instanced mesh per species and material, sharing the species' instance matrices)
+    // each kind's models twice over: those near enough to cast shadows into view, and those further out, which don't
+    // (out there a model's shadow falls past the shadow maps: drawn into them it only cost the time)
     this.near = this.kinds.map((name, k) => {
       const a = assets[name], cap = Math.max(1, Math.min(perKind[k], 2500));
-      let matrix = null, color = null;
-      const meshes = a.groups.map((gr) => {
-        const m = new THREE.InstancedMesh(gr.geometry, treeMaterial(gr, this.uniforms, a.radius, false, set.crown?.[name] ?? 0.62, this.fade[k]), cap);
-        if (!matrix) { matrix = m.instanceMatrix; matrix.setUsage(THREE.DynamicDrawUsage); color = new THREE.InstancedBufferAttribute(new Float32Array(cap * 3), 3); }
-        m.instanceMatrix = matrix;
-        m.instanceColor = color;
-        m.count = 0;
-        m.castShadow = true;
-        m.receiveShadow = true;
-        m.frustumCulled = false;
-        this.group.add(m);
-        return m;
-      });
-      return { meshes, matrix, color, cap };
+      const mats = a.groups.map((gr) => treeMaterial(gr, this.uniforms, a.radius, false, set.crown?.[name] ?? 0.62, this.fade[k]));
+      const models = (shadows) => {
+        let matrix = null, color = null;
+        const meshes = a.groups.map((gr, g) => {
+          const m = new THREE.InstancedMesh(gr.geometry, mats[g], cap);
+          if (!matrix) { matrix = m.instanceMatrix; matrix.setUsage(THREE.DynamicDrawUsage); color = new THREE.InstancedBufferAttribute(new Float32Array(cap * 3), 3); }
+          m.instanceMatrix = matrix;
+          m.instanceColor = color;
+          m.count = 0;
+          m.castShadow = shadows;
+          m.receiveShadow = true;
+          m.frustumCulled = false;
+          this.group.add(m);
+          return m;
+        });
+        return { meshes, matrix, color };
+      };
+      return { ...models(true), far: models(false), cap };
     });
     this.bakeImpostors(renderer.renderer);
     this.buildGrid();
@@ -562,10 +571,13 @@ if (vFade <= 0.0 || dCam > ${FAR.toFixed(1)}) gl_Position = vec4(0.0, 0.0, -2.0,
     this.impNear.needsUpdate = true;
   }
 
-  /** The models round the camera: each kind's nearest trees, as many as it has models for. */
-  fill(cam) {
+  /**
+   * The models round the near range's middle (cam): each kind's nearest trees, as many as it has models for; those
+   * within SHADOW_R of the camera itself (eye) cast shadows.
+   */
+  fill(cam, eye = cam) {
     const T = this.trees, K = this.kindOf, G = this.grid, nk = this.kinds.length;
-    const counts = new Array(nk).fill(0);
+    const counts = new Array(nk).fill(0), countsFar = new Array(nk).fill(0), SR2 = SHADOW_R * SHADOW_R;
     const m = this._m, q = this._q, s = this._s, p = this._p, c = this._c;
     const rOut = this.kinds.map((_, k) => (NEAR * this.nearOf[k] + MARGIN) ** 2);
     const cand = this._cand || (this._cand = this.kinds.map(() => []));
@@ -597,14 +609,15 @@ if (vFade <= 0.0 || dCam > ${FAR.toFixed(1)}) gl_Position = vec4(0.0, 0.0, -2.0,
         list.length = nkk.cap;
       }
       for (const i of list) {
-        const [r1, r2] = this.rand(i), ht = T.h[i], wd = ht * (0.88 + r2 * 0.24) * this.widthOf[k], j = counts[k]++;
+        const [r1, r2] = this.rand(i), ht = T.h[i], wd = ht * (0.88 + r2 * 0.24) * this.widthOf[k];
+        const out = (T.x[i] - eye.x) ** 2 + (T.z[i] - eye.z) ** 2 > SR2, B = out ? nkk.far : nkk, j = out ? countsFar[k]++ : counts[k]++;
         q.setFromAxisAngle(this._up, r1 * 6.283);
         s.set(wd, ht, wd);
         p.set(T.x[i], T.y[i] - 0.12, T.z[i]);
         m.compose(p, q, s);
-        m.toArray(nkk.matrix.array, j * 16);
+        m.toArray(B.matrix.array, j * 16);
         c.setRGB(...treeColor(r1, r2));
-        c.toArray(nkk.color.array, j * 3);
+        c.toArray(B.color.array, j * 3);
       }
     }
     // the overflow's cards stay up close (and the ones no longer in it fade again)
@@ -619,13 +632,15 @@ if (vFade <= 0.0 || dCam > ${FAR.toFixed(1)}) gl_Position = vec4(0.0, 0.0, -2.0,
     }
     // (only what is used goes up to the GPU: a kind's whole buffer is thousands of trees, sent every 12 m)
     this.near.forEach((nkk, k) => {
-      for (const mesh of nkk.meshes) mesh.count = counts[k];
-      nkk.matrix.clearUpdateRanges(); nkk.matrix.addUpdateRange(0, Math.max(1, counts[k]) * 16);
-      nkk.color.clearUpdateRanges(); nkk.color.addUpdateRange(0, Math.max(1, counts[k]) * 3);
-      nkk.matrix.needsUpdate = true;
-      nkk.color.needsUpdate = true;
+      for (const [B, n] of [[nkk, counts[k]], [nkk.far, countsFar[k]]]) {
+        for (const mesh of B.meshes) mesh.count = n;
+        B.matrix.clearUpdateRanges(); B.matrix.addUpdateRange(0, Math.max(1, n) * 16);
+        B.color.clearUpdateRanges(); B.color.addUpdateRange(0, Math.max(1, n) * 3);
+        B.matrix.needsUpdate = true;
+        B.color.needsUpdate = true;
+      }
     });
-    this.nearCount = counts.reduce((a, b) => a + b, 0);
+    this.nearCount = counts.reduce((a, b) => a + b, 0) + countsFar.reduce((a, b) => a + b, 0);
   }
 
   /** A broken tree off the map: no card, no model (it is drawn falling and fallen by render/BreakView.js). */
@@ -667,7 +682,7 @@ if (vFade <= 0.0 || dCam > ${FAR.toFixed(1)}) gl_Position = vec4(0.0, 0.0, -2.0,
   rest() {
     if (this.resting) return;
     this.resting = true;
-    for (const nkk of this.near) for (const m of nkk.meshes) m.count = 0;
+    for (const nkk of this.near) for (const m of [...nkk.meshes, ...nkk.far.meshes]) m.count = 0;
     this.nearCount = 0;
     this.uniforms.uLod.value.set(1e9, 1e9);
     this.lastFill.set(1e9, 0, 1e9);
@@ -689,7 +704,7 @@ if (vFade <= 0.0 || dCam > ${FAR.toFixed(1)}) gl_Position = vec4(0.0, 0.0, -2.0,
     a.x += (d.x * k - a.x) * Math.min(1, dt * 2); a.y += (d.z * k - a.y) * Math.min(1, dt * 2);
     const c = this.uniforms.uLod.value.set(cam.x + a.x, cam.z + a.y);
     if (Math.hypot(c.x - this.lastFill.x, c.y - this.lastFill.z) > 12) {
-      this.fill({ x: c.x, z: c.y });
+      this.fill({ x: c.x, z: c.y }, { x: cam.x, z: cam.z });
       this.lastFill.set(c.x, 0, c.y);
     }
   }
@@ -699,8 +714,8 @@ if (vFade <= 0.0 || dCam > ${FAR.toFixed(1)}) gl_Position = vec4(0.0, 0.0, -2.0,
   /** Where the map stands in the open world (its group is placed there; its cards are placed here). */
   setOrigin(x, z) { this.origin.value.set(x, 0, z); }
 
-  /** How far out trees are drawn in full ('high' 340, 'medium' 240, 'low' 150, as the game passes it). */
-  setDetailRange(mid) { NEAR = mid >= 300 ? 85 : mid >= 200 ? 60 : 38; this.setFade(); this.setCardNear(); this.lastFill.set(1e9, 0, 1e9); }
+  /** How far out trees are drawn in full ('high' 340: 160 m, 'medium' 240: 60 m, 'low' 150: 38 m, as the game passes it). */
+  setDetailRange(mid) { NEAR = mid >= 300 ? 160 : mid >= 200 ? 60 : 38; this.setFade(); this.setCardNear(); this.lastFill.set(1e9, 0, 1e9); }
 
   /** Each kind's band where its model gives way to its picture. */
   setFade() { this.kinds.forEach((_, k) => { const d = NEAR * this.nearOf[k]; this.fade[k].value.set(d * (1 - BAND), d); }); }
