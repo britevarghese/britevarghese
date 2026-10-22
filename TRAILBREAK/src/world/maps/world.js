@@ -62,7 +62,7 @@ const ashwoodGround = (x, z) => landform(ASHWOOD).baseHeight(x, z) - ashwoodPass
 export const COAST_W = {
   ...COAST, id: 'coast@world',
   trails: [...COAST.trails,
-    { name: 'Kashid Ghat East', kind: 'road', width: 3.6, lanes: 2, grade: 0.11, smooth: 24, cut: 7, shoulder: 8, level: true, points: [[3960, -700], [3980, -685.5], [3999.9, -671.1]] }],
+    { name: 'Kashid Ghat East', kind: 'road', width: 3.6, lanes: 2, grade: 0.11, smooth: 24, cut: 7, shoulder: 8, level: true, extend: [0, 8], points: [[3960, -700], [3980, -685.5], [3999.9, -671.1]] }],
   gen: graded([{ road: 'Kashid Ghat East', grade: 0.1, ends: ['ground'] }], COAST.gen),
 };
 
@@ -72,9 +72,10 @@ export const KERALA_W = {
   trails: [...KERALA.trails,
     // (off the paddy and rubber track below Rubber Estate Hill, west along the spur and through the pass to the coast:
     // the Konkan Ghat Road's two lanes and their lines carried on to the track)
-    { name: 'Konkan Road', kind: 'road', width: 3.6, lanes: 2, shoulder: 8, level: true, grade: 0.12, cut: 6, points: [[-558, 47], [-610, 44], [-690, 42], [-770, 40], [-860, 40], [-950, 40], [-1024, 40]] },
-    // (off the Kurinji jeep track below the summit, north through the gap between the peaks)
-    { name: 'Pass Road', kind: 'road', width: 3.4, grade: 0.12, cut: 6, points: [[17, -775], [20, -850], [25, -940], [30, -1024]] },
+    { name: 'Konkan Road', kind: 'road', width: 3.6, lanes: 2, shoulder: 8, level: true, grade: 0.12, cut: 6, extend: [0, 8], points: [[-558, 47], [-610, 44], [-690, 42], [-770, 40], [-860, 40], [-950, 40], [-1024, 40]] },
+    // (off the Kurinji jeep track below the summit, north through the gap between the peaks: gravel, as the pass road it
+    // runs on into is)
+    { name: 'Pass Road', kind: 'road', width: 3.4, grade: 0.12, cut: 6, extend: [0, 8], surface: SURFACE.GRAVEL, points: [[17, -775], [20, -850], [25, -940], [30, -1024]] },
     // (the corner from the estate road onto the jeep track at the factory, worn smooth: the road is cut into the slope
     // there a metre and a half below the yard's edge, a crest a long truck grounds on as it turns)
     { name: 'Factory Turn', kind: 'trail', width: 2.4, points: [[57, -633], [54, -641], [55.5, -647], [60, -648.5], [66, -646], [69, -643]] }],
@@ -85,8 +86,12 @@ export const KERALA_W = {
 /** Ashwood as it stands in the world: a pass south, and the old valley road on through it. */
 export const ASHWOOD_W = {
   ...ASHWOOD, id: 'ashwood@world', baseHeight: ashwoodGround,
-  trails: [...ASHWOOD.trails, { name: 'Pass Road', kind: 'road', width: 3.4, points: [[10, 890], [14, 950], [18, 1000], [20, 1024]] }],
+  trails: [...ASHWOOD.trails, { name: 'Pass Road', kind: 'road', width: 3.4, extend: [0, 8], points: [[10, 890], [14, 950], [18, 1000], [20, 1024]] }],
 };
+
+// (the roads that cross a seam: extend: [start, end] m, each paved straight on past its end at the seam, and its lines
+// and wear with it, each map drawing only its own side: so a road crossing a seam at a slant is paved right up to it
+// on both sides, world/WorldGen.js, render/RoadMarkings.js, render/RoadWear.js)
 
 // ---------------------------------------------------------------- seams, and roads on graded ground
 /**
@@ -318,7 +323,7 @@ export const GHAT = {
   load: () => COAST.load(), baseHeight: ghatGround, roughOf: (h) => clamp((h - 40) / 200, 0.2, 0.8),
   get river() { return ghatRiver(); }, peaks: [],
   trails: [
-    { name: 'Konkan Ghat Road', kind: 'road', width: 3.6, lanes: 2, grade: 0.09, smooth: 30, cut: 7, shoulder: 8, level: true,
+    { name: 'Konkan Ghat Road', kind: 'road', width: 3.6, lanes: 2, grade: 0.09, smooth: 30, cut: 7, shoulder: 8, level: true, extend: [8, 8],
       points: [[-1024, 29], [-964, 72], [-880, 92], [-760, 96], [-600, 70], [-420, 40], [-240, 52], [-60, 84], [140, 70], [340, 60], [540, 44], [720, 30], [860, 36], [960, 40], [1024, 40]] },
     // (down off the road into the river's valley, and up it along the bank to below the gorge)
     { name: 'Kundalika River Track', kind: 'trail', width: 2.2, points: [[340, 60], [400, 250], [480, 430], [570, 600], [650, 740], [720, 840], [770, 885]] },
@@ -367,7 +372,7 @@ export const PASS = {
   // and are green, it stays above them)
   snowLineAt: (x, z) => 390 + 180 * smoothstep(600, 900, z),
   trails: [
-    { name: 'Ashwood Pass Road', kind: 'road', width: 3.4, grade: 0.12, smooth: 24, cut: 6,
+    { name: 'Ashwood Pass Road', kind: 'road', width: 3.4, grade: 0.12, smooth: 24, cut: 6, extend: [8, 8],
       points: [[30, 1024], [40, 900], [62, 760], [40, 600], [0, 430], [-10, 250], [20, 60], [60, -120], [52, -300], [10, -480], [-12, -660], [0, -820], [14, -940], [20, -1024]] },
     { name: 'Cairn Ridge Trail', kind: 'trail', width: 2.1, points: [[-10, 250], [-150, 210], [-290, 130], [-390, 10], [-420, -130], [-350, -250], [-210, -320], [-70, -330], [52, -300]] },
   ],
@@ -413,7 +418,7 @@ export const WORLD = {
   id: 'world', name: 'Open World', short: 'World',
   races: [
     { id: 'coasttosnow', kind: 'rally', name: 'Coast to Snow', desc: 'Kashid to Ashwood: up the Kashid ghat, over the Konkan Ghat into Kerala, through the town and the tea, over the Ashwood Pass and down to the ranger station.',
-      via: COAST_TO_SNOW, cps: 16, r: 14, par: { gold: 1564, silver: 1877, bronze: 2315 }, prize: 4 },
+      via: COAST_TO_SNOW, cps: 16, r: 14, par: { gold: 1569, silver: 1882, bronze: 2322 }, prize: 4 },
   ],
   blurb: 'The Konkan Coast, the Kerala Ghats and Ashwood Valley in one world: drive from the Arabian Sea up the ghats, through the tea estates and over the pass to the snow, with no loading on the way.',
   tagline: 'Old trucks, real physics, good friends. One world from the sea to the snow: drive it together.',

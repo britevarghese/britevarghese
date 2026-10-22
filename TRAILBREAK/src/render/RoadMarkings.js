@@ -9,19 +9,39 @@ import { spline } from '../world/WorldGen.js';
 const WHITE = [0.86, 0.86, 0.82], YELLOW = [0.85, 0.62, 0.12];
 const STEP = 1.5;                       // (m along a road between the strips' corners)
 
+/**
+ * A road's line every `step` m, and how far along it each point is: carried straight on past its ends by r.extend
+ * ([start, end] m: an open-world road crossing a seam, drawn up to the edge of its map's square, render/WorldView.js),
+ * the distance running from minus the start's extension.
+ */
+export function roadLine(r, step) {
+  const P = spline(r.points, step);
+  const [e0, e1] = r.extend || [0, 0];
+  const on = (a, b, len) => { const l = Math.hypot(a[0] - b[0], a[1] - b[1]) || 1, out = []; for (let d = step; d <= len + 1e-6; d += step) out.push([a[0] + (a[0] - b[0]) / l * d, a[1] + (a[1] - b[1]) / l * d]); return out; };
+  if (e0) P.unshift(...on(P[0], P[1], e0).reverse());
+  if (e1) P.push(...on(P[P.length - 1], P[P.length - 2], e1));
+  const S = [-(Math.floor(e0 / step + 1e-6) * step)];
+  for (let i = 1; i < P.length; i++) S.push(S[i - 1] + Math.hypot(P[i][0] - P[i - 1][0], P[i][1] - P[i - 1][1]));
+  return { P, S };
+}
+
+/** A fragment past the map's square (uHalf; its own frame) is not drawn: the next map draws its side of a seam. */
+export const SQUARE_CLIP = 'if (max(abs(vSq.x), abs(vSq.y)) > uHalf) discard;';
+
 export class RoadMarkings {
   constructor(world, scene) {
     const roads = (world.data.trails || []).filter((t) => t.lanes !== undefined);
     if (!roads.length) return;
     const pos = [], col = [], idx = [];
-    const H = (x, z) => world.terrain(x, z) + 0.035;
+    // (past the map's square, where a road runs on over a seam, the height at its edge: the rest isn't drawn)
+    const E = world.half, H = (x, z) => world.terrain(Math.max(-E, Math.min(E, x)), Math.max(-E, Math.min(E, z))) + 0.035;
     // one line: offset o (m, + to the right of the way it runs), half-width hw, colour, dashes (dash, gap: m) or solid,
     // over [s0, s1] of its length
     const line = (P, S, o, hw, c, dash = null, s0 = 0, s1 = Infinity) => {
       let prev = null;
       for (let i = 0; i < P.length; i++) {
         const s = S[i];
-        const on = s >= s0 && s <= s1 && (!dash || (s % (dash[0] + dash[1])) < dash[0]);
+        const on = s >= s0 && s <= s1 && (!dash || (((s % (dash[0] + dash[1])) + dash[0] + dash[1]) % (dash[0] + dash[1])) < dash[0]);
         if (!on) { prev = null; continue; }
         const a = P[Math.max(0, i - 1)], b = P[Math.min(P.length - 1, i + 1)];
         let tx = b[0] - a[0], tz = b[1] - a[1];
@@ -36,8 +56,7 @@ export class RoadMarkings {
       }
     };
     for (const r of roads) {
-      const P = spline(r.points, STEP), S = [0];
-      for (let i = 1; i < P.length; i++) S.push(S[i - 1] + Math.hypot(P[i][0] - P[i - 1][0], P[i][1] - P[i - 1][1]));
+      const { P, S } = roadLine(r, STEP);
       const W = r.width, L = S[S.length - 1];
       if (r.runway) {
         line(P, S, 0, 0.45, WHITE, [30, 20], 60, L - 60);                 // the centre line
@@ -62,13 +81,19 @@ export class RoadMarkings {
     const mat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.62, metalness: 0, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -4 });
     // worn paint: rubbed off in patches by the tyres and the weather, the asphalt showing through (and the dirt on it,
     // render/RoadWear.js, lying over it)
+    const half = world.half;
     mat.onBeforeCompile = (sh) => {
+      sh.uniforms.uHalf = { value: half };
       sh.vertexShader = sh.vertexShader
-        .replace('#include <common>', '#include <common>\nvarying vec3 vWPos;')
-        .replace('#include <worldpos_vertex>', '#include <worldpos_vertex>\nvWPos = (modelMatrix * vec4(transformed, 1.0)).xyz;');
+        .replace('#include <common>', '#include <common>\nvarying vec3 vWPos;\nvarying vec2 vSq;')
+        .replace('#include <worldpos_vertex>', '#include <worldpos_vertex>\nvWPos = (modelMatrix * vec4(transformed, 1.0)).xyz;\nvSq = transformed.xz;');
       sh.fragmentShader = sh.fragmentShader
+        .replace('#include <clipping_planes_fragment>', `#include <clipping_planes_fragment>
+${SQUARE_CLIP}`)
         .replace('#include <common>', `#include <common>
 varying vec3 vWPos;
+varying vec2 vSq;
+uniform float uHalf;
 ${HASH21}
 float mh(vec2 p) { return hash21(p); }
 float mn(vec2 p) { vec2 i = floor(p), f = fract(p); vec2 u = f * f * (3.0 - 2.0 * f);

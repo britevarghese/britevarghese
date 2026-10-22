@@ -8,7 +8,7 @@
 // distance rather than shimmer.
 import * as THREE from 'three';
 import { HASH21 } from './ShaderHash.js';
-import { spline } from '../world/WorldGen.js';
+import { roadLine, SQUARE_CLIP } from './RoadMarkings.js';
 
 const STEP = 2;                                   // (m along a road between the strip's rows)
 const OVER = 0.7;                                 // (m past the tarmac's edge it reaches, for the crumbling edge)
@@ -26,10 +26,10 @@ export class RoadWear {
     if (!roads.length) return;
     const verge = (world.data.puddles || []).filter((p) => p.verge);
     const pos = [], road = [], mud = [], idx = [];
-    const H = (x, z) => world.terrain(x, z) + 0.04;
+    // (past the map's square, where a road runs on over a seam, the height at its edge: the rest isn't drawn)
+    const E = world.half, H = (x, z) => world.terrain(Math.max(-E, Math.min(E, x)), Math.max(-E, Math.min(E, z))) + 0.04;
     for (const r of roads) {
-      const P = spline(r.points, STEP), S = [0];
-      for (let i = 1; i < P.length; i++) S.push(S[i - 1] + Math.hypot(P[i][0] - P[i - 1][0], P[i][1] - P[i - 1][1]));
+      const { P, S } = roadLine(r, STEP);
       // (a runway: its length where a road has its lanes, negative)
       const W = r.width, L = S[S.length - 1], lanes = r.runway ? -L : r.lanes;
       // the mud's sources along this road: its verge puddles (on their side), and a field gate every few hundred metres
@@ -92,19 +92,27 @@ export class RoadWear {
       // (over the ground and over the painted lines: the mud lies on the paint too)
       polygonOffset: true, polygonOffsetFactor: -3, polygonOffsetUnits: -6,
     });
+    const half = world.half;
     mat.onBeforeCompile = (sh) => {
+      sh.uniforms.uHalf = { value: half };
       sh.vertexShader = sh.vertexShader
         .replace('#include <common>', `#include <common>
 attribute vec4 road;
 attribute float mud;
 varying vec4 vRoad;
 varying float vMud;
-varying vec3 vWPos;`)
+varying vec3 vWPos;
+varying vec2 vSq;`)
         .replace('#include <worldpos_vertex>', `#include <worldpos_vertex>
 vRoad = road; vMud = mud;
-vWPos = (modelMatrix * vec4(transformed, 1.0)).xyz;`);
+vWPos = (modelMatrix * vec4(transformed, 1.0)).xyz;
+vSq = transformed.xz;`);
       sh.fragmentShader = sh.fragmentShader
+        .replace('#include <clipping_planes_fragment>', `#include <clipping_planes_fragment>
+${SQUARE_CLIP}`)
         .replace('#include <common>', `#include <common>
+varying vec2 vSq;
+uniform float uHalf;
 varying vec4 vRoad;
 varying float vMud;
 varying vec3 vWPos;
@@ -139,14 +147,16 @@ vec3 pc = vec3(0.0); float pa = 0.0, pr = 0.0;
     LAY(vec3(0.004), wheel * 0.3, 0.55);
     float oil = exp(-pow(lp / 0.3, 2.0)) * (0.45 + 0.55 * rn(vec2(s * 0.6, v * 2.0))) * paved;
     LAY(vec3(0.003, 0.003, 0.004), oil * 0.24, 0.38);
-    // repair patches: a lane's width of fresh tar, its seams sealed black
+    // repair patches: most of a lane's width of fresher, darker tar (inside the painted lines, which were put back over
+    // it), its cut edges wandering a little and their seams sealed with a thin black band
     float ci = floor(s / 27.0), h1 = rh(vec2(ci, W)), h2 = rh(vec2(ci, W + 7.1)), h3 = rh(vec2(ci, W + 3.3)), h4 = rh(vec2(ci, W + 1.9));
     float p0 = ci * 27.0 + 3.0 + h2 * 12.0, p1 = p0 + 3.0 + h3 * 7.0;
-    float l0 = -W + floor(h4 * lanes) * lw + 0.25, l1 = l0 + lw - 0.5;
-    float inP = step(h1, 0.38) * step(p0, s) * step(s, p1) * step(l0, v) * step(v, l1);
-    LAY(vec3(0.008, 0.008, 0.009), inP * 0.7, 0.8);
-    float seam = step(h1, 0.38) * (1.0 - smoothstep(0.03, 0.07, min(min(abs(s - p0), abs(s - p1)), min(abs(v - l0), abs(v - l1))))) * step(p0 - 0.1, s) * step(s, p1 + 0.1) * step(l0 - 0.1, v) * step(v, l1 + 0.1);
-    LAY(vec3(0.002), seam * 0.75 * mid, 0.4);
+    float la = -W + floor(h4 * lanes) * lw, l0 = max(la + 0.3, -W + 0.75), l1 = min(la + lw - 0.3, W - 0.75);
+    float jag = (rn(w * 2.3) - 0.5) * 0.08 * mid;
+    float dP = min(min(s - p0, p1 - s), min(v - l0, l1 - v)) + jag;     // (m inside the patch's edge; < 0 outside)
+    float has = step(h1, 0.38);
+    LAY(vec3(0.012, 0.012, 0.013), has * smoothstep(-0.01, 0.02, dP) * (0.42 + 0.08 * rn(w * 0.8)), 0.7);
+    LAY(vec3(0.003), has * (1.0 - smoothstep(0.02, 0.05, abs(dP))) * 0.5 * mid, 0.35);
     // cracks: across the road every so often, wandering, and a web of them along the edges, all filled with tar
     float cj = floor(s / 9.0), cs = cj * 9.0 + rh(vec2(cj, 2.0 * W)) * 9.0 + sin(v * 1.7 + cj) * 0.35;
     float across = step(rh(vec2(cj, W + 5.0)), 0.45) * (1.0 - smoothstep(0.015, 0.04, abs(s - cs))) * step(av, W - 0.3 - rh(vec2(cj, 9.0)) * W);

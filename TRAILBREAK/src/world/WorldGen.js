@@ -426,15 +426,16 @@ export async function generateWorld({ map, onProgress = () => {}, yieldEvery = 6
   // every trail point in one list: target height, half-width, kind (1 trail, 2 road), its ford's depth (a causeway's
   // is shallow); and a paved road's own: the shoulder its bed blends into the land over, and whether it is laid
   // level across (a highway's tarmac) and crosses the river on a bridge
-  const tpH = [], tpW = [], tpK = [], tpX = [], tpZ = [], tpF = [], tpS = [], tpL = [], tpB = [];
+  const tpH = [], tpW = [], tpK = [], tpX = [], tpZ = [], tpF = [], tpS = [], tpL = [], tpB = [], tpR = [];
   // (a point every grid cell along each trail: on a big map's roads more of them than 16 bits count)
   const trailPts = M.trails.map((tr) => spline(tr.points, RES));
-  const tD = new Uint8Array(N * N).fill(255), tI = new (trailPts.reduce((a, p) => a + p.length, 0) > 65535 ? Uint32Array : Uint16Array)(N * N);   // distance in 0.1 m units
+  const nTP = trailPts.reduce((a, p, i) => a + p.length + (M.trails[i].extend ? (M.trails[i].extend[0] + M.trails[i].extend[1]) / RES + 2 : 0), 0);
+  const tD = new Uint8Array(N * N).fill(255), tI = new (nTP > 65535 ? Uint32Array : Uint16Array)(N * N);   // distance in 0.1 m units
   const trailLines = [];
   for (const [ti, tr] of M.trails.entries()) {
     const pts = trailPts[ti];
     // (a road with lanes: its width and lanes go to the renderer, for the markings)
-    trailLines.push({ name: tr.name, kind: tr.kind, points: spline(tr.points, 6), ...(tr.lanes !== undefined ? { lanes: tr.lanes, width: tr.width, ...(tr.runway ? { runway: true } : {}) } : {}) });
+    trailLines.push({ name: tr.name, kind: tr.kind, points: spline(tr.points, 6), ...(tr.lanes !== undefined ? { lanes: tr.lanes, width: tr.width, ...(tr.runway ? { runway: true } : {}) } : {}), ...(tr.extend ? { extend: tr.extend } : {}) });
     // the trail's own grade: the ground along it, smoothed (a road more than a trail; a highway over a longer stretch,
     // tr.smooth points). A bridge's deck stands clear of the river under it.
     let hs = pts.map(([x, z]) => {
@@ -481,15 +482,31 @@ export async function generateWorld({ map, onProgress = () => {}, yieldEvery = 6
         if (n >= 0 && n < pts.length) s += hyp(pts[n][0] - pts[c][0], pts[n][1] - pts[c][1]);
       }
     }
+    // (a road that runs on into the next map of the open world, crossing the edge at a slant: its bed carried straight
+    // on past its ends, tr.extend [start, end] m, at the height of each end, so it is paved right up to the edge rather
+    // than stopping square to itself, short of the edge on one side)
+    const fp = pts.slice(), fh = Array.from(hs);
+    if (tr.extend) {
+      const on = (e, len) => {
+        const a = pts[e], b = pts[e ? pts.length - 2 : 1], l = hyp(a[0] - b[0], a[1] - b[1]) || 1, out = [];
+        for (let d = RES; d <= len; d += RES) out.push([a[0] + (a[0] - b[0]) / l * d, a[1] + (a[1] - b[1]) / l * d]);
+        return out;
+      };
+      const [e0, e1] = tr.extend;
+      if (e0) { const add = on(0, e0).reverse(); fp.unshift(...add); fh.unshift(...add.map(() => hs[0])); }
+      if (e1) { const add = on(pts.length - 1, e1); fp.push(...add); fh.push(...add.map(() => hs[hs.length - 1])); }
+    }
     const base = tpH.length;
     const shoulder = tr.shoulder ?? 6;
-    for (let p = 0; p < pts.length; p++) {
-      tpH.push(hs[p]); tpW.push(tr.width); tpK.push(tr.kind === 'road' ? 2 : 1); tpX.push(pts[p][0]); tpZ.push(pts[p][1]); tpF.push(tr.ford);
+    for (let p = 0; p < fp.length; p++) {
+      tpH.push(fh[p]); tpW.push(tr.width); tpK.push(tr.kind === 'road' ? 2 : 1); tpX.push(fp[p][0]); tpZ.push(fp[p][1]); tpF.push(tr.ford);
       tpS.push(shoulder); tpL.push(tr.level ? 1 : 0.97); tpB.push(!!tr.bridge);
+      // (a road's surface: the map's, or its own: tr.surface)
+      tpR.push(tr.surface ?? M.roadSurface ?? SURFACE.GRAVEL);
     }
     const Rr = Math.ceil((tr.width + shoulder) / RES);
-    for (let p = 0; p < pts.length; p++) {
-      const [px, pz] = pts[p];
+    for (let p = 0; p < fp.length; p++) {
+      const [px, pz] = fp[p];
       const ci = Math.round((px - GRID_ORIGIN) / RES), ck = Math.round((pz - GRID_ORIGIN) / RES);
       for (let k = Math.max(0, ck - Rr); k <= Math.min(N - 1, ck + Rr); k++) {
         const dz = GRID_ORIGIN + k * RES - pz;
@@ -644,7 +661,7 @@ export async function generateWorld({ map, onProgress = () => {}, yieldEvery = 6
       // trails and road (on top)
       const td = trailD(idx), tw = trailW(idx);
       // (up in the snow a trail is the lookout's gravel track, ploughed, with the snow banked either side)
-      if (td < tw * 0.95) s = trailK(idx) === 2 ? (M.roadSurface ?? SURFACE.GRAVEL) : s === SURFACE.SNOW ? SURFACE.GRAVEL : (s === SURFACE.MUD ? SURFACE.MUD : s === SURFACE.ROCK && sl > 0.5 ? SURFACE.ROCK : SURFACE.DIRT);
+      if (td < tw * 0.95) s = trailK(idx) === 2 ? tpR[tI[idx]] : s === SURFACE.SNOW ? SURFACE.GRAVEL : (s === SURFACE.MUD ? SURFACE.MUD : s === SURFACE.ROCK && sl > 0.5 ? SURFACE.ROCK : SURFACE.DIRT);
       else if (td < tw + 1.6 && (s === SURFACE.GRASS || s === M.vergeOf) && vnoise(x / 3, z / 3, S + 78) > 0.4) s = SURFACE.DIRT;
       // under water
       const wl = waterAt(x, z);

@@ -367,7 +367,7 @@ puts you back at the last checkpoint passed, facing the next, while the clock ru
 | Kundalika Descent | Open world | 0.9 km off the ghat road and down the river track to the bank of the river out of Kerala | 57 / 69 / 85 s |
 | Ashwood Pass Climb | Open world | 1.2 km up the pass road from the Ashwood side to the saddle | 1:19 / 1:35 / 1:57 |
 | Cairn Ridge Trail | Open world | 1.2 km off the top of the pass, round the ridge to the west on the cairn trail and back to the road | 1:18 / 1:34 / 1:55 |
-| Coast to Snow | Open world | 18.6 km across the whole world, 16 checkpoints: up the Kashid ghat, over the Konkan Ghat into Kerala, through the town and the tea, up the Kurinji jeep track, over the Ashwood Pass and down to the ranger station | 26:04 / 31:17 / 38:35 |
+| Coast to Snow | Open world | 18.6 km across the whole world, 16 checkpoints: up the Kashid ghat, over the Konkan Ghat into Kerala, through the town and the tea, up the Kurinji jeep track, over the Ashwood Pass and down to the ranger station | 26:09 / 31:22 / 38:42 |
 
 The races live in each map's `races` list (src/world/maps/), built by src/game/Races.js onto the trails as they are
 (the world's ground isn't changed by them). The open world's are its stretches' own and one of its own across them all
@@ -871,15 +871,25 @@ Where a stretch meets a map whose ground has textures of another set (the ghat a
 own give way to that map's over the last 160 m, so both sides of the seam are textured alike; and every stretch's
 land takes on its neighbours' colours towards their seams (the neighbour's average colour just past the edge against
 the stretch's own, smoothed along the seam, the factor fading over the same 160 m): measured along the seams, the
-Ghat's ground was 1.6 times brighter than Kerala's where they meet, and now matches it within a few per cent. Each
-map's ground is shaded at its edge with the ground across the seam (its neighbour's, or the far land's until that
-comes in), so the seams show no line of shading either. The station and the workshop are the nearest ones: towed
+Ghat's ground was 1.6 times brighter than Kerala's where they meet, and now matches it within a few per cent. Close
+up, where the textures show what each kind of ground is, the tints take a factor of their own, from the same kinds of
+ground either side (gravel against gravel, grass against grass): the land's average alone darkened the pass road's
+gravel to the colour of Kerala's forest across the seam (to 0.73 of the brightness of the same gravel on Kerala's
+side, in a screenshot from above); now it is within 6%. Each map's ground is shaded at its edge with the ground across
+the seam (its neighbour's, or the far land's until that comes in), so the seams show no line of shading either.
+
+**Roads across the seams.** A road that runs out of one map into the next is paved a few metres on past the edge (its
+line carried straight on, `extend` in `world/maps/world.js`), and each map's road surface, lane lines and wear are cut
+off at its own square: where a road crosses a seam at an angle (the coast's ghat road meets the Konkan Ghat's at 36°)
+neither side's tarmac stops short of the other's, and the lines and the wear run on across the join. The Kerala spur
+to the pass is gravel, as the pass road it runs on into is. The repairs in the two-lane roads' asphalt are patches inside one
+lane (a darker, fresher square of tarmac with a ragged dark seam of sealant round it), kept clear of the edge lines. The station and the workshop are the nearest ones: towed
 home, a truck goes back to the yard of the map it is on.
 
 **Events across the world.** The stretches have races of their own (the Konkan Ghat Road and the Kundalika Descent on
 the Konkan Ghat; the Ashwood Pass Climb and the Cairn Ridge Trail on the pass), and once every map is in, **Coast to
 Snow** joins them: 18.6 km from Kashid beach to Ashwood's ranger station, the whole world in one rally. A careful
-robot driver on the real physics finished it in every stock truck tried (Thar 26:31, Wrangler 26:04, Ranger 27:13),
+robot driver on the real physics finished it in every stock truck tried (Thar 26:32, Wrangler 26:09, Ranger 27:14),
 and its par times come from those runs, as the other races' do. (The Ranger, the longest of them, first grounded at
 the corner from Kerala's estate road onto the Kurinji jeep track by the tea factory, where the road is cut into the
 slope a metre and a half below the yard's edge: in the open world that corner is a short track of graded ground, the

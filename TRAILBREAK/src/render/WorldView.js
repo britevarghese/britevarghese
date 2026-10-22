@@ -68,7 +68,10 @@ export class RegionView {
       const N = REGIONS.find((R) => R.id === nid).map;
       if (N.ground !== M.ground) blend = { side, ground: await groundOf(N.ground, quality), band: 160 };
       const nv = views.find((o) => o.region.id === nid), [ox, oz] = OUT[side];
-      if (nv) match.push({ side, colorAt: (x, z, out) => nv.terrain.colorAt(x + region.cx - nv.region.cx + ox * 8, z + region.cz - nv.region.cz + oz * 8, 32, 0, 0, out) });
+      if (nv) {
+        const dx = region.cx - nv.region.cx, dz = region.cz - nv.region.cz;
+        match.push({ side, colorAt: (x, z, out) => nv.terrain.colorAt(x + dx + ox * 8, z + dz + oz * 8, 32, 0, 0, out), toneAt: (x, z, out) => nv.terrain.toneAt(x + dx, z + dz, out) });
+      }
     }
     // (a step at a time, the game running between them)
     const tick = () => new Promise((r) => setTimeout(r, 0));
