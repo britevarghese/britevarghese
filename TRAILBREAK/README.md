@@ -439,7 +439,11 @@ steer push-pull: past their reach they let go and take the rim again further bac
 crossing over the top; a quick lock on the keys slides the wheel through them, and driving straight again they go back
 to a quarter to three. In the cab view (C) you sit in his place and see your gloved hands on the wheel (the same driving
 gloves and sleeves as NIGHTSHIFT's); from outside, you see him through the windows. The garage and the dealer show the
-seat empty.
+seat empty. He sits back in the seat, leaning against it: his hips 12 cm in front of the seat back's face (measured in
+each model's own seats, `hip` in `physics/trucks.js`; in the seats the game builds, 28 cm ahead of his eyes, as they are
+built). He used to be posed leaning forward with his hips 26 cm behind his eyes, which put them inside the seat back in
+every car, by 6 to 54 cm; through the Cybertruck's glass roof he could be seen sitting behind his seat, between it and
+the back bench (its eyes, and the cab view, are now 19 cm further forward, his head against the headrest).
 
 | Truck | Price | Kind | Wheelbase | Weight | Engine | Gearbox | Low range / axles | Stock tyres | Under the diffs | Approach / departure / breakover |
 |---|---|---|---|---|---|---|---|---|---|---|

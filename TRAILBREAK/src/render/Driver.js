@@ -38,9 +38,10 @@ const v3 = (x, y, z) => new THREE.Vector3(x, y, z);
 export class Driver {
   /**
    * wheel: the steering wheel's group (in the body: its position and rotation, the column's), rimR: the rim's radius
-   * (m, to the middle of its tube), eye: the driver's eye [x, y, z] in the design frame.
+   * (m, to the middle of its tube), eye: the driver's eye [x, y, z] in the design frame, hipZ: how far forward his hips
+   * are (as render/Person.js).
    */
-  constructor(wheel, rimR, eye) {
+  constructor(wheel, rimR, eye, hipZ = eye[2] + 0.28) {
     shared();
     this.hands = new Hands();
     this.rimR = rimR;
@@ -60,7 +61,7 @@ export class Driver {
     neck.add(lean);
     this.shoulders = [sh(1), sh(-1)];                   // (left: +x, as the left hand)
     this.out = [1, -1];                                 // (each elbow's way out from the body, across)
-    const pelvis = E.clone().add(v3(0, -0.66, -0.2));
+    const pelvis = v3(E.x, E.y - 0.66, hipZ - 0.06);
     this.place(mesh(G.torso, M.shirt), pelvis.clone().add(v3(0, -0.03, 0)), neck.clone().add(v3(0, 0.03, 0)), 2 * TORSO[0] + TORSO[1], [1.15, 0.72]);
     mesh(G.hips, M.trousers).position.copy(pelvis);
     for (const s of [1, -1]) {

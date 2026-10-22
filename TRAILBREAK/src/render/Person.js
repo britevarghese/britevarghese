@@ -152,14 +152,15 @@ class Man extends Poser {
   }
 
   /** Seated with his eyes at `eye`; holds: [left, right] (rimHold); seat: the cab view (head and arms folded away). */
-  pose(eye, holds, seat) {
+  pose(eye, holds, seat, hipZ) {
     const B = this.B, m = this.model;
     for (const b of this.bones) { b.quaternion.copy(b.userData.rest); b.scale.copy(b.userData.restS); }
     m.position.set(0, 0, 0);
     m.updateMatrixWorld(true);
-    // seated, leaning back about 20 degrees: the hips down and behind the eyes
+    // seated, leaning back against the seat: the hips down and ahead of the eyes (+z is forward), as far as the seat has
+    // them (hipZ)
     const head = eye.clone().add(new THREE.Vector3(0, -0.06, -0.12));
-    const hip = eye.clone().add(new THREE.Vector3(0, -0.66, -0.26));
+    const hip = new THREE.Vector3(eye.x, eye.y - 0.66, hipZ);
     m.position.add(hip).sub(pos(B.Hips, _p));
     m.updateMatrixWorld(true);
     this._aim(B.Spine, B.Head, head);
@@ -325,17 +326,18 @@ class Arms extends Poser {
 
 /**
  * The driver for a truck: assets (render/DriverAssets.js), the steering wheel's group (in the body: its position and
- * rotation, the column's), the rim's radius (m), the driver's eye [x, y, z] (the design frame). The same calls as
+ * rotation, the column's), the rim's radius (m), the driver's eye [x, y, z] (the design frame), how far forward his
+ * hips are (z: 28 cm ahead of his eyes in the seats the game builds; spec.hip in a model's own). The same calls as
  * render/Driver.js (drawn instead while the models load): group, update(wheel, dt), setSeatView(on).
  */
 export class Person {
-  constructor(assets, wheel, rimR, eye) {
+  constructor(assets, wheel, rimR, eye, hipZ = eye[2] + 0.28) {
     const q = new THREE.Quaternion().setFromEuler(wheel.rotation);
     this.W = {
       hub: wheel.position.clone(), R: rimR,
       axis: new THREE.Vector3(0, 0, -1).applyQuaternion(q), up0: new THREE.Vector3(0, 1, 0).applyQuaternion(q), right0: new THREE.Vector3(-1, 0, 0).applyQuaternion(q),
     };
-    this.eye = new THREE.Vector3(...eye);
+    this.eye = new THREE.Vector3(...eye); this.hipZ = hipZ;
     this.hands = new Hands();
     this.group = new THREE.Group();
     this.man = new Man(assets.man);
@@ -367,7 +369,7 @@ export class Person {
     const parent = this.group.parent;
     parent?.remove(this.group);
     this.group.updateMatrixWorld(true);
-    this.man.pose(this.eye, holds, this.seat);
+    this.man.pose(this.eye, holds, this.seat, this.hipZ);
     if (this.seat) this.arms.pose(this.eye, holds);
     parent?.add(this.group);
   }

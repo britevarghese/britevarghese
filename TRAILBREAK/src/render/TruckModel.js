@@ -970,7 +970,9 @@ export class TruckModel {
       // the driver, hands on it: a real person once the models are here (render/Person.js), drawn until then
       if (spec.eye && opts.driver !== false) {
         const A = driverAssets();
-        this.driver = A ? new Person(A, g, w.r || 0.19, spec.eye) : new Driver(g, w.r || 0.19, spec.eye);
+        // (his hips where the seat has them: a model's own, measured, spec.hip; the game's, 28 cm ahead of his eyes)
+        const hip = spec.hip ?? spec.eye[2] + 0.28;
+        this.driver = A ? new Person(A, g, w.r || 0.19, spec.eye, hip) : new Driver(g, w.r || 0.19, spec.eye, hip);
         this.body.add(this.driver.group);
       }
     }
