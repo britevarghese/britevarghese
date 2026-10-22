@@ -710,11 +710,13 @@ Everything that makes off-roading off-roading is simulated, not faked:
   beyond that a picture of its model on a card, taken when the game starts. The pictures carry the shade the model has
   where it stands: its inner crown and low branches, and its trunk under the crown in the crown's shadow (without it
   every trunk out there was pale against the dark of the woods, and a row of the coast's evergreen giants read as
-  cut-outs, pale cones under flat discs). Only the models within 110 m of the camera cast shadows (the wide shadow map
-  is 140 m square round the truck): drawn into the shadow maps, the rest would only cost the time. Measured with the
-  models out to 160 m instead of 85: on the coast road 4.7 M triangles a frame instead of 3.0 M, in Kerala's forest
-  and Ashwood's pines 11.3 M instead of 6.1 M (and in the forest about 470 trees, 4 M triangles, kept out of the two
-  shadow maps). No kind of tree runs out of models anywhere tried.
+  cut-outs, pale cones under flat discs). Only the models within 85 m of the camera cast shadows, as all of them did
+  before they went out to 160 m (each is drawn twice more for its shadow, once into each shadow map), and the ones
+  further out leave out their twigs: the smallest of their bark's triangles, a tenth of its area and as much as half
+  their number, under a pixel out there (side by side with the whole models at 100 to 200 m, no different to see).
+  Measured with the models out to 160 m instead of 85: on the coast road 4.6 M triangles a frame instead of 3.0 M, in
+  Kerala's forest 10.3 M instead of 6.1 M, the shadows as they were (the 470 trees past 85 m there are 2.8 M triangles,
+  4.0 M with their twigs). No kind of tree runs out of models anywhere tried.
 - **Graphics level:** if the frame rate stays under 30 fps for two 4-second spells running, the game steps the
   graphics down a level (and says so), and once it runs at 55 fps or more for 12 s it steps back up toward the level
   you chose (not again if the last step up was soon stepped down). Only for the session: it used to keep the lowered

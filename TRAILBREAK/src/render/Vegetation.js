@@ -69,9 +69,10 @@ const CELL = 32;               // the grid the trees are found in round the came
 const IGN = 'float ign(vec2 p) { return fract(52.9829189 * fract(dot(p, vec2(0.06711056, 0.00583715)))); }';
 
 let NEAR = 80;
-// m from the camera within which the models cast shadows (the wide shadow map is 140 m square round the truck: its
-// corners are 99 m from it, and the camera a few metres behind it; it reaches no further)
-const SHADOW_R = 110;
+// m from the camera within which the models cast shadows: as far as all the models stood before they went out to 160 m
+// (each is drawn twice more for its shadow, once into each shadow map; out past this, in the wide map's corners, a
+// tree's shadow is small and far off)
+const SHADOW_R = 85;
 // a tree shorter than NEAR_H (m) has its model drawn only out to that share of the range (no less than NEAR_MIN)
 const NEAR_H = 8, NEAR_MIN = 0.35;
 const nearShare = (h) => Math.min(1, Math.max(NEAR_MIN, h / NEAR_H));
@@ -245,6 +246,38 @@ function crownBottom(asset) {
   return (asset.crownB = ys.length ? ys[Math.floor(ys.length * 0.1)] : 0.5);
 }
 
+/**
+ * A model's part as drawn out past the shadows' range (85 m on): its bark without the twigs (the smallest of its
+ * triangles, a tenth of its area all told and as much as half their number, under a pixel out there); its leaves all
+ * kept, for the crown's outline. Made once a part (the maps that grow the same set share it).
+ */
+const FAR_GEOM = new WeakMap();
+function farGeometry(group) {
+  if (group.kind !== 'bark') return group.geometry;
+  if (FAR_GEOM.has(group)) return FAR_GEOM.get(group);
+  const g = group.geometry, p = g.attributes.position, idx = g.index.array, n = idx.length / 3;
+  const area = new Float32Array(n), order = new Uint32Array(n);
+  let total = 0;
+  for (let t = 0; t < n; t++) {
+    const i0 = idx[t * 3], i1 = idx[t * 3 + 1], i2 = idx[t * 3 + 2];
+    const ax = p.getX(i1) - p.getX(i0), ay = p.getY(i1) - p.getY(i0), az = p.getZ(i1) - p.getZ(i0);
+    const bx = p.getX(i2) - p.getX(i0), by = p.getY(i2) - p.getY(i0), bz = p.getZ(i2) - p.getZ(i0);
+    area[t] = 0.5 * Math.hypot(ay * bz - az * by, az * bx - ax * bz, ax * by - ay * bx);
+    total += area[t]; order[t] = t;
+  }
+  order.sort((a, b) => area[b] - area[a]);
+  const keep = new Uint8Array(n);
+  for (let k = 0, sum = 0; k < n && sum < 0.9 * total; k++) { keep[order[k]] = 1; sum += area[order[k]]; }
+  const out = [];
+  for (let t = 0; t < n; t++) if (keep[t]) out.push(idx[t * 3], idx[t * 3 + 1], idx[t * 3 + 2]);
+  const f = new THREE.BufferGeometry();
+  for (const [name, attr] of Object.entries(g.attributes)) f.setAttribute(name, attr);
+  f.setIndex(new THREE.BufferAttribute(new (idx.constructor)(out), 1));
+  f.boundingSphere = g.boundingSphere;
+  FAR_GEOM.set(group, f);
+  return f;
+}
+
 /** Normals for the impostor pictures: the same soft crown normals, in the bake camera's view space. */
 function bakeNormalMaterial(group) {
   const leaf = group.kind === 'leaf';
@@ -312,14 +345,15 @@ export class Vegetation {
     }
     // near: the models (one instanced mesh per species and material, sharing the species' instance matrices)
     // each kind's models twice over: those near enough to cast shadows into view, and those further out, which don't
-    // (out there a model's shadow falls past the shadow maps: drawn into them it only cost the time)
+    // (out there a model's shadow falls past the shadow maps: drawn into them it only cost the time) and leave out their
+    // twigs (farGeometry)
     this.near = this.kinds.map((name, k) => {
       const a = assets[name], cap = Math.max(1, Math.min(perKind[k], 2500));
       const mats = a.groups.map((gr) => treeMaterial(gr, this.uniforms, a.radius, false, set.crown?.[name] ?? 0.62, this.fade[k]));
       const models = (shadows) => {
         let matrix = null, color = null;
         const meshes = a.groups.map((gr, g) => {
-          const m = new THREE.InstancedMesh(gr.geometry, mats[g], cap);
+          const m = new THREE.InstancedMesh(shadows ? gr.geometry : farGeometry(gr), mats[g], cap);
           if (!matrix) { matrix = m.instanceMatrix; matrix.setUsage(THREE.DynamicDrawUsage); color = new THREE.InstancedBufferAttribute(new Float32Array(cap * 3), 3); }
           m.instanceMatrix = matrix;
           m.instanceColor = color;
