@@ -15,7 +15,7 @@ export function heightIn(d, x, z) {
 }
 
 /**
- * A neighbour's ground along the edge it shares with a stretch: { side, at0, step, h, g } in the stretch's frame (see
+ * A neighbour's ground along the edge it shares with a stretch: { side, id, at0, step, h, g } in the stretch's frame (see
  * maps/world.js layOnSeams). side: the stretch's side; n: the neighbour's region and its generated data.
  */
 export function seamOf(stretch, side, n, nd) {
@@ -33,7 +33,7 @@ export function seamOf(stretch, side, n, nd) {
     h[t] = e;
     g[t] = (e - heightIn(nd, ix, iz)) / r;            // (rising towards the edge, per metre: carried on past it)
   }
-  return { side, at0: -half, step, h, g };
+  return { side, id: n.id, at0: -half, step, h, g };
 }
 
 /** A stretch's neighbours' edges (done: id -> generated data), or null for a map of its own. */

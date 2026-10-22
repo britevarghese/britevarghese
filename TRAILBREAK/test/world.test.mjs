@@ -113,7 +113,8 @@ test('the open world: the satnav finds the way from the coast to Ashwood by road
   const r = g.route(3940, -712, 7090, -3800);
   assert.ok(r.length > 6000 && r.onTrail > r.length * 0.97, `${(r.length / 1000).toFixed(1)} km, ${(r.onTrail / 1000).toFixed(1)} km of it on roads and tracks`);
   // each join driven: on along the road over it, into the next map
-  for (const [a, b, into] of [[[3940, -712], [4300, -650], 'ghat'], [[5900, -668], [6300, -655], 'kerala'], [[7089, -1470], [7100, -2000], 'pass'], [[7120, -3600], [7090, -3850], 'ashwood']]) {
+  // (each leg from a point on the road to one on the road in the next map: off it, the way to it may run into the woods)
+  for (const [a, b, into] of [[[3940, -712], [4264, -604], 'ghat'], [[5900, -668], [6300, -655], 'kerala'], [[7089, -1470], [7134, -1988], 'pass'], [[7072, -3568], [7090, -3850], 'ashwood']]) {
     const path = densify(g.route(...a, ...b).points);
     const v = new Vehicle(truckSpec('thar'));
     v.place(W, path[0][0], path[0][1], Math.atan2(path[4][0] - path[0][0], path[4][1] - path[0][1]));

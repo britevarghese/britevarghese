@@ -364,10 +364,10 @@ puts you back at the last checkpoint passed, facing the next, while the clock ru
 | Kashid Ghat Rally | Coast | 10.4 km from Kashid over the ghat to the map's eastern edge: the hairpins, then the tableland and its valleys | 9:00 / 11:30 / 14:20 |
 | Plateau Sprint | Coast | 2.5 km across the tableland from the Kashid ghat to the south ghat, past the airstrip | 1:37 / 1:58 / 2:25 |
 | Konkan Ghat Road | Open world | 1.9 km of the two-lane ghat road from the coast's edge across the upland and down into Kerala | 1:57 / 2:20 / 2:53 |
-| Kundalika Descent | Open world | 0.9 km off the ghat road and down the river track to the bank of the river out of Kerala | 57 / 69 / 85 s |
-| Ashwood Pass Climb | Open world | 1.2 km up the pass road from the Ashwood side to the saddle | 1:19 / 1:35 / 1:57 |
-| Cairn Ridge Trail | Open world | 1.2 km off the top of the pass, round the ridge to the west on the cairn trail and back to the road | 1:18 / 1:34 / 1:55 |
-| Coast to Snow | Open world | 18.6 km across the whole world, 16 checkpoints: up the Kashid ghat, over the Konkan Ghat into Kerala, through the town and the tea, up the Kurinji jeep track, over the Ashwood Pass and down to the ranger station | 26:09 / 31:22 / 38:42 |
+| Kundalika Descent | Open world | 0.9 km off the ghat road and down the river track to the bank of the river out of Kerala | 58 / 69 / 85 s |
+| Ashwood Pass Climb | Open world | 1.2 km up the pass road from the Ashwood side to the saddle | 1:19 / 1:35 / 1:58 |
+| Cairn Ridge Trail | Open world | 1.2 km off the top of the pass, round the ridge to the west on the cairn trail and back to the road | 1:18 / 1:33 / 1:55 |
+| Coast to Snow | Open world | 18.6 km across the whole world, 16 checkpoints: up the Kashid ghat, over the Konkan Ghat into Kerala, through the town and the tea, up the Kurinji jeep track, over the Ashwood Pass and down to the ranger station | 26:15 / 31:29 / 38:50 |
 
 The races live in each map's `races` list (src/world/maps/), built by src/game/Races.js onto the trails as they are
 (the world's ground isn't changed by them). The open world's are its stretches' own and one of its own across them all
@@ -821,7 +821,14 @@ west out of Kerala off the paddy and rubber track, a road north off the Kurinji 
 road south. The stretches are generated after the maps either side of them and laid onto their edges: their ground
 gives way to the neighbour's over the last 220 m, carried on at the neighbour's own slope, and once everything is cut
 into it the edge is the neighbour's height at every point, so nothing steps where two maps meet (the stretches are on
-1 m grids, as Kerala and Ashwood are, so the points along a seam are the same points). Their roads are laid on graded
+1 m grids, as Kerala and Ashwood are, so the points along a seam are the same points). What is carried in is the
+neighbour's edge averaged along it, over more of it the further in (half as far either way as it is in, up to 80 m):
+its hills and valleys run on into the stretch, but not its every hummock, drawn out straight across the band into
+furrows with bare rock down their sides (over the first 120 m in from the Kerala and Ashwood seams the ground's
+unevenness across 4 m was 1.7 to 2.2 m, and is now 0.17 to 0.42 m; the stretches' own ground away from the seams has
+0.18 to 0.5 m). Towards Kerala their steep ground is grown over as Kerala's is, bare rock only on the sheerest faces
+(on the whole of the Konkan Ghat, and on the pass for 210 m in from the seam, giving way over as far again): rock
+covered up to 68% of the land next to Kerala, and now 0 to 13%, as on Kerala's side (up to 17%). Their roads are laid on graded
 ground: the ground along each line smoothed and kept within the road's grade, cut into the rises and built up over the
 dips as deep as that takes, its ends held to the roads they meet, and the land laid onto it with banks either side
 (no stretch of the roads between the maps is steeper than 16%, measured over 10 m). In Node the whole world builds in
@@ -889,7 +896,7 @@ home, a truck goes back to the yard of the map it is on.
 **Events across the world.** The stretches have races of their own (the Konkan Ghat Road and the Kundalika Descent on
 the Konkan Ghat; the Ashwood Pass Climb and the Cairn Ridge Trail on the pass), and once every map is in, **Coast to
 Snow** joins them: 18.6 km from Kashid beach to Ashwood's ranger station, the whole world in one rally. A careful
-robot driver on the real physics finished it in every stock truck tried (Thar 26:32, Wrangler 26:09, Ranger 27:14),
+robot driver on the real physics finished it in every stock truck tried (Thar 26:32, Wrangler 26:15, Ranger 27:14),
 and its par times come from those runs, as the other races' do. (The Ranger, the longest of them, first grounded at
 the corner from Kerala's estate road onto the Kurinji jeep track by the tea factory, where the road is cut into the
 slope a metre and a half below the yard's edge: in the open world that corner is a short track of graded ground, the
