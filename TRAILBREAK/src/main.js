@@ -51,6 +51,9 @@ if (!settings.builds || typeof settings.builds !== 'object') settings.builds = {
 if (!settings.tharDefault) { settings.truck = 'thar'; settings.tharDefault = 1; }
 // crashes only dent and break glass now: everyone gets that once (the menu still has forgiving and realistic)
 if (!settings.lookDamage) { settings.damage = 'cosmetic'; settings.lookDamage = 1; }
+// the graphics stepped down for a slow spell used to be kept: everyone who never picked them gets high back once (the
+// game steps down for the session only now, Game.perf)
+if (!settings.qualityKept) { if (settings.autoQuality !== false) settings.quality = 'high'; settings.qualityKept = 1; }
 const save = () => { try { localStorage.setItem(STORE, JSON.stringify(settings)); } catch { /* storage blocked */ } };
 const garage = new Garage();
 // the career: money, the trucks and parts owned (players from before careers keep their truck and its parts)
@@ -368,8 +371,7 @@ function wireMenus(game, net) {
   $('opt-sound').checked = s.sound;
   $('opt-sound').onchange = () => { s.sound = $('opt-sound').checked; game.audio.setEnabled(s.sound); save(); };
   $('opt-quality').value = s.quality || 'high';
-  $('opt-quality').onchange = () => { s.quality = $('opt-quality').value; s.autoQuality = false; game.applyQuality(); save(); };
-  game.onSettingsChanged = () => { $('opt-quality').value = s.quality; save(); };
+  $('opt-quality').onchange = () => { s.quality = $('opt-quality').value; s.autoQuality = false; game.autoQuality = null; game.applyQuality(); save(); };
   $('opt-assist').checked = s.assist;
   $('opt-assist').onchange = () => { s.assist = $('opt-assist').checked; save(); };
   $('opt-damage').value = ['realistic', 'forgiving'].includes(s.damage) ? s.damage : 'cosmetic';

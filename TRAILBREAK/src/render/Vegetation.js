@@ -202,6 +202,46 @@ ${leaf ? `{
   return mat;
 }
 
+/**
+ * Colours for the impostor pictures: the model's own shade baked in, as the card can't cast it on itself: its inner crown
+ * and low branches (vAO, as treeMaterial), and the trunk under the crown in the crown's shadow (a model there has it
+ * from the shadow map; a picture without it showed every trunk pale against the dark of the woods).
+ */
+function bakeColorMaterial(group, asset) {
+  const leaf = group.kind === 'leaf';
+  const mat = new THREE.MeshBasicMaterial({ map: group.map, alphaTest: leaf ? Math.max(0.3, group.alphaCutoff) : 0, side: leaf ? THREE.DoubleSide : THREE.FrontSide });
+  mat.customProgramCacheKey = () => `treebake ${leaf ? 1 : 0}`;
+  mat.onBeforeCompile = (sh) => {
+    sh.uniforms.uRadius = { value: asset.radius };
+    sh.uniforms.uCrownB = { value: crownBottom(asset) };
+    sh.vertexShader = sh.vertexShader
+      .replace('#include <common>', `#include <common>
+uniform float uRadius;
+uniform float uCrownB;
+varying float vAO;`)
+      .replace('#include <begin_vertex>', `#include <begin_vertex>
+vAO = ${leaf ? 'clamp(0.5 + 0.75 * length(position.xz) / uRadius, 0.5, 1.0) * mix(0.78, 1.0, clamp(position.y * 1.4 - 0.2, 0.0, 1.0))'
+    : 'mix(0.7, 1.0, clamp(position.y * 3.0, 0.0, 1.0)) * mix(0.5, 1.0, smoothstep(uCrownB - 0.12, uCrownB + 0.06, position.y))'};`);
+    sh.fragmentShader = sh.fragmentShader
+      .replace('#include <common>', '#include <common>\nvarying float vAO;')
+      .replace('#include <map_fragment>', '#include <map_fragment>\ndiffuseColor.rgb *= vAO;');
+  };
+  return mat;
+}
+
+/** Where a species' crown begins (its height's share: the lowest tenth of its leaves stand below it). */
+function crownBottom(asset) {
+  if (asset.crownB !== undefined) return asset.crownB;
+  const ys = [];
+  for (const gr of asset.groups) {
+    if (gr.kind !== 'leaf') continue;
+    const p = gr.geometry.attributes.position;
+    for (let i = 0; i < p.count; i += 7) ys.push(p.getY(i));
+  }
+  ys.sort((a, b) => a - b);
+  return (asset.crownB = ys.length ? ys[Math.floor(ys.length * 0.1)] : 0.5);
+}
+
 /** Normals for the impostor pictures: the same soft crown normals, in the bake camera's view space. */
 function bakeNormalMaterial(group) {
   const leaf = group.kind === 'leaf';
@@ -322,7 +362,7 @@ export class Vegetation {
     gl.autoClear = false;
     gl.toneMapping = THREE.NoToneMapping;
     const passes = [
-      { rt: colorRT, clear: [0.11, 0.14, 0.08], mat: (gr) => new THREE.MeshBasicMaterial({ map: gr.map, alphaTest: gr.kind === 'leaf' ? Math.max(0.3, gr.alphaCutoff) : 0, side: gr.kind === 'leaf' ? THREE.DoubleSide : THREE.FrontSide }) },
+      { rt: colorRT, clear: [0.11, 0.14, 0.08], mat: (gr, a) => bakeColorMaterial(gr, a) },
       { rt: normalRT, clear: [0.5, 0.5, 1], mat: (gr) => bakeNormalMaterial(gr) },
     ];
     const tiles = [];
@@ -336,7 +376,7 @@ export class Vegetation {
         cam.updateProjectionMatrix();
         const mats = [];
         for (const gr of a.groups) {
-          const m = pass.mat(gr); mats.push(m);
+          const m = pass.mat(gr, a); mats.push(m);
           scene.add(new THREE.Mesh(gr.geometry, m));
         }
         // (bearing v: the camera at v / VIEWS of a turn round the model, from +z toward +x; a row of the atlas each)

@@ -1401,7 +1401,7 @@ export class Game {
 
     this.touch?.update(this);
     // the mirrors, while they can be seen (from the driver's seat): one drawn a frame (every other on medium graphics)
-    const q = this.settings.quality || 'high';
+    const q = this.quality();
     if (m.mirrors && this.cam.mode === 'cab' && q !== 'low' && !this.noRender) {
       m.mirrors.update(this.renderer.renderer, this.scene, this.renderer.camera.position, q === 'high' ? 1 : 2, [...(this.grass.meshes || [this.grass.mesh]), this.tea?.mesh].filter(Boolean));
     }
@@ -1436,25 +1436,39 @@ export class Game {
     if (!this.noRender) this.renderer.render();
   }
 
-  /** Watch the frame rate; step the graphics down if it can't keep up. */
+  /**
+   * Watch the frame rate: step the graphics down if it can't keep up (two slow 4 s spells running, so one hitch, such
+   * as the open world building a map, doesn't), and back up toward the chosen setting once it runs well again (unless
+   * the last step up was soon stepped down again). Only for this session: what is kept is the player's own choice.
+   */
   perf(dt) {
-    const p = this.perfState || (this.perfState = { t: 0, n: 0, sum: 0, fps: 60, grace: 6 });
-    p.t += dt; p.n++; p.sum += dt;
+    const p = this.perfState || (this.perfState = { t: 0, n: 0, sum: 0, fps: 60, grace: 6, slow: 0, fast: 0, upAt: -1e9, stuck: false, clock: 0 });
+    p.t += dt; p.n++; p.sum += dt; p.clock += dt;
     if (p.t < 4) return;
     p.fps = p.n / p.sum;
     p.t = 0; p.n = 0; p.sum = 0;
     if (p.grace > 0) { p.grace -= 4; return; }
-    if (this.settings.autoQuality !== false && p.fps < 32 && this.settings.quality !== 'low' && !this.noRender) {
-      this.settings.quality = this.settings.quality === 'high' ? 'medium' : 'low';
-      this.applyQuality();
-      this.hud.toast(`Graphics set to ${this.settings.quality} to keep it smooth (Esc to change)`, false, 5);
-      this.onSettingsChanged?.();
-      p.grace = 8;
-    }
+    if (this.settings.autoQuality === false || this.noRender) return;
+    const LEVELS = ['low', 'medium', 'high'], now = LEVELS.indexOf(this.quality()), chosen = LEVELS.indexOf(this.settings.quality || 'high');
+    p.slow = p.fps < 30 ? p.slow + 1 : 0;
+    p.fast = p.fps >= 55 ? p.fast + 1 : 0;
+    let to = now;
+    if (p.slow >= 2 && now > 0) {
+      to = now - 1;
+      if (p.clock - p.upAt < 30) p.stuck = true;            // (it couldn't hold the level it went back up to)
+    } else if (p.fast >= 3 && now < chosen && !p.stuck) { to = now + 1; p.upAt = p.clock; }
+    if (to === now) return;
+    this.autoQuality = LEVELS[to];
+    this.applyQuality();
+    this.hud.toast(to < now ? `Graphics set to ${LEVELS[to]} to keep it smooth (Esc to change)` : `Graphics back to ${LEVELS[to]}`, false, 5);
+    p.slow = 0; p.fast = 0; p.grace = 8;
   }
 
+  /** The graphics level drawn now: the player's choice, or lower for the while the frame rate needs it (perf). */
+  quality() { return this.autoQuality || this.settings.quality || 'high'; }
+
   applyQuality() {
-    const q = this.settings.quality || 'high';
+    const q = this.quality();
     this.renderer.setQuality(q);
     this.vegetation.setDetailRange(q === 'high' ? 340 : q === 'medium' ? 240 : 150);
     this.terrain.split = q === 'high' ? 2.1 : q === 'medium' ? 1.8 : 1.5;

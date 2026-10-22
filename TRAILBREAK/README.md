@@ -696,7 +696,8 @@ Everything that makes off-roading off-roading is simulated, not faked:
   25 cm grid (from Medium graphics up), so each rut has its walls and its floor (render/Terrain.js).
 - **The picture** (High and Medium graphics; render/Post.js): drawn in high dynamic range, its edges smoothed by
   multisampling (4x, 2x on Medium), then finished as a racing game's is. At speed what the camera rushes past streaks
-  along its path, the nearer the longer (the verge and the road's edge, hardly the hills), and the whole picture
+  along its path, the nearer the longer (the verge and the road's edge, hardly the hills: over a 1/90 s shutter, half
+  the 1/45 s it was, which smeared the roadside and even the start banners at 110 km/h), and the whole picture
   smears as the camera swings round; your own truck stays sharp, and so does the cab from the driver's seat. The
   brightest light (the sun, its glints on paint, chrome and water, lamps at night) blooms into what is round it. A
   filmic tone curve, a little more contrast and colour, cool shadows and warm highlights and a soft vignette finish
@@ -705,6 +706,16 @@ Everything that makes off-roading off-roading is simulated, not faked:
   going by (a small cube map drawn a face a frame, render/Probe.js), not the sky alone. The sun's shadows come in two
   cascades: a wide map 140 m across, and on High and Medium a near one 40 m across round your truck with texels under
   a third the size, so its shadow and the dappled leaves' round it are sharp (render/Renderer.js).
+- **Far trees:** beyond 85 m (60 on Medium, 38 on Low) each tree is a picture of its model on a card, taken when the
+  game starts. The pictures now carry the shade the model has where it stands: its inner crown and low branches, and
+  its trunk under the crown in the crown's shadow. Without it every trunk out there was pale against the dark of the
+  woods, and a row of the coast's evergreen giants read as cut-outs (pale cones under flat discs).
+- **Graphics level:** if the frame rate stays under 30 fps for two 4-second spells running, the game steps the
+  graphics down a level (and says so), and once it runs at 55 fps or more for 12 s it steps back up toward the level
+  you chose (not again if the last step up was soon stepped down). Only for the session: it used to keep the lowered
+  level as your setting, so one slow spell (the open world building its maps on a first visit) left the game on Low,
+  with its ground textures and trees, for good. Anyone whose level was lowered that way, and who never picked one,
+  gets High back once.
 - **Winch:** a steel line with a stall-limited motor (line speed falls with load). Hook a tree to pull yourself
   out, or hook a friend's truck: your truck holds on its brakes and theirs feels the line tension.
 - **Steering kickback:** the forces on the front tyres turn the wheels about their kingpins (a tyre shoved back by a

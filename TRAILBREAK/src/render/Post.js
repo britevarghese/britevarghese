@@ -209,7 +209,7 @@ export class Post {
     this.vel = new THREE.Vector3();
     this.prevPos = null;
     this.prevDir = null;
-    this.shutter = 1 / 45;                   // (a slow shutter: the speed shows, as in a racing game)
+    this.shutter = 1 / 90;                   // (the speed shows, as in a racing game, the roadside still clear)
     this.setQuality('high');
   }
 
