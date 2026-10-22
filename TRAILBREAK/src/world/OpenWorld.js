@@ -136,18 +136,28 @@ export class OpenWorld {
 
   /**
    * The land beyond the maps: the nearest map's own far land (each map's landform carried on past its edge), lifted
-   * or lowered near its edge to meet the ground drawn there; between two maps' far lands, a blend.
+   * or lowered near its edge to meet the ground drawn there; between two maps' far lands, a blend, each weighted as
+   * the inverse square of how far off its square is, so at a map's edge the land is that map's own and nothing steps
+   * there (a blend that gave a map 200 m off nearly the weight of the one at hand stood the far land metres above or
+   * below a map's edge, and as the far land isn't drawn over a map, a gap showed under it). Maps much further off than
+   * the nearest fade out of it smoothly.
    */
   farHeight(x, z) {
+    if (this.farD?.length !== this.regions.length) this.farD = new Float64Array(this.regions.length);
+    const D = this.farD;
+    let dmin = Infinity;
+    this.regions.forEach((r, i) => {
+      const ex = Math.max(0, Math.abs(x - r.cx) - r.half), ez = Math.max(0, Math.abs(z - r.cz) - r.half);
+      D[i] = Math.hypot(ex, ez); dmin = Math.min(dmin, D[i]);
+    });
     let h = 0, wsum = 0;
-    for (const r of this.regions) {
-      const lx = x - r.cx, lz = z - r.cz, ex = Math.max(0, Math.abs(lx) - r.half), ez = Math.max(0, Math.abs(lz) - r.half), d = Math.hypot(ex, ez);
-      const w = 1 / (1 + (d / 400) ** 4);
-      if (w < 0.02 && wsum > 0) continue;
-      const W = r.world, ox = Math.max(-r.half, Math.min(r.half, lx)), oz = Math.max(-r.half, Math.min(r.half, lz));
+    this.regions.forEach((r, i) => {
+      const d = D[i], t = Math.min(1, Math.max(0, (d - dmin - 1500) / 1500)), w = (1 - t * t * (3 - 2 * t)) / (1 + d * d);
+      if (w <= 0) return;
+      const lx = x - r.cx, lz = z - r.cz, W = r.world, ox = Math.max(-r.half, Math.min(r.half, lx)), oz = Math.max(-r.half, Math.min(r.half, lz));
       const f = W.farHeight(lx, lz) + (W.terrain(ox, oz) - W.farHeight(ox, oz)) * Math.exp(-d / FAR_FADE);
       h += f * w; wsum += w;
-    }
+    });
     return wsum > 0 ? h / wsum : 0;
   }
 

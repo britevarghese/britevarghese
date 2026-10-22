@@ -871,7 +871,10 @@ At run time (`src/world/OpenWorld.js`) the world answers as one map does, in wor
 the trees and what breaks go to whichever map's square holds the point. Its beacons, buildings, roads, events, races
 and party modes are every map's (each map's events where they are on it; the party modes once per map: Elimination ·
 Kerala and so on). Around it all, one more terrain draws the far land: each map's own landform carried on past its
-edge, met to its edge, blended between maps. What a room shares carries the map: a tree knocked down in Kerala is
+edge, met to its edge, blended between maps (each map's weighted as the inverse square of how far off it is, so the
+far land meets every map's edge to within 0.3 m: a blend that gave a map 200 m off nearly the weight of the one at
+hand left the far land up to 139 m above or below a map's edge, a sheet of land hanging in the air with the sky
+showing under it). What a room shares carries the map: a tree knocked down in Kerala is
 `kerala:t123`; a beacon's number is its map's place in the world times 100 and its own.
 
 Where a stretch meets a map whose ground has textures of another set (the ghat and the pass, at Kerala), the stretch's
