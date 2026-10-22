@@ -367,7 +367,7 @@ puts you back at the last checkpoint passed, facing the next, while the clock ru
 | Kundalika Descent | Open world | 0.9 km off the ghat road and down the river track to the bank of the river out of Kerala | 57 / 69 / 85 s |
 | Ashwood Pass Climb | Open world | 1.2 km up the pass road from the Ashwood side to the saddle | 1:19 / 1:35 / 1:57 |
 | Cairn Ridge Trail | Open world | 1.2 km off the top of the pass, round the ridge to the west on the cairn trail and back to the road | 1:18 / 1:34 / 1:55 |
-| Coast to Snow | Open world | 18.6 km across the whole world, 16 checkpoints: up the Kashid ghat, over the Konkan Ghat into Kerala, through the town and the tea, up the Kurinji jeep track, over the Ashwood Pass and down to the ranger station | 26:15 / 31:30 / 38:50 |
+| Coast to Snow | Open world | 18.6 km across the whole world, 16 checkpoints: up the Kashid ghat, over the Konkan Ghat into Kerala, through the town and the tea, up the Kurinji jeep track, over the Ashwood Pass and down to the ranger station | 26:04 / 31:17 / 38:35 |
 
 The races live in each map's `races` list (src/world/maps/), built by src/game/Races.js onto the trails as they are
 (the world's ground isn't changed by them). The open world's are its stretches' own and one of its own across them all
@@ -805,11 +805,14 @@ satnav plots a way between any two places in it by road and track (from the coas
 - **The Konkan Ghat** (2 km, east of the coast): the coast's tableland carried on east, its broad upland falling to
   the river that comes out of Kerala (the same river, at the same level, running on across it and out of the world)
   and rising into Kerala's forested ridges. The **Konkan Ghat Road** (2.1 km of two-lane tarmac) carries the Kashid
-  ghat road on from the coast's edge, down through the gap in the ridges into Kerala; the **Kundalika River Track**
+  ghat road on from the coast's edge, down through the gap in the ridges into Kerala (and on, its two lanes and their
+  lines with it, to the paddy and rubber track); the **Kundalika River Track**
   leaves it for the riverbank. Ghat Dhaba (a chai stall and a bus stop) stands by the road.
 - **The Ashwood Pass** (2 km, north of Kerala): a range of ridges with a saddle through it. The **Ashwood Pass Road**
   (2.1 km) climbs from Kerala's tea plateau (276 m) and drops through the saddle to Ashwood's valley (82 m); the
-  **Cairn Ridge Trail** loops off it over the ridge to the west. A hut and a flag at the top.
+  **Cairn Ridge Trail** loops off it over the ridge to the west. A hut and a flag at the top. Snow lies on its
+  ridges above 390 m on the Ashwood side; its snow line rises towards Kerala (570 m at the seam), so Kerala's green
+  ridges, laid onto its southern edge, stay green on both sides of the join.
 
 Each map is generated as it is when it is driven alone, in its own frame, and stands at its own place in the world.
 Where a road leaves one, its edge ridge is cut down to a pass and a spur of road runs out through it (built after the
@@ -835,7 +838,11 @@ ground is the far land, and nobody gets near it before it is there. Every map is
 so the next visit skips building them. In a test here (headless Chromium drawing in software, without a graphics card,
 much slower than a real computer), the open world was ready to drive 126 s after the click on the first visit and 37
 s on the next, with the other four maps all in 39 s after that; the Konkan Coast alone took 99.5 s on the same machine.
-With every map in, the browser held about 680 MB of JavaScript memory.
+With every map in, the browser held about 680 MB of JavaScript memory before the changes below; measured the same way
+(every map in, a frame drawn in each), 763 MB before them and 560 MB after. Most of what it holds now is the maps' own
+grids (heights, surfaces and water, which the physics reads): the ground textures' pixels are let go once the graphics
+card has them (they held 130 MB), the colour of the land far off is kept on a 2 m grid rather than a 1 m one, and the
+water, road wear and road markings of each map let go of their arrays once they are on the card.
 
 What comes in while you drive is kept light on the page's own thread. The young trees and roadside things of a map are
 placed in its worker (and kept with it in storage), not when it joins; its ground textures are decoded and packed in
@@ -867,8 +874,12 @@ home, a truck goes back to the yard of the map it is on.
 **Events across the world.** The stretches have races of their own (the Konkan Ghat Road and the Kundalika Descent on
 the Konkan Ghat; the Ashwood Pass Climb and the Cairn Ridge Trail on the pass), and once every map is in, **Coast to
 Snow** joins them: 18.6 km from Kashid beach to Ashwood's ranger station, the whole world in one rally. A careful
-robot driver on the real physics finished it in every stock truck tried (Thar 26:34, Wrangler 26:16, Ranger 27:16),
-and its par times come from those runs, as the other races' do.
+robot driver on the real physics finished it in every stock truck tried (Thar 26:31, Wrangler 26:04, Ranger 27:13),
+and its par times come from those runs, as the other races' do. (The Ranger, the longest of them, first grounded at
+the corner from Kerala's estate road onto the Kurinji jeep track by the tea factory, where the road is cut into the
+slope a metre and a half below the yard's edge: in the open world that corner is a short track of graded ground, the
+Factory Turn, and all three trucks take it.) If a friend opens it before the whole world is in on your side, the chat
+says so: it can be joined once every map is in.
 
 ## Project layout
 

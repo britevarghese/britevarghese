@@ -53,6 +53,8 @@ export async function loadGround(map = 'ashwood', quality = 'high') {
     t.anisotropy = 8;
     t.unpackAlignment = 1;
     t.needsUpdate = true;
+    // (once the graphics card has the pixels they aren't needed here, where they would hold 40-50 MB a set)
+    t.onUpdate = () => { t.image.data = null; t.onUpdate = null; };
     return t;
   };
   const layers = manifest.layers.map((l) => {

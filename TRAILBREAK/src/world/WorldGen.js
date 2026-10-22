@@ -204,6 +204,8 @@ export async function generateWorld({ map, onProgress = () => {}, yieldEvery = 6
   const RIVER = M.river, LAKE = M.lake, BOG = M.bog, STATION = M.station, BEACONS = M.beacons;
   const RVR = RIVER || { points: [[-1e6, -1e6], [-1e6 + 100, -1e6]], widthStart: 0, widthEnd: 0 };
   const SNOW_LINE = M.snowLine ?? Infinity;
+  // (a map can have its snow line vary across it: the open world's pass, snowless where it meets Kerala)
+  const snowAt = M.snowLineAt || (() => SNOW_LINE);
   const K = {};                                     // the map's own working state, shared by its hooks
 
   // ---- macro grid (4 m), with the big lumps baked in
@@ -504,7 +506,7 @@ export async function generateWorld({ map, onProgress = () => {}, yieldEvery = 6
       for (let n = 0; n < (M.puddles ?? 4); n++) {
         const p = Math.floor((0.15 + 0.7 * R()) * pts.length);
         const [px, pz] = pts[p];
-        if (hyp(px - STATION.x, pz - STATION.z) < 90 || hs[p] > SNOW_LINE - 20) continue;
+        if (hyp(px - STATION.x, pz - STATION.z) < 90 || hs[p] > snowAt(px, pz) - 20) continue;
         const pd = { x: px + (R() - 0.5) * 1.5, z: pz + (R() - 0.5) * 1.5, r: 3.5 + R() * 4, depth: 0.28 + R() * 0.2 };
         // water lies on the level: none where the trail climbs (it would be a hole cut into the hill), nor on a
         // course (after the draws, so the rest of the world stays as it was)
@@ -611,7 +613,8 @@ export async function generateWorld({ map, onProgress = () => {}, yieldEvery = 6
       if (vnoise(x / 13, z / 13, S + 70) > 0.8) s = SURFACE.DIRT;
       const rd = riverD(idx), rh = riverHalf(idx);
       // snow and rock on the heights and the steeps
-      if (h > SNOW_LINE - 30 && h > SNOW_LINE + 28 * (vnoise(x / 60, z / 60, S + 71) * 2 - 1)) s = sl > 1.1 ? SURFACE.ROCK : SURFACE.SNOW;
+      const snowLine = snowAt(x, z);
+      if (h > snowLine - 30 && h > snowLine + 28 * (vnoise(x / 60, z / 60, S + 71) * 2 - 1)) s = sl > 1.1 ? SURFACE.ROCK : SURFACE.SNOW;
       else if (sl > 1.0 || (sl > 0.68 && vnoise(x / 11, z / 11, S + 72) > 0.45)) s = SURFACE.ROCK;
       if (GARDEN) {
         const gdx = x - GARDEN.x, gdz = z - GARDEN.z;
@@ -730,7 +733,7 @@ export async function generateWorld({ map, onProgress = () => {}, yieldEvery = 6
         let dens = 0.5 + 0.55 * fbm(px / 310, pz / 310, 3, S + 80) + 0.25 * fbm(px / 70, pz / 70, 2, S + 81);
         dens += smoothstep(-200, -800, px) * 0.35 + smoothstep(-100, -600, pz) * 0.2 - smoothstep(500, 950, pz) * 0.3;
         if (s === SURFACE.SNOW) dens *= 0.25;
-        if (h > SNOW_LINE + 40) dens *= 0.3;
+        if (h > snowAt(px, pz) + 40) dens *= 0.3;
         dens = clamp(dens - 0.12, 0, 0.9) ** 1.9;
         if (R() > dens) continue;
         const nearWater = riverD(idx) < riverHalf(idx) + 12 || (lake && hyp(px - lake.x, pz - lake.z) < lake.r + 60);

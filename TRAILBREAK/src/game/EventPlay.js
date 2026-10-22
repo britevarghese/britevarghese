@@ -383,6 +383,9 @@ export class EventPlay {
         g.hud.toast(`${m.name} opened a race: ${e.name}. Press J within ${Math.round((m.at - this.serverNow()) / 1000)} s to join`, true, 8);
         g.chat.system(`${m.name} opened a race: ${e.name} (J to join)`);
       }
+    } else if (m.k === 'open' && m.by !== me && g.world.def?.races?.some((r) => r.id === m.id)) {
+      // (a race across the open world, opened while part of it is still coming in here: it can't be joined yet)
+      g.chat.system(`${m.name} opened ${g.world.def.races.find((r) => r.id === m.id).name}: it can be joined once the whole world is in here`);
     } else if (m.k === 'join' && this.race) {
       this.race.racers = m.racers;
       if (m.pid === me && e) {

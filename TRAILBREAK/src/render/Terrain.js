@@ -7,7 +7,7 @@
 // (1 m; a big map's bigger: a texture the shader reads), blended between cells by their height maps so stones stand proud of the mud and
 // grass grows over the edge of a trail; steep ground is textured from the side. Each vertex carries a tint for the
 // colour of the land (lush or dry grass, alpine, wet by the water, worn ruts). Far away the textures fade into the
-// vertex colour: each layer's average colour times the tint, baked once into a 1 m colour grid with mip levels so
+// vertex colour: each layer's average colour times the tint, baked once into a 2 m colour grid with mip levels so
 // distant patches show the average colour of the ground they cover.
 //
 // Wet ground: mud is always wet (wetter in places), darker and glossy with it; the ruts pressed into it are wetter
@@ -476,8 +476,8 @@ if (gWet > 0.0) {
   }
 
   /**
-   * The layer of every cell (for the shader), and the colour grid and its mip levels (for far away). A big map's colour
-   * grid has a point every other cell (the colour shows only on ground far enough off to be past its textures).
+   * The layer of every cell (for the shader), and the colour grid and its mip levels (for far away). The colour grid
+   * has a point every other cell (the colour shows only on ground far enough off to be past its textures).
    */
   buildColors(onProgress) { for (const _ of this.colorSteps(onProgress)); }   // eslint-disable-line no-unused-vars
 
@@ -492,7 +492,7 @@ if (gWet > 0.0) {
 
   /** buildColors, a step at a time (every few rows of the grid, every mip level). */
   *colorSteps(onProgress) {
-    const w = this.world, N = w.N, O = w.origin, RES = this.res, CS = RES > 1 ? 2 : 1, CN = Math.floor((N - 1) / CS) + 1;
+    const w = this.world, N = w.N, O = w.origin, RES = this.res, CS = 2, CN = Math.floor((N - 1) / CS) + 1;
     const col = new Uint8Array(CN * CN * 3), splat = new Uint8Array(N * N);
     const H = w.H, S = w.S, avg = this.layers.map((l) => l.avg), t3 = [0, 0, 0];
     const can = this.can = this.canopy().at;

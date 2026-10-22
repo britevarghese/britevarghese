@@ -31,6 +31,18 @@ const groundOf = (name, quality) => {
   return grounds.get(name);
 };
 
+/**
+ * A mesh that never changes after it is built: its arrays are let go once they are on the graphics card (the bounds
+ * the culling needs worked out first, while they are here).
+ */
+function onCardOnly(mesh) {
+  const g = mesh?.geometry;
+  if (!g) return;
+  if (!g.boundingSphere) g.computeBoundingSphere();
+  if (!g.boundingBox) g.computeBoundingBox();
+  for (const a of [...Object.values(g.attributes), g.index]) a?.onUpload(function release() { this.array = null; });
+}
+
 /** A camera seen from a map's own frame (its position less the map's centre). */
 class LocalCamera {
   constructor(cx, cz) { this.cx = cx; this.cz = cz; this.camera = new THREE.PerspectiveCamera(); }
@@ -68,8 +80,9 @@ export class RegionView {
     await tick();
     v.water = new Water(W, v.group);
     await tick();
-    new RoadMarkings(W, v.group);
-    new RoadWear(W, v.group);
+    const marks = new RoadMarkings(W, v.group), wear = new RoadWear(W, v.group);
+    // (these never change: their arrays let go once the graphics card has them)
+    for (const m of [v.water.mesh, v.water.sea, marks.mesh, wear.mesh]) onCardOnly(m);
     await tick();
     v.landmarks = new Landmarks(W, v.group);
     await tick();
