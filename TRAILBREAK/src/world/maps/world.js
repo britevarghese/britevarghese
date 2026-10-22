@@ -225,6 +225,9 @@ function keralaRiverOut() {
 }
 
 const GHAT_SEED = 5150, PASS_SEED = 6260;
+// the stretches' races' par times (s)
+const GHAT_PAR = { ghatroad: { gold: 117, silver: 140, bronze: 173 }, kundalika: { gold: 57, silver: 69, bronze: 85 } };
+const PASS_PAR = { passclimb: { gold: 79, silver: 95, bronze: 117 }, cairnridge: { gold: 78, silver: 94, bronze: 115 } };
 // the river out of Kerala across the Konkan Ghat (its frame): its last bends in Kerala as Kerala has them (so the two
 // lines are one where they meet), then south-west out of the world
 const GHAT_RIVER = [...KERALA_RIVER.points.slice(-4).map(([x, z]) => [x + 2048, z]), [740, 950], [650, 1040], [560, 1150]];
@@ -317,7 +320,14 @@ export const GHAT = {
   ],
   beacons: [{ id: 0, name: 'Ghat Top', x: -890, z: 95 }, { id: 1, name: 'Kundalika Bank', x: 766, z: 880 }],
   landmarks: [{ type: 'chaistall', x: -132, z: 44, yaw: 0.1 }, { type: 'busstop', x: -176, z: 48, yaw: -0.05 }],
-  events: [], races: [], modes: null,
+  events: [], modes: null,
+  races: [
+    // (par times: a careful driver in each stock truck, test/world.test.mjs; gold about the best of them)
+    { id: 'ghatroad', kind: 'rally', name: 'Konkan Ghat Road', desc: 'The ghat road from the edge of the Konkan Coast across the upland and down through the gap in the ridges into Kerala.',
+      trail: 'Konkan Ghat Road', from: [-964, 72], to: [960, 40], cps: 6, r: 12, par: GHAT_PAR.ghatroad, prize: 1.4 },
+    { id: 'kundalika', kind: 'rally', name: 'Kundalika Descent', desc: 'Off the ghat road and down the river track to the bank of the river out of Kerala.',
+      trail: 'Kundalika River Track', from: [340, 60], to: [770, 885], cps: 4, r: 10, par: GHAT_PAR.kundalika, prize: 1.1 },
+  ],
   roadSurface: SURFACE.ROAD, puddles: 4,
   pads: { chaistall: 5, busstop: 3 },
   gen: { walls: KERALA_WALLS, trees: ghatTrees,
@@ -355,7 +365,13 @@ export const PASS = {
   ],
   beacons: [{ id: 0, name: 'Ashwood Pass', x: 30, z: 40 }, { id: 1, name: 'Cairn Ridge', x: -405, z: -60 }],
   landmarks: [{ type: 'cabin', x: 128, z: -72, yaw: 1.3 }, { type: 'flag', x: 96, z: -30, yaw: 0 }],
-  events: [], races: [], modes: null,
+  events: [], modes: null,
+  races: [
+    { id: 'passclimb', kind: 'rally', name: 'Ashwood Pass Climb', desc: 'From the floor of Ashwood Valley up the pass road to the saddle, two hundred metres higher.',
+      trail: 'Ashwood Pass Road', from: [14, -940], to: [-10, 250], cps: 6, r: 12, par: PASS_PAR.passclimb, prize: 1.4 },
+    { id: 'cairnridge', kind: 'rally', name: 'Cairn Ridge Trail', desc: 'Off the top of the pass and round the ridge to the west on the cairn trail, and back down to the road.',
+      trail: 'Cairn Ridge Trail', from: [-10, 250], to: [52, -300], cps: 5, r: 10, par: PASS_PAR.cairnridge, prize: 1.2 },
+  ],
   puddles: 3,
   gen: graded([{ road: 'Ashwood Pass Road', grade: 0.12, ends: ['ground', 'ground'] },
     { road: 'Cairn Ridge Trail', grade: 0.22, ends: [{ road: 'Ashwood Pass Road' }, { road: 'Ashwood Pass Road' }] }]),
@@ -375,8 +391,22 @@ export const REGIONS = [
 export const regionById = (id) => REGIONS.find((r) => r.id === id);
 
 /** The open world, as the lobby and the rooms know it. */
+// the world's own race, across its maps: through each map's roads in turn (world coordinates; the satnav's routes
+// between these points, game/Races.js)
+const at = (id, [x, z]) => [Math.round(x + CENTRES[id][0]), Math.round(z + CENTRES[id][1])];
+const COAST_GHAT = COAST.trails.find((t) => t.name === 'Kashid Ghat').points;
+const COAST_TO_SNOW = [
+  COAST_GHAT[4], COAST_GHAT[Math.round(COAST_GHAT.length / 2)], [3960, -700],              // up the Kashid ghat
+  at('ghat', [140, 70]), at('kerala', [-760, 40]), at('kerala', [40, 60]),                   // over the Konkan Ghat into Kerala's town
+  at('kerala', [17, -775]), at('pass', [60, -120]), at('ashwood', [10, 890]), at('ashwood', [-58, 430]),   // up the jeep track and over the pass
+].map(([x, z]) => [Math.round(x), Math.round(z)]);
+
 export const WORLD = {
   id: 'world', name: 'Open World', short: 'World',
+  races: [
+    { id: 'coasttosnow', kind: 'rally', name: 'Coast to Snow', desc: 'Kashid to Ashwood: up the Kashid ghat, over the Konkan Ghat into Kerala, through the town and the tea, over the Ashwood Pass and down to the ranger station.',
+      via: COAST_TO_SNOW, cps: 16, r: 14, par: { gold: 1575, silver: 1890, bronze: 2330 }, prize: 4 },
+  ],
   blurb: 'The Konkan Coast, the Kerala Ghats and Ashwood Valley in one world: drive from the Arabian Sea up the ghats, through the tea estates and over the pass to the snow, with no loading on the way.',
   tagline: 'Old trucks, real physics, good friends. One world from the sea to the snow: drive it together.',
   start: 'coast', dealer: COAST.dealer, atmosphere: COAST.atmosphere,

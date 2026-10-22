@@ -54,6 +54,8 @@ const FAR = 2400;
 // each species is pictured from VIEWS bearings round it, and a far tree's card shows the picture from the bearing the
 // camera has on it, turned as its model is (so the card is the model as it stands, not one side of it for every tree)
 const VIEWS = 8;
+// the pictures taken, for each renderer and set of trees (Vegetation.bakeImpostors); and the models, for each set
+const BAKED = new WeakMap(), LOADED = new Map();
 // a tree changes from its model to its picture across a band short of its near range (its share of each pixel
 // dithered between the two, so neither pops: a narrow band, a few metres, so a tree is seen dotted only as it crosses
 // it, not the whole ring of trees from 45 m out); the lists it is in are kept wide of the band by the refill step
@@ -128,19 +130,22 @@ function treeMaterial(group, uniforms, radius, impostorBake = false, crownY = 0.
     normalScale: new THREE.Vector2(0.8, 0.8),
   });
   if (leaf) mat.alphaToCoverage = true;
-  // (each species' crown, and leaves or bark, baked or fading, are written into its shader)
-  mat.customProgramCacheKey = () => `tree ${leaf ? 1 : 0}${impostorBake ? 1 : 0}${fade ? 1 : 0} ${crownY.toFixed(3)}`;
+  // (leaves or bark, baked or fading, are written into its shader; each species' crown is a uniform, so every species
+  // on every map shares the few programs these make)
+  mat.customProgramCacheKey = () => `tree ${leaf ? 1 : 0}${impostorBake ? 1 : 0}${fade ? 1 : 0}`;
   mat.onBeforeCompile = (sh) => {
     sh.uniforms.uTime = uniforms.uTime;
     sh.uniforms.uSunDirW = uniforms.uSunDirW;
     sh.uniforms.uSunColor = uniforms.uSunColor;
     sh.uniforms.uRadius = { value: radius };
+    sh.uniforms.uCrownY = { value: crownY };
     sh.uniforms.uLod = uniforms.uLod;
     if (fade) sh.uniforms.uFade = fade;
     sh.vertexShader = sh.vertexShader
       .replace('#include <common>', `#include <common>
 uniform float uTime;
 uniform float uRadius;
+uniform float uCrownY;
 uniform vec2 uFade;
 uniform vec2 uLod;
 varying float vAO;
@@ -148,7 +153,7 @@ varying float vFade;`)
       .replace('#include <beginnormal_vertex>', `#include <beginnormal_vertex>
 ${leaf ? `{
   // leaves lit as a rounded crown, not as the flat cards they are
-  vec3 radial = normalize(vec3(position.x, (position.y - ${crownY.toFixed(3)}) * 0.55, position.z) + vec3(0.0, 0.06, 0.0));
+  vec3 radial = normalize(vec3(position.x, (position.y - uCrownY) * 0.55, position.z) + vec3(0.0, 0.06, 0.0));
   objectNormal = normalize(mix(objectNormal, radial, 0.62));
 }` : ''}`)
       .replace('#include <begin_vertex>', `#include <begin_vertex>
@@ -229,7 +234,9 @@ export class Vegetation {
   /** world: the generated world; renderer: render/Renderer.js (for the impostor pictures and the sun). */
   static async create(world, renderer) {
     const set = TREE_SETS[world.map.trees] || TREE_SETS.ashwood;
-    const trees = await loadTrees(set);
+    // (each set's models loaded once: the open world's maps that grow the same set share them)
+    if (!LOADED.has(set)) LOADED.set(set, loadTrees(set).catch((e) => { LOADED.delete(set); throw e; }));
+    const trees = await LOADED.get(set);
     return new Vegetation(world, renderer, trees, set);
   }
 
@@ -288,6 +295,21 @@ export class Vegetation {
 
   /** Pictures of each species from VIEWS bearings round it (colour with alpha, and normals), and the cards. */
   bakeImpostors(gl) {
+    // (taken once for each set of trees: the open world's maps that grow the same set share its pictures)
+    let baked = BAKED.get(gl)?.get(this.set);
+    if (!baked) {
+      baked = this.bake(gl);
+      if (!BAKED.has(gl)) BAKED.set(gl, new Map());
+      BAKED.get(gl).set(this.set, baked);
+    }
+    const { colorRT, normalRT } = baked;
+    this.tiles = baked.tiles;
+    this.impostorColor = colorRT; this.impostorNormal = normalRT;
+    this.makeCards(colorRT, normalRT);
+  }
+
+  /** The pictures: { colorRT, normalRT, tiles } (each species' column of the atlas). */
+  bake(gl) {
     // (a picture 192 x 384 where the graphics card takes a texture tall enough for all the bearings, else 128 x 256)
     const TW = gl.capabilities.maxTextureSize >= 384 * VIEWS ? 192 : 128, TH = TW * 2;
     const N = this.kinds.length, W = TW * N, H = TH * VIEWS;
@@ -303,7 +325,7 @@ export class Vegetation {
       { rt: colorRT, clear: [0.11, 0.14, 0.08], mat: (gr) => new THREE.MeshBasicMaterial({ map: gr.map, alphaTest: gr.kind === 'leaf' ? Math.max(0.3, gr.alphaCutoff) : 0, side: gr.kind === 'leaf' ? THREE.DoubleSide : THREE.FrontSide }) },
       { rt: normalRT, clear: [0.5, 0.5, 1], mat: (gr) => bakeNormalMaterial(gr) },
     ];
-    this.tiles = [];
+    const tiles = [];
     for (const pass of passes) {
       gl.setRenderTarget(pass.rt);
       gl.setClearColor(new THREE.Color(...pass.clear), 0);
@@ -330,7 +352,7 @@ export class Vegetation {
         }
         for (let i = scene.children.length - 1; i >= 0; i--) if (scene.children[i].isMesh) scene.remove(scene.children[i]);
         for (const m of mats) m.dispose();
-        if (pass.rt === colorRT) this.tiles[k] = { u0: k / N, u1: (k + 1) / N, r };
+        if (pass.rt === colorRT) tiles[k] = { u0: k / N, u1: (k + 1) / N, r };
       });
     }
     gl.setRenderTarget(prevTarget);
@@ -338,8 +360,11 @@ export class Vegetation {
     gl.setClearColor(prevClear, prevAlpha);
     gl.autoClear = prevAuto;
     gl.toneMapping = prevTone;
-    this.impostorColor = colorRT; this.impostorNormal = normalRT;
+    return { colorRT, normalRT, tiles };
+  }
 
+  /** The cards: one per tree, showing its species' pictures. */
+  makeCards(colorRT, normalRT) {
     // one card per tree, made once (fillCards): per-instance position, size, atlas tile, tint, the turn its model has,
     // and the range inside which its model stands in for it (0: none does, the card stays)
     const cap = this.trees.count;

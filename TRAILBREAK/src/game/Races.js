@@ -56,12 +56,13 @@ export function racesFor(world) {
     const { trail, via, from, to, laps: L, cps, r = 8, ...rest } = spec;
     let pts;
     if (via) {
-      graph ||= new RouteGraph(trails);
+      graph ||= new RouteGraph(trails, { hubs: world.hubs || [] });   // (the open world's town yards, world/OpenWorld.js)
       pts = [];
       const stops = spec.kind === 'circuit' ? [...via, via[0]] : via;
       for (let k = 1; k < stops.length; k++) {
         const leg = graph.route(stops[k - 1][0], stops[k - 1][1], stops[k][0], stops[k][1]).points;
-        pts.push(...(k > 1 ? leg.slice(1) : leg));
+        // (each point once: where two legs meet, or two trails, the route repeats it, and a turn there reads as sharp)
+        for (const p of leg) if (!pts.length || Math.hypot(p[0] - pts.at(-1)[0], p[1] - pts.at(-1)[1]) >= 0.5) pts.push(p);
       }
     } else {
       const t = trails.find((q) => q.name === trail);

@@ -11,6 +11,7 @@
 // render/Grass.js standing on it).
 
 import * as THREE from 'three';
+import { packGround } from './GroundPack.js';
 
 const BASE = 'assets/ground/';
 
@@ -21,15 +22,15 @@ const TUNE = {
   pebbles: [0.8, [1, 1, 1]],
 };
 
-/** The pixels of an image at a size (a region of it with src = [x, y, w, h]). */
-async function pixels(blob, w, h, src) {
-  const bmp = await createImageBitmap(blob, { colorSpaceConversion: 'none', premultiplyAlpha: 'none' });
-  const c = typeof OffscreenCanvas !== 'undefined' ? new OffscreenCanvas(w, h) : Object.assign(document.createElement('canvas'), { width: w, height: h });
-  const x = c.getContext('2d', { willReadFrequently: true });
-  x.imageSmoothingQuality = 'high';
-  if (src) x.drawImage(bmp, src[0], src[1], src[2], src[3], 0, 0, w, h); else x.drawImage(bmp, 0, 0, w, h);
-  bmp.close?.();
-  return x.getImageData(0, 0, w, h).data;
+/** Packed in a worker (render/groundWorker.js), where the browser can decode and read pictures there. */
+function packOffPage(base, map, quality) {
+  if (typeof Worker === 'undefined' || typeof OffscreenCanvas === 'undefined') return Promise.reject(new Error('no workers'));
+  return new Promise((resolve, reject) => {
+    const w = new Worker(new URL('./groundWorker.js', import.meta.url), { type: 'module' });
+    w.onmessage = ({ data }) => { w.terminate(); if (data.error) reject(new Error(data.error)); else resolve(data); };
+    w.onerror = (e) => { w.terminate(); reject(new Error(e.message || 'the worker failed')); };
+    w.postMessage({ base, map, quality });
+  });
 }
 
 /**
@@ -37,34 +38,9 @@ async function pixels(blob, w, h, src) {
  * Resolves with { layers: [{ name, size, rough, avg, heightW, gain }], index: { name: layer }, color, normal }.
  */
 export async function loadGround(map = 'ashwood', quality = 'high') {
-  const manifest = await fetch(`${BASE}${map}.json`).then((r) => { if (!r.ok) throw new Error(`ground ${map}: ${r.status}`); return r.json(); });
+  const base = new URL(BASE, document.baseURI).href;
+  const { manifest, CS, DS, color, normal } = await packOffPage(base, map, quality).catch(() => packGround(base, map, quality));
   const L = manifest.layers.length;
-  const CS = quality === 'low' ? 512 : 1024, DS = 512;
-  const color = new Uint8Array(CS * CS * 4 * L), normal = new Uint8Array(DS * DS * 2 * L);
-  await Promise.all(manifest.layers.map(async (layer, li) => {
-    const [cb, db] = await Promise.all([fetch(BASE + layer.color).then((r) => r.blob()), fetch(BASE + layer.data).then((r) => r.blob())]);
-    const [c, h, n] = await Promise.all([
-      pixels(cb, CS, CS),
-      pixels(db, CS, CS, [1024, 0, 512, 512]),           // the height panel, at the colour's size
-      pixels(db, DS * 2, DS, [0, 0, 1024, 512]),          // the normal's x and y panels
-    ]);
-    // rows bottom-up, so texture v runs up the picture (the normal maps' +y)
-    const co = li * CS * CS * 4, no = li * DS * DS * 2;
-    for (let r = 0; r < CS; r++) {
-      const src = (CS - 1 - r) * CS * 4, dst = co + r * CS * 4;
-      for (let i = 0; i < CS; i++) {
-        const s = src + i * 4, d = dst + i * 4;
-        color[d] = c[s]; color[d + 1] = c[s + 1]; color[d + 2] = c[s + 2]; color[d + 3] = h[s];
-      }
-    }
-    for (let r = 0; r < DS; r++) {
-      const src = (DS - 1 - r) * DS * 2 * 4, dst = no + r * DS * 2;
-      for (let i = 0; i < DS; i++) {
-        normal[dst + i * 2] = n[src + i * 4];
-        normal[dst + i * 2 + 1] = n[src + (DS + i) * 4];
-      }
-    }
-  }));
   const arr = (data, size, format, srgb) => {
     const t = new THREE.DataArrayTexture(data, size, size, L);
     t.format = format;

@@ -45,11 +45,16 @@ export class HUD {
     return c;
   }
 
-  /** One map of the open world onto its picture: its ground, then its woods, roads and tracks, and buildings. */
-  drawRegion(region) {
+  /**
+   * One map of the open world onto its picture: its ground, then its woods, roads and tracks, and buildings. A few ms
+   * at a time, between frames (it comes in while the game runs); resolves when it is drawn.
+   */
+  async drawRegion(region) {
     // (once its renderers are there: its colours are theirs)
     if ((this.drawn ||= new Set()).has(region.id) || (this.world.view && !this.world.view.viewOf(region.id))) return;
     this.drawn.add(region.id);
+    let t0 = performance.now();
+    const breathe = async () => { if (performance.now() - t0 > 6) { await new Promise((r) => setTimeout(r, 0)); t0 = performance.now(); } };
     const c = this.mapImage, x = c.getContext('2d'), B = this.world.mapBox, S = c.width, step = B.size / S, tr = this.mapTr, W = region.world;
     const i0 = Math.max(0, Math.round((region.cx - region.half - B.x0) / step)), i1 = Math.min(S, Math.round((region.cx + region.half - B.x0) / step));
     const k0 = Math.max(0, Math.round((region.cz - region.half - B.z0) / step)), k1 = Math.min(S, Math.round((region.cz + region.half - B.z0) / step));
@@ -66,17 +71,21 @@ export class HUD {
         const o = ((j - k0) * (i1 - i0) + (i - i0)) * 4;
         img.data[o] = Math.min(255, r * 255); img.data[o + 1] = Math.min(255, g * 255); img.data[o + 2] = Math.min(255, b * 255); img.data[o + 3] = 255;
       }
+      await breathe();
     }
     x.putImageData(img, i0, k0);
     const px = (v) => (v - B.x0) / step, pz = (v) => (v - B.z0) / step, T = W.trees;
     x.fillStyle = 'rgba(42,66,32,0.5)';
-    x.beginPath();
-    for (let t = 0; t < (T.base ?? T.count); t++) {
-      const cx = px(T.x[t] + region.cx), cy = pz(T.z[t] + region.cz), r = Math.max(0.6, (T.h[t] * 0.16) / step);
-      x.moveTo(cx + r, cy);
-      x.arc(cx, cy, r, 0, 6.2832);
+    for (let s0 = 0, n = T.base ?? T.count; s0 < n; s0 += 2000) {
+      x.beginPath();
+      for (let t = s0; t < Math.min(n, s0 + 2000); t++) {
+        const cx = px(T.x[t] + region.cx), cy = pz(T.z[t] + region.cz), r = Math.max(0.6, (T.h[t] * 0.16) / step);
+        x.moveTo(cx + r, cy);
+        x.arc(cx, cy, r, 0, 6.2832);
+      }
+      x.fill();
+      await breathe();
     }
-    x.fill();
     for (const t of this.world.data.trails) {
       if (t.region !== region.id) continue;
       x.beginPath();

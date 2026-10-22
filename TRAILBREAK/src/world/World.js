@@ -38,9 +38,10 @@ export class World {
     this.W = data.water; this.WN = data.waterN; this.WR = data.waterRes;
     this.deformGrid = new DeformGrid();
     this.props = []; this.paints = []; this.propCells = new Map();
-    // the young trees (joining the map's own) and the roadside things, once the ground is there to stand them on
+    // the young trees (joining the map's own) and the roadside things, once the ground is there to stand them on (an
+    // open world's map has them already, placed off the main thread: world/worldWorker.js)
     growYoung(data, this);
-    this.roadside = placeRoadside(data, this);
+    this.roadside = data.roadside ?? placeRoadside(data, this);
     this.trees = data.trees;
     this.boulders = data.boulders;
     this.beacons = data.beacons;

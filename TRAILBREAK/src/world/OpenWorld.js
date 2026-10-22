@@ -223,7 +223,17 @@ export class OpenWorld {
     });
   }
 
-  events() { return this.regions.flatMap((r) => this.eventsOf(r)); }
+  /**
+   * The world's own races, across its maps (world/maps/world.js WORLD.races): once every map is in (their courses
+   * run over all of them).
+   */
+  worldEvents() {
+    if (!this.complete) return [];
+    const W = { map: { races: this.def.races || [] }, data: { trails: this.data.trails }, hubs: this.hubs, terrain: (x, z) => this.terrain(x, z) };
+    return racesFor(W).map((e) => ({ ...e, region: null, world: true }));
+  }
+
+  events() { return [...this.regions.flatMap((r) => this.eventsOf(r)), ...this.worldEvents()]; }
 
   /** The boulders of every map, in the world (for the start grids: game/Events.js gridFor). */
   get boulders() {

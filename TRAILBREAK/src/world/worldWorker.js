@@ -2,6 +2,9 @@
 // handed over, not copied), taken from the browser's storage if it was built before (under `key`), else built and kept
 // there, with its progress on the way.
 import { generateRegionWith } from './BigWorldGen.js';
+import { World } from './World.js';
+import { regionById } from './maps/world.js';
+import { landform } from './WorldGen.js';
 
 const DB = 'trailbreak-world', STORE = 'maps';
 const req = (r) => new Promise((ok, fail) => { r.onsuccess = () => ok(r.result); r.onerror = () => fail(r.error); });
@@ -24,8 +27,13 @@ self.onmessage = async ({ data: { id, seams, key } }) => {
     const db = key ? await openDb() : null;
     let d = db ? await req(db.transaction(STORE, 'readonly').objectStore(STORE).get(key)).catch(() => null) : null;
     const stored = !!d;
-    if (!d) {
-      d = await generateRegionWith(id, seams, { yieldEvery: 128, onProgress: (f, label) => self.postMessage({ id, progress: f, label }) });
+    if (!d) d = await generateRegionWith(id, seams, { yieldEvery: 128, onProgress: (f, label) => self.postMessage({ id, progress: f, label }) });
+    if (!d.roadside) {
+      // its young trees and roadside things placed here too, so the game has only to find them a place in its lists
+      // when the map comes in (World does this once, on the data)
+      const R = regionById(id);
+      await R.map.load?.();
+      d.roadside = new World({ ...d, map: R.map, farHeight: landform(R.map).farHeight }).roadside;
       delete d.map; delete d.farHeight;
       if (db) {
         self.postMessage({ id, progress: 1, label: 'Keeping it for next time' });

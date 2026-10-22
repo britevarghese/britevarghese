@@ -10,8 +10,10 @@
 import * as THREE from 'three';
 import { SURFACE } from '../physics/Surfaces.js';
 
-/** A tileable picture of ripples: the normal's x and y, and the height. */
-function rippleTexture(size = 256) {
+/** A tileable picture of ripples: the normal's x and y, and the height (made once, every map's water shares it). */
+let ripples = null;
+const rippleTexture = () => (ripples ||= makeRipples());
+function makeRipples(size = 256) {
   const h = new Float32Array(size * size);
   let s = 5;
   const R = () => { s = (s * 16807) % 2147483647; return s / 2147483647; };

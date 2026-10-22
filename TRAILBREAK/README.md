@@ -363,9 +363,16 @@ puts you back at the last checkpoint passed, facing the next, while the clock ru
 | Coast Road Sprint | Coast | the coast road end to end, 8.9 km: round the northern headland, behind Kashid beach and down the shore | 5:40 / 7:15 / 9:00 |
 | Kashid Ghat Rally | Coast | 10.4 km from Kashid over the ghat to the map's eastern edge: the hairpins, then the tableland and its valleys | 9:00 / 11:30 / 14:20 |
 | Plateau Sprint | Coast | 2.5 km across the tableland from the Kashid ghat to the south ghat, past the airstrip | 1:37 / 1:58 / 2:25 |
+| Konkan Ghat Road | Open world | 1.9 km of the two-lane ghat road from the coast's edge across the upland and down into Kerala | 1:57 / 2:20 / 2:53 |
+| Kundalika Descent | Open world | 0.9 km off the ghat road and down the river track to the bank of the river out of Kerala | 57 / 69 / 85 s |
+| Ashwood Pass Climb | Open world | 1.2 km up the pass road from the Ashwood side to the saddle | 1:19 / 1:35 / 1:57 |
+| Cairn Ridge Trail | Open world | 1.2 km off the top of the pass, round the ridge to the west on the cairn trail and back to the road | 1:18 / 1:34 / 1:55 |
+| Coast to Snow | Open world | 18.6 km across the whole world, 16 checkpoints: up the Kashid ghat, over the Konkan Ghat into Kerala, through the town and the tea, up the Kurinji jeep track, over the Ashwood Pass and down to the ranger station | 26:15 / 31:30 / 38:50 |
 
 The races live in each map's `races` list (src/world/maps/), built by src/game/Races.js onto the trails as they are
-(the world's ground isn't changed by them).
+(the world's ground isn't changed by them). The open world's are its stretches' own and one of its own across them all
+(`src/world/maps/world.js`): Coast to Snow is routed by the satnav through its via points from one map to the next, and
+joins the events once every map is in.
 
 **Party modes** (Esc > Modes & races, **N**, or MODES on a phone), best in a room with friends; alone you play them
 against the clock:
@@ -830,6 +837,17 @@ much slower than a real computer), the open world was ready to drive 126 s after
 s on the next, with the other four maps all in 39 s after that; the Konkan Coast alone took 99.5 s on the same machine.
 With every map in, the browser held about 680 MB of JavaScript memory.
 
+What comes in while you drive is kept light on the page's own thread. The young trees and roadside things of a map are
+placed in its worker (and kept with it in storage), not when it joins; its ground textures are decoded and packed in
+a worker too (`src/render/groundWorker.js`); the maps that grow the same set of trees share one set of tree models
+and one set of their pictures for far off (the Ghat and Kerala the coast's, the pass Ashwood's), and the water's
+ripples are made once for all of them; its parts are built a step at a time with the game running between them; and
+its shaders are compiled in the background (`compileAsync`) before it is shown, so its first frame on screen doesn't
+wait for them. The trees' shaders no longer differ by species (the height of a crown is a uniform), so every map's
+trees share the same few. In the same software-drawing test, the page's own thread was busy for 45 s while the other
+four maps came in, and 32 s after these changes (most of what is left is drawing Ashwood's tree pictures, which a
+graphics card does in a moment).
+
 At run time (`src/world/OpenWorld.js`) the world answers as one map does, in world coordinates: the ground, the water,
 the trees and what breaks go to whichever map's square holds the point. Its beacons, buildings, roads, events, races
 and party modes are every map's (each map's events where they are on it; the party modes once per map: Elimination ·
@@ -838,10 +856,19 @@ edge, met to its edge, blended between maps. What a room shares carries the map:
 `kerala:t123`; a beacon's number is its map's place in the world times 100 and its own.
 
 Where a stretch meets a map whose ground has textures of another set (the ghat and the pass, at Kerala), the stretch's
-own give way to that map's over the last 160 m, so both sides of the seam are textured alike; the land's colours
-still change there (Kerala's forest floor meets the pass's meadow). The station and the workshop are the nearest
-ones: towed home, a truck goes back to the yard of the map it is on. The events, races and builder layouts are each
-map's own, not new ones across the world.
+own give way to that map's over the last 160 m, so both sides of the seam are textured alike; and every stretch's
+land takes on its neighbours' colours towards their seams (the neighbour's average colour just past the edge against
+the stretch's own, smoothed along the seam, the factor fading over the same 160 m): measured along the seams, the
+Ghat's ground was 1.6 times brighter than Kerala's where they meet, and now matches it within a few per cent. Each
+map's ground is shaded at its edge with the ground across the seam (its neighbour's, or the far land's until that
+comes in), so the seams show no line of shading either. The station and the workshop are the nearest ones: towed
+home, a truck goes back to the yard of the map it is on.
+
+**Events across the world.** The stretches have races of their own (the Konkan Ghat Road and the Kundalika Descent on
+the Konkan Ghat; the Ashwood Pass Climb and the Cairn Ridge Trail on the pass), and once every map is in, **Coast to
+Snow** joins them: 18.6 km from Kashid beach to Ashwood's ranger station, the whole world in one rally. A careful
+robot driver on the real physics finished it in every stock truck tried (Thar 26:34, Wrangler 26:16, Ranger 27:16),
+and its par times come from those runs, as the other races' do.
 
 ## Project layout
 

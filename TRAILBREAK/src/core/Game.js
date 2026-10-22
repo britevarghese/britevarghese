@@ -149,12 +149,14 @@ export class Game {
     if (this.knownRegions.has(region.id)) return;
     this.knownRegions.add(region.id);
     const ev = this.world.eventsOf(region);
+    // (and the world's own races once every map is in)
+    if (this.world.complete) ev.push(...this.world.worldEvents());
     this.events.add(ev);
-    this.course.addStarts(ev);
+    this.course.addStarts(ev.filter((e) => this.events.byId.get(e.id) === e));
     this.satnav = new RouteGraph(this.world.data.trails, { hubs: this.world.hubs });
     if (this.route) this.replan();
-    this.hud.drawRegion?.(region);
-    this.worldMap.refresh();
+    // (its part of the maps drawn a slice at a time, then the full map made again with it)
+    Promise.resolve(this.hud.drawRegion?.(region)).then(() => this.worldMap.refresh());
   }
 
   // ---------------------------------------------------------------- the map and the satnav

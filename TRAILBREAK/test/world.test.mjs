@@ -95,7 +95,11 @@ test('the open world at run time: one ground, its places and events gathered fro
   // events: every map's, one id each, their starts on that map's ground
   const ev = W.events();
   assert.equal(new Set(ev.map((e) => e.id)).size, ev.length);
-  for (const e of ev) assert.equal(W.regionAt(e.start.x, e.start.z)?.id, e.region, e.id);
+  for (const e of ev.filter((q) => !q.world)) assert.equal(W.regionAt(e.start.x, e.start.z)?.id, e.region, e.id);
+  // and the world's own, across the maps: Coast to Snow, from the coast to Ashwood
+  const cs = ev.find((e) => e.id === 'coasttosnow');
+  assert.ok(cs && W.regionAt(cs.start.x, cs.start.z).id === 'coast' && W.regionAt(...cs.line.at(-1)).id === 'ashwood');
+  assert.ok(cs.length > 15000, `${(cs.length / 1000).toFixed(1)} km`);
   // a tree found from the world, struck and broken by its key there
   const R = W.byId.get('kerala'), T = R.world.trees;
   const t = W.treesNear(T.x[0] + R.cx, T.z[0] + R.cz, 2, []).find((o) => o.tree);

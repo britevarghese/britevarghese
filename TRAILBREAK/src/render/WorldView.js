@@ -19,6 +19,8 @@ import { REGIONS } from '../world/maps/world.js';
 import { DeformGrid } from '../world/Deform.js';
 import { SURFACE } from '../physics/Surfaces.js';
 
+// out of a map's square across each of its edges
+const OUT = { west: [-1, 0], east: [1, 0], north: [0, -1], south: [0, 1] };
 // how near (m) the camera must come to a map's square for each of its things to be kept up to date
 const NEAR = { grass: 160, tea: 400, rocks: 700, veg: 2600, breaks: 300 };
 
@@ -44,41 +46,63 @@ class LocalCamera {
 /** One map of the world, drawn. */
 export class RegionView {
   /** slice: how long (ms) its ground's colours may hold up a frame (the start map's, on the loading screen: all of it). */
-  static async create(region, renderer, { quality = 'high', audio = null, effects = null, onProgress, slice = 6 } = {}) {
+  static async create(region, renderer, { quality = 'high', audio = null, effects = null, onProgress, slice = 6, beyond = null, views = [] } = {}) {
     const M = region.map, ground = await groundOf(M.ground, quality);
-    // (a stretch next to a map with ground textures of another set: its own give way to those towards their seam)
+    // (a stretch next to a map with ground textures of another set: its own give way to those towards their seam; and
+    // the colour of its land comes round to each neighbour's, its average just past the edge)
     let blend = null;
+    const match = [];
     for (const [side, nid] of Object.entries(REGIONS[region.index].seams || {})) {
       const N = REGIONS.find((R) => R.id === nid).map;
       if (N.ground !== M.ground) blend = { side, ground: await groundOf(N.ground, quality), band: 160 };
+      const nv = views.find((o) => o.region.id === nid), [ox, oz] = OUT[side];
+      if (nv) match.push({ side, colorAt: (x, z, out) => nv.terrain.colorAt(x + region.cx - nv.region.cx + ox * 8, z + region.cz - nv.region.cz + oz * 8, 32, 0, 0, out) });
     }
-    const v = new RegionView(region, renderer, ground, { audio, effects, blend });
+    // (a step at a time, the game running between them)
+    const tick = () => new Promise((r) => setTimeout(r, 0));
+    const v = new RegionView(region, renderer, ground, { audio, effects, blend, beyond, match });
+    const W = region.world;
+    await tick();
+    v.rocks = new Rocks(W, v.group, ground);
+    v.tea = region.map.tea ? new Tea(W, v.group) : null;
+    await tick();
+    v.water = new Water(W, v.group);
+    await tick();
+    new RoadMarkings(W, v.group);
+    new RoadWear(W, v.group);
+    await tick();
+    v.landmarks = new Landmarks(W, v.group);
+    await tick();
     await v.terrain.ready(onProgress, slice);
     v.vegetation = await Vegetation.create(region.world, v.host);
+    await tick();
     v.grass = new Grass(region.world, v.terrain, v.group, ground, v.vegetation.uniforms, { centre: [region.cx, region.cz] });
+    await tick();
     v.vegetation.setOrigin(region.cx, region.cz);
     v.breakView = new BreakView(v.group, region.world, v.vegetation, v.localEffects, audio);
+    // its shaders compiled before it is shown, in the background where the browser can (no stall as it comes in);
+    // its ground has no patches yet: one stands in for them
+    const stand = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), v.terrain.material);
+    v.group.add(stand);
+    await renderer.renderer.compileAsync(v.group, renderer.camera, renderer.scene).catch((e) => console.warn('shaders', e));
+    v.group.remove(stand);
+    stand.geometry.dispose();
+    renderer.scene.add(v.group);
     return v;
   }
 
-  constructor(region, renderer, ground, { audio, effects, blend }) {
+  constructor(region, renderer, ground, { audio, effects, blend, beyond, match }) {
     this.region = region;
     const { cx, cz } = region, W = region.world;
     this.group = new THREE.Group();
     this.group.name = `map ${region.id}`;
     this.group.position.set(cx, 0, cz);
     this.group.updateMatrixWorld(true);
-    renderer.scene.add(this.group);
     // (what the forest needs of the renderer: the scene it goes in, the GL context, the sun)
     this.host = { scene: this.group, renderer: renderer.renderer, get sun() { return renderer.sun; } };
     this.local = new LocalCamera(cx, cz);
-    this.terrain = new TerrainRenderer(W, this.group, { ground, centre: [cx, cz], clip: true, defer: true, blend });
-    this.rocks = new Rocks(W, this.group, ground);
-    this.tea = region.map.tea ? new Tea(W, this.group) : null;
-    this.water = new Water(W, this.group);
-    new RoadMarkings(W, this.group);
-    new RoadWear(W, this.group);
-    this.landmarks = new Landmarks(W, this.group);
+    this.terrain = new TerrainRenderer(W, this.group, { ground, centre: [cx, cz], clip: true, defer: true, blend, beyond, match });
+    // (its rocks, tea, water, road markings and wear, and buildings: create, a step at a time)
     // the effects and sounds of what breaks here, in the world
     this.localEffects = effects && {
       spawn: (x, y, z, ...rest) => effects.spawn(x + cx, y, z + cz, ...rest),
@@ -190,13 +214,17 @@ export class WorldView {
 
   /** A map come in: its renderers, set as the others are. */
   async add(region, opts = {}) {
-    const v = await RegionView.create(region, this.renderer, { quality: this.quality, audio: this.audio, effects: this.effects, ...opts });
+    // (past its edge, the ground as the world has it: a neighbour's where one is in, else the far land's)
+    const beyond = (x, z) => this.world.terrain(x + region.cx, z + region.cz);
+    const v = await RegionView.create(region, this.renderer, { quality: this.quality, audio: this.audio, effects: this.effects, beyond, views: this.views, ...opts });
     const s = this.settings;
     v.terrain.setQuality(s.quality); v.grass.setQuality(s.quality); v.tea?.setQuality(s.quality);
     v.terrain.split = this.far.split; v.terrain.shadows = this.far.shadows ?? true;
     if (s.detail != null) v.vegetation.setDetailRange(s.detail);
     v.vegetation.setShadows(s.shadows); v.rocks.setShadows(s.shadows); v.tea?.setShadows(s.shadows);
     for (const [id, on] of this.found) if (Math.floor(id / BEACON_STRIDE) === region.index) v.landmarks.setFound(id % BEACON_STRIDE, on);
+    // (the maps it meets: their edges made again on its ground)
+    for (const o of this.views) if (Math.abs(o.region.cx - region.cx) <= o.region.half + region.half + 1 && Math.abs(o.region.cz - region.cz) <= o.region.half + region.half + 1) o.terrain.remakeEdge();
     this.views.push(v);
     this.far.setHole(region.index, [region.cx - region.half, region.cz - region.half, region.cx + region.half, region.cz + region.half]);
     return v;

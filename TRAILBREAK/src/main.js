@@ -232,6 +232,7 @@ async function start() {
       if (id !== WORLD.start) await live;
       const region = world.add(id, data);
       if (region.id === WORLD.start) setLoad(0.64, 'Painting the ground');
+      else await new Promise((r) => setTimeout(r, 0));
       await view.add(region, region.id === WORLD.start ? { onProgress: (f) => setLoad(0.64 + f * 0.16), slice: Infinity } : {});
       if (region.id === WORLD.start) started(); else game?.regionIn(region);
     }).catch((e) => { console.error('the open world', e); game?.hud.toast(`Part of the world could not be built: ${e.message}`, true, 8); });
