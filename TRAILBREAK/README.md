@@ -876,14 +876,19 @@ edge, met to its edge, blended between maps. What a room shares carries the map:
 
 Where a stretch meets a map whose ground has textures of another set (the ghat and the pass, at Kerala), the stretch's
 own give way to that map's over the last 160 m, so both sides of the seam are textured alike; and every stretch's
-land takes on its neighbours' colours towards their seams (the neighbour's average colour just past the edge against
-the stretch's own, smoothed along the seam, the factor fading over the same 160 m): measured along the seams, the
-Ghat's ground was 1.6 times brighter than Kerala's where they meet, and now matches it within a few per cent. Close
-up, where the textures show what each kind of ground is, the tints take a factor of their own, from the same kinds of
-ground either side (gravel against gravel, grass against grass): the land's average alone darkened the pass road's
-gravel to the colour of Kerala's forest across the seam (to 0.73 of the brightness of the same gravel on Kerala's
-side, in a screenshot from above); now it is within 6%. Each map's ground is shaded at its edge with the ground across
-the seam (its neighbour's, or the far land's until that comes in), so the seams show no line of shading either.
+land takes on its neighbours' colours towards their seams, the same kind of ground against the same kind (gravel
+against gravel, grass against grass): the neighbour's tint over each against the stretch's own, smoothed along the
+seam, gives a factor that fades over the same 160 m. Far off, where the colour of the land stands for the textures,
+each kind of ground there is coloured as the textures show it close up (the neighbour's set's colour, as far as they
+have given way to it), so the land looks the same from near and far. The first way of matching the seams took the
+land's average colour either side, which took on what differs in the land itself: by Kerala, where its forest floor
+meets the stretches' grass, it darkened the pass road's gravel to 0.73 of the brightness of the same gravel on
+Kerala's side, and seen from a distance it turned the stretches' grass brown and their rock mauve (the factor took
+30 to 40% off the green and none off the blue). Now the gravel is within 6%; measured along the seams, the land
+either side is as bright within 5% where it is the same land (the coast and the Ghat, the pass and Ashwood), and where
+it is not, the difference is what is there: next to Kerala the stretches' open grass is 1.2 to 1.3 times as bright as
+Kerala's forest floor, which its trees stand over. Each map's ground is shaded at its edge with the ground across the
+seam (its neighbour's, or the far land's until that comes in), so the seams show no line of shading either.
 
 **Roads across the seams.** A road that runs out of one map into the next is paved a few metres on past the edge (its
 line carried straight on, `extend` in `world/maps/world.js`), and each map's road surface, lane lines and wear are cut

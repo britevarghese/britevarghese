@@ -19,8 +19,6 @@ import { REGIONS } from '../world/maps/world.js';
 import { DeformGrid } from '../world/Deform.js';
 import { SURFACE } from '../physics/Surfaces.js';
 
-// out of a map's square across each of its edges
-const OUT = { west: [-1, 0], east: [1, 0], north: [0, -1], south: [0, 1] };
 // how near (m) the camera must come to a map's square for each of its things to be kept up to date
 const NEAR = { grass: 160, tea: 400, rocks: 700, veg: 2600, breaks: 300 };
 
@@ -67,10 +65,10 @@ export class RegionView {
     for (const [side, nid] of Object.entries(REGIONS[region.index].seams || {})) {
       const N = REGIONS.find((R) => R.id === nid).map;
       if (N.ground !== M.ground) blend = { side, ground: await groundOf(N.ground, quality), band: 160 };
-      const nv = views.find((o) => o.region.id === nid), [ox, oz] = OUT[side];
+      const nv = views.find((o) => o.region.id === nid);
       if (nv) {
         const dx = region.cx - nv.region.cx, dz = region.cz - nv.region.cz;
-        match.push({ side, colorAt: (x, z, out) => nv.terrain.colorAt(x + dx + ox * 8, z + dz + oz * 8, 32, 0, 0, out), toneAt: (x, z, out) => nv.terrain.toneAt(x + dx, z + dz, out) });
+        match.push({ side, toneAt: (x, z, out) => nv.terrain.toneAt(x + dx, z + dz, out) });
       }
     }
     // (a step at a time, the game running between them)

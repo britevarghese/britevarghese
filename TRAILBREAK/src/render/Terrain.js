@@ -98,9 +98,8 @@ export class TerrainRenderer {
     // (the open world: the ground drawn past a map's edge, its neighbour's or the far land's, so the slope of the
     // ground at the edge, and its shading, is the same on both sides of the seam)
     this.beyond = beyond;
-    // (and a stretch's colour of the land brought to its neighbours' at their seams: [{ side, colorAt(x, z, out),
-    // toneAt(x, z, out) }], the neighbour's average colour just past the edge, and its kind of ground and tint at a
-    // point in this one's coordinates, colourFix)
+    // (and a stretch's colour of the land brought to its neighbours' at their seams: [{ side, toneAt(x, z, out) }], the
+    // neighbour's kind of ground and tint at a point in this one's coordinates, colourFix)
     this.match = match;
     // (the open world: a stretch's ground textures giving way to its neighbour's set towards their seam, so both sides
     // of it are textured alike: { ground, side, band })
@@ -518,7 +517,7 @@ if (gWet > 0.0) {
       if (k % 16 === 15) yield;
     }
     this.splat = splat;
-    if (this.match.length) yield* this.colourFix(col, CN, RES * CS);
+    if (this.match.length || this.blend) yield* this.colourFix(col, CN, RES * CS);
     // mips: level L has cells 2^L cells wide (a box filter of the level below)
     this.mips = [{ n: CN, step: RES * CS, data: col }];
     let prev = this.mips[0];
@@ -546,18 +545,19 @@ if (gWet > 0.0) {
   }
 
   /**
-   * The open world: a stretch's land coloured as its neighbours' where they meet. Along each seam, the neighbour's
-   * average colour against this one's (over 32 m, smoothed along the seam) gives a factor this one's colours take at
-   * the edge, fading to none `SEAM_BAND` m in: written into the colour grid (far off). Close up, where the textures
-   * show what each kind of ground is, the tints take their own factor: the neighbour's tint against this one's over
-   * the same kinds of ground either side (gravel against gravel, grass against grass), not over the land as a whole,
-   * which would darken a gravel road to the colour of a forest across the seam.
+   * The open world: a stretch's land coloured as its neighbours' where they meet, close up and far off alike. Along each
+   * seam, the neighbour's tints against this one's over the same kinds of ground either side (gravel against gravel,
+   * grass against grass: over 32 m in from the seam, smoothed along it) give a factor this one's tints take at the
+   * edge, fading to none `SEAM_BAND` m in. And the colour grid near a seam shows each kind of ground as the textures
+   * there do (where this ground's textures give way to the neighbour's set, blend: that set's colour, as far as they
+   * have given way to it), times its tint and that factor. (A factor from the land's average colour either side would
+   * take on what differs in the land: grass beside a forest floor turned the colour of a forest floor, rock mauve.)
    */
   *colourFix(col, CN, step) {
     const w = this.world, h = this.half, O = w.origin, RES = this.res, avg = this.layers.map((l) => l.avg);
-    const own = [0, 0, 0], nb = [0, 0, 0], tn = [0, 0, 0], STEP = 16, n = Math.floor(2 * h / STEP) + 1;
+    const tn = [0, 0, 0], STEP = 16, n = Math.floor(2 * h / STEP) + 1;
     // (smoothed along the seam: the colours of the land, not of each field)
-    const smooth = (f, R = 4) => {
+    const smooth = (f, R) => {
       const sm = new Float32Array(n * 3);
       for (let j = 0; j < n; j++) for (let c = 0; c < 3; c++) {
         let sum = 0, cnt = 0;
@@ -566,55 +566,65 @@ if (gWet > 0.0) {
       }
       return sm;
     };
-    this.fix = this.match.map(({ side, colorAt, toneAt }) => {
+    this.fix = this.match.map(({ side, toneAt }) => {
       const axisX = side === 'east' || side === 'west', sign = side === 'east' || side === 'south' ? 1 : -1;
-      const f = new Float32Array(n * 3), so = new Float32Array(n * 3), st = new Float32Array(n * 3);
+      const so = new Float32Array(n * 3), st = new Float32Array(n * 3);
       for (let j = 0; j < n; j++) {
         const s = -h + j * STEP;
-        // this side's average over 32 m along the seam and 32 m in from it; and its tints and the neighbour's the
-        // same way in from the seam on its side, where the ground is of one kind
-        own.fill(0);
-        let cnt = 0;
+        // this side's tints over 32 m along the seam and 32 m in from it, and the neighbour's as far in on its side,
+        // where the ground is of one kind
         for (let a = -16; a <= 16; a += step) for (let b = 0; b <= 32; b += step) {
           const x = axisX ? sign * (h - b) : s + a, z = axisX ? s + a : sign * (h - b);
           const i = Math.round((x - O) / step), k = Math.round((z - O) / step);
           if (i < 0 || k < 0 || i >= CN || k >= CN) continue;
           const L = this.splat[Math.round((z - O) / RES) * w.N + Math.round((x - O) / RES)];
-          const same = toneAt && toneAt(axisX ? sign * (h + b) : s + a, axisX ? s + a : sign * (h + b), tn) === this.layers[L].name;
+          if (toneAt(axisX ? sign * (h + b) : s + a, axisX ? s + a : sign * (h + b), tn) !== this.layers[L].name) continue;
           for (let c = 0; c < 3; c++) {
-            const v = col[(k * CN + i) * 3 + c] / 255, lin = v * v;
-            own[c] += lin;
-            if (same) { so[j * 3 + c] += lin / Math.max(1e-4, avg[L][c]); st[j * 3 + c] += tn[c]; }
+            const v = col[(k * CN + i) * 3 + c] / 255;
+            so[j * 3 + c] += v * v / Math.max(1e-4, avg[L][c]); st[j * 3 + c] += tn[c];
           }
-          cnt++;
         }
-        colorAt(axisX ? sign * h : s, axisX ? s : sign * h, nb);
-        for (let c = 0; c < 3; c++) f[j * 3 + c] = Math.min(4, Math.max(0.25, nb[c] / Math.max(1e-4, own[c] / Math.max(1, cnt))));
       }
-      // (the tints' factor over more of the seam: where the ground either side is of one kind is here and there)
-      const ss = smooth(so, 8), ts = smooth(st, 8), fn = new Float32Array(n * 3);
-      for (let q = 0; q < n * 3; q++) fn[q] = ss[q] > 0.2 ? Math.min(2, Math.max(0.5, ts[q] / ss[q])) : 1;
-      return { axisX, sign, f: smooth(f), fn, STEP, n };
+      // (over more of the seam: where the ground either side is of one kind is here and there)
+      const ss = smooth(so, 8), ts = smooth(st, 8), f = new Float32Array(n * 3);
+      for (let q = 0; q < n * 3; q++) f[q] = ss[q] > 0.2 ? Math.min(2, Math.max(0.5, ts[q] / ss[q])) : 1;
+      return { axisX, sign, f, STEP, n };
     });
-    const out = [0, 0, 0], B = Math.ceil(SEAM_BAND / step) + 1;
+    // each kind of ground's colour where the textures give way to the neighbour's set: the two sets' mixed, colour and
+    // gain alike, as the shader mixes them
+    const B = this.blend, gain = (l, c) => l.gain?.[c] ?? 1;
+    const other = B ? this.layers.map((l) => B.ground.layers[B.ground.index[l.name]] || null) : null;
+    const bAxisX = B && (B.side === 'east' || B.side === 'west'), bSign = B && (B.side === 'east' || B.side === 'south') ? 1 : -1;
+    const shownAt = (L, x, z, out) => {
+      const l = this.layers[L], o = other?.[L];
+      const u = o ? Math.min(1, Math.max(0, (h - bSign * (bAxisX ? x : z)) / B.band)) : 1, t = 1 - u * u * (3 - 2 * u);
+      for (let c = 0; c < 3; c++) {
+        out[c] = t ? (l.avg[c] / gain(l, c) * (1 - t) + o.avg[c] / gain(o, c) * t) * (gain(l, c) * (1 - t) + gain(o, c) * t) : l.avg[c];
+      }
+      return out;
+    };
+    const f3 = [0, 0, 0], a3 = [0, 0, 0], R = Math.ceil(Math.max(SEAM_BAND, B?.band ?? 0) / step) + 1;
     for (let k = 0; k < CN; k++) {
       const z = O + k * step;
       for (let i = 0; i < CN; i++) {
         // (a row clear of the seams' bands across the middle: only its ends)
-        if (i === B && CN - B > B && h - Math.abs(z) >= SEAM_BAND) { i = CN - B - 1; continue; }
-        if (!this.fixAt(O + i * step, z, out)) continue;
+        if (i === R && CN - R > R && h - Math.abs(z) >= R * step) { i = CN - R - 1; continue; }
+        const x = O + i * step, fixed = this.fixAt(x, z, f3);
+        const L = this.splat[Math.round((z - O) / RES) * w.N + Math.round((x - O) / RES)];
+        shownAt(L, x, z, a3);
+        if (!fixed && a3[0] === avg[L][0] && a3[1] === avg[L][1] && a3[2] === avg[L][2]) continue;
         const o = (k * CN + i) * 3;
-        for (let c = 0; c < 3; c++) { const v = col[o + c] / 255; col[o + c] = Math.min(255, Math.round(Math.sqrt(v * v * out[c]) * 255)); }
+        for (let c = 0; c < 3; c++) {
+          const v = col[o + c] / 255, tint = v * v / Math.max(1e-4, avg[L][c]);
+          col[o + c] = Math.min(255, Math.round(Math.sqrt(a3[c] * tint * (fixed ? f3[c] : 1)) * 255));
+        }
       }
       if (k % 64 === 63) yield;
     }
   }
 
-  /**
-   * The factor on the colour of the land at (x, z) (colourFix): false where there is none. near: the one for the tints
-   * over the textures close up, rather than for the colour far off.
-   */
-  fixAt(x, z, out, near = false) {
+  /** The factor on the tints of the land at (x, z) (colourFix): false where there is none. */
+  fixAt(x, z, out) {
     if (!this.fix) return false;
     out[0] = out[1] = out[2] = 1;
     let any = false;
@@ -623,8 +633,7 @@ if (gWet > 0.0) {
       if (d >= SEAM_BAND || d < -1) continue;
       const t = Math.max(0, d) / SEAM_BAND, w = 1 - t * t * (3 - 2 * t);
       const u = Math.min(F.n - 1.001, Math.max(0, ((F.axisX ? z : x) + this.half) / F.STEP)), j = Math.floor(u), r = u - j;
-      const f = near ? F.fn : F.f;
-      for (let c = 0; c < 3; c++) out[c] *= 1 + ((f[j * 3 + c] * (1 - r) + f[(j + 1) * 3 + c] * r) - 1) * w;
+      for (let c = 0; c < 3; c++) out[c] *= 1 + ((F.f[j * 3 + c] * (1 - r) + F.f[(j + 1) * 3 + c] * r) - 1) * w;
       any = true;
     }
     return any;
@@ -749,7 +758,7 @@ if (gWet > 0.0) {
       // the tint over the textures: the land's own, or past the map the far colour over the layer the shader shows
       if (inMap(x, z)) this.tintAt(this.splat[Math.round((z - w.origin) / w.res) * w.N + Math.round((x - w.origin) / w.res)], x, z, h, slope, t3);
       else { const a = this.layers[this.farLayer(h, ny)].avg; for (let c = 0; c < 3; c++) t3[c] = Math.min(2, Math.max(0.4, c3[c] / a[c])); }
-      if (this.fixAt(x, z, f3, true)) for (let c = 0; c < 3; c++) t3[c] *= f3[c];
+      if (this.fixAt(x, z, f3)) for (let c = 0; c < 3; c++) t3[c] *= f3[c];
       const d = D[v];
       if (d > 0.004) {
         // pressed and churned ground in the ruts
