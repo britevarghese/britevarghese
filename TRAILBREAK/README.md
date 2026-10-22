@@ -894,7 +894,9 @@ Kerala and so on). Around it all, one more terrain draws the far land: each map'
 edge, met to its edge, blended between maps (each map's weighted as the inverse square of how far off it is, so the
 far land meets every map's edge to within 0.3 m: a blend that gave a map 200 m off nearly the weight of the one at
 hand left the far land up to 139 m above or below a map's edge, a sheet of land hanging in the air with the sky
-showing under it). What a room shares carries the map: a tree knocked down in Kerala is
+showing under it). Along a map's edge where no map lies beyond, the far land also runs 12 m on under the map's
+square, sunk below its ground: seen from afar, along a crest at the edge, the map's ground and the far land each left a
+pixel here and there to the other by a hair, and the sky showed through them in a dotted white line. What a room shares carries the map: a tree knocked down in Kerala is
 `kerala:t123`; a beacon's number is its map's place in the world times 100 and its own.
 
 Where a stretch meets a map whose ground has textures of another set (the ghat and the pass, at Kerala), the stretch's

@@ -24,6 +24,8 @@ import { TEA_ROW, TEA_RANGE } from './Tea.js';
 
 const GRID = 32;
 const V = GRID + 1;
+// m in from an open edge of a map's square that the far land is still drawn (sunk under the map's ground: holeSink)
+const HOLE_BAND = 12;
 const ROOT = 8192;              // (a 2 km map's quadtree: the map and the far land round it; a big map's is wider)
 const MIN = 16;
 const FINE = 8;                 // (rutted ground close up)
@@ -278,7 +280,17 @@ vec3 gTilt(float L, float sc) {
 }` : ''}`)
         .replace('#include <clipping_planes_fragment>', `#include <clipping_planes_fragment>
 if (uClipC.z > 0.0 && (abs(vWPos.x - uClipC.x) > uClipC.z || abs(vWPos.z - uClipC.y) > uClipC.z)) discard;
-${NH ? `for (int i = 0; i < ${NH}; i++) { vec4 h = uHoles[i]; if (vWPos.x > h.x && vWPos.x < h.z && vWPos.z > h.y && vWPos.z < h.w) discard; }` : ''}`)
+${NH ? `for (int i = 0; i < ${NH}; i++) {
+  vec4 h = uHoles[i];
+  if (vWPos.x > h.x && vWPos.x < h.z && vWPos.z > h.y && vWPos.z < h.w) {
+    // (a little way in from an edge with no map beyond it the far land is kept, sunk under the map's ground: see holeSink)
+    vec4 e = vec4(vWPos.x - h.x, h.z - vWPos.x, vWPos.z - h.y, h.w - vWPos.z);
+    float dIn = min(min(e.x, e.y), min(e.z, e.w));
+    if (dIn > ${HOLE_BAND.toFixed(1)}) discard;
+    vec2 across = vWPos.xz + (dIn + 1.0) * (dIn == e.x ? vec2(-1.0, 0.0) : dIn == e.y ? vec2(1.0, 0.0) : dIn == e.z ? vec2(0.0, -1.0) : vec2(0.0, 1.0));
+    for (int j = 0; j < ${NH}; j++) { vec4 o = uHoles[j]; if (j != i && across.x > o.x && across.x < o.z && across.y > o.y && across.y < o.w) discard; }
+  }
+}` : ''}`)
         .replace('#include <color_fragment>', `#include <color_fragment>
 vec3 gNW = normalize(vWNormal);
 float gRough = -1.0;
@@ -710,7 +722,22 @@ if (gWet > 0.0) {
 
   heightAt(x, z) {
     if (Math.abs(x) <= this.half && Math.abs(z) <= this.half) return this.world.terrain(x, z);
-    return this.beyond ? this.beyond(x, z) : this.world.farHeight(x, z);
+    return (this.beyond ? this.beyond(x, z) : this.world.farHeight(x, z)) - (this.far ? this.holeSink(x, z) : 0);
+  }
+
+  /**
+   * The far land under a map's square, sunk below the map's own ground (the more the further in): it is drawn a little
+   * way in from the square's edge where nothing lies beyond it (HOLE_BAND, the shader), so that where the map's ground
+   * and the far land each leave a pixel to the other along the edge (on a crest seen from afar, by a hair either side
+   * of the line), it shows the land, not the sky.
+   */
+  holeSink(x, z) {
+    let s = 0;
+    for (const [hx0, hz0, hx1, hz1] of this.holes) {
+      if (!(x > hx0 && x < hx1 && z > hz0 && z < hz1)) continue;
+      s = Math.max(s, 0.5 + 1.5 * Math.min(x - hx0, hx1 - x, z - hz0, hz1 - z));
+    }
+    return s;
   }
 
   build(node) {
@@ -870,7 +897,7 @@ if (gWet > 0.0) {
   skip(n) {
     const x0 = n.x0, z0 = n.z0, x1 = x0 + n.size, z1 = z0 + n.size;
     if (this.clip) return x1 <= -this.half || x0 >= this.half || z1 <= -this.half || z0 >= this.half;
-    for (const [hx0, hz0, hx1, hz1] of this.holes) if (x0 >= hx0 && x1 <= hx1 && z0 >= hz0 && z1 <= hz1) return true;
+    for (const [hx0, hz0, hx1, hz1] of this.holes) if (x0 >= hx0 + HOLE_BAND && x1 <= hx1 - HOLE_BAND && z0 >= hz0 + HOLE_BAND && z1 <= hz1 - HOLE_BAND) return true;
     return false;
   }
 
