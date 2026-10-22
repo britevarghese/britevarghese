@@ -755,6 +755,8 @@ About 2 km across: the ranger station where everyone starts, the old valley road
 snowy summit, the river from the north-west gorge to the south-east with three fords, Mirror Lake, Cattail Bog, the
 rock garden and the Alder mine on the east ridge, the Pinecrest fire tower, the sand wash, puddles that hold water and
 mud, and thick woods. Survey beacons show as orange light beams; drive up to one to survey it for the whole room.
+(The beams are soft columns of light, brightest through their middle and faded out as you come up to them: drawn as an
+even tube of light, close up one stood as a hard-edged slab across the view, plain to see at night.)
 
 The trails are built like real ones: the beds are graded (cut into the rises and built up over the dips, at most
 3 m) to about 19 degrees where the hill allows, switchbacks climb the steep ground (the Summit Trail's were laid out

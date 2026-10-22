@@ -235,15 +235,25 @@ export class Landmarks {
         vertexShader: `#include <common>
 #include <logdepthbuf_pars_vertex>
 varying float vY;
-void main() { vY = position.y; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+varying vec3 vN;
+varying vec3 vView;
+void main() {
+  vY = position.y; vN = normalMatrix * normal;
+  vec4 mv = modelViewMatrix * vec4(position, 1.0);
+  vView = mv.xyz;
+  gl_Position = projectionMatrix * mv;
 #include <logdepthbuf_vertex>
 }`,
+        // a soft column of light: brightest looking through its middle, fading to nothing at its edges (a tube of even
+        // light seen up close was a slab with hard sides, filling the view), and gone as you come up to the beacon
         fragmentShader: `#include <common>
 #include <logdepthbuf_pars_fragment>
-uniform vec3 uColor; uniform float uFade; varying float vY;
+uniform vec3 uColor; uniform float uFade; varying float vY; varying vec3 vN; varying vec3 vView;
 void main() {
 #include <logdepthbuf_fragment>
-  float a = (1.0 - smoothstep(0.0, 160.0, vY)) * 0.22 * uFade; gl_FragColor = vec4(uColor * a, a);
+  float facing = abs(dot(normalize(vN), normalize(-vView)));
+  float a = (1.0 - smoothstep(0.0, 160.0, vY)) * 0.3 * uFade * facing * facing * smoothstep(8.0, 40.0, length(vView));
+  gl_FragColor = vec4(uColor * a, a);
 }`,
       });
       return m;
