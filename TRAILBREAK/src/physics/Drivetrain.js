@@ -266,7 +266,12 @@ export class Drivetrain {
     const shiftTime = this.t.shiftTime * (this.manual ? 1.4 : 1);
     // a modern automatic (six speeds or more) reads the grade: it doesn't shift up while the truck slows under power
     const modern = !this.manual && n >= 6, climbing = modern && thr > 0.1 && this.aRel < -0.04;
-    if (this.gear < n && turbineRpm(this.gear) > up && groundRpm(this.gear) > up - 300 && !climbing) {
+    // (lifting off doesn't shift up: the truck stays in its gear, the engine holding it back and its revs falling with
+    // the road speed, as a driver coasting leaves it; shifting up the moment the foot came off, it dropped the revs a
+    // thousand at a time, and with the clutch out between, let them fall away and snatched them back. Only near the
+    // redline, rolling faster downhill)
+    const coasting = thrIn < 0.05 && turbineRpm(this.gear) < this.e.redline - 250;
+    if (this.gear < n && turbineRpm(this.gear) > up && groundRpm(this.gear) > up - 300 && !climbing && !coasting) {
       // (a dual-clutch box's next clutch takes the drive over at once: no gap, only the revs to bring down)
       this.gear++; this.shiftT = this.t.dct ? 0 : shiftTime; this.lockupOn = false; this.sinceShift = 0;
       if (this.t.dct) this.upT = 0.4;

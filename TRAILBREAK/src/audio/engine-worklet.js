@@ -27,6 +27,8 @@
 
 const MAXG = 40;          // grains sounding at once (at most)
 const LOOK = 6000;        // longest half-window (output samples): firings slower than this are clipped
+const GAP = 0.04, DENSE = 12;   // revs with fewer than DENSE firings within GAP (log revs) either way: a gap
+const KEEP = 0.04;        // how far (log revs, kind counted in) a run may stray from the game's revs and play on
 
 /** Firings sorted by their revs, for finding the ones nearest a target. */
 class Sorted {
@@ -114,10 +116,14 @@ class EngineProcessor extends AudioWorkletProcessor {
     for (let k = 0; k < n; k++) if (b.r[k] > rMax) rMax = b.r[k];
     this.bank = { ...b, n, prev, next, rMax, fIdle: b.idleRpm * b.cyl / 120, lr: Float32Array.from(b.r, Math.log) };
     this.sorted = new Sorted(b.r);
+    // (the revs it has plenty of firings round: DENSE within GAP either way)
+    const S = this.sorted;
+    S.dense = Uint8Array.from(S.r, (r) => S.at(r * Math.exp(GAP)) - S.at(r * Math.exp(-GAP)) >= DENSE);
     // the revs the recording's top (and bottom) two percent of firings start at: beyond them, targets stop there
     const m = Math.min(n - 1, Math.max(12, Math.round(n * 0.02)));
     this.rTop = this.sorted.r[n - 1 - m]; this.rBot = this.sorted.r[m];
     this.streams = [new Stream(), new Stream()];
+    this.side = 0;
     this.planned = false;
   }
 
@@ -162,7 +168,13 @@ class EngineProcessor extends AudioWorkletProcessor {
           if (c < cc) { cc = c; kc = k; dc = d; }
         }
       }
-      if (kc >= 0 && cc <= best + sway) {
+      // (and it carries on as long as it is within KEEP of the game's revs, kind counted in, however near another
+      // firing comes: the note is the game's revs whatever the firing, a few percent only shades its tone, and the
+      // recording's runs are sweeps and short holds that cross a narrower band in a handful of firings, so the stream
+      // hopped from run to run several times a second, a flutter; where the recording has nothing near, a gap in it
+      // or past its top, it carries on while it is about as poor a match as the best)
+      const slack = 0.6 * Math.max(0, best - 0.025);
+      if (kc >= 0 && cc <= Math.max(KEEP, best + sway + slack)) {
         if (dc !== s.dir) s.turn = 0.35 + 0.5 * this.rand();
         s.rep = kc === s.cur; s.cur = kc; s.dir = dc; s.played(kc);
         return kc;
@@ -222,11 +234,33 @@ class EngineProcessor extends AudioWorkletProcessor {
     return res;
   }
 
+  /**
+   * The revs to pick at for rt: rt itself, or, where the recording has few firings within GAP of it (a gap in its
+   * revs, or only a quick sweep through them), the nearest revs on one side that it has plenty of, held there (their
+   * firings, played at the game's rate): picking the nearest either side, the stream swung from the firings below the
+   * gap to those above it and back, several times a second, a flutter. It goes over to the other side when that is
+   * clearly nearer.
+   */
+  across(rt) {
+    const S = this.sorted, R = S.r, D = S.dense, i = S.at(rt);
+    const n = S.at(rt * Math.exp(GAP)) - S.at(rt * Math.exp(-GAP));
+    if (n >= DENSE) { this.side = 0; return rt; }
+    let lo = Math.min(i, R.length) - 1, hi = i;
+    while (lo >= 0 && !D[lo]) lo--;
+    while (hi < R.length && !D[hi]) hi++;
+    if (lo < 0 && hi >= R.length) { this.side = 0; return rt; }
+    const lb = lo >= 0 ? Math.log(rt / R[lo]) : Infinity, la = hi < R.length ? Math.log(R[hi] / rt) : Infinity;
+    let side = this.side || (lb <= la ? -1 : 1);
+    if (side < 0 && (lo < 0 || la < lb - 0.06)) side = 1; else if (side > 0 && (hi >= R.length || lb < la - 0.06)) side = -1;
+    this.side = side;
+    return side < 0 ? R[lo] : R[hi];
+  }
+
   /** The grains for the next firing (the recording's revs to pick at rt, relative to its idle; firings per second
    * fT, To output samples apart; the revs moving at `slope`, d ln rpm / dt), into this.next. */
   plan(rt, fT, To, wOn, wOff, band, slope) {
     const b = this.bank, q0 = b.sr / sampleRate;
-    rt = Math.min(this.rTop, Math.max(this.rBot, rt));
+    rt = this.across(Math.min(this.rTop, Math.max(this.rBot, rt)));
     this.next.length = 0;
     let gi = 0;
     for (let kind = 0; kind < 2; kind++) {

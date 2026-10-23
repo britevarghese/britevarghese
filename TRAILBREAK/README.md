@@ -187,6 +187,24 @@ Still short: the Hummer H1's diesel (its recordings reach 2,300 rpm of its 3,300
 and the Power Wagon's Cummins swap (2,900 of 3,200): above those the top firings still play faster. No free recording
 of a big diesel revving higher has turned up yet (Freesound, Wikimedia Commons, OpenGameArt).
 
+Where a recording has few firings at some revs (a quick sweep through them, or none at all: the Thar's diesel has
+nothing between about 2,850 and 3,650 rpm, where it cruises at highway speed), the player holds to the revs nearest on
+one side that it has plenty of, playing their firings at the game's rate, and goes over to the other side only when that
+is clearly nearer; and a run of firings plays on while it is within 4% of the game's revs (or, in a gap, about as near
+as anything is). Picking the nearest firings either side, it swung from below the gap to above it and back several
+times a second: in the Thar off the throttle at 3,400 rpm (lifting off at highway speed) it changed to another stretch
+of the recording 39 times a second, 9.7 of them jumps of more than 8% in the recorded revs, and the loudness fluttered
+by 11% at 3 to 15 Hz; now 13 a second, 1 such jump, 3.4%. Over every engine's bank at a third and three-quarters of the
+way to its redline, on and off the throttle, the flutter averages 3.4% (it was 3.6%) and is at most 7.5% (10.4%).
+
+**Lifting off.** The gearbox keeps its gear when you lift off, as a driver coasting does: the engine holds the truck
+back and its revs fall with the road speed, and the sound goes over to the overrun. It used to shift up the moment the
+throttle closed (its shift point falling to 1,750 rpm): in the Thar at 122 km/h it went from 4th to 6th within a
+second and a half, and with the clutch out between gears the revs fell to 1,730 and were snatched back up to 2,770,
+twice (a swoop down and up each time, nothing like a real car lifting). Now it stays in 4th, the revs falling evenly from
+3,520 to 2,280 over 8 s as the truck slows from 122 to 83 km/h. Off the throttle it still shifts up near the redline
+(rolling faster downhill).
+
 A big engine is louder than a small one and has more of its low end (a shelf under 140 Hz): the Power Wagon's 6.4
 HEMI most of all, deep and loud, then the 392 swap, the old big-blocks and the big diesels' rumble.
 

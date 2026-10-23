@@ -30,7 +30,15 @@ function hit(id, kmh, trunks) {
   const g = grove(trunks), v = new Vehicle(truckSpec(id));
   v.place(g, 0, 0, 0);
   for (let n = 0; n < 240; n++) v.step({ throttle: 0, brake: 0, steer: 0, handbrake: 0 }, g);
-  v.vel.set(0, 0, kmh / 3.6);
+  // (rolling at that speed, its wheels turning with it, in the gear a driver would be in: drive.mjs keysBend)
+  const sp = kmh / 3.6, d = v.dt, wOut = sp / v.spec.tyre.radius * d.axleGear;
+  v.vel.set(0, 0, sp);
+  for (const w of v.wheels) w.omega = sp / v.spec.tyre.radius;
+  if (!d.electric) {
+    let gear = 1;
+    while (gear < d.t.gears.length && wOut * d.t.gears[gear - 1] * 60 / (2 * Math.PI) > 0.7 * (d.e.redline || 6000)) gear++;
+    d.gear = gear; d.wEngine = wOut * d.t.gears[gear - 1];
+  }
   let flipped = false;
   for (let n = 0; n < 480 * 3; n++) { v.step({ throttle: 0, brake: 0, steer: 0, handbrake: 0 }, g); if (v.up.y < 0.5) flipped = true; }
   return { kmh: Math.hypot(v.vel.x, v.vel.z) * 3.6, broken: g.broken.size, flipped, z: v.pos.z };
