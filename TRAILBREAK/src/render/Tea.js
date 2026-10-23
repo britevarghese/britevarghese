@@ -17,6 +17,7 @@ const TOP = 0.92, HALF = 0.56;                   // a bush's height and half-wid
 /** How far (m) the hedges reach, by graphics level, and where they turn simple. */
 const RANGE = { high: 150, medium: 110, low: 70 };
 const NEAR = 55;
+const STEEP = 0.84;                              // the steepest ground planted (rise over run)
 // the colours of the leaves: mature, flush, shade (linear)
 const LEAF = [0.06, 0.16, 0.03], FLUSH = [0.2, 0.38, 0.05], SHADE = [0.02, 0.05, 0.012];
 
@@ -103,6 +104,9 @@ diffuseColor.rgb *= 0.72 + 0.56 * lf;`)
     for (let k = 0; k < n - 1; k++) for (let i = 0; i < n - 1; i++) {
       const h00 = H[k * n + i], h10 = H[k * n + i + 1], h01 = H[(k + 1) * n + i], h11 = H[(k + 1) * n + i + 1];
       const lo = Math.min(h00, h10, h01, h11), hi = Math.max(h00, h10, h01, h11);
+      // (none planted on a bank steeper than 40 degrees, a road's cut: there the rows stacked into bars standing out
+      // of the bank, and its soil shows)
+      if (Math.hypot(h10 - h00 + h11 - h01, h01 - h00 + h11 - h10) / (2 * g) > STEEP) continue;
       for (let L = Math.ceil(lo / TEA_ROW); L * TEA_ROW < hi; L++) {
         const v = L * TEA_ROW, cut = [];
         const edge = (ha, hb, xa, za, xb, zb) => { if ((ha < v) !== (hb < v)) { const t = (v - ha) / (hb - ha); cut.push([xa + (xb - xa) * t, za + (zb - za) * t]); } };

@@ -148,6 +148,8 @@ export class TerrainRenderer {
         uTexFar: { value: 320 }, uIds: { value: new THREE.Vector3(this.layerIndex.grass, this.layerIndex.rock, this.layerIndex.snow ?? this.layerIndex.rock) },
         uSnowLine: { value: this.snowLine + 40 }, uRelief: { value: 1 },
         uTea: { value: this.layerIndex.tea ?? -1 }, uTeaNear: { value: TEA_RANGE.high },
+        // how strongly its steep rock stands out in beds (the map's rockBeds: Kerala's granite hardly)
+        uRockBeds: { value: w.map.rockBeds ?? 1 },
       });
       const B = this.blend;
       if (B) {
@@ -229,6 +231,7 @@ uniform float uSplatRes;
 uniform float uMapHalf;
 uniform vec2 uCentre;
 uniform float uTexFar;
+uniform float uRockBeds;
 uniform vec3 uIds;
 uniform float uSnowLine;
 uniform float uRelief;
@@ -287,7 +290,7 @@ vec2 gRock(vec3 p, float along, float w) {
   float f = fract(s), bed = floor(s), k = 0.4 + 0.9 * th(vec2(bed, 11.0));
   float ledge = smoothstep(0.0, 0.32 + w, f) * (1.0 - 0.6 * f) * (1.0 - smoothstep(0.8 - w, 1.0, f)) * k;
   float joint = smoothstep(0.42 - w * 0.2, 0.5, abs(fract(along / (1.6 + th(vec2(bed, 7.0)) * 1.4) + th(vec2(bed, 3.0))) - 0.5));
-  float shade = (1.0 - 0.5 * min(1.0, k) * (1.0 - smoothstep(0.0, 0.2 + w, f))) * (1.0 - 0.35 * joint);
+  float shade = (1.0 - 0.3 * min(1.0, k) * (1.0 - smoothstep(0.0, 0.2 + w, f))) * (1.0 - 0.25 * joint);
   return vec2(ledge * 0.4 + tn(p.xz * 1.7 + p.y) * 0.06, shade);
 }
 // the normal map's tilt as a world-space vector along the ground
@@ -410,7 +413,7 @@ ${G ? `
     for (int j = 0; j < 4; j++) { if (j >= gn) break; if (gL[j] == uIds.y) rw += max(0.0, hs[j] - top + 0.16); }
     vec3 n0 = normalize(vWNormal);
     // (and not where the face is seen edge on: there its ledges glinted)
-    rw = rw / sum * smoothstep(0.92, 0.72, n0.y) * (1.0 - smoothstep(0.06, 0.25, length(fwidth(vWPos))))
+    rw = rw / sum * uRockBeds * smoothstep(0.92, 0.72, n0.y) * (1.0 - smoothstep(0.06, 0.25, length(fwidth(vWPos))))
       * smoothstep(0.12, 0.4, abs(dot(n0, normalize(cameraPosition - vWPos))));
     if (rw > 0.0) {
       vec3 ta = normalize(vec3(n0.z, 0.0, -n0.x) + vec3(1e-5, 0.0, 0.0)), tb = cross(n0, ta);
@@ -419,7 +422,7 @@ ${G ? `
       float ha = gRock(vWPos + ta * e, al + e, w).x, hb = gRock(vWPos + tb * e, al, w).x;
       vec3 slope = (ta * (ha - r0.x) + tb * (hb - r0.x)) / e;
       gNW = normalize(gNW - slope * min(1.0, 0.9 / max(length(slope), 1e-4)) * rw);
-      diffuseColor.rgb *= mix(1.0, r0.y * (0.8 + 0.6 * clamp(r0.x, 0.0, 0.4)), rw);
+      diffuseColor.rgb *= mix(1.0, r0.y * (0.88 + 0.4 * clamp(r0.x, 0.0, 0.4)), rw);
       // (matt: a ledge's top seen edge on caught the sky as a white line)
       gRough = mix(gRough, 1.0, rw);
     }

@@ -698,7 +698,8 @@ Everything that makes off-roading off-roading is simulated, not faked:
   25 cm grid (from Medium graphics up), so each rut has its walls and its floor (render/Terrain.js). Steep rock (a
   road's cut through the hill on the Ashwood Pass, Cairn Ridge's faces) is lit in relief: its beds in ledges a metre
   or so apart and of uneven thickness, wavering along the hill, each jutting out over a shaded recess at its foot and
-  leaning back to a shelf, broken by joints into blocks. It used to be a smooth bank with a picture of rock on it. The
+  leaning back to a shelf, broken by joints into blocks (Kerala's granite hardly: each map's `rockBeds`). It used to be
+  a smooth bank with a picture of rock on it. The
   relief evens out with distance (its edges drawn wider where a pixel is bigger) and where a face is seen edge on, so
   no ledge glints as a white line or a scatter of sparks.
 - **The picture** (High and Medium graphics; render/Post.js): drawn in high dynamic range, its edges smoothed by
@@ -791,7 +792,8 @@ and winds across the valley to the south-west: its floor is terraced into floode
 plots, the roads across them on embankments), and below the village it runs broad and shallow over the Kadavu ford.
 The Estate Road climbs the escarpment in hairpins through the shola (the evergreen forest) to the Ponmala tea factory
 and the estate bungalow; above them tea bushes cover the hills along the contours, clipped waist high with paths
-between the rows, shola fills the hollows and grassland the tops, with the lookout on Kurinji Top and the mast on
+between the rows (none on a bank steeper than 40 degrees, a road's cut: the rows stacked there into green bars
+standing out of it), shola fills the hollows and grassland the tops, with the lookout on Kurinji Top and the mast on
 Tower Hill. To the west a rubber estate grows in rows; to the east rises Anapara, a granite dome with a field of
 boulders at its foot; to the south are a laterite quarry (its ramp down the west face, rain standing in its floor)
 and the Ponmala reservoir. A chai stall stands by the river where the Thoovanam Pool track leaves the road.
