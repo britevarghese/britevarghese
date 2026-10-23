@@ -28,6 +28,12 @@ export function roadLine(r, step) {
 /** A fragment past the map's square (uHalf; its own frame) is not drawn: the next map draws its side of a seam. */
 export const SQUARE_CLIP = 'if (max(abs(vSq.x), abs(vSq.y)) > uHalf) discard;';
 
+// the paint is retroreflective (glass beads in it): in the beams of our truck's headlamps it sends their light back
+// toward them, and so to the eyes behind them, glowing down the road ahead at night. Set each frame (retroLights).
+const RETRO = { uRetroPos: { value: new THREE.Vector3() }, uRetroDir: { value: new THREE.Vector3(0, 0, 1) }, uRetro: { value: 0 } };
+/** pos: between the headlamps (world); dir: the way they point (unit, level); k: how bright, 0 with them off. */
+export function retroLights(pos, dir, k) { RETRO.uRetroPos.value.copy(pos); RETRO.uRetroDir.value.copy(dir); RETRO.uRetro.value = k; }
+
 export class RoadMarkings {
   constructor(world, scene) {
     const roads = (world.data.trails || []).filter((t) => t.lanes !== undefined);
@@ -84,6 +90,7 @@ export class RoadMarkings {
     const half = world.half;
     mat.onBeforeCompile = (sh) => {
       sh.uniforms.uHalf = { value: half };
+      Object.assign(sh.uniforms, RETRO);
       sh.vertexShader = sh.vertexShader
         .replace('#include <common>', '#include <common>\nvarying vec3 vWPos;\nvarying vec2 vSq;')
         .replace('#include <worldpos_vertex>', '#include <worldpos_vertex>\nvWPos = (modelMatrix * vec4(transformed, 1.0)).xyz;\nvSq = transformed.xz;');
@@ -94,13 +101,25 @@ ${SQUARE_CLIP}`)
 varying vec3 vWPos;
 varying vec2 vSq;
 uniform float uHalf;
+uniform vec3 uRetroPos;
+uniform vec3 uRetroDir;
+uniform float uRetro;
 ${HASH21}
 float mh(vec2 p) { return hash21(p); }
 float mn(vec2 p) { vec2 i = floor(p), f = fract(p); vec2 u = f * f * (3.0 - 2.0 * f);
   return mix(mix(mh(i), mh(i + vec2(1, 0)), u.x), mix(mh(i + vec2(0, 1)), mh(i + vec2(1, 1)), u.x), u.y); }`)
         .replace('#include <color_fragment>', `#include <color_fragment>
 float wear = smoothstep(0.5, 0.85, mn(vWPos.xz * 1.6)) * 0.7 + mn(vWPos.xz * 7.0) * 0.2;
-diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.025), clamp(wear, 0.0, 0.85));`);
+diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.025), clamp(wear, 0.0, 0.85));`)
+        .replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>
+if (uRetro > 0.0) {
+  // in the beams, ahead: the paint (where it isn't worn off) shining back, less the further it is
+  vec3 toP = vWPos - uRetroPos;
+  float d = length(toP);
+  float beam = smoothstep(0.9, 0.985, dot(toP / max(d, 0.01), uRetroDir)) * smoothstep(2.0, 6.0, d);
+  float far = 1.0 / (1.0 + d / 25.0);
+  totalEmissiveRadiance += diffuseColor.rgb * uRetro * beam * far * far * (1.0 - clamp(wear, 0.0, 0.85) / 0.85);
+}`);
     };
     this.mesh = new THREE.Mesh(g, mat);
     this.mesh.receiveShadow = true;

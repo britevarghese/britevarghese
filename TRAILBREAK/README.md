@@ -736,6 +736,8 @@ Everything that makes off-roading off-roading is simulated, not faked:
   just under the horizon. The wide cones alone lit an asphalt road for a few metres and no further (out there their
   light meets the road edge on, and asphalt is dark); now the road shows 40 to 60 m ahead. The beam falls off slowly
   with distance, so a bank right in front of the truck doesn't glare white, and it dims by half for each broken lamp.
+  The road paint is retroreflective, as real road paint is (glass beads in it): the centre dashes and edge lines in
+  the beams shine back down the road ahead, less the further off and where the paint is worn (render/RoadMarkings.js).
 - **The land past the maps** is wooded as the map beside it is (each map's `farWoods`: the coast's open country, the
   ghats' and Kerala's forest, the pass's and Ashwood's in between), in broad tracts with clearings and ragged edges,
   drawn crown by crown: some 8 m across, their tops in the sun and the gaps in shade, lighter and darker, yellower and

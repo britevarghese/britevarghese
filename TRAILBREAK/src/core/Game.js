@@ -21,6 +21,7 @@ import { Chat, bubbleCanvas } from '../ui/Chat.js';
 import { ModeView } from '../render/ModeView.js';
 import { windowGlow } from '../render/KeralaBuildings.js';
 import { seeThrough } from '../render/Vegetation.js';
+import { retroLights } from '../render/RoadMarkings.js';
 import { Builder } from '../ui/Builder.js';
 import { encodeLayout, decodeLayout } from '../game/Props.js';
 
@@ -1301,6 +1302,9 @@ export class Game {
     m.setReverse(v.dt.gear < 0);
     this.heads.forEach((h, i) => { h.intensity = lights && v.damage.lights[i] ? 60 : 0; });
     this.farBeam.intensity = lights ? 90 * ((v.damage.lights[0] ? 1 : 0) + (v.damage.lights[1] ? 1 : 0)) : 0;
+    // (the road paint shining back in them)
+    this.farBeam.getWorldPosition(this._retroP ||= new THREE.Vector3());
+    retroLights(this._retroP, (this._retroD ||= new THREE.Vector3()).set(v.fwd.x, 0, v.fwd.z).normalize(), this.farBeam.intensity / 180 * 2.5);
     if (this.barLight) this.barLight.intensity = lights ? 160 : 0;
     // mud on the paint: picked up in mud and wet ground, washed off in water
     let mud = 0;
