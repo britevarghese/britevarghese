@@ -90,8 +90,11 @@ function bannerTexture(text, chequer = false) {
     for (let i = 0; i < 32; i++) for (let j = 0; j < 4; j++) { x.fillStyle = (i + j) % 2 ? '#111' : '#f2eee4'; x.fillRect(i * 32, j * 32, 32, 32); }
   } else {
     x.fillStyle = '#e8893a'; x.fillRect(0, 0, 1024, 10); x.fillRect(0, 118, 1024, 10);
-    x.font = 'bold 64px sans-serif'; x.textAlign = 'center'; x.textBaseline = 'middle';
-    x.fillStyle = '#f3ead7'; x.fillText(text.toUpperCase(), 512, 66);
+    // (events sharing a start line: their names one above the other)
+    const lines = text.split('\n'), size = lines.length > 1 ? 44 : 64;
+    x.font = `bold ${size}px sans-serif`; x.textAlign = 'center'; x.textBaseline = 'middle';
+    x.fillStyle = '#f3ead7';
+    lines.forEach((l, i) => x.fillText(l.toUpperCase(), 512, 66 + (i - (lines.length - 1) / 2) * 50, 980));
   }
   const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4;
   return t;
@@ -125,8 +128,23 @@ export class EventCourse {
     this.event = null; this.next = -1;
   }
 
-  /** Start banners for events (more of them in the open world as its maps come in). */
-  addStarts(events) { for (const e of events) this.starts.add(this.banner(e.start.x, e.start.z, e.start.yaw, 5.2, e.name)); }
+  /** Start banners for events (more of them in the open world as its maps come in): one banner for events starting
+   *  at the same line, with all their names. */
+  addStarts(events) {
+    this.startAt ??= [];
+    for (const e of events) {
+      const s = e.start, same = this.startAt.find((b) => Math.hypot(b.x - s.x, b.z - s.z) < 4 && Math.cos(b.yaw - s.yaw) > 0.9);
+      if (same) {
+        this.starts.remove(same.g);
+        same.g.traverse((o) => { o.geometry?.dispose(); if (o.material?.map) { o.material.map.dispose(); o.material.dispose(); } });
+        same.names.push(e.name);
+      }
+      const b = same || { x: s.x, z: s.z, yaw: s.yaw, names: [e.name] };
+      b.g = this.banner(b.x, b.z, b.yaw, 5.2, b.names.join('\n'));
+      this.starts.add(b.g);
+      if (!same) this.startAt.push(b);
+    }
+  }
 
   /** Two posts and a banner across a line at (x, z), facing along yaw. */
   banner(x, z, yaw, half, text, chequer = false) {
