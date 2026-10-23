@@ -164,6 +164,8 @@ export class TerrainRenderer {
       }
     }
     // muddy water standing in the ruts (linear RGB): the map's mud (red in Kerala), darker
+    // the woods past the map (drawn over the land's colour there: see farCover)
+    uniforms.uFarForest = { value: new THREE.Vector3(...(this.farForest || [0.07, 0.11, 0.02])) };
     const mt = w.map.mudTint || [0.085, 0.06, 0.04];
     uniforms.uPuddle = { value: new THREE.Color(mt[0] * 0.35, mt[1] * 0.35, mt[2] * 0.35) };
     // (the open world: a map's own square only, round it the far land's)
@@ -180,21 +182,26 @@ export class TerrainRenderer {
         .replace('#include <common>', `#include <common>
 attribute vec3 tint;
 attribute vec2 wet;
+attribute float cover;
 varying vec3 vWPos;
 varying vec3 vWNormal;
 varying vec3 vTint;
-varying vec2 vWet;`)
+varying vec2 vWet;
+varying float vCover;`)
         .replace('#include <worldpos_vertex>', `#include <worldpos_vertex>
 vWPos = (modelMatrix * vec4(transformed, 1.0)).xyz;
 vWNormal = objectNormal;
 vTint = tint * 2.0;
-vWet = wet;`);
+vWet = wet;
+vCover = cover;`);
       sh.fragmentShader = sh.fragmentShader
         .replace('#include <common>', `#include <common>
 varying vec3 vWPos;
 varying vec3 vWNormal;
 varying vec3 vTint;
 varying vec2 vWet;
+varying float vCover;
+uniform vec3 uFarForest;
 uniform vec3 uPuddle;
 uniform vec3 uClipC;
 ${NH ? `uniform vec4 uHoles[${NH}];` : ''}
@@ -385,6 +392,22 @@ ${G ? `
     gH = mix(0.5, hgt / sum, tex);
     gNW = normalize(gNW + tilt * near * 0.9);
   }` : ''}
+  if (vCover > 0.004) {
+    // the woods past the map, crown by crown: clumps of them with clearings and ragged edges, each crown a bump lit by
+    // the sun, lighter and darker, yellower and bluer (a pattern finer than a pixel evens out to its mean)
+    vec2 p = vWPos.xz;
+    float px = length(fwidth(p));
+    float a1 = 1.0 - smoothstep(2.0, 6.0, px), a2 = 1.0 - smoothstep(5.0, 16.0, px), a3 = 1.0 - smoothstep(10.0, 40.0, px);
+    float clump = tn(p / 31.0 + 11.7) * 0.65 + tn(p / 11.0 + 4.1) * 0.35;
+    float cov = smoothstep(0.15, 0.85, vCover * 1.6 - 0.3 + (clump - 0.5) * 1.4 * a3);
+    // crowns some 8 m across: their tops in the sun, the gaps between them in shade
+    float c0 = tn(p / 7.0), cx = tn((p + vec2(2.4, 0.0)) / 7.0), cz = tn((p + vec2(0.0, 2.4)) / 7.0);
+    float hue = tn(p / 17.0 + 3.3);
+    vec3 crown = uFarForest * mix(1.0, 0.45 + 1.1 * smoothstep(0.2, 0.8, c0), a1) * mix(vec3(1.0), mix(vec3(0.85, 0.92, 1.0), vec3(1.25, 1.18, 0.78), hue), a2);
+    diffuseColor.rgb = mix(diffuseColor.rgb, crown, cov);
+    gNW = normalize(gNW + vec3(c0 - cx, 0.0, c0 - cz) * 4.0 * cov * a1);
+    gRough = mix(gRough < 0.0 ? 0.95 : gRough, 0.9, cov);
+  }
   diffuseColor.rgb *= vary;
   // wet ground, darker and glossier; and water standing in the ruts, in the hollows first, flat and shiny
   if (vWet.x + vWet.y > 0.004) {
@@ -552,7 +575,9 @@ if (gWet > 0.0) {
       yield;
     }
     const li = this.layerIndex;
-    this.farRock = avg[li.rock]; this.farGrass = avg[li.grass]; this.farSnow = avg[li.snow ?? li.rock];
+    // (the far rock toward a grey of its brightness: a red-brown one read pink through the haze)
+    const r = avg[li.rock], lum = 0.2126 * r[0] + 0.7152 * r[1] + 0.0722 * r[2];
+    this.farRock = r.map((c) => (c * 0.45 + lum * 0.55) * 0.85); this.farGrass = avg[li.grass]; this.farSnow = avg[li.snow ?? li.rock];
     this.farForest = [avg[li.grass][0] * 0.55, avg[li.grass][1] * 0.68, avg[li.grass][2] * 0.55];
   }
 
@@ -672,7 +697,7 @@ if (gWet > 0.0) {
   }
 
   /** Colour (linear RGB) at (x, z) for a patch with vertex spacing `spacing`. */
-  colorAt(x, z, spacing, h, slope, out) {
+  colorAt(x, z, spacing, h, slope, out, woods = true) {
     const w = this.world;
     if (Math.abs(x) <= this.half && Math.abs(z) <= this.half) {
       let L = 0;
@@ -687,14 +712,28 @@ if (gWet > 0.0) {
       }
       return out;
     }
-    // past the map: grass and woods low down, rock on the steeps, snow on the tops
+    // past the map: grass and woods low down, rock on the steeps, snow on the tops (woods false: without the woods,
+    // which the shader draws over it, crown by crown: farCover)
     const n = vnoise(x / 400, z / 400, 905);
-    const base = n > 0.55 ? this.farForest : this.farGrass;
-    const rock = Math.min(1, Math.max(0, (slope - 0.75) * 2.5));
+    const f = woods ? this.farCover(x, z, h, slope) : 0;
+    const rock = Math.min(1, Math.max(0, (slope - 1.15) * 2.5));
     const snow = Math.min(1, Math.max(0, (h - this.snowLine - 30 - 40 * n) / 40));
-    for (let c = 0; c < 3; c++) out[c] = base[c] + (this.farRock[c] - base[c]) * rock;
+    for (let c = 0; c < 3; c++) out[c] = this.farGrass[c] + (this.farForest[c] - this.farGrass[c]) * f;
+    for (let c = 0; c < 3; c++) out[c] += (this.farRock[c] - out[c]) * rock;
     for (let c = 0; c < 3; c++) out[c] += (this.farSnow[c] - out[c]) * snow;
     return out;
+  }
+
+  /**
+   * Past the map: how wooded the land is (0 to 1): in broad tracts, as wooded as the map beside it has it (its
+   * farWoods), thinning out on the cliffs and under the snow.
+   */
+  farCover(x, z, h, slope) {
+    const w = this.world, d = w.woods ? w.woods(x, z) : w.map.farWoods ?? 0.65;
+    const n = vnoise(x / 400, z / 400, 905) * 0.7 + vnoise(x / 110, z / 110, 906) * 0.3;
+    const t = Math.min(1, Math.max(0, (n - 0.65 + 0.5 * d) / 0.2));
+    const cliff = Math.min(1, Math.max(0, (slope - 1.1) * 2.5)), high = Math.min(1, Math.max(0, (h - this.snowLine + 260) / 200));
+    return t * t * (3 - 2 * t) * (1 - cliff) * (1 - high);
   }
 
   /**
@@ -768,7 +807,7 @@ if (gWet > 0.0) {
       }
     }
     const nV = V * V + 4 * V;
-    const pos = new Float32Array(nV * 3), nor = new Int8Array(nV * 3), col = new Uint8Array(nV * 3), tint = new Uint8Array(nV * 3), wet = new Uint8Array(nV * 2);
+    const pos = new Float32Array(nV * 3), nor = new Int8Array(nV * 3), col = new Uint8Array(nV * 3), tint = new Uint8Array(nV * 3), wet = new Uint8Array(nV * 2), cover = new Uint8Array(nV);
     const c3 = [0, 0, 0], t3 = [0, 0, 0], f3 = [0, 0, 0];
     const inMap = (x, z) => Math.abs(x) <= this.half && Math.abs(z) <= this.half;
     let minY = Infinity, maxY = -Infinity;
@@ -781,9 +820,11 @@ if (gWet > 0.0) {
       pos[v * 3] = i * sp; pos[v * 3 + 1] = h; pos[v * 3 + 2] = k * sp;
       nor[v * 3] = Math.round(nx * 127); nor[v * 3 + 1] = Math.round(ny * 127); nor[v * 3 + 2] = Math.round(nz * 127);
       const x = x0 + i * sp, z = z0 + k * sp, slope = Math.sqrt(gx * gx + gz * gz);
-      this.colorAt(x, z, sp, h, slope, c3);
+      const out = !inMap(x, z);
+      this.colorAt(x, z, sp, h, slope, c3, !out);
+      if (out) cover[v] = Math.round(this.farCover(x, z, h, slope) * 255);
       // the tint over the textures: the land's own, or past the map the far colour over the layer the shader shows
-      if (inMap(x, z)) this.tintAt(this.splat[Math.round((z - w.origin) / w.res) * w.N + Math.round((x - w.origin) / w.res)], x, z, h, slope, t3);
+      if (!out) this.tintAt(this.splat[Math.round((z - w.origin) / w.res) * w.N + Math.round((x - w.origin) / w.res)], x, z, h, slope, t3);
       else { const a = this.layers[this.farLayer(h, ny)].avg; for (let c = 0; c < 3; c++) t3[c] = Math.min(2, Math.max(0.4, c3[c] / a[c])); }
       if (this.fixAt(x, z, f3)) for (let c = 0; c < 3; c++) t3[c] *= f3[c];
       const d = D[v];
@@ -805,7 +846,7 @@ if (gWet > 0.0) {
       const src = edgeIdx[e](t), dst = V * V + e * V + t;
       pos[dst * 3] = pos[src * 3]; pos[dst * 3 + 1] = pos[src * 3 + 1] - drop; pos[dst * 3 + 2] = pos[src * 3 + 2];
       for (let c = 0; c < 3; c++) { nor[dst * 3 + c] = nor[src * 3 + c]; col[dst * 3 + c] = col[src * 3 + c]; tint[dst * 3 + c] = tint[src * 3 + c]; }
-      wet[dst * 2] = wet[src * 2]; wet[dst * 2 + 1] = wet[src * 2 + 1];
+      wet[dst * 2] = wet[src * 2]; wet[dst * 2 + 1] = wet[src * 2 + 1]; cover[dst] = cover[src];
     }
     // colours are stored gamma-2 encoded: decode in the attribute by squaring? Keep simple: convert to linear floats
     const colF = new Float32Array(nV * 3);
@@ -816,6 +857,7 @@ if (gWet > 0.0) {
     g.setAttribute('color', new THREE.BufferAttribute(colF, 3));
     g.setAttribute('tint', new THREE.BufferAttribute(tint, 3, true));
     g.setAttribute('wet', new THREE.BufferAttribute(wet, 2, true));
+    g.setAttribute('cover', new THREE.BufferAttribute(cover, 1, true));
     g.setIndex(this.index);
     g.boundingSphere = new THREE.Sphere(new THREE.Vector3(size / 2, (minY + maxY) / 2, size / 2), Math.sqrt(2 * (size / 2) ** 2 + ((maxY - minY + drop) / 2) ** 2));
     g.boundingBox = new THREE.Box3(new THREE.Vector3(0, minY - drop, 0), new THREE.Vector3(size, maxY, size));

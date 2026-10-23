@@ -355,7 +355,7 @@ const ghatTrees = (ctx) => {
 export const GHAT = {
   id: 'ghat', name: 'Konkan Ghat', short: 'Ghat',
   seed: GHAT_SEED, station: { x: -150, z: 64, name: 'Ghat Dhaba' }, spawn: { x: -130, z: 80, yaw: Math.PI / 2 }, dealer: 'Konkan Motors',
-  half: 1024, res: 1, coarse: 4, waterRes: 2,
+  half: 1024, res: 1, coarse: 4, waterRes: 2, farWoods: 0.9,
   load: () => COAST.load(), baseHeight: ghatGround, roughOf: (h) => clamp((h - 40) / 200, 0.2, 0.8),
   get river() { return ghatRiver(); }, peaks: [],
   trails: [
@@ -404,7 +404,7 @@ const passGround = (x, z) => {
 export const PASS = {
   id: 'pass', name: 'Ashwood Pass', short: 'Pass',
   seed: PASS_SEED, station: { x: 110, z: -60, name: 'Pass Hut' }, spawn: { x: 95, z: -45, yaw: 0 }, dealer: 'Ashwood 4x4 Sales',
-  half: 1024, res: 1, coarse: 4, waterRes: 2,
+  half: 1024, res: 1, coarse: 4, waterRes: 2, farWoods: 0.75,
   baseHeight: passGround, roughOf: (h) => clamp((h - 80) / 220, 0.25, 1),
   river: null, peaks: [], snowLine: 390,
   // (the snow comes down to 390 m on the Ashwood side; towards Kerala, whose ridges are laid onto the south of the pass

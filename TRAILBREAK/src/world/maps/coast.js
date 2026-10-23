@@ -515,6 +515,7 @@ export const COAST = {
   blurb: 'Eight kilometres of the real Konkan coast round Kashid beach: a coast road by the Arabian Sea, ghat roads in hairpins up to the Phansad tableland, an airstrip on top.',
   tagline: 'Old trucks, real physics, good friends. Drive the Konkan Coast together: race the loop, climb the ghats, find its survey beacons.',
   seed: SEED, station: STATION, spawn: SPAWN, dealer: 'Konkan Motors',
+  farWoods: 0.45,                   // how wooded the land past the map is (render/Terrain.js farCover)
   // 8 km across on a 2 m grid, its landform on 4 m, its water on 4 m (maps/index.js)
   half: HALF, res: 2, coarse: 4, waterRes: 4,
   load, baseHeight: groundHeight, roughOf, gen,

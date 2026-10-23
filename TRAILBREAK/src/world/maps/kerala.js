@@ -694,6 +694,7 @@ export const KERALA = {
   blurb: 'Tea estates on misty hills, a waterfall, flooded paddy fields, red laterite tracks through rubber and coconut, and a granite dome.',
   tagline: 'Old trucks, real physics, good friends. Find the survey beacons of the Kerala Ghats together.',
   seed: SEED, station: STATION, spawn: SPAWN, dealer: 'Ponmala Motors',
+  farWoods: 0.9,                    // how wooded the land past the map is (render/Terrain.js farCover)
   baseHeight, roughOf, gen,
   river: RIVER, lake: LAKE, peaks: PEAKS,
   trails: TRAILS, beacons: BEACONS, landmarks: LANDMARKS, events: EVENTS, races: RACES, modes: MODES,

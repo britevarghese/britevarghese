@@ -125,6 +125,14 @@ test('the open world: the far land meets every map\'s open edge (no step for it 
   }
 });
 
+test('the open world: the land past a map is as wooded as the map beside it (the ghat forested, the coast open)', async () => {
+  const W = await opened, at = (id, dx, dz) => { const r = W.byId.get(id); return W.farWoods(r.cx + dx * (r.half + 30), r.cz + dz * (r.half + 30)); };
+  for (const r of W.regions) assert.ok(r.world.map.farWoods > 0 && r.world.map.farWoods <= 1, r.id);
+  assert.ok(Math.abs(at('ghat', 0, 1) - W.byId.get('ghat').world.map.farWoods) < 0.05);
+  assert.ok(Math.abs(at('coast', 0, -1) - W.byId.get('coast').world.map.farWoods) < 0.05);
+  assert.ok(at('ghat', 0, 1) > at('coast', 0, -1) + 0.3);
+});
+
 test('the open world: the satnav finds the way from the coast to Ashwood by road, and a truck drives across the joins', async () => {
   const W = await opened, g = new RouteGraph(W.data.trails, { hubs: W.hubs });
   const r = g.route(3940, -712, 7090, -3800);

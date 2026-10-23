@@ -161,6 +161,20 @@ export class OpenWorld {
     return wsum > 0 ? h / wsum : 0;
   }
 
+  /** How wooded the far land is at (x, z) (0 to 1): the nearest maps' (their farWoods), weighted as farHeight. */
+  farWoods(x, z) {
+    if (this.woodD?.length !== this.regions.length) this.woodD = new Float64Array(this.regions.length);
+    const D = this.woodD;
+    let dmin = Infinity;
+    this.regions.forEach((r, i) => { D[i] = Math.hypot(Math.max(0, Math.abs(x - r.cx) - r.half), Math.max(0, Math.abs(z - r.cz) - r.half)); dmin = Math.min(dmin, D[i]); });
+    let s = 0, wsum = 0;
+    this.regions.forEach((r, i) => {
+      const t = Math.min(1, Math.max(0, (D[i] - dmin - 1500) / 1500)), w = (1 - t * t * (3 - 2 * t)) / (1 + D[i] * D[i]);
+      s += (r.world.map.farWoods ?? 0.65) * w; wsum += w;
+    });
+    return wsum > 0 ? s / wsum : 0.65;
+  }
+
   /** Inside the world (a margin m clear of its outer edges; a seam between two maps is no edge). */
   inBounds(x, z, margin = 0) {
     return !!(this.regionAt(x - margin, z - margin) && this.regionAt(x + margin, z - margin) && this.regionAt(x - margin, z + margin) && this.regionAt(x + margin, z + margin) && this.regionAt(x, z));

@@ -193,6 +193,7 @@ export const ASHWOOD = {
   river: RIVER, lake: LAKE, peaks: PEAKS, bog: BOG, rockGarden: ROCK_GARDEN, sandWash: SAND_WASH, sandStrip: SAND_STRIP,
   snowLine: SNOW_LINE, trails: TRAILS, beacons: BEACONS, landmarks: LANDMARKS, events: EVENTS, races: RACES, modes: MODES,
   ground: 'ashwood', trees: 'ashwood',
+  farWoods: 0.7,                    // how wooded the land past the map is (render/Terrain.js farCover)
   // what each kind of tree takes when a truck hits it, as a share of a sound green trunk's (world/Breakables.js):
   // pine, fir and spruce, birch, the dead snags (dry and rotten: brittle)
   treeStrength: [1, 1, 0.85, 0.3],

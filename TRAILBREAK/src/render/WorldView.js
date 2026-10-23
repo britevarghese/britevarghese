@@ -254,7 +254,7 @@ function farGround(world) {
     map: { ...S, id: 'far' }, half: 0, res: 1, N: 2, origin: 0,
     H: new Float32Array(4), S: new Uint8Array(4).fill(SURFACE.GRASS), trees: empty,
     deformGrid: new DeformGrid(),
-    terrain: (x, z) => world.farHeight(x, z), farHeight: (x, z) => world.farHeight(x, z),
+    terrain: (x, z) => world.farHeight(x, z), farHeight: (x, z) => world.farHeight(x, z), woods: (x, z) => world.farWoods(x, z),
     water: () => -Infinity, surfaceId: () => SURFACE.GRASS,
   };
 }

@@ -313,7 +313,9 @@ colour it's known in).
 
 **Events** (pause menu > Events, or the chequered flags on the map): Ashwood and Kerala have four each, the Konkan Coast
 three. Drive to a start line and press **J**. The truck is lined up and counted down; drive through the gates in order
-to the finish. Beat the par times for a medal: each medal level pays once (bronze, then silver, then gold come to the
+to the finish. Where two events start at the same line (the Kashid Ghat Rally and Coast to Snow, in the open world) one
+banner carries both names, one above the other (two banners in the one place showed each other's posts and fought
+over the text); J there starts the one picked last in the Events list or on the map. Beat the par times for a medal: each medal level pays once (bronze, then silver, then gold come to the
 gold prize), and every finish pays a little.
 
 Ashwood Valley:
@@ -717,6 +719,17 @@ Everything that makes off-roading off-roading is simulated, not faked:
   Measured with the models out to 160 m instead of 85: on the coast road 4.6 M triangles a frame instead of 3.0 M, in
   Kerala's forest 10.3 M instead of 6.1 M, the shadows as they were (the 470 trees past 85 m there are 2.8 M triangles,
   4.0 M with their twigs). No kind of tree runs out of models anywhere tried.
+- **Leaves in the way:** from the chase cameras, leaves and branches between the camera and your truck dither away
+  (as in Forza), wider by the camera, where one twig would fill the view, and stopping 2 m short of the truck, so the
+  bushes it pushes through stay. A tree fern over a track in Kerala's tea used to fill the whole picture as you drove
+  under it. Not from the seats and mounts on the truck, nor in the mirrors (render/Vegetation.js seeThrough).
+- **The land past the maps** is wooded as the map beside it is (each map's `farWoods`: the coast's open country, the
+  ghats' and Kerala's forest, the pass's and Ashwood's in between), in broad tracts with clearings and ragged edges,
+  drawn crown by crown: some 8 m across, their tops in the sun and the gaps in shade, lighter and darker, yellower and
+  bluer, evening out to their mean colour where a crown is under a pixel. It used to be smooth bare slopes there, grass
+  and pink-brown rock, beside the ghat's forest of trees; now the woods climb the steep slopes too (to 48°), the bare
+  rock is only on the steeper faces, and it is a grey of the rock's own brightness (the coast's red-brown laterite read
+  pink through the haze) (render/Terrain.js farCover).
 - **Graphics level:** if the frame rate stays under 30 fps for two 4-second spells running, the game steps the
   graphics down a level (and says so), and once it runs at 55 fps or more for 12 s it steps back up toward the level
   you chose (not again if the last step up was soon stepped down). Only for the session: it used to keep the lowered
