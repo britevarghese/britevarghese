@@ -20,6 +20,7 @@ import { WorldMap, keyOf } from '../ui/WorldMap.js';
 import { Chat, bubbleCanvas } from '../ui/Chat.js';
 import { ModeView } from '../render/ModeView.js';
 import { windowGlow } from '../render/KeralaBuildings.js';
+import { seeThrough } from '../render/Vegetation.js';
 import { Builder } from '../ui/Builder.js';
 import { encodeLayout, decodeLayout } from '../game/Props.js';
 
@@ -1326,6 +1327,7 @@ export class Game {
     this.builder.view.setMarkersVisible(!(this.events.run?.event.custom && this.events.run.phase !== 'finished'));
     const camPos = this.renderer.camera.position;
     this.terrain.update(camPos);
+    seeThrough(camPos, this.cam.look, !this.building && (this.cam.mode === 'chase' || this.cam.mode === 'far') ? 1 : 0);
     this.vegetation.update(this.renderer.camera, dt);
     this.rocks.update(this.renderer.camera);
     this.grass.update(this.renderer.camera, dt, this.grassPush());

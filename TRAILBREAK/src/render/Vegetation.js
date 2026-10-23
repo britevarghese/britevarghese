@@ -68,6 +68,20 @@ const CELL = 32;               // the grid the trees are found in round the came
 // a stable per-pixel threshold for the dither (interleaved gradient noise)
 const IGN = 'float ign(vec2 p) { return fract(52.9829189 * fract(dot(p, vec2(0.06711056, 0.00583715)))); }';
 
+// the view from a chase camera to the truck: leaves and branches in the way dither away (as in Forza), so a crown over
+// the track or a bush beside it doesn't fill the picture. Set each frame (seeThrough); a radius of 0 is off.
+const SEE = { uSeeA: { value: new THREE.Vector3() }, uSeeB: { value: new THREE.Vector3() }, uSeeR: { value: 0 } };
+const _see = new THREE.Vector3();
+/** cam: the camera's position; target: the point on the truck it looks at; r: how wide the clear way is (m), 0 for none. */
+export function seeThrough(cam, target, r) {
+  SEE.uSeeR.value = r;
+  if (!r) return;
+  SEE.uSeeA.value.copy(cam);
+  // (stopping short of the truck: the bushes it is pushing through stay)
+  const d = _see.subVectors(target, cam), len = d.length();
+  SEE.uSeeB.value.copy(cam).addScaledVector(d, Math.max(0, len - 2) / Math.max(len, 1e-3));
+}
+
 let NEAR = 80;
 // m from the camera within which the models cast shadows: as far as all the models stood before they went out to 160 m
 // (each is drawn twice more for its shadow, once into each shadow map; out past this, in the wide map's corners, a
@@ -145,8 +159,10 @@ function treeMaterial(group, uniforms, radius, impostorBake = false, crownY = 0.
     sh.uniforms.uCrownY = { value: crownY };
     sh.uniforms.uLod = uniforms.uLod;
     if (fade) sh.uniforms.uFade = fade;
+    if (!impostorBake) Object.assign(sh.uniforms, SEE);
     sh.vertexShader = sh.vertexShader
       .replace('#include <common>', `#include <common>
+varying vec3 vSeeW;
 uniform float uTime;
 uniform float uRadius;
 uniform float uCrownY;
@@ -178,6 +194,11 @@ ${leaf ? `{
   transformed.x += sway * ${impostorBake ? '0.0' : '0.011'} * k;
   transformed.z += sway * ${impostorBake ? '0.0' : '0.007'} * k;
 ${leaf && !impostorBake ? '  transformed += normal * sin(uTime * 6.0 + dot(position, vec3(41.0, 23.0, 37.0)) * 4.0) * 0.003 * k;' : ''}
+  vec4 sw = vec4(transformed, 1.0);
+#ifdef USE_INSTANCING
+  sw = instanceMatrix * sw;
+#endif
+  vSeeW = (modelMatrix * sw).xyz;
   // inner crown and low branches in their own shade
   vAO = ${leaf ? 'clamp(0.5 + 0.75 * length(position.xz) / uRadius, 0.5, 1.0) * mix(0.78, 1.0, clamp(position.y * 1.4 - 0.2, 0.0, 1.0))' : 'mix(0.7, 1.0, clamp(position.y * 3.0, 0.0, 1.0))'};
 }`);
@@ -187,9 +208,19 @@ uniform vec3 uSunDirW;
 uniform vec3 uSunColor;
 varying float vAO;
 varying float vFade;
+varying vec3 vSeeW;
+${impostorBake ? '' : 'uniform vec3 uSeeA;\nuniform vec3 uSeeB;\nuniform float uSeeR;'}
 ${IGN}`)
       .replace('#include <clipping_planes_fragment>', `#include <clipping_planes_fragment>
-if (ign(gl_FragCoord.xy) >= vFade) discard;`)
+float keep = vFade;
+${impostorBake ? '' : `if (uSeeR > 0.0) {
+  // in the way from the camera to the truck: wider by the camera, where a twig fills the view
+  vec3 ab = uSeeB - uSeeA;
+  float t = clamp(dot(vSeeW - uSeeA, ab) / max(dot(ab, ab), 1e-4), 0.0, 1.0);
+  float r = uSeeR * mix(1.8, 1.1, t);
+  keep *= smoothstep(0.7 * r, r, length(vSeeW - uSeeA - ab * t));
+}`}
+if (ign(gl_FragCoord.xy) >= keep) discard;`)
       .replace('#include <color_fragment>', `#include <color_fragment>
 diffuseColor.rgb *= vAO;`)
       // both sides of a leaf card face out of the crown (don't flip the normal on back faces)
