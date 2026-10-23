@@ -277,6 +277,19 @@ vec4 gColor(float L, float sc) {
   if (gwZ > 0.0) c += textureGrad(uGC, vec3(gPZ * sc, L), gDZx * sc, gDZy * sc) * gwZ;
   return c;
 }
+// a rock face's relief (m, out of the face) and shade: its beds in ledges a metre or so apart, wavering along the hill,
+// each one jutting out over the recess at its foot (in shade) and leaning back to a shelf under the bed above, broken by
+// joints into blocks, and rough. along: m along the face; w: how much wider its edges are drawn (wider where a pixel
+// is bigger: a shelf narrower than a pixel glinted)
+vec2 gRock(vec3 p, float along, float w) {
+  // (beds of uneven thickness: the height warped a little before it is cut into them)
+  float s = p.y / 1.3 + tn(vec2(p.y / 3.7, 5.0)) * 0.9 + tn(p.xz / 9.0) * 1.6 + tn(p.xz / 3.1) * 0.35;
+  float f = fract(s), bed = floor(s), k = 0.4 + 0.9 * th(vec2(bed, 11.0));
+  float ledge = smoothstep(0.0, 0.32 + w, f) * (1.0 - 0.6 * f) * (1.0 - smoothstep(0.8 - w, 1.0, f)) * k;
+  float joint = smoothstep(0.42 - w * 0.2, 0.5, abs(fract(along / (1.6 + th(vec2(bed, 7.0)) * 1.4) + th(vec2(bed, 3.0))) - 0.5));
+  float shade = (1.0 - 0.5 * min(1.0, k) * (1.0 - smoothstep(0.0, 0.2 + w, f))) * (1.0 - 0.35 * joint);
+  return vec2(ledge * 0.4 + tn(p.xz * 1.7 + p.y) * 0.06, shade);
+}
 // the normal map's tilt as a world-space vector along the ground
 vec3 gTilt(float L, float sc) {
   vec3 d = vec3(0.0);
@@ -391,6 +404,25 @@ ${G ? `
     gRough = mix(0.95, rough, tex);
     gH = mix(0.5, hgt / sum, tex);
     gNW = normalize(gNW + tilt * near * 0.9);
+    // rock faces in relief (a cut through the hill is not a smooth bank with a picture of rock on it): lit as ledges
+    // and blocks, darker in their recesses; out where a ledge is under a few pixels it evens out
+    float rw = 0.0;
+    for (int j = 0; j < 4; j++) { if (j >= gn) break; if (gL[j] == uIds.y) rw += max(0.0, hs[j] - top + 0.16); }
+    vec3 n0 = normalize(vWNormal);
+    // (and not where the face is seen edge on: there its ledges glinted)
+    rw = rw / sum * smoothstep(0.92, 0.72, n0.y) * (1.0 - smoothstep(0.06, 0.25, length(fwidth(vWPos))))
+      * smoothstep(0.12, 0.4, abs(dot(n0, normalize(cameraPosition - vWPos))));
+    if (rw > 0.0) {
+      vec3 ta = normalize(vec3(n0.z, 0.0, -n0.x) + vec3(1e-5, 0.0, 0.0)), tb = cross(n0, ta);
+      float al = dot(vWPos.xz, ta.xz), e = 0.1, w = clamp(length(fwidth(vWPos)) * 2.5, 0.0, 0.45);
+      vec2 r0 = gRock(vWPos, al, w);
+      float ha = gRock(vWPos + ta * e, al + e, w).x, hb = gRock(vWPos + tb * e, al, w).x;
+      vec3 slope = (ta * (ha - r0.x) + tb * (hb - r0.x)) / e;
+      gNW = normalize(gNW - slope * min(1.0, 0.9 / max(length(slope), 1e-4)) * rw);
+      diffuseColor.rgb *= mix(1.0, r0.y * (0.8 + 0.6 * clamp(r0.x, 0.0, 0.4)), rw);
+      // (matt: a ledge's top seen edge on caught the sky as a white line)
+      gRough = mix(gRough, 1.0, rw);
+    }
   }` : ''}
   if (vCover > 0.004) {
     // the woods past the map, crown by crown: clumps of them with clearings and ragged edges, each crown a bump lit by

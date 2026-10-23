@@ -695,7 +695,12 @@ Everything that makes off-roading off-roading is simulated, not faked:
 - **Wet mud:** mud is drawn wet, darker and glossy, wetter in places, and the ground at the water's edge is wet too.
   The ruts are wetter still, with mud pushed up in ridges either side, and in the deep ones water stands, filling
   the hollows first and mirroring the sky. Close to the camera, ground with ruts in it is drawn at the ruts' own
-  25 cm grid (from Medium graphics up), so each rut has its walls and its floor (render/Terrain.js).
+  25 cm grid (from Medium graphics up), so each rut has its walls and its floor (render/Terrain.js). Steep rock (a
+  road's cut through the hill on the Ashwood Pass, Cairn Ridge's faces) is lit in relief: its beds in ledges a metre
+  or so apart and of uneven thickness, wavering along the hill, each jutting out over a shaded recess at its foot and
+  leaning back to a shelf, broken by joints into blocks. It used to be a smooth bank with a picture of rock on it. The
+  relief evens out with distance (its edges drawn wider where a pixel is bigger) and where a face is seen edge on, so
+  no ledge glints as a white line or a scatter of sparks.
 - **The picture** (High and Medium graphics; render/Post.js): drawn in high dynamic range, its edges smoothed by
   multisampling (4x, 2x on Medium), then finished as a racing game's is. At speed what the camera rushes past streaks
   along its path, the nearer the longer (the verge and the road's edge, hardly the hills: over a 1/90 s shutter, half
