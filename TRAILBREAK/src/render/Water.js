@@ -127,7 +127,11 @@ vec2 ripple(vec2 uv) { return texture2D(uRipple, uv).rg * 2.0 - 1.0; }`)
 normal = normalize((viewMatrix * vec4(wN, 0.0)).xyz);`)
       .replace('#include <opaque_fragment>', `
 {
-  // what is behind shows through what the water lets past; the reflection adds on top
+  // what is behind shows through what the water lets past; the reflection adds on top. The sky it mirrors is the sky
+  // alone (the scene's environment map): low down, toward the horizon, it would mirror the hills and the trees, so
+  // there less of it (a pool seen across the ground was a pale sheet of the bright horizon)
+  vec3 wR = reflect(normalize(vWPos - cameraPosition), wN);
+  reflectedLight.indirectSpecular *= mix(0.25, 1.0, smoothstep(0.0, 0.35, wR.y));
   vec3 V = normalize(vViewPosition);
   float R = 0.02 + 0.98 * pow(1.0 - clamp(dot(normal, V), 0.0, 1.0), 5.0);
   vec3 diff = reflectedLight.directDiffuse + reflectedLight.indirectDiffuse;

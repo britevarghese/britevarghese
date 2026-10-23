@@ -694,7 +694,9 @@ Everything that makes off-roading off-roading is simulated, not faked:
   it is lit by the sun and the sky (render/Effects.js), and you see it round your friends' trucks too.
 - **Wet mud:** mud is drawn wet, darker and glossy, wetter in places, and the ground at the water's edge is wet too.
   The ruts are wetter still, with mud pushed up in ridges either side, and in the deep ones water stands, filling
-  the hollows first and mirroring the sky. Close to the camera, ground with ruts in it is drawn at the ruts' own
+  the hollows first and mirroring the sky. The sky they and the rivers, lakes and pools mirror is the sky alone (the
+  scene's environment map), so toward the horizon, where the hills and trees would stand in it, less of it shows: a
+  pool seen across the ground was a pale sheet of the bright horizon, the river a silvery one. Close to the camera, ground with ruts in it is drawn at the ruts' own
   25 cm grid (from Medium graphics up), so each rut has its walls and its floor (render/Terrain.js). Steep rock (a
   road's cut through the hill on the Ashwood Pass, Cairn Ridge's faces) is lit in relief: its beds in ledges a metre
   or so apart and of uneven thickness, wavering along the hill, each jutting out over a shaded recess at its foot and

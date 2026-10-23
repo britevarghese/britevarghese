@@ -468,7 +468,7 @@ normal = normalize((viewMatrix * vec4(gNW, 0.0)).xyz);`)
         .replace('#include <aomap_fragment>', `#include <aomap_fragment>
 if (gWet > 0.0) {
   vec3 gR = reflect(normalize(vWPos - cameraPosition), gNW);
-  float gSky = mix(0.3, 1.0, smoothstep(-0.02, 0.32, gR.y));
+  float gSky = mix(0.15, 1.0, smoothstep(0.0, 0.4, gR.y));
   reflectedLight.indirectSpecular *= mix(1.0, gSky, gWet) * (1.0 - 0.25 * gPool);
   reflectedLight.directSpecular *= 1.0 - 0.5 * gWet;
 }`);
