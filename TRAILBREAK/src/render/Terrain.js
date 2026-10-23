@@ -108,6 +108,9 @@ export class TerrainRenderer {
     this.blend = ground && blend?.ground ? blend : null;
     this.snowLine = world.map.snowLine ?? 1e6;                // (no snow on a tropical map)
     this.litter = world.map.litter;                            // how much each type of tree carpets the ground
+    // (how far the tint over the textures goes: twice their colour, or a map's own range, its fields' yellow mustard
+    // four times the grass's red)
+    this.tintK = world.map.tintRange ?? 2;
     this.layers = ground ? ground.layers : Object.keys(PLAIN).map((name) => ({ name, avg: lin(PLAIN[name]), rough: 0.95 }));
     this.layerIndex = {};
     this.layers.forEach((l, i) => { this.layerIndex[l.name] = i; });
@@ -170,6 +173,7 @@ export class TerrainRenderer {
     uniforms.uFarForest = { value: new THREE.Vector3(...(this.farForest || [0.07, 0.11, 0.02])) };
     const mt = w.map.mudTint || [0.085, 0.06, 0.04];
     uniforms.uPuddle = { value: new THREE.Color(mt[0] * 0.35, mt[1] * 0.35, mt[2] * 0.35) };
+    uniforms.uTintK = { value: this.tintK };
     // (the open world: a map's own square only, round it the far land's)
     uniforms.uClipC = { value: new THREE.Vector3(this.centre[0], this.centre[1], this.clip ? this.half + 0.02 : 0) };
     const NH = this.holes.length;
@@ -185,6 +189,7 @@ export class TerrainRenderer {
 attribute vec3 tint;
 attribute vec2 wet;
 attribute float cover;
+uniform float uTintK;
 varying vec3 vWPos;
 varying vec3 vWNormal;
 varying vec3 vTint;
@@ -193,7 +198,7 @@ varying float vCover;`)
         .replace('#include <worldpos_vertex>', `#include <worldpos_vertex>
 vWPos = (modelMatrix * vec4(transformed, 1.0)).xyz;
 vWNormal = objectNormal;
-vTint = tint * 2.0;
+vTint = tint * uTintK;
 vWet = wet;
 vCover = cover;`);
       sh.fragmentShader = sh.fragmentShader
@@ -566,6 +571,9 @@ if (gWet > 0.0) {
       const f = 0.92 + 0.16 * vnoise(x / 6, z / 6, 903);
       r = f; g = f; b = f;
     }
+    // (a map's own colours over its ground: its fields' crops, say)
+    const mt = this.world.map?.tint;
+    if (mt) { const c = this._mt ||= [1, 1, 1]; c[0] = r; c[1] = g; c[2] = b; mt(x, z, this.layers[layer]?.name, h, c); r = c[0]; g = c[1]; b = c[2]; }
     const sd = 1 - Math.min(0.25, slope * 0.12);
     r *= sd; g *= sd; b *= sd;
     const wl = this.world.water(x, z);
@@ -900,7 +908,7 @@ if (gWet > 0.0) {
       }
       if (inMap(x, z)) this.wetAt(x, z, h, d, wet, v * 2);
       col[v * 3] = Math.round(Math.sqrt(c3[0]) * 255); col[v * 3 + 1] = Math.round(Math.sqrt(c3[1]) * 255); col[v * 3 + 2] = Math.round(Math.sqrt(c3[2]) * 255);
-      for (let c = 0; c < 3; c++) tint[v * 3 + c] = Math.min(255, Math.round(t3[c] * 127.5));
+      for (let c = 0; c < 3; c++) tint[v * 3 + c] = Math.min(255, Math.round(t3[c] * 255 / this.tintK));
       if (h < minY) minY = h; if (h > maxY) maxY = h;
     }
     // skirts

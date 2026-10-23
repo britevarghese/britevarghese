@@ -15,7 +15,8 @@ import { RoadWear } from './RoadWear.js';
 import { Landmarks } from './Landmarks.js';
 import { BreakView } from './BreakView.js';
 import { BEACON_STRIDE } from '../world/OpenWorld.js';
-import { REGIONS } from '../world/maps/world.js';
+import { REGIONS, seamPairs } from '../world/maps/world.js';
+import { gridOf } from '../world/maps/index.js';
 import { DeformGrid } from '../world/Deform.js';
 import { SURFACE } from '../physics/Surfaces.js';
 
@@ -62,7 +63,7 @@ export class RegionView {
     // the colour of its land comes round to each neighbour's, its average just past the edge)
     let blend = null;
     const match = [];
-    for (const [side, nid] of Object.entries(REGIONS[region.index].seams || {})) {
+    for (const [side, nid] of seamPairs(REGIONS[region.index])) {
       const N = REGIONS.find((R) => R.id === nid).map;
       if (N.ground !== M.ground) blend = { side, ground: await groundOf(N.ground, quality), band: 160 };
       const nv = views.find((o) => o.region.id === nid);
@@ -79,7 +80,12 @@ export class RegionView {
     v.rocks = new Rocks(W, v.group, ground);
     v.tea = region.map.tea ? new Tea(W, v.group) : null;
     await tick();
-    v.water = new Water(W, v.group);
+    // (the sea past its edges left to another map on the sea that draws its own: [x0, z0, x1, z1] in this one's frame)
+    const holes = REGIONS.filter((R) => R.id !== region.id && R.map.sea).map((R) => {
+      const h = gridOf(R.map).half;
+      return [R.at[0] - h - region.cx, R.at[1] - h - region.cz, R.at[0] + h - region.cx, R.at[1] + h - region.cz];
+    });
+    v.water = new Water(W, v.group, { holes });
     await tick();
     const marks = new RoadMarkings(W, v.group), wear = new RoadWear(W, v.group);
     // (these never change: their arrays let go once the graphics card has them)

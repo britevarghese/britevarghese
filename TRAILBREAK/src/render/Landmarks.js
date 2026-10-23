@@ -1,8 +1,10 @@
 // Buildings and props (Ashwood's ranger station, garage, flagpole, fire tower, the old mine, the summit lookout, the
-// radio mast, cabins; Kerala's in render/KeralaBuildings.js) and the survey beacons with their light beams.
+// radio mast, cabins; the open world's fort at Korlai and wind turbines on Chalkewadi; Kerala's in
+// render/KeralaBuildings.js) and the survey beacons with their light beams.
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { KERALA_BUILD } from './KeralaBuildings.js';
+import { FORT, fortPlan } from '../world/Fort.js';
 
 const mat = {
   log: new THREE.MeshStandardMaterial({ color: 0x7a5636, roughness: 0.9 }),
@@ -15,7 +17,14 @@ const mat = {
   white: new THREE.MeshStandardMaterial({ color: 0xe9e4d8, roughness: 0.7 }),
   red: new THREE.MeshStandardMaterial({ color: 0xa8321e, roughness: 0.6 }),
   steel: new THREE.MeshStandardMaterial({ color: 0x6b6d6e, roughness: 0.6, metalness: 0.5 }),
+  // the fort's dark basalt and laterite, weathered; a turbine's white glass-fibre and steel
+  fort: new THREE.MeshStandardMaterial({ color: 0x8c7f6d, roughness: 0.97 }),
+  fortTop: new THREE.MeshStandardMaterial({ color: 0x766b5d, roughness: 0.97 }),
+  turbine: new THREE.MeshStandardMaterial({ color: 0xe8ebe9, roughness: 0.45, metalness: 0.1 }),
+  concrete: new THREE.MeshStandardMaterial({ color: 0xa29e94, roughness: 0.95 }),
 };
+// (the way the monsoon wind blows onto Chalkewadi, from the west-south-west: every turbine's rotor faces into it)
+const WIND_YAW = 1.95;
 
 class Builder {
   constructor() { this.parts = new Map(); }
@@ -40,6 +49,9 @@ class Builder {
     return g;
   }
 }
+
+/** The ground under a point (a world's own ground: terrain without its ruts), for buildings that stand on it all along. */
+const groundOf = (world, x, z) => (world.terrain ? world.terrain(x, z) : world.height(x, z));
 
 function logWalls(B, w, d, h, logR = 0.16) {
   const n = Math.round(h / (logR * 1.9));
@@ -199,6 +211,80 @@ const BUILD = {
     g.add(lamp);
     return g;
   },
+  // Korlai's fort along its ridge: curtain walls with merlons standing on the ground under them all the way (the
+  // ridge's crest rises and falls), round bastions, gateways at both ends with the road through them, the gable of
+  // its ruined church inside
+  fort(L, world) {
+    const B = new Builder(), { walls, towers, church } = fortPlan(L.len), { wall: T, height: HT, tower: TR } = FORT;
+    const c = Math.cos(L.yaw || 0), s = Math.sin(L.yaw || 0);
+    const g = (x, z) => groundOf(world, L.x + x * c + z * s, L.z - x * s + z * c) - L.y;
+    for (const [x0, z0, x1, z1] of walls) {
+      const len = Math.hypot(x1 - x0, z1 - z0), n = Math.max(1, Math.round(len / 4)), along = z0 === z1;
+      // (out of the fort: the side its merlons stand on)
+      const ox = along ? 0 : Math.sign(x0), oz = along ? Math.sign(z0) : 0;
+      for (let k = 0; k < n; k++) {
+        const xa = x0 + (x1 - x0) * k / n, za = z0 + (z1 - z0) * k / n, xb = x0 + (x1 - x0) * (k + 1) / n, zb = z0 + (z1 - z0) * (k + 1) / n;
+        const ga = g(xa, za), gb = g(xb, zb), foot = Math.min(ga, gb) - 1.5, top = (ga + gb) / 2 + HT, l = len / n + 0.25;
+        B.box(mat.fort, along ? l : T, top - foot, along ? T : l, (xa + xb) / 2, (foot + top) / 2, (za + zb) / 2);
+        B.box(mat.fortTop, along ? l : T + 0.2, 0.25, along ? T + 0.2 : l, (xa + xb) / 2, top - 0.2, (za + zb) / 2);
+        for (let m = 0; m < 2; m++) {
+          const f = (m + 0.25) / 2, mx = xa + (xb - xa) * f, mz = za + (zb - za) * f;
+          B.box(mat.fort, along ? 1.0 : T * 0.45, 0.95, along ? T * 0.45 : 1.0, mx + ox * T * 0.27, top + 0.45, mz + oz * T * 0.27);
+        }
+      }
+    }
+    for (const [x, z] of towers) {
+      const g0 = g(x, z), foot = g0 - 2, top = g0 + HT + 1.2;
+      B.cyl(mat.fort, TR, TR + 0.35, top - foot, x, (foot + top) / 2, z, 14);
+      B.cyl(mat.fortTop, TR + 0.15, TR + 0.15, 0.3, x, top - 0.1, z, 14);
+      for (let k = 0; k < 9; k++) { const a = k / 9 * Math.PI * 2; B.box(mat.fort, 1.1, 0.95, 0.7, x + Math.cos(a) * (TR - 0.3), top + 0.45, z + Math.sin(a) * (TR - 0.3), -a + Math.PI / 2); }
+    }
+    // the gateways: a lintel over each, and its jambs
+    for (const sx of [-1, 1]) {
+      const x = sx * L.len / 2, g0 = g(x, 0);
+      B.box(mat.fortTop, T + 0.6, 1.8, FORT.gate * 2 + 1.6, x, g0 + 5.4, 0);
+      for (const sz of [-1, 1]) B.box(mat.fortTop, T + 0.6, HT + 1, 1.0, x, g0 + (HT + 1) / 2 - 0.5, sz * (FORT.gate + 0.3));
+    }
+    // the church's gable: a wall with a pointed top, a dark doorway and a window, open sky behind
+    const [cx, cz, cw] = church, gc = g(cx, cz), ch = 8;
+    B.box(mat.fort, cw, ch, 0.9, cx, gc + ch / 2 - 0.8, cz);
+    const shape = new THREE.Shape([new THREE.Vector2(-cw / 2, 0), new THREE.Vector2(cw / 2, 0), new THREE.Vector2(0, 3.6)]);
+    const gable = new THREE.ExtrudeGeometry(shape, { depth: 0.9, bevelEnabled: false });
+    gable.translate(0, 0, -0.45);
+    B.put(mat.fort, gable, cx, gc + ch - 0.8, cz);
+    B.box(mat.dark, 2.0, 3.6, 0.95, cx, gc + 1.0, cz);
+    B.box(mat.dark, 1.0, 1.6, 0.95, cx, gc + 5.6, cz);
+    return B.build(L);
+  },
+  // a wind turbine: a tapering white tower on its concrete plinth, the nacelle, and its three blades on a hub that
+  // turns (render/Landmarks.js update); all of them facing into the wind, a red light on top for aircraft
+  turbine(L) {
+    const B = new Builder(), H = 62, BL = 31;
+    B.cyl(mat.concrete, 3.4, 3.6, 1.2, 0, 0.2, 0, 16);
+    B.cyl(mat.turbine, 1.25, 2.1, H, 0, H / 2, 0, 16);
+    B.box(mat.turbine, 3.0, 3.3, 9.5, 0, H + 1.5, 1.2);
+    B.cyl(mat.turbine, 1.4, 1.6, 1.2, 0, H + 1.5, -3.8, 12, Math.PI / 2);
+    const g = B.build({ ...L, yaw: WIND_YAW });
+    const R = new Builder();
+    R.put(mat.turbine, new THREE.SphereGeometry(1.5, 12, 8, 0, Math.PI * 2, 0, Math.PI / 2), 0, 0, 0, 0, -Math.PI / 2);
+    for (let k = 0; k < 3; k++) {
+      const blade = new THREE.CylinderGeometry(0.16, 0.95, BL, 6);
+      blade.scale(1, 1, 0.32);
+      blade.rotateY(0.25);                                                   // (its pitch)
+      blade.translate(0, BL / 2 + 1.2, 0);
+      R.put(mat.turbine, blade, 0, 0, 0, 0, 0, k * Math.PI * 2 / 3);
+    }
+    const rotor = R.build({ x: 0, y: H + 1.5, z: -4.6, yaw: 0 });
+    // (each turning at its own pace, from its own place in the row)
+    rotor.rotation.z = (L.x * 0.37 + L.z * 0.11) % (Math.PI * 2);
+    rotor.userData.spin = 1.25 + 0.3 * Math.abs(Math.sin(L.x * 12.9898 + L.z * 78.233));
+    g.add(rotor);
+    g.userData.rotor = rotor;
+    const lamp = new THREE.Mesh(new THREE.SphereGeometry(0.3, 10, 8), new THREE.MeshStandardMaterial({ color: 0xff3020, emissive: 0xff2010, emissiveIntensity: 3 }));
+    lamp.position.set(0, H + 3.4, 4.5);
+    g.add(lamp);
+    return g;
+  },
   cabin(L) {
     const B = new Builder();
     const top = logWalls(B, 6, 5, 2.6, 0.15);
@@ -214,15 +300,16 @@ export class Landmarks {
   constructor(world, scene) {
     this.group = new THREE.Group();
     scene.add(this.group);
-    this.flags = [];
+    this.flags = []; this.rotors = [];
     for (const L0 of world.landmarks) {
       const L = L0.type === 'station' && !L0.sign ? { ...L0, sign: world.map.station.name } : L0;
       // (Kerala's style of a building where it has one, or a building only Kerala has)
       const kerala = KERALA_BUILD[L.type] && (L.style === 'kerala' || !BUILD[L.type]);
-      const b = kerala ? KERALA_BUILD[L.type](new Builder(), L) : BUILD[L.type]?.(L);
+      const b = kerala ? KERALA_BUILD[L.type](new Builder(), L) : BUILD[L.type]?.(L, world);
       if (!b) continue;
       this.group.add(b);
       if (b.userData.flag) this.flags.push(b.userData);
+      if (b.userData.rotor) this.rotors.push(b.userData.rotor);
     }
     // survey beacons: a striped post on a tripod, a lamp, and a tall soft beam to find it by
     this.beacons = new Map();
@@ -290,6 +377,7 @@ void main() {
 
   update(camera, dt) {
     this.t += dt;
+    for (const r of this.rotors) r.rotation.z += r.userData.spin * dt;
     for (const f of this.flags) {
       const p = f.flag.geometry.attributes.position, base = f.flagBase;
       for (let i = 0; i < p.count; i++) {

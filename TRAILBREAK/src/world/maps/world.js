@@ -17,6 +17,13 @@ import { landform, spline, limitGrade } from '../WorldGen.js';
 import { COAST } from './coast.js';
 import { KERALA, KERALA_WALLS, baseHeight as keralaBase, SEED as KERALA_SEED, RIVER as KERALA_RIVER } from './kerala.js';
 import { ASHWOOD, WORLD_SEED as ASHWOOD_SEED } from './ashwood.js';
+import { graded, seamPairs } from './seams.js';
+import { KORLAI, BORLI, TABLELAND, WINDFARM, NORTH_AT } from './north.js';
+import { GLEN, FOREST, EAST_AT } from './east.js';
+import { DECCAN, DECCAN_AT } from './deccan.js';
+import { trailsOf } from './country.js';
+
+export { seamPairs };
 
 const clamp = (x, a, b) => (x < a ? a : x > b ? b : x);
 const lerp = (a, b, t) => a + (b - a) * t;
@@ -48,22 +55,28 @@ const keralaWall = (x, z) => {
   const e = Math.max(Math.abs(x), Math.abs(z));
   return e > 850 ? smoothstep(850, 1180, e) * (210 + 130 * ridged(x / 240, z / 240, 4, KERALA_SEED + 20)) : 0;
 };
-const keralaPasses = passCut(keralaWall, [{ along: 'z', at: 40, side: -1 }, { along: 'x', at: 30, side: -1 }]);
+const keralaPasses = passCut(keralaWall, [{ along: 'z', at: 40, side: -1 }, { along: 'x', at: 30, side: -1 }, { along: 'x', at: 200, side: 1 }]);
 const keralaGround = (x, z) => keralaBase(x, z) - keralaPasses(x, z);
 // Ashwood: the walls of its valley (WorldGen's own landform), and its pass south, where the old valley road leaves it
 const ashwoodWall = (x, z) => {
   const e = Math.max(Math.abs(x), Math.abs(z));
   return e > 850 ? smoothstep(850, 1180, e) * (230 + 140 * ridged(x / 240, z / 240, 4, ASHWOOD_SEED + 20)) : 0;
 };
-const ashwoodPasses = passCut(ashwoodWall, [{ along: 'x', at: 20, side: 1 }]);
+const ashwoodPasses = passCut(ashwoodWall, [{ along: 'x', at: 20, side: 1 }, { along: 'z', at: -64, side: -1 }]);
 const ashwoodGround = (x, z) => landform(ASHWOOD).baseHeight(x, z) - ashwoodPasses(x, z);
 
 /** The coast as it stands in the world: the Kashid ghat road carried on to its east edge. */
 export const COAST_W = {
   ...COAST, id: 'coast@world',
   trails: [...COAST.trails,
-    { name: 'Kashid Ghat East', kind: 'road', width: 3.6, lanes: 2, grade: 0.11, smooth: 24, cut: 7, shoulder: 8, level: true, extend: [0, 8], points: [[3960, -700], [3980, -685.5], [3999.9, -671.1]] }],
-  gen: graded([{ road: 'Kashid Ghat East', grade: 0.1, ends: ['ground'] }], COAST.gen),
+    { name: 'Kashid Ghat East', kind: 'road', width: 3.6, lanes: 2, grade: 0.11, smooth: 24, cut: 7, shoulder: 8, level: true, extend: [0, 8], points: [[3960, -700], [3980, -685.5], [3999.9, -671.1]] },
+    // (the coast road on north from its end round the headland, and the ridge track from its end by the edge: into
+    // Korlai and the Table Land)
+    { name: 'Coast Road North', kind: 'road', width: 3.8, lanes: 2, grade: 0.1, smooth: 24, cut: 6, shoulder: 8, level: true, extend: [0, 8], points: [[-1900, -3960], [-1881, -3980], [-1862, -3999.9]] },
+    { name: 'Ridge Track North', kind: 'trail', width: 2.3, extend: [0, 8], points: [[400, -3960], [399.8, -3980], [399.6, -3999.9]] },
+    // (and the south ghat on east from its end, into the Deccan)
+    { name: 'South Ghat East', kind: 'road', width: 3.6, lanes: 2, grade: 0.1, smooth: 24, cut: 6, shoulder: 8, level: true, extend: [0, 8], points: [[3960, 1300], [3980, 1290], [3999.9, 1280]] }],
+  gen: graded([{ road: 'Kashid Ghat East', grade: 0.1, ends: ['ground'] }, { road: 'Coast Road North', grade: 0.1, ends: ['ground'] }, { road: 'South Ghat East', grade: 0.1, ends: ['ground'] }], COAST.gen),
 };
 
 /** Kerala as it stands in the world: passes west and north, and the roads out through them. */
@@ -78,185 +91,24 @@ export const KERALA_W = {
     { name: 'Pass Road', kind: 'road', width: 3.4, grade: 0.12, cut: 6, extend: [0, 8], surface: SURFACE.GRAVEL, points: [[17, -775], [20, -850], [25, -940], [30, -1024]] },
     // (the corner from the estate road onto the jeep track at the factory, worn smooth: the road is cut into the slope
     // there a metre and a half below the yard's edge, a crest a long truck grounds on as it turns)
-    { name: 'Factory Turn', kind: 'trail', width: 2.4, points: [[57, -633], [54, -641], [55.5, -647], [60, -648.5], [66, -646], [69, -643]] }],
-  gen: graded([{ road: 'Konkan Road', grade: 0.12, ends: ['ground'] }, { road: 'Pass Road', grade: 0.12, ends: ['ground'] },
+    { name: 'Factory Turn', kind: 'trail', width: 2.4, points: [[57, -633], [54, -641], [55.5, -647], [60, -648.5], [66, -646], [69, -643]] },
+    // (off the end of the quarry road, south through a gap cut in the ridge to the Deccan's ghat road)
+    { name: 'Deccan Road', kind: 'road', width: 3.6, lanes: 2, grade: 0.12, cut: 6, shoulder: 8, level: true, extend: [0, 8], points: [[189, 675], [191, 760], [196, 860], [201, 950], [205, 1024]] }],
+  gen: graded([{ road: 'Konkan Road', grade: 0.12, ends: ['ground'] }, { road: 'Pass Road', grade: 0.12, ends: ['ground'] }, { road: 'Deccan Road', grade: 0.12, ends: ['ground'] },
     { road: 'Factory Turn', grade: 0.12, smooth: 8, ends: ['ground', 'ground'] }], KERALA.gen),
 };
 
 /** Ashwood as it stands in the world: a pass south, and the old valley road on through it. */
 export const ASHWOOD_W = {
   ...ASHWOOD, id: 'ashwood@world', baseHeight: ashwoodGround,
-  trails: [...ASHWOOD.trails, { name: 'Pass Road', kind: 'road', width: 3.4, extend: [0, 8], points: [[10, 890], [14, 950], [18, 1000], [20, 1024]] }],
+  trails: [...ASHWOOD.trails, { name: 'Pass Road', kind: 'road', width: 3.4, extend: [0, 8], points: [[10, 890], [14, 950], [18, 1000], [20, 1024]] },
+    // (the Pinecrest trail on west through a gap in the valley's wall, down to Koyna Glen)
+    { name: 'Pinecrest West', kind: 'trail', width: 2.1, extend: [0, 8], points: [[-760, -45], [-850, -52], [-940, -58], [-1024, -64]] }],
 };
 
 // (the roads that cross a seam: extend: [start, end] m, each paved straight on past its end at the seam, and its lines
 // and wear with it, each map drawing only its own side: so a road crossing a seam at a slant is paved right up to it
 // on both sides, world/WorldGen.js, render/RoadMarkings.js, render/RoadWear.js)
-
-// ---------------------------------------------------------------- seams, and roads on graded ground
-/**
- * A stretch's ground laid onto the maps either side of it (seams: each { side, at0, step, h, g }: the neighbour's
- * heights along the shared edge every `step` m from `at0` (in the stretch's frame), and how steeply its ground runs up
- * towards the edge). Within `band` m of an edge the stretch's own ground gives way to the neighbour's carried on past
- * its edge, its slope fading over a few tens of metres: on the edge itself the two are the same height. What is
- * carried in is the neighbour's edge averaged along it over more of it the further in (half as far either way as it is
- * in, up to 80 m): its hills and valleys run on into the stretch, but not its every hummock and rill, drawn out
- * straight across the band into furrows.
- */
-function onSeams(seams, half, x, z, h) {
-  for (const sm of seams) {
-    const B = sm.band ?? 220, D0 = 28;
-    const dist = sm.side === 'west' ? x + half : sm.side === 'east' ? half - x : sm.side === 'north' ? z + half : half - z;
-    if (dist >= B) continue;
-    const q = ((sm.side === 'west' || sm.side === 'east' ? z : x) - sm.at0) / sm.step, q0 = Math.min(Math.floor(q), sm.h.length - 2);
-    if (q < 0 || q > sm.h.length - 1) continue;
-    const f = q - q0, w = Math.min(80, Math.max(0, dist) * 0.5) / sm.step;
-    const eh = edgeMean(sm, 'h', q0, w) * (1 - f) + edgeMean(sm, 'h', q0 + 1, w) * f;
-    const eg = edgeMean(sm, 'g', q0, w) * (1 - f) + edgeMean(sm, 'g', q0 + 1, w) * f;
-    h = lerp(h, eh + eg * D0 * (1 - Math.exp(-dist / D0)), smoothstep(B, 0, dist));
-  }
-  return h;
-}
-
-/** A seam's heights or slopes (key 'h' or 'g') at point i, averaged over w points either way (w fractional). */
-function edgeMean(sm, key, i, w) {
-  // (running sums along the edge, made once a seam)
-  const sums = (sm.sums ||= {})[key] ||= (() => {
-    const a = sm[key], c = new Float64Array(a.length + 1);
-    for (let k = 0; k < a.length; k++) c[k + 1] = c[k] + a[k];
-    return c;
-  })();
-  const n = sm[key].length, box = (W) => {
-    const lo = Math.max(0, i - W), hi = Math.min(n - 1, i + W);
-    return (sums[hi + 1] - sums[lo]) / (hi - lo + 1);
-  };
-  const W0 = Math.floor(w), t = w - W0;
-  return t ? box(W0) * (1 - t) + box(W0 + 1) * t : box(W0);
-}
-const seamDist = (seams, half, x, z) => {
-  let d = Infinity;
-  for (const sm of seams) d = Math.min(d, sm.side === 'west' ? x + half : sm.side === 'east' ? half - x : sm.side === 'north' ? z + half : half - z);
-  return d;
-};
-
-/**
- * A stretch's edges made its neighbours' exactly, once everything is cut into it (its roads' and its river's own cuts
- * went over the ground the neighbour had already cut its own into): what is left between the two shifted out of the
- * ground over the last few metres in from the edge.
- */
-function closeSeams(ctx) {
-  const { M, H, N, res, origin } = ctx, B = 30, nB = Math.ceil(B / res);
-  for (const sm of M.seams || []) {
-    for (let t = 0; t < N; t++) {
-      const q = (origin + t * res - sm.at0) / sm.step, q0 = Math.min(Math.floor(q), sm.h.length - 2);
-      if (q < 0 || q > sm.h.length - 1) continue;
-      const cell = (d) => (sm.side === 'west' ? t * N + d : sm.side === 'east' ? t * N + N - 1 - d : sm.side === 'north' ? d * N + t : (N - 1 - d) * N + t);
-      const off = sm.h[q0] + (sm.h[q0 + 1] - sm.h[q0]) * (q - q0) - H[cell(0)];
-      for (let d = 0; d <= nB; d++) H[cell(d)] += off * smoothstep(B, 0, d * res);
-    }
-  }
-}
-
-/**
- * Roads on graded ground: the ground along each (its trail in M.trails, by name), smoothed and kept within its grade,
- * cut into the rises and built up over the dips as deep as that takes, its ends held where they must be ('ground': on
- * the ground there, which on a seam is the neighbour's road; { road }: on that road); and the ground along it laid onto
- * that line, banked either side. A map's prepare, fine and surface hooks (its own run first); on a stretch, its seams
- * too.
- */
-function graded(specs, own = {}) {
-  return {
-    ...own,
-    prepare(c) {
-      own.prepare?.(c);
-      const { M, K, coarseAt, res, half } = c;
-      K.seams = M.seams || []; K.half = half; K.beds = [];
-      const ground = (x, z) => onSeams(K.seams, half, x, z, coarseAt(x, z));
-      for (const sp of specs) {
-        const tr = M.trails.find((t) => t.name === sp.road), pts = spline(tr.points, res), n = pts.length;
-        const arc = [0];
-        for (let i = 1; i < n; i++) arc.push(arc[i - 1] + hyp(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]));
-        let hs = pts.map(([x, z]) => ground(x, z));
-        const win = Math.max(1, Math.round((sp.smooth ?? 30) / res));
-        for (let pass = 0; pass < 3; pass++) {
-          const out = new Array(n);
-          for (let i = 0; i < n; i++) {
-            let sum = 0, cnt = 0;
-            for (let q = Math.max(0, i - win); q <= Math.min(n - 1, i + win); q++) { sum += hs[q]; cnt++; }
-            out[i] = sum / cnt;
-          }
-          hs = out;
-        }
-        const gr = sp.grade * 0.95, step = arc.map((a, i) => (i ? (a - arc[i - 1]) * gr : 0));
-        const cut = limitGrade(hs, step, Math.min), fill = limitGrade(hs, step, Math.max);
-        hs = hs.map((_, i) => (cut[i] + fill[i]) / 2);
-        // its ends held: everything within the grade of them
-        (sp.ends || []).forEach((e, j) => {
-          if (!e) return;
-          const ie = j ? n - 1 : 0, [ex, ez] = pts[ie];
-          let P;
-          if (e === 'ground') P = ground(ex, ez);
-          else {
-            const o = K.beds.find((b) => b.name === e.road);
-            let bd = Infinity;
-            for (let i = 0; i < o.pts.length; i++) { const d = hyp(o.pts[i][0] - ex, o.pts[i][1] - ez); if (d < bd) { bd = d; P = o.hs[i]; } }
-          }
-          for (let i = 0; i < n; i++) { const r = gr * Math.abs(arc[i] - arc[ie]); hs[i] = clamp(hs[i], P - r, P + r); }
-        });
-        // the corridor: each cell's distance from the line and the line's height there
-        const bed = tr.width + 4, reach = bed + 90;
-        let x0 = Infinity, x1 = -Infinity, z0 = Infinity, z1 = -Infinity;
-        for (const [x, z] of pts) { x0 = Math.min(x0, x); x1 = Math.max(x1, x); z0 = Math.min(z0, z); z1 = Math.max(z1, z); }
-        x0 = Math.max(-half, Math.floor((x0 - reach) / res) * res); z0 = Math.max(-half, Math.floor((z0 - reach) / res) * res);
-        x1 = Math.min(half, x1 + reach); z1 = Math.min(half, z1 + reach);
-        const nx = Math.round((x1 - x0) / res) + 1, nz = Math.round((z1 - z0) / res) + 1;
-        const D = new Float32Array(nx * nz).fill(1e9), P = new Float32Array(nx * nz), r = Math.ceil(reach / res);
-        for (let p = 0; p < n; p++) {
-          const [px, pz] = pts[p], ci = Math.round((px - x0) / res), ck = Math.round((pz - z0) / res);
-          for (let k = Math.max(0, ck - r); k <= Math.min(nz - 1, ck + r); k++) {
-            const dz = z0 + k * res - pz;
-            for (let i = Math.max(0, ci - r); i <= Math.min(nx - 1, ci + r); i++) {
-              const dx = x0 + i * res - px, d = Math.sqrt(dx * dx + dz * dz), o = k * nx + i;
-              if (d < D[o]) { D[o] = d; P[o] = hs[p]; }
-            }
-          }
-        }
-        K.beds.push({ name: sp.road, pts, hs, x0, z0, nx, nz, res, D, P, bed, reach });
-      }
-    },
-    fine(x, z, h, K) {
-      if (own.fine) h = own.fine(x, z, h, K);
-      if (K.seams.length) h = onSeams(K.seams, K.half, x, z, h);
-      for (const b of K.beds) {
-        const i = Math.round((x - b.x0) / b.res), k = Math.round((z - b.z0) / b.res);
-        if (i < 0 || k < 0 || i >= b.nx || k >= b.nz) continue;
-        const o = k * b.nx + i, d = b.D[o];
-        if (d >= b.reach) continue;
-        const p = b.P[o], bank = Math.min(b.reach - b.bed, Math.max(10, 1.5 * Math.abs(h - p)));
-        let w = d <= b.bed ? 1 : smoothstep(b.bed + bank, b.bed, d);
-        // (on a seam the neighbour's ground stands as it is: its own road is there)
-        if (K.seams.length) w *= smoothstep(0, 24, seamDist(K.seams, K.half, x, z));
-        h = lerp(h, p, w);
-      }
-      return h;
-    },
-    // (towards a seam with Kerala, its forest's rule for bare rock, as on Kerala's own side: only on the sheerest
-    // faces, the rest of its steep ground grown over; giving way raggedly to this map's own over M.keralaRock m)
-    surface(x, z, h, sl, s, idx, ctx) {
-      if (own.surface) s = own.surface(x, z, h, sl, s, idx, ctx);
-      const { K, M } = ctx;
-      if (s !== SURFACE.ROCK || !K.seams.length || !M.keralaRock) return s;
-      for (const sm of K.seams) {
-        if (sm.id !== 'kerala') continue;
-        const d = sm.side === 'west' ? x + K.half : sm.side === 'east' ? K.half - x : sm.side === 'north' ? z + K.half : K.half - z;
-        const t = smoothstep(M.keralaRock, M.keralaRock * 0.5, d);
-        if (t > 0 && vnoise(x / 9, z / 9, M.seed + 61) < t * 1.15 && sl < 1.25 + 0.4 * vnoise(x / 13, z / 13, M.seed + 62)) return SURFACE.GRASS;
-      }
-      return s;
-    },
-    finish(ctx) { own.finish?.(ctx); closeSeams(ctx); },
-  };
-}
 
 // the Kerala river where it leaves Kerala's west edge (in Kerala's frame), and its level there
 let keralaOut = null;
@@ -271,6 +123,12 @@ function keralaRiverOut() {
 }
 
 const GHAT_SEED = 5150, PASS_SEED = 6260;
+// the stretches' spurs into the new country round them (routed over their ground: tools/routeroads.mjs)
+export const GHAT_SPURS = {
+  'Bhimashankar Road': { via: [[-60, 84], [-120, -250], [-200, -600], [-256, -1024]], kind: 'road', width: 3.6, lanes: 2, grade: 0.08, smooth: 30, cut: 6, shoulder: 8, level: true, extend: [0, 8] },
+  'Kundalika South': { via: [[770, 885], [766, 960], [760, 1024]], kind: 'trail', width: 2.2, extend: [0, 8] },
+};
+export const PASS_SPURS = {};
 // the stretches' races' par times (s)
 const GHAT_PAR = { ghatroad: { gold: 117, silver: 140, bronze: 173 }, kundalika: { gold: 58, silver: 69, bronze: 85 } };
 const PASS_PAR = { passclimb: { gold: 79, silver: 95, bronze: 118 }, cairnridge: { gold: 78, silver: 93, bronze: 115 } };
@@ -290,7 +148,7 @@ const distToLine = (pts, x, z) => {
 // The Konkan Ghat: the coast's tableland carried east as rolling upland (its real ground at the coast's edge), falling
 // away to the south into the valley of the river out of Kerala, and rising in the east into Kerala's ridges, through
 // the gap the Konkan road takes.
-const ghatGround = (x, z) => {
+export const ghatGround = (x, z) => {
   const S = GHAT_SEED;
   const upland = 168 + 26 * fbm(x / 520, z / 520, 3, S + 1) + 10 * fbm(x / 140, z / 140, 2, S + 2);
   const coast = COAST.baseHeight(x + CENTRES.ghat[0], z + CENTRES.ghat[1]);
@@ -351,6 +209,21 @@ const ghatTrees = (ctx) => {
   }
 };
 
+/** The river's level where it leaves the Konkan Ghat across its south edge (into the Deccan). */
+let ghatOut = null;
+function ghatRiverOut() {
+  if (ghatOut !== null) return ghatOut;
+  const R = ghatRiver(), pts = spline(R.points, 2);
+  let len = 0, sEdge = 0, total = 0;
+  for (let i = 1; i < pts.length; i++) total += hyp(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]);
+  for (let i = 1; i < pts.length; i++) {
+    len += hyp(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]);
+    if (pts[i - 1][1] <= 1024 && pts[i][1] > 1024) sEdge = len / total;
+  }
+  ghatOut = R.levelAt(sEdge);
+  return ghatOut;
+}
+
 /** The Konkan Ghat: from the Kashid ghat at the coast's edge to the pass into Kerala. */
 export const GHAT = {
   id: 'ghat', name: 'Konkan Ghat', short: 'Ghat',
@@ -363,6 +236,7 @@ export const GHAT = {
       points: [[-1024, 29], [-964, 72], [-880, 92], [-760, 96], [-600, 70], [-420, 40], [-240, 52], [-60, 84], [140, 70], [340, 60], [540, 44], [720, 30], [860, 36], [960, 40], [1024, 40]] },
     // (down off the road into the river's valley, and up it along the bank to below the gorge)
     { name: 'Kundalika River Track', kind: 'trail', width: 2.2, points: [[340, 60], [400, 250], [480, 430], [570, 600], [650, 740], [720, 840], [770, 885]] },
+    ...trailsOf('ghat', GHAT_SPURS),
   ],
   beacons: [{ id: 0, name: 'Ghat Top', x: -890, z: 95 }, { id: 1, name: 'Kundalika Bank', x: 766, z: 880 }],
   landmarks: [{ type: 'chaistall', x: -132, z: 44, yaw: 0.1 }, { type: 'busstop', x: -176, z: 48, yaw: -0.05 }],
@@ -380,7 +254,8 @@ export const GHAT = {
   keralaRock: 4096,
   pads: { chaistall: 5, busstop: 3 },
   gen: { walls: KERALA_WALLS, trees: ghatTrees,
-    ...graded([{ road: 'Konkan Ghat Road', grade: 0.09, ends: ['ground', 'ground'] }, { road: 'Kundalika River Track', grade: 0.2, ends: [{ road: 'Konkan Ghat Road' }, 'ground'] }]) },
+    ...graded([{ road: 'Konkan Ghat Road', grade: 0.09, ends: ['ground', 'ground'] }, { road: 'Kundalika River Track', grade: 0.2, ends: [{ road: 'Konkan Ghat Road' }, 'ground'] },
+      { road: 'Bhimashankar Road', grade: 0.08, ends: [{ road: 'Konkan Ghat Road' }, 'ground'] }]) },
   litter: COAST.litter, treeStrength: COAST.treeStrength, young: COAST.young, roadside: COAST.roadside,
   dust: COAST.dust, mudTint: COAST.mudTint, ground: 'coast', trees: 'kerala', atmosphere: COAST.atmosphere,
 };
@@ -388,7 +263,7 @@ export const GHAT = {
 // The Ashwood Pass: Kerala's tea plateau carried north and Ashwood's valley mouth carried south meet across a saddle
 // in the range, the pass road's line through it lower than the ridges either side.
 const passLine = (z) => 25 + 40 * Math.sin((z + 1024) / 2048 * Math.PI * 3) * smoothstep(1024, 600, Math.abs(z));
-const passGround = (x, z) => {
+export const passGround = (x, z) => {
   const S = PASS_SEED;
   const range = 330 + 90 * ridged(x / 320, z / 320, 4, S + 1) + 25 * fbm(x / 120, z / 120, 3, S + 2);
   const kerala = keralaGround(x, z + 2048), ashwood = ashwoodGround(x, z - 2048);
@@ -416,6 +291,7 @@ export const PASS = {
     { name: 'Ashwood Pass Road', kind: 'road', width: 3.4, grade: 0.12, smooth: 24, cut: 6, extend: [8, 8],
       points: [[30, 1024], [40, 900], [62, 760], [40, 600], [0, 430], [-10, 250], [20, 60], [60, -120], [52, -300], [10, -480], [-12, -660], [0, -820], [14, -940], [20, -1024]] },
     { name: 'Cairn Ridge Trail', kind: 'trail', width: 2.1, points: [[-10, 250], [-150, 210], [-290, 130], [-390, 10], [-420, -130], [-350, -250], [-210, -320], [-70, -330], [52, -300]] },
+    ...trailsOf('pass', PASS_SPURS),
   ],
   beacons: [{ id: 0, name: 'Ashwood Pass', x: 30, z: 40 }, { id: 1, name: 'Cairn Ridge', x: -405, z: -60 }],
   landmarks: [{ type: 'cabin', x: 128, z: -72, yaw: 1.3 }, { type: 'flag', x: 96, z: -30, yaw: 0 }],
@@ -433,6 +309,9 @@ export const PASS = {
   ground: 'ashwood', trees: 'ashwood',
 };
 
+/** The Deccan as it stands in the world: its river the Konkan Ghat's, at the level it leaves the ghat. */
+const DECCAN_W = { ...DECCAN, get river() { return DECCAN.riverWith(ghatRiverOut()); } };
+
 // ---------------------------------------------------------------- the world
 /** The maps of the world, west to east then north: id, definition, centre, the maps along each of its edges. */
 export const REGIONS = [
@@ -441,6 +320,16 @@ export const REGIONS = [
   { id: 'kerala', map: KERALA_W, at: CENTRES.kerala },
   { id: 'pass', map: PASS, at: CENTRES.pass, seams: { south: 'kerala', north: 'ashwood' } },
   { id: 'ashwood', map: ASHWOOD_W, at: CENTRES.ashwood },
+  // the north (world/maps/north.js), along the coast's north edge from the sea
+  { id: 'korlai', map: KORLAI, at: NORTH_AT.korlai, seams: { south: 'coast' } },
+  { id: 'borli', map: BORLI, at: NORTH_AT.borli, seams: { south: 'coast', west: 'korlai' } },
+  { id: 'tableland', map: TABLELAND, at: NORTH_AT.tableland, seams: { south: 'coast', west: 'borli' } },
+  { id: 'windfarm', map: WINDFARM, at: NORTH_AT.windfarm, seams: { south: 'coast', west: 'tableland' } },
+  // the east (world/maps/east.js), between the coast and the pass's range, up to Ashwood
+  { id: 'forest', map: FOREST, at: EAST_AT.forest, seams: { west: 'coast', east: 'pass', south: 'ghat' } },
+  { id: 'glen', map: GLEN, at: EAST_AT.glen, seams: { west: ['windfarm', 'coast'], east: 'ashwood', south: 'forest' } },
+  // the Deccan (world/maps/deccan.js), south of the ghat and Kerala, its river the ghat's carried on
+  { id: 'deccan', map: DECCAN_W, at: DECCAN_AT, seams: { north: ['ghat', 'kerala'], west: 'coast' } },
 ];
 export const regionById = (id) => REGIONS.find((r) => r.id === id);
 
@@ -455,11 +344,19 @@ const COAST_TO_SNOW = [
   at('kerala', [17, -775]), at('pass', [60, -120]), at('ashwood', [10, 890]), at('ashwood', [-58, 430]),   // up the jeep track and over the pass
 ].map(([x, z]) => [Math.round(x), Math.round(z)]);
 
+// and along the north: the North Coast Highway from where it leaves the coast, past Korlai, Borli, the Table Land and
+// Chalkewadi, down into Koyna Glen to the dam
+const atR = (id, [x, z]) => { const R = regionById(id); return [Math.round(x + R.at[0]), Math.round(z + R.at[1])]; };
+const NORTH_COAST = [atR('korlai', [508, 880]), atR('korlai', [380, 250]), atR('korlai', [600, -620]), atR('borli', [0, -570]), atR('tableland', [100, -520]),
+  atR('windfarm', [0, -440]), atR('glen', [-700, -620]), atR('glen', [-90, 540])];
+
 export const WORLD = {
   id: 'world', name: 'Open World', short: 'World',
   races: [
     { id: 'coasttosnow', kind: 'rally', name: 'Coast to Snow', desc: 'Kashid to Ashwood: up the Kashid ghat, over the Konkan Ghat into Kerala, through the town and the tea, over the Ashwood Pass and down to the ranger station.',
       via: COAST_TO_SNOW, cps: 16, r: 14, par: { gold: 1575, silver: 1889, bronze: 2330 }, prize: 4 },
+    { id: 'northcoast', kind: 'rally', name: 'North Coast Highway', desc: 'The highway along the north of the world: from the coast past Korlai, through Borli and the Devkund Gap, under the Chalkewadi turbines and down to the Koyna dam.',
+      via: NORTH_COAST, cps: 14, r: 14, par: { gold: 917, silver: 1101, bronze: 1358 }, prize: 3 },
   ],
   blurb: 'The Konkan Coast, the Kerala Ghats and Ashwood Valley in one world: drive from the Arabian Sea up the ghats, through the tea estates and over the pass to the snow, with no loading on the way.',
   tagline: 'Old trucks, real physics, good friends. One world from the sea to the snow: drive it together.',

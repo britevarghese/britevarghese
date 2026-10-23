@@ -146,8 +146,31 @@ normal = normalize((viewMatrix * vec4(wN, 0.0)).xyz);`)
   return mat;
 }
 
+/** A rectangle less others: the pieces of [x0, z0, x1, z1] none of holes covers. */
+function minus(r, holes) {
+  let out = [r];
+  for (const [hx0, hz0, hx1, hz1] of holes) {
+    const next = [];
+    for (const [x0, z0, x1, z1] of out) {
+      if (hx1 <= x0 || hx0 >= x1 || hz1 <= z0 || hz0 >= z1) { next.push([x0, z0, x1, z1]); continue; }
+      if (hz0 > z0) next.push([x0, z0, x1, hz0]);
+      if (hz1 < z1) next.push([x0, hz1, x1, z1]);
+      const a = Math.max(z0, hz0), b = Math.min(z1, hz1);
+      if (hx0 > x0) next.push([x0, a, hx0, b]);
+      if (hx1 < x1) next.push([hx1, a, x1, b]);
+    }
+    out = next;
+  }
+  return out;
+}
+
 export class Water {
-  constructor(world, scene) {
+  /**
+   * holes: squares (in the map's frame, [x0, z0, x1, z1]) where another map of the open world draws its own sea: the
+   * sea out past this one's edges leaves them to it.
+   */
+  constructor(world, scene, { holes = [] } = {}) {
+    this.holes = holes;
     this.uniforms = { uTime: { value: 0 }, uRipple: { value: rippleTexture() } };
     const d = world.data, N = d.waterN, res = d.waterRes, O = d.origin, W = d.water;
     // (a map whose sea is drawn as a sheet of its own: the sea's cells left out of the water grid's mesh)
@@ -277,7 +300,10 @@ export class Water {
       depth.push(12, 12, 12, 12);
       idx.push(v, v + 2, v + 1, v + 1, v + 2, v + 3);
     };
-    quad(-far, -far, -half, far); quad(half, -far, far, far); quad(-half, -far, half, -half); quad(-half, half, half, far);
+    // (a map whose sea carries on from a neighbour's sheet draws none past its edges: sea.strips false)
+    if (world.map.sea.strips !== false) {
+      for (const r of [[-far, -far, -half, far], [half, -far, far, far], [-half, -far, half, -half], [-half, half, half, far]]) for (const p of minus(r, this.holes)) quad(...p);
+    }
     const m = pos.length / 3, g = new THREE.BufferGeometry();
     g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
     g.setAttribute('normal', new THREE.Float32BufferAttribute(new Float32Array(m * 3).map((_, j) => (j % 3 === 1 ? 1 : 0)), 3));

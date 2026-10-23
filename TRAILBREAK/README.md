@@ -1,13 +1,17 @@
 # TRAILBREAK: Offroad Legends
 
-**Offroad Legends** (the TRAILBREAK project) is a co-op off-road driving game that runs in the browser. You and up to three friends take old 4x4s into the
-**Open World** (every map below joined into one, 12 km across, driven from the sea to the snow with no loading screen
-on the way: see [The open world](#the-open-world)), or into one of its three maps alone: **Ashwood Valley** (mountain trails, a river with fords, a mud bog, a rock garden, snow on the peaks), the
+**Offroad Legends** (the TRAILBREAK project) is a co-op off-road driving game that runs in the browser. You and up to three friends take old 4x4s into
+one big **Open World**, 12 km across and filled edge to edge like a Forza map, driven from the sea to the snow with no
+loading screen on the way (see [The open world](#the-open-world)). Every map the game had is in it, each where it
+stands: **Ashwood Valley** (mountain trails, a river with fords, a mud bog, a rock garden, snow on the peaks), the
 **Kerala Ghats** (tea estates on misty hills, a waterfall, flooded paddy fields, red laterite tracks through rubber and
-coconut, a granite dome), or the **Konkan Coast** (8 km across, the real coast round Kashid beach in Maharashtra from
+coconut, a granite dome) and the **Konkan Coast** (8 km across, the real coast round Kashid beach in Maharashtra from
 open elevation and land-cover data: a coast road by the Arabian Sea, ghat roads in hairpins up to a forested tableland,
-an airstrip on top). Together you find each map's survey beacons, and you winch each other out when one of you gets
-stuck.
+an airstrip on top), and round them nine areas of new country: Korlai's headland with its fort and lighthouse, the
+Borli valley and its lake, the Table Land's mesa, the Chalkewadi wind farm, the Koyna lake under Ashwood's pines,
+the Bhimashankar jungle and its quarry, the Konkan Ghat and the Ashwood Pass, and the Deccan's farmland plateau with
+the town of Shivapur, its fields, its lake and an expressway. Together you find the survey beacons, race the rallies,
+and winch each other out when one of you gets stuck.
 
 Nothing to install for players: they open the server's address in Chrome, Edge or Firefox.
 
@@ -369,7 +373,15 @@ puts you back at the last checkpoint passed, facing the next, while the clock ru
 | Kundalika Descent | Open world | 0.9 km off the ghat road and down the river track to the bank of the river out of Kerala | 58 / 69 / 85 s |
 | Ashwood Pass Climb | Open world | 1.2 km up the pass road from the Ashwood side to the saddle | 1:19 / 1:35 / 1:58 |
 | Cairn Ridge Trail | Open world | 1.2 km off the top of the pass, round the ridge to the west on the cairn trail and back to the road | 1:18 / 1:33 / 1:55 |
+| Korlai Fort Run | Korlai | 1.3 km off the coast highway, out along the headland and through the old fort's two gates to the lighthouse | 2:32 / 3:03 / 3:46 |
+| Mesa Climb | Table Land | 5.0 km off the highway, up the gravel road in bends onto the laterite mesa and round its rim to the top | 7:11 / 8:37 / 10:38 |
+| Turbine Ridge | Chalkewadi | 2.3 km from the gate up the windfarm track onto the bare crest, under the turning blades | 3:43 / 4:28 / 5:30 |
+| Koyna Lakeside | Koyna Glen | 1.6 km down through the Koyna gap and along the lake under the pines to the dam | 1:58 / 2:22 / 2:55 |
+| Bhimashankar Jungle Road | Bhimashankar | 1.5 km down the jungle valley from the rest house towards Koyna | 1:45 / 2:05 / 2:35 |
+| Deccan Ghat Descent | Deccan | 1.1 km off Kerala's ridge, through the gap in the escarpment and down to the expressway | 1:47 / 2:08 / 2:38 |
+| Tamhini Road | Deccan | 5.6 km from Shivapur south over the farmland plateau to the world's southern edge | 7:48 / 9:21 / 11:32 |
 | Coast to Snow | Open world | 18.6 km across the whole world, 16 checkpoints: up the Kashid ghat, over the Konkan Ghat into Kerala, through the town and the tea, up the Kurinji jeep track, over the Ashwood Pass and down to the ranger station | 26:15 / 31:29 / 38:50 |
+| North Coast Highway | Open world | 10.5 km along the north of the world, 14 checkpoints: from the coast past Korlai, through Borli and the Devkund Gap, under the Chalkewadi turbines and down to the Koyna dam | 15:17 / 18:21 / 22:38 |
 
 The races live in each map's `races` list (src/world/maps/), built by src/game/Races.js onto the trails as they are
 (the world's ground isn't changed by them). The open world's are its stretches' own and one of its own across them all
@@ -854,11 +866,40 @@ first frame (in parallel where the browser can), not one by one as each is first
 
 ## The open world
 
-The lobby's first choice: the Konkan Coast, the Kerala Ghats and Ashwood Valley side by side in one world 12 km across
-(`src/world/maps/world.js`), with two stretches of new country between them, so you can drive from Kashid beach up the
-ghat, across the upland, into Kerala's tea hills and over the pass to Ashwood's snow without a loading screen. The
-satnav plots a way between any two places in it by road and track (from the coast's station to Ashwood's: 18.6 km).
+The game's one map (the lobby offers no other): the Konkan Coast, the Kerala Ghats and Ashwood Valley in one world
+12 km across (`src/world/maps/world.js`), with nine stretches of new country filling it round them, so it is land
+from edge to edge, as a Forza map is: drive from Kashid beach up the ghat, across the upland, into Kerala's tea hills
+and over the pass to Ashwood's snow, or north along the coast highway past Korlai's fort to the wind farm and Koyna's
+lake, or south down the Deccan escarpment to the fields and the town, all without a loading screen. The satnav plots
+a way between any two places in it by road and track (from the coast's station to Ashwood's: 18.6 km).
 
+The country is laid out as the real country round Kashid is: the stretches north of the coast and the Deccan to the
+south stand on the same real elevation data as the coast (its bake carries the heights 12 km out, every 40 m), their
+own features made on top of it; the roads through them are routed over the ground (`tools/routeroads.mjs`, below).
+
+- **Korlai** (1.8 km, north of the coast, on the sea): the coastal plain carried north, and Korlai's headland out
+  into the Arabian Sea, a ridge with sheer sides. Along its crest stands the old Portuguese **fort**: 150 m of
+  curtain walls with merlons, standing on the ground all along, round bastions at the corners and along both sides,
+  gateways at either end with the road through them, and the gable of its ruined church inside; the lighthouse
+  stands at the tip. The bazaar behind Revdanda beach, and the creek's mud flats.
+- **Borli Valley** (1.8 km): a broad valley under a wooded ridge, Supegaon lake in it.
+- **The Table Land** (1.8 km): a laterite ridge, and on it a mesa, sheer-sided and flat-topped, a gravel road up onto
+  it and a track round its top; the coast highway goes through the ridge at Devkund Gap.
+- **Chalkewadi** (1.8 km): the high ridges over the coast's north-east corner, bare to the wind, and along their
+  crests ten **wind turbines**, 62 m towers with 31 m blades, all facing into the monsoon wind from the west-south-west
+  and turning, each at its own pace, a red light on each for aircraft.
+- **Koyna Glen** (2 km, under Ashwood): a long lake in a deep valley, held behind an earth dam, pine and fir up its
+  sides; the Koyna road comes down off Chalkewadi through a gap in its west ridge and along the shore to the dam, and
+  the Pinecrest trail climbs from the dam to Ashwood.
+- **Bhimashankar** (2 km, between the coast, the Konkan Ghat and the pass): evergreen jungle on ranges either side of
+  a valley, the Bhimashankar road up it from the Konkan Ghat to Koyna, and the Bhor quarry in the hills east of it, a
+  pit cut in benches with a ramp down into it at one even grade.
+- **The Deccan** (4 km, south of the Konkan Ghat and Kerala): the plateau below the escarpment, from the real ground.
+  The Konkan Ghat's river runs on across it (at the level it leaves the ghat) and out of the world; Shivapur, a town
+  of streets and houses on a terrace above the river; fields in parcels on two grids (the valley's, turned with it,
+  and the uplands', squarer), each sown with its crop (mustard, cane, wheat, sunflower, millet, ploughed or fallow);
+  Shivsagar lake out on the plain; a four-lane expressway along the valley; the Kerala ghat road down through a gap in
+  the escarpment; and the Tamhini road south over the plateau to the world's southern edge.
 - **The Konkan Ghat** (2 km, east of the coast): the coast's tableland carried on east, its broad upland falling to
   the river that comes out of Kerala (the same river, at the same level, running on across it and out of the world)
   and rising into Kerala's forested ridges. The **Konkan Ghat Road** (2.1 km of two-lane tarmac) carries the Kashid
@@ -870,6 +911,26 @@ satnav plots a way between any two places in it by road and track (from the coas
   **Cairn Ridge Trail** loops off it over the ridge to the west. A hut and a flag at the top. Snow lies on its
   ridges above 390 m on the Ashwood side; its snow line rises towards Kerala (570 m at the seam), so Kerala's green
   ridges, laid onto its southern edge, stay green on both sides of the join.
+
+**The new country's roads** are routed over its ground (`tools/routeroads.mjs`, written to
+`src/world/maps/countryRoads.js`; run it again after changing a stretch's ground or a road's waypoints): between each
+two of a road's waypoints, the cheapest way over a grid of the ground (5 m, the Deccan's 8 m; 16 ways out of each
+point), as a road builder would lay it, costing its length, more for every percent of grade and much more past the
+road's own, its turns, water and the world's open edges; then smoothed. Where a road reaches the edge of its stretch it
+carries straight on across it for its last 45 m, the way the road beyond it goes (a hand-laid spur of an old map) or
+square across the edge (both sides routed): all 16 roads that cross from one area into another do it with no turn at
+the join (within 9°; the North Coast Highway first doubled back on itself where Korlai meets Borli, a 152° turn). A
+waypoint can mark a leg to lay straight (the fort road through its two gates). The roads are then laid on graded
+ground, as the stretches' roads are.
+
+**Joins between different grids.** The new stretches are on 2 m grids (on a 1 m grid the Deccan's 4 km square alone
+would hold 16.8 million points). Where one is laid onto a map on a 1 m grid (Ashwood, Kerala, the Konkan Ghat and the
+pass), that map's edge is made straight between every other point, the ones the stretch has too, easing back to its
+own ground over 4 m (`coarserEdges` in `src/world/BigWorldGen.js`): the stretch is drawn and driven straight between
+its points, and the finer edge stood up to 1.76 m off that line between them (Koyna's edge against Ashwood's), a
+crack in the ground. And where two maps share one edge of a stretch (the Konkan Ghat and Kerala along the Deccan's
+north), each one's edge is carried on past its end only where no other takes over: Kerala's, carried 260 m past its
+corner, folded the Deccan's ground along the Konkan Ghat's seam in a crease 13 m deep; now 1.9 m.
 
 Each map is generated as it is when it is driven alone, in its own frame, and stands at its own place in the world.
 Where a road leaves one, its edge ridge is cut down to a pass and a spur of road runs out through it (built after the
@@ -904,7 +965,9 @@ much slower than a real computer), the open world was first ready to drive 126 s
 and 37 s on the next, with the other four maps all in 39 s after that; the Konkan Coast alone took 99.5 s on the same
 machine. Measured again after the changes below: 56 s on the first visit (20 s of it building the coast in its worker)
 and 34 s on the next, of which 22 s, either way, is the software renderer compiling the shaders (a graphics card does
-that in a few seconds).
+that in a few seconds). With the world filled out to twelve maps: ready to drive 136 s after the click on the first
+visit, and on a later one ready in 58 s with all twelve in 58 s after that; with every map in and drawn, the browser
+held 660 to 760 MB of JavaScript memory.
 With every map in, the browser held about 680 MB of JavaScript memory before the changes below; measured the same way
 (every map in, a frame drawn in each), 763 MB before them and 560 MB after. Most of what it holds now is the maps' own
 grids (heights, surfaces and water, which the physics reads): the ground textures' pixels are let go once the graphics
@@ -961,8 +1024,10 @@ lane (a darker, fresher square of tarmac with a ragged dark seam of sealant roun
 home, a truck goes back to the yard of the map it is on.
 
 **Events across the world.** The stretches have races of their own (the Konkan Ghat Road and the Kundalika Descent on
-the Konkan Ghat; the Ashwood Pass Climb and the Cairn Ridge Trail on the pass), and once every map is in, **Coast to
-Snow** joins them: 18.6 km from Kashid beach to Ashwood's ranger station, the whole world in one rally. A careful
+the Konkan Ghat; the Ashwood Pass Climb and the Cairn Ridge Trail on the pass; and one or two in each of the new
+areas, the events table above), and once every map is in, the **North Coast Highway** (10.5 km from the coast to the
+Koyna dam: the robot driver's Wrangler 15:17, Thar 15:41, Ranger 16:01) and **Coast to
+Snow** join them: 18.6 km from Kashid beach to Ashwood's ranger station, the whole world in one rally. A careful
 robot driver on the real physics finished it in every stock truck tried (Thar 26:32, Wrangler 26:15, Ranger 27:14),
 and its par times come from those runs, as the other races' do. (The Ranger, the longest of them, first grounded at
 the corner from Kerala's estate road onto the Kurinji jeep track by the tea factory, where the road is cut into the
@@ -984,9 +1049,14 @@ src/world/maps/           the maps: index (the list, and each map's grids: its s
                           coast (each one's land, river, trails, beacons, buildings, events and its own generator
                           hooks: Kerala's tea, paddies and quarry; the coast's real ground, sea, villages and forest),
                           coastRoads (the coast's routed roads), world (the open world: where each map stands, its
-                          passes and spurs, the Konkan Ghat and the Ashwood Pass)
+                          passes and spurs, the Konkan Ghat and the Ashwood Pass), north, east and deccan (the new
+                          country round them), country (what those share: fields, planting, their routed trails),
+                          seams (a stretch laid onto its neighbours, roads on graded ground), countryRoads (their
+                          routed roads, generated) and routed (what the router routes); src/world/Fort.js (Korlai
+                          fort's plan, drawn and collided with alike)
 tools/konkan.py           the Konkan Coast's ground from open data (fetch, bake into public/assets/maps/coast) and
                           its roads (routed over it)
+tools/routeroads.mjs      the new country's roads, routed over its ground
 src/render/               Renderer, Sky, Terrain (LOD patches), WorldView (the open world: each map's renderers, the
                           far land), Vegetation, Tea (the estates' rows of bushes), Rocks,
                           Water (and the coast's sea), RoadMarkings and RoadWear (the coast's lane lines; the wear,

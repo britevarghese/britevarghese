@@ -11,6 +11,7 @@ import { fbm, ridged, vnoise, rng } from './Noise.js';
 import { SURFACE } from '../physics/Surfaces.js';
 import { gridOf, mapById } from './maps/index.js';
 import { courseLines, slalomLine } from '../game/Events.js';
+import { FORT, fortPlan } from './Fort.js';
 
 export const NO_WATER = -1e9;
 
@@ -40,6 +41,24 @@ export function spline(points, step) {
  * A profile kept within a grade: with Math.min the highest one under h (cut down), with Math.max the lowest one over
  * it (filled up). step[c]: the most it may change between points c-1 and c.
  */
+/**
+ * A map's edge (side) made straight between every k-th point along it (those the coarser map beside it has too: from
+ * `phase`, over lo..hi m along it), easing back to its own ground over the next few rows in.
+ */
+function evenEdge(H, N, res, origin, { side, lo, hi, k, phase }) {
+  const cell = (d, t) => (side === 'west' ? t * N + d : side === 'east' ? t * N + N - 1 - d : side === 'north' ? d * N + t : (N - 1 - d) * N + t);
+  const t0 = Math.max(0, Math.ceil((lo - origin) / res)), t1 = Math.min(N - 1, Math.floor((hi - origin) / res)), ROWS = 4;
+  for (let d = 0; d < ROWS; d++) {
+    const w = 1 - d / ROWS;
+    for (let t = t0; t <= t1; t++) {
+      const off = (((t - phase) % k) + k) % k, a = t - off, b = a + k;
+      if (!off || a < 0 || b > N - 1) continue;
+      const lin = H[cell(d, a)] + (H[cell(d, b)] - H[cell(d, a)]) * off / k;
+      H[cell(d, t)] += (lin - H[cell(d, t)]) * w;
+    }
+  }
+}
+
 export function limitGrade(h, step, pick) {
   const out = Float64Array.from(h), sgn = pick === Math.min ? 1 : -1;
   for (let c = 1; c < out.length; c++) out[c] = pick(out[c], out[c - 1] + sgn * step[c]);
@@ -185,9 +204,17 @@ const WALLS = {
   mine: (L, wall) => { wall(L, -4, -2, -4, 3); wall(L, 4, -2, 4, 3); },
   mast: (L, wall) => wall(L, 0, 0, 0, 0, 0.25),
   flag: (L, wall) => wall(L, 0, 0, 0, 0, 0.25),
+  turbine: (L, wall) => wall(L, 0, 0, 0, 0, 2.2),
+  // (a fort's walls stand on the ground under them all along: it runs a long way along its ridge)
+  fort: (L, wall) => {
+    const { walls, towers, church: [cx, cz, cw] } = fortPlan(L.len);
+    for (const [x0, z0, x1, z1] of walls) wall(L, x0, z0, x1, z1, 0.8, true);
+    for (const [x, z] of towers) for (let k = 0; k < 10; k++) { const a = k / 10 * Math.PI * 2; wall(L, x + Math.cos(a) * (FORT.tower - 0.9), z + Math.sin(a) * (FORT.tower - 0.9), x + Math.cos(a) * (FORT.tower - 0.9), z + Math.sin(a) * (FORT.tower - 0.9), 0.9, true); }
+    wall(L, cx - cw / 2, cz, cx + cw / 2, cz, 0.6, true);
+  },
 };
 // how far round a building the ground is levelled for it (m)
-const PADS = { station: 11, garage: 8, mine: 10, firetower: 7, lookout: 7, cabin: 7 };
+const PADS = { station: 11, garage: 8, mine: 10, firetower: 7, lookout: 7, cabin: 7, turbine: 7 };
 
 // ---------------------------------------------------------------- the generator
 /** Generate a map's world (map: its id or definition; the default map without one). */
@@ -231,16 +258,23 @@ export async function generateWorld({ map, onProgress = () => {}, yieldEvery = 6
 
   // lake level: a little under the lowest ground on its shore. A lake with lobes has bays and points: its distance is
   // measured against a radius that changes round it
+  // (a long lake: stretch times as long as it is wide, along the bearing rot; and a lake can be held at a level of its
+  // own, hold, a reservoir behind its dam)
   let lake = null;
   const lobeR = (ang) => (LAKE.lobes ? 1 + LAKE.lobes * fbm(Math.cos(ang) * 1.6 + 3.1, Math.sin(ang) * 1.6 - 1.7, 3, S + 61) : 1);
-  const lakeD = (dx, dz) => (LAKE.lobes ? Math.sqrt(dx * dx + dz * dz) / lobeR(Math.atan2(dz, dx)) : Math.sqrt(dx * dx + dz * dz));
+  const LK = LAKE?.stretch || 1, LC = Math.cos(LAKE?.rot || 0), LS = Math.sin(LAKE?.rot || 0);
+  const lakeUV = (dx, dz) => (LK === 1 ? [dx, dz] : [(dx * LC + dz * LS) / LK, -dx * LS + dz * LC]);
+  const lakeD = (dx, dz) => {
+    const [u, v] = lakeUV(dx, dz);
+    return LAKE.lobes ? Math.sqrt(u * u + v * v) / lobeR(Math.atan2(v, u)) : Math.sqrt(u * u + v * v);
+  };
   if (LAKE) {
     let shoreMin = Infinity;
     for (let a = 0; a < 64; a++) {
-      const ang = a / 64 * Math.PI * 2, rr = LAKE.r * lobeR(ang);
-      shoreMin = Math.min(shoreMin, bil(coarse, LAKE.x + Math.cos(ang) * rr * 1.12, LAKE.z + Math.sin(ang) * rr * 1.12));
+      const ang = a / 64 * Math.PI * 2, rr = LAKE.r * lobeR(ang), u = Math.cos(ang) * rr * 1.12 * LK, v = Math.sin(ang) * rr * 1.12;
+      shoreMin = Math.min(shoreMin, bil(coarse, LAKE.x + (LK === 1 ? u : u * LC - v * LS), LAKE.z + (LK === 1 ? v : u * LS + v * LC)));
     }
-    lake = { ...LAKE, level: Math.round((shoreMin - 1.2) * 10) / 10 };
+    lake = { ...LAKE, level: LAKE.hold ?? Math.round((shoreMin - 1.2) * 10) / 10 };
   }
   const bogFloor = BOG ? bil(coarse, BOG.x, BOG.z) - 0.8 : 0;
   const stationH = bil(coarse, STATION.x, STATION.z);
@@ -262,7 +296,7 @@ export async function generateWorld({ map, onProgress = () => {}, yieldEvery = 6
   const H = new Float32Array(N * N);
   const surf = new Uint8Array(N * N);
   const bogC = BOG ? Math.cos(BOG.rot) : 1, bogS = BOG ? Math.sin(BOG.rot) : 0;
-  const lakeR2 = lake ? (lake.r * 1.5 * (lake.lobes ? 1 + lake.lobes : 1)) ** 2 : 0;
+  const lakeR2 = lake ? (lake.r * 1.5 * (lake.lobes ? 1 + lake.lobes : 1) * LK) ** 2 : 0;
   for (let j = 0; j < N; j++) {
     const z = GRID_ORIGIN + j * RES;
     for (let i = 0; i < N; i++) {
@@ -378,7 +412,7 @@ export async function generateWorld({ map, onProgress = () => {}, yieldEvery = 6
       const z = GRID_ORIGIN + k * WATER_RES;
       for (let i = 0; i < WATER_N; i++) {
         const x = GRID_ORIGIN + i * WATER_RES;
-        if (lake && lakeD(x - lake.x, z - lake.z) < lake.r * 1.3 && (!lake.lobes || H[clamp(Math.round((z - GRID_ORIGIN) / RES), 0, N - 1) * N + clamp(Math.round((x - GRID_ORIGIN) / RES), 0, N - 1)] < lake.level + 0.5)) W[k * WATER_N + i] = Math.max(W[k * WATER_N + i], lake.level);
+        if (lake && lakeD(x - lake.x, z - lake.z) < lake.r * 1.3 && ((!lake.lobes && LK === 1 && LAKE.hold === undefined) || H[clamp(Math.round((z - GRID_ORIGIN) / RES), 0, N - 1) * N + clamp(Math.round((x - GRID_ORIGIN) / RES), 0, N - 1)] < lake.level + 0.5)) W[k * WATER_N + i] = Math.max(W[k * WATER_N + i], lake.level);
         if (BOG) {
           const bx = x - BOG.x, bz = z - BOG.z, bu = (bx * bogC + bz * bogS) / BOG.rx, bv = (-bx * bogS + bz * bogC) / BOG.rz;
           if (bu * bu + bv * bv < 0.45) W[k * WATER_N + i] = Math.max(W[k * WATER_N + i], bogFloor - 0.06);
@@ -605,6 +639,9 @@ export async function generateWorld({ map, onProgress = () => {}, yieldEvery = 6
   ctx.landmarks = landmarks;
   // the map's last word on its ground, once everything is cut into it (a stretch between two maps meets them here)
   G.finish?.(ctx);
+  // (in the open world, where a coarser map beside it was laid onto its edge: that edge straight between the other's
+  // points, as the other's ground is drawn and driven between them, so the two meet all along it with no crack)
+  for (const e of M.evenEdges || []) evenEdge(H, N, RES, GRID_ORIGIN, e);
   await tick(0.7, 'Laying the ground');
 
   // ---- surfaces
@@ -615,7 +652,7 @@ export async function generateWorld({ map, onProgress = () => {}, yieldEvery = 6
   };
   ctx.waterAt = waterAt;
   const GARDEN = M.rockGarden, WASH = M.sandWash;
-  const lakeShoreR2 = lake ? (lake.r * 1.3 * (lake.lobes ? 1 + lake.lobes : 1)) ** 2 : 0, washR2 = WASH ? 1.3 * WASH.r * WASH.r : 0, gardenR2 = GARDEN ? 1.3 * GARDEN.r * GARDEN.r : 0;
+  const lakeShoreR2 = lake ? (lake.r * 1.3 * (lake.lobes ? 1 + lake.lobes : 1) * LK) ** 2 : 0, washR2 = WASH ? 1.3 * WASH.r * WASH.r : 0, gardenR2 = GARDEN ? 1.3 * GARDEN.r * GARDEN.r : 0;
   for (let k = 0; k < N; k++) {
     const z = GRID_ORIGIN + k * RES;
     const k0 = Math.max(0, k - 1), k1 = Math.min(N - 1, k + 1);
@@ -731,7 +768,7 @@ export async function generateWorld({ map, onProgress = () => {}, yieldEvery = 6
   // ---- trees
   await tick(0.9, 'Planting the forest');
   const trees = { x: [], y: [], z: [], r: [], h: [], type: [] };
-  const clear = [...landmarks.map((L) => [L.x, L.z, L.type === 'station' ? 45 : 16]), ...BEACONS.map((b) => [b.x, b.z, 12]), [STATION.x, STATION.z, 60]];
+  const clear = [...landmarks.map((L) => [L.x, L.z, L.type === 'station' ? 45 : L.type === 'fort' ? L.len / 2 + 15 : 16]), ...BEACONS.map((b) => [b.x, b.z, 12]), [STATION.x, STATION.z, 60]];
   if (G.trees) G.trees({ ...ctx, R, trees, clear, lake, boulders }); else {
     const STEP = 5;
     for (let z = GRID_ORIGIN + 3; z < HALF - 3; z += STEP) {
@@ -767,12 +804,13 @@ export async function generateWorld({ map, onProgress = () => {}, yieldEvery = 6
   // ---- beacons, building colliders (rows of posts along the walls)
   const beacons = BEACONS.map((b) => ({ ...b, y: hAt(b.x, b.z) }));
   const posts = [];
-  const wall = (L, x0, z0, x1, z1, r = 0.5) => {
+  // (follow: each post on the ground under it, rather than all on the building's floor)
+  const wall = (L, x0, z0, x1, z1, r = 0.5, follow = false) => {
     const c = Math.cos(L.yaw), s = Math.sin(L.yaw);
     const n = Math.max(1, Math.round(hyp(x1 - x0, z1 - z0) / 0.9));
     for (let k = 0; k <= n; k++) {
-      const lx = lerp(x0, x1, k / n), lz = lerp(z0, z1, k / n);
-      posts.push({ x: L.x + lx * c + lz * s, y: L.y, z: L.z - lx * s + lz * c, r });
+      const lx = lerp(x0, x1, k / n), lz = lerp(z0, z1, k / n), x = L.x + lx * c + lz * s, z = L.z - lx * s + lz * c;
+      posts.push({ x, y: follow ? hAt(x, z) : L.y, z, r });
     }
   };
   for (const L of landmarks) (G.walls?.[L.type] || WALLS[L.type])?.(L, wall);

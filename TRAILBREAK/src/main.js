@@ -1,6 +1,6 @@
 // Start screen -> join a room (or drive alone) -> build the map's world -> drive.
 import { generateWorld } from './world/WorldGen.js';
-import { MAPS as ONE_MAPS, DEFAULT_MAP, mapById } from './world/maps/index.js';
+import { mapById } from './world/maps/index.js';
 import { World } from './world/World.js';
 import { WORLD } from './world/maps/world.js';
 import { OpenWorld } from './world/OpenWorld.js';
@@ -38,8 +38,8 @@ import { HUD } from './ui/HUD.js';
 import { TouchControls, isTouchDevice } from './ui/Touch.js';
 
 const $ = (id) => document.getElementById(id);
-// the maps to pick: the open world (every map joined into one) first, then each map alone
-const MAPS = { [WORLD.id]: WORLD, ...ONE_MAPS }, MAP_IDS = Object.keys(MAPS);
+// the map: the one world, every map joined into it (the maps once driven alone are all in it, where they always were)
+const MAPS = { [WORLD.id]: WORLD }, MAP_IDS = Object.keys(MAPS), DEFAULT_MAP = WORLD.id;
 const PAINTS = ['#b5532c', '#3d6b8c', '#6b7d3e', '#c9a227', '#8c2f2f', '#e6e1d3', '#2f4f3a', '#4a4a4a'];
 const STORE = 'trailbreak.settings';
 

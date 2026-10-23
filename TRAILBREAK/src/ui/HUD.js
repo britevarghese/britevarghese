@@ -31,14 +31,12 @@ export class HUD {
   show(on) { this.el.classList.toggle('hidden', !on); }
 
   /**
-   * The open world as a picture (8 m a pixel): each map drawn on it as it comes in (drawRegion), the rest of it the far
-   * land's colour.
+   * The open world as a picture (8 m a pixel): each map drawn on it as it comes in (drawRegion), and once they all are,
+   * the land past them under them (drawFar).
    */
   buildWorldImage(tr) {
     const B = this.world.mapBox, S = Math.round(B.size / 8), c = document.createElement('canvas');
     c.width = S; c.height = S;
-    const x = c.getContext('2d');
-    x.fillStyle = '#56603f'; x.fillRect(0, 0, S, S);
     this.mapTr = tr;
     this.mapImage = c;
     for (const r of this.world.regions) this.drawRegion(r);
@@ -98,6 +96,42 @@ export class HUD {
     x.setLineDash([]);
     x.fillStyle = '#3a2a1e';
     for (const L of this.world.landmarks) if (L.region === region.id) x.fillRect(px(L.x) - 1.5, pz(L.z) - 1.5, 3, 3);
+    if (this.world.complete && this.drawn.size === this.world.regions.length) await this.drawFar();
+  }
+
+  /**
+   * The land past the maps onto the open world's picture, under them, once they are all in (they shape it): its ground
+   * and woods in the far land's own colours (render/WorldView.js), hill-shaded, and the sea; 32 m a pixel. Once: its
+   * promise kept (farDrawn).
+   */
+  drawFar() { return (this.farDrawn ||= this.paintFar()); }
+
+  async paintFar() {
+    const W = this.world, B = W.mapBox, F = 32, S = Math.ceil(B.size / F), tr = this.mapTr, out = [0, 0, 0];
+    const c = document.createElement('canvas'); c.width = S; c.height = S;
+    const img = c.getContext('2d').createImageData(S, S), h0 = F / 2;
+    let t0 = performance.now();
+    for (let j = 0; j < S; j++) {
+      for (let i = 0; i < S; i++) {
+        const x = B.x0 + (i + 0.5) * F, z = B.z0 + (j + 0.5) * F;
+        // (a pixel the maps cover all of is theirs)
+        if (W.regionAt(x - h0, z - h0) && W.regionAt(x + h0, z - h0) && W.regionAt(x - h0, z + h0) && W.regionAt(x + h0, z + h0)) continue;
+        const h = W.farHeight(x, z), nx = -(W.farHeight(x + F, z) - h) / F, nz = -(W.farHeight(x, z + F) - h) / F;
+        tr.colorAt(x, z, F, h, Math.hypot(nx, nz), out);
+        const shade = Math.max(0.35, Math.min(1.35, 0.92 + (nx * -0.6 + nz * -0.5) * 1.2));
+        let r = Math.sqrt(out[0]) * shade, g = Math.sqrt(out[1]) * shade, b = Math.sqrt(out[2]) * shade;
+        if (h < 0) { r = 0.22; g = 0.42; b = 0.5; }
+        const o = (j * S + i) * 4;
+        img.data[o] = Math.min(255, r * 255); img.data[o + 1] = Math.min(255, g * 255); img.data[o + 2] = Math.min(255, b * 255); img.data[o + 3] = 255;
+      }
+      if (performance.now() - t0 > 6) { await new Promise((res) => setTimeout(res, 0)); t0 = performance.now(); }
+    }
+    c.getContext('2d').putImageData(img, 0, 0);
+    const x = this.mapImage.getContext('2d'), k = F / (B.size / this.mapImage.width);
+    x.save();
+    x.globalCompositeOperation = 'destination-over';
+    x.drawImage(c, 0, 0, S * k, S * k);
+    x.restore();
   }
 
   /** The valley as a picture: ground colours with hill shading, water, trails, buildings. */
@@ -392,6 +426,8 @@ export class HUD {
     g.save();
     g.clearRect(0, 0, S, S);
     g.beginPath(); g.arc(S / 2, S / 2, S / 2, 0, TAU); g.clip();
+    // (the land not on the picture yet: the open world's far land until every map is in)
+    g.fillStyle = '#56603f'; g.fillRect(0, 0, S, S);
     g.translate(S / 2, S / 2);
     g.rotate(-heading);
     g.scale(scale / k, scale / k);

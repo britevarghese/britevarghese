@@ -3,7 +3,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { generateBigWorld, heightIn } from '../src/world/BigWorldGen.js';
-import { REGIONS, regionById } from '../src/world/maps/world.js';
+import { REGIONS, regionById, seamPairs } from '../src/world/maps/world.js';
 import { spline } from '../src/world/WorldGen.js';
 import { OpenWorld, BEACON_STRIDE } from '../src/world/OpenWorld.js';
 import { RouteGraph } from '../src/game/Route.js';
@@ -25,13 +25,17 @@ const groundIn = (done) => (x, z) => {
 test('the open world: the stretches meet their neighbours edge to edge', async () => {
   const done = await built;
   for (const R of REGIONS.filter((r) => r.seams)) {
-    for (const [side, nid] of Object.entries(R.seams)) {
-      const d = done.get(R.id), h = d.half, [cx, cz] = R.at, N = regionById(nid);
-      let worst = 0;
+    for (const [side, nid] of seamPairs(R)) {
+      const d = done.get(R.id), h = d.half, [cx, cz] = R.at, N = regionById(nid), nh = done.get(nid).half;
+      let worst = 0, n = 0;
       for (let t = -h + 1; t <= h - 1; t += 2) {
         const [x, z] = side === 'west' ? [cx - h, cz + t] : side === 'east' ? [cx + h, cz + t] : side === 'north' ? [cx + t, cz - h] : [cx + t, cz + h];
+        // (along the part of the edge it shares with that neighbour: a neighbour may share only part of it)
+        if (side === 'west' || side === 'east' ? Math.abs(z - N.at[1]) > nh - 1 : Math.abs(x - N.at[0]) > nh - 1) continue;
         worst = Math.max(worst, Math.abs(heightIn(d, x - cx, z - cz) - heightIn(done.get(nid), x - N.at[0], z - N.at[1])));
+        n++;
       }
+      assert.ok(n > 50, `${R.id} ${side} / ${nid}: they share ${n * 2} m of edge`);
       // (on the grid lines they share none; between, a finer neighbour's own points stand a few cm off the line)
       assert.ok(worst < 0.1, `${R.id} ${side} / ${nid}: a step of ${worst.toFixed(2)} m`);
     }
@@ -110,6 +114,7 @@ test('the open world at run time: one ground, its places and events gathered fro
 
 test('the open world: the far land meets every map\'s open edge (no step for it to hang in the air over)', async () => {
   const W = await opened;
+  let open = 0;
   for (const r of W.regions) {
     let n = 0, worst = 0;
     for (const [nx, nz] of [[-1, 0], [1, 0], [0, -1], [0, 1]]) {
@@ -120,17 +125,19 @@ test('the open world: the far land meets every map\'s open edge (no step for it 
         n++;
       }
     }
-    assert.ok(n > 0, `${r.id} has an open edge`);
+    // (a map with others all round it has none)
+    if (n) open++;
     assert.ok(worst < 0.5, `${r.id}: the far land ${worst.toFixed(2)} m off its edge`);
   }
+  assert.ok(open >= 8, `${open} maps on the world's edge`);
 });
 
-test('the open world: the land past a map is as wooded as the map beside it (the ghat forested, the coast open)', async () => {
+test('the open world: the land past a map is as wooded as the map beside it (Koyna\'s glen forested, Chalkewadi open)', async () => {
   const W = await opened, at = (id, dx, dz) => { const r = W.byId.get(id); return W.farWoods(r.cx + dx * (r.half + 30), r.cz + dz * (r.half + 30)); };
   for (const r of W.regions) assert.ok(r.world.map.farWoods > 0 && r.world.map.farWoods <= 1, r.id);
-  assert.ok(Math.abs(at('ghat', 0, 1) - W.byId.get('ghat').world.map.farWoods) < 0.05);
-  assert.ok(Math.abs(at('coast', 0, -1) - W.byId.get('coast').world.map.farWoods) < 0.05);
-  assert.ok(at('ghat', 0, 1) > at('coast', 0, -1) + 0.3);
+  assert.ok(Math.abs(at('glen', 0, -1) - W.byId.get('glen').world.map.farWoods) < 0.05);
+  assert.ok(Math.abs(at('windfarm', 0, -1) - W.byId.get('windfarm').world.map.farWoods) < 0.05);
+  assert.ok(at('glen', 0, -1) > at('windfarm', 0, -1) + 0.3);
 });
 
 test('the open world: the satnav finds the way from the coast to Ashwood by road, and a truck drives across the joins', async () => {
