@@ -331,6 +331,14 @@ export class Game {
       this.model.root.add(l, l.target);
       return l;
     });
+    // the beams' throw down the road: a dipped headlamp sends most of its light just under the horizon, so the road
+    // is lit far ahead (the wide cones above, round enough to light the verges, lit the road a few metres out and no
+    // further: out there their light meets it edge on). One light between the lamps, its cone narrow and soft, falling
+    // off slowly with distance (as fast as the lamps', a bank a few metres in front glared white)
+    this.farBeam = new THREE.SpotLight(0xfff1d0, 0, 170, 0.22, 0.85, 0.6);
+    this.farBeam.position.set(0, y, z);
+    this.farBeam.target.position.set(0, y - 0.9, z + 50);
+    this.model.root.add(this.farBeam, this.farBeam.target);
     this.barLight = null;
     if (spec.lightBar) {
       const l = new THREE.SpotLight(0xfff6e0, 0, 160, 0.62, 0.5, 1.2);
@@ -1292,6 +1300,7 @@ export class Game {
     m.setBrake(v.pedalBrake > 0.1);
     m.setReverse(v.dt.gear < 0);
     this.heads.forEach((h, i) => { h.intensity = lights && v.damage.lights[i] ? 60 : 0; });
+    this.farBeam.intensity = lights ? 90 * ((v.damage.lights[0] ? 1 : 0) + (v.damage.lights[1] ? 1 : 0)) : 0;
     if (this.barLight) this.barLight.intensity = lights ? 160 : 0;
     // mud on the paint: picked up in mud and wet ground, washed off in water
     let mud = 0;

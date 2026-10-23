@@ -731,6 +731,11 @@ Everything that makes off-roading off-roading is simulated, not faked:
   (as in Forza), wider by the camera, where one twig would fill the view, and stopping 2 m short of the truck, so the
   bushes it pushes through stay. A tree fern over a track in Kerala's tea used to fill the whole picture as you drove
   under it. Not from the seats and mounts on the truck, nor in the mirrors (render/Vegetation.js seeThrough).
+- **Headlights** (H, and on by themselves at night): each lamp throws a wide cone that lights the verges and the road
+  close in, and between them a narrow soft beam aimed 50 m down the road, as a dipped headlamp sends most of its light
+  just under the horizon. The wide cones alone lit an asphalt road for a few metres and no further (out there their
+  light meets the road edge on, and asphalt is dark); now the road shows 40 to 60 m ahead. The beam falls off slowly
+  with distance, so a bank right in front of the truck doesn't glare white, and it dims by half for each broken lamp.
 - **The land past the maps** is wooded as the map beside it is (each map's `farWoods`: the coast's open country, the
   ghats' and Kerala's forest, the pass's and Ashwood's in between), in broad tracts with clearings and ragged edges,
   drawn crown by crown: some 8 m across, their tops in the sun and the gaps in shade, lighter and darker, yellower and
