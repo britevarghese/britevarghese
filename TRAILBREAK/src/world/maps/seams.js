@@ -20,6 +20,10 @@ const hyp = (a, b) => Math.sqrt(a * a + b * b);
  * straight across the band into furrows.
  */
 export function onSeams(seams, half, x, z, h) {
+  // (each neighbour's ground carried in, and how strongly; where two edges' bands meet, at a corner, the ground is the
+  // two carried in together, each by how near its edge is: laid on one after the other, the second one's took over,
+  // and its edge was pulled back to the first's in a crease a few metres in)
+  let reach = 0, sum = 0, wsum = 0, keep = 1;
   for (const sm of seams) {
     const B = sm.band ?? 220, D0 = 28;
     const dist = sm.side === 'west' ? x + half : sm.side === 'east' ? half - x : sm.side === 'north' ? z + half : half - z;
@@ -35,9 +39,11 @@ export function onSeams(seams, half, x, z, h) {
     const f = q - q0, w = Math.min(80, Math.max(0, dist) * 0.5) / sm.step;
     const eh = edgeMean(sm, 'h', q0, w) * (1 - f) + edgeMean(sm, 'h', q0 + 1, w) * f;
     const eg = edgeMean(sm, 'g', q0, w) * (1 - f) + edgeMean(sm, 'g', q0 + 1, w) * f;
-    h = lerp(h, eh + eg * D0 * (1 - Math.exp(-dist / D0)), smoothstep(B, 0, dist) * smoothstep(SEAM_FADE, 0, past));
+    const a = smoothstep(B, 0, dist) * smoothstep(SEAM_FADE, 0, past), k = a / (Math.max(0, dist) + 4) ** 2;
+    sum += (eh + eg * D0 * (1 - Math.exp(-dist / D0))) * k; wsum += k; keep *= 1 - a;
+    reach++;
   }
-  return h;
+  return reach ? lerp(h, sum / wsum, 1 - keep) : h;
 }
 
 // (m past the end of a neighbour that shares only part of an edge over which its ground's hold fades out)

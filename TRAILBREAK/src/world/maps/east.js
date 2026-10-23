@@ -11,7 +11,7 @@ import { SURFACE } from '../../physics/Surfaces.js';
 import { COAST } from './coast.js';
 import { graded } from './seams.js';
 import { ridged } from '../Noise.js';
-import { clamp, lerp, smoothstep, gauss, fbm, vnoise, lineNear, lineD, plant, tropic, alpine, TROPIC, ALPINE, TROPICAL, stretch, trailsOf } from './country.js';
+import { clamp, lerp, smoothstep, gauss, fbm, vnoise, lineNear, lineD, plant, tropic, alpine, TROPIC, ALPINE, TROPICAL, HIGHLAND, stretch, trailsOf } from './country.js';
 
 /** Its rallies' par times (seconds): a careful driver in three stock trucks, gold about the best of them. */
 const PAR = { koyna: { gold: 118, silver: 142, bronze: 175 }, bhimashankar: { gold: 105, silver: 125, bronze: 155 } };
@@ -55,7 +55,7 @@ export const GLEN = stretch({
   id: 'glen', name: 'Koyna Glen', short: 'Koyna', seed: GLEN_SEED, half: 1024,
   station: { x: -150, z: 470, name: 'Koyna Dam' }, spawn: { x: -130, z: 450, yaw: Math.PI }, dealer: 'Ashwood 4x4 Sales',
   load: () => COAST.load(), baseHeight: glenGround, roughOf: (h) => clamp((h - 60) / 200, 0.2, 0.9),
-  ...TROPICAL, trees: 'ashwood', farWoods: 0.85, lake: KOYNA,
+  ...HIGHLAND, farWoods: 0.85, lake: KOYNA,
   trails: trailsOf('glen', GLEN_ROUTES),
   landmarks: [{ type: 'cabin', x: -170, z: 440, yaw: 0.2 }, { type: 'flag', x: 200, z: 548, yaw: 0 }],
   beacons: [{ id: 0, name: 'Koyna Dam', x: 330, z: 566 }, { id: 1, name: 'Glen Head', x: 170, z: -880 }, { id: 2, name: 'Koyna Gap', x: -560, z: -600 }],

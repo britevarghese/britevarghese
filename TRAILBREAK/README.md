@@ -930,7 +930,11 @@ own ground over 4 m (`coarserEdges` in `src/world/BigWorldGen.js`): the stretch 
 its points, and the finer edge stood up to 1.76 m off that line between them (Koyna's edge against Ashwood's), a
 crack in the ground. And where two maps share one edge of a stretch (the Konkan Ghat and Kerala along the Deccan's
 north), each one's edge is carried on past its end only where no other takes over: Kerala's, carried 260 m past its
-corner, folded the Deccan's ground along the Konkan Ghat's seam in a crease 13 m deep; now 1.9 m.
+corner, folded the Deccan's ground along the Konkan Ghat's seam in a crease 13 m deep; now 1.9 m. At a corner, where
+two edges' bands meet, the ground is the two neighbours' carried in together, each by how near its edge is (laid on
+one after the other, the second took over and its edge was pulled back to the first's a few metres in): the worst
+crease across any seam, measured over 12 m, was 8.1 m (Koyna's corner with Ashwood and Bhimashankar) and is now 3.6 m,
+on the crest of a ridge.
 
 Each map is generated as it is when it is driven alone, in its own frame, and stands at its own place in the world.
 Where a road leaves one, its edge ridge is cut down to a pass and a spur of road runs out through it (built after the
