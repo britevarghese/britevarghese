@@ -282,14 +282,19 @@ vec4 gColor(float L, float sc) {
 }
 // a rock face's relief (m, out of the face) and shade: its beds in ledges a metre or so apart, wavering along the hill,
 // each one jutting out over the recess at its foot (in shade) and leaning back to a shelf under the bed above, broken by
-// joints into blocks, and rough. along: m along the face; w: how much wider its edges are drawn (wider where a pixel
-// is bigger: a shelf narrower than a pixel glinted)
-vec2 gRock(vec3 p, float along, float w) {
+// joints into blocks, and rough. ax: how far the face runs along x and along z (weights: the joints are reckoned
+// along the world's own axes, a frame turned with the face was unsteady this far from the origin: a hair's turn moved
+// a point tens of metres along it); w: how much wider its edges are drawn (wider where a pixel is bigger: a shelf
+// narrower than a pixel glinted)
+float gJoint(float along, float bed, float w) {
+  return smoothstep(0.42 - w * 0.2, 0.5, abs(fract(along / (1.6 + th(vec2(bed, 7.0)) * 1.4) + th(vec2(bed, 3.0))) - 0.5));
+}
+vec2 gRock(vec3 p, vec2 ax, float w) {
   // (beds of uneven thickness: the height warped a little before it is cut into them)
   float s = p.y / 1.3 + tn(vec2(p.y / 3.7, 5.0)) * 0.9 + tn(p.xz / 9.0) * 1.6 + tn(p.xz / 3.1) * 0.35;
   float f = fract(s), bed = floor(s), k = 0.4 + 0.9 * th(vec2(bed, 11.0));
   float ledge = smoothstep(0.0, 0.32 + w, f) * (1.0 - 0.6 * f) * (1.0 - smoothstep(0.8 - w, 1.0, f)) * k;
-  float joint = smoothstep(0.42 - w * 0.2, 0.5, abs(fract(along / (1.6 + th(vec2(bed, 7.0)) * 1.4) + th(vec2(bed, 3.0))) - 0.5));
+  float joint = gJoint(p.x, bed, w) * ax.x + gJoint(p.z, bed, w) * ax.y;
   float shade = (1.0 - 0.3 * min(1.0, k) * (1.0 - smoothstep(0.0, 0.2 + w, f))) * (1.0 - 0.25 * joint);
   return vec2(ledge * 0.4 + tn(p.xz * 1.7 + p.y) * 0.06, shade);
 }
@@ -417,9 +422,10 @@ ${G ? `
       * smoothstep(0.12, 0.4, abs(dot(n0, normalize(cameraPosition - vWPos))));
     if (rw > 0.0) {
       vec3 ta = normalize(vec3(n0.z, 0.0, -n0.x) + vec3(1e-5, 0.0, 0.0)), tb = cross(n0, ta);
-      float al = dot(vWPos.xz, ta.xz), e = 0.1, w = clamp(length(fwidth(vWPos)) * 2.5, 0.0, 0.45);
-      vec2 r0 = gRock(vWPos, al, w);
-      float ha = gRock(vWPos + ta * e, al + e, w).x, hb = gRock(vWPos + tb * e, al, w).x;
+      vec2 ax = vec2(n0.z * n0.z, n0.x * n0.x) / max(n0.x * n0.x + n0.z * n0.z, 1e-5);
+      float e = 0.1, w = clamp(length(fwidth(vWPos)) * 2.5, 0.0, 0.45);
+      vec2 r0 = gRock(vWPos, ax, w);
+      float ha = gRock(vWPos + ta * e, ax, w).x, hb = gRock(vWPos + tb * e, ax, w).x;
       vec3 slope = (ta * (ha - r0.x) + tb * (hb - r0.x)) / e;
       gNW = normalize(gNW - slope * min(1.0, 0.9 / max(length(slope), 1e-4)) * rw);
       diffuseColor.rgb *= mix(1.0, r0.y * (0.88 + 0.4 * clamp(r0.x, 0.0, 0.4)), rw);
@@ -427,6 +433,29 @@ ${G ? `
       gRough = mix(gRough, 1.0, rw);
     }
   }` : ''}
+  {
+    // steep slopes seen from afar: gullies worn down them by the rain, a few metres to tens across, running downhill,
+    // lit and shaded across the slope (out there a mountain's face was a smooth bank: the ground's grid is too coarse
+    // for them, and the rock's relief close up is under a pixel); finer than a pixel they even out
+    vec3 nG = normalize(vWNormal);
+    float gw = smoothstep(0.88, 0.62, nG.y) * smoothstep(80.0, 220.0, dist);
+    if (gw > 0.0) {
+      // (in the world's own frame, two ways: gullies along x on a slope facing x, along z on one facing z, blended by
+      // which way it faces; a frame turned with the slope was unsteady this far from the origin, and scrambled them)
+      float wx = nG.x * nG.x / max(nG.x * nG.x + nG.z * nG.z, 1e-5), wz = 1.0 - wx;
+      float pxg = length(fwidth(vWPos.xz));
+      float a1 = 1.0 - smoothstep(1.0, 3.0, pxg), a2 = 1.0 - smoothstep(6.0, 18.0, pxg);
+      vec2 p = vWPos.xz + vec2(0.0, vWPos.y * 0.3);
+      // across the gullies: z on a slope facing x, x on one facing z (q: across / 9, along / 40, and finer)
+      vec2 qa = vec2(p.y / 9.0, p.x / 40.0), qb = vec2(p.x / 9.0, p.y / 40.0);
+      vec2 fa = vec2(p.y / 5.5, p.x / 22.0) + 7.3, fb = vec2(p.x / 5.5, p.y / 22.0) + 7.3;
+      float hA = tn(qa) * a2 + (tn(fa) - 0.5) * 0.3 * a1, hB = tn(qb) * a2 + (tn(fb) - 0.5) * 0.3 * a1;
+      float dA = (tn(qa + vec2(0.06, 0.0)) - tn(qa)) / (0.06 * 9.0) * a2 + (tn(fa + vec2(0.08, 0.0)) - tn(fa)) / (0.08 * 5.5) * 0.3 * a1;
+      float dB = (tn(qb + vec2(0.06, 0.0)) - tn(qb)) / (0.06 * 9.0) * a2 + (tn(fb + vec2(0.08, 0.0)) - tn(fb)) / (0.08 * 5.5) * 0.3 * a1;
+      gNW = normalize(gNW - vec3(dB * wz, 0.0, dA * wx) * 4.5 * gw);
+      diffuseColor.rgb *= mix(1.0, 0.7 + 0.6 * clamp(hA * wx + hB * wz, 0.0, 1.0), gw * a2);
+    }
+  }
   if (vCover > 0.004) {
     // the woods past the map, crown by crown: clumps of them with clearings and ragged edges, each crown a bump lit by
     // the sun, lighter and darker, yellower and bluer (a pattern finer than a pixel evens out to its mean)

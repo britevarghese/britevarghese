@@ -703,7 +703,11 @@ Everything that makes off-roading off-roading is simulated, not faked:
   leaning back to a shelf, broken by joints into blocks (Kerala's granite hardly: each map's `rockBeds`). It used to be
   a smooth bank with a picture of rock on it. The
   relief evens out with distance (its edges drawn wider where a pixel is bigger) and where a face is seen edge on, so
-  no ledge glints as a white line or a scatter of sparks.
+  no ledge glints as a white line or a scatter of sparks. Seen from afar (80 m and more), a steep slope shows the
+  gullies the rain has worn down it, a few metres to tens across, running downhill, lit and shaded across the slope:
+  out there a mountainside was a smooth grey bank, the ground's grid too coarse for them. (Both are reckoned along
+  the world's own axes, not along each face: a frame turned with the face was unsteady kilometres from the origin and
+  scrambled them into a maze of scratches.)
 - **The picture** (High and Medium graphics; render/Post.js): drawn in high dynamic range, its edges smoothed by
   multisampling (4x, 2x on Medium), then finished as a racing game's is. At speed what the camera rushes past streaks
   along its path, the nearer the longer (the verge and the road's edge, hardly the hills: over a 1/90 s shutter, half
