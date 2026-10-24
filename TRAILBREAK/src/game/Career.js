@@ -23,7 +23,7 @@ export function levelFor(earned) {
 }
 
 /** The dealer's prices (US dollars): sound used trucks, ready for the trail. */
-export const TRUCK_PRICES = { gecko: 4500, mule: 6500, trekker: 22500, ranger: 9500, shepherd: 36000, hauler: 14500, thar: 15500, roxx: 23500, wrangler: 18000, bronco: 21000, drover: 16000, bruiser: 24000, hummer: 32000, hummerev: 38000, cybertruck: 39500, rhino: 42000,
+export const TRUCK_PRICES = { gecko: 4500, mule: 6500, trekker: 22500, ranger: 9500, shepherd: 36000, hauler: 14500, thar: 15500, roxx: 23500, wrangler: 18000, bronco: 21000, drover: 16000, bruiser: 24000, hummer: 32000, u8: 48000, hummerev: 38000, cybertruck: 39500, rhino: 42000,
   gclass: 95000,
   // the road cars: what a good one fetches
   sti: 45000, rx7: 52000, c8: 75000, m3e30: 88000, amggt: 90000, supra: 98000, nsx: 105000, r35: 120000, m4csl: 135000,

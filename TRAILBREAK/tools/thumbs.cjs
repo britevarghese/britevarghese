@@ -7,7 +7,7 @@ const PAINT = {
   m4csl: '#5d6166', amggt: '#d6bf2a', c8: '#b8191b', huracan: '#e8711c', r8: '#1d4fbf', m3e30: '#e6e4dc', nsx: '#a80f19', p930: '#161616',
   r34: '#2a4fb2', r35: '#d8dadc', rx7: '#b81a1a', senna: '#d0471b', sti: '#1f3e8c', supra: '#c7c9cb', gclass: '#1d1d1e',
   thar: '#b5532c', roxx: '#e6e6e2', wrangler: '#2d6a3e', shepherd: '#55625f', bronco: '#2b5f8a', hummer: '#9a8a63', hummerev: '#e2e2df', cybertruck: '#b8bcc1', mule: '#4f5a34',
-  ranger: '#3f5a3a', bruiser: '#a81c1c', hauler: '#2f3b54', trekker: '#3b4046', gecko: '#c2ae66', drover: '#8a8d91', rhino: '#d29f24',
+  ranger: '#3f5a3a', bruiser: '#a81c1c', hauler: '#2f3b54', trekker: '#3b4046', gecko: '#c2ae66', drover: '#8a8d91', rhino: '#d29f24', u8: '#2f4a5c',
 };
 (async () => {
   const [base, exe, ...only] = process.argv.slice(2);

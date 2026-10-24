@@ -518,6 +518,46 @@ export const TRUCKS = {
     style: 'cybertruck', look: { top: 'paint', coils: true, bed: true },
   },
 
+  u8: {
+    // the BYD Yangwang U8 (2023): 3,050 mm wheelbase, 5,319 mm long, 2,050 mm wide, 1,930 mm tall, 3,460 kg; four
+    // motors, one at each wheel (880 kW, 1,280 Nm), a battery and a range-extender engine, double wishbones in front and
+    // a multi-link rear on the DiSus-P hydraulic body control (here at its raised off-road height), 275/55 R22
+    // all-terrains. Its body is sealed: in water over about a metre deep its emergency float mode keeps it afloat, the
+    // wheels turning as paddles (up to 3 km/h) and the two sides against each other to turn it (Vehicle.paddles). The
+    // body here is the game's own (render/TruckBodies.js)
+    id: 'u8', name: 'BYD Yangwang U8',
+    blurb: 'BYD Yangwang U8: four motors, one at each wheel, 1,180 hp, and a sealed body. Drive it into deep water and it floats: its wheels paddle it along at 3 km/h and it turns on the spot, then climbs out the other side. 3.5 tons.',
+    mass: 3460, cgHeight: 0.8, cgZ: 0, inertiaBox: [2.05, 1.3, 5.3],
+    axles: [
+      { z: 1.525, track: 1.74, springTrack: 1.3, rate: 56000, bump: 4000, rebound: 8000, travel: 0.25, sag: 0.1, mass: 125, steer: 0.56, brake: 6400, swayBar: 28000, ifs: true, armDrop: 0.08 },
+      { z: -1.525, track: 1.74, springTrack: 1.3, rate: 58000, bump: 4000, rebound: 8000, travel: 0.25, sag: 0.1, mass: 125, steer: 0, brake: 5000, handbrake: 5400, ifs: true, armDrop: 0.08 },
+    ],
+    trans: { tcK: 8, efficiency: 0.95 },
+    stock: { tyre: 33, tread: 0, axle: 12.4, trans: EV_TRANS, fit: 37, low: 1, diffs: 3, wheels: 0, psi: 42 },
+    axleRatios: [12.4],
+    // (as the other electric trucks: no reduction gears, gearbox, low range or air intake to swap)
+    only: { gears: [0], trans: [EV_TRANS], tcase: [0], intake: [0] },
+    stockTyre: { label: '275/55 R22 A/T', radius: 0.4307, width: 0.275, rim: 22, desc: 'The U8\'s 34-inch all-terrains on 22" wheels.' },
+    hull: [
+      { c: [0, 1.06, -0.1], h: [1.0, 0.46, 2.6], pts: 'bottom' },         // body: 0.60 m up at the nose and tail, beltline 1.52
+      { c: [0, 0.45, 0], h: [0.65, 0.08, 1.45], pts: 'bottom' },           // belly: the battery's armour, 0.37 m up
+      { c: [0, 1.74, -0.25], h: [0.95, 0.22, 1.75], pts: 'top' },          // the cabin under its flat roof, 1.96 m
+    ],
+    roofY: 1.93, cabZ: -0.1, noseZ: 2.55, rackZ: -1.9,
+    // (sealed: the battery, the motors and the cabin; the range extender breathes up by the roof)
+    intakePos: [0.6, 1.72, 0.6], snorkelPos: [0.6, 1.72, 0.6],
+    winch: { fairlead: [0, 0.68, 2.5] },
+    eye: [0.48, 1.62, 0.12], hip: 0.2, hoodEye: [0, 1.5, 1.2],
+    drag: { cd: 0.45, area: 3.6 },
+    // (the sealed body floats: about 0.45 m of it under at its weight)
+    buoyancy: 0.75,
+    // (afloat: in over 0.3 m of its body; the paddles' tread speed, m/s, and spin-up, rad/s²; their push, N per (m/s)²;
+    // and the maker's speed afloat, m/s)
+    float: { depth: 0.3, tread: 6, spin: 25, push: 2.8, speed: 3 / 3.6 },
+    shafts: [11000, 13000], tyreK: 1.4, tyreLoad: 9000, parts: 1.5, tc: true,
+    style: 'u8', look: { top: 'paint', coils: true, alloy: true },
+  },
+
   gclass: {
     // the Mercedes-AMG G 63 (W463, 2015-2018): 2,850 mm wheelbase, 4,763 mm long with its spare, 1,855 mm wide, a ladder
     // frame and beam axles on coil springs at both ends, permanent four-wheel drive with three diff locks (centre, front,

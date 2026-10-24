@@ -943,6 +943,7 @@ button.quick:hover { background: #63c4ba; }
 .sr-thumb { display: block; aspect-ratio: 16 / 9; border-radius: 7px; background: #0b0d10 center / cover no-repeat; }
 .sr-c b { font-size: 13.5px; font-weight: 700; line-height: 1.2; }
 .sr-c .sr-rarity { margin: 0; justify-self: start; font-size: 10px; padding: 2px 8px; }
+.sr-c .sr-feat { position: absolute; top: 12px; left: 12px; text-decoration: none; font: italic 800 10px/1 var(--display); letter-spacing: .12em; text-transform: uppercase; padding: 4px 8px; border-radius: 4px; background: linear-gradient(90deg, #2bd1c4, #1a8fd8); color: #04151c; box-shadow: 0 2px 10px rgba(26, 143, 216, .45); }
 .sr-c em { position: absolute; top: 12px; right: 12px; font-style: normal; font-size: 10px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; padding: 3px 7px; border-radius: 4px; background: rgba(0, 0, 0, .65); color: #3ad07a; }
 @media (max-width: 860px) {
   .sr-card { padding: 12px; gap: 10px; }

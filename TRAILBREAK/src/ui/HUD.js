@@ -288,6 +288,10 @@ export class HUD {
     const eng = $('m-eng');
     eng.classList.toggle('hidden', d.running);
     if (!d.running) eng.textContent = d.crankT > 0 ? 'CRANKING' : v.flooded ? 'FLOODED' : 'ENGINE OFF';
+    // afloat (the U8's float mode): the chip, and once each time it starts to float, what the keys do now
+    $('m-float').classList.toggle('hidden', !v.afloat);
+    if (v.afloat && !this.wasAfloat) this.hint('Afloat: float mode. W / S paddle ahead and astern, A / D turn on the spot', 5);
+    this.wasAfloat = !!v.afloat;
     const sway = $('m-sway');
     sway.classList.toggle('hidden', !v.swayDisconnected);
     // damage: the coolant temperature once the radiator leaks or it runs hot, and what is broken

@@ -660,6 +660,16 @@ export class Vehicle {
     this._dtIn.pedal = this.pedalThrottle;                             // (the shift schedule follows the driver's foot)
     this._dtIn.declutch = declutch;
     this._dtIn.freeFront = this.frontFree;
+    // afloat (a truck built to float, spec.float: the Yangwang U8's emergency float mode): deep in the water and the
+    // wheels carrying under a twelfth of its weight (a seventh to stay afloat). The drive is then the float mode's: each
+    // wheel's motor turns it as a paddle (floatStep), not the drivetrain. Once the wheels bear on the bottom again the
+    // drivetrain has them back, to climb out (paddling, a wheel pressed on the bottom is held to the ground's speed)
+    if (spec.float) {
+      let load = 0;
+      for (const w of this.wheels) if (w.contact) load += w.N;
+      this.afloat = this.waterDepth > spec.float.depth && load < (this.afloat ? 0.15 : 0.08) * this.mass * GRAVITY;
+      if (this.afloat) { this._dtIn.throttle = 0; this._dtIn.declutch = true; bt.fill(0); }
+    } else this.afloat = false;
     this._dtIn.holdGear = drifting;                                    // (not shifting down for the locked rear wheels)
     const D = this.damage;
     // (cosmetic damage: water in the intake doesn't stop the engine, it chokes it: it coughs and makes a third; an
@@ -668,6 +678,7 @@ export class Vehicle {
     dtr.seized = D.seized;
     dtr.broken = D.shafts;
     dtr.step(dt, this._dtIn, this.wheels);
+    if (this.afloat) this.paddles(ctrl, dt);
     for (let i = 0; i < 4; i++) {
       const w = this.wheels[i];
       w.spinAgo = w.slipSpeed > 2 ? 0 : (w.spinAgo ?? 9) + dt;
@@ -821,6 +832,7 @@ export class Vehicle {
       this.applyForce(_a, _p);
     }
     this.waterStep(ground);
+    if (this.afloat) this.floatStep();
     this.intakeStep(ground, dt);
     const v2 = this.vel.lengthSq();
     if (v2 > 0.01) {
@@ -1247,6 +1259,33 @@ export class Vehicle {
       this.waterDepth = Math.max(this.waterDepth, depth);
     }
     if (any) this.angVel.scale(1 - 0.3 * PHYS_DT);
+  }
+
+  /**
+   * The float mode's drive: each wheel's own motor (the U8 has one at each) turns it at the speed asked of it, a
+   * paddle in the water. Ahead and astern on the pedals (W / S); steering turns one side's wheels faster than the
+   * other's, both sides against each other at a standstill (a tank turn). The motors are held to a tread speed of
+   * spec.float.tread (m/s), as the real float mode holds them, and spin up at about a turn a second each second.
+   */
+  paddles(ctrl, dt) {
+    const F = this.spec.float, ahead = (ctrl.throttle || 0) - (ctrl.brake || 0), turn = ctrl.steer || 0;
+    for (const w of this.wheels) {
+      // (+ steer: right: the left wheels, 0 and 2, forward faster)
+      const u = F.tread * clamp(ahead + (w.side > 0 ? turn : -turn), -1, 1), r = this.spec.tyre.radius;
+      w.omega += clamp(u / r - w.omega, -F.spin * dt, F.spin * dt);
+    }
+  }
+
+  /** The paddles' push: each wheel's tread, turning in the water faster than it goes through it, drives the truck. */
+  floatStep() {
+    const F = this.spec.float, r = this.spec.tyre.radius, fwd = this.fwd;
+    for (const w of this.wheels) {
+      if (!(w.water > 0.1)) continue;
+      // the water the tread meets: up to the whole wheel under; the push square with the tread's speed past it
+      const under = Math.min(1, w.water / (2 * r)), u = w.omega * r - w.vHub.dot(fwd);
+      _a.set(fwd.x, 0, fwd.z).scale(F.push * under * u * Math.abs(u));
+      this.applyForce(_a, w.hub);
+    }
   }
 
   // ---------------------------------------------------------------- state for the network / renderer

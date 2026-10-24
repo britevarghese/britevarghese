@@ -6,11 +6,11 @@ import { TRUCKS, truckSpec } from '../physics/trucks.js';
 import { buildStats } from '../physics/Upgrades.js';
 import { TRUCK_PRICES, DEALER_ORDER } from '../game/Career.js';
 
-const MAKERS = ['Mercedes-AMG', 'Mercedes-Benz', 'Land Rover', 'Lamborghini', 'McLaren', 'Porsche', 'Chevrolet', 'Mitsubishi', 'Mahindra',
+const MAKERS = ['BYD Yangwang', 'Mercedes-AMG', 'Mercedes-Benz', 'Land Rover', 'Lamborghini', 'McLaren', 'Porsche', 'Chevrolet', 'Mitsubishi', 'Mahindra',
   'Nissan', 'Toyota', 'Mazda', 'Subaru', 'Honda', 'Audi', 'BMW', 'Ford', 'Jeep', 'Hummer', 'GMC', 'Ram', 'Lada', 'UAZ', 'Willys'];
 
 /** The maker's badge: its initials where its name is long. */
-const BADGE = { 'Mercedes-AMG': 'AMG', 'Mercedes-Benz': 'MB', 'Land Rover': 'LR', Lamborghini: 'LAMBO', Chevrolet: 'CHEVY', Mitsubishi: 'MMC', Mahindra: 'M&M', McLaren: 'McL' };
+const BADGE = { 'BYD Yangwang': 'YW', 'Mercedes-AMG': 'AMG', 'Mercedes-Benz': 'MB', 'Land Rover': 'LR', Lamborghini: 'LAMBO', Chevrolet: 'CHEVY', Mitsubishi: 'MMC', Mahindra: 'M&M', McLaren: 'McL' };
 
 /** The showroom on a screen: one for it, the lobby's and the dealer's both (each key goes to one of them). */
 export const showroomFor = (el) => (el.showroom ||= new Showroom(el));
@@ -20,6 +20,9 @@ export function makeAndModel(name) {
   const m = MAKERS.find((k) => name.startsWith(k + ' '));
   return m ? [m, name.slice(m.length + 1)] : ['', name];
 }
+
+/** The cars shown first on the rail, with a ribbon: what's new and worth a look (the U8 floats). */
+export const FEATURED = ['u8'];
 
 /** How rare a car is, by what it costs: legendary, epic, rare or common. */
 export function rarity(price) {
@@ -87,7 +90,7 @@ export class Showroom {
   /** The cars on the rail now: by kind, the sports cars after the 4x4s, each cheapest first. */
   ids() {
     return DEALER_ORDER.filter((id) => TRUCKS[id] && (this.kind === 'all' || (this.kind === 'road') === !!TRUCKS[id].road))
-      .sort((a, b) => !!TRUCKS[a].road - !!TRUCKS[b].road);
+      .sort((a, b) => FEATURED.includes(b) - FEATURED.includes(a) || !!TRUCKS[a].road - !!TRUCKS[b].road);
   }
 
   step(d) {
@@ -115,7 +118,7 @@ export class Showroom {
     const st = buildStats(truckSpec(id)), hp = Math.round(st.powerKw * 1.341);
     const rows = [['engine', 'Horsepower', `${hp} HP`], ['bolt', 'Torque', `${Math.round(st.peakTorque)} Nm`]];
     if (t.road && t.real) rows.push(['timer', '0 – 100 km/h', `${t.real.t100} s`], ['target', 'Top speed', `${t.real.vmax} km/h`]);
-    else rows.push(['ground', 'Ground clearance', `${Math.round(st.clearance * 100)} cm`], ['water', 'Wading depth', `${Math.round(st.wading * 100)} cm`]);
+    else rows.push(['ground', 'Ground clearance', `${Math.round(st.clearance * 100)} cm`], t.float ? ['water', 'Deep water', `Floats, ${Math.round(t.float.speed * 3.6)} km/h`] : ['water', 'Wading depth', `${Math.round(st.wading * 100)} cm`]);
     rows.push(['axle', 'Drivetrain', (t.trans?.drive || '4wd').toUpperCase()]);
     this.$('.sr-stats').innerHTML = rows.map(([i, k, v]) => `<div>${icon(i)}<dt>${k}</dt><dd>${v}</dd></div>`).join('');
     const a = o.action(id), go = this.$('.sr-go');
@@ -136,7 +139,7 @@ export class Showroom {
       box.innerHTML = ids.map((id) => {
         const t = TRUCKS[id], r = rarity(TRUCK_PRICES[id] ?? 0);
         return `<button class="sr-c" data-id="${id}"><span class="sr-thumb" style="background-image:url(/assets/thumbs/${id}.webp)"></span>
-          <b>${t.name}</b><i class="sr-rarity ${r}">${r}</i>${id === this.o.current ? '<em>Driving</em>' : ''}</button>`;
+          <b>${t.name}</b><i class="sr-rarity ${r}">${r}</i>${id === this.o.current ? '<em>Driving</em>' : ''}${FEATURED.includes(id) ? '<u class="sr-feat">Featured</u>' : ''}</button>`;
       }).join('');
       box.querySelectorAll('.sr-c').forEach((c) => { c.onclick = () => this.look(c.dataset.id); });
     }

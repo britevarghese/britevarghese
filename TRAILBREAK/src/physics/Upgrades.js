@@ -262,6 +262,10 @@ const ENGINE = {
   // power to 13,000; friction here is the regeneration off the throttle (Nm + Nm per rpm), and the "idle" only a floor
   E_3M: { name: 'Three motors (Edition 1)', electric: true, idleRpm: 300, redline: 13000, limiter: 13400, inertia: 0.09, friction: [0, 0.035], bank: null, turbo: 0, sound: 'electric', pitch: 1, mass: 0,
     torque: [[100, 1400], [4800, 1400], [6000, 1187], [7000, 1018], [8000, 890], [9000, 792], [10000, 712], [11000, 648], [12000, 594], [13000, 548], [13600, 300]] },
+  // the Yangwang U8's four motors, one at each wheel: 880 kW (1,180 hp) all told, 1,280 Nm at the motors (about 15,900
+  // Nm at the wheels through the 12.4:1 reductions) to ~6,600 rpm, then constant power to 15,500 (200 km/h)
+  E_4M: { name: 'Four motors (e4)', electric: true, idleRpm: 300, redline: 15500, limiter: 15800, inertia: 0.08, friction: [0, 0.03], bank: null, turbo: 0, sound: 'electric', pitch: 1, mass: 0,
+    torque: [[100, 1280], [6600, 1280], [8000, 1050], [9000, 934], [10000, 840], [11000, 764], [12000, 700], [13000, 646], [14000, 600], [15500, 542], [16000, 300]] },
   // the Cybertruck Cyberbeast's three motors (one front, two rear): 630 kW all told, ~930 Nm at the motors (10,296 lb-ft,
   // ~14,000 Nm, at the wheels through the 15.02:1 reduction) to ~6,500 rpm, then constant power to ~19,000 (209 km/h)
   E_CB: { name: 'Three motors (Cyberbeast)', electric: true, idleRpm: 300, redline: 19000, limiter: 19100, inertia: 0.06, friction: [0, 0.024], bank: null, turbo: 0, sound: 'electric', pitch: 1, mass: 0,
@@ -389,6 +393,9 @@ export const ENGINES = {
       torque: ENGINE.E_3M.torque.map(([r, t]) => [r, Math.round(t * 1.1)]) },
     { ...ENGINE.E_3M, name: 'Two motors (EV2X)', short: '2 motors', mass: -110, desc: 'One motor front and one rear: 425 kW (570 hp), 110 kg lighter.',
       torque: ENGINE.E_3M.torque.map(([r, t]) => [r, Math.round(t * 0.6)]) }],
+  u8: [{ ...ENGINE.E_4M, short: 'stock', desc: 'Four motors, one at each wheel: 880 kW (1,180 hp), all of their torque from a standstill.' },
+    { ...ENGINE.E_4M, name: 'Four motors, ECO mode', short: 'ECO', desc: 'The ECO drive mode: the motors held to about two-thirds of their power, gentler off the line.',
+      torque: ENGINE.E_4M.torque.map(([r, t]) => [r, Math.round(t * 0.66)]) }],
   cybertruck: [{ ...ENGINE.E_CB, short: 'stock', desc: 'Three motors, one in front and two at the back: 630 kW (845 hp), all of their torque from a standstill.' },
     { ...ENGINE.E_CB, name: 'Three motors, Beast Mode', short: 'Beast', desc: 'The launch mode\'s calibration kept on: the battery let out harder, +10% torque.',
       torque: ENGINE.E_CB.torque.map(([r, t]) => [r, Math.round(t * 1.1)]) },

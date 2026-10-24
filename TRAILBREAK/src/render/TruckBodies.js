@@ -442,3 +442,65 @@ export function coupeBody(P, M, paint, top, spec) {
     flaps: false, sill, half, roofY: roof, roofZ: [rz1, ws1[0]], ownChassis: true, ownBumpers: true,
   };
 }
+
+// ---------------------------------------------------------------- Yangwang U8: the floating electric wagon
+export function u8Body(P, M, paint, top, spec) {
+  const zf = spec.axles[0].z, zr = spec.axles[1].z;
+  const half = 0.99, zF = 2.6, zB = -2.72, belt = 1.3, roof = 1.92, yc = 0.43, ar = 0.53, zW = 1.08, zT = 0.42;
+  // (its lamps: a white light bar, lit)
+  const drl = M.drl || (M.drl = new THREE.MeshStandardMaterial({ color: 0xf2f5ff, emissive: 0xdfe8ff, emissiveIntensity: 1.1, roughness: 0.3 }));
+  // the lower body: a tall upright nose, a long flat bonnet, a high waist to the square tail, both arches
+  const s = new THREE.Shape();
+  s.moveTo(zF, 0.6);
+  s.lineTo(zF, 1.12); s.quadraticCurveTo(zF, 1.22, zF - 0.1, 1.23);
+  s.lineTo(zW, 1.29);
+  s.lineTo(zB + 0.06, belt); s.quadraticCurveTo(zB, belt, zB, belt - 0.06);
+  s.lineTo(zB, 0.6);
+  arch(s, zr, yc, ar, 0.6, 0.6);
+  arch(s, zf, yc, ar, 0.6, 0.6);
+  s.lineTo(zF, 0.6);
+  P.add(paint, slab(s, half, 0.03));
+  // the arches in black cladding, the black sill between them and the step along it
+  for (const z of [zf, zr]) { liner(P, M, z, yc, ar, 2 * half - 0.12); flare(P, M.black, half + 0.02, z, yc, ar + 0.04, 0.05, Math.PI * 0.94); }
+  P.box(M.black, [0.05, 0.16, zf - zr - 2 * ar - 0.06], [half + 0.01, 0.62, (zf + zr) / 2], { r: 0.02, mirror: true });
+  P.box(M.satin, [0.16, 0.035, zf - zr - 2 * ar - 0.1], [half + 0.06, 0.5, (zf + zr) / 2], { r: 0.012, mirror: true });
+  P.box(M.black, [0.008, 0.012, 1.3], [0.7, 1.24, 1.8], { r: 0, mirror: true });          // the bonnet's shut lines
+  // the greenhouse: black pillars and glass all round under a flat roof (the floating-roof look), the roof rails
+  windscreen(P, M, M.black, [zW, belt + 0.01], [zT, roof - 0.04], half - 0.05, 0.07);
+  P.box(top, [2 * half - 0.04, 0.07, zT - zB + 0.02], [0, roof, (zT + zB) / 2], { r: 0.03, cr: 0.02 });
+  P.box(M.satin, [0.035, 0.04, zT - zB - 0.4], [half - 0.12, roof + 0.06, (zT + zB) / 2 - 0.05], { r: 0.01, mirror: true });
+  for (const z of [-0.36, -1.52, zB + 0.07]) P.box(M.black, [0.05, roof - belt, 0.12], [half - 0.03, (roof + belt) / 2, z], { r: 0.012, mirror: true });
+  for (const [z0, z1] of [[zT - 0.07, -0.3], [-0.42, -1.46], [-1.58, zB + 0.14]]) P.box(M.glass, [0.012, roof - belt - 0.1, z0 - z1], [half - 0.025, (roof + belt) / 2, (z0 + z1) / 2], { r: 0, mirror: true });
+  P.box(paint, [2 * half - 0.06, roof - belt, 0.04], [0, (roof + belt) / 2, zB + 0.02], { r: 0.01 });
+  P.box(M.glass, [1.5, 0.44, 0.012], [0, 1.62, zB - 0.004], { r: 0 });
+  // doors: seams, flush handles; the mirrors on their stalks
+  for (const z of [zT + 0.06, -0.38, -1.5]) P.box(M.black, [0.006, 0.66, 0.007], [half + 0.014, 0.98, z], { r: 0, mirror: true });
+  for (const z of [-0.2, -1.32]) P.box(M.satin, [0.015, 0.03, 0.18], [half + 0.018, 1.2, z], { r: 0.008, mirror: true });
+  P.tube(M.black, [half - 0.02, 1.36, zT + 0.18], [half + 0.14, 1.42, zT + 0.12], 0.014, { mirror: true });
+  P.box(paint, [0.04, 0.17, 0.24], [half + 0.16, 1.44, zT + 0.1], { r: 0.02, mirror: true });
+  // the front, its "time gate": a dark grille framed by a white light bar across the top and down each side, the
+  // lamps tucked into the bar's top corners; a silver skid plate under the bumper
+  P.box(M.black, [1.62, 0.5, 0.03], [0, 0.92, zF + 0.012], { r: 0.012 });
+  for (let i = -6; i <= 6; i++) P.box(M.satin, [0.11, 0.012, 0.012], [i * 0.115, 0.92, zF + 0.03], { r: 0, rot: [0, 0, 0.6] });
+  P.box(drl, [1.66, 0.025, 0.02], [0, 1.19, zF + 0.026], { r: 0.004 });
+  P.box(drl, [0.025, 0.46, 0.02], [0.82, 0.96, zF + 0.026], { r: 0.004, mirror: true });
+  P.box(M.chrome, [0.16, 0.08, 0.025], [0.7, 1.11, zF + 0.02], { r: 0.01, mirror: true });
+  P.box(M.alu, [1.1, 0.07, 0.05], [0, 0.48, zF + 0.05], { r: 0.015 });
+  P.box(M.amber, [0.08, 0.025, 0.02], [0.82, 0.7, zF + 0.02], { r: 0.006, mirror: true });
+  // the tail: tall lamps up both corners joined by a thin bar under the glass; the plate on the tailgate
+  P.box(M.tail, [0.05, 0.5, 0.025], [0.93, 1.05, zB - 0.012], { r: 0.008, mirror: true });
+  P.box(M.tail, [1.8, 0.02, 0.02], [0, 1.36, zB - 0.012], { r: 0.004 });
+  P.box(M.plate, [0.34, 0.12, 0.012], [0, 0.85, zB - 0.012], { r: 0.005 });
+  P.box(M.black, [1.9, 0.18, 0.06], [0, 0.6, zB - 0.03], { r: 0.03 });
+  cabin(P, M, { floorY: 0.7, z0: zB + 0.12, z1: zW - 0.25, x: 0.42, w: 0.52, rear: -1.0, dashZ: zW - 0.34, dashY: 1.18 });
+  P.box(M.seat, [1.6, 0.12, 0.48], [0, 0.9, -1.95], { r: 0.04 });
+  return {
+    heads: [[0.7, 1.11, zF + 0.035, 0.06]],
+    tails: [[0.93, 1.12, zB - 0.02, 0.05, 0.3]], reverse: [[0.93, 0.88, zB - 0.02, 0.05, 0.08]],
+    bumperF: { z: zF + 0.08, y: 0.58, w: 1.9 }, bumperR: { z: zB - 0.06, y: 0.56, w: 1.9 },
+    spare: { x: 0, z: zr - 0.85, mount: 'under' },
+    wheel: { x: 0.44, y: 1.36, z: zW - 0.1, tilt: 0.42 },
+    frame: { x: 0.46, y: 0.56, z0: zB + 0.05, z1: zF - 0.1 },
+    flaps: false, sill: 0.56, half, roofY: roof + 0.04, roofZ: [zB + 0.06, zT - 0.04],
+  };
+}

@@ -483,7 +483,7 @@ lies, go back to the last firm, dry ground you drove on, call your friends for a
 
 Real trucks with real 3D models: the Mahindra Thar you start in and its five-door sister the Thar Roxx, the Lada Niva, the Willys MB, the UAZ Hunter, the
 Chevrolet K20 Suburban, the Mitsubishi Pajero, the Jeep Wrangler Rubicon, the Ford Bronco, the Ford Ranger Raptor, the
-Ram 2500 Power Wagon, the Hummer H1, the electric GMC Hummer EV and Tesla Cybertruck, the Land Rover Defender 110, the Mercedes-AMG G 63 and
+Ram 2500 Power Wagon, the Hummer H1, the electric GMC Hummer EV, Tesla Cybertruck and BYD Yangwang U8 (the one that floats), the Land Rover Defender 110, the Mercedes-AMG G 63 and
 the Mercedes-Benz Unimog U1300L, each built to its real numbers, from a one-ton jeep to a six-ton portal-axle truck.
 Every one takes every part in the garage.
 
@@ -518,6 +518,7 @@ the back bench (its eyes, and the cab view, are now 19 cm further forward, his h
 | Hummer H1 | $32,000 | the H1 Alpha hard top, the civilian Humvee: independent suspension at both ends on geared hubs, tyre inflation from the cab, Torsen rear, brake traction control | 3.30 m (130") | 3650 kg | 6.6 Duramax turbo-diesel V8, 705 Nm | Allison 5-speed automatic | 2.72 / 5.24 (with the hub gears) | 37x12.50 R17 | 38 cm | 49 / 41 / 32 degrees |
 | GMC Hummer EV | $38,000 | the Edition 1 pickup, electric: three motors, e-lockers at both ends, independent suspension on air springs (at its raised Terrain height), traction control | 3.45 m (136") | 4110 kg | three electric motors, 746 kW (1,000 hp), ~1,400 Nm from a standstill | single-speed reduction | none / 12.5 | LT315/70 R17 (35") | 33 cm | 44 / 33 / 22 degrees |
 | Tesla Cybertruck | $39,500 | the Cyberbeast, electric: three motors, a locking front differential and a rear one locked by its two rear motors, independent suspension on air springs (at its raised off-road height), traction control | 3.64 m (143") | 3190 kg | three electric motors, 630 kW (845 hp), ~930 Nm from a standstill | single-speed reduction | none / 15.02 | LT285/65 R20 (35") | 34 cm | 40 / 32 / 25 degrees |
+| BYD Yangwang U8 | $48,000 | electric: four motors, one at each wheel; a sealed body that floats (its emergency float mode); independent suspension on the DiSus-P hydraulic body control (at its raised off-road height), traction control | 3.05 m (120") | 3460 kg | four electric motors, 880 kW (1,180 hp), 1,280 Nm from a standstill | single-speed reductions | none / 12.4 | 275/55 R22 (34") | 33 cm | 35 / 29 / 28 degrees |
 | Mercedes-Benz Unimog U1300L | $42,000 | the 435 two-tonner with a box body: portal axles on coils at both ends, diff locks front and rear, tyre inflation from the cab | 3.25 m (128") | 6200 kg | OM 352 5.7 diesel six, 363 Nm | 8-speed truck box, 9:1 first | none / 7.17 | 12.5 R20 (42") | 46 cm | 42 / 28 / 33 degrees |
 | Mercedes-AMG G 63 | $95,000 | the W463 G-Wagen: a ladder frame, coils on beam axles at both ends, permanent four-wheel drive with three diff locks (centre, front and rear), traction control | 2.85 m (112") | 2625 kg | M157 5.5 twin-turbo V8, 760 Nm | 7-speed automatic | 2.16 / 4.0 | 275/50 R20 (31") | 19 cm | 36 / 34 / 20 degrees |
 
@@ -544,6 +545,14 @@ The **Tesla Cybertruck** (the three-motor Cyberbeast) drives the same way: 630 k
 flat out, three tons on 35-inch all-terrains, both axles locked for the dirt (its front locker, and its two rear motors
 holding the rear wheels together), its air springs raised. Its model is the 2019 show truck, which had cameras for
 mirrors: the game fits the production truck's door mirrors (and, as the real one, no rear-view mirror). The
+**BYD Yangwang U8** (featured first in the showroom) floats. Its body is sealed (buoyancy 0.75 of its hull's volume,
+where the other trucks' leaky bodies have about 0.3), so in water over about 1.2 m deep it lifts off the bottom and
+its emergency float mode takes over (the HUD shows AFLOAT): each wheel's own motor turns it as a paddle, W / S ahead and
+astern up to about 3 km/h, A / D one side's wheels against the other's to turn it on the spot (half a turn in about
+35 s). The paddles' push grows with the square of the tread's speed through the water (`floatStep` in
+physics/Vehicle.js). As soon as its wheels bear on the bottom again (a seventh of its weight on them) the drivetrain has
+them back and it climbs out on all four motors. Its body is the game's own (render/TruckBodies.js): the free 3D models
+of the U8 are licensed for non-commercial use only, or are re-uploads of one under a different licence. The
 **Thar Roxx** is the Thar stretched to five doors: 40 cm more wheelbase, the mHawk diesel turned up to 175 PS behind a
 six-speed automatic, an electronic rear locker; steadier and roomier than the three-door, and heavier.
 
