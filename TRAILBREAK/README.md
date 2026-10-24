@@ -38,7 +38,8 @@ Dark glass panels over the game, an orange accent and condensed italic type (Bar
   menu. Bottom left, the minimap turns with the truck (the N on its rim shows where north is; tap it for the full
   map). Bottom right, one dial: the revs round the rim (red past the redline), the speed in the middle, the gear
   under it (D and which gear in the automatic), the 2WD / 4WD / 4LO badge beside it, and the range, lockers, gearbox
-  and tyre pressure under it. Your **level** comes from all the money you have ever earned (level 2 at $1,000, 3 at
+  and tyre pressure under it, each with the key that works it on a keycap below (L, X, G, P; 4 in the badge; B under
+  SWAY OFF, Y under what is broken, to fit the spare). Your **level** comes from all the money you have ever earned (level 2 at $1,000, 3 at
   $4,000, 4 at $9,000...), so spending never takes it down.
 - **Paused (Esc):** the whole game stops where it is (your truck, its sound, the camera, the clocks; in an online
   room friends' trucks go on, theirs aren't paused, and they see yours standing still). The menu has the room and

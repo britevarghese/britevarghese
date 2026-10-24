@@ -458,19 +458,22 @@ export class Vegetation {
           const b = v / VIEWS * Math.PI * 2;
           cam.position.set(5 * Math.sin(b), 0, 5 * Math.cos(b));
           cam.lookAt(0, 0, 0);
-          gl.setViewport(k * TW, v * TH, TW, TH);
-          gl.setScissor(k * TW, v * TH, TW, TH);
-          gl.setScissorTest(true);
+          // (the target's own viewport, in its pixels: the renderer's would be scaled by the screen's pixel ratio)
+          pass.rt.viewport.set(k * TW, v * TH, TW, TH);
+          pass.rt.scissor.set(k * TW, v * TH, TW, TH);
+          pass.rt.scissorTest = true;
+          gl.setRenderTarget(pass.rt);
           gl.render(scene, cam);
-          gl.setScissorTest(false);
         }
+        pass.rt.viewport.set(0, 0, pass.rt.width, pass.rt.height);
+        pass.rt.scissor.set(0, 0, pass.rt.width, pass.rt.height);
+        pass.rt.scissorTest = false;
         for (let i = scene.children.length - 1; i >= 0; i--) if (scene.children[i].isMesh) scene.remove(scene.children[i]);
         for (const m of mats) m.dispose();
         if (pass.rt === colorRT) tiles[k] = { u0: k / N, u1: (k + 1) / N, r };
       });
     }
     gl.setRenderTarget(prevTarget);
-    gl.setViewport(0, 0, gl.domElement.width, gl.domElement.height);
     gl.setClearColor(prevClear, prevAlpha);
     gl.autoClear = prevAuto;
     gl.toneMapping = prevTone;

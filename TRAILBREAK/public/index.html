@@ -152,18 +152,18 @@
     <div id="dash">
       <div class="dash-row">
         <canvas id="gauges" width="260" height="230"></canvas>
-        <div id="m-drive" class="drive-badge" title="2WD / 4WD (4)"><svg viewBox="0 0 32 40" aria-hidden="true"><rect x="2" y="3" width="7" height="11" rx="2"/><rect x="23" y="3" width="7" height="11" rx="2"/><rect x="2" y="26" width="7" height="11" rx="2"/><rect x="23" y="26" width="7" height="11" rx="2"/><path d="M9 8.5h14M9 31.5h14M16 8.5v23" stroke-width="2.6" fill="none"/></svg><b id="m-drive-t">4WD</b></div>
+        <div id="m-drive" class="drive-badge" title="2WD / 4WD (4)"><svg viewBox="0 0 32 40" aria-hidden="true"><rect x="2" y="3" width="7" height="11" rx="2"/><rect x="23" y="3" width="7" height="11" rx="2"/><rect x="2" y="26" width="7" height="11" rx="2"/><rect x="23" y="26" width="7" height="11" rx="2"/><path d="M9 8.5h14M9 31.5h14M16 8.5v23" stroke-width="2.6" fill="none"/></svg><b id="m-drive-t">4WD</b><kbd class="key">4</kbd></div>
       </div>
       <div id="drive-modes">
-        <span id="m-range" class="chip" title="Transfer case range (L)">HIGH</span>
-        <span id="m-4wd" class="chip on" title="2WD / 4WD (4)">4WD</span>
-        <span id="m-lock" class="chip" title="Differentials and lockers (X)">DIFF</span>
-        <span id="m-box" class="chip" title="Gearbox: automatic / manual (G)">AUTO</span>
-        <span id="m-psi" class="chip" title="Tyre pressure (P)">30 PSI</span>
-        <span id="m-sway" class="chip hidden">SWAY OFF</span>
+        <span id="m-range" class="chip" data-key="L" title="Transfer case range (L)">HIGH</span>
+        <span id="m-4wd" class="chip on" data-key="4" title="2WD / 4WD (4)">4WD</span>
+        <span id="m-lock" class="chip" data-key="X" title="Differentials and lockers (X)">DIFF</span>
+        <span id="m-box" class="chip" data-key="G" title="Gearbox: automatic / manual (G)">AUTO</span>
+        <span id="m-psi" class="chip" data-key="P" title="Tyre pressure (P)">30 PSI</span>
+        <span id="m-sway" class="chip hidden" data-key="B" title="Sway bars connected / disconnected (B)">SWAY OFF</span>
         <span id="m-eng" class="chip warn hidden">ENGINE OFF</span>
         <span id="m-temp" class="chip hidden">88°C</span>
-        <span id="m-dmg" class="chip warn hidden" title="Y fits the spare; the station garage (U there) mends everything"></span>
+        <span id="m-dmg" class="chip warn hidden" data-key="Y" title="Y fits the spare; the station garage (U there) mends everything"></span>
       </div>
     </div>
     <div id="winch" class="hidden">

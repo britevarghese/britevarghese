@@ -363,6 +363,12 @@ input[type=checkbox]:checked::after { transform: translateX(16px); background: #
 #m-4wd { display: none; }
 body.touch #m-4wd { display: inline-block; }
 #drive-modes { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; max-width: 330px; }
+/* the key that works each option, as a keycap under its chip (and in the drive badge) */
+body:not(.touch) #drive-modes { row-gap: 26px; padding-bottom: 20px; }
+body:not(.touch) .chip[data-key] { position: relative; }
+body:not(.touch) .chip[data-key]::after { content: attr(data-key); position: absolute; left: 50%; top: calc(100% + 4px); transform: translateX(-50%); }
+body:not(.touch) .chip[data-key]::after, .drive-badge .key { min-width: 18px; padding: 3px 5px 2px; border-radius: 5px; background: rgba(14, 19, 26, .82); border: 1px solid rgba(255, 255, 255, .3); border-bottom-width: 2px; box-sizing: border-box; font: 700 11px/1 'Barlow', sans-serif; font-style: normal; letter-spacing: 0; color: #fff; text-align: center; text-shadow: none; box-shadow: none; }
+body.touch .drive-badge .key { display: none; }
 .chip { font: italic 800 14px/1 var(--display); letter-spacing: .06em; padding: 7px 12px; border-radius: 8px; background: var(--panel); border: 1px solid var(--line-2); color: var(--ink); text-shadow: none; }
 .chip.on { color: #fff; background: var(--accent-grad); border-color: rgba(255, 170, 90, .6); box-shadow: 0 0 10px rgba(240, 106, 15, .35); }
 .chip.on2 { color: #fff; background: rgba(54, 163, 255, .22); border-color: rgba(54, 163, 255, .7); }
