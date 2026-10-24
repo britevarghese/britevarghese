@@ -3,7 +3,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { Vehicle, PHYS_DT, GRAVITY } from '../src/physics/Vehicle.js';
 import { Drivetrain } from '../src/physics/Drivetrain.js';
-import { Quat } from '../src/physics/math.js';
+import { Quat, clamp } from '../src/physics/math.js';
 import { TRUCKS, truckSpec } from '../src/physics/trucks.js';
 import { SURFACE } from '../src/physics/Surfaces.js';
 import { flat, slope, soft, slopeWithIce, ledge } from './grounds.mjs';
@@ -105,7 +105,7 @@ test('the brakes hold a truck on a 25 degree dirt slope', () => {
   assert.ok(dist(v.pos, p0) < 0.05, `crept ${dist(v.pos, p0).toFixed(3)} m`);
 });
 
-test('the handbrake stops the truck and holds it: on a 30 degree slope in 2WD, and with the throttle on (which revs the engine)', () => {
+test('the handbrake holds the truck: on a 30 degree slope in 2WD, and with the throttle on (which revs the engine); rolling, it locks the rear wheels and stops it', () => {
   for (const id of ['thar', 'hummer']) {
     const g = slope(30, SURFACE.DIRT);
     const v = truck(id, g);
@@ -116,13 +116,44 @@ test('the handbrake stops the truck and holds it: on a 30 degree slope in 2WD, a
     assert.ok(dist(v.pos, p0) < 0.05, `${id} moved ${dist(v.pos, p0).toFixed(2)} m`);
     // (the clutch held down: the throttle revs the engine, the drive stays off)
     assert.ok(v.dt.rpm > 2.5 * v.spec.engine.idleRpm, `${id} revs only to ${Math.round(v.dt.rpm)} rpm on the handbrake`);
-    // from 54 km/h on the flat
+    // from 54 km/h on the flat: rolling, it is the rear wheels' brake alone (locked, sliding: the start of a drift),
+    // about a third of a g, as a driver's pulled lever is; then every brake once the truck is down to a walk
     const f = flat(), w = truck(id, f);
     run(w, f, 1, { ...IDLE, handbrake: 1 });
     w.vel.set(w.fwd.x * 15, 0, w.fwd.z * 15);
     for (const wh of w.wheels) wh.omega = 15 / w.spec.tyre.radius;
-    run(w, f, 3, { ...IDLE, handbrake: 1 });
-    assert.ok(w.speed < 0.1, `${id} still at ${w.speed.toFixed(2)} m/s after 3 s`);
+    run(w, f, 1, { ...IDLE, handbrake: 1 });
+    assert.ok(Math.abs(w.wheels[2].omega) < 0.5 && Math.abs(w.wheels[0].omega) > 20, `${id}: rear wheels ${w.wheels[2].omega.toFixed(1)}, fronts ${w.wheels[0].omega.toFixed(1)} rad/s on the handbrake`);
+    run(w, f, 5, { ...IDLE, handbrake: 1 });
+    assert.ok(w.speed < 0.1, `${id} still at ${w.speed.toFixed(2)} m/s after 6 s`);
+  }
+});
+
+test('a handbrake turn on the keys: the tail steps out in 2WD and 4WD, the speed is kept, and caught it holds a drift', () => {
+  for (const [id, fourWD] of [['thar', false], ['thar', true], ['shepherd', true], ['m4csl', false]]) {
+    const g = flat(id === 'm4csl' ? SURFACE.ROAD : SURFACE.DIRT), v = truck(id, g);
+    run(v, g, 1, { ...IDLE, handbrake: 1 });
+    v.dt.setFourWD(fourWD, 0);
+    const sp = (id === 'm4csl' ? 70 : 50) / 3.6, d = v.dt;                    // (the road car's sticky tyres: faster)
+    v.vel.set(v.fwd.x * sp, 0, v.fwd.z * sp);
+    for (const w of v.wheels) w.omega = sp / v.spec.tyre.radius;
+    d.gear = 2; d.wEngine = sp / v.spec.tyre.radius * d.axleGear * d.t.gears[1];
+    // (the body's angle to the way it is going, deg)
+    const slip = () => Math.abs(Math.atan2(v.vel.dot(v.right), v.vel.dot(v.fwd))) * 180 / Math.PI;
+    run(v, g, 0.3, { ...IDLE, steer: 1, throttle: 0.2 });
+    let t = 0;
+    while (t < 1.5 && slip() < 22) { run(v, g, 0.02, { ...IDLE, steer: 1, handbrake: 1 }); t += 0.02; }
+    assert.ok(slip() >= 22, `${id} ${fourWD ? '4WD' : '2WD'}: the tail only ${slip().toFixed(0)} deg out on the handbrake`);
+    assert.ok(v.speed > 0.6 * sp, `${id}: down to ${(v.speed * 3.6).toFixed(0)} km/h by the time the tail is out`);
+    // a driver catching it: countersteer and throttle by how far out it is
+    let worst = 0, held = 0;
+    for (let k = 0; k < 150; k++) {
+      const a = slip();
+      run(v, g, 0.02, { ...IDLE, steer: clamp(-(a - 22) / 12, -1, 1), throttle: clamp(0.8 - (a - 20) / 25, 0.1, 0.8) });
+      worst = Math.max(worst, slip()); if (slip() > 10 && slip() < 50) held += 0.02;
+    }
+    assert.ok(worst < 85, `${id} ${fourWD ? '4WD' : '2WD'}: spun round (${worst.toFixed(0)} deg)`);
+    assert.ok(held > 0.7, `${id} ${fourWD ? '4WD' : '2WD'}: drifting only ${held.toFixed(1)} s of 3`);
   }
 });
 

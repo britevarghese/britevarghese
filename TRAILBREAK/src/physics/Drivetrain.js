@@ -321,7 +321,7 @@ export class Drivetrain {
     const g = input.declutch ? 0 : this.gearRatio;
     const G = this.axleGear;
     // (the gearbox shifts by the driver's pedal, not by what the traction control lets through to the engine)
-    this.autoShift(dt, input.pedal ?? input.throttle, wheels);
+    if (!input.holdGear) this.autoShift(dt, input.pedal ?? input.throttle, wheels);
 
     // ---- engine: idle governor, rev limiter, net torque (or the starter, when it isn't running)
     const rpm = this.wEngine * RPM;
@@ -445,9 +445,10 @@ export class Drivetrain {
     const lockR = this.lockRear || this.autoLock;
     // rear axle (the gearbox output turns with the rear propshaft), front axle in 4WD; or an all-wheel drive's centre
     // diff and its coupling (with a shaft snapped, or the centre locked: the axles rigidly, as part-time 4WD)
+    // (the handbrake pulled at speed: the front axle let go, free to roll, Vehicle.js)
     let iRear = -1, iFront = -1, iCentre = -1, iCouple = -1;
-    const split = this.t.split ?? 0.4;
-    if (this.drive === 'awd' && !this.lockCentre && !B[0] && !B[1] && !B[2] && !B[3]) {
+    const split = this.t.split ?? 0.4, freeFront = !!input.freeFront;
+    if (this.drive === 'awd' && !this.lockCentre && !freeFront && !B[0] && !B[1] && !B[2] && !B[3]) {
       const g2 = G / 2;
       J[n * NB + 0] = g2 * split; J[n * NB + 1] = g2 * split; J[n * NB + 2] = g2 * (1 - split); J[n * NB + 3] = g2 * (1 - split);
       J[n * NB + OUT] = -1; bound[n] = Infinity; iCentre = n++;
@@ -456,7 +457,7 @@ export class Drivetrain {
       bound[n] = (pre + k * Math.abs(this.outTorque * G)) * dt; iCouple = n++;
     } else {
       iRear = axle(2, 3, lockR);
-      iFront = this.fourWD ? axle(0, 1, this.lockFront) : -1;
+      iFront = this.fourWD && !freeFront ? axle(0, 1, this.lockFront) : -1;
     }
     if (!B[2] && !B[3]) {
       if (lockR) { J[n * NB + 2] = 1; J[n * NB + 3] = -1; bound[n] = Infinity; n++; } else if (this.diffs.rear === 'lsd') {

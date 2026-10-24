@@ -105,7 +105,7 @@ Without the Blueprint: **New > Web Service** with this repository, branch `claud
 |---|---|---|
 | Throttle / brake (hold brake when stopped to reverse) | W / S | RT / LT |
 | Steer | A / D | Left stick |
-| Handbrake (stops the truck and holds it, on any slope it can grip; the clutch held down, so the throttle revs the engine on the spot, and letting go launches) | Space | A |
+| Handbrake: rolling, it locks the rear wheels for a handbrake turn or a drift (see below); slower than a walk it holds the truck on any slope it can grip, the clutch held down so the throttle revs the engine and letting go launches | Space | A |
 | Transfer case HIGH / LOW (nearly stopped) | L | D-pad up |
 | 2WD / 4WD | 4 | D-pad left |
 | Diff lockers (if fitted): open, rear, front + rear | X | D-pad down |
@@ -137,6 +137,17 @@ on the map, on the minimap, on the compass and as a line of chevrons on the grou
 leave it, and a route to a friend follows them. **Fast travel** takes you to the station, the garage, an event's
 start line, a beacon you have found or a friend (not in the middle of a run). While the map is open your truck stands
 on its handbrake.
+
+**Handbrake turns and drifts.** Rolling, Space is the rear wheels' brake alone, as a pulled lever is: steer, pull
+it, and the rear wheels lock and the tail steps out while the fronts roll on and steer; let go and catch it with the
+throttle and the opposite lock (on the keys the steering helps you catch it). It used to put on every brake, so the
+truck mostly stopped: from 50 km/h on dirt a Thar was down to 14 km/h before its tail came out, and in 4WD it hardly
+turned at all (13 degrees of slide), the transfer case locking the fronts to the locked rears. Now it comes out of the
+handbrake at about 39 km/h with the tail 22 degrees out, in 2WD or 4WD. While the handbrake is pulled at speed, and
+until the slide is over, the front axle's drive is let go of the rear's, as a rally car's hydraulic handbrake opens
+its centre coupling. A part-time truck's transfer case can't do that; the game allows it, or the handbrake would lock
+all four wheels in 4WD. The gearbox holds its gear while the rear wheels are locked, and the stability control stays
+out of the way until you let go. Slower than a walk, Space is every brake and holds the truck where it is.
 
 **Chat** (in a room): Enter, or the chat button beside the mic, opens the room chat: everything said since you
 joined, a line to type in (Enter sends, Esc closes) and quick phrases to send with a tap (Follow me, Need a tow!,

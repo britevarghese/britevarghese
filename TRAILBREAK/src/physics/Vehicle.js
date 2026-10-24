@@ -371,13 +371,26 @@ export class Vehicle {
       if (dtr.gear === 0) dtr.selectGear(1, speed);
     }
     if (ctrl.hold) brake = Math.max(brake, ctrl.hold);                 // brakes on without asking for reverse
-    // the handbrake (Space) stops the truck and keeps it there: the brakes on at every wheel (and the parking brake on
-    // the rear ones), the drive taken off: the clutch held down (an automatic in neutral), so the throttle revs the
-    // engine freely, as you would on the spot or before a launch, and letting go puts the drive back in (an electric
-    // truck's motors are its drive: its throttle goes)
-    const hand = ctrl.handbrake || 0;
+    // the handbrake (Space): rolling, it is the parking brake on the rear wheels alone, as a driver's pulled lever is:
+    // they lock and the tail steps out while the fronts roll on and steer (a handbrake turn, the start of a drift);
+    // slower than a walk it is every brake, holding the truck where it is. Either way the drive is taken off: the
+    // clutch held down (an automatic in neutral), so the throttle revs the engine freely, as you would before a launch
+    // or to come out of the slide, and letting go puts the drive back in (an electric truck's motors are its drive:
+    // its throttle goes)
+    const hand = ctrl.handbrake || 0, rolling = smoothstep(1.5, 4, Math.abs(speed));
     let declutch = !!ctrl.neutral && !dtr.direct;                          // (out of gear: being winched out, Game.js)
-    if (hand > 0) { brake = Math.max(brake, hand); if (dtr.direct || hand < 0.5) throttle *= 1 - hand; else declutch = true; }
+    if (hand > 0) { brake = Math.max(brake, hand * (1 - rolling)); if (dtr.direct || hand < 0.5) throttle *= 1 - hand; else declutch = true; }
+    // Pulled at speed it asks for the slide: the front axle's drive lets go of the rear's while it is held (as a rally
+    // car's hydraulic handbrake opens its centre coupling; a part-time truck's transfer case can't, but locked to the
+    // rear it would lock the fronts too and the truck would only slide on straight), and the stability and traction
+    // control stand back while it is held and for a moment after, to carry the slide on the throttle
+    const drifting = hand > 0.5 && rolling > 0.5;
+    this.driftT = drifting ? 1.5 : Math.max(0, (this.driftT || 0) - dt);
+    // (the fronts stay let go after it while the truck is still sliding: coupled again at once, the rolling fronts were
+    // dragged down to the locked rears' speed, then held to the rears' through the slide, lost their grip and the
+    // truck spun)
+    const slide = Math.atan2(this.vel.dot(left), Math.max(1, Math.abs(speed)));
+    this.frontFree = drifting || (!!this.frontFree && this.driftT > 0 && Math.abs(slide) > 0.17);
     this.pedalThrottle = throttle; this.pedalBrake = brake;
     // how far each axle's tyres are into their grip sideways (1: at the slip angle that grips best on this ground), for
     // the traction and stability control
@@ -460,12 +473,13 @@ export class Vehicle {
       if (ctrl.wheelAssist) rate *= 3;
       // (only a swing growing: never against the truck straightening up when the steering is let go)
       const ahead = yaw - this.yawLP;
-      if (ahead * yaw > 0) target -= fast * clamp(STEER_DAMP * (1 + 2 * faster) * ahead, -0.45 * lock, 0.45 * lock);
+      // (not with the handbrake pulled: the swing is what it asks for)
+      if (ahead * yaw > 0 && !drifting) target -= fast * clamp(STEER_DAMP * (1 + 2 * faster) * ahead, -0.45 * lock, 0.45 * lock);
       // at speed, the wheels turn no further into a bend than the front tyres grip: past the slip angle that grips
       // best they only scrub and the nose ploughs on wide, so they are held there, and let back a little if the
       // front has gone well past it
       const at = this.steerAngle || 0;
-      if (fast > 0 && side[0] > 0.95 && target * at > 0 && Math.abs(target) > Math.abs(at)) {
+      if (fast > 0 && side[0] > 0.95 && target * at > 0 && Math.abs(target) > Math.abs(at) && !drifting) {
         const hold = Math.max(0, Math.abs(at) - Math.max(0, side[0] - 1.1) * 0.05);
         target = Math.sign(at) * (Math.abs(target) + (hold - Math.abs(target)) * fast);
       }
@@ -482,7 +496,7 @@ export class Vehicle {
       const fv = Math.max(2, Math.abs(this.vel.dot(fwd))), out = Math.sign(yaw) * -Math.atan2(this.vel.dot(left), fv);
       this.outRate = (this.outRate ?? 0) + ((out - (this.outLast ?? out)) / dt - (this.outRate ?? 0)) * Math.min(1, dt / 0.1);
       this.outLast = out;
-      const k = fast * smoothstep(0.9, 1.3, side[1]) * smoothstep(0.04, 0.12, out) * smoothstep(-0.15, 0.1, this.outRate);
+      const k = drifting ? 0 : fast * smoothstep(0.9, 1.3, side[1]) * smoothstep(0.04, 0.12, out) * smoothstep(-0.15, 0.1, this.outRate);
       if (k > 0) {
         const cs = clamp(Math.atan2(this.vel.dot(left) + yaw * fa.zc, fv), -maxLock, maxLock);
         if (cs * yaw < 0) { target += (cs - target) * k; rate = Math.max(rate, 0.8 * dt); }
@@ -631,6 +645,9 @@ export class Vehicle {
     // the stability control's brakes: the truck swinging round faster than the driver asks (the tail stepping out),
     // the outer front wheel is braked, which turns it back; the further past, the harder, up to what that tyre grips
     // (not with the handbrake pulled: that turn is asked for)
+    // (after a handbrake slide, for a moment, it lets the tail out and catches only a spin: the body over 40 degrees
+    // to the way it is going and still swinging further round)
+    const slideAngle = Math.atan2(this.vel.dot(left), Math.max(1, Math.abs(speed))), spin = Math.abs(slideAngle) > 0.45 && slideAngle * yaw < 0;
     if ((this.spec.tc || !ctrl.analogSteer) && speed > 8 && hand < 0.1) {
       const ask = this.yawAsk || 0, over = Math.abs(yaw) - (yaw * ask >= 0 ? Math.abs(ask) * 1.1 + 0.06 : 0.06);
       if (over > 0) {
@@ -642,6 +659,8 @@ export class Vehicle {
     this._dtIn.throttle = throttle;
     this._dtIn.pedal = this.pedalThrottle;                             // (the shift schedule follows the driver's foot)
     this._dtIn.declutch = declutch;
+    this._dtIn.freeFront = this.frontFree;
+    this._dtIn.holdGear = drifting;                                    // (not shifting down for the locked rear wheels)
     const D = this.damage;
     // (cosmetic damage: water in the intake doesn't stop the engine, it chokes it: it coughs and makes a third; an
     // electric truck in over its sealing: its battery management cuts the power)
