@@ -9,6 +9,11 @@
 //   Blackwater Track: off the ford track west along the edge of the bog, back across the river to the log landing
 //   Lookout Hill: a knoll in the north-east with a watchtower on it, a steep track up
 //
+// All the going a mud-and-timber truck game has, each its own ground under the tyres (physics/Surfaces.js): the Timber
+// Road's gravel, the tracks' deep mud on the wet ground, mud holes, the camp's flooded mud pit, Blackwater Bog's black
+// pools, two shallow fords and a deep one that drowns a low air intake, the sandy shallows above the ford, a boulder
+// field on Lookout Hill's flank, steep climbs, the forest's tracks between the trees.
+//
 // Its air is its own (atmosphere, air): fog that closes in to a few hundred metres, an overcast sky, the light flat and
 // the colours muted, coming on as a truck drives in over the ridge (world/OpenWorld.js airAt).
 import { SURFACE } from '../../physics/Surfaces.js';
@@ -20,7 +25,7 @@ import { clamp, lerp, smoothstep, fbm, vnoise, lineD, plant, alpine, ALPINE, HIG
 
 /** Its rallies' par times (seconds): a careful driver in three stock trucks, gold about the best of them (the UAZ needs low
  * range up the west ford's north bank). */
-const PAR = { timberrun: { gold: 102, silver: 123, bronze: 152 }, blackwater: { gold: 138, silver: 166, bronze: 205 } };
+const PAR = { timberrun: { gold: 102, silver: 123, bronze: 152 }, blackwater: { gold: 139, silver: 166, bronze: 205 } };
 
 /** The taiga's centre in the world (a 2 km square north of Koyna Glen). */
 export const TAIGA_AT = [5024, -6844];
@@ -32,6 +37,16 @@ export const TAIGA_FORDS = [[240, 110], [-745, 247]];
 // Blackwater Bog: a wide flat wet hollow on the basin floor north of the river (world/WorldGen.js makes it)
 const BOG = { x: -330, z: -330, rx: 230, rz: 130, rot: 0.32 };
 const CAMP = { x: 140, z: 420 }, LOOKOUT = { x: 640, z: -640 }, LANDING = { x: -690, z: 560 }, CUTTING = { x: -80, z: -790 };
+// the mud pit: an old borrow pit by the camp, dug a metre down and flooded, a hand's depth of water over deep mud
+const PIT = { x: 60, z: 345, rx: 30, rz: 18, rot: 0.4 };
+const pitE = (x, z) => {
+  const dx = x - PIT.x, dz = z - PIT.z, c = Math.cos(PIT.rot), s = Math.sin(PIT.rot);
+  return Math.hypot((dx * c + dz * s) / PIT.rx, (-dx * s + dz * c) / PIT.rz);
+};
+// the boulder field on Lookout Hill's west flank (world/WorldGen.js rockGarden: rock underfoot, boulders to crawl over)
+const BOULDERS = { x: 560, z: -380, r: 45 };
+// the shallows above the ford: the river wide and ankle deep over gravel, a sand bar on its inside bank
+const SHALLOWS = { x: 390, z: 45, r: 60, depth: 0.22, widen: 0.8 }, SANDBAR = { x: 400, z: 88, r: 30 };
 
 /** The basin and the hills round it, rising in the south to meet the glen's north edge. */
 export const taigaGround = (x, z) => {
@@ -52,11 +67,15 @@ export const taigaGround = (x, z) => {
 };
 
 export const TAIGA_ROUTES = {
-  'Timber Road': { via: [[170, 1024], [150, 820], [120, 640], [140, 470]], kind: 'trail', width: 3.4, extend: [8, 0] },
+  // (the logging road in: gravel, the timber lorries' way out)
+  'Timber Road': { via: [[170, 1024], [150, 820], [120, 640], [140, 470]], kind: 'trail', width: 3.4, extend: [8, 0], surface: SURFACE.GRAVEL },
   'Bearwood Ford Track': { via: [[140, 470], [190, 300], [240, 110], [200, -120], [60, -330], [-60, -560], [CUTTING.x, CUTTING.z]], kind: 'trail', width: 3.0 },
-  'Blackwater Track': { via: [[60, -330], [-150, -250], [-330, -200], [-560, -250], [-760, -110], [-745, 247], [LANDING.x, LANDING.z]], kind: 'trail', width: 2.8, grade: 0.26 },
+  'Blackwater Track': { via: [[60, -330], [-150, -250], [-330, -200], [-560, -250], [-760, -110], [-745, 247], [LANDING.x, LANDING.z]], kind: 'trail', width: 2.8, grade: 0.26, routeGrade: 0.28 },
   'Landing Road': { via: [[140, 470], [-100, 520], [-400, 560], [LANDING.x, LANDING.z]], kind: 'trail', width: 3.2 },
   'Lookout Track': { via: [[200, -120], [420, -320], [580, -560], [LOOKOUT.x, LOOKOUT.z]], kind: 'trail', width: 2.6, routeGrade: 0.22 },
+  // (off the landing road north across the river at the deep ford, the water up to a truck's bonnet: 0.95 m over the
+  // ford's bed, the channel either side of it deeper still, on to Blackwater Track)
+  'Deep Ford Track': { via: [[-400, 560], [-385, 330], [-340, 120], [-330, -200]], kind: 'trail', width: 2.8, ford: 0.95, grade: 0.3 },
 };
 
 // wet ground: the basin floor near the river and the bog, low hollows; the logging tracks through it are deep mud
@@ -67,10 +86,15 @@ const wetness = (x, z, h) => {
 };
 const nearCamp = (x, z) => Math.hypot(x - CAMP.x, z - CAMP.z) < 95;
 
-/** The taiga's colours over its ground: dark, cool and muted, the mud near black where it's wet. */
+/**
+ * The taiga's colours over its ground (Ashwood's textures: its brown mud, not the coast's red laterite): dark, cool and
+ * muted, the mud near black where it's wet, the needle litter under the trees dark brown, the river's sandy banks silt.
+ */
 const taigaTint = (x, z, layer, h, c) => {
   const v = 0.92 + 0.12 * vnoise(x / 23, z / 23, SEED + 30);
-  if (layer === 'grass') { c[0] *= 0.66 * v; c[1] *= 0.76 * v; c[2] *= 0.6 * v; } else if (layer === 'mud') { c[0] *= 0.62; c[1] *= 0.58; c[2] *= 0.55; } else if (layer === 'dirt') { c[0] *= 0.74 * v; c[1] *= 0.68 * v; c[2] *= 0.62 * v; } else { c[0] *= 0.82; c[1] *= 0.84; c[2] *= 0.86; }
+  const k = layer === 'grass' ? [0.66, 0.76, 0.6] : layer === 'mud' ? [0.8, 0.78, 0.76] : layer === 'dirt' ? [0.74, 0.68, 0.62]
+    : layer === 'forest' ? [0.6, 0.75, 0.95] : layer === 'sand' ? [0.5, 0.55, 0.66] : [0.82, 0.84, 0.86];
+  for (let i = 0; i < 3; i++) c[i] *= k[i] * (layer === 'mud' ? 1 : v);
 };
 
 export const TAIGA = stretch({
@@ -78,14 +102,14 @@ export const TAIGA = stretch({
   blurb: 'Logging country in the far north: dark spruce forest, the Bearwood river, Blackwater Bog and mud tracks churned deep, under a grey sky.',
   station: { x: 150, z: 410, name: 'Bearwood Timber Camp' }, spawn: { x: 150, z: 445, yaw: Math.PI }, dealer: 'Bearwood Timber Camp',
   load: () => COAST.load(), baseHeight: taigaGround, roughOf: (h) => clamp((h - 80) / 200, 0.25, 0.85),
-  ...HIGHLAND, farWoods: 0.95, tint: taigaTint, tintRange: 2,
+  ...HIGHLAND, ground: 'ashwood', farWoods: 0.95, tint: taigaTint, tintRange: 2,
   // the deep mud on its tracks: a mud hole every hundred metres or so of each
   puddles: 22,
   // its own air: fog closing in to a few hundred metres, the sky overcast, the light flat and the colours muted
   atmosphere: { fog: 0.0021, cover: 0.12 }, air: { fog: 0.0021, cover: 0.12, sun: 0.5, sat: 0.78, fade: 260 },
   mudTint: [0.24, 0.19, 0.14],
-  river: { points: TAIGA_RIVER_PTS, widthStart: 10, widthEnd: 16, depthStart: 1.2, depthEnd: 1.8, fords: TAIGA_FORDS },
-  bog: BOG,
+  river: { points: TAIGA_RIVER_PTS, widthStart: 10, widthEnd: 16, depthStart: 1.2, depthEnd: 1.8, fords: TAIGA_FORDS, shallows: [SHALLOWS] },
+  bog: BOG, rockGarden: BOULDERS, sandWash: SANDBAR,
   trails: trailsOf('taiga', TAIGA_ROUTES),
   pads: { ...HIGHLAND.pads, logs: 6, sawmill: 13 },
   landmarks: [
@@ -103,6 +127,8 @@ export const TAIGA = stretch({
     { id: 0, name: 'Bearwood Ford', x: 262, z: 132 }, { id: 1, name: 'Blackwater Bog', x: -330, z: -210 },
     { id: 2, name: 'Lookout Hill', x: LOOKOUT.x + 14, z: LOOKOUT.z + 16 }, { id: 3, name: 'The Cutting', x: CUTTING.x, z: CUTTING.z + 30 },
     { id: 4, name: 'Log Landing', x: LANDING.x + 30, z: LANDING.z - 30 },
+    { id: 5, name: 'The Mud Pit', x: PIT.x - 4, z: PIT.z + 26 }, { id: 6, name: 'Deep Ford', x: -322, z: 150 },
+    { id: 7, name: 'Boulder Field', x: BOULDERS.x - 52, z: BOULDERS.z + 8 }, { id: 8, name: 'Bearwood Shallows', x: SANDBAR.x + 10, z: SANDBAR.z + 30 },
   ],
   races: [
     { id: 'timberrun', kind: 'rally', name: 'Timber Run', desc: 'From the timber camp across the Bearwood at the ford and up the mud of the logging track to the cutting in the far woods.',
@@ -111,7 +137,34 @@ export const TAIGA = stretch({
       trail: 'Blackwater Track', from: [-150, -250], to: [LANDING.x, LANDING.z], cps: 6, r: 12, par: PAR.blackwater, prize: 1.4 },
   ],
   gen: graded([{ road: 'Timber Road', grade: 0.13, smooth: 30, ends: ['ground', 'ground'] }], {
+    prepare({ K, coarseAt }) { K.pitFloor = coarseAt(PIT.x, PIT.z) - 1.1; },
+    // the mud pit dug out: a level floor, lumpy with churned mud, its sides sloping up over 6 m
+    fine(x, z, h, K) {
+      const e = pitE(x, z);
+      return e < 1.5 ? lerp(h, K.pitFloor + 0.18 * fbm(x / 4, z / 4, 2, SEED + 40), smoothstep(1.5, 1, e)) : h;
+    },
+    // standing water: a hand's depth over the pit's floor, and the black pools in the low spots of the bog (its lowest
+    // third), kept off the tracks
+    water({ K, setWater, hAt, cellOf, trailD, trailW, waterRes }) {
+      for (let x = PIT.x - PIT.rx - 4; x <= PIT.x + PIT.rx + 4; x += waterRes) for (let z = PIT.z - PIT.rx - 4; z <= PIT.z + PIT.rx + 4; z += waterRes) {
+        if (pitE(x, z) < 1.1) setWater(x, z, K.pitFloor + 0.28);
+      }
+      const c = Math.cos(BOG.rot), sn = Math.sin(BOG.rot), inBog = (x, z) => {
+        const dx = x - BOG.x, dz = z - BOG.z, u = (dx * c + dz * sn) / BOG.rx, v = (-dx * sn + dz * c) / BOG.rz;
+        return u * u + v * v < 0.8;
+      };
+      const pts = [], hs = [];
+      for (let x = BOG.x - BOG.rx; x <= BOG.x + BOG.rx; x += waterRes) for (let z = BOG.z - BOG.rx; z <= BOG.z + BOG.rx; z += waterRes) {
+        if (!inBog(x, z)) continue;
+        const idx = cellOf(x, z);
+        if (trailD(idx) < trailW(idx) + 3) continue;
+        pts.push(x, z); hs.push(hAt(x, z));
+      }
+      const level = [...hs].sort((a, b) => a - b)[Math.floor(hs.length / 3)] + 0.05;
+      for (let i = 0; i < hs.length; i++) if (hs[i] < level) setWater(pts[2 * i], pts[2 * i + 1], level);
+    },
     surface(x, z, h, sl, s) {
+      if (pitE(x, z) < 1.25) return SURFACE.MUD;
       if (s === SURFACE.ROCK || s === SURFACE.RIVERBED || s === SURFACE.SAND || s === SURFACE.GRAVEL) return s;
       if (nearCamp(x, z)) return vnoise(x / 5, z / 5, SEED + 21) > 0.55 ? SURFACE.MUD : SURFACE.DIRT;
       // the wet ground is mud (the tracks through it stay mud: world/WorldGen.js); the rest moss and grass
@@ -122,9 +175,9 @@ export const TAIGA = stretch({
       // dead snags in the cutting
       // (84,000 or so: one every 5 m where the wood is thickest; every 4 m planted 153,000, more than memory spares)
       plant(ctx, 5, (x, z, s, h, R, roll) => {
-        if (nearCamp(x, z) || Math.hypot(x - LANDING.x, z - LANDING.z) < 60) return null;
-        const cut = Math.hypot(x - CUTTING.x, z - CUTTING.z) < 130;
-        const wet = wetness(x, z, h), wood = cut ? 0.05 : 0.5 + 0.3 * smoothstep(-0.2, 0.3, fbm(x / 140, z / 140, 2, SEED + 22));
+        if (nearCamp(x, z) || Math.hypot(x - LANDING.x, z - LANDING.z) < 60 || pitE(x, z) < 1.8) return null;
+        const cut = Math.hypot(x - CUTTING.x, z - CUTTING.z) < 130, rocky = Math.hypot(x - BOULDERS.x, z - BOULDERS.z) < BOULDERS.r;
+        const wet = wetness(x, z, h), wood = cut ? 0.05 : rocky ? 0.12 : 0.5 + 0.3 * smoothstep(-0.2, 0.3, fbm(x / 140, z / 140, 2, SEED + 22));
         if (roll > wood) return null;
         const pick = R();
         if (cut) return alpine(pick < 0.6 ? ALPINE.snag : ALPINE.birch, R);

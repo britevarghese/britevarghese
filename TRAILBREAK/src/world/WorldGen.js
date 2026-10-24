@@ -460,7 +460,7 @@ export async function generateWorld({ map, onProgress = () => {}, yieldEvery = 6
   // every trail point in one list: target height, half-width, kind (1 trail, 2 road), its ford's depth (a causeway's
   // is shallow); and a paved road's own: the shoulder its bed blends into the land over, and whether it is laid
   // level across (a highway's tarmac) and crosses the river on a bridge
-  const tpH = [], tpW = [], tpK = [], tpX = [], tpZ = [], tpF = [], tpS = [], tpL = [], tpB = [], tpR = [];
+  const tpH = [], tpW = [], tpK = [], tpX = [], tpZ = [], tpF = [], tpS = [], tpL = [], tpB = [], tpR = [], tpSf = [];
   // (a point every grid cell along each trail: on a big map's roads more of them than 16 bits count)
   const trailPts = M.trails.map((tr) => spline(tr.points, RES));
   const nTP = trailPts.reduce((a, p, i) => a + p.length + (M.trails[i].extend ? (M.trails[i].extend[0] + M.trails[i].extend[1]) / RES + 2 : 0), 0);
@@ -536,7 +536,7 @@ export async function generateWorld({ map, onProgress = () => {}, yieldEvery = 6
       tpH.push(fh[p]); tpW.push(tr.width); tpK.push(tr.kind === 'road' ? 2 : 1); tpX.push(fp[p][0]); tpZ.push(fp[p][1]); tpF.push(tr.ford);
       tpS.push(shoulder); tpL.push(tr.level ? 1 : 0.97); tpB.push(!!tr.bridge);
       // (a road's surface: the map's, or its own: tr.surface)
-      tpR.push(tr.surface ?? M.roadSurface ?? SURFACE.GRAVEL);
+      tpR.push(tr.surface ?? M.roadSurface ?? SURFACE.GRAVEL); tpSf.push(tr.surface !== undefined);
     }
     const Rr = Math.ceil((tr.width + shoulder) / RES);
     for (let p = 0; p < fp.length; p++) {
@@ -698,7 +698,8 @@ export async function generateWorld({ map, onProgress = () => {}, yieldEvery = 6
       // trails and road (on top)
       const td = trailD(idx), tw = trailW(idx);
       // (up in the snow a trail is the lookout's gravel track, ploughed, with the snow banked either side)
-      if (td < tw * 0.95) s = trailK(idx) === 2 ? tpR[tI[idx]] : s === SURFACE.SNOW ? SURFACE.GRAVEL : (s === SURFACE.MUD ? SURFACE.MUD : s === SURFACE.ROCK && sl > 0.5 ? SURFACE.ROCK : SURFACE.DIRT);
+      // (a trail laid with its own surface, tr.surface: a logging road's gravel over whatever it crosses)
+      if (td < tw * 0.95) s = trailK(idx) === 2 || tpSf[tI[idx]] ? tpR[tI[idx]] : s === SURFACE.SNOW ? SURFACE.GRAVEL : (s === SURFACE.MUD ? SURFACE.MUD : s === SURFACE.ROCK && sl > 0.5 ? SURFACE.ROCK : SURFACE.DIRT);
       else if (td < tw + 1.6 && (s === SURFACE.GRASS || s === M.vergeOf) && vnoise(x / 3, z / 3, S + 78) > 0.4) s = SURFACE.DIRT;
       // under water
       const wl = waterAt(x, z);

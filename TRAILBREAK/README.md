@@ -423,7 +423,7 @@ puts you back at the last checkpoint passed, facing the next, while the clock ru
 | Deccan Ghat Descent | Deccan | 1.1 km off Kerala's ridge, through the gap in the escarpment and down to the expressway | 1:47 / 2:08 / 2:38 |
 | Tamhini Road | Deccan | 5.6 km from Shivapur south over the farmland plateau to the world's southern edge | 7:48 / 9:21 / 11:32 |
 | Timber Run | Bearwood Taiga | 1.2 km from the timber camp across the Bearwood at the ford and up the mud of the logging track to the cutting | 1:42 / 2:03 / 2:32 |
-| Blackwater Crossing | Bearwood Taiga | 1.4 km round the edge of Blackwater Bog in the mud and back over the river at the west ford to the log landing (a stock UAZ needs low range up the far bank) | 2:18 / 2:46 / 3:25 |
+| Blackwater Crossing | Bearwood Taiga | 1.4 km round the edge of Blackwater Bog in the mud and back over the river at the west ford to the log landing (a stock UAZ needs low range up the far bank) | 2:19 / 2:46 / 3:25 |
 | Coast to Snow | Open world | 18.6 km across the whole world, 16 checkpoints: up the Kashid ghat, over the Konkan Ghat into Kerala, through the town and the tea, up the Kurinji jeep track, over the Ashwood Pass and down to the ranger station | 26:15 / 31:29 / 38:50 |
 | North Coast Highway | Open world | 10.5 km along the north of the world, 14 checkpoints: from the coast past Korlai, through Borli and the Devkund Gap, under the Chalkewadi turbines and down to the Koyna dam | 15:17 / 18:21 / 22:38 |
 
@@ -946,16 +946,32 @@ own features made on top of it; the roads through them are routed over the groun
   the Pinecrest trail climbs from the dam to Ashwood; the Glen Head Track climbs north out of it over the ridge.
 - **Bearwood Taiga** (2 km, the far north, over the ridge at the head of Koyna Glen; `src/world/maps/taiga.js`):
   logging country in the manner of the mud-and-timber truck games. Dark spruce, pine and fir close on every side
-  (84,000 trees), birch and dead snags on the wet ground; the Bearwood river winding west across a boggy basin with two
-  fords, Blackwater Bog north of it, and the logging tracks between them churned into deep black mud (15% of its
-  ground is mud, and mud holes lie on the level stretches of its tracks). The Timber Road comes over the ridge from
-  the glen to the **Bearwood Timber Camp** on a terrace above the river: the garage, a **sawmill** (an open shed on
-  posts under a tin roof, the saw bench and its blade, a log deck, a heap of sawdust, stacked boards) and the log
-  yard. The Bearwood Ford Track
-  crosses the river and climbs to the cutting in the far woods; the Blackwater Track runs round the bog and back across
-  the river at the west ford to the log landing; the Lookout Track climbs a knoll to a watchtower. **Log piles**
-  (stacked in a pyramid, pale cut ends, stakes either side, solid to drive into) stand at the camp, the landing and the
-  cutting.
+  (84,000 trees), birch and dead snags on the wet ground, the Bearwood river winding west across a boggy basin, and
+  its ground in Ashwood's textures (brown mud, not the coast's red laterite), dark and muted. The Timber Road comes
+  over the ridge from the glen to the **Bearwood Timber Camp** on a terrace above the river: the garage, a **sawmill**
+  (an open shed on posts under a tin roof, the saw bench and its blade, a log deck, a heap of sawdust, stacked boards)
+  and the log yard. The Bearwood Ford Track crosses the river and climbs to the cutting in the far woods; the
+  Blackwater Track runs round the bog and back across the river at the west ford to the log landing; the Deep Ford
+  Track crosses it between them; the Lookout Track climbs a knoll to a watchtower. **Log piles** (stacked in a pyramid,
+  pale cut ends, stakes either side, solid to drive into) stand at the camp, the landing and the cutting.
+
+  All the going those games have, each its own ground under the tyres (`src/physics/Surfaces.js`), measured on the
+  generated map and driven on the physics:
+
+  | Going | Where | What it does to a truck |
+  |---|---|---|
+  | Gravel | the Timber Road, all of it (a trail can be laid with its own surface: `surface` on a route) | fast and loose: less grip than dirt, slides in the bends |
+  | Deep mud | the tracks across the wet ground (16% of the map is mud), mud holes on their level stretches | the tyres sink up to 0.36 m and dig in when they spin; the faster you plough, the harder it drags |
+  | The Mud Pit | by the camp: a borrow pit dug a metre down, 0.36 m of water over the mud | a Thar, a Wrangler and a UAZ all wallow through at walking pace (90 m in 32 to 38 s), 0.6 m down |
+  | Swamp | Blackwater Bog: its lowest third under black pools up to 0.4 m deep, the tracks kept dry round it | mud under water: the tyres sink and slip, and the water drags |
+  | Shallow fords | the Bearwood Ford and the west ford, 0.4 m over a riverbed of stones | wet but firm; the banks up out of them are steep (the west ford's north bank: a stock UAZ needs low range) |
+  | Deep ford | the Deep Ford, 1.02 m over the ford's bed and deeper either side of it | a stock air intake (0.95 m) goes under: a stock Thar or Wrangler gets across with its engine choked to 35% of its power (cosmetic damage, the default; on the stricter settings it stalls); with the snorkel (garage) it pulls at full power; the Yangwang U8's intake is at 1.72 m |
+  | Shallows and sand | the Bearwood Shallows above the ford, ankle deep (0.24 m) over gravel for 120 m, a sand bar on the inside bank | the river to drive along; soft sand that sinks and drags |
+  | Rock | the Boulder Field on Lookout Hill's flank: 343 boulders up to 2.8 m on bare rock | the grippiest ground there is, the boulders to crawl over in low range |
+  | Steep climbs | the Lookout Track (31%), the ford banks | low range and lockers |
+  | Forest tracks | everywhere between the trees | narrow, the trees close either side |
+
+  Beacons mark the Mud Pit, the Deep Ford, the Boulder Field and the Shallows.
 
 - **Bhimashankar** (2 km, between the coast, the Konkan Ghat and the pass): evergreen jungle on ranges either side of
   a valley, the Bhimashankar road up it from the Konkan Ghat to Koyna, and the Bhor quarry in the hills east of it, a

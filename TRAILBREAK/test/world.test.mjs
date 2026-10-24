@@ -140,6 +140,29 @@ test('the open world: the land past a map is as wooded as the map beside it (Bea
   assert.ok(at('taiga', 0, -1) > at('windfarm', 0, -1) + 0.3);
 });
 
+test('the open world: Bearwood\'s going, each its own ground (gravel road, mud pit, black pools, deep ford, boulders, shallows)', async () => {
+  const W = await opened, T = W.byId.get('taiga'), w = T.world;
+  const depth = (x, z) => Math.max(0, w.water(x, z) - w.height(x, z)), name = (x, z) => w.surfaceAt(x, z).name;
+  const share = (cx, cz, r, f) => { let n = 0, k = 0; for (let x = cx - r; x <= cx + r; x += 2) for (let z = cz - r; z <= cz + r; z += 2) if (Math.hypot(x - cx, z - cz) <= r) { n++; if (f(x, z)) k++; } return k / n; };
+  const line = (road) => densify(w.map.trails.find((t) => t.name === road).points, 2);
+  // the logging road in: gravel all the way (bar a mud hole or two)
+  const timber = line('Timber Road');
+  assert.ok(timber.filter(([x, z]) => name(x, z) === 'gravel').length > 0.95 * timber.length, 'the Timber Road is gravel');
+  // the mud pit by the camp: water over deep mud; the bog's low third under black pools
+  assert.equal(name(60, 345), 'mud');
+  assert.ok(depth(60, 345) > 0.2 && depth(60, 345) < 0.5, `the mud pit's water ${depth(60, 345).toFixed(2)} m`);
+  const bog = share(-330, -330, 110, (x, z) => depth(x, z) > 0.05);
+  assert.ok(bog > 0.2 && bog < 0.6, `the bog's pools: ${(bog * 100).toFixed(0)}% of it`);
+  // the deep ford: over a stock air intake (0.95 m) on the ford's bed, but not swimming
+  const deep = Math.max(...line('Deep Ford Track').map(([x, z]) => depth(x, z)));
+  assert.ok(deep > 0.95 && deep < 1.25, `the deep ford ${deep.toFixed(2)} m`);
+  // the boulder field on bare rock; the shallows ankle deep, the river elsewhere over a truck's wheels; the sand bar
+  assert.ok(w.boulders.filter((b) => Math.hypot(b.x - 560, b.z + 380) < 45).length > 200, 'the boulder field');
+  assert.ok(share(560, -380, 40, (x, z) => name(x, z) === 'rock') > 0.8, 'rock underfoot in the boulder field');
+  assert.ok(depth(390, 45) > 0.1 && depth(390, 45) < 0.35 && depth(60, 130) > 1, `the shallows ${depth(390, 45).toFixed(2)} m, the river ${depth(60, 130).toFixed(2)} m`);
+  assert.ok(share(400, 88, 25, (x, z) => name(x, z) === 'sand') > 0.8, 'the sand bar');
+});
+
 test('the open world: the satnav finds the way from the coast to Ashwood by road, and a truck drives across the joins', async () => {
   const W = await opened, g = new RouteGraph(W.data.trails, { hubs: W.hubs });
   const r = g.route(3940, -712, 7090, -3800);
