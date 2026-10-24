@@ -170,7 +170,7 @@ turn and its sound repeats every pair of firings, so its bank is cut in pairs an
 | `d4` | Toyota Hilux turbo-diesel four, a VW TDI revving, and a Peugeot 1.5 BlueHDi revving to its pump's 3,900 rpm cut | Thar and Thar Roxx diesels, Pajero, the UAZ's and the Niva's diesels |
 | `d4t` | VW 1.9 TDI turbo-diesel four, the Peugeot BlueHDi above 2,700 rpm | Ranger Raptor |
 | `d6` | Ram 5.9 Cummins turbo-diesel six (the top of the revs from the TDI) | Unimog, the Power Wagon's Cummins swap |
-| `d6m` | a modern common-rail diesel at idle (a Skoda TDI: soft injection ticks, not an old truck diesel's clatter), the VW TDI revving | Defender 110 (its D350 straight six) |
+| `d6m` | a modern common-rail diesel at idle (a Skoda TDI: soft injection ticks, not an old truck diesel's clatter); the revs from a six, not a four: the Acura V6 pulling on the road (it fires as evenly as a straight six), filtered to the diesel's tone, and the Supra's straight six above 3,650 rpm | Defender 110 (its D350 straight six) |
 | `d8` | Ford F-350 turbo-diesel V8 (the top of the revs from the TDI) | Hummer H1 |
 | `v6` | Acura 3.2 V6, a mic at the exhaust while driving; above 3,650 rpm a Toyota Supra's turbo straight six (it fires as evenly) pulling on a dyno to 8,250 | Wrangler, Bronco, the Pajero's V6; the NSX, the GT-R (R35), the McLaren Senna's and the Corvette Z06's flat-plane V8s |
 | `v8` | Chevrolet Caprice V8 (idle and holds), a Dodge Ram 1500 5.7 V8 pulling on the road, the V6 above 2,100 rpm, and above 3,500 rpm a supercharged GM V8 pulling on a dyno to 7,750 | K20 Suburban, the V8 swaps, the Corvette Stingray |
@@ -183,9 +183,21 @@ turn and its sound repeats every pair of firings, so its bank is cut in pairs an
 
 Most banks now have recordings up to their engines' redlines, so the top of the revs plays real firings at their own
 speed (it used to play the top two percent of a recording two to three times faster: the thin buzz at full revs).
-Still short: the Hummer H1's diesel (its recordings reach 2,300 rpm of its 3,300), the Defender's (2,900 of 4,500)
-and the Power Wagon's Cummins swap (2,900 of 3,200): above those the top firings still play faster. No free recording
-of a big diesel revving higher has turned up yet (Freesound, Wikimedia Commons, OpenGameArt).
+Still short: the Hummer H1's diesel (its recordings reach 2,300 rpm of its 3,300) and the Power Wagon's Cummins swap
+(2,900 of 3,200): above those the top firings still play faster. No free recording of a big diesel revving higher has
+turned up yet (Freesound, Wikimedia Commons, OpenGameArt, the Internet Archive).
+
+**The Defender's six.** Its D350 is a 3.0 straight-six diesel, but its bank used to rev on a VW 1.9 TDI four (a phone
+recording, and only to 2,900 of its 4,500 rpm): a four's buzz and clatter, like the old Defender's 2.2, not the new
+one's six. No free recording of a six-cylinder diesel revving has turned up (two Dodge Cummins revs on Freesound are
+too noisy to cut into firings), so its revs now come from sixes: the Acura V6 recorded at the exhaust while driving
+(even firing, six firings in two turns, as a straight six fires) to 3,200 rpm, and the Supra's straight six from
+3,650 to 5,000. They are filtered to the tone of the diesel's idle, which is still the Skoda TDI's soft ticking, and
+the turbo is a diesel's (a lower whistle that spools up more slowly), not a twin-turbo petrol's. The filtering
+(`match_donor` in the builder) had never actually run: it measured each firing over a 4,096-sample window, longer
+than the 800 samples around a firing it was given, so every span was skipped. It now measures each firing over 512
+samples and smooths over an octave (the recordings' resonances, not where the firing harmonics fall), at most 9 dB
+either way. The other banks were built before the fix and are unchanged until they are rebuilt.
 
 Where a recording has few firings at some revs (a quick sweep through them, or none at all: the Thar's diesel has
 nothing between about 2,850 and 3,650 rpm, where it cruises at highway speed), the player holds to the revs nearest on

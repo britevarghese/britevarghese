@@ -234,16 +234,19 @@ def choose(stretches, budget_s, idle_s, cyl=4, coh_min=0.6):
 
 
 def ltas(x, spans):
-    """Long-term average spectrum (dB, 1/3-octave smoothed) of the audio in the given sample spans."""
+    """Long-term average spectrum (dB, octave smoothed: the resonances, not where the firing harmonics fall) of the
+    audio in the given sample spans."""
     from scipy.signal import welch
     acc, n = None, 0
+    # (spans are a firing or two long: a 16 ms window, so that each one counts)
     for a, b in spans:
-        if b - a < 4096: continue
-        f, p = welch(x[a:b], fs=SR, nperseg=4096)
+        a, b = max(0, a), min(len(x), b)
+        if b - a < 512: continue
+        f, p = welch(x[a:b], fs=SR, nperseg=512)
         acc = p * (b - a) if acc is None else acc + p * (b - a); n += b - a
     if acc is None: return None, None
     p = acc / n
-    sm = np.array([p[(f >= fc / 1.12) & (f <= fc * 1.12)].mean() if ((f >= fc / 1.12) & (f <= fc * 1.12)).any() else p[i]
+    sm = np.array([p[(f >= fc / 1.41) & (f <= fc * 1.41)].mean() if ((f >= fc / 1.41) & (f <= fc * 1.41)).any() else p[i]
                    for i, fc in enumerate(np.maximum(f, 20))])
     return f, 10 * np.log10(sm + 1e-20)
 
@@ -254,9 +257,10 @@ def match_donor(x_own, own_spans, x_don, don_spans):
     f, own = ltas(x_own, own_spans)
     _, don = ltas(x_don, don_spans)
     if own is None or don is None: return x_don
-    gain = np.clip(own - don, -12, 12)
+    gain = own - don
     gain -= np.median(gain[(f > 100) & (f < 4000)])            # shape only (levels are evened out per firing)
-    gain[f < 30] = gain[np.argmax(f >= 30)]
+    gain = np.clip(gain, -9, 9)
+    gain[f < 60] = gain[np.argmax(f >= 60)]; gain[f > 8000] = gain[np.argmax(f >= 8000)]
     X = np.fft.rfft(x_don)
     fx = np.fft.rfftfreq(len(x_don), 1 / SR)
     X *= 10 ** (np.interp(fx, f, gain) / 20)
@@ -283,13 +287,15 @@ def build(cache, name, bank):
     own = [s for s in stretches if not s['donor']]
     if own and any(s['donor'] for s in stretches):
         # the bank's own recording that reaches highest, at the top of its revs
-        ref = max(own, key=lambda s: np.max(s['rpm']))['part']
-        mine = [s for s in own if s['part'] == ref]
-        top = np.percentile(np.concatenate([s['rpm'] for s in mine]), 70)
-        own_x = x_of[ref]
-        own_spans = [(s['pos'][k] - 400, s['pos'][k] + 400) for s in mine for k in range(len(s['pos'])) if s['rpm'][k] >= top]
+        def top_of(ref):
+            mine = [s for s in stretches if s['part'] == ref]
+            top = np.percentile(np.concatenate([s['rpm'] for s in mine]), 70)
+            return x_of[ref], [(s['pos'][k] - 400, s['pos'][k] + 400) for s in mine for k in range(len(s['pos'])) if s['rpm'][k] >= top]
+        own_ref = max(own, key=lambda s: np.max(s['rpm']))['part']
         for part in bank['parts']:
             if not part.get('rMin'): continue
+            # (or matched to another donor where it takes over from it: part['matchTo'], already matched itself)
+            own_x, own_spans = top_of(part.get('matchTo', own_ref))
             ds = [s for s in stretches if s['part'] == part['id']]
             lo = part['rMin'] * bank['idleRpm']
             don_spans = [(s['pos'][k] - 400, s['pos'][k] + 400) for s in ds for k in range(len(s['pos'])) if lo <= s['rpm'][k] <= lo * 1.5]

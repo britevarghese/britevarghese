@@ -53,9 +53,11 @@ filtered to match it.
   - "V8 Dodge RAM 1500 Engine Starting, Idling, then Driving for around 1:30 minutes." by sketchy.dog, https://freesound.org/s/760153/ (CC BY 4.0, https://creativecommons.org/licenses/by/4.0/) (pulling on the road, above about 1,000 rpm)
   - "Sports Car Accelerating/Speeding Up Fast - Exhaust" by EvanBoyerman, https://freesound.org/s/754775/ (CC BY 4.0, https://creativecommons.org/licenses/by/4.0/) (the top of the revs, above 2,100 rpm)
   - "DR015dynoRunupLateModelGMHoldenV8Supercharged951hp.mp3" by Ears68, https://freesound.org/s/177184/ (CC0 1.0, https://creativecommons.org/publicdomain/zero/1.0/) (a supercharged GM V8 in a Holden on a chassis dyno, pulling from 3,500 to 7,750 rpm)
-- Bank `d6m` (a modern common-rail diesel at idle (a Skoda TDI: soft injection ticks, not an old truck diesel's clatter); the VW 1.9 TDI revving above 1.5 times idle):
+- Bank `d6m` (the Defender's 3.0 straight-six diesel: a modern common-rail diesel at idle (a Skoda TDI: soft injection ticks, not an old truck diesel's clatter); its revs on the road from an even-firing six (an Acura 3.2 V6 at the exhaust), filtered to the diesel's tone; above 3,650 rpm, a Supra's straight six pulling on a dyno):
   - "skoda_tdi_idle.wav" by Mihacappy, https://freesound.org/s/827862/ (CC0 1.0, https://creativecommons.org/publicdomain/zero/1.0/)
-  - "vw diesel engine.mp3" by Evilmikie, https://freesound.org/s/448217/ (CC0 1.0, https://creativecommons.org/publicdomain/zero/1.0/) (the top of the revs)
+  - "Sports Car Accelerating/Speeding Up Medium - Exhaust" by EvanBoyerman, https://freesound.org/s/754776/ (CC BY 4.0, https://creativecommons.org/licenses/by/4.0/) (the revs on the road: an even-firing six, as a straight six fires (six firings in two turns))
+  - "Sports Car Accelerating/Speeding Up Fast - Exhaust" by EvanBoyerman, https://freesound.org/s/754775/ (CC BY 4.0, https://creativecommons.org/licenses/by/4.0/) (the revs on the road, harder)
+  - "Import car revs on Chassis Dyno with Turbo.wav" by editboy23, https://freesound.org/s/496171/ (CC0 1.0, https://creativecommons.org/publicdomain/zero/1.0/) (a Toyota Supra's turbo straight six pulling on a chassis dyno from 3,650 to 5,000 rpm, and its overrun)
 
 Fallback engine loops (browsers without AudioWorklet), cut at six rpm points for NIGHTSHIFT and reused here:
 - `v8_muscle`: "Idle and Rev - Engine.wav" by wikusv, https://freesound.org/s/232272/ (CC BY 4.0, https://creativecommons.org/licenses/by/4.0/), trimmed.

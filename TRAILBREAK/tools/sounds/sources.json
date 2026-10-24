@@ -649,10 +649,10 @@
    ]
   },
   "d6m": {
-   "about": "a modern common-rail diesel at idle (a Skoda TDI: soft injection ticks, not an old truck diesel's clatter); the VW 1.9 TDI revving above 1.5 times idle",
+   "about": "the Defender's 3.0 straight-six diesel: a modern common-rail diesel at idle (a Skoda TDI: soft injection ticks, not an old truck diesel's clatter); its revs on the road from an even-firing six (an Acura 3.2 V6 at the exhaust), filtered to the diesel's tone; above 3,650 rpm, a Supra's straight six pulling on a dyno",
    "cyl": 6,
    "idleRpm": 750,
-   "budget": 11,
+   "budget": 14,
    "idleBudget": 3,
    "cohMin": 0.3,
    "parts": [
@@ -669,18 +669,55 @@
      "idleRpm": 840
     },
     {
-     "id": 448217,
-     "user": "Evilmikie",
-     "title": "vw diesel engine.mp3",
+     "id": 754776,
+     "user": "EvanBoyerman",
+     "title": "Sports Car Accelerating/Speeding Up Medium - Exhaust",
+     "lic": "CC-BY",
+     "t": [[0.3, 11.0, 40, 140], [11.0, 28.5, 62, 100]],
+     "f": [30, 140],
+     "anchor": [[0.5, 50], [1, 67], [2, 88.5], [4, 112], [6, 106], [9.5, 92.5], [12, 75.5], [15, 80], [17.5, 86], [22.5, 85], [26.5, 74], [27.2, 79]],
+     "slew": 6,
+     "load": "drive",
+     "cyl": 6,
+     "idleRpm": 682,
+     "rMin": 1.8,
+     "role": "the revs on the road: an even-firing six, as a straight six fires (six firings in two turns)"
+    },
+    {
+     "id": 754775,
+     "user": "EvanBoyerman",
+     "title": "Sports Car Accelerating/Speeding Up Fast - Exhaust",
+     "lic": "CC-BY",
+     "t": [[0.3, 22.4]],
+     "f": [40, 190],
+     "anchor": [[0.5, 56], [1.5, 77.5], [3, 90], [5, 109.5], [18, 155], [21, 164.5]],
+     "slew": 6,
+     "load": "drive",
+     "cyl": 6,
+     "idleRpm": 682,
+     "rMin": 1.8,
+     "role": "the revs on the road, harder"
+    },
+    {
+     "id": 496171,
+     "user": "editboy23",
+     "title": "Import car revs on Chassis Dyno with Turbo.wav",
      "lic": "CC0",
-     "t": [[21.0, 66.5], [76.5, 99.5]],
-     "f": [25, 125],
-     "anchor": [[23, 38], [26, 106], [28, 82], [32, 60], [36, 106], [40, 73], [45, 78], [50, 102], [60, 58], [66, 71], [78, 82], [84, 73]],
-     "slew": 5,
-     "cyl": 4,
-     "idleRpm": 900,
-     "cohMin": 0.35,
-     "rMin": 1.5
+     "t": [[18.4, 20.6, 172, 222], [20.4, 22.1, 200, 265], [26.7, 28.1, 150, 280], [27.9, 29.6, 80, 175]],
+     "f": [80, 430],
+     "anchor": [[13.0, 165.1], [13.25, 166.4], [13.5, 166.6], [13.75, 167.4], [14.0, 168.2], [14.25, 169.3], [14.5, 170.3], [14.75, 171.1], [15.0, 171.9], [15.25, 172.9], [15.5, 172.9], [15.75, 174.3], [16.0, 174.6], [16.25, 175.4], [16.5, 176.0], [16.75, 176.6], [17.0, 177.2], [17.25, 178.0], [17.5, 178.6], [17.75, 179.0], [18.0, 179.7], [18.25, 180.6], [18.5, 182.5], [18.75, 184.4], [19.0, 186.1], [19.25, 188.0], [19.5, 191.8], [19.75, 195.8], [20.0, 200.5], [20.25, 204.8], [20.5, 209.9], [20.75, 215.6], [21.0, 220.8], [21.25, 228.6], [21.5, 235.4], [21.75, 242.2], [22.0, 251.1], [22.25, 260.9], [22.5, 271.4], [22.75, 284.9], [23.0, 306.9], [23.25, 319.2], [23.5, 333.7], [23.75, 345.0], [24.0, 361.0], [24.25, 372.9], [24.5, 384.1], [24.75, 393.9], [25.0, 401.9], [25.25, 411.4], [25.6, 393.9], [25.8, 371.8], [26.0, 344.5], [26.2, 317.6], [26.4, 298.0], [26.6, 278.2], [26.8, 261.0], [27.0, 245.6], [27.2, 223.4], [27.4, 204.7], [27.6, 191.8], [27.8, 171.3], [28.0, 162.5], [28.2, 146.3], [28.4, 131.2], [28.6, 121.4], [28.8, 108.9], [29.0, 91.3], [29.2, 92.2], [29.4, 88.1], [29.6, 86.4]],
+     "slew": 10,
+     "slopeSpan": 0.4,
+     "hp": 50,
+     "keep": true,
+     "chunkGood": 0.6,
+     "rpmFromAnchors": true,
+     "load": "drive",
+     "cyl": 6,
+     "cohMin": 0.1,
+     "rMin": 4.9,
+     "matchTo": 754775,
+     "role": "a Toyota Supra's turbo straight six pulling on a chassis dyno from 3,650 to 5,000 rpm, and its overrun"
     }
    ]
   }

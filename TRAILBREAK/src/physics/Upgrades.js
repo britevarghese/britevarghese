@@ -268,7 +268,7 @@ const ENGINE = {
     torque: [[100, 929], [6450, 929], [8000, 752], [10000, 602], [12000, 501], [14000, 430], [16000, 376], [18000, 334], [19000, 317], [19600, 150]] },
   // the Defender's D350 Ingenium 3.0 straight-six turbo-diesel, mild hybrid: 257 kW at 4,000 rpm, 700 Nm from 1,500 to
   // 3,000; and the Defender OCTA's 4.4 twin-turbo V8, mild hybrid: 467 kW at 6,000-7,000, 750 Nm from 1,800 to 5,855
-  D30I6: { name: 'D350 3.0 straight-six diesel', idleRpm: 700, redline: 4500, limiter: 4700, inertia: 0.3, friction: [16, 0.024], bank: 'd6m', turbo: 2, sound: 'i6_bmw', pitch: 0.64, mass: 0, loud: 1.05, bass: 3, diesel: true,
+  D30I6: { name: 'D350 3.0 straight-six diesel', idleRpm: 700, redline: 4500, limiter: 4700, inertia: 0.3, friction: [16, 0.024], bank: 'd6m', turbo: 1, sound: 'i6_bmw', pitch: 0.64, mass: 0, loud: 1.05, bass: 3, diesel: true,
     torque: [[600, 300], [1000, 520], [1250, 640], [1500, 700], [3000, 700], [3500, 668], [4000, 613], [4400, 545], [4700, 430], [5000, 200]] },
   V8_44TT: { name: '4.4 twin-turbo V8', idleRpm: 650, redline: 7000, limiter: 7200, inertia: 0.26, friction: [17, 0.022], bank: 'v8s', turbo: 2, sound: 'v8_muscle', pitch: 1.04, mass: 40, loud: 1.3, bass: 5,
     torque: [[600, 360], [1000, 500], [1400, 650], [1800, 750], [5855, 750], [6500, 686], [7000, 637], [7400, 420]] },
