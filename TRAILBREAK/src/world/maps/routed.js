@@ -5,6 +5,7 @@ import { COAST } from './coast.js';
 import { KORLAI, KORLAI_ROUTES, korlaiGround, BORLI, BORLI_ROUTES, borliGround, TABLELAND, TABLE_ROUTES, tableGround, WINDFARM, WIND_ROUTES, windGround } from './north.js';
 import { GLEN, GLEN_ROUTES, glenGround, FOREST, FOREST_ROUTES, forestGround, QUARRY, QUARRY_RAMP } from './east.js';
 import { DECCAN, DECCAN_ROUTES, deccanGround } from './deccan.js';
+import { TAIGA, TAIGA_ROUTES, taigaGround, TAIGA_RIVER_PTS, TAIGA_FORDS } from './taiga.js';
 import { GHAT_SPURS, PASS_SPURS, ghatGround, passGround } from './world.js';
 import { lineD } from './country.js';
 
@@ -25,6 +26,8 @@ const lakeCost = (L, margin = 1.2) => {
 };
 const borliLake = lakeCost(BORLI.lake), glenLake = lakeCost(GLEN.lake, 1.08), shivsagar = lakeCost(DECCAN.lake, 1.15);
 const deccanRiver = DECCAN.riverWith(0).points;
+// (the Bearwood crossed only at its fords)
+const taigaRiver = (x, z) => (lineD(TAIGA_RIVER_PTS, x, z) < 22 && !TAIGA_FORDS.some(([fx, fz]) => Math.hypot(x - fx, z - fz) < 30) ? 40 : 0);
 // (into the quarry only down its ramp)
 const quarry = (x, z) => (Math.hypot(x - QUARRY.x, z - QUARRY.z) < QUARRY.r + 30 && lineD(QUARRY_RAMP, x, z) > 5 ? 40 : 0);
 // (the Deccan's own routes but its town's streets, which are laid straight)
@@ -36,7 +39,9 @@ export const ROUTED = [
   { id: 'tableland', half: TABLELAND.half, ground: tableGround, routes: TABLE_ROUTES, load: () => COAST.load(), avoid: northEdge },
   { id: 'windfarm', half: WINDFARM.half, ground: windGround, routes: WIND_ROUTES, load: () => COAST.load(), avoid: northEdge },
   { id: 'forest', half: FOREST.half, ground: forestGround, routes: FOREST_ROUTES, load: () => COAST.load(), avoid: quarry },
-  { id: 'glen', half: GLEN.half, ground: glenGround, routes: GLEN_ROUTES, load: () => COAST.load(), avoid: (x, z) => glenLake(x, z) + edge(1024, ['north'])(x, z) },
+  // (the glen's north edge open but where the head track goes over into the taiga)
+  { id: 'glen', half: GLEN.half, ground: glenGround, routes: GLEN_ROUTES, load: () => COAST.load(), avoid: (x, z) => glenLake(x, z) + (Math.abs(x - 170) > 60 ? edge(1024, ['north'])(x, z) : 0) },
+  { id: 'taiga', half: TAIGA.half, ground: taigaGround, routes: TAIGA_ROUTES, load: () => COAST.load(), avoid: (x, z) => taigaRiver(x, z) + edge(1024, ['north', 'east', 'west'])(x, z) },
   { id: 'deccan', half: DECCAN.half, step: 8, ground: deccanGround, routes: deccanRoutes, load: () => COAST.load(),
     avoid: (x, z) => shivsagar(x, z) + (lineD(deccanRiver, x, z) < 40 ? 25 : 0) + edge(2048, ['east', 'south'])(x, z) },
   { id: 'ghat', half: 1024, ground: ghatGround, routes: GHAT_SPURS, load: () => COAST.load() },

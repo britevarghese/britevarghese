@@ -48,7 +48,8 @@ export const GLEN_ROUTES = {
   'Koyna Road': { via: [[-1024, -634], [-700, -620], [-330, -560], [-150, -300], [-60, 200], [-90, 540], [-70, 760], [150, 900], [150, 1024]], kind: 'road', width: 3.7, lanes: 2, grade: 0.08, smooth: 30, cut: 6, shoulder: 8, level: true, extend: [8, 8] },
   'Koyna Dam Road': { via: [[-90, 540], [-20, 558], [200, 560], [470, 556]], kind: 'road', width: 3.2, grade: 0.08, cut: 3, shoulder: 4 },
   'Pinecrest Trail': { via: [[470, 552], [640, 330], [820, 100], [1024, -64]], kind: 'trail', width: 2.2, grade: 0.26, extend: [0, 8] },
-  'Glen Head Track': { via: [[-150, -300], [20, -700], [170, -900]], kind: 'trail', width: 2.2 },
+  // (on up over the ridge at the glen's head to its north edge: the Timber Road into Bearwood Taiga, world/maps/taiga.js)
+  'Glen Head Track': { via: [[-150, -300], [20, -700], [170, -900], [170, -1024]], kind: 'trail', width: 2.4, extend: [0, 8] },
 };
 
 export const GLEN = stretch({
@@ -64,7 +65,9 @@ export const GLEN = stretch({
       trail: 'Koyna Road', from: [-700, -620], to: [-90, 540], cps: 6, r: 12, par: PAR.koyna, prize: 1.2 },
   ],
   gen: graded([{ road: 'Koyna Road', grade: 0.08, smooth: 40, ends: ['ground', 'ground'] }, { road: 'Koyna Dam Road', grade: 0.06, ends: [{ road: 'Koyna Road' }, null] },
-    { road: 'Pinecrest Trail', grade: 0.24, ends: [{ road: 'Koyna Dam Road' }, 'ground'] }], {
+    { road: 'Pinecrest Trail', grade: 0.24, ends: [{ road: 'Koyna Dam Road' }, 'ground'] },
+    // (over the ridge at the glen's head to the taiga: cut down to a grade a laden truck takes)
+    { road: 'Glen Head Track', grade: 0.2, smooth: 24, ends: [{ road: 'Koyna Road' }, 'ground'] }], {
     surface(x, z, h, sl, s) {
       if (s === SURFACE.DIRT) return SURFACE.GRASS;
       return s;

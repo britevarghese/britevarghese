@@ -142,6 +142,31 @@ export class Renderer {
     this.sky.envDirty = true;
   }
 
+  /**
+   * The air where the camera is, every frame (world/OpenWorld.js airAt): the haze, the cloud, the share of the sun
+   * that gets through it (the rest a flat light from the whole sky) and how much colour there is. The sky's light is
+   * rendered again only when the cloud has changed enough to see.
+   */
+  setAir(a) {
+    this.air = a;
+    this.fog.density = a.fog * 0.45;
+    if (Math.abs(this.sky.uniforms.uCover.value - a.cover) > 0.015) { this.sky.uniforms.uCover.value = a.cover; this.sky.envDirty = true; }
+    this.applyAir();
+    if (this.post) this.post.grade.material.uniforms.uSat.value = 1.1 * a.sat;
+  }
+
+  /** The air's share of the light, over what the time of day gives (setTime keeps it as the base). */
+  applyAir() {
+    const a = this.air, L = this.lightBase;
+    if (!a || !L) return;
+    this.sun.intensity = L.sun * a.sun;
+    this.hemi.intensity = L.hemi * (1 + 0.6 * (1 - a.sun));
+    // (the fog greyer under the cloud)
+    const g = 1 - a.sun, c = this.fog.color.copy(L.fog), l = 0.3 * c.r + 0.55 * c.g + 0.15 * c.b;
+    c.r += (l * 0.97 - c.r) * g * 0.8; c.g += (l - c.g) * g * 0.8; c.b += (l * 1.02 - c.b) * g * 0.8;
+    this.renderer.setClearColor(c);
+  }
+
   setTime(hour) {
     this.hour = hour;
     const s = this.sky.setTime(hour);
@@ -161,6 +186,8 @@ export class Renderer {
     this.renderer.setClearColor(s.fog);
     this.night = s.el < 2;
     this.dark = Math.min(1, Math.max(0, (3 - s.el) / 6));      // (0 by day, 1 when the sun is 3 degrees down)
+    this.lightBase = { sun: this.sun.intensity, hemi: this.hemi.intensity, fog: this.fog.color.clone() };
+    this.applyAir();
     return s;
   }
 

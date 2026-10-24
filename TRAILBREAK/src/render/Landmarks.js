@@ -285,6 +285,36 @@ const BUILD = {
     g.add(lamp);
     return g;
   },
+  // a log pile at the roadside: long stems stacked in a pyramid between stakes, their cut ends pale
+  logs(L) {
+    const B = new Builder(), len = 8, r = 0.26, rows = [5, 4, 3, 2];
+    rows.forEach((n, row) => {
+      for (let i = 0; i < n; i++) {
+        const x = (i - (n - 1) / 2) * r * 2.02, y = r + row * r * 1.75, k = (i + row) % 3;
+        B.cyl(k === 0 ? mat.logDark : mat.log, r * (0.9 + 0.1 * ((i * 7 + row) % 3)), r, len + ((i + row) % 2) * 0.6, x, y, 0, 8, Math.PI / 2);
+        for (const z of [-len / 2 - 0.3, len / 2 + 0.3]) B.cyl(mat.white, r * 0.85, r * 0.85, 0.04, x, y, z, 8, Math.PI / 2);
+      }
+    });
+    for (const x of [-1.6, 1.6]) for (const z of [-2.5, 2.5]) B.cyl(mat.logDark, 0.1, 0.12, 2.2, x, 1.0, z, 6, 0, x > 0 ? -0.08 : 0.08);
+    return B.build(L);
+  },
+  // the sawmill: an open shed on posts under a tin roof, the saw bench through it with its blade, a log deck at
+  // one end and the sawdust heap at the other
+  sawmill(L) {
+    const B = new Builder(), w = 14, d = 9, H = 4.2;
+    for (const [x, z] of [[-6, -4], [0, -4], [6, -4], [-6, 4], [0, 4], [6, 4]]) B.cyl(mat.logDark, 0.16, 0.18, H, x, H / 2, z, 7);
+    for (const z of [-4, 4]) B.cyl(mat.log, 0.14, 0.14, w + 0.4, 0, H, z, 7, 0, Math.PI / 2);
+    gableRoof(B, w, d, H, 1.5, mat.tin, 0.7);
+    B.box(mat.logDark, 9, 0.7, 1.2, 0, 0.55, 0);
+    for (let x = -4; x <= 4; x += 2) B.box(mat.steel, 0.1, 0.1, 1.3, x, 0.95, 0);
+    B.put(mat.steel, new THREE.CylinderGeometry(0.75, 0.75, 0.04, 24), 0.5, 1.2, 0, 0, Math.PI / 2);
+    B.box(mat.red, 1.0, 0.8, 0.8, 0.5, 1.35, 1.2);
+    B.cyl(mat.log, 0.32, 0.32, 6, -3.5, 1.25, 0, 8, 0, Math.PI / 2);
+    for (let i = 0; i < 4; i++) B.cyl(i % 2 ? mat.log : mat.logDark, 0.3, 0.3, 7, -10, 0.3 + (i > 2 ? 0.55 : 0), -2.2 + (i % 3) * 0.62, 8, Math.PI / 2, 0, Math.PI / 2);
+    B.put(mat.white, new THREE.ConeGeometry(2.2, 1.6, 10), 9.5, 0.7, 1.5);
+    for (let i = 0; i < 5; i++) B.box(mat.log, 3.2, 0.06, 0.24, 9.5, 0.12 + i * 0.07, -2.5 + i * 0.05, 0.1 * i);
+    return B.build(L);
+  },
   cabin(L) {
     const B = new Builder();
     const top = logWalls(B, 6, 5, 2.6, 0.15);

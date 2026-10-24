@@ -422,6 +422,8 @@ puts you back at the last checkpoint passed, facing the next, while the clock ru
 | Bhimashankar Jungle Road | Bhimashankar | 1.5 km down the jungle valley from the rest house towards Koyna | 1:45 / 2:05 / 2:35 |
 | Deccan Ghat Descent | Deccan | 1.1 km off Kerala's ridge, through the gap in the escarpment and down to the expressway | 1:47 / 2:08 / 2:38 |
 | Tamhini Road | Deccan | 5.6 km from Shivapur south over the farmland plateau to the world's southern edge | 7:48 / 9:21 / 11:32 |
+| Timber Run | Bearwood Taiga | 1.2 km from the timber camp across the Bearwood at the ford and up the mud of the logging track to the cutting | 1:42 / 2:03 / 2:32 |
+| Blackwater Crossing | Bearwood Taiga | 1.4 km round the edge of Blackwater Bog in the mud and back over the river at the west ford to the log landing (a stock UAZ needs low range up the far bank) | 2:18 / 2:46 / 3:25 |
 | Coast to Snow | Open world | 18.6 km across the whole world, 16 checkpoints: up the Kashid ghat, over the Konkan Ghat into Kerala, through the town and the tea, up the Kurinji jeep track, over the Ashwood Pass and down to the ranger station | 26:15 / 31:29 / 38:50 |
 | North Coast Highway | Open world | 10.5 km along the north of the world, 14 checkpoints: from the coast past Korlai, through Borli and the Devkund Gap, under the Chalkewadi turbines and down to the Koyna dam | 15:17 / 18:21 / 22:38 |
 
@@ -918,7 +920,7 @@ first frame (in parallel where the browser can), not one by one as each is first
 ## The open world
 
 The game's one map (the lobby offers no other): the Konkan Coast, the Kerala Ghats and Ashwood Valley in one world
-12 km across (`src/world/maps/world.js`), with nine stretches of new country filling it round them, so it is land
+12 km across (`src/world/maps/world.js`), with ten stretches of new country filling it round them, so it is land
 from edge to edge, as a Forza map is: drive from Kashid beach up the ghat, across the upland, into Kerala's tea hills
 and over the pass to Ashwood's snow, or north along the coast highway past Korlai's fort to the wind farm and Koyna's
 lake, or south down the Deccan escarpment to the fields and the town, all without a loading screen. The satnav plots
@@ -941,7 +943,20 @@ own features made on top of it; the roads through them are routed over the groun
   and turning, each at its own pace, a red light on each for aircraft.
 - **Koyna Glen** (2 km, under Ashwood): a long lake in a deep valley, held behind an earth dam, pine and fir up its
   sides; the Koyna road comes down off Chalkewadi through a gap in its west ridge and along the shore to the dam, and
-  the Pinecrest trail climbs from the dam to Ashwood.
+  the Pinecrest trail climbs from the dam to Ashwood; the Glen Head Track climbs north out of it over the ridge.
+- **Bearwood Taiga** (2 km, the far north, over the ridge at the head of Koyna Glen; `src/world/maps/taiga.js`):
+  logging country in the manner of the mud-and-timber truck games. Dark spruce, pine and fir close on every side
+  (84,000 trees), birch and dead snags on the wet ground; the Bearwood river winding west across a boggy basin with two
+  fords, Blackwater Bog north of it, and the logging tracks between them churned into deep black mud (15% of its
+  ground is mud, and mud holes lie on the level stretches of its tracks). The Timber Road comes over the ridge from
+  the glen to the **Bearwood Timber Camp** on a terrace above the river: the garage, a **sawmill** (an open shed on
+  posts under a tin roof, the saw bench and its blade, a log deck, a heap of sawdust, stacked boards) and the log
+  yard. The Bearwood Ford Track
+  crosses the river and climbs to the cutting in the far woods; the Blackwater Track runs round the bog and back across
+  the river at the west ford to the log landing; the Lookout Track climbs a knoll to a watchtower. **Log piles**
+  (stacked in a pyramid, pale cut ends, stakes either side, solid to drive into) stand at the camp, the landing and the
+  cutting.
+
 - **Bhimashankar** (2 km, between the coast, the Konkan Ghat and the pass): evergreen jungle on ranges either side of
   a valley, the Bhimashankar road up it from the Konkan Ghat to Koyna, and the Bhor quarry in the hills east of it, a
   pit cut in benches with a ramp down into it at one even grade.
@@ -962,6 +977,12 @@ own features made on top of it; the roads through them are routed over the groun
   **Cairn Ridge Trail** loops off it over the ridge to the west. A hut and a flag at the top. Snow lies on its
   ridges above 390 m on the Ashwood side; its snow line rises towards Kerala (570 m at the seam), so Kerala's green
   ridges, laid onto its southern edge, stay green on both sides of the join.
+
+**Each stretch's air.** A stretch can have its own (`air` in its map: fog density, cloud cover, the sun's strength and
+the colour saturation): the taiga's fog closes in to a few hundred metres under an overcast sky, the light flat and
+the colours muted. It comes on as you drive in, blended from 100 m outside the stretch to 260 m inside it, and goes
+again as you leave (`airAt` in `src/world/OpenWorld.js`, set on the renderer each frame: `setAir` in
+`src/render/Renderer.js`); everywhere else the world's own air is as it was.
 
 **The new country's roads** are routed over its ground (`tools/routeroads.mjs`, written to
 `src/world/maps/countryRoads.js`; run it again after changing a stretch's ground or a road's waypoints): between each

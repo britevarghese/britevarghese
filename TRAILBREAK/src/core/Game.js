@@ -1364,6 +1364,8 @@ export class Game {
     // friends' winch lines
     this.updateRemoteRopes();
     this.renderer.updateSun(m.root.position);
+    // (the open world's air where the camera is: the taiga's fog and grey sky come on as you drive in)
+    if (this.world.airAt) this.renderer.setAir(this.world.airAt(camPos.x, camPos.z));
 
     this.checkBeacons();
 

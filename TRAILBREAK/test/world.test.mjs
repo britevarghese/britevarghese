@@ -132,12 +132,12 @@ test('the open world: the far land meets every map\'s open edge (no step for it 
   assert.ok(open >= 8, `${open} maps on the world's edge`);
 });
 
-test('the open world: the land past a map is as wooded as the map beside it (Koyna\'s glen forested, Chalkewadi open)', async () => {
+test('the open world: the land past a map is as wooded as the map beside it (Bearwood\'s taiga forested, Chalkewadi open)', async () => {
   const W = await opened, at = (id, dx, dz) => { const r = W.byId.get(id); return W.farWoods(r.cx + dx * (r.half + 30), r.cz + dz * (r.half + 30)); };
   for (const r of W.regions) assert.ok(r.world.map.farWoods > 0 && r.world.map.farWoods <= 1, r.id);
-  assert.ok(Math.abs(at('glen', 0, -1) - W.byId.get('glen').world.map.farWoods) < 0.05);
+  assert.ok(Math.abs(at('taiga', 0, -1) - W.byId.get('taiga').world.map.farWoods) < 0.05);
   assert.ok(Math.abs(at('windfarm', 0, -1) - W.byId.get('windfarm').world.map.farWoods) < 0.05);
-  assert.ok(at('glen', 0, -1) > at('windfarm', 0, -1) + 0.3);
+  assert.ok(at('taiga', 0, -1) > at('windfarm', 0, -1) + 0.3);
 });
 
 test('the open world: the satnav finds the way from the coast to Ashwood by road, and a truck drives across the joins', async () => {

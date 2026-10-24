@@ -58,6 +58,9 @@ export class OpenWorld {
     this.mapBox = { x0: (this.box.x0 + this.box.x1 - size) / 2, z0: (this.box.z0 + this.box.z1 - size) / 2, size };
     this.half = size / 2;
     const S = REGIONS.find((R) => R.id === def.start), M = S.map;
+    // the air over most of it: the start map's (a map with its own takes over inside it: airAt)
+    this.air0 = { fog: M.atmosphere?.fog ?? 0.00038, cover: M.atmosphere?.cover ?? 0.47, sun: 1, sat: 1 };
+    this.airOut = { ...this.air0 };
     // where the trucks start: the start map's own spawn and station
     this.map = {
       ...def, mudTint: M.mudTint, dust: M.dust, snowLine: M.snowLine,
@@ -159,6 +162,24 @@ export class OpenWorld {
       h += f * w; wsum += w;
     });
     return wsum > 0 ? h / wsum : 0;
+  }
+
+  /**
+   * The air at (x, z): the world's own, or inside a map with its own (map.air: the taiga's fog, overcast and flat
+   * light) that map's, coming on from a hundred metres outside its edge to `fade` metres in. (One object, reused.)
+   */
+  airAt(x, z) {
+    const a = this.airOut, b = this.air0;
+    a.fog = b.fog; a.cover = b.cover; a.sun = b.sun; a.sat = b.sat;
+    for (const r of this.regions) {
+      const m = r.world.map.air;
+      if (!m) continue;
+      const inside = r.half - Math.max(Math.abs(x - r.cx), Math.abs(z - r.cz)), t = Math.min(1, Math.max(0, (inside + 100) / (m.fade + 100)));
+      const k = t * t * (3 - 2 * t);
+      if (k <= 0) continue;
+      a.fog += (m.fog - a.fog) * k; a.cover += (m.cover - a.cover) * k; a.sun += (m.sun - a.sun) * k; a.sat += (m.sat - a.sat) * k;
+    }
+    return a;
   }
 
   /** How wooded the far land is at (x, z) (0 to 1): the nearest maps' (their farWoods), weighted as farHeight. */
