@@ -164,9 +164,9 @@ export class WorldView {
       get shadows() { return self.far.shadows; },
       set shadows(on) { each((v) => { v.terrain.shadows = on; }); },
       setQuality: (q) => { self.settings.quality = q; self.far.setQuality(q); each((v) => v.terrain.setQuality(q)); },
-      update: (camPos) => {
-        self.far.update(camPos);
-        each((v) => v.terrain.update(_p.set(camPos.x - v.region.cx, camPos.y, camPos.z - v.region.cz)));
+      update: (camPos, dir) => {
+        self.far.update(camPos, dir);
+        each((v) => v.terrain.update(_p.set(camPos.x - v.region.cx, camPos.y, camPos.z - v.region.cz), dir));
       },
       markDirty: (perMap) => { for (const [id, keys] of perMap) self.viewOf(id)?.terrain.markDirty(keys); },
       // (the colour of the land, for the maps: whichever map holds the point, else the far land's)

@@ -25,3 +25,12 @@ The dead trees are the spruce's trunk and branches without its needles.
   standing in for the rubber trees
 - banana: "Banana Plant" (https://sketchfab.com/3d-models/banana-plant-85695b82c7ba4b3497a663616cc3bf25) by evolveduk
 - bamboo: "bamboo" (https://sketchfab.com/3d-models/bamboo-a02bf0e3ffe44617ad49daf3cd94fe59) by evolveduk
+
+## Lalghati Canyon
+
+- acacia: "Acacia tree" (https://sketchfab.com/3d-models/acacia-tree-bb14c2bb679b4d0bb1c578a27e2ddabf) by evolveduk,
+  standing in for the babul
+- thor: "Realistic HD Candelabra tree (1/40)" (https://sketchfab.com/3d-models/realistic-hd-candelabra-tree-140-0ecb4a905ebb438fa989edae8de9c5dc)
+  by PlantCatalog (https://sketchfab.com/PlantCatalog), the candelabra spurge, standing in for the thor; its flowers left
+  out in the game
+- deadtree: "Old tree" (https://sketchfab.com/3d-models/old-tree-3cb4d59eb4844dc4802480e9ee53785e) by evolveduk

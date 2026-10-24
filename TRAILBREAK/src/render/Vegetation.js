@@ -36,6 +36,15 @@ export const TREE_SETS = {
     skip: { jungle: [1, 3, 5, 7] },
     cut: { jungle: { 4: 0.295, 6: 0.295 } },
   },
+  // Lalghati Canyon: acacias (babul) spreading their flat crowns, thor (the candelabra spurge, the Deccan's cactus) in
+  // the rocks, and dead trees; the tree types are the kinds. (The spurge's flowers left off: cards drawn blended, that
+  // here would be opaque squares.)
+  canyon: {
+    kinds: ['acacia', 'thor', 'deadtree'],
+    kindOf: (t) => t,
+    crown: { acacia: 0.72, thor: 0.35 },
+    skip: { thor: [4] },
+  },
 };
 /**
  * A tree's colour (its model's, its card's and its falling self's alike, from its two random numbers): lighter or

@@ -1,7 +1,9 @@
 // The open world built in the browser (world/maps/world.js): each map in a worker of its own, a few at once, a stretch
 // as soon as the maps either side of it are in; each kept in the browser's storage once built, so the next visit takes
 // it from there. The map the trucks start on comes first: the game starts on it, and the rest join the world as they
-// come in (world/OpenWorld.js, render/WorldView.js), with no loading screen between them.
+// come in (world/OpenWorld.js, render/WorldView.js), with no loading screen between them: the one the truck is
+// nearest and looking toward first (score: lower first; a map another is waiting on as soon as that one), so what's
+// ahead is in long before what's behind.
 import { REGIONS, regionById } from './maps/world.js';
 import { seamsFor, needs } from './BigWorldGen.js';
 import { landform } from './WorldGen.js';
@@ -59,18 +61,40 @@ export class WorldLoader {
     this.waiting = [];
     this.chain = Promise.resolve();
     this.from = {};               // id -> 'stored' | 'built'
+    // which map next: score(id), lower first (the game's: how far off and how far round from the way it looks); by
+    // default how far each is from the start map
+    this.score = null;
   }
 
-  /** A worker slot (at most `slots` maps at once; the start map's first). */
-  async slot(first) {
+  /** A worker slot (at most `slots` maps at once; the start map's first, then the best scored waiting). */
+  async slot(first, id) {
     if (this.slots > 0) { this.slots--; return; }
-    await new Promise((r) => (first ? this.waiting.unshift(r) : this.waiting.push(r)));
+    await new Promise((r) => this.waiting.push({ r, id, first }));
   }
-  free() { const next = this.waiting.shift(); if (next) next(); else this.slots++; }
+  free() {
+    if (!this.waiting.length) { this.slots++; return; }
+    let bi = 0, bs = Infinity;
+    this.waiting.forEach((w, i) => { const sc = w.first ? -Infinity : this.rank(w.id); if (sc < bs) { bs = sc; bi = i; } });
+    this.waiting.splice(bi, 1)[0].r();
+  }
+
+  /** A map's place in the queue: its own score, or a better one of a map waiting on it (whatever that waits on). */
+  rank(id, seen = new Set()) {
+    if (seen.has(id)) return Infinity;
+    seen.add(id);
+    let sc = (this.score || this.startScore)(id);
+    for (const R of REGIONS) if (needs(R.id).includes(id)) sc = Math.min(sc, this.rank(R.id, seen));
+    return sc;
+  }
+  /** (Before the game is going: how far a map's square is from the start map's middle.) */
+  startScore(id) {
+    const R = regionById(id), S = regionById(this.start || REGIONS[0].id), h = (R.map.half ?? (R.map.size || 2048) / 2);
+    return Math.max(0, Math.abs(R.at[0] - S.at[0]) - h, Math.abs(R.at[1] - S.at[1]) - h);
+  }
 
   /** One map in a worker: from storage under `key`, else built there (and kept). */
   async inWorker(id, seams, key, first = false) {
-    await this.slot(first);
+    await this.slot(first, id);
     try {
       return await new Promise((resolve, reject) => {
         const w = new Worker(new URL('./worldWorker.js', import.meta.url), { type: 'module' });
@@ -90,6 +114,8 @@ export class WorldLoader {
    * order they come in. Resolves when they are all in.
    */
   async load(start, onRegion) {
+    this.start = start;
+    this.startScore = this.startScore.bind(this);
     const version = await buildVersion().catch((e) => { console.warn('world version', e); return null; });
     if (version) await sweep(version).catch(() => {});
     const done = new Map(), jobs = new Map();

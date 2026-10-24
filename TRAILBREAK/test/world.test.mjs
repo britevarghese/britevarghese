@@ -10,6 +10,7 @@ import { RouteGraph } from '../src/game/Route.js';
 import { Vehicle } from '../src/physics/Vehicle.js';
 import { truckSpec } from '../src/physics/trucks.js';
 import { followPath, densify } from './drive.mjs';
+import { POOLS } from '../src/world/maps/canyon.js';
 
 const built = generateBigWorld({ yieldEvery: 1e9 });
 
@@ -132,12 +133,12 @@ test('the open world: the far land meets every map\'s open edge (no step for it 
   assert.ok(open >= 8, `${open} maps on the world's edge`);
 });
 
-test('the open world: the land past a map is as wooded as the map beside it (Bearwood\'s taiga forested, Chalkewadi open)', async () => {
+test('the open world: the land past a map is as wooded as the map beside it (Bearwood\'s taiga forested, Lalghati\'s red rock bare)', async () => {
   const W = await opened, at = (id, dx, dz) => { const r = W.byId.get(id); return W.farWoods(r.cx + dx * (r.half + 30), r.cz + dz * (r.half + 30)); };
   for (const r of W.regions) assert.ok(r.world.map.farWoods > 0 && r.world.map.farWoods <= 1, r.id);
   assert.ok(Math.abs(at('taiga', 0, -1) - W.byId.get('taiga').world.map.farWoods) < 0.05);
-  assert.ok(Math.abs(at('windfarm', 0, -1) - W.byId.get('windfarm').world.map.farWoods) < 0.05);
-  assert.ok(at('taiga', 0, -1) > at('windfarm', 0, -1) + 0.3);
+  assert.ok(Math.abs(at('canyon', 0, -1) - W.byId.get('canyon').world.map.farWoods) < 0.05);
+  assert.ok(at('taiga', 0, -1) > at('canyon', 0, -1) + 0.3);
 });
 
 test('the open world: Bearwood\'s going, each its own ground (gravel road, mud pit, black pools, deep ford, boulders, shallows)', async () => {
@@ -161,6 +162,41 @@ test('the open world: Bearwood\'s going, each its own ground (gravel road, mud p
   assert.ok(share(560, -380, 40, (x, z) => name(x, z) === 'rock') > 0.8, 'rock underfoot in the boulder field');
   assert.ok(depth(390, 45) > 0.1 && depth(390, 45) < 0.35 && depth(60, 130) > 1, `the shallows ${depth(390, 45).toFixed(2)} m, the river ${depth(60, 130).toFixed(2)} m`);
   assert.ok(share(400, 88, 25, (x, z) => name(x, z) === 'sand') > 0.8, 'the sand bar');
+});
+
+test('the open world: Lalghati Canyon, a gorge in red rock (ledged walls, the creek up the Narrows, the shelf road, the river on from the taiga)', async () => {
+  const W = await opened, w = W.byId.get('canyon').world, tg = W.byId.get('taiga').world;
+  const depth = (x, z) => Math.max(0, w.water(x, z) - w.height(x, z));
+  // a hundred metres and more from the floor to the rim, across it in three places
+  for (const x of [470, 150, -380]) {
+    let lo = Infinity, hi = -Infinity;
+    for (let z = -400; z <= 450; z += 2) { const h = w.height(x, z); lo = Math.min(lo, h); hi = Math.max(hi, h); }
+    assert.ok(hi - lo > 95, `across the gorge at x ${x}: ${lo.toFixed(0)} to ${hi.toFixed(0)} m`);
+  }
+  // its walls in ledges: flats between steep faces, going up the south wall
+  let ledges = 0, flat = false, steep = 0, prev = w.height(150, 80);
+  for (let z = 82; z <= 180; z += 2) {
+    const h = w.height(150, z), g = Math.abs(h - prev) / 2;
+    prev = h;
+    if (g > 0.9) { steep++; flat = false; } else if (g < 0.25 && !flat && steep) { ledges++; flat = true; }
+  }
+  assert.ok(ledges >= 2, `${ledges} ledges`);
+  // the creek over the track up the Narrows, the pools at the heads of the side canyons
+  const creek = densify(w.map.trails.find((t) => t.name === 'Narrows Track').points, 2).slice(8, -4).map(([x, z]) => depth(x, z)).sort((a, b) => a - b);
+  const mid = creek[creek.length >> 1];
+  assert.ok(mid > 0.15 && mid < 0.6, `the creek ${mid.toFixed(2)} m deep over the track`);
+  for (const [x, z] of POOLS) assert.ok(depth(x, z) > 0.7, `the pool at ${x}, ${z}: ${depth(x, z).toFixed(2)} m`);
+  // the shelf road: the wall above it on one side, the drop to the floor on the other
+  const L = w.map.trails.find((t) => t.name === 'Ledge Road').points, i = L.length >> 1;
+  const [ax, az] = L[i], dx = L[i + 1][0] - ax, dz = L[i + 1][1] - az, l = Math.hypot(dx, dz), h = w.height(ax, az);
+  const a = w.height(ax - dz / l * 20, az + dx / l * 20) - h, b = w.height(ax + dz / l * 20, az - dx / l * 20) - h;
+  assert.ok(Math.max(a, b) > 15 && Math.min(a, b) < -15, `the shelf: ${a.toFixed(0)} and ${b.toFixed(0)} m either side`);
+  // the Bearwood carried on out of the taiga at its level
+  assert.ok(Math.abs(tg.water(-1022, 300) - w.water(1022, 300)) < 0.3, `the river at the seam: ${tg.water(-1022, 300).toFixed(2)}, ${w.water(1022, 300).toFixed(2)}`);
+  // red rock most of it, drifts of red sand
+  let n = 0, rock = 0, sand = 0;
+  for (let x = -1000; x <= 1000; x += 16) for (let z = -1000; z <= 1000; z += 16) { n++; const s = w.surfaceAt(x, z).name; rock += s === 'rock'; sand += s === 'sand'; }
+  assert.ok(rock / n > 0.4 && sand / n > 0.08, `rock ${(rock / n * 100).toFixed(0)}%, sand ${(sand / n * 100).toFixed(0)}%`);
 });
 
 test('the open world: the satnav finds the way from the coast to Ashwood by road, and a truck drives across the joins', async () => {

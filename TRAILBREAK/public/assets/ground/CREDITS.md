@@ -39,4 +39,14 @@ Kerala's ground layers (red laterite, grass, leaf litter, shingle, granite, red 
 |---|---|
 | roads, the runway and the apron | [Clean Asphalt](https://polyhaven.com/a/clean_asphalt) by Dimitrios Savva, Poly Haven |
 
+## Lalghati Canyon
+
+The coast's grass, leaf litter, shingle, red mud and river stones, and:
+
+| Layer | Source |
+|---|---|
+| red sandstone (its beds and the colours of its strata drawn over it by the game) | [Sandstone Cracks](https://polyhaven.com/a/sandstone_cracks) by Rob Tuytel, Poly Haven |
+| red earth | [Cracked Red Ground](https://polyhaven.com/a/cracked_red_ground) by Amal Kumar, Poly Haven |
+| red sand | [Red Sand](https://polyhaven.com/a/red_sand) by Rohit Seervi, Poly Haven |
+
 On every map the boulders wear the rock layer.

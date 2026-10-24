@@ -132,6 +132,16 @@ export function alpine(kind, R) {
   return [kind, h, kind === ALPINE.birch ? 0.14 + R() * 0.08 : 0.18 + h * 0.012 + R() * 0.06];
 }
 
+/** A tree of the canyon set (render/Vegetation.js): acacia (babul), thor (the candelabra spurge), a dead tree. */
+export const DESERT = { acacia: 0, thor: 1, dead: 2 };
+export function desert(kind, R) {
+  switch (kind) {
+    case DESERT.thor: return [1, 2.2 + R() * 2.6, 0.2];
+    case DESERT.dead: return [2, 5 + R() * 4, 0.16 + R() * 0.06];
+    default: { const h = 4.5 + R() * 5; return [0, h, 0.12 + h * 0.016]; }
+  }
+}
+
 /** What a tropical stretch shares with the Konkan Coast (its trees, roadside, dust and mud), and an alpine one with Ashwood. */
 export const TROPICAL = {
   litter: COAST.litter, treeStrength: COAST.treeStrength, young: COAST.young, roadside: COAST.roadside, dust: COAST.dust,

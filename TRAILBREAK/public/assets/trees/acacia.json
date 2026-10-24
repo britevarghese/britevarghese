@@ -1,0 +1,38 @@
+{
+ "name": "acacia",
+ "height": 6.9,
+ "radius": 0.93,
+ "groups": [
+  {
+   "kind": "bark",
+   "vertices": 4730,
+   "indices": 21585,
+   "position": 0,
+   "normal": 56760,
+   "uv": 70952,
+   "index": 108792,
+   "map": "acacia_0_color.webp",
+   "mapSize": [
+    512,
+    512
+   ],
+   "normalMap": "acacia_0_normal.webp"
+  },
+  {
+   "kind": "leaf",
+   "vertices": 1160,
+   "indices": 2784,
+   "position": 151964,
+   "normal": 165884,
+   "uv": 169364,
+   "index": 178644,
+   "map": "acacia_1_color.webp",
+   "mapSize": [
+    1024,
+    1024
+   ],
+   "normalMap": "acacia_1_normal.webp",
+   "alphaCutoff": 0.209
+  }
+ ]
+}

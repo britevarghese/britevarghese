@@ -281,6 +281,8 @@ async function start() {
   game.onBuild = (id, code) => { settings.truck = id; settings.builds[id] = code; save(); };
   $('m-dmg').onclick = () => game.fitSpare();          // (a tap on phones)
   window.game = game;                              // (handy in the console)
+  // (the open world's maps still to come: the one the truck is nearest and looking toward next)
+  if (loader) loader.score = (id) => game.regionScore(id);
   await audio.setLocalEngine(game.spec).catch(() => {});
   // a map from a link (?layout=, the builder's SHARE), else the room's (whoever built in it), onto this map
   const linkLayout = new URLSearchParams(location.search).get('layout');

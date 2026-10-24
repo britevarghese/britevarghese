@@ -1,0 +1,53 @@
+{
+ "name": "deadtree",
+ "height": 8.58,
+ "radius": 0.475,
+ "groups": [
+  {
+   "kind": "bark",
+   "vertices": 4824,
+   "indices": 23379,
+   "position": 0,
+   "normal": 57888,
+   "uv": 72360,
+   "index": 110952,
+   "map": "deadtree_0_color.webp",
+   "mapSize": [
+    512,
+    512
+   ],
+   "normalMap": "deadtree_0_normal.webp"
+  },
+  {
+   "kind": "bark",
+   "vertices": 18,
+   "indices": 42,
+   "position": 157712,
+   "normal": 157928,
+   "uv": 157984,
+   "index": 158128,
+   "map": "deadtree_1_color.webp",
+   "mapSize": [
+    512,
+    512
+   ],
+   "normalMap": "deadtree_1_normal.webp"
+  },
+  {
+   "kind": "leaf",
+   "vertices": 600,
+   "indices": 900,
+   "position": 158212,
+   "normal": 165412,
+   "uv": 167212,
+   "index": 172012,
+   "map": "deadtree_2_color.webp",
+   "mapSize": [
+    1024,
+    1024
+   ],
+   "normalMap": "deadtree_2_normal.webp",
+   "alphaCutoff": 0.215
+  }
+ ]
+}

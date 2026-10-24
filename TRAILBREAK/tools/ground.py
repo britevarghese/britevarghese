@@ -57,6 +57,19 @@ MAPS = {
         ('pebbles', 'polyhaven', 'ganges_river_pebbles', 2.16, 0.72),
         ('road', 'polyhaven', 'clean_asphalt', 2.1, 0.86),
     ],
+    # Lalghati Canyon: red sandstone (the beds of its walls drawn by the terrain shader, its strata coloured by the
+    # map's tint), cracked red earth on its tracks, red sand, the coast's red mud, grass and stones
+    'canyon': [
+        ('grass', 'ambientcg', 'Grass004', 2.4, 0.95),
+        ('forest', 'polyhaven', 'brown_mud_leaves_01', 2.4, 0.9),
+        ('dirt', 'polyhaven', 'cracked_red_ground', 2.0, 0.9),
+        ('gravel', 'polyhaven', 'river_small_rocks', 2.9, 0.85),
+        # (a pale, sunlit scan: toned down to the sandstone's own orange, the strata's colours over it from the tint)
+        ('rock', 'polyhaven', 'sandstone_cracks', 5.0, 0.8, {'gain': [0.78, 0.72, 0.7]}),
+        ('mud', 'polyhaven', 'red_dirt_mud_01', 1.5, 0.45, {'gain': [0.55, 0.5, 0.5]}),
+        ('sand', 'polyhaven', 'red_sand', 3.0, 0.92),
+        ('pebbles', 'polyhaven', 'ganges_river_pebbles', 2.16, 0.72),
+    ],
 }
 COLOR, DATA = 1024, 512
 

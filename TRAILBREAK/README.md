@@ -424,6 +424,8 @@ puts you back at the last checkpoint passed, facing the next, while the clock ru
 | Tamhini Road | Deccan | 5.6 km from Shivapur south over the farmland plateau to the world's southern edge | 7:48 / 9:21 / 11:32 |
 | Timber Run | Bearwood Taiga | 1.2 km from the timber camp across the Bearwood at the ford and up the mud of the logging track to the cutting | 1:42 / 2:03 / 2:32 |
 | Blackwater Crossing | Bearwood Taiga | 1.4 km round the edge of Blackwater Bog in the mud and back over the river at the west ford to the log landing (a stock UAZ needs low range up the far bank) | 2:19 / 2:46 / 3:25 |
+| Lalghati Gorge Run | Lalghati Canyon | 1.3 km down the gorge from the base between the red walls, past the mouth of the Narrows and through the river at the shallows | 2:05 / 2:30 / 3:05 |
+| Ledge Road Climb | Lalghati Canyon | 0.8 km up the shelf road cut along the gorge's south wall, from the river to the rim, a hundred metres up | 1:32 / 1:50 / 2:16 |
 | Coast to Snow | Open world | 18.6 km across the whole world, 16 checkpoints: up the Kashid ghat, over the Konkan Ghat into Kerala, through the town and the tea, up the Kurinji jeep track, over the Ashwood Pass and down to the ranger station | 26:15 / 31:29 / 38:50 |
 | North Coast Highway | Open world | 10.5 km along the north of the world, 14 checkpoints: from the coast past Korlai, through Borli and the Devkund Gap, under the Chalkewadi turbines and down to the Koyna dam | 15:17 / 18:21 / 22:38 |
 
@@ -920,7 +922,7 @@ first frame (in parallel where the browser can), not one by one as each is first
 ## The open world
 
 The game's one map (the lobby offers no other): the Konkan Coast, the Kerala Ghats and Ashwood Valley in one world
-12 km across (`src/world/maps/world.js`), with ten stretches of new country filling it round them, so it is land
+12 km across (`src/world/maps/world.js`), with eleven stretches of new country filling it round them, so it is land
 from edge to edge, as a Forza map is: drive from Kashid beach up the ghat, across the upland, into Kerala's tea hills
 and over the pass to Ashwood's snow, or north along the coast highway past Korlai's fort to the wind farm and Koyna's
 lake, or south down the Deccan escarpment to the fields and the town, all without a loading screen. The satnav plots
@@ -972,6 +974,30 @@ own features made on top of it; the roads through them are routed over the groun
   | Forest tracks | everywhere between the trees | narrow, the trees close either side |
 
   Beacons mark the Mud Pit, the Deep Ford, the Boulder Field and the Shallows.
+
+- **Lalghati Canyon** (2 km, west of the taiga and north of Chalkewadi; `src/world/maps/canyon.js`): red rock country in
+  the manner of those games' canyon maps. The Bearwood leaves the taiga across its west edge (at its own level, 66 m)
+  and runs west through a gorge it has cut 110 to 125 m down into a plateau of red sandstone, then north out of the
+  world. Its walls stand in ledges, beds of harder rock 8 to 13 m deep over steep faces of softer (the generator steps
+  the ground, the terrain shader draws the beds and their joints, and the map's tint colours the strata in bands of
+  cream, orange and deep red with a darker varnish); fallen blocks lie at their feet. Its own ground set
+  (`public/assets/ground/canyon.json`): a sandstone scan for the rock, cracked red earth, red sand, and the coast's red
+  mud, grass and stones; its own trees (`canyon` in `src/render/Vegetation.js`): acacias spreading their flat crowns
+  (6,400 trees in all, thicker by the water), thor (the candelabra spurge) in the rocks, and dead trees; reeds stand
+  along the waters' edges and out into the shallows (a map's `reeds`, `src/render/Grass.js`). Its air is clear and warm,
+  the colours rich. **Lalghati Base** stands on the broad floor where the gorge opens to the taiga.
+
+  | Place | What it is |
+  |---|---|
+  | The gorge | the river between sand and shingle bars, red mud and acacias on the floor; the Gorge Track up it from the taiga, through the river in the **Lal Shallows** at the bend (spread wide, knee deep) and on north along the east bank |
+  | The Narrows | a slot canyon off the south side, a creek running down its floor a hand's depth and more (0.27 m over the track) between walls a few metres apart, to the **Hidden Pool** (1.1 m) under a dry fall at its head |
+  | Red Pool | a box canyon off the north side, across the river at the ford, a waterhole in the reeds under its end wall |
+  | The Ledge Road | a shelf cut along the gorge's south wall, 760 m at 14% from the floor to the rim, the wall above it and a sheer drop of 50 m and more on the other side |
+  | The plateau | slickrock and red sand, dry washes, domes of rock; the Rim Track along it to the **Rim Lookout** over the gorge |
+  | The escarpment and the bench | the plateau's south edge, a wall down to the bench below, broken where a ramp of fallen rock comes down (the Chimneys Road's hairpins); on the bench the **Mud Flats** (red mud, standing water in its low spots) and the **Chimneys**, three sandstone buttes |
+
+  (The generator's river banks ramp up out of the water so a truck can climb out anywhere; a river between cliffs,
+  `river.cliffs`, keeps its 12 m ramp and leaves its gorge's walls standing beyond it.)
 
 - **Bhimashankar** (2 km, between the coast, the Konkan Ghat and the pass): evergreen jungle on ranges either side of
   a valley, the Bhimashankar road up it from the Konkan Ghat to Koyna, and the Bhor quarry in the hills east of it, a
@@ -1194,8 +1220,8 @@ Geological Survey (NASA/NGA; public domain), via the AWS Terrain Tiles (Mapzen);
 `public/assets/maps/coast/CREDITS.md`. Engine sounds: see `public/assets/audio/CREDITS.md` (Freesound, CC0, CC BY 3.0
 and 4.0; built with `tools/sounds/build_grains.py`). Ground textures: CC0 scans from Poly Haven and ambientCG, see
 `public/assets/ground/CREDITS.md` (packed with `tools/ground.py`). Tree models: pine, fir, spruce, birch, coconut palm,
-oak (as mango), elm (as rubber), banana and bamboo by evolveduk, and the jungle tree by kobaltsecond6c7d6150917a4267, on
-Sketchfab, CC BY 4.0, see `public/assets/trees/CREDITS.md` (converted with `tools/trees.py`). three.js is MIT licensed
+oak (as mango), elm (as rubber), banana, bamboo, acacia and the old dead tree by evolveduk, the jungle tree by
+kobaltsecond6c7d6150917a4267, and the candelabra spurge (as thor) by PlantCatalog, on Sketchfab, CC BY 4.0, see `public/assets/trees/CREDITS.md` (converted with `tools/trees.py`). three.js is MIT licensed
 (`public/vendor/three/LICENSE`). Type: Barlow and Barlow Condensed by The Barlow Project Authors, SIL Open Font License
 1.1 (`public/assets/fonts/OFL.txt`). Icons: most are Material Icons by Google, Apache License 2.0. The lobby's and the
 cards' pictures are rendered in the game. Everything else is original.

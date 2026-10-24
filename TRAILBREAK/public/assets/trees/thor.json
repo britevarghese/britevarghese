@@ -1,0 +1,82 @@
+{
+ "name": "thor",
+ "height": 0.93,
+ "radius": 0.389,
+ "groups": [
+  {
+   "kind": "bark",
+   "vertices": 3259,
+   "indices": 17184,
+   "position": 0,
+   "normal": 39108,
+   "uv": 48888,
+   "index": 74960,
+   "map": "thor_0_color.webp",
+   "mapSize": [
+    256,
+    512
+   ],
+   "normalMap": "thor_0_normal.webp"
+  },
+  {
+   "kind": "bark",
+   "vertices": 1985,
+   "indices": 10272,
+   "position": 109328,
+   "normal": 133148,
+   "uv": 139104,
+   "index": 154984,
+   "map": "thor_1_color.webp",
+   "mapSize": [
+    256,
+    512
+   ],
+   "normalMap": "thor_1_normal.webp"
+  },
+  {
+   "kind": "bark",
+   "vertices": 4271,
+   "indices": 21072,
+   "position": 175528,
+   "normal": 226780,
+   "uv": 239596,
+   "index": 273764,
+   "map": "thor_2_color.webp",
+   "mapSize": [
+    256,
+    512
+   ],
+   "normalMap": "thor_2_normal.webp"
+  },
+  {
+   "kind": "bark",
+   "vertices": 218,
+   "indices": 888,
+   "position": 315908,
+   "normal": 318524,
+   "uv": 319180,
+   "index": 320924,
+   "map": "thor_3_color.webp",
+   "mapSize": [
+    32,
+    512
+   ],
+   "normalMap": "thor_3_normal.webp"
+  },
+  {
+   "kind": "bark",
+   "vertices": 2472,
+   "indices": 6180,
+   "position": 322700,
+   "normal": 352364,
+   "uv": 359780,
+   "index": 379556,
+   "map": "thor_4_color.webp",
+   "mapSize": [
+    512,
+    512
+   ],
+   "normalMap": "thor_4_normal.webp"
+  }
+ ]
+}

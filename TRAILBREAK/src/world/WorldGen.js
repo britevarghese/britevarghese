@@ -394,9 +394,11 @@ export async function generateWorld({ map, onProgress = () => {}, yieldEvery = 6
         // the banks rise no steeper than about 20 degrees for 25 m (a truck in the river can climb out anywhere),
         // then the limit relaxes so the valley side meets the land without a step. It follows the water level of
         // the nearest stretch of river, so it never cuts below a river running downhill.
+        // (a river between cliffs, RIVER.cliffs: its banks ramp up out of the water for 12 m, and its gorge's walls
+        // beyond stand as the map has them)
         const k = d - half;
         const cap = level + 0.12 + 0.36 * k + (k > 25 ? 0.06 * (k - 25) ** 2 : 0);
-        if (h > cap) h = cap;
+        if (h > cap && !(RIVER.cliffs && k > 12)) h = cap;
         else if (k < 6) h = Math.max(h, level + 0.12 * Math.min(1, k / 1.5));   // no low ground beside the channel
       }
       H[idx] = h;

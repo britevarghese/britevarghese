@@ -75,6 +75,9 @@ export const TAIGA_ROUTES = {
   'Lookout Track': { via: [[200, -120], [420, -320], [580, -560], [LOOKOUT.x, LOOKOUT.z]], kind: 'trail', width: 2.6, routeGrade: 0.22 },
   // (off the landing road north across the river at the deep ford, the water up to a truck's bonnet: 0.95 m over the
   // ford's bed, the channel either side of it deeper still, on to Blackwater Track)
+  // (on west from the log landing along the river's south bank, out across the edge into Lalghati Canyon,
+  // world/maps/canyon.js)
+  'Lalghati Track': { via: [[LANDING.x, LANDING.z], [-860, 420], [-1024, 336]], kind: 'trail', width: 3.0, extend: [0, 8] },
   'Deep Ford Track': { via: [[-400, 560], [-385, 330], [-340, 120], [-330, -200]], kind: 'trail', width: 2.8, ford: 0.95, grade: 0.3 },
 };
 

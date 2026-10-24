@@ -22,6 +22,7 @@ import { KORLAI, BORLI, TABLELAND, WINDFARM, NORTH_AT } from './north.js';
 import { GLEN, FOREST, EAST_AT } from './east.js';
 import { DECCAN, DECCAN_AT } from './deccan.js';
 import { TAIGA, TAIGA_AT } from './taiga.js';
+import { CANYON, CANYON_AT } from './canyon.js';
 import { trailsOf } from './country.js';
 
 export { seamPairs };
@@ -333,6 +334,8 @@ export const REGIONS = [
   { id: 'deccan', map: DECCAN_W, at: DECCAN_AT, seams: { north: ['ghat', 'kerala'], west: 'coast' } },
   // the far north: Bearwood Taiga over the ridge at the head of Koyna Glen
   { id: 'taiga', map: TAIGA, at: TAIGA_AT, seams: { south: 'glen' } },
+  // and west of it, north of Chalkewadi and the Table Land: Lalghati Canyon, the Bearwood's gorge in red rock
+  { id: 'canyon', map: CANYON, at: CANYON_AT, seams: { south: ['windfarm', 'tableland'], east: 'taiga' } },
 ];
 export const regionById = (id) => REGIONS.find((r) => r.id === id);
 

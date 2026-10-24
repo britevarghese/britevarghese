@@ -1015,15 +1015,22 @@ if (gWet > 0.0) {
     return false;
   }
 
-  update(camPos) {
+  update(camPos, dir = null) {
     this.frame++;
     const visible = [], dirty = [];
     let budget = this.budget;
+    // (behind the camera, the ground is left coarse: a patch more than 80 m off and more than about 120 degrees round
+    // from the way it looks isn't split finer, nor built finer, until the view comes round to it)
+    const hx = dir ? dir.x : 0, hz = dir ? dir.z : 0, hl = Math.hypot(hx, hz);
     const want = (n) => {
       const cx = n.x0 + n.size / 2, cz = n.z0 + n.size / 2;
       const dx = Math.max(0, Math.abs(camPos.x - cx) - n.size / 2), dz = Math.max(0, Math.abs(camPos.z - cz) - n.size / 2);
-      const dy = n.built ? Math.max(0, camPos.y - n.maxY, n.minY - camPos.y) : 0;
-      return (n.size > MIN || (n.size > FINE && this.fine && this.rutted(n))) && Math.sqrt(dx * dx + dy * dy + dz * dz) < n.size * this.split * 0.5;
+      const dy = n.built ? Math.max(0, camPos.y - n.maxY, n.minY - camPos.y) : 0, d = Math.sqrt(dx * dx + dy * dy + dz * dz);
+      if (hl > 0.2 && d > 80) {
+        const rx = cx - camPos.x, rz = cz - camPos.z;
+        if ((rx * hx + rz * hz) / ((Math.hypot(rx, rz) || 1) * hl) < -0.5) return false;
+      }
+      return (n.size > MIN || (n.size > FINE && this.fine && this.rutted(n))) && d < n.size * this.split * 0.5;
     };
     const visit = (n) => {
       n.used = this.frame;

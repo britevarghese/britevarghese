@@ -11,7 +11,7 @@
  *                       seat free, or a new public room (rooms opened by code stay private: only their link gets in)
  *   server -> client  {t:'welcome', id, room, map, public, tickRate, maxPlayers, players:[{id,name}], beacons:[id...]}
  *   client -> server  {t:'state', s:{p:[x,y,z], q:[x,y,z,w], v:[x,y,z], w:[x,y,z], wh:[[susp, spin, steer] x4],
- *                       rpm, thr, brk, lights, truck, cfg, paint, warp, winch}}
+ *                       rpm, thr, brk, lights, truck, cfg, paint, warp, winch, ts (when it was taken, server clock ms)}}
  *                       cfg: the truck's build (garage parts), a short [0-9a-z] code; help: 1 when calling for a tow
  *                       winch: null, or {to:'tree'|<player id>, a:[x,y,z] (tree: world anchor; player: point in
  *                       that truck's frame), f:[x,y,z] (our fairlead, our frame), len, ten}
@@ -297,7 +297,11 @@ class Room {
       }
     }
 
+    // (when its driver took it, on our clock: as they reckon it, kept within reason and in order)
+    let ts = isNum(s.ts) && Math.abs(s.ts - Date.now()) < 30000 ? Math.round(s.ts) : Date.now();
+    if (prev && warp === prev.warp && ts <= prev.ts) ts = prev.ts + 1;
     return {
+      ts,
       p: s.p.map((c) => round(c)),
       q: q.map((c) => round(c, 10000)),
       v: v.map((c) => round(c)),

@@ -480,6 +480,20 @@ export class Game {
   get garageSpot() { return this.nearest('garage'); }
   get stationSpot() { return this.nearest('station'); }
 
+  /**
+   * How soon a map of the open world still to come should be built (world/WorldLoader.js, lower sooner): how far off
+   * its square is, and more the further round it is from the way the camera looks.
+   */
+  regionScore(id) {
+    const R = this.world.regionDef?.(id);
+    if (!R) return Infinity;
+    const p = this.vehicle.pos, h = R.map.half ?? (R.map.size || 2048) / 2;
+    const d = Math.max(0, Math.abs(R.at[0] - p.x) - h, Math.abs(R.at[1] - p.z) - h);
+    const dir = this.renderer.camera.getWorldDirection(this._scoreDir || (this._scoreDir = new THREE.Vector3()));
+    const tx = R.at[0] - p.x, tz = R.at[1] - p.z, cos = (tx * dir.x + tz * dir.z) / ((Math.hypot(tx, tz) || 1) * (Math.hypot(dir.x, dir.z) || 1));
+    return d + (d > 0 ? (1 - cos) * 900 : 0);
+  }
+
   /** Where the truck starts, or is towed back to: the station's yard (the open world's nearest one, after the first). */
   spawnPoint(first = false) {
     const slot = this.net?.id ? (this.net.id - 1) % 6 : 0;
@@ -1051,7 +1065,16 @@ export class Game {
         const rv = this.remoteView(r);
         rv.state = s;
         const root = rv.model.root;
-        root.position.set(s.pos[0], s.pos[1], s.pos[2]);
+        // (drawn going on as it was going, eased onto where its states put it: a late state's correction, or an early
+        // one's, taken out and let die away over a few frames instead of seen as a jump; a respawn or a big jump snaps)
+        if (!rv.disp || rv.warp !== s.warp || s.stale) { rv.disp = [...s.pos]; rv.err = [0, 0, 0]; rv.warp = s.warp; }
+        else {
+          const e = rv.err, d = rv.disp, f = Math.exp(-dt / 0.15);
+          for (let i = 0; i < 3; i++) e[i] = (d[i] + s.vel[i] * dt - s.pos[i]) * f;
+          if (e[0] * e[0] + e[1] * e[1] + e[2] * e[2] > 16) e.fill(0);
+          for (let i = 0; i < 3; i++) d[i] = s.pos[i] + e[i];
+        }
+        root.position.set(rv.disp[0], rv.disp[1], rv.disp[2]);
         root.quaternion.set(s.quat[0], s.quat[1], s.quat[2], s.quat[3]);
         rv.model.updateWheels(s.wh, dt);
         rv.model.setLights(!!s.lights);
@@ -1076,7 +1099,7 @@ export class Game {
         // out here from where our truck is (physics/Vehicle.js)
         const w = s.winch;
         if (w && w.to === this.net.id) {
-          const lead = this.net.lead, vel = new THREE.Vector3(...s.vel);
+          const lead = this.net.leadOf(r), vel = new THREE.Vector3(...s.vel);
           const target = new THREE.Vector3(...w.f).applyQuaternion(root.quaternion).add(root.position).addScaledVector(vel, lead);
           const len = Math.max(0.6, (s.winchLen || w.len) + (s.winchRate || 0) * lead);
           pulls.push({ local: new THREE.Vector3(...w.a), target, targetVel: vel, len, rope: rv.spec.winch, tension: w.ten, anchorMe: !!s.help, by: rv.name });
@@ -1230,12 +1253,19 @@ export class Game {
     // already is at idle), so the truck rolls to the rope. In gear an automatic crept off against it at idle, and as each
     // of us moves only our own truck, the creep dragged the friend's truck along on its brakes instead
     if (!c.hold && v.pulls.length && c.throttle < 0.05 && c.brake < 0.05) c.neutral = 1;
+    // auto hold: off the pedals and all but stopped, the brakes take it (an automatic in gear doesn't creep off at
+    // idle, nor anything roll away on a slope; from walking pace, gently, to a stop) until the throttle or the brake
+    // (reverse) asks it to go. Not while a rope pulls it, a friend's or its own winch.
+    if (!c.hold && !c.neutral && !W.attached && !v.pulls.length && c.throttle < 0.05 && c.brake < 0.05) {
+      const speed = Math.hypot(v.vel.x, v.vel.z);
+      if (speed < 2) c.hold = speed < 0.5 ? 0.6 : 0.2;
+    }
     // a truck we're winching toward moves: follow its tow point (brought on to now: we see it a moment late)
     if (W.attached && W.kind === 'truck') {
       const rv = this.remotes.get(W.target);
       if (rv?.state) {
         W.anchorVel = new THREE.Vector3(...rv.state.vel);
-        W.anchor.copy(new THREE.Vector3().copy(W.anchorLocal).applyQuaternion(rv.model.root.quaternion).add(rv.model.root.position).addScaledVector(W.anchorVel, this.net.lead));
+        W.anchor.copy(new THREE.Vector3().copy(W.anchorLocal).applyQuaternion(rv.model.root.quaternion).add(rv.model.root.position).addScaledVector(W.anchorVel, this.net.leadOf(this.net.remotes.get(W.target))));
       }
     } else W.anchorVel = null;
 
@@ -1339,7 +1369,7 @@ export class Game {
     // (a custom race's own arches show while it is run: the builder's markers step aside)
     this.builder.view.setMarkersVisible(!(this.events.run?.event.custom && this.events.run.phase !== 'finished'));
     const camPos = this.renderer.camera.position;
-    this.terrain.update(camPos);
+    this.terrain.update(camPos, this.renderer.camera.getWorldDirection(this._viewDir || (this._viewDir = new THREE.Vector3())));
     seeThrough(camPos, this.cam.look, !this.building && (this.cam.mode === 'chase' || this.cam.mode === 'far') ? 1 : 0);
     this.vegetation.update(this.renderer.camera, dt);
     this.rocks.update(this.renderer.camera);

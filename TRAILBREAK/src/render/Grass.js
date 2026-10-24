@@ -214,6 +214,9 @@ normal = normalize(vNormal);`)
     if (c) return c;
     const T = this.terrain, w = this.world, out = [], tint = [0, 0, 0];
     const grassL = T.layerIndex.grass, forestL = T.layerIndex.forest, dirtL = T.layerIndex.dirt, N = w.N;
+    // (a map's reeds, map.reeds(x, z, world): the height of a reed tuft there, standing at its waters' edges and out into
+    // the shallows, or 0)
+    const reedsAt = w.map?.reeds;
     // (bare earth beside the meadow: grass straggles out onto it, so the meadow has no hard edge)
     const byGrass = (cell) => T.splat[cell - 1] === grassL || T.splat[cell + 1] === grassL || T.splat[cell - N] === grassL || T.splat[cell + N] === grassL;
     const n = Math.round(CHUNK / SPACING);
@@ -226,8 +229,16 @@ normal = normalize(vNormal);`)
         const L = T.splat[cell];
         const r = hash(x, z, 3);
         const edge = L === dirtL && dirtL !== undefined && r < 0.45 && byGrass(cell);
-        if (L !== grassL && !(L === forestL && r < 0.12) && !edge) continue;
+        const reed = reedsAt ? reedsAt(x, z, w) : 0;
+        if (L !== grassL && !(L === forestL && r < 0.12) && !edge && !reed) continue;
         if (w.deformGrid.get(x, z) > 0.03) continue;                    // flattened into the ruts
+        if (reed) {
+          // (tall, narrow and green, the grass's colour)
+          const y = w.terrain(x, z);
+          T.tintAt(grassL, x, z, y, 0, tint);
+          out.push(x, y - 0.05, z, hash(x, z, 5) * 6.283, reed * (0.85 + 0.3 * hash(x, z, 4)), 0.45 + 0.3 * hash(x, z, 6), r, tint[0] * 0.95, tint[1] * 1.08, tint[2] * 0.8);
+          continue;
+        }
         const y = w.terrain(x, z);
         const wl = w.water(x, z);
         if (wl > -1e8 && y < wl + 0.05) continue;
@@ -264,7 +275,12 @@ normal = normalize(vNormal);`)
     }
     const cam = camera.position;
     const cx = Math.floor(cam.x / CHUNK), cz = Math.floor(cam.z / CHUNK);
-    const at = `${cx},${cz},${this.range}`;
+    // (and the way it looks, in sixteenths of a turn: the tufts behind it, past a few metres, aren't put out, and come
+    // as it turns)
+    const d = camera.getWorldDirection ? camera.getWorldDirection(this._dir || (this._dir = new THREE.Vector3())) : null;
+    const hl = d ? Math.hypot(d.x, d.z) : 0, hx = hl > 0.2 ? d.x / hl : 0, hz = hl > 0.2 ? d.z / hl : 0;
+    const sector = hl > 0.2 ? Math.round(Math.atan2(hx, hz) / (Math.PI / 8)) : 99;
+    const at = `${cx},${cz},${this.range},${sector}`;
     if (at === this.at) return;
     this.at = at;
     const R = this.range + CHUNK, n = Math.ceil(R / CHUNK);
@@ -275,6 +291,10 @@ normal = normalize(vNormal);`)
         const x0 = (cx + i) * CHUNK, z0 = (cz + k) * CHUNK;
         const dx = Math.max(0, Math.abs(cam.x - (x0 + CHUNK / 2)) - CHUNK / 2), dz = Math.max(0, Math.abs(cam.z - (z0 + CHUNK / 2)) - CHUNK / 2);
         if (dx * dx + dz * dz > R * R) continue;
+        if (sector !== 99) {
+          const rx = x0 + CHUNK / 2 - cam.x, rz = z0 + CHUNK / 2 - cam.z, rl = Math.hypot(rx, rz);
+          if (rl > 16 + CHUNK && (rx * hx + rz * hz) / rl < -0.5) continue;
+        }
         const c = this.chunk(cx + i, cz + k);
         // the shader thins the far tufts; leave out the ones it would drop even a chunk closer
         const near = Math.max(0, Math.hypot(dx, dz) - CHUNK * 1.5), t = Math.min(1, Math.max(0, (near - 12) / (this.range - 12)));
