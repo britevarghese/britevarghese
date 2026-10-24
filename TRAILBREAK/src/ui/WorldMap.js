@@ -3,7 +3,8 @@
 // lines, the survey beacons and your friends. Tap any of them, or any spot on the ground, for what it is and to set a
 // route there: the satnav (game/Route.js) plots it by road and trail, and it shows here, on the minimap and as a line
 // on the ground ahead. The station, the garage, the event start lines, the beacons you have found and your friends
-// can be fast-travelled to (not in the middle of a run).
+// can be fast-travelled to (not in the middle of a run); the fast travel list (T) has your friends and every base,
+// one tap each.
 import { escapeHtml } from './HUD.js';
 import { kindOf } from '../game/EventPlay.js';
 
@@ -55,13 +56,15 @@ export class WorldMap {
     $('map-zout').onclick = () => this.zoomBy(1 / 1.6);
     $('map-me').onclick = () => { const s = this.hooks.state(); this.view.x = s.me.x; this.view.z = s.me.z; this.dirty = true; };
     $('map-close').onclick = () => this.hooks.close();
+    this.travelEl = $('map-travel');
+    $('map-travel-btn').onclick = () => this.toggleTravel();
     $('map-title').textContent = world.map.name || 'Map';
   }
 
   /** The places on it (the open world's, again as its maps come in). */
   refresh() {
     const w = this.world;
-    this.places = w.landmarks.filter((L) => PLACE[L.type]).map((L) => ({ kind: 'place', type: L.type, x: L.x, z: L.z, ...PLACE[L.type],
+    this.places = w.landmarks.filter((L) => PLACE[L.type]).map((L) => ({ kind: 'place', type: L.type, x: L.x, z: L.z, region: L.region, ...PLACE[L.type],
       name: L.type === 'station' ? (L.region ? w.regionDef(L.region).map.station?.name : w.map.station?.name) || PLACE.station.name : PLACE[L.type].name }));
     // (houses are just dots)
     this.houses = w.landmarks.filter((L) => L.type === 'house');
@@ -79,6 +82,7 @@ export class WorldMap {
     this.view.zoom = Math.max(this.minZoom, Math.min(4, Math.min(this.w, this.h) / 900));
     this.clampView();
     this.select(null);
+    this.toggleTravel(false);
     this.dirty = true;
     this.onKey = (e) => this.key(e);
     addEventListener('keydown', this.onKey);
@@ -174,6 +178,7 @@ export class WorldMap {
     else if (k === 'KeyC') $('map-me').onclick();
     else if (k === 'Delete') { this.hooks.clear(); this.select(this.sel); }
     else if (k === 'Space' && this.sel) { this.hooks.route(this.sel); this.select(this.sel); }
+    else if (k === 'KeyT') this.toggleTravel();
     else return;
     e.preventDefault();
   }
@@ -219,6 +224,46 @@ export class WorldMap {
     if (r) r.onclick = () => { this.hooks.route(item); this.select(item); };
     if (cl) cl.onclick = () => { this.hooks.clear(); this.select(item); };
     if (t) t.onclick = () => { const no = this.hooks.travel(item); if (no) this.select(item); };
+  }
+
+  // ---------------------------------------------------------------- the fast travel list
+  /** The list of where to fast travel: the friends in the room, then your home and every base, nearest first. */
+  toggleTravel(on = !this.travelOn) {
+    this.travelOn = on;
+    this.travelEl.classList.toggle('hidden', !on);
+    $('map-travel-btn').classList.toggle('on', on);
+    if (!on) return;
+    if (this.sel) this.select(null);
+    const s = this.hooks.state(), me = s.me, w = this.world, dist = (it) => Math.hypot(it.x - me.x, it.z - me.z);
+    const home = w.map.spawn && { kind: 'place', type: 'station', ...PLACE.station, home: true, name: w.map.spawn.name, x: w.map.spawn.x, z: w.map.spawn.z };
+    // (every map's base, its map in yet or not: one not yet in is built first, and the truck taken there when it is)
+    const bases = (w.stations?.() || this.places.filter((p) => p.type === 'station'))
+      .map((b) => ({ kind: 'place', type: 'station', ...PLACE.station, ...b }))
+      .filter((b) => !(home && Math.hypot(b.x - home.x, b.z - home.z) < 60)).sort((a, b) => dist(a) - dist(b));
+    const items = [...s.mates, ...(home ? [home] : []), ...bases];
+    const where = (it) => (it.kind === 'friend' ? (it.help ? '<i class="help">needs a tow</i>' : 'driving')
+      : it.home ? 'your truck\'s home' : escapeHtml(it.mapName || w.regionDef?.(it.region)?.map.name || PLACE.station.name));
+    const row = (it, i) => `<div class="mt-row" data-i="${i}"><span class="mt-dot"${it.color ? ` style="background:${it.color}"` : ''}></span>
+      <div class="mt-name"><b>${escapeHtml(it.name)}</b><span>${where(it)} · ${fmtD(dist(it))}</span></div>
+      <button class="route">Route</button><button class="go">Travel</button></div>`;
+    let i = 0;
+    this.travelEl.innerHTML = `<div class="mc-head"><b>Fast travel</b><span>Jump to a friend or a base instead of driving there</span><button class="mc-x" aria-label="Close">✕</button></div>
+      ${s.racing ? '<div class="mc-dim">No fast travel in the middle of a run</div>' : ''}
+      ${s.mates.length ? `<div class="mt-sec">Friends</div>${s.mates.map((m) => row(m, i++)).join('')}` : ''}
+      <div class="mt-sec">Bases</div>${[...(home ? [home] : []), ...bases].map((b) => row(b, i++)).join('')}
+      <div class="mt-msg mc-dim"></div>`;
+    this.travelEl.querySelector('.mc-x').onclick = () => this.toggleTravel(false);
+    for (const el of this.travelEl.querySelectorAll('.mt-row')) {
+      const it = items[+el.dataset.i];
+      el.querySelector('.go').onclick = (e) => {
+        e.stopPropagation();
+        const no = this.hooks.travel(it);
+        if (no) this.travelEl.querySelector('.mt-msg').textContent = no;
+      };
+      el.querySelector('.route').onclick = (e) => { e.stopPropagation(); this.hooks.route(it); this.toggleTravel(false); this.select(it); };
+      // (the row itself: show it on the map)
+      el.onclick = () => { this.view.x = it.x; this.view.z = it.z; this.clampView(); this.toggleTravel(false); this.select(it); };
+    }
   }
 
   /** '' when it can be fast-travelled to, else why not (null: never). */

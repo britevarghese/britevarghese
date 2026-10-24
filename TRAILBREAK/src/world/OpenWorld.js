@@ -47,7 +47,8 @@ function moveEvent(e, cx, cz) {
 }
 
 export class OpenWorld {
-  constructor(def = WORLD) {
+  /** home: where this driver's truck starts ({ x, z, yaw, name }: world/homes.js), else the start map's own spawn. */
+  constructor(def = WORLD, home = null) {
     this.def = def;
     this.regions = [];
     this.byId = new Map();
@@ -61,10 +62,10 @@ export class OpenWorld {
     // the air over most of it: the start map's (a map with its own takes over inside it: airAt)
     this.air0 = { fog: M.atmosphere?.fog ?? 0.00038, cover: M.atmosphere?.cover ?? 0.47, sun: 1, sat: 1 };
     this.airOut = { ...this.air0 };
-    // where the trucks start: the start map's own spawn and station
+    // where the truck starts: its home, or the start map's own spawn and station
     this.map = {
       ...def, mudTint: M.mudTint, dust: M.dust, snowLine: M.snowLine,
-      spawn: moveXZ(M.spawn, ...S.at), station: moveXZ(M.station, ...S.at),
+      spawn: home ? { x: home.x, z: home.z, yaw: home.yaw, name: home.name } : moveXZ(M.spawn, ...S.at), station: moveXZ(M.station, ...S.at),
     };
     this.beacons = []; this.landmarks = []; this.data = { trails: [], map: this.map }; this.hubs = [];
     this.obPool = [];
@@ -92,6 +93,22 @@ export class OpenWorld {
       if (d < bd) { bd = d; best = { x: M.spawn.x + r.cx, z: M.spawn.z + r.cz, yaw: M.spawn.yaw, name: M.station.name }; }
     }
     return best;
+  }
+
+  /** A map's station yard, in the world: { x, z, yaw, name } (null while that map isn't in). */
+  spawnOf(id) {
+    const r = this.byId.get(id), M = r?.map;
+    return M?.spawn && M.station ? { x: M.spawn.x + r.cx, z: M.spawn.z + r.cz, yaw: M.spawn.yaw, name: M.station.name } : null;
+  }
+
+  /** Every map's station, in the world, whether its map is in yet or not: { region, name, mapName, x, z }. */
+  stations() {
+    return REGIONS.filter((R) => R.map.station).map((R) => ({ region: R.id, name: R.map.station.name, mapName: R.map.name, x: R.map.station.x + R.at[0], z: R.map.station.z + R.at[1] }));
+  }
+
+  /** The map whose square (x, z) is in, whether it is in yet or not (its definition), or null. */
+  regionDefAt(x, z) {
+    return REGIONS.find((R) => { const h = gridOf(R.map).half; return Math.abs(x - R.at[0]) <= h && Math.abs(z - R.at[1]) <= h; }) || null;
   }
 
   /** A map of the world's definition (world/maps/world.js), by id. */

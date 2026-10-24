@@ -10,6 +10,7 @@ import { showroomFor } from '../ui/Showroom.js';
 import { loadTruckAsset, truckAsset, truckAssetProgress, MODEL_BODIES } from '../render/TruckAssets.js';
 import { CameraRig } from './CameraRig.js';
 import { BEACON_RADIUS, MAP_HALF } from '../world/maps/index.js';
+import { park } from '../world/homes.js';
 import { EventPlay } from '../game/EventPlay.js';
 import { EventCourse } from '../render/EventCourse.js';
 import { BreakView } from '../render/BreakView.js';
@@ -92,6 +93,7 @@ export class Game {
     this.rope.mat.color.set(this.spec.winch.synthetic ? 0xd0571e : 0x2b2b28);
     // getting unstuck: the last places the truck drove on firm, dry ground; the stuck panel; calling friends
     this.drySpots = [];
+    this.met = new Set();         // (the friends seen so far)
     this.dryT = 0; this.stuckT = 0; this.boggedT = 0; this.helpOn = false; this.helpMoveT = 0; this.towHintT = 0;
     this.stuckEl = document.getElementById('stuck');
     if (this.stuckEl) {
@@ -159,6 +161,14 @@ export class Game {
     if (this.route) this.replan();
     // (its part of the maps drawn a slice at a time, then the full map made again with it)
     Promise.resolve(this.hud.drawRegion?.(region)).then(() => this.worldMap.refresh());
+    // (a fast travel waiting for it: there now, to a friend where they are now)
+    const P = this.pendingTravel;
+    if (P?.region === region.id) {
+      this.pendingTravel = null;
+      const rv = P.item.kind === 'friend' && this.remotes.get(P.item.id), item = rv ? { ...P.item, x: rv.model.root.position.x, z: rv.model.root.position.z } : P.item;
+      const no = this.fastTravel(item);
+      if (no) this.hud.toast(no, false, 4);
+    }
   }
 
   // ---------------------------------------------------------------- the map and the satnav
@@ -226,16 +236,29 @@ export class Game {
   /** Fast travel to a thing on the map; null when done, else why not. */
   fastTravel(item) {
     if (this.events.racing) return 'No fast travel in the middle of a run';
-    const v = this.vehicle;
-    if (item.kind === 'event') { this.toggleMap(); this.events.goTo(item.event.id); this.arrivedAt(item); return null; }
-    if (item.kind === 'place' && item.type === 'station') { this.toggleMap(); this.spawn(); this.arrivedAt(item); return null; }
+    const v = this.vehicle, closeMap = () => { if (this.mapOpen) this.toggleMap(); };
+    // (somewhere whose map isn't in yet, a friend who started far off: that map is built next, and the truck is taken
+    // there as soon as it is in: regionIn)
+    const R = this.world.regionDefAt?.(item.x, item.z);
+    if (R && !this.world.byId.has(R.id)) {
+      this.pendingTravel = { item, region: R.id };
+      this.hud.toast(`Loading ${R.map.name}: you'll be taken to ${item.name} as soon as it's in`, false, 6);
+      return `Loading ${R.map.name}: you'll be taken there as soon as it's in`;
+    }
+    this.pendingTravel = null;
+    if (item.kind === 'event') { closeMap(); this.events.goTo(item.event.id); this.arrivedAt(item); return null; }
+    if (item.kind === 'place' && item.type === 'station') {
+      const at = item.home ? this.world.map.spawn : item.region ? this.world.spawnOf(item.region) : null;
+      if (v.winch.attached) v.detachWinch();
+      closeMap(); this.spawn(false, at); this.arrivedAt(item); return null;
+    }
     let spot;
     if (item.kind === 'place' && item.type === 'garage') {
-      this.toggleMap(); this.placeAtGarage();
+      closeMap(); this.placeAtGarage();
     } else {
       spot = this.spotNear(item.x, item.z, item.kind === 'friend' ? 7 : 9);
       if (!spot) return 'Nowhere clear to stop there';
-      this.toggleMap();
+      closeMap();
       if (item.kind === 'friend') { const rv = this.remotes.get(item.id); if (rv) { const f = new THREE.Vector3(0, 0, 1).applyQuaternion(rv.model.root.quaternion); spot.yaw = Math.atan2(f.x, f.z); } }
       v.place(this.world, spot.x, spot.z, spot.yaw);
     }
@@ -487,6 +510,7 @@ export class Game {
   regionScore(id) {
     const R = this.world.regionDef?.(id);
     if (!R) return Infinity;
+    if (this.pendingTravel?.region === id) return -1e9;          // (a fast travel waits for it)
     const p = this.vehicle.pos, h = R.map.half ?? (R.map.size || 2048) / 2;
     const d = Math.max(0, Math.abs(R.at[0] - p.x) - h, Math.abs(R.at[1] - p.z) - h);
     const dir = this.renderer.camera.getWorldDirection(this._scoreDir || (this._scoreDir = new THREE.Vector3()));
@@ -494,16 +518,20 @@ export class Game {
     return d + (d > 0 ? (1 - cos) * 900 : 0);
   }
 
-  /** Where the truck starts, or is towed back to: the station's yard (the open world's nearest one, after the first). */
-  spawnPoint(first = false) {
-    const slot = this.net?.id ? (this.net.id - 1) % 6 : 0;
-    const side = (slot % 2 ? 1 : -1) * Math.ceil(slot / 2) * 5.5;
-    const SP = (!first && this.world.spawnNear?.(this.vehicle.pos)) || this.world.map.spawn, c = Math.cos(SP.yaw), s = Math.sin(SP.yaw);
-    return { x: SP.x + c * side, z: SP.z - s * side, yaw: SP.yaw, name: SP.name || this.world.map.station.name };
+  /**
+   * Where the truck starts, or is towed back to: its home (world/homes.js), or the nearest station's yard after the
+   * first; or the yard `at` ({ x, z, yaw, name }: fast travel).
+   */
+  spawnPoint(first = false, at = null) {
+    // (a bay of its own: one no other driver's truck is in, picked by the room's order of drivers)
+    const SP = at || (!first && this.world.spawnNear?.(this.vehicle.pos)) || this.world.map.spawn, taken = [];
+    for (const r of this.net?.remotes.values() || []) { const p = r.snaps.at(-1)?.s.p; if (p) taken.push([p[0], p[2]]); }
+    const bay = park(this.world, SP, this.net?.id ? this.net.id - 1 : 0, taken);
+    return { x: bay.x, z: bay.z, yaw: SP.yaw, name: SP.name || this.world.map.station.name };
   }
 
-  spawn(first = false) {
-    const p = this.spawnPoint(first);
+  spawn(first = false, at = null) {
+    const p = this.spawnPoint(first, at);
     this.vehicle.place(this.world, p.x, p.z, p.yaw);
     this.drySpots = [{ x: p.x, z: p.z, yaw: p.yaw }];
     this.stuckT = 0; this.boggedT = 0;
@@ -512,7 +540,7 @@ export class Game {
     this.vehicle.setPressure(this.vehicle.psiTarget);
     this.carry = 0;
     if (this.net) this.net.warp++;
-    if (!first) this.hud.toast(`Back at ${p.name}`);
+    if (!first) this.hud.toast(at ? `Fast travel: ${p.name}` : `Back at ${p.name}`, false, 3);
     this.cam.heading = null;
   }
 
@@ -876,6 +904,15 @@ export class Game {
   }
 
   // ---------------------------------------------------------------- remote players
+  /** A friend seen for the first time: where they are, when that's far off (they may have started at another home). */
+  meet(id, rv, s) {
+    this.met.add(id);
+    const p = this.vehicle.pos, far = Math.hypot(s.pos[0] - p.x, s.pos[2] - p.z);
+    if (far < 300) return;
+    const R = this.world.regionDefAt?.(s.pos[0], s.pos[2]);
+    this.hud.toast(`${rv.name} is ${(far / 1000).toFixed(1)} km away${R ? ` in ${R.map.name}` : ''}: M, then T, to fast travel to them`, false, 8);
+  }
+
   remoteView(r) {
     let rv = this.remotes.get(r.id);
     const s = r.view;
@@ -1064,6 +1101,7 @@ export class Game {
         live.add(r.id);
         const rv = this.remoteView(r);
         rv.state = s;
+        if (!this.met.has(r.id)) this.meet(r.id, rv, s);
         const root = rv.model.root;
         // (drawn going on as it was going, eased onto where its states put it: a late state's correction, or an early
         // one's, taken out and let die away over a few frames instead of seen as a jump; a respawn or a big jump snaps)

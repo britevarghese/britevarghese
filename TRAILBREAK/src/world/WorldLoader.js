@@ -59,14 +59,13 @@ export class WorldLoader {
     const cores = navigator.hardwareConcurrency || 2, mem = navigator.deviceMemory || 8;
     this.slots = mem <= 4 ? 1 : Math.max(1, Math.min(3, cores - 1));
     this.waiting = [];
-    this.chain = Promise.resolve();
     this.from = {};               // id -> 'stored' | 'built'
     // which map next: score(id), lower first (the game's: how far off and how far round from the way it looks); by
     // default how far each is from the start map
     this.score = null;
   }
 
-  /** A worker slot (at most `slots` maps at once; the start map's first, then the best scored waiting). */
+  /** A worker slot (at most `slots` maps at once; the start map's (and those it waits on) first, then the best scored waiting). */
   async slot(first, id) {
     if (this.slots > 0) { this.slots--; return; }
     await new Promise((r) => this.waiting.push({ r, id, first }));
@@ -109,35 +108,56 @@ export class WorldLoader {
     } finally { this.free(); }
   }
 
+  /** The maps to build before a map can be: those it is laid onto, and theirs (and it). */
+  static before(id, out = new Set()) {
+    if (!out.has(id)) { out.add(id); for (const n of needs(id)) WorldLoader.before(n, out); }
+    return out;
+  }
+
   /**
-   * Build (or fetch) every map, the start one first: onRegion(id, data) for each as it is ready, one at a time, in the
-   * order they come in. Resolves when they are all in.
+   * Build (or fetch) every map, the start one first (after the ones it is laid onto, built but kept back): onRegion(id,
+   * data) for each as it is ready, one at a time, the start map's first, then of those ready the best scored. Resolves
+   * when they are all in.
    */
   async load(start, onRegion) {
     this.start = start;
     this.startScore = this.startScore.bind(this);
     const version = await buildVersion().catch((e) => { console.warn('world version', e); return null; });
     if (version) await sweep(version).catch(() => {});
-    const done = new Map(), jobs = new Map();
+    const done = new Map(), builds = new Map(), early = WorldLoader.before(start);
     let first = null;
-    const job = (id) => {
-      if (!jobs.has(id)) jobs.set(id, (async () => {
-        for (const n of needs(id)) await job(n);
-        const data = await this.inWorker(id, seamsFor(id, done), version && `${id}@${version}`, id === start);
+    const build = (id) => {
+      if (!builds.has(id)) builds.set(id, (async () => {
+        for (const n of needs(id)) await build(n);
+        const data = await this.inWorker(id, seamsFor(id, done), version && `${id}@${version}`, early.has(id));
         const R = regionById(id);
         await R.map.load?.();
         data.map = R.map; data.farHeight = landform(R.map).farHeight;
         done.set(id, data);
-        // (the start map's turn comes first, whichever is ready first)
-        if (id !== start) await first;
-        this.chain = this.chain.then(() => onRegion(id, data));
-        await this.chain;
+        this.onProgress(id, 1, 'Ready');
         return data;
       })());
-      return jobs.get(id);
+      return builds.get(id);
+    };
+    // the maps join one at a time, the start map's turn first; then of those ready, the best scored
+    const ready = [];
+    let joining = null;
+    const next = async () => {
+      while (ready.length) {
+        const sc = (r) => (this.score || this.startScore)(r.id);
+        const r = ready.splice(ready.indexOf(ready.reduce((a, b) => (sc(b) < sc(a) ? b : a))), 1)[0];
+        try { await onRegion(r.id, r.data); r.done(); } catch (e) { r.fail(e); }
+      }
+      joining = null;
+    };
+    const join = async (id) => {
+      const data = await build(id);
+      if (id === start) return onRegion(id, data);
+      await first;
+      await new Promise((done, fail) => { ready.push({ id, data, done, fail }); joining ||= next(); });
     };
     // the start map first; the rest as there are workers free (each stretch after the maps either side)
-    first = job(start);
-    await Promise.all([first, ...REGIONS.filter((R) => R.id !== start).map((R) => job(R.id))]);
+    first = join(start);
+    await Promise.all([first, ...REGIONS.filter((R) => R.id !== start).map((R) => join(R.id))]);
   }
 }

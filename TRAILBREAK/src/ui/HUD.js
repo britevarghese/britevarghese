@@ -345,7 +345,11 @@ export class HUD {
       const a = Math.atan2(b.x - here.x, -(b.z - here.z));
       marks.push({ a, text: '◆', cls: 'bcn' + (this.found.has(b.id) ? ' done' : '') });
     }
-    for (const m of mates) marks.push({ a: Math.atan2(m.x - here.x, -(m.z - here.z)), text: m.help ? '!' : '●', cls: m.help ? 'mate help' : 'mate', color: m.help ? null : m.color });
+    // (a friend: always on it, at its edge when off to the side or behind, with how far)
+    for (const m of mates) {
+      const far = Math.hypot(m.x - here.x, m.z - here.z), d = far < 1000 ? `${Math.round(far / 10) * 10} m` : `${(far / 1000).toFixed(1)} km`;
+      marks.push({ a: Math.atan2(m.x - here.x, -(m.z - here.z)), text: `${m.help ? '!' : '●'} ${d}`, cls: m.help ? 'mate help' : 'mate', color: m.help ? null : m.color, pin: true });
+    }
     const next = this.eventMarks?.next;
     if (next) marks.push({ a: Math.atan2(next.x - here.x, -(next.z - here.z)), text: '▼', cls: 'gate' });
     if (route) marks.push({ a: Math.atan2(route.target.x - here.x, -(route.target.z - here.z)), text: '⬤', cls: 'route' });
@@ -353,9 +357,14 @@ export class HUD {
     for (const m of marks) {
       let d = m.a - heading;
       while (d > Math.PI) d -= TAU; while (d < -Math.PI) d += TAU;
-      if (Math.abs(d) > 1.15) continue;
+      let text = m.text;
+      if (Math.abs(d) > 1.15) {
+        if (!m.pin) continue;
+        text = d > 0 ? `${text} ▶` : `◀ ${text}`;
+        d = Math.sign(d) * 0.9;
+      }
       const x = width / 2 + d * pxPerRad;
-      html += `<span class="${m.cls}" style="left:${x.toFixed(1)}px${m.color ? `;color:${m.color}` : ''}">${m.text}</span>`;
+      html += `<span class="${m.cls}" style="left:${x.toFixed(1)}px${m.color ? `;color:${m.color}` : ''}">${text}</span>`;
     }
     if (html !== this.lastStrip) { this.marksEl.innerHTML = html; this.lastStrip = html; }
   }

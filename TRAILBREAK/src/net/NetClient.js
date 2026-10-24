@@ -24,6 +24,9 @@ function slerp(a, b, t, out) {
 }
 const angLerp = (a, b, t) => { let d = b - a; while (d > Math.PI) d -= Math.PI * 2; while (d < -Math.PI) d += Math.PI * 2; return a + d * t; };
 
+/** Now (ms since 1970), to a fraction of a millisecond. */
+const clock = () => performance.timeOrigin + performance.now();
+
 export class NetClient {
   constructor({ name, room, map, quick, onEvent }) {
     this.name = name;
@@ -73,7 +76,7 @@ export class NetClient {
         if (m.t === 'welcome') {
           clearTimeout(timer);
           this.id = m.id; this.room = m.room; this.tickRate = m.tickRate; this.maxPlayers = m.maxPlayers; this.map = m.map || null; this.public = !!m.public;
-          if (Number.isFinite(m.time)) this.offset = m.time - Date.now();   // (the snapshots refine it: none come while the map loads)
+          if (Number.isFinite(m.time)) this.offset = m.time - clock();      // (the snapshots refine it: none come while the map loads)
           this.connected = true;
           for (const p of m.players) { const r = this.remote(p.id, p.name); if (p.dmg) r.dmg = p.dmg; r.voice = p.voice; r.mic = p.mic; r.mute = p.mute; }
           settled = true;
@@ -97,9 +100,13 @@ export class NetClient {
   handle(m) {
     switch (m.t) {
       case 'snapshot': {
-        const now = Date.now();
-        const sample = m.time - now;
-        this.offset = this.offset === null ? sample : this.offset + (sample - this.offset) * 0.05;
+        // (the server's clock less ours, as the quickest of the last 2 s of snapshots tells it, the others late by
+        // however long they took; eased onto, so the clock trucks are drawn by and stamp their states with runs even)
+        const now = clock(), sample = m.time - now, win = this.offWin || (this.offWin = []);
+        win.push(sample);
+        if (win.length > 2 * this.tickRate) win.shift();
+        const best = Math.max(...win);
+        this.offset = this.offset === null || Math.abs(best - this.offset) > 250 ? best : this.offset + (best - this.offset) * 0.02;
         const live = new Set();
         for (const p of m.players) {
           if (p.id === this.id) continue;
@@ -141,7 +148,7 @@ export class NetClient {
     const snaps = r.snaps;
     if (!snaps.length || this.offset === null) return null;
     // (their delay eased to how late their states come: the clock they're drawn on runs a touch fast or slow meanwhile)
-    const now = (Date.now() + this.offset) / 1000, step = r.lastAt ? Math.min(0.1, Math.max(0, now - r.lastAt)) : 0;
+    const now = (clock() + this.offset) / 1000, step = r.lastAt ? Math.min(0.1, Math.max(0, now - r.lastAt)) : 0;
     r.lastAt = now;
     r.delay = r.delay ?? DELAY;
     r.delay += ((r.delayTarget ?? DELAY) - r.delay) * Math.min(1, step * 1.5);
@@ -187,7 +194,7 @@ export class NetClient {
     if (!this.connected || this.sendT < 1 / this.tickRate) return;
     this.sendT = Math.min(this.sendT - 1 / this.tickRate, 1 / this.tickRate);
     const s = {
-      ts: Math.round(Date.now() + (this.offset ?? 0)),
+      ts: Math.round((clock() + (this.offset ?? 0)) * 10) / 10,
       p: [v.pos.x, v.pos.y, v.pos.z], q: [v.quat.x, v.quat.y, v.quat.z, v.quat.w],
       v: [v.vel.x, v.vel.y, v.vel.z], w: [v.angVel.x, v.angVel.y, v.angVel.z],
       wh: [0, 1, 2, 3].map((i) => v.wheelState(i)),

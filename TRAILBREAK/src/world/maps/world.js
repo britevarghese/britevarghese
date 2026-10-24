@@ -250,7 +250,7 @@ export const GHAT = {
     { id: 'kundalika', kind: 'rally', name: 'Kundalika Descent', desc: 'Off the ghat road and down the river track to the bank of the river out of Kerala.',
       trail: 'Kundalika River Track', from: [340, 60], to: [770, 885], cps: 4, r: 10, par: GHAT_PAR.kundalika, prize: 1.1 },
   ],
-  roadSurface: SURFACE.ROAD, puddles: 4,
+  roadSurface: SURFACE.ROAD, puddles: 4, mudFields: 1,
   // (the ghat's steep ground grown over as Kerala's is, all the way to the coast: its escarpment up to Kerala's ridges
   // green, bare rock only on its sheerest faces)
   keralaRock: 4096,
@@ -277,11 +277,14 @@ export const passGround = (x, z) => {
   return lerp(h, Math.min(h, gap), gauss(x - passLine(z), 210) * 0.9);
 };
 
-/** The Ashwood Pass: from Kerala's tea plateau over the range to Ashwood Valley. */
+/** The Ashwood Pass: from Kerala's tea plateau over the range to Ashwood Valley. (Its trucks park in the lay-by on the
+ * pass road below the hut, whose bank is too steep to drive.) */
 export const PASS = {
   id: 'pass', name: 'Ashwood Pass', short: 'Pass',
-  seed: PASS_SEED, station: { x: 110, z: -60, name: 'Pass Hut' }, spawn: { x: 95, z: -45, yaw: 0 }, dealer: 'Ashwood 4x4 Sales',
-  half: 1024, res: 1, coarse: 4, waterRes: 2, farWoods: 0.75,
+  seed: PASS_SEED, station: { x: 110, z: -60, name: 'Pass Hut' }, spawn: { x: 50, z: -56, yaw: 2.91 }, dealer: 'Ashwood 4x4 Sales',
+  half: 1024, res: 1, coarse: 4, waterRes: 2, farWoods: 0.6,
+  // (its woods thinner than Ashwood's, open alpine meadow between them; fields of mud on its trail)
+  woods: 0.55, mudFields: 1,
   baseHeight: passGround, roughOf: (h) => clamp((h - 80) / 220, 0.25, 1),
   river: null, peaks: [], snowLine: 390,
   // (the snow comes down to 390 m on the Ashwood side; towards Kerala, whose ridges are laid onto the south of the pass

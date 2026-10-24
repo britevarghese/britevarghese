@@ -5,6 +5,7 @@ import { World } from './world/World.js';
 import { WORLD } from './world/maps/world.js';
 import { OpenWorld } from './world/OpenWorld.js';
 import { WorldLoader } from './world/WorldLoader.js';
+import { homeOf } from './world/homes.js';
 import { WorldView } from './render/WorldView.js';
 import { TRUCKS } from './physics/trucks.js';
 import { buildSummary, decodeBuild } from './physics/Upgrades.js';
@@ -217,9 +218,10 @@ async function start() {
   let world, renderer, terrain, vegetation, rocks, grass, tea, water, landmarks, effects, breakView = null, game = null, loader = null, goLive;
   const live = new Promise((r) => { goLive = r; });
   if (open) {
-    // the open world: its maps built in workers (or taken from storage), the start map first; the game starts on it
-    // and the others join as they come in, with no loading screen for them
-    world = new OpenWorld();
+    // the open world: its maps built in workers (or taken from storage), the map of the truck's home first (after the
+    // ones it is laid onto); the game starts on it and the others join as they come in, with no loading screen for them
+    const home = homeOf(settings.truck), start = home.region;
+    world = new OpenWorld(WORLD, home);
     renderer = new Renderer($('app'));
     effects = new Effects(renderer.scene);
     const S = world.regionDef(WORLD.start).map;
@@ -227,17 +229,24 @@ async function start() {
     effects.setPalette(S.dust);
     if (S.mudTint) MUD_TINT.setRGB(...S.mudTint);
     const view = await WorldView.create(world, renderer, { quality: settings.quality, audio, effects });
-    loader = new WorldLoader({ onProgress: (id, f, label) => { if (id === WORLD.start && !game) setLoad(0.02 + f * 0.6, label); } });
+    // (the loading bar: the start map and those built before it, each its share)
+    const early = WorldLoader.before(start), part = new Map();
+    loader = new WorldLoader({ onProgress: (id, f, label) => {
+      if (!early.has(id) || game) return;
+      part.set(id, f);
+      let sum = 0; for (const v of part.values()) sum += v;
+      setLoad(0.02 + 0.6 * sum / early.size, early.size > 1 && id !== start ? `${world.regionDef(id).map.name}: ${label}` : label);
+    } });
     let started;
     const first = new Promise((r) => { started = r; });
-    world.loading = loader.load(WORLD.start, async (id, data) => {
+    world.loading = loader.load(start, async (id, data) => {
       // (the others once the game is under way: the start map's loading screen is for it alone)
-      if (id !== WORLD.start) await live;
+      if (id !== start) await live;
       const region = world.add(id, data);
-      if (region.id === WORLD.start) setLoad(0.64, 'Painting the ground');
+      if (region.id === start) setLoad(0.64, 'Painting the ground');
       else await new Promise((r) => setTimeout(r, 0));
-      await view.add(region, region.id === WORLD.start ? { onProgress: (f) => setLoad(0.64 + f * 0.16), slice: Infinity } : {});
-      if (region.id === WORLD.start) started(); else game?.regionIn(region);
+      await view.add(region, region.id === start ? { onProgress: (f) => setLoad(0.64 + f * 0.16), slice: Infinity } : {});
+      if (region.id === start) started(); else game?.regionIn(region);
     }).catch((e) => { console.error('the open world', e); game?.hud.toast(`Part of the world could not be built: ${e.message}`, true, 8); });
     await first;
     ({ terrain, vegetation, grass, tea, rocks, water, landmarks, breakView } = view);
@@ -325,6 +334,7 @@ async function start() {
     : net.public ? `Quick match in ${M.name}: ${others ? `${others} other driver${others > 1 ? 's' : ''} here` : 'you are the first here: others looking for a game will join you'}. Enter to chat`
     : `Room ${net.room} (${M.name}): press Esc for the invite link`, false, 7);
   if (otherMap) hud.toast(`Room ${net.room} was opened on ${M.name}, so you drive it here. For ${MAPS[otherMap].name}, leave the room code empty.`, false, 9);
+  if (open) hud.toast(`Your ${(TRUCKS[settings.truck] || TRUCKS.ranger).name} starts at ${world.map.spawn.name}. Fast travel to the other bases and your friends: M, then T`, false, 9);
   hud.toast('Find the survey beacons: follow the orange light beams', false, 6);
   wireMenus(game, net);
   if (isTouchDevice()) {

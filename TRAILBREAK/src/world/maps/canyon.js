@@ -1,21 +1,22 @@
 // The open world's north-west corner (world/maps/world.js): Lalghati Canyon, a 2 km square west of Bearwood Taiga and
 // north of Chalkewadi, red sandstone country in the manner of the canyon maps of the mud-and-timber truck games. The
-// Bearwood leaves the taiga and runs west through a gorge it has cut a hundred metres down into a plateau of red rock
+// Bearwood leaves the taiga and runs west through a canyon it has cut a hundred metres down into a plateau of red rock
 // (lal ghati: the red valley), then north out of the world.
 //
-//   the gorge: walls of red sandstone in ledges (beds of harder rock standing out over softer, world/WorldGen.js shapes
-//     them here, render/Terrain.js draws their beds), the river on its floor between sand bars, red mud and reeds,
-//     acacias, a wide braided shallows at its bend; Lalghati Base on the broad floor where it opens to the taiga
-//   the Narrows: a slot canyon off its south side, a creek running down its floor between walls a few metres apart, to
-//     the Hidden Pool at its head under a dry waterfall
+//   the canyon: walls of red sandstone in ledges (beds of harder rock standing out over softer, world/WorldGen.js shapes
+//     them here, render/Terrain.js draws their beds) round a broad open floor, 250 to 380 m across: the river on it
+//     between sand bars, red mud flats where it floods, reeds, acacias here and there, a wide braided shallows at its
+//     bend; Lalghati Base on the floor where it opens to the taiga
+//   Hidden Creek: a side canyon off its south side, a creek in a channel down its floor from the Hidden Pool under a dry
+//     fall at its head, across the main floor to the river
 //   Red Pool: a box canyon off its north side, a waterhole under its end wall in the reeds
 //   the plateau: slickrock and red sand on top, thor (the candelabra spurge) and acacias, the Rim Lookout over the gorge
 //   the escarpment: the plateau's south edge, a wall down to the bench below, broken where a ramp of fallen rock comes
 //     down; on the bench red mud flats that hold the rain and the Chimneys, three sandstone buttes
 //
 // The tracks: the Gorge Track up the floor from the taiga, through the river at the shallows and on north; the Ledge
-// Road, a shelf cut along the gorge's south wall up to the rim; the Rim Track along the top; the Narrows Track up the
-// creek; the Red Pool Track; the Chimneys Road down the ramp to the bench and the buttes.
+// Road, a shelf cut along the canyon's south wall up to the rim; the Rim Track along the top; the Hidden Creek Track up
+// the creek; the Red Pool Track; the Chimneys Road down the ramp to the bench and the buttes.
 import { SURFACE } from '../../physics/Surfaces.js';
 import { COAST } from './coast.js';
 import { TAIGA, TAIGA_RIVER_PTS } from './taiga.js';
@@ -48,14 +49,15 @@ let level0 = null;
 const riverIn = () => (level0 ??= landform(TAIGA).riverNear(-1024, TAIGA_RIVER_PTS[TAIGA_RIVER_PTS.length - 1][1]).level);
 export const canyonLevel = (s) => riverIn() - 24 * s;
 
-/** The gorge's floor, a half-width (m) along it (fraction along the river): wide where it opens to the taiga, narrow in the middle, opening again to the north. */
-const floorHalf = (s) => lerp(lerp(115, 46, smoothstep(0.02, 0.24, s)), 74, smoothstep(0.72, 0.95, s));
+/** The canyon's floor, a half-width (m) along it (fraction along the river): a broad open valley between its walls, widest where it opens to the taiga and to the north. */
+const floorHalf = (s) => lerp(lerp(190, 125, smoothstep(0.02, 0.24, s)), 160, smoothstep(0.72, 0.95, s));
 
-// the side canyons: the Narrows (a slot off the south side, its creek down from the Hidden Pool), and the Red Pool box
-// canyon off the north side; each a floor rising gently from the gorge's to its head, walls up to the plateau
-export const NARROWS = { pts: [[372, 228], [384, 288], [366, 366], [410, 428]], half: 7, wall: 15, rise: 8, pool: 24 };
-export const RED_POOL = { pts: [[72, -14], [52, -150], [92, -288], [58, -414]], half: 20, wall: 28, rise: 7, pool: 34 };
-const SIDES = [NARROWS, RED_POOL].map((c) => ({ ...c, len: lineLength(c.pts) }));
+// the side canyons: Hidden Creek off the south side (its creek down from the Hidden Pool), and the Red Pool box canyon
+// off the north side; each a broad floor rising gently from the main one to its head, the creek in a channel down it,
+// walls up to the plateau
+export const CREEK = { pts: [[372, 228], [384, 300], [370, 380], [400, 450]], half: 22, wall: 24, rise: 8, pool: 26 };
+export const RED_POOL = { pts: [[72, -14], [52, -150], [92, -288], [58, -414]], half: 34, wall: 32, rise: 7, pool: 38 };
+const SIDES = [CREEK, RED_POOL].map((c) => ({ ...c, len: lineLength(c.pts) }));
 /** The pools at the heads of the side canyons: [x, z, r]. */
 export const POOLS = SIDES.map((c) => [...c.pts[c.pts.length - 1], c.pool]);
 
@@ -103,7 +105,8 @@ export function canyonGround(x, z) {
     c.f0 ??= canyonLevel(clamp((lineNear(GORGE_PTS, ...c.pts[0]).s - GORGE_OFF) / RIVER_LEN, 0, 1)) + 2.2;
     const n = lineNear(c.pts, x, z), nd = n.d, ns = n.s;
     if (nd > c.half + c.wall + 30) continue;
-    const t = ns / c.len, sf = c.f0 + c.rise * t + 0.3 * fbm(ns / 12, 0.1, 2, SEED + 13);
+    // (the creek's channel down the middle: a couple of metres wide, half a metre down)
+    const t = ns / c.len, sf = c.f0 + c.rise * t + 0.3 * fbm(ns / 12, 0.1, 2, SEED + 13) - 0.55 * smoothstep(4.5, 1.5, nd);
     const dd = nd + 3 * fbm(x / 20, z / 20, 2, SEED + 14);
     // (wider at the head, round the pool: a bowl a metre and a half deep under the dry fall)
     const hw = c.half + (c.pool - c.half) * smoothstep(0.82, 1, t), [px, pz] = c.pts[c.pts.length - 1];
@@ -114,12 +117,12 @@ export function canyonGround(x, z) {
 }
 
 // ---------------------------------------------------------------- the places
-const BASE = { x: 822, z: 350 }, LOOKOUT = { x: 132, z: 182 }, RAMP_TOP = { x: RAMP_X, z: 420 };
+const BASE = { x: 822, z: 350 }, LOOKOUT = { x: 132, z: 222 }, RAMP_TOP = { x: RAMP_X, z: 420 };
 /** The mud flats on the bench: a hollow of red mud between the Chimneys, standing water in its low spots. */
 export const MUD_FLATS = { x: -40, z: 735, rx: 170, rz: 58, rot: 0.08 };
 
 /** Its rallies' par times (seconds): a careful driver in three stock trucks, gold about the best of them. */
-const PAR = { lalghatirun: { gold: 125, silver: 150, bronze: 185 }, ledgeroad: { gold: 92, silver: 110, bronze: 136 } };
+const PAR = { lalghatirun: { gold: 135, silver: 162, bronze: 200 }, ledgeroad: { gold: 125, silver: 150, bronze: 185 } };
 
 export const CANYON_ROUTES = {
   // (in from the taiga up the gorge's floor past the base along the river's south bank, through the river in the
@@ -127,17 +130,19 @@ export const CANYON_ROUTES = {
   'Gorge Track': { via: [[1024, 336], [949, 342], [880, 335], [801, 309], [736, 284], [673, 265], [607, 241], [558, 241], [488, 247], [404, 224], [340, 194],
     [274, 155], [213, 119], [159, 88], [98, 53], [47, 29], [-22, 16], [-92, 11], [-170, -14], [-232, -46], [-300, -160], [-329, -254], [-366, -376],
     [-379, -499], [-354, -625], [-312, -759], [-283, -860]], kind: 'trail', width: 3.0, extend: [8, 0] },
-  // (a shelf cut along the gorge's south wall from the floor up to the rim at the bend, 716 m at 14%: its waypoints
-  // where the wall stands at the height it has climbed to)
-  'Ledge Road': { via: [[340, 194], [263, 161], [217, 147], [177, 125], [148, 110], [106, 92], [66, 73], [47, 64], [3, 59], [-43, 61], [-88, 57], [-156, 41],
-    [-199, 27], [-241, 10], [-286, 0], [-350, -66]], kind: 'trail', width: 4.0, routeGrade: 0.17, grade: 0.2, cut: 14, shoulder: 6 },
-  'Rim Track': { via: [[-350, -66], [-220, 150], [-60, 200], [LOOKOUT.x, LOOKOUT.z + 34]], kind: 'trail', width: 2.8 },
-  // (down the ramp of fallen rock in the escarpment to the bench, past the mud flats to the Chimneys)
-  'Chimneys Road': { via: [[-60, 200], [RAMP_TOP.x, RAMP_TOP.z], [-150, 600], [-170, 690], [-300, 760], [-450, 790]], kind: 'trail', width: 2.8, routeGrade: 0.2 },
-  // (up the creek in the slot to the Hidden Pool, laid straight along its floor)
-  'Narrows Track': { via: [[340, 194], [372, 228, 1], [384, 288, 1], [366, 366, 1], [396, 410]], kind: 'trail', width: 2.6 },
-  // (across the river at the ford and up the box canyon to the Red Pool)
-  'Red Pool Track': { via: [[47, 29], [62, -8], [52, -150], [90, -280], [66, -376]], kind: 'trail', width: 2.8, routeGrade: 0.3 },
+  // (a shelf cut along the canyon's south wall from the floor, round the bend and up the west wall to the rim, 1.1 km
+  // at 9%: its waypoints where the wall stands at the height it has climbed to; wide enough for two trucks to pass)
+  'Ledge Road': { via: [[404, 224], [382, 254], [321, 286], [245, 260], [212, 228], [175, 203], [133, 183], [111, 183], [72, 160], [36, 133], [-7, 132],
+    [-52, 131], [-97, 128], [-186, 107], [-227, 88], [-269, 72], [-310, 55], [-401, -27], [-430, -62], [-460, -95], [-493, -127], [-530, -190]],
+  kind: 'trail', width: 5.0, routeGrade: 0.17, grade: 0.2, cut: 14, shoulder: 7 },
+  // (along the plateau back from the rim, from the top of the shelf round the bend to the lookout)
+  'Rim Track': { via: [[-530, -190], [-570, -90], [-550, 50], [-440, 160], [-300, 210], [-160, 240], [-60, 260], [60, 270], [LOOKOUT.x, LOOKOUT.z + 34]], kind: 'trail', width: 2.8 },
+  // (off the rim track down the ramp of fallen rock in the escarpment to the bench, past the mud flats to the Chimneys)
+  'Chimneys Road': { via: [[-60, 260], [RAMP_TOP.x, RAMP_TOP.z], [-150, 600], [-170, 690], [-300, 760], [-450, 790]], kind: 'trail', width: 2.8, routeGrade: 0.2 },
+  // (up beside the creek, across the floor and up the side canyon to the Hidden Pool)
+  'Hidden Creek Track': { via: [[404, 224], [394, 262], [400, 330], [388, 400], [420, 436]], kind: 'trail', width: 2.8 },
+  // (across the river at the ford and up the box canyon beside its creek to the Red Pool)
+  'Red Pool Track': { via: [[47, 29], [62, -8], [68, -150], [106, -280], [82, -376]], kind: 'trail', width: 2.8, routeGrade: 0.3 },
 };
 
 // ---------------------------------------------------------------- what's where
@@ -186,7 +191,7 @@ const creekD = (x, z) => {
 
 export const CANYON = stretch({
   id: 'canyon', name: 'Lalghati Canyon', short: 'Lalghati', seed: SEED, half: CANYON_HALF,
-  blurb: 'Red rock country: a gorge cut a hundred metres into a sandstone plateau, a slot canyon with a creek in it, waterholes in the reeds, mud flats and buttes under the escarpment.',
+  blurb: 'Red rock country: a broad canyon cut a hundred metres into a sandstone plateau, its floor wide open, red mud flats by the river, a side canyon with a creek in it, waterholes in the reeds, and buttes under the escarpment.',
   station: { x: BASE.x, z: BASE.z, name: 'Lalghati Base' }, spawn: { x: BASE.x - 12, z: BASE.z + 30, yaw: -Math.PI / 2 }, dealer: 'Lalghati Base',
   load: () => COAST.load(), baseHeight: canyonGround, roughOf: (h) => clamp((h - 60) / 220, 0.15, 0.5),
   ...TROPICAL, ground: 'canyon', trees: 'canyon', farWoods: 0.12, tint: canyonTint, tintRange: 2.5,
@@ -210,7 +215,7 @@ export const CANYON = stretch({
   rockBeds: 1.5,
   atmosphere: { fog: 0.0004, cover: 0.62 }, air: { fog: 0.0004, cover: 0.62, sun: 1, sat: 1.1, fade: 200 },
   dust: { ...COAST.dust, [SURFACE.SAND]: [0.5, 0.26, 0.15], [SURFACE.DIRT]: [0.45, 0.22, 0.12] },
-  puddles: 5,
+  puddles: 5, mudFields: 1.2,
   river: { points: CANYON_RIVER_PTS, widthStart: 16, widthEnd: 22, depthStart: 1.8, depthEnd: 2.2, fords: CANYON_FORDS, shallows: [CANYON_SHALLOWS],
     levelAt: canyonLevel, valleyAt: () => [60, 26], cliffs: true },
   trails: trailsOf('canyon', CANYON_ROUTES),
@@ -221,17 +226,17 @@ export const CANYON = stretch({
     { type: 'lookout', x: LOOKOUT.x, z: LOOKOUT.z, yaw: Math.PI },
   ],
   beacons: [
-    { id: 0, name: 'Lalghati Base', x: BASE.x - 30, z: BASE.z - 34 }, { id: 1, name: 'The Narrows', x: 380, z: 330 },
-    { id: 2, name: 'Hidden Pool', x: 392, z: 404 }, { id: 3, name: 'Red Pool', x: 80, z: -362 },
+    { id: 0, name: 'Lalghati Base', x: BASE.x - 30, z: BASE.z - 34 }, { id: 1, name: 'Hidden Creek', x: 404, z: 330 },
+    { id: 2, name: 'Hidden Pool', x: 424, z: 430 }, { id: 3, name: 'Red Pool', x: 80, z: -362 },
     { id: 4, name: 'Rim Lookout', x: LOOKOUT.x + 14, z: LOOKOUT.z + 20 }, { id: 5, name: 'Lal Shallows', x: -262, z: -120 },
     { id: 6, name: 'The Chimneys', x: -440, z: 690 }, { id: 7, name: 'Mud Flats', x: -40, z: 690 },
     { id: 8, name: 'North Bar', x: -300, z: -790 },
   ],
   races: [
-    { id: 'lalghatirun', kind: 'rally', name: 'Lalghati Gorge Run', desc: 'Down the gorge from the base between the red walls, past the mouth of the Narrows and through the river at the shallows.',
+    { id: 'lalghatirun', kind: 'rally', name: 'Lalghati Canyon Run', desc: 'Down the canyon floor from the base between the red walls, past the mouth of Hidden Creek and through the river at the shallows.',
       trail: 'Gorge Track', from: [801, 309], to: [-300, -160], cps: 7, r: 12, par: PAR.lalghatirun, prize: 1.5 },
-    { id: 'ledgeroad', kind: 'rally', name: 'Ledge Road Climb', desc: 'Up the shelf road cut along the gorge wall, from the river to the rim, a hundred metres up.',
-      trail: 'Ledge Road', from: [340, 194], to: [-350, -66], cps: 5, r: 10, par: PAR.ledgeroad, prize: 1.4 },
+    { id: 'ledgeroad', kind: 'rally', name: 'Ledge Road Climb', desc: 'Up the shelf road cut along the canyon wall, from the floor round the bend and up the west wall to the rim, a hundred metres up.',
+      trail: 'Ledge Road', from: [382, 254], to: [-530, -190], cps: 5, r: 10, par: PAR.ledgeroad, prize: 1.4 },
   ],
   // (its tracks laid as trails are: the shelf road cut into the wall as deep as it needs, its bed banked no wider than
   // its shoulders, so the floor below it stays the floor)
@@ -262,7 +267,10 @@ export const CANYON = stretch({
       const g = gorgeAt(x, z);
       if (h < g.floor + 5 && g.d < g.half + 40) {
         if (g.d < 30) return n1 > 0.58 ? SURFACE.MUD : n2 > 0.52 ? SURFACE.SAND : SURFACE.GRAVEL;
-        return n3 > 0.62 ? SURFACE.MUD : n1 > 0.55 ? SURFACE.GRASS : n2 > 0.7 ? SURFACE.SAND : SURFACE.DIRT;
+        // (red mud flats out across the floor where the river floods it, most of it near the river; earth, dry grass
+        // and drifts of sand between)
+        if (n3 > 0.62 - 0.2 * smoothstep(g.half * 0.8, 40, g.d)) return SURFACE.MUD;
+        return n1 > 0.55 ? SURFACE.GRASS : n2 > 0.7 ? SURFACE.SAND : SURFACE.DIRT;
       }
       // the bench: the mud flats, red earth and drifts of sand, grass in the hollows
       if (h < 90 && z > 400) {
@@ -284,9 +292,9 @@ export const CANYON = stretch({
           for (let z = Math.floor((z0 - c.pool) / waterRes) * waterRes; z <= z1 + c.pool; z += waterRes) {
             const pd = hyp(x - px, z - pz);
             if (pd < c.pool * 0.82) { setWater(x, z, top + 0.34); continue; }
-            // (the creek over the floor's width, a hand's depth or more: the track up the slot runs in it)
+            // (the creek in its channel, knee deep at the middle)
             const n = lineNear(c.pts, x, z), nd = n.d, ns = n.s;
-            if (nd < c.half - 2.5) setWater(x, z, c.f0 + c.rise * ns / c.len + 0.36);
+            if (nd < 3.5) setWater(x, z, c.f0 + c.rise * ns / c.len + 0.05);
           }
         }
       }
@@ -313,9 +321,9 @@ export const CANYON = stretch({
         const pick = R(), wet = Math.min(creekD(x, z), lineNear(CANYON_RIVER_PTS, x, z).d - 14);
         // by the water: acacias thick; on the gorge's floor and the bench, acacias scattered; on the ledges and the
         // plateau a thor in the cracks now and then, a few acacias in the pockets of earth, dead trees here and there
-        if (wet < 30) return roll < 0.5 ? desert(pick < 0.92 ? DESERT.acacia : DESERT.dead, R) : null;
+        if (wet < 30) return roll < 0.32 ? desert(pick < 0.92 ? DESERT.acacia : DESERT.dead, R) : null;
         const g = gorgeAt(x, z);
-        if (h < g.floor + 5 && g.d < g.half + 40) return roll < 0.24 ? desert(pick < 0.9 ? DESERT.acacia : pick < 0.96 ? DESERT.thor : DESERT.dead, R) : null;
+        if (h < g.floor + 5 && g.d < g.half + 40) return roll < 0.07 ? desert(pick < 0.9 ? DESERT.acacia : pick < 0.96 ? DESERT.thor : DESERT.dead, R) : null;
         if (h < 90 && z > 400) return roll < 0.13 ? desert(pick < 0.62 ? DESERT.acacia : pick < 0.9 ? DESERT.thor : DESERT.dead, R) : null;
         if (w > 0.15) return roll < 0.09 ? desert(pick < 0.7 ? DESERT.thor : DESERT.acacia, R) : null;
         return roll < 0.08 ? desert(pick < 0.5 ? DESERT.thor : pick < 0.92 ? DESERT.acacia : DESERT.dead, R) : null;

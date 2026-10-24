@@ -53,10 +53,10 @@ export const GLEN_ROUTES = {
 };
 
 export const GLEN = stretch({
-  id: 'glen', name: 'Koyna Glen', short: 'Koyna', seed: GLEN_SEED, half: 1024,
+  id: 'glen', name: 'Koyna Glen', short: 'Koyna', seed: GLEN_SEED, half: 1024, mudFields: 1,
   station: { x: -150, z: 470, name: 'Koyna Dam' }, spawn: { x: -130, z: 450, yaw: Math.PI }, dealer: 'Ashwood 4x4 Sales',
   load: () => COAST.load(), baseHeight: glenGround, roughOf: (h) => clamp((h - 60) / 200, 0.2, 0.9),
-  ...HIGHLAND, farWoods: 0.85, lake: KOYNA,
+  ...HIGHLAND, farWoods: 0.7, lake: KOYNA,
   trails: trailsOf('glen', GLEN_ROUTES),
   landmarks: [{ type: 'cabin', x: -170, z: 440, yaw: 0.2 }, { type: 'flag', x: 200, z: 548, yaw: 0 }],
   beacons: [{ id: 0, name: 'Koyna Dam', x: 330, z: 566 }, { id: 1, name: 'Glen Head', x: 170, z: -880 }, { id: 2, name: 'Koyna Gap', x: -560, z: -600 }],
@@ -73,11 +73,12 @@ export const GLEN = stretch({
       return s;
     },
     trees(ctx) {
-      // pine and fir up the glen's sides (the valley's cold air), birch by the water, a few dead ones
+      // pine and fir up the glen's sides (the valley's cold air) in stands with open ground between, birch by the water,
+      // a few dead ones
       plant(ctx, 5, (x, z, s, h, R, roll) => {
         if (Math.abs(z - DAM_Z) < 70 && x > -200 && x < 560) return null;
-        const wood = 0.25 + 0.5 * smoothstep(-0.2, 0.4, fbm(x / 160, z / 160, 2, GLEN_SEED + 4));
-        if (roll > wood * (h < 72 ? 0.35 : 1) * 0.55) return null;
+        const wood = 0.1 + 0.65 * smoothstep(0, 0.4, fbm(x / 160, z / 160, 2, GLEN_SEED + 4));
+        if (roll > wood * (h < 72 ? 0.35 : 1) * 0.5) return null;
         const pick = R();
         return alpine(h < 75 && pick < 0.4 ? ALPINE.birch : pick < 0.03 ? ALPINE.snag : pick < 0.6 ? ALPINE.pine : pick < 0.85 ? ALPINE.fir : ALPINE.spruce, R);
       });
@@ -136,7 +137,7 @@ export const FOREST = stretch({
   id: 'forest', name: 'Bhimashankar', short: 'Bhimashankar', seed: FOREST_SEED, half: 1024,
   station: { x: -230, z: 330, name: 'Bhimashankar Rest House' }, spawn: { x: -210, z: 310, yaw: 0 }, dealer: 'Konkan Motors',
   load: () => COAST.load(), baseHeight: forestGround, roughOf: (h) => clamp((h - 60) / 220, 0.25, 0.9),
-  ...TROPICAL, farWoods: 0.95,
+  ...TROPICAL, farWoods: 0.75,
   trails: trailsOf('forest', FOREST_ROUTES),
   landmarks: [{ type: 'bungalow', x: -255, z: 360, yaw: 1.2 }, { type: 'mine', x: 330, z: 255, yaw: -1.2 }, { type: 'chaistall', x: -200, z: 300, yaw: -0.5 }],
   beacons: [{ id: 0, name: 'Bhor Quarry', x: 470, z: 215 }, { id: 1, name: 'Bhimashankar Temple', x: -110, z: 80 }, { id: 2, name: 'Cairn Saddle', x: 780, z: -200 }],
@@ -152,11 +153,12 @@ export const FOREST = stretch({
       return s === SURFACE.DIRT ? SURFACE.GRASS : s;
     },
     trees(ctx) {
-      // the evergreen jungle: giants and bamboo, thick; mango and jack lower down by the valley
+      // the evergreen jungle in great stands, giants and bamboo, with open glades of grass between; mango and jack lower
+      // down by the valley
       plant(ctx, 5, (x, z, s, h, R, roll) => {
         if (Math.hypot(x - QUARRY.x, z - QUARRY.z) < QUARRY.r + 30) return null;
-        const wood = 0.35 + 0.4 * smoothstep(-0.3, 0.3, fbm(x / 180, z / 180, 2, FOREST_SEED + 7));
-        if (roll > wood * 0.6) return null;
+        const wood = 0.05 + 0.7 * smoothstep(-0.05, 0.35, fbm(x / 180, z / 180, 2, FOREST_SEED + 7));
+        if (roll > wood * 0.55) return null;
         const pick = R(), low = lineD(VALLEY, x, z) < 140;
         return tropic(pick < 0.5 ? TROPIC.giant : pick < 0.68 ? TROPIC.bamboo : low && pick < 0.85 ? TROPIC.mango : pick < 0.93 ? TROPIC.mango : TROPIC.banana, R);
       });

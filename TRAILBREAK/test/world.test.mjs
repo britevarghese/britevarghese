@@ -8,9 +8,10 @@ import { spline } from '../src/world/WorldGen.js';
 import { OpenWorld, BEACON_STRIDE } from '../src/world/OpenWorld.js';
 import { RouteGraph } from '../src/game/Route.js';
 import { Vehicle } from '../src/physics/Vehicle.js';
-import { truckSpec } from '../src/physics/trucks.js';
+import { truckSpec, TRUCKS } from '../src/physics/trucks.js';
+import { homeOf, park } from '../src/world/homes.js';
 import { followPath, densify } from './drive.mjs';
-import { POOLS } from '../src/world/maps/canyon.js';
+import { POOLS, CREEK } from '../src/world/maps/canyon.js';
 
 const built = generateBigWorld({ yieldEvery: 1e9 });
 
@@ -113,6 +114,31 @@ test('the open world at run time: one ground, its places and events gathered fro
   assert.ok(W.brokenKeys().includes('kerala:t0'));
 });
 
+test('the open world: each kind of car starts at a home suited to it, with a bay for each of the room at every home and station', async () => {
+  const W = await opened;
+  // the kinds apart: a sports car on the highway's tarmac, the U8 on the beach by the sea, the UAZ at the logging camp
+  const at = (id) => { const h = homeOf(id); return [h, W.surfaceAt(h.x, h.z).name]; };
+  assert.deepEqual([at('supra')[0].region, at('supra')[1]], ['korlai', 'road']);
+  assert.deepEqual([at('u8')[0].name, at('u8')[1]], ['Kashid Beach', 'sand']);
+  assert.equal(at('ranger')[0].name, 'Bearwood Timber Camp');
+  assert.equal(at('wrangler')[0].region, 'canyon');
+  assert.ok(new Set(Object.keys(TRUCKS).map((id) => homeOf(id).name)).size >= 10, 'ten homes or more');
+  // every home and every station's yard (towed back, fast travel): six bays apart, each dry, level and clear
+  const spots = Object.keys(TRUCKS).map(homeOf);
+  for (const R of REGIONS) spots.push({ x: R.map.spawn.x + R.at[0], z: R.map.spawn.z + R.at[1], yaw: R.map.spawn.yaw, name: R.map.station.name });
+  for (const h of spots) {
+    const bays = [0, 1, 2, 3, 4, 5].map((n) => park(W, h, n));
+    assert.equal(new Set(bays.map((b) => `${b.x},${b.z}`)).size, 6, `${h.name}: six bays`);
+    for (const b of bays) {
+      assert.ok(Math.hypot(b.x - h.x, b.z - h.z) < 30, `${h.name}: a bay near it`);
+      assert.ok(W.water(b.x, b.z) < W.height(b.x, b.z) - 0.05 && !W.treesNear(b.x, b.z, 3.5, []).length, `${h.name}: a dry, clear bay`);
+    }
+  }
+  // the others' trucks are left their bays
+  const h = homeOf('thar'), first = park(W, h, 0), next = park(W, h, 0, [[first.x, first.z]]);
+  assert.ok(Math.hypot(next.x - first.x, next.z - first.z) >= 5);
+});
+
 test('the open world: the far land meets every map\'s open edge (no step for it to hang in the air over)', async () => {
   const W = await opened;
   let open = 0;
@@ -162,29 +188,42 @@ test('the open world: Bearwood\'s going, each its own ground (gravel road, mud p
   assert.ok(share(560, -380, 40, (x, z) => name(x, z) === 'rock') > 0.8, 'rock underfoot in the boulder field');
   assert.ok(depth(390, 45) > 0.1 && depth(390, 45) < 0.35 && depth(60, 130) > 1, `the shallows ${depth(390, 45).toFixed(2)} m, the river ${depth(60, 130).toFixed(2)} m`);
   assert.ok(share(400, 88, 25, (x, z) => name(x, z) === 'sand') > 0.8, 'the sand bar');
+  // open country: stands of trees with wide ground between (under 35,000 of them), the tracks' verges cleared, and
+  // open fields of mud on the tracks, pools in them
+  assert.ok(w.trees.count < 35000, `${w.trees.count} trees`);
+  const verge = line('Landing Road').filter((_, i) => i % 5 === 0);
+  assert.ok(verge.every(([x, z]) => !w.treesNear(x, z, 14, []).some((o) => o.tree && o.r > 0.1)), 'no grown trees within 14 m of the Landing Road (saplings by the track only)');
+  const fields = w.data.mudFields;
+  assert.ok(fields.length >= 6, `${fields.length} mud fields`);
+  for (const [x, z] of fields) assert.equal(name(x, z), 'mud');
 });
 
-test('the open world: Lalghati Canyon, a gorge in red rock (ledged walls, the creek up the Narrows, the shelf road, the river on from the taiga)', async () => {
+test('the open world: Lalghati Canyon, a broad canyon in red rock (an open floor, ledged walls, Hidden Creek, the shelf road, the river on from the taiga)', async () => {
   const W = await opened, w = W.byId.get('canyon').world, tg = W.byId.get('taiga').world;
   const depth = (x, z) => Math.max(0, w.water(x, z) - w.height(x, z));
-  // a hundred metres and more from the floor to the rim, across it in three places
+  // a hundred metres and more from the floor to the rim, across it in three places, the floor open: 250 m and more of
+  // it within 8 m of its lowest (the river's bed)
   for (const x of [470, 150, -380]) {
     let lo = Infinity, hi = -Infinity;
     for (let z = -400; z <= 450; z += 2) { const h = w.height(x, z); lo = Math.min(lo, h); hi = Math.max(hi, h); }
-    assert.ok(hi - lo > 95, `across the gorge at x ${x}: ${lo.toFixed(0)} to ${hi.toFixed(0)} m`);
+    let floor = 0;
+    for (let z = -400; z <= 450; z += 2) if (w.height(x, z) < lo + 8) floor += 2;
+    assert.ok(hi - lo > 95 && floor > 250, `across the canyon at x ${x}: ${lo.toFixed(0)} to ${hi.toFixed(0)} m, its floor ${floor} m across`);
   }
   // its walls in ledges: flats between steep faces, going up the south wall
-  let ledges = 0, flat = false, steep = 0, prev = w.height(150, 80);
-  for (let z = 82; z <= 180; z += 2) {
+  let ledges = 0, flat = false, steep = 0, prev = w.height(150, 160);
+  for (let z = 162; z <= 280; z += 2) {
     const h = w.height(150, z), g = Math.abs(h - prev) / 2;
     prev = h;
     if (g > 0.9) { steep++; flat = false; } else if (g < 0.25 && !flat && steep) { ledges++; flat = true; }
   }
   assert.ok(ledges >= 2, `${ledges} ledges`);
-  // the creek over the track up the Narrows, the pools at the heads of the side canyons
-  const creek = densify(w.map.trails.find((t) => t.name === 'Narrows Track').points, 2).slice(8, -4).map(([x, z]) => depth(x, z)).sort((a, b) => a - b);
-  const mid = creek[creek.length >> 1];
-  assert.ok(mid > 0.15 && mid < 0.6, `the creek ${mid.toFixed(2)} m deep over the track`);
+  // Hidden Creek: the creek in its channel down the side canyon, the track up beside it dry; the pools at the heads of
+  // the side canyons
+  const creek = densify(CREEK.pts, 2).slice(10, -12).map(([x, z]) => depth(x, z)).sort((a, b) => a - b), mid = creek[creek.length >> 1];
+  assert.ok(mid > 0.25 && mid < 0.9, `the creek ${mid.toFixed(2)} m deep in its channel`);
+  const track = densify(w.map.trails.find((t) => t.name === 'Hidden Creek Track').points, 2).map(([x, z]) => depth(x, z));
+  assert.ok(track.filter((d) => d > 0.1).length < track.length * 0.15, 'the track up beside the creek dry');
   for (const [x, z] of POOLS) assert.ok(depth(x, z) > 0.7, `the pool at ${x}, ${z}: ${depth(x, z).toFixed(2)} m`);
   // the shelf road: the wall above it on one side, the drop to the floor on the other
   const L = w.map.trails.find((t) => t.name === 'Ledge Road').points, i = L.length >> 1;
@@ -193,10 +232,10 @@ test('the open world: Lalghati Canyon, a gorge in red rock (ledged walls, the cr
   assert.ok(Math.max(a, b) > 15 && Math.min(a, b) < -15, `the shelf: ${a.toFixed(0)} and ${b.toFixed(0)} m either side`);
   // the Bearwood carried on out of the taiga at its level
   assert.ok(Math.abs(tg.water(-1022, 300) - w.water(1022, 300)) < 0.3, `the river at the seam: ${tg.water(-1022, 300).toFixed(2)}, ${w.water(1022, 300).toFixed(2)}`);
-  // red rock most of it, drifts of red sand
-  let n = 0, rock = 0, sand = 0;
-  for (let x = -1000; x <= 1000; x += 16) for (let z = -1000; z <= 1000; z += 16) { n++; const s = w.surfaceAt(x, z).name; rock += s === 'rock'; sand += s === 'sand'; }
-  assert.ok(rock / n > 0.4 && sand / n > 0.08, `rock ${(rock / n * 100).toFixed(0)}%, sand ${(sand / n * 100).toFixed(0)}%`);
+  // red rock most of it, drifts of red sand, red mud on the floor
+  let n = 0, rock = 0, sand = 0, mud = 0;
+  for (let x = -1000; x <= 1000; x += 16) for (let z = -1000; z <= 1000; z += 16) { n++; const s = w.surfaceAt(x, z).name; rock += s === 'rock'; sand += s === 'sand'; mud += s === 'mud'; }
+  assert.ok(rock / n > 0.3 && sand / n > 0.08 && mud / n > 0.04, `rock ${(rock / n * 100).toFixed(0)}%, sand ${(sand / n * 100).toFixed(0)}%, mud ${(mud / n * 100).toFixed(0)}%`);
 });
 
 test('the open world: the satnav finds the way from the coast to Ashwood by road, and a truck drives across the joins', async () => {

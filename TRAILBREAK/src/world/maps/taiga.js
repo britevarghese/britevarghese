@@ -1,7 +1,7 @@
 // The open world's far north (world/maps/world.js): Bearwood Taiga, a 2 km square north of Koyna Glen, over the ridge
-// at the glen's head. Logging country under a grey sky, in the manner of the mud-and-timber truck games: dark spruce
-// and pine forest close on every side, birch along the wet ground, the Bearwood river winding west across a boggy
-// basin, Blackwater Bog north of it, and the logging tracks between them churned into deep mud.
+// at the glen's head. Logging country under a grey sky, in the manner of the mud-and-timber truck games: stands of dark
+// spruce and pine with open ground between them, the Bearwood river winding west across a boggy basin, Blackwater Bog
+// north of it, and the logging tracks between them churned into deep mud, through open fields of it.
 //
 //   the timber camp: on a terrace above the river, its garage, the sawmill and the log yard; the Timber Road up to it
 //     over the ridge from Koyna Glen
@@ -25,7 +25,7 @@ import { clamp, lerp, smoothstep, fbm, vnoise, lineD, plant, alpine, ALPINE, HIG
 
 /** Its rallies' par times (seconds): a careful driver in three stock trucks, gold about the best of them (the UAZ needs low
  * range up the west ford's north bank). */
-const PAR = { timberrun: { gold: 102, silver: 123, bronze: 152 }, blackwater: { gold: 139, silver: 166, bronze: 205 } };
+const PAR = { timberrun: { gold: 115, silver: 138, bronze: 170 }, blackwater: { gold: 151, silver: 181, bronze: 223 } };
 
 /** The taiga's centre in the world (a 2 km square north of Koyna Glen). */
 export const TAIGA_AT = [5024, -6844];
@@ -105,9 +105,10 @@ export const TAIGA = stretch({
   blurb: 'Logging country in the far north: dark spruce forest, the Bearwood river, Blackwater Bog and mud tracks churned deep, under a grey sky.',
   station: { x: 150, z: 410, name: 'Bearwood Timber Camp' }, spawn: { x: 150, z: 445, yaw: Math.PI }, dealer: 'Bearwood Timber Camp',
   load: () => COAST.load(), baseHeight: taigaGround, roughOf: (h) => clamp((h - 80) / 200, 0.25, 0.85),
-  ...HIGHLAND, ground: 'ashwood', farWoods: 0.95, tint: taigaTint, tintRange: 2,
-  // the deep mud on its tracks: a mud hole every hundred metres or so of each
-  puddles: 22,
+  ...HIGHLAND, ground: 'ashwood', farWoods: 0.7, tint: taigaTint, tintRange: 2,
+  // the deep mud on its tracks: a mud hole every hundred metres or so of each, and open fields of mud the tracks run
+  // through (world/WorldGen.js), nearly two a km
+  puddles: 22, mudFields: 1.8,
   // its own air: fog closing in to a few hundred metres, the sky overcast, the light flat and the colours muted
   atmosphere: { fog: 0.0021, cover: 0.12 }, air: { fog: 0.0021, cover: 0.12, sun: 0.5, sat: 0.78, fade: 260 },
   mudTint: [0.24, 0.19, 0.14],
@@ -171,16 +172,40 @@ export const TAIGA = stretch({
       if (s === SURFACE.ROCK || s === SURFACE.RIVERBED || s === SURFACE.SAND || s === SURFACE.GRAVEL) return s;
       if (nearCamp(x, z)) return vnoise(x / 5, z / 5, SEED + 21) > 0.55 ? SURFACE.MUD : SURFACE.DIRT;
       // the wet ground is mud (the tracks through it stay mud: world/WorldGen.js); the rest moss and grass
-      return sl < 0.35 && wetness(x, z, h) > 0.62 ? SURFACE.MUD : s === SURFACE.DIRT ? SURFACE.GRASS : s;
+      return sl < 0.35 && wetness(x, z, h) > 0.56 ? SURFACE.MUD : s === SURFACE.DIRT ? SURFACE.GRASS : s;
     },
     trees(ctx) {
-      // close forest everywhere but the camp, the bog and the cutting: spruce and pine, fir, birch on the wet ground,
-      // dead snags in the cutting
-      // (84,000 or so: one every 5 m where the wood is thickest; every 4 m planted 153,000, more than memory spares)
+      // stands of spruce and pine, fir and birch, with wide open ground between them: clearings, meadows and old
+      // cuttings, a lone tree here and there; the logging tracks' verges cleared some 20 m back, the wet ground all but
+      // bare, dead snags in the cutting (about 30,000)
+      // (how far to the nearest track: their lines' points every 3 m, by 8 m cell)
+      const C = 8, cells = new Map();
+      for (const t of ctx.M.trails) {
+        const p = t.points;
+        for (let i = 1; i < p.length; i++) {
+          const n = Math.ceil(Math.hypot(p[i][0] - p[i - 1][0], p[i][1] - p[i - 1][1]) / 3);
+          for (let j = 0; j < n; j++) {
+            const x = lerp(p[i - 1][0], p[i][0], j / n), z = lerp(p[i - 1][1], p[i][1], j / n), k = Math.floor(z / C) * 4096 + Math.floor(x / C);
+            if (!cells.has(k)) cells.set(k, []);
+            cells.get(k).push(x, z);
+          }
+        }
+      }
+      const trackD = (x, z) => {
+        let d = Infinity;
+        const cx = Math.floor(x / C), cz = Math.floor(z / C);
+        for (let a = -4; a <= 4; a++) for (let b = -4; b <= 4; b++) {
+          const L = cells.get((cz + a) * 4096 + cx + b);
+          if (L) for (let q = 0; q < L.length; q += 2) d = Math.min(d, Math.hypot(L[q] - x, L[q + 1] - z));
+        }
+        return d;
+      };
       plant(ctx, 5, (x, z, s, h, R, roll) => {
         if (nearCamp(x, z) || Math.hypot(x - LANDING.x, z - LANDING.z) < 60 || pitE(x, z) < 1.8) return null;
+        if (trackD(x, z) < 19 + 8 * vnoise(x / 30, z / 30, SEED + 24)) return null;
         const cut = Math.hypot(x - CUTTING.x, z - CUTTING.z) < 130, rocky = Math.hypot(x - BOULDERS.x, z - BOULDERS.z) < BOULDERS.r;
-        const wet = wetness(x, z, h), wood = cut ? 0.05 : rocky ? 0.12 : 0.5 + 0.3 * smoothstep(-0.2, 0.3, fbm(x / 140, z / 140, 2, SEED + 22));
+        const wet = wetness(x, z, h), stand = smoothstep(0, 0.22, fbm(x / 320, z / 320, 2, SEED + 23));
+        const wood = cut ? 0.03 : rocky ? 0.08 : wet > 0.45 ? 0.05 : 0.02 + 0.44 * stand;
         if (roll > wood) return null;
         const pick = R();
         if (cut) return alpine(pick < 0.6 ? ALPINE.snag : ALPINE.birch, R);

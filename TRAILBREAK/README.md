@@ -33,7 +33,8 @@ Dark glass panels over the game, an orange accent and condensed italic type (Bar
 
 - **Lobby:** the map, your name, a room code, the truck (turning in 3D above the list), its paint and the garage; Drive
   (a room for your friends), Quick match or Drive alone.
-- **Driving:** a compass along the top with the degrees, the survey beacons, your friends and the next gate on it;
+- **Driving:** a compass along the top with the degrees, the survey beacons, your friends (each with how far off,
+  held at its edge when they are to the side or behind you) and the next gate on it;
   top right, whether you are online (and your ping), your name and driver level, how many are in the room, and the
   menu. Bottom left, the minimap turns with the truck (the N on its rim shows where north is; tap it for the full
   map). Bottom right, one dial: the revs round the rim (red past the redline), the speed in the middle, the gear
@@ -134,9 +135,19 @@ or + and - to zoom, the buttons to centre on your truck and to show or hide the 
 and friends. Tap anything on it, or any spot on the ground, for what it is and **Set route**: the satnav plots the
 quickest way there by road and trail (src/game/Route.js), straight across country where that is quicker, and shows it
 on the map, on the minimap, on the compass and as a line of chevrons on the ground ahead; it plots it again when you
-leave it, and a route to a friend follows them. **Fast travel** takes you to the station, the garage, an event's
-start line, a beacon you have found or a friend (not in the middle of a run). While the map is open your truck stands
-on its handbrake.
+leave it, and a route to a friend follows them. **Fast travel** takes you to a station, the garage, an event's
+start line, a beacon you have found or a friend (not in the middle of a run). The **Fast travel** button on the map
+(or T with the map open) lists your friends, each with how far off, then your truck's home and every map's base,
+nearest first: Travel jumps there, Route sets the satnav, and a tap on the name shows it on the map. Somewhere whose
+map isn't in yet (a friend who started at a far-off home) has that map built before any other, and you are taken
+there the moment it is in. While the map is
+open your truck stands on its handbrake.
+
+**Friends' trucks** are drawn smoothly however their states reach you: each state is held at the time its driver's
+game took it (not when the server passed it on), a state the server sends again is held once, each friend is drawn as
+far behind as their states take to come (between 80 ms and 0.6 s, by how late theirs arrive), and a late state's
+correction is eased in over a few frames instead of seen as a jump. When a friend first shows up far off (they may have
+started at another home), you are told how far and on which map, and how to fast travel to them.
 
 **Handbrake turns and drifts.** Rolling, Space is the rear wheels' brake alone, as a pulled lever is: steer, pull
 it, and the rear wheels lock and the tail steps out while the fronts roll on and steer; let go and catch it with the
@@ -422,10 +433,10 @@ puts you back at the last checkpoint passed, facing the next, while the clock ru
 | Bhimashankar Jungle Road | Bhimashankar | 1.5 km down the jungle valley from the rest house towards Koyna | 1:45 / 2:05 / 2:35 |
 | Deccan Ghat Descent | Deccan | 1.1 km off Kerala's ridge, through the gap in the escarpment and down to the expressway | 1:47 / 2:08 / 2:38 |
 | Tamhini Road | Deccan | 5.6 km from Shivapur south over the farmland plateau to the world's southern edge | 7:48 / 9:21 / 11:32 |
-| Timber Run | Bearwood Taiga | 1.2 km from the timber camp across the Bearwood at the ford and up the mud of the logging track to the cutting | 1:42 / 2:03 / 2:32 |
-| Blackwater Crossing | Bearwood Taiga | 1.4 km round the edge of Blackwater Bog in the mud and back over the river at the west ford to the log landing (a stock UAZ needs low range up the far bank) | 2:19 / 2:46 / 3:25 |
-| Lalghati Gorge Run | Lalghati Canyon | 1.3 km down the gorge from the base between the red walls, past the mouth of the Narrows and through the river at the shallows | 2:05 / 2:30 / 3:05 |
-| Ledge Road Climb | Lalghati Canyon | 0.8 km up the shelf road cut along the gorge's south wall, from the river to the rim, a hundred metres up | 1:32 / 1:50 / 2:16 |
+| Timber Run | Bearwood Taiga | 1.2 km from the timber camp across the Bearwood at the ford and up the mud of the logging track to the cutting | 1:55 / 2:18 / 2:50 |
+| Blackwater Crossing | Bearwood Taiga | 1.4 km round the edge of Blackwater Bog in the mud and back over the river at the west ford to the log landing (a stock UAZ needs low range up the far bank) | 2:31 / 3:01 / 3:43 |
+| Lalghati Canyon Run | Lalghati Canyon | 1.3 km down the canyon floor from the base between the red walls, past the mouth of Hidden Creek and through the river at the shallows | 2:15 / 2:42 / 3:20 |
+| Ledge Road Climb | Lalghati Canyon | 1.1 km up the shelf road cut along the canyon's south wall, round the bend and up the west wall to the rim, a hundred metres up | 2:05 / 2:30 / 3:05 |
 | Coast to Snow | Open world | 18.6 km across the whole world, 16 checkpoints: up the Kashid ghat, over the Konkan Ghat into Kerala, through the town and the tea, up the Kurinji jeep track, over the Ashwood Pass and down to the ranger station | 26:15 / 31:29 / 38:50 |
 | North Coast Highway | Open world | 10.5 km along the north of the world, 14 checkpoints: from the coast past Korlai, through Borli and the Devkund Gap, under the Chalkewadi turbines and down to the Koyna dam | 15:17 / 18:21 / 22:38 |
 
@@ -928,6 +939,24 @@ and over the pass to Ashwood's snow, or north along the coast highway past Korla
 lake, or south down the Deccan escarpment to the fields and the town, all without a loading screen. The satnav plots
 a way between any two places in it by road and track (from the coast's station to Ashwood's: 18.6 km).
 
+**Where you start** depends on what you drive (`src/world/homes.js`): each kind of car has a home suited to it, and its
+map is built first (after the maps it is laid onto), so the game starts there. The heavy trucks (the Unimog, the UAZ
+Hunter, the K20) start at the Bearwood Timber Camp in the taiga; the rock crawlers (the Wrangler, the Bronco, the
+Ranger Raptor) at Lalghati Base in the canyon; the Defender and the Willys at the Ashwood Ranger Station; the G 63 and
+the Niva at the Pass Hut; the Thar Roxx and the Pajero at the Ponmala Forest Station in Kerala; the Power Wagon at the
+Ghat Dhaba; the Hummer H1 at the Bhimashankar Rest House; the Hummer EV and the Cybertruck at Shivapur Motors; the
+Thar at Kashid Motor Station; the U8 on Kashid beach, by the sea it can swim in; and the sports cars on the North Coast
+Highway at Korlai. Drivers who share a home each get a bay of their own, side by side or in rows: the yard is searched
+for dry, level ground clear of trees, posts, rocks and buildings, and a bay another truck is in is left to it. The same
+goes for a station you are towed back to or travel to.
+
+**Open country and mud.** The new stretches' woods stand in stands with open ground between them (the taiga, Koyna
+Glen, Bhimashankar and the pass thinned to between a third and a half of the trees they had), and every stretch with
+ground level enough by its tracks has open **mud fields** (`mudFields` on a map, so many a km of track;
+`src/world/WorldGen.js`): broad flats of churned mud 50 to 120 m across that a track runs through or a dirt road runs
+beside, a shallow lumpy dish with pools standing in its low spots and no trees on it. They are kept off the race
+courses, so the par times hold, and drawn with their own random numbers, so a map without them is built as it was.
+
 The country is laid out as the real country round Kashid is: the stretches north of the coast and the Deccan to the
 south stand on the same real elevation data as the coast (its bake carries the heights 12 km out, every 40 m), their
 own features made on top of it; the roads through them are routed over the ground (`tools/routeroads.mjs`, below).
@@ -947,9 +976,11 @@ own features made on top of it; the roads through them are routed over the groun
   sides; the Koyna road comes down off Chalkewadi through a gap in its west ridge and along the shore to the dam, and
   the Pinecrest trail climbs from the dam to Ashwood; the Glen Head Track climbs north out of it over the ridge.
 - **Bearwood Taiga** (2 km, the far north, over the ridge at the head of Koyna Glen; `src/world/maps/taiga.js`):
-  logging country in the manner of the mud-and-timber truck games. Dark spruce, pine and fir close on every side
-  (84,000 trees), birch and dead snags on the wet ground, the Bearwood river winding west across a boggy basin, and
-  its ground in Ashwood's textures (brown mud, not the coast's red laterite), dark and muted. The Timber Road comes
+  logging country in the manner of the mud-and-timber truck games, open ground under a big sky: stands of dark spruce,
+  pine and fir with wide clearings, meadows and old cuttings between them (about 24,000 trees, a lone one here and
+  there), the tracks' verges cleared 20 m back, the wet ground all but bare (a birch, a dead snag), the Bearwood river
+  winding west across a boggy basin, and its ground in Ashwood's textures (brown mud, not the coast's red laterite),
+  dark and muted. The Timber Road comes
   over the ridge from the glen to the **Bearwood Timber Camp** on a terrace above the river: the garage, a **sawmill**
   (an open shed on posts under a tin roof, the saw bench and its blade, a log deck, a heap of sawdust, stacked boards)
   and the log yard. The Bearwood Ford Track crosses the river and climbs to the cutting in the far woods; the
@@ -963,7 +994,8 @@ own features made on top of it; the roads through them are routed over the groun
   | Going | Where | What it does to a truck |
   |---|---|---|
   | Gravel | the Timber Road, all of it (a trail can be laid with its own surface: `surface` on a route) | fast and loose: less grip than dirt, slides in the bends |
-  | Deep mud | the tracks across the wet ground (16% of the map is mud), mud holes on their level stretches | the tyres sink up to 0.36 m and dig in when they spin; the faster you plough, the harder it drags |
+  | Deep mud | the tracks across the wet ground (a fifth of the map is mud), mud holes on their level stretches | the tyres sink up to 0.36 m and dig in when they spin; the faster you plough, the harder it drags |
+  | Mud fields | nine open flats of churned mud 60 to 100 m across that the tracks run through, pools standing in their low spots | the whole field to plough across, or round its edge; no trees on them |
   | The Mud Pit | by the camp: a borrow pit dug a metre down, 0.36 m of water over the mud | a Thar, a Wrangler and a UAZ all wallow through at walking pace (90 m in 32 to 38 s), 0.6 m down |
   | Swamp | Blackwater Bog: its lowest third under black pools up to 0.4 m deep, the tracks kept dry round it | mud under water: the tyres sink and slip, and the water drags |
   | Shallow fords | the Bearwood Ford and the west ford, 0.4 m over a riverbed of stones | wet but firm; the banks up out of them are steep (the west ford's north bank: a stock UAZ needs low range) |
@@ -971,33 +1003,33 @@ own features made on top of it; the roads through them are routed over the groun
   | Shallows and sand | the Bearwood Shallows above the ford, ankle deep (0.24 m) over gravel for 120 m, a sand bar on the inside bank | the river to drive along; soft sand that sinks and drags |
   | Rock | the Boulder Field on Lookout Hill's flank: 343 boulders up to 2.8 m on bare rock | the grippiest ground there is, the boulders to crawl over in low range |
   | Steep climbs | the Lookout Track (31%), the ford banks | low range and lockers |
-  | Forest tracks | everywhere between the trees | narrow, the trees close either side |
+  | Open ground | the clearings and meadows between the stands | drive anywhere: across country between the tracks |
 
   Beacons mark the Mud Pit, the Deep Ford, the Boulder Field and the Shallows.
 
 - **Lalghati Canyon** (2 km, west of the taiga and north of Chalkewadi; `src/world/maps/canyon.js`): red rock country in
   the manner of those games' canyon maps. The Bearwood leaves the taiga across its west edge (at its own level, 66 m)
-  and runs west through a gorge it has cut 110 to 125 m down into a plateau of red sandstone, then north out of the
-  world. Its walls stand in ledges, beds of harder rock 8 to 13 m deep over steep faces of softer (the generator steps
+  and runs west through a broad canyon it has cut 110 to 125 m down into a plateau of red sandstone, its floor wide
+  open (280 to 340 m across between the walls), then north out of the world. Its walls stand in ledges, beds of harder rock 8 to 13 m deep over steep faces of softer (the generator steps
   the ground, the terrain shader draws the beds and their joints, and the map's tint colours the strata in bands of
   cream, orange and deep red with a darker varnish); fallen blocks lie at their feet. Its own ground set
   (`public/assets/ground/canyon.json`): a sandstone scan for the rock, cracked red earth, red sand, and the coast's red
   mud, grass and stones; its own trees (`canyon` in `src/render/Vegetation.js`): acacias spreading their flat crowns
-  (6,400 trees in all, thicker by the water), thor (the candelabra spurge) in the rocks, and dead trees; reeds stand
+  (about 6,000 trees in all, a few by the water, scattered over the floor), thor (the candelabra spurge) in the rocks, and dead trees; reeds stand
   along the waters' edges and out into the shallows (a map's `reeds`, `src/render/Grass.js`). Its air is clear and warm,
-  the colours rich. **Lalghati Base** stands on the broad floor where the gorge opens to the taiga.
+  the colours rich. **Lalghati Base** stands on the floor where the canyon opens to the taiga.
 
   | Place | What it is |
   |---|---|
-  | The gorge | the river between sand and shingle bars, red mud and acacias on the floor; the Gorge Track up it from the taiga, through the river in the **Lal Shallows** at the bend (spread wide, knee deep) and on north along the east bank |
-  | The Narrows | a slot canyon off the south side, a creek running down its floor a hand's depth and more (0.27 m over the track) between walls a few metres apart, to the **Hidden Pool** (1.1 m) under a dry fall at its head |
+  | The canyon floor | the river between sand and shingle bars, red mud flats spreading out from it where it floods (7% of the map is mud, six open mud fields among them), acacias here and there; the Gorge Track up it from the taiga, through the river in the **Lal Shallows** at the bend (spread wide, knee deep) and on north along the east bank |
+  | Hidden Creek | a side canyon off the south side, 45 m across, its creek knee deep (0.43 m) in a channel down the middle and across the main floor to the river, the track up beside it, to the **Hidden Pool** under a dry fall at its head |
   | Red Pool | a box canyon off the north side, across the river at the ford, a waterhole in the reeds under its end wall |
-  | The Ledge Road | a shelf cut along the gorge's south wall, 760 m at 14% from the floor to the rim, the wall above it and a sheer drop of 50 m and more on the other side |
-  | The plateau | slickrock and red sand, dry washes, domes of rock; the Rim Track along it to the **Rim Lookout** over the gorge |
+  | The Ledge Road | a shelf cut along the south wall, round the bend and up the west wall, 1.16 km at 9% from the floor to the rim, 5 m wide with room either side, the wall above it and a drop of 50 m on the other side |
+  | The plateau | slickrock and red sand, dry washes, domes of rock; the Rim Track along it round the bend to the **Rim Lookout** over the canyon |
   | The escarpment and the bench | the plateau's south edge, a wall down to the bench below, broken where a ramp of fallen rock comes down (the Chimneys Road's hairpins); on the bench the **Mud Flats** (red mud, standing water in its low spots) and the **Chimneys**, three sandstone buttes |
 
   (The generator's river banks ramp up out of the water so a truck can climb out anywhere; a river between cliffs,
-  `river.cliffs`, keeps its 12 m ramp and leaves its gorge's walls standing beyond it.)
+  `river.cliffs`, keeps its 12 m ramp and leaves its canyon's walls standing beyond it.)
 
 - **Bhimashankar** (2 km, between the coast, the Konkan Ghat and the pass): evergreen jungle on ranges either side of
   a valley, the Bhimashankar road up it from the Konkan Ghat to Koyna, and the Bhor quarry in the hills east of it, a

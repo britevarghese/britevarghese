@@ -459,6 +459,10 @@ export async function generateWorld({ map, onProgress = () => {}, yieldEvery = 6
   await tick(0.62, 'Cutting the trails');
   const R = rng(S + 99);
   const puddles = [];
+  // open mud fields (M.mudFields: so many a km of track): broad flats of churned mud a track runs through, pools of
+  // standing water in their low spots, no trees on them (their own draws: a map without them is built as it was)
+  const RF = rng(S + 313), mudFields = [], mudTries = [];
+  const fieldE = (f, x, z) => hyp(x - f.x, z - f.z) / (f.r * (0.8 + 0.3 * fbm(x / 22, z / 22, 2, f.seed)));
   // every trail point in one list: target height, half-width, kind (1 trail, 2 road), its ford's depth (a causeway's
   // is shallow); and a paved road's own: the shoulder its bed blends into the land over, and whether it is laid
   // level across (a highway's tarmac) and crosses the river on a bridge
@@ -567,6 +571,25 @@ export async function generateWorld({ map, onProgress = () => {}, yieldEvery = 6
         if (grade < 0.035 && !onCourse(pd.x, pd.z, pd.r + 6)) puddles.push(pd);
       }
     }
+    // (a mud field: a few places to try for each, where the track runs fairly level, off the station's yard and the
+    // courses, the track through it off its middle, or beside a road (not a highway), the road along its edge; the
+    // first of them the ground suits is taken, below)
+    const byRoad = tr.kind === 'road';
+    if (M.mudFields && (tr.kind === 'trail' || (byRoad && !tr.level))) {
+      for (let n = Math.floor(M.mudFields * (byRoad ? 0.6 : 1) * pts.length * RES / 1000 + RF()); n > 0; n--) {
+        const tries = [];
+        for (let t = 0; t < 12; t++) {
+          const p = Math.floor((0.06 + 0.88 * RF()) * pts.length), r = 26 + 34 * RF(), u = RF() - 0.5;
+          const side = byRoad ? Math.sign(u) * (tr.width + 4 + r * 0.8) : u * r;
+          const a = pts[Math.max(0, p - 1)], b = pts[Math.min(pts.length - 1, p + 1)], l = hyp(b[0] - a[0], b[1] - a[1]) || 1;
+          const f = { x: pts[p][0] - (b[1] - a[1]) / l * side, z: pts[p][1] + (b[0] - a[0]) / l * side, r, seed: S + 320 + Math.floor(RF() * 1000) };
+          const span = Math.round(20 / RES), grade = Math.abs(hs[Math.min(pts.length - 1, p + span)] - hs[Math.max(0, p - span)]) / (2 * span * RES);
+          if (grade > 0.1 || hyp(f.x - STATION.x, f.z - STATION.z) < r + 70 || Math.abs(f.x) > HALF - r - 20 || Math.abs(f.z) > HALF - r - 20) continue;
+          if (!onCourse(f.x, f.z, r * 1.15 + 8)) tries.push(f);
+        }
+        if (tries.length) mudTries.push(tries);
+      }
+    }
     // a paved road's verges (tr.verge.puddles: so many a km): rain standing in the dips just off the tarmac, the
     // ground round it trodden to mud (kept off the road itself, another road's and the courses)
     if (tr.verge?.puddles) {
@@ -591,6 +614,31 @@ export async function generateWorld({ map, onProgress = () => {}, yieldEvery = 6
     if (tpK[p] === 1 && d < width) h -= 0.07 * Math.exp(-(((d - 0.8) / 0.22) ** 2));       // two-track ruts
     if (riverD(idx) < riverHalf(idx) && !tpB[p]) h = Math.min(h, riverLvl(idx) - (tpF[p] !== undefined ? tpF[p] - 0.05 : 0.3));   // keep fords wet
     H[idx] = h;
+  }
+  // the mud fields: each where the first of its places will have it, on fairly level ground (the land round it within a
+  // quarter of its size), out of the river and clear of the others; each a shallow lumpy dish, deeper off the track, and
+  // pools in it
+  for (const tries of mudTries) {
+    const f = tries.find((q) => {
+      let lo = Infinity, hi = -Infinity;
+      for (let a = 0; a < 16; a++) { const h = hAt(q.x + Math.cos(a * Math.PI / 8) * q.r, q.z + Math.sin(a * Math.PI / 8) * q.r); lo = Math.min(lo, h); hi = Math.max(hi, h); }
+      const c = cellOf(q.x, q.z);
+      return hi - lo < q.r * 0.25 && riverD(c) > riverHalf(c) + q.r + 10 && !mudFields.some((g) => hyp(g.x - q.x, g.z - q.z) < g.r + q.r + 20);
+    });
+    if (!f) continue;
+    mudFields.push(f);
+    const ci = Math.round((f.x - GRID_ORIGIN) / RES), ck = Math.round((f.z - GRID_ORIGIN) / RES), Rr = Math.ceil(f.r * 1.2 / RES);
+    for (let k = Math.max(0, ck - Rr); k <= Math.min(N - 1, ck + Rr); k++) for (let i = Math.max(0, ci - Rr); i <= Math.min(N - 1, ci + Rr); i++) {
+      const x = GRID_ORIGIN + i * RES, z = GRID_ORIGIN + k * RES, e = fieldE(f, x, z);
+      if (e >= 1) continue;
+      const idx = k * N + i, on = trailD(idx) < trailW(idx) + 1;
+      if (on && trailK(idx) === 2) continue;           // (a road's bed stays as it was laid)
+      H[idx] -= (on ? 0.06 : 0.28) * (1 - e * e) + (on ? 0.03 : 0.08) * (fbm(x / 3.5, z / 3.5, 2, f.seed + 1) + 0.3);
+    }
+    for (let n = 2 + Math.floor(f.r / 12); n > 0; n--) {
+      const a = RF() * Math.PI * 2, d = Math.sqrt(RF()) * f.r * 0.6;
+      puddles.push({ x: f.x + Math.cos(a) * d, z: f.z + Math.sin(a) * d, r: 2.5 + RF() * 4.5, depth: 0.18 + RF() * 0.17 });
+    }
   }
   // carve the puddles (only where the ground all round is level: on a side slope one would be a pothole with a wall)
   for (const pd of puddles) {
@@ -710,6 +758,15 @@ export async function generateWorld({ map, onProgress = () => {}, yieldEvery = 6
     }
     if (k % yieldEvery === 0) await tick(0.7 + 0.12 * k / N, 'Laying the ground');
   }
+  for (const f of mudFields) {
+    const ci = Math.round((f.x - GRID_ORIGIN) / RES), ck = Math.round((f.z - GRID_ORIGIN) / RES), Rr = Math.ceil(f.r * 1.2 / RES);
+    for (let k = Math.max(0, ck - Rr); k <= Math.min(N - 1, ck + Rr); k++) for (let i = Math.max(0, ci - Rr); i <= Math.min(N - 1, ci + Rr); i++) {
+      const idx = k * N + i, s = surf[idx];
+      if (fieldE(f, GRID_ORIGIN + i * RES, GRID_ORIGIN + k * RES) >= 1 || s === SURFACE.RIVERBED || s === SURFACE.SNOW || s === SURFACE.ROAD) continue;
+      if (trailD(idx) < trailW(idx) && (trailK(idx) === 2 || tpSf[tI[idx]])) continue;
+      surf[idx] = SURFACE.MUD;
+    }
+  }
   for (const pd of puddles) {
     const ci = Math.round((pd.x - GRID_ORIGIN) / RES), ck = Math.round((pd.z - GRID_ORIGIN) / RES), Rr = Math.ceil((pd.r + 1.5) / RES);
     for (let k = ck - Rr; k <= ck + Rr; k++) for (let i = ci - Rr; i <= ci + Rr; i++) {
@@ -791,7 +848,7 @@ export async function generateWorld({ map, onProgress = () => {}, yieldEvery = 6
         dens += smoothstep(-200, -800, px) * 0.35 + smoothstep(-100, -600, pz) * 0.2 - smoothstep(500, 950, pz) * 0.3;
         if (s === SURFACE.SNOW) dens *= 0.25;
         if (h > snowAt(px, pz) + 40) dens *= 0.3;
-        dens = clamp(dens - 0.12, 0, 0.9) ** 1.9;
+        dens = clamp(dens - 0.12, 0, 0.9) ** 1.9 * (M.woods ?? 1);
         if (R() > dens) continue;
         const nearWater = riverD(idx) < riverHalf(idx) + 12 || (lake && hyp(px - lake.x, pz - lake.z) < lake.r + 60);
         const type = nearWater && R() < 0.55 ? 2 : (h > 200 || R() < 0.35) ? 1 : (R() < 0.02 ? 3 : 0);
@@ -823,7 +880,7 @@ export async function generateWorld({ map, onProgress = () => {}, yieldEvery = 6
     map: M, farHeight: LF.farHeight,
     N, res: RES, origin: GRID_ORIGIN, half: HALF, heights: H, surface: surf,
     water: W, waterN: WATER_N, waterRes: WATER_RES,
-    lake, bogFloor, puddles,
+    lake, bogFloor, puddles, mudFields: mudFields.map((f) => [f.x, f.z, f.r]),
     trees: { x: Float32Array.from(trees.x), y: Float32Array.from(trees.y), z: Float32Array.from(trees.z), r: Float32Array.from(trees.r), h: Float32Array.from(trees.h), type: Uint8Array.from(trees.type), count: trees.x.length },
     boulders, beacons, landmarks, posts,
     trails: trailLines,

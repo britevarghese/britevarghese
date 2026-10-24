@@ -811,6 +811,22 @@ body.has-ev #toasts { top: 196px; }
 .mc-actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
 .mc-actions button { padding: 8px 14px; }
 .mc-actions .primary { background: #3fb6ff; border-color: #3fb6ff; color: #0d2230; }
+/* the fast travel list: friends, then the bases */
+#map-filters button.travel { opacity: 1; background: #3fb6ff; border-color: #3fb6ff; color: #0d2230; font-weight: 700; }
+#map-filters button.travel kbd { font: 700 10px/1 var(--font); padding: 2px 4px; margin-left: 4px; border-radius: 4px; background: rgba(13, 34, 48, .18); }
+#map-filters button.travel.on { background: #8fd3ff; }
+#map-travel { position: absolute; top: 14px; left: 196px; width: min(340px, calc(100vw - 32px)); max-height: calc(100% - 80px); overflow-y: auto; background: rgba(24, 31, 27, .96); border: 1px solid var(--line); border-radius: 14px; padding: 12px 14px 10px; box-shadow: 0 16px 40px rgba(0, 0, 0, .45); }
+#map-travel .mc-head { margin-bottom: 4px; }
+.mt-sec { font-size: 11px; letter-spacing: .1em; text-transform: uppercase; color: var(--ink-dim); margin: 10px 0 2px; }
+.mt-row { display: flex; align-items: center; gap: 8px; padding: 6px 6px; border-radius: 9px; cursor: pointer; }
+.mt-row:hover { background: rgba(255, 255, 255, .06); }
+.mt-dot { width: 10px; height: 10px; border-radius: 50%; flex: none; background: #e8893a; }
+.mt-name { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.mt-name b { font-size: 13.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mt-name span { font-size: 11.5px; color: var(--ink-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mt-row button { padding: 5px 9px; font-size: 12px; flex: none; }
+.mt-row button.go { background: #3fb6ff; border-color: #3fb6ff; color: #0d2230; }
+.mt-row .help { color: #e0563b; }
 #map-legend { position: absolute; bottom: 16px; left: 50%; transform: translateX(-50%); font-size: 12.5px; color: var(--ink-dim); background: var(--panel); padding: 6px 12px; border-radius: 10px; pointer-events: none; white-space: nowrap; }
 #minimap { pointer-events: auto; cursor: pointer; }
 #compass-strip span.route { color: #3fb6ff; font: 400 10px/1 var(--font); top: 3px; }
@@ -821,6 +837,7 @@ body.has-ev #toasts { top: 196px; }
   #map-filters button { padding: 5px 8px; font-size: 11.5px; }
   #map-tools { top: 10px; right: 10px; }
   #map-card { left: 12px; right: 12px; bottom: 56px; width: auto; }
+  #map-travel { left: 12px; right: 12px; top: 64px; width: auto; max-height: calc(100% - 140px); }
   #map-legend { display: none; }
 }
 @media (max-height: 520px) {
@@ -832,6 +849,7 @@ body.has-ev #toasts { top: 196px; }
   #map-tools { top: 8px; right: 8px; gap: 6px; }
   #map-tools button { width: 38px; height: 38px; font-size: 17px; }
   #map-card { right: 56px; left: auto; bottom: 8px; width: min(320px, 46vw); padding: 10px 12px; max-height: calc(100vh - 16px); overflow: auto; }
+  #map-travel { top: 8px; left: 170px; max-height: calc(100vh - 16px); padding: 8px 10px; }
   .mc-body { font-size: 12.5px; margin: 6px 0 8px; }
   .mc-actions button { padding: 6px 12px; }
 }

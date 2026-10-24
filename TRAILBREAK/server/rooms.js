@@ -298,8 +298,8 @@ class Room {
     }
 
     // (when its driver took it, on our clock: as they reckon it, kept within reason and in order)
-    let ts = isNum(s.ts) && Math.abs(s.ts - Date.now()) < 30000 ? Math.round(s.ts) : Date.now();
-    if (prev && warp === prev.warp && ts <= prev.ts) ts = prev.ts + 1;
+    let ts = isNum(s.ts) && Math.abs(s.ts - Date.now()) < 30000 ? Math.round(s.ts * 10) / 10 : Date.now();
+    if (prev && warp === prev.warp && ts <= prev.ts) ts = prev.ts + 0.1;
     return {
       ts,
       p: s.p.map((c) => round(c)),
