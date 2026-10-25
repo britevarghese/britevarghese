@@ -20,6 +20,7 @@ import { HASH21 } from './ShaderHash.js';
 import { SURFACE } from '../physics/Surfaces.js';
 import { DeformGrid, DEFORM_SPAN } from '../world/Deform.js';
 import { WornTracks, GAUGE, RUT } from '../world/Worn.js';
+import { BEDROCK_GLSL } from '../world/Bedrock.js';
 import { vnoise } from '../world/Noise.js';
 import { TEA_ROW, TEA_RANGE } from './Tea.js';
 
@@ -197,20 +198,23 @@ attribute vec3 tint;
 attribute vec2 wet;
 attribute float cover;
 attribute vec4 trk;
+attribute float baseY;
 uniform float uTintK;
 varying vec3 vWPos;
 varying vec3 vWNormal;
 varying vec3 vTint;
 varying vec2 vWet;
 varying float vCover;
-varying vec4 vTrk;`)
+varying vec4 vTrk;
+varying float vBaseY;`)
         .replace('#include <worldpos_vertex>', `#include <worldpos_vertex>
 vWPos = (modelMatrix * vec4(transformed, 1.0)).xyz;
 vWNormal = objectNormal;
 vTint = tint * uTintK;
 vWet = wet;
 vCover = cover;
-vTrk = trk;`);
+vTrk = trk;
+vBaseY = baseY;`);
       sh.fragmentShader = sh.fragmentShader
         .replace('#include <common>', `#include <common>
 varying vec3 vWPos;
@@ -219,6 +223,7 @@ varying vec3 vTint;
 varying vec2 vWet;
 varying float vCover;
 varying vec4 vTrk;
+varying float vBaseY;
 uniform vec3 uFarForest;
 uniform vec3 uPuddle;
 uniform vec3 uClipC;
@@ -298,24 +303,8 @@ vec4 gColor(float L, float sc) {
   if (gwZ > 0.0) c += textureGrad(uGC, vec3(gPZ * sc, L), gDZx * sc, gDZy * sc) * gwZ;
   return c;
 }
-// a rock face's relief (m, out of the face) and shade: its beds in ledges a metre or so apart, wavering along the hill,
-// each one jutting out over the recess at its foot (in shade) and leaning back to a shelf under the bed above, broken by
-// joints into blocks, and rough. ax: how far the face runs along x and along z (weights: the joints are reckoned
-// along the world's own axes, a frame turned with the face was unsteady this far from the origin: a hair's turn moved
-// a point tens of metres along it); w: how much wider its edges are drawn (wider where a pixel is bigger: a shelf
-// narrower than a pixel glinted)
-float gJoint(float along, float bed, float w) {
-  return smoothstep(0.42 - w * 0.2, 0.5, abs(fract(along / (1.6 + th(vec2(bed, 7.0)) * 1.4) + th(vec2(bed, 3.0))) - 0.5));
-}
-vec2 gRock(vec3 p, vec2 ax, float w) {
-  // (beds of uneven thickness: the height warped a little before it is cut into them)
-  float s = p.y / 1.3 + tn(vec2(p.y / 3.7, 5.0)) * 0.9 + tn(p.xz / 9.0) * 1.6 + tn(p.xz / 3.1) * 0.35;
-  float f = fract(s), bed = floor(s), k = 0.4 + 0.9 * th(vec2(bed, 11.0));
-  float ledge = smoothstep(0.0, 0.32 + w, f) * (1.0 - 0.6 * f) * (1.0 - smoothstep(0.8 - w, 1.0, f)) * k;
-  float joint = gJoint(p.x, bed, w) * ax.x + gJoint(p.z, bed, w) * ax.y;
-  float shade = (1.0 - 0.3 * min(1.0, k) * (1.0 - smoothstep(0.0, 0.2 + w, f))) * (1.0 - 0.25 * joint);
-  return vec2(ledge * 0.4 + tn(p.xz * 1.7 + p.y) * 0.06, shade);
-}
+// bare rock's relief and shade (world/Bedrock.js: the same ledges and joints the vertices near by are moved by)
+${BEDROCK_GLSL}
 // the normal map's tilt as a world-space vector along the ground
 vec3 gTilt(float L, float sc) {
   vec3 d = vec3(0.0);
@@ -488,21 +477,25 @@ ${G ? `
     gRough = mix(0.95, rough, tex);
     gH = mix(0.5, hgt / sum, tex);
     gNW = normalize(gNW + tilt * near * 0.9 + trkTilt * tex);
-    // rock faces in relief (a cut through the hill is not a smooth bank with a picture of rock on it): lit as ledges
-    // and blocks, darker in their recesses; out where a ledge is under a few pixels it evens out
+    // bare rock in relief (a hill's rock is not a smooth bank with a picture of rock on it, world/Bedrock.js): its beds
+    // as ledges up a face and stair steps across a slab, its joints as cracks between blocks, darker in the recesses;
+    // reckoned in the map's frame from the ground's height before it (baseY), as its vertices near by are moved; out
+    // where a ledge is under a few pixels it evens out
     float rw = 0.0;
     for (int j = 0; j < 4; j++) { if (j >= gn) break; if (gL[j] == uIds.y) rw += max(0.0, hs[j] - top + 0.16); }
     vec3 n0 = normalize(vWNormal);
     // (and not where the face is seen edge on: there its ledges glinted)
-    rw = rw / sum * uRockBeds * smoothstep(0.92, 0.72, n0.y) * (1.0 - smoothstep(0.06, 0.25, length(fwidth(vWPos))))
+    rw = rw / sum * uRockBeds * (1.0 - smoothstep(0.06, 0.25, length(fwidth(vWPos))))
       * smoothstep(0.12, 0.4, abs(dot(n0, normalize(cameraPosition - vWPos))));
     if (rw > 0.0) {
       vec3 ta = normalize(vec3(n0.z, 0.0, -n0.x) + vec3(1e-5, 0.0, 0.0)), tb = cross(n0, ta);
       vec2 ax = vec2(n0.z * n0.z, n0.x * n0.x) / max(n0.x * n0.x + n0.z * n0.z, 1e-5);
+      float sl = min(3.0, length(n0.xz) / max(n0.y, 0.3)), slab = 1.0 - smoothstep(0.4, 1.0, sl);
       float e = 0.1, w = clamp(length(fwidth(vWPos)) * 2.5, 0.0, 0.45);
-      vec2 r0 = gRock(vWPos, ax, w);
-      float ha = gRock(vWPos + ta * e, ax, w).x, hb = gRock(vWPos + tb * e, ax, w).x;
-      vec3 slope = (ta * (ha - r0.x) + tb * (hb - r0.x)) / e;
+      vec3 p = vec3(vWPos.x - uCentre.x, vBaseY, vWPos.z - uCentre.y);
+      vec2 r0 = brOut(p, ax, slab, w);
+      float ha = brOut(p + ta * e, ax, slab, w).x, hb = brOut(p + tb * e, ax, slab, w).x;
+      vec3 slope = (ta * (ha - r0.x) + tb * (hb - r0.x)) / e * (0.35 + 0.65 * (1.0 - slab));
       gNW = normalize(gNW - slope * min(1.0, 0.9 / max(length(slope), 1e-4)) * rw);
       diffuseColor.rgb *= mix(1.0, r0.y * (0.88 + 0.4 * clamp(r0.x, 0.0, 0.4)), rw);
       // (matt: a ledge's top seen edge on caught the sky as a white line)
@@ -904,7 +897,7 @@ if (gWet > 0.0) {
 
   /** The ground's height at (x, z): the map's (without a worn track's wear: base), or past it the land beyond. */
   heightAt(x, z, base = false) {
-    if (Math.abs(x) <= this.half && Math.abs(z) <= this.half) return base ? this.world.terrainBase(x, z) : this.world.terrain(x, z);
+    if (Math.abs(x) <= this.half && Math.abs(z) <= this.half) return base && this.world.terrainBase ? this.world.terrainBase(x, z) : this.world.terrain(x, z);
     return (this.beyond ? this.beyond(x, z) : this.world.farHeight(x, z)) - (this.far ? this.holeSink(x, z) : 0);
   }
 
@@ -931,8 +924,11 @@ if (gWet > 0.0) {
     const T = this.tmpH, VB = V + 2, D = this.tmpD, w = this.world, ruts = near && w.deformGrid.chunks.size > 0;
     // (a worn track's ruts, hump and potholes, world/Worn.js: the potholes are in the heights the normals are reckoned
     // from, the ruts only in the vertices' own, the shader lighting them from their profile, which is finer than the
-    // vertices out past the nearest patches; and where each vertex is on the track, trk, for the shader)
+    // vertices out past the nearest patches; and where each vertex is on the track, trk, for the shader. So too bare
+    // rock's relief, world/Bedrock.js: on the vertices of the patches near enough for it (a vertex a metre apart or
+    // closer), lit by the shader from the ground's height before it, baseY, everywhere)
     const worn = !this.far && w.worn && sp <= 2 && w.worn.near(x0, z0, size, 3) ? w.worn : null;
+    const rock = !this.far && w.rockRelief && sp <= 1;
     const R = this.tmpR, Q = this.tmpQ;
     if (worn) {
       for (let k = -1; k <= V; k++) for (let i = -1; i <= V; i++) {
@@ -945,7 +941,7 @@ if (gWet > 0.0) {
         T[e] -= q.pot; R[e] = WornTracks.profile(q.u, q.depth);
         Q[e * 5] = q.u; Q[e * 5 + 1] = q.s; Q[e * 5 + 2] = q.depth; Q[e * 5 + 3] = q.W; Q[e * 5 + 4] = q.pot;
       }
-    } else for (let k = -1; k <= V; k++) for (let i = -1; i <= V; i++) T[(k + 1) * VB + (i + 1)] = this.heightAt(x0 + i * sp, z0 + k * sp);
+    } else for (let k = -1; k <= V; k++) for (let i = -1; i <= V; i++) T[(k + 1) * VB + (i + 1)] = this.heightAt(x0 + i * sp, z0 + k * sp, true);
     // the ruts (kept for their colour and wetness too)
     D.fill(0);
     if (ruts) {
@@ -968,13 +964,15 @@ if (gWet > 0.0) {
     }
     const nV = V * V + 4 * V;
     const pos = new Float32Array(nV * 3), nor = new Int8Array(nV * 3), col = new Uint8Array(nV * 3), tint = new Uint8Array(nV * 3), wet = new Uint8Array(nV * 2), cover = new Uint8Array(nV);
-    const trk = worn ? new Float32Array(nV * 4).fill(9) : null;
+    const trk = worn ? new Float32Array(nV * 4).fill(9) : null, baseY = new Float32Array(nV);
     const c3 = [0, 0, 0], t3 = [0, 0, 0], f3 = [0, 0, 0];
     const inMap = (x, z) => Math.abs(x) <= this.half && Math.abs(z) <= this.half;
     let minY = Infinity, maxY = -Infinity;
     for (let k = 0; k < V; k++) for (let i = 0; i < V; i++) {
       const v = k * V + i;
-      const h = T[(k + 1) * VB + (i + 1)] - (worn ? R[(k + 1) * VB + (i + 1)] : 0);
+      const b = T[(k + 1) * VB + (i + 1)], vx = x0 + i * sp, vz = z0 + k * sp;
+      const h = b - (worn ? R[(k + 1) * VB + (i + 1)] : 0) + (rock && inMap(vx, vz) ? w.rockAt(vx, vz, b) : 0);
+      baseY[v] = b;
       const gx = (T[(k + 1) * VB + i + 2] - T[(k + 1) * VB + i]) / (2 * sp), gz = (T[(k + 2) * VB + i + 1] - T[k * VB + i + 1]) / (2 * sp);
       let nx = -gx, ny = 1, nz = -gz;
       const l = Math.sqrt(nx * nx + ny * ny + nz * nz); nx /= l; ny /= l; nz /= l;
@@ -1016,6 +1014,7 @@ if (gWet > 0.0) {
       for (let c = 0; c < 3; c++) { nor[dst * 3 + c] = nor[src * 3 + c]; col[dst * 3 + c] = col[src * 3 + c]; tint[dst * 3 + c] = tint[src * 3 + c]; }
       wet[dst * 2] = wet[src * 2]; wet[dst * 2 + 1] = wet[src * 2 + 1]; cover[dst] = cover[src];
       if (trk) for (let c = 0; c < 4; c++) trk[dst * 4 + c] = trk[src * 4 + c];
+      baseY[dst] = baseY[src];
     }
     // colours are stored gamma-2 encoded: decode in the attribute by squaring? Keep simple: convert to linear floats
     const colF = new Float32Array(nV * 3);
@@ -1028,6 +1027,7 @@ if (gWet > 0.0) {
     g.setAttribute('wet', new THREE.BufferAttribute(wet, 2, true));
     g.setAttribute('cover', new THREE.BufferAttribute(cover, 1, true));
     g.setAttribute('trk', trk ? new THREE.BufferAttribute(trk, 4) : this.noTrk);
+    g.setAttribute('baseY', new THREE.BufferAttribute(baseY, 1));
     g.setIndex(this.index);
     g.boundingSphere = new THREE.Sphere(new THREE.Vector3(size / 2, (minY + maxY) / 2, size / 2), Math.sqrt(2 * (size / 2) ** 2 + ((maxY - minY + drop) / 2) ** 2));
     g.boundingBox = new THREE.Box3(new THREE.Vector3(0, minY - drop, 0), new THREE.Vector3(size, maxY, size));

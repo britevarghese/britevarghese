@@ -19,6 +19,7 @@
 import { SURFACES, SURFACE } from '../physics/Surfaces.js';
 import { DeformGrid } from './Deform.js';
 import { WornTracks, wearOf } from './Worn.js';
+import { rockLift } from './Bedrock.js';
 import { NO_WATER } from './WorldGen.js';
 import { MAP_HALF, mapById } from './maps/index.js';
 import { rockTop, shapeOf } from './RockShapes.js';
@@ -42,6 +43,9 @@ export class World {
     // (a map whose tracks are worn: their ruts, hump and potholes, finer than the grid; world/Worn.js)
     this.worn = this.map.wornTracks ? new WornTracks(this.map, this.half) : null;
     this.wearAt = (x, z) => this.wear(x, z);
+    // (a map whose bare rock stands in relief: its beds' ledges and its joints' blocks, finer than the grid, as strong
+    // as its beds are, world/Bedrock.js)
+    this.rockRelief = this.map.rockRelief ? Math.min(1, this.map.rockBeds ?? 1) : 0;
     this.props = []; this.paints = []; this.propCells = new Map();
     // the young trees (joining the map's own) and the roadside things, once the ground is there to stand them on (an
     // open world's map has them already, placed off the main thread: world/worldWorker.js)
@@ -85,7 +89,10 @@ export class World {
     this.boulders.forEach((b, i) => {
       const R = Math.max(b.rx, b.rz);
       b.cos = Math.cos(b.yaw); b.sin = Math.sin(b.yaw);
-      b.shape = shapeOf(i);
+      b.shape = shapeOf(i, b);
+      // (on bare rock in relief, seated on it: from where the generator set it, so a world made twice over the same
+      // boulders, as a map's worker and the game do, seats them once)
+      if (this.rockRelief) { b.y0 ??= b.y; b.y = b.y0 + this.rockAt(b.x, b.z, this.terrainBase(b.x, b.z)); }
       const i0 = Math.floor((b.x - R + HALF) / BO_CELL), i1 = Math.floor((b.x + R + HALF) / BO_CELL);
       const k0 = Math.floor((b.z - R + HALF) / BO_CELL), k1 = Math.floor((b.z + R + HALF) / BO_CELL);
       for (let k = k0; k <= k1; k++) for (let ii = i0; ii <= i1; ii++) {
@@ -97,10 +104,38 @@ export class World {
     });
   }
 
-  /** Terrain height without ruts pressed since or boulders: the grid's, less the wear of a track there (worn). */
+  /**
+   * Terrain height without ruts pressed since or boulders: the grid's, with the relief of its bare rock (rockRelief),
+   * less the wear of a track there (worn).
+   */
   terrain(x, z) {
-    const h = this.terrainBase(x, z);
+    let h = this.terrainBase(x, z);
+    if (this.rockRelief) h += this.rockAt(x, z, h);
     return this.worn ? h - this.worn.depth(x, z, this.wearAt) : h;
+  }
+
+  /** The height bare rock's relief adds at (x, z) over its base height h (world/Bedrock.js): worn smoother on a track. */
+  rockAt(x, z, h) {
+    const w = this.rockWeight(x, z);
+    if (w <= 0) return 0;
+    // (the slope across the cell's corners round the point)
+    const fx = (x - this.origin) / this.res, fz = (z - this.origin) / this.res, N = this.N, H = this.H;
+    const i = Math.min(N - 2, Math.max(0, Math.floor(fx))), k = Math.min(N - 2, Math.max(0, Math.floor(fz))), o = k * N + i, tx = fx - i, tz = fz - k;
+    const gx = ((H[o + 1] - H[o]) * (1 - tz) + (H[o + N + 1] - H[o + N]) * tz) / this.res, gz = ((H[o + N] - H[o]) * (1 - tx) + (H[o + N + 1] - H[o + 1]) * tx) / this.res;
+    let lift = rockLift(x, h, z, gx, gz) * w * this.rockRelief;
+    const t = this.worn?.nearest(x, z);
+    if (t && t.d < 2.5) lift *= 0.35 + 0.65 * Math.max(0, t.d - 1.5);
+    return lift;
+  }
+
+  /** How much of the ground at (x, z) is bare rock (0 to 1), blended across the cells round it. */
+  rockWeight(x, z) {
+    const fx = (x - this.origin) / this.res, fz = (z - this.origin) / this.res, i = Math.floor(fx), k = Math.floor(fz), tx = fx - i, tz = fz - k;
+    const N = this.N, S = this.S, RK = SURFACE.ROCK;
+    if (i < 0 || k < 0 || i >= N - 1 || k >= N - 1) return 0;
+    const o = k * N + i, a = S[o] === RK ? 1 : 0, b = S[o + 1] === RK ? 1 : 0, c = S[o + N] === RK ? 1 : 0, d = S[o + N + 1] === RK ? 1 : 0;
+    if (a + b + c + d === 0) return 0;
+    return (a * (1 - tx) + b * tx) * (1 - tz) + (c * (1 - tx) + d * tx) * tz;
   }
 
   /** How deep a track wears at (x, z) (world/Worn.js): its ground's, blended across the cells round it. */

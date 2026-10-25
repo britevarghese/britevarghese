@@ -1004,6 +1004,31 @@ the hump between them grown over in clumps of grass, with grass tufts standing o
 earth trodden browner; and the verge's grass reaching in to a ragged edge instead of a line. Where a track runs on into
 the next map, its ruts run straight down the middle at an even depth, so the two maps' ruts meet.
 
+**Rocky hills.** A rocky hill's rock is not a smooth bank with a picture of rock on it. The open world's bare rock
+(`rockRelief` on a map; `src/world/Bedrock.js`) is built as geology builds it: an outcrop's outline is set by its
+joints and its steps by its bedding (Migoń and others, on the tors of central Europe).
+
+- **Beds:** the rock lies in beds a metre or so thick, their planes wavering over the hill. Where they come out on a
+  slope, each stands out as a ledge over the recess at the foot of the bed above. A face goes up in ledges up to a
+  metre and a half deep; a gentler slab crosses in low stair steps of 10 to 20 cm, the slickrock steps a rock-crawling
+  trail is rated by.
+- **Joints:** two sets of near-vertical cracks, each bed with its own spacing, cut the rock into blocks; the cracks
+  wander a little, as real ones do, rather than ruling the rock into a grid. On a slab, each block stands a little
+  proud of or sunk below the next, and the cracks between them are open.
+- **Where it is real:** the relief is in the ground itself. The wheels climb its steps, and the drawn ground's
+  vertices are moved by it out to about 70 m. The terrain's shader lights every pixel of the rock from the same
+  function: its noise is copied bit for bit in JavaScript and checked against the GPU's to under a tenth of a
+  millimetre. On a track over the rock it is worn down to a third.
+- **Tors:** on each map's most prominent crests stand free-standing stacks of the blocks the joints and beds part the
+  rock into. Two or three blocks a column, the lower ones broader, rise from bare rock on the rounded top (1 to 4 a
+  map).
+- **Clitter:** the blocks a tor has shed lie strewn in trails down the slope below it.
+- **Talus:** at the foot of each rock face, the stones it has shed lie in an apron, thickest close under the face,
+  the bigger ones rolled farther out.
+
+All of it keeps off the tracks, the courses, the buildings and the beacons, and is drawn from its own random numbers,
+so the maps on their own are built as they were. Driving on it costs the physics about half a millisecond more a frame.
+
 The country is laid out as the real country round Kashid is: the stretches north of the coast and the Deccan to the
 south stand on the same real elevation data as the coast (its bake carries the heights 12 km out, every 40 m), their
 own features made on top of it; the roads through them are routed over the ground (`tools/routeroads.mjs`, below).

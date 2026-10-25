@@ -266,6 +266,37 @@ test('the open world: its tracks worn into the ground, two ruts either side of a
   assert.ok(!mapById('ashwood').wornTracks && !mapById('kerala').wornTracks);
 });
 
+test('the open world: its rocky hills in relief (ledges and joints in the rock itself, tors on the crests, talus below the faces)', async () => {
+  const W = await opened;
+  for (const id of ['ashwood', 'pass', 'taiga']) {
+    const w = W.byId.get(id).world, h = w.half - 20;
+    assert.ok(w.rockRelief > 0, `${id}'s rock is in relief`);
+    // the rock stands out of the ground's line and sinks into it, as much one way as the other, by up to a metre or
+    // two on a face; off the rock (and off any track) the ground is the grid's
+    let n = 0, sum = 0, sq = 0, worst = 0, off = 0;
+    for (let z = -h; z < h; z += 5.3) for (let x = -h; x < h; x += 5.3) {
+      const d = w.terrain(x, z) - w.terrainBase(x, z);
+      if (w.rockWeight(x, z) === 1 && !w.worn.nearest(x, z)) { n++; sum += d; sq += d * d; worst = Math.max(worst, Math.abs(d)); }
+      else if (w.rockWeight(x, z) === 0 && !w.worn.nearest(x, z) && Math.abs(d) > 1e-9) off++;
+    }
+    const mean = sum / n, sd = Math.sqrt(sq / n - mean * mean);
+    assert.ok(n > 200 && Math.abs(mean) < 0.15 && sd > 0.08 && worst < 2.5, `${id}: ${n} points of rock, relief ${mean.toFixed(2)} ± ${sd.toFixed(2)} m, at most ${worst.toFixed(2)}`);
+    assert.equal(off, 0, `${id}: the ground off the rock as it was`);
+    // its tors: stacks of blocks, standing a metre and more over bare rock on a crest
+    const tors = w.data.tors;
+    assert.ok(tors.length >= 2, `${id}: ${tors.length} tors`);
+    for (const [tx, tz, tr] of tors) {
+      const blocks = w.boulders.filter((b) => b.block !== undefined && Math.hypot(b.x - tx, b.z - tz) < tr);
+      assert.ok(blocks.length >= 3, `${id}: a tor of ${blocks.length} blocks`);
+      assert.ok(blocks.some((b) => b.y + b.ry * 0.6 > w.terrain(b.x, b.z) + 1), `${id}: the tor at ${tx.toFixed(0)}, ${tz.toFixed(0)} stands up`);
+      const bare = [0, 1, 2, 3, 4, 5, 6, 7].filter((a) => w.surfaceId(tx + Math.cos(a * Math.PI / 4) * tr * 0.5, tz + Math.sin(a * Math.PI / 4) * tr * 0.5) === 3).length;
+      assert.ok(bare >= 6, `${id}: the tor's rock bare round it (${bare} of 8)`);
+    }
+  }
+  // the maps on their own are as they were
+  assert.ok(!mapById('ashwood').rockRelief && !mapById('kerala').rockRelief);
+});
+
 test('the open world: the satnav finds the way from the coast to Ashwood by road, and a truck drives across the joins', async () => {
   const W = await opened, g = new RouteGraph(W.data.trails, { hubs: W.hubs });
   const r = g.route(3940, -712, 7090, -3800);

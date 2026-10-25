@@ -920,6 +920,97 @@ export async function generateWorld({ map, onProgress = () => {}, yieldEvery = 6
     const keep = boulders.filter((b) => !b.gone); boulders.length = 0; boulders.push(...keep);
   }
 
+  // ---- a rocky hill's own rock (M.rockRelief, with its own draws, so a map without it is as it was): tors on its
+  // crests, free-standing stacks of the blocks their rock's joints and beds part it into, rising from bare rock on the
+  // rounded top; the blocks they have shed strewn down the slope below them in trails (clitter); and at the foot of
+  // each rock face the stones it has shed lying in an apron (talus), the bigger ones rolled the farther. All of it
+  // clear of the tracks, the courses, the buildings and the beacons.
+  const torSites = [];
+  if (M.rockRelief) {
+    const RS = rng(S + 371);
+    const clearOf = (x, z, r) => Math.abs(x) < HALF - r - 30 && Math.abs(z) < HALF - r - 30 && !onCourse(x, z, r + 10)
+      && hyp(x - STATION.x, z - STATION.z) > r + 90 && !landmarks.some((L) => hyp(L.x - x, L.z - z) < r + 30) && !BEACONS.some((b) => hyp(b.x - x, b.z - z) < r + 8);
+    const offTrack = (x, z, m) => { const c = cellOf(x, z); return trailD(c) > trailW(c) + m; };
+    const dry = (x, z) => waterAt(x, z) < hAt(x, z) - 0.3;
+    const slopeAt = (x, z) => [(hAt(x + 1, z) - hAt(x - 1, z)) / 2, (hAt(x, z + 1) - hAt(x, z - 1)) / 2];
+    // a block (b: which of the block shapes): its half-sizes, sunk `bury` of its height into the ground at its foot or
+    // stood on the block under it (on: that block's top)
+    const block = (x, z, w, d, hgt, yaw, on) => {
+      const ry = hgt / 2, y = on === undefined ? hAt(x, z) - ry * 0.3 : on + ry * 0.62;
+      boulders.push({ x, y, z, rx: w, ry, rz: d, yaw, shade: RS(), block: Math.floor(RS() * 6) });
+      return y + ry * 0.66;
+    };
+    // the crests: on a 24 m lattice, the points higher than all round them out to 60 m that stand 6 m or more over the
+    // ring 60 m out, below the snow, the most prominent first, 250 m apart
+    const cand = [];
+    for (let z = GRID_ORIGIN + 90; z < HALF - 90; z += 24) for (let x = GRID_ORIGIN + 90; x < HALF - 90; x += 24) {
+      const h = hAt(x, z);
+      let top = true, ring = 0;
+      for (let a = 0; a < 12 && top; a++) {
+        const c = Math.cos(a * Math.PI / 6), sn = Math.sin(a * Math.PI / 6), far = hAt(x + c * 60, z + sn * 60);
+        if (hAt(x + c * 30, z + sn * 30) > h || far > h) top = false;
+        ring += far;
+      }
+      if (top && h - ring / 12 > 6 && h < snowAt(x, z) - 20 && dry(x, z)) cand.push([h - ring / 12, x, z]);
+    }
+    cand.sort((a, b) => b[0] - a[0]);
+    for (const [, cx, cz] of cand) {
+      if (torSites.length >= (M.tors ?? 4)) break;
+      const x = cx + (RS() - 0.5) * 16, z = cz + (RS() - 0.5) * 16, r = 8 + 6 * RS();
+      if (torSites.some((t) => hyp(t.x - x, t.z - z) < 250) || !clearOf(x, z, r + 8) || !offTrack(x, z, r + 8)) continue;
+      torSites.push({ x, z, r });
+      // its bare rock, ragged-edged
+      const ci = Math.round((x - GRID_ORIGIN) / RES), ck = Math.round((z - GRID_ORIGIN) / RES), Rr = Math.ceil(r * 1.5 / RES);
+      for (let k = Math.max(0, ck - Rr); k <= Math.min(N - 1, ck + Rr); k++) for (let i = Math.max(0, ci - Rr); i <= Math.min(N - 1, ci + Rr); i++) {
+        const px = GRID_ORIGIN + i * RES, pz = GRID_ORIGIN + k * RES;
+        if (hyp(px - x, pz - z) < r * (0.85 + 0.55 * vnoise(px / 5, pz / 5, S + 372)) && dry(px, pz)) surf[k * N + i] = SURFACE.ROCK;
+      }
+      // its stacks, set out along its joints (turned the same way): a few columns of two or three blocks, the lower
+      // ones broader, each a little off the one under it
+      const th = RS() * Math.PI, ca = Math.cos(th), sa = Math.sin(th), cols = 3 + Math.floor(RS() * 4);
+      for (let c = 0; c < cols; c++) {
+        const u = (RS() - 0.5) * r * 0.8, v = (RS() - 0.5) * r * 0.45, W = 1.3 + RS() * 1.5;
+        const bx = x + ca * u - sa * v, bz = z + sa * u + ca * v;
+        let top;
+        for (let k = 0, n = 1 + Math.floor(RS() * 3.3); k < n; k++) {
+          const f = 1 - 0.14 * k, ox = k ? (RS() - 0.5) * 0.6 : 0, oz = k ? (RS() - 0.5) * 0.6 : 0;
+          top = block(bx + ox, bz + oz, W * (0.85 + 0.3 * RS()) * f, W * (0.65 + 0.3 * RS()) * f, 1.1 + RS() * 0.9, th + (RS() - 0.5) * 0.25, top);
+        }
+      }
+      // the clitter: trails of fallen blocks down the steepest way off it, thinning out
+      for (let t = 0, nt = 2 + Math.floor(RS() * 3); t < nt; t++) {
+        let px = x + (RS() - 0.5) * r, pz = z + (RS() - 0.5) * r;
+        for (let st = 0; st < 16; st++) {
+          const [gx, gz] = slopeAt(px, pz), gl = hyp(gx, gz);
+          if (gl < 0.05) { px += (RS() - 0.5) * 6; pz += (RS() - 0.5) * 6; continue; }
+          const step = 2.5 + RS() * 3.5;
+          px -= gx / gl * step + (RS() - 0.5) * 2.4; pz -= gz / gl * step + (RS() - 0.5) * 2.4;
+          if (!clearOf(px, pz, 2) || !offTrack(px, pz, 2.5) || !dry(px, pz)) break;
+          if (RS() < 0.8 - st * 0.03) { const w = (0.5 + RS() * 0.9) * (1 - st * 0.025); block(px, pz, w, w * (0.6 + 0.4 * RS()), w * (0.8 + 0.6 * RS()), RS() * Math.PI); }
+        }
+      }
+    }
+    // talus: at the foot of each rock face, where the ground below it eases to between 7 and 40 degrees, the stones
+    // it has shed, thickest close under it, the bigger ones farther out
+    const nTal = Math.round(2600 * area * (M.talus ?? 1));
+    for (let n = 0, tries = 0; n < nTal && tries < nTal * 40; tries++) {
+      const x = (RS() * 2 - 1) * (HALF - 40), z = (RS() * 2 - 1) * (HALF - 40), idx = cellOf(x, z);
+      const [gx, gz] = slopeAt(x, z), sl = hyp(gx, gz);
+      if (sl > 0.85 || sl < 0.12 || surf[idx] === SURFACE.RIVERBED || surf[idx] === SURFACE.ROAD || surf[idx] === SURFACE.SNOW) continue;
+      let face = 0;
+      for (let d = 3; d <= 21 && !face; d += 3) {
+        const ux = x + gx / sl * d, uz = z + gz / sl * d, [hx, hz] = slopeAt(ux, uz);
+        if (hyp(hx, hz) > 1.05 && surf[cellOf(ux, uz)] === SURFACE.ROCK) face = d;
+      }
+      if (!face || RS() > 1.15 - face / 21 || !offTrack(x, z, 2) || onCourse(x, z, 6) || !dry(x, z) || !clearOf(x, z, 1)) continue;
+      addBoulder(x, z, 0.16 + RS() * RS() * 0.6 + face / 21 * 0.3, 0.22 + RS() * 0.18, RS);
+      n++;
+    }
+    // (the trees keep off a tor's bare rock as off a field of rock)
+    const inField = ctx.rockField;
+    ctx.rockField = (x, z) => !!inField?.(x, z) || torSites.some((t) => hyp(t.x - x, t.z - z) < t.r * 1.4);
+  }
+
   // ---- trees
   await tick(0.9, 'Planting the forest');
   const trees = { x: [], y: [], z: [], r: [], h: [], type: [] };
@@ -975,7 +1066,7 @@ export async function generateWorld({ map, onProgress = () => {}, yieldEvery = 6
     map: M, farHeight: LF.farHeight,
     N, res: RES, origin: GRID_ORIGIN, half: HALF, heights: H, surface: surf,
     water: W, waterN: WATER_N, waterRes: WATER_RES,
-    lake, bogFloor, puddles, mudFields: mudFields.map((f) => [f.x, f.z, f.r]), rockFields: rockFields.map((f) => [f.x, f.z, f.r]),
+    lake, bogFloor, puddles, mudFields: mudFields.map((f) => [f.x, f.z, f.r]), rockFields: rockFields.map((f) => [f.x, f.z, f.r]), tors: torSites.map((t) => [t.x, t.z, t.r]),
     trees: { x: Float32Array.from(trees.x), y: Float32Array.from(trees.y), z: Float32Array.from(trees.z), r: Float32Array.from(trees.r), h: Float32Array.from(trees.h), type: Uint8Array.from(trees.type), count: trees.x.length },
     boulders, beacons, landmarks, posts,
     trails: trailLines,

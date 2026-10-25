@@ -5,7 +5,7 @@
 import * as THREE from 'three';
 import { HASH21 } from './ShaderHash.js';
 import { mergeVertices } from 'three/addons/utils/BufferGeometryUtils.js';
-import { rockShape, shapeOf, ROCK_SHAPES } from '../world/RockShapes.js';
+import { rockShape, shapeOf, ROCK_SHAPES, BLOCK_SHAPES } from '../world/RockShapes.js';
 
 const LODS = [4, 2, 1];                  // icosphere subdivisions: near, middle, far
 const LOD_Q = [22, 80];                  // switch at distance / size
@@ -103,10 +103,12 @@ export class Rocks {
     const B = this.boulders = world.boulders;
     const mat = rockMaterial(ground);
     // count each shape's boulders: every level of detail of a shape can hold all of them
-    const per = new Array(ROCK_SHAPES).fill(0);
-    B.forEach((b, i) => { per[shapeOf(i)]++; });
+    // (and the blocks of the tors, their own shapes)
+    const per = new Array(ROCK_SHAPES + BLOCK_SHAPES).fill(0);
+    B.forEach((b, i) => { per[shapeOf(i, b)]++; });
     this.meshes = [];
-    for (let k = 0; k < ROCK_SHAPES; k++) {
+    for (let k = 0; k < ROCK_SHAPES + BLOCK_SHAPES; k++) {
+      if (k >= ROCK_SHAPES && !per[k]) { this.meshes.push([]); continue; }        // (a map without tors: no blocks)
       this.meshes.push(LODS.map((d) => {
         const mesh = new THREE.InstancedMesh(rockGeometry(k, d), mat, Math.max(1, per[k]));
         mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
@@ -138,7 +140,7 @@ export class Rocks {
       const b = B[i], d = Math.hypot(b.x - cam.x, b.z - cam.z);
       if (d > FAR) continue;
       const q = d / this.size[i], lod = q < LOD_Q[0] ? 0 : q < LOD_Q[1] ? 1 : 2;
-      const mesh = this.meshes[shapeOf(i)][lod];
+      const mesh = this.meshes[shapeOf(i, b)][lod];
       mesh.setMatrixAt(mesh.count, this.mats[i]);
       mesh.setColorAt(mesh.count, this.tones[i]);
       mesh.count++;

@@ -1,7 +1,9 @@
 // Boulder shapes: fractured blocks of rock, shared by the physics and the renderer so a tyre climbs the faces you
 // see. Each shape is a radius along every direction from its centre, inside the unit sphere: a ball cut by a handful
 // of flat fracture planes (soft-edged where they meet, as weathered rock is) and roughened with noise. A boulder is a
-// shape stretched to its size (rx, ry, rz) and turned by its yaw; its index picks the shape.
+// shape stretched to its size (rx, ry, rz) and turned by its yaw; its index picks the shape. And the blocks a tor is
+// built of (a boulder's `block`): rock parted along its joints and bedding, so a box of six faces nearly square to
+// each other, its edges and corners weathered round.
 //
 // The physics needs the top of the rock under a point: each shape keeps a grid of its top surface over its footprint.
 //
@@ -10,6 +12,7 @@
 import { vnoise } from './Noise.js';
 
 export const ROCK_SHAPES = 8;
+export const BLOCK_SHAPES = 6;
 const TOP_N = 41;
 
 function rng(seed) {
@@ -32,13 +35,23 @@ function smin(a, b, k) {
 function makeShape(k) {
   const R = rng(9176 + k * 7919);
   const planes = [];
-  const n = 7 + Math.floor(R() * 5);
-  for (let i = 0; i < n; i++) {
-    const a = R() * Math.PI * 2, y = Math.min(0.97, -0.45 + R() * 1.5), h = Math.sqrt(1 - y * y);
-    planes.push([Math.cos(a) * h, y, Math.sin(a) * h, 0.68 + R() * 0.24]);
+  if (k >= ROCK_SHAPES) {
+    // a jointed block: its six faces each a few degrees off square, set in from the ball so its edges and corners are
+    // the ball's, rounded
+    const tilt = () => (R() - 0.5) * 0.14;
+    for (const [x, y, z, c] of [[1, 0, 0, 0.74 + R() * 0.1], [-1, 0, 0, 0.74 + R() * 0.1], [0, 0, 1, 0.7 + R() * 0.12], [0, 0, -1, 0.7 + R() * 0.12], [0, 1, 0, 0.66 + R() * 0.1], [0, -1, 0, 0.7]]) {
+      const nx = x + (y ? tilt() : 0), ny = y + (y ? 0 : tilt()), nz = z + (x ? tilt() : 0), l = Math.hypot(nx, ny, nz);
+      planes.push([nx / l, ny / l, nz / l, c]);
+    }
+  } else {
+    const n = 7 + Math.floor(R() * 5);
+    for (let i = 0; i < n; i++) {
+      const a = R() * Math.PI * 2, y = Math.min(0.97, -0.45 + R() * 1.5), h = Math.sqrt(1 - y * y);
+      planes.push([Math.cos(a) * h, y, Math.sin(a) * h, 0.68 + R() * 0.24]);
+    }
+    // most blocks split along a flat-ish top
+    if (R() < 0.7) { const a = R() * Math.PI * 2, t = 0.25 * R(); planes.push([Math.cos(a) * t, Math.sqrt(1 - t * t), Math.sin(a) * t, 0.74 + R() * 0.14]); }
   }
-  // most blocks split along a flat-ish top
-  if (R() < 0.7) { const a = R() * Math.PI * 2, t = 0.25 * R(); planes.push([Math.cos(a) * t, Math.sqrt(1 - t * t), Math.sin(a) * t, 0.74 + R() * 0.14]); }
   const seed = 31 + k * 17;
   const sx = R() * 10, sz = R() * 10;
   /** Distance from the centre to the surface along the unit direction (x, y, z). */
@@ -46,7 +59,7 @@ function makeShape(k) {
     let r = 1;
     for (const [nx, ny, nz, c] of planes) {
       const d = x * nx + y * ny + z * nz;
-      if (d > 0.02) r = smin(r, c / d, 0.045);
+      if (d > 0.02) r = smin(r, c / d, k >= ROCK_SHAPES ? 0.07 : 0.045);
     }
     // weathered, lumpy faces
     const n1 = vnoise(x * 2.1 + y * 1.3 + sx, z * 2.1 - y * 1.1 + sz, seed);
@@ -80,9 +93,10 @@ function topAt(radius, u, v) {
 }
 
 const SHAPES = [];
-/** Shape k (made once, then kept). */
+/** Shape k (made once, then kept): 0 to ROCK_SHAPES - 1 the boulders', on from there the blocks'. */
 export function rockShape(k) {
-  k = ((k % ROCK_SHAPES) + ROCK_SHAPES) % ROCK_SHAPES;
+  const n = ROCK_SHAPES + BLOCK_SHAPES;
+  k = ((k % n) + n) % n;
   return SHAPES[k] || (SHAPES[k] = makeShape(k));
 }
 
@@ -96,5 +110,5 @@ export function rockTop(k, u, v) {
   return (t[o] * (1 - tx) + t[o + 1] * tx) * (1 - tz) + (t[o + TOP_N] * (1 - tx) + t[o + TOP_N + 1] * tx) * tz;
 }
 
-/** Which shape a boulder is. */
-export const shapeOf = (index) => index % ROCK_SHAPES;
+/** Which shape a boulder is: by its index, or a block's (b.block) among the blocks. */
+export const shapeOf = (index, b) => (b?.block !== undefined ? ROCK_SHAPES + (b.block % BLOCK_SHAPES) : index % ROCK_SHAPES);
