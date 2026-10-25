@@ -106,6 +106,14 @@ export class OpenWorld {
     return REGIONS.filter((R) => R.map.station).map((R) => ({ region: R.id, name: R.map.station.name, mapName: R.map.name, x: R.map.station.x + R.at[0], z: R.map.station.z + R.at[1] }));
   }
 
+  /**
+   * The tors on the maps that are in (their rocky hills, world/WorldGen.js): the stacks of jointed blocks on their
+   * most prominent crests, bare rock round them. { region, mapName, n (its number on its map), x, z, r }.
+   */
+  tors() {
+    return this.regions.flatMap((r) => (r.world.data.tors || []).map(([x, z, tr], i) => ({ region: r.id, mapName: r.map.name, n: i + 1, x: x + r.cx, z: z + r.cz, r: tr })));
+  }
+
   /** The map whose square (x, z) is in, whether it is in yet or not (its definition), or null. */
   regionDefAt(x, z) {
     return REGIONS.find((R) => { const h = gridOf(R.map).half; return Math.abs(x - R.at[0]) <= h && Math.abs(z - R.at[1]) <= h; }) || null;

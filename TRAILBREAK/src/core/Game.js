@@ -161,6 +161,11 @@ export class Game {
     if (this.route) this.replan();
     // (its part of the maps drawn a slice at a time, then the full map made again with it)
     Promise.resolve(this.hud.drawRegion?.(region)).then(() => this.worldMap.refresh());
+    // (the first rocky hills in: how to get to them, from the coast's roads)
+    if (region.world.data.tors?.length && !this.torHint) {
+      this.torHint = true;
+      this.hud.toast('Rocky hills are in: M for the map, then T to fast travel to a tor', false, 7);
+    }
     // (a fast travel waiting for it: there now, to a friend where they are now)
     const P = this.pendingTravel;
     if (P?.region === region.id) {
@@ -285,7 +290,8 @@ export class Game {
         if (W.water(px, pz) > W.height(px, pz) - 0.1) continue;
         const sl = Math.max(Math.abs(W.height(px + 2, pz) - W.height(px - 2, pz)), Math.abs(W.height(px, pz + 2) - W.height(px, pz - 2))) / 4;
         if (sl > 0.22) continue;
-        if (W.boulderTop(px, pz) > W.terrain(px, pz) - 0.02) continue;
+        // (clear of rocks under the whole truck, not just its middle: the blocks round a tor lie close)
+        if ([[0, 0], [2.6, 0], [-2.6, 0], [0, 2.6], [0, -2.6]].some(([dx, dz]) => W.boulderTop(px + dx, pz + dz) > W.terrain(px + dx, pz + dz) - 0.02)) continue;
         if (W.treesNear(px, pz, 3.2, this.tmpTrees).length) continue;
         return { x: px, z: pz, yaw: Math.atan2(x - px, z - pz) };
       }

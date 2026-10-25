@@ -334,7 +334,7 @@ async function start() {
     : net.public ? `Quick match in ${M.name}: ${others ? `${others} other driver${others > 1 ? 's' : ''} here` : 'you are the first here: others looking for a game will join you'}. Enter to chat`
     : `Room ${net.room} (${M.name}): press Esc for the invite link`, false, 7);
   if (otherMap) hud.toast(`Room ${net.room} was opened on ${M.name}, so you drive it here. For ${MAPS[otherMap].name}, leave the room code empty.`, false, 9);
-  if (open) hud.toast(`Your ${(TRUCKS[settings.truck] || TRUCKS.ranger).name} starts at ${world.map.spawn.name}. Fast travel to the other bases and your friends: M, then T`, false, 9);
+  if (open) hud.toast(`Your ${(TRUCKS[settings.truck] || TRUCKS.ranger).name} starts at ${world.map.spawn.name}. Fast travel to the other bases, the rocky hills and your friends: M, then T`, false, 9);
   hud.toast('Find the survey beacons: follow the orange light beams', false, 6);
   wireMenus(game, net);
   if (isTouchDevice()) {

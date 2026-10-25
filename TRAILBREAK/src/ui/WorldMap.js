@@ -27,6 +27,7 @@ export const PLACE = {
   chaistall: { name: 'Chai Stall', desc: 'Tea by the roadside.', icon: 'cup' },
   busstop: { name: 'Bus Stop', desc: 'The village bus stop.', icon: 'bus' },
   laterite: { name: 'Laterite Quarry', desc: 'Red stone cut from the hillside.', icon: 'pick' },
+  tor: { name: 'Tor', desc: 'Rocky hill: a stack of jointed blocks on the crest, bare rock round it in ledges and slabs, its fallen blocks strewn down the slope.', icon: 'tor', travel: true },
 };
 
 export class WorldMap {
@@ -66,6 +67,8 @@ export class WorldMap {
     const w = this.world;
     this.places = w.landmarks.filter((L) => PLACE[L.type]).map((L) => ({ kind: 'place', type: L.type, x: L.x, z: L.z, region: L.region, ...PLACE[L.type],
       name: L.type === 'station' ? (L.region ? w.regionDef(L.region).map.station?.name : w.map.station?.name) || PLACE.station.name : PLACE[L.type].name }));
+    // (and the tors on the rocky hills: places to go for bare rock)
+    for (const T of w.tors?.() || []) this.places.push({ kind: 'place', type: 'tor', x: T.x, z: T.z, region: T.region, ...PLACE.tor, name: `${T.mapName} tor ${T.n}` });
     // (houses are just dots)
     this.houses = w.landmarks.filter((L) => L.type === 'house');
     this.dirty = true;
@@ -240,16 +243,19 @@ export class WorldMap {
     const bases = (w.stations?.() || this.places.filter((p) => p.type === 'station'))
       .map((b) => ({ kind: 'place', type: 'station', ...PLACE.station, ...b }))
       .filter((b) => !(home && Math.hypot(b.x - home.x, b.z - home.z) < 60)).sort((a, b) => dist(a) - dist(b));
-    const items = [...s.mates, ...(home ? [home] : []), ...bases];
+    // (and the rocky hills: the nearest tors on the maps that are in, ahead of the bases, so they are seen)
+    const tors = this.places.filter((p) => p.type === 'tor').sort((a, b) => dist(a) - dist(b)).slice(0, 5);
+    const items = [...s.mates, ...tors, ...(home ? [home] : []), ...bases];
     const where = (it) => (it.kind === 'friend' ? (it.help ? '<i class="help">needs a tow</i>' : 'driving')
       : it.home ? 'your truck\'s home' : escapeHtml(it.mapName || w.regionDef?.(it.region)?.map.name || PLACE.station.name));
     const row = (it, i) => `<div class="mt-row" data-i="${i}"><span class="mt-dot"${it.color ? ` style="background:${it.color}"` : ''}></span>
       <div class="mt-name"><b>${escapeHtml(it.name)}</b><span>${where(it)} · ${fmtD(dist(it))}</span></div>
       <button class="route">Route</button><button class="go">Travel</button></div>`;
     let i = 0;
-    this.travelEl.innerHTML = `<div class="mc-head"><b>Fast travel</b><span>Jump to a friend or a base instead of driving there</span><button class="mc-x" aria-label="Close">✕</button></div>
+    this.travelEl.innerHTML = `<div class="mc-head"><b>Fast travel</b><span>Jump to a friend, a base or a rocky hill instead of driving there</span><button class="mc-x" aria-label="Close">✕</button></div>
       ${s.racing ? '<div class="mc-dim">No fast travel in the middle of a run</div>' : ''}
       ${s.mates.length ? `<div class="mt-sec">Friends</div>${s.mates.map((m) => row(m, i++)).join('')}` : ''}
+      ${tors.length ? `<div class="mt-sec">Rocky hills</div>${tors.map((r) => row(r, i++)).join('')}` : ''}
       <div class="mt-sec">Bases</div>${[...(home ? [home] : []), ...bases].map((b) => row(b, i++)).join('')}
       <div class="mt-msg mc-dim"></div>`;
     this.travelEl.querySelector('.mc-x').onclick = () => this.toggleTravel(false);
@@ -443,6 +449,8 @@ function glyph(g, icon, x, y, ink) {
     case 'hut': P([-6, 0], [0, -5], [6, 0]); g.stroke(); g.fillRect(-4, 0, 8, 6); break;
     case 'factory': P([-6, 6], [-6, -1], [-2, 1], [-2, -1], [2, 1], [2, -6], [5, -6], [5, 6]); g.closePath(); g.fill(); break;
     case 'cup': P([-4, -2], [-3, 5], [3, 5], [4, -2]); g.closePath(); g.stroke(); g.beginPath(); g.arc(5, 1, 2, -1.5, 1.5); g.stroke(); P([-1, -4], [-1, -6]); g.stroke(); P([1.5, -4], [1.5, -6]); g.stroke(); break;
+    // (a tor: blocks stacked on the crest)
+    case 'tor': g.fillRect(-6, 3, 12, 3.5); g.fillRect(-4.5, -1.5, 8, 3.5); g.fillRect(-2.5, -6, 5, 3.5); break;
     case 'bus': g.strokeRect(-5, -5, 10, 9); P([-5, 0], [5, 0]); g.stroke(); g.beginPath(); g.arc(-3, 5.5, 1.3, 0, TAU); g.arc(3, 5.5, 1.3, 0, TAU); g.fill(); break;
     case 'flag': {
       P([-4, 7], [-4, -7]); g.stroke();

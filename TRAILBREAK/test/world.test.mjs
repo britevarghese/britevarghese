@@ -295,6 +295,9 @@ test('the open world: its rocky hills in relief (ledges and joints in the rock i
   }
   // the maps on their own are as they were
   assert.ok(!mapById('ashwood').rockRelief && !mapById('kerala').rockRelief);
+  // and every map's tors are listed in the world, to fast travel to (ui/WorldMap.js)
+  const T = W.tors();
+  assert.ok(T.length >= 10 && T.every((q) => W.regionAt(q.x, q.z)?.id === q.region && q.mapName), `${T.length} tors listed`);
 });
 
 test('the open world: no building\'s yard cuts a step into a track (a house\'s yard below the Anapara Track did)', async () => {

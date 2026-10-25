@@ -136,11 +136,13 @@ and friends. Tap anything on it, or any spot on the ground, for what it is and *
 quickest way there by road and trail (src/game/Route.js), straight across country where that is quicker, and shows it
 on the map, on the minimap, on the compass and as a line of chevrons on the ground ahead; it plots it again when you
 leave it, and a route to a friend follows them. **Fast travel** takes you to a station, the garage, an event's
-start line, a beacon you have found or a friend (not in the middle of a run). The **Fast travel** button on the map
-(or T with the map open) lists your friends, each with how far off, then your truck's home and every map's base,
-nearest first: Travel jumps there, Route sets the satnav, and a tap on the name shows it on the map. Somewhere whose
-map isn't in yet (a friend who started at a far-off home) has that map built before any other, and you are taken
-there the moment it is in. While the map is
+start line, a beacon you have found, a friend or a rocky hill's tor (not in the middle of a run). The **Fast travel**
+button on the map (or T with the map open) lists your friends, each with how far off, then the rocky hills (the
+nearest five tors on the maps that are in), then your truck's home and every map's base, nearest first: Travel jumps
+there, Route sets the satnav, and a tap on the name shows it on the map. The coast round Kashid, where you start, is
+mostly roads; the first time a map with rocky hills comes in you're told how to get to them. Somewhere whose map
+isn't in yet (a friend who started at a far-off home) has that map built before any other, and you are taken there
+the moment it is in. While the map is
 open your truck stands on its handbrake.
 
 **Friends' trucks** are drawn smoothly however their states reach you: each state is held at the time its driver's
@@ -1058,9 +1060,13 @@ joints and its steps by its bedding (Migoń and others, on the tors of central E
   too are in the lighting only. In the ground, the ledges' lips and the cracks are rounded off, and the rock's
   roughness is in the lighting only: drawn sharp, they stood out of the ground's outline in steps up close. The
   ground as drawn is 1 to 2 cm off the relief up close (10 cm at worst), and 3 to 7 cm off farther out.
+- **Far off:** where the ledges are under a few pixels (from some 30 m on a face seen square, sooner on one seen
+  aslant) the benches stay in the lighting, and each bed keeps a shade of its own, out to where they too are under a
+  few pixels; and every ground's texture is mixed there with itself over a tile three and a half times the size,
+  turned, so its repeats don't line up into a pattern (they had laid a rock face out in rows of scales).
 - **Tors:** on each map's most prominent crests stand free-standing stacks of the blocks the joints and beds part the
   rock into. Two or three blocks a column, the lower ones broader, rise from bare rock on the rounded top (1 to 4 a
-  map).
+  map). They are on the map, and in its fast travel list.
 - **Clitter:** the blocks a tor has shed lie strewn in trails down the slope below it.
 - **Talus:** at the foot of each rock face, the stones it has shed lie in an apron, thickest close under the face,
   the bigger ones rolled farther out.

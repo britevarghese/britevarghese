@@ -273,6 +273,9 @@ vec3 gTea(vec3 soil, float dist) {
 // the projections (top, and the two sides for steep ground), their weights and screen-space derivatives
 vec2 gPT, gPX, gPZ, gDTx, gDTy, gDXx, gDXy, gDZx, gDZy;
 float gwT, gwX, gwZ, gSX, gSZ;
+// (how far off the pixel is for the ground's textures to be mixed with themselves over a larger tile: gColor)
+float gFar;
+const mat2 gTurn = mat2(0.766, 0.643, -0.643, 0.766);
 float gL[4];
 float gW[4];
 int gn;
@@ -301,6 +304,17 @@ vec4 gColor(float L, float sc) {
   if (gwT > 0.0) c += textureGrad(uGC, vec3(gPT * sc, L), gDTx * sc, gDTy * sc) * gwT;
   if (gwX > 0.0) c += textureGrad(uGC, vec3(gPX * sc, L), gDXx * sc, gDXy * sc) * gwX;
   if (gwZ > 0.0) c += textureGrad(uGC, vec3(gPZ * sc, L), gDZx * sc, gDZy * sc) * gwZ;
+  // farther off, the same ground over a tile three and a half times the size, turned and shifted, mixed in: a few
+  // metres across, the tile repeats dozens of times in view out there, and its repeats lined up into a pattern (on a
+  // rock face, rows of scales)
+  if (gFar > 0.0) {
+    float s2 = sc * 0.29;
+    vec4 f = vec4(0.0);
+    if (gwT > 0.0) f += textureGrad(uGC, vec3(gTurn * gPT * s2 + 0.37, L), gTurn * gDTx * s2, gTurn * gDTy * s2) * gwT;
+    if (gwX > 0.0) f += textureGrad(uGC, vec3(gTurn * gPX * s2 + 0.37, L), gTurn * gDXx * s2, gTurn * gDXy * s2) * gwX;
+    if (gwZ > 0.0) f += textureGrad(uGC, vec3(gTurn * gPZ * s2 + 0.37, L), gTurn * gDZx * s2, gTurn * gDZy * s2) * gwZ;
+    c = mix(c, (c + f) * 0.5, gFar);
+  }
   return c;
 }
 // bare rock's relief and shade (world/Bedrock.js: the same ledges and joints the vertices near by are moved by)
@@ -343,6 +357,7 @@ float gTrkWet = 0.0;
   float vary = 0.9 + 0.1 * n1 * (1.0 - smoothstep(60.0, 220.0, dist)) + 0.12 * n2 * mid + 0.08 * n3;
 ${G ? `
   float tex = 1.0 - smoothstep(uTexFar * 0.55, uTexFar, dist);
+  gFar = smoothstep(14.0, 45.0, dist);
 #ifdef SEAM
   { vec2 lp = vWPos.xz - uCentre; gSeamW = 1.0 - smoothstep(0.0, uSeam.w, uSeam.z - mix(lp.y, lp.x, uSeam.x) * uSeam.y); }
 #endif
@@ -480,26 +495,40 @@ ${G ? `
     // bare rock in relief (a hill's rock is not a smooth bank with a picture of rock on it, world/Bedrock.js): its beds
     // as ledges up a face and stair steps across a slab, its joints as cracks between blocks, darker in the recesses;
     // reckoned in the map's frame from the ground's height before it (baseY), as its vertices near by are moved; out
-    // where a ledge is under a few pixels it evens out
-    float rw = 0.0;
-    for (int j = 0; j < 4; j++) { if (j >= gn) break; if (gL[j] == uIds.y) rw += max(0.0, hs[j] - top + 0.16); }
+    // where a ledge is under a few pixels it evens out, and farther the benches go on, every few beds, each bed a
+    // shade of its own while it is a few pixels thick, until they too are under a few pixels
+    float rw0 = 0.0;
+    for (int j = 0; j < 4; j++) { if (j >= gn) break; if (gL[j] == uIds.y) rw0 += max(0.0, hs[j] - top + 0.16); }
     vec3 n0 = normalize(vWNormal);
     // (and not where the face is seen edge on: there its ledges glinted)
-    rw = rw / sum * uRockBeds * (1.0 - smoothstep(0.06, 0.25, length(fwidth(vWPos))))
-      * smoothstep(0.12, 0.4, abs(dot(n0, normalize(cameraPosition - vWPos))));
-    if (rw > 0.0) {
+    rw0 = rw0 / sum * uRockBeds * smoothstep(0.12, 0.4, abs(dot(n0, normalize(cameraPosition - vWPos))));
+    float fw = length(fwidth(vWPos)), fine = 1.0 - smoothstep(0.06, 0.25, fw);
+    float rw = rw0 * fine, rf = rw0 * (1.0 - fine) * (1.0 - smoothstep(0.7, 2.4, fw));
+    if (rw + rf > 0.0) {
       vec3 ta = normalize(vec3(n0.z, 0.0, -n0.x) + vec3(1e-5, 0.0, 0.0)), tb = cross(n0, ta);
-      vec2 ax = vec2(n0.z * n0.z, n0.x * n0.x) / max(n0.x * n0.x + n0.z * n0.z, 1e-5);
       float sl = min(3.0, length(n0.xz) / max(n0.y, 0.3)), slab = 1.0 - smoothstep(0.4, 1.0, sl);
-      float e = 0.1, w = clamp(length(fwidth(vWPos)) * 2.5, 0.0, 0.45);
       vec3 p = vec3(vWPos.x - uCentre.x, vBaseY, vWPos.z - uCentre.y);
-      vec2 r0 = brOut(p, ax, slab, w);
-      float ha = brOut(p + ta * e, ax, slab, w).x, hb = brOut(p + tb * e, ax, slab, w).x;
-      vec3 slope = (ta * (ha - r0.x) + tb * (hb - r0.x)) / e * (0.35 + 0.65 * (1.0 - slab));
-      gNW = normalize(gNW - slope * min(1.0, 0.9 / max(length(slope), 1e-4)) * rw);
-      diffuseColor.rgb *= mix(1.0, r0.y * (0.88 + 0.4 * clamp(r0.x, 0.0, 0.4)), rw);
+      if (rw > 0.0) {
+        vec2 ax = vec2(n0.z * n0.z, n0.x * n0.x) / max(n0.x * n0.x + n0.z * n0.z, 1e-5);
+        float e = 0.1, w = clamp(fw * 2.5, 0.0, 0.45);
+        vec2 r0 = brOut(p, ax, slab, w);
+        float ha = brOut(p + ta * e, ax, slab, w).x, hb = brOut(p + tb * e, ax, slab, w).x;
+        vec3 slope = (ta * (ha - r0.x) + tb * (hb - r0.x)) / e * (0.35 + 0.65 * (1.0 - slab));
+        gNW = normalize(gNW - slope * min(1.0, 0.9 / max(length(slope), 1e-4)) * rw);
+        diffuseColor.rgb *= mix(1.0, r0.y * (0.88 + 0.4 * clamp(r0.x, 0.0, 0.4)), rw);
+      }
+      if (rf > 0.0) {
+        // (the benches lit from their slope over a pixel or more, lighter on their lips and darker in the recesses
+        // under them; and each bed its own shade, a few per cent lighter or darker, out to where they're a few pixels)
+        float e = clamp(fw * 1.5, 0.3, 2.0), s0 = brBed(p), q = 1.0 - slab;
+        float b0 = brBench(s0) * q, ba = brBench(brBed(p + ta * e)) * q, bb = brBench(brBed(p + tb * e)) * q;
+        vec3 slope = (ta * (ba - b0) + tb * (bb - b0)) / e * (0.35 + 0.65 * q);
+        gNW = normalize(gNW - slope * min(1.0, 0.9 / max(length(slope), 1e-4)) * rf);
+        float tone = (hash21(vec2(floor(s0), 11.0)) - 0.5) * 0.18 * (1.0 - smoothstep(0.3, 0.8, fw));
+        diffuseColor.rgb *= mix(1.0, (0.84 + 0.6 * b0) * (1.0 + tone), rf);
+      }
       // (matt: a ledge's top seen edge on caught the sky as a white line)
-      gRough = mix(gRough, 1.0, rw);
+      gRough = mix(gRough, 1.0, rw + rf);
     }
   }` : ''}
   {
