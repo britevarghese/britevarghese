@@ -1015,7 +1015,7 @@ own features made on top of it; the roads through them are routed over the groun
   cream, orange and deep red with a darker varnish); fallen blocks lie at their feet. Its own ground set
   (`public/assets/ground/canyon.json`): a sandstone scan for the rock, cracked red earth, red sand, and the coast's red
   mud, grass and stones; its own trees (`canyon` in `src/render/Vegetation.js`): acacias spreading their flat crowns
-  (about 6,000 trees in all, a few by the water, scattered over the floor), thor (the candelabra spurge) in the rocks, and dead trees; reeds stand
+  (about 5,000 trees in all, a few by the water, scattered over the floor and the ledges, none on the cliff faces), thor (the candelabra spurge) in the rocks, and dead trees; reeds stand
   along the waters' edges and out into the shallows (a map's `reeds`, `src/render/Grass.js`). Its air is clear and warm,
   the colours rich. **Lalghati Base** stands on the floor where the canyon opens to the taiga.
 

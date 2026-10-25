@@ -171,7 +171,7 @@ const canyonTint = (x, z, layer, h, c) => {
     for (let j = 0; j < 3; j++) c[j] *= lerp(A[j], B[j], k) * v * varnish;
   } else if (layer === 'dirt') { c[0] *= 1.25; c[1] *= 0.92; c[2] *= 0.8; }
   else if (layer === 'sand') { c[0] *= 1.2; c[1] *= 1.0; c[2] *= 0.86; }
-  else if (layer === 'grass') { c[0] *= 1.08; c[1] *= 0.92; c[2] *= 0.62; }
+  else if (layer === 'grass') { c[0] *= 1.65; c[1] *= 0.98; c[2] *= 0.36; }         // (dry, straw-coloured)
 };
 
 /** The floor of the gorge (fraction along the river, and the floor's height there) at (x, z), and how far off the river. */
@@ -270,7 +270,7 @@ export const CANYON = stretch({
         // (red mud flats out across the floor where the river floods it, most of it near the river; earth, dry grass
         // and drifts of sand between)
         if (n3 > 0.62 - 0.2 * smoothstep(g.half * 0.8, 40, g.d)) return SURFACE.MUD;
-        return n1 > 0.55 ? SURFACE.GRASS : n2 > 0.7 ? SURFACE.SAND : SURFACE.DIRT;
+        return n1 > 0.7 ? SURFACE.GRASS : n2 > 0.66 ? SURFACE.SAND : SURFACE.DIRT;
       }
       // the bench: the mud flats, red earth and drifts of sand, grass in the hollows
       if (h < 90 && z > 400) {
@@ -313,9 +313,11 @@ export const CANYON = stretch({
       }
     },
     trees(ctx) {
-      const { K } = ctx;
+      const { K, hAt } = ctx;
       plant(ctx, 7, (x, z, s, h, R, roll) => {
         if (hyp(x - BASE.x, z - BASE.z) < 75 || hyp(x - LOOKOUT.x, z - LOOKOUT.z) < 20) return null;
+        // (nothing on the faces of the walls: a tree there stands out from the cliff like a blot; the ledges keep theirs)
+        if (Math.max(Math.abs(hAt(x + 2, z) - hAt(x - 2, z)), Math.abs(hAt(x, z + 2) - hAt(x, z - 2))) > 2) return null;
         const w = wallness(K, x, z);
         if (s === SURFACE.ROCK && roll > 0.08) return null;
         const pick = R(), wet = Math.min(creekD(x, z), lineNear(CANYON_RIVER_PTS, x, z).d - 14);
