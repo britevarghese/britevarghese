@@ -23,7 +23,7 @@ import { TAIGA, TAIGA_RIVER_PTS } from './taiga.js';
 import { landform } from '../WorldGen.js';
 import { ridged, rng } from '../Noise.js';
 import { graded } from './seams.js';
-import { clamp, lerp, smoothstep, gauss, hyp, fbm, vnoise, lineNear, lineLength, plant, desert, DESERT, TROPICAL, stretch, trailsOf } from './country.js';
+import { clamp, lerp, smoothstep, gauss, hyp, fbm, vnoise, lineNear, lineLength, along, plant, desert, DESERT, TROPICAL, stretch, trailsOf } from './country.js';
 
 /** The canyon's centre in the world (a 2 km square west of the taiga, north of Chalkewadi and the Table Land). */
 export const CANYON_AT = [2976, -6844];
@@ -159,7 +159,7 @@ const inFlats = (x, z) => {
 
 /**
  * The colours over its ground: the sandstone in its strata (bands a few metres deep, cream, orange and deep red, a
- * darker varnish where it weathers), the red earth and sand, the grass dry.
+ * darker varnish where it weathers), the red earth and sand, the grass dry but by the water.
  */
 const STRATA = [[1.04, 0.66, 0.52], [0.72, 0.36, 0.26], [1.22, 1.3, 1.36], [0.9, 0.5, 0.36], [0.62, 0.3, 0.22], [1.08, 0.82, 0.7], [0.82, 0.44, 0.32]];
 const canyonTint = (x, z, layer, h, c) => {
@@ -171,7 +171,13 @@ const canyonTint = (x, z, layer, h, c) => {
     for (let j = 0; j < 3; j++) c[j] *= lerp(A[j], B[j], k) * v * varnish;
   } else if (layer === 'dirt') { c[0] *= 1.25; c[1] *= 0.92; c[2] *= 0.8; }
   else if (layer === 'sand') { c[0] *= 1.2; c[1] *= 1.0; c[2] *= 0.86; }
-  else if (layer === 'grass') { c[0] *= 1.65; c[1] *= 0.98; c[2] *= 0.36; }         // (dry, straw-coloured)
+  else if (layer === 'grass') {
+    // (dry, straw-coloured; green by the water, and the reeds there)
+    const wet = smoothstep(40, 10, Math.min(creekD(x, z), lineNear(CANYON_RIVER_PTS, x, z).d - 12));
+    c[0] *= lerp(1.8, 1.05, wet); c[1] *= lerp(1.0, 1.05, wet); c[2] *= lerp(1.2, 0.85, wet);
+  }
+  else if (layer === 'mud') { c[0] *= 1.2; c[1] *= 0.95; c[2] *= 0.78; }           // (red mud)
+  else if (layer === 'gravel' || layer === 'pebbles') { c[0] *= 1.42; c[1] *= 0.96; c[2] *= 0.76; }   // (the red rock's)
 };
 
 /** The floor of the gorge (fraction along the river, and the floor's height there) at (x, z), and how far off the river. */
@@ -195,6 +201,10 @@ export const CANYON = stretch({
   station: { x: BASE.x, z: BASE.z, name: 'Lalghati Base' }, spawn: { x: BASE.x - 12, z: BASE.z + 30, yaw: -Math.PI / 2 }, dealer: 'Lalghati Base',
   load: () => COAST.load(), baseHeight: canyonGround, roughOf: (h) => clamp((h - 60) / 220, 0.15, 0.5),
   ...TROPICAL, ground: 'canyon', trees: 'canyon', farWoods: 0.12, tint: canyonTint, tintRange: 2.5,
+  // (the grass on the tracks' humps and verges dry too)
+  vergeTint: [1.6, 1.0, 1.2],
+  // (its boulders and blocks in the colours of its beds, render/Rocks.js)
+  rockTint: true,
   // (each kind of tree: an acacia drops a little litter, a thor none, a dead tree its twigs; a thor's soft stems give
   // at a touch, a dead tree's brittle trunk soon; and young ones of the nearest kind by the tracks)
   litter: [0.35, 0, 0.15], treeStrength: [0.9, 0.12, 0.35],
@@ -213,6 +223,21 @@ export const CANYON = stretch({
   },
   // its sandstone in strong beds (render/Terrain.js), its own air: clear and warm, the colours rich
   rockBeds: 1.5,
+  // and streaked dark down its faces with desert varnish where the rain runs off its ledges (render/Terrain.js)
+  varnish: 1,
+  // its water red-brown with the sand it carries, its bed hidden a hand's depth down (render/Water.js)
+  water: { silt: [0.26, 0.135, 0.075] },
+  // and its walls' beds in three dimensions (world/Ledges.js, render/Ledges.js): at the lip of each bed (as the walls'
+  // shaping, gen.fine below, cuts them) a ledge jutting out over the face below, and here and there a thinner one
+  // partway down the face; on the gorge's walls, the side canyons', the buttes' and the escarpment's
+  ledges: {
+    bed: (x, z, h) => { const y = h + 2.5 * fbm(x / 140, z / 140, 2, SEED + 20); return y / 10.5 + 0.22 * Math.sin(y / 23); },
+    levels: [
+      { at: 0.96, out: [0.9, 2.4], thick: [1.5, 2.8], block: [6, 16] },
+      { at: 0.58, out: [0.25, 0.8], thick: [0.5, 1.0], block: [3, 8], cover: 0.45 },
+    ],
+    minSlope: 0.9, clear: 8, seed: SEED + 400,
+  },
   atmosphere: { fog: 0.0004, cover: 0.62 }, air: { fog: 0.0004, cover: 0.62, sun: 1, sat: 1.1, fade: 200 },
   dust: { ...COAST.dust, [SURFACE.SAND]: [0.5, 0.26, 0.15], [SURFACE.DIRT]: [0.45, 0.22, 0.12] },
   puddles: 5, mudFields: 2.5, rockFields: 2.5, mudTracks: 0.35, wornTracks: true, rockRelief: true, looseRocks: 4,
@@ -315,7 +340,7 @@ export const CANYON = stretch({
     trees(ctx) {
       const { K, hAt } = ctx;
       plant(ctx, 7, (x, z, s, h, R, roll) => {
-        if (hyp(x - BASE.x, z - BASE.z) < 75 || hyp(x - LOOKOUT.x, z - LOOKOUT.z) < 20) return null;
+        if (hyp(x - BASE.x, z - BASE.z) < 75 || hyp(x - LOOKOUT.x, z - LOOKOUT.z) < 20 || ctx.hoodoos?.some(([hx, hz]) => hyp(x - hx, z - hz) < 8)) return null;
         // (nothing on the faces of the walls: a tree there stands out from the cliff like a blot; the ledges keep theirs)
         if (Math.max(Math.abs(hAt(x + 2, z) - hAt(x - 2, z)), Math.abs(hAt(x, z + 2) - hAt(x, z - 2))) > 2) return null;
         const w = wallness(K, x, z);
@@ -332,7 +357,7 @@ export const CANYON = stretch({
       });
     },
     // fallen rock: blocks at the foot of the walls and down the escarpment's ramp
-    boulders(ctx, add) {
+    boulders(ctx, add, list) {
       const { K, trailD, trailW, cellOf, onCourse, hAt } = ctx, R = rng(SEED + 99);
       for (let n = 0; n < 9000; n++) {
         const x = (R() * 2 - 1) * (CANYON_HALF - 30), z = (R() * 2 - 1) * (CANYON_HALF - 30), roll = R();
@@ -342,6 +367,67 @@ export const CANYON = stretch({
         const idx = cellOf(x, z);
         if (trailD(idx) < trailW(idx) + 3 || onCourse(x, z, 9)) continue;
         add(x, z, 0.7 + R() * 1.4 + R() * R() * 1.8, 0.25 + R() * 0.2);
+      }
+      const RW = rng(SEED + 97), { waterAt } = ctx;
+      const depth = (x, z) => { const wl = waterAt(x, z); return wl > -1e8 ? wl - hAt(x, z) : -9; };
+      const clearAt = (x, z, m) => { const idx = cellOf(x, z); return trailD(idx) > trailW(idx) + m && !onCourse(x, z, m + 6); };
+      // hoodoos: pillars of the sandstone standing free of the walls on the floor near their feet, left where the wall
+      // round them has worn back, each a stack of its beds' blocks, narrowing up it, a harder bed's block a cap rock on
+      // top (Thor's Hammer at Bryce); off the tracks, the water and each other
+      const RH = rng(SEED + 95), hoodoos = ctx.hoodoos = [];
+      for (let n = 0; n < 4000 && hoodoos.length < 9; n++) {
+        const x = (RH() * 2 - 1) * (CANYON_HALF - 60), z = (RH() * 2 - 1) * (CANYON_HALF - 60), w = wallness(K, x, z), g = gorgeAt(x, z), h = hAt(x, z);
+        if (w > 0.05 || h > g.floor + 4 || g.d > g.half + 50 || g.d < 40 || creekD(x, z) < 20) continue;
+        // (near a wall: steep ground within 50 m)
+        let wall = false;
+        for (let a = 0; a < 8 && !wall; a++) wall = wallness(K, x + Math.cos(a * Math.PI / 4) * 45, z + Math.sin(a * Math.PI / 4) * 45) > 0.4;
+        if (!wall || !clearAt(x, z, 14) || hoodoos.some(([hx, hz]) => hyp(hx - x, hz - z) < 140) || hyp(x - BASE.x, z - BASE.z) < 120) continue;
+        hoodoos.push([x, z]);
+        // (its blocks sunk into each other, one column of rock: its harder beds standing out a little wider than the
+        // softer, a wavering outline up it)
+        const W0 = 2.2 + RH() * 1.4, nb = 8 + Math.floor(RH() * 7), yaw = RH() * Math.PI, ph = RH() * 6;
+        let top = null;
+        for (let k = 0; k < nb; k++) {
+          const cap = k === nb - 1, f = cap ? 1.25 : (1 - 0.36 * k / nb) * (1 + 0.1 * Math.sin(k * 1.9 + ph)), ry = cap ? 0.75 + RH() * 0.3 : 1.1 + RH() * 0.6;
+          const wx = W0 * f * (0.92 + 0.16 * RH()), wz = W0 * f * (0.78 + 0.2 * RH()), ox = k ? (RH() - 0.5) * 0.25 : 0, oz = k ? (RH() - 0.5) * 0.25 : 0;
+          const y = top === null ? h - ry * 0.3 : top + ry * 0.22;
+          list.push({ x: x + ox, y, z: z + oz, rx: wx, ry, rz: wz, yaw: yaw + (RH() - 0.5) * 0.12, shade: RH(), block: Math.floor(RH() * 6) });
+          top = y + ry * 0.66;
+        }
+      }
+      // the shores: stones the water has rolled round, in clusters out in the shallows and up the wet sand at its edge;
+      // and where a bank is rock, slabs of the bedrock the river has bared, flat on their beds, stepping down into it
+      const shores = [[CANYON_RIVER_PTS, 26, 26000], ...SIDES.map((c) => [c.pts, 6, 2400])];
+      for (const [pts, across, draws] of shores) {
+        const len = lineLength(pts);
+        for (let n = 0; n < draws; n++) {
+          const s = RW() * len, [ax, az] = along(pts, s), [bx, bz] = along(pts, s + 2), l = hyp(bx - ax, bz - az) || 1;
+          const o = (RW() * 2 - 1) * across, x = ax - (bz - az) / l * o, z = az + (bx - ax) / l * o, roll = RW();
+          const d = depth(x, z), clump = vnoise(x / 7, z / 7, SEED + 98);
+          if (d > 0.45 || d < -0.7 || roll > (clump - 0.38) * 2.2 || !clearAt(x, z, 2)) continue;
+          add(x, z, 0.16 + RW() * 0.28 + RW() * RW() * RW() * 0.9, 0.3 + RW() * 0.2, RW);
+        }
+      }
+      for (const [px, pz, r] of POOLS) {
+        for (let n = 0; n < 1500; n++) {
+          const a = RW() * Math.PI * 2, rr = r * (0.6 + 0.6 * RW()), x = px + Math.cos(a) * rr, z = pz + Math.sin(a) * rr, d = depth(x, z);
+          if (d > 0.4 || d < -0.6 || RW() > vnoise(x / 6, z / 6, SEED + 98) * 1.4 || !clearAt(x, z, 2)) continue;
+          add(x, z, 0.18 + RW() * 0.3 + RW() * RW() * 0.6, 0.35, RW);
+        }
+      }
+      for (let n = 0, len = lineLength(CANYON_RIVER_PTS); n < 5000; n++) {
+        const s = RW() * len, [ax, az] = along(CANYON_RIVER_PTS, s), [bx, bz] = along(CANYON_RIVER_PTS, s + 2), l = hyp(bx - ax, bz - az) || 1;
+        const o = (RW() * 2 - 1) * 26, x = ax - (bz - az) / l * o, z = az + (bx - ax) / l * o, d = depth(x, z);
+        // (a slab where the water laps the bank's edge, where the rock runs out under it)
+        if (d > 0.25 || d < -0.35 || vnoise(x / 30, z / 30, SEED + 96) < 0.55 || !clearAt(x, z, 4)) continue;
+        const yaw = -Math.atan2(bz - az, bx - ax) + (RW() - 0.5) * 0.5, g = hAt(x, z);
+        // (each the next bed up, smaller, set back from the water: its foot on the one below it)
+        for (let k = 0, top = null, w = 1.6 + RW() * 2.2, nb = 1 + Math.floor(RW() * 2.4); k < nb; k++, w *= 0.7) {
+          const back = k * w * 0.55 * Math.sign(o || 1), cx = x - (bz - az) / l * back, cz = z + (bx - ax) / l * back, ry = 0.2 + RW() * 0.14;
+          const y = top === null ? g - ry * 0.45 : top + ry * 0.62;
+          list.push({ x: cx, y, z: cz, rx: w, ry, rz: w * (0.45 + 0.3 * RW()), yaw, shade: RW(), block: Math.floor(RW() * 6) });
+          top = y + ry * 0.66;
+        }
       }
     },
   }),

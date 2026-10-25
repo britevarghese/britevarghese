@@ -1129,7 +1129,22 @@ own features made on top of it; the roads through them are routed over the groun
   and runs west through a broad canyon it has cut 110 to 125 m down into a plateau of red sandstone, its floor wide
   open (280 to 340 m across between the walls), then north out of the world. Its walls stand in ledges, beds of harder rock 8 to 13 m deep over steep faces of softer (the generator steps
   the ground, the terrain shader draws the beds and their joints, and the map's tint colours the strata in bands of
-  cream, orange and deep red with a darker varnish); fallen blocks lie at their feet. Its own ground set
+  cream, orange and deep red); fallen blocks lie at their feet. The beds stand out in three dimensions too, as
+  bedded sandstone weathers: at the lip of each bed a ledge of the harder rock juts 1 to 2.5 m out over the face below,
+  the recess under it in shadow, and here and there a thinner one partway down a face, cut by joints into blocks that
+  stand out a little more or less than the next (a map's `ledges`: `src/world/Ledges.js` traces each bed's lip along
+  the walls, `src/render/Ledges.js` builds the slabs a square at a time near the camera; none within a few metres of
+  a track) ([NPS: Navajo National Monument](https://www.nps.gov/articles/nps-geodiversity-atlas-navajo-national-monument-arizona.htm),
+  [NPS: Mesa Verde's alcoves](https://www.nps.gov/meve/learn/historyculture/cp_cliff_palace_alcoves.htm)). The faces
+  are streaked dark with desert varnish where rain runs off the ledges (a map's `varnish`, in the terrain shader;
+  [NPS: desert varnish](https://www.nps.gov/articles/desertvarnish.htm)), and on the floor near the walls stand
+  hoodoos, pillars of the beds left standing as the wall wore back, each with a cap rock
+  ([Utah Geological Survey: Thor's Hammer](https://geology.utah.gov/potd-february-07-2017-thors-hammer-bryce-canyon-national-state-park)).
+  The river runs red-brown with the sand it carries, its bed hidden a hand's depth down and the walls in its
+  reflection (a map's `water.silt`, `src/render/Water.js`); its banks are wet a few metres up from the water, rounded
+  stones lie in clusters in its shallows and along its edges, and flat slabs of the bedrock step down into it where a
+  bank is rock. The boulders take the colours of the beds (a map's `rockTint`), and the grass is dry and straw-coloured
+  away from the water. Its own ground set
   (`public/assets/ground/canyon.json`): a sandstone scan for the rock, cracked red earth, red sand, and the coast's red
   mud, grass and stones; its own trees (`canyon` in `src/render/Vegetation.js`): acacias spreading their flat crowns
   (about 5,000 trees in all, a few by the water, scattered over the floor and the ledges, none on the cliff faces), thor (the candelabra spurge) in the rocks, and dead trees; reeds stand

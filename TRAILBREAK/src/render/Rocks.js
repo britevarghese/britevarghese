@@ -29,9 +29,15 @@ function rockGeometry(k, detail) {
   return g;
 }
 
-function rockMaterial(ground) {
-  const mat = new THREE.MeshStandardMaterial({ color: ground ? 0xffffff : 0x8a857d, roughness: 0.82, metalness: 0 });
+/**
+ * The rock's material. ledge: for a canyon's ledges (render/Ledges.js): coloured by their vertices (their bed's band),
+ * darkened by aAO under their lips, streaked with desert varnish down their faces, and no moss.
+ */
+export function rockMaterial(ground, { ledge = false } = {}) {
+  const mat = new THREE.MeshStandardMaterial({ color: ground ? 0xffffff : 0x8a857d, roughness: 0.82, metalness: 0, vertexColors: ledge });
   if (!ground) return mat;
+  // (the two kinds compiled apart: their shaders differ, the function that makes them doesn't)
+  mat.customProgramCacheKey = () => (ledge ? 'rock ledge' : 'rock');
   const L = ground.index.rock, grass = ground.index.grass ?? L, lay = ground.layers[L];
   mat.onBeforeCompile = (sh) => {
     Object.assign(sh.uniforms, {
@@ -42,7 +48,8 @@ function rockMaterial(ground) {
       .replace('#include <common>', `#include <common>
 varying vec3 vRPos;
 varying vec3 vRNor;
-varying float vRY;`)
+varying float vRY;
+${ledge ? 'attribute float aAO;\nvarying float vAO;' : ''}`)
       .replace('#include <worldpos_vertex>', `#include <worldpos_vertex>
 {
   mat4 im = mat4(1.0);
@@ -54,6 +61,7 @@ varying float vRY;`)
   vRNor = normalize(mat3(modelMatrix) * (r * n));
   vRPos = (modelMatrix * im * vec4(transformed, 1.0)).xyz;
   vRY = position.y;
+  ${ledge ? 'vAO = aAO;' : ''}
 }`);
     sh.fragmentShader = sh.fragmentShader
       .replace('#include <common>', `#include <common>
@@ -66,6 +74,7 @@ uniform vec3 uGain;
 varying vec3 vRPos;
 varying vec3 vRNor;
 varying float vRY;
+${ledge ? 'varying float vAO;' : ''}
 ${HASH21}
 float rh(vec2 p) { return hash21(p); }
 float rn(vec2 p) { vec2 i = floor(p), f = fract(p); vec2 u = f * f * (3.0 - 2.0 * f);
@@ -83,12 +92,17 @@ vec3 gRockN;`)
   vec3 tilt = vec3(0.0, tX.y, -sx * tX.x) * w.x + vec3(tY.x, 0.0, -sy * tY.y) * w.y + vec3(sz * tZ.x, tZ.y, 0.0) * w.z;
   gRockN = normalize(n + tilt);
   c *= uGain;
-  // moss and lichen where rain and leaves settle: the faces that look up
+${ledge ? `  // in the shadow of the recess under the lip; and desert varnish, iron and manganese, streaked dark down the faces
+  // where water runs off the ledge above
+  c *= vAO;
+  float st = rn(vec2((vRPos.x + vRPos.z) * 0.55, vRPos.y * 0.035)) * 0.7 + rn(vec2((vRPos.x - vRPos.z) * 1.7, vRPos.y * 0.09)) * 0.3;
+  c *= mix(1.0, 0.62, smoothstep(0.55, 0.85, st) * (1.0 - smoothstep(0.3, 0.7, abs(n.y))));
+  c *= 0.86 + 0.14 * smoothstep(-0.6, 0.4, n.y);` : `  // moss and lichen where rain and leaves settle: the faces that look up
   float m = smoothstep(0.6, 0.95, n.y) * smoothstep(0.52, 0.78, rn(vRPos.xz * 0.8) * 0.6 + rn(vRPos.xz * 3.7) * 0.4);
   vec3 moss = texture(uGC, vec3(vec2(vRPos.x, -vRPos.z) * 0.6, uMossL)).rgb * vec3(0.55, 0.66, 0.42);
   c = mix(c, moss, m * 0.7);
   // dark and damp low down, where it sits in the soil
-  c *= mix(0.55, 1.0, smoothstep(-0.45, 0.1, vRY)) * (0.82 + 0.18 * smoothstep(-0.6, 0.4, n.y));
+  c *= mix(0.55, 1.0, smoothstep(-0.45, 0.1, vRY)) * (0.82 + 0.18 * smoothstep(-0.6, 0.4, n.y));`}
   diffuseColor.rgb *= c;
 }`)
       .replace('#include <normal_fragment_maps>', `#include <normal_fragment_maps>
@@ -123,7 +137,16 @@ export class Rocks {
     // each boulder's transform and tone, made once
     const q = new THREE.Quaternion(), up = new THREE.Vector3(0, 1, 0);
     this.mats = B.map((b) => new THREE.Matrix4().compose(new THREE.Vector3(b.x, b.y, b.z), q.setFromAxisAngle(up, b.yaw), new THREE.Vector3(b.rx, b.ry, b.rz)));
-    this.tones = B.map((b) => { const t = 0.8 + b.shade * 0.35; return new THREE.Color(t * 1.02, t, t * 0.95); });
+    // (a map's rockTint: its rock in its own colours, render/Terrain.js's tint: a block of the bedrock in its bed's, a
+    // stone in that of whichever bed it fell from)
+    const tint = world.map.rockTint ? world.map.tint : null, c = [1, 1, 1];
+    this.tones = B.map((b) => {
+      const t = 0.8 + b.shade * 0.35;
+      if (!tint) return new THREE.Color(t * 1.02, t, t * 0.95);
+      c[0] = c[1] = c[2] = t;
+      tint(b.x, b.z, 'rock', b.block !== undefined ? b.y : b.y + b.shade * 60, c);
+      return new THREE.Color(c[0], c[1], c[2]);
+    });
     this.size = B.map((b) => Math.max(b.rx, b.ry, b.rz));
     this.last = new THREE.Vector3(1e9, 0, 1e9);
     this.shadows = true;

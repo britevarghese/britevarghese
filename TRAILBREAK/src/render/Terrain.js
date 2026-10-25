@@ -158,9 +158,11 @@ export class TerrainRenderer {
         uSnowLine: { value: this.snowLine + 40 }, uRelief: { value: 1 },
         uTea: { value: this.layerIndex.tea ?? -1 }, uTeaNear: { value: TEA_RANGE.high },
         // (a worn track's: the layers that wear, earth and mud, and the colour of the grass over its hump and verges)
-        uIds2: { value: new THREE.Vector2(this.layerIndex.dirt ?? -1, this.layerIndex.mud ?? -1) }, uVerge: { value: new THREE.Vector3(1.04, 1.03, 0.98) },
+        uIds2: { value: new THREE.Vector2(this.layerIndex.dirt ?? -1, this.layerIndex.mud ?? -1) }, uVerge: { value: new THREE.Vector3(...(w.map.vergeTint || [1.04, 1.03, 0.98])) },
         // how strongly its steep rock stands out in beds (the map's rockBeds: Kerala's granite hardly)
         uRockBeds: { value: w.map.rockBeds ?? 1 },
+        // and how dark the desert varnish streaked down its rock faces is (the map's varnish)
+        uVarnish: { value: w.map.varnish ?? 0 },
       });
       const B = this.blend;
       if (B) {
@@ -253,6 +255,7 @@ uniform float uMapHalf;
 uniform vec2 uCentre;
 uniform float uTexFar;
 uniform float uRockBeds;
+uniform float uVarnish;
 uniform vec3 uIds;
 uniform float uSnowLine;
 uniform float uRelief;
@@ -499,6 +502,7 @@ ${G ? `
     // shade of its own while it is a few pixels thick, until they too are under a few pixels
     float rw0 = 0.0;
     for (int j = 0; j < 4; j++) { if (j >= gn) break; if (gL[j] == uIds.y) rw0 += max(0.0, hs[j] - top + 0.16); }
+    float rk0 = rw0 / sum;
     vec3 n0 = normalize(vWNormal);
     // (and not where the face is seen edge on: there its ledges glinted)
     rw0 = rw0 / sum * uRockBeds * smoothstep(0.12, 0.4, abs(dot(n0, normalize(cameraPosition - vWPos))));
@@ -529,6 +533,17 @@ ${G ? `
       }
       // (matt: a ledge's top seen edge on caught the sky as a white line)
       gRough = mix(gRough, 1.0, rw + rf);
+    }
+    // desert varnish (a map's varnish): the dark film of clay and manganese oxides a desert cliff takes on where water
+    // runs down it after rain, in streaks hanging from its ledges, a few metres to tens long and as wide as a hand to
+    // a couple of metres; out where a streak is under a pixel or two, a shade darker where they run (gone as the benches go)
+    float vw = uVarnish * rk0 * smoothstep(0.78, 0.45, n0.y) * (1.0 - smoothstep(0.7, 2.4, fw));
+    if (vw > 0.0) {
+      float wx = n0.x * n0.x / max(n0.x * n0.x + n0.z * n0.z, 1e-5), acr = mix(vWPos.x, vWPos.z, wx);
+      float st = tn(vec2(acr / 1.6, vWPos.y / 16.0)) * 0.7 + tn(vec2(acr / 0.55, vWPos.y / 6.0) + 3.1) * 0.3;
+      float run = smoothstep(0.32, 0.62, tn(vec2(acr / 9.0, vWPos.y / 30.0) + 7.7));
+      float v = mix(0.32, smoothstep(0.5, 0.74, st), 1.0 - smoothstep(0.25, 1.2, fw)) * run;
+      diffuseColor.rgb *= mix(vec3(1.0), vec3(0.5, 0.42, 0.4), v * vw);
     }
   }` : ''}
   {
@@ -919,8 +934,10 @@ if (gWet > 0.0) {
         pv = t * t * (3 - 2 * t) * (0.55 + 0.45 * vnoise(x / 3, z / 3, 912));
       }
     }
-    const wl = w.water(x, z);
-    if (wl > -1e8 && h < wl + 0.5) wv = Math.max(wv, h < wl ? 0.6 : 0.85 * (1 - (h - wl) / 0.5));
+    // (and wet up the bank from the water's edge: the water's level there, or a few metres off at the shore)
+    let wl = w.water(x, z);
+    if (wl < -1e8) for (const [dx, dz] of [[2.5, 0], [-2.5, 0], [0, 2.5], [0, -2.5], [5, 0], [-5, 0], [0, 5], [0, -5]]) wl = Math.max(wl, w.water(x + dx, z + dz));
+    if (wl > -1e8 && h < wl + 0.6) wv = Math.max(wv, h < wl ? 0.6 : 0.85 * (1 - (h - wl) / 0.6));
     out[o] = Math.round(wv * 255); out[o + 1] = Math.round(pv * 255);
   }
 

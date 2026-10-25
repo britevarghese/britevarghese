@@ -12,6 +12,7 @@ import { truckSpec, TRUCKS } from '../src/physics/trucks.js';
 import { homeOf, park } from '../src/world/homes.js';
 import { followPath, densify } from './drive.mjs';
 import { POOLS, CREEK } from '../src/world/maps/canyon.js';
+import { ledgeStrips } from '../src/world/Ledges.js';
 import { GAUGE } from '../src/world/Worn.js';
 import { mapById } from '../src/world/maps/index.js';
 
@@ -232,6 +233,21 @@ test('the open world: Lalghati Canyon, a broad canyon in red rock (an open floor
   const [ax, az] = L[i], dx = L[i + 1][0] - ax, dz = L[i + 1][1] - az, l = Math.hypot(dx, dz), h = w.height(ax, az);
   const a = w.height(ax - dz / l * 20, az + dx / l * 20) - h, b = w.height(ax + dz / l * 20, az - dx / l * 20) - h;
   assert.ok(Math.max(a, b) > 15 && Math.min(a, b) < -15, `the shelf: ${a.toFixed(0)} and ${b.toFixed(0)} m either side`);
+  // the walls' beds in three dimensions: ledges along them, their lips out over the faces below, none near a track
+  const strips = [];
+  for (const [x0, z0] of [[512, 128], [320, 128], [-576, 640], [384, 384]]) strips.push(...ledgeStrips(w, x0, z0, 64, w.map.ledges));
+  assert.ok(strips.length > 20, `${strips.length} ledges`);
+  for (const s of strips) {
+    assert.ok(s.jut > 0 && s.thick > 0 && s.pts.length >= 9);
+    for (let j = 0; j < s.pts.length; j += 3) {
+      const t = w.worn.nearest(s.pts[j], s.pts[j + 2]);
+      assert.ok(!t, `a ledge on a track at ${s.pts[j].toFixed(0)}, ${s.pts[j + 2].toFixed(0)}`);
+    }
+  }
+  // its shores: stones in the shallows and at the water's edge, and slabs of bedrock stepping down into the water
+  const shore = w.boulders.filter((b) => Math.abs(w.water(b.x, b.z) - w.height(b.x, b.z)) < 0.7);
+  assert.ok(shore.filter((b) => b.block === undefined && b.rx < 0.8).length > 600, 'stones at the water\'s edge');
+  assert.ok(shore.filter((b) => b.block !== undefined).length > 40, 'slabs into the water');
   // the Bearwood carried on out of the taiga at its level
   assert.ok(Math.abs(tg.water(-1022, 300) - w.water(1022, 300)) < 0.3, `the river at the seam: ${tg.water(-1022, 300).toFixed(2)}, ${w.water(1022, 300).toFixed(2)}`);
   // red rock most of it, drifts of red sand, red mud on the floor

@@ -77,6 +77,7 @@ vDepth = aDepth; vFlow = aFlow; vMud = aMud; vFall = aFall;`);
       .replace('#include <common>', `#include <common>
 uniform float uTime;
 uniform sampler2D uRipple;
+uniform vec4 uSilt;
 varying float vDepth;
 varying vec2 vFlow;
 varying float vMud;
@@ -99,13 +100,16 @@ vec2 ripple(vec2 uv) { return texture2D(uRipple, uv).rg * 2.0 - 1.0; }`)
   vec2 r1 = ripple(p1 * 0.11 + drift) + ripple(p1 * 0.37 - drift * 1.7) * 0.6;
   vec2 r = mix(r0, r1, wb);
   float calm = mix(0.35, 1.0, clamp(length(vFlow) * 0.7, 0.0, 1.0));
-  float k = calm * clamp(1.0 - dist / 700.0, 0.2, 1.0) * (vMud > 0.5 ? 0.35 : 1.0);
+  float k = calm * clamp(1.0 - dist / 700.0, 0.2, 1.0) * (vMud > 0.5 ? 0.35 : 1.0) * mix(1.0, 0.45, uSilt.w);
   wN = normalize(vec3(-r.x * k * 0.55, 1.0, -r.y * k * 0.55));
   // light absorbed on the way down and back: clear in the shallows, dark green-blue deep, mud opaque
   vec3 absorb = mix(vec3(0.5, 0.14, 0.11), vec3(9.0, 11.0, 13.0), vMud);
+  // (a map's silt, water.silt: a river through red rock carries its sand, its water a red-brown that hides the bed a
+  // hand's depth down)
+  absorb = mix(absorb, vec3(5.5, 6.2, 7.0), uSilt.w * (1.0 - vMud));
   vec3 T = exp(-absorb * depth * 1.8);
   wA = clamp(1.0 - dot(T, vec3(0.3333)), 0.0, 1.0) * smoothstep(0.0, 0.06, depth);
-  diffuseColor.rgb = mix(vec3(0.012, 0.05, 0.05), vec3(0.11, 0.08, 0.05), vMud);
+  diffuseColor.rgb = mix(mix(vec3(0.012, 0.05, 0.05), uSilt.rgb, uSilt.w), vec3(0.11, 0.08, 0.05), vMud);
   // froth over the shallow riffles of the river
   float speed = length(vFlow);
   float froth = smoothstep(0.32, 0.08, depth) * smoothstep(0.6, 1.6, speed) * smoothstep(0.55, 0.85, texture2D(uRipple, p0 * 0.5).b * 0.6 + texture2D(uRipple, p1 * 1.3).b * 0.4) * (1.0 - vMud);
@@ -132,6 +136,8 @@ normal = normalize((viewMatrix * vec4(wN, 0.0)).xyz);`)
   // there less of it (a pool seen across the ground was a pale sheet of the bright horizon)
   vec3 wR = reflect(normalize(vWPos - cameraPosition), wN);
   reflectedLight.indirectSpecular *= mix(0.25, 1.0, smoothstep(0.0, 0.35, wR.y));
+  // (and in a canyon, a map with silt, what it mirrors low down is its red walls more than the sky)
+  reflectedLight.indirectSpecular *= mix(vec3(1.0), uSilt.rgb / max(uSilt.r, 0.01) * 0.8, uSilt.w * (1.0 - smoothstep(0.05, 0.6, wR.y)));
   vec3 V = normalize(vViewPosition);
   float R = 0.02 + 0.98 * pow(1.0 - clamp(dot(normal, V), 0.0, 1.0), 5.0);
   vec3 diff = reflectedLight.directDiffuse + reflectedLight.indirectDiffuse;
@@ -171,7 +177,8 @@ export class Water {
    */
   constructor(world, scene, { holes = [] } = {}) {
     this.holes = holes;
-    this.uniforms = { uTime: { value: 0 }, uRipple: { value: rippleTexture() } };
+    const silt = world.map.water?.silt;
+    this.uniforms = { uTime: { value: 0 }, uRipple: { value: rippleTexture() }, uSilt: { value: new THREE.Vector4(...(silt || [0, 0, 0]), silt ? 1 : 0) } };
     const d = world.data, N = d.waterN, res = d.waterRes, O = d.origin, W = d.water;
     // (a map whose sea is drawn as a sheet of its own: the sea's cells left out of the water grid's mesh)
     const SL = world.map.sea?.sheet ? world.map.sea.level : null;
