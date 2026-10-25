@@ -215,7 +215,7 @@ export const CANYON = stretch({
   rockBeds: 1.5,
   atmosphere: { fog: 0.0004, cover: 0.62 }, air: { fog: 0.0004, cover: 0.62, sun: 1, sat: 1.1, fade: 200 },
   dust: { ...COAST.dust, [SURFACE.SAND]: [0.5, 0.26, 0.15], [SURFACE.DIRT]: [0.45, 0.22, 0.12] },
-  puddles: 5, mudFields: 1.2,
+  puddles: 5, mudFields: 2.5, rockFields: 2.5, mudTracks: 0.35, looseRocks: 4,
   river: { points: CANYON_RIVER_PTS, widthStart: 16, widthEnd: 22, depthStart: 1.8, depthEnd: 2.2, fords: CANYON_FORDS, shallows: [CANYON_SHALLOWS],
     levelAt: canyonLevel, valleyAt: () => [60, 26], cliffs: true },
   trails: trailsOf('canyon', CANYON_ROUTES),

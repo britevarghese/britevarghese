@@ -48,7 +48,7 @@ export const KORLAI_ROUTES = {
 };
 
 export const KORLAI = stretch({
-  id: 'korlai', name: 'Korlai', short: 'Korlai', seed: KORLAI_SEED, half: HALF, mudFields: 1,
+  id: 'korlai', name: 'Korlai', short: 'Korlai', seed: KORLAI_SEED, half: HALF, mudFields: 4, rockFields: 2.5, mudTracks: 0.5, looseRocks: 5,
   station: { x: 390, z: -330, name: 'Korlai Bazaar' }, spawn: { x: 372, z: -350, yaw: Math.PI }, dealer: 'Konkan Motors',
   load: () => COAST.load(), baseHeight: korlaiGround, roughOf: (h) => clamp((h - 30) / 160, 0.15, 0.7),
   ...TROPICAL, farWoods: 0.45,
@@ -112,7 +112,7 @@ export const BORLI_ROUTES = {
 };
 
 export const BORLI = stretch({
-  id: 'borli', name: 'Borli Valley', short: 'Borli', seed: BORLI_SEED, half: HALF, mudFields: 1,
+  id: 'borli', name: 'Borli Valley', short: 'Borli', seed: BORLI_SEED, half: HALF, mudFields: 4, rockFields: 2.5, mudTracks: 0.5, looseRocks: 5,
   station: { x: -190, z: -130, name: 'Borli' }, spawn: { x: -170, z: -150, yaw: 0 }, dealer: 'Konkan Motors',
   load: () => COAST.load(), baseHeight: borliGround, roughOf: (h) => clamp((h - 30) / 160, 0.15, 0.7),
   ...TROPICAL, farWoods: 0.5, tint: borliTint, tintRange: 4, lake: SUPEGAON,
@@ -181,7 +181,7 @@ export const TABLE_ROUTES = {
 };
 
 export const TABLELAND = stretch({
-  id: 'tableland', name: 'Table Land', short: 'Table Land', seed: TABLE_SEED, half: HALF, mudFields: 1,
+  id: 'tableland', name: 'Table Land', short: 'Table Land', seed: TABLE_SEED, half: HALF, mudFields: 4, rockFields: 2.5, mudTracks: 0.5, looseRocks: 5,
   station: { x: 140, z: -470, name: 'Devkund Dhaba' }, spawn: { x: 160, z: -455, yaw: Math.PI / 2 }, dealer: 'Konkan Motors',
   load: () => COAST.load(), baseHeight: tableGround, roughOf: (h) => clamp((h - 40) / 200, 0.2, 0.8),
   ...TROPICAL, farWoods: 0.4,
@@ -243,7 +243,7 @@ export const WIND_ROUTES = {
 };
 
 export const WINDFARM = stretch({
-  id: 'windfarm', name: 'Chalkewadi', short: 'Chalkewadi', seed: WIND_SEED, half: HALF, mudFields: 1,
+  id: 'windfarm', name: 'Chalkewadi', short: 'Chalkewadi', seed: WIND_SEED, half: HALF, mudFields: 4, rockFields: 2.5, mudTracks: 0.5, looseRocks: 5,
   station: { x: 300, z: -500, name: 'Chalkewadi Gate' }, spawn: { x: 280, z: -510, yaw: Math.PI / 2 }, dealer: 'Konkan Motors',
   load: () => COAST.load(), baseHeight: windGround, roughOf: (h) => clamp((h - 40) / 220, 0.2, 0.8),
   ...TROPICAL, farWoods: 0.35,

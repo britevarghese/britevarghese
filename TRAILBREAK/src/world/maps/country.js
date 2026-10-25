@@ -98,6 +98,7 @@ export function plant(ctx, step, rule) {
       const px = x + (R() - 0.5) * step * 0.9, pz = z + (R() - 0.5) * step * 0.9, roll = R();
       const idx = cellOf(px, pz), s = surf[idx];
       if (s === SURFACE.MUD || s === SURFACE.SAND || s === SURFACE.RIVERBED || s === SURFACE.ROAD || s === SURFACE.SNOW) continue;
+      if (s === SURFACE.ROCK && ctx.rockField?.(px, pz)) continue;            // (a field of rock: world/WorldGen.js)
       if (trailD(idx) < trailW(idx) + 5) continue;
       const wl = waterAt(px, pz);
       if (wl > -1e8 && H[idx] < wl + 0.4) continue;

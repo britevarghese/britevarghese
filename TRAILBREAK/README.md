@@ -954,8 +954,37 @@ goes for a station you are towed back to or travel to.
 Glen, Bhimashankar and the pass thinned to between a third and a half of the trees they had), and every stretch with
 ground level enough by its tracks has open **mud fields** (`mudFields` on a map, so many a km of track;
 `src/world/WorldGen.js`): broad flats of churned mud 50 to 120 m across that a track runs through or a dirt road runs
-beside, a shallow lumpy dish with pools standing in its low spots and no trees on it. They are kept off the race
-courses, so the par times hold, and drawn with their own random numbers, so a map without them is built as it was.
+beside, a shallow lumpy dish with pools standing in its low spots and no trees on it. The open world's maps have more
+besides (each its own random numbers, so the standalone maps are built as they were):
+
+- **Rock fields** (`rockFields`, so many a km): outcrops 35 to 80 m across beside the tracks and roads, bare rock
+  heaved up a metre or two in lumps, big boulders strewn over it and only small ones, bedded down, on the track
+  through it. No trees grow on them.
+- **Muddy stretches** (`mudTracks`, the share of a track's length): 40 to 120 m of a level track churned to mud, its
+  verges too, the ruts sunk deeper and water standing in them every 15 to 30 m; on a dirt or gravel road, its verges
+  and shoulders. Kept off the river, so a ford stays as deep as it was.
+- **Loose rocks** (`looseRocks`, so many times the usual): boulders scattered over the open ground, kept clear of the
+  roads and the tracks.
+
+All of it is kept off the race courses, so the par times hold, and comes as close as 50 m to a home station. Walking
+every road and track in 10 m steps, before and after:
+
+| Map | mud within 40 m, before → after | boulders within 40 m, before → after |
+| --- | --- | --- |
+| Konkan Coast | 1% → 27% | 14% → 46% |
+| Kerala | 7% → 35% | 18% → 58% |
+| Ashwood | 9% → 46% | 34% → 62% |
+| Kashid Ghat | 5% → 31% | 22% → 45% |
+| The Pass | 0% → 16% | 61% → 75% |
+| Korlai | 29% → 47% | 11% → 48% |
+| Borli Valley | 6% → 45% | 8% → 55% |
+| The Table Land | 4% → 49% | 18% → 60% |
+| Chalkewadi | 2% → 34% | 6% → 57% |
+| Bhimashankar | 0% → 44% | 10% → 49% |
+| Koyna Glen | 4% → 31% | 19% → 52% |
+| The Deccan | 8% → 29% | 16% → 48% |
+| Bearwood Taiga | 77% → 84% | 9% → 60% |
+| Lalghati Canyon | 61% → 89% | 65% → 76% |
 
 The country is laid out as the real country round Kashid is: the stretches north of the coast and the Deccan to the
 south stand on the same real elevation data as the coast (its bake carries the heights 12 km out, every 40 m), their
