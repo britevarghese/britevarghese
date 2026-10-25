@@ -58,7 +58,7 @@ export const TRUCKS = {
     blurb: 'UAZ Hunter Expedition, the Soviet army jeep\'s heir: 94" wheelbase, a ladder frame and beam axles, the 2.7 four, a five-speed and a two-speed transfer case, a bull bar, winch and side steps from the factory. Simple, tough and slow.',
     mass: 2000, cgHeight: 0.8, cgZ: 0.08, inertiaBox: [1.75, 1.35, 3.9],
     axles: [
-      { z: 1.19, track: 1.525, springTrack: 1.06, rate: 42000, bump: 2400, rebound: 4800, travel: 0.23, sag: 0.095, mass: 105, steer: 0.55, brake: 2900, swayBar: 18000, diffDrop: 0.17, diffX: -0.1 },
+      { z: 1.19, track: 1.525, springTrack: 1.06, rate: 42000, bump: 2400, rebound: 4800, travel: 0.23, sag: 0.095, mass: 105, steer: 0.55, brake: 2900, swayBar: 20000, diffDrop: 0.17, diffX: -0.1 },
       { z: -1.19, track: 1.52, springTrack: 1.06, rate: 46000, bump: 2400, rebound: 4800, travel: 0.24, sag: 0.1, mass: 110, steer: 0, brake: 1900, handbrake: 3000, diffDrop: 0.17, diffX: 0 },
     ],
     trans: { tcK: 10 },
@@ -88,7 +88,7 @@ export const TRUCKS = {
     blurb: 'Chevrolet K20 Suburban, the square-body three-quarter-ton wagon: 129.5" wheelbase, the 6.6 V8, a four-speed with a 6.55 granny first, an NP205 and leaf springs on a Dana 60 and a 14-bolt. Long, heavy and strong.',
     mass: 2480, cgHeight: 0.86, cgZ: 0.2, inertiaBox: [1.85, 1.35, 5.0],
     axles: [
-      { z: 1.6445, track: 1.7, springTrack: 0.96, rate: 58000, bump: 3300, rebound: 6600, travel: 0.23, sag: 0.09, mass: 140, steer: 0.52, brake: 3500, swayBar: 38000, diffDrop: 0.19, diffX: -0.22 },
+      { z: 1.6445, track: 1.7, springTrack: 0.96, rate: 58000, bump: 3300, rebound: 6600, travel: 0.23, sag: 0.09, mass: 140, steer: 0.52, brake: 3500, swayBar: 45500, diffDrop: 0.19, diffX: -0.22 },
       { z: -1.6445, track: 1.68, springTrack: 1.08, rate: 66000, bump: 3200, rebound: 6400, travel: 0.25, sag: 0.09, mass: 155, steer: 0, brake: 2300, handbrake: 3400, diffDrop: 0.2, diffX: -0.06 },
     ],
     trans: { tcK: 9.4 },
@@ -115,7 +115,7 @@ export const TRUCKS = {
     blurb: 'Willys MB, the original jeep: 80" wheelbase, the 2.2 Go Devil four, a three-speed stick and a two-speed transfer case, leaf springs at both ends, a ton and a bit. Light, narrow and nimble; slow, and tippy on a side slope.',
     mass: 1220, cgHeight: 0.66, cgZ: 0.06, inertiaBox: [1.45, 1.05, 3.0],
     axles: [
-      { z: 1.016, track: 1.24, springTrack: 0.74, rate: 34000, bump: 1800, rebound: 3600, travel: 0.2, sag: 0.085, mass: 65, steer: 0.6, brake: 1900, swayBar: 9000, diffDrop: 0.14, diffX: -0.18 },
+      { z: 1.016, track: 1.24, springTrack: 0.74, rate: 34000, bump: 1800, rebound: 3600, travel: 0.2, sag: 0.085, mass: 65, steer: 0.6, brake: 1900, swayBar: 10000, diffDrop: 0.14, diffX: -0.18 },
       { z: -1.016, track: 1.23, springTrack: 0.74, rate: 33000, bump: 1700, rebound: 3400, travel: 0.22, sag: 0.09, mass: 70, steer: 0, brake: 1250, handbrake: 1900, diffDrop: 0.14, diffX: -0.05 },
     ],
     trans: { tcK: 11.5 },
@@ -144,7 +144,7 @@ export const TRUCKS = {
     blurb: 'Lada Niva, the Soviet small 4x4: 87" wheelbase, the 1.7 four, a five-speed, permanent four-wheel drive and a low range, independent front, coils all round, 1.3 tons. Light, nimble and stubborn; slow, and narrow on a side slope.',
     mass: 1290, cgHeight: 0.66, cgZ: 0.1, inertiaBox: [1.45, 1.1, 3.0],
     axles: [
-      { z: 1.1, track: 1.43, springTrack: 1.0, rate: 26000, bump: 1500, rebound: 3000, travel: 0.2, sag: 0.09, mass: 60, steer: 0.6, brake: 1900, swayBar: 12000, ifs: true, armDrop: 0.1 },
+      { z: 1.1, track: 1.43, springTrack: 1.0, rate: 26000, bump: 1500, rebound: 3000, travel: 0.2, sag: 0.09, mass: 60, steer: 0.6, brake: 1900, swayBar: 13500, ifs: true, armDrop: 0.1 },
       { z: -1.1, track: 1.4, springTrack: 1.0, rate: 28000, bump: 1500, rebound: 3000, travel: 0.22, sag: 0.09, mass: 75, steer: 0, brake: 1100, handbrake: 1700, diffDrop: 0.11, diffX: 0 },
     ],
     trans: { tcK: 12 },
@@ -173,7 +173,7 @@ export const TRUCKS = {
     blurb: 'Ford Ranger Raptor: the desert-runner mid-size pickup. 127" wheelbase, the 2.0 bi-turbo diesel, a ten-speed automatic, long-travel Fox shocks on wishbones in front and coils on a Watt\'s-linked axle behind, a rear locker, 33s. Fast across the rough.',
     mass: 2410, cgHeight: 0.84, cgZ: 0.15, inertiaBox: [1.85, 1.35, 4.8],
     axles: [
-      { z: 1.61, track: 1.71, springTrack: 1.12, rate: 52000, bump: 3000, rebound: 6000, travel: 0.25, sag: 0.1, mass: 95, steer: 0.55, brake: 4200, swayBar: 22000, ifs: true, armDrop: 0.1 },
+      { z: 1.61, track: 1.71, springTrack: 1.12, rate: 52000, bump: 3000, rebound: 6000, travel: 0.25, sag: 0.1, mass: 95, steer: 0.55, brake: 4200, swayBar: 47500, ifs: true, armDrop: 0.1 },
       { z: -1.61, track: 1.71, springTrack: 1.08, rate: 56000, bump: 3000, rebound: 6000, travel: 0.28, sag: 0.11, mass: 125, steer: 0, brake: 2700, handbrake: 3400, diffDrop: 0.15, diffX: -0.05 },
     ],
     trans: { tcK: 8.5 },
@@ -203,7 +203,7 @@ export const TRUCKS = {
     blurb: 'Land Rover Defender 110 (2026): 119" wheelbase, the D350 3.0 straight-six turbo-diesel with a mild hybrid, a ZF eight-speed automatic and a two-speed transfer box, air suspension and independent at all four corners, Terrain Response, traction control and a rear limited-slip diff. Quick, quiet and very capable.',
     mass: 2430, cgHeight: 0.78, cgZ: 0.02, inertiaBox: [1.85, 1.35, 4.5],
     axles: [
-      { z: 1.511, track: 1.704, springTrack: 1.2, rate: 46000, bump: 2800, rebound: 5600, travel: 0.24, sag: 0.1, mass: 95, steer: 0.58, brake: 4000, swayBar: 26000, ifs: true, armDrop: 0.1 },
+      { z: 1.511, track: 1.704, springTrack: 1.2, rate: 46000, bump: 2800, rebound: 5600, travel: 0.24, sag: 0.1, mass: 95, steer: 0.58, brake: 4000, swayBar: 50000, ifs: true, armDrop: 0.1 },
       { z: -1.511, track: 1.7, springTrack: 1.2, rate: 50000, bump: 2800, rebound: 5600, travel: 0.26, sag: 0.1, mass: 95, steer: 0, brake: 2700, handbrake: 3400, ifs: true, armDrop: 0.1 },
     ],
     trans: { tcK: 9.4 },
@@ -232,7 +232,7 @@ export const TRUCKS = {
     blurb: 'Mitsubishi Pajero, the Dakar winner\'s road car: 109" wheelbase, the 3.2 DI-D turbo-diesel, a five-speed automatic, Super Select four-wheel drive with a low range, independent suspension at all four corners, traction control. Quick and comfortable on rough tracks.',
     mass: 2180, cgHeight: 0.84, cgZ: 0.08, inertiaBox: [1.8, 1.35, 4.4],
     axles: [
-      { z: 1.39, track: 1.58, springTrack: 1.1, rate: 46000, bump: 2600, rebound: 5200, travel: 0.2, sag: 0.09, mass: 90, steer: 0.55, brake: 3400, swayBar: 24000, ifs: true, armDrop: 0.1 },
+      { z: 1.39, track: 1.58, springTrack: 1.1, rate: 46000, bump: 2600, rebound: 5200, travel: 0.2, sag: 0.09, mass: 90, steer: 0.55, brake: 3400, swayBar: 58500, ifs: true, armDrop: 0.1 },
       { z: -1.39, track: 1.58, springTrack: 1.1, rate: 50000, bump: 2600, rebound: 5200, travel: 0.22, sag: 0.095, mass: 95, steer: 0, brake: 2300, handbrake: 3200, ifs: true, armDrop: 0.1 },
     ],
     trans: { tcK: 9.6 },
@@ -260,7 +260,7 @@ export const TRUCKS = {
     blurb: 'Ram 2500 Power Wagon crew cab: 149" wheelbase, the 6.4 HEMI V8, a six-speed automatic and a 2.64 low range, lockers at both ends, a front sway bar that disconnects, coils all round, 35s. Three and a quarter tons that climb like a jeep.',
     mass: 3280, cgHeight: 0.94, cgZ: 0.27, inertiaBox: [1.95, 1.5, 5.6],
     axles: [
-      { z: 1.8975, track: 1.762, springTrack: 1.05, rate: 84000, bump: 4400, rebound: 8800, travel: 0.24, sag: 0.09, mass: 175, steer: 0.5, brake: 5600, swayBar: 30000, diffDrop: 0.19, diffX: -0.2 },
+      { z: 1.8975, track: 1.762, springTrack: 1.05, rate: 84000, bump: 4400, rebound: 8800, travel: 0.24, sag: 0.09, mass: 175, steer: 0.5, brake: 5600, swayBar: 49000, diffDrop: 0.19, diffX: -0.2 },
       { z: -1.8975, track: 1.74, springTrack: 1.12, rate: 90000, bump: 4400, rebound: 8800, travel: 0.25, sag: 0.085, mass: 190, steer: 0, brake: 3600, handbrake: 5000, diffDrop: 0.2, diffX: -0.06 },
     ],
     trans: { tcK: 8 },
@@ -317,7 +317,7 @@ export const TRUCKS = {
     blurb: 'The new Thar: 96" wheelbase, mHawk 2.2 turbo-diesel, six-speed manual, independent front on coil-overs, a five-link rear axle with an auto-locker. Short, light and keen.',
     mass: 1850, cgHeight: 0.78, cgZ: 0.12, inertiaBox: [1.6, 1.3, 3.7],
     axles: [
-      { z: 1.225, track: 1.56, springTrack: 0.96, rate: 34000, bump: 2400, rebound: 4800, travel: 0.2, sag: 0.085, mass: 80, steer: 0.6, brake: 2800, swayBar: 22000, ifs: true },
+      { z: 1.225, track: 1.56, springTrack: 0.96, rate: 34000, bump: 2400, rebound: 4800, travel: 0.2, sag: 0.085, mass: 80, steer: 0.6, brake: 2800, swayBar: 40000, ifs: true },
       { z: -1.225, track: 1.48, springTrack: 0.98, rate: 38000, bump: 2300, rebound: 4600, travel: 0.25, sag: 0.095, mass: 90, steer: 0, brake: 1800, handbrake: 2600, diffDrop: 0.16, diffX: 0 },
     ],
     trans: { tcK: 10 },
@@ -347,7 +347,7 @@ export const TRUCKS = {
     blurb: 'The five-door Thar: 112" wheelbase, the mHawk 2.2 turbo-diesel at 175 PS and 370 Nm, a six-speed automatic, double wishbones in front and a five-link rear axle with an electronic locker. Longer, roomier, steadier.',
     mass: 2100, cgHeight: 0.8, cgZ: 0.1, inertiaBox: [1.7, 1.35, 4.2],
     axles: [
-      { z: 1.425, track: 1.58, springTrack: 1.0, rate: 40000, bump: 2700, rebound: 5400, travel: 0.2, sag: 0.085, mass: 85, steer: 0.58, brake: 3300, swayBar: 24000, ifs: true },
+      { z: 1.425, track: 1.58, springTrack: 1.0, rate: 40000, bump: 2700, rebound: 5400, travel: 0.2, sag: 0.085, mass: 85, steer: 0.58, brake: 3300, swayBar: 47500, ifs: true },
       { z: -1.425, track: 1.58, springTrack: 1.0, rate: 44000, bump: 2600, rebound: 5200, travel: 0.25, sag: 0.095, mass: 95, steer: 0, brake: 2100, handbrake: 3000, diffDrop: 0.16, diffX: 0 },
     ],
     trans: { tcK: 10 },
@@ -401,7 +401,7 @@ export const TRUCKS = {
     blurb: 'Bronco Badlands four-door with the Sasquatch package: 116" wheelbase, 2.7 EcoBoost twin-turbo V6, ten-speed automatic, 35s, lockers both ends, independent front on long-travel coil-overs, a five-link rear axle.',
     mass: 2380, cgHeight: 0.77, cgZ: 0.03, inertiaBox: [1.75, 1.35, 4.3],      // (static stability 1.12)
     axles: [
-      { z: 1.475, track: 1.72, springTrack: 1.09, rate: 43000, bump: 2700, rebound: 5400, travel: 0.22, sag: 0.09, mass: 90, steer: 0.55, brake: 3400, swayBar: 26000, ifs: true },
+      { z: 1.475, track: 1.72, springTrack: 1.09, rate: 43000, bump: 2700, rebound: 5400, travel: 0.22, sag: 0.09, mass: 90, steer: 0.55, brake: 3400, swayBar: 37000, ifs: true },
       { z: -1.475, track: 1.72, springTrack: 1.08, rate: 47000, bump: 2700, rebound: 5400, travel: 0.26, sag: 0.1, mass: 120, steer: 0, brake: 2300, handbrake: 3000, diffDrop: 0.12, diffX: 0.06 },
     ],
     trans: { tcK: 10 },
@@ -429,7 +429,7 @@ export const TRUCKS = {
     blurb: 'Hummer H1 Alpha: the civilian Humvee. 130" wheelbase, 6.6 Duramax turbo-diesel V8, Allison five-speed, independent suspension at both ends on geared hubs, 16" under the diffs, 37s with tyre inflation from the cab. Three and a half tons, as wide as a lane.',
     mass: 3650, cgHeight: 0.86, cgZ: 0.1, inertiaBox: [2.0, 1.4, 4.4],
     axles: [
-      { z: 1.651, track: 1.93, springTrack: 1.3, rate: 76000, bump: 4200, rebound: 8400, travel: 0.24, sag: 0.1, mass: 160, steer: 0.52, brake: 6200, swayBar: 30000, ifs: true, armDrop: 0.07 },
+      { z: 1.651, track: 1.93, springTrack: 1.3, rate: 76000, bump: 4200, rebound: 8400, travel: 0.24, sag: 0.1, mass: 160, steer: 0.52, brake: 6200, swayBar: 72500, ifs: true, armDrop: 0.07 },
       { z: -1.651, track: 1.93, springTrack: 1.3, rate: 82000, bump: 4200, rebound: 8400, travel: 0.24, sag: 0.1, mass: 160, steer: 0, brake: 4600, handbrake: 6000, ifs: true, armDrop: 0.07 },
     ],
     trans: { tcK: 8 },
@@ -458,7 +458,7 @@ export const TRUCKS = {
     blurb: 'GMC Hummer EV Edition 1: the electric supertruck. 136" wheelbase, three motors and 1,000 hp, all of its torque from a standstill, e-lockers at both ends, air suspension, 35s. Four tons, silent, very quick.',
     mass: 4110, cgHeight: 0.8, cgZ: 0, inertiaBox: [2.0, 1.25, 4.8],
     axles: [
-      { z: 1.7225, track: 1.87, springTrack: 1.32, rate: 64000, bump: 4500, rebound: 9000, travel: 0.25, sag: 0.1, mass: 145, steer: 0.55, brake: 7600, swayBar: 30000, ifs: true, armDrop: 0.08 },
+      { z: 1.7225, track: 1.87, springTrack: 1.32, rate: 64000, bump: 4500, rebound: 9000, travel: 0.25, sag: 0.1, mass: 145, steer: 0.55, brake: 7600, swayBar: 75000, ifs: true, armDrop: 0.08 },
       { z: -1.7225, track: 1.87, springTrack: 1.32, rate: 66000, bump: 4500, rebound: 9000, travel: 0.25, sag: 0.1, mass: 145, steer: 0, brake: 5800, handbrake: 6400, ifs: true, armDrop: 0.08 },
     ],
     trans: { tcK: 8, efficiency: 0.94 },
@@ -493,7 +493,7 @@ export const TRUCKS = {
     blurb: 'Tesla Cybertruck Cyberbeast: a stainless-steel wedge on 35s. 143" wheelbase, three motors and 845 hp, a locked front and rear for the dirt, air suspension raised for the trail. Three tons, silent, and quicker off the line than the supercars.',
     mass: 3190, cgHeight: 0.78, cgZ: 0, inertiaBox: [2.0, 1.25, 5.0],
     axles: [
-      { z: 1.8175, track: 1.772, springTrack: 1.3, rate: 52000, bump: 4000, rebound: 8000, travel: 0.25, sag: 0.1, mass: 130, steer: 0.55, brake: 6200, swayBar: 28000, ifs: true, armDrop: 0.08 },
+      { z: 1.8175, track: 1.772, springTrack: 1.3, rate: 52000, bump: 4000, rebound: 8000, travel: 0.25, sag: 0.1, mass: 130, steer: 0.55, brake: 6200, swayBar: 60000, ifs: true, armDrop: 0.08 },
       { z: -1.8175, track: 1.772, springTrack: 1.3, rate: 54000, bump: 4000, rebound: 8000, travel: 0.25, sag: 0.1, mass: 135, steer: 0, brake: 4800, handbrake: 5200, ifs: true, armDrop: 0.08 },
     ],
     trans: { tcK: 8, efficiency: 0.95 },
@@ -529,7 +529,7 @@ export const TRUCKS = {
     blurb: 'BYD Yangwang U8: four motors, one at each wheel, 1,180 hp, and a sealed body. Drive it into deep water and it floats: its wheels paddle it along at 3 km/h and it turns on the spot, then climbs out the other side. 3.5 tons.',
     mass: 3460, cgHeight: 0.8, cgZ: 0, inertiaBox: [2.05, 1.3, 5.3],
     axles: [
-      { z: 1.525, track: 1.74, springTrack: 1.3, rate: 56000, bump: 4000, rebound: 8000, travel: 0.25, sag: 0.1, mass: 125, steer: 0.56, brake: 6400, swayBar: 28000, ifs: true, armDrop: 0.08 },
+      { z: 1.525, track: 1.74, springTrack: 1.3, rate: 56000, bump: 4000, rebound: 8000, travel: 0.25, sag: 0.1, mass: 125, steer: 0.56, brake: 6400, swayBar: 70000, ifs: true, armDrop: 0.08 },
       { z: -1.525, track: 1.74, springTrack: 1.3, rate: 58000, bump: 4000, rebound: 8000, travel: 0.25, sag: 0.1, mass: 125, steer: 0, brake: 5000, handbrake: 5400, ifs: true, armDrop: 0.08 },
     ],
     trans: { tcK: 8, efficiency: 0.95 },
@@ -566,7 +566,7 @@ export const TRUCKS = {
     blurb: 'Mercedes-AMG G 63: the G-Wagen with a 5.5 twin-turbo V8 (571 PS), a seven-speed automatic, permanent four-wheel drive with a low range and three diff locks, beam axles on coils. Absurdly fast for a box, and a real off-roader underneath.',
     mass: 2625, cgHeight: 0.85, cgZ: 0.09, inertiaBox: [1.75, 1.45, 4.2],
     axles: [
-      { z: 1.425, track: 1.559, springTrack: 1.0, rate: 60000, bump: 3400, rebound: 6800, travel: 0.22, sag: 0.09, mass: 130, steer: 0.55, brake: 5000, swayBar: 32000, diffDrop: 0.17, diffX: -0.1 },
+      { z: 1.425, track: 1.559, springTrack: 1.0, rate: 60000, bump: 3400, rebound: 6800, travel: 0.22, sag: 0.09, mass: 130, steer: 0.55, brake: 5000, swayBar: 56500, diffDrop: 0.17, diffX: -0.1 },
       { z: -1.425, track: 1.559, springTrack: 1.05, rate: 66000, bump: 3400, rebound: 6800, travel: 0.24, sag: 0.095, mass: 140, steer: 0, brake: 3500, handbrake: 4400, diffDrop: 0.17, diffX: 0 },
     ],
     // (the centre diff open, 40:60, until it is locked: the 4WD key)

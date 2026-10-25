@@ -10,6 +10,10 @@
 // that is articulation. Leaf/coil springs sit inboard of the wheels (spring track < wheel track), dampers are
 // stiffer in rebound than in bump, limit straps stop the droop and progressive bump stops the compression.
 // The axle is integrated in the chassis frame, so the chassis' own acceleration enters as a pseudo-force.
+// Its links (radius arms, four-link, leaves; wishbones) are angled so that part of a braking or driving tyre's pull
+// reaches the body through them rather than the springs: the nose dives less under the brakes (anti-dive) and the
+// tail squats less on the power (anti-squat), as a real truck's do. Anti-roll bars at both ends (a 4x4's front one can
+// be disconnected for articulation).
 //
 // Tyres: the wheel is a disc. Rays from the hub at several angles around the bottom of the tyre find where the
 // ground (terrain, ruts and boulders) cuts into the tread, so a tyre meets a ledge on its front face and rolls up
@@ -134,6 +138,16 @@ export class Vehicle {
     // spring preload so the truck sits at its design ride height: sprung weight shared by axle position
     const [fa, ra] = this.axles;
     const span = fa.zc - ra.zc;
+    // anti-dive (front) and anti-squat (rear): the share of the pitching a tyre's pull would put through the springs
+    // that the links carry instead (a.anti; else typical: beam axles on radius arms or links 35% at the front, 60% at
+    // the back; wishbones 25% and 50%), as the vertical force the links put on the body per newton of pull
+    // (cg height over wheelbase); and each end's anti-roll bar (a.swayBar; a 4x4 without one at the back has one 60% as
+    // stiff as the front's, as most do)
+    this.axles.forEach((ax, i) => {
+      const a = ax.spec, anti = a.anti ?? (i === 0 ? (ax.ifs ? 0.25 : 0.35) : (ax.ifs ? 0.5 : 0.6));
+      ax.anti = (i === 0 ? -1 : 1) * anti * spec.cgHeight / span;
+      ax.bar = a.swayBar ?? (i === 1 && !spec.road && spec.axles[0].swayBar ? 0.6 * spec.axles[0].swayBar : 0);
+    });
     const shareF = (0 - ra.zc) / span;
     for (const ax of this.axles) {
       const share = ax === fa ? shareF : 1 - shareF;
@@ -728,6 +742,13 @@ export class Vehicle {
       _c.copy(left).scale(lat);                                       // lateral (chassis frame)
       _b.sub(_c);                                                     // longitudinal
       _p.set(w.cx, w.cy, w.cz);
+      // the links: their share of the pull's pitching, up on the body at the hub and down on the axle
+      const Fv = ax.anti * _b.dot(fwd);
+      if (Fv !== 0) {
+        if (w.side > 0) ax.QL -= Fv; else ax.QR -= Fv;
+        _q.copy(u).scale(Fv);
+        this.applyForce(_q, w.hub);
+      }
       if (ax.ifs) {
         // double wishbones: the lateral force reaches the body through the arms at the roll centre, just above the
         // ground (no beam to roll)
@@ -794,9 +815,9 @@ export class Vehicle {
       }
       // geometric roll moment of the beam
       ax.QL += ax.rollM / ax.T; ax.QR -= ax.rollM / ax.T;
-      // anti-roll bar (unless disconnected for articulation): resists the axle rolling against the chassis
-      if (a.swayBar && !this.swayDisconnected) {
-        const Fb = a.swayBar * (ax.zL - ax.zR) / (ax.T * ax.T);
+      // anti-roll bar (the front one unless disconnected for articulation): resists the axle rolling against the chassis
+      if (ax.bar && !(ai === 0 && this.swayDisconnected)) {
+        const Fb = ax.bar * (ax.zL - ax.zR) / (ax.T * ax.T);
         ax.QL -= Fb; ax.QR += Fb;
         _p.set(ax.half, ax.mountY, ax.zc); this.toWorld(_p, _q); _a.copy(u).scale(Fb); this.applyForce(_a, _q);
         _p.set(-ax.half, ax.mountY, ax.zc); this.toWorld(_p, _q); _a.copy(u).scale(-Fb); this.applyForce(_a, _q);

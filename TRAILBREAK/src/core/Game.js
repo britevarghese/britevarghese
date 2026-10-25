@@ -947,7 +947,7 @@ export class Game {
   feelGround(dt) {
     const f = this.vehicle.feel, on = this.settings.rumble !== false;
     const hit = Math.max(f.bump, Math.min(1, this.vehicle.impact / 4));
-    const seat = this.cam.mode !== 'chase' && this.cam.mode !== 'far';            // (a camera on the body)
+    const seat = !this.cam.orbit;                                                  // (a camera on the body)
     this.cam.jitter = on ? (f.texture * 0.0035 + Math.min(1, f.rough) * 0.012 + f.judder * 0.006) * (seat ? 1 : 0.4) : 0;
     if (!on) return;
     this.rumbleIn = (this.rumbleIn || 0) - dt;
@@ -1408,7 +1408,7 @@ export class Game {
     this.builder.view.setMarkersVisible(!(this.events.run?.event.custom && this.events.run.phase !== 'finished'));
     const camPos = this.renderer.camera.position;
     this.terrain.update(camPos, this.renderer.camera.getWorldDirection(this._viewDir || (this._viewDir = new THREE.Vector3())));
-    seeThrough(camPos, this.cam.look, !this.building && (this.cam.mode === 'chase' || this.cam.mode === 'far') ? 1 : 0);
+    seeThrough(camPos, this.cam.look, !this.building && this.cam.orbit ? 1 : 0);
     this.vegetation.update(this.renderer.camera, dt);
     this.rocks.update(this.renderer.camera);
     this.grass.update(this.renderer.camera, dt, this.grassPush());

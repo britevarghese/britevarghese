@@ -1,11 +1,17 @@
-// Camera: chase (near / far), bonnet and driver's seat views, and cameras fixed to the body as a film crew would rig
+// Camera: chase (near / far), the truck seen from in front of it and from its side (each following it round, as the
+// chase does from behind), bonnet and driver's seat views, and cameras fixed to the body as a film crew would rig
 // them: in the driver's door mirror looking back along the side, low beside a front wheel looking along the tyre and
 // its suspension at work, and on the front bumper. Drag the mouse (or the right stick) to look around; the chase view
 // drifts back behind the truck when you stop. The camera keeps above the ground.
 import * as THREE from 'three';
 
-const MODES = ['chase', 'far', 'hood', 'cab', 'mirror', 'wheel', 'bumper'];
-const LABELS = { chase: 'chase', far: 'far', hood: 'bonnet', cab: "driver's seat", mirror: 'side mirror', wheel: 'wheel', bumper: 'bumper' };
+const MODES = ['chase', 'far', 'front', 'side', 'hood', 'cab', 'mirror', 'wheel', 'bumper'];
+const LABELS = { chase: 'chase', far: 'far', front: 'front', side: 'side', hood: 'bonnet', cab: "driver's seat", mirror: 'side mirror', wheel: 'wheel', bumper: 'bumper' };
+// the views that follow the truck from outside it: how far off (m), how high over its centre they look at (m), and
+// which way round from its tail (rad: 0 behind, pi in front, pi / 2 off its left side)
+const ORBIT = { chase: [7.4, 1.0, 0], far: [13, 2.0, 0], front: [7.2, 0.9, Math.PI], side: [6.6, 0.85, Math.PI / 2] };
+// (looking a little down on it: lower than it was, the truck more in the picture than the ground ahead)
+const PITCH = 0.11;
 
 export class CameraRig {
   constructor(camera, world) {
@@ -13,7 +19,7 @@ export class CameraRig {
     this.world = world;
     this.mode = 'chase';
     this.yaw = 0;          // orbit offset around the truck
-    this.pitch = 0.18;
+    this.pitch = PITCH;
     this.heading = null;   // smoothed truck heading for the chase view
     this.pos = new THREE.Vector3();
     this.look = new THREE.Vector3();
@@ -41,6 +47,9 @@ export class CameraRig {
       want.set(target.x + dx * s, target.y + (want.y - target.y) * s, target.z + dz * s);
     }
   }
+
+  /** Whether the view follows the truck from outside it (not a seat or a camera on the body). */
+  get orbit() { return this.mode in ORBIT; }
 
   next() {
     this.mode = MODES[(MODES.indexOf(this.mode) + 1) % MODES.length];
@@ -88,13 +97,12 @@ export class CameraRig {
       this.pitch = Math.max(-0.35, Math.min(1.25, this.pitch + controls.lookY * 0.8));
       if (!controls.looking) {
         this.yaw *= Math.exp(-dt * 1.4);
-        this.pitch += (0.18 - this.pitch) * (1 - Math.exp(-dt * 0.8));
+        this.pitch += (PITCH - this.pitch) * (1 - Math.exp(-dt * 0.8));
       }
     }
-    if (this.mode === 'chase' || this.mode === 'far') {
-      const dist = this.mode === 'chase' ? 7.6 : 13;
-      const h = this.mode === 'chase' ? 1.2 : 2.2;
-      const a = this.heading + Math.PI + this.yaw;
+    if (this.orbit) {
+      const [dist, h, round] = ORBIT[this.mode];
+      const a = this.heading + Math.PI + round + this.yaw;
       const pitch = this.pitch + (this.mode === 'far' ? 0.08 : 0);
       const target = this.look.set(p.x, p.y + h, p.z);
       const want = this._v.set(p.x + Math.sin(a) * Math.cos(pitch) * dist, p.y + h + Math.sin(pitch) * dist, p.z + Math.cos(a) * Math.cos(pitch) * dist);
@@ -119,7 +127,7 @@ export class CameraRig {
       this._q.setFromAxisAngle(this._v.set(0, 1, 0), Math.PI + look + this.yaw);
       cam.quaternion.copy(q).multiply(this._q);
       // a little pitch from looking
-      this._q.setFromAxisAngle(this._v.set(1, 0, 0), -(this.pitch - 0.18) * 0.8);
+      this._q.setFromAxisAngle(this._v.set(1, 0, 0), -(this.pitch - PITCH) * 0.8);
       cam.quaternion.multiply(this._q);
       cam.fov = fov;
       this.pos.copy(cam.position);

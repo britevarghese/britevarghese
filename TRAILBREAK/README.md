@@ -121,7 +121,7 @@ Without the Blueprint: **New > Web Service** with this repository, branch `claud
 | Fit the spare in place of a flat tyre (stopped) | Y | |
 | Events: start one at its start line (with friends: open a race, or join one); twice to give up | J | Right stick press |
 | Back to the ranger station (broken down: the tow truck takes it into the workshop) | Backspace | |
-| Camera: chase, far, bonnet, driver's seat, side mirror, wheel (along the front tyre and its suspension), bumper (drag to look around) | C | Y, right stick |
+| Camera: chase, far, front (the truck from ahead of it), side, bonnet, driver's seat, side mirror, wheel (along the front tyre and its suspension), bumper (drag to look around) | C | Y, right stick |
 | Headlights | H | D-pad right |
 | Map (zoom, pan, set a route, fast travel; or tap the minimap) | M | View |
 | Chat: the room's messages, quick phrases (or the chat button) | Enter | |
@@ -725,7 +725,25 @@ Everything that makes off-roading off-roading is simulated, not faked:
 - **Beam axles:** each axle is a heavy unsprung body with its own heave and roll. When one wheel climbs a rock the
   other is pushed down (articulation), and the wheels stay square to the axle. Leaf springs sit inboard of the
   wheels, dampers are stiffer in rebound than in bump, limit straps stop the droop, bump stops are progressive, and
-  the front anti-roll bar can be disconnected for more articulation at the cost of more lean.
+  there are anti-roll bars at both ends (most 4x4s have one at the back too: 60% of the front's where a truck's spec
+  gives none). The front one can be disconnected for more articulation at the cost of more lean.
+- **Suspension geometry:** the links that locate the axles (radius arms, four-links, leaves; wishbones) are angled
+  so part of a braking or driving tyre's pull reaches the body through them instead of the springs. The nose dives
+  less under the brakes (anti-dive, 35% on a beam axle, 25% on wishbones) and the tail squats less on the power
+  (anti-squat, 60% and 50%), as a real truck's do.
+- **Measured against real trucks** (a test driver on the flat, `npm test` keeps them to it):
+
+  | | Trucks (off-road) | Sports cars | Real |
+  | --- | --- | --- | --- |
+  | Bounce (ride frequency) | 1.4 to 1.8 Hz | 2.1 to 2.3 Hz | 1 to 1.5 Hz SUVs, 1.5 to 2.5 Hz sports cars |
+  | Damping (share of critical) | 0.2 to 0.5 | 0.3 to 0.4 | 0.2 to 0.4 |
+  | Body roll in a turn | 6.6 to 8.5 degrees per g | 1.7 to 4.3 | 5 to 8 SUVs, 1.5 to 4 sports cars |
+  | Nose dive braking at 0.8 g | 1.8 to 2.9 degrees | 1.2 at 1.3 g | 2 to 4 degrees |
+  | Squat launching flat out | 1.4 to 1.7 degrees | 0.7 | 1 to 2 degrees |
+
+  Each truck's anti-roll bars were set by driving it round a steady turn: 7.5 degrees of lean per g for the modern
+  4x4s and pickups, 7 for the wide, low Hummer H1, 8.5 for the old, tall or narrow ones (the Unimog, the UAZ, the
+  Willys, the Niva). They had been leaning 8 to 10.6.
 - **Under the truck:** the diff housings and spring plates hang below the axles and touch the ground (a rock between
   the wheels stops the truck on its diff), the belly and the bumpers ride on the body.
 - **Tyres:** each tyre finds the ground with rays around its tread, so it meets a ledge on its front face and climbs
@@ -809,6 +827,10 @@ Everything that makes off-roading off-roading is simulated, not faked:
   Measured with the models out to 160 m instead of 85: on the coast road 4.6 M triangles a frame instead of 3.0 M, in
   Kerala's forest 10.3 M instead of 6.1 M, the shadows as they were (the 470 trees past 85 m there are 2.8 M triangles,
   4.0 M with their twigs). No kind of tree runs out of models anywhere tried.
+- **Cameras round the truck:** the chase camera sits 7.4 m behind it, looking a little down on it (lower than it
+  was, so the truck stands in the picture rather than the ground ahead); the far one at 13 m; the front view looks
+  back at the truck from 7.2 m ahead of it and the side view from 6.6 m off its flank, each following it round as the
+  chase does (src/core/CameraRig.js).
 - **Leaves in the way:** from the chase cameras, leaves and branches between the camera and your truck dither away
   (as in Forza), wider by the camera, where one twig would fill the view, and stopping 2 m short of the truck, so the
   bushes it pushes through stay. A tree fern over a track in Kerala's tea used to fill the whole picture as you drove

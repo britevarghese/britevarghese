@@ -366,6 +366,60 @@ test('a modern automatic kicks straight down to the gear it needs and holds its 
   assert.equal(climb(box('wrangler'), true), 4, 'the five-speed shifts up anyway');
 });
 
+// the suspension as a car tester measures it: how it bounces, how far the body leans in a turn and dives under the
+// brakes, against real trucks (1 to 2 Hz, damped to a quarter or so of critical; 5 to 8.5 degrees of lean per g for a
+// 4x4, under 4.5 for a sports car; 2 to 4 degrees of dive at 0.8 g, less than the springs alone would let it)
+const ROAD = { height: () => 0, surfaceAt: () => flat(SURFACE.ROAD).surfaceAt() };
+function bounce(id) {
+  const v = truck(id, ROAD);
+  run(v, ROAD, 2, { ...IDLE, brake: 1, handbrake: 1 });
+  const y0 = v.pos.y, ys = [];
+  v.pos.y -= 0.06; v.vel.set(0, 0, 0);
+  for (let i = 0; i < 3 / PHYS_DT; i++) { v.step({ ...IDLE, brake: 1, handbrake: 1 }, ROAD); ys.push(v.pos.y - y0); }
+  // (the first overshoot above where it sits and the swing below after it: half a period, and how much it dies away)
+  const ext = [];
+  for (let i = 1; i < ys.length - 1; i++) if ((ys[i] - ys[i - 1]) * (ys[i + 1] - ys[i]) < 0 && Math.abs(ys[i]) > 5e-4) ext.push([i, ys[i]]);
+  const k = ext.findIndex(([, y]) => y > 0), [a, b] = [ext[k], ext[k + 1]];
+  const hz = 1 / (2 * (b[0] - a[0]) * PHYS_DT), dec = 2 * Math.log(Math.abs(a[1] / b[1]));
+  return { hz, zeta: dec / Math.sqrt(4 * Math.PI ** 2 + dec * dec) };
+}
+function leanPerG(id) {
+  const v = truck(id, ROAD);
+  run(v, ROAD, 15, (t) => (t.speed < 45 / 3.6 ? { ...IDLE, throttle: 0.7 } : IDLE));
+  let steer = 0, lat = 0, roll = 0, n = 0;
+  for (let i = 0; i < 8 / PHYS_DT; i++) {
+    const ay = v.speed * v.angVel.y;
+    steer = clamp(steer + (0.4 * GRAVITY - Math.abs(ay) > 0 ? 1 : -1) * 0.0003, 0, 1);
+    v.step({ ...IDLE, throttle: v.speed < 45 / 3.6 ? 0.5 : 0.15, steer }, ROAD);
+    if (i > 5 / PHYS_DT) { lat += Math.abs(ay); roll += Math.abs(Math.asin(v.left.y)); n++; }
+  }
+  return (roll / n * 180 / Math.PI) / (lat / n / GRAVITY);
+}
+function dive(spec) {
+  const v = new Vehicle(spec); v.place(ROAD, 0, 0, 0);
+  run(v, ROAD, 20, (t) => (t.speed < 80 / 3.6 ? { ...IDLE, throttle: 1 } : { ...IDLE, throttle: 0.3 }));
+  const p0 = Math.asin(v.fwd.y);
+  let sum = 0, n = 0;
+  for (let i = 0; i < 1 / PHYS_DT; i++) { v.step({ ...IDLE, brake: 0.7 }, ROAD); if (i > 0.4 / PHYS_DT) { sum += p0 - Math.asin(v.fwd.y); n++; } }
+  return sum / n * 180 / Math.PI;
+}
+
+test('the suspension rides, leans and dives as a real truck\'s does (and a sports car\'s as one)', () => {
+  for (const id of ['thar', 'wrangler', 'gclass', 'hummer']) {
+    const { hz, zeta } = bounce(id), lean = leanPerG(id), d = dive(truckSpec(id));
+    assert.ok(hz > 0.9 && hz < 2 && zeta > 0.15 && zeta < 0.6, `${id}: bounces at ${hz.toFixed(2)} Hz, damped ${zeta.toFixed(2)}`);
+    assert.ok(lean > 5 && lean < 8.6, `${id}: leans ${lean.toFixed(1)} degrees per g`);
+    assert.ok(d > 1.5 && d < 4, `${id}: dives ${d.toFixed(1)} degrees braking`);
+    // (the links take some of the dive: with none of them angled, more)
+    const flatLinks = structuredClone(truckSpec(id)); for (const a of flatLinks.axles) a.anti = 0;
+    assert.ok(dive(flatLinks) > d + 0.2, `${id}: anti-dive`);
+  }
+  for (const id of ['m4csl', 'r35']) {
+    const { hz } = bounce(id), lean = leanPerG(id);
+    assert.ok(hz > 1.5 && hz < 2.8 && lean > 1.2 && lean < 4.5, `${id}: ${hz.toFixed(2)} Hz, ${lean.toFixed(1)} degrees per g`);
+  }
+});
+
 test('a tyre climbs a rock ledge a third of its height', () => {
   const g = ledge(2.2, 0.14);
   const v = truck('ranger', g);
