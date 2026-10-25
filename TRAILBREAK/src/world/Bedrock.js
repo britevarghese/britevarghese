@@ -46,7 +46,7 @@ export function joint(along, bed, w = 0) {
 /** A bench (every four beds, about five metres): how far it stands out at bed coordinate s (as bedAt's), on a face. */
 export function bench(s) {
   const sb = s / 4 + 0.37, b = Math.floor(sb), f = sb - b;
-  return sstep(0, 0.4, f) * (1 - 0.5 * f) * (1 - sstep(0.65, 1, f)) * (0.5 + 0.8 * hash21(b, 17)) * 0.5;
+  return sstep(0, 0.45, f) * (1 - 0.5 * f) * (1 - sstep(0.55, 1, f)) * (0.5 + 0.8 * hash21(b, 17)) * 0.5;
 }
 
 /**
@@ -77,21 +77,25 @@ export function rockOut(x, y, z, ax, az, slab = 0, w = 0) {
 
 // (how far the rock stands out on the whole, but for its benches, and they: what is taken off, so it stands as much
 // proud of the ground's line as sunk below it, and meets the ground round it without a step)
-const MEAN_OUT = 0.18, MEAN_BENCH = 0.212;
+const MEAN_OUT = 0.128, MEAN_BENCH = 0.186;
 
-/** rockOut's `out` but for the benches, as fast as it can be had (the physics asks it at every wheel's every ray). */
+/**
+ * rockOut's `out` but for the benches, as fast as it can be had (the physics asks it at every wheel's every ray), and
+ * as the ground's vertices, half a metre apart, can draw it: its ledges' lips and its cracks rounded off, its
+ * roughness left to the lighting (drawn sharper, they stood out of the ground's outline in steps up close).
+ */
 function outAt(x, y, z, s, ax, slab) {
   const bed = Math.floor(s), f = s - bed, k = 0.4 + 0.9 * hash21(bed, 11);
-  const e0 = Math.min(1, f / 0.32), e1 = Math.max(0, (f - 0.8) / 0.2);
+  const e0 = Math.min(1, f / 0.5), e1 = Math.max(0, (f - 0.6) / 0.4);
   const ledge = e0 * e0 * (3 - 2 * e0) * (1 - 0.6 * f) * (1 - e1 * e1 * (3 - 2 * e1)) * k;
   const P = 1.6 + hash21(bed, 7) * 1.4, O = hash21(bed, 3);
   const ux = (x + (tn(z / 4.3 + bed, 1.7) - 0.5) * 2.4 + (tn(x / 5.3 + bed * 0.7, 4.1) - 0.5) * 3) / P + O;
   const uz = (z + (tn(x / 4.3 + bed, 6.1) - 0.5) * 2.4 + (tn(z / 5.3 + bed * 0.7, 8.7) - 0.5) * 3) / P + O;
-  let jx = Math.min(1, Math.max(0, (Math.abs(ux - Math.floor(ux) - 0.5) - 0.42) / 0.08)), jz = Math.min(1, Math.max(0, (Math.abs(uz - Math.floor(uz) - 0.5) - 0.42) / 0.08));
+  let jx = Math.min(1, Math.max(0, (Math.abs(ux - Math.floor(ux) - 0.5) - 0.34) / 0.16)), jz = Math.min(1, Math.max(0, (Math.abs(uz - Math.floor(uz) - 0.5) - 0.34) / 0.16));
   jx = jx * jx * (3 - 2 * jx); jz = jz * jz * (3 - 2 * jz);
   const cut = (jx > jz ? jx : jz) * slab + (jx * ax + jz * (1 - ax)) * (0.35 + 0.65 * Math.abs(2 * ax - 1)) * (1 - slab);
   const block = slab > 0 ? hash21(Math.floor(ux) + bed * 7, Math.floor(uz) + 13) : 0.5;
-  return ledge * 0.4 + tn(x * 1.7 + y, z * 1.7 + y) * 0.06 + slab * (block - 0.5) * 0.16 - cut * 0.09;
+  return ledge * 0.4 + 0.03 + slab * (block - 0.5) * 0.16 - cut * 0.09;
 }
 
 /**
@@ -99,14 +103,14 @@ function outAt(x, y, z, s, ax, slab) {
  * its standing out of the face along the face's normal, so that much higher on it the steeper it is, less of it on a
  * slab (its stair steps 10 to 20 cm, a face's ledges and benches up to half a metre), as much below the ground's line
  * as above it. What the ground's vertices (half a metre apart at the finest) could not draw is left to its lighting
- * (the shader's), as drawn it was a zigzag: the ledges up a face steeper than about 45 degrees, where they come closer
- * across it than that, and the benches up one steeper than about 65.
+ * (the shader's), as drawn it was a zigzag: the ledges up a face steeper than about 35 degrees, where they come too
+ * close across it, and the benches up one steeper than about 60.
  */
 export function rockLift(x, y, z, gx, gz) {
   const s2 = gx * gx + gz * gz, sl = Math.sqrt(s2);
-  const c = Math.min(1, Math.max(0, (sl - 1.7) / 0.8)), benches = 1 - c * c * (3 - 2 * c);
+  const c = Math.min(1, Math.max(0, (sl - 1.5) / 0.8)), benches = 1 - c * c * (3 - 2 * c);
   if (benches <= 0) return 0;
-  const l = Math.min(1, Math.max(0, (sl - 0.7) / 0.4)), ledges = 1 - l * l * (3 - 2 * l);
+  const l = Math.min(1, Math.max(0, (sl - 0.5) / 0.4)), ledges = 1 - l * l * (3 - 2 * l);
   // (a face running along x faces z: its joints are the ones across x)
   const ax = s2 > 1e-6 ? (gz * gz) / s2 : 0.5, t = Math.min(1, Math.max(0, (sl - 0.4) / 0.6)), slab = 1 - t * t * (3 - 2 * t);
   const s = y / 1.3 + tn(y / 3.7, 5) * 0.9 + tn(y / 1.7, 9) * 0.35 + tn(x / 9, z / 9) * 1.6 + tn(x / 3.1, z / 3.1) * 0.35;
@@ -124,7 +128,7 @@ float brJoint(float along, float bed, float w) {
 }
 float brBench(float s) {
   float sb = s / 4.0 + 0.37, f = fract(sb);
-  return smoothstep(0.0, 0.4, f) * (1.0 - 0.5 * f) * (1.0 - smoothstep(0.65, 1.0, f)) * (0.5 + 0.8 * hash21(vec2(floor(sb), 17.0))) * 0.5;
+  return smoothstep(0.0, 0.45, f) * (1.0 - 0.5 * f) * (1.0 - smoothstep(0.55, 1.0, f)) * (0.5 + 0.8 * hash21(vec2(floor(sb), 17.0))) * 0.5;
 }
 vec2 brOut(vec3 p, vec2 ax, float slab, float w) {
   float s = brBed(p), f = fract(s), bed = floor(s), k = 0.4 + 0.9 * hash21(vec2(bed, 11.0));

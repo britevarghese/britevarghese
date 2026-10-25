@@ -1046,11 +1046,12 @@ joints and its steps by its bedding (Migoń and others, on the tors of central E
   function: its noise is copied bit for bit in JavaScript and checked against the GPU's to under a fifth of a
   millimetre. On a track over the rock it is worn down to a third, and at a map's edge it fades out, so the map meets
   the next one or the land beyond as its ground does.
-- **What the ground can't draw:** its vertices are half a metre apart at the closest. Up a face steeper than about 45
-  degrees the beds come closer together across it than that, and drawn there they turned into a zigzag. So up such a
-  face the ledges are in the lighting only and the ground carries the benches; past about 65 degrees, the benches too
-  are in the lighting only. (Off the line the ground is drawn on, it differs from the relief by 2 to 4 cm up close and
-  4 to 12 cm farther out.)
+- **What the ground can't draw:** its vertices are half a metre apart at the closest. Up a face steeper than about 35
+  degrees the beds come too close together across it for that, and drawn there they turned into a zigzag. So up such
+  a face the ledges are in the lighting only and the ground carries the benches; past about 60 degrees, the benches
+  too are in the lighting only. In the ground, the ledges' lips and the cracks are rounded off, and the rock's
+  roughness is in the lighting only: drawn sharp, they stood out of the ground's outline in steps up close. The
+  ground as drawn is 1 to 2 cm off the relief up close (10 cm at worst), and 3 to 7 cm off farther out.
 - **Tors:** on each map's most prominent crests stand free-standing stacks of the blocks the joints and beds part the
   rock into. Two or three blocks a column, the lower ones broader, rise from bare rock on the rounded top (1 to 4 a
   map).
