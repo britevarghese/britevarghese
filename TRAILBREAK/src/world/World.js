@@ -114,10 +114,16 @@ export class World {
     return this.worn ? h - this.worn.depth(x, z, this.wearAt) : h;
   }
 
-  /** The height bare rock's relief adds at (x, z) over its base height h (world/Bedrock.js): worn smoother on a track. */
+  /**
+   * The height bare rock's relief adds at (x, z) over its base height h (world/Bedrock.js): worn smoother on a track,
+   * and none at the map's edge (each map's is its own: so it meets the next map, or the far land, as its ground does).
+   */
   rockAt(x, z, h) {
-    const w = this.rockWeight(x, z);
+    const edge = this.half - Math.max(Math.abs(x), Math.abs(z));
+    if (edge < 1) return 0;
+    let w = this.rockWeight(x, z);
     if (w <= 0) return 0;
+    if (edge < 7) w *= (edge - 1) / 6;
     // (the slope across the cell's corners round the point)
     const fx = (x - this.origin) / this.res, fz = (z - this.origin) / this.res, N = this.N, H = this.H;
     const i = Math.min(N - 2, Math.max(0, Math.floor(fx))), k = Math.min(N - 2, Math.max(0, Math.floor(fz))), o = k * N + i, tx = fx - i, tz = fz - k;

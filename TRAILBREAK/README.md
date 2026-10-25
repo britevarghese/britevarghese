@@ -1031,16 +1031,24 @@ the next map, its ruts run straight down the middle at an even depth, so the two
 joints and its steps by its bedding (Migoń and others, on the tors of central Europe).
 
 - **Beds:** the rock lies in beds a metre or so thick, their planes wavering over the hill. Where they come out on a
-  slope, each stands out as a ledge over the recess at the foot of the bed above. A face goes up in ledges up to a
-  metre and a half deep; a gentler slab crosses in low stair steps of 10 to 20 cm, the slickrock steps a rock-crawling
-  trail is rated by.
-- **Joints:** two sets of near-vertical cracks, each bed with its own spacing, cut the rock into blocks; the cracks
-  wander a little, as real ones do, rather than ruling the rock into a grid. On a slab, each block stands a little
-  proud of or sunk below the next, and the cracks between them are open.
+  slope, each stands out as a ledge over the recess at the foot of the bed above, and every fourth or so a bench
+  stands out farther, about five metres apart up a face. A gentle slab crosses in low stair steps of 10 to 20 cm, the
+  slickrock steps a rock-crawling trail is rated by; a steeper face goes up in ledges and benches standing up to half a
+  metre out.
+- **Joints:** two sets of near-vertical cracks, each bed with its own spacing, cut the rock into blocks. As real ones
+  do, the cracks wander, crowd together in places and leave long unbroken stretches in others (from half their
+  spacing to six times it), rather than ruling the rock into a grid or laying it like bricks. On a slab, each block
+  stands a little proud of or sunk below the next, and the cracks between them are open.
 - **Where it is real:** the relief is in the ground itself. The wheels climb its steps, and the drawn ground's
   vertices are moved by it out to about 70 m. The terrain's shader lights every pixel of the rock from the same
-  function: its noise is copied bit for bit in JavaScript and checked against the GPU's to under a tenth of a
-  millimetre. On a track over the rock it is worn down to a third.
+  function: its noise is copied bit for bit in JavaScript and checked against the GPU's to under a fifth of a
+  millimetre. On a track over the rock it is worn down to a third, and at a map's edge it fades out, so the map meets
+  the next one or the land beyond as its ground does.
+- **What the ground can't draw:** its vertices are half a metre apart at the closest. Up a face steeper than about 45
+  degrees the beds come closer together across it than that, and drawn there they turned into a zigzag. So up such a
+  face the ledges are in the lighting only and the ground carries the benches; past about 65 degrees, the benches too
+  are in the lighting only. (Off the line the ground is drawn on, it differs from the relief by 2 to 4 cm up close and
+  4 to 12 cm farther out.)
 - **Tors:** on each map's most prominent crests stand free-standing stacks of the blocks the joints and beds part the
   rock into. Two or three blocks a column, the lower ones broader, rise from bare rock on the rounded top (1 to 4 a
   map).

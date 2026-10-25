@@ -271,8 +271,8 @@ test('the open world: its rocky hills in relief (ledges and joints in the rock i
   for (const id of ['ashwood', 'pass', 'taiga']) {
     const w = W.byId.get(id).world, h = w.half - 20;
     assert.ok(w.rockRelief > 0, `${id}'s rock is in relief`);
-    // the rock stands out of the ground's line and sinks into it, as much one way as the other, by up to a metre or
-    // two on a face; off the rock (and off any track) the ground is the grid's
+    // the rock stands out of the ground's line and sinks into it, as much one way as the other, by up to half a metre
+    // or so on a face; off the rock (and off any track) the ground is the grid's
     let n = 0, sum = 0, sq = 0, worst = 0, off = 0;
     for (let z = -h; z < h; z += 5.3) for (let x = -h; x < h; x += 5.3) {
       const d = w.terrain(x, z) - w.terrainBase(x, z);
