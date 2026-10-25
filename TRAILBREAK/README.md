@@ -1031,11 +1031,12 @@ the next map, its ruts run straight down the middle at an even depth, so the two
 joints and its steps by its bedding (Migoń and others, on the tors of central Europe).
 
 - **Beds:** the rock lies in beds a metre or so thick (some thinner, some a few metres), their planes wavering over
-  the hill. Where they come out on a slope, each stands out as a ledge over the recess at the foot of the bed above,
-  shadowed as deep as the ledge stands out (under some, hardly at all), and every fourth or so a bench
-  stands out farther, about five metres apart up a face. A gentle slab crosses in low stair steps of 10 to 20 cm, the
-  slickrock steps a rock-crawling trail is rated by; a steeper face goes up in ledges and benches standing up to half a
-  metre out.
+  the hill. Where they come out on a slope, most stand out as a ledge over the recess at the foot of the bed above,
+  shadowed as deep as the ledge stands out; about one in five weathers flush, with no ledge, so the beds either side
+  stand as one thicker unit and the steps don't come in an even rhythm. Every fourth bed or so a bench stands out
+  farther, about five metres apart up a face. A gentle slab crosses in low stair steps of 10 to 20 cm, the slickrock
+  steps a rock-crawling trail is rated by; a steeper face goes up in ledges and benches standing up to half a metre
+  out.
 - **Joints:** two sets of near-vertical cracks, each bed with its own spacing, cut the rock into blocks. As real ones
   do, the cracks wander, crowd together in places and leave long unbroken stretches in others (from half their
   spacing to six times it), rather than ruling the rock into a grid or laying it like bricks. A face shows the set
