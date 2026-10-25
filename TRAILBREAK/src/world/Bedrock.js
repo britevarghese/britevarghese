@@ -2,7 +2,7 @@
 // thick (their planes wavering over the hill), and where the beds come out on a slope each one stands out as a ledge
 // over the recess at the foot of the one above, so a steep face goes up in steps and a gentler one in low stair steps
 // across it, and every few beds a bench stands out farther; and it is cut by joints, two sets of near-vertical cracks
-// each bed has its own spacing of, wandering, into blocks.
+// running through a few beds at a time, each run with its own spacing, wandering, into blocks.
 // (Rock's outline is set by its joints, its steps by its bedding: e.g. Migoń et al. on the tors of central Europe.)
 //
 // Too fine for the ground's grid, so it is reckoned at each point, the same here (the physics, world/World.js; the
@@ -38,9 +38,15 @@ export function bedAt(x, y, z) {
   return y / 1.3 + tn(y / 3.7, 5) * 1.2 + tn(y / 1.9, 9) * 0.3 + tn(x / 9, z / 9) * 1.6 + tn(x / 3.1, z / 3.1) * 0.35;
 }
 
-/** A joint set's crack across `along` in bed `bed`: 1 in the crack, 0 in the block (w: how much wider it is drawn). */
-export function joint(along, bed, w = 0) {
-  return sstep(0.42 - w * 0.2, 0.5, Math.abs(fract(along / (1.6 + hash21(bed, 7) * 1.4) + hash21(bed, 3)) - 0.5));
+/** Which run of beds a joint runs through (three beds; the joints of a massive rock cut through several). */
+export const jointUnit = (bed) => Math.floor((bed + 0.5) / 3);
+
+/**
+ * A joint set's crack across `along` in joint unit `unit` (jointUnit): 1 in the crack, 0 in the block (w: how much
+ * wider it is drawn).
+ */
+export function joint(along, unit, w = 0) {
+  return sstep(0.42 - w * 0.2, 0.5, Math.abs(fract(along / (2 + hash21(unit, 7) * 2.5) + hash21(unit, 3)) - 0.5));
 }
 
 /** A bench (every four beds, about five metres): how far it stands out at bed coordinate s (as bedAt's), on a face. */
@@ -63,15 +69,17 @@ export function rockOut(x, y, z, ax, az, slab = 0, w = 0) {
   const ledge = sstep(0, 0.32 + w, f) * (1 - 0.6 * f) * (1 - sstep(0.8 - w, 1, f)) * k;
   // (the joints wander as real ones do, rather than ruling the rock into a grid, and lie closer together here and
   // farther apart there: from about half their spacing to six times it, never crossing)
-  const wx = x + (tn(z / 4.3 + bed, 1.7) - 0.5) * 2.4 + (tn(x / 5.3 + bed * 0.7, 4.1) - 0.5) * 3;
-  const wz = z + (tn(x / 4.3 + bed, 6.1) - 0.5) * 2.4 + (tn(z / 5.3 + bed * 0.7, 8.7) - 0.5) * 3;
-  const jx = joint(wx, bed, w), jz = joint(wz, bed, w);
+  // (and run through a few beds at a time, rather than each bed's offset from the next like courses of bricks)
+  const ju = jointUnit(bed);
+  const wx = x + (tn(z / 4.3 + ju, 1.7) - 0.5) * 2.4 + (tn(x / 5.3 + ju * 0.7, 4.1) - 0.5) * 3;
+  const wz = z + (tn(x / 4.3 + ju, 6.1) - 0.5) * 2.4 + (tn(z / 5.3 + ju * 0.7, 8.7) - 0.5) * 3;
+  const jx = joint(wx, ju, w), jz = joint(wz, ju, w);
   // (on a face, the set running across it: on one lying askew to both, each shows faintly rather than crossing in
   // diamonds)
   const jt = (jx * ax + jz * az) * (0.35 + 0.65 * Math.abs(ax - az));
   // (on a slab both joint sets cut it, into blocks, each a little higher or lower than the next)
   const cut = Math.max(jx, jz) * slab + jt * (1 - slab);
-  const px = 1.6 + hash21(bed, 7) * 1.4, block = hash21(Math.floor(wx / px + hash21(bed, 3)) + bed * 7, Math.floor(wz / px + hash21(bed, 3)) + 13);
+  const px = 2 + hash21(ju, 7) * 2.5, block = hash21(Math.floor(wx / px + hash21(ju, 3)) + bed * 7, Math.floor(wz / px + hash21(ju, 3)) + 13);
   const out = ledge * 0.5 + tn(x * 1.7 + y, z * 1.7 + y) * 0.06 + slab * (block - 0.5) * 0.16 - cut * 0.09 + bench(s) * (1 - slab);
   const shade = (1 - 0.4 * Math.min(1, k) * (1 - sstep(0, 0.2 + w, f)) * (1 - 0.7 * slab)) * (1 - 0.25 * jt) * (1 - 0.3 * cut * slab);
   return { out, shade };
@@ -90,9 +98,9 @@ function outAt(x, y, z, s, ax, slab) {
   const bed = Math.floor(s), f = s - bed, k = Math.max(0, 1.7 * hash21(bed, 11) - 0.35);
   const e0 = Math.min(1, f / 0.5), e1 = Math.max(0, (f - 0.6) / 0.4);
   const ledge = e0 * e0 * (3 - 2 * e0) * (1 - 0.6 * f) * (1 - e1 * e1 * (3 - 2 * e1)) * k;
-  const P = 1.6 + hash21(bed, 7) * 1.4, O = hash21(bed, 3);
-  const ux = (x + (tn(z / 4.3 + bed, 1.7) - 0.5) * 2.4 + (tn(x / 5.3 + bed * 0.7, 4.1) - 0.5) * 3) / P + O;
-  const uz = (z + (tn(x / 4.3 + bed, 6.1) - 0.5) * 2.4 + (tn(z / 5.3 + bed * 0.7, 8.7) - 0.5) * 3) / P + O;
+  const ju = Math.floor((bed + 0.5) / 3), P = 2 + hash21(ju, 7) * 2.5, O = hash21(ju, 3);
+  const ux = (x + (tn(z / 4.3 + ju, 1.7) - 0.5) * 2.4 + (tn(x / 5.3 + ju * 0.7, 4.1) - 0.5) * 3) / P + O;
+  const uz = (z + (tn(x / 4.3 + ju, 6.1) - 0.5) * 2.4 + (tn(z / 5.3 + ju * 0.7, 8.7) - 0.5) * 3) / P + O;
   let jx = Math.min(1, Math.max(0, (Math.abs(ux - Math.floor(ux) - 0.5) - 0.34) / 0.16)), jz = Math.min(1, Math.max(0, (Math.abs(uz - Math.floor(uz) - 0.5) - 0.34) / 0.16));
   jx = jx * jx * (3 - 2 * jx); jz = jz * jz * (3 - 2 * jz);
   const cut = (jx > jz ? jx : jz) * slab + (jx * ax + jz * (1 - ax)) * (0.35 + 0.65 * Math.abs(2 * ax - 1)) * (1 - slab);
@@ -125,8 +133,8 @@ export function rockLift(x, y, z, gx, gz) {
 export const BEDROCK_GLSL = `
 ${HASH21}
 float brBed(vec3 p) { return p.y / 1.3 + tn(vec2(p.y / 3.7, 5.0)) * 1.2 + tn(vec2(p.y / 1.9, 9.0)) * 0.3 + tn(p.xz / 9.0) * 1.6 + tn(p.xz / 3.1) * 0.35; }
-float brJoint(float along, float bed, float w) {
-  return smoothstep(0.42 - w * 0.2, 0.5, abs(fract(along / (1.6 + hash21(vec2(bed, 7.0)) * 1.4) + hash21(vec2(bed, 3.0))) - 0.5));
+float brJoint(float along, float unit, float w) {
+  return smoothstep(0.42 - w * 0.2, 0.5, abs(fract(along / (2.0 + hash21(vec2(unit, 7.0)) * 2.5) + hash21(vec2(unit, 3.0))) - 0.5));
 }
 float brBench(float s) {
   float sb = s / 4.0 + 0.37, f = fract(sb);
@@ -135,12 +143,13 @@ float brBench(float s) {
 vec2 brOut(vec3 p, vec2 ax, float slab, float w) {
   float s = brBed(p), f = fract(s), bed = floor(s), k = max(0.0, 1.7 * hash21(vec2(bed, 11.0)) - 0.35);
   float ledge = smoothstep(0.0, 0.32 + w, f) * (1.0 - 0.6 * f) * (1.0 - smoothstep(0.8 - w, 1.0, f)) * k;
-  float wx = p.x + (tn(vec2(p.z / 4.3 + bed, 1.7)) - 0.5) * 2.4 + (tn(vec2(p.x / 5.3 + bed * 0.7, 4.1)) - 0.5) * 3.0;
-  float wz = p.z + (tn(vec2(p.x / 4.3 + bed, 6.1)) - 0.5) * 2.4 + (tn(vec2(p.z / 5.3 + bed * 0.7, 8.7)) - 0.5) * 3.0;
-  float jx = brJoint(wx, bed, w), jz = brJoint(wz, bed, w);
+  float ju = floor((bed + 0.5) / 3.0);
+  float wx = p.x + (tn(vec2(p.z / 4.3 + ju, 1.7)) - 0.5) * 2.4 + (tn(vec2(p.x / 5.3 + ju * 0.7, 4.1)) - 0.5) * 3.0;
+  float wz = p.z + (tn(vec2(p.x / 4.3 + ju, 6.1)) - 0.5) * 2.4 + (tn(vec2(p.z / 5.3 + ju * 0.7, 8.7)) - 0.5) * 3.0;
+  float jx = brJoint(wx, ju, w), jz = brJoint(wz, ju, w);
   float jt = (jx * ax.x + jz * ax.y) * (0.35 + 0.65 * abs(ax.x - ax.y));
   float cut = max(jx, jz) * slab + jt * (1.0 - slab);
-  float px = 1.6 + hash21(vec2(bed, 7.0)) * 1.4, o = hash21(vec2(bed, 3.0));
+  float px = 2.0 + hash21(vec2(ju, 7.0)) * 2.5, o = hash21(vec2(ju, 3.0));
   float block = hash21(vec2(floor(wx / px + o) + bed * 7.0, floor(wz / px + o) + 13.0));
   float out_ = ledge * 0.5 + tn(p.xz * 1.7 + p.y) * 0.06 + slab * (block - 0.5) * 0.16 - cut * 0.09 + brBench(s) * (1.0 - slab);
   float shade = (1.0 - 0.4 * min(1.0, k) * (1.0 - smoothstep(0.0, 0.2 + w, f)) * (1.0 - 0.7 * slab)) * (1.0 - 0.25 * jt) * (1.0 - 0.3 * cut * slab);

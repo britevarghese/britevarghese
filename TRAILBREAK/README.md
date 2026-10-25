@@ -1037,11 +1037,12 @@ joints and its steps by its bedding (Migoń and others, on the tors of central E
   farther, about five metres apart up a face. A gentle slab crosses in low stair steps of 10 to 20 cm, the slickrock
   steps a rock-crawling trail is rated by; a steeper face goes up in ledges and benches standing up to half a metre
   out.
-- **Joints:** two sets of near-vertical cracks, each bed with its own spacing, cut the rock into blocks. As real ones
-  do, the cracks wander, crowd together in places and leave long unbroken stretches in others (from half their
-  spacing to six times it), rather than ruling the rock into a grid or laying it like bricks. A face shows the set
-  running across it; one lying askew to both shows each faintly, rather than the two crossing in diamonds. On a slab,
-  each block stands a little proud of or sunk below the next, and the cracks between them are open.
+- **Joints:** two sets of near-vertical cracks, 2 to 4.5 m apart, cut the rock into blocks. As a massive rock's do,
+  each runs through a few beds rather than stopping at every one (so they don't stagger like courses of bricks), and
+  they wander, crowd together in places and leave long unbroken stretches in others (from half their spacing to six
+  times it), rather than ruling the rock into a grid. A face shows the set running across it; one lying askew to both
+  shows each faintly, rather than the two crossing in diamonds. On a slab, each block stands a little proud of or sunk
+  below the next, and the cracks between them are open.
 - **Where it is real:** the relief is in the ground itself. The wheels climb its steps, and the drawn ground's
   vertices are moved by it out to about 70 m. The terrain's shader lights every pixel of the rock from the same
   function: its noise is copied bit for bit in JavaScript and checked against the GPU's to under a fifth of a
