@@ -484,7 +484,9 @@ stock truck with a simple robot driver (`node` scripts against the real world an
 ## Stuck?
 
 When the truck is upside down, in deep water or going nowhere, a panel offers the ways out: flip it upright where it
-lies, go back to the last firm, dry ground you drove on, call your friends for a tow, or go back to the station.
+lies, go back to the last firm, dry ground you drove on, call your friends for a tow, or go back to the station. Going
+nowhere with the wheels spinning, it first names what the truck has that isn't in yet: 4WD, low range, its lockers (a
+stock UAZ, open diffs and all, spins its wheels on a steep muddy pitch in high range that it walks up in low).
 
 - **Call for a tow (T):** your friends get a message with where you are, a red **!** on their compass and a ring on
   their map. When one gets within winch range, the game tells them how: point the bumper at your truck, **F** to hook
@@ -1014,6 +1016,8 @@ years of trucks wear a jeep track, as the tracks in MudRunner or Expeditions are
 - **The bed** sinks 10 to 25 cm below its verges, which come up to it over 3 m rather than a smooth 6 m ramp (where it
   is cut into a slope or built up over a drop, over the whole 6 m still). It follows the lie of the land more closely
   along its length, but is still graded, so it is never steeper than a stock truck climbs, and it lies level across.
+  A building's yard beside it is levelled up or down to the track over a bank, never into its bed (a house's yard
+  below the Anapara Track had cut a 3 m step into it that trucks went over the edge of).
 - **Two ruts** run where the wheels go, 1.6 m apart, each 60 cm across. They wander from side to side down the track
   and are 5 to 15 cm deep on earth, a little deeper in mud (where trucks press their own ruts deeper as they pass),
   shallow on gravel and hardly there on rock. The spoil stands a little proud beside them.

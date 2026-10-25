@@ -297,6 +297,27 @@ test('the open world: its rocky hills in relief (ledges and joints in the rock i
   assert.ok(!mapById('ashwood').rockRelief && !mapById('kerala').rockRelief);
 });
 
+test('the open world: no building\'s yard cuts a step into a track (a house\'s yard below the Anapara Track did)', async () => {
+  const W = await opened, pads = { station: 11, garage: 8, mine: 10, firetower: 7, lookout: 7, cabin: 7, turbine: 7 };
+  let looked = 0;
+  for (const r of W.regions) {
+    const P = { ...pads, ...(r.map.pads || {}) };
+    for (const tr of r.map.trails.filter((q) => q.kind === 'trail')) {
+      const pts = spline(tr.points, 1), gmax = tr.grade ?? 0.34;
+      for (const L of r.world.landmarks.filter((q) => P[q.type])) {
+        for (let k = 2; k < pts.length; k++) {
+          const [x, z] = pts[k];
+          if (Math.hypot(x - L.x, z - L.z) > P[L.type] + 6) continue;
+          looked++;
+          const g = Math.abs(r.world.terrainBase(x, z) - r.world.terrainBase(...pts[k - 2])) / Math.hypot(x - pts[k - 2][0], z - pts[k - 2][1]);
+          assert.ok(g < gmax + 0.12, `${r.id}: ${tr.name} pitches ${(g * 100).toFixed(0)}% by the ${L.type} at ${L.x.toFixed(0)}, ${L.z.toFixed(0)}`);
+        }
+      }
+    }
+  }
+  assert.ok(looked > 50, `${looked} points of track by a building`);
+});
+
 test('the open world: the satnav finds the way from the coast to Ashwood by road, and a truck drives across the joins', async () => {
   const W = await opened, g = new RouteGraph(W.data.trails, { hubs: W.hubs });
   const r = g.route(3940, -712, 7090, -3800);

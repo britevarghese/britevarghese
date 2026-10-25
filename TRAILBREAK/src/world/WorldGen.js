@@ -739,6 +739,10 @@ export async function generateWorld({ map, onProgress = () => {}, yieldEvery = 6
   // ---- landmark pads (flatten under buildings)
   const landmarks = M.landmarks.map((L) => ({ ...L }));
   const pads = { ...PADS, ...(M.pads || {}) };
+  // (in the open world, M.wornTracks: a building's pad doesn't level the bed of a track or road beside it, nor the
+  // verge just off it; its yard comes up or down to the track over a bank instead. Levelled, a house's yard below a
+  // track cut a step into it a truck went over the edge of)
+  const padKeep = M.wornTracks ? (idx) => (tD[idx] === 255 ? 1 : smoothstep(trailW(idx) + 0.5, trailW(idx) + 3, trailD(idx))) : () => 1;
   for (const L of landmarks) {
     const pad = pads[L.type] || 0;
     L.y = hAt(L.x, L.z);
@@ -748,7 +752,7 @@ export async function generateWorld({ map, onProgress = () => {}, yieldEvery = 6
     for (let k = ck - Rr; k <= ck + Rr; k++) for (let i = ci - Rr; i <= ci + Rr; i++) {
       if (i < 0 || k < 0 || i >= N || k >= N) continue;
       const idx = k * N + i;
-      H[idx] = lerp(H[idx], h0, smoothstep(pad + 6, pad, hyp(GRID_ORIGIN + i * RES - L.x, GRID_ORIGIN + k * RES - L.z)));
+      H[idx] = lerp(H[idx], h0, smoothstep(pad + 6, pad, hyp(GRID_ORIGIN + i * RES - L.x, GRID_ORIGIN + k * RES - L.z)) * padKeep(idx));
     }
   }
   ctx.landmarks = landmarks;

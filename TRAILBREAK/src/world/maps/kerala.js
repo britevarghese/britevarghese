@@ -233,7 +233,7 @@ function prepare(c) {
   }
   K.quarryFloor = rim - 0.4;
   // the swept yards of bare red earth (the muttam) in front of the houses and the chai stall: [x, z, r]
-  K.yards = LANDMARKS.filter((L) => L.type === 'house' || L.type === 'chaistall').map((L) => {
+  K.yards = c.M.landmarks.filter((L) => L.type === 'house' || L.type === 'chaistall').map((L) => {
     const f = L.type === 'house' ? 7 : 3.5;
     return [L.x + Math.sin(L.yaw) * f, L.z + Math.cos(L.yaw) * f, L.type === 'house' ? 5.5 : 4];
   });

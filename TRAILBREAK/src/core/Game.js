@@ -630,6 +630,16 @@ export class Game {
     else if (msg) this.hud.hint(msg, 2.5);
   }
 
+  /**
+   * What the truck has that isn't in yet, for a climb or a bog it's stuck on: 4WD, low range, its lockers (a UAZ, say,
+   * with open diffs and high range, goes nowhere on a steep muddy pitch it walks up in low).
+   */
+  unstickTip(d) {
+    const has = [d.drive === '4wd' && !d.fourWD && '4WD (4)', d.t.low > 1 && !d.low && 'low range (L)',
+      ((d.diffs.rear === 'locker' && !d.lockRear) || (d.diffs.front === 'locker' && !d.lockFront)) && 'the lockers (X)'].filter(Boolean);
+    return has.length ? `Try ${has.length > 1 ? has.slice(0, -1).join(', ') + ' and ' + has.at(-1) : has[0]}, and rock it back and forth. ` : '';
+  }
+
   /** The stuck panel: shown while in trouble or waiting for a tow. */
   updateStuckPanel() {
     const el = this.stuckEl;
@@ -659,7 +669,7 @@ export class Game {
       : puller ? `${puller.by} is winching you out: stay off the pedals and steer, or give it a little throttle to help`
       : v.flooded ? 'Once the intake is out of the water the engine starts again'
       : this.stuckWhy === 'broken' ? (D.seized ? 'The engine is seized: it won\'t turn over. Backspace calls the tow truck, which takes it into the station workshop to be mended (you pay the bill). Or friends can tow you there (F to hook)' : 'A broken axle shaft: try 4WD (4) or the lockers (X). Backspace: the tow truck takes it to the station workshop to be mended')
-        : 'Or winch out: point the bumper at a tree or a friend, F to hook, hold E';
+        : this.unstickTip(v.dt) + 'Or winch out: point the bumper at a tree or a friend, F to hook, hold E';
     if ($('st-tip').textContent !== tip) $('st-tip').textContent = tip;
     const home = `<b>&#9003;</b> ${this.stuckWhy === 'broken' ? 'Tow to the workshop' : 'Back to the station'}`;
     if ($('st-station').innerHTML !== home) $('st-station').innerHTML = home;

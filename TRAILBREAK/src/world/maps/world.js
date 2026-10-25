@@ -86,6 +86,8 @@ export const COAST_W = {
 /** Kerala as it stands in the world: passes west and north, and the roads out through them. */
 export const KERALA_W = {
   ...KERALA, id: 'kerala@world', baseHeight: keralaGround, mudFields: 4, rockFields: 2.5, mudTracks: 0.4, wornTracks: true, rockRelief: true, looseRocks: 4,
+  // (the house beside the Anapara Track set back off it: its corner stood on the track's bed, its yard a terrace below)
+  landmarks: KERALA.landmarks.map((L) => (L.type === 'house' && L.x === 150 && L.z === 96 ? { ...L, x: 148, z: 99.4 } : L)),
   trails: [...KERALA.trails,
     // (off the paddy and rubber track below Rubber Estate Hill, west along the spur and through the pass to the coast:
     // the Konkan Ghat Road's two lanes and their lines carried on to the track)
