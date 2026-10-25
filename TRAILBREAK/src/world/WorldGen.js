@@ -486,7 +486,9 @@ export async function generateWorld({ map, onProgress = () => {}, yieldEvery = 6
       if (tr.bridge) { const idx = cellOf(x, z); if (riverD(idx) < riverHalf(idx) + 4) return riverLvl(idx) + 2; }
       return hAt(x, z);
     });
-    const win = Math.max(1, Math.round((tr.smooth ?? (tr.kind === 'road' ? 18 : 10)) / RES));
+    // (a worn track, M.wornTracks, over a shorter stretch: it keeps more of the lie of the land)
+    const worn = M.wornTracks && tr.kind === 'trail';
+    const win = Math.max(1, Math.round((tr.smooth ?? (tr.kind === 'road' ? 18 : worn ? 7 : 10)) / RES));
     for (let pass = 0; pass < 3; pass++) {
       const out = new Array(hs.length);
       for (let c = 0; c < hs.length; c++) {
@@ -640,11 +642,18 @@ export async function generateWorld({ map, onProgress = () => {}, yieldEvery = 6
   for (let idx = 0; idx < N * N; idx++) {
     if (tD[idx] === 255) continue;
     const d = tD[idx] / 10, p = tI[idx], width = tpW[p];
-    const w = d <= width ? 1 : smoothstep(width + tpS[p], width, d);
+    // (a worn track, M.wornTracks: not laid on the land and smoothed into it over its shoulders, but worn into it, its
+    // bed some 10 to 25 cm below the verges, which come up to it over 3 m where it runs on the level of the land (where
+    // it is cut into a slope or built up over a drop, over its whole shoulder still); its ruts are finer than the grid,
+    // world/Worn.js)
+    const worn = M.wornTracks && tpK[p] === 1;
+    const sh = worn ? lerp(Math.min(3, tpS[p]), tpS[p], smoothstep(0.5, 2, Math.abs(H[idx] - tpH[p]))) : tpS[p];
+    const w = d <= width ? 1 : smoothstep(width + sh, width, d);
     let h = lerp(H[idx], tpH[p], w * tpL[p]);
-    if (tpK[p] === 1 && d < width) h -= 0.07 * Math.exp(-(((d - 0.8) / 0.22) ** 2));       // two-track ruts
+    if (worn) h -= (0.1 + 0.15 * vnoise(tpX[p] / 21, tpZ[p] / 21, S + 361)) * smoothstep(width + 0.8, width * 0.6, d);
+    else if (tpK[p] === 1 && d < width) h -= 0.07 * Math.exp(-(((d - 0.8) / 0.22) ** 2));       // two-track ruts
     // (deeper in the mud: a track's ruts, a road's verges)
-    if (tpM[p] && tpK[p] === 1 && d < width + 1.5) h -= 0.05 + (d < width ? 0.1 * Math.exp(-(((d - 0.8) / 0.35) ** 2)) : 0);
+    if (tpM[p] && tpK[p] === 1 && d < width + 1.5) h -= 0.05 + (d < width && !worn ? 0.1 * Math.exp(-(((d - 0.8) / 0.35) ** 2)) : 0);
     else if (tpM[p] && d > width && d < width + 3) h -= 0.06;
     if (riverD(idx) < riverHalf(idx) && !tpB[p]) h = Math.min(h, riverLvl(idx) - (tpF[p] !== undefined ? tpF[p] - 0.05 : 0.3));   // keep fords wet
     H[idx] = h;

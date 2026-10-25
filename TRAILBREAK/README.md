@@ -986,6 +986,24 @@ every road and track in 10 m steps, before and after:
 | Bearwood Taiga | 77% → 84% | 9% → 60% |
 | Lalghati Canyon | 61% → 89% | 65% → 76% |
 
+**Worn tracks.** The open world's tracks (`wornTracks` on a map; `src/world/Worn.js`) are worn into the land the way
+years of trucks wear a jeep track, as the tracks in MudRunner or Expeditions are, not laid on it like a road:
+
+- **The bed** sinks 10 to 25 cm below its verges, which come up to it over 3 m rather than a smooth 6 m ramp (where it
+  is cut into a slope or built up over a drop, over the whole 6 m still). It follows the lie of the land more closely
+  along its length, but is still graded, so it is never steeper than a stock truck climbs, and it lies level across.
+- **Two ruts** run where the wheels go, 1.6 m apart, each 60 cm across. They wander from side to side down the track
+  and are 5 to 15 cm deep on earth, a little deeper in mud (where trucks press their own ruts deeper as they pass),
+  shallow on gravel and hardly there on rock. The spoil stands a little proud beside them.
+- **Potholes** cross the track here and there.
+
+The ruts are too fine for the ground's grid, so they are reckoned at each point from the track's line, the same for the
+physics (the wheels drop into them) and the drawn ground. The terrain's shader draws the track a pixel at a time
+(`src/render/Terrain.js`): the ruts pressed dark and smooth, with tread marks, and water standing along them in the mud;
+the hump between them grown over in clumps of grass, with grass tufts standing on it (`src/render/Grass.js`); the bare
+earth trodden browner; and the verge's grass reaching in to a ragged edge instead of a line. Where a track runs on into
+the next map, its ruts run straight down the middle at an even depth, so the two maps' ruts meet.
+
 The country is laid out as the real country round Kashid is: the stretches north of the coast and the Deccan to the
 south stand on the same real elevation data as the coast (its bake carries the heights 12 km out, every 40 m), their
 own features made on top of it; the roads through them are routed over the ground (`tools/routeroads.mjs`, below).

@@ -9,6 +9,8 @@
 
 import * as THREE from 'three';
 import { DeformGrid } from '../world/Deform.js';
+import { GAUGE, RUT } from '../world/Worn.js';
+import { vnoise } from '../world/Noise.js';
 
 const CHUNK = 8;
 const SPACING = 0.6;                     // tuft grid (m)
@@ -228,7 +230,19 @@ normal = normalize(vNormal);`)
         const cell = Math.round((z - w.origin) / w.res) * w.N + Math.round((x - w.origin) / w.res);
         const L = T.splat[cell];
         const r = hash(x, z, 3);
-        const edge = L === dirtL && dirtL !== undefined && r < 0.45 && byGrass(cell);
+        let edge = L === dirtL && dirtL !== undefined && r < 0.45 && byGrass(cell);
+        // (a worn track, world/Worn.js: none in its ruts; on its earth, short grass in clumps along the hump between
+        // them, and the verge's out to the bare earth's ragged edge)
+        let hump = false;
+        const hit = w.worn?.nearest(x, z);
+        if (hit) {
+          const q = w.worn.shape(hit, x, z, 1), au = Math.abs(q.u);
+          if (Math.abs(au - GAUGE) < RUT + 0.06) continue;
+          if (L === dirtL) {
+            hump = au < GAUGE - RUT - 0.1 && vnoise(q.s / 1.7, q.u, 41) > 0.42;
+            edge = hump || au + (vnoise(q.s / 1.25, au * 1.6, 42) - 0.5) * 0.7 > q.W + 0.1;
+          }
+        }
         const reed = reedsAt ? reedsAt(x, z, w) : 0;
         if (L !== grassL && !(L === forestL && r < 0.12) && !edge && !reed) continue;
         if (w.deformGrid.get(x, z) > 0.03) continue;                    // flattened into the ruts
@@ -246,7 +260,7 @@ normal = normalize(vNormal);`)
         T.tintAt(edge ? grassL : L, x, z, y, 0, tint);
         const lush = Math.max(0, 1.2 - tint[0]);
         const alpine = Math.min(1, Math.max(0, (y - 140) / 160));
-        const h = (0.3 + 0.32 * lush + 0.16 * hash(x, z, 4)) * (1 - 0.45 * alpine) * (L === forestL ? 0.7 : edge ? 0.6 : 1);
+        const h = (0.3 + 0.32 * lush + 0.16 * hash(x, z, 4)) * (1 - 0.45 * alpine) * (L === forestL ? 0.7 : hump ? 0.5 : edge ? 0.6 : 1);
         out.push(x, y - 0.03, z, hash(x, z, 5) * 6.283, h, 0.55 + 0.35 * hash(x, z, 6), r, tint[0], tint[1], tint[2]);
       }
     }

@@ -53,7 +53,7 @@ export const GLEN_ROUTES = {
 };
 
 export const GLEN = stretch({
-  id: 'glen', name: 'Koyna Glen', short: 'Koyna', seed: GLEN_SEED, half: 1024, mudFields: 4, rockFields: 2.5, mudTracks: 0.5, looseRocks: 5,
+  id: 'glen', name: 'Koyna Glen', short: 'Koyna', seed: GLEN_SEED, half: 1024, mudFields: 4, rockFields: 2.5, mudTracks: 0.5, wornTracks: true, looseRocks: 5,
   station: { x: -150, z: 470, name: 'Koyna Dam' }, spawn: { x: -130, z: 450, yaw: Math.PI }, dealer: 'Ashwood 4x4 Sales',
   load: () => COAST.load(), baseHeight: glenGround, roughOf: (h) => clamp((h - 60) / 200, 0.2, 0.9),
   ...HIGHLAND, farWoods: 0.7, lake: KOYNA,
@@ -137,7 +137,7 @@ export const FOREST = stretch({
   id: 'forest', name: 'Bhimashankar', short: 'Bhimashankar', seed: FOREST_SEED, half: 1024,
   station: { x: -230, z: 330, name: 'Bhimashankar Rest House' }, spawn: { x: -210, z: 310, yaw: 0 }, dealer: 'Konkan Motors',
   load: () => COAST.load(), baseHeight: forestGround, roughOf: (h) => clamp((h - 60) / 220, 0.25, 0.9),
-  ...TROPICAL, farWoods: 0.75, mudFields: 4, rockFields: 2.5, mudTracks: 0.5, looseRocks: 5,
+  ...TROPICAL, farWoods: 0.75, mudFields: 4, rockFields: 2.5, mudTracks: 0.5, wornTracks: true, looseRocks: 5,
   trails: trailsOf('forest', FOREST_ROUTES),
   landmarks: [{ type: 'bungalow', x: -255, z: 360, yaw: 1.2 }, { type: 'mine', x: 330, z: 255, yaw: -1.2 }, { type: 'chaistall', x: -200, z: 300, yaw: -0.5 }],
   beacons: [{ id: 0, name: 'Bhor Quarry', x: 470, z: 215 }, { id: 1, name: 'Bhimashankar Temple', x: -110, z: 80 }, { id: 2, name: 'Cairn Saddle', x: 780, z: -200 }],

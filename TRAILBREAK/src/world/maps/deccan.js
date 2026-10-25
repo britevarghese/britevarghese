@@ -121,7 +121,7 @@ function deccanRiver(level0) {
 }
 
 export const DECCAN = stretch({
-  id: 'deccan', name: 'The Deccan', short: 'Deccan', seed: SEED, half: HALF, res: 2, coarse: 8, waterRes: 4, mudFields: 4, rockFields: 2.5, mudTracks: 0.5, looseRocks: 5,
+  id: 'deccan', name: 'The Deccan', short: 'Deccan', seed: SEED, half: HALF, res: 2, coarse: 8, waterRes: 4, mudFields: 4, rockFields: 2.5, mudTracks: 0.5, wornTracks: true, looseRocks: 5,
   station: { x: 480, z: -1040, name: 'Shivapur Motors' }, spawn: { x: 470, z: -1020, yaw: Math.PI / 2 }, dealer: 'Shivapur Motors',
   load: () => COAST.load(), baseHeight: deccanGround, roughOf: (h) => clamp((h - 40) / 220, 0.1, 0.8),
   ...TROPICAL, farWoods: 0.55, tint: deccanTint, tintRange: 4, lake: LAKE,

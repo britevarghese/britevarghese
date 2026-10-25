@@ -71,7 +71,7 @@ const ashwoodGround = (x, z) => landform(ASHWOOD).baseHeight(x, z) - ashwoodPass
 export const COAST_W = {
   ...COAST, id: 'coast@world',
   // (in the world: fields of mud and of rock by its roads and tracks, boulders about its open ground)
-  mudFields: 5, rockFields: 3, mudTracks: 0.4, looseRocks: 4, boulderMax: 16000,
+  mudFields: 5, rockFields: 3, mudTracks: 0.4, wornTracks: true, looseRocks: 4, boulderMax: 16000,
   trails: [...COAST.trails,
     { name: 'Kashid Ghat East', kind: 'road', width: 3.6, lanes: 2, grade: 0.11, smooth: 24, cut: 7, shoulder: 8, level: true, extend: [0, 8], points: [[3960, -700], [3980, -685.5], [3999.9, -671.1]] },
     // (the coast road on north from its end round the headland, and the ridge track from its end by the edge: into
@@ -85,7 +85,7 @@ export const COAST_W = {
 
 /** Kerala as it stands in the world: passes west and north, and the roads out through them. */
 export const KERALA_W = {
-  ...KERALA, id: 'kerala@world', baseHeight: keralaGround, mudFields: 4, rockFields: 2.5, mudTracks: 0.4, looseRocks: 4,
+  ...KERALA, id: 'kerala@world', baseHeight: keralaGround, mudFields: 4, rockFields: 2.5, mudTracks: 0.4, wornTracks: true, looseRocks: 4,
   trails: [...KERALA.trails,
     // (off the paddy and rubber track below Rubber Estate Hill, west along the spur and through the pass to the coast:
     // the Konkan Ghat Road's two lanes and their lines carried on to the track)
@@ -104,7 +104,7 @@ export const KERALA_W = {
 
 /** Ashwood as it stands in the world: a pass south, and the old valley road on through it. */
 export const ASHWOOD_W = {
-  ...ASHWOOD, id: 'ashwood@world', baseHeight: ashwoodGround, mudFields: 3, rockFields: 2.5, mudTracks: 0.4, looseRocks: 5,
+  ...ASHWOOD, id: 'ashwood@world', baseHeight: ashwoodGround, mudFields: 3, rockFields: 2.5, mudTracks: 0.4, wornTracks: true, looseRocks: 5,
   trails: [...ASHWOOD.trails, { name: 'Pass Road', kind: 'road', width: 3.4, extend: [0, 8], points: [[10, 890], [14, 950], [18, 1000], [20, 1024]] },
     // (the Pinecrest trail on west through a gap in the valley's wall, down to Koyna Glen)
     { name: 'Pinecrest West', kind: 'trail', width: 2.1, extend: [0, 8], points: [[-760, -45], [-850, -52], [-940, -58], [-1024, -64]] }],
@@ -252,7 +252,7 @@ export const GHAT = {
     { id: 'kundalika', kind: 'rally', name: 'Kundalika Descent', desc: 'Off the ghat road and down the river track to the bank of the river out of Kerala.',
       trail: 'Kundalika River Track', from: [340, 60], to: [770, 885], cps: 4, r: 10, par: GHAT_PAR.kundalika, prize: 1.1 },
   ],
-  roadSurface: SURFACE.ROAD, puddles: 8, mudFields: 4, rockFields: 2.5, mudTracks: 0.5, looseRocks: 5,
+  roadSurface: SURFACE.ROAD, puddles: 8, mudFields: 4, rockFields: 2.5, mudTracks: 0.5, wornTracks: true, looseRocks: 5,
   // (the ghat's steep ground grown over as Kerala's is, all the way to the coast: its escarpment up to Kerala's ridges
   // green, bare rock only on its sheerest faces)
   keralaRock: 4096,
@@ -286,7 +286,7 @@ export const PASS = {
   seed: PASS_SEED, station: { x: 110, z: -60, name: 'Pass Hut' }, spawn: { x: 50, z: -56, yaw: 2.91 }, dealer: 'Ashwood 4x4 Sales',
   half: 1024, res: 1, coarse: 4, waterRes: 2, farWoods: 0.6,
   // (its woods thinner than Ashwood's, open alpine meadow between them; fields of mud on its trail)
-  woods: 0.55, mudFields: 4, rockFields: 3, mudTracks: 0.5, looseRocks: 5,
+  woods: 0.55, mudFields: 4, rockFields: 3, mudTracks: 0.5, wornTracks: true, looseRocks: 5,
   baseHeight: passGround, roughOf: (h) => clamp((h - 80) / 220, 0.25, 1),
   river: null, peaks: [], snowLine: 390,
   // (the snow comes down to 390 m on the Ashwood side; towards Kerala, whose ridges are laid onto the south of the pass

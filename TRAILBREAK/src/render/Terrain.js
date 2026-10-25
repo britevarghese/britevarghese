@@ -19,6 +19,7 @@ import * as THREE from 'three';
 import { HASH21 } from './ShaderHash.js';
 import { SURFACE } from '../physics/Surfaces.js';
 import { DeformGrid, DEFORM_SPAN } from '../world/Deform.js';
+import { WornTracks, GAUGE, RUT } from '../world/Worn.js';
 import { vnoise } from '../world/Noise.js';
 import { TEA_ROW, TEA_RANGE } from './Tea.js';
 
@@ -126,6 +127,10 @@ export class TerrainRenderer {
     this.tmpH = new Float32Array((V + 2) * (V + 2));
     this.tmpD = new Float32Array(V * V);
     this.tmpE = new Float32Array((V + 6) * (V + 6));
+    this.tmpR = new Float32Array((V + 2) * (V + 2));
+    this.tmpQ = new Float32Array((V + 2) * (V + 2) * 5);
+    // (the patches with no worn track on them: one attribute between them all, off any track)
+    this.noTrk = new THREE.BufferAttribute(new Float32Array((V * V + 4 * V) * 4).fill(9), 4);
     this.budget = 6;
     this.split = SPLIT_DEFAULT;
     this.fine = true;
@@ -151,6 +156,8 @@ export class TerrainRenderer {
         uTexFar: { value: 320 }, uIds: { value: new THREE.Vector3(this.layerIndex.grass, this.layerIndex.rock, this.layerIndex.snow ?? this.layerIndex.rock) },
         uSnowLine: { value: this.snowLine + 40 }, uRelief: { value: 1 },
         uTea: { value: this.layerIndex.tea ?? -1 }, uTeaNear: { value: TEA_RANGE.high },
+        // (a worn track's: the layers that wear, earth and mud, and the colour of the grass over its hump and verges)
+        uIds2: { value: new THREE.Vector2(this.layerIndex.dirt ?? -1, this.layerIndex.mud ?? -1) }, uVerge: { value: new THREE.Vector3(1.04, 1.03, 0.98) },
         // how strongly its steep rock stands out in beds (the map's rockBeds: Kerala's granite hardly)
         uRockBeds: { value: w.map.rockBeds ?? 1 },
       });
@@ -189,18 +196,21 @@ export class TerrainRenderer {
 attribute vec3 tint;
 attribute vec2 wet;
 attribute float cover;
+attribute vec4 trk;
 uniform float uTintK;
 varying vec3 vWPos;
 varying vec3 vWNormal;
 varying vec3 vTint;
 varying vec2 vWet;
-varying float vCover;`)
+varying float vCover;
+varying vec4 vTrk;`)
         .replace('#include <worldpos_vertex>', `#include <worldpos_vertex>
 vWPos = (modelMatrix * vec4(transformed, 1.0)).xyz;
 vWNormal = objectNormal;
 vTint = tint * uTintK;
 vWet = wet;
-vCover = cover;`);
+vCover = cover;
+vTrk = trk;`);
       sh.fragmentShader = sh.fragmentShader
         .replace('#include <common>', `#include <common>
 varying vec3 vWPos;
@@ -208,6 +218,7 @@ varying vec3 vWNormal;
 varying vec3 vTint;
 varying vec2 vWet;
 varying float vCover;
+varying vec4 vTrk;
 uniform vec3 uFarForest;
 uniform vec3 uPuddle;
 uniform vec3 uClipC;
@@ -242,6 +253,8 @@ uniform float uSnowLine;
 uniform float uRelief;
 uniform float uTea;
 uniform float uTeaNear;
+uniform vec2 uIds2;
+uniform vec3 uVerge;
 // a tea estate beyond the hedges (render/Tea.js): the rows as stripes along the contours, leaves over the soil
 vec3 gTea(vec3 soil, float dist) {
   float ph = fract(vWPos.y / ${TEA_ROW.toFixed(3)});
@@ -330,6 +343,8 @@ float gRough = -1.0;
 float gH = 0.5;
 float gPool = 0.0;
 float gWet = 0.0;
+float gTrkPool = 0.0;
+float gTrkWet = 0.0;
 {
   float dist = length(vWPos - cameraPosition);
   float mid = clamp(1.0 - dist / 900.0, 0.0, 1.0);
@@ -413,10 +428,66 @@ ${G ? `
       float m = mix(0.5, t1, 1.0 - smoothstep(0.2, 0.5, px * 1.6)) * 0.55 + mix(0.5, t2, 1.0 - smoothstep(0.2, 0.5, px * 0.42)) * 0.45;
       alb *= 1.0 + (m - 0.5) * 0.55 * mw;
     }
+    // a worn track (world/Worn.js; vTrk: m off its wheel line's middle, m along it, its ruts' depth, m off the line its
+    // bare earth reaches): its two ruts pressed hard and dark, the tread marks in them, water standing in them in the
+    // mud; the hump between them grown over in clumps of grass; and the verge's grass reaching in to a ragged edge, not
+    // a line. In earth and mud only (the rock and the gravel show as they are), out to where it is under a pixel.
+    vec3 trkTilt = vec3(0.0);
+    if (vTrk.x < 8.0 && vTrk.z > 0.002) {
+      float wd = 0.0, wm = 0.0;
+      for (int j = 0; j < 4; j++) {
+        if (j >= gn) break;
+        float b = max(0.0, hs[j] - top + 0.16) / sum;
+        if (gL[j] == uIds2.x) wd += b; else if (gL[j] == uIds2.y) wm += b;
+      }
+      float fade = 1.0 - smoothstep(70.0, 130.0, dist), soft = wd + wm;
+      if (fade * soft > 0.0) {
+        float u = vTrk.x, au = abs(u), s = vTrk.y, dep = vTrk.z;
+        float px = max(length(fwidth(vWPos.xz)), 1e-3), aa = px * 0.5;
+        // the nearer rut: how far off its middle, its floor, and the slope of the ground across the track there
+        float r = abs(au - ${GAUGE.toFixed(3)});
+        float inRut = 1.0 - smoothstep(${RUT.toFixed(3)} - 0.07 - aa, ${RUT.toFixed(3)} + aa, r);
+        float a = ${(Math.PI / 2 / RUT).toFixed(4)};
+        float dHdr = r < ${RUT.toFixed(3)} ? dep * a * sin(2.0 * a * r) : r < ${(RUT + 0.4).toFixed(3)} ? dep * 0.18 * ${(Math.PI / 0.4).toFixed(4)} * cos((r - ${RUT.toFixed(3)}) / 0.4 * 3.14159) : 0.0;
+        float dHdu = dHdr * sign(au - ${GAUGE.toFixed(3)}) * sign(u);
+        // (the way across the track, from how u changes over the pixel)
+        vec2 dpx = dFdx(vWPos.xz), dpy = dFdy(vWPos.xz);
+        float dux = dFdx(u), duy = dFdy(u), det = dpx.x * dpy.y - dpx.y * dpy.x;
+        vec2 gu = abs(det) > 1e-10 ? vec2(dux * dpy.y - duy * dpx.y, duy * dpx.x - dux * dpy.x) / det : vec2(0.0);
+        gu /= max(length(gu), 1e-4);
+        trkTilt = -vec3(gu.x, 0.0, gu.y) * dHdu * fade * soft * (1.0 - smoothstep(0.08, 0.3, px));
+        // tread marks across the ruts, a quarter of a metre apart, chevrons (gone where a pixel is coarser)
+        float tread = 0.5 + 0.5 * sin(s * 26.0 + r * 11.0 + tn(vec2(s * 0.3, au)) * 6.0);
+        float treadA = 1.0 - smoothstep(0.02, 0.07, px);
+        float floorK = 1.0 - smoothstep(0.0, ${RUT.toFixed(3)}, r);
+        // the track's bare earth: browner and darker than the dry ground (trodden, and damp in stretches)
+        float verge0 = smoothstep(vTrk.w - 0.2, vTrk.w + 0.25, au);
+        float damp = smoothstep(0.35, 0.75, tn(vec2(s * 0.07, 1.7)));
+        float bare = (1.0 - verge0) * wd * fade;
+        alb *= mix(vec3(1.0), vec3(0.8, 0.72, 0.6) * (1.0 - 0.18 * damp), bare);
+        alb *= mix(vec3(1.0), vec3(0.74, 0.71, 0.68) * (1.0 - 0.14 * tread * treadA * floorK), inRut * soft * fade);
+        rough = mix(rough, 0.72, inRut * soft * fade);
+        // the hump's grass in clumps; the verge's to a ragged edge
+        float clump = tn(vec2(s * 0.6, u * 0.9) + 4.7) * 0.6 + tn(vWPos.xz * 3.3) * 0.4;
+        float hump = (1.0 - smoothstep(${(GAUGE - RUT - 0.12).toFixed(3)} - aa, ${(GAUGE - RUT).toFixed(3)} + aa, au)) * smoothstep(0.32, 0.55, clump);
+        float rag = (tn(vec2(s * 0.8, au * 1.6) + 9.1) - 0.5) * 0.7 + (tn(vWPos.xz * 2.2 + 1.3) - 0.5) * 0.35;
+        float verge = smoothstep(vTrk.w - 0.2 - aa, vTrk.w + 0.25 + aa, au + rag);
+        float over = max(hump * 0.92, verge) * wd * fade;
+        if (over > 0.0) {
+          vec3 ga = gColor(uIds.x, uLay[int(uIds.x)].x).rgb * uGain[int(uIds.x)] * uVerge;
+          alb = mix(alb, ga * (0.85 + 0.3 * clump), over);
+          rough = mix(rough, uLay[int(uIds.x)].y, over);
+        }
+        // wet: in the mud its ruts, and water standing along stretches of them; on earth, damp in their floors
+        float pn = tn(vec2(s * 0.16, 2.3 + sign(u) * 5.0));
+        gTrkPool = smoothstep(0.08, 0.4, floorK) * smoothstep(0.4, 0.62, pn) * wm * fade;
+        gTrkWet = inRut * fade * (wm * 0.75 + wd * (0.12 + 0.3 * damp));
+      }
+    }
     diffuseColor.rgb = mix(diffuseColor.rgb, alb * vTint, tex);
     gRough = mix(0.95, rough, tex);
     gH = mix(0.5, hgt / sum, tex);
-    gNW = normalize(gNW + tilt * near * 0.9);
+    gNW = normalize(gNW + tilt * near * 0.9 + trkTilt * tex);
     // rock faces in relief (a cut through the hill is not a smooth bank with a picture of rock on it): lit as ledges
     // and blocks, darker in their recesses; out where a ledge is under a few pixels it evens out
     float rw = 0.0;
@@ -479,10 +550,10 @@ ${G ? `
   }
   diffuseColor.rgb *= vary;
   // wet ground, darker and glossier; and water standing in the ruts, in the hollows first, flat and shiny
-  if (vWet.x + vWet.y > 0.004) {
-    float pool = clamp((vWet.y * 1.3 - gH) * 6.0, 0.0, 1.0);
+  if (vWet.x + vWet.y + gTrkWet > 0.004) {
+    float pool = max(clamp((vWet.y * 1.3 - gH) * 6.0, 0.0, 1.0), gTrkPool);
     // (the water lies in the hollows of the ground's relief; its bumps stand drier)
-    float wv = max(clamp(vWet.x * (1.6 - 1.4 * gH), 0.0, 1.0), pool);
+    float wv = max(max(clamp(vWet.x * (1.6 - 1.4 * gH), 0.0, 1.0), pool), gTrkWet);
     diffuseColor.rgb *= 1.0 - 0.45 * wv;
     gRough = mix(gRough < 0.0 ? 0.95 : gRough, 0.34, wv * 0.8);
     diffuseColor.rgb = mix(diffuseColor.rgb, uPuddle, pool * 0.85);
@@ -831,8 +902,9 @@ if (gWet > 0.0) {
     out[o] = Math.round(wv * 255); out[o + 1] = Math.round(pv * 255);
   }
 
-  heightAt(x, z) {
-    if (Math.abs(x) <= this.half && Math.abs(z) <= this.half) return this.world.terrain(x, z);
+  /** The ground's height at (x, z): the map's (without a worn track's wear: base), or past it the land beyond. */
+  heightAt(x, z, base = false) {
+    if (Math.abs(x) <= this.half && Math.abs(z) <= this.half) return base ? this.world.terrainBase(x, z) : this.world.terrain(x, z);
     return (this.beyond ? this.beyond(x, z) : this.world.farHeight(x, z)) - (this.far ? this.holeSink(x, z) : 0);
   }
 
@@ -857,7 +929,23 @@ if (gWet > 0.0) {
     const near = sp <= 1;
     // heights with a one-vertex border for the normals
     const T = this.tmpH, VB = V + 2, D = this.tmpD, w = this.world, ruts = near && w.deformGrid.chunks.size > 0;
-    for (let k = -1; k <= V; k++) for (let i = -1; i <= V; i++) T[(k + 1) * VB + (i + 1)] = this.heightAt(x0 + i * sp, z0 + k * sp);
+    // (a worn track's ruts, hump and potholes, world/Worn.js: the potholes are in the heights the normals are reckoned
+    // from, the ruts only in the vertices' own, the shader lighting them from their profile, which is finer than the
+    // vertices out past the nearest patches; and where each vertex is on the track, trk, for the shader)
+    const worn = !this.far && w.worn && sp <= 2 && w.worn.near(x0, z0, size, 3) ? w.worn : null;
+    const R = this.tmpR, Q = this.tmpQ;
+    if (worn) {
+      for (let k = -1; k <= V; k++) for (let i = -1; i <= V; i++) {
+        const x = x0 + i * sp, z = z0 + k * sp, e = (k + 1) * VB + (i + 1);
+        T[e] = this.heightAt(x, z, true);
+        R[e] = 0; Q[e * 5] = 9; Q[e * 5 + 1] = 0; Q[e * 5 + 2] = 9; Q[e * 5 + 3] = 9; Q[e * 5 + 4] = 0;
+        const hit = Math.abs(x) <= this.half && Math.abs(z) <= this.half ? worn.nearest(x, z) : null;
+        if (!hit) continue;
+        const q = worn.shape(hit, x, z, w.wear(x, z));
+        T[e] -= q.pot; R[e] = WornTracks.profile(q.u, q.depth);
+        Q[e * 5] = q.u; Q[e * 5 + 1] = q.s; Q[e * 5 + 2] = q.depth; Q[e * 5 + 3] = q.W; Q[e * 5 + 4] = q.pot;
+      }
+    } else for (let k = -1; k <= V; k++) for (let i = -1; i <= V; i++) T[(k + 1) * VB + (i + 1)] = this.heightAt(x0 + i * sp, z0 + k * sp);
     // the ruts (kept for their colour and wetness too)
     D.fill(0);
     if (ruts) {
@@ -880,12 +968,13 @@ if (gWet > 0.0) {
     }
     const nV = V * V + 4 * V;
     const pos = new Float32Array(nV * 3), nor = new Int8Array(nV * 3), col = new Uint8Array(nV * 3), tint = new Uint8Array(nV * 3), wet = new Uint8Array(nV * 2), cover = new Uint8Array(nV);
+    const trk = worn ? new Float32Array(nV * 4).fill(9) : null;
     const c3 = [0, 0, 0], t3 = [0, 0, 0], f3 = [0, 0, 0];
     const inMap = (x, z) => Math.abs(x) <= this.half && Math.abs(z) <= this.half;
     let minY = Infinity, maxY = -Infinity;
     for (let k = 0; k < V; k++) for (let i = 0; i < V; i++) {
       const v = k * V + i;
-      const h = T[(k + 1) * VB + (i + 1)];
+      const h = T[(k + 1) * VB + (i + 1)] - (worn ? R[(k + 1) * VB + (i + 1)] : 0);
       const gx = (T[(k + 1) * VB + i + 2] - T[(k + 1) * VB + i]) / (2 * sp), gz = (T[(k + 2) * VB + i + 1] - T[k * VB + i + 1]) / (2 * sp);
       let nx = -gx, ny = 1, nz = -gz;
       const l = Math.sqrt(nx * nx + ny * ny + nz * nz); nx /= l; ny /= l; nz /= l;
@@ -906,7 +995,14 @@ if (gWet > 0.0) {
         c3[0] *= f; c3[1] *= f * 0.97; c3[2] *= f * 0.94;
         t3[0] *= f; t3[1] *= f * 0.97; t3[2] *= f * 0.94;
       }
-      if (inMap(x, z)) this.wetAt(x, z, h, d, wet, v * 2);
+      let pot = 0;
+      if (worn) {
+        const e = ((k + 1) * VB + (i + 1)) * 5;
+        for (let c = 0; c < 4; c++) trk[v * 4 + c] = Q[e + c];
+        pot = Q[e + 4];
+      }
+      // (the water in a pothole as in a rut)
+      if (inMap(x, z)) this.wetAt(x, z, h, d + pot, wet, v * 2);
       col[v * 3] = Math.round(Math.sqrt(c3[0]) * 255); col[v * 3 + 1] = Math.round(Math.sqrt(c3[1]) * 255); col[v * 3 + 2] = Math.round(Math.sqrt(c3[2]) * 255);
       for (let c = 0; c < 3; c++) tint[v * 3 + c] = Math.min(255, Math.round(t3[c] * 255 / this.tintK));
       if (h < minY) minY = h; if (h > maxY) maxY = h;
@@ -919,6 +1015,7 @@ if (gWet > 0.0) {
       pos[dst * 3] = pos[src * 3]; pos[dst * 3 + 1] = pos[src * 3 + 1] - drop; pos[dst * 3 + 2] = pos[src * 3 + 2];
       for (let c = 0; c < 3; c++) { nor[dst * 3 + c] = nor[src * 3 + c]; col[dst * 3 + c] = col[src * 3 + c]; tint[dst * 3 + c] = tint[src * 3 + c]; }
       wet[dst * 2] = wet[src * 2]; wet[dst * 2 + 1] = wet[src * 2 + 1]; cover[dst] = cover[src];
+      if (trk) for (let c = 0; c < 4; c++) trk[dst * 4 + c] = trk[src * 4 + c];
     }
     // colours are stored gamma-2 encoded: decode in the attribute by squaring? Keep simple: convert to linear floats
     const colF = new Float32Array(nV * 3);
@@ -930,6 +1027,7 @@ if (gWet > 0.0) {
     g.setAttribute('tint', new THREE.BufferAttribute(tint, 3, true));
     g.setAttribute('wet', new THREE.BufferAttribute(wet, 2, true));
     g.setAttribute('cover', new THREE.BufferAttribute(cover, 1, true));
+    g.setAttribute('trk', trk ? new THREE.BufferAttribute(trk, 4) : this.noTrk);
     g.setIndex(this.index);
     g.boundingSphere = new THREE.Sphere(new THREE.Vector3(size / 2, (minY + maxY) / 2, size / 2), Math.sqrt(2 * (size / 2) ** 2 + ((maxY - minY + drop) / 2) ** 2));
     g.boundingBox = new THREE.Box3(new THREE.Vector3(0, minY - drop, 0), new THREE.Vector3(size, maxY, size));

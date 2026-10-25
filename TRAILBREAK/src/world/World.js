@@ -2,7 +2,8 @@
 // trees and walls to hit) and the data the renderer draws.
 //
 // Ground interface used by physics/Vehicle.js:
-//   height(x, z)                 ground height: terrain - ruts, or the top of a boulder
+//   height(x, z)                 ground height: terrain (with a worn track's ruts) - ruts pressed since, or the top of a
+//                                boulder
 //   surfaceAt(x, z)              surface record (physics/Surfaces.js)
 //   water(x, z)                  water surface height there, or -Infinity
 // (and for the renderer, waterSurface(x, z): the water's surface as it is drawn)
@@ -17,6 +18,7 @@
 
 import { SURFACES, SURFACE } from '../physics/Surfaces.js';
 import { DeformGrid } from './Deform.js';
+import { WornTracks, wearOf } from './Worn.js';
 import { NO_WATER } from './WorldGen.js';
 import { MAP_HALF, mapById } from './maps/index.js';
 import { rockTop, shapeOf } from './RockShapes.js';
@@ -37,6 +39,9 @@ export class World {
     this.H = data.heights; this.S = data.surface;
     this.W = data.water; this.WN = data.waterN; this.WR = data.waterRes;
     this.deformGrid = new DeformGrid();
+    // (a map whose tracks are worn: their ruts, hump and potholes, finer than the grid; world/Worn.js)
+    this.worn = this.map.wornTracks ? new WornTracks(this.map, this.half) : null;
+    this.wearAt = (x, z) => this.wear(x, z);
     this.props = []; this.paints = []; this.propCells = new Map();
     // the young trees (joining the map's own) and the roadside things, once the ground is there to stand them on (an
     // open world's map has them already, placed off the main thread: world/worldWorker.js)
@@ -92,8 +97,21 @@ export class World {
     });
   }
 
-  /** Terrain height without ruts or boulders (bilinear on the fine grid, the far landform outside it). */
+  /** Terrain height without ruts pressed since or boulders: the grid's, less the wear of a track there (worn). */
   terrain(x, z) {
+    const h = this.terrainBase(x, z);
+    return this.worn ? h - this.worn.depth(x, z, this.wearAt) : h;
+  }
+
+  /** How deep a track wears at (x, z) (world/Worn.js): its ground's, blended across the cells round it. */
+  wear(x, z) {
+    const fx = (x - this.origin) / this.res, fz = (z - this.origin) / this.res, i = Math.floor(fx), k = Math.floor(fz), tx = fx - i, tz = fz - k;
+    const N = this.N, S = this.S, m = (a, b) => (a < 0 || b < 0 || a >= N || b >= N ? 0 : wearOf(S[b * N + a]));
+    return (m(i, k) * (1 - tx) + m(i + 1, k) * tx) * (1 - tz) + (m(i, k + 1) * (1 - tx) + m(i + 1, k + 1) * tx) * tz;
+  }
+
+  /** The grid's height at (x, z) (bilinear on the fine grid, the far landform outside it). */
+  terrainBase(x, z) {
     const fx = (x - this.origin) / this.res, fz = (z - this.origin) / this.res;
     const N = this.N;
     if (fx < 0 || fz < 0 || fx > N - 1 || fz > N - 1) return this.farHeight(x, z);

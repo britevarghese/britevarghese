@@ -12,6 +12,8 @@ import { truckSpec, TRUCKS } from '../src/physics/trucks.js';
 import { homeOf, park } from '../src/world/homes.js';
 import { followPath, densify } from './drive.mjs';
 import { POOLS, CREEK } from '../src/world/maps/canyon.js';
+import { GAUGE } from '../src/world/Worn.js';
+import { mapById } from '../src/world/maps/index.js';
 
 const built = generateBigWorld({ yieldEvery: 1e9 });
 
@@ -236,6 +238,32 @@ test('the open world: Lalghati Canyon, a broad canyon in red rock (an open floor
   let n = 0, rock = 0, sand = 0, mud = 0;
   for (let x = -1000; x <= 1000; x += 16) for (let z = -1000; z <= 1000; z += 16) { n++; const s = w.surfaceAt(x, z).name; rock += s === 'rock'; sand += s === 'sand'; mud += s === 'mud'; }
   assert.ok(rock / n > 0.3 && sand / n > 0.08 && mud / n > 0.04, `rock ${(rock / n * 100).toFixed(0)}%, sand ${(sand / n * 100).toFixed(0)}%, mud ${(mud / n * 100).toFixed(0)}%`);
+});
+
+test('the open world: its tracks worn into the ground, two ruts either side of a hump (none on the roads, nor on the maps on their own)', async () => {
+  const W = await opened, A = W.byId.get('ashwood').world, G = A.worn;
+  assert.ok(G, 'Ashwood\'s tracks are worn');
+  // along each of Ashwood's tracks where it runs over earth: the ruts sunk below the hump between them, 5 to 40 cm
+  let n = 0, rutted = 0;
+  for (const tr of A.map.trails.filter((t) => t.kind === 'trail')) {
+    for (const [x, z] of spline(tr.points, 10)) {
+      const h = G.nearest(x, z);
+      if (!h || A.surfaceId(x, z) !== 1 || A.wear(x, z) < 0.99) continue;      // (on earth: SURFACE.DIRT)
+      const q = G.shape(h, x, z, 1), mx = x - h.ax * q.u, mz = z - h.az * q.u;
+      const hump = A.terrain(mx, mz), ruts = (A.terrain(mx + h.ax * GAUGE, mz + h.az * GAUGE) + A.terrain(mx - h.ax * GAUGE, mz - h.az * GAUGE)) / 2;
+      n++;
+      if (hump - ruts > 0.05 && hump - ruts < 0.4) rutted++;
+    }
+  }
+  assert.ok(n > 100 && rutted > 0.9 * n, `${rutted} of ${n} points on earth rutted`);
+  // the coast's roads are not: only its tracks wear
+  const C = W.byId.get('coast').world;
+  assert.equal(C.worn.lines.length, C.map.trails.filter((t) => t.kind === 'trail').length);
+  for (const tr of C.map.trails.filter((t) => t.kind === 'road').slice(0, 6)) {
+    for (const [x, z] of spline(tr.points, 25)) if (!C.worn.nearest(x, z)) assert.equal(C.terrain(x, z), C.terrainBase(x, z));
+  }
+  // and a map on its own (Ashwood, Kerala as their own maps) is as it was
+  assert.ok(!mapById('ashwood').wornTracks && !mapById('kerala').wornTracks);
 });
 
 test('the open world: the satnav finds the way from the coast to Ashwood by road, and a truck drives across the joins', async () => {

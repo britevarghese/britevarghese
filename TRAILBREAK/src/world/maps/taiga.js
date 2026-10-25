@@ -108,7 +108,7 @@ export const TAIGA = stretch({
   ...HIGHLAND, ground: 'ashwood', farWoods: 0.7, tint: taigaTint, tintRange: 2,
   // the deep mud on its tracks: a mud hole every hundred metres or so of each, and open fields of mud the tracks run
   // through (world/WorldGen.js), nearly two a km
-  puddles: 22, mudFields: 3, rockFields: 1.5, mudTracks: 0.5, looseRocks: 5,
+  puddles: 22, mudFields: 3, rockFields: 1.5, mudTracks: 0.5, wornTracks: true, looseRocks: 5,
   // its own air: fog closing in to a few hundred metres, the sky overcast, the light flat and the colours muted
   atmosphere: { fog: 0.0021, cover: 0.12 }, air: { fog: 0.0021, cover: 0.12, sun: 0.5, sat: 0.78, fade: 260 },
   mudTint: [0.24, 0.19, 0.14],
