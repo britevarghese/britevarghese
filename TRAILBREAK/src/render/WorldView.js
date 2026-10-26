@@ -25,6 +25,10 @@ import { SURFACE } from '../physics/Surfaces.js';
 
 // how near (m) the camera must come to a map's square for each of its things to be kept up to date
 const NEAR = { grass: 160, tea: 400, rocks: 700, veg: 2600, breaks: 300 };
+// how near (m) for a map's small things to be drawn at all: its breakables (saplings, posts, signs), its road paint and
+// wear (past it they are under a pixel, but each was drawn whole every frame: a million triangles and more from the maps
+// round the one we are in)
+const DRAWN = { breaks: 500, roadMarks: 1500 };
 
 /** The ground textures of each set, loaded once. */
 const grounds = new Map();
@@ -93,7 +97,7 @@ export class RegionView {
     });
     v.water = new Water(W, v.group, { holes });
     await tick();
-    const marks = new RoadMarkings(W, v.group), wear = new RoadWear(W, v.group);
+    const marks = v.marks = new RoadMarkings(W, v.group), wear = v.wear = new RoadWear(W, v.group);
     // (these never change: their arrays let go once the graphics card has them)
     for (const m of [v.water.mesh, v.water.sea, marks.mesh, wear.mesh]) onCardOnly(m);
     await tick();
@@ -178,6 +182,12 @@ export class WorldView {
         const order = [...V].sort((a, b) => a.away(camPos.x, camPos.z) - b.away(camPos.x, camPos.z));
         for (const v of order) v.terrain.update(_p.set(camPos.x - v.region.cx, camPos.y, camPos.z - v.region.cz), dir);
         self.far.update(camPos, dir);
+        // (each map's small things drawn only from near enough to see them: DRAWN)
+        for (const v of V) {
+          const d = v.away(camPos.x, camPos.z);
+          v.breakView.group.visible = d < DRAWN.breaks;
+          for (const m of [v.marks?.mesh, v.wear?.mesh]) if (m) m.visible = d < DRAWN.roadMarks;
+        }
       },
       markDirty: (perMap) => { for (const [id, keys] of perMap) self.viewOf(id)?.terrain.markDirty(keys); },
       // (the colour of the land, for the maps: whichever map holds the point, else the far land's)

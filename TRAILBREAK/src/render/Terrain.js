@@ -170,6 +170,8 @@ export class TerrainRenderer {
         uIds2: { value: new THREE.Vector2(this.layerIndex.dirt ?? -1, this.layerIndex.mud ?? -1) }, uVerge: { value: new THREE.Vector3(...(w.map.vergeTint || [1.04, 1.03, 0.98])) },
         // how strongly its steep rock stands out in beds (the map's rockBeds: Kerala's granite hardly)
         uRockBeds: { value: w.map.rockBeds ?? 1 },
+        // a map of deep mud (world/World.js softness): water standing along most of its tracks' ruts, not stretches
+        uDeepMud: { value: w.map.deepMud ? 1 : 0 },
         // and how dark the desert varnish streaked down its rock faces is (the map's varnish)
         uVarnish: { value: w.map.varnish ?? 0 },
       });
@@ -264,6 +266,7 @@ uniform float uMapHalf;
 uniform vec2 uCentre;
 uniform float uTexFar;
 uniform float uRockBeds;
+uniform float uDeepMud;
 uniform float uVarnish;
 uniform vec3 uIds;
 uniform float uSnowLine;
@@ -496,7 +499,7 @@ ${G ? `
         }
         // wet: in the mud its ruts, and water standing along stretches of them; on earth, damp in their floors
         float pn = tn(vec2(s * 0.16, 2.3 + sign(u) * 5.0));
-        gTrkPool = smoothstep(0.08, 0.4, floorK) * smoothstep(0.4, 0.62, pn) * wm * fade;
+        gTrkPool = smoothstep(0.08, 0.4, floorK) * smoothstep(0.4 - 0.25 * uDeepMud, 0.62 - 0.25 * uDeepMud, pn) * wm * fade;
         gTrkWet = inRut * fade * (wm * 0.75 + wd * (0.12 + 0.3 * damp));
       }
     }

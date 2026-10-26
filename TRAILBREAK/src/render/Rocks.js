@@ -10,6 +10,7 @@ import { rockShape, shapeOf, ROCK_SHAPES, BLOCK_SHAPES } from '../world/RockShap
 const LODS = [4, 2, 1];                  // icosphere subdivisions: near, middle, far
 const LOD_Q = [22, 80];                  // switch at distance / size
 const FAR = 1800;
+const CULL_Q = 500;                       // a boulder past this many times its size away is under a couple of pixels: not drawn
 
 function rockGeometry(k, detail) {
   let g = new THREE.IcosahedronGeometry(1, detail);
@@ -173,7 +174,9 @@ export class Rocks {
     for (let i = 0; i < B.length; i++) {
       const b = B[i], k = this.shape[i], dx = b.x - cx, dz = b.z - cz, d2 = dx * dx + dz * dz;
       if (d2 > F2 || k < 0) continue;
-      const q = Math.sqrt(d2) / this.size[i], lod = q < LOD_Q[0] ? 0 : q < LOD_Q[1] ? 1 : 2;
+      const q = Math.sqrt(d2) / this.size[i];
+      if (q > CULL_Q) continue;
+      const lod = q < LOD_Q[0] ? 0 : q < LOD_Q[1] ? 1 : 2;
       const mesh = this.meshes[k][lod], n = mesh.count++, M = mesh.instanceMatrix.array, T = mesh.instanceColor.array;
       for (let j = 0, o = n * 16, s = i * 16; j < 16; j++) M[o + j] = S[s + j];
       T[n * 3] = C[i * 3]; T[n * 3 + 1] = C[i * 3 + 1]; T[n * 3 + 2] = C[i * 3 + 2];

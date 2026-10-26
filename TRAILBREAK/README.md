@@ -790,7 +790,9 @@ Everything that makes off-roading off-roading is simulated, not faked:
   track in the thaw): the tyres go down about twice as far, to 0.53 m at most, and a truck wallows through at half
   the speed, flat out in low range (at part throttle in high a UAZ sits in its own holes). It is that deep on the
   level and in the hollows, where the water stands; a bank drains, its mud a slick skin over firmer ground, so from a
-  grade of 6% to 16% it thins to its kind's (`src/world/World.js` softness, deepAt).
+  grade of 6% to 16% it thins to its kind's (`src/world/World.js` softness, deepAt). Water stands along most of the
+  length of its tracks' worn ruts, not in stretches. (Ruts worn deeper there, up to 18 cm, left a stock UAZ hung up on
+  the hump between them on both its rallies: they are as deep as anywhere's mud.)
 - **Tyres:** each tyre is drawn pressed flat where it meets the ground, by as much as the load deflects it in the
   physics, its sidewall bulging out beside the flat patch, so an aired-down tyre on rock squats on it instead of the
   rock showing through a round tyre; and it cakes with mud in mud, snow, sand and wet riverbeds (more when it spins),
@@ -881,7 +883,10 @@ Everything that makes off-roading off-roading is simulated, not faked:
   while it loads; `src/render/Terrain.js` grow), the canyon's ledges 2.5 ms (a strip at a time), the minimap's
   close-up 1.5 ms, and the boulders sorted into their levels of detail one map a frame, only the ones drawn sent to
   the graphics card; and the ground's patches reuse the arrays of those let go, so less garbage stalls the game as it
-  is collected. Down Lalghati's gorge at 90 km/h (the game's own work a frame, in headless Chromium) the slowest 1% of
+  is collected. A map's small things are drawn only from near enough to see them: its breakables (saplings, posts,
+  signs) from within 500 m of it, its road paint and wear from within 1.5 km (from the canyon, the maps round it drew a
+  million and more triangles of them, every frame, each under a pixel), and a boulder from within 500 times its own
+  size: a frame in the canyon is some 2.2 million triangles in 290 draws, not 4.1 to 4.8 million in 340 to 390. Down Lalghati's gorge at 90 km/h (the game's own work a frame, in headless Chromium) the slowest 1% of
   frames went from 24 ms to 11.5 ms and the worst from 107 ms to 19 ms.
 - **Winch:** a steel line with a stall-limited motor (line speed falls with load). Hook a tree to pull yourself
   out, or hook a friend's truck: your truck holds on its brakes and theirs feels the line tension.
