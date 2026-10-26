@@ -12,12 +12,12 @@
 import { hash2, vnoise } from './Noise.js';
 import { spline } from './WorldGen.js';
 
-const STEP = 1;                 // the grid the walls are traced on (m)
+const STEP = 2;                 // the grid the walls are traced on (m: the ground's own)
 const SPACING = 1.2;            // points along a strip (m)
 
 const TRACKS = new WeakMap();
 /** A world's tracks, as they are laid (every 2 m along them), each with its half-width: made once a world. */
-function tracksOf(world) {
+export function tracksOf(world) {
   let T = TRACKS.get(world);
   if (!T) TRACKS.set(world, (T = (world.map.trails || []).map((t) => ({ pts: spline(t.points, 2), hw: (t.width ?? 3) / 2 }))));
   return T;
@@ -32,80 +32,117 @@ function tracksOf(world) {
  * Each strip: { level, pts: [x, y, z, ...], out: [nx, nz, ...] (out from the face), sl: [slope, ...], jut, thick }.
  */
 export function ledgeStrips(world, x0, z0, size, spec) {
+  const it = ledgeSteps(world, x0, z0, size, spec);
+  for (;;) { const r = it.next(); if (r.done) return r.value; }
+}
+
+/**
+ * ledgeStrips a step at a time (a generator: each next() a line's worth of the work, a millisecond or so, the strips its
+ * return value), for a renderer to spread over its frames.
+ */
+export function* ledgeSteps(world, x0, z0, size, spec) {
+  // (the ground's grid heights: the rock's fine relief over them is no matter to where a bed's lip runs)
   const n = Math.round(size / STEP) + 1, H = new Float32Array(n * n), U = new Float32Array(n * n), G = new Float32Array(n * n);
-  for (let k = 0; k < n; k++) for (let i = 0; i < n; i++) {
-    const x = x0 + i * STEP, z = z0 + k * STEP, h = world.terrain(x, z);
-    H[k * n + i] = h; U[k * n + i] = spec.bed(x, z, h);
+  const base = (world.terrainBase || world.terrain).bind(world);
+  for (let k = 0; k < n; k++) {
+    for (let i = 0; i < n; i++) H[k * n + i] = base(x0 + i * STEP, z0 + k * STEP);
+    if ((k & 7) === 7) yield;
   }
+  let steep = 0;
   for (let k = 0; k < n; k++) for (let i = 0; i < n; i++) {
     const a = H[k * n + Math.max(0, i - 1)], b = H[k * n + Math.min(n - 1, i + 1)], c = H[Math.max(0, k - 1) * n + i], d = H[Math.min(n - 1, k + 1) * n + i];
-    G[k * n + i] = Math.hypot((b - a) / (STEP * (i > 0 && i < n - 1 ? 2 : 1)), (d - c) / (STEP * (k > 0 && k < n - 1 ? 2 : 1)));
+    steep = Math.max(steep, G[k * n + i] = Math.hypot((b - a) / (STEP * (i > 0 && i < n - 1 ? 2 : 1)), (d - c) / (STEP * (k > 0 && k < n - 1 ? 2 : 1))));
   }
-  // (the points of the tracks near the square, and how far a point is from the nearest one's edge)
+  if (steep < spec.minSlope) return [];                       // (no wall in it)
+  yield;
+  // (the beds: only those the steep ground in it crosses)
+  let umin = Infinity, umax = -Infinity;
+  for (let k = 0; k < n; k++) {
+    for (let i = 0; i < n; i++) {
+      const o = k * n + i, u = U[o] = spec.bed(x0 + i * STEP, z0 + k * STEP, H[o]);
+      if (G[o] >= spec.minSlope * 0.8) { umin = Math.min(umin, u); umax = Math.max(umax, u); }
+    }
+    if ((k & 7) === 7) yield;
+  }
+  // (the points of the tracks near the square, and whether a point is within spec.clear and a few metres of one's edge)
   const reach = (spec.clear ?? 8) + 8, near = [];
   for (const { pts, hw } of tracksOf(world)) {
     for (const [x, z] of pts) if (x > x0 - reach && x < x0 + size + reach && z > z0 - reach && z < z0 + size + reach) near.push(x, z, hw);
   }
-  const trackD = (x, z) => {
-    let d = Infinity;
-    for (let j = 0; j < near.length; j += 3) d = Math.min(d, Math.hypot(x - near[j], z - near[j + 1]) - near[j + 2]);
-    return d;
+  const keep = (spec.clear ?? 8) + 3.6;
+  const nearTrack = (x, z) => {
+    for (let j = 0; j < near.length; j += 3) {
+      const dx = x - near[j], dz = z - near[j + 1], r = keep + near[j + 2];
+      if (dx * dx + dz * dz < r * r) return true;
+    }
+    return false;
   };
-  let umin = Infinity, umax = -Infinity;
-  for (const u of U) { umin = Math.min(umin, u); umax = Math.max(umax, u); }
   const strips = [];
-  spec.levels.forEach((lv, li) => {
+  for (let li = 0; li < spec.levels.length; li++) {
+    const lv = spec.levels[li];
     for (let bed = Math.floor(umin - lv.at); bed + lv.at <= umax; bed++) {
       const L = bed + lv.at;
+      yield;
       for (const line of contour(U, G, n, L, spec.minSlope)) {
         const pts = line.map(([gi, gk]) => [x0 + gi * STEP, z0 + gk * STEP]);
-        strips.push(...blocks(world, pts, lv, li, bed, spec, trackD));
+        strips.push(...blocks(world, pts, lv, li, bed, spec, nearTrack));
+        yield;
       }
     }
-  });
+  }
   return strips;
 }
 
-/** Marching squares: the lines where the field U crosses L, through cells steep enough (as grid coordinates), chained. */
+/**
+ * Marching squares: the lines where the field U crosses L, through cells steep enough (as grid coordinates), chained.
+ * (Each crossing is known by the grid edge it is on, which the two cells either side of it share.)
+ */
 function contour(U, G, n, L, minSlope) {
-  const segs = [];
   const at = (i, k) => U[k * n + i] - L;
-  const edge = (i0, k0, i1, k1) => { const a = at(i0, k0), b = at(i1, k1), t = a / (a - b); return [i0 + (i1 - i0) * t, k0 + (k1 - k0) * t]; };
+  // the edges: (i, k) to (i + 1, k) is 2 (k n + i), (i, k) to (i, k + 1) the next
+  const point = (e) => {
+    const c = e >> 1, i = c % n, k = (c - i) / n, i1 = e & 1 ? i : i + 1, k1 = e & 1 ? k + 1 : k, a = at(i, k), t = a / (a - at(i1, k1));
+    return [i + (i1 - i) * t, k + (k1 - k) * t];
+  };
+  const segs = [], ends = new Map();
+  const seg = (e0, e1) => {
+    const j = segs.length;
+    segs.push(e0, e1);
+    for (const e of [e0, e1]) { const l = ends.get(e); if (l) l.push(j >> 1); else ends.set(e, [j >> 1]); }
+  };
   for (let k = 0; k < n - 1; k++) for (let i = 0; i < n - 1; i++) {
-    if (Math.max(G[k * n + i], G[k * n + i + 1], G[(k + 1) * n + i], G[(k + 1) * n + i + 1]) < minSlope) continue;
+    const o = k * n + i;
+    if (G[o] < minSlope && G[o + 1] < minSlope && G[o + n] < minSlope && G[o + n + 1] < minSlope) continue;
     const a = at(i, k) > 0, b = at(i + 1, k) > 0, c = at(i + 1, k + 1) > 0, d = at(i, k + 1) > 0;
-    const m = (a ? 1 : 0) | (b ? 2 : 0) | (c ? 4 : 0) | (d ? 8 : 0);
-    if (m === 0 || m === 15) continue;
+    if (a === b && b === c && c === d) continue;
     // the crossings on the cell's four edges (bottom, right, top, left), paired up
-    const E = [a !== b && edge(i, k, i + 1, k), b !== c && edge(i + 1, k, i + 1, k + 1), c !== d && edge(i + 1, k + 1, i, k + 1), d !== a && edge(i, k + 1, i, k)];
-    const on = E.map((e, j) => (e ? j : -1)).filter((j) => j >= 0);
-    if (on.length === 2) segs.push([E[on[0]], E[on[1]]]);
-    else if (on.length === 4) { segs.push([E[0], E[1]]); segs.push([E[2], E[3]]); }
+    const E = [a !== b ? 2 * o : -1, b !== c ? 2 * (o + 1) + 1 : -1, c !== d ? 2 * (o + n) : -1, d !== a ? 2 * o + 1 : -1];
+    const on = E.filter((e) => e >= 0);
+    if (on.length === 2) seg(on[0], on[1]);
+    else if (on.length === 4) { seg(E[0], E[1]); seg(E[2], E[3]); }
   }
-  // chain them: each end found by its rounded position
-  const key = (p) => `${Math.round(p[0] * 1000)},${Math.round(p[1] * 1000)}`, ends = new Map();
-  segs.forEach((s, j) => { for (const p of s) { const kk = key(p); if (!ends.has(kk)) ends.set(kk, []); ends.get(kk).push(j); } });
-  const used = new Uint8Array(segs.length), lines = [];
-  for (let j = 0; j < segs.length; j++) {
+  const used = new Uint8Array(segs.length >> 1), lines = [];
+  for (let j = 0; j < used.length; j++) {
     if (used[j]) continue;
     used[j] = 1;
-    const line = [segs[j][0], segs[j][1]];
+    const line = [segs[2 * j], segs[2 * j + 1]];
     for (const dir of [1, 0]) {
       for (;;) {
-        const tip = dir ? line[line.length - 1] : line[0], next = (ends.get(key(tip)) || []).find((q) => !used[q]);
+        const tip = dir ? line[line.length - 1] : line[0], next = (ends.get(tip) || []).find((q) => !used[q]);
         if (next === undefined) break;
         used[next] = 1;
-        const s = segs[next], p = key(s[0]) === key(tip) ? s[1] : s[0];
+        const p = segs[2 * next] === tip ? segs[2 * next + 1] : segs[2 * next];
         if (dir) line.push(p); else line.unshift(p);
       }
     }
-    if (line.length >= 3) lines.push(line);
+    if (line.length >= 3) lines.push(line.map(point));
   }
   return lines;
 }
 
 /** A traced line of wall cut into blocks at its joints: each a strip of points along the face, with its jut. */
-function blocks(world, pts, lv, li, bed, spec, trackD) {
+function blocks(world, pts, lv, li, bed, spec, nearTrack) {
+  const base = (world.terrainBase || world.terrain).bind(world);
   // resampled evenly along the line
   const even = [pts[0]];
   let carry = 0;
@@ -127,9 +164,9 @@ function blocks(world, pts, lv, li, bed, spec, trackD) {
     if (j) arc += SPACING;
     // (off the tracks: a ledge's face no nearer a track's edge than spec.clear and a few metres, so its lip, jutting
     // out a few metres at most, stays spec.clear off)
-    const e = 0.5, gx = (world.terrain(x + e, z) - world.terrain(x - e, z)) / (2 * e), gz = (world.terrain(x, z + e) - world.terrain(x, z - e)) / (2 * e);
+    const e = 0.5, gx = (base(x + e, z) - base(x - e, z)) / (2 * e), gz = (base(x, z + e) - base(x, z - e)) / (2 * e);
     const sl = Math.hypot(gx, gz);
-    if (sl < spec.minSlope * 0.5 || trackD(x, z) < (spec.clear ?? 8) + 3.6 || spec.skip?.(x, z)) { close(); continue; }
+    if (sl < spec.minSlope * 0.5 || nearTrack(x, z) || spec.skip?.(x, z)) { close(); continue; }
     // (at a joint one block ends and the next begins: render/Ledges.js leaves the crack between them)
     if (arc >= jointAt) {
       jointAt = arc + nextJoint(x, z);

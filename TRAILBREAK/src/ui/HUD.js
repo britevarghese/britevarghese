@@ -4,6 +4,9 @@ import { micIcon } from './VoicePanel.js';
 
 const $ = (id) => document.getElementById(id);
 const TAU = Math.PI * 2;
+// (the open world's minimap close-up: LOCAL_STEP m a pixel, LOCAL_PX pixels across, drawn again once we are a quarter of
+// the way to its edge)
+const LOCAL_STEP = 1.6, LOCAL_PX = 360;
 const DISPLAY = '"Barlow Condensed", "Arial Narrow", sans-serif', BODY = 'Barlow, "Segoe UI", Arial, sans-serif';
 
 export class HUD {
@@ -443,8 +446,19 @@ export class HUD {
     g.fillStyle = '#56603f'; g.fillRect(0, 0, S, S);
     g.translate(S / 2, S / 2);
     g.rotate(-heading);
+    g.save();
     g.scale(scale / k, scale / k);
     g.drawImage(img, -(here.x - B.x0) * k, -(here.z - B.z0) * k);
+    g.restore();
+    // (and over it, round us, the land drawn finer)
+    const L = this.world.regions ? this.localMap(here) : null;
+    if (L) {
+      g.save();
+      g.scale(scale * L.step, scale * L.step);
+      g.drawImage(L.canvas, -(here.x - L.x0) / L.step, -(here.z - L.z0) / L.step);
+      g.restore();
+    }
+    g.scale(scale / k, scale / k);
     // the satnav's route
     if (route?.points?.length > 1) {
       g.beginPath();
@@ -497,6 +511,85 @@ export class HUD {
     g.restore();
   }
 
+  /**
+   * The open world's picture is 8 m a pixel, a blur at the minimap's metre and a quarter a pixel: round us, the land
+   * drawn finer (LOCAL_STEP m a pixel), and again as we go on (the last shown till it's done; drawn a little each
+   * frame, stepLocal).
+   */
+  localMap(here) {
+    const L = this.local || (this.local = { ready: null, job: null });
+    const R = L.ready, reach = LOCAL_PX * LOCAL_STEP * 0.25;
+    if (!L.job && (!R || Math.abs(here.x - R.cx) > reach || Math.abs(here.z - R.cz) > reach)) L.job = this.paintLocal(Math.round(here.x), Math.round(here.z));
+    return L.ready;
+  }
+
+  /** The minimap's close-up drawn on for a millisecond and a half (each frame). */
+  stepLocal() {
+    const L = this.local;
+    if (!L?.job) return;
+    const t = performance.now();
+    while (performance.now() - t < 1.5) { const r = L.job.next(); if (r.done) { L.ready = r.value; L.job = null; break; } }
+  }
+
+  /** The close-up round (cx, cz): the maps' ground, hill-shaded, their water, tracks, woods and buildings (a generator,
+   * a fifth of a row a step). */
+  *paintLocal(cx, cz) {
+    const S = LOCAL_PX, step = LOCAL_STEP, x0 = cx - S * step / 2, z0 = cz - S * step / 2, W = this.world, tr = this.mapTr;
+    const c = document.createElement('canvas'); c.width = S; c.height = S;
+    const x = c.getContext('2d'), img = x.createImageData(S, S), out = [0, 0, 0];
+    for (let j = 0; j < S; j++) {
+      for (let i = 0; i < S; i++) {
+        const px = x0 + (i + 0.5) * step, pz = z0 + (j + 0.5) * step, r = W.regionAt(px, pz);
+        // (the far land past the maps left to the picture under it)
+        if (!r) continue;
+        const w = r.world, lx = px - r.cx, lz = pz - r.cz, t = (a, b) => (w.terrainBase || w.terrain).call(w, a, b), hb = t(lx, lz);
+        const h = w.terrain(lx, lz), nx = -(t(lx + step, lz) - hb) / step, nz = -(t(lx, lz + step) - hb) / step;
+        tr.colorAt(px, pz, step, h, Math.hypot(nx, nz), out);
+        const shade = Math.max(0.35, Math.min(1.35, 0.92 + (nx * -0.6 + nz * -0.5) * 1.2));
+        let cr = Math.sqrt(out[0]) * shade, cg = Math.sqrt(out[1]) * shade, cb = Math.sqrt(out[2]) * shade;
+        const wl = w.water(lx, lz);
+        if (wl > -1e8 && h < wl) { cr = 0.22; cg = 0.42; cb = 0.5; }
+        const o = (j * S + i) * 4;
+        img.data[o] = Math.min(255, cr * 255); img.data[o + 1] = Math.min(255, cg * 255); img.data[o + 2] = Math.min(255, cb * 255); img.data[o + 3] = 255;
+        if (i % 72 === 71) yield;
+      }
+    }
+    x.putImageData(img, 0, 0);
+    const px = (v) => (v - x0) / step, pz = (v) => (v - z0) / step, x1 = x0 + S * step, z1 = z0 + S * step;
+    // the woods, crown by crown
+    x.fillStyle = 'rgba(42,66,32,0.55)';
+    for (const r of W.regions) {
+      if (r.cx + r.half < x0 || r.cx - r.half > x1 || r.cz + r.half < z0 || r.cz - r.half > z1) continue;
+      const T = r.world.trees;
+      x.beginPath();
+      for (let n = 0, m = T.base ?? T.count; n < m; n++) {
+        if ((n & 8191) === 8191) yield;              // (a big map has hundreds of thousands)
+        const tx = T.x[n] + r.cx, tz = T.z[n] + r.cz;
+        if (tx < x0 || tx > x1 || tz < z0 || tz > z1) continue;
+        const cr = Math.max(0.8, (T.h[n] * 0.16) / step);
+        x.moveTo(px(tx) + cr, pz(tz)); x.arc(px(tx), pz(tz), cr, 0, TAU);
+      }
+      x.fill();
+      yield;
+    }
+    // the roads and tracks, as wide as they are
+    for (const t of W.data.trails) {
+      if (!t.points.some(([qx, qz]) => qx > x0 - 50 && qx < x1 + 50 && qz > z0 - 50 && qz < z1 + 50)) continue;
+      x.beginPath();
+      t.points.forEach(([qx, qz], n) => (n ? x.lineTo(px(qx), pz(qz)) : x.moveTo(px(qx), pz(qz))));
+      x.lineJoin = 'round'; x.lineCap = 'round';
+      x.strokeStyle = t.kind === 'road' ? 'rgba(235,225,200,0.9)' : 'rgba(120,80,45,0.95)';
+      x.lineWidth = Math.max(1.5, (t.width ?? 3) / step * (t.kind === 'road' ? 1 : 0.8));
+      x.setLineDash(t.kind === 'road' ? [] : [6, 3]);
+      x.stroke();
+      yield;
+    }
+    x.setLineDash([]);
+    x.fillStyle = '#3a2a1e';
+    for (const L of W.landmarks) if (L.x > x0 && L.x < x1 && L.z > z0 && L.z < z1) x.fillRect(px(L.x) - 4, pz(L.z) - 4, 8, 8);
+    return { canvas: c, cx, cz, x0, z0, step };
+  }
+
   // ---------------------------------------------------------------- messages
   toast(text, big = false, time = 4) {
     const d = document.createElement('div');
@@ -525,6 +618,7 @@ export class HUD {
 
   update(dt) {
     this.t += dt;
+    this.stepLocal();
     if (this.hintT > 0) { this.hintT -= dt; if (this.hintT <= 0) this.hintEl.classList.remove('show'); }
   }
 }

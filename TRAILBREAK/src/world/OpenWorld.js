@@ -160,6 +160,7 @@ export class OpenWorld {
   waterSurface(x, z) { const r = this.regionAt(x, z); return r ? r.world.waterSurface(x - r.cx, z - r.cz) : -Infinity; }
   boulderTop(x, z) { const r = this.regionAt(x, z); return r ? r.world.boulderTop(x - r.cx, z - r.cz) : -Infinity; }
   maxSinkAt(x, z) { const r = this.regionAt(x, z); return r ? r.world.maxSinkAt(x - r.cx, z - r.cz) : 0; }
+  softness(x, z) { const r = this.regionAt(x, z); return r ? r.world.softness(x - r.cx, z - r.cz) : 1; }
   deform(x, z, fx, fz, hw, hl, press, dig) { const r = this.regionAt(x, z); return r ? r.world.deform(x - r.cx, z - r.cz, fx, fz, hw, hl, press, dig) : 0; }
 
   /**
@@ -171,21 +172,32 @@ export class OpenWorld {
    * the nearest fade out of it smoothly.
    */
   farHeight(x, z) {
-    if (this.farD?.length !== this.regions.length) this.farD = new Float64Array(this.regions.length);
-    const D = this.farD;
+    const n = this.regions.length;
+    if (this.farD?.length !== n) { this.farD = new Float64Array(n); this.farW = new Float64Array(n); }
+    const D = this.farD, Wt = this.farW;
     let dmin = Infinity;
-    this.regions.forEach((r, i) => {
-      const ex = Math.max(0, Math.abs(x - r.cx) - r.half), ez = Math.max(0, Math.abs(z - r.cz) - r.half);
-      D[i] = Math.hypot(ex, ez); dmin = Math.min(dmin, D[i]);
-    });
+    for (let i = 0; i < n; i++) {
+      const r = this.regions[i], ex = Math.max(0, Math.abs(x - r.cx) - r.half), ez = Math.max(0, Math.abs(z - r.cz) - r.half);
+      D[i] = Math.sqrt(ex * ex + ez * ez); if (D[i] < dmin) dmin = D[i];
+    }
+    let wmax = 0;
+    for (let i = 0; i < n; i++) {
+      const d = D[i], t = Math.min(1, Math.max(0, (d - dmin - 1500) / 1500));
+      Wt[i] = (1 - t * t * (3 - 2 * t)) / (1 + d * d); if (Wt[i] > wmax) wmax = Wt[i];
+    }
+    // (a map whose weight is under a ten-thousandth of the nearest's adds nothing to see: left out, faded out over
+    // a decade of weight so the land doesn't step where it drops out; and a map's own edge matters only within a
+    // kilometre or so of it, FAR_FADE)
     let h = 0, wsum = 0;
-    this.regions.forEach((r, i) => {
-      const d = D[i], t = Math.min(1, Math.max(0, (d - dmin - 1500) / 1500)), w = (1 - t * t * (3 - 2 * t)) / (1 + d * d);
-      if (w <= 0) return;
-      const lx = x - r.cx, lz = z - r.cz, W = r.world, ox = Math.max(-r.half, Math.min(r.half, lx)), oz = Math.max(-r.half, Math.min(r.half, lz));
-      const f = W.farHeight(lx, lz) + (W.terrain(ox, oz) - W.farHeight(ox, oz)) * Math.exp(-d / FAR_FADE);
+    for (let i = 0; i < n; i++) {
+      const q = Wt[i] / wmax, k = q >= 1e-3 ? 1 : q <= 1e-4 ? 0 : (q - 1e-4) / 9e-4;
+      if (k <= 0) continue;
+      const r = this.regions[i], d = D[i], w = Wt[i] * k * k * (3 - 2 * k);
+      const lx = x - r.cx, lz = z - r.cz, W = r.world, fade = Math.exp(-d / FAR_FADE);
+      let f = W.farHeight(lx, lz);
+      if (fade > 1e-3) { const ox = Math.max(-r.half, Math.min(r.half, lx)), oz = Math.max(-r.half, Math.min(r.half, lz)); f += (W.terrain(ox, oz) - W.farHeight(ox, oz)) * fade; }
       h += f * w; wsum += w;
-    });
+    }
     return wsum > 0 ? h / wsum : 0;
   }
 

@@ -37,7 +37,9 @@ Dark glass panels over the game, an orange accent and condensed italic type (Bar
   held at its edge when they are to the side or behind you) and the next gate on it;
   top right, whether you are online (and your ping), your name and driver level, how many are in the room, and the
   menu. Bottom left, the minimap turns with the truck (the N on its rim shows where north is; tap it for the full
-  map). Bottom right, one dial: the revs round the rim (red past the redline), the speed in the middle, the gear
+  map); in the open world the land round you is drawn at 1.6 m a pixel, its tracks as wide as they are, its woods
+  crown by crown, sharp, not the whole world's 8 m picture blown up, and drawn again a couple of milliseconds a
+  frame as you go on. Bottom right, one dial: the revs round the rim (red past the redline), the speed in the middle, the gear
   under it (D and which gear in the automatic), the 2WD / 4WD / 4LO badge beside it, and the range, lockers, gearbox
   and tyre pressure under it, each with the key that works it on a keycap below (L, X, G, P; 4 in the badge; B under
   SWAY OFF, Y under what is broken, to fit the spare). Your **level** comes from all the money you have ever earned (level 2 at $1,000, 3 at
@@ -435,8 +437,8 @@ puts you back at the last checkpoint passed, facing the next, while the clock ru
 | Bhimashankar Jungle Road | Bhimashankar | 1.5 km down the jungle valley from the rest house towards Koyna | 1:45 / 2:05 / 2:35 |
 | Deccan Ghat Descent | Deccan | 1.1 km off Kerala's ridge, through the gap in the escarpment and down to the expressway | 1:47 / 2:08 / 2:38 |
 | Tamhini Road | Deccan | 5.6 km from Shivapur south over the farmland plateau to the world's southern edge | 7:48 / 9:21 / 11:32 |
-| Timber Run | Bearwood Taiga | 1.2 km from the timber camp across the Bearwood at the ford and up the mud of the logging track to the cutting | 1:55 / 2:18 / 2:50 |
-| Blackwater Crossing | Bearwood Taiga | 1.4 km round the edge of Blackwater Bog in the mud and back over the river at the west ford to the log landing (a stock UAZ needs low range up the far bank) | 2:31 / 3:01 / 3:43 |
+| Timber Run | Bearwood Taiga | 1.2 km from the timber camp across the Bearwood at the ford and up the mud of the logging track to the cutting | 3:20 / 4:00 / 4:55 |
+| Blackwater Crossing | Bearwood Taiga | 1.4 km round the edge of Blackwater Bog in the mud and back over the river at the west ford to the log landing (a stock UAZ needs low range up the far bank, and in the deep mud) | 4:05 / 4:55 / 6:00 |
 | Lalghati Canyon Run | Lalghati Canyon | 1.3 km down the canyon floor from the base between the red walls, past the mouth of Hidden Creek and through the river at the shallows | 2:15 / 2:42 / 3:20 |
 | Ledge Road Climb | Lalghati Canyon | 1.1 km up the shelf road cut along the canyon's south wall, round the bend and up the west wall to the rim, a hundred metres up | 2:05 / 2:30 / 3:05 |
 | Coast to Snow | Open world | 18.6 km across the whole world, 16 checkpoints: up the Kashid ghat, over the Konkan Ghat into Kerala, through the town and the tea, up the Kurinji jeep track, over the Ashwood Pass and down to the ranger station | 26:15 / 31:29 / 38:50 |
@@ -669,10 +671,13 @@ the colours of the real car's (the 930's tan leather, the STi's blue cloth, the 
 CSL's red stripes). From the driver's seat the body's inside is trim, not paint, and the side glass is clear (it caught
 the sky white).
 
-**The mirrors** work from the driver's seat: the rear-view mirror and both door mirrors show what is behind, each a
-picture drawn from where the driver's eye is reflected behind its glass (through the glass's own rectangle, so the
-whole picture lands on it), set as a driver sets them. They are small pictures, drawn one mirror a frame (every other
-frame on medium graphics; on low the glass stays dark), and only from the driver's seat (`src/render/Mirrors.js`). The
+**The mirrors** work in every view: the rear-view mirror and both door mirrors show what is behind, each a picture
+drawn from where the eye looking at it (the camera's) is reflected behind its glass (through the glass's own
+rectangle, so the whole picture lands on it), set as a driver sets them. They are small pictures, drawn one mirror a
+frame (every other frame on medium graphics), and only for a glass big enough on the screen to show one (the driver's
+seat, the bonnet; a door mirror close by in the chase view). A glass smaller than that, every mirror on low graphics,
+and other players' cars' mirrors are polished glass giving back the sky and the world round the truck, not a dark pane
+(`src/render/Mirrors.js`). The
 door mirrors' glass was found in each model (the part standing out from the side ahead of the door, its face turned
 back). `python3 -I tools/cockpits/interiors.py .` measures every car (`cabmeasure.py`, `mirrors.py`) and writes its
 `layout.interior` into `tools/cars/<id>.json` and `public/assets/trucks/<id>.json`. Every 4x4 has them too
@@ -781,7 +786,17 @@ Everything that makes off-roading off-roading is simulated, not faked:
   deeper. The soil sinks under the load a tyre carries, not under each jolt of it, so a fast truck doesn't hammer
   itself into its own ruts; wet mud also drags harder the faster you plough through it. Ruts stay in the ground for the
   next truck (where soft ground meets firm, a rut runs out up a ramp), and friends' trucks press their ruts into your
-  ground too.
+  ground too. A map's mud can be deeper than its kind (`deepMud`, Bearwood Taiga's 2.2 times as soft, as a logging
+  track in the thaw): the tyres go down about twice as far, to 0.53 m at most, and a truck wallows through at half
+  the speed, flat out in low range (at part throttle in high a UAZ sits in its own holes). It is that deep on the
+  level and in the hollows, where the water stands; a bank drains, its mud a slick skin over firmer ground, so from a
+  grade of 6% to 16% it thins to its kind's (`src/world/World.js` softness, deepAt).
+- **Tyres:** each tyre is drawn pressed flat where it meets the ground, by as much as the load deflects it in the
+  physics, its sidewall bulging out beside the flat patch, so an aired-down tyre on rock squats on it instead of the
+  rock showing through a round tyre; and it cakes with mud in mud, snow, sand and wet riverbeds (more when it spins),
+  in clumps thicker on the tread, washing off in water and slowly flung off a fast tyre on firm ground
+  (`src/render/TruckModel.js` tyreMaterial, flexTyres). Behind each rim's spokes are the brake disc and its dust
+  shield, and the tyre's beads sit under the rim's lip, so nothing behind the wheel shows through it.
 - **Water:** buoyancy and drag on the hull, extra rolling resistance, and the air intake: water there chokes the
   engine (on Cosmetic damage it keeps running on a third of its power; on Forgiving and Realistic it stops until it
   is out again). The water lifts the hull in the middle of its part under water, so a truck deep enough to float sits
@@ -853,12 +868,21 @@ Everything that makes off-roading off-roading is simulated, not faked:
   and pink-brown rock, beside the ghat's forest of trees; now the woods climb the steep slopes too (to 48°), the bare
   rock is only on the steeper faces, and it is a grey of the rock's own brightness (the coast's red-brown laterite read
   pink through the haze) (render/Terrain.js farCover).
-- **Graphics level:** if the frame rate stays under 30 fps for two 4-second spells running, the game steps the
-  graphics down a level (and says so), and once it runs at 55 fps or more for 12 s it steps back up toward the level
-  you chose (not again if the last step up was soon stepped down). Only for the session: it used to keep the lowered
+- **Graphics level:** the game holds 60 fps: if the frame rate stays under 52 fps for two 4-second spells running, it
+  steps the graphics down a level (and says so), and once it runs at a full 58-60 fps for 12 s it steps back up toward
+  the level you chose (not again if the last step up was soon stepped down). Only for the session: it used to keep the lowered
   level as your setting, so one slow spell (the open world building its maps on a first visit) left the game on Low,
   with its ground textures and trees, for good. Anyone whose level was lowered that way, and who never picked one,
   gets High back once.
+- **Smooth frames:** what the open world builds as you drive is held to a few milliseconds a frame, so a frame never
+  waits on it: the ground's patches 4 ms a frame across all the maps drawn (a coarse patch of the far land, each of
+  its vertices sampling every map round it, built over several frames, the coarser one it replaces drawn till then;
+  the far land round a map coming in made again a patch at a time, not all at once; a map's coarsest ground made
+  while it loads; `src/render/Terrain.js` grow), the canyon's ledges 2.5 ms (a strip at a time), the minimap's
+  close-up 1.5 ms, and the boulders sorted into their levels of detail one map a frame, only the ones drawn sent to
+  the graphics card; and the ground's patches reuse the arrays of those let go, so less garbage stalls the game as it
+  is collected. Down Lalghati's gorge at 90 km/h (the game's own work a frame, in headless Chromium) the slowest 1% of
+  frames went from 24 ms to 11.5 ms and the worst from 107 ms to 19 ms.
 - **Winch:** a steel line with a stall-limited motor (line speed falls with load). Hook a tree to pull yourself
   out, or hook a friend's truck: your truck holds on its brakes and theirs feels the line tension.
 - **Steering kickback:** the forces on the front tyres turn the wheels about their kingpins (a tyre shoved back by a
@@ -1111,9 +1135,9 @@ own features made on top of it; the roads through them are routed over the groun
   | Going | Where | What it does to a truck |
   |---|---|---|
   | Gravel | the Timber Road, all of it (a trail can be laid with its own surface: `surface` on a route) | fast and loose: less grip than dirt, slides in the bends |
-  | Deep mud | the tracks across the wet ground (a fifth of the map is mud), mud holes on their level stretches | the tyres sink up to 0.36 m and dig in when they spin; the faster you plough, the harder it drags |
+  | Deep mud | the tracks across the wet ground (a fifth of the map is mud), mud holes on their level stretches | deep mud (`deepMud` 2.2): the tyres sink up to 0.53 m and dig in when they spin; the faster you plough, the harder it drags |
   | Mud fields | nine open flats of churned mud 60 to 100 m across that the tracks run through, pools standing in their low spots | the whole field to plough across, or round its edge; no trees on them |
-  | The Mud Pit | by the camp: a borrow pit dug a metre down, 0.36 m of water over the mud | a Thar, a Wrangler and a UAZ all wallow through at walking pace (90 m in 32 to 38 s), 0.6 m down |
+  | The Mud Pit | by the camp: a borrow pit dug a metre down, 0.36 m of water over the mud | a Thar, a Wrangler and a UAZ all wallow through in low range, flat out (90 m in 15 to 28 s, the UAZ slowest), their tyres 0.3 m down in the mud |
   | Swamp | Blackwater Bog: its lowest third under black pools up to 0.4 m deep, the tracks kept dry round it | mud under water: the tyres sink and slip, and the water drags |
   | Shallow fords | the Bearwood Ford and the west ford, 0.4 m over a riverbed of stones | wet but firm; the banks up out of them are steep (the west ford's north bank: a stock UAZ needs low range) |
   | Deep ford | the Deep Ford, 1.02 m over the ford's bed and deeper either side of it | a stock air intake (0.95 m) goes under: a stock Thar or Wrangler gets across with its engine choked to 35% of its power (cosmetic damage, the default; on the stricter settings it stalls); with the snorkel (garage) it pulls at full power; the Yangwang U8's intake is at 1.72 m |

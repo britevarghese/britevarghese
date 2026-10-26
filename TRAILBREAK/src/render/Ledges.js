@@ -4,13 +4,13 @@
 // the ground textures, banded in the map's strata colours, darker under the lips and streaked with desert varnish
 // down the faces.
 import * as THREE from 'three';
-import { ledgeStrips } from '../world/Ledges.js';
+import { ledgeSteps, tracksOf } from '../world/Ledges.js';
 import { rockMaterial } from './Rocks.js';
 
 const CHUNK = 64;              // m square
 const NEAR = 250, KEEP = 330;  // built out to, kept out to (m)
 const SHADOW = 140;            // casting shadows out to (m)
-const BUDGET = 2;              // squares built a frame
+const SLICE = 2.5;             // ms a frame given to building them (a square takes a few frames' slices)
 
 /**
  * A block's cross-section, out from the face (s) and up (v) from its lip's line on the face: the top running back
@@ -25,8 +25,14 @@ function profile(jut, thick, sl) {
   };
 }
 
-/** The mesh of a square's strips (null if it has none). */
-function build(strips, tint) {
+/** A square's strips (world/Ledges.js), then their mesh (null if it has none), a step at a time: a strip a step. */
+function* chunkSteps(world, x, z, size, spec, tint) {
+  const strips = yield* ledgeSteps(world, x, z, size, spec);
+  return yield* build(strips, tint);
+}
+
+/** The mesh of a square's strips (null if it has none), a strip a step. */
+function* build(strips, tint) {
   const pos = [], nor = [], col = [], ao = [], idx = [];
   const c = [1, 1, 1];
   for (const s of strips) {
@@ -79,6 +85,7 @@ function build(strips, tint) {
         if ((dir > 0) !== flip) idx.push(base, base + q, base + q + 1); else idx.push(base, base + q + 1, base + q);
       }
     }
+    yield;
   }
   if (!idx.length) return null;
   const g = new THREE.BufferGeometry();
@@ -101,9 +108,11 @@ export class Ledges {
     const M = world.map;
     this.tint = (x, z, y, c) => M.tint?.(x, z, 'rock', y, c);
     this.shadows = true;
+    this.job = null;
+    tracksOf(world);                                          // (made now, while the map loads, not at the first square)
   }
 
-  /** The squares near the camera built, a couple a frame (nearest first); those far off let go. */
+  /** The squares near the camera built, nearest first, a slice of a frame's time at a time; those far off let go. */
   update(camera) {
     const cam = camera.position, H = this.world.half;
     const want = [];
@@ -118,16 +127,30 @@ export class Ledges {
       if (!this.chunks.has(key)) want.push([d, key, x0, z0]);
     }
     want.sort((a, b) => a[0] - b[0]);
-    for (const [, key, x0, z0] of want.slice(0, BUDGET)) {
-      const x1 = Math.max(x0, -H), z1 = Math.max(z0, -H), sz = Math.min(x0 + CHUNK, H) - x1;
-      const g = build(ledgeStrips(this.world, x1, z1, Math.min(sz, Math.min(z0 + CHUNK, H) - z1), this.spec), this.tint);
+    // (the square being built: on with it, or the nearest wanted; given up if it has fallen out of range)
+    if (this.job && !want.some((w) => w[1] === this.job.key)) this.job = null;
+    const t0 = performance.now();
+    while (performance.now() - t0 < SLICE) {
+      if (!this.job) {
+        if (!want.length) break;
+        const [, key, x0, z0] = want.shift(), x1 = Math.max(x0, -H), z1 = Math.max(z0, -H);
+        const sz = Math.min(Math.min(x0 + CHUNK, H) - x1, Math.min(z0 + CHUNK, H) - z1);
+        this.job = { key, x: x0 + CHUNK / 2, z: z0 + CHUNK / 2, it: chunkSteps(this.world, x1, z1, sz, this.spec, this.tint) };
+      }
+      const r = this.job.it.next();
+      if (!r.done) continue;
+      const g = r.value;
       let mesh = null;
       if (g) {
         mesh = new THREE.Mesh(g, this.material);
         mesh.receiveShadow = true;
         this.scene.add(mesh);
       }
-      this.chunks.set(key, { mesh, x: x0 + CHUNK / 2, z: z0 + CHUNK / 2 });
+      this.chunks.set(this.job.key, { mesh, x: this.job.x, z: this.job.z });
+      const done = this.job.key;
+      this.job = null;
+      const at = want.findIndex((w) => w[1] === done);
+      if (at >= 0) want.splice(at, 1);
     }
     for (const [key, ch] of this.chunks) {
       const d = Math.hypot(ch.x - cam.x, ch.z - cam.z);
@@ -144,5 +167,6 @@ export class Ledges {
   release() {
     for (const ch of this.chunks.values()) if (ch.mesh) { this.scene.remove(ch.mesh); ch.mesh.geometry.dispose(); }
     this.chunks.clear();
+    this.job = null;
   }
 }

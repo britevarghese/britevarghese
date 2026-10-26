@@ -23,9 +23,9 @@ import { graded } from './seams.js';
 import { ridged } from '../Noise.js';
 import { clamp, lerp, smoothstep, fbm, vnoise, lineD, plant, alpine, ALPINE, HIGHLAND, stretch, trailsOf } from './country.js';
 
-/** Its rallies' par times (seconds): a careful driver in three stock trucks, gold about the best of them (the UAZ needs low
- * range up the west ford's north bank). */
-const PAR = { timberrun: { gold: 115, silver: 138, bronze: 170 }, blackwater: { gold: 151, silver: 181, bronze: 223 } };
+/** Its rallies' par times (seconds): a careful driver in three stock trucks, gold about the best of them, through the
+ * deep mud (the UAZ needs low range in it, and up the west ford's north bank). */
+const PAR = { timberrun: { gold: 200, silver: 240, bronze: 295 }, blackwater: { gold: 245, silver: 295, bronze: 360 } };
 
 /** The taiga's centre in the world (a 2 km square north of Koyna Glen). */
 export const TAIGA_AT = [5024, -6844];
@@ -106,9 +106,11 @@ export const TAIGA = stretch({
   station: { x: 150, z: 410, name: 'Bearwood Timber Camp' }, spawn: { x: 150, z: 445, yaw: Math.PI }, dealer: 'Bearwood Timber Camp',
   load: () => COAST.load(), baseHeight: taigaGround, roughOf: (h) => clamp((h - 80) / 200, 0.25, 0.85),
   ...HIGHLAND, ground: 'ashwood', farWoods: 0.7, tint: taigaTint, tintRange: 2,
-  // the deep mud on its tracks: a mud hole every hundred metres or so of each, and open fields of mud the tracks run
-  // through (world/WorldGen.js), nearly two a km
-  puddles: 22, mudFields: 3, rockFields: 1.5, mudTracks: 0.5, wornTracks: true, rockRelief: true, looseRocks: 5,
+  // the deep mud on its tracks: three quarters of their level stretches churned to mud (mudTracks), a mud hole every
+  // hundred metres or so of each, and open fields of mud the tracks run through (world/WorldGen.js), nearly two a km
+  puddles: 22, mudFields: 3, rockFields: 1.5, mudTracks: 0.75, wornTracks: true, rockRelief: true, looseRocks: 5,
+  // its mud deep, as on a logging track in the thaw: a truck sinks to its axles in it (world/World.js softness)
+  deepMud: 2.2,
   // its own air: fog closing in to a few hundred metres, the sky overcast, the light flat and the colours muted
   atmosphere: { fog: 0.0021, cover: 0.12 }, air: { fog: 0.0021, cover: 0.12, sun: 0.5, sat: 0.78, fade: 260 },
   mudTint: [0.24, 0.19, 0.14],

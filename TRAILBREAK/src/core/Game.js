@@ -23,6 +23,7 @@ import { ModeView } from '../render/ModeView.js';
 import { windowGlow } from '../render/KeralaBuildings.js';
 import { seeThrough } from '../render/Vegetation.js';
 import { retroLights } from '../render/RoadMarkings.js';
+import { beginTerrainFrame } from '../render/Terrain.js';
 import { Builder } from '../ui/Builder.js';
 import { encodeLayout, decodeLayout } from '../game/Props.js';
 
@@ -1378,6 +1379,7 @@ export class Game {
     if (m.gauges && this.cam.mode === 'cab') m.updateGauges(v.dt.rpm, Math.abs(v.speed) * 3.6, v.dt.gear < 0 ? 'R' : v.dt.gear === 0 ? 'N' : String(v.dt.gear));
     m.handWheel = this.input.enabled ? ctrl.wheelTurn ?? null : null;
     m.updateWheels([0, 1, 2, 3].map((i) => v.wheelState(i)), dt);
+    m.flexTyres(v.wheels, dt);
     const night = this.renderer.night;
     windowGlow(this.renderer.dark || 0);                             // (the villages' lit windows)
     const lights = this.lightsOn || night;
@@ -1423,6 +1425,7 @@ export class Game {
     // (a custom race's own arches show while it is run: the builder's markers step aside)
     this.builder.view.setMarkersVisible(!(this.events.run?.event.custom && this.events.run.phase !== 'finished'));
     const camPos = this.renderer.camera.position;
+    beginTerrainFrame(4);                                          // (the ground built a few ms a frame: render/Terrain.js)
     this.terrain.update(camPos, this.renderer.camera.getWorldDirection(this._viewDir || (this._viewDir = new THREE.Vector3())));
     seeThrough(camPos, this.cam.look, !this.building && this.cam.orbit ? 1 : 0);
     this.vegetation.update(this.renderer.camera, dt);
@@ -1501,10 +1504,11 @@ export class Game {
     if (this.mapOpen) this.worldMap.draw();
 
     this.touch?.update(this);
-    // the mirrors, while they can be seen (from the driver's seat): one drawn a frame (every other on medium graphics)
+    // the mirrors, in whichever view, those big enough on the screen: one picture drawn a frame (every other on medium
+    // graphics, none on low: polished glass)
     const q = this.quality();
-    if (m.mirrors && this.cam.mode === 'cab' && q !== 'low' && !this.noRender) {
-      m.mirrors.update(this.renderer.renderer, this.scene, this.renderer.camera.position, q === 'high' ? 1 : 2, [...(this.grass.meshes || [this.grass.mesh]), this.tea?.mesh].filter(Boolean));
+    if (m.mirrors && !this.noRender) {
+      m.mirrors.update(this.renderer.renderer, this.scene, this.renderer.camera, q === 'high' ? 1 : q === 'medium' ? 2 : 0, [...(this.grass.meshes || [this.grass.mesh]), this.tea?.mesh].filter(Boolean));
     }
     if (!this.noRender) this.renderer.render();
     this.perf(dt);
@@ -1538,9 +1542,10 @@ export class Game {
   }
 
   /**
-   * Watch the frame rate: step the graphics down if it can't keep up (two slow 4 s spells running, so one hitch, such
-   * as the open world building a map, doesn't), and back up toward the chosen setting once it runs well again (unless
-   * the last step up was soon stepped down again). Only for this session: what is kept is the player's own choice.
+   * Watch the frame rate, holding it at 60: step the graphics down if it can't keep up (two 4 s spells running under
+   * 52 fps, so one hitch, such as the open world building a map, doesn't), and back up toward the chosen setting once
+   * it runs at a full 60 again (unless the last step up was soon stepped down again). Only for this session: what is
+   * kept is the player's own choice.
    */
   perf(dt) {
     const p = this.perfState || (this.perfState = { t: 0, n: 0, sum: 0, fps: 60, grace: 6, slow: 0, fast: 0, upAt: -1e9, stuck: false, clock: 0 });
@@ -1551,8 +1556,8 @@ export class Game {
     if (p.grace > 0) { p.grace -= 4; return; }
     if (this.settings.autoQuality === false || this.noRender) return;
     const LEVELS = ['low', 'medium', 'high'], now = LEVELS.indexOf(this.quality()), chosen = LEVELS.indexOf(this.settings.quality || 'high');
-    p.slow = p.fps < 30 ? p.slow + 1 : 0;
-    p.fast = p.fps >= 55 ? p.fast + 1 : 0;
+    p.slow = p.fps < 52 ? p.slow + 1 : 0;
+    p.fast = p.fps >= 58 ? p.fast + 1 : 0;
     let to = now;
     if (p.slow >= 2 && now > 0) {
       to = now - 1;

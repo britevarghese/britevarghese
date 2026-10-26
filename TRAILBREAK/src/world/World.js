@@ -259,8 +259,30 @@ export class World {
   maxSinkAt(x, z) {
     for (let n = 0; n < this.paints.length; n++) if (paintAt(this.paints[n], x, z)) return SURFACES[PROP_TYPES[this.paints[n].type].surface].maxSink;
     const fx = (x - this.origin) / this.res, fz = (z - this.origin) / this.res, i = Math.floor(fx), k = Math.floor(fz), tx = fx - i, tz = fz - k;
-    const m = (a, b) => (a < 0 || b < 0 || a >= this.N || b >= this.N ? 0 : SURFACES[this.S[b * this.N + a]].maxSink);
+    // (a map's deep mud, softness: its ruts the deeper, as the square root of how much softer it is)
+    const deep = Math.sqrt(this.deepAt(x, z));
+    const m = (a, b) => (a < 0 || b < 0 || a >= this.N || b >= this.N ? 0 : SURFACES[this.S[b * this.N + a]].maxSink * (this.S[b * this.N + a] === SURFACE.MUD ? deep : 1));
     return (m(i, k) * (1 - tx) + m(i + 1, k) * tx) * (1 - tz) + (m(i, k + 1) * (1 - tx) + m(i + 1, k + 1) * tx) * tz;
+  }
+
+  /**
+   * How much softer the ground is at (x, z) than its kind's own (1): a map's deep mud (map.deepMud: a mud-and-timber
+   * map's logging tracks and bogs, where a truck sinks to its axles), on its mud alone.
+   */
+  softness(x, z) { return this.map.deepMud && this.surfaceId(x, z) === SURFACE.MUD ? this.deepAt(x, z) : 1; }
+
+  /**
+   * How much softer a map's mud is at (x, z) (map.deepMud): all of it on the level and in the hollows, where the water
+   * stands; a bank drains, its mud a slick skin over firmer ground (from a grade of 6% to 16%, none of it).
+   */
+  deepAt(x, z) {
+    const d = this.map.deepMud;
+    if (!d || d === 1) return 1;
+    const fx = (x - this.origin) / this.res, fz = (z - this.origin) / this.res, N = this.N, H = this.H;
+    const i = Math.min(N - 2, Math.max(0, Math.floor(fx))), k = Math.min(N - 2, Math.max(0, Math.floor(fz))), o = k * N + i;
+    const gx = (H[o + 1] - H[o] + H[o + N + 1] - H[o + N]) / (2 * this.res), gz = (H[o + N] - H[o] + H[o + N + 1] - H[o + 1]) / (2 * this.res);
+    const t = Math.min(1, Math.max(0, (Math.sqrt(gx * gx + gz * gz) - 0.06) / 0.1));
+    return 1 + (d - 1) * (1 - t * t * (3 - 2 * t));
   }
 
   deform(x, z, fx, fz, hw, hl, press, dig) {

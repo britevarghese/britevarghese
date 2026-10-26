@@ -31,7 +31,8 @@ if (q.has('mirrors')) {
   // mirrors=1: the player's mirrors (its layout's), seen from the eye; mirror=x,y,z,w,h: a door mirror's glass tried there
   const I = { ...truckAsset(spec.style)?.layout.interior };
   if (q.get('mirror')) { const [x, y, z, w, h] = q.get('mirror').split(',').map(Number); I.mirrors = [{ c: [x, y, z], w, h }]; }
-  view.model.buildMirrors(I, spec);
+  view.model.mirrors?.dispose();
+  view.model.buildMirrors(I, spec, true);
 }
 if (q.get('eye')) {
   // from the driver's seat (eye=1, or eye=x,y,z in the design frame): look=yaw (rad, + to the left), down=pitch
@@ -41,7 +42,8 @@ if (q.get('eye')) {
   cam.fov = Number(q.get('fov') || 70); cam.near = 0.02; cam.updateProjectionMatrix();
   cam.position.set(e[0], y, e[2]);
   cam.lookAt(e[0] + Math.sin(lk) * Math.cos(dn), y - Math.sin(dn), e[2] + Math.cos(lk) * Math.cos(dn));
-  view.model.mirrors?.update(view.renderer, view.scene, cam.position);
+  view.scene.updateMatrixWorld(); cam.updateMatrixWorld();
+  view.model.mirrors?.update(view.renderer, view.scene, cam);
   view.renderer.render(view.scene, cam);
 } else view.frame(0);
 const info = view.renderer.info.render;

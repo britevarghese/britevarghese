@@ -476,6 +476,20 @@ test('mud: tyres leave ruts, and a spinning tyre digs deeper than a rolling one'
   assert.ok(after > before[1] + 0.08 || after >= 0.35, `dug from ${before[1].toFixed(3)} to ${after.toFixed(3)} m`);
 });
 
+test('deep mud (a map\'s deepMud, the taiga\'s): the tyres sink about twice as deep, and the truck wallows through slower', () => {
+  // (from a standing start, flat out in low range: in it a stock UAZ at part throttle in high range sits in its holes)
+  const go = (softness) => {
+    const g = soft(SURFACE.MUD, 0, softness), v = truck('ranger', g), z0 = v.pos.z;
+    v.dt.setFourWD(true, 0); v.dt.setRange(true, 0);
+    run(v, g, 10, { ...IDLE, throttle: 1 });
+    const w = v.wheels[2];
+    return { rut: g.grid.get(w.cx, w.cz - 1.5), went: v.pos.z - z0 };
+  };
+  const firm = go(1), deep = go(2.2);
+  assert.ok(deep.rut > firm.rut * 1.6, `ruts ${firm.rut.toFixed(3)} m, deep ${deep.rut.toFixed(3)} m`);
+  assert.ok(deep.went < firm.went * 0.9 && deep.went > 5, `went ${firm.went.toFixed(1)} m, deep ${deep.went.toFixed(1)} m`);
+});
+
 test('the winch drags a truck in neutral toward the anchor, and stalls at its rated pull', () => {
   const g = flat(SURFACE.MUD);
   const v = truck('ranger', g);

@@ -16,15 +16,16 @@ export function slope(deg, surface = SURFACE.DIRT, side = false) {
   };
 }
 
-/** Soft ground that keeps ruts. */
-export function soft(surface = SURFACE.MUD, h = 0) {
+/** Soft ground that keeps ruts; softness: a map's deep mud (world/World.js softness), so much softer than its kind. */
+export function soft(surface = SURFACE.MUD, h = 0, softness = 1) {
   const grid = new DeformGrid();
   const s = SURFACES[surface];
   return {
     grid,
     height: (x, z) => h - grid.get(x, z),
     surfaceAt: () => s,
-    deform: (x, z, fx, fz, hw, hl, press, dig) => grid.stamp(x, z, fx, fz, hw, hl, press, dig, () => s.maxSink),
+    softness: () => softness,
+    deform: (x, z, fx, fz, hw, hl, press, dig) => grid.stamp(x, z, fx, fz, hw, hl, press, dig, () => s.maxSink * Math.sqrt(softness)),
   };
 }
 

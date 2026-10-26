@@ -127,6 +127,7 @@ export class Rocks {
       this.meshes.push(LODS.map((d) => {
         const mesh = new THREE.InstancedMesh(rockGeometry(k, d), mat, Math.max(1, per[k]));
         mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+        mesh.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(Math.max(1, per[k]) * 3), 3);
         mesh.count = 0;
         mesh.castShadow = true;
         mesh.receiveShadow = true;
@@ -135,45 +136,58 @@ export class Rocks {
         return mesh;
       }));
     }
-    // each boulder's transform and tone, made once
-    const q = new THREE.Quaternion(), up = new THREE.Vector3(0, 1, 0);
-    this.mats = B.map((b) => new THREE.Matrix4().compose(new THREE.Vector3(b.x, b.y, b.z), q.setFromAxisAngle(up, b.yaw), new THREE.Vector3(b.rx, b.ry, b.rz)));
+    // each boulder's transform and tone, made once (in flat arrays: copied into the instances as they are sorted), and
+    // its shape (a pillar's blocks: none)
+    const q = new THREE.Quaternion(), up = new THREE.Vector3(0, 1, 0), m4 = new THREE.Matrix4();
+    this.mats = new Float32Array(B.length * 16);
+    B.forEach((b, i) => m4.compose(new THREE.Vector3(b.x, b.y, b.z), q.setFromAxisAngle(up, b.yaw), new THREE.Vector3(b.rx, b.ry, b.rz)).toArray(this.mats, i * 16));
+    this.shape = Int16Array.from(B, (b, i) => (b.pillar === undefined ? shapeOf(i, b) : -1));
     // (a map's rockTint: its rock in its own colours, render/Terrain.js's tint: a block of the bedrock in its bed's, a
     // stone in that of whichever bed it fell from)
     const tint = world.map.rockTint ? world.map.tint : null, c = [1, 1, 1];
-    this.tones = B.map((b) => {
+    this.tones = new Float32Array(B.length * 3);
+    B.forEach((b, i) => {
       const t = 0.8 + b.shade * 0.35;
-      if (!tint) return new THREE.Color(t * 1.02, t, t * 0.95);
-      c[0] = c[1] = c[2] = t;
-      tint(b.x, b.z, 'rock', b.block !== undefined ? b.y : b.y + b.shade * 60, c);
-      return new THREE.Color(c[0], c[1], c[2]);
+      c[0] = t * 1.02; c[1] = t; c[2] = t * 0.95;
+      if (tint) { c[0] = c[1] = c[2] = t; tint(b.x, b.z, 'rock', b.block !== undefined ? b.y : b.y + b.shade * 60, c); }
+      this.tones.set(c, i * 3);
     });
     this.size = B.map((b) => Math.max(b.rx, b.ry, b.rz));
+    this.half = world.half ?? Infinity;
     this.last = new THREE.Vector3(1e9, 0, 1e9);
     this.shadows = true;
   }
 
-  /** Put each boulder into the level of detail for its distance (after the camera has moved a few metres). */
+  /**
+   * Put each boulder into the level of detail for its distance, once the camera has moved a few metres (the farther
+   * it is from the map, the more: its levels change the slower). True if it did (a few milliseconds' work on a map of
+   * thousands: the open world's views take turns, one a frame).
+   */
   update(camera) {
-    const cam = camera.position;
-    if (Math.hypot(cam.x - this.last.x, cam.z - this.last.z) < 6) return;
+    const cam = camera.position, H = this.half;
+    const away = Math.hypot(Math.max(0, Math.abs(cam.x) - H), Math.max(0, Math.abs(cam.z) - H));
+    if (Math.hypot(cam.x - this.last.x, cam.z - this.last.z) < Math.max(6, away * 0.04)) return false;
     this.last.copy(cam);
     for (const lods of this.meshes) for (const m of lods) m.count = 0;
-    const B = this.boulders;
+    const B = this.boulders, cx = cam.x, cz = cam.z, F2 = FAR * FAR, S = this.mats, C = this.tones;
     for (let i = 0; i < B.length; i++) {
-      const b = B[i], d = Math.hypot(b.x - cam.x, b.z - cam.z);
-      if (d > FAR || b.pillar !== undefined) continue;
-      const q = d / this.size[i], lod = q < LOD_Q[0] ? 0 : q < LOD_Q[1] ? 1 : 2;
-      const mesh = this.meshes[shapeOf(i, b)][lod];
-      mesh.setMatrixAt(mesh.count, this.mats[i]);
-      mesh.setColorAt(mesh.count, this.tones[i]);
-      mesh.count++;
+      const b = B[i], k = this.shape[i], dx = b.x - cx, dz = b.z - cz, d2 = dx * dx + dz * dz;
+      if (d2 > F2 || k < 0) continue;
+      const q = Math.sqrt(d2) / this.size[i], lod = q < LOD_Q[0] ? 0 : q < LOD_Q[1] ? 1 : 2;
+      const mesh = this.meshes[k][lod], n = mesh.count++, M = mesh.instanceMatrix.array, T = mesh.instanceColor.array;
+      for (let j = 0, o = n * 16, s = i * 16; j < 16; j++) M[o + j] = S[s + j];
+      T[n * 3] = C[i * 3]; T[n * 3 + 1] = C[i * 3 + 1]; T[n * 3 + 2] = C[i * 3 + 2];
     }
     for (const lods of this.meshes) for (const m of lods) {
-      m.instanceMatrix.needsUpdate = true;
-      if (m.instanceColor) m.instanceColor.needsUpdate = true;
+      // (only the instances drawn sent to the graphics card, not the whole buffer)
+      const M = m.instanceMatrix, C = m.instanceColor;
+      if (m.count) {
+        M.clearUpdateRanges(); M.addUpdateRange(0, m.count * 16); M.needsUpdate = true;
+        if (C) { C.clearUpdateRanges(); C.addUpdateRange(0, m.count * 3); C.needsUpdate = true; }
+      }
       m.castShadow = this.shadows && m !== lods[2];
     }
+    return true;
   }
 
   setShadows(on) { this.shadows = on; this.last.set(1e9, 0, 1e9); }

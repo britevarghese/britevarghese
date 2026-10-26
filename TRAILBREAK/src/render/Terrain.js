@@ -34,6 +34,15 @@ const FINE = 8;                 // (rutted ground close up)
 const SPLIT_DEFAULT = 2.1;
 const MAX_CACHE = 700;
 const RUT_BUDGET = 2;           // patches with fresh ruts rebuilt a frame (the longest waiting first)
+const POOL = 48;                // sets of a patch's vertex arrays kept for the next patches (arrays)
+
+// (the patches built a frame, across every terrain drawn, by time: as many as fit in the few ms beginTerrainFrame gives,
+// and at least one; a patch the ground can't be drawn without is built whatever it costs. A frame that built a patch of
+// fine ground cost tens of ms each, several a frame driving fast: the game stuttered)
+let buildUntil = Infinity, builtThisFrame = 0;
+export function beginTerrainFrame(ms) { buildUntil = performance.now() + ms; builtThisFrame = 0; }
+const mayBuild = () => builtThisFrame === 0 || performance.now() < buildUntil;
+const timeLeft = () => performance.now() < buildUntil;
 
 // Which texture layer each surface shows (grass under the trees shows the forest floor). Colours for when the
 // textures could not be loaded.
@@ -924,7 +933,8 @@ if (gWet > 0.0) {
   wetAt(x, z, h, d, out, o) {
     const w = this.world, s = w.surfaceId(x, z);
     let wv = 0, pv = 0;
-    const base = WET[s];
+    // (a map's deep mud, world/World.js softness, the wetter: water stands in it)
+    const base = WET[s] && s === SURFACE.MUD && w.map.deepMud ? WET[s] * 1.5 : WET[s];
     if (base) {
       wv = base * (0.6 + 0.8 * vnoise(x / 13, z / 13, 911));
       if (d > 0.004) {
@@ -962,12 +972,59 @@ if (gWet > 0.0) {
     return s;
   }
 
+  /**
+   * A patch's vertex arrays: a set let go by a patch made again or dropped (release), or new ones. (A patch is some
+   * 150 kB of them: made new for every patch, driving fast, they were garbage enough to stall the game tens of ms as it
+   * was collected.)
+   */
+  arrays(nV) {
+    const a = this.pool?.pop();
+    if (a) { a.wet.fill(0); a.cover.fill(0); return a; }
+    return { pos: new Float32Array(nV * 3), nor: new Int8Array(nV * 3), col: new Uint8Array(nV * 3), tint: new Uint8Array(nV * 3), wet: new Uint8Array(nV * 2), cover: new Uint8Array(nV), baseY: new Float32Array(nV), colF: new Float32Array(nV * 3) };
+  }
+
+  /** A patch's geometry let go, its arrays kept for the next patch. */
+  release(g) {
+    g.dispose();
+    const a = g.userData.arrays;
+    if (a && (this.pool ||= []).length < POOL) this.pool.push(a);
+  }
+
+  /** Build a patch, all of it now. */
   build(node) {
+    if (this.job?.node === node) this.job = null;
+    builtThisFrame++;
+    const it = this.steps(node, false);
+    while (!it.next().done);
+  }
+
+  /**
+   * Build a patch as far as this frame's time for the ground allows (one at a time, on over the next frames: a coarse
+   * patch of the far land, each of its vertices sampling the land of every map round it, takes longer than a frame
+   * has): true once it is built. Another asked for while one is on the way waits, unless that one is no longer wanted.
+   */
+  grow(node) {
+    const J = this.job;
+    if (J && J.node !== node && J.at >= this.frame - 1) return false;
+    if (!J || J.node !== node) this.job = { node, it: this.steps(node, true), at: this.frame };
+    this.job.at = this.frame;
+    builtThisFrame++;
+    do { if (this.job.it.next().done) { this.job = null; return true; } } while (timeLeft());
+    return false;
+  }
+
+  /**
+   * A patch's geometry, made a row of its vertices a step (own: in the scratch arrays of the one patch being grown, its
+   * steps spread over frames, not those a patch built all at once uses).
+   */
+  *steps(node, own) {
     const { x0, z0, size } = node;
     const sp = size / GRID;
     const near = sp <= 1;
     // heights with a one-vertex border for the normals
-    const T = this.tmpH, VB = V + 2, D = this.tmpD, w = this.world, ruts = near && w.deformGrid.chunks.size > 0;
+    const VB = V + 2, w = this.world, ruts = near && w.deformGrid.chunks.size > 0;
+    const J = own ? (this.jobTmp ||= { H: new Float32Array(VB * VB), D: new Float32Array(V * V), E: new Float32Array((V + 6) * (V + 6)), R: new Float32Array(VB * VB), Q: new Float32Array(VB * VB * 5) }) : null;
+    const T = own ? J.H : this.tmpH, D = own ? J.D : this.tmpD;
     // (a worn track's ruts, hump and potholes, world/Worn.js: the potholes are in the heights the normals are reckoned
     // from, the ruts only in the vertices' own, the shader lighting them from their profile, which is finer than the
     // vertices out past the nearest patches; and where each vertex is on the track, trk, for the shader. So too bare
@@ -975,9 +1032,10 @@ if (gWet > 0.0) {
     // closer), lit by the shader from the ground's height before it, baseY, everywhere)
     const worn = !this.far && w.worn && sp <= 2 && w.worn.near(x0, z0, size, 3) ? w.worn : null;
     const rock = !this.far && w.rockRelief && sp <= 1;
-    const R = this.tmpR, Q = this.tmpQ;
+    const R = own ? J.R : this.tmpR, Q = own ? J.Q : this.tmpQ;
     if (worn) {
       for (let k = -1; k <= V; k++) for (let i = -1; i <= V; i++) {
+        if (i === -1 && k > -1) yield;
         const x = x0 + i * sp, z = z0 + k * sp, e = (k + 1) * VB + (i + 1);
         T[e] = this.heightAt(x, z, true);
         R[e] = 0; Q[e * 5] = 9; Q[e * 5 + 1] = 0; Q[e * 5 + 2] = 9; Q[e * 5 + 3] = 9; Q[e * 5 + 4] = 0;
@@ -987,12 +1045,17 @@ if (gWet > 0.0) {
         T[e] -= q.pot; R[e] = WornTracks.profile(q.u, q.depth);
         Q[e * 5] = q.u; Q[e * 5 + 1] = q.s; Q[e * 5 + 2] = q.depth; Q[e * 5 + 3] = q.W; Q[e * 5 + 4] = q.pot;
       }
-    } else for (let k = -1; k <= V; k++) for (let i = -1; i <= V; i++) T[(k + 1) * VB + (i + 1)] = this.heightAt(x0 + i * sp, z0 + k * sp, true);
+    } else {
+      for (let k = -1; k <= V; k++) {
+        for (let i = -1; i <= V; i++) T[(k + 1) * VB + (i + 1)] = this.heightAt(x0 + i * sp, z0 + k * sp, true);
+        yield;
+      }
+    }
     // the ruts (kept for their colour and wetness too)
     D.fill(0);
     if (ruts) {
       // (with a wider border on the finest patches, for the ring round each point their berms are reckoned from)
-      const fine = sp < 0.5, B = fine ? 3 : 1, EB = V + 2 * B, E = this.tmpE;
+      const fine = sp < 0.5, B = fine ? 3 : 1, EB = V + 2 * B, E = own ? J.E : this.tmpE;
       for (let k = -B; k < V + B; k++) for (let i = -B; i < V + B; i++) {
         const x = x0 + i * sp, z = z0 + k * sp;
         E[(k + B) * EB + i + B] = Math.abs(x) < this.half && Math.abs(z) < this.half ? w.deformGrid.get(x, z) : 0;
@@ -1008,9 +1071,9 @@ if (gWet > 0.0) {
         if (i >= 0 && k >= 0 && i < V && k < V) D[k * V + i] = d;
       }
     }
-    const nV = V * V + 4 * V;
-    const pos = new Float32Array(nV * 3), nor = new Int8Array(nV * 3), col = new Uint8Array(nV * 3), tint = new Uint8Array(nV * 3), wet = new Uint8Array(nV * 2), cover = new Uint8Array(nV);
-    const trk = worn ? new Float32Array(nV * 4).fill(9) : null, baseY = new Float32Array(nV);
+    const nV = V * V + 4 * V, A = this.arrays(nV);
+    const { pos, nor, col, tint, wet, cover, baseY, colF } = A;
+    const trk = worn ? new Float32Array(nV * 4).fill(9) : null;
     const c3 = [0, 0, 0], t3 = [0, 0, 0], f3 = [0, 0, 0];
     const inMap = (x, z) => Math.abs(x) <= this.half && Math.abs(z) <= this.half;
     let minY = Infinity, maxY = -Infinity;
@@ -1050,6 +1113,7 @@ if (gWet > 0.0) {
       col[v * 3] = Math.round(Math.sqrt(c3[0]) * 255); col[v * 3 + 1] = Math.round(Math.sqrt(c3[1]) * 255); col[v * 3 + 2] = Math.round(Math.sqrt(c3[2]) * 255);
       for (let c = 0; c < 3; c++) tint[v * 3 + c] = Math.min(255, Math.round(t3[c] * 255 / this.tintK));
       if (h < minY) minY = h; if (h > maxY) maxY = h;
+      if (i === V - 1) yield;
     }
     // skirts
     const drop = Math.max(1.5, sp * 2.5);
@@ -1063,9 +1127,9 @@ if (gWet > 0.0) {
       baseY[dst] = baseY[src];
     }
     // colours are stored gamma-2 encoded: decode in the attribute by squaring? Keep simple: convert to linear floats
-    const colF = new Float32Array(nV * 3);
     for (let n = 0; n < nV * 3; n++) { const v = col[n] / 255; colF[n] = v * v; }
     const g = new THREE.BufferGeometry();
+    g.userData.arrays = A;
     g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
     g.setAttribute('normal', new THREE.BufferAttribute(nor, 3, true));
     g.setAttribute('color', new THREE.BufferAttribute(colF, 3));
@@ -1077,7 +1141,7 @@ if (gWet > 0.0) {
     g.setIndex(this.index);
     g.boundingSphere = new THREE.Sphere(new THREE.Vector3(size / 2, (minY + maxY) / 2, size / 2), Math.sqrt(2 * (size / 2) ** 2 + ((maxY - minY + drop) / 2) ** 2));
     g.boundingBox = new THREE.Box3(new THREE.Vector3(0, minY - drop, 0), new THREE.Vector3(size, maxY, size));
-    if (node.mesh) { node.mesh.geometry.dispose(); node.mesh.geometry = g; } else {
+    if (node.mesh) { this.release(node.mesh.geometry); node.mesh.geometry = g; } else {
       node.mesh = new THREE.Mesh(g, this.material);
       node.mesh.position.set(x0, 0, z0);
       node.mesh.matrixAutoUpdate = false;
@@ -1125,16 +1189,26 @@ if (gWet > 0.0) {
 
   /**
    * The open world's far land: a map come in. Its square is left to it from now on, and the far land round it (which
-   * now meets its edge) is made again.
+   * now meets its edge) is made again, a patch at a time as the frames allow (till then the old, the shader cutting the
+   * square out of it: made again all at once, it was a hitch of tens of ms as each map came in).
    */
   setHole(i, rect, margin = 1500) {
     this.holes[i] = rect;
     const [x0, z0, x1, z1] = rect;
     this.uniforms.uHoles?.value[i].set(x0 + 0.02, z0 + 0.02, x1 - 0.02, z1 - 0.02);
-    for (const [k, n] of this.cache) {
+    for (const n of this.cache.values()) {
       if (!(n.x0 < x1 + margin && n.x0 + n.size > x0 - margin && n.z0 < z1 + margin && n.z0 + n.size > z0 - margin)) continue;
-      if (n.mesh) { n.mesh.geometry.dispose(); n.mesh.removeFromParent(); }
-      this.cache.delete(k);
+      if (n.built && !n.dirty) { n.dirty = true; n.dirtySince = this.frame; }
+    }
+  }
+
+  /** The root's four patches (always drawn), built ahead a step at a time, awaiting wait() between the steps. */
+  async prebuild(wait) {
+    for (let iz = 0; iz < 2; iz++) for (let ix = 0; ix < 2; ix++) {
+      const n = this.node(1, ix, iz);
+      if (n.built || ((this.clip || this.far) && this.skip(n))) continue;
+      const it = this.steps(n, true);
+      while (!it.next().done) await wait();
     }
   }
 
@@ -1183,7 +1257,7 @@ if (gWet > 0.0) {
         const kids = [this.node(n.level + 1, n.ix * 2, n.iz * 2), this.node(n.level + 1, n.ix * 2 + 1, n.iz * 2), this.node(n.level + 1, n.ix * 2, n.iz * 2 + 1), this.node(n.level + 1, n.ix * 2 + 1, n.iz * 2 + 1)];
         let ready = true;
         for (const k of kids) {
-          if (!k.built && !((this.clip || this.far) && this.skip(k))) { if (budget > 0) { this.build(k); budget--; } else ready = false; }
+          if (!k.built && !((this.clip || this.far) && this.skip(k))) { if (budget > 0 && mayBuild() && this.grow(k)) budget--; else ready = false; }
         }
         if (ready || !n.built) { for (const k of kids) visit(k); return; }
       }
@@ -1197,7 +1271,7 @@ if (gWet > 0.0) {
     // turn, a couple a frame
     if (dirty.length) {
       dirty.sort((a, b) => a.dirtySince - b.dirtySince);
-      for (let i = 0; i < dirty.length && i < RUT_BUDGET && budget > 0; i++, budget--) this.build(dirty[i]);
+      for (let i = 0; i < dirty.length && i < RUT_BUDGET && budget > 0 && mayBuild(); i++) if (this.grow(dirty[i])) budget--; else break;
     }
     // swap the visible set into the scene
     const g = this.group;
@@ -1208,7 +1282,7 @@ if (gWet > 0.0) {
     if (this.cache.size > MAX_CACHE) {
       const old = [...this.cache.values()].filter((n) => n.used < this.frame - 120 && n.level > 2).sort((a, b) => a.used - b.used);
       for (const n of old.slice(0, this.cache.size - MAX_CACHE + 50)) {
-        if (n.mesh) n.mesh.geometry.dispose();
+        if (n.mesh) this.release(n.mesh.geometry);
         this.cache.delete(n.key);
       }
     }

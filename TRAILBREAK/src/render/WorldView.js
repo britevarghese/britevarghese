@@ -100,6 +100,8 @@ export class RegionView {
     v.landmarks = new Landmarks(W, v.group);
     await tick();
     await v.terrain.ready(onProgress, slice);
+    // (its coarsest ground, made ahead a step at a time: the first frame that draws it doesn't wait on it)
+    await v.terrain.prebuild(tick);
     v.vegetation = await Vegetation.create(region.world, v.host);
     await tick();
     v.grass = new Grass(region.world, v.terrain, v.group, ground, v.vegetation.uniforms, { centre: [region.cx, region.cz] });
@@ -171,8 +173,11 @@ export class WorldView {
       set shadows(on) { each((v) => { v.terrain.shadows = on; }); },
       setQuality: (q) => { self.settings.quality = q; self.far.setQuality(q); each((v) => v.terrain.setQuality(q)); },
       update: (camPos, dir) => {
+        // (the maps nearest first: the time each frame gives to building ground, render/Terrain.js beginTerrainFrame,
+        // goes to the ground nearest us)
+        const order = [...V].sort((a, b) => a.away(camPos.x, camPos.z) - b.away(camPos.x, camPos.z));
+        for (const v of order) v.terrain.update(_p.set(camPos.x - v.region.cx, camPos.y, camPos.z - v.region.cz), dir);
         self.far.update(camPos, dir);
-        each((v) => v.terrain.update(_p.set(camPos.x - v.region.cx, camPos.y, camPos.z - v.region.cz), dir));
       },
       markDirty: (perMap) => { for (const [id, keys] of perMap) self.viewOf(id)?.terrain.markDirty(keys); },
       // (the colour of the land, for the maps: whichever map holds the point, else the far land's)
@@ -205,13 +210,16 @@ export class WorldView {
       get mesh() { return null; },
     };
     this.rocks = {
-      update: (camera) => each((v) => {
-        // (a map's ledges let go once it is out of reach)
-        if (!near(v, camera, NEAR.rocks)) { v.ledges?.release(); return; }
-        const c = cam(v, camera);
-        v.rocks.update(c);
-        v.ledges?.update(c);
-      }),
+      update: (camera) => {
+        // (one map's boulders sorted a frame: those due wait their turn; a map's ledges let go once it is out of reach)
+        let sorted = false;
+        each((v) => {
+          if (!near(v, camera, NEAR.rocks)) { v.ledges?.release(); return; }
+          const c = cam(v, camera);
+          if (!sorted) sorted = v.rocks.update(c);
+          v.ledges?.update(c);
+        });
+      },
       setShadows: (on) => each((v) => { v.rocks.setShadows(on); v.ledges?.setShadows(on); v.alcoves?.setShadows(on); v.pillars?.setShadows(on); }),
     };
     this.water = { update: (camera, dt, horizon) => each((v) => v.water.update(cam(v, camera), dt, horizon)) };

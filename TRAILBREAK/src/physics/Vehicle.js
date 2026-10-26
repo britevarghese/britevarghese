@@ -770,7 +770,9 @@ export class Vehicle {
       if (surf.sink > 0 && ground.deform) {
         const contactLen = Math.max(0.22, 2 * Math.sqrt(Math.max(0, 2 * r * Math.min(w.penSoil, r * 0.5)))) * tyre.footL;
         const pKPa = w.nSoil / (tyre.footW * contactLen) / 1000;
-        const zEq = Math.min(surf.maxSink, Math.pow(pKPa / surf.sink, 1 / surf.n));
+        // (a map's deep mud: softer than its kind, and the deeper it goes: world/World.js softness)
+        const soft = ground.softness ? ground.softness(w.cx, w.cz) : 1;
+        const zEq = Math.min(surf.maxSink * Math.sqrt(soft), Math.pow(pKPa * soft / surf.sink, 1 / surf.n));
         const dig = surf.dig * Math.max(0, slipV - 0.6) * dt;
         w.sink = ground.deform(w.cx, w.cz, w.fX, w.fZ, tyre.footW * 0.5, contactLen * 0.5, zEq, dig);
       } else w.sink = 0;

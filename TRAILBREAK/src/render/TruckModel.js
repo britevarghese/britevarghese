@@ -187,6 +187,8 @@ function crackTexture() {
 
 // a rim's barrel, for a model that draws only the rim's face: unit radius, along x
 const RIM_BARREL = new THREE.CylinderGeometry(0.97, 0.97, 1, 28, 1, true).rotateZ(Math.PI / 2);
+// a disc of unit radius on the axle (x): a brake's disc, its dust shield behind it
+const DISC = new THREE.CylinderGeometry(1, 1, 1, 28).rotateZ(Math.PI / 2);
 RIM_BARREL.userData.cached = true;
 
 /** A flat tyre: the tyre squashed against the ground under its rim, the sidewalls bulging. drop: how far it sank. */
@@ -203,6 +205,63 @@ function flatTyre(src, R, drop) {
   }
   g.computeVertexNormals();
   return g;
+}
+
+/**
+ * A tyre's own material (one a wheel): pressed flat against the ground by the load on it (the tyre's deflection in the
+ * physics, uFlex m, uDown the way to the ground in the tyre's own frame), its sidewall bulging out beside the patch, as
+ * a tyre's carcass gives (an aired-down one the more); and caked with the mud it has run through (uMud), clumps of it,
+ * most on the tread.
+ */
+function tyreMaterial(base, R) {
+  const m = base.clone();
+  m.side = THREE.DoubleSide;           // (its inside seen through a rim's spokes: rubber, not the ground beyond)
+  // (the uniforms kept on the material itself, not its userData: a clone of it, as the reflections' probe makes, copies
+  // userData as JSON, and goes on drawing with these, its shader's)
+  const u = m.flex = { uDown: { value: new THREE.Vector3(0, -1, 0) }, uFlex: { value: 0 }, uR: { value: R }, uMud: { value: 0 }, uMudTint: { value: MUD_TINT } };
+  // (one program for every wheel: only the values differ)
+  m.customProgramCacheKey = () => 'tyre flex';
+  m.onBeforeCompile = (sh) => {
+    Object.assign(sh.uniforms, u);
+    sh.vertexShader = sh.vertexShader
+      .replace('#include <common>', `#include <common>
+uniform vec3 uDown;
+uniform float uFlex;
+uniform float uR;
+varying vec3 vTyreP;`)
+      .replace('#include <begin_vertex>', `#include <begin_vertex>
+{
+  vTyreP = position;
+  vec3 rv = vec3(0.0, transformed.y, transformed.z);
+  float rl = length(rv), s = dot(rv, uDown), lim = uR - uFlex;
+  if (s > lim) transformed -= uDown * (s - lim);
+  float patchK = smoothstep(0.55, 1.0, s / max(rl, 1e-4)) * smoothstep(uR * 0.62, uR * 0.95, rl);
+  transformed.x *= 1.0 + patchK * uFlex / uR * 1.4;
+}`);
+    sh.fragmentShader = sh.fragmentShader
+      .replace('#include <common>', `#include <common>
+uniform float uMud;
+uniform float uR;
+uniform vec3 uMudTint;
+varying vec3 vTyreP;
+float tyreHash(vec3 p) { return fract(sin(dot(p, vec3(12.9898, 78.233, 37.719))) * 43758.5453); }
+float tyreNoise(vec3 p) {
+  vec3 i = floor(p), f = fract(p);
+  f = f * f * (3.0 - 2.0 * f);
+  return mix(mix(mix(tyreHash(i), tyreHash(i + vec3(1.0, 0.0, 0.0)), f.x), mix(tyreHash(i + vec3(0.0, 1.0, 0.0)), tyreHash(i + vec3(1.0, 1.0, 0.0)), f.x), f.y),
+    mix(mix(tyreHash(i + vec3(0.0, 0.0, 1.0)), tyreHash(i + vec3(1.0, 0.0, 1.0)), f.x), mix(tyreHash(i + vec3(0.0, 1.0, 1.0)), tyreHash(i + vec3(1.0, 1.0, 1.0)), f.x), f.y), f.z);
+}`)
+      .replace('#include <color_fragment>', `#include <color_fragment>
+if (uMud > 0.001) {
+  // (clods of it, the tread caked first and thickest, the sidewall splashed; wet mud's own dark brown, a clod lighter
+  // where it has dried, darker where it is wet)
+  float n = tyreNoise(vTyreP * 24.0) * 0.6 + tyreNoise(vTyreP * 70.0) * 0.4;
+  float tread = smoothstep(0.72, 0.96, length(vTyreP.yz) / uR);
+  float k = smoothstep(0.25, 0.6, uMud * (0.55 + 0.6 * n) * (0.6 + 0.4 * tread));
+  diffuseColor.rgb = mix(diffuseColor.rgb, uMudTint * (0.38 + 0.3 * n), k);
+}`);
+  };
+  return m;
 }
 
 const MATS = {};
@@ -248,9 +307,10 @@ function cached(key, make) {
  * 3 summer performance (ribs between straight grooves, slanted shoulder blocks), 4 track semi-slick (a nearly smooth
  * face, two grooves on its inner side).
  */
-function tireGeometry(r, w, tread = 0) {
-  return cached(`t${r.toFixed(3)}:${w.toFixed(3)}:${tread}`, () => {
-    const hw = w / 2, rim = r * 0.58, depth = [0.011, 0.02, 0.032, 0.008, 0.005][tread] ?? 0.011;
+function tireGeometry(r, w, tread = 0, bead = r) {
+  return cached(`t${r.toFixed(3)}:${w.toFixed(3)}:${tread}:${bead.toFixed(3)}`, () => {
+    // (its beads tucked in under the rim's lip, bead: no gap round the rim to see the ground through)
+    const hw = w / 2, rim = Math.min(r * 0.58, bead - 0.015), depth = [0.011, 0.02, 0.032, 0.008, 0.005][tread] ?? 0.011;
     const rc = r - depth;                                    // carcass under the lugs
     const prof = [[rim, -hw * 0.9], [rc * 0.9, -hw], [rc * 0.985, -hw * 0.85], [rc, -hw * 0.55], [rc, hw * 0.55], [rc * 0.985, hw * 0.85], [rc * 0.9, hw], [rim, hw * 0.9]]
       .map(([a, b]) => new THREE.Vector2(a, b));
@@ -906,7 +966,7 @@ export class TruckModel {
     if (x.flaps) P.box(M.rubber, [Wt + 0.04, 0.3, 0.012], [spec.axles[1].track / 2, x.sill - 0.08, spec.axles[1].z - 0.58], { r: 0, mirror: true });
     // the spare: on a swing-out carrier at the back, or under the bed
     if (x.spare) {
-      const tg = tireGeometry(R, Wt, t.tread).clone(), rg = rimGeometry(rimR, Wt, t.beadlock).clone();
+      const tg = tireGeometry(R, Wt, t.tread, rimR).clone(), rg = rimGeometry(rimR, Wt, t.beadlock).clone();
       let pos;
       if (x.spare.mount === 'under') { tg.rotateZ(Math.PI / 2); rg.rotateZ(Math.PI / 2); pos = [x.spare.x, x.frame.y - Wt / 2 + 0.06, x.spare.z]; } else if (x.spare.mount === 'bed') {
         tg.rotateZ(Math.PI / 2); rg.rotateZ(Math.PI / 2); pos = [x.spare.x, x.spare.y + Wt / 2, x.spare.z];
@@ -977,8 +1037,8 @@ export class TruckModel {
       }
     }
 
-    // ---- the mirrors, on the player's own car
-    if (opts.mirrors && asset?.layout.interior && spec.eye) this.buildMirrors(asset.layout.interior, spec);
+    // ---- the mirrors' glass (pictures drawn in them on the player's own car)
+    if (asset?.layout.interior && spec.eye) this.buildMirrors(asset.layout.interior, spec, !!opts.mirrors);
 
     // ---- axles and wheels (CG frame; the physics moves them)
     const rStatic = R - (spec.mass * GRAV / 4) / t.stiffness;
@@ -1032,7 +1092,13 @@ export class TruckModel {
         }
         const spin = new THREE.Group();
         knuckle.add(spin);
-        const tire = new THREE.Mesh(tireGeometry(R, Wt, t.tread), M.tire);
+        const tire = new THREE.Mesh(tireGeometry(R, Wt, t.tread, rimR), tyreMaterial(M.tire, R));
+        // behind the rim's face, the brake's disc turning with it and the dust shield behind that: what is seen between
+        // the spokes, not the ground behind the wheel
+        const bead = Wt * 0.42, rotor = new THREE.Mesh(DISC, M.satin), shield = new THREE.Mesh(DISC, M.under);
+        rotor.scale.set(0.028, rimR * 0.78, rimR * 0.78); rotor.position.x = -side * bead * 0.15;
+        shield.scale.set(0.012, rimR * 0.96, rimR * 0.96); shield.position.x = -side * bead * 0.6;
+        knuckle.add(shield);
         let rim;
         if (rimModel) rim = modelRim();
         else if (alloy) {
@@ -1043,8 +1109,8 @@ export class TruckModel {
         } else rim = new THREE.Mesh(rimGeometry(rimR, Wt, t.beadlock), t.beadlock ? M.bead : M.steel);
         if (side < 0) rim.rotation.y = Math.PI;              // outer face out on both sides
         tire.castShadow = true; rim.castShadow = true;
-        spin.add(tire, rim);
-        return { knuckle, spin, tire, tireGeo: tire.geometry };
+        spin.add(tire, rim, rotor);
+        return { knuckle, spin, tire, tireGeo: tire.geometry, flex: tire.material.flex };
       });
       return { group, wheels, yDroop, half, spec: a, ifs: !!a.ifs };
     });
@@ -1185,17 +1251,18 @@ export class TruckModel {
   bodyPoint(p, v, mirror = 1) { return v.set(p[0] * mirror, p[1], p[2]).add(this.bodyOffset); }
 
   /**
-   * The mirrors, for the player's own car (render/Mirrors.js): the door mirrors' glass where the model has it (I:
-   * layout.interior), and the rear-view mirror (a built cockpit's, in a housing of its own, or the model's), each set
-   * as a driver would set it: between the eye and straight back (a door mirror a little out from the car's side).
+   * The mirrors (render/Mirrors.js): the door mirrors' glass where the model has it (I: layout.interior), and the
+   * rear-view mirror (a built cockpit's, in a housing of its own, or the model's), each set as a driver would set it:
+   * between the eye and straight back (a door mirror a little out from the car's side). live: the player's own car,
+   * its mirrors' pictures drawn (another's are polished glass).
    */
-  buildMirrors(I, spec) {
+  buildMirrors(I, spec, live) {
     const list = [], eye = new THREE.Vector3(...spec.eye);
     const back = MATS.mirrorBack ||= new THREE.MeshStandardMaterial({ color: 0x2a2a2c, roughness: 0.6, emissive: 0x2a2a2c, emissiveIntensity: 0.6 });
     // a glass (g: its middle c, size w x h, round), and for a model without that mirror (g.arm: the point on the body
     // it is bolted to) its housing too, on an arm or a stalk from there
     const add = (g, look, res, housing) => {
-      const m = new Mirror(g.w, g.h, res, g.round);
+      const m = new Mirror(g.w, g.h, live && res, g.round);
       m.aim(new THREE.Vector3(...g.c), eye, look);
       if (housing || g.arm) {
         const deep = g.arm && g.c[0] ? 0.06 : 0.032;
@@ -1337,10 +1404,40 @@ export class TruckModel {
 
   setDirt(d) { this.dirt = d; this.uniforms.uDirt.value = d; }
 
+  /**
+   * The tyres as the ground has them (the physics' wheels, physics/Vehicle.js, in the order the axles are): each
+   * pressed flat as far as the load deflects it, toward the ground it is on; and mud building up on it in mud and wet
+   * ground, more spinning, washing off in water and slowly flung off a fast tyre on firm ground.
+   */
+  flexTyres(wheels, dt = 1 / 60) {
+    const q = this._tq ||= new THREE.Quaternion(), d = this._td ||= new THREE.Vector3();
+    for (let ai = 0; ai < this.axles.length && ai < 2; ai++) {
+      for (let s = 0; s < 2; s++) {
+        const w = wheels[ai * 2 + s], wm = this.axles[ai].wheels[s], u = wm.flex;
+        if (!w || !u) continue;
+        const pen = w.contact ? w.pen : 0;
+        u.uFlex.value += (pen - u.uFlex.value) * Math.min(1, dt * 30);
+        if (w.contact) {
+          wm.tire.getWorldQuaternion(q).invert();
+          d.set(-w.nx, -w.ny, -w.nz).applyQuaternion(q);
+          d.x = 0;
+          if (d.lengthSq() > 1e-6) u.uDown.value.copy(d.normalize());
+        }
+        const soft = w.contact && w.surf && (w.surf.name === 'mud' || w.surf.name === 'riverbed' || w.surf.name === 'snow' || w.surf.name === 'sand');
+        let m = u.uMud.value;
+        if (soft) m += dt * (w.surf.name === 'mud' ? 0.5 : 0.18) * (0.4 + Math.min(2, Math.abs(w.slipSpeed || 0)) * 0.5);
+        if ((w.water || 0) > 0.25) m -= dt * 0.25 * Math.min(2, w.water);
+        else if (!soft && Math.abs(w.omega || 0) > 25) m -= dt * 0.02;
+        u.uMud.value = Math.min(1, Math.max(0, m));
+      }
+    }
+  }
+
   dispose() {
     this.mirrors?.dispose();
     this.root.traverse((o) => { if (o.geometry && !o.geometry.userData.cached) o.geometry.dispose(); });
     for (const m of [this.paint, this.top, ...this.lampMats, ...this.headMats.flat(), this.barMat, this.brakeMat, this.revMat, this.screen]) m?.dispose();
+    for (const ax of this.axles || []) for (const wm of ax.wheels) wm.tire.material.dispose();
   }
 }
 
