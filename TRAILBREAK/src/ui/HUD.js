@@ -537,13 +537,14 @@ export class HUD {
     const S = LOCAL_PX, step = LOCAL_STEP, x0 = cx - S * step / 2, z0 = cz - S * step / 2, W = this.world, tr = this.mapTr;
     const c = document.createElement('canvas'); c.width = S; c.height = S;
     const x = c.getContext('2d'), img = x.createImageData(S, S), out = [0, 0, 0];
+    const base = (w, a, b) => (w.terrainBase ? w.terrainBase(a, b) : w.terrain(a, b));
     for (let j = 0; j < S; j++) {
       for (let i = 0; i < S; i++) {
         const px = x0 + (i + 0.5) * step, pz = z0 + (j + 0.5) * step, r = W.regionAt(px, pz);
         // (the far land past the maps left to the picture under it)
         if (!r) continue;
-        const w = r.world, lx = px - r.cx, lz = pz - r.cz, t = (a, b) => (w.terrainBase || w.terrain).call(w, a, b), hb = t(lx, lz);
-        const h = w.terrain(lx, lz), nx = -(t(lx + step, lz) - hb) / step, nz = -(t(lx, lz + step) - hb) / step;
+        const w = r.world, lx = px - r.cx, lz = pz - r.cz, hb = base(w, lx, lz);
+        const h = w.terrain(lx, lz), nx = -(base(w, lx + step, lz) - hb) / step, nz = -(base(w, lx, lz + step) - hb) / step;
         tr.colorAt(px, pz, step, h, Math.hypot(nx, nz), out);
         const shade = Math.max(0.35, Math.min(1.35, 0.92 + (nx * -0.6 + nz * -0.5) * 1.2));
         let cr = Math.sqrt(out[0]) * shade, cg = Math.sqrt(out[1]) * shade, cb = Math.sqrt(out[2]) * shade;

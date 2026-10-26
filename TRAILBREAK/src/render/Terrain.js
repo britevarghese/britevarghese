@@ -33,6 +33,8 @@ const MIN = 16;
 const FINE = 8;                 // (rutted ground close up)
 const SPLIT_DEFAULT = 2.1;
 const MAX_CACHE = 700;
+// (the points round one a few metres off, to find the water's edge by: x, z pairs, made once, not at every vertex)
+const SHORE = [2.5, 0, -2.5, 0, 0, 2.5, 0, -2.5, 5, 0, -5, 0, 0, 5, 0, -5];
 const RUT_BUDGET = 2;           // patches with fresh ruts rebuilt a frame (the longest waiting first)
 const POOL = 48;                // sets of a patch's vertex arrays kept for the next patches (arrays)
 
@@ -952,7 +954,7 @@ if (gWet > 0.0) {
     }
     // (and wet up the bank from the water's edge: the water's level there, or a few metres off at the shore)
     let wl = w.water(x, z);
-    if (wl < -1e8) for (const [dx, dz] of [[2.5, 0], [-2.5, 0], [0, 2.5], [0, -2.5], [5, 0], [-5, 0], [0, 5], [0, -5]]) wl = Math.max(wl, w.water(x + dx, z + dz));
+    if (wl < -1e8) for (let j = 0; j < SHORE.length; j += 2) wl = Math.max(wl, w.water(x + SHORE[j], z + SHORE[j + 1]));
     if (wl > -1e8 && h < wl + 0.6) wv = Math.max(wv, h < wl ? 0.6 : 0.85 * (1 - (h - wl) / 0.6));
     out[o] = Math.round(wv * 255); out[o + 1] = Math.round(pv * 255);
   }
@@ -971,7 +973,8 @@ if (gWet > 0.0) {
    */
   holeSink(x, z) {
     let s = 0;
-    for (const [hx0, hz0, hx1, hz1] of this.holes) {
+    for (let i = 0; i < this.holes.length; i++) {
+      const H = this.holes[i], hx0 = H[0], hz0 = H[1], hx1 = H[2], hz1 = H[3];
       if (!(x > hx0 && x < hx1 && z > hz0 && z < hz1)) continue;
       s = Math.max(s, 0.5 + 1.5 * Math.min(x - hx0, hx1 - x, z - hz0, hz1 - z));
     }

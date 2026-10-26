@@ -224,12 +224,15 @@ export class OpenWorld {
     if (this.woodD?.length !== this.regions.length) this.woodD = new Float64Array(this.regions.length);
     const D = this.woodD;
     let dmin = Infinity;
-    this.regions.forEach((r, i) => { D[i] = Math.hypot(Math.max(0, Math.abs(x - r.cx) - r.half), Math.max(0, Math.abs(z - r.cz) - r.half)); dmin = Math.min(dmin, D[i]); });
+    for (let i = 0; i < this.regions.length; i++) {
+      const r = this.regions[i], ex = Math.max(0, Math.abs(x - r.cx) - r.half), ez = Math.max(0, Math.abs(z - r.cz) - r.half);
+      D[i] = Math.sqrt(ex * ex + ez * ez); if (D[i] < dmin) dmin = D[i];
+    }
     let s = 0, wsum = 0;
-    this.regions.forEach((r, i) => {
+    for (let i = 0; i < this.regions.length; i++) {
       const t = Math.min(1, Math.max(0, (D[i] - dmin - 1500) / 1500)), w = (1 - t * t * (3 - 2 * t)) / (1 + D[i] * D[i]);
-      s += (r.world.map.farWoods ?? 0.65) * w; wsum += w;
-    });
+      s += (this.regions[i].world.map.farWoods ?? 0.65) * w; wsum += w;
+    }
     return wsum > 0 ? s / wsum : 0.65;
   }
 

@@ -300,12 +300,14 @@ export class Vehicle {
     const g0 = ground.height(C.x, C.z);
     if (C.y - r * 1.05 > g0 + 0.35 && C.y - r > ground.height(C.x + heading.x * r, C.z + heading.z * r) + 0.35
       && C.y - r > ground.height(C.x - heading.x * r, C.z - heading.z * r) + 0.35) { w.contact = false; return false; }
+    // f(t) = height of the ray point above the ground, along the ray (dx, dy, dz) (one function for all the rays, not
+    // one a ray: nine rays, four wheels, 480 substeps a second, all of it garbage to be collected)
+    let dx = 0, dy = 0, dz = 0;
+    const f = (t) => (C.y + dy * t) - ground.height(C.x + dx * t, C.z + dz * t);
     for (let k = 0; k < RAY_ANGLES.length; k++) {
       const th = RAY_ANGLES[k], sn = Math.sin(th), cs = Math.cos(th);
       // outward radial direction: forward * sin - up * cos
-      const dx = heading.x * sn - u.x * cs, dy = heading.y * sn - u.y * cs, dz = heading.z * sn - u.z * cs;
-      // f(t) = height of the ray point above the ground
-      const f = (t) => (C.y + dy * t) - ground.height(C.x + dx * t, C.z + dz * t);
+      dx = heading.x * sn - u.x * cs; dy = heading.y * sn - u.y * cs; dz = heading.z * sn - u.z * cs;
       const fr = f(r);
       let pen;
       if (fr >= 0) pen = -fr * Math.max(0.2, -dy);                // tread clear of the ground (rough distance)
