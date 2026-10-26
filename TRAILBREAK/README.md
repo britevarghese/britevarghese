@@ -791,7 +791,8 @@ Everything that makes off-roading off-roading is simulated, not faked:
   the speed, flat out in low range (at part throttle in high a UAZ sits in its own holes). It is that deep on the
   level and in the hollows, where the water stands; a bank drains, its mud a slick skin over firmer ground, so from a
   grade of 6% to 16% it thins to its kind's (`src/world/World.js` softness, deepAt). Water stands along most of the
-  length of its tracks' worn ruts, not in stretches. (Ruts worn deeper there, up to 18 cm, left a stock UAZ hung up on
+  length of its tracks' worn ruts, not in stretches, and its mud has a skin of water that catches the light at a
+  glancing look, as standing water anywhere does (dull, the two read as dry dark earth). (Ruts worn deeper there, up to 18 cm, left a stock UAZ hung up on
   the hump between them on both its rallies: they are as deep as anywhere's mud.)
 - **Tyres:** each tyre is drawn pressed flat where it meets the ground, by as much as the load deflects it in the
   physics, its sidewall bulging out beside the flat patch, so an aired-down tyre on rock squats on it instead of the

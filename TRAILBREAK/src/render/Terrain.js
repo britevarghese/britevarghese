@@ -622,7 +622,10 @@ normal = normalize((viewMatrix * vec4(gNW, 0.0)).xyz);`)
         .replace('#include <aomap_fragment>', `#include <aomap_fragment>
 if (gWet > 0.0) {
   vec3 gR = reflect(normalize(vWPos - cameraPosition), gNW);
-  float gSky = mix(0.15, 1.0, smoothstep(0.0, 0.4, gR.y));
+  // (but standing water, flat and smooth, gives back the hazy horizon brightly at a glancing look, as wet mud's skin of
+  // water does on a map of deep mud, uDeepMud: dull there, they read as dry dark earth)
+  float gLow = mix(mix(0.15, 0.4, uDeepMud), 0.6, gPool);
+  float gSky = mix(gLow, 1.0, smoothstep(0.0, 0.4, gR.y));
   reflectedLight.indirectSpecular *= mix(1.0, gSky, gWet) * (1.0 - 0.25 * gPool);
   reflectedLight.directSpecular *= 1.0 - 0.5 * gWet;
 }`);
