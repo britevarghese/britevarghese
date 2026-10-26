@@ -23,6 +23,7 @@ import { WornTracks, GAUGE, RUT } from '../world/Worn.js';
 import { BEDROCK_GLSL } from '../world/Bedrock.js';
 import { vnoise } from '../world/Noise.js';
 import { TEA_ROW, TEA_RANGE } from './Tea.js';
+import { TRACK_UNIFORMS } from './TrackMap.js';
 
 const GRID = 32;
 const V = GRID + 1;
@@ -35,6 +36,8 @@ const SPLIT_DEFAULT = 2.1;
 const MAX_CACHE = 700;
 // (the points round one a few metres off, to find the water's edge by: x, z pairs, made once, not at every vertex)
 const SHORE = [2.5, 0, -2.5, 0, 0, 2.5, 0, -2.5, 5, 0, -5, 0, 0, 5, 0, -5];
+// (and round mud: the earth beside it damp, a metre and a half and three off, the nearer the wetter)
+const FRINGE = [1.5, 0, -1.5, 0, 0, 1.5, 0, -1.5, 3, 0, -3, 0, 0, 3, 0, -3];
 const RUT_BUDGET = 2;           // patches with fresh ruts rebuilt a frame (the longest waiting first)
 const POOL = 48;                // sets of a patch's vertex arrays kept for the next patches (arrays)
 
@@ -58,6 +61,16 @@ const FALLBACK = { road: 'gravel', tea: 'forest', forest: 'grass' };
 const PLAIN = {
   grass: 0x6f8c3c, forest: 0x4f4430, dirt: 0x8d7454, gravel: 0x958b7c, rock: 0x8a857d, mud: 0x5e4a33, sand: 0xc8b088,
   snow: 0xeef1f4, pebbles: 0x5f5946, tea: 0x3a6420,
+};
+// how a tyre's track shows in each kind of ground (render/TrackMap.js): how much darker it is pressed, how deep its
+// walls and the tread's lugs are printed (m), how much smoother it is left (pressed mud shines), and how much it is
+// crushed grass (browner, not just darker)
+const TRACK_LOOK = {
+  grass: [0.42, 0.008, 0, 1], forest: [0.4, 0.01, 0, 0.5], dirt: [0.4, 0.014, 0.15, 0], gravel: [0.2, 0.004, 0, 0],
+  mud: [0.45, 0.022, 0.45, 0], sand: [0.16, 0.016, 0, 0], snow: [0.14, 0.022, 0, 0], pebbles: [0.2, 0.004, 0, 0],
+  tea: [0.3, 0.008, 0, 0.5],
+  // (rock and road take no print, only the mud a tyre carries out of a mud hole)
+  rock: [0.3, 0.003, 0, 0], road: [0.35, 0.002, 0, 0],
 };
 // the mud a rut pushes up beside it (drawn only, on the finest patches: the tyres ride the pressed ground): how high,
 // for how much deeper the ruts round it (35 to 50 cm away) are
@@ -176,6 +189,9 @@ export class TerrainRenderer {
         uDeepMud: { value: w.map.deepMud ? 1 : 0 },
         // and how dark the desert varnish streaked down its rock faces is (the map's varnish)
         uVarnish: { value: w.map.varnish ?? 0 },
+        // the tyres' tracks (render/TrackMap.js), and how each layer shows them
+        ...TRACK_UNIFORMS,
+        uTrkL: { value: this.layers.map((l) => new THREE.Vector4(...(TRACK_LOOK[l.name] || [0, 0, 0, 0]))) },
       });
       const B = this.blend;
       if (B) {
@@ -277,6 +293,10 @@ uniform float uTea;
 uniform float uTeaNear;
 uniform vec2 uIds2;
 uniform vec3 uVerge;
+uniform highp sampler2D uTrkMap;
+uniform vec4 uTrkWin;
+uniform float uTrkSpan;
+uniform vec4 uTrkL[NLAYERS];
 // a tea estate beyond the hedges (render/Tea.js): the rows as stripes along the contours, leaves over the soil
 vec3 gTea(vec3 soil, float dist) {
   float ph = fract(vWPos.y / ${TEA_ROW.toFixed(3)});
@@ -505,10 +525,88 @@ ${G ? `
         gTrkWet = inRut * fade * (wm * 0.75 + wd * (0.12 + 0.3 * damp));
       }
     }
+    // tyre tracks (render/TrackMap.js): the ground the tyres have just rolled over, pressed darker (grass crushed browner,
+    // mud smoothed and wet), the lugs of the tread printed in it across the way they rolled (smeared where they spun),
+    // the track's walls and the lugs lit as relief; gone where a pixel is too coarse to show them
+    vec3 tyreTilt = vec3(0.0);
+    float tpx = max(length(fwidth(vWPos.xz)), 1e-3);
+    if (vWPos.x > uTrkWin.x && vWPos.z > uTrkWin.y && vWPos.x < uTrkWin.z && vWPos.z < uTrkWin.w && tpx < 0.3) {
+      vec2 tuv = vWPos.xz / uTrkSpan;
+      vec4 tm = texture(uTrkMap, tuv);
+      // (its edge crisp: the picture's pixels are 6 cm, and filtered they soften a track's edge to a blur)
+      float st = smoothstep(0.06, 0.3, tm.r) * min(1.0, tm.r * 1.5) * (1.0 - smoothstep(0.1, 0.3, tpx));
+      if (st > 0.02) {
+        vec4 L = vec4(0.0);
+        for (int j = 0; j < 4; j++) { if (j >= gn) break; L += uTrkL[int(gL[j])] * max(0.0, hs[j] - top + 0.16); }
+        L /= sum;
+        vec2 dv = tm.ba / tm.r * 2.0 - 1.0;
+        float clean = clamp(length(dv), 0.0, 1.0);
+        vec2 dir = dv / max(length(dv), 1e-3);
+        float ac = clamp(tm.g / tm.r * 2.0 - 1.0, -1.0, 1.0);
+        // the lugs: chevrons down the middle of the tread, 11 cm apart, staggered blocks on its shoulders
+        float sh = smoothstep(0.55, 0.65, abs(ac));
+        // (along the way it rolled from the window's corner, not the world's: kilometres out a sine of the distance in
+        // lugs has no precision left)
+        float ph = fract(dot(vWPos.xz - uTrkWin.xy, dir) / 0.11 + abs(ac) * 0.45 * (1.0 - sh) + sh * 0.5);
+        float sn = sin(6.2832 * ph), lt = clamp(sn * 1.25 + 0.5, 0.0, 1.0);
+        float lug = lt * lt * (3.0 - 2.0 * lt);
+        float dLug = 6.0 * lt * (1.0 - lt) * 1.25 * 6.2832 * cos(6.2832 * ph) / 0.11;
+        float la = (1.0 - smoothstep(0.012, 0.04, tpx)) * clean * st;
+        // (the walls: how hard the ground was pressed a pixel to either side)
+        float ex = 1.0 / float(textureSize(uTrkMap, 0).x);
+        float gx = texture(uTrkMap, tuv + vec2(ex, 0.0)).r - texture(uTrkMap, tuv - vec2(ex, 0.0)).r;
+        float gz = texture(uTrkMap, tuv + vec2(0.0, ex)).r - texture(uTrkMap, tuv - vec2(0.0, ex)).r;
+        float wallK = L.y * 1.4 * (1.0 - smoothstep(0.04, 0.12, tpx));
+        tyreTilt = vec3(gx, 0.0, gz) / (2.0 * ex * uTrkSpan) * wallK + vec3(dir.x, 0.0, dir.y) * dLug * L.y * 0.5 * la;
+        float tl = length(tyreTilt);
+        if (tl > 0.8) tyreTilt *= 0.8 / tl;
+        vec3 press = mix(vec3(1.0 - L.x), vec3(1.0 - L.x * 0.55, 1.0 - L.x * 0.75, 1.0 - L.x * 1.5), L.w);
+        alb *= mix(vec3(1.0), press, st) * (1.0 - 0.26 * lug * la * step(0.001, L.y));
+        rough = mix(rough, rough * (1.0 - L.z), st);
+        gTrkWet = max(gTrkWet, st * L.z);
+      }
+    }
+    // churned mud: a mud hole or field that trucks have been through before, old ruts crossing it, each pair one
+    // truck's wheels, wandering and here and there worn out; their floors darker and wet, water standing along
+    // stretches, the spoil beside them, their walls lit as relief (drawn only: the ground the tyres find is as it was)
+    vec3 churnTilt = vec3(0.0);
+    {
+      float wmud = 0.0;
+      for (int j = 0; j < 4; j++) { if (j >= gn) break; if (gL[j] == uIds2.y) wmud += max(0.0, hs[j] - top + 0.16); }
+      float cf = wmud / sum * (1.0 - smoothstep(55.0, 120.0, dist)) * (1.0 - smoothstep(0.12, 0.45, tpx));
+      if (cf > 0.0) {
+        float inAll = 0.0, poolC = 0.0;
+        for (int k = 0; k < 2; k++) {
+          float fk = float(k);
+          vec2 dir = k == 0 ? vec2(0.809, 0.588) : vec2(-0.391, 0.921), side = vec2(-dir.y, dir.x);
+          float along = dot(vWPos.xz, dir);
+          float across = dot(vWPos.xz, side) + (tn(vec2(along * 0.045, fk * 9.1)) - 0.5) * 8.0 + (tn(vec2(along * 0.13, fk * 3.3)) - 0.5) * 1.4;
+          // a track every 9 m across, each worn in along some stretches and gone along others, broken up
+          float lane = floor(across / 9.0), c = across - (lane + 0.5) * 9.0 + (th(vec2(lane, fk)) - 0.5) * 3.0;
+          float on = smoothstep(0.5, 0.68, tn(vec2(along * 0.035 + lane * 3.7, lane * 1.3 + fk * 5.0))) * smoothstep(0.25, 0.5, tn(vec2(along * 0.4, lane * 2.9 + fk)));
+          if (on <= 0.0) continue;
+          float w = 0.17 + 0.12 * tn(vec2(along * 0.3, lane + fk * 3.0)), aa = tpx * 0.7;
+          float r = abs(abs(c) - 0.8);
+          float inR = (1.0 - smoothstep(w - 0.06 - aa, w + aa, r)) * on;
+          float dep = 0.06 * on * (0.5 + tn(vec2(along * 0.2, lane + fk * 7.0)));
+          // (the rut's profile, cos squared, and the spoil a little proud beside it: its slope across)
+          float dHdr = r < w ? dep * 1.5708 / w * sin(3.1416 * r / w) : r < w + 0.3 ? dep * 0.25 * 3.1416 / 0.3 * cos((r - w) / 0.3 * 3.1416) : 0.0;
+          churnTilt -= vec3(side.x, 0.0, side.y) * dHdr * sign(abs(c) - 0.8) * sign(c);
+          inAll = max(inAll, inR);
+          // (water standing only in the odd hollow of one)
+          poolC = max(poolC, inR * smoothstep(0.72, 0.85, tn(vec2(along * 0.25 + lane * 2.1, fk * 4.0 + lane))) * (1.0 - smoothstep(0.0, w * 0.7, r)));
+        }
+        churnTilt *= cf * (1.0 - smoothstep(0.03, 0.12, tpx));
+        alb *= mix(vec3(1.0), vec3(0.66, 0.64, 0.62), inAll * cf);
+        rough = mix(rough, rough * 0.75, inAll * cf);
+        gTrkWet = max(gTrkWet, inAll * cf * 0.45);
+        gTrkPool = max(gTrkPool, poolC * cf * mix(0.6, 1.0, uDeepMud));
+      }
+    }
     diffuseColor.rgb = mix(diffuseColor.rgb, alb * vTint, tex);
     gRough = mix(0.95, rough, tex);
     gH = mix(0.5, hgt / sum, tex);
-    gNW = normalize(gNW + tilt * near * 0.9 + trkTilt * tex);
+    gNW = normalize(gNW + tilt * near * 0.9 + trkTilt * tex + tyreTilt * tex + churnTilt * tex);
     // bare rock in relief (a hill's rock is not a smooth bank with a picture of rock on it, world/Bedrock.js): its beds
     // as ledges up a face and stair steps across a slab, its joints as cracks between blocks, darker in the recesses;
     // reckoned in the map's frame from the ground's height before it (baseY), as its vertices near by are moved; out
@@ -936,15 +1034,23 @@ if (gWet > 0.0) {
   /**
    * How wet the ground is at a vertex (0 to 1, into out[o]) and how deep the water stands in its rut (out[o + 1]):
    * mud is wet, more in places, its ruts wetter the deeper they are, and the deep ones hold water; the ground at the
-   * water's edge is wet too. d: the rut's depth (m).
+   * water's edge is wet too, and the earth round mud, damp at its edge rather than dry up to it (on every patch alike:
+   * only on the near ones, it ended in a straight line where they met the coarser ones). d: the rut's depth (m).
    */
   wetAt(x, z, h, d, out, o) {
     const w = this.world, s = w.surfaceId(x, z);
     let wv = 0, pv = 0;
+    if (s !== SURFACE.MUD && s !== SURFACE.ROCK && s !== SURFACE.ROAD) {
+      for (let j = 0; j < FRINGE.length; j += 2) {
+        if (w.surfaceId(x + FRINGE[j], z + FRINGE[j + 1]) !== SURFACE.MUD) continue;
+        wv = Math.max(wv, (j < 8 ? 0.42 : 0.24) * (0.7 + 0.6 * vnoise(x / 2.3, z / 2.3, 913)));
+        if (j < 8) break;
+      }
+    }
     // (a map's deep mud, world/World.js softness, the wetter: water stands in it)
     const base = WET[s] && s === SURFACE.MUD && w.map.deepMud ? WET[s] * 1.5 : WET[s];
     if (base) {
-      wv = base * (0.6 + 0.8 * vnoise(x / 13, z / 13, 911));
+      wv = Math.max(wv, base * (0.6 + 0.8 * vnoise(x / 13, z / 13, 911)));
       if (d > 0.004) {
         wv = Math.max(wv, Math.min(0.8, 0.3 + d * 4));
         // (the water lies in the rut's floor, more of it in the deeper ones)

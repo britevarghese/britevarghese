@@ -805,12 +805,31 @@ Everything that makes off-roading off-roading is simulated, not faked:
   is out again). The water lifts the hull in the middle of its part under water, so a truck deep enough to float sits
   level: heeled over, its low side, deeper in, is lifted back. Drag meets the area the flow does (the front going
   ahead, the side going sideways), so a truck driven into a pond pushes a bow wave and slows hard, nose down.
+- **Tyre tracks:** every tyre leaves its track in the ground it rolls over: soil and forest floor pressed darker,
+  grass crushed browner and its tufts laid flat the way the truck went, mud smoothed and wet, sand and snow crisp,
+  with the lugs of the tread printed across it (chevrons down the middle, staggered blocks on the shoulders), smeared
+  where a tyre spun or slid, and the track's edges and the lugs lit in relief. A tyre caked in mud prints dark muddy
+  treads onto firm ground out of a mud hole, even onto rock and tarmac, fading as it sheds the mud over a few hundred
+  metres, and a big clod thrown up lands as a splat that stays. Friends' trucks leave theirs too. The tracks are a
+  picture of the ground round your truck, 6 cm a pixel (12 on Low graphics), that each wheel is stamped into as it
+  rolls, on the GPU; it reaches at least 32 m every way round the truck, and as you drive on, the ground left
+  farther behind is wiped for the ground ahead (`src/render/TrackMap.js`). (The tread's lugs are reckoned along the
+  way the tyre rolled from the picture's corner, not the world's: kilometres out a sine of the distance in lugs had
+  no precision left, and the track was a plain dark band.)
 - **What the tyres throw up:** a spinning tread flings clods and wet drops of mud along its tangent at its speed
-  round the hub (a rolling one sheds some in mud), sand goes up in a spray of grains, dust rolls up behind on dry
-  ground. In water each tyre splashes as it drives in, throws a rooster tail off the tread and sheets out to the
+  round the hub (a rolling one sheds some in mud), and wet mud in sheets off a spinning one; sand goes up in a spray
+  of grains, dust rolls up behind on dry ground. The mud and dust are the colour of the ground of the map you are in,
+  as are the mud caked on the tyres and on the paint (the taiga's dark peat, the coast's red laterite; in the open
+  world they change as you drive from one map into the next: they were the start map's everywhere, so the taiga's
+  trucks threw red clods). Fresh mud on the paint is wet, dark and glossy, and dries pale and dull out of the mud in a
+  couple of minutes; above the mud caked low down, drops of it are spattered higher up the sides. In water each tyre splashes as it drives in, throws a rooster tail off the tread and sheets out to the
   sides, the nose pushes up a bow wave, and foam and ripple rings spread behind on the surface as it is drawn. All of
   it is lit by the sun and the sky (render/Effects.js), and you see it round your friends' trucks too.
-- **Wet mud:** mud is drawn wet, darker and glossy, wetter in places, and the ground at the water's edge is wet too.
+- **Wet mud:** mud is drawn wet, darker and glossy, wetter in places, and the ground at the water's edge is wet too,
+  as is the earth round a patch of mud a metre or three out (it used to be dry right up to the mud, a dark stain
+  painted on the ground). A mud hole or field has been driven through before: old ruts cross it, a pair for each
+  truck that went through, wandering, of uneven width and worn out in places, their floors dark and damp, water
+  standing in the odd hollow of one (drawn only: the ground the tyres find is as it was).
   The ruts are wetter still, with mud pushed up in ridges either side, and in the deep ones water stands, filling
   the hollows first and mirroring the sky. The sky they and the rivers, lakes and pools mirror is the sky alone (the
   scene's environment map), so toward the horizon, where the hills and trees would stand in it, less of it shows: a
@@ -1381,7 +1400,8 @@ src/render/               Renderer, Sky, Terrain (LOD patches), WorldView (the o
                           KeralaBuildings, TruckModel (chassis, axles, wheels, parts), Person and Hands (the driver,
                           his hands on the wheel; DriverAssets loads him, Driver draws one while he loads), TruckAssets
                           (each truck's real model) and TruckBodies (built-in bodies that stand in while a model loads),
-                          Effects (particles, winch line), EventCourse (start banners, gates), Post (motion blur,
+                          Effects (particles, winch line), TrackMap (the tyres' tracks in the ground),
+                          EventCourse (start banners, gates), Post (motion blur,
                           bloom and the grade), Probe (the reflections on the player's truck)
 src/core/                 Game (the loop), Input, CameraRig
 src/game/                 Career (money, trucks, parts, best times), Events (the courses, runs, medals, races),

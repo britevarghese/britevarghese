@@ -119,12 +119,13 @@ void main() {
     col = col * (amb * 0.85 + uSunCol * 0.3) + uSunCol * pow(behind, 5.0) * (0.18 + 0.3 * mist);
     a *= m;
   } else if (vKind > 3.5 && vKind < 4.5) {
-    // a ripple ring spreading on the water: a thin bright rim
+    // a ripple ring spreading on the water: a thin rim catching a little more of the sky than the water round it,
+    // broken (a bold white rim read as a ring painted on the water)
     if (r > 1.0) discard;
-    float m = (1.0 - smoothstep(0.0, 0.12, abs(r - 0.84))) * (0.7 + 0.3 * vnoise(p * 6.0 + vSeed * 5.0));
+    float m = (1.0 - smoothstep(0.0, 0.05, abs(r - 0.86))) * smoothstep(0.25, 0.6, vnoise(p * 5.0 + vSeed * 5.0));
     if (m < 0.02) discard;
-    col = mix(col, uSky, 0.35) + uSunCol * 0.15;
-    a *= m;
+    col = mix(col, uSky, 0.7) * 0.9 + uSunCol * 0.05;
+    a *= m * 0.45;
   } else if (vKind > 4.5 && vKind < 5.5) {
     // foam: white, broken up into patches and bubbles, thinning at its edge
     if (r > 1.0) discard;
@@ -163,7 +164,7 @@ void main() {
 }`;
 
 const COLORS = {
-  [SURFACE.MUD]: [0.16, 0.11, 0.07], [SURFACE.DIRT]: [0.3, 0.22, 0.14], [SURFACE.SAND]: [0.62, 0.52, 0.36],
+  [SURFACE.MUD]: [0.15, 0.11, 0.075], [SURFACE.DIRT]: [0.3, 0.22, 0.14], [SURFACE.SAND]: [0.62, 0.52, 0.36],
   [SURFACE.GRAVEL]: [0.4, 0.37, 0.33], [SURFACE.GRASS]: [0.24, 0.3, 0.12], [SURFACE.SNOW]: [0.92, 0.94, 0.97],
   [SURFACE.RIVERBED]: [0.3, 0.27, 0.2], [SURFACE.ROCK]: [0.45, 0.43, 0.4], [SURFACE.ROAD]: [0.4, 0.37, 0.33],
   [SURFACE.TEA]: [0.14, 0.2, 0.07],
@@ -171,7 +172,7 @@ const COLORS = {
 // what a spinning tread throws, per ground: clods a second per m/s of wheelspin (and per m/s of tread a rolling
 // tyre sheds), the share that goes as wet drops, clod sizes (m) and the odd big one, a spray of grains, a haze
 const LOOSE = {
-  [SURFACE.MUD]: { clod: 50, roll: 4, drop: 0.4, size: [0.03, 0.075], big: 0.08, grain: 0, haze: 0, spray: 0.08 },
+  [SURFACE.MUD]: { clod: 55, roll: 5, drop: 0.35, size: [0.035, 0.09], big: 0.14, grain: 0, haze: 0, spray: 0.2 },
   [SURFACE.RIVERBED]: { clod: 18, roll: 0.6, drop: 0.35, size: [0.018, 0.04], big: 0, grain: 0, haze: 0 },
   [SURFACE.DIRT]: { clod: 18, roll: 0, drop: 0, size: [0.022, 0.05], big: 0.05, grain: 10, haze: 2.4 },
   [SURFACE.GRASS]: { clod: 14, roll: 0, drop: 0, size: [0.022, 0.05], big: 0.05, grain: 0, haze: 0 },
@@ -237,8 +238,9 @@ export class Effects {
     this.ground = null;
   }
 
-  /** A map's own colours of dust and mud thrown up from each ground (Kerala's red laterite). */
-  setPalette(p = {}) { Object.assign(this.colors, p); }
+  /** A map's own colours of dust and mud thrown up from each ground (Kerala's red laterite; by surface id, the rest
+   * the defaults). */
+  setPalette(p = {}) { this.colors = { ...COLORS, ...p }; }
 
   /** The sun and the sky to light the particles by (render/Renderer.js). */
   setLight(sunDir, sunColor, sunIntensity, sky, ground, hemiIntensity) {
@@ -320,7 +322,7 @@ export class Effects {
         const bx = hubX - headX * r * Math.sin(th) * dir + rnd(0.1), by = hubY - r * Math.cos(th), bz = hubZ - headZ * r * Math.sin(th) * dir + rnd(0.1);
         const ux = -headX * Math.cos(th) * dir, uy = Math.sin(th) * 0.9 + 0.2, uz = -headZ * Math.cos(th) * dir;
         const out = rnd(0.22) * v;
-        if (L.spray && slip > 2 && Math.random() < L.spray) {
+        if (L.spray && slip > 1.5 && Math.random() < L.spray) {
           // wet mud flung off in a sheet
           this.spawn(bx, by, bz, fx + ux * v + sideX * out, uy * v, fz + uz * v + sideZ * out, 0.07 + Math.random() * 0.08, 0.6 + Math.random() * 0.4,
             [col[0] * 1.2, col[1] * 1.15, col[2] * 1.1], 0.6, 0.12, 1.2, 8.5, KIND.SPRAY);
@@ -539,8 +541,12 @@ export class Effects {
         const h = ground.height(x, z);
         if (y < h) {
           if (kind === KIND.CHUNK) {
-            // a clod lands and stays a moment, squashed flat
-            if (Vv[i * 3 + 1] < -0.5) { this.life[i] = Math.min(this.life[i], 1.4); this.maxLife[i] = Math.max(this.life[i], 0.01); this.grow[i] = 0; this.spin[i] = 0; }
+            // a clod lands and stays a moment, squashed flat; a big one leaves a splat of mud on the ground (onLand:
+            // render/TrackMap.js), which stays when it is gone
+            if (Vv[i * 3 + 1] < -0.5) {
+              if (this.onLand && M[i * 4] > 0.04 && C[i * 4] + C[i * 4 + 1] < 0.5) this.onLand(x, z, M[i * 4]);
+              this.life[i] = Math.min(this.life[i], 0.8); this.maxLife[i] = Math.max(this.life[i], 0.01); this.grow[i] = 0; this.spin[i] = 0;
+            }
             P[i * 3 + 1] = h + 0.015; Vv[i * 3] = Vv[i * 3 + 1] = Vv[i * 3 + 2] = 0; this.grav[i] = 0;
           } else if (kind === KIND.SHARD) {
             P[i * 3 + 1] = h + 0.01; Vv[i * 3] = Vv[i * 3 + 1] = Vv[i * 3 + 2] = 0; this.grav[i] = 0; this.spin[i] = 0;

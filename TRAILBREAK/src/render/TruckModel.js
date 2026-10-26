@@ -105,13 +105,15 @@ class PartList {
 
 // ---------------------------------------------------------------- materials
 /** The colour of the mud the tyres throw up the bodywork (linear RGB; a map sets its own: Kerala's is red). */
-export const MUD_TINT = new THREE.Color(0.085, 0.06, 0.04);
+export const MUD_TINT_BASE = [0.085, 0.06, 0.04];
+export const MUD_TINT = new THREE.Color(...MUD_TINT_BASE);
 
 function paintMaterial(hex, uniforms) {
   // solid enamel under a clear coat: the sky and the trees slide across it
   const mat = new THREE.MeshPhysicalMaterial({ color: hex, metalness: 0.05, roughness: 0.38, clearcoat: 1, clearcoatRoughness: 0.07 });
   mat.onBeforeCompile = (sh) => {
     sh.uniforms.uDirt = uniforms.uDirt;
+    sh.uniforms.uDirtWet = uniforms.uDirtWet;
     sh.uniforms.uMudTint = { value: MUD_TINT };
     sh.vertexShader = sh.vertexShader
       .replace('#include <common>', '#include <common>\nvarying vec3 vLocal;')
@@ -120,6 +122,7 @@ function paintMaterial(hex, uniforms) {
       .replace('#include <common>', `#include <common>
 varying vec3 vLocal;
 uniform float uDirt;
+uniform float uDirtWet;
 uniform vec3 uMudTint;
 float gMud = 0.0;
 float dh(vec3 p) { return fract(sin(dot(p, vec3(12.9898, 78.233, 37.719))) * 43758.5453); }
@@ -128,17 +131,24 @@ float dn(vec3 p) { vec3 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
              mix(mix(dh(i + vec3(0,0,1)), dh(i + vec3(1,0,1)), f.x), mix(dh(i + vec3(0,1,1)), dh(i + vec3(1,1,1)), f.x), f.y), f.z); }`)
       .replace('#include <color_fragment>', `#include <color_fragment>
 {
-  // mud thrown up by the tyres: thickest low down and at the ends, in splashes
+  // mud thrown up by the tyres: thickest low down and at the ends, in splashes; above it, spattered drops flung
+  // higher (gone where they are finer than a pixel)
   float lowness = 1.0 - smoothstep(0.55, 1.45, vLocal.y);
   float splash = dn(vLocal * 7.0) * 0.6 + dn(vLocal * 19.0) * 0.4;
   float m = clamp(uDirt * 1.6 * lowness - (1.0 - splash) * 0.6, 0.0, 1.0);
-  diffuseColor.rgb = mix(diffuseColor.rgb, uMudTint, m * 0.92);
+  float sp = dn(vLocal * 48.0 + 3.1) * 0.65 + dn(vLocal * 131.0) * 0.35;
+  float fine = 1.0 - smoothstep(0.004, 0.012, length(fwidth(vLocal)));
+  float drops = smoothstep(0.74, 0.8, sp) * clamp(uDirt * 2.4 * (1.0 - smoothstep(0.8, 1.9, vLocal.y)) - 0.25, 0.0, 1.0) * fine;
+  m = max(m, drops * 0.85);
+  // fresh mud is wet, dark and shining; as it dries it goes pale and dull, paler in patches
+  vec3 mudC = mix(uMudTint * (1.25 + 0.3 * splash), uMudTint * 0.55, uDirtWet);
+  diffuseColor.rgb = mix(diffuseColor.rgb, mudC, m * 0.92);
   gMud = m;
 }`)
-      // mud dulls the shine
+      // mud dulls the shine (wet, it shines itself)
       .replace('#include <lights_physical_fragment>', `#include <lights_physical_fragment>
-material.clearcoat *= 1.0 - gMud;
-material.roughness = mix(material.roughness, 0.95, gMud);`);
+material.clearcoat *= 1.0 - gMud * (1.0 - 0.5 * uDirtWet);
+material.roughness = mix(material.roughness, mix(0.95, 0.32, uDirtWet), gMud);`);
   };
   return mat;
 }
@@ -895,7 +905,7 @@ export class TruckModel {
   constructor(spec, paintHex = 0xb5532c, opts = {}) {
     const M = shared();
     this.spec = spec;
-    this.uniforms = { uDirt: { value: 0 } };
+    this.uniforms = { uDirt: { value: 0 }, uDirtWet: { value: 1 } };
     this.paint = paintMaterial(paintHex, this.uniforms);
     const look = spec.look || {}, canvasTop = look.top === 'canvas';
     this.top = look.top === 'paint' ? this.paint : look.top === 'black'
@@ -1402,7 +1412,8 @@ export class TruckModel {
     m.setMatrixAt(i, this._m);
   }
 
-  setDirt(d) { this.dirt = d; this.uniforms.uDirt.value = d; }
+  /** How much mud is on the paint (0 to 1), and how wet it still is (1: fresh, 0: dried). */
+  setDirt(d, wet = this.uniforms.uDirtWet.value) { this.dirt = d; this.uniforms.uDirt.value = d; this.uniforms.uDirtWet.value = wet; }
 
   /**
    * The tyres as the ground has them (the physics' wheels, physics/Vehicle.js, in the order the axles are): each
@@ -1427,7 +1438,8 @@ export class TruckModel {
         let m = u.uMud.value;
         if (soft) m += dt * (w.surf.name === 'mud' ? 0.5 : 0.18) * (0.4 + Math.min(2, Math.abs(w.slipSpeed || 0)) * 0.5);
         if ((w.water || 0) > 0.25) m -= dt * 0.25 * Math.min(2, w.water);
-        else if (!soft && Math.abs(w.omega || 0) > 25) m -= dt * 0.02;
+        // (on firm ground it is shed as the tyre rolls, flung off faster as it spins faster: gone in a few hundred metres)
+        else if (!soft) m -= dt * Math.abs(w.omega || 0) * (0.0016 + (Math.abs(w.omega || 0) > 25 ? 0.0012 : 0));
         u.uMud.value = Math.min(1, Math.max(0, m));
       }
     }

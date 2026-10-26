@@ -114,6 +114,9 @@ export const TAIGA = stretch({
   // its own air: fog closing in to a few hundred metres, the sky overcast, the light flat and the colours muted
   atmosphere: { fog: 0.0021, cover: 0.12 }, air: { fog: 0.0021, cover: 0.12, sun: 0.5, sat: 0.78, fade: 260 },
   mudTint: [0.24, 0.19, 0.14],
+  // what the tyres throw up: its own dark peaty mud, grey-brown earth and sand (not the red laterite of the coast it
+  // takes the rest of its look from)
+  dust: { [SURFACE.MUD]: [0.13, 0.105, 0.08], [SURFACE.DIRT]: [0.24, 0.18, 0.12], [SURFACE.SAND]: [0.2, 0.17, 0.13], [SURFACE.ROAD]: [0.3, 0.29, 0.27] },
   river: { points: TAIGA_RIVER_PTS, widthStart: 10, widthEnd: 16, depthStart: 1.2, depthEnd: 1.8, fords: TAIGA_FORDS, shallows: [SHALLOWS] },
   bog: BOG, rockGarden: BOULDERS, sandWash: SANDBAR,
   trails: trailsOf('taiga', TAIGA_ROUTES),

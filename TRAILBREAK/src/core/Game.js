@@ -5,7 +5,7 @@ import { truckSpec, TRUCKS } from '../physics/trucks.js';
 import { money, TRUCK_PRICES } from '../game/Career.js';
 import { buildSummary } from '../physics/Upgrades.js';
 import { SURFACES } from '../physics/Surfaces.js';
-import { TruckModel } from '../render/TruckModel.js';
+import { TruckModel, MUD_TINT, MUD_TINT_BASE } from '../render/TruckModel.js';
 import { showroomFor } from '../ui/Showroom.js';
 import { loadTruckAsset, truckAsset, truckAssetProgress, MODEL_BODIES } from '../render/TruckAssets.js';
 import { CameraRig } from './CameraRig.js';
@@ -24,6 +24,7 @@ import { windowGlow } from '../render/KeralaBuildings.js';
 import { seeThrough } from '../render/Vegetation.js';
 import { retroLights } from '../render/RoadMarkings.js';
 import { beginTerrainFrame } from '../render/Terrain.js';
+import { TrackMap } from '../render/TrackMap.js';
 import { Builder } from '../ui/Builder.js';
 import { encodeLayout, decodeLayout } from '../game/Props.js';
 
@@ -1221,6 +1222,7 @@ export class Game {
       const slip = s.thr > 0.6 && Math.abs(speed) < 3 && surf.sink ? 4 : 0;
       const w = { contact: true, surf, slipSpeed: slip, omega: (speed + slip * (speed < -0.3 ? -1 : 1)) / R, water: Math.max(0, wl - (hub.y - R)) };
       this.effects.wheel(`r${rv.id}-${i}`, w, dt, speed, hub.x, hub.y, hub.z, fwd.x, fwd.z, R);
+      this.tracks?.wheel(`r${rv.id}-${i}`, hub.x, hub.z, fwd.x, fwd.z, rv.spec.tyre.width, surf, slip);
     }
     const p = root.position, b = rv.spec.hull[0], cgZ = rv.spec.cgZ || 0;
     const wl = this.world.water(p.x, p.z), bottom = p.y + b.c[1] - b.h[1] - rv.spec.cgHeight;
@@ -1392,17 +1394,38 @@ export class Game {
     this.farBeam.getWorldPosition(this._retroP ||= new THREE.Vector3());
     retroLights(this._retroP, (this._retroD ||= new THREE.Vector3()).set(v.fwd.x, 0, v.fwd.z).normalize(), this.farBeam.intensity / 180 * 2.5);
     if (this.barLight) this.barLight.intensity = lights ? 160 : 0;
+    // (the open world: the mud and dust the tyres throw up, and leave on the paint and the tyres, the colour of the
+    // ground of the map the truck is in: the taiga's dark peat, the coast's red laterite)
+    const RD = this.world.regionDefAt?.(v.pos.x, v.pos.z);
+    if (RD && RD !== this.paletteOf) {
+      this.paletteOf = RD;
+      this.effects.setPalette(RD.map.dust);
+      MUD_TINT.setRGB(...(RD.map.mudTint || MUD_TINT_BASE));
+    }
     // mud on the paint: picked up in mud and wet ground, washed off in water
     let mud = 0;
     for (const w of v.wheels) if (w.contact && (w.surf.name === 'mud' || w.surf.name === 'riverbed' || w.surf.name === 'snow')) mud += (Math.abs(v.speed) * 0.02 + w.slipSpeed * 0.03);
     this.dirt = clamp(this.dirt + mud * dt * 0.25 - (v.waterDepth > 0.2 ? v.waterDepth * dt * 0.25 : 0), 0, 1);
-    m.setDirt(this.dirt);
+    // (fresh mud wet; it dries in a couple of minutes out of the mud and the water)
+    this.dirtWet = mud > 0.02 || v.waterDepth > 0.2 ? Math.min(1, (this.dirtWet ?? 1) + dt * 0.5) : Math.max(0, (this.dirtWet ?? 1) - dt / 150);
+    m.setDirt(this.dirt, this.dirtWet);
     this.damageFrame(dt);
 
     // effects from our tyres
     const speed = v.speed;
     const R = v.spec.tyre.radius;
     for (const w of v.wheels) this.effects.wheel(`me-${w.index}`, w, dt, speed, w.hub.x, w.hub.y, w.hub.z, w.headX, w.headZ, R);
+    // and the tracks they leave in the ground (render/TrackMap.js)
+    if (!this.tracks) {
+      this.tracks = new TrackMap(this.quality() === 'low' ? 256 : 512);
+      this.effects.onLand = (x, z, r) => this.tracks.splat(x, z, r);
+    }
+    const T = this.tracks;
+    T.follow(v.pos.x, v.pos.z);
+    for (const w of v.wheels) {
+      const mud = m.axles?.[w.index >> 1]?.wheels[w.index & 1]?.flex?.uMud.value || 0;
+      T.wheel(`me-${w.index}`, w.cx, w.cz, w.headX, w.headZ, v.tyre.footW, w.contact ? w.surf : null, w.slipSpeed, w.sink, mud);
+    }
     // ... and from the hull pushing through water
     const hb = v.spec.hull[0];
     this.effects.hull('me', dt, v.pos.x, v.pos.y, v.pos.z, v.vel.x, v.vel.z, v.fwd.x, v.fwd.z, hb.h[0], hb.c[2] + hb.h[2] - (v.spec.cgZ || 0), v.waterDepth, this.world.water(v.pos.x, v.pos.z));
@@ -1510,6 +1533,8 @@ export class Game {
     if (m.mirrors && !this.noRender) {
       m.mirrors.update(this.renderer.renderer, this.scene, this.renderer.camera, q === 'high' ? 1 : q === 'medium' ? 2 : 0, [...(this.grass.meshes || [this.grass.mesh]), this.tea?.mesh].filter(Boolean));
     }
+    // (the tyres' tracks drawn into their picture before the frame that shows them)
+    this.tracks?.draw(this.renderer.renderer);
     if (!this.noRender) this.renderer.render();
     this.perf(dt);
     I.endFrame();

@@ -11,6 +11,7 @@ import * as THREE from 'three';
 import { DeformGrid } from '../world/Deform.js';
 import { GAUGE, RUT } from '../world/Worn.js';
 import { vnoise } from '../world/Noise.js';
+import { TRACK_UNIFORMS } from './TrackMap.js';
 
 const CHUNK = 8;
 const SPACING = 0.6;                     // tuft grid (m)
@@ -111,6 +112,7 @@ export class Grass {
       uSunColor: uniforms?.uSunColor || { value: new THREE.Color(1, 1, 1) },
       uRange: { value: this.range }, uPush: { value: Array.from({ length: 6 }, () => new THREE.Vector4(0, 0, 0, 0)) },
       uCentre: { value: new THREE.Vector2(...centre) },
+      ...TRACK_UNIFORMS,
     };
     this.ownTime = !uniforms?.uTime;
     this.mesh = new THREE.Mesh(g, this.material());
@@ -140,6 +142,9 @@ uniform float uTime;
 uniform float uRange;
 uniform vec4 uPush[6];
 uniform vec2 uCentre;
+uniform highp sampler2D uTrkMap;
+uniform vec4 uTrkWin;
+uniform float uTrkSpan;
 ${G ? 'uniform highp sampler2DArray uGC;' : ''}
 varying vec3 vGrass;
 varying float vT;`)
@@ -164,6 +169,24 @@ float k = aT * aT;
 float gust = sin(uTime * 0.9 + aPos.x * 0.05 + aPos.z * 0.04) * 0.5 + 0.5;
 transformed.x += (sin(uTime * 1.9 + aPos.x * 0.37 + aPos.z * 0.21) * 0.6 + gust * 0.8) * 0.09 * k * hgt;
 transformed.z += sin(uTime * 2.3 + aPos.z * 0.33 + aPos.x * 0.17) * 0.05 * k * hgt;
+// laid flat where a tyre has rolled over it (render/TrackMap.js), the way it rolled: a whole tuft, if a tyre rolled
+// over any of it (its middle, or a little to any side: a tuft is wider than a tread)
+{
+  vec2 wp = aPos.xz + uCentre;
+  if (wp.x > uTrkWin.x && wp.y > uTrkWin.y && wp.x < uTrkWin.z && wp.y < uTrkWin.w) {
+    vec2 tq = wp / uTrkSpan, e = vec2(0.17, -0.17) / uTrkSpan;
+    vec4 tm = textureLod(uTrkMap, tq, 0.0), t1 = textureLod(uTrkMap, tq + e.xx, 0.0), t2 = textureLod(uTrkMap, tq + e.yy, 0.0);
+    vec4 t3 = textureLod(uTrkMap, tq + e.xy, 0.0), t4 = textureLod(uTrkMap, tq + e.yx, 0.0);
+    if (t1.r > tm.r) tm = t1; if (t2.r > tm.r) tm = t2; if (t3.r > tm.r) tm = t3; if (t4.r > tm.r) tm = t4;
+    if (tm.r > 0.04) {
+      vec2 dv = tm.ba / tm.r * 2.0 - 1.0;
+      vec2 dir = dv / max(length(dv), 1e-3);
+      float f = smoothstep(0.04, 0.4, tm.r);
+      transformed.xz += dir * f * 0.6 * aT * hgt;
+      transformed.y = mix(transformed.y, aPos.y + aT * 0.03, f * 0.92);
+    }
+  }
+}
 // pressed down by the wheels
 for (int i = 0; i < 6; i++) {
   vec4 q = uPush[i];
