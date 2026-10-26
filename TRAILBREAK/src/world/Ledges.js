@@ -27,7 +27,8 @@ function tracksOf(world) {
  * The strips of ledge in the square [x0, x0 + size] x [z0, z0 + size] of the world's frame. spec: the map's `ledges`:
  * { bed(x, z, h): the bed coordinate (it rises one a bed), levels: [{ at (where in a bed: its fraction), out: [lo, hi]
  * (how far the lip juts past the face, m), thick: [lo, hi] (m), block: [lo, hi] (a block's length along the wall, m), cover (the share of the blocks there: 1, all) }],
- * minSlope (the faces steep enough for them), clear (m its lips are kept clear of a track's edge), seed }.
+ * minSlope (the faces steep enough for them), clear (m its lips are kept clear of a track's edge), skip(x, z) (true
+ * where there are none), seed }.
  * Each strip: { level, pts: [x, y, z, ...], out: [nx, nz, ...] (out from the face), sl: [slope, ...], jut, thick }.
  */
 export function ledgeStrips(world, x0, z0, size, spec) {
@@ -128,7 +129,7 @@ function blocks(world, pts, lv, li, bed, spec, trackD) {
     // out a few metres at most, stays spec.clear off)
     const e = 0.5, gx = (world.terrain(x + e, z) - world.terrain(x - e, z)) / (2 * e), gz = (world.terrain(x, z + e) - world.terrain(x, z - e)) / (2 * e);
     const sl = Math.hypot(gx, gz);
-    if (sl < spec.minSlope * 0.5 || trackD(x, z) < (spec.clear ?? 8) + 3.6) { close(); continue; }
+    if (sl < spec.minSlope * 0.5 || trackD(x, z) < (spec.clear ?? 8) + 3.6 || spec.skip?.(x, z)) { close(); continue; }
     // (at a joint one block ends and the next begins: render/Ledges.js leaves the crack between them)
     if (arc >= jointAt) {
       jointAt = arc + nextJoint(x, z);

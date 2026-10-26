@@ -119,7 +119,8 @@ export class Rocks {
     // count each shape's boulders: every level of detail of a shape can hold all of them
     // (and the blocks of the tors, their own shapes)
     const per = new Array(ROCK_SHAPES + BLOCK_SHAPES).fill(0);
-    B.forEach((b, i) => { per[shapeOf(i, b)]++; });
+    // (but a pillar's blocks: render/Pillars.js draws its column)
+    B.forEach((b, i) => { if (b.pillar === undefined) per[shapeOf(i, b)]++; });
     this.meshes = [];
     for (let k = 0; k < ROCK_SHAPES + BLOCK_SHAPES; k++) {
       if (k >= ROCK_SHAPES && !per[k]) { this.meshes.push([]); continue; }        // (a map without tors: no blocks)
@@ -161,7 +162,7 @@ export class Rocks {
     const B = this.boulders;
     for (let i = 0; i < B.length; i++) {
       const b = B[i], d = Math.hypot(b.x - cam.x, b.z - cam.z);
-      if (d > FAR) continue;
+      if (d > FAR || b.pillar !== undefined) continue;
       const q = d / this.size[i], lod = q < LOD_Q[0] ? 0 : q < LOD_Q[1] ? 1 : 2;
       const mesh = this.meshes[shapeOf(i, b)][lod];
       mesh.setMatrixAt(mesh.count, this.mats[i]);

@@ -10,6 +10,8 @@ import { Grass } from './Grass.js';
 import { Tea } from './Tea.js';
 import { Rocks } from './Rocks.js';
 import { Ledges } from './Ledges.js';
+import { Alcoves } from './Alcoves.js';
+import { Pillars } from './Pillars.js';
 import { Water } from './Water.js';
 import { RoadMarkings } from './RoadMarkings.js';
 import { RoadWear } from './RoadWear.js';
@@ -80,6 +82,8 @@ export class RegionView {
     await tick();
     v.rocks = new Rocks(W, v.group, ground);
     v.ledges = M.ledges ? new Ledges(W, v.group, ground) : null;
+    v.alcoves = M.alcoves ? new Alcoves(W, v.group, ground) : null;
+    v.pillars = W.boulders.some((b) => b.pillar !== undefined) ? new Pillars(W, v.group, ground) : null;
     v.tea = region.map.tea ? new Tea(W, v.group) : null;
     await tick();
     // (the sea past its edges left to another map on the sea that draws its own: [x0, z0, x1, z1] in this one's frame)
@@ -208,7 +212,7 @@ export class WorldView {
         v.rocks.update(c);
         v.ledges?.update(c);
       }),
-      setShadows: (on) => each((v) => { v.rocks.setShadows(on); v.ledges?.setShadows(on); }),
+      setShadows: (on) => each((v) => { v.rocks.setShadows(on); v.ledges?.setShadows(on); v.alcoves?.setShadows(on); v.pillars?.setShadows(on); }),
     };
     this.water = { update: (camera, dt, horizon) => each((v) => v.water.update(cam(v, camera), dt, horizon)) };
     this.landmarks = {

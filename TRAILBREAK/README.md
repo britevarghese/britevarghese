@@ -1134,12 +1134,17 @@ own features made on top of it; the roads through them are routed over the groun
   the recess under it in shadow, and here and there a thinner one partway down a face, cut by joints into blocks that
   stand out a little more or less than the next (a map's `ledges`: `src/world/Ledges.js` traces each bed's lip along
   the walls, `src/render/Ledges.js` builds the slabs a square at a time near the camera; none within a few metres of
-  a track) ([NPS: Navajo National Monument](https://www.nps.gov/articles/nps-geodiversity-atlas-navajo-national-monument-arizona.htm),
+  a track). Here and there at the foot of the gorge's walls the softer rock has worn back under the harder into an
+  alcove, an arched hollow 25 to 50 m across and 10 to 15 m deep under an overhanging brow of rock, with room to drive
+  a truck in under its roof (a map's `alcoves`: `src/world/Alcoves.js` is their shape, the map cuts the floor into the
+  ground and `src/render/Alcoves.js` builds the roof over it)
+  ([NPS: Navajo National Monument](https://www.nps.gov/articles/nps-geodiversity-atlas-navajo-national-monument-arizona.htm),
   [NPS: Mesa Verde's alcoves](https://www.nps.gov/meve/learn/historyculture/cp_cliff_palace_alcoves.htm)). The faces
   are streaked dark with desert varnish where rain runs off the ledges (a map's `varnish`, in the terrain shader;
   [NPS: desert varnish](https://www.nps.gov/articles/desertvarnish.htm)), and on the floor near the walls stand
   hoodoos, pillars of the beds left standing as the wall wore back, each with a cap rock
-  ([Utah Geological Survey: Thor's Hammer](https://geology.utah.gov/potd-february-07-2017-thors-hammer-bryce-canyon-national-state-park)).
+  ([Utah Geological Survey: Thor's Hammer](https://geology.utah.gov/potd-february-07-2017-thors-hammer-bryce-canyon-national-state-park));
+  each is drawn as one column of rock (`src/render/Pillars.js`) over the blocks a truck runs into.
   The river runs red-brown with the sand it carries, its bed hidden a hand's depth down and the walls in its
   reflection (a map's `water.silt`, `src/render/Water.js`); its banks are wet a few metres up from the water, rounded
   stones lie in clusters in its shallows and along its edges, and flat slabs of the bedrock step down into it where a

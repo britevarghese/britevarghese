@@ -13,6 +13,7 @@ import { homeOf, park } from '../src/world/homes.js';
 import { followPath, densify } from './drive.mjs';
 import { POOLS, CREEK } from '../src/world/maps/canyon.js';
 import { ledgeStrips } from '../src/world/Ledges.js';
+import { alcoveRoof } from '../src/world/Alcoves.js';
 import { GAUGE } from '../src/world/Worn.js';
 import { mapById } from '../src/world/maps/index.js';
 
@@ -248,6 +249,29 @@ test('the open world: Lalghati Canyon, a broad canyon in red rock (an open floor
   const shore = w.boulders.filter((b) => Math.abs(w.water(b.x, b.z) - w.height(b.x, b.z)) < 0.7);
   assert.ok(shore.filter((b) => b.block === undefined && b.rx < 0.8).length > 600, 'stones at the water\'s edge');
   assert.ok(shore.filter((b) => b.block !== undefined).length > 40, 'slabs into the water');
+  // its alcoves: a floor cut level into the foot of the wall, room for a truck under the roof over it and the ground
+  // nowhere up through the roof; off the tracks, and a way in
+  const alcoves = w.map.alcoves();
+  assert.ok(alcoves.length >= 8, `${alcoves.length} alcoves`);
+  for (const A of alcoves) {
+    const at = (u, v) => [A.x + A.tx * u - A.nx * v, A.z + A.tz * u - A.nz * v], where = `the alcove at ${A.x.toFixed(0)}, ${A.z.toFixed(0)}`;
+    assert.ok(Math.abs(w.height(...at(0, A.D * 0.4)) - A.base) < 0.4, `${where}: its floor`);
+    for (let r = 0; r < 0.98; r += 0.07) for (let ph = 0.05; ph < Math.PI; ph += 0.15) {
+      const [x, z] = at(A.W * r * Math.cos(ph), A.D * r * Math.sin(ph)), room = A.base + alcoveRoof(A, r) - w.height(x, z);
+      assert.ok(room > -0.3, `${where}: the ground ${(-room).toFixed(2)} m up through its roof`);
+      if (r < 0.6) assert.ok(room > 4.5, `${where}: ${room.toFixed(1)} m under its roof`);
+    }
+    assert.ok(!w.worn.nearest(A.x, A.z), `${where} on a track`);
+    // (and a truck drives in under it off the canyon's floor)
+    const path = densify([at(0, -24), at(0, -12), at(0, A.D * 0.55)]), v = new Vehicle(truckSpec('thar'));
+    v.place(w, path[0][0], path[0][1], Math.atan2(path[4][0] - path[0][0], path[4][1] - path[0][1]));
+    v.dt.setFourWD(true, 0);
+    assert.ok(followPath(v, w, path, { seconds: 60, vmax: 8 }).reached, `${where}: no way in`);
+  }
+  // its hoodoos: columns of rock 8 m and more high
+  const pillars = new Map();
+  for (const b of w.boulders) if (b.pillar !== undefined) pillars.set(b.pillar, Math.max(pillars.get(b.pillar) ?? 0, b.y + b.ry - w.terrain(b.x, b.z)));
+  assert.ok(pillars.size >= 6 && [...pillars.values()].every((h) => h > 8), `hoodoos: ${[...pillars.values()].map((h) => h.toFixed(0))}`);
   // the Bearwood carried on out of the taiga at its level
   assert.ok(Math.abs(tg.water(-1022, 300) - w.water(1022, 300)) < 0.3, `the river at the seam: ${tg.water(-1022, 300).toFixed(2)}, ${w.water(1022, 300).toFixed(2)}`);
   // red rock most of it, drifts of red sand, red mud on the floor

@@ -136,8 +136,10 @@ normal = normalize((viewMatrix * vec4(wN, 0.0)).xyz);`)
   // there less of it (a pool seen across the ground was a pale sheet of the bright horizon)
   vec3 wR = reflect(normalize(vWPos - cameraPosition), wN);
   reflectedLight.indirectSpecular *= mix(0.25, 1.0, smoothstep(0.0, 0.35, wR.y));
-  // (and in a canyon, a map with silt, what it mirrors low down is its red walls more than the sky)
-  reflectedLight.indirectSpecular *= mix(vec3(1.0), uSilt.rgb / max(uSilt.r, 0.01) * 0.8, uSilt.w * (1.0 - smoothstep(0.05, 0.6, wR.y)));
+  // (and in a canyon, a map with silt, what it mirrors low down is its red walls more than the sky, and even overhead
+  // the walls round it take much of the sky: a pool in their shade stays red-brown, not a grey sheet of the sky)
+  reflectedLight.indirectSpecular *= mix(vec3(1.0), uSilt.rgb / max(uSilt.r, 0.01) * 0.8, uSilt.w * (1.0 - 0.5 * smoothstep(0.05, 0.6, wR.y)));
+  reflectedLight.indirectSpecular *= 1.0 - 0.45 * uSilt.w;
   vec3 V = normalize(vViewPosition);
   float R = 0.02 + 0.98 * pow(1.0 - clamp(dot(normal, V), 0.0, 1.0), 5.0);
   vec3 diff = reflectedLight.directDiffuse + reflectedLight.indirectDiffuse;

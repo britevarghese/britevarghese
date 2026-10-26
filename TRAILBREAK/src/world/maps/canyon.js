@@ -20,9 +20,10 @@
 import { SURFACE } from '../../physics/Surfaces.js';
 import { COAST } from './coast.js';
 import { TAIGA, TAIGA_RIVER_PTS } from './taiga.js';
-import { landform } from '../WorldGen.js';
+import { landform, spline } from '../WorldGen.js';
 import { ridged, rng } from '../Noise.js';
 import { graded } from './seams.js';
+import { alcoveAt, alcoveBank, ALCOVE_RAMP } from '../Alcoves.js';
 import { clamp, lerp, smoothstep, gauss, hyp, fbm, vnoise, lineNear, lineLength, along, plant, desert, DESERT, TROPICAL, stretch, trailsOf } from './country.js';
 
 /** The canyon's centre in the world (a 2 km square west of the taiga, north of Chalkewadi and the Table Land). */
@@ -163,6 +164,9 @@ const inFlats = (x, z) => {
  */
 const STRATA = [[1.04, 0.66, 0.52], [0.72, 0.36, 0.26], [1.22, 1.3, 1.36], [0.9, 0.5, 0.36], [0.62, 0.3, 0.22], [1.08, 0.82, 0.7], [0.82, 0.44, 0.32]];
 const canyonTint = (x, z, layer, h, c) => {
+  // (in the shade of an alcove's roof, the deeper the darker)
+  const al = inAlcove(x, z);
+  if (al) { const k = 1 - 0.5 * smoothstep(-1, 0.6 * al.A.D, al.v) * smoothstep(1, 0.75, al.r); c[0] *= k; c[1] *= k; c[2] *= k; }
   if (layer === 'rock') {
     // (the beds dip a little, and their colours run on along them: the band by the height, warped)
     const y = h + 2.5 * fbm(x / 140, z / 140, 2, SEED + 20), b = y / 4.6 + 0.4 * Math.sin(y / 17);
@@ -194,6 +198,67 @@ const creekD = (x, z) => {
   }
   return d;
 };
+
+/**
+ * The walls in beds (gen.fine below): each 8-13 m deep, a ledge of harder rock over a steep face of softer, their lips
+ * a little ragged, runnels worn down the faces; w how much of a wall the ground is.
+ */
+function bedded(x, z, h, w) {
+  if (w <= 0) return h;
+  const off = 2.5 * fbm(x / 140, z / 140, 2, SEED + 20), y = h + off;
+  const u = y / 10.5 + 0.22 * Math.sin(y / 23), du = 1 / 10.5 + 0.22 / 23 * Math.cos(y / 23);
+  const bed = Math.floor(u), f = u - bed, lip = 0.38 + 0.12 * fbm(x / 18, z / 18, 2, SEED + 24);
+  const stepped = y + (bed + smoothstep(lip, 0.97, f) - u) / du - off;
+  return lerp(h, stepped, w) + w * 1.4 * (ridged(x / 16, z / 16, 2, SEED + 23) - 0.4);
+}
+/** The wall as it stands (near enough: the generator's from the landform's grid) before an alcove is cut into it. */
+export function wallAt(x, z) {
+  const g = canyonGround, e = 4, w = smoothstep(0.28, 0.7, hyp(g(x + e, z) - g(x - e, z), g(x, z + e) - g(x, z - e)) / (2 * e));
+  return bedded(x, z, g(x, z), w);
+}
+
+// ---------------------------------------------------------------- the alcoves
+// (world/Alcoves.js: what they are and their shape; here where they are)
+
+let ALCOVES = null;
+/**
+ * The alcoves (world/Alcoves.js): at the foot of the gorge's walls where they stand high and steep, off the tracks,
+ * the side canyons and the base, reckoned once from the ground as its shape gives it.
+ */
+export function alcoveSites() {
+  if (ALCOVES) return ALCOVES;
+  const R = rng(SEED + 500), out = [], g = canyonGround, tracks = CANYON.trails.map((t) => spline(t.points, 4));
+  const trackD = (x, z) => Math.min(...tracks.map((p) => lineNear(p, x, z).d));
+  for (let s = 90; s < RIVER_LEN - 90; s += 45) {
+    for (const side of [1, -1]) {
+      const [ax, az] = along(CANYON_RIVER_PTS, s), [bx, bz] = along(CANYON_RIVER_PTS, s + 4), l = hyp(bx - ax, bz - az) || 1;
+      const px = -(bz - az) / l * side, pz = (bx - ax) / l * side, floor = canyonLevel(s / RIVER_LEN) + 2.2;
+      // (out from the river to where the wall rises from the floor)
+      let fx = null, fz = null;
+      for (let d = 40; d < 320; d += 1.5) {
+        const x = ax + px * d, z = az + pz * d;
+        if (g(x, z) > floor + 3) break;
+        fx = x; fz = z;
+      }
+      const roll = R(), W = 13 + 11 * R(), D = 10 + 5 * R(), H = 8 + 4 * R(), T = 3 + 2 * R();
+      if (fx === null || roll > 0.6) continue;
+      // (the way out of the wall: down its slope a few metres in)
+      const qx = fx + px * 5, qz = fz + pz * 5, e = 2, gx = (g(qx + e, qz) - g(qx - e, qz)) / (2 * e), gz = (g(qx, qz + e) - g(qx, qz - e)) / (2 * e), gl = hyp(gx, gz);
+      if (gl < 1.1) continue;
+      const nx = -gx / gl, nz = -gz / gl, base = g(fx, fz);
+      // (a wall high enough to hold it, steep across its whole width; clear of the tracks, the creeks, the base and
+      // the other alcoves)
+      if (g(fx - nx * D, fz - nz * D) < base + H + T + 4) continue;
+      if ([-1, 1].some((k) => g(fx - nz * k * W - nx * 6, fz + nx * k * W - nz * 6) < base + 6)) continue;
+      if (trackD(fx, fz) < W + 30 || creekD(fx, fz) < W + 40 || hyp(fx - BASE.x, fz - BASE.z) < 200 || out.some((A) => hyp(A.x - fx, A.z - fz) < 170)) continue;
+      // (and how steep the wall is above it, which its roof's top follows back up into it)
+      const S = (g(fx - nx * (D + 3), fz - nz * (D + 3)) - base) / (D + 3);
+      out.push({ x: fx, z: fz, nx, nz, tx: -nz, tz: nx, W, D, H, T, S, base });
+    }
+  }
+  return (ALCOVES = out);
+}
+const inAlcove = (x, z, reach = 1) => alcoveAt(alcoveSites(), x, z, reach);
 
 export const CANYON = stretch({
   id: 'canyon', name: 'Lalghati Canyon', short: 'Lalghati', seed: SEED, half: CANYON_HALF,
@@ -237,7 +302,11 @@ export const CANYON = stretch({
       { at: 0.58, out: [0.25, 0.8], thick: [0.5, 1.0], block: [3, 8], cover: 0.45 },
     ],
     minSlope: 0.9, clear: 8, seed: SEED + 400,
+    // (none in or round an alcove: its roof is its ledge)
+    skip: (x, z) => !!inAlcove(x, z, 1.3),
   },
+  // and alcoves worn into the feet of the gorge's walls (world/Alcoves.js, render/Alcoves.js)
+  alcoves: alcoveSites, alcoveWall: wallAt,
   atmosphere: { fog: 0.0004, cover: 0.62 }, air: { fog: 0.0004, cover: 0.62, sun: 1, sat: 1.1, fade: 200 },
   dust: { ...COAST.dust, [SURFACE.SAND]: [0.5, 0.26, 0.15], [SURFACE.DIRT]: [0.45, 0.22, 0.12] },
   puddles: 5, mudFields: 2.5, rockFields: 2.5, mudTracks: 0.35, wornTracks: true, rockRelief: true, looseRocks: 4,
@@ -267,22 +336,22 @@ export const CANYON = stretch({
   // its shoulders, so the floor below it stays the floor)
   gen: graded([], {
     prepare({ K, coarseAt }) { K.coarseAt = coarseAt; },
-    // the walls in beds: each 8-13 m deep, a ledge of harder rock over a steep face of softer, their lips a little
-    // ragged, runnels worn down the faces
+    // the walls in beds (bedded above)
     fine(x, z, h, K) {
-      const w = wallness(K, x, z);
-      if (w <= 0) return h;
-      const off = 2.5 * fbm(x / 140, z / 140, 2, SEED + 20), y = h + off;
-      const u = y / 10.5 + 0.22 * Math.sin(y / 23), du = 1 / 10.5 + 0.22 / 23 * Math.cos(y / 23);
-      const bed = Math.floor(u), f = u - bed, lip = 0.38 + 0.12 * fbm(x / 18, z / 18, 2, SEED + 24);
-      const stepped = y + (bed + smoothstep(lip, 0.97, f) - u) / du - off;
-      return lerp(h, stepped, w) + w * 1.4 * (ridged(x / 16, z / 16, 2, SEED + 23) - 0.4);
+      h = bedded(x, z, h, wallness(K, x, z));
+      // the alcoves cut into the walls' feet: a floor level with the canyon's, a bank round its edge up to the roof
+      // (render/Alcoves.js); ramped in at the opening over the foot of the wall's beds (which can dip there)
+      const al = inAlcove(x, z);
+      if (al) h = lerp(h, al.A.base + alcoveBank(al.r) + 0.15 * fbm(x / 4, z / 4, 2, SEED + 25), smoothstep(-ALCOVE_RAMP, 0.3, al.v));
+      return h;
     },
     surface(x, z, h, sl, s, idx, ctx) {
       if (s === SURFACE.RIVERBED) return s;
       const w = wallness(ctx.K, x, z);
       if (sl > 0.62 || (w > 0.35 && sl > 0.32)) return SURFACE.ROCK;
       const n1 = vnoise(x / 23, z / 23, SEED + 30), n2 = vnoise(x / 7, z / 7, SEED + 31), n3 = vnoise(x / 55, z / 55, SEED + 32);
+      // (an alcove's floor dry under its roof: sand blown in, bare rock)
+      if (inAlcove(x, z)) return n2 > 0.42 ? SURFACE.SAND : SURFACE.ROCK;
       // the side canyons' floors: shingle down the creek, sand and mud round the pools
       const cd = creekD(x, z);
       if (cd < 3) return n2 > 0.5 ? SURFACE.GRAVEL : SURFACE.MUD;
@@ -340,7 +409,7 @@ export const CANYON = stretch({
     trees(ctx) {
       const { K, hAt } = ctx;
       plant(ctx, 7, (x, z, s, h, R, roll) => {
-        if (hyp(x - BASE.x, z - BASE.z) < 75 || hyp(x - LOOKOUT.x, z - LOOKOUT.z) < 20 || ctx.hoodoos?.some(([hx, hz]) => hyp(x - hx, z - hz) < 8)) return null;
+        if (hyp(x - BASE.x, z - BASE.z) < 75 || hyp(x - LOOKOUT.x, z - LOOKOUT.z) < 20 || ctx.hoodoos?.some(([hx, hz]) => hyp(x - hx, z - hz) < 8) || inAlcove(x, z, 1.7)) return null;
         // (nothing on the faces of the walls: a tree there stands out from the cliff like a blot; the ledges keep theirs)
         if (Math.max(Math.abs(hAt(x + 2, z) - hAt(x - 2, z)), Math.abs(hAt(x, z + 2) - hAt(x, z - 2))) > 2) return null;
         const w = wallness(K, x, z);
@@ -365,7 +434,7 @@ export const CANYON = stretch({
         const ramp = gauss(x - RAMP_X, 70) * smoothstep(380, 470, z) * smoothstep(720, 640, z);
         if (!((w > 0.05 && w < 0.5 && foot && roll < 0.5) || roll < ramp * 0.35)) continue;
         const idx = cellOf(x, z);
-        if (trailD(idx) < trailW(idx) + 3 || onCourse(x, z, 9)) continue;
+        if (trailD(idx) < trailW(idx) + 3 || onCourse(x, z, 9) || inAlcove(x, z, 1.4)) continue;     // (and an alcove's way in clear)
         add(x, z, 0.7 + R() * 1.4 + R() * R() * 1.8, 0.25 + R() * 0.2);
       }
       const RW = rng(SEED + 97), { waterAt } = ctx;
@@ -373,7 +442,8 @@ export const CANYON = stretch({
       const clearAt = (x, z, m) => { const idx = cellOf(x, z); return trailD(idx) > trailW(idx) + m && !onCourse(x, z, m + 6); };
       // hoodoos: pillars of the sandstone standing free of the walls on the floor near their feet, left where the wall
       // round them has worn back, each a stack of its beds' blocks, narrowing up it, a harder bed's block a cap rock on
-      // top (Thor's Hammer at Bryce); off the tracks, the water and each other
+      // top (Thor's Hammer at Bryce); off the tracks, the water and each other. (The blocks are what a truck runs into;
+      // render/Pillars.js draws the column of rock up through them.)
       const RH = rng(SEED + 95), hoodoos = ctx.hoodoos = [];
       for (let n = 0; n < 4000 && hoodoos.length < 9; n++) {
         const x = (RH() * 2 - 1) * (CANYON_HALF - 60), z = (RH() * 2 - 1) * (CANYON_HALF - 60), w = wallness(K, x, z), g = gorgeAt(x, z), h = hAt(x, z);
@@ -381,7 +451,7 @@ export const CANYON = stretch({
         // (near a wall: steep ground within 50 m)
         let wall = false;
         for (let a = 0; a < 8 && !wall; a++) wall = wallness(K, x + Math.cos(a * Math.PI / 4) * 45, z + Math.sin(a * Math.PI / 4) * 45) > 0.4;
-        if (!wall || !clearAt(x, z, 14) || hoodoos.some(([hx, hz]) => hyp(hx - x, hz - z) < 140) || hyp(x - BASE.x, z - BASE.z) < 120) continue;
+        if (!wall || !clearAt(x, z, 14) || hoodoos.some(([hx, hz]) => hyp(hx - x, hz - z) < 140) || hyp(x - BASE.x, z - BASE.z) < 120 || inAlcove(x, z, 1.8)) continue;
         hoodoos.push([x, z]);
         // (its blocks sunk into each other, one column of rock: its harder beds standing out a little wider than the
         // softer, a wavering outline up it)
@@ -391,7 +461,7 @@ export const CANYON = stretch({
           const cap = k === nb - 1, f = cap ? 1.25 : (1 - 0.36 * k / nb) * (1 + 0.1 * Math.sin(k * 1.9 + ph)), ry = cap ? 0.75 + RH() * 0.3 : 1.1 + RH() * 0.6;
           const wx = W0 * f * (0.92 + 0.16 * RH()), wz = W0 * f * (0.78 + 0.2 * RH()), ox = k ? (RH() - 0.5) * 0.25 : 0, oz = k ? (RH() - 0.5) * 0.25 : 0;
           const y = top === null ? h - ry * 0.3 : top + ry * 0.22;
-          list.push({ x: x + ox, y, z: z + oz, rx: wx, ry, rz: wz, yaw: yaw + (RH() - 0.5) * 0.12, shade: RH(), block: Math.floor(RH() * 6) });
+          list.push({ x: x + ox, y, z: z + oz, rx: wx, ry, rz: wz, yaw: yaw + (RH() - 0.5) * 0.12, shade: RH(), block: Math.floor(RH() * 6), pillar: hoodoos.length - 1 });
           top = y + ry * 0.66;
         }
       }
