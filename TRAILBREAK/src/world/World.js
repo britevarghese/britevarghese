@@ -7,7 +7,8 @@
 //   surfaceAt(x, z)              surface record (physics/Surfaces.js)
 //   water(x, z)                  water surface height there, or -Infinity
 // (and for the renderer, waterSurface(x, z): the water's surface as it is drawn)
-//   deform(x, z, fx, fz, hw, hl, press, dig)   press soft ground under a tyre, returns the rut depth
+//   deform(x, z, fx, fz, hw, hl, press, dig)   press soft ground under a tyre (and dig where it spins, firm ground's
+//                                loose layer too), returns the rut depth
 //   rutsAcross(x, z, ax, az, n, step, out)   how deep the ruts are (pressed, and a worn track's) at 2n + 1 points
 //   treesNear(x, z, r, out)      trunks, wall posts and roadside posts { x, y, z, r, cap, top, u, i, tree } near (x, z)
 //   strike(i, moment, vx, vz)    a truck bends obstacle i that hard (N m): breaks it if it gives way (true)
@@ -255,14 +256,15 @@ export class World {
 
   /**
    * The deepest a rut can go at a point: each ground's own, blended across its cells, so a rut in mud runs out
-   * onto firm ground up a ramp (as the mud thins out at its edge) rather than ending at a wall.
+   * onto firm ground up a ramp (as the mud thins out at its edge) rather than ending at a wall. (key 'loose': how
+   * deep a spinning tyre can dig into firm ground's loose layer, physics/Surfaces.js)
    */
-  maxSinkAt(x, z) {
-    for (let n = 0; n < this.paints.length; n++) if (paintAt(this.paints[n], x, z)) return SURFACES[PROP_TYPES[this.paints[n].type].surface].maxSink;
+  maxSinkAt(x, z, key = 'maxSink') {
+    for (let n = 0; n < this.paints.length; n++) if (paintAt(this.paints[n], x, z)) return SURFACES[PROP_TYPES[this.paints[n].type].surface][key] || 0;
     const fx = (x - this.origin) / this.res, fz = (z - this.origin) / this.res, i = Math.floor(fx), k = Math.floor(fz), tx = fx - i, tz = fz - k;
     // (a map's deep mud, softness: its ruts the deeper, as the square root of how much softer it is)
-    const deep = Math.sqrt(this.deepAt(x, z));
-    const m = (a, b) => (a < 0 || b < 0 || a >= this.N || b >= this.N ? 0 : SURFACES[this.S[b * this.N + a]].maxSink * (this.S[b * this.N + a] === SURFACE.MUD ? deep : 1));
+    const deep = key === 'maxSink' ? Math.sqrt(this.deepAt(x, z)) : 1;
+    const m = (a, b) => (a < 0 || b < 0 || a >= this.N || b >= this.N ? 0 : (SURFACES[this.S[b * this.N + a]][key] || 0) * (this.S[b * this.N + a] === SURFACE.MUD ? deep : 1));
     return (m(i, k) * (1 - tx) + m(i + 1, k) * tx) * (1 - tz) + (m(i, k + 1) * (1 - tx) + m(i + 1, k + 1) * tx) * tz;
   }
 
@@ -287,7 +289,9 @@ export class World {
   }
 
   deform(x, z, fx, fz, hw, hl, press, dig) {
-    return this.deformGrid.stamp(x, z, fx, fz, hw, hl, press, dig, (px, pz) => this.maxSinkAt(px, pz));
+    // (a tyre spinning on firm ground, pressing none of it: as deep as the loose layer on top, or a rut there)
+    if (press > 0) return this.deformGrid.stamp(x, z, fx, fz, hw, hl, press, dig, this._sinkAt ||= (px, pz) => this.maxSinkAt(px, pz));
+    return this.deformGrid.stamp(x, z, fx, fz, hw, hl, 0, dig, this._digAt ||= (px, pz) => Math.max(this.maxSinkAt(px, pz), this.maxSinkAt(px, pz, 'loose')));
   }
 
   /**

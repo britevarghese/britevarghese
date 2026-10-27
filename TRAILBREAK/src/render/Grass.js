@@ -185,6 +185,9 @@ transformed.z += sin(uTime * 2.3 + aPos.z * 0.33 + aPos.x * 0.17) * 0.05 * k * h
       float f = smoothstep(0.04, 0.4, tm.r) * (1.0 - smoothstep(30.0, 40.0, dist));
       transformed.xz += dir * f * 0.6 * aT * hgt;
       transformed.y = mix(transformed.y, aPos.y + aT * 0.03, f * 0.92);
+      // (torn out where a tyre spun or slid on it, its print smeared: render/Terrain.js shows the soil there)
+      float torn = (1.0 - smoothstep(0.25, 0.6, length(dv))) * smoothstep(0.35, 0.6, tm.r) * (1.0 - smoothstep(30.0, 40.0, dist));
+      transformed.y = mix(transformed.y, aPos.y - 0.06, torn);
     }
   }
 }

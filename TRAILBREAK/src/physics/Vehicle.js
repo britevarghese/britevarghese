@@ -180,6 +180,7 @@ export class Vehicle {
         contact: false, N: 0, pen: 0, slip: 0, slipSpeed: 0, spin: 0, surf: surfaceById(0), sink: 0, water: 0, nSoil: 0, penSoil: 0,
         cx: 0, cy: 0, cz: 0, nx: 0, ny: 1, nz: 0, wall: 0, rutDir: 1,   // contact point and normal (world); rut walls push
         clog: 0,                                                    // how full of mud its tread is (0 clean .. 1 a slick)
+        dug: 0,                                                     // dug into firm earth, not yet in the ground (m)
         hub: new V3(), vHub: new V3(), fx: 0, fy: 0, kappa: 0, tanA: 0, vx: 0, vy: 0,
         cxDamp: 0, cyDamp: 0, Fshape: 0, FyShape: 0, rr: 0,
       });
@@ -814,18 +815,28 @@ export class Vehicle {
 
       // soft ground: press it down, dig while spinning. The footprint: the chord the tyre's deflection cuts, made
       // longer and wider by a soft carcass (aired down). The soil takes its set under the load and deflection averaged
-      // over SOIL_TAU: a jolt doesn't punch a hole that the tyre then drops into and hits again
+      // over SOIL_TAU: a jolt doesn't punch a hole that the tyre then drops into and hits again. Firm earth (sink 0)
+      // isn't pressed, but a tyre spinning on it digs (the loose layer on top: surf.loose); only while spinning, so
+      // the ground is left alone the rest of the time
       const ks = Math.min(1, dt / SOIL_TAU);
       w.nSoil += (w.N - w.nSoil) * ks; w.penSoil += (w.pen - w.penSoil) * ks;
+      const dig = surf.dig * Math.max(0, slipV - 0.6) * dt;
       if (surf.sink > 0 && ground.deform) {
         const contactLen = Math.max(0.22, 2 * Math.sqrt(Math.max(0, 2 * r * Math.min(w.penSoil, r * 0.5)))) * tyre.footL;
         const pKPa = w.nSoil / (tyre.footW * contactLen) / 1000;
         // (a map's deep mud: softer than its kind, and the deeper it goes: world/World.js softness)
         const soft = ground.softness ? ground.softness(w.cx, w.cz) : 1;
         const zEq = Math.min(surf.maxSink * Math.sqrt(soft), Math.pow(pKPa * soft / surf.sink, 1 / surf.n));
-        const dig = surf.dig * Math.max(0, slipV - 0.6) * dt;
         w.sink = ground.deform(w.cx, w.cz, w.fX, w.fZ, tyre.footW * 0.5, contactLen * 0.5, zEq, dig);
-      } else w.sink = 0;
+      } else if (dig > 0 && ground.deform) {
+        // (dug a tenth of a millimetre at a time: a step's own is too little for the ground to keep)
+        w.dug += dig;
+        if (w.dug > 1e-4) {
+          const contactLen = Math.max(0.22, 2 * Math.sqrt(Math.max(0, 2 * r * Math.min(w.penSoil, r * 0.5)))) * tyre.footL;
+          w.sink = ground.deform(w.cx, w.cz, w.fX, w.fZ, tyre.footW * 0.5, contactLen * 0.5, 0, w.dug);
+          w.dug = 0;
+        }
+      } else { w.sink = 0; w.dug = 0; }
     }
     this.axleContacts(ground);
     this.feelStep(dt, speed);

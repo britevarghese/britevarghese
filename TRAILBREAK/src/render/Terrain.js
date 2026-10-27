@@ -562,6 +562,13 @@ ${G ? `
         if (tl > 0.8) tyreTilt *= 0.8 / tl;
         vec3 press = mix(vec3(1.0 - L.x), vec3(1.0 - L.x * 0.55, 1.0 - L.x * 0.75, 1.0 - L.x * 1.5), L.w);
         alb *= mix(vec3(1.0), press, st) * (1.0 - 0.26 * lug * la * step(0.001, L.y));
+        // turf torn up where a tyre spun or slid on it (its print smeared): the soil under it, damp and dark
+        // (render/Grass.js takes the blades away there)
+        float torn = L.w * st * (1.0 - smoothstep(0.25, 0.6, clean)) * smoothstep(0.35, 0.6, tm.r);
+        if (torn > 0.01 && uIds2.x >= 0.0) {
+          vec4 soil = gColor(uIds2.x, uLay[int(uIds2.x)].x);
+          alb = mix(alb, soil.rgb * uGain[int(uIds2.x)] * 0.7, torn);
+        }
         rough = mix(rough, rough * (1.0 - L.z), st);
         gTrkWet = max(gTrkWet, st * L.z);
       }
@@ -701,14 +708,17 @@ ${G ? `
   // wet ground, darker and glossier; and water standing in the ruts, in the hollows first, flat and shiny
   if (vWet.x + vWet.y + gTrkWet > 0.004) {
     float pool = max(clamp((vWet.y * 1.3 - gH) * 6.0, 0.0, 1.0), gTrkPool);
-    // (the water lies in the hollows of the ground's relief; its bumps stand drier)
-    float wv = max(max(clamp(vWet.x * (1.6 - 1.4 * gH), 0.0, 1.0), pool), gTrkWet);
+    // (the water lies in the hollows of the ground's relief; its bumps stand a little drier: wet mud is wet all over,
+    // not dry lumps with water in the gaps between them, a network of dark cracks)
+    float wv = max(max(clamp(vWet.x * (1.3 - 0.7 * gH), 0.0, 1.0), pool), gTrkWet);
     diffuseColor.rgb *= 1.0 - 0.45 * wv;
     gRough = mix(gRough < 0.0 ? 0.95 : gRough, 0.34, wv * 0.8);
     diffuseColor.rgb = mix(diffuseColor.rgb, uPuddle, pool * 0.85);
     // (its surface lies flat before it is smooth: a half-filled hollow is not a tilted mirror catching the sun)
     gRough = mix(gRough, 0.06, pool * pool);
     gNW = normalize(mix(gNW, vec3(0.0, 1.0, 0.0), smoothstep(0.0, 0.45, pool)));
+    // (and a film of water smooths its fine relief: wet mud glistens in soft lumps, not a crust lit grain by grain)
+    gNW = normalize(mix(gNW, normalize(vWNormal), 0.45 * wv));
     gPool = pool; gWet = wv;
   }
 }`)
@@ -1207,13 +1217,19 @@ if (gWet > 0.0) {
       this.colorAt(x, z, sp, h, slope, c3, !out);
       if (out) cover[v] = Math.round(this.farCover(x, z, h, slope) * 255);
       // the tint over the textures: the land's own, or past the map the far colour over the layer the shader shows
-      if (!out) this.tintAt(this.splat[Math.round((z - w.origin) / w.res) * w.N + Math.round((x - w.origin) / w.res)], x, z, h, slope, t3);
+      const L = out ? -1 : this.splat[Math.round((z - w.origin) / w.res) * w.N + Math.round((x - w.origin) / w.res)];
+      if (!out) this.tintAt(L, x, z, h, slope, t3);
       else { const a = this.layers[this.farLayer(h, ny)].avg; for (let c = 0; c < 3; c++) t3[c] = Math.min(2, Math.max(0.4, c3[c] / a[c])); }
       if (this.fixAt(x, z, f3)) for (let c = 0; c < 3; c++) t3[c] *= f3[c];
       const d = D[v];
       if (d > 0.004) {
-        // pressed and churned ground in the ruts
-        const f = 1 - Math.min(0.45, d * 2.6);
+        // pressed and churned ground in the ruts; where a spinning tyre has dug through the turf, the soil under it
+        // (the grass drawn the colour of the map's bare earth)
+        const f = 1 - Math.min(0.45, d * 2.6), soil = this.layerIndex.dirt ?? this.layerIndex.mud;
+        if ((L === this.layerIndex.grass || L === this.layerIndex.forest) && soil !== undefined) {
+          const k = Math.min(1, (d - 0.004) / 0.02), a = this.layers[L].avg, e = this.layers[soil].avg;
+          for (let c = 0; c < 3; c++) t3[c] *= 1 + (e[c] / Math.max(1e-4, a[c]) - 1) * k;
+        }
         c3[0] *= f; c3[1] *= f * 0.97; c3[2] *= f * 0.94;
         t3[0] *= f; t3[1] *= f * 0.97; t3[2] *= f * 0.94;
       }

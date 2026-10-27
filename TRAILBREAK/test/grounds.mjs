@@ -23,7 +23,8 @@ const across = (grid) => (x, z, ax, az, n, step, out) => {
   return out;
 };
 
-/** Soft ground that keeps ruts; softness: a map's deep mud (world/World.js softness), so much softer than its kind. */
+/** Soft ground that keeps ruts (or firm ground a spinning tyre digs into); softness: a map's deep mud (world/World.js
+ * softness), so much softer than its kind. */
 export function soft(surface = SURFACE.MUD, h = 0, softness = 1) {
   const grid = new DeformGrid();
   const s = SURFACES[surface];
@@ -32,7 +33,7 @@ export function soft(surface = SURFACE.MUD, h = 0, softness = 1) {
     height: (x, z) => h - grid.get(x, z),
     surfaceAt: () => s,
     softness: () => softness,
-    deform: (x, z, fx, fz, hw, hl, press, dig) => grid.stamp(x, z, fx, fz, hw, hl, press, dig, () => s.maxSink * Math.sqrt(softness)),
+    deform: (x, z, fx, fz, hw, hl, press, dig) => grid.stamp(x, z, fx, fz, hw, hl, press, dig, () => Math.max(s.maxSink * Math.sqrt(softness), s.loose || 0)),
     rutsAcross: across(grid),
   };
 }
@@ -45,7 +46,7 @@ export function softSlope(deg, surface = SURFACE.SAND) {
     grid,
     height: (x, z) => z * t - grid.get(x, z),
     surfaceAt: () => s,
-    deform: (x, z, fx, fz, hw, hl, press, dig) => grid.stamp(x, z, fx, fz, hw, hl, press, dig, () => s.maxSink),
+    deform: (x, z, fx, fz, hw, hl, press, dig) => grid.stamp(x, z, fx, fz, hw, hl, press, dig, () => Math.max(s.maxSink, s.loose || 0)),
     rutsAcross: across(grid),
   };
 }

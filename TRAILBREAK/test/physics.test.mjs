@@ -5,7 +5,7 @@ import { Vehicle, PHYS_DT, GRAVITY } from '../src/physics/Vehicle.js';
 import { Drivetrain } from '../src/physics/Drivetrain.js';
 import { Quat, clamp } from '../src/physics/math.js';
 import { TRUCKS, truckSpec } from '../src/physics/trucks.js';
-import { SURFACE } from '../src/physics/Surfaces.js';
+import { SURFACE, SURFACES } from '../src/physics/Surfaces.js';
 import { flat, slope, soft, slopeWithIce, ledge, worn } from './grounds.mjs';
 import { keysBend } from './drive.mjs';
 
@@ -524,6 +524,30 @@ test('a tread packs with sticky mud crawling through it and grips the less (an a
   run(at.v, at.g, 3, { ...IDLE, throttle: 1 });
   const after = at.v.wheels.reduce((a, w) => a + w.clog, 0) / 4;
   assert.ok(after < at.clog - 0.3, `spun up: ${at.clog.toFixed(2)} -> ${after.toFixed(2)}`);
+});
+
+test('a tyre spun on the spot digs itself into earth, less into grass; rolling on, it leaves the ground alone', () => {
+  // (held where it stands, floored in low range: the four tyres spin; then let go, and a truck driven across it)
+  const spun = (surface) => {
+    const g = soft(surface), v = truck('thar', g);
+    v.dt.setFourWD(true, 0); v.dt.setRange(true, 0);
+    run(v, g, 0.5, IDLE);
+    const x = v.pos.x, z = v.pos.z;
+    run(v, g, 6, () => { v.pos.x = x; v.pos.z = z; v.vel.x = 0; v.vel.z = 0; return { ...IDLE, throttle: 1 }; });
+    return { g, v, z, dug: v.wheels.reduce((a, w) => a + g.grid.get(w.cx, w.cz), 0) / 4 };
+  };
+  const dirt = spun(SURFACE.DIRT), grass = spun(SURFACE.GRASS);
+  assert.ok(dirt.dug > 0.02 && dirt.dug <= SURFACES[SURFACE.DIRT].loose + 1e-6, `earth: dug ${dirt.dug.toFixed(3)} m`);
+  assert.ok(grass.dug > 0.004 && grass.dug < dirt.dug * 0.6, `grass: dug ${grass.dug.toFixed(3)} m (earth ${dirt.dug.toFixed(3)})`);
+  // let go, it drives up out of its holes
+  run(dirt.v, dirt.g, 4, { ...IDLE, throttle: 0.4 });
+  assert.ok(dirt.v.pos.z - dirt.z > 5, `drove out: ${(dirt.v.pos.z - dirt.z).toFixed(1)} m`);
+  // driven across earth, pulling away and at speed, the tyres roll on before they dig
+  const g = soft(SURFACE.DIRT), v = truck('thar', g);
+  run(v, g, 8, { ...IDLE, throttle: 1 });
+  let deepest = 0;
+  for (const c of g.grid.chunks.values()) for (const d of c) deepest = Math.max(deepest, d);
+  assert.ok(v.speed > 15 && deepest < 0.005, `${v.speed.toFixed(1)} m/s, deepest ${deepest.toFixed(4)} m`);
 });
 
 test('a worn track\'s ruts steer a truck on firm ground: at speed a nudge of the wheel leaves it in them, at a crawl a firm turn climbs out', () => {

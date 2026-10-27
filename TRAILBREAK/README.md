@@ -789,34 +789,39 @@ Everything that makes off-roading off-roading is simulated, not faked:
 - **Ground:** 11 surfaces (grass, dirt, gravel, rock, mud, sand, snow, road, riverbed, ice, and Kerala's tea), each
   with its own grip and force curve. Firm ground peaks then falls off. Loose ground keeps pulling at high slip, and in
   it the tyre sinks to the depth its contact pressure can hold up (pressure-sinkage). A spinning tyre digs itself
-  deeper. The soil sinks under the load a tyre carries, not under each jolt of it, so a fast truck doesn't hammer
-  itself into its own ruts; wet mud also drags harder the faster you plough through it. Ruts stay in the ground for
-  the next truck (where soft ground meets firm, a rut runs out up a ramp), and friends' trucks press their ruts into
-  your ground too. Ruts steer a truck, as real ones do: the ruts trucks press into soft ground, and a worn track's
-  baked hard (or in sand or snow; not its old ruts in mud, where water stands and their walls slump). A tyre has a
-  little play in a rut, which is wider than its tread. Pushed off to one side, it rides up the rut's wall, and the
-  wall pushes it back. The deeper the rut, the harder the push (up to 0.6 of the tyre's load, about the steepest slope
-  of a 12 cm rut's wall), until the tyre is over the top. So a truck in ruts, its own or another's, follows them
-  against a little steering, and the rear wheels drop into the front ones' ruts. In slick mud a firmer turn climbs
-  out. On firm ground the tyres grip well enough to climb out at a crawl with a moderate turn, but at speed a nudge of
-  the wheel leaves the truck running on in a worn track's ruts. Each tyre reads the rut it is rolling into, half a
-  metre ahead of where it touches the ground, and is drawn into it the more the faster it rolls
-  (`src/physics/Vehicle.js`, rut walls; the ruts across a tyre: `src/world/World.js` rutsAcross). A tread packs with
-  sticky mud as it rolls through it and grips the less as it goes over to a slick: an all-terrain's fine voids the
-  most (up to 16% less grip), a mud-terrain's open ones half that, a bias-ply mud tyre's paddles the least, road tyres
-  a third. Turned faster than it clears itself (4 m/s of tread for an all-terrain, 2.6 a mud-terrain, 1.8 a bias-ply)
-  it flings the mud out, and on firm ground it scrubs out within a few dozen metres. Driven through mud at a steady
-  pace a tread stays about a third packed; crawled through it, it packs full, so a truck crawled into a bog has less
-  to pull it out with when it is floored (keep the wheels turning). The tyre is drawn so: its tread filled level with
-  mud in a smooth band, the lugs showing again as it clears (`src/physics/Vehicle.js` clog). A map's mud can be deeper
-  than its kind (`deepMud`, Bearwood Taiga's 2.2 times as soft, as a logging track in the thaw): the tyres go down
-  about twice as far, to 0.53 m at most, and a truck wallows through at half the speed, flat out in low range (at part
-  throttle in high a UAZ sits in its own holes). It is that deep on the level and in the hollows, where the water
-  stands; a bank drains, its mud a slick skin over firmer ground, so from a grade of 6% to 16% it thins to its kind's
-  (`src/world/World.js` softness, deepAt). Water stands along most of the length of its tracks' worn ruts, not in
-  stretches, and its mud has a skin of water that catches the light at a glancing look, as standing water anywhere
-  does (dull, the two read as dry dark earth). (Ruts worn deeper there, up to 18 cm, left a stock UAZ hung up on the
-  hump between them on both its rallies: they are as deep as anywhere's mud.)
+  deeper. On firm earth, grass and gravel it digs too, through the loose layer on top: held on the spot and floored in
+  low range, a Thar's tyres dig 1 cm into earth in 3 s and 5 cm in 9 s (6 cm at most), less into gravel, and only a
+  couple of centimetres into grass, whose turf holds (the soil shows where they tear through it). A tyre that is
+  rolling moves on before it digs, so pulling away and driving leave the ground as it was; a truck stuck and spinning
+  sinks into its own holes (`src/physics/Surfaces.js` loose, dig). The soil sinks under the load a tyre carries, not
+  under each jolt of it, so a fast truck doesn't hammer itself into its own ruts; wet mud also drags harder the faster
+  you plough through it. Ruts stay in the ground for the next truck (where soft ground meets firm, a rut runs out up a
+  ramp), and friends' trucks press their ruts into your ground too. Ruts steer a truck, as real ones do: the ruts
+  trucks press into soft ground, and a worn track's baked hard (or in sand or snow; not its old ruts in mud, where
+  water stands and their walls slump). A tyre has a little play in a rut, which is wider than its tread. Pushed off to
+  one side, it rides up the rut's wall, and the wall pushes it back. The deeper the rut, the harder the push (up to
+  0.6 of the tyre's load, about the steepest slope of a 12 cm rut's wall), until the tyre is over the top. So a truck
+  in ruts, its own or another's, follows them against a little steering, and the rear wheels drop into the front ones'
+  ruts. In slick mud a firmer turn climbs out. On firm ground the tyres grip well enough to climb out at a crawl with
+  a moderate turn, but at speed a nudge of the wheel leaves the truck running on in a worn track's ruts. Each tyre
+  reads the rut it is rolling into, half a metre ahead of where it touches the ground, and is drawn into it the more
+  the faster it rolls (`src/physics/Vehicle.js`, rut walls; the ruts across a tyre: `src/world/World.js` rutsAcross).
+  A tread packs with sticky mud as it rolls through it and grips the less as it goes over to a slick: an all-terrain's
+  fine voids the most (up to 16% less grip), a mud-terrain's open ones half that, a bias-ply mud tyre's paddles the
+  least, road tyres a third. Turned faster than it clears itself (4 m/s of tread for an all-terrain, 2.6 a
+  mud-terrain, 1.8 a bias-ply) it flings the mud out, and on firm ground it scrubs out within a few dozen metres.
+  Driven through mud at a steady pace a tread stays about a third packed; crawled through it, it packs full, so a
+  truck crawled into a bog has less to pull it out with when it is floored (keep the wheels turning). The tyre is
+  drawn so: its tread filled level with mud in a smooth band, the lugs showing again as it clears
+  (`src/physics/Vehicle.js` clog). A map's mud can be deeper than its kind (`deepMud`, Bearwood Taiga's 2.2 times as
+  soft, as a logging track in the thaw): the tyres go down about twice as far, to 0.53 m at most, and a truck wallows
+  through at half the speed, flat out in low range (at part throttle in high a UAZ sits in its own holes). It is that
+  deep on the level and in the hollows, where the water stands; a bank drains, its mud a slick skin over firmer
+  ground, so from a grade of 6% to 16% it thins to its kind's (`src/world/World.js` softness, deepAt). Water stands
+  along most of the length of its tracks' worn ruts, not in stretches, and its mud has a skin of water that catches
+  the light at a glancing look, as standing water anywhere does (dull, the two read as dry dark earth). (Ruts worn
+  deeper there, up to 18 cm, left a stock UAZ hung up on the hump between them on both its rallies: they are as deep
+  as anywhere's mud.)
 - **Tyres:** each tyre is drawn pressed flat where it meets the ground, by as much as the load deflects it in the
   physics, its sidewall bulging out beside the flat patch, so an aired-down tyre on rock squats on it instead of the
   rock showing through a round tyre; and it cakes with mud in mud, snow, sand and wet riverbeds (more when it spins),
@@ -873,7 +878,11 @@ Everything that makes off-roading off-roading is simulated, not faked:
   it is lit by the sun and the sky (render/Effects.js), and you see it round your friends' trucks too.
 - **Wet mud:** mud is drawn wet, darker and glossy, wetter in places, and the ground at the water's edge is wet too,
   as is the earth round a patch of mud a metre or three out (it used to be dry right up to the mud, a dark stain
-  painted on the ground). A mud hole or field has been driven through before: old ruts cross it, a pair for each
+  painted on the ground). It is wet all over, its lumps glistening and the film of water smoothing its fine relief
+  (the gaps between its lumps were drawn darker and wetter than the lumps themselves, and deep mud read as dry clods
+  in a network of dark cracks). A tyre spun or slid on grass tears up the turf: its blades go and the map's bare soil
+  shows (`src/render/Terrain.js`, `src/render/Grass.js`). A mud hole or field has been driven through before: old ruts
+  cross it, a pair for each
   truck that went through, wandering, of uneven width and worn out in places, their floors dark and damp, water
   standing in the odd hollow of one (drawn only: the ground the tyres find is as it was).
   The ruts are wetter still, with mud pushed up in ridges either side, and in the deep ones water stands, filling
