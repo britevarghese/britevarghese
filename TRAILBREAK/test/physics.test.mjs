@@ -506,6 +506,26 @@ test('ruts steer a truck in deep mud: in its own it holds them against a little 
   assert.ok(out > 3, `full steering climbs out of them: ${out.toFixed(2)} m`);
 });
 
+test('a tread packs with sticky mud crawling through it and grips the less (an all-terrain more than a mud-terrain); spun up, it flings it out', () => {
+  // (a stock all-terrain truck crawling 12 s through deep mud, against the same with clogging off and on mud-terrains)
+  const crawl = (tyre) => {
+    const spec = { ...truckSpec('thar') };
+    spec.tyre = { ...spec.tyre, ...tyre };
+    const g = soft(SURFACE.MUD, 0, 2.2), v = new Vehicle(spec);
+    v.place(g, 0, 0, 0); v.dt.setFourWD(true, 0); v.dt.setRange(true, 0);
+    run(v, g, 0.5, IDLE);
+    run(v, g, 12, { ...IDLE, throttle: 0.5 });
+    return { v, g, clog: v.wheels.reduce((a, w) => a + w.clog, 0) / 4, mu: v.wheels.reduce((a, w) => a + w.mu, 0) / 4 };
+  };
+  const at = crawl({}), clean = crawl({ clogLoss: 0 }), mt = crawl({ clogLoss: 0.08, cleanSpeed: 2.6 });
+  assert.ok(at.clog > 0.8 && mt.clog < at.clog - 0.2, `packed: all-terrain ${at.clog.toFixed(2)}, mud-terrain ${mt.clog.toFixed(2)}`);
+  assert.ok(at.mu < clean.mu * 0.9, `grip: ${at.mu.toFixed(3)} packed, ${clean.mu.toFixed(3)} with the tread clean`);
+  // floored: the tread spun up flings the mud out
+  run(at.v, at.g, 3, { ...IDLE, throttle: 1 });
+  const after = at.v.wheels.reduce((a, w) => a + w.clog, 0) / 4;
+  assert.ok(after < at.clog - 0.3, `spun up: ${at.clog.toFixed(2)} -> ${after.toFixed(2)}`);
+});
+
 test('a worn track\'s ruts steer a truck on firm ground: at speed a nudge of the wheel leaves it in them, at a crawl a firm turn climbs out', () => {
   const at = (g, steer, speed, hold, s) => {
     const v = truck('thar', g);

@@ -395,7 +395,7 @@ function tyreMaterial(base, R) {
   m.side = THREE.DoubleSide;           // (its inside seen through a rim's spokes: rubber, not the ground beyond)
   // (the uniforms kept on the material itself, not its userData: a clone of it, as the reflections' probe makes, copies
   // userData as JSON, and goes on drawing with these, its shader's)
-  const u = m.flex = { uDown: { value: new THREE.Vector3(0, -1, 0) }, uFlex: { value: 0 }, uR: { value: R }, uMud: { value: 0 }, uMudTint: { value: MUD_TINT } };
+  const u = m.flex = { uDown: { value: new THREE.Vector3(0, -1, 0) }, uFlex: { value: 0 }, uR: { value: R }, uMud: { value: 0 }, uClog: { value: 0 }, uMudTint: { value: MUD_TINT } };
   // (one program for every wheel: only the values differ)
   m.customProgramCacheKey = () => 'tyre flex';
   m.onBeforeCompile = (sh) => {
@@ -405,10 +405,12 @@ function tyreMaterial(base, R) {
 uniform vec3 uDown;
 uniform float uFlex;
 uniform float uR;
-varying vec3 vTyreP;`)
+varying vec3 vTyreP;
+varying vec3 vRoundN;`)
       .replace('#include <begin_vertex>', `#include <begin_vertex>
 {
   vTyreP = position;
+  vRoundN = normalMatrix * normalize(vec3(0.0, position.y, position.z) + vec3(1e-5, 0.0, 0.0));
   vec3 rv = vec3(0.0, transformed.y, transformed.z);
   float rl = length(rv), s = dot(rv, uDown), lim = uR - uFlex;
   if (s > lim) transformed -= uDown * (s - lim);
@@ -418,19 +420,26 @@ varying vec3 vTyreP;`)
     sh.fragmentShader = sh.fragmentShader
       .replace('#include <common>', `#include <common>
 uniform float uMud;
+uniform float uClog;
 uniform float uR;
 uniform vec3 uMudTint;
 varying vec3 vTyreP;
+varying vec3 vRoundN;
+float gClog = 0.0;
 ${MUD_NOISE}`)
       .replace('#include <color_fragment>', `#include <color_fragment>
-if (uMud > 0.001) {
+if (uMud > 0.001 || uClog > 0.001) {
   // (clods of it, the tread caked first and thickest, the sidewall splashed; wet mud's own dark brown, a clod lighter
   // where it has dried, darker where it is wet)
   float n = mudNoise(vTyreP * 24.0) * 0.6 + mudNoise(vTyreP * 70.0) * 0.4;
   float tread = smoothstep(0.72, 0.96, length(vTyreP.yz) / uR);
   float k = smoothstep(0.25, 0.6, uMud * (0.55 + 0.6 * n) * (0.6 + 0.4 * tread));
-  diffuseColor.rgb = mix(diffuseColor.rgb, uMudTint * (0.38 + 0.3 * n), k);
-}`);
+  // (its tread packed with mud, physics/Vehicle.js clog: the voids filled level with the lugs, a smooth band of it)
+  gClog = tread * smoothstep(0.15, 0.85, uClog * (0.8 + 0.4 * n));
+  diffuseColor.rgb = mix(diffuseColor.rgb, uMudTint * (0.38 + 0.3 * n), max(k, gClog));
+}`)
+      .replace('#include <normal_fragment_maps>', `#include <normal_fragment_maps>
+normal = normalize(mix(normal, normalize(vRoundN) * (gl_FrontFacing ? 1.0 : -1.0), gClog * 0.85));`);
   };
   return m;
 }
@@ -1723,6 +1732,7 @@ export class TruckModel {
         // (on firm ground it is shed as the tyre rolls, flung off faster as it spins faster: gone in a few hundred metres)
         else if (!soft) m -= dt * Math.abs(w.omega || 0) * (0.0016 + (Math.abs(w.omega || 0) > 25 ? 0.0012 : 0));
         u.uMud.value = Math.min(1, Math.max(0, m));
+        u.uClog.value = w.clog || 0;
       }
     }
   }

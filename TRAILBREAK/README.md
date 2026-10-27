@@ -801,10 +801,17 @@ Everything that makes off-roading off-roading is simulated, not faked:
   out. On firm ground the tyres grip well enough to climb out at a crawl with a moderate turn, but at speed a nudge of
   the wheel leaves the truck running on in a worn track's ruts. Each tyre reads the rut it is rolling into, half a
   metre ahead of where it touches the ground, and is drawn into it the more the faster it rolls
-  (`src/physics/Vehicle.js`, rut walls; the ruts across a tyre: `src/world/World.js` rutsAcross). A map's mud can be
-  deeper than its kind (`deepMud`, Bearwood Taiga's 2.2 times as soft, as a logging track in the thaw): the tyres go
-  down about twice as far, to 0.53 m at most, and a truck wallows through at half the speed, flat out in low range (at
-  part throttle in high a UAZ sits in its own holes). It is that deep on the level and in the hollows, where the water
+  (`src/physics/Vehicle.js`, rut walls; the ruts across a tyre: `src/world/World.js` rutsAcross). A tread packs with
+  sticky mud as it rolls through it and grips the less as it goes over to a slick: an all-terrain's fine voids the
+  most (up to 16% less grip), a mud-terrain's open ones half that, a bias-ply mud tyre's paddles the least, road tyres
+  a third. Turned faster than it clears itself (4 m/s of tread for an all-terrain, 2.6 a mud-terrain, 1.8 a bias-ply)
+  it flings the mud out, and on firm ground it scrubs out within a few dozen metres. Driven through mud at a steady
+  pace a tread stays about a third packed; crawled through it, it packs full, so a truck crawled into a bog has less
+  to pull it out with when it is floored (keep the wheels turning). The tyre is drawn so: its tread filled level with
+  mud in a smooth band, the lugs showing again as it clears (`src/physics/Vehicle.js` clog). A map's mud can be deeper
+  than its kind (`deepMud`, Bearwood Taiga's 2.2 times as soft, as a logging track in the thaw): the tyres go down
+  about twice as far, to 0.53 m at most, and a truck wallows through at half the speed, flat out in low range (at part
+  throttle in high a UAZ sits in its own holes). It is that deep on the level and in the hollows, where the water
   stands; a bank drains, its mud a slick skin over firmer ground, so from a grade of 6% to 16% it thins to its kind's
   (`src/world/World.js` softness, deepAt). Water stands along most of the length of its tracks' worn ruts, not in
   stretches, and its mud has a skin of water that catches the light at a glancing look, as standing water anywhere

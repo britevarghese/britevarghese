@@ -51,6 +51,11 @@ const SOIL_TAU = 0.1;
 const RUT_WALL = 0.6, RUT_DEEP = 0.12, RUT_PLAY = 0.12, RUT_TOP = 0.3;
 const RUT_AHEAD = 0.45, RUT_STEP = 0.125, RUT_N = 4;
 const RUT_ROLL = 1.5;    // m/s: a tyre rolling slower is drawn into the rut ahead less (spinning on the spot, not at all)
+// a tread in sticky mud (clog): its voids pack as it rolls through (CLOG_IN per metre of tread through it), and the
+// tyre goes over to a slick that grips the less (the tread's clogLoss, physics/Upgrades.js TREADS); turned faster than
+// its cleanSpeed it flings the mud out of them (CLOG_OUT a second per m/s past it), and it scrubs out rolling on
+// firm ground (CLOG_SCRUB per metre)
+const CLOG_IN = 0.1, CLOG_OUT = 0.6, CLOG_SCRUB = 0.05;
 const NO_CONTROLS = { throttle: 0, brake: 0, steer: 0, handbrake: 0 };
 const STEER_DAMP = 0.08;              // keys / sticks: wheel angle (rad) taken off per rad/s the yaw rate runs ahead
 const TC_KP = 1, TC_KI = 10;          // electric traction control: power taken off per unit of excess spin, and how fast it settles (1/s)
@@ -174,6 +179,7 @@ export class Vehicle {
         inertia: tyre.inertia, torque: 0, damp: 0,
         contact: false, N: 0, pen: 0, slip: 0, slipSpeed: 0, spin: 0, surf: surfaceById(0), sink: 0, water: 0, nSoil: 0, penSoil: 0,
         cx: 0, cy: 0, cz: 0, nx: 0, ny: 1, nz: 0, wall: 0, rutDir: 1,   // contact point and normal (world); rut walls push
+        clog: 0,                                                    // how full of mud its tread is (0 clean .. 1 a slick)
         hub: new V3(), vHub: new V3(), fx: 0, fy: 0, kappa: 0, tanA: 0, vx: 0, vy: 0,
         cxDamp: 0, cyDamp: 0, Fshape: 0, FyShape: 0, rr: 0,
       });
@@ -574,6 +580,8 @@ export class Vehicle {
       w.water = ground.water ? Math.max(0, ground.water(w.hub.x, w.hub.z) - (w.hub.y - r)) : 0;
       if (!this.contact(w, ground, _f, _w)) {
         w.N = 0; w.fx = 0; w.fy = 0; w.slip = 0; w.slipSpeed = 0; w.spin = 0; w.sink = 0; w.wall = 0;
+        // (spun in the air, a tread flings its mud out as it would in the mud)
+        w.clog = Math.max(0, w.clog - Math.max(0, Math.abs(w.omega) * r - (tyre.cleanSpeed ?? 4)) * CLOG_OUT * w.clog * dt);
         w.nSoil *= 1 - Math.min(1, dt / SOIL_TAU); w.penSoil *= 1 - Math.min(1, dt / SOIL_TAU);
         // free tyre: the bristles relax as the tread leaves the ground
         w.dx *= 0.9; w.dy *= 0.9;
@@ -635,6 +643,15 @@ export class Vehicle {
       tyreForce(_tmpTyre, N, kappa, tanA, surf, tyre);
       w.Fshape = _tmpTyre.fx; w.FyShape = _tmpTyre.fy; w.slip = _tmpTyre.s; w.mu = _tmpTyre.mu;
       if (flat) { w.Fshape *= 0.55; w.FyShape *= 0.55; w.mu *= 0.55; }
+      // the tread packing with sticky mud (clog): the more it is, the less it grips; spun fast it flings it out, and
+      // on firm ground it scrubs out as it rolls
+      const tread = Math.abs(w.omega * rw);
+      if (surf.id === SURFACE.MUD) {
+        w.clog += (tread * CLOG_IN * (1 - w.clog) - Math.max(0, tread - (tyre.cleanSpeed ?? 4)) * CLOG_OUT * w.clog) * dt;
+        w.clog = clamp(w.clog, 0, 1);
+        const g = 1 - (tyre.clogLoss ?? 0.16) * w.clog;
+        w.Fshape *= g; w.FyShape *= g; w.mu *= g;
+      } else if (w.clog > 0) w.clog = Math.max(0, w.clog - tread * CLOG_SCRUB * w.clog * dt);
       // low-speed damping of the bristle springs (stops a parked truck from rocking on its tyres)
       const adh = clamp(1 - _tmpTyre.s, 0, 1);
       const low = 1 - smoothstep(1.5, 5, avx);

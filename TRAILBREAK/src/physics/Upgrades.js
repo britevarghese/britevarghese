@@ -42,27 +42,33 @@ export const TYRE_SIZES = [24, 25, 26, 27, 28, 29, 30, 31, 33, 35, 37, 40, 42, 4
 // (build codes store a tyre as its place in this list: sizes are only ever added at the end, so old codes still read)
 const TYRE_CODES = [30, 31, 33, 35, 37, 27, 28, 29, 40, 42, 44, 46, 24, 25, 26];
 
-/** Tread patterns: grip by surface relative to an all-terrain, rolling resistance, road noise. */
+/**
+ * Tread patterns: grip by surface relative to an all-terrain, rolling resistance, road noise; and in sticky mud (clog,
+ * physics/Vehicle.js): how much of its grip a tread packed full of it loses, and how fast (m/s) it must turn to fling
+ * the mud out of its voids (clean): fine voids clog the most and clear the slowest, a mud tyre's open ones the least.
+ */
 export const TREADS = [
-  { name: 'All-terrain', short: 'A/T', desc: 'The all-rounder: quiet on the road, decent everywhere.', grip: {}, rr: 1, noise: 0.25 },
+  { name: 'All-terrain', short: 'A/T', desc: 'The all-rounder: quiet on the road, decent everywhere.', grip: {}, rr: 1, noise: 0.25, clog: 0.16, clean: 4 },
   {
     name: 'Mud-terrain', short: 'M/T', desc: 'Big lugs and open voids that clean themselves in mud. Hums on the road, slides a little sooner on rock.',
     grip: { mud: 1.14, snow: 1.06, sand: 1.04, grass: 1.05, riverbed: 1.05, rock: 0.97, road: 0.94, dirt: 0.99, gravel: 1.0, ice: 0.9 }, rr: 1.08, noise: 0.7,
+    clog: 0.08, clean: 2.6,
   },
   {
     name: 'Bias-ply mud tyre', short: 'MUD', desc: 'Tall paddle lugs on a stiff bias-ply carcass: the king of the bog, poor on rock and tarmac.',
     grip: { mud: 1.25, snow: 1.07, sand: 0.98, grass: 1.1, riverbed: 1.08, rock: 0.9, road: 0.84, dirt: 0.95, gravel: 0.95, ice: 0.8 }, rr: 1.16, noise: 1, stiff: 1.12,
+    clog: 0.05, clean: 1.8,
   },
   // the road cars' (`road`): a soft compound on a shallow, stiff tread, which grips tarmac at a smaller slip than a
   // truck's tyre (`tyre`: its slip curve) and lets go sooner past it; little bite on anything loose, and none in snow
   {
     name: 'Summer performance', short: 'summer', desc: 'Ultra-high-performance road tyres: a soft compound, a stiff shallow tread. Superb on dry tarmac; hopeless in mud, snow and wet grass.',
-    grip: { road: 1.25, rock: 1.0, dirt: 0.84, gravel: 0.8, grass: 0.86, mud: 0.55, sand: 0.66, snow: 0.42, ice: 0.7, riverbed: 0.72, tea: 0.78 }, rr: 0.85, noise: 0.12, road: true,
+    grip: { road: 1.25, rock: 1.0, dirt: 0.84, gravel: 0.8, grass: 0.86, mud: 0.55, sand: 0.66, snow: 0.42, ice: 0.7, riverbed: 0.72, tea: 0.78 }, rr: 0.85, noise: 0.12, road: true, clog: 0.3, clean: 6,
     tyre: { alphaPeak: 0.15, relaxY: 0.38, relaxX: 0.18 },
   },
   {
     name: 'Track semi-slick', short: 'track', desc: 'Road-legal semi-slicks (Cup 2 R, Trofeo R): the most grip there is on a dry road, and it lets go suddenly at the limit. Useless on anything loose.',
-    grip: { road: 1.45, rock: 1.02, dirt: 0.76, gravel: 0.72, grass: 0.78, mud: 0.45, sand: 0.58, snow: 0.34, ice: 0.6, riverbed: 0.64, tea: 0.7 }, rr: 0.9, noise: 0.15, road: true,
+    grip: { road: 1.45, rock: 1.02, dirt: 0.76, gravel: 0.72, grass: 0.78, mud: 0.45, sand: 0.58, snow: 0.34, ice: 0.6, riverbed: 0.64, tea: 0.7 }, rr: 0.9, noise: 0.15, road: true, clog: 0.35, clean: 7,
     tyre: { alphaPeak: 0.13, relaxY: 0.34, relaxX: 0.16 },
   },
 ];
@@ -701,7 +707,7 @@ export function buildSpec(base, buildIn) {
     radius: T.radius, width: T.width, mass: wheelMass, inertia: T.inertia * (wheels.beadlock ? 1.07 : 1),
     stiffness: 230000 * Math.pow(T.width / 0.267, 0.4) * (tread.stiff || 1) * tk,
     damping: DEFAULT_TYRE.damping * Math.sqrt(tk), loadNominal: base.tyreLoad ?? DEFAULT_TYRE.loadNominal,
-    tread: b.tread, treadName: tread.name, rrMul: tread.rr,
+    tread: b.tread, treadName: tread.name, rrMul: tread.rr, clogLoss: tread.clog, cleanSpeed: tread.clean,
     grip: SURFACE_NAMES.map((n) => tread.grip[n] || 1),
     psiStock: base.stock.psi ?? 30, minPsi: wheels.minPsi, beadlock: wheels.beadlock, compressor: wheels.compressor, size: T.d, rim: T.rim,
   };
