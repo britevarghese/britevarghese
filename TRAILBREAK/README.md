@@ -853,12 +853,17 @@ Everything that makes off-roading off-roading is simulated, not faked:
   and runs above. Once it lands in their arcs the wipers come on and sweep while it keeps coming, each sweep clearing
   two arcs but for a smear the washers rinse off in a few seconds. The mud they push piles up at the ends of their
   sweep, and outside their arcs it stays until deep water washes it off. From the cab the mud on the glass is dark
-  against the light and the wipers' blades sweep across. All of it is lit by the whole of the sky's light (the ground
-  gets most of its sky light from the sky's environment map, which the particles don't have; given only what was left
-  to the hemisphere light beside it, a clod flew off nearly black). In water each tyre splashes as it drives in,
-  throws a rooster tail off the tread and sheets out to the sides, the nose pushes up a bow wave, and foam and ripple
-  rings spread behind on the surface as it is drawn. All of it is lit by the sun and the sky (render/Effects.js), and
-  you see it round your friends' trucks too.
+  against the light and the wipers' blades sweep across. On dry ground (earth, gravel, sand: hardly on grass or
+  tarmac) dust settles over the paint and the glass the faster you drive, a film the paint shows through, paler than
+  the earth it rose from (the map's own, the coast's red laterite), thickest low down, round the wheel arches and on
+  the back, where the wake sucks it in, and thickening over a kilometre or so of dusty track; water washes it off and
+  mud cakes over it (a clean truck used to stay clean however far it drove the dirt roads). Friends' trucks get muddy
+  and dusty too, reckoned on your machine from the ground under them (it isn't sent; they used to stay clean). All of
+  it is lit by the whole of the sky's light (the ground gets most of its sky light from the sky's environment map,
+  which the particles don't have; given only what was left to the hemisphere light beside it, a clod flew off nearly
+  black). In water each tyre splashes as it drives in, throws a rooster tail off the tread and sheets out to the
+  sides, the nose pushes up a bow wave, and foam and ripple rings spread behind on the surface as it is drawn. All of
+  it is lit by the sun and the sky (render/Effects.js), and you see it round your friends' trucks too.
 - **Wet mud:** mud is drawn wet, darker and glossy, wetter in places, and the ground at the water's edge is wet too,
   as is the earth round a patch of mud a metre or three out (it used to be dry right up to the mud, a dark stain
   painted on the ground). A mud hole or field has been driven through before: old ruts cross it, a pair for each

@@ -107,6 +107,9 @@ class PartList {
 /** The colour of the mud the tyres throw up the bodywork (linear RGB; a map sets its own: Kerala's is red). */
 export const MUD_TINT_BASE = [0.085, 0.06, 0.04];
 export const MUD_TINT = new THREE.Color(...MUD_TINT_BASE);
+/** The colour of the dust that settles on a truck driving dry ground (linear RGB; a map sets its own: its earth's). */
+export const DUST_TINT_BASE = [0.3, 0.22, 0.14];
+export const DUST_TINT = new THREE.Color(...DUST_TINT_BASE);
 
 function paintMaterial(hex, uniforms) {
   // solid enamel under a clear coat: the sky and the trees slide across it
@@ -117,9 +120,11 @@ function paintMaterial(hex, uniforms) {
     sh.uniforms.uMudTint = { value: MUD_TINT };
     sh.uniforms.uArch = uniforms.uArch;
     sh.uniforms.uSeat = uniforms.uSeat;
+    sh.uniforms.uDust = uniforms.uDust;
+    sh.uniforms.uDustTint = { value: DUST_TINT };
     sh.vertexShader = sh.vertexShader
-      .replace('#include <common>', '#include <common>\nvarying vec3 vLocal;')
-      .replace('#include <begin_vertex>', '#include <begin_vertex>\nvLocal = position;');
+      .replace('#include <common>', '#include <common>\nvarying vec3 vLocal;\nvarying vec3 vLocalN;')
+      .replace('#include <begin_vertex>', '#include <begin_vertex>\nvLocal = position;\nvLocalN = normal;');
     sh.fragmentShader = sh.fragmentShader
       .replace('#include <common>', `#include <common>
 varying vec3 vLocal;
@@ -128,7 +133,11 @@ uniform float uDirtWet;
 uniform vec3 uMudTint;
 uniform vec4 uArch[6];
 uniform float uSeat;
+varying vec3 vLocalN;
+uniform float uDust;
+uniform vec3 uDustTint;
 float gMud = 0.0;
+float gDust = 0.0;
 float dh(vec3 p) { return fract(sin(dot(p, vec3(12.9898, 78.233, 37.719))) * 43758.5453); }
 float dn(vec3 p) { vec3 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
   return mix(mix(mix(dh(i), dh(i + vec3(1,0,0)), f.x), mix(dh(i + vec3(0,1,0)), dh(i + vec3(1,1,0)), f.x), f.y),
@@ -160,13 +169,22 @@ float dn(vec3 p) { vec3 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
   m *= 1.0 - uSeat * (1.0 - smoothstep(1.0, 1.25, length(vViewPosition)));
   // fresh mud is wet, dark and shining; as it dries it goes pale and dull, paler in patches and where it is thin
   vec3 mudC = mix(uMudTint * (1.3 + 0.35 * splash - 0.3 * smoothstep(0.1, 0.5, raw)), uMudTint * (0.5 + 0.12 * splash), uDirtWet);
+  // dust, under the mud: a film of what the tyres raise on dry ground settled over the paint, the paint showing
+  // through it; thicker low down, round the wheel arches and on the back (the wake sucks it in behind the truck), in
+  // drifts and streaks, and paler than the earth it rose from
+  float back = smoothstep(0.2, 0.8, -vLocalN.z);
+  gDust = clamp(uDust * (0.2 + 0.45 * (1.0 - smoothstep(0.5, 1.7, vLocal.y)) + 0.3 * fan + 0.5 * back) * (0.6 + 0.8 * dn(vec3(vLocal.x * 6.0, vLocal.y * 15.0, vLocal.z * 6.0))), 0.0, 0.75);
+  gDust *= 1.0 - uSeat * (1.0 - smoothstep(1.0, 1.25, length(vViewPosition)));
+  vec3 dustC = uDustTint * (1.25 + 0.2 * splash);
+  dustC = mix(dustC, vec3(dot(dustC, vec3(0.3, 0.55, 0.15))) * 1.3, 0.35);
+  diffuseColor.rgb = mix(diffuseColor.rgb, dustC, gDust * 0.75);
   diffuseColor.rgb = mix(diffuseColor.rgb, mudC, m * 0.95);
   gMud = m;
 }`)
-      // mud dulls the shine (wet, it shines a little itself)
+      // mud and dust dull the shine (wet mud shines a little itself)
       .replace('#include <lights_physical_fragment>', `#include <lights_physical_fragment>
-material.clearcoat *= 1.0 - gMud * (1.0 - 0.35 * uDirtWet);
-material.roughness = mix(material.roughness, mix(0.95, 0.42, uDirtWet), gMud);`);
+material.clearcoat *= (1.0 - gMud * (1.0 - 0.35 * uDirtWet)) * (1.0 - 0.85 * gDust);
+material.roughness = mix(mix(material.roughness, 0.8, gDust), mix(0.95, 0.42, uDirtWet), gMud);`);
   };
   return mat;
 }
@@ -186,7 +204,7 @@ function glassMaterial(base, uniforms, screen) {
   const mat = base.clone();
   mat.userData = {};
   mat.onBeforeCompile = (sh) => {
-    Object.assign(sh.uniforms, { uDirt: uniforms.uDirt, uDirtWet: uniforms.uDirtWet, uMudTint: { value: MUD_TINT } });
+    Object.assign(sh.uniforms, { uDirt: uniforms.uDirt, uDirtWet: uniforms.uDirtWet, uMudTint: { value: MUD_TINT }, uDust: uniforms.uDust, uDustTint: { value: DUST_TINT } });
     if (screen) Object.assign(sh.uniforms, { uScr: uniforms.uScr, uWipe: uniforms.uWipe, uPane: uniforms.uPane });
     sh.vertexShader = sh.vertexShader
       .replace('#include <common>', `#include <common>\nvarying vec3 vLocal;\nvarying vec3 vLocalN;${screen ? '\nvarying vec2 vScrUv;\nvarying float vCamZ;' : ''}`)
@@ -199,6 +217,8 @@ varying vec3 vLocalN;
 uniform float uDirt;
 uniform float uDirtWet;
 uniform vec3 uMudTint;
+uniform float uDust;
+uniform vec3 uDustTint;
 float gMud = 0.0;
 float dh(vec3 p) { return fract(sin(dot(p, vec3(12.9898, 78.233, 37.719))) * 43758.5453); }
 float dn(vec3 p) { vec3 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
@@ -222,6 +242,8 @@ float scrMud(float lvl, float n1, float n2, float drops, float bias) {
       .replace('#include <color_fragment>', `#include <color_fragment>
 float gBlade = 0.0;
 {
+  // (dust: a haze, thicker low down, the most on the back window, and on the windscreen outside the wipers' arcs)
+  float gd = uDust * (0.12 + 0.25 * (1.0 - smoothstep(0.8, 1.9, vLocal.y))) * (0.6 + 0.8 * dn(vec3(vLocal.x * 7.0, vLocal.y * 18.0, vLocal.z * 7.0)));
   float lowness = 1.0 - smoothstep(0.5, 1.35, vLocal.y);
   float splash = dn(vLocal * 7.0) * 0.6 + dn(vLocal * 19.0) * 0.4;
   float m = smoothstep(0.0, 0.1, uDirt * 1.2 * lowness - (1.0 - splash) * 0.8) * 0.85;
@@ -259,19 +281,24 @@ float gBlade = 0.0;
     ms = max(ms, wiped * uScr.w * 0.3 * (0.5 + 0.5 * streak));
     ms = max(ms, min(ridge, 1.0) * smoothstep(0.05, 0.35, uScr.x) * (0.5 + 0.5 * n1));
     m = max(m, ms);
+    gd *= wiped > 0.5 ? 0.15 : 1.0;
   }
 #else
   // (the back window: a film of what the wake sucks in, thicker low down)
   float back = smoothstep(0.5, 0.8, abs(vLocalN.z));
   m = max(m, back * clamp(uDirt * 1.2, 0.0, 0.8) * (0.7 + 0.3 * splash) * (1.0 - 0.4 * smoothstep(1.1, 2.0, vLocal.y)));
+  gd += back * uDust * 0.45;
 #endif
-  vec3 mudC = mix(uMudTint * (1.25 + 0.3 * splash), uMudTint * 0.55, uDirtWet);
-  if (!gl_FrontFacing) { mudC *= 0.45; diffuseColor.a *= 0.4; }
+  vec3 mudC = mix(uMudTint * (1.25 + 0.3 * splash), uMudTint * 0.55, uDirtWet), dustC = mix(uDustTint * 1.3, vec3(dot(uDustTint, vec3(0.3, 0.55, 0.15))) * 1.7, 0.35);
+  if (!gl_FrontFacing) { mudC *= 0.45; dustC *= 0.6; diffuseColor.a *= 0.4; }
+  gd = clamp(gd, 0.0, 0.8);
+  diffuseColor.rgb = mix(diffuseColor.rgb, dustC, gd * 0.85);
+  diffuseColor.a = mix(diffuseColor.a, 0.75, gd);
   diffuseColor.rgb = mix(diffuseColor.rgb, mudC, m);
   diffuseColor.a = mix(diffuseColor.a, 0.97, m);
   diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.015), gBlade);
   diffuseColor.a = max(diffuseColor.a, gBlade);
-  gMud = max(m, gBlade);
+  gMud = max(max(m, gBlade), gd * 0.8);
 }`)
       .replace('#include <lights_physical_fragment>', `#include <lights_physical_fragment>
 #ifdef USE_CLEARCOAT
@@ -1078,6 +1105,7 @@ export class TruckModel {
       uDirt: { value: 0 }, uDirtWet: { value: 1 }, uScr: { value: new THREE.Vector4() }, uWipe: { value: new THREE.Vector3() }, uPane: { value: new THREE.Vector2(1, 1) },
       uArch: { value: Array.from({ length: 6 }, () => new THREE.Vector4(-100, 0, 0.1, 0)) },     // (each wheel: its hub's height and way along, radius)
       uSeat: { value: 0 },                                                                          // (seen from the driver's seat)
+      uDust: { value: 0 },
     };
     this.paint = paintMaterial(paintHex, this.uniforms);
     const look = spec.look || {}, canvasTop = look.top === 'canvas';
@@ -1635,6 +1663,9 @@ export class TruckModel {
     this.dirt = d; this.uniforms.uDirt.value = d; this.uniforms.uDirtWet.value = wet;
     if (d === 0 && this.scr) { this.scr = null; this.uniforms.uScr.value.set(0, 0, 0, 0); this.uniforms.uWipe.value.set(0, 0, 0); }   // (washed)
   }
+
+  /** Dust settled on the paint and the glass (0 clean .. 1 thick): driving dry ground (core/Game.js soil). */
+  setDust(d) { this.uniforms.uDust.value = d; }
 
   /**
    * Mud on the windscreen (dt s; rate: how much is being flung onto it a second; wash: water deep enough to wash it,

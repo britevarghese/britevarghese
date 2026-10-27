@@ -4,8 +4,8 @@ import { Vehicle, simulate } from '../physics/Vehicle.js';
 import { truckSpec, TRUCKS } from '../physics/trucks.js';
 import { money, TRUCK_PRICES } from '../game/Career.js';
 import { buildSummary } from '../physics/Upgrades.js';
-import { SURFACES } from '../physics/Surfaces.js';
-import { TruckModel, MUD_TINT, MUD_TINT_BASE } from '../render/TruckModel.js';
+import { SURFACES, SURFACE } from '../physics/Surfaces.js';
+import { TruckModel, MUD_TINT, MUD_TINT_BASE, DUST_TINT, DUST_TINT_BASE } from '../render/TruckModel.js';
 import { showroomFor } from '../ui/Showroom.js';
 import { loadTruckAsset, truckAsset, truckAssetProgress, MODEL_BODIES } from '../render/TruckAssets.js';
 import { CameraRig } from './CameraRig.js';
@@ -57,6 +57,25 @@ function nameTag(text, color) {
 }
 
 const BOUNTY = 600, BOUNTY_SHARE = 150, RESCUE_FEE = 300, TOW_FEE = 250;
+
+// the dust a tyre raises on the paint, by ground (grass, dirt, gravel, rock, mud, sand, snow, road, river bed, ice, tea)
+const DUST_RAISE = [0.1, 1, 0.7, 0.15, 0, 0.9, 0, 0.04, 0, 0, 0.1];
+// the ground a truck picks up mud on
+const MUDDY = new Set(['mud', 'riverbed', 'snow']);
+
+/**
+ * The mud and dust on a truck (o: its dirt, dirtWet and dust, for render/TruckModel.js setDirt and setDust) over dt s:
+ * mud picked up in mud and wet ground at a rate (mud), washed off in water; wet fresh, it dries in a couple of minutes
+ * out of the mud and the water. Dust settles on it driving dry ground the faster it goes (raise: the ground's, the
+ * mean of its tyres'; dustiness: the map's), thickening over a kilometre or so of dusty track; washed off in water,
+ * caked over in mud.
+ */
+function soil(o, dt, mud, raise, speed, water, dustiness) {
+  o.dirt = clamp(o.dirt + mud * dt * 0.25 - (water > 0.2 ? water * dt * 0.25 : 0), 0, 1);
+  o.dirtWet = mud > 0.02 || water > 0.2 ? Math.min(1, (o.dirtWet ?? 1) + dt * 0.5) : Math.max(0, (o.dirtWet ?? 1) - dt / 150);
+  const raised = raise * Math.min(1, Math.max(0, Math.abs(speed) - 2) / 12) * dustiness * dt * 0.008;
+  o.dust = clamp(o.dust + raised - (water > 0.2 ? water * dt * 0.4 : 0) - mud * dt * 0.05, 0, 1);
+}
 /** Where the beacons found driving alone on a map are kept (Ashwood keeps its original key). */
 export const soloBeaconsKey = (M) => (M.id === 'ashwood' ? 'trailbreak.solo.beacons' : `trailbreak.solo.beacons.${M.id}`);
 
@@ -80,7 +99,7 @@ export class Game {
     this.sphereCache = new Map();
     this.carry = 0;
     this.found = this.hud.found;
-    this.dirt = 0;
+    this.dirt = 0; this.dust = 0;
     this.lightsOn = false;
     this.safe = null; this.safeT = 0;
     this.paused = false;
@@ -395,7 +414,7 @@ export class Game {
     if (v.dt.drive === '4wd' && old.dt.drive === '4wd') v.dt.fourWD = old.dt.fourWD;
     this.scene.remove(this.model.root); this.model.dispose();
     this.model = modelFor(this.spec, this.truckId, this.paint, { mirrors: true });
-    this.model.setDirt(this.dirt);
+    this.model.setDirt(this.dirt); this.model.setDust(this.dust);
     this.scene.add(this.model.root);
     this.renderer.subject = this.model;
     this.attachLights();
@@ -1179,6 +1198,7 @@ export class Game {
         this.remoteDamage(rv, r.dmg, dt);
         this.remoteRuts(rv, s);
         this.remoteEffects(rv, s, dt);
+        this.remoteSoil(rv, s, dt);
       }
     }
     for (const [id, rv] of this.remotes) {
@@ -1207,6 +1227,19 @@ export class Game {
       this.world.deform(p.x, p.z, fwd.x, fwd.z, spec.tyre.width * 0.5, 0.12, Math.min(surf.maxSink, pKPa / surf.sink), 0);
     }
     void R;
+  }
+
+  /**
+   * Friends' trucks get muddy and dusty as ours does (soil), from the ground under them: it isn't sent, so it is
+   * reckoned here (their wheels spinning as remoteEffects guesses: floored, hardly moving, on soft ground).
+   */
+  remoteSoil(rv, s, dt) {
+    const p = rv.model.root.position, surf = this.world.surfaceAt(p.x, p.z), speed = Math.hypot(s.vel[0], s.vel[2]);
+    const wl = this.world.water(p.x, p.z), water = wl > -1e8 ? Math.max(0, wl - (p.y - rv.spec.cgHeight)) : 0;
+    const mud = MUDDY.has(surf.name) ? 4 * (speed * 0.02 + (s.thr > 0.6 && speed < 3 ? 0.12 : 0)) : 0;
+    rv.dirt ??= 0; rv.dust ??= 0;
+    soil(rv, dt, mud, DUST_RAISE[surf.id] || 0, speed, water, this.world.regionDefAt?.(p.x, p.z)?.map.dustiness ?? 1);
+    rv.model.setDirt(rv.dirt, rv.dirtWet); rv.model.setDust(rv.dust);
   }
 
   remoteEffects(rv, s, dt) {
@@ -1402,14 +1435,17 @@ export class Game {
       this.effects.setPalette(RD.map.dust);
       this.effects.dustiness = RD.map.dustiness ?? 1;
       MUD_TINT.setRGB(...(RD.map.mudTint || MUD_TINT_BASE));
+      DUST_TINT.setRGB(...(RD.map.dust?.[SURFACE.DIRT] || DUST_TINT_BASE));
     }
-    // mud on the paint: picked up in mud and wet ground, washed off in water
-    let mud = 0;
-    for (const w of v.wheels) if (w.contact && (w.surf.name === 'mud' || w.surf.name === 'riverbed' || w.surf.name === 'snow')) mud += (Math.abs(v.speed) * 0.02 + w.slipSpeed * 0.03);
-    this.dirt = clamp(this.dirt + mud * dt * 0.25 - (v.waterDepth > 0.2 ? v.waterDepth * dt * 0.25 : 0), 0, 1);
-    // (fresh mud wet; it dries in a couple of minutes out of the mud and the water)
-    this.dirtWet = mud > 0.02 || v.waterDepth > 0.2 ? Math.min(1, (this.dirtWet ?? 1) + dt * 0.5) : Math.max(0, (this.dirtWet ?? 1) - dt / 150);
-    m.setDirt(this.dirt, this.dirtWet);
+    // mud and dust on the paint and the glass (soil)
+    let mud = 0, raise = 0;
+    for (const w of v.wheels) {
+      if (!w.contact) continue;
+      if (MUDDY.has(w.surf.name)) mud += Math.abs(v.speed) * 0.02 + w.slipSpeed * 0.03;
+      raise += (DUST_RAISE[w.surf.id] || 0) / 4;
+    }
+    soil(this, dt, mud, raise, v.speed, v.waterDepth, this.effects.dustiness ?? 1);
+    m.setDirt(this.dirt, this.dirtWet); m.setDust(this.dust);
     // mud on the windscreen: flung off the front tyres spinning in mud, and over the bonnet out of mud or water driven
     // into fast (render/TruckModel.js screenMud: the wipers keep two arcs of it clear)
     let fling = 0;
