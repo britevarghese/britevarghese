@@ -792,7 +792,12 @@ Everything that makes off-roading off-roading is simulated, not faked:
   deeper. The soil sinks under the load a tyre carries, not under each jolt of it, so a fast truck doesn't hammer
   itself into its own ruts; wet mud also drags harder the faster you plough through it. Ruts stay in the ground for the
   next truck (where soft ground meets firm, a rut runs out up a ramp), and friends' trucks press their ruts into your
-  ground too. A map's mud can be deeper than its kind (`deepMud`, Bearwood Taiga's 2.2 times as soft, as a logging
+  ground too. Ruts steer a truck, as real ones do. A tyre has a little play in a rut, which is wider than its tread.
+  Pushed off to one side, it rides up the rut's wall, and the wall pushes it back. The deeper the rut, the harder the
+  push, until the tyre is over the top. So a truck in ruts, its own or another's, follows them against a little
+  steering, and the rear wheels drop into the front ones' ruts. Turn harder and the front tyres climb out. Each tyre
+  reads the rut it is rolling into, half a metre ahead of where it touches the ground (`src/physics/Vehicle.js`, rut
+  walls). A map's mud can be deeper than its kind (`deepMud`, Bearwood Taiga's 2.2 times as soft, as a logging
   track in the thaw): the tyres go down about twice as far, to 0.53 m at most, and a truck wallows through at half
   the speed, flat out in low range (at part throttle in high a UAZ sits in its own holes). It is that deep on the
   level and in the hollows, where the water stands; a bank drains, its mud a slick skin over firmer ground, so from a

@@ -26,6 +26,7 @@ export function soft(surface = SURFACE.MUD, h = 0, softness = 1) {
     surfaceAt: () => s,
     softness: () => softness,
     deform: (x, z, fx, fz, hw, hl, press, dig) => grid.stamp(x, z, fx, fz, hw, hl, press, dig, () => s.maxSink * Math.sqrt(softness)),
+    rutAt: (x, z) => grid.get(x, z),
   };
 }
 
@@ -38,6 +39,7 @@ export function softSlope(deg, surface = SURFACE.SAND) {
     height: (x, z) => z * t - grid.get(x, z),
     surfaceAt: () => s,
     deform: (x, z, fx, fz, hw, hl, press, dig) => grid.stamp(x, z, fx, fz, hw, hl, press, dig, () => s.maxSink),
+    rutAt: (x, z) => grid.get(x, z),
   };
 }
 

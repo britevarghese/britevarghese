@@ -8,6 +8,7 @@
 //   water(x, z)                  water surface height there, or -Infinity
 // (and for the renderer, waterSurface(x, z): the water's surface as it is drawn)
 //   deform(x, z, fx, fz, hw, hl, press, dig)   press soft ground under a tyre, returns the rut depth
+//   rutAt(x, z)                  how deep the ground has been pressed there (m: the ruts alone, not the terrain)
 //   treesNear(x, z, r, out)      trunks, wall posts and roadside posts { x, y, z, r, cap, top, u, i, tree } near (x, z)
 //   strike(i, moment, vx, vz)    a truck bends obstacle i that hard (N m): breaks it if it gives way (true)
 // (a custom layout's props, from the map builder, are part of the ground: setProps; game/Props.js)
@@ -288,6 +289,8 @@ export class World {
   deform(x, z, fx, fz, hw, hl, press, dig) {
     return this.deformGrid.stamp(x, z, fx, fz, hw, hl, press, dig, (px, pz) => this.maxSinkAt(px, pz));
   }
+
+  rutAt(x, z) { return this.deformGrid.get(x, z); }
 
   /** Trunks and posts within r of (x, z) (reuses its result objects: copy what you keep). */
   treesNear(x, z, r, out) {

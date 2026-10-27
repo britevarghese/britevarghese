@@ -44,6 +44,13 @@ const RAY_STEP = 0.35;
 // how long the soil takes to give way under a tyre's load (s): it sinks under the load the tyre carries, not under each
 // jolt of it
 const SOIL_TAU = 0.1;
+// a rut's walls: the play a tyre has in a rut before it rides up a wall (RUT_PLAY off the rut's middle: ruts are wider
+// than the tread, and the ruts' grid is a quarter of a metre), how far off it is over the top (RUT_TOP), and how much of
+// its load pushes it back halfway up (RUT_WALL, for a rut RUT_DEEP deep or more); where it reads the rut it is rolling
+// into (RUT_AHEAD of the contact, RUT_N samples RUT_STEP apart either side)
+const RUT_WALL = 0.6, RUT_DEEP = 0.12, RUT_PLAY = 0.12, RUT_TOP = 0.3;
+const RUT_AHEAD = 0.45, RUT_STEP = 0.125, RUT_N = 4;
+const RUT_ROLL = 1.5;    // m/s: a tyre rolling slower is drawn into the rut ahead less (spinning on the spot, not at all)
 const NO_CONTROLS = { throttle: 0, brake: 0, steer: 0, handbrake: 0 };
 const STEER_DAMP = 0.08;              // keys / sticks: wheel angle (rad) taken off per rad/s the yaw rate runs ahead
 const TC_KP = 1, TC_KI = 10;          // electric traction control: power taken off per unit of excess spin, and how fast it settles (1/s)
@@ -71,6 +78,7 @@ const _q = new V3(), _a = new V3(), _b = new V3(), _c = new V3(), _d = new V3(),
 // snow, road, river bed, ice).
 const TEXTURE = [0.25, 0.3, 0.65, 0.9, 0.2, 0.2, 0.12, 0.08, 0.55, 0.05];
 const _hn = new V3(), _hl = new V3(), _at = new V3();
+const _rut = new Float64Array(2 * RUT_N + 1);
 
 export class Vehicle {
   constructor(spec) {
@@ -165,7 +173,7 @@ export class Vehicle {
         omega: 0, angle: 0, steer: 0, dx: 0, dy: 0,
         inertia: tyre.inertia, torque: 0, damp: 0,
         contact: false, N: 0, pen: 0, slip: 0, slipSpeed: 0, spin: 0, surf: surfaceById(0), sink: 0, water: 0, nSoil: 0, penSoil: 0,
-        cx: 0, cy: 0, cz: 0, nx: 0, ny: 1, nz: 0,                  // contact point and normal (world)
+        cx: 0, cy: 0, cz: 0, nx: 0, ny: 1, nz: 0, wall: 0, rutDir: 1,   // contact point and normal (world); rut walls push
         hub: new V3(), vHub: new V3(), fx: 0, fy: 0, kappa: 0, tanA: 0, vx: 0, vy: 0,
         cxDamp: 0, cyDamp: 0, Fshape: 0, FyShape: 0, rr: 0,
       });
@@ -565,7 +573,7 @@ export class Vehicle {
       w.headX = _f.x; w.headY = _f.y; w.headZ = _f.z;
       w.water = ground.water ? Math.max(0, ground.water(w.hub.x, w.hub.z) - (w.hub.y - r)) : 0;
       if (!this.contact(w, ground, _f, _w)) {
-        w.N = 0; w.fx = 0; w.fy = 0; w.slip = 0; w.slipSpeed = 0; w.spin = 0; w.sink = 0;
+        w.N = 0; w.fx = 0; w.fy = 0; w.slip = 0; w.slipSpeed = 0; w.spin = 0; w.sink = 0; w.wall = 0;
         w.nSoil *= 1 - Math.min(1, dt / SOIL_TAU); w.penSoil *= 1 - Math.min(1, dt / SOIL_TAU);
         // free tyre: the bristles relax as the tread leaves the ground
         w.dx *= 0.9; w.dy *= 0.9;
@@ -591,6 +599,29 @@ export class Vehicle {
       if (w.index < 2 && vn > 4.5 && !w.surf.sink && w.nx * w.headX + w.ny * w.headY + w.nz * w.headZ < -0.6) this.damage.steeringHit(w.side, vn);
       if (N < 0) N = 0;
       w.N = N;
+      // rut walls (the contact rays see only the tyre's middle): a tyre rolling into a rut off its middle, by more than
+      // its play, rides up the rut's wall and the wall pushes it back in, until it is over the top. So a truck in ruts
+      // follows them, the rear wheels drop into the front's, and only a firm turn of the wheel climbs out. The rut alone
+      // (how deep the ground is pressed, not the lie of the land: a tyre in its own hole on a bank is not pushed down the
+      // bank), read where the tyre is rolling into it (its own, pressed as it goes on a grid as coarse as a tread is
+      // wide, tugged it this way and that), and the more the faster it rolls (spinning on the spot it goes nowhere)
+      w.wall = 0;
+      if (ground.rutAt && w.surf.sink > 0 && N > 0) {
+        if (Math.abs(vx) > 0.2) w.rutDir = vx > 0 ? 1 : -1;
+        const ah = RUT_AHEAD * w.rutDir, ax = w.cx + _f.x * ah, az = w.cz + _f.z * ah;
+        let lo = Infinity, hi = 0, sum = 0, mom = 0;
+        for (let k = -RUT_N; k <= RUT_N; k++) {
+          const d = ground.rutAt(ax + _s.x * k * RUT_STEP, az + _s.z * k * RUT_STEP);
+          _rut[k + RUT_N] = d;
+          if (d < lo) lo = d;
+          if (d > hi) hi = d;
+        }
+        for (let k = -RUT_N; k <= RUT_N; k++) { const e = _rut[k + RUT_N] - lo; sum += e; mom += e * k * RUT_STEP; }
+        if (hi - lo > 0.02) {
+          const c = mom / sum, t = (Math.abs(c) - RUT_PLAY) / (RUT_TOP - RUT_PLAY);   // (c > 0: the rut's middle is to its left)
+          if (t > 0 && t < 1) w.wall = Math.sign(c) * N * RUT_WALL * Math.min(1, (hi - lo) / RUT_DEEP) * Math.sin(Math.PI * t) * Math.min(1, Math.abs(vx) / RUT_ROLL);
+        }
+      }
       // bristle deflections (implicit relaxation, stable at any speed)
       const avx = Math.abs(vx);
       w.dx = (w.dx + (w.omega * rw - vx) * dt) / (1 + avx * dt / tyre.relaxX);
@@ -730,7 +761,8 @@ export class Vehicle {
       w.slipSpeed = slipV;
       w.spin = w.omega * rw - w.vx;                                      // wheelspin alone (+ = turning faster than it rolls)
       // world force: normal + friction
-      _a.set(w.nx * w.N + w.fX * fx + w.sX * fy, w.ny * w.N + w.fY * fx + w.sY * fy, w.nz * w.N + w.fZ * fx + w.sZ * fy);
+      const fs = fy + w.wall;
+      _a.set(w.nx * w.N + w.fX * fx + w.sX * fs, w.ny * w.N + w.fY * fx + w.sY * fs, w.nz * w.N + w.fZ * fx + w.sZ * fs);
       // along the wheel's heading (a ledge pushes back through the tilted normal) and across it (left), for the steering
       w.Flong = _a.x * w.headX + _a.y * w.headY + _a.z * w.headZ;
       w.Flat = _a.x * (w.upY * w.headZ - w.upZ * w.headY) + _a.y * (w.upZ * w.headX - w.upX * w.headZ) + _a.z * (w.upX * w.headY - w.upY * w.headX);

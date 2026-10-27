@@ -162,6 +162,7 @@ export class OpenWorld {
   maxSinkAt(x, z) { const r = this.regionAt(x, z); return r ? r.world.maxSinkAt(x - r.cx, z - r.cz) : 0; }
   softness(x, z) { const r = this.regionAt(x, z); return r ? r.world.softness(x - r.cx, z - r.cz) : 1; }
   deform(x, z, fx, fz, hw, hl, press, dig) { const r = this.regionAt(x, z); return r ? r.world.deform(x - r.cx, z - r.cz, fx, fz, hw, hl, press, dig) : 0; }
+  rutAt(x, z) { const r = this.regionAt(x, z); return r ? r.world.rutAt(x - r.cx, z - r.cz) : 0; }
 
   /**
    * The land beyond the maps: the nearest map's own far land (each map's landform carried on past its edge), lifted

@@ -490,6 +490,22 @@ test('deep mud (a map\'s deepMud, the taiga\'s): the tyres sink about twice as d
   assert.ok(deep.went < firm.went * 0.9 && deep.went > 5, `went ${firm.went.toFixed(1)} m, deep ${deep.went.toFixed(1)} m`);
 });
 
+test('ruts steer a truck in deep mud: in its own it holds them against a little steering, and leaves them with more', () => {
+  // (driven 6 s straight through deep mud, put back where it set off and driven again, steering right: how far it
+  // strays, against the same on fresh mud)
+  const go = (steer, rutted) => {
+    const g = soft(SURFACE.MUD, 0, 2.2);
+    const start = () => { const v = truck('ranger', g); v.dt.setFourWD(true, 0); v.dt.setRange(true, 0); run(v, g, 0.5); return v; };
+    let v = start();
+    if (rutted) { run(v, g, 6, { ...IDLE, throttle: 0.7 }); v = start(); }
+    run(v, g, 6, { ...IDLE, throttle: 0.7, steer });
+    return Math.abs(v.pos.x);
+  };
+  const held = go(0.15, true), free = go(0.15, false), out = go(0.6, true);
+  assert.ok(held < 0.6 && free > held + 0.6, `a little steering: ${held.toFixed(2)} m off its ruts, ${free.toFixed(2)} m on fresh mud`);
+  assert.ok(out > 3, `full steering climbs out of them: ${out.toFixed(2)} m`);
+});
+
 test('the winch drags a truck in neutral toward the anchor, and stalls at its rated pull', () => {
   const g = flat(SURFACE.MUD);
   const v = truck('ranger', g);
