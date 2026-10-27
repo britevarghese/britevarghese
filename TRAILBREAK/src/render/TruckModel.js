@@ -217,6 +217,16 @@ function flatTyre(src, R, drop) {
   return g;
 }
 
+// (value noise in a wheel's own frame, for the mud caked on its tyre and rim)
+const MUD_NOISE = /* glsl */`
+float mudHash(vec3 p) { return fract(sin(dot(p, vec3(12.9898, 78.233, 37.719))) * 43758.5453); }
+float mudNoise(vec3 p) {
+  vec3 i = floor(p), f = fract(p);
+  f = f * f * (3.0 - 2.0 * f);
+  return mix(mix(mix(mudHash(i), mudHash(i + vec3(1.0, 0.0, 0.0)), f.x), mix(mudHash(i + vec3(0.0, 1.0, 0.0)), mudHash(i + vec3(1.0, 1.0, 0.0)), f.x), f.y),
+    mix(mix(mudHash(i + vec3(0.0, 0.0, 1.0)), mudHash(i + vec3(1.0, 0.0, 1.0)), f.x), mix(mudHash(i + vec3(0.0, 1.0, 1.0)), mudHash(i + vec3(1.0, 1.0, 1.0)), f.x), f.y), f.z);
+}`;
+
 /**
  * A tyre's own material (one a wheel): pressed flat against the ground by the load on it (the tyre's deflection in the
  * physics, uFlex m, uDown the way to the ground in the tyre's own frame), its sidewall bulging out beside the patch, as
@@ -254,22 +264,51 @@ uniform float uMud;
 uniform float uR;
 uniform vec3 uMudTint;
 varying vec3 vTyreP;
-float tyreHash(vec3 p) { return fract(sin(dot(p, vec3(12.9898, 78.233, 37.719))) * 43758.5453); }
-float tyreNoise(vec3 p) {
-  vec3 i = floor(p), f = fract(p);
-  f = f * f * (3.0 - 2.0 * f);
-  return mix(mix(mix(tyreHash(i), tyreHash(i + vec3(1.0, 0.0, 0.0)), f.x), mix(tyreHash(i + vec3(0.0, 1.0, 0.0)), tyreHash(i + vec3(1.0, 1.0, 0.0)), f.x), f.y),
-    mix(mix(tyreHash(i + vec3(0.0, 0.0, 1.0)), tyreHash(i + vec3(1.0, 0.0, 1.0)), f.x), mix(tyreHash(i + vec3(0.0, 1.0, 1.0)), tyreHash(i + vec3(1.0, 1.0, 1.0)), f.x), f.y), f.z);
-}`)
+${MUD_NOISE}`)
       .replace('#include <color_fragment>', `#include <color_fragment>
 if (uMud > 0.001) {
   // (clods of it, the tread caked first and thickest, the sidewall splashed; wet mud's own dark brown, a clod lighter
   // where it has dried, darker where it is wet)
-  float n = tyreNoise(vTyreP * 24.0) * 0.6 + tyreNoise(vTyreP * 70.0) * 0.4;
+  float n = mudNoise(vTyreP * 24.0) * 0.6 + mudNoise(vTyreP * 70.0) * 0.4;
   float tread = smoothstep(0.72, 0.96, length(vTyreP.yz) / uR);
   float k = smoothstep(0.25, 0.6, uMud * (0.55 + 0.6 * n) * (0.6 + 0.4 * tread));
   diffuseColor.rgb = mix(diffuseColor.rgb, uMudTint * (0.38 + 0.3 * n), k);
 }`);
+  };
+  return m;
+}
+
+/**
+ * A rim's material on one wheel: caked with the mud its tyre has picked up (the tyre's uMud, tyreMaterial), packed
+ * into the barrel and round the lip more than on the spokes near the hub; dull where it lies. u: the tyre's uniforms;
+ * scale: from the rim's own units to its radius (a model's rim is drawn at unit radius, a built one in metres).
+ */
+function rimMaterial(base, u, scale) {
+  const m = base.clone();
+  m.customProgramCacheKey = () => 'rim mud';
+  m.onBeforeCompile = (sh) => {
+    Object.assign(sh.uniforms, { uMud: u.uMud, uMudTint: u.uMudTint, uRimS: { value: scale } });
+    sh.vertexShader = sh.vertexShader
+      .replace('#include <common>', '#include <common>\nvarying vec3 vRimP;')
+      .replace('#include <begin_vertex>', '#include <begin_vertex>\nvRimP = position;');
+    sh.fragmentShader = sh.fragmentShader
+      .replace('#include <common>', `#include <common>
+uniform float uMud;
+uniform float uRimS;
+uniform vec3 uMudTint;
+varying vec3 vRimP;
+float gRimMud = 0.0;
+${MUD_NOISE}`)
+      .replace('#include <color_fragment>', `#include <color_fragment>
+if (uMud > 0.001) {
+  vec3 q = vRimP * uRimS;
+  float n = mudNoise(q * 9.0) * 0.6 + mudNoise(q * 25.0) * 0.4;
+  float out_ = smoothstep(0.35, 0.95, length(q.yz));
+  gRimMud = smoothstep(0.32, 0.62, uMud * (0.45 + 0.7 * n) * (0.5 + 0.65 * out_));
+  diffuseColor.rgb = mix(diffuseColor.rgb, uMudTint * (0.42 + 0.3 * n), gRimMud);
+}`)
+      .replace('#include <roughnessmap_fragment>', '#include <roughnessmap_fragment>\nroughnessFactor = mix(roughnessFactor, 0.85, gRimMud);')
+      .replace('#include <metalnessmap_fragment>', '#include <metalnessmap_fragment>\nmetalnessFactor = mix(metalnessFactor, 0.0, gRimMud);');
   };
   return m;
 }
@@ -1053,6 +1092,7 @@ export class TruckModel {
     // ---- axles and wheels (CG frame; the physics moves them)
     const rStatic = R - (spec.mass * GRAV / 4) / t.stiffness;
     const coilR = spec.mass > 4000 ? 0.12 : 0.085, coilWire = spec.mass > 4000 ? 0.02 : 0.013;
+    this.rimMats = [];
     this.axles = spec.axles.map((a, ai) => {
       const half = a.track / 2;
       const yStatic = rStatic - cgY, yDroop = yStatic - a.sag;
@@ -1118,6 +1158,8 @@ export class TruckModel {
           rim.children.forEach((m) => { m.castShadow = true; });
         } else rim = new THREE.Mesh(rimGeometry(rimR, Wt, t.beadlock), t.beadlock ? M.bead : M.steel);
         if (side < 0) rim.rotation.y = Math.PI;              // outer face out on both sides
+        // (the rim caked with the mud its tyre picks up: each wheel's own)
+        rim.traverse((o) => { if (o.isMesh) { o.material = rimMaterial(o.material, tire.material.flex, rimModel ? 1 : 1 / rimR); this.rimMats.push(o.material); } });
         tire.castShadow = true; rim.castShadow = true;
         spin.add(tire, rim, rotor);
         return { knuckle, spin, tire, tireGeo: tire.geometry, flex: tire.material.flex };
@@ -1450,6 +1492,7 @@ export class TruckModel {
     this.root.traverse((o) => { if (o.geometry && !o.geometry.userData.cached) o.geometry.dispose(); });
     for (const m of [this.paint, this.top, ...this.lampMats, ...this.headMats.flat(), this.barMat, this.brakeMat, this.revMat, this.screen]) m?.dispose();
     for (const ax of this.axles || []) for (const wm of ax.wheels) wm.tire.material.dispose();
+    for (const m of this.rimMats) m.dispose();
   }
 }
 

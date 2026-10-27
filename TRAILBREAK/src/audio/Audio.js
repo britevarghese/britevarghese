@@ -1,5 +1,6 @@
 // Sound: each truck's own kind of engine, rebuilt a firing at a time from real recordings (audio/engine-worklet.js,
-// banks from tools/sounds), and synthesised tyre roll on each surface, wheelspin, mud, water, wind, suspension knocks
+// banks from tools/sounds), and synthesised tyre roll on each surface, wheelspin, mud (squelching, clods slapping the
+// arches), stones pinging off the underbody, water, wind, suspension knocks
 // and bangs, the winch motor and a quiet forest. Other players' engines play from where their trucks are. Without
 // AudioWorklet (or a bank) the engine falls back to recorded loops crossfaded by rpm and throttle.
 
@@ -230,6 +231,7 @@ export class Audio {
     this.banks = new Map();
     this.remote = new Map();
     this.thumpCool = 0;
+    this.grains = [0, 0, 0, 0].map(() => ({ suck: Math.random(), slap: Math.random(), ping: Math.random() }));
     this.mutes = new Set();
     // a hidden tab is silent: no engine idling away behind the other tabs (the audio stops altogether until it's back)
     if (typeof document !== 'undefined') document.addEventListener('visibilitychange', () => this.onVisibility());
@@ -395,6 +397,22 @@ export class Audio {
   }
 
   /** A one-shot knock or bang: filtered noise burst. */
+  /**
+   * A short burst of noise through a filter swept from f0 to f1 (Hz) over len s: a tyre's tread sucking out of mud, a
+   * clod slapping the wheel arch, a stone pinging off the underbody.
+   */
+  grain(buf, type, f0, f1, q, gain, len) {
+    const ctx = this.ctx, t = ctx.currentTime + Math.random() * 0.015;
+    const src = ctx.createBufferSource(); src.buffer = buf;
+    const f = ctx.createBiquadFilter(); f.type = type; f.Q.value = q;
+    f.frequency.setValueAtTime(f0, t); f.frequency.exponentialRampToValueAtTime(f1, t + len);
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(gain, t + Math.min(0.008, len * 0.25));
+    g.gain.exponentialRampToValueAtTime(0.0005, t + len);
+    src.connect(f).connect(g).connect(this.master);
+    src.start(t, Math.random() * (buf.duration - len - 0.1)); src.stop(t + len + 0.03);
+  }
+
   bang(strength, low = true) {
     if (!this.ctx || strength < 0.05) return;
     const ctx = this.ctx, t = ctx.currentTime;
@@ -620,10 +638,31 @@ export class Audio {
       glide(this.humOsc.frequency, Math.max(40, speed / ([0.055, 0.085, 0.13, 0.032, 0.04][tread] ?? 0.055)), t, 0.1);
       // ground under the tyres
       let roll = 0, crunch = 0, slip = 0, mud = 0, water = 0, n = 0;
+      const R = v.spec.tyre.radius;
       for (const w of v.wheels) {
         if (!w.contact) continue;
         n++;
         const s = w.surf.name;
+        // and what it does now and then: the tread sucking out of the mud as it turns (a squelch every few lugs,
+        // lower and louder the deeper the tyre is in), clods slapping the wheel arch off a spinning tyre, stones
+        // flicked up against the underbody on gravel (a few a second, at random)
+        const G = this.grains[w.index & 3], tr = Math.abs(w.omega || 0) * R, wet = w.water > 0.1;
+        if ((s === 'mud' || s === 'riverbed') && !wet && tr > 0.25) {
+          G.suck += dt * Math.min(9, tr * 1.2 + w.slipSpeed) * (s === 'mud' ? 1 : 0.4) * (0.6 + Math.random() * 0.8);
+          if (G.suck > 1) {
+            G.suck = 0;
+            const deep = Math.min(1, (w.sink || 0) / 0.35), f = (560 + Math.random() * 260) * (1 - 0.35 * deep);
+            this.grain(this.pink, 'bandpass', f, f * (0.32 + Math.random() * 0.12), 3.5 + Math.random() * 2, (0.6 + 0.7 * deep) * (0.6 + Math.random() * 0.6), 0.08 + Math.random() * 0.08 + deep * 0.05);
+          }
+        }
+        if ((s === 'mud' || s === 'sand' || s === 'riverbed' || s === 'snow') && w.slipSpeed > 1) {
+          G.slap += dt * Math.min(10, (w.slipSpeed - 1) * 2.5) * (0.5 + Math.random());
+          if (G.slap > 1) { G.slap = 0; const f = 700 + Math.random() * 500; this.grain(this.pink, 'lowpass', f, f * 0.4, 1, (s === 'mud' ? 0.6 : 0.25) * (0.5 + Math.random() * 0.7), 0.03 + Math.random() * 0.03); }
+        }
+        if ((s === 'gravel' || s === 'riverbed' || s === 'dirt') && speed > 2) {
+          G.ping += dt * Math.min(6, speed * (s === 'dirt' ? 0.06 : 0.3)) * (0.4 + Math.random() * 1.2);
+          if (G.ping > 1) { G.ping = 0; const f = 2800 + Math.random() * 3200; this.grain(this.white, 'bandpass', f, f * 0.85, 10, 0.15 + Math.random() * 0.15, 0.015 + Math.random() * 0.02); }
+        }
         const sp = Math.min(1, speed / 20);
         roll += sp * (s === 'road' || s === 'rock' ? 0.5 : 0.8);
         if (s === 'gravel' || s === 'riverbed') crunch += sp * 1.1;
@@ -637,7 +676,8 @@ export class Audio {
       glide(this.roll.f.frequency, 250 + speed * 18, t);
       glide(this.crunch.g.gain, crunch * 0.09, t);
       glide(this.slip.g.gain, slip * 0.16, t);
-      glide(this.squelch.g.gain, mud * (0.35 + 0.25 * Math.sin(t * 9)), t, 0.03);
+      // (under the squelches, the steady slosh of the mud round the tyres)
+      glide(this.squelch.g.gain, mud * 0.15, t, 0.08);
       glide(this.water.g.gain, Math.max(water * 0.4, v.waterDepth > 0.05 ? Math.min(0.5, speed * 0.1) : 0), t);
       glide(this.wind.g.gain, Math.min(0.35, speed * speed * 0.0004), t);
       glide(this.wind.f.frequency, 300 + speed * 25, t);

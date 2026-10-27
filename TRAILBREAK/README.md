@@ -260,6 +260,12 @@ noise round its pitch, so they sing and breathe like a real gearbox), the invert
 walking pace, a deep two-note drone through the speakers (the Hummer's) rises with the speed and swells with the
 power, and at walking pace they play a pedestrian warning.
 
+Under the tyres: a rolling roar that rises with the speed, a crunch on gravel and dirt, the hum of a mud-terrain's
+lugs on tarmac and rock, and in mud the tread sucking out of it every few lugs, a squelch falling in pitch, lower and
+louder the deeper the tyre is in, over the slosh of the mud round it, and clods slapping the wheel arches off a
+spinning tyre; on gravel, stones flicked up against the underbody now and then (each a short burst of noise through
+a swept filter, at random: the mud used to be one low rumble wobbling nine times a second).
+
 The sound goes off while the game is paused, in the garage, the dealer and the events list, and whenever the game's
 tab is hidden (another tab, or the browser minimised); it comes back when you drive on.
 
@@ -797,8 +803,9 @@ Everything that makes off-roading off-roading is simulated, not faked:
 - **Tyres:** each tyre is drawn pressed flat where it meets the ground, by as much as the load deflects it in the
   physics, its sidewall bulging out beside the flat patch, so an aired-down tyre on rock squats on it instead of the
   rock showing through a round tyre; and it cakes with mud in mud, snow, sand and wet riverbeds (more when it spins),
-  in clumps thicker on the tread, washing off in water and slowly flung off a fast tyre on firm ground
-  (`src/render/TruckModel.js` tyreMaterial, flexTyres). Behind each rim's spokes are the brake disc and its dust
+  in clumps thicker on the tread, washing off in water and flung off on firm ground as the tyre rolls (gone in a few
+  hundred metres), and the rim with it, packed into the barrel and round the lip, dull where it lies
+  (`src/render/TruckModel.js` tyreMaterial, rimMaterial, flexTyres). Behind each rim's spokes are the brake disc and its dust
   shield, and the tyre's beads sit under the rim's lip, so nothing behind the wheel shows through it.
 - **Water:** buoyancy and drag on the hull, extra rolling resistance, and the air intake: water there chokes the
   engine (on Cosmetic damage it keeps running on a third of its power; on Forgiving and Realistic it stops until it
@@ -822,7 +829,9 @@ Everything that makes off-roading off-roading is simulated, not faked:
   as are the mud caked on the tyres and on the paint (the taiga's dark peat, the coast's red laterite; in the open
   world they change as you drive from one map into the next: they were the start map's everywhere, so the taiga's
   trucks threw red clods). Fresh mud on the paint is wet, dark and glossy, and dries pale and dull out of the mud in a
-  couple of minutes; above the mud caked low down, drops of it are spattered higher up the sides. In water each tyre splashes as it drives in, throws a rooster tail off the tread and sheets out to the
+  couple of minutes; above the mud caked low down, drops of it are spattered higher up the sides. All of it is lit by
+  the whole of the sky's light (the ground gets most of its sky light from the sky's environment map, which the
+  particles don't have; given only what was left to the hemisphere light beside it, a clod flew off nearly black). In water each tyre splashes as it drives in, throws a rooster tail off the tread and sheets out to the
   sides, the nose pushes up a bow wave, and foam and ripple rings spread behind on the surface as it is drawn. All of
   it is lit by the sun and the sky (render/Effects.js), and you see it round your friends' trucks too.
 - **Wet mud:** mud is drawn wet, darker and glossy, wetter in places, and the ground at the water's edge is wet too,

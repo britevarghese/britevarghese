@@ -170,10 +170,11 @@ float gust = sin(uTime * 0.9 + aPos.x * 0.05 + aPos.z * 0.04) * 0.5 + 0.5;
 transformed.x += (sin(uTime * 1.9 + aPos.x * 0.37 + aPos.z * 0.21) * 0.6 + gust * 0.8) * 0.09 * k * hgt;
 transformed.z += sin(uTime * 2.3 + aPos.z * 0.33 + aPos.x * 0.17) * 0.05 * k * hgt;
 // laid flat where a tyre has rolled over it (render/TrackMap.js), the way it rolled: a whole tuft, if a tyre rolled
-// over any of it (its middle, or a little to any side: a tuft is wider than a tread)
+// over any of it (its middle, or a little to any side: a tuft is wider than a tread); near the camera only, where the
+// tracks are drawn
 {
   vec2 wp = aPos.xz + uCentre;
-  if (wp.x > uTrkWin.x && wp.y > uTrkWin.y && wp.x < uTrkWin.z && wp.y < uTrkWin.w) {
+  if (dist < 40.0 && wp.x > uTrkWin.x && wp.y > uTrkWin.y && wp.x < uTrkWin.z && wp.y < uTrkWin.w) {
     vec2 tq = wp / uTrkSpan, e = vec2(0.17, -0.17) / uTrkSpan;
     vec4 tm = textureLod(uTrkMap, tq, 0.0), t1 = textureLod(uTrkMap, tq + e.xx, 0.0), t2 = textureLod(uTrkMap, tq + e.yy, 0.0);
     vec4 t3 = textureLod(uTrkMap, tq + e.xy, 0.0), t4 = textureLod(uTrkMap, tq + e.yx, 0.0);
@@ -181,7 +182,7 @@ transformed.z += sin(uTime * 2.3 + aPos.z * 0.33 + aPos.x * 0.17) * 0.05 * k * h
     if (tm.r > 0.04) {
       vec2 dv = tm.ba / tm.r * 2.0 - 1.0;
       vec2 dir = dv / max(length(dv), 1e-3);
-      float f = smoothstep(0.04, 0.4, tm.r);
+      float f = smoothstep(0.04, 0.4, tm.r) * (1.0 - smoothstep(30.0, 40.0, dist));
       transformed.xz += dir * f * 0.6 * aT * hgt;
       transformed.y = mix(transformed.y, aPos.y + aT * 0.03, f * 0.92);
     }

@@ -1461,7 +1461,9 @@ export class Game {
     this.modeView.update(this.events.run, v.pos, dt);
     this.breakView.update(dt, [{ pos: v.pos, vel: v.vel }, ...[...this.remotes.values()].filter((r) => r.state?.vel).map((r) => ({ pos: r.model.root.position, vel: { x: r.state.vel[0], y: r.state.vel[1], z: r.state.vel[2] } }))]);
     const Rn = this.renderer;
-    this.effects.setLight(Rn.sky.sunDir, Rn.sun.color, Rn.sun.intensity, Rn.hemi.color, Rn.hemi.groundColor, Rn.hemi.intensity);
+    // (the particles have only the hemisphere light, not the sky's environment map, which gives the ground most of its
+    // sky light: the hemisphere's full share, not what is left of it beside the map, or a clod flew off as black)
+    this.effects.setLight(Rn.sky.sunDir, Rn.sun.color, Rn.sun.intensity, Rn.hemi.color, Rn.hemi.groundColor, Rn.hemi.intensity / (Rn.envOn ? 0.45 : 1));
     this.effects.update(dt, this.world, Rn.camera);
     if (W.attached) {
       const a = this.fairleadWorld(new THREE.Vector3());
