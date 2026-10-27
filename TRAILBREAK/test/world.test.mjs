@@ -15,6 +15,7 @@ import { POOLS, CREEK } from '../src/world/maps/canyon.js';
 import { ledgeStrips } from '../src/world/Ledges.js';
 import { alcoveRoof } from '../src/world/Alcoves.js';
 import { GAUGE } from '../src/world/Worn.js';
+import { SURFACE } from '../src/physics/Surfaces.js';
 import { mapById } from '../src/world/maps/index.js';
 
 const built = generateBigWorld({ yieldEvery: 1e9 });
@@ -304,6 +305,30 @@ test('the open world: its tracks worn into the ground, two ruts either side of a
   }
   // and a map on its own (Ashwood, Kerala as their own maps) is as it was
   assert.ok(!mapById('ashwood').wornTracks && !mapById('kerala').wornTracks);
+});
+
+test('the open world: the ruts across a tyre (rutsAcross, for the ruts\' walls) as deep as the worn track point by point, but in mud', async () => {
+  const W = await opened, A = W.byId.get('ashwood'), G = A.world.worn, out = new Float64Array(9);
+  let n = 0, worst = 0, sum = 0, deep = 0, mud = 0;
+  for (const tr of A.world.map.trails.filter((t) => t.kind === 'trail')) {
+    const pts = spline(tr.points, 6);
+    for (let j = 1; j < pts.length; j++) {
+      const [x, z] = pts[j], dx = x - pts[j - 1][0], dz = z - pts[j - 1][1], l = Math.hypot(dx, dz) || 1;
+      // (across a tyre a little off the track's middle and heading a little off its way)
+      const a = 0.2 * Math.sin(j), ax = (-dz * Math.cos(a) - dx * Math.sin(a)) / l, az = (dx * Math.cos(a) - dz * Math.sin(a)) / l;
+      const cx = x + ax * 0.7 * Math.cos(j * 1.7), cz = z + az * 0.7 * Math.cos(j * 1.7);
+      W.rutsAcross(cx + A.cx, cz + A.cz, ax, az, 4, 0.125, out);
+      // (a worn track's old ruts in mud or a river bed: slumped, none)
+      const s = A.world.surfaceId(cx, cz);
+      if (s === SURFACE.MUD || s === SURFACE.RIVERBED) { mud++; assert.ok(out.every((d) => d === 0)); continue; }
+      for (let k = -4; k <= 4; k++) {
+        const e = G.depth(cx + ax * k * 0.125, cz + az * k * 0.125, A.world.wearAt), d = Math.abs(e - out[k + 4]);
+        n++; sum += d; worst = Math.max(worst, d); deep = Math.max(deep, e);
+      }
+    }
+  }
+  assert.ok(n > 1000 && deep > 0.1 && mud > 0, `${n} points, ruts to ${deep.toFixed(3)} m (${mud} tyres in mud)`);
+  assert.ok(worst < 0.03 && sum / n < 0.002, `worst ${(worst * 100).toFixed(1)} cm off, mean ${(sum / n * 1000).toFixed(2)} mm`);
 });
 
 test('the open world: its rocky hills in relief (ledges and joints in the rock itself, tors on the crests, talus below the faces)', async () => {

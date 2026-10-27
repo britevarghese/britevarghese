@@ -8,7 +8,7 @@
 //   water(x, z)                  water surface height there, or -Infinity
 // (and for the renderer, waterSurface(x, z): the water's surface as it is drawn)
 //   deform(x, z, fx, fz, hw, hl, press, dig)   press soft ground under a tyre, returns the rut depth
-//   rutAt(x, z)                  how deep the ground has been pressed there (m: the ruts alone, not the terrain)
+//   rutsAcross(x, z, ax, az, n, step, out)   how deep the ruts are (pressed, and a worn track's) at 2n + 1 points
 //   treesNear(x, z, r, out)      trunks, wall posts and roadside posts { x, y, z, r, cap, top, u, i, tree } near (x, z)
 //   strike(i, moment, vx, vz)    a truck bends obstacle i that hard (N m): breaks it if it gives way (true)
 // (a custom layout's props, from the map builder, are part of the ground: setProps; game/Props.js)
@@ -290,7 +290,19 @@ export class World {
     return this.deformGrid.stamp(x, z, fx, fz, hw, hl, press, dig, (px, pz) => this.maxSinkAt(px, pz));
   }
 
-  rutAt(x, z) { return this.deformGrid.get(x, z); }
+  /**
+   * How deep the ruts are that steer a tyre (m: the ruts alone, not the lie of the land) at the 2n + 1 points step
+   * apart along (ax, az) through (x, z), -n to n, into out[0 .. 2n]: those pressed since, and a worn track's. Not a
+   * worn track's in mud or a river bed: water stands in those old ruts and their walls slump (the ruts a truck presses
+   * there as it goes, pressed firm, hold it).
+   */
+  rutsAcross(x, z, ax, az, n, step, out) {
+    const g = this.deformGrid, any = g.chunks.size > 0;
+    for (let k = -n; k <= n; k++) out[k + n] = any ? g.get(x + ax * k * step, z + az * k * step) : 0;
+    if (!this.worn) return out;
+    const s = this.surfaceId(x, z);
+    return s === SURFACE.MUD || s === SURFACE.RIVERBED ? out : this.worn.across(x, z, ax, az, n, step, out, this.wearAt);
+  }
 
   /** Trunks and posts within r of (x, z) (reuses its result objects: copy what you keep). */
   treesNear(x, z, r, out) {

@@ -2,6 +2,7 @@
 // optional deform / water / treesNear).
 import { SURFACES, SURFACE } from '../src/physics/Surfaces.js';
 import { DeformGrid } from '../src/world/Deform.js';
+import { WornTracks } from '../src/world/Worn.js';
 
 export function flat(surface = SURFACE.DIRT, h = 0) {
   return { height: () => h, surfaceAt: () => SURFACES[surface] };
@@ -16,6 +17,12 @@ export function slope(deg, surface = SURFACE.DIRT, side = false) {
   };
 }
 
+// the ruts pressed into a grid at the points across a tyre (world/World.js rutsAcross)
+const across = (grid) => (x, z, ax, az, n, step, out) => {
+  for (let k = -n; k <= n; k++) out[k + n] = grid.get(x + ax * k * step, z + az * k * step);
+  return out;
+};
+
 /** Soft ground that keeps ruts; softness: a map's deep mud (world/World.js softness), so much softer than its kind. */
 export function soft(surface = SURFACE.MUD, h = 0, softness = 1) {
   const grid = new DeformGrid();
@@ -26,7 +33,7 @@ export function soft(surface = SURFACE.MUD, h = 0, softness = 1) {
     surfaceAt: () => s,
     softness: () => softness,
     deform: (x, z, fx, fz, hw, hl, press, dig) => grid.stamp(x, z, fx, fz, hw, hl, press, dig, () => s.maxSink * Math.sqrt(softness)),
-    rutAt: (x, z) => grid.get(x, z),
+    rutsAcross: across(grid),
   };
 }
 
@@ -39,7 +46,20 @@ export function softSlope(deg, surface = SURFACE.SAND) {
     height: (x, z) => z * t - grid.get(x, z),
     surfaceAt: () => s,
     deform: (x, z, fx, fz, hw, hl, press, dig) => grid.stamp(x, z, fx, fz, hw, hl, press, dig, () => s.maxSink),
-    rutAt: (x, z) => grid.get(x, z),
+    rutsAcross: across(grid),
+  };
+}
+
+/** A worn track down z on firm ground: its two ruts (world/Worn.js), `depth` deep, either side of x = 0. */
+export function worn(depth, surface = SURFACE.DIRT) {
+  const s = SURFACES[surface];
+  return {
+    height: (x) => -WornTracks.profile(x, depth),
+    surfaceAt: () => s,
+    rutsAcross: (x, z, ax, az, n, step, out) => {
+      for (let k = -n; k <= n; k++) out[k + n] = WornTracks.profile(x + ax * k * step, depth);
+      return out;
+    },
   };
 }
 

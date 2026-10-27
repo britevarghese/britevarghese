@@ -80,6 +80,7 @@ export class WornTracks {
     each((b, p) => { this.items[fill[b]++] = p; });
     this.hit = { u: 0, s: 0, t: -1, d: 0, ax: 0, az: 0 };
     this.look = { u: 0, s: 0, depth: 0, W: 0, pot: 0, t: -1 };
+    this.pots = new Float64Array(15);
   }
 
   /** Is anything worn within r of the square [x0, x0 + size] x [z0, z0 + size]? */
@@ -137,28 +138,65 @@ export class WornTracks {
     q.u = h.u - wander; q.s = s; q.t = h.t;
     q.depth = (0.1 * (1 - f) + f * (0.05 + 0.1 * vary)) * wear * end;
     q.W = GAUGE + RUT + 0.35 + f * (vnoise(s / 6, 0.5, L.seed + 3) - 0.3) * 0.7;
-    // potholes: up to one a stretch, across the track or one side of it
-    let pot = 0;
-    if (f > 0) {
-      const b0 = Math.floor(s / BIN);
-      for (let b = b0 - 1; b <= b0 + 1; b++) {
-        if (hash2(b, L.seed, 31) > 0.55) continue;
-        const c = (b + 0.2 + 0.6 * hash2(b, L.seed, 32)) * BIN, len = 1.1 + 1.1 * hash2(b, L.seed, 33);
-        const along = Math.abs(s - c);
-        if (along > len) continue;
-        const mid = (hash2(b, L.seed, 34) - 0.5) * 1.4, wid = 0.7 + 0.6 * hash2(b, L.seed, 35);
-        const across = Math.abs(q.u - mid);
-        if (across > wid) continue;
-        const ca = Math.cos(along / len * Math.PI / 2), cc = Math.cos(across / wid * Math.PI / 2);
-        pot = Math.max(pot, (0.05 + 0.08 * hash2(b, L.seed, 36)) * ca * ca * cc * cc * wear * f);
-      }
-    }
-    q.pot = pot;
+    q.pot = f > 0 ? this.potDepth(this.potsAt(L, s), s, q.u, wear * f) : 0;
     return q;
+  }
+
+  /**
+   * The potholes within `reach` of s along track L (up to one a stretch, across the track or one side of it): into
+   * this.pots, five numbers each (its middle off the wheel line, its half width, its depth, where it is along the track
+   * and its half length); returns how many numbers.
+   */
+  potsAt(L, s, reach = 0) {
+    const P = this.pots, b0 = Math.floor(s / BIN);
+    let n = 0;
+    for (let b = b0 - 1; b <= b0 + 1; b++) {
+      if (hash2(b, L.seed, 31) > 0.55) continue;
+      const c = (b + 0.2 + 0.6 * hash2(b, L.seed, 32)) * BIN, len = 1.1 + 1.1 * hash2(b, L.seed, 33);
+      if (Math.abs(s - c) > len + reach) continue;
+      P[n++] = (hash2(b, L.seed, 34) - 0.5) * 1.4; P[n++] = 0.7 + 0.6 * hash2(b, L.seed, 35);
+      P[n++] = 0.05 + 0.08 * hash2(b, L.seed, 36); P[n++] = c; P[n++] = len;
+    }
+    return n;
+  }
+
+  /** Those potholes' depth (the first n numbers of this.pots) at s along, u off the wheel line, in ground that wears `wear`. */
+  potDepth(n, s, u, wear) {
+    const P = this.pots;
+    let pot = 0;
+    for (let i = 0; i < n; i += 5) {
+      const along = Math.abs(s - P[i + 3]), across = Math.abs(u - P[i]);
+      if (along > P[i + 4] || across > P[i + 1]) continue;
+      const ca = Math.cos(along / P[i + 4] * Math.PI / 2), cc = Math.cos(across / P[i + 1] * Math.PI / 2);
+      pot = Math.max(pot, P[i + 2] * ca * ca * cc * cc * wear);
+    }
+    return pot;
   }
 
   /** The ruts' and their spoil's depth (m, > 0 down) at u off the wheel line, for ruts `depth` deep. */
   static profile(u, depth) { return rut(u + GAUGE, depth) + rut(u - GAUGE, depth); }
+
+  /**
+   * The wear's depth (as depth gives it) added into out[0 .. 2n] at the 2n + 1 points step apart along (ax, az)
+   * through (x, z), -n to n: a tyre's breadth and a little more, all off the same stretch of the nearest track (its
+   * line, wander and depth found once, at (x, z); each point's own ground's wear).
+   */
+  across(x, z, ax, az, n, step, out, wearAt) {
+    const h = this.nearest(x, z);
+    if (!h || h.d > OUT + n * step) return out;
+    // (each point's way off the track's line, and along it)
+    const du = (ax * h.ax + az * h.az) * step, ds = (ax * h.az - az * h.ax) * step;
+    const q = this.shape(h, x, z, 1), f = this.free(x, z), np = f > 0 ? this.potsAt(this.lines[h.t], q.s, Math.abs(ds) * n) : 0;
+    for (let k = -n; k <= n; k++) {
+      const u = h.u + k * du;
+      if (Math.abs(u) > OUT) continue;
+      const wear = wearAt(x + ax * k * step, z + az * k * step);
+      if (wear <= 0) continue;
+      const uw = q.u + k * du;
+      out[k + n] += WornTracks.profile(uw, q.depth * wear) + (np ? this.potDepth(np, q.s + k * ds, uw, wear * f) : 0);
+    }
+    return out;
+  }
 
   /** The wear's depth at (x, z) (m, > 0 down): of the nearest track, its ground's wear blended across the cells (wearAt). */
   depth(x, z, wearAt) {

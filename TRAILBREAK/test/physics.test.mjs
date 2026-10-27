@@ -6,7 +6,7 @@ import { Drivetrain } from '../src/physics/Drivetrain.js';
 import { Quat, clamp } from '../src/physics/math.js';
 import { TRUCKS, truckSpec } from '../src/physics/trucks.js';
 import { SURFACE } from '../src/physics/Surfaces.js';
-import { flat, slope, soft, slopeWithIce, ledge } from './grounds.mjs';
+import { flat, slope, soft, slopeWithIce, ledge, worn } from './grounds.mjs';
 import { keysBend } from './drive.mjs';
 
 const IDLE = { throttle: 0, brake: 0, steer: 0, handbrake: 0 };
@@ -504,6 +504,28 @@ test('ruts steer a truck in deep mud: in its own it holds them against a little 
   const held = go(0.15, true), free = go(0.15, false), out = go(0.6, true);
   assert.ok(held < 0.6 && free > held + 0.6, `a little steering: ${held.toFixed(2)} m off its ruts, ${free.toFixed(2)} m on fresh mud`);
   assert.ok(out > 3, `full steering climbs out of them: ${out.toFixed(2)} m`);
+});
+
+test('a worn track\'s ruts steer a truck on firm ground: at speed a nudge of the wheel leaves it in them, at a crawl a firm turn climbs out', () => {
+  const at = (g, steer, speed, hold, s) => {
+    const v = truck('thar', g);
+    const drive = (t, steer) => {
+      for (let i = 0; i < Math.round(t / PHYS_DT); i++) {
+        const sp = v.vel.dot(v.fwd);
+        v.step({ ...IDLE, throttle: clamp((speed - sp) * 0.8 + hold, 0, 1), steer }, g);
+      }
+    };
+    drive(speed > 10 ? 14 : 4, 0);
+    const x0 = v.pos.x;
+    drive(s, steer); drive(3, 0);
+    return Math.abs(v.pos.x - x0);
+  };
+  // (72 km/h, the wheel nudged for 0.6 s and let go: on flat dirt the truck is off on a new line)
+  const nudged = at(worn(0.12), 0.04, 20, 0.3, 0.6), nudgedFlat = at(worn(0), 0.04, 20, 0.3, 0.6);
+  assert.ok(nudged < 0.2 && nudgedFlat > 1, `nudged at speed: ${nudged.toFixed(2)} m off its ruts, ${nudgedFlat.toFixed(2)} m on flat dirt`);
+  // (3 m/s, a firm turn for 4 s: out of them and away, much as on flat dirt)
+  const turned = at(worn(0.12), 0.35, 3, 0.3, 4), turnedFlat = at(worn(0), 0.35, 3, 0.3, 4);
+  assert.ok(turned > 0.8 * turnedFlat, `a firm turn at a crawl: ${turned.toFixed(2)} m, ${turnedFlat.toFixed(2)} m on flat dirt`);
 });
 
 test('the winch drags a truck in neutral toward the anchor, and stalls at its rated pull', () => {

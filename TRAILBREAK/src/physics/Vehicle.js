@@ -601,22 +601,21 @@ export class Vehicle {
       w.N = N;
       // rut walls (the contact rays see only the tyre's middle): a tyre rolling into a rut off its middle, by more than
       // its play, rides up the rut's wall and the wall pushes it back in, until it is over the top. So a truck in ruts
-      // follows them, the rear wheels drop into the front's, and only a firm turn of the wheel climbs out. The rut alone
-      // (how deep the ground is pressed, not the lie of the land: a tyre in its own hole on a bank is not pushed down the
-      // bank), read where the tyre is rolling into it (its own, pressed as it goes on a grid as coarse as a tread is
-      // wide, tugged it this way and that), and the more the faster it rolls (spinning on the spot it goes nowhere)
+      // follows them, the rear wheels drop into the front's, and only a firm turn of the wheel climbs out: ruts pressed
+      // since and a worn track's baked hard alike (world/World.js rutsAcross). The rut alone (how deep the ground is pressed or worn, not
+      // the lie of the land: a tyre in its own hole on a bank is not pushed down the bank), read where the tyre is
+      // rolling into it (its own, pressed as it goes on a grid as coarse as a tread is wide, tugged it this way and
+      // that), and the more the faster it rolls (spinning on the spot it goes nowhere)
       w.wall = 0;
-      if (ground.rutAt && w.surf.sink > 0 && N > 0) {
+      if (ground.rutsAcross && N > 0) {
         if (Math.abs(vx) > 0.2) w.rutDir = vx > 0 ? 1 : -1;
-        const ah = RUT_AHEAD * w.rutDir, ax = w.cx + _f.x * ah, az = w.cz + _f.z * ah;
-        let lo = Infinity, hi = 0, sum = 0, mom = 0;
-        for (let k = -RUT_N; k <= RUT_N; k++) {
-          const d = ground.rutAt(ax + _s.x * k * RUT_STEP, az + _s.z * k * RUT_STEP);
-          _rut[k + RUT_N] = d;
-          if (d < lo) lo = d;
-          if (d > hi) hi = d;
-        }
-        for (let k = -RUT_N; k <= RUT_N; k++) { const e = _rut[k + RUT_N] - lo; sum += e; mom += e * k * RUT_STEP; }
+        const ah = RUT_AHEAD * w.rutDir;
+        ground.rutsAcross(w.cx + _f.x * ah, w.cz + _f.z * ah, _s.x, _s.z, RUT_N, RUT_STEP, _rut);
+        let lo = Infinity, hi = -Infinity, sum = 0, mom = 0;
+        for (let k = 0; k <= 2 * RUT_N; k++) { const d = _rut[k]; if (d < lo) lo = d; if (d > hi) hi = d; }
+        // (the middle of its floor: the deepest third of it, so a rut half out of the window still reads where it is)
+        const fl = hi - (hi - lo) * 0.3;
+        for (let k = -RUT_N; k <= RUT_N; k++) { const e = _rut[k + RUT_N] - fl; if (e > 0) { sum += e; mom += e * k * RUT_STEP; } }
         if (hi - lo > 0.02) {
           const c = mom / sum, t = (Math.abs(c) - RUT_PLAY) / (RUT_TOP - RUT_PLAY);   // (c > 0: the rut's middle is to its left)
           if (t > 0 && t < 1) w.wall = Math.sign(c) * N * RUT_WALL * Math.min(1, (hi - lo) / RUT_DEEP) * Math.sin(Math.PI * t) * Math.min(1, Math.abs(vx) / RUT_ROLL);
