@@ -833,20 +833,32 @@ Everything that makes off-roading off-roading is simulated, not faked:
   farther behind is wiped for the ground ahead (`src/render/TrackMap.js`). (The tread's lugs are reckoned along the
   way the tyre rolled from the picture's corner, not the world's: kilometres out a sine of the distance in lugs had
   no precision left, and the track was a plain dark band.)
-- **What the tyres throw up:** a spinning tread flings clods and wet drops of mud along its tangent at its speed
-  round the hub (a rolling one sheds some in mud), and wet mud in sheets off a spinning one; a tyre sunk deep in mud
-  shoves lumps of it out ahead and to the sides, and splashes the muddy water standing in its rut; sand goes up in a
-  spray of grains. On dry ground the dust rolls up behind in a plume that thickens with the speed, billows up and
-  drifts out over the verges, hanging in the air for seconds (most of it from the rear wheels; a damp map's earth, the
-  taiga's, raises little: its `dustiness`). It used to be a few faint puffs, hardly there at 80 km/h. The mud and dust are the colour of the ground of the map you are in,
-  as are the mud caked on the tyres and on the paint (the taiga's dark peat, the coast's red laterite; in the open
-  world they change as you drive from one map into the next: they were the start map's everywhere, so the taiga's
-  trucks threw red clods). Fresh mud on the paint is wet, dark and glossy, and dries pale and dull out of the mud in a
-  couple of minutes; above the mud caked low down, drops of it are spattered higher up the sides. All of it is lit by
-  the whole of the sky's light (the ground gets most of its sky light from the sky's environment map, which the
-  particles don't have; given only what was left to the hemisphere light beside it, a clod flew off nearly black). In water each tyre splashes as it drives in, throws a rooster tail off the tread and sheets out to the
-  sides, the nose pushes up a bow wave, and foam and ripple rings spread behind on the surface as it is drawn. All of
-  it is lit by the sun and the sky (render/Effects.js), and you see it round your friends' trucks too.
+- **What the tyres throw up:** a spinning tread flings clods and wet drops of mud along its tangent at its speed round
+  the hub (a rolling one sheds some in mud), and wet mud in sheets off a spinning one; a tyre sunk deep in mud shoves
+  lumps of it out ahead and to the sides, and splashes the muddy water standing in its rut; sand goes up in a spray of
+  grains. On dry ground the dust rolls up behind in a plume that thickens with the speed, billows up and drifts out
+  over the verges, hanging in the air for seconds (most of it from the rear wheels; a damp map's earth, the taiga's,
+  raises little: its `dustiness`). It used to be a few faint puffs, hardly there at 80 km/h. The mud and dust are the
+  colour of the ground of the map you are in, as are the mud caked on the tyres and on the paint (the taiga's dark
+  peat, the coast's red laterite; in the open world they change as you drive from one map into the next: they were the
+  start map's everywhere, so the taiga's trucks threw red clods). The tyres throw it up the bodywork in a fan round
+  each wheel arch, longest behind it, and along the sills and low at the ends, in splashes with crisp edges that run
+  down where it is wet, its edge wandering up and down along the truck. It used to be a soft brown shading along the
+  bottom of the paint. Fresh mud on the paint is wet, dark and shining, and dries pale and dull out of the mud in a
+  couple of minutes; above the mud caked low down, drops of it are spattered higher up the sides (but not on the cab's
+  own panels seen from the driver's seat, which are painted as the body is). The glass gets it too (it used to stay
+  spotless on a truck caked in mud): the side windows spattered like the doors below them, the back window filmed over
+  with what the wake sucks in behind the truck. Mud flung off the front tyres spinning in mud, or thrown over the
+  bonnet out of mud or water driven into fast, lands on the windscreen, thickest low down and up its sides, with drops
+  and runs above. Once it lands in their arcs the wipers come on and sweep while it keeps coming, each sweep clearing
+  two arcs but for a smear the washers rinse off in a few seconds. The mud they push piles up at the ends of their
+  sweep, and outside their arcs it stays until deep water washes it off. From the cab the mud on the glass is dark
+  against the light and the wipers' blades sweep across. All of it is lit by the whole of the sky's light (the ground
+  gets most of its sky light from the sky's environment map, which the particles don't have; given only what was left
+  to the hemisphere light beside it, a clod flew off nearly black). In water each tyre splashes as it drives in,
+  throws a rooster tail off the tread and sheets out to the sides, the nose pushes up a bow wave, and foam and ripple
+  rings spread behind on the surface as it is drawn. All of it is lit by the sun and the sky (render/Effects.js), and
+  you see it round your friends' trucks too.
 - **Wet mud:** mud is drawn wet, darker and glossy, wetter in places, and the ground at the water's edge is wet too,
   as is the earth round a patch of mud a metre or three out (it used to be dry right up to the mud, a dark stain
   painted on the ground). A mud hole or field has been driven through before: old ruts cross it, a pair for each

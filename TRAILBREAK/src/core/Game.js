@@ -1410,6 +1410,15 @@ export class Game {
     // (fresh mud wet; it dries in a couple of minutes out of the mud and the water)
     this.dirtWet = mud > 0.02 || v.waterDepth > 0.2 ? Math.min(1, (this.dirtWet ?? 1) + dt * 0.5) : Math.max(0, (this.dirtWet ?? 1) - dt / 150);
     m.setDirt(this.dirt, this.dirtWet);
+    // mud on the windscreen: flung off the front tyres spinning in mud, and over the bonnet out of mud or water driven
+    // into fast (render/TruckModel.js screenMud: the wipers keep two arcs of it clear)
+    let fling = 0;
+    for (let i = 0; i < 2; i++) {
+      const w = v.wheels[i];
+      if (w.contact && (w.surf.name === 'mud' || w.surf.name === 'riverbed')) fling += Math.max(0, Math.abs(w.spin) - 3) * 0.012 + (w.sink || 0) * Math.max(0, Math.abs(v.speed) - 4) * 0.08;
+    }
+    if (v.waterDepth > 0.15) fling += Math.max(0, Math.abs(v.speed) - 3) * Math.min(1, v.waterDepth) * 0.1;
+    m.screenMud(dt, fling, v.waterDepth > 0.7 ? v.waterDepth : 0);
     this.damageFrame(dt);
 
     // effects from our tyres

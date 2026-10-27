@@ -115,6 +115,8 @@ function paintMaterial(hex, uniforms) {
     sh.uniforms.uDirt = uniforms.uDirt;
     sh.uniforms.uDirtWet = uniforms.uDirtWet;
     sh.uniforms.uMudTint = { value: MUD_TINT };
+    sh.uniforms.uArch = uniforms.uArch;
+    sh.uniforms.uSeat = uniforms.uSeat;
     sh.vertexShader = sh.vertexShader
       .replace('#include <common>', '#include <common>\nvarying vec3 vLocal;')
       .replace('#include <begin_vertex>', '#include <begin_vertex>\nvLocal = position;');
@@ -124,6 +126,8 @@ varying vec3 vLocal;
 uniform float uDirt;
 uniform float uDirtWet;
 uniform vec3 uMudTint;
+uniform vec4 uArch[6];
+uniform float uSeat;
 float gMud = 0.0;
 float dh(vec3 p) { return fract(sin(dot(p, vec3(12.9898, 78.233, 37.719))) * 43758.5453); }
 float dn(vec3 p) { vec3 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
@@ -131,25 +135,151 @@ float dn(vec3 p) { vec3 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
              mix(mix(dh(i + vec3(0,0,1)), dh(i + vec3(1,0,1)), f.x), mix(dh(i + vec3(0,1,1)), dh(i + vec3(1,1,1)), f.x), f.y), f.z); }`)
       .replace('#include <color_fragment>', `#include <color_fragment>
 {
-  // mud thrown up by the tyres: thickest low down and at the ends, in splashes; above it, spattered drops flung
-  // higher (gone where they are finer than a pixel)
-  float lowness = 1.0 - smoothstep(0.55, 1.45, vLocal.y);
-  float splash = dn(vLocal * 7.0) * 0.6 + dn(vLocal * 19.0) * 0.4;
-  float m = clamp(uDirt * 1.6 * lowness - (1.0 - splash) * 0.6, 0.0, 1.0);
+  // mud thrown up by the tyres: in a fan round each wheel arch, longest behind it, and thick along the sills and low
+  // at the ends; in splashes with crisp edges (it is mud, not a shadow), running down where it is wet; above it,
+  // spattered drops flung higher (gone where they are finer than a pixel)
+  float lowness = 1.0 - smoothstep(0.5, 1.35, vLocal.y);
+  float fan = 0.0;
+  for (int i = 0; i < 6; i++) {
+    vec2 d = vec2(vLocal.z - uArch[i].y, vLocal.y - uArch[i].x);
+    d.x *= d.x < 0.0 ? 0.55 : 1.0;
+    fan = max(fan, 1.0 - smoothstep(uArch[i].z * 0.95, uArch[i].z * 2.5, length(d)));
+  }
+  vec3 q = vLocal + 0.09 * vec3(dn(vLocal * 4.0), dn(vLocal * 4.0 + 7.0), dn(vLocal * 4.0 + 13.0));
+  float splash = dn(q * 9.0) * 0.55 + dn(q * 26.0) * 0.3 + dn(q * 71.0) * 0.15;
+  float runs = dn(vec3(vLocal.x * 38.0, vLocal.y * 2.5, vLocal.z * 38.0));
+  // (and where its edge runs wanders up and down along the truck, not a tide line)
+  float big = dn(vLocal * 1.7 + 5.0);
+  float raw = uDirt * (1.0 * lowness + 1.15 * fan) - (1.0 - splash) * 0.8 + (big - 0.5) * 0.5 + (runs - 0.5) * 0.3 * uDirtWet;
+  float m = smoothstep(0.0, 0.1, raw);
   float sp = dn(vLocal * 48.0 + 3.1) * 0.65 + dn(vLocal * 131.0) * 0.35;
   float fine = 1.0 - smoothstep(0.004, 0.012, length(fwidth(vLocal)));
-  float drops = smoothstep(0.74, 0.8, sp) * clamp(uDirt * 2.4 * (1.0 - smoothstep(0.8, 1.9, vLocal.y)) - 0.25, 0.0, 1.0) * fine;
+  float drops = smoothstep(0.71, 0.77, sp) * clamp(uDirt * (2.4 + 1.5 * fan) * (1.0 - smoothstep(0.8, 1.9, vLocal.y)) - 0.25, 0.0, 1.0) * fine;
   m = max(m, drops * 0.85);
-  // fresh mud is wet, dark and shining; as it dries it goes pale and dull, paler in patches
-  vec3 mudC = mix(uMudTint * (1.25 + 0.3 * splash), uMudTint * 0.55, uDirtWet);
-  diffuseColor.rgb = mix(diffuseColor.rgb, mudC, m * 0.92);
+  // (from the driver's seat: none on the cab's own panels round him, painted as the body is)
+  m *= 1.0 - uSeat * (1.0 - smoothstep(1.0, 1.25, length(vViewPosition)));
+  // fresh mud is wet, dark and shining; as it dries it goes pale and dull, paler in patches and where it is thin
+  vec3 mudC = mix(uMudTint * (1.3 + 0.35 * splash - 0.3 * smoothstep(0.1, 0.5, raw)), uMudTint * (0.5 + 0.12 * splash), uDirtWet);
+  diffuseColor.rgb = mix(diffuseColor.rgb, mudC, m * 0.95);
   gMud = m;
 }`)
-      // mud dulls the shine (wet, it shines itself)
+      // mud dulls the shine (wet, it shines a little itself)
       .replace('#include <lights_physical_fragment>', `#include <lights_physical_fragment>
+material.clearcoat *= 1.0 - gMud * (1.0 - 0.35 * uDirtWet);
+material.roughness = mix(material.roughness, mix(0.95, 0.42, uDirtWet), gMud);`);
+  };
+  return mat;
+}
+
+// the windscreen's wipers: a sweep there and back (s), and how far round they go from where they lie (rad)
+const WIPE_T = 1.1, WIPE_A = 1.95;
+
+/**
+ * This truck's own glass, with the mud it picks up on it: on the side windows as on the paint below them
+ * (paintMaterial: thick low down, drops flung higher), and on the back window a film of the dust and spray the truck's
+ * wake sucks in behind it. The windscreen (screen) has its own (TruckModel.screenMud): flung over the bonnet, thick
+ * low down and up its sides, drops and runs above, and two arcs of it kept clear by the wipers but for a smear, the
+ * mud they push piling up at the ends of their sweep, and their blades seen sweeping from the cab. Seen from inside,
+ * the mud is dark against the light and the clean glass all but clear.
+ */
+function glassMaterial(base, uniforms, screen) {
+  const mat = base.clone();
+  mat.userData = {};
+  mat.onBeforeCompile = (sh) => {
+    Object.assign(sh.uniforms, { uDirt: uniforms.uDirt, uDirtWet: uniforms.uDirtWet, uMudTint: { value: MUD_TINT } });
+    if (screen) Object.assign(sh.uniforms, { uScr: uniforms.uScr, uWipe: uniforms.uWipe, uPane: uniforms.uPane });
+    sh.vertexShader = sh.vertexShader
+      .replace('#include <common>', `#include <common>\nvarying vec3 vLocal;\nvarying vec3 vLocalN;${screen ? '\nvarying vec2 vScrUv;\nvarying float vCamZ;' : ''}`)
+      .replace('#include <begin_vertex>', `#include <begin_vertex>\nvLocal = position;\nvLocalN = normal;${screen ? '\nvScrUv = uv;\nvCamZ = (inverse(modelMatrix) * vec4(cameraPosition, 1.0)).z;' : ''}`);
+    sh.fragmentShader = sh.fragmentShader
+      .replace('#include <common>', `#include <common>
+${screen ? '#define MUD_SCREEN' : ''}
+varying vec3 vLocal;
+varying vec3 vLocalN;
+uniform float uDirt;
+uniform float uDirtWet;
+uniform vec3 uMudTint;
+float gMud = 0.0;
+float dh(vec3 p) { return fract(sin(dot(p, vec3(12.9898, 78.233, 37.719))) * 43758.5453); }
+float dn(vec3 p) { vec3 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
+  return mix(mix(mix(dh(i), dh(i + vec3(1,0,0)), f.x), mix(dh(i + vec3(0,1,0)), dh(i + vec3(1,1,0)), f.x), f.y),
+             mix(mix(dh(i + vec3(0,0,1)), dh(i + vec3(1,0,1)), f.x), mix(dh(i + vec3(0,1,1)), dh(i + vec3(1,1,1)), f.x), f.y), f.z); }
+#ifdef MUD_SCREEN
+varying vec2 vScrUv;
+varying float vCamZ;
+uniform vec4 uScr;
+uniform vec3 uWipe;
+uniform vec2 uPane;
+// as much of the windscreen as mud this deep (lvl) covers: blots, thickest where bias is (low down and at the sides),
+// runs down the glass and drops
+float scrMud(float lvl, float n1, float n2, float drops, float bias) {
+  float t = lvl * (0.55 + 0.9 * bias);
+  float thick = smoothstep(1.0 - t, 1.1 - t, n1 + 0.2 * bias);
+  float runs = smoothstep(0.8, 0.86, n2) * smoothstep(0.15, 0.5, t) * 0.8;
+  return clamp(max(thick, max(runs, drops * smoothstep(0.02, 0.2, lvl))), 0.0, 1.0);
+}
+#endif`)
+      .replace('#include <color_fragment>', `#include <color_fragment>
+float gBlade = 0.0;
+{
+  float lowness = 1.0 - smoothstep(0.5, 1.35, vLocal.y);
+  float splash = dn(vLocal * 7.0) * 0.6 + dn(vLocal * 19.0) * 0.4;
+  float m = smoothstep(0.0, 0.1, uDirt * 1.2 * lowness - (1.0 - splash) * 0.8) * 0.85;
+  float sp = dn(vLocal * 48.0 + 3.1) * 0.65 + dn(vLocal * 131.0) * 0.35;
+  float fine = 1.0 - smoothstep(0.004, 0.012, length(fwidth(vLocal)));
+  m = max(m, smoothstep(0.74, 0.8, sp) * clamp(uDirt * 2.4 * (1.0 - smoothstep(0.8, 1.9, vLocal.y)) - 0.25, 0.0, 1.0) * fine * 0.8);
+#ifdef MUD_SCREEN
+  {
+    vec2 P = vScrUv * uPane;
+    float L = min(0.92 * uPane.y, 0.46 * uPane.x), h = vScrUv.y;
+    vec2 Pw = P + 0.025 * vec2(dn(vec3(P * 12.0, 3.3)), dn(vec3(P * 12.0, 8.8)));
+    float n1 = dn(vec3(Pw * 14.0, 1.7)) * 0.55 + dn(vec3(Pw * 36.0, 4.1)) * 0.3 + dn(vec3(Pw * 90.0, 6.6)) * 0.15;
+    float n2 = dn(vec3(P.x * 55.0, P.y * 9.0, 7.3));
+    float drops = smoothstep(0.72, 0.78, dn(vec3(P * 70.0, 2.2)) * 0.6 + dn(vec3(P * 170.0, 5.4)) * 0.4) * fine;
+    float bias = (1.0 - h) * 0.6 + (1.0 - min(min(vScrUv.x, 1.0 - vScrUv.x) * 4.0, 1.0)) * 0.4;
+    float wiped = 0.0, swept = 0.0, ridge = 0.0, streak = 0.0;
+    vec2 bd = vec2(cos(uWipe.z), sin(uWipe.z));
+    for (int i = 0; i < 2; i++) {
+      vec2 d = P - vec2(uPane.x * (i == 0 ? 0.2 : 0.62), -0.04 * uPane.y);
+      float r = length(d), a = atan(d.y, d.x);
+      float inR = step(0.14 * L, r) * step(r, L), inA = step(0.0, a) * step(a, ${WIPE_A.toFixed(2)});
+      wiped = max(wiped, inR * inA);
+      swept = max(swept, inR * inA * step(a, uWipe.x));
+      streak = max(streak, inR * inA * dn(vec3(r * 140.0, a * 2.0, 9.1)));
+      // (the mud a blade pushes along piles up at the ends of its sweep)
+      ridge = max(ridge, inA * (1.0 - smoothstep(0.0, 0.025, abs(r - L))) + inR * (1.0 - smoothstep(0.0, 0.035, abs(a - ${WIPE_A.toFixed(2)}) * r)));
+      float along = dot(d, bd), across = abs(d.x * bd.y - d.y * bd.x);
+      gBlade = max(gBlade, uWipe.y * step(0.1 * L, along) * step(along, L) * (1.0 - smoothstep(0.006, 0.011, across)));
+    }
+    // (the blades seen sweeping from behind the glass only, from the cab: from outside, the truck's own wipers lie
+    // where they are)
+    gBlade *= step(vCamZ, vLocal.z);
+    float lvl = wiped > 0.5 ? (swept > 0.5 ? uScr.z : uScr.y) : uScr.x;
+    float ms = scrMud(lvl, n1, n2, drops, bias);
+    ms = max(ms, wiped * uScr.w * 0.3 * (0.5 + 0.5 * streak));
+    ms = max(ms, min(ridge, 1.0) * smoothstep(0.05, 0.35, uScr.x) * (0.5 + 0.5 * n1));
+    m = max(m, ms);
+  }
+#else
+  // (the back window: a film of what the wake sucks in, thicker low down)
+  float back = smoothstep(0.5, 0.8, abs(vLocalN.z));
+  m = max(m, back * clamp(uDirt * 1.2, 0.0, 0.8) * (0.7 + 0.3 * splash) * (1.0 - 0.4 * smoothstep(1.1, 2.0, vLocal.y)));
+#endif
+  vec3 mudC = mix(uMudTint * (1.25 + 0.3 * splash), uMudTint * 0.55, uDirtWet);
+  if (!gl_FrontFacing) { mudC *= 0.45; diffuseColor.a *= 0.4; }
+  diffuseColor.rgb = mix(diffuseColor.rgb, mudC, m);
+  diffuseColor.a = mix(diffuseColor.a, 0.97, m);
+  diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.015), gBlade);
+  diffuseColor.a = max(diffuseColor.a, gBlade);
+  gMud = max(m, gBlade);
+}`)
+      .replace('#include <lights_physical_fragment>', `#include <lights_physical_fragment>
+#ifdef USE_CLEARCOAT
 material.clearcoat *= 1.0 - gMud * (1.0 - 0.5 * uDirtWet);
+#endif
 material.roughness = mix(material.roughness, mix(0.95, 0.32, uDirtWet), gMud);`);
   };
+  mat.customProgramCacheKey = () => (screen ? 'glass mud screen' : 'glass mud');
   return mat;
 }
 
@@ -944,7 +1074,11 @@ export class TruckModel {
   constructor(spec, paintHex = 0xb5532c, opts = {}) {
     const M = shared();
     this.spec = spec;
-    this.uniforms = { uDirt: { value: 0 }, uDirtWet: { value: 1 } };
+    this.uniforms = {
+      uDirt: { value: 0 }, uDirtWet: { value: 1 }, uScr: { value: new THREE.Vector4() }, uWipe: { value: new THREE.Vector3() }, uPane: { value: new THREE.Vector2(1, 1) },
+      uArch: { value: Array.from({ length: 6 }, () => new THREE.Vector4(-100, 0, 0.1, 0)) },     // (each wheel: its hub's height and way along, radius)
+      uSeat: { value: 0 },                                                                          // (seen from the driver's seat)
+    };
     this.paint = paintMaterial(paintHex, this.uniforms);
     const look = spec.look || {}, canvasTop = look.top === 'canvas';
     this.top = look.top === 'paint' ? this.paint : look.top === 'black'
@@ -1036,26 +1170,60 @@ export class TruckModel {
     P.build(this.body);
     for (const l of this.lamps) this.body.add(l);
     if (this.spareRim) this.body.add(this.spareRim);
-    // this truck's own glass, so it can crack and shatter
-    // this truck's own glass: the windscreen (laminated: it crazes) and the side and back windows (toughened: they burst)
-    const screens = this.body.children.filter((m) => m.material === M.screen || m.material === M.screen.userData.both);
+    // this truck's own glass, so it can crack and shatter, and show the mud it picks up (glassMaterial): the windscreen
+    // (laminated: it crazes) and the side and back windows (toughened: they burst). (Not a screen in the dash: it has the
+    // windscreen's material too.)
+    const wide = (m) => { m.geometry.computeBoundingBox(); const b = m.geometry.boundingBox; return b.max.x - b.min.x > 0.5; };
+    const screens = this.body.children.filter((m) => (m.material === M.screen || m.material === M.screen.userData.both) && wide(m));
     if (screens.length) {
-      this.screen = M.screen.clone();
-      if (screens.some((m) => m.material.side === THREE.DoubleSide)) this.screen.side = THREE.DoubleSide;
+      this.screen = glassMaterial(M.screen, this.uniforms, true);
+      // (drawn from both sides, so its mud shows from the cab: unless it is a slab with an inside face of its own)
+      const slab = screens.some((m) => {
+        const n = m.geometry.attributes.normal;
+        let out = 0, inn = 0;
+        for (let i = 0; n && i < n.count; i++) { const z = n.getZ(i); if (z > 0.3) out++; else if (z < -0.3) inn++; }
+        return out > 0 && inn > 0;
+      });
+      if (screens.some((m) => m.material.side === THREE.DoubleSide) || !slab) this.screen.side = THREE.DoubleSide;
+      // the parts lose their texture coordinates when merged: map the cracks and the mud across the windscreen (all its
+      // panes), flat on from the front; and how big it is, along the glass, for the wipers' sweep (its panes alone: the
+      // glass facing forward, up by its top edge and not far ahead of it, for a model may have lamp lenses in with it)
+      const box = new THREE.Box3(), all = new THREE.Box3(), q = new THREE.Vector3(), n = new THREE.Vector3(), nm = new THREE.Matrix3();
+      for (const sm of screens) { sm.updateMatrix(); all.expandByObject(sm); }
+      let topZ = -Infinity;
+      const each = (fn) => {
+        for (const sm of screens) {
+          const p = sm.geometry.attributes.position, nr = sm.geometry.attributes.normal;
+          nm.getNormalMatrix(sm.matrix);
+          for (let i = 0; i < p.count; i++) {
+            q.fromBufferAttribute(p, i).applyMatrix4(sm.matrix);
+            if (!nr || Math.abs(n.fromBufferAttribute(nr, i).applyMatrix3(nm).normalize().z) >= 0.35) fn(q);
+          }
+        }
+      };
+      each((v) => { if (v.y > all.max.y - 0.1) topZ = Math.max(topZ, v.z); });
+      each((v) => { if (v.y > all.max.y - 0.9 && v.z < topZ + 0.6) box.expandByPoint(v); });
+      if (box.isEmpty()) box.copy(all);
+      const W = box.max.x - box.min.x || 1, H = box.max.y - box.min.y || 1;
+      this.uniforms.uPane.value.set(W, Math.hypot(H, box.max.z - box.min.z));
       for (const sm of screens) {
         sm.material = this.screen;
-        // the parts lose their texture coordinates when merged: map the cracks across the pane, flat on from the front
-        const g = sm.geometry, p = g.attributes.position;
-        g.computeBoundingBox();
-        const b = g.boundingBox, uv = new Float32Array(p.count * 2);
+        const g = sm.geometry, p = g.attributes.position, uv = new Float32Array(p.count * 2);
         for (let i = 0; i < p.count; i++) {
-          uv[i * 2] = (p.getX(i) - b.min.x) / (b.max.x - b.min.x || 1);
-          uv[i * 2 + 1] = (p.getY(i) - b.min.y) / (b.max.y - b.min.y || 1);
+          q.fromBufferAttribute(p, i).applyMatrix4(sm.matrix);
+          uv[i * 2] = (q.x - box.min.x) / W;
+          uv[i * 2 + 1] = (q.y - box.min.y) / H;
         }
         g.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
       }
     }
     this.glassMeshes = this.body.children.filter((m) => m.material === M.glass || m.material === M.glass.userData.both);
+    const glassOwn = new Map();
+    for (const gm of this.glassMeshes) {
+      if (!glassOwn.has(gm.material)) glassOwn.set(gm.material, glassMaterial(gm.material, this.uniforms, false));
+      gm.material = glassOwn.get(gm.material);
+    }
+    this.glassMats = [...glassOwn.values()];
     this.dentMeshes = this.body.children.filter((m) => m.isMesh && !m.material.transparent);
     this.rimR = rimR;
 
@@ -1166,6 +1334,12 @@ export class TruckModel {
       });
       return { group, wheels, yDroop, half, spec: a, ifs: !!a.ifs };
     });
+    // where the wheels stand under the body, for the fans of mud they throw up it (paintMaterial)
+    this.root.updateMatrixWorld(true);
+    this.axles.slice(0, 3).forEach((ax, ai) => ax.wheels.forEach((wm, s) => {
+      const p = this.body.worldToLocal(wm.knuckle.getWorldPosition(new THREE.Vector3()));
+      this.uniforms.uArch.value[ai * 2 + s].set(p.y, p.z, R, 0);
+    }));
     // independent suspension (front, or both ends): wishbones (upper and lower each side) and the drive shafts from the
     // diff on the frame, placed every frame between the frame and the knuckles
     this.ifsAxles = this.axles.filter((ax) => ax.ifs);
@@ -1350,6 +1524,7 @@ export class TruckModel {
    */
   setSeatView(on) {
     this.driver?.setSeatView(on);
+    this.uniforms.uSeat.value = on ? 1 : 0;
     if ((!this.spec.road && !this.gauges) || this.seatView === on) return;       // (a sports car, or one with a cockpit built for it)
     this.seatView = on;
     if (!this.insideTrim) {
@@ -1365,7 +1540,8 @@ export class TruckModel {
       // (the windscreen keeps its own: it shows its cracks)
       this.glassAll = this.body.children.filter((m) => m.isMesh && m.userData.role === 'glass');
       this.glassOut = this.glassAll.map((m) => m.material);
-      const clear = (g) => (g.userData.inside ||= Object.assign(g.clone(), { opacity: 0.14, clearcoat: 0, envMapIntensity: 0.15, side: THREE.DoubleSide }));
+      // (with the mud on it still: a clone leaves its shader behind)
+      const clear = (g) => (g.userData.inside ||= Object.assign(g.clone(), { opacity: 0.14, clearcoat: 0, envMapIntensity: 0.15, side: THREE.DoubleSide, onBeforeCompile: g.onBeforeCompile, customProgramCacheKey: g.customProgramCacheKey }));
       this.glassIn = this.glassOut.map(clear);
     }
     for (const t of this.insideTrim) t.visible = on;
@@ -1455,7 +1631,40 @@ export class TruckModel {
   }
 
   /** How much mud is on the paint (0 to 1), and how wet it still is (1: fresh, 0: dried). */
-  setDirt(d, wet = this.uniforms.uDirtWet.value) { this.dirt = d; this.uniforms.uDirt.value = d; this.uniforms.uDirtWet.value = wet; }
+  setDirt(d, wet = this.uniforms.uDirtWet.value) {
+    this.dirt = d; this.uniforms.uDirt.value = d; this.uniforms.uDirtWet.value = wet;
+    if (d === 0 && this.scr) { this.scr = null; this.uniforms.uScr.value.set(0, 0, 0, 0); this.uniforms.uWipe.value.set(0, 0, 0); }   // (washed)
+  }
+
+  /**
+   * Mud on the windscreen (dt s; rate: how much is being flung onto it a second; wash: water deep enough to wash it,
+   * m): it builds up over the glass, outside the wipers' arcs for good (but what the water washes off); the wipers come
+   * on once it lands in their arcs and run while it keeps coming, each sweep clearing them but for a smear that the
+   * washers rinse away in a few seconds.
+   */
+  screenMud(dt, rate, wash = 0) {
+    const S = this.scr ||= { out: 0, fresh: 0, since: 0, smear: 0, t: -1 }, add = rate * dt;
+    S.out = Math.max(0, Math.min(1, S.out + add * 0.7 - wash * dt * 0.3));
+    S.fresh = Math.max(0, Math.min(1, S.fresh + add - wash * dt * 0.3));
+    S.since = Math.min(1, S.since + add);
+    S.smear = Math.max(0, S.smear - dt / 6);
+    if (S.t < 0 && S.fresh > 0.05) { S.t = 0; S.since = 0; S.smear = Math.min(0.8, S.smear + S.fresh * 0.6); }
+    let ang = 0, swept = 0;
+    if (S.t >= 0) {
+      S.t += dt / WIPE_T;
+      if (S.t >= 1) {
+        // (a sweep there and back done: what landed since is all that is on in the arcs; on again while it keeps coming)
+        S.fresh = S.since; S.since = 0;
+        if (S.fresh > 0.02 || rate > 0.05) { S.t %= 1; S.smear = Math.min(0.8, S.smear + S.fresh * 0.6); } else S.t = -1;
+      }
+      if (S.t >= 0) {
+        ang = WIPE_A * (1 - Math.cos(2 * Math.PI * S.t)) / 2;
+        swept = S.t < 0.5 ? ang : WIPE_A;
+      }
+    }
+    this.uniforms.uScr.value.set(S.out, S.fresh, S.since, S.smear);
+    this.uniforms.uWipe.value.set(swept, S.t >= 0 ? 1 : 0, ang);
+  }
 
   /**
    * The tyres as the ground has them (the physics' wheels, physics/Vehicle.js, in the order the axles are): each
@@ -1490,7 +1699,7 @@ export class TruckModel {
   dispose() {
     this.mirrors?.dispose();
     this.root.traverse((o) => { if (o.geometry && !o.geometry.userData.cached) o.geometry.dispose(); });
-    for (const m of [this.paint, this.top, ...this.lampMats, ...this.headMats.flat(), this.barMat, this.brakeMat, this.revMat, this.screen]) m?.dispose();
+    for (const m of [this.paint, this.top, ...this.lampMats, ...this.headMats.flat(), this.barMat, this.brakeMat, this.revMat, this.screen, ...this.glassMats]) m?.dispose();
     for (const ax of this.axles || []) for (const wm of ax.wheels) wm.tire.material.dispose();
     for (const m of this.rimMats) m.dispose();
   }
