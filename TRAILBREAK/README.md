@@ -824,8 +824,11 @@ Everything that makes off-roading off-roading is simulated, not faked:
   way the tyre rolled from the picture's corner, not the world's: kilometres out a sine of the distance in lugs had
   no precision left, and the track was a plain dark band.)
 - **What the tyres throw up:** a spinning tread flings clods and wet drops of mud along its tangent at its speed
-  round the hub (a rolling one sheds some in mud), and wet mud in sheets off a spinning one; sand goes up in a spray
-  of grains, dust rolls up behind on dry ground. The mud and dust are the colour of the ground of the map you are in,
+  round the hub (a rolling one sheds some in mud), and wet mud in sheets off a spinning one; a tyre sunk deep in mud
+  shoves lumps of it out ahead and to the sides, and splashes the muddy water standing in its rut; sand goes up in a
+  spray of grains. On dry ground the dust rolls up behind in a plume that thickens with the speed, billows up and
+  drifts out over the verges, hanging in the air for seconds (most of it from the rear wheels; a damp map's earth, the
+  taiga's, raises little: its `dustiness`). It used to be a few faint puffs, hardly there at 80 km/h. The mud and dust are the colour of the ground of the map you are in,
   as are the mud caked on the tyres and on the paint (the taiga's dark peat, the coast's red laterite; in the open
   world they change as you drive from one map into the next: they were the start map's everywhere, so the taiga's
   trucks threw red clods). Fresh mud on the paint is wet, dark and glossy, and dries pale and dull out of the mud in a

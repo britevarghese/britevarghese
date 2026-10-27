@@ -1400,6 +1400,7 @@ export class Game {
     if (RD && RD !== this.paletteOf) {
       this.paletteOf = RD;
       this.effects.setPalette(RD.map.dust);
+      this.effects.dustiness = RD.map.dustiness ?? 1;
       MUD_TINT.setRGB(...(RD.map.mudTint || MUD_TINT_BASE));
     }
     // mud on the paint: picked up in mud and wet ground, washed off in water

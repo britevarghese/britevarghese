@@ -112,8 +112,9 @@ void main() {
     a *= m;
   } else if (vKind < 0.5 || (vKind > 2.5 && vKind < 3.5)) {
     // dust, steam, smoke and spray mist: a soft volume, lit by the sky, the sun through it when it is behind
+    // (thinning from the middle out, so that many seen one behind another, down a dusty track, still have soft edges)
     if (r > 1.0) discard;
-    float m = exp(-r * r * 2.4) * (1.0 - smoothstep(0.75, 1.0, r));
+    float m = 1.3 * exp(-r * r * 3.2) * (1.0 - smoothstep(0.45, 1.0, r));
     m *= 0.75 + 0.5 * vnoise(p * 2.2 + vSeed * 9.0);
     float mist = step(2.5, vKind);
     col = col * (amb * 0.85 + uSunCol * 0.3) + uSunCol * pow(behind, 5.0) * (0.18 + 0.3 * mist);
@@ -235,6 +236,7 @@ export class Effects {
     this.acc = new Map();
     this.hulls = new Map();
     this.colors = { ...COLORS };
+    this.dustiness = 1;            // how much dust the map's dry ground raises (a wet map's little)
     this.ground = null;
   }
 
@@ -299,7 +301,7 @@ export class Effects {
    */
   wheel(key, w, dt, speed, hubX, hubY, hubZ, headX, headZ, r = 0.4) {
     let st = this.acc.get(key);
-    if (!st) { st = { clod: 0, grain: 0, dust: 0, tail: 0, sheet: 0, wet: 0 }; this.acc.set(key, st); }
+    if (!st) { st = { clod: 0, grain: 0, dust: 0, tail: 0, sheet: 0, wet: 0, plough: 0 }; this.acc.set(key, st); }
     if (!w.contact) { st.wet = 0; return; }
     const s = w.surf?.id ?? SURFACE.GRASS;
     const col = this.colors[s] || this.colors[SURFACE.DIRT];
@@ -356,16 +358,46 @@ export class Effects {
           0.3 + Math.random() * 0.35, 1.5 + Math.random(), c, s === SURFACE.SNOW ? 0.3 : 0.18, 1, 1.1, -0.2, KIND.PUFF);
       }
     }
-    // dust rolling up behind on dry ground at speed
+    // a tyre sunk deep in mud: the mud it ploughs into shoved out ahead of it and to the sides in lumps, and the muddy
+    // water standing in its rut (render/Terrain.js wetAt: in any rut deeper than 5 cm) splashed out sideways and ahead
+    const sink = w.sink || 0;
+    if (s === SURFACE.MUD && !inWater && sink > 0.06 && sp > 1) {
+      const deep = Math.min(1, (sink - 0.05) / 0.15), gy = hubY - r + sink * 0.6;
+      st.plough += dt * Math.min(60, sp * deep * 14);
+      while (st.plough > 1) {
+        st.plough -= 1;
+        const out = Math.random() < 0.5 ? -1 : 1, v = sp * (0.25 + Math.random() * 0.3);
+        const k = 0.85 + Math.random() * 0.3, c = [col[0] * k, col[1] * k, col[2] * k];
+        this.spawn(hubX + headX * r * 0.7 * dir + sideX * out * 0.12 + rnd(0.06), gy, hubZ + headZ * r * 0.7 * dir + sideZ * out * 0.12 + rnd(0.06),
+          fx * 0.55 + sideX * out * v * 0.6 + rnd(0.3), 0.6 + Math.random() * 1.2 * deep, fz * 0.55 + sideZ * out * v * 0.6 + rnd(0.3),
+          lerp(L.size[0], L.size[1], Math.random()) * 1.2, 0.8 + Math.random() * 0.6, c, 1, 0, 0.3, 9.81, KIND.CHUNK);
+      }
+      st.sheet += dt * Math.min(80, sp * sp * deep * 2.2);
+      while (st.sheet > 1) {
+        st.sheet -= 1;
+        const out = Math.random() < 0.5 ? -1 : 1, v = Math.min(8, sp * 0.6) * (0.4 + Math.random() * 0.6);
+        const x = hubX + sideX * out * 0.15 + headX * r * 0.5 * dir + rnd(0.08), z = hubZ + sideZ * out * 0.15 + headZ * r * 0.5 * dir + rnd(0.08);
+        const vx = fx * 0.6 + sideX * out * v + rnd(0.4), vy = v * (0.45 + Math.random() * 0.6), vz = fz * 0.6 + sideZ * out * v + rnd(0.4);
+        // (the colour of this mud's water, the map's: the taiga's dark peat, the coast's red)
+        if (Math.random() < 0.15) this.spawn(x, gy, z, vx, vy * 0.9, vz, (0.1 + deep * 0.12) * (0.7 + Math.random() * 0.6), 0.7 + Math.random() * 0.5, [col[0] * 2, col[1] * 2, col[2] * 2], 0.5, 0.1, 1.1, 7.5, KIND.SPRAY);
+        else this.spawn(x, gy, z, vx, vy, vz, 0.022 + Math.random() * 0.03, 0.8 + Math.random() * 0.6, [col[0] * 1.5, col[1] * 1.5, col[2] * 1.5], 0.92, 0, 0.35, 9.81, KIND.DROP);
+      }
+    }
+    // dust rolling up behind on dry ground at speed: a plume that thickens the faster the truck goes, billowing up
+    // and hanging in the air behind it for seconds (most from the rear wheels, which drive through the front's; a wet
+    // map's earth, the taiga's, raises little: dustiness). It used to be a few faint puffs, gone at a glance.
     const dry = s === SURFACE.DIRT || s === SURFACE.GRAVEL || s === SURFACE.SAND || s === SURFACE.ROAD;
-    if (dry && sp > 4 && !inWater) {
-      st.dust += dt * Math.min(32, sp * 0.95);
+    if (dry && sp > 3 && !inWater && this.dustiness > 0) {
+      const thick = Math.min(1, (sp - 3) / 14) * this.dustiness * (s === SURFACE.ROAD ? 0.35 : s === SURFACE.GRAVEL ? 0.7 : 1);
+      const rear = (w.index ?? 2) >= 2 ? 1 : 0.45;
+      st.dust += dt * 30 * thick * rear;
       while (st.dust > 1) {
         st.dust -= 1;
         const c = [col[0] * 1.4 + 0.12, col[1] * 1.4 + 0.1, col[2] * 1.4 + 0.08];
-        this.spawn(hubX + rnd(0.3) - headX * r, hubY - r * 0.7, hubZ + rnd(0.3) - headZ * r,
-          fx * 0.25 + rnd(0.6), 0.35 + Math.random() * 0.9, fz * 0.25 + rnd(0.6),
-          0.35 + Math.random() * 0.35, 1.8 + Math.random() * 1.6, c, 0.15, 0.95, 1.3, -0.22, KIND.PUFF);
+        const out = rnd(1.4);                                             // (drifting out over the verges)
+        this.spawn(hubX + rnd(0.45) - headX * r, hubY - r * 0.6, hubZ + rnd(0.45) - headZ * r,
+          fx * 0.3 + sideX * out + rnd(0.5), 0.4 + Math.random() * 1.1, fz * 0.3 + sideZ * out + rnd(0.5),
+          0.7 + Math.random() * 0.6, 2.6 + Math.random() * 2.4, c, 0.07 + 0.08 * thick, 1.25, 1.1, -0.18, KIND.PUFF);
       }
     }
     if (inWater) {
