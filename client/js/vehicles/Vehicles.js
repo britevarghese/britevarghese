@@ -197,11 +197,12 @@ export class VehiclesClient {
     }
     // my own vehicle: predicted
     if (this.drive) {
-      const v = this.map.get(this.drive.s.id), s = this.drive.s, d = this.drive;
       // the physics snaps up onto kerbs / ledges; the model + camera ease up instead (suspension)
-      d.yOff = (d.yOff || 0) * Math.exp(-14 * dt);
-      if (v && !v.dead) Object.assign(v, { x: s.x, y: s.y + d.yOff, z: s.z, yaw: s.yaw, pitch: s.pitch, roll: s.roll, turretYaw: s.turretYaw ?? v.turretYaw, gunPitch: s.gunPitch ?? v.gunPitch, speed: s.speed ?? Math.hypot(s.vx, s.vz), steer: s.steer });
+      this.drive.yOff = (this.drive.yOff || 0) * Math.exp(-14 * dt);
+      this.#syncDrive();
     }
+    // a passenger sits on this frame's pose of the vehicle (the driver was seated right after the prediction step)
+    if (this.mine) this.#seat();
     // solid hulls for the local soldier / driver prediction
     this.colliders.length = 0;
     for (const v of this.map.values()) if (!v.dead) this.colliders.push(vehicleCollider(v));
@@ -289,6 +290,21 @@ export class VehiclesClient {
   }
 
   // controls while seated (replaces the soldier's update)
+  // the predicted state of the vehicle I drive -> its shown pose (model, seats, camera)
+  #syncDrive() {
+    const d = this.drive, v = d && this.map.get(d.s.id), s = d?.s;
+    if (v && !v.dead) Object.assign(v, { x: s.x, y: s.y + (d.yOff || 0), z: s.z, yaw: s.yaw, pitch: s.pitch, roll: s.roll, turretYaw: s.turretYaw ?? v.turretYaw, gunPitch: s.gunPitch ?? v.gunPitch, speed: s.speed ?? Math.hypot(s.vx, s.vz), steer: s.steer });
+  }
+
+  // the soldier rides along on the seat (minimap, audio listener, respawn logic and the drawn rider use me.s)
+  #seat() {
+    const v = this.map.get(this.mine.id);
+    if (!v) return;
+    const seat = this.mine.seat, sp = seatPosition(v, seat), pose = exposedPose(v.type, seat);
+    Object.assign(this.g.me.s, { x: sp.x, y: sp.y - (pose ? EYE_HEIGHT[pose] : 1.6), z: sp.z, vx: 0, vy: 0, vz: 0, onGround: true, air: 0, stance: pose || 'stand' });
+    return pose;
+  }
+
   updateLocal(dt) {
     const g = this.g, me = g.me, k = me.keys, T = me.touch, v = this.map.get(this.mine.id);
     if (!v) return;
@@ -316,6 +332,7 @@ export class VehiclesClient {
         stepGround(g.world.collision, s, input, dt, v.type);
         if (s.y - y0 > 0.12 && !s.air) this.drive.yOff = Math.max(-1, (this.drive.yOff || 0) - (s.y - y0 - Math.max(0, s.vy) * dt));
         this.impAcc = Math.max(this.impAcc, s.impact || 0);
+        this.#syncDrive(); // (the rider and the camera follow this frame's pose, not last frame's)
       } else {
         const up = key('Space') || T.up, down = key('ShiftLeft') || key('ControlLeft') || key('KeyC') || T.down;
         // hover assist (shared): level thrust compensates the tilt, altitude hold, sink rate limited near the ground
@@ -328,6 +345,7 @@ export class VehiclesClient {
         }, agl);
         stepHeli(g.world.collision, s, input, dt);
         this.impAcc = Math.max(this.impAcc, s.impact || 0);
+        this.#syncDrive();
       }
       this.sendT += dt;
       if (this.sendT >= 1 / 30) {
@@ -351,9 +369,8 @@ export class VehiclesClient {
       g.net.send(d ? { t: 'vfire', d: [+d.x.toFixed(4), +d.y.toFixed(4), +d.z.toFixed(4)] } : { t: 'vfire' });
       this.nextShot = now + (W.rpm ? 60000 / W.rpm : W.reload * 1000);
     }
-    // the soldier rides along (minimap, audio listener, respawn logic use me.s)
-    const sp = seatPosition(v, seat), pose = exposedPose(v.type, seat);
-    Object.assign(me.s, { x: sp.x, y: sp.y - (pose ? EYE_HEIGHT[pose] : 1.6), z: sp.z, vx: 0, vy: 0, vz: 0, onGround: true, air: 0, stance: pose || 'stand' });
+    // the soldier rides along
+    const pose = this.#seat();
     // riders in the open are drawn (third person): the driver faces the direction of travel, gunners their aim
     this.pose = pose; this.riderYaw = pose && seat === 0 ? v.yaw : null;
     me.sprinting = false; me.ads = false; me.moveFactor = 0;

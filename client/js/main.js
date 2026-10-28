@@ -576,10 +576,11 @@ class Game {
     // third-person aim point: whatever the camera looks at
     // remote & local third-person bodies
     const sample = this.net.sample();
+    // vehicles first: a rider is seated on this frame's pose of the vehicle before the soldiers are drawn
+    V.update(dt, sample);
     const local = me.alive ? { x: me.s.x, y: me.s.y, z: me.s.z, yaw: (seated && V.riderYaw != null) ? V.riderYaw : me.yaw, pitch: me.pitch + me.recoil.p, stance: me.s.stance, vx: me.s.vx, vz: me.s.vz, alive: true, ads: me.ads, sprint: me.sprinting, onGround: me.s.onGround, weaponId: me.weaponId(), air: me.s.air || 0, veh: seated && !V.pose } : null;
     this.players.update(dt, sample, this.myId, cam.position, me.isTPS() && !(seated && V.fpView), local, cam);
     P.mark('players');
-    V.update(dt, sample);
     this.#grenades(sample, dt);
     // world
     this.lighting.follow(cam.position, this.renderer);
