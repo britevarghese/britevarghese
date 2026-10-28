@@ -68,6 +68,7 @@ export class KeralaWorld {
   constructor() {
     this.kerala = true;
     this.tiles = new Map();          // key -> KeralaTile (loaded data, maybe not built)
+    this.edgeSink = new Map();       // a survey point on a tile's edge -> whether its water bed is sunk (see KeralaTile._sinkWater)
     this.pending = new Map();        // key -> Promise
     this.collision = new CollisionWorld();
     this.lanes = new KeralaLaneGraph();
@@ -167,7 +168,7 @@ export class KeralaWorld {
 
   _opts() {
     const p = this.preset || {};
-    return { trees: this.trees, shadows: p.shadows && p.shadows !== 'off', palms: p.trees ?? 1, palmGeo: this.palmGeo, palmMat: this.palmMat, tankGeo: this.tankGeo, poleGeo: this.poleGeo, lampGeo: this.lampGeo, lampHeadGeo: this.lampHeadGeo, lampPoolGeo: this.lampPoolGeo, trafoGeo: this.trafoGeo, manholeGeo: this.manholeGeo, acGeo: this.acGeo, pipeGeo: this.pipeGeo, balconyGeo: this.balconyGeo, gateGeo: this.gateGeo, awningGeo: this.awningGeo, signGeo: this.signGeo, crateGeo: this.crateGeo, chairGeo: this.chairGeo, scooterGeo: this.scooterGeo, realScooter: !!this.scooterParts, ledges: !IS_MOBILE && (p.trees ?? 1) >= 0.7, details: (p.trees ?? 1) >= 0.7, keralaFacade: KERALA_FACADE, keralaShop: KERALA_SHOP, maxBuildings: IS_MOBILE ? 2500 : p.textureSize >= 1024 ? 9000 : 4500 };   // (a phone: no window sunshades, fewer buildings: memory; walls, gates and props stay)
+    return { trees: this.trees, shadows: p.shadows && p.shadows !== 'off', palms: p.trees ?? 1, palmGeo: this.palmGeo, palmMat: this.palmMat, tankGeo: this.tankGeo, poleGeo: this.poleGeo, lampGeo: this.lampGeo, lampHeadGeo: this.lampHeadGeo, lampPoolGeo: this.lampPoolGeo, trafoGeo: this.trafoGeo, manholeGeo: this.manholeGeo, acGeo: this.acGeo, pipeGeo: this.pipeGeo, balconyGeo: this.balconyGeo, gateGeo: this.gateGeo, awningGeo: this.awningGeo, signGeo: this.signGeo, crateGeo: this.crateGeo, chairGeo: this.chairGeo, scooterGeo: this.scooterGeo, realScooter: !!this.scooterParts, ledges: !IS_MOBILE && (p.trees ?? 1) >= 0.7, details: (p.trees ?? 1) >= 0.7, keralaFacade: KERALA_FACADE, keralaShop: KERALA_SHOP, maxBuildings: IS_MOBILE ? 2500 : p.textureSize >= 1024 ? 9000 : 4500, edgeSink: this.edgeSink };   // (a phone: no window sunshades, fewer buildings: memory; walls, gates and props stay)
   }
 
   key(tx, tz) { return `${tx},${tz}`; }

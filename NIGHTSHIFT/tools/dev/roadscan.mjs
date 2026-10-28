@@ -1,6 +1,7 @@
 // Steps and kinks in the road surface round a town: every lane and junction turn within the radius, the surface a
 // wheel touches sampled every 0.5 m, flagged where its height bends sharply (the second difference: a step or a
-// kink, not a plain slope; the speed breakers left out). Reports how many over 6, 12 and 20 cm, and the worst.
+// kink, not a plain slope; the speed breakers left out). Reports how many over 6, 12 and 20 cm, and the worst; and
+// how much of the edges between built tiles has the two tiles' ground apart (a seam: a cliff in the ground).
 // Waits for the tiles round the town to be built first. Rendering off.
 //   node tools/dev/roadscan.mjs --port N [--at x,z | --at all] [--radius 700]
 import { launch } from './pw.mjs';
@@ -44,7 +45,7 @@ for (const [name, [x0, z0]] of list) {
       for (let s = 0; s <= path.length; s += 0.5) {
         path.sample(s, tmp);
         if (!W.tileAt(tmp.x, tmp.z)?.ready) { ys.push(NaN); at.push([tmp.x, tmp.z]); continue; }
-        const yp = ys.length ? ys[ys.length - 1] : NaN, y0 = yp === yp ? yp + 1 : deck ? 1e4 : flat(tmp.x, tmp.z, -1e4) + 1;
+        const yp = ys.length ? ys[ys.length - 1] : NaN, y0 = yp === yp ? yp + 0.15 : deck ? 1e4 : flat(tmp.x, tmp.z, -1e4) + 0.15;
         ys.push(flat(tmp.x, tmp.z, y0)); at.push([tmp.x, tmp.z]);
       }
       metres += path.length;
@@ -60,10 +61,22 @@ for (const [name, [x0, z0]] of list) {
     // (not a dead end's turn round: it swings out over the verge as it must)
     for (const l of lanes) for (const c of l.next || []) { if (c.kind === 'connector' && !c.dead && c.turn !== 'uturn') { scan(c, `turn ${c.turn}`, l.deck); nc++; } }
     flags.sort((a, b) => Math.abs(b.w) - Math.abs(a.w));
-    return { lanes: lanes.length, turns: nc, km: +(metres / 1000).toFixed(1), n6, n12, n20, worst: flags.slice(0, 12).map((f) => `${f.w}@${f.at} (${f.what})`) };
+    // the ground along every edge two built tiles share: each tile's own height at the line, every 2 m
+    let seamM = 0, seamW = 0, seamAt = '';
+    for (const t of W.tiles.values()) for (const [a, b] of [[1, 0], [0, 1]]) {
+      const o = W.tiles.get(W.key(t.tx + a, t.tz + b));
+      if (!t.ready || !o?.ready) continue;
+      for (let q = 0; q <= 2000; q += 2) {
+        // (t's far edge in e is o's near one: e = 2000 / 0; in n likewise)
+        const d = a ? t.heightAt(2000, q) - o.heightAt(0, q) : t.heightAt(q, 2000) - o.heightAt(q, 0);
+        if (Math.abs(d) > 0.05) seamM += 2;
+        if (Math.abs(d) > Math.abs(seamW)) { seamW = d; const x = a ? -(t.E0 + 2000) : -(t.E0 + q), z = a ? t.N0 + q : t.N0 + 2000; seamAt = `${x.toFixed(0)},${z.toFixed(0)}`; }
+      }
+    }
+    return { lanes: lanes.length, turns: nc, km: +(metres / 1000).toFixed(1), n6, n12, n20, worst: flags.slice(0, 12).map((f) => `${f.w}@${f.at} (${f.what})`), seam: `${seamM} m apart by over 5 cm, worst ${seamW.toFixed(2)} m${seamAt ? ' at ' + seamAt : ''}` };
   }, [x0, z0, radius]);
   if (res.err) console.log(`== ${name}: ${res.err}`);
-  else console.log(`== ${name}: ${res.lanes} lanes, ${res.turns} junction turns, ${res.km} km · kinks over 6 cm ${res.n6}, over 12 cm ${res.n12}, over 20 cm ${res.n20} · errors ${errs.length}\n   worst: ${res.worst.join(' | ')}`);
+  else console.log(`== ${name}: ${res.lanes} lanes, ${res.turns} junction turns, ${res.km} km · kinks over 6 cm ${res.n6}, over 12 cm ${res.n12}, over 20 cm ${res.n20} · tile edges: ground ${res.seam} · errors ${errs.length}\n   worst: ${res.worst.join(' | ')}`);
   await p.close();
 }
 await b.close();

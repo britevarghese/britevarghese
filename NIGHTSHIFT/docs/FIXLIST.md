@@ -587,6 +587,35 @@ the game. Newly found problems go at the end of their section.
     Payyanur 0, Iritty 37 / 15 / 5 -> 31 / 8 / 2, its steep side road 0.57 -> 0.28). Rides round Kannur and
     Taliparamba after: no jolts, landings or hits. The scan skips a lane's samples on a tile not built (one at the
     radius's edge read the next tile's bare ground)
+  - [x] ...and a step on a road at a tile's edge in Thalassery turned out to be the ground: the two tiles' ground stood
+    up to 2.1 m apart along 120 m of their shared edge (a cliff in the ground), and on one side it stood over the road
+    for its last metres. Three causes:
+    - the class map (what is where) is painted on a canvas, which smooths every shape's edge, blending the codes:
+      a road's edge over open land read 20 or 21 - water, the sea - as did a building's, and a land-use edge read
+      forest or town. The water beds sink the ground 2.2 m: a survey point on such a pixel was sunk, a dip 125 m
+      across round it, and at a tile's edge on one tile only. Each class is painted with a check now; how much of a
+      pixel a shape covers is known, and a blend of two shapes reads as the nearest pixel that isn't one
+    - and only the water areas sink the ground (the sea, backwaters, lakes, ponds) - not a stream or canal drawn as a
+      line, whose channel is cut on its own. A point on a tile's edge is sunk or not as whichever of the two tiles was
+      built first had it: each tile's map is cut at its edge, and water along it was at a point in one tile's and not
+      the other's (the ground 2.2 m apart in Thalassery, 5.6 m on Kannur's coast)
+    - the ground on the edge row under a road crossing it was held down from the survey there, which isn't the
+      road's own level at the edge: 0.46 m over it. From the road's level now, which both tiles share
+    Edges where the tiles' ground is more than 5 cm apart: Kannur 1732 m -> 40 m (a four-tile corner), Thalassery 534
+    -> 0, the other towns 0 (Taliparamba 2 m at 5 cm). The road scan checks the ground along every edge two built
+    tiles share now
+  - [x] ...and with the ground right, two more: a service road in Thalassery runs along under the edge of a flyover's
+    ramp, and wherever the ramp was less than 1.2 m over it a car on the service road was put up on the ramp (1.8 m).
+    Of a deck and a road beneath it, the one nearer the height asked from now. And the easing of a side road to a
+    main road's level by its edge took two highway pieces alike as one more important than the other, and tilted one
+    up toward the other 0.5 m higher - the road running along its edge stepped 0.42 m. Of two alike, only one
+    nearly level with it (within 0.25 m) now
+    Kinks over 6 / 12 / 20 cm after all this: 182 / 39 / 3 (Kannur 90 / 14 / 1, Thalassery 12 / 5 / 1, Mattannur
+    16 / 1 / 0, Taliparamba 24 / 9 / 0, Payyanur 3 / 0 / 0, Iritty 37 / 10 / 1) - a few more small ones than after
+    the first part, the roads by streams graded on ground no longer sunk there. The scan asks from just over the last
+    height (0.15 m), as the physics does from where the car stands. Rides round Kannur, Thalassery and Iritty: no
+    jolts, landings or hits. Left: two roads crossing at a slant on a steep hill (each strip level across, 0.2 m
+    apart where they overlap), and the Thalassery service road where a flyover ramp's edge overlaps its lane
 - [x] AI junction turns where the route reached the corner through a short hop in line with the lane before it (one
   lane's end to the next one's start, 3.9 m): the turn was rounded within that hop, 2 m across - tighter than a car
   can steer - and the car swung its nose 1.5 m off the road. The room for the arc is the straight run up to the corner

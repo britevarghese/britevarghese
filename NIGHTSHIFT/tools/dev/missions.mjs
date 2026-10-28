@@ -176,7 +176,7 @@ for (const id of list) {
               info.pai.setRoute(s.ai.route.map((r) => [r[0], r[1]]));
               hook = () => {
                 const P = info.pai, sv = s.v.state, d = Math.hypot(sv.x - G.player.state.x, sv.z - G.player.state.z), vs = Math.hypot(sv.vx, sv.vz);
-                P.maxSpeed = d > back + 12 ? 18 : d < back - 12 ? 1 : Math.max(2, vs + (d - back) * 0.3);
+                P.maxSpeed = d > back + 12 ? 18 : d < back - 12 ? 0 : Math.max(2, vs + (d - back) * 0.3);   // (stopped when close, as you would)
                 P.update(1 / 30, G.traffic.cars);
                 if (P.needsReset) { P.needsReset = false; info.paiT = -99; }
                 ctl = { ...G.player.controls };

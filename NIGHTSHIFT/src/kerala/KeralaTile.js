@@ -23,6 +23,22 @@ export const ROAD_HALF = [7, 6, 4.6, 4, 3.5, 2.8, 2.6, 2.2, 1.9, 1.6, 2];
 const VALID = new Uint8Array(256);
 export const C = { land: 0, paddy: 1, grove: 2, forest: 3, town: 4, commercial: 5, industrial: 6, grass: 7, sand: 8, rock: 9, religious: 10, scrub: 11, wetland: 12, water: 20, sea: 21, road: 30, building: 31 };
 for (const v of Object.values(C)) VALID[v] = 1;
+// the class raster's colour for a code: the code in red, full green and a check value in blue, on black (open land).
+// A canvas smooths every shape's edge, blending codes - a road's edge over open land read 20 or 21, water or the sea,
+// and the ground was sunk 2.2 m round a survey point there, or a road's end over 'the sea' left a tile's edge uncapped
+const KC = (c) => `rgb(${c},255,${(c * 67 + 13) & 255})`;
+// the class at pixel (px, py) of a class raster's data L. A shape's edge over open land: green is how much of the
+// pixel it covers, red over green its code - the code if it covers half, else land. One shape's edge over another's
+// fails the check: the nearest unblended pixel round it (else, as before, mostly land or mostly road)
+function clsAt(L, px, py) {
+  const k = (py * RASTER + px) * 4, R = L[k], Gc = L[k + 1], B = L[k + 2];
+  if (Gc < 128) return C.land;
+  const c = Gc === 255 ? R : Math.round(R * 255 / Gc);
+  if (VALID[c] && Math.abs(B - ((c * 67 + 13) & 255) * Gc / 255) <= 3) return c;
+  const ok = (x, y) => { if (x < 0 || y < 0 || x >= RASTER || y >= RASTER) return -1; const q = (y * RASTER + x) * 4, v = L[q]; return L[q + 1] === 0 ? C.land : L[q + 1] === 255 && L[q + 2] === ((v * 67 + 13) & 255) && VALID[v] ? v : -1; };
+  for (let r = 1; r <= 2; r++) for (let a = -r; a <= r; a++) for (let b = -r; b <= r; b++) { if (Math.max(Math.abs(a), Math.abs(b)) !== r) continue; const v = ok(px + a, py + b); if (v >= 0) return v; }
+  return R < 15 ? C.land : C.road;
+}
 const LU_COLOR = {
   0: '#55703a', 1: '#7da23c', 2: '#3f5f2a', 3: '#2c4522', 4: '#66694a', 5: '#7a7466', 6: '#77746a', 7: '#5c8238',
   8: '#d2bf8e', 9: '#7d7264', 10: '#686c44', 11: '#6a7040', 12: '#4a6644',
@@ -177,8 +193,7 @@ export class KeralaTile {
   classAt(e, n) {
     if (!this.cls) return 0;
     const px = Math.min(RASTER - 1, Math.max(0, Math.floor(e * PX))), py = Math.min(RASTER - 1, Math.max(0, Math.floor((TILE - n) * PX)));
-    const c = this.cls[(py * RASTER + px) * 4];
-    return VALID[c] ? c : c < 15 ? C.land : C.road;  // anti-aliased edges blend codes: mostly-land or mostly-road
+    return clsAt(this.cls, px, py);
   }
 
   // ------------------------------------------------------------------------------------------ build
@@ -202,7 +217,7 @@ export class KeralaTile {
     this.group = g;
     yield* this._rasters(d, opts);
     this._smoothTowns();
-    this._sinkWater();
+    this._sinkWater(opts.edgeSink);
     yield 'tile:rasters';
     this._refine(opts.terrainN || 129);
     yield* this._gradeRoads();
@@ -239,7 +254,7 @@ export class KeralaTile {
     const mk = () => { const c = document.createElement('canvas'); c.width = c.height = RASTER; return c; };
     const vis = mk(), cl = mk(), V = vis.getContext('2d'), K = cl.getContext('2d', { willReadFrequently: true }); // read back below: keep it on the CPU
     V.fillStyle = LU_COLOR[0]; V.fillRect(0, 0, RASTER, RASTER);
-    K.fillStyle = 'rgb(0,0,0)'; K.fillRect(0, 0, RASTER, RASTER);
+    K.fillStyle = 'rgb(0,0,0)'; K.fillRect(0, 0, RASTER, RASTER);   // (open land: see KC)
     const path = (ctx, rings) => {
       ctx.beginPath();
       for (const ring of rings) {
@@ -252,17 +267,17 @@ export class KeralaTile {
       if (this._due()) { yield 'raster:landuse+'; this._ys = performance.now(); }
       const R = rings(rr);
       path(V, R); V.fillStyle = LU_COLOR[k] || LU_COLOR[0]; V.fill('evenodd');
-      path(K, R); K.fillStyle = `rgb(${k},0,0)`; K.fill('evenodd');
+      path(K, R); K.fillStyle = KC(k); K.fill('evenodd');
     }
     for (const [k, rr] of d.w || []) {
       const R = rings(rr), code = k === 9 ? C.sea : C.water;
       path(V, R); V.fillStyle = '#2a4e52'; V.fill('evenodd');
-      path(K, R); K.fillStyle = `rgb(${code},0,0)`; K.fill('evenodd');
+      path(K, R); K.fillStyle = KC(code); K.fill('evenodd');
     }
     // rivers and canals drawn as lines
     for (const w of d.wl || []) {
       const pts = decodeLine(w, 2), wd = w[1] / 10;
-      K.strokeStyle = `rgb(${C.water},0,0)`;   // (not painted on the ground: the channel is cut and drawn)
+      K.strokeStyle = KC(C.water);   // (not painted on the ground: the channel is cut and drawn)
       for (const ctx of [K]) { ctx.lineWidth = Math.max(1, wd * PX); ctx.beginPath(); pts.forEach(([e, n], i) => { const x = e * PX, y = (TILE - n) * PX; if (i) ctx.lineTo(x, y); else ctx.moveTo(x, y); }); ctx.stroke(); }
     }
     yield 'raster:mottle';
@@ -297,12 +312,12 @@ export class KeralaTile {
     K.lineCap = 'round';
     for (const r of this.roads) {
       if (this._due()) { yield 'raster:roads+'; this._ys = performance.now(); }
-      K.strokeStyle = `rgb(${C.road},0,0)`; K.lineWidth = Math.max(0.9, (ROAD_HALF[r.cls] * 2 + 2) * PX);
+      K.strokeStyle = KC(C.road); K.lineWidth = Math.max(0.9, (ROAD_HALF[r.cls] * 2 + 2) * PX);
       K.beginPath(); r.pts.forEach(([e, n], i) => { const x = e * PX, y = (TILE - n) * PX; if (i) K.lineTo(x, y); else K.moveTo(x, y); }); K.stroke();
       if (r.dirt) { V.strokeStyle = '#8c5a3a'; V.lineWidth = Math.max(1, ROAD_HALF[r.cls] * 2 * PX); V.lineCap = 'round'; V.beginPath(); r.pts.forEach(([e, n], i) => { const x = e * PX, y = (TILE - n) * PX; if (i) V.lineTo(x, y); else V.moveTo(x, y); }); V.stroke(); }
     }
     yield 'raster:buildings';
-    K.fillStyle = `rgb(${C.building},0,0)`;
+    K.fillStyle = KC(C.building);
     for (let i = 0; i < (d.b || []).length; i++) {
       if ((i & 63) === 63) if (this._due()) { yield 'raster:buildings+'; this._ys = performance.now(); }
       path(K, [decodeLine(d.b[i], 2)]); K.fill();
@@ -349,14 +364,29 @@ export class KeralaTile {
 
   // Water beds: the coast, backwaters and lowland rivers lie at sea level; a river, pond or reservoir up in the hills
   // lies at its own height (sinking it to sea level dug pits a kilometre and more deep beside the hill roads)
-  _sinkWater() {
+  // (the water areas only - the sea, backwaters, lakes, ponds: a river or a stream the map draws as a line is a channel
+  // cut on its own, and a survey point one happened to cross sank 2.2 m, a dip 125 m across round it. At a tile's edge,
+  // the neighbour knowing nothing of the stream, the two tiles' ground stood 2 m apart for 120 m. Each point tried just
+  // inside the tile: the areas are cut at its edge)
+  // (and a point on the edge is the neighbour's too: sunk or not as whichever of the two tiles was built first had it.
+  // Each tile's map is cut at its edge, and water along it was in one tile's at a point and not the other's - the
+  // ground 2.2 m apart there, 5.6 m on the coast)
+  _sinkWater(shared = null) {
     const H = this.h;
     this.waterLevel = 0.25;
     this.h0 = H.slice();
+    const areas = (this.data.w || []).map(([, rr]) => rr.map((q) => decodeLine(q, 0)));
+    const inArea = (e, n) => {
+      e = Math.min(TILE - 0.5, Math.max(0.5, e)); n = Math.min(TILE - 0.5, Math.max(0.5, n));
+      return areas.some((rings) => { let c = false; for (const R of rings) for (let i = 0, j = R.length - 1; i < R.length; j = i++) { const [xi, yi] = R[i], [xj, yj] = R[j]; if ((yi > n) !== (yj > n) && e < ((xj - xi) * (n - yi)) / (yj - yi) + xi) c = !c; } return c; });
+    };
     for (let j = 0; j < GRID; j++) for (let i = 0; i < GRID; i++) {
-      const c = this.classAt(i * STEP, j * STEP);
+      const c = this.classAt(i * STEP, j * STEP), edge = i === 0 || j === 0 || i === GRID - 1 || j === GRID - 1;
+      const k = edge && shared ? `${Math.round(-(this.E0 + i * STEP))},${Math.round(this.N0 + j * STEP)}` : null;
       // (under a road too: roads over water are carried on bridge decks)
-      if (c === C.water || c === C.sea) {
+      let sink = k ? shared.get(k) : undefined;
+      if (sink === undefined) { sink = (c === C.water || c === C.sea) && inArea(i * STEP, j * STEP); if (k) shared.set(k, sink); }
+      if (sink) {
         const h = H[j * GRID + i];
         H[j * GRID + i] = (h < INLAND ? Math.min(h, 0) : h) - 2.2;
       }
@@ -554,7 +584,7 @@ export class KeralaTile {
     if (list.length >= maxB) return;
     let s = (this.tx * 7919 ^ this.tz * 104729 ^ 0x2f6a) >>> 0;
     const rnd = () => ((s = (s * 1664525 + 1013904223) >>> 0) / 4294967296);
-    const lu = (e, n) => { const px = Math.min(RASTER - 1, Math.max(0, Math.floor(e * PX))), py = Math.min(RASTER - 1, Math.max(0, Math.floor((TILE - n) * PX))); return L[(py * RASTER + px) * 4]; };
+    const lu = (e, n) => clsAt(L, Math.min(RASTER - 1, Math.max(0, Math.floor(e * PX))), Math.min(RASTER - 1, Math.max(0, Math.floor((TILE - n) * PX))));
     const OK = new Set([C.land, C.grove, C.town, C.commercial, C.scrub]), TOWN = new Set([C.town, C.commercial]);
     // what's taken: the mapped buildings (their box and a margin), then each new one
     const G = 2, occ = new Set(), mark = (e0, n0, e1, n1, m) => { for (let x = Math.floor((e0 - m) / G); x <= Math.floor((e1 + m) / G); x++) for (let z = Math.floor((n0 - m) / G); z <= Math.floor((n1 + m) / G); z++) occ.add(x * 10000 + z); };
@@ -1349,12 +1379,14 @@ export class KeralaTile {
       // (the row next to the tile's edge too: left uncapped, the ground poked up through a road in a cutting there)
       if (H[k] > Cap[k]) H[k] = Cap[k];
     }
-    // the edge row is the neighbour's as well: capped only from what both tiles agree on, the survey under each road
-    // where it crosses the edge (its level there, rawAt above), so both cap their shared vertices alike
-    for (const { hw, P, wet } of roads) for (const i of [0, P.length - 1]) {
+    // the edge row is the neighbour's as well: capped only from what both tiles agree on, each road's level where it
+    // crosses the edge, so both cap their shared vertices alike. (From the survey resampled there, a road's level only
+    // at a distance from the edge: 0.46 m over the road's own at a crossing in Thalassery, the ground over the road
+    // for its last metres)
+    for (const { hw, P, wet, prof } of roads) for (const i of [0, P.length - 1]) {
       const [e, n] = P[i];
       if (wet[i] || Math.min(e, n, TILE - e, TILE - n) > 0.01) continue;
-      const y = h0r ? gridAt(h0r, N, S, e, n) : this._h0At(e, n), inner = hw + S * 0.75, row = n < 0.01 ? 0 : n > TILE - 0.01 ? N - 1 : -1, col = e < 0.01 ? 0 : e > TILE - 0.01 ? N - 1 : -1;
+      const y = prof[i], inner = hw + S * 0.75, row = n < 0.01 ? 0 : n > TILE - 0.01 ? N - 1 : -1, col = e < 0.01 ? 0 : e > TILE - 0.01 ? N - 1 : -1;
       const along = []; for (let q = 0; q < N; q++) { if (row >= 0) along.push([q, row]); if (col >= 0) along.push([col, q]); }
       for (const [ii, jj] of along) {
         const d = Math.hypot(ii * S - e, jj * S - n), k = jj * N + ii, c = y - 0.05 + Math.max(0, d - hw) * 0.03;
@@ -2484,6 +2516,8 @@ export class KeralaTile {
       for (let j = 0; j < L.length; j += 6) {
         const oi = L[j + 5]; if (oi === ri) continue;
         const cls = L[j + 4], o = this.roads[oi];
+        // (a more important road; of two alike, the first, and only one nearly level with it: a highway piece's strip was
+        // tilted up toward another's 0.5 m higher - two levels, not a junction)
         if (o.flags & 4 || o.deck || o.dirt || !(cls < me.cls || (cls === me.cls && oi < ri))) continue;
         const hw = cls <= 2 && o.lanes ? Math.max(ROAD_HALF[cls], o.lanes * 1.75) : ROAD_HALF[cls];
         const ax = L[j], az = L[j + 1], dx = L[j + 2] - ax, dz = L[j + 3] - az, l2 = dx * dx + dz * dz || 1;
@@ -2496,7 +2530,7 @@ export class KeralaTile {
         const ty = sf + 0.07 + (10 - cls) * 0.004, w = _smooth(Math.max(0, Math.min(1, 1 - (d - hw - 1.5) / 3)));
         // (the nearest piece of road: every piece within reach weighs all of it by an edge, and the first, its nearest
         // point clamped to its far end, held a side road's mouth 0.18 m up)
-        if (Math.abs(ty - y) <= 0.6 && d < bd) { bd = d; bw = w; by = ty; }
+        if (Math.abs(ty - y) <= (cls === me.cls ? 0.25 : 0.6) && d < bd) { bd = d; bw = w; by = ty; }
       }
     }
     this._mw = bw;
@@ -2508,7 +2542,7 @@ export class KeralaTile {
   roadSurface(e, n, yRef) {
     if (!this._rg) this.nearRoad(e, n, 1);
     const G = 25;
-    let best = -Infinity, off = -Infinity, mainCls = 99, mainY = -Infinity, und = -Infinity, nIn = 0, inR = -1, runY = -Infinity;
+    let best = -Infinity, off = -Infinity, mainCls = 99, mainY = -Infinity, und = -Infinity, nIn = 0, inR = -1, runY = -Infinity, deckY = -Infinity;
     const on = this._rsOn || (this._rsOn = []);
     on.length = 0;
     for (let a = -1; a <= 1; a++) for (let b = -1; b <= 1; b++) {
@@ -2533,7 +2567,7 @@ export class KeralaTile {
               if (r.drawn && dd === -Infinity) continue;   // (its strip isn't drawn here)
               let v = dd > -1e9 ? dd : yd + 0.07 + (10 - cls) * 0.004; const cov = dd === -Infinity && v > best ? this._coverY(e, n, L[j + 5]) : -Infinity;
               if (cov > -1e9 && v > cov - 0.02 && v < cov + 1.2) v = cov - 0.02;
-              best = Math.max(best, v);
+              deckY = Math.max(deckY, v);
             }
             continue;
           }
@@ -2567,6 +2601,10 @@ export class KeralaTile {
     // ends square at the junction's point, and the outer corner between two leaving it at an angle was the ground's
     // level, a pit 2 m deep in a junction on an embankment in Kannur. And a side road ending just short of another's
     // strip: the gap between them was the verge's level, a crease 0.2 m deep across the side road's mouth)
+    // (a deck over another road's carriageway - a flyover's ramp over a service road running along under its edge: the
+    // one nearer the height asked from, not the deck whenever it's less than 1.2 m above it - a car on the service road
+    // was put up on the ramp, 1.8 m)
+    if (deckY > -Infinity) best = best > -Infinity && deckY > best && yRef !== undefined && yRef < (deckY + best) / 2 ? best : Math.max(best, deckY);
     this._rsStrip = best > -Infinity;   // (a strip of its own holds the point: see KeralaWorld.groundHeight)
     if (best === -Infinity) best = runY > -Infinity ? runY : nIn >= 2 && und > -Infinity ? und : off;
     // between the two halves of a dual carriageway: the median
