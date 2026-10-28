@@ -64,5 +64,20 @@ export const WET_SURFACES = SURFACES.map((s) => {
 });
 /** How much softer mud is in the rain (World.js softness). */
 export const WET_MUD = 1.25;
+/**
+ * The grounds part way to wet (wet, 0 dry to 1: wet through), as they are while the rain wets them and as they dry
+ * after it: each wet ground's grip and give between its dry and its wet (WET_SURFACES), in twentieths.
+ */
+const PART_WET = [];
+export function wetSurfaces(wet) {
+  const i = Math.round(Math.min(1, Math.max(0, wet)) * 20);
+  if (i === 0) return SURFACES;
+  if (i === 20) return WET_SURFACES;
+  return (PART_WET[i] ||= SURFACES.map((s, j) => {
+    const o = { ...s }, w = WET_SURFACES[j];
+    for (const k in WET[s.name] || {}) o[k] = s[k] + (w[k] - s[k]) * i / 20;
+    return o;
+  }));
+}
 
 export const surfaceById = (id) => SURFACES[id] || SURFACES[0];

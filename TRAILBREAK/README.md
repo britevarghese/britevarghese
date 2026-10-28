@@ -735,23 +735,34 @@ Every part changes the physics, the way it does on a real truck:
 ## The weather
 
 Esc > Weather: Clear or Rain. In an online room the weather is everyone's: whoever changes it changes it for the room,
-and whoever joins gets the room's (a room that has none yet takes theirs).
+and whoever joins gets the room's (a room that has none yet takes theirs), as it has been for a while: the ground
+already wet in the rain. Started in the rain, it has been raining a while too.
 
 - **It comes on and eases off** over some ten seconds: the sky closes over low and grey, the sun all but goes, the haze
   thickens and the colours dull; the rain falls round you in streaks (`src/render/Rain.js`: one mesh, the drops hanging
   in the world as you drive through them, slanting past at speed, none in the cab), and you hear it, a hiss all about
   and in the cab a drumming on the roof; the birds stop.
-- **The ground gets wet** once it has rained a little while (the physics' grounds, `src/physics/Surfaces.js`
-  WET_SURFACES): earth's peak grip drops to about four fifths of dry, as a wet earth road's does (0.55 against 0.68), so
-  a Thar braking from 54 km/h stops in 19 m where it stopped in 16; turf is slicker still (21 m against 15), but not the
-  ice a locked wheel sliding on wet grass finds; rock and tarmac carry a film of water (tarmac 18 m against 14, about as
-  wet asphalt's grip, 0.50 against 0.65, would have it); the loose top of earth and grass turns to a soft mud a
-  spinning tyre digs through faster; mud is softer and deeper (ruts 9 cm where they were 7.7); damp sand is firmer, the
-  water binding its grains (ruts 6.6 cm where they were 10.8). No dust comes off the tyres.
+- **The ground gets wet** over some twenty seconds of rain, and stays wet after it: once the rain stops it dries over
+  some four minutes, as a shower's ground does in the sun and the wind, slick all the while (the physics' grounds part
+  way between dry and wet as it wets and dries, `src/physics/Surfaces.js` wetSurfaces). Wet through, earth's peak grip
+  drops to about four fifths of dry, as a wet earth road's does (0.55 against 0.68), so a Thar braking from 54 km/h
+  stops in 19 m where it stopped in 16; turf is slicker still (21 m against 15), but not the ice a locked wheel sliding
+  on wet grass finds; rock and tarmac carry a film of water (tarmac 18 m against 14, about as wet asphalt's grip, 0.50
+  against 0.65, would have it); the loose top of earth and grass turns to a soft mud a spinning tyre digs through
+  faster; mud is softer and deeper (ruts 9 cm where they were 7.7); damp sand is firmer, the water binding its grains
+  (ruts 6.6 cm where they were 10.8). No dust comes off the tyres; at speed they lift the water off the ground in a
+  fine spray hanging low behind each one, thickest off a road's film of water, brown off bare earth, and fling drops
+  of it off the tread (`src/render/Effects.js`), and you hear them hiss on it.
+- **The ruts fill:** over a minute and a half of rain the water stands in a worn track's ruts on its bare earth and
+  mud, along about half their length in puddles 3 to 13 m long, up to two thirds of the rut's depth (5 to 6 cm on
+  the whole, 11 at most; a pothole in the rut under it fills first). It is real water, the same the ground draws
+  (`src/world/Worn.js` rainWater): a tyre driven into it splashes it up and out to the sides, brown with the earth
+  stirred up in it, with a splash you hear. After the rain the puddles soak away and dry over some six minutes.
 - **It looks wet:** all the ground darker and glossier, grass and rock too; on bare earth and mud the water stands
   along the ruts and in the deepest hollows of its relief, and in puddles where the ground lies low and level (none on
-  a slope, which the water runs off), and the drops ring it (`src/render/Terrain.js` uRain); the rough track's holes
-  hold the rain anyway.
+  a slope, which the water runs off), and while it rains the drops ring it (`src/render/Terrain.js` uWet, uPond,
+  uRain); the rough track's holes hold the rain anyway. After the rain the sky clears and the ground stays dark and
+  glossy, the puddles shrinking as it dries.
 - **On the truck:** the mud on it stays wet and the rain rinses the dust off (the mud too, slowly); beads of water
   gather on the glass, on the windscreen again behind the wipers, which keep going (`src/render/TruckModel.js`).
 

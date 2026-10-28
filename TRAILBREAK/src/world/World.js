@@ -6,8 +6,10 @@
 //                                boulder
 //   surfaceAt(x, z)              surface record (physics/Surfaces.js)
 //   water(x, z)                  water surface height there, or -Infinity
-//   setRain(on)                  rain or not: its grounds' grip and give (physics/Surfaces.js WET_SURFACES)
+//   setWet(wet, pond)            how wet the ground is (0 dry to 1): its grounds' grip and give (physics/Surfaces.js
+//                                wetSurfaces); and how full the rain has filled its tracks' ruts (pond, 0 to 1)
 //   holeWater(x, z)              the surface of the rain standing in a rough track's hole there, or -Infinity
+//   rainWater(x, z)              the surface of the rain standing in a worn track's ruts there, or -Infinity
 // (and for the renderer, waterSurface(x, z): the water's surface as it is drawn)
 //   deform(x, z, fx, fz, hw, hl, press, dig)   press soft ground under a tyre (and dig where it spins, firm ground's
 //                                loose layer too), returns the rut depth
@@ -20,7 +22,7 @@
 // (a tree, or a whole fence panel, sign or barrel) by key ('t' + tree, 'o' + roadside thing). Breaks queue in
 // `breaks` for the game to draw, sound and share with the room ({ key, x, y, z, dx, dz, v, local, quiet }).
 
-import { SURFACES, SURFACE, WET_SURFACES, WET_MUD } from '../physics/Surfaces.js';
+import { SURFACES, SURFACE, WET_MUD, wetSurfaces } from '../physics/Surfaces.js';
 import { DeformGrid } from './Deform.js';
 import { WornTracks, wearOf } from './Worn.js';
 import { rockLift } from './Bedrock.js';
@@ -47,8 +49,8 @@ export class World {
     // (a map whose tracks are worn: their ruts, hump and potholes, finer than the grid; world/Worn.js)
     this.worn = this.map.wornTracks ? new WornTracks(this.map, this.half) : null;
     this.rough = !!this.worn?.lines.some((l) => l.rough);
-    // (the grounds as they are now: dry, or in the rain, setRain)
-    this.rain = 0; this.surfaces = SURFACES;
+    // (the grounds as they are now: dry, or wet with the rain, setWet; and the rain standing in the ruts)
+    this.wet = 0; this.pond = 0; this.surfaces = SURFACES;
     this.wearAt = (x, z) => this.wear(x, z);
     // (a map whose bare rock stands in relief: its beds' ledges and its joints' blocks, finer than the grid, as strong
     // as its beds are, world/Bedrock.js)
@@ -240,8 +242,14 @@ export class World {
     return S[this.surfaceId(x, z)];
   }
 
-  /** Rain or not: in it the grounds are wet, earth and grass slick, mud softer (physics/Surfaces.js WET_SURFACES). */
-  setRain(on) { this.rain = on ? 1 : 0; this.surfaces = on ? WET_SURFACES : SURFACES; }
+  /**
+   * How wet the ground is (wet, 0 dry to 1 wet through: earth and grass slick, mud softer; physics/Surfaces.js
+   * wetSurfaces), and how full the rain has filled the worn tracks' ruts (pond, 0 to 1: rainWater).
+   */
+  setWet(wet, pond = 0) {
+    this.wet = Math.min(1, Math.max(0, wet)); this.pond = Math.min(1, Math.max(0, pond));
+    this.surfaces = wetSurfaces(this.wet);
+  }
 
   water(x, z) {
     const i = Math.round((x - this.origin) / this.WR), k = Math.round((z - this.origin) / this.WR);
@@ -253,6 +261,18 @@ export class World {
   /** The surface of the rain standing in a rough track's hole at (x, z) (world/Worn.js holeWater), or -Infinity. */
   holeWater(x, z) {
     const d = this.rough ? this.worn.holeWater(x, z, this.wearAt) : 0;
+    return d > 0 ? this.terrain(x, z) + d : -Infinity;
+  }
+
+  /**
+   * The surface of the rain standing in a worn track's ruts at (x, z), on its bare earth and mud (world/Worn.js
+   * rainWater, as full as setWet's pond), or -Infinity.
+   */
+  rainWater(x, z) {
+    if (!(this.pond > 0) || !this.worn) return -Infinity;
+    const s = this.surfaceId(x, z);
+    if (s !== SURFACE.DIRT && s !== SURFACE.MUD) return -Infinity;
+    const d = this.worn.rainWater(x, z, this.wearAt, this.pond);
     return d > 0 ? this.terrain(x, z) + d : -Infinity;
   }
 
@@ -279,7 +299,7 @@ export class World {
     for (let n = 0; n < this.paints.length; n++) if (paintAt(this.paints[n], x, z)) return S[PROP_TYPES[this.paints[n].type].surface][key] || 0;
     const fx = (x - this.origin) / this.res, fz = (z - this.origin) / this.res, i = Math.floor(fx), k = Math.floor(fz), tx = fx - i, tz = fz - k;
     // (a map's deep mud, softness: its ruts the deeper, as the square root of how much softer it is; and in the rain)
-    const deep = key === 'maxSink' ? Math.sqrt(this.deepAt(x, z) * (this.rain ? WET_MUD : 1)) : 1;
+    const deep = key === 'maxSink' ? Math.sqrt(this.deepAt(x, z) * (1 + (WET_MUD - 1) * this.wet)) : 1;
     const m = (a, b) => (a < 0 || b < 0 || a >= this.N || b >= this.N ? 0 : (S[this.S[b * this.N + a]][key] || 0) * (this.S[b * this.N + a] === SURFACE.MUD ? deep : 1));
     return (m(i, k) * (1 - tx) + m(i + 1, k) * tx) * (1 - tz) + (m(i, k + 1) * (1 - tx) + m(i + 1, k + 1) * tx) * tz;
   }
@@ -290,7 +310,7 @@ export class World {
    */
   softness(x, z) {
     if (this.surfaceId(x, z) !== SURFACE.MUD) return 1;
-    return (this.map.deepMud ? this.deepAt(x, z) : 1) * (this.rain ? WET_MUD : 1);
+    return (this.map.deepMud ? this.deepAt(x, z) : 1) * (1 + (WET_MUD - 1) * this.wet);
   }
 
   /**

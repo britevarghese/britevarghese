@@ -129,9 +129,12 @@ export class Game {
       btn('st-call', () => this.callHelp());
       btn('st-station', () => this.towHome());
     }
-    // the weather (setWeather): the rain, coming on and easing off over some seconds (rainK), and its drops
+    // the weather (setWeather): the rain, coming on and easing off over some seconds (rainK), and its drops; the
+    // ground wet with it (wetK) and the water standing in the ruts (pondK), lingering after it (frame). Started in the
+    // rain, it has been raining a while
     this.weather = this.settings.weather === 'rain' ? 'rain' : 'clear';
-    this.rainK = 0; this.wetNow = false;
+    this.rainK = this.wetK = this.pondK = this.weather === 'rain' ? 1 : 0;
+    this.wetSet = this.pondSet = -1;
     this.rainFx = new Rain(this.scene);
     this.spawn(true);
     this.applySettings();
@@ -724,11 +727,13 @@ export class Game {
   }
 
   /**
-   * The weather, 'clear' or 'rain': the rain comes on over some ten seconds and eases off as slowly (frame); in a room it
-   * is everyone's (share: to the room; a friend's change comes back through onNet). onWeather: the pause menu's.
+   * The weather, 'clear' or 'rain': the rain comes on over some ten seconds and eases off as slowly, the ground wets
+   * and dries after it (frame); in a room it is everyone's (share: to the room; a friend's change comes back through
+   * onNet). now: as it has been for a while (a room's weather on joining it). onWeather: the pause menu's.
    */
-  setWeather(w, share = true) {
+  setWeather(w, share = true, now = false) {
     this.weather = w === 'rain' ? 'rain' : 'clear';
+    if (now) this.rainK = this.wetK = this.pondK = this.weather === 'rain' ? 1 : 0;
     if (share) this.net?.send({ t: 'weather', w: this.weather });
     this.onWeather?.(this.weather);
   }
@@ -1281,7 +1286,7 @@ export class Game {
     for (let i = 0; i < 4; i++) {
       const ax = rv.spec.axles[i < 2 ? 0 : 1], side = i % 2 === 0 ? 1 : -1;
       const hub = new THREE.Vector3(side * ax.track / 2, R - rv.spec.cgHeight, ax.z - (rv.spec.cgZ || 0)).applyQuaternion(root.quaternion).add(root.position);
-      const surf = this.world.surfaceAt(hub.x, hub.z), wl = Math.max(this.world.water(hub.x, hub.z), this.world.holeWater?.(hub.x, hub.z) ?? -Infinity);
+      const surf = this.world.surfaceAt(hub.x, hub.z), wl = Math.max(this.world.water(hub.x, hub.z), this.world.holeWater?.(hub.x, hub.z) ?? -Infinity, this.world.rainWater?.(hub.x, hub.z) ?? -Infinity);
       // (we don't hear how fast their wheels turn: spinning when they floor it and hardly move on soft ground)
       const slip = s.thr > 0.6 && Math.abs(speed) < 3 && surf.sink ? 4 : 0;
       const w = { contact: true, surf, slipSpeed: slip, omega: (speed + slip * (speed < -0.3 ? -1 : 1)) / R, water: Math.max(0, wl - (hub.y - R)) };
@@ -1472,8 +1477,9 @@ export class Game {
       MUD_TINT.setRGB(...(RD.map.mudTint || MUD_TINT_BASE));
       DUST_TINT.setRGB(...(RD.map.dust?.[SURFACE.DIRT] || DUST_TINT_BASE));
     }
-    // (no dust off the tyres on wet ground)
-    this.effects.dustiness = (this.dustBase ?? 1) * (1 - this.rainK);
+    // (no dust off the tyres on wet ground, but spray off them at speed)
+    this.effects.dustiness = (this.dustBase ?? 1) * (1 - this.wetK);
+    this.effects.wet = this.wetK;
     // mud and dust on the paint and the glass (soil)
     let mud = 0, raise = 0;
     for (const w of v.wheels) {
@@ -1559,13 +1565,18 @@ export class Game {
     // friends' winch lines
     this.updateRemoteRopes();
     this.renderer.updateSun(m.root.position);
-    // the weather: the rain coming on or easing off (setWeather), the ground wet with it once it has rained a little
-    // while (its grip and give, world/World.js setRain), dry again once it has all but stopped
+    // the weather: the rain coming on or easing off (setWeather); the ground wet through in some twenty seconds of
+    // rain (its grip and give, world/World.js setWet) and the ruts filled in a minute and a half; once it stops, the
+    // ground dry again over some four minutes and the puddles gone over six, as a shower's do in the sun and the wind
     this.rainK += clamp((this.weather === 'rain' ? 1 : 0) - this.rainK, -dt / 10, dt / 10);
-    WEATHER_UNIFORMS.uRain.value = this.rainK;
-    WEATHER_UNIFORMS.uRainT.value += dt;
-    const wet = this.rainK > (this.wetNow ? 0.05 : 0.3);
-    if (wet !== this.wetNow) { this.wetNow = wet; this.world.setRain?.(wet); }
+    const raining = this.rainK > 0.05;
+    this.wetK = clamp(this.wetK + (raining ? dt * this.rainK / 20 : -dt / 240), 0, 1);
+    this.pondK = clamp(this.pondK + (raining ? dt * this.rainK / 90 : -dt / 360), 0, 1);
+    const U = WEATHER_UNIFORMS;
+    U.uRain.value = this.rainK; U.uRainT.value += dt; U.uWet.value = this.wetK; U.uPond.value = this.pondK;
+    // (the physics' ground in twentieths)
+    const wq = Math.round(this.wetK * 20) / 20, pq = Math.round(this.pondK * 20) / 20;
+    if (wq !== this.wetSet || pq !== this.pondSet) { this.wetSet = wq; this.pondSet = pq; this.world.setWet?.(wq, pq); }
     this.rainFx.update(dt, this.renderer.camera, (this._rainC ||= new THREE.Color()).copy(this.renderer.fog.color).lerp(WHITE_C, 0.3));
     // (the open world's air where the camera is: the taiga's fog and grey sky come on as you drive in; and the rain's)
     if (this.world.airAt) this.renderer.setAir(this.rainAir(this.world.airAt(camPos.x, camPos.z)));
@@ -1574,7 +1585,7 @@ export class Game {
 
     // sound
     const remotes = [...this.remotes.values()].filter((r) => r.state).map((r) => ({ id: r.id, spec: r.spec, pos: r.model.root.position, rpm: r.state.rpm, thr: r.state.thr }));
-    this.audio.rainK = this.rainK; this.audio.rainCab = this.cam.mode === 'cab';
+    this.audio.rainK = this.rainK; this.audio.rainCab = this.cam.mode === 'cab'; this.audio.wetK = this.wetK;
     this.audio.update(dt, v, this.renderer.camera, remotes);
     v.impact = 0;
     // an exhaust pop (a hard upshift, or lifting off from high revs): a flash and a puff at the tailpipe, low on the

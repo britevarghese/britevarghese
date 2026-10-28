@@ -126,7 +126,7 @@ export class OpenWorld {
   add(id, data) {
     const R = REGIONS.find((q) => q.id === id), index = REGIONS.indexOf(R), [cx, cz] = R.at;
     const world = data instanceof World ? data : new World(data);
-    if (this.rain) world.setRain(true);
+    if (this.wet || this.pond) world.setWet(this.wet, this.pond);
     const region = { id, index, cx, cz, half: world.half, world, map: world.map };
     this.regions.push(region);
     this.regions.sort((a, b) => a.index - b.index);
@@ -158,9 +158,10 @@ export class OpenWorld {
   surfaceId(x, z) { const r = this.regionAt(x, z); return r ? r.world.surfaceId(x - r.cx, z - r.cz) : SURFACE.ROCK; }
   surfaceAt(x, z) { const r = this.regionAt(x, z); return r ? r.world.surfaceAt(x - r.cx, z - r.cz) : SURFACES[SURFACE.ROCK]; }
   water(x, z) { const r = this.regionAt(x, z); return r ? r.world.water(x - r.cx, z - r.cz) : -Infinity; }
-  /** Rain or not, over every map (World.js setRain); the maps added after take it too. */
-  setRain(on) { this.rain = on ? 1 : 0; for (const r of this.regions) r.world.setRain(on); }
+  /** How wet the ground is, and how full the ruts, over every map (World.js setWet); the maps added after take it too. */
+  setWet(wet, pond = 0) { this.wet = wet; this.pond = pond; for (const r of this.regions) r.world.setWet(wet, pond); }
   holeWater(x, z) { const r = this.regionAt(x, z); return r ? r.world.holeWater(x - r.cx, z - r.cz) : -Infinity; }
+  rainWater(x, z) { const r = this.regionAt(x, z); return r ? r.world.rainWater(x - r.cx, z - r.cz) : -Infinity; }
   waterSurface(x, z) { const r = this.regionAt(x, z); return r ? r.world.waterSurface(x - r.cx, z - r.cz) : -Infinity; }
   boulderTop(x, z) { const r = this.regionAt(x, z); return r ? r.world.boulderTop(x - r.cx, z - r.cz) : -Infinity; }
   maxSinkAt(x, z) { const r = this.regionAt(x, z); return r ? r.world.maxSinkAt(x - r.cx, z - r.cz) : 0; }

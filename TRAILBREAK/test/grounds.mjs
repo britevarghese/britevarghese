@@ -24,7 +24,7 @@ const across = (grid) => (x, z, ax, az, n, step, out) => {
 };
 
 /** Soft ground that keeps ruts (or firm ground a spinning tyre digs into); softness: a map's deep mud (world/World.js
- * softness), so much softer than its kind; wet: in the rain (World.js setRain). */
+ * softness), so much softer than its kind; wet: wet through with rain (World.js setWet). */
 export function soft(surface = SURFACE.MUD, h = 0, softness = 1, wet = false) {
   const grid = new DeformGrid();
   const s = (wet ? WET_SURFACES : SURFACES)[surface];

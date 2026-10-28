@@ -524,8 +524,13 @@ test('in the rain earth and grass are slick (a truck stops in a longer way), mud
   const { World } = await import('../src/world/World.js');
   const N = 33, data = { N, res: 1, origin: -16, half: 16, heights: new Float32Array(N * N), surface: new Uint8Array(N * N).fill(SURFACE.MUD), water: new Float32Array(N * N).fill(-1e9), waterN: N, waterRes: 1, trees: [], boulders: [], beacons: [], landmarks: [], posts: [], trails: [], map: { id: 'test' } };
   const w = new World(data), soft0 = w.softness(0, 0);
-  w.setRain(true);
-  assert.ok(w.surfaceAt(0, 0) === WET_SURFACES[SURFACE.MUD] && w.softness(0, 0) > soft0, 'the world wet in the rain');
+  w.setWet(0.5);
+  const mu = SURFACES[SURFACE.MUD].mu, muWet = WET_SURFACES[SURFACE.MUD].mu, half = w.surfaceAt(0, 0).mu, soft1 = w.softness(0, 0);
+  assert.ok(half < mu && half > muWet && soft1 > soft0, `the world part wet as it dries: grip ${half.toFixed(3)} between ${mu} and ${muWet}`);
+  w.setWet(1);
+  assert.ok(w.surfaceAt(0, 0) === WET_SURFACES[SURFACE.MUD] && w.softness(0, 0) > soft1, 'the world wet through in the rain');
+  w.setWet(0);
+  assert.ok(w.surfaceAt(0, 0) === SURFACES[SURFACE.MUD] && w.softness(0, 0) === soft0, 'and dry again');
 });
 
 test('mud takes time to give: kept moving a truck rides higher than it sinks standing; stopped in a bog it settles in, and pulls away the harder for it', () => {

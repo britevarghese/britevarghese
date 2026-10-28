@@ -182,6 +182,12 @@ const LOOSE = {
   [SURFACE.SAND]: { clod: 5, roll: 0, drop: 0, size: [0.02, 0.04], big: 0, grain: 34, haze: 3 },
   [SURFACE.SNOW]: { clod: 16, roll: 1, drop: 0, size: [0.05, 0.11], big: 0.1, grain: 14, haze: 2.4 },
 };
+// how much spray a tyre lifts off each ground wet with rain at speed: most off a road's film of water, least off grass,
+// whose blades hold it (none off mud, which throws its own, nor snow and sand, which soak it up)
+const SPRAYS = {
+  [SURFACE.ROAD]: 1, [SURFACE.ROCK]: 0.6, [SURFACE.GRAVEL]: 0.5, [SURFACE.DIRT]: 0.55, [SURFACE.RIVERBED]: 0.5,
+  [SURFACE.ICE]: 0.5, [SURFACE.GRASS]: 0.3, [SURFACE.TEA]: 0.3,
+};
 const WATER = [0.8, 0.86, 0.9], MUDDY_WATER = [0.3, 0.23, 0.15];
 const SPRAY = [0.86, 0.9, 0.93], MUDDY_SPRAY = [0.4, 0.33, 0.24];
 const FOAM = [0.95, 0.96, 0.97], MUDDY_FOAM = [0.6, 0.52, 0.41];
@@ -237,6 +243,7 @@ export class Effects {
     this.hulls = new Map();
     this.colors = { ...COLORS };
     this.dustiness = 1;            // how much dust the map's dry ground raises (a wet map's little)
+    this.wet = 0;                  // how wet the ground is with rain (core/Game.js wetK): the spray off the tyres
     this.ground = null;
   }
 
@@ -266,11 +273,14 @@ export class Effects {
     return i;
   }
 
-  /** The water's surface at (x, z) as it is drawn (or the rain's in a hole in a rough track), or -Infinity. */
+  /**
+   * The water's surface at (x, z) as it is drawn (or the rain's in a hole in a rough track or in a track's ruts), or
+   * -Infinity.
+   */
   surface(x, z) {
     const g = this.ground;
     const w = !g ? -Infinity : g.waterSurface ? g.waterSurface(x, z) : g.water ? g.water(x, z) : -Infinity;
-    return g?.holeWater ? Math.max(w, g.holeWater(x, z)) : w;
+    return Math.max(w, g?.holeWater ? g.holeWater(x, z) : -Infinity, g?.rainWater ? g.rainWater(x, z) : -Infinity);
   }
 
   /** Something flat on the water at (x, z): a ripple ring or a patch of foam, spreading as it fades. */
@@ -302,7 +312,7 @@ export class Effects {
    */
   wheel(key, w, dt, speed, hubX, hubY, hubZ, headX, headZ, r = 0.4) {
     let st = this.acc.get(key);
-    if (!st) { st = { clod: 0, grain: 0, dust: 0, tail: 0, sheet: 0, wet: 0, plough: 0 }; this.acc.set(key, st); }
+    if (!st) { st = { clod: 0, grain: 0, dust: 0, tail: 0, sheet: 0, wet: 0, plough: 0, mist: 0, fling: 0 }; this.acc.set(key, st); }
     if (!w.contact) { st.wet = 0; return; }
     const s = w.surf?.id ?? SURFACE.GRASS;
     const col = this.colors[s] || this.colors[SURFACE.DIRT];
@@ -401,9 +411,37 @@ export class Effects {
           0.7 + Math.random() * 0.6, 2.6 + Math.random() * 2.4, c, 0.07 + 0.08 * thick, 1.25, 1.1, -0.18, KIND.PUFF);
       }
     }
+    // wet ground at speed (this.wet: how wet it is, core/Game.js wetK): the tread lifts the water off it, a fine spray
+    // hanging low behind each tyre, thickest off a road's film of water and brown off bare earth; and drops of it flung
+    // off the tread as it lifts (not in mud, which throws its own)
+    const sprays = SPRAYS[s] || 0;
+    if (this.wet > 0.05 && sprays > 0 && !inWater && sp > 5) {
+      const k = this.wet * sprays * Math.min(1, (sp - 5) / 15), muddy = s === SURFACE.DIRT || s === SURFACE.RIVERBED;
+      const rear = (w.index ?? 2) >= 2 ? 1 : 0.6;
+      st.mist += dt * 30 * k * rear;
+      while (st.mist > 1) {
+        st.mist -= 1;
+        // (carried along in the truck's wake a moment, then hanging where it was lifted, low over the ground and rising
+        // as it spreads, so that it is never cut off flat where it would reach down into the road)
+        const c = Math.random() * 0.25 + 0.6;
+        this.spawn(hubX - headX * r * dir + rnd(0.15), hubY - r * (0.35 + Math.random() * 0.15), hubZ - headZ * r * dir + rnd(0.15),
+          fx * c + sideX * rnd(0.6), 0.5 + Math.random() * 0.5, fz * c + sideZ * rnd(0.6), 0.12 + Math.random() * 0.1, 0.4 + Math.random() * 0.35,
+          muddy ? [0.45, 0.38, 0.3] : [0.88, 0.92, 0.95], muddy ? 0.09 : 0.07, 1, 2, -0.2, KIND.MIST);
+      }
+      // (the drops leave the tread low at the back of the contact patch, most of them caught by the wheel arch)
+      st.fling += dt * Math.min(12, Math.max(0, tread - 3) * k);
+      while (st.fling > 1) {
+        st.fling -= 1;
+        const th = 0.1 + Math.random() * 0.35, v = Math.min(12, tread) * (0.3 + Math.random() * 0.3);
+        this.drop(hubX - headX * r * Math.sin(th) * dir + rnd(0.1), hubY - r * Math.cos(th), hubZ - headZ * r * Math.sin(th) * dir + rnd(0.1),
+          fx - headX * Math.cos(th) * dir * v + sideX * rnd(0.25) * v, (Math.sin(th) * 0.9 + 0.2) * v, fz - headZ * Math.cos(th) * dir * v + sideZ * rnd(0.25) * v, muddy, 0.5);
+      }
+    }
     if (inWater) {
-      // (water over mud is brown, and the rain in a hole in a track, stirred up with the clay under it)
-      const muddy = s === SURFACE.MUD || this.ground?.holeWater?.(hubX, hubZ) > -1e8;
+      // (water over mud is brown, and the rain in a hole in a track or in its ruts, stirred up with the earth under it)
+      const muddy = s === SURFACE.MUD || this.ground?.holeWater?.(hubX, hubZ) > -1e8 || this.ground?.rainWater?.(hubX, hubZ) > -1e8;
+      // (a puddle, not a lake or a river: its rings and foam no wider than it, a rut's or a hole's)
+      const pool = !(this.ground?.water?.(hubX, hubZ) > -1e8) ? 0.3 : 1;
       const depth = Math.min(water, r * 1.2);
       const wy = hubY - r + water;                                         // the water's surface here
       // driving into the water: the tyre splashes it up round itself
@@ -414,7 +452,7 @@ export class Effects {
           this.drop(hubX + rnd(0.25), wy, hubZ + rnd(0.25), fx * 0.5 + Math.cos(a) * out, sp * (0.35 + Math.random() * 0.7), fz * 0.5 + Math.sin(a) * out, muddy, 1.2);
         }
         for (let k = 0; k < n / 6; k++) this.spray(hubX + rnd(0.3), wy + 0.05, hubZ + rnd(0.3), fx * 0.5 + rnd(sp * 0.3), sp * (0.3 + Math.random() * 0.5), fz * 0.5 + rnd(sp * 0.3), muddy, 0.18);
-        this.ring(hubX, hubZ, 0.3, 1.8, 1.4, 0.45, false);
+        this.ring(hubX, hubZ, 0.3 * pool, 1.8 * pool, 1.4 * pool, 0.45, false);
       }
       // rooster tail: off the back of the tread where it comes up out of the water
       if (water < r * 1.8 && tread > 1.2) {
@@ -445,7 +483,7 @@ export class Effects {
       }
       // foam where the tyre stirs the surface
       if ((sp > 0.3 || tread > 0.8) && Math.random() < dt * (1 + sp * 0.9 + tread * 0.3)) {
-        this.ring(hubX + rnd(0.25), hubZ + rnd(0.25), 0.18 + Math.random() * 0.14, 0.3 + sp * 0.08, 1.2 + Math.random() * 0.8, 0.5, true, muddy ? MUDDY_FOAM : FOAM);
+        this.ring(hubX + rnd(0.25 * pool), hubZ + rnd(0.25 * pool), (0.18 + Math.random() * 0.14) * pool, (0.3 + sp * 0.08) * pool, (1.2 + Math.random() * 0.8) * (0.5 + 0.5 * pool), 0.5, true, muddy ? MUDDY_FOAM : FOAM);
       }
     }
     st.wet = water;

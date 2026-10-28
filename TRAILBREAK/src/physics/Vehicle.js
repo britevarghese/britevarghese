@@ -586,8 +586,9 @@ export class Vehicle {
       const sn = Math.sin(w.steer), cs = Math.cos(w.steer);
       _f.set(sn, 0, cs).applyQuat(qx).projectOnPlane(_w).normalize();
       w.headX = _f.x; w.headY = _f.y; w.headZ = _f.z;
-      // (the water over the tyre's bottom: a lake's or a river's, or the rain in a hole in the track)
-      const wl = Math.max(ground.water ? ground.water(w.hub.x, w.hub.z) : -Infinity, ground.holeWater ? ground.holeWater(w.hub.x, w.hub.z) : -Infinity);
+      // (the water over the tyre's bottom: a lake's or a river's, or the rain in a hole in the track or along its ruts)
+      const wl = Math.max(ground.water ? ground.water(w.hub.x, w.hub.z) : -Infinity, ground.holeWater ? ground.holeWater(w.hub.x, w.hub.z) : -Infinity,
+        ground.rainWater ? ground.rainWater(w.hub.x, w.hub.z) : -Infinity);
       w.water = Math.max(0, wl - (w.hub.y - r));
       if (!this.contact(w, ground, _f, _w)) {
         w.N = 0; w.fx = 0; w.fy = 0; w.slip = 0; w.slipSpeed = 0; w.spin = 0; w.sink = 0; w.wall = 0;

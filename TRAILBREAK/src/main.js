@@ -302,7 +302,7 @@ async function start() {
     game.events.welcome(welcome.race);
     if (welcome.layout && !linkLayout) game.takeLayout(welcome.layout, null);
     // (the room's weather; a room without one yet takes this player's)
-    if (welcome.weather) game.setWeather(welcome.weather, false);
+    if (welcome.weather) game.setWeather(welcome.weather, false, true);
     else if (game.weather !== 'clear') net.send({ t: 'weather', w: game.weather });
   } else {
     try { for (const id of JSON.parse(localStorage.getItem(soloBeaconsKey(M)) || '[]')) { game.found.add(id); landmarks.setFound(id, true); } } catch { /* none */ }

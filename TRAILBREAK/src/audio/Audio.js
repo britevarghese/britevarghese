@@ -231,7 +231,7 @@ export class Audio {
     this.banks = new Map();
     this.remote = new Map();
     this.thumpCool = 0;
-    this.grains = [0, 0, 0, 0].map(() => ({ suck: Math.random(), slap: Math.random(), ping: Math.random() }));
+    this.grains = [0, 0, 0, 0].map(() => ({ suck: Math.random(), slap: Math.random(), ping: Math.random(), dip: false }));
     this.mutes = new Set();
     // a hidden tab is silent: no engine idling away behind the other tabs (the audio stops altogether until it's back)
     if (typeof document !== 'undefined') document.addEventListener('visibilitychange', () => this.onVisibility());
@@ -268,6 +268,9 @@ export class Audio {
     this.rainHiss = noiseVoice(ctx, this.pink, this.master, 'highpass', 1200, 0.4);
     this.rainRoof = noiseVoice(ctx, this.brown, this.master, 'bandpass', 420, 0.9);
     this.rainK = 0; this.rainCab = false;
+    // the tyres on wet ground (wetK, Game's: it lingers after the rain): the hiss of the water they lift off it
+    this.swish = noiseVoice(ctx, this.pink, this.master, 'bandpass', 2400, 0.5);
+    this.wetK = 0;
     // winch motor: a buzzing saw through a filter
     this.winchOsc = ctx.createOscillator(); this.winchOsc.type = 'sawtooth'; this.winchOsc.frequency.value = 110;
     const wf = ctx.createBiquadFilter(); wf.type = 'lowpass'; wf.frequency.value = 900;
@@ -641,7 +644,7 @@ export class Audio {
       glide(this.humGain.gain, hard * noise * Math.min(1, speed / 12) * 0.05, t, 0.1);
       glide(this.humOsc.frequency, Math.max(40, speed / ([0.055, 0.085, 0.13, 0.032, 0.04][tread] ?? 0.055)), t, 0.1);
       // ground under the tyres
-      let roll = 0, crunch = 0, slip = 0, mud = 0, water = 0, n = 0;
+      let roll = 0, crunch = 0, slip = 0, mud = 0, water = 0, swish = 0, n = 0;
       const R = v.spec.tyre.radius;
       for (const w of v.wheels) {
         if (!w.contact) continue;
@@ -651,6 +654,10 @@ export class Audio {
         // lower and louder the deeper the tyre is in), clods slapping the wheel arch off a spinning tyre, stones
         // flicked up against the underbody on gravel (a few a second, at random)
         const G = this.grains[w.index & 3], tr = Math.abs(w.omega || 0) * R, wet = w.water > 0.1;
+        // (into a puddle at speed: a splash)
+        const dip = w.water > 0.03;
+        if (dip && !G.dip && speed > 2.5) this.grain(this.pink, 'bandpass', 1500, 450, 1.1, Math.min(1, (speed - 2) / 8) * (0.5 + Math.random() * 0.4), 0.16 + Math.random() * 0.08);
+        G.dip = dip;
         if ((s === 'mud' || s === 'riverbed') && !wet && tr > 0.25) {
           G.suck += dt * Math.min(9, tr * 1.2 + w.slipSpeed) * (s === 'mud' ? 1 : 0.4) * (0.6 + Math.random() * 0.8);
           if (G.suck > 1) {
@@ -674,8 +681,11 @@ export class Audio {
         if (s === 'mud' || s === 'snow') mud += Math.min(1, speed / 6 + w.slipSpeed / 8);
         slip += clamp((w.slipSpeed - 1.5) / 8, 0, 1) * (s === 'mud' ? 0.3 : 1);
         water += clamp(w.water * 2, 0, 1) * Math.min(1, speed / 4);
+        swish += s === 'road' || s === 'rock' ? 1 : s === 'mud' || s === 'snow' || s === 'sand' ? 0 : s === 'grass' || s === 'tea' ? 0.4 : 0.6;
       }
-      if (n) { roll /= n; crunch /= n; slip /= n; mud /= n; water /= n; }
+      if (n) { roll /= n; crunch /= n; slip /= n; mud /= n; water /= n; swish /= n; }
+      glide(this.swish.g.gain, this.wetK * swish * Math.min(1, speed / 22) * 0.1, t, 0.15);
+      glide(this.swish.f.frequency, 1600 + speed * 40, t, 0.15);
       glide(this.roll.g.gain, roll * 0.22, t);
       glide(this.roll.f.frequency, 250 + speed * 18, t);
       glide(this.crunch.g.gain, crunch * 0.09, t);

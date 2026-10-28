@@ -441,3 +441,28 @@ test("a rough track's holes hold the rain, most of them, below their rims; none 
   assert.ok(deep > 100 && wet > deep * 0.6 && wet < deep, `${wet} of ${deep} samples down in a hole stand in water`);
   assert.ok(brim < 1e-9 && verge === 0 && plain === 0, `the water ${brim.toFixed(3)} m over its brim; on the verges ${verge}, an ordinary track ${plain}`);
 });
+
+test("after rain a worn track's ruts hold it along about half their length, deeper the fuller; none on the hump or the verges, none dry", async () => {
+  const { WornTracks, wearOf, RUT } = await import('../src/world/Worn.js');
+  const G = new WornTracks({ trails: [{ name: 't', kind: 'trail', points: [[0, -40], [0, 200], [0, 440]] }] }, 1000), firm = () => wearOf(SURFACE.DIRT);
+  let n = 0, wet = 0, deep = 0, half = 0, edge = 0, dry = 0, over = 0;
+  for (let z = 0; z < 360; z += 0.1) {
+    // (in the middle of a rut, where the track has wandered: u, m off the wheel line's middle, at x = 0, and which way x
+    // runs across the track)
+    const u0 = G.shape(G.nearest(0, z), 0, z, 1).u, sx = Math.sign(G.nearest(1, z).u - G.nearest(0, z).u), at = (u) => sx * (u - u0);
+    const x = at(GAUGE);
+    const w = G.rainWater(x, z, firm, 1);
+    n++;
+    if (w > 0.005) { wet++; deep = Math.max(deep, w); }
+    // (no fuller than the rut is deep; half as full, shallower: but for a pothole under the rut's floor, which the rain
+    // fills first)
+    over = Math.max(over, w - G.depth(x, z, firm));
+    if (w > 0.005 && G.shape(G.nearest(x, z), x, z, 1).pot <= 0) half = Math.max(half, G.rainWater(x, z, firm, 0.5) / w);
+    edge = Math.max(edge, G.rainWater(at(GAUGE + RUT + 0.05), z, firm, 1), G.rainWater(at(0), z, firm, 1), G.rainWater(at(2.4), z, firm, 1));
+    dry = Math.max(dry, G.rainWater(x, z, firm, 0));
+  }
+  assert.ok(wet > n * 0.3 && wet < n * 0.75, `water in ${wet} of ${n} samples along the rut`);
+  assert.ok(deep > 0.03 && deep < 0.15 && over < 1e-9, `the water ${(deep * 100).toFixed(1)} cm deep at most, never over the rut's brim`);
+  assert.ok(half < 0.8, `half as full, at most ${(half * 100).toFixed(0)}% as deep`);
+  assert.ok(edge === 0 && dry === 0, `beside the rut ${edge}, dry ${dry}`);
+});

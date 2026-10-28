@@ -19,7 +19,7 @@ import * as THREE from 'three';
 import { HASH21 } from './ShaderHash.js';
 import { SURFACE } from '../physics/Surfaces.js';
 import { DeformGrid, DEFORM_SPAN } from '../world/Deform.js';
-import { WornTracks, GAUGE, RUT } from '../world/Worn.js';
+import { WornTracks, GAUGE, RUT, VERGE_OUT } from '../world/Worn.js';
 import { BEDROCK_GLSL, tn } from '../world/Bedrock.js';
 import { vnoise } from '../world/Noise.js';
 import { TEA_ROW, TEA_RANGE } from './Tea.js';
@@ -289,6 +289,8 @@ uniform float uRockBeds;
 uniform float uDeepMud;
 uniform float uRain;
 uniform float uRainT;
+uniform float uWet;
+uniform float uPond;
 uniform float uVarnish;
 uniform vec3 uIds;
 uniform float uSnowLine;
@@ -588,6 +590,10 @@ ${G ? `
         float hump = (1.0 - smoothstep(${(GAUGE - RUT - 0.12).toFixed(3)} - aa, ${(GAUGE - RUT).toFixed(3)} + aa, au)) * smoothstep(0.32, 0.55, clump);
         float rag = (tn(vec2(s * 0.8, au * 1.6) + 9.1) - 0.5) * 0.7 + (tn(vWPos.xz * 2.2 + 1.3) - 0.5) * 0.35;
         float verge = smoothstep(vTrk.w - 0.2 - aa, vTrk.w + 0.25 + aa, au + rag);
+        // (and out to a ragged edge of its own a metre or so beyond, well inside the track's reach: past that the
+        // ground's own, which on bare earth stopped short where the vertices stop carrying the track, in steps; the
+        // grass's twin, render/Grass.js VERGE_OUT)
+        verge *= 1.0 - smoothstep(${(VERGE_OUT - 0.1).toFixed(2)} - aa, ${(VERGE_OUT + 0.1).toFixed(2)} + aa, au + (tn(vec2(s * 0.45, 2.9 + au * 0.7)) - 0.5) * 0.9 + (tn(vec2(s * 1.9, 7.7 + au * 2.3)) - 0.5) * 0.4);
         float over = max(hump * 0.92, verge) * wd * fade;
         if (over > 0.0) {
           vec3 ga = gColor(uIds.x, uLay[int(uIds.x)].x).rgb * uGain[int(uIds.x)] * uVerge;
@@ -597,8 +603,11 @@ ${G ? `
         // wet: in the mud its ruts, and water standing along stretches of them; on earth, damp in their floors
         float pn = tn(vec2(s * 0.16, 2.3 + sign(u) * 5.0));
         gTrkPool = smoothstep(0.08, 0.4, floorK) * smoothstep(0.4 - 0.25 * uDeepMud, 0.62 - 0.25 * uDeepMud, pn) * wm * fade;
-        // (and in the rain, on earth too, over half their length: puddles a few metres long, wet earth between them)
-        gTrkPool = max(gTrkPool, uRain * smoothstep(0.08, 0.4, floorK) * smoothstep(0.36, 0.5, pn) * (wd + wm) * fade);
+        // (and after rain, on earth too, over half their length: puddles a few metres long, wet earth between them,
+        // filled up from the floor as the rain has filled them, uPond, to the edge the physics' twin finds,
+        // world/Worn.js rainWater: where the rut is 1 - 0.65 of the fill as deep as at its middle)
+        float fk = uPond * smoothstep(0.48, 0.6, tn(vec2(s * 0.32, 7.1 + sign(u) * 5.0))), pe = 1.0 - 0.65 * fk;
+        gTrkPool = max(gTrkPool, smoothstep(pe - 0.12, pe + 0.04, floorK) * smoothstep(0.0, 0.15, fk) * (wd + wm) * fade);
         gTrkWet = inRut * fade * (wm * 0.75 + wd * (0.12 + 0.3 * damp));
       }
     }
@@ -782,15 +791,15 @@ ${G ? `
     gRough = mix(gRough < 0.0 ? 0.95 : gRough, 0.9, cov);
   }
   diffuseColor.rgb *= vary;
-  // wet ground, darker and glossier; and water standing in the ruts, in the hollows first, flat and shiny. In the rain
-  // (uRain) all of it is wet, the grass and the rock too, and on bare earth and mud the water stands along the ruts
-  // and in the deepest hollows of its relief, filling them further where the ground lies low and level (patches a
-  // dozen metres across): not on a slope, which it runs off, and not a sheet over the whole of it
-  float rw = uRain * (0.55 + 0.45 * gBare);
+  // wet ground, darker and glossier; and water standing in the ruts, in the hollows first, flat and shiny. After rain
+  // (uWet, uPond: they linger as it dries) all of it is wet, the grass and the rock too, and on bare earth and mud the
+  // water stands along the ruts and in the deepest hollows of its relief, filling them further where the ground lies
+  // low and level (patches a dozen metres across): not on a slope, which it runs off, and not a sheet over all of it
+  float rw = uWet * (0.55 + 0.45 * gBare);
   vec2 rp = vWPos.xz * 3.0;
   float rpx = length(fwidth(rp));
   if (vWet.x + vWet.y + gTrkWet + rw > 0.004) {
-    float rl = uRain * gBare * smoothstep(0.9, 0.98, normalize(vWNormal).y) * (0.12 + 0.3 * smoothstep(0.5, 0.78, tn(vWPos.xz * 0.08 + 5.3)));
+    float rl = uPond * gBare * smoothstep(0.9, 0.98, normalize(vWNormal).y) * (0.12 + 0.3 * smoothstep(0.5, 0.78, tn(vWPos.xz * 0.08 + 5.3)));
     float pool = max(clamp((max(vWet.y, rl) * 1.3 - gH) * 6.0, 0.0, 1.0), gTrkPool);
     // (the water lies in the hollows of the ground's relief; its bumps stand a little drier: wet mud is wet all over,
     // not dry lumps with water in the gaps between them, a network of dark cracks)

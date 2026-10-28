@@ -18,11 +18,13 @@
 // across it that a truck at speed hammers over.
 import { spline } from './WorldGen.js';
 import { vnoise, hash2 } from './Noise.js';
+import { tn } from './Bedrock.js';
 
 const STEP = 2;                 // m between the points of a track's line
 const CELL = 16;                // m: the buckets of segments
 export const GAUGE = 0.8;       // m from the middle of the wheel line to each rut's middle
 export const RUT = 0.3;         // m: half a rut's width
+export const VERGE_OUT = 2.55;  // m off it that the verge's grass reaches, about (render/Terrain.js, render/Grass.js)
 const REACH = 3.4;              // m off the line that anything reaches (the wander, the ruts and their spoil, potholes)
 const EDGE = 40;                // m in from a map's edge the ruts come round to straight and even
 const BIN = 28;                 // m of track to a pothole (at most)
@@ -30,6 +32,7 @@ const OUT = 2.6;                // m off the line past which nothing is worn (th
 // a rough track: a hole every so many metres (at most), and a root across it; how deep the ruts are worn
 const BIN_ROUGH = 6.5, ROOT_BIN = 5;
 const HOLE_RIM = 0.1;           // m below a rough track's hole's rim the rain stands in it
+const RAIN_FILL = 0.65;         // how far up its ruts the rain fills a worn track (a share of their depth), at most
 // how deep each ground wears (a track's ruts as deep as it is soft): none on tarmac or ice
 const WEAR = [1, 1, 0.45, 0.15, 0.8, 0.6, 0.7, 0, 0.3, 0, 0.6];
 
@@ -294,6 +297,24 @@ export class WornTracks {
     if (wear <= 0) return 0;
     const pot = this.shape(h, x, z, wear).pot;
     return pot > HOLE_RIM ? (pot - HOLE_RIM) * WornTracks.holds(x, z) : 0;
+  }
+
+  /**
+   * The rain standing in a worn track's ruts at (x, z) (m deep, 0 where there is none), as render/Terrain.js draws it:
+   * along about half their length, in puddles 3 to 13 m long (the shader's noise, tn), filled up from the rut's
+   * floor to as much as RAIN_FILL of its depth as the rain has filled them (pond, 0 to 1); deeper over a pothole in
+   * the rut. On any ground: the caller keeps it to bare earth and mud.
+   */
+  rainWater(x, z, wearAt, pond) {
+    const h = this.nearest(x, z);
+    if (!h || h.d > OUT) return 0;
+    const wear = wearAt(x, z);
+    if (wear <= 0) return 0;
+    const q = this.shape(h, x, z, wear);
+    if (q.depth < 0.02 || Math.abs(Math.abs(q.u) - GAUGE) >= RUT) return 0;
+    const fill = pond * sstep(0.48, 0.6, tn(q.s * 0.32, 7.1 + Math.sign(q.u) * 5));
+    if (fill <= 0) return 0;
+    return WornTracks.profile(q.u, q.depth) + Math.max(0, q.pot) - q.depth * (1 - RAIN_FILL * fill);
   }
 
   /** How full the rain keeps a rough track's holes about (x, z): 1 full (most of them) to 0 drained. */
