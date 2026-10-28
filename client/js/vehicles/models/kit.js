@@ -182,12 +182,18 @@ export function mergeStatic(root) {
 // destroyed: charred hull (the materials are swapped back when the vehicle respawns)
 export function setWrecked(root, wrecked) {
   const burnt = cache.m1?.burnt || cache.m2?.burnt;
+  const u = root.userData;
   root.traverse((o) => {
-    if (!o.isMesh || o.material.transparent) return;
+    if (!o.isMesh || o === u.disc) return;
+    // glass (transparent) is blown out of a burnt-out wreck, and back when the vehicle respawns
+    if ([o.material].flat().some((m) => m.transparent)) {
+      if (wrecked) { if (o.userData.vis === undefined) o.userData.vis = o.visible; o.visible = false; }
+      else if (o.userData.vis !== undefined) { o.visible = o.userData.vis; delete o.userData.vis; }
+      return;
+    }
     if (wrecked) { if (!o.userData.mat) o.userData.mat = o.material; o.material = burnt; }
     else if (o.userData.mat) o.material = o.userData.mat;
   });
-  const u = root.userData;
   if (u.disc) u.disc.visible = false;
 }
 

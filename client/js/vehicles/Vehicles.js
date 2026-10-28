@@ -232,6 +232,16 @@ export class VehiclesClient {
       } else if (v.type === 'tank') {
         u.turret.rotation.y = angleDiff(v.yaw, v.turretYaw);
         u.gun.rotation.x = v.gunPitch;
+        // tracks run with the hull speed, plus / minus the turn on each side (a pivot turn runs them in opposite
+        // directions); links, wheel bolts and sprockets are moved only near the camera
+        if (u.runGear) {
+          const turn = v.gearYaw === undefined || dt <= 0 ? 0 : angleDiff(v.gearYaw, v.yaw) / dt;
+          v.gearYaw = v.yaw;
+          const sp = v.dead ? 0 : v.speed || 0;
+          v.trackL = (v.trackL || 0) + (sp - turn * u.trackHalf) * dt; v.trackR = (v.trackR || 0) + (sp + turn * u.trackHalf) * dt;
+          const moved = Math.abs(v.trackL - (v.gearL ?? -1)) + Math.abs(v.trackR - (v.gearR ?? -1)) > 0.002;
+          if (moved && Math.hypot(v.x - cam.x, v.z - cam.z) < 90) { u.runGear(v.trackL, v.trackR); v.gearL = v.trackL; v.gearR = v.trackR; }
+        }
         if (this.mine?.id === v.id && this.mine.seat === 1) { u.mg.rotation.set(this.aimPitch || 0, angleDiff(v.turretYaw, g.me.yaw), 0, 'YXZ'); }
       } else {
         const agl = v.y - g.world.collision.supportHeight(v.x, v.z, v.y + 0.5, 1.5);

@@ -175,7 +175,11 @@ async function run() {
     const views = { front: [L * 0.55, size.y * 0.75, -L * 0.95], side: [L * 1.15, size.y * 0.55, 0.01], rear: [-L * 0.55, size.y * 0.85, L * 0.95], top: [L * 0.35, L * 1.1, L * 0.45], close: [L * 0.3, size.y * 0.6, -L * 0.45] };
     camera.fov = 45; camera.updateProjectionMatrix();
     camera.position.set(...(views[qs.get('view')] || views.front)); controls.target.set(0, cy, 0);
+    if (qs.get('view') === 'gear') { camera.position.set(size.x * 1.25, 0.75, -1.2); controls.target.set(size.x * 0.4, 0.5, 0.6); } // running gear, low from the side
     renderer.shadowMap.enabled = true;
+    // ?drive=<m/s>: run the tank's tracks / wheels as if driving; ?wreck=1: burnt-out wreck
+    if (qs.get('drive') && v.userData.runGear) { let off = 0; updaters.push((dt) => { off += +qs.get('drive') * dt; v.userData.runGear(off, off); }); }
+    if (qs.get('wreck')) builders.setWrecked(v, true);
   }
   for (const e of assets.errors) log(e, 'err');
 }

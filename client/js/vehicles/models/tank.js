@@ -142,6 +142,50 @@ function beltLinks(circles, pitch) {
   return out;
 }
 
+// Running gear animation (CPU, only while the tank moves and is near the camera): track links travel round the
+// belt — the bottom run stays planted on the ground, the top run moves forward — and the wheel / sprocket bolts and
+// sprocket teeth turn. Each part keeps its rest geometry; update(offsetLeft, offsetRight) re-places the vertices.
+//   links: [{ x, s0, side }] link rest frames on the belt (arc length s0); spinners: [{ start, count, yc, zc, r, side }]
+function runningGear(trackMesh, links, path, spinMeshes) {
+  // (geometries are read on every call: finishVehicle swaps in its own copies after the model is built)
+  const per = trackMesh.geometry.attributes.position.count / links.length;
+  const rest = trackMesh.geometry.attributes.position.array.slice(), restN = trackMesh.geometry.attributes.normal.array.slice();
+  const L = path.length, n = path.table.length / 4;
+  const sample = (s) => { const t = (((s % L) + L) % L) / L * n, i = Math.floor(t) % n, j = (i + 1) % n, f = t - Math.floor(t), T = path.table;
+    return [T[i * 4] + (T[j * 4] - T[i * 4]) * f, T[i * 4 + 1] + (T[j * 4 + 1] - T[i * 4 + 1]) * f, T[i * 4 + 2] + (T[j * 4 + 2] - T[i * 4 + 2]) * f, T[i * 4 + 3] + (T[j * 4 + 3] - T[i * 4 + 3]) * f]; };
+  const spinRest = spinMeshes.map(({ mesh }) => ({ p: mesh.geometry.attributes.position.array.slice(), n: mesh.geometry.attributes.normal.array.slice() }));
+  return (offL, offR) => {
+    const P = trackMesh.geometry.attributes.position, N = trackMesh.geometry.attributes.normal;
+    // links: rest vertices are in the link's frame at s0; move them to s0 + offset (rotate (z, y) by the change of the belt direction)
+    for (let k = 0; k < links.length; k++) {
+      const lk = links[k], off = lk.side < 0 ? offL : offR;
+      const [z1, y1, nz1, ny1] = sample(lk.s0 + off), { z0, y0, nz0, ny0 } = lk;
+      const c = nz0 * nz1 + ny0 * ny1, sn = nz0 * ny1 - ny0 * nz1; // rotation from the rest normal to the new one
+      for (let v = k * per; v < (k + 1) * per; v++) {
+        const dz = rest[v * 3 + 2] - z0, dy = rest[v * 3 + 1] - y0;
+        P.array[v * 3 + 2] = z1 + dz * c - dy * sn; P.array[v * 3 + 1] = y1 + dz * sn + dy * c;
+        const mz = restN[v * 3 + 2], my = restN[v * 3 + 1];
+        N.array[v * 3 + 2] = mz * c - my * sn; N.array[v * 3 + 1] = mz * sn + my * c;
+      }
+    }
+    P.needsUpdate = N.needsUpdate = true;
+    // wheels / sprockets: turn about their axle (CCW in the z-y plane as the tank rolls forward)
+    spinMeshes.forEach(({ mesh, parts }, m) => {
+      const A = mesh.geometry.attributes.position, B = mesh.geometry.attributes.normal, R = spinRest[m];
+      for (const pt of parts) {
+        const a = (pt.side < 0 ? offL : offR) / pt.r, c = Math.cos(a), sn = Math.sin(a);
+        for (let v = pt.start; v < pt.start + pt.count; v++) {
+          const dz = R.p[v * 3 + 2] - pt.zc, dy = R.p[v * 3 + 1] - pt.yc;
+          A.array[v * 3 + 2] = pt.zc + dz * c - dy * sn; A.array[v * 3 + 1] = pt.yc + dz * sn + dy * c;
+          const mz = R.n[v * 3 + 2], my = R.n[v * 3 + 1];
+          B.array[v * 3 + 2] = mz * c - my * sn; B.array[v * 3 + 1] = mz * sn + my * c;
+        }
+      }
+      A.needsUpdate = B.needsUpdate = true;
+    });
+  };
+}
+
 // one track link: body (pads / connectors from the atlas) + centre guide horn on the inner side
 function linkGeometry(W, T, Lk) {
   const body = box(W, T, Lk), uv = body.attributes.uv;
@@ -241,29 +285,39 @@ export function buildTank(team) {
   const gear = gearRing(0.315, 0.385, 12, 0.055);
   const sprHub = lathe([[0.23, -0.1], [0.23, 0.15], [0.2, 0.2], [0.12, 0.215], [0.1, 0.26], [0.0, 0.265]], 14);
   const linkG = linkGeometry(0.62, 0.06, 0.15);
-  const links = beltLinks([...wheelZ.map((z) => [z, WY, RW]), IDL, SPR, ...rollerZ.map((z) => [z, RR[0], RR[1]])], 0.165);
+  const beltWheels = [...wheelZ.map((z) => [z, WY, RW]), IDL, SPR, ...rollerZ.map((z) => [z, RR[0], RR[1]])];
+  const links = beltLinks(beltWheels, 0.165);
+  // dense copy of the belt for the animation (1 cm steps), its length = links x pitch
+  const dense = beltLinks(beltWheels, 0.01), table = new Float32Array(dense.length * 4);
+  dense.forEach(([z, y, nz, ny], i) => table.set([z, y, nz, ny], i * 4));
+  let beltLen = 0;
+  for (let i = 0; i < dense.length; i++) { const a = dense[i], b = dense[(i + 1) % dense.length]; beltLen += Math.hypot(b[0] - a[0], b[1] - a[1]); }
+  const path = { table, length: beltLen };
+  const linkRest = [], trackGeos = [], spinBolts = [], spinGear = [], spinBoltParts = [], spinGearParts = [];
+  // (merged() de-indexes, so a part's vertex count is its index count when it has one)
+  const addSpin = (list, parts, geo, side, yc, zc, r) => { list.push(geo); parts.push({ count: geo.index ? geo.index.count : geo.attributes.position.count, side, yc, zc, r }); };
   const _b = new THREE.Matrix4(), X = new THREE.Vector3(1, 0, 0), Yv = new THREE.Vector3(), Zv = new THREE.Vector3();
   for (const s of [-1, 1]) {
     const xc = s * 1.47, ry = s < 0 ? Math.PI : 0;
     const part = (geo, mat, z, y) => { const m = mesh(geo, mat, xc, y, z, body); m.rotation.y = ry; return m; };
     for (const z of wheelZ) { part(tyreG, M.rubber, z, WY); part(discG, M.paint, z, WY); part(hubG, M.steel, z, WY); }
-    for (const z of wheelZ) for (let k = 0; k < 6; k++) { const a = (k / 6) * Math.PI * 2; bolts.push(at(BOLT, xc + s * 0.226, WY + Math.sin(a) * 0.16, z + Math.cos(a) * 0.16, 0, 0, -s * Math.PI / 2)); }
+    for (const z of wheelZ) for (let k = 0; k < 6; k++) { const a = (k / 6) * Math.PI * 2; addSpin(spinBolts, spinBoltParts, at(BOLT, xc + s * 0.226, WY + Math.sin(a) * 0.16, z + Math.cos(a) * 0.16, 0, 0, -s * Math.PI / 2), s, WY, z, RW); }
     part(idlerRim, M.steel, IDL[0], IDL[1]); part(idlerDisc, M.paint, IDL[0], IDL[1]);
-    for (const dx of [-0.13, 0.13]) part(gear, M.dark, SPR[0], SPR[1]).position.x = xc + dx;
+    for (const dx of [-0.13, 0.13]) addSpin(spinGear, spinGearParts, gear.clone().applyMatrix4(new THREE.Matrix4().makeRotationY(ry)).translate(xc + dx, SPR[1], SPR[0]), s, SPR[1], SPR[0], SPR[2]);
     part(sprHub, M.paint, SPR[0], SPR[1]);
-    for (let k = 0; k < 8; k++) { const a = (k / 8) * Math.PI * 2; bolts.push(at(BOLT, xc + s * 0.208, SPR[1] + Math.sin(a) * 0.15, SPR[0] + Math.cos(a) * 0.15, 0, 0, -s * Math.PI / 2)); }
+    for (let k = 0; k < 8; k++) { const a = (k / 8) * Math.PI * 2; addSpin(spinBolts, spinBoltParts, at(BOLT, xc + s * 0.208, SPR[1] + Math.sin(a) * 0.15, SPR[0] + Math.cos(a) * 0.15, 0, 0, -s * Math.PI / 2), s, SPR[1], SPR[0], SPR[2]); }
     dark.push(at(new THREE.CylinderGeometry(0.2, 0.22, 0.2, 12).rotateZ(Math.PI / 2), s * 1.28, SPR[1], SPR[0]), at(new THREE.CylinderGeometry(0.1, 0.1, 0.24, 8).rotateZ(Math.PI / 2), s * 1.28, IDL[1], IDL[0]));
     for (const z of rollerZ) for (const dx of [-0.15, 0.15]) rubber.push(at(new THREE.CylinderGeometry(RR[1], RR[1], 0.15, 10).rotateZ(Math.PI / 2), xc + dx, RR[0], z));
     // suspension arms (trailing, from the hull side to each wheel hub) + bump stops
     for (const z of wheelZ) dark.push(at(box(0.12, 0.1, 0.42), s * 1.25, WY + 0.08, z - 0.18, -0.35));
     // track
-    const L = [];
-    for (const [z, y, nz, ny] of links) {
+    links.forEach(([z, y, nz, ny], i) => {
       Yv.set(0, ny, nz); Zv.crossVectors(X, Yv);
       _b.makeBasis(X, Yv, Zv).setPosition(xc, y + ny * 0.03, z + nz * 0.03);
-      L.push(linkG.clone().applyMatrix4(_b));
-    }
-    mesh(merged(L), M.track, 0, 0, 0, body);
+      const lg = linkG.clone().applyMatrix4(_b);
+      trackGeos.push(lg.index ? lg.toNonIndexed() : lg);
+      linkRest.push({ side: s, s0: i * (path.length / links.length), z0: z, y0: y, nz0: nz, ny0: ny });
+    });
 
     // armoured skirt: 2 heavy bolted panels at the front (rubber flaps under them) + 5 light panels; gaps between
     const panels = [
@@ -401,10 +455,16 @@ export function buildTank(team) {
 
   // ---- merge the hull detail batches
   group(bolts, M.paint, body); group(paintBits, M.paint, body); group(steel, M.steel, body); group(dark, M.dark, body);
+  // animated running gear: kept as their own meshes (named, so finishVehicle doesn't merge them away)
+  const tracks = mesh(merged(trackGeos), M.track, 0, 0, 0, body); tracks.name = 'tracks';
+  const spinB = mesh(merged(spinBolts), M.paint, 0, 0, 0, body); spinB.name = 'wheelBolts';
+  const spinG = mesh(merged(spinGear), M.dark, 0, 0, 0, body); spinG.name = 'sprockets';
+  for (const parts of [spinBoltParts, spinGearParts]) { let o = 0; for (const pt of parts) { pt.start = o; o += pt.count; } }
+  const runGear = runningGear(tracks, linkRest, path, [{ mesh: spinB, parts: spinBoltParts }, { mesh: spinG, parts: spinGearParts }]);
   group(glass, M.glass, body); group(rubber, M.rubber, body); group(lens, M.lens, body);
   const tl = mesh(merged(red), M.lightRed, 0, 0, 0, body); tl.castShadow = false;
 
-  root.userData = { type: 'tank', body, turret, gun, muzzle, mgMuzzle, mg };
+  root.userData = { type: 'tank', body, turret, gun, muzzle, mgMuzzle, mg, runGear, trackHalf: 1.47 };
   projectUV(root, new Set([M.paint, M.mark]), TILE);
   return finishVehicle(root);
 }

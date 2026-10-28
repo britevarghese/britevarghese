@@ -208,6 +208,7 @@ altitude hands-off), LMB rockets · gunner seats aim freely with the mouse. Touc
 | World: PBR splat terrain + outer landscape, roads, modular buildings with interiors & stairs, instanced props, vegetation LOD0/LOD1/impostors + streamed grass, flags, skyline | `client/js/world/*` |
 | Lighting: HDRI IBL + sky, sun with texel-snapped soft shadows, hemisphere fill, fog, ACES | `client/js/render/Renderer.js` |
 | Transport plane (lofted fuselage, airfoil wings, turboprops with spinning props, painted panel lines, nav lights) | `client/js/royale/TransportPlane.js` |
+| Vehicles, modelled to real dimensions: Leopard 2A6-style tank (link-by-link tracks that run round the wheels as it drives, dual road wheels, bolted skirts, wedge turret, NATO camo), AH-64-style helicopter (framed flat-pane tandem canopy, twisted blades, TADS/PNVS, rocket pods + Hellfires), M1151-style Humvee (slotted grille, armoured glass, beadlock 37" tyres, O-GPK shield + M2), military dirt bike (spoked wheels, knobby tyres, USD forks, air-cooled single); baked mud / dust weathering; static parts merged per material (18–25 draw calls each) | `client/js/vehicles/models/*` |
 | Effects (pooled particles, tracers, decals, per-surface impacts, explosions, smoke) · spatial audio (**recorded CC0 gunshots** with per-shot variation, distance muffling, speed-of-sound delay; synthesized foley) · HUD | `client/js/fx`, `client/js/audio`, `client/js/ui` |
 
 ### Debug scenes
@@ -216,6 +217,9 @@ altitude hands-off), LMB rockets · gunner seats aim freely with the mouse. Touc
 magenta = stock, yellow = muzzle, red = optic eye) and an attachment report
 (`rightGripOffset`, `leftGripOffset`, `stockToShoulder`, `muzzleAlignDeg`). Asset diagnostics (meshes, materials,
 textures, skeletons, bones, animations, nodes) are printed to the browser console.
+`/debug/vehicle?v=tank|heli|jeep|bike&team=1|2&view=front|side|rear|top|close|gear` shows a vehicle model with a
+soldier for scale (`&drive=2` runs the tank's tracks, `&wreck=1` the burnt-out wreck); `/debug/character-weapon?speed=2&move=90`
+walks / strafes a soldier for real (foot locking, leg orientation).
 
 ### Using your own models
 Put GLBs in `client/assets/user/` (see the README there) — e.g. `characters/soldier.glb`,
