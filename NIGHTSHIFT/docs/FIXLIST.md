@@ -604,6 +604,19 @@ the game. Newly found problems go at the end of their section.
     Edges where the tiles' ground is more than 5 cm apart: Kannur 1732 m -> 40 m (a four-tile corner), Thalassery 534
     -> 0, the other towns 0 (Taliparamba 2 m at 5 cm). The road scan checks the ground along every edge two built
     tiles share now
+  - [x] ...the last of them, round Kannur (seen from further west, more tiles about: 200 m of edges, up to 0.67 m):
+    a road's end on the edge over water in one tile's map and not the other's, one capping the ground under it and
+    the other not (decided by the tile built first now, as the water beds are); a road crossing an edge by a corner
+    capping the corner, which two other tiles share and know nothing of the road (corners aren't capped now); and a
+    road in one tile's map only, ending on the edge (a side road meeting a main road there). For what one tile alone
+    knows, the edge rows of a tile just built and of the built tiles round it are made one height - the lower - in
+    both tiles' ground and meshes (a neighbour's mesh on a phone, no copy kept: the new tile takes its heights).
+    The 18 edges round there: 0 m apart. Kannur's 0 m too
+  - [x] Laying the roads' strips had become two fifths slower with the easing by a main road's edge (every vertex
+    looked through the road grid's pieces round it), its slowest step 0.13 s - a hitch. Each road gathers the more
+    important pieces near it once, and only the nearest one's level is read: as fast as before (0.86 s for the nine
+    tiles round Kannur, slowest step 44 ms; it was 0.88 s, 41 ms). The class map is read once per tile into a table
+    (a lookup per ask, not a decoding)
   - [x] ...and with the ground right, two more: a service road in Thalassery runs along under the edge of a flyover's
     ramp, and wherever the ramp was less than 1.2 m over it a car on the service road was put up on the ramp (1.8 m).
     Of a deck and a road beneath it, the one nearer the height asked from now. And the easing of a side road to a

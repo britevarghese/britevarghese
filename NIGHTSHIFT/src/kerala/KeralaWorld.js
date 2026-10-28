@@ -68,7 +68,7 @@ export class KeralaWorld {
   constructor() {
     this.kerala = true;
     this.tiles = new Map();          // key -> KeralaTile (loaded data, maybe not built)
-    this.edgeSink = new Map();       // a survey point on a tile's edge -> whether its water bed is sunk (see KeralaTile._sinkWater)
+    this.edgeSink = new Map();       // what two tiles must agree on at their edge: a survey point there sunk or not (KeralaTile._sinkWater), a road ending there over water or not (w...: its edge cap)
     this.pending = new Map();        // key -> Promise
     this.collision = new CollisionWorld();
     this.lanes = new KeralaLaneGraph();
@@ -346,6 +346,7 @@ export class KeralaWorld {
     if (t.ready || !this.root) return;
     const t0 = performance.now();
     const g = yield* t.buildSteps(this.M, this._opts());
+    this._stitch(t);
     // a phone: once a tile's static meshes (ground, roads, buildings, walls) are on the GPU, the copies of their
     // vertices in the page's own memory are dropped (iOS closes a page that holds too much). Instanced meshes
     // (trees, props) keep theirs: they are rewritten as you move
@@ -408,6 +409,39 @@ export class KeralaWorld {
     }
     void n0;
     this.buildMs = performance.now() - t0;
+  }
+
+  // the ground where a new tile meets the built ones, one height: each tile shapes its own edge rows from what both
+  // share, but not all is shared - a road in one tile's map ending on the edge, its ground held under it there, the
+  // other tile knowing nothing of it, 0.2-0.3 m apart. The lower of the two now, in both tiles' ground and meshes; a
+  // neighbour's mesh already on the GPU only (a phone keeps no copy): the new tile takes its heights
+  _stitch(t) {
+    const N = t.gn, H = t.h;
+    if (!N || !H) return;
+    const set = (o, k, v) => {
+      o.h[k] = v;
+      const P = o.terrain?.geometry.attributes.position, U = o.terrain?.userData;
+      if (!P?.array?.length) return;
+      P.array[k * 3 + 1] = v;
+      U.skirt.forEach((kk, q) => { if (kk === k) P.array[(U.nv + q) * 3 + 1] = v - 4; });
+      P.needsUpdate = true;
+    };
+    for (const [a, b] of [[1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [1, -1], [-1, 1], [-1, -1]]) {
+      const o = this.tiles.get(this.key(t.tx + a, t.tz + b));
+      if (!o?.ready || o === t || o.gn !== N || !o.h) continue;
+      const live = !!o.terrain?.geometry.attributes.position?.array?.length;
+      // (the vertices the two share: a whole edge, or a corner. Tile tx + 1 starts where this one's e ends, tz + 1
+      // where its n does)
+      const mi = a > 0 ? N - 1 : 0, oi = a > 0 ? 0 : N - 1, mj = b > 0 ? N - 1 : 0, oj = b > 0 ? 0 : N - 1;
+      for (let q = 0; q < N; q++) {
+        if (a && b && q) break;
+        const km = (b ? mj : q) * N + (a ? mi : q), ko = (b ? oj : q) * N + (a ? oi : q);
+        if (Math.abs(H[km] - o.h[ko]) < 0.005) continue;
+        if (!live) { set(t, km, o.h[ko]); continue; }
+        const v = Math.min(H[km], o.h[ko]);
+        set(t, km, v); set(o, ko, v);
+      }
+    }
   }
 
   _unloadTile(k, t) {

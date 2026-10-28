@@ -39,6 +39,12 @@ function clsAt(L, px, py) {
   for (let r = 1; r <= 2; r++) for (let a = -r; a <= r; a++) for (let b = -r; b <= r; b++) { if (Math.max(Math.abs(a), Math.abs(b)) !== r) continue; const v = ok(px + a, py + b); if (v >= 0) return v; }
   return R < 15 ? C.land : C.road;
 }
+// the whole class raster read once (a lookup per pixel after: classAt is asked a great deal)
+function clsDecode(L) {
+  const out = new Uint8Array(RASTER * RASTER);
+  for (let py = 0; py < RASTER; py++) for (let px = 0; px < RASTER; px++) out[py * RASTER + px] = clsAt(L, px, py);
+  return out;
+}
 const LU_COLOR = {
   0: '#55703a', 1: '#7da23c', 2: '#3f5f2a', 3: '#2c4522', 4: '#66694a', 5: '#7a7466', 6: '#77746a', 7: '#5c8238',
   8: '#d2bf8e', 9: '#7d7264', 10: '#686c44', 11: '#6a7040', 12: '#4a6644',
@@ -193,7 +199,7 @@ export class KeralaTile {
   classAt(e, n) {
     if (!this.cls) return 0;
     const px = Math.min(RASTER - 1, Math.max(0, Math.floor(e * PX))), py = Math.min(RASTER - 1, Math.max(0, Math.floor((TILE - n) * PX)));
-    return clsAt(this.cls, px, py);
+    return this.cls[py * RASTER + px];
   }
 
   // ------------------------------------------------------------------------------------------ build
@@ -217,7 +223,7 @@ export class KeralaTile {
     this.group = g;
     yield* this._rasters(d, opts);
     this._smoothTowns();
-    this._sinkWater(opts.edgeSink);
+    this._sinkWater(this._edgeShared = opts.edgeSink);
     yield 'tile:rasters';
     this._refine(opts.terrainN || 129);
     yield* this._gradeRoads();
@@ -290,7 +296,7 @@ export class KeralaTile {
     V.globalAlpha = 1;
     yield 'raster:infill';
     // the houses and shops the map hasn't got (see _infill), before anything is drawn from the building list
-    if (!d._infill) { yield* this._infill(d, K.getImageData(0, 0, RASTER, RASTER).data, opts.maxBuildings ?? 6000); d._infill = true; }
+    if (!d._infill) { yield* this._infill(d, clsDecode(K.getImageData(0, 0, RASTER, RASTER).data), opts.maxBuildings ?? 6000); d._infill = true; }
     // swept earth yards round the houses (Kerala compounds), a little wider than the footprint
     V.fillStyle = 'rgba(132,96,66,0.55)'; V.strokeStyle = 'rgba(132,96,66,0.45)'; V.lineJoin = 'round';
     V.lineWidth = Math.max(1, 7 * PX);
@@ -323,7 +329,7 @@ export class KeralaTile {
       path(K, [decodeLine(d.b[i], 2)]); K.fill();
     }
     yield 'raster:read';
-    this.cls = K.getImageData(0, 0, RASTER, RASTER).data;
+    this.cls = clsDecode(K.getImageData(0, 0, RASTER, RASTER).data);
     // tea: the open slopes of the high ranges (Munnar, Vagamon, Peermade) are tea estates. Marked in the ground
     // texture's alpha; the terrain shader draws the bushes in rows along the contours there
     if (Math.max(...this.h) >= TEA_MIN) {
@@ -584,7 +590,7 @@ export class KeralaTile {
     if (list.length >= maxB) return;
     let s = (this.tx * 7919 ^ this.tz * 104729 ^ 0x2f6a) >>> 0;
     const rnd = () => ((s = (s * 1664525 + 1013904223) >>> 0) / 4294967296);
-    const lu = (e, n) => clsAt(L, Math.min(RASTER - 1, Math.max(0, Math.floor(e * PX))), Math.min(RASTER - 1, Math.max(0, Math.floor((TILE - n) * PX))));
+    const lu = (e, n) => L[Math.min(RASTER - 1, Math.max(0, Math.floor((TILE - n) * PX))) * RASTER + Math.min(RASTER - 1, Math.max(0, Math.floor(e * PX)))];
     const OK = new Set([C.land, C.grove, C.town, C.commercial, C.scrub]), TOWN = new Set([C.town, C.commercial]);
     // what's taken: the mapped buildings (their box and a margin), then each new one
     const G = 2, occ = new Set(), mark = (e0, n0, e1, n1, m) => { for (let x = Math.floor((e0 - m) / G); x <= Math.floor((e1 + m) / G); x++) for (let z = Math.floor((n0 - m) / G); z <= Math.floor((n1 + m) / G); z++) occ.add(x * 10000 + z); };
@@ -1383,11 +1389,19 @@ export class KeralaTile {
     // crosses the edge, so both cap their shared vertices alike. (From the survey resampled there, a road's level only
     // at a distance from the edge: 0.46 m over the road's own at a crossing in Thalassery, the ground over the road
     // for its last metres)
+    // (over water there or not as whichever of the two tiles was built first had it: a stream at the edge in one tile's
+    // map and not the other's, one capped and the other not - the ground 0.67 m apart by a lane in Kannur)
     for (const { hw, P, wet, prof } of roads) for (const i of [0, P.length - 1]) {
       const [e, n] = P[i];
-      if (wet[i] || Math.min(e, n, TILE - e, TILE - n) > 0.01) continue;
+      if (Math.min(e, n, TILE - e, TILE - n) > 0.01) continue;
+      let w = wet[i];
+      const sh = this._edgeShared, k = sh && `w${Math.round(-(this.E0 + e) * 10)},${Math.round((this.N0 + n) * 10)}`;
+      if (sh) { const v = sh.get(k); if (v === undefined) sh.set(k, w); else w = v; }
+      if (w) continue;
       const y = prof[i], inner = hw + S * 0.75, row = n < 0.01 ? 0 : n > TILE - 0.01 ? N - 1 : -1, col = e < 0.01 ? 0 : e > TILE - 0.01 ? N - 1 : -1;
-      const along = []; for (let q = 0; q < N; q++) { if (row >= 0) along.push([q, row]); if (col >= 0) along.push([col, q]); }
+      // (not the corners: a corner is two other tiles' too, across the other edge, and they know nothing of this road -
+      // capped by one tile alone, the ground at a corner stood 0.2-0.5 m apart from the next tile's)
+      const along = []; for (let q = 1; q < N - 1; q++) { if (row >= 0) along.push([q, row]); if (col >= 0) along.push([col, q]); }
       for (const [ii, jj] of along) {
         const d = Math.hypot(ii * S - e, jj * S - n), k = jj * N + ii, c = y - 0.05 + Math.max(0, d - hw) * 0.03;
         if (d <= inner && H[k] > c) H[k] = c;
@@ -1495,6 +1509,7 @@ export class KeralaTile {
     m.receiveShadow = true;
     m.name = 'terrain';
     m.userData.lods = lods; m.userData.lod = 0;
+    m.userData.skirt = Int32Array.from(edge, ([i, j]) => j * n + i); m.userData.nv = nv;   // (see KeralaWorld._stitch)
     this.terrain = m;
     return m;
   }
@@ -2471,23 +2486,49 @@ export class KeralaTile {
 
   // the top of the more important roads' strips covering (e, n) (lower class, or the same class drawn earlier),
   // other than road ri; -Infinity where none covers it. Decks (bridges) aren't covers: what passes under stays under
-  _coverY(e, n, ri) {
-    if (!this._rg) this.nearRoad(e, n, 1);
+  // the pieces of the roads more important than road ri (of two alike, the first), within 27 m of it (a strip's edge and
+  // 15 m from it), by the grid's
+  // cells: what _coverY and _mouthY look through for each of its points. (Every piece of the cells round each point,
+  // for every vertex of every strip, made laying a town's roads two fifths slower, a step of 0.13 s)
+  _over(ri) {
+    const cache = this._overC || (this._overC = new Map());
+    let F = cache.get(ri);
+    if (F) return F;
+    if (!this._rg) this.nearRoad(0, 0, 1);
     const me = this.roads[ri], G = 25;
-    let best = -Infinity;
-    for (let a = -1; a <= 1; a++) for (let b = -1; b <= 1; b++) {
-    const L = this._rg.get((Math.floor(e / G) + a) * 1000 + Math.floor(n / G) + b); if (!L) continue;
-    for (let j = 0; j < L.length; j += 6) {
-      const oi = L[j + 5]; if (oi === ri) continue;
-      const cls = L[j + 4], o = this.roads[oi];
-      if (o.flags & 4 || o.deck || o.dirt || !(cls < me.cls || (cls === me.cls && oi < ri))) continue;
-      const hw = cls <= 2 && o.lanes ? Math.max(ROAD_HALF[cls], o.lanes * 1.75) : ROAD_HALF[cls];
-      const ax = L[j], az = L[j + 1], dx = L[j + 2] - ax, dz = L[j + 3] - az, l2 = dx * dx + dz * dz || 1;
-      const t = Math.max(0, Math.min(1, ((e - ax) * dx + (n - az) * dz) / l2));
-      if ((ax + dx * t - e) ** 2 + (az + dz * t - n) ** 2 > (hw - 0.3) ** 2) continue;
-      const sf = this._surfAt(o, e, n); if (!(sf > -1e9)) continue;
-      best = Math.max(best, sf + 0.07 + (10 - cls) * 0.004);
+    let e0 = Infinity, n0 = Infinity, e1 = -Infinity, n1 = -Infinity;
+    for (const [e, n] of me.pts) { e0 = Math.min(e0, e); n0 = Math.min(n0, n); e1 = Math.max(e1, e); n1 = Math.max(n1, n); }
+    F = new Map();
+    for (let a = Math.floor((e0 - 27) / G); a <= Math.floor((e1 + 27) / G); a++) for (let b = Math.floor((n0 - 27) / G); b <= Math.floor((n1 + 27) / G); b++) {
+      const L = this._rg.get(a * 1000 + b); if (!L) continue;
+      const out = [];
+      for (let j = 0; j < L.length; j += 6) {
+        const oi = L[j + 5], cls = L[j + 4], o = this.roads[oi];
+        if (oi === ri || o.flags & 4 || o.deck || o.dirt || !(cls < me.cls || (cls === me.cls && oi < ri))) continue;
+        out.push(L[j], L[j + 1], L[j + 2], L[j + 3], cls, oi, cls <= 2 && o.lanes ? Math.max(ROAD_HALF[cls], o.lanes * 1.75) : ROAD_HALF[cls]);
+      }
+      if (out.length) F.set(a * 1000 + b, Float64Array.from(out));
     }
+    cache.set(ri, F);
+    return F;
+  }
+
+  _coverY(e, n, ri) {
+    const F = this._over(ri), G = 25;
+    if (!F.size) return -Infinity;
+    let best = -Infinity;
+    // (the cells within reach of a strip's edge only - a six-lane road's is 10.5 m from its middle)
+    const ga = Math.floor((e - 11) / G), gb = Math.floor((e + 11) / G), ha = Math.floor((n - 11) / G), hb = Math.floor((n + 11) / G);
+    for (let a = ga; a <= gb; a++) for (let b = ha; b <= hb; b++) {
+      const L = F.get(a * 1000 + b); if (!L) continue;
+      for (let j = 0; j < L.length; j += 7) {
+        const cls = L[j + 4], o = this.roads[L[j + 5]], hw = L[j + 6];
+        const ax = L[j], az = L[j + 1], dx = L[j + 2] - ax, dz = L[j + 3] - az, l2 = dx * dx + dz * dz || 1;
+        const t = Math.max(0, Math.min(1, ((e - ax) * dx + (n - az) * dz) / l2));
+        if ((ax + dx * t - e) ** 2 + (az + dz * t - n) ** 2 > (hw - 0.3) ** 2) continue;
+        const sf = this._surfAt(o, e, n); if (!(sf > -1e9)) continue;
+        best = Math.max(best, sf + 0.07 + (10 - cls) * 0.004);
+      }
     }
     return best;
   }
@@ -2509,31 +2550,29 @@ export class KeralaTile {
   // -Infinity if none, and in this._mw how much it counts - all of it to 1.5 m past the edge, nothing 4.5 m off. Not one
   // more than 0.6 m off the road's own level (y): that's one road terraced above the other, not the two meeting
   _mouthY(e, n, ri, y) {
-    const me = this.roads[ri], G = 25;
-    let by = -Infinity, bw = 0, bd = Infinity;
-    for (let a = -1; a <= 1; a++) for (let b = -1; b <= 1; b++) {
-      const L = this._rg.get((Math.floor(e / G) + a) * 1000 + Math.floor(n / G) + b); if (!L) continue;
-      for (let j = 0; j < L.length; j += 6) {
-        const oi = L[j + 5]; if (oi === ri) continue;
-        const cls = L[j + 4], o = this.roads[oi];
+    const F = this._over(ri), me = this.roads[ri], G = 25;
+    let by = -Infinity, bw = 0, bd = Infinity, bo = null, bc = 0, be = 0, bn = 0;
+    // (only the cells within reach: 4.5 m past a strip's edge, at most 10.5 m from its middle)
+    const ga = Math.floor((e - 15) / G), gb = Math.floor((e + 15) / G), ha = Math.floor((n - 15) / G), hb = Math.floor((n + 15) / G);
+    if (F.size) for (let a = ga; a <= gb; a++) for (let b = ha; b <= hb; b++) {
+      const L = F.get(a * 1000 + b); if (!L) continue;
+      for (let j = 0; j < L.length; j += 7) {
         // (a more important road; of two alike, the first, and only one nearly level with it: a highway piece's strip was
         // tilted up toward another's 0.5 m higher - two levels, not a junction)
-        if (o.flags & 4 || o.deck || o.dirt || !(cls < me.cls || (cls === me.cls && oi < ri))) continue;
-        const hw = cls <= 2 && o.lanes ? Math.max(ROAD_HALF[cls], o.lanes * 1.75) : ROAD_HALF[cls];
+        const cls = L[j + 4], o = this.roads[L[j + 5]], hw = L[j + 6];
         const ax = L[j], az = L[j + 1], dx = L[j + 2] - ax, dz = L[j + 3] - az, l2 = dx * dx + dz * dz || 1;
         const t = Math.max(0, Math.min(1, ((e - ax) * dx + (n - az) * dz) / l2)), ce = ax + dx * t, cn = az + dz * t, d = Math.hypot(ce - e, cn - n);
-        if (d < hw - 0.3 || d > hw + 4.5) continue;
-        // (its surface carried on past its edge, level across as its rows are: a row of the lesser road's straddling the
-        // edge then lies in its plane - each row is a straight line from one end to the other)
-        const sf = this._surfAt(o, ce, cn);
-        if (!(sf > -1e9)) continue;
-        const ty = sf + 0.07 + (10 - cls) * 0.004, w = _smooth(Math.max(0, Math.min(1, 1 - (d - hw - 1.5) / 3)));
         // (the nearest piece of road: every piece within reach weighs all of it by an edge, and the first, its nearest
         // point clamped to its far end, held a side road's mouth 0.18 m up)
-        if (Math.abs(ty - y) <= (cls === me.cls ? 0.25 : 0.6) && d < bd) { bd = d; bw = w; by = ty; }
+        if (d < hw - 0.3 || d > hw + 4.5 || d >= bd) continue;
+        bd = d; bw = _smooth(Math.max(0, Math.min(1, 1 - (d - hw - 1.5) / 3))); bo = o; bc = cls; be = ce; bn = cn;
       }
     }
-    this._mw = bw;
+    // (its surface carried on past its edge, level across as its rows are: a row of the lesser road's straddling the
+    // edge then lies in its plane - each row is a straight line from one end to the other)
+    const sf = bo ? this._surfAt(bo, be, bn) : -Infinity;
+    if (sf > -1e9) { const ty = sf + 0.07 + (10 - bc) * 0.004; if (Math.abs(ty - y) <= (bc === me.cls ? 0.25 : 0.6)) by = ty; }
+    this._mw = by > -1e9 ? bw : 0;
     return by;
   }
 
@@ -3214,6 +3253,6 @@ export class KeralaTile {
       if (o.material && o.name === 'terrain') { o.material.map?.dispose(); o.material.dispose(); }
     });
     this.group?.removeFromParent();
-    this.cls = null; this.visCanvas = null; this.trees = null; this._rg = null; this._bg = null; this.bumps = [];
+    this.cls = null; this.visCanvas = null; this.trees = null; this._rg = null; this._overC = null; this._bg = null; this.bumps = [];
   }
 }
