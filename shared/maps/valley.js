@@ -25,8 +25,13 @@ const buildings = [
   { id: 'vus', x: -24, z: 184, w: 8, d: 8, floors: 1, style: 'bunker', damage: 0, doors: ['n', 'e'] },
   { id: 'vru', x: 32, z: -184, w: 8, d: 8, floors: 1, style: 'bunker', damage: 0, doors: ['s', 'w'] },
 ];
-// village (B) around the crossroads + scattered houses along the road
-village(buildings, { id: 'vv', cx: 32, cz: 8, n: 9, seed: 5, spread: 30, damage: 0.35, avoid: { roads } });
+const flags = [
+  { id: 'A', x: -66, z: 92, r: 15, owner: 1 },
+  { id: 'B', x: 26, z: 10, r: 16 },
+  { id: 'C', x: 76, z: -80, r: 14, owner: 2 },
+];
+// village (B) along the roads at the crossroads + scattered houses along the road
+village(buildings, { id: 'vv', cx: 32, cz: 8, n: 9, seed: 5, spread: 30, damage: 0.35, avoid: { roads, flags } });
 village(buildings, { id: 'vs', cx: -40, cz: -120, n: 3, seed: 9, spread: 22, avoid: { roads } });
 village(buildings, { id: 'vn', cx: 70, cz: 140, n: 3, seed: 13, spread: 22, avoid: { roads } });
 
@@ -56,11 +61,7 @@ export default {
   atmosphere: { sun: [0.62, 0.34, -0.3], fog: 0xcdc2ad, fogNear: 80, fogFar: 1.1, exposure: 1.0, grass: [1.05, 0.98, 0.8] },
   vegetation: { seed: 505, trees: 700, shrubs: 1700, rocks: 260, clusters: 7, dead: 0.1 },
   roads,
-  flags: [
-    { id: 'A', x: -66, z: 92, r: 15, owner: 1 },
-    { id: 'B', x: 26, z: 10, r: 16 },
-    { id: 'C', x: 76, z: -80, r: 14, owner: 2 },
-  ],
+  flags,
   bases,
   buildings,
   props,

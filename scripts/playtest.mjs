@@ -5,10 +5,11 @@
 //              (this machine's software GPU can only render one WebGL page at a time).
 // Prints PASS/FAIL per check plus browser console errors.   node scripts/playtest.mjs [map]
 // The server must run with DEV_TELEPORT=1 so the script can place the two soldiers facing each other.
+// [BASE=http://localhost:3000] selects the server.
 import { chromium } from 'playwright-core';
 import WebSocket from 'ws';
 
-const BASE = 'http://localhost:3000';
+const BASE = process.env.BASE || 'http://localhost:3000';
 const map = process.argv[2] || 'outskirts';
 const results = [];
 const check = (name, ok, info = '') => { results.push({ name, ok }); console.log(`${ok ? 'PASS' : 'FAIL'}  ${name}${info ? `  (${info})` : ''}`); };
@@ -30,7 +31,7 @@ const g = (fn, arg) => A.evaluate(fn, arg);
 
 // ---------------------------------------------------------------- player B (network client)
 const B = { id: 0, me: null, events: [], chat: [] };
-const bws = new WebSocket(`ws://localhost:3000/ws?room=${room.id}`);
+const bws = new WebSocket(`${BASE.replace(/^http/, 'ws')}/ws?room=${room.id}`);
 bws.on('message', (d) => {
   const m = JSON.parse(d);
   if (m.t === 'welcome') B.id = m.id;

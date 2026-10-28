@@ -111,6 +111,7 @@ export async function buildProps(assets, mats, extra = { roofProps: [], rubble: 
         break;
       }
       case 'wall': containers.push({ kind: 'wall', p, y }); break;
+      case 'lowwall': containers.push({ kind: 'lowwall', p, y }); break;
       case 'container': containers.push({ kind: 'container', p, y }); break;
     }
   }
@@ -146,7 +147,7 @@ export async function buildProps(assets, mats, extra = { roofProps: [], rubble: 
   }));
 
   // shipping containers & precast walls: modular geometry textured with real corrugated steel / concrete
-  const parts = [], wallParts = [];
+  const parts = [], wallParts = [], lowParts = [];
   const tints = [[0.62, 0.22, 0.16], [0.2, 0.33, 0.45], [0.28, 0.36, 0.25], [0.55, 0.5, 0.42], [0.6, 0.42, 0.2]];
   const colorFor = new Map();
   for (const c of containers) {
@@ -161,6 +162,18 @@ export async function buildProps(assets, mats, extra = { roofProps: [], rubble: 
       const ex = rot90 ? 0 : hx, ez = rot90 ? hz : 0;
       for (const s of [-1, 1]) {
         parts.push({ min: [p.x + s * ex - (rot90 ? 1.25 : 0.05), y + 0.05, p.z + s * ez - (rot90 ? 0.05 : 1.25)], max: [p.x + s * ex + (rot90 ? 1.25 : 0.05), y + 2.54, p.z + s * ez + (rot90 ? 0.05 : 1.25)], mat: 'frame' });
+      }
+    } else if (c.kind === 'lowwall') {
+      // garden wall: brick in 2 m bays (the collider segments of shared/world.js), each on its own ground, with a
+      // slightly overhanging concrete coping (1.1 m in all: vaultable)
+      const len = p.len, segs = Math.max(1, Math.round(len / 2)), t = 0.15;
+      for (let s = 0; s < segs; s++) {
+        const u0 = -len / 2 + (s * len) / segs, u1 = u0 + len / segs, um = (u0 + u1) / 2;
+        const cx = rot90 ? p.x : p.x + um, cz = rot90 ? p.z + um : p.z, gy = groundHeight(cx, cz);
+        const lo = rot90 ? [cx - t, cz + u0] : [cx + u0, cz - t], hi = rot90 ? [cx + t, cz + u1] : [cx + u1, cz + t];
+        lowParts.push({ min: [lo[0], gy - 0.3, lo[1]], max: [hi[0], gy + 1.0, hi[1]], mat: 'brick', k: p.x * 0.37 + p.z * 0.11 });
+        const o = 0.03;
+        lowParts.push({ min: [lo[0] - (rot90 ? o : 0.005), gy + 1.0, lo[1] - (rot90 ? 0.005 : o)], max: [hi[0] + (rot90 ? o : 0.005), gy + 1.1, hi[1] + (rot90 ? 0.005 : o)], mat: 'trim' });
       }
     } else {
       const len = p.len, hx = rot90 ? 0.25 : len / 2, hz = rot90 ? len / 2 : 0.25;
@@ -178,5 +191,8 @@ export async function buildProps(assets, mats, extra = { roofProps: [], rubble: 
   const color = (pt, part) => { const t = colorFor.get(part); return t ? [t[0] * 1.6, t[1] * 1.6, t[2] * 1.6] : [0.8, 0.8, 0.8]; };
   for (const [m, g] of buildBoxGeometry(parts, { tile: 2.2, color })) { const mesh = new THREE.Mesh(g, mats.building(m)); mesh.castShadow = mesh.receiveShadow = true; group.add(mesh); }
   for (const [m, g] of buildBoxGeometry(wallParts, { tile: 2.6, color: (pt) => [0.8 + 0.2 * Math.min(1, (pt[1] - groundHeight(pt[0], pt[2])) / 1.5), 0.8, 0.78] })) { const mesh = new THREE.Mesh(g, mats.building(m)); mesh.castShadow = mesh.receiveShadow = true; group.add(mesh); }
+  // garden walls: per-wall tone, grime near the ground
+  const lowColor = (pt, part) => { const k = (0.86 + 0.14 * Math.abs(Math.sin(part.k || 0))) * (0.8 + 0.2 * Math.min(1, Math.max(0, pt[1] - groundHeight(pt[0], pt[2]) + 0.1) / 0.9)); return [k, k * 0.97, k * 0.93]; };
+  for (const [m, g] of buildBoxGeometry(lowParts, { tile: 2.4, color: lowColor })) { const mesh = new THREE.Mesh(g, mats.building(m)); mesh.castShadow = mesh.receiveShadow = true; mesh.name = 'garden_walls'; group.add(mesh); }
   return group;
 }

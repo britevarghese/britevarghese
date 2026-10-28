@@ -173,7 +173,7 @@ class Game {
   surfaceAt(x, z) {
     const y = this.me.s.y;
     for (const b of BUILDINGS) if (Math.abs(x - b.x) < b.w / 2 && Math.abs(z - b.z) < b.d / 2) return b.style === 'warehouse' ? 'concrete' : 'concrete';
-    if (roadDistance(x, z) < 0) return 'concrete';
+    if (roadDistance(x, z) < 0 || ACTIVE_MAP.pavedAt(x, z)) return 'concrete';
     return y - groundHeight(x, z) > 0.3 ? 'metal' : 'grass';
   }
 

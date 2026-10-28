@@ -22,11 +22,11 @@ const buildings = [
   // A: hangar row on the west apron
   { id: 'ah1', x: -150, z: -70, w: 30, d: 22, floors: 1, style: 'warehouse', damage: 0.2, doors: ['n', 's'] },
   { id: 'ah2', x: -112, z: -70, w: 30, d: 22, floors: 1, style: 'warehouse', damage: 0.5, doors: ['s', 'e'] },
-  { id: 'ah3', x: -186, z: -64, w: 12, d: 10, floors: 2, style: 'concrete', damage: 0.1, doors: ['s'] },
+  { id: 'ah3', x: -186, z: -64, w: 11, d: 10, floors: 2, style: 'concrete', damage: 0.1, doors: ['s'] },
   // B: control tower + terminal
   { id: 'at1', x: 6, z: -66, w: 9, d: 9, floors: 4, style: 'concrete', damage: 0.25, doors: ['s', 'e'] },
   { id: 'at2', x: 30, z: -70, w: 22, d: 12, floors: 2, style: 'plaster', damage: 0.35, doors: ['s', 'w'] },
-  { id: 'at3', x: -24, z: -72, w: 12, d: 10, floors: 1, style: 'brick', damage: 0.6, doors: ['e', 's'] },
+  { id: 'at3', x: -24, z: -72, w: 11, d: 10, floors: 1, style: 'brick', damage: 0.6, doors: ['e', 's'] },
   // C: fuel depot (east)
   { id: 'af1', x: 150, z: -110, w: 18, d: 12, floors: 1, style: 'warehouse', damage: 0, doors: ['w'] },
   { id: 'af2', x: 176, z: -134, w: 9, d: 8, floors: 1, style: 'bunker', damage: 0, doors: ['w', 'n'] },
@@ -72,6 +72,12 @@ export default {
   terrain: { amp: 5, scale: 90, detail: 1.0, edge: 26, seed: 212, flatten: 26, baseAmp: 14, baseScale: 260 },
   atmosphere: { sun: [0.5, 0.52, 0.35], fog: 0xc4c9c6, fogNear: 90, fogFar: 1.1, exposure: 1.0, grass: [1.02, 1.0, 0.85] },
   vegetation: { seed: 2121, trees: 420, shrubs: 1400, rocks: 200, clusters: 6, dead: 0.12 },
+  // concrete aprons: in front of the hangars (A), around the tower and terminal (B), the fuel depot yard (C)
+  paved: [
+    { x0: -200, z0: -84, x1: -96, z1: -46, kind: 'concrete' },
+    { x0: -36, z0: -84, x1: 48, z1: -46, kind: 'concrete' },
+    { x0: 136, z0: -146, x1: 196, z1: -98, kind: 'concrete' },
+  ],
   roads,
   flags: [
     { id: 'A', x: -130, z: -66, r: 16 },

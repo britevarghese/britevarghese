@@ -39,6 +39,7 @@ export const PROP_TYPES = {
   sandbags: { half: null, surface: 'sand' },     // length-driven
   fence: { half: null, surface: 'metal', bullets: false },
   wall: { half: null, surface: 'concrete' },     // perimeter concrete wall, length-driven
+  lowwall: { half: null, surface: 'concrete' },  // garden / yard wall (brick, coping), length-driven
   pole: { half: [0.18, 3.5, 0.18], oy: 3.5, surface: 'wood' },
   trash: { half: [0.9, 0.46, 0.28], oy: 0.46, surface: 'metal' },
   debris: { half: null, surface: 'concrete' },   // visual only
@@ -47,8 +48,10 @@ export const PROP_TYPES = {
   ammo: { half: null, surface: 'wood' },
 };
 // length-driven props: collider half-thickness across the line and height (sandbags: 5 courses of 0.17 m bags in
-// two rows = 0.86 m tall, 0.9 m thick; T-wall 2.6 m; chain-link fence 2.5 m)
-export const LINE_PROPS = { sandbags: { th: 0.45, h: 0.86 }, wall: { th: 0.25, h: 2.6 }, fence: { th: 0.06, h: 2.5 } };
+// two rows = 0.86 m tall, 0.9 m thick; T-wall 2.6 m; chain-link fence 2.5 m; garden wall 1.1 m: vaultable)
+export const LINE_PROPS = { sandbags: { th: 0.45, h: 0.86 }, wall: { th: 0.25, h: 2.6 }, fence: { th: 0.06, h: 2.5 }, lowwall: { th: 0.15, h: 1.1 } };
+// harbour water surface (World.js draws the sea plane here; moored ships float on it)
+export const SEA_LEVEL = -1.4;
 
 // Axis-aligned footprint of a prop's collider: { hx, hz, h } (null for visual-only props)
 export function propFootprint(p) {
@@ -117,7 +120,7 @@ function rectPush(ax, az, ahx, ahz, bx, bz, bhx, bhz, gap = 0) {
 
 // Map definitions are hand-made data: buildings can end up on a road or overlapping a neighbour. Nudge them
 // (deterministically, smaller building moves) until every footprint is 1 m clear of the roadways and 1.5 m from
-// other buildings.
+// other buildings — terraced houses of one street row (same `row`) may share a party wall instead.
 function settleBuildings(B, roads) {
   const clr = 1, gap = 1.5, live = roads.filter((r) => r.kind !== 'path');
   for (let it = 0; it < 10; it++) {
@@ -129,7 +132,7 @@ function settleBuildings(B, roads) {
       for (const o of B) {
         if (o === b) continue;
         const small = b.w * b.d <= o.w * o.d ? b : o, big = small === b ? o : b;
-        const m = rectPush(small.x, small.z, small.w / 2, small.d / 2, big.x, big.z, big.w / 2, big.d / 2, gap);
+        const m = rectPush(small.x, small.z, small.w / 2, small.d / 2, big.x, big.z, big.w / 2, big.d / 2, b.row && b.row === o.row ? -0.01 : gap);
         if (m) { small.x += m[0]; small.z += m[1]; moved = true; }
       }
     }
@@ -150,9 +153,9 @@ function settleFlags(F, B) {
 // Props are placed by hand around buildings, roads and each other. Push every solid prop out of building footprints,
 // flag poles, the railway and other props; street furniture (lamps, utility boxes, poles) moves to the kerb.
 // Lower-priority props move; what can't be fixed in a few passes is dropped (small) or kept (structures).
-const PROP_PRIORITY = { wall: 6, fence: 5, container: 4, car: 3, sandbags: 2.5, barrier: 2, barrier2: 2, trash: 1.6, crate_stack: 1.5 };
+const PROP_PRIORITY = { wall: 6, lowwall: 5.5, fence: 5, container: 4, car: 3, sandbags: 2.5, barrier: 2, barrier2: 2, trash: 1.6, crate_stack: 1.5 };
 const KERB_PROPS = new Set(['lamp', 'utility', 'pole']);
-function settleProps(P, B, roads, flags) {
+function settleProps(P, B, roads, flags, feet = []) {
   const rails = roads.filter((r) => r.kind === 'rail'), streets = roads.filter((r) => !r.kind);
   const info = P.map((p, i) => ({ p, i, f: propFootprint(p), pr: PROP_PRIORITY[p.type] || 1 }));
   const solid = info.filter((q) => q.f);
@@ -160,6 +163,7 @@ function settleProps(P, B, roads, flags) {
   const conflict = (q) => {
     const { p, f } = q;
     for (const b of B) { const m = rectPush(p.x, p.z, f.hx, f.hz, b.x, b.z, b.w / 2, b.d / 2, 0.12); if (m) return m; }
+    for (const o of feet) { const m = rectPush(p.x, p.z, f.hx, f.hz, o.x, o.z, o.hx, o.hz, 0.12); if (m) return m; }
     for (const fl of flags) { const m = rectPush(p.x, p.z, f.hx, f.hz, fl.x, fl.z, 0.35, 0.35, 0.3); if (m) return m; }
     for (const r of rails) { const need = r.w / 2 + 0.4; if (segRectDist(r, p.x, p.z, f.hx, f.hz) < need - 0.01) return roadPush(r, p.x, p.z, f.hx, f.hz, need + 0.02); }
     if (KERB_PROPS.has(p.type)) for (const r of streets) { const need = r.w / 2 + 0.3; if (segRectDist(r, p.x, p.z, f.hx, f.hz) < need - 0.01) return roadPush(r, p.x, p.z, f.hx, f.hz, need + 0.02); }
@@ -217,24 +221,55 @@ export class GameMap {
     this.atmosphere = def.atmosphere || {};
     settleBuildings(this.BUILDINGS, this.ROADS);
     settleFlags(this.FLAGS, this.BUILDINGS);
+    // paved ground (squares, yards, quays: drawn by the client over the terrain, vegetation keeps off) and the
+    // sidewalks of roads with `sidewalk` (metres each side); painted lines (client only)
+    this.PAVED = (def.paved || []).map((p) => ({ kind: 'concrete', ...p, x0: Math.min(p.x0, p.x1), x1: Math.max(p.x0, p.x1), z0: Math.min(p.z0, p.z1), z1: Math.max(p.z0, p.z1) }));
+    this.SIDEWALKS = this.ROADS.filter((r) => r.sidewalk > 0 && !r.kind);
+    this.MARKINGS = def.markings || [];
+    // harbour structures (gantry cranes, crane rails, moored ships): their footings push props aside like buildings
+    const feet = (def.structures || []).flatMap((st) => structureParts(st, () => 0).parts.filter((q) => q.collide && q.min[1] < 2.5))
+      .map((q) => ({ x: (q.min[0] + q.max[0]) / 2, z: (q.min[2] + q.max[2]) / 2, hx: (q.max[0] - q.min[0]) / 2, hz: (q.max[2] - q.min[2]) / 2 }));
+    this.FOOTINGS = feet;
     const props = def.props(def.bases);
     // debris scatter around damaged buildings (visual)
     const rnd = mulberry32(99);
     for (const b of this.BUILDINGS) {
       if (!b.damage) continue;
-      const n = Math.round(4 + b.damage * 10);
+      const n = Math.round((4 + b.damage * 10) * (b.row ? 0.5 : 1)); // terraced town houses: half (a street of them)
       for (let i = 0; i < n; i++) {
         const a = rnd() * Math.PI * 2, r = Math.max(b.w, b.d) * 0.5 + 1 + rnd() * 4;
         props.push({ type: 'debris', x: b.x + Math.cos(a) * r, z: b.z + Math.sin(a) * r, rot: rnd() * 6.28, s: 0.6 + rnd() * 1.2 });
       }
       for (let i = 0; i < 3; i++) props.push({ type: rnd() < 0.5 ? 'tyre' : 'jerrycan', x: b.x + (rnd() - 0.5) * (b.w + 6), z: b.z + (rnd() - 0.5) * (b.d + 6), rot: rnd() * 6.28 });
     }
-    this.PROPS = settleProps(props, this.BUILDINGS, this.ROADS, this.FLAGS);
+    this.PROPS = settleProps(props, this.BUILDINGS, this.ROADS, this.FLAGS, feet);
     this.HG = null;
     this.POOL = this.#planMotorPool();
     this.pads = [];
-    for (const k of ['roadDistance', 'featureDistance', 'terrainHeight', 'groundHeight', 'buildingBase', 'generateBuilding', 'generateVegetation', 'seaFactor']) this[k] = this[k].bind(this);
+    for (const k of ['roadDistance', 'featureDistance', 'terrainHeight', 'groundHeight', 'buildingBase', 'generateBuilding', 'generateVegetation', 'seaFactor', 'pavedAt', 'buildingsNear']) this[k] = this[k].bind(this);
     this.#buildPads();
+    // final structure geometry stands on the levelled terrain (ships float at SEA_LEVEL)
+    this.STRUCTURES = (def.structures || []).map((st) => ({ ...st, ...structureParts(st, this.terrainHeight) }));
+  }
+
+  // paving kind at (x, z) (`pad` metres around it counts too), null on open ground / the roadway itself
+  pavedAt(x, z, pad = 0) {
+    for (const p of this.PAVED) if (x > p.x0 - pad && x < p.x1 + pad && z > p.z0 - pad && z < p.z1 + pad) return p.kind;
+    for (const r of this.SIDEWALKS) { const d = distToSeg(x, z, r) - r.w / 2; if (d > -0.01 && d < r.sidewalk + pad) return 'pavement'; }
+    return null;
+  }
+
+  // buildings whose footprint comes within 4 m of the 16 m cell around (x, z) (per-vertex / per-clump loops)
+  buildingsNear(x, z) {
+    const C = 16, i = Math.floor(x / C), j = Math.floor(z / C), key = i * 8191 + j;
+    const cache = this._bc || (this._bc = new Map());
+    let c = cache.get(key);
+    if (!c) {
+      const x0 = i * C - 4, z0 = j * C - 4, x1 = x0 + C + 8, z1 = z0 + C + 8;
+      c = this.BUILDINGS.filter((b) => b.x + b.w / 2 > x0 && b.x - b.w / 2 < x1 && b.z + b.d / 2 > z0 && b.z - b.d / 2 < z1);
+      cache.set(key, c);
+    }
+    return c;
   }
 
   // Vehicle parking slots per team: the standard motor-pool position, or the nearest spot to it (3 m rings) that is
@@ -249,6 +284,7 @@ export class GameMap {
       if (Math.abs(x) > H - m.r - 2 || Math.abs(z) > H - m.r - 2 || this.seaFactor(x, z) > 0.01) return false;
       if (Math.hypot(x - base.x, z - base.z) < 13 + m.r) return false; // soldiers deploy within 12 m of the HQ
       if (this.BUILDINGS.some((q) => rectDist(x, z, q.x, q.z, q.w / 2, q.d / 2) < m.clear)) return false;
+      if (this.FOOTINGS.some((q) => rectDist(x, z, q.x, q.z, q.hx, q.hz) < m.clear)) return false;
       if (feet.some(([p, f]) => rectDist(x, z, p.x, p.z, f.hx, f.hz) < (m.type === 'heli' ? m.clear : m.r + 0.8))) return false;
       if (taken.some((q) => Math.hypot(q.x - x, q.z - z) < q.r + m.r + 1.2)) return false;
       let lo = Infinity, hi = -Infinity;
@@ -453,8 +489,9 @@ export class GameMap {
     // prop footprints (visual-only clutter counts as a 0.6 m square)
     const rects = this.PROPS.map((p) => { const f = propFootprint(p); return f ? [p.x, p.z, f.hx, f.hz] : [p.x, p.z, 0.6, 0.6]; });
     const blocked = (x, z, pad) => {
-      if (this.roadDistance(x, z) < pad + 1 || this.seaFactor(x, z) > 0.01) return true;
-      for (const b of this.BUILDINGS) if (Math.abs(x - b.x) < b.w / 2 + pad && Math.abs(z - b.z) < b.d / 2 + pad) return true;
+      if (this.roadDistance(x, z) < pad + 1 || this.seaFactor(x, z) > 0.01 || this.pavedAt(x, z, pad * 0.5)) return true;
+      for (const b of this.buildingsNear(x, z)) if (Math.abs(x - b.x) < b.w / 2 + pad && Math.abs(z - b.z) < b.d / 2 + pad) return true;
+      for (const q of this.FOOTINGS) if (Math.abs(x - q.x) < q.hx + pad && Math.abs(z - q.z) < q.hz + pad) return true;
       for (const f of this.FLAGS) if (Math.hypot(x - f.x, z - f.z) < f.r * 0.8) return true;
       const pp = Math.min(pad, 1.5);
       for (const r of rects) if (Math.abs(x - r[0]) < r[2] + pp && Math.abs(z - r[1]) < r[3] + pp) return true;
@@ -544,6 +581,99 @@ function placeRock(r, G) {
     boxes.push({ min: [b.x - b.hx, y - 0.2, b.z - b.hz], max: [b.x + b.hx, y + h * sc, b.z + b.hz] });
   }
   return { y, boxes, corners };
+}
+
+// ---------------------------------------------------------------- harbour structures
+// Plain data in a map def ({ type, ... }) expanded into boxes { min, max, mat, collide } that both the server colliders
+// (shared/world.js) and the client meshes (client/js/world/Structures.js) are built from, plus thin stays / ropes
+// (`lines`: [[x, y, z], [x, y, z], radius, mat], drawn only). `mat: null` boxes collide but are not drawn (the client
+// draws a shaped hull there). G(x, z): terrain height.
+//   crane: ship-to-shore container gantry along z: legs on the waterside (zw) and landside (zl) rails 16 m apart in x,
+//          portal beams at 13-15 m, boom at 41 m reaching `out` m past the waterside rail, apex + stays, trolley over
+//          the water with a spreader (optionally lifting a container)
+//   rails: the crane rails let into the quay paving ({ x0, x1, z: [..] })
+//   ship:  container feeder moored alongside ({ x0 (bow), x1 (stern), z (hull side at the quay), beam, dir (toward open
+//          water), seed }): hull, hatch covers, deck stacks, accommodation block, bridge wings, funnel
+export function structureParts(st, G) {
+  const parts = [], lines = [];
+  let y0 = 0, hull = null;
+  const box = (ax, ay, az, bx, by, bz, mat, collide = true) => parts.push({ min: [Math.min(ax, bx), y0 + Math.min(ay, by), Math.min(az, bz)], max: [Math.max(ax, bx), y0 + Math.max(ay, by), Math.max(az, bz)], mat, collide });
+  const line = (a, b, r, mat) => lines.push([[a[0], y0 + a[1], a[2]], [b[0], y0 + b[1], b[2]], r, mat]);
+  if (st.type === 'crane') {
+    const { x, zw, zl } = st, sea = Math.sign(zw - zl), S = 8, H = 41, zLo = Math.min(zw, zl), zHi = Math.max(zw, zl);
+    y0 = Math.min(...[-S, S].flatMap((dx) => [zw, zl].map((z) => G(x + dx, z)))) - 0.05;
+    for (const lx of [x - S, x + S]) {
+      for (const zr of [zw, zl]) {
+        box(lx - 2.8, 0, zr - 0.75, lx + 2.8, 1.4, zr + 0.75, 'crane_dark');            // travelling bogie on the rail
+        box(lx - 0.65, 1.4, zr - 0.65, lx + 0.65, H, zr + 0.65, 'crane');                // leg
+      }
+      box(lx - 0.65, H - 2, zLo - 0.65, lx + 0.65, H, zHi + 0.65, 'crane');               // top girder across the gauge
+    }
+    for (const zr of [zw, zl]) {
+      box(x - S, 13, zr - 0.6, x + S, 15, zr + 0.6, 'crane');                              // portal beam (trucks drive under)
+      box(x - S, H, zr - 0.6, x + S, H + 1, zr + 0.6, 'crane');                            // boom seat
+    }
+    const tip = zw + sea * (st.out || 46), back = zl - sea * 24, zA = zw - sea * 1.2;
+    for (const bx of [x - 2.8, x + 2.8]) {
+      box(bx - 0.5, H + 1, Math.min(tip, back), bx + 0.5, H + 3.5, Math.max(tip, back), 'crane'); // boom girders
+      box(bx - 0.6, H + 3.5, zA - 0.6, bx + 0.6, H + 21, zA + 0.6, 'crane');                // apex posts
+      line([bx, H + 20.5, zA], [bx, H + 3.5, tip], 0.2, 'crane_dark');                     // forestays
+      line([bx, H + 20.5, zA], [bx, H + 3.5, zw + sea * (st.out || 46) * 0.5], 0.16, 'crane_dark');
+      line([bx, H + 20.5, zA], [bx, H + 3.5, back], 0.2, 'crane_dark');                     // backstay
+    }
+    box(x - 3.4, H + 20, zA - 0.7, x + 3.4, H + 21.5, zA + 0.7, 'crane');                    // apex head
+    for (let z = Math.min(tip, back) + 3; z < Math.max(tip, back) - 2; z += 6) box(x - 2.3, H + 3.2, z - 0.15, x + 2.3, H + 3.5, z + 0.15, 'crane', false);
+    box(x - 4.5, H + 3.5, zl - sea * 9, x + 4.5, H + 9.5, zl - sea * 22, 'crane_white');   // machinery house
+    // trolley + operator cab over the water, hoist ropes down to the spreader
+    const zT = zw + sea * (st.trolley ?? 20), yS = st.hoist ?? 17;
+    box(x - 3, H - 2.5, zT - 3, x + 3, H + 1, zT + 3, 'crane_dark', false);
+    box(x + 1.2, H - 5, zT - 1.3, x + 3.1, H - 2.5, zT + 1.3, 'crane_white', false);
+    for (const [dx, dz] of [[-1.5, -0.8], [1.5, -0.8], [-1.5, 0.8], [1.5, 0.8]]) line([x + dx, H - 2.5, zT + dz], [x + dx * 2.6, yS, zT + dz], 0.035, 'rope');
+    box(x - 6.1, yS - 0.5, zT - 1.25, x + 6.1, yS, zT + 1.25, 'crane_dark', false);
+    if (st.load) box(x - 6.05, yS - 3.1, zT - 1.22, x + 6.05, yS - 0.5, zT + 1.22, 'container', false);
+  } else if (st.type === 'rails') {
+    // steel rails flush with the paving, laid in 6 m lengths following the ground
+    for (const z of st.z) for (let a = st.x0; a < st.x1 - 1e-6; a += 6) {
+      const b = Math.min(st.x1, a + 6);
+      y0 = G((a + b) / 2, z);
+      box(a, 0.0, z - 0.09, b, 0.07, z + 0.09, 'rail', false);
+    }
+  } else if (st.type === 'ship') {
+    const { x0, x1, z, beam, dir } = st, zf = z + dir * beam, zc = (z + zf) / 2, rnd = mulberry32(st.seed || 7);
+    const zlo = Math.min(z, zf), zhi = Math.max(z, zf), keel = -7, deck = 7.5;
+    y0 = SEA_LEVEL;
+    // hull colliders: the parallel body plus a stepped bow (the client draws the shaped hull)
+    box(x0 + 16, keel, zlo, x1, deck, zhi, null);
+    box(x0 + 6, keel + 1, zlo + 2.5, x0 + 16, deck + 2.5, zhi - 2.5, null);
+    box(x0, keel + 3, zlo + 7, x0 + 6, deck + 2.5, zhi - 7, null);
+    box(x0 + 8, deck, zlo + 1, x0 + 22, deck + 2.5, zhi - 1, 'hull');                        // forecastle
+    line([x0 + 14, deck + 2.5, zc], [x0 + 14, deck + 16, zc], 0.25, 'crane_dark');           // foremast
+    // cargo bays: hatch covers with container stacks (2.44 m rows across the beam, 2.6 m tiers)
+    const rows = Math.floor((beam - 3) / 2.44), z0r = zc - (rows * 2.44) / 2, bays = [];
+    for (let bx = x0 + 30; bx < x1 - 34; bx += 13.2) bays.push(bx);
+    for (const bx of bays) {
+      box(bx - 6.4, deck, z0r - 0.2, bx + 6.4, deck + 1.1, z0r + rows * 2.44 + 0.2, 'hatch');
+      for (let r = 0; r < rows; r++) {
+        const tiers = Math.max(0, Math.min(5, Math.round(1 + rnd() * 4.4 - (r === 0 || r === rows - 1 ? 1 : 0))));
+        if (!tiers) continue;
+        const za = z0r + r * 2.44 + 0.01, zb = za + 2.42;
+        for (let t = 0; t < tiers; t++) box(bx - 6.05, deck + 1.1 + t * 2.6, za, bx + 6.05, deck + 1.1 + (t + 1) * 2.6 - 0.02, zb, 'container', false);
+        box(bx - 6.05, deck + 1.1, za, bx + 6.05, deck + 1.1 + tiers * 2.6, zb, null);
+      }
+    }
+    // accommodation block aft (five decks, a band of windows on each), the bridge with wings across the whole beam,
+    // the funnel behind it
+    box(x1 - 27, deck, zc - 8.5, x1 - 14, deck + 14, zc + 8.5, 'superstructure');
+    for (let k = 0; k < 5; k++) box(x1 - 27.04, deck + k * 2.8 + 1.1, zc - 8.54, x1 - 13.96, deck + k * 2.8 + 2.1, zc + 8.54, 'glazing', false);
+    box(x1 - 26, deck + 14, zlo + 0.5, x1 - 18, deck + 17, zhi - 0.5, 'superstructure');
+    box(x1 - 26.04, deck + 15, zlo + 0.46, x1 - 17.96, deck + 16.4, zhi - 0.46, 'glazing', false);
+    box(x1 - 11.5, deck, zc - 2.6, x1 - 6.5, deck + 17, zc + 2.6, 'funnel');
+    box(x1 - 11.5, deck + 17, zc - 2.6, x1 - 6.5, deck + 19, zc + 2.6, 'funnel_top');
+    box(x1 - 6, deck, zlo + 1, x1, deck + 1.2, zhi - 1, 'hull');                              // poop deck bulwark
+    line([x1 - 20, deck + 17, zc], [x1 - 20, deck + 24, zc], 0.15, 'crane_dark');           // radar mast
+    hull = { x0, x1, zlo, zhi, keel: y0 + keel, deck: y0 + deck, bow: 16 };
+  }
+  return { parts, lines, hull };
 }
 
 const cache = new Map();

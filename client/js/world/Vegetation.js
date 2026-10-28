@@ -1,7 +1,7 @@
 // Vegetation from real scanned/modelled assets: trees (LOD0 / LOD1 meshes + runtime-baked billboard impostors),
 // shrubs/ferns/rocks (distance-culled instanced chunks) and a streaming ring of instanced grass clumps with wind.
 import * as THREE from 'three';
-import { groundHeight, roadDistance, BUILDINGS, PROPS, MAP_HALF } from '/shared/map.js';
+import { groundHeight, roadDistance, MAP_HALF, ACTIVE_MAP } from '/shared/map.js';
 import { hash2 } from '/shared/util.js';
 
 const windUniforms = { uTime: { value: 0 } };
@@ -196,9 +196,9 @@ export class Vegetation {
       if (d > R || Math.abs(x) > MAP_HALF - 2 || Math.abs(z) > MAP_HALF - 2) continue;
       // density falls off with distance
       if (h > 1 - 0.75 * (1 - (d / R) ** 2) - 0.2) continue;
-      if (roadDistance(x, z) < 1.8) continue;
+      if (roadDistance(x, z) < 1.8 || ACTIVE_MAP.pavedAt(x, z, 0.3)) continue;
       let blocked = false;
-      for (const b of BUILDINGS) if (Math.abs(x - b.x) < b.w / 2 + 1 && Math.abs(z - b.z) < b.d / 2 + 1) { blocked = true; break; }
+      for (const b of ACTIVE_MAP.buildingsNear(x, z)) if (Math.abs(x - b.x) < b.w / 2 + 1 && Math.abs(z - b.z) < b.d / 2 + 1) { blocked = true; break; }
       if (blocked) continue;
       const k = Math.floor(hash2(i, j, 21) * kinds.length);
       const im = kinds[k];

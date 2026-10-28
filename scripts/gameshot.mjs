@@ -1,4 +1,4 @@
-// In-game screenshot tour: [BASE=http://localhost:3000] node scripts/gameshot.mjs <outdir> [query] [steps.json]
+// In-game screenshot tour: [BASE=http://localhost:3000] [READY_MS=240000] node scripts/gameshot.mjs <outdir> [query] [steps.json]
 // steps: [{ name, js (evaluated in page), wait }]
 import { chromium } from 'playwright-core';
 import fs from 'node:fs';
@@ -11,7 +11,7 @@ const logs = [];
 page.on('console', (m) => { if ((m.type() === 'error' || m.type() === 'warning') && !m.text().includes('404')) logs.push(`[${m.type()}] ${m.text()}`); });
 page.on('pageerror', (e) => logs.push(`[pageerror] ${e.message}`));
 await page.goto(`${process.env.BASE || 'http://localhost:3000'}/?${query}`);
-await page.waitForFunction(() => document.body.dataset.ready === '1', null, { timeout: 240000 });
+await page.waitForFunction(() => document.body.dataset.ready === '1', null, { timeout: +process.env.READY_MS || 240000 });
 for (const s of steps) {
   if (s.js) await page.evaluate(s.js);
   await page.waitForTimeout(s.wait ?? 1500);

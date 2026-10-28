@@ -96,7 +96,22 @@ export class AssetManager {
   }
 
   async loadProp(key) { return this.load(BASE + this.manifest.props[key]); }
-  async loadVegetation(key) { return this.load(BASE + this.manifest.vegetation[key]); }
+  async loadVegetation(key) {
+    const g = await this.load(BASE + this.manifest.vegetation[key]);
+    // the scanned rocks' packed map holds cavity / AO in R and a flat ~0.3 in G, which glTF reads as roughness: they
+    // rendered like wet plastic. Matte stone instead, the cavity as ambient occlusion (the normal map keeps the detail).
+    if (/^rock_/.test(key) && !g.userData.matte) {
+      g.userData.matte = true;
+      g.scene.traverse((o) => {
+        if (!o.isMesh) return;
+        for (const m of [o.material].flat()) {
+          if (m.roughnessMap) { m.aoMap = m.roughnessMap; m.aoMapIntensity = 0.8; }
+          m.roughnessMap = null; m.metalnessMap = null; m.roughness = 1; m.metalness = 0; m.envMapIntensity = 0.4; m.needsUpdate = true;
+        }
+      });
+    }
+    return g;
+  }
 
   texture(path, srgb = false, repeat = true) {
     const url = BASE + path;

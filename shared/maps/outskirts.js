@@ -7,9 +7,19 @@ export default {
   terrain: { amp: 9, scale: 70, detail: 1.2, edge: 16, seed: 7 },
   atmosphere: { sun: [-0.45, 0.62, 0.38], fog: 0xbac4cb, fogNear: 70, fogFar: 1, exposure: 0.95, grass: [1, 1, 1] },
   vegetation: { seed: 4242, trees: 440, shrubs: 1300, rocks: 160 },
+  // paved crossroads square (B), concrete yards at the works (A) and the depot (C)
+  paved: [
+    { x0: -10, z0: -12, x1: 26, z1: 12, kind: 'cobble' },
+    { x0: -78, z0: 47, x1: -24, z1: 74.5, kind: 'concrete' }, { x0: 24, z0: -74.5, x1: 78, z1: -47, kind: 'concrete' },
+  ],
+  // (the main and cross roads get sidewalks through the town centre)
   roads: [
-  { ax: 8, az: -186, bx: 8, bz: 186, w: 9, name: 'main' },
-  { ax: -186, az: 0, bx: 186, bz: 0, w: 8, name: 'cross' },
+  { ax: 8, az: -186, bx: 8, bz: -42, w: 9, name: 'main' },
+  { ax: 8, az: -42, bx: 8, bz: 42, w: 9, name: 'main', sidewalk: 2 },
+  { ax: 8, az: 42, bx: 8, bz: 186, w: 9, name: 'main' },
+  { ax: -186, az: 0, bx: -62, bz: 0, w: 8, name: 'cross' },
+  { ax: -62, az: 0, bx: 72, bz: 0, w: 8, name: 'cross', sidewalk: 2 },
+  { ax: 72, az: 0, bx: 186, bz: 0, w: 8, name: 'cross' },
   { ax: -186, az: 78, bx: 60, bz: 78, w: 7, name: 'north-a' },
   { ax: -60, az: -78, bx: 186, bz: -78, w: 7, name: 'south-c' },
   { ax: -40, az: 78, bx: -40, bz: 130, w: 6, name: 'a-spur' },
@@ -26,9 +36,9 @@ export default {
 },
   buildings: [
   // Town centre (B) – partially ruined
-  { id: 'b1', x: -20, z: -18, w: 12, d: 10, floors: 2, style: 'plaster', damage: 0.55, doors: ['s', 'e'] },
+  { id: 'b1', x: -20, z: -18, w: 12, d: 10, floors: 2, style: 'plaster', damage: 0.55, doors: ['w', 'e'] },
   { id: 'b2', x: 27, z: -17, w: 10, d: 12, floors: 3, style: 'concrete', damage: 0.3, doors: ['w', 's'] },
-  { id: 'b3', x: -22, z: 19, w: 14, d: 9, floors: 2, style: 'brick', damage: 0, doors: ['n', 'e'] },
+  { id: 'b3', x: -22, z: 19, w: 15, d: 9, floors: 2, style: 'brick', damage: 0, doors: ['n', 'e'] },
   { id: 'b4', x: 28, z: 20, w: 10, d: 10, floors: 1, style: 'plaster', damage: 0.85, doors: ['w', 'n'] },
   { id: 'b5', x: -46, z: -16, w: 9, d: 12, floors: 2, style: 'concrete', damage: 0.15, doors: ['e'] },
   { id: 'b6', x: 52, z: 13, w: 12, d: 10, floors: 2, style: 'brick', damage: 0.4, doors: ['w'] },
@@ -42,7 +52,7 @@ export default {
   { id: 'w2', x: 64, z: -58, w: 24, d: 16, floors: 1, style: 'warehouse', damage: 0.25, doors: ['e', 'w'] },
   { id: 'c2', x: 28, z: -95, w: 10, d: 10, floors: 2, style: 'concrete', damage: 0.35, doors: ['n', 'e'] },
   { id: 'c3', x: 20, z: -55, w: 8, d: 12, floors: 1, style: 'plaster', damage: 0.2, doors: ['e'] },
-  { id: 'c4', x: 80, z: -98, w: 12, d: 9, floors: 2, style: 'brick', damage: 0.1, doors: ['w'] },
+  { id: 'c4', x: 80, z: -98, w: 12, d: 10, floors: 2, style: 'brick', damage: 0.1, doors: ['w'] },
   // Bases
   { id: 'us1', x: -12, z: 146, w: 8, d: 8, floors: 1, style: 'bunker', damage: 0, doors: ['n', 'e'] },
   { id: 'ru1', x: 28, z: -146, w: 8, d: 8, floors: 1, style: 'bunker', damage: 0, doors: ['s', 'w'] },

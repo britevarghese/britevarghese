@@ -37,9 +37,9 @@ const roads = [
 
 const buildings = [
   // town centre: a few taller blocks around the square
-  { id: 'ft1', x: -14, z: -8, w: 12, d: 10, floors: 3, style: 'concrete', damage: 0.3, doors: ['s', 'e'] },
+  { id: 'ft1', x: -14, z: -8, w: 11, d: 10, floors: 3, style: 'concrete', damage: 0.3, doors: ['s', 'e'] },
   { id: 'ft2', x: 34, z: -6, w: 11, d: 10, floors: 3, style: 'plaster', damage: 0, doors: ['s'] },
-  { id: 'ft3', x: -16, z: 46, w: 12, d: 11, floors: 2, style: 'brick', damage: 0.5, doors: ['n'] },
+  { id: 'ft3', x: -16, z: 46, w: 11, d: 11, floors: 2, style: 'brick', damage: 0.5, doors: ['n'] },
   { id: 'ft4', x: 36, z: 48, w: 10, d: 10, floors: 2, style: 'plaster', damage: 0.2, doors: ['n', 'w'] },
   // industrial yard
   { id: 'fy1', x: 250, z: -262, w: 24, d: 16, floors: 1, style: 'warehouse', damage: 0.2, doors: ['s', 'e'] },
@@ -48,7 +48,7 @@ const buildings = [
   // military base
   { id: 'fb1', x: 238, z: 232, w: 14, d: 9, floors: 1, style: 'bunker', damage: 0, doors: ['s', 'e'] },
   { id: 'fb2', x: 272, z: 230, w: 10, d: 8, floors: 1, style: 'bunker', damage: 0.3, doors: ['s'] },
-  { id: 'fb3', x: 236, z: 266, w: 12, d: 10, floors: 2, style: 'concrete', damage: 0, doors: ['n', 'e'] },
+  { id: 'fb3', x: 236, z: 266, w: 11, d: 10, floors: 2, style: 'concrete', damage: 0, doors: ['n', 'e'] },
   { id: 'fb4', x: 276, z: 268, w: 18, d: 12, floors: 1, style: 'warehouse', damage: 0, doors: ['w'] },
   // farm
   { id: 'ff1', x: -272, z: -250, w: 20, d: 14, floors: 1, style: 'warehouse', damage: 0.4, doors: ['e', 's'] },
@@ -105,6 +105,12 @@ export default {
   terrain: { amp: 10, scale: 85, detail: 1.3, edge: 30, seed: 404, flatten: 18, baseAmp: 34, baseScale: 280 },
   atmosphere: { sun: [0.5, 0.42, 0.28], fog: 0xc9c1b0, fogNear: 90, fogFar: 1.15, exposure: 1.0, grass: [1.0, 1.0, 0.86] },
   vegetation: { seed: 909, trees: 1500, shrubs: 3200, rocks: 420, clusters: 7, dead: 0.09 },
+  // the town square, the military base's parade ground and the industrial yard are paved
+  paved: [
+    { x0: -6, z0: 6, x1: 26, z1: 34, kind: 'cobble' },
+    { x0: 222, z0: 214, x1: 292, z1: 284, kind: 'concrete' },
+    { x0: 206, z0: -286, x1: 304, z1: -224, kind: 'concrete' },
+  ],
   roads,
   flags: [],
   bases,

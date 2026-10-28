@@ -24,8 +24,13 @@ const buildings = [
   { id: 'rus', x: -186, z: 128, w: 9, d: 8, floors: 1, style: 'bunker', damage: 0, doors: ['n', 'e'] },
   { id: 'rru', x: 186, z: -128, w: 9, d: 8, floors: 1, style: 'bunker', damage: 0, doors: ['s', 'w'] },
 ];
+const flags = [
+  { id: 'A', x: -108, z: -36, r: 16, owner: 1 },
+  { id: 'B', x: 108, z: 62, r: 16, owner: 2 },
+  { id: 'C', x: -4, z: -100, r: 15 },
+];
 // A: hill village (stone houses), plus a roadside hamlet in the gorge
-village(buildings, { id: 'rv', cx: -110, cz: -40, n: 8, seed: 41, spread: 28, styles: ['brick', 'plaster'], damage: 0.3, avoid: { roads } });
+village(buildings, { id: 'rv', cx: -110, cz: -40, n: 8, seed: 41, spread: 28, styles: ['brick', 'plaster'], damage: 0.3, avoid: { roads, flags } });
 village(buildings, { id: 'rg', cx: 10, cz: 30, n: 3, seed: 42, spread: 16, styles: ['plaster', 'concrete'], damage: 0.5, avoid: { roads } });
 
 function props() {
@@ -53,11 +58,7 @@ export default {
   atmosphere: { sun: [0.3, 0.38, 0.6], fog: 0xb8c0c6, fogNear: 90, fogFar: 1.2, exposure: 1.02, grass: [0.92, 1.0, 0.82] },
   vegetation: { seed: 9191, trees: 900, shrubs: 1900, rocks: 480, clusters: 8, dead: 0.06 },
   roads,
-  flags: [
-    { id: 'A', x: -108, z: -36, r: 16, owner: 1 },
-    { id: 'B', x: 108, z: 62, r: 16, owner: 2 },
-    { id: 'C', x: -4, z: -100, r: 15 },
-  ],
+  flags,
   bases,
   buildings,
   props,
