@@ -16,6 +16,7 @@ import { Person } from './Person.js';
 import { driverAssets } from './DriverAssets.js';
 import { buildCockpit, sportsWheel, sportsColumn } from './Cockpit.js';
 import { Mirror, Mirrors } from './Mirrors.js';
+import { WEATHER_UNIFORMS } from './Weather.js';
 
 const GRAV = 9.81;
 const IN = 0.0254;
@@ -204,7 +205,7 @@ function glassMaterial(base, uniforms, screen) {
   const mat = base.clone();
   mat.userData = {};
   mat.onBeforeCompile = (sh) => {
-    Object.assign(sh.uniforms, { uDirt: uniforms.uDirt, uDirtWet: uniforms.uDirtWet, uMudTint: { value: MUD_TINT }, uDust: uniforms.uDust, uDustTint: { value: DUST_TINT } });
+    Object.assign(sh.uniforms, { uDirt: uniforms.uDirt, uDirtWet: uniforms.uDirtWet, uMudTint: { value: MUD_TINT }, uDust: uniforms.uDust, uDustTint: { value: DUST_TINT }, uRain: WEATHER_UNIFORMS.uRain, uRainT: WEATHER_UNIFORMS.uRainT });
     if (screen) Object.assign(sh.uniforms, { uScr: uniforms.uScr, uWipe: uniforms.uWipe, uPane: uniforms.uPane });
     sh.vertexShader = sh.vertexShader
       .replace('#include <common>', `#include <common>\nvarying vec3 vLocal;\nvarying vec3 vLocalN;${screen ? '\nvarying vec2 vScrUv;\nvarying float vCamZ;' : ''}`)
@@ -219,7 +220,10 @@ uniform float uDirtWet;
 uniform vec3 uMudTint;
 uniform float uDust;
 uniform vec3 uDustTint;
+uniform float uRain;
+uniform float uRainT;
 float gMud = 0.0;
+float gBead = 0.0;
 float dh(vec3 p) { return fract(sin(dot(p, vec3(12.9898, 78.233, 37.719))) * 43758.5453); }
 float dn(vec3 p) { vec3 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
   return mix(mix(mix(dh(i), dh(i + vec3(1,0,0)), f.x), mix(dh(i + vec3(0,1,0)), dh(i + vec3(1,1,0)), f.x), f.y),
@@ -282,12 +286,24 @@ float gBlade = 0.0;
     ms = max(ms, min(ridge, 1.0) * smoothstep(0.05, 0.35, uScr.x) * (0.5 + 0.5 * n1));
     m = max(m, ms);
     gd *= wiped > 0.5 ? 0.15 : 1.0;
+    // (rain: beads of water all over the glass, gathering again behind the blades, the fewer the sooner after one has
+    // passed; slowly coming and going as more land and run off)
+    if (uRain > 0.0) {
+      float c = uRain * (wiped > 0.5 ? (swept > 0.5 ? 0.25 : 0.6) : 1.0);
+      float bn = dn(vec3(P * 120.0, uRainT * 0.25)) * 0.7 + dn(vec3(P * 300.0, uRainT * 0.4 + 5.0)) * 0.3;
+      gBead = smoothstep(1.0 - 0.3 * c, 1.04 - 0.3 * c, bn) * fine;
+    }
   }
 #else
   // (the back window: a film of what the wake sucks in, thicker low down)
   float back = smoothstep(0.5, 0.8, abs(vLocalN.z));
   m = max(m, back * clamp(uDirt * 1.2, 0.0, 0.8) * (0.7 + 0.3 * splash) * (1.0 - 0.4 * smoothstep(1.1, 2.0, vLocal.y)));
   gd += back * uDust * 0.45;
+  // (rain: beads on the side and back windows, running down)
+  if (uRain > 0.0) {
+    float bn = dn(vec3(vLocal.x * 90.0, vLocal.y * 40.0 + uRainT * 0.5, vLocal.z * 90.0)) * 0.7 + dn(vLocal * 230.0 + uRainT * 0.3) * 0.3;
+    gBead = smoothstep(1.0 - 0.28 * uRain, 1.04 - 0.28 * uRain, bn) * fine;
+  }
 #endif
   vec3 mudC = mix(uMudTint * (1.25 + 0.3 * splash), uMudTint * 0.55, uDirtWet), dustC = mix(uDustTint * 1.3, vec3(dot(uDustTint, vec3(0.3, 0.55, 0.15))) * 1.7, 0.35);
   if (!gl_FrontFacing) { mudC *= 0.45; dustC *= 0.6; diffuseColor.a *= 0.4; }
@@ -296,6 +312,9 @@ float gBlade = 0.0;
   diffuseColor.a = mix(diffuseColor.a, 0.75, gd);
   diffuseColor.rgb = mix(diffuseColor.rgb, mudC, m);
   diffuseColor.a = mix(diffuseColor.a, 0.97, m);
+  // (a bead of water catches the light: brighter than the glass, a little less clear)
+  diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.78, 0.82, 0.86), gBead * (1.0 - m) * (gl_FrontFacing ? 0.35 : 0.2));
+  diffuseColor.a = mix(diffuseColor.a, max(diffuseColor.a, 0.35), gBead * (1.0 - m));
   diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.015), gBlade);
   diffuseColor.a = max(diffuseColor.a, gBlade);
   gMud = max(max(m, gBlade), gd * 0.8);
@@ -1682,20 +1701,23 @@ export class TruckModel {
    * on once it lands in their arcs and run while it keeps coming, each sweep clearing them but for a smear that the
    * washers rinse away in a few seconds.
    */
-  screenMud(dt, rate, wash = 0) {
+  screenMud(dt, rate, wash = 0, rain = 0) {
     const S = this.scr ||= { out: 0, fresh: 0, since: 0, smear: 0, t: -1 }, add = rate * dt;
+    // (rain rinses the mud off, slowly, and keeps the wipers going)
+    wash += rain * 0.4;
+    const wipeRain = rain > 0.15;
     S.out = Math.max(0, Math.min(1, S.out + add * 0.7 - wash * dt * 0.3));
     S.fresh = Math.max(0, Math.min(1, S.fresh + add - wash * dt * 0.3));
     S.since = Math.min(1, S.since + add);
     S.smear = Math.max(0, S.smear - dt / 6);
-    if (S.t < 0 && S.fresh > 0.05) { S.t = 0; S.since = 0; S.smear = Math.min(0.8, S.smear + S.fresh * 0.6); }
+    if (S.t < 0 && (S.fresh > 0.05 || wipeRain)) { S.t = 0; S.since = 0; S.smear = Math.min(0.8, S.smear + S.fresh * 0.6); }
     let ang = 0, swept = 0;
     if (S.t >= 0) {
       S.t += dt / WIPE_T;
       if (S.t >= 1) {
         // (a sweep there and back done: what landed since is all that is on in the arcs; on again while it keeps coming)
         S.fresh = S.since; S.since = 0;
-        if (S.fresh > 0.02 || rate > 0.05) { S.t %= 1; S.smear = Math.min(0.8, S.smear + S.fresh * 0.6); } else S.t = -1;
+        if (S.fresh > 0.02 || rate > 0.05 || wipeRain) { S.t %= 1; S.smear = Math.min(0.8, S.smear + S.fresh * 0.6); } else S.t = -1;
       }
       if (S.t >= 0) {
         ang = WIPE_A * (1 - Math.cos(2 * Math.PI * S.t)) / 2;

@@ -46,8 +46,8 @@ Dark glass panels over the game, an orange accent and condensed italic type (Bar
   $4,000, 4 at $9,000...), so spending never takes it down.
 - **Paused (Esc):** the whole game stops where it is (your truck, its sound, the camera, the clocks; in an online
   room friends' trucks go on, theirs aren't paused, and they see yours standing still). The menu has the room and
-  invite link, voice chat, the world and gameplay settings (time of day, shadows, sound, steering assist, vibration,
-  graphics, damage, a steering wheel's calibration and paddles), Resume ride, and the garage, modes and races, map
+  invite link, voice chat, the world and gameplay settings (time of day, weather, shadows, sound, steering assist,
+  vibration, graphics, damage, a steering wheel's calibration and paddles), Resume ride, and the garage, modes and races, map
   builder, dealer, back to the station and the controls.
 - **Modes & races (N):** a card for each: free roam, the map builder, the party modes, the checkpoint races and the
   events, with a picture of it (rendered in the game), the par times, your best and what gold pays; Start lines you
@@ -731,6 +731,29 @@ Every part changes the physics, the way it does on a real truck:
 - **Armour:** skid plates let the belly slide over rock, rock sliders protect the sills.
 - **Light bar and roof rack:** much more light at night; the loaded rack puts 75 kg up high, and you will feel it on a
   side slope.
+
+## The weather
+
+Esc > Weather: Clear or Rain. In an online room the weather is everyone's: whoever changes it changes it for the room,
+and whoever joins gets the room's (a room that has none yet takes theirs).
+
+- **It comes on and eases off** over some ten seconds: the sky closes over low and grey, the sun all but goes, the haze
+  thickens and the colours dull; the rain falls round you in streaks (`src/render/Rain.js`: one mesh, the drops hanging
+  in the world as you drive through them, slanting past at speed, none in the cab), and you hear it, a hiss all about
+  and in the cab a drumming on the roof; the birds stop.
+- **The ground gets wet** once it has rained a little while (the physics' grounds, `src/physics/Surfaces.js`
+  WET_SURFACES): earth's peak grip drops to about four fifths of dry, as a wet earth road's does (0.55 against 0.68), so
+  a Thar braking from 54 km/h stops in 19 m where it stopped in 16; turf is slicker still (21 m against 15), but not the
+  ice a locked wheel sliding on wet grass finds; rock and tarmac carry a film of water (tarmac 18 m against 14, about as
+  wet asphalt's grip, 0.50 against 0.65, would have it); the loose top of earth and grass turns to a soft mud a
+  spinning tyre digs through faster; mud is softer and deeper (ruts 9 cm where they were 7.7); damp sand is firmer, the
+  water binding its grains (ruts 6.6 cm where they were 10.8). No dust comes off the tyres.
+- **It looks wet:** all the ground darker and glossier, grass and rock too; on bare earth and mud the water stands
+  along the ruts and in the deepest hollows of its relief, and in puddles where the ground lies low and level (none on
+  a slope, which the water runs off), and the drops ring it (`src/render/Terrain.js` uRain); the rough track's holes
+  hold the rain anyway.
+- **On the truck:** the mud on it stays wet and the rain rinses the dust off (the mud too, slowly); beads of water
+  gather on the glass, on the windscreen again behind the wipers, which keep going (`src/render/TruckModel.js`).
 
 ## The physics
 

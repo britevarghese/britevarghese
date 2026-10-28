@@ -24,6 +24,7 @@ import { BEDROCK_GLSL, tn } from '../world/Bedrock.js';
 import { vnoise } from '../world/Noise.js';
 import { TEA_ROW, TEA_RANGE } from './Tea.js';
 import { TRACK_UNIFORMS } from './TrackMap.js';
+import { WEATHER_UNIFORMS } from './Weather.js';
 
 const GRID = 32;
 const V = GRID + 1;
@@ -191,7 +192,7 @@ export class TerrainRenderer {
         // and how dark the desert varnish streaked down its rock faces is (the map's varnish)
         uVarnish: { value: w.map.varnish ?? 0 },
         // the tyres' tracks (render/TrackMap.js), and how each layer shows them
-        ...TRACK_UNIFORMS,
+        ...TRACK_UNIFORMS, ...WEATHER_UNIFORMS,
         uTrkL: { value: this.layers.map((l) => new THREE.Vector4(...(TRACK_LOOK[l.name] || [0, 0, 0, 0]))) },
       });
       const B = this.blend;
@@ -286,6 +287,8 @@ uniform vec2 uCentre;
 uniform float uTexFar;
 uniform float uRockBeds;
 uniform float uDeepMud;
+uniform float uRain;
+uniform float uRainT;
 uniform float uVarnish;
 uniform vec3 uIds;
 uniform float uSnowLine;
@@ -434,6 +437,7 @@ float gPool = 0.0;
 float gWet = 0.0;
 float gTrkPool = 0.0;
 float gTrkWet = 0.0;
+float gBare = 0.0;
 {
   float dist = length(vWPos - cameraPosition);
   float mid = clamp(1.0 - dist / 900.0, 0.0, 1.0);
@@ -523,6 +527,9 @@ ${G ? `
       if (near > 0.0) tilt += gTilt(gL[j], lay.x) * b;
     }
     alb /= sum; rough /= sum; tilt /= sum;
+    // (how much of it is bare earth or mud: where the rain stands in puddles)
+    for (int j = 0; j < 4; j++) { if (j >= gn) break; if (gL[j] == uIds2.x || gL[j] == uIds2.y) gBare += max(0.0, hs[j] - top + 0.16); }
+    gBare /= sum;
     // a meadow: tufts and clumps of grass in it, lighter and darker (render/Grass.js stands its blades on the near
     // part), so it isn't a flat green out past the blades; a pattern finer than a pixel evens out to its mean
     float mw = 0.0;
@@ -590,6 +597,8 @@ ${G ? `
         // wet: in the mud its ruts, and water standing along stretches of them; on earth, damp in their floors
         float pn = tn(vec2(s * 0.16, 2.3 + sign(u) * 5.0));
         gTrkPool = smoothstep(0.08, 0.4, floorK) * smoothstep(0.4 - 0.25 * uDeepMud, 0.62 - 0.25 * uDeepMud, pn) * wm * fade;
+        // (and in the rain, on earth too, over half their length: puddles a few metres long, wet earth between them)
+        gTrkPool = max(gTrkPool, uRain * smoothstep(0.08, 0.4, floorK) * smoothstep(0.36, 0.5, pn) * (wd + wm) * fade);
         gTrkWet = inRut * fade * (wm * 0.75 + wd * (0.12 + 0.3 * damp));
       }
     }
@@ -773,12 +782,19 @@ ${G ? `
     gRough = mix(gRough < 0.0 ? 0.95 : gRough, 0.9, cov);
   }
   diffuseColor.rgb *= vary;
-  // wet ground, darker and glossier; and water standing in the ruts, in the hollows first, flat and shiny
-  if (vWet.x + vWet.y + gTrkWet > 0.004) {
-    float pool = max(clamp((vWet.y * 1.3 - gH) * 6.0, 0.0, 1.0), gTrkPool);
+  // wet ground, darker and glossier; and water standing in the ruts, in the hollows first, flat and shiny. In the rain
+  // (uRain) all of it is wet, the grass and the rock too, and on bare earth and mud the water stands along the ruts
+  // and in the deepest hollows of its relief, filling them further where the ground lies low and level (patches a
+  // dozen metres across): not on a slope, which it runs off, and not a sheet over the whole of it
+  float rw = uRain * (0.55 + 0.45 * gBare);
+  vec2 rp = vWPos.xz * 3.0;
+  float rpx = length(fwidth(rp));
+  if (vWet.x + vWet.y + gTrkWet + rw > 0.004) {
+    float rl = uRain * gBare * smoothstep(0.9, 0.98, normalize(vWNormal).y) * (0.12 + 0.3 * smoothstep(0.5, 0.78, tn(vWPos.xz * 0.08 + 5.3)));
+    float pool = max(clamp((max(vWet.y, rl) * 1.3 - gH) * 6.0, 0.0, 1.0), gTrkPool);
     // (the water lies in the hollows of the ground's relief; its bumps stand a little drier: wet mud is wet all over,
     // not dry lumps with water in the gaps between them, a network of dark cracks)
-    float wv = max(max(clamp(vWet.x * (1.3 - 0.7 * gH), 0.0, 1.0), pool), gTrkWet);
+    float wv = max(max(clamp(max(vWet.x, rw) * (1.3 - 0.7 * gH), 0.0, 1.0), pool), gTrkWet);
     diffuseColor.rgb *= 1.0 - 0.45 * wv;
     gRough = mix(gRough < 0.0 ? 0.95 : gRough, 0.34, wv * 0.8);
     diffuseColor.rgb = mix(diffuseColor.rgb, uPuddle, pool * 0.85);
@@ -787,6 +803,18 @@ ${G ? `
     gNW = normalize(mix(gNW, vec3(0.0, 1.0, 0.0), smoothstep(0.0, 0.45, pool)));
     // (and a film of water smooths its fine relief: wet mud glistens in soft lumps, not a crust lit grain by grain)
     gNW = normalize(mix(gNW, normalize(vWNormal), 0.45 * wv));
+    // (the rain's drops ring the standing water: in each cell of a third of a metre a ring every second or so, spreading
+    // and fading, at a time and a place of its own)
+    // (only where a ring is wider than a pixel, rpx: finer, they would only speckle the water)
+    if (uRain > 0.0 && pool > 0.05 && rpx < 0.12) {
+      vec2 ci = floor(rp), rip = vec2(0.0);
+      for (int a = -1; a <= 1; a++) for (int b = -1; b <= 1; b++) {
+        vec2 c = ci + vec2(float(a), float(b)), d = rp - c - vec2(th(c), th(c + 7.1));
+        float ph = fract(uRainT * 0.9 + th(c + 3.3)), l = length(d), x = (l - ph * 0.8) * 22.0;
+        if (abs(x) < 3.1416) rip += d / max(l, 1e-3) * sin(x) * (1.0 - ph) * (1.0 - ph);
+      }
+      gNW = normalize(gNW + vec3(rip.x, 0.0, rip.y) * 0.3 * pool * uRain * (1.0 - smoothstep(0.05, 0.12, rpx)));
+    }
     gPool = pool; gWet = wv;
   }
 }`)

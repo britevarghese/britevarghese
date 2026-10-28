@@ -264,6 +264,10 @@ export class Audio {
     this.squelch = noiseVoice(ctx, this.brown, this.master, 'lowpass', 280, 2.5);
     this.water = noiseVoice(ctx, this.pink, this.master, 'bandpass', 900, 0.6);
     this.wind = noiseVoice(ctx, this.pink, this.master, 'lowpass', 600, 0.5);
+    // rain (rainK, 0 to 1: Game sets it, and rainCab): its hiss on the ground all about, and its drumming on the roof
+    this.rainHiss = noiseVoice(ctx, this.pink, this.master, 'highpass', 1200, 0.4);
+    this.rainRoof = noiseVoice(ctx, this.brown, this.master, 'bandpass', 420, 0.9);
+    this.rainK = 0; this.rainCab = false;
     // winch motor: a buzzing saw through a filter
     this.winchOsc = ctx.createOscillator(); this.winchOsc.type = 'sawtooth'; this.winchOsc.frequency.value = 110;
     const wf = ctx.createBiquadFilter(); wf.type = 'lowpass'; wf.frequency.value = 900;
@@ -692,9 +696,12 @@ export class Audio {
       glide(this.winchGain.gain, run ? 0.05 + 0.04 * Math.min(1, W.tension / 40000) : 0, t, 0.05);
       glide(this.winchOsc.frequency, run ? (W.motor > 0 ? 150 - 50 * Math.min(1, W.tension / v.spec.winch.stallPull) : 170) : 100, t, 0.08);
     }
-    // birds now and then
+    // rain: the hiss louder the harder it falls, in the cab muffled under the drumming on the roof
+    glide(this.rainHiss.g.gain, this.rainK * (this.rainCab ? 0.03 : 0.11), t, 0.3);
+    glide(this.rainRoof.g.gain, this.rainK * (this.rainCab ? 0.09 : 0.015), t, 0.3);
+    // birds now and then (not in the rain)
     this.birdT -= dt;
-    if (this.birdT < 0) { this.birdT = 4 + Math.random() * 10; if (Math.random() < 0.7) this.chirp(); }
+    if (this.birdT < 0) { this.birdT = 4 + Math.random() * 10; if (Math.random() < 0.7 * (1 - this.rainK)) this.chirp(); }
 
     // other players' engines, from where they are
     const seen = new Set();

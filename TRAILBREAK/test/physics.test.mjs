@@ -491,6 +491,43 @@ test('deep mud (a map\'s deepMud, the taiga\'s): the tyres sink about twice as d
   assert.ok(deep.went < firm.went * 0.9 && deep.went > 5, `went ${firm.went.toFixed(1)} m, deep ${deep.went.toFixed(1)} m`);
 });
 
+test('in the rain earth and grass are slick (a truck stops in a longer way), mud softer and damp sand firmer', async () => {
+  const { WET_SURFACES } = await import('../src/physics/Surfaces.js');
+  // (a stock Thar braked hard from 15 m/s on the flat, dry and wet)
+  const stop = (surface, wet) => {
+    const g = { height: () => 0, surfaceAt: () => (wet ? WET_SURFACES : SURFACES)[surface] }, v = truck('thar', g);
+    run(v, g, 0.3);
+    v.vel.set(0, 0, 15);
+    for (const w of v.wheels) w.omega = 15 / v.spec.tyre.radius;
+    // (to where it first stands still: held on the brake after, it would back away)
+    const z0 = v.pos.z;
+    let at = null;
+    run(v, g, 8, (q) => { if (at === null && q.vel.dot(q.fwd) < 0.2) at = q.pos.z - z0; return { ...IDLE, brake: 1 }; });
+    assert.ok(at !== null, 'stopped');
+    return at;
+  };
+  for (const [s, name, more] of [[SURFACE.DIRT, 'earth', 1.15], [SURFACE.GRASS, 'grass', 1.25], [SURFACE.ROAD, 'tarmac', 1.15]]) {
+    const dry = stop(s, false), wet = stop(s, true);
+    assert.ok(wet > dry * more, `${name}: stopped in ${dry.toFixed(1)} m dry, ${wet.toFixed(1)} m wet`);
+  }
+  // (the ruts a Thar leaves driven 8 s from a standing start in low range, dry and wet)
+  const rut = (surface, wet) => {
+    const g = soft(surface, 0, 1, wet), v = truck('thar', g);
+    v.dt.setFourWD(true, 0); v.dt.setRange(true, 0);
+    run(v, g, 8, (q) => ({ ...IDLE, throttle: clamp((3 - q.vel.dot(q.fwd)) * 0.8 + 0.25, 0, 1) }));
+    return g.grid.get(v.wheels[2].cx, v.wheels[2].cz - 2);
+  };
+  const mudDry = rut(SURFACE.MUD, false), mudWet = rut(SURFACE.MUD, true), sandDry = rut(SURFACE.SAND, false), sandWet = rut(SURFACE.SAND, true);
+  assert.ok(mudWet > mudDry * 1.1, `mud ruts ${(mudDry * 100).toFixed(1)} cm dry, ${(mudWet * 100).toFixed(1)} cm wet`);
+  assert.ok(sandWet < sandDry * 0.85, `sand ruts ${(sandDry * 100).toFixed(1)} cm dry, ${(sandWet * 100).toFixed(1)} cm damp`);
+  // (and a world in the rain hands out the wet grounds, its mud softer)
+  const { World } = await import('../src/world/World.js');
+  const N = 33, data = { N, res: 1, origin: -16, half: 16, heights: new Float32Array(N * N), surface: new Uint8Array(N * N).fill(SURFACE.MUD), water: new Float32Array(N * N).fill(-1e9), waterN: N, waterRes: 1, trees: [], boulders: [], beacons: [], landmarks: [], posts: [], trails: [], map: { id: 'test' } };
+  const w = new World(data), soft0 = w.softness(0, 0);
+  w.setRain(true);
+  assert.ok(w.surfaceAt(0, 0) === WET_SURFACES[SURFACE.MUD] && w.softness(0, 0) > soft0, 'the world wet in the rain');
+});
+
 test('mud takes time to give: kept moving a truck rides higher than it sinks standing; stopped in a bog it settles in, and pulls away the harder for it', () => {
   // (a stock Thar driven into deep mud at a walk in low range and stopped: the rut it left rolling, how deep it sits
   // standing, and how far it gets in 5 s at 40% throttle after standing 3 s or a minute, then at 70%)

@@ -1,6 +1,6 @@
 // Synthetic grounds for the physics tests: the same interface the game world provides (height, surfaceAt,
 // optional deform / water / treesNear).
-import { SURFACES, SURFACE } from '../src/physics/Surfaces.js';
+import { SURFACES, SURFACE, WET_SURFACES, WET_MUD } from '../src/physics/Surfaces.js';
 import { DeformGrid } from '../src/world/Deform.js';
 import { WornTracks, wearOf } from '../src/world/Worn.js';
 
@@ -24,10 +24,11 @@ const across = (grid) => (x, z, ax, az, n, step, out) => {
 };
 
 /** Soft ground that keeps ruts (or firm ground a spinning tyre digs into); softness: a map's deep mud (world/World.js
- * softness), so much softer than its kind. */
-export function soft(surface = SURFACE.MUD, h = 0, softness = 1) {
+ * softness), so much softer than its kind; wet: in the rain (World.js setRain). */
+export function soft(surface = SURFACE.MUD, h = 0, softness = 1, wet = false) {
   const grid = new DeformGrid();
-  const s = SURFACES[surface];
+  const s = (wet ? WET_SURFACES : SURFACES)[surface];
+  if (wet && surface === SURFACE.MUD) softness *= WET_MUD;
   return {
     grid,
     height: (x, z) => h - grid.get(x, z),

@@ -21,6 +21,8 @@
  *   client -> server  {t:'chat', text}         -> room {t:'chat', id, name, text}
  *   client -> server  {t:'layout', code}       -> room {t:'layout', id, name, code}   (the map builder's props, a share
  *                       code, src/game/Props.js; the room keeps the last one for whoever joins: welcome's layout)
+ *   client -> server  {t:'weather', w}         -> room {t:'weather', id, name, w}   ('clear' or 'rain': the same sky and
+ *                       ground for everyone in the room; kept for whoever joins: welcome's weather)
  *   client -> server  {t:'brk', k, d, v}       -> room {t:'brk', k, d, v}    (a tree or a roadside thing knocked down:
  *                       its key, 't' + tree or 'o' + roadside thing (world/World.js), the way it went [dx, dz] and how
  *                       fast; the room keeps what is down for whoever joins: welcome's broken)
@@ -116,6 +118,7 @@ class Room {
     this.beacons = new Map();      // id -> name of the player who surveyed it
     this.race = null;              // { id, at, racers: Map(player id -> { name, time: undefined | null | s }) }
     this.layout = null;            // the map builder's props here (a share code), for whoever joins
+    this.weather = null;           // 'clear' or 'rain', as the last player to change it left it
     this.broken = new Set();       // what has been knocked down here (World keys), for whoever joins
     this.nextId = 1;
     this.emptySince = Date.now();
@@ -133,6 +136,7 @@ class Room {
       beacons: [...this.beacons.keys()],
       race: this.race ? { id: this.race.id, at: this.race.at, racers: this.racerList() } : null,
       ...(this.layout ? { layout: this.layout } : {}),
+      ...(this.weather ? { weather: this.weather } : {}),
       ...(this.broken.size ? { broken: [...this.broken] } : {}),
     });
     this.broadcast({ t: 'join', id: player.id, name: player.name }, player);
@@ -188,6 +192,15 @@ class Room {
         if (now - (player.lastChat || 0) < 500) return;
         player.lastChat = now;
         this.broadcast({ t: 'chat', id: player.id, name: player.name, text });
+        return;
+      }
+      case 'weather': {
+        if (msg.w !== 'clear' && msg.w !== 'rain') return;
+        const now = Date.now();
+        if (now - (player.lastWeather || 0) < 1000) return;
+        player.lastWeather = now;
+        this.weather = msg.w;
+        this.broadcast({ t: 'weather', id: player.id, name: player.name, w: msg.w }, player);
         return;
       }
       case 'layout': {

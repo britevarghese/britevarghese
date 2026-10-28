@@ -25,10 +25,14 @@ import { seeThrough } from '../render/Vegetation.js';
 import { retroLights } from '../render/RoadMarkings.js';
 import { beginTerrainFrame } from '../render/Terrain.js';
 import { TrackMap } from '../render/TrackMap.js';
+import { Rain } from '../render/Rain.js';
+import { WEATHER_UNIFORMS } from '../render/Weather.js';
 import { Builder } from '../ui/Builder.js';
 import { encodeLayout, decodeLayout } from '../game/Props.js';
 
 const clamp = (x, a, b) => (x < a ? a : x > b ? b : x);
+// (the white the rain's drops lighten toward, from the colour of the air)
+const WHITE_C = new THREE.Color(1, 1, 1);
 const fmtDist = (m) => (m < 1000 ? `${Math.round(m / 10) * 10} m` : `${(m / 1000).toFixed(1)} km`);
 const MATE_COLORS = ['#4fb3a9', '#e0b33b', '#c46bd6', '#6aa8e8', '#e0563b', '#7cc36a', '#e88fb0', '#c9c06a'];
 
@@ -68,13 +72,14 @@ const MUDDY = new Set(['mud', 'riverbed', 'snow']);
  * mud picked up in mud and wet ground at a rate (mud), washed off in water; wet fresh, it dries in a couple of minutes
  * out of the mud and the water. Dust settles on it driving dry ground the faster it goes (raise: the ground's, the
  * mean of its tyres'; dustiness: the map's), thickening over a kilometre or so of dusty track; washed off in water,
- * caked over in mud.
+ * caked over in mud. In the rain (rain, 0 to 1) the mud stays wet, and the rain rinses the dust off and, slowly, the
+ * mud.
  */
-function soil(o, dt, mud, raise, speed, water, dustiness) {
-  o.dirt = clamp(o.dirt + mud * dt * 0.25 - (water > 0.2 ? water * dt * 0.25 : 0), 0, 1);
-  o.dirtWet = mud > 0.02 || water > 0.2 ? Math.min(1, (o.dirtWet ?? 1) + dt * 0.5) : Math.max(0, (o.dirtWet ?? 1) - dt / 150);
+function soil(o, dt, mud, raise, speed, water, dustiness, rain = 0) {
+  o.dirt = clamp(o.dirt + mud * dt * 0.25 - (water > 0.2 ? water * dt * 0.25 : 0) - rain * dt * 0.002, 0, 1);
+  o.dirtWet = mud > 0.02 || water > 0.2 || rain > 0.3 ? Math.min(1, (o.dirtWet ?? 1) + dt * 0.5) : Math.max(0, (o.dirtWet ?? 1) - dt / 150);
   const raised = raise * Math.min(1, Math.max(0, Math.abs(speed) - 2) / 12) * dustiness * dt * 0.008;
-  o.dust = clamp(o.dust + raised - (water > 0.2 ? water * dt * 0.4 : 0) - mud * dt * 0.05, 0, 1);
+  o.dust = clamp(o.dust + raised - (water > 0.2 ? water * dt * 0.4 : 0) - mud * dt * 0.05 - rain * dt * 0.02, 0, 1);
 }
 /** Where the beacons found driving alone on a map are kept (Ashwood keeps its original key). */
 export const soloBeaconsKey = (M) => (M.id === 'ashwood' ? 'trailbreak.solo.beacons' : `trailbreak.solo.beacons.${M.id}`);
@@ -124,6 +129,10 @@ export class Game {
       btn('st-call', () => this.callHelp());
       btn('st-station', () => this.towHome());
     }
+    // the weather (setWeather): the rain, coming on and easing off over some seconds (rainK), and its drops
+    this.weather = this.settings.weather === 'rain' ? 'rain' : 'clear';
+    this.rainK = 0; this.wetNow = false;
+    this.rainFx = new Rain(this.scene);
     this.spawn(true);
     this.applySettings();
     // events: the start lines, runs and races (game/EventPlay.js), their banners and gates on the ground
@@ -714,6 +723,28 @@ export class Game {
     this.applyQuality();
   }
 
+  /**
+   * The weather, 'clear' or 'rain': the rain comes on over some ten seconds and eases off as slowly (frame); in a room it
+   * is everyone's (share: to the room; a friend's change comes back through onNet). onWeather: the pause menu's.
+   */
+  setWeather(w, share = true) {
+    this.weather = w === 'rain' ? 'rain' : 'clear';
+    if (share) this.net?.send({ t: 'weather', w: this.weather });
+    this.onWeather?.(this.weather);
+  }
+
+  /** The air in the rain: a low grey sky, the sun all but hidden, the haze thicker, the colours duller. */
+  rainAir(a) {
+    const k = this.rainK;
+    if (k <= 0) return a;
+    const o = Object.assign(this._air ||= {}, a);
+    o.fog = a.fog + (Math.max(a.fog * 2, 0.0018) - a.fog) * k;
+    o.cover = a.cover + (Math.min(a.cover, 0.04) - a.cover) * k;
+    o.sun = a.sun * (1 - 0.72 * k);
+    o.sat = a.sat * (1 - 0.2 * k);
+    return o;
+  }
+
   // ---------------------------------------------------------------- actions
   actions() {
     const I = this.input, v = this.vehicle, d = v.dt, sp = v.speed;
@@ -1300,6 +1331,10 @@ export class Game {
     else if (m.t === 'join') { this.hud.toast(`${m.name} joined`); this.chat.system(`${m.name} joined the room`); }
     else if (m.t === 'leave') { this.hud.toast(`${m.name} left`); this.chat.system(`${m.name} left`); this.events.onLeave(m.id); }
     else if (m.t === 'layout') { if (m.id !== this.net?.id) this.takeLayout(m.code, m.name); }
+    else if (m.t === 'weather' && m.w !== this.weather) {
+      this.setWeather(m.w, false);
+      this.hud.toast(m.w === 'rain' ? `${m.name || 'A friend'} brought the rain: the ground goes slick, the mud soft` : `${m.name || 'A friend'} cleared the sky`, false, 4);
+    }
     else if (m.t === 'chat') {
       const mine = m.id === this.net?.id, rv = this.remotes.get(m.id);
       this.chat.add(m.name, m.text, mine ? this.myColor : rv?.color, mine);
@@ -1433,10 +1468,12 @@ export class Game {
     if (RD && RD !== this.paletteOf) {
       this.paletteOf = RD;
       this.effects.setPalette(RD.map.dust);
-      this.effects.dustiness = RD.map.dustiness ?? 1;
+      this.dustBase = RD.map.dustiness ?? 1;
       MUD_TINT.setRGB(...(RD.map.mudTint || MUD_TINT_BASE));
       DUST_TINT.setRGB(...(RD.map.dust?.[SURFACE.DIRT] || DUST_TINT_BASE));
     }
+    // (no dust off the tyres on wet ground)
+    this.effects.dustiness = (this.dustBase ?? 1) * (1 - this.rainK);
     // mud and dust on the paint and the glass (soil)
     let mud = 0, raise = 0;
     for (const w of v.wheels) {
@@ -1444,7 +1481,7 @@ export class Game {
       if (MUDDY.has(w.surf.name)) mud += Math.abs(v.speed) * 0.02 + w.slipSpeed * 0.03;
       raise += (DUST_RAISE[w.surf.id] || 0) / 4;
     }
-    soil(this, dt, mud, raise, v.speed, v.waterDepth, this.effects.dustiness ?? 1);
+    soil(this, dt, mud, raise, v.speed, v.waterDepth, this.effects.dustiness ?? 1, this.rainK);
     m.setDirt(this.dirt, this.dirtWet); m.setDust(this.dust);
     // mud on the windscreen: flung off the front tyres spinning in mud, and over the bonnet out of mud or water driven
     // into fast (render/TruckModel.js screenMud: the wipers keep two arcs of it clear)
@@ -1454,7 +1491,7 @@ export class Game {
       if (w.contact && (w.surf.name === 'mud' || w.surf.name === 'riverbed')) fling += Math.max(0, Math.abs(w.spin) - 3) * 0.012 + (w.sink || 0) * Math.max(0, Math.abs(v.speed) - 4) * 0.08;
     }
     if (v.waterDepth > 0.15) fling += Math.max(0, Math.abs(v.speed) - 3) * Math.min(1, v.waterDepth) * 0.1;
-    m.screenMud(dt, fling, v.waterDepth > 0.7 ? v.waterDepth : 0);
+    m.screenMud(dt, fling, v.waterDepth > 0.7 ? v.waterDepth : 0, this.rainK);
     this.damageFrame(dt);
 
     // effects from our tyres
@@ -1522,13 +1559,22 @@ export class Game {
     // friends' winch lines
     this.updateRemoteRopes();
     this.renderer.updateSun(m.root.position);
-    // (the open world's air where the camera is: the taiga's fog and grey sky come on as you drive in)
-    if (this.world.airAt) this.renderer.setAir(this.world.airAt(camPos.x, camPos.z));
+    // the weather: the rain coming on or easing off (setWeather), the ground wet with it once it has rained a little
+    // while (its grip and give, world/World.js setRain), dry again once it has all but stopped
+    this.rainK += clamp((this.weather === 'rain' ? 1 : 0) - this.rainK, -dt / 10, dt / 10);
+    WEATHER_UNIFORMS.uRain.value = this.rainK;
+    WEATHER_UNIFORMS.uRainT.value += dt;
+    const wet = this.rainK > (this.wetNow ? 0.05 : 0.3);
+    if (wet !== this.wetNow) { this.wetNow = wet; this.world.setRain?.(wet); }
+    this.rainFx.update(dt, this.renderer.camera, (this._rainC ||= new THREE.Color()).copy(this.renderer.fog.color).lerp(WHITE_C, 0.3));
+    // (the open world's air where the camera is: the taiga's fog and grey sky come on as you drive in; and the rain's)
+    if (this.world.airAt) this.renderer.setAir(this.rainAir(this.world.airAt(camPos.x, camPos.z)));
 
     this.checkBeacons();
 
     // sound
     const remotes = [...this.remotes.values()].filter((r) => r.state).map((r) => ({ id: r.id, spec: r.spec, pos: r.model.root.position, rpm: r.state.rpm, thr: r.state.thr }));
+    this.audio.rainK = this.rainK; this.audio.rainCab = this.cam.mode === 'cab';
     this.audio.update(dt, v, this.renderer.camera, remotes);
     v.impact = 0;
     // an exhaust pop (a hard upshift, or lifting off from high revs): a flash and a puff at the tailpipe, low on the

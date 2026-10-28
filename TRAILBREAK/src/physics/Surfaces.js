@@ -46,4 +46,23 @@ export const SURFACES = [
   { id: 10, name: 'tea', mu: 0.6, slip: 1.4, C: 1.15, rr: 0.15, sink: 2600, n: 1, maxSink: 0.07, dig: 0.002, drag: 0.6, hull: 0.6 },
 ];
 
+/**
+ * The same grounds in the rain (World.js setRain), as a factor on each of their numbers: earth slicker, its peak grip a
+ * wet earth road's, about four fifths of a dry one's (0.55 to 0.68), turf slicker still, and the loose top of both a
+ * soft mud a spinning tyre digs deeper and faster; rock, tarmac and ice under a film of water; mud the softer
+ * (World.js softness); damp sand firmer, the water binding its grains.
+ */
+const WET = {
+  grass: { mu: 0.7, loose: 1.6, dig: 2 }, dirt: { mu: 0.81, loose: 1.6, dig: 2 }, gravel: { mu: 0.9 }, rock: { mu: 0.72 },
+  mud: { mu: 0.9 }, sand: { sink: 1.6, drag: 0.7 }, snow: { mu: 0.9 }, road: { mu: 0.77 }, riverbed: { mu: 0.95 },
+  ice: { mu: 0.6 }, tea: { mu: 0.85 },
+};
+export const WET_SURFACES = SURFACES.map((s) => {
+  const o = { ...s }, w = WET[s.name] || {};
+  for (const k in w) o[k] = s[k] * w[k];
+  return o;
+});
+/** How much softer mud is in the rain (World.js softness). */
+export const WET_MUD = 1.25;
+
 export const surfaceById = (id) => SURFACES[id] || SURFACES[0];

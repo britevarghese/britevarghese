@@ -104,6 +104,21 @@ test('the map builder: a layout goes to the room, and to whoever joins later; ju
   assert.equal(c.last('layout'), null);
 });
 
+test("the weather: a player's rain goes to the room, and to whoever joins later; anything else is dropped", () => {
+  const lobby = new Lobby({ maxPlayers: 4, rand: () => 0.3 });
+  const a = join(lobby, 'Ana'), room = a.last('welcome').room;
+  const b = join(lobby, 'Ben', room);
+  assert.equal(a.last('welcome').weather, undefined, 'a new room has none of its own');
+  a.msg({ t: 'weather', w: 'rain' });
+  assert.equal(b.last('weather').w, 'rain');
+  assert.equal(b.last('weather').name, 'Ana');
+  assert.equal(a.last('weather'), null, 'not back to whoever changed it');
+  const c = join(lobby, 'Cal', room);
+  assert.equal(c.last('welcome').weather, 'rain');
+  b.msg({ t: 'weather', w: 'snow' });
+  assert.equal(c.last('weather'), null);
+});
+
 test('rooms fill up at their limit', () => {
   const lobby = new Lobby({ maxPlayers: 2 });
   const a = join(lobby, 'A', 'TRAPS');

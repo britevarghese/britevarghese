@@ -44,7 +44,7 @@ const MAPS = { [WORLD.id]: WORLD }, MAP_IDS = Object.keys(MAPS), DEFAULT_MAP = W
 const PAINTS = ['#b5532c', '#3d6b8c', '#6b7d3e', '#c9a227', '#8c2f2f', '#e6e1d3', '#2f4f3a', '#4a4a4a'];
 const STORE = 'trailbreak.settings';
 
-const settings = Object.assign({ name: '', map: DEFAULT_MAP, truck: 'thar', paint: PAINTS[0], hour: 16.5, shadows: true, sound: true, assist: true, rumble: true, fullscreen: true, quality: 'high', autoQuality: true, damage: 'cosmetic', builds: {} }, (() => {
+const settings = Object.assign({ name: '', map: DEFAULT_MAP, truck: 'thar', paint: PAINTS[0], hour: 16.5, weather: 'clear', shadows: true, sound: true, assist: true, rumble: true, fullscreen: true, quality: 'high', autoQuality: true, damage: 'cosmetic', builds: {} }, (() => {
   try { return JSON.parse(localStorage.getItem(STORE) || '{}'); } catch { return {}; }
 })());
 if (!settings.builds || typeof settings.builds !== 'object') settings.builds = {};
@@ -301,6 +301,9 @@ async function start() {
     for (const k of welcome.broken || []) world.breakKey(k, 0, 1, 0, true);   // (what friends have knocked down here)
     game.events.welcome(welcome.race);
     if (welcome.layout && !linkLayout) game.takeLayout(welcome.layout, null);
+    // (the room's weather; a room without one yet takes this player's)
+    if (welcome.weather) game.setWeather(welcome.weather, false);
+    else if (game.weather !== 'clear') net.send({ t: 'weather', w: game.weather });
   } else {
     try { for (const id of JSON.parse(localStorage.getItem(soloBeaconsKey(M)) || '[]')) { game.found.add(id); landmarks.setFound(id, true); } } catch { /* none */ }
   }
@@ -378,6 +381,10 @@ function wireMenus(game, net) {
   $('tod').value = s.hour;
   todName();
   $('tod').oninput = () => { s.hour = Number($('tod').value); game.renderer.setTime(s.hour); save(); todName(); };
+  // the weather: the player's own, or in a room the room's (Game.setWeather shares it; a friend's change shows here)
+  $('opt-weather').value = game.weather;
+  game.onWeather = (w) => { $('opt-weather').value = w; };
+  $('opt-weather').onchange = () => { s.weather = $('opt-weather').value; game.setWeather(s.weather); save(); };
   $('opt-shadows').checked = s.shadows;
   $('opt-shadows').onchange = () => { s.shadows = $('opt-shadows').checked; game.applySettings(); save(); };
   $('opt-sound').checked = s.sound;
