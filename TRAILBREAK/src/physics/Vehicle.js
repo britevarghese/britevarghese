@@ -51,6 +51,7 @@ const SOIL_TAU = 0.1;
 const RUT_WALL = 0.6, RUT_DEEP = 0.12, RUT_PLAY = 0.12, RUT_TOP = 0.3;
 const RUT_AHEAD = 0.45, RUT_STEP = 0.125, RUT_N = 4;
 const RUT_ROLL = 1.5;    // m/s: a tyre rolling slower is drawn into the rut ahead less (spinning on the spot, not at all)
+const UNDER_AREA = 0.03;  // m2 of a diff housing's or spring plate's underside that bears on soft ground
 // a tread in sticky mud (clog): its voids pack as it rolls through (CLOG_IN per metre of tread through it), and the
 // tyre goes over to a slick that grips the less (the tread's clogLoss, physics/Upgrades.js TREADS); turned faster than
 // its cleanSpeed it flings the mud out of them (CLOG_OUT a second per m/s past it), and it scrubs out rolling on
@@ -138,13 +139,13 @@ export class Vehicle {
       const det = m11 * m11 - m12 * m12;
       ax.iM11 = m11 / det; ax.iM12 = -m12 / det;
       // what hangs below the beam: the diff housing (its bottom, and its rounded front and back) and the spring
-      // plates under the leaf springs; x across (+ left), drop below the axle centre, dz along
+      // plates under the leaf springs; x across (+ left), drop below the axle centre, dz along, w half its width
       // (portal axles carry the tube and the diff above the hubs: little hangs below the wheel centres)
       const dd = a.diffDrop ?? 0.16, dxd = a.diffX || 0, sp = s / 2, pd = a.plateDrop ?? 0.085;
       // (independent: the diff sits up on the frame, and the lower arms' outer ends hang just inboard of each wheel)
-      ax.under = ifs ? [{ x: half - 0.24, drop: a.armDrop ?? 0.11, dz: 0 }, { x: -(half - 0.24), drop: a.armDrop ?? 0.11, dz: 0 }] : [
-        { x: dxd, drop: dd, dz: 0 }, { x: dxd, drop: dd - 0.035, dz: 0.09 }, { x: dxd, drop: dd - 0.035, dz: -0.09 },
-        { x: sp, drop: pd, dz: 0 }, { x: -sp, drop: pd, dz: 0 },
+      ax.under = ifs ? [{ x: half - 0.24, drop: a.armDrop ?? 0.11, dz: 0, w: 0.08 }, { x: -(half - 0.24), drop: a.armDrop ?? 0.11, dz: 0, w: 0.08 }] : [
+        { x: dxd, drop: dd, dz: 0, w: 0.15 }, { x: dxd, drop: dd - 0.035, dz: 0.09, w: 0.15 }, { x: dxd, drop: dd - 0.035, dz: -0.09, w: 0.15 },
+        { x: sp, drop: pd, dz: 0, w: 0.08 }, { x: -sp, drop: pd, dz: 0, w: 0.08 },
       ];
       return ax;
     });
@@ -838,7 +839,7 @@ export class Vehicle {
         }
       } else { w.sink = 0; w.dug = 0; }
     }
-    this.axleContacts(ground);
+    this.axleContacts(ground, dt);
     this.feelStep(dt, speed);
     this.damage.update(dt, dtr, dtr.running ? dtr.throttle * Math.min(1, dtr.rpm / dtr.e.redline) : 0, u.y, this.waterDepth);
 
@@ -1044,8 +1045,8 @@ export class Vehicle {
    * degrees of freedom (shared by where along the beam it acts) and reaches the chassis through the springs and bump
    * stops; the rest (the scrape, the shove of a ledge) goes to the chassis there.
    */
-  axleContacts(ground) {
-    const u = this.up, k = 3e5, c = 6000;
+  axleContacts(ground, dt) {
+    const u = this.up, k = 3e5, c = 6000, ks = Math.min(1, dt / SOIL_TAU);
     for (const ax of this.axles) {
       for (const pt of ax.under) {
         const fl = 0.5 + pt.x / ax.T, fr = 0.5 - pt.x / ax.T;
@@ -1053,18 +1054,28 @@ export class Vehicle {
         _p.set(pt.x, yA - pt.drop, ax.zc + pt.dz);
         this.toWorld(_p, _q);
         const h = ground.height(_q.x, _q.z);
-        if (_q.y >= h) continue;
+        if (_q.y >= h) { pt.nSoil = (pt.nSoil || 0) * (1 - ks); continue; }
         groundNormal(ground, _q.x, _q.z, _n);
         const pen = Math.min((h - _q.y) * _n.y, 0.15);
         this.pointVel(_q, _v).addScaled(u, ax.vL * fl + ax.vR * fr);
         const vn = _v.dot(_n);
         let Fn = k * pen - c * vn;
-        if (Fn <= 0) continue;
+        if (Fn <= 0) { pt.nSoil = (pt.nSoil || 0) * (1 - ks); continue; }
+        const surf = ground.surfaceAt(_q.x, _q.z);
+        // soft ground gives way under them by its pressure-sinkage law, as under a tyre: on its small housing a diff
+        // bears hard on the mud, and ploughs a groove through the hump between the ruts rather than riding up on it as
+        // on a rock (the load it carries averaged over SOIL_TAU, as a tyre's)
+        if (surf.sink > 0 && ground.deform) {
+          pt.nSoil = (pt.nSoil || 0) + (Fn - (pt.nSoil || 0)) * ks;
+          const soft = ground.softness ? ground.softness(_q.x, _q.z) : 1;
+          const zEq = Math.min(surf.maxSink * Math.sqrt(soft), Math.pow(pt.nSoil / UNDER_AREA / 1000 * soft / surf.sink, 1 / surf.n));
+          ground.deform(_q.x, _q.z, this.fwd.x, this.fwd.z, pt.w, 0.1, zEq, 0);
+        }
         _a.copy(_n).scale(Fn);
         _b.copy(_v).addScaled(_n, -vn);
         const vt = _b.length();
         if (vt > 1e-4) {
-          const mu = ground.surfaceAt(_q.x, _q.z).hull * 1.1;
+          const mu = surf.hull * 1.1;
           _a.addScaled(_b, -Math.min(mu * Fn, 3000 * vt) / vt);
         }
         const along = _a.dot(u);

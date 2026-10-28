@@ -493,16 +493,21 @@ test('deep mud (a map\'s deepMud, the taiga\'s): the tyres sink about twice as d
 test('ruts steer a truck in deep mud: in its own it holds them against a little steering, and leaves them with more', () => {
   // (driven 6 s straight through deep mud, put back where it set off and driven again, steering right: how far it
   // strays, against the same on fresh mud)
+  // (in deep mud a truck wallows: each from three starts a centimetre apart, the mean)
   const go = (steer, rutted) => {
-    const g = soft(SURFACE.MUD, 0, 2.2);
-    const start = () => { const v = truck('ranger', g); v.dt.setFourWD(true, 0); v.dt.setRange(true, 0); run(v, g, 0.5); return v; };
-    let v = start();
-    if (rutted) { run(v, g, 6, { ...IDLE, throttle: 0.7 }); v = start(); }
-    run(v, g, 6, { ...IDLE, throttle: 0.7, steer });
-    return Math.abs(v.pos.x);
+    let sum = 0;
+    for (const dx of [0, 0.01, 0.02]) {
+      const g = soft(SURFACE.MUD, 0, 2.2);
+      const start = () => { const v = truck('ranger', g, dx); v.dt.setFourWD(true, 0); v.dt.setRange(true, 0); run(v, g, 0.5); return v; };
+      let v = start();
+      if (rutted) { run(v, g, 6, { ...IDLE, throttle: 0.7 }); v = start(); }
+      run(v, g, 6, { ...IDLE, throttle: 0.7, steer });
+      sum += Math.abs(v.pos.x - dx) / 3;
+    }
+    return sum;
   };
   const held = go(0.15, true), free = go(0.15, false), out = go(0.6, true);
-  assert.ok(held < 0.6 && free > held + 0.6, `a little steering: ${held.toFixed(2)} m off its ruts, ${free.toFixed(2)} m on fresh mud`);
+  assert.ok(held < 1 && held < free * 0.45, `a little steering: ${held.toFixed(2)} m off its ruts, ${free.toFixed(2)} m on fresh mud`);
   assert.ok(out > 3, `full steering climbs out of them: ${out.toFixed(2)} m`);
 });
 
@@ -524,6 +529,23 @@ test('a tread packs with sticky mud crawling through it and grips the less (an a
   run(at.v, at.g, 3, { ...IDLE, throttle: 1 });
   const after = at.v.wheels.reduce((a, w) => a + w.clog, 0) / 4;
   assert.ok(after < at.clog - 0.3, `spun up: ${at.clog.toFixed(2)} -> ${after.toFixed(2)}`);
+});
+
+test('in ruts deeper than its clearance a truck\'s diffs plough a groove through the mud hump between them', () => {
+  // (ruts 35 cm deep in deep mud where its wheels run, the mud between them as it was: the diffs, 22 cm up, meet it)
+  const track = truckSpec('thar').axles[0].track, D = 0.35;
+  const rutsAt = (x) => { const r = Math.min(Math.abs(x - track / 2), Math.abs(x + track / 2)); return r < 0.25 ? D : r < 0.4 ? D * (0.4 - r) / 0.15 : 0; };
+  const g = soft(SURFACE.MUD, 0, 2.2);
+  for (let z = -6; z <= 50; z += 0.1) for (let x = -1.4; x <= 1.4; x += 0.05) { const d = rutsAt(x); if (d > 0) g.grid.stamp(x, z, 0, 1, 0.03, 0.06, d, 0, () => 0.6); }
+  const v = truck('thar', g);
+  v.dt.setFourWD(true, 0); v.dt.setRange(true, 0);
+  run(v, g, 1, IDLE);
+  const z0 = v.pos.z;
+  run(v, g, 10, { ...IDLE, throttle: 0.6 });
+  // (the groove down the middle where it has been, the rear diff's line)
+  let groove = 0;
+  for (let z = z0 + 2; z < v.pos.z - 4; z += 0.5) groove += g.grid.get(0, z) / Math.round((v.pos.z - z0 - 6) / 0.5);
+  assert.ok(v.pos.z - z0 > 25 && groove > 0.04, `${(v.pos.z - z0).toFixed(1)} m on, the hump ploughed ${(groove * 100).toFixed(1)} cm down`);
 });
 
 test('a tyre spun on the spot digs itself into earth, less into grass; rolling on, it leaves the ground alone', () => {

@@ -760,7 +760,11 @@ Everything that makes off-roading off-roading is simulated, not faked:
   4x4s and pickups, 7 for the wide, low Hummer H1, 8.5 for the old, tall or narrow ones (the Unimog, the UAZ, the
   Willys, the Niva). They had been leaning 8 to 10.6.
 - **Under the truck:** the diff housings and spring plates hang below the axles and touch the ground (a rock between
-  the wheels stops the truck on its diff), the belly and the bumpers ride on the body.
+  the wheels stops the truck on its diff), the belly and the bumpers ride on the body. Soft ground gives way under a
+  diff by the same pressure-sinkage law as under a tyre: sunk in ruts deeper than its clearance, a truck ploughs a
+  groove through the hump of mud between them with its diffs (it used to hang on that mud as on a rock, which is what
+  stopped a stock Thar at the same deep-mud spots in the taiga: driven by the bot, it now gets through all 18 starts of
+  its two rallies, from 7). Its belly, broad and flat, still rests on the mud when it sinks that far: high-centred.
 - **Tyres:** each tyre finds the ground with rays around its tread, so it meets a ledge on its front face and climbs
   it. It is a radial spring. Its grip comes from a transient model (bristle deflections with relaxation lengths,
   combined slip on a friction ellipse, load sensitivity): a parked truck holds on a slope instead of creeping, and
