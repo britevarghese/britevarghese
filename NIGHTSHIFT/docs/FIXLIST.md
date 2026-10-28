@@ -617,6 +617,17 @@ the game. Newly found problems go at the end of their section.
     important pieces near it once, and only the nearest one's level is read: as fast as before (0.86 s for the nine
     tiles round Kannur, slowest step 44 ms; it was 0.88 s, 41 ms). The class map is read once per tile into a table
     (a lookup per ask, not a decoding)
+  - [x] Two more of the worst: the easing toward a main road's level stopped dead at a limit of how far apart their
+    levels were (0.25 m between roads alike, 0.6 m otherwise), a step of its own where the gap grew past it - it
+    fades out now (alike: full to 0.2 m, none at 0.5 m; a main road 0.45 to 0.75 m), and the highway junction in
+    Iritty, its three pieces leaving at different grades, went from a 0.29 m crest to 0.09 m. And a road crossing a
+    main road without a shared point had its strip's rows 8 m apart there, one inside the main road's strip and the
+    next well out, joined straight across its edge: 0.19 m where it left a main road climbing at 15 % in Kannur. A
+    row every 2.5 m by a main road's strip now (laying the roads 0.9 -> 1.06 s for nine tiles, slowest step 45 ms)
+    Kinks over 6 / 12 / 20 cm, the six towns: 170 / 28 / 2 (Kannur 85 / 9 / 0, Thalassery 10 / 4 / 1, Mattannur
+    16 / 1 / 0, Taliparamba 21 / 6 / 0, Payyanur 1 / 0 / 0, Iritty 37 / 8 / 1); every tile edge round them meets.
+    Left over 20 cm: Iritty's steep side road and the Thalassery service road under a ramp's edge. Rides round
+    Kannur and Thalassery: no jolts
   - [x] ...and with the ground right, two more: a service road in Thalassery runs along under the edge of a flyover's
     ramp, and wherever the ramp was less than 1.2 m over it a car on the service road was put up on the ramp (1.8 m).
     Of a deck and a road beneath it, the one nearer the height asked from now. And the easing of a side road to a

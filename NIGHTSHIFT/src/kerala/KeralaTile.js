@@ -1713,10 +1713,24 @@ export class KeralaTile {
       // (a point every 2.5 m within 12 m of its junctions and ends, 8 m elsewhere: a side road is held level across
       // the road it joins, then eases into its grade, and drawn straight from the junction to a point 8 m off the strip
       // ran through that bend 0.28 m above it - the wheels dropped off it at the main road's edge)
+      // (and by a more important road's strip, where it's eased to that road's level: crossing one without a shared point,
+      // its rows 8 m apart, one inside the other's strip and the next well out, joined by a straight line across the edge
+      // - a step of 0.19 m where it left a main road climbing at 15 %)
+      const F = this._over(ri), G = 25;
+      const byMain = (e, n) => {
+        for (let a = Math.floor((e - 17) / G); a <= Math.floor((e + 17) / G); a++) for (let b = Math.floor((n - 17) / G); b <= Math.floor((n + 17) / G); b++) {
+          const L = F.get(a * 1000 + b); if (!L) continue;
+          for (let j = 0; j < L.length; j += 7) {
+            const ax = L[j], az = L[j + 1], dx = L[j + 2] - ax, dz = L[j + 3] - az, l2 = dx * dx + dz * dz || 1, t = Math.max(0, Math.min(1, ((e - ax) * dx + (n - az) * dz) / l2));
+            if (Math.hypot(ax + dx * t - e, az + dz * t - n) < L[j + 6] + hw + 5) return true;
+          }
+        }
+        return false;
+      };
       const jn = (q) => (seen.get(`${Math.round(q[0])},${Math.round(q[1])}`)?.[0] || 0) >= 2, Q = [P[0]];
       for (let i = 1; i < P.length; i++) {
         const a = P[i - 1], b = P[i], L = Math.hypot(b[0] - a[0], b[1] - a[1]), ja = i === 1 || jn(a), jb = i === P.length - 1 || jn(b);
-        if ((ja || jb) && L > 3) { const k = Math.ceil(L / 2.5); for (let q = 1; q < k; q++) { const d = L * q / k; if ((ja && d <= 12) || (jb && L - d <= 12)) Q.push([a[0] + (b[0] - a[0]) * q / k, a[1] + (b[1] - a[1]) * q / k]); } }
+        if (L > 3) { const k = Math.ceil(L / 2.5); for (let q = 1; q < k; q++) { const d = L * q / k, pt = [a[0] + (b[0] - a[0]) * q / k, a[1] + (b[1] - a[1]) * q / k]; if ((ja && d <= 12) || (jb && L - d <= 12) || (F.size && byMain(...pt))) Q.push(pt); } }
         Q.push(b);
       }
       const rows = [];
@@ -2557,8 +2571,8 @@ export class KeralaTile {
     if (F.size) for (let a = ga; a <= gb; a++) for (let b = ha; b <= hb; b++) {
       const L = F.get(a * 1000 + b); if (!L) continue;
       for (let j = 0; j < L.length; j += 7) {
-        // (a more important road; of two alike, the first, and only one nearly level with it: a highway piece's strip was
-        // tilted up toward another's 0.5 m higher - two levels, not a junction)
+        // (a more important road; of two alike, the first - and only one nearly level with it, below: a highway piece's
+        // strip was tilted up toward another's 0.5 m higher)
         const cls = L[j + 4], o = this.roads[L[j + 5]], hw = L[j + 6];
         const ax = L[j], az = L[j + 1], dx = L[j + 2] - ax, dz = L[j + 3] - az, l2 = dx * dx + dz * dz || 1;
         const t = Math.max(0, Math.min(1, ((e - ax) * dx + (n - az) * dz) / l2)), ce = ax + dx * t, cn = az + dz * t, d = Math.hypot(ce - e, cn - n);
@@ -2570,8 +2584,14 @@ export class KeralaTile {
     }
     // (its surface carried on past its edge, level across as its rows are: a row of the lesser road's straddling the
     // edge then lies in its plane - each row is a straight line from one end to the other)
+    // (and less the further apart their levels: two alike fully within 0.2 m, not at all 0.5 m apart - two levels, not a
+    // junction - a more important one from 0.45 to 0.75 m. Cut off at a limit, the easing stopped short where the gap
+    // grew past it: a step of its own)
     const sf = bo ? this._surfAt(bo, be, bn) : -Infinity;
-    if (sf > -1e9) { const ty = sf + 0.07 + (10 - bc) * 0.004; if (Math.abs(ty - y) <= (bc === me.cls ? 0.25 : 0.6)) by = ty; }
+    if (sf > -1e9) {
+      const ty = sf + 0.07 + (10 - bc) * 0.004, lo = bc === me.cls ? 0.2 : 0.45, k = 1 - (Math.abs(ty - y) - lo) / 0.3;
+      if (k > 0) { by = ty; bw *= _smooth(Math.min(1, k)); }
+    }
     this._mw = by > -1e9 ? bw : 0;
     return by;
   }
