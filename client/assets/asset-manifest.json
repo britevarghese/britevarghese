@@ -180,7 +180,11 @@
     "corrugated": "textures/corrugated_iron_02",
     "rusty_metal": "textures/rusty_metal_02",
     "plywood": "textures/plywood",
-    "concrete_slab": "textures/concrete_slab_wall"
+    "concrete_slab": "textures/concrete_slab_wall",
+    "plaster_painted": "textures/plaster_grey_04",
+    "brick_clean": "textures/brick_wall_006",
+    "roof_tiles": "textures/clay_roof_tiles_02",
+    "cobble": "textures/cobblestone_floor_05"
   },
   "hdri": "hdri/sky_1k.hdr"
 }

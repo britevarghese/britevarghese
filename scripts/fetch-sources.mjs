@@ -19,7 +19,7 @@ export const MODELS = [
 export const TEXTURES = [
   'sparse_grass', 'dry_ground_01', 'rocky_terrain_02', 'burned_ground_01', 'asphalt_02', 'concrete_pavement',
   'concrete_wall_008', 'worn_plaster_wall', 'rough_plaster_brick', 'concrete_floor_worn_001', 'corrugated_iron_02',
-  'rusty_metal_02', 'plywood', 'concrete_slab_wall',
+  'rusty_metal_02', 'plywood', 'concrete_slab_wall', 'plaster_grey_04', 'brick_wall_006', 'clay_roof_tiles_02', 'cobblestone_floor_05',
 ];
 export const HDRI = 'kloofendal_48d_partly_cloudy_puresky';
 const SOLDIER_URL = 'https://raw.githubusercontent.com/mrdoob/three.js/r170/examples/models/gltf/Soldier.glb';
