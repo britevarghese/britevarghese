@@ -29,17 +29,19 @@ npm run assets     # (optional) re-download and re-optimize all CC0 source asset
 | Map | Size | Flags | Character |
 |---|---|---|---|
 | **Outskirts** | 336 m | 3 | ruined town crossroads between an industrial yard and a depot, mixed ranges |
-| **Harbor Docks** | 300 m | 4 | container terminal on the water: tight container lanes, open quay, warehouse row |
+| **Harbor Docks** | 300 m | 4 | container terminal on the water: paved yards with tight container lanes, open quay under two gantry cranes working a moored feeder ship, warehouse row |
 | **Dry Valley** | 384 m | 3 | big hills, winding road, farm, village and fortified hilltop — long sightlines |
 | **Checkpoint Zulu** | 184 m | 3 | small walled military compound — fast close-quarters infantry |
 | **Kestrel Airbase** | 464 m | 4 | abandoned airfield: hangar row, control tower, fuel depot, radar hill around an open runway |
-| **Old Town** | 320 m | 4 | dense historic town: narrow streets, market, church square, train station, mill — close quarters |
+| **Old Town** | 320 m | 4 | dense historic town: terraced streets with sidewalks, back yards and alleys, cobbled market and church squares, train station, mill — close quarters |
 | **Kaskar Ridge** | 400 m | 3 | mountain pass: hill village, quarry, fortified ridge line above a gorge road — long sightlines |
 | **Firestorm Island** | 840 m | — | **battle royale**: town, villages, farm, industrial yard, military base, radio station, checkpoint |
 
-Maps are plain data in `shared/maps/*.js` (roads, flags, bases, buildings, props, terrain relief, vegetation,
-lighting/fog). Server (collision, nav grid, bots) and browser (rendering) generate the same world from it —
-add a file there and register it in `shared/map.js` to create a new map.
+Maps are plain data in `shared/maps/*.js` (roads with optional sidewalks, paved areas and yard markings, flags,
+bases, buildings, props, harbour structures, terrain relief, vegetation, lighting/fog). Server (collision, nav grid,
+bots) and browser (rendering) generate the same world from it — add a file there and register it in
+`shared/map.js` to create a new map. `shared/maps/helpers.js` builds towns from it: `townBlock` / `streetFront`
+(terraced street fronts with party walls, alleys and garden walls) and `village` (houses along the nearby roads).
 
 ## Hosting on the internet
 | Option | How |

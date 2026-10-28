@@ -68,7 +68,9 @@ test('shots through a building wall do not damage', () => {
   const g = mkGame();
   const b = BUILDINGS.find((x) => x.id === 'b3');
   const a = g.addPlayer({ name: 'A', team: 1 }), v = g.addPlayer({ name: 'V', team: 2 });
-  spawnAt(g, a, b.x - 3, b.z + b.d / 2 + 6); spawnAt(g, v, b.x - 3, b.z - b.d / 2 - 6);
+  // in line with a solid wall pier next to the west corner (window bays start 0.85 m in)
+  const x = b.x - b.w / 2 + 0.5;
+  spawnAt(g, a, x, b.z + b.d / 2 + 6); spawnAt(g, v, x, b.z - b.d / 2 - 6);
   g.clock += 1000;
   g.tryFire(a, [a.x, a.y + 1.3, a.z], [0, 0, -1]);
   assert.equal(v.hp, 100);

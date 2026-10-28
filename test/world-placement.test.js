@@ -159,19 +159,42 @@ test('pitched roofs collide: a downward ray stops on the tiles, a level ray at t
         assert.ok(hit && Math.abs(hit.point[1] - surf(ins)) <= step / 2 + 0.02,`${id}/${g.id}: downward ray at (${x.toFixed(1)}, ${z.toFixed(1)}) stops at ${hit?.point[1].toFixed(2)}, tiles at ${surf(ins).toFixed(2)}`);
         n++;
       }
-      // level ray along the ridge, a third of the way up the roof, from 5 m outside the end: the gable wall (or the
-      // hip's end slope) stops it
-      const y = R.yw + R.rise / 3, ins = hip ? (R.rise / 3 - R.t) / R.tan : 0;
+      // level ray along the ridge, a third of the way up the roof, from just outside the end (town houses can stand
+      // a metre apart; the verge's barge boards don't collide): the gable wall (or the hip's end slope) stops it.
+      // Not at a party wall: the neighbour is there
+      const y = R.yw + R.rise / 3, ins = hip ? (R.rise / 3 - R.t) / R.tan : 0, D = 0.25;
       for (const dir of [1, -1]) {
-        const o = ax ? { x: s.x - dir * (s.w / 2 + 5), y, z: s.z } : { x: s.x, y, z: s.z - dir * (s.d / 2 + 5) };
+        if (s.party?.includes(ax ? (dir > 0 ? 'w' : 'e') : dir > 0 ? 'n' : 's')) continue;
+        const o = ax ? { x: s.x - dir * (s.w / 2 + D), y, z: s.z } : { x: s.x, y, z: s.z - dir * (s.d / 2 + D) };
         if (R.hole && (ax ? s.z > R.hole.z0 - 1 && s.z < R.hole.z1 + 1 : s.x > R.hole.x0 - 1 && s.x < R.hole.x1 + 1)) continue;
         const hit = world.raycast(o, ax ? { x: dir, y: 0, z: 0 } : { x: 0, y: 0, z: dir }, 30, true);
-        assert.ok(hit && Math.abs(hit.t - 5 - ins) < step / R.tan / 2 + 0.05, `${id}/${g.id}: level ray through the ${hip ? 'hip end' : 'gable'} went ${hit?.t.toFixed(2)} m (expected ${(5 + ins).toFixed(2)})`);
+        assert.ok(hit && Math.abs(hit.t - D - ins) < step / R.tan / 2 + 0.05, `${id}/${g.id}: level ray through the ${hip ? 'hip end' : 'gable'} went ${hit?.t.toFixed(2)} m (expected ${(D + ins).toFixed(2)})`);
         n++;
       }
     }
   }
   assert.ok(n > 300, `probed ${n} pitched roofs`);
+});
+
+test('terraced houses: party walls are blind (no openings, balconies or breaches), pitched roofs end in gables there', () => {
+  let n = 0;
+  for (const id of MAP_IDS) {
+    const world = new CollisionWorld(getMap(id));
+    for (const g of world.buildings) {
+      const party = g.spec.party || [];
+      if (!party.length) continue;
+      n++;
+      for (const o of g.openings) assert.ok(!party.includes(o.side), `${id}/${g.id}: ${o.kind} in the ${o.side} party wall`);
+      for (const q of g.balconies) assert.ok(!party.includes(q.side), `${id}/${g.id}: balcony on the ${q.side} party wall`);
+      const R = g.roof;
+      if (R) {
+        assert.equal(R.kind, 'gable', `${id}/${g.id}: a terraced house with a ${R.kind} roof`);
+        const ends = R.axis === 'x' ? ['w', 'e'] : ['n', 's'];
+        for (const s of party) assert.ok(ends.includes(s), `${id}/${g.id}: eaves over the ${s} party wall`);
+      }
+    }
+  }
+  assert.ok(n > 40, `checked ${n} terraced houses`);
 });
 
 test('balconies: a slab to stand on, a railing that stops bodies (bullets pass a wrought-iron one)', () => {
@@ -182,12 +205,13 @@ test('balconies: a slab to stand on, a railing that stops bodies (bullets pass a
     const u = (q.a + q.b) / 2, at = (w) => (q.alongX ? { x: u, z: q.face + q.o * w } : { x: q.face + q.o * w, z: u });
     const p = at(q.dep / 2);
     assert.ok(Math.abs(world.supportHeight(p.x, p.z, q.top + 0.3) - q.top) < 1e-6, `${g.id}: no footing on the balcony`);
-    // level shot from 6 m out at chest height toward the wall: the iron railing lets it through to the wall
-    const o = at(6), d = q.alongX ? { x: 0, y: 0, z: -q.o } : { x: -q.o, y: 0, z: 0 };
+    // level shot at chest height toward the wall from 0.6 m beyond the railing (back yards can be narrow): the iron
+    // railing lets it through to the wall
+    const W = q.dep + 0.6, o = at(W), d = q.alongX ? { x: 0, y: 0, z: -q.o } : { x: -q.o, y: 0, z: 0 };
     const hit = world.raycast({ ...o, y: q.top + 0.6 }, d, 10, true);
     assert.ok(hit, `${g.id}: shot at the balcony hit nothing`);
-    if (q.solid) assert.ok(Math.abs(hit.t - (6 - q.dep)) < 0.02, `${g.id}: solid parapet not hit (${hit.t.toFixed(2)})`);
-    else assert.ok(hit.t > 6 - 0.05, `${g.id}: the iron railing stopped a bullet (${hit.t.toFixed(2)})`);
+    if (q.solid) assert.ok(Math.abs(hit.t - (W - q.dep)) < 0.02, `${g.id}: solid parapet not hit (${hit.t.toFixed(2)})`);
+    else assert.ok(hit.t > W - 0.05, `${g.id}: the iron railing stopped a bullet (${hit.t.toFixed(2)})`);
     // a soldier standing on the balcony against the railing is held back
     const s = { ...at(q.dep - 0.1) };
     world.resolveHorizontal(s, q.top, 1.8);

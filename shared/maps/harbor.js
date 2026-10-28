@@ -1,5 +1,6 @@
 // Map: HARBOR DOCKS — container terminal on the waterfront. Four flags: two container yards, the quay and the
-// warehouse row. Flat ground, tight lanes between container stacks, long sightlines along the quay.
+// warehouse row. Flat ground, tight lanes between container stacks, long sightlines along the quay; two ship-to-shore
+// gantry cranes work a feeder ship moored alongside.
 import { mulberry32 } from '../util.js';
 import { propList, baseProps } from './helpers.js';
 
@@ -15,16 +16,28 @@ const buildings = [
   { id: 'hw3', x: 44, z: 18, w: 24, d: 16, floors: 1, style: 'warehouse', damage: 0.2, doors: ['n', 's', 'w'] },
   { id: 'hw4', x: 88, z: 18, w: 26, d: 16, floors: 1, style: 'warehouse', damage: 0, doors: ['n', 's'] },
   // port offices & customs
-  { id: 'ho1', x: -22, z: 72, w: 14, d: 10, floors: 3, style: 'concrete', damage: 0.3, doors: ['n', 'e'] },
-  { id: 'ho2', x: 24, z: 74, w: 12, d: 10, floors: 3, style: 'concrete', damage: 0, doors: ['n', 'w'] },
+  { id: 'ho1', x: -22, z: 72, w: 15, d: 10, floors: 3, style: 'concrete', damage: 0.3, doors: ['n', 'e'] },
+  { id: 'ho2', x: 24, z: 74, w: 11, d: 10, floors: 3, style: 'concrete', damage: 0, doors: ['n', 'w'] },
   { id: 'ho3', x: -13, z: -84, w: 10, d: 9, floors: 2, style: 'brick', damage: 0.45, doors: ['s', 'e'] },
-  { id: 'ho4', x: -70, z: 100, w: 12, d: 9, floors: 2, style: 'plaster', damage: 0.2, doors: ['n'] },
-  { id: 'ho5', x: 72, z: 104, w: 12, d: 9, floors: 2, style: 'brick', damage: 0.1, doors: ['n'] },
+  { id: 'ho4', x: -70, z: 100, w: 11, d: 9, floors: 2, style: 'plaster', damage: 0.2, doors: ['n'] },
+  { id: 'ho5', x: 72, z: 104, w: 11, d: 9, floors: 2, style: 'brick', damage: 0.1, doors: ['n'] },
   { id: 'ho6', x: 0, z: 120, w: 16, d: 10, floors: 2, style: 'plaster', damage: 0.6, doors: ['n', 's'] },
   // bases
   { id: 'hus', x: -140, z: 24, w: 8, d: 8, floors: 1, style: 'bunker', damage: 0, doors: ['e', 'n'] },
   { id: 'hru', x: 140, z: 24, w: 8, d: 8, floors: 1, style: 'bunker', damage: 0, doors: ['w', 'n'] },
 ];
+
+// container yard slots: 6 rows x 7 columns each side of the central road (painted on the paving, stacks in most)
+const SLOT = (side, row, col) => [side * (22 + col * 13.5), -96 + row * 13];
+const markings = [];
+for (const side of [-1, 1]) for (let row = 0; row < 6; row++) for (let col = 0; col < 7; col++) {
+  const [x, z] = SLOT(side, row, col), hx = 3.35, hz = 1.55, t = 0.07;
+  markings.push({ x0: x - hx, z0: z - hz - t, x1: x + hx, z1: z - hz + t }, { x0: x - hx, z0: z + hz - t, x1: x + hx, z1: z + hz + t });
+  markings.push({ x0: x - hx - t, z0: z - hz, x1: x - hx + t, z1: z + hz }, { x0: x + hx - t, z0: z - hz, x1: x + hx + t, z1: z + hz });
+}
+// yellow safety line along the quay edge, landside rail kerb line
+markings.push({ x0: -135, z0: -117.3, x1: 135, z1: -117.1, color: 0xc9a227 }, { x0: -135, z0: -97.95, x1: 135, z1: -97.8, color: 0xc9a227 });
+const QW = -115.5, QL = -99.5; // waterside / landside crane rails (the quay road runs between them, under the portals)
 
 function props() {
   const { P, add } = propList();
@@ -32,9 +45,8 @@ function props() {
   // container yards: rows of stacks with lanes, west and east of the central road
   for (const side of [-1, 1]) {
     for (let row = 0; row < 6; row++) {
-      const z = -96 + row * 13;
       for (let col = 0; col < 7; col++) {
-        const x = side * (22 + col * 13.5);
+        const [x, z] = SLOT(side, row, col);
         if (rnd() < 0.18) continue;                 // gaps make flanking lanes
         if (Math.hypot(x - side * 88, z + 62) < 14) continue; // keep the flag zone open
         add('container', x, z, 0);
@@ -59,12 +71,21 @@ function props() {
 export default {
   id: 'harbor',
   name: 'Harbor Docks',
-  description: 'Container terminal on the waterfront. Tight container lanes, open quay, warehouse row — 4 flags.',
+  description: 'Container terminal on the waterfront. Tight container lanes, an open quay under the gantry cranes, warehouse row — 4 flags.',
   mapHalf: 175, playHalf: 150,
   terrain: { amp: 1.2, scale: 60, detail: 0.3, edge: 10, seed: 31, flatten: 16 },
   sea: { axis: 'z', at: -118, dir: -1, depth: 6, shore: 3 },
   atmosphere: { sun: [-0.62, 0.46, 0.22], fog: 0xb4bfc7, fogNear: 50, fogFar: 0.85, exposure: 0.9, grass: [0.92, 0.95, 0.85] },
   vegetation: { seed: 77, trees: 120, shrubs: 500, rocks: 40, clusters: 3 },
+  // the terminal is concrete from the quay wall to the yard gates, and in front of the warehouses
+  paved: [{ x0: -135, z0: -118, x1: 135, z1: -20, kind: 'concrete' }, { x0: -104, z0: 3, x1: 104, z1: 35.5, kind: 'concrete' }],
+  markings,
+  structures: [
+    { type: 'rails', x0: -135, x1: 135, z: [QW, QL] },
+    { type: 'crane', x: -46, zw: QW, zl: QL, trolley: 24, hoist: 27 },
+    { type: 'crane', x: 52, zw: QW, zl: QL, trolley: -4, hoist: 19, load: true },
+    { type: 'ship', x0: -78, x1: 74, z: -120, beam: 24, dir: -1, seed: 5 },
+  ],
   roads: [
     { ax: -175, az: -108, bx: 175, bz: -108, w: 12, name: 'quay' },
     { ax: 0, az: -108, bx: 0, bz: 109, w: 9, name: 'central' }, // ends at the customs house (ho6)

@@ -55,7 +55,10 @@ function lookOf(spec, rnd) {
 export function buildBuildings(world, mats) {
   const t0 = performance.now();
   const group = new THREE.Group(); group.name = 'buildings';
-  const M = new MeshBuckets(null); // every building appends to the same per-material buckets (one mesh each)
+  // buildings are merged per material within 64 m cells (by their centre): one mesh per material per cell, so the
+  // camera and shadow passes cull the town block by block instead of drawing the whole map every time
+  const CELL = 64, chunks = new Map();
+  const bucketsAt = (x, z) => { const k = `${Math.floor(x / CELL)},${Math.floor(z / CELL)}`; let c = chunks.get(k); if (!c) chunks.set(k, (c = new MeshBuckets(null))); return c; };
   const wv = [0, 0];
   const glassGeoms = [];
   const glassIds = []; // pane id (shared with CollisionWorld.glass) per glass geometry, in merge order
@@ -67,10 +70,12 @@ export function buildBuildings(world, mats) {
     const spec = b.spec, rnd = mulberry32(spec.id.length * 977 + spec.x * 13 + spec.z * 7);
     const L = lookOf(spec, mulberry32(spec.id.split('').reduce((s, c) => s * 31 + c.charCodeAt(0), 3) ^ 0x7a3c));
     const cx = spec.x, cz = spec.z, R = b.roof, wh = spec.style === 'warehouse', bunker = spec.style === 'bunker';
-    const house = spec.style === 'plaster' || spec.style === 'brick';
+    const house = spec.style === 'plaster' || spec.style === 'brick', M = bucketsAt(cx, cz);
     const tint = 1.0 + rnd() * 0.18;
     const dirtTone = [0.93 + rnd() * 0.07, 0.9 + rnd() * 0.07, 0.86 + rnd() * 0.06];
     const y0 = b.y0, destroyed = new Set(b.destroyed);
+    // party walls (shared with the next house of a terrace): plain, nothing on them or running past their corners
+    const party = new Set(spec.party || []);
     // colours by material (facade finishes are weathered in the shader); unpainted inner surfaces keep the old
     // vertex weathering: grime near the ground, streaks (via noise), lighter upper walls
     const colOf = { [L.facade]: L.fcol, trim: L.trim, plinth: L.plinth, frame_paint: L.frame, metal_paint: L.iron, wood_paint: L.shutter || L.frame };
@@ -128,10 +133,12 @@ export function buildBuildings(world, mats) {
     // horizontal band around the building (floor bands, warehouse eaves), interrupted over destroyed bays of floor f
     const band = (y, h, out, mat, f = -1) => {
       for (const [s, sd] of Object.entries(sideOf)) {
-        const ext = sd.alongX ? out : 0; // the long sides cover the corners
+        if (party.has(s)) continue;
+        // the long sides cover the corners (not past a party wall: the neighbour's band runs on from there)
+        const ea = sd.alongX && !party.has('w') ? out : 0, eb = sd.alongX && !party.has('e') ? out : 0;
         for (let i = 0; i < sd.nb; i++) {
           if (f >= 0 && destroyed.has(`${s}:${f}:${i}`)) continue;
-          const ua = i * sd.bw - (i === 0 ? ext + (sd.alongX ? 0 : T) : 0), ub = (i + 1) * sd.bw + (i === sd.nb - 1 ? ext + (sd.alongX ? 0 : T) : 0);
+          const ua = i * sd.bw - (i === 0 ? ea + (sd.alongX ? 0 : T) : 0), ub = (i + 1) * sd.bw + (i === sd.nb - 1 ? eb + (sd.alongX ? 0 : T) : 0);
           onFace(s, ua, ub, -0.02, out, y, y + h, mat);
         }
       }
@@ -140,8 +147,11 @@ export function buildBuildings(world, mats) {
     const doorGaps = { n: [], s: [], w: [], e: [] };
     for (const o of b.openings) if (o.kind === 'door' || o.kind === 'bigdoor') doorGaps[o.side].push([(o.sd.dir[0] ? o.sd.ax : o.sd.az) + o.u0, (o.sd.dir[0] ? o.sd.ax : o.sd.az) + o.u1]);
     const plinth = (y, h, out) => {
-      const sides = [['n', [x0 - out, z0 - out], [x1 + out, z0 + 0.02]], ['s', [x0 - out, z1 - 0.02], [x1 + out, z1 + out]], ['w', [x0 - out, z0], [x0 + 0.02, z1]], ['e', [x1 - 0.02, z0], [x1 + out, z1]]];
+      // (the n / s runs cover the corners, except at a party wall)
+      const xa = party.has('w') ? x0 : x0 - out, xb = party.has('e') ? x1 : x1 + out;
+      const sides = [['n', [xa, z0 - out], [xb, z0 + 0.02]], ['s', [xa, z1 - 0.02], [xb, z1 + out]], ['w', [x0 - out, z0], [x0 + 0.02, z1]], ['e', [x1 - 0.02, z0], [x1 + out, z1]]];
       for (const [sd, mn, mx] of sides) {
+        if (party.has(sd)) continue;
         const ax = sd === 'n' || sd === 's' ? 0 : 1; // runs along x (0) or z (1)
         let from = mn[ax];
         const piece = (a, c, top2) => { if (c - a < 0.01) return; const lo = [...mn], hi = [...mx]; lo[ax] = a; hi[ax] = c; trims.push({ min: [lo[0], y, lo[1]], max: [hi[0], top2, hi[1]], mat: 'plinth' }); };
@@ -158,12 +168,16 @@ export function buildBuildings(world, mats) {
     }
     // parapet coping: a projecting cap on every parapet piece
     // (the end sides' caps 5 mm lower: no coplanar overlap where they meet the long sides' at the corners)
-    for (const p of b.parts) if (p.part === 'parapet') trims.push({ min: [p.min[0] - 0.05, p.max[1], p.min[2] - 0.05], max: [p.max[0] + 0.05, p.max[1] + (p.max[0] - p.min[0] > p.max[2] - p.min[2] ? 0.07 : 0.065), p.max[2] + 0.05], mat: 'trim' });
+    // (and none over a party wall, nor sticking out past one into the neighbour's)
+    const cap = (v, lo, hi, d) => Math.min(Math.max(v + d, lo), hi);
+    const [cxa, cxb, cza, czb] = [party.has('w') ? x0 : -Infinity, party.has('e') ? x1 : Infinity, party.has('n') ? z0 : -Infinity, party.has('s') ? z1 : Infinity];
+    for (const p of b.parts) if (p.part === 'parapet') trims.push({ min: [cap(p.min[0], cxa, cxb, -0.05), p.max[1], cap(p.min[2], cza, czb, -0.05)], max: [cap(p.max[0], cxa, cxb, 0.05), p.max[1] + (p.max[0] - p.min[0] > p.max[2] - p.min[2] ? 0.07 : 0.065), cap(p.max[2], cza, czb, 0.05)], mat: 'trim' });
     // quoins: alternating long / short stone blocks up the corners (not where a corner bay came down)
     if (L.quoins) {
       const corners = [[x0, z0, 'n', 0, 'w', 0], [x1, z0, 'n', sideOf.n.nb - 1, 'e', 0], [x0, z1, 's', 0, 'w', sideOf.w.nb - 1], [x1, z1, 's', sideOf.s.nb - 1, 'e', sideOf.e.nb - 1]];
       const yTop = R ? R.yw - 0.05 : top + (bunker ? 0.5 : 0.9) - 0.1;
       for (const [qx, qz, sa, ia, sb, ib] of corners) {
+        if (party.has(sa) || party.has(sb)) continue;
         const ex = qx === x0 ? -1 : 1, ez = qz === z0 ? -1 : 1;
         for (let k = 0, y = y0 + 0.5; y + 0.27 < yTop; k++, y += 0.3) {
           const f = Math.floor((y - y0) / FH);
@@ -286,7 +300,10 @@ export function buildBuildings(world, mats) {
         }
       } else {
         const ptop = y0 + spec.floors * FH + (wh ? 0 : 0.8);
-        for (const [px, pz] of [[x0 - 0.08, z0 - 0.08], [x1 + 0.08, z1 + 0.08]]) {
+        // (moved along the facade, off a party wall's corner)
+        const at = (q, lo, hi) => (party.has(lo) ? q + 0.3 : party.has(hi) ? q - 0.3 : q);
+        for (const [px, pz] of [[at(x0 - 0.08, 'w', ''), at(z0 - 0.08, 'n', '')], [at(x1 + 0.08, '', 'e'), at(z1 + 0.08, '', 's')]]) {
+          if (Math.abs(px - cx) < spec.w / 2 && Math.abs(pz - cz) < spec.d / 2) continue; // both sides party: inside
           const c = new THREE.CylinderGeometry(0.05, 0.05, ptop - y0, 8); c.translate(px, (ptop + y0) / 2, pz); rebarGeoms.push(c);
         }
       }
@@ -314,16 +331,16 @@ export function buildBuildings(world, mats) {
         roofProps.push({ type: 'wallac', x: S.alongX ? along : out, z: S.alongX ? out : along, y, rot: S.alongX ? (S.o > 0 ? 0 : Math.PI) : (S.o > 0 ? Math.PI / 2 : -Math.PI / 2) });
         for (const du of [-0.3, 0.3]) onFace(o.side, u + du - 0.02, u + du + 0.02, 0, 0.4, y - 0.2, y - 0.16, 'metal_paint', L.iron);
       }
-      if (rnd() < (house ? 0.3 : 0.5)) dish(rnd, sideOf, (R ? R.yw : top) - 0.7, M, onFace);
+      if (rnd() < (house ? 0.3 : 0.5)) dish(rnd, sideOf, (R ? R.yw : top) - 0.7, M, onFace, party);
     }
     if (spec.damage > 0.2) rubble.push({ x: cx + (rnd() - 0.5) * spec.w * 0.5, z: cz + (rnd() - 0.5) * spec.d * 0.5, y: y0 + 0.12, n: 4 });
     buildBoxGeometry(trims, { tile: 1, color, weather, into: M });
   }
 
-  for (const [m, geo] of M.geometries()) {
+  for (const [k, M] of chunks) for (const [m, geo] of M.geometries()) {
     const mesh = new THREE.Mesh(geo, mats.building(m, { weather: true }));
     mesh.castShadow = true; mesh.receiveShadow = true;
-    mesh.name = `bld_${m}`;
+    mesh.name = `bld_${m}_${k}`;
     group.add(mesh);
   }
   let glass = null;
@@ -351,8 +368,10 @@ function tube(a, b, r) {
 }
 
 // satellite dish on a wall bracket under the eaves / below the parapet, facing south-ish and up
-function dish(rnd, sideOf, y, M, onFace) {
-  const s = rnd() < 0.7 ? 's' : ['e', 'w', 'n'][Math.floor(rnd() * 3)], S = sideOf[s];
+function dish(rnd, sideOf, y, M, onFace, party) {
+  let s = rnd() < 0.7 ? 's' : ['e', 'w', 'n'][Math.floor(rnd() * 3)];
+  if (party.has(s)) s = ['s', 'e', 'w', 'n'].find((q) => !party.has(q));
+  const S = sideOf[s];
   const u = S.L * (0.15 + rnd() * 0.7), along = S.base + u, out = S.face + S.o * 0.45;
   // a shallow spherical cap: pole toward the wall, concave side out, tilted 26° up
   const g = new THREE.SphereGeometry(0.42, 14, 4, 0, Math.PI * 2, 0, 0.55);

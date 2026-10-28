@@ -91,6 +91,8 @@ export class CollisionWorld {
       const hx = rot90 ? c : a, hz = rot90 ? a : c;
       this.addBox([p.x - hx, y, p.z - hz], [p.x + hx, y + b2 * 2, p.z + hz], t.surface, t.bullets !== false, 'prop');
     }
+    // harbour structures (gantry cranes, moored ships): the same boxes the client draws (see structureParts)
+    for (const st of this.map.STRUCTURES || []) for (const p of st.parts) if (p.collide) this.addBox(p.min, p.max, 'metal', true, 'structure');
     // quay edge on harbour maps: a low concrete wall keeps soldiers out of the water (and is usable cover)
     const sea = this.map.sea;
     if (sea) {

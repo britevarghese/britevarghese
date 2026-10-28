@@ -25,6 +25,22 @@ export class NavGrid {
         this.blocked[j * this.n + i] = bl;
       }
     }
+    // doorways: a 1.2-1.3 m door (outer or in a partition) can fall between two cell centres, each then within the
+    // 0.32 m clearance of a jamb, and a room becomes a sealed box for the bots. Under every lintel (a wall piece
+    // starting 1.9-2.7 m above the floor) open the cells on its centre line that nothing stands right on: a soldier
+    // squeezes past a jamb, the collision slides him through.
+    const clear = (x, z, g, rr) => !world.query(x - rr, z - rr, x + rr, z + rr, q).some((bx) => x + rr > bx.min[0] && x - rr < bx.max[0] && z + rr > bx.min[2] && z - rr < bx.max[2] && bx.max[1] > g + 0.45 && bx.min[1] < g + 1.75);
+    for (const L of world.boxes) {
+      const sx = L.max[0] - L.min[0], sz = L.max[2] - L.min[2], along = sx > sz;
+      if (L.tag === 'prop' || L.tag === 'tree' || L.tag === 'rock' || Math.min(sx, sz) > 0.7 || Math.max(sx, sz) < 0.9 || Math.max(sx, sz) > 5) continue;
+      const mx = (L.min[0] + L.max[0]) / 2, mz = (L.min[2] + L.max[2]) / 2, half = Math.max(sx, sz) / 2 - 0.2;
+      for (let u = -half; u <= half + 1e-6; u += cell / 2) {
+        const i = this.ix(along ? mx + u : mx), j = this.iz(along ? mz : mz + u), x = this.cx(i), z = this.cz(j);
+        if (!this.blocked[j * this.n + i] || (along ? Math.abs(x - mx) > half : Math.abs(z - mz) > half)) continue;
+        const g = world.supportHeight(x, z, groundHeight(x, z) + 0.2, 0.05), lift = L.min[1] - g;
+        if (lift >= 1.9 && lift <= 2.7 && clear(x, z, g, 0.12)) this.blocked[j * this.n + i] = 0;
+      }
+    }
   }
   cx(i) { return -this.half + (i + 0.5) * this.cell; }
   cz(j) { return -this.half + (j + 0.5) * this.cell; }

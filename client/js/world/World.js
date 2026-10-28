@@ -1,18 +1,21 @@
 // Assembles the battlefield: terrain + roads, modular buildings, props, vegetation, objective flags, distant skyline.
 import * as THREE from 'three';
 import { CollisionWorld } from '/shared/world.js';
-import { FLAGS, MAP_HALF, groundHeight, ACTIVE_MAP } from '/shared/map.js';
+import { FLAGS, MAP_HALF, groundHeight, ACTIVE_MAP, SEA_LEVEL, seaFactor } from '/shared/map.js';
 import { mulberry32 } from '/shared/util.js';
 import { buildTerrain, outerHeight } from './Terrain.js';
 import { buildBuildings } from './Buildings.js';
 import { buildProps } from './Props.js';
+import { buildStructures } from './Structures.js';
 import { Vegetation } from './Vegetation.js';
 import { MaterialLibrary, buildBoxGeometry } from '../render/Materials.js';
 
 export class GameWorld {
   constructor(assets, renderer, quality) {
     this.assets = assets; this.renderer = renderer; this.quality = quality;
+    const t0 = performance.now();
     this.collision = new CollisionWorld(ACTIVE_MAP);
+    this.timings = { collision: Math.round(performance.now() - t0) }; // world build ms per stage (perf checks)
     this.scene = new THREE.Scene();
     this.mats = new MaterialLibrary(assets, quality);
     this.flagMeshes = {};
@@ -20,21 +23,29 @@ export class GameWorld {
 
   async build(progress = () => {}) {
     const s = this.scene;
+    let t = performance.now();
+    const stage = (k) => { const n = performance.now(); this.timings[k] = Math.round(n - t); t = n; };
     progress('terrain');
     s.add(buildTerrain(this.assets, this.quality));
+    stage('terrain');
     progress('buildings');
     const b = buildBuildings(this.collision, this.mats);
     s.add(b.group);
     this.glass = b.glass;
     this.glassPanes = new Map(this.collision.glass.map((p) => [p.id, p]));
+    stage('buildings');
     progress('props');
     s.add(await buildProps(this.assets, this.mats, b));
+    s.add(buildStructures(this.mats));
+    stage('props');
     progress('vegetation');
     this.vegetation = await new Vegetation(this.assets, this.collision, this.quality, this.renderer).init();
     s.add(this.vegetation.group);
+    stage('vegetation');
     this.#flags();
     if (ACTIVE_MAP.sea) this.#sea(ACTIVE_MAP.sea);
     this.#skyline();
+    stage('skyline');
     return this;
   }
 
@@ -78,7 +89,7 @@ export class GameWorld {
           normal = normalize((viewMatrix * vec4(wn, 0.0)).xyz);`);
     };
     const along = sea.axis === 'z';
-    water.position.set(along ? 0 : sea.at + sea.dir * size / 2, -1.4, along ? sea.at + sea.dir * size / 2 : 0);
+    water.position.set(along ? 0 : sea.at + sea.dir * size / 2, SEA_LEVEL, along ? sea.at + sea.dir * size / 2 : 0);
     water.receiveShadow = true;
     water.name = 'sea';
     this.scene.add(water);
@@ -118,21 +129,77 @@ export class GameWorld {
     fm.cloth.position.y = 1.2 + 7.1 * Math.abs(progress);
   }
 
-  // distant skyline beyond the playable area: low-detail concrete blocks + ridges, dissolved by fog
+  // Distant settlements on the hills around the map: villages of small houses (light walls, darker pitched roofs,
+  // ridge along the street) with a church tower here and there, seated on the outer terrain, never over the sea;
+  // anchored ships out on the water on harbour maps. One merged mesh, no shadows, dissolved by the fog.
   #skyline() {
-    const rnd = mulberry32(31337);
-    const parts = [];
-    for (let i = 0; i < 40; i++) {
-      const a = rnd() * Math.PI * 2, r = MAP_HALF + 25 + rnd() * 90;
-      const x = Math.cos(a) * r, z = Math.sin(a) * r, w = 8 + rnd() * 18, d = 8 + rnd() * 18, h = 5 + rnd() * 9;
-      const y = Math.min(outerHeight(x - w / 2, z - d / 2), outerHeight(x + w / 2, z + d / 2), outerHeight(x, z)) - 1.5;
-      parts.push({ min: [x - w / 2, y, z - d / 2], max: [x + w / 2, y + h, z + d / 2], mat: rnd() < 0.5 ? 'concrete' : 'plaster' });
+    const rnd = mulberry32(31337 + Math.round(MAP_HALF));
+    const P = [], C = [];
+    const tri = (a, b, c, col) => { P.push(...a, ...b, ...c); for (let i = 0; i < 3; i++) C.push(...col); };
+    const quad = (a, b, c, d, col) => { tri(a, b, c, col); tri(a, c, d, col); };
+    // an oriented box (centre, half sizes, yaw, base y) with an optional gable roof along its local x
+    const house = (cx, cz, hx, hz, yaw, y, wall, roofH, wc, rc) => {
+      const c = Math.cos(yaw), s = Math.sin(yaw), at = (lx, ly, lz) => [cx + lx * c + lz * s, y + ly, cz - lx * s + lz * c];
+      const k = [[-hx, -hz], [hx, -hz], [hx, hz], [-hx, hz]];
+      for (let i = 0; i < 4; i++) { const [ax, az] = k[i], [bx, bz] = k[(i + 1) % 4]; quad(at(ax, 0, az), at(bx, 0, bz), at(bx, wall, bz), at(ax, wall, az), wc); }
+      if (!roofH) { quad(at(-hx, wall, -hz), at(-hx, wall, hz), at(hx, wall, hz), at(hx, wall, -hz), rc); return; }
+      const o = 0.35; // eaves overhang
+      tri(at(-hx, wall, -hz), at(-hx, wall, hz), at(-hx, wall + roofH, 0), wc); tri(at(hx, wall, hz), at(hx, wall, -hz), at(hx, wall + roofH, 0), wc);
+      quad(at(-hx - o, wall - 0.25, -hz - o), at(-hx - o, wall + roofH, 0), at(hx + o, wall + roofH, 0), at(hx + o, wall - 0.25, -hz - o), rc);
+      quad(at(hx + o, wall - 0.25, hz + o), at(hx + o, wall + roofH, 0), at(-hx - o, wall + roofH, 0), at(-hx - o, wall - 0.25, hz + o), rc);
+    };
+    const WALLS = [[0.86, 0.83, 0.76], [0.92, 0.9, 0.85], [0.8, 0.72, 0.58], [0.74, 0.74, 0.72], [0.85, 0.76, 0.7]];
+    const ROOFS = [[0.48, 0.24, 0.17], [0.42, 0.2, 0.15], [0.3, 0.29, 0.29], [0.36, 0.22, 0.18], [0.24, 0.24, 0.26]];
+    const H = MAP_HALF, wet = (x, z) => seaFactor(x, z) > 0 || outerHeight(x, z) < SEA_LEVEL + 1.5;
+    const groundAt = (x, z, r) => { let lo = Infinity, hi = -Infinity; for (const [dx, dz] of [[0, 0], [r, 0], [-r, 0], [0, r], [0, -r]]) { const h = outerHeight(x + dx, z + dz); lo = Math.min(lo, h); hi = Math.max(hi, h); } return [lo, hi]; };
+    let villages = 0;
+    for (let v = 0; v < 60 && villages < 10; v++) {
+      // somewhere on a square ring 40-230 m outside the map edge
+      const d = H + 40 + rnd() * 190, t = (rnd() * 2 - 1) * d, side = Math.floor(rnd() * 4);
+      const [vx, vz] = [[t, -d], [d, t], [-t, d], [-d, -t]][side];
+      if (wet(vx, vz) || wet(vx * 0.85, vz * 0.85)) continue;
+      const [lo, hi] = groundAt(vx, vz, 30);
+      if (hi - lo > 18) continue; // no villages on cliffs
+      villages++;
+      const yaw = rnd() * Math.PI, ux = Math.cos(yaw), uz = -Math.sin(yaw), n = 6 + Math.floor(rnd() * 12);
+      for (let i = 0; i < n; i++) {
+        // houses along a village street (both sides), a second row behind now and then
+        const along = (i - n / 2) * (9 + rnd() * 4) * 0.55, off = (i % 2 ? 1 : -1) * (7 + (rnd() < 0.25 ? 12 : 0) + rnd() * 3);
+        const x = vx + ux * along + uz * off, z = vz + uz * along - ux * off;
+        const hx = 3 + rnd() * 2, hz = 3.5 + rnd() * 1.5, [gl, gh] = groundAt(x, z, Math.max(hx, hz));
+        if (gh - gl > 3 || wet(x, z)) continue;
+        const floors = rnd() < 0.6 ? 1 : 2, wall = floors * 2.9 + 0.4 + (gh - gl);
+        const wc = WALLS[Math.floor(rnd() * WALLS.length)], rc = ROOFS[Math.floor(rnd() * ROOFS.length)];
+        house(x, z, hx, hz, yaw + (rnd() - 0.5) * 0.15, gl - 0.4, wall, hz * 0.7 * (0.85 + rnd() * 0.3), wc, rc);
+      }
+      if (n > 11) { // the church: nave + tower with a spire
+        const x = vx - uz * 16, z = vz + ux * 16, [gl] = groundAt(x, z, 6);
+        house(x, z, 8, 4.5, yaw, gl - 0.4, 8, 3.6, WALLS[1], ROOFS[2]);
+        const tx = x + ux * 9.5, tz = z + uz * 9.5;
+        house(tx, tz, 2.2, 2.2, yaw, gl - 0.4, 17, 0, WALLS[1], WALLS[1]);
+        const c = Math.cos(yaw), s = Math.sin(yaw), y = gl + 16.6, at = (lx, lz) => [tx + lx * c + lz * s, y, tz - lx * s + lz * c], top = [tx, y + 7, tz];
+        const k = [at(-2.4, -2.4), at(2.4, -2.4), at(2.4, 2.4), at(-2.4, 2.4)];
+        for (let q = 0; q < 4; q++) tri(k[q], k[(q + 1) % 4], top, ROOFS[4]);
+      }
     }
-    for (const [m, g] of buildBoxGeometry(parts, { tile: 1, color: (p) => [0.75, 0.76, 0.78] })) {
-      const mesh = new THREE.Mesh(g, this.mats.building(m));
-      mesh.name = 'skyline';
-      this.scene.add(mesh);
+    // harbour maps: ships riding at anchor out in the bay (hull, deck cargo, white superstructure aft)
+    const sea = ACTIVE_MAP.sea;
+    if (sea) for (let i = 0; i < 3; i++) {
+      const dist = 150 + i * 70 + rnd() * 40, across = (rnd() * 2 - 1) * H * 1.3, along = sea.at + sea.dir * dist;
+      const [x, z] = sea.axis === 'z' ? [across, along] : [along, across], yaw = (sea.axis === 'z' ? 0 : Math.PI / 2) + (rnd() - 0.5) * 0.5;
+      const L = 60 + rnd() * 50, B = L * 0.15;
+      house(x, z, L / 2, B / 2, yaw, SEA_LEVEL - 1, 7, 0, [0.18, 0.2, 0.24], [0.4, 0.38, 0.35]);
+      const c = Math.cos(yaw), s = Math.sin(yaw);
+      for (let k = 0; k < 4; k++) { const lx = -L * 0.32 + k * L * 0.15; house(x + lx * c, z - lx * s, L * 0.06, B * 0.4, yaw, SEA_LEVEL + 6, 2.6 * (1 + (k % 3)), 0, [[0.62, 0.22, 0.16], [0.2, 0.33, 0.45], [0.55, 0.5, 0.42]][k % 3], [0.4, 0.3, 0.25]); }
+      house(x + L * 0.38 * c, z - L * 0.38 * s, L * 0.07, B * 0.42, yaw, SEA_LEVEL + 6, 11, 0, [0.88, 0.88, 0.85], [0.8, 0.8, 0.78]);
     }
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.Float32BufferAttribute(P, 3));
+    g.setAttribute('color', new THREE.Float32BufferAttribute(C, 3));
+    g.computeVertexNormals();
+    const mesh = new THREE.Mesh(g, new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.92, metalness: 0, envMapIntensity: 0.5, side: THREE.DoubleSide }));
+    mesh.name = 'skyline';
+    this.scene.add(mesh);
   }
 
   update(dt, camera, time) {

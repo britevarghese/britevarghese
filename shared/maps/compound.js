@@ -9,13 +9,13 @@ const bases = {
 
 const buildings = [
   // inside the walls
-  { id: 'zhq', x: 10, z: -6, w: 14, d: 10, floors: 2, style: 'concrete', damage: 0.25, doors: ['s', 'w', 'n'] },
+  { id: 'zhq', x: 10, z: -6, w: 15, d: 10, floors: 2, style: 'concrete', damage: 0.25, doors: ['s', 'w', 'n'] },
   { id: 'zb1', x: -18, z: -20, w: 18, d: 9, floors: 1, style: 'warehouse', damage: 0.15, doors: ['e', 'w'] },
   { id: 'zb2', x: -14, z: 18, w: 10, d: 8, floors: 1, style: 'bunker', damage: 0, doors: ['e', 'n'] },
   { id: 'zt1', x: 26, z: 20, w: 8, d: 8, floors: 3, style: 'brick', damage: 0.4, doors: ['w'] },
   // outside: motor pool (A) and fuel depot (C)
   { id: 'zm1', x: -52, z: 22, w: 16, d: 12, floors: 1, style: 'warehouse', damage: 0.3, doors: ['e', 's'] },
-  { id: 'zd1', x: 50, z: -26, w: 12, d: 10, floors: 1, style: 'plaster', damage: 0.5, doors: ['w', 'n'] },
+  { id: 'zd1', x: 50, z: -26, w: 11, d: 10, floors: 1, style: 'plaster', damage: 0.5, doors: ['w', 'n'] },
   // bases
   { id: 'zus', x: -78, z: 52, w: 8, d: 8, floors: 1, style: 'bunker', damage: 0, doors: ['e', 'n'] },
   { id: 'zru', x: 78, z: -52, w: 8, d: 8, floors: 1, style: 'bunker', damage: 0, doors: ['w', 's'] },
@@ -52,6 +52,11 @@ export default {
   terrain: { amp: 2.5, scale: 45, detail: 0.6, edge: 12, seed: 55, flatten: 12 },
   atmosphere: { sun: [-0.22, 0.86, 0.3], fog: 0xcfc8b8, fogNear: 60, fogFar: 0.7, exposure: 1.0, grass: [1.08, 0.96, 0.72] },
   vegetation: { seed: 909, trees: 90, shrubs: 380, rocks: 60, clusters: 4 },
+  // the compound's concrete yard inside the walls, hardstanding at the motor pool (A) and the fuel depot (C)
+  paved: [
+    { x0: -39.5, z0: -39.5, x1: 39.5, z1: 39.5, kind: 'concrete' },
+    { x0: -74, z0: 14, x1: -40.5, z1: 54, kind: 'concrete' }, { x0: 40.5, z0: -60, x1: 76, z1: -6, kind: 'concrete' },
+  ],
   roads: [
     { ax: -112, az: 0, bx: 112, bz: 0, w: 7, name: 'east-west' },
     { ax: 0, az: -112, bx: 0, bz: 112, w: 7, name: 'north-south' },

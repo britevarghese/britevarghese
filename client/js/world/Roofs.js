@@ -52,14 +52,16 @@ export function buildRoof(R, M, L, rnd) {
   const [u0, u1, v0, v1] = ax ? [R.x0, R.x1, R.z0, R.z1] : [R.z0, R.z1, R.x0, R.x1];
   const W = (u, v, y) => (ax ? [u, y, v] : [v, y, u]);
   const cv = (v0 + v1) / 2, { tan, t, yw, ov, vg, half, rise } = R;
+  // gable ends against a terraced neighbour (party walls): flush, no barge board or vent ('p' edges)
+  const [pa, pb] = R.pend || [false, false], va = pa ? 0 : vg, vb = pb ? 0 : vg, ga = pa ? 'p' : 'g', gb = pb ? 'p' : 'g';
   const H = R.hole && (ax ? { u0: R.hole.x0, u1: R.hole.x1, v0: R.hole.z0, v1: R.hole.z1 } : { u0: R.hole.z0, u1: R.hole.z1, v0: R.hole.x0, v1: R.hole.x1 });
   const cosA = 1 / Math.sqrt(1 + tan * tan);
   // planes: plan polygon, outward plan normal n (u, v), wall line d (n·p at the outer wall face); slope line
   // height hb = yw + (d - n·p) tan, tiles t above it. Edge tags: e (eave), g (verge), r (ridge / hip)
   const planes = [];
   if (!hip) {
-    planes.push({ n: [0, 1], d: v1, P: [[u0 - vg, cv], [u1 + vg, cv], [u1 + vg, v1 + ov], [u0 - vg, v1 + ov]], tags: ['r', 'g', 'e', 'g'] });
-    planes.push({ n: [0, -1], d: -v0, P: [[u0 - vg, v0 - ov], [u1 + vg, v0 - ov], [u1 + vg, cv], [u0 - vg, cv]], tags: ['e', 'g', 'r', 'g'] });
+    planes.push({ n: [0, 1], d: v1, P: [[u0 - va, cv], [u1 + vb, cv], [u1 + vb, v1 + ov], [u0 - va, v1 + ov]], tags: ['r', gb, 'e', ga] });
+    planes.push({ n: [0, -1], d: -v0, P: [[u0 - va, v0 - ov], [u1 + vb, v0 - ov], [u1 + vb, cv], [u0 - va, cv]], tags: ['e', gb, 'r', ga] });
   } else {
     const ra = u0 + half, rb = u1 - half; // ridge ends (one point on a square house: a pyramid)
     if (rb - ra > EPS) {
@@ -104,7 +106,11 @@ export function buildRoof(R, M, L, rnd) {
         const tag = k >= 0 ? pl.tags[k] : onHole(m) ? 'c' : null;
         if (tag === 'e') eave(a, b, pl, hb);
         else if (tag === 'g') verge(a, b, pl, hb);
-        else if (tag === 'c') {
+        else if (tag === 'p') {
+          // party-wall end: close the deck's edge in the facade finish (seen where the neighbour's roof is lower)
+          const en = norm(W(m[0] < (u0 + u1) / 2 ? -1 : 1, 0, 0));
+          M.flat(L.facade, [W(a[0], a[1], hb(a)), W(b[0], b[1], hb(b)), W(b[0], b[1], hb(b) + t), W(a[0], a[1], hb(a) + t)], en, norm(sub(W(b[0], b[1], 0), W(a[0], a[1], 0))), [0, 1, 0], L.fcol);
+        } else if (tag === 'c') {
           // broken edge of the deck (charred boards)
           const o = [m[0] - (Q.reduce((s, q) => s + q[0], 0) / Q.length), m[1] - (Q.reduce((s, q) => s + q[1], 0) / Q.length)];
           const en = norm(W(o[0], o[1], 0));
@@ -181,7 +187,7 @@ export function buildRoof(R, M, L, rnd) {
 
   // ridge and hip caps (half-round ridge tiles as a diamond-section beam, half sunk into the slope)
   const caps = [];
-  if (!hip) caps.push([[u0 - vg, cv], [u1 + vg, cv]]);
+  if (!hip) caps.push([[u0 - va, cv], [u1 + vb, cv]]);
   else {
     const ra = u0 + half, rb = u1 - half;
     if (rb - ra > 0.05) caps.push([[ra, cv], [rb, cv]]);
@@ -215,8 +221,8 @@ export function buildRoof(R, M, L, rnd) {
           M.flat(L.facade, [W(uf, a[0], a[1]), W(ui, a[0], a[1]), W(ui, b[0], b[1]), W(uf, b[0], b[1])], en, W(1, 0, 0), [0, 1, 0], L.fcol);
         }
       }
-      // louvred vent in the gable (houses)
-      if (!wh && (!H || !(H.u0 < uf + 1 && H.u1 > uf - 1))) {
+      // louvred vent in the gable (houses; not in a party wall)
+      if (!wh && !(sgn < 0 ? pa : pb) && (!H || !(H.u0 < uf + 1 && H.u1 > uf - 1))) {
         const c = W(uf + sgn * 0.02, cv, yw + rise * 0.42), o = norm(W(sgn, 0, 0)), x = norm(W(0, 1, 0));
         M.obox('wood_paint', c, x, [0, 1, 0], cross(x, [0, 1, 0]), [0.28, 0.3, 0.03], L.vent);
         M.obox('trim', [c[0], c[1] - 0.33, c[2]].map((k, i) => k + o[i] * 0.02), x, [0, 1, 0], cross(x, [0, 1, 0]), [0.34, 0.04, 0.05], L.trim);
