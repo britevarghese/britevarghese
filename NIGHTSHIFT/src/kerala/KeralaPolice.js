@@ -132,7 +132,7 @@ export class KeralaPolice {
       let spot = null;
       for (let r = 7; r <= 16 && !spot; r += 1.5) for (let a = 0; a < 16 && !spot; a++) {
         const x = S.x + Math.cos(a / 16 * Math.PI * 2 + 0.4) * r, z = S.z + Math.sin(a / 16 * Math.PI * 2 + 0.4) * r;
-        if (!W.onCarriageway(x, z, 1.2)) spot = [x, z];
+        if (W.offCarriageway(x, z, 1.2)) spot = [x, z];   // (and on built ground: an unbuilt tile's road isn't known)
       }
       if (!spot) continue;
       const grp = this._podium(), y = W.groundHeight(spot[0], spot[1]);
@@ -202,7 +202,7 @@ export class KeralaPolice {
       ex = tmp.x + rx * -(edge + 1.6); ez = tmp.z + rz * -(edge + 1.6);   // the jeep on the verge
       const jx = ex - tmp.dx * 6, jz = ez - tmp.dz * 6;
       const blocked = W.collision.query(jx - 4, jz - 4, jx + 4, jz + 4, []).some((c) => c.kind !== 'lane' && c.kind !== 'connector' && Math.hypot(c.cx - jx, c.cz - jz) < 3.2 + Math.max(c.hx, c.hz))
-        || W.inWater?.(jx, jz) || W.onCarriageway(jx, jz, 0.3);
+        || W.inWater?.(jx, jz) || !W.offCarriageway(jx, jz, 0.3);
       if (!blocked) { s = lane.length * f; break; }
     }
     if (s < 0) return;
@@ -327,7 +327,7 @@ export class KeralaPolice {
     if (!best || bn < 3) return;
     const near = stuck.filter((o) => Math.hypot(o.x - best.x, o.z - best.z) < 35), cx = near.reduce((s, c) => s + c.x, 0) / near.length, cz = near.reduce((s, c) => s + c.z, 0) / near.length;
     // he comes on foot from the roadside 25 m off, to a spot off the carriageway by the jam
-    const off = (r0, r1) => { for (let r = r0; r <= r1; r += 2) for (let a = 0; a < 12; a++) { const x = cx + Math.cos(a / 12 * Math.PI * 2) * r, z = cz + Math.sin(a / 12 * Math.PI * 2) * r; if (!W.onCarriageway(x, z, 0.8)) return [x, z]; } return null; };
+    const off = (r0, r1) => { for (let r = r0; r <= r1; r += 2) for (let a = 0; a < 12; a++) { const x = cx + Math.cos(a / 12 * Math.PI * 2) * r, z = cz + Math.sin(a / 12 * Math.PI * 2) * r; if (W.offCarriageway(x, z, 0.8)) return [x, z]; } return null; };
     const spot = off(4, 14), from = off(22, 34);
     if (!spot || !from) return;
     const cop = this._cop(27);

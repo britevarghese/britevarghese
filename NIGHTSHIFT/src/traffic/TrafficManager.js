@@ -246,6 +246,16 @@ export class TrafficManager {
     return d < 60 || (dx * _dir.x + dz * _dir.z) / d > 0.55;
   }
 
+  // well out of the camera's sight: more than 12 m from it, and behind it or off to its side
+  _behindCam(c) {
+    const cam = this.camera;
+    if (!cam) return false;
+    const dx = c.x - cam.position.x, dz = c.z - cam.position.z, d = Math.hypot(dx, dz);
+    if (d < 12) return false;
+    cam.getWorldDirection(_dir);
+    return (dx * _dir.x + dz * _dir.z) / d < 0.2;
+  }
+
   remove(car) {
     const i = this.cars.indexOf(car);
     if (i >= 0) this.cars.splice(i, 1);
@@ -282,7 +292,9 @@ export class TrafficManager {
       const behind = forward && dm === d && d > 150 && ((c.x - focus.x) * forward.x + (c.z - focus.z) * forward.z) / d < -0.4 && this.cars.length >= max * 0.8;
       if (c.incident) continue; // an accident scene stays until it is cleared
       // gridlock relief: a car stuck for a long while out of the player's sight quietly goes (another spawns)
-      if (c.state === 'drive') { c.stuckT = c.v < 0.3 && !c.dwell ? (c.stuckT || 0) + dt : 0; if (c.stuckT > 25 && dm > 45 && !this._inView(c)) { this.remove(c); continue; } }
+      // (and one stuck longer still, behind the camera or well off to its side even if near: queued for minutes
+      // behind the player's car stopped in a narrow street, the queue backed into the junction and locked it)
+      if (c.state === 'drive') { c.stuckT = c.v < 0.3 && !c.dwell ? (c.stuckT || 0) + dt : 0; if ((c.stuckT > 25 && dm > 45 && !this._inView(c)) || (c.stuckT > 40 && this._behindCam(c))) { this.remove(c); continue; } }
       if (c.path?.dead || dm > 310 || behind || (c.state === 'wreck' && dm > 120) || this.cars.length > max + 4 && dm > 200 || (this.cars.length > max + 2 && dm > 110 && c.state === 'drive' && !this._inView(c))) this.remove(c);  // (the roads empty out as night falls)
     }
     // sort occupancy

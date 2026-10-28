@@ -115,6 +115,8 @@ export class Pedestrians {
     this.groups ||= new Map();
     for (const sp of spots) {
       if (this.groups.has(sp.key) || this.peds.length >= this.max + 12) continue;
+      // (not till the ground in front of it is built: the road there isn't known)
+      if (this.layout.groundKnown && !this.layout.groundKnown(sp.x, sp.z, 20)) continue;
       const R = this.R, n = sp.kind === 'tea' ? 2 + Math.floor(R() * 3) : 1 + Math.floor(R() * 3);
       const members = [];
       // the road side of the stall / the shelter; tea drinkers stand round in a loose ring. Between it and the road,

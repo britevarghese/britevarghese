@@ -85,7 +85,8 @@ export class Incidents {
     }
     // (round it off the carriageway, at the road's side: put round it anywhere, those along the road's line stood in
     // the lane the traffic was being waved past in)
-    const onRd = this.game.world.onCarriageway?.bind(this.game.world);
+    // (and where the ground's built: on a tile not built yet, no road is known)
+    const W = this.game.world, onRd = W.offCarriageway ? (x, z, m) => !W.offCarriageway(x, z, m) : W.onCarriageway?.bind(W);
     near.forEach((p, i) => {
       let a = (i / Math.max(1, near.length)) * Math.PI * 2 + Math.random() * 0.6, r = 6 + Math.random() * 3;
       for (let k = 0; k < 12 && onRd?.(inc.x + Math.cos(a) * r, inc.z + Math.sin(a) * r, 0.4); k++) { a += 0.55; r = 5 + (k % 3) * 2; }

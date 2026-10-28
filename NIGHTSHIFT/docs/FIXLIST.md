@@ -269,6 +269,10 @@ the game. Newly found problems go at the end of their section.
     the queue at 3.5 m/s and shunted it: they stop short now. And they steered away from and slowed for a car coming
     the other way in its own lane on a narrow street
   - [x] Parked cars and scooters were put down where the player's car stood (a scooter parked into it was knocked flat)
+  - [x] Traffic stuck a long time out of the player's sight goes quietly (another comes), but only 45 m and more off,
+    and "out of sight" took in everything within 60 m: the queue behind the player's car stopped in a narrow street
+    stayed for minutes and backed into the junction. One stuck 40 s behind the camera or well off to its side, 12 m
+    and more from it, goes now (Mattannur: 8 stuck -> 5, those in view)
   - [x] Going round the player's stopped car: one set off with the road clear and met the traffic coming the other way
     half way out, and neither could move again. It looks again until it's half way out, and pulls back in behind if
     something's coming. A car on the vehicle physics settled a few inches short of the line it was given and stood
@@ -373,6 +377,14 @@ the game. Newly found problems go at the end of their section.
 - [x] People getting on a bus walked to its middle, half a bus's width out in the road, stepping out into the
   carriageway: they go to its door, on the kerb side by the front (Thalassery's middle: 23 looks in the road in 3
   minutes, 3 after)
+- [x] Taliparamba's middle: two people stood in the road for minutes, and a car waited at a lane's end. Both were
+  just over the edge of the map tile the player was in, 20 m off, on the next tile - not built yet (it was built
+  third, after one whose nearest edge was 300 m away). A spot for people to stand (an accident's onlookers, a tea
+  stall's or a bus stop's group, a traffic officer, a police check's jeep) was taken as off the road there, the road
+  not known yet. Those spots are only taken on built ground now, and the tiles are built nearest edge first (that
+  one second, 15 s sooner). Again: none in the road, no car off it
+- [x] On foot round the six towns, walking and running at walls, houses, trees and traffic for two minutes each: no
+  step through anything solid, never inside it, the feet never under or over the ground, no errors
 
 ## Roads and world
 - [x] The game hung for a moment every so often while driving: building each new 2 km piece of the map ran some

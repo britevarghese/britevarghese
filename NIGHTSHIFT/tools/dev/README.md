@@ -10,6 +10,10 @@ Headless Chromium uses software rendering (SwiftShader): FPS numbers are NOT rep
 | `node tools/dev/smoke.mjs --port N [--seconds 180]` | Free roam + race + pursuit with rendering off; fails on any JS error |
 | `node tools/dev/break-test.mjs --port N [--time day] [--out DIR]` | Breakaway props: hits a lamp post and sidewalk clutter, reports speed kept / debris / light off |
 | `node tools/dev/hitch-test.mjs --port N [--quality ultra]` | Scripted 50 s drive at fixed 60 Hz (render off); average step and the slowest steps with their dominant subsystem |
+| `node tools/dev/townlife.mjs --port N [--at x,z\|all] [--minutes 3] [--detail 1]` | Kerala street life round the player's stopped car in a town (all: the six towns): traffic stuck and what's in front of it, overlaps, off the road, crashes, people in the road |
+| `node tools/dev/chase.mjs --port N [--at x,z\|all] [--heat 2] [--seconds 120] [--stop 1]` | A police chase through a town's traffic, the player's car AI-driven away (or standing): units' arrival, hits, stuck, traffic knocked, roadblocks, busted/escaped |
+| `node tools/dev/onfoot.mjs --port N [--at x,z\|all] [--seconds 120]` | On foot round a town in random directions: steps through walls or houses, standing inside them, feet under or over the ground, where it gets stuck |
+| `node tools/dev/ride.mjs --port N --at x,z [--minutes 4] [--seed 1] [--car id]` | An AI drives the player's car along random routes (no traffic): airborne, hard landings, jolts, hits, sudden stops, leaving the road, resets |
 
 Scenes can script driving with `sim([[steps, {throttle, brake, steer, handbrake, nitro}], ...])` (fixed 60 Hz steps with
 rendering disabled, since headless GL is far too slow for real time) — see `drift_night`, `drift_day`, `speed_night`,

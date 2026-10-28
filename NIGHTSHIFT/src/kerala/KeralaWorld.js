@@ -93,6 +93,8 @@ export class KeralaWorld {
       pedSegment: (focus, R) => W.pedSegment(focus, R),
       standSpots: (x, z, r) => W.standSpots(x, z, r),
       onCarriageway: (x, z, m) => W.onCarriageway(x, z, m),
+      offCarriageway: (x, z, m) => W.offCarriageway(x, z, m),
+      groundKnown: (x, z, m) => W.groundKnown(x, z, m),
       pedWalkClear: (g) => W.pedWalkClear(g),
     };
     this.planner = { colliders: [], props: [], parked: [], buildings: [] };
@@ -554,6 +556,24 @@ export class KeralaWorld {
     return true;
   }
 
+  // the ground at (x, z) built, and within m of its tile's edge the tile across it too (or there's none: the sea):
+  // what roads are there is known
+  groundKnown(x, z, m = 12) {
+    const t = this.tileAt(x, z);
+    if (!t?.ready) return false;
+    const e = -x - t.E0, n = z - t.N0, de = e < m ? -1 : e > TILE - m ? 1 : 0, dn = n < m ? -1 : n > TILE - m ? 1 : 0;
+    for (const [a, b] of [[de, 0], [0, dn], [de, dn]]) {
+      if (!a && !b) continue;
+      const k = this.key(t.tx + a, t.tz + b);
+      if ((!this.tileSet || this.tileSet.has(k)) && !this.tiles.get(k)?.ready) return false;
+    }
+    return true;
+  }
+
+  // off every carriageway, as far as is known: not where the ground isn't built yet (its roads unknown, a spot there
+  // passed for off the road - an accident's onlookers were sent to stand where the next tile then brought in a road)
+  offCarriageway(x, z, margin = 0) { return this.groundKnown(x, z, 12 + margin) && !this.onCarriageway(x, z, margin); }
+
   onCarriageway(x, z, margin = 0) {
     const t = this.tileAt(x, z);
     if (!t?.ready) return false;
@@ -704,12 +724,15 @@ export class KeralaWorld {
       for (const [a, b] of want) if (!this.tiles.get(this.key(a, b))?.ready) this.fetchTile(a, b);
       for (const [k, t] of this.tiles) if (Math.max(Math.abs(t.tx - tx), Math.abs(t.tz - tz)) > KEEP) this._unloadTile(k, t);
     }
-    // build at most one loaded tile per frame (the nearest)
+    // build at most one loaded tile per frame (the nearest: by how far its edge is, not its place in the grid - a
+    // neighbour 20 m off across a tile's edge waited behind one whose nearest edge was 300 m away, and the street
+    // just over the edge had no traffic, its people standing in a road not there yet)
     let best = null, bd = Infinity;
     for (const t of this.tiles.values()) {
-      if (t.ready) continue;
-      const d = this.prio?.has(this.key(t.tx, t.tz)) ? -1 : Math.max(Math.abs(t.tx - tx), Math.abs(t.tz - tz));
-      if (d <= RADIUS && d < bd) { bd = d; best = t; }
+      if (t.ready || Math.max(Math.abs(t.tx - tx), Math.abs(t.tz - tz)) > RADIUS) continue;
+      const ex = Math.max(0, Math.abs(-f.x - (t.E0 + TILE / 2)) - TILE / 2), ez = Math.max(0, Math.abs(f.z - (t.N0 + TILE / 2)) - TILE / 2);
+      const d = this.prio?.has(this.key(t.tx, t.tz)) ? -1 : Math.hypot(ex, ez);
+      if (d < bd) { bd = d; best = t; }
     }
     // build in stages, a few milliseconds a frame (a whole tile at once stalled the game for a moment)
     if (this.job && !this.tiles.has(this.key(this.job.t.tx, this.job.t.tz))) this.job = null;
