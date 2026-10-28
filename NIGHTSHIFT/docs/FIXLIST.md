@@ -568,6 +568,25 @@ the game. Newly found problems go at the end of their section.
     level now; Kannur's kinks over 20 cm 9 -> 7, the other towns unchanged. The scan leaves the speed breakers out now
     (a 10 cm hump a metre across reads as a 20 cm bend), and waits for a town's lanes as well as its ground (they
     come a few frames later: Payyanur once read 14 lanes of its 332)
+  - [x] Scanned again without the speed breakers, the worst left were at the tiles' edges and junction mouths:
+    - a road crossing a tile's edge at a slant: each tile's strip ends square across the road where its middle meets
+      the edge, and runs on a little past it so there's no gap - held at the end's level. On a road climbing at 15 %
+      that run-on was a flat lip 0.26 m off the other tile's strip beside it (Mattannur, Kannur). The run-on carries
+      the grade on now, and where the other tile's own strip is there, that's what the wheels touch
+    - a side road meeting a main road that climbs, at a slant: the side road was level across its mouth, the main
+      road's edge it met sloping - one corner of the mouth 0.28 m under it (Kannur). A lesser road's strip by a more
+      important road's edge is eased to that road's level now (all of it to 1.5 m off the edge, none 4.5 m off; not
+      a road more than 0.6 m above or below, which is one terraced over the other), and inside its strip it lies just
+      under its surface, a lower one too. Two roads whose strips overlap side by side are levelled as one
+    - the junction fill from the last round counted one road as two (each piece of road is in every cell of the
+      lookup grid it crosses), so it applied past any strip's end - at the tiles' edges, the flat lip above. Roads
+      are counted once now; and a closed loop (a residential ring road) has no strip end at its joint - read as one,
+      the outside of that bend was the ground's, a 0.21 m dip on a turn in Payyanur
+    Kinks over 6 / 12 / 20 cm, the six towns: 242 / 71 / 16 -> 155 / 31 / 3 (Kannur 111 / 27 / 8 -> 75 / 11 / 0,
+    Thalassery 30 / 10 / 0 -> 13 / 5 / 0, Mattannur 16 / 5 / 2 -> 14 / 1 / 0, Taliparamba 48 / 9 / 1 -> 22 / 6 / 1,
+    Payyanur 0, Iritty 37 / 15 / 5 -> 31 / 8 / 2, its steep side road 0.57 -> 0.28). Rides round Kannur and
+    Taliparamba after: no jolts, landings or hits. The scan skips a lane's samples on a tile not built (one at the
+    radius's edge read the next tile's bare ground)
 - [x] AI junction turns where the route reached the corner through a short hop in line with the lane before it (one
   lane's end to the next one's start, 3.9 m): the turn was rounded within that hop, 2 m across - tighter than a car
   can steer - and the car swung its nose 1.5 m off the road. The room for the arc is the straight run up to the corner

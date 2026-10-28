@@ -1099,7 +1099,11 @@ export class KeralaTile {
                 const j = L[q + 1], [oe, on] = o.P[j], d = Math.hypot(oe - e, on - n), gap = R.hw + o.hw + (dual ? 14 : 6);
                 if (d > gap || Math.abs(o.prof[j] - R.prof[i]) > 3) continue;
                 const [vx, vy] = dir(o, j); if (Math.abs(ux * vx + uy * vy) < 0.8) continue;
-                const w = dual ? 1 - (d / gap) ** 2 : (1 - d / gap) * 0.5, c = best.get(L[q]); if (!c || w > c[0]) best.set(L[q], [w, o.prof[j]]);
+                // (and two whose strips overlap - a lane along a main road, 5 m between their middles - are one stretch
+                // of tarmac: as level as a highway's two halves. Tied loosely they stayed 0.27 m apart, and the lesser
+                // road's lane, running on the main road's edge, dropped that much in one where they parted)
+                const one = dual || d < R.hw + o.hw + 0.5;
+                const w = one ? 1 - (d / gap) ** 2 : (1 - d / gap) * 0.5, c = best.get(L[q]); if (!c || w > c[0]) best.set(L[q], [w, o.prof[j]]);
               }
             }
             let sw = 1, sy = R.prof[i];
@@ -1642,13 +1646,22 @@ export class KeralaTile {
       const run = (a, b) => { const de = a[0] - b[0], dn = a[1] - b[1], l = Math.hypot(de, dn) || 1; return [a[0] + de / l * (hw + 1), a[1] + dn / l * (hw + 1)]; };
       const P = r.pts.length > 1 && (onEdge(r.pts[0]) || onEdge(r.pts[r.pts.length - 1])) ? [...r.pts] : r.pts;
       if (P !== r.pts) { if (onEdge(P[0])) P.unshift(run(P[0], P[1])); if (onEdge(P[P.length - 1])) P.push(run(P[P.length - 1], P[P.length - 2])); }
-      // the road's own graded surface (its deck on a bridge), the ground where it has none (beyond a tile-edge cut)
-      // (inside a more important road's strip, just under its surface: one continuous top where two roads overlap away
-      // from their shared point, instead of the lesser road's slab and edge standing on the main road)
+      // the road's own graded surface (its deck on a bridge), the ground where it has none (beyond a tile-edge cut);
+      // inside or by a more important road's strip, as _laid has it
       const ri = this.roads.indexOf(r);
+      // (the run-on past the edge carries the grade on from the profile's end, not held at the edge's level: a road
+      // climbing at 14-21 % across the edge at a slant had a flat lip 0.26 m off the next tile's strip beside it)
+      const S = r.surf, runOn = (e, n) => {
+        if (P === r.pts || !S || S.P.length < 2) return 0;
+        const L = S.P.length, end = Math.hypot(e - S.P[0][0], n - S.P[0][1]) < Math.hypot(e - S.P[L - 1][0], n - S.P[L - 1][1]) ? [0, 1] : [L - 1, L - 2];
+        const a = S.P[end[0]], b = S.P[end[1]], de = a[0] - b[0], dn = a[1] - b[1], l = Math.hypot(de, dn) || 1;
+        if (!onEdge(a)) return 0;
+        const out = ((e - a[0]) * de + (n - a[1]) * dn) / l;   // (how far past that end, along the road)
+        return out > 0 ? Math.max(-0.3, Math.min(0.3, (S.y[end[0]] - S.y[end[1]]) / l)) * out : 0;
+      };
       const ys = (extra) => Object.assign((e, n) => {
-        const v = this._surfAt(r, e, n), y = (v > -1e9 ? v : this.heightAt(e, n)) + lift + extra, cov = r.deck ? -Infinity : this._coverY(e, n, ri);
-        return cov > -1e9 && y > cov - 0.02 ? cov - 0.02 : y;
+        const v = this._surfAt(r, e, n);
+        return this._laid(e, n, ri, (v > -1e9 ? v + runOn(e, n) : this.heightAt(e, n)) + lift) + extra;
       }, { exact: (e, n) => this._surfAt(r, e, n) > -1e9 });
       // (a point every 2.5 m within 12 m of its junctions and ends, 8 m elsewhere: a side road is held level across
       // the road it joins, then eases into its grade, and drawn straight from the junction to a point 8 m off the strip
@@ -1662,7 +1675,10 @@ export class KeralaTile {
       const rows = [];
       const g = this._ribbon(Q, hw, ys(0), 7, rows);
       if (!g) continue;
-      r.drawn = { rows, hw };   // (what the wheels drive on: see _drawnAt)
+      // (what the wheels drive on: see _drawnAt. And where it runs on past the edge, which way: the next tile's own strip
+      // rules there, where it has one - see roadSurface)
+      const outAt = (a, b) => { const de = a[0] - b[0], dn = a[1] - b[1], l = Math.hypot(de, dn) || 1; return [a[0], a[1], de / l, dn / l]; };
+      r.drawn = { rows, hw, runOn: P === r.pts ? null : [onEdge(r.pts[0]) && outAt(r.pts[0], r.pts[1]), onEdge(r.pts[r.pts.length - 1]) && outAt(r.pts[r.pts.length - 1], r.pts[r.pts.length - 2])].filter(Boolean) };
       fastNormals(g);
       if (!r.dirt) {
         // in a junction the strips overlap: no ragged edge or verge dust there (it would show on the other road)
@@ -2342,7 +2358,10 @@ export class KeralaTile {
     // piece before, a point 0.4 m past a climbing road's end at a junction took the height of its row 2 m back up the
     // hill, a 0.3 m step across the junction's mouth)
     const past = (a, b) => { const de = R[b * 6] - R[a * 6], dn = R[b * 6 + 1] - R[a * 6 + 1], l = Math.hypot(de, dn) || 1; return ((e - R[b * 6]) * de + (n - R[b * 6 + 1]) * dn) / l; };
-    const pastEnd = m > 1 && past(m - 2, m - 1) > 0.1, pastStart = m > 1 && past(1, 0) > 0.1;
+    // (a closed loop - a residential ring road, its first row on its last - has no end: its joint is a bend like any
+    // other, the outside of it its strip's. Read as both ends, the corner there was the ground's, a 0.21 m dip on a turn)
+    const ring = m > 2 && Math.hypot(R[0] - R[(m - 1) * 6], R[1] - R[(m - 1) * 6 + 1]) < 0.5;
+    const pastEnd = m > 1 && !ring && past(m - 2, m - 1) > 0.1, pastStart = m > 1 && !ring && past(1, 0) > 0.1;
     let bd = Infinity, by = -Infinity;
     for (let a = -2; a <= 2; a++) for (let b = -2; b <= 2; b++) {
       const L = D.grid.get((ge + a) * 100000 + gn + b); if (!L) continue;
@@ -2350,7 +2369,7 @@ export class KeralaTile {
         if (i === 0) continue;
         const j = (i - 1) * 6, k = i * 6, ae = R[j], an = R[j + 1], de = R[k] - ae, dn = R[k + 1] - an, l2 = de * de + dn * dn || 1;
         const t = ((e - ae) * de + (n - an) * dn) / l2, sl = Math.sqrt(l2);
-        if ((i === 1 && t * sl < -0.1) || (i === m - 1 && (t - 1) * sl > 0.1)) continue;   // (beyond the strip's end)
+        if (!ring && ((i === 1 && t * sl < -0.1) || (i === m - 1 && (t - 1) * sl > 0.1))) continue;   // (beyond the strip's end)
         if ((pastEnd && t > 1) || (pastStart && t < 0)) continue;
         const u = Math.max(0, Math.min(1, t)), ce = ae + de * u, cn = an + dn * u;
         const d = Math.hypot(ce - e, cn - n);
@@ -2441,12 +2460,55 @@ export class KeralaTile {
     return best;
   }
 
+  // what laying a road's strip makes of its level y at (e, n): inside a more important road's strip, just under its
+  // surface (one continuous top where two roads overlap away from their shared point, not the lesser one's slab and edge
+  // standing on the main road - and a lower one too, its rows from there on out to the edge); by that road's edge, eased
+  // to its level (a side road crossing a main road climbing at 5 %, at a slant, was level across its mouth, one corner
+  // 0.28 m under the main road's edge: a step to drive over). The strips are laid so, and roadSurface reads the same
+  _laid(e, n, ri, y) {
+    const r = this.roads[ri]; if (r.deck) return y;
+    const cov = this._coverY(e, n, ri);
+    if (cov > -1e9) return y > cov - 0.6 ? cov - 0.02 : y;
+    const my = r.dirt ? -Infinity : this._mouthY(e, n, ri, y);
+    return my > -1e9 ? y + (my - y) * this._mw : y;
+  }
+
+  // a lesser road by a more important one's edge (its mouth at a junction, or alongside): that road's level there,
+  // -Infinity if none, and in this._mw how much it counts - all of it to 1.5 m past the edge, nothing 4.5 m off. Not one
+  // more than 0.6 m off the road's own level (y): that's one road terraced above the other, not the two meeting
+  _mouthY(e, n, ri, y) {
+    const me = this.roads[ri], G = 25;
+    let by = -Infinity, bw = 0, bd = Infinity;
+    for (let a = -1; a <= 1; a++) for (let b = -1; b <= 1; b++) {
+      const L = this._rg.get((Math.floor(e / G) + a) * 1000 + Math.floor(n / G) + b); if (!L) continue;
+      for (let j = 0; j < L.length; j += 6) {
+        const oi = L[j + 5]; if (oi === ri) continue;
+        const cls = L[j + 4], o = this.roads[oi];
+        if (o.flags & 4 || o.deck || o.dirt || !(cls < me.cls || (cls === me.cls && oi < ri))) continue;
+        const hw = cls <= 2 && o.lanes ? Math.max(ROAD_HALF[cls], o.lanes * 1.75) : ROAD_HALF[cls];
+        const ax = L[j], az = L[j + 1], dx = L[j + 2] - ax, dz = L[j + 3] - az, l2 = dx * dx + dz * dz || 1;
+        const t = Math.max(0, Math.min(1, ((e - ax) * dx + (n - az) * dz) / l2)), ce = ax + dx * t, cn = az + dz * t, d = Math.hypot(ce - e, cn - n);
+        if (d < hw - 0.3 || d > hw + 4.5) continue;
+        // (its surface carried on past its edge, level across as its rows are: a row of the lesser road's straddling the
+        // edge then lies in its plane - each row is a straight line from one end to the other)
+        const sf = this._surfAt(o, ce, cn);
+        if (!(sf > -1e9)) continue;
+        const ty = sf + 0.07 + (10 - cls) * 0.004, w = _smooth(Math.max(0, Math.min(1, 1 - (d - hw - 1.5) / 3)));
+        // (the nearest piece of road: every piece within reach weighs all of it by an edge, and the first, its nearest
+        // point clamped to its far end, held a side road's mouth 0.18 m up)
+        if (Math.abs(ty - y) <= 0.6 && d < bd) { bd = d; bw = w; by = ty; }
+      }
+    }
+    this._mw = bw;
+    return by;
+  }
+
   // the height of the drawn road surface at (e, n), or -Infinity off the roads. Matches how _ribbon lays the strip:
   // lifted by class, each vertex on the highest ground around it, so wheels sit on the asphalt rather than in it
   roadSurface(e, n, yRef) {
     if (!this._rg) this.nearRoad(e, n, 1);
     const G = 25;
-    let best = -Infinity, off = -Infinity, mainCls = 99, mainY = -Infinity, und = -Infinity, nIn = 0;
+    let best = -Infinity, off = -Infinity, mainCls = 99, mainY = -Infinity, und = -Infinity, nIn = 0, inR = -1, runY = -Infinity;
     const on = this._rsOn || (this._rsOn = []);
     on.length = 0;
     for (let a = -1; a <= 1; a++) for (let b = -1; b <= 1; b++) {
@@ -2478,9 +2540,11 @@ export class KeralaTile {
         }
         // its strip as drawn (at the edge, for the shoulder beyond it): exactly what the wheels should touch
         const dr = r.drawn ? this._drawnAt(r, dist <= hw ? e : ce + (e - ce) * (hw - 0.15) / dist, dist <= hw ? n : cn + (n - cn) * (hw - 0.15) / dist, 0.3) : -Infinity;
-        if (dist <= hw + 0.8) nIn++;   // (or just short of its edge: a side road ending at a road's edge, not its strip)
+        // (roads here, or just short of their edge - a side road ending at a road's edge, not its strip. Roads, not
+        // pieces: a piece is in every cell of the grid it crosses, and counted once a cell one road was two)
+        if (dist <= hw + 0.8) { const ri = L[j + 5]; if (inR < 0) { inR = ri; nIn = 1; } else if (ri !== inR) nIn = 2; }
         if (r.drawn && dr === -Infinity) {   // (its strip isn't drawn here: nothing to stand on - but see und below)
-          if (dist <= hw - 0.15) { const sf0 = this._surfAt(r, ce, cn); if (sf0 > -1e9) und = Math.max(und, sf0 + 0.07 + (10 - cls) * 0.004); }
+          if (dist <= hw - 0.15) { const sf0 = this._surfAt(r, ce, cn); if (sf0 > -1e9) und = Math.max(und, this._laid(e, n, L[j + 5], sf0 + 0.07 + (10 - cls) * 0.004)); }
           continue;
         }
         const l = Math.sqrt(l2), ue = dx / l * 4, un = dz / l * 4, sf = dr > -1e9 ? -Infinity : this._surfAt(r, ce, cn);
@@ -2489,6 +2553,8 @@ export class KeralaTile {
         // beyond the edge: down the shoulder to the ground (as drawn); under a more important road's strip, as drawn too
         let yy = dist <= hw ? y : y + (this.heightAt(e, n) - y) * ((dist - hw) / 1.6);
         if (dr === -Infinity && yy > (dist <= hw ? best : off)) { const cov = this._coverY(e, n, L[j + 5]); if (cov > -1e9 && yy > cov - 0.02) yy = cov - 0.02; }
+        // (on its run-on past the tile's edge: only if nothing else is here - the next tile's own strip goes first)
+        if (dr > -1e9 && dist <= hw && r.drawn.runOn?.some((q) => (e - q[0]) * q[2] + (n - q[1]) * q[3] > 0.05)) { runY = Math.max(runY, yy); continue; }
         if (dist <= hw) { on.push(cls, yy); if (cls < mainCls || (cls === mainCls && yy > mainY)) { if (cls < mainCls) mainY = -Infinity; mainCls = cls; mainY = Math.max(mainY, yy); } } else if (yy > off) off = yy;
       }
     }
@@ -2501,7 +2567,8 @@ export class KeralaTile {
     // ends square at the junction's point, and the outer corner between two leaving it at an angle was the ground's
     // level, a pit 2 m deep in a junction on an embankment in Kannur. And a side road ending just short of another's
     // strip: the gap between them was the verge's level, a crease 0.2 m deep across the side road's mouth)
-    if (best === -Infinity) best = nIn >= 2 && und > -Infinity ? und : off;
+    this._rsStrip = best > -Infinity;   // (a strip of its own holds the point: see KeralaWorld.groundHeight)
+    if (best === -Infinity) best = runY > -Infinity ? runY : nIn >= 2 && und > -Infinity ? und : off;
     // between the two halves of a dual carriageway: the median
     if (this._medG) { const ym = this._medianAt(e, n); if (ym > best && !(yRef < ym - 1.2)) best = ym; }
     return best;

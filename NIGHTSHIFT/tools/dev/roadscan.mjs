@@ -40,10 +40,16 @@ for (const [name, [x0, z0]] of list) {
       const ys = [], at = [];
       // (not counting the speed breakers: 10 cm humps a metre wide, a bend of 20 cm sampled every half metre)
       const flat = (x, z, y) => { const t = W.tileAt(x, z); return W.groundHeight(x, z, y) - (t?._bg ? t.bumpAt(x, z) : 0); };
-      for (let s = 0; s <= path.length; s += 0.5) { path.sample(s, tmp); const y0 = ys.length ? ys[ys.length - 1] + 1 : deck ? 1e4 : flat(tmp.x, tmp.z, -1e4) + 1; ys.push(flat(tmp.x, tmp.z, y0)); at.push([tmp.x, tmp.z]); }
+      // (and not on a tile not built: a lane at the radius's edge starting a metre into the next tile read its ground)
+      for (let s = 0; s <= path.length; s += 0.5) {
+        path.sample(s, tmp);
+        if (!W.tileAt(tmp.x, tmp.z)?.ready) { ys.push(NaN); at.push([tmp.x, tmp.z]); continue; }
+        const yp = ys.length ? ys[ys.length - 1] : NaN, y0 = yp === yp ? yp + 1 : deck ? 1e4 : flat(tmp.x, tmp.z, -1e4) + 1;
+        ys.push(flat(tmp.x, tmp.z, y0)); at.push([tmp.x, tmp.z]);
+      }
       metres += path.length;
       let worst = 0, wi = -1;
-      for (let i = 1; i < ys.length - 1; i++) { const d2 = ys[i + 1] - 2 * ys[i] + ys[i - 1]; if (Math.abs(d2) > Math.abs(worst)) { worst = d2; wi = i; } }
+      for (let i = 1; i < ys.length - 1; i++) { const d2 = ys[i + 1] - 2 * ys[i] + ys[i - 1]; if (Math.abs(d2) > Math.abs(worst)) { worst = d2; wi = i; } }   // (NaN: never more)
       const w = Math.abs(worst);
       if (w > 0.06) n6++; if (w > 0.12) n12++; if (w > 0.2) n20++;
       if (w > 0.06) flags.push({ w: +worst.toFixed(2), at: `${at[wi][0].toFixed(1)},${at[wi][1].toFixed(1)}`, what });
