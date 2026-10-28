@@ -49,11 +49,12 @@ export class CollisionWorld {
 
   #build() {
     const { BUILDINGS, PROPS, generateBuilding, generateVegetation, groundHeight } = this.map;
-    const surfaceOf = { concrete: 'concrete', plaster: 'concrete', brick: 'concrete', metal_siding: 'metal', concrete_slab: 'concrete', concrete_floor: 'concrete', roof: 'concrete', metal_roof: 'metal', metal: 'metal', plaster_int: 'concrete' };
+    const surfaceOf = { concrete: 'concrete', plaster: 'concrete', brick: 'concrete', metal_siding: 'metal', concrete_slab: 'concrete', concrete_floor: 'concrete', roof: 'concrete', roof_tiles: 'concrete', metal_roof: 'metal', metal: 'metal', plaster_int: 'concrete' };
     for (const spec of BUILDINGS) {
       const g = generateBuilding(spec);
       this.buildings.push(g);
-      for (const p of g.parts) if (p.collide) this.addBox(p.min, p.max, surfaceOf[p.mat] || 'concrete', true, g.id);
+      // (a wrought-iron balcony railing stops bodies, not bullets)
+      for (const p of g.parts) if (p.collide) this.addBox(p.min, p.max, surfaceOf[p.mat] || 'concrete', p.bullets !== false, g.id);
       for (const r of g.ramps) this.ramps.push(r);
       g.openings.forEach((o, i) => {
         if (!o.glass) return;

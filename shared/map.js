@@ -566,6 +566,62 @@ export function setActiveMap(id) {
 setActiveMap('outskirts');
 
 // ---------------------------------------------------------------- building generator
+// [x0, z0, x1, z1] minus an axis-aligned hole { x0, z0, x1, z1 } (or null): up to four rectangles
+export function rectMinus(r, h) {
+  if (!h || h.x0 >= r[2] || h.x1 <= r[0] || h.z0 >= r[3] || h.z1 <= r[1]) return r[2] > r[0] && r[3] > r[1] ? [r] : [];
+  const out = [], a = Math.max(r[1], h.z0), c = Math.min(r[3], h.z1);
+  if (h.z0 > r[1]) out.push([r[0], r[1], r[2], h.z0]);
+  if (h.z1 < r[3]) out.push([r[0], h.z1, r[2], r[3]]);
+  if (h.x0 > r[0]) out.push([r[0], a, h.x0, c]);
+  if (h.x1 < r[2]) out.push([h.x1, a, r[2], c]);
+  return out.filter((q) => q[2] - q[0] > 0.01 && q[3] - q[1] > 0.01);
+}
+
+// Roof of a building: null = flat roof behind a parapet. Town houses (plaster / brick, up to 3 floors — 2 on battle
+// royale maps, where a soldier who lands on a roof has to jump off it — and spans up to 16 m) get a clay-tile gable or
+// hip roof, warehouses a shallow metal one; `b.roof` ('flat' | 'pitched' | 'gable' | 'hip') overrides. The slope runs
+// through the outer wall faces at the top floor's ceiling (yw); the tiles sit t above it. A damaged house loses the
+// roof over its destroyed top-floor bays (and over the collapsed half of the top slab): `hole`, in plan.
+function roofPlan(map, b, { y0, x0, x1, z0, z1, T, FH, floors, wh, bunker, damagedRoof, corner, destroyed }) {
+  const want = b.roof || 'auto', house = b.style === 'plaster' || b.style === 'brick';
+  if (bunker || want === 'flat') return null;
+  if (want === 'auto' && !wh && !(house && floors <= (map.def?.mode === 'royale' ? 2 : 3) && Math.min(b.w, b.d) <= 16)) return null;
+  // own random stream: the generator's (windows, stubs) stays as it was
+  const rr = mulberry32(b.id.split('').reduce((s, c) => s * 31 + c.charCodeAt(0), 7) ^ 0x51ed27);
+  const kind = wh ? 'gable' : want === 'gable' || want === 'hip' ? want : rr() < 0.4 ? 'hip' : 'gable';
+  const axis = b.w > b.d ? 'x' : b.w < b.d ? 'z' : rr() < 0.5 ? 'x' : 'z';
+  const tan = Math.tan(((wh ? 7 + rr() * 3 : 30 + rr() * 8) * Math.PI) / 180);
+  const half = (axis === 'x' ? b.d : b.w) / 2, rise = half * tan, t = wh ? 0.08 : 0.14, yw = y0 + floors * FH;
+  let hole = null;
+  const top = [...destroyed].map((k) => k.split(':')).filter((k) => +k[1] === floors - 1).map(([s, , i]) => [s, 0, +i]);
+  if (top.length || damagedRoof) {
+    const h = { x0: Infinity, z0: Infinity, x1: -Infinity, z1: -Infinity };
+    const grow = (ax, az, bx, bz) => { h.x0 = Math.min(h.x0, ax); h.z0 = Math.min(h.z0, az); h.x1 = Math.max(h.x1, bx); h.z1 = Math.max(h.z1, bz); };
+    for (const [s, , i] of top) {
+      const L = s === 'n' || s === 's' ? b.w : b.d - 2 * T, bw = L / Math.max(1, Math.round(L / (wh ? 4 : 3.2)));
+      if (s === 'n' || s === 's') grow(x0 + i * bw, s === 'n' ? z0 : z1 - T, x0 + (i + 1) * bw, s === 'n' ? z0 + T : z1);
+      else grow(s === 'w' ? x0 : x1 - T, z0 + T + i * bw, s === 'w' ? x0 + T : x1, z0 + T + (i + 1) * bw);
+    }
+    if (damagedRoof) grow(x0, corner === 'sw' ? b.z : z0, x1, corner === 'sw' ? z1 : b.z);
+    // past the eaves on the sides that are the building's edge
+    hole = { x0: h.x0 < x0 + T + 0.01 ? x0 - 2 : h.x0, z0: h.z0 < z0 + T + 0.01 ? z0 - 2 : h.z0, x1: h.x1 > x1 - T - 0.01 ? x1 + 2 : h.x1, z1: h.z1 > z1 - T - 0.01 ? z1 + 2 : h.z1 };
+  }
+  // brick chimney through one slope near the ridge, 0.5 m above it (none on sheds, or where the roof came down)
+  let chimney = null;
+  if (!wh && rr() < 0.65) {
+    const along = (axis === 'x' ? b.w : b.d) - (kind === 'hip' ? 2 * half + 1 : 3), side = rr() < 0.5 ? -1 : 1;
+    const u = (rr() - 0.5) * Math.max(0, along), v = side * (0.6 + rr() * 0.6);
+    const c = { x: axis === 'x' ? b.x + u : b.x + v, z: axis === 'x' ? b.z + v : b.z + u, hx: axis === 'x' ? 0.32 : 0.26, hz: axis === 'x' ? 0.26 : 0.32, top: yw + t + rise + 0.5 };
+    if (!hole || hole.x0 >= c.x + c.hx + 0.3 || hole.x1 <= c.x - c.hx - 0.3 || hole.z0 >= c.z + c.hz + 0.3 || hole.z1 <= c.z - c.hz - 0.3) chimney = c;
+  }
+  return {
+    kind, axis, tan, half, rise, t, yw, hole, chimney, x0, x1, z0, z1, T,
+    n: Math.max(2, Math.min(8, Math.ceil(rise / 0.45))), // collider steps
+    ov: wh ? 0.35 : 0.45, vg: wh ? 0.25 : 0.3, // eave / verge overhang
+    mat: wh ? 'metal_roof' : 'roof_tiles',
+  };
+}
+
 // Produces a list of boxes { min:[x,y,z], max:[x,y,z], mat, collide, part } plus ramps (stairs) and openings.
 // The server uses collide:true parts; the client renders all parts with PBR materials and adds trim details.
 function generateBuildingFor(map, b) {
@@ -594,12 +650,46 @@ function generateBuildingFor(map, b) {
       const count = Math.ceil(nb * b.damage * 0.8);
       for (let f = floors - 1; f >= Math.max(0, floors - 1 - Math.floor(b.damage * 2)); f--) {
         for (let k = 0; k < count - (floors - 1 - f); k++) {
-          const i = (s === 'n' || s === 'w') === (corner === 'ne') ? nb - 1 - k : k;
+          // bays counted from the corner: the east end of the north wall, the north end of the east wall, the west
+          // end of the south wall, the south end of the west wall (u runs +x / +z along every side)
+          const i = s === 'n' || s === 'w' ? nb - 1 - k : k;
           if (f > 0 || b.damage > 0.7) destroyed.add(`${s}:${f}:${i}`);
         }
       }
     }
   }
+
+  const damagedRoof = b.damage > 0.6;
+  const roof = roofPlan(map, b, { y0, x0, x1, z0, z1, T, FH, floors, wh, bunker, damagedRoof, corner, destroyed });
+  // Balconies: a row on one long side of most concrete blocks (every other bay, every upper floor), one over the
+  // entrance of some town houses (it doubles as the door canopy). The slab top sits just under the floor level, so
+  // a soldier can vault out of the window onto it; the railing stops bodies (a wrought-iron one lets bullets through).
+  const balc = new Set(), balconies = [], brnd = mulberry32((b.x * 73856093) ^ (b.z * 19349663) ^ 0x2f6b);
+  if (!wh && !bunker && floors >= 2) {
+    const long = b.w >= b.d ? ['n', 's'] : ['w', 'e'];
+    if (b.style === 'concrete' && brnd() < 0.75) {
+      const s = long.find((q) => !b.doors.includes(q)) || long[0], par = brnd() < 0.5 ? 0 : 1;
+      for (let f = 1; f < floors; f++) for (let i = 0; i < 16; i++) if (i % 2 === par) balc.add(`${s}:${f}:${i}`);
+    } else if (b.style !== 'concrete' && brnd() < 0.6 && b.doors.length) balc.add(`${b.doors[0]}:1:door`);
+  }
+  const balcony = (sd, u0, u1, f, solid) => {
+    const bw = Math.min(u1 - u0 - 0.4, solid ? 2.8 : 2.4), cu = (u0 + u1) / 2, dep = solid ? 1.15 : 0.9;
+    const top = f * FH - 0.03, th = 0.18, rh = 1.0, rt = solid ? 0.1 : 0.05;
+    const alongX = sd.dir[0] !== 0, o = alongX ? sd.out[1] : sd.out[0];
+    const face = (alongX ? sd.az : sd.ax) + (o > 0 ? T : 0), base = alongX ? sd.ax : sd.az;
+    // u along the wall, w outward from the outer face
+    const ob = (ua, ub, wa, wb, ya, yb, part, mat, bullets = true) => {
+      const a = base + ua, c = base + ub, p = face + o * wa, q = face + o * wb;
+      if (alongX) box(a, ya, p, c, yb, q, mat, true, part); else box(p, ya, a, q, yb, c, mat, true, part);
+      if (!bullets) parts[parts.length - 1].bullets = false;
+    };
+    const ua = cu - bw / 2, ub = cu + bw / 2, rail = solid ? 'concrete' : 'metal';
+    ob(ua, ub, 0, dep, top - th, top, 'balcony', 'concrete');
+    ob(ua, ub, dep - rt, dep, top, top + rh, 'brail', rail, solid);
+    ob(ua, ua + rt, 0, dep - rt, top, top + rh, 'brail', rail, solid);
+    ob(ub - rt, ub, 0, dep - rt, top, top + rh, 'brail', rail, solid);
+    balconies.push({ side: sd.s, f, alongX, o, face, a: base + ua, b: base + ub, dep, top: y0 + top, th, rh, rt, solid });
+  };
 
   const sides = [
     { s: 'n', ax: x0, az: z0, dir: [1, 0], L: b.w, out: [0, -1] },
@@ -650,20 +740,29 @@ function generateBuildingFor(map, b) {
           piece(sd, u0, cu - ww / 2, fy, fy + FH, wallMat);
           piece(sd, cu + ww / 2, u1, fy, fy + FH, wallMat);
           piece(sd, cu - ww / 2, cu + ww / 2, fy, fy + sill, wallMat);
+          parts[parts.length - 1].under = 1; // (visual: rain streaks below the sill)
           piece(sd, cu - ww / 2, cu + ww / 2, fy + top, fy + FH, wallMat);
           const broken = b.damage > 0 && rnd() < b.damage + 0.2;
           openings.push({ side: sd.s, kind, u0: cu - ww / 2, u1: cu + ww / 2, v0: fy + sill, v1: fy + top, sd: { ...sd }, y0, glass: !broken && kind !== 'slit' });
+          if (kind === 'window' && f > 0 && (balc.has(key) || (i === doorBay && balc.has(`${sd.s}:${f}:door`)))) balcony(sd, u0, u1, f, b.style === 'concrete');
         }
       }
     }
-    // parapet
-    if (!wh) piece(sd, 0, sd.L, floors * FH, floors * FH + (bunker ? 0.5 : 0.9), wallMat, 'parapet');
+    // parapet (flat roofs; none over destroyed top-floor bays)
+    if (!wh && !roof) {
+      for (let i = 0, a = 0; i <= nb; i++) {
+        if (i < nb && !destroyed.has(`${sd.s}:${floors - 1}:${i}`)) continue;
+        piece(sd, a * bw, i * bw, floors * FH, floors * FH + (bunker ? 0.5 : 0.9), wallMat, 'parapet'); a = i + 1;
+      }
+    }
   }
 
-  // Stairwell: along the inside of the west wall, one flight per floor (last flight reaches the roof hatch).
+  // Stairwell: along the inside of the west wall, one flight per floor (on a flat roof the last flight reaches the
+  // roof hatch; a pitched roof has no access: the attic floor is the top floor's ceiling).
   const stairW = 1.2;
   const run = FLOOR_H / Math.tan((34 * Math.PI) / 180);
-  const hasStairs = !wh && !bunker && b.d - 2 * T > run + 1.5;
+  const flights = roof ? floors - 1 : floors;
+  const hasStairs = !wh && !bunker && b.d - 2 * T > run + 1.5 && flights > 0;
   const sx0 = x0 + T, sx1 = sx0 + stairW, sz0 = z0 + T + 0.6, sz1 = sz0 + run;
   // Slabs (ground floor, intermediate floors, roof) – with stair holes
   // slabs stop half a wall thickness inside the outer faces: their edges are hidden in the walls instead of being
@@ -680,7 +779,6 @@ function generateBuildingFor(map, b) {
   };
   const hole = hasStairs ? { x0: sx0 - 0.01, x1: sx1 + 0.05, z0: sz0 + run * 0.15, z1: sz1 } : null;
   slab(0.12, 0.3, wh ? 'concrete_floor' : 'concrete_floor', null, 'ground');
-  const damagedRoof = b.damage > 0.6;
   for (let f = 1; f <= floors; f++) {
     const isRoof = f === floors;
     if (isRoof && damagedRoof) {
@@ -689,10 +787,17 @@ function generateBuildingFor(map, b) {
       else box(x0 + si, f * FH - 0.25, b.z, x1 - si, f * FH, z1 - si, 'concrete_slab', true, 'roof');
       continue;
     }
-    slab(f * FH, 0.25, isRoof ? (wh ? 'metal_roof' : 'roof') : 'concrete_floor', hasStairs ? hole : null, isRoof ? 'roof' : 'floor', isRoof && wh ? T : si);
+    // under a pitched roof the top slab is the attic floor: raw concrete, no stair hole, and gone with the roof over
+    // destroyed top-floor bays (open to the sky there, not a slab floating over missing walls)
+    if (isRoof && roof?.hole && !wh) {
+      for (const r of rectMinus([x0 + si, z0 + si, x1 - si, z1 - si], roof.hole)) box(r[0], f * FH - 0.25, r[1], r[2], f * FH, r[3], 'concrete_slab', true, 'roof');
+      continue;
+    }
+    const mat = isRoof ? (wh ? 'metal_roof' : roof ? 'concrete_slab' : 'roof') : 'concrete_floor';
+    slab(f * FH, 0.25, mat, hasStairs && f <= flights ? hole : null, isRoof ? 'roof' : 'floor', isRoof && wh ? T : si);
   }
   if (hasStairs) {
-    for (let f = 0; f < floors; f++) {
+    for (let f = 0; f < flights; f++) {
       const a = f * FLOOR_H + (f === 0 ? 0.12 : 0), c = (f + 1) * FLOOR_H; // from the floor's top to the next one
       ramps.push({ x0: sx0, x1: sx1, z0: sz0, z1: sz1, y0: y0 + a, y1: y0 + c, axis: 'z', mat: 'concrete' });
       // the flight itself is solid: a stepped 0.35 m concrete slab just under the walking surface (blocks bodies
@@ -704,7 +809,20 @@ function generateBuildingFor(map, b) {
       }
     }
     // railing wall on the open side of the stair for upper floors
-    for (let f = 1; f <= floors; f++) box(sx1 + 0.02, f * FLOOR_H, sz0 + run * 0.15, sx1 + 0.08, f * FLOOR_H + 1.0, sz1, 'metal', true, 'rail');
+    for (let f = 1; f <= flights; f++) box(sx1 + 0.02, f * FLOOR_H, sz0 + run * 0.15, sx1 + 0.08, f * FLOOR_H + 1.0, sz1, 'metal', true, 'rail');
+  }
+  // Pitched roof: the attic is solid. Stacked boxes, each narrower by one step, approximate the slopes (gable: across
+  // the span only, the gable walls are the box ends; hip: on all four sides) so bullets, grenades and soldiers stop
+  // on the roof; their tops follow the tiles' surface at mid-step. Nothing over the collapsed part (roof.hole).
+  if (roof) {
+    const { n, half, rise, t } = roof, hip = roof.kind === 'hip', ax = roof.axis === 'x';
+    for (let k = 0; k < n; k++) {
+      const ins = ((k + 0.5) / n) * half, ya = k ? roof.yw + t + (k * rise) / n : roof.yw, yb = roof.yw + t + ((k + 1) * rise) / n;
+      const ix = ax ? (hip ? ins : 0) : ins, iz = ax ? ins : hip ? ins : 0;
+      for (const r of rectMinus([x0 + ix, z0 + iz, x1 - ix, z1 - iz], roof.hole)) box(r[0], ya - y0, r[1], r[2], yb - y0, r[3], roof.mat, true, 'attic');
+    }
+    const c = roof.chimney;
+    if (c) box(c.x - c.hx, roof.yw - y0, c.z - c.hz, c.x + c.hx, c.top - y0, c.z + c.hz, 'brick', true, 'chimney');
   }
   // interior partition on bigger houses (with a doorway)
   if (!wh && !bunker && b.w >= 10) {
@@ -717,6 +835,6 @@ function generateBuildingFor(map, b) {
       box(px, fy + 2.2, b.z - 0.6, px + 0.15, fy + FH - 0.25, b.z + 0.6, 'plaster_int', true, 'interior');
     }
   }
-  return { id: b.id, spec: b, y0, FH, T, parts, ramps, openings, details, destroyed: [...destroyed] };
+  return { id: b.id, spec: b, y0, FH, T, parts, ramps, openings, details, destroyed: [...destroyed], roof, balconies };
 }
 

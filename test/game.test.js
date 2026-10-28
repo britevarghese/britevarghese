@@ -13,7 +13,8 @@ const spawnAt = (g, p, x, z, yaw = 0) => { p.respawnAt = 0; g.spawn(p, 'base'); 
 test('buildings have walls, floors, stairs and door openings', () => {
   const b = generateBuilding(BUILDINGS.find((x) => x.id === 'b3'));
   assert.ok(b.parts.filter((p) => p.part === 'wall').length > 20);
-  assert.ok(b.ramps.length >= 2, 'two-storey building should have stair flights');
+  // one flight per floor; none up to a pitched roof (b3 has one: the attic is not accessible)
+  assert.ok(b.roof && b.ramps.length === b.spec.floors - 1, 'two-storey building should have a stair flight to the upper floor');
   assert.ok(b.openings.some((o) => o.kind === 'door'));
   assert.ok(b.openings.some((o) => o.kind === 'window'));
 });

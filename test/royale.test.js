@@ -32,6 +32,22 @@ test('freefall -> parachute -> landing on the ground', () => {
   assert.ok(s.x > 130, 'glided in the steering direction');
 });
 
+test('loot lies on the floors of a house, never in the attic under a pitched roof', () => {
+  const g = mk(0);
+  g.addPlayer({ name: 'A' }); g.addPlayer({ name: 'B' });
+  advance(g, 3);
+  const roofs = g.world.buildings.filter((b) => b.roof);
+  assert.ok(roofs.length > 20, `${roofs.length} pitched roofs`);
+  let inside = 0;
+  for (const it of g.loot.values()) for (const b of roofs) {
+    const s = b.spec;
+    if (Math.abs(it.x - s.x) > s.w / 2 || Math.abs(it.z - s.z) > s.d / 2) continue;
+    inside++;
+    assert.ok(it.y < b.roof.yw - 2.5, `loot at ${(it.y - b.y0).toFixed(2)} m in ${b.id} (attic floor at ${(b.roof.yw - b.y0).toFixed(2)} m)`);
+  }
+  assert.ok(inside > 20, `${inside} loot items in pitched-roof houses`);
+});
+
 test('match flow: lobby -> plane -> jump -> loot -> ring -> last one standing', () => {
   const g = mk(0);
   const a = g.addPlayer({ name: 'A' }), b = g.addPlayer({ name: 'B' });

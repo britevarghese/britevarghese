@@ -88,7 +88,7 @@ export class GameWorld {
     const parts = along
       ? [{ min: [-H, -6, Math.min(sea.at, sea.at + sea.dir * 0.6)], max: [H, y + 1.1, Math.max(sea.at, sea.at + sea.dir * 0.6)], mat: 'concrete_slab' }]
       : [{ min: [Math.min(sea.at, sea.at + sea.dir * 0.6), -6, -H], max: [Math.max(sea.at, sea.at + sea.dir * 0.6), y + 1.1, H], mat: 'concrete_slab' }];
-    for (const [m, geo] of buildBoxGeometry(parts, { tile: 2.6, color: (p) => { const k = p[1] < -0.5 ? 0.55 : 0.9; return [k, k, k * 0.98]; } })) {
+    for (const [m, geo] of buildBoxGeometry(parts, { tile: 1, color: (p) => { const k = p[1] < -0.5 ? 0.55 : 0.9; return [k, k, k * 0.98]; } })) {
       const mesh = new THREE.Mesh(geo, this.mats.building(m)); mesh.castShadow = mesh.receiveShadow = true; mesh.name = 'quay'; this.scene.add(mesh);
     }
   }
@@ -128,7 +128,7 @@ export class GameWorld {
       const y = Math.min(outerHeight(x - w / 2, z - d / 2), outerHeight(x + w / 2, z + d / 2), outerHeight(x, z)) - 1.5;
       parts.push({ min: [x - w / 2, y, z - d / 2], max: [x + w / 2, y + h, z + d / 2], mat: rnd() < 0.5 ? 'concrete' : 'plaster' });
     }
-    for (const [m, g] of buildBoxGeometry(parts, { tile: 3.2, color: (p) => [0.75, 0.76, 0.78] })) {
+    for (const [m, g] of buildBoxGeometry(parts, { tile: 1, color: (p) => [0.75, 0.76, 0.78] })) {
       const mesh = new THREE.Mesh(g, this.mats.building(m));
       mesh.name = 'skyline';
       this.scene.add(mesh);

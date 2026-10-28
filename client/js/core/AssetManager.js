@@ -101,7 +101,8 @@ export class AssetManager {
   texture(path, srgb = false, repeat = true) {
     const url = BASE + path;
     if (!this.texCache.has(url)) {
-      const t = this.texLoader.load(url, undefined, undefined, () => { const m = `FAILED TO LOAD texture ${url}`; console.error(m); this.errors.push(m); });
+      // (clones made before the image arrived — see MaterialLibrary — upload once it is here)
+      const t = this.texLoader.load(url, (tx) => { for (const c of tx.clones || []) c.needsUpdate = true; }, undefined, () => { const m = `FAILED TO LOAD texture ${url}`; console.error(m); this.errors.push(m); });
       if (repeat) t.wrapS = t.wrapT = THREE.RepeatWrapping;
       t.anisotropy = this.anisotropy;
       if (srgb) t.colorSpace = THREE.SRGBColorSpace;

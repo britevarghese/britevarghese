@@ -116,6 +116,8 @@ export async function buildProps(assets, mats, extra = { roofProps: [], rubble: 
   }
   for (const r of extra.roofProps || []) {
     if (r.type === 'aircon') add('aircon', M(r.x, r.y + 0.35, r.z, r.rot));
+    // split-AC outdoor unit on a house wall: the same model at half size (0.9 × 0.46 × 0.19 m), centred at r.y
+    if (r.type === 'wallac') add('aircon', M(r.x, r.y, r.z, r.rot, 0.5));
     // roller shutter (model spans x -0.54..2.54, 0.3 m deep): rolled up under the lintel, exactly the door's width,
     // centred in the wall's thickness; r.x/r.z is the door's u0 end on the wall mid-plane, r.rot its direction
     if (r.type === 'rollershutter') {
@@ -176,7 +178,7 @@ export async function buildProps(assets, mats, extra = { roofProps: [], rubble: 
     }
   }
   const color = (pt, part) => { const t = colorFor.get(part); return t ? [t[0] * 1.6, t[1] * 1.6, t[2] * 1.6] : [0.8, 0.8, 0.8]; };
-  for (const [m, g] of buildBoxGeometry(parts, { tile: 2.2, color })) { const mesh = new THREE.Mesh(g, mats.building(m)); mesh.castShadow = mesh.receiveShadow = true; group.add(mesh); }
-  for (const [m, g] of buildBoxGeometry(wallParts, { tile: 2.6, color: (pt) => [0.8 + 0.2 * Math.min(1, (pt[1] - groundHeight(pt[0], pt[2])) / 1.5), 0.8, 0.78] })) { const mesh = new THREE.Mesh(g, mats.building(m)); mesh.castShadow = mesh.receiveShadow = true; group.add(mesh); }
+  for (const [m, g] of buildBoxGeometry(parts, { tile: 1, color })) { const mesh = new THREE.Mesh(g, mats.building(m)); mesh.castShadow = mesh.receiveShadow = true; group.add(mesh); }
+  for (const [m, g] of buildBoxGeometry(wallParts, { tile: 1, color: (pt) => [0.8 + 0.2 * Math.min(1, (pt[1] - groundHeight(pt[0], pt[2])) / 1.5), 0.8, 0.78] })) { const mesh = new THREE.Mesh(g, mats.building(m)); mesh.castShadow = mesh.receiveShadow = true; group.add(mesh); }
   return group;
 }

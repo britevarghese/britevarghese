@@ -420,6 +420,11 @@ class RoyaleBrain extends BotBrain {
     const near = clear.length ? clear : all;
     const b = near.length ? near[Math.floor(Math.random() * near.length)] : { x: px + rand(-60, 60), z: pz + rand(-60, 60), w: 4, d: 4 };
     this.landing = { x: b.x + rand(-b.w, b.w) * 0.8, z: b.z + rand(-b.d, b.d) * 0.8 };
+    // a pitched roof has no way down but a jump off the eaves: land in front of a door instead
+    if (b.doors?.length && this.g.world.buildings.find((q) => q.id === b.id)?.roof) {
+      const [dx, dz] = { n: [0, -1], s: [0, 1], w: [-1, 0], e: [1, 0] }[b.doors[Math.floor(Math.random() * b.doors.length)]];
+      this.landing = { x: b.x + dx * (b.w / 2 + 2.5), z: b.z + dz * (b.d / 2 + 2.5) };
+    }
   }
 
   onJump() { this.onSpawn(); this.nextDecide = 0; }

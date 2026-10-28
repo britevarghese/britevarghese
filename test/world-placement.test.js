@@ -133,3 +133,64 @@ test('building interiors: solid stair flights, partitions closed to the floor, c
   if (roof.length === 1 && gone.has('s')) assert.ok(roof[0].max[2] <= b4.spec.z + 1e-6, 'roof half kept over the destroyed south side');
   if (roof.length === 1 && gone.has('n')) assert.ok(roof[0].min[2] >= b4.spec.z - 1e-6, 'roof half kept over the destroyed north side');
 });
+
+test('pitched roofs collide: a downward ray stops on the tiles, a level ray at the end wall; no stairs up to the attic', () => {
+  let n = 0;
+  for (const id of MAP_IDS) {
+    const world = new CollisionWorld(getMap(id));
+    for (const g of world.buildings) {
+      const R = g.roof, s = g.spec;
+      if (!R) continue;
+      assert.ok(g.ramps.every((r) => r.y1 < R.yw - 1), `${id}/${g.id}: a stair flight leads up to the attic`);
+      assert.ok(!g.parts.some((p) => p.part === 'rail' && p.min[1] > R.yw - 0.5), `${id}/${g.id}: stair railing in the attic`);
+      if (!R.hole) assert.equal(g.parts.filter((p) => p.part === 'roof').length, 1, `${id}/${g.id}: hole in the attic floor`);
+      // where the roof fell in, so did the attic floor (no slab left hanging over the destroyed bays)
+      else if (s.damage <= 0.6) for (const p of g.parts.filter((q) => q.part === 'roof')) assert.ok(p.max[0] <= R.hole.x0 + 1e-6 || p.min[0] >= R.hole.x1 - 1e-6 || p.max[2] <= R.hole.z0 + 1e-6 || p.min[2] >= R.hole.z1 - 1e-6, `${id}/${g.id}: attic floor under the collapsed roof`);
+      const step = R.rise / R.n, surf = (ins) => R.yw + R.t + Math.min(ins, R.half) * R.tan; // tile surface ins metres inside the eave walls
+      const ax = R.axis === 'x', L = ax ? s.w : s.d, hip = R.kind === 'hip';
+      // downward rays along the ridge line and half-way down a slope (not through the collapsed part or the chimney)
+      for (const [u, v] of [[0, 0], [0.25, 0], [-0.25, 0], [0.2, 0.5], [-0.2, -0.5]]) {
+        const along = u * L, across = v * R.half;
+        const x = ax ? s.x + along : s.x + across, z = ax ? s.z + across : s.z + along;
+        if (R.hole && x > R.hole.x0 - 1 && x < R.hole.x1 + 1 && z > R.hole.z0 - 1 && z < R.hole.z1 + 1) continue;
+        if (R.chimney && Math.abs(x - R.chimney.x) < 1 && Math.abs(z - R.chimney.z) < 1) continue;
+        const ins = Math.min(R.half - Math.abs(across), hip ? L / 2 - Math.abs(along) : Infinity);
+        const hit = world.raycast({ x, y: R.yw + R.rise + 6, z }, { x: 0, y: -1, z: 0 }, 40, true);
+        assert.ok(hit && Math.abs(hit.point[1] - surf(ins)) <= step / 2 + 0.02,`${id}/${g.id}: downward ray at (${x.toFixed(1)}, ${z.toFixed(1)}) stops at ${hit?.point[1].toFixed(2)}, tiles at ${surf(ins).toFixed(2)}`);
+        n++;
+      }
+      // level ray along the ridge, a third of the way up the roof, from 5 m outside the end: the gable wall (or the
+      // hip's end slope) stops it
+      const y = R.yw + R.rise / 3, ins = hip ? (R.rise / 3 - R.t) / R.tan : 0;
+      for (const dir of [1, -1]) {
+        const o = ax ? { x: s.x - dir * (s.w / 2 + 5), y, z: s.z } : { x: s.x, y, z: s.z - dir * (s.d / 2 + 5) };
+        if (R.hole && (ax ? s.z > R.hole.z0 - 1 && s.z < R.hole.z1 + 1 : s.x > R.hole.x0 - 1 && s.x < R.hole.x1 + 1)) continue;
+        const hit = world.raycast(o, ax ? { x: dir, y: 0, z: 0 } : { x: 0, y: 0, z: dir }, 30, true);
+        assert.ok(hit && Math.abs(hit.t - 5 - ins) < step / R.tan / 2 + 0.05, `${id}/${g.id}: level ray through the ${hip ? 'hip end' : 'gable'} went ${hit?.t.toFixed(2)} m (expected ${(5 + ins).toFixed(2)})`);
+        n++;
+      }
+    }
+  }
+  assert.ok(n > 300, `probed ${n} pitched roofs`);
+});
+
+test('balconies: a slab to stand on, a railing that stops bodies (bullets pass a wrought-iron one)', () => {
+  const world = new CollisionWorld(getMap('oldtown'));
+  const all = world.buildings.flatMap((g) => g.balconies.map((q) => ({ g, q })));
+  assert.ok(all.some(({ q }) => q.solid) && all.some(({ q }) => !q.solid), 'both kinds of balcony exist');
+  for (const { g, q } of all) {
+    const u = (q.a + q.b) / 2, at = (w) => (q.alongX ? { x: u, z: q.face + q.o * w } : { x: q.face + q.o * w, z: u });
+    const p = at(q.dep / 2);
+    assert.ok(Math.abs(world.supportHeight(p.x, p.z, q.top + 0.3) - q.top) < 1e-6, `${g.id}: no footing on the balcony`);
+    // level shot from 6 m out at chest height toward the wall: the iron railing lets it through to the wall
+    const o = at(6), d = q.alongX ? { x: 0, y: 0, z: -q.o } : { x: -q.o, y: 0, z: 0 };
+    const hit = world.raycast({ ...o, y: q.top + 0.6 }, d, 10, true);
+    assert.ok(hit, `${g.id}: shot at the balcony hit nothing`);
+    if (q.solid) assert.ok(Math.abs(hit.t - (6 - q.dep)) < 0.02, `${g.id}: solid parapet not hit (${hit.t.toFixed(2)})`);
+    else assert.ok(hit.t > 6 - 0.05, `${g.id}: the iron railing stopped a bullet (${hit.t.toFixed(2)})`);
+    // a soldier standing on the balcony against the railing is held back
+    const s = { ...at(q.dep - 0.1) };
+    world.resolveHorizontal(s, q.top, 1.8);
+    assert.ok((q.alongX ? (s.z - q.face) * q.o : (s.x - q.face) * q.o) < q.dep - q.rt - 0.3, `${g.id}: walked through the railing`);
+  }
+});

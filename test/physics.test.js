@@ -172,7 +172,7 @@ test('vault out of an upper-floor window: climb the sill, drop outside, fall dam
 
 test('a wall (no opening) is not vaultable, a roof parapet is', () => {
   const g = mkGame();
-  const b = g.world.buildings.find((x) => x.spec.floors >= 2 && x.spec.style !== 'warehouse' && x.spec.style !== 'bunker');
+  const b = g.world.buildings.find((x) => !x.roof && !x.destroyed.length && x.spec.floors >= 2 && x.spec.style !== 'warehouse' && x.spec.style !== 'bunker');
   const roofY = b.y0 + b.spec.floors * b.FH;
   // standing on the roof, next to the north parapet, facing out (-z)
   const s = { x: b.spec.x, z: b.spec.z - b.spec.d / 2 + 0.3 + 0.45, y: roofY, vx: 0, vy: 0, vz: 0, onGround: true, stance: 'stand', groundT: 1 };
