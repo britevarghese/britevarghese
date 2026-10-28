@@ -2338,6 +2338,11 @@ export class KeralaTile {
       for (let i = 0; i < m; i++) { const k = Math.floor(R[i * 6] / 8) * 100000 + Math.floor(R[i * 6 + 1] / 8); if (!D.grid.has(k)) D.grid.set(k, []); D.grid.get(k).push(i); }
     }
     const ge = Math.floor(e / 8), gn = Math.floor(n / 8);
+    // (past the strip's last row - or before its first - it's past it for every piece: clamped to the end of the
+    // piece before, a point 0.4 m past a climbing road's end at a junction took the height of its row 2 m back up the
+    // hill, a 0.3 m step across the junction's mouth)
+    const past = (a, b) => { const de = R[b * 6] - R[a * 6], dn = R[b * 6 + 1] - R[a * 6 + 1], l = Math.hypot(de, dn) || 1; return ((e - R[b * 6]) * de + (n - R[b * 6 + 1]) * dn) / l; };
+    const pastEnd = m > 1 && past(m - 2, m - 1) > 0.1, pastStart = m > 1 && past(1, 0) > 0.1;
     let bd = Infinity, by = -Infinity;
     for (let a = -2; a <= 2; a++) for (let b = -2; b <= 2; b++) {
       const L = D.grid.get((ge + a) * 100000 + gn + b); if (!L) continue;
@@ -2346,6 +2351,7 @@ export class KeralaTile {
         const j = (i - 1) * 6, k = i * 6, ae = R[j], an = R[j + 1], de = R[k] - ae, dn = R[k + 1] - an, l2 = de * de + dn * dn || 1;
         const t = ((e - ae) * de + (n - an) * dn) / l2, sl = Math.sqrt(l2);
         if ((i === 1 && t * sl < -0.1) || (i === m - 1 && (t - 1) * sl > 0.1)) continue;   // (beyond the strip's end)
+        if ((pastEnd && t > 1) || (pastStart && t < 0)) continue;
         const u = Math.max(0, Math.min(1, t)), ce = ae + de * u, cn = an + dn * u;
         const d = Math.hypot(ce - e, cn - n);
         if (d >= bd) continue;
@@ -2440,7 +2446,7 @@ export class KeralaTile {
   roadSurface(e, n, yRef) {
     if (!this._rg) this.nearRoad(e, n, 1);
     const G = 25;
-    let best = -Infinity, off = -Infinity, mainCls = 99, mainY = -Infinity;
+    let best = -Infinity, off = -Infinity, mainCls = 99, mainY = -Infinity, und = -Infinity, nIn = 0;
     const on = this._rsOn || (this._rsOn = []);
     on.length = 0;
     for (let a = -1; a <= 1; a++) for (let b = -1; b <= 1; b++) {
@@ -2472,7 +2478,11 @@ export class KeralaTile {
         }
         // its strip as drawn (at the edge, for the shoulder beyond it): exactly what the wheels should touch
         const dr = r.drawn ? this._drawnAt(r, dist <= hw ? e : ce + (e - ce) * (hw - 0.15) / dist, dist <= hw ? n : cn + (n - cn) * (hw - 0.15) / dist, 0.3) : -Infinity;
-        if (r.drawn && dr === -Infinity) continue;   // (its strip isn't drawn here: nothing to stand on)
+        if (dist <= hw) nIn++;
+        if (r.drawn && dr === -Infinity) {   // (its strip isn't drawn here: nothing to stand on - but see und below)
+          if (dist <= hw - 0.15) { const sf0 = this._surfAt(r, ce, cn); if (sf0 > -1e9) und = Math.max(und, sf0 + 0.07 + (10 - cls) * 0.004); }
+          continue;
+        }
         const l = Math.sqrt(l2), ue = dx / l * 4, un = dz / l * 4, sf = dr > -1e9 ? -Infinity : this._surfAt(r, ce, cn);
         // (else its own graded surface; the ground only where it has none)
         const y = dr > -1e9 ? dr : (sf > -1e9 ? sf : Math.max(this.heightAt(e, n), this.heightAt(ce, cn), this.heightAt(ce + ue, cn + un), this.heightAt(ce - ue, cn - un))) + 0.07 + (10 - cls) * 0.004;
@@ -2487,7 +2497,10 @@ export class KeralaTile {
     for (let i = 0; i < on.length; i += 2) { const y = on[i] > mainCls ? Math.min(on[i + 1], mainY + 0.03) : on[i + 1]; if (y > best) best = y; }
     // a road's own carriageway is what is drawn there: a neighbour's shoulder never lifts a car above it (a road a
     // metre higher alongside a culvert ramp or a junction mouth held autos and cars half a metre in the air)
-    if (best === -Infinity) best = off;
+    // (inside a junction - two roads' carriageways here - where no strip reaches: their own graded level. Each strip
+    // ends square at the junction's point, and the outer corner between two leaving it at an angle was the ground's
+    // level, a pit 2 m deep in a junction on an embankment in Kannur)
+    if (best === -Infinity) best = nIn >= 2 && und > -Infinity ? und : off;
     // between the two halves of a dual carriageway: the median
     if (this._medG) { const ym = this._medianAt(e, n); if (ym > best && !(yRef < ym - 1.2)) best = ym; }
     return best;

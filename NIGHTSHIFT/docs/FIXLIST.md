@@ -548,6 +548,18 @@ the game. Newly found problems go at the end of their section.
   Worst steps: Kannur 13, Iritty 37 (a lane climbing 3.9 m in 21 m from the highway up to a road on the hillside,
   the junctions at its two ends leaving it little room; was 52), Thalassery 14, Mattannur 10 cm. All tile edges
   across the four towns meet exactly
+- [x] Every lane and junction turn within 700 m of the six towns' middles scanned again (tools/dev/roadscan.mjs: the
+  surface a wheel touches every half metre, flagged where it bends sharply - a step or a kink, not a slope):
+  - [x] that steep lane in Iritty: just past a road's last drawn row, the surface took the height of the row before
+    it - 2 m back up the hill, 0.3 m higher - a raised strip 0.75 m wide across the junction's mouth (two jolts there
+    on a ride at 30 km/h). A point past a strip's end is past it for every piece of it now
+  - [x] where two roads leave a junction's point at an angle, each strip ends square there and the outer corner
+    between them was neither's: the ground's level, a pit 2 m deep in a junction on an embankment in Kannur. Inside a
+    junction where no strip reaches, the surface is the roads' own level now
+  - Kinks over 20 cm: Kannur 23 -> 9, Thalassery 6 -> 0, Mattannur 2, Taliparamba 4 -> 1, Payyanur 0, Iritty 8 -> 5;
+    over 6 cm, all six towns, 446 -> 353 (most of what's left at 20 cm are speed breakers). Rides round Kannur,
+    Iritty and Payyanur: no jolts. Left: a side road in Iritty that meets the highway half a metre up where their
+    carriageways overlap
 - [x] AI junction turns where the route reached the corner through a short hop in line with the lane before it (one
   lane's end to the next one's start, 3.9 m): the turn was rounded within that hop, 2 m across - tighter than a car
   can steer - and the car swung its nose 1.5 m off the road. The room for the arc is the straight run up to the corner
