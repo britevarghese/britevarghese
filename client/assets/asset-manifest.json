@@ -24,17 +24,17 @@
       "files": [
         "user/weapons/ss2_v5_assault_rifle.glb",
         "user/weapons/assault_rifle.glb",
-        "weapons/bolt_action_rifle.glb"
+        "weapons/carbine.glb"
       ],
       "length": null,
-      "forward": "auto",
+      "forward": "-z",
       "optic": {
-        "type": "auto"
+        "type": "reddot"
       },
       "tpsFiles": [
         "user/weapons/ss2_v5_assault_rifle.glb",
         "user/weapons/assault_rifle.glb",
-        "weapons/bolt_action_rifle_tps.glb"
+        "weapons/carbine.glb"
       ]
     },
     "bolt_rifle": {

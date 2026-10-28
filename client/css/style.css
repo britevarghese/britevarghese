@@ -526,3 +526,9 @@ body.deploying #mmframe, body.deploying #killfeed, body.deploying #compass, body
   .pz-left { padding: 12px 14px; border-right: 0; } .pz-head { margin-bottom: 8px; } .pz-head h2 { font-size: 26px; } .pz-bars i { height: 30px; }
   .pz-row { padding: 8px 10px; margin-bottom: 6px; }
 }
+/* sprint stamina: a thin bar under health, only shown while not full */
+#vitals .bars { display: flex; flex-direction: column; gap: 3px; }
+.stbar { width: 200px; height: 3px; border-radius: 2px; overflow: hidden; background: rgba(255,255,255,.12); opacity: 0; transition: opacity .4s; }
+.stbar.on { opacity: 1; } .stbar i { display: block; height: 100%; width: 100%; background: #d9c27a; }
+.stbar.winded i { background: #ff8a5b; }
+body.touch .stbar { width: 120px; }

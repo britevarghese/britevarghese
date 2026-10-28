@@ -175,7 +175,7 @@ export class Game {
   }
 
   damage(victim, amount, attacker, weapon, head = false) {
-    if (!victim.alive || this.now() < victim.spawnProtect) return;
+    if (!victim.alive || this.now() < victim.spawnProtect || !(amount > 0) || !Number.isFinite(amount)) return;
     if (attacker && attacker !== victim && !this.isEnemy(attacker, victim)) return; // no friendly fire
     victim.hp -= amount;
     victim.lastHeadshot = head;
@@ -342,24 +342,24 @@ export class Game {
     const mx = a.x + sx / 2, mz = a.z + sz / 2;
     // where everyone was when the bullet got here, on the shooter's timeline (what they saw + the flight time)
     const at = b.viewT + c.t * 1000;
-    let best = len, victim = null, head = false;
+    let best = len, victim = null, part = null;
     for (const q of this.players.values()) {
       if (q === b.shooter || !q.alive || (q.vehicle && !q.exposed) || !this.isEnemy(b.shooter, q)) continue;
       if (Math.hypot(q.x - mx, q.z - mz) > len / 2 + 6) continue;
       const hp = b.bot ? q : this.historyAt(q, at);
       for (const cap of hitCapsules(hp)) {
         const t = rayCapsule(o, d, cap.a, cap.b, cap.r);
-        if (t !== null && t < best) { best = t; victim = q; head = cap.part === 'head'; }
+        if (t !== null && t < best) { best = t; victim = q; part = cap.part; }
       }
     }
     // vehicles (current positions: they're big and their movement is smooth)
     const vh = this.vehicles.rayTest(o, d, best, b.shooter);
     // (an exposed rider in the line of fire takes the round, not the bike under them)
     if (vh && vh.t < best && !(victim && victim.vehicle === vh.v.id)) return { vehicle: vh.v, dist: a.d + vh.t, point: [o.x + d.x * vh.t, o.y + d.y * vh.t, o.z + d.z * vh.t] };
-    return victim ? { victim, head, dist: a.d + best, point: [o.x + d.x * best, o.y + d.y * best, o.z + d.z * best] } : null;
+    return victim ? { victim, head: part === 'head', part, dist: a.d + best, point: [o.x + d.x * best, o.y + d.y * best, o.z + d.z * best] } : null;
   }
 
-  #bulletHit(b, { victim, vehicle, head, dist, point }) {
+  #bulletHit(b, { victim, vehicle, head, part, dist, point }) {
     const p = b.shooter, def = b.def;
     if (vehicle) {
       this.emit({ t: 'bhit', b: b.id, p: point.map((v) => +v.toFixed(2)), vh: vehicle.id });
@@ -371,7 +371,9 @@ export class Game {
       return;
     }
     if (def.splash) { this.explodeAt(point[0], point[1], point[2], { radius: def.splash, damage: def.damage, owner: p, weapon: b.w, vehicleDamage: def.vehicleDamage }); }
-    const dmg = def.splash ? def.directHit || def.damage : (def.range ? damageAt(def, dist) : def.damage) * (head ? def.headMul || 1.5 : 1);
+    // hit zones: a head hit with a rifle round is lethal, legs/hips take less than the torso
+    const zone = head ? def.headMul || 1.5 : part === 'legs' ? def.legMul ?? 0.75 : 1;
+    const dmg = def.splash ? def.directHit || def.damage : (def.range ? damageAt(def, dist) : def.damage) * zone;
     const wasAlive = victim.alive;
     this.damage(victim, dmg, p, b.w, head);
     const killed = wasAlive && !victim.alive;
@@ -394,11 +396,14 @@ export class Game {
 
   throwGrenade(p, o, d) {
     if (!p.alive || p.grenades <= 0 || this.roundOver) return;
+    if (!Array.isArray(d) || d.length < 3 || !d.slice(0, 3).every(Number.isFinite)) return;
+    const dl = Math.hypot(d[0], d[1], d[2]);
+    if (dl < 1e-6) return;
     p.grenades--;
     const eye = { x: p.x, y: p.y + EYE_HEIGHT[p.stance], z: p.z };
-    const dl = Math.hypot(d[0], d[1], d[2]) || 1;
+    // an overarm throw: ~15 m/s release (≈ 30 m on a lob), part of the thrower's own run carried over
     const sp = GRENADE.throwSpeed;
-    this.grenades.push({ id: nextId++, owner: p.id, team: p.team, x: eye.x, y: eye.y, z: eye.z, vx: (d[0] / dl) * sp + p.vx * 0.5, vy: (d[1] / dl) * sp + 2.5, vz: (d[2] / dl) * sp + p.vz * 0.5, fuse: GRENADE.fuse });
+    this.grenades.push({ id: nextId++, owner: p.id, team: p.team, x: eye.x, y: eye.y, z: eye.z, vx: (d[0] / dl) * sp + (p.vx || 0) * 0.5, vy: (d[1] / dl) * sp + 1.5, vz: (d[2] / dl) * sp + (p.vz || 0) * 0.5, fuse: GRENADE.fuse });
     this.emit({ t: 'throw', id: p.id, g: p.grenades }, null);
   }
 
@@ -412,6 +417,13 @@ export class Game {
         const v = Math.hypot(g.vx, g.vy, g.vz);
         if (v > 1e-4) {
           const d = { x: g.vx / v, y: g.vy / v, z: g.vz / v };
+          // a window pane in the way shatters and takes some of the speed off
+          const to = { x: g.x + g.vx * h, y: g.y + g.vy * h, z: g.z + g.vz * h };
+          for (const gh of this.world.glassAlong(g, to)) {
+            if (this.glassBroken.has(gh.pane.id)) continue;
+            this.breakGlass(gh.pane, [g.x + (to.x - g.x) * gh.t, g.y + (to.y - g.y) * gh.t, g.z + (to.z - g.z) * gh.t], [d.x, d.y, d.z]);
+            g.vx *= 0.7; g.vy *= 0.7; g.vz *= 0.7;
+          }
           const hit = this.world.raycast(g, d, v * h + 0.06, false);
           if (hit) {
             const n = hit.normal, vn = g.vx * n[0] + g.vy * n[1] + g.vz * n[2];
@@ -437,12 +449,30 @@ export class Game {
       const c = { x: q.x, y: q.y + (q.stance === 'prone' ? 0.3 : 1.0), z: q.z };
       const dist = Math.hypot(c.x - g.x, c.y - g.y, c.z - g.z);
       if (dist > GRENADE.radius) continue;
-      if (!this.world.lineOfSight({ x: g.x, y: g.y + 0.15, z: g.z }, c)) continue;
+      const o = { x: g.x, y: g.y + 0.15, z: g.z };
+      if (!this.world.lineOfSight(o, c)) continue;
+      // a vehicle hull between the blast and the soldier shields them too
+      const vd = { x: (c.x - o.x) / (dist || 1), y: (c.y - o.y) / (dist || 1), z: (c.z - o.z) / (dist || 1) };
+      if (q.vehicle == null && this.vehicles.rayTest(o, vd, dist - 0.3, null)) continue;
       if (owner && q !== owner && !this.isEnemy(owner, q)) continue;
       const f = 1 - dist / GRENADE.radius;
       this.damage(q, GRENADE.maxDamage * f * f + (dist < 2 ? 40 : 0), owner, 'grenade');
     }
     this.vehicles.explosion(g.x, g.y, g.z, GRENADE.radius, 160, owner, 'grenade', 'grenade');
+  }
+
+  // soldiers are solid: a bot that walked into someone is pushed back out (players' own movement does the same
+  // client-side), then kept out of walls
+  separate(p) {
+    const R = 0.62;
+    for (const q of this.players.values()) {
+      if (q === p || !q.alive || q.vehicle || q.air) continue;
+      const dx = p.x - q.x, dz = p.z - q.z, d = Math.hypot(dx, dz);
+      if (d >= R || Math.abs(q.y - p.y) > 1.6) continue;
+      const nx = d > 1e-3 ? dx / d : Math.cos(p.id), nz = d > 1e-3 ? dz / d : Math.sin(p.id);
+      p.x += nx * (R - d); p.z += nz * (R - d);
+    }
+    this.world.resolveHorizontal(p, p.y, 1.8);
   }
 
   historyAt(q, t) {
@@ -537,7 +567,7 @@ export class Game {
         if (p.bot && p.brain.vehicleThink) p.brain.vehicleThink(dt);
       } else if (p.bot) {
         const input = p.brain.think(dt);
-        if (p.air) stepAir(this.world, p, input, dt); else stepCharacter(this.world, p, input, dt);
+        if (p.air) stepAir(this.world, p, input, dt); else { stepCharacter(this.world, p, input, dt); this.separate(p); }
         if (p.fall > 0) this.damage(p, p.fall, null, 'fall');
         if (p.y < -30) this.kill(p, null, 'fall');
       } else if (now - p.lastInput > 8000) {

@@ -53,6 +53,9 @@ export class Viewmodel {
     // hip & ADS poses in camera space
     const pistol = key === 'pistol';
     this.hip = { pos: pistol ? new THREE.Vector3(0.13, -0.19, -0.38) : new THREE.Vector3(0.16, -0.205, -0.2), rot: new THREE.Euler(pistol ? 0.03 : 0.03, pistol ? 0.06 : 0.07, pistol ? 0.02 : 0.08) };
+    // a tall optic (red dot on a riser above a pistol grip) sits the rifle lower in the hands at the hip, so the sight
+    // stays down in the corner of the view instead of filling it
+    if (!pistol && w.sockets.opticEye && w.sockets.rightGrip) this.hip.pos.y -= Math.max(0, w.sockets.opticEye.y - w.sockets.rightGrip.y - 0.1);
     // body offset so shoulders sit just behind/below the eye
     this.bodyOffset = new THREE.Vector3(0.02, -0.02, pistol ? 0.05 : 0.02);
   }

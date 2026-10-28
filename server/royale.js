@@ -286,7 +286,7 @@ export class RoyaleGame extends Game {
   }
 
   damage(victim, amount, attacker, weapon, head = false) {
-    if (!victim.alive || this.now() < victim.spawnProtect) return;
+    if (!victim.alive || this.now() < victim.spawnProtect || !(amount > 0) || !Number.isFinite(amount)) return;
     // armor plates soak most of a hit until they are broken (the ring burns straight through)
     if (weapon !== 'ring' && victim.armor > 0) { const a = Math.min(victim.armor, amount * 0.6); victim.armor -= a; amount -= a; }
     super.damage(victim, amount, attacker, weapon, head);
@@ -347,7 +347,7 @@ export class RoyaleGame extends Game {
       if (p.bot) {
         const input = p.brain.think(dt);
         if (p.air) { stepAir(this.world, p, input, dt); if (!p.air) this.#landed(p, now); }
-        else { stepCharacter(this.world, p, input, dt); if (p.fall > 0) this.damage(p, p.fall, null, 'fall'); }
+        else { stepCharacter(this.world, p, input, dt); this.separate(p); if (p.fall > 0) this.damage(p, p.fall, null, 'fall'); }
       }
       if (p.reloadUntil && now >= p.reloadUntil) {
         const w = p.weapons[p.reloadSlot ?? p.slot];

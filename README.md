@@ -102,17 +102,20 @@ altitude hands-off), LMB rockets · gunner seats aim freely with the mouse. Touc
   Everything is server-authoritative (jump window, air-speed limits, pickup range, armor, healing, ring damage).
   Royale bots pick a drop zone along the flight path, loot what they need, run from the ring and fight everyone.
 * **Ballistics** (`shared/ballistics.js`, simulated by the server): every bullet is a projectile with the real muzzle
-  velocity of its cartridge, air drag, gravity drop and a maximum range; it takes time to arrive (a sniper round needs
-  ~0.2 s for 150 m) and each flight segment is lag-compensated against where targets were at that moment.
+  velocity of its cartridge, air drag that grows with the square of its speed (a 5.56 mm round is down to ~550 m/s at
+  500 m, a 7.62 mm one to ~370 m/s at 1 km), gravity drop and a maximum range; it takes time to arrive (a sniper
+  round needs ~0.2 s for 150 m, ~1.85 s for 1 km) and each flight segment is lag-compensated against where targets
+  were at that moment.
 
   | Weapon | Muzzle velocity | Max range | Zeroing (PgUp / PgDn) | Drop at 200 m* |
   |---|---|---|---|---|
   | AR-15 carbine (5.56 mm) | 910 m/s | 700 m | 50 · 100 · 200 · 300 m | ≈ 20 cm |
-  | M-38 bolt rifle (7.62 mm) | 830 m/s | 1200 m | 100 · 200 … 800 m | ≈ 19 cm |
+  | M-38 bolt rifle (7.62 mm) | 830 m/s | 1200 m | 100 · 200 … 800 m | ≈ 17 cm |
   | P-17 pistol (9 mm) | 360 m/s | 220 m | 25 · 50 m | ≈ 1.7 m |
 
   \* with the default (shortest) zero. Tracers fly at the bullet's speed, impacts appear when it lands, bullets
-  passing within ~4 m of you make a supersonic crack. Damage falls off with distance; headshots multiply it.
+  passing within ~4 m of you make a supersonic crack. Damage falls off with distance; hit zones: a rifle or pistol
+  round to the head is lethal, hits to the legs/hips do 75 % of a torso hit.
 * **Scopes**: fully aimed through a magnified optic you get a full-screen scope (real ~7° field of view for 4×)
   rendered from the camera itself, so the reticle centre is exactly where the bullet goes. The reticle has mil marks
   for leading movers and **bullet-drop marks** computed from the ballistics for your zeroing (hold "4" on a target at
@@ -122,18 +125,25 @@ altitude hands-off), LMB rockets · gunner seats aim freely with the mouse. Touc
 * **Hit feedback**: hits are confirmed by the server when the bullet actually reaches the target — X marker on the
   crosshair with the damage number (gold = headshot, red = kill, distance for long shots) and a hit sound; the
   crosshair turns red while it is on an enemy; the victim sees the damage direction.
-* **Movement physics** (`shared/world.js`): real gravity (9.81 m/s²), ≈ 0.55 m standing jump, identical at any frame
-  rate (fixed 120 Hz sub-steps, exact integration); momentum is kept in the air with only light air control; chained
-  jumps lose height; hard landings slow you briefly; falls above 3.2 m cause damage (≈ 10 m is lethal).
+* **Movement physics** (`shared/world.js`): a soldier with ~25 kg of kit — jog 3.4 m/s, sprint 5.8 m/s for ~12 s of
+  stamina (bar under your health; winded = no sprint until you get your breath back), crouch 1.9, crawl 0.7 m/s;
+  ~0.3 s to get up to speed; steep hills slow you down and above 45° can't be climbed on foot; getting down prone or
+  back up takes ~1 s (slow, can't fire); the rifle needs ~0.25 s to come up out of a sprint; other soldiers are solid.
+  Real gravity (9.81 m/s²), ≈ 0.46 m standing jump, identical at any frame rate (fixed 120 Hz sub-steps); momentum
+  is kept in the air with only light air control; chained jumps lose height; hard landings slow you briefly; falls
+  above 3.2 m cause damage (≈ 10 m is lethal).
 * **Kits**: Assault (automatic carbine, pistol, 2 frags) · Recon (4× scoped bolt-action rifle, pistol, 1 frag).
 * **Server-authoritative**: the server owns ammo, fire rate, damage, hit detection (lag-compensated hitscan
-  against capsule hitboxes; walls/cover block shots; headshot multipliers; range falloff), grenades (simulated
-  bounce + line-of-sight blast), capture, tickets, respawn, chat rate limiting and movement sanity checks.
+  against capsule hitboxes; walls/cover block shots; head/torso/leg zones; range falloff), grenades (4 s fuse, real
+  gravity, bounce, smash windows, blast blocked by walls and vehicles), capture, tickets, respawn, chat rate limiting and movement sanity checks.
 * **Bots** play like people: A* navigation with smooth steering and turning (no snapping), sprint only on long clear
   stretches, walk and glance around near danger; in a fight they settle into one firing position, stop to shoot at range,
   close in when out of their weapon's range, fire controlled bursts, run to real cover when hurt, then peek; they
-  search where they last saw you and watch approach routes while holding a flag. Line-of-sight perception, reaction
-  time, converging aim error, bullet-drop hold-over and target leading, grenades.
+  search where they last saw you and watch approach routes while holding a flag. Line-of-sight perception with a
+  ~140° field of view (behind them they only *hear* gunfire and running, and turn to look), foliage concealment (lie
+  in a bush or behind ferns and they won't spot you unless you fire or move fast), human reaction times (~0.3–0.7 s),
+  the same recoil a player fights, converging aim error, bullet-drop hold-over and target leading, grenades; they
+  sprint only the way they face, keep a little space from each other, and duck into cover to reload.
 * **Vehicles** in every Conquest room, parked in each team's motor pool and respawning 25 s after being destroyed:
   jeep + motorbike on every map, plus a tank on the maps from Outskirts size up, plus an attack helicopter on Kestrel
   Airbase, Dry Valley and Kaskar Ridge.
@@ -208,6 +218,8 @@ if a file listed nowhere can be found the game logs `FAILED TO LOAD …` instead
 Convert your own `.blend` files with `blender -b file.blend --python scripts/blend2glb.py -- out.glb`.
 
 ### Default assets & licenses
+* AR-15 / M4-pattern carbine with a red dot: modelled to real dimensions by `scripts/build-carbine.mjs`
+  (`client/assets/weapons/carbine.glb`, no external source).
 * Props, weapons (bolt-action rifle with PU-style scope, service pistol, grenade), trees, grass, shrubs, rocks,
   PBR textures and the sky HDRI: **Poly Haven, CC0** — fetched and optimized by `scripts/build-assets.mjs`
   (meshoptimizer simplification, foliage thinning, opacity-map baking, WebP textures).

@@ -83,6 +83,12 @@ export class HUD {
     $('hp').textContent = Math.max(0, Math.round(me.hp));
     document.querySelector('.hpbar i').style.width = `${Math.max(0, me.hp)}%`;
     document.querySelector('.hpbar i').style.background = me.hp < 30 ? '#ff6b5b' : '#e9ecec';
+    const st = this.stbar || (this.stbar = document.querySelector('.stbar'));
+    if (st && me.stamina !== undefined) {
+      st.classList.toggle('on', me.stamina < 0.99);
+      st.classList.toggle('winded', !!me.winded);
+      st.firstChild.style.width = `${Math.round(me.stamina * 100)}%`;
+    }
     $('vignette').style.boxShadow = `inset 0 0 ${140 + (100 - me.hp) * 2}px rgba(130,0,0,${Math.max(0, (60 - me.hp) / 90)})`;
     if (w) {
       const def = WEAPONS[w.id];

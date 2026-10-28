@@ -154,7 +154,6 @@ export class CharacterRig {
     B.land = damp(B.land, 0, 6, dt);
     B.skydive = damp(B.skydive, s.skydive === 1 ? 1 : 0, 5, dt);
     B.canopy = damp(B.canopy, s.skydive === 2 ? 1 : 0, 4, dt);
-    if (s.firing) B.recoil = Math.min(1, B.recoil + 0.6);
 
     // ----- body yaw / leg direction
     const moving = s.speed > 0.3;
@@ -166,8 +165,10 @@ export class CharacterRig {
     }
     const targetBody = s.aimYaw + legOffset * (1 - B.sprint * 0.2);
     const idleSlack = angDiff(this.bodyYaw, s.aimYaw);
+    const yaw0 = this.bodyYaw;
     if (moving || Math.abs(idleSlack) > 0.9 || B.prone > 0.1 || s.firing || s.ads) this.bodyYaw += angDiff(this.bodyYaw, moving ? targetBody : s.aimYaw) * (1 - Math.exp(-(moving ? 9 : 5) * dt));
     this.root.rotation.y = this.bodyYaw;
+    this.turnRate = damp(this.turnRate || 0, dt > 0 ? Math.abs(angDiff(yaw0, this.bodyYaw)) / dt : 0, 10, dt);
 
     // ----- locomotion clip weights
     const spd = s.speed;
@@ -177,19 +178,33 @@ export class CharacterRig {
     const wRun = smooth(2.4, 4.2, spd);
     const wWalk = Math.max(0, 1 - wIdle - wRun);
     const dead = B.death > 0;
-    const set = (k, w, ts) => { if (A[k]) { A[k].setEffectiveWeight(dead ? A[k].getEffectiveWeight() * 0.9 : w); if (ts !== undefined) A[k].timeScale = ts; } };
+    // dead: the weights frozen at the moment of death blend into the relaxed idle pose (always summing to 1, so the
+    // bind T-pose never leaks in) while the clips slow to a stop
+    const relax = Math.min(1, B.death * 3);
+    const set = (k, w, ts) => { if (A[k]) { A[k].setEffectiveWeight(dead ? (this.deathW?.[k] ?? 0) * (1 - relax) + (k === 'idle' ? relax : 0) : w); if (ts !== undefined && !dead) A[k].timeScale = ts; } };
     const dir = backwards ? -1 : 1;
-    set('idle', wIdle + (A.walk ? 0 : wWalk));
-    set('walk', wWalk, dir * Math.max(0.55, Math.min(1.6, spd / (1.45 * sc))));
-    set('run', wRun, dir * Math.max(0.7, Math.min(1.55, spd / (3.9 * sc))));
-    if (A.sprint) { set('sprint', B.sprint); }
-    this.mixer.update(dead ? dt * 0.3 : dt);
+    // prone: the upright walk/run cycle can't be used on a body lying down (legs would scissor through the ground);
+    // the crawl is carried by the procedural prone layer instead
+    const upright = 1 - smooth(0.2, 0.7, B.prone);
+    // turning on the spot: the feet step round (a bit of the walk cycle) instead of the body spinning on planted feet
+    const turnStep = !moving && A.walk ? Math.min(0.6, Math.max(0, this.turnRate - 0.6) * 0.35) * upright * (1 - B.crouch * 0.5) : 0;
+    set('idle', 1 - (1 - wIdle - (A.walk ? 0 : wWalk)) * upright - turnStep);
+    set('walk', wWalk * upright + turnStep, dir * Math.max(0.55, Math.min(1.6, (moving ? spd : 1.0) / (1.45 * sc))));
+    set('run', wRun * upright, dir * Math.max(0.7, Math.min(1.55, spd / (3.9 * sc))));
+    if (A.sprint) { set('sprint', B.sprint * upright); }
+    // walk and run share one gait phase while they blend, so the feet don't shuffle between two cycles
+    if (!dead && A.walk && A.run && wWalk > 0.05 && wRun > 0.05) {
+      const lead = wRun >= wWalk ? A.run : A.walk, other = lead === A.run ? A.walk : A.run;
+      other.time = (lead.time / lead.getClip().duration) * other.getClip().duration;
+    }
+    this.mixer.update(dead ? dt * (1 - relax) : dt);
     this.root.updateMatrixWorld(true);
 
     // ----- procedural layers
     this.#stanceAndLegs(dt);
     this.#poseRootLayer();
     this.root.updateMatrixWorld(true);
+    if (!dead) this.#crawl(dt);
     if (!dead) {
       this.#aimSpine();
       if (this.weapon) {
@@ -247,6 +262,24 @@ export class CharacterRig {
     }
     p.rotation.set((-Math.PI / 2 + slope) * pr, 0, 0);
     p.position.set(0, (0.27 + lift) * pr, 0.95 * pr * (this.height / 1.8));
+  }
+
+  // prone and moving: a leopard crawl — one knee drawn up and out to the side while the other leg pushes, alternating
+  #crawl(dt) {
+    const B = this.blend, s = this.state, b = this.bones;
+    if (B.prone < 0.6 || s.speed < 0.15 || !b.leftUpLeg) return;
+    this.crawlT = (this.crawlT || 0) + dt * s.speed * 5.5;
+    this.poseRoot.updateMatrixWorld(true);
+    const pq = this.poseRoot.getWorldQuaternion(_q2);
+    const R = _v.set(1, 0, 0).applyQuaternion(pq), F = _v2.set(0, 0, -1).applyQuaternion(pq);
+    const w = smooth(0.6, 0.9, B.prone) * Math.min(1, s.speed / 0.4);
+    for (const [side, sign, ph] of [['left', 1, 0], ['right', -1, Math.PI]]) {
+      const k = Math.max(0, Math.sin(this.crawlT + ph));
+      // lying face down, the chest axis F is the ground normal: rotating about it keeps the leg on the ground —
+      // the thigh swings out sideways and the shin folds back in, flat (not up in the air)
+      rotateBoneWorld(b[`${side}UpLeg`], _q.setFromAxisAngle(F, sign * 0.8 * k * w));
+      rotateBoneWorld(b[`${side}Leg`], _q.setFromAxisAngle(F, -sign * 1.3 * k * w));
+    }
   }
 
   // battle royale jump: stable freefall "box" (arms out and bent, knees bent, feet up) and hanging under the canopy
@@ -421,29 +454,84 @@ export class CharacterRig {
   }
 
   #deathLayer(dt) {
-    const B = this.blend, p = this.poseRoot;
-    const t = B.death, e = t * t * (3 - 2 * t);
-    const dir = this.deathDir || 1;
-    p.rotation.set(dir * (Math.PI / 2) * e, 0, 0.25 * e * dir);
-    p.position.set(0, 0.12 * e, 0);
-    // limp arms: relax toward animation (no IK); weapon drops
+    const B = this.blend, p = this.poseRoot, b = this.bones;
+    const t = B.death;
+    // the body accelerates as it topples (gravity), knees give way first
+    const e = t * t, buckle = smooth(0, 0.45, t);
+    const k = this.height / 1.8;
+    if (!this.deathTarget) {
+      // lying direction: tip toward fallDir (body-local), flatter or steeper to match the ground under the head
+      const f = this.fallDir;
+      let tilt = Math.PI / 2;
+      if (this.groundAt) {
+        const r = this.root.position, wx = f.x * Math.cos(this.bodyYaw) + f.z * Math.sin(this.bodyYaw), wz = -f.x * Math.sin(this.bodyYaw) + f.z * Math.cos(this.bodyYaw);
+        const gh = this.groundAt(r.x + wx * 1.4 * k, r.z + wz * 1.4 * k, r.y + 1);
+        tilt -= Math.max(-0.5, Math.min(0.5, Math.atan2(gh - r.y, 1.4 * k)));
+      }
+      const axis = new THREE.Vector3().crossVectors(UP, f).normalize();
+      this.deathTarget = this.diedProne
+        ? this.deathFrom.clone().multiply(_q.setFromAxisAngle(_v.set(0, 1, 0), (Math.random() < 0.5 ? 1 : -1) * 0.3))
+        : new THREE.Quaternion().setFromAxisAngle(axis, tilt);
+    }
+    p.quaternion.slerpQuaternions(this.deathFrom, this.deathTarget, this.diedProne ? smooth(0, 1, t) : e);
+    // knees fold so the hips come down and back as the body goes over; a lying body rests on its own thickness
+    const drop = this.diedProne ? 0 : 0.35 * buckle * (1 - e) * k;
+    p.position.copy(this.deathPos).lerp(_v.set(0, this.diedProne ? this.deathPos.y : 0.12 * k, 0), this.diedProne ? 0 : e);
+    p.position.y -= drop;
+    p.position.addScaledVector(this.fallDir, -0.3 * buckle * k * (this.diedProne ? 0 : 1));
+    // limp body: slack knees and hips, upper body folding at the waist
+    if (b.leftUpLeg && !this.diedProne) {
+      p.updateMatrixWorld(true);
+      const R = _v2.set(1, 0, 0).applyQuaternion(p.getWorldQuaternion(_q2));
+      // knees give way while falling, then the legs settle mostly straight once the body is down
+      const fold = buckle * (1 - 0.75 * e);
+      for (const [side, s] of [['left', 1], ['right', 0.6]]) {
+        rotateBoneWorld(b[`${side}UpLeg`], _q.setFromAxisAngle(R, 0.45 * fold * s));
+        rotateBoneWorld(b[`${side}Leg`], _q.setFromAxisAngle(R, -0.9 * fold * s));
+      }
+      for (const bn of b.spine) rotateBoneWorld(bn, _q.setFromAxisAngle(R, (this.fallDir.z < 0 ? -0.12 : 0.08) * buckle));
+      if (b.head) rotateBoneWorld(b.head, _q.setFromAxisAngle(R, (this.fallDir.z < 0 ? -0.3 : 0.25) * buckle));
+    }
+    // limp arms: relax toward animation (no IK); the weapon falls and comes to rest flat on its side
     if (this.weapon) {
+      const w = this.weapon.root, g0 = this.groundY ?? this.root.position.y;
+      const g = (this.weaponInWorld && this.groundAt ? this.groundAt(w.position.x, w.position.z, g0 + 0.5) : g0) + 0.03;
       if (!this.dropped) {
-        this.dropped = { vy: 0.5, spin: (Math.random() - 0.5) * 3 };
+        const f = _v.set(0, 0, -1).applyQuaternion(w.quaternion), yaw = Math.atan2(-f.x, -f.z) + (Math.random() - 0.5) * 0.8;
+        this.dropped = { vy: 0.4, y0: w.position.y, q0: w.quaternion.clone(), q1: new THREE.Quaternion().setFromEuler(new THREE.Euler(0, yaw, (Math.random() < 0.5 ? 1 : -1) * Math.PI / 2, 'YXZ')) };
       }
-      const w = this.weapon.root, g = this.groundY ?? this.root.position.y;
-      if (w.position.y > g + 0.05) {
-        this.dropped.vy -= 9.8 * dt;
-        w.position.y = Math.max(g + 0.05, w.position.y + this.dropped.vy * dt);
-        w.rotateZ(this.dropped.spin * dt);
-        w.rotateX(0.9 * dt);
+      const d = this.dropped;
+      if (w.position.y > g) {
+        d.vy -= 9.8 * dt;
+        w.position.y = Math.max(g, w.position.y + d.vy * dt);
       }
+      w.quaternion.slerpQuaternions(d.q0, d.q1, Math.min(1, Math.max(0, (d.y0 - w.position.y) / Math.max(0.05, d.y0 - g))));
     }
   }
 
-  die(fromDir = 1) { this.state.dead = true; this.deathDir = fromDir; this.dropped = null; this.groundY = this.root.position.y; }
-  revive() { this.state.dead = false; this.blend.death = 0; this.dropped = null; this.poseRoot.rotation.set(0, 0, 0); this.poseRoot.position.set(0, 0, 0); }
+  // from: world position of the shooter ({x, z}) — the body falls away from the hit; without one, a random way
+  die(from = null) {
+    if (this.state.dead) return;
+    this.state.dead = true; this.dropped = null; this.groundY = this.root.position.y;
+    let a = Math.random() * Math.PI * 2;
+    if (from && Number.isFinite(from.x) && Number.isFinite(from.z)) {
+      const r = this.root.position, dx = r.x - from.x, dz = r.z - from.z;
+      if (dx * dx + dz * dz > 1e-4) a = Math.atan2(dx, dz) - this.bodyYaw + (Math.random() - 0.5) * 0.8; // world -> body frame, a little scatter
+    }
+    this.fallDir = new THREE.Vector3(Math.sin(a), 0, Math.cos(a));
+    this.diedProne = this.blend.prone > 0.5;
+    this.deathFrom = this.poseRoot.quaternion.clone();
+    this.deathPos = this.poseRoot.position.clone();
+    this.deathTarget = null;
+    this.deathW = {};
+    for (const [k, act] of Object.entries(this.actions)) this.deathW[k] = act.getEffectiveWeight();
+    const sum = Object.values(this.deathW).reduce((s, w) => s + w, 0) || 1;
+    for (const k in this.deathW) this.deathW[k] /= sum;
+  }
+  revive() { this.state.dead = false; this.blend.death = 0; this.dropped = null; this.deathTarget = null; this.poseRoot.quaternion.identity(); this.poseRoot.position.set(0, 0, 0); }
   hitReact() { this.blend.hit = 1; }
+  // one round fired: the rifle kicks back into the shoulder and recovers (per shot, so full-auto reads as recoil)
+  kick() { this.blend.recoil = Math.min(1, this.blend.recoil + 0.6); }
   land(v) { this.blend.land = Math.min(1, v / 10); }
 
   // --------------------------------------------------------------- diagnostics

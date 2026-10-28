@@ -258,7 +258,7 @@ class Game {
         this.audio.gunshot(from, e.w);
         if (e.s !== 'none') this.#scheduleImpact(e.b, tf, () => this.effects.impact(e.e, e.n, e.s));
         this.#nearMiss(e.o, e.e, tf, e.w);
-        const sh = P.info(e.id); if (sh) sh.spottedUntil = performance.now() + 2500;
+        const sh = P.info(e.id); if (sh) { sh.spottedUntil = performance.now() + 2500; sh.rig?.kick(); }
         break;
       }
       case 'bhit': {
@@ -285,10 +285,11 @@ class Game {
         if (e.v === this.myId && e.w !== 'reset') Stats.add({ deaths: 1 });
         this.hud.killfeed(e.k, e.v, e.w, e.hs, new Map([...this.board].map(([id, r]) => [id, { name: r.n, team: r.tm }])));
         const p = P.info(e.v);
-        if (p?.rig && e.v !== this.myId) p.rig.die(Math.random() < 0.5 ? 1 : -1);
+        const from = e.kx !== undefined && e.k !== e.v ? { x: e.kx, z: e.kz } : null;
+        if (p?.rig && e.v !== this.myId) p.rig.die(from);
         if (e.v === this.myId) {
           this.killcam = e.k && e.k !== this.myId ? { id: e.k, x: e.kx, y: e.ky, z: e.kz, name: this.board.get(e.k)?.n, w: e.w, hs: e.hs, t: performance.now() } : null;
-          if (p?.rig) p.rig.die(1);
+          if (p?.rig) p.rig.die(from);
         }
         break;
       }
@@ -412,9 +413,10 @@ class Game {
     // viewmodel kick + muzzle flash at the real muzzle socket, world tracer & predicted impact
     this.viewmodel.kick(def);
     this.audio.gunshot(null, def.id, true);
-    const vmMuzzle = this.viewmodel.weapon.socketWorld('muzzle', new THREE.Vector3());
-    // map the viewmodel-space muzzle into the world (viewmodel camera sits at the world camera)
-    const worldMuzzle = vmMuzzle.applyMatrix4(this.camera.matrixWorld);
+    // third person: the flash and tracer leave the soldier's own rifle; first person: map the viewmodel-space
+    // muzzle into the world (the viewmodel camera sits at the world camera)
+    const worldMuzzle = (this.me.isTPS() && this.players.muzzleOf(this.myId)) || this.viewmodel.weapon.socketWorld('muzzle', new THREE.Vector3()).applyMatrix4(this.camera.matrixWorld);
+    if (this.me.isTPS()) this.players.info(this.myId)?.rig?.kick();
     this.effects.muzzleFlash(worldMuzzle, dir, def.id === 'sniper');
     // same ballistic flight as the server: drop, drag, travel time
     const path = bulletPath(this.world.collision, eye, dir, def);
@@ -592,7 +594,7 @@ class Game {
     // HUD
     if (this.lastSnap) {
       const w = me.weapons[me.slot];
-      this.hud.vitals({ hp: me.alive ? (this.meState?.hp ?? 100) : 0 }, w, me.slot, me.grenades, me.s.stance, reloading, me.zeroOf());
+      this.hud.vitals({ hp: me.alive ? (this.meState?.hp ?? 100) : 0, stamina: me.alive ? me.s.stamina ?? 1 : 1, winded: me.s.winded }, w, me.slot, me.grenades, me.s.stance, reloading, me.zeroOf());
       if (!this.royale) this.hud.flags(this.lastSnap.f, me.alive ? me.s : null);
       if ((this.enemyCheckN = (this.enemyCheckN || 0) + 1) % 3 === 1) this.onEnemy = me.alive && wdef ? this.#enemyUnderCrosshair(cam, wdef) : false;
       this.hud.compass(seated && V.drive && !V.fpView ? cam.rotation.y : me.yaw);

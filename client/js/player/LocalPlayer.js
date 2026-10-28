@@ -1,6 +1,6 @@
 // Local player: input, client-side predicted movement (shared physics), FPS/TPS camera, weapon handling.
 import * as THREE from 'three';
-import { stepCharacter, EYE_HEIGHT, STANCE_HEIGHT } from '/shared/world.js';
+import { stepCharacter, EYE_HEIGHT, STANCE_HEIGHT, MOVE } from '/shared/world.js';
 import { WEAPONS } from '/shared/weapons.js';
 import { stepAir } from '/shared/royale.js';
 import { zeroAngle } from '/shared/ballistics.js';
@@ -99,7 +99,7 @@ export class LocalPlayer {
   }
 
   spawn(m) {
-    Object.assign(this.s, { x: m.x, y: m.y, z: m.z, vx: m.vx || 0, vy: m.vy || 0, vz: m.vz || 0, onGround: !m.air, stance: 'stand', air: m.air || 0 });
+    Object.assign(this.s, { x: m.x, y: m.y, z: m.z, vx: m.vx || 0, vy: m.vy || 0, vz: m.vz || 0, onGround: !m.air, stance: 'stand', air: m.air || 0, stamina: 1, winded: false });
     this.yaw = m.yaw; this.pitch = m.air ? -0.5 : 0; this.alive = true; this.jumpQueued = false;
     this.weapons = m.w.map((w) => (w ? { ...w } : null)); this.grenades = m.g; this.slot = m.sl ?? 0;
     this.reloadUntil = 0; this.recoil.p = this.recoil.y = 0;
@@ -126,6 +126,8 @@ export class LocalPlayer {
       const ceil = this.g.world.collision.ceilingHeight(this.s.x, this.s.z, this.s.y + 0.4);
       if (ceil < this.s.y + STANCE_HEIGHT[st]) return;
     }
+    // getting down on the ground / back up from it takes about a second: slow and can't shoot meanwhile
+    if (st === 'prone' || this.s.stance === 'prone') this.stanceBusy = performance.now() + (st === 'prone' ? 900 : 800);
     this.s.stance = st;
   }
 
@@ -177,8 +179,9 @@ export class LocalPlayer {
     const sin = Math.sin(this.yaw), cos = Math.cos(this.yaw);
     const wx = fx * cos + fz * sin, wz = -fx * sin + fz * cos;
     const reloading = performance.now() < this.reloadUntil;
-    const sprint = !chat && (k.has('ShiftLeft') || T.sprint) && fz < 0 && !this.mouse.r && s.stance !== 'prone';
-    if (sprint && s.stance === 'crouch') s.stance = 'stand';
+    const busy = performance.now() < (this.stanceBusy || 0);
+    let sprint = !chat && (k.has('ShiftLeft') || T.sprint) && fz < 0 && !this.mouse.r && s.stance !== 'prone' && !busy && !s.winded;
+    if (sprint && s.stance === 'crouch') { this.setStance('stand'); sprint = s.stance === 'stand'; } // needs head room
     const ads = this.mouse.r && !sprint;
     this.sprinting = sprint; this.ads = ads;
     const jump = !chat && (k.has('Space') || T.jump || this.jumpQueued);
@@ -195,9 +198,23 @@ export class LocalPlayer {
       this.#sendInput(s, false, false);
       return;
     }
-    if (jump && s.stance !== 'stand' && s.onGround) { this.setStance('stand'); }
-    const prevGround = s.onGround;
-    stepCharacter(this.g.world.collision, s, { fx: wx, fz: wz, sprint, jump: jump && s.stance === 'stand', ads }, dt);
+    // SPACE while crouched / prone gets you up first (no jump out of a crawl in the same instant)
+    const standing = s.stance === 'stand';
+    if (jump && !standing && s.onGround && !busy) { this.setStance('stand'); }
+    const prevGround = s.onGround, prevY = s.y;
+    const slow = busy ? 0.25 : 1;
+    stepCharacter(this.g.world.collision, s, { fx: wx * slow, fz: wz * slow, sprint, jump: jump && standing && !busy, ads }, dt);
+    // other soldiers are solid: step around them instead of walking through
+    for (const q of this.g.players.map.values()) {
+      if (q.id === this.g.myId || !q.alive || (q.flags & 224)) continue;
+      const dx = s.x - q.x, dz = s.z - q.z, d = Math.hypot(dx, dz);
+      if (d < 0.62 && d > 1e-3 && Math.abs(q.y - s.y) < 1.6) { s.x += (dx / d) * (0.62 - d); s.z += (dz / d) * (0.62 - d); this.g.world.collision.resolveHorizontal(s, s.y, STANCE_HEIGHT[s.stance]); }
+    }
+    // out of stamina mid-sprint: back to a jog (the weapon comes up again)
+    if (sprint && !s.sprinting) this.sprinting = false;
+    if (this.sprinting) this.sprintEnd = performance.now();
+    // stepping up a stair / kerb: the body pops up instantly, the view follows smoothly
+    if (prevGround && s.onGround && s.y - prevY > 0.04 && s.y - prevY < 0.6) this.stepOff = Math.max(-0.5, (this.stepOff || 0) - (s.y - prevY));
     if (s.landed) { this.landDip = Math.min(0.16, s.landed * 0.014); this.g.audio.footstep(null, this.g.surfaceAt(s.x, s.z), true, 1.5); if (s.landed > 4) this.g.audio.land(s.landed); }
     if (s.vault && !this.vaulting) this.g.audio.vault();
     this.vaulting = !!s.vault; s.vaulted = false;
@@ -213,7 +230,9 @@ export class LocalPlayer {
     const w = this.weapons[this.slot], def = w ? WEAPONS[w.id] : null;
     this.adsBlend = this.g.viewmodel ? this.g.viewmodel.ads : 0;
     if (def) {
-      if (this.mouse.l && !chat && !sprint && !reloading && performance.now() >= this.nextFire && this.g.viewmodel.switchT > 0.8 && !this.g.royale?.healing) {
+      // the rifle has to come up out of the sprint carry (~0.25 s) and can't be fired while getting down / up
+      const ready = !this.sprinting && performance.now() > (this.sprintEnd || 0) + 250 && !busy;
+      if (this.mouse.l && !chat && ready && !reloading && performance.now() >= this.nextFire && this.g.viewmodel.switchT > 0.8 && !this.g.royale?.healing) {
         if (!def.auto && !this.triggerReleased) {} // semi/bolt: one shot per click
         else if (w.mag > 0) this.fire(w, def);
         else { this.g.audio.ui('empty'); this.nextFire = performance.now() + 300; this.reload(); }
@@ -239,8 +258,8 @@ export class LocalPlayer {
     this.recoil.y = damp(this.recoil.y, 0, rec, dt);
     this.bloom = damp(this.bloom, 0, 4, dt);
     this.landDip = damp(this.landDip, 0, 6, dt);
-    this.#sendInput(s, ads, sprint);
-    this.moveFactor = Math.min(1, hs / 3.6);
+    this.#sendInput(s, ads, this.sprinting);
+    this.moveFactor = Math.min(1, hs / MOVE.walk);
   }
 
   // send input at ~30Hz
@@ -297,13 +316,16 @@ export class LocalPlayer {
   // camera placement for this frame
   updateCamera(cam, dt) {
     const s = this.s;
-    this.eyeSmooth = damp(this.eyeSmooth ?? EYE_HEIGHT[s.stance], EYE_HEIGHT[s.stance], 9, dt);
+    // getting down to / up from prone is a whole-body move: the view drops / rises over about a second
+    const eh = EYE_HEIGHT[s.stance], ec = this.eyeSmooth ?? eh;
+    this.eyeSmooth = damp(ec, eh, Math.abs(eh - ec) > 0.45 ? 4 : 9, dt);
+    this.stepOff = damp(this.stepOff || 0, 0, 14, dt);
     const hs = Math.hypot(s.vx, s.vz);
     if (s.onGround && hs > 0.3) this.camBob += dt * hs * (this.sprinting ? 2.3 : 2.6);
     const bobA = this.adsBlend > 0.5 ? 0.15 : 1;
     const bobY = Math.abs(Math.sin(this.camBob)) * 0.028 * Math.min(1, hs / 4) * bobA;
     const bobX = Math.cos(this.camBob) * 0.012 * Math.min(1, hs / 4) * bobA;
-    const eye = new THREE.Vector3(s.x, s.y + this.eyeSmooth - this.landDip + bobY, s.z);
+    const eye = new THREE.Vector3(s.x, s.y + this.eyeSmooth + this.stepOff - this.landDip + bobY, s.z);
     const shake = this.g.effects.shake;
     const pitch = this.pitch + this.recoil.p + this.sway.p + (Math.random() - 0.5) * shake * 0.03;
     const yaw = this.yaw + this.recoil.y + this.sway.y + (Math.random() - 0.5) * shake * 0.03;

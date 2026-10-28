@@ -1,14 +1,18 @@
 // Collision world shared by server (authoritative movement for bots, hit detection) and client (prediction).
-import { PROP_TYPES, getMap } from './map.js';
+import { PROP_TYPES, LINE_PROPS, getMap } from './map.js';
 
 export const STEP_UP = 0.5;
 export const PLAYER_RADIUS = 0.34;
 export const STANCE_HEIGHT = { stand: 1.8, crouch: 1.2, prone: 0.55 };
 export const EYE_HEIGHT = { stand: 1.64, crouch: 1.08, prone: 0.38 };
-// Real-world numbers: g = 9.81 m/s², a loaded soldier's standing jump ≈ 3.3 m/s take-off (≈ 0.55 m of lift,
-// ≈ 0.67 s in the air). Momentum is kept in the air (only light air control); repeated jumps tire you out;
-// hard landings slow you down; falls higher than SAFE_FALL hurt (FALL_DMG hp per extra metre).
-export const MOVE = { walk: 3.6, sprint: 6.3, crouch: 2.0, prone: 0.85, ads: 2.2, accel: 40, airAccel: 2.5, jump: 3.3, gravity: 9.81 };
+// Real-world numbers for a soldier carrying ~25 kg of kit: jog 3.4 m/s, sprint 5.8 m/s, crouch-walk 1.9, crawl 0.7;
+// it takes ~0.3 s to get up to a jog (accel) and boots stop you quicker than that (decel). g = 9.81 m/s², a loaded
+// standing jump ≈ 3.0 m/s take-off (≈ 0.46 m of lift, ≈ 0.6 s in the air). Momentum is kept in the air (only light
+// air control); repeated jumps tire you out; hard landings slow you down; falls higher than SAFE_FALL hurt
+// (FALL_DMG hp per extra metre). Steep hills slow you down and above 45° can't be climbed on foot.
+export const MOVE = { walk: 3.4, sprint: 5.8, crouch: 1.9, prone: 0.7, ads: 2.0, accel: 12, decel: 18, airAccel: 2.5, jump: 3.0, gravity: 9.81 };
+// sprint stamina: ~12 s flat out from full, refills in ~7 s at rest; once spent, no sprinting until it is back to 30 %
+export const STAMINA = { sprintSecs: 12, recoverSecs: 7, jump: 0.05, resume: 0.3 };
 export const SAFE_FALL = 3.2, FALL_DMG = 16;
 export const fallDamage = (impactSpeed) => { const h = (impactSpeed * impactSpeed) / (2 * MOVE.gravity); return h > SAFE_FALL ? (h - SAFE_FALL) * FALL_DMG : 0; };
 const MAX_STEP = 1 / 120;
@@ -66,11 +70,12 @@ export class CollisionWorld {
       const t = PROP_TYPES[p.type];
       const y = groundHeight(p.x, p.z) + (p.y || 0);
       const rot90 = Math.round(p.rot) % 2 === 1;
-      if (p.type === 'sandbags' || p.type === 'wall' || p.type === 'fence') {
-        const len = p.len, h = p.type === 'sandbags' ? 1.05 : p.type === 'wall' ? 2.6 : 2.5, th = p.type === 'sandbags' ? 0.45 : p.type === 'wall' ? 0.25 : 0.06;
+      if (LINE_PROPS[p.type]) {
+        const len = p.len, { h, th } = LINE_PROPS[p.type];
         const hx = rot90 ? th : len / 2, hz = rot90 ? len / 2 : th;
-        // walls/fences follow the ground: approximate with segments
-        const segs = Math.max(1, Math.round(len / 6));
+        // walls / fences / sandbag lines follow the ground: one box per drawn segment (3 m precast wall slabs,
+        // 2 m fence panels, ~2 m of sandbags), each at the ground height of its centre like the visual
+        const segs = Math.max(1, Math.round(len / (p.type === 'wall' ? 3 : 2)));
         for (let s = 0; s < segs; s++) {
           const f0 = -1 + (2 * s) / segs, f1 = -1 + (2 * (s + 1)) / segs;
           const cx = p.x + (rot90 ? 0 : ((f0 + f1) / 2) * hx), cz = p.z + (rot90 ? ((f0 + f1) / 2) * hz : 0);
@@ -95,13 +100,13 @@ export class CollisionWorld {
     }
     this.vegetation = generateVegetation();
     for (const t of this.vegetation.trees) {
+      // fallen dead trees: boxes along the lying log (see layLog in map.js)
+      if (t.dead) { for (const b of t.boxes || []) this.addBox(b.min, b.max, 'wood', true, 'tree'); continue; }
       const r = 0.16 * t.s, y = groundHeight(t.x, t.z);
       this.addBox([t.x - r, y - 0.2, t.z - r], [t.x + r, y + 3.2 * t.s, t.z + r], 'wood', true, 'tree');
     }
-    for (const r of this.vegetation.rocks) {
-      const h = r.s * (r.kind === 'rock_07' ? 0.1 : 0.025), w = r.s * (r.kind === 'rock_07' ? 0.1 : 0.05);
-      if (h > 0.35) { const y = groundHeight(r.x, r.z); this.addBox([r.x - w, y - 0.2, r.z - w], [r.x + w, y + h, r.z + w], 'rock', true, 'rock'); }
-    }
+    // rocks: slabs measured from the models, rotated and scaled like the drawn instance (see placeRock in map.js)
+    for (const r of this.vegetation.rocks) for (const b of r.boxes || []) this.addBox(b.min, b.max, 'rock', true, 'rock');
   }
 
   // glass panes crossed by the segment a -> b (optionally inflated by r metres, for bodies), nearest first
@@ -350,13 +355,32 @@ function stepOnce(world, s, input, dt) {
   s.fatigue = Math.max(0, (s.fatigue || 0) - dt * 0.35);
   s.groundT = s.onGround ? (s.groundT || 0) + dt : 0;
   s.landSlow = Math.max(0, (s.landSlow || 0) - dt);
-  let speed = s.stance === 'prone' ? MOVE.prone : s.stance === 'crouch' ? MOVE.crouch : input.ads ? MOVE.ads : input.sprint ? MOVE.sprint : MOVE.walk;
+  // sprint stamina: drains while sprinting, refills otherwise (faster when standing still)
+  if (s.stamina === undefined) s.stamina = 1;
+  const hs = Math.hypot(s.vx, s.vz);
+  const sprint = !!input.sprint && !input.ads && s.stance === 'stand' && !s.winded && (input.fx || input.fz);
+  if (sprint && hs > 1) { s.stamina = Math.max(0, s.stamina - dt / STAMINA.sprintSecs); if (s.stamina === 0) s.winded = true; }
+  else s.stamina = Math.min(1, s.stamina + dt / (STAMINA.recoverSecs * (hs > 1 ? 1.4 : 1)));
+  if (s.winded && s.stamina >= STAMINA.resume) s.winded = false;
+  s.sprinting = !!sprint;
+  let speed = s.stance === 'prone' ? MOVE.prone : s.stance === 'crouch' ? MOVE.crouch : input.ads ? MOVE.ads
+    : sprint ? MOVE.walk + (MOVE.sprint - MOVE.walk) * Math.min(1, s.stamina * 5) : MOVE.walk;
   if (s.landSlow > 0) speed *= 0.5;
-  const wx = input.fx * speed, wz = input.fz * speed;
+  let wx = input.fx * speed, wz = input.fz * speed;
+  if (s.onGround && (wx || wz)) {
+    // walking up a hill (terrain, not floors or stairs): slower the steeper it gets, impossible above 45°
+    const g0 = world.map.groundHeight(s.x, s.z);
+    if (Math.abs(s.y - g0) < 0.05) {
+      const l = Math.hypot(wx, wz);
+      const grade = (world.map.groundHeight(s.x + (wx / l) * 0.6, s.z + (wz / l) * 0.6) - g0) / 0.6;
+      if (grade > 0.1) { const k = grade >= 1 ? 0 : Math.max(0.3, 1 - 1.1 * (grade - 0.1)); wx *= k; wz *= k; }
+    }
+  }
   if (s.onGround) {
-    const accel = MOVE.accel;
+    // getting up to speed takes a moment; stopping / changing direction is quicker (boots dig in)
     const ax = wx - s.vx, az = wz - s.vz;
-    const al = Math.hypot(ax, az), maxA = accel * dt;
+    const speedingUp = wx * s.vx + wz * s.vz >= 0 && Math.hypot(wx, wz) > hs;
+    const al = Math.hypot(ax, az), maxA = (speedingUp ? MOVE.accel : MOVE.decel) * dt;
     if (al > maxA) { s.vx += (ax / al) * maxA; s.vz += (az / al) * maxA; } else { s.vx = wx; s.vz = wz; }
   } else if (input.fx || input.fz) {
     // airborne: keep momentum, only nudge toward the wish direction (can't speed past the take-off speed)
@@ -376,6 +400,7 @@ function stepOnce(world, s, input, dt) {
   if (input.jump && s.onGround && s.stance === 'stand' && s.groundT > 0.1) {
     s.vy = MOVE.jump * (1 - 0.45 * Math.min(1, s.fatigue));
     s.fatigue = Math.min(1.5, s.fatigue + 0.6);
+    s.stamina = Math.max(0, s.stamina - STAMINA.jump);
     s.onGround = false; s.groundT = 0;
   }
   const height = STANCE_HEIGHT[s.stance];

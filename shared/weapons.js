@@ -4,31 +4,33 @@
 export const WEAPONS = {
   ar: {
     id: 'ar', name: 'AR-15 Carbine', slot: 0, visual: 'assault_rifle', auto: true,
-    damage: 26, headMul: 1.9, rpm: 720, mag: 30, reserve: 150, reload: 2.3, reloadEmpty: 2.9,
+    damage: 26, headMul: 3.9, legMul: 0.75, rpm: 720, mag: 30, reserve: 150, reload: 2.3, reloadEmpty: 2.9,
     range: [28, 70], minDamage: 17, engage: 170, spreadHip: 2.6, spreadAds: 0.055, spreadMove: 1.6,
     recoil: { pitch: 0.42, yaw: 0.18, recover: 9 }, adsTime: 0.22, adsFov: 0.72, speed: 1.0, tracer: 3,
-    // ballistics (5.56x45 mm): muzzle velocity m/s, drag (1/s velocity decay), max range m, sight zeroing m
-    velocity: 910, drag: 0.32, maxRange: 700, zero: [50, 100, 200, 300],
+    // ballistics (5.56x45 mm M855): muzzle velocity m/s, quadratic drag (1/m: ~550 m/s left at 500 m), max range m,
+    // sight zeroing m
+    velocity: 910, dragQ: 1.0e-3, maxRange: 700, zero: [50, 100, 200, 300],
   },
   sniper: {
     id: 'sniper', name: 'M-38 Bolt Rifle', slot: 0, visual: 'bolt_rifle', auto: false, bolt: 1.05,
-    damage: 92, headMul: 2.2, rpm: 55, mag: 5, reserve: 30, reload: 3.1, reloadEmpty: 3.1,
+    damage: 92, headMul: 2.2, legMul: 0.8, rpm: 55, mag: 5, reserve: 30, reload: 3.1, reloadEmpty: 3.1,
     range: [80, 200], minDamage: 70, engage: 550, spreadHip: 5, spreadAds: 0.0, spreadMove: 3,
     recoil: { pitch: 2.8, yaw: 0.4, recover: 5 }, adsTime: 0.34, adsFov: 0.22, speed: 0.95, tracer: 1, scoped: true,
-    // 7.62x54 mmR
-    velocity: 830, drag: 0.17, maxRange: 1200, zero: [100, 200, 300, 400, 500, 600, 800],
+    // 7.62x54 mmR (~370 m/s left at 1000 m)
+    velocity: 830, dragQ: 0.8e-3, maxRange: 1200, zero: [100, 200, 300, 400, 500, 600, 800],
   },
   pistol: {
     id: 'pistol', name: 'P-17 Service Pistol', slot: 1, visual: 'pistol', auto: false,
-    damage: 24, headMul: 1.8, rpm: 400, mag: 15, reserve: 60, reload: 1.6, reloadEmpty: 1.9,
+    damage: 24, headMul: 4.2, legMul: 0.75, rpm: 400, mag: 15, reserve: 60, reload: 1.6, reloadEmpty: 1.9,
     range: [15, 40], minDamage: 14, engage: 45, spreadHip: 2.0, spreadAds: 0.22, spreadMove: 1.0,
     recoil: { pitch: 1.0, yaw: 0.25, recover: 10 }, adsTime: 0.14, adsFov: 0.85, speed: 1.05, tracer: 1,
     // 9x19 mm
-    velocity: 360, drag: 0.55, maxRange: 220, zero: [25, 50],
+    velocity: 360, dragQ: 1.6e-3, maxRange: 220, zero: [25, 50],
   },
 };
 
-export const GRENADE = { fuse: 3.2, radius: 9, maxDamage: 130, count: 2, throwSpeed: 17, gravity: 14 };
+// M67-like: 4 s fuse, ~15 m/s overarm throw under real gravity (lands ~25-30 m away on a lob)
+export const GRENADE = { fuse: 4.0, radius: 9, maxDamage: 130, count: 2, throwSpeed: 15, gravity: 9.81 };
 
 export const CLASSES = {
   assault: { name: 'Assault', primary: 'ar', secondary: 'pistol', grenades: 2 },

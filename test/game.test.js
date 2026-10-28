@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { Game } from '../server/game.js';
 import { CollisionWorld, stepCharacter } from '../shared/world.js';
 import { groundHeight, FLAGS, BUILDINGS, generateBuilding } from '../shared/map.js';
-import { hitCapsules, rayCapsule, WEAPONS } from '../shared/weapons.js';
+import { hitCapsules, rayCapsule, WEAPONS, GRENADE } from '../shared/weapons.js';
 
 const world = new CollisionWorld();
 const mkGame = (bots = 0) => { const g = new Game({ botsPerTeam: bots, log: () => {} }); g.clock = 1_000_000; return g; };
@@ -107,7 +107,7 @@ test('grenade explodes and damages nearby enemies behind no cover', () => {
   spawnAt(g, a, 100, 60); spawnAt(g, v, 100, 40);
   g.throwGrenade(a, [a.x, a.y + 1.6, a.z], [0, 0.2, -1]);
   assert.equal(a.grenades, 1);
-  advance(g, 4);
+  advance(g, GRENADE.fuse + 0.5);
   assert.equal(g.grenades.length, 0);
   assert.ok(v.hp < 100);
 });

@@ -104,7 +104,7 @@ export class Players {
       } else if (!seen.has(p.id) && p.alive && sample) {
         // not in snapshot => dead (keep the body for the death animation)
         p.alive = false;
-        if (!p.rig.state.dead) p.rig.die(Math.random() < 0.5 ? 1 : -1);
+        if (!p.rig.state.dead) p.rig.die();
       }
       const r = p.rig;
       // soldiers inside a tank / helicopter are hidden (flag 128)

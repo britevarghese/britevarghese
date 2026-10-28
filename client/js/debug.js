@@ -96,6 +96,8 @@ async function run() {
         aim.position.copy(rig.aimTarget);
       });
       if (qs.get('skeleton')) scene.add(new THREE.SkeletonHelper(rig.root));
+      // ?die=<ms>: shot from the front after that delay (death fall check)
+      if (qs.get('die')) setTimeout(() => rig.die({ x: 0, z: -4 }), +qs.get('die'));
       const colors = [0x00ff44, 0x2288ff];
       const rh = marker(colors[0], 0.02), lh = marker(colors[1], 0.02); scene.add(rh, lh);
       updaters.push(() => { rig.bones.rightHand.getWorldPosition(rh.position); rig.bones.leftHand.getWorldPosition(lh.position); });
@@ -105,7 +107,9 @@ async function run() {
       if (view === 'side') camera.position.set(2.4, 1.45, 0.2);
       if (view === 'front') camera.position.set(0.3, 1.5, -2.2);
       if (view === 'close') { camera.position.set(0.9, 1.6, -0.7); controls.target.set(0.05, 1.35, -0.2); }
+      if (view === 'prone') { camera.position.set(0.6, 2.6, 0.9); controls.target.set(0, 0.2, 0.4); }
       if (view === 'back') camera.position.set(-0.9, 1.8, 1.6);
+      if (view === 'death') { camera.position.set(2.6, 1.5, 0.9); controls.target.set(0, 0.25, 0.7); }
     }
     if (mode === 'scale') {
       const door = new THREE.Mesh(new THREE.BoxGeometry(1.3, 2.3, 0.05), new THREE.MeshStandardMaterial({ color: 0x5a4a3a, roughness: 0.8 }));

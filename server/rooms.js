@@ -83,7 +83,7 @@ export class Room {
       case 'in': g.handleInput(p, m); break;
       case 'fire': if (Array.isArray(m.d)) g.tryFire(p, m.o, m.d, m.ct, m.rt); break;
       case 'reload': g.reload(p); break;
-      case 'nade': if (Array.isArray(m.d)) g.throwGrenade(p, m.o, m.d); break;
+      case 'nade': if (Array.isArray(m.d) && m.d.length === 3 && m.d.every(Number.isFinite)) g.throwGrenade(p, m.o, m.d); break;
       case 'spawn': g.spawn(p, m.p, m.cls); break;
       case 'team': if (!p.alive && (m.team === 1 || m.team === 2)) p.team = m.team; break;
       case 'chat': {

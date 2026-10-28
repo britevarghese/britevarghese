@@ -70,7 +70,7 @@ test('bullets drop and slow down; zeroed sights cross the line of sight at the z
     assert.ok(t300 > Math.min(300, def.maxRange * 0.9) / def.velocity);
   }
   // drop matches free fall for a fast, low-drag bullet over a short time
-  const def = { ...WEAPONS.sniper, drag: 0 };
+  const def = { ...WEAPONS.sniper, drag: 0, dragQ: 0 };
   const { pts } = bulletPath(open, { x: 0, y: 0, z: 0 }, { x: 1, y: 0, z: 0 }, def);
   const p = pts[6];
   assert.ok(Math.abs(p.y + 0.5 * GRAVITY * p.t * p.t) < 1e-6);
