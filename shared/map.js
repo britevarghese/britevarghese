@@ -188,6 +188,21 @@ function settleProps(P, B, roads, flags) {
   return P.filter((p) => !drop.has(p));
 }
 
+// Motor pool around each HQ: where the vehicles park ([side, back] metres in the base's frame: tank right, helicopter
+// pad left, jeep beside the tank, bikes behind the HQ) and the footprint radius levelled for each. Shared with
+// server/vehicles.js, which parks them here; the ground under every slot is a level pad and trees keep clear of it
+// (the helicopter's rotor disc included).
+export const MOTOR_POOL = { tank: [[16, 4]], heli: [[-20, 4]], jeep: [[25, 2]], bike: [[6, 10], [9.6, 10]] };
+const POOL_R = { tank: 4.4, heli: 6.4, jeep: 2.9, bike: 1.4 }, POOL_CLEAR = { tank: 6, heli: 9.5, jeep: 4.5, bike: 3 };
+export function motorPool(base) {
+  const fx = -Math.sin(base.yaw), fz = -Math.cos(base.yaw), rx = Math.cos(base.yaw), rz = -Math.sin(base.yaw);
+  const out = [];
+  for (const [type, spots] of Object.entries(MOTOR_POOL)) for (const [side, back] of spots) {
+    out.push({ type, x: base.x + rx * side - fx * back, z: base.z + rz * side - fz * back, r: POOL_R[type], clear: POOL_CLEAR[type] });
+  }
+  return out;
+}
+
 export class GameMap {
   constructor(def) {
     this.def = def;
@@ -216,9 +231,46 @@ export class GameMap {
     }
     this.PROPS = settleProps(props, this.BUILDINGS, this.ROADS, this.FLAGS);
     this.HG = null;
+    this.POOL = this.#planMotorPool();
     this.pads = [];
     for (const k of ['roadDistance', 'featureDistance', 'terrainHeight', 'groundHeight', 'buildingBase', 'generateBuilding', 'generateVegetation', 'seaFactor']) this[k] = this[k].bind(this);
     this.#buildPads();
+  }
+
+  // Vehicle parking slots per team: the standard motor-pool position, or the nearest spot to it (3 m rings) that is
+  // inside the play area, off the water, clear of buildings and props (the helicopter by its whole rotor disc), apart
+  // from the other slots and not on a steep hillside — base layouts differ per map. The ground under each slot is then
+  // levelled (pads) and kept free of trees; server/vehicles.js parks the vehicles here.
+  #planMotorPool() {
+    const out = { 1: [], 2: [] }, taken = [], H = this.PLAY_HALF;
+    const rectDist = (x, z, cx, cz, hx, hz) => Math.hypot(Math.max(Math.abs(x - cx) - hx, 0), Math.max(Math.abs(z - cz) - hz, 0));
+    const feet = this.PROPS.map((p) => [p, propFootprint(p)]).filter(([, f]) => f);
+    const free = (m, x, z, base) => {
+      if (Math.abs(x) > H - m.r - 2 || Math.abs(z) > H - m.r - 2 || this.seaFactor(x, z) > 0.01) return false;
+      if (Math.hypot(x - base.x, z - base.z) < 13 + m.r) return false; // soldiers deploy within 12 m of the HQ
+      if (this.BUILDINGS.some((q) => rectDist(x, z, q.x, q.z, q.w / 2, q.d / 2) < m.clear)) return false;
+      if (feet.some(([p, f]) => rectDist(x, z, p.x, p.z, f.hx, f.hz) < (m.type === 'heli' ? m.clear : m.r + 0.8))) return false;
+      if (taken.some((q) => Math.hypot(q.x - x, q.z - z) < q.r + m.r + 1.2)) return false;
+      let lo = Infinity, hi = -Infinity;
+      for (let k = 0; k <= 8; k++) { const a = (k / 8) * Math.PI * 2, d = k === 8 ? 0 : m.r, h = this.#rawHeight(x + Math.cos(a) * d, z + Math.sin(a) * d); lo = Math.min(lo, h); hi = Math.max(hi, h); }
+      return hi - lo < 3.5;
+    };
+    for (const t of [1, 2]) {
+      if (!this.BASES?.[t]) continue;
+      for (const m of motorPool(this.BASES[t])) {
+        let slot = null;
+        for (let ring = 0; ring <= 14 && !slot; ring++) {
+          const n = Math.max(1, ring * 8);
+          for (let k = 0; k < n && !slot; k++) {
+            const a = (k / n) * Math.PI * 2, x = m.x + Math.cos(a) * ring * 3, z = m.z + Math.sin(a) * ring * 3;
+            if (free(m, x, z, this.BASES[t])) slot = { ...m, x, z };
+          }
+        }
+        slot = slot || m;
+        taken.push(slot); out[t].push(slot);
+      }
+    }
+    return out;
   }
 
   // ---------------------------------------------------------------- building / prop pads
@@ -243,6 +295,10 @@ export class GameMap {
       if (!f || seen.has(key)) continue;
       seen.add(key);
       pads.push({ x: p.x, z: p.z, hx: f.hx, hz: f.hz, y: mean(p.x, p.z, f.hx, f.hz, 1), apron: 0.6, margin: 0, k: [3, 2, 16] });
+    }
+    // motor pool slots: level parking for every vehicle
+    for (const t of [1, 2]) for (const m of this.POOL?.[t] || []) {
+      pads.push({ x: m.x, z: m.z, hx: m.r, hz: m.r, y: mean(m.x, m.z, m.r, m.r, 1), apron: 1.5, margin: 0, k: [2.6, 3, 20], pool: m.type });
     }
     // neighbouring pads may differ by at most ~0.5 m per metre of ground between their aprons (no cliffs between
     // houses on a hillside, a car beside a bunker sits on the same level); the smaller pad gives way more
@@ -403,6 +459,7 @@ export class GameMap {
       const pp = Math.min(pad, 1.5);
       for (const r of rects) if (Math.abs(x - r[0]) < r[2] + pp && Math.abs(z - r[1]) < r[3] + pp) return true;
       for (const t of [1, 2]) if (Math.hypot(x - this.BASES[t].x, z - this.BASES[t].z) < 26) return true;
+      for (const t of [1, 2]) for (const m of this.POOL?.[t] || []) if (Math.hypot(x - m.x, z - m.z) < m.clear + pad * 0.5) return true;
       return false;
     };
     for (let i = 0; i < V.trees * 4 && trees.length < V.trees; i++) {

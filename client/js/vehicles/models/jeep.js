@@ -276,13 +276,18 @@ export function buildJeep(team) {
     if (z < 0) front.push(pivot);
   }
 
-  // ---- .50 cal (pivots at the ring centre, 0.3 m above the ring) inside the O-GPK shield
+  // ---- .50 cal on the O-GPK ring. The game aims `mg` with rotation (pitch, yaw): like the real turret, the ring,
+  // shield and pintle only traverse (about the ring centre); the gun elevates on its cradle at the trunnion under
+  // the receiver, so it tilts in place instead of swinging round the ring.
+  const gy = -0.16, TR = V(0, gy - 0.07, -0.62);
   const mg = new THREE.Group(); mg.name = 'mg'; mg.position.set(0, 2.25, 0.55); body.add(mg);
+  const _yaw = new THREE.Quaternion(), _ax = new THREE.Vector3(0, 1, 0);
+  mg.updateMatrix = function () { this.matrix.compose(this.position, _yaw.setFromAxisAngle(_ax, this.rotation.y), this.scale); this.matrixWorldNeedsUpdate = true; };
+  const cradle = new THREE.Group(); cradle.name = 'cradle'; cradle.position.copy(TR); mg.add(cradle);
+  cradle.updateMatrix = function () { this.rotation.x = mg.rotation.x; THREE.Object3D.prototype.updateMatrix.call(this); };
   const shield = new THREE.Group(); shield.name = 'shield'; mg.add(shield);
-  // the shield traverses with the gun but stays upright: cancel the gun's elevation every frame
-  shield.updateMatrix = function () { this.rotation.x = -mg.rotation.x; THREE.Object3D.prototype.updateMatrix.call(this); };
   {
-    const G = { dark: [], rubber: [], carc: [], steel: [] }, gy = -0.16;
+    const G = { dark: [], rubber: [], carc: [], steel: [] }, post = [];
     G.dark.push(box(0.15, 0.13, 0.58, [0, gy - 0.005, -0.6]));                 // receiver
     G.dark.push(box(0.13, 0.022, 0.42, [0, gy + 0.07, -0.55]));                // top cover
     G.dark.push(box(0.17, 0.03, 0.5, [0, gy - 0.055, -0.6]));                  // side plate rails
@@ -308,12 +313,14 @@ export function buildJeep(team) {
     G.carc.push(box(0.12, 0.19, 0.3, [-0.17, gy - 0.06, -0.62]));
     G.carc.push(box(0.13, 0.02, 0.31, [-0.17, gy + 0.045, -0.62]));
     G.steel.push(box(0.1, 0.015, 0.12, [-0.115, gy + 0.05, -0.62], [0, 0, 0.45]));
-    G.dark.push(box(0.1, 0.05, 0.3, [0, gy - 0.095, -0.62]));
-    G.dark.push(rod([0, gy - 0.115, -0.66], [0, -0.27, -0.66], 0.03, 8));
+    G.dark.push(box(0.1, 0.05, 0.3, [0, gy - 0.095, -0.62]));                  // cradle
+    // pintle: post from a bracket on the ring up to the cradle trunnion (traverses, doesn't elevate)
+    post.push(rod([0, -0.33, TR.z], [0, TR.y - 0.01, TR.z], 0.035, 8), box(0.16, 0.04, 0.2, [0, -0.33, TR.z]), rod([-0.06, TR.y, TR.z], [0.06, TR.y, TR.z], 0.022, 8));
     const mats = { dark: M.dark, rubber: M.rubber, carc: J.carc, steel: M.steel };
-    for (const [k, list] of Object.entries(G)) if (list.length) mesh(merge(list), mats[k], 0, 0, 0, mg);
+    for (const [k, list] of Object.entries(G)) if (list.length) mesh(merge(list).translate(-TR.x, -TR.y, -TR.z), mats[k], 0, 0, 0, cradle);
+    mesh(merge(post), M.dark, 0, 0, 0, mg);
   }
-  const mgMuzzle = new THREE.Object3D(); mgMuzzle.position.set(0, -0.16, -1.99); mg.add(mgMuzzle);
+  const mgMuzzle = new THREE.Object3D(); mgMuzzle.position.set(0, gy, -1.99).sub(TR); cradle.add(mgMuzzle);
   {
     // O-GPK: rotating ring + 7 faceted armour plates (open at the back), armoured glass windows, gun slot.
     // Authored in body coordinates around the ring centre (0, *, 0.55), then moved into the shield frame.

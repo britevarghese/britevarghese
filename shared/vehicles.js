@@ -271,6 +271,26 @@ export function heliAssist(s, k, agl) {
 
 // s: { x, y, z, vx, vy, vz, yaw, pitch, roll, landed }
 // input: { collective -1..1, yawRate -1..1, pitch -1..1 (nose down +), roll -1..1 (bank right +), power 0..1 }
+// Resting pose on the ground under the vehicle: height and the pitch / roll that put the chassis on its wheels /
+// tracks (ground vehicles: front / back / left / right of the hull), or the helicopter on its two main wheels and
+// tail wheel — instead of sitting level with one end in the air and the other dug into a slope.
+// Sign conventions as the physics: ground pitch + = nose up, helicopter pitch + = nose down; roll + = left side up.
+const HELI_GEAR = { main: -2.0, tail: 5.2, track: 1.2 };
+export function groundPose(world, x, z, yaw, type, feet = 500) {
+  const V = VEHICLES[type], fx = -Math.sin(yaw), fz = -Math.cos(yaw), rx = -fz, rz = fx;
+  const g = (dx, dz) => world.supportHeight(x + rx * dx + fx * dz, z + rz * dx + fz * dz, feet, 0.3);
+  if (V.kind === 'heli') {
+    const { main, tail, track } = HELI_GEAR;
+    const ml = g(-track, -main), mr = g(track, -main), tw = g(0, -tail), m = (ml + mr) / 2;
+    // the airframe origin sits between the main wheels and the tail wheel on the line through their contacts
+    const y = m + (tw - m) * (-main / (tail - main));
+    return { y: Math.max(y, g(0, 0) - 0.05), pitch: clamp(Math.atan2(tw - m, tail - main), -0.3, 0.3), roll: clamp(Math.atan2(ml - mr, track * 2), -0.3, 0.3) };
+  }
+  const [hw, , hl] = V.half, L = hl * 0.8;
+  const f = g(0, L), b = g(0, -L), l = g(-hw, 0), r = g(hw, 0);
+  return { y: Math.max((f + b + l + r) / 4, g(0, 0)), pitch: Math.atan2(f - b, 2 * L), roll: Math.atan2(l - r, 2 * hw) };
+}
+
 export function stepHeli(world, s, input, dt) {
   const V = VEHICLES.heli;
   world.ignoreOwner = s.id;
@@ -286,8 +306,10 @@ export function stepHeli(world, s, input, dt) {
     const tilt = Math.hypot(tp, tr);
     if (tilt > V.pitchMax) { tp *= V.pitchMax / tilt; tr *= V.pitchMax / tilt; }
     const onGround = agl < 0.15 && col <= 0.05;
-    s.pitch += ((onGround ? 0 : tp) - s.pitch) * (1 - Math.exp(-3.2 * h));
-    s.roll += ((onGround ? 0 : tr) - s.roll) * (1 - Math.exp(-3.2 * h));
+    // sitting on the ground the airframe settles onto its wheels (follows a slope) instead of levelling out
+    const rest = onGround ? groundPose(world, s.x, s.z, s.yaw, 'heli', s.y + 0.5) : null;
+    s.pitch += ((rest ? rest.pitch : tp) - s.pitch) * (1 - Math.exp(-3.2 * h));
+    s.roll += ((rest ? rest.roll : tr) - s.roll) * (1 - Math.exp(-3.2 * h));
     s.yaw += clamp(input.yawRate || 0, -1, 1) * V.yawRate * h * (onGround ? 0.3 : 1);
     // thrust along the rotor axis: hover + collective, tilted by pitch (forward) and roll (sideways)
     // power: 1 with a pilot at the controls; an abandoned helicopter's rotor loses lift and it drops

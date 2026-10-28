@@ -1,8 +1,9 @@
 // Server-side vehicles: spawning at team bases, seats (enter / exit / switch), driver state validation, weapons
 // (ballistic shells, rockets, machine guns / cannon through the shared bullet system), armour and damage,
 // destruction (occupants die, credited to the attacker), respawn, run-overs, and the network snapshot.
-import { VEHICLES, vehicleLoadout, stepHeli, stepGround, heliCrashDamage, groundCrashDamage, CRASH_MIN, rayVehicle, seatPosition, vehicleCollider, vehicleMount, exposedPose, GUN_H } from '../shared/vehicles.js';
+import { VEHICLES, vehicleLoadout, stepHeli, stepGround, groundPose, heliCrashDamage, groundCrashDamage, CRASH_MIN, rayVehicle, seatPosition, vehicleCollider, vehicleMount, exposedPose, GUN_H } from '../shared/vehicles.js';
 import { EYE_HEIGHT } from '../shared/world.js';
+import { motorPool } from '../shared/map.js';
 
 const TYPES = Object.keys(VEHICLES);
 const RESPAWN = 25000;
@@ -23,12 +24,11 @@ export class VehicleSystem {
     const placed = []; // footprints of the vehicles already parked: { x, z, r }
     for (const team of [1, 2]) {
       const b = map.BASES[team];
-      const fx = -Math.sin(b.yaw), fz = -Math.cos(b.yaw), rx = Math.cos(b.yaw), rz = -Math.sin(b.yaw);
-      let bikes = 0;
+      // motor pool around the HQ (shared/map.js plans the slots and levels the ground under them)
+      const pool = map.POOL?.[team] || motorPool(b), used = new Set();
       vehicleLoadout(map).forEach((type) => {
-        // motor pool around the HQ: tank right, helicopter pad left, jeep beside the tank, bikes behind the HQ
-        const [side, back] = type === 'tank' ? [16, 4] : type === 'heli' ? [-20, 4] : type === 'jeep' ? [25, 2] : [6 + 3.6 * bikes++, 10];
-        const spot = this.#clearSpot(b.x + rx * side - fx * back, b.z + rz * side - fz * back, type, placed);
+        const slot = pool.find((m) => m.type === type && !used.has(m)); used.add(slot);
+        const spot = this.#clearSpot(slot.x, slot.z, type, placed);
         placed.push({ x: spot.x, z: spot.z, r: Math.hypot(VEHICLES[type].half[0], VEHICLES[type].half[2]) });
         const v = { id: nextVid++, type, team, home: { x: spot.x, z: spot.z, yaw: b.yaw } };
         this.#reset(v);
@@ -44,24 +44,40 @@ export class VehicleSystem {
     // a helicopter also needs its rotor disc clear of anything taller than the cabin (trees, walls, lamps)
     const rr = type === 'heli' ? V.rotor + 0.5 : r;
     const inside = (b, px, pz, rad) => b.max[0] > px - rad && b.min[0] < px + rad && b.max[2] > pz - rad && b.min[2] < pz + rad;
-    for (let ring = 0; ring < 12; ring++) {
+    // flat ground to park on: the height range under the footprint (centre + a ring at ~the hull's reach), the
+    // closest spot that is level enough wins, else the flattest free one found
+    const level = { tank: 0.35, heli: 0.45, jeep: 0.25, bike: 0.15 }[type] ?? 0.3;
+    const unevenness = (px, pz) => {
+      let lo = Infinity, hi = -Infinity;
+      for (let k = 0; k <= 8; k++) {
+        const a = (k / 8) * Math.PI * 2, d = k === 8 ? 0 : r0 * 0.85, h = w.map.groundHeight(px + Math.cos(a) * d, pz + Math.sin(a) * d);
+        lo = Math.min(lo, h); hi = Math.max(hi, h);
+      }
+      return hi - lo;
+    };
+    let best = null;
+    for (let ring = 0, rings = type === 'heli' ? 22 : 14; ring < rings; ring++) {
       for (let k = 0; k < Math.max(1, ring * 6); k++) {
         const a = (k / Math.max(1, ring * 6)) * Math.PI * 2, px = x + Math.cos(a) * ring * 3, pz = z + Math.sin(a) * ring * 3;
         const gy = w.map.groundHeight(px, pz);
         const blocked = w.query(px - rr, pz - rr, px + rr, pz + rr).some((b) => (b.max[1] > gy + 0.4 && b.min[1] < gy + 4 && inside(b, px, pz, r))
           || (rr > r && b.max[1] > gy + 2.4 && b.min[1] < gy + (V.rotorH || 3) + 1.5 && inside(b, px, pz, rr)));
-        const slope = Math.abs(w.map.groundHeight(px + 3, pz) - w.map.groundHeight(px - 3, pz)) + Math.abs(w.map.groundHeight(px, pz + 3) - w.map.groundHeight(px, pz - 3));
         const taken = placed.some((q) => Math.hypot(q.x - px, q.z - pz) < q.r + r0 + 1);
-        if (!blocked && !taken && slope < 2.5) return { x: px, z: pz };
+        if (blocked || taken || w.map.seaFactor?.(px, pz) > 0.01) continue;
+        const u = unevenness(px, pz);
+        if (u < level) return { x: px, z: pz };
+        if (!best || u + ring * 0.03 < best.score) best = { x: px, z: pz, score: u + ring * 0.03 };
       }
     }
-    return { x, z };
+    return best ? { x: best.x, z: best.z } : { x, z };
   }
 
   #reset(v) {
     const V = VEHICLES[v.type];
     Object.assign(v, {
       x: v.home.x, z: v.home.z, y: this.g.world.supportHeight(v.home.x, v.home.z, 500), yaw: v.home.yaw, pitch: 0, roll: 0,
+      // parked on its wheels / tracks, following the ground (not level with one end in the air)
+      ...groundPose(this.g.world, v.home.x, v.home.z, v.home.yaw, v.type),
       speed: 0, vx: 0, vy: 0, vz: 0, turretYaw: v.home.yaw, gunPitch: 0, hp: V.hp, dead: false, respawnAt: 0,
       seats: new Array(V.seats).fill(null), ammo: V.weapons.map((w) => (w ? w.mag || w.salvo || 1 : 0)), reloadUntil: V.weapons.map(() => 0), nextShot: V.weapons.map(() => 0), steer: 0,
       lastInput: this.g.now(), lastDamager: null, lastDriver: null, air: false, comp: 0, rest: true, budget: 0,
@@ -296,12 +312,16 @@ export class VehicleSystem {
       }
       const V = VEHICLES[v.type];
       // helicopter with nobody at the controls: falls (and crashes if high)
-      if (v.type === 'heli' && !v.seats[0]) {
+      if (v.type === 'heli' && !v.seats[0] && !v.rest) {
         const s = { ...v };
         stepHeli(g.world, s, { collective: 0, power: 0.15 }, dt);
         Object.assign(v, { x: s.x, y: s.y, z: s.z, vx: s.vx, vy: s.vy, vz: s.vz, pitch: s.pitch, roll: s.roll });
         if (s.impact > 6) this.damage(v, heliCrashDamage(s.impact), v.lastDamager ? g.players.get(v.lastDamager) : null, 'crash', 'crash');
         if (v.dead) continue;
+        // down and stopped: parked (settled on its wheels) until someone takes the controls
+        if (Math.hypot(v.vx || 0, v.vy || 0, v.vz || 0) < 0.3 && v.y - g.world.supportHeight(v.x, v.z, v.y + 0.5, 1.5) < 0.2) {
+          Object.assign(v, groundPose(g.world, v.x, v.z, v.yaw, 'heli', v.y + 0.5), { vx: 0, vy: 0, vz: 0, rest: true });
+        }
       } else if (V.kind !== 'heli' && !v.seats[0] && !v.rest) {
         // ground vehicle with nobody at the wheel (bailed out of at speed, left rolling / airborne): it coasts on with
         // the same physics the driver's client predicts, until it comes to rest

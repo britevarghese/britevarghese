@@ -180,6 +180,13 @@ async function run() {
     // ?drive=<m/s>: run the tank's tracks / wheels as if driving; ?wreck=1: burnt-out wreck
     if (qs.get('drive') && v.userData.runGear) { let off = 0; updaters.push((dt) => { off += +qs.get('drive') * dt; v.userData.runGear(off, off); }); }
     if (qs.get('wreck')) builders.setWrecked(v, true);
+    // ?gun=<pitch rad>&yaw=<rad>: aim the roof / main gun like the game does
+    if (qs.get('gun') !== null) {
+      const u = v.userData, pitch = +qs.get('gun'), yaw = +(qs.get('yaw') || 0);
+      u.mg?.rotation.set(pitch, yaw, 0, 'YXZ');
+      if (u.gun) { u.turret.rotation.y = yaw; u.gun.rotation.x = pitch; }
+      if (u.cannon) u.cannon.rotation.set(pitch, yaw, 0, 'YXZ');
+    }
   }
   for (const e of assets.errors) log(e, 'err');
 }
