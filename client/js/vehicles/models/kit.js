@@ -190,3 +190,104 @@ export function setWrecked(root, wrecked) {
   const u = root.userData;
   if (u.disc) u.disc.visible = false;
 }
+
+// ---------------------------------------------------------------- detail helpers (tank / helicopter detail pass)
+// Tileable fractal value noise sampled on an n x n grid (~0..1, wraps at the edges): base = cells across the tile.
+export function noiseField(n, base, octaves = 4, seed = 1) {
+  const out = new Float32Array(n * n);
+  let amp = 1, tot = 0;
+  for (let o = 0; o < octaves; o++) {
+    const p = base << o;
+    const hash = (x, y) => {
+      x = ((x % p) + p) % p; y = ((y % p) + p) % p;
+      let h = Math.imul(x, 374761393) ^ Math.imul(y, 668265263) ^ Math.imul(seed * 31 + p, 2246822519);
+      h = Math.imul(h ^ (h >>> 13), 3266489917);
+      return ((h ^ (h >>> 16)) >>> 0) / 4294967296;
+    };
+    for (let j = 0; j < n; j++) for (let i = 0; i < n; i++) {
+      const fx = (i / n) * p, fy = (j / n) * p, x0 = Math.floor(fx), y0 = Math.floor(fy);
+      let tx = fx - x0, ty = fy - y0; tx = tx * tx * (3 - 2 * tx); ty = ty * ty * (3 - 2 * ty);
+      const a = hash(x0, y0), b = hash(x0 + 1, y0), c = hash(x0, y0 + 1), d = hash(x0 + 1, y0 + 1);
+      out[j * n + i] += amp * (a + (b - a) * tx + (c - a) * ty + (a - b - c + d) * tx * ty);
+    }
+    tot += amp; amp *= 0.5;
+  }
+  for (let i = 0; i < out.length; i++) out[i] /= tot;
+  return out;
+}
+
+// bilinear sample of a noise field (u, v in 0..1, wrapping)
+export function sampleField(f, n, u, v) {
+  const x = (((u * n) % n) + n) % n, y = (((v * n) % n) + n) % n, x0 = Math.floor(x), y0 = Math.floor(y), tx = x - x0, ty = y - y0;
+  const x1 = (x0 + 1) % n, y1 = (y0 + 1) % n;
+  const a = f[y0 * n + x0], b = f[y0 * n + x1], c = f[y1 * n + x0], d = f[y1 * n + x1];
+  return a + (b - a) * tx + (c - a) * ty + (a - b - c + d) * tx * ty;
+}
+
+// Box-projected UVs in the vehicle frame (metres / tile) for every mesh using one of `mats`: a paint texture then
+// keeps one scale on every part and flows across neighbouring parts (axis per triangle = dominant normal axis).
+export function projectUV(root, mats, tile) {
+  root.updateMatrixWorld(true);
+  const inv = new THREE.Matrix4().copy(root.matrixWorld).invert(), M = new THREE.Matrix4();
+  const v = [new THREE.Vector3(), new THREE.Vector3(), new THREE.Vector3()], e1 = new THREE.Vector3(), e2 = new THREE.Vector3();
+  root.traverse((o) => {
+    if (!o.isMesh || !mats.has(o.material)) return;
+    const g = o.geometry.index ? o.geometry.toNonIndexed() : o.geometry.clone();
+    M.multiplyMatrices(inv, o.matrixWorld);
+    const p = g.attributes.position, uv = new Float32Array(p.count * 2);
+    for (let i = 0; i + 2 < p.count; i += 3) {
+      for (let k = 0; k < 3; k++) v[k].fromBufferAttribute(p, i + k).applyMatrix4(M);
+      e1.subVectors(v[1], v[0]); e2.subVectors(v[2], v[0]); e1.cross(e2);
+      const ax = Math.abs(e1.x), ay = Math.abs(e1.y), az = Math.abs(e1.z);
+      for (let k = 0; k < 3; k++) {
+        const q = v[k], [a, b] = ax >= ay && ax >= az ? [q.z, q.y] : ay >= az ? [q.x, q.z] : [q.x, q.y];
+        uv[(i + k) * 2] = a / tile; uv[(i + k) * 2 + 1] = b / tile;
+      }
+    }
+    g.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
+    o.geometry = g;
+  });
+}
+
+// Flat-shaded solid lofted through polygon rings (arrays of [x, y, z], same count, ring order around the
+// section); caps close the first / last ring. Faces are oriented away from the solid's centroid.
+export function facetLoft(rings, { caps = true } = {}) {
+  const P = [], n = rings[0].length, cen = new THREE.Vector3();
+  let cnt = 0;
+  for (const r of rings) for (const p of r) { cen.x += p[0]; cen.y += p[1]; cen.z += p[2]; cnt++; }
+  cen.divideScalar(cnt);
+  const a = new THREE.Vector3(), b = new THREE.Vector3(), c = new THREE.Vector3(), nn = new THREE.Vector3(), m = new THREE.Vector3();
+  const tri = (p, q, r) => {
+    a.set(...p); b.set(...q); c.set(...r);
+    nn.subVectors(b, a).cross(m.subVectors(c, a));
+    if (nn.lengthSq() < 1e-12) return;
+    m.copy(a).add(b).add(c).divideScalar(3).sub(cen);
+    if (nn.dot(m) < 0) P.push(...p, ...r, ...q); else P.push(...p, ...q, ...r);
+  };
+  for (let j = 0; j < rings.length - 1; j++) for (let i = 0; i < n; i++) {
+    const A = rings[j][i], B = rings[j][(i + 1) % n], C = rings[j + 1][i], D = rings[j + 1][(i + 1) % n];
+    tri(A, B, D); tri(A, D, C);
+  }
+  if (caps) for (const r of [rings[0], rings[rings.length - 1]]) {
+    const o = [0, 1, 2].map((k) => r.reduce((t, p) => t + p[k], 0) / n);
+    for (let i = 0; i < n; i++) tri(o, r[i], r[(i + 1) % n]);
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(P, 3));
+  g.setAttribute('uv', new THREE.Float32BufferAttribute(new Float32Array((P.length / 3) * 2), 2));
+  g.computeVertexNormals();
+  return g;
+}
+
+// many small geometries -> one (position / normal / uv kept): repeated detail (bolts, links, slats) in one mesh
+export function merged(list) {
+  const out = list.map((g) => {
+    const h = g.index ? g.toNonIndexed() : g;
+    for (const k of Object.keys(h.attributes)) if (!['position', 'normal', 'uv'].includes(k)) h.deleteAttribute(k);
+    if (!h.attributes.uv) h.setAttribute('uv', new THREE.BufferAttribute(new Float32Array(h.attributes.position.count * 2), 2));
+    if (!h.attributes.normal) h.computeVertexNormals();
+    h.clearGroups();
+    return h;
+  });
+  return mergeGeometries(out);
+}
