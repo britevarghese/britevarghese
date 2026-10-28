@@ -50,6 +50,11 @@ export class CharacterRig {
     this.actions = {};
     for (const [k, clip] of Object.entries(this.clips)) if (clip) { const a = this.mixer.clipAction(clip); a.play(); a.setEffectiveWeight(0); this.actions[k] = a; }
     if (!this.actions.idle) console.error(`[rig] ${this.file}: no idle clip found — animations: ${loaded.gltf.animations.map((a) => a.name).join(', ') || 'none'}`);
+    this.gait = this.#measureGait(loaded.gltf);
+    this.gaitPhase = 0;
+    // the shoulder line of the idle (rifle-ready) pose, relative to the body: walking / running keeps it, so the walk
+    // clip's torso swing doesn't pull the support hand off the handguard (the legs walk, the chest carries the rifle)
+    this.shoulderRest = this.#shoulderLine('idle');
     this.state = { speed: 0, moveYaw: 0, aimYaw: 0, pitch: 0, stance: 'stand', ads: false, sprint: false, onGround: true, reload: 0, firing: false, dead: false, vy: 0 };
     this.blend = { crouch: 0, prone: 0, sprint: 0, ads: 0, air: 0, death: 0, reload: 0, recoil: 0, hit: 0, land: 0, skydive: 0, canopy: 0 };
     this.bodyYaw = 0;
@@ -140,6 +145,66 @@ export class CharacterRig {
 
   setVisible(v) { this.model.visible = v; if (this.weapon) this.weapon.root.visible = v; }
 
+  // How far the feet travel per cycle in the walk / run clips (stride, at this rig's scale), and where in each clip
+  // the left foot is furthest forward (so the two cycles can be blended in step). Measured once per model by
+  // sampling the clip: a planted foot (within 3 cm of its lowest point) slides back at the clip's own ground speed.
+  #measureGait(gltf) {
+    const cache = gltf.userData || (gltf.userData = {});
+    if (cache.gait) return cache.gait;
+    const out = {}, lf = this.bones.leftFoot, rf = this.bones.rightFoot;
+    if (lf && rf) {
+      for (const k of ['walk', 'run']) {
+        const a = this.actions[k];
+        if (!a) continue;
+        for (const b of Object.values(this.actions)) b.setEffectiveWeight(0);
+        a.setEffectiveWeight(1);
+        const dur = a.getClip().duration, N = 60, tr = [[], []];
+        for (let i = 0; i <= N; i++) {
+          a.time = (i / N) * dur; this.mixer.update(0); this.root.updateMatrixWorld(true);
+          tr[0].push(lf.getWorldPosition(new THREE.Vector3())); tr[1].push(rf.getWorldPosition(new THREE.Vector3()));
+        }
+        const speeds = [], stance = [];
+        for (const t of tr) {
+          const lo = Math.min(...t.map((p) => p.y)), mask = [];
+          for (let i = 0; i < N; i++) {
+            mask.push(t[i].y < lo + 0.03);
+            if (i && t[i].y < lo + 0.03 && t[i - 1].y < lo + 0.03) speeds.push(Math.hypot(t[i].x - t[i - 1].x, t[i].z - t[i - 1].z) * (N / dur));
+          }
+          stance.push(mask);
+        }
+        let fwd = 0;
+        for (let i = 1; i < N; i++) if (tr[0][i].z < tr[0][fwd].z) fwd = i;
+        speeds.sort((x, y) => x - y);
+        const speed = speeds.length ? speeds[speeds.length >> 1] : 0; // median: heel strike / toe-off don't skew it
+        // stance masks are stored on the shared gait phase (phase 0 = left foot furthest forward)
+        const onPhase = (m) => Array.from({ length: N }, (_, i) => m[(i + fwd) % N]);
+        if (speed > 0.2) out[k] = { stride: speed * dur, dur, phase: fwd / N, stance: { left: onPhase(stance[0]), right: onPhase(stance[1]) } };
+        a.time = 0;
+      }
+      for (const b of Object.values(this.actions)) b.setEffectiveWeight(0);
+    }
+    cache.gait = out;
+    return out;
+  }
+
+  // yaw and roll (radians, in the body's frame) of the line from the right to the left shoulder joint; with a clip
+  // name: as posed by that clip
+  #shoulderLine(clip) {
+    const b = this.bones;
+    if (!b.leftArm || !b.rightArm) return null;
+    if (clip) {
+      const a = this.actions[clip];
+      if (!a) return null;
+      for (const x of Object.values(this.actions)) x.setEffectiveWeight(0);
+      a.setEffectiveWeight(1); a.time = 0; this.mixer.update(0); a.setEffectiveWeight(0);
+    }
+    this.root.updateMatrixWorld(true);
+    const d = b.leftArm.getWorldPosition(new THREE.Vector3()).sub(b.rightArm.getWorldPosition(_v2));
+    const c = Math.cos(this.root.rotation.y), sn = Math.sin(this.root.rotation.y);
+    const lx = d.x * c - d.z * sn, lz = d.x * sn + d.z * c; // world -> body frame
+    return { yaw: Math.atan2(-lz, -lx), roll: Math.atan2(d.y, Math.hypot(lx, lz)) };
+  }
+
   // --------------------------------------------------------------- per-frame
   update(dt) {
     const s = this.state, B = this.blend;
@@ -157,13 +222,17 @@ export class CharacterRig {
 
     // ----- body yaw / leg direction
     const moving = s.speed > 0.3;
-    let legOffset = 0, backwards = false;
+    // the legs walk the way the body actually moves (a strafe steps sideways, not forward with sliding feet);
+    // the hips and spine twist back so the chest and rifle stay on the aim. Moving more than ~110° away from the
+    // aim plays the cycle backwards instead (back-pedalling); the band in between stops it flip-flopping at 90°.
+    let legOffset = 0;
     if (moving && B.prone < 0.5) {
       const d = angDiff(s.aimYaw, s.moveYaw);
-      if (Math.abs(d) <= 1.95) legOffset = Math.max(-1.0, Math.min(1.0, d));
-      else { backwards = true; legOffset = Math.max(-1.0, Math.min(1.0, angDiff(s.aimYaw, s.moveYaw + Math.PI))); }
-    }
-    const targetBody = s.aimYaw + legOffset * (1 - B.sprint * 0.2);
+      this.backwards = Math.abs(d) > (this.backwards ? Math.PI / 2 - 0.35 : Math.PI / 2 + 0.35);
+      legOffset = this.backwards ? angDiff(s.aimYaw, s.moveYaw + Math.PI) : d;
+    } else if (!moving) this.backwards = false;
+    const backwards = !!this.backwards;
+    const targetBody = s.aimYaw + legOffset;
     const idleSlack = angDiff(this.bodyYaw, s.aimYaw);
     const yaw0 = this.bodyYaw;
     if (moving || Math.abs(idleSlack) > 0.9 || B.prone > 0.1 || s.firing || s.ads) this.bodyYaw += angDiff(this.bodyYaw, moving ? targetBody : s.aimYaw) * (1 - Math.exp(-(moving ? 9 : 5) * dt));
@@ -188,17 +257,39 @@ export class CharacterRig {
     const upright = 1 - smooth(0.2, 0.7, B.prone);
     // turning on the spot: the feet step round (a bit of the walk cycle) instead of the body spinning on planted feet
     const turnStep = !moving && A.walk ? Math.min(0.6, Math.max(0, this.turnRate - 0.6) * 0.35) * upright * (1 - B.crouch * 0.5) : 0;
-    set('idle', 1 - (1 - wIdle - (A.walk ? 0 : wWalk)) * upright - turnStep);
-    set('walk', wWalk * upright + turnStep, dir * Math.max(0.55, Math.min(1.6, (moving ? spd : 1.0) / (1.45 * sc))));
-    set('run', wRun * upright, dir * Math.max(0.7, Math.min(1.55, spd / (3.9 * sc))));
-    if (A.sprint) { set('sprint', B.sprint * upright); }
-    // walk and run share one gait phase while they blend, so the feet don't shuffle between two cycles
-    if (!dead && A.walk && A.run && wWalk > 0.05 && wRun > 0.05) {
-      const lead = wRun >= wWalk ? A.run : A.walk, other = lead === A.run ? A.walk : A.run;
-      other.time = (lead.time / lead.getClip().duration) * other.getClip().duration;
+    const G = this.gait;
+    if (G.walk && G.run) {
+      // walk and run play in step from one gait phase; its rate makes the blended stride cover exactly the ground the
+      // body covers (planted feet stay put at any speed, sprint included), capped at a believable cadence
+      const ww = wWalk * upright + turnStep, wr = wRun * upright;
+      this.blendRun = wr / Math.max(1e-3, ww + wr);
+      set('idle', Math.max(0, 1 - ww - wr));
+      set('walk', ww, 0); set('run', wr, 0);
+      if (!dead) {
+        const reach = wWalk * G.walk.stride + wRun * G.run.stride;
+        const rate = moving ? Math.min(2.2, spd / Math.max(0.05, reach)) : turnStep > 0 ? 0.9 : 0;
+        this.gaitPhase = (this.gaitPhase + dir * rate * dt + 1) % 1;
+        const at = (g) => (((this.gaitPhase + g.phase) % 1) + 1) % 1 * g.dur;
+        A.walk.time = at(G.walk); A.run.time = at(G.run);
+      }
+    } else {
+      set('idle', 1 - (1 - wIdle - (A.walk ? 0 : wWalk)) * upright - turnStep);
+      set('walk', wWalk * upright + turnStep, dir * Math.max(0.55, Math.min(1.6, (moving ? spd : 1.0) / (1.45 * sc))));
+      set('run', wRun * upright, dir * Math.max(0.7, Math.min(1.55, spd / (3.9 * sc))));
     }
+    if (A.sprint) { set('sprint', B.sprint * upright); }
     this.mixer.update(dead ? dt * (1 - relax) : dt);
     this.root.updateMatrixWorld(true);
+    // steady chest: take out the walk / run clip's torso twist and shoulder roll (as far as the gait is blended in)
+    const k = (1 - wIdle) * upright;
+    if (!dead && this.shoulderRest && k > 0.01 && this.bones.spine.length) {
+      const now = this.#shoulderLine(), sp = this.bones.spine, n = sp.length;
+      // (the line's yaw goes down as the chest turns left about +Y; its roll goes up as the chest turns about forward)
+      const dyaw = angDiff(this.shoulderRest.yaw, now.yaw) * k, droll = (this.shoulderRest.roll - now.roll) * k;
+      const fwd = _v3.set(-Math.sin(this.bodyYaw), 0, -Math.cos(this.bodyYaw));
+      for (const bn of sp) { rotateBoneWorld(bn, _q.setFromAxisAngle(UP, dyaw / n)); rotateBoneWorld(bn, _q.setFromAxisAngle(fwd, droll / n)); }
+      this.root.updateMatrixWorld(true);
+    }
 
     // ----- procedural layers
     this.#stanceAndLegs(dt);
@@ -207,6 +298,7 @@ export class CharacterRig {
     if (!dead) this.#crawl(dt);
     if (!dead) {
       this.#aimSpine();
+      this.#footLock(dt);
       if (this.weapon) {
         if (!this.externalWeaponPlacement) this.#placeWeapon(dt);
         this.solveArms(dt);
@@ -264,6 +356,36 @@ export class CharacterRig {
     p.position.set(0, (0.27 + lift) * pr, 0.95 * pr * (this.height / 1.8));
   }
 
+  // Foot locking: a foot in the stance part of the step is pinned to the spot where it touched down (two-bone leg IK),
+  // so it never skates over the ground — even where the clip's own foot speed wobbles through the step, while the
+  // body turns on the spot, or the gait is blended. It lets go when the step lifts the foot, smoothly.
+  #footLock(dt) {
+    const B = this.blend, s = this.state, b = this.bones, G = this.gait;
+    const L = this.locks || (this.locks = { left: null, right: null });
+    const active = G.walk && G.run && b.leftUpLeg && s.onGround && B.prone < 0.3 && B.air < 0.3 && B.skydive < 0.05 && B.canopy < 0.05
+      && (s.speed > 0.3 || this.turnRate > 0.6);
+    if (!active) { L.left = L.right = null; return; }
+    const g = this.blendRun > 0.5 ? G.run : G.walk, N = g.stance.left.length, bin = Math.floor(this.gaitPhase * N) % N;
+    const fwd = _v3.set(-Math.sin(this.bodyYaw), 0, -Math.cos(this.bodyYaw));
+    for (const side of ['left', 'right']) {
+      const foot = b[`${side}Foot`], p = foot.getWorldPosition(new THREE.Vector3());
+      let lk = L[side];
+      if (g.stance[side][bin]) {
+        if (!lk) lk = L[side] = { x: p.x, z: p.z, w: 0 };
+        lk.w = Math.min(1, lk.w + dt * 25);
+        if (Math.hypot(p.x - lk.x, p.z - lk.z) > 0.35) { L[side] = null; continue; } // body turned / jumped too far
+      } else if (lk) {
+        lk.w -= dt * 14;
+        if (lk.w <= 0) { L[side] = null; continue; }
+      }
+      if (!lk) continue;
+      const knee = b[`${side}Leg`].getWorldPosition(new THREE.Vector3()).addScaledVector(fwd, 1.0);
+      const footQ = foot.getWorldQuaternion(new THREE.Quaternion());
+      solveTwoBone(b[`${side}UpLeg`], b[`${side}Leg`], foot, new THREE.Vector3(lk.x, p.y, lk.z), knee, lk.w);
+      setBoneWorldQuaternion(foot, footQ);
+    }
+  }
+
   // prone and moving: a leopard crawl — one knee drawn up and out to the side while the other leg pushes, alternating
   #crawl(dt) {
     const B = this.blend, s = this.state, b = this.bones;
@@ -319,7 +441,16 @@ export class CharacterRig {
   #aimSpine() {
     const s = this.state, B = this.blend, spine = this.bones.spine;
     if (!spine.length) return;
-    const yawTwist = angDiff(this.bodyYaw, s.aimYaw);
+    let yawTwist = angDiff(this.bodyYaw, s.aimYaw);
+    // a big twist (strafing, back-pedalling) starts at the pelvis: it turns ~35 % toward the aim while the thighs turn
+    // back in the hip joints, so the legs keep stepping the way they go and the spine isn't wrung round on its own
+    const b = this.bones, hip = 0.35 * (1 - B.prone) * smooth(0.2, 0.6, Math.abs(yawTwist));
+    if (hip > 0 && b.hips && b.leftUpLeg && b.rightUpLeg) {
+      rotateBoneWorld(b.hips, _q.setFromAxisAngle(UP, yawTwist * hip));
+      rotateBoneWorld(b.leftUpLeg, _q.setFromAxisAngle(UP, -yawTwist * hip));
+      rotateBoneWorld(b.rightUpLeg, _q.setFromAxisAngle(UP, -yawTwist * hip));
+      yawTwist *= 1 - hip;
+    }
     const right = _v.set(Math.cos(s.aimYaw), 0, -Math.sin(s.aimYaw));
     // pitch: when prone, the torso needs to arch up to look forward
     const pitch = s.pitch * (1 - B.sprint * 0.7) + B.prone * 0.95 + B.hit * 0.15 + B.recoil * 0.02;

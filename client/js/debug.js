@@ -91,7 +91,14 @@ async function run() {
       updaters.push((dt) => {
         t += dt;
         const pitch = qs.get('pitch') !== null ? +qs.get('pitch') : Math.sin(t * 0.7) * 0.35;
-        rig.setState({ speed: +(qs.get('speed') || 0), stance, pitch, aimYaw: 0, ads: qs.get('ads') === '1', sprint: qs.get('sprint') === '1' });
+        // ?move=<deg>: walk / strafe for real (the soldier travels at `speed` in that direction relative to the aim,
+        // the camera follows) — what foot locking and leg orientation are checked with
+        const mv = qs.get('move') !== null ? THREE.MathUtils.degToRad(+qs.get('move')) : null, spd = +(qs.get('speed') || 0);
+        if (mv !== null) {
+          const d = new THREE.Vector3(-Math.sin(mv) * spd * dt, 0, -Math.cos(mv) * spd * dt);
+          rig.root.position.add(d); camera.position.add(d); controls.target.add(d);
+        }
+        rig.setState({ speed: spd, moveYaw: mv ?? 0, stance, pitch, aimYaw: 0, ads: qs.get('ads') === '1', sprint: qs.get('sprint') === '1' });
         rig.update(dt);
         aim.position.copy(rig.aimTarget);
       });

@@ -183,8 +183,9 @@ await A.keyboard.up('Tab');
 // A dies -> deploy screen -> redeploys via the button
 await g(() => __game.net.send({ t: 'suicide' }));
 // the deploy screen shows ~2.2 s after death and autodeploy takes over at the 5 s respawn: watch for it in the page
-// (a single late sample at the software GPU's ~1 fps can land after the respawn)
-const deployShown = await A.waitForFunction(() => !document.getElementById('deploy').classList.contains('hidden'), null, { timeout: 8000, polling: 100 }).then(() => true, () => false);
+// (a single late sample can land after the respawn; and the software GPU needs several seconds to draw the deploy
+// screen's first aerial view of the whole map, blocking the page meanwhile)
+const deployShown = await A.waitForFunction(() => !document.getElementById('deploy').classList.contains('hidden'), null, { timeout: 25000, polling: 100 }).then(() => true, () => false);
 check('own death shows the deploy screen', deployShown);
 const respawned = await A.waitForFunction(() => __game.me.alive, null, { timeout: 20000, polling: 200 }).then(() => true, () => false);
 check('autodeploy respawns A', respawned);
