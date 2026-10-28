@@ -720,6 +720,9 @@ export class Story {
         const yaw = Math.atan2(b[0] - a[0], b[1] - a[1]), [oL, oR] = g.world.kerala ? [0, 3] : [1.8, 1.8];
         g.player.place(a[0] - Math.cos(yaw) * oR, a[1] + Math.sin(yaw) * oR, yaw);
         g.camCtl.snap(g.player);
+        // (the streets cleared for it, as for a street race: from a busy junction's queue, Shibu met a bus across
+        // the road 150 m on and spent a minute getting round it)
+        g.traffic?.clear();
         spot = { x: a[0] + Math.cos(yaw) * oL, z: a[1] - Math.sin(yaw) * oL, yaw };
         s.countdown = 3.5; void p;
       } else {
@@ -838,9 +841,14 @@ export class Story {
         if (s.needCar && inCar) { s.needCar = false; this._objective(st.text); }
         let d = Math.hypot(f.x - s.target.x, f.z - s.target.z);
         // (a place kilometres off is put on the nearest road loaded when the step starts, maybe not its own: worked out
-        // again once its roads are in. Chirakkal's spot was left 60 m from any road, the step never done)
+        // again once its roads are in. Chirakkal's spot was left 60 m from any road, the step never done. And not
+        // before they are: arriving fast, or put down near it, the roads there not built yet, it was the place itself -
+        // Varam's, 13 m off the road)
         if (typeof st.to === 'string' && st.to !== 'giver' && !s.reTarget && d < 400) {
-          s.reTarget = true; s.target = target = this._resolve(st.to, A.m); d = Math.hypot(f.x - s.target.x, f.z - s.target.z);
+          const p = this.placeAt?.(st.to), n = p && g.traffic.graph.nearest(p.x, p.z);
+          if (!p || n?.dist < 150 || Math.hypot(f.x - p.x, f.z - p.z) < 150) {
+            s.reTarget = true; s.target = target = this._resolve(st.to, A.m); d = Math.hypot(f.x - s.target.x, f.z - s.target.z);
+          }
         }
         const sp = Math.hypot(f.vx || 0, f.vz || 0);
         // someone to pick up or drop off here: he comes to the car (or gets out) before the step is done

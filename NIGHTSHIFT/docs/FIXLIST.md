@@ -330,6 +330,9 @@ the game. Newly found problems go at the end of their section.
     hits anything (it was 74-100 km/h into buildings), and traffic pulls over for them (up to 3 minutes' worth of
     car-seconds a chase). Left: Thalassery's middle, where the player's street (the bus stand road) ends at two service
     roads with no traffic on them, so the only way in by road is a long way round - units take 40-60 s to get there
+  - [x] ...a unit was sent from a junction picked as the crow flies, 140-280 m off: in Thalassery's middle most of
+    them meet the player's street only 1-1.4 km round by road. Of up to three junctions now, the one with the
+    shortest way by road (215 m there): the first unit with a player standing there in under 20 s, busted at 26 s
 
 - [x] Hitches while driving into new country (a tile's build stalling a frame): every step of a tile's build timed
   on a drive (headless, its CPU about half a desktop's). The worst were the ground's mesh (up to a quarter of a second:
@@ -560,6 +563,11 @@ the game. Newly found problems go at the end of their section.
     over 6 cm, all six towns, 446 -> 353 (most of what's left at 20 cm are speed breakers). Rides round Kannur,
     Iritty and Payyanur: no jolts. Left: a side road in Iritty that meets the highway half a metre up where their
     carriageways overlap
+  - [x] a side road ending just short of another's strip (the map's line stops at the other road's edge): the gap
+    between them took the verge's level, a crease 0.2 m deep across the side road's mouth in Kannur. It's the roads'
+    level now; Kannur's kinks over 20 cm 9 -> 7, the other towns unchanged. The scan leaves the speed breakers out now
+    (a 10 cm hump a metre across reads as a 20 cm bend), and waits for a town's lanes as well as its ground (they
+    come a few frames later: Payyanur once read 14 lanes of its 332)
 - [x] AI junction turns where the route reached the corner through a short hop in line with the lane before it (one
   lane's end to the next one's start, 3.9 m): the turn was rounded within that hop, 2 m across - tighter than a car
   can steer - and the car swung its nose 1.5 m off the road. The room for the arc is the straight run up to the corner
@@ -650,6 +658,33 @@ the game. Newly found problems go at the end of their section.
   - [x] A mission's 'go to' a place kilometres off was put on the nearest road loaded when the step began, not
     necessarily its own: Chirakkal's spot ended 60 m from any road, the marker in a field and the step never done.
     It's worked out again once that place's roads are in
+  - [x] ...but "once its roads are in" was 400 m from the spot it had been given, whether they were in or not: put
+    down near the place (a retry, a jump, or just arriving fast), it was worked out before them and became the place
+    itself - Varam's, 13 m off the road - and 'Airport Shuttle' couldn't be finished. It waits for the roads there now
+- [x] Every mission played through again by a test that stands in for the driving (tools/dev/missions.mjs: the
+  player put on the lane at each place, into the car to steal, driven along behind the car you tail, a ram's hits
+  counted, a race won late). The AI cars - the van you tail, the Ertiga, Shibu, a police unit on its way - found
+  wanting:
+  - [x] one stopped dead behind a car parked at the kerb and waited there for good ('Spice Route''s pickup and
+    'Airport Shuttle''s Ertiga, minutes on end): the traffic swung out round parked cars, they didn't. They go round
+    one standing at the kerb (parked, pulled in) or a wreck lying in the lane at a crawl now, when the road beside it
+    has room and nothing's coming the other way, and pull back in behind it if that changes before they're alongside.
+    Not round one stopped in a queue
+  - [x] ...and with a bus coming the other way on a narrow street, the Ertiga and the bus each waited for the other
+    for good: it kept half a metre off anything, the bus 0.45 m, and they'd have passed with 0.35 m to spare. Both go
+    by something coming the other way at a walking pace now, with a quarter of a metre to spare
+  - [x] and for a stand-off that never clears (a wreck in the lane and the road beside it never free, a car parked
+    half in the lane): an AI car that gets nowhere for 30 s with its way not done is put back on its route a little
+    ahead, out of sight, as one stuck on the throttle was
+  - [x] ...but "out of sight" was 45 m from the camera, whichever way it looked: the van you tail 50 m on jumped
+    12 m up the road in front of you. Not where the camera looks now, within 200 m, unless it's been stuck 15 s
+    more; and never onto a car standing there (one in a queue was put down on the one in front)
+  - [x] a race against Shibu started from a busy junction's traffic as it was: 150 m on he met a bus across the
+    road and spent a minute getting round it. The streets are cleared for it, as for a street race
+  Now all 12 pass: the cars you tail drive their 3.5 km and 2.1 km with no stop over a second and no jump; the rams,
+  the steals and the chases as before. Left: Shibu's runs vary with the traffic - once, a 26 s stop at the first
+  junction out of Chirakkal (not seen again in a traced run). Street life round a stopped player car in Kannur and
+  Thalassery after these: nothing stuck, no overlaps, no crashes
 
 ## Multiplayer
 - [x] A friend who joined got disconnected after a while, and in Kerala nobody saw anybody anyway:

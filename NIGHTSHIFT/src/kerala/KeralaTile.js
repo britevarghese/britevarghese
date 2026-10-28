@@ -2478,7 +2478,7 @@ export class KeralaTile {
         }
         // its strip as drawn (at the edge, for the shoulder beyond it): exactly what the wheels should touch
         const dr = r.drawn ? this._drawnAt(r, dist <= hw ? e : ce + (e - ce) * (hw - 0.15) / dist, dist <= hw ? n : cn + (n - cn) * (hw - 0.15) / dist, 0.3) : -Infinity;
-        if (dist <= hw) nIn++;
+        if (dist <= hw + 0.8) nIn++;   // (or just short of its edge: a side road ending at a road's edge, not its strip)
         if (r.drawn && dr === -Infinity) {   // (its strip isn't drawn here: nothing to stand on - but see und below)
           if (dist <= hw - 0.15) { const sf0 = this._surfAt(r, ce, cn); if (sf0 > -1e9) und = Math.max(und, sf0 + 0.07 + (10 - cls) * 0.004); }
           continue;
@@ -2499,7 +2499,8 @@ export class KeralaTile {
     // metre higher alongside a culvert ramp or a junction mouth held autos and cars half a metre in the air)
     // (inside a junction - two roads' carriageways here - where no strip reaches: their own graded level. Each strip
     // ends square at the junction's point, and the outer corner between two leaving it at an angle was the ground's
-    // level, a pit 2 m deep in a junction on an embankment in Kannur)
+    // level, a pit 2 m deep in a junction on an embankment in Kannur. And a side road ending just short of another's
+    // strip: the gap between them was the verge's level, a crease 0.2 m deep across the side road's mouth)
     if (best === -Infinity) best = nIn >= 2 && und > -Infinity ? und : off;
     // between the two halves of a dual carriageway: the median
     if (this._medG) { const ym = this._medianAt(e, n); if (ym > best && !(yRef < ym - 1.2)) best = ym; }

@@ -676,6 +676,10 @@ export class TrafficManager {
       const P = v.physics.p || {}, cosA = Math.abs(Math.sin(s.yaw) * fx + Math.cos(s.yaw) * fz);
       const half = ((P.width || 1.8) * cosA + (P.length || 4.4) * Math.sqrt(Math.max(0, 1 - cosA * cosA))) / 2;
       if (lat - half - c.spec.w / 2 > 0.45) continue;
+      // (one coming the other way, standing or slow, in its own lane: squeezed past at a walking pace with a quarter of
+      // a metre to spare, not waited for. Each waiting for the other, a bus and a mission's car stood nose to nose on a
+      // narrow street in Chala for good)
+      if (lat - half - c.spec.w / 2 > 0.2 && Math.hypot(s.vx, s.vz) < 3 && Math.sin(s.yaw) * fx + Math.cos(s.yaw) * fz < -0.5) { c.squeezeT = 0.5; continue; }
       // stopped a while (the player pulled up or out of the car, a police car stopped): round it as round a parked
       // car, when nothing's coming the other way and not at a junction - and waiting behind it, a car's length back,
       // with room to pull out round it. (Traffic queued nose to tail behind a player's car stopped in the road, for
@@ -795,6 +799,7 @@ export class TrafficManager {
     if (c.blockT > 0) { c.blockT -= dt; v0 = 0; c.v = Math.min(c.v, 0.5); }   // (held: nosed into another car, see _separate)
     if (c.passSlow > 0) { c.passSlow -= dt; v0 = Math.min(v0, 7); }
     if (c.yieldT > 0) v0 = Math.min(v0, 2.5);   // (making way for a siren)
+    if (c.squeezeT > 0) { c.squeezeT -= dt; v0 = Math.min(v0, 2.5); }   // (by one coming the other way, close)
     if (path.kind === 'connector' && path.turn !== 'straight') v0 = Math.min(v0, 7.5);
     if (c.next && c.next.kind === 'connector' && c.next.turn !== 'straight') {
       const d = path.length - c.s;

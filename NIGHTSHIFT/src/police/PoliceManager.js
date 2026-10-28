@@ -127,28 +127,52 @@ export class PoliceManager {
     return best;
   }
 
+  // Kerala: a little way along one of the junction's lanes out, facing its way (the one heading most toward the
+  // player, for a unit sent after them), clear of the traffic. (Its roads run every way, not the grid's: set in the
+  // junction's middle facing one of the grid's right angles, units came in 108-177 degrees off their lane and began
+  // with a three-point turn). For a chase, with how far it is to the player by road
+  _nodeSpot(n, towardPlayer) {
+    const p = this.game.focusState, out = this.world.router?.adj?.[n.id];
+    if (!out) return null;
+    const tmp = {}, cars = this.game.traffic?.cars || [];
+    let best = null, bs = -Infinity;
+    for (const { lane } of out) {
+      if (!(lane.length > 16) || lane.edge?.cls > 7 || !lane.sample) continue;
+      lane.sample(Math.min(14, lane.length / 2), tmp);
+      if (cars.some((c) => Math.hypot(c.x - tmp.x, c.z - tmp.z) < 7) || this.units.some((u) => Math.hypot(u.vehicle.state.x - tmp.x, u.vehicle.state.z - tmp.z) < 8)) continue;
+      const tx = p.x - tmp.x, tz = p.z - tmp.z, td = Math.hypot(tx, tz) || 1;
+      const score = (towardPlayer ? (tmp.dx * tx + tmp.dz * tz) / td : 0) + this.R() * 0.3;
+      if (score > bs) { bs = score; best = { x: tmp.x, z: tmp.z, yaw: Math.atan2(tmp.dx, tmp.dz), crow: td }; }
+    }
+    if (!best || !towardPlayer) return best;
+    // (and for a chase, only where there's a way by road to the player: put down on a stretch the lanes don't join
+    // to theirs, units stood there for good with nowhere to go)
+    const pts = this._pathKL({ x: best.x, z: best.z, yaw: best.yaw }, null, true);
+    if (!pts) return null;
+    best.len = 0;
+    for (let i = 1; i < pts.length; i++) best.len += Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]);
+    return best;
+  }
+
+  // a unit sent after the player. Kerala: the junction round them with the shortest way to them by road, of up to
+  // three (picked as the crow flies, units came in 200 m off down streets that met the player's only the long way
+  // round: in Thalassery's middle, 40-60 s to get to them)
+  _spawnChaser(pick) {
+    if (!this.world.kerala || !this.world.router?.adj) { const n = pick(); return n && this._spawnNearNode(n, true); }
+    let best = null;
+    for (let k = 0; k < 3; k++) {
+      const n = pick(), c = n && this._nodeSpot(n, true);
+      if (c && (!best || c.len < best.len)) best = c;
+      if (best && best.len < best.crow * 1.6 + 60) break;   // (near enough the straight way: no need to look further)
+    }
+    return best && this._spawnUnit(best.x, best.z, best.yaw, 'pursuit');
+  }
+
   _spawnNearNode(n, towardPlayer) {
     const p = this.game.focusState;
-    // Kerala: a little way along one of the junction's lanes out, facing its way (the one heading most toward the
-    // player, for a unit sent after them), clear of the traffic. (Its roads run every way, not the grid's: set in the
-    // junction's middle facing one of the grid's right angles, units came in 108-177 degrees off their lane and began
-    // with a three-point turn)
-    const W = this.world, out = W.kerala && W.router?.adj?.[n.id];
-    if (out) {
-      const tmp = {}, cars = this.game.traffic?.cars || [];
-      let best = null, bs = -Infinity;
-      for (const { lane } of out) {
-        if (!(lane.length > 16) || lane.edge?.cls > 7 || !lane.sample) continue;
-        lane.sample(Math.min(14, lane.length / 2), tmp);
-        if (cars.some((c) => Math.hypot(c.x - tmp.x, c.z - tmp.z) < 7) || this.units.some((u) => Math.hypot(u.vehicle.state.x - tmp.x, u.vehicle.state.z - tmp.z) < 8)) continue;
-        const tx = p.x - tmp.x, tz = p.z - tmp.z, td = Math.hypot(tx, tz) || 1;
-        const score = (towardPlayer ? (tmp.dx * tx + tmp.dz * tz) / td : 0) + this.R() * 0.3;
-        if (score > bs) { bs = score; best = { x: tmp.x, z: tmp.z, yaw: Math.atan2(tmp.dx, tmp.dz) }; }
-      }
-      // (and for a chase, only where there's a way by road to the player: put down on a stretch the lanes don't join
-      // to theirs, units stood there for good with nowhere to go)
-      if (!best || (towardPlayer && !this._pathKL({ x: best.x, z: best.z, yaw: best.yaw }, null, true))) return null;
-      return this._spawnUnit(best.x, best.z, best.yaw, 'pursuit');
+    if (this.world.kerala && this.world.router?.adj?.[n.id]) {
+      const best = this._nodeSpot(n, towardPlayer);
+      return best && this._spawnUnit(best.x, best.z, best.yaw, 'pursuit');
     }
     const yaw = towardPlayer ? Math.atan2(p.x - n.x, p.z - n.z) : this.R() * Math.PI * 2;
     // snap heading to road axis
@@ -447,8 +471,8 @@ export class PoliceManager {
       const active = this.units.filter((u) => u.role === 'pursuit' && !u.disabled);
       if (this.state === 'pursuit' && active.length < rules.units && this.R() < dt * (active.length < 2 ? 3 : 0.6)) {
         const intercept = this.R() < 0.45;
-        const n = intercept ? this._spawnPoint(170, 280, true) : this._spawnPoint(140, 260, false);
-        if (n) { const u = this._spawnNearNode(n, true); if (u) { u.vehicle.renderer.sirenOn = true; if (intercept) bus.emit('police:intercept', {}); } }
+        const u = this._spawnChaser(() => (intercept ? this._spawnPoint(170, 280, true) : this._spawnPoint(140, 260, false)));
+        if (u) { u.vehicle.renderer.sirenOn = true; if (intercept) bus.emit('police:intercept', {}); }
       }
       // --- roadblocks at heat 4+ ---
       if (rules.roadblocks && this.state === 'pursuit' && this.roadblocks.length < 1 && this.R() < dt * 0.15) this._placeRoadblock();

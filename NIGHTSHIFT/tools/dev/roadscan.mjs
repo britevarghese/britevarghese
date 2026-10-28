@@ -1,7 +1,7 @@
 // Steps and kinks in the road surface round a town: every lane and junction turn within the radius, the surface a
 // wheel touches sampled every 0.5 m, flagged where its height bends sharply (the second difference: a step or a
-// kink, not a plain slope). Reports how many over 6, 12 and 20 cm, and the worst. Waits for the tiles round the
-// town to be built first. Rendering off.
+// kink, not a plain slope; the speed breakers left out). Reports how many over 6, 12 and 20 cm, and the worst.
+// Waits for the tiles round the town to be built first. Rendering off.
 //   node tools/dev/roadscan.mjs --port N [--at x,z | --at all] [--radius 700]
 import { launch } from './pw.mjs';
 const args = Object.fromEntries(process.argv.slice(2).reduce((acc, a, i, arr) => { if (a.startsWith('--')) acc.push([a.slice(2), arr[i + 1]]); return acc; }, []));
@@ -29,13 +29,18 @@ for (const [name, [x0, z0]] of list) {
     const need = () => { for (const dx of [-radius, 0, radius]) for (const dz of [-radius, 0, radius]) if (!W.groundKnown(x0 + dx, z0 + dz, 0)) return false; return true; };
     for (let i = 0; i < 20000 && !need(); i++) { step(); if (i % 10 === 0) await sleep(2); }
     if (!need()) return { err: 'tiles not built' };
+    // (and their lanes: a tile's ground is ready a few frames before its lanes are in - Payyanur once read 14 lanes)
+    const near = (l) => l.pts.some((q) => Math.hypot(q[0] - x0, q[1] - z0) < radius);
+    for (let i = 0, last = -1, same = 0; i < 200 && same < 4; i++) { for (let k = 0; k < 60; k++) step(); await sleep(2); const n = G.traffic.graph.lanes.filter(near).length; same = n === last ? same + 1 : 0; last = n; }
     const tmp = {}, flags = [];
     let n6 = 0, n12 = 0, n20 = 0, metres = 0;
     const scan = (path, what, deck) => {
       // (asked from just over the last height, as a wheel does: from high above, a lane under a bridge read the deck.
       // A lane on a bridge or its ramp starts on its deck, any other on the ground)
       const ys = [], at = [];
-      for (let s = 0; s <= path.length; s += 0.5) { path.sample(s, tmp); const y0 = ys.length ? ys[ys.length - 1] + 1 : deck ? 1e4 : W.groundHeight(tmp.x, tmp.z, -1e4) + 1; ys.push(W.groundHeight(tmp.x, tmp.z, y0)); at.push([tmp.x, tmp.z]); }
+      // (not counting the speed breakers: 10 cm humps a metre wide, a bend of 20 cm sampled every half metre)
+      const flat = (x, z, y) => { const t = W.tileAt(x, z); return W.groundHeight(x, z, y) - (t?._bg ? t.bumpAt(x, z) : 0); };
+      for (let s = 0; s <= path.length; s += 0.5) { path.sample(s, tmp); const y0 = ys.length ? ys[ys.length - 1] + 1 : deck ? 1e4 : flat(tmp.x, tmp.z, -1e4) + 1; ys.push(flat(tmp.x, tmp.z, y0)); at.push([tmp.x, tmp.z]); }
       metres += path.length;
       let worst = 0, wi = -1;
       for (let i = 1; i < ys.length - 1; i++) { const d2 = ys[i + 1] - 2 * ys[i] + ys[i - 1]; if (Math.abs(d2) > Math.abs(worst)) { worst = d2; wi = i; } }
@@ -43,7 +48,6 @@ for (const [name, [x0, z0]] of list) {
       if (w > 0.06) n6++; if (w > 0.12) n12++; if (w > 0.2) n20++;
       if (w > 0.06) flags.push({ w: +worst.toFixed(2), at: `${at[wi][0].toFixed(1)},${at[wi][1].toFixed(1)}`, what });
     };
-    const near = (l) => l.pts.some((q) => Math.hypot(q[0] - x0, q[1] - z0) < radius);
     const lanes = G.traffic.graph.lanes.filter(near);
     for (const l of lanes) scan(l, `lane cls ${l.edge?.cls}`, l.deck);
     let nc = 0;
