@@ -445,6 +445,7 @@ puts you back at the last checkpoint passed, facing the next, while the clock ru
 | Tamhini Road | Deccan | 5.6 km from Shivapur south over the farmland plateau to the world's southern edge | 7:48 / 9:21 / 11:32 |
 | Timber Run | Bearwood Taiga | 1.2 km from the timber camp across the Bearwood at the ford and up the mud of the logging track to the cutting | 3:20 / 4:00 / 4:55 |
 | Blackwater Crossing | Bearwood Taiga | 1.4 km round the edge of Blackwater Bog in the mud and back over the river at the west ford to the log landing (a stock UAZ needs low range up the far bank, and in the deep mud) | 4:05 / 4:55 / 6:00 |
+| Muskeg Trail | Bearwood Taiga | 0.95 km down the old logging trail through the woods north of the bog: ruts deeper than a stock truck's diffs, holes one after another on alternate sides, roots across it, mud. A crawl, not a race: each hard knock (the body or an axle striking the ground faster than 1.5 m/s) is +15 s, and too slow in its mud you sink. A stock Ranger gets stuck; a Thar or a Wrangler gets through crawled carefully, a built truck easier | 6:30 / 8:00 / 10:00 |
 | Lalghati Canyon Run | Lalghati Canyon | 1.3 km down the canyon floor from the base between the red walls, past the mouth of Hidden Creek and through the river at the shallows | 2:15 / 2:42 / 3:20 |
 | Ledge Road Climb | Lalghati Canyon | 1.1 km up the shelf road cut along the canyon's south wall, round the bend and up the west wall to the rim, a hundred metres up | 2:05 / 2:30 / 3:05 |
 | Coast to Snow | Open world | 18.6 km across the whole world, 16 checkpoints: up the Kashid ghat, over the Konkan Ghat into Kerala, through the town and the tea, up the Kurinji jeep track, over the Ashwood Pass and down to the ranger station | 26:15 / 31:29 / 38:50 |
@@ -1133,6 +1134,10 @@ years of trucks wear a jeep track, as the tracks in MudRunner or Expeditions are
   shallow on gravel and hardly there on rock. The spoil stands a little proud beside them. They steer a truck as
   any rut does (see Ground, in the physics).
 - **Potholes** cross the track here and there.
+- **A rough track** (`rough` on a route: the taiga's Muskeg Trail) is worn as a truck has to crawl: its ruts 13 to 29 cm
+  deep on firm ground, a hole every 6.5 m or so in one rut and then the next (an axle twister: the truck rocks from one
+  corner to the other with a wheel in the air) and now and then one right across, roots across it on its firm ground,
+  and the trees left close either side.
 
 The ruts are too fine for the ground's grid, so they are reckoned at each point from the track's line, the same for the
 physics (the wheels drop into them) and the drawn ground. The terrain's shader draws the track a pixel at a time
@@ -1211,7 +1216,9 @@ own features made on top of it; the roads through them are routed over the groun
   (an open shed on posts under a tin roof, the saw bench and its blade, a log deck, a heap of sawdust, stacked boards)
   and the log yard. The Bearwood Ford Track crosses the river and climbs to the cutting in the far woods; the
   Blackwater Track runs round the bog and back across the river at the west ford to the log landing; the Deep Ford
-  Track crosses it between them; the Lookout Track climbs a knoll to a watchtower. **Log piles** (stacked in a pyramid,
+  Track crosses it between them; the Lookout Track climbs a knoll to a watchtower; the **Muskeg Trail**, an old logging
+  trail left to rot, winds through the woods north of the bog from the ford track to Blackwater Track, the trees close
+  in either side of it. **Log piles** (stacked in a pyramid,
   pale cut ends, stakes either side, solid to drive into) stand at the camp, the landing and the cutting.
 
   All the going those games have, each its own ground under the tyres (`src/physics/Surfaces.js`), measured on the
@@ -1228,6 +1235,7 @@ own features made on top of it; the roads through them are routed over the groun
   | Deep ford | the Deep Ford, 1.02 m over the ford's bed and deeper either side of it | a stock air intake (0.95 m) goes under: a stock Thar or Wrangler gets across with its engine choked to 35% of its power (cosmetic damage, the default; on the stricter settings it stalls); with the snorkel (garage) it pulls at full power; the Yangwang U8's intake is at 1.72 m |
   | Shallows and sand | the Bearwood Shallows above the ford, ankle deep (0.24 m) over gravel for 120 m, a sand bar on the inside bank | the river to drive along; soft sand that sinks and drags |
   | Rock | the Boulder Field on Lookout Hill's flank: 343 boulders up to 2.8 m on bare rock | the grippiest ground there is, the boulders to crawl over in low range |
+  | Rough trail | the Muskeg Trail, 0.95 km: on its firm ground ruts 13 to 29 cm deep (deeper than a stock Thar clears under its diffs, 21 cm), a hole every 6.5 m or so, 18 to 40 cm deep, in one rut and then the other, one in five right across, and roots 7 to 15 cm high across it; half of it mud (`rough` on a route: `src/world/Worn.js`) | crawl it: in low range at a walking pace a stock Thar rocks through the holes a wheel in the air, its diffs ploughing the mud between the ruts; faster it crashes down into them and onto the roots (the Muskeg Trail event counts each hard knock), and too slow in its mud it sinks. A stock Ranger gets stuck |
   | Steep climbs | the Lookout Track (31%), the ford banks | low range and lockers |
   | Open ground | the clearings and meadows between the stands | drive anywhere: across country between the tracks |
 

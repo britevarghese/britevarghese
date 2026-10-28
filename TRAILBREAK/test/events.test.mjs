@@ -2,7 +2,7 @@
 // and courses checked for what a stock truck can drive.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { EventRun, medalFor, runPrize, standings, eventsFor, gridFor, MEDAL_PRIZE, FINISH_PRIZE, RACE_PRIZE, TOUCH_PENALTY, TIME_LIMIT } from '../src/game/Events.js';
+import { EventRun, medalFor, runPrize, standings, eventsFor, gridFor, MEDAL_PRIZE, FINISH_PRIZE, RACE_PRIZE, TOUCH_PENALTY, TIME_LIMIT, HARD_KNOCK } from '../src/game/Events.js';
 import { Career, START_MONEY, DEBT_LIMIT, TRUCK_PRICES, levelFor } from '../src/game/Career.js';
 import { generateWorld } from '../src/world/WorldGen.js';
 import { World } from '../src/world/World.js';
@@ -41,6 +41,16 @@ test('a run: hard knocks of the body cost seconds in the trials (one per second 
   assert.equal(run.update(3, P(0, 0), 0.5), null, 'a scrape is free');
   assert.ok(Math.abs(run.time - (3 + 2 * TOUCH_PENALTY)) < 1e-9);
   assert.equal(new EventRun(course, 0).update(TIME_LIMIT + 1, P(0, 0)), 'timeout');
+});
+
+test('a crawl (touch \'hard\'): only the truck striking the ground hard counts, however hard it leans on it, at the event\'s own cost', () => {
+  const run = new EventRun({ ...course, touch: 'hard', touchPenalty: 15 }, 0);
+  run.update(0.5, P(0, 0));
+  assert.equal(run.update(1, P(0, 0), 3, 0.4), null, 'resting on its belly, or dragging its diffs');
+  assert.equal(run.update(1.5, P(0, 0), 1, HARD_KNOCK + 0.5), 'touch');
+  assert.equal(run.update(2, P(0, 0), 0.5, HARD_KNOCK + 1), null, 'the same knock');
+  assert.equal(run.update(3, P(0, 0), 0.5, HARD_KNOCK - 0.2), null, 'eased down into a hole');
+  assert.equal(run.penalty, 15);
 });
 
 test('medals and prize money: each medal level pays once, scaled by the event; places pay in a race of two or more', () => {

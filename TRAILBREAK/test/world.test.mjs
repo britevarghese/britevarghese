@@ -402,3 +402,23 @@ test('the open world: the satnav finds the way from the coast to Ashwood by road
     assert.equal(run.regions.at(-1), into);
   }
 });
+
+test('a rough track (an old logging trail): ruts deeper, holes in one rut then the other, roots across it on firm ground; in mud no roots', async () => {
+  const { WornTracks, wearOf } = await import('../src/world/Worn.js');
+  const map = (rough) => ({ trails: [{ name: 't', kind: 'trail', rough, points: [[0, -40], [0, 200], [0, 440]] }] });
+  const G = new WornTracks(map(1), 1000), P = new WornTracks(map(0), 1000);
+  const firm = () => wearOf(SURFACE.DIRT), mud = () => wearOf(SURFACE.MUD);
+  let rutR = 0, rutP = 0, top = 0, topMud = 0, left = 0, right = 0;
+  for (let z = 0; z < 360; z += 0.05) {
+    const h = G.nearest(0, z), q = G.shape(h, 0, z, 1);
+    rutR = Math.max(rutR, q.depth); rutP = Math.max(rutP, P.shape(P.nearest(0, z), 0, z, 1).depth);
+    top = Math.max(top, -G.depth(0, z, firm)); topMud = Math.max(topMud, -G.depth(0, z, mud));
+    // (the holes, deeper than any rut: in the left rut, in the right)
+    if (G.depth(-0.85, z, firm) > 0.32) left++;
+    if (G.depth(0.85, z, firm) > 0.32) right++;
+  }
+  assert.ok(rutR > 0.2 && rutR < 0.3 && rutP < 0.16, `ruts ${rutR.toFixed(2)} m deep, ${rutP.toFixed(2)} m on an ordinary track`);
+  assert.ok(left > 40 && right > 40, `holes in both ruts: ${left}, ${right} samples`);
+  // (in mud only the spoil beside the ruts stands a centimetre or so proud)
+  assert.ok(top > 0.06 && topMud < 0.02, `roots ${top.toFixed(2)} m proud on firm ground, ${topMud.toFixed(2)} m in mud`);
+});

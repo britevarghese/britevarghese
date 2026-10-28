@@ -2,7 +2,7 @@
 // optional deform / water / treesNear).
 import { SURFACES, SURFACE } from '../src/physics/Surfaces.js';
 import { DeformGrid } from '../src/world/Deform.js';
-import { WornTracks } from '../src/world/Worn.js';
+import { WornTracks, wearOf } from '../src/world/Worn.js';
 
 export function flat(surface = SURFACE.DIRT, h = 0) {
   return { height: () => h, surfaceAt: () => SURFACES[surface] };
@@ -105,4 +105,16 @@ export function block(x0, x1, z0, z1, h, surface = SURFACE.DIRT) {
 /** Any ground under water at `level` (water(x, z) as the game world gives it). */
 export function flooded(ground, level) {
   return { ...ground, water: () => level };
+}
+
+/** A rough track (world/Worn.js rough: an old logging trail) straight down z through x = 0, worn into `surface`. */
+export function rough(surface = SURFACE.DIRT, roughness = 1) {
+  const s = SURFACES[surface], wearAt = () => wearOf(surface);
+  const G = new WornTracks({ trails: [{ name: 'rough', kind: 'trail', rough: roughness, points: [[0, -40], [0, 200], [0, 440]] }] }, 1000);
+  return {
+    worn: G,
+    height: (x, z) => -G.depth(x, z, wearAt),
+    surfaceAt: () => s,
+    rutsAcross: (x, z, ax, az, n, step, out) => G.across(x, z, ax, az, n, step, out.fill(0), wearAt),
+  };
 }

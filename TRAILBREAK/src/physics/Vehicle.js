@@ -227,6 +227,8 @@ export class Vehicle {
     this.setPressure(this.psiTarget);
     this.hullContact = 0;          // strongest hull impact this frame (for sounds)
     this.hullPeak = 0;             // the hardest since the game last read it (and zeroed it)
+    this.knock = 0;                // how fast the body or an axle struck the ground this step (closing speed, m/s)
+    this.knockPeak = 0;            // the hardest since the game last read it (and zeroed it)
     this.impact = 0;
     // what the driver feels (see feelStep): the steering wheel's kick (N m at the rim, + = pulls left), the shake of
     // the ground through the tyres (0..1+), the buzz of a rough surface, the judder of tyres spinning in mud, hard hits
@@ -386,6 +388,7 @@ export class Vehicle {
     F.x += this.unsprung * (0 - gu * u.x); F.y += this.unsprung * (-GRAVITY - gu * u.y); F.z += this.unsprung * (0 - gu * u.z);
     const speed = this.vel.dot(fwd);
     this.hullContact = 0;
+    this.knock = 0;
 
     // ---------------------------------------------------------------- driver -> pedals, gear, steering
     const dtr = this.dt;
@@ -893,6 +896,7 @@ export class Vehicle {
     if (ground.treesNear) this.treeContacts(ground);
     if (this.others.length) this.otherContacts();
     if (this.hullContact > this.hullPeak) this.hullPeak = this.hullContact;   // (the frame's hardest, for the game)
+    if (this.knock > this.knockPeak) this.knockPeak = this.knock;
     this.winchStep(dt, ground);
     // other players' winch lines hooked to this truck: pulled toward their fairlead. The rope's pull is worked out here,
     // from where this truck is now and the rope's length their winch reports (the tension their side works out comes
@@ -1028,6 +1032,7 @@ export class Vehicle {
       const surf = ground.surfaceAt(_p.x, _p.z);
       const Fn = this.penalty(_p, _n, pen, kh, ch, surf.hull * this.hullFriction);
       this.hullContact = Math.max(this.hullContact, Fn / 2e4);
+      if (Fn > 0 && this.lastClose > this.knock) this.knock = this.lastClose;
       // soft ground (mud, sand, snow) gives under the body: it takes a far harder landing to dent or break anything
       const close = surf.maxSink > 0.15 ? this.lastClose * 0.4 : this.lastClose;
       if (close > 2) this.hitAt(hp, _n, close, k);
@@ -1061,6 +1066,7 @@ export class Vehicle {
         const vn = _v.dot(_n);
         let Fn = k * pen - c * vn;
         if (Fn <= 0) { pt.nSoil = (pt.nSoil || 0) * (1 - ks); continue; }
+        if (-vn > this.knock) this.knock = -vn;
         const surf = ground.surfaceAt(_q.x, _q.z);
         // soft ground gives way under them by its pressure-sinkage law, as under a tyre: on its small housing a diff
         // bears hard on the mud, and ploughs a groove through the hump between the ruts rather than riding up on it as

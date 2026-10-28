@@ -16,6 +16,11 @@ export const MEDAL_PRIZE = { gold: 1500, silver: 800, bronze: 400 };
 export const FINISH_PRIZE = 100;
 export const RACE_PRIZE = [2500, 1200, 600, 300];
 export const TOUCH_PENALTY = 5;              // s per hard knock in the trials
+// m/s: how fast the body or an axle strikes the ground for a knock to count in a crawl (an event's touch 'hard': its
+// knocks the truck's own, crashing down into a hole or onto a root, not a rock's touch), and what each costs there
+export const HARD_KNOCK = 1.5;
+/** The time a knock costs in an event: its own, or the trials'. */
+export const touchPenalty = (event) => event.touchPenalty ?? TOUCH_PENALTY;
 export const COUNTDOWN = 3;                  // s
 export const TIME_LIMIT = 600;               // s
 /** How long a run of an event may take before it is out: TIME_LIMIT, or a long race's half again its bronze par. */
@@ -41,7 +46,7 @@ export function slalomLine(M) {
 }
 
 /**
- * The events of a world: { id, name, desc, start: {x, z, yaw}, gates, par: {gold, silver, bronze}, touch }. A gate is
+ * The events of a world: { id, name, desc, start: {x, z, yaw}, gates, par: {gold, silver, bronze}, touch, touchPenalty }. A gate is
  * passed within r of its centre { x, z, r, y, dy }, or, with dir, by crossing its line { x, z, r, dir: [dx, dz] }.
  */
 export function eventsFor(world) {
@@ -155,8 +160,11 @@ export class EventRun {
     this.splits = [];
   }
 
-  /** Advance: now (s, the shared clock), the truck's position and how hard its body is hitting things (hullContact). */
-  update(now, pos, hullContact = 0) {
+  /**
+   * Advance: now (s, the shared clock), the truck's position, how hard its body is hitting things (hullContact) and how
+   * fast it last struck the ground (strike, m/s: physics/Vehicle.js knock).
+   */
+  update(now, pos, hullContact = 0, strike = 0) {
     if (this.phase === 'countdown') {
       if (now >= this.startAt) this.phase = 'running';
       else return null;
@@ -164,7 +172,8 @@ export class EventRun {
     if (this.phase !== 'running') return null;
     this.time = now - this.startAt + this.penalty;
     const E = this.event;
-    if (E.touch && hullContact > 1 && now - this.touchAt > 1) { this.touchAt = now; this.penalty += TOUCH_PENALTY; this.time += TOUCH_PENALTY; return 'touch'; }
+    const knocked = E.touch === 'hard' ? strike > HARD_KNOCK : E.touch && hullContact > 1;
+    if (knocked && now - this.touchAt > 1) { const p = touchPenalty(E); this.touchAt = now; this.penalty += p; this.time += p; return 'touch'; }
     const g = E.gates[this.gate];
     const ox = pos.x - g.x, oz = pos.z - g.z;
     // (a race's checkpoint also counts passed close by: near; on a corner the line can be cut)

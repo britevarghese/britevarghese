@@ -24,8 +24,9 @@ import { ridged } from '../Noise.js';
 import { clamp, lerp, smoothstep, fbm, vnoise, lineD, plant, alpine, ALPINE, HIGHLAND, stretch, trailsOf } from './country.js';
 
 /** Its rallies' par times (seconds): a careful driver in three stock trucks, gold about the best of them, through the
- * deep mud (the UAZ needs low range in it, and up the west ford's north bank). */
-const PAR = { timberrun: { gold: 200, silver: 240, bronze: 295 }, blackwater: { gold: 245, silver: 295, bronze: 360 } };
+ * deep mud (the UAZ needs low range in it, and up the west ford's north bank). The Muskeg Trail's crawled: a stock
+ * Wrangler or Thar in low range at a walking pace, its hard knocks counted in (gold about the Wrangler's). */
+const PAR = { timberrun: { gold: 200, silver: 240, bronze: 295 }, blackwater: { gold: 245, silver: 295, bronze: 360 }, muskeg: { gold: 390, silver: 480, bronze: 600 } };
 
 /** The taiga's centre in the world (a 2 km square north of Koyna Glen). */
 export const TAIGA_AT = [5024, -6844];
@@ -79,7 +80,13 @@ export const TAIGA_ROUTES = {
   // world/maps/canyon.js)
   'Lalghati Track': { via: [[LANDING.x, LANDING.z], [-860, 420], [-1024, 336]], kind: 'trail', width: 3.0, extend: [0, 8] },
   'Deep Ford Track': { via: [[-400, 560], [-385, 330], [-340, 120], [-330, -200]], kind: 'trail', width: 2.8, ford: 0.95, grade: 0.3 },
+  // (an old logging trail left to rot, through the woods north of the bog from the ford track to Blackwater Track: its
+  // ruts deep, holes one after another on alternate sides, roots across it, half of it mud; the trees close in on it.
+  // A truck crawls it: world/Worn.js rough)
+  'Muskeg Trail': { via: [[-60, -560], [-250, -520], [-480, -470], [-640, -380], [-760, -110]], kind: 'trail', width: 2.4, rough: 1, mud: 0.5, routeGrade: 0.3 },
 };
+// (the trees' clearance either side of a track: the logging tracks' verges cleared back, a rough trail's overgrown)
+const CLEAR = { 'Muskeg Trail': 3.5 };
 
 // wet ground: the basin floor near the river and the bog, low hollows; the logging tracks through it are deep mud
 const wetness = (x, z, h) => {
@@ -146,6 +153,9 @@ export const TAIGA = stretch({
       trail: 'Bearwood Ford Track', from: [190, 300], to: [CUTTING.x, CUTTING.z], cps: 6, r: 12, par: PAR.timberrun, prize: 1.4 },
     { id: 'blackwater', kind: 'rally', name: 'Blackwater Crossing', desc: 'Round the edge of Blackwater Bog in the mud and back over the river to the log landing.',
       trail: 'Blackwater Track', from: [-150, -250], to: [LANDING.x, LANDING.z], cps: 6, r: 12, par: PAR.blackwater, prize: 1.4 },
+    // (crawled, not raced: the knocks the body and axles take cost time, as in a trial)
+    { id: 'muskeg', kind: 'rally', name: 'Muskeg Trail', desc: 'The old logging trail through the woods north of the bog: ruts deeper than your diffs, holes one after another on alternate sides, roots across it, mud. Crawl it: each hard knock of the body or axles costs 15 s, and too slow in its mud you sink.',
+      trail: 'Muskeg Trail', from: [-60, -560], to: [-760, -110], cps: 8, r: 10, touch: 'hard', touchPenalty: 15, par: PAR.muskeg, prize: 2 },
   ],
   gen: graded([{ road: 'Timber Road', grade: 0.13, smooth: 30, ends: ['ground', 'ground'] }], {
     prepare({ K, coarseAt }) { K.pitFloor = coarseAt(PIT.x, PIT.z) - 1.1; },
@@ -185,16 +195,17 @@ export const TAIGA = stretch({
       // stands of spruce and pine, fir and birch, with wide open ground between them: clearings, meadows and old
       // cuttings, a lone tree here and there; the logging tracks' verges cleared some 20 m back, the wet ground all but
       // bare, dead snags in the cutting (about 30,000)
-      // (how far to the nearest track: their lines' points every 3 m, by 8 m cell)
+      // (how far to the nearest track, reckoned the farther for a track its trees come in closer to: their lines'
+      // points every 3 m, by 8 m cell)
       const C = 8, cells = new Map();
       for (const t of ctx.M.trails) {
-        const p = t.points;
+        const p = t.points, back = CLEAR[t.name] === undefined ? 0 : 19 - CLEAR[t.name];
         for (let i = 1; i < p.length; i++) {
           const n = Math.ceil(Math.hypot(p[i][0] - p[i - 1][0], p[i][1] - p[i - 1][1]) / 3);
           for (let j = 0; j < n; j++) {
             const x = lerp(p[i - 1][0], p[i][0], j / n), z = lerp(p[i - 1][1], p[i][1], j / n), k = Math.floor(z / C) * 4096 + Math.floor(x / C);
             if (!cells.has(k)) cells.set(k, []);
-            cells.get(k).push(x, z);
+            cells.get(k).push(x, z, back);
           }
         }
       }
@@ -203,7 +214,7 @@ export const TAIGA = stretch({
         const cx = Math.floor(x / C), cz = Math.floor(z / C);
         for (let a = -4; a <= 4; a++) for (let b = -4; b <= 4; b++) {
           const L = cells.get((cz + a) * 4096 + cx + b);
-          if (L) for (let q = 0; q < L.length; q += 2) d = Math.min(d, Math.hypot(L[q] - x, L[q + 1] - z));
+          if (L) for (let q = 0; q < L.length; q += 3) d = Math.min(d, Math.hypot(L[q] - x, L[q + 1] - z) + L[q + 2]);
         }
         return d;
       };

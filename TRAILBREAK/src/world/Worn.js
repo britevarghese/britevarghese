@@ -10,6 +10,12 @@
 //
 // Near a map's edge (where its track runs on into the next map's) the ruts run straight down the middle at an even
 // depth and there are no potholes, so the two maps' ruts meet.
+//
+// A rough track (its trail's `rough`, 0 to 1: an old logging trail left to rot) is worn far past that, as a truck has
+// to crawl: on firm ground its ruts 13 to 29 cm deep (some deeper than a stock truck's diffs clear; in mud a truck's
+// own sinking makes them), holes one after another down it, on alternate sides so the truck rocks from one corner to
+// the other with a wheel in the air (an axle twister), now and then a hole right across, and on its firm ground roots
+// across it that a truck at speed hammers over.
 import { spline } from './WorldGen.js';
 import { vnoise, hash2 } from './Noise.js';
 
@@ -21,6 +27,8 @@ const REACH = 3.4;              // m off the line that anything reaches (the wan
 const EDGE = 40;                // m in from a map's edge the ruts come round to straight and even
 const BIN = 28;                 // m of track to a pothole (at most)
 const OUT = 2.6;                // m off the line past which nothing is worn (the wander, a rut's spoil, a pothole's side)
+// a rough track: a hole every so many metres (at most), and a root across it; how deep the ruts are worn
+const BIN_ROUGH = 6.5, ROOT_BIN = 5;
 // how deep each ground wears (a track's ruts as deep as it is soft): none on tarmac or ice
 const WEAR = [1, 1, 0.45, 0.15, 0.8, 0.6, 0.7, 0, 0.3, 0, 0.6];
 
@@ -53,7 +61,7 @@ export class WornTracks {
         if (p) s += Math.hypot(pts[p][0] - pts[p - 1][0], pts[p][1] - pts[p - 1][1]);
         xs.push(pts[p][0]); zs.push(pts[p][1]); ss.push(s); ts.push(t);
       }
-      lines.push({ start, end: xs.length - 1, len: s, seed, open0, open1 });
+      lines.push({ start, end: xs.length - 1, len: s, seed, open0, open1, rough: tr.rough || 0 });
     }
     this.x = Float64Array.from(xs); this.z = Float64Array.from(zs); this.s = Float64Array.from(ss); this.t = Int32Array.from(ts);
     this.lines = lines;
@@ -81,6 +89,7 @@ export class WornTracks {
     this.hit = { u: 0, s: 0, t: -1, d: 0, ax: 0, az: 0 };
     this.look = { u: 0, s: 0, depth: 0, W: 0, pot: 0, t: -1 };
     this.pots = new Float64Array(15);
+    this.roots = new Float64Array(12);
   }
 
   /** Is anything worn within r of the square [x0, x0 + size] x [z0, z0 + size]? */
@@ -136,9 +145,12 @@ export class WornTracks {
     // (the ends of a track: fading in over 10 m, unless it runs on into the next map)
     const end = (L.open0 ? 1 : sstep(0, 10, s)) * (L.open1 ? 1 : sstep(0, 10, L.len - s));
     q.u = h.u - wander; q.s = s; q.t = h.t;
-    q.depth = (0.1 * (1 - f) + f * (0.05 + 0.1 * vary)) * wear * end;
+    // (a rough track's ruts the deeper on firm ground, 13 to 29 cm; in mud a truck's own sinking makes them)
+    q.depth = (0.1 * (1 - f) + f * (0.05 + 0.1 * vary + L.rough * (0.08 + 0.06 * vary) * sstep(0.82, 0.95, wear))) * wear * end;
     q.W = GAUGE + RUT + 0.35 + f * (vnoise(s / 6, 0.5, L.seed + 3) - 0.3) * 0.7;
     q.pot = f > 0 ? this.potDepth(this.potsAt(L, s), s, q.u, wear * f) : 0;
+    // (and its roots, raised, where there is no hole)
+    if (L.rough && f > 0 && q.pot <= 0) q.pot = -this.rootHeight(this.rootsAt(L, s), s, q.u, wear * f * end);
     return q;
   }
 
@@ -148,9 +160,19 @@ export class WornTracks {
    * and its half length); returns how many numbers.
    */
   potsAt(L, s, reach = 0) {
-    const P = this.pots, b0 = Math.floor(s / BIN);
+    const P = this.pots, rough = L.rough > 0, bin = rough ? BIN_ROUGH : BIN, b0 = Math.floor(s / bin);
     let n = 0;
     for (let b = b0 - 1; b <= b0 + 1; b++) {
+      if (rough) {
+        // (a rough track's: most stretches a hole, in one rut and then the other, 18 to 40 cm deep; one in five right
+        // across the track, a little shallower)
+        if (hash2(b, L.seed, 41) > 0.15 + 0.7 * L.rough) continue;
+        const across = hash2(b, L.seed, 42) < 0.2, c = (b + 0.3 + 0.4 * hash2(b, L.seed, 43)) * bin, len = 0.9 + 0.7 * hash2(b, L.seed, 44);
+        if (Math.abs(s - c) > len + reach) continue;
+        P[n++] = across ? 0 : (b & 1 ? 1 : -1) * (GAUGE + 0.1 * (hash2(b, L.seed, 45) - 0.5)); P[n++] = across ? 1.6 : 0.55 + 0.2 * hash2(b, L.seed, 46);
+        P[n++] = (across ? 0.14 : 0.18) + 0.22 * L.rough * hash2(b, L.seed, 47); P[n++] = c; P[n++] = len;
+        continue;
+      }
       if (hash2(b, L.seed, 31) > 0.55) continue;
       const c = (b + 0.2 + 0.6 * hash2(b, L.seed, 32)) * BIN, len = 1.1 + 1.1 * hash2(b, L.seed, 33);
       if (Math.abs(s - c) > len + reach) continue;
@@ -158,6 +180,42 @@ export class WornTracks {
       P[n++] = 0.05 + 0.08 * hash2(b, L.seed, 36); P[n++] = c; P[n++] = len;
     }
     return n;
+  }
+
+  /**
+   * A rough track's roots within `reach` of s along track L (up to one a stretch, across the track at a slant): into
+   * this.roots, four numbers each (where it crosses the wheel line's middle, along; its slant, m along a m across; its
+   * height; its half thickness); returns how many numbers.
+   */
+  rootsAt(L, s, reach = 0) {
+    const P = this.roots, b0 = Math.floor(s / ROOT_BIN);
+    let n = 0;
+    for (let b = b0 - 1; b <= b0 + 1; b++) {
+      if (hash2(b, L.seed, 51) > 0.6 * L.rough) continue;
+      const c = (b + 0.5 * hash2(b, L.seed, 52) + 0.25) * ROOT_BIN, slant = (hash2(b, L.seed, 53) - 0.5) * 1.2;
+      if (Math.abs(s - c) > Math.abs(slant) * OUT + 0.3 + reach) continue;
+      P[n++] = c; P[n++] = slant; P[n++] = 0.07 + 0.08 * hash2(b, L.seed, 54); P[n++] = 0.16 + 0.06 * hash2(b, L.seed, 55);
+    }
+    return n;
+  }
+
+  /**
+   * Those roots' height (the first n numbers of this.roots) at s along, u off the wheel line, in ground that wears
+   * `wear`: only on firm ground (earth and turf: in mud they are buried, on rock there are none); rounded, a little
+   * under the track's edges.
+   */
+  rootHeight(n, s, u, wear) {
+    const firm = sstep(0.82, 0.95, wear);
+    if (n === 0 || firm <= 0) return 0;
+    const P = this.roots;
+    let top = 0;
+    for (let i = 0; i < n; i += 4) {
+      const d = Math.abs(s - P[i] - u * P[i + 1]);
+      if (d > P[i + 3]) continue;
+      const k = Math.cos(d / P[i + 3] * Math.PI / 2);
+      top = Math.max(top, P[i + 2] * k * k * (1 - sstep(1.3, 2.2, Math.abs(u))));
+    }
+    return top * firm;
   }
 
   /** Those potholes' depth (the first n numbers of this.pots) at s along, u off the wheel line, in ground that wears `wear`. */
@@ -186,14 +244,15 @@ export class WornTracks {
     if (!h || h.d > OUT + n * step) return out;
     // (each point's way off the track's line, and along it)
     const du = (ax * h.ax + az * h.az) * step, ds = (ax * h.az - az * h.ax) * step;
-    const q = this.shape(h, x, z, 1), f = this.free(x, z), np = f > 0 ? this.potsAt(this.lines[h.t], q.s, Math.abs(ds) * n) : 0;
+    const L = this.lines[h.t], q = this.shape(h, x, z, 1), f = this.free(x, z), np = f > 0 ? this.potsAt(L, q.s, Math.abs(ds) * n) : 0;
+    const nr = f > 0 && L.rough ? this.rootsAt(L, q.s, Math.abs(ds) * n) : 0;
     for (let k = -n; k <= n; k++) {
       const u = h.u + k * du;
       if (Math.abs(u) > OUT) continue;
       const wear = wearAt(x + ax * k * step, z + az * k * step);
       if (wear <= 0) continue;
-      const uw = q.u + k * du;
-      out[k + n] += WornTracks.profile(uw, q.depth * wear) + (np ? this.potDepth(np, q.s + k * ds, uw, wear * f) : 0);
+      const uw = q.u + k * du, pot = np ? this.potDepth(np, q.s + k * ds, uw, wear * f) : 0;
+      out[k + n] += WornTracks.profile(uw, q.depth * wear) + (pot > 0 ? pot : nr ? -this.rootHeight(nr, q.s + k * ds, uw, wear * f) : 0);
     }
     return out;
   }

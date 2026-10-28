@@ -2,7 +2,7 @@
 // friends. Alone (or alone in the room), J at a start line lines the truck up and counts it down. With friends in the
 // room, J opens a race instead: the server gives it a start time a little ahead (RACE_LEAD), friends press J to join
 // and are lined up beside you, everyone's clock starts together, and the server collects the times (server/rooms.js).
-import { eventsFor, EventRun, medalFor, clock, runPrize, standings, gridFor, timeLimit, COUNTDOWN, TOUCH_PENALTY } from './Events.js';
+import { eventsFor, EventRun, medalFor, clock, runPrize, standings, gridFor, timeLimit, COUNTDOWN, touchPenalty } from './Events.js';
 import { racesFor } from './Races.js';
 import { modesFor, ZoneRun, HillRun, HOLD } from './Modes.js';
 import { customRace } from './Props.js';
@@ -212,12 +212,12 @@ export class EventPlay {
   update(dt) {
     this.simT += dt;
     const g = this.g, run = this.run, v = g.vehicle;
-    const knock = v.hullPeak;
-    v.hullPeak = 0;
+    const knock = v.hullPeak, strike = v.knockPeak;
+    v.hullPeak = 0; v.knockPeak = 0;
     this.giveUpT = Math.max(0, this.giveUpT - dt);
     if (this.resultT > 0 && (this.resultT -= dt) <= 0) this.closeResult();
     if (run) {
-      const r = run.update(this.now, v.pos, knock, run instanceof HillRun ? this.othersAt() : undefined);
+      const r = run.update(this.now, v.pos, knock, run instanceof HillRun ? this.othersAt() : strike);
       if (run.phase === 'countdown') {
         const left = run.countdown(this.now);
         const n = Math.ceil(left);
@@ -228,7 +228,7 @@ export class EventPlay {
         g.audio.beep?.(1320, 0.45);
       }
       if (r === 'gate') { g.audio.beep?.(990, 0.1, 0.08); g.course?.setActive(run.event, run.gate); }
-      else if (r === 'touch') { g.hud.hint(`Touched: +${TOUCH_PENALTY} s`, 1.5); g.audio.bang?.(0.4, false); }
+      else if (r === 'touch') { g.hud.hint(`${run.event.touch === 'hard' ? 'Hard knock' : 'Touched'}: +${touchPenalty(run.event)} s`, 1.5); g.audio.bang?.(0.4, false); }
       else if (r === 'finish') this.finished();
       else if (r === 'timeout') this.giveUp(`Out of time: ${run.event.name} has a ${Math.round(timeLimit(run.event) / 60)} minute limit`);
     }

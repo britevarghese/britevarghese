@@ -569,7 +569,8 @@ export async function generateWorld({ map, onProgress = () => {}, yieldEvery = 6
     // mud, the ruts sunk deeper and water standing in them every 15 to 30 m; and of a dirt or gravel road (not a paved
     // one) a little less, its verges mud and the water standing on its shoulders
     const byRoad = tr.kind === 'road';
-    const muddy = tr.kind === 'trail' ? 1 : byRoad && !tr.level && (tr.surface ?? M.roadSurface ?? SURFACE.GRAVEL) !== SURFACE.ROAD ? 0.6 : 0;
+    // (a trail can have its own share of mud, tr.mud: a rough one through the woods less of it, for its roots)
+    const muddy = tr.kind === 'trail' ? tr.mud ?? 1 : byRoad && !tr.level && (tr.surface ?? M.roadSurface ?? SURFACE.GRAVEL) !== SURFACE.ROAD ? 0.6 : 0;
     if (M.mudTracks && muddy) {
       const want = M.mudTracks * muddy * fp.length * RES;
       for (let t = 0, got = 0; t < 40 && got < want; t++) {

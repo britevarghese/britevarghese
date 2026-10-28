@@ -6,7 +6,8 @@ import { Drivetrain } from '../src/physics/Drivetrain.js';
 import { Quat, clamp } from '../src/physics/math.js';
 import { TRUCKS, truckSpec } from '../src/physics/trucks.js';
 import { SURFACE, SURFACES } from '../src/physics/Surfaces.js';
-import { flat, slope, soft, slopeWithIce, ledge, worn } from './grounds.mjs';
+import { flat, slope, soft, slopeWithIce, ledge, worn, rough } from './grounds.mjs';
+import { HARD_KNOCK } from '../src/game/Events.js';
 import { keysBend } from './drive.mjs';
 
 const IDLE = { throttle: 0, brake: 0, steer: 0, handbrake: 0 };
@@ -546,6 +547,27 @@ test('in ruts deeper than its clearance a truck\'s diffs plough a groove through
   let groove = 0;
   for (let z = z0 + 2; z < v.pos.z - 4; z += 0.5) groove += g.grid.get(0, z) / Math.round((v.pos.z - z0 - 6) / 0.5);
   assert.ok(v.pos.z - z0 > 25 && groove > 0.04, `${(v.pos.z - z0).toFixed(1)} m on, the hump ploughed ${(groove * 100).toFixed(1)} cm down`);
+});
+
+test('a rough track: its deep ruts, holes on alternate sides and roots crawled over clean, hammered over at speed', () => {
+  // (a stock Thar down 250 m of it on firm earth, held to a speed: the times it strikes the ground hard)
+  const g = rough(SURFACE.DIRT);
+  const strikes = (target, low) => {
+    const v = truck('thar', g);
+    v.dt.setFourWD(true, 0); v.dt.setRange(low, 0);
+    let t = 0, last = -9, n = 0;
+    run(v, g, 150, (q) => {
+      t += PHYS_DT;
+      if (q.knock > HARD_KNOCK && t - last > 1) { last = t; n++; }
+      const sp = q.vel.dot(q.fwd), head = Math.atan2(q.fwd.x, q.fwd.z);
+      if (q.pos.z > 250) return { ...IDLE, brake: 1 };
+      return { ...IDLE, throttle: clamp((target - sp) * 0.6 + 0.3, 0, 1), brake: sp > target + 1 ? 0.3 : 0, steer: clamp((head + q.pos.x * 0.15) * 2, -1, 1) };
+    });
+    return { n, z: v.pos.z };
+  };
+  const crawl = strikes(2, true), fast = strikes(14, false);
+  assert.ok(crawl.z > 240 && fast.z > 240, `both got through: ${crawl.z.toFixed(0)} m, ${fast.z.toFixed(0)} m`);
+  assert.ok(crawl.n <= 1 && fast.n >= 4, `hard strikes: ${crawl.n} at a crawl, ${fast.n} at speed`);
 });
 
 test('a tyre spun on the spot digs itself into earth, less into grass; rolling on, it leaves the ground alone', () => {
