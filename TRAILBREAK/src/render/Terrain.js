@@ -180,7 +180,7 @@ export class TerrainRenderer {
         uSplatO: { value: new THREE.Vector2(w.origin, w.origin) }, uSplatN: { value: w.N }, uSplatRes: { value: w.res }, uMapHalf: { value: this.half },
         uCentre: { value: new THREE.Vector2(...this.centre) },
         uTexFar: { value: 320 }, uIds: { value: new THREE.Vector3(this.layerIndex.grass, this.layerIndex.rock, this.layerIndex.snow ?? this.layerIndex.rock) },
-        uSnowLine: { value: this.snowLine + 40 }, uRelief: { value: 1 },
+        uSnowLine: { value: this.snowLine + 40 }, uRelief: { value: 1 }, uTileVar: { value: 1 },
         uTea: { value: this.layerIndex.tea ?? -1 }, uTeaNear: { value: TEA_RANGE.high },
         // (a worn track's: the layers that wear, earth and mud, and the colour of the grass over its hump and verges)
         uIds2: { value: new THREE.Vector2(this.layerIndex.dirt ?? -1, this.layerIndex.mud ?? -1) }, uVerge: { value: new THREE.Vector3(...(w.map.vergeTint || [1.04, 1.03, 0.98])) },
@@ -290,6 +290,7 @@ uniform float uVarnish;
 uniform vec3 uIds;
 uniform float uSnowLine;
 uniform float uRelief;
+uniform float uTileVar;
 uniform float uTea;
 uniform float uTeaNear;
 uniform vec2 uIds2;
@@ -313,6 +314,10 @@ vec2 gPT, gPX, gPZ, gDTx, gDTy, gDXx, gDXy, gDZx, gDZy;
 float gwT, gwX, gwZ, gSX, gSZ;
 // (how far off the pixel is for the ground's textures to be mixed with themselves over a larger tile: gColor)
 float gFar;
+// (the cells the tile seen from above is turned and shifted in, about this point: gTop)
+vec3 gHW;
+vec2 gHR[3], gHO[3];
+float gVar;
 const mat2 gTurn = mat2(0.766, 0.643, -0.643, 0.766);
 float gL[4];
 float gW[4];
@@ -328,39 +333,82 @@ void gAdd(float id, float w) {
   }
   gL[gn] = id; gW[gn] = w; gn++;
 }
+// the ground's texture seen from above (its top projection), stochastically: the ground laid out in a triangular grid
+// of cells a metre and a half across, each with the tile turned and shifted its own way, the three about a point
+// blended (Mikkelsen 2022, "Practical real-time hex-tiling", JCGT 11(2)), the brighter of them favoured in the colour
+// so the blend keeps its contrast (the normals, gTopN, each turned back as its copy was, by the cells' weights alone):
+// a tile two metres across repeated in one lattice read as a stamped pattern across a mud field or a meadow, seen
+// from a truck or from above. Near only (gVar: out past 50 m the tile three and a half times the size mixed in,
+// gColor, breaks it up), at High graphics.
+void gHex(int j, vec2 v) {
+  float t = hash21(v) * 6.2832;
+  gHR[j] = vec2(cos(t), sin(t)); gHO[j] = vec2(hash21(v + vec2(17.0, 31.0)), hash21(v + vec2(7.0, 13.0)));
+}
+vec4 gTop(highp sampler2DArray s, float L, float sc) {
+  vec2 uv = gPT * sc, dx = gDTx * sc, dy = gDTy * sc;
+  vec4 c = vec4(0.0);
+  if (gVar < 1.0) c = textureGrad(s, vec3(uv, L), dx, dy);
+  if (gVar > 0.0) {
+    vec4 v = vec4(0.0);
+    float sum = 0.0;
+    for (int j = 0; j < 3; j++) {
+      mat2 R = mat2(gHR[j].x, gHR[j].y, -gHR[j].y, gHR[j].x);
+      vec4 h = textureGrad(s, vec3(R * uv + gHO[j], L), R * dx, R * dy);
+      float w = gHW[j] * (0.4 + 0.6 * dot(h.rgb, vec3(0.299, 0.587, 0.114)));
+      v += h * w; sum += w;
+    }
+    v /= max(sum, 1e-6);
+    c = gVar < 1.0 ? mix(c, v, gVar) : v;
+  }
+  return c;
+}
+vec2 gTopN(float L, float sc) {
+  vec2 uv = gPT * sc, dx = gDTx * sc, dy = gDTy * sc;
+  vec2 t = vec2(0.0);
+  if (gVar < 1.0) t = textureGrad(uGN, vec3(uv, L), dx, dy).rg * 2.0 - 1.0;
+  if (gVar > 0.0) {
+    vec2 v = vec2(0.0);
+    for (int j = 0; j < 3; j++) {
+      mat2 R = mat2(gHR[j].x, gHR[j].y, -gHR[j].y, gHR[j].x);
+      v += (transpose(R) * (textureGrad(uGN, vec3(R * uv + gHO[j], L), R * dx, R * dy).rg * 2.0 - 1.0)) * gHW[j];
+    }
+    v /= max(gHW.x + gHW.y + gHW.z, 1e-6);
+    t = gVar < 1.0 ? mix(t, v, gVar) : v;
+  }
+  return t;
+}
 #ifdef SEAM
 vec4 gColor2(float L, float sc) {
   vec4 c = vec4(0.0);
-  if (gwT > 0.0) c += textureGrad(uGC2, vec3(gPT * sc, L), gDTx * sc, gDTy * sc) * gwT;
+  if (gwT > 0.0) c += gTop(uGC2, L, sc) * gwT;
   if (gwX > 0.0) c += textureGrad(uGC2, vec3(gPX * sc, L), gDXx * sc, gDXy * sc) * gwX;
   if (gwZ > 0.0) c += textureGrad(uGC2, vec3(gPZ * sc, L), gDZx * sc, gDZy * sc) * gwZ;
   return c;
 }
 #endif
 vec4 gColor(float L, float sc) {
-  vec4 c = vec4(0.0);
-  if (gwT > 0.0) c += textureGrad(uGC, vec3(gPT * sc, L), gDTx * sc, gDTy * sc) * gwT;
-  if (gwX > 0.0) c += textureGrad(uGC, vec3(gPX * sc, L), gDXx * sc, gDXy * sc) * gwX;
-  if (gwZ > 0.0) c += textureGrad(uGC, vec3(gPZ * sc, L), gDZx * sc, gDZy * sc) * gwZ;
+  vec4 ct = gwT > 0.0 ? gTop(uGC, L, sc) * gwT : vec4(0.0), cs = vec4(0.0);
+  if (gwX > 0.0) cs += textureGrad(uGC, vec3(gPX * sc, L), gDXx * sc, gDXy * sc) * gwX;
+  if (gwZ > 0.0) cs += textureGrad(uGC, vec3(gPZ * sc, L), gDZx * sc, gDZy * sc) * gwZ;
   // farther off, the same ground over a tile three and a half times the size, turned and shifted, mixed in: a few
   // metres across, the tile repeats dozens of times in view out there, and its repeats lined up into a pattern (on a
-  // rock face, rows of scales)
+  // rock face, rows of scales); from above, not where its cells already break the pattern up (gTop)
   if (gFar > 0.0) {
-    float s2 = sc * 0.29;
+    float s2 = sc * 0.29, ft = gFar * (1.0 - gVar);
+    if (gwT > 0.0 && ft > 0.0) ct = mix(ct, (ct + textureGrad(uGC, vec3(gTurn * gPT * s2 + 0.37, L), gTurn * gDTx * s2, gTurn * gDTy * s2) * gwT) * 0.5, ft);
     vec4 f = vec4(0.0);
-    if (gwT > 0.0) f += textureGrad(uGC, vec3(gTurn * gPT * s2 + 0.37, L), gTurn * gDTx * s2, gTurn * gDTy * s2) * gwT;
     if (gwX > 0.0) f += textureGrad(uGC, vec3(gTurn * gPX * s2 + 0.37, L), gTurn * gDXx * s2, gTurn * gDXy * s2) * gwX;
     if (gwZ > 0.0) f += textureGrad(uGC, vec3(gTurn * gPZ * s2 + 0.37, L), gTurn * gDZx * s2, gTurn * gDZy * s2) * gwZ;
-    c = mix(c, (c + f) * 0.5, gFar);
+    if (gwX + gwZ > 0.0) cs = mix(cs, (cs + f) * 0.5, gFar);
   }
-  return c;
+  return ct + cs;
 }
 // bare rock's relief and shade (world/Bedrock.js: the same ledges and joints the vertices near by are moved by)
 ${BEDROCK_GLSL}
 // the normal map's tilt as a world-space vector along the ground
 vec3 gTilt(float L, float sc) {
   vec3 d = vec3(0.0);
-  if (gwT > 0.0) { vec2 t = textureGrad(uGN, vec3(gPT * sc, L), gDTx * sc, gDTy * sc).rg * 2.0 - 1.0; d += vec3(t.x, 0.0, -t.y) * gwT; }
+  if (gwT > 0.0) { vec2 t = gTopN(L, sc); d += vec3(t.x, 0.0, -t.y) * gwT; }
   if (gwX > 0.0) { vec2 t = textureGrad(uGN, vec3(gPX * sc, L), gDXx * sc, gDXy * sc).rg * 2.0 - 1.0; d += vec3(0.0, t.y, -gSX * t.x) * gwX; }
   if (gwZ > 0.0) { vec2 t = textureGrad(uGN, vec3(gPZ * sc, L), gDZx * sc, gDZy * sc).rg * 2.0 - 1.0; d += vec3(gSZ * t.x, t.y, 0.0) * gwZ; }
   return d;
@@ -410,6 +458,15 @@ ${G ? `
   tw /= (tw.x + tw.y + tw.z);
   gwT = tw.y > 0.03 ? tw.y : 0.0; gwX = tw.x > 0.03 ? tw.x : 0.0; gwZ = tw.z > 0.03 ? tw.z : 0.0;
   float tws = gwT + gwX + gwZ; gwT /= tws; gwX /= tws; gwZ /= tws;
+  // (the cells the tile seen from above is turned and shifted in: the triangle of them about this point, its corners'
+  // weights to the 7th, gTop)
+  gVar = uTileVar * (1.0 - smoothstep(40.0, 50.0, dist));
+  if (gVar > 0.0) {
+    vec2 st = gPT / 1.6, sk = vec2(st.x - 0.57735027 * st.y, 1.15470054 * st.y), b = floor(sk), f = sk - b;
+    float fz = 1.0 - f.x - f.y, s = fz < 0.0 ? 1.0 : 0.0, s2 = 2.0 * s - 1.0;
+    gHW = pow(max(vec3(-fz * s2, s - f.y * s2, s - f.x * s2), 0.0), vec3(7.0));
+    gHex(0, b + vec2(s, s)); gHex(1, b + vec2(s, 1.0 - s)); gHex(2, b + vec2(1.0 - s, s));
+  }
   if (tex > 0.0) {
     // the layers of the four cells around this point, weighted by distance: the point shifted first by up to most of a
     // cell, in a noise a couple of cells across and a finer one near by, so where one ground meets another its edge
@@ -759,6 +816,7 @@ if (gWet > 0.0) {
     if (!this.uniforms.uTexFar) return;
     this.uniforms.uTexFar.value = q === 'high' ? 320 : q === 'medium' ? 240 : 150;
     this.uniforms.uRelief.value = q === 'low' ? 0 : 1;
+    this.uniforms.uTileVar.value = q === 'high' ? 1 : 0;
     this.fine = q !== 'low';
     this.uniforms.uTeaNear.value = TEA_RANGE[q] || TEA_RANGE.high;
   }

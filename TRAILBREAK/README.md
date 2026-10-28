@@ -888,6 +888,13 @@ Everything that makes off-roading off-roading is simulated, not faked:
   a noise a couple of cells across and a finer one near by, by up to about a cell (no further than the physics blends
   one ground into the next), and the grass's tufts and the ground's tint keep to the same edges
   (`src/render/Terrain.js` cellAt).
+- **No stamped pattern:** each ground's scan covers 1.5 to 5 m, and repeated in one lattice it read as a stamped
+  pattern across a mud field or a meadow (the mud's dark leaves in rows), seen from the cab or from above. Within
+  50 m the ground seen from above is now laid out in a triangular grid of cells about a metre and a half across, each
+  with the scan turned and shifted its own way, the three cells about a point blended (Mikkelsen's hex-tiling, JCGT
+  2022), the brighter copy favoured so the blend keeps its contrast; its relief is turned with it. Nothing lines up
+  any more. Farther off, the scan over a tile three and a half times the size mixed in breaks it up, as before
+  (`src/render/Terrain.js` gTop; at High graphics: it reads each scan three times).
 - **Wet mud:** mud is drawn wet, darker and glossy, wetter in places, and the ground at the water's edge is wet too,
   as is the earth round a patch of mud a metre or three out (it used to be dry right up to the mud, a dark stain
   painted on the ground). It is wet all over, its lumps glistening and the film of water smoothing its fine relief
