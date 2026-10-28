@@ -881,6 +881,13 @@ Everything that makes off-roading off-roading is simulated, not faked:
   black). In water each tyre splashes as it drives in, throws a rooster tail off the tread and sheets out to the
   sides, the nose pushes up a bow wave, and foam and ripple rings spread behind on the surface as it is drawn. All of
   it is lit by the sun and the sky (render/Effects.js), and you see it round your friends' trucks too.
+- **Where grounds meet:** the edge between grass and bare earth, earth and mud, or meadow and forest floor wanders
+  as it does on the ground. Each map's grounds are laid out on its grid (1 m on the small maps, 2 m on the big world),
+  and each pixel was drawn from the four cells round it, so every edge stepped along the grid in straight runs and
+  right-angled or 45° elbows, plainest in the patches of bare earth beside a trail. Now the point is shifted first, in
+  a noise a couple of cells across and a finer one near by, by up to about a cell (no further than the physics blends
+  one ground into the next), and the grass's tufts and the ground's tint keep to the same edges
+  (`src/render/Terrain.js` cellAt).
 - **Wet mud:** mud is drawn wet, darker and glossy, wetter in places, and the ground at the water's edge is wet too,
   as is the earth round a patch of mud a metre or three out (it used to be dry right up to the mud, a dark stain
   painted on the ground). It is wet all over, its lumps glistening and the film of water smoothing its fine relief

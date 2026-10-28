@@ -254,8 +254,8 @@ normal = normalize(vNormal);`)
         const x = cx * CHUNK + (i + hash(i + cx * n, k + cz * n, 1)) * SPACING;
         const z = cz * CHUNK + (k + hash(i + cx * n, k + cz * n, 2)) * SPACING;
         if (Math.abs(x) > w.half || Math.abs(z) > w.half) continue;
-        const cell = Math.round((z - w.origin) / w.res) * w.N + Math.round((x - w.origin) / w.res);
-        const L = T.splat[cell];
+        // (the ground the terrain draws there, render/Terrain.js cellAt: its edges wander, not stepping along the grid)
+        const cell = T.cellAt(x, z), L = T.splat[cell];
         const r = hash(x, z, 3);
         let edge = L === dirtL && dirtL !== undefined && r < 0.45 && byGrass(cell);
         // (a worn track, world/Worn.js: none in its ruts; on its earth, short grass in clumps along the hump between

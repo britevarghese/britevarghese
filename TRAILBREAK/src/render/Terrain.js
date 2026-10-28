@@ -20,7 +20,7 @@ import { HASH21 } from './ShaderHash.js';
 import { SURFACE } from '../physics/Surfaces.js';
 import { DeformGrid, DEFORM_SPAN } from '../world/Deform.js';
 import { WornTracks, GAUGE, RUT } from '../world/Worn.js';
-import { BEDROCK_GLSL } from '../world/Bedrock.js';
+import { BEDROCK_GLSL, tn } from '../world/Bedrock.js';
 import { vnoise } from '../world/Noise.js';
 import { TEA_ROW, TEA_RANGE } from './Tea.js';
 import { TRACK_UNIFORMS } from './TrackMap.js';
@@ -411,8 +411,15 @@ ${G ? `
   gwT = tw.y > 0.03 ? tw.y : 0.0; gwX = tw.x > 0.03 ? tw.x : 0.0; gwZ = tw.z > 0.03 ? tw.z : 0.0;
   float tws = gwT + gwX + gwZ; gwT /= tws; gwX /= tws; gwZ /= tws;
   if (tex > 0.0) {
-    // the layers of the four cells around this point, weighted by distance
-    vec2 g = (vWPos.xz - uCentre - uSplatO) / uSplatRes;
+    // the layers of the four cells around this point, weighted by distance: the point shifted first by up to most of a
+    // cell, in a noise a couple of cells across and a finer one near by, so where one ground meets another its edge
+    // wanders as it does on the ground, not stepping along the grid's cells in straight runs and right angles (no
+    // further than the physics blends one ground into the next, a cell, world/World.js maxSinkAt; and not at the map's
+    // edge, where the next map's ground has to meet it as it is)
+    vec2 lpw = vWPos.xz - uCentre, qw = vWPos.xz / (2.3 * uSplatRes);
+    vec2 warp = (vec2(tn(qw), tn(qw.yx + 17.3)) - 0.5) * 1.2;
+    if (dist < 80.0) { vec2 q2 = vWPos.xz / uSplatRes; warp += (vec2(tn(q2 + 5.1), tn(q2.yx + 9.7)) - 0.5) * 0.7 * (1.0 - smoothstep(35.0, 80.0, dist)); }
+    vec2 g = (vWPos.xz - uCentre - uSplatO) / uSplatRes + warp * smoothstep(0.0, 4.0 * uSplatRes, uMapHalf - max(abs(lpw.x), abs(lpw.y)));
     vec2 gi = floor(g), f = g - gi;
     ivec2 c = ivec2(gi);
     float i0, i1, i2, i3;
@@ -1079,6 +1086,21 @@ if (gWet > 0.0) {
     out[o] = Math.round(wv * 255); out[o + 1] = Math.round(pv * 255);
   }
 
+  /**
+   * The cell of the layer grid (splat) whose ground the shader draws at (x, z), in the map's frame: the cell nearest
+   * the point shifted as the shader shifts it (its finer shift near by too), so what stands on the ground or tints it
+   * (render/Grass.js, the vertices' tint) keeps to the edges it draws, not to the grid's.
+   */
+  cellAt(x, z) {
+    const w = this.world, res = w.res, X = x + this.centre[0], Z = z + this.centre[1], a = 2.3 * res, b = res;
+    const t = Math.min(1, Math.max(0, (this.half - Math.max(Math.abs(x), Math.abs(z))) / (4 * res))), k = t * t * (3 - 2 * t);
+    const wx = (tn(X / a, Z / a) - 0.5) * 1.2 + (tn(X / b + 5.1, Z / b + 5.1) - 0.5) * 0.7;
+    const wz = (tn(Z / a + 17.3, X / a + 17.3) - 0.5) * 1.2 + (tn(Z / b + 9.7, X / b + 9.7) - 0.5) * 0.7;
+    const i = Math.min(w.N - 1, Math.max(0, Math.round((x - w.origin) / res + wx * k)));
+    const j = Math.min(w.N - 1, Math.max(0, Math.round((z - w.origin) / res + wz * k)));
+    return j * w.N + i;
+  }
+
   /** The ground's height at (x, z): the map's (without a worn track's wear: base), or past it the land beyond. */
   heightAt(x, z, base = false) {
     if (Math.abs(x) <= this.half && Math.abs(z) <= this.half) return base && this.world.terrainBase ? this.world.terrainBase(x, z) : this.world.terrain(x, z);
@@ -1243,7 +1265,7 @@ if (gWet > 0.0) {
       this.colorAt(x, z, sp, h, slope, c3, !out);
       if (out) cover[v] = Math.round(this.farCover(x, z, h, slope) * 255);
       // the tint over the textures: the land's own, or past the map the far colour over the layer the shader shows
-      const L = out ? -1 : this.splat[Math.round((z - w.origin) / w.res) * w.N + Math.round((x - w.origin) / w.res)];
+      const L = out ? -1 : this.splat[this.cellAt(x, z)];
       if (!out) this.tintAt(L, x, z, h, slope, t3);
       else { const a = this.layers[this.farLayer(h, ny)].avg; for (let c = 0; c < 3; c++) t3[c] = Math.min(2, Math.max(0.4, c3[c] / a[c])); }
       if (this.fixAt(x, z, f3)) for (let c = 0; c < 3; c++) t3[c] *= f3[c];
