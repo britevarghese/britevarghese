@@ -42,6 +42,11 @@ bases, buildings, props, harbour structures, terrain relief, vegetation, lightin
 bots) and browser (rendering) generate the same world from it — add a file there and register it in
 `shared/map.js` to create a new map. `shared/maps/helpers.js` builds towns from it: `townBlock` / `streetFront`
 (terraced street fronts with party walls, alleys and garden walls) and `village` (houses along the nearby roads).
+Buildings come from their footprint, style, floors and damage (`generateBuilding` in `shared/map.js`): painted
+plaster, brick or concrete facades at the scanned textures' real size with shader weathering (grime, rain streaks),
+clay-tile gable / hip roofs whose attics are solid on the server too, shutters, balconies, door canopies, split-AC
+units and dishes; walls shared by terraced neighbours are blind and end the roof in a gable. War damage blows out
+corner bays and brings down part of the roof (charred rafters, rubble).
 
 ## Hosting on the internet
 | Option | How |

@@ -188,7 +188,8 @@ await g(() => __game.net.send({ t: 'suicide' }));
 // screen's first aerial view of the whole map, blocking the page meanwhile)
 const deployShown = await A.waitForFunction(() => !document.getElementById('deploy').classList.contains('hidden'), null, { timeout: 25000, polling: 100 }).then(() => true, () => false);
 check('own death shows the deploy screen', deployShown);
-const respawned = await A.waitForFunction(() => __game.me.alive, null, { timeout: 20000, polling: 200 }).then(() => true, () => false);
+// (with pitched roofs and denser towns a software-rendered frame of that view takes seconds: 12-25 s measured)
+const respawned = await A.waitForFunction(() => __game.me.alive, null, { timeout: 45000, polling: 200 }).then(() => true, () => false);
 check('autodeploy respawns A', respawned);
 
 console.log('\nbrowser console errors:', errors.length ? `\n  ${[...new Set(errors)].slice(0, 20).join('\n  ')}` : 'none');
