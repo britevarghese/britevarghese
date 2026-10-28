@@ -26,7 +26,7 @@ import { clamp, lerp, smoothstep, fbm, vnoise, lineD, plant, alpine, ALPINE, HIG
 /** Its rallies' par times (seconds): a careful driver in three stock trucks, gold about the best of them, through the
  * deep mud (the UAZ needs low range in it, and up the west ford's north bank). The Muskeg Trail's crawled: a stock
  * Wrangler or Thar in low range at a walking pace, its hard knocks counted in (gold about the Wrangler's). */
-const PAR = { timberrun: { gold: 200, silver: 240, bronze: 295 }, blackwater: { gold: 245, silver: 295, bronze: 360 }, muskeg: { gold: 390, silver: 480, bronze: 600 } };
+const PAR = { timberrun: { gold: 165, silver: 200, bronze: 245 }, blackwater: { gold: 205, silver: 250, bronze: 300 }, muskeg: { gold: 390, silver: 480, bronze: 600 } };
 
 /** The taiga's centre in the world (a 2 km square north of Koyna Glen). */
 export const TAIGA_AT = [5024, -6844];

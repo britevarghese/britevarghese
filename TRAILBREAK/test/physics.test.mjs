@@ -491,6 +491,31 @@ test('deep mud (a map\'s deepMud, the taiga\'s): the tyres sink about twice as d
   assert.ok(deep.went < firm.went * 0.9 && deep.went > 5, `went ${firm.went.toFixed(1)} m, deep ${deep.went.toFixed(1)} m`);
 });
 
+test('mud takes time to give: kept moving a truck rides higher than it sinks standing; stopped in a bog it settles in, and pulls away the harder for it', () => {
+  // (a stock Thar driven into deep mud at a walk in low range and stopped: the rut it left rolling, how deep it sits
+  // standing, and how far it gets in 5 s at 40% throttle after standing 3 s or a minute, then at 70%)
+  const into = () => {
+    const g = soft(SURFACE.MUD, 0, 2.2), v = truck('thar', g);
+    v.dt.setFourWD(true, 0); v.dt.setRange(true, 0);
+    let rolled = null;
+    run(v, g, 12, (q) => {
+      if (!rolled && q.pos.z > 12) rolled = { x: q.wheels[2].cx, z: q.wheels[2].cz };
+      return { ...IDLE, throttle: clamp((2 - q.vel.dot(q.fwd)) * 0.8 + 0.25, 0, 1) };
+    });
+    run(v, g, 3, { ...IDLE, brake: 1 });
+    return { g, v, rut: g.grid.get(rolled.x, rolled.z) };
+  };
+  const depth = ({ g, v }) => v.wheels.reduce((a, w) => a + g.grid.get(w.cx, w.cz), 0) / 4;
+  const pull = ({ g, v }, throttle) => { const z0 = v.pos.z; run(v, g, 5, { ...IDLE, throttle }); return v.pos.z - z0; };
+  const brief = into(), long = into();
+  run(brief.v, brief.g, 3, { ...IDLE, handbrake: 1 });
+  run(long.v, long.g, 60, { ...IDLE, handbrake: 1 });
+  const d3 = depth(brief), d60 = depth(long);
+  assert.ok(d3 > brief.rut * 1.1 && d60 > d3 * 1.12, `rolled ${(brief.rut * 100).toFixed(1)} cm deep; standing 3 s ${(d3 * 100).toFixed(1)} cm, a minute ${(d60 * 100).toFixed(1)} cm`);
+  const after3 = pull(brief, 0.4), after60 = pull(long, 0.4), more = pull(long, 0.7);
+  assert.ok(after60 < after3 * 0.6 && more > 5, `at 40% throttle ${after3.toFixed(1)} m after a short stop, ${after60.toFixed(1)} m after a long one; then at 70% ${more.toFixed(1)} m`);
+});
+
 test('ruts steer a truck in deep mud: in its own it holds them against a little steering, and leaves them with more', () => {
   // (driven 6 s straight through deep mud, put back where it set off and driven again, steering right: how far it
   // strays, against the same on fresh mud)

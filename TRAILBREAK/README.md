@@ -443,8 +443,8 @@ puts you back at the last checkpoint passed, facing the next, while the clock ru
 | Bhimashankar Jungle Road | Bhimashankar | 1.5 km down the jungle valley from the rest house towards Koyna | 1:45 / 2:05 / 2:35 |
 | Deccan Ghat Descent | Deccan | 1.1 km off Kerala's ridge, through the gap in the escarpment and down to the expressway | 1:47 / 2:08 / 2:38 |
 | Tamhini Road | Deccan | 5.6 km from Shivapur south over the farmland plateau to the world's southern edge | 7:48 / 9:21 / 11:32 |
-| Timber Run | Bearwood Taiga | 1.2 km from the timber camp across the Bearwood at the ford and up the mud of the logging track to the cutting | 3:20 / 4:00 / 4:55 |
-| Blackwater Crossing | Bearwood Taiga | 1.4 km round the edge of Blackwater Bog in the mud and back over the river at the west ford to the log landing (a stock UAZ needs low range up the far bank, and in the deep mud) | 4:05 / 4:55 / 6:00 |
+| Timber Run | Bearwood Taiga | 1.2 km from the timber camp across the Bearwood at the ford and up the mud of the logging track to the cutting | 2:45 / 3:20 / 4:05 |
+| Blackwater Crossing | Bearwood Taiga | 1.4 km round the edge of Blackwater Bog in the mud and back over the river at the west ford to the log landing (a stock UAZ needs low range up the far bank, and in the deep mud) | 3:25 / 4:10 / 5:00 |
 | Muskeg Trail | Bearwood Taiga | 0.95 km down the old logging trail through the woods north of the bog: ruts deeper than a stock truck's diffs, holes one after another on alternate sides, roots across it, mud. A crawl, not a race: each hard knock (the body or an axle striking the ground faster than 1.5 m/s) is +15 s, and too slow in its mud you sink. A stock Ranger gets stuck; a Thar or a Wrangler gets through crawled carefully, a built truck easier | 6:30 / 8:00 / 10:00 |
 | Lalghati Canyon Run | Lalghati Canyon | 1.3 km down the canyon floor from the base between the red walls, past the mouth of Hidden Creek and through the river at the shallows | 2:15 / 2:42 / 3:20 |
 | Ledge Road Climb | Lalghati Canyon | 1.1 km up the shelf road cut along the canyon's south wall, round the bend and up the west wall to the rim, a hundred metres up | 2:05 / 2:30 / 3:05 |
@@ -800,7 +800,14 @@ Everything that makes off-roading off-roading is simulated, not faked:
   rolling moves on before it digs, so pulling away and driving leave the ground as it was; a truck stuck and spinning
   sinks into its own holes (`src/physics/Surfaces.js` loose, dig). The soil sinks under the load a tyre carries, not
   under each jolt of it, so a fast truck doesn't hammer itself into its own ruts; wet mud also drags harder the faster
-  you plough through it. Ruts stay in the ground for the next truck (where soft ground meets firm, a rut runs out up a
+  you plough through it. And wet mud takes time to give: the longer a tyre presses a patch, the deeper it goes. Rolled
+  over at a walk or faster, the mud has no time to squeeze out from under the tread, and the truck rides higher than
+  it would sink standing (in the taiga's deep mud a Thar at 2 m/s leaves 16 cm ruts where it sank 21 before); stopped,
+  it settles into its own footprints, and a bog's peat goes on creeping under it as its water drains (19 cm in 3 s,
+  22 cm in a minute). So keep moving through a bog: a Thar stopped there a minute crawls out at 40% throttle less
+  than half as far as after a short stop, and needs more to break free (`src/physics/Surfaces.js` rate, creep;
+  sinkage that grows with the time under load, as a soil bin study found compaction does, and as saturated soils
+  settle while their water drains and peat creeps). Ruts stay in the ground for the next truck (where soft ground meets firm, a rut runs out up a
   ramp), and friends' trucks press their ruts into your ground too. Ruts steer a truck, as real ones do: the ruts
   trucks press into soft ground, and a worn track's baked hard (or in sand or snow; not its old ruts in mud, where
   water stands and their walls slump). A tyre has a little play in a rut, which is wider than its tread. Pushed off to

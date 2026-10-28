@@ -18,6 +18,11 @@
 //   drag    extra rolling drag per metre of sinkage (bulldozing the soil ahead of the tyre)
 //   visc    rolling drag per m/s of speed: wet mud clings to the tyres and is flung off them, so the faster a truck
 //           ploughs through it the harder it pulls
+//   rate    the share of its sinkage wet mud takes time to give (Vehicle.js SOIL_GIVE): it squeezes out from under a tread
+//           rolled over it quickly, so a truck keeping its speed up rides higher than one crawling, by up to a third
+//   creep   how a standing tyre goes on settling into it, by the log of the time (Vehicle.js CREEP_T0), as saturated
+//           mud drains and a bog's peat creeps (all of it in a map's deep mud, a third in its kind's own): a truck
+//           stopped in a bog sinks in, half as deep again in a minute
 //   hull    friction of the chassis/skid plates sliding on it
 //
 // tea: a tea estate's rows of waist-high bushes. Tyres find soft leaf mulch under them, and the woody bushes drag at
@@ -32,7 +37,7 @@ export const SURFACES = [
   { id: 1, name: 'dirt', mu: 0.78, slip: 1.15, C: 1.35, rr: 0.03, sink: 0, n: 1, maxSink: 0, loose: 0.06, dig: 0.0016, drag: 0, hull: 0.5 },
   { id: 2, name: 'gravel', mu: 0.66, slip: 1.6, C: 1.12, rr: 0.03, sink: 0, n: 1, maxSink: 0, loose: 0.04, dig: 0.0012, drag: 0, hull: 0.45 },
   { id: 3, name: 'rock', mu: 1.02, slip: 1.0, C: 1.4, rr: 0.012, sink: 0, n: 1, maxSink: 0, dig: 0, drag: 0, hull: 0.42 },
-  { id: 4, name: 'mud', mu: 0.42, slip: 2.4, C: 1.0, rr: 0.06, sink: 820, n: 1, maxSink: 0.36, dig: 0.012, drag: 0.35, visc: 0.025, hull: 0.25 },
+  { id: 4, name: 'mud', mu: 0.42, slip: 2.4, C: 1.0, rr: 0.06, sink: 820, n: 1, maxSink: 0.36, dig: 0.012, drag: 0.35, visc: 0.025, rate: 0.45, creep: 0.15, hull: 0.25 },
   { id: 5, name: 'sand', mu: 0.5, slip: 2.0, C: 1.0, rr: 0.05, sink: 700, n: 1, maxSink: 0.24, dig: 0.01, drag: 0.55, hull: 0.4 },
   { id: 6, name: 'snow', mu: 0.34, slip: 1.9, C: 1.0, rr: 0.035, sink: 900, n: 1, maxSink: 0.3, dig: 0.006, drag: 0.3, hull: 0.15 },
   { id: 7, name: 'road', mu: 0.95, slip: 0.7, C: 1.45, rr: 0.013, sink: 0, n: 1, maxSink: 0, dig: 0, drag: 0, hull: 0.5 },

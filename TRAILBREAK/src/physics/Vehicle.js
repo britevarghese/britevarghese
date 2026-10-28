@@ -44,6 +44,10 @@ const RAY_STEP = 0.35;
 // how long the soil takes to give way under a tyre's load (s): it sinks under the load the tyre carries, not under each
 // jolt of it
 const SOIL_TAU = 0.1;
+// and how long it takes to give way all the way (s, surf.rate: mud squeezes out from under a tread rolled over it
+// quickly, and the tyre rides higher), and how a standing tyre settles on (surf.creep: by the log of the time over
+// CREEP_T0, as saturated mud drains and a bog's peat creeps)
+const SOIL_GIVE = 0.12, CREEP_T0 = 3;
 // a rut's walls: the play a tyre has in a rut before it rides up a wall (RUT_PLAY off the rut's middle: ruts are wider
 // than the tread, and the ruts' grid is a quarter of a metre), how far off it is over the top (RUT_TOP), and how much of
 // its load pushes it back halfway up (RUT_WALL, for a rut RUT_DEEP deep or more); where it reads the rut it is rolling
@@ -178,7 +182,7 @@ export class Vehicle {
         index: i, axle: ax, side: i % 2 === 0 ? 1 : -1,            // +1 left, -1 right
         omega: 0, angle: 0, steer: 0, dx: 0, dy: 0,
         inertia: tyre.inertia, torque: 0, damp: 0,
-        contact: false, N: 0, pen: 0, slip: 0, slipSpeed: 0, spin: 0, surf: surfaceById(0), sink: 0, water: 0, nSoil: 0, penSoil: 0,
+        contact: false, N: 0, pen: 0, slip: 0, slipSpeed: 0, spin: 0, surf: surfaceById(0), sink: 0, water: 0, nSoil: 0, penSoil: 0, dwell: 0,
         cx: 0, cy: 0, cz: 0, nx: 0, ny: 1, nz: 0, wall: 0, rutDir: 1,   // contact point and normal (world); rut walls push
         clog: 0,                                                    // how full of mud its tread is (0 clean .. 1 a slick)
         dug: 0,                                                     // dug into firm earth, not yet in the ground (m)
@@ -589,7 +593,7 @@ export class Vehicle {
         w.N = 0; w.fx = 0; w.fy = 0; w.slip = 0; w.slipSpeed = 0; w.spin = 0; w.sink = 0; w.wall = 0;
         // (spun in the air, a tread flings its mud out as it would in the mud)
         w.clog = Math.max(0, w.clog - Math.max(0, Math.abs(w.omega) * r - (tyre.cleanSpeed ?? 4)) * CLOG_OUT * w.clog * dt);
-        w.nSoil *= 1 - Math.min(1, dt / SOIL_TAU); w.penSoil *= 1 - Math.min(1, dt / SOIL_TAU);
+        w.nSoil *= 1 - Math.min(1, dt / SOIL_TAU); w.penSoil *= 1 - Math.min(1, dt / SOIL_TAU); w.dwell = 0;
         // free tyre: the bristles relax as the tread leaves the ground
         w.dx *= 0.9; w.dy *= 0.9;
         w.torque = -0.6 * Math.tanh(w.omega);                          // bearing drag
@@ -832,7 +836,15 @@ export class Vehicle {
         const pKPa = w.nSoil / (tyre.footW * contactLen) / 1000;
         // (a map's deep mud: softer than its kind, and the deeper it goes: world/World.js softness)
         const soft = ground.softness ? ground.softness(w.cx, w.cz) : 1;
-        const zEq = Math.min(surf.maxSink * Math.sqrt(soft), Math.pow(pKPa * soft / surf.sink, 1 / surf.n));
+        // (and the soil takes time to give: the longer the footprint presses a patch the deeper it goes. dwell: how long
+        // it has pressed where it is, growing while it stands and renewed as it moves on a footprint's length, so at
+        // speed the time the tread takes to roll over a point. Rolled over quickly, wet mud has no time to squeeze out
+        // from under it and the tyre rides higher; stood on, it goes on settling, a bog's most: a truck stopped in one
+        // sinks in. Surfaces.js rate, creep)
+        w.dwell = (w.dwell + dt) * Math.exp(-Math.hypot(w.vHub.x, w.vHub.z) * dt / contactLen);
+        const give = 1 - (surf.rate || 0) * Math.exp(-w.dwell / SOIL_GIVE)
+          + (surf.creep || 0) * Math.min(1, Math.max(0, (soft - 0.5) / 1.7)) * Math.log1p(w.dwell / CREEP_T0);
+        const zEq = Math.min(surf.maxSink * Math.sqrt(soft), Math.pow(pKPa * soft / surf.sink, 1 / surf.n) * give);
         w.sink = ground.deform(w.cx, w.cz, w.fX, w.fZ, tyre.footW * 0.5, contactLen * 0.5, zEq, dig);
       } else if (dig > 0 && ground.deform) {
         // (dug a tenth of a millimetre at a time: a step's own is too little for the ground to keep)
@@ -842,7 +854,7 @@ export class Vehicle {
           w.sink = ground.deform(w.cx, w.cz, w.fX, w.fZ, tyre.footW * 0.5, contactLen * 0.5, 0, w.dug);
           w.dug = 0;
         }
-      } else { w.sink = 0; w.dug = 0; }
+      } else { w.sink = 0; w.dug = 0; w.dwell = 0; }
     }
     this.axleContacts(ground, dt);
     this.feelStep(dt, speed);
