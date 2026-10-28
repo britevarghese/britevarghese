@@ -29,6 +29,7 @@ const BIN = 28;                 // m of track to a pothole (at most)
 const OUT = 2.6;                // m off the line past which nothing is worn (the wander, a rut's spoil, a pothole's side)
 // a rough track: a hole every so many metres (at most), and a root across it; how deep the ruts are worn
 const BIN_ROUGH = 6.5, ROOT_BIN = 5;
+const HOLE_RIM = 0.1;           // m below a rough track's hole's rim the rain stands in it
 // how deep each ground wears (a track's ruts as deep as it is soft): none on tarmac or ice
 const WEAR = [1, 1, 0.45, 0.15, 0.8, 0.6, 0.7, 0, 0.3, 0, 0.6];
 
@@ -140,7 +141,7 @@ export class WornTracks {
   shape(h, x, z, wear) {
     const L = this.lines[h.t], s = h.s, f = this.free(x, z), q = this.look;
     // the wheel line wanders from side to side, over tens of metres; the ruts' depth and the bare earth's width vary
-    const wander = ((vnoise(s / 31, 0.5, L.seed) * 2 - 1) * 0.18 + (vnoise(s / 9, 0.5, L.seed + 1) * 2 - 1) * 0.03) * f;
+    const wander = WornTracks.wander(L, s) * f;
     const vary = vnoise(s / 17, 0.5, L.seed + 2);
     // (the ends of a track: fading in over 10 m, unless it runs on into the next map)
     const end = (L.open0 ? 1 : sstep(0, 10, s)) * (L.open1 ? 1 : sstep(0, 10, L.len - s));
@@ -231,6 +232,21 @@ export class WornTracks {
     return pot;
   }
 
+  /** How far (m, to the left) the wheel line of track L has wandered off its line at s along it. */
+  static wander(L, s) { return (vnoise(s / 31, 0.5, L.seed) * 2 - 1) * 0.18 + (vnoise(s / 9, 0.5, L.seed + 1) * 2 - 1) * 0.03; }
+
+  /**
+   * Where track L runs at s along it: into out { x, z (its line there), dx, dz (the way along) }; null past its ends.
+   */
+  pointAt(L, s, out) {
+    if (s < 0 || s > L.len) return null;
+    let a = L.start, b = L.end;
+    while (b - a > 1) { const m = (a + b) >> 1; if (this.s[m] <= s) a = m; else b = m; }
+    const ds = this.s[b] - this.s[a] || 1, t = (s - this.s[a]) / ds, dx = this.x[b] - this.x[a], dz = this.z[b] - this.z[a], l = Math.hypot(dx, dz) || 1;
+    out.x = this.x[a] + dx * t; out.z = this.z[a] + dz * t; out.dx = dx / l; out.dz = dz / l;
+    return out;
+  }
+
   /** The ruts' and their spoil's depth (m, > 0 down) at u off the wheel line, for ruts `depth` deep. */
   static profile(u, depth) { return rut(u + GAUGE, depth) + rut(u - GAUGE, depth); }
 
@@ -266,6 +282,22 @@ export class WornTracks {
     const q = this.shape(h, x, z, wear);
     return WornTracks.profile(q.u, q.depth) + q.pot;
   }
+
+  /**
+   * The rain standing in a rough track's hole at (x, z) (m deep, 0 where there is none): dug down through the turf
+   * into the clay under it, most of its holes hold it to HOLE_RIM below their rim; the odd one is drained (holds).
+   */
+  holeWater(x, z, wearAt) {
+    const h = this.nearest(x, z);
+    if (!h || h.d > OUT || !this.lines[h.t].rough) return 0;
+    const wear = wearAt(x, z);
+    if (wear <= 0) return 0;
+    const pot = this.shape(h, x, z, wear).pot;
+    return pot > HOLE_RIM ? (pot - HOLE_RIM) * WornTracks.holds(x, z) : 0;
+  }
+
+  /** How full the rain keeps a rough track's holes about (x, z): 1 full (most of them) to 0 drained. */
+  static holds(x, z) { return 1 - sstep(0.7, 0.8, vnoise(x / 5, z / 5, 915)); }
 }
 
 /** A ground's wear (how deep a track's ruts are worn in it, relative): by surface id. */

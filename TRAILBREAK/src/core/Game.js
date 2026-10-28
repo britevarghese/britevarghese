@@ -1250,7 +1250,7 @@ export class Game {
     for (let i = 0; i < 4; i++) {
       const ax = rv.spec.axles[i < 2 ? 0 : 1], side = i % 2 === 0 ? 1 : -1;
       const hub = new THREE.Vector3(side * ax.track / 2, R - rv.spec.cgHeight, ax.z - (rv.spec.cgZ || 0)).applyQuaternion(root.quaternion).add(root.position);
-      const surf = this.world.surfaceAt(hub.x, hub.z), wl = this.world.water(hub.x, hub.z);
+      const surf = this.world.surfaceAt(hub.x, hub.z), wl = Math.max(this.world.water(hub.x, hub.z), this.world.holeWater?.(hub.x, hub.z) ?? -Infinity);
       // (we don't hear how fast their wheels turn: spinning when they floor it and hardly move on soft ground)
       const slip = s.thr > 0.6 && Math.abs(speed) < 3 && surf.sink ? 4 : 0;
       const w = { contact: true, surf, slipSpeed: slip, omega: (speed + slip * (speed < -0.3 ? -1 : 1)) / R, water: Math.max(0, wl - (hub.y - R)) };

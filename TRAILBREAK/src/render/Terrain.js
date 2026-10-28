@@ -154,6 +154,7 @@ export class TerrainRenderer {
     this.tmpE = new Float32Array((V + 6) * (V + 6));
     this.tmpR = new Float32Array((V + 2) * (V + 2));
     this.tmpQ = new Float32Array((V + 2) * (V + 2) * 5);
+    this.tmpP = new Float32Array((V + 2) * (V + 2));
     // (the patches with no worn track on them: one attribute between them all, off any track)
     this.noTrk = new THREE.BufferAttribute(new Float32Array((V * V + 4 * V) * 4).fill(9), 4);
     this.budget = 6;
@@ -481,7 +482,10 @@ ${G ? `
         float b = max(0.0, hs[j] - top + 0.16) / sum;
         if (gL[j] == uIds2.x) wd += b; else if (gL[j] == uIds2.y) wm += b;
       }
-      float fade = 1.0 - smoothstep(70.0, 130.0, dist), soft = wd + wm;
+      // (and none where a triangle reaches off the track: its vertex there has none, u and depth 9, and between it and
+      // one on the track u runs back through the ruts' place, a false pair of ruts along the edge of the track's reach,
+      // stepped as the vertices are; no rut is 40 cm deep, so the depth there gives it away)
+      float fade = (1.0 - smoothstep(70.0, 130.0, dist)) * (1.0 - smoothstep(0.4, 0.9, vTrk.z)), soft = wd + wm;
       if (fade * soft > 0.0) {
         float u = vTrk.x, au = abs(u), s = vTrk.y, dep = vTrk.z;
         float px = max(length(fwidth(vWPos.xz)), 1e-3), aa = px * 0.5;
@@ -1148,7 +1152,7 @@ if (gWet > 0.0) {
     const near = sp <= 1;
     // heights with a one-vertex border for the normals
     const VB = V + 2, w = this.world, ruts = near && w.deformGrid.chunks.size > 0;
-    const J = own ? (this.jobTmp ||= { H: new Float32Array(VB * VB), D: new Float32Array(V * V), E: new Float32Array((V + 6) * (V + 6)), R: new Float32Array(VB * VB), Q: new Float32Array(VB * VB * 5) }) : null;
+    const J = own ? (this.jobTmp ||= { H: new Float32Array(VB * VB), D: new Float32Array(V * V), E: new Float32Array((V + 6) * (V + 6)), R: new Float32Array(VB * VB), Q: new Float32Array(VB * VB * 5), P: new Float32Array(VB * VB) }) : null;
     const T = own ? J.H : this.tmpH, D = own ? J.D : this.tmpD;
     // (a worn track's ruts, hump and potholes, world/Worn.js: the potholes are in the heights the normals are reckoned
     // from, the ruts only in the vertices' own, the shader lighting them from their profile, which is finer than the
@@ -1157,18 +1161,40 @@ if (gWet > 0.0) {
     // closer), lit by the shader from the ground's height before it, baseY, everywhere)
     const worn = !this.far && w.worn && sp <= 2 && w.worn.near(x0, z0, size, 3) ? w.worn : null;
     const rock = !this.far && w.rockRelief && sp <= 1;
-    const R = own ? J.R : this.tmpR, Q = own ? J.Q : this.tmpQ;
+    // (and a rough track's holes, P: their depth, for the water standing in them)
+    const R = own ? J.R : this.tmpR, Q = own ? J.Q : this.tmpQ, P = own ? J.P : this.tmpP;
     if (worn) {
       for (let k = -1; k <= V; k++) for (let i = -1; i <= V; i++) {
         if (i === -1 && k > -1) yield;
         const x = x0 + i * sp, z = z0 + k * sp, e = (k + 1) * VB + (i + 1);
         T[e] = this.heightAt(x, z, true);
-        R[e] = 0; Q[e * 5] = 9; Q[e * 5 + 1] = 0; Q[e * 5 + 2] = 9; Q[e * 5 + 3] = 9; Q[e * 5 + 4] = 0;
+        R[e] = 0; P[e] = 0; Q[e * 5] = 9; Q[e * 5 + 1] = 0; Q[e * 5 + 2] = 9; Q[e * 5 + 3] = 9; Q[e * 5 + 4] = 0;
         const hit = Math.abs(x) <= this.half && Math.abs(z) <= this.half ? worn.nearest(x, z) : null;
         if (!hit) continue;
         const q = worn.shape(hit, x, z, w.wear(x, z));
-        T[e] -= q.pot; R[e] = WornTracks.profile(q.u, q.depth);
-        Q[e * 5] = q.u; Q[e * 5 + 1] = q.s; Q[e * 5 + 2] = q.depth; Q[e * 5 + 3] = q.W; Q[e * 5 + 4] = q.pot;
+        // (a root's bump, pot < 0, left out: render/Roots.js draws it, the root itself)
+        const pot = Math.max(0, q.pot);
+        T[e] -= pot; R[e] = WornTracks.profile(q.u, q.depth);
+        Q[e * 5] = q.u; Q[e * 5 + 1] = q.s; Q[e * 5 + 2] = q.depth; Q[e * 5 + 3] = q.W; Q[e * 5 + 4] = pot;
+        if (worn.lines[hit.t].rough) P[e] = pot;
+      }
+      // (a vertex past the track's reach beside one within it carries the track on, as that one has it a step further
+      // out: between it and one off the track altogether u would run back through the ruts' place, and the verge's
+      // grass would stop short on that side, the track's own earth showing past it in steps as the vertices are; P -1
+      // marks it, so the track is carried one step only)
+      for (let k = -1; k <= V; k++) for (let i = -1; i <= V; i++) {
+        const e = (k + 1) * VB + (i + 1);
+        if (Q[e * 5] !== 9 || Math.abs(x0 + i * sp) > this.half || Math.abs(z0 + k * sp) > this.half) continue;
+        let f = -1;
+        for (let j = 0; j < 4; j++) {
+          const ii = i + (j === 0 ? -1 : j === 1 ? 1 : 0), kk = k + (j === 2 ? -1 : j === 3 ? 1 : 0);
+          if (ii < -1 || kk < -1 || ii > V || kk > V) continue;
+          const g = (kk + 1) * VB + (ii + 1);
+          if (Q[g * 5] !== 9 && P[g] >= 0 && (f < 0 || Math.abs(Q[g * 5]) > Math.abs(Q[f * 5]))) f = g;
+        }
+        if (f < 0) continue;
+        Q[e * 5] = Q[f * 5] + Math.sign(Q[f * 5]) * sp; Q[e * 5 + 1] = Q[f * 5 + 1]; Q[e * 5 + 2] = Q[f * 5 + 2]; Q[e * 5 + 3] = Q[f * 5 + 3];
+        P[e] = -1;
       }
     } else {
       for (let k = -1; k <= V; k++) {
@@ -1241,6 +1267,14 @@ if (gWet > 0.0) {
       }
       // (the water in a pothole as in a rut)
       if (inMap(x, z)) this.wetAt(x, z, h, d + pot, wet, v * 2);
+      // (and in a rough track's holes on any ground, world/Worn.js holeWater: most of them hold the rain, brown with
+      // the earth stirred up in it, its banks wet; the odd one drained)
+      const hole = worn ? P[(k + 1) * VB + (i + 1)] : 0;
+      if (hole > 0.02) {
+        const full = WornTracks.holds(x, z), t = Math.min(1, Math.max(0, (hole - 0.06) / 0.1));
+        wet[v * 2] = Math.max(wet[v * 2], Math.round(Math.min(0.85, 0.35 + hole * 2.5) * 255));
+        wet[v * 2 + 1] = Math.max(wet[v * 2 + 1], Math.round(full * t * t * (3 - 2 * t) * (0.7 + 0.3 * vnoise(x / 2, z / 2, 916)) * 255));
+      }
       col[v * 3] = Math.round(Math.sqrt(c3[0]) * 255); col[v * 3 + 1] = Math.round(Math.sqrt(c3[1]) * 255); col[v * 3 + 2] = Math.round(Math.sqrt(c3[2]) * 255);
       for (let c = 0; c < 3; c++) tint[v * 3 + c] = Math.min(255, Math.round(t3[c] * 255 / this.tintK));
       if (h < minY) minY = h; if (h > maxY) maxY = h;

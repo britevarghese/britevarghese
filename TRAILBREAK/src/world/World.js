@@ -6,6 +6,7 @@
 //                                boulder
 //   surfaceAt(x, z)              surface record (physics/Surfaces.js)
 //   water(x, z)                  water surface height there, or -Infinity
+//   holeWater(x, z)              the surface of the rain standing in a rough track's hole there, or -Infinity
 // (and for the renderer, waterSurface(x, z): the water's surface as it is drawn)
 //   deform(x, z, fx, fz, hw, hl, press, dig)   press soft ground under a tyre (and dig where it spins, firm ground's
 //                                loose layer too), returns the rut depth
@@ -44,6 +45,7 @@ export class World {
     this.deformGrid = new DeformGrid();
     // (a map whose tracks are worn: their ruts, hump and potholes, finer than the grid; world/Worn.js)
     this.worn = this.map.wornTracks ? new WornTracks(this.map, this.half) : null;
+    this.rough = !!this.worn?.lines.some((l) => l.rough);
     this.wearAt = (x, z) => this.wear(x, z);
     // (a map whose bare rock stands in relief: its beds' ledges and its joints' blocks, finer than the grid, as strong
     // as its beds are, world/Bedrock.js)
@@ -239,6 +241,12 @@ export class World {
     if (i < 0 || k < 0 || i >= this.WN || k >= this.WN) return -Infinity;
     const w = this.W[k * this.WN + i];
     return w === NO_WATER ? -Infinity : w;
+  }
+
+  /** The surface of the rain standing in a rough track's hole at (x, z) (world/Worn.js holeWater), or -Infinity. */
+  holeWater(x, z) {
+    const d = this.rough ? this.worn.holeWater(x, z, this.wearAt) : 0;
+    return d > 0 ? this.terrain(x, z) + d : -Infinity;
   }
 
   /**

@@ -1137,14 +1137,23 @@ years of trucks wear a jeep track, as the tracks in MudRunner or Expeditions are
 - **A rough track** (`rough` on a route: the taiga's Muskeg Trail) is worn as a truck has to crawl: its ruts 13 to 29 cm
   deep on firm ground, a hole every 6.5 m or so in one rut and then the next (an axle twister: the truck rocks from one
   corner to the other with a wheel in the air) and now and then one right across, roots across it on its firm ground,
-  and the trees left close either side.
+  and the trees left close either side. The roots are drawn as roots, gnarled tubes of bark lying across the ruts and
+  the hump and diving under the verges (`src/render/Roots.js`), each the bump the tyres climb: its top is the bump's
+  top and it is as wide at half its height, so a tyre sits on the root, not in it. Their bark is grey-brown and
+  furrowed, rubbed to the pale wood where the wheels go over them and mossy out under the verges. Most of the holes
+  hold the rain 10 cm below their rim (`holeWater`, on firm ground as in the mud; the odd one is drained): brown
+  water with wet banks, and a tyre that drops into one is in it, so it splashes, sounds and washes off mud as water
+  does anywhere.
 
 The ruts are too fine for the ground's grid, so they are reckoned at each point from the track's line, the same for the
 physics (the wheels drop into them) and the drawn ground. The terrain's shader draws the track a pixel at a time
 (`src/render/Terrain.js`): the ruts pressed dark and smooth, with tread marks, and water standing along them in the mud;
 the hump between them grown over in clumps of grass, with grass tufts standing on it (`src/render/Grass.js`); the bare
 earth trodden browner; and the verge's grass reaching in to a ragged edge instead of a line. Where a track runs on into
-the next map, its ruts run straight down the middle at an even depth, so the two maps' ruts meet.
+the next map, its ruts run straight down the middle at an even depth, so the two maps' ruts meet. The ground's
+vertices carry the track's place out a step past its reach, and the shader draws nothing where a triangle still runs
+off it: they used to carry none there, and between one on the track and one off it the shader drew a false pair of
+ruts along the edge of the track's reach, stepped as the vertices are.
 
 **Rocky hills.** A rocky hill's rock is not a smooth bank with a picture of rock on it. The open world's bare rock
 (`rockRelief` on a map; `src/world/Bedrock.js`) is built as geology builds it: an outcrop's outline is set by its

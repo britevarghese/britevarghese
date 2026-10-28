@@ -9,6 +9,7 @@ import { Vegetation } from './Vegetation.js';
 import { Grass } from './Grass.js';
 import { Tea } from './Tea.js';
 import { Rocks } from './Rocks.js';
+import { Roots } from './Roots.js';
 import { Ledges } from './Ledges.js';
 import { Alcoves } from './Alcoves.js';
 import { Pillars } from './Pillars.js';
@@ -85,6 +86,8 @@ export class RegionView {
     const W = region.world;
     await tick();
     v.rocks = new Rocks(W, v.group, ground);
+    // (a rough track's roots across it: render/Roots.js)
+    v.roots = W.worn?.lines.some((l) => l.rough) ? new Roots(W, v.group) : null;
     v.ledges = M.ledges ? new Ledges(W, v.group, ground) : null;
     v.alcoves = M.alcoves ? new Alcoves(W, v.group, ground) : null;
     v.pillars = W.boulders.some((b) => b.pillar !== undefined) ? new Pillars(W, v.group, ground) : null;
@@ -230,7 +233,7 @@ export class WorldView {
           v.ledges?.update(c);
         });
       },
-      setShadows: (on) => each((v) => { v.rocks.setShadows(on); v.ledges?.setShadows(on); v.alcoves?.setShadows(on); v.pillars?.setShadows(on); }),
+      setShadows: (on) => each((v) => { v.rocks.setShadows(on); v.roots?.setShadows(on); v.ledges?.setShadows(on); v.alcoves?.setShadows(on); v.pillars?.setShadows(on); }),
     };
     this.water = { update: (camera, dt, horizon) => each((v) => v.water.update(cam(v, camera), dt, horizon)) };
     this.landmarks = {
@@ -271,7 +274,7 @@ export class WorldView {
     v.terrain.setQuality(s.quality); v.grass.setQuality(s.quality); v.tea?.setQuality(s.quality);
     v.terrain.split = this.far.split; v.terrain.shadows = this.far.shadows ?? true;
     if (s.detail != null) v.vegetation.setDetailRange(s.detail);
-    v.vegetation.setShadows(s.shadows); v.rocks.setShadows(s.shadows); v.tea?.setShadows(s.shadows);
+    v.vegetation.setShadows(s.shadows); v.rocks.setShadows(s.shadows); v.roots?.setShadows(s.shadows); v.tea?.setShadows(s.shadows);
     for (const [id, on] of this.found) if (Math.floor(id / BEACON_STRIDE) === region.index) v.landmarks.setFound(id % BEACON_STRIDE, on);
     // (the maps it meets: their edges made again on its ground)
     for (const o of this.views) if (Math.abs(o.region.cx - region.cx) <= o.region.half + region.half + 1 && Math.abs(o.region.cz - region.cz) <= o.region.half + region.half + 1) o.terrain.remakeEdge();

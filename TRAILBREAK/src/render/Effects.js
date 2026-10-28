@@ -266,10 +266,11 @@ export class Effects {
     return i;
   }
 
-  /** The water's surface at (x, z) as it is drawn, or -Infinity. */
+  /** The water's surface at (x, z) as it is drawn (or the rain's in a hole in a rough track), or -Infinity. */
   surface(x, z) {
     const g = this.ground;
-    return !g ? -Infinity : g.waterSurface ? g.waterSurface(x, z) : g.water ? g.water(x, z) : -Infinity;
+    const w = !g ? -Infinity : g.waterSurface ? g.waterSurface(x, z) : g.water ? g.water(x, z) : -Infinity;
+    return g?.holeWater ? Math.max(w, g.holeWater(x, z)) : w;
   }
 
   /** Something flat on the water at (x, z): a ripple ring or a patch of foam, spreading as it fades. */
@@ -401,7 +402,8 @@ export class Effects {
       }
     }
     if (inWater) {
-      const muddy = s === SURFACE.MUD;                                    // (water over mud is brown)
+      // (water over mud is brown, and the rain in a hole in a track, stirred up with the clay under it)
+      const muddy = s === SURFACE.MUD || this.ground?.holeWater?.(hubX, hubZ) > -1e8;
       const depth = Math.min(water, r * 1.2);
       const wy = hubY - r + water;                                         // the water's surface here
       // driving into the water: the tyre splashes it up round itself

@@ -422,3 +422,22 @@ test('a rough track (an old logging trail): ruts deeper, holes in one rut then t
   // (in mud only the spoil beside the ruts stands a centimetre or so proud)
   assert.ok(top > 0.06 && topMud < 0.02, `roots ${top.toFixed(2)} m proud on firm ground, ${topMud.toFixed(2)} m in mud`);
 });
+
+test("a rough track's holes hold the rain, most of them, below their rims; none on its verges, none on an ordinary track", async () => {
+  const { WornTracks, wearOf } = await import('../src/world/Worn.js');
+  const map = (rough) => ({ trails: [{ name: 't', kind: 'trail', rough, points: [[0, -40], [0, 200], [0, 440]] }] });
+  const G = new WornTracks(map(1), 1000), P = new WornTracks(map(0), 1000), firm = () => wearOf(SURFACE.DIRT);
+  let deep = 0, wet = 0, brim = 0, verge = 0, plain = 0;
+  for (let z = 0; z < 360; z += 0.1) {
+    for (const x of [-0.85, 0.85]) {
+      const d = G.depth(x, z, firm), w = G.holeWater(x, z, firm), pot = G.shape(G.nearest(x, z), x, z, 1).pot;
+      if (pot > 0.2) { deep++; if (w > 0.05) wet++; }
+      // (the water's surface a hand below the ground round the hole: the rut's floor beside it, at most)
+      if (w > 0) brim = Math.max(brim, w - (d - 0.1));
+      plain = Math.max(plain, P.holeWater(x, z, firm));
+    }
+    verge = Math.max(verge, G.holeWater(2.6, z, firm), G.holeWater(-2.6, z, firm));
+  }
+  assert.ok(deep > 100 && wet > deep * 0.6 && wet < deep, `${wet} of ${deep} samples down in a hole stand in water`);
+  assert.ok(brim < 1e-9 && verge === 0 && plain === 0, `the water ${brim.toFixed(3)} m over its brim; on the verges ${verge}, an ordinary track ${plain}`);
+});

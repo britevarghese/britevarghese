@@ -107,14 +107,19 @@ export function flooded(ground, level) {
   return { ...ground, water: () => level };
 }
 
-/** A rough track (world/Worn.js rough: an old logging trail) straight down z through x = 0, worn into `surface`. */
-export function rough(surface = SURFACE.DIRT, roughness = 1) {
+/**
+ * A rough track (world/Worn.js rough: an old logging trail) straight down z through x = 0, worn into `surface`; rain:
+ * with the rain standing in its holes (holeWater, as the game world gives it).
+ */
+export function rough(surface = SURFACE.DIRT, roughness = 1, rain = false) {
   const s = SURFACES[surface], wearAt = () => wearOf(surface);
   const G = new WornTracks({ trails: [{ name: 'rough', kind: 'trail', rough: roughness, points: [[0, -40], [0, 200], [0, 440]] }] }, 1000);
-  return {
+  const g = {
     worn: G,
     height: (x, z) => -G.depth(x, z, wearAt),
     surfaceAt: () => s,
     rutsAcross: (x, z, ax, az, n, step, out) => G.across(x, z, ax, az, n, step, out.fill(0), wearAt),
   };
+  if (rain) g.holeWater = (x, z) => { const d = G.holeWater(x, z, wearAt); return d > 0 ? g.height(x, z) + d : -Infinity; };
+  return g;
 }

@@ -570,6 +570,23 @@ test('a rough track: its deep ruts, holes on alternate sides and roots crawled o
   assert.ok(crawl.n <= 1 && fast.n >= 4, `hard strikes: ${crawl.n} at a crawl, ${fast.n} at speed`);
 });
 
+test("the rain in a rough track's holes: crawled through, a tyre down in one is in water, and the truck still crawls on", () => {
+  // (a stock Thar crawled 150 m of it in low range, as above, with the rain standing in its holes: at most 30 cm of
+  // it over the floor, a little more over the bottom of a tyre squashed under the truck's weight)
+  const g = rough(SURFACE.DIRT, 1, true), v = truck('thar', g);
+  v.dt.setFourWD(true, 0); v.dt.setRange(true, 0);
+  let wetT = 0, deepest = 0;
+  run(v, g, 110, (q) => {
+    if (q.wheels.some((w) => w.water > 0.03)) wetT += PHYS_DT;
+    for (const w of q.wheels) deepest = Math.max(deepest, w.water);
+    const sp = q.vel.dot(q.fwd), head = Math.atan2(q.fwd.x, q.fwd.z);
+    if (q.pos.z > 150) return { ...IDLE, brake: 1 };
+    return { ...IDLE, throttle: clamp((2 - sp) * 0.6 + 0.3, 0, 1), brake: sp > 3 ? 0.3 : 0, steer: clamp((head + q.pos.x * 0.15) * 2, -1, 1) };
+  });
+  assert.ok(v.pos.z > 145, `crawled ${v.pos.z.toFixed(0)} m`);
+  assert.ok(wetT > 3 && deepest > 0.08 && deepest < 0.4, `a tyre in water ${wetT.toFixed(1)} s, at most ${(deepest * 100).toFixed(0)} cm deep`);
+});
+
 test('a tyre spun on the spot digs itself into earth, less into grass; rolling on, it leaves the ground alone', () => {
   // (held where it stands, floored in low range: the four tyres spin; then let go, and a truck driven across it)
   const spun = (surface) => {
