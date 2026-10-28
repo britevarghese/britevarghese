@@ -1,8 +1,9 @@
 // Chunked heightfield terrain with multi-layer PBR material blending (grass / dry soil / rock / scorched earth),
 // anti-tiling (dual-scale sampling + macro variation), plus asphalt road ribbons with worn markings.
 import * as THREE from 'three';
-import { MAP_HALF, ROADS, BUILDINGS, FLAGS, groundHeight, roadDistance, terrainHeight, ACTIVE_MAP, seaFactor } from '/shared/map.js';
+import { MAP_HALF, ROADS, BUILDINGS, FLAGS, PROPS, groundHeight, roadDistance, terrainHeight, ACTIVE_MAP, seaFactor } from '/shared/map.js';
 import { fbm, smoothstep } from '/shared/util.js';
+import { buildBoxGeometry } from '../render/Materials.js';
 
 export function buildTerrain(assets, quality) {
   const group = new THREE.Group();
@@ -66,7 +67,8 @@ export function buildTerrain(assets, quality) {
       `);
   };
   // precomputed tangent frame for a plane rotated flat: use USE_TANGENT-free path (three computes tbn from derivatives)
-  const burnSpots = [...BUILDINGS.filter((b) => b.damage > 0.25).map((b) => ({ x: b.x, z: b.z, r: Math.max(b.w, b.d) * 0.9 })), ...(FLAGS[1] ? [{ x: FLAGS[1].x, z: FLAGS[1].z, r: 11 }] : []), { x: -3, z: 8, r: 6 }, { x: 18, z: -9, r: 6 }];
+  // scorched ground: around ruined buildings, the contested centre flag and under every burnt-out wreck of this map
+  const burnSpots = [...BUILDINGS.filter((b) => b.damage > 0.25).map((b) => ({ x: b.x, z: b.z, r: Math.max(b.w, b.d) * 0.9 })), ...(FLAGS[1] ? [{ x: FLAGS[1].x, z: FLAGS[1].z, r: 11 }] : []), ...PROPS.filter((p) => p.burnt).map((p) => ({ x: p.x, z: p.z, r: 6 }))];
   for (let cz = 0; cz < chunks; cz++) {
     for (let cx = 0; cx < chunks; cx++) {
       const x0 = -MAP_HALF + cx * size, z0 = -MAP_HALF + cz * size;
@@ -106,15 +108,16 @@ export function buildTerrain(assets, quality) {
     }
   }
   group.add(buildRoads(assets));
-  // outer landscape continuing the terrain beyond the playable area (rolling hills rising to distant ridges)
-  const og = new THREE.PlaneGeometry(2600, 2600, 90, 90);
-  og.rotateX(-Math.PI / 2);
+  if (ROADS.some((r) => r.kind === 'rail')) group.add(buildRailway(assets));
+  // outer landscape continuing the terrain beyond the playable area (rolling hills rising to distant ridges): square
+  // rings around the map, the innermost tucked 0.6 m under the detailed terrain's edge, so it never pokes through
+  // the playable ground (a uniform grid's coarse triangles used to cut through it near the edge)
+  const og = outerGeometry();
   const op = og.attributes.position;
   const osplat = new Float32Array(op.count * 4);
   for (let i = 0; i < op.count; i++) {
     const x = op.getX(i), z = op.getZ(i);
-    op.setY(i, outerHeight(x, z));
-    osplat[i * 4] = 0.25 + 0.4 * fbm(x / 90, z / 90, 2, 4); osplat[i * 4 + 1] = smoothstep(40, 90, outerHeight(x, z)) * 0.7;
+    osplat[i * 4] = 0.25 + 0.4 * fbm(x / 90, z / 90, 2, 4); osplat[i * 4 + 1] = smoothstep(40, 90, op.getY(i)) * 0.7;
   }
   og.setAttribute('splat', new THREE.BufferAttribute(osplat, 4));
   og.computeVertexNormals();
@@ -122,6 +125,32 @@ export function buildTerrain(assets, quality) {
   outer.receiveShadow = true; outer.name = 'outer_terrain';
   group.add(outer);
   return group;
+}
+
+function outerGeometry() {
+  const H = MAP_HALF, side = Math.max(60, Math.ceil((2 * H) / 6)); // vertices per ring side (~6 m at the seam)
+  const rings = [-1.5, 3, 8, 15, 25, 40, 60, 90, 130, 180, 250, 340, 450, 600, 800, 1100].map((d) => H + d).filter((r) => r < 1300);
+  rings.push(1300);
+  const P = [], I = [], per = side * 4;
+  for (const [k, r] of rings.entries()) {
+    for (let i = 0; i < per; i++) {
+      // walk the square's perimeter: 4 sides of `side` steps each
+      const s = Math.floor(i / side), t = (i % side) / side * 2 - 1;
+      const [x, z] = s === 0 ? [t * r, -r] : s === 1 ? [r, t * r] : s === 2 ? [-t * r, r] : [-r, -t * r];
+      P.push(x, k === 0 ? groundHeight(x, z) - 0.6 : outerHeight(x, z), z);
+    }
+  }
+  for (let k = 0; k < rings.length - 1; k++) for (let i = 0; i < per; i++) {
+    const a = k * per + i, b = k * per + ((i + 1) % per), c = a + per, d = b + per;
+    I.push(a, c, b, b, c, d);
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(P, 3));
+  g.setAttribute('uv', new THREE.Float32BufferAttribute(new Float32Array((P.length / 3) * 2), 2));
+  g.setIndex(I);
+  g.computeVertexNormals();
+  if (g.attributes.normal.getY(per) < 0) { const idx = g.index.array; for (let q = 0; q < idx.length; q += 3) { const tmp = idx[q + 1]; idx[q + 1] = idx[q + 2]; idx[q + 2] = tmp; } }
+  return g;
 }
 
 export function outerHeight(x, z) {
@@ -152,7 +181,12 @@ function buildRoads(assets) {
         diffuseColor.rgb = mix(diffuseColor.rgb, diffuseColor.rgb * vec3(0.85,0.78,0.66), e * 0.7);`);
   };
   const P = [], N = [], UV = [], RU = [], I = [];
-  for (const r of ROADS) {
+  // every ribbon gets its own few millimetres of lift (wider roads on top, crossing lanes of one width staggered)
+  // so the ribbons never share a plane at junctions
+  const widths = [...new Set(ROADS.map((r) => r.w))].sort((a, b) => a - b);
+  for (const [ri, r] of ROADS.entries()) {
+    if (r.kind) continue;
+    const lift = 0.03 + 0.007 * widths.indexOf(r.w) + 0.0025 * (ri % 3);
     const dx = r.bx - r.ax, dz = r.bz - r.az, L = Math.hypot(dx, dz);
     const fx = dx / L, fz = dz / L, sx = -fz, sz = fx;
     const steps = Math.ceil(L / 2);
@@ -163,7 +197,7 @@ function buildRoads(assets) {
       for (let j = 0; j <= across; j++) {
         const u = j / across, off = (u - 0.5) * r.w;
         const x = cx + sx * off, z = cz + sz * off;
-        P.push(x, groundHeight(x, z) + 0.035, z);
+        P.push(x, groundHeight(x, z) + lift, z);
         N.push(0, 1, 0);
         UV.push(x / 6, z / 6);
         RU.push(u, t * L);
@@ -187,4 +221,52 @@ function buildRoads(assets) {
   m.receiveShadow = true;
   m.name = 'roads';
   return m;
+}
+
+// railway (roads with kind 'rail'): a raised gravel ballast bed with two tracks of concrete sleepers and steel rails
+// (axis-aligned lines: boxes; three draw calls in all)
+function buildRailway(assets) {
+  const group = new THREE.Group(); group.name = 'railway';
+  const rock = assets.textureSet('rock');
+  const ballast = new THREE.MeshStandardMaterial({ map: rock.map, normalMap: rock.normalMap, color: 0x9a968e, roughness: 1, metalness: 0, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 });
+  const P = [], I = [], UV = [], parts = [];
+  for (const r of ROADS) {
+    if (r.kind !== 'rail') continue;
+    const dx = r.bx - r.ax, dz = r.bz - r.az, L = Math.hypot(dx, dz), fx = dx / L, fz = dz / L, sx = -fz, sz = fx;
+    const steps = Math.ceil(L / 2), across = 8, base = P.length / 3;
+    for (let i = 0; i <= steps; i++) {
+      const t = i / steps, cx = r.ax + dx * t, cz = r.az + dz * t;
+      for (let j = 0; j <= across; j++) {
+        const u = j / across, off = (u - 0.5) * r.w, x = cx + sx * off, z = cz + sz * off;
+        // bed profile: 0.1 m crown with sloped shoulders
+        P.push(x, groundHeight(x, z) + 0.02 + 0.08 * smoothstep(r.w / 2, r.w / 2 - 1.4, Math.abs(off)), z);
+        UV.push(x / 2.5, z / 2.5);
+      }
+    }
+    for (let i = 0; i < steps; i++) for (let j = 0; j < across; j++) { const a = base + i * (across + 1) + j, b = a + 1, c = a + across + 1, d = c + 1; I.push(a, c, b, b, c, d); }
+    if (Math.abs(fx) > 1e-6 && Math.abs(fz) > 1e-6) continue; // sleepers / rails as boxes only on axis-aligned lines
+    const alongX = Math.abs(fx) > 0.5;
+    for (const track of r.w >= 8 ? [-2.25, 2.25] : [0]) {
+      for (let u = 0.4; u < L - 0.3; u += 0.65) { // sleepers: 2.6 x 0.24 x 0.16 m
+        const cx = r.ax + fx * u + sx * track, cz = r.az + fz * u + sz * track, y = groundHeight(cx, cz) + 0.1;
+        parts.push(alongX ? { min: [cx - 0.12, y - 0.06, cz - 1.3], max: [cx + 0.12, y + 0.1, cz + 1.3], mat: 'sleeper' } : { min: [cx - 1.3, y - 0.06, cz - 0.12], max: [cx + 1.3, y + 0.1, cz + 0.12], mat: 'sleeper' });
+      }
+      for (const g of [-0.7175, 0.7175]) for (let u = 0; u < L - 1e-6; u += 4) { // rails in 4 m lengths following the ground
+        const u1 = Math.min(L, u + 4), um = (u + u1) / 2, cx = r.ax + fx * um + sx * (track + g), cz = r.az + fz * um + sz * (track + g), y = groundHeight(cx, cz) + 0.2;
+        const ax = r.ax + fx * u + sx * (track + g), az = r.az + fz * u + sz * (track + g), bx = r.ax + fx * u1 + sx * (track + g), bz = r.az + fz * u1 + sz * (track + g);
+        parts.push({ min: [Math.min(ax, bx) - (alongX ? 0 : 0.035), y, Math.min(az, bz) - (alongX ? 0.035 : 0)], max: [Math.max(ax, bx) + (alongX ? 0 : 0.035), y + 0.15, Math.max(az, bz) + (alongX ? 0.035 : 0)], mat: 'rail' });
+      }
+    }
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(P, 3));
+  g.setAttribute('uv', new THREE.Float32BufferAttribute(UV, 2));
+  g.setIndex(I);
+  g.computeVertexNormals();
+  if (g.attributes.normal.getY(0) < 0) { const idx = g.index.array; for (let k = 0; k < idx.length; k += 3) { const tmp = idx[k + 1]; idx[k + 1] = idx[k + 2]; idx[k + 2] = tmp; } g.computeVertexNormals(); }
+  const bed = new THREE.Mesh(g, ballast); bed.receiveShadow = true; bed.name = 'ballast'; group.add(bed);
+  const conc = assets.textureSet('concrete');
+  const mats = { sleeper: new THREE.MeshStandardMaterial({ map: conc.map, color: 0x8f8a82, roughness: 0.95, metalness: 0 }), rail: new THREE.MeshStandardMaterial({ color: 0x6d625a, roughness: 0.42, metalness: 0.85 }) };
+  for (const [m, geo] of buildBoxGeometry(parts, { tile: 1.2 })) { const mesh = new THREE.Mesh(geo, mats[m]); mesh.castShadow = m === 'rail'; mesh.receiveShadow = true; mesh.name = `rail_${m}`; group.add(mesh); }
+  return group;
 }

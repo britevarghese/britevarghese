@@ -14,7 +14,7 @@ roads.push({ ax: -70, az: 80, bx: -110, bz: -40, w: 5, name: 'village track' }, 
 
 const buildings = [
   // B: quarry works
-  { id: 'rq1', x: 112, z: 58, w: 22, d: 14, floors: 1, style: 'warehouse', damage: 0.3, doors: ['w', 's'] },
+  { id: 'rq1', x: 124, z: 62, w: 22, d: 14, floors: 1, style: 'warehouse', damage: 0.3, doors: ['w', 's'] }, // flag B in its yard
   { id: 'rq2', x: 88, z: 76, w: 9, d: 8, floors: 2, style: 'concrete', damage: 0.2, doors: ['s'] },
   // C: ridge fortifications
   { id: 'rc1', x: -12, z: -96, w: 10, d: 8, floors: 1, style: 'bunker', damage: 0, doors: ['s', 'e'] },

@@ -6,7 +6,8 @@ import { buildBoxGeometry } from '../render/Materials.js';
 
 // GLB scene -> InstancedMeshes for the given world matrices
 // Instances are bucketed into spatial cells so frustum culling (camera AND shadow passes) skips distant groups.
-export function instanceGLB(gltf, matrices, { castShadow = true, receiveShadow = true, material = null, name = '', cell = 80 } = {}) {
+// `only`: draw just the meshes (or mesh groups) with these node names.
+export function instanceGLB(gltf, matrices, { castShadow = true, receiveShadow = true, material = null, name = '', cell = 80, only = null } = {}) {
   const group = new THREE.Group(); group.name = name;
   if (!matrices.length) return group;
   gltf.scene.updateMatrixWorld(true);
@@ -19,6 +20,7 @@ export function instanceGLB(gltf, matrices, { castShadow = true, receiveShadow =
   }
   gltf.scene.traverse((o) => {
     if (!o.isMesh || !o.visible) return;
+    if (only && !only.includes(o.name) && !only.includes(o.parent?.name)) return;
     const mtl = material ? material(o.material) : o.material;
     for (const list of buckets.values()) {
       const im = new THREE.InstancedMesh(o.geometry, mtl, list.length);
@@ -34,6 +36,10 @@ export function instanceGLB(gltf, matrices, { castShadow = true, receiveShadow =
 }
 
 const M = (x, y, z, ry = 0, s = 1, rx = 0, rz = 0) => new THREE.Matrix4().compose(new THREE.Vector3(x, y, z), new THREE.Quaternion().setFromEuler(new THREE.Euler(rx, ry, rz, 'YXZ')), new THREE.Vector3(s, s, s));
+// chainlink_fence.glb is a whole modular kit laid out around the origin: the 2 m double panel spans x -1.951..-0.039
+// and a loose post stands at (-1.005, -1.0). These move each piece onto the fence line (panel scaled to the module).
+const FENCE_PANEL_FIX = (L) => new THREE.Matrix4().makeScale(L / 2, 1, 1).multiply(new THREE.Matrix4().makeTranslation(0.995, 0, -0.001));
+const FENCE_POST_FIX = new THREE.Matrix4().makeTranslation(1.005, 0, 1.0015);
 
 export async function buildProps(assets, mats, extra = { roofProps: [], rubble: [] }) {
   const group = new THREE.Group(); group.name = 'props';
@@ -48,10 +54,13 @@ export async function buildProps(assets, mats, extra = { roofProps: [], rubble: 
       case 'barrier': add('barrier', M(p.x, y, p.z, ry)); break;
       case 'barrier2': add('barrier2', M(p.x, y, p.z, ry)); break;
       case 'crate': add('crate', M(p.x, y, p.z, ry + (rnd() - 0.5) * 0.2)); break;
-      case 'crate_stack':
-        add('crate', M(p.x, y, p.z - 0.27, ry)); add('crate', M(p.x, y, p.z + 0.27, ry));
-        add('crate', M(p.x, y + 0.46, p.z, ry + 0.1)); add('ammo', M(p.x + 0.2, y + 0.92, p.z, ry + 1.2));
+      case 'crate_stack': {
+        // two crates side by side along the stack's own z (so a rotated stack stays inside its collider), one on top
+        const ox = 0.27 * Math.sin(ry), oz = 0.27 * Math.cos(ry);
+        add('crate', M(p.x - ox, y, p.z - oz, ry)); add('crate', M(p.x + ox, y, p.z + oz, ry));
+        add('crate', M(p.x, y + 0.46, p.z, ry + 0.1)); add('ammo', M(p.x + 0.2 * Math.cos(ry), y + 0.92, p.z - 0.2 * Math.sin(ry), ry + 1.2));
         break;
+      }
       case 'barrel': add(rnd() < 0.5 ? 'barrel' : 'barrel_rusty', M(p.x, y, p.z, rnd() * 6)); break;
       case 'car': add(p.burnt ? 'car_burnt' : 'car', M(p.x, y, p.z, ry)); if (p.burnt) { add('tyre', M(p.x + 1.2, y + 0.08, p.z + 1, rnd() * 6, 1, Math.PI / 2)); } break;
       case 'generator': add('generator', M(p.x, y, p.z, ry)); break;
@@ -71,26 +80,33 @@ export async function buildProps(assets, mats, extra = { roofProps: [], rubble: 
       case 'sandbags': {
         // realistic stacked bags: staggered courses, slight irregularity
         const len = p.len, rot90 = Math.round(p.rot) % 2 === 1;
+        // two rows of bags either side of the line (0.9 m thick, 5 courses = 0.86 m: the collider in shared/world.js)
         const courses = 5, bagL = 0.62;
         const n = Math.max(1, Math.floor(len / bagL));
         for (let c = 0; c < courses; c++) {
-          const off = (c % 2) * bagL * 0.5, inset = c * 0.035;
+          const off = (c % 2) * bagL * 0.5;
           for (let i = 0; i < n - (c % 2); i++) {
             const u = -len / 2 + off + (i + 0.5) * bagL;
-            const bx = p.x + (rot90 ? inset * 0 : u), bz = p.z + (rot90 ? u : 0);
+            const bx = p.x + (rot90 ? 0 : u), bz = p.z + (rot90 ? u : 0);
             const gy = groundHeight(bx, bz);
-            add('sandbag', M(bx + (rnd() - 0.5) * 0.03, gy + c * 0.17, bz + (rnd() - 0.5) * 0.03, (rot90 ? 0 : Math.PI / 2) + (rnd() - 0.5) * 0.12, 1, (rnd() - 0.5) * 0.06, (rnd() - 0.5) * 0.06));
-            // double thickness
-            add('sandbag', M(bx + (rot90 ? 0.44 : 0), gy + c * 0.17, bz + (rot90 ? 0 : 0.44), (rot90 ? 0 : Math.PI / 2) + (rnd() - 0.5) * 0.12, 1, (rnd() - 0.5) * 0.06, 0));
+            add('sandbag', M(bx + (rot90 ? -0.22 : 0) + (rnd() - 0.5) * 0.03, gy + c * 0.17, bz + (rot90 ? 0 : -0.22) + (rnd() - 0.5) * 0.03, (rot90 ? 0 : Math.PI / 2) + (rnd() - 0.5) * 0.12, 1, (rnd() - 0.5) * 0.06, (rnd() - 0.5) * 0.06));
+            add('sandbag', M(bx + (rot90 ? 0.22 : 0), gy + c * 0.17, bz + (rot90 ? 0 : 0.22), (rot90 ? 0 : Math.PI / 2) + (rnd() - 0.5) * 0.12, 1, (rnd() - 0.5) * 0.06, 0));
           }
         }
         break;
       }
       case 'fence': {
-        const len = p.len, rot90 = Math.round(p.rot) % 2 === 1, seg = 8.1;
-        for (let u = -len / 2; u < len / 2 - 1; u += seg) {
-          const fx = p.x + (rot90 ? 0 : u + 6.04), fz = p.z + (rot90 ? u + 6.04 : 0);
-          add('fence', M(fx, groundHeight(fx, fz), fz, rot90 ? -Math.PI / 2 : 0));
+        // straight run of the modular kit's 2 m double panel between posts, tiled exactly over the collider length
+        // (one collider box per panel, see shared/world.js); each panel / post stands on its own ground height
+        const len = p.len, rot90 = Math.round(p.rot) % 2 === 1, n = Math.max(1, Math.round(len / 2)), L = len / n;
+        const fr = rot90 ? -Math.PI / 2 : 0, at = (u) => [p.x + (rot90 ? 0 : u), p.z + (rot90 ? u : 0)];
+        for (let i = 0; i < n; i++) {
+          const [fx, fz] = at(-len / 2 + (i + 0.5) * L);
+          add('fence_panel', M(fx, groundHeight(fx, fz), fz, fr).multiply(FENCE_PANEL_FIX(L)));
+        }
+        for (let i = 0; i <= n; i++) {
+          const [fx, fz] = at(-len / 2 + i * L);
+          add('fence_post', M(fx, groundHeight(fx, fz) - 0.05, fz, fr).multiply(FENCE_POST_FIX));
         }
         break;
       }
@@ -100,11 +116,18 @@ export async function buildProps(assets, mats, extra = { roofProps: [], rubble: 
   }
   for (const r of extra.roofProps || []) {
     if (r.type === 'aircon') add('aircon', M(r.x, r.y + 0.35, r.z, r.rot));
-    if (r.type === 'rollershutter') add('rollershutter', new THREE.Matrix4().compose(new THREE.Vector3(r.x, r.y - 0.4, r.z), new THREE.Quaternion().setFromEuler(new THREE.Euler(0, r.rot, 0)), new THREE.Vector3(r.w / 3.1, 0.35, 1)));
+    // roller shutter (model spans x -0.54..2.54, 0.3 m deep): rolled up under the lintel, exactly the door's width,
+    // centred in the wall's thickness; r.x/r.z is the door's u0 end on the wall mid-plane, r.rot its direction
+    if (r.type === 'rollershutter') {
+      const k = r.w / 3.08, c = Math.cos(r.rot), sn = Math.sin(r.rot);
+      const lx = 0.54 * k, lz = -0.149 * 0.85; // local offset that puts the model's x-min at the anchor and its depth centred
+      add('rollershutter', new THREE.Matrix4().compose(new THREE.Vector3(r.x + lx * c + lz * sn, r.y - 0.4, r.z - lx * sn + lz * c), new THREE.Quaternion().setFromEuler(new THREE.Euler(0, r.rot, 0)), new THREE.Vector3(k, 0.35, 0.85)));
+    }
   }
   for (const rb of extra.rubble || []) for (let i = 0; i < Math.min(2, rb.n); i++) add('rubble', M(rb.x + (rnd() - 0.5) * 2.5, rb.y - 0.05, rb.z + (rnd() - 0.5) * 2.5, rnd() * 6, 3 + rnd() * 5, rnd() * 0.5, rnd() * 0.5));
 
-  const keys = { barrier: 'barrier', barrier2: 'barrier2', crate: 'crate', ammo: 'ammo', barrel: 'barrel', barrel_rusty: 'barrel_rusty', car: 'car', car_burnt: 'car', generator: 'generator', utility: 'utility', lamp: 'lamp', trash: 'trash', tyre: 'tyre', jerrycan: 'jerrycan', cement_bag: 'cement_bag', sandbag: 'cement_bag', fence: 'fence', aircon: 'aircon', rollershutter: 'rollershutter' };
+  const keys = { barrier: 'barrier', barrier2: 'barrier2', crate: 'crate', ammo: 'ammo', barrel: 'barrel', barrel_rusty: 'barrel_rusty', car: 'car', car_burnt: 'car', generator: 'generator', utility: 'utility', lamp: 'lamp', trash: 'trash', tyre: 'tyre', jerrycan: 'jerrycan', cement_bag: 'cement_bag', sandbag: 'cement_bag', fence_panel: 'fence', fence_post: 'fence', aircon: 'aircon', rollershutter: 'rollershutter' };
+  const onlyMeshes = { fence_panel: ['modular_chainlink_fence_double'], fence_post: ['modular_chainlink_fence_post'] };
   const burnt = new Map();
   const burntMat = (m) => { if (!burnt.has(m)) { const c = m.clone(); c.color = new THREE.Color(0x2a2522); c.roughness = 1; c.metalness = 0.2; burnt.set(m, c); } return burnt.get(m); };
   const sandMats = new Map();
@@ -118,8 +141,8 @@ export async function buildProps(assets, mats, extra = { roofProps: [], rubble: 
       return;
     }
     const g = await assets.loadProp(keys[k]);
-    const small = ['tyre', 'jerrycan', 'ammo', 'cement_bag', 'fence'].includes(k);
-    group.add(instanceGLB(g, list, { name: k, material: k === 'car_burnt' ? burntMat : k === 'sandbag' ? sandMat : null, castShadow: !small }));
+    const small = ['tyre', 'jerrycan', 'ammo', 'cement_bag', 'fence_panel', 'fence_post'].includes(k);
+    group.add(instanceGLB(g, list, { name: k, material: k === 'car_burnt' ? burntMat : k === 'sandbag' ? sandMat : null, castShadow: !small, only: onlyMeshes[k] || null }));
   }));
 
   // shipping containers & precast walls: modular geometry textured with real corrugated steel / concrete

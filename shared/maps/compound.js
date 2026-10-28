@@ -33,7 +33,7 @@ function props() {
   add('sandbags', -6, 48, 0, { len: 5 }); add('sandbags', 6, -48, 0, { len: 5 }); add('sandbags', -48, -6, 1, { len: 5 }); add('sandbags', 48, 6, 1, { len: 5 });
   // courtyard
   add('container', -2, 10, 1); add('crate_stack', 6, 12, 0); add('sandbags', -6, 4, 0, { len: 4 }); add('generator', 20, 6, 0); add('barrel', 24, -18); add('barrel', 24.6, -18.6);
-  add('car', 20, -26, 0, { burnt: true }); add('crate_stack', -30, 0, 1); add('utility', 32, 4, 0); add('lamp', 0, 0, 0);
+  add('car', 20, -26, 0, { burnt: true }); add('crate_stack', -30, 0, 1); add('utility', 32, 4.5, 0); add('lamp', 4.3, 4.3, 0); // lamp on the crossroads corner
   // motor pool (A)
   add('car', -60, 42, 1); add('car', -52, 44, 1, { burnt: true }); add('car', -66, 36, 0); add('container', -70, 20, 1); add('crate_stack', -40, 50, 0);
   add('sandbags', -56, 58, 0, { len: 6 }); add('barrel', -44, 30); add('generator', -46, 34, 1);

@@ -95,7 +95,8 @@ function buildProps(BASES) {
     add('crate_stack', -2, bz + s * 4, 0); add('crate_stack', 20, bz + s * 4, 1); add('generator', 24, bz + s * 1, 0);
     add('container', 32, bz + s * 6, 1); add('container', -24, bz - s * 2, 1);
     add('wall', 8, bz + s * 20, 0, { len: 60 });
-    add('fence', -24, bz - s * 16, 1, { len: 30 }); add('fence', 40, bz - s * 16, 1, { len: 30 });
+    // (the RU-side fence stands beside the depot spur road, not on it)
+    add('fence', -24, bz - s * 16, 1, { len: 30 }); add('fence', t === 2 ? 47 : 40, bz - s * 16, 1, { len: 30 });
   }
   // street lamps along the main road
   for (let z = -140; z <= 140; z += 35) if (Math.abs(z) > 30) add('lamp', 13.8, z + 5, 0);

@@ -22,8 +22,8 @@ const buildings = [
   { id: 'ho5', x: 72, z: 104, w: 12, d: 9, floors: 2, style: 'brick', damage: 0.1, doors: ['n'] },
   { id: 'ho6', x: 0, z: 120, w: 16, d: 10, floors: 2, style: 'plaster', damage: 0.6, doors: ['n', 's'] },
   // bases
-  { id: 'hus', x: -140, z: 30, w: 8, d: 8, floors: 1, style: 'bunker', damage: 0, doors: ['e', 'n'] },
-  { id: 'hru', x: 140, z: 30, w: 8, d: 8, floors: 1, style: 'bunker', damage: 0, doors: ['w', 'n'] },
+  { id: 'hus', x: -140, z: 24, w: 8, d: 8, floors: 1, style: 'bunker', damage: 0, doors: ['e', 'n'] },
+  { id: 'hru', x: 140, z: 24, w: 8, d: 8, floors: 1, style: 'bunker', damage: 0, doors: ['w', 'n'] },
 ];
 
 function props() {
@@ -49,8 +49,8 @@ function props() {
   add('barrel', 5, -106); add('barrel', 5.7, -106.5); add('generator', -4, -96, 1);
   // warehouse row / flag D crossroads
   add('car', -8, 44, 0, { burnt: true }); add('car', 10, 36, 1); add('sandbags', 0, 50, 0, { len: 6 }); add('barrier', -12, 30, 1); add('barrier', 12, 30, 1);
-  add('crate_stack', -66, 36, 0); add('crate_stack', 66, 36, 1); add('trash', 30, 52, 0); add('utility', -30, 52, 0);
-  for (const x of [-110, -66, -22, 22, 66, 110]) add('lamp', x, 36, 0);
+  add('crate_stack', -62, 32, 0); add('crate_stack', 62, 32, 1); add('trash', 30, 52, 0); add('utility', -30, 52, 0);
+  for (const x of [-110, -66, -22, 22, 66, 110]) add('lamp', x, 35, 0); // on the kerb of the warehouse row
   for (const x of [-120, -60, 60, 120]) add('lamp', x, -106, 0);
   baseProps(add, bases[1], 'e'); baseProps(add, bases[2], 'w');
   return P;
@@ -67,7 +67,7 @@ export default {
   vegetation: { seed: 77, trees: 120, shrubs: 500, rocks: 40, clusters: 3 },
   roads: [
     { ax: -175, az: -108, bx: 175, bz: -108, w: 12, name: 'quay' },
-    { ax: 0, az: -108, bx: 0, bz: 175, w: 9, name: 'central' },
+    { ax: 0, az: -108, bx: 0, bz: 109, w: 9, name: 'central' }, // ends at the customs house (ho6)
     { ax: -175, az: 40, bx: 175, bz: 40, w: 9, name: 'warehouse row' },
     { ax: -175, az: 88, bx: 175, bz: 88, w: 7, name: 'port road' },
     { ax: -120, az: -108, bx: -120, bz: 40, w: 7, name: 'west lane' },

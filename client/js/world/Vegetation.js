@@ -67,18 +67,21 @@ export class Vegetation {
     this.lod1 = mk(lod1, trees.length, true);
     if (!['medium', 'high', 'ultra'].includes(this.quality)) this.lod1.forEach((m) => { m.castShadow = false; });
     this.impostor = this.#bakeImpostor(lod1, trees.length);
-    // dead trees (static)
-    const deadM = V.trees.filter((t) => t.dead).map((t) => new THREE.Matrix4().compose(new THREE.Vector3(t.x, groundHeight(t.x, t.z), t.z), new THREE.Quaternion().setFromEuler(new THREE.Euler(0, t.r, 0)), new THREE.Vector3(t.s * 1.4, t.s * 1.4, t.s * 1.4)));
+    // dead trees: fallen logs lying along the ground, tilted with the slope (placement + colliders: shared/map.js)
+    const deadM = V.trees.filter((t) => t.dead).map((t) => new THREE.Matrix4().compose(new THREE.Vector3(t.x, t.y ?? groundHeight(t.x, t.z), t.z), new THREE.Quaternion().setFromEuler(new THREE.Euler(0, t.r, t.tilt || 0, 'YXZ')), new THREE.Vector3(t.s * 1.4, t.s * 1.4, t.s * 1.4)));
     this.#staticInstances(dead, deadM, true);
     // shrubs / ferns / rocks in chunks with distance culling
     this.chunks = [];
+    const shrubShadows = this.quality === 'high' || this.quality === 'ultra';
     const chunkOf = (list, gltf, scaleFn, wind) => {
       const cells = new Map();
       for (const s of list) { const k = `${Math.floor(s.x / 64)},${Math.floor(s.z / 64)}`; (cells.get(k) || cells.set(k, []).get(k)).push(s); }
       for (const [k, arr] of cells) {
         const [cx, cz] = k.split(',').map(Number);
-        const ms = arr.map((s) => new THREE.Matrix4().compose(new THREE.Vector3(s.x, groundHeight(s.x, s.z) - 0.03, s.z), new THREE.Quaternion().setFromEuler(new THREE.Euler(0, s.r, 0)), new THREE.Vector3().setScalar(scaleFn(s))));
-        const g = this.#staticInstances(gltf, ms, !wind, wind);
+        // rocks carry their seated height (lowest ground under the footprint, shared with the colliders)
+        const ms = arr.map((s) => new THREE.Matrix4().compose(new THREE.Vector3(s.x, s.y ?? groundHeight(s.x, s.z) - 0.03, s.z), new THREE.Quaternion().setFromEuler(new THREE.Euler(0, s.r, 0)), new THREE.Vector3().setScalar(scaleFn(s))));
+        // shrubs / ferns cast shadows only on high / ultra (thousands of instances in the shadow pass)
+        const g = this.#staticInstances(gltf, ms, !wind || shrubShadows, wind);
         this.chunks.push({ g, x: cx * 64 + 32, z: cz * 64 + 32 });
       }
     };

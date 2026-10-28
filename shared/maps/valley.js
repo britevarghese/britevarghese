@@ -26,9 +26,9 @@ const buildings = [
   { id: 'vru', x: 32, z: -184, w: 8, d: 8, floors: 1, style: 'bunker', damage: 0, doors: ['s', 'w'] },
 ];
 // village (B) around the crossroads + scattered houses along the road
-village(buildings, { id: 'vv', cx: 32, cz: 8, n: 9, seed: 5, spread: 30, damage: 0.35 });
-village(buildings, { id: 'vs', cx: -40, cz: -120, n: 3, seed: 9, spread: 22 });
-village(buildings, { id: 'vn', cx: 70, cz: 140, n: 3, seed: 13, spread: 22 });
+village(buildings, { id: 'vv', cx: 32, cz: 8, n: 9, seed: 5, spread: 30, damage: 0.35, avoid: { roads } });
+village(buildings, { id: 'vs', cx: -40, cz: -120, n: 3, seed: 9, spread: 22, avoid: { roads } });
+village(buildings, { id: 'vn', cx: 70, cz: 140, n: 3, seed: 13, spread: 22, avoid: { roads } });
 
 function props() {
   const { P, add } = propList();

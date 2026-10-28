@@ -43,7 +43,8 @@ export function buildBuildings(world, mats, props) {
       if (out < 0 || inside) return spec.style === 'warehouse' ? 'metal_siding' : 'plaster_int';
       return part.mat;
     };
-    const geos = buildBoxGeometry(b.parts, { tile: spec.style === 'warehouse' ? 3 : 2.4, faceMat, color });
+    // (stair flight colliders are drawn as the steps below, not as boxes)
+    const geos = buildBoxGeometry(b.parts.filter((p) => p.part !== 'stair'), { tile: spec.style === 'warehouse' ? 3 : 2.4, faceMat, color });
     for (const [m, g] of geos) push(m, g);
 
     // ---- trims & details (visual only)
@@ -55,12 +56,25 @@ export function buildBuildings(world, mats, props) {
       trims.push({ min: [x0 - out, y, z0], max: [x0 + 0.02, y + h, z1], mat });
       trims.push({ min: [x1 - 0.02, y, z0], max: [x1 + out, y + h, z1], mat });
     };
+    // the plinth stops at the doorways (only a threshold up to floor level runs across them)
+    const doorGaps = { n: [], s: [], w: [], e: [] };
+    for (const o of b.openings) if (o.kind === 'door' || o.kind === 'bigdoor') doorGaps[o.side].push([(o.sd.dir[0] ? o.sd.ax : o.sd.az) + o.u0, (o.sd.dir[0] ? o.sd.ax : o.sd.az) + o.u1]);
+    const plinth = (y, h, out) => {
+      const sides = [['n', [x0 - out, z0 - out], [x1 + out, z0 + 0.02]], ['s', [x0 - out, z1 - 0.02], [x1 + out, z1 + out]], ['w', [x0 - out, z0], [x0 + 0.02, z1]], ['e', [x1 - 0.02, z0], [x1 + out, z1]]];
+      for (const [sd, mn, mx] of sides) {
+        const ax = sd === 'n' || sd === 's' ? 0 : 1; // runs along x (0) or z (1)
+        let from = mn[ax];
+        const piece = (a, c, top) => { if (c - a < 0.01) return; const lo = [...mn], hi = [...mx]; lo[ax] = a; hi[ax] = c; trims.push({ min: [lo[0], y, lo[1]], max: [hi[0], top, hi[1]], mat: 'plinth' }); };
+        for (const [g0, g1] of doorGaps[sd].sort((p, q) => p[0] - q[0])) { piece(from, g0, y + h); piece(g0, g1, y0 + 0.1); from = g1; }
+        piece(from, mx[ax], y + h);
+      }
+    };
     if (spec.style !== 'warehouse') {
-      band(y0 - 0.3, 0.75, 0.04, 'plinth');
+      plinth(y0 - 0.3, 0.75, 0.04);
       for (let f = 1; f < spec.floors; f++) band(y0 + f * b.FH - 0.28, 0.3, 0.035, 'trim');
       if (!spec.damage || spec.damage < 0.6) band(y0 + spec.floors * b.FH + 0.9, 0.08, 0.06, 'trim');
     } else {
-      band(y0 - 0.3, 0.9, 0.03, 'plinth');
+      plinth(y0 - 0.3, 0.9, 0.03);
       band(y0 + b.FH - 0.05, 0.25, 0.08, 'frame');
     }
     // openings: frames, sills, glass, lintels
@@ -93,7 +107,8 @@ export function buildBuildings(world, mats, props) {
         trims.push({ ...at(o.u0 - ft, o.v0, o.v1 + ft, ft), mat: 'frame' });
         trims.push({ ...at(o.u1, o.v0, o.v1 + ft, ft), mat: 'frame' });
         trims.push({ ...at(o.u0 - ft, o.v1, o.v1 + ft, w + 2 * ft), mat: 'frame' });
-        if (o.kind === 'bigdoor') roofProps.push({ type: 'rollershutter', x: alongX ? sd.ax + o.u0 : sd.ax + outN[0] * 0.05, z: alongX ? sd.az + outN[1] * 0.05 : sd.az + o.u0, y: y0 + o.v1 - 0.1, rot: alongX ? 0 : Math.PI / 2, w });
+        // roller shutter anchored at the opening's u0 end on the wall's mid-plane, running along +u (+x or +z)
+        if (o.kind === 'bigdoor') roofProps.push({ type: 'rollershutter', x: alongX ? sd.ax + o.u0 : sd.ax + T / 2, z: alongX ? sd.az + T / 2 : sd.az + o.u0, y: y0 + o.v1 - 0.1, rot: alongX ? 0 : -Math.PI / 2, w });
         continue;
       }
       // window: frame, sill (projecting), mullion, glass

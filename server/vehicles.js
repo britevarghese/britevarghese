@@ -14,14 +14,16 @@ export class VehicleSystem {
     this.list = [];
     this.colliders = [];
     const map = game.map;
+    const placed = []; // footprints of the vehicles already parked: { x, z, r }
     for (const team of [1, 2]) {
       const b = map.BASES[team];
       const fx = -Math.sin(b.yaw), fz = -Math.cos(b.yaw), rx = Math.cos(b.yaw), rz = -Math.sin(b.yaw);
       let bikes = 0;
       vehicleLoadout(map).forEach((type) => {
         // motor pool around the HQ: tank right, helicopter pad left, jeep beside the tank, bikes behind the HQ
-        const [side, back] = type === 'tank' ? [16, 4] : type === 'heli' ? [-20, 4] : type === 'jeep' ? [25, 2] : [6 + 3 * bikes++, 10];
-        const spot = this.#clearSpot(b.x + rx * side - fx * back, b.z + rz * side - fz * back, type);
+        const [side, back] = type === 'tank' ? [16, 4] : type === 'heli' ? [-20, 4] : type === 'jeep' ? [25, 2] : [6 + 3.6 * bikes++, 10];
+        const spot = this.#clearSpot(b.x + rx * side - fx * back, b.z + rz * side - fz * back, type, placed);
+        placed.push({ x: spot.x, z: spot.z, r: Math.hypot(VEHICLES[type].half[0], VEHICLES[type].half[2]) });
         const v = { id: nextVid++, type, team, home: { x: spot.x, z: spot.z, yaw: b.yaw } };
         this.#reset(v);
         this.list.push(v);
@@ -29,16 +31,18 @@ export class VehicleSystem {
     }
   }
 
-  // nearest spot around (x, z) where the vehicle's footprint is free of buildings / props
-  #clearSpot(x, z, type) {
-    const w = this.g.world, V = VEHICLES[type], r = Math.hypot(V.half[0], V.half[2]) + 0.8;
+  // nearest spot around (x, z) where the vehicle's footprint is free of buildings / props and of the vehicles
+  // parked before it (bounding circles + 1 m)
+  #clearSpot(x, z, type, placed = []) {
+    const w = this.g.world, V = VEHICLES[type], r0 = Math.hypot(V.half[0], V.half[2]), r = r0 + 0.8;
     for (let ring = 0; ring < 12; ring++) {
       for (let k = 0; k < Math.max(1, ring * 6); k++) {
         const a = (k / Math.max(1, ring * 6)) * Math.PI * 2, px = x + Math.cos(a) * ring * 3, pz = z + Math.sin(a) * ring * 3;
         const gy = w.map.groundHeight(px, pz);
         const blocked = w.query(px - r, pz - r, px + r, pz + r).some((b) => b.max[1] > gy + 0.4 && b.min[1] < gy + 4 && b.max[0] > px - r && b.min[0] < px + r && b.max[2] > pz - r && b.min[2] < pz + r);
         const slope = Math.abs(w.map.groundHeight(px + 3, pz) - w.map.groundHeight(px - 3, pz)) + Math.abs(w.map.groundHeight(px, pz + 3) - w.map.groundHeight(px, pz - 3));
-        if (!blocked && slope < 2.5) return { x: px, z: pz };
+        const taken = placed.some((q) => Math.hypot(q.x - px, q.z - pz) < q.r + r0 + 1);
+        if (!blocked && !taken && slope < 2.5) return { x: px, z: pz };
       }
     }
     return { x, z };

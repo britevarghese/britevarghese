@@ -12,25 +12,26 @@ const roads = [
   { ax: -175, az: -58, bx: 175, bz: -58, w: 6, name: 'north lane' },
   { ax: -175, az: 58, bx: 175, bz: 58, w: 6, name: 'south lane' },
   { ax: -70, az: -140, bx: -70, bz: 140, w: 6, name: 'mill street' },
-  { ax: 0, az: -140, bx: 0, bz: 140, w: 7, name: 'church street' },
+  // church street runs up to the church doors from both sides (the church stands across its axis)
+  { ax: 0, az: -140, bx: 0, bz: -33, w: 7, name: 'church street' },
+  { ax: 0, az: -8, bx: 0, bz: 140, w: 7, name: 'church street' },
   { ax: 70, az: -140, bx: 70, bz: 140, w: 6, name: 'station street' },
-  { ax: 40, az: 110, bx: 150, bz: 110, w: 10, name: 'railway' },
+  { ax: 40, az: 110, bx: 150, bz: 110, w: 10, name: 'railway', kind: 'rail' },
 ];
 
-const buildings = [];
+// landmarks first, so the town houses are placed around them
+const buildings = [
+  { id: 'och', x: 0, z: -22, w: 16, d: 12, floors: 3, style: 'brick', damage: 0.5, doors: ['s', 'n'] },   // church (B)
+  { id: 'omk', x: -44, z: 22, w: 12, d: 10, floors: 2, style: 'plaster', damage: 0.2, doors: ['n', 'e'] }, // market hall (A)
+  { id: 'ost', x: 96, z: 92, w: 26, d: 12, floors: 2, style: 'concrete', damage: 0.3, doors: ['s', 'n', 'w'] }, // station (C)
+  { id: 'oml', x: -92, z: -104, w: 20, d: 14, floors: 1, style: 'warehouse', damage: 0.4, doors: ['e', 's'] }, // mill (D)
+];
 // town blocks between the streets: 2-3 storey houses, some ruined
 const blocks = [[-35, -29], [35, -29], [-35, 29], [35, 29], [-105, -29], [105, -29], [-105, 29], [105, 29], [-35, -95], [35, -95], [-35, 95], [-105, -95], [105, -95], [-105, 95]];
 blocks.forEach(([cx, cz], i) => {
   const placed = village(buildings, { id: `ot${i}_`, cx, cz, n: 3, seed: 100 + i, spread: 16, styles: ['plaster', 'brick', 'concrete'], damage: 0.45, avoid: { roads } });
   for (const b of placed) b.floors = Math.min(3, b.floors + (i % 3 === 0 ? 1 : 0));
 });
-// landmarks
-buildings.push(
-  { id: 'och', x: 0, z: -22, w: 16, d: 12, floors: 3, style: 'brick', damage: 0.5, doors: ['s', 'n'] },   // church (B)
-  { id: 'omk', x: -44, z: 22, w: 12, d: 10, floors: 2, style: 'plaster', damage: 0.2, doors: ['n', 'e'] }, // market hall (A)
-  { id: 'ost', x: 96, z: 92, w: 26, d: 12, floors: 2, style: 'concrete', damage: 0.3, doors: ['s', 'n', 'w'] }, // station (C)
-  { id: 'oml', x: -92, z: -104, w: 20, d: 14, floors: 1, style: 'warehouse', damage: 0.4, doors: ['e', 's'] }, // mill (D)
-);
 
 function props() {
   const { P, add } = propList();
@@ -39,13 +40,14 @@ function props() {
   add('car', -30, 8, 0, { burnt: true }); add('barrier', -20, -6, 1); add('barrier', -20, -4.4, 1); add('sandbags', -52, 38, 0, { len: 6 });
   // church square: rubble, sandbag positions
   add('sandbags', -10, 10, 0, { len: 8 }); add('sandbags', 12, 10, 0, { len: 8 }); add('car', 14, -6, 1); add('trash', -12, -8, 0);
-  // station: containers on the tracks, platform barriers
-  add('container', 70, 110, 0); add('container', 120, 110, 0); add('container', 136, 108, 0); add('barrier2', 84, 102, 0); add('barrier2', 104, 102, 0);
+  // station: freight containers in the yard beside the tracks, platform barriers
+  add('container', 82, 119, 0); add('container', 120, 119, 0); add('container', 136, 121.5, 0); add('barrier2', 84, 102, 0); add('barrier2', 104, 102, 0);
   // mill yard
   add('barrel', -76, -118); add('barrel', -76.6, -118.7); add('crate_stack', -110, -120, 0); add('generator', -84, -90, 0); add('car', -60, -120, 1, { burnt: true });
   // street barricades and wrecks
   for (const [x, z, r] of [[-70, -30, 0], [70, 30, 0], [0, 58, 1], [-120, 0, 1], [120, 0, 1], [0, -58, 1], [35, 58, 1], [-35, -58, 1]]) add('barrier', x, z, r);
-  for (const [x, z, r] of [[-86, 4, 0], [86, -4, 0], [-4, 90, 1], [4, -90, 1], [50, -58, 0], [-50, 58, 0]]) add('car', x, z, r, { burnt: Math.random() < 0.5 });
+  // (burnt or not is part of the shared map data: deterministic, so every client draws the same wrecks)
+  [[-86, 4, 0], [86, -4, 0], [-4, 90, 1], [4, -90, 1], [50, -58, 0], [-50, 58, 0]].forEach(([x, z, r], i) => add('car', x, z, r, { burnt: i % 3 !== 1 }));
   for (let x = -160; x <= 160; x += 32) { add('lamp', x, 5, 0); add('lamp', x + 16, -5, 0); }
   baseProps(add, bases[1], 'e'); baseProps(add, bases[2], 'w');
   return P;
