@@ -35,7 +35,7 @@ app.use(express.json({ limit: '4kb' }));
 app.use('/vendor/three', express.static(path.join(ROOT, 'node_modules/three'), { maxAge: '7d' }));
 app.use('/shared', express.static(path.join(ROOT, 'shared')));
 app.use('/assets', express.static(path.join(ROOT, 'client/assets'), { maxAge: '1h', fallthrough: false }));
-for (const r of ['character', 'weapon', 'character-weapon', 'ads', 'scale']) app.get(`/debug/${r}`, (_, res) => res.sendFile(path.join(ROOT, 'client/debug.html')));
+for (const r of ['character', 'weapon', 'character-weapon', 'ads', 'scale', 'vehicle']) app.get(`/debug/${r}`, (_, res) => res.sendFile(path.join(ROOT, 'client/debug.html')));
 // list of asset files actually present (lets the client resolve manifest fallback chains without 404 probing)
 const listFiles = (dir, base = '') => fs.readdirSync(dir, { withFileTypes: true }).flatMap((d) => (d.isDirectory() ? listFiles(path.join(dir, d.name), `${base}${d.name}/`) : [`${base}${d.name}`]));
 const assetList = listFiles(path.join(ROOT, 'client/assets')).filter((f) => /\.(glb|gltf)$/i.test(f));

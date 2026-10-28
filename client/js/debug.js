@@ -153,6 +153,30 @@ async function run() {
     renderHook = () => vm.render(renderer, scene, camera);
     log(`ADS test — weapon ${wkey}: ${JSON.stringify(vm.weapon.describe())}`);
   }
+  if (mode === 'vehicle') {
+    // /debug/vehicle?v=tank|heli|jeep|bike&team=1|2&view=front|side|rear|top|close — model check with a soldier for scale
+    const builders = await import('./vehicles/VehicleModels.js');
+    const type = qs.get('v') || 'tank', team = +(qs.get('team') || 1);
+    const build = { tank: builders.buildTank, heli: builders.buildHeli, jeep: builders.buildJeep, bike: builders.buildBike }[type];
+    const v = build(team);
+    scene.add(v);
+    v.traverse((o) => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
+    const box = new THREE.Box3().setFromObject(v), size = box.getSize(new THREE.Vector3());
+    log(`VEHICLE ${type}: ${size.x.toFixed(2)} x ${size.y.toFixed(2)} x ${size.z.toFixed(2)} m (w x h x l)`);
+    Object.assign(sun.shadow.camera, { left: -9, right: 9, top: 9, bottom: -9, far: 40 }); sun.shadow.camera.updateProjectionMatrix();
+    sun.position.set(6, 10, 4);
+    if (qs.get('soldier') !== '0') {
+      const rig = new CharacterRig(assets, await assets.loadCharacter('soldier'));
+      rig.root.position.set(size.x / 2 + 0.9, 0, -size.z * 0.2); scene.add(rig.root);
+      rig.setState({ speed: 0, aimYaw: 0.4, stance: 'stand' });
+      updaters.push((dt) => rig.update(dt));
+    }
+    const L = Math.max(size.x, size.z), cy = size.y * 0.45;
+    const views = { front: [L * 0.55, size.y * 0.75, -L * 0.95], side: [L * 1.15, size.y * 0.55, 0.01], rear: [-L * 0.55, size.y * 0.85, L * 0.95], top: [L * 0.35, L * 1.1, L * 0.45], close: [L * 0.3, size.y * 0.6, -L * 0.45] };
+    camera.fov = 45; camera.updateProjectionMatrix();
+    camera.position.set(...(views[qs.get('view')] || views.front)); controls.target.set(0, cy, 0);
+    renderer.shadowMap.enabled = true;
+  }
   for (const e of assets.errors) log(e, 'err');
 }
 
