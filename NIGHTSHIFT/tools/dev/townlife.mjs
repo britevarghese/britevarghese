@@ -20,7 +20,7 @@ for (const [name, [x0, z0]] of list) {
   await p.waitForFunction(() => window.NIGHTSHIFT && window.NIGHTSHIFT.state.mode === 'menu', null, { timeout: 300000 });
   await p.evaluate(() => { const G = window.NIGHTSHIFT; G.save.data.story.prologueOffered = true; G.play(); });
   await p.waitForFunction(() => window.NIGHTSHIFT.state.mode === 'drive', null, { timeout: 180000 });
-  const res = await p.evaluate(async ([x0, z0, minutes]) => {
+  const res = await p.evaluate(async ([x0, z0, minutes, detail]) => {
     const G = window.NIGHTSHIFT, W = G.world; G.rm.renderer.setAnimationLoop(null); G.rm.render = () => {};
     const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
     const step = () => { try { G._update(1 / 30); } catch (e) { console.error(e.message); } G.input.endFrame(); };
@@ -90,7 +90,7 @@ for (const [name, [x0, z0]] of list) {
     return { at: `${G.player.state.x.toFixed(0)},${G.player.state.z.toFixed(0)}`, placed, maxCars: out.maxCars, stoppedPct: +(100 * out.stopSamples / Math.max(1, out.carSamples)).toFixed(1),
       stuck, overlaps: sum(out.over), overTop: top(out.over), offRoad: sum(out.offRoad), offTop: top(out.offRoad), offDump: out.offDump,
       pairs: [...out.pairs.values()], crashes: sum(out.crash), crashTop: top(out.crash), staged: sum(out.staged), pedSamples: out.pedSamples, pedRoad: sum(out.pedRoad), pedTop: top(out.pedRoad) };
-  }, [x0, z0, minutes]);
+  }, [x0, z0, minutes, detail]);
   console.log(`== ${name}: stopped ${res.stoppedPct}% · stuck ${res.stuck.length} · overlaps ${res.overlaps} · off road ${res.offRoad} · crashes ${res.crashes} (staged ${res.staged}) · people in the road ${res.pedRoad}/${res.pedSamples} · cars ${res.maxCars} · errors ${errs.length}`);
   for (const k of ['stuck', 'overTop', 'offTop', 'crashTop', 'pedTop']) if (res[k].length) console.log(`   ${k}: ${res[k].join(' | ')}`);
   if (res.offDump.length) console.log('   offDump: ' + JSON.stringify(res.offDump));

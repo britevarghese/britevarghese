@@ -334,6 +334,15 @@ the game. Newly found problems go at the end of their section.
     them meet the player's street only 1-1.4 km round by road. Of up to three junctions now, the one with the
     shortest way by road (215 m there): the first unit with a player standing there in under 20 s, busted at 26 s
 
+- [x] Street life in all six towns again (tools/dev/townlife.mjs, which itself crashed the first time two cars
+  overlapped - its detail switch wasn't passed into the page): cars drove through one another at junctions, 5 times in
+  Kannur and Iritty in 3 minutes, 1-2 elsewhere. A car coming the other way was always taken to be in its own lane and
+  ignored - also one held at a junction's mouth on its turn, nosed into the road, which an auto then drove straight
+  through. Only one on an ordinary lane is ignored now; at a junction, of two nose to nose, one gives way. Overlaps:
+  Kannur 5 -> 0, Iritty 5 -> 0, Thalassery 2 -> 0, Payyanur 1 -> 0; Taliparamba 0-1 a run (one jam with the officer
+  waving cars on, 65 samples of three cars pressed together, not seen again in five more runs). Left: Mattannur's
+  queue behind the player's car stopped in a narrow street (nowhere to go round)
+
 - [x] Hitches while driving into new country (a tile's build stalling a frame): every step of a tile's build timed
   on a drive (headless, its CPU about half a desktop's). The worst were the ground's mesh (up to a quarter of a second:
   its normals by three's general routine), the first street of a tile (a long road's kerbs in one go, a sixth of a

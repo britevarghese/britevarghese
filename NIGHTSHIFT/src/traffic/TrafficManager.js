@@ -721,7 +721,9 @@ export class TrafficManager {
       const ofx = Math.sin(o.yaw), ofz = Math.cos(o.yaw), cosA = Math.abs(ofx * fx + ofz * fz);
       const half = (o.spec.w * cosA + o.spec.l * Math.sqrt(Math.max(0, 1 - cosA * cosA))) / 2;
       if (Math.abs(-dx * fz + dz * fx) > half + c.spec.w / 2 + 0.35) continue;
-      if (ofx * fx + ofz * fz < -0.5) continue;          // oncoming traffic in its own lane
+      // oncoming traffic in its own lane (not one turning at a junction, or this one turning: held at a junction's mouth
+      // on its turn, nosed into the other road, a car was driven through by an auto coming the other way)
+      if (ofx * fx + ofz * fz < -0.5 && o.path?.kind === 'lane' && path.kind === 'lane') continue;
       // does it see us in front of it too? then the one further from the conflict (or the later id) waits
       const bAhead = -dx * ofx - dz * ofz;
       if (bAhead > 0 && bAhead < 4 + o.v * 1.4 + o.spec.l / 2 && Math.abs(dx * ofz - dz * ofx) < c.spec.w / 2 + o.spec.w / 2 + 1.5 && (bAhead > ahead || (Math.abs(bAhead - ahead) < 1 && c.id < o.id))) continue;
