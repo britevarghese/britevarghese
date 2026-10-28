@@ -7,6 +7,7 @@ import { stepAir } from '../shared/royale.js';
 import { bulletPath, STEP } from '../shared/ballistics.js';
 import { BotBrain } from './bots.js';
 import { VehicleSystem } from './vehicles.js';
+import { angleDiff } from '../shared/util.js';
 
 export const TICK_HZ = 30;
 export const SNAP_HZ = 20;
@@ -222,7 +223,8 @@ export class Game {
     // freefall (1) -> parachute (2) -> ground (0), never back up into the air
     const air = p.air && (m.dr === p.air || (p.air === 1 && m.dr === 2)) ? m.dr : 0;
     if (p.air && !air) p.landedAt = now;
-    const allowed = (p.air ? 34 : MOVE.sprint * 1.6) * Math.min(dt, 0.5) + 0.6;
+    // (just bailed out of a moving vehicle: carrying its speed for a moment)
+    const allowed = (p.air ? 34 : Math.max(MOVE.sprint * 1.6, p.bailUntil > now ? (p.bailSpeed || 0) * 1.2 : 0)) * Math.min(dt, 0.5) + 0.6;
     p.air = air;
     const before = { x: p.x, y: p.y, z: p.z };
     if (process.env.DEV_TELEPORT && Number.isFinite(m.x + m.y + m.z)) { p.x = m.x; p.y = m.y; p.z = m.z; }
@@ -352,8 +354,8 @@ export class Game {
         if (t !== null && t < best) { best = t; victim = q; part = cap.part; }
       }
     }
-    // vehicles (current positions: they're big and their movement is smooth)
-    const vh = this.vehicles.rayTest(o, d, best, b.shooter);
+    // vehicles, lag-compensated like soldiers (bots see the present)
+    const vh = b.bot ? this.vehicles.rayTest(o, d, best, b.shooter) : this.#vehicleRayAt(o, d, best, b.shooter, at);
     // (an exposed rider in the line of fire takes the round, not the bike under them)
     if (vh && vh.t < best && !(victim && victim.vehicle === vh.v.id)) return { vehicle: vh.v, dist: a.d + vh.t, point: [o.x + d.x * vh.t, o.y + d.y * vh.t, o.z + d.z * vh.t] };
     return victim ? { victim, head: part === 'head', part, dist: a.d + best, point: [o.x + d.x * best, o.y + d.y * best, o.z + d.z * best] } : null;
@@ -459,6 +461,24 @@ export class Game {
       this.damage(q, GRENADE.maxDamage * f * f + (dist < 2 ? 40 : 0), owner, 'grenade');
     }
     this.vehicles.explosion(g.x, g.y, g.z, GRENADE.radius, 160, owner, 'grenade', 'grenade');
+  }
+
+  // ray test against every vehicle placed where it was at time t (pose history), then put them back
+  #vehicleRayAt(o, d, maxT, shooter, t) {
+    const moved = [];
+    for (const v of this.vehicles.list) {
+      const h = v.hist;
+      if (!h?.length || v.dead || t >= h[h.length - 1].t) continue;
+      let a = h[0], b = h[0];
+      for (let i = h.length - 1; i > 0; i--) if (h[i - 1].t <= t) { a = h[i - 1]; b = h[i]; break; }
+      const k = Math.max(0, Math.min(1, (t - a.t) / Math.max(1, b.t - a.t)));
+      moved.push([v, v.x, v.y, v.z, v.yaw, v.pitch]);
+      v.x = a.x + (b.x - a.x) * k; v.y = a.y + (b.y - a.y) * k; v.z = a.z + (b.z - a.z) * k;
+      v.yaw = a.yaw + angleDiff(a.yaw, b.yaw) * k; v.pitch = a.pitch + (b.pitch - a.pitch) * k;
+    }
+    try { return this.vehicles.rayTest(o, d, maxT, shooter); } finally {
+      for (const [v, x, y, z, yaw, pitch] of moved) Object.assign(v, { x, y, z, yaw, pitch });
+    }
   }
 
   // soldiers are solid: a bot that walked into someone is pushed back out (players' own movement does the same
@@ -592,6 +612,12 @@ export class Game {
       }
       p.history.push({ t: now, x: p.x, y: p.y, z: p.z, yaw: p.yaw, stance: p.stance });
       while (p.history.length && p.history[0].t < now - HISTORY_MS) p.history.shift();
+    }
+    // vehicle poses too, so shots at a moving jeep / helicopter are judged where the shooter saw it
+    for (const v of this.vehicles.list) {
+      const h = v.hist || (v.hist = []);
+      h.push({ t: now, x: v.x, y: v.y, z: v.z, yaw: v.yaw, pitch: v.pitch || 0 });
+      while (h.length && h[0].t < now - HISTORY_MS) h.shift();
     }
     for (const a of this.agents) a.tick();
     this.stepBullets(now);

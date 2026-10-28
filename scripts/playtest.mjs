@@ -182,10 +182,12 @@ await A.keyboard.up('Tab');
 
 // A dies -> deploy screen -> redeploys via the button
 await g(() => __game.net.send({ t: 'suicide' }));
-await sleep(4500);
-check('own death shows the deploy screen', await g(() => !document.getElementById('deploy').classList.contains('hidden')));
-await sleep(7000);
-check('autodeploy respawns A', await g(() => __game.me.alive));
+// the deploy screen shows ~2.2 s after death and autodeploy takes over at the 5 s respawn: watch for it in the page
+// (a single late sample at the software GPU's ~1 fps can land after the respawn)
+const deployShown = await A.waitForFunction(() => !document.getElementById('deploy').classList.contains('hidden'), null, { timeout: 8000, polling: 100 }).then(() => true, () => false);
+check('own death shows the deploy screen', deployShown);
+const respawned = await A.waitForFunction(() => __game.me.alive, null, { timeout: 20000, polling: 200 }).then(() => true, () => false);
+check('autodeploy respawns A', respawned);
 
 console.log('\nbrowser console errors:', errors.length ? `\n  ${[...new Set(errors)].slice(0, 20).join('\n  ')}` : 'none');
 const failed = results.filter((r) => !r.ok).length;

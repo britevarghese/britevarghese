@@ -3,7 +3,7 @@
 // weapons (cannon, rockets, machine guns) with predicted impact reticles, HUD, engine / rotor sound,
 // wreck smoke, minimap icons, touch controls.
 import * as THREE from 'three';
-import { VEHICLES, stepGround, stepHeli, seatPosition, vehicleCollider, vehicleMount, exposedPose, GUN_H } from '/shared/vehicles.js';
+import { VEHICLES, stepGround, stepHeli, heliAssist, seatPosition, vehicleCollider, vehicleMount, exposedPose, GUN_H } from '/shared/vehicles.js';
 import { EYE_HEIGHT } from '/shared/world.js';
 import { bulletPath } from '/shared/ballistics.js';
 import { angleDiff, clamp } from '/shared/util.js';
@@ -87,8 +87,10 @@ export class VehiclesClient {
       this.g.audio.ui('switch');
     }
     if (seat === 0 && v && (!this.drive || this.drive.s.id !== id)) {
-      this.drive = { type: v.type, s: { id, x: v.x, y: v.y, z: v.z, yaw: v.yaw, pitch: v.pitch, roll: v.roll, speed: 0, steer: 0, turretYaw: v.turretYaw, gunPitch: v.gunPitch, vx: 0, vy: 0, vz: 0 } };
-      const last = this.#row(id); if (last) Object.assign(this.drive.s, { x: last[3], y: last[4], z: last[5], yaw: last[6], pitch: last[7], roll: last[8], turretYaw: last[9], gunPitch: last[10] });
+      this.drive = { type: v.type, yOff: 0, s: { id, x: v.x, y: v.y, z: v.z, yaw: v.yaw, pitch: v.pitch, roll: v.roll, speed: 0, steer: 0, turretYaw: v.turretYaw, gunPitch: v.gunPitch, vx: 0, vy: 0, vz: 0 } };
+      // take it over with its current motion (still rolling after someone bailed out, a helicopter dropping)
+      const last = this.#row(id);
+      if (last) Object.assign(this.drive.s, { x: last[3], y: last[4], z: last[5], yaw: last[6], pitch: last[7], roll: last[8], turretYaw: last[9], gunPitch: last[10], vx: last[16] || 0, vy: last[17] || 0, vz: last[18] || 0, speed: v.type === 'heli' ? 0 : last[14] || 0 });
     }
     if (seat !== 0) this.drive = null;
     document.body.classList.add('invehicle');
@@ -100,7 +102,8 @@ export class VehiclesClient {
     document.body.classList.remove('invehicle');
     $('vhud').classList.add('hidden'); $('vret').classList.add('hidden');
     const me = this.g.me;
-    if (pos) Object.assign(me.s, { x: pos.x, y: pos.y, z: pos.z, vx: 0, vy: 0, vz: 0, onGround: true, stance: 'stand' });
+    // (the server hands over the vehicle's momentum: bailing out of a moving vehicle carries you on)
+    if (pos) Object.assign(me.s, { x: pos.x, y: pos.y, z: pos.z, vx: pos.vx || 0, vy: pos.vy || 0, vz: pos.vz || 0, onGround: !(pos.vy > 0), stance: 'stand' });
     if (this.g.me.alive) me.pitch = 0;
   }
 
@@ -117,7 +120,8 @@ export class VehiclesClient {
     switch (e.t) {
       case 'venter': if (e.id === this.g.myId) this.#seated(e.v, e.seat); break;
       case 'vexit': if (e.id === this.g.myId) this.#left(e); break;
-      case 'vcorrect': if (this.drive && this.drive.s.id === e.v) Object.assign(this.drive.s, { x: e.x, y: e.y, z: e.z, yaw: e.yaw, speed: 0, vx: 0, vy: 0, vz: 0 }); break;
+      // server refused a position: snap back but keep the motion (zeroing it stopped a helicopter dead mid-air)
+      case 'vcorrect': if (this.drive && this.drive.s.id === e.v) Object.assign(this.drive.s, { x: e.x, y: e.y, z: e.z, yaw: e.yaw }); break;
       case 'vammo': this.ammo.set(e.v, { ammo: e.ammo, rl: e.rl.map((t) => performance.now() + t) }); break;
       case 'vhurt': {
         const v = this.map.get(e.v);
@@ -193,8 +197,10 @@ export class VehiclesClient {
     }
     // my own vehicle: predicted
     if (this.drive) {
-      const v = this.map.get(this.drive.s.id), s = this.drive.s;
-      if (v && !v.dead) Object.assign(v, { x: s.x, y: s.y, z: s.z, yaw: s.yaw, pitch: s.pitch, roll: s.roll, turretYaw: s.turretYaw ?? v.turretYaw, gunPitch: s.gunPitch ?? v.gunPitch, speed: s.speed ?? Math.hypot(s.vx, s.vz), steer: s.steer });
+      const v = this.map.get(this.drive.s.id), s = this.drive.s, d = this.drive;
+      // the physics snaps up onto kerbs / ledges; the model + camera ease up instead (suspension)
+      d.yOff = (d.yOff || 0) * Math.exp(-14 * dt);
+      if (v && !v.dead) Object.assign(v, { x: s.x, y: s.y + d.yOff, z: s.z, yaw: s.yaw, pitch: s.pitch, roll: s.roll, turretYaw: s.turretYaw ?? v.turretYaw, gunPitch: s.gunPitch ?? v.gunPitch, speed: s.speed ?? Math.hypot(s.vx, s.vz), steer: s.steer });
     }
     // solid hulls for the local soldier / driver prediction
     this.colliders.length = 0;
@@ -296,26 +302,27 @@ export class VehiclesClient {
           aimYaw: Math.atan2(-(aim.x - s.x), -(aim.z - s.z)),
           aimPitch: Math.atan2(aim.y - py, Math.hypot(aim.x - px, aim.z - pz)),
         };
+        const y0 = s.y;
         stepGround(g.world.collision, s, input, dt, v.type);
+        if (s.y - y0 > 0.12 && !s.air) this.drive.yOff = Math.max(-1, (this.drive.yOff || 0) - (s.y - y0 - Math.max(0, s.vy) * dt));
         this.impAcc = Math.max(this.impAcc, s.impact || 0);
       } else {
         const up = key('Space') || T.up, down = key('ShiftLeft') || key('ControlLeft') || key('KeyC') || T.down;
-        const tilt = Math.max(0.5, Math.cos(s.pitch) * Math.cos(s.roll));
-        // hover assist: level thrust compensates the tilt, and vertical speed is damped unless climbing / descending
-        const collective = (1 / tilt - 1) / 0.75 + (up ? 0.9 : 0) - (down ? 0.9 : 0) + (up || down ? 0 : clamp(-s.vy * 0.25, -0.5, 0.5));
-        const input = {
-          collective,
+        // hover assist (shared): level thrust compensates the tilt, altitude hold, sink rate limited near the ground
+        const agl = s.y - g.world.collision.supportHeight(s.x, s.z, s.y + 0.5, 1.5);
+        const input = heliAssist(s, {
+          up, down,
           pitch: (key('KeyW') ? 1 : 0) - (key('KeyS') ? 1 : 0) - (T.mz || 0),
           roll: (key('KeyD') ? 1 : 0) - (key('KeyA') ? 1 : 0) + (T.mx || 0),
           yawRate: clamp(angleDiff(s.yaw, me.yaw) * 2.2, -1, 1),
-        };
+        }, agl);
         stepHeli(g.world.collision, s, input, dt);
         this.impAcc = Math.max(this.impAcc, s.impact || 0);
       }
       this.sendT += dt;
       if (this.sendT >= 1 / 30) {
         this.sendT = 0;
-        g.net.send({ t: 'vin', x: +s.x.toFixed(3), y: +s.y.toFixed(3), z: +s.z.toFixed(3), yaw: +s.yaw.toFixed(4), pitch: +s.pitch.toFixed(4), roll: +s.roll.toFixed(4), sp: +(s.speed || 0).toFixed(2), st: +(s.steer || 0).toFixed(2), ty: +(s.turretYaw || 0).toFixed(4), gp: +(s.gunPitch || 0).toFixed(4), vx: +(s.vx || 0).toFixed(2), vy: +(s.vy || 0).toFixed(2), vz: +(s.vz || 0).toFixed(2), imp: +this.impAcc.toFixed(1) });
+        g.net.send({ t: 'vin', x: +s.x.toFixed(3), y: +s.y.toFixed(3), z: +s.z.toFixed(3), yaw: +s.yaw.toFixed(4), pitch: +s.pitch.toFixed(4), roll: +s.roll.toFixed(4), sp: +(s.speed || 0).toFixed(2), st: +(s.steer || 0).toFixed(2), ty: +(s.turretYaw || 0).toFixed(4), gp: +(s.gunPitch || 0).toFixed(4), vx: +(s.vx || 0).toFixed(2), vy: +(s.vy || 0).toFixed(2), vz: +(s.vz || 0).toFixed(2), ar: s.air ? 1 : 0, imp: +this.impAcc.toFixed(1) });
         this.impAcc = 0;
       }
     } else {
@@ -351,7 +358,7 @@ export class VehiclesClient {
     const rl = st?.rl?.[seat] || 0, ammo = st?.ammo?.[seat] ?? (W ? W.mag || W.salvo || 1 : 0);
     $('vh-weap').textContent = !W ? (seat === 0 ? 'NO WEAPON — DRIVE' : 'PASSENGER') : `${W.name} · ${now < rl ? `RELOADING ${((rl - now) / 1000).toFixed(1)} s` : W.mag || W.salvo ? `${ammo} / ${W.mag || W.salvo}` : 'READY'}`;
     const s = this.drive?.s || v;
-    const kmh = Math.round(Math.abs(v.type === 'tank' ? s.speed || 0 : Math.hypot(s.vx || 0, s.vz || 0)) * 3.6);
+    const kmh = Math.round(Math.abs(v.type !== 'heli' ? s.speed || 0 : Math.hypot(s.vx || 0, s.vz || 0)) * 3.6);
     const agl = v.y - this.g.world.collision.supportHeight(v.x, v.z, v.y + 0.5, 1.5);
     $('vh-info').textContent = `${kmh} km/h${v.type === 'heli' ? ` · ALT ${Math.max(0, agl).toFixed(0)} m${s.vy !== undefined ? ` · V/S ${(s.vy || 0).toFixed(1)}` : ''}` : ''} · HULL ${Math.round(v.hp)}`;
     $('vh-keys').textContent = this.g.isTouch ? '' : v.type === 'jeep' || v.type === 'bike'

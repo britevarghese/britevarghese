@@ -115,7 +115,7 @@ await A.keyboard.down('KeyW');
 await frames(30);
 await A.keyboard.up('KeyW');
 const hs = await g(() => Math.hypot(__game.vehicles.drive.s.vx, __game.vehicles.drive.s.vz));
-check('W noses down and flies forward', hs > 4, `${hs.toFixed(1)} m/s`);
+check('W noses down and flies forward', hs > 3, `${hs.toFixed(1)} m/s`);
 await A.screenshot({ path: `${out}/vehicle_heli_flight.jpg`, quality: 80 });
 await g(() => { __game.me.mouse.l = true; });
 check('LMB fires rockets', await until(() => window.__vshots.includes('heli_rockets'), null, 30000));

@@ -1,11 +1,17 @@
 // Server-side vehicles: spawning at team bases, seats (enter / exit / switch), driver state validation, weapons
 // (ballistic shells, rockets, machine guns / cannon through the shared bullet system), armour and damage,
 // destruction (occupants die, credited to the attacker), respawn, run-overs, and the network snapshot.
-import { VEHICLES, vehicleLoadout, stepHeli, heliCrashDamage, groundCrashDamage, rayVehicle, seatPosition, vehicleCollider, vehicleMount, exposedPose, GUN_H } from '../shared/vehicles.js';
+import { VEHICLES, vehicleLoadout, stepHeli, stepGround, heliCrashDamage, groundCrashDamage, CRASH_MIN, rayVehicle, seatPosition, vehicleCollider, vehicleMount, exposedPose, GUN_H } from '../shared/vehicles.js';
 import { EYE_HEIGHT } from '../shared/world.js';
 
 const TYPES = Object.keys(VEHICLES);
 const RESPAWN = 25000;
+// bailing out: above BAIL_SAFE m/s the tumble hurts (BAIL_DMG hp per m/s more); the soldier keeps the vehicle's
+// momentum up to BAIL_CARRY m/s (game.handleInput accepts that speed for a moment after p.bailUntil is set)
+const BAIL_SAFE = 8, BAIL_DMG = 5, BAIL_CARRY = 34;
+// driver updates: movement budget refilled at 1.35 × top speed, holding up to BUDGET_S seconds of travel (+2 m), so
+// bursty arrival (several updates a few ms apart after a network stall) passes while teleports / speed hacks don't
+const BUDGET_S = 0.6;
 let nextVid = 1;
 
 export class VehicleSystem {
@@ -35,11 +41,15 @@ export class VehicleSystem {
   // parked before it (bounding circles + 1 m)
   #clearSpot(x, z, type, placed = []) {
     const w = this.g.world, V = VEHICLES[type], r0 = Math.hypot(V.half[0], V.half[2]), r = r0 + 0.8;
+    // a helicopter also needs its rotor disc clear of anything taller than the cabin (trees, walls, lamps)
+    const rr = type === 'heli' ? V.rotor + 0.5 : r;
+    const inside = (b, px, pz, rad) => b.max[0] > px - rad && b.min[0] < px + rad && b.max[2] > pz - rad && b.min[2] < pz + rad;
     for (let ring = 0; ring < 12; ring++) {
       for (let k = 0; k < Math.max(1, ring * 6); k++) {
         const a = (k / Math.max(1, ring * 6)) * Math.PI * 2, px = x + Math.cos(a) * ring * 3, pz = z + Math.sin(a) * ring * 3;
         const gy = w.map.groundHeight(px, pz);
-        const blocked = w.query(px - r, pz - r, px + r, pz + r).some((b) => b.max[1] > gy + 0.4 && b.min[1] < gy + 4 && b.max[0] > px - r && b.min[0] < px + r && b.max[2] > pz - r && b.min[2] < pz + r);
+        const blocked = w.query(px - rr, pz - rr, px + rr, pz + rr).some((b) => (b.max[1] > gy + 0.4 && b.min[1] < gy + 4 && inside(b, px, pz, r))
+          || (rr > r && b.max[1] > gy + 2.4 && b.min[1] < gy + (V.rotorH || 3) + 1.5 && inside(b, px, pz, rr)));
         const slope = Math.abs(w.map.groundHeight(px + 3, pz) - w.map.groundHeight(px - 3, pz)) + Math.abs(w.map.groundHeight(px, pz + 3) - w.map.groundHeight(px, pz - 3));
         const taken = placed.some((q) => Math.hypot(q.x - px, q.z - pz) < q.r + r0 + 1);
         if (!blocked && !taken && slope < 2.5) return { x: px, z: pz };
@@ -54,7 +64,7 @@ export class VehicleSystem {
       x: v.home.x, z: v.home.z, y: this.g.world.supportHeight(v.home.x, v.home.z, 500), yaw: v.home.yaw, pitch: 0, roll: 0,
       speed: 0, vx: 0, vy: 0, vz: 0, turretYaw: v.home.yaw, gunPitch: 0, hp: V.hp, dead: false, respawnAt: 0,
       seats: new Array(V.seats).fill(null), ammo: V.weapons.map((w) => (w ? w.mag || w.salvo || 1 : 0)), reloadUntil: V.weapons.map(() => 0), nextShot: V.weapons.map(() => 0), steer: 0,
-      lastInput: this.g.now(), lastDamager: null,
+      lastInput: this.g.now(), lastDamager: null, lastDriver: null, air: false, comp: 0, rest: true, budget: 0,
     });
   }
 
@@ -84,7 +94,7 @@ export class VehicleSystem {
     v.seats[seat] = p.id; p.vehicle = v.id; p.seat = seat; p.reloadUntil = 0; p.stance = 'stand';
     // bike riders / the jeep's roof gunner sit in the open: visible, and bullets hit them
     p.exposed = exposedPose(v.type, seat); p.vx = p.vz = 0;
-    if (seat === 0) { v.team = p.team; v.lastInput = this.g.now(); }
+    if (seat === 0) { v.team = p.team; v.lastInput = this.g.now(); v.budget = 2; v.rest = false; }
     this.#placeOccupant(p, v);
     this.g.emit({ t: 'venter', id: p.id, v: v.id, seat });
   }
@@ -93,7 +103,7 @@ export class VehicleSystem {
     const v = p.vehicle && this.get(p.vehicle);
     if (!v || seat < 0 || seat >= v.seats.length || v.seats[seat]) return;
     v.seats[p.seat] = null;
-    if (p.seat === 0) v.speed = 0; // driver left the controls
+    if (p.seat === 0) this.#leftControls(v, p); // nobody at the controls: it rolls on / drops
     this.#sit(p, v, seat);
   }
 
@@ -102,17 +112,32 @@ export class VehicleSystem {
     p.vehicle = null; p.exposed = null;
     if (!v) return;
     v.seats[p.seat] = null;
-    if (p.seat === 0) v.speed = 0;
+    if (p.seat === 0) this.#leftControls(v, p);
     // step out beside the hull (left side, then right, then behind)
     const V = VEHICLES[v.type], rx = Math.cos(v.yaw), rz = -Math.sin(v.yaw), bx = Math.sin(v.yaw), bz = Math.cos(v.yaw);
     for (const [ox, oz] of [[-rx, -rz], [rx, rz], [bx, bz]]) {
       const d = (ox === bx ? V.half[2] : V.half[0]) + 1.2;
       const pos = { x: v.x + ox * d, z: v.z + oz * d };
       const gy = this.g.world.supportHeight(pos.x, pos.z, v.y + 2);
-      if (!this.g.world.resolveHorizontal({ ...pos }, gy + 0.1, 1.8)) { Object.assign(p, { x: pos.x, z: pos.z, y: Math.max(gy, v.y), vx: 0, vz: 0, vy: 0 }); break; }
+      if (!this.g.world.resolveHorizontal({ ...pos }, gy + 0.1, 1.8)) { Object.assign(p, { x: pos.x, z: pos.z, y: Math.max(gy, v.y) }); break; }
     }
+    // the soldier leaves with the vehicle's momentum (capped: see BAIL_CARRY)
+    const heli = V.kind === 'heli', fx = -Math.sin(v.yaw), fz = -Math.cos(v.yaw);
+    const vx = heli ? v.vx || 0 : fx * (v.speed || 0), vz = heli ? v.vz || 0 : fz * (v.speed || 0), hs = Math.hypot(vx, vz);
+    const keep = hs > BAIL_CARRY ? BAIL_CARRY / hs : 1;
+    Object.assign(p, { vx: vx * keep, vz: vz * keep, vy: heli ? Math.max(-25, Math.min(11, v.vy || 0)) : 0 });
+    p.bailUntil = this.g.now() + 1500; p.bailSpeed = hs * keep;
     p.history = [];
-    if (!silent) this.g.emit({ t: 'vexit', id: p.id, v: v.id, x: p.x, y: p.y, z: p.z });
+    if (!silent) this.g.emit({ t: 'vexit', id: p.id, v: v.id, x: p.x, y: p.y, z: p.z, vx: +p.vx.toFixed(2), vy: +p.vy.toFixed(2), vz: +p.vz.toFixed(2) });
+    // bailing out at speed (on the ground, or from a helicopter skimming it) hurts: tumbling across the ground
+    const low = !heli || p.y - this.g.world.supportHeight(p.x, p.z, p.y + 0.5) < 3;
+    if (!silent && low && hs > BAIL_SAFE) this.g.damage(p, (hs - BAIL_SAFE) * BAIL_DMG, null, 'fall');
+  }
+
+  // the driver let go of the controls (got out / changed seat): a ground vehicle rolls on with its momentum and is
+  // simulated here until it stops; run-over kills are still credited to (and spare the team of) whoever drove it
+  #leftControls(v, p) {
+    v.lastDriver = p.id; v.rest = false; v.lastInput = this.g.now();
   }
 
   #placeOccupant(p, v) {
@@ -139,14 +164,23 @@ export class VehicleSystem {
     const V = VEHICLES[v.type];
     const dt = Math.max(0.001, (now - v.lastInput) / 1000); v.lastInput = now;
     if (![m.x, m.y, m.z, m.yaw].every(Number.isFinite)) return;
-    const moved = Math.hypot(m.x - v.x, m.z - v.z), limit = (V.maxSpeed * 1.35) * Math.min(dt, 0.5) + 1;
+    // movement budget (see BUDGET_S): judged over a window, not per message, so arrival jitter doesn't reject updates
+    const rate = V.maxSpeed * 1.35, cap = rate * BUDGET_S + 2;
+    v.budget = Math.min(cap, (v.budget ?? cap) + rate * dt);
+    const moved = Math.hypot(m.x - v.x, m.z - v.z);
     const H = this.g.map.PLAY_HALF + 20;
-    if ((moved > limit && !process.env.DEV_TELEPORT) || Math.abs(m.x) > H || Math.abs(m.z) > H) { this.g.emit({ t: 'vcorrect', v: v.id, x: v.x, y: v.y, z: v.z, yaw: v.yaw }, p); return; }
+    if ((moved > v.budget && !process.env.DEV_TELEPORT) || Math.abs(m.x) > H || Math.abs(m.z) > H) { this.g.emit({ t: 'vcorrect', v: v.id, x: v.x, y: v.y, z: v.z, yaw: v.yaw }, p); return; }
+    v.budget = Math.max(0, v.budget - moved);
     Object.assign(v, { x: m.x, y: m.y, z: m.z, yaw: m.yaw, pitch: +m.pitch || 0, roll: +m.roll || 0 });
+    v.rest = false;
+    const cl = (x, a, b) => Math.max(a, Math.min(b, +x || 0));
     if (V.kind !== 'heli') {
-      v.speed = Math.max(-V.reverseSpeed, Math.min(V.maxSpeed, +m.sp || 0)); v.steer = Math.max(-1, Math.min(1, +m.st || 0));
-      if (v.type === 'tank') { v.turretYaw = +m.ty || 0; v.gunPitch = Math.max(V.gunPitch[0], Math.min(V.gunPitch[1], +m.gp || 0)); }
-      if (+m.imp > 11 && V.kind === 'wheeled') this.damage(v, groundCrashDamage(Math.min(40, +m.imp)), null, 'crash', 'crash');
+      // (downhill / bounces can exceed the governed top speed a little)
+      v.speed = cl(m.sp, -Math.max(V.reverseSpeed, V.maxSpeed * 0.3), V.maxSpeed * 1.3); v.steer = cl(m.st, -1, 1);
+      v.vy = cl(m.vy, -60, 15); v.air = !!m.ar;
+      v.vx = -Math.sin(v.yaw) * v.speed; v.vz = -Math.cos(v.yaw) * v.speed;
+      if (v.type === 'tank') { v.turretYaw = +m.ty || 0; v.gunPitch = cl(m.gp, V.gunPitch[0], V.gunPitch[1]); }
+      if (+m.imp > CRASH_MIN) this.damage(v, groundCrashDamage(Math.min(40, +m.imp)), null, 'crash', 'crash');
     } else { v.vx = +m.vx || 0; v.vy = +m.vy || 0; v.vz = +m.vz || 0; if (+m.imp > 6) this.damage(v, heliCrashDamage(Math.min(40, +m.imp)), v.lastDamager ? this.g.players.get(v.lastDamager) : null, 'crash'); }
   }
 
@@ -178,6 +212,12 @@ export class VehicleSystem {
       const mount = vehicleMount(v, seat);
       o = { x: mount.x + d.x * 1.2, y: mount.y + d.y * 1.2, z: mount.z + d.z * 1.2 };
     }
+    // the barrel / pods can stick through a wall the hull is up against: a round whose way out from the turret
+    // (gun trunnions, mount, airframe centre) to the muzzle is blocked goes off at the obstruction instead
+    const pv = v.type === 'tank' && seat === 0 ? { x: v.x, y: v.y + GUN_H, z: v.z } : { x: v.x, y: o.y, z: v.z };
+    const bx = o.x - pv.x, by = o.y - pv.y, bz = o.z - pv.z, bl = Math.hypot(bx, by, bz);
+    const block = bl > 0.01 && g.world.raycast(pv, { x: bx / bl, y: by / bl, z: bz / bl }, bl, true);
+    if (block) { const t = Math.max(0, block.t - 0.05) / bl; o = { x: pv.x + bx * t, y: pv.y + by * t, z: pv.z + bz * t }; }
     v.ammo[seat]--;
     v.nextShot[seat] = now + (W.rpm ? 60000 / W.rpm : W.reload * 1000);
     if (v.ammo[seat] <= 0) { v.reloadUntil[seat] = now + W.reload * 1000; v.ammo[seat] = W.mag || W.salvo || 1; }
@@ -242,7 +282,10 @@ export class VehicleSystem {
   // ---------------------------------------------------------------- tick
   tick(dt, now) {
     const g = this.g;
+    // solid hulls where every vehicle is at the start of the tick (so the ones simulated here collide with all the
+    // others), each refreshed in place once its vehicle has moved
     this.colliders.length = 0;
+    for (const v of this.list) if (!v.dead) this.colliders.push((v.col = vehicleCollider(v, v.col)));
     for (const v of this.list) {
       if (v.dead) {
         if (now >= v.respawnAt) { this.#reset(v); g.emit({ t: 'vspawn', v: v.id }); continue; }
@@ -251,37 +294,52 @@ export class VehicleSystem {
         if (v.y > gy) { v.vy = (v.vy || 0) - 9.81 * dt; v.y = Math.max(gy, v.y + v.vy * dt); v.x += (v.vx || 0) * dt; v.z += (v.vz || 0) * dt; }
         continue;
       }
+      const V = VEHICLES[v.type];
       // helicopter with nobody at the controls: falls (and crashes if high)
       if (v.type === 'heli' && !v.seats[0]) {
         const s = { ...v };
         stepHeli(g.world, s, { collective: 0, power: 0.15 }, dt);
         Object.assign(v, { x: s.x, y: s.y, z: s.z, vx: s.vx, vy: s.vy, vz: s.vz, pitch: s.pitch, roll: s.roll });
         if (s.impact > 6) this.damage(v, heliCrashDamage(s.impact), v.lastDamager ? g.players.get(v.lastDamager) : null, 'crash', 'crash');
+        if (v.dead) continue;
+      } else if (V.kind !== 'heli' && !v.seats[0] && !v.rest) {
+        // ground vehicle with nobody at the wheel (bailed out of at speed, left rolling / airborne): it coasts on with
+        // the same physics the driver's client predicts, until it comes to rest
+        stepGround(g.world, v, { throttle: 0, steer: 0 }, dt, v.type);
+        if (v.speed === 0 && !v.air && Math.abs(v.vy) < 0.05) { v.rest = true; v.vy = 0; }
+        if (v.impact > CRASH_MIN) this.damage(v, groundCrashDamage(Math.min(40, v.impact)), null, 'crash', 'crash');
+        if (v.dead) continue;
       }
       // driver disconnected / went quiet: stop
       if (v.seats[0] && now - v.lastInput > 3000) v.speed = 0;
-      if (v.type === 'bike' && !v.seats[0]) { v.roll = 0.16; v.pitch = 0; } // parked on its side stand
+      if (v.type === 'bike' && !v.seats[0] && v.rest) { v.roll = 0.16; v.pitch = 0; } // parked on its side stand
       for (let i = 0; i < v.seats.length; i++) {
         const q = v.seats[i] && g.players.get(v.seats[i]);
         if (!q || !q.alive || q.vehicle !== v.id) { v.seats[i] = null; continue; }
         this.#placeOccupant(q, v);
       }
-      // tanks run over soldiers in their path
-      if (VEHICLES[v.type].kind !== 'heli' && Math.abs(v.speed) > (v.type === 'tank' ? 3 : 6) && v.seats[0]) {
-        const driver = g.players.get(v.seats[0]);
+      // ground vehicles run over soldiers in their path (driven, or still rolling after the driver bailed out);
+      // no friendly fire: the driver's (else the vehicle's) team is spared, like everywhere else
+      if (V.kind !== 'heli' && Math.abs(v.speed) > (v.type === 'tank' ? 3 : 6)) {
+        const driver = g.players.get(v.seats[0] || v.lastDriver) || null;
         for (const q of g.players.values()) {
           if (!q.alive || q.vehicle || q.air || q === driver) continue;
-          if (Math.abs(q.y - v.y) < 2 && rayVehicle({ x: q.x, y: q.y + 0.5, z: q.z }, { x: 0, y: 1, z: 0 }, v, 0.01) !== null) g.kill(q, driver && g.isEnemy(driver, q) ? driver : null, 'roadkill');
+          if (driver ? !g.isEnemy(driver, q) : q.team === v.team) continue;
+          if (Math.abs(q.y - v.y) < 2 && rayVehicle({ x: q.x, y: q.y + 0.5, z: q.z }, { x: 0, y: 1, z: 0 }, v, 0.01) !== null) g.kill(q, driver, 'roadkill');
         }
       }
       if (v.type === 'heli' && Math.abs(v.x) > g.map.MAP_HALF + 40) this.damage(v, 1000, null, 'crash', 'crash');
-      this.colliders.push(vehicleCollider(v));
+      if (!v.dead) vehicleCollider(v, v.col);
     }
+    // wrecks are not solid
+    for (let i = this.colliders.length - 1; i >= 0; i--) if (this.get(this.colliders[i].owner)?.dead) this.colliders.splice(i, 1);
   }
 
   snapshot() {
     return this.list.map((v) => [v.id, TYPES.indexOf(v.type), v.team, +v.x.toFixed(2), +v.y.toFixed(2), +v.z.toFixed(2), +v.yaw.toFixed(3), +(v.pitch || 0).toFixed(3), +(v.roll || 0).toFixed(3),
-      +v.turretYaw.toFixed(3), +v.gunPitch.toFixed(3), Math.max(0, Math.round(v.hp)), v.dead ? 1 : 0, v.seats.map((s) => s || 0), +(v.speed || Math.hypot(v.vx, v.vz) || 0).toFixed(1), +(v.steer || 0).toFixed(2)]);
+      +v.turretYaw.toFixed(3), +v.gunPitch.toFixed(3), Math.max(0, Math.round(v.hp)), v.dead ? 1 : 0, v.seats.map((s) => s || 0), +(v.speed || Math.hypot(v.vx, v.vz) || 0).toFixed(1), +(v.steer || 0).toFixed(2),
+      // velocity, so a new driver takes over a vehicle that is still rolling / falling without a jolt
+      +(v.vx || 0).toFixed(2), +(v.vy || 0).toFixed(2), +(v.vz || 0).toFixed(2)]);
   }
 }
 

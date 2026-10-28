@@ -148,19 +148,25 @@ altitude hands-off), LMB rockets · gunner seats aim freely with the mouse. Touc
   jeep + motorbike on every map, plus a tank on the maps from Outskirts size up, plus an attack helicopter on Kestrel
   Airbase, Dry Valley and Kaskar Ridge.
   * *LTV-4 light utility vehicle* (jeep) — driver, roof .50 cal gunner (standing in the ring: exposed), passenger.
-    Bicycle-model steering limited by tyre grip (tight turns when slow, wide at speed), ~97 km/h, light armour,
-    wall crashes at speed damage it.
+    Bicycle-model steering limited by tyre grip (tight turns when slow, wide at speed, 0.8 g before it scrubs speed),
+    ~97 km/h (0-97 in ~6 s), 0.76 g brakes, light armour, wall crashes at speed damage it.
   * *TR-450 trail motorcycle* — rider + pillion, ~119 km/h, leans into turns (tan(lean) = lateral acceleration / g);
     both riders sit in the open and can be shot off it.
-  * *M-30 main battle tank* — 2 seats: driver with the 120 mm gun (HE shells with real ballistics: 560 m/s,
-    drag, drop; 4.5 s reload; 6 m blast) and a roof machine gun. Tracked driving follows the terrain (pitch / roll),
+  * *M-30 main battle tank* — 2 seats: driver with the 120 mm gun (HE shells with real ballistics: 1100 m/s,
+    drag, drop; 4.5 s reload; 6 m blast) and a roof machine gun. ~47 km/h (0-47 in ~7 s); tracked driving follows the
+    terrain (pitch / roll), climbs over 0.9 m obstacles,
     pivot turns, the turret and gun traverse / elevate at realistic rates toward where you look, and the reticle
     shows where the shell will actually land. Armour shrugs off rifle fire (2 %), grenades hurt, shells and rockets
     kill it; it runs soldiers over.
   * *AH-7 attack helicopter* — pilot with 14 unguided rockets, gunner with a 30 mm chin cannon (small explosive
     rounds). Flight model: thrust along the tilted rotor disc (nose down to accelerate, bank to turn / strafe),
-    drag-limited ~220 km/h, rotor wash on the ground; hard landings and crashes damage or destroy it, an abandoned
-    helicopter falls out of the sky.
+    drag-limited ~220 km/h in any direction, rotor wash on the ground; near the ground the sink rate is limited so a
+    held descent touches down gently (~2 m/s), but rotor strikes on walls / trees and hard landings damage or destroy
+    it; an abandoned helicopter falls out of the sky.
+  * Ground vehicles: letting go of the throttle coasts (brakes stop you), real gravity — they fly off crests and
+    cliffs and land hard, slow down uphill and can't climb more than ~31° (bike 35°), only drive up onto ledges they
+    can (jeep 0.5 m, bike 0.3 m), and bounce off / scrape along walls and barriers. Getting out keeps the vehicle
+    rolling and you keep its momentum (bailing out above ~30 km/h hurts). Run-overs spare teammates.
   * Occupants can't be shot directly; they die with the vehicle (credited to whoever destroyed it). Destroyed
     vehicles leave a burning, charred wreck. Driving is client-predicted with the shared physics and validated by
     the server, like soldier movement. Models are procedural (no Battlefield assets).
