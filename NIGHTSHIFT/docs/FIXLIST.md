@@ -632,7 +632,10 @@ the game. Newly found problems go at the end of their section.
     Iritty, its three pieces leaving at different grades, went from a 0.29 m crest to 0.09 m. And a road crossing a
     main road without a shared point had its strip's rows 8 m apart there, one inside the main road's strip and the
     next well out, joined straight across its edge: 0.19 m where it left a main road climbing at 15 % in Kannur. A
-    row every 2.5 m by a main road's strip now (laying the roads 0.9 -> 1.06 s for nine tiles, slowest step 45 ms)
+    row every 2.5 m by a main road's strip now (laying the roads 0.9 -> 1.06 s for nine tiles, slowest step 45 ms).
+    And a long highway's strip, every row's levels asked of its own grade and of the roads by it, was laid in one go,
+    up to 64 ms (a hitch while driving into new country): it pauses every 16 rows once the build's few milliseconds
+    are used, and between its markings - its slowest step 35 ms (headless, about half a desktop's speed)
     Kinks over 6 / 12 / 20 cm, the six towns: 170 / 28 / 2 (Kannur 85 / 9 / 0, Thalassery 10 / 4 / 1, Mattannur
     16 / 1 / 0, Taliparamba 21 / 6 / 0, Payyanur 1 / 0 / 0, Iritty 37 / 8 / 1); every tile edge round them meets.
     Left over 20 cm: Iritty's steep side road and the Thalassery service road under a ramp's edge. Rides round

@@ -1550,6 +1550,14 @@ export class KeralaTile {
   // a flat strip of half width hw along pts (tile-local e/n), at height yOf(e, n); uv: u across, v along (m / vScale)
   // rows: if given, gets each row of the strip as drawn ([e, n, unit normal e, n, left y, right y]), for drawnAt()
   _ribbon(pts, hw, yOf, vScale = 8, rows = null) {
+    const it = this._ribbonSteps(pts, hw, yOf, vScale, rows);
+    let r; while (!(r = it.next()).done);
+    return r.value;
+  }
+
+  // (a generator, pausing every 16 rows once the build's few milliseconds are up: a long highway's strip, every row's
+  // levels asked of its own grade and the roads by it, took up to 64 ms in one go - a hitch)
+  *_ribbonSteps(pts, hw, yOf, vScale = 8, rows = null) {
     // densify so the strip follows the ground
     const P = [];
     for (let i = 0; i < pts.length; i++) {
@@ -1581,6 +1589,7 @@ export class KeralaTile {
       if (rows) rows.push(e, n, ne / hw, nn / hw, yl, yr);
       uv.set([0, along / vScale, 1, along / vScale], i * 4);
       if (i) { const q = (i - 1) * 2; idx.push(q, q + 1, q + 2, q + 1, q + 3, q + 2); }
+      if ((i & 15) === 15 && this._due()) { yield 'tile:roads+'; this._ys = performance.now(); }
     }
     const g = new THREE.BufferGeometry();
     g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
@@ -1734,7 +1743,7 @@ export class KeralaTile {
         Q.push(b);
       }
       const rows = [];
-      const g = this._ribbon(Q, hw, ys(0), 7, rows);
+      const g = yield* this._ribbonSteps(Q, hw, ys(0), 7, rows);
       if (!g) continue;
       // (what the wheels drive on: see _drawnAt. And where it runs on past the edge, which way: the next tile's own strip
       // rules there, where it has one - see roadSurface)
@@ -1753,9 +1762,10 @@ export class KeralaTile {
       if (sk) shoulders.push(sk);
       if (r.dirt || r.cls > 4) continue;  // village and town lanes carry no paint
       // markings: dashed white centre line (Indian roads), solid edge lines on the main roads
+      if (this._due()) { yield 'tile:roads+'; this._ys = performance.now(); }
       const cl = this._dashes(r.pts, 0, 0.08, 3, 6, ys(0.012));
       if (cl) white.push(cl);
-      if (r.cls <= 3) for (const side of [1, -1]) { const e = this._dashes(r.pts, side * (hw - 0.35), 0.08, 0, 0, ys(0.012)); if (e) (r.cls <= 1 ? yellow : white).push(e); }
+      if (r.cls <= 3) for (const side of [1, -1]) { if (this._due()) { yield 'tile:roads+'; this._ys = performance.now(); } const e = this._dashes(r.pts, side * (hw - 0.35), 0.08, 0, 0, ys(0.012)); if (e) (r.cls <= 1 ? yellow : white).push(e); }
     }
     this._junctions = [...seen].filter(([, [c]]) => c >= 3).map(([k, [c, hw]]) => { const [e, n] = k.split(',').map(Number); return { e, n, c, r: hw + 2.5 }; });
     // (each kind merged in steps: the whole tile's roads in one merge took up to a ninth of a second)
