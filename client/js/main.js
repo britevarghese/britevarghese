@@ -110,6 +110,7 @@ class Game {
     progress('soldiers & weapons');
     this.audio = new GameAudio();
     this.effects = new Effects(this.world.scene, q, this.audio);
+    this.effects.groundAt = (x, z, y) => this.world.collision.supportHeight(x, z, y); // spent cases land on the real floor
     for (const p of PROPS) if (p.type === 'car' && p.burnt) this.effects.addAmbientSmoke(p.x, groundHeight(p.x, p.z) + 0.8, p.z);
     for (const b of BUILDINGS) if (b.damage > 0.5) this.effects.addAmbientSmoke(b.x + b.w * 0.3, groundHeight(b.x, b.z) + 1, b.z - b.d * 0.3);
     // character + weapons (source of truth: imported GLBs)
@@ -254,7 +255,7 @@ class Game {
         // tracer flies at the real (average) bullet speed; the impact appears when the bullet gets there
         this.effects.tracer(from, e.e, dist / tf);
         const dir = new THREE.Vector3(e.e[0] - from[0], e.e[1] - from[1], e.e[2] - from[2]).normalize();
-        if (muzzle) this.effects.muzzleFlash(muzzle, dir);
+        if (muzzle) this.effects.muzzleFlash(muzzle, dir, e.w === 'sniper');
         this.audio.gunshot(from, e.w);
         if (e.s !== 'none') this.#scheduleImpact(e.b, tf, () => this.effects.impact(e.e, e.n, e.s));
         this.#nearMiss(e.o, e.e, tf, e.w);
@@ -364,8 +365,14 @@ class Game {
       const ra = A.get(rb[0]) || rb;
       live.add(rb[0]);
       let m = this.grenadeMeshes.get(rb[0]);
-      if (!m) { m = this.assets.clone({ scene: this.grenadeAsset.scene }); m.scale.setScalar(1); this.world.scene.add(m); this.grenadeMeshes.set(rb[0], m); }
+      if (!m) {
+        m = this.assets.clone({ scene: this.grenadeAsset.scene }); m.scale.setScalar(1); this.world.scene.add(m); this.grenadeMeshes.set(rb[0], m);
+        // a live grenade: pin pulled, the spoon flies off as it leaves the hand
+        for (const n of ['m67_pin', 'm67_spoon']) m.getObjectByName(n)?.removeFromParent();
+        m.userData.spoon = true;
+      }
       m.position.set(ra[1] + (rb[1] - ra[1]) * k, ra[2] + (rb[2] - ra[2]) * k + 0.05, ra[3] + (rb[3] - ra[3]) * k);
+      if (m.userData.spoon) { m.userData.spoon = false; this.effects.brass(m.position, new THREE.Vector3((Math.random() - 0.5) * 2, 2.5, (Math.random() - 0.5) * 2), 'spoon', m.quaternion); }
       m.rotation.x += dt * 9; m.rotation.z += dt * 4;
     }
     for (const [id, m] of this.grenadeMeshes) if (!live.has(id)) { m.removeFromParent(); this.grenadeMeshes.delete(id); }
@@ -415,9 +422,10 @@ class Game {
     this.audio.gunshot(null, def.id, true);
     // third person: the flash and tracer leave the soldier's own rifle; first person: map the viewmodel-space
     // muzzle into the world (the viewmodel camera sits at the world camera)
-    const worldMuzzle = (this.me.isTPS() && this.players.muzzleOf(this.myId)) || this.viewmodel.weapon.socketWorld('muzzle', new THREE.Vector3()).applyMatrix4(this.camera.matrixWorld);
+    // (first person: the viewmodel's muzzle re-projected onto the same pixel in the world — it has its own FOV)
+    const worldMuzzle = (this.me.isTPS() && this.players.muzzleOf(this.myId)) || this.viewmodel.toWorld(this.viewmodel.weapon.socketWorld('muzzle', new THREE.Vector3()), new THREE.Vector3(), this.camera);
     if (this.me.isTPS()) this.players.info(this.myId)?.rig?.kick();
-    this.effects.muzzleFlash(worldMuzzle, dir, def.id === 'sniper');
+    this.effects.muzzleFlash(worldMuzzle, dir, def.id === 'sniper', !this.me.isTPS());
     // same ballistic flight as the server: drop, drag, travel time
     const path = bulletPath(this.world.collision, eye, dir, def);
     const hit = path.hit, e = path.end, end = [e.x, e.y, e.z];
@@ -550,6 +558,7 @@ class Game {
     this.viewmodel.update(dt, {
       ads: me.alive && me.ads && !reloading, moving: me.moveFactor || 0, speedFactor: me.sprinting ? 1 : 0, sprint: me.sprinting, mouseDX: me.mouse.dx, mouseDY: me.mouse.dy,
       reload: reloading ? (performance.now() - me.reloadStart) / me.reloadDur : 0, crouch: me.s.stance !== 'stand', camera: cam, baseFov: this.baseFov,
+      mag: me.weapons[me.slot]?.mag, tps: me.isTPS(), vx: me.s.vx, vy: me.s.vy, vz: me.s.vz,
       adsFov: wdef ? (wdef.scoped && this.viewmodel.weapon.opticType === 'scope' ? 0.8 : wdef.adsFov) : 0.8, adsTime: wdef?.adsTime, sunDir: this.lighting.sunDir, shade: this.shade ?? 1, env: this.env,
     });
     P.mark('viewmodel');
@@ -561,7 +570,7 @@ class Game {
     // real optics: a 4x rifle scope shows ~7 degrees (PSO-1: 6 deg), independent of the player's FOV setting
     cam.fov = seated ? V.fov : fullScope ? 28 / (vw.magnification || 4) : this.baseFov * (me.alive && !me.isTPS() ? this.viewmodel.fovScale : me.thirdPerson && me.ads ? 0.8 : 1);
     this.scope.show(fullScope);
-    if (fullScope) this.scope.update(wdef, me.zeroOf(), cam.fov);
+    if (fullScope) this.scope.update(wdef, me.zeroOf(), cam.fov, this.viewmodel.scopeShift.x, this.viewmodel.scopeShift.y);
     me.scoped = fullScope;
     cam.updateProjectionMatrix();
     cam.updateMatrixWorld();

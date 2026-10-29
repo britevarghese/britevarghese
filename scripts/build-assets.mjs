@@ -17,7 +17,7 @@ const io = new NodeIO().registerExtensions(ALL_EXTENSIONS);
 const MODELS = {
   bolt_action_rifle_7_62: [{ out: 'weapons/bolt_action_rifle.glb', tex: 1024 }, { out: 'weapons/bolt_action_rifle_tps.glb', tex: 512, simplify: 0.12, error: 0.01 }],
   service_pistol: [{ out: 'weapons/service_pistol.glb', tex: 1024 }, { out: 'weapons/service_pistol_tps.glb', tex: 512, simplify: 0.1, error: 0.01 }],
-  stick_grenade: { out: 'weapons/grenade.glb', tex: 512 },
+  // (weapons/grenade.glb — an M67 — and weapons/carbine*.glb are modelled by build-grenade.mjs / build-carbine.mjs)
   concrete_road_barrier: { out: 'props/concrete_barrier.glb', tex: 512, simplify: 0.04, error: 0.03 },
   concrete_road_barrier_02: { out: 'props/concrete_barrier_02.glb', tex: 512, simplify: 0.08, error: 0.03 },
   wooden_military_crate: { out: 'props/military_crate.glb', tex: 512, simplify: 0.15, error: 0.02 },

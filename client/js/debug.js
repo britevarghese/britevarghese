@@ -5,12 +5,14 @@ import { AssetManager, describeGLTF } from './core/AssetManager.js';
 import { WeaponModel } from './weapons/WeaponModel.js';
 import { CharacterRig } from './character/CharacterRig.js';
 import { Viewmodel } from './player/Viewmodel.js';
+import { Effects } from './fx/Effects.js';
 
 const mode = location.pathname.split('/').pop();
 const qs = new URLSearchParams(location.search);
 const info = document.getElementById('info');
 const log = (s, cls) => { info.innerHTML += cls ? `<span class="${cls}">${s}</span>\n` : `${s}\n`; };
 info.textContent = '';
+if (qs.get('noinfo')) info.style.display = 'none';
 
 const renderer = new THREE.WebGLRenderer({ antialias: true });
 renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
@@ -56,7 +58,8 @@ async function run() {
     const d = describeGLTF(`WEAPON ${key}`, loaded.gltf, loaded.file);
     const w = new WeaponModel(assets, loaded, { key });
     w.root.position.set(0, 1.1, 0);
-    scene.add(w.root); showWeaponSockets(w);
+    scene.add(w.root); if (!qs.get('nosockets')) showWeaponSockets(w);
+    window.__dbg.w = w;
     const vd = Math.max(0.5, w.length * 0.9); camera.position.set(vd, 1.1 + vd * 0.15, 0.02); controls.target.set(0, 1.1, 0);
     if (qs.get('view') === 'top') camera.position.set(0.01, 2.4, 0);
     if (qs.get('view') === 'front') camera.position.set(0, 1.15, -1.6);
@@ -84,7 +87,8 @@ async function run() {
       const wl = await assets.loadWeapon(wkey);
       const w = new WeaponModel(assets, wl, { key: wkey });
       rig.equip(w);
-      showWeaponSockets(w);
+      if (!qs.get('nosockets')) showWeaponSockets(w);
+      Object.assign(window.__dbg, { rig, w });
       const aim = marker(0xffffff, 0.05); scene.add(aim);
       const stance = qs.get('stance') || 'stand';
       let t = 0;
@@ -132,6 +136,11 @@ async function run() {
     const loaded = await assets.loadCharacter('soldier');
     const wl = await assets.loadWeapon(wkey);
     const vm = new Viewmodel(assets, loaded, wl, wkey, renderer);
+    // spent cases / muzzle smoke land in this scene (floor at y = 0)
+    const fx = new Effects(scene, { particles: 1 }, null);
+    fx.camPos = camera.position;
+    Object.assign(window.__dbg, { vm, fx });
+    updaters.push((dt) => fx.update(dt));
     // simple target range
     for (let i = 0; i < 5; i++) {
       const t = new THREE.Mesh(new THREE.BoxGeometry(0.5, 1.8, 0.1), new THREE.MeshStandardMaterial({ color: 0xc8b89a, roughness: 0.8 }));
@@ -192,6 +201,8 @@ async function run() {
 }
 
 let renderHook = null;
+// scripted inspection (screenshots of mid-animation poses): window.__dbg.{scene, camera, controls, updaters, ...}
+window.__dbg = { THREE, scene, camera, controls, renderer, updaters, assets, setRender: (fn) => { renderHook = fn; } };
 addEventListener('resize', () => { renderer.setSize(innerWidth, innerHeight); camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); });
 run().catch((e) => { log(`ERROR: ${e.message}`, 'err'); console.error(e); }).finally(() => { document.body.dataset.ready = '1'; });
 renderer.setAnimationLoop(() => {

@@ -34,8 +34,37 @@
       "tpsFiles": [
         "user/weapons/ss2_v5_assault_rifle.glb",
         "user/weapons/assault_rifle.glb",
-        "weapons/carbine.glb"
-      ]
+        "weapons/carbine_tps.glb"
+      ],
+      "action": {
+        "type": "rifle",
+        "mag": "carbine_mag",
+        "charge": "carbine_charge",
+        "cover": "carbine_cover",
+        "carrier": "carbine_carrier",
+        "magAxis": [
+          0,
+          -1,
+          0
+        ],
+        "magOut": 0.075,
+        "magGrab": [
+          -0.008,
+          -0.175,
+          0.0
+        ],
+        "chargeTravel": 0.07,
+        "carrierTravel": 0.03,
+        "eject": {
+          "dir": [
+            1,
+            0.3,
+            -0.45
+          ],
+          "speed": 3.6,
+          "case": "556"
+        }
+      }
     },
     "bolt_rifle": {
       "files": [
@@ -76,7 +105,33 @@
       ],
       "tpsFiles": [
         "weapons/bolt_action_rifle_tps.glb"
-      ]
+      ],
+      "action": {
+        "type": "bolt",
+        "bolt": "bolt_action_rifle_7_62_bolt_a",
+        "round": "bolt_action_rifle_7_62_bullet_54mm",
+        "boltStroke": 0.085,
+        "boltLift": 1.45,
+        "clipGuide": [
+          0.004,
+          0.084,
+          0.205
+        ],
+        "eject": {
+          "pos": [
+            0.014,
+            0.072,
+            0.185
+          ],
+          "dir": [
+            0.75,
+            1,
+            0.15
+          ],
+          "speed": 2.0,
+          "case": "762r"
+        }
+      }
     },
     "pistol": {
       "files": [
@@ -93,8 +148,7 @@
         "service_pistol_slide_b",
         "service_pistol_hammer_b",
         "service_pistol_trigger_b",
-        "service_pistol_bullet",
-        "service_pistol_magazine_loaded"
+        "service_pistol_bullet"
       ],
       "sockets": {
         "rightGrip": [
@@ -120,18 +174,88 @@
         "opticEye": [
           0.0,
           0.062,
-          0.4
+          0.58
         ]
       },
       "tpsFiles": [
         "user/weapons/pistol.glb",
         "weapons/service_pistol_tps.glb"
-      ]
+      ],
+      "action": {
+        "type": "pistol",
+        "slide": "service_pistol_slide_a",
+        "hammer": "service_pistol_hammer_a",
+        "mag": "service_pistol_magazine_loaded",
+        "magEmpty": "service_pistol_magazine_empty",
+        "magSeat": [
+          0,
+          0,
+          0
+        ],
+        "magAxis": [
+          0,
+          -1,
+          0.25
+        ],
+        "magOut": 0.115,
+        "magGrab": [
+          -0.012,
+          -0.08,
+          0.02
+        ],
+        "slideTravel": 0.026,
+        "eject": {
+          "pos": [
+            0.012,
+            0.062,
+            0.0
+          ],
+          "dir": [
+            1,
+            0.85,
+            0.3
+          ],
+          "speed": 3.2,
+          "case": "9mm"
+        }
+      }
     },
     "grenade": {
       "files": [
         "weapons/grenade.glb"
-      ]
+      ],
+      "forward": "-z",
+      "length": 0.0635,
+      "optic": {
+        "type": "iron"
+      },
+      "sockets": {
+        "rightGrip": [
+          0,
+          0,
+          0
+        ],
+        "leftGrip": [
+          0,
+          0.01,
+          0
+        ],
+        "stock": [
+          0,
+          0,
+          0.032
+        ],
+        "muzzle": [
+          0,
+          0,
+          -0.032
+        ],
+        "opticEye": [
+          0,
+          0.02,
+          0.3
+        ]
+      }
     }
   },
   "props": {

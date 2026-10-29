@@ -6,7 +6,7 @@ import path from 'node:path';
 const RAW = path.resolve('raw');
 export const MODELS = [
   // weapons
-  'bolt_action_rifle_7_62', 'service_pistol', 'stick_grenade',
+  'bolt_action_rifle_7_62', 'service_pistol',
   // military / urban props
   'concrete_road_barrier', 'concrete_road_barrier_02', 'wooden_military_crate', 'old_military_crate',
   'ammo_box', 'medical_box', 'Barrel_01', 'barrel_03', 'covered_car', 'metal_jerrycan_green', 'cement_bag', 'old_tyre',

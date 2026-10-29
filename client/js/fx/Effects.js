@@ -1,6 +1,9 @@
 // Pooled combat effects: muzzle flash, tracers, surface-specific impacts (dust/chips, sparks, splinters, dirt,
-// grass, blood mist), bullet-hole decals, grenade explosions (flash, fireball, smoke, dust, debris), ambient smoke.
+// grass, blood mist), bullet-hole decals, grenade explosions (flash, fireball, smoke, dust, debris), ambient smoke,
+// spent cases (instanced brass with bounces). Registers itself as WeaponModel.sink: guns throw their cases here.
 import * as THREE from 'three';
+import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
+import { WeaponModel } from '../weapons/WeaponModel.js';
 
 function softTexture(draw) {
   const c = document.createElement('canvas'); c.width = c.height = 64;
@@ -31,6 +34,66 @@ const scorchTex = softTexture((g, s) => {
   gr.addColorStop(0, 'rgba(8,6,5,0.9)'); gr.addColorStop(0.6, 'rgba(20,16,12,0.5)'); gr.addColorStop(1, 'rgba(0,0,0,0)');
   g.fillStyle = gr; g.fillRect(0, 0, s, s);
 });
+
+// ------------------------------------------------------------------ muzzle flash shapes
+// side view of the flame (muzzle at u = 0, flame toward u = 1): hot core, orange fringe, ragged edge
+const flameTex = (() => {
+  const c = document.createElement('canvas'); c.width = 128; c.height = 64;
+  const g = c.getContext('2d'), img = g.createImageData(128, 64);
+  for (let y = 0; y < 64; y++) for (let x = 0; x < 128; x++) {
+    const u = x / 127, v = (y - 31.5) / 31.5, w = 0.18 + 0.82 * Math.sin(Math.min(1, u * 1.6) * Math.PI * 0.5) * (1 - u * 0.75);
+    const ragged = 0.85 + 0.15 * Math.sin(u * 37 + Math.sin(u * 11) * 3);
+    const d = Math.abs(v) / (w * ragged), a = Math.max(0, 1 - d) ** 1.3 * (1 - u) ** 0.7;
+    const hot = Math.max(0, 1 - d * 1.8) * (1 - u * 1.4);
+    const i = (y * 128 + x) * 4;
+    img.data[i] = 255; img.data[i + 1] = Math.min(255, 150 + 105 * hot); img.data[i + 2] = Math.min(255, 50 + 200 * hot * hot); img.data[i + 3] = Math.min(255, 255 * a);
+  }
+  g.putImageData(img, 0, 0);
+  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t;
+})();
+// seen down the bore: a small bright disc with short jets
+const starTex = softTexture((g, s) => {
+  const gr = g.createRadialGradient(s / 2, s / 2, 0, s / 2, s / 2, s / 2);
+  gr.addColorStop(0, 'rgba(255,250,225,1)'); gr.addColorStop(0.18, 'rgba(255,205,120,0.95)'); gr.addColorStop(0.45, 'rgba(255,140,40,0.35)'); gr.addColorStop(1, 'rgba(255,110,20,0)');
+  g.fillStyle = gr; g.fillRect(0, 0, s, s);
+  g.globalCompositeOperation = 'lighter';
+  for (let i = 0; i < 5; i++) { g.save(); g.translate(s / 2, s / 2); g.rotate((i / 5) * Math.PI * 2 + 0.3); const j = g.createLinearGradient(0, 0, s / 2, 0); j.addColorStop(0, 'rgba(255,220,150,0.7)'); j.addColorStop(1, 'rgba(255,150,60,0)'); g.fillStyle = j; g.beginPath(); g.moveTo(0, -3); g.lineTo(s / 2, 0); g.lineTo(0, 3); g.fill(); g.restore(); }
+});
+const flashMat = (map) => new THREE.MeshBasicMaterial({ map, blending: THREE.AdditiveBlending, transparent: true, depthWrite: false, toneMapped: false, side: THREE.DoubleSide });
+const _flameGeo = new THREE.PlaneGeometry(1, 1).translate(0.5, 0, 0);
+// Muzzle flash as seen in first person (built per weapon kind, lives at the viewmodel's muzzle; local -Z = bore):
+//  rifle  — A2 birdcage: little forward flame, the gas vents sideways through the slots (short radial jets)
+//  pistol — no flash hider: a short round fireball ahead of the muzzle
+//  bolt   — long-barrelled 7.62x54R without a hider: a long cone and a big disc
+export function makeMuzzleFlash(kind = 'rifle') {
+  const P = { rifle: { cone: [0.07, 0.05], jets: 4, jet: [0.05, 0.022], star: 0.08 }, pistol: { cone: [0.07, 0.08], jets: 0, star: 0.1 }, bolt: { cone: [0.22, 0.1], jets: 0, star: 0.18 } }[kind] || {};
+  const g = new THREE.Group(), coneMat = flashMat(flameTex), starMat = flashMat(starTex);
+  for (let i = 0; i < 2; i++) { // two crossed planes along the bore
+    const m = new THREE.Mesh(_flameGeo, coneMat); m.rotation.set(i * Math.PI / 2, Math.PI / 2, 0, 'YXZ'); m.scale.set(P.cone[0], P.cone[1], 1); g.add(m);
+  }
+  for (let i = 0; i < P.jets; i++) { // side vents, square to the bore
+    const a = Math.PI / 2 + (i - (P.jets - 1) / 2) * 0.95, m = new THREE.Mesh(_flameGeo, coneMat);
+    m.position.z = -0.012; m.rotation.set(0, 0, a); m.scale.set(P.jet[0], P.jet[1], 1); g.add(m);
+  }
+  const star = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), starMat); star.scale.setScalar(P.star); star.position.z = -0.01; g.add(star);
+  g.star = star; g.visible = false; g.renderOrder = 4;
+  g.traverse((o) => { o.frustumCulled = false; });
+  return g;
+}
+
+// ------------------------------------------------------------------ spent cases (brass)
+// lathe profiles [radius, height] in mm from the case head: rim, extractor groove, body, shoulder, neck, mouth
+const CASES = {
+  556: { n: 48, prof: [[0, 0], [4.78, 0], [4.78, 1.1], [4.15, 1.4], [4.15, 2], [4.75, 2.6], [4.57, 36.5], [3.2, 39.7], [3.2, 44.7], [2.85, 44.7], [2.85, 41]], color: 0xc9a050, rough: 0.3 },
+  '9mm': { n: 32, prof: [[0, 0], [4.95, 0], [4.95, 1.2], [4.3, 1.5], [4.3, 2.1], [4.95, 2.6], [4.82, 19.1], [4.5, 19.1], [4.5, 17]], color: 0xc9a050, rough: 0.32 },
+  '762r': { n: 16, prof: [[0, 0], [7.2, 0], [7.2, 1.6], [6.25, 1.8], [5.9, 39], [4.25, 44.2], [4.2, 53.7], [3.9, 53.7], [3.9, 50]], color: 0xa7874a, rough: 0.38 }, // (lacquered, duller)
+};
+function caseGeometry(prof) {
+  const pts = prof.map(([r, h]) => new THREE.Vector2(r / 1000, h / 1000)), len = prof[prof.length - 3][1] / 1000;
+  // axis along -Z (mouth forward, like the round in the chamber), centred on its middle
+  return new THREE.LatheGeometry(pts, 10).rotateX(-Math.PI / 2).translate(0, 0, len / 2);
+}
+const _bq = new THREE.Quaternion(), _bq2 = new THREE.Quaternion(), _bv = new THREE.Vector3(), _bv2 = new THREE.Vector3(), _bm = new THREE.Matrix4(), _bs = new THREE.Vector3(), _bZ = new THREE.Vector3(0, 0, -1);
 
 const SURF = {
   concrete: { color: 0xb8b2a8, n: 7, speed: 2.2, size: 0.35, chips: 0xcfc8bc, life: 1.1 },
@@ -91,6 +154,10 @@ export class Effects {
     this.decalGeo = dg; this.decalIdx = 0;
     this.shake = 0;
     this.ambient = [];
+    this.#brassSetup();
+    this.groundAt = null;    // (x, z, y) -> floor height under a point (set by the game: cases land on the real ground)
+    this.onBrassLand = null; // (x, y, z, kind) first bounce of a case (hook for a tinkle sound)
+    WeaponModel.sink = this;
   }
 
   #lineSparks() {
@@ -168,12 +235,23 @@ export class Effects {
     t.m.visible = true;
   }
 
-  muzzleFlash(pos, dir, big = false) {
-    const f = this.flashes.find((x) => x.t <= 0) || this.flashes[0];
-    f.sp.position.set(pos.x + dir.x * 0.05, pos.y + dir.y * 0.05, pos.z + dir.z * 0.05);
-    f.sp.scale.setScalar(big ? 0.55 : 0.4); f.sp.material.rotation = Math.random() * 6.28; f.t = 0.05; f.sp.visible = true;
-    this.flashLight.position.copy(pos); this.flashLight.intensity = 6; this.flashT = 0.05;
-    this.emit(pos.x, pos.y, pos.z, dir.x * 1.5, dir.y * 1.5 + 0.3, dir.z * 1.5, 0xa9a49c, 0.18, 0.6, { grow: 3, alpha: 0.18, drag: 2.5, grav: -0.3 });
+  // big: an unsuppressed full-power rifle / vehicle gun. fp: the viewmodel draws its own flash at its muzzle —
+  // here only the light on the surroundings and the smoke
+  muzzleFlash(pos, dir, big = false, fp = false) {
+    if (!fp) {
+      // seen from outside: a short bright star (a flash hider breaks the flame up), larger without one
+      const f = this.flashes.find((x) => x.t <= 0) || this.flashes[0];
+      f.sp.position.set(pos.x + dir.x * 0.06, pos.y + dir.y * 0.06, pos.z + dir.z * 0.06);
+      f.sp.material.map = big ? flashTex : starTex;
+      f.sp.scale.setScalar((big ? 0.5 : 0.26) * (0.8 + Math.random() * 0.4)); f.sp.material.rotation = Math.random() * 6.28; f.t = 0.035; f.sp.visible = true;
+    }
+    this.flashLight.position.copy(pos); this.flashLight.intensity = big ? 9 : 5; this.flashT = 0.04;
+    // a small puff of smoke that drifts off the muzzle (more from the big calibres)
+    const n = big ? 2 : 1;
+    for (let i = 0; i < n; i++) {
+      const s = 0.6 + Math.random() * 0.9 + i * 0.5;
+      this.emit(pos.x + dir.x * 0.05, pos.y + dir.y * 0.05, pos.z + dir.z * 0.05, dir.x * s + (Math.random() - 0.5) * 0.3, dir.y * s + 0.25, dir.z * s + (Math.random() - 0.5) * 0.3, 0xb3aea6, big ? 0.22 : 0.12, big ? 1.6 : 0.9, { grow: big ? 4 : 3.5, alpha: big ? 0.3 : 0.2, drag: 2.2, grav: -0.25 });
+    }
   }
 
   explosion(p, camPos) {
@@ -231,5 +309,104 @@ export class Effects {
       while (a.acc > 1) { a.acc -= 1; this.emit(a.x + (Math.random() - 0.5) * 0.8, a.y + 0.8, a.z + (Math.random() - 0.5) * 0.8, 0.5 + Math.random() * 0.3, (a.rise || 1.2) + Math.random() * 0.6, 0.2, a.color ?? 0x3a3634, a.size || 1.2, 7, { grow: 4, alpha: a.alpha || 0.35, drag: 0.15, grav: -0.05 }); }
     }
     this.shake = Math.max(0, this.shake - dt * 2.2);
+    this.#brassUpdate(dt);
+  }
+
+  // ---------------------------------------------------------------- spent cases
+  // one InstancedMesh per calibre (+ stripper clips, grenade spoons), ring-buffer pools: thrown out with the
+  // ejection velocity + the shooter's own, tumbling, a couple of bounces, then they lie on the ground for a
+  // while and sink away. Cost: a few matrix composes per live case; nothing at all when none are flying.
+  #brassSetup() {
+    this.brassK = {};
+    const pool = (kind, geo, mat, n, flat = false) => {
+      const m = new THREE.InstancedMesh(geo, mat, n);
+      m.frustumCulled = false; m.castShadow = false; m.receiveShadow = true; m.count = 0; m.visible = false;
+      m.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+      this.scene.add(m);
+      geo.computeBoundingBox();
+      const s = geo.boundingBox.getSize(new THREE.Vector3());
+      this.brassK[kind] = { m, n, next: 0, flat, r: flat ? Math.min(s.x, s.y, s.z) / 2 : Math.min(s.x, s.y) / 2,
+        pos: new Float32Array(n * 3), vel: new Float32Array(n * 3), q: new Float32Array(n * 4), qr: new Float32Array(n * 4), w: new Float32Array(n * 3),
+        st: new Uint8Array(n), t: new Float32Array(n), gy: new Float32Array(n), hits: new Uint8Array(n) };
+    };
+    for (const [k, d] of Object.entries(CASES)) pool(k, caseGeometry(d.prof), new THREE.MeshStandardMaterial({ color: d.color, metalness: 1, roughness: d.rough }), d.n);
+    pool('clip', new THREE.BoxGeometry(0.016, 0.058, 0.0035), new THREE.MeshStandardMaterial({ color: 0x45433e, metalness: 0.8, roughness: 0.5 }), 4, true);
+    // M67 safety lever: a bent strip
+    const spoon = new THREE.BoxGeometry(0.013, 0.07, 0.0016).translate(0, -0.03, 0);
+    const hook = new THREE.BoxGeometry(0.013, 0.016, 0.0016).rotateX(-1.2).translate(0, 0.009, 0.006);
+    pool('spoon', mergeGeometries([spoon.toNonIndexed(), hook.toNonIndexed()]), new THREE.MeshStandardMaterial({ color: 0x4d5238, metalness: 0.5, roughness: 0.6 }), 6, true);
+  }
+
+  // pos / vel (world), kind ('556' | '9mm' | '762r' | 'clip' | 'spoon'), q: orientation at the port (bore along -Z)
+  brass(pos, vel, kind, q) {
+    const K = this.brassK[kind];
+    if (!K || (this.camPos && pos.distanceToSquared(this.camPos) > 35 * 35)) return;
+    const i = K.next; K.next = (K.next + 1) % K.n;
+    K.pos[i * 3] = pos.x; K.pos[i * 3 + 1] = pos.y; K.pos[i * 3 + 2] = pos.z;
+    K.vel[i * 3] = vel.x; K.vel[i * 3 + 1] = vel.y; K.vel[i * 3 + 2] = vel.z;
+    q.toArray(K.q, i * 4);
+    // tumbling end over end (spin about an axis across the case) with some wobble
+    const sp = kind === 'clip' || kind === 'spoon' ? 14 : 28 + Math.random() * 22;
+    _bv.set(Math.random() - 0.5, Math.random() - 0.5, (Math.random() - 0.5) * 0.3).normalize().applyQuaternion(q).multiplyScalar(sp);
+    K.w[i * 3] = _bv.x; K.w[i * 3 + 1] = _bv.y; K.w[i * 3 + 2] = _bv.z;
+    // ground under the landing point (one query per case)
+    const tf = (vel.y + Math.sqrt(vel.y * vel.y + 2 * 9.81 * 1.6)) / 9.81;
+    const gx = pos.x + vel.x * tf, gz = pos.z + vel.z * tf;
+    K.gy[i] = this.groundAt ? this.groundAt(gx, gz, pos.y) : 0;
+    K.st[i] = 1; K.t[i] = 0; K.hits[i] = 0;
+  }
+
+  #brassUpdate(dt) {
+    for (const kind in this.brassK) {
+      const K = this.brassK[kind];
+      let hi = -1;
+      for (let i = 0; i < K.n; i++) {
+        const st = K.st[i];
+        if (!st) continue;
+        const p = i * 3;
+        K.t[i] += dt;
+        let scale = 1;
+        if (st === 1) {
+          K.vel[p + 1] -= 9.81 * dt;
+          const drag = Math.exp(-0.4 * dt);
+          K.vel[p] *= drag; K.vel[p + 2] *= drag;
+          K.pos[p] += K.vel[p] * dt; K.pos[p + 1] += K.vel[p + 1] * dt; K.pos[p + 2] += K.vel[p + 2] * dt;
+          // integrate the spin
+          _bv.set(K.w[p], K.w[p + 1], K.w[p + 2]);
+          const ang = _bv.length() * dt;
+          if (ang > 1e-5) { _bq2.setFromAxisAngle(_bv.normalize(), ang); _bq.fromArray(K.q, i * 4).premultiply(_bq2).normalize().toArray(K.q, i * 4); }
+          const floor = K.gy[i] + K.r;
+          if (K.pos[p + 1] < floor && K.vel[p + 1] < 0) {
+            // bounce: brass rings off hard ground, loses most of its energy, skitters sideways
+            K.pos[p + 1] = floor;
+            K.vel[p + 1] *= -0.32; K.vel[p] = K.vel[p] * 0.5 + (Math.random() - 0.5) * 0.4; K.vel[p + 2] = K.vel[p + 2] * 0.5 + (Math.random() - 0.5) * 0.4;
+            for (let k = 0; k < 3; k++) K.w[p + k] = K.w[p + k] * 0.45 + (Math.random() - 0.5) * 8;
+            if (!K.hits[i]++) this.onBrassLand?.(K.pos[p], K.pos[p + 1], K.pos[p + 2], kind);
+            if (K.vel[p + 1] < 0.45 || K.hits[i] > 3) {
+              // come to rest lying on its side (cases) / flat (clip, spoon), roughly where it was pointing
+              K.st[i] = 2; K.t[i] = 0;
+              _bq.fromArray(K.q, i * 4);
+              if (K.flat) { _bv.set(0, 0, 1).applyQuaternion(_bq); _bq2.setFromUnitVectors(_bv, _bv2.set(0, Math.sign(_bv.y) || 1, 0)).multiply(_bq); }
+              else { _bv.copy(_bZ).applyQuaternion(_bq); _bv.y = 0; if (_bv.lengthSq() < 1e-4) _bv.set(1, 0, 0); _bq2.setFromUnitVectors(_bZ, _bv.normalize()); }
+              _bq2.toArray(K.qr, i * 4);
+            }
+          }
+        } else {
+          // resting: settle onto its side, lie there ~6 s, then sink into the ground
+          _bq.fromArray(K.q, i * 4).slerp(_bq2.fromArray(K.qr, i * 4), Math.min(1, dt * 18)).toArray(K.q, i * 4);
+          K.pos[p + 1] = K.gy[i] + K.r;
+          const fade = Math.max(0, (K.t[i] - 6) / 1.5);
+          if (fade >= 1) { K.st[i] = 0; continue; }
+          K.pos[p + 1] -= fade * K.r * 2.5; scale = 1 - fade * 0.6;
+        }
+        _bm.compose(_bv.set(K.pos[p], K.pos[p + 1], K.pos[p + 2]), _bq.fromArray(K.q, i * 4), _bs.setScalar(scale));
+        K.m.setMatrixAt(i, _bm);
+        hi = i;
+      }
+      // inactive slots below the highest live one are drawn as nothing
+      if (hi >= 0) for (let i = 0; i < hi; i++) if (!K.st[i]) K.m.setMatrixAt(i, _bm.makeScale(0, 0, 0));
+      K.m.count = hi + 1; K.m.visible = hi >= 0;
+      if (hi >= 0) K.m.instanceMatrix.needsUpdate = true;
+    }
   }
 }

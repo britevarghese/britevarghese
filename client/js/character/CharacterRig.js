@@ -5,6 +5,7 @@
 //  - upper-body aim (spine pitch/yaw distribution + head look) toward a unified world-space aim target
 //  - weapon attachment: stock -> shoulder pocket, muzzle/optic -> aim direction
 //  - two-bone arm IK: right hand -> weapon.rightGrip, left hand -> weapon.leftGrip, finger curl around the grips
+//  - hands working the gun: magazine out / pouch / in, charging handle, slide release, bolt cycle, stripper clip
 import * as THREE from 'three';
 import { mapBones, mapClips } from './BoneMap.js';
 import { solveTwoBone, setBoneWorldQuaternion, rotateBoneWorld, basisQuaternion } from './IK.js';
@@ -21,6 +22,39 @@ export const DEFAULT_HAND_FRAMES = {
   rifle: { right: { F: [0, -0.55, -0.85], N: [-1, 0, 0] }, left: { F: [0.75, 0.25, -0.45], N: [0.15, 1, 0] } },
   pistol: { right: { F: [0, -0.35, -0.95], N: [-1, 0, 0] }, left: { F: [0.3, -0.6, -0.75], N: [0.95, 0.1, 0] } },
 };
+
+// Hand frames (weapon space) for working the gun: F = finger direction, N = palm normal (into what is held)
+const V = (x, y, z) => new THREE.Vector3(x, y, z).normalize();
+const FR = {
+  knob: { F: V(-0.15, 0.3, -0.94), N: V(-0.85, 0.45, -0.25) },     // right hand under the bolt knob (turns with the bolt)
+  clip: { F: V(-0.1, -0.3, -1), N: V(-0.65, -0.75, 0) },             // clip pinched from the right, thumb on the top round
+  magRifle: { F: V(0.25, 0.35, -0.9), N: V(0.7, 0.7, 0), off: 0.022 }, // magazine held low by its base, palm up-right
+  magPistol: { F: V(0.1, 0.25, -1), N: V(0.05, 1, 0.1), off: 0.03 },  // magazine in the palm, finger along its front
+  charge: { F: V(1, 0.15, 0.1), N: V(0, -0.35, 1) },                 // fingers hooked over the charging-handle latch
+};
+// hand target: position + orientation as a rotation of the canonical frame (fingers -Z, palm +X), so blends slerp
+const F0 = new THREE.Vector3(0, 0, -1), N0 = new THREE.Vector3(1, 0, 0);
+const mkT = () => ({ p: new THREE.Vector3(), q: new THREE.Quaternion(), F: new THREE.Vector3(), N: new THREE.Vector3(), off: 0.024, curl: 1 });
+const _tb1 = new THREE.Vector3(), _tb2 = new THREE.Vector3(), _tb3 = new THREE.Vector3(), _tbm = new THREE.Matrix4();
+function setT(t, p, F, N, off, curl) {
+  const f = _tb1.copy(F).normalize(), n = _tb2.copy(N).addScaledVector(f, -N.dot(f)).normalize(), s = _tb3.crossVectors(f, n);
+  t.q.setFromRotationMatrix(_tbm.makeBasis(n, s.negate(), f.negate())); // X -> n, Y -> -(f x n), Z -> -f
+  t.p.copy(p); t.F.copy(F0).applyQuaternion(t.q); t.N.copy(N0).applyQuaternion(t.q); t.off = off; t.curl = curl;
+  return t;
+}
+// (out may alias a, never b)
+function mixT(out, a, b, k) {
+  out.p.lerpVectors(a.p, b.p, k); out.q.slerpQuaternions(a.q, b.q, k);
+  out.F.copy(F0).applyQuaternion(out.q); out.N.copy(N0).applyQuaternion(out.q);
+  out.off = a.off + (b.off - a.off) * k; out.curl = a.curl + (b.curl - a.curl) * k;
+  return out;
+}
+const eout = (a, b, x) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return 1 - (1 - t) * (1 - t); };
+const _X = new THREE.Vector3(1, 0, 0), _Z = new THREE.Vector3(0, 0, 1), _I = new THREE.Quaternion(), _one = new THREE.Vector3(1, 1, 1);
+const _hm = new THREE.Matrix4(), _hm2 = new THREE.Matrix4(), _hm3 = new THREE.Matrix4(), _hq = new THREE.Quaternion(), _hq2 = new THREE.Quaternion(), _hq3 = new THREE.Quaternion();
+const _hk = new THREE.Vector3(), _hp = new THREE.Vector3(), _hp2 = new THREE.Vector3(), _hp3 = new THREE.Vector3(), _hg = new THREE.Vector3();
+const _bu = new THREE.Vector3(), _br = new THREE.Vector3(), _bf = new THREE.Vector3(), _bc = new THREE.Vector3(), _f1 = new THREE.Vector3(), _f2 = new THREE.Vector3();
+const _mp = new THREE.Vector3(), _mq = new THREE.Quaternion();
 
 export class CharacterRig {
   constructor(assets, loaded, { firstPerson = false } = {}) {
@@ -520,22 +554,32 @@ export class CharacterRig {
     this.aimTarget.copy(w.socketWorld('muzzle', new THREE.Vector3())).addScaledVector(fwd, 30);
   }
 
-  // Arm IK to the weapon grips (+ reload choreography for the support hand), then finger curl.
+  // Arm IK to the weapon grips — or wherever the hands are working the gun this frame (reload choreography, bolt
+  // cycle, charging handle / slide release; see #handTargets) — then finger curl.
   solveArms(dt, opts = {}) {
     const w = this.weapon, b = this.bones;
     if (!w || !b.rightHand || !this.handLocal.right) return;
     w.root.updateMatrixWorld(true);
     const wq = w.root.getWorldQuaternion(new THREE.Quaternion());
     const wr = new THREE.Vector3(1, 0, 0).applyQuaternion(wq), wu = new THREE.Vector3(0, 1, 0).applyQuaternion(wq), wf = new THREE.Vector3(0, 0, -1).applyQuaternion(wq);
-    const rl = this.state.reload;
+    const rl = this.state.reload > 0 && this.state.reload < 1 ? this.state.reload : 0;
+    // the gun's own mechanics first (blowback, bolt, charging handle), so the hands go to where the parts are now
+    if (!this.firstPerson) w.vel.set(-Math.sin(this.state.moveYaw) * this.state.speed, 0, -Math.cos(this.state.moveYaw) * this.state.speed);
+    w.animate(performance.now(), rl, !!this.reloadEmpty, this.mag ?? 1);
+    const T = w.action ? this.#handTargets(rl) : null;
     for (const side of ['right', 'left']) {
       const frame = this.handFrames[side];
       let grip = w.socketWorld(side === 'right' ? 'rightGrip' : 'leftGrip', new THREE.Vector3());
       let F = new THREE.Vector3(...frame.F).normalize().applyQuaternion(wq);
       let N = new THREE.Vector3(...frame.N).normalize().applyQuaternion(wq);
       let weight = this.ikWeight;
-      if (side === 'left' && rl > 0 && rl < 1) {
-        // support hand: grip -> magazine -> pouch -> magazine -> grip
+      const t = T?.[side];
+      if (t) {
+        // hand target in weapon space -> world
+        grip.copy(t.p).applyMatrix4(w.root.matrixWorld);
+        F.copy(t.F).applyQuaternion(wq); N.copy(t.N).applyQuaternion(wq);
+      } else if (side === 'left' && rl > 0 && !w.action) {
+        // (a weapon without moving parts) support hand: grip -> magazine -> pouch -> magazine -> grip
         const mag = w.socketWorld('rightGrip', new THREE.Vector3()).lerp(w.socketWorld('leftGrip', _v), 0.45).addScaledVector(wu, -0.09);
         const pouch = b.chest.getWorldPosition(new THREE.Vector3()).addScaledVector(UP, -0.32).addScaledVector(wr, -0.1).addScaledVector(wf, 0.12);
         const k = rl;
@@ -543,6 +587,9 @@ export class CharacterRig {
         grip = p;
         N = wu.clone(); F = wf.clone().addScaledVector(wr, 0.5);
       }
+      // a hand doing something away from the gun (first-person grenade throw): world target blended over the grip
+      const ov = this.handOverride?.[side];
+      if (ov && ov.w > 0) { grip.lerp(ov.p, ov.w); F.lerp(ov.F, ov.w).normalize(); N.lerp(ov.N, ov.w).normalize(); }
       if (side === 'left' && opts.leftFree) weight = 0;
       const upper = b[`${side}Arm`], lower = b[`${side}ForeArm`], hand = b[`${side}Hand`];
       const L = this.handLocal[side];
@@ -550,7 +597,7 @@ export class CharacterRig {
       const handQ = basisQuaternion(L.f, L.n, F, N);
       // wrist position so the palm centre sits on the grip surface
       const palmWorld = L.palm.clone().multiply(hand.getWorldScale(_v3)).applyQuaternion(handQ);
-      const target = grip.clone().addScaledVector(N, -(side === 'right' ? 0.024 : 0.028)).sub(palmWorld);
+      const target = grip.clone().addScaledVector(N, -(t ? t.off : side === 'right' ? 0.024 : 0.028)).sub(palmWorld);
       const pole = upper.getWorldPosition(new THREE.Vector3());
       if (side === 'right') pole.addScaledVector(wr, 0.35).addScaledVector(UP, -0.55).addScaledVector(wf, -0.15);
       else pole.addScaledVector(wr, -0.25).addScaledVector(UP, -0.7).addScaledVector(wf, 0.1);
@@ -558,13 +605,133 @@ export class CharacterRig {
       if (weight > 0) {
         const cur = hand.getWorldQuaternion(new THREE.Quaternion());
         setBoneWorldQuaternion(hand, cur.slerp(handQ, weight));
-        if (!this.detail) this.#curlFingers(side, F, N, weight);
+        if (!this.detail) this.#curlFingers(side, F, N, weight, t ? t.curl : 1);
       }
       if (this.debug) this.debug[side].copy(target);
     }
   }
 
-  #curlFingers(side, F, N, weight) {
+  // Where the hands are this frame, in weapon space ({ p, q, F, N, off, curl } per side, null = on its grip):
+  //  magazine reload (0.20 out with the support hand, 0.45 pouch, 0.70 seated; empty: charging handle / slide
+  //  release at 0.88), bolt cycle after a shot (right hand on the knob), bolt-rifle stripper-clip reload.
+  // The magazine and the stripper clip ride in the hand, so they are placed here too.
+  #handTargets(rl) {
+    const w = this.weapon, A = w.action, b = this.bones, S = w.sockets;
+    const H = this.hands || (this.hands = { right: mkT(), left: mkT(), gR: mkT(), gL: mkT(), a: mkT(), c: mkT(), d: mkT(), out: { right: null, left: null } });
+    const out = H.out; out.right = out.left = null;
+    const inv = _hm.copy(w.root.matrixWorld).invert(), wqi = w.root.getWorldQuaternion(_hq).invert();
+    setT(H.gR, S.rightGrip, _f1.fromArray(this.handFrames.right.F), _f2.fromArray(this.handFrames.right.N), 0.024, 1);
+    setT(H.gL, S.leftGrip, _f1.fromArray(this.handFrames.left.F), _f2.fromArray(this.handFrames.left.N), 0.028, 1);
+    // body frame in weapon space (pouches on the chest rig / belt)
+    const bUp = _bu.copy(UP).applyQuaternion(wqi), bRight = _br.set(Math.cos(this.bodyYaw), 0, -Math.sin(this.bodyYaw)).applyQuaternion(wqi);
+    const bFwd = _bf.set(-Math.sin(this.bodyYaw), 0, -Math.cos(this.bodyYaw)).applyQuaternion(wqi);
+    const chest = b.chest.getWorldPosition(_bc).applyMatrix4(inv), k = this.height / 1.8;
+    const pouch = (up, right, fwd, target) => target.copy(chest).addScaledVector(bUp, up * k).addScaledVector(bRight, right * k).addScaledVector(bFwd, fwd * k);
+    if (A.type === 'bolt') {
+      const knob = w.knobWorld(_hk).applyMatrix4(inv);
+      // the hand turns with the bolt as it is lifted
+      _hq3.setFromAxisAngle(_Z, w.boltSide * (A.boltLift ?? 1.45) * w.boltLift);
+      const onKnob = setT(H.a, knob, _f1.copy(FR.knob.F).applyQuaternion(_hq3), _f2.copy(FR.knob.N).applyQuaternion(_hq3), 0.02, 0.75);
+      const clip = w.clip;
+      if (!rl) {
+        if (clip) clip.visible = false;
+        if (w.boltHand > 0) out.right = mixT(H.right, H.gR, onKnob, w.boltHand);
+        return out;
+      }
+      // stripper-clip reload, right hand: knob (open the bolt) -> ammo pouch -> clip into the guide, thumb the rounds
+      // down (0.70) -> knob (close, 0.88) -> grip
+      const pp = pouch(-0.25, 0.11, 0.16, _hp);
+      const atPouch = setT(H.c, pp, FR.clip.F, FR.clip.N, 0.03, 0.6);
+      const press = smooth(0.64, 0.7, rl) * (1 - smooth(0.7, 0.74, rl));
+      const g = _hg.copy(S.clipGuide || knob);
+      const atGuide = setT(H.d, _hp2.copy(g).addScaledVector(bUp, 0.04 - 0.03 * press).addScaledVector(bRight, 0.035), FR.clip.F, FR.clip.N, 0.025, 0.6);
+      const from = w.rlFrom?.hand ? mixT(H.right, H.gR, onKnob, w.rlFrom.hand) : H.gR;
+      let t;
+      if (rl < 0.07) t = mixT(H.right, from, onKnob, smooth(0, 0.07, rl));
+      else if (rl < 0.2) t = onKnob;
+      else if (rl < 0.45) t = mixT(H.right, onKnob, atPouch, smooth(0.2, 0.42, rl));
+      else if (rl < 0.7) t = mixT(H.right, atPouch, atGuide, smooth(0.45, 0.64, rl));
+      else if (rl < 0.77) t = mixT(H.right, atGuide, onKnob, smooth(0.7, 0.77, rl));
+      else if (rl < 0.88) t = onKnob;
+      else t = mixT(H.right, onKnob, H.gR, smooth(0.88, 0.99, rl));
+      out.right = t;
+      if (clip) {
+        // the clip rides in the fingers, sits in the guide while the rounds are thumbed down (0.64-0.70), and is
+        // kicked out by the bolt going forward (0.80)
+        clip.visible = rl > 0.43 && rl < 0.8;
+        if (clip.visible) {
+          if (rl < 0.64) {
+            const k2 = smooth(0.45, 0.64, rl);
+            clip.position.copy(t.p).addScaledVector(bUp, -0.04).addScaledVector(bRight, -0.035).lerp(g, k2 * k2);
+            clip.quaternion.setFromAxisAngle(_f1.copy(bFwd), 0.9 * (1 - k2));
+          } else { clip.position.copy(g); clip.quaternion.identity(); }
+          const down = smooth(0.64, 0.7, rl);
+          for (const r of clip.rounds) { r.visible = rl < 0.7; r.userData.y0 ??= r.position.y; r.position.y = r.userData.y0 - down * 0.05; }
+        }
+        if (rl >= 0.8 && !w.clipOut) { w.clipOut = true; w.eject('clip', 'clipGuide', _f1.set(0.45, 1, 0.25).normalize(), 1.6); }
+        if (rl < 0.8) w.clipOut = false;
+      }
+      return out;
+    }
+    // ---- magazine reload (rifle / pistol)
+    const P = w.parts;
+    if (!P.mag) return out;
+    if (!rl) {
+      P.mag.o.visible = true; w.placeMag(null); if (P.magEmpty) P.magEmpty.o.visible = false;
+      return out;
+    }
+    const pistol = A.type === 'pistol', empty = !!this.reloadEmpty, drop = pistol && empty;
+    const pp = pistol ? pouch(-0.43, -0.1, 0.14, _hp) : pouch(-0.27, -0.07, 0.17, _hp);
+    // magazine frame (weapon space): seat -> out along the well -> pouch | pouch -> under the well -> seat (0.70)
+    const seat = S.magSeat, ax = w.magAxis, outLen = w.magOut;
+    const qPouch = _hq2.setFromRotationMatrix(_hm2.makeBasis(bRight, bUp, _f1.copy(bFwd).negate())).multiply(_hq3.setFromAxisAngle(_X, -0.35));
+    const mp = _mp, mq = _mq.identity();
+    let which = 'mag';
+    if (rl < 0.2) mp.copy(seat);
+    else if (drop && rl < 0.45) {
+      // speed reload: the empty magazine drops free of the grip and falls away
+      which = 'magEmpty';
+      const ts = (rl - 0.2) * (this.reloadDur || 1.9);
+      mp.copy(seat).addScaledVector(ax, outLen * smooth(0.2, 0.24, rl) + 4.9 * ts * ts);
+      mq.setFromAxisAngle(_X, -ts * 2.5);
+    } else if (rl < 0.28) mp.copy(seat).addScaledVector(ax, outLen * smooth(0.2, 0.28, rl));
+    else if (rl < 0.45) {
+      const k2 = smooth(0.28, 0.45, rl);
+      mp.copy(seat).addScaledVector(ax, outLen).lerp(pp, k2).addScaledVector(bFwd, 0.06 * Math.sin(k2 * Math.PI));
+      mq.slerpQuaternions(_I, qPouch, k2);
+      if (empty) which = 'magEmpty';
+    } else if (rl < 0.62) {
+      const k2 = smooth(0.45, 0.62, rl);
+      mp.copy(pp).lerp(_hp2.copy(seat).addScaledVector(ax, outLen * 0.75), k2).addScaledVector(bFwd, 0.05 * Math.sin(k2 * Math.PI));
+      mq.slerpQuaternions(qPouch, _I, k2);
+    } else if (rl < 0.7) mp.copy(seat).addScaledVector(ax, outLen * 0.75 * (1 - eout(0.62, 0.7, rl)));
+    else mp.copy(seat);
+    const seated = rl < 0.2 || rl >= 0.7, gone = drop && rl > 0.34 && rl < 0.45; // (fallen out of sight)
+    const node = which === 'magEmpty' && P.magEmpty ? 'magEmpty' : 'mag';
+    if (P.magEmpty) P.magEmpty.o.visible = node === 'magEmpty' && !gone;
+    P.mag.o.visible = node === 'mag' && !gone;
+    w.placeMag(seated ? null : _hm3.compose(mp, mq, _one).premultiply(w.root.matrixWorld), node);
+    if (node === 'magEmpty') w.placeMag(null, 'mag');
+    // support hand on the magazine (seat frame -> weapon space)
+    const hold = pistol ? FR.magPistol : FR.magRifle;
+    const handOn = (pos, quat, T) => setT(T, _hp3.copy(w.magGrab).applyQuaternion(quat).add(pos), _f1.copy(hold.F).applyQuaternion(quat), _f2.copy(hold.N).applyQuaternion(quat), hold.off, 0.85);
+    const onMag = handOn(mp, mq, H.a);
+    let t;
+    if (drop && rl < 0.45) t = rl < 0.1 ? H.gL : mixT(H.left, H.gL, handOn(pp, qPouch, H.c), smooth(0.1, 0.45, rl));
+    else if (rl < 0.2) t = mixT(H.left, H.gL, onMag, smooth(0.02, 0.19, rl));
+    else if (rl < 0.7) t = onMag;
+    else if (!empty || pistol) t = mixT(H.left, onMag, H.gL, smooth(0.72, 0.9, rl)); // (pistol: thumb on the slide stop, 0.88)
+    else {
+      // empty rifle: hand over the top to the charging handle, pull it back (0.80-0.865), let go at 0.88
+      const cg = _hp2.copy(S.chargeGrip || S.opticEye); cg.z += (A.chargeTravel ?? 0.07) * (rl < 0.875 ? w.chargeK : 1);
+      const onCharge = setT(H.c, cg, FR.charge.F, FR.charge.N, 0.02, 0.9);
+      t = rl < 0.875 ? mixT(H.left, onMag, onCharge, smooth(0.71, 0.8, rl)) : mixT(H.left, onCharge, H.gL, smooth(0.88, 0.99, rl));
+    }
+    out.left = t;
+    return out;
+  }
+
+  #curlFingers(side, F, N, weight, amount = 1) {
     const k = new THREE.Vector3().crossVectors(F, N).normalize(); // rotating about k moves fingers toward the palm
     const right = side === 'right';
     const curls = {
@@ -579,7 +746,7 @@ export class CharacterRig {
         bn.quaternion.copy(this.rest.get(bn));
         bn.updateMatrixWorld(true);
         const axis = f === 'thumb' ? _v.copy(F).multiplyScalar(right ? -1 : 1).lerp(k, 0.5).normalize() : k;
-        rotateBoneWorld(bn, _q.setFromAxisAngle(axis, angles[i] * weight));
+        rotateBoneWorld(bn, _q.setFromAxisAngle(axis, angles[i] * weight * amount));
       }
     }
   }
@@ -662,7 +829,7 @@ export class CharacterRig {
   revive() { this.state.dead = false; this.blend.death = 0; this.dropped = null; this.deathTarget = null; this.poseRoot.quaternion.identity(); this.poseRoot.position.set(0, 0, 0); }
   hitReact() { this.blend.hit = 1; }
   // one round fired: the rifle kicks back into the shoulder and recovers (per shot, so full-auto reads as recoil)
-  kick() { this.blend.recoil = Math.min(1, this.blend.recoil + 0.6); }
+  kick() { this.blend.recoil = Math.min(1, this.blend.recoil + 0.6); this.weapon?.fired(); }
   land(v) { this.blend.land = Math.min(1, v / 10); }
 
   // --------------------------------------------------------------- diagnostics

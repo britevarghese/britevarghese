@@ -155,6 +155,7 @@ export class LocalPlayer {
     const d = this.aimDir();
     this.g.net.send({ t: 'nade', o: [this.s.x, this.s.y + EYE_HEIGHT[this.s.stance], this.s.z], d: [d.x, d.y + 0.15, d.z] });
     this.g.viewmodel.switchT = 0.2;
+    this.g.viewmodel.throwNade?.();
   }
 
   aimDir() {

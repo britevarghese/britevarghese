@@ -12,7 +12,8 @@ import { buildTransportPlane } from './TransportPlane.js';
 const $ = (id) => document.getElementById(id);
 const PH = ['lobby', 'plane', 'live', 'over'];
 const COLORS = { weapon: 0xffa53d, ammo: 0xe0c36a, armor: 0x49a6ff, med: 0x5fe07a, nade: 0xff5a4a };
-const SIZE = { ammo_box: 0.42, medical_box: 0.46, armor: 0.62, grenade: 0.3 };
+// (real sizes, m: the frag is an M67, 64 mm across)
+const SIZE = { ammo_box: 0.42, medical_box: 0.46, armor: 0.62, grenade: 0.07 };
 const PROP_KEY = { ammo_box: 'ammo', medical_box: 'medkit', armor: 'old_crate' };
 const fmt = (ms) => { const s = Math.max(0, Math.ceil(ms / 1000)); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`; };
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
