@@ -784,6 +784,14 @@ the game. Newly found problems go at the end of their section.
     more; and never onto a car standing there (one in a queue was put down on the one in front)
   - [x] a race against Shibu started from a busy junction's traffic as it was: 150 m on he met a bus across the
     road and spent a minute getting round it. The streets are cleared for it, as for a street race
+  - [x] ...and the 30 s rule never caught a car that was 'turning': the van you tail, its junction turn into a side
+    road too tight to take in one, stopped behind a knocked-down motorbike lying in the junction and sat there five
+    minutes, each three-point turn given up after 25 s and begun again the next moment. 30 s getting nowhere is
+    stuck now, turning or not
+  - [x] and nose to nose: the van turning into a side road met a car coming out of it, neither with room to get by,
+    and each waited for the other for a minute and a half. Stopped 6 s for something that won't move for it (one
+    coming the other way, standing, or a wreck), an AI car backs a couple of metres with its nose swung away and
+    tries again - the road behind it clear, and no car (yours included) on its line there
   Now all 12 pass: the cars you tail drive their 3.5 km and 2.1 km with no stop over a second and no jump; the rams,
   the steals and the chases as before. Left: Shibu's runs vary with the traffic - once, a 26 s stop at the first
   junction out of Chirakkal (not seen again in a traced run). Street life round a stopped player car in Kannur and

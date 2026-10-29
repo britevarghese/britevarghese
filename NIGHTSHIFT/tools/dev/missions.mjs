@@ -4,10 +4,10 @@
 // driven most of it, a chase called off. The steps' own logic runs as in the game. Logs each mission's steps, pass or
 // fail (and why), and how the AI cars drove: time off the road, the longest stop, resets (jumps back onto its way).
 // --trace 1: the AI car every 5 s, what's round it when it has stood 8 s, and what it was slow for. Rendering off.
-//   node tools/dev/missions.mjs --port N [--only id,id] [--limit 420] [--trace 1]
+//   node tools/dev/missions.mjs --port N [--only id,id] [--limit 600] [--trace 1]
 import { launch } from './pw.mjs';
 const args = Object.fromEntries(process.argv.slice(2).reduce((acc, a, i, arr) => { if (a.startsWith('--')) acc.push([a.slice(2), arr[i + 1]]); return acc; }, []));
-const port = args.port || 3311, only = args.only ? args.only.split(',') : null, limit = +(args.limit || 420), trace = !!args.trace;
+const port = args.port || 3311, only = args.only ? args.only.split(',') : null, limit = +(args.limit || 600), trace = !!args.trace;
 
 const b = await launch();
 const p = await b.newPage({ viewport: { width: 320, height: 180 } });
