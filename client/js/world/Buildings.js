@@ -29,7 +29,7 @@ function lookOf(spec, rnd) {
     L.trim = lin(lum > 0.86 ? [0.74, 0.7, 0.62] : [0.93, 0.91, 0.86]).map((v) => v * (worn ? 0.8 : 1));
     L.surrounds = true; L.quoins = !worn && rnd() < 0.4; L.shutter = rnd() < 0.55 ? lin(pick(SHUTTERS)) : null;
   } else if (s === 'brick') {
-    L.facade = worn ? 'brick_worn' : 'brick_clean'; L.fcol = jit(worn ? [1.3, 1.25, 1.2] : [1, 0.97, 0.95], 0.12); // (the crumbling-brick scan is dark)
+    L.facade = worn ? 'brick_worn' : 'brick_clean'; L.fcol = jit(worn ? [0.74, 0.7, 0.66] : [1, 0.97, 0.95], 0.12); // (worn: soot-darkened)
     L.trim = lin([0.8, 0.77, 0.7]); L.lintels = !worn; L.quoins = !worn && rnd() < 0.2; L.shutter = rnd() < 0.2 ? lin(pick(SHUTTERS)) : null;
   } else if (s === 'concrete') {
     const k = 0.9 + rnd() * 0.22; L.facade = 'concrete'; L.fcol = [k, k * 0.99, k * 0.96];
@@ -95,6 +95,7 @@ export function buildBuildings(world, mats) {
     M.w = (p) => { wv[0] = p[1] - y0; wv[1] = 0; return wv; };
     const finish = (m) => (m === 'plaster' || m === 'brick' ? L.facade : m);
     const faceMat = (part, n, fc) => {
+      if (hidden.get(part)?.has(faceKey(n))) return null; // drawn below, only where exposed
       if (part.part === 'ground' || part.part === 'floor') return n[1] > 0.5 ? 'concrete_floor' : n[1] < -0.5 ? 'plaster_int' : 'trim';
       if (part.part === 'parapet' && n[1] === 0 && ((fc[0] - cx) * n[0] + (fc[2] - cz) * n[2]) < 0) return 'concrete';
       if (part.part === 'roof') return n[1] > 0.5 ? part.mat : n[1] < -0.5 ? 'plaster_int' : 'trim';
@@ -111,7 +112,19 @@ export function buildBuildings(world, mats) {
     };
     // (stair flights are drawn as the steps below, the attic boxes as the roof, iron railings as bars)
     const drawn = b.parts.filter((p) => p.part !== 'stair' && p.part !== 'attic' && p.part !== 'chimney' && !(p.part === 'brail' && p.bullets === false));
+    // The walls are built of pieces (beside / under / over every opening, per bay and floor). Where two pieces meet,
+    // their end / top / bottom faces lie inside the wall, yet they reach the facade: rendered into the shadow map
+    // they shadow the wall along every seam (a dashed dark line). Those faces are drawn only where nothing abuts
+    // them (window reveals, wall ends, broken tops).
+    const hidden = new Map(), extra = [];
+    seams(drawn.filter((p) => p.part === 'wall' || p.part === 'broken' || p.part === 'parapet'), b.T, hidden, extra);
     buildBoxGeometry(drawn, { tile: 1, faceMat, color, weather, into: M });
+    for (const { part, n, a, quads } of extra) {
+      const m = faceMat({ ...part }, n, quads.c); // (a copy: the piece itself is in `hidden`)
+      if (!m) continue;
+      const ua = a === 0 ? 2 : 0, va = a === 1 ? 2 : 1, sg = a === 0 ? -n[0] : a === 2 ? n[2] : 1; // buildBoxGeometry's UVs
+      for (const q of quads.list) M.poly(m, q, n, (p) => [p[ua] * sg, p[va]], color(quads.c, part, n, m));
+    }
 
     // ---- trims & details (visual only)
     const trims = [];
@@ -136,10 +149,15 @@ export function buildBuildings(world, mats) {
         if (party.has(s)) continue;
         // the long sides cover the corners (not past a party wall: the neighbour's band runs on from there)
         const ea = sd.alongX && !party.has('w') ? out : 0, eb = sd.alongX && !party.has('e') ? out : 0;
+        // one piece per run of intact bays (pieces butting end to end shadow their seam)
+        const gone = (i) => f >= 0 && destroyed.has(`${s}:${f}:${i}`);
         for (let i = 0; i < sd.nb; i++) {
-          if (f >= 0 && destroyed.has(`${s}:${f}:${i}`)) continue;
-          const ua = i * sd.bw - (i === 0 ? ea + (sd.alongX ? 0 : T) : 0), ub = (i + 1) * sd.bw + (i === sd.nb - 1 ? eb + (sd.alongX ? 0 : T) : 0);
+          if (gone(i)) continue;
+          let j = i;
+          while (j + 1 < sd.nb && !gone(j + 1)) j++;
+          const ua = i * sd.bw - (i === 0 ? ea + (sd.alongX ? 0 : T) : 0), ub = (j + 1) * sd.bw + (j === sd.nb - 1 ? eb + (sd.alongX ? 0 : T) : 0);
           onFace(s, ua, ub, -0.02, out, y, y + h, mat);
+          i = j;
         }
       }
     };
@@ -365,6 +383,48 @@ function tube(a, b, r) {
   g.applyQuaternion(new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), d.normalize()));
   g.translate((a[0] + b[0]) / 2, (a[1] + b[1]) / 2, (a[2] + b[2]) / 2);
   return g;
+}
+
+// face key of an axis-aligned normal: '0+', '1-', ...
+const faceKey = (n) => (n[0] ? '0' : n[1] ? '1' : '2') + (n[0] + n[1] + n[2] > 0 ? '+' : '-');
+
+// Wall pieces' faces across the wall (ends, tops, bottoms) where other pieces abut them: `hidden` gets, per piece,
+// the keys of the faces not to draw whole; `extra` the exposed rectangles of the partly covered ones ({ part, n, a,
+// quads: { c, list } }, each quad 4 world points). Pieces abut when one's max equals the other's min along the
+// face's axis and they share the face's extent across the wall's thickness.
+function seams(walls, T, hidden, extra) {
+  const E = 1e-4, thick = new Map();
+  for (const p of walls) {
+    // thickness axis: the one exactly T across (n / s walls: z, w / e walls: x)
+    const sx = p.max[0] - p.min[0], sz = p.max[2] - p.min[2], tz = Math.abs(sz - T) < 1e-6, tx = Math.abs(sx - T) < 1e-6;
+    thick.set(p, tz && !tx ? 2 : tx && !tz ? 0 : sz <= sx ? 2 : 0);
+  }
+  for (const p of walls) {
+    const t = thick.get(p), along = t === 2 ? 0 : 2;
+    for (const a of [along, 1]) for (const sgn of [1, -1]) {
+      const plane = sgn > 0 ? p.max[a] : p.min[a], o = a === 1 ? along : 1; // o: the face's axis that coverage runs along
+      const lo = p.min[o], hi = p.max[o], cov = [];
+      for (const q of walls) {
+        if (q === p || Math.abs((sgn > 0 ? q.min[a] : q.max[a]) - plane) > E) continue;
+        if (q.min[t] > p.min[t] + E || q.max[t] < p.max[t] - E) continue; // must span the wall's thickness here
+        const c0 = Math.max(lo, q.min[o]), c1 = Math.min(hi, q.max[o]);
+        if (c1 > c0 + E) cov.push([c0, c1]);
+      }
+      if (!cov.length) continue;
+      // exposed intervals = [lo, hi] minus the covered ones
+      cov.sort((x, y) => x[0] - y[0]);
+      const open = [];
+      let u = lo;
+      for (const [c0, c1] of cov) { if (c0 > u + E) open.push([u, c0]); u = Math.max(u, c1); }
+      if (hi > u + E) open.push([u, hi]);
+      const n = [0, 0, 0]; n[a] = sgn;
+      (hidden.get(p) || hidden.set(p, new Set()).get(p)).add(faceKey(n));
+      if (!open.length) continue;
+      const c = [(p.min[0] + p.max[0]) / 2, (p.min[1] + p.max[1]) / 2, (p.min[2] + p.max[2]) / 2]; c[a] = plane;
+      const list = open.map(([u0, u1]) => [[u0, p.min[t]], [u1, p.min[t]], [u1, p.max[t]], [u0, p.max[t]]].map(([uo, ut]) => { const q = [0, 0, 0]; q[a] = plane; q[o] = uo; q[t] = ut; return q; }));
+      extra.push({ part: p, n, a, quads: { c, list } });
+    }
+  }
 }
 
 // satellite dish on a wall bracket under the eaves / below the parapet, facing south-ish and up

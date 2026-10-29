@@ -16,9 +16,11 @@ const BUILDING = {
   plaster: ['plaster', {}],
   brick: ['brick', {}],
   plaster_paint: ['plaster_painted', { paint: 0.7 }],
-  plaster_worn: ['plaster', { paint: 0.6 }], // peeling patches kept, but toned down (full strength reads as camouflage)
+  // damaged houses: the same plaster, rougher and dirtier (darker vertex colour, more grime); the peeling-plaster scan's
+  // patches repeat every 1.8 m and read as camouflage even toned down
+  plaster_worn: ['plaster_painted', { paint: 1 }],
   brick_clean: ['brick_clean', {}],
-  brick_worn: ['brick', {}],
+  brick_worn: ['brick_clean', {}], // sooty (darker vertex colour): the crumbling scan's blotches read as camouflage
   metal_siding: ['corrugated', { color: 0xb8c0c4 }],
   concrete_slab: ['concrete_slab', {}],
   concrete_floor: ['concrete_floor', {}],
@@ -39,7 +41,7 @@ const BUILDING = {
   asphalt: ['asphalt', {}],
 };
 // facade weathering (see #weather): grime at the foot of the wall / rain streaks under ledges, per material
-const WEATHER = { plaster_paint: [1, 1], plaster_worn: [1, 1], brick_clean: [0.8, 0.6], brick_worn: [0.7, 0.5], concrete: [1, 1], concrete_slab: [0.9, 0.8], metal_siding: [0.8, 0.7], trim: [0.8, 0.8], plinth: [0.6, 0], roof_tiles: [0, 0], metal_roof: [0, 0], frame_paint: [0.5, 0], wood_paint: [0.5, 0], metal_paint: [0.4, 0] };
+const WEATHER = { plaster_paint: [1, 1], plaster_worn: [1.4, 1.3], brick_clean: [0.8, 0.6], brick_worn: [0.7, 0.5], concrete: [1, 1], concrete_slab: [0.9, 0.8], metal_siding: [0.8, 0.7], trim: [0.8, 0.8], plinth: [0.6, 0], roof_tiles: [0, 0], metal_roof: [0, 0], frame_paint: [0.5, 0], wood_paint: [0.5, 0], metal_paint: [0.4, 0] };
 
 export class MaterialLibrary {
   constructor(assets, quality) {

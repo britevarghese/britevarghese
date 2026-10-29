@@ -140,7 +140,8 @@ export async function buildProps(assets, mats, extra = { roofProps: [], rubble: 
     if (k === 'rubble') {
       const g = await assets.loadVegetation('rock_07');
       const cm = new Map();
-      group.add(instanceGLB(g, list, { name: 'rubble', castShadow: false, material: (m) => { if (!cm.has(m)) { const c = m.clone(); c.color = new THREE.Color(0xa8a49c); cm.set(m, c); } return cm.get(m); } }));
+      // grey broken concrete: the rock's shape, normal detail and cavity AO, without its brown albedo
+      group.add(instanceGLB(g, list, { name: 'rubble', castShadow: false, material: (m) => { if (!cm.has(m)) { const c = m.clone(); c.map = null; c.color = new THREE.Color(0x8e8a83); cm.set(m, c); } return cm.get(m); } }));
       return;
     }
     const g = await assets.loadProp(keys[k]);
