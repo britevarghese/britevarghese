@@ -858,6 +858,16 @@ the game. Newly found problems go at the end of their section.
     queue behind. Waiting on a car in front, it doesn't start one now, nor back up for it. And a car stuck right by the
     camera (the van you tail, 33 m on) is put on its way after a minute and a half, 40 m on past what holds it -
     before, never while you were within 45 m
+  - [x] The Valiyannur junctions (two, 45 m apart, a short side road between them) and the long road west of them,
+    traced, the van stopping for minutes at a time:
+    - behind a car parked at the kerb with a stream coming the other way it waited for a 40 m gap past it, which in
+      that traffic didn't come for over a minute. After 8 s of waiting it takes 15 m (what's coming slows for a car
+      out in its way, as in Kerala), and keeps to that once it's begun - re-checked against 40 m it pulled back in
+      half way out
+    - a car parked each side of the road 3 m apart left one way through at a time; parked cars keep 14 m apart now
+    - two cars by the player, on the vehicle physics, pushed apart only to touching, stood nose to nose in the north
+      junction each waiting on the other (a private bus and an Ertiga, 33 samples of 3 minutes): the step that sorts
+      out two like that took in only the ones off the physics. Both now: overlaps there 34 -> 3, nothing stuck
     Left: your car left in a narrow street 9 m short of a junction (Mattannur, 5 m of road) holds the traffic up both
     ways until you move it - letting the traffic go round it that near the junction had it meet the cars coming out of
     the junction (two crashes), so they wait and honk

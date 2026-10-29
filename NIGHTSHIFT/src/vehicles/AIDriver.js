@@ -421,7 +421,9 @@ export class AIDriver {
       // (anything standing on that line beside it - a bus stopped the other way: out round the parked car, the car
       // only stopped against the bus instead, the road between them taken)
       if (a > -qh && a < past + qh && l < (q.spec?.w ?? 1.8) / 2 + myW + 0.25) return false;
-      if (!((q.v ?? 0) > 0.5) || a < -5 || a > past + 40 || l > 3) continue;
+      // (and nothing coming within 40 m past it - 15 once it's waited 8 s: in a stream of traffic the van you tail waited
+      // over a minute behind a parked car for a 40 m gap; what's coming slows for a car out in its way, as in Kerala)
+      if (!((q.v ?? 0) > 0.5) || a < -5 || a > past + ((this.passWait || 0) > 8 ? 15 : 40) || l > 3) continue;
       if (Math.sin(q.yaw) * fx + Math.cos(q.yaw) * fz < -0.5) return false;
     }
     return true;
@@ -528,7 +530,7 @@ export class AIDriver {
 
     // obstacle avoidance (traffic cars / other vehicles ahead)
     const fx = Math.sin(s.yaw), fz = Math.cos(s.yaw);
-    let avoid = 0, pass = 0, blk = null, held = false;   // (held: waiting on a car in front)
+    let avoid = 0, pass = 0, blk = null, held = false, waitKerb = false;   // (held: waiting on a car in front; waitKerb: to get round one at the kerb)
     const myL = v.p?.length || 4.4, myW = (v.p?.width || 1.8) / 2;
     // (still going by one standing at the kerb: kept out until clear of its back. But before it's alongside, the way
     // out round it taken meanwhile - something come the other way: back in behind it. Pushed on out, a van stood
@@ -568,7 +570,9 @@ export class AIDriver {
         // tail stopped behind a car parked at the kerb and waited there for good. Not one stopped in a queue, square in
         // the lane)
         const need = (o.spec?.w ?? 1.8) / 2 + myW + 0.45 - Math.abs(lat);
-        if (v.physics?.world?.kerala && (o.v ?? 0) < 0.3 && (o.parked || o.state !== 'drive' || (o.pulled && Math.abs(lat) > 0.5)) && this._roomBy(o, lat, ahead, need, obstacles)) {
+        const kerb = v.physics?.world?.kerala && (o.v ?? 0) < 0.3 && (o.parked || o.state !== 'drive' || (o.pulled && Math.abs(lat) > 0.5));
+        if (kerb && !this._roomBy(o, lat, ahead, need, obstacles)) waitKerb = true;
+        else if (kerb) {
           if (need > Math.abs(pass)) { pass = -Math.sign(lat) * need; this.passO = o; this.passLat = pass; }
           targetSpeed = Math.min(targetSpeed, 6, this._outBy(o, ahead, lat, myL, myW));
           continue;
@@ -589,6 +593,8 @@ export class AIDriver {
       }
     }
     this._blk = blk;
+    // (kept while the pass it began goes on: re-checked against 40 m again, it pulled back in behind half way out)
+    this.passWait = waitKerb && speed < 0.5 ? (this.passWait || 0) + dt : this.passO ? this.passWait || 0 : 0;
     this.avoid = avoid;
     if (pass) { tx += -fz * pass; tz += fx * pass; }   // (aimed out by what it takes to clear it: (-fz, fx) the car's right)
 

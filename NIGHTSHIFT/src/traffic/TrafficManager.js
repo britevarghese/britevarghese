@@ -154,6 +154,9 @@ export class TrafficManager {
     // kerb was knocked flat on the spot)
     lane.sample(s, tmp);
     if (dynamic.some((v) => Math.hypot(v.physics.s.x - tmp.x, v.physics.s.z - tmp.z) < 8)) return;
+    // (nor across the road from another parked one: two, one each side 3 m apart, left a gap for one way at a time,
+    // and the van you tail waited a minute and a half for the stream coming the other way to let it through)
+    if (this.cars.some((o) => o.state === 'parked' && Math.hypot(o.x - tmp.x, o.z - tmp.z) < 14)) return;
     const pool = ['m800', 'dzire', 'brezza', 'ertiga', 'scorpio', 'thar', 'bolero', 'minitruck', 'auto', 'scooter', 'commuter'].filter((t) => this.renderer?.types?.[t]);
     if (!pool.length) return;
     const type = pool[Math.floor(R() * pool.length)], sp = TYPE_SPECS[type];
@@ -444,7 +447,9 @@ export class TrafficManager {
   }
 
   _separate() {
-    const K = this.cars.filter((c) => c.state === 'drive' && !c.phys && c.dist < 160);
+    // (the physics-driven ones by the player too: pushed apart only to touching, two nose to nose in a junction each
+    // waited on the other for good - a private bus and an Ertiga at Valiyannur, half a minute; one is held now)
+    const K = this.cars.filter((c) => c.state === 'drive' && c.dist < 160);
     for (let i = 0; i < K.length; i++) for (let j = i + 1; j < K.length; j++) {
       const a = K[i], b = K[j], r = ((a.spec.l || 4.5) + (b.spec.l || 4.5)) / 2;
       if (Math.abs(a.x - b.x) > r || Math.abs(a.z - b.z) > r) continue;
