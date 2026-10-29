@@ -16,6 +16,9 @@ const _q = new THREE.Quaternion(), _qp = new THREE.Quaternion(), _qd = new THREE
 export const STYLE = {
   sport: { hipZ: 0.33, barsBack: 0.44, barsY: 0.1, barsW: 0.31, pegBack: 0.22, pegY: 0.37, pegW: 0.17, torso: 0.62, tuck: 0.3, neck: 0.12 },
   cruiser: { hipZ: 0.36, barsBack: 0.46, barsY: 0.36, barsW: 0.4, pegBack: -0.3, pegY: 0.3, pegW: 0.24, torso: 1.35, tuck: 1.2, neck: 0.16 },
+  // (the street's own: a commuter sat up, feet under the hips; a scooter upright, feet forward on its floorboard)
+  standard: { hipZ: 0.34, barsBack: 0.45, barsY: 0.24, barsW: 0.36, pegBack: 0.06, pegY: 0.33, pegW: 0.2, torso: 1.1, tuck: 0.9, neck: 0.14 },
+  scooter: { hipZ: 0.36, barsBack: 0.5, barsY: 0.34, barsW: 0.34, pegBack: -0.12, pegY: 0.18, pegW: 0.14, torso: 1.4, tuck: 1.3, neck: 0.16 },
 };
 const THIGH = 0.45, SHIN = 0.46, UPPER = 0.31, FORE = 0.3, TORSO = 0.52;
 

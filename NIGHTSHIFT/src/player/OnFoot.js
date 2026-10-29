@@ -12,7 +12,7 @@ import { VehicleInteraction, interactionProfile } from '../vehicles/Interaction.
 
 // turn an angle toward a target by at most k (radians, shortest way)
 const turn = (a, b, k) => { let d = b - a; while (d > Math.PI) d -= Math.PI * 2; while (d < -Math.PI) d += Math.PI * 2; return a + clamp(d, -k, k); };
-const vehicleWord = (id) => (CARS[id]?.bike ? 'bike' : 'car');
+const vehicleWord = (id) => (CARS[id]?.bike || TRAFFIC_VEHICLES[id]?.bike ? 'bike' : 'car');
 const WALK = 1.7, RUN = 6.2, RADIUS = 0.34, ENTER_DIST = 3.4;
 const _v = new THREE.Vector3();
 
@@ -719,7 +719,7 @@ export class OnFoot {
     }
     // enter a vehicle
     const near = this.nearestVehicle();
-    const what = { traffic: 'steal this car', police: 'steal the police car', rival: 'take their car', remote: `take ${g.net?.names.get(near?.ref.owner) || 'their'}'s ${vehicleWord(near?.ref.carId)}` }[near?.kind] || 'get in';
+    const what = { traffic: `steal this ${vehicleWord(near?.ref.type)}`, police: 'steal the police car', rival: 'take their car', remote: `take ${g.net?.names.get(near?.ref.owner) || 'their'}'s ${vehicleWord(near?.ref.carId)}` }[near?.kind] || 'get in';
     // or a building: walk up to a wall
     let door = !near && I ? I.doorAt(s.x, s.z, s.yaw) : null;
     if (door && this.pistol.armed && !I.custom?.get(door.c)) door = null;

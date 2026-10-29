@@ -4,7 +4,7 @@ import * as THREE from 'three';
 import { AssetManager, modelUrl } from '../assets/AssetManager.js';
 import { radialGlow, lightPool, carPaintTexture, headlightTextures, taillightTextures, tireTread } from '../renderer/Textures.js';
 import { clamp, lerp } from '../core/util.js';
-import { CARS, TRAFFIC_MODELS, NO_STEERING_WHEEL } from './VehicleCatalog.js';
+import { CARS, TRAFFIC_MODELS, TRAFFIC_VEHICLES, NO_STEERING_WHEEL } from './VehicleCatalog.js';
 import { Rider, SkinnedRider } from './Rider.js';
 import { FPDriver } from './Driver.js';
 import { fitSteeringWheel, detachSteeringWheel } from './SteeringWheel.js';
@@ -106,7 +106,7 @@ export class ModelLibrary {
     const jobs = [];
     if (!this.wheels) jobs.push(this.assets.loadGLTF(modelUrl(this.manifest, 'wheels.glb'), priority).then((g) => { this.wheels = g.scene; }));
     // bikes need the rigged rider (tools/import-rider.mjs); without it they get the built-in figure
-    if (!this.rider && !this._riderJob && this.manifest?.rider && ids.some((id) => CARS[id]?.bike)) {
+    if (!this.rider && !this._riderJob && this.manifest?.rider && ids.some((id) => CARS[id]?.bike || TRAFFIC_VEHICLES[id]?.bike)) {
       this._riderJob = this.assets.loadGLTF(modelUrl(this.manifest, this.manifest.rider.file), priority).then((g) => { this.rider = g.scene; }).catch(() => {});
     }
     if (this._riderJob && !this.rider) jobs.push(this._riderJob);
@@ -152,7 +152,7 @@ export class VehicleRenderer {
     if (!src) throw new Error(`ASSET LOAD ERROR: ${carId}.glb`);
     const res = lib.modelOf[carId] || lib.resolve(carId);
     this.modelId = res.key; this.imported = !!res.imported; this.standIn = res.standIn || null;
-    this.bike = !!CARS[carId]?.bike;
+    this.bike = !!(CARS[carId]?.bike || TRAFFIC_VEHICLES[carId]?.bike);   // (a scooter taken off the street too)
     const lod0 = AssetManager.clone(src.getObjectByName('lod0'));
     const lod1 = src.getObjectByName('lod1') ? AssetManager.clone(src.getObjectByName('lod1')) : null;
     this.lod0 = lod0; this.lod1 = lod1;
@@ -335,16 +335,25 @@ export class VehicleRenderer {
     this._rider(root);
     this.rider.group.visible = vis;
   }
+  // a bike's catalog entry: a garage bike, else a two-wheeler taken off the street (its seat, pose and wheelbase from
+  // the traffic vehicle's - not in CARS, it had none, and getting on one threw)
+  _bikeCat() {
+    const car = CARS[this.carId];
+    if (car) return car;
+    const t = TRAFFIC_VEHICLES[this.carId], p = t?.params || {};
+    return { spec: { wb: p.wheelBase ?? 1.3, seat: t?.seat, wr: p.wheelRadius }, style: t?.style || 'standard', rider: t?.rider };
+  }
+
   // the bike's geometry for mounting: wheel axles (z), seat height, style and rider overrides
   bikeGeom() {
-    const car = CARS[this.carId];
+    const car = this._bikeCat();
     const zF = this.wheels.find((w) => w.id === 'F')?.pivot.position.z ?? car.spec.wb / 2;
     const zR = this.wheels.find((w) => w.id === 'R')?.pivot.position.z ?? -car.spec.wb / 2;
     return { zF, zR, seat: car.spec.seat ?? 0.82, style: car.style, rider: car.rider };
   }
 
   _rider(template = null) {
-    const car = CARS[this.carId];
+    const car = this._bikeCat();
     const zF = this.wheels.find((w) => w.id === 'F')?.pivot.position.z ?? car.spec.wb / 2;
     const zR = this.wheels.find((w) => w.id === 'R')?.pivot.position.z ?? -car.spec.wb / 2;
     const bike = { zF, zR, seat: car.spec.seat ?? 0.82, style: car.style, rider: car.rider, accent: car.factoryColor };

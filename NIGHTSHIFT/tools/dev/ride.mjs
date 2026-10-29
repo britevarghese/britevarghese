@@ -1,10 +1,11 @@
 // Ride the roads: an AI drives the player's car along random routes from a place (lanes, keep left; no traffic, no
 // police) and logs what a driver would feel: the car leaving the ground, hard landings, jolts (sudden vertical
 // speed), a bang into something solid, stopping dead where the road goes on, leaving the road, resets. Rendering off.
-//   node tools/dev/ride.mjs --port N --at x,z [--minutes 4] [--seed 1] [--car id]
+//   node tools/dev/ride.mjs --port N --at x,z [--minutes 4] [--seed 1] [--car id | --steal type]
+// (--steal: a traffic vehicle taken as the player would - a scooter, a Bullet, an auto, a bus - and ridden instead)
 import { launch } from './pw.mjs';
 const args = Object.fromEntries(process.argv.slice(2).reduce((acc, a, i, arr) => { if (a.startsWith('--')) acc.push([a.slice(2), arr[i + 1]]); return acc; }, []));
-const port = args.port || 3311, minutes = +(args.minutes || 4), seed = +(args.seed || 1), car = args.car || '', start = (args.at || '98200,211600').split(',').map(Number);
+const port = args.port || 3311, minutes = +(args.minutes || 4), seed = +(args.seed || 1), car = args.car || '', steal = args.steal || '', start = (args.at || '98200,211600').split(',').map(Number);
 const b = await launch(); const p = await b.newPage({ viewport: { width: 320, height: 180 } });
 const errs = []; p.on('pageerror', (e) => errs.push('[pageerror] ' + e.message)); p.on('console', (m) => { if (m.type() === 'error') errs.push(m.text().slice(0, 300)); });
 await p.addInitScript(`localStorage.clear(); localStorage.setItem('nightshift.settings', JSON.stringify({graphics:{quality:'low',detectedQuality:'low',backend:'webgl2'}}))`);
@@ -12,9 +13,14 @@ await p.goto(`http://localhost:${port}/`);
 await p.waitForFunction(() => window.NIGHTSHIFT && window.NIGHTSHIFT.state.mode === 'menu', null, { timeout: 300000 });
 await p.evaluate((car) => { const G = window.NIGHTSHIFT; G.save.data.story.prologueOffered = true; if (car) G.save.data.currentCar = car; G.play(); }, car);
 await p.waitForFunction(() => window.NIGHTSHIFT.state.mode === 'drive', null, { timeout: 180000 });
-const res = await p.evaluate(async ([minutes, seed, start]) => {
+const res = await p.evaluate(async ([minutes, seed, start, steal, car]) => {
   const G = window.NIGHTSHIFT, W = G.world; G.rm.renderer.setAnimationLoop(null); G.rm.render = () => {};
   const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+  // (the car is made at boot, before the menu: another one spawned in its place, its model loaded first)
+  if (car && G.player.carId !== car) {
+    await G.lib.load([car]); for (let i = 0; i < 100 && !G.lib.has(car); i++) await sleep(100);
+    G.save.data.currentCar = car; G.save.data.cars[car] ||= structuredClone(G.save.data.cars[G.player.carId]); G.spawnPlayer();
+  }
   const step = () => { try { G._update(1 / 30); } catch (e) { console.error(e.message); } G.input.endFrame(); };
   G.police.enabled = false; G.traffic.enabled = false; G.traffic.clear();
   G.player.place(start[0], start[1], 0); W.prioritize?.([{ x: start[0], z: start[1] }]);
@@ -22,6 +28,17 @@ const res = await p.evaluate(async ([minutes, seed, start]) => {
   for (let i = 0; i < 600 && !placed; i++) { for (let k = 0; k < 5; k++) step(); await sleep(100); if (i < 40 || i % 10) continue; const n = G.traffic.graph.nearest(start[0], start[1], (l) => l.edge?.cls <= 7); if (n && n.dist < 250) { G.player.place(n.x, n.z, Math.atan2(n.dx, n.dz)); placed = true; } }
   if (!placed) return { km: 0, routes: 0, ev: [{ kind: 'NO LANE NEAR THE START', val: 0, at: start.join(','), kmh: 0, extra: '' }] };
   for (let i = 0; i < 30; i++) step();
+  if (steal) {
+    // taken from the traffic as the player would: out of the car, onto it (the game's own way of making it drivable)
+    const { TRAFFIC_VEHICLES } = await import('/src/vehicles/VehicleCatalog.js');
+    if (!TRAFFIC_VEHICLES[steal]) return { km: 0, routes: 0, ev: [{ kind: `NO TRAFFIC VEHICLE '${steal}'`, val: 0, at: '', kmh: 0, extra: '' }] };
+    await G.lib.load([steal]); for (let i = 0; i < 100 && !G.lib.has(steal); i++) await sleep(100);
+    const q = G.player.state, F = G.onFoot;
+    F.exit(); for (let i = 0; i < 200 && !F.active; i++) step();
+    const v = F._jack({ type: steal, x: q.x, z: q.z, yaw: q.yaw, spec: {}, color: 0x3366aa });
+    if (!v) return { km: 0, routes: 0, ev: [{ kind: `COULDN'T TAKE A ${steal}`, val: 0, at: '', kmh: 0, extra: '' }] };
+    F._board(v); for (let i = 0; i < 30; i++) step();
+  }
   const { AIDriver } = await import('/src/vehicles/AIDriver.js');
   const L = W.layout, v = G.player, ph = v.physics, s = v.state;
   const caught = []; { const up = v.update.bind(v); v.update = (dt) => { const ev = up(dt); caught.push(...ev); return ev; }; }
@@ -76,7 +93,7 @@ const res = await p.evaluate(async ([minutes, seed, start]) => {
     if (i % 300 === 0) await sleep(5);
   }
   return { km: +(dist / 1000).toFixed(1), routes, car: v.carId, ev };
-}, [minutes, seed, start]);
+}, [minutes, seed, start, steal, car]);
 const by = {};
 for (const e of res.ev) (by[e.kind] ||= []).push(e);
 console.log(`ride from ${start.join(',')}: car ${res.car}, ${res.km} km, ${res.routes} routes`);

@@ -234,7 +234,7 @@ const unlockKey = (c) => c.unlock?.level ?? 0;
 export const PLAYER_CAR_ORDER = Object.values(CARS).sort((a, b) => TIERS.indexOf(a.tier) - TIERS.indexOf(b.tier) || unlockKey(a) - unlockKey(b) || a.price - b.price).map((c) => c.id);
 export const REAL_CAR_IDS = REAL.map((r) => r.id);
 export const REAL_BIKE_IDS = REAL_BIKES.map((r) => r.id);
-export const isBike = (id) => !!CARS[id]?.bike;
+export const isBike = (id) => !!(CARS[id]?.bike || TRAFFIC_VEHICLES[id]?.bike);
 // imported cars whose interior has no steering wheel: the first-person view draws one
 // (the mini-truck's cab is an empty shell: the only ring in front of its driver is a headlight)
 export const NO_STEERING_WHEEL = new Set(['subaru_wrx_sti_gc8', 'porsche_930_turbo', 'nissan_skyline_r34', 'toyota_supra_mk4', 'honda_nsx_na1', 'minitruck']);
@@ -303,6 +303,16 @@ Object.assign(TRAFFIC_VEHICLES, {
   lorry: { name: 'Lorry', carType: 'muscle', params: TP({ mass: 10500, enginePower: 270, maxSpeed: 26, grip: 0.82, brakingForce: 52000, wheelBase: 5.2, trackWidth: 1.95, cgHeight: 1.4, gears: [6.6, 4.4, 2.8, 1.8, 1.25, 1.0], finalDrive: 5.1, redline: 2600, idle: 600, length: 7.8, width: 2.4, wheelRadius: 0.5 }) },
 });
 for (const id of ['ksrtc', 'pvtbus', 'pvtbus2']) TRAFFIC_VEHICLES[id] = { name: id === 'ksrtc' ? 'KSRTC bus' : 'Private bus', carType: 'muscle', params: TP({ mass: 10500, enginePower: 310, maxSpeed: 28, grip: 0.84, brakingForce: 52000, wheelBase: 5.6, trackWidth: 2.0, cgHeight: 1.35, gears: [6.0, 3.6, 2.2, 1.4, 1.0], finalDrive: 5.0, redline: 2600, idle: 600, length: 10.7, width: 2.5, wheelRadius: 0.5 }) };
+// and the two-wheelers - half of Kerala's traffic, and what you'd grab first: a scooter, a commuter bike, a street bike
+// and the classic thumper, on the same single-track physics as the garage's bikes (real mass, wheelbase, wheels and
+// top speed; a little more go than the real thing, for a game's pace, as with the auto)
+const KB = (id, style, spec) => bikeParams({ id, style, spec: { trans: 'manual', hgt: 1.1, ...spec } });
+Object.assign(TRAFFIC_VEHICLES, {
+  scooter: { name: 'Scooter', carType: 'tuner', bike: true, seat: 0.76, style: 'scooter', params: KB('scooter', 'cruiser', { kw: 8, kg: 107, vmax: 90, len: 1.83, wid: 0.7, wb: 1.26, wr: 0.25, fw: 0.45, redline: 8000, gears: [2.6, 1.75, 1.3, 1.02], fd: 5.4, grip: 0.95 }) },
+  commuter: { name: 'Commuter motorcycle', carType: 'tuner', bike: true, seat: 0.79, style: 'standard', params: KB('commuter', 'sport', { kw: 11, kg: 144, vmax: 115, len: 2.04, wid: 0.75, wb: 1.32, wr: 0.29, fw: 0.45, redline: 9500, gears: [3.0, 1.9, 1.42, 1.15, 0.96], fd: 3.4, grip: 1.0 }) },
+  streetbike: { name: 'Street motorcycle', carType: 'tuner', bike: true, seat: 0.79, style: 'standard', params: KB('streetbike', 'sport', { kw: 11.5, kg: 132, vmax: 115, len: 2.0, wid: 0.76, wb: 1.33, wr: 0.29, fw: 0.46, redline: 10000, gears: [3.0, 1.9, 1.42, 1.15, 0.96], fd: 3.4, grip: 1.0 }) },
+  bullet: { name: 'Classic motorcycle', carType: 'muscle', bike: true, seat: 0.8, style: 'cruiser', params: KB('bullet', 'cruiser', { kw: 16, kg: 195, vmax: 118, len: 2.15, wid: 0.8, wb: 1.39, wr: 0.32, fw: 0.45, redline: 6100, gears: [2.8, 1.8, 1.35, 1.05, 0.88], fd: 3.0, grip: 0.98 }) },
+});
 
 export const UPGRADE_KEYS = ['engine', 'transmission', 'tires', 'brakes', 'suspension', 'nitrous'];
 export const UPGRADE_NAMES = { engine: 'Engine', transmission: 'Transmission', tires: 'Tires', brakes: 'Brakes', suspension: 'Suspension', nitrous: 'Nitrous' };

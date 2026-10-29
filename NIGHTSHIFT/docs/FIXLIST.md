@@ -404,6 +404,14 @@ the game. Newly found problems go at the end of their section.
   one second, 15 s sooner). Again: none in the road, no car off it
 - [x] On foot round the six towns, walking and running at walls, houses, trees and traffic for two minutes each: no
   step through anything solid, never inside it, the feet never under or over the ground, no errors
+- [x] Half of Kerala's traffic is two-wheelers, and none of them could be taken: F at a scooter did nothing (only
+  cars were in the list of what can be stolen), and once added, getting on one threw (the rider's seat and pose
+  were looked up among the garage's bikes) and the renderer drew it as a four-wheeled car with no one on it. The
+  scooter, the commuter and street motorcycles and the classic thumper can be taken now - "steal this bike" - on
+  the same single-track physics as the garage's bikes, from their real mass, wheelbase, wheels and top speed (a
+  little more go, for a game's pace, as with the auto), ridden sat up as they are (two new riding poses: a
+  commuter's, and a scooter's, feet forward on its floorboard). Ridden 3 minutes round Kannur, a scooter and a
+  Bullet: nothing to report. (ride.mjs --steal type: a traffic vehicle taken as the player would)
 - [x] A fight on foot: someone punched to 3 hp kept squaring up and punched the player, standing there, to death
   (25 s). Beaten under 30, most give it up and run now. (Punches, a shot at a passing car - its driver floors it -
   and the police's pursuit and arrival, on foot in Kannur: no errors)
