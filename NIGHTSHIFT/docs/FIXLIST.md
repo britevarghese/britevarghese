@@ -404,6 +404,14 @@ the game. Newly found problems go at the end of their section.
   one second, 15 s sooner). Again: none in the road, no car off it
 - [x] On foot round the six towns, walking and running at walls, houses, trees and traffic for two minutes each: no
   step through anything solid, never inside it, the feet never under or over the ground, no errors
+- [x] Photo mode opened with its key while driving left you in the pause menu when you closed it: back to the drive
+  now (from the pause menu, to the pause menu; from a replay, to the replay). And leaving a replay that had never
+  begun (nothing recorded yet) threw an error. Every screen opened and closed from a Kerala drive - map, pause,
+  photo, replay and photo from it, garage, night and rain, a save, out of the car and back in: back to driving each
+  time, no errors
+- [x] Into the houses and shops on foot, checked for the first time (tools/dev/indoors.mjs): a dozen buildings in each
+  of the six towns - the door found at a wall, in, walking and running about inside 15 s, out. All 72: inside the
+  walls, on the floor, never through a wall or a piece of furniture, out on the ground clear of everything; no errors
 - [x] On foot, a garden wall (1.25-1.65 m) or a railing stopped you for good: a jump reached 0.9 m, and the only way
   on was round, through someone's gate. Jump at one now (facing it, within reach) and you climb it: hands on the top,
   hauled up onto it, over and down the far side; a waist-high barrier is vaulted, quicker. Not a building, not one

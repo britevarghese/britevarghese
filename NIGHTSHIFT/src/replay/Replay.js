@@ -83,6 +83,7 @@ export class Replay {
 
   exit(toDrive = true) {
     const g = this.game;
+    if (!this.active) return;   // (never begun - nothing recorded yet: nothing to put back)
     this.active = false;
     for (const [v, s] of this.live) if (v.alive !== false) Object.assign(v.state, s, { wheelOff: s.wheelOff ?? v.state.wheelOff });
     for (const [v] of this.live) v.sync(0, g.camera.position, g.env.state);

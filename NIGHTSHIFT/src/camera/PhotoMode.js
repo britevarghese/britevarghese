@@ -72,6 +72,8 @@ export class PhotoMode {
     g.camera.fov = this.opts.fov; g.camera.updateProjectionMatrix();
     g.ui.clear();
     if (this.prevMode === 'replay') { g.replay.returnFromPhoto(); return; }
+    // (back to where it was opened from: the photo key while driving left you in the pause menu)
+    if (this.prevMode === 'drive') { g.resume(); return; }
     g.state.mode = 'paused';
     g.ui.showPause();
   }
