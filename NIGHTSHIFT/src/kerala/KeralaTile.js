@@ -242,7 +242,7 @@ export class KeralaTile {
     yield 'tile:street';
     for (const m of yield* this._buildings(M, d, opts)) g.add(m);   // (walls, houses and poles keep off junction corners)
     yield 'tile:buildings';
-    for (const m of this._poles(M, opts)) g.add(m);
+    for (const m of yield* this._poles(M, opts)) g.add(m);
     this._nearJunction = null;
     yield 'tile:poles';
     if (opts.trees) { this.trees = yield* opts.trees.plantSteps(this); g.add(this.trees.group); yield 'tile:trees'; }
@@ -2143,13 +2143,15 @@ export class KeralaTile {
   }
 
   // KSEB electric poles along the town roads, ~38 m apart on one side, strung with sagging wires
-  _poles(M, opts) {
+  // (a generator: it pauses between roads when the build's few milliseconds are used - a town's tile took up to 42 ms)
+  *_poles(M, opts) {
     if (!opts.poleGeo) return [];
     let s = (this.tx * 7919 ^ this.tz * 104729) >>> 0;
     const rnd = () => ((s = (s * 1664525 + 1013904223) >>> 0) / 4294967296);
     const mats = [], lamps = [], trafos = [], wire = {}, m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), up = new THREE.Vector3(0, 1, 0), one = new THREE.Vector3(1, 1, 1), v = new THREE.Vector3();
     const SP = 38;
     for (const r of this.roads) {
+      if (this._due()) { yield 'tile:poles+'; this._ys = performance.now(); }
       if (r.cls < 2 || r.cls > 7 || r.dirt || r.flags & 4 || r.pts.length < 2) continue;
       const side = rnd() < 0.5 ? 1 : -1, off = ROAD_HALF[r.cls] + 1.3;
       let prev = null, acc = SP * rnd();

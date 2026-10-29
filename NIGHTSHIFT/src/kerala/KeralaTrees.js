@@ -559,6 +559,7 @@ export class KeralaTrees {
     const N = P.length / 7;
     const data = { e0: tile.E0, n0: tile.N0, P: new Float32Array(P), cells: new Map() };
     for (let i = 0; i < N; i++) {
+      if ((i & 4095) === 4095 && performance.now() - ys > 3) { yield 'trees+'; ys = performance.now(); }
       const c = Math.floor(P[i * 7] / 100) + Math.floor(P[i * 7 + 1] / 100) * 64;
       if (!data.cells.has(c)) data.cells.set(c, []);
       data.cells.get(c).push(i);
@@ -595,6 +596,8 @@ export class KeralaTrees {
     });
     const m4 = new THREE.Matrix4(), col = new THREE.Color(), at = [0, 0];
     for (let i = 0; i < N; i++) {
+      // (and here: the distant copies' matrices, a tile's tens of thousands of plants gone through in one go, up to 49 ms)
+      if ((i & 1023) === 1023 && performance.now() - ys > 3) { yield 'trees+'; ys = performance.now(); }
       if (!far(i)) continue;
       const kind = P[i * 7 + 3], j = lo(kind);
       this._matrix(m4, P, i, -P[i * 7], P[i * 7 + 1], kind === KIND.areca ? 1 : kind === KIND.rubber ? 0.55 * Math.max(1, loScale) : kind === KIND.bamboo ? 0.6 * Math.max(1, loScale) : kind === KIND.palm ? 1 : Math.max(1, loScale));

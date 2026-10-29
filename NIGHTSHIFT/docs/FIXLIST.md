@@ -462,6 +462,9 @@ the game. Newly found problems go at the end of their section.
   - a dual carriageway's medians found in the same step as the road junctions (up to 50 ms): a step of their own
   Nine tiles round Kannur: build steps over 33 ms 6 -> 2-4, over 16 ms 37 -> 29; what's left over 33 ms moves from
   step to step run to run (the garbage collector, after the big merges)
+  - [x] ...traced: one main-thread garbage collection in the nine tiles' build (63 ms); the rest is work. A tile's
+    poles were laid in one go (up to 42 ms): a pause between roads now (19-23 ms). The trees' distant copies and
+    their sorting into cells went through every plant at once: pauses in those too
 - [x] An 11-second freeze when the first street racer turned up (Port Halvern, 8 s into a drive): painting its
   livery read the panel-groove canvas back to make a normal map, and a GPU canvas's read waits for everything the
   GPU has queued - here the world's shaders compiling. Every generated texture is drawn on a CPU canvas now
