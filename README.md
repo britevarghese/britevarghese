@@ -147,8 +147,13 @@ altitude hands-off), LMB rockets · gunner seats aim freely with the mouse. Touc
   stretches, walk and glance around near danger; in a fight they settle into one firing position, stop to shoot at range,
   close in when out of their weapon's range, fire controlled bursts, run to real cover when hurt, then peek; they
   search where they last saw you and watch approach routes while holding a flag. Line-of-sight perception with a
-  ~140° field of view (behind them they only *hear* gunfire and running, and turn to look), foliage concealment (lie
-  in a bush or behind ferns and they won't spot you unless you fire or move fast), human reaction times (~0.3–0.7 s),
+  ~140° field of view (behind them they only *hear* gunfire and running, and turn to look); **spotting takes time**
+  (instant up close, ~1 s for a standing man at 100 m, longer crouched, prone or at the edge of vision, almost
+  immediate once you fire; up to 200 m with a rifle, 380 m through a scope), foliage concealment (lie in a bush or
+  behind ferns and they won't spot you unless you fire or move fast), **suppression** (rounds cracking past make them
+  get down, aim worse and break contact — and tell them where you are), a flinch when hit, firing positions by
+  range (mostly prone or crouched beyond ~45 m), objectives held from spots with cover beside them, human reaction
+  times (~0.3–0.7 s),
   the same recoil a player fights, converging aim error, bullet-drop hold-over and target leading, grenades; they
   sprint only the way they face, keep a little space from each other, and duck into cover to reload.
 * **Vehicles** in every Conquest room, parked in each team's motor pool and respawning 25 s after being destroyed:
@@ -192,7 +197,9 @@ altitude hands-off), LMB rockets · gunner seats aim freely with the mouse. Touc
   react to someone who just landed, and bots prefer drop zones away from human players.
 * **Realistic bot gunfire:** bots only fire inside each weapon's practical range (pistol ~45 m, carbine ~170 m, bolt
   rifle ~550 m) and with the weapon's real dispersion plus a human hold (a handgun wobbles far more than a shouldered
-  rifle, rapid follow-ups spread wider); out of range they close in instead of shooting.
+  rifle, rapid follow-ups spread wider); out of range they close in instead of shooting — never while being shot at.
+  `node scripts/sim-bots.mjs <map> [minutes] [botsPerTeam]` runs headless bot-only matches and prints behaviour
+  metrics (modes, stances, detection / reaction, hit rate, kill distances, suppression reactions, stuck bots).
 * **AI Zone** (lobby tab): play with a soldier commanded by a **language model**. Set the provider, **base URL,
   model and API key** — *Anthropic (Claude)* uses the official Anthropic SDK (default model `claude-opus-5-5`),
   *OpenAI-compatible* covers OpenRouter, Groq, Together, vLLM, LM Studio and similar `/chat/completions` endpoints.
