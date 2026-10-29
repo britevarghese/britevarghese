@@ -930,7 +930,7 @@ export class Story {
             if (st.type === 'escort' && st.heat) g.police.startPursuit(st.heat, 'convoy');
           } else this._meter(st.waitText || (st.type === 'tail' ? 'GET CLOSE TO THE VAN' : st.type === 'escort' ? 'MEET THE CONVOY' : 'FIND THE TARGET'), 0, false);
         }
-        if (!s.stopped && (s.moving || st.type === 'race')) ai.update(dt, g.traffic ? g.traffic.cars : []);
+        if (!s.stopped && (s.moving || st.type === 'race')) { ai.alsoAvoid = [P?.state]; ai.update(dt, g.traffic ? g.traffic.cars : []); }
         else { v.controls.throttle = 0; v.controls.brake = 1; v.controls.steer = 0; v.controls.handbrake = s.moving ? 0 : 1; }
         if (ai.needsReset) g.recoverAI(v, ai);
         v.update(dt);

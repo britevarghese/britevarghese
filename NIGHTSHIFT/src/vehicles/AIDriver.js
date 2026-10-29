@@ -427,6 +427,17 @@ export class AIDriver {
     return true;
   }
 
+  // nothing within d behind, on the car's line: the obstacles given, and alsoAvoid (the player's car)
+  _clearBehind(obstacles, d) {
+    const s = this.v.state, fx = Math.sin(s.yaw), fz = Math.cos(s.yaw), myW = (this.v.p?.width || 1.8) / 2;
+    for (const q of [...obstacles, ...(this.alsoAvoid || [])]) {
+      if (!q) continue;
+      const dx = q.x - s.x, dz = q.z - s.z, a = -(dx * fx + dz * fz), l = Math.abs(-dx * fz + dz * fx);
+      if (a > 0 && a < d + (q.spec?.l ?? 4.4) / 2 && l < (q.spec?.w ?? 1.8) / 2 + myW + 0.5) return false;
+    }
+    return true;
+  }
+
   update(dt, obstacles = []) {
     const v = this.v, s = v.state, c = v.controls;
     const speed = Math.hypot(s.vx, s.vz);
@@ -507,7 +518,7 @@ export class AIDriver {
 
     // obstacle avoidance (traffic cars / other vehicles ahead)
     const fx = Math.sin(s.yaw), fz = Math.cos(s.yaw);
-    let avoid = 0, pass = 0;
+    let avoid = 0, pass = 0, blk = null;
     const myL = v.p?.length || 4.4, myW = (v.p?.width || 1.8) / 2;
     // (still going by one standing at the kerb: kept out until clear of its back. But before it's alongside, the way
     // out round it taken meanwhile - something come the other way: back in behind it. Pushed on out, a van stood
@@ -554,9 +565,13 @@ export class AIDriver {
       // this one's going: one coming the other way gives no leave to drive at it)
       if (ahead < 14 + speed * 0.5 && this.mode !== 'pursue') {
         const gap = ahead - (myL + (o.spec?.l ?? 4.4)) / 2 - 1.2, along = (o.v ?? 0) * Math.max(0, o.yaw === undefined ? 1 : Math.sin(o.yaw) * fx + Math.cos(o.yaw) * fz);
-        targetSpeed = Math.min(targetSpeed, along + Math.sqrt(2 * 3.5 * Math.max(0, gap)));
+        const lim = along + Math.sqrt(2 * 3.5 * Math.max(0, gap));
+        targetSpeed = Math.min(targetSpeed, lim);
+        // (stopped for something that won't move for it: one coming the other way, standing, or a wreck)
+        if (lim < 0.5 && (o.v ?? 0) < 0.3 && (o.state === 'wreck' || (o.yaw !== undefined && Math.sin(o.yaw) * fx + Math.cos(o.yaw) * fz < -0.3))) blk = { lat };
       }
     }
+    this._blk = blk;
     this.avoid = avoid;
     if (pass) { tx += -fz * pass; tz += fx * pass; }   // (aimed out by what it takes to clear it: (-fz, fx) the car's right)
 
@@ -598,6 +613,13 @@ export class AIDriver {
     const rearOK = !Wk || Wk.onCarriageway(s.x - fx * half, s.z - fz * half, 0.5), frontOK = !Wk || Wk.onCarriageway(s.x + fx * (half + 0.6), s.z + fz * (half + 0.6), 0.5);
     const back = -(s.vx * fx + s.vz * fz);
     const reverse = (st) => { c.throttle = back > 2.5 ? 0.4 : 0; c.brake = back > 2 ? 0 : 1; c.steer = st; c.handbrake = 0; c.nitro = false; };
+    // nose to nose with one coming the other way that can't get by either, or up against a wreck it can't get round, 6 s:
+    // a couple of metres back, the nose swung away from it, and on again - with nothing behind (the van you tail sat
+    // nose to nose with a car at a junction for a minute and a half, each waiting for the other, its turn into the side
+    // road blocked)
+    this.blockT = this._blk && speed < 0.3 && this.mode === 'route' ? (this.blockT || 0) + dt : 0;
+    if (this.blockT > 6 && rearOK && this._clearBehind(obstacles, half + 2.5)) { this.backT = 1.8; this.backSide = Math.sign(this._blk.lat) || 1; this.blockT = 0; this.turning = false; }
+    if (this.backT > 0) { this.backT -= dt; if (rearOK) { reverse(this.backSide); return; } this.backT = 0; }
     // target behind (or well round to the side with the car near stopped: a turn too sharp to steer round, a
     // 140-degree one at a Y-junction): three-point turn - forward on full lock toward it as far as the road goes, back
     // on full opposite lock as far as the road behind goes or until it points near enough the way on, and again, each
