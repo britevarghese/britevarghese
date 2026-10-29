@@ -1,6 +1,7 @@
 // Battle royale playtest: a real browser client goes through lobby -> transport plane -> jump -> freefall ->
 // parachute -> landing -> loot pickup -> death / placement / spectating, against bots.
-// Server: DEV_TELEPORT=1 ROYALE_LOBBY=20 node server/index.js      then: node scripts/playtest-royale.mjs
+// Server: DEV_TELEPORT=1 ROYALE_LOBBY=45 node server/index.js      then: node scripts/playtest-royale.mjs
+// (a software-rendered client needs ~30 s to load the island: a shorter lobby is over before the page shows it)
 // (headless software rendering runs at ~1 fps, so the long fall is skipped by teleporting to the ground)
 import { chromium } from 'playwright-core';
 import fs from 'node:fs';
@@ -81,6 +82,9 @@ for (let attempt = 0; attempt < 4 && !near; attempt++) {
   near = await until((id) => !!__game.royale.loot.get(id)?.obj && __game.royale.nearestLoot()?.id === id, armor.id, 40000);
 }
 check('armor in pickup range', near, `${tried.length} attempt(s) · ` + await g((id) => { const it = __game.royale.loot.get(id), s = __game.me.s; return `${it ? Math.hypot(it.x - s.x, it.z - s.z).toFixed(2) + ' m, dy ' + (it.y - s.y).toFixed(2) : 'gone'} nearest=${__game.royale.nearestLoot()?.type}`; }, armor.id));
+// the server takes the teleported position over the next inputs (seconds of software-rendered frames): press E only
+// once its snapshot has us within pickup range (2.6 m), or it refuses the pick as out of reach
+check('server sees us at the armor', await until((id) => { const it = __game.royale.loot.get(id), r = __game.lastSnap?.p.find((q) => q[0] === __game.myId); return !!it && !!r && Math.hypot(r[1] - it.x, r[3] - it.z) < 2; }, armor.id, 30000));
 await g(() => { const send = __game.net.send.bind(__game.net); window.__sent = []; __game.net.send = (m) => { if (m.t !== 'in') window.__sent.push(JSON.stringify(m)); send(m); }; });
 await A.keyboard.press('KeyE');
 await A.waitForTimeout(3000);
