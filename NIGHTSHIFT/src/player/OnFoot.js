@@ -539,25 +539,34 @@ export class OnFoot {
       if (Math.abs(b) > hl - 0.15 || d > 0.75 || (best && d >= best.d)) continue;
       const k = -Math.sign(a) || 1, nx = (thin ? c.cos : c.sin) * k, nz = (thin ? -c.sin : c.cos) * k;
       if (fx * nx + fz * nz < 0.6) continue;
-      best = { c, d, nx, nz, a: Math.abs(a), ht };
+      best = { c, d, nx, nz, a: Math.abs(a), ht, hl };
     }
     if (!best) return null;
-    const { c, nx, nz, a, ht } = best, over = [s.x + nx * a, s.z + nz * a], top = c.h + 0.03;
-    const land = [over[0] + nx * (ht + RADIUS + 0.25), over[1] + nz * (ht + RADIUS + 0.25)];
-    const ly = g.world.layout.groundHeight(land[0], land[1], top);
-    if (ly > top + 0.2 || s.y - ly > 3 || g.world.inWater?.(...land) || this._carAt(land[0], land[1], ly + 0.5)) return null;
-    for (const t of g.traffic?.cars || []) if (Math.abs(t.x - land[0]) < 3 && Math.abs(t.z - land[1]) < 3) return null;
-    // nothing standing on the top or the landing (a house's corner on the wall, the next wall a step behind it)
-    this._statics(land[0] - 1, land[1] - 1, land[0] + 1, land[1] + 1, tmp);
-    for (const o of tmp) {
-      if (o === c) continue;
-      for (const [x, z, y] of [[...over, top], [...land, ly]]) {
-        if (o.h < y + 0.4) continue;
+    const { c, nx, nz, a, ht, hl } = best, top = c.h + 0.03, thin = c.hx <= c.hz;
+    // something solid at (x, z) above y + 0.4, other than the wall itself
+    const solid = (x, z, y) => {
+      this._statics(x - 1, z - 1, x + 1, z + 1, tmp);
+      for (const o of tmp) {
+        if (o === c || o.h < y + 0.4) continue;
         const lx = (x - o.cx) * o.cos - (z - o.cz) * o.sin, lz = (x - o.cx) * o.sin + (z - o.cz) * o.cos;
-        if (Math.abs(lx) < o.hx + RADIUS && Math.abs(lz) < o.hz + RADIUS) return null;
+        if (Math.abs(lx) < o.hx + RADIUS && Math.abs(lz) < o.hz + RADIUS) return true;
       }
+      return false;
+    };
+    // straight over, or along it a little where the far side's clear (where another garden's wall meets this one, the
+    // spot straight across is on it), the step sideways clear on this side too
+    for (const sh of [0, 0.5, -0.5, 1, -1]) {
+      const x = s.x - nz * sh, z = s.z + nx * sh, over = [x + nx * a, z + nz * a];
+      if (Math.abs(thin ? (over[0] - c.cx) * c.sin + (over[1] - c.cz) * c.cos : (over[0] - c.cx) * c.cos - (over[1] - c.cz) * c.sin) > hl - 0.15) continue;
+      const land = [over[0] + nx * (ht + RADIUS + 0.25), over[1] + nz * (ht + RADIUS + 0.25)];
+      const ly = g.world.layout.groundHeight(land[0], land[1], top);
+      if (ly > top + 0.2 || s.y - ly > 3 || g.world.inWater?.(...land) || this._carAt(land[0], land[1], ly + 0.5)) continue;
+      if ((g.traffic?.cars || []).some((t) => Math.abs(t.x - land[0]) < 3 && Math.abs(t.z - land[1]) < 3)) continue;
+      // nothing standing on the top or the landing (a house's corner on the wall, the next wall a step behind it)
+      if ((sh && (solid(x, z, s.y) || solid(s.x - nz * sh / 2, s.z + nx * sh / 2, s.y))) || solid(...over, top) || solid(...land, ly)) continue;
+      return { x0: s.x, z0: s.z, y0: s.y, over, top, land, ly, nx, nz };
     }
-    return { x0: s.x, z0: s.z, y0: s.y, over, top, land, ly, nx, nz };
+    return null;
   }
 
   // hands on the top, hauled up, a leg over and down the far side; a waist-high one vaulted, quicker
