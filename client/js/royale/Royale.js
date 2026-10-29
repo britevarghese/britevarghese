@@ -167,7 +167,7 @@ export class RoyaleClient {
     switch (e.t) {
       case 'loot': for (const it of this.loot.values()) this.#release(it); this.loot.clear(); this.#addRows(e.all); break;
       case 'lootadd': this.#addRows(e.it); break;
-      case 'lootdel': { const it = this.loot.get(e.id); if (it) { this.#release(it); this.loot.delete(e.id); } if (e.by === g.myId) g.audio.ui('switch'); break; }
+      case 'lootdel': { const it = this.loot.get(e.id); if (it) { this.#release(it); this.loot.delete(e.id); } if (e.by === g.myId) g.audio.draw('ar'); break; } // picked up: kit rattle
       case 'inv': g.me.applyInventory(e); this.me.ar = e.ar; this.me.md = e.md; break;
       case 'match':
         this.spectate = null; this.placed = null; $('br-result').classList.add('hidden');
