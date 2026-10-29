@@ -346,7 +346,9 @@ the game. Newly found problems go at the end of their section.
     stood one in the other for the whole three minutes in Thalassery: each had the other ahead, and of two like that
     each car lets the one nearer the clash go first - but the step that pulls overlapping cars apart held the later
     one regardless, which here was the one meant to go. It holds the one further back too now: Thalassery 28 -> 0,
-    Kannur 3 -> 0
+    Kannur 3 -> 0. All six towns after this round: nothing stuck anywhere (Mattannur's queue included, this run),
+    nobody in the road; overlaps 0-3 a town, a second or two each as cars squeeze by, Mattannur 7 among the cars
+    squeezing past one another beside the player's car in its 5 m street
 
 - [x] Hitches while driving into new country (a tile's build stalling a frame): every step of a tile's build timed
   on a drive (headless, its CPU about half a desktop's). The worst were the ground's mesh (up to a quarter of a second:
