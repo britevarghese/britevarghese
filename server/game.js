@@ -281,10 +281,26 @@ export class Game {
     const b = { id: nextId++, shooter: p, w: w.id, def, pts: path.pts, i: 0, t0: now, viewT, bot: !!p.bot, done: false };
     const end = path.end, wh = path.hit;
     this.emit({ t: 'shot', id: p.id, b: b.id, w: w.id, o: [o.x, o.y, o.z], e: [end.x, end.y, end.z], tf: +end.t.toFixed(3), s: wh ? wh.surface : 'none', n: wh ? wh.normal : null });
+    this.#suppress(p, o, end);
     this.bullets.push(b);
     this.stepBullet(b, now); // what the bullet covers before the next tick (anything within ~30 m) resolves right away
     if (w.mag === 0 && p.bot) this.reload(p);
     return true;
+  }
+
+  // bots an enemy round passes within 3 m of (head / chest height, more than 3 m from the muzzle) feel it crack past:
+  // suppression (BotBrain.onSuppressed). A round that hits them is handled as damage instead.
+  #suppress(p, o, end) {
+    const dx = end.x - o.x, dy = end.y - o.y, dz = end.z - o.z, L2 = dx * dx + dy * dy + dz * dz;
+    if (L2 < 1) return;
+    for (const q of this.players.values()) {
+      if (!q.brain || !q.alive || q.vehicle || !this.isEnemy(p, q)) continue;
+      const cy = q.y + (q.stance === 'prone' ? 0.3 : q.stance === 'crouch' ? 0.9 : 1.3);
+      const t = ((q.x - o.x) * dx + (cy - o.y) * dy + (q.z - o.z) * dz) / L2;
+      if (t <= 0 || t > 1 || t * Math.sqrt(L2) < 3) continue;
+      const d = Math.hypot(o.x + dx * t - q.x, o.y + dy * t - cy, o.z + dz * t - q.z);
+      if (d > 0.35 && d < 3) q.brain.onSuppressed?.(p, d);
+    }
   }
 
   // vehicle weapons (shells, rockets, cannon, MG): same flight model; explosive rounds burst where they land
@@ -294,6 +310,7 @@ export class Game {
     const b = { id: nextId++, shooter: p, w: W.id, def: W, pts: path.pts, i: 0, t0: now, viewT: p.bot ? now : now - Math.min(250, p.rtt / 2 + 100), bot: !!p.bot, done: false, vehicle: v.id, worldHit: path.hit };
     const end = path.end, wh = path.hit;
     this.emit({ t: 'shot', id: p.id, b: b.id, w: W.id, v: v.id, o: [o.x, o.y, o.z], e: [end.x, end.y, end.z], tf: +end.t.toFixed(3), s: wh ? wh.surface : 'none', n: wh ? wh.normal : null });
+    this.#suppress(p, o, end);
     this.bullets.push(b);
     this.stepBullet(b, now);
   }

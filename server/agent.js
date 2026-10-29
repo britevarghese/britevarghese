@@ -82,7 +82,7 @@ class AgentBrain extends BotBrain {
       tx = q.x + Math.cos(p.id) * off; tz = q.z + Math.sin(p.id) * off;
     } else return super.pickGoal();
     this.goal = { x: tx, z: tz, flag };
-    this.path = g.nav.findPath(p.x, p.z, tx, tz);
+    this.path = g.nav.findPath(p.x, p.z, tx, tz, undefined, p.y);
     this.pathIdx = 1;
     this.repathAt = g.now() + (o.type === 'follow' || o.type === 'attack' ? 2000 : 12000);
   }

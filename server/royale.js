@@ -507,7 +507,7 @@ class RoyaleBrain extends BotBrain {
     // A* over at most ~120 m at a time on the big island; straight line if the grid has no answer
     const d = Math.hypot(target.x - p.x, target.z - p.z), k = d > 120 ? 120 / d : 1;
     const tx = p.x + (target.x - p.x) * k, tz = p.z + (target.z - p.z) * k;
-    const path = this.g.nav.findPath(p.x, p.z, tx, tz, 25000);
+    const path = this.g.nav.findPath(p.x, p.z, tx, tz, 25000, p.y);
     this.path = path || [{ x: p.x, z: p.z }, { x: tx, z: tz }];
     this.pathIdx = 1;
     this.repathAt = this.g.now() + (k < 1 ? rand(6000, 9000) : rand(12000, 20000));

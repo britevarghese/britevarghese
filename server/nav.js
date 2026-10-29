@@ -38,7 +38,10 @@ export class NavGrid {
         const i = this.ix(along ? mx + u : mx), j = this.iz(along ? mz : mz + u), x = this.cx(i), z = this.cz(j);
         if (!this.blocked[j * this.n + i] || (along ? Math.abs(x - mx) > half : Math.abs(z - mz) > half)) continue;
         const g = world.supportHeight(x, z, groundHeight(x, z) + 0.2, 0.05), lift = L.min[1] - g;
-        if (lift >= 1.9 && lift <= 2.7 && clear(x, z, g, 0.12)) this.blocked[j * this.n + i] = 0;
+        // clear at the cell centre AND on the wall's own line: a cell centre can sit just outside the wall, where a
+        // window's sill (under its "lintel", the wall piece over the opening) would go unnoticed and the window
+        // would become a doorway for the bots
+        if (lift >= 1.9 && lift <= 2.7 && clear(x, z, g, 0.12) && clear(along ? x : mx, along ? mz : z, g, 0.12)) this.blocked[j * this.n + i] = 0;
       }
     }
   }
@@ -56,9 +59,28 @@ export class NavGrid {
     return null;
   }
 
-  // Returns array of {x,z} waypoints (string-pulled) or null.
-  findPath(sx, sz, tx, tz, maxExpand = 60000) {
-    const s = this.nearestFree(this.ix(sx), this.iz(sz)), t = this.nearestFree(this.ix(tx), this.iz(tz));
+  // The free cell to start a path from: a soldier right against a wall stands in a blocked cell, which has free
+  // neighbours on both sides of the wall — take the nearest one he can step to in a straight line (knee height,
+  // `sy` = his feet), never the one behind the wall (he'd walk into it).
+  nearestFreeFrom(x, z, sy) {
+    const i = this.ix(x), j = this.iz(z);
+    if (this.free(i, j)) return [i, j];
+    const w = this.world, y = (sy ?? w.map.groundHeight(x, z)) + 0.5;
+    for (let r = 1; r < 12; r++) {
+      let best = null, bd = Infinity;
+      for (let dj = -r; dj <= r; dj++) for (let di = -r; di <= r; di++) {
+        if (Math.max(Math.abs(di), Math.abs(dj)) !== r || !this.free(i + di, j + dj)) continue;
+        const cx = this.cx(i + di), cz = this.cz(j + dj), d = Math.hypot(cx - x, cz - z);
+        if (d < bd && w.lineOfSight({ x, y, z }, { x: cx, y, z: cz })) { bd = d; best = [i + di, j + dj]; }
+      }
+      if (best) return best;
+    }
+    return this.nearestFree(i, j);
+  }
+
+  // Returns array of {x,z} waypoints (string-pulled) or null. sy: the start's height (see nearestFreeFrom).
+  findPath(sx, sz, tx, tz, maxExpand = 60000, sy) {
+    const s = this.nearestFreeFrom(sx, sz, sy), t = this.nearestFree(this.ix(tx), this.iz(tz));
     if (!s || !t) return null;
     const N = this.n, start = s[1] * N + s[0], goal = t[1] * N + t[0];
     const g = new Map([[start, 0]]), came = new Map();
@@ -92,10 +114,21 @@ export class NavGrid {
     let anchor = 0;
     pts.push(cells[0]);
     for (let i = 2; i < cells.length; i++) {
-      if (!this.gridLOS(cells[anchor], cells[i])) { anchor = i - 1; pts.push(cells[anchor]); }
+      if (!this.gridLOS(cells[anchor], cells[i]) || !this.bodyClear(cells[anchor], cells[i])) { anchor = i - 1; pts.push(cells[anchor]); }
     }
     pts.push(cells[cells.length - 1]);
     return pts.map((k) => ({ x: this.cx(k % N), z: this.cz((k / N) | 0) }));
+  }
+
+  // a soldier's body (±0.3 m) fits along the straight line between two cell centres at knee height: the grid alone
+  // lets a shortcut clip a door jamb at a steep angle, where the collision then holds the bot against it
+  bodyClear(a, b) {
+    const N = this.n, w = this.world, gh = w.map.groundHeight;
+    const ax = this.cx(a % N), az = this.cz((a / N) | 0), bx = this.cx(b % N), bz = this.cz((b / N) | 0);
+    const L = Math.hypot(bx - ax, bz - az) || 1, ox = -(bz - az) / L * 0.3, oz = (bx - ax) / L * 0.3;
+    const ya = gh(ax, az) + 0.5, yb = gh(bx, bz) + 0.5;
+    for (const k of [0, 1, -1]) if (!w.lineOfSight({ x: ax + ox * k, y: ya, z: az + oz * k }, { x: bx + ox * k, y: yb, z: bz + oz * k })) return false;
+    return true;
   }
 
   gridLOS(a, b) {
