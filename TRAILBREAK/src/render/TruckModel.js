@@ -549,9 +549,13 @@ function tireGeometry(r, w, tread = 0, bead = r) {
     const prof = [[rim, -hw * 0.9], [rc * 0.9, -hw], [rc * 0.985, -hw * 0.85], [rc, -hw * 0.55], [rc, hw * 0.55], [rc * 0.985, hw * 0.85], [rc * 0.9, hw], [rim, hw * 0.9]]
       .map(([a, b]) => new THREE.Vector2(a, b));
     const parts = [clean(new THREE.LatheGeometry(prof, 36))];
-    const lug = (a, y, len, wid, tilt = 0) => {
-      // a block on the tread at angle a, y across; len along the tread, wid across, depth radial
-      const g = clean(new THREE.BoxGeometry(depth * 2, wid, len));
+    const lug = (a, y, len, wid, tilt = 0, taper = 1) => {
+      // a block on the tread at angle a, y across; len along the tread, wid across, depth radial; its top taper of
+      // its foot (a moulded block, its sides catching the light, not a brick)
+      const b = new THREE.BoxGeometry(depth * 2, wid, len), p = b.attributes.position;
+      if (taper !== 1) for (let i = 0; i < p.count; i++) if (p.getX(i) > 0) { p.setY(i, p.getY(i) * taper); p.setZ(i, p.getZ(i) * taper); }
+      const g = clean(b);
+      if (taper !== 1) g.computeVertexNormals();
       if (tilt) g.rotateX(tilt);
       g.translate(rc + depth * 0.5, y, 0);
       g.rotateY(-a);
@@ -559,12 +563,17 @@ function tireGeometry(r, w, tread = 0, bead = r) {
     };
     const C = 2 * Math.PI * r;
     if (tread === 0) {
-      const n = Math.round(C / 0.055);
+      // an all-terrain's: two rows of blocks down the middle, each side's half a pitch behind the other's and slanted
+      // against it; the shoulder blocks long and short by turns, the long ones stepping down onto the sidewall
+      const n = Math.round(C / 0.06), P = C / n;
       for (let i = 0; i < n; i++) {
-        const a = (i / n) * Math.PI * 2;
-        lug(a, -hw * 0.6, C / n * 0.62, w * 0.26);
-        lug(a + Math.PI / n, 0, C / n * 0.62, w * 0.3);
-        lug(a, hw * 0.6, C / n * 0.62, w * 0.26);
+        const a = (i / n) * Math.PI * 2, odd = i & 1;
+        lug(a, -hw * 0.2, P * 0.58, w * 0.17, 0.22, 0.8);
+        lug(a + Math.PI / n, hw * 0.2, P * 0.58, w * 0.17, -0.22, 0.8);
+        lug(a + Math.PI / n * 0.5, -hw * 0.66, P * (odd ? 0.66 : 0.5), w * 0.21, 0.1, 0.8);
+        lug(a + Math.PI / n * 1.5, hw * 0.66, P * (odd ? 0.5 : 0.66), w * 0.21, -0.1, 0.8);
+        if (odd) lug(a + Math.PI / n * 0.5, -hw * 0.9, P * 0.4, w * 0.1, 0, 0.75);
+        else lug(a + Math.PI / n * 1.5, hw * 0.9, P * 0.4, w * 0.1, 0, 0.75);
       }
     } else if (tread === 3 || tread === 4) {
       // a road tyre's face: ribs round the tyre with straight grooves between them (each rib from y0 to y1 across, in
@@ -583,14 +592,15 @@ function tireGeometry(r, w, tread = 0, bead = r) {
         }
       }
     } else if (tread === 1) {
-      const n = Math.round(C / 0.085);
+      // a mud-terrain's: big blocks either side of the middle, staggered and slanted, open voids between them; the
+      // shoulder lugs wrapping onto the sidewall, long and short by turns
+      const n = Math.round(C / 0.085), P = C / n;
       for (let i = 0; i < n; i++) {
-        const a = (i / n) * Math.PI * 2;
-        lug(a, -hw * 0.42, C / n * 0.55, w * 0.4);
-        lug(a + Math.PI / n, hw * 0.42, C / n * 0.55, w * 0.4);
-        // shoulder lugs wrapping onto the sidewall
-        lug(a + Math.PI / n, -hw * 0.92, C / n * 0.42, w * 0.14);
-        lug(a, hw * 0.92, C / n * 0.42, w * 0.14);
+        const a = (i / n) * Math.PI * 2, odd = i & 1;
+        lug(a, -hw * 0.42, P * 0.55, w * 0.4, 0.14, 0.86);
+        lug(a + Math.PI / n, hw * 0.42, P * 0.55, w * 0.4, -0.14, 0.86);
+        lug(a + Math.PI / n, -hw * 0.92, P * (odd ? 0.46 : 0.34), w * (odd ? 0.16 : 0.12), 0, 0.84);
+        lug(a, hw * 0.92, P * (odd ? 0.34 : 0.46), w * (odd ? 0.12 : 0.16), 0, 0.84);
       }
     } else {
       const n = Math.round(C / 0.13);

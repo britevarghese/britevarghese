@@ -874,7 +874,12 @@ Everything that makes off-roading off-roading is simulated, not faked:
   in clumps thicker on the tread, washing off in water and flung off on firm ground as the tyre rolls (gone in a few
   hundred metres), and the rim with it, packed into the barrel and round the lip, dull where it lies
   (`src/render/TruckModel.js` tyreMaterial, rimMaterial, flexTyres). Behind each rim's spokes are the brake disc and its dust
-  shield, and the tyre's beads sit under the rim's lip, so nothing behind the wheel shows through it.
+  shield, and the tyre's beads sit under the rim's lip, so nothing behind the wheel shows through it. The tread is
+  moulded as a real one is, each block a little smaller on top than at its foot: an all-terrain's two rows of blocks
+  down the middle, each side's half a pitch behind the other's and slanted against it, its shoulder blocks long and
+  short by turns, the long ones stepping down onto the sidewall; a mud-terrain's big slanted blocks with open voids
+  between them and its shoulder lugs long and short by turns (`src/render/TruckModel.js` tireGeometry; it was a grid
+  of square bricks, a stack of them seen from the wheel camera).
 - **Water:** buoyancy and drag on the hull, extra rolling resistance, and the air intake: water there chokes the
   engine (on Cosmetic damage it keeps running on a third of its power; on Forgiving and Realistic it stops until it
   is out again). The water lifts the hull in the middle of its part under water, so a truck deep enough to float sits
@@ -894,7 +899,8 @@ Everything that makes off-roading off-roading is simulated, not faked:
 - **What the tyres throw up:** a spinning tread flings clods and wet drops of mud along its tangent at its speed round
   the hub (a rolling one sheds some in mud), and wet mud in sheets off a spinning one; a tyre sunk deep in mud shoves
   lumps of it out ahead and to the sides, and splashes the muddy water standing in its rut; sand goes up in a spray of
-  grains. On dry ground the dust rolls up behind in a plume that thickens with the speed, billows up and drifts out
+  grains; a tyre spun on grass tears up turf, lumps of the soil under it, some with the grass on top (green lumps, they
+  were, shaped like clover leaves). Each clod is a lump with a rough, uneven outline, grainy, as earth is. On dry ground the dust rolls up behind in a plume that thickens with the speed, billows up and drifts out
   over the verges, hanging in the air for seconds (most of it from the rear wheels; a damp map's earth, the taiga's,
   raises little: its `dustiness`). It used to be a few faint puffs, hardly there at 80 km/h. The mud and dust are the
   colour of the ground of the map you are in, as are the mud caked on the tyres and on the paint (the taiga's dark

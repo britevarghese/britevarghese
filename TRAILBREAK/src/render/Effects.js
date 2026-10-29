@@ -91,15 +91,18 @@ void main() {
   vec3 viewDir = normalize(vWorld - cameraPosition);
   float behind = max(0.0, dot(viewDir, uSunDir));
   if (vKind > 0.5 && vKind < 1.5) {
-    // a lump: an uneven outline, shaded as a rounded clod lit from the sun; wet (dark) mud glints
+    // a lump: an uneven outline (no one lobe stands out: three lobes read as a clover leaf), rough at its edge,
+    // shaded as a rounded clod lit from the sun and grainy, as earth is; wet (dark) mud glints
     float ang = atan(p.y, p.x);
-    float edge = 0.74 + 0.15 * sin(ang * 3.0 + vSeed * 6.3) + 0.08 * sin(ang * 5.0 + vSeed * 17.0);
+    float edge = 0.76 + 0.07 * sin(ang * 2.0 + vSeed * 6.3) + 0.05 * sin(ang * 3.0 + vSeed * 11.0) + 0.04 * sin(ang * 5.0 + vSeed * 17.0)
+      + 0.03 * sin(ang * 7.0 + vSeed * 23.0) + (vnoise(p * 5.0 + vSeed * 13.0) - 0.5) * 0.12;
     if (r > edge) discard;
     vec2 q = p / edge;
-    vec3 n = normalize(vec3(q * 0.95, sqrt(max(0.04, 1.0 - dot(q, q)))));
+    vec3 n = normalize(vec3(q * 0.95 + (vec2(vnoise(p * 6.0 + vSeed * 3.0), vnoise(p * 6.0 + vSeed * 5.0 + 9.0)) - 0.5) * 0.5, sqrt(max(0.04, 1.0 - dot(q, q)))));
     float dif = max(0.0, dot(n, sunV));
     float wet = 1.0 - smoothstep(0.12, 0.35, dot(col, vec3(0.333)));
     float spec = pow(max(0.0, dot(reflect(-sunV, n), vec3(0.0, 0.0, 1.0))), 22.0) * wet;
+    col *= 0.78 + 0.44 * vnoise(p * 4.0 + vSeed * 7.0);
     col = col * (amb * 0.6 + uSunCol * dif * 0.6) + uSunCol * spec * 0.35;
     a *= smoothstep(edge, edge - 0.1, r);
   } else if (vKind > 1.5 && vKind < 2.5) {
@@ -346,7 +349,11 @@ export class Effects {
         } else {
           const big = Math.random() < L.big;
           const sz = big ? L.size[1] * (1.3 + Math.random() * 0.7) : lerp(L.size[0], L.size[1], Math.random() ** 1.6);
-          const k = 0.85 + Math.random() * 0.3, c = [col[0] * k, col[1] * k, col[2] * k];
+          // (off grass and tea, torn turf: the soil under it, the map's earth and damp, some of it with the grass still
+          // on it; not lumps of green)
+          const turf = s === SURFACE.GRASS || s === SURFACE.TEA, soil = this.colors[SURFACE.DIRT];
+          const b = !turf ? col : Math.random() < 0.3 ? [lerp(soil[0], col[0], 0.35) * 0.6, lerp(soil[1], col[1], 0.35) * 0.6, lerp(soil[2], col[2], 0.35) * 0.6] : [soil[0] * 0.7, soil[1] * 0.68, soil[2] * 0.66];
+          const k = 0.85 + Math.random() * 0.3, c = [b[0] * k, b[1] * k, b[2] * k];
           this.spawn(bx, by, bz, fx + ux * v * (big ? 0.8 : 1) + sideX * out, uy * v * (big ? 0.8 : 1), fz + uz * v * (big ? 0.8 : 1) + sideZ * out,
             sz, 1 + Math.random() * 0.8, c, 1, 0, 0.25, 9.81, KIND.CHUNK);
         }
@@ -389,8 +396,8 @@ export class Effects {
         const out = Math.random() < 0.5 ? -1 : 1, v = Math.min(8, sp * 0.6) * (0.4 + Math.random() * 0.6);
         const x = hubX + sideX * out * 0.15 + headX * r * 0.5 * dir + rnd(0.08), z = hubZ + sideZ * out * 0.15 + headZ * r * 0.5 * dir + rnd(0.08);
         const vx = fx * 0.6 + sideX * out * v + rnd(0.4), vy = v * (0.45 + Math.random() * 0.6), vz = fz * 0.6 + sideZ * out * v + rnd(0.4);
-        // (the colour of this mud's water, the map's: the taiga's dark peat, the coast's red)
-        if (Math.random() < 0.15) this.spawn(x, gy, z, vx, vy * 0.9, vz, (0.1 + deep * 0.12) * (0.7 + Math.random() * 0.6), 0.7 + Math.random() * 0.5, [col[0] * 2, col[1] * 2, col[2] * 2], 0.5, 0.1, 1.1, 7.5, KIND.SPRAY);
+        // (the colour of this mud's water, the map's: the taiga's dark peat, the coast's red; brown, not lit to grey)
+        if (Math.random() < 0.15) this.spawn(x, gy, z, vx, vy * 0.9, vz, (0.1 + deep * 0.12) * (0.7 + Math.random() * 0.6), 0.7 + Math.random() * 0.5, [col[0] * 1.3, col[1] * 1.2, col[2] * 1.1], 0.5, 0.1, 1.1, 7.5, KIND.SPRAY);
         else this.spawn(x, gy, z, vx, vy, vz, 0.022 + Math.random() * 0.03, 0.8 + Math.random() * 0.6, [col[0] * 1.5, col[1] * 1.5, col[2] * 1.5], 0.92, 0, 0.35, 9.81, KIND.DROP);
       }
     }
