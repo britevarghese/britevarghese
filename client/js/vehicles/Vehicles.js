@@ -169,9 +169,9 @@ export class VehiclesClient {
       this.rockets.push({ from: new THREE.Vector3(...from), to: new THREE.Vector3(...e.e), t: 0, tf, dir });
     } else {
       fx.muzzleFlash(pos, dir, e.w === 'heli_cannon');
-      au.gunshot(this.mine?.id === e.v ? null : from, e.w === 'heli_cannon' ? 'sniper' : 'ar', this.mine?.id === e.v);
+      au.gunshot(this.mine?.id === e.v ? null : from, e.w, this.mine?.id === e.v); // .50 cal, coax 7.62, 30 mm: each its own set
       fx.tracer(from, e.e, dist / tf);
-      if (e.s !== 'none' && !W?.splash) setTimeout(() => fx.impact(e.e, e.n, e.s), tf * 1000);
+      if (e.s !== 'none' && !W?.splash) setTimeout(() => { fx.impact(e.e, e.n, e.s); au.impact(e.e, e.s); }, tf * 1000);
     }
   }
 

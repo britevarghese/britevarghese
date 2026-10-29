@@ -143,7 +143,7 @@ export class Players {
       // footsteps for nearby soldiers
       if (!isMe && p.alive && speed > 1 && dist < 35 && (p.flags & 16)) {
         p.stepAcc = (p.stepAcc || 0) + speed * adt;
-        if (p.stepAcc > 1.6) { p.stepAcc = 0; this.g.audio.footstep([p.x, p.y, p.z], this.g.surfaceAt(p.x, p.z), false, speed > 4 ? 1.1 : 0.6); }
+        if (p.stepAcc > 1.6) { p.stepAcc = 0; this.g.audio.footstep([p.x, p.y, p.z], this.g.surfaceAt(p.x, p.z, p.y), false, speed > 4 ? 1.1 : 0.6); }
       }
     }
   }

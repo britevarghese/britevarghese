@@ -103,6 +103,7 @@ export class LocalPlayer {
     this.yaw = m.yaw; this.pitch = m.air ? -0.5 : 0; this.alive = true; this.jumpQueued = false;
     this.weapons = m.w.map((w) => (w ? { ...w } : null)); this.grenades = m.g; this.slot = m.sl ?? 0;
     this.reloadUntil = 0; this.recoil.p = this.recoil.y = 0;
+    this.g.audio.stopFoley();
     this.g.equipLocal(this.weaponId());
   }
 
@@ -117,7 +118,7 @@ export class LocalPlayer {
     this.grenades = e.g;
     if (e.sl !== undefined && this.weapons[e.sl]) this.slot = e.sl;
     if (!this.weapons[this.slot]) this.slot = this.weapons.findIndex(Boolean);
-    if (this.weaponId() !== before) { this.reloadUntil = 0; this.g.equipLocal(this.weaponId()); }
+    if (this.weaponId() !== before) { this.reloadUntil = 0; this.g.audio.stopFoley(); this.g.equipLocal(this.weaponId()); }
   }
 
   setStance(st) {
@@ -135,7 +136,8 @@ export class LocalPlayer {
     if (i === this.slot || !this.weapons[i]) return;
     this.slot = i; this.reloadUntil = 0;
     this.g.equipLocal(this.weaponId());
-    this.g.audio.ui('switch');
+    this.g.audio.stopFoley(); // a reload cut short goes quiet too
+    this.g.audio.draw(this.weaponId());
   }
 
   reload() {
@@ -145,8 +147,7 @@ export class LocalPlayer {
     this.reloadDur = (w.mag === 0 ? def.reloadEmpty : def.reload) * 1000;
     this.reloadStart = performance.now(); this.reloadUntil = this.reloadStart + this.reloadDur;
     this.g.net.send({ t: 'reload' });
-    this.g.audio.ui('reload');
-    setTimeout(() => this.g.audio.ui('reload2'), this.reloadDur * 0.75);
+    this.g.audio.reload(w.id, this.reloadDur / 1000, w.mag === 0);
   }
 
   throwGrenade() {
@@ -154,6 +155,7 @@ export class LocalPlayer {
     this.grenades--;
     const d = this.aimDir();
     this.g.net.send({ t: 'nade', o: [this.s.x, this.s.y + EYE_HEIGHT[this.s.stance], this.s.z], d: [d.x, d.y + 0.15, d.z] });
+    this.g.audio.throwNade();
     this.g.viewmodel.switchT = 0.2;
   }
 
@@ -235,7 +237,7 @@ export class LocalPlayer {
       if (this.mouse.l && !chat && ready && !reloading && performance.now() >= this.nextFire && this.g.viewmodel.switchT > 0.8 && !this.g.royale?.healing) {
         if (!def.auto && !this.triggerReleased) {} // semi/bolt: one shot per click
         else if (w.mag > 0) this.fire(w, def);
-        else { this.g.audio.ui('empty'); this.nextFire = performance.now() + 300; this.reload(); }
+        else { this.g.audio.dry(w.id); this.nextFire = performance.now() + 300; this.reload(); }
         this.triggerReleased = false;
       }
       if (!this.mouse.l) this.triggerReleased = true;

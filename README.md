@@ -223,7 +223,7 @@ altitude hands-off), LMB rockets · gunner seats aim freely with the mouse. Touc
 | Lighting: HDRI IBL + sky, sun with texel-snapped soft shadows, hemisphere fill, fog, ACES | `client/js/render/Renderer.js` |
 | Transport plane (lofted fuselage, airfoil wings, turboprops with spinning props, painted panel lines, nav lights) | `client/js/royale/TransportPlane.js` |
 | Vehicles, modelled to real dimensions: Leopard 2A6-style tank (link-by-link tracks that run round the wheels as it drives, dual road wheels, bolted skirts, wedge turret, NATO camo), AH-64-style helicopter (framed flat-pane tandem canopy, twisted blades, TADS/PNVS, rocket pods + Hellfires), M1151-style Humvee (slotted grille, armoured glass, beadlock 37" tyres, O-GPK shield + M2), military dirt bike (spoked wheels, knobby tyres, USD forks, air-cooled single); baked mud / dust weathering; static parts merged per material (18–25 draw calls each) | `client/js/vehicles/models/*` |
-| Effects (pooled particles, tracers, decals, per-surface impacts, explosions, smoke) · spatial audio (**recorded CC0 gunshots** with per-shot variation, distance muffling, speed-of-sound delay; synthesized foley) · HUD | `client/js/fx`, `client/js/audio`, `client/js/ui` |
+| Effects (pooled particles, tracers, decals, per-surface impacts, explosions, smoke) · spatial audio (**recorded CC0 / public-domain sounds**: per-weapon gunshots with near / distant mic takes, vehicle guns, reload / bolt / handling foley on the animation timeline, boots per surface, bullet impacts, brass, explosions; distance muffling, speed-of-sound delay) · HUD | `client/js/fx`, `client/js/audio`, `client/js/ui` |
 
 ### Debug scenes
 `/debug/character`, `/debug/weapon?w=bolt_rifle`, `/debug/character-weapon?view=side`, `/debug/ads?w=bolt_rifle`,
@@ -248,8 +248,10 @@ Convert your own `.blend` files with `blender -b file.blend --python scripts/ble
   PBR textures and the sky HDRI: **Poly Haven, CC0** — fetched and optimized by `scripts/build-assets.mjs`
   (meshoptimizer simplification, foliage thinning, opacity-map baking, WebP textures).
 * Default soldier: three.js example `Soldier.glb` (Mixamo) — downloaded at install time, not redistributed.
-* Gunshots: real recordings from *The Free Firearm Sound Library* (OpenGameArt, **CC0**) — see
-  `client/assets/audio/README.md`.
+* Sounds: gunshots from *The Free Firearm Sound Library* (OpenGameArt, **CC0**), foley / footsteps / impacts /
+  explosions from Freesound and OpenGameArt (**CC0**, US Government b-roll = public domain) — every source in
+  `client/assets/audio/README.md`; rebuilt by `scripts/audio/` (fetch + ffmpeg/scipy processing), checked by
+  `scripts/playtest-audio.mjs`.
 
 ### Graphics cards (laptops with NVIDIA / AMD / Intel Arc)
 * The game asks the browser for the **high-performance GPU** and the menu shows which GPU it really got
