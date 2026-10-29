@@ -238,6 +238,16 @@ const ghatRocks = {
   },
 };
 
+// (its rock dark grey, as the Deccan's basalt is where the river has scoured it clean: its banks, ledges and boulders,
+// render/Terrain.js and render/Rocks.js; the rest of the map's ground as the coast's)
+const ghatTint = (x, z, layer, h, c) => {
+  if (layer !== 'rock') return;
+  const K = KUNDALIKA_ROCKS, k = smoothstep(K.r * 1.35, K.r, hyp(x - K.x, z - K.z));
+  if (k <= 0) return;
+  const v = 0.88 + 0.24 * vnoise(x / 7, z / 7, GHAT_SEED + 33);
+  c[0] *= lerp(1, 0.5 * v, k); c[1] *= lerp(1, 0.53 * v, k); c[2] *= lerp(1, 0.6 * v, k);
+};
+
 const ghatTrees = (ctx) => {
   const { surf, R, trees: T, clear, cellOf, trailD, trailW, waterAt, hAt, onCourse, H } = ctx;
   const add = (x, z, type, ht, r) => { T.x.push(x); T.y.push(hAt(x, z)); T.z.push(z); T.h.push(ht); T.r.push(r); T.type.push(type); };
@@ -320,6 +330,7 @@ export const GHAT = {
       { road: 'Bhimashankar Road', grade: 0.08, ends: [{ road: 'Konkan Ghat Road' }, 'ground'] }], ghatRocks) },
   litter: COAST.litter, treeStrength: COAST.treeStrength, young: COAST.young, roadside: COAST.roadside,
   dust: COAST.dust, mudTint: COAST.mudTint, ground: 'coast', trees: 'kerala', atmosphere: COAST.atmosphere,
+  tint: ghatTint, rockTint: true,
 };
 
 // The Ashwood Pass: Kerala's tea plateau carried north and Ashwood's valley mouth carried south meet across a saddle

@@ -1292,7 +1292,9 @@ so the maps on their own are built as they were. Driving on it costs the physics
   them; slabs of it step down into the water; and some 1,200 boulders lie in clusters in the shallows and up the banks,
   a fifth of them more than 2 m across. On the track's own line lie only stones bedded in, up to about 25 cm proud, to
   crawl over (stock trucks cross in about 40 s at a walk, with nothing in the intake); off it, a line through the
-  boulders has to be picked, or the truck hangs up or rolls. Fast travel sets you down on the bank above the ford.
+  boulders has to be picked, or the truck hangs up or rolls. Its rock is coloured dark grey, as scoured basalt is
+  (the Ghat's own tint; the rest of its ground stays the coast's colours). Fast travel sets you down on the bank above
+  the ford.
 
 The bogs' extra pools no longer let any puddle be carved into a river: a track's puddle on a shallow ford had dug a
 metre-deep mud hole in the riverbed. The Konkan Ghat's rule that grows its steep rock over, as Kerala's is, now comes
