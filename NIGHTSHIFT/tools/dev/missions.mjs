@@ -128,6 +128,9 @@ for (const id of list) {
           if (t - info.t0 > 4 && PM.state !== 'idle') PM.endPursuit('escaped');
         } else if ((st.type === 'tail' || st.type === 'escort' || st.type === 'ram' || st.type === 'race') && s.v) {
           const v = s.v, q = v.state, fx = Math.sin(q.yaw), fz = Math.cos(q.yaw), sp2 = Math.hypot(q.vx, q.vz);
+          // (a tail or a race isn't about the police: a pursuit drawn by the stand-in's own driving - a knock on a car,
+          // a red light - is called off, or it's busted holding back from the van)
+          if ((st.type === 'tail' || st.type === 'race') && PM.state !== 'idle') { PM.endPursuit('escaped'); log.push(`  ${t.toFixed(0)}s police called off (the stand-in's driving)`); }
           // the AI's driving
           if (trace && Math.round(t * 3) % 15 === 0) log.push(`  ${t.toFixed(0)}s ${fmt(q.x, q.z)} ${(sp2 * 3.6).toFixed(0)} km/h ${s.ai?.mode || ''} wp ${s.ai?.idx}/${s.ai?.route?.length} d ${Math.hypot(q.x - f.x, q.z - f.z).toFixed(0)}${s.countdown > 0 ? ' countdown' : ''}${s.moving ? '' : ' waiting'}`);
           // (--trace: a tail too close - each third of a second of it, with the player's car's speed and its stand-in AI)
