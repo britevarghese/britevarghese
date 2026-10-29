@@ -821,6 +821,10 @@ the game. Newly found problems go at the end of their section.
     the bumpers now (at a walking pace): round in 12 s, and on its way. In the police chase test the getaway car
     starting in Mattannur's street never got out of it (busted at 18 s, 10 m from where it started); now it does.
     The chase in the six towns: the getaway gets 0.16-0.85 km (Mattannur 0.01 -> 0.2 km, Payyanur 0.02 -> 0.53 km)
+  - [x] A junction in Valiyannur locked solid for good with the van you tail in it: a car parked 6 m into the side
+    road, just round the corner, held up a car turning in (too near the junction to go round it, and the queue
+    coming out of the road the other way in the way), the queue waited for the junction to clear, and the junction
+    was the van and that car. Cars are parked 15 m clear of a road's ends now
     Left: your car left in a narrow street 9 m short of a junction (Mattannur, 5 m of road) holds the traffic up both
     ways until you move it - letting the traffic go round it that near the junction had it meet the cars coming out of
     the junction (two crashes), so they wait and honk

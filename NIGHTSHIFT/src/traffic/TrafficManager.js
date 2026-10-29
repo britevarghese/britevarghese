@@ -144,9 +144,11 @@ export class TrafficManager {
   _spawnParked(focus, dynamic = []) {
     const R = this.R;
     // (on the district roads: a village street is too narrow, one parked car there blocks the way)
-    const lanes = this.graph.lanesNear(focus.x, focus.z, 60, 220).filter((l) => l.kind === 'lane' && l.laneIndex === 0 && (l.edge.cls ?? 0) >= 4 && (l.edge.cls ?? 0) <= 5 && l.length > 25);
+    // (and 15 m clear of either end: one parked 6 m into a side road, just round the corner, had the traffic turning in
+    // wait to get round it, the queue coming out wait for them, and the junction locked solid - the van you tail in it)
+    const lanes = this.graph.lanesNear(focus.x, focus.z, 60, 220).filter((l) => l.kind === 'lane' && l.laneIndex === 0 && (l.edge.cls ?? 0) >= 4 && (l.edge.cls ?? 0) <= 5 && l.length > 36);
     if (!lanes.length) return;
-    const lane = lanes[Math.floor(R() * lanes.length)], s = 6 + R() * (lane.length - 12);
+    const lane = lanes[Math.floor(R() * lanes.length)], s = 15 + R() * (lane.length - 30);
     if (lane.cars.some((o) => Math.abs(o.s - s) < 10)) return;
     // (nor where the player's car or a police car is standing: a scooter parked into the player's car stopped by the
     // kerb was knocked flat on the spot)
