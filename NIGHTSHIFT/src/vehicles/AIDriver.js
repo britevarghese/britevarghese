@@ -528,7 +528,7 @@ export class AIDriver {
 
     // obstacle avoidance (traffic cars / other vehicles ahead)
     const fx = Math.sin(s.yaw), fz = Math.cos(s.yaw);
-    let avoid = 0, pass = 0, blk = null;
+    let avoid = 0, pass = 0, blk = null, held = false;   // (held: waiting on a car in front)
     const myL = v.p?.length || 4.4, myW = (v.p?.width || 1.8) / 2;
     // (still going by one standing at the kerb: kept out until clear of its back. But before it's alongside, the way
     // out round it taken meanwhile - something come the other way: back in behind it. Pushed on out, a van stood
@@ -583,6 +583,7 @@ export class AIDriver {
         const gap = ahead - (myL + (o.spec?.l ?? 4.4)) / 2 - 1.2, along = (o.v ?? 0) * Math.max(0, o.yaw === undefined ? 1 : Math.sin(o.yaw) * fx + Math.cos(o.yaw) * fz);
         const lim = along + Math.sqrt(2 * 3.5 * Math.max(0, gap));
         targetSpeed = Math.min(targetSpeed, lim);
+        if (lim < 1) held = true;
         // (stopped for something that won't move for it: one coming the other way, standing, or a wreck)
         if (lim < 0.5 && (o.v ?? 0) < 0.3 && (o.state === 'wreck' || (o.yaw !== undefined && Math.sin(o.yaw) * fx + Math.cos(o.yaw) * fz < -0.3))) blk = { lat };
       }
@@ -660,12 +661,14 @@ export class AIDriver {
       const cx = s.x - fx * arm - fz * Rr * side, cz = s.z - fz * arm + fx * Rr * side;
       inCircle = Math.hypot(tx - cx, tz - cz) < Rr - 0.5;
     }
-    if (!this.turning && ((Math.abs(diff) > 2.2 && speed < 6) || (Math.abs(diff) > 1.5 && speed < 1.5) || inCircle)) {
+    // (not waiting in a queue: at a junction's stop line the point it steers for is well round the corner, and a car
+    // waiting there began turning round on the spot - and with the car in front 'in the way', backed into the queue)
+    if (!this.turning && !held && ((Math.abs(diff) > 2.2 && speed < 6) || (Math.abs(diff) > 1.5 && speed < 1.5) || inCircle)) {
       this.turning = rearT && Math.abs(diff) > 2.2 ? 'back' : 'fwd'; this.turnSide = Math.sign(diff) || 1; this.legT = 0; this.turnT = 0;
     }
     if (this.turning) {
       this.legT += dt; this.turnT += dt;
-      const blocked = speed < 0.5 && this.legT > 1.2;   // (forward against something: back again)
+      const blocked = speed < 0.5 && this.legT > 1.2 && !held;   // (forward against something: back again - not a car waiting in front)
       if (Math.abs(diff) < 0.35 || this.turnT > 25) this.turning = false;
       else if (this.turning === 'back' ? !rearT || this.legT > 2.5 || Math.abs(diff) < 1 : rearT && Math.abs(diff) >= 1 && this.legT > 0.4 && (!frontT || blocked)) {
         this.turning = this.turning === 'back' ? 'fwd' : 'back'; this.legT = 0;

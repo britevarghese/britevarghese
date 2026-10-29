@@ -825,6 +825,12 @@ the game. Newly found problems go at the end of their section.
     road, just round the corner, held up a car turning in (too near the junction to go round it, and the queue
     coming out of the road the other way in the way), the queue waited for the junction to clear, and the junction
     was the van and that car. Cars are parked 15 m clear of a road's ends now
+  - [x] ...and an AI car waiting in a queue at a junction began turning round on the spot: at the stop line the point
+    it steers for is well round the corner, and standing still with that more than a right angle off read as a turn
+    too tight to take. In its three-point turn the car in front counted as 'in the way', so it backed up - into the
+    queue behind. Waiting on a car in front, it doesn't start one now, nor back up for it. And a car stuck right by the
+    camera (the van you tail, 33 m on) is put on its way after a minute and a half, 40 m on past what holds it -
+    before, never while you were within 45 m
     Left: your car left in a narrow street 9 m short of a junction (Mattannur, 5 m of road) holds the traffic up both
     ways until you move it - letting the traffic go round it that near the junction had it meet the cars coming out of
     the junction (two crashes), so they wait and honk
