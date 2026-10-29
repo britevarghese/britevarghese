@@ -286,18 +286,21 @@ export class Game {
   recoverAI(vehicle, ai) {
     ai.needsReset = false;
     const s = vehicle.state, C = this.camera.position, dx = s.x - C.x, dz = s.z - C.z, d = Math.hypot(dx, dz);
-    if (d < 45) return false;
+    // (right by the camera only after a minute more - twelve checks - and then on past whatever holds it: the van you
+    // tail 33 m back stood in a locked junction seven minutes, never moved while you were that near)
+    if (d < 45 && (ai.heldT = (ai.heldT || 0) + 1) < 12) return false;
     // (nor where the camera looks, inside 200 m, till it's been stuck a while - three checks, 15 s: the van you tail
     // 50 m on jumped 12 m along the road in front of you, again and again)
     const f = this.camera.getWorldDirection(_camDir), fl = Math.hypot(f.x, f.z) || 1;
-    if (d < 200 && (dx * f.x + dz * f.z) / (d * fl) > 0.5 && (ai.heldT = (ai.heldT || 0) + 1) < 3) return false;
+    if (d >= 45 && d < 200 && (dx * f.x + dz * f.z) / (d * fl) > 0.5 && (ai.heldT = (ai.heldT || 0) + 1) < 3) return false;
+    const on = ai.heldT >= 12 ? 40 : 12;
     ai.heldT = 0;
     // on its own route a little ahead, facing along it (the nearest lane can run the other way: stuck again, facing
     // back the way it came)
     const R = ai.route;
     if (!ai.loop && ai.mode !== 'pursue' && R?.length > 2 && ai.idx < R.length - 2) {
       let i = ai.idx;
-      for (let d = 0; i < R.length - 2 && d < 12; i++) d += Math.hypot(R[i + 1][0] - R[i][0], R[i + 1][1] - R[i][1]);
+      for (let d = 0; i < R.length - 2 && d < on; i++) d += Math.hypot(R[i + 1][0] - R[i][0], R[i + 1][1] - R[i][1]);
       // (not onto a car standing there: waiting in a queue, it'd be put down on the one in front)
       if (this.traffic?.cars.some((c) => Math.abs(c.x - R[i][0]) < 5 && Math.abs(c.z - R[i][1]) < 5)) return false;
       vehicle.place(R[i][0], R[i][1], Math.atan2(R[i + 1][0] - R[i][0], R[i + 1][1] - R[i][1]));
