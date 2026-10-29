@@ -130,6 +130,8 @@ for (const id of list) {
           const v = s.v, q = v.state, fx = Math.sin(q.yaw), fz = Math.cos(q.yaw), sp2 = Math.hypot(q.vx, q.vz);
           // the AI's driving
           if (trace && Math.round(t * 3) % 15 === 0) log.push(`  ${t.toFixed(0)}s ${fmt(q.x, q.z)} ${(sp2 * 3.6).toFixed(0)} km/h ${s.ai?.mode || ''} wp ${s.ai?.idx}/${s.ai?.route?.length} d ${Math.hypot(q.x - f.x, q.z - f.z).toFixed(0)}${s.countdown > 0 ? ' countdown' : ''}${s.moving ? '' : ' waiting'}`);
+          // (--trace: a tail too close - each third of a second of it, with the player's car's speed and its stand-in AI)
+          if (trace && st.type === 'tail' && s.close > 0 && (info.closeN = (info.closeN || 0) + 1) <= 24) log.push(`  close ${t.toFixed(1)}s d ${Math.hypot(q.x - f.x, q.z - f.z).toFixed(1)} van ${(sp2 * 3.6).toFixed(0)} km/h, us ${(Math.hypot(f.vx || 0, f.vz || 0) * 3.6).toFixed(0)} km/h at ${fmt(f.x, f.z)}${info.pai ? ` ai max ${info.pai.maxSpeed?.toFixed(1)} wp ${info.pai.idx}/${info.pai.route?.length} placed ${(t - (info.paiT || 0)).toFixed(1)}s ago` : ''}`);
           if (s.moving || st.type === 'race') {
             if (lx != null) ai.km += Math.hypot(q.x - lx, q.z - lz) / 1000; lx = q.x; lz = q.z;
             if (!W.onCarriageway(q.x, q.z, 0.8)) { ai.off += 1 / 3; ai.offAt ||= fmt(q.x, q.z); }
