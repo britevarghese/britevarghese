@@ -13,6 +13,8 @@ import { BEACON_RADIUS, MAP_HALF } from '../world/maps/index.js';
 import { park } from '../world/homes.js';
 import { EventPlay } from '../game/EventPlay.js';
 import { EventCourse } from '../render/EventCourse.js';
+import { BoardsView } from '../render/BoardsView.js';
+import { layBoards, digOut, stuckPair } from '../game/Boards.js';
 import { BreakView } from '../render/BreakView.js';
 import { KIND } from '../render/Effects.js';
 import { RouteGraph, along } from '../game/Route.js';
@@ -142,6 +144,8 @@ export class Game {
     this.events = new EventPlay(this);
     this.course = new EventCourse(this.scene, this.world, this.events.events);
     this.modeView = new ModeView(this.scene, this.world);
+    // (the recovery boards, when they are down: K)
+    this.boardsView = new BoardsView(this.scene); this.boards = null;
     // what breaks: the roadside things standing, and the trees and things knocked down (render/BreakView.js)
     // (the open world's: each map's own, render/WorldView.js)
     this.breakView ||= new BreakView(this.scene, this.world, this.vegetation, this.effects, this.audio);
@@ -573,6 +577,7 @@ export class Game {
 
   spawn(first = false, at = null) {
     const p = this.spawnPoint(first, at);
+    if (this.boards) this.setBoards(null);
     this.vehicle.place(this.world, p.x, p.z, p.yaw);
     this.drySpots = [{ x: p.x, z: p.z, yaw: p.yaw }];
     this.stuckT = 0; this.boggedT = 0;
@@ -710,7 +715,8 @@ export class Game {
       : puller ? `${puller.by} is winching you out: stay off the pedals and steer, or give it a little throttle to help`
       : v.flooded ? 'Once the intake is out of the water the engine starts again'
       : this.stuckWhy === 'broken' ? (D.seized ? 'The engine is seized: it won\'t turn over. Backspace calls the tow truck, which takes it into the station workshop to be mended (you pay the bill). Or friends can tow you there (F to hook)' : 'A broken axle shaft: try 4WD (4) or the lockers (X). Backspace: the tow truck takes it to the station workshop to be mended')
-        : this.unstickTip(v.dt) + 'Or winch out: point the bumper at a tree or a friend, F to hook, hold E';
+        : this.unstickTip(v.dt) + (!this.boards && v.wheels.some((w) => w.surf.sink > 0) ? 'Dig out and lay the recovery boards (K), then ease out onto them. ' : '')
+          + 'Or winch out: point the bumper at a tree or a friend, F to hook, hold E';
     if ($('st-tip').textContent !== tip) $('st-tip').textContent = tip;
     const home = `<b>&#9003;</b> ${this.stuckWhy === 'broken' ? 'Tow to the workshop' : 'Back to the station'}`;
     if ($('st-station').innerHTML !== home) $('st-station').innerHTML = home;
@@ -823,6 +829,7 @@ export class Game {
       }
     }
     if (I.consume('spare')) this.fitSpare();
+    if (I.consume('boards')) this.toggleBoards();
     if (I.consume('event')) this.events.press();
     if (I.consume('hook')) this.toggleHook();
     // (in a run: R back to the last checkpoint, Backspace restarts it)
@@ -1125,6 +1132,37 @@ export class Game {
     D.fitSpare(i);
   }
 
+  /**
+   * K: stuck, dig out under the truck and lay the recovery boards under the wheels that are in deepest (game/Boards.js),
+   * ahead of them (behind them in reverse), to drive out on; with them down and the truck by them, pick them up.
+   */
+  toggleBoards() {
+    const v = this.vehicle;
+    if (this.boards) {
+      const d = Math.hypot(this.boards.x - v.pos.x, this.boards.z - v.pos.z);
+      if (d > 25) { this.hud.hint(`The boards are ${Math.round(d)} m back: stop by them to pick them up`, 3); return; }
+      if (Math.abs(v.speed) > 2) { this.hud.hint('Stop to pick up the boards'); return; }
+      this.setBoards(null);
+      this.hud.hint('Boards back on the truck', 2);
+      return;
+    }
+    if (Math.abs(v.speed) > 1) { this.hud.hint('Stop to dig out and lay the boards'); return; }
+    if (v.up.y < 0.7 || !v.wheels.some((w) => w.contact)) { this.hud.hint('Get the truck back on its wheels first (R)'); return; }
+    if (v.waterDepth > 0.5) { this.hud.hint('Too deep in the water to lay the boards'); return; }
+    const dug = digOut(v, this.world), pair = stuckPair(v), back = v.dt.gear < 0;
+    this.setBoards(layBoards(v, this.world, back, pair));
+    const low = v.dt.t.low > 1 && !v.dt.low ? ', in low range (L)' : '';
+    this.hud.hint(`${dug > 0.1 ? 'Dug out under the truck, and the' : 'The'} boards in ${back ? 'behind' : 'under'} the ${pair} wheels: ease ${back ? 'back' : 'on'} onto them gently${low}. K picks them up after`, 6);
+  }
+
+  /** Put the boards down (a list from game/Boards.js), or take them up (null). */
+  setBoards(list) {
+    this.boards = list ? { list, x: list.reduce((s, b) => s + b.x, 0) / list.length, z: list.reduce((s, b) => s + b.z, 0) / list.length } : null;
+    this.world.setBoards?.(list || []);
+    this.boardsView.set(list);
+    document.getElementById('m-boards')?.classList.toggle('hidden', !list);
+  }
+
   /** At the station garage: everything mended (dents, glass, radiator, engine, springs, shafts, tyres, the spare). */
   repairAtGarage() {
     const D = this.vehicle.damage;
@@ -1422,6 +1460,8 @@ export class Game {
     // an electric truck in deeper than it is sealed for: its battery management cuts the power back
     if (v.dt.electric && v.intakeWet && (this.evWetT = (this.evWetT || 0) - dt) <= 0) { this.hud.hint('Deeper than the battery is sealed for: power cut back', 3); this.evWetT = 6; }
     this.trackDry(dt);
+    // (gone on without the boards, or taken somewhere else: they were fetched and put back on the truck)
+    if (this.boards && Math.hypot(this.boards.x - this.vehicle.pos.x, this.boards.z - this.vehicle.pos.z) > 150) { this.setBoards(null); this.hud.hint('You went back for the recovery boards: they are on the truck', 3); }
     this.checkStuck(dt, c);
     // a friend who called for a tow, within reach of our winch
     this.towHintT -= dt;

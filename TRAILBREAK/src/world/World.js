@@ -30,6 +30,7 @@ import { NO_WATER } from './WorldGen.js';
 import { MAP_HALF, mapById } from './maps/index.js';
 import { rockTop, shapeOf } from './RockShapes.js';
 import { PROP_TYPES, propTop, paintAt, reach, settle } from '../game/Props.js';
+import { boardsTop } from '../game/Boards.js';
 import { growYoung, placeRoadside, placedObstacles, trunkCap, WINCH_CAP } from './Breakables.js';
 
 const OB_CELL = 16;          // obstacle (tree, post) grid cell (m)
@@ -51,6 +52,8 @@ export class World {
     this.rough = !!this.worn?.lines.some((l) => l.rough);
     // (its deep bogs, world/WorldGen.js: [x, z, r, how many times softer than mud], deepAt)
     this.deepBogs = data.deepBogs?.length ? data.deepBogs : null;
+    // (the recovery boards a truck has laid on it, game/Boards.js: firm, gripping ground over the mud, setBoards)
+    this.boards = [];
     // (the grounds as they are now: dry, or wet with the rain, setWet; and the rain standing in the ruts)
     this.wet = 0; this.pond = 0; this.surfaces = SURFACES;
     this.wearAt = (x, z) => this.wear(x, z);
@@ -232,8 +235,13 @@ export class World {
     const b = this.boulderTop(x, z);
     if (b > h) h = b;
     if (this.props.length) { const q = this.propAt(x, z); if (q && q.top > h) h = q.top; }
+    // (a recovery board: its top, the ground dug out under it, game/Boards.js)
+    if (this.boards.length) { const t = boardsTop(this.boards, x, z); if (t > -Infinity) h = Math.max(t, Math.min(h, this.boulderTop(x, z))); }
     return h;
   }
+
+  /** The recovery boards laid on it (game/Boards.js, in its frame): the tyres climb onto them, as onto firm ground. */
+  setBoards(list) { this.boards = list || []; }
 
   surfaceId(x, z) {
     for (let n = 0; n < this.paints.length; n++) if (paintAt(this.paints[n], x, z)) return PROP_TYPES[this.paints[n].type].surface;
@@ -244,6 +252,8 @@ export class World {
 
   surfaceAt(x, z) {
     const S = this.surfaces;
+    // (a recovery board on top: its cleats grip, wet or dry, and it doesn't give)
+    if (this.boards.length && boardsTop(this.boards, x, z) >= this.height(x, z) - 0.005) return SURFACES[SURFACE.ROAD];
     if (this.props.length) { const q = this.propAt(x, z); if (q && q.top > this.terrain(x, z) - 0.02) return S[PROP_TYPES[q.p.type].surface]; }
     if (this.boulderTop(x, z) > this.terrain(x, z) - 0.02) return S[SURFACE.ROCK];
     return S[this.surfaceId(x, z)];

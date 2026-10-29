@@ -3,6 +3,7 @@
 import { SURFACES, SURFACE, WET_SURFACES, WET_MUD } from '../src/physics/Surfaces.js';
 import { DeformGrid } from '../src/world/Deform.js';
 import { WornTracks, wearOf } from '../src/world/Worn.js';
+import { boardsTop } from '../src/game/Boards.js';
 
 export function flat(surface = SURFACE.DIRT, h = 0) {
   return { height: () => h, surfaceAt: () => SURFACES[surface] };
@@ -122,5 +123,23 @@ export function rough(surface = SURFACE.DIRT, roughness = 1, rain = false) {
     rutsAcross: (x, z, ax, az, n, step, out) => G.across(x, z, ax, az, n, step, out.fill(0), wearAt),
   };
   if (rain) g.holeWater = (x, z) => { const d = G.holeWater(x, z, wearAt); return d > 0 ? g.height(x, z) + d : -Infinity; };
+  return g;
+}
+
+/**
+ * Soft mud that keeps ruts, `soft` times as soft as its kind within `half` m of z = 0 and `out` times past it (a bog's
+ * heart and its firmer edge), with recovery boards on it as the game's world has them (world/World.js: over a board,
+ * its top, the mud under it dug out; and firm, gripping going: game/Boards.js).
+ */
+export function bogPatch(soft = 4, out = 1.2, half = 3) {
+  const grid = new DeformGrid(), s = SURFACES[SURFACE.MUD], k = (x, z) => (Math.abs(z) < half ? soft : out);
+  const g = {
+    grid, boards: [],
+    height: (x, z) => { const t = boardsTop(g.boards, x, z); return t > -Infinity ? t : -grid.get(x, z); },
+    surfaceAt: (x, z) => (boardsTop(g.boards, x, z) > -Infinity ? SURFACES[SURFACE.ROAD] : s),
+    softness: k,
+    deform: (x, z, fx, fz, hw, hl, press, dig) => grid.stamp(x, z, fx, fz, hw, hl, press, dig, (px, pz) => Math.max(s.maxSink * Math.sqrt(k(px, pz)), s.loose || 0)),
+    rutsAcross: across(grid),
+  };
   return g;
 }

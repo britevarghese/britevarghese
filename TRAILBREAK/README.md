@@ -121,6 +121,7 @@ Without the Blueprint: **New > Web Service** with this repository, branch `claud
 | Recover: back on the wheels, or back to dry ground when stuck | R | B |
 | Call your friends for a tow (they see where you are) | T | |
 | Fit the spare in place of a flat tyre (stopped) | Y | |
+| Recovery boards: stuck in mud or sand, dig out and lay them under the wheels in deepest; again to pick them up | K | |
 | Events: start one at its start line (with friends: open a race, or join one); twice to give up | J | Right stick press |
 | Back to the ranger station (broken down: the tow truck takes it into the workshop) | Backspace | |
 | Camera: chase, far, front (the truck from ahead of it), side, bonnet, driver's seat, side mirror, wheel (along the front tyre and its suspension), bumper (drag to look around) | C | Y, right stick |
@@ -509,6 +510,25 @@ stock UAZ, open diffs and all, spins its wheels on a steep muddy pitch in high r
 - **Winch yourself out on a friend:** while you are calling for a tow, hook your friend's truck and winch in. Their
   truck becomes the anchor and holds still; yours comes out (a little throttle helps).
 - **Alone:** hook a tree with the winch, or **R**.
+- **Recovery boards (K):** you carry a pair of recovery boards (traction boards: stiff, cleated plastic boards 1.15 m
+  by 0.33 m) and a shovel. Stopped and stuck in mud or sand, K digs out and puts them in (`src/game/Boards.js`):
+  - **Dig out first.** A truck sunk past its ground clearance is beached: its weight rests on its belly and axles,
+    not its tyres, and no board under a tyre will move it. The mud under the belly and axles, between the tyres'
+    tracks and out past both ends, is dug down as deep as the deepest tyre stands (the tyres' own holes are left).
+  - **The boards go under the wheels in deepest** (the front pair or the rear), wedged under each tread and lying on
+    the ground ahead (behind, in reverse), tilted up out of the rut no steeper than a tyre will climb (17 degrees; the
+    mud above that dug away for it). To the tyres a board is firm, gripping ground: the cleats bite, wet or dry, and it
+    spreads the load over ground that won't carry a tyre.
+  - **Ease out:** low range and a gentle, steady throttle. Wheelspin only digs again. Stop by them and K picks them up;
+    drive off without them and you are taken to have gone back for them. The **BOARDS** chip shows while they are down.
+
+  It is what recovery guides say to do: dig deep in front of the tyres, wedge the boards' ends under the treads with the
+  cleats up, then the lowest gear and gentle throttle, and keep the shovel handy ([4X4 Australia's recovery-board
+  guide](https://www.4x4australia.com.au/gear/recovery/4x4-recovery-guide-recovery-boards),
+  [CarsGuide](https://www.carsguide.com.au/adventure/how-to/how-to-use-vehicle-recovery-tracks-69115)). In the tests a
+  stock Ranger stood in a bog's heart and then floored sinks to its belly and goes nowhere, and dug out with the boards
+  in it drives out (`test/boards.test.mjs`); tried without digging, the boards alone freed neither it nor a stock
+  Defender. The boards are yours alone: your friends' trucks don't drive on them.
 
 ## The trucks
 

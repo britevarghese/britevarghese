@@ -422,6 +422,15 @@ test('the open world: deep bogs by Kashid and the rocks at the Kundalika ford, t
   let rut = 0;
   for (let x = bx - br * 0.5; x < bx + br * 0.5; x += 0.5) for (let dz = -2; dz <= 2; dz += 0.25) rut = Math.max(rut, W.terrain(x + coast.cx, bz - 7 + dz + coast.cz) - W.height(x + coast.cx, bz - 7 + dz + coast.cz));
   assert.ok(b.reached && rut > 0.15, `the Thar through ${regionById('coast').map.deepBogs[0].name}: ${b.reached ? 'out' : 'stuck'} in ${b.t.toFixed(0)} s, its ruts ${rut.toFixed(2)} m deep`);
+  // recovery boards laid in it (game/Boards.js): over one, the ground is the board's, firm and gripping; taken up, mud
+  {
+    const x0 = bx + coast.cx, z0 = bz + 4 + coast.cz, h0 = W.height(x0, z0), b = { x0, z0, dx: 1, dz: 0, y0: h0 - 0.2, y1: h0 + 0.1, x: x0 + 0.575, z: z0, yaw: Math.PI / 2 };
+    W.setBoards([b]);
+    assert.ok(Math.abs(W.height(x0 + 0.5, z0) - (h0 - 0.2 + 0.3 * 0.5 / 1.15 + 0.035)) < 1e-6 && W.surfaceAt(x0 + 0.5, z0).id === SURFACE.ROAD, 'on a board');
+    assert.equal(W.surfaceAt(x0 + 0.5, z0 + 1).id, SURFACE.MUD, 'beside it');
+    W.setBoards([]);
+    assert.equal(W.surfaceAt(x0 + 0.5, z0).id, SURFACE.MUD, 'taken up');
+  }
   // both listed to go to (ui/WorldMap.js), the rocks whether the ghat is in yet or not
   const O = W.offroad();
   assert.deepEqual(O.map((q) => q.type).sort(), ['bog', 'bog', 'rocks']);

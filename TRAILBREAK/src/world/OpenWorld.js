@@ -153,6 +153,7 @@ export class OpenWorld {
     this.data.trails.push(...(world.data.trails || []).map((t) => ({ ...t, points: movePts(t.points, cx, cz), region: id })));
     this.boulderList = null;
     if (this.propList.length) this.setProps(this.propList);
+    if (this.boardList?.length) this.setBoards(this.boardList);
     if (world.map.station) this.hubs.push({ x: world.map.station.x + cx, z: world.map.station.z + cz, r: 90 });
     for (const fn of this.onRegion) fn(region);
     return region;
@@ -314,6 +315,15 @@ export class OpenWorld {
       r.world.setProps(this.propList.filter((p) => Math.abs(p.x - r.cx) <= r.half && Math.abs(p.z - r.cz) <= r.half).map((p) => ({ ...p, x: p.x - r.cx, z: p.z - r.cz })));
     }
     this.props = this.regions.flatMap((r) => r.world.props.map((p) => ({ ...p, x: p.x + r.cx, z: p.z + r.cz })));
+  }
+
+  /** The recovery boards a truck has laid (game/Boards.js, in the world): each on the maps it lies on. */
+  setBoards(list) {
+    this.boardList = list || [];
+    for (const r of this.regions) {
+      r.world.setBoards(this.boardList.filter((b) => Math.abs(b.x - r.cx) <= r.half + 2 && Math.abs(b.z - r.cz) <= r.half + 2)
+        .map((b) => ({ ...b, x0: b.x0 - r.cx, z0: b.z0 - r.cz, x: b.x - r.cx, z: b.z - r.cz })));
+    }
   }
 
   // ---------------------------------------------------------------- events
