@@ -404,6 +404,9 @@ the game. Newly found problems go at the end of their section.
   one second, 15 s sooner). Again: none in the road, no car off it
 - [x] On foot round the six towns, walking and running at walls, houses, trees and traffic for two minutes each: no
   step through anything solid, never inside it, the feet never under or over the ground, no errors
+- [x] A fight on foot: someone punched to 3 hp kept squaring up and punched the player, standing there, to death
+  (25 s). Beaten under 30, most give it up and run now. (Punches, a shot at a passing car - its driver floors it -
+  and the police's pursuit and arrival, on foot in Kannur: no errors)
 - [x] Photo mode opened with its key while driving left you in the pause menu when you closed it: back to the drive
   now (from the pause menu, to the pause menu; from a replay, to the replay). And leaving a replay that had never
   begun (nothing recorded yet) threw an error. Every screen opened and closed from a Kerala drive - map, pause,

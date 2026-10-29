@@ -605,6 +605,10 @@ export class Pedestrians {
       p.angry = true;
       if (this.R() < (p.brave ?? 0.45)) this.startFight(p);
       else this._flee(p, fromX, fromZ, 5.0, 8);
+    } else if (p.fight && p.hp < 30 && this.R() < 0.8) {
+      // beaten nearly senseless and still squaring up: most give it up and run (one on 3 hp punched a player
+      // standing there to death)
+      this._flee(p, fromX, fromZ, 4.4, 9);
     }
     this.panic(p.x, p.z, 14, p);
     bus.emit('ped:struck', { x: p.x, z: p.z, ped: p, amount });
