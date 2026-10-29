@@ -791,7 +791,11 @@ the game. Newly found problems go at the end of their section.
   - [x] and nose to nose: the van turning into a side road met a car coming out of it, neither with room to get by,
     and each waited for the other for a minute and a half. Stopped 6 s for something that won't move for it (one
     coming the other way, standing, or a wreck), an AI car backs a couple of metres with its nose swung away and
-    tries again - the road behind it clear, and no car (yours included) on its line there
+    tries again - the road behind it clear, and no car (yours included) on its line there. Both tails, traced: the
+    van's longest stop 7 and 9 s (it was 300); the Infopark van gets past that junction's standoff in 9 s.
+    Left: your car left in a narrow street 9 m short of a junction (Mattannur, 5 m of road) holds the traffic up both
+    ways until you move it - letting the traffic go round it that near the junction had it meet the cars coming out of
+    the junction (two crashes), so they wait and honk
   Now all 12 pass: the cars you tail drive their 3.5 km and 2.1 km with no stop over a second and no jump; the rams,
   the steals and the chases as before. Left: Shibu's runs vary with the traffic - once, a 26 s stop at the first
   junction out of Chirakkal (not seen again in a traced run). Street life round a stopped player car in Kannur and
