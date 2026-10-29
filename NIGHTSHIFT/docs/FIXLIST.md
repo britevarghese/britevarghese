@@ -404,6 +404,10 @@ the game. Newly found problems go at the end of their section.
   one second, 15 s sooner). Again: none in the road, no car off it
 - [x] On foot round the six towns, walking and running at walls, houses, trees and traffic for two minutes each: no
   step through anything solid, never inside it, the feet never under or over the ground, no errors
+- [x] Checked, nothing to fix: two players on one server in Kannur (each sees the other within a metre of where they
+  are, one runs the street traffic and the other sees its 20 cars, a friend who takes a scooter is seen on a bike,
+  no errors); a save slot in Thalassery loaded after the page is reloaded (back on the spot, on the ground, its
+  cash, story and paint); Thalassery at evening, night and in the rain (headlights, street lights, the wet road)
 - [x] Half of Kerala's traffic is two-wheelers, and none of them could be taken: F at a scooter did nothing (only
   cars were in the list of what can be stolen), and once added, getting on one threw (the rider's seat and pose
   were looked up among the garage's bikes) and the renderer drew it as a four-wheeled car with no one on it. The
