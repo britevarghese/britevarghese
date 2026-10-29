@@ -1149,10 +1149,10 @@ export class Game {
     if (Math.abs(v.speed) > 1) { this.hud.hint('Stop to dig out and lay the boards'); return; }
     if (v.up.y < 0.7 || !v.wheels.some((w) => w.contact)) { this.hud.hint('Get the truck back on its wheels first (R)'); return; }
     if (v.waterDepth > 0.5) { this.hud.hint('Too deep in the water to lay the boards'); return; }
-    const dug = digOut(v, this.world), pair = stuckPair(v), back = v.dt.gear < 0;
+    const pair = stuckPair(v), back = v.dt.gear < 0, dug = digOut(v, this.world, back);
     this.setBoards(layBoards(v, this.world, back, pair));
-    const low = v.dt.t.low > 1 && !v.dt.low ? ', in low range (L)' : '';
-    this.hud.hint(`${dug > 0.1 ? 'Dug out under the truck, and the' : 'The'} boards in ${back ? 'behind' : 'under'} the ${pair} wheels: ease ${back ? 'back' : 'on'} onto them gently${low}. K picks them up after`, 6);
+    const low = v.dt.t.low > 1 && !v.dt.low ? ' in low range (L)' : '';
+    this.hud.hint(`${dug > 0.1 ? 'Dug out round the tyres and under the truck, and the' : 'The'} boards ${back ? 'behind' : 'in front of'} the ${pair} wheels: drive ${back ? 'back onto' : 'onto'} them steadily${low}, without spinning the wheels. K picks them up after`, 6);
   }
 
   /** Put the boards down (a list from game/Boards.js), or take them up (null). */

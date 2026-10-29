@@ -36,15 +36,26 @@ export function boardsTop(list, x, z) {
  * Dig out under a truck before the boards go in: a truck sunk past its clearance is beached on its belly and axles, its
  * weight on the mud between the wheels and none to the tyres, and no board under a tyre will move it. The mud under its
  * belly and axles, between the tyres' tracks and out past both ends (where the ground will give, ground.deform), is
- * dug down to as deep as its deepest tyre stands; the tyres' own holes are left as they are. Returns how deep.
+ * dug down to as deep as its deepest tyre stands; the tyres' own holes are left as they are. And in front of every tyre
+ * (behind, going back) its hole's wall is dug back to a ramp a tyre will climb (as the boards lie, MAX_TILT), so the
+ * ones without a board can follow the ones with. Returns how deep.
  */
-export function digOut(v, ground) {
+export function digOut(v, ground, back = false) {
   if (!ground.deform) return 0;
   const deep = Math.max(...v.wheels.map((w) => w.sink || 0));
   if (deep < 0.05) return 0;
   const fx = v.fwd.x, fz = v.fwd.z, fl = Math.hypot(fx, fz) || 1, a = v.axles, f = a[0], r = a[a.length - 1];
-  const mid = (f.zc + r.zc) / 2, wb = Math.abs(f.zc - r.zc), inside = Math.min(...a.map((q) => q.half)) - (v.spec.tyre.width || 0.3) / 2 - 0.06;
-  ground.deform(v.pos.x + fx / fl * mid, v.pos.z + fz / fl * mid, fx / fl, fz / fl, Math.max(0.3, inside), wb / 2 + 0.7, deep, 0);
+  const ux = fx / fl, uz = fz / fl, tw = (v.spec.tyre.width || 0.3) / 2 + 0.05;
+  const mid = (f.zc + r.zc) / 2, wb = Math.abs(f.zc - r.zc), inside = Math.min(...a.map((q) => q.half)) - tw - 0.01;
+  ground.deform(v.pos.x + ux * mid, v.pos.z + uz * mid, ux, uz, Math.max(0.3, inside), wb / 2 + 0.7, deep, 0);
+  const s = back ? -1 : 1, STEP = 0.2;
+  for (const w of v.wheels) {
+    const sink = w.sink || 0, x = w.contact ? w.cx : w.hub.x, z = w.contact ? w.cz : w.hub.z;
+    for (let k = 0; sink - (k + 0.5) * STEP * MAX_TILT > 0.02; k++) {
+      const along = s * (k + 0.5) * STEP;
+      ground.deform(x + ux * along, z + uz * along, ux, uz, tw, STEP / 2, sink - (k + 0.5) * STEP * MAX_TILT, 0);
+    }
+  }
   return deep;
 }
 

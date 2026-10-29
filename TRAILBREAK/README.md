@@ -514,7 +514,8 @@ stock UAZ, open diffs and all, spins its wheels on a steep muddy pitch in high r
   by 0.33 m) and a shovel. Stopped and stuck in mud or sand, K digs out and puts them in (`src/game/Boards.js`):
   - **Dig out first.** A truck sunk past its ground clearance is beached: its weight rests on its belly and axles,
     not its tyres, and no board under a tyre will move it. The mud under the belly and axles, between the tyres'
-    tracks and out past both ends, is dug down as deep as the deepest tyre stands (the tyres' own holes are left).
+    tracks and out past both ends, is dug down as deep as the deepest tyre stands, and the wall of each tyre's hole
+    ahead of it (behind, in reverse) is dug back to a ramp it can climb, so the wheels without a board can follow.
   - **The boards go under the wheels in deepest** (the front pair or the rear), wedged under each tread and lying on
     the ground ahead (behind, in reverse), tilted up out of the rut no steeper than a tyre will climb (17 degrees; the
     mud above that dug away for it). To the tyres a board is firm, gripping ground: the cleats bite, wet or dry, and it
