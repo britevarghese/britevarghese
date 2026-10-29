@@ -49,6 +49,8 @@ export class World {
     // (a map whose tracks are worn: their ruts, hump and potholes, finer than the grid; world/Worn.js)
     this.worn = this.map.wornTracks ? new WornTracks(this.map, this.half) : null;
     this.rough = !!this.worn?.lines.some((l) => l.rough);
+    // (its deep bogs, world/WorldGen.js: [x, z, r, how many times softer than mud], deepAt)
+    this.deepBogs = data.deepBogs?.length ? data.deepBogs : null;
     // (the grounds as they are now: dry, or wet with the rain, setWet; and the rain standing in the ruts)
     this.wet = 0; this.pond = 0; this.surfaces = SURFACES;
     this.wearAt = (x, z) => this.wear(x, z);
@@ -315,16 +317,25 @@ export class World {
    */
   softness(x, z) {
     if (this.surfaceId(x, z) !== SURFACE.MUD) return 1;
-    return (this.map.deepMud ? this.deepAt(x, z) : 1) * (1 + (WET_MUD - 1) * this.wet);
+    return (this.map.deepMud || this.deepBogs ? this.deepAt(x, z) : 1) * (1 + (WET_MUD - 1) * this.wet);
   }
 
   /**
-   * How much softer a map's mud is at (x, z) (map.deepMud): all of it on the level and in the hollows, where the water
-   * stands; a bank drains, its mud a slick skin over firmer ground (from a grade of 6% to 16%, none of it).
+   * How much softer a map's mud is at (x, z) (map.deepMud), or a deep bog's (deepBogs: in its middle all of it, easing
+   * off to its kind's own at its edge): all of it on the level and in the hollows, where the water stands; a bank
+   * drains, its mud a slick skin over firmer ground (from a grade of 6% to 16%, none of it).
    */
   deepAt(x, z) {
-    const d = this.map.deepMud;
-    if (!d || d === 1) return 1;
+    let d = this.map.deepMud || 1;
+    if (this.deepBogs) {
+      for (const [bx, bz, br, bk] of this.deepBogs) {
+        const dx = x - bx, dz = z - bz;
+        if (dx * dx + dz * dz > br * br * 1.21) continue;
+        const t = Math.min(1, Math.max(0, (Math.sqrt(dx * dx + dz * dz) / br - 0.6) / 0.5));
+        d = Math.max(d, 1 + (bk - 1) * (1 - t * t * (3 - 2 * t)));
+      }
+    }
+    if (d === 1) return 1;
     const fx = (x - this.origin) / this.res, fz = (z - this.origin) / this.res, N = this.N, H = this.H;
     const i = Math.min(N - 2, Math.max(0, Math.floor(fx))), k = Math.min(N - 2, Math.max(0, Math.floor(fz))), o = k * N + i;
     const gx = (H[o + 1] - H[o] + H[o + N + 1] - H[o + N]) / (2 * this.res), gz = (H[o + N] - H[o] + H[o + N + 1] - H[o + 1]) / (2 * this.res);

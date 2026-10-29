@@ -114,6 +114,23 @@ export class OpenWorld {
     return this.regions.flatMap((r) => (r.world.data.tors || []).map(([x, z, tr], i) => ({ region: r.id, mapName: r.map.name, n: i + 1, x: x + r.cx, z: z + r.cz, r: tr })));
   }
 
+  /**
+   * Where to go off-road: the deep bogs on the maps that are in (world/WorldGen.js), and the places a map marks for it
+   * whether it is in yet or not (map.offroad: Kundalika Rocks). { type ('bog', 'rocks'), region, mapName, name, x, z,
+   * r, from: [x, z, r] where a truck is set down to go in, facing it }.
+   */
+  offroad() {
+    const out = [];
+    for (const r of this.regions) {
+      (r.world.data.deepBogs || []).forEach(([x, z, br], i) => out.push({ type: 'bog', region: r.id, mapName: r.map.name, name: r.map.deepBogs?.[i]?.name || `${r.map.name} bog`,
+        x: x + r.cx, z: z + r.cz, r: br, from: [x + r.cx, z + r.cz, br * 1.15] }));
+    }
+    for (const R of REGIONS) {
+      for (const p of R.map.offroad || []) out.push({ ...p, region: R.id, mapName: R.map.name, x: p.x + R.at[0], z: p.z + R.at[1], from: p.from && [p.from[0] + R.at[0], p.from[1] + R.at[1], p.from[2]] });
+    }
+    return out;
+  }
+
   /** The map whose square (x, z) is in, whether it is in yet or not (its definition), or null. */
   regionDefAt(x, z) {
     return REGIONS.find((R) => { const h = gridOf(R.map).half; return Math.abs(x - R.at[0]) <= h && Math.abs(z - R.at[1]) <= h; }) || null;

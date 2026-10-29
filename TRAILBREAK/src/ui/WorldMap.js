@@ -28,6 +28,8 @@ export const PLACE = {
   busstop: { name: 'Bus Stop', desc: 'The village bus stop.', icon: 'bus' },
   laterite: { name: 'Laterite Quarry', desc: 'Red stone cut from the hillside.', icon: 'pick' },
   tor: { name: 'Tor', desc: 'Rocky hill: a stack of jointed blocks on the crest, bare rock round it in ledges and slabs, its fallen blocks strewn down the slope.', icon: 'tor', travel: true },
+  bog: { name: 'Deep Bog', desc: 'Deep mud, soft to the axles in its heart. Keep your momentum and you get through; stop in it and you sink. Low range won\'t always save you: wheel speed will.', icon: 'bog', travel: true },
+  rocks: { name: 'River Rocks', desc: 'A wide, knee-deep ford over bare rock: boulders in the shallows and up the banks, ledges stepping into the water. Pick a line and crawl it.', icon: 'rocks', travel: true },
 };
 
 export class WorldMap {
@@ -69,6 +71,8 @@ export class WorldMap {
       name: L.type === 'station' ? (L.region ? w.regionDef(L.region).map.station?.name : w.map.station?.name) || PLACE.station.name : PLACE[L.type].name }));
     // (and the tors on the rocky hills: places to go for bare rock)
     for (const T of w.tors?.() || []) this.places.push({ kind: 'place', type: 'tor', x: T.x, z: T.z, region: T.region, ...PLACE.tor, name: `${T.mapName} tor ${T.n}` });
+    // (and the deep bogs and river rocks: places to go for deep mud and rock by the water)
+    for (const P of w.offroad?.() || []) this.places.push({ kind: 'place', ...PLACE[P.type], ...P });
     // (houses are just dots)
     this.houses = w.landmarks.filter((L) => L.type === 'house');
     this.dirty = true;
@@ -243,18 +247,21 @@ export class WorldMap {
     const bases = (w.stations?.() || this.places.filter((p) => p.type === 'station'))
       .map((b) => ({ kind: 'place', type: 'station', ...PLACE.station, ...b }))
       .filter((b) => !(home && Math.hypot(b.x - home.x, b.z - home.z) < 60)).sort((a, b) => dist(a) - dist(b));
-    // (and the rocky hills: the nearest tors on the maps that are in, ahead of the bases, so they are seen)
+    // (and the deep mud and river rocks, then the rocky hills: the nearest tors on the maps that are in, ahead of the
+    // bases, so they are seen)
+    const off = this.places.filter((p) => p.type === 'bog' || p.type === 'rocks').sort((a, b) => dist(a) - dist(b)).slice(0, 4);
     const tors = this.places.filter((p) => p.type === 'tor').sort((a, b) => dist(a) - dist(b)).slice(0, 5);
-    const items = [...s.mates, ...tors, ...(home ? [home] : []), ...bases];
+    const items = [...s.mates, ...off, ...tors, ...(home ? [home] : []), ...bases];
     const where = (it) => (it.kind === 'friend' ? (it.help ? '<i class="help">needs a tow</i>' : 'driving')
       : it.home ? 'your truck\'s home' : escapeHtml(it.mapName || w.regionDef?.(it.region)?.map.name || PLACE.station.name));
     const row = (it, i) => `<div class="mt-row" data-i="${i}"><span class="mt-dot"${it.color ? ` style="background:${it.color}"` : ''}></span>
       <div class="mt-name"><b>${escapeHtml(it.name)}</b><span>${where(it)} · ${fmtD(dist(it))}</span></div>
       <button class="route">Route</button><button class="go">Travel</button></div>`;
     let i = 0;
-    this.travelEl.innerHTML = `<div class="mc-head"><b>Fast travel</b><span>Jump to a friend, a base or a rocky hill instead of driving there</span><button class="mc-x" aria-label="Close">✕</button></div>
+    this.travelEl.innerHTML = `<div class="mc-head"><b>Fast travel</b><span>Jump to a friend, a base, deep mud or rocks instead of driving there</span><button class="mc-x" aria-label="Close">✕</button></div>
       ${s.racing ? '<div class="mc-dim">No fast travel in the middle of a run</div>' : ''}
       ${s.mates.length ? `<div class="mt-sec">Friends</div>${s.mates.map((m) => row(m, i++)).join('')}` : ''}
+      ${off.length ? `<div class="mt-sec">Deep mud and river rocks</div>${off.map((r) => row(r, i++)).join('')}` : ''}
       ${tors.length ? `<div class="mt-sec">Rocky hills</div>${tors.map((r) => row(r, i++)).join('')}` : ''}
       <div class="mt-sec">Bases</div>${[...(home ? [home] : []), ...bases].map((b) => row(b, i++)).join('')}
       <div class="mt-msg mc-dim"></div>`;
@@ -451,6 +458,11 @@ function glyph(g, icon, x, y, ink) {
     case 'cup': P([-4, -2], [-3, 5], [3, 5], [4, -2]); g.closePath(); g.stroke(); g.beginPath(); g.arc(5, 1, 2, -1.5, 1.5); g.stroke(); P([-1, -4], [-1, -6]); g.stroke(); P([1.5, -4], [1.5, -6]); g.stroke(); break;
     // (a tor: blocks stacked on the crest)
     case 'tor': g.fillRect(-6, 3, 12, 3.5); g.fillRect(-4.5, -1.5, 8, 3.5); g.fillRect(-2.5, -6, 5, 3.5); break;
+    // (a bog: a tyre sunk to its hub in the mud's waves; river rocks: boulders in the water's ripples)
+    case 'bog': g.beginPath(); g.arc(0, 0, 4.6, Math.PI * 1.08, Math.PI * 1.92); g.stroke(); g.beginPath(); g.arc(0, 0, 1.6, 0, TAU); g.fill();
+      P([-7, 1], [-4.5, -0.5], [-2, 1], [0.5, -0.5], [3, 1], [5.5, -0.5], [7, 1]); g.stroke(); P([-6, 5], [-3.5, 3.5], [-1, 5], [1.5, 3.5], [4, 5], [6.5, 3.5]); g.stroke(); break;
+    case 'rocks': g.beginPath(); g.ellipse(-2.5, -1, 3.6, 2.8, 0, 0, TAU); g.fill(); g.beginPath(); g.ellipse(3.6, 0.2, 2.4, 1.8, 0, 0, TAU); g.fill();
+      P([-7, 5], [-4.5, 3.5], [-2, 5], [0.5, 3.5], [3, 5], [5.5, 3.5], [7, 5]); g.stroke(); break;
     case 'bus': g.strokeRect(-5, -5, 10, 9); P([-5, 0], [5, 0]); g.stroke(); g.beginPath(); g.arc(-3, 5.5, 1.3, 0, TAU); g.arc(3, 5.5, 1.3, 0, TAU); g.fill(); break;
     case 'flag': {
       P([-4, 7], [-4, -7]); g.stroke();

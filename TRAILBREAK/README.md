@@ -138,9 +138,10 @@ and friends. Tap anything on it, or any spot on the ground, for what it is and *
 quickest way there by road and trail (src/game/Route.js), straight across country where that is quicker, and shows it
 on the map, on the minimap, on the compass and as a line of chevrons on the ground ahead; it plots it again when you
 leave it, and a route to a friend follows them. **Fast travel** takes you to a station, the garage, an event's
-start line, a beacon you have found, a friend or a rocky hill's tor (not in the middle of a run). The **Fast travel**
-button on the map (or T with the map open) lists your friends, each with how far off, then the rocky hills (the
-nearest five tors on the maps that are in), then your truck's home and every map's base, nearest first: Travel jumps
+start line, a beacon you have found, a friend, a deep bog, the river rocks or a rocky hill's tor (not in the middle of
+a run). The **Fast travel** button on the map (or T with the map open) lists your friends, each with how far off, then
+the deep mud and river rocks, then the rocky hills (the nearest five tors on the maps that are in), then your truck's
+home and every map's base, nearest first: Travel jumps
 there, Route sets the satnav, and a tap on the name shows it on the map. The coast round Kashid, where you start, is
 mostly roads; the first time a map with rocky hills comes in you're told how to get to them. Somewhere whose map
 isn't in yet (a friend who started at a far-off home) has that map built before any other, and you are taken there
@@ -1268,6 +1269,34 @@ joints and its steps by its bedding (Migoń and others, on the tors of central E
 
 All of it keeps off the tracks, the courses, the buildings and the beacons, and is drawn from its own random numbers,
 so the maps on their own are built as they were. Driving on it costs the physics about half a millisecond more a frame.
+
+**Deep mud and river rocks.** Two places to go for the hard stuff, both on the map and in its fast travel list (under
+*Deep mud and river rocks*, nearest first), and both kept off every event's course:
+
+- **Kashid Bog and Coast Road Bog** (`deepBogs` on the coast; `src/world/WorldGen.js`, `World.deepAt`): the two mud
+  fields nearest Kashid Motor Station, 130 m and 290 m from it, just off the coast road. Each field's dish is sunk a
+  further quarter of a metre off its track, with pools of standing water in its low middle, and its mud is softer
+  towards its heart: 3.4 times the coast's mud in Kashid Bog's (2.4 in the smaller one's), easing back to the field's
+  own over its outer edge. That is deeper than the taiga's mud. A stock Thar, Ranger or Wrangler that keeps its
+  momentum ploughs across with its tyres sunk some 30 cm; one that stops in the middle may not get going again, and in
+  the rain or crawling in low range one bogs down climbing out of the dish. It is the 4x4 driver's rule, "as slow as
+  possible, as fast as necessary": enough momentum to carry through, and wheel speed rather than more torque once
+  the tyres are spinning ([CarAdvice, 4x4 tips on mud](https://www.caradvice.com.au/762941/4x4-tips-slingin-some-mud-the-right-way/)).
+  Fast travel sets you down on firm ground at its edge, facing in.
+- **Kundalika Rocks** (`KUNDALIKA_ROCKS` in `src/world/maps/world.js`), in the Konkan Ghat where the Kundalika South
+  track fords the river below the bank the river track ends on. The [Kundalika](https://en.wikipedia.org/wiki/Kundalika_River)
+  runs from the Sahyadri to the sea at Revdanda over the basalt of the Deccan Traps, which underlies all of
+  Maharashtra and whose rivers run entrenched in it ([Joshi 2017, IGI field guide to the Deccan inland](https://indiageomorph.org/uploads/docs/IGI%209th%20ICG%20Field%20Guide_Deccan%20Inland_Joshi%202017.pdf)).
+  So here the river spreads wide and shallow over its rock: the track wades some 60 m of it, 0.5 to 0.66 m deep (it
+  was 2 m deep before, and the track could not be driven). Its banks are bare rock for 4 to 16 m up from the water, with the bedrock's ledges in
+  them; slabs of it step down into the water; and some 1,200 boulders lie in clusters in the shallows and up the banks,
+  a fifth of them more than 2 m across. On the track's own line lie only stones bedded in, up to about 25 cm proud, to
+  crawl over (stock trucks cross in about 40 s at a walk, with nothing in the intake); off it, a line through the
+  boulders has to be picked, or the truck hangs up or rolls. Fast travel sets you down on the bank above the ford.
+
+The bogs' extra pools no longer let any puddle be carved into a river: a track's puddle on a shallow ford had dug a
+metre-deep mud hole in the riverbed. The Konkan Ghat's rule that grows its steep rock over, as Kerala's is, now comes
+before a map's own word on its ground, so rock a map lays bare stays bare. The maps driven on their own are unchanged.
 
 The country is laid out as the real country round Kashid is: the stretches north of the coast and the Deccan to the
 south stand on the same real elevation data as the coast (its bake carries the heights 12 km out, every 40 m), their

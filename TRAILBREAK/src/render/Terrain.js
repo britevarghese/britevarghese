@@ -1177,8 +1177,8 @@ if (gWet > 0.0) {
         if (j < 8) break;
       }
     }
-    // (a map's deep mud, world/World.js softness, the wetter: water stands in it)
-    const base = WET[s] && s === SURFACE.MUD && w.map.deepMud ? WET[s] * 1.5 : WET[s];
+    // (a map's deep mud or a deep bog, world/World.js softness, the wetter: water stands in it)
+    const base = WET[s] && s === SURFACE.MUD && (w.map.deepMud || w.deepBogs) && w.deepAt(x, z) > 1.3 ? WET[s] * 1.5 : WET[s];
     if (base) {
       wv = Math.max(wv, base * (0.6 + 0.8 * vnoise(x / 13, z / 13, 911)));
       if (d > 0.004) {

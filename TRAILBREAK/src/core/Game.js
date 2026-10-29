@@ -294,7 +294,9 @@ export class Game {
     if (item.kind === 'place' && item.type === 'garage') {
       closeMap(); this.placeAtGarage();
     } else {
-      spot = this.spotNear(item.x, item.z, item.kind === 'friend' ? 7 : 9);
+      // (a place to go off-road: set down where it says, facing into it: a bog's edge, the bank above a ford)
+      const f = item.from;
+      spot = f ? this.spotNear(f[0], f[1], f[2], item.x, item.z) : this.spotNear(item.x, item.z, item.kind === 'friend' ? 7 : 9);
       if (!spot) return 'Nowhere clear to stop there';
       closeMap();
       if (item.kind === 'friend') { const rv = this.remotes.get(item.id); if (rv) { const f = new THREE.Vector3(0, 0, 1).applyQuaternion(rv.model.root.quaternion); spot.yaw = Math.atan2(f.x, f.z); } }
@@ -313,8 +315,8 @@ export class Game {
   /** (the route to where we just fast-travelled to is done with) */
   arrivedAt(item) { if (this.route && this.route.target.key === keyOf(item)) this.route = null; }
 
-  /** A clear, dry, level spot to put the truck down near (x, z), facing it; or null. */
-  spotNear(x, z, r0 = 8) {
+  /** A clear, dry, level spot to put the truck down near (x, z), facing it (or (fx, fz)); or null. */
+  spotNear(x, z, r0 = 8, fx = x, fz = z) {
     const W = this.world;
     for (let r = r0; r < 90; r += 4) {
       for (let k = 0; k < 16; k++) {
@@ -326,7 +328,7 @@ export class Game {
         // (clear of rocks under the whole truck, not just its middle: the blocks round a tor lie close)
         if ([[0, 0], [2.6, 0], [-2.6, 0], [0, 2.6], [0, -2.6]].some(([dx, dz]) => W.boulderTop(px + dx, pz + dz) > W.terrain(px + dx, pz + dz) - 0.02)) continue;
         if (W.treesNear(px, pz, 3.2, this.tmpTrees).length) continue;
-        return { x: px, z: pz, yaw: Math.atan2(x - px, z - pz) };
+        return { x: px, z: pz, yaw: Math.atan2(fx - px, fz - pz) };
       }
     }
     return null;

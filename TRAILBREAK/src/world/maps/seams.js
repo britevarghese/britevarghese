@@ -180,18 +180,19 @@ export function graded(specs, own = {}) {
       return h;
     },
     // (towards a seam with Kerala, its forest's rule for bare rock, as on Kerala's own side: only on the sheerest
-    // faces, the rest of its steep ground grown over; giving way raggedly to this map's own over M.keralaRock m)
+    // faces, the rest of its steep ground grown over; giving way raggedly to this map's own over M.keralaRock m. The
+    // map's own hook after it: rock it lays bare stays bare)
     surface(x, z, h, sl, s, idx, ctx) {
-      if (own.surface) s = own.surface(x, z, h, sl, s, idx, ctx);
       const { K, M } = ctx;
-      if (s !== SURFACE.ROCK || !K.seams.length || !M.keralaRock) return s;
-      for (const sm of K.seams) {
-        if (sm.id !== 'kerala') continue;
-        const d = sm.side === 'west' ? x + K.half : sm.side === 'east' ? K.half - x : sm.side === 'north' ? z + K.half : K.half - z;
-        const t = smoothstep(M.keralaRock, M.keralaRock * 0.5, d);
-        if (t > 0 && vnoise(x / 9, z / 9, M.seed + 61) < t * 1.15 && sl < 1.25 + 0.4 * vnoise(x / 13, z / 13, M.seed + 62)) return SURFACE.GRASS;
+      if (s === SURFACE.ROCK && K.seams.length && M.keralaRock) {
+        for (const sm of K.seams) {
+          if (sm.id !== 'kerala') continue;
+          const d = sm.side === 'west' ? x + K.half : sm.side === 'east' ? K.half - x : sm.side === 'north' ? z + K.half : K.half - z;
+          const t = smoothstep(M.keralaRock, M.keralaRock * 0.5, d);
+          if (t > 0 && vnoise(x / 9, z / 9, M.seed + 61) < t * 1.15 && sl < 1.25 + 0.4 * vnoise(x / 13, z / 13, M.seed + 62)) { s = SURFACE.GRASS; break; }
+        }
       }
-      return s;
+      return own.surface ? own.surface(x, z, h, sl, s, idx, ctx) : s;
     },
     finish(ctx) { own.finish?.(ctx); closeSeams(ctx); },
   };

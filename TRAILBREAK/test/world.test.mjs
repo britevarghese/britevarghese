@@ -3,7 +3,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { generateBigWorld, heightIn } from '../src/world/BigWorldGen.js';
-import { REGIONS, regionById, seamPairs } from '../src/world/maps/world.js';
+import { REGIONS, regionById, seamPairs, KUNDALIKA_ROCKS } from '../src/world/maps/world.js';
 import { spline } from '../src/world/WorldGen.js';
 import { OpenWorld, BEACON_STRIDE } from '../src/world/OpenWorld.js';
 import { RouteGraph } from '../src/game/Route.js';
@@ -363,6 +363,69 @@ test('the open world: its rocky hills in relief (ledges and joints in the rock i
   // and every map's tors are listed in the world, to fast travel to (ui/WorldMap.js)
   const T = W.tors();
   assert.ok(T.length >= 10 && T.every((q) => W.regionAt(q.x, q.z)?.id === q.region && q.mapName), `${T.length} tors listed`);
+});
+
+test('the open world: deep bogs by Kashid and the rocks at the Kundalika ford, to go off-road on', async () => {
+  const W = await opened, coast = W.byId.get('coast'), c = coast.world, st = regionById('coast').map.station;
+  // two deep bogs, the nearer within a few minutes' drive of the station: in their hearts as soft as the map says, at
+  // their edges the field's own mud, and none of it on an event's course
+  const bogs = c.data.deepBogs;
+  assert.equal(bogs.length, 2);
+  for (const [x, z, r, k] of bogs) {
+    assert.ok(Math.hypot(x - st.x, z - st.z) < 400, `a bog ${Math.hypot(x - st.x, z - st.z).toFixed(0)} m from Kashid`);
+    let heart = 0;
+    for (let a = 0; a < 8; a++) heart = Math.max(heart, c.softness(x + Math.cos(a) * r * 0.3, z + Math.sin(a) * r * 0.3));
+    assert.ok(heart > k * 0.9 && heart <= k + 1e-9, `the bog at ${x.toFixed(0)}, ${z.toFixed(0)}: ${heart.toFixed(2)} times as soft as mud in its heart (${k})`);
+    assert.ok(c.deepAt(x + r * 1.15, z) === 1, 'its own mud at its edge');
+    for (const e of W.events().filter((q) => q.line)) {
+      for (const [ex, ez] of densify(e.line, 2)) {
+        if (Math.hypot(ex - x - coast.cx, ez - z - coast.cz) < r * 1.3) assert.ok(W.softness(ex, ez) < 1.01, `${e.id} runs through a bog at ${ex.toFixed(0)}, ${ez.toFixed(0)}`);
+      }
+    }
+  }
+  // the ford: the Kundalika South track across the river knee deep, bare rock on its banks, boulders in the shallows
+  // and up the banks, and on the track's line only stones a truck can crawl over
+  const g = W.byId.get('ghat'), gw = g.world, K = KUNDALIKA_ROCKS, sp = regionById('ghat').map.trails.find((t) => t.name === 'Kundalika South');
+  let deepest = 0, wet = 0;
+  for (const [x, z] of spline(sp.points, 1)) {
+    const wl = gw.water(x, z);
+    if (wl > -1e8) { wet++; deepest = Math.max(deepest, wl - gw.terrain(x, z)); }
+  }
+  assert.ok(wet > 30 && deepest > 0.35 && deepest < 0.75, `the ford ${wet} m across, ${deepest.toFixed(2)} m at its deepest`);
+  let rock = 0, n = 0;
+  for (let a = 0; a < 64; a++) {
+    for (const f of [0.3, 0.5, 0.7]) {
+      const x = K.x + Math.cos(a / 64 * Math.PI * 2) * K.r * f, z = K.z + Math.sin(a / 64 * Math.PI * 2) * K.r * f, wl = gw.water(x, z), h = gw.terrain(x, z);
+      if (wl > -1e8 || h > (gw.water(K.x, K.z) + 3)) continue;
+      n++; if (gw.surfaceId(x, z) === SURFACE.ROCK) rock++;
+    }
+  }
+  assert.ok(n > 20 && rock > n * 0.3, `${rock} of ${n} points on the banks by the water bare rock`);
+  const near = gw.boulders.filter((b) => Math.hypot(b.x - K.x, b.z - K.z) < K.r);
+  assert.ok(near.length > 600 && near.some((b) => b.block !== undefined) && near.some((b) => b.rx > 1.5), `${near.length} rocks round the ford`);
+  for (const b of near) {
+    const [x, z] = spline(sp.points, 1).reduce((m, q) => (Math.hypot(q[0] - b.x, q[1] - b.z) < Math.hypot(m[0] - b.x, m[1] - b.z) ? q : m));
+    if (Math.hypot(x - b.x, z - b.z) < 1.5) assert.ok(b.y + b.ry - gw.terrain(b.x, b.z) < 0.32, `a stone on the line stands ${(b.y + b.ry - gw.terrain(b.x, b.z)).toFixed(2)} m`);
+  }
+  // a stock Thar crawls across, and through the deeper bog keeping going
+  const v = new Vehicle(truckSpec('thar'));
+  const across = densify(spline(sp.points, 2).filter(([, z]) => z > 878 && z < 990).map(([x, z]) => [x + g.cx, z + g.cz]), 2);
+  v.place(W, ...across[0], Math.atan2(across[3][0] - across[0][0], across[3][1] - across[0][1]));
+  v.dt.setFourWD(true, 0); v.dt.setRange(true, 0);
+  const f = followPath(v, W, across, { vmax: 3, seconds: 120 });
+  assert.ok(f.reached && !v.flooded, `the Thar across the ford: ${f.reached ? 'over' : 'stuck'} in ${f.t.toFixed(0)} s`);
+  const [bx, bz, br] = bogs[0], bog = densify([[bx + br * 1.2, bz - 7], [bx, bz - 7], [bx - br * 1.2, bz - 7]].map(([x, z]) => [x + coast.cx, z + coast.cz]), 2);
+  const u = new Vehicle(truckSpec('thar'));
+  u.place(W, ...bog[0], -Math.PI / 2);
+  u.dt.setFourWD(true, 0);
+  const b = followPath(u, W, bog, { vmax: 4, seconds: 120 });
+  let rut = 0;
+  for (let x = bx - br * 0.5; x < bx + br * 0.5; x += 0.5) for (let dz = -2; dz <= 2; dz += 0.25) rut = Math.max(rut, W.terrain(x + coast.cx, bz - 7 + dz + coast.cz) - W.height(x + coast.cx, bz - 7 + dz + coast.cz));
+  assert.ok(b.reached && rut > 0.15, `the Thar through ${regionById('coast').map.deepBogs[0].name}: ${b.reached ? 'out' : 'stuck'} in ${b.t.toFixed(0)} s, its ruts ${rut.toFixed(2)} m deep`);
+  // both listed to go to (ui/WorldMap.js), the rocks whether the ghat is in yet or not
+  const O = W.offroad();
+  assert.deepEqual(O.map((q) => q.type).sort(), ['bog', 'bog', 'rocks']);
+  assert.ok(O.every((q) => W.regionDefAt(q.x, q.z)?.id === q.region && q.from), 'each where it says, and where to come to it from');
 });
 
 test('the open world: no building\'s yard cuts a step into a track (a house\'s yard below the Anapara Track did)', async () => {

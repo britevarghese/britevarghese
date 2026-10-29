@@ -11,7 +11,7 @@
 // and trees fall where they do on the map alone). The two stretches between the maps are maps of their own: their
 // ground, made to carry on from the maps either side, is laid onto those maps' own edges at the end (their heights
 // and slopes, so nothing steps or kinks where they meet), with their roads meeting the spurs there.
-import { fbm, ridged, vnoise } from '../Noise.js';
+import { fbm, ridged, vnoise, rng } from '../Noise.js';
 import { SURFACE } from '../../physics/Surfaces.js';
 import { landform, spline, limitGrade } from '../WorldGen.js';
 import { COAST } from './coast.js';
@@ -72,6 +72,9 @@ export const COAST_W = {
   ...COAST, id: 'coast@world',
   // (in the world: fields of mud and of rock by its roads and tracks, boulders about its open ground)
   mudFields: 5, rockFields: 3, mudTracks: 0.4, wornTracks: true, rockRelief: true, looseRocks: 4, boulderMax: 16000,
+  // (the two mud fields nearest Kashid deep bogs, in their hearts 3.4 and 2.4 times as soft as its mud: a truck that
+  // keeps going gets through, one that stops sinks to its axles)
+  deepBogs: [{ soft: 3.4, name: 'Kashid Bog' }, { soft: 2.4, name: 'Coast Road Bog' }],
   trails: [...COAST.trails,
     { name: 'Kashid Ghat East', kind: 'road', width: 3.6, lanes: 2, grade: 0.11, smooth: 24, cut: 7, shoulder: 8, level: true, extend: [0, 8], points: [[3960, -700], [3980, -685.5], [3999.9, -671.1]] },
     // (the coast road on north from its end round the headland, and the ridge track from its end by the edge: into
@@ -178,11 +181,62 @@ function ghatRiver() {
   sSeam /= len;
   return {
     points, widthStart: 21.5, widthEnd: 24, depthStart: 2.0, depthEnd: 2.2, fords: [],
+    // (at Kundalika Rocks spread wide and shallow over its rock, where the Kundalika South track fords it)
+    shallows: [{ x: KUNDALIKA_ROCKS.x, z: KUNDALIKA_ROCKS.z, r: 26, depth: 0.5, widen: 0.9 }],
     // (falling on at 0.8%, out of the gorge it cut in the range into its own broad valley)
     levelAt: (s) => out.level - 0.008 * len * (s - sSeam),
     valleyAt: (s) => { const k = smoothstep(sSeam, sSeam + 0.3, s); return [lerp(230, 260, k), lerp(100, 120, k)]; },
   };
 }
+
+// Kundalika Rocks: where the Kundalika South track fords the river below the bank the river track ends on, the river
+// runs wide and knee deep over its bed of rock (the basalt of the Deccan Traps, which the Konkan's rivers have cut
+// down to): its banks bare rock for a few metres up from the water, ledges of it stepping down into the river, and
+// boulders the monsoon floods have rolled down lying in the shallows and up the banks
+export const KUNDALIKA_ROCKS = { x: 770, z: 927, r: 70, name: 'Kundalika Rocks' };
+const ghatRocks = {
+  // (bare rock from the water's edge up the banks, 4 to 16 m of it, less of it away from the crossing)
+  surface(x, z, h, sl, s, idx, { riverD, riverHalf }) {
+    const K = KUNDALIKA_ROCKS, d = hyp(x - K.x, z - K.z);
+    if (d > K.r * 1.15) return s;
+    const rd = riverD(idx), rh = riverHalf(idx), up = (4 + 12 * vnoise(x / 14, z / 14, GHAT_SEED + 30)) * smoothstep(K.r * 1.15, K.r * 0.55, d);
+    return rd >= rh - 1 && rd < rh + up ? SURFACE.ROCK : s;
+  },
+  // (the track over it on the rock itself)
+  bedrock: (x, z) => hyp(x - KUNDALIKA_ROCKS.x, z - KUNDALIKA_ROCKS.z) < KUNDALIKA_ROCKS.r * 1.15,
+  boulders(ctx, add, list) {
+    const { cellOf, trailD, trailW, onCourse, waterAt, hAt, riverD, riverHalf, riverFine } = ctx, K = KUNDALIKA_ROCKS, R = rng(GHAT_SEED + 77);
+    const depth = (x, z) => { const wl = waterAt(x, z); return wl > -1e8 ? wl - hAt(x, z) : -9; };
+    // the boulders: in clusters, in the shallows and up the banks; on the track's line only stones bedded in it, for a
+    // tyre to climb, and the big ones kept a truck's width off it, so there is a way through
+    for (let n = 0; n < 9000; n++) {
+      const a = R() * Math.PI * 2, rr = Math.sqrt(R()) * K.r, x = K.x + Math.cos(a) * rr, z = K.z + Math.sin(a) * rr, roll = R(), sz = R(), bury = R();
+      const idx = cellOf(x, z), rd = riverD(idx), rh = riverHalf(idx), dp = depth(x, z);
+      if (rd > rh + 14 || dp > 0.65 || onCourse(x, z, 6)) continue;
+      const clump = vnoise(x / 8, z / 8, GHAT_SEED + 31) * (0.6 + 0.4 * smoothstep(K.r, K.r * 0.4, rr)), off = trailD(idx) - trailW(idx);
+      if (roll > (clump - 0.3) * 1.6) continue;
+      if (off < 1) { if (roll < 0.5) add(x, z, 0.24 + sz * 0.26, 0.4 + bury * 0.12, R); continue; }
+      const size = off < 3 ? 0.25 + sz * 0.3 : 0.22 + sz * 0.4 + sz ** 5 * 1.7;
+      add(x, z, size, 0.28 + bury * 0.18, R);
+    }
+    // and the ledges: slabs of the bedrock where the water laps the banks, flat on their beds, each the next bed up
+    // smaller and set back from the water (off the track by a truck's length)
+    const pts = riverFine.filter(([x, z]) => hyp(x - K.x, z - K.z) < K.r);
+    for (let n = 0; pts.length > 2 && n < 900; n++) {
+      const p = 1 + Math.floor(R() * (pts.length - 2)), [ax, az] = pts[p - 1], [bx, bz] = pts[p + 1], l = hyp(bx - ax, bz - az) || 1;
+      const side = R() < 0.5 ? -1 : 1, idx0 = cellOf(pts[p][0], pts[p][1]), o = side * (riverHalf(idx0) + (R() - 0.6) * 5);
+      const x = pts[p][0] - (bz - az) / l * o, z = pts[p][1] + (bx - ax) / l * o, d = depth(x, z), idx = cellOf(x, z);
+      if (d > 0.3 || d < -0.4 || vnoise(x / 18, z / 18, GHAT_SEED + 32) < 0.42 || trailD(idx) < trailW(idx) + 5 || onCourse(x, z, 8)) continue;
+      const yaw = -Math.atan2(bz - az, bx - ax) + (R() - 0.5) * 0.6, g = hAt(x, z);
+      for (let k = 0, top = null, w = 1.4 + R() * 2, nb = 1 + Math.floor(R() * 2.6); k < nb; k++, w *= 0.7) {
+        const back = k * w * 0.55 * side, cx = x - (bz - az) / l * back, cz = z + (bx - ax) / l * back, ry = 0.18 + R() * 0.14;
+        const y = top === null ? g - ry * 0.45 : top + ry * 0.62;
+        list.push({ x: cx, y, z: cz, rx: w, ry, rz: w * (0.45 + 0.3 * R()), yaw, shade: R(), block: Math.floor(R() * 6) });
+        top = y + ry * 0.66;
+      }
+    }
+  },
+};
 
 const ghatTrees = (ctx) => {
   const { surf, R, trees: T, clear, cellOf, trailD, trailW, waterAt, hAt, onCourse, H } = ctx;
@@ -245,6 +299,8 @@ export const GHAT = {
     ...trailsOf('ghat', GHAT_SPURS),
   ],
   beacons: [{ id: 0, name: 'Ghat Top', x: -890, z: 95 }, { id: 1, name: 'Kundalika Bank', x: 766, z: 880 }],
+  // (its places to go off-road: the rocks, come to from the bank where the river track ends, facing the ford)
+  offroad: [{ type: 'rocks', name: KUNDALIKA_ROCKS.name, x: KUNDALIKA_ROCKS.x, z: KUNDALIKA_ROCKS.z, r: KUNDALIKA_ROCKS.r, from: [770, 876, 3] }],
   landmarks: [{ type: 'chaistall', x: -132, z: 44, yaw: 0.1 }, { type: 'busstop', x: -176, z: 48, yaw: -0.05 }],
   events: [], modes: null,
   races: [
@@ -261,7 +317,7 @@ export const GHAT = {
   pads: { chaistall: 5, busstop: 3 },
   gen: { walls: KERALA_WALLS, trees: ghatTrees,
     ...graded([{ road: 'Konkan Ghat Road', grade: 0.09, ends: ['ground', 'ground'] }, { road: 'Kundalika River Track', grade: 0.2, ends: [{ road: 'Konkan Ghat Road' }, 'ground'] },
-      { road: 'Bhimashankar Road', grade: 0.08, ends: [{ road: 'Konkan Ghat Road' }, 'ground'] }]) },
+      { road: 'Bhimashankar Road', grade: 0.08, ends: [{ road: 'Konkan Ghat Road' }, 'ground'] }], ghatRocks) },
   litter: COAST.litter, treeStrength: COAST.treeStrength, young: COAST.young, roadside: COAST.roadside,
   dust: COAST.dust, mudTint: COAST.mudTint, ground: 'coast', trees: 'kerala', atmosphere: COAST.atmosphere,
 };
