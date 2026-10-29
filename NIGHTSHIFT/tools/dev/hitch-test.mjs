@@ -10,10 +10,13 @@ const p = await b.newPage({ viewport: { width: 640, height: 360 } });
 const errors = [];
 p.on('pageerror', (e) => errors.push(e.message));
 await p.addInitScript(`localStorage.setItem('nightshift.settings', JSON.stringify({graphics:{quality:'${q}',detectedQuality:'${q}',backend:'webgl2',timeOfDay:'night'}}))`);
-await p.goto(`http://localhost:${port}/`);
+// (Port Halvern's streets, the drive scripted for them; Kerala's tile builds: tools/dev - buildcost, ride.mjs)
+await p.goto(`http://localhost:${port}/?world=halvern`);
 await p.waitForFunction(() => window.NIGHTSHIFT && window.NIGHTSHIFT.state.mode === 'menu', null, { timeout: 180000 });
+await p.evaluate(() => { const G = window.NIGHTSHIFT; G.save.data.story.prologueOffered = true; G.play(); });
+await p.waitForFunction(() => window.NIGHTSHIFT.state.mode === 'drive', null, { timeout: 180000 });
 const r = await p.evaluate(() => {
-  const G = window.NIGHTSHIFT; G.play(); G.player.place(-5.75, 300, Math.PI); G.camCtl.snap(G.player);
+  const G = window.NIGHTSHIFT; G.player.place(-5.75, 300, Math.PI); G.camCtl.snap(G.player);
   let ctl = {};
   G.input.update = function () { Object.assign(this.controls, { throttle: 0, brake: 0, steer: 0, handbrake: 0, nitro: false }, ctl); };
   G.rm.render = () => {};
@@ -24,6 +27,11 @@ const r = await p.evaluate(() => {
   wrap(G.peds, 'update', 'peds'); wrap(G.fx, 'update', 'fx'); wrap(G.env, 'update', 'env'); wrap(G.camCtl, 'update', 'camera');
   wrap(G.player, 'update', 'player'); wrap(G.police, 'update', 'police'); wrap(G.hud, 'update', 'hud'); wrap(G.races, 'update', 'races');
   wrap(G, '_audio', 'audio'); wrap(G.save, 'update', 'save'); wrap(G.debris, 'update', 'debris'); wrap(G, '_interactions', 'interactions');
+  wrap(G.world, 'update', 'world'); wrap(G.story, 'update', 'story'); wrap(G.rivals, 'update', 'rivals'); wrap(G.interiors, 'update', 'interiors');
+  wrap(G.incidents, 'update', 'incidents'); wrap(G.empire, 'update', 'empire'); wrap(G.progress, 'update', 'progress'); wrap(G.replay, 'record', 'replay');
+  wrap(G.mapRenderer, 'update', 'map'); wrap(G.net, 'update', 'net'); wrap(G, '_violations', 'violations'); wrap(G, '_playerEvents', 'playerEvents');
+  wrap(G.rivals, '_spawn', 'rivalSpawn'); wrap(G.rivals, '_newCruise', 'rivalCruise'); wrap(G.races, 'prepare', 'racePrepare');
+  wrap(G.audio, 'playEvent', 'audioEvent'); wrap(G.fx, 'impact', 'impact'); wrap(G, '_dentPlayer', 'dent'); wrap(G.ui, 'toast', 'toast'); wrap(G.onFoot, 'updateParked', 'parked');
   const script = (t) => {
     if (t < 6) return { throttle: 1 };
     if (t < 9) return { throttle: 1, nitro: true };
@@ -43,7 +51,8 @@ const r = await p.evaluate(() => {
     G.last = performance.now(); G._update(1 / 60); G.input.endFrame();
     const ms = performance.now() - t0;
     const top = Object.entries(cur).sort((a, b) => b[1] - a[1])[0] || ['?', 0];
-    steps.push({ i, t: +t.toFixed(2), ms: +ms.toFixed(1), top: top[0], topMs: +top[1].toFixed(1) });
+    // (and every part over 5 ms, nested ones too: rivals -> rivalSpawn -> racePrepare)
+    steps.push({ i, t: +t.toFixed(2), ms: +ms.toFixed(1), top: top[0], topMs: +top[1].toFixed(1), parts: Object.entries(cur).filter(([, v]) => v > 5).map(([k, v]) => `${k} ${v.toFixed(0)}`).join(', ') });
     t += 1 / 60;
     if (i === 900 && G.police.state === 'idle') G.police.startPursuit(2, 'test');
   }

@@ -258,7 +258,7 @@ export class KeralaTile {
   // (a generator: it pauses every few milliseconds, the world spreading it over frames)
   *_rasters(d, opts = {}) {
     const mk = () => { const c = document.createElement('canvas'); c.width = c.height = RASTER; return c; };
-    const vis = mk(), cl = mk(), V = vis.getContext('2d'), K = cl.getContext('2d', { willReadFrequently: true }); // read back below: keep it on the CPU
+    const vis = mk(), cl = mk(), V = vis.getContext('2d', { willReadFrequently: true }), K = cl.getContext('2d', { willReadFrequently: true }); // both read back below: kept on the CPU
     V.fillStyle = LU_COLOR[0]; V.fillRect(0, 0, RASTER, RASTER);
     K.fillStyle = 'rgb(0,0,0)'; K.fillRect(0, 0, RASTER, RASTER);   // (open land: see KC)
     const path = (ctx, rings) => {

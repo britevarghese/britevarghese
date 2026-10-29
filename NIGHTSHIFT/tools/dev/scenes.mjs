@@ -12,7 +12,8 @@ fs.mkdirSync(out, { recursive: true });
 
 // fixed camera helper (overrides the chase camera)
 const fixedCam = (px, py, pz, tx, ty, tz, fov = 50) => `G.camCtl.update = function(){ const c=this.camera; c.position.set(${px},${py},${pz}); c.lookAt(${tx},${ty},${tz}); c.fov=${fov}; c.near=0.1; c.updateProjectionMatrix(); };`;
-const drive = (x, z, yaw, cam = 1) => `G.play(); G.player.place(${x},${z},${yaw}); G.camCtl.mode=${cam}; G.camCtl.snap(G.player);`;
+// (play() is started, and waited for, before the setup: it loads the world first now)
+const drive = (x, z, yaw, cam = 1) => `G.player.place(${x},${z},${yaw}); G.camCtl.mode=${cam}; G.camCtl.snap(G.player);`;
 
 // scripted driving: runs the game at a fixed 60 Hz step with rendering disabled (headless GL is far
 // too slow for real time), feeding each phase's controls for n steps, then keeps the last controls.
@@ -68,8 +69,11 @@ async function main() {
       p.on('pageerror', (e) => logs.push('[pageerror] ' + e.message));
       await p.addInitScript(`localStorage.setItem('nightshift.settings', JSON.stringify({graphics:{quality:'${quality}',detectedQuality:'${quality}',backend:'webgl2',weather:'${g.weather}',timeOfDay:'${g.time}'}}))${args.simlog ? ';window.SIMLOG=1' : ''}`);
       const t0 = Date.now();
-      await p.goto(`http://localhost:${port}/`);
+      // (Port Halvern's streets: these views are placed in its coordinates - Kerala's: klshots.mjs)
+      await p.goto(`http://localhost:${port}/?world=halvern`);
       await p.waitForFunction(() => (window.NIGHTSHIFT && window.NIGHTSHIFT.state.mode === 'menu') || !document.getElementById('fatal').classList.contains('hidden'), null, { timeout: 120000 });
+      await p.evaluate(() => { const G = window.NIGHTSHIFT; G.save.data.story.prologueOffered = true; G.play(); });
+      await p.waitForFunction(() => window.NIGHTSHIFT.state.mode === 'drive', null, { timeout: 180000 }).catch(() => logs.push('never got to drive'));
       const load = Date.now() - t0;
       try { await p.evaluate(`(()=>{ const G = window.NIGHTSHIFT; ${v.setup} })()`); } catch (e) { logs.push('setup error ' + e.message); }
       await p.waitForTimeout(v.wait);
@@ -86,7 +90,7 @@ async function main() {
   if (!only || only.includes('garage')) {
     const p = await b.newPage({ viewport: { width: W, height: H } });
     await p.addInitScript(`localStorage.setItem('nightshift.settings', JSON.stringify({graphics:{quality:'${quality}',detectedQuality:'${quality}',backend:'webgl2'}}))`);
-    await p.goto(`http://localhost:${port}/`);
+    await p.goto(`http://localhost:${port}/?world=halvern`);
     await p.waitForFunction(() => window.NIGHTSHIFT && window.NIGHTSHIFT.state.mode === 'menu', null, { timeout: 120000 });
     await p.evaluate(() => window.NIGHTSHIFT.openGarage());
     await p.waitForTimeout(8000);

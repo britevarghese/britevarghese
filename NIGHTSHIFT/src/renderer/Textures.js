@@ -10,7 +10,10 @@ let ANISO = 4;
 export function setTextureQuality(size, anisotropy) { SIZE = size; ANISO = anisotropy; }
 export function textureSize() { return SIZE; }
 
-function canvas(w, h = w) { const c = document.createElement('canvas'); c.width = w; c.height = h; return c; }
+// (on the CPU from the start - willReadFrequently is fixed with the first getContext: most of these are read back for
+// a normal map, and a GPU canvas's read waits for everything the GPU has queued. A street racer's first livery took
+// 7.5 s in one frame while the world's shaders compiled; 64 ms after)
+function canvas(w, h = w) { const c = document.createElement('canvas'); c.width = w; c.height = h; c.getContext('2d', { willReadFrequently: true }); return c; }
 
 function tex(c, { srgb = true, repeat = true, aniso = true } = {}) {
   const t = new THREE.CanvasTexture(c);
@@ -877,29 +880,21 @@ export function carPaintTexture(vinyl, base, accent, panels, shareKey = null) {
   }
   const w = panels?.width || 1024, h = panels?.height || 512;
   const c = canvas(w, h), ctx = c.getContext('2d');
-  const hc = canvas(w, h), hx = hc.getContext('2d');
   if (vinyl) ctx.drawImage(vinylTexture(vinyl, base, accent).image, 0, 0, w, h);
   else { ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, w, h); }
-  hx.fillStyle = '#808080'; hx.fillRect(0, 0, w, h);
   const X = (u) => u * w, Y = (v) => (1 - v) * h;
   if (panels) {
     const lw = Math.max(1.5, w / 600);
-    ctx.lineCap = hx.lineCap = 'round';
+    ctx.lineCap = 'round';
     for (const [u0, v0, u1, v1] of panels.lines) {
       ctx.strokeStyle = vinyl ? 'rgba(8,8,10,0.85)' : 'rgba(10,10,12,0.9)'; ctx.lineWidth = lw;
       ctx.beginPath(); ctx.moveTo(X(u0), Y(v0)); ctx.lineTo(X(u1), Y(v1)); ctx.stroke();
-      hx.strokeStyle = '#000'; hx.lineWidth = lw * 2.2;
-      hx.beginPath(); hx.moveTo(X(u0), Y(v0)); hx.lineTo(X(u1), Y(v1)); hx.stroke();
     }
     for (const [u0, v0, u1, v1, kind] of panels.rects) {
       if (kind === 'round') {
         ctx.strokeStyle = 'rgba(10,10,12,0.8)'; ctx.lineWidth = lw;
         ctx.beginPath(); ctx.ellipse((X(u0) + X(u1)) / 2, (Y(v0) + Y(v1)) / 2, Math.abs(X(u1) - X(u0)) / 2, Math.abs(Y(v1) - Y(v0)) / 2, 0, 0, Math.PI * 2); ctx.stroke();
-        hx.strokeStyle = '#000'; hx.lineWidth = lw * 2; hx.stroke();
-      } else {
-        ctx.fillStyle = 'rgba(20,20,24,0.9)'; ctx.fillRect(X(u0), Y(v1), X(u1) - X(u0), Y(v0) - Y(v1));
-        hx.fillStyle = '#303030'; hx.fillRect(X(u0), Y(v1), X(u1) - X(u0), Y(v0) - Y(v1));
-      }
+      } else { ctx.fillStyle = 'rgba(20,20,24,0.9)'; ctx.fillRect(X(u0), Y(v1), X(u1) - X(u0), Y(v0) - Y(v1)); }
     }
     for (const [u0, v0, u1, v1] of panels.trims) {
       ctx.fillStyle = '#0c0d0f'; ctx.fillRect(X(u0), Y(v1), X(u1) - X(u0), Y(v0) - Y(v1));
@@ -907,9 +902,38 @@ export function carPaintTexture(vinyl, base, accent, panels, shareKey = null) {
   }
   const map = new THREE.CanvasTexture(c);
   map.colorSpace = THREE.SRGBColorSpace; map.anisotropy = ANISO;
-  const normalMap = new THREE.CanvasTexture(normalFromHeight(hc, 1.6));
-  normalMap.anisotropy = ANISO;
-  return { map, normalMap };
+  return { map, normalMap: panelNormals(panels, w, h) };
+}
+
+// the panel grooves' normal map: the model's panel layout alone, whatever the paint, so made once per model and shared
+// (userData.shared: left alone when one car's paint is disposed). Per pixel, it was most of a new livery's time - a
+// street racer's spawn a 120 ms frame
+const PANEL_NORMALS = new WeakMap(), NO_PANELS = {};
+function panelNormals(panels, w, h) {
+  const key = panels || NO_PANELS;
+  let t = PANEL_NORMALS.get(key);
+  if (t) return t;
+  const hc = canvas(w, h), hx = hc.getContext('2d');
+  hx.fillStyle = '#808080'; hx.fillRect(0, 0, w, h);
+  const X = (u) => u * w, Y = (v) => (1 - v) * h;
+  if (panels) {
+    const lw = Math.max(1.5, w / 600);
+    hx.lineCap = 'round';
+    for (const [u0, v0, u1, v1] of panels.lines) {
+      hx.strokeStyle = '#000'; hx.lineWidth = lw * 2.2;
+      hx.beginPath(); hx.moveTo(X(u0), Y(v0)); hx.lineTo(X(u1), Y(v1)); hx.stroke();
+    }
+    for (const [u0, v0, u1, v1, kind] of panels.rects) {
+      if (kind === 'round') {
+        hx.strokeStyle = '#000'; hx.lineWidth = lw * 2;
+        hx.beginPath(); hx.ellipse((X(u0) + X(u1)) / 2, (Y(v0) + Y(v1)) / 2, Math.abs(X(u1) - X(u0)) / 2, Math.abs(Y(v1) - Y(v0)) / 2, 0, 0, Math.PI * 2); hx.stroke();
+      } else { hx.fillStyle = '#303030'; hx.fillRect(X(u0), Y(v1), X(u1) - X(u0), Y(v0) - Y(v1)); }
+    }
+  }
+  t = new THREE.CanvasTexture(normalFromHeight(hc, 1.6));
+  t.anisotropy = ANISO; t.userData.shared = true;
+  PANEL_NORMALS.set(key, t);
+  return t;
 }
 
 // Headlight unit: dark reflector housing, two projector lenses and an LED daytime-running strip.

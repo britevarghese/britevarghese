@@ -12,11 +12,14 @@ const errors = [];
 p.on('pageerror', (e) => errors.push(e.message));
 p.on('console', (m) => { if (m.type() === 'error') errors.push(m.text()); });
 await p.addInitScript(`localStorage.setItem('nightshift.settings', JSON.stringify({graphics:{quality:'medium',detectedQuality:'medium',backend:'webgl2',timeOfDay:'${args.time || 'night'}'}}))`);
-await p.goto(`http://localhost:${port}/`);
+// (Port Halvern's breakaway lamps and clutter: Kerala's poles and trees are solid)
+await p.goto(`http://localhost:${port}/?world=halvern`);
 await p.waitForFunction(() => window.NIGHTSHIFT && window.NIGHTSHIFT.state.mode === 'menu', null, { timeout: 120000 });
+// (play() loads the world first now: driving began before there was a car to drive)
+await p.evaluate(() => { const G = window.NIGHTSHIFT; G.save.data.story.prologueOffered = true; G.play(); });
+await p.waitForFunction(() => window.NIGHTSHIFT.state.mode === 'drive', null, { timeout: 180000 });
 const res = await p.evaluate(() => {
   const G = window.NIGHTSHIFT;
-  G.play();
   const inp = G.input; let ctl = {};
   inp.update = function () { Object.assign(this.controls, { throttle: 0, brake: 0, steer: 0, handbrake: 0, nitro: false }, ctl); };
   const r = G.rm.render; G.rm.render = () => {};

@@ -606,7 +606,8 @@ export class VehicleRenderer {
         m.paint.needsUpdate = true;
       } else if (key !== this._paintKey) {
         this._paintKey = key;
-        if (!m.paint.map?.userData.shared) { m.paint.map?.dispose(); m.paint.normalMap?.dispose(); }
+        if (!m.paint.map?.userData.shared) m.paint.map?.dispose();
+        if (!m.paint.normalMap?.userData.shared) m.paint.normalMap?.dispose();
         const t = carPaintTexture(c.vinyl || 0, this._paintColor(c.paint), c.paint2 || '#111', panels, this.opts.sharedPaint ? `${this.modelId}|${key}` : null);
         m.paint.map = t.map; m.paint.normalMap = t.normalMap;
         m.paint.normalScale = new THREE.Vector2(0.35, 0.35);

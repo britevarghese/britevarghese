@@ -439,6 +439,14 @@ the game. Newly found problems go at the end of their section.
   - a dual carriageway's medians found in the same step as the road junctions (up to 50 ms): a step of their own
   Nine tiles round Kannur: build steps over 33 ms 6 -> 2-4, over 16 ms 37 -> 29; what's left over 33 ms moves from
   step to step run to run (the garbage collector, after the big merges)
+- [x] An 11-second freeze when the first street racer turned up (Port Halvern, 8 s into a drive): painting its
+  livery read the panel-groove canvas back to make a normal map, and a GPU canvas's read waits for everything the
+  GPU has queued - here the world's shaders compiling. Every generated texture is drawn on a CPU canvas now
+  (the racer's livery 7.5 s -> 66 ms), and the grooves' normal map, the model's panels alone whatever the paint, is
+  made once per model (a second livery 65 -> 3 ms). Kerala's ground raster, read back too, the same. The hitch test:
+  average step 6.3 -> 3.0 ms, worst 11 s -> 0.12 s. (The break, hitch and screenshot tools were left behind when the
+  game went to Kerala and play() began loading the world first: they drive Port Halvern again, ?world=halvern, and
+  wait for it; the hitch test times every part of a frame)
 - [x] A gaming laptop detected as VERY LOW: the first-launch benchmark timed the world being built and the shaders
   compiling, and the auto-quality governor saved every level it took off while driving (each slow start lowered it
   for good). The benchmark draws only, after the shaders are compiled; the governor's drops hold for that session,
