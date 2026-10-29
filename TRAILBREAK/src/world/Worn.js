@@ -35,6 +35,12 @@ const HOLE_RIM = 0.1;           // m below a rough track's hole's rim the rain s
 const RAIN_FILL = 0.65;         // how far up its ruts the rain fills a worn track (a share of their depth), at most
 // how deep each ground wears (a track's ruts as deep as it is soft): none on tarmac or ice
 const WEAR = [1, 1, 0.45, 0.15, 0.8, 0.6, 0.7, 0, 0.3, 0, 0.6];
+// washboard: the ripples traffic beats across a dry track's earth, gravel and sand, crest to crest RIPPLE m (field
+// observations put it at 0.5 to 1 m), RIPPLE_H m high either side of the ground where they are worst (a surveyed
+// unpaved road's averaged 21 mm from crest to trough); by ground, how much of it there is: none on grass, whose roots
+// hold it, nor in mud, nor on rock and tarmac
+export const RIPPLE = 0.72, RIPPLE_H = 0.011;
+const RIPPLE_ON = [0, 1, 1, 0, 0, 0.7, 0, 0, 0, 0, 0];
 
 // one rut, r off its middle: its floor, and the spoil pushed out of it a little proud of the ground either side
 function rut(r, depth) {
@@ -148,7 +154,7 @@ export class WornTracks {
     const vary = vnoise(s / 17, 0.5, L.seed + 2);
     // (the ends of a track: fading in over 10 m, unless it runs on into the next map)
     const end = (L.open0 ? 1 : sstep(0, 10, s)) * (L.open1 ? 1 : sstep(0, 10, L.len - s));
-    q.u = h.u - wander; q.s = s; q.t = h.t;
+    q.u = h.u - wander; q.s = s; q.t = h.t; q.end = end * f;
     // (a rough track's ruts the deeper on firm ground, 13 to 29 cm; in mud a truck's own sinking makes them)
     q.depth = (0.1 * (1 - f) + f * (0.05 + 0.1 * vary + L.rough * (0.08 + 0.06 * vary) * sstep(0.82, 0.95, wear))) * wear * end;
     q.W = GAUGE + RUT + 0.35 + f * (vnoise(s / 6, 0.5, L.seed + 3) - 0.3) * 0.7;
@@ -276,14 +282,32 @@ export class WornTracks {
     return out;
   }
 
-  /** The wear's depth at (x, z) (m, > 0 down): of the nearest track, its ground's wear blended across the cells (wearAt). */
-  depth(x, z, wearAt) {
+  /**
+   * The wear's depth at (x, z) (m, > 0 down): of the nearest track, its ground's wear blended across the cells (wearAt);
+   * and its washboard (ripple), where the ground takes it as much as rippleAt says (not on a rough track: nothing drives
+   * it fast enough to beat it into ripples).
+   */
+  depth(x, z, wearAt, rippleAt = null) {
     const h = this.nearest(x, z);
     if (!h || h.d > OUT) return 0;
     const wear = wearAt(x, z);
     if (wear <= 0) return 0;
     const q = this.shape(h, x, z, wear);
-    return WornTracks.profile(q.u, q.depth) + q.pot;
+    const d = WornTracks.profile(q.u, q.depth) + q.pot;
+    if (!rippleAt || this.lines[h.t].rough) return d;
+    const r = rippleAt(x, z);
+    return r > 0 ? d + r * q.end * WornTracks.ripple(q.s, q.u, q.W) : d;
+  }
+
+  /**
+   * The washboard's depth at s along a track, u off its wheel line's middle (W: how far off its bare earth reaches): in
+   * patches along about half its length, tens of metres long, across the whole of its earth (render/Terrain.js draws
+   * the same from the same noise, tn).
+   */
+  static ripple(s, u, W) {
+    const patch = sstep(0.42, 0.62, tn(s * 0.045, 11.3)) * (0.8 + 0.4 * (tn(s * 0.09, 4.7) - 0.5));
+    if (patch <= 0) return 0;
+    return RIPPLE_H * patch * (1 - sstep(W - 0.3, W + 0.15, Math.abs(u))) * Math.sin(2 * Math.PI * s / RIPPLE);
   }
 
   /**
@@ -323,3 +347,5 @@ export class WornTracks {
 
 /** A ground's wear (how deep a track's ruts are worn in it, relative): by surface id. */
 export const wearOf = (s) => WEAR[s] ?? 1;
+/** How much washboard a ground takes (0 to 1): by surface id. */
+export const rippleOf = (s) => RIPPLE_ON[s] ?? 0;

@@ -264,10 +264,15 @@ export class Audio {
     this.squelch = noiseVoice(ctx, this.brown, this.master, 'lowpass', 280, 2.5);
     this.water = noiseVoice(ctx, this.pink, this.master, 'bandpass', 900, 0.6);
     this.wind = noiseVoice(ctx, this.pink, this.master, 'lowpass', 600, 0.5);
-    // rain (rainK, 0 to 1: Game sets it, and rainCab): its hiss on the ground all about, and its drumming on the roof
+    // rain (rainK, 0 to 1: Game sets it, and cab, whether we hear it from the driver's seat): its hiss on the ground
+    // all about, and its drumming on the roof
     this.rainHiss = noiseVoice(ctx, this.pink, this.master, 'highpass', 1200, 0.4);
     this.rainRoof = noiseVoice(ctx, this.brown, this.master, 'bandpass', 420, 0.9);
-    this.rainK = 0; this.rainCab = false;
+    this.rainK = 0; this.cab = false;
+    // the ride shaking the truck (washboard, rocks, roots): the body drumming low, and loose things in it rattling
+    this.drum = noiseVoice(ctx, this.brown, this.master, 'bandpass', 140, 1.1);
+    this.rattle = noiseVoice(ctx, this.pink, this.master, 'bandpass', 1100, 1.4);
+    this.shake = 0; this.suspPrev = null;
     // the tyres on wet ground (wetK, Game's: it lingers after the rain): the hiss of the water they lift off it
     this.swish = noiseVoice(ctx, this.pink, this.master, 'bandpass', 2400, 0.5);
     this.wetK = 0;
@@ -695,6 +700,15 @@ export class Audio {
       glide(this.water.g.gain, Math.max(water * 0.4, v.waterDepth > 0.05 ? Math.min(0.5, speed * 0.1) : 0), t);
       glide(this.wind.g.gain, Math.min(0.35, speed * speed * 0.0004), t);
       glide(this.wind.f.frequency, 300 + speed * 25, t);
+      // (how hard the suspension works: its axles' travel speed, how much it changes frame to frame; washboard at speed
+      // ten times what gentle bumps give)
+      const sv = this.suspPrev ||= [0, 0, 0, 0];
+      let dv = 0;
+      v.axles.forEach((ax, i) => { if (i < 2) { dv += Math.abs(ax.vL - sv[i * 2]) + Math.abs(ax.vR - sv[i * 2 + 1]); sv[i * 2] = ax.vL; sv[i * 2 + 1] = ax.vR; } });
+      this.shake += (clamp((dv / 4 - 0.05) / 0.4, 0, 1) - this.shake) * Math.min(1, dt * 8);
+      glide(this.drum.g.gain, this.shake * (this.cab ? 0.2 : 0.1), t, 0.06);
+      glide(this.drum.f.frequency, 90 + speed * 3, t, 0.1);
+      glide(this.rattle.g.gain, this.shake * (this.cab ? 0.05 : 0.02), t, 0.06);
       // knocks: hull scrapes and impacts, hard landings
       this.thumpCool -= dt;
       const hit = Math.max(v.hullContact || 0, v.impact || 0);
@@ -707,8 +721,8 @@ export class Audio {
       glide(this.winchOsc.frequency, run ? (W.motor > 0 ? 150 - 50 * Math.min(1, W.tension / v.spec.winch.stallPull) : 170) : 100, t, 0.08);
     }
     // rain: the hiss louder the harder it falls, in the cab muffled under the drumming on the roof
-    glide(this.rainHiss.g.gain, this.rainK * (this.rainCab ? 0.03 : 0.11), t, 0.3);
-    glide(this.rainRoof.g.gain, this.rainK * (this.rainCab ? 0.09 : 0.015), t, 0.3);
+    glide(this.rainHiss.g.gain, this.rainK * (this.cab ? 0.03 : 0.11), t, 0.3);
+    glide(this.rainRoof.g.gain, this.rainK * (this.cab ? 0.09 : 0.015), t, 0.3);
     // birds now and then (not in the rain)
     this.birdT -= dt;
     if (this.birdT < 0) { this.birdT = 4 + Math.random() * 10; if (Math.random() < 0.7 * (1 - this.rainK)) this.chirp(); }

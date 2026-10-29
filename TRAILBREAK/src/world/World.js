@@ -24,7 +24,7 @@
 
 import { SURFACES, SURFACE, WET_MUD, wetSurfaces } from '../physics/Surfaces.js';
 import { DeformGrid } from './Deform.js';
-import { WornTracks, wearOf } from './Worn.js';
+import { WornTracks, wearOf, rippleOf } from './Worn.js';
 import { rockLift } from './Bedrock.js';
 import { NO_WATER } from './WorldGen.js';
 import { MAP_HALF, mapById } from './maps/index.js';
@@ -52,6 +52,8 @@ export class World {
     // (the grounds as they are now: dry, or wet with the rain, setWet; and the rain standing in the ruts)
     this.wet = 0; this.pond = 0; this.surfaces = SURFACES;
     this.wearAt = (x, z) => this.wear(x, z);
+    // (and how much washboard its ground takes, world/Worn.js ripple)
+    this.rippleAt = (x, z) => this.wear(x, z, rippleOf);
     // (a map whose bare rock stands in relief: its beds' ledges and its joints' blocks, finer than the grid, as strong
     // as its beds are, world/Bedrock.js)
     this.rockRelief = this.map.rockRelief ? Math.min(1, this.map.rockBeds ?? 1) : 0;
@@ -120,7 +122,7 @@ export class World {
   terrain(x, z) {
     let h = this.terrainBase(x, z);
     if (this.rockRelief) h += this.rockAt(x, z, h);
-    return this.worn ? h - this.worn.depth(x, z, this.wearAt) : h;
+    return this.worn ? h - this.worn.depth(x, z, this.wearAt, this.rippleAt) : h;
   }
 
   /**
@@ -153,10 +155,13 @@ export class World {
     return (a * (1 - tx) + b * tx) * (1 - tz) + (c * (1 - tx) + d * tx) * tz;
   }
 
-  /** How deep a track wears at (x, z) (world/Worn.js): its ground's, blended across the cells round it. */
-  wear(x, z) {
+  /**
+   * How deep a track wears at (x, z) (world/Worn.js): its ground's, blended across the cells round it (of: by ground,
+   * how much; or how much washboard it takes, rippleOf).
+   */
+  wear(x, z, of = wearOf) {
     const fx = (x - this.origin) / this.res, fz = (z - this.origin) / this.res, i = Math.floor(fx), k = Math.floor(fz), tx = fx - i, tz = fz - k;
-    const N = this.N, S = this.S, m = (a, b) => (a < 0 || b < 0 || a >= N || b >= N ? 0 : wearOf(S[b * N + a]));
+    const N = this.N, S = this.S, m = (a, b) => (a < 0 || b < 0 || a >= N || b >= N ? 0 : of(S[b * N + a]));
     return (m(i, k) * (1 - tx) + m(i + 1, k) * tx) * (1 - tz) + (m(i, k + 1) * (1 - tx) + m(i + 1, k + 1) * tx) * tz;
   }
 

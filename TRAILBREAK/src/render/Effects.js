@@ -182,7 +182,7 @@ const LOOSE = {
   [SURFACE.GRASS]: { clod: 14, roll: 0, drop: 0, size: [0.022, 0.05], big: 0.05, grain: 0, haze: 0 },
   [SURFACE.TEA]: { clod: 12, roll: 0, drop: 0, size: [0.022, 0.045], big: 0.03, grain: 0, haze: 0 },
   [SURFACE.GRAVEL]: { clod: 16, roll: 0, drop: 0, size: [0.014, 0.032], big: 0, grain: 8, haze: 1.6 },
-  [SURFACE.SAND]: { clod: 5, roll: 0, drop: 0, size: [0.02, 0.04], big: 0, grain: 34, haze: 3 },
+  [SURFACE.SAND]: { clod: 1.5, roll: 0, drop: 0, size: [0.008, 0.016], big: 0, grain: 34, haze: 3 },   // (dry sand: grains, hardly a lump)
   [SURFACE.SNOW]: { clod: 16, roll: 1, drop: 0, size: [0.05, 0.11], big: 0.1, grain: 14, haze: 2.4 },
 };
 // how much spray a tyre lifts off each ground wet with rain at speed: most off a road's film of water, least off grass,

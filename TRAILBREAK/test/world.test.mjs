@@ -442,6 +442,35 @@ test("a rough track's holes hold the rain, most of them, below their rims; none 
   assert.ok(brim < 1e-9 && verge === 0 && plain === 0, `the water ${brim.toFixed(3)} m over its brim; on the verges ${verge}, an ordinary track ${plain}`);
 });
 
+test("washboard: ripples 0.72 m apart across a dry track's earth, gravel and sand in patches, about a centimetre high; none on grass, in mud or on a rough track", async () => {
+  const { WornTracks, wearOf, rippleOf, RIPPLE, RIPPLE_H } = await import('../src/world/Worn.js');
+  const map = (rough) => ({ trails: [{ name: 't', kind: 'trail', rough, points: [[0, -40], [0, 600], [0, 1240]] }] });
+  const G = new WornTracks(map(0), 3000), R = new WornTracks(map(1), 3000), wear = () => wearOf(SURFACE.DIRT);
+  const on = (s) => () => rippleOf(s);
+  let n = 0, rippled = 0, max = 0, grass = 0, mud = 0, rough = 0, prev = 0, prevZ = 0, gravel = 0;
+  const gaps = [];
+  for (let z = 20; z < 1100; z += 0.02) {
+    const d = G.depth(0, z, wear, on(SURFACE.DIRT)) - G.depth(0, z, wear);
+    n++; if (Math.abs(d) > 0.003) rippled++;
+    max = Math.max(max, Math.abs(d));
+    if (Math.abs(d) > 1e-4) {
+      if (prev && Math.sign(d) !== Math.sign(prev)) { if (z - prevZ < 1) gaps.push(z - prevZ); prevZ = z; }
+      prev = d;
+    }
+    gravel = Math.max(gravel, Math.abs(G.depth(0, z, wear, on(SURFACE.GRAVEL)) - G.depth(0, z, wear)));
+    grass = Math.max(grass, Math.abs(G.depth(0, z, wear, on(SURFACE.GRASS)) - G.depth(0, z, wear)));
+    mud = Math.max(mud, Math.abs(G.depth(0, z, wear, on(SURFACE.MUD)) - G.depth(0, z, wear)));
+    rough = Math.max(rough, Math.abs(R.depth(0, z, wear, on(SURFACE.DIRT)) - R.depth(0, z, wear)));
+  }
+  assert.ok(rippled > n * 0.25 && rippled < n * 0.65, `rippled along ${(rippled / n * 100).toFixed(0)}% of it`);
+  assert.ok(max > RIPPLE_H * 0.8 && max <= RIPPLE_H * 1.25 && gravel > RIPPLE_H * 0.8, `${(max * 100).toFixed(2)} cm high at most (gravel ${(gravel * 100).toFixed(2)})`);
+  // (the ground crossing its mean half a ripple apart)
+  gaps.sort((a, b) => a - b);
+  const spacing = gaps[gaps.length >> 1];
+  assert.ok(Math.abs(spacing - RIPPLE / 2) < 0.04, `crossings every ${spacing.toFixed(2)} m`);
+  assert.ok(grass === 0 && mud === 0 && rough === 0, `on grass ${grass}, in mud ${mud}, on a rough track ${rough}`);
+});
+
 test("after rain a worn track's ruts hold it along about half their length, deeper the fuller; none on the hump or the verges, none dry", async () => {
   const { WornTracks, wearOf, RUT } = await import('../src/world/Worn.js');
   const G = new WornTracks({ trails: [{ name: 't', kind: 'trail', points: [[0, -40], [0, 200], [0, 440]] }] }, 1000), firm = () => wearOf(SURFACE.DIRT);

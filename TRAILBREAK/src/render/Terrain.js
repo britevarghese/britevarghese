@@ -19,7 +19,7 @@ import * as THREE from 'three';
 import { HASH21 } from './ShaderHash.js';
 import { SURFACE } from '../physics/Surfaces.js';
 import { DeformGrid, DEFORM_SPAN } from '../world/Deform.js';
-import { WornTracks, GAUGE, RUT, VERGE_OUT } from '../world/Worn.js';
+import { WornTracks, GAUGE, RUT, VERGE_OUT, RIPPLE, RIPPLE_H } from '../world/Worn.js';
 import { BEDROCK_GLSL, tn } from '../world/Bedrock.js';
 import { vnoise } from '../world/Noise.js';
 import { TEA_ROW, TEA_RANGE } from './Tea.js';
@@ -574,6 +574,20 @@ ${G ? `
         vec2 gu = abs(det) > 1e-10 ? vec2(dux * dpy.y - duy * dpx.y, duy * dpx.x - dux * dpy.x) / det : vec2(0.0);
         gu /= max(length(gu), 1e-4);
         trkTilt = -vec3(gu.x, 0.0, gu.y) * dHdu * fade * soft * (1.0 - smoothstep(0.08, 0.3, px));
+        // the washboard on its bare earth (world/Worn.js ripple, the physics' own): ripples across it, lit as relief
+        // (their slopes a little steeper to the eye than they are, a tenth, as a low sun's shadows make them look) and
+        // banded, the loose grit and dust gathered darker in the troughs, the crests beaten paler; gone where a pixel is
+        // too coarse for them
+        float rpat = smoothstep(0.42, 0.62, tn(vec2(s * 0.045, 11.3))) * (0.8 + 0.4 * (tn(vec2(s * 0.09, 4.7)) - 0.5));
+        float dsx = dFdx(s), dsy = dFdy(s);
+        if (rpat > 0.0 && px < 0.12) {
+          vec2 gs = abs(det) > 1e-10 ? vec2(dsx * dpy.y - dsy * dpx.y, dsy * dpx.x - dsx * dpy.x) / det : vec2(0.0);
+          gs /= max(length(gs), 1e-4);
+          float k = ${(2 * Math.PI / RIPPLE).toFixed(4)}, dHds = -${RIPPLE_H.toFixed(4)} * k * cos(k * s);
+          float rk = rpat * (1.0 - smoothstep(vTrk.w - 0.3, vTrk.w + 0.15, au)) * wd * fade * smoothstep(0.0, 0.03, dep) * (1.0 - smoothstep(0.05, 0.12, px));
+          trkTilt -= vec3(gs.x, 0.0, gs.y) * dHds * rk * 1.6;
+          alb *= 1.0 - 0.1 * sin(k * s) * rk;
+        }
         // tread marks across the ruts, a quarter of a metre apart, chevrons (gone where a pixel is coarser)
         float tread = 0.5 + 0.5 * sin(s * 26.0 + r * 11.0 + tn(vec2(s * 0.3, au)) * 6.0);
         float treadA = 1.0 - smoothstep(0.02, 0.07, px);

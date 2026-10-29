@@ -1585,7 +1585,7 @@ export class Game {
 
     // sound
     const remotes = [...this.remotes.values()].filter((r) => r.state).map((r) => ({ id: r.id, spec: r.spec, pos: r.model.root.position, rpm: r.state.rpm, thr: r.state.thr }));
-    this.audio.rainK = this.rainK; this.audio.rainCab = this.cam.mode === 'cab'; this.audio.wetK = this.wetK;
+    this.audio.rainK = this.rainK; this.audio.cab = this.cam.mode === 'cab'; this.audio.wetK = this.wetK;
     this.audio.update(dt, v, this.renderer.camera, remotes);
     v.impact = 0;
     // an exhaust pop (a hard upshift, or lifting off from high revs): a flash and a puff at the tailpipe, low on the

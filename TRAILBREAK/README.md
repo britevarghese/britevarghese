@@ -264,7 +264,9 @@ Under the tyres: a rolling roar that rises with the speed, a crunch on gravel an
 lugs on tarmac and rock, and in mud the tread sucking out of it every few lugs, a squelch falling in pitch, lower and
 louder the deeper the tyre is in, over the slosh of the mud round it, and clods slapping the wheel arches off a
 spinning tyre; on gravel, stones flicked up against the underbody now and then (each a short burst of noise through
-a swept filter, at random: the mud used to be one low rumble wobbling nine times a second).
+a swept filter, at random: the mud used to be one low rumble wobbling nine times a second). Over washboard, rocks and
+roots the body drums low and loose things in it rattle, as hard as the suspension is working (louder from the
+driver's seat).
 
 The sound goes off while the game is paused, in the garage, the dealer and the events list, and whenever the game's
 tab is hidden (another tab, or the browser minimised); it comes back when you drive on.
@@ -1195,6 +1197,15 @@ years of trucks wear a jeep track, as the tracks in MudRunner or Expeditions are
   shallow on gravel and hardly there on rock. The spoil stands a little proud beside them. They steer a truck as
   any rut does (see Ground, in the physics).
 - **Potholes** cross the track here and there.
+- **Washboard:** on a track's dry earth, gravel and sand, traffic beats the ground into ripples across it, crest to
+  crest 0.72 m (field observations put washboard at [0.5 to 1 m](https://ar5iv.labs.arxiv.org/html/2007.05109)), up
+  to about a centimetre either side of the ground (2 cm from crest to trough, as a surveyed unpaved road's averaged,
+  [21 mm](https://www.issmge.org/uploads/publications/1/141/1394.pdf)), in patches along about half its length a few
+  tens of metres long (`src/world/Worn.js` ripple). None on grass, whose roots hold it, nor in mud, nor on a rough
+  track, which nothing drives fast enough. The tyres ride over the ripples themselves, so the truck rattles over them
+  at speed: a stock Thar's body shakes about 0.8 m/s² rms over them from walking pace to 80 km/h, ten times what the
+  smooth track gives, its wheels still on the ground and its braking no worse. The ground draws them banded, the
+  troughs darker with the grit gathered in them, the crests paler, and lit as relief.
 - **A rough track** (`rough` on a route: the taiga's Muskeg Trail) is worn as a truck has to crawl: its ruts 13 to 29 cm
   deep on firm ground, a hole every 6.5 m or so in one rut and then the next (an axle twister: the truck rocks from one
   corner to the other with a wheel in the air) and now and then one right across, roots across it on its firm ground,

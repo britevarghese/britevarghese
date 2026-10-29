@@ -533,6 +533,26 @@ test('in the rain earth and grass are slick (a truck stops in a longer way), mud
   assert.ok(w.surfaceAt(0, 0) === SURFACES[SURFACE.MUD] && w.softness(0, 0) === soft0, 'and dry again');
 });
 
+test('washboard rattles a truck at speed: its body shakes several times as hard as on the smooth track, its wheels stay down', async () => {
+  const { RIPPLE, RIPPLE_H } = await import('../src/world/Worn.js');
+  // (a stock Thar at 50 km/h onto ripples of the track's washboard, the body's vertical acceleration over them)
+  const shake = (A) => {
+    const g = { height: (x, z) => (z > 0 ? -A * Math.sin(2 * Math.PI * z / RIPPLE) : 0), surfaceAt: () => SURFACES[SURFACE.DIRT] }, v = truck('thar', g, 0, -20);
+    run(v, g, 0.5);
+    v.vel.set(0, 0, 50 / 3.6); for (const w of v.wheels) w.omega = 50 / 3.6 / v.spec.tyre.radius;
+    let a2 = 0, n = 0, pv = v.vel.y, up = 0;
+    run(v, g, 4, (q) => {
+      if (q.pos.z > 3 && q.pos.z < 50) { const a = (q.vel.y - pv) / PHYS_DT; a2 += a * a; n++; up += q.wheels.filter((w) => !w.contact).length; }
+      pv = q.vel.y;
+      return { ...IDLE, throttle: clamp((50 / 3.6 - q.vel.dot(q.fwd)) * 0.5 + 0.3, 0, 1) };
+    });
+    return { rms: Math.sqrt(a2 / n), up: up / n };
+  };
+  const smooth = shake(0), rough = shake(RIPPLE_H);
+  assert.ok(rough.rms > smooth.rms * 4 && rough.rms > 0.4 && rough.rms < 2.5, `body shakes ${rough.rms.toFixed(2)} m/s² rms, ${smooth.rms.toFixed(2)} smooth`);
+  assert.ok(rough.up < 0.05, `a wheel up ${(rough.up * 100).toFixed(1)}% of the time`);
+});
+
 test('mud takes time to give: kept moving a truck rides higher than it sinks standing; stopped in a bog it settles in, and pulls away the harder for it', () => {
   // (a stock Thar driven into deep mud at a walk in low range and stopped: the rut it left rolling, how deep it sits
   // standing, and how far it gets in 5 s at 40% throttle after standing 3 s or a minute, then at 70%)
