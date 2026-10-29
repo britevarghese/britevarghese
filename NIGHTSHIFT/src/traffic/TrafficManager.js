@@ -447,8 +447,13 @@ export class TrafficManager {
       const a = K[i], b = K[j], r = ((a.spec.l || 4.5) + (b.spec.l || 4.5)) / 2;
       if (Math.abs(a.x - b.x) > r || Math.abs(a.z - b.z) > r) continue;
       if (!this._overlap(a, b)) continue;
-      const aSeesB = (b.x - a.x) * Math.sin(a.yaw) + (b.z - a.z) * Math.cos(a.yaw) > 0, bSeesA = (a.x - b.x) * Math.sin(b.yaw) + (a.z - b.z) * Math.cos(b.yaw) > 0;
-      const hold = a.jamHold && b.jamGo ? a : b.jamHold && a.jamGo ? b : aSeesB && !bSeesA ? a : bSeesA && !aSeesB ? b : a.id > b.id ? a : b;
+      const aA = (b.x - a.x) * Math.sin(a.yaw) + (b.z - a.z) * Math.cos(a.yaw), bA = (a.x - b.x) * Math.sin(b.yaw) + (a.z - b.z) * Math.cos(b.yaw);
+      const aSeesB = aA > 0, bSeesA = bA > 0;
+      // (each with the other ahead: the one further from it waits, as each decides for itself in _drive - here the
+      // later one waited regardless, and in Thalassery a car on its turn and one held at the junction's mouth, each
+      // waiting on the other, stood one in the other for minutes)
+      const both = Math.abs(aA - bA) < 1 ? (a.id > b.id ? a : b) : aA > bA ? a : b;
+      const hold = a.jamHold && b.jamGo ? a : b.jamHold && a.jamGo ? b : aSeesB && !bSeesA ? a : bSeesA && !aSeesB ? b : both;
       hold.blockT = 0.5; hold.v = Math.min(hold.v, 0.5);
     }
   }

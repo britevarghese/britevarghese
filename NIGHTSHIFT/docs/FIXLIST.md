@@ -342,6 +342,11 @@ the game. Newly found problems go at the end of their section.
   Kannur 5 -> 0, Iritty 5 -> 0, Thalassery 2 -> 0, Payyanur 1 -> 0; Taliparamba 0-1 a run (one jam with the officer
   waving cars on, 65 samples of three cars pressed together, not seen again in five more runs). Left: Mattannur's
   queue behind the player's car stopped in a narrow street (nowhere to go round)
+  - [x] ...and two cars that came to overlap at a junction (a Scorpio on its turn, a Dzire at the junction's mouth)
+    stood one in the other for the whole three minutes in Thalassery: each had the other ahead, and of two like that
+    each car lets the one nearer the clash go first - but the step that pulls overlapping cars apart held the later
+    one regardless, which here was the one meant to go. It holds the one further back too now: Thalassery 28 -> 0,
+    Kannur 3 -> 0
 
 - [x] Hitches while driving into new country (a tile's build stalling a frame): every step of a tile's build timed
   on a drive (headless, its CPU about half a desktop's). The worst were the ground's mesh (up to a quarter of a second:
