@@ -815,6 +815,11 @@ the game. Newly found problems go at the end of their section.
     circle, and turning on full lock it pushed into the parked car for half a minute); crept up to a corner and not
     out yet, it backs off and has another go. The Spice Route, traced: 15 cars knocked out of their lanes -> none by
     the van; 40-63 s crawling at parked cars -> 8; longest stop 39 -> 2 s; 3.5 km in 434 s
+  - [x] An AI car turning round in a narrow street (Mattannur's 5 m lanes) took 17 s for a right angle, in 10 cm
+    shuffles: each leg of its three-point turn ran until the road ran out a car's length past the bumper, and
+    standing across a 5 m street both ends read off the road, so each leg ended as it began. The legs look just past
+    the bumpers now (at a walking pace): round in 12 s, and on its way. In the police chase test the getaway car
+    starting in Mattannur's street never got out of it (busted at 18 s, 10 m from where it started); now it does
     Left: your car left in a narrow street 9 m short of a junction (Mattannur, 5 m of road) holds the traffic up both
     ways until you move it - letting the traffic go round it that near the junction had it meet the cars coming out of
     the junction (two crashes), so they wait and honk

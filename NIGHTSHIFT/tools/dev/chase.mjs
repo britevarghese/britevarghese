@@ -59,8 +59,9 @@ for (const [name, [x0, z0]] of list) {
     const plan = () => {
       const a = s.yaw + (R() - 0.5) * 2.4, d = 500 + R() * 900, dest = L.nearestNode(s.x + Math.sin(a) * d, s.z + Math.cos(a) * d);
       const ids = L.deadEnd(dest.id) ? [] : L.route(L.nearestNode(s.x, s.z), dest);
-      if (ids.length > 2) ai.setRoute(ids.map((id) => [L.nodes[id].x, L.nodes[id].z]), false, 0);
+      if (ids.length > 2) ai.setRoute(ids.map((id) => [L.nodes[id].x, L.nodes[id].z]), false, 0); else plansFailed++;
     };
+    let plansFailed = 0;
     PM.enabled = true; PM.clearAll(); PM.startPursuit(heat, 'test');
     let ended = null, dist = 0, lx = s.x, lz = s.z, yielding = 0;
     const off = [], stuck = [], gaps = [];
@@ -89,7 +90,7 @@ for (const [name, [x0, z0]] of list) {
         if (!W.onCarriageway(q.x, q.z, 0.6)) { if (++I.off === 2 && off.length < 8) off.push(`${T.toFixed(0)}s unit${u.id} ${fmt(q.x, q.z)} ${Math.round(sp * 3.6)} km/h ${u.ai.mode}`); } else I.off = 0;
         if (sp < 0.5 && d > 15) { if (++I.still === 5 && stuck.length < 8) stuck.push(`${T.toFixed(0)}s unit${u.id} ${fmt(q.x, q.z)} ${u.ai.mode}${u.ai.turning ? ' turning' : ''} route ${u.ai.route.length} d ${d.toFixed(0)}`); } else I.still = 0;
       }
-      if (f % 300 === 0) gaps.push(`${T.toFixed(0)}s ${PM.state} heat ${PM.heat} player ${Math.round(Math.hypot(s.vx, s.vz) * 3.6)} km/h units [${ds.join(' ')}]`);
+      if (f % 300 === 0) gaps.push(`${T.toFixed(0)}s ${PM.state} heat ${PM.heat} player ${Math.round(Math.hypot(s.vx, s.vz) * 3.6)} km/h units [${ds.join(' ')}] · its AI ${ai.route.length ? `wp ${ai.idx}/${ai.route.length}` : 'no route'}${ai.turning ? ' turning ' + ai.turning : ''}${ai.backT > 0 ? ' backing off' : ''}${ai.reverseT > 0 ? ' unsticking' : ''}${ai.passO ? ' passing' : ''}${plansFailed ? `, ${plansFailed} plans failed` : ''}`);
     }
     return { ended: ended || `neither in ${secs} s`, km: +(dist / 1000).toFixed(2), units: info.size, closest: [...info.values()].map((I) => Math.round(I.minD)), spawns, off, stuck, hits, hitAt, knockBy, yielding, gaps, timeline };
   }, [x0, z0, heat, secs, stop]);

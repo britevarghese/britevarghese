@@ -627,6 +627,11 @@ export class AIDriver {
     // (checked a metre or so past each end, and half a metre over the road's edge: in a lane hardly longer than the car
     // is wide, held to the tarmac itself, it turned round in 10 cm shuffles)
     const rearOK = !Wk || Wk.onCarriageway(s.x - fx * half, s.z - fz * half, 0.5), frontOK = !Wk || Wk.onCarriageway(s.x + fx * (half + 0.6), s.z + fz * (half + 0.6), 0.5);
+    // (and for a three-point turn's legs, at a walking pace, just past the bumpers: checked a car's length past them,
+    // across a 5 m street both ends read off the road whenever it stood across it, and each leg ended as it began -
+    // the car turned round in 10 cm shuffles, 17 s for a right angle)
+    const Lh = (v.p?.length || 4.4) / 2;
+    const rearT = !Wk || Wk.onCarriageway(s.x - fx * (Lh + 0.5), s.z - fz * (Lh + 0.5), 0.5), frontT = !Wk || Wk.onCarriageway(s.x + fx * (Lh + 0.7), s.z + fz * (Lh + 0.7), 0.5);
     const back = -(s.vx * fx + s.vz * fz);
     const reverse = (st) => { c.throttle = back > 2.5 ? 0.4 : 0; c.brake = back > 2 ? 0 : 1; c.steer = st; c.handbrake = 0; c.nitro = false; };
     // nose to nose with one coming the other way that can't get by either, or up against a wreck it can't get round, 6 s:
@@ -656,13 +661,13 @@ export class AIDriver {
       inCircle = Math.hypot(tx - cx, tz - cz) < Rr - 0.5;
     }
     if (!this.turning && ((Math.abs(diff) > 2.2 && speed < 6) || (Math.abs(diff) > 1.5 && speed < 1.5) || inCircle)) {
-      this.turning = rearOK && Math.abs(diff) > 2.2 ? 'back' : 'fwd'; this.turnSide = Math.sign(diff) || 1; this.legT = 0; this.turnT = 0;
+      this.turning = rearT && Math.abs(diff) > 2.2 ? 'back' : 'fwd'; this.turnSide = Math.sign(diff) || 1; this.legT = 0; this.turnT = 0;
     }
     if (this.turning) {
       this.legT += dt; this.turnT += dt;
       const blocked = speed < 0.5 && this.legT > 1.2;   // (forward against something: back again)
       if (Math.abs(diff) < 0.35 || this.turnT > 25) this.turning = false;
-      else if (this.turning === 'back' ? !rearOK || this.legT > 2.5 || Math.abs(diff) < 1 : rearOK && Math.abs(diff) >= 1 && this.legT > 0.4 && (!frontOK || blocked)) {
+      else if (this.turning === 'back' ? !rearT || this.legT > 2.5 || Math.abs(diff) < 1 : rearT && Math.abs(diff) >= 1 && this.legT > 0.4 && (!frontT || blocked)) {
         this.turning = this.turning === 'back' ? 'fwd' : 'back'; this.legT = 0;
       }
     }
