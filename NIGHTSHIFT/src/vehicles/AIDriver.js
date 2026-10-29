@@ -642,8 +642,10 @@ export class AIDriver {
       // a wreck in the lane and the road beside it never clear: 30 s without getting anywhere, its route not done. The
       // van you tail waited behind a wreck for good)
       this.waitT = moved < 4 && this.mode === 'route' && this.idx < this.route.length - 3 ? (this.waitT || 0) + this.watchT : 0;
-      // (not while turning round: a three-point turn in a narrow lane gets nowhere for a while, and was reset)
-      this.needsReset = !this.turning && moved < 4 && (targetSpeed > 3 || pushing || this.waitT >= 30);
+      // (not while turning round: a three-point turn in a narrow lane gets nowhere for a while, and was reset. But 30 s
+      // of it is no turn: the van you tail, stopped at a junction turn behind a knocked-down motorbike, was 'turning'
+      // for five minutes - each try given up after 25 s and begun again the next moment - and never reset)
+      this.needsReset = moved < 4 && ((!this.turning && (targetSpeed > 3 || pushing)) || this.waitT >= 30);
       this.watchPos = [s.x, s.z]; this.watchT = 0;
     }
     // (and not on the throttle while still steering hard: out of a sharp junction turn it sped up at full lock and
