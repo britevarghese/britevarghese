@@ -427,6 +427,16 @@ export class AIDriver {
     return true;
   }
 
+  // going out round one standing at the kerb: up to its back only as fast as it can stop by it, till out far enough
+  // to clear it by a quarter of a metre (half way out, at 6 m/s, it clipped the parked car's corner). A crawl, not a
+  // stop: it has to keep going to get out
+  _outBy(o, ahead, lat, myL, myW) {
+    const clr = Math.abs(lat) - (o.spec?.w ?? 1.8) / 2 - myW;
+    if (clr >= 0.25) return Infinity;
+    const gap = ahead - (myL + (o.spec?.l ?? 4.4)) / 2 - 1;
+    return Math.max(0.8, Math.sqrt(2 * 2 * Math.max(0, gap)));
+  }
+
   // nothing within d behind, on the car's line: the obstacles given, and alsoAvoid (the player's car)
   _clearBehind(obstacles, d) {
     const s = this.v.state, fx = Math.sin(s.yaw), fz = Math.cos(s.yaw), myW = (this.v.p?.width || 1.8) / 2;
@@ -527,7 +537,11 @@ export class AIDriver {
       const o = this.passO, a = (o.x - s.x) * fx + (o.z - s.z) * fz, lat = -(o.x - s.x) * fz + (o.z - s.z) * fx;
       if (a < -(myL + (o.spec?.l ?? 4.4)) / 2 - 0.5 || a > 30 || (o.v ?? 0) > 1 || this.mode === 'pursue') this.passO = null;
       else if (a > 2 && !this._roomBy(o, lat, a, Math.max(0, (o.spec?.w ?? 1.8) / 2 + myW + 0.45 - Math.abs(lat)), obstacles)) this.passO = null;
-      else { pass = this.passLat; targetSpeed = Math.min(targetSpeed, 6); }
+      else {
+        pass = this.passLat; targetSpeed = Math.min(targetSpeed, 6, this._outBy(o, a, lat, myL, myW));
+        // (crept up to its corner and not out yet: backed off and at it again, at a better angle, as one nose to nose)
+        if (this._outBy(o, a, lat, myL, myW) < 1.5) blk = { lat };
+      }
     }
     for (const o of obstacles) {
       const dx = o.x - s.x, dz = o.z - s.z;
@@ -546,7 +560,9 @@ export class AIDriver {
       }
       // (one pulled over to the kerb for this one's siren: steered round, not slowed for)
       const making = this.siren && o.yieldT > 0 && Math.abs(lat) > 0.8;
-      if (!making && ahead < 14 + speed * 0.5 && this.mode !== 'pursue') {
+      // (decided on as soon as it's seen: from 14 m it wasn't out far enough by the time it got there, and clipped the
+      // parked car's corner at 6 m/s - a dozen of them along the Spice Route)
+      if (!making && this.mode !== 'pursue') {
         // (one standing at the kerb - parked, pulled in - or a wreck lying in the lane: out round it at a crawl, if the
         // road beside it has room and nothing's coming the other way. Braked for as a car in a queue is, the van you
         // tail stopped behind a car parked at the kerb and waited there for good. Not one stopped in a queue, square in
@@ -554,7 +570,7 @@ export class AIDriver {
         const need = (o.spec?.w ?? 1.8) / 2 + myW + 0.45 - Math.abs(lat);
         if (v.physics?.world?.kerala && (o.v ?? 0) < 0.3 && (o.parked || o.state !== 'drive' || (o.pulled && Math.abs(lat) > 0.5)) && this._roomBy(o, lat, ahead, need, obstacles)) {
           if (need > Math.abs(pass)) { pass = -Math.sign(lat) * need; this.passO = o; this.passLat = pass; }
-          targetSpeed = Math.min(targetSpeed, 6);
+          targetSpeed = Math.min(targetSpeed, 6, this._outBy(o, ahead, lat, myL, myW));
           continue;
         }
       }
@@ -629,7 +645,9 @@ export class AIDriver {
     // doubles back tighter than the car can turn - a Y-junction's two forks, 155 degrees from one to the other in two
     // corners 4 m apart - and swept round on full lock, the car ran 2.2 m off the far side of the road)
     let inCircle = false;
-    if (!this.turning && this.mode === 'route' && speed < 6 && targetSpeed > 1) {   // (not pulling up at the route's end)
+    // (nor going out round a parked car: the point it steers for set out to the side, at a crawl, fell inside the circle,
+    // and turning round on full lock it pushed into the parked car's corner and stayed there)
+    if (!this.turning && this.mode === 'route' && speed < 6 && targetSpeed > 1 && !pass) {   // (not pulling up at the route's end)
       const p = v.p || {}, wb = p.wheelBase || 2.6, sk = clamp(speed / 55, 0, 1), arm = p.b ?? wb / 2;
       const Rr = wb / Math.tan((p.steeringAngle || 0.56) * (1 - 0.66 * sk * (2 - sk)));
       const side = Math.sign((tx - s.x) * -fz + (tz - s.z) * fx) || 1;   // (+: to the right, (-fz, fx))

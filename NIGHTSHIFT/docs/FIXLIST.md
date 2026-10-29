@@ -799,6 +799,15 @@ the game. Newly found problems go at the end of their section.
     straight back past you at 45 km/h. The route waits up to a minute for its places now; and a route that has to
     turn right round near its start (the nearest lane to the first place runs the other way) begins after the turn,
     the car setting off facing its way. Run after the five jobs before it: passes, its proper 2 km route
+  - [x] The van you tail along the Spice Route hit a dozen cars parked half on the road, at 5-6 m/s: it went out
+    round each one only from 14 m off, and at 6 m/s wasn't out far enough by the time it got there - it clipped the
+    corner. And the slightest touch on a parked car made it a wreck in the street, which the next car along waited
+    behind. It goes out round one as soon as it sees it now, up to its corner only as fast as it can stop there till
+    it's out far enough; brushed at a walking pace, a parked car stays parked. Going out round one at a crawl no
+    longer sets off a three-point turn (the point it steered for, set out to the side, fell inside its turning
+    circle, and turning on full lock it pushed into the parked car for half a minute); crept up to a corner and not
+    out yet, it backs off and has another go. The Spice Route, traced: 15 cars knocked out of their lanes -> none by
+    the van; 40-63 s crawling at parked cars -> 8; longest stop 39 -> 2 s; 3.5 km in 434 s
     Left: your car left in a narrow street 9 m short of a junction (Mattannur, 5 m of road) holds the traffic up both
     ways until you move it - letting the traffic go round it that near the junction had it meet the cars coming out of
     the junction (two crashes), so they wait and honk

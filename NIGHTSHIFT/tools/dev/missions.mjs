@@ -91,6 +91,18 @@ for (const id of list) {
     let t = 0, last = -1, info = {}, lx = null, lz = null;
     const rec0 = G.recoverAI.bind(G);
     G.recoverAI = (v, a) => { const r = rec0(v, a); if (r && S.active?.st?.v === v) ai.resets++; return r; };   // (put back on its way: a jump)
+    // (--trace: each traffic car knocked out of its lane, and by what: the player's car - the stand-in AI when tailing -,
+    // the mission's car, or another)
+    const col0 = G.traffic._col0 ||= G.traffic._collide.bind(G.traffic);
+    G.traffic._collide = (v, c) => {
+      const was = c.state, cv = c.v, cyaw = c.yaw, path = c.path?.kind, vs = v.state, sp = Math.hypot(vs.vx, vs.vz), r = col0(v, c);
+      if (trace && was !== 'knocked' && c.state === 'knocked') {
+        const fx = Math.sin(vs.yaw), fz = Math.cos(vs.yaw), dx = c.x - vs.x, dz = c.z - vs.z, A2 = S.active?.st?.ai;
+        const fwd = vs.vx * fx + vs.vz * fz;
+        log.push(`  ${t.toFixed(0)}s knocked ${was} ${c.type} (${cv?.toFixed(1)} m/s on a ${path}, ${Math.round(((cyaw - vs.yaw + 9 * Math.PI) % (2 * Math.PI) - Math.PI) * 57.3)} deg off) at ${fmt(c.x, c.z)} by ${v === G.player ? 'the player' : v === S.active?.st?.v ? 'the mission car' : 'another'} at ${sp.toFixed(1)} m/s ${fwd < -0.2 ? 'backing' : ''} (${r?.impact?.toFixed(1)}): it ${(dx * fx + dz * fz).toFixed(1)} ahead, ${(-dx * fz + dz * fx).toFixed(1)} right${v === S.active?.st?.v && A2 ? ` · ai ${A2.turning ? 'turning ' + A2.turning : ''}${A2.passO ? ' passing' : ''}${A2.backT > 0 ? ' backing off' : ''}${A2.reverseT > 0 ? ' unsticking' : ''}` : ''}`);
+      }
+      return r;
+    };
     while (t < limit) {
       const A = S.active;
       if (!A) break;

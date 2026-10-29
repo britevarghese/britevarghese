@@ -904,7 +904,9 @@ export class TrafficManager {
     const res = VehiclePhysics.resolvePair(A, proxy);
     if (!res || !res.impact) return null;
     c.x = c.s2.x; c.z = c.s2.z;
-    if (res.impact > 1.5 || c.state !== 'drive') {
+    // (a parked car only by a real knock, as a moving one: brushed going by at a walking pace, one turned into a wreck
+    // in the street, waited behind by the next car along)
+    if (res.impact > 1.5 || (c.state !== 'drive' && c.state !== 'parked')) {
       if (c.state === 'drive' || c.state === 'parked') { const i = c.path.cars.indexOf(c); if (i >= 0) c.path.cars.splice(i, 1); }
       c.state = 'knocked'; c.knockT = 0; c.brake = 1;
       this._unseat(c, c.s2.vx, c.s2.vz);
