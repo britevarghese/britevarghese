@@ -10,12 +10,19 @@ function softTexture(draw) {
   const g = c.getContext('2d'); draw(g, 64);
   const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t;
 }
+// a lumpy puff of dust / smoke: a cluster of soft blobs (not a disc), fine grain on top; each particle shows it
+// at its own rotation, so no two puffs look alike
 const puffTex = softTexture((g, s) => {
-  const gr = g.createRadialGradient(s / 2, s / 2, 0, s / 2, s / 2, s / 2);
-  gr.addColorStop(0, 'rgba(255,255,255,0.9)'); gr.addColorStop(0.45, 'rgba(255,255,255,0.45)'); gr.addColorStop(1, 'rgba(255,255,255,0)');
-  g.fillStyle = gr; g.fillRect(0, 0, s, s);
-  // break the perfect circle with noise blobs
-  for (let i = 0; i < 40; i++) { g.fillStyle = `rgba(255,255,255,${Math.random() * 0.08})`; g.beginPath(); g.arc(Math.random() * s, Math.random() * s, Math.random() * 10, 0, 7); g.fill(); }
+  let seed = 7; const r = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
+  for (let i = 0; i < 14; i++) {
+    const a = r() * 6.28, d = r() * s * 0.2, cx = s / 2 + Math.cos(a) * d, cy = s / 2 + Math.sin(a) * d, rad = s * (0.12 + r() * 0.2);
+    const gr = g.createRadialGradient(cx, cy, 0, cx, cy, rad);
+    gr.addColorStop(0, `rgba(255,255,255,${0.35 + r() * 0.3})`); gr.addColorStop(1, 'rgba(255,255,255,0)');
+    g.fillStyle = gr; g.fillRect(0, 0, s, s);
+  }
+  const img = g.getImageData(0, 0, s, s);
+  for (let i = 3; i < img.data.length; i += 4) img.data[i] *= 0.75 + r() * 0.25;
+  g.putImageData(img, 0, 0);
 });
 const flashTex = softTexture((g, s) => {
   const gr = g.createRadialGradient(s / 2, s / 2, 0, s / 2, s / 2, s / 2);
@@ -103,7 +110,7 @@ const SURF = {
   wood: { color: 0x8a6c4a, n: 4, speed: 2.0, size: 0.22, chips: 0xa98456, life: 0.8, splinters: true },
   metal: { color: 0x9a9a9a, n: 2, speed: 1.2, size: 0.12, sparks: true, life: 0.5 },
   rubber: { color: 0x333333, n: 2, speed: 1, size: 0.15, life: 0.5 },
-  flesh: { color: 0x6a1010, n: 4, speed: 1.4, size: 0.2, life: 0.35, blood: true },
+  flesh: { color: 0x7a1612, n: 5, speed: 1.8, size: 0.13, life: 0.25, blood: true },
   none: null,
 };
 
@@ -119,13 +126,20 @@ export class Effects {
     this.aSize = new THREE.BufferAttribute(new Float32Array(maxP), 1).setUsage(THREE.DynamicDrawUsage);
     this.aAlpha = new THREE.BufferAttribute(new Float32Array(maxP), 1).setUsage(THREE.DynamicDrawUsage);
     geo.setAttribute('psize', this.aSize); geo.setAttribute('palpha', this.aAlpha);
+    geo.setAttribute('prot', new THREE.BufferAttribute(Float32Array.from({ length: maxP }, () => Math.random() * 6.283), 1));
     geo.boundingSphere = new THREE.Sphere(new THREE.Vector3(), 1e5);
     const mat = new THREE.ShaderMaterial({
       uniforms: { map: { value: puffTex }, scale: { value: innerHeight / 2 }, fogColor: { value: new THREE.Color(0xb9c3c9) }, fogFar: { value: 500 } },
-      vertexShader: `attribute float psize; attribute float palpha; varying float vA; varying vec3 vC; varying float vFog; uniform float scale;
-        void main(){ vC = color; vA = palpha; vec4 mv = modelViewMatrix * vec4(position,1.0); gl_PointSize = min(psize * scale / max(-mv.z, 0.5), scale * 0.5); vFog = clamp(-mv.z / 450.0, 0.0, 1.0); gl_Position = projectionMatrix * mv; }`,
-      fragmentShader: `uniform sampler2D map; uniform vec3 fogColor; varying float vA; varying vec3 vC; varying float vFog;
-        void main(){ vec4 t = texture2D(map, gl_PointCoord); gl_FragColor = vec4(mix(vC, fogColor, vFog*0.8), t.a * vA); if (gl_FragColor.a < 0.01) discard; }`,
+      vertexShader: `attribute float psize; attribute float palpha; attribute float prot; varying float vA; varying vec3 vC; varying float vFog; varying float vR; uniform float scale;
+        void main(){ vC = color; vA = palpha; vR = prot; vec4 mv = modelViewMatrix * vec4(position,1.0); gl_PointSize = min(psize * scale / max(-mv.z, 0.5), scale * 0.5); vFog = clamp(-mv.z / 450.0, 0.0, 1.0); gl_Position = projectionMatrix * mv; }`,
+      // colours are linear (THREE.Color): tone-map and encode like every other material — written raw, dust and
+      // blood came out two to three times too dark (black discs on sunlit ground)
+      fragmentShader: `uniform sampler2D map; uniform vec3 fogColor; varying float vA; varying vec3 vC; varying float vFog; varying float vR;
+        void main(){ vec2 pc = gl_PointCoord - 0.5; float c = cos(vR), s = sin(vR); pc = mat2(c, -s, s, c) * pc + 0.5;
+          vec4 t = texture2D(map, clamp(pc, 0.0, 1.0)); gl_FragColor = vec4(mix(vC, fogColor, vFog*0.8), t.a * vA); if (gl_FragColor.a < 0.01) discard;
+          #include <tonemapping_fragment>
+          #include <colorspace_fragment>
+        }`,
       transparent: true, depthWrite: false, vertexColors: true,
     });
     this.points = new THREE.Points(geo, mat); this.points.frustumCulled = false; this.points.renderOrder = 5;
@@ -190,7 +204,7 @@ export class Effects {
     const k = this.q.particles;
     for (let i = 0; i < Math.ceil(s.n * k); i++) {
       const sp = s.speed * (0.4 + Math.random());
-      this.emit(x + n[0] * 0.05, y + n[1] * 0.05, z + n[2] * 0.05, n[0] * sp + (Math.random() - 0.5) * 1.2, n[1] * sp + Math.random() * 0.8, n[2] * sp + (Math.random() - 0.5) * 1.2, s.color, s.size * (0.6 + Math.random() * 0.8), s.life * (0.6 + Math.random() * 0.6), { grow: 2.2, alpha: s.blood ? 0.7 : 0.55, drag: 3.5, grav: 0.25 });
+      this.emit(x + n[0] * 0.05, y + n[1] * 0.05, z + n[2] * 0.05, n[0] * sp + (Math.random() - 0.5) * 1.2, n[1] * sp + Math.random() * 0.8, n[2] * sp + (Math.random() - 0.5) * 1.2, s.color, s.size * (0.6 + Math.random() * 0.8), s.life * (0.6 + Math.random() * 0.6), { grow: s.blood ? 1.2 : 2.2, alpha: s.blood ? 0.6 : 0.55, drag: 3.5, grav: s.blood ? 2 : 0.25 });
     }
     if (s.chips || s.splinters) for (let i = 0; i < 4 * k; i++) {
       this.emit(x, y, z, n[0] * 3 + (Math.random() - 0.5) * 4, n[1] * 3 + Math.random() * 3, n[2] * 3 + (Math.random() - 0.5) * 4, s.chips, 0.04, 0.6, { grow: 0, alpha: 1, drag: 0.5, grav: 9.8 });
@@ -257,12 +271,19 @@ export class Effects {
   explosion(p, camPos) {
     const [x, y, z] = p, k = this.q.particles;
     this.boomLight.position.set(x, y + 1, z); this.boomLight.intensity = 60; this.boomT = 0.25;
-    for (let i = 0; i < 14 * k; i++) this.emit(x, y + 0.5, z, (Math.random() - 0.5) * 6, Math.random() * 5, (Math.random() - 0.5) * 6, 0xffa040, 1.2 + Math.random(), 0.25 + Math.random() * 0.15, { grow: 3, alpha: 0.9, drag: 5, grav: -1 });
-    for (let i = 0; i < 26 * k; i++) this.emit(x + (Math.random() - 0.5), y + 0.4, z + (Math.random() - 0.5), (Math.random() - 0.5) * 7, 1 + Math.random() * 5, (Math.random() - 0.5) * 7, i % 3 ? 0x5c5550 : 0x8a7a66, 1.5 + Math.random() * 1.5, 2.5 + Math.random() * 2.5, { grow: 2.2, alpha: 0.55, drag: 2.2, grav: -0.25 });
+    const r = () => Math.random() - 0.5;
+    // a hand grenade's fireball is a metre or two across and gone within a tenth of a second
+    for (let i = 0; i < 8 * k; i++) this.emit(x + r() * 0.4, y + 0.4, z + r() * 0.4, r() * 4, Math.random() * 3, r() * 4, 0xffb060, 0.5 + Math.random() * 0.5, 0.08 + Math.random() * 0.07, { grow: 2.5, alpha: 0.95, drag: 6, grav: -1 });
+    // then a ragged column of dirt and smoke: dark grey-brown, mixed sizes, mostly thrown up, some sideways (a cloud
+    // of equal puffs flying out evenly reads as a smooth dome)
+    for (let i = 0; i < 30 * k; i++) {
+      const up = Math.random(), side = 6 * (1 - up * 0.7);
+      this.emit(x + r() * 1.2, y + 0.3 + up * 0.6, z + r() * 1.2, r() * side, 1.5 + up * 7.5, r() * side, i % 3 ? 0x4e4740 : 0x6e6252, 0.6 + Math.random() * 1.7, 2 + Math.random() * 3, { grow: 1.4 + Math.random() * 1.2, alpha: 0.45 + Math.random() * 0.3, drag: 2.4, grav: -0.15 });
+    }
     for (let i = 0; i < 16 * k; i++) this.emit(x, y + 0.2, z, (Math.random() - 0.5) * 14, 3 + Math.random() * 8, (Math.random() - 0.5) * 14, 0x3b332c, 0.07, 1.4, { grow: 0, alpha: 1, drag: 0.4, grav: 9.8 });
     for (let i = 0; i < 30 * k; i++) this.spark(x, y + 0.3, z, (Math.random() - 0.5) * 22, Math.random() * 14, (Math.random() - 0.5) * 22, 0.3 + Math.random() * 0.4);
     // dust ring along the ground
-    for (let i = 0; i < 16 * k; i++) { const a = (i / 16) * 6.28; this.emit(x, y + 0.2, z, Math.cos(a) * 8, 0.3, Math.sin(a) * 8, 0x9c8a72, 1.2, 1.8, { grow: 2.5, alpha: 0.4, drag: 3, grav: 0 }); }
+    for (let i = 0; i < 16 * k; i++) { const a = (i / 16) * 6.28 + r() * 0.3, v = 5 + Math.random() * 5; this.emit(x, y + 0.2, z, Math.cos(a) * v, 0.3 + Math.random() * 0.5, Math.sin(a) * v, 0x9c8a72, 0.7 + Math.random() * 0.8, 1.4 + Math.random() * 0.8, { grow: 2.2, alpha: 0.35, drag: 3, grav: 0 }); }
     this.decal([x, y + 0.02, z], [0, 1, 0], 4.5, this.scorchMat);
     if (camPos) { const d = Math.hypot(camPos.x - x, camPos.y - y, camPos.z - z); this.shake = Math.max(this.shake, Math.max(0, 1 - d / 35) * 1.0); }
   }
