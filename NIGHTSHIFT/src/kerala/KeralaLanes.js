@@ -163,7 +163,12 @@ export class KeralaLaneGraph {
     }
   }
 
-  addTile(t) {
+  addTile(t) { for (const _ of this.addTileSteps(t)); }
+
+  // (a generator: it pauses between road pieces when due() says the frame's few milliseconds are used - a town's tile
+  // took up to 50 ms in one go. Nothing of the graph's own is touched till the end, all at once: a tile dropped
+  // part-way leaves nothing behind)
+  *addTileSteps(t, due = () => false) {
     const k = `${t.tx},${t.tz}`;
     if (this.byTile.has(k)) return;
     const mine = [], touched = new Set();
@@ -193,6 +198,7 @@ export class KeralaLaneGraph {
       for (let i = 1; i < P.length; i++) if (i === P.length - 1 || uses.get(nodeKey(...P[i])) > 1) { pieces.push({ r, P: P.slice(a, i + 1) }); a = i; }
     }
     for (const { r, P } of pieces) {
+      if (due()) yield 'world:lanes+';
       let len = 0; for (let i = 1; i < P.length; i++) len += Math.hypot(P[i][0] - P[i - 1][0], P[i][1] - P[i - 1][1]);
       if (len < 4) continue;
       const one = !!(r.flags & 1);
@@ -215,14 +221,10 @@ export class KeralaLaneGraph {
           lane.yFrom = dir > 0 ? yA : yB; lane.yTo = dir > 0 ? yB : yA;
           lane.next = [];
           mine.push(lane);
-          if (!this.outs.has(from)) this.outs.set(from, []);
-          this.outs.get(from).push(lane);
-          if (!this.ins.has(to)) this.ins.set(to, []);
-          this.ins.get(to).push(lane);
-          touched.add(from); touched.add(to);
         }
       }
     }
+    if (due()) yield 'world:lanes+';
     // bus stops: on the kerb lane of town roads, about one in five road pieces (both directions, as in Kerala)
     t.busStops = [];
     const tmpS = {};
@@ -239,6 +241,7 @@ export class KeralaLaneGraph {
       const ox = tmpS.dz, oz = -tmpS.dx;  // left of travel
       t.busStops.push({ x: tmpS.x + ox * 3.4, z: tmpS.z + oz * 3.4, yaw: Math.atan2(-ox, -oz), lane: l, s: s0 });
     }
+    if (due()) yield 'world:lanes+';
     // tea stalls (chaya kada) by town and village roads, set back on the verge
     t.teaShops = [];
     for (const l of mine) {
@@ -252,11 +255,22 @@ export class KeralaLaneGraph {
       if (t.nearRoad?.(e, n, 3.6)) continue;
       t.teaShops.push({ x, z, yaw: Math.atan2(-ox, -oz) });
     }
-    this._signalize(touched);
     // siblings (same road, same direction) for lane changes
     const groups = new Map();
     for (const l of mine) { const g = `${l.edge.id}:${l.dir}`; if (!groups.has(g)) groups.set(g, []); groups.get(g).push(l); }
     for (const g of groups.values()) for (const l of g) l.siblings = g.filter((q) => q !== l);
+    if (due()) yield 'world:lanes+';
+    // into the graph, all at once
+    if (this.byTile.has(k)) return;
+    for (const lane of mine) {
+      const { from, to } = lane;
+      if (!this.outs.has(from)) this.outs.set(from, []);
+      this.outs.get(from).push(lane);
+      if (!this.ins.has(to)) this.ins.set(to, []);
+      this.ins.get(to).push(lane);
+      touched.add(from); touched.add(to);
+    }
+    this._signalize(touched);
     this.byTile.set(k, mine);
     for (const l of mine) this.lanes.push(l);
     for (const n of touched) this._relink(n);

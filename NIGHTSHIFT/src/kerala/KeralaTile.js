@@ -1682,7 +1682,9 @@ export class KeralaTile {
       return false;
     };
     // the gap between a dual carriageway's halves by a junction: paved over, level with them (it was bare earth
-    // running into the junction past the median's end)
+    // running into the junction past the median's end). (The medians found in a step of their own: with the junctions
+    // above, up to 50 ms)
+    yield 'tile:roads+';
     for (const m of this._medians()) {
       if (!m.fill) continue;
       const c0 = [m.e + m.ne * m.w / 2 - m.ue * 2.1, m.n + m.nn * m.w / 2 - m.un * 2.1], c1 = [m.e + m.ne * m.w / 2 + m.ue * 2.1, m.n + m.nn * m.w / 2 + m.un * 2.1];

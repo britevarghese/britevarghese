@@ -420,6 +420,18 @@ the game. Newly found problems go at the end of their section.
   'Preparing graphics...', and before each tile, vehicle type, rider, tree model, parked scooter and person is first
   drawn); mid-drive compiles 22-33 -> 4 (the shadow pass's own). Tile meshes merge on a fast path, the terrain's
   index buffers are written straight into one typed array
+- [x] Small hitches driving into new country, and a little lost every frame:
+  - the place name in the corner (and the sound's district) was worked out every frame, twice, against every town
+    and neighbourhood in the state: 0.4 ms a time, now and then 40 ms. It's kept until you've gone 25 m
+  - a tile's traffic lanes were laid in one go (up to 50 ms for a town's): a few at a time now, the graph itself
+    joined up all at once at the end (so a tile dropped part-way leaves nothing in it); the same 542 lanes and 969
+    junction turns round Kannur
+  - keeping walls and houses out of the lanes went a hundred colliders at a time (up to 30 ms), each tile's lanes
+    gridded the first time - the eight tiles round it included: a few dozen at a time now, as the build's few
+    milliseconds allow, each lane grid only the lanes by its own tile, in a step of its own
+  - a dual carriageway's medians found in the same step as the road junctions (up to 50 ms): a step of their own
+  Nine tiles round Kannur: build steps over 33 ms 6 -> 2-4, over 16 ms 37 -> 29; what's left over 33 ms moves from
+  step to step run to run (the garbage collector, after the big merges)
 - [x] A gaming laptop detected as VERY LOW: the first-launch benchmark timed the world being built and the shaders
   compiling, and the auto-quality governor saved every level it took off while driving (each slow start lowered it
   for good). The benchmark draws only, after the shaders are compiled; the governor's drops hold for that session,

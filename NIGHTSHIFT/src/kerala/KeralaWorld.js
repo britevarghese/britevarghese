@@ -235,11 +235,13 @@ export class KeralaWorld {
 
   // points every 1.5 m along this tile's traffic lanes (main to minor roads), in G-metre cells
   _laneGrid(t, G) {
-    const grid = new Map();
+    const grid = new Map(), x0 = -(t.E0 + TILE) - 60, x1 = -t.E0 + 60, z0 = t.N0 - 60, z1 = t.N0 + TILE + 60;
     for (const l of this.lanes.lanesNear(-(t.E0 + TILE / 2), t.N0 + TILE / 2, 0, TILE)) {
       if (l.edge.cls > 6) continue;
       for (let i = 1; i < l.pts.length; i++) {
         const [ax, az] = l.pts[i - 1], [bx, bz] = l.pts[i], L = Math.hypot(bx - ax, bz - az);
+        // (the tiles round it have their lanes in too: only the ones by this tile's colliders)
+        if (Math.max(ax, bx) < x0 || Math.min(ax, bx) > x1 || Math.max(az, bz) < z0 || Math.min(az, bz) > z1) continue;
         for (let d = 0; d <= L; d += 1.5) { const x = ax + (bx - ax) * Math.min(1, d / L), z = az + (bz - az) * Math.min(1, d / L), k = Math.floor(x / G) * 100003 + Math.floor(z / G); if (!grid.has(k)) grid.set(k, []); grid.get(k).push(x, z); }
       }
     }
@@ -367,7 +369,7 @@ export class KeralaWorld {
     this._scooters(t);
     for (const c of t.colliders) this.collision.add(c);
     yield 'world:lanes0';
-    this.lanes.addTile(t);
+    yield* this.lanes.addTileSteps(t, () => t._due());
     yield 'world:lanes';
     const n0 = t.colliders.length;
     // tea stalls and bus shelters stand clear of every carriageway (a junction's other road, a wide highway): set back
@@ -399,13 +401,18 @@ export class KeralaWorld {
     // this tile's colliders against every loaded road, and the neighbours' border colliders against this tile's roads
     yield 'world:extras';
     const own = [...t.colliders];
-    // (a hundred at a time: three hundred took up to a tenth of a second)
+    // (a few dozen at a time, as the build's few milliseconds allow: a hundred at once took up to 30 ms; each tile's
+    // lanes gridded in a step of its own)
     const grids = new Map();
-    for (let i = 0; i < own.length; i += 100) { this._clearLanes(t, own.slice(i, i + 100), grids); yield 'world:clear+'; }
+    const clear = function* (o, list) {
+      if (!grids.has(o)) { grids.set(o, this._laneGrid(o, 20)); yield 'world:clear+'; }
+      for (let i = 0; i < list.length; i += 25) { this._clearLanes(o, list.slice(i, i + 25), grids); if (t._due()) yield 'world:clear+'; }
+    }.bind(this);
+    yield* clear(t, own);
     for (const o of this.tiles.values()) {
       if (o === t || !o.ready || Math.abs(o.tx - t.tx) > 1 || Math.abs(o.tz - t.tz) > 1) continue;
       const border = o.colliders.filter((c) => { const e = -c.cx - o.E0, n = c.cz - o.N0; return e < 40 || n < 40 || e > TILE - 40 || n > TILE - 40; });
-      for (let i = 0; i < border.length; i += 100) { this._clearLanes(o, border.slice(i, i + 100), grids); yield 'world:clear+'; }
+      if (border.length) yield* clear(o, border);
     }
     void n0;
     this.buildMs = performance.now() - t0;
@@ -570,6 +577,10 @@ export class KeralaWorld {
 
   districtAt(x, z) {
     const t = this.tileAt(x, z);
+    // (asked every frame, by the HUD and the sound: kept till 25 m on - every town and neighbourhood in the state looked
+    // at took 0.4 ms a time)
+    const c = this._dist;
+    if (c && c.t === t && c.d === t?.district && Math.abs(c.x - x) < 25 && Math.abs(c.z - z) < 25) return c.r;
     const name = t && t.district >= 0 ? this.index?.districts[t.district] : 'Kerala';
     // the nearest town or neighbourhood gives the local name
     let place = null, bd = 2500;
@@ -577,7 +588,9 @@ export class KeralaWorld {
       const px = -p[3], pz = p[4], d = Math.hypot(px - x, pz - z) / (p[0] === 'city' ? 3 : p[0] === 'town' ? 2 : 1);
       if (d < bd) { bd = d; place = p[1]; }
     }
-    return { id: name || 'kerala', name: place ? `${place}, ${name}` : name };
+    const r = { id: name || 'kerala', name: place ? `${place}, ${name}` : name };
+    this._dist = { x, z, t, d: t?.district, r };
+    return r;
   }
 
   // a stretch of roadside for a pedestrian to walk: along a town road, just off the kerb-side lane
