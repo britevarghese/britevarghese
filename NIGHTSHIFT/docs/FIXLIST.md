@@ -403,7 +403,7 @@ the game. Newly found problems go at the end of their section.
   thicker than a wall, nor where the far side has something solid or a car in the way, is the river, or is a drop
   of over 3 m (a bridge's railing). Where another garden's wall meets it, so the spot straight across is on that
   wall, you go over a little along it. The on-foot test jumps at what stops it: stuck against something 28 times in
-  the six towns before, 7 now (between two houses, into a house's wall), no step through anything, never inside it
+  the six towns before, 8 now (between two houses, into a house's wall), no step through anything, never inside it
 
 ## Roads and world
 - [x] The game hung for a moment every so often while driving: building each new 2 km piece of the map ran some
