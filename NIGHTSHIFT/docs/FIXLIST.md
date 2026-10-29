@@ -819,7 +819,8 @@ the game. Newly found problems go at the end of their section.
     shuffles: each leg of its three-point turn ran until the road ran out a car's length past the bumper, and
     standing across a 5 m street both ends read off the road, so each leg ended as it began. The legs look just past
     the bumpers now (at a walking pace): round in 12 s, and on its way. In the police chase test the getaway car
-    starting in Mattannur's street never got out of it (busted at 18 s, 10 m from where it started); now it does
+    starting in Mattannur's street never got out of it (busted at 18 s, 10 m from where it started); now it does.
+    The chase in the six towns: the getaway gets 0.16-0.85 km (Mattannur 0.01 -> 0.2 km, Payyanur 0.02 -> 0.53 km)
     Left: your car left in a narrow street 9 m short of a junction (Mattannur, 5 m of road) holds the traffic up both
     ways until you move it - letting the traffic go round it that near the junction had it meet the cars coming out of
     the junction (two crashes), so they wait and honk
