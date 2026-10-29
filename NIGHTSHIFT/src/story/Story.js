@@ -174,6 +174,15 @@ export class Story {
       wps.splice(bi, 1);
       P = this.game.races.prepare({ type: 'sprint', waypoints: wps, big }); route = P.route;
     }
+    // (and one near the start, before any place on the way - the nearest lane to the first place runs the other way:
+    // the route begun after it, the car set off facing its way. The Ertiga you tail went 150 m the wrong way out of
+    // Varam, turned round and drove back past you)
+    const u = uTurnAt(route);
+    if (u > 0) {
+      let d = 0;
+      for (let i = 1; i <= u && d < 200; i++) d += Math.hypot(route[i][0] - route[i - 1][0], route[i][1] - route[i - 1][1]);
+      if (d < 200 && route.length - u > 3) { const first = route[0]; route = route.slice(u); route.first = first; }
+    }
     route.broken = P.broken;   // (a leg with no way through the roads built so far)
     return route;
   }
@@ -700,7 +709,9 @@ export class Story {
       // (Kerala: the AI's route needs the roads along it built; until they are, build those first and try again)
       if (g.world.kerala && (s.nextTry || 0) > s.t) return false;
       const pts = st.route || [st.from || 'giver', st.to];
-      if (g.world.kerala && s.t < 15) {
+      // (a minute at most: coming from a job across the map, the places on the way weren't built in 15 s, and the
+      // Ertiga's route went to wherever roads were - out of Varam the wrong way and back past you)
+      if (g.world.kerala && s.t < 60) {
         const need = pts.filter((q) => typeof q === 'string').map((q) => this.placeAt?.(q)).filter((p) => p && !(g.traffic.graph.nearest(p.x, p.z)?.dist < 150));
         if (need.length) { s.nextTry = s.t + 1; g.world.prioritize?.(need); return false; }
       }
@@ -709,7 +720,8 @@ export class Story {
       // route began wherever roads had been - a lorry put down 1.5 km along its way, by a corner it couldn't take
       // from a standstill, and stuck there)
       const p0 = typeof pts[0] === 'string' ? this.placeAt?.(pts[0]) : null;
-      const short = route.length < 4 || (s.t < 60 && p0 && Math.hypot(route[0][0] - p0.x, route[0][1] - p0.z) > 150) || (s.t < 15 && route.broken);
+      const r0 = route.first || route[0];
+      const short = route.length < 4 || (s.t < 60 && p0 && Math.hypot(r0[0] - p0.x, r0[1] - p0.z) > 150) || (s.t < 60 && route.broken);
       // (the places' own tiles first: the nearest lane to a place not built yet is wherever roads are)
       if (g.world.kerala && short) { s.nextTry = s.t + 1; g.world.prioritize?.(pts.map((q) => (typeof q === 'string' && this.placeAt?.(q)) || this._resolve(q, m))); return false; }
       let spot;

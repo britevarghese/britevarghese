@@ -793,6 +793,12 @@ the game. Newly found problems go at the end of their section.
     coming the other way, standing, or a wreck), an AI car backs a couple of metres with its nose swung away and
     tries again - the road behind it clear, and no car (yours included) on its line there. Both tails, traced: the
     van's longest stop 7 and 9 s (it was 300); the Infopark van gets past that junction's standoff in 9 s.
+  - [x] 'Airport Shuttle' failed every time it came straight after the jobs before it ("The courier spotted you",
+    50 s in): coming from across the map, the places on the Ertiga's way (Valiyannur, Chelora) weren't built in the
+    15 s the route waited for them, and it went to wherever roads were - 150 m out of Varam the wrong way, round, and
+    straight back past you at 45 km/h. The route waits up to a minute for its places now; and a route that has to
+    turn right round near its start (the nearest lane to the first place runs the other way) begins after the turn,
+    the car setting off facing its way. Run after the five jobs before it: passes, its proper 2 km route
     Left: your car left in a narrow street 9 m short of a junction (Mattannur, 5 m of road) holds the traffic up both
     ways until you move it - letting the traffic go round it that near the junction had it meet the cars coming out of
     the junction (two crashes), so they wait and honk
