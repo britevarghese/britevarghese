@@ -1,7 +1,7 @@
 // On foot round a town: out of the car, walking and running a few seconds at a time in random directions, at walls,
 // houses, trees and traffic. Logs a step that passes through something solid (a wall, a house, a pole: the step's line
 // crosses its box), a stand inside one, the feet off the ground (sunk under it, or held up over it), being stuck, and
-// errors. Rendering off.
+// errors. Stopped at a wall it jumps (over it, if it's one to climb: counted). Rendering off.
 //   node tools/dev/onfoot.mjs --port N [--at x,z | --at all] [--seconds 120] [--seed 1]
 import { launch } from './pw.mjs';
 const args = Object.fromEntries(process.argv.slice(2).reduce((acc, a, i, arr) => { if (a.startsWith('--')) acc.push([a.slice(2), arr[i + 1]]); return acc; }, []));
@@ -38,7 +38,7 @@ for (const [name, [x0, z0]] of list) {
     if (!F.active) return { err: 'never got out of the car' };
     const s = F.state, fmt = (x, z) => `${x.toFixed(1)},${z.toFixed(1)}`;
     let rnd = seed * 7919 + 13; const R = () => ((rnd = (rnd * 9301 + 49297) % 233280) / 233280);
-    const out = { through: [], inside: [], sunk: [], high: [], stuckAt: [], stuck: 0, dist: 0, legs: 0, walls: 0 }, tmp = [];
+    const out = { through: [], inside: [], sunk: [], high: [], stuckAt: [], stuck: 0, dist: 0, legs: 0, walls: 0, climbs: 0 }, tmp = [];
     // the step from (ax, az) to (bx, bz) through a box's inside (not just touching it): its line in the box's frame
     // against the box shrunk 2 cm
     const crosses = (c, ax, az, bx, bz) => {
@@ -67,14 +67,16 @@ for (const [name, [x0, z0]] of list) {
         heading = R() * Math.PI * 2; legT = 2 + R() * 5; run = R() < 0.5; out.legs++; stillT = 0;
       }
       F.camYaw = heading; ctl = { throttle: 1, brake: 0, steer: 0, handbrake: 0, nitro: run };
-      const ax = s.x, az = s.z;
+      const ax = s.x, az = s.z, wasClimb = !!F.climb;
+      if (stillT > 0.4 && !F.climb && Math.round(stillT * 30) % 12 === 0) G.input.pressed.add('jump');
       step();
+      if (F.climb && !wasClimb) out.climbs++;
       if (G.state.mode !== 'drive') G.resume?.();
       if (!F.active) { F.exit(); for (let i = 0; i < 60 && !F.active; i++) step(); continue; }   // (got into something: out again)
       const moved = Math.hypot(s.x - ax, s.z - az);
       out.dist += moved;
       stillT = moved < 0.01 ? stillT + 1 / 30 : 0;
-      if (G.interiors?.active) continue;
+      if (G.interiors?.active || F.climb || wasClimb) continue;
       // through a wall or a house: the step's line crossing the inside of anything solid above the knees
       G.world.collision.query(Math.min(ax, s.x) - 1, Math.min(az, s.z) - 1, Math.max(ax, s.x) + 1, Math.max(az, s.z) + 1, tmp);
       for (const c of tmp) {
@@ -89,10 +91,10 @@ for (const [name, [x0, z0]] of list) {
       }
       if (f % 150 === 0) await sleep(5);
     }
-    return { start: fmt(px, pz), metres: Math.round(out.dist), legs: out.legs, stuck: out.stuck, stuckAt: out.stuckAt, through: out.through, inside: out.inside, sunk: out.sunk, high: out.high };
+    return { start: fmt(px, pz), metres: Math.round(out.dist), legs: out.legs, climbs: out.climbs, stuck: out.stuck, stuckAt: out.stuckAt, through: out.through, inside: out.inside, sunk: out.sunk, high: out.high };
   }, [x0, z0, secs, seed]);
   if (res.err) { console.log(`== ${name}: ${res.err}`); await p.close(); continue; }
-  console.log(`== ${name}: ${res.metres} m on foot, ${res.legs} legs, stuck ${res.stuck} · through things ${res.through.length} · inside ${res.inside.length} · under the ground ${res.sunk.length} · over it ${res.high.length} · errors ${errs.length}`);
+  console.log(`== ${name}: ${res.metres} m on foot, ${res.legs} legs, climbed over ${res.climbs}, stuck ${res.stuck} · through things ${res.through.length} · inside ${res.inside.length} · under the ground ${res.sunk.length} · over it ${res.high.length} · errors ${errs.length}`);
   for (const k of ['through', 'inside', 'sunk', 'high', 'stuckAt']) if (res[k].length) console.log(`   ${k}: ${res[k].join(' | ')}`);
   if (errs.length) console.log('   errors: ' + errs.slice(0, 4).join(' | '));
   await p.close();

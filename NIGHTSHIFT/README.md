@@ -76,7 +76,7 @@ Saves live in each player's browser.
 | Change view, like GTA (close, chase, far, bumper, hood, first person); remembered | V | R3 |
 | Look around / look back | Right-mouse drag / C | Right stick / X |
 | Get out of / into a car (any car on the street) | F | Y |
-| On foot: walk / sprint / jump | W A S D / SHIFT / SPACE | Left stick / RB / A |
+| On foot: walk / sprint / jump (at a wall: climb it) | W A S D / SHIFT / SPACE | Left stick / RB / A |
 | Start mission, event or rival challenge / enter garage | E (in the marker) | A |
 | Map | M | View |
 | Instant replay | I | |

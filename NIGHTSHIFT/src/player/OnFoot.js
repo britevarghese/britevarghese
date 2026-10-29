@@ -156,7 +156,7 @@ export class OnFoot {
       if (r === 'blocked') { g.ui.toast('No room to get out', '', 1.5); return false; }
       if (r) {
         this.active = true; this.car = v;
-        this.state.yaw = s.yaw; this.camYaw = s.yaw; this.vy = 0; this.state.vx = this.state.vz = 0;
+        this.state.yaw = s.yaw; this.camYaw = s.yaw; this.vy = 0; this.climb = null; this.state.vx = this.state.vz = 0;
         this.state.y = this._ground(s.x, s.z);
         this.camPos.copy(g.camera.position);
         g.audio?.setEngineOn?.(false);
@@ -170,7 +170,7 @@ export class OnFoot {
     this.state.x = s.x + Math.cos(s.yaw) * L * side; this.state.z = s.z - Math.sin(s.yaw) * L * side;
     this.state.y = this._ground(this.state.x, this.state.z);
     this.state.yaw = s.yaw; this.state.vx = this.state.vz = 0;
-    this.camYaw = s.yaw; this.vy = 0;
+    this.camYaw = s.yaw; this.vy = 0; this.climb = null;
     this.active = true;
     this.body.group.visible = true;
     this.car = v;                     // the car we just left: parked
@@ -204,7 +204,7 @@ export class OnFoot {
     this.inter.release(); this.inter._detach(); this.body.group.quaternion.identity();
     this.state.x = x; this.state.z = z; this.state.y = this._ground(x, z);
     this.state.yaw = yaw; this.state.vx = this.state.vz = 0; this.state.speed = 0;
-    this.camYaw = yaw; this.vy = 0;
+    this.camYaw = yaw; this.vy = 0; this.climb = null;
     this.active = true;
     this.body.group.visible = true;
     this.car = v;
@@ -521,6 +521,82 @@ export class OnFoot {
     return true;
   }
 
+  // over a wall (jump at it): a garden wall, a railing, a crash barrier facing you within reach, its top 0.4 to 2 m up
+  // and no thicker than a wall, the far side clear (nothing solid, no car, not the river) and not a long drop down
+  _climbSpot() {
+    const s = this.state, g = this.game;
+    if (g.interiors?.active || this.pistol.aim > 0.3) return null;
+    const fx = Math.sin(s.yaw), fz = Math.cos(s.yaw), tmp = this._tmp || (this._tmp = []);
+    this._statics(s.x - 1.5, s.z - 1.5, s.x + 1.5, s.z + 1.5, tmp);
+    let best = null;
+    for (const c of tmp) {
+      const up = c.h - s.y;
+      if (up < 0.4 || up > 2 || Math.min(c.hx, c.hz) > 0.4) continue;
+      // across the wall and along it, in its own frame (local x is (cos, -sin) in the world, local z (sin, cos))
+      const thin = c.hx <= c.hz, ht = thin ? c.hx : c.hz, hl = thin ? c.hz : c.hx;
+      const lx = (s.x - c.cx) * c.cos - (s.z - c.cz) * c.sin, lz = (s.x - c.cx) * c.sin + (s.z - c.cz) * c.cos;
+      const a = thin ? lx : lz, b = thin ? lz : lx, d = Math.abs(a) - ht;
+      if (Math.abs(b) > hl - 0.15 || d > 0.75 || (best && d >= best.d)) continue;
+      const k = -Math.sign(a) || 1, nx = (thin ? c.cos : c.sin) * k, nz = (thin ? -c.sin : c.cos) * k;
+      if (fx * nx + fz * nz < 0.6) continue;
+      best = { c, d, nx, nz, a: Math.abs(a), ht };
+    }
+    if (!best) return null;
+    const { c, nx, nz, a, ht } = best, over = [s.x + nx * a, s.z + nz * a], top = c.h + 0.03;
+    const land = [over[0] + nx * (ht + RADIUS + 0.25), over[1] + nz * (ht + RADIUS + 0.25)];
+    const ly = g.world.layout.groundHeight(land[0], land[1], top);
+    if (ly > top + 0.2 || s.y - ly > 3 || g.world.inWater?.(...land) || this._carAt(land[0], land[1], ly + 0.5)) return null;
+    for (const t of g.traffic?.cars || []) if (Math.abs(t.x - land[0]) < 3 && Math.abs(t.z - land[1]) < 3) return null;
+    // nothing standing on the top or the landing (a house's corner on the wall, the next wall a step behind it)
+    this._statics(land[0] - 1, land[1] - 1, land[0] + 1, land[1] + 1, tmp);
+    for (const o of tmp) {
+      if (o === c) continue;
+      for (const [x, z, y] of [[...over, top], [...land, ly]]) {
+        if (o.h < y + 0.4) continue;
+        const lx = (x - o.cx) * o.cos - (z - o.cz) * o.sin, lz = (x - o.cx) * o.sin + (z - o.cz) * o.cos;
+        if (Math.abs(lx) < o.hx + RADIUS && Math.abs(lz) < o.hz + RADIUS) return null;
+      }
+    }
+    return { x0: s.x, z0: s.z, y0: s.y, over, top, land, ly, nx, nz };
+  }
+
+  // hands on the top, hauled up, a leg over and down the far side; a waist-high one vaulted, quicker
+  _climb(q) {
+    const s = this.state, up = q.top - q.y0;
+    this.climb = { ...q, t: 0, T: up < 1 ? 0.5 + up * 0.2 : 0.45 + up * 0.38, rise: up < 1 ? 0.4 : 0.58 };
+    s.vx = 0; s.vz = 0; s.speed = 0; this.vy = 0;
+    s.yaw = Math.atan2(q.nx, q.nz);
+    this.human?.play('jumpStart', { rate: up < 1 ? 1.6 : 1.1, fade: 0.08 });
+  }
+
+  _updateClimb(dt) {
+    const s = this.state, q = this.climb, sm = (x) => x * x * (3 - 2 * x);
+    q.t += dt;
+    const u = Math.min(1, q.t / q.T);
+    if (u < q.rise) {
+      // up beside the wall, then the feet across onto its top
+      const w = u / q.rise, h = sm(Math.max(0, (w - 0.35) / 0.65));
+      s.x = q.x0 + (q.over[0] - q.x0) * h; s.z = q.z0 + (q.over[1] - q.z0) * h;
+      s.y = q.y0 + (q.top - q.y0) * Math.sin(w * Math.PI / 2);
+      s.speed = 0;
+    } else {
+      // over and down: a little lift off the top, then falling to the landing
+      const w = (u - q.rise) / (1 - q.rise);
+      s.x = q.over[0] + (q.land[0] - q.over[0]) * w; s.z = q.over[1] + (q.land[1] - q.over[1]) * w;
+      s.y = q.top + (q.ly - q.top) * w * w + 0.25 * w * (1 - w);
+      s.speed = 1.5;
+    }
+    s.onGround = false;
+    if (u >= 1) {
+      this.climb = null;
+      s.y = q.ly; s.onGround = true; s.vx = q.nx * WALK * 0.6; s.vz = q.nz * WALK * 0.6;
+      this._resolve();
+      this.human?.play('jumpLand', { rate: 2, fade: 0.08 });
+    }
+    this._pose(dt);
+    this.game.hud.setPrompt(null);
+  }
+
   // push the character out of static colliders and vehicles (oriented boxes)
   _resolve() {
     const s = this.state, g = this.game;
@@ -560,6 +636,7 @@ export class OnFoot {
   update(dt, input) {
     if (this.inter.busy) { this.inter.update(dt, input); return; }
     if (this.seq) { this._updateSeq(dt, input); return; }
+    if (this.climb) { this._updateClimb(dt); return; }
     const s = this.state, g = this.game, ic = input.controls;
     this.hurtT += dt;
     if (this.hurtT > 6 && this.hp < 60 && !this.dead) this.hp = Math.min(60, this.hp + dt * 4);
@@ -603,7 +680,11 @@ export class OnFoot {
     s.x += s.vx * dt; s.z += s.vz * dt;
     // gravity / jump (space)
     const gy = this._ground(s.x, s.z);
-    if (input.consume('jump') && s.y <= gy + 0.02) this.vy = 4.2;
+    if (input.consume('jump') && s.y <= gy + 0.02) {
+      const cl = !this.knockT && this._climbSpot();
+      if (cl) { this._climb(cl); this._pose(dt); return; }
+      this.vy = 4.2;
+    }
     this.vy -= 9.81 * dt; s.y += this.vy * dt;
     if (s.y <= gy) { s.y = gy; this.vy = 0; }
     s.onGround = s.y <= gy + 0.02;

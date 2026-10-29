@@ -397,6 +397,11 @@ the game. Newly found problems go at the end of their section.
   one second, 15 s sooner). Again: none in the road, no car off it
 - [x] On foot round the six towns, walking and running at walls, houses, trees and traffic for two minutes each: no
   step through anything solid, never inside it, the feet never under or over the ground, no errors
+- [x] On foot, a garden wall (1.25-1.65 m) or a railing stopped you for good: a jump reached 0.9 m, and the only way
+  on was round, through someone's gate. Jump at one now (facing it, within reach) and you climb it: hands on the top,
+  hauled up onto it, over and down the far side; a waist-high barrier is vaulted, quicker. Not a building, not one
+  thicker than a wall, nor where the far side has something solid or a car in the way, is the river, or is a drop
+  of over 3 m (a bridge's railing)
 
 ## Roads and world
 - [x] The game hung for a moment every so often while driving: building each new 2 km piece of the map ran some
