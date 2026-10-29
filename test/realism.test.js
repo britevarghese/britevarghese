@@ -90,12 +90,52 @@ test('a soldier lying in a bush is hidden from bots; the same soldier in the ope
   prey.stance = 'prone'; prey.spawnedAt = 0;
   const eye = { x: bot.x, y: bot.y + 1.64, z: bot.z }, tgt = { x: prey.x, y: prey.y + 0.3, z: prey.z };
   assert.ok(f.cover(eye, tgt) > 0.5, 'fern hides a prone soldier');
-  bot.brain.perceive(g.now());
-  assert.equal(bot.brain.target, null, 'not spotted in the fern');
-  // step out of the fern and stand up
+  // spotting builds over successive looks (BotBrain awareness): watch for 3 s
+  const look = (secs) => { for (let t = 0; t < secs; t += 0.22) { g.clock += 220; bot.brain.perceive(g.now()); if (bot.brain.target) return t; } return null; };
+  assert.equal(look(3), null, 'not spotted in the fern');
+  // step out of the fern and stand up: 19 m away, straight ahead, in the open — a second at most
   Object.assign(prey, { x: cx + 6, y: groundHeight(cx + 6, cz), stance: 'stand' });
-  bot.brain.perceive(g.now());
-  assert.equal(bot.brain.target, prey, 'spotted in the open');
+  const t = look(3);
+  assert.ok(t !== null && t < 1, `spotted in the open (after ${t} s)`);
+  assert.equal(bot.brain.target, prey);
+});
+
+test('bots take time to spot people: longer far away, prone or off to the side; at once when they fire', () => {
+  const g = mkGame();
+  const bot = g.addPlayer({ name: '[BOT] B', bot: true, team: 1 }), prey = g.addPlayer({ name: 'P', team: 2 });
+  // open ground on the Outskirts' main road, the bot looking down it (-z)
+  const time = (dz, dx, stance, firing = false) => {
+    spawnAt(g, bot, 0, 120, 0); spawnAt(g, prey, dx, 120 - dz); bot.brain.onSpawn(); bot.brain.skill = 0.7;
+    Object.assign(prey, { stance, spawnedAt: 0, lastFireFlag: firing ? g.now() : 0 });
+    for (let t = 0; t < 12; t += 0.22) { g.clock += 220; if (firing) prey.lastFireFlag = g.now(); bot.brain.perceive(g.now()); if (bot.brain.target === prey) return t; }
+    return Infinity;
+  };
+  assert.ok(g.world.lineOfSight({ x: 0, y: groundHeight(0, 120) + 1.6, z: 120 }, { x: 0, y: groundHeight(0, 10) + 0.3, z: 10 }), 'clear view down the road');
+  const near = time(15, 0, 'stand'), far = time(110, 0, 'stand'), prone = time(110, 0, 'prone'), side = time(60, 60, 'stand'), fire = time(110, 0, 'prone', true);
+  assert.ok(near < 0.5, `standing at 15 m: ${near} s`);
+  assert.ok(far > near && far < 4, `standing at 110 m: ${far} s`);
+  assert.ok(prone > far * 2, `prone at 110 m: ${prone} s (standing ${far} s)`);
+  assert.ok(side > time(85, 0, 'stand'), `same distance, 45° off the line of sight: ${side} s`);
+  assert.ok(fire < far, `prone but firing at 110 m: ${fire} s`);
+});
+
+test('rounds cracking past suppress a bot: it gets lower and looks toward the shooter', () => {
+  const g = mkGame();
+  const bot = g.addPlayer({ name: '[BOT] B', bot: true, team: 1 }), shooter = g.addPlayer({ name: 'S', team: 2 });
+  spawnAt(g, bot, 0, 60, 0); spawnAt(g, shooter, 0, 140, Math.PI); // behind the bot, which looks the other way
+  bot.brain.onSpawn(); bot.stance = 'stand';
+  shooter.weapons[shooter.slot] = { id: 'ar', mag: 30, reserve: 90 };
+  const eye = [shooter.x, shooter.y + 1.6, shooter.z];
+  // three rounds a metre to the bot's side, at head height
+  for (let i = 0; i < 3; i++) {
+    const t = { x: bot.x + 1.1, y: bot.y + 1.4, z: bot.z }, d = [t.x - eye[0], t.y - eye[1], t.z - eye[2]];
+    shooter.nextFire = 0; g.tryFire(shooter, eye, d); g.clock += 100;
+  }
+  assert.equal(bot.hp, 100, 'not hit');
+  assert.ok(bot.brain.suppression(g.now()) > 0.5, `suppressed (${bot.brain.suppression(g.now()).toFixed(2)})`);
+  bot.brain.think(1 / 30);
+  assert.notEqual(bot.stance, 'stand', 'got down');
+  assert.ok(bot.brain.heard && Math.abs(bot.brain.heard.z - shooter.z) < 1, 'turns toward the shooter');
 });
 
 test('soldiers are solid: a bot is pushed out of another soldier', () => {

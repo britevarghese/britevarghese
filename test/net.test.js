@@ -7,6 +7,8 @@ import { groundHeight } from '../shared/map.js';
 
 const PORT = 3999;
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+// poll for a condition instead of sleeping a fixed time: on a busy machine replies can take a while
+const until = async (fn, ms = 6000) => { for (const t0 = Date.now(); Date.now() - t0 < ms; await wait(50)) { const v = fn(); if (v) return v; } return fn(); };
 
 function client(name, team) {
   const ws = new WebSocket(`ws://localhost:${PORT}/ws`);
@@ -27,14 +29,12 @@ test('multiplayer join / spawn / snapshot / chat / shoot', async (t) => {
   await new Promise((r) => srv.stdout.on('data', (d) => d.toString().includes('running') && r()));
   const a = client('Alpha', 1), b = client('Bravo', 2);
   await Promise.all([a.open, b.open]);
-  await wait(300);
-  const wa = a.msgs.find((m) => m.t === 'welcome'), wb = b.msgs.find((m) => m.t === 'welcome');
+  const wa = await until(() => a.msgs.find((m) => m.t === 'welcome')), wb = await until(() => b.msgs.find((m) => m.t === 'welcome'));
   assert.ok(wa && wb);
   assert.equal(wa.team, 1); assert.equal(wb.team, 2);
   a.send({ t: 'spawn', p: 'base' }); b.send({ t: 'spawn', p: 'base' });
-  await wait(400);
-  const sa = a.events.find((e) => e.t === 'spawn' && e.id === wa.id);
-  const sb = b.events.find((e) => e.t === 'spawn' && e.id === wb.id);
+  const sa = await until(() => a.events.find((e) => e.t === 'spawn' && e.id === wa.id));
+  const sb = await until(() => b.events.find((e) => e.t === 'spawn' && e.id === wb.id));
   assert.ok(sa && sb, 'both spawned');
   // move both to open ground facing each other, 20 m apart
   const place = (c, id, x, z, yaw) => c.send({ t: 'in', x, y: groundHeight(x, z), z, yaw, pitch: 0, st: 'stand', ads: false, sp: false, vx: 0, vz: 0, og: true, sl: 0 });
@@ -45,12 +45,13 @@ test('multiplayer join / spawn / snapshot / chat / shoot', async (t) => {
     place(b, wb.id, sb.x + (100 - sb.x) * k, sb.z + (40 - sb.z) * k, Math.PI);
     await wait(120);
   }
-  await wait(300);
+  // (the latest snapshot with B in it, once the server has caught up with the walk)
+  const near = (r, x, z) => r && Math.hypot(r[1] - x, r[3] - z) < 1;
+  await until(() => { const s = a.snaps[a.snaps.length - 1]; return s && near(s.p.find((r) => r[0] === wa.id), 100, 60) && near(s.p.find((r) => r[0] === wb.id), 100, 40); });
   const last = a.snaps[a.snaps.length - 1];
   assert.ok(last.p.some((r) => r[0] === wb.id), 'A sees B in snapshots');
   a.send({ t: 'chat', msg: 'hello' });
-  await wait(200);
-  assert.ok(b.events.some((e) => e.t === 'chat' && e.msg === 'hello'));
+  assert.ok(await until(() => b.events.some((e) => e.t === 'chat' && e.msg === 'hello')), 'B got the chat');
   // A shoots at B's chest
   const me = last.p.find((r) => r[0] === wa.id), other = last.p.find((r) => r[0] === wb.id);
   const o = [me[1], me[2] + 1.64, me[3]];

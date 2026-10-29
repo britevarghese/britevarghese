@@ -200,7 +200,7 @@ export class Effects {
     }
     if (surface !== 'flesh' && surface !== 'dirt' && surface !== 'sand') this.decal(point, n, 0.07 + Math.random() * 0.03, this.decalMat);
     else if (surface === 'dirt') this.decal(point, n, 0.12, this.decalMat, 0.5);
-    this.audio?.impact(point, surface);
+    // (the impact sound is played by the callers, alongside: every one of them calls audio.impact)
   }
 
   // shattered window: glittering shards thrown in the direction of the hit + a little dust, falling under gravity

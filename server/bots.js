@@ -4,14 +4,44 @@
 //   engage  - enemy in sight: stop to aim at range (one stance per fight), short strafes up close
 //   cover   - hurt while exposed: run to a spot the shooter can't see, crouch, reload/heal, then peek
 //   search  - lost sight: crouch-walk toward where the enemy was last seen, aiming there, then give up
-//   hold    - at the objective: watch the likely approach directions, turning slowly between them
+//   hold    - at the objective (a spot with cover beside it when there is one): watch the approach directions
+//   peek    - after ducking into cover: come up and look for the shooter again
+// Spotting takes time (awareness builds while someone stays in view: instant up close or when he fires, seconds for
+// a still / crouched / prone figure far off or at the edge of vision); bullets cracking past suppress (duck, aim
+// worse, break contact); a hit makes the aim flinch; grenades go to enemies known to be behind cover close by.
 import { EYE_HEIGHT } from '../shared/world.js';
-import { WEAPONS } from '../shared/weapons.js';
+import { WEAPONS, GRENADE } from '../shared/weapons.js';
 import { angleDiff, clamp } from '../shared/util.js';
 import { zeroAngle } from '../shared/ballistics.js';
 import { Foliage } from './foliage.js';
 
 const rand = (a, b) => a + Math.random() * (b - a);
+
+// spots in a flag's capture zone with cover beside them: a solid box at least 1 m tall within 0.9 m, on walkable
+// ground the nav grid reaches (computed once per map and flag; the collision world is shared between rooms)
+function holdSpots(g, f) {
+  const cache = g.world.holdSpots || (g.world.holdSpots = new Map());
+  if (cache.has(f.id)) return cache.get(f.id);
+  const out = [], w = g.world, gh = w.map.groundHeight;
+  for (let x = f.x - f.r; x <= f.x + f.r; x += 1.5) for (let z = f.z - f.r; z <= f.z + f.r; z += 1.5) {
+    if (Math.hypot(x - f.x, z - f.z) > f.r * 0.9 || !g.nav.free(g.nav.ix(x), g.nav.iz(z))) continue;
+    const y = w.supportHeight(x, z, gh(x, z) + 0.3, 0.2);
+    if (w.query(x - 0.9, z - 0.9, x + 0.9, z + 0.9, []).some((b) => b.max[1] > y + 1 && b.min[1] < y + 0.4 && b.tag !== 'tree')) out.push({ x, z });
+  }
+  cache.set(f.id, out);
+  return out;
+}
+
+// throw direction that lands a grenade `d` metres away, `h` metres below the hand (Game.throwGrenade: 15 m/s release
+// plus 1.5 m/s of arm lift, real gravity): the flattest arc that gets there, or null if it can't
+function lob(d, h, ux, uz) {
+  const v = GRENADE.throwSpeed, gr = GRENADE.gravity;
+  for (let a = -0.1; a < 1.0; a += 0.01) {
+    const vh = v * Math.cos(a), vy = v * Math.sin(a) + 1.5, t = (vy + Math.sqrt(vy * vy + 2 * gr * Math.max(-vy * vy / (2 * gr) + 0.01, h))) / gr;
+    if (vh * t >= d) return [ux * Math.cos(a), Math.sin(a), uz * Math.cos(a)];
+  }
+  return null;
+}
 
 export class BotBrain {
   constructor(game, p) {
@@ -29,7 +59,16 @@ export class BotBrain {
     this.yawVel = 0; this.pitchVel = 0; this.moveDir = { x: 0, z: 0 };
     this.mode = 'patrol'; this.cover = null; this.coverUntil = 0; this.peekUntil = 0; this.engageStance = null;
     this.watch = null; this.watchUntil = 0; this.lastThreatAt = -1e9; this.unstick = null;
+    this.aware = new Map(); this.lastPerceive = 0; this.supp = 0; this.suppAt = 0; this.nextNade = this.g.now() + rand(5000, 15000);
     this.pickGoal();
+  }
+
+  // straight line from here to `q` wide enough for a body (knee height, ±0.3 m)
+  bodyClearTo(q) {
+    const p = this.p, w = this.g.world, L = Math.hypot(q.x - p.x, q.z - p.z) || 1, ox = -(q.z - p.z) / L * 0.3, oz = (q.x - p.x) / L * 0.3;
+    const ya = p.y + 0.5, yb = w.map.groundHeight(q.x, q.z) + 0.5;
+    for (const k of [0, 1, -1]) if (!w.lineOfSight({ x: p.x + ox * k, y: ya, z: p.z + oz * k }, { x: q.x + ox * k, y: Math.max(ya - 0.3, yb), z: q.z + oz * k })) return false;
+    return true;
   }
 
   // smooth, human-like turning: angular velocity with acceleration limits (no instant snaps, slight overshoot)
@@ -89,9 +128,28 @@ export class BotBrain {
   }
 
   onDamaged(attacker) {
+    const now = this.g.now();
+    // a hit throws the aim off and interrupts the burst (flinch)
+    this.aimErr.yaw += rand(-0.09, 0.09); this.aimErr.pitch += rand(-0.04, 0.08);
+    this.burstPauseUntil = Math.max(this.burstPauseUntil, now + rand(150, 400));
+    this.supp = Math.min(1.5, this.suppression(now) + 0.4); this.suppAt = now;
     if (!attacker || !attacker.alive || !this.g.isEnemy(this.p, attacker)) return;
-    if (!this.target) { this.target = attacker; this.reactUntil = this.g.now() + rand(300, 700) * (1.6 - this.skill); this.aimErr = { yaw: rand(-0.12, 0.12), pitch: rand(-0.06, 0.06) }; }
-    this.lastSeen = { x: attacker.x, y: attacker.y, z: attacker.z, t: this.g.now() };
+    this.aware.set(attacker.id, 1); // you know where that came from
+    if (!this.target) { this.target = attacker; this.reactUntil = now + rand(300, 700) * (1.6 - this.skill); this.aimErr = { yaw: rand(-0.12, 0.12), pitch: rand(-0.06, 0.06) }; }
+    this.lastSeen = { x: attacker.x, y: attacker.y, z: attacker.z, t: now };
+  }
+
+  // current suppression (0 calm .. 1.5 pinned down), fading over a couple of seconds
+  suppression(now) { return this.supp * Math.exp(-(now - this.suppAt) / 1800); }
+
+  // a bullet cracked past within d metres (Game.#suppress): flinch, get lower, look toward the shooter
+  onSuppressed(shooter, d) {
+    const now = this.g.now();
+    this.supp = Math.min(1.5, this.suppression(now) + (d < 1 ? 0.4 : d < 2 ? 0.25 : 0.12)); this.suppAt = now;
+    if (!shooter || !shooter.alive || !this.g.isEnemy(this.p, shooter)) return;
+    // the crack and the report give the direction: half spotted already, and look that way
+    this.aware.set(shooter.id, Math.max(this.aware.get(shooter.id) || 0, 0.5));
+    if (!this.target) this.heard = { x: shooter.x, z: shooter.z, until: now + 2000 };
   }
 
   pickGoal() {
@@ -104,9 +162,12 @@ export class BotBrain {
       return { f, s: s + rand(0, 2.2) };
     }).sort((a, b) => b.s - a.s);
     const f = scored[0].f;
-    const a = rand(0, Math.PI * 2), r = rand(1, f.r * 0.8);
-    this.goal = { x: f.x + Math.cos(a) * r, z: f.z + Math.sin(a) * r, flag: f.id };
-    this.path = this.g.nav.findPath(p.x, p.z, this.goal.x, this.goal.z);
+    // mostly a spot inside the capture zone with something solid beside it (wall, container, sandbags, a window),
+    // the way people hold a position; otherwise anywhere in the zone
+    const spots = holdSpots(this.g, f);
+    if (spots.length && Math.random() < 0.7) { const q = spots[Math.floor(Math.random() * spots.length)]; this.goal = { x: q.x, z: q.z, flag: f.id }; }
+    else { const a = rand(0, Math.PI * 2), r = rand(1, f.r * 0.8); this.goal = { x: f.x + Math.cos(a) * r, z: f.z + Math.sin(a) * r, flag: f.id }; }
+    this.path = this.g.nav.findPath(p.x, p.z, this.goal.x, this.goal.z, undefined, p.y);
     this.pathIdx = 1;
     this.repathAt = this.g.now() + rand(9000, 16000);
   }
@@ -115,8 +176,13 @@ export class BotBrain {
     const p = this.p, eye = { x: p.x, y: p.y + EYE_HEIGHT[p.stance], z: p.z };
     const foliage = this.g.world.foliage || (this.g.world.foliage = new Foliage(this.g.world));
     let heard = null;
-    let best = null, bestD = 130 * (0.7 + this.skill * 0.4);
-    const fwdYaw = p.yaw;
+    // how far a person can pick out a soldier: further through a 4x scope, less with a handgun in hand
+    const w = p.weapons[p.slot], def = w && WEAPONS[w.id];
+    const range = (def?.scoped ? 380 : def?.id === 'pistol' ? 150 : 200) * (0.8 + this.skill * 0.3);
+    let best = null, bestD = range;
+    const fwdYaw = p.yaw, dt = Math.min(0.5, (now - (this.lastPerceive || now)) / 1000) || 0.22;
+    this.lastPerceive = now;
+    const seen = new Set();
     for (const q of this.g.players.values()) {
       if (!q.alive || q.air || !this.g.isEnemy(p, q)) continue;
       // freshly deployed soldiers are protected (and not yet a threat): don't pre-aim the spawn
@@ -133,16 +199,32 @@ export class BotBrain {
         if ((firing && d < 90) || (q.sprint && d < 14)) { if (!heard || d < heard.d) heard = { x: q.x, z: q.z, d }; }
         continue;
       }
-      // prone targets far away are hard to spot
-      if (q.stance === 'prone' && d > 45) continue;
+      // a prone figure far off is too small to make out unless his muzzle flash gives him away (nearer, the
+      // awareness below makes him slow to spot)
+      if (q.stance === 'prone' && d > 150 && !firing) continue;
       const tgt = { x: q.x, y: q.y + (q.stance === 'prone' ? 0.3 : q.stance === 'crouch' ? 0.9 : 1.35), z: q.z };
       if (!this.g.world.lineOfSight(eye, tgt)) continue;
       // in a bush / behind ferns / under a tree crown: hidden unless they give themselves away (firing, running)
       // or are very close; even a soldier you were fighting can melt back into the foliage
-      const hidden = foliage.cover(eye, tgt) * (firing ? 0.15 : 1) * (Math.hypot(q.vx || 0, q.vz || 0) > 2.5 ? 0.5 : 1) * (d < 5 ? 0.3 : 1);
+      const speed = Math.hypot(q.vx || 0, q.vz || 0);
+      const hidden = foliage.cover(eye, tgt) * (firing ? 0.15 : 1) * (speed > 2.5 ? 0.5 : 1) * (d < 5 ? 0.3 : 1);
       if (hidden > (q === this.target ? 0.85 : 0.5)) continue;
+      // awareness: how quickly this figure registers — distance, posture, motion, muzzle flash, where in the view
+      seen.add(q.id);
+      let a = this.aware.get(q.id) || 0;
+      if (q === this.target || d < 8) a = 1;
+      else {
+        const off = Math.abs(angleDiff(fwdYaw, yawTo));
+        const rate = (1 / (0.15 + d / 60)) * (q.stance === 'prone' ? 0.35 : q.stance === 'crouch' ? 0.65 : 1) * (speed > 4 ? 2 : speed > 1 ? 1.5 : 1)
+          * (firing ? 5 : 1) * (off < 0.35 ? 1.4 : off < 0.8 ? 1 : 0.5) * (1 - hidden) * (0.7 + this.skill * 0.6) * (this.target ? 0.7 : 1);
+        a = Math.min(1, a + rate * dt);
+      }
+      this.aware.set(q.id, a);
+      if (a < 1) continue;
       best = q; bestD = d;
     }
+    // out of view: the impression fades over a couple of seconds
+    for (const [id, a] of this.aware) if (!seen.has(id)) { const v = a - dt * 0.5; if (v <= 0) this.aware.delete(id); else this.aware.set(id, v); }
     // a shot or footsteps behind / beside: look that way (spotting them is up to the eyes on the next look)
     if (!best && heard && !this.target) this.heard = { x: heard.x, z: heard.z, until: now + 1500 };
     if (best && best !== this.target) {
@@ -182,7 +264,8 @@ export class BotBrain {
         p.stance = 'crouch';
         if (def && w.mag < def.mag && w.reserve > 0 && !p.reloadUntil) g.reload(p);
         if (!this.coverUntil) this.coverUntil = now + rand(1500, 3200);
-        if (now > this.coverUntil && now >= p.reloadUntil) { this.mode = 'engage'; this.cover = null; this.coverUntil = 0; this.peekUntil = now + rand(1500, 3000); }
+        // come up and look again once reloaded and the incoming fire has eased (pinned down: stay low longer)
+        if (now > this.coverUntil && now >= p.reloadUntil && this.suppression(now) < 0.7) { this.mode = 'peek'; this.cover = null; this.coverUntil = 0; this.peekUntil = now + rand(2000, 3500); this.engageStance = 'stand'; }
       }
       if (now - (this.coverStart || now) > 6000) { this.mode = 'patrol'; this.cover = null; }
       return input;
@@ -206,18 +289,23 @@ export class BotBrain {
       this.turn(wantYaw, wantPitch, dt, 1.4);
       p.ads = dist > 15 || def.scoped;
       input.ads = p.ads;
-      // one stance per fight, like a person settling into a firing position
+      // one stance per fight, like a person settling into a firing position: get down at range (a standing man in
+      // the open is the easiest target there is), crouch at mid range, mostly stand up close to move
+      const supp = this.suppression(now);
       if (!this.engageStance) {
         const r = Math.random();
-        this.engageStance = dist > 70 && r < 0.3 ? 'prone' : dist > 20 && r < 0.55 ? 'crouch' : 'stand';
+        this.engageStance = dist > 45 ? (r < 0.55 ? 'prone' : r < 0.85 ? 'crouch' : 'stand') : dist > 18 ? (r < 0.6 ? 'crouch' : 'stand') : r < 0.25 ? 'crouch' : 'stand';
       }
+      // rounds cracking past: get lower
+      if (supp > 0.5 && this.engageStance === 'stand') this.engageStance = dist > 30 && supp > 0.9 ? 'prone' : 'crouch';
       p.stance = this.engageStance;
       // movement: out of the weapon's effective range -> close the distance (like a player with a carbine would);
       // otherwise stand still to shoot at range, short committed strafes up close
-      const effective = def.scoped ? 400 : def.id === 'pistol' ? 30 : 75;
+      const effective = def.scoped ? 400 : def.id === 'pistol' ? 30 : 140;
       // nobody hits anything with a pistol at 100 m: beyond a weapon's practical range, hold fire and close in
       const inRange = dist <= (def.engage || 150) * (0.8 + this.skill * 0.3);
-      if (dist > effective && now - (p.lastHit || 0) > 2000) {
+      // (never walking at someone who is shooting back: under fire you stay down and return it)
+      if (dist > effective && now - (p.lastHit || 0) > 2000 && supp < 0.4) {
         const d = Math.hypot(t.x - p.x, t.z - p.z) || 1;
         input.fx = (t.x - p.x) / d; input.fz = (t.z - p.z) / d;
         p.stance = 'stand'; this.engageStance = null;
@@ -229,6 +317,8 @@ export class BotBrain {
       // fire
       const aimed = Math.abs(angleDiff(p.yaw, wantYaw - this.aimErr.yaw)) < 0.09 + 0.6 / Math.max(dist, 3);
       if (!inRange && now - (p.lastHit || 0) > 2000) { p.stance = 'stand'; this.engageStance = null; }
+      // pinned down: heads down for a moment between bursts
+      if (supp > 1 && now > this.burstPauseUntil && Math.random() < dt * 2) this.burstPauseUntil = now + rand(300, 900);
       if (inRange && now > this.reactUntil && aimed && now > this.burstPauseUntil && now >= p.reloadUntil) {
         if (w.mag <= 0) g.reload(p);
         else {
@@ -239,7 +329,7 @@ export class BotBrain {
           // shouldered rifle) + follow-up shots fired before the sights settle
           const hold = def.id === 'pistol' ? 0.9 : def.scoped ? 0.05 : 0.25;
           const cone = (p.ads ? def.spreadAds : def.spreadHip) + hold + (this.lastShotAt && now - this.lastShotAt < 350 ? (def.id === 'pistol' ? 0.8 : 0.3) : 0);
-          const spread = (cone * Math.PI / 180) * (1.5 - this.skill * 0.7) * (moving ? 1.8 : 1) * (p.stance === 'prone' ? 0.6 : p.stance === 'crouch' ? 0.8 : 1);
+          const spread = (cone * Math.PI / 180) * (1.5 - this.skill * 0.7) * (moving ? 1.8 : 1) * (p.stance === 'prone' ? 0.6 : p.stance === 'crouch' ? 0.8 : 1) * (1 + supp * 1.2);
           const cp = Math.cos(p.pitch);
           const d = [-Math.sin(p.yaw) * cp + rand(-spread, spread), Math.sin(p.pitch) + rand(-spread, spread), -Math.cos(p.yaw) * cp + rand(-spread, spread)];
           if (g.tryFire(p, [eye.x, eye.y, eye.z], d)) {
@@ -254,7 +344,7 @@ export class BotBrain {
       }
       // losing the fight in the open: break line of sight
       const dry = w.mag <= Math.ceil(def.mag * 0.15) && w.reserve > 0 && dist > 12;
-      if (((p.hp < 55 && now - (p.lastHit || 0) < 1500) || (p.hp < 90 && now - (p.lastHit || 0) < 600 && Math.random() < 0.3 * this.skill) || dry) && p.stance !== 'prone' && now > (this.nextCoverTry || 0)) {
+      if (((p.hp < 55 && now - (p.lastHit || 0) < 1500) || (p.hp < 90 && now - (p.lastHit || 0) < 600 && Math.random() < 0.3 * this.skill) || dry || (supp > 1 && Math.random() < dt * 1.5)) && p.stance !== 'prone' && now > (this.nextCoverTry || 0)) {
         this.nextCoverTry = now + 4000;
         const c = this.findCover(t);
         if (c) { this.mode = 'cover'; this.cover = c; this.coverStart = now; this.coverUntil = 0; }
@@ -264,17 +354,30 @@ export class BotBrain {
 
     // no visible target
     p.ads = false;
+    // peeking out of cover: up, gun toward where the shooter was, for a few seconds
+    if (this.mode === 'peek' && now < this.peekUntil && this.lastSeen) {
+      p.stance = 'stand'; p.ads = input.ads = true; this.engageStance = 'stand';
+      this.turn(Math.atan2(-(this.lastSeen.x - p.x), -(this.lastSeen.z - p.z)), 0, dt, 0.9);
+      return input;
+    }
     this.engageStance = null;
     if (def && w.mag < def.mag * 0.5 && w.reserve > 0 && !p.reloadUntil) g.reload(p);
 
-    // grenade at last known position behind cover
-    if (this.target && this.lastSeen && p.grenades > 0 && now - this.lastSeen.t < 2500 && Math.random() < 0.008) {
-      const dx = this.lastSeen.x - p.x, dz = this.lastSeen.z - p.z, d = Math.hypot(dx, dz);
-      if (d > 10 && d < 32) {
-        const up = 0.35 + d * 0.004;
-        g.throwGrenade(p, [p.x, p.y + 1.6, p.z], [dx / d, up, dz / d]);
+    // grenade: an enemy who just went out of sight behind cover close by (10-24 m: a real overarm throw)
+    if (this.lastSeen && p.grenades > 0 && now > this.nextNade && now - this.lastSeen.t > 700 && now - this.lastSeen.t < 8000 && Math.random() < dt * 0.5) {
+      const ls = this.lastSeen, dx = ls.x - p.x, dz = ls.z - p.z, d = Math.hypot(dx, dz);
+      const mates = [...g.players.values()].some((q) => q !== p && q.alive && !g.isEnemy(p, q) && Math.hypot(q.x - ls.x, q.z - ls.z) < 8);
+      const eye = { x: p.x, y: p.y + EYE_HEIGHT[p.stance], z: p.z };
+      const dir = d > 10 && d < 24 && !mates ? lob(d, eye.y - (ls.y ?? p.y), dx / d, dz / d) : null;
+      // a wall right in front of the face would send it back at our feet
+      if (dir && g.world.lineOfSight(eye, { x: eye.x + dir[0] * 2.5, y: eye.y + dir[1] * 2.5, z: eye.z + dir[2] * 2.5 })) {
+        this.turn(Math.atan2(-dx, -dz), undefined, dt, 2);
+        g.throwGrenade(p, [eye.x, eye.y, eye.z], dir);
+        this.nextNade = now + rand(12000, 25000);
       }
     }
+    // rounds cracking past out of nowhere: get down and look for the shooter
+    if (this.suppression(now) > 0.5 && p.stance === 'stand' && this.mode !== 'cover') { p.stance = 'crouch'; this.stanceUntil = now + rand(2000, 4000); }
 
     // ---------------------------------------------------------------- search where the enemy was last seen
     if (this.lastSeen && now - this.lastSeen.t < 6000 && (this.target || now - this.lastSeen.t < 4000)) {
@@ -319,9 +422,11 @@ export class BotBrain {
     // ---------------------------------------------------------------- patrol: follow the path
     this.mode = 'patrol';
     let wp = this.path[this.pathIdx];
-    // advance early, and skip a waypoint when the next one is already in direct view (smoother lines)
-    if (Math.hypot(wp.x - p.x, wp.z - p.z) < 2 && this.pathIdx < this.path.length - 1) wp = this.path[++this.pathIdx];
-    else if (Math.hypot(wp.x - p.x, wp.z - p.z) < 1) this.pathIdx++;
+    // advance early for smoother lines — but only when the body fits straight to the next waypoint from here (cutting
+    // the corner of a doorway puts you against the jamb)
+    const dw = Math.hypot(wp.x - p.x, wp.z - p.z);
+    if (dw < 2 && this.pathIdx < this.path.length - 1 && (dw < 0.7 || this.bodyClearTo(this.path[this.pathIdx + 1]))) wp = this.path[++this.pathIdx];
+    else if (dw < 0.7) this.pathIdx++;
     let remaining = Math.hypot(wp.x - p.x, wp.z - p.z);
     for (let i = this.pathIdx; i < this.path.length - 1; i++) remaining += Math.hypot(this.path[i + 1].x - this.path[i].x, this.path[i + 1].z - this.path[i].z);
     const recentThreat = now - this.lastThreatAt < 8000;
@@ -342,7 +447,7 @@ export class BotBrain {
       this.unstick = { x: -input.fz * side, z: input.fx * side, until: now + 600 };
       if (now > (this.nextJump || 0)) { input.jump = true; this.nextJump = now + 8000; }
     }
-    if (this.stuckT > 2.5) { this.stuckT = 0; this.path = this.g.nav.findPath(p.x, p.z, this.goal.x, this.goal.z); this.pathIdx = 1; if (!this.path) this.pickGoal(); }
+    if (this.stuckT > 2.5) { this.stuckT = 0; this.path = this.g.nav.findPath(p.x, p.z, this.goal.x, this.goal.z, undefined, p.y); this.pathIdx = 1; if (!this.path) this.pickGoal(); }
     return input;
   }
 }

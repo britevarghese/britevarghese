@@ -11,7 +11,7 @@ import { Effects } from './fx/Effects.js';
 import { GameAudio } from './audio/Audio.js';
 import { Net } from './net/Net.js';
 import { WEAPONS } from '/shared/weapons.js';
-import { PROPS, groundHeight, roadDistance, BUILDINGS, FLAGS, setActiveMap, ACTIVE_MAP } from '/shared/map.js';
+import { PROPS, groundHeight, roadDistance, BUILDINGS, FLAGS, setActiveMap, ACTIVE_MAP, seaFactor } from '/shared/map.js';
 import { Lobby, inviteLink, Stats, mapArt } from './ui/Lobby.js';
 import { TouchControls, isTouchDevice } from './ui/TouchControls.js';
 import { EYE_HEIGHT } from '/shared/world.js';
@@ -23,6 +23,7 @@ import { detectGPU, adviceFor } from './render/GPU.js';
 import { VehiclesClient } from './vehicles/Vehicles.js';
 
 const $ = (id) => document.getElementById(id);
+const DOWN = { x: 0, y: -1, z: 0 };
 const AUTO = new URLSearchParams(location.search);
 const showError = (m) => { $('errors').textContent += `${m}\n`; };
 addEventListener('error', (e) => showError(`JS error: ${e.message}`));
@@ -171,11 +172,17 @@ class Game {
     this.viewmodel.weaponId = wid;
   }
 
-  surfaceAt(x, z) {
-    const y = this.me.s.y;
-    for (const b of BUILDINGS) if (Math.abs(x - b.x) < b.w / 2 && Math.abs(z - b.z) < b.d / 2) return b.style === 'warehouse' ? 'concrete' : 'concrete';
-    if (roadDistance(x, z) < 0 || ACTIVE_MAP.pavedAt(x, z)) return 'concrete';
-    return y - groundHeight(x, z) > 0.3 ? 'metal' : 'grass';
+  // what the boots stand on (footsteps, spent brass): a floor / prop / vehicle right under the feet, else the ground —
+  // paving and roads concrete, the gravel shoulder along roads dirt, beaches sand, the rest grass
+  surfaceAt(x, z, y = this.me.s.y) {
+    const hit = this.world.collision.raycast({ x, y: y + 0.3, z }, DOWN, 0.75, false);
+    if (hit?.box) return hit.box.surface === 'rubber' ? 'dirt' : hit.box.surface;
+    for (const b of BUILDINGS) if (Math.abs(x - b.x) < b.w / 2 && Math.abs(z - b.z) < b.d / 2) return 'concrete';
+    const rd = roadDistance(x, z);
+    if (rd < 0 || ACTIVE_MAP.pavedAt(x, z)) return 'concrete';
+    if (y - groundHeight(x, z) > 0.3) return 'metal';
+    if (seaFactor(x, z) > 0.01) return 'sand';
+    return rd < 1.5 ? 'dirt' : 'grass';
   }
 
   // ---------------------------------------------------------------- networking
@@ -257,9 +264,16 @@ class Game {
         const dir = new THREE.Vector3(e.e[0] - from[0], e.e[1] - from[1], e.e[2] - from[2]).normalize();
         if (muzzle) this.effects.muzzleFlash(muzzle, dir, e.w === 'sniper');
         this.audio.gunshot(from, e.w);
-        if (e.s !== 'none') this.#scheduleImpact(e.b, tf, () => this.effects.impact(e.e, e.n, e.s));
+        if (e.s !== 'none') this.#scheduleImpact(e.b, tf, () => { this.effects.impact(e.e, e.n, e.s); this.audio.impact(e.e, e.s); });
         this.#nearMiss(e.o, e.e, tf, e.w);
         const sh = P.info(e.id); if (sh) { sh.spottedUntil = performance.now() + 2500; sh.rig?.kick(); }
+        // close enough to hear the action: a bolt being worked, brass bouncing off the ground
+        const dl = sh ? Math.hypot(sh.x - this.camera.position.x, sh.y - this.camera.position.y, sh.z - this.camera.position.z) : 1e9;
+        if (dl < 30) {
+          const surf = this.surfaceAt(sh.x, sh.z, sh.y), bolt = WEAPONS[e.w]?.bolt;
+          if (bolt) this.audio.boltCycle(bolt, [sh.x, sh.y + 1.4, sh.z], dl < 14 ? surf : null);
+          else if (dl < 14) this.audio.brass(surf, [sh.x, sh.y + 0.1, sh.z], 0.45, e.w);
+        }
         break;
       }
       case 'bhit': {
@@ -268,6 +282,7 @@ class Game {
         // hits on me: no blood particles inside my own camera, a red flash on the screen edges instead
         if (e.v === this.myId && this.me.alive && !this.me.isTPS()) this.hud.hurtFlash();
         else this.effects.impact(e.p, null, e.vh ? 'metal' : 'flesh');
+        this.audio.impact(e.p, e.vh ? 'metal' : 'flesh');
         break;
       }
       case 'hurt':
@@ -294,10 +309,15 @@ class Game {
         }
         break;
       }
-      case 'reload': if (e.id !== this.myId) P.onReload(e.id, e.dur); break;
+      case 'reload': if (e.id !== this.myId) {
+        P.onReload(e.id, e.dur);
+        // a soldier nearby reloading is heard (mag out / in; the bolt or slide too when he ran dry)
+        const p = P.info(e.id), def = WEAPONS[p?.weaponId];
+        if (def && p.alive && Math.hypot(p.x - this.camera.position.x, p.z - this.camera.position.z) < 25) this.audio.reload(def.id, e.dur / 1000, def.reloadEmpty !== def.reload && Math.abs(e.dur - def.reloadEmpty * 1000) < 1, [p.x, p.y + 1.2, p.z]);
+      } break;
       case 'ammo': if (e.w) e.w.forEach((w, i) => { const l = this.me.weapons[i]; if (l && w && l.id === w.id) { l.mag = w.mag; l.reserve = w.reserve; } }); break;
       case 'boom': this.effects.explosion([e.x, e.y, e.z], this.camera.position); this.audio.explosion([e.x, e.y, e.z]); break;
-      case 'bounce': break;
+      case 'bounce': this.audio.nadeBounce([e.x, e.y, e.z]); break;
       case 'flag': {
         const mine = e.owner === this.myTeam, lost = e.prev === this.myTeam;
         if (mine && this.me.alive && FLAGS.some((f) => f.id === e.id && Math.hypot(f.x - this.me.s.x, f.z - this.me.s.z) < f.r)) Stats.add({ xp: 200 });
@@ -321,6 +341,7 @@ class Game {
 
   #onLocalDeath() {
     this.me.alive = false;
+    this.audio.stopFoley();
     if (this.royale) return; // no respawn: the royale client switches to spectating
     document.exitPointerLock?.();
     setTimeout(() => this.#showDeploy(this.meState?.rs), 2200);
@@ -420,6 +441,11 @@ class Game {
     // viewmodel kick + muzzle flash at the real muzzle socket, world tracer & predicted impact
     this.viewmodel.kick(def);
     this.audio.gunshot(null, def.id, true);
+    // the action: a bolt rifle is worked after every shot (the case flies out with the bolt), the others eject
+    // their brass straight away
+    const surf = this.surfaceAt(this.me.s.x, this.me.s.z);
+    if (def.bolt) this.audio.boltCycle(def.bolt, null, surf);
+    else this.audio.brass(surf, null, def.id === 'pistol' ? 0.4 : 0.5, def.id);
     // third person: the flash and tracer leave the soldier's own rifle; first person: map the viewmodel-space
     // muzzle into the world (the viewmodel camera sits at the world camera)
     // (first person: the viewmodel's muzzle re-projected onto the same pixel in the world — it has its own FOV)
@@ -432,7 +458,7 @@ class Game {
     const tf = Math.max(0.01, e.t);
     const from = [worldMuzzle.x, worldMuzzle.y, worldMuzzle.z];
     if (Math.random() < 1 / def.tracer || def.tracer === 1) this.effects.tracer(from, end, Math.hypot(end[0] - from[0], end[1] - from[1], end[2] - from[2]) / tf);
-    const h = hit ? this.#scheduleImpact(undefined, tf, () => this.effects.impact(hit.point, hit.normal, hit.surface)) : null;
+    const h = hit ? this.#scheduleImpact(undefined, tf, () => { this.effects.impact(hit.point, hit.normal, hit.surface); this.audio.impact(hit.point, hit.surface); }) : null;
     (this.localImpacts || (this.localImpacts = [])).push(h);
     if (this.localImpacts.length > 40) this.localImpacts.shift();
   }

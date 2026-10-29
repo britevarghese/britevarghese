@@ -147,8 +147,13 @@ altitude hands-off), LMB rockets · gunner seats aim freely with the mouse. Touc
   stretches, walk and glance around near danger; in a fight they settle into one firing position, stop to shoot at range,
   close in when out of their weapon's range, fire controlled bursts, run to real cover when hurt, then peek; they
   search where they last saw you and watch approach routes while holding a flag. Line-of-sight perception with a
-  ~140° field of view (behind them they only *hear* gunfire and running, and turn to look), foliage concealment (lie
-  in a bush or behind ferns and they won't spot you unless you fire or move fast), human reaction times (~0.3–0.7 s),
+  ~140° field of view (behind them they only *hear* gunfire and running, and turn to look); **spotting takes time**
+  (instant up close, ~1 s for a standing man at 100 m, longer crouched, prone or at the edge of vision, almost
+  immediate once you fire; up to 200 m with a rifle, 380 m through a scope), foliage concealment (lie in a bush or
+  behind ferns and they won't spot you unless you fire or move fast), **suppression** (rounds cracking past make them
+  get down, aim worse and break contact — and tell them where you are), a flinch when hit, firing positions by
+  range (mostly prone or crouched beyond ~45 m), objectives held from spots with cover beside them, human reaction
+  times (~0.3–0.7 s),
   the same recoil a player fights, converging aim error, bullet-drop hold-over and target leading, grenades; they
   sprint only the way they face, keep a little space from each other, and duck into cover to reload.
 * **Vehicles** in every Conquest room, parked in each team's motor pool and respawning 25 s after being destroyed:
@@ -192,7 +197,9 @@ altitude hands-off), LMB rockets · gunner seats aim freely with the mouse. Touc
   react to someone who just landed, and bots prefer drop zones away from human players.
 * **Realistic bot gunfire:** bots only fire inside each weapon's practical range (pistol ~45 m, carbine ~170 m, bolt
   rifle ~550 m) and with the weapon's real dispersion plus a human hold (a handgun wobbles far more than a shouldered
-  rifle, rapid follow-ups spread wider); out of range they close in instead of shooting.
+  rifle, rapid follow-ups spread wider); out of range they close in instead of shooting — never while being shot at.
+  `node scripts/sim-bots.mjs <map> [minutes] [botsPerTeam]` runs headless bot-only matches and prints behaviour
+  metrics (modes, stances, detection / reaction, hit rate, kill distances, suppression reactions, stuck bots).
 * **AI Zone** (lobby tab): play with a soldier commanded by a **language model**. Set the provider, **base URL,
   model and API key** — *Anthropic (Claude)* uses the official Anthropic SDK (default model `claude-opus-5-5`),
   *OpenAI-compatible* covers OpenRouter, Groq, Together, vLLM, LM Studio and similar `/chat/completions` endpoints.
@@ -216,7 +223,7 @@ altitude hands-off), LMB rockets · gunner seats aim freely with the mouse. Touc
 | Lighting: HDRI IBL + sky, sun with texel-snapped soft shadows, hemisphere fill, fog, ACES | `client/js/render/Renderer.js` |
 | Transport plane (lofted fuselage, airfoil wings, turboprops with spinning props, painted panel lines, nav lights) | `client/js/royale/TransportPlane.js` |
 | Vehicles, modelled to real dimensions: Leopard 2A6-style tank (link-by-link tracks that run round the wheels as it drives, dual road wheels, bolted skirts, wedge turret, NATO camo), AH-64-style helicopter (framed flat-pane tandem canopy, twisted blades, TADS/PNVS, rocket pods + Hellfires), M1151-style Humvee (slotted grille, armoured glass, beadlock 37" tyres, O-GPK shield + M2), military dirt bike (spoked wheels, knobby tyres, USD forks, air-cooled single); baked mud / dust weathering; static parts merged per material (18–25 draw calls each) | `client/js/vehicles/models/*` |
-| Effects (pooled particles, tracers, decals, per-surface impacts, explosions, smoke, **instanced spent brass** — 5.56 / 9 mm / 7.62x54R cases, stripper clips, grenade spoons — that tumble, bounce on the real floor and lie there a while) · spatial audio (**recorded CC0 gunshots** with per-shot variation, distance muffling, speed-of-sound delay; synthesized foley) · HUD | `client/js/fx`, `client/js/audio`, `client/js/ui` |
+| Effects (pooled particles, tracers, decals, per-surface impacts, explosions, smoke, **instanced spent brass** — 5.56 / 9 mm / 7.62x54R cases, stripper clips, grenade spoons — that tumble, bounce on the real floor and lie there a while) · spatial audio (**recorded CC0 / public-domain sounds**: per-weapon gunshots with near / distant mic takes, vehicle guns, reload / bolt / handling foley on the animation timeline, boots per surface, bullet impacts, brass, explosions; distance muffling, speed-of-sound delay) · HUD | `client/js/fx`, `client/js/audio`, `client/js/ui` |
 
 ### Debug scenes
 `/debug/character`, `/debug/weapon?w=bolt_rifle`, `/debug/character-weapon?view=side`, `/debug/ads?w=bolt_rifle`,
@@ -244,8 +251,10 @@ Convert your own `.blend` files with `blender -b file.blend --python scripts/ble
   PBR textures and the sky HDRI: **Poly Haven, CC0** — fetched and optimized by `scripts/build-assets.mjs`
   (meshoptimizer simplification, foliage thinning, opacity-map baking, WebP textures).
 * Default soldier: three.js example `Soldier.glb` (Mixamo) — downloaded at install time, not redistributed.
-* Gunshots: real recordings from *The Free Firearm Sound Library* (OpenGameArt, **CC0**) — see
-  `client/assets/audio/README.md`.
+* Sounds: gunshots from *The Free Firearm Sound Library* (OpenGameArt, **CC0**), foley / footsteps / impacts /
+  explosions from Freesound and OpenGameArt (**CC0**, US Government b-roll = public domain) — every source in
+  `client/assets/audio/README.md`; rebuilt by `scripts/audio/` (fetch + ffmpeg/scipy processing), checked by
+  `scripts/playtest-audio.mjs`.
 
 ### Graphics cards (laptops with NVIDIA / AMD / Intel Arc)
 * The game asks the browser for the **high-performance GPU** and the menu shows which GPU it really got
