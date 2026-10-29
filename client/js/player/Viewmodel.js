@@ -111,8 +111,8 @@ export class Viewmodel {
     this.weaponKey = key;
     // hip & ADS poses in camera space
     const pistol = key === 'pistol';
-    // (pistol: a two-handed ready hold, arms half extended in front of the chest)
-    this.hip = { pos: pistol ? new THREE.Vector3(0.12, -0.155, -0.42) : new THREE.Vector3(0.16, -0.205, -0.2), rot: new THREE.Euler(pistol ? 0.02 : 0.03, pistol ? 0.05 : 0.07, pistol ? 0.0 : 0.08) };
+    // (pistol: a two-handed low ready, arms nearly extended, the gun just under the line of sight)
+    this.hip = { pos: pistol ? new THREE.Vector3(0.1, -0.2, -0.5) : new THREE.Vector3(0.16, -0.205, -0.2), rot: new THREE.Euler(pistol ? 0.02 : 0.03, pistol ? 0.05 : 0.07, pistol ? 0.0 : 0.08) };
     // a tall optic (red dot on a riser above a pistol grip) sits the rifle lower in the hands at the hip, so the sight
     // stays down in the corner of the view instead of filling it
     if (!pistol && w.sockets.opticEye && w.sockets.rightGrip) this.hip.pos.y -= Math.max(0, w.sockets.opticEye.y - w.sockets.rightGrip.y - 0.1);
