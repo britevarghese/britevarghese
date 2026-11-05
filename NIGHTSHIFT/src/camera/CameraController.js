@@ -51,6 +51,22 @@ export class CameraController {
     return 1;
   }
 
+  // how far the camera at (x, y, z) has to rise to be clear of the vehicles about: a car queued close behind the
+  // player's had the camera sat inside its body, the screen full of the inside of it. Over its roof instead (pulled in,
+  // as for a wall, the view jumped about with every tall car that came up behind in traffic)
+  _carLift(x, y, z) {
+    const list = this.vehicles?.();
+    let need = 0;
+    for (const v of list || []) {
+      if (Math.abs(v.x - x) > 8 || Math.abs(v.z - z) > 8) continue;
+      const top = v.y + v.h + 0.3;
+      if (top <= y + need) continue;
+      const dx = x - v.x, dz = z - v.z, cs = Math.cos(v.yaw), sn = Math.sin(v.yaw), lx = dx * cs - dz * sn, lz = dx * sn + dz * cs;
+      if (Math.abs(lx) <= v.w / 2 + 0.35 && Math.abs(lz) <= v.l / 2 + 0.35) need = top - y;
+    }
+    return need;
+  }
+
   next() { this.mode = (this.mode + 1) % CAMERA_MODES.length; return CAMERA_MODES[this.mode].name; }
 
   // the rear end of a vehicle's body, in body space (cached on the renderer)
@@ -205,6 +221,7 @@ export class CameraController {
     if (this.world) k = this._clearance(s.x, this.baseY + 1.3, s.z, this.off);
     this.clear = damp(this.clear ?? 1, k, k < (this.clear ?? 1) ? 25 : 4, dt);
     this.pos.set(s.x + this.off.x * this.clear, Math.max(this.baseY + this.off.y * (0.6 + 0.4 * this.clear), s.y + 0.6), s.z + this.off.z * this.clear);
+    { const need = this._carLift(this.pos.x, this.pos.y, this.pos.z); this.lift = damp(this.lift || 0, need, need > (this.lift || 0) ? 14 : 3, dt); this.pos.y += this.lift; }
     const lookAhead = 3 + 8 * ease;
     const lh = this.heading + (lookBack ? Math.PI : 0);
     _t.set(s.x + Math.sin(lh) * lookAhead, this.baseY + mode.look + 0.35 + (s.onGround ? 0 : 0.25), s.z + Math.cos(lh) * lookAhead);

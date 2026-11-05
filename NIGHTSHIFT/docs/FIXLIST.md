@@ -4,6 +4,10 @@ Everything reported in play-testing, worked through one at a time. Each item is 
 the game. Newly found problems go at the end of their section.
 
 ## Driving and vehicles
+- [x] The chase camera sat inside a car stopped close behind the player's (a Scorpio queued in Mattannur: the screen
+  full of the inside of its body) - it kept out of walls only. It rises over a vehicle it would be inside now, just
+  clear of its roof (over an SUV 0.3 m, a KSRTC bus 1.6 m), and back down once it's gone; pulled in instead, as for
+  a wall, the view would jump about with every tall car coming up behind in traffic
 - [x] Stolen vehicles: turning and acceleration (all eleven types tested; the get-in took 6-8 s with the controls dead: now ~3-5 s, gas finishes it)
 - [x] Autorickshaw: colour changes when you get in (livery kept); its own single-cylinder sound (and diesel sounds for jeeps, lorries, buses)
 - [x] Steering wheels (Logitech G29 / G920 / G923, Thrustmaster, Fanatec, Moza...): the game read every controller as

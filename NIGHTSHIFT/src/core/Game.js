@@ -116,6 +116,17 @@ export class Game {
     this.input = new InputManager(this.settings);
     this.camCtl = new CameraController(this.camera, this.settings);
     this.camCtl.world = this.world;
+    // (the vehicles the chase camera keeps out of: traffic and police, as boxes with a rough height by kind)
+    {
+      const H = { bus: 3.2, ksrtc: 3.2, pvtbus: 3.2, pvtbus2: 3.2, lorry: 3.2, truck: 3.2, van: 2.2, minitruck: 2.0, suv: 1.95, scorpio: 1.95, bolero: 1.95, thar: 1.9, ertiga: 1.7, brezza: 1.65, auto: 1.75, scooter: 1.6, commuter: 1.6, bullet: 1.6, streetbike: 1.6 };
+      const out = [];
+      this.camCtl.vehicles = () => {
+        out.length = 0;
+        for (const c of this.traffic?.cars || []) if (c.state !== 'gone') out.push({ x: c.x, z: c.z, y: c.y, yaw: c.yaw, w: c.spec?.w || 1.8, l: c.spec?.l || 4.5, h: H[c.type] || 1.55 });
+        for (const u of this.police?.units || []) { const s = u.vehicle?.state, P = u.vehicle?.params; if (s) out.push({ x: s.x, z: s.z, y: s.y, yaw: s.yaw, w: P?.width || 1.9, l: P?.length || 4.8, h: 1.6 }); }
+        return out;
+      };
+    }
     if (KERALA) await this.world.preload(new THREE.Vector3(START.x, 0, START.z), (k) => progress(0.36 + k * 0.04, `Loading ${START.name}...`));
     this.spawnPlayer();
     // nearby roads & buildings first, then the rest streams in during play
