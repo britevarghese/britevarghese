@@ -260,10 +260,12 @@ export class VehiclesClient {
       if (running && d < 320 && loops < 4) {
         loops++;
         if (!v.loop) v.loop = g.audio.loop(v.type);
+        // my own vehicle in the head; the others placed in the world (the panner rolls them off with distance), faded
+        // out over the last 60 m before the cut-off. The rotor's pitch follows its spin-up.
         const mineV = this.mine?.id === v.id;
-        const vol = (mineV ? 0.55 : 1.1 * Math.max(0, 1 - d / 320) ** 2) * (v.type === 'heli' ? v.spin : v.type === 'bike' ? 0.7 : 1);
-        const rev = v.type === 'heli' ? 1 : 1 + Math.min(1, Math.abs(v.speed || 0) / VEHICLES[v.type].maxSpeed) * (v.type === 'tank' ? 0.8 : 1.6);
-        v.loop?.set(vol, v.type === 'heli' ? 900 + v.spin * 300 : (v.type === 'tank' ? 180 : v.type === 'jeep' ? 320 : 700) * rev, rev);
+        const vol = (mineV ? 0.55 : 1.1 * Math.min(1, (320 - d) / 60)) * (v.type === 'heli' ? v.spin : v.type === 'bike' ? 0.7 : 1);
+        const rev = v.type === 'heli' ? 0.75 + 0.25 * v.spin : 1 + Math.min(1, Math.abs(v.speed || 0) / VEHICLES[v.type].maxSpeed) * (v.type === 'tank' ? 0.8 : 1.6);
+        v.loop?.set(vol, v.type === 'heli' ? 900 + v.spin * 300 : (v.type === 'tank' ? 180 : v.type === 'jeep' ? 320 : 700) * rev, rev, mineV ? null : [v.x, v.y + 1, v.z]);
       } else if (v.loop) { v.loop.stop(); v.loop = null; }
     }
     // rockets in flight: motor flare + smoke trail

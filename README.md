@@ -223,7 +223,7 @@ altitude hands-off), LMB rockets · gunner seats aim freely with the mouse. Touc
 | Lighting: HDRI IBL + sky, sun with texel-snapped soft shadows, hemisphere fill, fog, ACES | `client/js/render/Renderer.js` |
 | Transport plane (lofted fuselage, airfoil wings, turboprops with spinning props, painted panel lines, nav lights) | `client/js/royale/TransportPlane.js` |
 | Vehicles, modelled to real dimensions: Leopard 2A6-style tank (link-by-link tracks that run round the wheels as it drives, dual road wheels, bolted skirts, wedge turret, NATO camo), AH-64-style helicopter (framed flat-pane tandem canopy, twisted blades, TADS/PNVS, rocket pods + Hellfires), M1151-style Humvee (slotted grille, armoured glass, beadlock 37" tyres, O-GPK shield + M2), military dirt bike (spoked wheels, knobby tyres, USD forks, air-cooled single); baked mud / dust weathering; static parts merged per material (18–25 draw calls each) | `client/js/vehicles/models/*` |
-| Effects (pooled particles, tracers, decals, per-surface impacts, explosions, smoke, **instanced spent brass** — 5.56 / 9 mm / 7.62x54R cases, stripper clips, grenade spoons — that tumble, bounce on the real floor and lie there a while) · spatial audio (**recorded CC0 / public-domain sounds**: per-weapon gunshots with near / distant mic takes, vehicle guns, reload / bolt / handling foley on the animation timeline, boots per surface, bullet impacts, brass, explosions; distance muffling, speed-of-sound delay) · HUD | `client/js/fx`, `client/js/audio`, `client/js/ui` |
+| Effects (pooled particles, tracers, decals, per-surface impacts, explosions, smoke, **instanced spent brass** — 5.56 / 9 mm / 7.62x54R cases, stripper clips, grenade spoons — that tumble, bounce on the real floor and lie there a while) · spatial audio (**recorded CC0 / public-domain sounds**: per-weapon gunshots with near / distant mic takes, vehicle guns, reload / bolt / handling foley on the animation timeline, boots per surface, bullet impacts, brass, explosions, near-miss cracks, seamless engine / rotor / plane / wind loops that follow the revs, other vehicles placed in 3D; distance muffling, speed-of-sound delay) · HUD | `client/js/fx`, `client/js/audio`, `client/js/ui` |
 
 ### Debug scenes
 `/debug/character`, `/debug/weapon?w=bolt_rifle`, `/debug/character-weapon?view=side`, `/debug/ads?w=bolt_rifle`,
@@ -252,9 +252,10 @@ Convert your own `.blend` files with `blender -b file.blend --python scripts/ble
   (meshoptimizer simplification, foliage thinning, opacity-map baking, WebP textures).
 * Default soldier: three.js example `Soldier.glb` (Mixamo) — downloaded at install time, not redistributed.
 * Sounds: gunshots from *The Free Firearm Sound Library* (OpenGameArt, **CC0**), foley / footsteps / impacts /
-  explosions from Freesound and OpenGameArt (**CC0**, US Government b-roll = public domain) — every source in
-  `client/assets/audio/README.md`; rebuilt by `scripts/audio/` (fetch + ffmpeg/scipy processing), checked by
-  `scripts/playtest-audio.mjs`.
+  explosions from Freesound and OpenGameArt (**CC0**, US Government b-roll = public domain), engines / rotor / wind /
+  near-miss cracks from BigSoundBank (**CC0**) and the transport plane from NASA (public domain) — every source in
+  `client/assets/audio/README.md`; rebuilt by `scripts/audio/` (fetch + ffmpeg/scipy processing; `build_beds.mjs`:
+  ffmpeg + Node), checked by `scripts/playtest-audio.mjs`.
 
 ### Graphics cards (laptops with NVIDIA / AMD / Intel Arc)
 * The game asks the browser for the **high-performance GPU** and the menu shows which GPU it really got

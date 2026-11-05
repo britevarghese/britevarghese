@@ -1,6 +1,7 @@
 # Builds client/assets/audio (packed sets + sounds.json) from the CC0 / public-domain recordings listed in
 # client/assets/audio/README.md.   python3 scripts/audio/fetch_sources.py <src>   then
 #   python3 scripts/audio/build_audio.py <src> client/assets/audio      (needs ffmpeg, numpy, scipy)
+#   node scripts/audio/build_beds.mjs <src> client/assets/audio         (engine / rotor / plane / wind loops, cracks)
 # <src> holds: 'ffsl/Prepared SFX Library/' (The Free Firearm Sound Library, extracted), dl_fs/<freesound id>_*.mp3,
 # dl_oga/ (zer0_sol reload.wav, BMacZero clipload*.wav, rubberduck pack in dl_oga/breaking/).
 # Gunshots + mechanical foley -> 32 kHz mono 16-bit WAV (sample-accurate onsets); footsteps / impacts / casings /
@@ -279,8 +280,10 @@ imp('brass_hard', [('210102', 2.31, 2.95), ('210102', 4.08, 4.6), ('210102', 7.6
 imp('brass_wood', [('205126', 0.44, 1.3), ('205126', 2.88, 3.7), ('205126', 7.06, 7.9)], 250)
 
 flush()
-# runtime manifest: set -> [file, [[start, dur, hit?], ...]]
-json.dump({g: [v['f'], v['t']] for g, v in summary.items()}, open(os.path.join(OUT, 'sounds.json'), 'w'), separators=(',', ':'))
+# runtime manifest: set -> [file, [[start, dur, hit?], ...]]; the sets build_beds.mjs adds (loop_*, crack) are kept
+man_path = os.path.join(OUT, 'sounds.json')
+man = {k: v for k, v in json.load(open(man_path)).items() if k not in summary} if os.path.exists(man_path) else {}
+json.dump({**{g: [v['f'], v['t']] for g, v in summary.items()}, **man}, open(man_path, 'w'), separators=(',', ':'))
 tot = sum(os.path.getsize(os.path.join(OUT, f)) for f in os.listdir(OUT) if f.endswith(('.wav', '.mp3', '.json')))
 for g, v in summary.items(): print(g.ljust(14), v['f'].ljust(18), f"{v['kb']:7.1f} KB", ' '.join(f"{t[1]}" + (f"@{t[2]}" if len(t) > 2 else '') for t in v['t']))
 print('punch dB (first 150 ms RMS):', levels)

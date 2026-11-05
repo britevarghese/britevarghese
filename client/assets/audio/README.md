@@ -7,8 +7,10 @@ offset of the main transient, used to land reload / bolt foley exactly on the an
 loads the sets in the background (own weapons first), slices the takes and plays a random one with a little pitch
 variation; until a set has loaded, the old synthesized sound plays instead.
 
-Gunshots and the mechanical foley are 32 kHz mono 16-bit WAV (sample-accurate attacks); footsteps, impacts, brass,
-explosions and handling noise are 44.1 kHz mono MP3 (VBR ~100 kbit/s). Total ≈ 5.3 MB.
+Gunshots, the mechanical foley and the near-miss cracks are 32 kHz mono 16-bit WAV (sample-accurate attacks);
+footsteps, impacts, brass, explosions, handling noise and the continuous beds (engines, rotor, plane, wind) are 44.1 kHz
+mono MP3 (VBR ~100 kbit/s). Total ≈ 5.7 MB. `scripts/audio/build_audio.py` builds the sets below up to "Engines …",
+`scripts/audio/build_beds.mjs` the beds and cracks (it fetches its own sources and adds them to `sounds.json`).
 
 ## Gunshots — "The Free Firearm Sound Library" (CC0)
 
@@ -89,7 +91,42 @@ normalised and the levels are set in `Audio.js` (own handling noise ~15 dB under
 The explosions come from camera microphones with little real sub-bass, so the game adds a synthesized low body and,
 with distance, a long low-passed rumble.
 
+## Engines, rotor, transport plane, wind, near-miss cracks
+
+[BigSoundBank](https://bigsoundbank.com/licenses.html) (Joseph Sardin, every page states "License CC0 (public domain)",
+checked by the build script) and the [NASA Image and Video Library](https://images.nasa.gov/) (US Government work,
+public domain; the video's metadata credits no music):
+
+| Set (takes) | Recording | Author | Licence | Used for | Processing |
+|---|---|---|---|---|---|
+| `loop_tank` (2) | [Excavator displacement](https://bigsoundbank.com/excavator-displacement-s2149.html) — Volvo EC55B compact excavator (3 L diesel, rubber tracks): idling, then travelling on its tracks | Joseph Sardin | CC0 | tank engine: idle crossfading into the tracks-and-load take as it picks up speed (no CC0 / public-domain tank recording was reachable) | right mic; idle 3.0 s on, moving 38.0 s on; slowed to 0.78 (heavier); natural level ratio kept |
+| `loop_jeep` (1) | [Truck engine](https://bigsoundbank.com/truck-engine-s1145.html) — Iveco Daily 3.0 HPI turbo-diesel idling | Joseph Sardin | CC0 | jeep engine | from 6.0 s |
+| `loop_bike` (1) | [Quad stopped](https://bigsoundbank.com/quad-stopped-s0711.html) — an ATV (quad bike) engine idling | Joseph Sardin | CC0 | motorbike engine | from 12.0 s |
+| `loop_heli` (2) | [Helicopter 2](https://bigsoundbank.com/helicopter-2-s0264.html) (outside: blade slap, turbine) · [Helicopter 1](https://bigsoundbank.com/helicopter-1-s0263.html) (inside, muffled) | Joseph Sardin | CC0 | other helicopters (outside take) / my own (cabin take) | left mic of each pair (spaced pair: summing combs); equal RMS |
+| `loop_plane` (1) | [IceBridge Heads for the Coast](https://images.nasa.gov/details/GSFC_20150422_OIB_m11862_southwest_coastal) — natural sound in the cargo hold of NASA's C-130 Hercules (four Allison T56 turboprops) in flight, Operation IceBridge 2015 | NASA Goddard (Jefferson Beck, Nasreen Alkhateeb) | US Gov. / public domain | battle-royale transport plane (in the plane; passing overhead it is low-passed) | one camera shot, 32.5 s on, left channel |
+| `loop_wind` (1) | [Strong wind 4](https://bigsoundbank.com/strong-wind-4-s0154.html) — strong steady wind outside | Joseph Sardin | CC0 | freefall (bright) / under the canopy (dark breeze) | left mic, from 0.5 s, 25 Hz high-pass |
+| `crack` (4) | [Whip crack 1](https://bigsoundbank.com/whip-crack-1-s2949.html), [2](https://bigsoundbank.com/whip-crack-2-s2950.html), [3](https://bigsoundbank.com/whip-crack-3-s2951.html), [4](https://bigsoundbank.com/whip-crack-4-s2952.html) | Joseph Sardin | CC0 | a supersonic bullet passing close (rifle calibres) | see below |
+
+Loops: a steady section, 28 Hz high-pass; the loop length (within ±0.15 s of the target, 3.5–5.3 s) is where the
+crossfade region's amplitude envelope (engine firing, blade slap) repeats best one loop later, refined on the waveform
+within ±1 ms; the loop point is crossfaded offline (0.3–0.8 s, weights that keep the power constant for the measured
+correlation), and each take carries 80 ms of its own continuation on both sides, so `Audio.js` loops `[0.08 s,
+duration − 0.08 s]` of the take and a decoder that leaves the MP3 priming delay in still loops seamlessly. The script
+decodes each file again and checks every seam (sample steps and 20 ms level steps across the loop point about as large
+as anywhere else in it). `Audio.js` drives `playbackRate` from the revs (the engine pitch follows the speed), opens a
+low-pass with them, places other vehicles with the HRTF panner (inverse roll-off from 12 m, air absorption with
+distance) and keeps my own in the head; the gains put every bed and crack within ~1–2 dB (K-weighted momentary
+loudness, idle and flat out, near and far) of the synthesized version it replaced — `scripts/playtest-audio.mjs`
+renders both and checks it.
+
+Cracks: no CC0 / public-domain recording of a bullet passing close by was reachable, so the shock wave comes from
+cracking whips — the same physics in miniature: the tip breaks the sound barrier and the crack is its N-wave (a fraction
+of a millisecond, like a rifle bullet's). Cut 1 ms before the shock (the main crack of the double crack in take 2),
+two 300 Hz high-passes take out the rope's swish, squared fade over the last 40 %, matched on punch (RMS of the first
+3 ms); played with a little pitch variation, louder and brighter the closer the pass, a bigger bullet a little lower
+with a synthesized low body.
+
 ## Still synthesized
 
-Supersonic crack (an N-wave + ground reflection + air-tear hiss) and the subsonic pistol whizz (no usable CC0 recordings),
-rocket launch, UI blips, engines / rotor / plane / wind loops (no CC0 loops good enough).
+The subsonic 9 mm whizz (no usable CC0 recording), rocket launch, UI blips — and every bed and crack until its set has
+loaded.
