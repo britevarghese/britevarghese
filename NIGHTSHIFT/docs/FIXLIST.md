@@ -493,6 +493,14 @@ the game. Newly found problems go at the end of their section.
   Frames over 16 ms on a 3-minute drive: 142-206 -> 91-127; over 50 ms: 3-12 -> 2-3. What's left over 100 ms is the
   garbage collector (a major collection, 100-150 ms here, once a minute or so: the builds' short-lived lists, kept
   across frames, are promoted and collected late)
+  - [ ] ...the garbage, traced (a sampling heap profile through a load round Kannur, collected objects included):
+    ~38 GB allocated for 25 tiles. The biggest single source, onRoad (5.3 GB, ~135 bytes a call), allocates only
+    as the game has compiled it: a fresh copy of the same code, or the same function once its type feedback is
+    cleared and warmed again, allocates nothing - nor does a fresh copy fed the game's own recorded calls. Left as is
+    (grid keys as whole numbers, the grids as Float64Arrays, the loop as a module function: none of it changed it)
+- [x] Boats on the water round Kannur (watched 40 s: ten country boats, canopied boats and a ferry): all on the water,
+  moving, none on land or run into each other; road and bridge pixels aren't water, so none crosses a road. They sit
+  at the water's surface and look right close up
 - [x] An 11-second freeze when the first street racer turned up (Port Halvern, 8 s into a drive): painting its
   livery read the panel-groove canvas back to make a normal map, and a GPU canvas's read waits for everything the
   GPU has queued - here the world's shaders compiling. Every generated texture is drawn on a CPU canvas now
