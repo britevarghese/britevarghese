@@ -34,6 +34,7 @@ import { Damage } from './Damage.js';
 import { tyreForce, corneringStiffness, slipStiffness, gripOn } from './Tire.js';
 import { Drivetrain } from './Drivetrain.js';
 import { surfaceById, SURFACES, SURFACE } from './Surfaces.js';
+import { SUSTAIN, PLOUGH_OUT } from '../game/Anchor.js';
 
 export const PHYS_DT = 1 / 480;
 export const GRAVITY = 9.81;
@@ -1288,8 +1289,11 @@ export class Vehicle {
   }
 
   // ---------------------------------------------------------------- winch
-  /** Hook the winch rope to a world anchor (a tree) or to another truck (target = { id, local point }). */
-  attachWinch(kind, anchorWorld, target = null, anchorLocal = null) {
+  /**
+   * Hook the winch rope to a world anchor (a tree; or 'ground', the spare buried as one, holding hold N: game/Anchor.js)
+   * or to another truck (target = { id, local point }).
+   */
+  attachWinch(kind, anchorWorld, target = null, anchorLocal = null, hold = Infinity) {
     const W = this.winch;
     this.toWorld(W.fairlead, _p);
     const d = _p.clone().sub(anchorWorld).length();
@@ -1299,13 +1303,14 @@ export class Vehicle {
     if (anchorLocal) W.anchorLocal.copy(anchorLocal);
     W.len = Math.max(1, d + 0.3);
     W.tension = 0; W.motor = 0;
+    W.hold = hold; W.ploughed = 0; W.pulledOut = false;
     return true;
   }
 
   detachWinch() { const W = this.winch; W.attached = false; W.kind = null; W.target = null; W.tension = 0; W.motor = 0; W.rate = 0; }
 
   /** W.motor: +1 reel in, -1 pay out, 0 hold. W.anchor must be current (the caller moves it for a truck). */
-  winchStep(dt) {
+  winchStep(dt, ground) {
     const W = this.winch, spec = this.spec.winch;
     this.winchForce.set(0, 0, 0);
     if (!W.attached) return;
@@ -1321,6 +1326,16 @@ export class Vehicle {
     let ten = 0;
     if (stretch > 0) ten = Math.max(0, spec.stiffness * stretch + spec.damping * stretchRate);
     ten = Math.min(ten, spec.breakLoad);
+    // a ground anchor pulled harder than its soil holds ploughs toward the truck, the disturbed soil holding it back at
+    // SUSTAIN of what it held (game/Anchor.js): the line gives as it comes; out of its trench, it's out of the ground
+    if (W.kind === 'ground' && ten > (W.ploughed > 0 ? SUSTAIN : 1) * W.hold) {
+      const R = SUSTAIN * W.hold, give = Math.min(dist - 0.6, Math.max(0, (ten - R) / spec.stiffness));
+      W.anchor.x -= _d.x * give; W.anchor.z -= _d.z * give;
+      if (ground?.height) W.anchor.y = ground.height(W.anchor.x, W.anchor.z) + 0.05;
+      W.ploughed += give;
+      ten = R;
+      if (W.ploughed > PLOUGH_OUT) { W.tension = 0; this.detachWinch(); this.winch.pulledOut = true; return; }
+    }
     W.tension = ten;
     // the motor: line speed falls with load and stalls at its rated pull
     const len0 = W.len;

@@ -116,7 +116,7 @@ Without the Blueprint: **New > Web Service** with this repository, branch `claud
 | Garage (parts are fitted at the station; at the garage it first mends any damage) | U | |
 | Disconnect the front anti-roll bar | B | |
 | Gearbox AUTO / MANUAL (manual: Shift up, Ctrl down; a steering wheel's paddles and H-shifter, below) | G | |
-| Winch: hook the nearest tree or friend ahead / unhook | F | X |
+| Winch: hook the nearest tree or friend ahead (with neither in reach, bury the spare wheel as an anchor) / unhook | F | X |
 | Winch in / pay out (hold) | E / Q | RB / LB |
 | Recover: back on the wheels, or back to dry ground when stuck | R | B |
 | Call your friends for a tow (they see where you are) | T | |
@@ -510,6 +510,25 @@ stock UAZ, open diffs and all, spins its wheels on a steep muddy pitch in high r
 - **Winch yourself out on a friend:** while you are calling for a tow, hook your friend's truck and winch in. Their
   truck becomes the anchor and holds still; yours comes out (a little throttle helps).
 - **Alone:** hook a tree with the winch, or **R**.
+- **The spare as an anchor (F with no tree in reach):** out in a mud field or a bog there's often no tree within the
+  winch's reach. Then F buries the spare wheel as a deadman anchor, the old way: flat in a trench dug across the line,
+  its bottom 0.76 m (30 in) down, the strap round it and out through a slot toward the truck, on the firmest ground
+  straight ahead within the line's reach (`src/game/Anchor.js`). What holds it is the soil in front of it, pushed up
+  in a wedge: Rankine's passive earth pressure on the face the wheel turns to the line (as wide as the wheel, as tall
+  as its tread), with the soil's unit weight, friction angle and cohesion (typical values: sand 32 degrees and no cohesion, gravel 38, firm earth 28 and 10 kPa, from
+  [Penn State's table of useful numbers](https://sites.psu.edu/tzhu/files/2016/10/Some-Useful-Numbers-1g1rkuu.pdf);
+  mud a clay of very low undrained strength, 12 kPa in the [BS 5930 / ISO 14688-2 bands](https://www.geocentrix.co.uk/help/content/references/iso14688/undrained_shear_strength_of_fine_soils.htm),
+  the softer the weaker), and half as much again for the wedges at its ends, fitted to field
+  pull tests ([Expedition Portal's review of the Deadman anchor](https://expeditionportal.com/?p=50765): a stock spare
+  30 in down in sand held about half what a purpose-made deadman did; [4x4 guidance](https://jacosuperiorproducts.com/blogs/news/off-road-recovery-anchors-no-tree):
+  a buried spare in firm dry earth, 3,000 to 5,000 lb). So a 32 in spare holds about 2,400 lb (10.7 kN) in dry sand,
+  3,200 lb damp, 4,750 lb (21 kN) in firm earth, 2,500 lb in mud, 1,500 lb in the taiga's deep mud and 1,150 lb in
+  a bog in the rain; nothing at all in rock, tarmac or under water. Pulled harder than that it ploughs toward the
+  truck, the disturbed soil holding it back at 86% of it (the tests' sustained pull against their peak), and after
+  0.6 m it's out of its trench and the line goes slack. A stock Ranger sunk to its belly in a soft bog takes 17 to
+  19 kN on the line to come out (suction and the mud in front of it, near its own weight), so a spare dug into the
+  firm ground past the bog's edge winches it out, and one dug into the bog itself ploughs out in a couple of seconds
+  (`test/anchor.test.mjs`): walk the line out to firm ground. F again digs it up.
 - **Recovery boards (K):** you carry a pair of recovery boards (traction boards: stiff, cleated plastic boards 1.15 m
   by 0.33 m) and a shovel. Stopped and stuck in mud or sand, K digs out and puts them in (`src/game/Boards.js`):
   - **Dig out first.** A truck sunk past its ground clearance is beached: its weight rests on its belly and axles,

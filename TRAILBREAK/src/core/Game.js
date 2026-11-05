@@ -15,6 +15,8 @@ import { EventPlay } from '../game/EventPlay.js';
 import { EventCourse } from '../render/EventCourse.js';
 import { BoardsView } from '../render/BoardsView.js';
 import { layBoards, digOut, stuckPair } from '../game/Boards.js';
+import { AnchorView } from '../render/AnchorView.js';
+import { pickAnchor } from '../game/Anchor.js';
 import { BreakView } from '../render/BreakView.js';
 import { KIND } from '../render/Effects.js';
 import { RouteGraph, along } from '../game/Route.js';
@@ -146,6 +148,7 @@ export class Game {
     this.modeView = new ModeView(this.scene, this.world);
     // (the recovery boards, when they are down: K)
     this.boardsView = new BoardsView(this.scene); this.boards = null;
+    this.anchorView = new AnchorView(this.scene); this.anchor = null;
     // what breaks: the roadside things standing, and the trees and things knocked down (render/BreakView.js)
     // (the open world's: each map's own, render/WorldView.js)
     this.breakView ||= new BreakView(this.scene, this.world, this.vegetation, this.effects, this.audio);
@@ -665,8 +668,8 @@ export class Game {
     const friends = [...this.remotes.values()].some((r) => r.state);
     if (!this.net?.connected || !friends) {
       this.hud.hint(this.net?.connected
-        ? 'Nobody else in this room yet: send your friends the invite link (Esc). Meanwhile R gets you to dry ground, F winches to a tree'
-        : 'Driving alone: R gets you back to dry ground, F winches to a tree, Backspace goes back to the station', 6);
+        ? 'Nobody else in this room yet: send your friends the invite link (Esc). Meanwhile R gets you to dry ground, F winches to a tree (or the spare, buried)'
+        : 'Driving alone: R gets you back to dry ground, F winches to a tree (or the spare, buried), Backspace goes back to the station', 6);
       return;
     }
     this.setHelp(true);
@@ -720,7 +723,7 @@ export class Game {
       : this.stuckWhy === 'water' && Math.hypot(v.current.x, v.current.z) > 0.8 ? 'The river is carrying the truck off: hook a tree on the bank with the winch (F, then hold E), or R back to dry ground'
       : this.stuckWhy === 'broken' ? (D.seized ? 'The engine is seized: it won\'t turn over. Backspace calls the tow truck, which takes it into the station workshop to be mended (you pay the bill). Or friends can tow you there (F to hook)' : 'A broken axle shaft: try 4WD (4) or the lockers (X). Backspace: the tow truck takes it to the station workshop to be mended')
         : this.unstickTip(v.dt) + (!this.boards && this.stuckWhy !== 'water' && v.wheels.some((w) => w.surf.sink > 0) ? 'Dig out and lay the recovery boards (K), then ease out onto them. ' : '')
-          + 'Or winch out: point the bumper at a tree or a friend, F to hook, hold E';
+          + 'Or winch out: point the bumper at a tree or a friend, F to hook, hold E (with neither in reach, F buries the spare wheel as an anchor: firm ground holds it, soft mud doesn\'t)';
     if ($('st-tip').textContent !== tip) $('st-tip').textContent = tip;
     const home = `<b>&#9003;</b> ${this.stuckWhy === 'broken' ? 'Tow to the workshop' : 'Back to the station'}`;
     if ($('st-station').innerHTML !== home) $('st-station').innerHTML = home;
@@ -950,7 +953,12 @@ export class Game {
 
   toggleHook() {
     const v = this.vehicle, W = v.winch;
-    if (W.attached) { v.detachWinch(); this.hud.hint('Winch unhooked'); return; }
+    if (W.attached) {
+      const dug = W.kind === 'ground';
+      v.detachWinch(); this.setAnchor(null);
+      this.hud.hint(dug ? 'Dug the spare wheel back up and put it back on the truck' : 'Winch unhooked');
+      return;
+    }
     const F = this.fairleadWorld(this._v.clone()), f = v.fwd;
     let best = null, bd = Infinity;
     const consider = (x, y, z, cand) => {
@@ -976,11 +984,27 @@ export class Game {
       }
       consider(p.x, p.y, p.z, { kind: 'truck', id: r.id, local: hook, x: p.x, y: p.y, z: p.z, name: `${r.name}'s ${r.spec.name}` });
     }
-    if (!best) { this.hud.hint(`Nothing to hook within ${W.maxLen} m ahead: point the bumper at a tree or a friend`); return; }
+    if (!best) {
+      // (no tree or friend in reach: the spare wheel buried as an anchor, on the firmest ground ahead in reach)
+      const a = pickAnchor(this.world, F.x, F.z, f.x, f.z, W.maxLen, v.spec.tyre, this.world.wet || 0);
+      if (!a) { this.hud.hint(`Nothing to hook within ${W.maxLen} m ahead, and only rock, tarmac or water to dig an anchor in: point the bumper at a tree or a friend`); return; }
+      if (v.attachWinch('ground', new THREE.Vector3(a.x, a.y + 0.05, a.z), null, null, a.hold)) {
+        this.setAnchor(a); this.hookName = 'the buried spare';
+        const t = a.hold / 9810, weak = a.hold < 0.6 * v.mass * 9.81;
+        this.hud.hint(`No tree in reach: the spare wheel buried ${Math.round(a.dist)} m ahead in the ${a.name} as an anchor. It holds about ${t.toFixed(1)} t${weak ? ': soft ground, it may plough out' : ''}. Hold E to winch in, F to dig it up`, 6);
+      }
+      return;
+    }
     const ok = best.kind === 'tree'
       ? v.attachWinch('tree', new THREE.Vector3(best.x, best.y, best.z))
       : v.attachWinch('truck', new THREE.Vector3(best.x, best.y, best.z), best.id, best.local);
     if (ok) { this.hookName = best.name; this.hud.hint(`Hooked to ${best.name}. Hold E to winch in, Q to pay out, F to unhook`, 4); }
+  }
+
+  /** The spare buried as a winch anchor (game/Anchor.js pickAnchor's), shown dug in; or none. */
+  setAnchor(a) {
+    this.anchor = a;
+    this.anchorView.set(a, this.vehicle.pos.x, this.vehicle.pos.z);
   }
 
   /** A truck's recovery points, front and rear, in its CG frame. */
@@ -1453,6 +1477,14 @@ export class Game {
     }
     this.events.control(c);
     this.carry = simulate(v, c, this.world, dt, this.carry);
+    if (v.winch.pulledOut) {
+      v.winch.pulledOut = false;
+      this.hud.hint('The spare ploughed out of the soft ground: bury it where the ground is firmer (F), or winch to a tree', 5);
+    }
+    if (this.anchor) {
+      if (!(v.winch.attached && v.winch.kind === 'ground')) this.setAnchor(null);
+      else if (v.winch.ploughed > 0) { this.anchor.x = v.winch.anchor.x; this.anchor.y = v.winch.anchor.y - 0.05; this.anchor.z = v.winch.anchor.z; this.anchorView.set(this.anchor, v.pos.x, v.pos.z); }
+    }
     // what broke: drawn and heard here, and told to the room (its direction and speed: friends see it go the same way)
     for (const e of this.breakView.take(this.renderer.camera.position)) {
       this.net?.send({ t: 'brk', k: e.key, d: [Math.round(e.dx * 100) / 100, Math.round(e.dz * 100) / 100], v: Math.round(e.v * 10) / 10 });
@@ -1706,8 +1738,8 @@ export class Game {
     const W = this.vehicle.winch;
     let winch = null;
     if (W.attached) {
-      winch = W.kind === 'tree'
-        ? { to: 'tree', a: [W.anchor.x, W.anchor.y, W.anchor.z], f: [W.fairlead.x, W.fairlead.y, W.fairlead.z], len: W.len, ten: W.tension }
+      winch = W.kind === 'tree' || W.kind === 'ground'
+        ? { to: W.kind, a: [W.anchor.x, W.anchor.y, W.anchor.z], f: [W.fairlead.x, W.fairlead.y, W.fairlead.z], len: W.len, ten: W.tension }
         : { to: W.target, a: [W.anchorLocal.x, W.anchorLocal.y, W.anchorLocal.z], f: [W.fairlead.x, W.fairlead.y, W.fairlead.z], len: W.len, ten: W.tension, rate: W.rate || 0 };
     }
     return { truck: this.truckId, cfg: this.build, help: this.helpOn, paint: this.myColor, lights, winch };
@@ -1781,7 +1813,7 @@ export class Game {
       const root = rv.model.root;
       const a = new THREE.Vector3(...w.f).applyQuaternion(root.quaternion).add(root.position);
       let b;
-      if (w.to === 'tree') b = new THREE.Vector3(...w.a);
+      if (w.to === 'tree' || w.to === 'ground') b = new THREE.Vector3(...w.a);
       else if (w.to === this.net.id) b = new THREE.Vector3(...w.a).applyQuaternion(this.model.root.quaternion).add(this.model.root.position);
       else { const t = this.remotes.get(w.to); if (!t) { rope.update(null); continue; } b = new THREE.Vector3(...w.a).applyQuaternion(t.model.root.quaternion).add(t.model.root.position); }
       rope.update(a, b, w.len - a.distanceTo(b));
