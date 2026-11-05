@@ -3347,6 +3347,8 @@ export class KeralaTile {
       if (o.material && o.name === 'terrain') { o.material.map?.dispose(); o.material.dispose(); }
     });
     this.group?.removeFromParent();
+    // (the canals' mask too: a 1024 x 1024 texture a tile with any waterway, left on the GPU for every tile let go)
+    this.canalMask?.dispose(); this.canalMask = null;
     this.cls = null; this.visCanvas = null; this.trees = null; this._rg = null; this._overC = null; this._bg = null; this.bumps = [];
   }
 }

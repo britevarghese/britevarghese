@@ -20,6 +20,7 @@ Headless Chromium uses software rendering (SwiftShader): FPS numbers are NOT rep
 | `node tools/dev/missions.mjs --port N [--only id,id] [--limit 600] [--trace 1]` | The 12 Kerala story missions from their givers, the driving stood in for (put on the lane by each place, into the car to steal, driven behind the car you tail, a ram's hits counted, a race won late): pass/fail and why, each step's time, how the mission's AI car drove (off the road, longest stop, resets; --trace: why it stood or went slow) |
 | `node tools/dev/ride.mjs --port N --at x,z [--minutes 4] [--seed 1] [--car id \| --steal type]` | An AI drives the player's car along random routes (no traffic): airborne, hard landings, jolts, hits, sudden stops, leaving the road, resets |
 | `node tools/dev/drive-hitch.mjs --port N [--at x,z] [--minutes 3] [--seed 1]` | Frame hitches on a Kerala drive (as ride.mjs, with traffic, people and the tiles' builds running): frames over 16/33/50/100 ms, and for each over 33 ms the subsystems that took it and the build step under way |
+| `node tools/dev/leaks.mjs --port N [--stops '[[x,z],...]'] [--laps 3]` | A long session for leaks: lap after lap round the towns, the GPU's textures and geometries, characters' bone textures, the heap after a GC, and geometries gone from the scene unfreed, by owner |
 
 Scenes can script driving with `sim([[steps, {throttle, brake, steer, handbrake, nitro}], ...])` (fixed 60 Hz steps with
 rendering disabled, since headless GL is far too slow for real time) — see `drift_night`, `drift_day`, `speed_night`,

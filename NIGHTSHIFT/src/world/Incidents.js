@@ -236,9 +236,13 @@ export class Incidents {
 
   _clear(inc) {
     const g = this.game;
-    for (const r of inc.responders) { r.v.dispose(); }
+    // (the crane's own shapes and paints, and the officer's skeleton, freed too: left on the GPU for every incident)
+    for (const r of inc.responders) {
+      if (r.v.jib) { const mats = new Set(); r.v.jib.traverse((o) => { if (o.geometry) o.geometry.dispose(); if (o.material) mats.add(o.material); }); for (const m of mats) m.dispose(); r.v.jib = null; }
+      r.v.dispose();
+    }
     inc.responders = [];
-    if (inc.officer) { inc.officer.group.removeFromParent(); inc.officer = null; }
+    if (inc.officer) { inc.officer.dispose ? inc.officer.dispose() : inc.officer.group.removeFromParent(); inc.officer = null; }
     for (const c of inc.cars) { c.incident = null; g.traffic.remove(c); }   // towed away
     for (const p of inc.watchers || []) if (p.stand?.kind === 'watch' || p.walkTo) { p.stand = null; p.walkTo = null; p.flee = { x: p.x, z: p.z, vx: Math.sin(p.yaw + Math.PI) * 1.3, vz: Math.cos(p.yaw + Math.PI) * 1.3, t: 12 }; p.speed = 1.3; }
     this.list.splice(this.list.indexOf(inc), 1);
@@ -279,6 +283,7 @@ export class Incidents {
     // the amber beacon on the cab roof
     add(new THREE.SphereGeometry(0.12, 8, 6), new THREE.MeshBasicMaterial({ color: 0xffa020 }), 0, top + 0.1, box.max.z - 1.2);
     body.add(g);
+    v.jib = g;   // (freed with the truck: see _clear)
   }
 
   // responders: other vehicles (traffic and pedestrians react to them), sirens for the audio

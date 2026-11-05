@@ -83,20 +83,30 @@ export class KeralaPolice {
   }
 
   // a podium with a white umbrella: the Kerala traffic policeman's post
+  // (the podium's and the barricade's shapes made once and shared: made afresh for each post and each check, and
+  // let go without being freed, they piled up on the GPU over a drive)
+  _geos() {
+    return this._G ||= {
+      base: new THREE.CylinderGeometry(0.75, 0.8, 0.45, 16), band: new THREE.CylinderGeometry(0.81, 0.81, 0.12, 16, 1, true),
+      pole: new THREE.CylinderGeometry(0.03, 0.03, 2.4, 6), top: new THREE.ConeGeometry(1.25, 0.45, 12, 1, true),
+      board: new THREE.BoxGeometry(0.42, 0.42, 0.06), leg: new THREE.BoxGeometry(0.06, 0.9, 0.5),
+    };
+  }
+
   _podium() {
-    const g = new THREE.Group(), m = this.mats;
-    const base = new THREE.Mesh(new THREE.CylinderGeometry(0.75, 0.8, 0.45, 16), m.podium); base.position.y = 0.22; g.add(base);
-    const band = new THREE.Mesh(new THREE.CylinderGeometry(0.81, 0.81, 0.12, 16, 1, true), m.stripe); band.position.y = 0.3; g.add(band);
-    const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 2.4, 6), m.pole); pole.position.set(0.55, 1.5, 0); g.add(pole);
-    const top = new THREE.Mesh(new THREE.ConeGeometry(1.25, 0.45, 12, 1, true), m.canopy); top.position.set(0.55, 2.8, 0); g.add(top);
+    const g = new THREE.Group(), m = this.mats, G = this._geos();
+    const base = new THREE.Mesh(G.base, m.podium); base.position.y = 0.22; g.add(base);
+    const band = new THREE.Mesh(G.band, m.stripe); band.position.y = 0.3; g.add(band);
+    const pole = new THREE.Mesh(G.pole, m.pole); pole.position.set(0.55, 1.5, 0); g.add(pole);
+    const top = new THREE.Mesh(G.top, m.canopy); top.position.set(0.55, 2.8, 0); g.add(top);
     return g;
   }
 
   // a red-and-white barricade (a 'POLICE' board on two legs)
   _barricade() {
-    const g = new THREE.Group(), m = this.mats;
-    for (let i = 0; i < 6; i++) { const b = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.42, 0.06), i % 2 ? m.white : m.stripe); b.position.set(-1.05 + i * 0.42, 0.9, 0); g.add(b); }
-    for (const x of [-1.1, 1.1]) { const l = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.9, 0.5), m.pole); l.position.set(x, 0.45, 0); g.add(l); }
+    const g = new THREE.Group(), m = this.mats, G = this._geos();
+    for (let i = 0; i < 6; i++) { const b = new THREE.Mesh(G.board, i % 2 ? m.white : m.stripe); b.position.set(-1.05 + i * 0.42, 0.9, 0); g.add(b); }
+    for (const x of [-1.1, 1.1]) { const l = new THREE.Mesh(G.leg, m.pole); l.position.set(x, 0.45, 0); g.add(l); }
     return g;
   }
 

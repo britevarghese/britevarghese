@@ -268,8 +268,17 @@ export class RaceManager {
     s.vx = Math.sin(o.gy) * o.gs; s.vz = Math.cos(o.gy) * o.gs; s.speed = o.gs; s.gear = Math.max(1, Math.min(5, Math.ceil(o.gs / 11)));
   }
 
-  _buildGates() {
+  // the gates taken down, their shapes and banners freed (cleared only, every race left its gates' on the GPU; the
+  // shared paint and banner textures stay)
+  _clearGates() {
+    const mats = new Set();
+    this.gateGroup.traverse((o) => { if (o.geometry) o.geometry.dispose(); if (o.material && o.material !== this.gateMatLater && o.material !== this.gateMatNext) mats.add(o.material); });
+    for (const m of mats) m.dispose();
     this.gateGroup.clear();
+  }
+
+  _buildGates() {
+    this._clearGates();
     const race = this.active;
     if (!race) return;
     const gates = race.ev.gates;
@@ -457,7 +466,7 @@ export class RaceManager {
     }
     this.game.police?.state !== 'idle' && def.type !== 'escape';
     bus.emit('race:finished', { def, win, position, time: race.time, reward, rep: win ? def.rep : Math.round(def.rep * 0.25), detail, typeName: RACE_TYPE_NAMES[def.type] });
-    this.gateGroup.clear();
+    this._clearGates();
     setTimeout(() => { if (this.active === race) this.clearRace(); }, 7000);
   }
 
@@ -466,7 +475,7 @@ export class RaceManager {
     if (!race || race.state === 'finished') return;
     race.state = 'finished';
     bus.emit('race:finished', { def: race.def, win: false, position: 0, time: race.time, reward: 0, rep: 0, detail: reason, typeName: RACE_TYPE_NAMES[race.def.type], failed: true });
-    this.gateGroup.clear();
+    this._clearGates();
     setTimeout(() => { if (this.active === race) this.clearRace(); }, 5000);
   }
 
@@ -476,7 +485,7 @@ export class RaceManager {
     const race = this.active;
     if (!race) return;
     for (const o of race.opponents) o.v.dispose();
-    this.gateGroup.clear();
+    this._clearGates();
     this.active = null;
     this.markers.visible = true;
   }

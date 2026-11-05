@@ -1104,5 +1104,22 @@ export class VehicleRenderer {
       m.dispose();
     }
     for (const part of this.bodyParts || []) part.mesh.geometry.dispose();
+    // and the rest of its own: the headlight beam, exhaust flames, shadow blob (its canvas too), tyre shadows, light
+    // bar, the rims' and tyres' paints - left on the GPU for every police car, responder, rival or story car gone.
+    // Not what's shared: the library model's shapes, paints and pictures, and the module's own
+    const keep = new Set([_policeWord, ...Object.values(_barGeo || {})]);
+    this.lib?.cars?.[this.carId]?.traverse((o) => { if (o.geometry) keep.add(o.geometry); for (const m of [].concat(o.material || [])) { keep.add(m); for (const v of Object.values(m)) if (v?.isTexture) keep.add(v); } });
+    const geos = new Set(), mats = new Set(), texs = new Set();
+    for (const root of [this.group, this.lod0, this.lod1]) root?.traverse((o) => {
+      if (o.geometry && !keep.has(o.geometry) && !o.geometry.userData?.shared) geos.add(o.geometry);
+      for (const m of [].concat(o.material || [])) {
+        if (!m || keep.has(m) || m.userData?.shared) continue;
+        mats.add(m);
+        for (const v of Object.values(m)) if (v?.isTexture && !keep.has(v) && !v.userData?.shared) texs.add(v);
+      }
+    });
+    for (const g of geos) g.dispose();
+    for (const m of mats) m.dispose();
+    for (const t of texs) t.dispose();
   }
 }

@@ -142,9 +142,9 @@ export class Human {
       // dressed: a plain cotton shirt and trousers or mundu over the avatar's own outfit (its print and logos go)
       if (o.isMesh && outfit && o.material?.name) {
         const top = /Outfit_Top/i.test(o.material.name), bot = /Outfit_Bottom/i.test(o.material.name);
-        if (top || bot) { const m = o.material.clone(); m.map = null; m.color.setHex(top ? outfit.top : outfit.bottom); m.roughness = 0.9; m.metalness = 0; o.material = m; }
+        if (top || bot) { const m = o.material.clone(); m.map = null; m.color.setHex(top ? outfit.top : outfit.bottom); m.roughness = 0.9; m.metalness = 0; m.userData.own = true; o.material = m; }
         // (and black hair: no dyed blue or orange)
-        if (/Hair|Beard/i.test(o.material.name) && !/^kl_/.test(model.id)) { const m = o.material.clone(); m.color.setHex(0x2a2622); o.material = m; }
+        if (/Hair|Beard/i.test(o.material.name) && !/^kl_/.test(model.id)) { const m = o.material.clone(); m.color.setHex(0x2a2622); m.userData.own = true; o.material = m; }
       }
     });
     // (a head-top bone that isn't on this head: another armature's. One above the head instead)
@@ -325,5 +325,11 @@ export class Human {
     }
   }
 
-  dispose() { this.group.removeFromParent(); } // geometry/materials/textures are shared with the template
+  // (geometry and most materials are shared with the template; the copy's own are its skeletons - each with a bone
+  // texture on the GPU, left there for every character let go: taxi fares, passers-by, a policeman done with - and
+  // the outfit's recoloured materials)
+  dispose() {
+    this.group.removeFromParent();
+    this.root?.traverse((o) => { if (o.isSkinnedMesh) o.skeleton?.dispose(); for (const m of [].concat(o.material || [])) if (m.userData?.own) m.dispose(); });
+  }
 }

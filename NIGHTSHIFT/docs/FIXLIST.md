@@ -509,6 +509,20 @@ the game. Newly found problems go at the end of their section.
     as the game has compiled it: a fresh copy of the same code, or the same function once its type feedback is
     cleared and warmed again, allocates nothing - nor does a fresh copy fed the game's own recorded calls. Left as is
     (grid keys as whole numbers, the grids as Float64Arrays, the loop as a module function: none of it changed it)
+- [x] Leaks over a long session (tools/dev/leaks.mjs: Kannur, Thalassery, Mattannur and round again, three laps).
+  The heap after a garbage collection was flat lap on lap (Kannur 357 -> 363 MB), but the GPU's textures and
+  geometries kept growing (textures +100-160 a lap, geometries +80-230, characters' skeletons +60):
+  - a tile let go left its canals' mask on the GPU (1024 x 1024 a tile with any waterway): freed with the tile
+  - a character let go (a taxi fare, a passer-by, a policeman done with) left its skeletons' bone textures and its
+    recoloured outfit; and the passers-by's pools, one per look, filled up over a drive (a hundred-odd idle
+    characters in the scene): freed now, a few of each look kept, 24 in all
+  - a vehicle let go (police, a responder, a rival, a story car) freed its paint and body only - not its headlight
+    beam, exhaust flames, shadow blob and its canvas, tyre shadows, light bar or rim and tyre paints: all its own
+    freed now (not the library model's shared shapes and paints); the recovery truck's crane too
+  - a junction officer's podium and a checking point's barricade were built afresh each time and never freed: shared
+    shapes now; a race's gates were cleared without being freed: freed
+  Three laps after: textures 669 -> 668 -> 668 at Kannur (+15-50 a lap elsewhere, levelling), the geometries' growth
+  down to 0-60 a lap; the heap after a GC unchanged
 - [x] Boats on the water round Kannur (watched 40 s: ten country boats, canopied boats and a ferry): all on the water,
   moving, none on land or run into each other; road and bridge pixels aren't water, so none crosses a road. They sit
   at the water's surface and look right close up

@@ -432,6 +432,10 @@ export class Pedestrians {
     h.group.visible = false;
     const k = p.model % this.humans.models.length;
     if (!this.pool.has(k)) this.pool.set(k, []);
+    // (a few of each look kept for the next one; past that let go: one pool per look, seventeen of them, filled up
+    // over a long drive - a hundred-odd idle characters in the scene, each with its skeleton on the GPU)
+    let n = 0; for (const l of this.pool.values()) n += l.length;
+    if (n >= 24 || this.pool.get(k).length >= 4) { h.dispose?.(); return; }
     this.pool.get(k).push(h);
   }
 
