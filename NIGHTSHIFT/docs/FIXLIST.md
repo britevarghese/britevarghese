@@ -725,6 +725,15 @@ the game. Newly found problems go at the end of their section.
     clean; the Lorry War lorry never stops now. Payyanur scanned: worst step 7 cm
 
 ## Story
+- [x] The prologue (The Kayal Job), played through for the first time by a tool (tools/dev/prologue.mjs: the cold
+  open, the bank, the manager, the keys, the racks, out, into the car with Leena, the police lost, to Babu's):
+  - the manager, grabbed (E) to take his key to the strongroom, never went: told to raise his hands as the hold-up
+    began, a moment later, and that still to come when he was grabbed, he stood in his cabin with his hands up and
+    the strongroom opened only on its 18 s fallback with him nowhere near it. Taking someone somewhere calls off
+    what was still to come for them now: he walks to his key (the keys 22 -> 17 s, both keys turned)
+  - the cashier followed him on a wall-clock timer, which ran on while the game was paused: on the game's clock now
+  Played through, cutscenes watched (126 s) or skipped (43 s), up to the car from either side (7 s with Leena in):
+  complete, no errors
 - [x] The story begins like GTA's: a prologue, 'The Kayal Job', starts on a new game in Kerala (Esc skips a scene;
   the pause menu skips the prologue, or plays it again later). A cold open in a black Scorpio down the road from Kayal
   Mercantile Bank, Kannur: Leena (she plans it) beside you, Sajan (the guns) behind, the camera cutting between them

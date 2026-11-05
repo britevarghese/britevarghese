@@ -348,8 +348,7 @@ export class Heist {
         this.say('manager', 'Please, please... there are two keys! The cashier has the other one!');
         this.say('leena', 'Cashier! You heard him. Up!');
         this.people.walk(man, M.vaultKey, 'key');
-        setTimeout(() => this.people && this.people.walk(this.people.cashier, M.vaultKey2, 'key'), 3200);
-        this.go('keys');
+        this.go('keys');   // (the cashier follows 3.2 s on: see _keys)
       }
     } else this.prompt = null;
   }
@@ -358,6 +357,9 @@ export class Heist {
   _keysStart() { this.obj('Take them to the <b>strongroom</b>.'); this.target = null; this.keyT = 0; }
   _keys(dt) {
     const P = this.people, M = this.layout.marks;
+    // the cashier with the second key, a few seconds behind the manager (on the game's clock: a wall-clock timer ran on
+    // while the game was paused, or behind it when frames came slow)
+    if (!this.cashierSent && this.t > 3.2) { this.cashierSent = true; if (P?.cashier) P.walk(P.cashier, M.vaultKey2, 'key'); }
     this.target = { x: M.vaultFront.x, z: M.vaultFront.z, y: this.layout.floor };
     const both = P.manager?.state === 'key' && (!P.cashier || P.cashier.state === 'key');
     if (both || this.t > 18) this.keyT += dt;

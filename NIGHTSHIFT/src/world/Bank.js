@@ -584,7 +584,9 @@ export class BankPeople {
     }
   }
   // someone walks (hands up) to a point, then does `then` ('key' | 'cower' | 'handsup')
-  walk(p, mark, then = 'handsup') { if (!p) return; p.state = 'walk'; p.dest = mark; p.then = then; p.sit = false; p.human.clearAction(0.2); }
+  // (whatever was still to come called off: grabbed before his hands had gone up, the manager's 'hands up' came after
+  // and he stood in his cabin for good, the strongroom waiting on his key)
+  walk(p, mark, then = 'handsup') { if (!p) return; p.delay = 0; p.next = null; p.state = 'walk'; p.dest = mark; p.then = then; p.sit = false; p.human.clearAction(0.2); }
 
   update(dt) {
     for (const p of this.list) this._one(p, dt);
