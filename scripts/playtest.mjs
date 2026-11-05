@@ -102,11 +102,13 @@ const spot = await g(() => {
 const by = await g((sp) => __game.world.collision.supportHeight(sp.x, sp.z + 20, 200), spot);
 // B walks there in small steps (the server rejects teleports), then streams input like a real client
 const bStart = { ...B.snap.p.find((r) => r[0] === B.id) };
-for (let i = 0; i <= 60; i++) { const k = i / 60; bPlace(bStart[1] + (spot.x - bStart[1]) * k, bStart[2] + (by - bStart[2]) * k, bStart[3] + (spot.z + 20 - bStart[3]) * k); await sleep(150); }
+// (steps of <= 1.4 m every 150 ms: under the server's sprint limit, however far away B spawned)
+const walk = Math.max(60, Math.ceil(Math.hypot(spot.x - bStart[1], spot.z + 20 - bStart[3]) / 1.4));
+for (let i = 0; i <= walk; i++) { const k = i / walk; bPlace(bStart[1] + (spot.x - bStart[1]) * k, bStart[2] + (by - bStart[2]) * k, bStart[3] + (spot.z + 20 - bStart[3]) * k); await sleep(150); }
 const keepB = setInterval(() => { if (B.me?.alive) bPlace(spot.x, by, spot.z + 20, 0); }, 100);
 await sleep(3000);
 const bPos = B.snap.p.find((r) => r[0] === B.id);
-check('B reached the test spot', bPos && Math.hypot(bPos[1] - spot.x, bPos[3] - spot.z - 20) < 3);
+check('B reached the test spot', bPos && Math.hypot(bPos[1] - spot.x, bPos[3] - spot.z - 20) < 3, bPos ? `${Math.hypot(bStart[1] - spot.x, bStart[3] - spot.z - 20).toFixed(0)} m walk, ${Math.hypot(bPos[1] - spot.x, bPos[3] - spot.z - 20).toFixed(1)} m off` : 'not in snapshot');
 await sleep(3000);
 check('B is rendered on A as a soldier holding a rifle', await g((id) => { const p = __game.players.map.get(id); return !!p?.rig && !!p.rig.weapon && p.rig.root.visible; }, B.id));
 
