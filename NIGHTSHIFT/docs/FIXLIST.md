@@ -477,6 +477,22 @@ the game. Newly found problems go at the end of their section.
       40 ms): once, in a map
     The same nine tiles built (every mesh, plant, building and the canal masks compared). Over 16 ms: 20-30 -> 11-15;
     over 33 ms: 2-5 -> 1-2, and those are the garbage collector or one odd house (moving run to run)
+- [x] Stutters on a drive (tools/dev/drive-hitch.mjs: an AI at the wheel out of Kannur, traffic, people and the tiles'
+  builds all running, every frame timed and what took it):
+  - every pedestrian put on a street looked through every lane of the 25 tiles round about (~50 000) for the ones
+    within 200 m: a tea stall's group, a few at once, up to 90 ms. The lanes are looked up in the tiles the circle
+    reaches only (a tile's lanes lie inside it, 1.5 m at most past its edge), and kept for the next 15 m; standing
+    groups form a few milliseconds' worth a frame, nearest first; new characters are made a few milliseconds' worth a
+    frame too (one from the pool whenever there is)
+  - the plants near the camera were set out again every 45 m in one frame (~15 000 matrices, up to 50 ms - a stutter
+    every couple of seconds at speed): worked out a slice a frame into arrays of their own and put in at once (the
+    same plants, compared standing still)
+  - a police checking point made a new jeep and two officers each time (~16 ms): the last ones again (0.5 ms)
+  - the footprints' grid the planting looks in was kept for nothing after (~2 MB a tile, 53 MB in all): let go.
+    What's live after a garbage collection round Kannur: 432 -> 349 MB
+  Frames over 16 ms on a 3-minute drive: 142-206 -> 91-127; over 50 ms: 3-12 -> 2-3. What's left over 100 ms is the
+  garbage collector (a major collection, 100-150 ms here, once a minute or so: the builds' short-lived lists, kept
+  across frames, are promoted and collected late)
 - [x] An 11-second freeze when the first street racer turned up (Port Halvern, 8 s into a drive): painting its
   livery read the panel-groove canvas back to make a normal map, and a GPU canvas's read waits for everything the
   GPU has queued - here the world's shaders compiling. Every generated texture is drawn on a CPU canvas now

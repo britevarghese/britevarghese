@@ -361,10 +361,14 @@ export class KeralaLaneGraph {
   }
 
   // lanes with a point between rMin and rMax of (x, z), for spawning
+  // (only the tiles the circle reaches, and 60 m on: a tile's lanes lie inside it, its roads cut at its edge. Every
+  // tile two round was gone through - 25 tiles' lanes, ~50 000, for a pedestrian put on a street 200 m off: a
+  // standing group's few at once, up to 60 ms)
   lanesNear(x, z, rMin, rMax) {
-    const out = [], tx = Math.floor(-x / TILE), tz = Math.floor(z / TILE), R = Math.ceil(rMax / TILE) + 1;
-    for (let dz = -R; dz <= R; dz++) for (let dx = -R; dx <= R; dx++) {
-      const L = this.byTile.get(`${tx + dx},${tz + dz}`);
+    const out = [], r = rMax + 60;
+    const tx0 = Math.floor((-x - r) / TILE), tx1 = Math.floor((-x + r) / TILE), tz0 = Math.floor((z - r) / TILE), tz1 = Math.floor((z + r) / TILE);
+    for (let tz = tz0; tz <= tz1; tz++) for (let tx = tx0; tx <= tx1; tx++) {
+      const L = this.byTile.get(`${tx},${tz}`);
       if (!L) continue;
       for (const l of L) {
         const m = l.pts[Math.floor(l.pts.length / 2)], d = Math.hypot(m[0] - x, m[1] - z);

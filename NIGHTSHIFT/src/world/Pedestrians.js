@@ -109,14 +109,18 @@ export class Pedestrians {
   }
 
   // people standing about: chatting at tea stalls, waiting at bus stops (Kerala's roadside life)
+  // (true: there were more to form, left for the next frame)
   _spawnGroups(focus) {
     const spots = this.layout.standSpots?.(focus.x, focus.z, 140);
-    if (!spots?.length) return;
+    if (!spots?.length) return false;
     this.groups ||= new Map();
+    spots.sort((a, b) => Math.hypot(a.x - focus.x, a.z - focus.z) - Math.hypot(b.x - focus.x, b.z - focus.z));
+    const t0 = performance.now();
     for (const sp of spots) {
       if (this.groups.has(sp.key) || this.peds.length >= this.max + 12) continue;
       // (not till the ground in front of it is built: the road there isn't known)
       if (this.layout.groundKnown && !this.layout.groundKnown(sp.x, sp.z, 20)) continue;
+      if (performance.now() - t0 > 3) return true;
       const R = this.R, n = sp.kind === 'tea' ? 2 + Math.floor(R() * 3) : 1 + Math.floor(R() * 3);
       const members = [];
       // the road side of the stall / the shelter; tea drinkers stand round in a loose ring. Between it and the road,
@@ -145,6 +149,7 @@ export class Pedestrians {
       }
       this.groups.set(sp.key, { members, x: sp.x, z: sp.z });
     }
+    return false;
   }
   // a pedestrian look without a walking route (for standing groups)
   _spawnLook() {
@@ -228,10 +233,11 @@ export class Pedestrians {
     const want = this.max * (1 - this.rain * 0.5) * (this.timeK ?? 1);
     if (this.peds.length < want && this.R() < 0.6 * (1 - this.rain * 0.6)) this._spawn(focus);
     if (this.layout.standSpots && (this._grpT = (this._grpT || 0) - dt) <= 0) {
-      this._grpT = 1.5;
-      // groups far away break up; new ones form at the spots near the camera
+      // groups far away break up; new ones form at the spots near the camera (a few milliseconds' worth at a time,
+      // the nearest first, back for the rest next frame: a town's dozen tea stalls and bus stops all at once, as it
+      // came into range, was up to 90 ms)
       if (this.groups) for (const [k, g] of this.groups) if (Math.hypot(g.x - focus.x, g.z - focus.z) > 200) this.groups.delete(k);
-      this._spawnGroups(focus);
+      this._grpT = this._spawnGroups(focus) ? 0 : 1.5;
     }
     let nu = 0;
     let n = 0, nl = 0;
@@ -403,10 +409,14 @@ export class Pedestrians {
     for (const p of this.peds) if (p.human && (!keep.has(p) || p.d > R + 5)) this._release(p);
     // the first model is the player's own look: the crowd is the rest (in Kerala: mundus, kurtas, sarees)
     const M = this.humans?.models?.length || 1, skip = M > 2 ? 1 : 0;
+    // (new characters made a few milliseconds' worth a frame, the nearest first; one from the pool whenever there is:
+    // a standing group or two forming at once wanted a score of them made in the one frame, ~1.2 ms each)
+    const t0 = performance.now();
     for (const p of near) {
       if (p.human) continue;
       if (p.model % M < skip) p.model += 1;
       const list = this.pool.get(p.model % this.humans.models.length);
+      if (!list?.length && performance.now() - t0 > 3) continue;
       const h = list?.pop() || this.humans.create(p.model, { shadow: true });
       if (!h) continue;
       p.human = h;

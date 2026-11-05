@@ -600,7 +600,11 @@ export class KeralaWorld {
 
   // a stretch of roadside for a pedestrian to walk: along a town road, just off the kerb-side lane
   pedSegment(focus, R) {
-    const lanes = this.lanes.lanesNear(focus.x, focus.z, 30, 200).filter((l) => l.edge.cls >= 3 && l.edge.cls <= 7 && l.laneIndex === 0 && l.pts.length >= 2);
+    // (the streets round about looked up again only every 15 m or as the lanes change: a standing group's few people
+    // at once, each looking them all up, ~10 ms)
+    const C = this._psC;
+    const lanes = C && C.v === this.lanes.version && Math.hypot(C.x - focus.x, C.z - focus.z) < 15 ? C.lanes
+      : (this._psC = { x: focus.x, z: focus.z, v: this.lanes.version, lanes: this.lanes.lanesNear(focus.x, focus.z, 30, 200).filter((l) => l.edge.cls >= 3 && l.edge.cls <= 7 && l.laneIndex === 0 && l.pts.length >= 2) }).lanes;
     if (!lanes.length) return null;
     for (let tries = 0; tries < 6; tries++) {
       const g = this._pedSeg(lanes[Math.floor(R() * lanes.length)], R);

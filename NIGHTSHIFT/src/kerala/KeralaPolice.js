@@ -33,9 +33,17 @@ export class KeralaPolice {
   }
 
   _cop(n) {
-    const h = this.game.humans?.ready ? this.game.humans.createMan(n, { shadow: false, outfit: KHAKI }) : null;
-    if (h) this.group.add(h.group);
+    // (an officer stood down before, if there is one: see _spare)
+    const h = this._cops?.pop() || (this.game.humans?.ready ? this.game.humans.createMan(n, { shadow: false, outfit: KHAKI }) : null);
+    if (h) { h.group.visible = true; this.group.add(h.group); }
     return h;
+  }
+  // an officer done with (his check cleared, the jam he cleared left behind): kept for the next one, a few at most
+  _spare(h) {
+    if (!h) return;
+    h.group.removeFromParent(); h.clearAction?.(0);
+    (this._cops ||= []);
+    if (this._cops.length < 4) this._cops.push(h); else h.dispose?.();
   }
 
   // ------------------------------------------------------------------------------------------------- gestures
@@ -125,7 +133,7 @@ export class KeralaPolice {
     const sig = [...(W.lanes?.signals || [])].map(([k, S]) => [k, S, Math.hypot(S.x - focus.x, S.z - focus.z)])
       .filter((q) => q[2] < 200 && hash(q[0]) % 3 === 0 && W.tileAt(q[1].x, q[1].z)?.ready).sort((a, b) => a[2] - b[2]).slice(0, 1);
     const want = new Set(sig.map((q) => q[0]));
-    for (const [k, p] of this.posts) if (!want.has(k)) { p.group.removeFromParent(); p.cop?.group.removeFromParent(); delete p.S.cop; this.posts.delete(k); }
+    for (const [k, p] of this.posts) if (!want.has(k)) { p.group.removeFromParent(); this._spare(p.cop); delete p.S.cop; this.posts.delete(k); }
     for (const [k, S] of sig) {
       if (this.posts.has(k)) continue;
       // the corner: the nearest point round the junction off every carriageway
@@ -211,8 +219,12 @@ export class KeralaPolice {
     const cols = [];
     let jeep = null;
     if (g.lib.has('bolero')) {
-      jeep = new Vehicle({ carId: 'bolero', params: { ...TRAFFIC_VEHICLES.bolero.params }, world: W, lib: g.lib, role: 'parked', carType: 'muscle', renderOpts: { police: true, headlights: 0, shadow: false, lodDistance: g.preset.carLod1Distance, detailWheels: false, sharedPaint: true } });
-      jeep.renderer.applyCustom({ paint: 'factory', finish: 'gloss', tint: 0.5 });
+      // (the last check's jeep again if there was one: a new one made each time, with its two officers, was ~16 ms)
+      jeep = this._spareJeep; this._spareJeep = null;
+      if (!jeep) {
+        jeep = new Vehicle({ carId: 'bolero', params: { ...TRAFFIC_VEHICLES.bolero.params }, world: W, lib: g.lib, role: 'parked', carType: 'muscle', renderOpts: { police: true, headlights: 0, shadow: false, lodDistance: g.preset.carLod1Distance, detailWheels: false, sharedPaint: true } });
+        jeep.renderer.applyCustom({ paint: 'factory', finish: 'gloss', tint: 0.5 });
+      }
       const jx = ex - tmp.dx * 6, jz = ez - tmp.dz * 6;
       jeep.place(jx, jz, yaw);
       jeep.renderer.sirenOn = true;
@@ -236,10 +248,10 @@ export class KeralaPolice {
     const c = this.check; this.check = null;
     if (!c) return;
     c.group.removeFromParent();
-    for (const h of [c.waver, c.checker]) h?.group.removeFromParent();
+    for (const h of [c.waver, c.checker]) this._spare(h);
     for (const q of c.cols) this.game.world.collision.remove(q);
     if (c.car && c.car !== 'player') { c.car.ckWait = false; c.car.ckHold = false; c.car.pullAt = 0; }
-    if (c.jeep) { c.jeep.renderer.group.removeFromParent(); c.jeep.dispose?.(); }
+    if (c.jeep) { c.jeep.renderer.group.removeFromParent(); c.jeep.renderer.sirenOn = false; if (this._spareJeep) this._spareJeep.dispose?.(); this._spareJeep = c.jeep; }
   }
 
   _runCheck(dt) {
@@ -342,7 +354,7 @@ export class KeralaPolice {
     J.t += dt;
     const release = () => { for (const c of J.cars) { c.jamGo = false; c.jamHold = false; } J.cars.clear(); };
     if (J.phase === 'walkIn') { if (this._walk(h, J.spot[0], J.spot[1], dt)) { J.phase = 'direct'; J.t = 0; } return; }
-    if (J.phase === 'walkOut') { if (this._walk(h, J.from[0], J.from[1], dt)) { h.group.removeFromParent(); this.jam = null; this.jamCD = 30; } return; }
+    if (J.phase === 'walkOut') { if (this._walk(h, J.from[0], J.from[1], dt)) { this._spare(h); this.jam = null; this.jamCD = 30; } return; }
     // directing: the vehicles round the jam in two lots by the way they face; one lot goes (they may squeeze past
     // the others), the other waits, 10 s each, until nothing is stuck there
     h.animate(0, dt);

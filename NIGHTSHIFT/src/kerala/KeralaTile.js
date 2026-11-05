@@ -249,6 +249,7 @@ export class KeralaTile {
     yield 'tile:poles';
     if (opts.trees) { this.trees = yield* opts.trees.plantSteps(this); g.add(this.trees.group); yield 'tile:trees'; }
     else { const palms = this._palms(opts); if (palms) g.add(palms); }
+    this._bx = null;   // (the footprints' grid is for the planting only: ~2 MB a tile kept for nothing; rebuilt if asked)
     yield* this._clearRoadsSteps(this.colliders);
     g.traverse((o) => { o.matrixAutoUpdate = false; o.updateMatrix(); });
     g.updateMatrixWorld(true);

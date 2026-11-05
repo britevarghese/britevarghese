@@ -391,7 +391,7 @@ export class KeralaTrees {
       return m;
     });
     this._buildModels();
-    this._at = null;
+    this._at = null; this._filled = false;   // (the new meshes filled at once: see update)
   }
 
   // load the real tree models (call once the asset manager exists)
@@ -439,7 +439,7 @@ export class KeralaTrees {
           return { geometry: geos.length > 1 ? mergeGeometries(geos) : geos[0], material, depth: depthMaterial(this.U, 'model', material.alphaTest > 0 ? material.map : null, material.alphaTest) };
         });
         // (their shaders compiled first, on stand-ins: a tree model's first frame compiled them, a stall on a PC)
-        const go = () => { this._buildModels(); this._at = null; };
+        const go = () => { this._buildModels(); this._at = null; this._filled = false; };
         const tmp = this.models[k].map((p) => { const m = new THREE.InstancedMesh(p.geometry, p.material, 1); m.receiveShadow = true; m.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(3), 3); return m; });
         (this.warm ? this.warm(tmp) : Promise.resolve()).then(go, go);
       }).catch((e) => console.warn('[KeralaTrees] tree model failed', file, e));
@@ -655,35 +655,61 @@ export class KeralaTrees {
     const vis = this.U.uFar.value + 1000;
     for (const t of tiles.values()) if (t.trees) t.trees.group.visible = Math.hypot(-(t.E0 + TILE / 2) - p.x, t.N0 + TILE / 2 - p.z) < vis;
     const ver = tiles.size + [...tiles.values()].filter((t) => t.trees).length * 1000;
-    if (this._at && Math.hypot(p.x - this._at.x, p.z - this._at.z) < 45 && this._ver === ver) return;
-    this._at = { x: p.x, z: p.z }; this._ver = ver;
+    // the plants near the camera, filled in again every 45 m (and as tiles come and go): worked out a slice a frame into
+    // arrays of their own and put in all at once when done (all in one frame, ~15 000 plants, up to 50 ms - a stutter
+    // every couple of seconds at speed). The first fill, with nothing shown yet, at once.
+    if (this._job && (this._job.hi !== this.hi || this._job.models !== this.hiModel)) this._job = null;   // (remade meanwhile)
+    if (!this._job) {
+      if (this._at && Math.hypot(p.x - this._at.x, p.z - this._at.z) < 45 && this._ver === ver) return;
+      this._at = { x: p.x, z: p.z }; this._ver = ver;
+      this._job = { hi: this.hi, models: this.hiModel, it: this._refillSteps(p.x, p.z, tiles), all: !this._filled };
+    }
+    const t0 = performance.now();
+    let r;
+    do r = this._job.it.next(); while (!r.done && (this._job.all || performance.now() - t0 < 2.5));
+    if (r.done) { this._job = null; this._filled = true; }
+  }
+
+  *_refillSteps(px, pz, tiles) {
     const R = this.U.uR.value + 70, m4 = new THREE.Matrix4(), col = new THREE.Color(), n = new Array(KINDS).fill(0), nm = new Array(KINDS).fill(0);
     const RM = this.modelR + 60;   // (the real models: everything they might show before the next refill)
+    // (the arrays filled, one set per mesh list: made again when the meshes are)
+    if (this._stage?.hi !== this.hi || this._stage?.models !== this.hiModel) {
+      this._stage = {
+        hi: this.hi, models: this.hiModel,
+        m: this.hi.map((m) => new Float32Array(m.instanceMatrix.count * 16)), c: this.hi.map((m) => new Float32Array(m.instanceMatrix.count * 3)),
+        mm: this.hiModel.map((mm) => mm && new Float32Array(mm[0].instanceMatrix.count * 16)), mc: this.hiModel.map((mm) => mm && new Float32Array(mm[0].instanceMatrix.count * 3)),
+      };
+    }
+    const S = this._stage;
+    let q = 0;
     for (const t of tiles.values()) {
       const d = t.trees?.data;
       if (!d) continue;
       // tile-local cell range of the circle
-      const e = -p.x - d.e0, nn = p.z - d.n0;
+      const e = -px - d.e0, nn = pz - d.n0;
       const c0 = Math.max(0, Math.floor((e - R) / 100)), c1 = Math.min(19, Math.floor((e + R) / 100));
       const r0 = Math.max(0, Math.floor((nn - R) / 100)), r1 = Math.min(19, Math.floor((nn + R) / 100));
       for (let r = r0; r <= r1; r++) for (let c = c0; c <= c1; c++) {
         for (const i of d.cells.get(c + r * 64) || []) {
+          if ((++q & 255) === 0) yield;
           const x = -(d.e0 + d.P[i * 7]), z = d.n0 + d.P[i * 7 + 1];
-          if ((x - p.x) ** 2 + (z - p.z) ** 2 > R * R) continue;
+          if ((x - px) ** 2 + (z - pz) ** 2 > R * R) continue;
           const k = d.P[i * 7 + 3], mesh = this.hi[k];
           if (n[k] >= mesh.instanceMatrix.count) continue;
-          mesh.setMatrixAt(n[k], this._matrix(m4, d.P, i, x, z));
-          mesh.setColorAt(n[k]++, this._tint(col, k, d.P[i * 7 + 6]));
+          this._matrix(m4, d.P, i, x, z).toArray(S.m[k], n[k] * 16);
+          this._tint(col, k, d.P[i * 7 + 6]).toArray(S.c[k], n[k] * 3); n[k]++;
           const mm = this.hiModel[k];
-          if (mm && nm[k] < mm[0].instanceMatrix.count && (x - p.x) ** 2 + (z - p.z) ** 2 < RM * RM) {
+          if (mm && nm[k] < mm[0].instanceMatrix.count && (x - px) ** 2 + (z - pz) ** 2 < RM * RM) {
             this._tint(col, k, d.P[i * 7 + 6]).lerp(WHITE, 0.6);   // (the models are coloured already: only a hint of variety)
-            for (const q of mm) { q.setMatrixAt(nm[k], m4); q.setColorAt(nm[k], col); }
+            m4.toArray(S.mm[k], nm[k] * 16); col.toArray(S.mc[k], nm[k] * 3);
             nm[k]++;
           }
         }
       }
     }
-    this.hi.forEach((m, k) => { m.count = n[k]; m.instanceMatrix.needsUpdate = true; m.instanceColor.needsUpdate = true; });
-    this.hiModel.forEach((mm, k) => { for (const m of mm || []) { m.count = nm[k]; m.instanceMatrix.needsUpdate = true; m.instanceColor.needsUpdate = true; } });
+    // in, all at once
+    this.hi.forEach((m, k) => { m.instanceMatrix.array.set(S.m[k].subarray(0, n[k] * 16)); m.instanceColor.array.set(S.c[k].subarray(0, n[k] * 3)); m.count = n[k]; m.instanceMatrix.needsUpdate = true; m.instanceColor.needsUpdate = true; });
+    this.hiModel.forEach((mm, k) => { for (const m of mm || []) { m.instanceMatrix.array.set(S.mm[k].subarray(0, nm[k] * 16)); m.instanceColor.array.set(S.mc[k].subarray(0, nm[k] * 3)); m.count = nm[k]; m.instanceMatrix.needsUpdate = true; m.instanceColor.needsUpdate = true; } });
   }
 }
