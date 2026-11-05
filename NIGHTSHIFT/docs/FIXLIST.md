@@ -521,8 +521,9 @@ the game. Newly found problems go at the end of their section.
     freed now (not the library model's shared shapes and paints); the recovery truck's crane too
   - a junction officer's podium and a checking point's barricade were built afresh each time and never freed: shared
     shapes now; a race's gates were cleared without being freed: freed
-  Three laps after: textures 669 -> 668 -> 668 at Kannur (+15-50 a lap elsewhere, levelling), the geometries' growth
-  down to 0-60 a lap; the heap after a GC unchanged
+  After, the second lap against the first (Thalassery, Mattannur): textures other than skeletons 429 -> 414 and
+  444 -> 434 (were 427 -> 442, 426 -> 475), geometries 733 -> 780 and 867 -> 869 (were 768 -> 880, 874 -> 976), the
+  heap after a GC 277 -> 279 and 220 -> 222 MB. The characters' skeletons still rise as the pools fill, up to their cap
 - [x] Boats on the water round Kannur (watched 40 s: ten country boats, canopied boats and a ferry): all on the water,
   moving, none on land or run into each other; road and bridge pixels aren't water, so none crosses a road. They sit
   at the water's surface and look right close up
