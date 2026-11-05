@@ -246,6 +246,7 @@ export class Vehicle {
     this.kickAngle = 0;            // the front wheels giving a little against the driver's grip (rad)
     this._kT = 0; this._kHP = 0; this._nLP = [0, 0, 0, 0];
     this.waterDepth = 0;
+    this.current = new V3();       // the river's current where the truck is (m/s): what its water drag is against
     this.reverseTimer = 0;
     this.trees = [];
     this.others = [];              // other trucks: [{ pos, quat, spheres:[{c,r}], vel }]
@@ -1155,7 +1156,7 @@ export class Vehicle {
       if (level > -1e8) {
         // the bow wave: water piles up against the front, the higher the deeper and faster the water is entered (a
         // walking-pace wave is low and steady; a puddle at speed is spray, not enough water to drown an engine)
-        const sp = Math.max(0, this.vel.dot(this.fwd)), depth = Math.max(0, level - ground.height(_p.x, _p.z));
+        const sp = Math.max(0, this.vel.dot(this.fwd) - this.current.dot(this.fwd)), depth = Math.max(0, level - ground.height(_p.x, _p.z));
         wet = level + Math.min(0.45, depth * Math.min(2, 0.06 * sp * sp)) > _p.y;
       }
     }
@@ -1341,10 +1342,13 @@ export class Vehicle {
   // ---------------------------------------------------------------- water
   waterStep(ground) {
     this.waterDepth = 0;
+    const cur = this.current.set(0, 0, 0);
     if (!ground.water) return;
     const b = this.boxes[0];
     const wl = ground.water(this.pos.x, this.pos.z);
     if (!(wl > -1e8)) return;
+    // (a river runs: the drag is the water going past, the truck's way through it less the current)
+    if (ground.flow) ground.flow(this.pos.x, this.pos.z, cur);
     let any = false;
     const area = (b.h.x * 2 / 3) * (b.h.z * 2 / 3), up = this.up;
     // 3 x 3 columns over the main hull box (and the cab above it)
@@ -1363,18 +1367,45 @@ export class Vehicle {
       _q.addScaled(up, depth / 2);
       this.applyForce(_a, _q);
       // drag through the water, on the area the flow meets: across the front going ahead, along the side going
-      // sideways, under the floor bobbing (each column a ninth of the hull's)
-      this.pointVel(_q, _v);
+      // sideways, under the floor bobbing (each column a ninth of the hull's). Its coefficient: 0.9 for the nose
+      // pushing through, 1.4 for the water running against the side of a body flooded to over its floor (WRL's flood
+      // tests, TR2017/07, measured 1.2 to 2.0)
+      this.pointVel(_q, _v).sub(cur);
       const sp = _v.length();
       if (sp > 1e-3) {
         const fa = Math.abs(_v.dot(this.fwd)) / sp, sa = Math.abs(_v.dot(this.right)) / sp, va = Math.abs(_v.dot(up)) / sp;
-        const A = depth * (fa * b.h.x * 2 + sa * b.h.z * 2) / 9 + va * area;
-        _a.copy(_v).scale(-0.5 * RHO_WATER * 0.9 * A * sp);
+        const Af = depth * fa * b.h.x * 2 / 9, As = depth * sa * b.h.z * 2 / 9;
+        _a.copy(_v).scale(-0.5 * RHO_WATER * (0.9 * (Af + va * area) + 1.4 * As) * sp);
         this.applyForce(_a, _q);
       }
       this.waterDepth = Math.max(this.waterDepth, depth);
     }
     if (any) this.angVel.scale(1 - 0.3 * PHYS_DT);
+    if (cur.x || cur.z) this.wheelsInCurrent(cur);
+  }
+
+  /**
+   * A river's current on the wheels in it: before the hull is in, all it has to push on. Each tyre's side, a disc as
+   * deep as it stands in the water, meets the current running across it; its tread, as wide as the tyre, the current
+   * running along it. The push, half rho Cd A v squared on a wheel standing in the current, falls away as the wheel
+   * goes with the water (to nothing at the water's own speed, and holding it back past that): so a truck carried off
+   * goes with the river, never faster. (A wheel's drag through still water is its rolling resistance in it, above.)
+   */
+  wheelsInCurrent(cur) {
+    const r = this.spec.tyre.radius, tw = this.spec.tyre.width || 0.3, K = 0.5 * RHO_WATER * 1.0;
+    for (const w of this.wheels) {
+      const h = Math.min(w.water, 2 * r);
+      if (!(h > 0.02)) continue;
+      const hl = Math.hypot(w.headX, w.headZ) || 1, hx = w.headX / hl, hz = w.headZ / hl;
+      // (the current along the wheel and across it, its right; and the wheel's own way each)
+      const ca = cur.x * hx + cur.z * hz, cl = cur.x * hz - cur.z * hx;
+      const va = w.vHub.x * hx + w.vHub.z * hz, vl = w.vHub.x * hz - w.vHub.z * hx;
+      const disc = r * r * Math.acos(1 - h / r) - (r - h) * Math.sqrt(Math.max(0, 2 * r * h - h * h));
+      const Fa = K * tw * h * (ca - va) * Math.abs(ca), Fl = K * disc * (cl - vl) * Math.abs(cl);
+      _a.set(hx * Fa + hz * Fl, 0, hz * Fa - hx * Fl);
+      _p.set(w.hub.x, w.hub.y - r + h / 2, w.hub.z);
+      this.applyForce(_a, _p);
+    }
   }
 
   /**
@@ -1398,7 +1429,7 @@ export class Vehicle {
     for (const w of this.wheels) {
       if (!(w.water > 0.1)) continue;
       // the water the tread meets: up to the whole wheel under; the push square with the tread's speed past it
-      const under = Math.min(1, w.water / (2 * r)), u = w.omega * r - w.vHub.dot(fwd);
+      const under = Math.min(1, w.water / (2 * r)), u = w.omega * r - w.vHub.dot(fwd) + this.current.dot(fwd);
       _a.set(fwd.x, 0, fwd.z).scale(F.push * under * u * Math.abs(u));
       this.applyForce(_a, w.hub);
     }

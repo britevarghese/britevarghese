@@ -6,6 +6,8 @@
 //                                boulder
 //   surfaceAt(x, z)              surface record (physics/Surfaces.js)
 //   water(x, z)                  water surface height there, or -Infinity
+//   flow(x, z, out)              the river's current there, into out.x, out.z (m/s); returns its speed (0 in still
+//                                water and on dry ground)
 //   setWet(wet, pond)            how wet the ground is (0 dry to 1): its grounds' grip and give (physics/Surfaces.js
 //                                wetSurfaces); and how full the rain has filled its tracks' ruts (pond, 0 to 1)
 //   holeWater(x, z)              the surface of the rain standing in a rough track's hole there, or -Infinity
@@ -35,6 +37,21 @@ import { growYoung, placeRoadside, placedObstacles, trunkCap, WINCH_CAP } from '
 
 const OB_CELL = 16;          // obstacle (tree, post) grid cell (m)
 const BO_CELL = 8;           // boulder grid cell (m)
+
+/**
+ * How fast a river runs (m/s) where it is this deep (m) and its surface falls this steeply (m per m): Manning's equation,
+ * v = R^(2/3) S^(1/2) / n, with the roughness of a steep stony stream as Jarrett measured it on high-gradient streams
+ * (1984; as the US Army Corps of Engineers' HEC-RAS manual gives it, n = 0.39 S^0.38 R^-0.16, R in feet): the steeper
+ * and shallower, the rougher (boulders and steps in the flow), so the water hardly runs faster down a steeper bed. R,
+ * the hydraulic radius, is the depth there (a channel far wider than it is deep); S held to the 0.2 to 4% it was
+ * measured on (a steeper reach is steps and pools, no faster). So a knee-deep ford runs at about 1 m/s, a ford a metre
+ * deep at 2, a river's 2 m deep channel at 3: never more than white water's 3.5.
+ */
+export function currentSpeed(depth, slope) {
+  if (!(depth > 0) || !(slope > 1e-4)) return 0;
+  const S = Math.min(0.04, Math.max(0.002, slope));
+  return Math.min(3.5, Math.pow(depth, 2 / 3 + 0.16) * Math.pow(S, 0.5 - 0.38) / (0.39 * Math.pow(3.281, -0.16)));
+}
 
 export class World {
   constructor(data) {
@@ -274,6 +291,42 @@ export class World {
     const w = this.W[k * this.WN + i];
     return w === NO_WATER ? -Infinity : w;
   }
+
+  /**
+   * The river's current at (x, z): down the slope of the water's surface (the grid's, blended between its points), as
+   * fast as water that deep runs down that slope (currentSpeed), into out.x, out.z (m/s). A lake, the sea and the
+   * puddles lie level: still. Returns its speed.
+   */
+  flow(x, z, out) {
+    out.x = 0; out.z = 0;
+    const R = this.WR, fx = (x - this.origin) / R, fz = (z - this.origin) / R;
+    const i0 = Math.floor(fx), k0 = Math.floor(fz), u = fx - i0, v = fz - k0;
+    let gx = 0, gz = 0, wsum = 0;
+    for (let c = 0; c < 4; c++) {
+      const i = i0 + (c & 1), k = k0 + (c >> 1), wt = (c & 1 ? u : 1 - u) * (c >> 1 ? v : 1 - v);
+      const h = this.level(i, k);
+      if (!(wt > 0) || h === null) continue;
+      gx += wt * this.slopeAt(h, this.level(i - 1, k), this.level(i + 1, k));
+      gz += wt * this.slopeAt(h, this.level(i, k - 1), this.level(i, k + 1));
+      wsum += wt;
+    }
+    if (!wsum) return 0;
+    gx /= wsum * R; gz /= wsum * R;
+    const s = Math.hypot(gx, gz), wl = this.water(x, z), sp = wl > -1e8 ? currentSpeed(wl - this.terrain(x, z), s) : 0;
+    if (sp > 0) { out.x = -gx / s * sp; out.z = -gz / s * sp; }
+    return sp;
+  }
+
+  /** The water grid's level at point (i, k), or null where there's none. */
+  level(i, k) {
+    const N = this.WN;
+    if (i < 0 || k < 0 || i >= N || k >= N) return null;
+    const w = this.W[k * N + i];
+    return w === NO_WATER ? null : w;
+  }
+
+  /** How much the level rises across a grid point (per point), from its neighbours either side (a, b) where it has them. */
+  slopeAt(h, a, b) { return a !== null && b !== null ? (b - a) / 2 : b !== null ? b - h : a !== null ? h - a : 0; }
 
   /** The surface of the rain standing in a rough track's hole at (x, z) (world/Worn.js holeWater), or -Infinity. */
   holeWater(x, z) {

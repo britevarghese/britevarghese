@@ -500,20 +500,24 @@ export class Effects {
    * Emit for a truck's hull in water this frame: the bow wave where it pushes in, the wake and ripples spreading
    * behind, and a big splash when it drives in fast. (x, z): the truck's position; (vx, vz) its velocity; (fx, fz)
    * its heading; halfW, nose: half its width and how far ahead its nose is; depth: water over the bottom of its body;
-   * wy: the water's surface there (or -Infinity dry).
+   * wy: the water's surface there (or -Infinity dry); (cx, cz): the river's current there.
    */
-  hull(key, dt, x, y, z, vx, vz, fx, fz, halfW, nose, depth, wy) {
+  hull(key, dt, x, y, z, vx, vz, fx, fz, halfW, nose, depth, wy, cx = 0, cz = 0) {
     let st = this.hulls.get(key);
     if (!st) { st = { depth: 0, wake: 0, bow: 0, spray: 0 }; this.hulls.set(key, st); }
     const wet = wy > -1e8 && depth > 0.06;
-    const sp = Math.hypot(vx, vz);
+    // (the bow wave and wake are the water going past: in a river, its current less the truck's own way through it)
+    const sp = Math.hypot(vx, vz), rvx = vx - cx, rvz = vz - cz, rs = Math.hypot(rvx, rvz);
     if (wet) {
       const muddy = this.ground?.surfaceAt?.(x, z)?.id === SURFACE.MUD;
       const d = Math.min(depth, 1.2);
-      // the end that pushes into the water (the tail, backing up) and the truck's right
-      const lead = vx * fx + vz * fz >= 0 ? 1 : -1;
-      const bx = fx * lead, bz = fz * lead, sx = bz, sz = -bx;
-      const reach = nose * (lead > 0 ? 1 : 0.95);
+      // the face the water meets: the end pushing into it (the tail, backing up), or, the water running more across
+      // the truck than along it (stood in a river), the side it comes at; (bx, bz) out from that face, reach how far
+      // out it is, spread half its width, (sx, sz) across it
+      const al = rvx * fx + rvz * fz, si = rvx * fz - rvz * fx, endOn = Math.abs(al) >= Math.abs(si);
+      const lead = (endOn ? al : si) >= 0 ? 1 : -1;
+      const bx = (endOn ? fx : fz) * lead, bz = (endOn ? fz : -fx) * lead, sx = bz, sz = -bx;
+      const reach = endOn ? nose * (lead > 0 ? 1 : 0.95) : halfW, spread = endOn ? halfW : nose * 0.85;
       // driving in fast: the water bursts up round the front
       if (st.depth < 0.06 && sp > 2.5) {
         const n = Math.min(320, Math.round(sp * sp * (0.6 + d) * 7));
@@ -530,33 +534,33 @@ export class Effects {
         for (let k = 0; k < Math.min(24, n / 10); k++) this.mist(x + bx * reach * 0.5 + rnd(halfW * 1.2), wy + 0.3, z + bz * reach * 0.5 + rnd(halfW * 1.2), vx * 0.3 + rnd(2), 1 + Math.random() * 2, vz * 0.3 + rnd(2), muddy, 0.6);
         for (let k = 0; k < 8; k++) this.ring(x + rnd(halfW * 1.5), z + rnd(halfW * 1.5), k % 3 === 0 ? 0.4 : 0.6, k % 3 === 0 ? 1.2 : 2.6, 1.8, 0.45, k % 3 === 0, muddy ? MUDDY_FOAM : FOAM);
       }
-      if (sp > 0.5) {
+      if (rs > 0.5) {
         // the bow wave: water heaped up at the front, thrown up and out to both sides
-        st.bow += dt * Math.min(300, sp * sp * d * 22);
-        st.spray += dt * Math.min(80, sp * sp * d * 5);
+        st.bow += dt * Math.min(300, rs * rs * d * 22);
+        st.spray += dt * Math.min(80, rs * rs * d * 5);
         const up = Math.min(1, d * 1.6 + 0.3);
         while (st.bow > 1 || st.spray > 1) {
           const isSpray = st.spray > 1 && (st.bow <= 1 || Math.random() < 0.25);
           if (isSpray) st.spray -= 1; else st.bow -= 1;
           const out = Math.random() < 0.5 ? -1 : 1, along = Math.random() ** 0.7;
-          const v = sp * (0.3 + Math.random() * 0.5);
-          const px = x + bx * reach + sx * out * halfW * along, pz = z + bz * reach + sz * out * halfW * along;
-          const ovx = vx * 0.8 + sx * out * v * (0.3 + along) + rnd(0.3), ovy = v * (0.6 + Math.random() * 0.7) * up, ovz = vz * 0.8 + sz * out * v * (0.3 + along) + rnd(0.3);
+          const v = rs * (0.3 + Math.random() * 0.5);
+          const px = x + bx * reach + sx * out * spread * along, pz = z + bz * reach + sz * out * spread * along;
+          const ovx = cx + rvx * 0.8 + sx * out * v * (0.3 + along) + rnd(0.3), ovy = v * (0.6 + Math.random() * 0.7) * up, ovz = cz + rvz * 0.8 + sz * out * v * (0.3 + along) + rnd(0.3);
           if (isSpray) this.spray(px, wy + 0.04, pz, ovx, ovy, ovz, muddy, 0.14 + d * 0.16);
           else this.drop(px, wy + 0.02, pz, ovx, ovy, ovz, muddy);
         }
-        if (Math.random() < dt * sp * d * 4) this.mist(x + bx * reach + rnd(halfW), wy + 0.2, z + bz * reach + rnd(halfW), vx * 0.6 + rnd(1), 0.5 + Math.random(), vz * 0.6 + rnd(1), muddy, 0.45);
+        if (Math.random() < dt * rs * d * 4) this.mist(x + bx * reach + rnd(spread), wy + 0.2, z + bz * reach + rnd(spread), cx + rvx * 0.6 + rnd(1), 0.5 + Math.random(), cz + rvz * 0.6 + rnd(1), muddy, 0.45);
         // the wake: foam peeling off both sides of the bow and down the flanks, rings spreading out behind
         st.wake -= dt;
         if (st.wake <= 0) {
-          st.wake = Math.max(0.07, 0.2 - sp * 0.015);
+          st.wake = Math.max(0.07, 0.2 - rs * 0.015);
           const fc = muddy ? MUDDY_FOAM : FOAM;
           for (const out of [-1, 1]) {
-            this.ring(x + bx * reach * 0.8 + sx * out * halfW * 1.05, z + bz * reach * 0.8 + sz * out * halfW * 1.05, 0.26, 0.35 + sp * 0.15, 1.6 + d, 0.55, true, fc);
-            if (Math.random() < 0.5) this.ring(x - bx * reach * 0.3 + sx * out * halfW * 1.15, z - bz * reach * 0.3 + sz * out * halfW * 1.15, 0.26, 0.3 + sp * 0.18, 2 + d, 0.42, true, fc);
-            this.ring(x - bx * reach * 0.5 + sx * out * halfW * 1.1, z - bz * reach * 0.5 + sz * out * halfW * 1.1, 0.4, 0.6 + sp * 0.35, 2.6, 0.4, false);
+            this.ring(x + bx * reach * 0.8 + sx * out * spread * 1.05, z + bz * reach * 0.8 + sz * out * spread * 1.05, 0.26, 0.35 + rs * 0.15, 1.6 + d, 0.55, true, fc);
+            if (Math.random() < 0.5) this.ring(x - bx * reach * 0.3 + sx * out * spread * 1.15, z - bz * reach * 0.3 + sz * out * spread * 1.15, 0.26, 0.3 + rs * 0.18, 2 + d, 0.42, true, fc);
+            this.ring(x - bx * reach * 0.5 + sx * out * spread * 1.1, z - bz * reach * 0.5 + sz * out * spread * 1.1, 0.4, 0.6 + rs * 0.35, 2.6, 0.4, false);
           }
-          if (Math.random() < 0.5) this.ring(x - bx * reach + rnd(halfW * 0.7), z - bz * reach + rnd(halfW * 0.7), 0.3, 0.3 + sp * 0.12, 2.2, 0.45, true, fc);
+          if (Math.random() < 0.5) this.ring(x - bx * reach + rnd(spread * 0.7), z - bz * reach + rnd(spread * 0.7), 0.3, 0.3 + rs * 0.12, 2.2, 0.45, true, fc);
         }
       } else if (Math.random() < dt * 1.4) {
         // standing in the water: ripples lapping out now and then

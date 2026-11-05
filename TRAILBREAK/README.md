@@ -909,6 +909,27 @@ Everything that makes off-roading off-roading is simulated, not faked:
   is out again). The water lifts the hull in the middle of its part under water, so a truck deep enough to float sits
   level: heeled over, its low side, deeper in, is lifted back. Drag meets the area the flow does (the front going
   ahead, the side going sideways), so a truck driven into a pond pushes a bow wave and slows hard, nose down.
+- **River current:** a river runs down the slope of its surface, as fast as water that deep runs down that slope over
+  stones and boulders: Manning's equation with the roughness Jarrett measured on steep stony streams (n = 0.39
+  S^0.38 R^-0.16, R in feet, slopes 0.2 to 4%, as the [HEC-RAS manual](https://www.hec.usace.army.mil/confluence/rasdocs/ras1dtechref/6.6/basic-data-requirements/geometric-data/energy-loss-coefficients)
+  gives it): the steeper and shallower, the rougher, so a steeper bed hardly runs faster (`src/world/World.js`
+  currentSpeed, flow). Ankle-deep water over the stones runs at about half a metre a second, a knee-deep ford at 1
+  to 1.3 m/s (the Kundalika ford at Kundalika Rocks, 1.3; the Bearwood ford, 1.3), the Deep Ford, 1.2 m deep, at 2.2,
+  a river's channel at 3. A lake, the sea and the puddles lie level: still. The truck's drag in the water is the water
+  going past it, its current less the truck's own way through it: on the hull, and on the wheels, each tyre's side a
+  disc as deep as it is in, which is all the current has to push on before the water reaches the floor. Side on to
+  the flow the body's drag coefficient is 1.4 (a flooded vehicle's, 1.2 to 2.0, in the University of New South Wales
+  Water Research Laboratory's flood tests, [WRL TR2017/07](https://www.unsw.edu.au/content/dam/pdfs/engineering/civil-environmental/water-research-laboratory/publications/WRL-TR2017-07-Vehicle-Stability-Testing-for-Flood-Flows.pdf)).
+  So once the water is over the floor, lifting the truck and taking the weight off its tyres, a light truck goes:
+  a 2 t Ranger, Wrangler or Thar stands on its brakes in a knee-deep ford running at 1.3 m/s, the Thar starts to
+  slide in 0.9 m at 1.7 m/s, and in the Deep Ford's 1.2 m at 2.2 m/s all three are carried off downstream at a
+  couple of metres a second; the 3.3 t Bruiser and 3.65 t H1 are pushed but get across, the 6.2 t Rhino stands
+  (`test/current.test.mjs`). That is the real thing, if anything on the safe side: in WRL's tests a 2.4 t Nissan
+  Patrol, its cabin sealed, lost grip fast once the water was over its floor (0.45 m) and floated off its wheels at
+  0.95 m, and the US National Weather Service's warning is that
+  ["just 2 feet of rushing water can carry away SUVs and trucks"](https://www.weather.gov/safety/flood-turn-around-dont-drown).
+  The bow wave and the wake are the water going past, so a truck stopped in a river heaps the water up on its
+  upstream side; a hint says how fast the water is running when it's pushing you.
 - **Tyre tracks:** every tyre leaves its track in the ground it rolls over: soil and forest floor pressed darker,
   grass crushed browner and its tufts laid flat the way the truck went, mud smoothed and wet, sand and snow crisp,
   with the lugs of the tread printed across it (chevrons down the middle, staggered blocks on the shoulders), smeared
@@ -1365,7 +1386,7 @@ own features made on top of it; the roads through them are routed over the groun
   | The Mud Pit | by the camp: a borrow pit dug a metre down, 0.36 m of water over the mud | a Thar, a Wrangler and a UAZ all wallow through in low range, flat out (90 m in 15 to 28 s, the UAZ slowest), their tyres 0.3 m down in the mud |
   | Swamp | Blackwater Bog: its lowest third under black pools up to 0.4 m deep, the tracks kept dry round it | mud under water: the tyres sink and slip, and the water drags |
   | Shallow fords | the Bearwood Ford and the west ford, 0.4 m over a riverbed of stones | wet but firm; the banks up out of them are steep (the west ford's north bank: a stock UAZ needs low range) |
-  | Deep ford | the Deep Ford, 1.02 m over the ford's bed and deeper either side of it | a stock air intake (0.95 m) goes under: a stock Thar or Wrangler gets across with its engine choked to 35% of its power (cosmetic damage, the default; on the stricter settings it stalls); with the snorkel (garage) it pulls at full power; the Yangwang U8's intake is at 1.72 m |
+  | Deep ford | the Deep Ford, 1.02 m over the ford's bed and deeper either side of it, the river running through it at 2.2 m/s | a stock air intake (0.95 m) goes under, and the current takes a light truck: a 2 t Thar or Wrangler, lifted by the water, is carried off downstream (in still water it would get across choked to 35% of its power on cosmetic damage, and with the snorkel at full power); the 3.3 t Bruiser and the 3.65 t H1 are pushed but get across; the Yangwang U8 floats, and the river carries it while it paddles |
   | Shallows and sand | the Bearwood Shallows above the ford, ankle deep (0.24 m) over gravel for 120 m, a sand bar on the inside bank | the river to drive along; soft sand that sinks and drags |
   | Rock | the Boulder Field on Lookout Hill's flank: 343 boulders up to 2.8 m on bare rock | the grippiest ground there is, the boulders to crawl over in low range |
   | Rough trail | the Muskeg Trail, 0.95 km: on its firm ground ruts 13 to 29 cm deep (deeper than a stock Thar clears under its diffs, 21 cm), a hole every 6.5 m or so, 18 to 40 cm deep, in one rut and then the other, one in five right across, and roots 7 to 15 cm high across it; half of it mud (`rough` on a route: `src/world/Worn.js`) | crawl it: in low range at a walking pace a stock Thar rocks through the holes a wheel in the air, its diffs ploughing the mud between the ruts; faster it crashes down into them and onto the roots (the Muskeg Trail event counts each hard knock), and too slow in its mud it sinks. A stock Ranger gets stuck |

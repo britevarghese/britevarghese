@@ -717,8 +717,9 @@ export class Game {
     const tip = W.attached ? 'Hold E to winch in (and give it a little throttle)'
       : puller ? `${puller.by} is winching you out: stay off the pedals and steer, or give it a little throttle to help`
       : v.flooded ? 'Once the intake is out of the water the engine starts again'
+      : this.stuckWhy === 'water' && Math.hypot(v.current.x, v.current.z) > 0.8 ? 'The river is carrying the truck off: hook a tree on the bank with the winch (F, then hold E), or R back to dry ground'
       : this.stuckWhy === 'broken' ? (D.seized ? 'The engine is seized: it won\'t turn over. Backspace calls the tow truck, which takes it into the station workshop to be mended (you pay the bill). Or friends can tow you there (F to hook)' : 'A broken axle shaft: try 4WD (4) or the lockers (X). Backspace: the tow truck takes it to the station workshop to be mended')
-        : this.unstickTip(v.dt) + (!this.boards && v.wheels.some((w) => w.surf.sink > 0) ? 'Dig out and lay the recovery boards (K), then ease out onto them. ' : '')
+        : this.unstickTip(v.dt) + (!this.boards && this.stuckWhy !== 'water' && v.wheels.some((w) => w.surf.sink > 0) ? 'Dig out and lay the recovery boards (K), then ease out onto them. ' : '')
           + 'Or winch out: point the bumper at a tree or a friend, F to hook, hold E';
     if ($('st-tip').textContent !== tip) $('st-tip').textContent = tip;
     const home = `<b>&#9003;</b> ${this.stuckWhy === 'broken' ? 'Tow to the workshop' : 'Back to the station'}`;
@@ -1338,7 +1339,9 @@ export class Game {
     }
     const p = root.position, b = rv.spec.hull[0], cgZ = rv.spec.cgZ || 0;
     const wl = this.world.water(p.x, p.z), bottom = p.y + b.c[1] - b.h[1] - rv.spec.cgHeight;
-    this.effects.hull(`r${rv.id}`, dt, p.x, p.y, p.z, s.vel[0], s.vel[2], fwd.x, fwd.z, b.h[0], b.c[2] + b.h[2] - cgZ, wl > -1e8 ? Math.max(0, wl - bottom) : 0, wl);
+    const cur = this._flow ??= { x: 0, z: 0 };
+    if (!(wl > -1e8 && this.world.flow?.(p.x, p.z, cur))) { cur.x = 0; cur.z = 0; }
+    this.effects.hull(`r${rv.id}`, dt, p.x, p.y, p.z, s.vel[0], s.vel[2], fwd.x, fwd.z, b.h[0], b.c[2] + b.h[2] - cgZ, wl > -1e8 ? Math.max(0, wl - bottom) : 0, wl, cur.x, cur.z);
   }
 
   // ---------------------------------------------------------------- beacons
@@ -1460,6 +1463,14 @@ export class Game {
       this.audio.stall?.();
     }
     if (v.dt.running && !wasRunning) this.hud.hint(v.dt.electric ? 'Drive on again' : 'Engine running again', 2);
+    // in a river running fast, the hull in it: what the current is doing (once a minute and a half, or sooner where it
+    // runs a good deal faster than it did)
+    this.currentHintT = Math.max(0, (this.currentHintT || 0) - dt);
+    const cs = Math.hypot(v.current.x, v.current.z);
+    if (cs > 1.2 && v.waterDepth > 0.05 && (!this.currentHintT || cs > this.currentHinted + 0.6)) {
+      this.currentHintT = 90; this.currentHinted = cs;
+      this.hud.hint(`Fast water, ${cs.toFixed(1)} m/s: the current is pushing you downstream. Deep and fast, it lifts a truck off its wheels`, 5);
+    }
     // an electric truck in deeper than it is sealed for: its battery management cuts the power back
     if (v.dt.electric && v.intakeWet && (this.evWetT = (this.evWetT || 0) - dt) <= 0) { this.hud.hint('Deeper than the battery is sealed for: power cut back', 3); this.evWetT = 6; }
     this.trackDry(dt);
@@ -1562,7 +1573,7 @@ export class Game {
     }
     // ... and from the hull pushing through water
     const hb = v.spec.hull[0];
-    this.effects.hull('me', dt, v.pos.x, v.pos.y, v.pos.z, v.vel.x, v.vel.z, v.fwd.x, v.fwd.z, hb.h[0], hb.c[2] + hb.h[2] - (v.spec.cgZ || 0), v.waterDepth, this.world.water(v.pos.x, v.pos.z));
+    this.effects.hull('me', dt, v.pos.x, v.pos.y, v.pos.z, v.vel.x, v.vel.z, v.fwd.x, v.fwd.z, hb.h[0], hb.c[2] + hb.h[2] - (v.spec.cgZ || 0), v.waterDepth, this.world.water(v.pos.x, v.pos.z), v.current.x, v.current.z);
     if (v.hullContact > 0.8) this.cam.shake = Math.max(this.cam.shake, Math.min(0.12, v.hullContact * 0.04));
     if (v.impact > 0.5) this.cam.shake = Math.max(this.cam.shake, Math.min(0.2, v.impact * 0.05));
     this.feelGround(dt);
