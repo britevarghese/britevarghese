@@ -23,12 +23,32 @@ const RELOAD = {
 };
 // own handling noise (reload, bolt, draw, dry fire, grenade): ~14 dB under the own gunshot as it leaves the limiter
 const FOLEY = 0.1;
+// recorded near-miss crack at the level of the synthesized one it replaced (loudest 50 ms, K-weighted 400 ms)
+const CRACK = 2.4;
 // even out the surfaces as heard (short crisp concrete / metal steps read quieter than a long gravel crunch)
 const STEP_GAIN = { concrete: 1.7, metal: 1.2, wood: 1.0, grass: 0.8, dirt: 1.3, sand: 1.4 };
 const STEP = { concrete: 'step_concrete', grass: 'step_grass', dirt: 'step_dirt', sand: 'step_dirt', wood: 'step_wood', metal: 'step_metal' };
 const IMP = { concrete: 'imp_concrete', metal: 'imp_metal', dirt: 'imp_dirt', sand: 'imp_dirt', wood: 'imp_wood', glass: 'imp_glass', flesh: 'imp_flesh', rubber: 'imp_dirt' };
+// recorded beds (scripts/audio/build_beds.mjs). inside: the take for my own vehicle (no position); load: [take, revs
+// where it starts to fade in, revs where it has taken over, its gain] (moving / under load); rate [k, min, max]:
+// playbackRate = 1 + (revs - 1) * k, clamped, so the engine pitch follows the revs; loud: louder with it, x (1 + (rate
+// - 1) * loud); lp: lowpass cutoff from the caller's filter frequency (opens with the revs / the airspeed), vol: an
+// extra level from it; gain: puts the bed at the K-weighted loudness its synthesized version had, idle and flat out
+// (scripts/playtest-audio.mjs)
+const LOOP_PAD = 0.08; // every loop take carries 80 ms of its own continuation on both sides (MP3 priming delay)
+const BED = {
+  // idling, then rolling on its tracks as it picks up speed
+  tank: { set: 'loop_tank', load: [1, 1.02, 1.25, 0.5], rate: [0.45, 0.8, 1.45], loud: 0, lp: (f) => f * 60, gain: 2.4 },
+  jeep: { set: 'loop_jeep', rate: [0.55, 0.8, 1.9], loud: 0.08, lp: (f) => f * 40, gain: 0.82 },
+  bike: { set: 'loop_bike', rate: [0.75, 0.8, 2.3], loud: 0.33, lp: (f) => f * 20, gain: 1.07 },
+  heli: { set: 'loop_heli', inside: 1, rate: [1, 0.6, 1.1], loud: 0, lp: (f) => f * 16, gain: 0.62 },
+  // transport plane: the cabin drone in the plane (240), muffled when it passes overhead (60)
+  engine: { set: 'loop_plane', rate: [0, 1, 1], loud: 0, lp: (f) => f * 80, gain: 0.53 },
+  // freefall (~1160) bright, under the canopy (380) a dark, softer breeze
+  wind: { set: 'loop_wind', rate: [0, 1, 1], loud: 0, lp: (f) => (f * f * f) / 2.2e5, vol: (f) => Math.min(1, (f / 1160) ** 0.3), gain: 1.15 },
+};
 // what is heard first loads first
-const prio = (s) => (/_near$|^step_|^dry_|^draw_|^(ar|pistol)_mag|^ar_bolt|^pistol_slide|^bolt_|^clip/.test(s) ? 0 : /_far$|^imp_|^brass/.test(s) ? 1 : 2);
+const prio = (s) => (/_near$|^step_|^dry_|^draw_|^(ar|pistol)_mag|^ar_bolt|^pistol_slide|^bolt_|^clip/.test(s) ? 0 : /_far$|^imp_|^brass|^loop_/.test(s) ? 1 : 2);
 
 export class GameAudio {
   constructor() {
@@ -54,7 +74,7 @@ export class GameAudio {
           // +60 ms: room for a decoder that leaves the MP3 priming delay in (the takes are 100 ms apart)
           const a = Math.round(s * sr), n = Math.min(d.length - a, Math.round((dur + 0.06) * sr));
           const b = this.ctx.createBuffer(1, n, sr); b.copyToChannel(d.subarray(a, a + n), 0);
-          return { b, hit };
+          return { b, hit, dur };
         });
       } catch (e) { console.warn(`[audio] ${file} failed (${e}); using synth`); }
     };
@@ -113,8 +133,9 @@ export class GameAudio {
     this.lp = pos;
   }
 
-  // gain -> lowpass (-> HRTF panner) -> master + reverb send. Far sounds are delayed by their start time, not here.
-  #chain(pos, gain, lowpass, verbSend = 1, ref = 4) {
+  // gain -> lowpass (-> HRTF panner) -> bus (the one-shot trim; beds: master) + reverb send. Far sounds are delayed by
+  // their start time, not here. The returned gain node carries .lp and .pan (null when not placed) for beds.
+  #chain(pos, gain, lowpass, verbSend = 1, ref = 4, bus = this.sfx) {
     const c = this.ctx;
     const g = c.createGain(); g.gain.value = gain;
     const f = c.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = Math.min(lowpass, c.sampleRate / 2 - 100);
@@ -125,9 +146,10 @@ export class GameAudio {
       p.positionX ? (p.positionX.value = pos[0], p.positionY.value = pos[1], p.positionZ.value = pos[2]) : p.setPosition(...pos);
       f.connect(p); out = p;
     }
-    out.connect(this.sfx);
+    out.connect(bus);
     if (verbSend >= 1) out.connect(this.verb);
     else if (verbSend > 0) { const vs = c.createGain(); vs.gain.value = verbSend; out.connect(vs).connect(this.verb); }
+    g.lp = f; g.pan = pos ? out : null;
     return g;
   }
 
@@ -265,11 +287,81 @@ export class GameAudio {
     this.#play('nade_bounce', { pos, gain: 0.25, rate: 0.85 + Math.random() * 0.2, verb: 0.3, cat: 'imp' });
   }
 
-  // continuous beds: 'engine' (transport plane turboprops) and 'wind' (freefall / canopy). Returns { set(gain, freq), stop() }.
+  // continuous beds: 'engine' (transport plane turboprops), 'wind' (freefall / canopy), vehicle engines 'tank' | 'jeep'
+  // | 'bike' and the 'heli' rotor. Returns { set(gain, freq, rate, pos), stop() }, set every frame: rate = engine revs
+  // (1 = idle), freq = brightness, pos = [x, y, z] of someone else's vehicle (HRTF-panned; the panner rolls the level off
+  // from 12 m, so the caller passes no distance gain), null = my own, in the head. The recorded set plays once it has
+  // loaded: a bed that started synthesized crossfades over to it.
   loop(kind) {
     if (!this.ctx) return null;
+    const c = this.ctx, B = BED[kind];
+    let chain = null, placed = false, voices = null, synth = null, dead = false;
+    const outs = () => (voices ? voices.map((v) => v.g) : synth ? [synth.out] : []);
+    // one output chain per placement; getting into / out of the vehicle fades the old one out under the new one
+    const route = (pos) => {
+      if (chain && !!pos === placed) return;
+      const old = chain, from = outs();
+      chain = this.#chain(pos, 0, 20000, pos ? 0.12 : 0, 12, this.master);
+      placed = !!pos;
+      for (const n of from) n.connect(chain);
+      if (old) {
+        old.gain.setTargetAtTime(0, c.currentTime, 0.06);
+        setTimeout(() => { for (const n of from) { try { n.disconnect(old); } catch {} } old.disconnect(); }, 500);
+      }
+    };
+    const startSamples = () => {
+      const t = c.currentTime;
+      voices = this.lib[B.set].map((take) => {
+        const src = c.createBufferSource(); src.buffer = take.b; src.loop = true;
+        src.loopStart = LOOP_PAD; src.loopEnd = take.dur - LOOP_PAD;
+        const g = c.createGain(); g.gain.value = 0; src.connect(g); if (chain) g.connect(chain);
+        // random phase: two jeeps never run in lockstep
+        src.start(t, LOOP_PAD + Math.random() * (take.dur - 2 * LOOP_PAD));
+        return { src, g };
+      });
+      if (synth) { const s = synth; s.out.gain.setTargetAtTime(0, t, 0.15); setTimeout(() => s.stop(), 1000); synth = null; }
+      this.stats[B.set] = (this.stats[B.set] || 0) + 1;
+    };
+    if (B && this.has(B.set)) startSamples(); else synth = this.#synthBed(kind);
+    return {
+      set: (v, freq, rate = 1, pos = null) => {
+        if (dead) return;
+        const t = c.currentTime;
+        if (!voices && B && this.has(B.set)) startSamples();
+        route(pos);
+        if (pos) {
+          const p = chain.pan;
+          if (p.positionX) { p.positionX.setTargetAtTime(pos[0], t, 0.05); p.positionY.setTargetAtTime(pos[1], t, 0.05); p.positionZ.setTargetAtTime(pos[2], t, 0.05); } else p.setPosition(...pos);
+        }
+        chain.gain.setTargetAtTime(v, t, 0.2);
+        if (!voices) { synth.set(freq, rate); return; }
+        // the engine pitch follows the revs; my own heli is heard from the cabin
+        const r = Math.min(B.rate[2], Math.max(B.rate[1], 1 + (rate - 1) * B.rate[0])), inside = B.inside != null && !pos;
+        const k = B.gain * (1 + (r - 1) * B.loud) * (B.vol && freq ? B.vol(freq) : 1), ld = B.load, x = ld ? Math.min(1, Math.max(0, (rate - ld[1]) / (ld[2] - ld[1]))) : 0;
+        voices.forEach((vo, i) => {
+          // equal-power crossfade idle -> load; inside / outside switch with the placement
+          const w = B.inside != null ? ((i === B.inside) === inside ? 1 : 0) : ld ? (i === ld[0] ? Math.sqrt(x) * ld[3] : i === 0 ? Math.sqrt(1 - x) : 0) : i === 0 ? 1 : 0;
+          vo.g.gain.setTargetAtTime(w * k, t, 0.15);
+          vo.src.playbackRate.setTargetAtTime(r, t, 0.15);
+        });
+        // brighter with the revs; far away the air takes the highs
+        const air = pos ? Math.max(1200, 18000 * Math.exp(-this.#dist(pos) / 160)) : 20000;
+        chain.lp.frequency.setTargetAtTime(Math.min(19000, freq ? B.lp(freq) : 20000, air), t, 0.2);
+      },
+      stop: () => {
+        if (dead) return;
+        dead = true;
+        const ch = chain, vs = voices, sy = synth;
+        ch?.gain.setTargetAtTime(0, c.currentTime, 0.03);
+        setTimeout(() => { for (const v of vs || []) { try { v.src.stop(); } catch {} v.g.disconnect(); } sy?.stop(); ch?.disconnect(); }, 250);
+      },
+    };
+  }
+
+  // the synthesized beds (until the recordings have loaded): detuned saws and filtered noise -> { out, set(freq, rate), stop() }
+  #synthBed(kind) {
     const c = this.ctx, src = c.createBufferSource(); src.buffer = this.noise; src.loop = true;
-    const f = c.createBiquadFilter(), g = c.createGain(); g.gain.value = 0;
+    const f = c.createBiquadFilter(), g = c.createGain();
     const extra = [];
     if (kind === 'engine') {
       f.type = 'lowpass'; f.frequency.value = 260;
@@ -289,17 +381,15 @@ export class GameAudio {
       lfo.connect(lg).connect(am.gain); lfo.start(); extra.push(lfo);
       const whine = c.createOscillator(); whine.type = 'sine'; whine.frequency.value = 2400; const wg = c.createGain(); wg.gain.value = 0.012; whine.connect(wg).connect(g); whine.start(); extra.push(whine);
       const thump = c.createOscillator(); thump.type = 'triangle'; thump.frequency.value = 17; const tg = c.createGain(); tg.gain.value = 0.25; thump.connect(tg).connect(f); thump.start(); extra.push(thump);
-      src.connect(am).connect(f).connect(g).connect(this.master); src.start();
-      return {
-        set: (v) => g.gain.setTargetAtTime(v, c.currentTime, 0.2),
-        stop: () => { try { src.stop(); extra.forEach((o) => o.stop()); } catch {} g.disconnect(); },
-      };
+      src.connect(am).connect(f).connect(g); src.start();
+      return { out: g, set: () => {}, stop: () => { try { src.stop(); extra.forEach((o) => o.stop()); } catch {} g.disconnect(); } };
     } else { f.type = 'bandpass'; f.frequency.value = 650; f.Q.value = 0.5; }
-    src.connect(f).connect(g).connect(this.master); src.start();
+    src.connect(f).connect(g); src.start();
     return {
-      set: (v, freq, rate) => {
-        g.gain.setTargetAtTime(v, c.currentTime, 0.2); if (freq) f.frequency.setTargetAtTime(freq, c.currentTime, 0.2);
-        if (rate && kind !== 'heli') for (const o of extra) o.frequency.setTargetAtTime(o.userData * rate, c.currentTime, 0.3);
+      out: g,
+      set: (freq, rate) => {
+        if (freq && kind !== 'engine') f.frequency.setTargetAtTime(freq, c.currentTime, 0.2); // (the drone keeps its 260 Hz)
+        if (rate && extra[0]?.userData) for (const o of extra) o.frequency.setTargetAtTime(o.userData * rate, c.currentTime, 0.3);
       },
       stop: () => { try { src.stop(); extra.forEach((o) => o.stop()); } catch {} g.disconnect(); },
     };
@@ -310,6 +400,14 @@ export class GameAudio {
   crack(pos, weapon = 'ar', dist = 2) {
     if (!this.ctx || !this.enabled) return;
     const c = this.ctx, t = c.currentTime, loud = Math.max(0.25, 1 - dist / 4);
+    const big = weapon === 'sniper' || weapon === 'jeep_mg';
+    if (weapon !== 'pistol' && this.has('crack')) {
+      // recorded shock waves (cracking whip tips: the same N-wave in miniature): the closer, the louder and brighter; a
+      // bigger bullet's a little lower, with a fuller snap
+      this.#play('crack', { pos, gain: CRACK * loud * (big ? 0.85 : 1), rate: (big ? 0.84 : 1) * (0.94 + Math.random() * 0.12), lp: 2500 + 15000 * loud ** 2, verb: 0.3 });
+      if (big) this.#thump(this.#chain(pos, 0.9 * loud, 16000, 0.3), t, 260, 0.06, 0.4);
+      return;
+    }
     const g = this.#chain(pos, 0.9 * loud, 16000, 0.3);
     if (weapon === 'pistol') {
       const src = c.createBufferSource(); src.buffer = this.noise; src.playbackRate.value = 0.9 + Math.random() * 0.2;
@@ -323,7 +421,7 @@ export class GameAudio {
     const ng = c.createGain(); ng.gain.value = 1.6; n.connect(ng).connect(g); n.start(t);
     this.#noiseBurst(g, t + 0.001, 0.04, 0.0005, 2800);
     this.#noiseBurst(g, t + 0.004, 0.07, 0.002, 900, 2000);
-    if (weapon === 'sniper' || weapon === 'jeep_mg') this.#thump(g, t, 260, 0.06, 0.4); // bigger bullet, fuller snap
+    if (big) this.#thump(g, t, 260, 0.06, 0.4); // bigger bullet, fuller snap
   }
 
   explosion(pos) {

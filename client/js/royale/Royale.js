@@ -297,7 +297,7 @@ export class RoyaleClient {
       this.planeMesh.userData.update?.(dt);
       if (!this.planeLoop) this.planeLoop = g.audio.loop('engine');
       const d = cam.position.distanceTo(pp);
-      this.planeLoop?.set(this.inPlane ? 0.55 : Math.max(0, 0.5 - d / 900), 240);
+      this.planeLoop?.set(this.inPlane ? 0.55 : Math.max(0, 0.5 - d / 900), this.inPlane ? 240 : 60); // outside: muffled drone
     }
     // wind while falling
     const air = g.me.alive ? s.air || 0 : 0;

@@ -1,7 +1,8 @@
 // Audio check (no ears needed): renders every sound path of client/js/audio/Audio.js through an OfflineAudioContext
-// (the real graph: samples, HRTF panner, filters, reverb, soft-clip bus) and measures level, onset and transient times,
-// then plays the real game headless and checks that firing, reloading, switching, walking and a grenade trigger
-// their recorded sounds, with no decode / console errors.
+// (the real graph: samples, HRTF panner, filters, reverb, soft-clip bus) and measures level (also K-weighted), onset and
+// transient times; the recorded beds and cracks are rendered a second time with their synthesized fallback and
+// compared. Then plays the real game headless and checks that firing, reloading, switching, walking and a grenade
+// trigger their recorded sounds, that a vehicle bed runs on its recording, with no decode / console errors.
 //   BASE=http://localhost:3000 node scripts/playtest-audio.mjs [outdir]   (outdir: WAVs of some renders; SKIP_GAME=1: renders only)
 import { chromium } from 'playwright-core';
 import fs from 'node:fs';
@@ -32,9 +33,15 @@ const renders = await P.evaluate(async ({ keep }) => {
   while (!loader.loaded && performance.now() - t0 < 60000) await new Promise((r) => setTimeout(r, 100));
   const lib = loader.lib, out = { loadMs: Math.round(performance.now() - t0), sets: {} };
   for (const [k, v] of Object.entries(lib)) out.sets[k] = v.map((t) => { const d = t.b.getChannelData(0); let p = 0; for (let i = 0; i < d.length; i++) p = Math.max(p, Math.abs(d[i])); return +p.toFixed(3); });
-  const render = async (name, dur, fn, timed = null) => {
+  // synth: render with the recorded beds / cracks withheld, i.e. the synthesized fallback they replaced
+  const libSynth = Object.fromEntries(Object.entries(lib).filter(([k]) => !/^loop_|^crack$/.test(k)));
+  // every render draws the same random numbers (takes, pitch variation, noise), so renders are repeatable and e.g. the
+  // near-miss crack is the same take at every distance
+  const rand = Math.random;
+  const render = async (name, dur, fn, timed = null, synth = false) => {
+    let seed = 12345; Math.random = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
     cur = new OfflineAudioContext(2, Math.round(SR * dur), SR);
-    const a = new GameAudio(); a.lib = lib; a.loaded = true; a.volume = 1; a.unlock();
+    const a = new GameAudio(); a.lib = synth ? libSynth : lib; a.loaded = true; a.volume = 1; a.unlock();
     a.setListener({ x: 0, y: 1.6, z: 0 }, { x: 0, y: 0, z: -1 }, { x: 0, y: 1, z: 0 });
     let maxVoices = 0;
     if (timed) {
@@ -45,6 +52,7 @@ const renders = await P.evaluate(async ({ keep }) => {
     }
     fn(a);
     const buf = await cur.startRendering();
+    Math.random = rand;
     const L = buf.getChannelData(0), R = buf.getChannelData(1);
     let peak = 0, sum = 0, nan = 0;
     for (let i = 0; i < L.length; i++) { const v = Math.max(Math.abs(L[i]), Math.abs(R[i])); if (!Number.isFinite(L[i] + R[i])) nan++; else { peak = Math.max(peak, v); sum += L[i] * L[i]; } }
@@ -57,7 +65,33 @@ const renders = await P.evaluate(async ({ keep }) => {
     // loudness as heard: the loudest 50 ms (RMS, dBFS)
     const n50 = SR * 0.05; let acc = 0, best = 0;
     for (let i = 0; i < L.length; i++) { acc += L[i] * L[i]; if (i >= n50) acc -= L[i - n50] * L[i - n50]; best = Math.max(best, acc); }
-    const r = { name, peak: +peak.toFixed(3), st: +(10 * Math.log10(best / n50 + 1e-12)).toFixed(1), onset: +onset.toFixed(3), hits: hits.slice(0, 12), nan, stats: a.stats, maxVoices };
+    // K-weighted (ITU-R BS.1770, coefficients for 48 kHz) momentary loudness: the loudest 400 ms, both channels. Unlike the
+    // plain RMS it hears a bassy synth drone and a recorded engine about as an ear does.
+    const kw = (x) => {
+      const y = new Float32Array(x.length);
+      for (const [b0, b1, b2, a1, a2] of [[1.53512485958697, -2.69169618940638, 1.19839281085285, -1.69065929318241, 0.73248077421585], [1, -2, 1, -1.99004745483398, 0.99007225036621]]) {
+        let x1 = 0, x2 = 0, y1 = 0, y2 = 0;
+        for (let i = 0; i < x.length; i++) { const v = b0 * x[i] + b1 * x1 + b2 * x2 - a1 * y1 - a2 * y2; x2 = x1; x1 = x[i]; y2 = y1; y1 = v; y[i] = v; }
+        x = y.slice();
+      }
+      return y;
+    };
+    const KL = kw(L), KR = kw(R), n400 = SR * 0.4; let ka = 0, kb = 0;
+    for (let i = 0; i < KL.length; i++) { ka += KL[i] * KL[i] + KR[i] * KR[i]; if (i >= n400) ka -= KL[i - n400] * KL[i - n400] + KR[i - n400] * KR[i - n400]; if (i >= n400 - 1) kb = Math.max(kb, ka); }
+    // beds: settled level (50 ms RMS steps over the last 60 %: the quietest says whether the loop ever drops out),
+    // balance (R - L, dB) and zero-crossing rate (Hz; rises with the playback rate of the same recording)
+    const s0 = Math.floor(L.length * 0.4), w50 = [];
+    let zc = 0, eL = 0, eR = 0;
+    for (let i = s0; i + n50 <= L.length; i += n50) { let e = 0; for (let j = i; j < i + n50; j++) e += L[j] * L[j] + R[j] * R[j]; w50.push(10 * Math.log10(e / n50 / 2 + 1e-12)); }
+    for (let i = s0 + 1; i < L.length; i++) { if ((L[i] >= 0) !== (L[i - 1] >= 0)) zc++; eL += L[i] * L[i]; eR += R[i] * R[i]; }
+    // brightness: first-difference RMS over RMS (dB) of the whole render; rises with the share of high frequencies
+    let dd = 0; for (let i = 1; i < L.length; i++) dd += (L[i] - L[i - 1]) ** 2;
+    const r = {
+      name, peak: +peak.toFixed(3), st: +(10 * Math.log10(best / n50 + 1e-12)).toFixed(1), lufs: +(-0.691 + 10 * Math.log10(kb / n400 + 1e-12)).toFixed(1),
+      onset: +onset.toFixed(3), hits: hits.slice(0, 12), nan, stats: a.stats, maxVoices,
+      dip: +(Math.max(...w50) - Math.min(...w50)).toFixed(1), bal: +(10 * Math.log10((eR + 1e-12) / (eL + 1e-12))).toFixed(1), zcr: Math.round(zc / ((L.length - s0) / SR)),
+      bright: +(10 * Math.log10((dd + 1e-12) / (sum + 1e-12))).toFixed(1),
+    };
     if (keep.includes(name)) r.data = Array.from(L);
     return r;
   };
@@ -79,8 +113,28 @@ const renders = await P.evaluate(async ({ keep }) => {
   res.push(await render('step concrete, soldier 6 m', 0.8, (a) => a.footstep(pos(6), 'concrete', false, 1.1)));
   for (const s of ['concrete', 'metal', 'dirt', 'wood', 'glass', 'flesh']) res.push(await render(`impact ${s} 6 m`, 1, (a) => a.impact(pos(6), s)));
   for (const s of ['concrete', 'wood', 'dirt', 'grass']) res.push(await render(`brass ${s}`, 2, (a) => a.brass(s, null, 0.5, 'ar')));
-  res.push(await render('crack ar 1.5 m', 0.5, (a) => a.crack(pos(1.5), 'ar', 1.5)));
+  // the recorded beds and cracks, each also rendered with its synthesized fallback ('synth ...') to compare levels
+  const both = async (name, dur, fn) => { res.push(await render(name, dur, fn)); res.push(await render(`synth ${name}`, dur, fn, null, true)); };
+  for (const [w, d] of [['ar', 1.5], ['ar', 0.7], ['ar', 3.5], ['sniper', 1.5], ['jeep_mg', 2]]) await both(`crack ${w} ${d} m`, 0.5, (a) => a.crack(pos(d), w, d));
   res.push(await render('whizz pistol 1.5 m', 0.5, (a) => a.crack(pos(1.5), 'pistol', 1.5)));
+  // continuous beds, called as Vehicles.js / Royale.js call them every frame (here once): own vehicle in the head (0.55,
+  // bike 0.7 of it), other vehicles positional at 1.1 (the panner rolls them off), the transport plane, freefall / canopy
+  // wind. 9 s: the settled part (last 60 %) is longer than any loop, so it always holds a loop point.
+  const bed = (kind, ...args) => (a) => { a.loop(kind).set(...args); };
+  for (const [k, f, top] of [['tank', 180, 1.8], ['jeep', 320, 2.6], ['bike', 700, 2.6]]) {
+    const kk = k === 'bike' ? 0.7 : 1;
+    await both(`loop ${k} own idle`, 9, bed(k, 0.55 * kk, f, 1));
+    await both(`loop ${k} own full speed`, 9, bed(k, 0.55 * kk, f * top, top));
+  }
+  await both('loop heli own', 9, bed('heli', 0.55, 1200, 1));
+  res.push(await render('loop tank 12 m', 4, bed('tank', 1.1, 180, 1, pos(12))));
+  res.push(await render('loop tank 30 m right', 4, bed('tank', 1.1, 180, 1, [30, 1.6, 0])));
+  res.push(await render('loop jeep 60 m', 4, bed('jeep', 1.1, 320, 1, pos(60))));
+  res.push(await render('loop heli 80 m', 4, bed('heli', 1.1, 1200, 1, pos(80))));
+  await both('loop engine in plane', 9, bed('engine', 0.55, 240));
+  await both('loop engine 300 m', 4, bed('engine', 0.5 - 300 / 900, 60));
+  await both('loop wind freefall', 9, bed('wind', 0.5, 500 + 55 * 12));
+  await both('loop wind canopy', 4, bed('wind', 6 / 110, 380));
   res.push(await render('grenade throw', 1.5, (a) => a.throwNade()));
   res.push(await render('grenade bounce 5 m', 1, (a) => a.nadeBounce(pos(5))));
   res.push(await render('dry pistol', 0.6, (a) => a.dry('pistol')));
@@ -93,15 +147,18 @@ const renders = await P.evaluate(async ({ keep }) => {
   for (let i = 0; i < 24 * 8; i++) timed.push([0.01 + (i % 30) * 0.1 + Math.floor(i / 30) * 0.003, (a) => a.gunshot([Math.sin(i) * 40, 1.6, Math.cos(i) * 40], 'ar')]);
   res.push(await render('stress: full-auto + 24 soldiers', 4.5, () => {}, timed));
   return { ...out, res };
-}, { keep: OUT ? ['ar local', 'ar 300 m', 'sniper local', 'pistol local', 'jeep_mg local', 'tank_mg local', 'heli_cannon local', 'explosion 15 m', 'reload ar empty', 'reload sniper', 'bolt cycle', 'step concrete', 'step grass', 'crack ar 1.5 m'] : [] });
+}, { keep: OUT ? ['ar local', 'ar 300 m', 'sniper local', 'pistol local', 'jeep_mg local', 'tank_mg local', 'heli_cannon local', 'explosion 15 m', 'reload ar empty', 'reload sniper', 'bolt cycle', 'step concrete', 'step grass', 'crack ar 1.5 m', 'loop tank own idle', 'loop jeep own idle', 'loop bike own full speed', 'loop heli own', 'loop heli 80 m', 'loop engine in plane', 'loop wind freefall'] : [] });
 
 console.log(`samples decoded in ${renders.loadMs} ms`);
 for (const [set, [, takes]] of Object.entries(man)) {
   const got = renders.sets[set];
   check(`set ${set}: ${takes.length} takes decoded, none silent`, got?.length === takes.length && got.every((p) => p > 0.05), got ? `peaks ${got.join(' ')}` : 'missing');
 }
-console.log('\nrender                              peak  50ms dB  onset  transients (s)');
-for (const r of renders.res) console.log(`${r.name.padEnd(34)} ${String(r.peak).padStart(6)} ${String(r.st).padStart(7)} ${String(r.onset).padStart(6)}  ${r.hits.join(' ')}${r.maxVoices ? `  max voices ${r.maxVoices}` : ''}`);
+console.log('\nrender                              peak  50ms dB  LUFS-M  onset  transients (s)');
+for (const r of renders.res) {
+  const bedInfo = /^(synth )?loop /.test(r.name) ? `  [settled: ${r.dip} dB spread, balance R-L ${r.bal} dB, zero crossings ${r.zcr}/s]` : /crack/.test(r.name) ? `  [brightness ${r.bright} dB]` : '';
+  console.log(`${r.name.padEnd(34)} ${String(r.peak).padStart(6)} ${String(r.st).padStart(7)} ${String(r.lufs).padStart(7)} ${String(r.onset).padStart(6)}  ${r.hits.join(' ')}${r.maxVoices ? `  max voices ${r.maxVoices}` : ''}${bedInfo}`);
+}
 const R = Object.fromEntries(renders.res.map((r) => [r.name, r]));
 check('no NaN / Infinity in any render', renders.res.every((r) => !r.nan));
 check('every sound path audible (except brass on grass)', renders.res.every((r) => (r.name === 'brass grass' ? r.peak < 1e-4 : r.st > -75)), renders.res.filter((r) => r.st <= -75).map((r) => r.name).join(', '));
@@ -123,6 +180,18 @@ check('bolt cycle: up/back/forward/down on 0.10/0.30/0.55/0.70 of 1.05 s after 0
 check('brass lands ~0.5 s after the shot', R['brass concrete'].onset > 0.45 && R['brass concrete'].onset < 0.7, `${R['brass concrete'].onset} s`);
 const S = R['stress: full-auto + 24 soldiers'];
 check('voice cap holds under a firefight', S.maxVoices <= 32 && !S.nan, `max ${S.maxVoices} spatial voices`);
+// recorded beds (engines, rotor, plane, wind) and near-miss cracks
+const BEDS = { tank: 'loop_tank', jeep: 'loop_jeep', bike: 'loop_bike', heli: 'loop_heli', engine: 'loop_plane', wind: 'loop_wind' };
+const recorded = renders.res.filter((r) => /^(loop|crack) /.test(r.name));
+const setOf = (n) => (n.startsWith('crack') ? 'crack' : BEDS[n.split(' ')[1]]);
+check('beds + cracks play the recorded sets (no synth fallback once loaded)', recorded.every((r) => r.stats[setOf(r.name)] > 0), recorded.filter((r) => !(r.stats[setOf(r.name)] > 0)).map((r) => r.name).join(', '));
+const pairs = recorded.filter((r) => R[`synth ${r.name}`]);
+const dev = pairs.map((r) => [r.name, +(r.lufs - R[`synth ${r.name}`].lufs).toFixed(1)]);
+check('beds + cracks land within 2.5 dB (K-weighted) of the synthesized versions they replace', dev.every(([, d]) => Math.abs(d) <= 2.5), dev.map(([n, d]) => `${n.replace(/^(loop|crack) /, '')} ${d > 0 ? '+' : ''}${d}`).join(', '));
+check('beds never drop out (settled 50 ms levels within 18 dB, a loop point included)', recorded.filter((r) => r.name.startsWith('loop')).every((r) => r.dip < 18), recorded.filter((r) => r.name.startsWith('loop')).map((r) => r.dip).join(' '));
+check('engine pitch follows the revs (zero crossings idle -> full speed x1.3+)', ['tank', 'jeep', 'bike'].every((k) => R[`loop ${k} own full speed`].zcr > 1.3 * R[`loop ${k} own idle`].zcr), ['tank', 'jeep', 'bike'].map((k) => `${k} x${(R[`loop ${k} own full speed`].zcr / R[`loop ${k} own idle`].zcr).toFixed(2)}`).join(', '));
+check('another vehicle is placed: a tank 30 m to the right is right-heavy and >= 4 dB under one at 12 m', R['loop tank 30 m right'].bal > 1.5 && R['loop tank 30 m right'].lufs < R['loop tank 12 m'].lufs - 4, `balance ${R['loop tank 30 m right'].bal} dB, ${R['loop tank 12 m'].lufs} -> ${R['loop tank 30 m right'].lufs} LUFS`);
+check('a closer pass cracks louder and brighter (0.7 / 1.5 / 3.5 m)', R['crack ar 0.7 m'].lufs > R['crack ar 1.5 m'].lufs && R['crack ar 1.5 m'].lufs > R['crack ar 3.5 m'].lufs && R['crack ar 0.7 m'].bright > R['crack ar 3.5 m'].bright, ['0.7', '1.5', '3.5'].map((d) => `${R[`crack ar ${d} m`].lufs} LUFS / ${R[`crack ar ${d} m`].bright} dB bright`).join(', '));
 
 if (OUT) {
   fs.mkdirSync(OUT, { recursive: true });
@@ -177,6 +246,12 @@ check('game: empty pistol clicks (dry fire)', st.dry_pistol > 0, `dry_pistol ${s
 await G.keyboard.press('KeyG'); await until(() => __game.audio.stats.explosion > 0, 120000);
 st = await stats();
 check('game: grenade pin + throw, bounce and explosion heard', st.nade_pin > 0 && st.nade_throw > 0 && st.explosion > 0, `pin ${st.nade_pin} throw ${st.nade_throw} bounce ${st.nade_bounce || 0} explosion ${st.explosion || 0}`);
+// an engine bed in the live context: someone else's tank next to me (placed), then gone again
+await g(() => { const s = __game.me.s, h = __game.audio.loop('tank'); h.set(1.1, 180, 1.3, [s.x + 8, s.y + 1, s.z]); window.__bed = h; });
+await G.waitForTimeout(1500);
+const bed = await g(() => { window.__bed.stop(); return __game.audio.stats.loop_tank || 0; });
+check('game: a vehicle engine bed runs on its recording (placed) and stops', bed > 0, `loop_tank started ${bed}x`);
+st = await stats();
 console.log('game sound stats:', JSON.stringify(st));
 check('no console / decode errors', errors.length === 0, errors.slice(0, 5).join(' | '));
 await browser.close();
