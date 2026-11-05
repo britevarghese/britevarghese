@@ -48,8 +48,13 @@ for (const [name, [x0, z0]] of list) {
       return true;
     };
     const tmp = [];
-    W.collision.query(x0 - 250, z0 - 250, x0 + 250, z0 + 250, tmp);
-    const blds = tmp.filter((c) => c.bld && Math.min(c.hx, c.hz) > 1.6).sort((a, b) => Math.hypot(a.cx - x0, a.cz - z0) - Math.hypot(b.cx - x0, b.cz - z0));
+    // the buildings nearest the place (out to 600 m where the map has few near its middle: Iritty's are 400 m off)
+    let blds = [];
+    for (const r of [250, 600]) {
+      W.collision.query(x0 - r, z0 - r, x0 + r, z0 + r, tmp);
+      blds = tmp.filter((c) => c.bld && Math.min(c.hx, c.hz) > 1.6).sort((a, b) => Math.hypot(a.cx - x0, a.cz - z0) - Math.hypot(b.cx - x0, b.cz - z0));
+      if (blds.length >= n) break;
+    }
     const out = { tried: 0, noDoor: 0, entered: 0, left: 0, problems: [] };
     const bad = (m) => { if (out.problems.length < 30) out.problems.push(m); };
     let rnd = 4242; const R = () => ((rnd = (rnd * 9301 + 49297) % 233280) / 233280);

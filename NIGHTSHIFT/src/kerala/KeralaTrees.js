@@ -488,6 +488,7 @@ export class KeralaTrees {
     // keep clear of the carriageway: road segments in a 20 m grid
     const RG = new Map(), G = 20;
     for (const r of tile.roads) {
+      if ((++yc & 15) === 0 && performance.now() - ys > 3) { yield 'trees+roads'; ys = performance.now(); }
       // the road's real width (main roads are as wide as their lanes) plus the verge and shoulder
       const hw = (r.cls <= 2 && r.lanes ? Math.max(ROAD_HALF[r.cls], r.lanes * 1.75) : (ROAD_HALF[r.cls] ?? 2)) + (r.cls <= 6 ? 2.4 : 1.4);
       for (let i = 1; i < r.pts.length; i++) {
@@ -507,6 +508,8 @@ export class KeralaTrees {
       }
       return false;
     };
+    // (the footprints' grid inBuilding looks in, in slices too: built at the first plant, it took ~20 ms at once)
+    if (tile.bxSteps) yield* tile.bxSteps(() => { if (performance.now() - ys <= 3) return false; ys = performance.now(); return true; });
     const step = 6 / Math.sqrt(Math.max(0.3, Math.min(1, D)));
     const P = [];  // e, n, y, kind, scale, rot, tint
     // rubber estates: whole 300 m blocks of the midland slopes planted in rows (the rows follow one bearing)
@@ -520,7 +523,7 @@ export class KeralaTrees {
       return estate.get(k);
     };
     for (let n = step / 2; n < TILE; n += step) for (let e = step / 2; e < TILE; e += step) {
-      if ((++yc & 31) === 0 && performance.now() - ys > 3) { yield 'trees+'; ys = performance.now(); }
+      if ((++yc & 31) === 0 && performance.now() - ys > 3) { yield 'trees+cells'; ys = performance.now(); }
       const je = e + (rnd() - 0.5) * step * 0.95, jn = n + (rnd() - 0.5) * step * 0.95;
       const cls = tile.classAt(je, jn), mix = MIX[cls];
       if (!mix || onRoad(je, jn)) continue;
@@ -559,27 +562,32 @@ export class KeralaTrees {
     const N = P.length / 7;
     const data = { e0: tile.E0, n0: tile.N0, P: new Float32Array(P), cells: new Map() };
     for (let i = 0; i < N; i++) {
-      if ((i & 4095) === 4095 && performance.now() - ys > 3) { yield 'trees+'; ys = performance.now(); }
+      if ((i & 4095) === 4095 && performance.now() - ys > 3) { yield 'trees+grid'; ys = performance.now(); }
       const c = Math.floor(P[i * 7] / 100) + Math.floor(P[i * 7 + 1] / 100) * 64;
       if (!data.cells.has(c)) data.cells.set(c, []);
       data.cells.get(c).push(i);
     }
-    yield 'trees+';
+    yield 'trees+P';
     // shade under the canopy on the ground texture (also what reads as forest from far away)
     if (tile.visCanvas) {
       const V = tile.visCanvas.getContext('2d'), RS = tile.visCanvas.width / TILE;
       V.fillStyle = 'rgba(22,40,16,0.32)';
       for (let i = 0; i < N; i++) {
-        // (a pause when it's time: a canvas circle a tree, tens of thousands, took up to a twelfth of a second)
-        if ((i & 1023) === 1023 && performance.now() - ys > 3) { yield 'trees+'; ys = performance.now(); V.fillStyle = 'rgba(22,40,16,0.32)'; }
+        // (a pause when it's time: a canvas circle a tree, tens of thousands, took up to a twelfth of a second; looked at
+        // every 128 - a thousand circles between looks were up to 40 ms)
+        // (and the circles drawn there and then, a few hundred at a time: the browser keeps a canvas's drawing to do all
+        // at once later - a tile's tens of thousands in one go, ~45 ms, mid-loop or when the texture went up)
+        if ((i & 511) === 511) V.getImageData(0, 0, 1, 1);
+        if ((i & 127) === 127 && performance.now() - ys > 3) { yield 'trees+shade'; ys = performance.now(); V.fillStyle = 'rgba(22,40,16,0.32)'; }
         const k = P[i * 7 + 3]; if (k === KIND.bush || k === KIND.grass) continue;
         const r = (k === KIND.broad ? 3.6 : k === KIND.palm ? 2.6 : k === KIND.rubber ? 2.2 : k === KIND.bamboo ? 2.4 : 1.4) * P[i * 7 + 4] * RS;
         V.beginPath(); V.arc(P[i * 7] * RS, (TILE - P[i * 7 + 1]) * RS, Math.max(0.6, r), 0, 6.283); V.fill();
       }
+      V.getImageData(0, 0, 1, 1);
       const terr = tile.group?.getObjectByName('terrain');
       if (terr?.material.map) terr.material.map.needsUpdate = true;
     }
-    yield 'trees+';
+    yield 'trees+far';
     // distant copies: a share of the plants, a little bigger (palms, and one blob mesh for everything else)
     const g = new THREE.Group(); g.name = 'klTreesFar';
     const loFrac = 0.1 + 0.18 * Math.min(1, D), loScale = 1 / Math.sqrt(loFrac) * 0.6;
@@ -597,7 +605,7 @@ export class KeralaTrees {
     const m4 = new THREE.Matrix4(), col = new THREE.Color(), at = [0, 0];
     for (let i = 0; i < N; i++) {
       // (and here: the distant copies' matrices, a tile's tens of thousands of plants gone through in one go, up to 49 ms)
-      if ((i & 1023) === 1023 && performance.now() - ys > 3) { yield 'trees+'; ys = performance.now(); }
+      if ((i & 1023) === 1023 && performance.now() - ys > 3) { yield 'trees+mat'; ys = performance.now(); }
       if (!far(i)) continue;
       const kind = P[i * 7 + 3], j = lo(kind);
       this._matrix(m4, P, i, -P[i * 7], P[i * 7 + 1], kind === KIND.areca ? 1 : kind === KIND.rubber ? 0.55 * Math.max(1, loScale) : kind === KIND.bamboo ? 0.6 * Math.max(1, loScale) : kind === KIND.palm ? 1 : Math.max(1, loScale));

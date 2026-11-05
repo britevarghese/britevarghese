@@ -222,7 +222,9 @@ export class KeralaTile {
     g.position.set(-this.E0, 0, this.N0);
     this.group = g;
     yield* this._rasters(d, opts);
+    yield 'tile:smooth';   // (each its own step: with the rasters' last, up to 30 ms)
     this._smoothTowns();
+    yield 'tile:sink';
     this._sinkWater(this._edgeShared = opts.edgeSink);
     yield 'tile:rasters';
     this._refine(opts.terrainN || 129);
@@ -261,6 +263,9 @@ export class KeralaTile {
     const vis = mk(), cl = mk(), V = vis.getContext('2d', { willReadFrequently: true }), K = cl.getContext('2d', { willReadFrequently: true }); // both read back below: kept on the CPU
     V.fillStyle = LU_COLOR[0]; V.fillRect(0, 0, RASTER, RASTER);
     K.fillStyle = 'rgb(0,0,0)'; K.fillRect(0, 0, RASTER, RASTER);   // (open land: see KC)
+    // (the browser keeps a canvas's drawing to do later, all at once, when it's read: here a pixel read before each
+    // pause has it done a slice at a time - all of a tile's at the read below, up to 30 ms)
+    const fl = () => { V.getImageData(0, 0, 1, 1); K.getImageData(0, 0, 1, 1); };
     const path = (ctx, rings) => {
       ctx.beginPath();
       for (const ring of rings) {
@@ -270,7 +275,7 @@ export class KeralaTile {
     };
     const rings = (arr) => arr.map((r) => decodeLine(r, 0));
     for (const [k, rr] of d.lu || []) {
-      if (this._due()) { yield 'raster:landuse+'; this._ys = performance.now(); }
+      if (this._due()) { fl(); yield 'raster:landuse+'; this._ys = performance.now(); }
       const R = rings(rr);
       path(V, R); V.fillStyle = LU_COLOR[k] || LU_COLOR[0]; V.fill('evenodd');
       path(K, R); K.fillStyle = KC(k); K.fill('evenodd');
@@ -286,7 +291,7 @@ export class KeralaTile {
       K.strokeStyle = KC(C.water);   // (not painted on the ground: the channel is cut and drawn)
       for (const ctx of [K]) { ctx.lineWidth = Math.max(1, wd * PX); ctx.beginPath(); pts.forEach(([e, n], i) => { const x = e * PX, y = (TILE - n) * PX; if (i) ctx.lineTo(x, y); else ctx.moveTo(x, y); }); ctx.stroke(); }
     }
-    yield 'raster:mottle';
+    fl(); yield 'raster:mottle';
     // laterite earth under the trees, a little texture so nothing is a flat colour
     V.globalAlpha = 0.18;
     let s = (this.tx * 73856093 ^ this.tz * 19349663) >>> 0;
@@ -294,15 +299,15 @@ export class KeralaTile {
     const MOTTLE = ['#2f4a20', '#3c5a26', '#6b5a3a', '#8a5a3c', '#7a7048'];
     for (let i = 0; i < 2600; i++) { V.fillStyle = MOTTLE[Math.floor(rnd() * MOTTLE.length)]; const r = 0.8 + rnd() * rnd() * 7; V.beginPath(); V.ellipse(rnd() * RASTER, rnd() * RASTER, r, r * (0.5 + rnd() * 0.5), rnd() * 3, 0, 6.283); V.fill(); }
     V.globalAlpha = 1;
-    yield 'raster:infill';
+    fl(); yield 'raster:infill';
     // the houses and shops the map hasn't got (see _infill), before anything is drawn from the building list
     if (!d._infill) { yield* this._infill(d, clsDecode(K.getImageData(0, 0, RASTER, RASTER).data), opts.maxBuildings ?? 6000); d._infill = true; }
     // swept earth yards round the houses (Kerala compounds), a little wider than the footprint
     V.fillStyle = 'rgba(132,96,66,0.55)'; V.strokeStyle = 'rgba(132,96,66,0.45)'; V.lineJoin = 'round';
     V.lineWidth = Math.max(1, 7 * PX);
-    yield 'raster:yards';
+    fl(); yield 'raster:yards';
     for (let i = 0; i < (d.b || []).length; i++) {
-      if ((i & 63) === 63) if (this._due()) { yield 'raster:yards+'; this._ys = performance.now(); }
+      if ((i & 63) === 63) if (this._due()) { fl(); yield 'raster:yards+'; this._ys = performance.now(); }
       path(V, [decodeLine(d.b[i], 2)]); V.fill(); V.stroke();
     }
     // red laterite earth along the road edges (Kerala's verges)
@@ -314,21 +319,21 @@ export class KeralaTile {
     }
     V.globalAlpha = 1;
     // roads and buildings into the class map (palms keep off them)
-    yield 'raster:roads';
+    fl(); yield 'raster:roads';
     K.lineCap = 'round';
     for (const r of this.roads) {
-      if (this._due()) { yield 'raster:roads+'; this._ys = performance.now(); }
+      if (this._due()) { fl(); yield 'raster:roads+'; this._ys = performance.now(); }
       K.strokeStyle = KC(C.road); K.lineWidth = Math.max(0.9, (ROAD_HALF[r.cls] * 2 + 2) * PX);
       K.beginPath(); r.pts.forEach(([e, n], i) => { const x = e * PX, y = (TILE - n) * PX; if (i) K.lineTo(x, y); else K.moveTo(x, y); }); K.stroke();
       if (r.dirt) { V.strokeStyle = '#8c5a3a'; V.lineWidth = Math.max(1, ROAD_HALF[r.cls] * 2 * PX); V.lineCap = 'round'; V.beginPath(); r.pts.forEach(([e, n], i) => { const x = e * PX, y = (TILE - n) * PX; if (i) V.lineTo(x, y); else V.moveTo(x, y); }); V.stroke(); }
     }
-    yield 'raster:buildings';
+    fl(); yield 'raster:buildings';
     K.fillStyle = KC(C.building);
     for (let i = 0; i < (d.b || []).length; i++) {
-      if ((i & 63) === 63) if (this._due()) { yield 'raster:buildings+'; this._ys = performance.now(); }
+      if ((i & 63) === 63) if (this._due()) { fl(); yield 'raster:buildings+'; this._ys = performance.now(); }
       path(K, [decodeLine(d.b[i], 2)]); K.fill();
     }
-    yield 'raster:read';
+    fl(); yield 'raster:read';
     this.cls = clsDecode(K.getImageData(0, 0, RASTER, RASTER).data);
     // tea: the open slopes of the high ranges (Munnar, Vagamon, Peermade) are tea estates. Marked in the ground
     // texture's alpha; the terrain shader draws the bushes in rows along the contours there
@@ -430,6 +435,8 @@ export class KeralaTile {
       let cur = [];
       const flush = () => { if (cur.length > 1) out.push({ kind: w[0], hw, run: cur }); cur = []; };
       for (let i = 0; i < pts.length; i++) {
+        // (a pause along a long one too: a river's whole line, looked over every 3 m for roads, took up to 70 ms)
+        if ((i & 7) === 7 && this._due()) { yield 'tile:canals+'; this._ys = performance.now(); }
         const [ae, an] = pts[Math.max(0, i - 1)], [be, bn] = pts[i], k = i ? Math.max(1, Math.ceil(Math.hypot(be - ae, bn - an) / 3)) : 1;
         for (let s2 = i ? 1 : 0; s2 <= k; s2++) {
           const q = i ? [ae + (be - ae) * s2 / k, an + (bn - an) * s2 / k] : pts[0];
@@ -479,13 +486,15 @@ export class KeralaTile {
       const g = cv.getContext('2d', { willReadFrequently: true });
       g.strokeStyle = '#fff'; g.lineCap = 'butt'; g.lineJoin = 'round';
       for (const c of out) { g.lineWidth = c.hw * 2 * k; g.beginPath(); c.run.forEach(([e, n], i) => { const x = e * k, y = (TILE - n) * k; if (i) g.lineTo(x, y); else g.moveTo(x, y); }); g.stroke(); }
+      if (this._due()) { g.getImageData(0, 0, 1, 1); yield 'tile:canals+mask'; this._ys = performance.now(); }   // (the drawing done so far, done now: see _rasters)
       g.fillStyle = '#fff';
       for (const P of polys) { g.beginPath(); for (const R of [P.ring, ...P.holes]) R.forEach(([e, n], i) => { const x = e * k, y = (TILE - n) * k; if (i) g.lineTo(x, y); else g.moveTo(x, y); }); g.fill('evenodd'); }
       // (but never under a road: a road over the water is a bridge or a culvert, drawn on its own)
+      if (this._due()) { g.getImageData(0, 0, 1, 1); yield 'tile:canals+mask'; this._ys = performance.now(); }   // (the drawing done so far, done now: see _rasters)
       g.globalCompositeOperation = 'destination-out'; g.lineCap = 'round';
-      for (const r of this.roads) { if (r.flags & 4 || r.cls > 8 || r.deck) continue; g.lineWidth = (ROAD_HALF[r.cls] * 2 + 1) * k; g.beginPath(); r.pts.forEach(([e, n], i) => { const x = e * k, y = (TILE - n) * k; if (i) g.lineTo(x, y); else g.moveTo(x, y); }); g.stroke(); }
+      for (const r of this.roads) { if (this._due()) { g.getImageData(0, 0, 1, 1); yield 'tile:canals+mask'; this._ys = performance.now(); } if (r.flags & 4 || r.cls > 8 || r.deck) continue; g.lineWidth = (ROAD_HALF[r.cls] * 2 + 1) * k; g.beginPath(); r.pts.forEach(([e, n], i) => { const x = e * k, y = (TILE - n) * k; if (i) g.lineTo(x, y); else g.moveTo(x, y); }); g.stroke(); }
       g.globalCompositeOperation = 'source-over';
-      yield 'tile:canals+'; this._ys = performance.now();
+      g.getImageData(0, 0, 1, 1); yield 'tile:canals+'; this._ys = performance.now();
       const src = g.getImageData(0, 0, R, R).data, a = new Uint8Array(R * R);
       for (let y = 0; y < R; y++) {
         if ((y & 63) === 63 && this._due()) { yield 'tile:canals+'; this._ys = performance.now(); }
@@ -595,7 +604,14 @@ export class KeralaTile {
     // what's taken: the mapped buildings (their box and a margin), then each new one
     const G = 2, occ = new Set(), mark = (e0, n0, e1, n1, m) => { for (let x = Math.floor((e0 - m) / G); x <= Math.floor((e1 + m) / G); x++) for (let z = Math.floor((n0 - m) / G); z <= Math.floor((n1 + m) / G); z++) occ.add(x * 10000 + z); };
     const free = (e0, n0, e1, n1) => { for (let x = Math.floor(e0 / G); x <= Math.floor(e1 / G); x++) for (let z = Math.floor(n0 / G); z <= Math.floor(n1 / G); z++) if (occ.has(x * 10000 + z)) return false; return true; };
-    for (const b of list) { const R = decodeLine(b, 2); let e0 = Infinity, e1 = -Infinity, n0 = Infinity, n1 = -Infinity; for (const [e, n] of R) { e0 = Math.min(e0, e); e1 = Math.max(e1, e); n0 = Math.min(n0, n); n1 = Math.max(n1, n); } mark(e0, n0, e1, n1, 1.5); }
+    // (in slices, here and along each road, plot by plot: a town's few thousand mapped footprints, or one long road's
+    // hundreds of plots, took 30-50 ms in one go)
+    for (let i = 0; i < list.length; i++) {
+      if ((i & 127) === 127 && this._due()) { yield 'raster:infill+'; this._ys = performance.now(); }
+      const R = decodeLine(list[i], 2); let e0 = Infinity, e1 = -Infinity, n0 = Infinity, n1 = -Infinity; for (const [e, n] of R) { e0 = Math.min(e0, e); e1 = Math.max(e1, e); n0 = Math.min(n0, n); n1 = Math.max(n1, n); } mark(e0, n0, e1, n1, 1.5);
+    }
+    if (this._due()) { yield 'raster:infill+'; this._ys = performance.now(); }
+    const isl = this._islands();
     const add = [];
     for (const r of this.roads) {
       if (this._due()) { yield 'raster:infill+'; this._ys = performance.now(); }
@@ -607,6 +623,7 @@ export class KeralaTile {
       const at = (d0) => { let i = 1; while (i < P.length - 1 && D[i] < d0) i++; const u = (d0 - D[i - 1]) / ((D[i] - D[i - 1]) || 1), a = P[i - 1], b = P[i], l = (D[i] - D[i - 1]) || 1; return [a[0] + (b[0] - a[0]) * u, a[1] + (b[1] - a[1]) * u, (b[0] - a[0]) / l, (b[1] - a[1]) / l]; };
       for (const side of [1, -1]) {
         for (let d0 = 12 + rnd() * 8; d0 < len - 12;) {
+          if (this._due()) { yield 'raster:infill+'; this._ys = performance.now(); }
           const [e, n, te, tn] = at(d0), ne = -tn * side, nn = te * side;
           if (gridAt(this.h, GRID, STEP, e, n) > 450) { d0 += 25; continue; }   // (not up in the high ranges)
           const c0 = lu(e + ne * (hw + 6), n + nn * (hw + 6)), town = TOWN.has(c0);
@@ -616,7 +633,7 @@ export class KeralaTile {
           const c = [e + ne * (back + dep / 2), n + nn * (back + dep / 2)];
           const ring = [[-w / 2, -dep / 2], [w / 2, -dep / 2], [w / 2, dep / 2], [-w / 2, dep / 2]].map(([a, b]) => [c[0] + te * a + ne * b, c[1] + tn * a + nn * b]);
           let e0 = Infinity, e1 = -Infinity, n0 = Infinity, n1 = -Infinity; for (const [x, z] of ring) { e0 = Math.min(e0, x); e1 = Math.max(e1, x); n0 = Math.min(n0, z); n1 = Math.max(n1, z); }
-          const good = e0 > 2 && n0 > 2 && e1 < TILE - 2 && n1 < TILE - 2 && free(e0, n0, e1, n1) && !this._islands().some((I) => Math.hypot(c[0] - I.ce, c[1] - I.cn) < I.rin + 6)
+          const good = e0 > 2 && n0 > 2 && e1 < TILE - 2 && n1 < TILE - 2 && free(e0, n0, e1, n1) && !isl.some((I) => Math.hypot(c[0] - I.ce, c[1] - I.cn) < I.rin + 6)
             && [...ring, c].every(([x, z]) => OK.has(lu(x, z)) && !this.onRoad(x, z, 1.2))
             && !this.onRoad(c[0] - ne * dep * 0.25, c[1] - nn * dep * 0.25, 1.2);
           if (good) {
@@ -661,17 +678,24 @@ export class KeralaTile {
     return (this._isl = out);
   }
 
+  // the grid inBuilding looks in, built in steps (a pause when due() says so: a town's few thousand footprints took
+  // ~20 ms at once, the first time a tree was planted)
+  *bxSteps(due) {
+    if (this._bx) return;
+    const bx = new Map(), list = this.data?.b || [];
+    for (let i = 0; i < list.length; i++) {
+      if ((i & 127) === 127 && due()) yield 'bx+';
+      const R = decodeLine(list[i], 2); let e0 = Infinity, e1 = -Infinity, n0 = Infinity, n1 = -Infinity;
+      for (const [x, z] of R) { e0 = Math.min(e0, x); e1 = Math.max(e1, x); n0 = Math.min(n0, z); n1 = Math.max(n1, z); }
+      const box = [e0, n0, e1, n1, R];
+      for (let x = Math.floor((e0 - 4) / 10); x <= Math.floor((e1 + 4) / 10); x++) for (let z = Math.floor((n0 - 4) / 10); z <= Math.floor((n1 + 4) / 10); z++) { const k = x * 10000 + z; if (!bx.has(k)) bx.set(k, []); bx.get(k).push(box); }
+    }
+    if (!this._bx) this._bx = bx;
+  }
+
   // inside (or within m of) a building's footprint: a 10 m grid of the footprints' boxes, built once
   inBuilding(e, n, m = 0) {
-    if (!this._bx) {
-      this._bx = new Map();
-      for (const b of this.data?.b || []) {
-        const R = decodeLine(b, 2); let e0 = Infinity, e1 = -Infinity, n0 = Infinity, n1 = -Infinity;
-        for (const [x, z] of R) { e0 = Math.min(e0, x); e1 = Math.max(e1, x); n0 = Math.min(n0, z); n1 = Math.max(n1, z); }
-        const box = [e0, n0, e1, n1, R];
-        for (let x = Math.floor((e0 - 4) / 10); x <= Math.floor((e1 + 4) / 10); x++) for (let z = Math.floor((n0 - 4) / 10); z <= Math.floor((n1 + 4) / 10); z++) { const k = x * 10000 + z; if (!this._bx.has(k)) this._bx.set(k, []); this._bx.get(k).push(box); }
-      }
-    }
+    if (!this._bx) { const it = this.bxSteps(() => false); while (!it.next().done); }
     for (const [e0, n0, e1, n1, R] of this._bx.get(Math.floor(e / 10) * 10000 + Math.floor(n / 10)) || []) {
       if (e < e0 - m || e > e1 + m || n < n0 - m || n > n1 + m) continue;
       // inside the outline, or within m of one of its walls
@@ -854,17 +878,22 @@ export class KeralaTile {
     // onto it (its junctions take the ring's level, below)
     yield 'grade:rings';
     const ringY = new Map();
+    // (each road's index looked up once: indexOf for every road, twice over, was most of this step - up to 40 ms)
+    const RI = new Map(this.roads.map((r, i) => [r, i]));
+    this._islands();
+    if (this._due()) { yield 'grade:rings+'; this._ys = performance.now(); }
     for (const isl of this._islands()) {
       const rs = new Set(isl.grp.map((g) => g[2])), xs = E.filter((x) => rs.has(x.r) && !x.water.some(Boolean)), all = xs.flatMap((x) => x.raw);
       if (all.length) { const y = all.reduce((a, b) => a + b, 0) / all.length; for (const x of xs) ringY.set(x, y); }
     }
     // (every road's points, by where they are: the roads meeting at a junction)
     const vtx = new Map();
-    for (const x of E) { const ri = this.roads.indexOf(x.r); for (const pt of x.r.pts) { const k = key(pt); if (!vtx.has(k)) vtx.set(k, new Set()); vtx.get(k).add(ri); } }
+    for (const x of E) { const ri = RI.get(x.r); for (const pt of x.r.pts) { const k = key(pt); if (!vtx.has(k)) vtx.set(k, new Set()); vtx.get(k).add(ri); } }
+    if (this._due()) { yield 'grade:rings+'; this._ys = performance.now(); }
     // (and every road's two ends, by where they are: a side road ending on a ramp)
     const endsAt = new Map(), eg = (e, n) => Math.floor(e / 16) * 100000 + Math.floor(n / 16);
     for (const x of E) {
-      const ri = this.roads.indexOf(x.r);
+      const ri = RI.get(x.r);
       for (const pt of [x.r.pts[0], x.r.pts[x.r.pts.length - 1]]) { const k = eg(pt[0], pt[1]); if (!endsAt.has(k)) endsAt.set(k, []); endsAt.get(k).push(pt[0], pt[1], ri, x.r.cls); }
     }
     // 2. chains: where exactly two road ends meet (and nothing else passes), it is one road in OSM's pieces (a bridge
@@ -874,6 +903,7 @@ export class KeralaTile {
       x.r.pts.forEach((pt, k) => { if (k > 0 && k < x.r.pts.length - 1) through.add(key(pt)); });
       for (const [end, pt] of [[0, x.r.pts[0]], [1, x.r.pts[x.r.pts.length - 1]]]) { const k = key(pt); if (!ends.has(k)) ends.set(k, []); ends.get(k).push([i, end]); }
     });
+    if (this._due()) { yield 'grade:rings+'; this._ys = performance.now(); }
     const link = new Map();   // `${i},${end}` -> [j, endJ]
     // at a junction the road carries straight on: of the ends meeting there, the pair heading most nearly opposite
     // ways (within ~35 degrees of straight, similar classes) is one road; the rest are side roads
@@ -1355,6 +1385,7 @@ export class KeralaTile {
       const inner = hw + S * 0.75;          // every terrain triangle the road crosses is levelled to it
       const capAt = new Map();
       for (let i = 1; i < P.length; i++) {
+        if ((i & 15) === 15 && this._due()) { yield 'grade:stamp+'; this._ys = performance.now(); }   // (a long road's whole length: up to 40 ms)
         if (wet[i - 1] || wet[i]) continue;  // a bridge span: the water stays under it
         const [ae, an] = P[i - 1], [be, bn] = P[i], ya = prof[i - 1], yb = prof[i];
         const de = be - ae, dn = bn - an, l2 = de * de + dn * dn || 1, R = inner + 40;
@@ -1589,7 +1620,7 @@ export class KeralaTile {
       if (rows) rows.push(e, n, ne / hw, nn / hw, yl, yr);
       uv.set([0, along / vScale, 1, along / vScale], i * 4);
       if (i) { const q = (i - 1) * 2; idx.push(q, q + 1, q + 2, q + 1, q + 3, q + 2); }
-      if ((i & 15) === 15 && this._due()) { yield 'tile:roads+'; this._ys = performance.now(); }
+      if ((i & 3) === 3 && this._due()) { yield 'tile:roads+rib'; this._ys = performance.now(); }   // (each row looks up the ground ~9 times)
     }
     const g = new THREE.BufferGeometry();
     g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
@@ -1645,8 +1676,11 @@ export class KeralaTile {
     const paved = [], dirt = [], white = [], yellow = [], shoulders = [];
     const y = (lift) => (e, n) => this.heightAt(e, n) + lift;
     // junctions (points shared by roads): markings stop short of them, as painted lines do
+    // (a pause in each of these loops when it's time: the three at once, with a town's few thousand roads, up to 60 ms)
     const seen = new Map();
+    let nq = 0;
     for (const r of this.roads) {
+      if ((++nq & 31) === 0 && this._due()) { yield 'tile:roads+junc'; this._ys = performance.now(); }
       if (r.flags & 4 || r.cls > 8) continue;
       const hw = ROAD_HALF[r.cls];
       const last = r.pts.length - 1;
@@ -1656,6 +1690,7 @@ export class KeralaTile {
     // simplified out of the through road: nothing kept clear of it, and a canal's parapet ran up to the side road's
     // mouth, where a car turning in caught it)
     for (const [ri, r] of this.roads.entries()) {
+      if ((++nq & 31) === 0 && this._due()) { yield 'tile:roads+junc'; this._ys = performance.now(); }
       if (r.flags & 4 || r.cls > 8) continue;
       for (const q of [r.pts[0], r.pts[r.pts.length - 1]]) {
         const k = `${Math.round(q[0])},${Math.round(q[1])}`, o = seen.get(k);
@@ -1666,6 +1701,7 @@ export class KeralaTile {
     }
     const JG = new Map();
     for (const [k, [c0, hw, through]] of seen) {
+      if ((++nq & 255) === 0 && this._due()) { yield 'tile:roads+junc'; this._ys = performance.now(); }
       if (c0 < 2) continue;
       const c = c0 >= 3 || through ? Math.max(3, c0) : c0;   // (a side road ending on a road passing through: a T junction)
       const [e, n] = k.split(',').map(Number), gk = Math.floor(e / 16) * 1000 + Math.floor(n / 16);
@@ -1684,7 +1720,8 @@ export class KeralaTile {
     // the gap between a dual carriageway's halves by a junction: paved over, level with them (it was bare earth
     // running into the junction past the median's end). (The medians found in a step of their own: with the junctions
     // above, up to 50 ms)
-    yield 'tile:roads+';
+    yield 'tile:roads+med';
+    yield* this._mediansSteps(() => { if (!this._due()) return false; this._ys = performance.now(); return true; });
     for (const m of this._medians()) {
       if (!m.fill) continue;
       const c0 = [m.e + m.ne * m.w / 2 - m.ue * 2.1, m.n + m.nn * m.w / 2 - m.un * 2.1], c1 = [m.e + m.ne * m.w / 2 + m.ue * 2.1, m.n + m.nn * m.w / 2 + m.un * 2.1];
@@ -1694,7 +1731,7 @@ export class KeralaTile {
     }
     // wider classes sit a hair higher so junctions don't flicker
     for (const r of this.roads) {
-      if (this._due()) { yield 'tile:roads+'; this._ys = performance.now(); }
+      if (this._due()) { yield 'tile:roads+top'; this._ys = performance.now(); }
       if (r.flags & 4) continue; // tunnels: not drawn on the surface
       const lanes = r.lanes || (r.cls <= 1 ? 4 : r.cls <= 3 ? 2 : r.cls <= 6 ? 2 : 1);
       const hw = r.cls <= 2 && r.lanes ? Math.max(ROAD_HALF[r.cls], lanes * 1.75) : ROAD_HALF[r.cls];
@@ -1728,6 +1765,7 @@ export class KeralaTile {
       // its rows 8 m apart, one inside the other's strip and the next well out, joined by a straight line across the edge
       // - a step of 0.19 m where it left a main road climbing at 15 %)
       const F = this._over(ri), G = 25;
+      if (this._due()) { yield 'tile:roads+over'; this._ys = performance.now(); }
       const byMain = (e, n) => {
         for (let a = Math.floor((e - 17) / G); a <= Math.floor((e + 17) / G); a++) for (let b = Math.floor((n - 17) / G); b <= Math.floor((n + 17) / G); b++) {
           const L = F.get(a * 1000 + b); if (!L) continue;
@@ -1740,6 +1778,7 @@ export class KeralaTile {
       };
       const jn = (q) => (seen.get(`${Math.round(q[0])},${Math.round(q[1])}`)?.[0] || 0) >= 2, Q = [P[0]];
       for (let i = 1; i < P.length; i++) {
+        if ((i & 15) === 15 && this._due()) { yield 'tile:roads+pts'; this._ys = performance.now(); }
         const a = P[i - 1], b = P[i], L = Math.hypot(b[0] - a[0], b[1] - a[1]), ja = i === 1 || jn(a), jb = i === P.length - 1 || jn(b);
         if (L > 3) { const k = Math.ceil(L / 2.5); for (let q = 1; q < k; q++) { const d = L * q / k, pt = [a[0] + (b[0] - a[0]) * q / k, a[1] + (b[1] - a[1]) * q / k]; if ((ja && d <= 12) || (jb && L - d <= 12) || (F.size && byMain(...pt))) Q.push(pt); } }
         Q.push(b);
@@ -1759,22 +1798,22 @@ export class KeralaTile {
         g.setAttribute('junc', new THREE.BufferAttribute(J, 1));
       }
       (r.dirt ? dirt : paved).push(g);
-      if (this._due()) { yield 'tile:roads+'; this._ys = performance.now(); }
+      if (this._due()) { yield 'tile:roads+sh'; this._ys = performance.now(); }
       const sk = r.deck ? null : this._shoulder(g, this.roads.indexOf(r));  // (a road with a bridge: its approaches are banked up instead)
       if (sk) shoulders.push(sk);
       if (r.dirt || r.cls > 4) continue;  // village and town lanes carry no paint
       // markings: dashed white centre line (Indian roads), solid edge lines on the main roads
-      if (this._due()) { yield 'tile:roads+'; this._ys = performance.now(); }
-      const cl = this._dashes(r.pts, 0, 0.08, 3, 6, ys(0.012));
+      if (this._due()) { yield 'tile:roads+cl'; this._ys = performance.now(); }
+      const cl = yield* this._dashSteps(r.pts, 0, 0.08, 3, 6, ys(0.012));
       if (cl) white.push(cl);
-      if (r.cls <= 3) for (const side of [1, -1]) { if (this._due()) { yield 'tile:roads+'; this._ys = performance.now(); } const e = this._dashes(r.pts, side * (hw - 0.35), 0.08, 0, 0, ys(0.012)); if (e) (r.cls <= 1 ? yellow : white).push(e); }
+      if (r.cls <= 3) for (const side of [1, -1]) { if (this._due()) { yield 'tile:roads+edge'; this._ys = performance.now(); } const e = yield* this._dashSteps(r.pts, side * (hw - 0.35), 0.08, 0, 0, ys(0.012)); if (e) (r.cls <= 1 ? yellow : white).push(e); }
     }
     this._junctions = [...seen].filter(([, [c]]) => c >= 3).map(([k, [c, hw]]) => { const [e, n] = k.split(',').map(Number); return { e, n, c, r: hw + 2.5 }; });
     // (each kind merged in steps: the whole tile's roads in one merge took up to a ninth of a second)
     const out = [], due = () => { if (!this._due()) return false; this._ys = performance.now(); return true; };
     const kinds = [[paved, M.klRoad || M.road, 'roads'], [dirt, M.klDirtRoad || M.dirt, 'tracks'], [shoulders, M.klShoulder || M.klDirtRoad || M.dirt, 'shoulders'], 'bridges', [white, M.klLineWhite, 'lines'], [yellow, M.klLineYellow, 'linesY']];
     for (const k of kinds) {
-      if (this._due()) { yield 'tile:roads+'; this._ys = performance.now(); }
+      if (this._due()) { yield 'tile:roads+merge'; this._ys = performance.now(); }
       if (k === 'bridges') { const br = this._bridges(); if (br) { const m = new THREE.Mesh(br, M.klBridge || M.klKerb); m.name = 'bridges'; m.castShadow = true; m.receiveShadow = true; out.push(m); } continue; }
       const [list, mat, name] = k;
       if (!list.length) continue;
@@ -1965,6 +2004,8 @@ export class KeralaTile {
       const at = (i, sd, o) => { const [ne, nn] = nrm(i); return [P[i][0] + ne * o * sd, P[i][1] + nn * o * sd]; };
       const V = ([e, n], y) => [-e, y, n];
       for (let i = 1; i < P.length; i++) {
+        // (a pause along a long one: a river's whole run, at once, took up to 36 ms)
+        if ((i & 31) === 0 && this._due()) { yield 'street:canals+'; this._ys = performance.now(); }
         const mid = [(P[i][0] + P[i - 1][0]) / 2, (P[i][1] + P[i - 1][1]) / 2];
         if (!inTileM(mid)) continue;
         const K = kerb[chunkOf(...mid)], wa = this._wwY(...P[i - 1], c.kind), wb = this._wwY(...P[i], c.kind);
@@ -1992,6 +2033,7 @@ export class KeralaTile {
       if (this._due()) { yield 'street:pools+'; this._ys = performance.now(); }
       const stone = [0.33, 0.29, 0.24], cope = [0.55, 0.53, 0.49], mud = [0.08, 0.07, 0.05], V = ([e, n], y) => [-e, y, n];
       for (const R of [P.ring, ...P.holes]) for (let i = 0; i < R.length; i++) {
+        if ((i & 31) === 31 && this._due()) { yield 'street:pools+'; this._ys = performance.now(); }
         const a = R[i], b = R[(i + 1) % R.length], L = Math.hypot(b[0] - a[0], b[1] - a[1]); if (L < 0.5) continue;
         const k = Math.max(1, Math.ceil(L / 4));
         for (let q = 0; q < k; q++) {
@@ -2229,7 +2271,11 @@ export class KeralaTile {
   }
 
   // a line offset sideways from the centre: solid (dash = 0) or dashed (dash m on, gap m off)
-  _dashes(pts, off, hw, dash, gap, yOf) {
+  _dashes(pts, off, hw, dash, gap, yOf) { const it = this._dashSteps(pts, off, hw, dash, gap, yOf); let r; while (!(r = it.next()).done); return r.value; }
+  // (in steps: a pause when the build's slice of the frame is up - a main road's edge line, every 1.5 m of it looked
+  // over for junctions and laid on the ground, took up to 40 ms at once)
+  *_dashSteps(pts, off, hw, dash, gap, yOf) {
+    const due = () => { if (!this._due()) return false; this._ys = performance.now(); return true; };
     const P = [];
     for (let i = 0; i < pts.length; i++) {
       const a = pts[Math.max(0, i - 1)], b = pts[Math.min(pts.length - 1, i + 1)];
@@ -2240,6 +2286,7 @@ export class KeralaTile {
     if (this._nearJunction) {
       const runs = []; let cur = [];
       for (let i = 0; i < P.length; i++) {
+        if ((i & 15) === 15 && due()) yield 'tile:roads+dash';
         if (i) {
           const [ae, an] = P[i - 1], [be, bn] = P[i], k = Math.max(1, Math.ceil(Math.hypot(be - ae, bn - an) / 1.5));
           for (let j = 1; j < k; j++) { const q = [ae + (be - ae) * j / k, an + (bn - an) * j / k]; if (this._nearJunction(q[0], q[1])) { if (cur.length > 1) runs.push(cur); cur = []; } else cur.push(q); }
@@ -2249,12 +2296,14 @@ export class KeralaTile {
       if (cur.length > 1) runs.push(cur);
       if (runs.length !== 1 || runs[0].length !== P.length) {
         const nj = this._nearJunction; this._nearJunction = null;
-        const parts = runs.map((r) => this._dashes(r, 0, hw, dash, gap, yOf)).filter(Boolean);
-        this._nearJunction = nj;
-        return parts.length ? mergeGeometries(parts) : null;
+        const parts = [];
+        // (the junction test held off for the runs, and put back even if this is dropped part way)
+        try { for (const r of runs) { if (due()) yield 'tile:roads+dash'; const g = yield* this._dashSteps(r, 0, hw, dash, gap, yOf); if (g) parts.push(g); } }
+        finally { this._nearJunction = nj; }
+        return parts.length ? yield* mergeSteps(parts, due) : null;
       }
     }
-    if (!dash) return (() => { const g = this._ribbon(P, hw, yOf, 1e9); if (g) fastNormals(g); return g; })();
+    if (!dash) { const g = yield* this._ribbonSteps(P, hw, yOf, 1e9); if (g) fastNormals(g); return g; }
     const geos = [];
     let acc = 0, on = true, seg = [P[0]];
     for (let i = 1; i < P.length; i++) {
@@ -2267,13 +2316,13 @@ export class KeralaTile {
         if (on) seg.push([me, mn]);
         acc += step; L -= step; ae = me; an = mn;
         if (acc >= (on ? dash : gap) - 1e-6) {
-          if (on && seg.length > 1) { const g = this._ribbon(seg, hw, yOf, 1e9); if (g) { fastNormals(g); geos.push(g); } }
+          if (on && seg.length > 1) { if (due()) yield 'tile:roads+dash'; const g = this._ribbon(seg, hw, yOf, 1e9); if (g) { fastNormals(g); geos.push(g); } }
           on = !on; acc = 0; seg = [[ae, an]];
         }
       }
     }
     if (!geos.length) return null;
-    return mergeGeometries(geos);
+    return yield* mergeSteps(geos, due);
   }
 
   // ------------------------------------------------------------------------------------------ buildings
@@ -2286,8 +2335,14 @@ export class KeralaTile {
   // to the other: { e, n (on this half's edge), ne, nn (unit, across), ue, un (along), w (gap width), y0, y1 (the two
   // road edges' heights) }. Not at junctions or where another road crosses the gap (an opening there).
   _medians() {
-    if (this._med) return this._med;
-    const out = this._med = [];
+    if (!this._med) { const it = this._mediansSteps(() => false); while (!it.next().done); }
+    return this._med;
+  }
+  // (in steps: a pause when due() says so, road by road - a town's dual carriageways, at once, took up to 32 ms. Kept
+  // to itself until done, so nothing reads a half-found list meanwhile)
+  *_mediansSteps(due) {
+    if (this._med) return;
+    const out = [];
     if (!this._rg) this.nearRoad(0, 0, 1);
     const hwOf = (r) => (r.cls <= 2 && r.lanes ? Math.max(ROAD_HALF[r.cls], r.lanes * 1.75) : ROAD_HALF[r.cls]);
     const nj = this._nearJunction || (() => false);
@@ -2303,10 +2358,12 @@ export class KeralaTile {
       }
       return null;
     };
-    this.roads.forEach((r, ri) => {
-      if (!(r.flags & 1) || r.flags & 4 || r.cls > 3 || r.pts.length < 2) return;
+    for (let ri = 0; ri < this.roads.length; ri++) {
+      const r = this.roads[ri];
+      if (!(r.flags & 1) || r.flags & 4 || r.cls > 3 || r.pts.length < 2) continue;
       const hw = hwOf(r);
       for (let i = 1; i < r.pts.length; i++) {
+        if (due()) yield 'medians+';
         const [ae, an] = r.pts[i - 1], [be, bn] = r.pts[i], L = Math.hypot(be - ae, bn - an); if (L < 1) continue;
         const ue = (be - ae) / L, un = (bn - an) / L;
         for (let a = 2; a < L; a += 4) {
@@ -2326,11 +2383,12 @@ export class KeralaTile {
           }
         }
       }
-    });
+    }
+    if (this._med) return;   // (found meanwhile, all at once)
     // lookup grid (10 m cells)
-    this._medG = new Map();
-    out.forEach((m, k) => { const c = Math.floor(m.e / 10) * 1000 + Math.floor(m.n / 10); if (!this._medG.has(c)) this._medG.set(c, []); this._medG.get(c).push(k); });
-    return out;
+    const G = new Map();
+    out.forEach((m, k) => { const c = Math.floor(m.e / 10) * 1000 + Math.floor(m.n / 10); if (!G.has(c)) G.set(c, []); G.get(c).push(k); });
+    this._medG = G; this._med = out;
   }
 
   // the median's surface at (e, n) (a kerb 0.15 m high, eased up over its first 0.3 m so a wheel rolls over it), or
@@ -2755,7 +2813,7 @@ export class KeralaTile {
     // lies inside a bigger one is dropped, or its walls and shopfront would poke through the bigger building
     const pre = [], N = Math.min(list.length, maxB);
     for (let bi = 0; bi < N; bi++) {
-      if ((bi & 63) === 63 && this._due()) { yield 'tile:buildings+'; this._ys = performance.now(); }
+      if ((bi & 63) === 63 && this._due()) { yield 'tile:buildings+pre'; this._ys = performance.now(); }
       const ring = decodeLine(list[bi], 2);
       let a = 0, ce = 0, cn = 0;
       for (let i = 0; i < ring.length; i++) { const [x1, y1] = ring[i], [x2, y2] = ring[(i + 1) % ring.length]; a += x1 * y2 - x2 * y1; ce += x1; cn += y1; }
@@ -2765,7 +2823,7 @@ export class KeralaTile {
     const inside = (R, e, n) => { let c = false; for (let i = 0, j = R.length - 1; i < R.length; j = i++) { const [xi, yi] = R[i], [xj, yj] = R[j]; if ((yi > n) !== (yj > n) && e < ((xj - xi) * (n - yi)) / (yj - yi) + xi) c = !c; } return c; };
     const BG = new Map(), hidden = new Uint8Array(N);
     for (const bi of [...pre.keys()].sort((a, b) => pre[b].area - pre[a].area)) {
-      if (this._due()) { yield 'tile:buildings+'; this._ys = performance.now(); }
+      if (this._due()) { yield 'tile:buildings+hide'; this._ys = performance.now(); }
       const P = pre[bi];
       if (P.ring.length < 3) { hidden[bi] = 1; continue; }
       let e0 = Infinity, e1 = -Infinity, n0 = Infinity, n1 = -Infinity;
@@ -2822,7 +2880,7 @@ export class KeralaTile {
       for (let x = Math.floor(e0 / 40); x <= Math.floor(e1 / 40); x++) for (let z = Math.floor(n0 / 40); z <= Math.floor(n1 / 40); z++) { const k = x * 100 + z; if (!BG.has(k)) BG.set(k, []); BG.get(k).push(bi); }
     }
     for (let bi = 0; bi < N; bi++) {
-      if (this._due()) { yield 'tile:buildings+'; this._ys = performance.now(); }
+      if (this._due()) { yield 'tile:buildings+main'; this._ys = performance.now(); }
       if (hidden[bi]) continue;
       const b = list[bi];
       const kind = b[0], H = b[1] / 10;
@@ -3014,8 +3072,9 @@ export class KeralaTile {
       m.userData.cc = [(c % 4) * 500 + 250, Math.floor(c / 4) * 500 + 250]; m.userData.far = 230;
       out.push(m);
     }
-    if (roofsFlat.length) { const g = mergeGeometries(strip(roofsFlat)); if (g) out.push(new THREE.Mesh(g, M.klRoofFlat)); }
-    if (tanks.length) { const g = mergeGeometries(tanks); if (g) out.push(new THREE.Mesh(g, M.klTank)); }
+    // (the flat roofs and the tanks merged in steps too: a town's, at once, took up to 50 ms)
+    if (roofsFlat.length) { if (this._due()) { yield 'tile:bmerge+'; this._ys = performance.now(); } const g = yield* mergeSteps(strip(roofsFlat), due); if (g) out.push(new THREE.Mesh(g, M.klRoofFlat)); }
+    if (tanks.length) { if (this._due()) { yield 'tile:bmerge+'; this._ys = performance.now(); } const g = yield* mergeSteps(tanks, due); if (g) out.push(new THREE.Mesh(g, M.klTank)); }
     if (bulbs.p.length && M.klFestive) {
       const g = new THREE.BufferGeometry();
       g.setAttribute('position', new THREE.Float32BufferAttribute(bulbs.p, 3));

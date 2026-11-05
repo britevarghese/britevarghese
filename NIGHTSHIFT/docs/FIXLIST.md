@@ -465,6 +465,18 @@ the game. Newly found problems go at the end of their section.
   - [x] ...traced: one main-thread garbage collection in the nine tiles' build (63 ms); the rest is work. A tile's
     poles were laid in one go (up to 42 ms): a pause between roads now (19-23 ms). The trees' distant copies and
     their sorting into cells went through every plant at once: pauses in those too
+  - [x] ...and again, each slow step traced to what it was doing and whether the garbage collector was in it:
+    - the browser keeps a canvas's drawing to do later, all at once, when the canvas is read or uploaded: a tile's
+      tree shade (tens of thousands of circles, ~45 ms), the land-use rasters (up to 30 ms at their read) and the
+      canal mask. A one-pixel read before each pause has it done a slice at a time
+    - steps that went through a whole long thing at once: the house infill along a road (every plot, 30-50 ms), a
+      river's line looked over for roads (up to 70 ms) and its walls (36 ms), a road's junctions (60 ms), its centre
+      and edge lines (40 ms), the grading's stamp along a road (40 ms), the flat roofs' and tanks' merge (50 ms), the
+      medians (32 ms), the lanes' grid for keeping walls out of them (16 ms), the footprints' grid the trees look in
+      (20 ms): pauses inside each now. The grading looked up every road's index with indexOf, twice over (up to
+      40 ms): once, in a map
+    The same nine tiles built (every mesh, plant, building and the canal masks compared). Over 16 ms: 20-30 -> 11-15;
+    over 33 ms: 2-5 -> 1-2, and those are the garbage collector or one odd house (moving run to run)
 - [x] An 11-second freeze when the first street racer turned up (Port Halvern, 8 s into a drive): painting its
   livery read the panel-groove canvas back to make a normal map, and a GPU canvas's read waits for everything the
   GPU has queued - here the world's shaders compiling. Every generated texture is drawn on a CPU canvas now

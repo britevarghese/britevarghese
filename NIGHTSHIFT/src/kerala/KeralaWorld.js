@@ -234,9 +234,13 @@ export class KeralaWorld {
   }
 
   // points every 1.5 m along this tile's traffic lanes (main to minor roads), in G-metre cells
-  _laneGrid(t, G) {
+  _laneGrid(t, G) { const it = this._laneGridSteps(t, G, () => false); let r; while (!(r = it.next()).done); return r.value; }
+  // (in steps, a pause when due() says so: a tile's lanes and its neighbours', a point every 1.5 m, took up to 16 ms)
+  *_laneGridSteps(t, G, due) {
     const grid = new Map(), x0 = -(t.E0 + TILE) - 60, x1 = -t.E0 + 60, z0 = t.N0 - 60, z1 = t.N0 + TILE + 60;
+    let n = 0;
     for (const l of this.lanes.lanesNear(-(t.E0 + TILE / 2), t.N0 + TILE / 2, 0, TILE)) {
+      if ((++n & 63) === 0 && due()) yield 'world:clear+grid';
       if (l.edge.cls > 6) continue;
       for (let i = 1; i < l.pts.length; i++) {
         const [ax, az] = l.pts[i - 1], [bx, bz] = l.pts[i], L = Math.hypot(bx - ax, bz - az);
@@ -404,9 +408,10 @@ export class KeralaWorld {
     // (a few dozen at a time, as the build's few milliseconds allow: a hundred at once took up to 30 ms; each tile's
     // lanes gridded in a step of its own)
     const grids = new Map();
+    const due = () => { if (!t._due()) return false; t._ys = performance.now(); return true; };
     const clear = function* (o, list) {
-      if (!grids.has(o)) { grids.set(o, this._laneGrid(o, 20)); yield 'world:clear+'; }
-      for (let i = 0; i < list.length; i += 25) { this._clearLanes(o, list.slice(i, i + 25), grids); if (t._due()) yield 'world:clear+'; }
+      if (!grids.has(o)) { if (due()) yield 'world:clear+'; const g = yield* this._laneGridSteps(o, 20, due); grids.set(o, g); yield 'world:clear+'; }
+      for (let i = 0; i < list.length; i += 10) { this._clearLanes(o, list.slice(i, i + 10), grids); if (t._due()) yield 'world:clear+'; }
     }.bind(this);
     yield* clear(t, own);
     for (const o of this.tiles.values()) {
