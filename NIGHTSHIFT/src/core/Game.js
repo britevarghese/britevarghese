@@ -120,8 +120,10 @@ export class Game {
     {
       const H = { bus: 3.2, ksrtc: 3.2, pvtbus: 3.2, pvtbus2: 3.2, lorry: 3.2, truck: 3.2, van: 2.2, minitruck: 2.0, suv: 1.95, scorpio: 1.95, bolero: 1.95, thar: 1.9, ertiga: 1.7, brezza: 1.65, auto: 1.75, scooter: 1.6, commuter: 1.6, bullet: 1.6, streetbike: 1.6 };
       const out = [];
+      let at = -1;
       this.camCtl.vehicles = () => {
-        out.length = 0;
+        if (at === this._tick) return out;   // (asked a score of times a frame by the camera on foot)
+        at = this._tick; out.length = 0;
         for (const c of this.traffic?.cars || []) if (c.state !== 'gone') out.push({ x: c.x, z: c.z, y: c.y, yaw: c.yaw, w: c.spec?.w || 1.8, l: c.spec?.l || 4.5, h: H[c.type] || 1.55 });
         for (const u of this.police?.units || []) { const s = u.vehicle?.state, P = u.vehicle?.params; if (s) out.push({ x: s.x, z: s.z, y: s.y, yaw: s.yaw, w: P?.width || 1.9, l: P?.length || 4.8, h: 1.6 }); }
         return out;
@@ -825,6 +827,7 @@ export class Game {
   }
 
   _update(dt) {
+    this._tick = (this._tick | 0) + 1;   // (a frame's number: what's worked out once a frame is kept by it)
     const mode = this.state.mode;
     const input = this.input;
     input.update(dt);

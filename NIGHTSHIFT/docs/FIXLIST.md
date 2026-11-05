@@ -8,6 +8,13 @@ the game. Newly found problems go at the end of their section.
   full of the inside of its body) - it kept out of walls only. It rises over a vehicle it would be inside now, just
   clear of its roof (over an SUV 0.3 m, a KSRTC bus 1.6 m), and back down once it's gone; pulled in instead, as for
   a wall, the view would jump about with every tall car coming up behind in traffic
+- [x] On foot: the camera kept out of your own car and the parked ones only - a bus pulling in behind you had it
+  inside the bus. The traffic and police too now
+- [x] On foot, through a compound wall (tools/dev/onfoot.mjs, Payyanur: 0.6 m across a 0.3 m wall in one step): a car
+  alongside pushed you after the walls had pushed you out, into the wall past its middle, and next frame the wall put
+  you out on its nearer side - the far one. A wall pushes you back out on the side you were on (you've come only a
+  step since), and has the last word after the cars. Set up there, a car overlapping you by 0.6-0.8 m against the
+  wall: through it before, on your side of it now. Indoors (six towns) and on foot (Kannur, Payyanur): nothing through
 - [x] Stolen vehicles: turning and acceleration (all eleven types tested; the get-in took 6-8 s with the controls dead: now ~3-5 s, gas finishes it)
 - [x] Autorickshaw: colour changes when you get in (livery kept); its own single-cylinder sound (and diesel sounds for jeeps, lorries, buses)
 - [x] Steering wheels (Logitech G29 / G920 / G923, Thrustmaster, Fanatec, Moza...): the game read every controller as

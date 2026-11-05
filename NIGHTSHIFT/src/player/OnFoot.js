@@ -507,6 +507,12 @@ export class OnFoot {
       const c = Math.cos(vs.yaw), sn = Math.sin(vs.yaw), lx = (x - vs.x) * c - (z - vs.z) * sn, lz = (x - vs.x) * sn + (z - vs.z) * c;
       if (Math.abs(lx) < W / 2 + 0.15 && Math.abs(lz) < L / 2 + 0.15) return true;
     }
+    // (and the traffic and police: a bus pulling in at the stop behind you had the camera inside it)
+    for (const v of g.camCtl?.vehicles?.() || []) {
+      if (Math.abs(v.x - x) > 8 || Math.abs(v.z - z) > 8 || y > v.y + v.h + 0.1) continue;
+      const c = Math.cos(v.yaw), sn = Math.sin(v.yaw), lx = (x - v.x) * c - (z - v.z) * sn, lz = (x - v.x) * sn + (z - v.z) * c;
+      if (Math.abs(lx) < v.w / 2 + 0.15 && Math.abs(lz) < v.l / 2 + 0.15) return true;
+    }
     return false;
   }
 
@@ -599,6 +605,7 @@ export class OnFoot {
     if (u >= 1) {
       this.climb = null;
       s.y = q.ly; s.onGround = true; s.vx = q.nx * WALK * 0.6; s.vz = q.nz * WALK * 0.6;
+      this._rx = s.x; this._rz = s.z;   // (over the wall now: this is the side it's on)
       this._resolve();
       this.human?.play('jumpLand', { rate: 2, fade: 0.08 });
     }
@@ -611,16 +618,26 @@ export class OnFoot {
     const s = this.state, g = this.game;
     const tmp = this._tmp || (this._tmp = []);
     this._statics(s.x - 1, s.z - 1, s.x + 1, s.z + 1, tmp);
-    const push = (cx, cz, cos, sin, hx, hz) => {
+    // (where it was when last pushed clear, if it's come only a step since: a solid thing pushes it back out on that
+    // side, not whichever is nearer - shoved by a passing car into a compound wall 0.3 m thick, past its middle, it
+    // came out on the far side of it)
+    const mem = this._rx !== undefined && Math.hypot(s.x - this._rx, s.z - this._rz) < 1.5, px = this._rx, pz = this._rz;
+    const push = (cx, cz, cos, sin, hx, hz, side = false) => {
       const lx = (s.x - cx) * cos - (s.z - cz) * sin, lz = (s.x - cx) * sin + (s.z - cz) * cos;
       const ox = hx + RADIUS - Math.abs(lx), oz = hz + RADIUS - Math.abs(lz);
       if (ox <= 0 || oz <= 0) return;
-      let nx = 0, nz = 0;
-      if (ox < oz) nx = Math.sign(lx) * ox; else nz = Math.sign(lz) * oz;
+      let nx = 0, nz = 0, sx = Math.sign(lx) || 1, sz = Math.sign(lz) || 1;
+      if (side && mem) {
+        const lx0 = (px - cx) * cos - (pz - cz) * sin, lz0 = (px - cx) * sin + (pz - cz) * cos;
+        if (Math.abs(lx0) >= hx) sx = Math.sign(lx0) || sx;
+        if (Math.abs(lz0) >= hz) sz = Math.sign(lz0) || sz;
+      }
+      if (ox < oz) nx = sx * (hx + RADIUS) - lx; else nz = sz * (hz + RADIUS) - lz;
       // back to world space (inverse rotation)
       s.x += nx * cos + nz * sin; s.z += -nx * sin + nz * cos;
     };
-    for (const c of tmp) if (c.h > s.y + 0.4) push(c.cx, c.cz, c.cos, c.sin, c.hx, c.hz);
+    const statics = () => { for (const c of tmp) if (c.h > s.y + 0.4) push(c.cx, c.cz, c.cos, c.sin, c.hx, c.hz, true); };
+    statics();
     const car = (x, z, yaw, w, l) => push(x, z, Math.cos(yaw), Math.sin(yaw), w / 2, l / 2);
     for (const v of [g.player, ...this.parked, ...(g.police?.vehicles() || []), ...(g.races?.vehicles() || []), ...(g.rivals?.vehicles() || []), ...(g.net?.proxies() || [])]) {
       if (!v || v.gone) continue; const vs = v.state; if (Math.abs(vs.x - s.x) > 8 || Math.abs(vs.z - s.z) > 8) continue;
@@ -640,6 +657,9 @@ export class OnFoot {
       }
       car(c.x, c.z, c.yaw, w, l);
     }
+    // (the walls have the last word: a car's push doesn't leave you inside one)
+    statics();
+    this._rx = s.x; this._rz = s.z;
   }
 
   update(dt, input) {
