@@ -64,6 +64,21 @@ test('server-authoritative hit detection, headshot multiplier, walls block shots
   assert.equal(g.tryFire(a, eye, [0, 0, -1]), false);
 });
 
+test('the last round in the magazine is flagged on the shot event (slide / bolt locked back for everyone)', () => {
+  const g = mkGame();
+  const a = g.addPlayer({ name: 'A', team: 1 });
+  spawnAt(g, a, -60, 30);
+  a.weapons[0].mag = 2; g.flushEvents();
+  const eye = [a.x, a.y + 1.64, a.z], shot = () => g.flushEvents().map((e) => e.ev).find((e) => e.t === 'shot');
+  assert.ok(g.tryFire(a, eye, [0, 0, -1]));
+  assert.equal(shot().l, undefined);
+  g.clock += 1000;
+  assert.ok(g.tryFire(a, eye, [0, 0, -1]));
+  assert.equal(shot().l, 1);
+  g.reload(a);
+  assert.equal(g.flushEvents().map((e) => e.ev).find((e) => e.t === 'reload').dur, WEAPONS.ar.reloadEmpty * 1000);
+});
+
 test('shots through a building wall do not damage', () => {
   const g = mkGame();
   const b = BUILDINGS.find((x) => x.id === 'b3');

@@ -199,7 +199,7 @@ export class WeaponModel {
     const A = this.def.action;
     this.action = A || null;
     this.parts = {};
-    this.shotT = -1e9; this.coverOpen = false; this.chamberSpent = false; this.slideLocked = false; this.rlCatch = null;
+    this.shotT = -1e9; this.coverOpen = false; this.chamberSpent = false; this.slideLocked = false; this.rlCatch = null; this.dry = false;
     this.boltLift = 0; this.boltBack = 0; this.slideK = 0; this.chargeK = 0; this.boltHand = 0; this.cycleU = -1;
     this.vel = new THREE.Vector3(); // carrier velocity (world): spent cases keep it
     const gd = WEAPONS[this.key] || Object.values(WEAPONS).find((d) => d.visual === this.key);
@@ -338,7 +338,7 @@ export class WeaponModel {
     if (!A) return;
     const dt = (now - this.shotT) / 1000;
     if (mag > 0) this.slideLocked = false;
-    else if (dt < 0.25 && A.type !== 'bolt' && !(rl >= 0.88)) this.slideLocked = true; // last round: slide stop / bolt catch holds it
+    else if ((dt < 0.25 || this.dry) && A.type !== 'bolt' && !(rl >= 0.88)) this.slideLocked = true; // last round: slide stop / bolt catch holds it
     // empty rifle reload, decided as it starts: bolt held open on the last round -> the bolt catch is pressed;
     // closed on an empty magazine -> the charging handle is pulled
     if (!rl) this.rlCatch = null;
@@ -349,7 +349,7 @@ export class WeaponModel {
       if (this.slideLocked) {
         k = 1;
         // empty reload: slide stop pressed / charging handle let go at 0.88 — it flies home, chambering a round
-        if (rl >= 0.88 && empty) { this.slideLocked = false; this.releaseT = now; if (A.type === 'pistol' || this.rlCatch) this.slamT = now; }
+        if (rl >= 0.88 && empty) { this.slideLocked = false; this.dry = false; this.releaseT = now; if (A.type === 'pistol' || this.rlCatch) this.slamT = now; }
       }
       if (!this.slideLocked && now - (this.releaseT || -1e9) < 45) k = Math.max(k, 1 - (now - this.releaseT) / 45);
       this.slideK = k;

@@ -280,7 +280,8 @@ export class Game {
     const viewT = p.bot ? now : Number.isFinite(rt) ? Math.max(now - 450, Math.min(now, rt)) : now - Math.min(250, p.rtt / 2 + 100);
     const b = { id: nextId++, shooter: p, w: w.id, def, pts: path.pts, i: 0, t0: now, viewT, bot: !!p.bot, done: false };
     const end = path.end, wh = path.hit;
-    this.emit({ t: 'shot', id: p.id, b: b.id, w: w.id, o: [o.x, o.y, o.z], e: [end.x, end.y, end.z], tf: +end.t.toFixed(3), s: wh ? wh.surface : 'none', n: wh ? wh.normal : null });
+    // (l: the last round in the magazine — everyone sees the slide / bolt locked back)
+    this.emit({ t: 'shot', id: p.id, b: b.id, w: w.id, o: [o.x, o.y, o.z], e: [end.x, end.y, end.z], tf: +end.t.toFixed(3), s: wh ? wh.surface : 'none', n: wh ? wh.normal : null, ...(w.mag === 0 && { l: 1 }) });
     this.#suppress(p, o, end);
     this.bullets.push(b);
     this.stepBullet(b, now); // what the bullet covers before the next tick (anything within ~30 m) resolves right away

@@ -91,6 +91,7 @@ export class Players {
         p.stance = STANCES[rb[6]] || 'stand'; p.flags = rb[7]; p.hp = rb[9];
         p.vx = rb[10]; p.vz = rb[11];
         if (!wasAlive && p.rig) p.rig.revive();
+        if (!wasAlive) for (const w of Object.values(p.weapons || {})) w.dry = false; // respawned with full magazines
         if (p.rig && !p.loading) this.#weapon(p, rb[8]);
       }
     }
@@ -148,7 +149,7 @@ export class Players {
     }
   }
 
-  onReload(id, dur) { const p = this.map.get(id); if (p) { p.reloadEnd = performance.now() + dur; p.reloadDur = dur; } }
+  onReload(id, dur, empty = false) { const p = this.map.get(id); if (p) { p.reloadEnd = performance.now() + dur; p.reloadDur = dur; if (p.rig) p.rig.reloadEmpty = empty; } }
 
   muzzleOf(id) {
     const p = this.map.get(id);

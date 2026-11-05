@@ -566,7 +566,7 @@ export class CharacterRig {
     const rl = this.state.reload > 0 && this.state.reload < 1 ? this.state.reload : 0;
     // the gun's own mechanics first (blowback, bolt, charging handle), so the hands go to where the parts are now
     if (!this.firstPerson) w.vel.set(-Math.sin(this.state.moveYaw) * this.state.speed, 0, -Math.cos(this.state.moveYaw) * this.state.speed);
-    w.animate(performance.now(), rl, !!this.reloadEmpty, this.mag ?? 1);
+    w.animate(performance.now(), rl, !!this.reloadEmpty, this.mag ?? (w.dry ? 0 : 1)); // (mag: the local player's rounds; others: dry or not)
     const T = w.action ? this.#handTargets(rl) : null;
     for (const side of ['right', 'left']) {
       const frame = this.handFrames[side];
@@ -837,7 +837,8 @@ export class CharacterRig {
   revive() { this.state.dead = false; this.blend.death = 0; this.dropped = null; this.deathTarget = null; this.poseRoot.quaternion.identity(); this.poseRoot.position.set(0, 0, 0); }
   hitReact() { this.blend.hit = 1; }
   // one round fired: the rifle kicks back into the shoulder and recovers (per shot, so full-auto reads as recoil)
-  kick() { this.blend.recoil = Math.min(1, this.blend.recoil + 0.6); this.weapon?.fired(); }
+  // last: that was the last round in the magazine (other soldiers: the slide / bolt stays back until the empty reload)
+  kick(last = false) { this.blend.recoil = Math.min(1, this.blend.recoil + 0.6); this.weapon?.fired(); if (this.weapon) this.weapon.dry = last; }
   land(v) { this.blend.land = Math.min(1, v / 10); }
 
   // --------------------------------------------------------------- diagnostics

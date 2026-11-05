@@ -100,7 +100,7 @@ function caseGeometry(prof) {
   // axis along -Z (mouth forward, like the round in the chamber), centred on its middle
   return new THREE.LatheGeometry(pts, 10).rotateX(-Math.PI / 2).translate(0, 0, len / 2);
 }
-const _bq = new THREE.Quaternion(), _bq2 = new THREE.Quaternion(), _bv = new THREE.Vector3(), _bv2 = new THREE.Vector3(), _bm = new THREE.Matrix4(), _bs = new THREE.Vector3(), _bZ = new THREE.Vector3(0, 0, -1);
+const _bq = new THREE.Quaternion(), _bq2 = new THREE.Quaternion(), _bv = new THREE.Vector3(), _bv2 = new THREE.Vector3(), _bd = new THREE.Vector3(), _bm = new THREE.Matrix4(), _bs = new THREE.Vector3(), _bZ = new THREE.Vector3(0, 0, -1);
 
 const SURF = {
   concrete: { color: 0xb8b2a8, n: 7, speed: 2.2, size: 0.35, chips: 0xcfc8bc, life: 1.1 },
@@ -170,7 +170,9 @@ export class Effects {
     this.ambient = [];
     this.#brassSetup();
     this.groundAt = null;    // (x, z, y) -> floor height under a point (set by the game: cases land on the real ground)
+    this.wallAt = null;      // (o, d, maxDist) -> { t, normal, point, box } | null: the first solid along a ray (walls cases ring off)
     this.onBrassLand = null; // (x, y, z, kind) first bounce of a case (hook for a tinkle sound)
+    this.onBrassWall = null; // (x, y, z, kind, surface) a case ringing off a wall
     WeaponModel.sink = this;
   }
 
@@ -348,7 +350,8 @@ export class Effects {
       const s = geo.boundingBox.getSize(new THREE.Vector3());
       this.brassK[kind] = { m, n, next: 0, flat, r: flat ? Math.min(s.x, s.y, s.z) / 2 : Math.min(s.x, s.y) / 2,
         pos: new Float32Array(n * 3), vel: new Float32Array(n * 3), q: new Float32Array(n * 4), qr: new Float32Array(n * 4), w: new Float32Array(n * 3),
-        st: new Uint8Array(n), t: new Float32Array(n), gy: new Float32Array(n), hits: new Uint8Array(n) };
+        st: new Uint8Array(n), t: new Float32Array(n), gy: new Float32Array(n), hits: new Uint8Array(n),
+        wall: new Uint8Array(n), wn: new Float32Array(n * 3), wd: new Float32Array(n), ws: new Array(n) };
     };
     for (const [k, d] of Object.entries(CASES)) pool(k, caseGeometry(d.prof), new THREE.MeshStandardMaterial({ color: d.color, metalness: 1, roughness: d.rough }), d.n);
     pool('clip', new THREE.BoxGeometry(0.016, 0.058, 0.0035), new THREE.MeshStandardMaterial({ color: 0x45433e, metalness: 0.8, roughness: 0.5 }), 4, true);
@@ -374,7 +377,17 @@ export class Effects {
     const tf = (vel.y + Math.sqrt(vel.y * vel.y + 2 * 9.81 * 1.6)) / 9.81;
     const gx = pos.x + vel.x * tf, gz = pos.z + vel.z * tf;
     K.gy[i] = this.groundAt ? this.groundAt(gx, gz, pos.y) : 0;
-    K.st[i] = 1; K.t[i] = 0; K.hits[i] = 0;
+    K.st[i] = 1; K.t[i] = 0; K.hits[i] = 0; K.wall[i] = 0;
+    // a wall in the way (one ray along the throw, port height): the case rings off it and drops at its foot
+    const vh = Math.hypot(vel.x, vel.z);
+    if (this.wallAt && vh > 0.3) {
+      const h = this.wallAt(pos, _bd.set(vel.x / vh, 0, vel.z / vh), vh * tf + K.r);
+      if (h && h.box && h.t > 0.02 && Math.abs(h.normal[1]) < 0.5) {
+        const [nx, ny, nz] = h.normal;
+        K.wall[i] = 1; K.wn[i * 3] = nx; K.wn[i * 3 + 1] = ny; K.wn[i * 3 + 2] = nz;
+        K.wd[i] = h.point[0] * nx + h.point[1] * ny + h.point[2] * nz; K.ws[i] = h.surface;
+      }
+    }
   }
 
   #brassUpdate(dt) {
@@ -396,6 +409,23 @@ export class Effects {
           _bv.set(K.w[p], K.w[p + 1], K.w[p + 2]);
           const ang = _bv.length() * dt;
           if (ang > 1e-5) { _bq2.setFromAxisAngle(_bv.normalize(), ang); _bq.fromArray(K.q, i * 4).premultiply(_bq2).normalize().toArray(K.q, i * 4); }
+          if (K.wall[i]) {
+            const nx = K.wn[p], ny = K.wn[p + 1], nz = K.wn[p + 2];
+            const dist = K.pos[p] * nx + K.pos[p + 1] * ny + K.pos[p + 2] * nz - K.wd[i];
+            const vn = K.vel[p] * nx + K.vel[p + 1] * ny + K.vel[p + 2] * nz;
+            if (dist < K.r && vn < 0) {
+              // off the wall: most of the speed into it is lost, some along it; then it falls at the wall's foot
+              const push = K.r - dist;
+              K.pos[p] += nx * push; K.pos[p + 1] += ny * push; K.pos[p + 2] += nz * push;
+              const k = -1.3 * vn;
+              K.vel[p] = (K.vel[p] + k * nx) * 0.6; K.vel[p + 1] += k * ny; K.vel[p + 2] = (K.vel[p + 2] + k * nz) * 0.6;
+              for (let j = 0; j < 3; j++) K.w[p + j] = K.w[p + j] * 0.5 + (Math.random() - 0.5) * 10;
+              K.wall[i] = 0;
+              const vy = K.vel[p + 1], drop = Math.max(0.05, K.pos[p + 1] - K.gy[i]), t2 = (vy + Math.sqrt(vy * vy + 2 * 9.81 * drop)) / 9.81;
+              if (this.groundAt) K.gy[i] = this.groundAt(K.pos[p] + K.vel[p] * t2, K.pos[p + 2] + K.vel[p + 2] * t2, K.pos[p + 1]);
+              this.onBrassWall?.(K.pos[p], K.pos[p + 1], K.pos[p + 2], kind, K.ws[i]);
+            }
+          }
           const floor = K.gy[i] + K.r;
           if (K.pos[p + 1] < floor && K.vel[p + 1] < 0) {
             // bounce: brass rings off hard ground, loses most of its energy, skitters sideways

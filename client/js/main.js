@@ -112,6 +112,11 @@ class Game {
     this.audio = new GameAudio();
     this.effects = new Effects(this.world.scene, q, this.audio);
     this.effects.groundAt = (x, z, y) => this.world.collision.supportHeight(x, z, y); // spent cases land on the real floor
+    // ... and ring off the walls in the way (a case off a wall right beside you is heard)
+    this.effects.wallAt = (o, d, max) => this.world.collision.raycast(o, d, max, false);
+    this.effects.onBrassWall = (x, y, z, kind, surface) => {
+      if (Math.hypot(x - this.camera.position.x, y - this.camera.position.y, z - this.camera.position.z) < 12) this.audio.brass(surface === 'wood' ? 'wood' : 'concrete', [x, y, z], 0, kind === '9mm' ? 'pistol' : kind === '762r' ? 'sniper' : 'ar');
+    };
     for (const p of PROPS) if (p.type === 'car' && p.burnt) this.effects.addAmbientSmoke(p.x, groundHeight(p.x, p.z) + 0.8, p.z);
     for (const b of BUILDINGS) if (b.damage > 0.5) this.effects.addAmbientSmoke(b.x + b.w * 0.3, groundHeight(b.x, b.z) + 1, b.z - b.d * 0.3);
     // character + weapons (source of truth: imported GLBs)
@@ -266,7 +271,7 @@ class Game {
         this.audio.gunshot(from, e.w);
         if (e.s !== 'none') this.#scheduleImpact(e.b, tf, () => { this.effects.impact(e.e, e.n, e.s); this.audio.impact(e.e, e.s); });
         this.#nearMiss(e.o, e.e, tf, e.w);
-        const sh = P.info(e.id); if (sh) { sh.spottedUntil = performance.now() + 2500; sh.rig?.kick(); }
+        const sh = P.info(e.id); if (sh) { sh.spottedUntil = performance.now() + 2500; sh.rig?.kick(!!e.l); }
         // close enough to hear the action: a bolt being worked, brass bouncing off the ground
         const dl = sh ? Math.hypot(sh.x - this.camera.position.x, sh.y - this.camera.position.y, sh.z - this.camera.position.z) : 1e9;
         if (dl < 30) {
@@ -310,10 +315,12 @@ class Game {
         break;
       }
       case 'reload': if (e.id !== this.myId) {
-        P.onReload(e.id, e.dur);
-        // a soldier nearby reloading is heard (mag out / in; the bolt or slide too when he ran dry)
+        // ran dry: the empty reload (its own length) — slide release / bolt catch, seen and heard
         const p = P.info(e.id), def = WEAPONS[p?.weaponId];
-        if (def && p.alive && Math.hypot(p.x - this.camera.position.x, p.z - this.camera.position.z) < 25) this.audio.reload(def.id, e.dur / 1000, def.reloadEmpty !== def.reload && Math.abs(e.dur - def.reloadEmpty * 1000) < 1, [p.x, p.y + 1.2, p.z]);
+        const empty = !!def && def.reloadEmpty !== def.reload && Math.abs(e.dur - def.reloadEmpty * 1000) < 1;
+        P.onReload(e.id, e.dur, empty);
+        // a soldier nearby reloading is heard (mag out / in; the bolt or slide too when he ran dry)
+        if (def && p.alive && Math.hypot(p.x - this.camera.position.x, p.z - this.camera.position.z) < 25) this.audio.reload(def.id, e.dur / 1000, empty, [p.x, p.y + 1.2, p.z]);
       } break;
       case 'ammo': if (e.w) e.w.forEach((w, i) => { const l = this.me.weapons[i]; if (l && w && l.id === w.id) { l.mag = w.mag; l.reserve = w.reserve; } }); break;
       case 'boom': this.effects.explosion([e.x, e.y, e.z], this.camera.position); this.audio.explosion([e.x, e.y, e.z]); break;
