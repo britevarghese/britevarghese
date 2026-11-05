@@ -156,6 +156,14 @@ altitude hands-off), LMB rockets · gunner seats aim freely with the mouse. Touc
   times (~0.3–0.7 s),
   the same recoil a player fights, converging aim error, bullet-drop hold-over and target leading, grenades; they
   sprint only the way they face, keep a little space from each other, and duck into cover to reload.
+  **Bots crew vehicles** too (`server/botvehicles.js`): a tank or jeep left standing unused in the motor pool for 20 s
+  (players get first pick) is taken over, the jeep driver calls a teammate up to the .50 cal and waits for him, and
+  the vehicle drives to an objective along a route planned for its hull's width on the nav grid (roads preferred,
+  no slopes past ~28°, no water), simulated server-side with the same physics players' clients predict. The tank
+  takes up overwatch short of the flag, spots armour quickly and infantry slowly, slews the turret at its drive
+  rate, lays the gun with elevation for the shell's drop, makes a short halt to shoot at range and walks its rounds
+  onto the target; crews back out when stuck and bail out of a vehicle about to brew up. Infantry get out of an enemy
+  tank's sight when its turret comes round to them.
 * **Vehicles** in every Conquest room, parked in each team's motor pool and respawning 25 s after being destroyed:
   jeep + motorbike on every map, plus a tank on the maps from Outskirts size up, plus an attack helicopter on Kestrel
   Airbase, Dry Valley and Kaskar Ridge.
@@ -199,7 +207,8 @@ altitude hands-off), LMB rockets · gunner seats aim freely with the mouse. Touc
   rifle ~550 m) and with the weapon's real dispersion plus a human hold (a handgun wobbles far more than a shouldered
   rifle, rapid follow-ups spread wider); out of range they close in instead of shooting — never while being shot at.
   `node scripts/sim-bots.mjs <map> [minutes] [botsPerTeam]` runs headless bot-only matches and prints behaviour
-  metrics (modes, stances, detection / reaction, hit rate, kill distances, suppression reactions, stuck bots).
+  metrics (modes, stances, detection / reaction, hit rate, kill distances, suppression reactions, stuck bots, vehicle
+  crews: seat time, distance driven, vehicle-weapon shots and kills, unsticks, bail-outs).
 * **AI Zone** (lobby tab): play with a soldier commanded by a **language model**. Set the provider, **base URL,
   model and API key** — *Anthropic (Claude)* uses the official Anthropic SDK (default model `claude-opus-5-5`),
   *OpenAI-compatible* covers OpenRouter, Groq, Together, vLLM, LM Studio and similar `/chat/completions` endpoints.

@@ -6,6 +6,8 @@
 //   search  - lost sight: crouch-walk toward where the enemy was last seen, aiming there, then give up
 //   hold    - at the objective (a spot with cover beside it when there is one): watch the approach directions
 //   peek    - after ducking into cover: come up and look for the shooter again
+// and as vehicle crews (server/botvehicles.js): taking a tank / jeep standing unused at base, driving it to an
+// objective, fighting from it, bailing out of a wreck.
 // Spotting takes time (awareness builds while someone stays in view: instant up close or when he fires, seconds for
 // a still / crouched / prone figure far off or at the edge of vision); bullets cracking past suppress (duck, aim
 // worse, break contact); a hit makes the aim flinch; grenades go to enemies known to be behind cover close by.
@@ -14,6 +16,7 @@ import { WEAPONS, GRENADE } from '../shared/weapons.js';
 import { angleDiff, clamp } from '../shared/util.js';
 import { zeroAngle } from '../shared/ballistics.js';
 import { Foliage } from './foliage.js';
+import { vehicleGoal, boardStep, crewThink } from './botvehicles.js';
 
 const rand = (a, b) => a + Math.random() * (b - a);
 
@@ -60,6 +63,7 @@ export class BotBrain {
     this.mode = 'patrol'; this.cover = null; this.coverUntil = 0; this.peekUntil = 0; this.engageStance = null;
     this.watch = null; this.watchUntil = 0; this.lastThreatAt = -1e9; this.unstick = null;
     this.aware = new Map(); this.lastPerceive = 0; this.supp = 0; this.suppAt = 0; this.nextNade = this.g.now() + rand(5000, 15000);
+    this.crew = null;
     this.pickGoal();
   }
 
@@ -153,6 +157,8 @@ export class BotBrain {
   }
 
   pickGoal() {
+    // a tank / jeep standing free near by (or a jeep's empty roof gun): take it
+    if (vehicleGoal(this)) return;
     const flags = this.g.flags, p = this.p;
     const scored = flags.map((f) => {
       const d = Math.hypot(f.x - p.x, f.z - p.z);
@@ -223,6 +229,20 @@ export class BotBrain {
       if (a < 1) continue;
       best = q; bestD = d;
     }
+    // enemy armour in sight: a rifle does nothing to a tank, its gun does — worth knowing where it is and whether the
+    // turret is coming round this way
+    this.armour = null;
+    for (const v of this.g.vehicles?.list || []) {
+      if (v.dead || v.type !== 'tank' || !v.seats[0]) continue;
+      const drv = this.g.players.get(v.seats[0]);
+      if (!drv || !this.g.isEnemy(p, drv)) continue;
+      const d = Math.hypot(v.x - p.x, v.z - p.z);
+      if (d > 260 || (Math.abs(angleDiff(fwdYaw, Math.atan2(-(v.x - p.x), -(v.z - p.z)))) > 1.25 && d > 30)) continue;
+      const top = { x: v.x, y: v.y + 2.4, z: v.z };
+      if (!this.g.world.lineOfSight(eye, top)) continue;
+      const facing = Math.abs(angleDiff(v.turretYaw, Math.atan2(-(p.x - v.x), -(p.z - v.z)))) < 0.5;
+      if (!this.armour || d < this.armour.d) this.armour = { x: v.x, y: v.y + 1.6, z: v.z, d, facing, t: now };
+    }
     // out of view: the impression fades over a couple of seconds
     for (const [id, a] of this.aware) if (!seen.has(id)) { const v = a - dt * 0.5; if (v <= 0) this.aware.delete(id); else this.aware.set(id, v); }
     // a shot or footsteps behind / beside: look that way (spotting them is up to the eyes on the next look)
@@ -242,8 +262,12 @@ export class BotBrain {
     this.visible = !!best && best === this.target;
   }
 
+  // seated in a vehicle (Game.tick): drive / fight from it (server/botvehicles.js)
+  vehicleThink(dt) { crewThink(this, dt); }
+
   think(dt) {
     const g = this.g, p = this.p, now = g.now();
+    if (this.crew) { this.crew = null; this.pickGoal(); } // out of the vehicle (bailed / thrown out): on foot again
     if (now >= this.nextPerceive) { this.perceive(now); this.nextPerceive = now + 220; }
     if (this.target && !this.target.alive) { this.target = null; this.engageStance = null; }
     const input = { fx: 0, fz: 0, sprint: false, jump: false, ads: false };
@@ -269,6 +293,16 @@ export class BotBrain {
       }
       if (now - (this.coverStart || now) > 6000) { this.mode = 'patrol'; this.cover = null; }
       return input;
+    }
+
+    // ---------------------------------------------------------------- enemy tank looking this way: out of its sight
+    // (in the open within a couple of hundred metres of a tank whose turret is on you, you don't stay to trade shots)
+    const A = this.armour;
+    if (A && now - A.t < 600 && (A.facing || A.d < 70) && now > (this.nextArmourCover || 0) && !(this.target && this.visible && Math.hypot(this.target.x - p.x, this.target.z - p.z) < 15)) {
+      this.nextArmourCover = now + rand(2500, 4500);
+      const c = this.findCover(A);
+      if (c) { this.mode = 'cover'; this.cover = c; this.coverStart = now; this.coverUntil = 0; this.engageStance = null; return input; }
+      if (p.stance === 'stand') { p.stance = 'prone'; this.stanceUntil = now + rand(3000, 6000); } // nowhere to go: get flat
     }
 
     // ---------------------------------------------------------------- engage a visible enemy
@@ -393,6 +427,8 @@ export class BotBrain {
     if (this.mode === 'search') { this.mode = 'patrol'; this.target = null; this.pickGoal(); }
     if (p.stance !== 'stand' && now > this.stanceUntil) p.stance = 'stand';
 
+    // on the way to a vehicle: climb in when close
+    if (this.goal?.vehicle && boardStep(this)) return input;
     // flag captured / reached goal -> choose next
     const goalFlag = g.flags.find((f) => f.id === this.goal?.flag);
     const atGoal = this.goal && Math.hypot(this.goal.x - p.x, this.goal.z - p.z) < 2.5;

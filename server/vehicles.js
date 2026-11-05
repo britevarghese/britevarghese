@@ -332,6 +332,8 @@ export class VehicleSystem {
       }
       // driver disconnected / went quiet: stop
       if (v.seats[0] && now - v.lastInput > 3000) v.speed = 0;
+      // how long it has stood with nobody in it (bots leave a vehicle to the players for a while: server/botvehicles.js)
+      if (v.seats.some(Boolean)) v.idleSince = null; else v.idleSince ??= now;
       if (v.type === 'bike' && !v.seats[0] && v.rest) { v.roll = 0.16; v.pitch = 0; } // parked on its side stand
       for (let i = 0; i < v.seats.length; i++) {
         const q = v.seats[i] && g.players.get(v.seats[i]);

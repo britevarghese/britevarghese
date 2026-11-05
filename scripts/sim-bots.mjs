@@ -1,6 +1,7 @@
 // Headless bot-only Conquest matches with behaviour metrics: how the bots spend their time (modes, stances, cover
 // while holding), how they fight (detection range, reaction time, hit rate, kill distances, kills from behind),
-// whether bullets passing close make them react, how they spread out and whether they get stuck.
+// whether bullets passing close make them react, how they spread out and whether they get stuck; and as vehicle
+// crews: how long bots man tanks / jeeps, how far they drive, what they kill, how often they get stuck or bail out.
 //   node scripts/sim-bots.mjs [map=outskirts] [minutes=4] [botsPerTeam=8]
 import { Game } from '../server/game.js';
 
@@ -9,7 +10,9 @@ const g = new Game({ botsPerTeam: +per, map, log: () => {} });
 g.clock = 1_000_000;
 const DT = 1 / 30, ticks = Math.round(+minutes * 60 / DT);
 const bots = () => [...g.players.values()].filter((p) => p.bot);
-const M = { mode: {}, stance: {}, holdCovered: 0, hold: 0, shots: 0, hits: 0, kills: [], behind: 0, acquire: [], react: [], nearMiss: 0, nearMissReact: 0, spacing: [], stuck: 0, windows: 0, grenades: 0 };
+const M = { mode: {}, stance: {}, holdCovered: 0, hold: 0, shots: 0, hits: 0, kills: [], behind: 0, acquire: [], react: [], nearMiss: 0, nearMissReact: 0, spacing: [], stuck: 0, windows: 0, grenades: 0,
+  crew: {}, driven: {}, vkills: {}, vshots: {}, enters: 0, exits: 0, vstuck: 0, vlost: 0 };
+const vpos = new Map();
 const track = new Map(); // bot id -> { target, at, d, shot, win: {x, z, t, mode} }
 const bump = (o, k) => (o[k] = (o[k] || 0) + 1);
 // cover within 1.5 m: a solid box at least 1 m tall beside the soldier
@@ -36,6 +39,10 @@ for (let i = 0; i < ticks; i++) {
     }
     if (ev.t === 'hurt' && ev.a && g.players.get(ev.a)?.bot) M.hits++;
     if (ev.t === 'throw') M.grenades++;
+    if (ev.t === 'venter' && g.players.get(ev.id)?.bot) M.enters++;
+    if (ev.t === 'vexit' && g.players.get(ev.id)?.bot) M.exits++;
+    if (ev.t === 'shot' && ev.v && g.players.get(ev.id)?.bot) bump(M.vshots, ev.w);
+    if (ev.t === 'kill' && ['tank_cannon', 'tank_mg', 'jeep_mg', 'roadkill'].includes(ev.w)) bump(M.vkills, ev.w);
     if (ev.t === 'kill' && ev.k) {
       const v = g.players.get(ev.v), k = g.players.get(ev.k);
       if (v && k) {
@@ -51,6 +58,14 @@ for (let i = 0; i < ticks; i++) {
     else if (now - n.at > 1500 || !q.alive) pending.splice(j, 1);
   }
   if (i % 6) continue; // sample the state at 5 Hz
+  for (const v of g.vehicles.list) {
+    const drv = v.seats[0] && g.players.get(v.seats[0]);
+    for (const sid of v.seats) { const q = sid && g.players.get(sid); if (q?.bot) M.crew[v.type] = (M.crew[v.type] || 0) + 0.2; }
+    const last = vpos.get(v.id);
+    if (drv?.bot && last && !v.dead) M.driven[v.type] = (M.driven[v.type] || 0) + Math.hypot(v.x - last.x, v.z - last.z);
+    if (drv?.bot && !last?.dead && v.dead) M.vlost++;
+    vpos.set(v.id, { x: v.x, z: v.z, dead: v.dead });
+  }
   const B = bots().filter((p) => p.alive && !p.vehicle);
   for (const p of B) {
     const b = p.brain;
@@ -85,3 +100,7 @@ console.log(`  target acquired at q1/med/q3 ${q(M.acquire, (v) => v.toFixed(0) +
 console.log(`  near misses ${M.nearMiss}, reacted within 1.5 s ${(100 * M.nearMissReact / (M.nearMiss || 1)).toFixed(0)}%`);
 console.log(`  nearest teammate while moving q1/med/q3 ${q(M.spacing, (v) => v.toFixed(1) + ' m')}`);
 console.log(`  stuck (patrolling, < 1.5 m in 20 s): ${M.stuck} of ${M.windows} windows`);
+for (const p of bots()) if (p.brain.crew) M.vstuck += p.brain.crew.stuck?.length || 0;
+const fmt = (o, f) => Object.entries(o).map(([k, v]) => `${k} ${f(v)}`).join(', ') || '-';
+console.log(`  vehicle crews: seat time ${fmt(M.crew, (s) => (s / 60).toFixed(1) + ' min')}; driven ${fmt(M.driven, (d) => d.toFixed(0) + ' m')}; boarded ${M.enters}, got out ${M.exits}, lost ${M.vlost}, unsticks (current crews) ${M.vstuck}`);
+console.log(`  vehicle weapons: shots ${fmt(M.vshots, (n) => n)}; kills ${fmt(M.vkills, (n) => n)}`);
