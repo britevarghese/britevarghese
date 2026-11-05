@@ -199,7 +199,7 @@ export class WeaponModel {
     const A = this.def.action;
     this.action = A || null;
     this.parts = {};
-    this.shotT = -1e9; this.coverOpen = false; this.chamberSpent = false; this.slideLocked = false;
+    this.shotT = -1e9; this.coverOpen = false; this.chamberSpent = false; this.slideLocked = false; this.rlCatch = null;
     this.boltLift = 0; this.boltBack = 0; this.slideK = 0; this.chargeK = 0; this.boltHand = 0; this.cycleU = -1;
     this.vel = new THREE.Vector3(); // carrier velocity (world): spent cases keep it
     const gd = WEAPONS[this.key] || Object.values(WEAPONS).find((d) => d.visual === this.key);
@@ -248,10 +248,10 @@ export class WeaponModel {
       this.sockets.boltKnob = knob.clone();
       this.knobLocal = knob.applyMatrix4(new THREE.Matrix4().multiplyMatrices(inv, o.matrixWorld).invert());
     }
-    // action sockets: a node in the GLB (eject_port, charge_grip, clip_guide) or weapon-space numbers
+    // action sockets: a node in the GLB (eject_port, charge_grip, bolt_catch, clip_guide) or weapon-space numbers
     const at = (node, val) => { const o = this.model.getObjectByName(node); return o ? o.getWorldPosition(new THREE.Vector3()).applyMatrix4(inv) : val && new THREE.Vector3(...val); };
     if (A.eject) { this.sockets.eject = at('eject_port', A.eject.pos); this.ejectDir = new THREE.Vector3(...A.eject.dir).normalize(); }
-    for (const [k, node] of [['chargeGrip', 'charge_grip'], ['clipGuide', 'clip_guide']]) { const p = at(node, A[k]); if (p) this.sockets[k] = p; }
+    for (const [k, node] of [['chargeGrip', 'charge_grip'], ['boltCatch', 'bolt_catch'], ['clipGuide', 'clip_guide']]) { const p = at(node, A[k]); if (p) this.sockets[k] = p; }
     if (this.sockets.clipGuide) this.#makeClip(A);
   }
 
@@ -339,13 +339,17 @@ export class WeaponModel {
     const dt = (now - this.shotT) / 1000;
     if (mag > 0) this.slideLocked = false;
     else if (dt < 0.25 && A.type !== 'bolt' && !(rl >= 0.88)) this.slideLocked = true; // last round: slide stop / bolt catch holds it
+    // empty rifle reload, decided as it starts: bolt held open on the last round -> the bolt catch is pressed;
+    // closed on an empty magazine -> the charging handle is pulled
+    if (!rl) this.rlCatch = null;
+    else if (this.rlCatch == null) this.rlCatch = A.type === 'rifle' && this.slideLocked && !!this.sockets.boltCatch;
     if (A.type === 'pistol' || A.type === 'rifle') {
       // blowback: ~25 mm back and home again in ~70 ms
       let k = dt < 0.02 ? sm(0, 0.02, dt) : 1 - sm(0.02, 0.07, dt);
       if (this.slideLocked) {
         k = 1;
         // empty reload: slide stop pressed / charging handle let go at 0.88 — it flies home, chambering a round
-        if (rl >= 0.88 && empty) { this.slideLocked = false; this.releaseT = now; if (A.type === 'pistol') this.slamT = now; }
+        if (rl >= 0.88 && empty) { this.slideLocked = false; this.releaseT = now; if (A.type === 'pistol' || this.rlCatch) this.slamT = now; }
       }
       if (!this.slideLocked && now - (this.releaseT || -1e9) < 45) k = Math.max(k, 1 - (now - this.releaseT) / 45);
       this.slideK = k;
@@ -353,8 +357,8 @@ export class WeaponModel {
       if (P.hammer) this.#pose(P.hammer, 0, 0, 0, _X, (A.hammerCock ?? 0.5) * Math.min(1, k));
       if (P.carrier) this.#pose(P.carrier, 0, 0, (A.carrierTravel ?? 0.03) * Math.min(1, k));
       if (P.cover) this.#pose(P.cover, 0, 0, 0, _Z, this.coverOpen ? (A.coverOpen ?? -1.9) : 0);
-      // empty rifle reload: charging handle pulled back 0.80-0.865, let go at 0.88
-      const ck = rl > 0 && empty && A.type === 'rifle' ? sm(0.8, 0.865, rl) * (1 - sm(0.876, 0.886, rl)) : 0;
+      // empty rifle reload (bolt closed): charging handle pulled back 0.80-0.865, let go at 0.88
+      const ck = rl > 0 && empty && A.type === 'rifle' && !this.rlCatch ? sm(0.8, 0.865, rl) * (1 - sm(0.876, 0.886, rl)) : 0;
       if (this.chargeK >= 0.5 && ck < 0.5) this.slamT = now; // charging handle let go: the bolt slams home
       this.chargeK = ck;
       if (P.charge) this.#pose(P.charge, 0, 0, (A.chargeTravel ?? 0.07) * this.chargeK);

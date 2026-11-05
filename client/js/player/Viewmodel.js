@@ -125,7 +125,9 @@ export class Viewmodel {
   // Where the weapon's reference point (rightGrip for hip, opticEye for ADS) goes, in camera space
   #weaponMatrix(dt, s) {
     const w = this.weapon;
-    const a = ease(this.ads);
+    // working the bolt while aiming: the head comes up off the stock and the rifle eases off the eye, so the hand
+    // works the bolt below the line of sight instead of passing in front of it (fully scoped, the scope view is drawn)
+    const a = ease(this.ads) * (1 - 0.6 * (this.weapon.boltHand || 0));
     // hip: place the rightGrip at hip.pos; ADS: place opticEye at the camera origin looking down -Z
     const hipQ = new THREE.Quaternion().setFromEuler(this.hip.rot);
     const hipPos = this.hip.pos.clone().sub(w.sockets.rightGrip.clone().applyQuaternion(hipQ));
@@ -145,8 +147,10 @@ export class Viewmodel {
     // (looking through the scope: the eye comes off axis while the bolt is worked — the scope shadow swims, px)
     this.scopeShift.set(bh * 30 * Math.sin((this.weapon.cycleU || 0) * 9), bh * 22 * (0.6 + 0.4 * Math.cos((this.weapon.cycleU || 0) * 7)));
     if (bh > 0) {
-      q.multiply(_q1.setFromEuler(_e1.set(-0.06 * bh, 0.05 * bh, -0.24 * bh)));
-      p.x += 0.01 * bh; p.y -= 0.03 * bh * k; p.z -= 0.03 * bh * k;
+      // (coming up to the eye, it is held lower still: the lifted knob and the hand on it stay below the eye line)
+      const up = ease(this.ads);
+      q.multiply(_q1.setFromEuler(_e1.set((-0.06 - 0.06 * up) * bh, 0.05 * bh, -0.24 * bh)));
+      p.x += (0.01 + 0.015 * up) * bh; p.y -= (0.03 * k + 0.05 * up) * bh; p.z -= 0.03 * bh * k;
     }
     // sprint: off the shoulder, carried low across the body, muzzle down and to the left (turned about the firing
     // hand so the stock drops away instead of swinging into the face); a pistol is just lowered
@@ -167,14 +171,18 @@ export class Viewmodel {
       const rl = this.reload, type = this.weapon.action?.type || 'rifle', T = RELOAD_TILT[type] || RELOAD_TILT.rifle;
       // (the bolt rifle comes off the shoulder at once and stays out until the bolt is closed: the hand works it
       // at arm's length, not in front of the eye)
-      const r = type === 'bolt' ? ease(Math.min(1, rl / 0.1)) * (1 - ease(Math.max(0, (rl - 0.88) / 0.12))) : Math.sin(Math.min(1, rl * 1.15) * Math.PI);
-      // empty rifle: off the shoulder, pushed out and tipped up so the support hand can work the charging handle
-      const e = this.reloadEmpty && type === 'rifle' ? ease(Math.min(1, Math.max(0, (rl - 0.72) / 0.08))) * (1 - ease(Math.min(1, Math.max(0, (rl - 0.88) / 0.1)))) : 0;
+      let r = type === 'bolt' ? ease(Math.min(1, rl / 0.1)) * (1 - ease(Math.max(0, (rl - 0.88) / 0.12))) : Math.sin(Math.min(1, rl * 1.15) * Math.PI);
+      // empty rifle: kept in the workspace below the eye until the bolt goes home at 0.88 — bolt held open: partly
+      // turned still, the palm slapping the bolt catch low in the view; bolt closed: in toward the chest and
+      // canted, the support hand on the charging handle at the bottom of the view
+      const hold = this.reloadEmpty && type === 'rifle' ? ease(Math.min(1, Math.max(0, (rl - 0.72) / 0.08))) * (1 - ease(Math.min(1, Math.max(0, (rl - 0.88) / 0.1)))) : 0;
+      const e = this.weapon.rlCatch ? 0 : hold;
+      if (this.weapon.rlCatch) r = Math.max(r, 0.4 * hold);
       // (turned about the firing hand, not the middle of the gun)
       const pv = _pv1.copy(w.sockets.rightGrip).applyQuaternion(q).add(p);
-      q.multiply(_q1.setFromEuler(_e1.set(T[0] * r - 0.12 * e, T[1] * r + 0.3 * e, T[2] * r + 0.5 * e)));
+      q.multiply(_q1.setFromEuler(_e1.set(T[0] * r - 0.04 * e, T[1] * r + 0.22 * e, T[2] * r + 0.12 * e)));
       p.copy(pv).sub(_pv1.copy(w.sockets.rightGrip).applyQuaternion(q));
-      p.x += T[3] * r - 0.06 * e; p.y += T[4] * r - 0.02 * e; p.z += T[5] * r - 0.18 * e;
+      p.x += T[3] * r - 0.05 * e; p.y += T[4] * r + 0.03 * e; p.z += T[5] * r - 0.07 * e;
     }
     // grenade throw: the rifle drops away to the left, held in the support hand
     const tw = this.ov.w;

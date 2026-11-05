@@ -31,6 +31,7 @@ const FR = {
   magRifle: { F: V(0.25, 0.35, -0.9), N: V(0.7, 0.7, 0), off: 0.022 }, // magazine held low by its base, palm up-right
   magPistol: { F: V(0.1, 0.25, -1), N: V(0.05, 1, 0.1), off: 0.03 },  // magazine in the palm, finger along its front
   charge: { F: V(1, 0.15, 0.1), N: V(0, -0.35, 1) },                 // fingers hooked over the charging-handle latch
+  slap: { F: V(0.05, 0.5, -0.85), N: V(1, 0, 0) },                   // flat palm on the left of the receiver, fingers up-forward
 };
 // hand target: position + orientation as a rotation of the canonical frame (fingers -Z, palm +X), so blends slerp
 const F0 = new THREE.Vector3(0, 0, -1), N0 = new THREE.Vector3(1, 0, 0);
@@ -612,8 +613,8 @@ export class CharacterRig {
   }
 
   // Where the hands are this frame, in weapon space ({ p, q, F, N, off, curl } per side, null = on its grip):
-  //  magazine reload (0.20 out with the support hand, 0.45 pouch, 0.70 seated; empty: charging handle / slide
-  //  release at 0.88), bolt cycle after a shot (right hand on the knob), bolt-rifle stripper-clip reload.
+  //  magazine reload (0.20 out with the support hand, 0.45 pouch, 0.70 seated; empty: bolt catch, charging handle
+  //  or slide release at 0.88), bolt cycle after a shot (right hand on the knob), bolt-rifle stripper-clip reload.
   // The magazine and the stripper clip ride in the hand, so they are placed here too.
   #handTargets(rl) {
     const w = this.weapon, A = w.action, b = this.bones, S = w.sockets;
@@ -721,8 +722,15 @@ export class CharacterRig {
     else if (rl < 0.2) t = mixT(H.left, H.gL, onMag, smooth(0.02, 0.19, rl));
     else if (rl < 0.7) t = onMag;
     else if (!empty || pistol) t = mixT(H.left, onMag, H.gL, smooth(0.72, 0.9, rl)); // (pistol: thumb on the slide stop, 0.88)
-    else {
-      // empty rifle: hand over the top to the charging handle, pull it back (0.80-0.865), let go at 0.88
+    else if (w.rlCatch) {
+      // empty rifle, bolt held open on the last round: the hand comes up off the new magazine and the heel of the
+      // palm slaps the bolt catch (0.83-0.87); the bolt flies home at 0.88 and the hand goes back to the handguard
+      const k = smooth(0.83, 0.87, rl);
+      const pc = _hp2.copy(S.boltCatch).addScaledVector(FR.slap.F, 0.035); pc.x -= 0.045 * (1 - k); pc.z += 0.02 * (1 - k);
+      const onCatch = setT(H.c, pc, FR.slap.F, FR.slap.N, 0.02, 0.3);
+      t = rl < 0.88 ? mixT(H.left, onMag, onCatch, smooth(0.71, 0.82, rl)) : mixT(H.left, onCatch, H.gL, smooth(0.88, 0.99, rl));
+    } else {
+      // empty rifle, bolt closed: hand over the top to the charging handle, pull it back (0.80-0.865), let go at 0.88
       const cg = _hp2.copy(S.chargeGrip || S.opticEye); cg.z += (A.chargeTravel ?? 0.07) * (rl < 0.875 ? w.chargeK : 1);
       const onCharge = setT(H.c, cg, FR.charge.F, FR.charge.N, 0.02, 0.9);
       t = rl < 0.875 ? mixT(H.left, onMag, onCharge, smooth(0.71, 0.8, rl)) : mixT(H.left, onCharge, H.gL, smooth(0.88, 0.99, rl));

@@ -54,6 +54,11 @@
           0.0
         ],
         "chargeTravel": 0.07,
+        "boltCatch": [
+          -0.0165,
+          -0.026,
+          0.03
+        ],
         "carrierTravel": 0.03,
         "eject": {
           "dir": [
