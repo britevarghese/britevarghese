@@ -187,23 +187,25 @@ export class Game {
    * for the satnav, its part of the maps.
    */
   regionIn(region) {
-    if (this.knownRegions.has(region.id)) return;
-    this.knownRegions.add(region.id);
-    const ev = this.world.eventsOf(region);
-    // (and the world's own races once every map is in)
-    if (this.world.complete) ev.push(...this.world.worldEvents());
-    this.events.add(ev);
-    this.course.addStarts(ev.filter((e) => this.events.byId.get(e.id) === e));
-    this.satnav = new RouteGraph(this.world.data.trails, { hubs: this.world.hubs });
-    if (this.route) this.replan();
-    // (its part of the maps drawn a slice at a time, then the full map made again with it)
-    Promise.resolve(this.hud.drawRegion?.(region)).then(() => this.worldMap.refresh());
-    // (the first rocky hills in: how to get to them, from the coast's roads)
-    if (region.world.data.tors?.length && !this.torHint) {
-      this.torHint = true;
-      this.hud.toast('Rocky hills are in: M for the map, then T to fast travel to a tor', false, 7);
+    if (!this.knownRegions.has(region.id)) {
+      this.knownRegions.add(region.id);
+      const ev = this.world.eventsOf(region);
+      // (and the world's own races once every map is in)
+      if (this.world.complete) ev.push(...this.world.worldEvents());
+      this.events.add(ev);
+      this.course.addStarts(ev.filter((e) => this.events.byId.get(e.id) === e));
+      this.satnav = new RouteGraph(this.world.data.trails, { hubs: this.world.hubs });
+      if (this.route) this.replan();
+      // (its part of the maps drawn a slice at a time, then the full map made again with it)
+      Promise.resolve(this.hud.drawRegion?.(region)).then(() => this.worldMap.refresh());
+      // (the first rocky hills in: how to get to them, from the coast's roads)
+      if (region.world.data.tors?.length && !this.torHint) {
+        this.torHint = true;
+        this.hud.toast('Rocky hills are in: M for the map, then T to fast travel to a tor', false, 7);
+      }
     }
-    // (a fast travel waiting for it: there now, to a friend where they are now)
+    // (a fast travel waiting for it: there now, to a friend where they are now; a map whose ground was in when the game
+    // began, but not yet drawn, waited on too)
     const P = this.pendingTravel;
     if (P?.region === region.id) {
       this.pendingTravel = null;
@@ -280,9 +282,10 @@ export class Game {
     if (this.events.racing) return 'No fast travel in the middle of a run';
     const v = this.vehicle, closeMap = () => { if (this.mapOpen) this.toggleMap(); };
     // (somewhere whose map isn't in yet, a friend who started far off: that map is built next, and the truck is taken
-    // there as soon as it is in: regionIn)
+    // there as soon as it is in: regionIn. In means drawn too: a big map's ground is in the world some while before
+    // its view is built, and a truck set down on it then stands on ground that isn't drawn, under the far land's)
     const R = this.world.regionDefAt?.(item.x, item.z);
-    if (R && !this.world.byId.has(R.id)) {
+    if (R && !(this.world.byId.has(R.id) && (!this.world.view || this.world.view.viewOf(R.id)))) {
       this.pendingTravel = { item, region: R.id };
       this.hud.toast(`Loading ${R.map.name}: you'll be taken to ${item.name} as soon as it's in`, false, 6);
       return `Loading ${R.map.name}: you'll be taken there as soon as it's in`;
