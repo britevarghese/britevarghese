@@ -166,9 +166,12 @@ export class TrafficManager {
     car.path = lane; car.s = s; car.v = 0; car.state = 'parked'; car.parked = true; car.brake = 0;
     // half up on the verge, where the four wheels stand level: off a raised road's edge, a drain or an embankment
     // the car comes further onto the road, and where there's no level spot it isn't parked here at all
-    const want = -(1.15 + R() * 0.5) - (sp.bike ? 0.4 : 0), twist = (R() - 0.5) * 0.12;
+    // (but never with its outer side over the lane's middle: let come in to 0.4 m off it, a Thar in Taliparamba filled
+    // the lane, and the van you tail, half way out round it, met an auto coming the other way - neither could go on)
+    const want = -(1.15 + R() * 0.5) - (sp.bike ? 0.4 : 0), twist = (R() - 0.5) * 0.12, inMost = -(sp.w || 1.7) / 2 - 0.1;
     let ok = false;
     for (const lat of [want, want + 0.4, want + 0.8, -0.4]) {
+      if (lat > inMost) break;
       car.lat = lat; car.placed = false; this._place(car); car.yaw += twist;
       const w = this._wheelGround(car), b = this._wheelGround(car, 1.25);   // (and no corner of the body over a drop)
       if (Math.max(...w) - Math.min(...w) < 0.3 && Math.max(...b) - Math.min(...b) < 0.4 && !this._footprintBlocked(car)) { ok = true; this._settle(car, w); break; }

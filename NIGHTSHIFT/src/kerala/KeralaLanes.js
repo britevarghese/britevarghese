@@ -107,6 +107,65 @@ function trimStart(pts, d) {
 }
 const trim = (pts, a, b) => trimStart(trimStart(pts, a).reverse(), b).reverse();
 
+// where two roads leave a junction only a few degrees apart (a road splitting into its two carriageways), their lanes
+// ran over one another for the first 10 m or so: a lane of one carriageway, set off its line toward the other, crossed
+// the other's lane. Each car took the other for one coming the other way in its own lane, and they drove into each
+// other (a Thar and a bus stood one in the other in Thalassery for two minutes). Each such pair is cut back from the
+// junction till they're 2 m apart, a couple of metres of lane kept; the junction's curves join them up from there
+// a line with d metres cut off its start (any number of points: trimStart leaves a line of two as it is)
+function cutStart(P, d) {
+  let rem = d;
+  for (let i = 1; i < P.length; i++) {
+    const L = Math.hypot(P[i][0] - P[i - 1][0], P[i][1] - P[i - 1][1]);
+    if (L > rem) { const t = rem / L; return [[P[i - 1][0] + (P[i][0] - P[i - 1][0]) * t, P[i - 1][1] + (P[i][1] - P[i - 1][1]) * t], ...P.slice(i).map((q) => [...q])]; }
+    rem -= L;
+  }
+  return P.slice(-2).map((q) => [...q]);
+}
+function unoverlap(lanes) {
+  const SEP = 2.0, at = new Map(), q = {};
+  for (const l of lanes) for (const start of [true, false]) {
+    const n = start ? l.from : l.to;
+    if (!at.has(n)) at.set(n, []);
+    at.get(n).push({ l, start });
+  }
+  const out = (E, t) => { E.l.sample(E.start ? t : E.l.length - t, q); return [q.x, q.z]; };
+  const away = (E) => { const a = out(E, 0), b = out(E, Math.min(4, E.l.length)); return norm(b[0] - a[0], b[1] - a[1]); };
+  const cut = new Map();
+  for (const E of at.values()) {
+    for (let i = 0; i < E.length; i++) for (let j = i + 1; j < E.length; j++) {
+      const A = E[i], B = E[j];
+      if (A.l.edge === B.l.edge) continue;
+      const ua = away(A), ub = away(B);
+      if (ua[0] * ub[0] + ua[1] * ub[1] < 0.87) continue;   // (within 30 degrees of each other)
+      let need = 0;
+      const max = Math.min(A.l.length, B.l.length, 25);
+      for (let t = 0; t <= max; t += 0.5) {
+        const a = out(A, t), b = out(B, t);
+        if (Math.hypot(a[0] - b[0], a[1] - b[1]) < SEP) need = t + 0.5;
+      }
+      // (only where they come apart near the junction: two carriageways close all along aren't put right by this)
+      if (!need || need > 15 || need > max) continue;
+      for (const X of [A, B]) {
+        const c = cut.get(X.l) || [0, 0], k = X.start ? 0 : 1;
+        c[k] = Math.max(c[k], Math.min(need, X.l.length - 2 - c[1 - k]));
+        cut.set(X.l, c);
+      }
+    }
+  }
+  for (const [l, [a, b]] of cut) {
+    if (a <= 0 && b <= 0) continue;
+    let P = l.pts;
+    if (a > 0) P = cutStart(P, a);
+    if (b > 0) P = cutStart([...P].reverse(), b).reverse();
+    if (P.length < 2) continue;
+    l.pts = P; l.cum = [0];
+    for (let i = 1; i < P.length; i++) l.cum.push(l.cum[i - 1] + Math.hypot(P[i][0] - P[i - 1][0], P[i][1] - P[i - 1][1]));
+    l.length = l.cum[l.cum.length - 1];
+    l.cutEnd = Math.max(0, b);   // (how much further than 2.5 m from the junction it now ends)
+  }
+}
+
 let EDGE_ID = 1;
 
 export class KeralaLaneGraph {
@@ -137,14 +196,14 @@ export class KeralaLaneGraph {
         if (th0 === null) th0 = th;
         l.signal = true; l.axis = Math.abs(Math.sin(th - th0)) < 0.7 ? 'x' : 'z';
         // the stop line: just short of the widest crossing road's carriageway (the lane itself ends 2.5 m from the node)
-        l.stopBack = Math.max(1, Math.max(4, ...E.filter((e) => e !== l.edge).map((e) => e.hw || 4)) + 2 - 2.5);
+        l.stopBack = Math.max(1, Math.max(4, ...E.filter((e) => e !== l.edge).map((e) => e.hw || 4)) + 2 - 2.5 - (l.cutEnd || 0));
         sx += b[0]; sz += b[1];
         // one head per approach: on the footpath at the left kerb (we keep left), at the stop line, which is just
         // short of the crossing road's carriageway (never out in the junction or in a lane)
         if (l.laneIndex === 0) {
           const ux = dx / L, uz = dz / L, lx = dz / L, lz = -dx / L, per = l.edge.type.lanes;
           const off0 = l.edge.one ? -(per - 1) / 2 * (l.edge.lw ?? LANE_W) : (per - 0.5) * (l.edge.lw ?? LANE_W);
-          const nx = b[0] + ux * 2.5 - lx * off0, nz = b[1] + uz * 2.5 - lz * off0;   // the junction, on this road's centre line
+          const nx = b[0] + ux * (2.5 + (l.cutEnd || 0)) - lx * off0, nz = b[1] + uz * (2.5 + (l.cutEnd || 0)) - lz * off0;   // the junction, on this road's centre line
           const cross = Math.max(4, ...E.filter((e) => e !== l.edge).map((e) => e.hw || 4)), side = (l.edge.hw || 4) + 0.9;
           // (the first spot off every carriageway: a twin carriageway, a slip road or a lane may run right beside)
           let hx = null, hz = null;
@@ -224,6 +283,7 @@ export class KeralaLaneGraph {
         }
       }
     }
+    unoverlap(mine);
     if (due()) yield 'world:lanes+';
     // bus stops: on the kerb lane of town roads, about one in five road pieces (both directions, as in Kerala)
     t.busStops = [];

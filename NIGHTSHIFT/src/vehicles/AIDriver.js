@@ -432,13 +432,22 @@ export class AIDriver {
     return side * Math.max(0.1, (o.spec?.w ?? 1.8) / 2 + (this.v.p?.width || 1.8) / 2 + 0.45 + (this.passExtra || 0) - Math.abs(L));
   }
 
-  // room to go by one standing at the kerb (k: how much further to the right than now this car's middle must go):
-  // the road out there from here to past it, the car's outer side kept to the tarmac, and nothing on that line coming
-  // the other way
-  _roomBy(o, k, ahead, obstacles) {
-    const s = this.v.state, W = this.v.physics.world, fx = Math.sin(s.yaw), fz = Math.cos(s.yaw);
-    const ox = s.x - fz * k, oz = s.z + fx * k, myW = (this.v.p?.width || 1.8) / 2, past = ahead + (o.spec?.l ?? 4.4) / 2 + 2;
-    for (const a of [ahead * 0.5, ahead, past]) if (!W.onCarriageway(ox + fx * a, oz + fz * a, 0.3 - myW)) return false;
+  // room to go by one standing at the kerb (P: how far off the route's line to the right it goes by): the road out
+  // there from here to past it, the car's outer side kept to the tarmac, and nothing on that line coming the other way.
+  // Looked at along the route, out to the side by P (along the car's nose, angled on a bend, the points fell off the
+  // road whichever side it went, and a car waited behind a parked one for good with nothing coming)
+  _roomBy(o, P, ahead, obstacles) {
+    const s = this.v.state, W = this.v.physics.world, myW = (this.v.p?.width || 1.8) / 2, past = ahead + (o.spec?.l ?? 4.4) / 2 + 2;
+    let fx = Math.sin(s.yaw), fz = Math.cos(s.yaw), ox = s.x, oz = s.z;
+    for (let k = 0; k < 4; k++) {
+      const d = k === 0 ? 0 : k === 1 ? ahead * 0.5 : k === 2 ? ahead : past;
+      const p0 = this._lookahead(s.x, s.z, d), p1 = this._lookahead(s.x, s.z, d + 1.5);
+      let ux = p1[0] - p0[0], uz = p1[1] - p0[1]; const L = Math.sqrt(ux * ux + uz * uz);
+      if (L > 0.5) { ux /= L; uz /= L; } else { ux = fx; uz = fz; }   // (past the route's end: on as it was going)
+      const x = p0[0] - uz * P, z = p0[1] + ux * P;
+      if (k === 0) { ox = x; oz = z; } else if (!W.onCarriageway(x, z, 0.3 - myW)) return false;
+      if (k === 2) { fx = ux; fz = uz; }   // (what's on that line, judged along the way the route goes by it)
+    }
     for (const q of obstacles) {
       if (q === o) continue;
       const dx = q.x - ox, dz = q.z - oz, a = dx * fx + dz * fz, l = Math.abs(-dx * fz + dz * fx), qh = (q.spec?.l ?? 4.4) / 2;
@@ -565,7 +574,7 @@ export class AIDriver {
       if (eR !== eR) eR = this._routeLat(s.x, s.z) ?? 0;
       const P = this._passFor(o, lat, eR);
       if (a < -(myL + (o.spec?.l ?? 4.4)) / 2 - 0.5 || a > 30 || (o.v ?? 0) > 1 || this.mode === 'pursue') { this.passO = null; this.passExtra = 0; }
-      else if (a > 2 && !this._roomBy(o, P - eR, a, obstacles)) { this.passO = null; this.passExtra = 0; }
+      else if (a > 2 && !this._roomBy(o, P, a, obstacles)) { this.passO = null; this.passExtra = 0; }
       else {
         pass = this.passLat = P; targetSpeed = Math.min(targetSpeed, 6, this._outBy(o, a, lat, myL, myW));
         // (crept up to its corner and not out yet: backed off and at it again, at a better angle, as one nose to nose)
@@ -602,7 +611,7 @@ export class AIDriver {
         const kerb = v.physics?.world?.kerala && (o.v ?? 0) < 0.3 && (o.parked || o.state !== 'drive' || (o.pulled && Math.abs(lat) > 0.5));
         let P = 0;
         if (kerb) { if (eR !== eR) eR = this._routeLat(s.x, s.z) ?? 0; P = this._passFor(o, lat, eR); }
-        if (kerb && !this._roomBy(o, P - eR, ahead, obstacles)) waitKerb = true;
+        if (kerb && !this._roomBy(o, P, ahead, obstacles)) waitKerb = true;
         else if (kerb) {
           if (Math.abs(P) > Math.abs(pass)) { pass = P; if (this.passO !== o) this.passExtra = 0; this.passO = o; this.passLat = pass; }
           targetSpeed = Math.min(targetSpeed, 6, this._outBy(o, ahead, lat, myL, myW));

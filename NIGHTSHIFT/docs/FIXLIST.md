@@ -394,6 +394,16 @@ the game. Newly found problems go at the end of their section.
   pair, from the turns' lines); through a bigger one, as before. Six towns, 2 minutes each: overlaps 7 -> 0, cars
   standing 17.5 -> 19 % of the time (held at every junction's mouth, not only the small ones: 21 %). Runs vary a good
   deal from one to the next: one pass each
+- [x] ...and in Thalassery a car and a bus stood one in the other for two minutes, 73 % of the town's traffic stopped
+  behind them (other pairs at the same spot in each of three runs). East of the bus stand the road splits into its two
+  one-way carriageways only 22 degrees apart, and a lane of the inbound one, set off its line toward the other, ran
+  across the outbound lane in the first 10 m from the junction. Each car took the other for one coming the other way
+  in its own lane, and drove on into it. Lanes of two roads that leave a junction within 30 degrees of each other are
+  cut back from it now till they're 2 m apart (13 of the 1,171 lanes round Thalassery), and the junction's curves join
+  them up from there. Six towns, 2 minutes each: overlaps 0/4/0/0/3/10 -> 1/0/0/0/0/0 (Kannur's one, two autos for a
+  moment); the road scan round Thalassery the same (kinks 10/4/1). Left: the 2.5 m a lane is cut back from each
+  junction was never cut off a lane of only two points (most short straight pieces) - left as it is, as changing it
+  would move every junction in the map
 
 ## People
 - [x] Clothing: men in plain shirts over dark trousers, khaki or a white mundu, black hair; women in sarees; no kurtas or western dress in crowds, drivers or riders
@@ -994,6 +1004,13 @@ the game. Newly found problems go at the end of their section.
     got past: 13 of 13 in three towns, none touched (it was 5 of 8 at the Spice Route, two hit, one left a wreck).
     The six missions with an AI car driving all pass; the Spice Route's longest stop 54-75 -> 2 s (3.5 km in 439 s),
     Infopark's 1.7 s
+  - [x] ...and the same test with the Airport Shuttle's Ertiga: twice it waited behind a parked car for good with
+    nothing coming, angled on a bend - the check for room out round it looked along the car's nose, and those points
+    fell off the road. It looks along the route now, out to the side by what it takes. And a parked car could be left
+    filling the lane (its last-resort spot 0.4 m off the lane's middle, where the verge was a drain): the Ertiga, half
+    way out round a Thar like that, met an auto coming the other way and neither could go on. A parked car's outer side
+    stays off the lane's middle now, or it isn't parked there. Ertiga: 12 of 12 got past, none stood over 5 s (it was
+    6 of 9, two stand-offs of 40 s)
   Now all 12 pass: the cars you tail drive their 3.5 km and 2.1 km with no stop over a second and no jump; the rams,
   the steals and the chases as before. Left: Shibu's runs vary with the traffic - once, a 26 s stop at the first
   junction out of Chirakkal (not seen again in a traced run). Street life round a stopped player car in Kannur and
