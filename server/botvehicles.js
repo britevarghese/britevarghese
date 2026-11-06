@@ -4,13 +4,13 @@
 // same physics players' clients predict with (shared stepGround). The tank fights from where it stands (turret
 // slewed at its drive rate, elevation for the shell's drop, a short halt to shoot at range); crews bail out of a
 // vehicle that is about to brew up or is hopelessly stuck.
-import { VEHICLES, stepGround, vehicleCollider, CRASH_MIN, groundCrashDamage, GUN_H } from '../shared/vehicles.js';
+import { VEHICLES, stepGround, stepHeli, vehicleCollider, CRASH_MIN, groundCrashDamage, heliCrashDamage, GUN_H } from '../shared/vehicles.js';
 import { EYE_HEIGHT } from '../shared/world.js';
 import { zeroAngle } from '../shared/ballistics.js';
 import { angleDiff, clamp } from '../shared/util.js';
 
 const rand = (a, b) => a + Math.random() * (b - a);
-export const CREW_TYPES = ['tank', 'jeep', 'bike'];
+export const CREW_TYPES = ['tank', 'jeep', 'bike', 'heli'];
 // free width a route needs (hull half-width + a margin), metres from the centre line to the nearest obstacle
 const NEED = { tank: 2.6, jeep: 1.9, bike: 1.1 };
 const IDLE_MS = 20000; // a vehicle has to stand unused this long before a bot takes the controls
@@ -156,6 +156,8 @@ export function vehicleGoal(brain) {
       if ([...g.players.values()].some((q) => !q.bot && q.alive && !q.vehicle && q.team === p.team && Math.hypot(q.x - v.x, q.z - v.z) < 30)) continue;
       // (a bike only for a long way to go: for a flag across the map it saves a minute's run)
       if (v.type === 'bike' && (d > 40 || !g.flags.some((f) => f.owner !== p.team && Math.hypot(f.x - p.x, f.z - p.z) > 140))) continue;
+      // (flying one takes a trained pilot: only the better bots go for the helicopter)
+      if (v.type === 'heli' && brain.skill < 0.6) continue;
       if (Math.random() > (v.type === 'tank' ? 0.7 : v.type === 'bike' ? 0.6 : 0.5)) continue;
       if (!best || d < best.d) best = { v, seat: 0, d };
     } else if (v.type === 'jeep' && !v.seats[1] && crewOf(g, v, 0)?.team === p.team) {
@@ -211,12 +213,13 @@ export function crewThink(brain, dt) {
   // bail out: about to brew up, the driver gone (gunner), hopelessly stuck
   const driverGone = p.seat !== 0 && !v.seats[0];
   if (driverGone) c.noDriver = c.noDriver || now; else c.noDriver = 0;
-  if (v.hp < V.hp * 0.25 || (c.noDriver && now - c.noDriver > 2500) || c.stuck.filter((t) => now - t < 40000).length >= 4 || !CREW_TYPES.includes(v.type)) {
+  if (v.type !== 'heli' && (v.hp < V.hp * 0.25 || (c.noDriver && now - c.noDriver > 2500) || c.stuck.filter((t) => now - t < 40000).length >= 4 || !CREW_TYPES.includes(v.type))) {
     g.vehicles.exit(p);
     brain.crew = null; brain.nextVehicleTry = now + 30000; brain.pickGoal();
     return;
   }
   if (v.type === 'bike') { if (p.seat === 0) ride(brain, c, v, V, dt, now); else { g.vehicles.exit(p); brain.crew = null; brain.pickGoal(); } return; }
+  if (v.type === 'heli') { if (p.seat === 0) fly(brain, c, v, V, dt, now); else if (v.landed || !v.seats[0]) { g.vehicles.exit(p); brain.crew = null; brain.pickGoal(); } return; }
   if (p.seat === 0) drive(brain, c, v, V, dt, now);
   else if (v.type === 'jeep' && p.seat === 1) gun(brain, c, v, dt, now);
 }
@@ -244,8 +247,13 @@ function spot(brain, c, v, eye, fwd, now, dt) {
   let best = null, bestS = Infinity;
   for (const q of g.players.values()) {
     if (!q.alive || q.air || !g.isEnemy(p, q) || now < (q.spawnProtect || 0)) continue;
+    // (nothing in the enemy's HQ: nobody may go there, and a pass over it would cost the crew their lives)
+    const eb = g.map.BASES?.[p.team === 1 ? 2 : 1];
+    if (eb && g.restrictedHQ && Math.hypot(q.x - eb.x, q.z - eb.z) < g.restrictedHQ + 15) continue;
     const qv = q.vehicle && g.vehicles.get(q.vehicle);
     if (qv && qv.seats[0] !== q.id) continue; // a vehicle counts once (its driver)
+    // a helicopter in flight is no target for a tank gun or unguided rockets — only one hovering low and slow
+    if (qv?.type === 'heli' && (Math.hypot(qv.vx || 0, qv.vz || 0) > 8 || qv.y - g.world.supportHeight(qv.x, qv.z, qv.y + 0.5, 1.5) > 35)) continue;
     const tx = qv ? qv.x : q.x, tz = qv ? qv.z : q.z, d = Math.hypot(tx - eye.x, tz - eye.z);
     if (d > (qv ? 500 : 300) * (0.8 + brain.skill * 0.3)) continue;
     const off = Math.abs(angleDiff(fwd, Math.atan2(-(tx - eye.x), -(tz - eye.z))));
@@ -284,6 +292,8 @@ function pickDriveGoal(brain, c, v, now) {
   }).sort((a, b) => b.s - a.s);
   const f = scored[0]?.f;
   if (!f) return;
+  // (a helicopter flies straight there: no route on the ground)
+  if (v.type === 'heli') { c.goal = { x: f.x, z: f.z, flag: f.id }; c.route = null; c.repathAt = now + rand(25000, 40000); c.arrivedAt = 0; return; }
   const nav = g.nav, M = vehicleMap(nav, g.map), need = NEED[v.type];
   let goal = null;
   for (let tries = 0; tries < 24 && !goal; tries++) {
@@ -394,6 +404,106 @@ function drive(brain, c, v, V, dt, now) {
     c.repathAt = now + 2500;
   }
   step(g, v, input, dt, p, now);
+}
+
+// ---------------------------------------------------------------- helicopter pilot
+// Takes off straight up, transits ~40 m above the highest ground / roofs ahead, and makes rocket runs on what it
+// spots: down to ~25 m, nose on the target (the pods fire along the nose; elevation for the rockets' drop), a salvo
+// once laid, then breaks off — nose up, a hard turn away, out a few hundred metres — and comes round again. Badly hit
+// (below 35 %) it flies home, lands on the pad and the pilot gets out. Altitude is held with the collective the way
+// the players' pilot assist does it.
+const HELI = { cruise: 38, attack: 26, cruiseSpeed: 38, runIn: 18 };
+function clearanceAhead(g, v, dir, dist) {
+  let top = -Infinity;
+  const was = g.world.ignoreOwner; g.world.ignoreOwner = v.id; // (not its own airframe)
+  for (let s = 0; s <= dist; s += 15) top = Math.max(top, g.world.supportHeight(v.x - Math.sin(dir) * s, v.z - Math.cos(dir) * s, 500, 2));
+  g.world.ignoreOwner = was;
+  return top;
+}
+
+function fly(brain, c, v, V, dt, now) {
+  const g = brain.g, p = brain.p, H = c.heli || (c.heli = { phase: 'takeoff', since: now, salvo: 0 });
+  const ground = g.world.supportHeight(v.x, v.z, v.y + 0.5, 1.5), agl = v.y - ground;
+  const fx = -Math.sin(v.yaw), fz = -Math.cos(v.yaw), vf = v.vx * fx + v.vz * fz, vs = v.vx * Math.cos(v.yaw) - v.vz * Math.sin(v.yaw);
+  let wantYaw = v.yaw, wantAlt = ground + HELI.cruise, wantSpeed = 0, pitchSet = null;
+  const home = v.home, toHome = Math.hypot(home.x - v.x, home.z - v.z);
+  if (v.hp < V.hp * 0.35 && H.phase !== 'land') H.phase = toHome < 25 ? 'land' : 'rtb';
+  const eye = { x: v.x, y: v.y + 1.6, z: v.z };
+  const t = H.phase === 'rtb' || H.phase === 'land' || H.phase === 'takeoff' ? null : spot(brain, c, v, eye, v.yaw, now, dt);
+  p.yaw = v.yaw;
+  if (H.phase === 'takeoff') {
+    // straight up off the pad, clear of the trees and hangars
+    wantAlt = ground + 22; wantSpeed = 0;
+    if (agl > 18) H.phase = 'transit';
+  } else if (H.phase === 'rtb' || H.phase === 'land') {
+    wantYaw = Math.atan2(-(home.x - v.x), -(home.z - v.z));
+    if (H.phase === 'rtb') { wantSpeed = Math.min(HELI.cruiseSpeed, toHome * 0.4); wantAlt = Math.max(ground, clearanceAhead(g, v, wantYaw, 90)) + 30; if (toHome < 25) H.phase = 'land'; }
+    else {
+      // over the pad: no turning now — slide onto it with the disc (pitch / roll), wings level, and let down only
+      // when slow and above it, gently near the ground (a banked or sliding touchdown wrecks the undercarriage)
+      if (v.landed && Math.hypot(v.vx, v.vz) < 1) { g.vehicles.exit(p); brain.crew = null; brain.nextVehicleTry = now + 60000; brain.pickGoal(); return; }
+      const k = Math.min(1, 6 / Math.max(1e-3, toHome * 0.4)), wx = (home.x - v.x) * 0.4 * k, wz = (home.z - v.z) * 0.4 * k;
+      const ex = wx - v.vx, ez = wz - v.vz, rx = Math.cos(v.yaw), rz = -Math.sin(v.yaw);
+      const eF = ex * fx + ez * fz, eS = ex * rx + ez * rz, hs = Math.hypot(v.vx, v.vz);
+      H.land = { pitch: clamp(eF * 0.12, -0.5, 0.5), roll: clamp(eS * 0.12, -0.35, 0.35) };
+      H.vyWant = toHome < 5 && hs < 2 ? -Math.min(5, 1 + 0.3 * Math.max(0, agl)) : agl < 8 ? 0.5 : 0;
+      wantYaw = v.yaw;
+    }
+  } else if (t && (H.phase === 'transit' || H.phase === 'attack')) {
+    H.phase = 'attack';
+    const d = Math.hypot(t.x - v.x, t.z - v.z);
+    const toT = Math.atan2(-(t.x - v.x), -(t.z - v.z));
+    wantYaw = toT;
+    if (d > 450) { wantSpeed = HELI.cruiseSpeed; wantAlt = Math.max(ground, clearanceAhead(g, v, toT, 90)) + HELI.cruise; }
+    else {
+      // the run in: low, slower, nose on the target — elevation for the rockets' sag (a quarter of gravity)
+      const W = V.weapons[0], tv = t.qv || t.q, tf = d / W.velocity;
+      const ax = t.x + (tv.vx || 0) * tf, az = t.z + (tv.vz || 0) * tf;
+      wantYaw = Math.atan2(-(ax - v.x), -(az - v.z));
+      wantAlt = Math.max(ground, clearanceAhead(g, v, toT, Math.min(d, 90))) + HELI.attack;
+      const drop = 0.5 * 9.81 * (W.gravityScale ?? 1) * tf * tf;
+      const pv = Math.atan2(t.y + drop - (v.y + 0.85), d);      // rocket direction wanted (+ up)
+      pitchSet = clamp(-pv - 0.03, -0.3, V.pitchMax);              // airframe pitch (+ nose down) that points the pods there
+      const yawOk = Math.abs(angleDiff(v.yaw, wantYaw)) < 0.02 + 2 / d, pitchOk = Math.abs((v.pitch || 0) - pitchSet) < 0.03;
+      const mates = [...g.players.values()].some((q) => q !== p && q.alive && !g.isEnemy(p, q) && Math.hypot(q.x - t.x, q.z - t.z) < 10);
+      if (yawOk && pitchOk && !mates && d > 120 && now >= v.reloadUntil[0] && now >= v.nextShot[0] && now > c.fireAt) {
+        g.vehicles.fire(p, {}); H.salvo++;
+      }
+      if (d < 140 || H.salvo >= (t.qv ? 8 : 4)) { H.phase = 'breakoff'; H.since = now; H.salvo = 0; H.away = toT + Math.PI + (Math.random() < 0.5 ? -0.6 : 0.6); }
+    }
+  } else if (H.phase === 'breakoff') {
+    // pull out of the run: climb, turn hard away, open the range, then come back round
+    wantYaw = H.away; wantSpeed = HELI.cruiseSpeed; wantAlt = Math.max(ground, clearanceAhead(g, v, wantYaw, 90)) + HELI.cruise + 6;
+    if (now - H.since > 9000) H.phase = 'transit';
+  } else {
+    // transit / patrol: over the objective the bots are fighting for, circling it
+    if (!c.goal || now > c.repathAt) pickDriveGoal(brain, c, v, now);
+    const gx = c.goal?.x ?? v.x, gz = c.goal?.z ?? v.z, dg = Math.hypot(gx - v.x, gz - v.z);
+    wantYaw = dg > 120 ? Math.atan2(-(gx - v.x), -(gz - v.z)) : Math.atan2(-(gx - v.x), -(gz - v.z)) + 1.2; // orbit
+    wantSpeed = dg > 120 ? HELI.cruiseSpeed : 22;
+    wantAlt = Math.max(ground, clearanceAhead(g, v, wantYaw, 120)) + HELI.cruise;
+    if (H.phase !== 'transit') H.phase = 'transit';
+  }
+  // keep inside the play area (the airspace beyond it kills the airframe) and out of the enemy's HQ (no-go: the crew
+  // would be hit after a few seconds over it)
+  const lim = g.map.PLAY_HALF - 25;
+  if (Math.abs(v.x) > lim || Math.abs(v.z) > lim) { wantYaw = Math.atan2(v.x, v.z); wantSpeed = Math.max(wantSpeed, 25); }
+  const eb = g.map.BASES?.[p.team === 1 ? 2 : 1];
+  if (eb && g.restrictedHQ && Math.hypot(v.x - eb.x, v.z - eb.z) < g.restrictedHQ + 40) { wantYaw = Math.atan2(-(v.x - eb.x), -(v.z - eb.z)); /* (heading straight away from it) */ wantSpeed = Math.max(wantSpeed, 25); if (H.phase === 'attack') { H.phase = 'breakoff'; H.since = now; H.away = wantYaw; } }
+  // ---- controls: heading by yaw rate, speed by pitch (nose down accelerates), sideslip by roll, height by collective
+  const yawErr = angleDiff(v.yaw, wantYaw);
+  const yawRate = clamp(yawErr * 2.2, -1, 1);
+  let pitch = pitchSet != null ? pitchSet / V.pitchMax : clamp((wantSpeed - vf) * 0.06, -0.8, 0.9);
+  if (Math.abs(yawErr) > 1.2 && pitchSet == null) pitch = Math.min(pitch, 0.15); // turn first, then go
+  let roll = clamp(-vs * 0.08 + yawErr * 0.25, -0.6, 0.6);
+  if (H.phase === 'land' && H.land) { pitch = H.land.pitch; roll = H.land.roll; }
+  const vyWant = H.phase === 'land' ? H.vyWant ?? 0 : clamp((wantAlt - v.y) * 0.45, -6, 6);
+  const tilt = Math.max(0.5, Math.cos(v.pitch || 0) * Math.cos(v.roll || 0)), level = (1 / tilt - 1) / 0.75;
+  const collective = level + (vyWant * 0.6) / (0.75 * 9.81) + clamp((vyWant - (v.vy || 0)) * 0.5, -0.9, 0.9);
+  v.lastInput = now; v.lastDriver = p.id; v.rest = false;
+  stepHeli(g.world, v, { collective, pitch: clamp(pitch, -1, 1), roll, yawRate, power: 1 }, dt);
+  if (v.impact > 6) g.vehicles.damage(v, heliCrashDamage(Math.min(40, v.impact)), v.lastDamager ? g.players.get(v.lastDamager) : null, 'crash', 'crash');
+  if (v.col && !v.dead) vehicleCollider(v, v.col);
 }
 
 // the vehicle moves here (the server is the bot's client): same physics as a player's prediction

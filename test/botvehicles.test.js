@@ -171,3 +171,69 @@ test('a bot rides a dirt bike to a far objective and gets off at its edge to go 
   assert.ok(Math.hypot(f.x - p.x, f.z - p.z) < f.r + 30, `off ${Math.hypot(f.x - p.x, f.z - p.z).toFixed(0)} m from flag ${f.id}`);
   assert.ok(p.brain.goal && !p.brain.goal.vehicle, 'heading in on foot');
 });
+
+// a skilled bot at the controls of its team's helicopter on Kestrel, airborne
+function pilot(seconds = 15) {
+  const g = mkGame('airfield');
+  const heli = g.vehicles.list.find((v) => v.type === 'heli' && v.team === 1);
+  const p = bot(g, 1, 'Pilot');
+  p.brain.skill = 0.85;
+  place(g, p, heli.x + 7, heli.z);
+  sendFor(g, p, heli);
+  assert.ok(advance(g, 20, () => p.vehicle === heli.id), 'got in');
+  advance(g, seconds);
+  return { g, heli, p };
+}
+const agl = (g, v) => v.y - g.world.supportHeight(v.x, v.z, v.y + 0.5, 1.5);
+
+test('a bot pilot takes off, flies to the objective at a safe height and holds it there', () => {
+  const { g, heli, p } = pilot(8);
+  assert.ok(agl(g, heli) > 15, `climbed out (${agl(g, heli).toFixed(0)} m)`);
+  const c = p.brain.crew, d0 = Math.hypot(c.goal.x - heli.x, c.goal.z - heli.z);
+  let lo = Infinity, hi = 0;
+  for (let i = 0; i < 30 * 30; i++) { g.clock += 1000 / 30; g.tick(1 / 30); const h = agl(g, heli); lo = Math.min(lo, h); hi = Math.max(hi, h); }
+  assert.ok(Math.hypot(c.goal.x - heli.x, c.goal.z - heli.z) < Math.max(140, d0 - 100), 'got to the objective');
+  assert.ok(lo > 18 && hi < 90, `height ${lo.toFixed(0)}-${hi.toFixed(0)} m above what is below`);
+  assert.equal(heli.hp, VEHICLES.heli.hp, 'no strikes / crashes');
+  // never over the enemy HQ
+  const eb = g.map.BASES[2];
+  assert.ok(Math.hypot(heli.x - eb.x, heli.z - eb.z) > g.restrictedHQ);
+});
+
+test('a badly hit helicopter is flown home and landed on its pad; the pilot gets out unhurt', () => {
+  const { g, heli, p } = pilot(25);
+  heli.hp = VEHICLES.heli.hp * 0.3;
+  const hp = heli.hp;
+  assert.ok(advance(g, 90, () => !p.vehicle), 'landed and got out');
+  assert.ok(p.alive && !heli.dead);
+  assert.ok(Math.hypot(heli.home.x - heli.x, heli.home.z - heli.z) < 4, 'on the pad');
+  assert.equal(heli.hp, hp, 'a soft landing');
+});
+
+test('the helicopter makes rocket runs on an enemy tank in the open', () => {
+  const { g, heli, p } = pilot(12);
+  const tank = g.vehicles.list.find((v) => v.type === 'tank' && v.team === 2);
+  const crew = human(g, 2, 'Crew');
+  place(g, crew, tank.x + 3, tank.z); g.vehicles.enter(crew, tank.id);
+  const eb = g.map.BASES[2];
+  let spot = null;
+  for (let k = 0; k < 3000 && !spot; k++) {
+    const a = heli.yaw + (Math.random() - 0.5) * 1.6, d = 200 + Math.random() * 140;
+    const x = heli.x - Math.sin(a) * d, z = heli.z - Math.cos(a) * d;
+    if (Math.abs(x) > g.map.PLAY_HALF - 30 || Math.abs(z) > g.map.PLAY_HALF - 30 || Math.hypot(x - eb.x, z - eb.z) < g.restrictedHQ + 40) continue;
+    const y = g.world.supportHeight(x, z, 500);
+    if (Math.abs(y - g.map.groundHeight(x, z)) > 0.3 || !g.world.lineOfSight({ x: heli.x, y: heli.y + 1.6, z: heli.z }, { x, y: y + 1.5, z })) continue;
+    spot = { x, z, y };
+  }
+  assert.ok(spot, 'found open ground ahead');
+  Object.assign(tank, spot, { speed: 0 });
+  let rockets = 0;
+  const hp0 = tank.hp;
+  for (let i = 0; i < 30 * 45 && !tank.dead; i++) {
+    g.clock += 1000 / 30; g.tick(1 / 30); tank.lastInput = g.now();
+    for (const { ev } of g.flushEvents()) if (ev.t === 'shot' && ev.w === 'heli_rockets' && ev.id === p.id) rockets++;
+  }
+  assert.ok(rockets >= 4, `${rockets} rockets`);
+  assert.ok(tank.hp < hp0, `tank hit (hp ${tank.hp.toFixed(0)})`);
+  assert.ok(!heli.dead && heli.hp > VEHICLES.heli.hp * 0.9, 'no self-inflicted damage');
+});
