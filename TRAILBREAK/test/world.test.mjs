@@ -5,7 +5,7 @@ import assert from 'node:assert/strict';
 import { generateBigWorld, heightIn } from '../src/world/BigWorldGen.js';
 import { REGIONS, regionById, seamPairs, KUNDALIKA_ROCKS } from '../src/world/maps/world.js';
 import { spline } from '../src/world/WorldGen.js';
-import { OpenWorld, BEACON_STRIDE } from '../src/world/OpenWorld.js';
+import { OpenWorld, BEACON_STRIDE, BOG_SPOTS } from '../src/world/OpenWorld.js';
 import { RouteGraph } from '../src/game/Route.js';
 import { Vehicle } from '../src/physics/Vehicle.js';
 import { truckSpec, TRUCKS } from '../src/physics/trucks.js';
@@ -435,6 +435,14 @@ test('the open world: deep bogs by Kashid and the rocks at the Kundalika ford, t
   const O = W.offroad();
   assert.deepEqual(O.map((q) => q.type).sort(), ['bog', 'bog', 'rocks']);
   assert.ok(O.every((q) => W.regionDefAt(q.x, q.z)?.id === q.region && q.from), 'each where it says, and where to come to it from');
+  // listed whether the coast is in yet or not: where its definition says the generator puts them, which it does
+  regionById('coast').map.deepBogs.forEach((b, i) => {
+    const [x, z, r] = bogs[i], at = BOG_SPOTS.coast[i];
+    assert.ok(Math.hypot(at[0] - x, at[1] - z) < 1 && Math.abs(at[2] - r) < 1, `${b.name} where BOG_SPOTS says (${at.join(', ')}), made at ${x.toFixed(1)}, ${z.toFixed(1)}, r ${r.toFixed(1)}`);
+  });
+  const none = new OpenWorld().offroad(), byName = (L, n) => L.find((q) => q.name === n);
+  assert.deepEqual(none.map((q) => q.type).sort(), ['bog', 'bog', 'rocks'], 'with no map in yet');
+  for (const n of ['Kashid Bog', 'Coast Road Bog']) assert.ok(Math.hypot(byName(none, n).x - byName(O, n).x, byName(none, n).z - byName(O, n).z) < 1, `${n} in the same place before the coast is in`);
 });
 
 test('the open world: no building\'s yard cuts a step into a track (a house\'s yard below the Anapara Track did)', async () => {

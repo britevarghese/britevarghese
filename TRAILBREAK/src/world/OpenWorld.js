@@ -19,6 +19,14 @@ import { eventsFor } from '../game/Events.js';
 import { racesFor } from '../game/Races.js';
 import { modesFor } from '../game/Modes.js';
 
+/**
+ * Where the generator puts each map's deep bogs ([x, z, r] in its own frame, in the order of its map.deepBogs), so they
+ * can be listed to go to before the map is in (offroad). Kept here, not in the map's definition: that is part of what
+ * the world is built from, and a change to it has every player's world built again. test/world.test.mjs checks they
+ * agree with what is built.
+ */
+export const BOG_SPOTS = { coast: [[-1819.9, -692.7, 56.5], [-1753.6, -537, 36]] };
+
 export const OB_STRIDE = 1 << 24;
 export const BEACON_STRIDE = 100;
 const FAR_FADE = 160;            // m: how far out the far land takes over from a map's own edge
@@ -115,15 +123,19 @@ export class OpenWorld {
   }
 
   /**
-   * Where to go off-road: the deep bogs on the maps that are in (world/WorldGen.js), and the places a map marks for it
-   * whether it is in yet or not (map.offroad: Kundalika Rocks). { type ('bog', 'rocks'), region, mapName, name, x, z,
-   * r, from: [x, z, r] where a truck is set down to go in, facing it }.
+   * Where to go off-road: the deep bogs (world/WorldGen.js: on a map that is in, where it put them; on one that isn't
+   * yet, where it will: BOG_SPOTS), and the places a map marks for it whether it is in
+   * yet or not (map.offroad: Kundalika Rocks). { type ('bog', 'rocks'), region, mapName, name, x, z, r, from: [x, z, r]
+   * where a truck is set down to go in, facing it }.
    */
   offroad() {
     const out = [];
-    for (const r of this.regions) {
-      (r.world.data.deepBogs || []).forEach(([x, z, br], i) => out.push({ type: 'bog', region: r.id, mapName: r.map.name, name: r.map.deepBogs?.[i]?.name || `${r.map.name} bog`,
-        x: x + r.cx, z: z + r.cz, r: br, from: [x + r.cx, z + r.cz, br * 1.15] }));
+    const bog = (R, i, x, z, br) => out.push({ type: 'bog', region: R.id, mapName: R.map.name, name: R.map.deepBogs?.[i]?.name || `${R.map.name} bog`,
+      x, z, r: br, from: [x, z, br * 1.15] });
+    for (const r of this.regions) (r.world.data.deepBogs || []).forEach(([x, z, br], i) => bog(r, i, x + r.cx, z + r.cz, br));
+    for (const R of REGIONS) {
+      if (this.byId.has(R.id)) continue;
+      (BOG_SPOTS[R.id] || []).forEach(([x, z, br], i) => bog(R, i, x + R.at[0], z + R.at[1], br));
     }
     for (const R of REGIONS) {
       for (const p of R.map.offroad || []) out.push({ ...p, region: R.id, mapName: R.map.name, x: p.x + R.at[0], z: p.z + R.at[1], from: p.from && [p.from[0] + R.at[0], p.from[1] + R.at[1], p.from[2]] });

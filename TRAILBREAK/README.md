@@ -1352,7 +1352,9 @@ All of it keeps off the tracks, the courses, the buildings and the beacons, and 
 so the maps on their own are built as they were. Driving on it costs the physics about half a millisecond more a frame.
 
 **Deep mud and river rocks.** Two places to go for the hard stuff, both on the map and in its fast travel list (under
-*Deep mud and river rocks*, nearest first), and both kept off every event's course:
+*Deep mud and river rocks*, nearest first) from the start, wherever you begin (a map not in yet is loaded and you're
+taken there once it's drawn; the bogs' spots, which its generator works out, are kept in `BOG_SPOTS`,
+`src/world/OpenWorld.js`, and checked against what it builds), and both kept off every event's course:
 
 - **Kashid Bog and Coast Road Bog** (`deepBogs` on the coast; `src/world/WorldGen.js`, `World.deepAt`): the two mud
   fields nearest Kashid Motor Station, 130 m and 290 m from it, just off the coast road. Each field's dish is sunk a
