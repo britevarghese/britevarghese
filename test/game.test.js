@@ -79,6 +79,28 @@ test('the last round in the magazine is flagged on the shot event (slide / bolt 
   assert.equal(g.flushEvents().map((e) => e.ev).find((e) => e.t === 'reload').dur, WEAPONS.ar.reloadEmpty * 1000);
 });
 
+test('movement: a burst of inputs after a hiccup is accepted, teleports and sustained overspeed are refused', () => {
+  const g = mkGame();
+  const p = g.addPlayer({ name: 'P', team: 1 });
+  spawnAt(g, p, 100, 60);
+  const send = (x, z) => g.handleInput(p, { x, y: groundHeight(x, z), z, yaw: 0, pitch: 0, st: 'stand', og: true, sl: 0 });
+  const corrections = () => g.flushEvents().filter((e) => e.ev.t === 'correct').length;
+  g.flushEvents();
+  // a 300 ms stall, then the 9 inputs of it arrive within a few ms: 9 x 0.2 m at a sprint
+  g.clock += 300;
+  for (let i = 1; i <= 9; i++) { g.clock += 1; send(100 + 0.2 * i, 60); }
+  assert.equal(corrections(), 0, 'burst accepted');
+  assert.ok(Math.abs(p.x - 101.8) < 1e-6);
+  // a teleport of 15 m
+  g.clock += 33; send(p.x + 15, 60);
+  assert.equal(corrections(), 1, 'teleport refused');
+  // 20 m/s held for 3 s (a speed hack sending small steps often): refused once the budget is spent
+  let x = p.x;
+  for (let i = 0; i < 90; i++) { g.clock += 33; x += 20 / 30; send(x, 60); }
+  assert.ok(corrections() > 30, 'overspeed refused');
+  assert.ok(p.x < x - 20, `held back (${(x - p.x).toFixed(0)} m behind the claimed position)`);
+});
+
 test('bots in a room all have different names', () => {
   const g = new Game({ botsPerTeam: 16, log: () => {} });
   g.balanceBots();

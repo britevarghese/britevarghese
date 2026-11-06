@@ -249,6 +249,11 @@ export class LocalPlayer {
       }
       if (!this.mouse.l) this.triggerReleased = true;
       if (w.mag === 0 && !reloading && w.reserve > 0 && !this.mouse.l) this.reload();
+      // the last launcher tube fired: it is dropped and the rifle comes back up
+      if (def.launcher && w.mag === 0 && w.reserve === 0 && !this.mouse.l) {
+        this.emptyTubeAt ??= performance.now();
+        if (performance.now() - this.emptyTubeAt > 900) { this.emptyTubeAt = null; this.switchSlot(this.weapons.findIndex((x, i) => x && i !== this.slot && x.mag + x.reserve > 0)); }
+      } else this.emptyTubeAt = null;
     }
     // scope sway: breathing drifts the aim; SHIFT holds breath for ~4 s (then it gets worse until you breathe again)
     const W = this.sway;

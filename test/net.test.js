@@ -38,9 +38,10 @@ test('multiplayer join / spawn / snapshot / chat / shoot', async (t) => {
   assert.ok(sa && sb, 'both spawned');
   // move both to open ground facing each other, 20 m apart
   const place = (c, id, x, z, yaw) => c.send({ t: 'in', x, y: groundHeight(x, z), z, yaw, pitch: 0, st: 'stand', ads: false, sp: false, vx: 0, vz: 0, og: true, sl: 0 });
-  // walk there gradually (server rejects teleports)
-  for (let i = 0; i <= 170; i++) {
-    const k = i / 170;
+  // walk there at a run (~7 m/s: the server refuses teleports and anything faster than a soldier can go)
+  const steps = Math.max(60, Math.ceil(Math.max(Math.hypot(100 - sa.x, 60 - sa.z), Math.hypot(100 - sb.x, 40 - sb.z)) / 0.85));
+  for (let i = 0; i <= steps; i++) {
+    const k = i / steps;
     place(a, wa.id, sa.x + (100 - sa.x) * k, sa.z + (60 - sa.z) * k, 0);
     place(b, wb.id, sb.x + (100 - sb.x) * k, sb.z + (40 - sb.z) * k, Math.PI);
     await wait(120);

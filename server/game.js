@@ -165,7 +165,7 @@ export class Game {
       weapons: [c.primary, c.secondary, c.gadget].filter(Boolean).map((id, i) => ({ id, mag: WEAPONS[id].mag, reserve: WEAPONS[id].reserve * (i === 0 ? c.ammoMul || 1 : 1) })),
       spawnProtect: this.now() + 3000, spawnedAt: this.now(), history: [], lastDamageFrom: null, spawnPoint: opt.id, airPeak: null,
     });
-    p.lastInput = this.now();
+    p.lastInput = this.now(); p.moveBudget = undefined;
     if (p.brain) p.brain.onSpawn();
     this.emit({ t: 'spawn', id: p.id, x: p.x, y: p.y, z: p.z, yaw: p.yaw, cls: p.cls, w: p.weapons, g: p.grenades }, p.bot ? null : p);
     return true;
@@ -231,15 +231,21 @@ export class Game {
     // freefall (1) -> parachute (2) -> ground (0), never back up into the air
     const air = p.air && (m.dr === p.air || (p.air === 1 && m.dr === 2)) ? m.dr : 0;
     if (p.air && !air) p.landedAt = now;
+    // movement budget (as the vehicles have): refilled at the fastest a soldier can go, holding ~0.6 s of travel +
+    // 1.5 m, so a burst of inputs arriving together after a network hiccup passes, while a teleport or a sustained
+    // speed hack doesn't (a flat allowance per message let a client go faster just by sending more often, and still
+    // rubber-banded a jittery connection whose messages came in bunches)
     // (just bailed out of a moving vehicle: carrying its speed for a moment)
-    const allowed = (p.air ? 34 : Math.max(MOVE.sprint * 1.6, p.bailUntil > now ? (p.bailSpeed || 0) * 1.2 : 0)) * Math.min(dt, 0.5) + 0.6;
+    const rate = p.air ? 34 : Math.max(MOVE.sprint * 1.6, p.bailUntil > now ? (p.bailSpeed || 0) * 1.2 : 0), cap = rate * 0.6 + 1.5;
+    p.moveBudget = Math.min(cap, (p.moveBudget ?? cap) + rate * Math.min(dt, 0.5));
+    const moved = Math.hypot(dx, dz);
     p.air = air;
     const before = { x: p.x, y: p.y, z: p.z };
     if (process.env.DEV_TELEPORT && Number.isFinite(m.x + m.y + m.z)) { p.x = m.x; p.y = m.y; p.z = m.z; }
-    else if (Math.hypot(dx, dz) > allowed || !Number.isFinite(m.x + m.y + m.z) || Math.abs(m.x) > this.map.PLAY_HALF + 10 || Math.abs(m.z) > this.map.PLAY_HALF + 10) {
+    else if (moved > p.moveBudget || !Number.isFinite(m.x + m.y + m.z) || Math.abs(m.x) > this.map.PLAY_HALF + 10 || Math.abs(m.z) > this.map.PLAY_HALF + 10) {
       this.emit({ t: 'correct', x: p.x, y: p.y, z: p.z }, p);
     } else {
-      p.x = m.x; p.y = m.y; p.z = m.z;
+      p.x = m.x; p.y = m.y; p.z = m.z; p.moveBudget -= moved;
     }
     // climbing / jumping through a window smashes the glass (body at hip and chest height)
     const mv = Math.hypot(p.x - before.x, p.z - before.z);
