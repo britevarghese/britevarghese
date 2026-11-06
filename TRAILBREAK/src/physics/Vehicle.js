@@ -65,6 +65,14 @@ const CLOG_IN = 0.1, CLOG_OUT = 0.6, CLOG_SCRUB = 0.05;
 const NO_CONTROLS = { throttle: 0, brake: 0, steer: 0, handbrake: 0 };
 const STEER_DAMP = 0.08;              // keys / sticks: wheel angle (rad) taken off per rad/s the yaw rate runs ahead
 const TC_KP = 1, TC_KI = 10;          // electric traction control: power taken off per unit of excess spin, and how fast it settles (1/s)
+// Wet brakes: a brake the water has reached (over WET_AT of the tyre's radius up: with what the tyre throws up inside
+// the wheel, the bottom of its disc) gives WET_GRIP of its dry torque. The US standard's water-recovery test (FMVSS
+// 105, S5.1.5: 2 minutes at 5 mph through a 6 in trough, then five stops from 30 mph at 10 ft/s2) lets the first four
+// stops take up to 150 lb on the pedal against a dry 10 to 60 lb, and wants the fifth back within 45 lb of dry: wet, a
+// brake may give a fifth to two fifths of its torque, and the heat of a few stops dries it. Here: two fifths, dried by
+// the heat the brake makes (e to the minus its energy over WET_DRY: four such stops leave a front brake a few per cent
+// wet), and slowly as the wheel turns, flinging it off and airing it (to a third wet every WET_FLING metres driven).
+const WET_AT = 0.4, WET_GRIP = 0.4, WET_DRY = 60000, WET_FLING = 1500;
 const BLD_A = 1.5, BLD_K = 1500;      // brake locking: spin (rad/s) between an axle's wheels before it brakes, Nm per rad/s past that
 const ESC_K = 1, ESC_OFF = 8, ESC_ON = 2;  // stability control: power off per unit of slide, how fast it comes off and back (1/s)
 const ESC_YAW = 6000;                 // ... and the brake (N m) on the outer front wheel per rad/s it swings round faster than asked
@@ -186,6 +194,7 @@ export class Vehicle {
         contact: false, N: 0, pen: 0, slip: 0, slipSpeed: 0, spin: 0, surf: surfaceById(0), sink: 0, water: 0, nSoil: 0, penSoil: 0, dwell: 0,
         cx: 0, cy: 0, cz: 0, nx: 0, ny: 1, nz: 0, wall: 0, rutDir: 1,   // contact point and normal (world); rut walls push
         clog: 0,                                                    // how full of mud its tread is (0 clean .. 1 a slick)
+        brakeWet: 0,                                                // how wet its brake is (0 dry .. 1 just out of the water)
         dug: 0,                                                     // dug into firm earth, not yet in the ground (m)
         hub: new V3(), vHub: new V3(), fx: 0, fy: 0, kappa: 0, tanA: 0, vx: 0, vy: 0,
         cxDamp: 0, cyDamp: 0, Fshape: 0, FyShape: 0, rr: 0,
@@ -592,6 +601,12 @@ export class Vehicle {
       const wl = Math.max(ground.water ? ground.water(w.hub.x, w.hub.z) : -Infinity, ground.holeWater ? ground.holeWater(w.hub.x, w.hub.z) : -Infinity,
         ground.rainWater ? ground.rainWater(w.hub.x, w.hub.z) : -Infinity);
       w.water = Math.max(0, wl - (w.hub.y - r));
+      if (w.water > WET_AT * r) w.brakeWet = Math.min(1, w.brakeWet + dt / 1.5);
+      else if (w.brakeWet > 0) {
+        const heat = (this._bt ? this._bt[w.index] : 0) * Math.abs(w.omega) * dt;
+        w.brakeWet *= Math.exp(-heat / WET_DRY - Math.abs(w.omega) * r * dt / WET_FLING);
+        if (w.brakeWet < 1e-3) w.brakeWet = 0;
+      }
       if (!this.contact(w, ground, _f, _w)) {
         w.N = 0; w.fx = 0; w.fy = 0; w.slip = 0; w.slipSpeed = 0; w.spin = 0; w.sink = 0; w.wall = 0;
         // (spun in the air, a tread flings its mud out as it would in the mud)
@@ -732,6 +747,8 @@ export class Vehicle {
         if (w.contact) bt[w.index] += Math.min(0.85 * (w.mu || 0.8) * (w.N || 0) * r, over * ESC_YAW);
       }
     }
+    // (wet brakes, all their uses: the driver's foot, the handbrake, brake locking and the stability control)
+    for (let i = 0; i < 4; i++) if (this.wheels[i].brakeWet > 0) bt[i] *= 1 - (1 - WET_GRIP) * this.wheels[i].brakeWet;
     this._dtIn = this._dtIn || { throttle: 0, brakeTorque: bt };
     this._dtIn.throttle = throttle;
     this._dtIn.pedal = this.pedalThrottle;                             // (the shift schedule follows the driver's foot)

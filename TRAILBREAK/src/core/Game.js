@@ -1495,6 +1495,12 @@ export class Game {
       this.audio.stall?.();
     }
     if (v.dt.running && !wasRunning) this.hud.hint(v.dt.electric ? 'Drive on again' : 'Engine running again', 2);
+    // out of the water with wet brakes (physics/Vehicle.js brakeWet), once a crossing: what to do about them
+    const wetB = Math.max(...v.wheels.map((w) => w.brakeWet || 0)), inWater = v.wheels.some((w) => w.water > 0.05);
+    if (wetB > 0.6 && !inWater && Math.abs(v.speed) > 1.5 && !this.wetBrakesHinted) {
+      this.wetBrakesHinted = true;
+      this.hud.hint('Wet brakes: they grip weakly until they dry. Brake gently a few times as you drive on to dry them', 5);
+    } else if (wetB < 0.1) this.wetBrakesHinted = false;
     // in a river running fast, the hull in it: what the current is doing (once a minute and a half, or sooner where it
     // runs a good deal faster than it did)
     this.currentHintT = Math.max(0, (this.currentHintT || 0) - dt);

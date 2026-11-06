@@ -928,6 +928,15 @@ Everything that makes off-roading off-roading is simulated, not faked:
   is out again). The water lifts the hull in the middle of its part under water, so a truck deep enough to float sits
   level: heeled over, its low side, deeper in, is lifted back. Drag meets the area the flow does (the front going
   ahead, the side going sideways), so a truck driven into a pond pushes a bow wave and slows hard, nose down.
+- **Wet brakes:** water deep enough to reach a brake (40% of the tyre's radius up, with what the tyre throws up inside
+  the wheel) wets it, and a wet brake gives two fifths of its dry torque until it dries. The US standard's
+  water-recovery test ([FMVSS 105, S5.1.5](https://www.law.cornell.edu/cfr/text/49/571.105): 2 minutes at 5 mph
+  through a 6 in trough, then five stops from 30 mph at 10 ft/s2) lets the first four stops take up to 150 lb on the
+  pedal against a dry 10 to 60 lb and wants the fifth back within 45 lb of dry; owners' manuals say the same (apply them
+  a few times to dry them). The heat of braking dries them (four stops from 30 mph leave a front brake a few per cent
+  wet), and slowly the wheel's turning. Run that test here and a Ranger's stops from 30 mph go 34.2 m, 26.9, 24.3, 23.2,
+  22.7 against 22.1 m dry; through 8 cm of water they stay dry, and the H1's big wheels keep its discs above 6 in
+  (`test/wetbrakes.test.mjs`). Out of the water a hint says so.
 - **River current:** a river runs down the slope of its surface, as fast as water that deep runs down that slope over
   stones and boulders: Manning's equation with the roughness Jarrett measured on steep stony streams (n = 0.39
   S^0.38 R^-0.16, R in feet, slopes 0.2 to 4%, as the [HEC-RAS manual](https://www.hec.usace.army.mil/confluence/rasdocs/ras1dtechref/6.6/basic-data-requirements/geometric-data/energy-loss-coefficients)
