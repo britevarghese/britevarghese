@@ -119,13 +119,15 @@ export class Game {
     // (the vehicles the chase camera keeps out of: traffic and police, as boxes with a rough height by kind)
     {
       const H = { bus: 3.2, ksrtc: 3.2, pvtbus: 3.2, pvtbus2: 3.2, lorry: 3.2, truck: 3.2, van: 2.2, minitruck: 2.0, suv: 1.95, scorpio: 1.95, bolero: 1.95, thar: 1.9, ertiga: 1.7, brezza: 1.65, auto: 1.75, scooter: 1.6, commuter: 1.6, bullet: 1.6, streetbike: 1.6 };
-      const out = [];
+      const out = [], pool = [];
       let at = -1;
       this.camCtl.vehicles = () => {
         if (at === this._tick) return out;   // (asked a score of times a frame by the camera on foot)
         at = this._tick; out.length = 0;
-        for (const c of this.traffic?.cars || []) if (c.state !== 'gone') out.push({ x: c.x, z: c.z, y: c.y, yaw: c.yaw, w: c.spec?.w || 1.8, l: c.spec?.l || 4.5, h: H[c.type] || 1.55 });
-        for (const u of this.police?.units || []) { const s = u.vehicle?.state, P = u.vehicle?.params; if (s) out.push({ x: s.x, z: s.z, y: s.y, yaw: s.yaw, w: P?.width || 1.9, l: P?.length || 4.8, h: 1.6 }); }
+        // (the boxes reused frame to frame: a fresh one per car per frame was garbage)
+        const box = (x, z, y, yaw, w, l, h) => { const b = pool[out.length] || (pool[out.length] = {}); b.x = x; b.z = z; b.y = y; b.yaw = yaw; b.w = w; b.l = l; b.h = h; out.push(b); };
+        for (const c of this.traffic?.cars || []) if (c.state !== 'gone') box(c.x, c.z, c.y, c.yaw, c.spec?.w || 1.8, c.spec?.l || 4.5, H[c.type] || 1.55);
+        for (const u of this.police?.units || []) { const s = u.vehicle?.state, P = u.vehicle?.params; if (s) box(s.x, s.z, s.y, s.yaw, P?.width || 1.9, P?.length || 4.8, 1.6); }
         return out;
       };
     }

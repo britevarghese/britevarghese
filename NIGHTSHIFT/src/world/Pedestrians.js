@@ -8,6 +8,8 @@ import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { rng, clamp } from '../core/util.js';
 import { CURB_H } from './CityLayout.js';
 import { bus } from '../core/EventBus.js';
+const hyp = (a, b) => Math.sqrt(a * a + b * b);   // (Math.hypot returned a fresh boxed number each call: garbage every frame)
+const put3 = (o, x, z, y) => { o[0] = x; o[1] = z; o[2] = y; return o; };
 
 const _u0 = new THREE.Vector3(), _u1 = new THREE.Vector3(), _u2 = new THREE.Vector3(), _u3 = new THREE.Vector3();
 const G = 9.81;
@@ -74,7 +76,7 @@ export class Pedestrians {
     if (this.layout.pedSegment) {
       const g = this.layout.pedSegment(focus, R);
       if (!g) return;
-      const L = Math.hypot(g.bx - g.ax, g.bz - g.az);
+      const L = hyp(g.bx - g.ax, g.bz - g.az);
       if (L < 6) return;
       const kl = !!g.kerala;
       this.peds.push({
@@ -90,7 +92,7 @@ export class Pedestrians {
       return;
     }
     // pick a random dense-ish block near the focus and a point on its sidewalk ring
-    const blocks = this.layout.blocks.filter((b) => b.special !== 'river' && b.special !== 'hill' && Math.hypot(b.cx - focus.x, b.cz - focus.z) < 220 && Math.hypot(b.cx - focus.x, b.cz - focus.z) > 40);
+    const blocks = this.layout.blocks.filter((b) => b.special !== 'river' && b.special !== 'hill' && hyp(b.cx - focus.x, b.cz - focus.z) < 220 && hyp(b.cx - focus.x, b.cz - focus.z) > 40);
     if (!blocks.length) return;
     const b = blocks[Math.floor(R() * blocks.length)];
     const inset = 2.2;
@@ -114,7 +116,7 @@ export class Pedestrians {
     const spots = this.layout.standSpots?.(focus.x, focus.z, 140);
     if (!spots?.length) return false;
     this.groups ||= new Map();
-    spots.sort((a, b) => Math.hypot(a.x - focus.x, a.z - focus.z) - Math.hypot(b.x - focus.x, b.z - focus.z));
+    spots.sort((a, b) => hyp(a.x - focus.x, a.z - focus.z) - hyp(b.x - focus.x, b.z - focus.z));
     const t0 = performance.now();
     for (const sp of spots) {
       if (this.groups.has(sp.key) || this.peds.length >= this.max + 12) continue;
@@ -162,7 +164,7 @@ export class Pedestrians {
   busArrived(x, z, car = null) {
     let bx = x, bz = z;
     if (car) { const fx = Math.sin(car.yaw), fz = Math.cos(car.yaw), w = car.spec?.w ?? 2.5, l = car.spec?.l ?? 10; bx += fz * (w / 2 + 0.3) + fx * (l / 2 - 1.8); bz += -fx * (w / 2 + 0.3) + fz * (l / 2 - 1.8); }
-    for (const p of this.peds) if (p.stand?.kind === 'bus' && Math.hypot(p.x - x, p.z - z) < 14) { p.board = { x: bx, z: bz, door: true }; p.stand = null; }
+    for (const p of this.peds) if (p.stand?.kind === 'bus' && hyp(p.x - x, p.z - z) < 14) { p.board = { x: bx, z: bz, door: true }; p.stand = null; }
   }
 
   // a rider knocked off a two-wheeler: a person thrown from the seat with the bike's speed, tumbling to the road
@@ -176,7 +178,7 @@ export class Pedestrians {
       try { this._spawn({ x, z }); } finally { this.layout.pedSegment = ps; }
     }
     if (this.peds.length === n0) return;
-    const p = this.peds[this.peds.length - 1], sp = Math.hypot(vx, vz);
+    const p = this.peds[this.peds.length - 1], sp = hyp(vx, vz);
     p.x = x; p.z = z; p.umb = 0; p.d = 0;
     p.down = {
       x, y: y + 0.75, z, vx, vy: 1.2 + Math.min(3, sp * 0.18), vz, t: 0, landed: false, rest: 0, yaw: Math.atan2(vx, vz) || yaw,
@@ -191,7 +193,7 @@ export class Pedestrians {
     for (let k = 0; k < 12 && this.peds.length === n0; k++) this._spawn({ x: x + 60, z }); // borrow a random look
     if (this.peds.length === n0) return;
     const p = this.peds[this.peds.length - 1];
-    const dx = x - fromX, dz = z - fromZ, l = Math.hypot(dx, dz) || 1;
+    const dx = x - fromX, dz = z - fromZ, l = hyp(dx, dz) || 1;
     p.flee = { x, z, vx: dx / l * 5.2, vz: dz / l * 5.2, t: 7 };
     p.speed = 4.6;
   }
@@ -213,18 +215,30 @@ export class Pedestrians {
 
   remove(p) { const i = this.peds.indexOf(p); if (i < 0) return; this._release(p); this.peds.splice(i, 1); }
 
+  // (into one array kept for it: a fresh one per person per frame was garbage)
   _pos(p) {
+    const o = this._po || (this._po = [0, 0, 0]);
     let t = ((p.t % p.per) + p.per) % p.per;
     if (p.seg) { // there and back along a stretch of road edge
       const g = p.seg, L = p.segL, out = t < L, u = out ? t : 2 * L - t;
       const fwd = out === (p.dir > 0);
-      return [g.ax + (g.bx - g.ax) * u / L, g.az + (g.bz - g.az) * u / L, Math.atan2(g.bx - g.ax, g.bz - g.az) + (fwd ? 0 : Math.PI)];
+      return put3(o, g.ax + (g.bx - g.ax) * u / L, g.az + (g.bz - g.az) * u / L, Math.atan2(g.bx - g.ax, g.bz - g.az) + (fwd ? 0 : Math.PI));
     }
     const w = p.x1 - p.x0, d = p.z1 - p.z0;
-    if (t < w) return [p.x0 + t, p.z0, p.dir > 0 ? Math.PI / 2 : -Math.PI / 2];
-    t -= w; if (t < d) return [p.x1, p.z0 + t, p.dir > 0 ? 0 : Math.PI];
-    t -= d; if (t < w) return [p.x1 - t, p.z1, p.dir > 0 ? -Math.PI / 2 : Math.PI / 2];
-    t -= w; return [p.x0, p.z1 - t, p.dir > 0 ? Math.PI : 0];
+    if (t < w) return put3(o, p.x0 + t, p.z0, p.dir > 0 ? Math.PI / 2 : -Math.PI / 2);
+    t -= w; if (t < d) return put3(o, p.x1, p.z0 + t, p.dir > 0 ? 0 : Math.PI);
+    t -= d; if (t < w) return put3(o, p.x1 - t, p.z1, p.dir > 0 ? -Math.PI / 2 : Math.PI / 2);
+    t -= w; return put3(o, p.x0, p.z1 - t, p.dir > 0 ? Math.PI : 0);
+  }
+
+  // one limb of a simple figure (and its hand or shoe) into the instance lists at slot nl
+  _limb(m0, m1, ox, oy, rot, c0, c1, p, y, yaw, nl) {
+    _e.set(rot, yaw, 0, 'YXZ'); _q.setFromEuler(_e);
+    const c = Math.cos(yaw), sn = Math.sin(yaw);
+    _p.set(p.x + (ox * c) * p.scale, y + oy * p.scale, p.z + (-ox * sn) * p.scale);
+    _m.compose(_p, _q, _s);
+    m0.setMatrixAt(nl, _m); m0.setColorAt(nl, _c.setHex(c0));
+    m1.setMatrixAt(nl, _m); m1.setColorAt(nl, _c.setHex(c1));
   }
 
   update(dt, camera, vehicles, enabled = true) {
@@ -236,14 +250,14 @@ export class Pedestrians {
       // groups far away break up; new ones form at the spots near the camera (a few milliseconds' worth at a time,
       // the nearest first, back for the rest next frame: a town's dozen tea stalls and bus stops all at once, as it
       // came into range, was up to 90 ms)
-      if (this.groups) for (const [k, g] of this.groups) if (Math.hypot(g.x - focus.x, g.z - focus.z) > 200) this.groups.delete(k);
+      if (this.groups) for (const [k, g] of this.groups) if (hyp(g.x - focus.x, g.z - focus.z) > 200) this.groups.delete(k);
       this._grpT = this._spawnGroups(focus) ? 0 : 1.5;
     }
     let nu = 0;
     let n = 0, nl = 0;
     for (let i = this.peds.length - 1; i >= 0; i--) {
       const p = this.peds[i];
-      const d = Math.hypot(p.x - focus.x, p.z - focus.z);
+      const d = hyp(p.x - focus.x, p.z - focus.z);
       if (d > 260 && p.x !== 0) { this._release(p); this.peds.splice(i, 1); continue; }
       if (p.down) { if (this._fallen(p, dt, d, i)) continue; n = this._drawDown(p, n, dt); continue; }
       // vehicles: struck (thrown, tumbling, down on the road) or, with a moment's warning, a quick
@@ -251,8 +265,8 @@ export class Pedestrians {
       let struck = false;
       for (const v of vehicles) {
         const s = v.physics.s, P = v.physics.p;
-        const dx = p.x - s.x, dz = p.z - s.z, dd = Math.hypot(dx, dz);
-        const sp = Math.hypot(s.vx, s.vz);
+        const dx = p.x - s.x, dz = p.z - s.z, dd = hyp(dx, dz);
+        const sp = hyp(s.vx, s.vz);
         if (dd < 8 && sp > 1.5) {
           const c = Math.cos(s.yaw), sn = Math.sin(s.yaw);
           const lx = dx * c - dz * sn, lz = dx * sn + dz * c; // car frame: x left, z forward
@@ -284,7 +298,7 @@ export class Pedestrians {
       }
       if (p.walkTo && !p.board) p.board = { x: p.walkTo.x, z: p.walkTo.z, then: p.walkTo.then }, p.walkTo = null;
       if (p.board) {
-        const dx = p.board.x - p.x, dz = p.board.z - p.z, l = Math.hypot(dx, dz);
+        const dx = p.board.x - p.x, dz = p.board.z - p.z, l = hyp(dx, dz);
         // walking over to something: get on the bus (gone), or stand there (an onlooker)
         if (l < (p.board.door ? 0.5 : 1.2)) {
           if (p.board.then) { p.stand = p.board.then; p.board = null; p.ox = p.oz = 0; continue; }
@@ -295,7 +309,7 @@ export class Pedestrians {
       }
       // crossing the road: wait for a gap, walk straight over, carry on along the far side
       if (!p.fight && !p.flee && !p.crossing && p.seg?.cross && !p.stagger && this.R() < dt * 0.0025) {
-        const X = p.seg.cross, near = (this.traffic || []).some((c) => c.state === 'drive' && c.v > 2 && Math.hypot(c.x - p.x, c.z - p.z) < 14 + c.v * 1.5);
+        const X = p.seg.cross, near = (this.traffic || []).some((c) => c.state === 'drive' && c.v > 2 && hyp(c.x - p.x, c.z - p.z) < 14 + c.v * 1.5);
         // (and only to a walk on the far side: the near side's walk moved across the road, a road joining over there
         // or a one-way street's other edge had people walking along the carriageway)
         const g = p.seg, ox = X.nx * X.len, oz = X.nz * X.len;
@@ -378,18 +392,12 @@ export class Pedestrians {
       if (p.hair < 0) _m.makeScale(0, 0, 0);
       this.meshHair.setMatrixAt(n, _m); this.meshHair.setColorAt(n, _c.setHex(p.hair < 0 ? 0 : p.hair));
       if (d < 110) {
-        const limb = (meshes, ox, oy, rot, colors) => {
-          _e.set(rot, yaw, 0, 'YXZ'); _q.setFromEuler(_e);
-          const c = Math.cos(yaw), sn = Math.sin(yaw);
-          _p.set(p.x + (ox * c) * p.scale, y + oy * p.scale, p.z + (-ox * sn) * p.scale);
-          _m.compose(_p, _q, _s);
-          meshes.forEach((mesh, i) => { mesh.setMatrixAt(nl, _m); mesh.setColorAt(nl, _c.setHex(colors[i])); });
-        };
+        // (no closure or lists made per person per frame: garbage)
         const sh = 0.24 * p.build;
-        limb([this.meshLegL, this.meshShoeL], 0.09, 0.88, swing, [p.pants, p.shoes]);
-        limb([this.meshLegR, this.meshShoeR], -0.09, 0.88, -swing, [p.pants, p.shoes]);
-        limb([this.meshArmL, this.meshHandL], sh, 1.5, -swing * 0.8, [p.shirt, p.skin]);
-        limb([this.meshArmR, this.meshHandR], -sh, 1.5, swing * 0.8, [p.shirt, p.skin]);
+        this._limb(this.meshLegL, this.meshShoeL, 0.09, 0.88, swing, p.pants, p.shoes, p, y, yaw, nl);
+        this._limb(this.meshLegR, this.meshShoeR, -0.09, 0.88, -swing, p.pants, p.shoes, p, y, yaw, nl);
+        this._limb(this.meshArmL, this.meshHandL, sh, 1.5, -swing * 0.8, p.shirt, p.skin, p, y, yaw, nl);
+        this._limb(this.meshArmR, this.meshHandR, -sh, 1.5, swing * 0.8, p.shirt, p.skin, p, y, yaw, nl);
         nl++;
       }
       n++;
@@ -480,7 +488,7 @@ export class Pedestrians {
       const R = D.rag, gh = p.fy !== undefined ? () => p.fy : (x, z) => this.layout.groundHeight?.(x, z) ?? 0, cq = this._rq || (this._rq = []);
       R.step(dt, gh, p.fy !== undefined ? () => this.indoorColliders || [] : this.collision ? (x, z) => this.collision.query(x - 2, z - 2, x + 2, z + 2, cq) : null);
       D.x = R.hips.x; D.z = R.hips.z; D.y = R.hips.y; D.landed = R.landed;
-      if (!D.thud && R.landed) { D.thud = true; bus.emit('ped:land', { x: D.x, z: D.z, speed: Math.hypot(D.vx, D.vz) }); }
+      if (!D.thud && R.landed) { D.thud = true; bus.emit('ped:land', { x: D.x, z: D.z, speed: hyp(D.vx, D.vz) }); }
       if (R.still) D.rest += dt;
       p.x = D.x; p.z = D.z; p.d = d;
       if ((D.rest > 25 && d > 40) || d > 200) { this._release(p); this.peds.splice(i, 1); return true; }
@@ -496,7 +504,7 @@ export class Pedestrians {
         D.y = g;
         if (-D.vy > 3 && !D.bounced) { D.vy = -D.vy * 0.22; D.bounced = true; D.spin *= 0.3; } // one small bounce
         else { D.landed = true; D.vy = 0; }
-        if (!D.thud) { D.thud = true; bus.emit('ped:land', { x: D.x, z: D.z, speed: Math.hypot(D.vx, D.vz) }); }
+        if (!D.thud) { D.thud = true; bus.emit('ped:land', { x: D.x, z: D.z, speed: hyp(D.vx, D.vz) }); }
       }
     } else {
       // sliding / rolling to a stop on the tarmac
@@ -505,7 +513,7 @@ export class Pedestrians {
       D.x += D.vx * dt; D.z += D.vz * dt; D.ang += D.spin * dt;
       this._bodyHit(D, D.y);
       D.y = (p.fy ?? this.layout.groundHeight?.(D.x, D.z) ?? 0) + 0.02;
-      if (Math.hypot(D.vx, D.vz) < 0.2) D.rest += dt;
+      if (hyp(D.vx, D.vz) < 0.2) D.rest += dt;
     }
     if (D.pending && D.t > 0.3 && p.human) { p.human.play(D.pending, { hold: true, rate: 1.3, fade: 0.15 }); D.pending = null; }
     p.x = D.x; p.z = D.z; p.d = d;
@@ -584,7 +592,7 @@ export class Pedestrians {
     const fx = Math.sin(yaw), fz = Math.cos(yaw);
     for (const p of this.peds) {
       if (p.down) continue;
-      const dx = p.x - x, dz = p.z - z, d = Math.hypot(dx, dz);
+      const dx = p.x - x, dz = p.z - z, d = hyp(dx, dz);
       if (d > range || d < 0.05) continue;
       const dot = (dx * fx + dz * fz) / d;
       if (dot < cone) continue;
@@ -600,7 +608,7 @@ export class Pedestrians {
     if (!p || p.down) return false;
     p.hp = (p.hp ?? 100) - amount;
     p.stand = null; p.board = null;
-    const dx = p.x - fromX, dz = p.z - fromZ, l = Math.hypot(dx, dz) || 1;
+    const dx = p.x - fromX, dz = p.z - fromZ, l = hyp(dx, dz) || 1;
     if (p.hp <= 0) {
       // knocked out: thrown back off their feet
       const sp = kind === 'cross' ? 3.2 : 2.4;
@@ -636,7 +644,7 @@ export class Pedestrians {
     p.hp = (p.hp ?? 100) - (head ? 200 : 55 + this.R() * 15);
     p.stand = null; p.board = null; p.fight = null;
     if (p.hp <= 0) {
-      const l = Math.hypot(dx, dz) || 1, ux = dx / l, uz = dz / l;
+      const l = hyp(dx, dz) || 1, ux = dx / l, uz = dz / l;
       p.down = { x: p.x, y: this._py(p), z: p.z, vx: ux * 1.4, vy: 0.3, vz: uz * 1.4, t: 0, landed: false, rest: 0, yaw: Math.atan2(-ux, -uz), axis: new THREE.Vector3(uz, 0, -ux).normalize(), ang: 0, spin: 0, heavy: false };
       p.flee = null; p.dodge = 0;
       if (p.human) { p.human.clearAction(0.05); p.human.play('death', { hold: true, rate: 1.25, fade: 0.05 }); }
@@ -677,7 +685,7 @@ export class Pedestrians {
 
   _flee(p, fromX, fromZ, speed = 4.6, t = 7) {
     if (p.fy !== undefined) { p.fight = null; p.stand = p.home; return; }   // indoors: nowhere to run, cowers
-    const dx = p.x - fromX, dz = p.z - fromZ, l = Math.hypot(dx, dz) || 1;
+    const dx = p.x - fromX, dz = p.z - fromZ, l = hyp(dx, dz) || 1;
     p.flee = { x: p.x, z: p.z, vx: dx / l * speed, vz: dz / l * speed, t };
     p.fight = null; p.speed = speed;
   }
@@ -686,7 +694,7 @@ export class Pedestrians {
   panic(x, z, r, except) {
     for (const q of this.peds) {
       if (q === except || q.down || q.fight || q.flee || q.fy !== undefined) continue;
-      if (Math.hypot(q.x - x, q.z - z) < r && this.R() < 0.85) { q.stand = null; q.board = null; this._flee(q, x, z, 4.2 + this.R() * 1.2, 6 + this.R() * 4); }
+      if (hyp(q.x - x, q.z - z) < r && this.R() < 0.85) { q.stand = null; q.board = null; this._flee(q, x, z, 4.2 + this.R() * 1.2, 6 + this.R() * 4); }
     }
   }
 
@@ -694,8 +702,8 @@ export class Pedestrians {
   _fight(p, dt) {
     const F = p.fight, foe = this.foe;
     F.t += dt;
-    if (!foe || !foe.alive || Math.hypot(foe.x - F.x, foe.z - F.z) > 30 || F.t > 60) { this._flee(p, foe?.x ?? F.x, foe?.z ?? F.z, 3.2, 6); p.x = F.x; p.z = F.z; return 'move'; }
-    const dx = foe.x - F.x, dz = foe.z - F.z, d = Math.hypot(dx, dz) || 1;
+    if (!foe || !foe.alive || hyp(foe.x - F.x, foe.z - F.z) > 30 || F.t > 60) { this._flee(p, foe?.x ?? F.x, foe?.z ?? F.z, 3.2, 6); p.x = F.x; p.z = F.z; return 'move'; }
+    const dx = foe.x - F.x, dz = foe.z - F.z, d = hyp(dx, dz) || 1;
     p.yaw = Math.atan2(dx, dz);
     let mv = 'still';
     if (p.stagger > 0) { p.stagger -= dt; F.x += p.svx * dt; F.z += p.svz * dt; p.svx *= 1 - dt * 5; p.svz *= 1 - dt * 5; F.sp = 0; }

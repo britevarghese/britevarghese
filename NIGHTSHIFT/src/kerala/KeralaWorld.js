@@ -186,7 +186,7 @@ export class KeralaWorld {
       this.pending.delete(k);
       if (!d) return null;
       const t = new KeralaTile(tx, tz, d);
-      this.tiles.set(k, t);
+      this.tiles.set(k, t); this._tv = (this._tv | 0) + 1;
       return t;
     }).catch(() => { this.pending.delete(k); return null; });
     this.pending.set(k, p);
@@ -465,7 +465,7 @@ export class KeralaWorld {
     for (const c of t.colliders) this.collision.remove(c);
     t.colliders = [];
     t.dispose();
-    this.tiles.delete(k);
+    this.tiles.delete(k); this._tv = (this._tv | 0) + 1;
   }
 
   // load and build the tiles around a point (before play starts)
@@ -480,9 +480,13 @@ export class KeralaWorld {
   }
 
   // -------------------------------------------------------------------------------------- queries
+  // (the last one found kept, and looked up again only for another tile or once tiles have come or gone: asked for
+  // every wheel of every car each frame, each call made a string key - garbage, ~1 MB a second of driving)
   tileAt(x, z) {
-    const E = -x, N = z;
-    return this.tiles.get(this.key(Math.floor(E / TILE), Math.floor(N / TILE)));
+    const tx = Math.floor(-x / TILE) | 0, tz = Math.floor(z / TILE) | 0;
+    if (tx === this._lTx && tz === this._lTz && this._lV === this._tv) return this._lT;
+    this._lTx = tx; this._lTz = tz; this._lV = this._tv;
+    return (this._lT = this.tiles.get(this.key(tx, tz)));
   }
 
   // y: the height of whatever asks (a car under a flyover drives on the road below, not on the deck above it)
