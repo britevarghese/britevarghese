@@ -181,7 +181,7 @@ function pilot(seconds = 15) {
   place(g, p, heli.x + 7, heli.z);
   sendFor(g, p, heli);
   assert.ok(advance(g, 20, () => p.vehicle === heli.id), 'got in');
-  advance(g, seconds);
+  advance(g, seconds + 8); // (+ the wait on the pad for a gunner, nobody coming)
   return { g, heli, p };
 }
 const agl = (g, v) => v.y - g.world.supportHeight(v.x, v.z, v.y + 0.5, 1.5);
@@ -236,4 +236,28 @@ test('the helicopter makes rocket runs on an enemy tank in the open', () => {
   assert.ok(rockets >= 4, `${rockets} rockets`);
   assert.ok(tank.hp < hp0, `tank hit (hp ${tank.hp.toFixed(0)})`);
   assert.ok(!heli.dead && heli.hp > VEHICLES.heli.hp * 0.9, 'no self-inflicted damage');
+});
+
+test('a bot pilot calls a gunner to the chin cannon before taking off; the gunner engages from the air', () => {
+  const g = mkGame('airfield');
+  const heli = g.vehicles.list.find((v) => v.type === 'heli' && v.team === 1);
+  const p = bot(g, 1, 'Pilot'), m = bot(g, 1, 'Gunner');
+  p.brain.skill = 0.85;
+  place(g, p, heli.x + 7, heli.z); place(g, m, heli.x - 14, heli.z + 6);
+  sendFor(g, p, heli);
+  assert.ok(advance(g, 20, () => p.vehicle === heli.id), 'pilot in');
+  assert.equal(m.brain.goal?.vehicle, heli.id, 'gunner called');
+  assert.ok(advance(g, 16, () => m.vehicle === heli.id), 'gunner in before take-off');
+  assert.equal(m.seat, 1);
+  assert.ok(advance(g, 20, () => heli.y - g.world.supportHeight(heli.x, heli.z, heli.y + 0.5, 1.5) > 15), 'then airborne');
+  // an enemy soldier in the open below: the gunner fires the 30 mm at him
+  const e = human(g, 2, 'Target');
+  let shots = 0;
+  for (let i = 0; i < 30 * 20 && shots < 3; i++) {
+    const a = heli.yaw, x = heli.x - Math.sin(a) * 60, z = heli.z - Math.cos(a) * 60;
+    place(g, e, x, z); e.hp = 100; e.spawnProtect = 0;
+    g.clock += 1000 / 30; g.tick(1 / 30);
+    for (const { ev } of g.flushEvents()) if (ev.t === 'shot' && ev.w === 'heli_cannon' && ev.id === m.id) shots++;
+  }
+  assert.ok(shots >= 3, `gunner fired ${shots}`);
 });

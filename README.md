@@ -170,7 +170,8 @@ altitude hands-off), LMB rockets · gunner seats aim freely with the mouse. Touc
   straight up off the pad, transit ~40 m above the highest ground and roofs ahead, an orbit over the objective, rocket
   runs on what it spots (down to ~25 m, nose on the target with elevation for the rockets' sag, a salvo, then a
   climbing break-away turn and round again), never over the enemy HQ; badly hit, it flies home and lands on its pad
-  (sliding onto it level, letting down slowly near the ground). Tanks and rocket pods only engage a helicopter
+  (sliding onto it level, letting down slowly near the ground). Before taking off the pilot calls a teammate up
+  to the 30 mm chin cannon and waits for him; the bot gunner sweeps the ground below and fires bursts at what he sees. Tanks and rocket pods only engage a helicopter
   that is hovering low and slow; the launcher can bring down one flying low and close. Infantry get out of an enemy
   tank's sight when its turret comes round to them.
 * **Vehicles** in every Conquest room, parked in each team's motor pool and respawning 25 s after being destroyed:

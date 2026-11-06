@@ -42,7 +42,7 @@ for (let i = 0; i < ticks; i++) {
     if (ev.t === 'venter' && g.players.get(ev.id)?.bot) M.enters++;
     if (ev.t === 'vexit' && g.players.get(ev.id)?.bot) M.exits++;
     if (ev.t === 'shot' && (ev.v || ev.w === 'at4') && g.players.get(ev.id)?.bot) bump(M.vshots, ev.w);
-    if (ev.t === 'kill' && ['tank_cannon', 'tank_mg', 'jeep_mg', 'roadkill', 'at4'].includes(ev.w)) bump(M.vkills, ev.w);
+    if (ev.t === 'kill' && ['tank_cannon', 'tank_mg', 'jeep_mg', 'heli_rockets', 'heli_cannon', 'roadkill', 'at4'].includes(ev.w)) bump(M.vkills, ev.w);
     if (ev.t === 'vboom') { const v = g.vehicles.get(ev.v); bump(M.vdestroyed, v ? v.type : '?'); }
     if (ev.t === 'kill' && ev.k) {
       const v = g.players.get(ev.v), k = g.players.get(ev.k);

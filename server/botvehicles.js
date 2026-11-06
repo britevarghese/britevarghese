@@ -160,8 +160,9 @@ export function vehicleGoal(brain) {
       if (v.type === 'heli' && brain.skill < 0.6) continue;
       if (Math.random() > (v.type === 'tank' ? 0.7 : v.type === 'bike' ? 0.6 : 0.5)) continue;
       if (!best || d < best.d) best = { v, seat: 0, d };
-    } else if (v.type === 'jeep' && !v.seats[1] && crewOf(g, v, 0)?.team === p.team) {
-      if (d > 35 || Math.abs(v.speed || 0) > 1.5 || claimed(g, v, 1, p, now)) continue;
+    } else if ((v.type === 'jeep' || v.type === 'heli') && !v.seats[1] && crewOf(g, v, 0)?.team === p.team) {
+      if (d > 35 || Math.hypot(v.vx || 0, v.vz || 0) > 1.5 || claimed(g, v, 1, p, now)) continue;
+      if (v.type === 'heli' && v.y - g.world.supportHeight(v.x, v.z, v.y + 0.5, 1.5) > 0.5) continue; // (only on the ground)
       if (!best || d < best.d) best = { v, seat: 1, d };
     }
   }
@@ -190,10 +191,10 @@ export function boardStep(brain) {
   g.vehicles.enter(p, v.id);
   if (!p.vehicle) return false;
   v.claims[gl.seat] = null;
-  brain.crew = newCrew(now, v.type === 'jeep' && p.seat === 0 ? now + rand(4000, 7000) : 0);
+  brain.crew = newCrew(now, (v.type === 'jeep' || v.type === 'heli') && p.seat === 0 ? now + rand(4000, 7000) : 0);
   brain.goal = null; brain.path = null;
-  // a jeep driver calls a teammate up to the gun and waits for him (a short while if nobody is coming)
-  if (v.type === 'jeep' && p.seat === 0 && !v.seats[1]) {
+  // a jeep driver / helicopter pilot calls a teammate up to the gun and waits for him (a short while if nobody comes)
+  if ((v.type === 'jeep' || v.type === 'heli') && p.seat === 0 && !v.seats[1]) {
     for (const q of g.players.values()) {
       if (q === p || !q.bot || !q.alive || q.vehicle || q.team !== p.team || q.brain?.target || q.brain?.order || Math.hypot(q.x - v.x, q.z - v.z) > 40) continue;
       if (boardGoal(q.brain, v, 1)) { brain.crew.wait = now + 14000; break; }
@@ -219,7 +220,13 @@ export function crewThink(brain, dt) {
     return;
   }
   if (v.type === 'bike') { if (p.seat === 0) ride(brain, c, v, V, dt, now); else { g.vehicles.exit(p); brain.crew = null; brain.pickGoal(); } return; }
-  if (v.type === 'heli') { if (p.seat === 0) fly(brain, c, v, V, dt, now); else if (v.landed || !v.seats[0]) { g.vehicles.exit(p); brain.crew = null; brain.pickGoal(); } return; }
+  if (v.type === 'heli') {
+    if (p.seat === 0) fly(brain, c, v, V, dt, now);
+    // gunner: works the chin cannon; gets out once the helicopter is down without a pilot (not in mid-air)
+    else if (c.noDriver && now - c.noDriver > 1500 && v.y - g.world.supportHeight(v.x, v.z, v.y + 0.5, 1.5) < 3) { g.vehicles.exit(p); brain.crew = null; brain.pickGoal(); }
+    else if (p.seat === 1 && v.seats[0]) gun(brain, c, v, dt, now);
+    return;
+  }
   if (p.seat === 0) drive(brain, c, v, V, dt, now);
   else if (v.type === 'jeep' && p.seat === 1) gun(brain, c, v, dt, now);
 }
@@ -431,7 +438,15 @@ function fly(brain, c, v, V, dt, now) {
   const eye = { x: v.x, y: v.y + 1.6, z: v.z };
   const t = H.phase === 'rtb' || H.phase === 'land' || H.phase === 'takeoff' ? null : spot(brain, c, v, eye, v.yaw, now, dt);
   p.yaw = v.yaw;
+  if (H.phase === 'takeoff' && c.wait && now < c.wait && !v.seats[1] && (!v.claims?.[1] || now < v.claims[1].until)) {
+    // on the pad, rotor turning, waiting for the gunner called up
+    v.lastInput = now; v.lastDriver = p.id; v.rest = false;
+    stepHeli(g.world, v, { collective: -0.3, pitch: 0, roll: 0, yawRate: 0, power: 1 }, dt);
+    if (v.col && !v.dead) vehicleCollider(v, v.col);
+    return;
+  }
   if (H.phase === 'takeoff') {
+    c.wait = 0;
     // straight up off the pad, clear of the trees and hangars
     wantAlt = ground + 22; wantSpeed = 0;
     if (agl > 18) H.phase = 'transit';
@@ -516,7 +531,7 @@ function step(g, v, input, dt, p, now) {
 
 // jeep roof gunner: the soldier's own eyes (standing in the ring), the .50 cal in bursts
 function gun(brain, c, v, dt, now) {
-  const g = brain.g, p = brain.p, W = VEHICLES.jeep.weapons[1];
+  const g = brain.g, p = brain.p, W = VEHICLES[v.type].weapons[1], heli = v.type === 'heli';
   if (now >= brain.nextPerceive) { brain.perceive(now); brain.nextPerceive = now + 220; }
   const t = brain.visible && brain.target;
   const eye = { x: p.x, y: p.y + EYE_HEIGHT[p.stance || 'stand'], z: p.z };
@@ -532,20 +547,21 @@ function gun(brain, c, v, dt, now) {
     const vs = veh.seats[0] && g.players.get(veh.seats[0])?.brain?.crew;
     if (vs) vs.gunnerBusy = now;
     const aimed = Math.abs(angleDiff(p.yaw, yaw - brain.aimErr.yaw)) < 0.05 + 0.8 / Math.max(d, 4);
-    if (aimed && now > brain.reactUntil && now > brain.burstPauseUntil && d < 400 && now >= v.reloadUntil[1] && now >= v.nextShot[1]) {
+    if (aimed && now > brain.reactUntil && now > brain.burstPauseUntil && d < (heli ? 700 : 400) && now >= v.reloadUntil[1] && now >= v.nextShot[1]) {
       if (brain.burstLeft <= 0) brain.burstLeft = Math.round(d > 150 ? rand(4, 7) : rand(6, 12));
-      // ring mount: ~0.35° plus the vehicle's motion
-      const spread = (0.35 + (Math.abs(v.speed) > 2 ? 0.8 : 0)) * (Math.PI / 180) * (1.5 - brain.skill * 0.6);
+      // ring mount: ~0.35° plus the vehicle's motion; the helicopter's turret is stabilised but the airframe shakes
+      const moving = Math.hypot(v.vx || 0, v.vz || 0) > 2;
+      const spread = ((heli ? 0.5 : 0.35) + (moving ? (heli ? 0.4 : 0.8) : 0)) * (Math.PI / 180) * (1.5 - brain.skill * 0.6);
       const cp = Math.cos(p.pitch);
       g.vehicles.fire(p, { d: [-Math.sin(p.yaw) * cp + rand(-spread, spread), Math.sin(p.pitch) + rand(-spread, spread), -Math.cos(p.yaw) * cp + rand(-spread, spread)] });
       brain.lastShotAt = now;
       if (--brain.burstLeft <= 0) brain.burstPauseUntil = now + rand(400, 1000);
     }
   } else {
-    // scanning: sweep the arc ahead / to the flanks
-    brain.turn(v.yaw + Math.sin(now / 2100 + p.id) * 1.4, -0.02, dt, 0.5);
+    // scanning: sweep the arc ahead / to the flanks (from the helicopter: looking down onto the ground)
+    brain.turn(v.yaw + Math.sin(now / 2100 + p.id) * 1.4, heli ? -0.35 : -0.02, dt, 0.5);
   }
   // the ring follows the gunner (what a player's client sends as its aim)
-  v.turretYaw = p.yaw; v.gunPitch = clamp(p.pitch, -0.9, 0.7);
-  (v.aim || (v.aim = []))[1] = { yaw: p.yaw, pitch: p.pitch };
+  if (!heli) { v.turretYaw = p.yaw; v.gunPitch = clamp(p.pitch, -0.9, 0.7); }
+  (v.aim || (v.aim = []))[1] = { yaw: p.yaw, pitch: clamp(p.pitch, -1.2, 0.8) };
 }
