@@ -143,7 +143,8 @@ altitude hands-off), LMB rockets · gunner seats aim freely with the mouse. Touc
   Support (carbine, pistol, anti-armour launcher, 4 frags).
 * **Server-authoritative**: the server owns ammo, fire rate, damage, hit detection (lag-compensated hitscan
   against capsule hitboxes; walls/cover block shots; head/torso/leg zones; range falloff), grenades (4 s fuse, real
-  gravity, bounce, smash windows, blast blocked by walls and vehicles), capture, tickets, respawn, chat rate limiting and movement sanity checks.
+  gravity, bounce, smash windows, blast blocked by walls and vehicles), capture, tickets, respawn, chat rate limiting and movement checks (a movement budget refilled at
+  the fastest a soldier can go: a burst of inputs after a network hiccup passes, teleports and speed hacks don't).
 * **Bots** play like people: A* navigation with smooth steering and turning (no snapping), sprint only on long clear
   stretches, walk and glance around near danger; in a fight they settle into one firing position, stop to shoot at range,
   close in when out of their weapon's range, fire controlled bursts, run to real cover when hurt, then peek; they
