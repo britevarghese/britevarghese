@@ -19,6 +19,11 @@ const PX = RASTER / TILE;
 
 // road classes (build_tiles.py ROAD_CLS): half widths (m) and draw order
 export const ROAD_HALF = [7, 6, 4.6, 4, 3.5, 2.8, 2.6, 2.2, 1.9, 1.6, 2];
+// (the length of (a, b): Math.hypot, called from the per-frame ground and road look-ups - every wheel of every car -
+// returned a fresh boxed number each time, ~10 MB of garbage a second of driving)
+const hyp = (a, b) => Math.sqrt(a * a + b * b);
+// how far (e, n) lies past row b of a drawn strip's rows R, along the line from row a to row b (see _drawnAt)
+function pastRow(R, e, n, a, b) { const de = R[b * 6] - R[a * 6], dn = R[b * 6 + 1] - R[a * 6 + 1], l = hyp(de, dn) || 1; return ((e - R[b * 6]) * de + (n - R[b * 6 + 1]) * dn) / l; }
 // land-use / class raster codes (R channel of the class canvas)
 const VALID = new Uint8Array(256);
 export const C = { land: 0, paddy: 1, grove: 2, forest: 3, town: 4, commercial: 5, industrial: 6, grass: 7, sand: 8, rock: 9, religious: 10, scrub: 11, wetland: 12, water: 20, sea: 21, road: 30, building: 31 };
@@ -438,7 +443,7 @@ export class KeralaTile {
       for (let i = 0; i < pts.length; i++) {
         // (a pause along a long one too: a river's whole line, looked over every 3 m for roads, took up to 70 ms)
         if ((i & 7) === 7 && this._due()) { yield 'tile:canals+'; this._ys = performance.now(); }
-        const [ae, an] = pts[Math.max(0, i - 1)], [be, bn] = pts[i], k = i ? Math.max(1, Math.ceil(Math.hypot(be - ae, bn - an) / 3)) : 1;
+        const [ae, an] = pts[Math.max(0, i - 1)], [be, bn] = pts[i], k = i ? Math.max(1, Math.ceil(hyp(be - ae, bn - an) / 3)) : 1;
         for (let s2 = i ? 1 : 0; s2 <= k; s2++) {
           const q = i ? [ae + (be - ae) * s2 / k, an + (bn - an) * s2 / k] : pts[0];
           // over a road: where it crosses (a culvert), a break; where it runs along it (the map's line lies on the road),
@@ -446,7 +451,7 @@ export class KeralaTile {
           const r = this._roadNear(q[0], q[1], hw + 0.8);
           if (!r) { cur.push(q); continue; }
           const [ue, un] = [pts[Math.min(pts.length - 1, Math.max(1, i))][0] - pts[Math.max(0, Math.min(pts.length - 2, i - 1))][0], pts[Math.min(pts.length - 1, Math.max(1, i))][1] - pts[Math.max(0, Math.min(pts.length - 2, i - 1))][1]];
-          const ul = Math.hypot(ue, un) || 1;
+          const ul = hyp(ue, un) || 1;
           if (Math.abs((ue * r.ue + un * r.un) / ul) < 0.8) { flush(); continue; }
           const side = r.d > 0.05 ? 1 : (cur.length ? Math.sign((cur[cur.length - 1][0] - r.ce) * r.ne + (cur[cur.length - 1][1] - r.cn) * r.nn) || 1 : 1);
           const sg = Math.sign((q[0] - r.ce) * r.ne + (q[1] - r.cn) * r.nn) || side, off = r.hw + hw + 1.4;
@@ -471,7 +476,7 @@ export class KeralaTile {
       if (k === 9) continue;
       const ring = decodeLine(rr[0], 0); if (ring.length < 3) continue;
       let area = 0, per = 0;
-      for (let i = 0; i < ring.length; i++) { const a = ring[i], b = ring[(i + 1) % ring.length]; area += a[0] * b[1] - b[0] * a[1]; per += Math.hypot(b[0] - a[0], b[1] - a[1]); }
+      for (let i = 0; i < ring.length; i++) { const a = ring[i], b = ring[(i + 1) % ring.length]; area += a[0] * b[1] - b[0] * a[1]; per += hyp(b[0] - a[0], b[1] - a[1]); }
       area = Math.abs(area) / 2;
       if (!per || area / per * 2 > 70) continue;
       const holes = rr.slice(1).map((h) => decodeLine(h, 0));
@@ -518,7 +523,7 @@ export class KeralaTile {
         const cls = L[j + 4], r = this.roads[L[j + 5]]; if (cls > 8 || r.flags & 4) continue;
         const hw = cls <= 2 && r.lanes ? Math.max(ROAD_HALF[cls], r.lanes * 1.75) : ROAD_HALF[cls];
         const ax = L[j], az = L[j + 1], dx = L[j + 2] - ax, dz = L[j + 3] - az, l2 = dx * dx + dz * dz || 1, l = Math.sqrt(l2);
-        const t = Math.max(0, Math.min(1, ((e - ax) * dx + (n - az) * dz) / l2)), ce = ax + dx * t, cn = az + dz * t, d = Math.hypot(e - ce, n - cn);
+        const t = Math.max(0, Math.min(1, ((e - ax) * dx + (n - az) * dz) / l2)), ce = ax + dx * t, cn = az + dz * t, d = hyp(e - ce, n - cn);
         if (d > hw + margin || (best && d - hw > best.d - best.hw)) continue;
         best = { ce, cn, ue: dx / l, un: dz / l, ne: -dz / l, nn: dx / l, hw, d };
       }
@@ -531,12 +536,12 @@ export class KeralaTile {
     for (const P of this._wpolys || []) {
       const [e0, n0, e1, n1] = P.box; if (e < e0 || e > e1 || n < n0 || n > n1) continue;
       let inside = false;
-      for (const R of [P.ring, ...P.holes]) for (let i = 0, j = R.length - 1; i < R.length; j = i++) { const [xi, yi] = R[i], [xj, yj] = R[j]; if ((yi > n) !== (yj > n) && e < (xj - xi) * (n - yi) / (yj - yi || 1e-9) + xi) inside = !inside; }
+      for (let h = -1; h < P.holes.length; h++) { const R = h < 0 ? P.ring : P.holes[h]; for (let i = 0, j = R.length - 1; i < R.length; j = i++) { const [xi, yi] = R[i], [xj, yj] = R[j]; if ((yi > n) !== (yj > n) && e < (xj - xi) * (n - yi) / (yj - yi || 1e-9) + xi) inside = !inside; } }   // (no new list of the rings each call: garbage a wheel a frame)
       if (inside) return P.y - 0.9;
     }
     if (!this._cnG) return -Infinity;
     for (let a = -1; a <= 1; a++) for (let b = -1; b <= 1; b++) {
-      const L = this._cnG.get((Math.floor(e / 20) + a) * 1000 + Math.floor(n / 20) + b); if (!L) continue;
+      const L = this._cnG.get(((Math.floor(e / 20) + a) * 1000 + Math.floor(n / 20) + b) | 0); if (!L) continue;
       for (let j = 0; j < L.length; j += 6) {
         const ax = L[j], az = L[j + 1], dx = L[j + 2] - ax, dz = L[j + 3] - az, l2 = dx * dx + dz * dz || 1;
         const t = Math.max(0, Math.min(1, ((e - ax) * dx + (n - az) * dz) / l2));
@@ -570,7 +575,7 @@ export class KeralaTile {
       const R = r.cls <= 1 ? 90 : r.cls <= 3 ? 50 : r.cls <= 5 ? 28 : 14, out = [P[0]];
       for (let i = 1; i < P.length - 1; i++) {
         const A = P[i - 1], B = P[i], Cn = P[i + 1];
-        const l1 = Math.hypot(B[0] - A[0], B[1] - A[1]), l2 = Math.hypot(Cn[0] - B[0], Cn[1] - B[1]);
+        const l1 = hyp(B[0] - A[0], B[1] - A[1]), l2 = hyp(Cn[0] - B[0], Cn[1] - B[1]);
         if (uses.get(key(B)) > 1 || l1 < 0.5 || l2 < 0.5) { out.push(B); continue; }
         const u1 = [(B[0] - A[0]) / l1, (B[1] - A[1]) / l1], u2 = [(Cn[0] - B[0]) / l2, (Cn[1] - B[1]) / l2];
         const th = Math.acos(Math.max(-1, Math.min(1, u1[0] * u2[0] + u1[1] * u2[1])));
@@ -619,7 +624,7 @@ export class KeralaTile {
       if (r.cls > 7 || r.flags & 6 || r.pts.length < 2) continue;
       const hw = r.cls <= 2 && r.lanes ? Math.max(ROAD_HALF[r.cls], r.lanes * 1.75) : ROAD_HALF[r.cls];
       // walk the road: a plot every so often on each side
-      const P = r.pts, D = [0]; for (let i = 1; i < P.length; i++) D.push(D[i - 1] + Math.hypot(P[i][0] - P[i - 1][0], P[i][1] - P[i - 1][1]));
+      const P = r.pts, D = [0]; for (let i = 1; i < P.length; i++) D.push(D[i - 1] + hyp(P[i][0] - P[i - 1][0], P[i][1] - P[i - 1][1]));
       const len = D[D.length - 1]; if (len < 30) continue;
       const at = (d0) => { let i = 1; while (i < P.length - 1 && D[i] < d0) i++; const u = (d0 - D[i - 1]) / ((D[i] - D[i - 1]) || 1), a = P[i - 1], b = P[i], l = (D[i] - D[i - 1]) || 1; return [a[0] + (b[0] - a[0]) * u, a[1] + (b[1] - a[1]) * u, (b[0] - a[0]) / l, (b[1] - a[1]) / l]; };
       for (const side of [1, -1]) {
@@ -634,7 +639,7 @@ export class KeralaTile {
           const c = [e + ne * (back + dep / 2), n + nn * (back + dep / 2)];
           const ring = [[-w / 2, -dep / 2], [w / 2, -dep / 2], [w / 2, dep / 2], [-w / 2, dep / 2]].map(([a, b]) => [c[0] + te * a + ne * b, c[1] + tn * a + nn * b]);
           let e0 = Infinity, e1 = -Infinity, n0 = Infinity, n1 = -Infinity; for (const [x, z] of ring) { e0 = Math.min(e0, x); e1 = Math.max(e1, x); n0 = Math.min(n0, z); n1 = Math.max(n1, z); }
-          const good = e0 > 2 && n0 > 2 && e1 < TILE - 2 && n1 < TILE - 2 && free(e0, n0, e1, n1) && !isl.some((I) => Math.hypot(c[0] - I.ce, c[1] - I.cn) < I.rin + 6)
+          const good = e0 > 2 && n0 > 2 && e1 < TILE - 2 && n1 < TILE - 2 && free(e0, n0, e1, n1) && !isl.some((I) => hyp(c[0] - I.ce, c[1] - I.cn) < I.rin + 6)
             && [...ring, c].every(([x, z]) => OK.has(lu(x, z)) && !this.onRoad(x, z, 1.2))
             && !this.onRoad(c[0] - ne * dep * 0.25, c[1] - nn * dep * 0.25, 1.2);
           if (good) {
@@ -665,14 +670,14 @@ export class KeralaTile {
     for (let i = 0; i < pts.length; i++) {
       if (used[i]) continue;
       const grp = [pts[i]]; used[i] = 1;
-      for (let q = 0; q < grp.length; q++) for (let j = 0; j < pts.length; j++) if (!used[j] && Math.hypot(pts[j][0] - grp[q][0], pts[j][1] - grp[q][1]) < 40) { used[j] = 1; grp.push(pts[j]); }
+      for (let q = 0; q < grp.length; q++) for (let j = 0; j < pts.length; j++) if (!used[j] && hyp(pts[j][0] - grp[q][0], pts[j][1] - grp[q][1]) < 40) { used[j] = 1; grp.push(pts[j]); }
       if (grp.length < 5) continue;
       let ce = 0, cn = 0; for (const [e, n] of grp) { ce += e; cn += n; } ce /= grp.length; cn /= grp.length;
       // (only a ring all round its centre: the points spread over every direction)
       const sect = new Set(grp.map(([e, n]) => Math.floor((Math.atan2(n - cn, e - ce) + Math.PI) / (Math.PI / 4))));
       if (sect.size < 6) continue;
       let rin = Infinity;
-      for (const [e, n, r] of grp) { const hw = r.cls <= 2 && r.lanes ? Math.max(ROAD_HALF[r.cls], r.lanes * 1.75) : ROAD_HALF[r.cls]; rin = Math.min(rin, Math.hypot(e - ce, n - cn) - hw - 0.6); }
+      for (const [e, n, r] of grp) { const hw = r.cls <= 2 && r.lanes ? Math.max(ROAD_HALF[r.cls], r.lanes * 1.75) : ROAD_HALF[r.cls]; rin = Math.min(rin, hyp(e - ce, n - cn) - hw - 0.6); }
       if (!(rin >= 2.5 && rin <= 45) || this.onRoad(ce, cn, 0, -1, 8)) continue;
       out.push({ ce, cn, rin, grp });
     }
@@ -702,7 +707,7 @@ export class KeralaTile {
       // inside the outline, or within m of one of its walls
       let c = false; for (let i = 0, j = R.length - 1; i < R.length; j = i++) { const [xi, yi] = R[i], [xj, yj] = R[j]; if ((yi > n) !== (yj > n) && e < ((xj - xi) * (n - yi)) / (yj - yi) + xi) c = !c; }
       if (c) return true;
-      if (m > 0) for (let i = 0, j = R.length - 1; i < R.length; j = i++) { const [ax, az] = R[j], [bx, bz] = R[i], dx = bx - ax, dz = bz - az, l2 = dx * dx + dz * dz || 1, u = Math.max(0, Math.min(1, ((e - ax) * dx + (n - az) * dz) / l2)); if (Math.hypot(ax + dx * u - e, az + dz * u - n) < m) return true; }
+      if (m > 0) for (let i = 0, j = R.length - 1; i < R.length; j = i++) { const [ax, az] = R[j], [bx, bz] = R[i], dx = bx - ax, dz = bz - az, l2 = dx * dx + dz * dz || 1, u = Math.max(0, Math.min(1, ((e - ax) * dx + (n - az) * dz) / l2)); if (hyp(ax + dx * u - e, az + dz * u - n) < m) return true; }
     }
     return false;
   }
@@ -777,7 +782,7 @@ export class KeralaTile {
       const hw = r.cls <= 2 && r.lanes ? Math.max(ROAD_HALF[r.cls], lanes * 1.75) : ROAD_HALF[r.cls];
       const P = [], at = [];
       for (let i = 1; i < r.pts.length; i++) {
-        const [ae, an] = r.pts[i - 1], [be, bn] = r.pts[i], k = Math.max(1, Math.ceil(Math.hypot(be - ae, bn - an) / 4));
+        const [ae, an] = r.pts[i - 1], [be, bn] = r.pts[i], k = Math.max(1, Math.ceil(hyp(be - ae, bn - an) / 4));
         for (let s = i === 1 ? 0 : 1; s <= k; s++) { P.push([ae + (be - ae) * s / k, an + (bn - an) * s / k]); at.push(s === k ? i : s === 0 ? i - 1 : -1); }
       }
       if (P.length < 2) continue;
@@ -785,7 +790,7 @@ export class KeralaTile {
       // (and whether the water is on both sides, as under a crossing: a road along a canal bank, the canal's line
       // drawn over its centre, has it on one side only)
       const across = P.map(([e, n], i) => {
-        const a = P[Math.max(0, i - 1)], b = P[Math.min(P.length - 1, i + 1)], de = b[0] - a[0], dn = b[1] - a[1], l = Math.hypot(de, dn) || 1, o = hw + 5;
+        const a = P[Math.max(0, i - 1)], b = P[Math.min(P.length - 1, i + 1)], de = b[0] - a[0], dn = b[1] - a[1], l = hyp(de, dn) || 1, o = hw + 5;
         return isW(e - dn / l * o, n + de / l * o) && isW(e + dn / l * o, n - de / l * o);
       });
       const water = P.map(([e, n], i) => across[i] || isW(e, n));
@@ -827,9 +832,9 @@ export class KeralaTile {
               if (!(d1 * d2 < 0 && o(c, d, a) * o(c, d, b) < 0)) continue;
               const u = d1 / (d1 - d2), pe = c[0] + (d[0] - c[0]) * u, pn = c[1] + (d[1] - c[1]) * u, k = `x${Math.round(pe)},${Math.round(pn)}`;
               // (not where they already meet at a shared point close by)
-              if (seen.has(xi + k) || x.r.pts.some((p2) => Math.hypot(p2[0] - pe, p2[1] - pn) < 6 && y.r.pts.some((p3) => Math.abs(p3[0] - p2[0]) < 0.5 && Math.abs(p3[1] - p2[1]) < 0.5))) continue;
+              if (seen.has(xi + k) || x.r.pts.some((p2) => hyp(p2[0] - pe, p2[1] - pn) < 6 && y.r.pts.some((p3) => Math.abs(p3[0] - p2[0]) < 0.5 && Math.abs(p3[1] - p2[1]) < 0.5))) continue;
               seen.add(xi + k);
-              const near = (P, pi) => (Math.hypot(P[pi - 1][0] - pe, P[pi - 1][1] - pn) < Math.hypot(P[pi][0] - pe, P[pi][1] - pn) ? pi - 1 : pi);
+              const near = (P, pi) => (hyp(P[pi - 1][0] - pe, P[pi - 1][1] - pn) < hyp(P[pi][0] - pe, P[pi][1] - pn) ? pi - 1 : pi);
               (x.xj ||= []).push([near(x.P, i), k, y, pe, pn]); (y.xj ||= []).push([near(y.P, j), k, x, pe, pn]);
             }
           }
@@ -849,17 +854,17 @@ export class KeralaTile {
               if (L[q] === xi) continue;
               const y = E[L[q]], j = L[q + 1], c = y.P[j - 1], d = y.P[j], se = d[0] - c[0], sn = d[1] - c[1];
               const u = Math.max(0, Math.min(1, ((e0 - c[0]) * se + (n0 - c[1]) * sn) / (se * se + sn * sn || 1)));
-              const pe = c[0] + se * u, pn = c[1] + sn * u, dd = Math.hypot(pe - e0, pn - n0);
+              const pe = c[0] + se * u, pn = c[1] + sn * u, dd = hyp(pe - e0, pn - n0);
               if (dd < y.hw + 1 && (!best || dd < best.dd)) best = { dd, y, j, u };
             }
           }
           if (!best) continue;
           // (not where the two share a point: that junction is in already)
-          const shared = x.r.pts.some((p2) => Math.hypot(p2[0] - e0, p2[1] - n0) < 6 && best.y.r.pts.some((p3) => Math.abs(p3[0] - p2[0]) < 0.5 && Math.abs(p3[1] - p2[1]) < 0.5));
+          const shared = x.r.pts.some((p2) => hyp(p2[0] - e0, p2[1] - n0) < 6 && best.y.r.pts.some((p3) => Math.abs(p3[0] - p2[0]) < 0.5 && Math.abs(p3[1] - p2[1]) < 0.5));
           if (shared) continue;
           // (nor where its end runs on over the other's line: that crossing is the junction. Both, each road was
           // brought to the other's level there, and the two missed each other by 0.3 m)
-          if (x.xj?.some((c) => c[2] === best.y && Math.hypot(c[3] - e0, c[4] - n0) < 6)) continue;
+          if (x.xj?.some((c) => c[2] === best.y && hyp(c[3] - e0, c[4] - n0) < 6)) continue;
           // (the ending road is brought to the other's level there once that is settled: see the junctions below)
           const t = { i, y: best.y, j: best.j, u: best.u, x };
           (x.tj ||= []).push(t); (best.y.tjOn ||= []).push(t);
@@ -871,7 +876,7 @@ export class KeralaTile {
     for (const x of E) {
       if (!(x.r.flags & 2) || x.over || x.water.some(Boolean)) continue;
       const m = x.P[x.P.length >> 1];
-      const twin = E.find((o) => o !== x && o.over && o.P.some(([e, n]) => Math.hypot(e - m[0], n - m[1]) < 30));
+      const twin = E.find((o) => o !== x && o.over && o.P.some(([e, n]) => hyp(e - m[0], n - m[1]) < 30));
       if (twin) { x.over = true; x.cross = twin.cross; }
     }
     // a roundabout is one level all round: OSM maps its ring in pieces, and each arm pulled the ring to its own height
@@ -908,7 +913,7 @@ export class KeralaTile {
     const link = new Map();   // `${i},${end}` -> [j, endJ]
     // at a junction the road carries straight on: of the ends meeting there, the pair heading most nearly opposite
     // ways (within ~35 degrees of straight, similar classes) is one road; the rest are side roads
-    const dirOut = ([i, end]) => { const p = E[i].r.pts, a = end ? p[p.length - 1] : p[0], b = end ? p[p.length - 2] : p[1], l = Math.hypot(b[0] - a[0], b[1] - a[1]) || 1; return [(b[0] - a[0]) / l, (b[1] - a[1]) / l]; };
+    const dirOut = ([i, end]) => { const p = E[i].r.pts, a = end ? p[p.length - 1] : p[0], b = end ? p[p.length - 2] : p[1], l = hyp(b[0] - a[0], b[1] - a[1]) || 1; return [(b[0] - a[0]) / l, (b[1] - a[1]) / l]; };
     for (const [k, L] of ends) {
       if (L.length < 2) continue;
       if (L.length === 2 && !through.has(k)) { if (L[0][0] !== L[1][0]) { link.set(L[0].join(','), L[1]); link.set(L[1].join(','), L[0]); } continue; }
@@ -946,11 +951,11 @@ export class KeralaTile {
           const i = fwd ? q : n - 1 - q;
           if (P.length && q === 0) { own.push([ei, i, P.length - 1]); continue; }   // the shared joint
           // (raised only over the road beneath: within ~22 m of where it crosses; the ramps do the rest)
-          own.push([ei, i, P.length]); P.push(x.P[i]); raw.push(x.raw[i]); water.push(x.water[i]); across.push(x.across[i]); ring.push(ringY.get(x)); over.push(x.over && x.cross.some(([ce, cn]) => Math.hypot(ce - x.P[i][0], cn - x.P[i][1]) < 22));
+          own.push([ei, i, P.length]); P.push(x.P[i]); raw.push(x.raw[i]); water.push(x.water[i]); across.push(x.across[i]); ring.push(ringY.get(x)); over.push(x.over && x.cross.some(([ce, cn]) => hyp(ce - x.P[i][0], cn - x.P[i][1]) < 22));
           brg.push(x.r.flags & 2 ? x.r.cls : 0);
         }
       }
-      const D = [0]; for (let i = 1; i < P.length; i++) D.push(D[i - 1] + Math.hypot(P[i][0] - P[i - 1][0], P[i][1] - P[i - 1][1]));
+      const D = [0]; for (let i = 1; i < P.length; i++) D.push(D[i - 1] + hyp(P[i][0] - P[i - 1][0], P[i][1] - P[i - 1][1]));
       // (near a chain's end the window is cut short: a straight line fitted to what it holds, not their mean. The
       // mean of a road climbing to its end lies below the end: a side road met the road at the top of a hill 2 m
       // under it, a 4 m hump between that junction and the next one 7 m on)
@@ -1093,7 +1098,7 @@ export class KeralaTile {
             let out = S;
             for (let a = -1; a <= 1; a++) for (let b = -1; b <= 1; b++) {
               const L = endsAt.get((ge + a) * 100000 + gn + b); if (!L) continue;
-              for (let q = 0; q < L.length; q += 4) if (L[q + 3] > rc && Math.hypot(L[q] - e, L[q + 1] - n) < rr) { if (out === S) out = new Set(S); out.add(L[q + 2]); }
+              for (let q = 0; q < L.length; q += 4) if (L[q + 3] > rc && hyp(L[q] - e, L[q + 1] - n) < rr) { if (out === S) out = new Set(S); out.add(L[q + 2]); }
             }
             return out;
           };
@@ -1145,7 +1150,7 @@ export class KeralaTile {
     {
       const G = new Map(), gk = (e, n) => Math.floor(e / 16) * 100000 + Math.floor(n / 16);
       roads.forEach((R, ri) => R.P.forEach(([e, n], i) => { if (R.up[i] || R.wet[i]) return; const k = gk(e, n); if (!G.has(k)) G.set(k, []); G.get(k).push(ri, i); }));
-      const dir = (R, i) => { const a = R.P[Math.max(0, i - 1)], b = R.P[Math.min(R.P.length - 1, i + 1)], de = b[0] - a[0], dn = b[1] - a[1], l = Math.hypot(de, dn) || 1; return [de / l, dn / l]; };
+      const dir = (R, i) => { const a = R.P[Math.max(0, i - 1)], b = R.P[Math.min(R.P.length - 1, i + 1)], de = b[0] - a[0], dn = b[1] - a[1], l = hyp(de, dn) || 1; return [de / l, dn / l]; };
       for (let pass = 0; pass < 2; pass++) {
         const shift = (R) => {
           const dl = new Float32Array(R.P.length);
@@ -1163,7 +1168,7 @@ export class KeralaTile {
                 // (a highway's two carriageways: one road, level with each other. Tied as loosely as the rest, two
                 // 11 m apart stayed 0.95 m apart, and the link across the median between them a 16 % ramp)
                 const dual = R.cls <= 3 && o.cls === R.cls && (R.src.r.flags & o.src.r.flags & 1);
-                const j = L[q + 1], [oe, on] = o.P[j], d = Math.hypot(oe - e, on - n), gap = R.hw + o.hw + (dual ? 14 : 6);
+                const j = L[q + 1], [oe, on] = o.P[j], d = hyp(oe - e, on - n), gap = R.hw + o.hw + (dual ? 14 : 6);
                 if (d > gap || Math.abs(o.prof[j] - R.prof[i]) > 3) continue;
                 const [vx, vy] = dir(o, j); if (Math.abs(ux * vx + uy * vy) < 0.8) continue;
                 // (and two whose strips overlap - a lane along a main road, 5 m between their middles - are one stretch
@@ -1178,7 +1183,7 @@ export class KeralaTile {
             dl[i] = (sy / sw - R.prof[i]) * _smooth(Math.min(1, Math.max(0, Math.min(e, n, TILE - e, TILE - n) / 80)));
           });
           // (smoothed along the road: no kink where the neighbour starts or ends)
-          const Dd = [0]; for (let i = 1; i < R.P.length; i++) Dd.push(Dd[i - 1] + Math.hypot(R.P[i][0] - R.P[i - 1][0], R.P[i][1] - R.P[i - 1][1]));
+          const Dd = [0]; for (let i = 1; i < R.P.length; i++) Dd.push(Dd[i - 1] + hyp(R.P[i][0] - R.P[i - 1][0], R.P[i][1] - R.P[i - 1][1]));
           // (and still nothing at the tile's edge: the average reached it from the road's last 16 m)
           const eg = (i) => { const [e, n] = R.P[i]; return _smooth(Math.min(1, Math.min(e, n, TILE - e, TILE - n) / 16)); };
           return dl.map((_, i) => { let s2 = 0, c = 0; for (let k = i; k >= 0 && Dd[i] - Dd[k] <= 16; k--) { s2 += dl[k]; c++; } for (let k = i + 1; k < dl.length && Dd[k] - Dd[i] <= 16; k++) { s2 += dl[k]; c++; } return s2 / c * eg(i); });
@@ -1219,7 +1224,7 @@ export class KeralaTile {
     {
       const lvl = (o) => o[0] / o[1], fixed = (o) => o[4] || o[5] !== undefined, pairs = [];
       for (const { parts, C, joints } of runs) {
-        const D = [0]; for (let i = 1; i < C.length; i++) { const a = C[i - 1][0].P[C[i - 1][1]], b = C[i][0].P[C[i][1]]; D.push(D[i - 1] + Math.hypot(b[0] - a[0], b[1] - a[1])); }
+        const D = [0]; for (let i = 1; i < C.length; i++) { const a = C[i - 1][0].P[C[i - 1][1]], b = C[i][0].P[C[i][1]]; D.push(D[i - 1] + hyp(b[0] - a[0], b[1] - a[1])); }
         const js = [];
         for (const [R, at] of parts) for (const [j, k] of R.joins) { const o = node.get(k); if (o && o[3] >= 2 && !(o[3] === 2 && joints.has(k))) js.push([D[at[j]], k]); }
         js.sort((a, b) => a[0] - b[0]);
@@ -1238,7 +1243,7 @@ export class KeralaTile {
       if (this._due()) { yield 'grade:junctions+'; this._ys = performance.now(); }
       const P = C.map(([R, i]) => R.P[i]), prof = C.map(([R, i]) => R.prof[i]), up = C.map(([R, i]) => R.up[i]), runX = new Set(parts.map(([R]) => R.src));
       // distance along the road
-      const D = [0]; for (let i = 1; i < P.length; i++) D.push(D[i - 1] + Math.hypot(P[i][0] - P[i - 1][0], P[i][1] - P[i - 1][1]));
+      const D = [0]; for (let i = 1; i < P.length; i++) D.push(D[i - 1] + hyp(P[i][0] - P[i - 1][0], P[i][1] - P[i - 1][1]));
       const J = [], had = new Set(), fade = (dy) => Math.min(150, Math.max(45, Math.abs(dy) / 0.08, Math.sqrt(1300 * Math.abs(dy))));
       // (a side road is at the junction's level right across the more important road's carriageway, not only at its
       // centre line: coming down a hillside it met the main road's edge half a metre up, a step off the kerb there.
@@ -1250,7 +1255,7 @@ export class KeralaTile {
         let bd = Infinity, y = null;
         for (let k = 1; k < Y.P.length; k++) {
           const a = Y.P[k - 1], b = Y.P[k], de = b[0] - a[0], dn = b[1] - a[1], u = Math.max(0, Math.min(1, ((e - a[0]) * de + (n - a[1]) * dn) / (de * de + dn * dn || 1)));
-          const dd = Math.hypot(a[0] + de * u - e, a[1] + dn * u - n); if (dd < bd) { bd = dd; y = Y.prof[k - 1] + (Y.prof[k] - Y.prof[k - 1]) * u; }
+          const dd = hyp(a[0] + de * u - e, a[1] + dn * u - n); if (dd < bd) { bd = dd; y = Y.prof[k - 1] + (Y.prof[k] - Y.prof[k - 1]) * u; }
         }
         return bd < reach ? y : null;
       };
@@ -1335,10 +1340,10 @@ export class KeralaTile {
               const p = X.R?.joins.find((jk) => jk[1] === k)?.[0]; if (p == null) continue;
               for (const sg of [-1, 1]) {
                 const a = P[ci + sg]; if (!a) continue;
-                const ux = a[0] - P[ci][0], uz = a[1] - P[ci][1], ul = Math.hypot(ux, uz) || 1;
+                const ux = a[0] - P[ci][0], uz = a[1] - P[ci][1], ul = hyp(ux, uz) || 1;
                 for (const xs of [-1, 1]) {
                   const b = X.P[p + xs]; if (!b) continue;
-                  const vx = b[0] - X.P[p][0], vz = b[1] - X.P[p][1], c = (ux * vx + uz * vz) / ul / (Math.hypot(vx, vz) || 1);
+                  const vx = b[0] - X.P[p][0], vz = b[1] - X.P[p][1], c = (ux * vx + uz * vz) / ul / (hyp(vx, vz) || 1);
                   if (c < 0.5) continue;   // (more than 60 degrees apart)
                   const L = Math.min(16, (R.hw + X.hw) / Math.sqrt(Math.max(1e-4, 1 - c * c))), side = sg > 0 ? 1 : 0;
                   fk ||= [null, null];
@@ -1394,7 +1399,7 @@ export class KeralaTile {
         const j0 = Math.max(0, Math.ceil((Math.min(an, bn) - R) / S)), j1 = Math.min(N - 1, Math.floor((Math.max(an, bn) + R) / S));
         for (let j = j0; j <= j1; j++) for (let ii = i0; ii <= i1; ii++) {
           const e = ii * S, n = j * S, u = Math.max(0, Math.min(1, ((e - ae) * de + (n - an) * dn) / l2));
-          const d = Math.hypot(ae + de * u - e, an + dn * u - n), y = ya + (yb - ya) * u, k = j * N + ii;
+          const d = hyp(ae + de * u - e, an + dn * u - n), y = ya + (yb - ya) * u, k = j * N + ii;
           const B = Math.min(40, Math.max(8, Math.abs(y - pre[k]) * 1.6));
           if (d >= inner + B) continue;
           const w = d <= inner ? 1 : _smooth(1 - (d - inner) / B), q = w / ((0.5 + d) * (0.5 + d));
@@ -1435,7 +1440,7 @@ export class KeralaTile {
       // capped by one tile alone, the ground at a corner stood 0.2-0.5 m apart from the next tile's)
       const along = []; for (let q = 1; q < N - 1; q++) { if (row >= 0) along.push([q, row]); if (col >= 0) along.push([col, q]); }
       for (const [ii, jj] of along) {
-        const d = Math.hypot(ii * S - e, jj * S - n), k = jj * N + ii, c = y - 0.05 + Math.max(0, d - hw) * 0.03;
+        const d = hyp(ii * S - e, jj * S - n), k = jj * N + ii, c = y - 0.05 + Math.max(0, d - hw) * 0.03;
         if (d <= inner && H[k] > c) H[k] = c;
       }
     }
@@ -1450,7 +1455,7 @@ export class KeralaTile {
       for (let i = 1; i < P.length; i++) {
         if (wet[i - 1] || wet[i]) continue;
         const [ae, an] = P[i - 1], [be, bn] = P[i], ya = prof[i - 1], yb = prof[i];
-        const L = Math.hypot(be - ae, bn - an) || 1, ne = -(bn - an) / L, nn = (be - ae) / L, steps = Math.max(1, Math.ceil(L / 2));
+        const L = hyp(be - ae, bn - an) || 1, ne = -(bn - an) / L, nn = (be - ae) / L, steps = Math.max(1, Math.ceil(L / 2));
         for (let s2 = 0; s2 <= steps; s2++) {
           const u = s2 / steps, ce = ae + (be - ae) * u, cn = an + (bn - an) * u, y = ya + (yb - ya) * u - 0.05;
           for (const o of [-hw, -hw / 2, 0, hw / 2, hw]) {
@@ -1594,7 +1599,7 @@ export class KeralaTile {
     const P = [];
     for (let i = 0; i < pts.length; i++) {
       if (i) {
-        const [ae, an] = pts[i - 1], [be, bn] = pts[i], L = Math.hypot(be - ae, bn - an), k = Math.ceil(L / 8);
+        const [ae, an] = pts[i - 1], [be, bn] = pts[i], L = hyp(be - ae, bn - an), k = Math.ceil(L / 8);
         for (let s = 1; s < k; s++) P.push([ae + (be - ae) * s / k, an + (bn - an) * s / k]);
       }
       P.push(pts[i]);
@@ -1604,9 +1609,9 @@ export class KeralaTile {
     let along = 0;
     for (let i = 0; i < P.length; i++) {
       const a = P[Math.max(0, i - 1)], b = P[Math.min(P.length - 1, i + 1)];
-      const de = b[0] - a[0], dn = b[1] - a[1], l = Math.hypot(de, dn) || 1;
+      const de = b[0] - a[0], dn = b[1] - a[1], l = hyp(de, dn) || 1;
       const ne = -dn / l * hw, nn = de / l * hw;  // left of travel (in e/n)
-      if (i) along += Math.hypot(P[i][0] - P[i - 1][0], P[i][1] - P[i - 1][1]);
+      if (i) along += hyp(P[i][0] - P[i - 1][0], P[i][1] - P[i - 1][1]);
       const [e, n] = P[i];
       // the ground between vertices is creased (noisy SRTM): sit each vertex on the highest ground around it so
       // no ridge pokes through the strip
@@ -1643,7 +1648,7 @@ export class KeralaTile {
       for (let i = 0; i < n; i++) {
         const o = i * 6 + side * 3, q = i * 6 + (1 - side) * 3;
         const ex = P[o], ey = P[o + 1], ez = P[o + 2];
-        let dx = ex - P[q], dz = ez - P[q + 2]; const l = Math.hypot(dx, dz) || 1; dx /= l; dz /= l;
+        let dx = ex - P[q], dz = ez - P[q + 2]; const l = hyp(dx, dz) || 1; dx /= l; dz /= l;
         const ox = ex + dx * W, oz = ez + dz * W, gy = this.heightAt(-ox, oz) + 0.03;
         pos.push(ex, ey - 0.005, ez, ox, Math.min(gy, ey - 0.02) + (gy > ey ? (gy - ey) : 0), oz);
         clash.push(this._nearJunction?.(-ox, oz) || this.onRoad(-ox, oz, 0.3, ri) || this.onRoad(-(ex + dx * 0.5), ez + dz * 0.5, 0.1, ri));
@@ -1739,7 +1744,7 @@ export class KeralaTile {
       const lift = r.dirt ? 0.06 : 0.07 + (10 - r.cls) * 0.004;   // (a dirt track always under a paved road it meets)
       // ends cut at the tile border run on a little, so a road crossing the seam at an angle leaves no wedge
       const onEdge = ([e, n]) => e < 0.6 || n < 0.6 || e > TILE - 0.6 || n > TILE - 0.6;
-      const run = (a, b) => { const de = a[0] - b[0], dn = a[1] - b[1], l = Math.hypot(de, dn) || 1; return [a[0] + de / l * (hw + 1), a[1] + dn / l * (hw + 1)]; };
+      const run = (a, b) => { const de = a[0] - b[0], dn = a[1] - b[1], l = hyp(de, dn) || 1; return [a[0] + de / l * (hw + 1), a[1] + dn / l * (hw + 1)]; };
       const P = r.pts.length > 1 && (onEdge(r.pts[0]) || onEdge(r.pts[r.pts.length - 1])) ? [...r.pts] : r.pts;
       if (P !== r.pts) { if (onEdge(P[0])) P.unshift(run(P[0], P[1])); if (onEdge(P[P.length - 1])) P.push(run(P[P.length - 1], P[P.length - 2])); }
       // the road's own graded surface (its deck on a bridge), the ground where it has none (beyond a tile-edge cut);
@@ -1749,8 +1754,8 @@ export class KeralaTile {
       // climbing at 14-21 % across the edge at a slant had a flat lip 0.26 m off the next tile's strip beside it)
       const S = r.surf, runOn = (e, n) => {
         if (P === r.pts || !S || S.P.length < 2) return 0;
-        const L = S.P.length, end = Math.hypot(e - S.P[0][0], n - S.P[0][1]) < Math.hypot(e - S.P[L - 1][0], n - S.P[L - 1][1]) ? [0, 1] : [L - 1, L - 2];
-        const a = S.P[end[0]], b = S.P[end[1]], de = a[0] - b[0], dn = a[1] - b[1], l = Math.hypot(de, dn) || 1;
+        const L = S.P.length, end = hyp(e - S.P[0][0], n - S.P[0][1]) < hyp(e - S.P[L - 1][0], n - S.P[L - 1][1]) ? [0, 1] : [L - 1, L - 2];
+        const a = S.P[end[0]], b = S.P[end[1]], de = a[0] - b[0], dn = a[1] - b[1], l = hyp(de, dn) || 1;
         if (!onEdge(a)) return 0;
         const out = ((e - a[0]) * de + (n - a[1]) * dn) / l;   // (how far past that end, along the road)
         return out > 0 ? Math.max(-0.3, Math.min(0.3, (S.y[end[0]] - S.y[end[1]]) / l)) * out : 0;
@@ -1772,7 +1777,7 @@ export class KeralaTile {
           const L = F.get(a * 1000 + b); if (!L) continue;
           for (let j = 0; j < L.length; j += 7) {
             const ax = L[j], az = L[j + 1], dx = L[j + 2] - ax, dz = L[j + 3] - az, l2 = dx * dx + dz * dz || 1, t = Math.max(0, Math.min(1, ((e - ax) * dx + (n - az) * dz) / l2));
-            if (Math.hypot(ax + dx * t - e, az + dz * t - n) < L[j + 6] + hw + 5) return true;
+            if (hyp(ax + dx * t - e, az + dz * t - n) < L[j + 6] + hw + 5) return true;
           }
         }
         return false;
@@ -1780,7 +1785,7 @@ export class KeralaTile {
       const jn = (q) => (seen.get(`${Math.round(q[0])},${Math.round(q[1])}`)?.[0] || 0) >= 2, Q = [P[0]];
       for (let i = 1; i < P.length; i++) {
         if ((i & 15) === 15 && this._due()) { yield 'tile:roads+pts'; this._ys = performance.now(); }
-        const a = P[i - 1], b = P[i], L = Math.hypot(b[0] - a[0], b[1] - a[1]), ja = i === 1 || jn(a), jb = i === P.length - 1 || jn(b);
+        const a = P[i - 1], b = P[i], L = hyp(b[0] - a[0], b[1] - a[1]), ja = i === 1 || jn(a), jb = i === P.length - 1 || jn(b);
         if (L > 3) { const k = Math.ceil(L / 2.5); for (let q = 1; q < k; q++) { const d = L * q / k, pt = [a[0] + (b[0] - a[0]) * q / k, a[1] + (b[1] - a[1]) * q / k]; if ((ja && d <= 12) || (jb && L - d <= 12) || (F.size && byMain(...pt))) Q.push(pt); } }
         Q.push(b);
       }
@@ -1789,7 +1794,7 @@ export class KeralaTile {
       if (!g) continue;
       // (what the wheels drive on: see _drawnAt. And where it runs on past the edge, which way: the next tile's own strip
       // rules there, where it has one - see roadSurface)
-      const outAt = (a, b) => { const de = a[0] - b[0], dn = a[1] - b[1], l = Math.hypot(de, dn) || 1; return [a[0], a[1], de / l, dn / l]; };
+      const outAt = (a, b) => { const de = a[0] - b[0], dn = a[1] - b[1], l = hyp(de, dn) || 1; return [a[0], a[1], de / l, dn / l]; };
       r.drawn = { rows, hw, runOn: P === r.pts ? null : [onEdge(r.pts[0]) && outAt(r.pts[0], r.pts[1]), onEdge(r.pts[r.pts.length - 1]) && outAt(r.pts[r.pts.length - 1], r.pts[r.pts.length - 2])].filter(Boolean) };
       fastNormals(g);
       if (!r.dirt) {
@@ -1858,10 +1863,10 @@ export class KeralaTile {
       // the line, every ~3 m
       const P = [];
       for (let i = 0; i < r.pts.length; i++) {
-        if (i) { const [ae, an] = r.pts[i - 1], [be, bn] = r.pts[i], k = Math.ceil(Math.hypot(be - ae, bn - an) / 3); for (let j = 1; j < k; j++) P.push([ae + (be - ae) * j / k, an + (bn - an) * j / k]); }
+        if (i) { const [ae, an] = r.pts[i - 1], [be, bn] = r.pts[i], k = Math.ceil(hyp(be - ae, bn - an) / 3); for (let j = 1; j < k; j++) P.push([ae + (be - ae) * j / k, an + (bn - an) * j / k]); }
         P.push(r.pts[i]);
       }
-      const N = P.map((_, i) => { const a = P[Math.max(0, i - 1)], b = P[Math.min(P.length - 1, i + 1)], de = b[0] - a[0], dn = b[1] - a[1], l = Math.hypot(de, dn) || 1; return [-dn / l, de / l, de / l, dn / l]; });
+      const N = P.map((_, i) => { const a = P[Math.max(0, i - 1)], b = P[Math.min(P.length - 1, i + 1)], de = b[0] - a[0], dn = b[1] - a[1], l = hyp(de, dn) || 1; return [-dn / l, de / l, de / l, dn / l]; });
       const inTile = ([e, n]) => e > 0.5 && n > 0.5 && e < TILE - 0.5 && n < TILE - 0.5;
       // --- kerb, drain, footpath on both sides
       const striped = r.cls <= 3;
@@ -1925,7 +1930,7 @@ export class KeralaTile {
             edge(hw, 0.62, hw + 0.28, 0.62, white);                                             // coping
             edge(hw + 0.28, 0.62, hw + 0.28, -0.1, white, grime);                               // outer face
             if (A.wet || B.wet || !bridge) edge(hw + 0.28, -0.1, hw + 0.42, -2.6, stone, [0.08, 0.09, 0.07]); // side wall down to the water
-            const a = A.at(hw + 0.14), b = B.at(hw + 0.14), de = b[0] - a[0], dn = b[1] - a[1], L = Math.hypot(de, dn) || 1, ang = Math.atan2(-de / L, dn / L);
+            const a = A.at(hw + 0.14), b = B.at(hw + 0.14), de = b[0] - a[0], dn = b[1] - a[1], L = hyp(de, dn) || 1, ang = Math.atan2(-de / L, dn / L);
             this.colliders.push({ cx: -(this.E0 + (a[0] + b[0]) / 2), cz: this.N0 + (a[1] + b[1]) / 2, hx: 0.16, hz: Math.max(0.2, L / 2 - 0.05), cos: Math.cos(ang), sin: Math.sin(ang), angle: ang, h: Math.max(A.y0, B.y0) + 0.62, kind: 'barrier' });
           } else if (!A.med && !B.med && !A.town && !B.town && !A.water && !B.water && !bridge && r.cls <= 7 && inTile(mid) && !nj(mid[0], mid[1])
             && !this.onRoad(...A.at(hw + 0.5), 0.2, ri) && !this.onRoad(...B.at(hw + 0.5), 0.2, ri)) {
@@ -1960,7 +1965,7 @@ export class KeralaTile {
         for (const dir of [-1, 1]) {
           const k = i + dir;
           if (k < 0 || k >= r.pts.length || rnd() < 0.35) continue;
-          const [je, jn] = r.pts[i], [ke, kn] = r.pts[k], L = Math.hypot(ke - je, kn - jn);
+          const [je, jn] = r.pts[i], [ke, kn] = r.pts[k], L = hyp(ke - je, kn - jn);
           const D = J.r + 2.2;
           if (L < D + 3) continue;
           const ue = (ke - je) / L, un = (kn - jn) / L, ce = je + ue * D, cn = jn + un * D;
@@ -1977,7 +1982,7 @@ export class KeralaTile {
       // --- speed breakers in town, and manholes
       let acc = 60 + rnd() * 250, accM = 20 + rnd() * 80;
       for (let i = 1; i < r.pts.length; i++) {
-        const [ae, an] = r.pts[i - 1], [be, bn] = r.pts[i], L = Math.hypot(be - ae, bn - an);
+        const [ae, an] = r.pts[i - 1], [be, bn] = r.pts[i], L = hyp(be - ae, bn - an);
         if (L < 0.01) continue;
         const ue = (be - ae) / L, un = (bn - an) / L;
         for (; accM < L; accM += 50 + rnd() * 90) {
@@ -2001,7 +2006,7 @@ export class KeralaTile {
     for (const c of this._canals()) {
       if (this._due()) { yield 'street:canals+'; this._ys = performance.now(); }
       const P = c.run, hw = c.hw + 0.3, stone = [0.33, 0.29, 0.24], cope = [0.55, 0.53, 0.49], mud = [0.08, 0.07, 0.05];
-      const nrm = (i) => { const a = P[Math.max(0, i - 1)], b = P[Math.min(P.length - 1, i + 1)], de = b[0] - a[0], dn = b[1] - a[1], l = Math.hypot(de, dn) || 1; return [-dn / l, de / l]; };
+      const nrm = (i) => { const a = P[Math.max(0, i - 1)], b = P[Math.min(P.length - 1, i + 1)], de = b[0] - a[0], dn = b[1] - a[1], l = hyp(de, dn) || 1; return [-dn / l, de / l]; };
       const at = (i, sd, o) => { const [ne, nn] = nrm(i); return [P[i][0] + ne * o * sd, P[i][1] + nn * o * sd]; };
       const V = ([e, n], y) => [-e, y, n];
       for (let i = 1; i < P.length; i++) {
@@ -2035,7 +2040,7 @@ export class KeralaTile {
       const stone = [0.33, 0.29, 0.24], cope = [0.55, 0.53, 0.49], mud = [0.08, 0.07, 0.05], V = ([e, n], y) => [-e, y, n];
       for (const R of [P.ring, ...P.holes]) for (let i = 0; i < R.length; i++) {
         if ((i & 31) === 31 && this._due()) { yield 'street:pools+'; this._ys = performance.now(); }
-        const a = R[i], b = R[(i + 1) % R.length], L = Math.hypot(b[0] - a[0], b[1] - a[1]); if (L < 0.5) continue;
+        const a = R[i], b = R[(i + 1) % R.length], L = hyp(b[0] - a[0], b[1] - a[1]); if (L < 0.5) continue;
         const k = Math.max(1, Math.ceil(L / 4));
         for (let q = 0; q < k; q++) {
           const A = [a[0] + (b[0] - a[0]) * q / k, a[1] + (b[1] - a[1]) * q / k], B = [a[0] + (b[0] - a[0]) * (q + 1) / k, a[1] + (b[1] - a[1]) * (q + 1) / k];
@@ -2199,7 +2204,7 @@ export class KeralaTile {
       const side = rnd() < 0.5 ? 1 : -1, off = ROAD_HALF[r.cls] + 1.3;
       let prev = null, acc = SP * rnd();
       for (let i = 1; i < r.pts.length; i++) {
-        const [ae, an] = r.pts[i - 1], [be, bn] = r.pts[i], L = Math.hypot(be - ae, bn - an);
+        const [ae, an] = r.pts[i - 1], [be, bn] = r.pts[i], L = hyp(be - ae, bn - an);
         if (L < 0.01) continue;
         const ue = (be - ae) / L, un = (bn - an) / L;
         for (; acc < L; acc += SP) {
@@ -2228,7 +2233,7 @@ export class KeralaTile {
           }
           this.colliders.push({ cx: -(this.E0 + e), cz: this.N0 + n, hx: 0.18, hz: 0.18, cos: 1, sin: 0, angle: 0, h: y + 9, kind: 'pole' });
           const tops = [[-0.7, 8.05], [0.7, 8.05], [0, 8.75]].map(([dx, dy]) => [-e + Math.cos(th) * dx, y + dy, n - Math.sin(th) * dx]);
-          if (prev && Math.hypot(tops[0][0] - prev[0][0], tops[0][2] - prev[0][2]) < SP * 1.6) {
+          if (prev && hyp(tops[0][0] - prev[0][0], tops[0][2] - prev[0][2]) < SP * 1.6) {
             for (let k = 0; k < 3; k++) {
               const A = prev[k], B = tops[k], sag = 0.55 + k * 0.1;
               for (let t = 0; t < 4; t++) {
@@ -2280,7 +2285,7 @@ export class KeralaTile {
     const P = [];
     for (let i = 0; i < pts.length; i++) {
       const a = pts[Math.max(0, i - 1)], b = pts[Math.min(pts.length - 1, i + 1)];
-      const de = b[0] - a[0], dn = b[1] - a[1], l = Math.hypot(de, dn) || 1;
+      const de = b[0] - a[0], dn = b[1] - a[1], l = hyp(de, dn) || 1;
       P.push([pts[i][0] - dn / l * off, pts[i][1] + de / l * off]);
     }
     // split into the runs clear of junctions (sampled every 1.5 m)
@@ -2289,7 +2294,7 @@ export class KeralaTile {
       for (let i = 0; i < P.length; i++) {
         if ((i & 15) === 15 && due()) yield 'tile:roads+dash';
         if (i) {
-          const [ae, an] = P[i - 1], [be, bn] = P[i], k = Math.max(1, Math.ceil(Math.hypot(be - ae, bn - an) / 1.5));
+          const [ae, an] = P[i - 1], [be, bn] = P[i], k = Math.max(1, Math.ceil(hyp(be - ae, bn - an) / 1.5));
           for (let j = 1; j < k; j++) { const q = [ae + (be - ae) * j / k, an + (bn - an) * j / k]; if (this._nearJunction(q[0], q[1])) { if (cur.length > 1) runs.push(cur); cur = []; } else cur.push(q); }
         }
         if (this._nearJunction(P[i][0], P[i][1])) { if (cur.length > 1) runs.push(cur); cur = []; } else cur.push(P[i]);
@@ -2310,7 +2315,7 @@ export class KeralaTile {
     for (let i = 1; i < P.length; i++) {
       let [ae, an] = P[i - 1];
       const [be, bn] = P[i];
-      let L = Math.hypot(be - ae, bn - an);
+      let L = hyp(be - ae, bn - an);
       while (L > 0) {
         const left = (on ? dash : gap) - acc, step = Math.min(left, L);
         const t = step / L, me = ae + (be - ae) * t, mn = an + (bn - an) * t;
@@ -2365,7 +2370,7 @@ export class KeralaTile {
       const hw = hwOf(r);
       for (let i = 1; i < r.pts.length; i++) {
         if (due()) yield 'medians+';
-        const [ae, an] = r.pts[i - 1], [be, bn] = r.pts[i], L = Math.hypot(be - ae, bn - an); if (L < 1) continue;
+        const [ae, an] = r.pts[i - 1], [be, bn] = r.pts[i], L = hyp(be - ae, bn - an); if (L < 1) continue;
         const ue = (be - ae) / L, un = (bn - an) / L;
         for (let a = 2; a < L; a += 4) {
           const e = ae + ue * a, n = an + un * a;
@@ -2487,18 +2492,18 @@ export class KeralaTile {
       D.grid = new Map();
       for (let i = 0; i < m; i++) { const k = Math.floor(R[i * 6] / 8) * 100000 + Math.floor(R[i * 6 + 1] / 8); if (!D.grid.has(k)) D.grid.set(k, []); D.grid.get(k).push(i); }
     }
-    const ge = Math.floor(e / 8), gn = Math.floor(n / 8);
+    const ge = Math.floor(e / 8) | 0, gn = Math.floor(n / 8) | 0;
     // (past the strip's last row - or before its first - it's past it for every piece: clamped to the end of the
     // piece before, a point 0.4 m past a climbing road's end at a junction took the height of its row 2 m back up the
     // hill, a 0.3 m step across the junction's mouth)
-    const past = (a, b) => { const de = R[b * 6] - R[a * 6], dn = R[b * 6 + 1] - R[a * 6 + 1], l = Math.hypot(de, dn) || 1; return ((e - R[b * 6]) * de + (n - R[b * 6 + 1]) * dn) / l; };
+
     // (a closed loop - a residential ring road, its first row on its last - has no end: its joint is a bend like any
     // other, the outside of it its strip's. Read as both ends, the corner there was the ground's, a 0.21 m dip on a turn)
-    const ring = m > 2 && Math.hypot(R[0] - R[(m - 1) * 6], R[1] - R[(m - 1) * 6 + 1]) < 0.5;
-    const pastEnd = m > 1 && !ring && past(m - 2, m - 1) > 0.1, pastStart = m > 1 && !ring && past(1, 0) > 0.1;
+    const ring = m > 2 && hyp(R[0] - R[(m - 1) * 6], R[1] - R[(m - 1) * 6 + 1]) < 0.5;
+    const pastEnd = m > 1 && !ring && pastRow(R, e, n, m - 2, m - 1) > 0.1, pastStart = m > 1 && !ring && pastRow(R, e, n, 1, 0) > 0.1;
     let bd = Infinity, by = -Infinity;
     for (let a = -2; a <= 2; a++) for (let b = -2; b <= 2; b++) {
-      const L = D.grid.get((ge + a) * 100000 + gn + b); if (!L) continue;
+      const L = D.grid.get(((ge + a) * 100000 + gn + b) | 0); if (!L) continue;
       for (const i of L) {
         if (i === 0) continue;
         const j = (i - 1) * 6, k = i * 6, ae = R[j], an = R[j + 1], de = R[k] - ae, dn = R[k + 1] - an, l2 = de * de + dn * dn || 1;
@@ -2506,7 +2511,7 @@ export class KeralaTile {
         if (!ring && ((i === 1 && t * sl < -0.1) || (i === m - 1 && (t - 1) * sl > 0.1))) continue;   // (beyond the strip's end)
         if ((pastEnd && t > 1) || (pastStart && t < 0)) continue;
         const u = Math.max(0, Math.min(1, t)), ce = ae + de * u, cn = an + dn * u;
-        const d = Math.hypot(ce - e, cn - n);
+        const d = hyp(ce - e, cn - n);
         if (d >= bd) continue;
         // across the road: the signed distance along the rows' normal, each row's line from its right edge to its left
         const ue = R[j + 2] + (R[k + 2] - R[j + 2]) * u, un = R[j + 3] + (R[k + 3] - R[j + 3]) * u;
@@ -2523,14 +2528,14 @@ export class KeralaTile {
       D.grid = new Map();
       D.P.forEach(([pe, pn], i) => { const k = Math.floor(pe / 8) * 100000 + Math.floor(pn / 8); if (!D.grid.has(k)) D.grid.set(k, []); D.grid.get(k).push(i); });
     }
-    const ge = Math.floor(e / 8), gn = Math.floor(n / 8);
+    const ge = Math.floor(e / 8) | 0, gn = Math.floor(n / 8) | 0, PP = D.P;
     let bd = Infinity, by = -Infinity;
     for (let a = -2; a <= 2; a++) for (let b = -2; b <= 2; b++) {
-      const L = D.grid.get((ge + a) * 100000 + gn + b); if (!L) continue;
+      const L = D.grid.get(((ge + a) * 100000 + gn + b) | 0); if (!L) continue;
       for (const i of L) {
         if (i === 0) continue;
-        const [ae, an] = D.P[i - 1], [be, bn] = D.P[i], de = be - ae, dn = bn - an, l2 = de * de + dn * dn || 1;
-        const u = Math.max(0, Math.min(1, ((e - ae) * de + (n - an) * dn) / l2)), d = Math.hypot(ae + de * u - e, an + dn * u - n);
+        const A = PP[i - 1], B = PP[i], ae = A[0], an = A[1], de = B[0] - ae, dn = B[1] - an, l2 = de * de + dn * dn || 1;
+        const u = Math.max(0, Math.min(1, ((e - ae) * de + (n - an) * dn) / l2)), d = hyp(ae + de * u - e, an + dn * u - n);
         if (d < bd) { bd = d; by = D.y[i - 1] + (D.y[i] - D.y[i - 1]) * u; }
       }
     }
@@ -2549,7 +2554,7 @@ export class KeralaTile {
     for (const r of this.roads) {
       const D = r.deck; if (!D) continue;
       const { P, y, hw } = D, w = hw + 0.25, N = P.length;
-      const nrm = (i) => { const a = P[Math.max(0, i - 1)], b = P[Math.min(N - 1, i + 1)], de = b[0] - a[0], dn = b[1] - a[1], l = Math.hypot(de, dn) || 1; return [-dn / l, de / l]; };
+      const nrm = (i) => { const a = P[Math.max(0, i - 1)], b = P[Math.min(N - 1, i + 1)], de = b[0] - a[0], dn = b[1] - a[1], l = hyp(de, dn) || 1; return [-dn / l, de / l]; };
       const high = (i) => y[i] - this.heightAt(P[i][0], P[i][1]) > 1.1;
       for (let i = 1; i < N; i++) {
         if (!high(i - 1) && !high(i)) continue;
@@ -2648,7 +2653,7 @@ export class KeralaTile {
         // strip was tilted up toward another's 0.5 m higher)
         const cls = L[j + 4], o = this.roads[L[j + 5]], hw = L[j + 6];
         const ax = L[j], az = L[j + 1], dx = L[j + 2] - ax, dz = L[j + 3] - az, l2 = dx * dx + dz * dz || 1;
-        const t = Math.max(0, Math.min(1, ((e - ax) * dx + (n - az) * dz) / l2)), ce = ax + dx * t, cn = az + dz * t, d = Math.hypot(ce - e, cn - n);
+        const t = Math.max(0, Math.min(1, ((e - ax) * dx + (n - az) * dz) / l2)), ce = ax + dx * t, cn = az + dz * t, d = hyp(ce - e, cn - n);
         // (the nearest piece of road: every piece within reach weighs all of it by an edge, and the first, its nearest
         // point clamped to its far end, held a side road's mouth 0.18 m up)
         if (d < hw - 0.3 || d > hw + 4.5 || d >= bd) continue;
@@ -2678,14 +2683,14 @@ export class KeralaTile {
     const on = this._rsOn || (this._rsOn = []);
     on.length = 0;
     for (let a = -1; a <= 1; a++) for (let b = -1; b <= 1; b++) {
-      const L = this._rg.get((Math.floor(e / G) + a) * 1000 + Math.floor(n / G) + b); if (!L) continue;
+      const L = this._rg.get(((Math.floor(e / G) + a) * 1000 + Math.floor(n / G) + b) | 0); if (!L) continue;
       for (let j = 0; j < L.length; j += 6) {
         const cls = L[j + 4], r = this.roads[L[j + 5]];
         if (r.flags & 4) continue;
         const hw = (cls <= 2 && r.lanes ? Math.max(ROAD_HALF[cls], r.lanes * 1.75) : ROAD_HALF[cls]) + 0.15;
         const ax = L[j], az = L[j + 1], dx = L[j + 2] - ax, dz = L[j + 3] - az, l2 = dx * dx + dz * dz || 1;
         const t = Math.max(0, Math.min(1, ((e - ax) * dx + (n - az) * dz) / l2));
-        const ce = ax + dx * t, cn = az + dz * t, dist = Math.hypot(ce - e, cn - n);
+        const ce = ax + dx * t, cn = az + dz * t, dist = hyp(ce - e, cn - n);
         if (dist > hw + 1.6) continue;
         // on a bridge (or its ramps): the deck, and nothing beyond its edge
         if (r.deck) {
@@ -2839,7 +2844,7 @@ export class KeralaTile {
         // (any corner more than ~1 m into a carriageway with traffic on it also goes: it would stand in a lane)
         // (and a long building lying across a road: points every ~3 m along its walls, pulled in a little)
         const along = [];
-        for (let i = 0; i < P.ring.length; i++) { const [e1, n1] = P.ring[i], [e2, n2] = P.ring[(i + 1) % P.ring.length], k = Math.floor(Math.hypot(e2 - e1, n2 - n1) / 3); for (let j = 1; j < k; j++) { const e = e1 + (e2 - e1) * j / k, n = n1 + (n2 - n1) * j / k; along.push([e + (P.ce - e) * 0.1, n + (P.cn - n) * 0.1]); } }
+        for (let i = 0; i < P.ring.length; i++) { const [e1, n1] = P.ring[i], [e2, n2] = P.ring[(i + 1) % P.ring.length], k = Math.floor(hyp(e2 - e1, n2 - n1) / 3); for (let j = 1; j < k; j++) { const e = e1 + (e2 - e1) * j / k, n = n1 + (n2 - n1) * j / k; along.push([e + (P.ce - e) * 0.1, n + (P.cn - n) * 0.1]); } }
         if (this.onRoad(P.ce, P.cn, -0.4, -1, 7) || onRd >= pts.length * 0.34 || P.ring.some(([e, n]) => this.onRoad(e, n, -1.0, -1, 7)) || along.some(([e, n]) => this.onRoad(e, n, -1.0, -1, 7))
           || P.ring.some(([e, n]) => this._nearJunction?.(e, n, -0.5, 3))) { hidden[bi] = 1; continue; }   // (nor a corner in a junction's mouth)
       }
@@ -2854,12 +2859,12 @@ export class KeralaTile {
             let pe = 0, pn = 0; deep = 0;
             // (the walls every 1.5 m)
             for (let i = 0; i < R.length; i++) {
-              const ea = R[i][0], na = R[i][1], eb = R[(i + 1) % R.length][0], nb = R[(i + 1) % R.length][1], k = Math.max(1, Math.ceil(Math.hypot(eb - ea, nb - na) / 1.5));
+              const ea = R[i][0], na = R[i][1], eb = R[(i + 1) % R.length][0], nb = R[(i + 1) % R.length][1], k = Math.max(1, Math.ceil(hyp(eb - ea, nb - na) / 1.5));
               for (let q = 0; q < k; q++) {
                 const e = ea + (eb - ea) * q / k + se, n = na + (nb - na) * q / k + sn;
                 for (let j = 0; j < segs.length; j += 5) {
                   const ax = segs[j], az = segs[j + 1], dx = segs[j + 2] - ax, dz = segs[j + 3] - az, hw = segs[j + 4], l2 = dx * dx + dz * dz || 1;
-                  const t = Math.max(0, Math.min(1, ((e - ax) * dx + (n - az) * dz) / l2)), ce = ax + dx * t, cn = az + dz * t, dd = Math.hypot(e - ce, n - cn);
+                  const t = Math.max(0, Math.min(1, ((e - ax) * dx + (n - az) * dz) / l2)), ce = ax + dx * t, cn = az + dz * t, dd = hyp(e - ce, n - cn);
                   if (dd >= hw || hw - dd <= deep) continue;
                   const l = Math.sqrt(l2);
                   deep = hw - dd; pe = (dd > 0.05 ? (e - ce) / dd : -dz / l) * deep; pn = (dd > 0.05 ? (n - cn) / dd : dx / l) * deep;
@@ -2869,7 +2874,7 @@ export class KeralaTile {
             if (deep < 0.02) break;
             se += pe; sn += pn;
           }
-          if (deep > 0.3 || Math.hypot(se, sn) > 2) { hidden[bi] = 1; continue; }
+          if (deep > 0.3 || hyp(se, sn) > 2) { hidden[bi] = 1; continue; }
           if (se || sn) { P.ring = R.map(([e, n]) => [e + se, n + sn]); P.ce += se; P.cn += sn; e0 += se; e1 += se; n0 += sn; n1 += sn; }
         }
       }
@@ -2905,7 +2910,7 @@ export class KeralaTile {
       const vb = (base - g0) / (floorH * 8), vt = (wallTop - g0) / (floorH * 8);
       for (let i = 0; i < n; i++) {
         const [e1, n1] = ring[i], [e2, n2] = ring[(i + 1) % n];
-        const L = Math.hypot(e2 - e1, n2 - n1), sp = L / colW;
+        const L = hyp(e2 - e1, n2 - n1), sp = L / colW;
         let u0, u1, nb = 0;
         if (sp < 0.62) { const k = 1 + Math.floor(rnd() * 6); u0 = (k - sp / 2) / 8; u1 = (k + sp / 2) / 8; } // between two windows
         else { nb = Math.max(1, Math.round(sp)); const k = Math.floor(rnd() * 8); u0 = k / 8; u1 = (k + nb) / 8; }
@@ -2934,7 +2939,7 @@ export class KeralaTile {
         const ip = [], iu = [], ii = [];
         let u2 = 0;
         for (let i = 0; i < n; i++) {
-          const [e1, n1] = ring[i], [e2, n2] = ring[(i + 1) % n], L = Math.hypot(e2 - e1, n2 - n1), q = i * 4;
+          const [e1, n1] = ring[i], [e2, n2] = ring[(i + 1) % n], L = hyp(e2 - e1, n2 - n1), q = i * 4;
           ip.push(-e1, top, n1, -e2, top, n2, -e1, wallTop, n1, -e2, wallTop, n2);
           iu.push(u2 / (colW * 8), 0.505, (u2 + L) / (colW * 8), 0.505, u2 / (colW * 8), 0.53, (u2 + L) / (colW * 8), 0.53);
           u2 += L;
@@ -2952,7 +2957,7 @@ export class KeralaTile {
         for (let i = 0; i < n; i++) {
           const nb = bays[i];
           if (!nb) continue;
-          const [e1, n1] = ring[i], [e2, n2] = ring[(i + 1) % n], L = Math.hypot(e2 - e1, n2 - n1);
+          const [e1, n1] = ring[i], [e2, n2] = ring[(i + 1) % n], L = hyp(e2 - e1, n2 - n1);
           const ue = (e2 - e1) / L, un = (n2 - n1) / L, oe = un * 0.55, on = -ue * 0.55; // outward (ring is CCW in e/n)
           const bw = L / nb, hw = 0.3 * bw;
           for (let f = shop ? 1 : 0; f < Math.min(floors, 8); f++) {
@@ -2974,12 +2979,12 @@ export class KeralaTile {
         // eaves (u: metres round the eaves, v: metres up the slope)
         const rise = Math.min(2.6, 0.9 + Math.sqrt(area) * 0.12), k = 0.42, ov = 0.45;
         const rp = [], ri = [], ru = [];
-        const eaves = ring.map(([e, nn]) => { const de = e - ce, dn = nn - cn, l = Math.hypot(de, dn) || 1; return [e + de / l * ov, nn + dn / l * ov]; });
+        const eaves = ring.map(([e, nn]) => { const de = e - ce, dn = nn - cn, l = hyp(de, dn) || 1; return [e + de / l * ov, nn + dn / l * ov]; });
         let per = 0;
         for (let i = 0; i <= n; i++) {
           const [e, nn] = eaves[i % n], re = ce + (ring[i % n][0] - ce) * k, rn = cn + (ring[i % n][1] - cn) * k;
-          if (i) per += Math.hypot(e - eaves[i - 1][0], nn - eaves[i - 1][1]);
-          const slope = Math.hypot(Math.hypot(e - re, nn - rn), rise + 0.15);
+          if (i) per += hyp(e - eaves[i - 1][0], nn - eaves[i - 1][1]);
+          const slope = hyp(hyp(e - re, nn - rn), rise + 0.15);
           rp.push(-e, top - 0.15, nn, -re, top + rise, rn);
           ru.push(per / 3.2, 0, per / 3.2, slope / 2.4);
         }
@@ -3018,7 +3023,7 @@ export class KeralaTile {
           this.colliders.push(box);
         }
         else for (let i = 0; i < n; i++) {
-          const [e1, n1] = ring[i], [e2, n2] = ring[(i + 1) % n], L = Math.hypot(e2 - e1, n2 - n1);
+          const [e1, n1] = ring[i], [e2, n2] = ring[(i + 1) % n], L = hyp(e2 - e1, n2 - n1);
           if (L < 0.3) continue;
           const ue = (e2 - e1) / L, un = (n2 - n1) / L, me = (e1 + e2) / 2 - un * 0.3, mn = (n1 + n2) / 2 + ue * 0.3; // 0.3 m inside
           const ang = Math.atan2(-ue, un);
@@ -3032,7 +3037,7 @@ export class KeralaTile {
         const PAL = kind === 6 ? [[1, 0.9, 0.7]] : kind === 7 ? [[1, 0.55, 0.12], [1, 0.85, 0.2], [1, 0.3, 0.1]] : [[0.25, 1, 0.35], [1, 1, 0.9]];
         const rows = [wallTop + 0.08, ...(wallTop - g0 > 6 ? [g0 + (wallTop - g0) * 0.55] : [])];
         for (const [ri, y] of rows.entries()) for (let i = 0; i < n; i++) {
-          const [e1, n1] = ring[i], [e2, n2] = ring[(i + 1) % n], L = Math.hypot(e2 - e1, n2 - n1);
+          const [e1, n1] = ring[i], [e2, n2] = ring[(i + 1) % n], L = hyp(e2 - e1, n2 - n1);
           if (L < 0.5) continue;
           const ue = (e2 - e1) / L, un = (n2 - n1) / L, oe = un * 0.25, on = -ue * 0.25;   // a hand's width out from the wall
           for (let d = 0; d < L; d += 0.55) {
@@ -3097,13 +3102,13 @@ export class KeralaTile {
     const m4 = new THREE.Matrix4(), X = new THREE.Vector3(), Y = new THREE.Vector3(0, 1, 0), Z = new THREE.Vector3();
     // a prop standing on edge i at fraction t, `out` metres off the wall, facing outward
     const place = (list, i, t, y, out, sx = 1, sy = 1) => {
-      const [e1, n1] = ring[i], [e2, n2] = ring[(i + 1) % n], L = Math.hypot(e2 - e1, n2 - n1), ue = (e2 - e1) / L, un = (n2 - n1) / L;
+      const [e1, n1] = ring[i], [e2, n2] = ring[(i + 1) % n], L = hyp(e2 - e1, n2 - n1), ue = (e2 - e1) / L, un = (n2 - n1) / L;
       const e = e1 + (e2 - e1) * t + un * out, nn = n1 + (n2 - n1) * t - ue * out;
       Z.set(-un, 0, -ue); X.crossVectors(Y, Z);
       m4.makeBasis(X.multiplyScalar(sx), Y.clone().multiplyScalar(sy), Z).setPosition(-e, y, nn);
       list.push([m4.clone(), C0]);
     };
-    const edges = []; for (let i = 0; i < n; i++) { const [e1, n1] = ring[i], [e2, n2] = ring[(i + 1) % n]; edges.push([i, Math.hypot(e2 - e1, n2 - n1)]); }
+    const edges = []; for (let i = 0; i < n; i++) { const [e1, n1] = ring[i], [e2, n2] = ring[(i + 1) % n]; edges.push([i, hyp(e2 - e1, n2 - n1)]); }
     // AC units (flats, shops, offices; the odd better-off house), on the pier between two windows
     if ((!house && rnd() < 0.6) || (house && floors >= 2 && rnd() < 0.2)) {
       const k = 1 + Math.floor(rnd() * Math.min(4, floors));
@@ -3129,7 +3134,7 @@ export class KeralaTile {
     {
       const A = D.ao[C0];
       for (let i = 0; i < n; i++) {
-        const [e1, n1] = ring[i], [e2, n2] = ring[(i + 1) % n], L = Math.hypot(e2 - e1, n2 - n1);
+        const [e1, n1] = ring[i], [e2, n2] = ring[(i + 1) % n], L = hyp(e2 - e1, n2 - n1);
         if (L < 0.3) continue;
         const oe = (n2 - n1) / L * 1.2, on = -(e2 - e1) / L * 1.2;
         const y1 = this.heightAt(e1, n1) + 0.05, y2 = this.heightAt(e2, n2) + 0.05, y3 = this.heightAt(e2 + oe, n2 + on) + 0.05, y4 = this.heightAt(e1 + oe, n1 + on) + 0.05;
@@ -3200,7 +3205,7 @@ export class KeralaTile {
     if (!D.wallCells) D.wallCells = new Set();
     const cell = (e, nn) => Math.round(e * 2) * 100003 + Math.round(nn * 2);
     const piece = (a, b) => {
-      const de = b[0] - a[0], dn = b[1] - a[1], L = Math.hypot(de, dn);
+      const de = b[0] - a[0], dn = b[1] - a[1], L = hyp(de, dn);
       if (L < 0.5) return;
       const ne = -dn / L * T, nn = de / L * T, ya = this.heightAt(...a) - 0.1, yb = this.heightAt(...b) - 0.1;
       const V = (p, o, y) => [-(p[0] + ne * o), y, p[1] + nn * o];
@@ -3212,7 +3217,7 @@ export class KeralaTile {
     };
     const blocked = (e, nn) => e < 0.5 || nn < 0.5 || e > TILE - 0.5 || nn > TILE - 0.5 || this.classAt(e, nn) === C.building || this.classAt(e, nn) === C.water || this.classAt(e, nn) === C.sea;
     for (let i = 0; i < 4; i++) {
-      const [pa, pb] = corners[i], [qa, qb] = corners[(i + 1) % 4], L = Math.hypot(qa - pa, qb - pb), isFront = sideOf[i] === front;
+      const [pa, pb] = corners[i], [qa, qb] = corners[(i + 1) % 4], L = hyp(qa - pa, qb - pb), isFront = sideOf[i] === front;
       const gate = isFront && L > 5 ? L / 2 : -1;
       let run = null, last = null, kRun = 0;
       for (let d = 0; d <= L + 1e-6; d += 1) {
@@ -3238,7 +3243,7 @@ export class KeralaTile {
         let k = 1, g = W2(ga, gb);
         for (let s2 = 0; s2 < 16 && this.onRoad(g[0], g[1], 0.7, -1, 9); s2++) { k *= 0.93; g = W2(ga * k, gb * k); }
         if (!blocked(...g) && !this.onRoad(g[0], g[1], 0.7, -1, 9) && !this._nearJunction?.(g[0], g[1], 3, 3)) {
-          const de = (qa - pa) * ux - (qb - pb) * uy, dn = (qa - pa) * uy + (qb - pb) * ux, l = Math.hypot(de, dn) || 1, ue = de / l, un = dn / l;
+          const de = (qa - pa) * ux - (qb - pb) * uy, dn = (qa - pa) * uy + (qb - pb) * ux, l = hyp(de, dn) || 1, ue = de / l, un = dn / l;
           Z.set(-un, 0, -ue); X.crossVectors(Y, Z);
           m4.makeBasis(X, Y, Z).setPosition(-g[0], this.heightAt(...g) - 0.05, g[1]);
           D.props.gate.push([m4.clone(), C0]);

@@ -8,6 +8,7 @@ import { VehiclePhysics } from '../physics/VehiclePhysics.js';
 import { obbOverlap } from '../physics/Collision.js';
 import { bus } from '../core/EventBus.js';
 import { TRAFFIC_VEHICLES } from '../vehicles/VehicleCatalog.js';
+const hyp = (a, b) => Math.sqrt(a * a + b * b);   // (Math.hypot returned a fresh boxed number each call: garbage every frame)
 
 export const TYPE_SPECS = {
   sedan: { w: 1.84, l: 4.88, mass: 1500, weight: 30 },
@@ -124,7 +125,7 @@ export class TrafficManager {
       const lane = lanes[Math.floor(R() * lanes.length)];
       const s = R() * lane.length;
       lane.sample(s, tmp);
-      const d = Math.hypot(tmp.x - px, tmp.z - pz);
+      const d = hyp(tmp.x - px, tmp.z - pz);
       if (d < rMin || d > rMax) continue;
       // avoid spawning right in front of the camera view if close
       if (forward && d < rMin + 40) { const dot = ((tmp.x - px) * forward.x + (tmp.z - pz) * forward.z) / d; if (dot > 0.5) continue; }
@@ -153,10 +154,10 @@ export class TrafficManager {
     // (nor where the player's car or a police car is standing: a scooter parked into the player's car stopped by the
     // kerb was knocked flat on the spot)
     lane.sample(s, tmp);
-    if (dynamic.some((v) => Math.hypot(v.physics.s.x - tmp.x, v.physics.s.z - tmp.z) < 8)) return;
+    if (dynamic.some((v) => hyp(v.physics.s.x - tmp.x, v.physics.s.z - tmp.z) < 8)) return;
     // (nor across the road from another parked one: two, one each side 3 m apart, left a gap for one way at a time,
     // and the van you tail waited a minute and a half for the stream coming the other way to let it through)
-    if (this.cars.some((o) => o.state === 'parked' && Math.hypot(o.x - tmp.x, o.z - tmp.z) < 14)) return;
+    if (this.cars.some((o) => o.state === 'parked' && hyp(o.x - tmp.x, o.z - tmp.z) < 14)) return;
     const pool = ['m800', 'dzire', 'brezza', 'ertiga', 'scorpio', 'thar', 'bolero', 'minitruck', 'auto', 'scooter', 'commuter'].filter((t) => this.renderer?.types?.[t]);
     if (!pool.length) return;
     const type = pool[Math.floor(R() * pool.length)], sp = TYPE_SPECS[type];
@@ -246,7 +247,7 @@ export class TrafficManager {
   _inView(c) {
     const cam = this.camera;
     if (!cam) return false;
-    const dx = c.x - cam.position.x, dz = c.z - cam.position.z, d = Math.hypot(dx, dz) || 1;
+    const dx = c.x - cam.position.x, dz = c.z - cam.position.z, d = hyp(dx, dz) || 1;
     cam.getWorldDirection(_dir);
     return d < 60 || (dx * _dir.x + dz * _dir.z) / d > 0.55;
   }
@@ -255,7 +256,7 @@ export class TrafficManager {
   _behindCam(c) {
     const cam = this.camera;
     if (!cam) return false;
-    const dx = c.x - cam.position.x, dz = c.z - cam.position.z, d = Math.hypot(dx, dz);
+    const dx = c.x - cam.position.x, dz = c.z - cam.position.z, d = hyp(dx, dz);
     if (d < 12) return false;
     cam.getWorldDirection(_dir);
     return (dx * _dir.x + dz * _dir.z) / d < 0.2;
@@ -284,15 +285,15 @@ export class TrafficManager {
     // how long each of the player's, the police's, the racers' vehicles has stood still (traffic goes round one
     // stopped a while)
     const dstop = this._dynStop ||= new Map();
-    for (const v of dynamic) { const s = v.physics.s; dstop.set(v, Math.hypot(s.vx, s.vz) < 0.5 ? (dstop.get(v) || 0) + dt : 0); }
+    for (const v of dynamic) { const s = v.physics.s; dstop.set(v, hyp(s.vx, s.vz) < 0.5 ? (dstop.get(v) || 0) + dt : 0); }
     if (dstop.size > dynamic.length + 8) for (const k of dstop.keys()) if (!dynamic.includes(k)) dstop.delete(k);
     // cars parked half on the road along town and village streets (Kerala has few car parks)
     if (this.world.kerala && this.frame % 20 === 0 && this.cars.filter((c) => c.state === 'parked').length < (this.preset.traffic > 20 ? 10 : 5)) this._spawnParked(focus, dynamic);
     for (const c of [...this.cars]) {
-      const d = Math.hypot(c.x - focus.x, c.z - focus.z);
+      const d = hyp(c.x - focus.x, c.z - focus.z);
       c.dist = d;
       let dm = d;
-      for (const f of foci) dm = Math.min(dm, Math.hypot(c.x - f.x, c.z - f.z));
+      for (const f of foci) dm = Math.min(dm, hyp(c.x - f.x, c.z - f.z));
       // cars left well behind are recycled so the budget stays around (and ahead of) the player
       const behind = forward && dm === d && d > 150 && ((c.x - focus.x) * forward.x + (c.z - focus.z) * forward.z) / d < -0.4 && this.cars.length >= max * 0.8;
       if (c.incident) continue; // an accident scene stays until it is cleared
@@ -338,8 +339,8 @@ export class TrafficManager {
         if (hit && v === playerVehicle) bus.emit('traffic:hit', { car: c, ...hit });
         // near miss (player only)
         if (!hit && v === playerVehicle && !c.nearMissDone && c.state === 'drive') {
-          const dx = c.x - vs.x, dz = c.z - vs.z, d = Math.hypot(dx, dz);
-          const sp = Math.hypot(vs.vx, vs.vz);
+          const dx = c.x - vs.x, dz = c.z - vs.z, d = hyp(dx, dz);
+          const sp = hyp(vs.vx, vs.vz);
           if (d < 3.4 + c.spec.w * 0.5 && sp > 22) { c.nearMissDone = true; bus.emit('traffic:nearMiss', { car: c, speed: sp }); }
         }
       }
@@ -349,7 +350,7 @@ export class TrafficManager {
     list.length = 0;
     for (const c of this.cars) {
       // (rolling at its own wheel size: an auto's little wheels turn fast, a bus's big ones slowly)
-      c.spin += (c.state === 'drive' ? c.v : Math.hypot(c.s2.vx, c.s2.vz)) * dt / (c.wheelR ||= TRAFFIC_VEHICLES[c.type]?.params?.wheelRadius || (c.spec.bike ? 0.3 : 0.34));
+      c.spin += (c.state === 'drive' ? c.v : hyp(c.s2.vx, c.s2.vz)) * dt / (c.wheelR ||= TRAFFIC_VEHICLES[c.type]?.params?.wheelRadius || (c.spec.bike ? 0.3 : 0.34));
       c.lod = c.dist < this.preset.carLod1Distance ? 0 : 1;
       list.push(c);
     }
@@ -507,7 +508,7 @@ export class TrafficManager {
     const along = s.vx * tmp.dx + s.vz * tmp.dz;
     this._advance(c, Math.max(0, along) * dt, false);
     // steer at a point ahead (further at speed), like a driver looking down the road
-    const sp = Math.hypot(s.vx, s.vz), T = this._pointAhead(c, 3.2 + sp * 0.55, _pa);
+    const sp = hyp(s.vx, s.vz), T = this._pointAhead(c, 3.2 + sp * 0.55, _pa);
     let diff = Math.atan2(T.x - s.x, T.z - s.z) - s.yaw;
     while (diff > Math.PI) diff -= Math.PI * 2; while (diff < -Math.PI) diff += Math.PI * 2;
     k.steer = clamp(-diff * 2.4, -1, 1);
@@ -532,7 +533,7 @@ export class TrafficManager {
     // (put back on its lane there and then, and kept to the traffic model a moment: within the physics' range the next
     // frame made it a new body where it stood, so a car run wide into a wall stayed against it for good, its place
     // on its lane running on ahead at 8 m/s)
-    if (Math.hypot(tmp.x - tmp.dz * c.lat - s.x, tmp.z + tmp.dx * c.lat - s.z) > 3 || c.offT > 1.5) { c.phys = null; c.offT = 0; c.kinT = 2; this._place(c); }
+    if (hyp(tmp.x - tmp.dz * c.lat - s.x, tmp.z + tmp.dx * c.lat - s.z) > 3 || c.offT > 1.5) { c.phys = null; c.offT = 0; c.kinT = 2; this._place(c); }
   }
 
   // A two-wheeler near the player rides like one: it steers (pure pursuit) at a point ahead on its line, its turn
@@ -544,7 +545,7 @@ export class TrafficManager {
     const Ld = 2.2 + v * 0.45, T = this._pointAhead(c, Ld, _pa);
     let diff = Math.atan2(T.x - B.x, T.z - B.z) - B.yaw;
     while (diff > Math.PI) diff -= Math.PI * 2; while (diff < -Math.PI) diff += Math.PI * 2;
-    const dist = Math.hypot(T.x - B.x, T.z - B.z) || Ld;
+    const dist = hyp(T.x - B.x, T.z - B.z) || Ld;
     const maxYr = Math.min(1.8, 9.81 * Math.tan(0.7) / Math.max(v, 0.5));
     const want = clamp(2 * v * Math.sin(diff) / dist, -maxYr, maxYr) + (v < 0.5 ? diff * 0.6 : 0);
     B.yr += (want - B.yr) * (1 - Math.exp(-dt * 7));       // the lean (and so the turn) takes a moment to build
@@ -558,7 +559,7 @@ export class TrafficManager {
     this._advance(c, clamp(ahead, v > 1 ? 0.2 * v * dt : 0, v * dt * 2 + 0.3), false);
     // pushed far off its line (a shunt, a lane change into a gap): rejoin it
     this._place(c);
-    if (Math.hypot(c.x - B.x, c.z - B.z) > 4.5) { B.x = c.x; B.z = c.z; B.yaw = c.yaw; B.yr = 0; }
+    if (hyp(c.x - B.x, c.z - B.z) > 4.5) { B.x = c.x; B.z = c.z; B.yaw = c.yaw; B.yr = 0; }
     c.x = B.x; c.z = B.z; c.yaw = B.yaw;
     if (this.world.kerala) c.y = this.world.layout.groundHeight(c.x, c.z, c.y) + 0.01;
     c.pitch = lerp(c.pitch, c.slope || 0, 0.15);
@@ -573,13 +574,13 @@ export class TrafficManager {
     const all = this.world.index?.places;
     if (!all?.length || !this.world.kerala) return;
     // (the places within ~4.5 km, kept while the traffic stays round here)
-    if (!this._pl || Math.hypot(this._pl.x - c.x, this._pl.z - c.z) > 1500) this._pl = { x: c.x, z: c.z, list: all.filter((q) => Math.hypot(-q[3] - c.x, q[4] - c.z) < 4500) };
+    if (!this._pl || hyp(this._pl.x - c.x, this._pl.z - c.z) > 1500) this._pl = { x: c.x, z: c.z, list: all.filter((q) => hyp(-q[3] - c.x, q[4] - c.z) < 4500) };
     const P = this._pl.list;
     if (!P.length) return;
     const lo = c.type === 'auto' ? 200 : c.spec.bike ? 300 : 400, hi = c.type === 'auto' ? 900 : c.spec.bus ? 4000 : c.type === 'lorry' || c.type === 'minitruck' ? 2500 : 2000;
     const want = c.spec.bus ? /^(town|city|suburb)$/ : c.type === 'lorry' || c.type === 'minitruck' ? /^(town|city|suburb|quarter|village)$/ : /./;
     for (let k = 0; k < 14; k++) {
-      const q = P[Math.floor(this.R() * P.length)], x = -q[3], z = q[4], d = Math.hypot(x - c.x, z - c.z);
+      const q = P[Math.floor(this.R() * P.length)], x = -q[3], z = q[4], d = hyp(x - c.x, z - c.z);
       if (d >= lo && d <= hi && want.test(q[0])) { c.dest = { x, z, name: q[1] }; return; }
     }
     // (none drawn: somewhere ahead along the way, so it still heads off purposefully)
@@ -595,7 +596,7 @@ export class TrafficManager {
     if (opts.length === 1) return opts[0];
     const R = this.R, D = c?.dest;
     const endOf = (o) => { const q = (o.to || o).pts; return q[q.length - 1]; };
-    const d0 = D ? Math.hypot(path.pts[path.pts.length - 1][0] - D.x, path.pts[path.pts.length - 1][1] - D.z) : 0;
+    const d0 = D ? hyp(path.pts[path.pts.length - 1][0] - D.x, path.pts[path.pts.length - 1][1] - D.z) : 0;
     let total = 0;
     // (a bus or a lorry keeps to the roads it fits: not into a village street when there's another way)
     const fits = (o) => { const L = o.to || o; return !c?.spec?.bigRoads || (L.edge?.cls ?? 0) <= 4; };
@@ -603,7 +604,7 @@ export class TrafficManager {
     const w = opts.map((o) => {
       let x = o.turn === 'straight' ? 3 : o.turn === 'uturn' ? 0.05 : 1;
       if (anyFits && !fits(o)) x *= 0.001;
-      if (D && o.turn !== 'uturn') { const [ex, ez] = endOf(o), gain = d0 - Math.hypot(ex - D.x, ez - D.z); x *= Math.exp(Math.max(-3, Math.min(3, gain / 25))); }
+      if (D && o.turn !== 'uturn') { const [ex, ez] = endOf(o), gain = d0 - hyp(ex - D.x, ez - D.z); x *= Math.exp(Math.max(-3, Math.min(3, gain / 25))); }
       total += x; return x;
     });
     let r = R() * total;
@@ -691,12 +692,12 @@ export class TrafficManager {
       // (one coming the other way, standing or slow, in its own lane: squeezed past at a walking pace with a quarter of
       // a metre to spare, not waited for. Each waiting for the other, a bus and a mission's car stood nose to nose on a
       // narrow street in Chala for good)
-      if (lat - half - c.spec.w / 2 > 0.2 && Math.hypot(s.vx, s.vz) < 3 && Math.sin(s.yaw) * fx + Math.cos(s.yaw) * fz < -0.5) { c.squeezeT = 0.5; continue; }
+      if (lat - half - c.spec.w / 2 > 0.2 && hyp(s.vx, s.vz) < 3 && Math.sin(s.yaw) * fx + Math.cos(s.yaw) * fz < -0.5) { c.squeezeT = 0.5; continue; }
       // stopped a while (the player pulled up or out of the car, a police car stopped): round it as round a parked
       // car, when nothing's coming the other way and not at a junction - and waiting behind it, a car's length back,
       // with room to pull out round it. (Traffic queued nose to tail behind a player's car stopped in the road, for
       // good: the one behind decided to go round, but 2 m back it couldn't steer out, and shuffled on the spot)
-      const stopT = this._dynStop?.get(v) || 0, vsp = Math.hypot(s.vx, s.vz), g0 = ahead - (c.spec.l / 2 + 2.4);
+      const stopT = this._dynStop?.get(v) || 0, vsp = hyp(s.vx, s.vz), g0 = ahead - (c.spec.l / 2 + 2.4);
       let g = g0 - (stopT > 1 ? 2.5 : 0);
       const round = stopT > 3 && this._goRound(c, path, s.x, s.z, half, ahead, g);
       if (round === 'by') continue;
@@ -710,7 +711,7 @@ export class TrafficManager {
       if (!v.renderer?.sirenOn) continue;
       const s = v.physics.s, dx = s.x - c.x, dz = s.z - c.z;
       if (Math.abs(dx) > 50 || Math.abs(dz) > 50) continue;
-      const vs = Math.hypot(s.vx, s.vz), al = dx * fx + dz * fz, lat = Math.abs(-dx * fz + dz * fx);
+      const vs = hyp(s.vx, s.vz), al = dx * fx + dz * fz, lat = Math.abs(-dx * fz + dz * fx);
       if (vs < 4 || lat > 6) continue;
       const way = (s.vx * fx + s.vz * fz) / vs;
       if ((al < 0 && al > -45 && way > 0.6 && vs > c.v + 1) || (al > 0 && al < 40 && way < -0.6 && lat < 3)) c.yieldT = 1.5;
@@ -753,7 +754,7 @@ export class TrafficManager {
       const cosA = Math.abs(Math.sin(o.yaw) * fx + Math.cos(o.yaw) * fz), half = (o.spec.w * cosA + o.spec.l * Math.sqrt(Math.max(0, 1 - cosA * cosA))) / 2;
       if (Math.abs(-dx * fz + dz * fx) - half - c.spec.w / 2 > 0.45) continue;
       let g = ahead - (c.spec.l + o.spec.l) / 2;
-      const round = o.knockT > 4 && Math.hypot(o.s2.vx, o.s2.vz) < 0.3 && this._goRound(c, path, o.x, o.z, half, ahead, g);
+      const round = o.knockT > 4 && hyp(o.s2.vx, o.s2.vz) < 0.3 && this._goRound(c, path, o.x, o.z, half, ahead, g);
       if (round === 'by') continue;
       if (round === 'out') g += 1.7;
       if (g < gap) { gap = g; leadV = 0; }
@@ -770,7 +771,7 @@ export class TrafficManager {
     }
     // arrived (within 70 m of where it was going, on a street it can stop in): pull in to the kerb, and once the
     // errand's done (a fare paid, a parcel dropped, someone fetched from a shop) it sets off on its next trip
-    if (c.dest && !c.pullAt && !c.spec.bus && path.kind === 'lane' && (path.edge?.cls ?? 9) >= 2 && path.length - c.s > 30 && Math.hypot(c.x - c.dest.x, c.z - c.dest.z) < 70) {
+    if (c.dest && !c.pullAt && !c.spec.bus && path.kind === 'lane' && (path.edge?.cls ?? 9) >= 2 && path.length - c.s > 30 && hyp(c.x - c.dest.x, c.z - c.dest.z) < 70) {
       c.pullAt = c.s + 12 + this.R() * 10; c.arriving = true;
     }
     if (!c.dest && c.state === 'drive' && !c.spec.bus) this._trip(c);
@@ -830,7 +831,7 @@ export class TrafficManager {
       for (let i = 0, d = 0; d <= 44; i++, d += 4) {
         const P = this._pointAhead(c, d, _pb);
         if (i) {
-          const sx = P.x - px, sz = P.z - pz, seg = Math.hypot(sx, sz);
+          const sx = P.x - px, sz = P.z - pz, seg = hyp(sx, sz);
           if (seg > 0.8) {
             const h = Math.atan2(sx, sz);
             if (ph !== null) {
@@ -977,7 +978,7 @@ export class TrafficManager {
       if (vn < 0) { s.vx -= 1.3 * vn * h.nx; s.vz -= 1.3 * vn * h.nz; }
       box.cx = c.x; box.cz = c.z;
     }
-    if (c.knockT > 2.5 && Math.hypot(s.vx, s.vz) < 0.5) c.state = 'wreck';
+    if (c.knockT > 2.5 && hyp(s.vx, s.vz) < 0.5) c.state = 'wreck';
     if (c.state === 'wreck' && c.knockT > 14 && !c.incident && !c.riderOff) {
       // try to rejoin traffic if the car is still near a lane and roughly aligned
       const near = this.graph.nearest(c.x, c.z);
@@ -993,7 +994,7 @@ export class TrafficManager {
     const list = this.renderList;
     list.length = 0;
     for (const c of this.remote()) {
-      c.dist = Math.hypot(c.x - focus.x, c.z - focus.z);
+      c.dist = hyp(c.x - focus.x, c.z - focus.z);
       c.lod = c.dist < this.preset.carLod1Distance ? 0 : 1;
       list.push(c);
     }

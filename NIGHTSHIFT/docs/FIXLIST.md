@@ -523,6 +523,14 @@ the game. Newly found problems go at the end of their section.
     as the game has compiled it: a fresh copy of the same code, or the same function once its type feedback is
     cleared and warmed again, allocates nothing - nor does a fresh copy fed the game's own recorded calls. Left as is
     (grid keys as whole numbers, the grids as Float64Arrays, the loop as a module function: none of it changed it)
+- [x] Garbage every frame of an ordinary drive (a sampling heap profile over 20 s, nothing being built): 58 MB a second.
+  The ground and road look-ups - every wheel of every car, every frame - made it: a closure in each call, Math.hypot
+  (a fresh boxed number each time, ~10 MB a second on its own), the grid keys, and a new list of a pond's rings.
+  Plain arithmetic now (the roads scan the same: kinks over 6/12/20 cm 85/9/0, as before): 58 -> 23 MB a second.
+  On a 3-minute drive (traced): the average step 7.8 -> 6.2 ms, frames over 16 ms 142 -> 47, over 33 ms 11 -> 3, the
+  worst major collection 144 -> 88 ms. (What's left is mostly the traffic's driving, three.js's animation of the
+  characters and the people: not traced further.) The tiles built round Kannur: the same but for a shoulder quad
+  and a few centimetres of kerb where two equal distances now tie the other way
 - [x] Leaks over a long session (tools/dev/leaks.mjs: Kannur, Thalassery, Mattannur and round again, three laps).
   The heap after a garbage collection was flat lap on lap (Kannur 357 -> 363 MB), but the GPU's textures and
   geometries kept growing (textures +100-160 a lap, geometries +80-230, characters' skeletons +60):

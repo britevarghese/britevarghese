@@ -14,6 +14,7 @@ import { KeralaLaneGraph } from './KeralaLanes.js';
 import { KeralaRouter } from './KeralaRouter.js';
 import { KeralaTrees } from './KeralaTrees.js';
 import { KeralaTea } from './KeralaTea.js';
+const hyp = (a, b) => Math.sqrt(a * a + b * b);   // (Math.hypot returned a fresh boxed number each call: garbage every frame)
 
 const BASE = '/assets/world/kerala/';
 // tiles loaded around the player (5 x 5 = 10 x 10 km; on a phone 3 x 3, which keeps the browser's memory in
@@ -212,7 +213,7 @@ export class KeralaWorld {
         const [ax, az] = l.pts[i - 1], [bx, bz] = l.pts[i], dx = bx - ax, dz = bz - az, L2 = dx * dx + dz * dz || 1;
         if (Math.abs(x - ax) > 60 && Math.abs(x - bx) > 60) continue;
         const u = Math.max(0, Math.min(1, ((x - ax) * dx + (z - az) * dz) / L2));
-        if (Math.hypot(ax + dx * u - x, az + dz * u - z) < 2.2) return true;
+        if (hyp(ax + dx * u - x, az + dz * u - z) < 2.2) return true;
       }
       return false;
     };
@@ -243,7 +244,7 @@ export class KeralaWorld {
       if ((++n & 63) === 0 && due()) yield 'world:clear+grid';
       if (l.edge.cls > 6) continue;
       for (let i = 1; i < l.pts.length; i++) {
-        const [ax, az] = l.pts[i - 1], [bx, bz] = l.pts[i], L = Math.hypot(bx - ax, bz - az);
+        const [ax, az] = l.pts[i - 1], [bx, bz] = l.pts[i], L = hyp(bx - ax, bz - az);
         // (the tiles round it have their lanes in too: only the ones by this tile's colliders)
         if (Math.max(ax, bx) < x0 || Math.min(ax, bx) > x1 || Math.max(az, bz) < z0 || Math.min(az, bz) > z1) continue;
         for (let d = 0; d <= L; d += 1.5) { const x = ax + (bx - ax) * Math.min(1, d / L), z = az + (bz - az) * Math.min(1, d / L), k = Math.floor(x / G) * 100003 + Math.floor(z / G); if (!grid.has(k)) grid.set(k, []); grid.get(k).push(x, z); }
@@ -270,7 +271,7 @@ export class KeralaWorld {
     let grid = grids?.get(t);
     if (!grid) grid = this._laneGrid(t, G), grids?.set(t, grid);
     for (const c of left) {
-      const r = Math.hypot(c.hx, c.hz) + 1;
+      const r = hyp(c.hx, c.hz) + 1;
       let hit = false;
       for (let gx = Math.floor((c.cx - r) / G); gx <= Math.floor((c.cx + r) / G) && !hit; gx++) for (let gz = Math.floor((c.cz - r) / G); gz <= Math.floor((c.cz + r) / G) && !hit; gz++) {
         const P = grid.get(gx * 100003 + gz); if (!P) continue;
@@ -571,8 +572,8 @@ export class KeralaWorld {
         // (the middle of a piece of road at least 16 m long: not on a junction, its speed breakers or a bend)
         for (let i = 0; i < r.pts.length - 1; i++) {
           const [e, n] = r.pts[i], [e2, n2] = r.pts[i + 1];
-          if (Math.hypot(e2 - e, n2 - n) < 16 && r.pts.length > 2) continue;
-          const gx = -(t.E0 + (e + e2) / 2), gz = t.N0 + (n + n2) / 2, d = Math.hypot(gx - x, gz - z);
+          if (hyp(e2 - e, n2 - n) < 16 && r.pts.length > 2) continue;
+          const gx = -(t.E0 + (e + e2) / 2), gz = t.N0 + (n + n2) / 2, d = hyp(gx - x, gz - z);
           if (d < bd) { bd = d; best = { x: gx, z: gz, yaw: Math.atan2(-(e2 - e), n2 - n), name: r.name || r.ref }; }
         }
       }
@@ -590,7 +591,7 @@ export class KeralaWorld {
     // the nearest town or neighbourhood gives the local name
     let place = null, bd = 2500;
     for (const p of this.index?.places || []) {
-      const px = -p[3], pz = p[4], d = Math.hypot(px - x, pz - z) / (p[0] === 'city' ? 3 : p[0] === 'town' ? 2 : 1);
+      const px = -p[3], pz = p[4], d = hyp(px - x, pz - z) / (p[0] === 'city' ? 3 : p[0] === 'town' ? 2 : 1);
       if (d < bd) { bd = d; place = p[1]; }
     }
     const r = { id: name || 'kerala', name: place && place !== name ? `${place}, ${name}` : name };   // (not 'Kannur, Kannur')
@@ -603,7 +604,7 @@ export class KeralaWorld {
     // (the streets round about looked up again only every 15 m or as the lanes change: a standing group's few people
     // at once, each looking them all up, ~10 ms)
     const C = this._psC;
-    const lanes = C && C.v === this.lanes.version && Math.hypot(C.x - focus.x, C.z - focus.z) < 15 ? C.lanes
+    const lanes = C && C.v === this.lanes.version && hyp(C.x - focus.x, C.z - focus.z) < 15 ? C.lanes
       : (this._psC = { x: focus.x, z: focus.z, v: this.lanes.version, lanes: this.lanes.lanesNear(focus.x, focus.z, 30, 200).filter((l) => l.edge.cls >= 3 && l.edge.cls <= 7 && l.laneIndex === 0 && l.pts.length >= 2) }).lanes;
     if (!lanes.length) return null;
     for (let tries = 0; tries < 6; tries++) {
@@ -617,7 +618,7 @@ export class KeralaWorld {
 
   // a walk along the road's edge (a pedSegment) that stays off every carriageway
   pedWalkClear(g) {
-    const L = Math.hypot(g.bx - g.ax, g.bz - g.az), n = Math.max(4, Math.ceil(L / 2));
+    const L = hyp(g.bx - g.ax, g.bz - g.az), n = Math.max(4, Math.ceil(L / 2));
     for (let k = 0; k <= n; k++) if (this.onCarriageway(g.ax + (g.bx - g.ax) * k / n, g.az + (g.bz - g.az) * k / n, -0.3)) return false;
     return true;
   }
@@ -652,7 +653,7 @@ export class KeralaWorld {
     const i = Math.floor(R() * (l.pts.length - 1)), a = l.pts[i], b = l.pts[i + 1];
     // off the carriageway: 1.3 m beyond the road's edge (the kerb-side lane's centre is (lanes - 0.5) lanes in)
     const hw = ROAD_HALF[l.edge.cls] ?? 3, laneOff = ((l.lanes || 1) - 0.5) * 3.2, off = Math.max(2.6, hw + 1.3 - laneOff);
-    const dx = b[0] - a[0], dz = b[1] - a[1], L = Math.hypot(dx, dz) || 1, ox = dz / L * off, oz = -dx / L * off;
+    const dx = b[0] - a[0], dz = b[1] - a[1], L = hyp(dx, dz) || 1, ox = dz / L * off, oz = -dx / L * off;
     // the way across the road (to the same spot on the far side), for crossing
     const across = 2 * (off + laneOff);
     return { ax: a[0] + ox, az: a[1] + oz, bx: b[0] + ox, bz: b[1] + oz, kerala: true, cross: { nx: -ox / off, nz: -oz / off, len: across } };
@@ -663,8 +664,8 @@ export class KeralaWorld {
     const out = [];
     for (const t of this.tiles.values()) {
       if (Math.abs(-(t.E0 + TILE / 2) - x) > TILE / 2 + r || Math.abs(t.N0 + TILE / 2 - z) > TILE / 2 + r) continue;
-      for (const b of t.teaShops || []) if (Math.hypot(b.x - x, b.z - z) < r) out.push({ kind: 'tea', ...b, key: `t${Math.round(b.x)},${Math.round(b.z)}` });
-      for (const b of t.busStops || []) if (Math.hypot(b.x - x, b.z - z) < r) out.push({ kind: 'bus', x: b.x, z: b.z, yaw: b.yaw, key: `b${Math.round(b.x)},${Math.round(b.z)}` });
+      for (const b of t.teaShops || []) if (hyp(b.x - x, b.z - z) < r) out.push({ kind: 'tea', ...b, key: `t${Math.round(b.x)},${Math.round(b.z)}` });
+      for (const b of t.busStops || []) if (hyp(b.x - x, b.z - z) < r) out.push({ kind: 'bus', x: b.x, z: b.z, yaw: b.yaw, key: `b${Math.round(b.x)},${Math.round(b.z)}` });
     }
     return out;
   }
@@ -673,7 +674,7 @@ export class KeralaWorld {
   // state's trees as colliders would be millions)
   _treeColliders(f) {
     if (!this.trees || !f) return;
-    if (this._tcAt && Math.hypot(f.x - this._tcAt.x, f.z - this._tcAt.z) < 20 && this._tcVer === this.tiles.size) return;
+    if (this._tcAt && hyp(f.x - this._tcAt.x, f.z - this._tcAt.z) < 20 && this._tcVer === this.tiles.size) return;
     this._tcAt = { x: f.x, z: f.z }; this._tcVer = this.tiles.size;
     for (const c of this._tc || []) this.collision.remove(c);
     this._tc = [];
@@ -797,7 +798,7 @@ export class KeralaWorld {
     for (const t of this.tiles.values()) {
       if (t.ready || Math.max(Math.abs(t.tx - tx), Math.abs(t.tz - tz)) > RADIUS) continue;
       const ex = Math.max(0, Math.abs(-f.x - (t.E0 + TILE / 2)) - TILE / 2), ez = Math.max(0, Math.abs(f.z - (t.N0 + TILE / 2)) - TILE / 2);
-      const d = this.prio?.has(this.key(t.tx, t.tz)) ? -1 : Math.hypot(ex, ez);
+      const d = this.prio?.has(this.key(t.tx, t.tz)) ? -1 : hyp(ex, ez);
       if (d < bd) { bd = d; best = t; }
     }
     // build in stages, a few milliseconds a frame (a whole tile at once stalled the game for a moment)
@@ -829,19 +830,19 @@ export class KeralaWorld {
       for (const t of this.tiles.values()) {
         if (!t.group) continue;
         const ex = Math.max(0, Math.abs(-p.x - (t.E0 + TILE / 2)) - TILE / 2), ez = Math.max(0, Math.abs(p.z - (t.N0 + TILE / 2)) - TILE / 2);
-        const near = Math.hypot(ex, ez) < 600;
+        const near = hyp(ex, ez) < 600;
         // the ground: full detail (graded roads) round the camera, coarser further out
         const T = t.terrain?.userData;
-        if (T?.lods) { const dd = Math.hypot(ex, ez), l = Math.min(T.lods.length - 1, dd < 900 ? 0 : dd < 2600 ? 1 : 2); if (l !== T.lod) { T.lod = l; t.terrain.geometry.setDrawRange(T.lods[l][0], T.lods[l][1]); } }
+        if (T?.lods) { const dd = hyp(ex, ez), l = Math.min(T.lods.length - 1, dd < 900 ? 0 : dd < 2600 ? 1 : 2); if (l !== T.lod) { T.lod = l; t.terrain.geometry.setDrawRange(T.lods[l][0], T.lods[l][1]); } }
         // roadside kiosks and shelters are small: only on the tiles round the camera
-        for (const m of t.teaMeshes || []) m.visible = Math.hypot(ex, ez) < 350;
-        if (t.stopMesh) t.stopMesh.visible = Math.hypot(ex, ez) < 450;
+        for (const m of t.teaMeshes || []) m.visible = hyp(ex, ez) < 350;
+        if (t.stopMesh) t.stopMesh.visible = hyp(ex, ez) < 450;
         for (const c of t.group.children) {
           if (this.detailOff && DETAIL.test(c.name)) c.visible = false;
           else if (c.name === 'lines' || c.name === 'linesY') c.visible = near;
           else if (c.userData.near) {
             const ex2 = Math.max(0, Math.abs(-(t.E0 + c.userData.cc[0]) - p.x) - 250), ez2 = Math.max(0, Math.abs(t.N0 + c.userData.cc[1] - p.z) - 250);
-            c.visible = near && Math.hypot(ex2, ez2) < c.userData.near;
+            c.visible = near && hyp(ex2, ez2) < c.userData.near;
             // only the parked scooters within 60 m are drawn: packed at the front of the instance list
             if (c.visible && c.userData.spots) {
               const L = c.userData.spots, gx = -t.E0 - p.x, gz = t.N0 - p.z; let k = 0;
@@ -854,7 +855,7 @@ export class KeralaWorld {
               if (!k) c.visible = false;
             }
           }
-          else if (c.userData.cc) c.visible = near && Math.hypot(-(t.E0 + c.userData.cc[0]) - p.x, t.N0 + c.userData.cc[1] - p.z) < (c.userData.far || 650);
+          else if (c.userData.cc) c.visible = near && hyp(-(t.E0 + c.userData.cc[0]) - p.x, t.N0 + c.userData.cc[1] - p.z) < (c.userData.far || 650);
         }
       }
     }
@@ -1018,7 +1019,7 @@ function lampGeometries() {
   {
     // soft edge: fade by vertex colour (additive, so dark = transparent)
     const P = pool.attributes.position, c = new Float32Array(P.count * 3);
-    for (let i = 0; i < P.count; i++) { const d = Math.hypot(P.getX(i) + 3.2, P.getZ(i)) / 7, k = Math.max(0, 1 - d) ** 1.3; c.set([k, k, k], i * 3); }
+    for (let i = 0; i < P.count; i++) { const d = hyp(P.getX(i) + 3.2, P.getZ(i)) / 7, k = Math.max(0, 1 - d) ** 1.3; c.set([k, k, k], i * 3); }
     pool.setAttribute('color', new THREE.BufferAttribute(c, 3));
   }
   const parts = [];
@@ -1141,7 +1142,7 @@ class KeralaLights {
     // real lights on the lamps nearest the camera (a little ahead of it preferred)
     if (!this.dyn.length) return;
     const fwd = _hp.set(0, 0, -1).applyQuaternion(q), fx = fwd.x, fz = fwd.z;
-    const cand = on ? this.heads.map((h) => { const dx = h[0] - p.x, dz = h[2] - p.z, d = Math.hypot(dx, dz); return { h, s: d - 15 * ((dx * fx + dz * fz) / (d || 1)) }; }).filter((c) => c.s < 110).sort((a, b) => a.s - b.s) : [];
+    const cand = on ? this.heads.map((h) => { const dx = h[0] - p.x, dz = h[2] - p.z, d = hyp(dx, dz); return { h, s: d - 15 * ((dx * fx + dz * fz) / (d || 1)) }; }).filter((c) => c.s < 110).sort((a, b) => a.s - b.s) : [];
     const want = new Set(cand.slice(0, this.dyn.length).map((c) => c.h)), free = [];
     for (const d of this.dyn) { if (d.lamp && want.has(d.lamp)) want.delete(d.lamp); else free.push(d); }
     const rest = [...want];
