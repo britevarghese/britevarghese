@@ -7,6 +7,9 @@
 // network address in its invite link (preload.js). Joining a friend's game, or an online server's, loads that address
 // in the window instead (its own saves); the app accepts the self-signed certificate of the address you gave it.
 //
+// It keeps itself up to date: a newer release on GitHub (package.json build.publish) downloads in the background and
+// installs when the game is closed.
+//
 // No menu shortcuts on letter keys: W drives and Ctrl changes down a gear, so Ctrl+W must not close the window.
 'use strict';
 const { app, BrowserWindow, Menu, dialog, shell, ipcMain, utilityProcess } = require('electron');
@@ -23,6 +26,11 @@ const ICON = path.join(__dirname, 'build', 'icon.png');
 const PORT = 47610;
 
 let win = null, server = null, port = PORT, hosting = false, joined = null, quitting = false;
+
+// a laptop with two graphics chips runs the game on the faster one (Chromium otherwise takes the one that saves power)
+app.commandLine.appendSwitch('force_high_performance_gpu');
+// the same id as the installer's shortcuts (package.json build.appId), so a pinned TRAILBREAK is the window's own icon
+if (process.platform === 'win32') app.setAppUserModelId('app.trailbreak.game');
 
 // ---------------------------------------------------------------- the app's own settings (where it last played)
 const settingsFile = () => path.join(app.getPath('userData'), 'desktop-settings.json');
@@ -108,6 +116,8 @@ function createWindow() {
     if (input.key === 'F11') { win.setFullScreen(!win.isFullScreen()); e.preventDefault(); }
   });
   win.on('page-title-updated', (e) => e.preventDefault());
+  // (a page loaded again, or a friend's game joined, hears of an update that's ready too)
+  win.webContents.on('did-finish-load', () => { if (updateReady) win?.webContents.send('update-ready', updateReady); });
   win.on('closed', () => { win = null; });
 }
 
@@ -182,12 +192,54 @@ ipcMain.on('invite-base', (e) => {
   e.returnValue = ip ? `https://${ip}:${port}/` : null;
 });
 
+// ---------------------------------------------------------------- updates
+let updater = null, updateReady = null;
+
+/** Look for a newer release when the game starts and every few hours, download it, and install it when it's closed. */
+function watchUpdates() {
+  if (!app.isPackaged) return;
+  try { ({ autoUpdater: updater } = require('electron-updater')); } catch { return; }
+  updater.autoDownload = true;
+  updater.autoInstallOnAppQuit = true;
+  updater.on('error', (e) => console.warn(`updates: ${e?.message || e}`));
+  updater.on('update-downloaded', (info) => {
+    updateReady = info.version;
+    buildMenu();
+    win?.webContents.send('update-ready', updateReady);
+  });
+  const check = () => updater.checkForUpdates().catch(() => { /* offline: the next time */ });
+  check();
+  setInterval(check, 4 * 3600e3);
+}
+
+async function checkForUpdatesNow() {
+  if (!updater) return;
+  if (updateReady) { dialog.showMessageBox(win, { type: 'info', title: 'TRAILBREAK', message: `TRAILBREAK ${updateReady} is ready`, detail: 'It installs when you close the game, or now with Game > Restart to update.' }); return; }
+  try {
+    const r = await updater.checkForUpdates();
+    const v = r?.updateInfo?.version;
+    dialog.showMessageBox(win, {
+      type: 'info', title: 'TRAILBREAK',
+      message: r?.isUpdateAvailable ? `TRAILBREAK ${v} is downloading` : `This is the newest TRAILBREAK (${app.getVersion()})`,
+      detail: r?.isUpdateAvailable ? 'The game says when it is ready. It installs when you close the game.' : '',
+    });
+  } catch (e) {
+    dialog.showMessageBox(win, { type: 'warning', title: 'TRAILBREAK', message: 'Could not check for updates', detail: String(e?.message || e).slice(0, 400) });
+  }
+}
+
+function restartToUpdate() {
+  quitting = true;
+  updater?.quitAndInstall(true, true);
+}
+
 // ---------------------------------------------------------------- the menu (shown with Alt; no letter shortcuts)
 function buildMenu() {
   const template = [
     {
       label: 'Game',
       submenu: [
+        ...(updateReady ? [{ label: `Restart to update to ${updateReady}`, click: () => restartToUpdate() }, { type: 'separator' }] : []),
         { label: 'Play on this PC', type: 'radio', checked: !joined, click: () => playOwn() },
         { label: 'Full screen', accelerator: 'F11', click: () => win?.setFullScreen(!win.isFullScreen()) },
         { label: 'Reload the game', click: () => win?.webContents.reloadIgnoringCache() },
@@ -209,6 +261,7 @@ function buildMenu() {
         { label: 'Controls and how it plays (README)', click: () => shell.openPath(path.join(GAME, 'README.md')) },
         { label: 'Credits and licences', click: () => shell.openPath(path.join(GAME, 'public', 'assets', 'trucks', 'CREDITS.md')) },
         { type: 'separator' },
+        { label: 'Check for updates', enabled: !!updater, click: () => checkForUpdatesNow() },
         { label: `TRAILBREAK ${app.getVersion()}`, enabled: false },
       ],
     },
@@ -232,8 +285,9 @@ if (!app.requestSingleInstanceLock()) {
       app.quit();
       return;
     }
-    buildMenu();
     load(localUrl());
+    watchUpdates();
+    buildMenu();
   });
   app.on('before-quit', () => { quitting = true; stopServer(); });
   app.on('window-all-closed', () => app.quit());

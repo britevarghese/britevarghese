@@ -458,6 +458,12 @@ function wireMenus(game, net) {
   game.onHelp = () => help($('help').classList.contains('hidden'));
 }
 
+// (the Windows app: a newer TRAILBREAK has downloaded in the background, and installs when the game is closed: desktop/)
+window.trailbreakDesktop?.onUpdate?.((version) => {
+  const text = `TRAILBREAK ${version} has downloaded: it installs when you close the game (or now: Alt, Game > Restart to update)`;
+  if (window.game?.hud) window.game.hud.toast(text, false, 12); else $('lobby-msg').textContent = text;
+});
+
 start().catch((e) => {
   console.error(e);
   $('loading').classList.remove('hidden');

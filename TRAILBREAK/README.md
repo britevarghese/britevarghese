@@ -64,17 +64,25 @@ Dark glass panels over the game, an orange accent and condensed italic type (Bar
 TRAILBREAK for Windows 10 and 11 (64-bit) is the same game in its own window, served on the PC by the game's own
 server, so it plays offline and keeps its saves between launches.
 
-1. Open this repository's [Releases](https://github.com/britevarghese/britevarghese/releases/latest) and download
-   **TRAILBREAK-Setup-0.1.0.exe**.
+1. Open this repository's [latest release](https://github.com/britevarghese/britevarghese/releases/latest) and
+   download **TRAILBREAK-Setup-0.1.N.exe** (the only .exe there; each build is a new version).
 2. Run it. The installer isn't code-signed, so Windows SmartScreen may say it doesn't recognise it: choose **More
    info**, then **Run anyway**. It installs into your user folder by default (no administrator needed; you can pick
    another folder) and adds TRAILBREAK to the Start menu and the desktop.
-3. Start **TRAILBREAK**. It opens maximised on the lobby. **F11** toggles full screen.
+3. Start **TRAILBREAK**. It opens maximised on the lobby. **F11** toggles full screen. On a laptop with two graphics
+   chips it asks Windows for the faster one (if it still runs slowly, set TRAILBREAK to *High performance* in
+   Windows' **Settings > System > Display > Graphics**).
+
+**Updates:** the game keeps itself up to date. When it starts, and every four hours while it runs, it looks for a
+newer release here, downloads it in the background, and installs it when you close the game. The lobby (or, while
+you drive, a message) says when one has downloaded; **Alt**, then **Game > Restart to update** installs it at once,
+and **Help > Check for updates** looks straight away. The first release (0.1.0, build 1) came before updates: install
+the newest over it once by hand.
 
 Press **Alt** for the app's menu (it has no letter shortcuts, so Ctrl+W, a downshift while you hold W, never closes
 the window):
 
-- **Game:** Play on this PC, Full screen, Reload the game, Quit.
+- **Game:** Play on this PC, Full screen, Reload the game, Quit (and Restart to update, when one has downloaded).
 - **Multiplayer > Host a game on this network:** friends on the same Wi-Fi or LAN join you. The first time, Windows
   asks whether TRAILBREAK may use the network: allow it on private networks. Drive, then press Esc for the invite
   link, which carries this PC's network address (`https://192.168.x.x:47610/?room=K7QMP&map=kerala`). Friends open
@@ -82,7 +90,7 @@ the window):
   PC's own certificate (*Advanced > Proceed*). The app hosts again the next time it starts, until you untick it.
 - **Multiplayer > Join a game:** paste a friend's invite link or address, or an online server's (such as your
   [Render](#host-it-online-render) one). **Back to my own game** returns to your PC's game.
-- **Help:** this README, and the credits and licences of the trucks, sounds and textures.
+- **Help:** this README, the credits and licences of the trucks, sounds and textures, and Check for updates.
 
 The game is served at `http://127.0.0.1:47610`, or the next free port above it if another program has that one. Your
 career, trucks and settings are kept with the app, apart from the browser version's. A game you join keeps its own.
@@ -92,7 +100,10 @@ Uninstall from **Settings > Apps** (your saves stay unless you delete `%APPDATA%
 a utility process) and its installer ([electron-builder](https://www.electron.build/), NSIS). The [TRAILBREAK for
 Windows](../.github/workflows/trailbreak-windows.yml) workflow runs the game's tests, builds the installer on a
 Windows runner and publishes it as a new release whenever the game or the app changes on the development branch
-(`claude/sweet-volta-hxo6tl`). To build it yourself on Windows, with Node.js 18+:
+(`claude/sweet-volta-hxo6tl`): version 0.1.*N* for the workflow's run *N*, with the `latest.yml` and installer
+blockmap that [electron-updater](https://www.electron.build/auto-update) in the installed games reads (from this
+repository's latest release: `build.publish` in `desktop/package.json`). To build it yourself on Windows, with
+Node.js 18+:
 
 ```
 cd TRAILBREAK\desktop

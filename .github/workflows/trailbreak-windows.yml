@@ -1,6 +1,9 @@
 # TRAILBREAK for Windows: builds the installable game (TRAILBREAK/desktop: Electron and an NSIS installer) on a Windows
-# runner and publishes TRAILBREAK-Setup-<version>.exe as a release of this repository (the newest one is "Latest").
-# Runs when the game or its desktop app changes on the development branch, or by hand (Actions > Run workflow).
+# runner and publishes TRAILBREAK-Setup-<version>.exe as a release of this repository (the newest one is "Latest"), with
+# latest.yml and the installer's blockmap, which the installed games read to update themselves (electron-updater).
+# Each build is a new version: package.json's major.minor and this workflow's run number (0.1.7 for run 7).
+# Runs when the game or its desktop app changes on the development branch (or by hand, once this file is on the
+# repository's default branch: Actions > Run workflow).
 name: TRAILBREAK for Windows
 
 on:
@@ -58,24 +61,31 @@ jobs:
       - name: Install the build tools
         run: npm ci
 
-      - name: Build the installer
-        run: npx electron-builder --win nsis --x64 --publish never
-
       - name: Version
         id: v
-        run: echo "version=$(node -p "require('./package.json').version")" >> "$GITHUB_OUTPUT"
+        run: |
+          v="$(node -p "require('./package.json').version.split('.').slice(0, 2).join('.')").${{ github.run_number }}"
+          npm pkg set version="$v"
+          echo "version=$v" >> "$GITHUB_OUTPUT"
+
+      - name: Build the installer
+        run: npx electron-builder --win nsis --x64 --publish never
 
       - uses: actions/upload-artifact@v4
         with:
           name: TRAILBREAK-Setup-${{ steps.v.outputs.version }}
-          path: TRAILBREAK/desktop/dist/TRAILBREAK-Setup-*.exe
+          path: |
+            TRAILBREAK/desktop/dist/TRAILBREAK-Setup-*.exe
+            TRAILBREAK/desktop/dist/TRAILBREAK-Setup-*.exe.blockmap
+            TRAILBREAK/desktop/dist/latest.yml
+          if-no-files-found: error
           retention-days: 14
 
       - name: Publish the release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: trailbreak-windows-${{ steps.v.outputs.version }}-build${{ github.run_number }}
-          name: TRAILBREAK for Windows ${{ steps.v.outputs.version }} (build ${{ github.run_number }})
+          tag_name: trailbreak-windows-${{ steps.v.outputs.version }}
+          name: TRAILBREAK for Windows ${{ steps.v.outputs.version }}
           target_commitish: ${{ github.sha }}
           make_latest: true
           body: |
@@ -83,5 +93,11 @@ jobs:
 
             Windows SmartScreen may say it doesn't recognise the app (it isn't code-signed): choose **More info**, then **Run anyway**. The installer asks where to install (your user folder by default, no administrator needed) and adds Start-menu and desktop shortcuts. Uninstall from Settings > Apps.
 
+            Installed, the game keeps itself up to date: it downloads a newer release in the background and installs it when you close the game. (latest.yml and the .blockmap are for that: you don't need them.)
+
             Built from ${{ github.sha }}.
-          files: TRAILBREAK/desktop/dist/TRAILBREAK-Setup-*.exe
+          files: |
+            TRAILBREAK/desktop/dist/TRAILBREAK-Setup-*.exe
+            TRAILBREAK/desktop/dist/TRAILBREAK-Setup-*.exe.blockmap
+            TRAILBREAK/desktop/dist/latest.yml
+          fail_on_unmatched_files: true
