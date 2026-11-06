@@ -1,0 +1,87 @@
+# TRAILBREAK for Windows: builds the installable game (TRAILBREAK/desktop: Electron and an NSIS installer) on a Windows
+# runner and publishes TRAILBREAK-Setup-<version>.exe as a release of this repository (the newest one is "Latest").
+# Runs when the game or its desktop app changes on the development branch, or by hand (Actions > Run workflow).
+name: TRAILBREAK for Windows
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [claude/sweet-volta-hxo6tl]
+    paths:
+      - 'TRAILBREAK/desktop/**'
+      - 'TRAILBREAK/src/**'
+      - 'TRAILBREAK/public/**'
+      - 'TRAILBREAK/server/**'
+      - 'TRAILBREAK/server.js'
+      - 'TRAILBREAK/config.json'
+      - '.github/workflows/trailbreak-windows.yml'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: trailbreak-windows
+  cancel-in-progress: true
+
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: TRAILBREAK
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: The game's tests
+        run: npm test
+
+  installer:
+    needs: tests
+    runs-on: windows-latest
+    timeout-minutes: 40
+    defaults:
+      run:
+        shell: bash
+        working-directory: TRAILBREAK/desktop
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: TRAILBREAK/desktop/package-lock.json
+
+      - name: Install the build tools
+        run: npm ci
+
+      - name: Build the installer
+        run: npx electron-builder --win nsis --x64 --publish never
+
+      - name: Version
+        id: v
+        run: echo "version=$(node -p "require('./package.json').version")" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: TRAILBREAK-Setup-${{ steps.v.outputs.version }}
+          path: TRAILBREAK/desktop/dist/TRAILBREAK-Setup-*.exe
+          retention-days: 14
+
+      - name: Publish the release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: trailbreak-windows-${{ steps.v.outputs.version }}-build${{ github.run_number }}
+          name: TRAILBREAK for Windows ${{ steps.v.outputs.version }} (build ${{ github.run_number }})
+          target_commitish: ${{ github.sha }}
+          make_latest: true
+          body: |
+            The installable TRAILBREAK for Windows 10 and 11 (64-bit). Download **TRAILBREAK-Setup-${{ steps.v.outputs.version }}.exe** below and run it.
+
+            Windows SmartScreen may say it doesn't recognise the app (it isn't code-signed): choose **More info**, then **Run anyway**. The installer asks where to install (your user folder by default, no administrator needed) and adds Start-menu and desktop shortcuts. Uninstall from Settings > Apps.
+
+            Built from ${{ github.sha }}.
+          files: TRAILBREAK/desktop/dist/TRAILBREAK-Setup-*.exe

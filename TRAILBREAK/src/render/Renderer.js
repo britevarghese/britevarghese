@@ -71,6 +71,35 @@ if (CASCADES) {
     #endif`);
 } else console.warn('shadows: three.js\'s light chunk has changed; one shadow cascade only');
 
+/**
+ * The graphics card reset under the game (a driver update or crash, a timeout): what the game freed once it was on the
+ * card (textures', buffers' data) can't be put back, so once the context is back (or a few seconds on) the page loads
+ * again, saying so; what's saved is kept (the career saves as it goes). Reset again within a minute, it doesn't go round
+ * reloading: it says what to try.
+ */
+function watchContext(canvas) {
+  const KEY = 'trailbreak.glReset', note = (text) => {
+    let el = document.getElementById('gl-reset');
+    if (!el) {
+      el = document.createElement('div'); el.id = 'gl-reset';
+      el.style.cssText = 'position:fixed;inset:auto 0 12%;margin:auto;width:max-content;max-width:80vw;padding:12px 18px;border-radius:10px;background:rgba(11,15,20,.92);color:#fff;font:600 15px system-ui;z-index:99999;text-align:center';
+      document.body.appendChild(el);
+    }
+    el.textContent = text;
+  };
+  let reloading = false;
+  const reload = () => { if (reloading) return; reloading = true; location.reload(); };
+  canvas.addEventListener('webglcontextlost', (e) => {
+    e.preventDefault();
+    let last = 0;
+    try { last = +sessionStorage.getItem(KEY) || 0; sessionStorage.setItem(KEY, String(Date.now())); } catch { /* no storage */ }
+    if (Date.now() - last < 60000) { note('The graphics card keeps resetting: update its driver, or set Graphics lower in the settings, then reload'); return; }
+    note('The graphics card was reset: TRAILBREAK is loading again');
+    setTimeout(reload, 4000);
+  });
+  canvas.addEventListener('webglcontextrestored', () => { if (!document.getElementById('gl-reset')?.textContent.startsWith('The graphics card keeps')) reload(); });
+}
+
 export class Renderer {
   constructor(container) {
     this.renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance', logarithmicDepthBuffer: true });
@@ -82,6 +111,7 @@ export class Renderer {
     this.renderer.shadowMap.type = THREE.PCFShadowMap;
     container.appendChild(this.renderer.domElement);
     this.renderer.domElement.tabIndex = 0;
+    watchContext(this.renderer.domElement);
 
     this.scene = new THREE.Scene();
     this.camera = new THREE.PerspectiveCamera(62, 1, 0.2, 9000);

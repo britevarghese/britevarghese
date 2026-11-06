@@ -1,0 +1,56 @@
+{
+  "name": "trailbreak-desktop",
+  "productName": "TRAILBREAK",
+  "version": "0.1.0",
+  "description": "TRAILBREAK: co-op off-road driving, installed as a Windows game",
+  "author": "TRAILBREAK",
+  "license": "UNLICENSED",
+  "private": true,
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "pack": "electron-builder --win dir --x64",
+    "dist": "electron-builder --win nsis --x64"
+  },
+  "devDependencies": {
+    "electron": "44.9.3",
+    "electron-builder": "26.18.0",
+    "resedit": "3.1.0"
+  },
+  "build": {
+    "appId": "app.trailbreak.game",
+    "productName": "TRAILBREAK",
+    "copyright": "TRAILBREAK. Truck models, sounds and textures by their authors: see CREDITS.md and README.md",
+    "directories": { "output": "dist", "buildResources": "build" },
+    "files": ["main.js", "preload.js", "join.html", "package.json", "build/icon.png"],
+    "extraResources": [
+      { "from": "../public", "to": "game/public" },
+      { "from": "../src", "to": "game/src" },
+      { "from": "../server", "to": "game/server" },
+      { "from": "../server.js", "to": "game/server.js" },
+      { "from": "../config.json", "to": "game/config.json" },
+      { "from": "../README.md", "to": "game/README.md" }
+    ],
+    "asar": true,
+    "afterPack": "build/afterPack.js",
+    "win": {
+      "target": [{ "target": "nsis", "arch": ["x64"] }],
+      "icon": "build/icon.ico",
+      "executableName": "TRAILBREAK",
+      "signAndEditExecutable": false
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "TRAILBREAK",
+      "installerIcon": "build/icon.ico",
+      "uninstallerIcon": "build/icon.ico",
+      "uninstallDisplayName": "TRAILBREAK",
+      "artifactName": "TRAILBREAK-Setup-${version}.exe",
+      "deleteAppDataOnUninstall": false
+    }
+  }
+}

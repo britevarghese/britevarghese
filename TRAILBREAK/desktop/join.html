@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'">
+<title>Join a game</title>
+<style>
+  :root { color-scheme: dark; }
+  body { margin: 0; padding: 22px 24px; background: #0b0f14; color: #e8edf2; font: 15px/1.4 system-ui, sans-serif; }
+  h1 { margin: 0 0 6px; font-size: 18px; color: #ff7a1a; }
+  p { margin: 0 0 14px; color: #9aa7b3; font-size: 13px; }
+  input { box-sizing: border-box; width: 100%; padding: 9px 11px; border-radius: 8px; border: 1px solid #2a3440; background: #121922; color: #fff; font: inherit; }
+  input:focus { outline: 2px solid #ff7a1a; border-color: transparent; }
+  .row { display: flex; gap: 10px; justify-content: flex-end; margin-top: 16px; }
+  button { padding: 8px 18px; border-radius: 8px; border: 0; font: 600 14px system-ui; cursor: pointer; background: #222c38; color: #e8edf2; }
+  button.go { background: #ff7a1a; color: #10141a; }
+</style>
+</head>
+<body>
+  <h1>Join a game</h1>
+  <p>Paste a friend's invite link or address (https://192.168.1.20:47610), or an online server's (https://your-server.onrender.com).</p>
+  <input id="where" placeholder="Invite link or address" autofocus spellcheck="false">
+  <div class="row"><button id="cancel">Cancel</button><button class="go" id="go">Join</button></div>
+<script>
+  const where = document.getElementById('where');
+  where.value = new URLSearchParams(location.search).get('last') || '';
+  where.select();
+  const answer = (v) => window.trailbreakDesktop.answerJoin(v);
+  document.getElementById('go').onclick = () => answer(where.value);
+  document.getElementById('cancel').onclick = () => answer(null);
+  where.addEventListener('keydown', (e) => { if (e.key === 'Enter') answer(where.value); if (e.key === 'Escape') answer(null); });
+</script>
+</body>
+</html>

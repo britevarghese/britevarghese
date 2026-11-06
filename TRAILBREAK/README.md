@@ -13,7 +13,9 @@ the Bhimashankar jungle and its quarry, the Konkan Ghat and the Ashwood Pass, an
 the town of Shivapur, its fields, its lake and an expressway. Together you find the survey beacons, race the rallies,
 and winch each other out when one of you gets stuck.
 
-Nothing to install for players: they open the server's address in Chrome, Edge or Firefox.
+On Windows it installs as a game of its own (see [Install on Windows](#install-on-windows)): a window, a Start-menu
+and desktop shortcut, and no browser or Node.js needed. It still plays in a browser too: open the server's address in
+Chrome, Edge or Firefox.
 
 - **Engine:** three.js (WebGL2). Each map is generated identically on every client from a fixed seed, the trucks are
   real 3D models, and the boulders and buildings are built from code. The ground wears photo-scanned textures (grass,
@@ -56,6 +58,48 @@ Dark glass panels over the game, an orange accent and condensed italic type (Bar
   ratio, +23% belly height...); presets; the truck turning in the middle (rotate, zoom, five views, and Photo saves a
   picture of it); under it, a grade for the build off-road (D to S, from clearance, angles, travel, wading, gearing,
   lockers and stability), power, torque and weight, and the key off-road numbers, each against stock.
+
+## Install on Windows
+
+TRAILBREAK for Windows 10 and 11 (64-bit) is the same game in its own window, served on the PC by the game's own
+server, so it plays offline and keeps its saves between launches.
+
+1. Open this repository's [Releases](https://github.com/britevarghese/britevarghese/releases/latest) and download
+   **TRAILBREAK-Setup-0.1.0.exe**.
+2. Run it. The installer isn't code-signed, so Windows SmartScreen may say it doesn't recognise it: choose **More
+   info**, then **Run anyway**. It installs into your user folder by default (no administrator needed; you can pick
+   another folder) and adds TRAILBREAK to the Start menu and the desktop.
+3. Start **TRAILBREAK**. It opens maximised on the lobby. **F11** toggles full screen.
+
+Press **Alt** for the app's menu (it has no letter shortcuts, so Ctrl+W, a downshift while you hold W, never closes
+the window):
+
+- **Game:** Play on this PC, Full screen, Reload the game, Quit.
+- **Multiplayer > Host a game on this network:** friends on the same Wi-Fi or LAN join you. The first time, Windows
+  asks whether TRAILBREAK may use the network: allow it on private networks. Drive, then press Esc for the invite
+  link, which carries this PC's network address (`https://192.168.x.x:47610/?room=K7QMP&map=kerala`). Friends open
+  it in their own TRAILBREAK (**Multiplayer > Join a game**) or in a browser, where the certificate warning is this
+  PC's own certificate (*Advanced > Proceed*). The app hosts again the next time it starts, until you untick it.
+- **Multiplayer > Join a game:** paste a friend's invite link or address, or an online server's (such as your
+  [Render](#host-it-online-render) one). **Back to my own game** returns to your PC's game.
+- **Help:** this README, and the credits and licences of the trucks, sounds and textures.
+
+The game is served at `http://127.0.0.1:47610`, or the next free port above it if another program has that one. Your
+career, trucks and settings are kept with the app, apart from the browser version's. A game you join keeps its own.
+Uninstall from **Settings > Apps** (your saves stay unless you delete `%APPDATA%\TRAILBREAK`).
+
+**How the installer is built:** `desktop/` is the app ([Electron](https://www.electronjs.org/) running `server.js` in
+a utility process) and its installer ([electron-builder](https://www.electron.build/), NSIS). The [TRAILBREAK for
+Windows](../.github/workflows/trailbreak-windows.yml) workflow runs the game's tests, builds the installer on a
+Windows runner and publishes it as a release whenever the game changes on the development branch, or when you run it
+from **Actions**. To build it yourself on Windows, with Node.js 18+:
+
+```
+cd TRAILBREAK\desktop
+npm ci
+npm start        (the app, from these files)
+npm run dist     (dist\TRAILBREAK-Setup-0.1.0.exe)
+```
 
 ## Quick start
 
@@ -1688,6 +1732,8 @@ public/index.html, css/   the screens and their icons; public/assets/fonts (Barl
 public/preview.html       developer view: ?cam=x,y,z&look=x,y,z&mods=Vegetation,Water,...
 public/trucks.html        developer view of one truck: ?truck=hauler&build=overland (a preset or a build code)
 test/                     node --test suites
+desktop/                  TRAILBREAK for Windows: the app (main.js, preload.js, join.html), its icon and installer
+                          (package.json: electron-builder, NSIS)
 ```
 
 ## Credits

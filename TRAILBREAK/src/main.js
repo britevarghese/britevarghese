@@ -363,7 +363,8 @@ function wireMenus(game, net) {
   if (net) {
     $('invite').classList.remove('hidden');
     $('room-code').textContent = net.room;
-    const link = new URL(location.href); link.search = `?room=${net.room}&map=${game.world.map.id}`;
+    // (in the Windows app hosting a game for its network, the address friends reach this PC at: desktop/preload.js)
+    const link = new URL(window.trailbreakDesktop?.inviteBase || location.href); link.search = `?room=${net.room}&map=${game.world.map.id}`;
     $('invite-link').value = link.toString();
     const copyText = $('copy-link').querySelector('span');
     $('copy-link').onclick = async () => {
