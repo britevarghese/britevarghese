@@ -964,6 +964,11 @@ Everything that makes off-roading off-roading is simulated, not faked:
   ["just 2 feet of rushing water can carry away SUVs and trucks"](https://www.weather.gov/safety/flood-turn-around-dont-drown).
   The bow wave and the wake are the water going past, so a truck stopped in a river heaps the water up on its
   upstream side; a hint says how fast the water is running when it's pushing you.
+  And you hear the rivers: the running water about the truck, out to 40 m, a rush and babble over the stones the
+  louder the faster it runs (as the square of its speed, 2 m/s as loud as it gets) and the nearer, brighter the faster,
+  with a low roar under it where it runs fast and rough (riffles and rapids over 2 m/s); lakes, the sea and puddles lie
+  still and silent (`hearRiver`, `src/core/Game.js`; `src/audio/Audio.js`). In the cab it's muffled. The splash of
+  the truck in the water is the water going past it too: stopped in a ford, you hear the river rush round the wheels.
 - **Tyre tracks:** every tyre leaves its track in the ground it rolls over: soil and forest floor pressed darker,
   grass crushed browner and its tufts laid flat the way the truck went, mud smoothed and wet, sand and snow crisp,
   with the lugs of the tread printed across it (chevrons down the middle, staggered blocks on the shoulders), smeared

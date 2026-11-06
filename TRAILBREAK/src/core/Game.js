@@ -1001,6 +1001,27 @@ export class Game {
     if (ok) { this.hookName = best.name; this.hud.hint(`Hooked to ${best.name}. Hold E to winch in, Q to pay out, F to unhook`, 4); }
   }
 
+  /**
+   * How loud the rivers near the truck are (the audio's riverK and roarK, 0 to 1), a few times a second: the running
+   * water about it, out to 40 m, as fast as the world's current has it (world/World.js flow), each spot the louder the
+   * faster it runs (as the square of its speed: 2 m/s is as loud as it gets) and the quieter the farther off; fast
+   * shallow riffles and rapids roar.
+   */
+  hearRiver(dt) {
+    if ((this.riverT = (this.riverT || 0) - dt) > 0 || !this.world.flow) return;
+    this.riverT = 0.25;
+    const p = this.vehicle.pos, o = this._riverO ??= { x: 0, z: 0 };
+    let k = 0, roar = 0;
+    for (const r of [0, 8, 20, 40]) for (let a = 0; a < (r ? 8 : 1); a++) {
+      const sp = this.world.flow(p.x + r * Math.cos(a * Math.PI / 4), p.z + r * Math.sin(a * Math.PI / 4), o);
+      if (!(sp > 0)) continue;
+      const near = 1 / (1 + r / 8);
+      k = Math.max(k, Math.min(1, (sp / 2) ** 2) * near);
+      roar = Math.max(roar, clamp((sp - 2) / 1.2, 0, 1) * near);
+    }
+    this.audio.riverK = k; this.audio.roarK = roar;
+  }
+
   /** The spare buried as a winch anchor (game/Anchor.js pickAnchor's), shown dug in; or none. */
   setAnchor(a) {
     this.anchor = a;
@@ -1680,6 +1701,7 @@ export class Game {
     // sound
     const remotes = [...this.remotes.values()].filter((r) => r.state).map((r) => ({ id: r.id, spec: r.spec, pos: r.model.root.position, rpm: r.state.rpm, thr: r.state.thr }));
     this.audio.rainK = this.rainK; this.audio.cab = this.cam.mode === 'cab'; this.audio.wetK = this.wetK;
+    this.hearRiver(dt);
     this.audio.update(dt, v, this.renderer.camera, remotes);
     v.impact = 0;
     // an exhaust pop (a hard upshift, or lifting off from high revs): a flash and a puff at the tailpipe, low on the

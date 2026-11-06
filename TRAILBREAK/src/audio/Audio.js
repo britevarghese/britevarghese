@@ -276,6 +276,11 @@ export class Audio {
     // the tyres on wet ground (wetK, Game's: it lingers after the rain): the hiss of the water they lift off it
     this.swish = noiseVoice(ctx, this.pink, this.master, 'bandpass', 2400, 0.5);
     this.wetK = 0;
+    // a river running near by (riverK, 0 to 1, Game's: how fast its water runs and how near): its rush and babble over
+    // the stones, brighter the faster; and where it runs fast and rough, white water, a low roar under it (roarK)
+    this.river = noiseVoice(ctx, this.pink, this.master, 'bandpass', 800, 0.45);
+    this.riverLow = noiseVoice(ctx, this.brown, this.master, 'lowpass', 220, 0.7);
+    this.riverK = 0; this.roarK = 0;
     // winch motor: a buzzing saw through a filter
     this.winchOsc = ctx.createOscillator(); this.winchOsc.type = 'sawtooth'; this.winchOsc.frequency.value = 110;
     const wf = ctx.createBiquadFilter(); wf.type = 'lowpass'; wf.frequency.value = 900;
@@ -697,7 +702,9 @@ export class Audio {
       glide(this.slip.g.gain, slip * 0.16, t);
       // (under the squelches, the steady slosh of the mud round the tyres)
       glide(this.squelch.g.gain, mud * 0.15, t, 0.08);
-      glide(this.water.g.gain, Math.max(water * 0.4, v.waterDepth > 0.05 ? Math.min(0.5, speed * 0.1) : 0), t);
+      // (the water going past the hull: in a river, its current less the truck's way through it)
+      const through = Math.hypot(v.vel.x - (v.current?.x || 0), v.vel.z - (v.current?.z || 0));
+      glide(this.water.g.gain, Math.max(water * 0.4, v.waterDepth > 0.05 ? Math.min(0.5, through * 0.1) : 0), t);
       glide(this.wind.g.gain, Math.min(0.35, speed * speed * 0.0004), t);
       glide(this.wind.f.frequency, 300 + speed * 25, t);
       // (how hard the suspension works: its axles' travel speed, how much it changes frame to frame; washboard at speed
@@ -723,6 +730,10 @@ export class Audio {
     // rain: the hiss louder the harder it falls, in the cab muffled under the drumming on the roof
     glide(this.rainHiss.g.gain, this.rainK * (this.cab ? 0.03 : 0.11), t, 0.3);
     glide(this.rainRoof.g.gain, this.rainK * (this.cab ? 0.09 : 0.015), t, 0.3);
+    // a river near by: its rush, and the roar of white water (in the cab, muffled)
+    glide(this.river.g.gain, this.riverK * (this.cab ? 0.045 : 0.13), t, 0.5);
+    glide(this.river.f.frequency, 600 + 700 * this.riverK, t, 0.6);
+    glide(this.riverLow.g.gain, this.roarK * (this.cab ? 0.07 : 0.15), t, 0.6);
     // birds now and then (not in the rain)
     this.birdT -= dt;
     if (this.birdT < 0) { this.birdT = 4 + Math.random() * 10; if (Math.random() < 0.7 * (1 - this.rainK)) this.chirp(); }
