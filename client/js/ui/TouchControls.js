@@ -110,7 +110,7 @@ export class TouchControls {
     on('prone', () => { if (me.alive) me.setStance(me.s.stance === 'prone' ? 'stand' : 'prone'); });
     on('reload', () => { if (me.alive) me.reload(); });
     on('nade', () => { if (me.alive) me.throwGrenade(); });
-    on('swap', () => { if (me.alive) me.switchSlot(1 - me.slot); });
+    on('swap', () => { if (!me.alive) return; const n = me.weapons.length; for (let k = 1; k < n; k++) { const i = (me.slot + k) % n; if (me.weapons[i]) { me.switchSlot(i); break; } } }); // (cycles through what is carried)
     on('view', () => { me.thirdPerson = !me.thirdPerson; });
     on('score', () => g.hud.scoreboard(true, g.myId), () => g.hud.scoreboard(false));
     on('chat', () => { if (!g.chatOpen) g.openChat(); });

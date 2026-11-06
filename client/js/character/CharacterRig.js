@@ -21,6 +21,9 @@ const angDiff = (a, b) => { let d = b - a; while (d > Math.PI) d -= 2 * Math.PI;
 export const DEFAULT_HAND_FRAMES = {
   rifle: { right: { F: [0, -0.55, -0.85], N: [-1, 0, 0] }, left: { F: [0.75, 0.25, -0.45], N: [0.15, 1, 0] } },
   pistol: { right: { F: [0, -0.35, -0.95], N: [-1, 0, 0] }, left: { F: [0.3, -0.6, -0.75], N: [0.95, 0.1, 0] } },
+  // shoulder-fired launcher: right hand round the firing mechanism on the tube's right side (thumb over the trigger
+  // button), left hand round the vertical front grip from its left
+  launcher: { right: { F: [0, -0.45, -0.9], N: [-1, 0, 0] }, left: { F: [0.1, -0.1, -1], N: [1, 0, 0.05] } },
 };
 
 // Hand frames (weapon space) for working the gun: F = finger direction, N = palm normal (into what is held)
@@ -170,7 +173,7 @@ export class CharacterRig {
   equip(weapon, kind = 'rifle') {
     if (this.weapon) this.weapon.root.removeFromParent();
     this.weapon = weapon;
-    this.weaponKind = weapon ? (weapon.key === 'pistol' ? 'pistol' : 'rifle') : kind;
+    this.weaponKind = weapon ? (weapon.key === 'pistol' ? 'pistol' : weapon.def?.kind === 'launcher' ? 'launcher' : 'rifle') : kind;
     this.handFrames = DEFAULT_HAND_FRAMES[this.weaponKind];
     if (weapon) this.root.parent ? this.root.parent.add(weapon.root) : this.root.add(weapon.root);
     this.weaponInWorld = weapon && weapon.root.parent !== this.root;

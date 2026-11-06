@@ -1,7 +1,7 @@
 // Authoritative Conquest game simulation.
 import { CollisionWorld, stepCharacter, EYE_HEIGHT, STANCE_HEIGHT, MOVE, SAFE_FALL, FALL_DMG } from '../shared/world.js';
 import { TEAM_NAMES, getMap } from '../shared/map.js';
-import { WEAPONS, CLASSES, GRENADE, damageAt, hitCapsules, rayCapsule } from '../shared/weapons.js';
+import { WEAPONS, CLASSES, GRENADE, damageAt, hitCapsules, rayCapsule, armourAspect } from '../shared/weapons.js';
 import { NavGrid } from './nav.js';
 import { stepAir } from '../shared/royale.js';
 import { bulletPath, STEP } from '../shared/ballistics.js';
@@ -162,7 +162,7 @@ export class Game {
     Object.assign(p, {
       alive: true, hp: 100, x, z, y: this.world.supportHeight(x, z, this.map.groundHeight(x, z) + 0.3), vx: 0, vy: 0, vz: 0, stance: 'stand', onGround: true,
       yaw: this.map.BASES[p.team].yaw + (Math.random() - 0.5) * 0.4, pitch: 0, slot: 0, reloadUntil: 0, nextFire: 0, grenades: c.grenades,
-      weapons: [c.primary, c.secondary].map((id, i) => ({ id, mag: WEAPONS[id].mag, reserve: WEAPONS[id].reserve * (i === 0 ? c.ammoMul || 1 : 1) })),
+      weapons: [c.primary, c.secondary, c.gadget].filter(Boolean).map((id, i) => ({ id, mag: WEAPONS[id].mag, reserve: WEAPONS[id].reserve * (i === 0 ? c.ammoMul || 1 : 1) })),
       spawnProtect: this.now() + 3000, spawnedAt: this.now(), history: [], lastDamageFrom: null, spawnPoint: opt.id, airPeak: null,
     });
     p.lastInput = this.now();
@@ -256,7 +256,7 @@ export class Game {
     p.yaw = +m.yaw || 0; p.pitch = Math.max(-1.5, Math.min(1.5, +m.pitch || 0));
     p.stance = STANCES.includes(m.st) ? m.st : 'stand';
     p.ads = !!m.ads; p.sprint = !!m.sp; p.vx = +m.vx || 0; p.vz = +m.vz || 0; p.onGround = !!m.og;
-    if (m.sl === 0 || m.sl === 1) { if (m.sl !== p.slot) { p.slot = m.sl; p.reloadUntil = 0; } }
+    if (Number.isInteger(m.sl) && m.sl >= 0 && p.weapons[m.sl]) { if (m.sl !== p.slot) { p.slot = m.sl; p.reloadUntil = 0; } }
   }
 
   // ------------------------------------------------------------ weapons
@@ -286,7 +286,7 @@ export class Game {
     // is known now; soldiers are tested segment by segment as the bullet flies (lag-compensated per segment).
     const path = bulletPath(this.world, o, d, def);
     const viewT = p.bot ? now : Number.isFinite(rt) ? Math.max(now - 450, Math.min(now, rt)) : now - Math.min(250, p.rtt / 2 + 100);
-    const b = { id: nextId++, shooter: p, w: w.id, def, pts: path.pts, i: 0, t0: now, viewT, bot: !!p.bot, done: false };
+    const b = { id: nextId++, shooter: p, w: w.id, def, pts: path.pts, i: 0, t0: now, viewT, bot: !!p.bot, done: false, worldHit: path.hit };
     const end = path.end, wh = path.hit;
     // (l: the last round in the magazine — everyone sees the slide / bolt locked back)
     this.emit({ t: 'shot', id: p.id, b: b.id, w: w.id, o: [o.x, o.y, o.z], e: [end.x, end.y, end.z], tf: +end.t.toFixed(3), s: wh ? wh.surface : 'none', n: wh ? wh.normal : null, ...(w.mag === 0 && { l: 1 }) });
@@ -350,8 +350,8 @@ export class Game {
     }
     if (b.i >= b.pts.length - 1) {
       b.done = true;
-      // explosive round reached the ground / a wall
-      if (b.def.splash && b.worldHit) { const e = b.pts[b.pts.length - 1]; this.explodeAt(e.x, e.y + 0.3, e.z, { radius: b.def.splash, damage: b.def.damage, owner: b.shooter, weapon: b.w, vehicleDamage: b.def.vehicleDamage }); }
+      // explosive round reached the ground / a wall (not yet armed that close to the launcher: it just thuds in)
+      if (b.def.splash && b.worldHit && !(b.pts[b.pts.length - 1].d < (b.def.armDist || 0))) { const e = b.pts[b.pts.length - 1]; this.explodeAt(e.x, e.y + 0.3, e.z, { radius: b.def.splash, damage: b.def.damage, owner: b.shooter, weapon: b.w, vehicleDamage: b.def.vehicleDamage }); }
     }
   }
 
@@ -389,11 +389,19 @@ export class Game {
 
   #bulletHit(b, { victim, vehicle, head, part, dist, point }) {
     const p = b.shooter, def = b.def;
+    if (def.armDist && dist < def.armDist) {
+      // unarmed launcher round: a 1.8 kg projectile at 290 m/s still hurts what it strikes
+      if (vehicle) { this.emit({ t: 'bhit', b: b.id, p: point.map((v) => +v.toFixed(2)), vh: vehicle.id }); if (vehicle.seats.some((s) => s && this.isEnemy(p, this.players.get(s) || p))) this.vehicles.damage(vehicle, def.dudVehicle, p, b.w, 'bullet'); }
+      else { this.damage(victim, def.dudDamage, p, b.w); this.emit({ t: 'bhit', b: b.id, p: point.map((v) => +v.toFixed(2)), v: victim.id }); }
+      return;
+    }
     if (vehicle) {
       this.emit({ t: 'bhit', b: b.id, p: point.map((v) => +v.toFixed(2)), vh: vehicle.id });
       const friendly = !vehicle.seats.some((s) => s) ? vehicle.team === p.team : vehicle.seats.every((s) => !s || !this.isEnemy(p, this.players.get(s) || p));
       if (def.splash) {
-        if (!friendly) this.vehicles.damage(vehicle, def.directHit || def.vehicleDamage, p, b.w, 'explosive');
+        // (a launcher's shaped charge: where it strikes the hull matters)
+        const aspect = def.launcher ? armourAspect(vehicle, { x: point[0] - b.pts[0].x, z: point[2] - b.pts[0].z }) : 1;
+        if (!friendly) this.vehicles.damage(vehicle, (def.directHit || def.vehicleDamage) * aspect, p, b.w, 'explosive');
         this.explodeAt(point[0], point[1], point[2], { radius: def.splash, damage: def.damage, owner: p, weapon: b.w, vehicleDamage: 0 });
       } else if (!friendly) this.vehicles.damage(vehicle, def.vehicleDamage ?? (def.range ? damageAt(def, dist) : def.damage), p, b.w, 'bullet');
       return;

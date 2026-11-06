@@ -50,6 +50,7 @@ export class LocalPlayer {
       if (e.code === 'KeyR') this.reload();
       if (e.code === 'Digit1') this.switchSlot(0);
       if (e.code === 'Digit2') this.switchSlot(1);
+      if (e.code === 'Digit3') this.switchSlot(2); // (the support kit's launcher)
       if (e.code === 'KeyG') this.throwGrenade();
       if (e.code === 'KeyV') this.thirdPerson = !this.thirdPerson;
       if (e.code === 'PageUp' || e.code === 'PageDown') { e.preventDefault(); this.cycleZero(e.code === 'PageUp' ? 1 : -1); }
@@ -66,7 +67,12 @@ export class LocalPlayer {
       if (document.pointerLockElement !== el || !this.canLook()) return;
       this.look(e.movementX, e.movementY);
     });
-    addEventListener('wheel', () => { if (this.alive && !this.g.vehicles?.mine) this.switchSlot(1 - this.slot); });
+    // wheel: next / previous weapon carried
+    addEventListener('wheel', (e) => {
+      if (!this.alive || this.g.vehicles?.mine) return;
+      const n = this.weapons.length, step = e.deltaY < 0 ? -1 : 1;
+      for (let k = 1; k < n; k++) { const i = (this.slot + step * k + n * 2) % n; if (this.weapons[i]) { this.switchSlot(i); break; } }
+    });
   }
 
   // look input shared by mouse and touch (pixels of movement)

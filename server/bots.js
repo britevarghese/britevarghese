@@ -17,6 +17,7 @@ import { angleDiff, clamp } from '../shared/util.js';
 import { zeroAngle } from '../shared/ballistics.js';
 import { Foliage } from './foliage.js';
 import { vehicleGoal, boardStep, crewThink } from './botvehicles.js';
+import { VEHICLES } from '../shared/vehicles.js';
 
 const rand = (a, b) => a + Math.random() * (b - a);
 
@@ -243,6 +244,25 @@ export class BotBrain {
       const facing = Math.abs(angleDiff(v.turretYaw, Math.atan2(-(p.x - v.x), -(p.z - v.z)))) < 0.5;
       if (!this.armour || d < this.armour.d) this.armour = { x: v.x, y: v.y + 1.6, z: v.z, d, facing, t: now };
     }
+    // carrying the anti-armour launcher with rounds left: an enemy vehicle in range is a target for it (a helicopter
+    // only low and close: an unguided round at a fast mover rarely hits)
+    const L = p.weapons.findIndex((x) => x && WEAPONS[x.id]?.launcher);
+    this.atSlot = L >= 0 && p.weapons[L].mag + p.weapons[L].reserve > 0 ? L : -1;
+    if (this.atSlot >= 0) {
+      let at = null;
+      for (const v of this.g.vehicles?.list || []) {
+        if (v.dead || !v.seats.some((sid) => sid && this.g.isEnemy(p, this.g.players.get(sid) || p))) continue;
+        const d = Math.hypot(v.x - p.x, v.z - p.z), heli = v.type === 'heli';
+        if (d > (heli ? 150 : 230) * (0.8 + this.skill * 0.3) || d < 15 || (heli && v.y - this.g.world.supportHeight(v.x, v.z, v.y + 0.5, 1.5) > 40)) continue;
+        if (Math.abs(angleDiff(fwdYaw, Math.atan2(-(v.x - p.x), -(v.z - p.z)))) > 1.25 && d > 40 && v.id !== this.atTarget?.v.id) continue;
+        const c = { x: v.x, y: v.y + VEHICLES[v.type].half[1], z: v.z };
+        if (!this.g.world.lineOfSight(eye, c)) continue;
+        const s = d * (v.type === 'tank' ? 0.6 : 1);
+        if (!at || s < at.s) at = { v, d, s, t: now };
+      }
+      if (at) { if (at.v !== this.atTarget?.v) { this.atErr = { yaw: rand(-1, 1) * (0.02 + (1 - this.skill) * 0.03), pitch: rand(-1, 1) * 0.015 }; this.atReact = now + rand(500, 1100) * (1.6 - this.skill); } this.atTarget = at; }
+      else if (this.atTarget && now - this.atTarget.t > 3000) this.atTarget = null;
+    } else this.atTarget = null;
     // out of view: the impression fades over a couple of seconds
     for (const [id, a] of this.aware) if (!seen.has(id)) { const v = a - dt * 0.5; if (v <= 0) this.aware.delete(id); else this.aware.set(id, v); }
     // a shot or footsteps behind / beside: look that way (spotting them is up to the eyes on the next look)
@@ -262,6 +282,40 @@ export class BotBrain {
     this.visible = !!best && best === this.target;
   }
 
+  // with the launcher against a vehicle: up on one knee, sights on its centre with the hold-over for the drop and lead
+  // for its speed, fire once laid, then off to cover while the next tube comes up (shoot and move — the vehicle's
+  // crew now knows where you are). Never closer than 15 m (the fuze wouldn't arm) or with friends near the target.
+  fightArmour(AT, dt, now, input) {
+    const g = this.g, p = this.p, v = AT.v, W = WEAPONS[p.weapons[this.atSlot].id];
+    if (p.slot !== this.atSlot) { p.slot = this.atSlot; p.reloadUntil = 0; this.atReady = now + rand(1000, 1600); } // shoulder it, sights up
+    const w = p.weapons[p.slot];
+    this.mode = 'engage'; this.lastThreatAt = now; this.engageStance = null;
+    p.stance = 'crouch';
+    const eye = { x: p.x, y: p.y + EYE_HEIGHT[p.stance], z: p.z };
+    const cy = v.y + VEHICLES[v.type].half[1] * 0.9, rough = Math.hypot(v.x - eye.x, v.z - eye.z), flight = rough / W.velocity;
+    const lead = flight * (0.6 + this.skill * 0.4);
+    const dx = v.x + (v.vx || 0) * lead - eye.x, dz = v.z + (v.vz || 0) * lead - eye.z, dist = Math.hypot(dx, dz);
+    const yaw = Math.atan2(-dx, -dz) + this.atErr.yaw;
+    const pitch = Math.atan2(cy + (v.vy || 0) * lead - eye.y, dist) + this.atErr.pitch + zeroAngle(W, clamp(Math.round(dist / 10) * 10, 10, W.maxRange * 0.9)) * (0.75 + this.skill * 0.25);
+    const conv = Math.exp(-dt * (0.8 + this.skill * 1.5));
+    this.atErr.yaw *= conv; this.atErr.pitch *= conv;
+    this.turn(yaw, pitch, dt, 0.8);
+    p.ads = input.ads = true;
+    const mates = [...g.players.values()].some((q) => q !== p && q.alive && !q.vehicle && !g.isEnemy(p, q) && Math.hypot(q.x - v.x, q.z - v.z) < 7);
+    const laid = Math.abs(angleDiff(p.yaw, yaw - this.atErr.yaw)) < 0.012 + 1.2 / Math.max(dist, 10) && Math.abs(p.pitch - (pitch - this.atErr.pitch)) < 0.025;
+    if (w.mag > 0 && laid && !mates && dist > 15 && now > this.atReady && now > (this.atReact || 0) && now >= p.reloadUntil) {
+      const spread = (W.spreadAds + 0.12) * (Math.PI / 180) * (1.5 - this.skill * 0.6), cp = Math.cos(p.pitch);
+      const d = [-Math.sin(p.yaw) * cp + rand(-spread, spread), Math.sin(p.pitch) + rand(-spread, spread), -Math.cos(p.yaw) * cp + rand(-spread, spread)];
+      if (g.tryFire(p, [eye.x, eye.y, eye.z], d)) {
+        this.lastShotAt = now;
+        this.atErr = { yaw: this.atErr.yaw * 0.5 + rand(-1, 1) * 0.006, pitch: this.atErr.pitch * 0.5 + rand(-1, 1) * 0.005 }; // corrected from the strike
+        const c = this.findCover(v);
+        if (c) { this.mode = 'cover'; this.cover = c; this.coverStart = now; this.coverUntil = 0; }
+      }
+    }
+    return input;
+  }
+
   // seated in a vehicle (Game.tick): drive / fight from it (server/botvehicles.js)
   vehicleThink(dt) { crewThink(this, dt); }
 
@@ -271,6 +325,12 @@ export class BotBrain {
     if (now >= this.nextPerceive) { this.perceive(now); this.nextPerceive = now + 220; }
     if (this.target && !this.target.alive) { this.target = null; this.engageStance = null; }
     const input = { fx: 0, fz: 0, sprint: false, jump: false, ads: false };
+    // the launcher's target gone (destroyed, out of sight a while, out of rounds): rifle back up (once the next
+    // tube being unslung is out)
+    const at = this.atTarget;
+    if (p.slot !== 0 && p.weapons[p.slot] && WEAPONS[p.weapons[p.slot].id]?.launcher && (!at || at.v.dead || now - at.t > 3000 || this.atSlot < 0)) {
+      if (p.reloadSlot === p.slot && p.reloadUntil > now) { /* finish getting the next tube out first */ } else { p.slot = 0; p.reloadUntil = 0; }
+    }
     const w = p.weapons[p.slot], def = w && WEAPONS[w.id];
     p.sprint = false;
 
@@ -295,8 +355,13 @@ export class BotBrain {
       return input;
     }
 
+    // ---------------------------------------------------------------- anti-armour (support kit's launcher)
+    const AT = this.atTarget;
+    if (AT && !AT.v.dead && now - AT.t < 1500 && this.atSlot >= 0 && !(this.target && this.visible && Math.hypot(this.target.x - p.x, this.target.z - p.z) < 20)) return this.fightArmour(AT, dt, now, input);
+
     // ---------------------------------------------------------------- enemy tank looking this way: out of its sight
-    // (in the open within a couple of hundred metres of a tank whose turret is on you, you don't stay to trade shots)
+    // (in the open within a couple of hundred metres of a tank whose turret is on you, you don't stay to trade shots;
+    // a soldier with a launcher and the tank in its sights takes the shot instead — above)
     const A = this.armour;
     if (A && now - A.t < 600 && (A.facing || A.d < 70) && now > (this.nextArmourCover || 0) && !(this.target && this.visible && Math.hypot(this.target.x - p.x, this.target.z - p.z) < 15)) {
       this.nextArmourCover = now + rand(2500, 4500);

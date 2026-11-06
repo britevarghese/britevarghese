@@ -27,7 +27,29 @@ export const WEAPONS = {
     // 9x19 mm
     velocity: 360, dragQ: 1.6e-3, maxRange: 220, zero: [25, 50],
   },
+  // disposable 84 mm recoilless anti-armour launcher (AT4 class): one shot per tube, the spent tube is dropped and the
+  // next one unslung. HEAT round at ~290 m/s with no motor after it leaves the tube (full gravity: the pop-up sight
+  // has range settings), lethal blast of a couple of metres; against armour it is the hit that counts — a jeep or a
+  // bike is gone in one, a tank takes four from the front, three on the flank, two up the back (see armourAspect)
+  at4: {
+    id: 'at4', name: 'AT-84 Launcher', slot: 2, visual: 'launcher', auto: false, launcher: true,
+    damage: 110, directHit: 360, vehicleDamage: 360, splash: 3.5, rpm: 30, mag: 1, reserve: 2, reload: 3.4, reloadEmpty: 3.4,
+    engage: 300, spreadHip: 2.4, spreadAds: 0.1, spreadMove: 2.5,
+    recoil: { pitch: 1.6, yaw: 0.5, recover: 3 }, adsTime: 0.55, adsFov: 0.78, speed: 0.9, tracer: 0,
+    velocity: 290, maxRange: 600, zero: [100, 200, 300, 400],
+    // the fuze arms ~10 m out of the tube: closer, the round just strikes (no blast, no self-kill at point blank)
+    armDist: 10, dudDamage: 60, dudVehicle: 25,
+  },
 };
+
+// armour by aspect: a shaped charge on a tank's glacis does little; on the side skirts more; up the engine deck /
+// rear most (front within 50° of the hull's nose, rear within 50° of its tail). Other vehicles: no difference.
+export function armourAspect(v, dir) {
+  if (v.type !== 'tank') return 1;
+  const fx = -Math.sin(v.yaw), fz = -Math.cos(v.yaw), l = Math.hypot(dir.x, dir.z) || 1;
+  const c = -(dir.x * fx + dir.z * fz) / l; // 1 = shot comes in at the nose, -1 = from behind
+  return c > Math.cos(0.87) ? 0.75 : c < -Math.cos(0.87) ? 1.8 : 1.25;
+}
 
 // M67-like: 4 s fuse, ~15 m/s overarm throw under real gravity (lands ~25-30 m away on a lob)
 export const GRENADE = { fuse: 4.0, radius: 9, maxDamage: 130, count: 2, throwSpeed: 15, gravity: 9.81 };
@@ -35,8 +57,8 @@ export const GRENADE = { fuse: 4.0, radius: 9, maxDamage: 130, count: 2, throwSp
 export const CLASSES = {
   assault: { name: 'Assault', primary: 'ar', secondary: 'pistol', grenades: 2 },
   recon: { name: 'Recon', primary: 'sniper', secondary: 'pistol', grenades: 1 },
-  // support: double ammo, extra grenades, resupplies teammates nearby (ammo bag)
-  support: { name: 'Support', primary: 'ar', secondary: 'pistol', grenades: 4, ammoMul: 2, resupply: true },
+  // support: double ammo, extra grenades, an anti-armour launcher, resupplies teammates nearby (ammo bag)
+  support: { name: 'Support', primary: 'ar', secondary: 'pistol', gadget: 'at4', grenades: 4, ammoMul: 2, resupply: true },
   // medic: heals faster, and patches up teammates within a few metres
   medic: { name: 'Medic', primary: 'ar', secondary: 'pistol', grenades: 1, medic: true },
 };
@@ -44,7 +66,7 @@ export const CLASSES = {
 export const CLASS_INFO = {
   assault: { role: 'Close range · Balanced', perk: 'All-round carbine kit' },
   recon: { role: 'Long range · Intel', perk: 'Bolt-action rifle, 4x scope' },
-  support: { role: 'Heavy firepower · Ammo', perk: 'Double ammo, 4 grenades, resupplies squad' },
+  support: { role: 'Heavy firepower · Anti-armour', perk: 'AT launcher (3 rockets), double ammo, 4 grenades, resupplies squad' },
   medic: { role: 'Heal · Sustain', perk: 'Fast self-heal, heals nearby teammates' },
 };
 

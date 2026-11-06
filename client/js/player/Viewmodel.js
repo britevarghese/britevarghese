@@ -110,9 +110,12 @@ export class Viewmodel {
     this.switchT = 0;
     this.weaponKey = key;
     // hip & ADS poses in camera space
-    const pistol = key === 'pistol';
-    // (pistol: a two-handed low ready, arms nearly extended, the gun just under the line of sight)
-    this.hip = { pos: pistol ? new THREE.Vector3(0.1, -0.2, -0.5) : new THREE.Vector3(0.16, -0.205, -0.2), rot: new THREE.Euler(pistol ? 0.02 : 0.03, pistol ? 0.05 : 0.07, pistol ? 0.0 : 0.08) };
+    const pistol = key === 'pistol', launcher = w.def?.kind === 'launcher';
+    this.launcher = launcher;
+    // (pistol: a two-handed low ready, arms nearly extended, the gun just under the line of sight; launcher: up on the
+    // right shoulder, the tube filling the right of the view, the head not yet down to the sights)
+    this.hip = launcher ? { pos: new THREE.Vector3(0.235, -0.085, -0.2), rot: new THREE.Euler(0.0, 0.025, 0.0) }
+      : { pos: pistol ? new THREE.Vector3(0.1, -0.2, -0.5) : new THREE.Vector3(0.16, -0.205, -0.2), rot: new THREE.Euler(pistol ? 0.02 : 0.03, pistol ? 0.05 : 0.07, pistol ? 0.0 : 0.08) };
     // a tall optic (red dot on a riser above a pistol grip) sits the rifle lower in the hands at the hip, so the sight
     // stays down in the corner of the view instead of filling it
     if (!pistol && w.sockets.opticEye && w.sockets.rightGrip) this.hip.pos.y -= Math.max(0, w.sockets.opticEye.y - w.sockets.rightGrip.y - 0.1);
@@ -167,7 +170,15 @@ export class Viewmodel {
     // reload: the gun comes off the shoulder and turns to the working hand — magazine well toward the support hand
     // (rifle: rolled onto its left side; pistol: muzzle up, grip out), the bolt rifle's receiver top and bolt to
     // the right hand. Back on target as the reload finishes.
-    if (this.reload > 0 && this.reload < 1) {
+    if (this.reload > 0 && this.reload < 1 && this.launcher) {
+      // disposable launcher: the spent tube comes off the shoulder and is dropped (0-0.35), the next one is unslung
+      // and shouldered (0.55-0.95) — pulled down out of the view and up again, turned about the firing hand
+      const rl = this.reload, down = rl < 0.45 ? ease(Math.min(1, rl / 0.35)) : 1 - ease(Math.min(1, Math.max(0, (rl - 0.55) / 0.4)));
+      const pv = _pv1.copy(w.sockets.rightGrip).applyQuaternion(q).add(p);
+      q.multiply(_q1.setFromEuler(_e1.set(-0.8 * down, 0.35 * down, 0.5 * down)));
+      p.copy(pv).sub(_pv1.copy(w.sockets.rightGrip).applyQuaternion(q));
+      p.x -= 0.06 * down; p.y -= 0.42 * down; p.z += 0.05 * down;
+    } else if (this.reload > 0 && this.reload < 1) {
       const rl = this.reload, type = this.weapon.action?.type || 'rifle', T = RELOAD_TILT[type] || RELOAD_TILT.rifle;
       // (the bolt rifle comes off the shoulder at once and stays out until the bolt is closed: the hand works it
       // at arm's length, not in front of the eye)
@@ -199,11 +210,11 @@ export class Viewmodel {
     this.weapon.fired(); // case out / slide back / bolt cycle
     // a different flame every shot: turned about the bore, sized, for about two frames
     const f = this.weapon.flash;
-    f.visible = true; f.rotation.z = Math.random() * Math.PI * 2; f.scale.setScalar(0.75 + Math.random() * 0.5);
+    f.visible = true; f.rotation.z = Math.random() * Math.PI * 2; f.scale.setScalar((0.75 + Math.random() * 0.5) * (def.launcher ? 2.6 : 1));
     f.star.rotation.z = Math.random() * Math.PI * 2;
     this.flashT = 0.034;
     this.flashLight.position.copy(this.weapon.sockets.muzzle).applyMatrix4(this.weapon.root.matrixWorld);
-    this.flashLight.intensity = def.id === 'sniper' ? 2.2 : 1.2;
+    this.flashLight.intensity = def.launcher ? 4 : def.id === 'sniper' ? 2.2 : 1.2;
     const r = this.recoil, a = this.ads > 0.5;
     r.vz += (a ? 0.45 : 0.9) * Math.min(2, def.recoil.pitch + 0.4);
     r.vp += (a ? 1.1 : 2.0) * def.recoil.pitch;

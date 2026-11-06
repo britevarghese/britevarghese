@@ -20,6 +20,9 @@ const RELOAD = {
   pistol: [[0.2, 'pistol_magout', 0.8], [0.42, 'draw_pistol', 0.2], [0.7, 'pistol_magin', 1], [0.88, 'pistol_slide', 1, true]],
   // bolt rifle (stripper clip): bolt open, magazine floorplate / clip, rounds pushed in at 0.70, bolt closed at 0.88
   sniper: [[0.05, 'bolt_up', 0.6], [0.11, 'bolt_back', 0.6], [0.2, 'ar_magout', 0.5, false, 0.9], [0.42, 'draw_rifle', 0.22], [0.7, 'clip', 1], [0.88, 'bolt_fwd', 0.9], [0.93, 'bolt_down', 0.9]],
+  // disposable launcher (the viewmodel's tube swap): off the shoulder, the empty tube dropped (a hollow knock on the
+  // ground), the next one unslung and shouldered, the cocking lever thrown forward
+  at4: [[0.08, 'draw_rifle', 0.3, false, 0.85], [0.38, 'imp_wood', 0.35, false, 0.7], [0.6, 'draw_rifle', 0.35, false, 0.8], [0.9, 'bolt_down', 0.8, false, 0.85]],
 };
 // own handling noise (reload, bolt, draw, dry fire, grenade): ~14 dB under the own gunshot as it leaves the limiter
 const FOLEY = 0.1;
@@ -396,12 +399,14 @@ export class GameAudio {
   }
 
   // a bullet passing within a few metres: supersonic rifle rounds crack (the shock wave's N-wave, then the air
-  // tearing behind it); the slower 9 mm only whizzes past, its pitch falling as it goes (Doppler)
+  // tearing behind it); the slower 9 mm only whizzes past, its pitch falling as it goes (Doppler); a launcher round
+  // (subsonic, big) rushes past with a deep, falling whoosh
   crack(pos, weapon = 'ar', dist = 2) {
     if (!this.ctx || !this.enabled) return;
     const c = this.ctx, t = c.currentTime, loud = Math.max(0.25, 1 - dist / 4);
     const big = weapon === 'sniper' || weapon === 'jeep_mg';
-    if (weapon !== 'pistol' && this.has('crack')) {
+    const slow = weapon === 'pistol' || weapon === 'at4';
+    if (!slow && this.has('crack')) {
       // recorded shock waves (cracking whip tips: the same N-wave in miniature): the closer, the louder and brighter; a
       // bigger bullet's a little lower, with a fuller snap
       this.#play('crack', { pos, gain: CRACK * loud * (big ? 0.85 : 1), rate: (big ? 0.84 : 1) * (0.94 + Math.random() * 0.12), lp: 2500 + 15000 * loud ** 2, verb: 0.3 });
@@ -409,12 +414,13 @@ export class GameAudio {
       return;
     }
     const g = this.#chain(pos, 0.9 * loud, 16000, 0.3);
-    if (weapon === 'pistol') {
+    if (slow) {
+      const big = weapon === 'at4', len = big ? 0.5 : 0.2;
       const src = c.createBufferSource(); src.buffer = this.noise; src.playbackRate.value = 0.9 + Math.random() * 0.2;
-      const f = c.createBiquadFilter(); f.type = 'bandpass'; f.Q.value = 6;
-      f.frequency.setValueAtTime(3600, t); f.frequency.exponentialRampToValueAtTime(1300, t + 0.16);
-      const env = c.createGain(); env.gain.setValueAtTime(0.001, t); env.gain.exponentialRampToValueAtTime(2.2, t + 0.07); env.gain.exponentialRampToValueAtTime(0.001, t + 0.2);
-      src.connect(f).connect(env).connect(g); src.start(t, Math.random() * 0.5, 0.25);
+      const f = c.createBiquadFilter(); f.type = 'bandpass'; f.Q.value = big ? 2.5 : 6;
+      f.frequency.setValueAtTime(big ? 1400 : 3600, t); f.frequency.exponentialRampToValueAtTime(big ? 380 : 1300, t + len * 0.8);
+      const env = c.createGain(); env.gain.setValueAtTime(0.001, t); env.gain.exponentialRampToValueAtTime(big ? 3.2 : 2.2, t + len * 0.35); env.gain.exponentialRampToValueAtTime(0.001, t + len);
+      src.connect(f).connect(env).connect(g); src.start(t, Math.random() * 0.5, len + 0.05);
       return;
     }
     const n = c.createBufferSource(); n.buffer = this.nwave; n.playbackRate.value = 0.85 + Math.random() * 0.3;
@@ -454,6 +460,18 @@ export class GameAudio {
     this.#noiseBurst(g, t + delay, 0.5, 0.001, 60);
     this.#thump(g, t + delay, 55, 1.1, 2.2);
     this.#noiseBurst(g, t + delay + 0.03, 1.8, 0.1, 0, 140);
+  }
+
+  // recoilless launcher going off: a sharp, heavy report (the propellant and the back blast at once) and the round
+  // rushing away; heard from far off like a cannon, close up it is felt in the chest
+  launcher(pos, local = false) {
+    if (!this.ctx) return;
+    const d = local ? 0 : this.#dist(pos), t = this.ctx.currentTime, delay = d > 30 ? d / 343 : 0;
+    const g = this.#chain(local ? null : pos, local ? 1.8 : 2.4, Math.max(600, 14000 - d * 25), local ? 0.6 : 1, 8);
+    if (this.#play('cannon', { pos: local ? null : pos, gain: local ? 0.55 : 1.0, lp: Math.max(700, 18000 * Math.exp(-d / 220)), delay, verb: local ? 0.5 : 1, ref: 8, rate: 1.3 + Math.random() * 0.1 })) {
+      g.gain.value = local ? 0.45 : 0.7; this.#thump(g, t + delay, 70, 0.5, 0.9);
+    } else { this.#noiseBurst(g, t + delay, 0.35, 0.001, 90); this.#thump(g, t + delay, 70, 0.6, 1.8); }
+    this.#noiseBurst(g, t + delay + 0.02, 0.6, 0.04, 0, 1200); // the round tearing away
   }
 
   // rocket motor ignition + whoosh

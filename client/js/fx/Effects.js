@@ -294,7 +294,38 @@ export class Effects {
   addAmbientSmoke(x, y, z, opts = {}) { const h = { x, y, z, acc: Math.random(), ...opts }; this.ambient.push(h); return h; }
   removeAmbientSmoke(h) { this.ambient = this.ambient.filter((a) => a !== h); }
 
+  // shoulder-fired recoilless launcher: flash at the muzzle, the back blast — a jet of flame and gas out of the venturi
+  // and a cloud of smoke and kicked-up dust behind the shooter — and the round itself, a dark dart with a faint wisp
+  // (no rocket motor: it coasts from the tube)
+  launcherShot(muzzle, rear, dir, to, tf, fp = false) {
+    this.muzzleFlash(muzzle, dir, true, fp);
+    const q = this.q.particles;
+    for (let i = 0; i < 10 * q; i++) {
+      const s = 4 + Math.random() * 10;
+      this.emit(rear.x, rear.y, rear.z, -dir.x * s + (Math.random() - 0.5) * 2, -dir.y * s + (Math.random() - 0.3) * 1.5, -dir.z * s + (Math.random() - 0.5) * 2, 0xffb060, 0.25 + Math.random() * 0.2, 0.08 + Math.random() * 0.06, { grow: 3, alpha: 1, drag: 6, grav: 0, add: 1 });
+    }
+    // (the gas jet throws up a wall of smoke and dust metres behind the tube: what gives a launcher team away)
+    for (let i = 0; i < 38 * q; i++) {
+      const s = 3 + Math.random() * 10, k = Math.random();
+      this.emit(rear.x - dir.x * k * 2, rear.y - dir.y * k * 2, rear.z - dir.z * k * 2, -dir.x * s + (Math.random() - 0.5) * 3.5, -dir.y * s + Math.random() * 1.4, -dir.z * s + (Math.random() - 0.5) * 3.5, Math.random() < 0.5 ? 0xb8b2a6 : 0x9a8d78, 0.75 + Math.random() * 0.8, 2.2 + Math.random() * 2.5, { grow: 4, alpha: 0.55, drag: 2.2, grav: -0.15 });
+    }
+    // a little forward smoke at the muzzle too
+    for (let i = 0; i < 6 * q; i++) this.emit(muzzle.x, muzzle.y, muzzle.z, dir.x * 3 + (Math.random() - 0.5), dir.y * 3 + Math.random() * 0.5, dir.z * 3 + (Math.random() - 0.5), 0xc4c0b8, 0.3, 1.2, { grow: 3, alpha: 0.35, drag: 2.5, grav: -0.1 });
+    (this.rounds || (this.rounds = [])).push({ from: muzzle.clone(), to: new THREE.Vector3(...to), t: 0, tf: Math.max(0.02, tf) });
+  }
+
   update(dt) {
+    // launcher rounds in flight
+    if (this.rounds?.length) {
+      for (const r of this.rounds) {
+        r.t += dt;
+        const k = Math.min(1, r.t / r.tf);
+        _bv.copy(r.from).lerp(r.to, k);
+        this.emit(_bv.x, _bv.y, _bv.z, 0, 0, 0, 0x2a2a26, 0.09, 0.05, { grow: 0, alpha: 1, drag: 0, grav: 0 });
+        if (Math.random() < 0.6) this.emit(_bv.x, _bv.y, _bv.z, (Math.random() - 0.5) * 0.3, 0.1, (Math.random() - 0.5) * 0.3, 0xd6d2ca, 0.12, 0.5 + Math.random() * 0.4, { grow: 3, alpha: 0.25, drag: 1.5, grav: -0.05 });
+      }
+      this.rounds = this.rounds.filter((r) => r.t < r.tf);
+    }
     const P = this.P;
     for (let i = 0; i < P.n; i++) {
       if (P.life[i] <= 0) { this.aAlpha.array[i] = 0; continue; }

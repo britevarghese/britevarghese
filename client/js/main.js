@@ -262,6 +262,15 @@ class Game {
         }
         const muzzle = P.muzzleOf(e.id);
         const from = muzzle ? [muzzle.x, muzzle.y, muzzle.z] : e.o;
+        if (WEAPONS[e.w]?.launcher) {
+          // someone else's launcher: flash, back blast out of the tube's rear, the round on its way, the boom of it
+          const m = muzzle || new THREE.Vector3(...e.o), dir = new THREE.Vector3(e.e[0] - m.x, e.e[1] - m.y, e.e[2] - m.z).normalize();
+          this.effects.launcherShot(m, m.clone().addScaledVector(dir, -1.02), dir, e.e, Math.max(0.02, e.tf ?? 0.5));
+          this.audio.launcher(from);
+          this.#nearMiss(e.o, e.e, Math.max(0.02, e.tf ?? 0.5), e.w);
+          const sh = P.info(e.id); if (sh) { sh.spottedUntil = performance.now() + 4000; sh.rig?.kick(!!e.l); }
+          break;
+        }
         const dist = Math.hypot(e.e[0] - from[0], e.e[1] - from[1], e.e[2] - from[2]);
         const tf = Math.max(0.01, e.tf ?? dist / 700);
         // tracer flies at the real (average) bullet speed; the impact appears when the bullet gets there
@@ -427,6 +436,21 @@ class Game {
     setTimeout(() => this.audio.crack([o[0] + dx * k, o[1] + dy * k, o[2] + dz * k], w, d), k * tf * 1000);
   }
 
+  // my own launcher round: flash, back blast behind me, the round's flight (the blast where it lands comes from the
+  // server's 'boom'); no case to eject
+  #launcherShot(eye, dir, def) {
+    const tps = this.me.isTPS();
+    const muzzle = (tps && this.players.muzzleOf(this.myId)) || this.viewmodel.toWorld(this.viewmodel.weapon.socketWorld('muzzle', new THREE.Vector3()), new THREE.Vector3(), this.camera);
+    const right = new THREE.Vector3(-dir.z, 0, dir.x).normalize();
+    const rear = new THREE.Vector3().copy(eye).addScaledVector(dir, -0.45).addScaledVector(right, 0.2).add(new THREE.Vector3(0, -0.1, 0));
+    const path = bulletPath(this.world.collision, eye, dir, def), e = path.end;
+    this.effects.launcherShot(muzzle, rear, dir, [e.x, e.y, e.z], e.t, !tps);
+    if (tps) this.players.info(this.myId)?.rig?.kick();
+    this.audio.launcher(null, true);
+    this.effects.shake = Math.max(this.effects.shake, 0.45);
+    (this.localImpacts || (this.localImpacts = [])).push(null);
+  }
+
   // is an enemy soldier (not behind a wall, within the weapon's range) under the crosshair?
   #enemyUnderCrosshair(cam, def) {
     const o = cam.position, d = new THREE.Vector3(0, 0, -1).applyQuaternion(cam.quaternion);
@@ -447,6 +471,7 @@ class Game {
   onLocalShot(eye, dir, def) {
     // viewmodel kick + muzzle flash at the real muzzle socket, world tracer & predicted impact
     this.viewmodel.kick(def);
+    if (def.launcher) { this.#launcherShot(eye, dir, def); return; }
     this.audio.gunshot(null, def.id, true);
     // the action: a bolt rifle is worked after every shot (the case flies out with the bolt), the others eject
     // their brass straight away

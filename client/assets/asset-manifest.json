@@ -261,6 +261,22 @@
           0.3
         ]
       }
+    },
+    "launcher": {
+      "kind": "launcher",
+      "files": [
+        "user/weapons/launcher.glb",
+        "weapons/launcher.glb"
+      ],
+      "tpsFiles": [
+        "user/weapons/launcher.glb",
+        "weapons/launcher_tps.glb"
+      ],
+      "forward": "-z",
+      "length": null,
+      "optic": {
+        "type": "iron"
+      }
     }
   },
   "props": {
