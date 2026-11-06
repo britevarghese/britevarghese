@@ -768,7 +768,7 @@ export class TrafficManager {
       if (Math.abs(-dx * fz + dz * fx) > half + c.spec.w / 2 + 0.35) continue;
       // oncoming traffic in its own lane (not one turning at a junction, or this one turning: held at a junction's mouth
       // on its turn, nosed into the other road, a car was driven through by an auto coming the other way)
-      // (not one on another road's lane that runs across this one's: two roads leaving a junction in Iritty 39 degrees
+      // (not one on another road's lane that runs across this one's: two roads leaving a junction in Iritty 54 degrees
       // apart, the inner lanes of the two crossed 5 m out, and a car on each took the other for oncoming and drove into it)
       if (ofx * fx + ofz * fz < -0.5 && o.path?.kind === 'lane' && path.kind === 'lane' && (o.path.edge === path.edge || !this._conflicts(path, o.path, 1))) continue;
       // does it see us in front of it too? then the one further from the conflict (or the later id) waits
