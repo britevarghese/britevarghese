@@ -793,7 +793,13 @@ already wet in the rain. Started in the rain, it has been raining a while too.
   on wet grass finds; rock and tarmac carry a film of water (tarmac 18 m against 14, about as wet asphalt's grip, 0.50
   against 0.65, would have it); the loose top of earth and grass turns to a soft mud a spinning tyre digs through
   faster; mud is softer and deeper (ruts 9 cm where they were 7.7); damp sand is firmer, the water binding its grains
-  (ruts 6.6 cm where they were 10.8). No dust comes off the tyres; at speed they lift the water off the ground in a
+  (ruts 6.6 cm where they were 10.8). Sand at the water's edge is damp whatever the weather: on a beach, a sand bar or
+  a lake's shore, from the waterline up 0.6 m (as it is drawn wet) it is the rain's damp sand (`sand`, `src/world/World.js`):
+  a Ranger sinks 7 cm in it where it sinks 11 in the dry sand above, its rolling resistance coasting from 5 m/s is 0.15
+  against 0.21 (loose sand's is 0.15 to 0.3), and flat out from a standstill it covers 30 m in 6 s against 19. Drive
+  the firm strip along the water, as the US Army's trials on beach and desert sands found (wet sands more trafficable
+  than dry to moist ones: [Waterways Experiment Station, TM 3-240, 15th supplement, 1959](https://apps.dtic.mil/sti/tr/pdf/AD0218089.pdf));
+  under the water, saturated, it's as soft as dry again. No dust comes off the tyres; at speed they lift the water off the ground in a
   fine spray hanging low behind each one, thickest off a road's film of water, brown off bare earth, and fling drops
   of it off the tread (`src/render/Effects.js`), and you hear them hiss on it.
 - **The ruts fill:** over a minute and a half of rain the water stands in a worn track's ruts on its bare earth and

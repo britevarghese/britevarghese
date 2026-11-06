@@ -10,8 +10,8 @@ import { truckSpec } from '../src/physics/trucks.js';
 
 test('river rock: slick under the water, wet just above it, dry away from it', () => {
   // a river whose surface is at 0 for x < 0, dry ground beyond
-  const w = { water: (x) => (x < 0 ? 0 : -Infinity), surfaces: SURFACES };
-  const stone = (x, top) => World.prototype.stone.call(w, x, 0, top);
+  const w = Object.assign(Object.create(World.prototype), { water: (x) => (x < 0 ? 0 : -Infinity), surfaces: SURFACES });
+  const stone = (x, top) => w.stone(x, 0, top);
   assert.equal(stone(-3, -0.2), RIVER_ROCK, 'a boulder\'s face under the water');
   assert.ok(RIVER_ROCK.mu < 0.4 && RIVER_ROCK.mu < SURFACES[SURFACE.RIVERBED].mu, `slick: ${RIVER_ROCK.mu}, the gravel bed round it ${SURFACES[SURFACE.RIVERBED].mu}`);
   assert.equal(stone(-3, 0.3), WET_SURFACES[SURFACE.ROCK], 'just above the water: wet');
@@ -31,6 +31,15 @@ function climb(surface, deg = 22, secs = 12) {
   for (let s = 0; s < secs; s += PHYS_DT) v.step({ throttle: 0.7, brake: 0, steer: 0, handbrake: 0 }, g);
   return v.pos.z;
 }
+
+test('sand at the water\'s edge: damp and firm up to 0.6 m above it, dry above that, as soft as dry under the water', () => {
+  const w = Object.assign(Object.create(World.prototype), { water: (x) => (x < 0 ? 0 : -Infinity), surfaces: SURFACES });
+  assert.equal(w.sand(1.5, 0, 0.3), WET_SURFACES[SURFACE.SAND], 'on the beach just above the water');
+  assert.equal(w.sand(1.5, 0, 0.9), SURFACES[SURFACE.SAND], 'higher up the beach');
+  assert.equal(w.sand(20, 0, 0.1), SURFACES[SURFACE.SAND], 'away from the water');
+  assert.equal(w.sand(-3, 0, -0.5), SURFACES[SURFACE.SAND], 'under the water');
+  assert.ok(WET_SURFACES[SURFACE.SAND].sink > SURFACES[SURFACE.SAND].sink && WET_SURFACES[SURFACE.SAND].drag < SURFACES[SURFACE.SAND].drag, 'damp sand is stiffer and drags less');
+});
 
 test('river rock: a 4x4 walks up a 22 degree slab of dry rock, but spins on the same slab slimed under a river', () => {
   const dry = climb(SURFACES[SURFACE.ROCK]), slick = climb(RIVER_ROCK);

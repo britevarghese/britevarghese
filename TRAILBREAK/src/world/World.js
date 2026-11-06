@@ -277,7 +277,25 @@ export class World {
     const t = this.terrain(x, z), top = this.boulderTop(x, z);
     if (top > t - 0.02) return this.stone(x, z, top);
     const id = this.surfaceId(x, z);
-    return id === SURFACE.ROCK ? this.stone(x, z, t) : S[id];
+    return id === SURFACE.ROCK ? this.stone(x, z, t) : id === SURFACE.SAND ? this.sand(x, z, t) : S[id];
+  }
+
+  /** The level of the water at (x, z), or at its edge a few metres off (as render/Terrain.js draws the ground wet), or -Infinity. */
+  shoreLevel(x, z) {
+    let wl = this.water(x, z);
+    if (!(wl > -1e8)) for (let j = 0; j < SHORE.length; j += 2) wl = Math.max(wl, this.water(x + SHORE[j], z + SHORE[j + 1]));
+    return wl;
+  }
+
+  /**
+   * Sand at (x, z), its surface at height h: damp at the water's edge, from the waterline up 0.6 m (as it is drawn wet:
+   * render/Terrain.js), the water binding its grains: firmer, as in the rain (WET_SURFACES). The US Army's trials on
+   * beach and desert sands (Waterways Experiment Station, TM 3-240, 15th supplement, 1959) found wet sands more
+   * trafficable than dry to moist ones. Under the water, saturated, it's as soft as dry (it can liquefy under a wheel).
+   */
+  sand(x, z, h) {
+    const wl = this.shoreLevel(x, z);
+    return wl > h - 0.6 && wl < h + 0.05 ? WET_SURFACES[SURFACE.SAND] : this.surfaces[SURFACE.SAND];
   }
 
   /**
@@ -285,9 +303,8 @@ export class World {
    * 0.6 m above it, wet (as it is drawn: render/Terrain.js, render/Rocks.js); otherwise as the weather has it.
    */
   stone(x, z, top) {
-    let wl = this.water(x, z);
+    const wl = this.shoreLevel(x, z);
     if (wl > top - 0.02) return RIVER_ROCK;
-    if (!(wl > -1e8)) for (let j = 0; j < SHORE.length; j += 2) wl = Math.max(wl, this.water(x + SHORE[j], z + SHORE[j + 1]));
     return wl > top - 0.6 ? WET_SURFACES[SURFACE.ROCK] : this.surfaces[SURFACE.ROCK];
   }
 
