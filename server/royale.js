@@ -1,7 +1,7 @@
 // Battle royale ("Firestorm"-style) game mode: warm-up lobby -> transport plane flies over the island -> everyone
 // jumps (freefall + parachute) -> loot weapons, armor, med kits -> the ring of fire closes in -> no respawns,
 // last one standing wins -> next match.
-import { Game } from './game.js';
+import { Game, botName } from './game.js';
 import { BotBrain } from './bots.js';
 import { WEAPONS } from '../shared/weapons.js';
 import { ROYALE, LOOT, rollLoot, RING_PHASES, ringAt, planeLine, stepAir } from '../shared/royale.js';
@@ -59,8 +59,7 @@ export class RoyaleGame extends Game {
     const humans = this.players.size - bots.length;
     const want = humans ? this.botTotal : 0;
     while (bots.length < want) {
-      const n = NAMES[Math.floor(Math.random() * NAMES.length)];
-      bots.push(this.addPlayer({ name: `[BOT] ${n}`, bot: true, team: 1 + (bots.length % 2), cls: 'assault' }));
+      bots.push(this.addPlayer({ name: botName(this.players, NAMES), bot: true, team: 1 + (bots.length % 2), cls: 'assault' }));
     }
     while (bots.length > want) this.removePlayer(bots.pop().id);
   }

@@ -79,6 +79,14 @@ test('the last round in the magazine is flagged on the shot event (slide / bolt 
   assert.equal(g.flushEvents().map((e) => e.ev).find((e) => e.t === 'reload').dur, WEAPONS.ar.reloadEmpty * 1000);
 });
 
+test('bots in a room all have different names', () => {
+  const g = new Game({ botsPerTeam: 16, log: () => {} });
+  g.balanceBots();
+  const names = [...g.players.values()].map((p) => p.name);
+  assert.equal(names.length, 32);
+  assert.equal(new Set(names).size, names.length, names.join(', '));
+});
+
 test('shots through a building wall do not damage', () => {
   const g = mkGame();
   const b = BUILDINGS.find((x) => x.id === 'b3');

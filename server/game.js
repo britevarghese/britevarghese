@@ -10,6 +10,15 @@ import { VehicleSystem } from './vehicles.js';
 import { angleDiff } from '../shared/util.js';
 
 export const TICK_HZ = 30;
+
+// a bot name nobody in the room has yet (two "[BOT] Okafor" on opposite sides make the kill feed unreadable);
+// once the list runs out, numbered ("[BOT] Reyes 2")
+export function botName(players, names) {
+  const used = new Set([...players.values()].map((p) => p.name));
+  const free = names.filter((n) => !used.has(`[BOT] ${n}`));
+  if (free.length) return `[BOT] ${free[Math.floor(Math.random() * free.length)]}`;
+  for (let k = 2; ; k++) { const n = `[BOT] ${names[Math.floor(Math.random() * names.length)]} ${k}`; if (!used.has(n)) return n; }
+}
 export const SNAP_HZ = 20;
 const START_TICKETS = 300;
 const RESPAWN_DELAY = 5;
@@ -98,8 +107,7 @@ export class Game {
     for (const t of [1, 2]) {
       const want = Math.max(0, this.botsPerTeam - humans[t]);
       while (bots[t].length < want) {
-        const n = names[Math.floor(Math.random() * names.length)];
-        bots[t].push(this.addPlayer({ name: `[BOT] ${n}`, bot: true, team: t, cls: ((r) => (r < 0.5 ? 'assault' : r < 0.65 ? 'recon' : r < 0.85 ? 'support' : 'medic'))(Math.random()) }));
+        bots[t].push(this.addPlayer({ name: botName(this.players, names), bot: true, team: t, cls: ((r) => (r < 0.5 ? 'assault' : r < 0.65 ? 'recon' : r < 0.85 ? 'support' : 'medic'))(Math.random()) }));
       }
       while (bots[t].length > want) this.removePlayer(bots[t].pop().id);
     }
