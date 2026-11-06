@@ -387,6 +387,14 @@ the game. Newly found problems go at the end of their section.
   21 -> 11, the worst 269 -> ~170 ms; what's left comes in pairs with every system slowed at once: the garbage
   collector (the build's churn of JS arrays, still to cut down) and shaders compiling (in the test, without a GPU)
 
+- [x] Cars driving into each other on a small junction with no signal (Kannur, three village lanes meeting in 5 m,
+  turns 2.5-6 m long): of two that saw each other the further from the conflict went on - but the one that gave way
+  was already standing in its turn, and the other crept into it. Now a car doesn't go into a small junction (its turn
+  under 10 m) while another is on a turn there that crosses its own or comes into the same street (worked out once a
+  pair, from the turns' lines); through a bigger one, as before. Six towns, 2 minutes each: overlaps 7 -> 0, cars
+  standing 17.5 -> 19 % of the time (held at every junction's mouth, not only the small ones: 21 %). Runs vary a good
+  deal from one to the next: one pass each
+
 ## People
 - [x] Clothing: men in plain shirts over dark trousers, khaki or a white mundu, black hair; women in sarees; no kurtas or western dress in crowds, drivers or riders
 - [x] More women: four saree models (two new: yellow and rose), and churidars (a kurta-coloured top over leggings) on the two women avatars; models with their origin at the waist now come out the right size

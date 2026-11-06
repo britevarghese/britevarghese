@@ -612,6 +612,28 @@ export class TrafficManager {
     return opts[0];
   }
 
+  // two turns through a junction that come within `clear` of each other anywhere (cross, or meet in the street they
+  // both go into): worked out once a pair and kept
+  _conflicts(a, b, clear) {
+    const C = this._conf || (this._conf = new WeakMap());
+    let m = C.get(a); if (!m) C.set(a, (m = new WeakMap()));
+    let r = m.get(b);
+    if (r === undefined) {
+      let best = Infinity;
+      const near = (P, Q) => {
+        for (const [x, z] of P) for (let i = 1; i < Q.length; i++) {
+          const ax = Q[i - 1][0], az = Q[i - 1][1], dx = Q[i][0] - ax, dz = Q[i][1] - az, l2 = dx * dx + dz * dz || 1;
+          const t = Math.max(0, Math.min(1, ((x - ax) * dx + (z - az) * dz) / l2)), ex = ax + dx * t - x, ez = az + dz * t - z;
+          best = Math.min(best, ex * ex + ez * ez);
+        }
+      };
+      near(a.pts, b.pts); near(b.pts, a.pts);
+      r = Math.sqrt(best);
+      m.set(b, r);
+    }
+    return r < clear;
+  }
+
   _drive(c, dt, dynamic) {
     const path = c.path;
     // stopped at the kerb (a bus at its stop, an auto dropping someone off): wait, then pull out
@@ -797,6 +819,23 @@ export class TrafficManager {
       const g2 = ahead - c.spec.l / 2 - 2.2;
       if (g2 < gap) { gap = g2; leadV = 0; }
       if (g2 < 10 && c.honk <= 0 && this.R() < 0.3) { c.honk = 8; bus.emit('traffic:honk', { x: c.x, z: c.z }); }
+    }
+    // --- a junction with no signal: in only when no one's on a turn that crosses ours (or comes into the same street).
+    // Of two that saw each other the further from it went on - but on a village junction 5 m across the one that gave
+    // way was already standing in the other's turn, and the other drove into it (Kannur, three narrow lanes meeting) ---
+    // (only a small one - its turns under 10 m: through a bigger one there's room for the two to work it out as above,
+    // and holding everyone at its mouth kept the towns' traffic standing a fifth more of the time)
+    if (path.kind === 'lane' && !path.signal && c.next?.kind === 'connector' && c.next.length < 10) {
+      const toEnd = path.length - c.s - 1;
+      if (toEnd > -0.5 && toEnd < 3 + c.v * c.v / 6) {
+        for (const o of this.cars) {
+          const op = o.path;
+          if (o === c || o.state !== 'drive' || op?.kind !== 'connector' || op === c.next || op.node !== c.next.node || op.from === path) continue;
+          if (!this._conflicts(c.next, op, (c.spec.w + o.spec.w) / 2 + 0.3)) continue;
+          if (toEnd < gap) { gap = Math.max(0.1, toEnd); leadV = 0; }
+          break;
+        }
+      }
     }
     // --- traffic signal ---
     if (path.kind === 'lane' && path.signal) {
