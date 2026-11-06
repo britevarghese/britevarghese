@@ -631,6 +631,12 @@ export class TrafficManager {
         }
       };
       near(a.pts, b.pts); near(b.pts, a.pts);
+      // (and two pieces that cross between their points: two straight lanes of two points each crossing in the
+      // middle are nowhere near each other's points)
+      const A = a.pts, B = b.pts, side = (p, q, r) => (q[0] - p[0]) * (r[1] - p[1]) - (q[1] - p[1]) * (r[0] - p[0]);
+      for (let i = 1; i < A.length && best > 0; i++) for (let j = 1; j < B.length; j++) {
+        if (side(A[i - 1], A[i], B[j - 1]) * side(A[i - 1], A[i], B[j]) < 0 && side(B[j - 1], B[j], A[i - 1]) * side(B[j - 1], B[j], A[i]) < 0) { best = 0; break; }
+      }
       r = Math.sqrt(best);
       m.set(b, r);
     }
@@ -652,6 +658,7 @@ export class TrafficManager {
     if (!c.next && path.kind === 'lane' && path.length - c.s < 40) c.next = this._chooseNext(path, c);
     // --- leader search ---
     let gap = 1e9, leadV = 0;
+    c.why = null; c.whyCar = null;   // (what holds it up, for the tests: a word, and the car if it's one)
     const cars = path.cars;
     // two-wheelers keep to the kerb (left) and filter out past slower traffic, the way Kerala rides
     const bike = c.spec.bike;
@@ -684,7 +691,7 @@ export class TrafficManager {
         const g0 = o.s - c.s - (o.spec.l + c.spec.l) / 2;
         if (g0 < 20) { c.passT = 1.5; continue; }
       }
-      gap = o.s - c.s - (o.spec.l + c.spec.l) / 2; leadV = o.state === 'drive' ? o.v : 0;
+      gap = o.s - c.s - (o.spec.l + c.spec.l) / 2; leadV = o.state === 'drive' ? o.v : 0; c.why = 'leader'; c.whyCar = o;
     }
     if (c.passT > 0) c.passT -= dt; else c.passLat = 0;
     if (!bike && !c.pullAt && !(c.spec.bus && c.latT < 0 && path.stops)) c.latT = c.passT > 0 ? Math.max(0.6, c.passLat || 0) : 0;
@@ -692,12 +699,12 @@ export class TrafficManager {
     if (gap > 1e8 && c.next) {
       for (const o of c.next.cars) {
         const g = path.length - c.s + o.s - (o.spec.l + c.spec.l) / 2;
-        if (g < gap) { gap = g; leadV = o.state === 'drive' ? o.v : 0; }
+        if (g < gap) { gap = g; leadV = o.state === 'drive' ? o.v : 0; c.why = 'next'; c.whyCar = o; }
       }
       // look one more step (connector -> lane)
       if (c.next.kind === 'connector' && c.next.next[0]) for (const o of c.next.next[0].cars) {
         const g = path.length - c.s + c.next.length + o.s - (o.spec.l + c.spec.l) / 2;
-        if (g < gap) { gap = g; leadV = o.state === 'drive' ? o.v : 0; }
+        if (g < gap) { gap = g; leadV = o.state === 'drive' ? o.v : 0; c.why = 'next2'; c.whyCar = o; }
       }
     }
     // dynamic obstacles (player/police/racers) in front
@@ -727,7 +734,7 @@ export class TrafficManager {
       const round = stopT > 3 && this._goRound(c, path, s.x, s.z, half, ahead, g);
       if (round === 'by') continue;
       if (round === 'out') g = g0 + 1.7;   // (up to half a metre off its back, steering out as it comes)
-      if (g < gap) { gap = g; leadV = Math.max(0, s.vx * fx + s.vz * fz); }
+      if (g < gap) { gap = g; leadV = Math.max(0, s.vx * fx + s.vz * fz); c.why = 'vehicle'; c.whyCar = null; }
       if (g < 8 && c.honk <= 0 && vsp < 3) { c.honk = 6; bus.emit('traffic:honk', { x: c.x, z: c.z }); }
     }
     // a police car (an ambulance) with its siren going, coming up behind on this road or at this one head on in its
@@ -761,12 +768,14 @@ export class TrafficManager {
       if (Math.abs(-dx * fz + dz * fx) > half + c.spec.w / 2 + 0.35) continue;
       // oncoming traffic in its own lane (not one turning at a junction, or this one turning: held at a junction's mouth
       // on its turn, nosed into the other road, a car was driven through by an auto coming the other way)
-      if (ofx * fx + ofz * fz < -0.5 && o.path?.kind === 'lane' && path.kind === 'lane') continue;
+      // (not one on another road's lane that runs across this one's: two roads leaving a junction in Iritty 39 degrees
+      // apart, the inner lanes of the two crossed 5 m out, and a car on each took the other for oncoming and drove into it)
+      if (ofx * fx + ofz * fz < -0.5 && o.path?.kind === 'lane' && path.kind === 'lane' && (o.path.edge === path.edge || !this._conflicts(path, o.path, 1))) continue;
       // does it see us in front of it too? then the one further from the conflict (or the later id) waits
       const bAhead = -dx * ofx - dz * ofz;
       if (bAhead > 0 && bAhead < 4 + o.v * 1.4 + o.spec.l / 2 && Math.abs(dx * ofz - dz * ofx) < c.spec.w / 2 + o.spec.w / 2 + 1.5 && (bAhead > ahead || (Math.abs(bAhead - ahead) < 1 && c.id < o.id))) continue;
       const g = ahead - (c.spec.l / 2 + half);
-      if (g < gap) { gap = Math.max(0.1, g); leadV = o.v * Math.max(0, ofx * fx + ofz * fz); }
+      if (g < gap) { gap = Math.max(0.1, g); leadV = o.v * Math.max(0, ofx * fx + ofz * fz); c.why = 'cross'; c.whyCar = o; }
     }
     for (const o of this.cars) {
       // cars knocked into our lane / wrecks
@@ -782,7 +791,7 @@ export class TrafficManager {
       const round = o.knockT > 4 && hyp(o.s2.vx, o.s2.vz) < 0.3 && this._goRound(c, path, o.x, o.z, half, ahead, g);
       if (round === 'by') continue;
       if (round === 'out') g += 1.7;
-      if (g < gap) { gap = g; leadV = 0; }
+      if (g < gap) { gap = g; leadV = 0; c.why = 'wreck'; c.whyCar = o; }
     }
     c.honk -= dt;
     // --- buses call at the stops on their lane; autos pull over now and then in town ---
@@ -790,7 +799,7 @@ export class TrafficManager {
       for (const st of path.stops) {
         const d = st - c.s;
         if (d < -1 || d > 80) continue;
-        if (d + 2 < gap) { gap = Math.max(0.1, d + 2); leadV = 0; c.latT = -Math.min(1.1, kerbRoom(path)); }
+        if (d + 2 < gap) { gap = Math.max(0.1, d + 2); leadV = 0; c.why = 'busstop'; c.whyCar = null; c.latT = -Math.min(1.1, kerbRoom(path)); }
         if (d < 3.2 && c.v < 1.2) { c.dwell = 8 + this.R() * 10; c.pulled = true; c.lastStop = path; bus.emit('traffic:busStop', { car: c, x: c.x, z: c.z }); }
       }
     }
@@ -805,7 +814,7 @@ export class TrafficManager {
       c.pullPath = path;
       const d = c.pullAt - c.s;
       c.latT = -Math.min(1.4, kerbRoom(path));   // (to the kerb, never off the road's edge onto the verge)
-      if (d + 2 < gap) { gap = Math.max(0.1, d + 2); leadV = 0; }
+      if (d + 2 < gap) { gap = Math.max(0.1, d + 2); leadV = 0; c.why = 'pullin'; c.whyCar = null; }
       if (d < 3.2 && c.v < 1.2) {
         c.dwell = c.arriving ? (c.type === 'auto' ? 8 + this.R() * 12 : c.type === 'lorry' || c.type === 'minitruck' ? 25 + this.R() * 35 : 12 + this.R() * 30) : 5 + this.R() * 14;
         c.pulled = true; c.pullAt = 0; c.pullPath = null;
@@ -820,7 +829,7 @@ export class TrafficManager {
       if (ahead < 0 || ahead > 30) continue;
       if (Math.abs(-dx * fz + dz * fx) > 2.6) continue;
       const g2 = ahead - c.spec.l / 2 - 2.2;
-      if (g2 < gap) { gap = g2; leadV = 0; }
+      if (g2 < gap) { gap = g2; leadV = 0; c.why = 'person'; c.whyCar = null; }
       if (g2 < 10 && c.honk <= 0 && this.R() < 0.3) { c.honk = 8; bus.emit('traffic:honk', { x: c.x, z: c.z }); }
     }
     // --- a junction with no signal: in only when no one's on a turn that crosses ours (or comes into the same street).
@@ -835,7 +844,7 @@ export class TrafficManager {
           const op = o.path;
           if (o === c || o.state !== 'drive' || op?.kind !== 'connector' || op === c.next || op.node !== c.next.node || op.from === path) continue;
           if (!this._conflicts(c.next, op, (c.spec.w + o.spec.w) / 2 + 0.3)) continue;
-          if (toEnd < gap) { gap = Math.max(0.1, toEnd); leadV = 0; }
+          if (toEnd < gap) { gap = Math.max(0.1, toEnd); leadV = 0; c.why = 'junction'; c.whyCar = o; }
           break;
         }
       }
@@ -846,11 +855,11 @@ export class TrafficManager {
       const distToStop = path.length - c.s - (path.stopBack ?? 1);   // (at the stop line, by the signal pole)
       const canStop = c.v * c.v / (2 * 4.5) < distToStop + 2;
       if ((st === 'red' || (st === 'yellow' && canStop)) && distToStop > -1) {
-        if (distToStop < gap) { gap = distToStop; leadV = 0; }
+        if (distToStop < gap) { gap = distToStop; leadV = 0; c.why = 'signal'; c.whyCar = null; }
       }
     }
     // (told to wait by an officer clearing a jam)
-    if (c.jamHold) { gap = Math.min(gap, 0.4); leadV = 0; }
+    if (c.jamHold) { gap = Math.min(gap, 0.4); leadV = 0; c.why = 'officer'; c.whyCar = null; }
     // --- IDM ---
     let v0 = path.speed * c.speedFactor;
     if (c.blockT > 0) { c.blockT -= dt; v0 = 0; c.v = Math.min(c.v, 0.5); }   // (held: nosed into another car, see _separate)

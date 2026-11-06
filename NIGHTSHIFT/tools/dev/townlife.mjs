@@ -83,7 +83,10 @@ for (const [name, [x0, z0]] of list) {
       let ahead = null;
       for (const o of G.traffic.cars) { if (o === c) continue; const dx = o.x - c.x, dz = o.z - c.z, a = dx * fx + dz * fz, l = Math.abs(-dx * fz + dz * fx); if (a > 0 && a < 12 && l < 2.5 && (!ahead || a < ahead.a)) ahead = { a, o }; }
       { const P = G.player.state, dx = P.x - c.x, dz = P.z - c.z, a = dx * fx + dz * fz, l = Math.abs(-dx * fz + dz * fx); if (a > 0 && a < 14 && l < 2.6 && (!ahead || a < ahead.a)) ahead = { a, o: { type: 'PLAYER', v: 0 } }; }
-      stuck.push(`${c.type} @${c.x.toFixed(0)},${c.z.toFixed(0)} ${t}s, s ${c.s.toFixed(1)}/${(c.path?.length || 0).toFixed(0)}, ahead ${ahead ? `${ahead.o.type} ${ahead.a.toFixed(1)} m` : 'nothing'}`);
+      // (and what the traffic itself says holds it: the car in front, a junction's turn, a signal...; and, if a car, what holds that)
+      const why = (q) => q.blockT > 0 ? 'held apart' : q.dwell > 0 ? 'stopped at the kerb' : q.why || '-';
+      const w = c.whyCar, w2 = w?.whyCar;
+      stuck.push(`${c.type} @${c.x.toFixed(0)},${c.z.toFixed(0)} ${t}s, s ${c.s.toFixed(1)}/${(c.path?.length || 0).toFixed(0)}${c.path?.kind === 'connector' ? ' (a turn)' : ''}, ahead ${ahead ? `${ahead.o.type} ${ahead.a.toFixed(1)} m` : 'nothing'}, held by ${why(c)}${w ? ` ${w.type} (${w.state}, held by ${why(w)}${w2 ? ` ${w2 === c ? 'this one' : w2.type}` : ''})` : ''}`);
     }
     const sum = (m) => [...m.values()].reduce((s, e) => s + e.n, 0);
     const top = (m) => [...m.entries()].sort((a, b) => b[1].n - a[1].n).slice(0, 6).map(([k, e]) => `${k} x${e.n} (${e.extra})`);

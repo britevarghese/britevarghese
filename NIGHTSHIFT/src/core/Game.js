@@ -314,10 +314,14 @@ export class Game {
     // back the way it came)
     const R = ai.route;
     if (!ai.loop && ai.mode !== 'pursue' && R?.length > 2 && ai.idx < R.length - 2) {
-      let i = ai.idx;
-      for (let d = 0; i < R.length - 2 && d < on; i++) d += Math.hypot(R[i + 1][0] - R[i][0], R[i + 1][1] - R[i][1]);
-      // (not onto a car standing there: waiting in a queue, it'd be put down on the one in front)
-      if (this.traffic?.cars.some((c) => Math.abs(c.x - R[i][0]) < 5 && Math.abs(c.z - R[i][1]) < 5)) return false;
+      let i = ai.idx, d = 0;
+      for (; i < R.length - 2 && d < on; i++) d += Math.hypot(R[i + 1][0] - R[i][0], R[i + 1][1] - R[i][1]);
+      // (not onto a car standing there: waiting in a queue, it'd be put down on the one in front. On along the route
+      // to the first place clear, 150 m at most: given up there, the van you tail stood in a pile-up of wrecks, asking
+      // to be put on its way every few seconds, for three and a half minutes)
+      const taken = (x, z) => this.traffic?.cars.some((c) => Math.abs(c.x - x) < 5 && Math.abs(c.z - z) < 5);
+      for (; i < R.length - 2 && d < on + 150 && taken(R[i][0], R[i][1]); i++) d += Math.hypot(R[i + 1][0] - R[i][0], R[i + 1][1] - R[i][1]);
+      if (taken(R[i][0], R[i][1])) return false;
       vehicle.place(R[i][0], R[i][1], Math.atan2(R[i + 1][0] - R[i][0], R[i + 1][1] - R[i][1]));
       ai.idx = i;
       return true;

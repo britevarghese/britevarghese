@@ -163,6 +163,11 @@ for (const id of list) {
               ai.slow[why] = +((ai.slow[why] || 0) + 1 / 3).toFixed(1);
             }
             if (sp2 < 0.5 && !s.stopped && !(s.countdown > 0)) { ai.stop += 1 / 3; if (ai.stop > ai.longest) { ai.longest = ai.stop; ai.longAt = fmt(q.x, q.z); } } else { ai.stop = 0; info.dumping = false; }
+            // (--trace: each second it's at a crawl or standing, what it's doing - 150 lines at most)
+            if (trace && sp2 < 1 && s.ai && Math.round(t * 3) % 3 === 0 && (info.slowN = (info.slowN || 0) + 1) <= 150) {
+              const D = s.ai, c = v.controls;
+              log.push(`  slow ${t.toFixed(0)}s ${fmt(q.x, q.z)} yaw ${q.yaw.toFixed(2)} ${(sp2 * 3.6).toFixed(0)} km/h t${c.throttle.toFixed(2)} b${c.brake.toFixed(2)} hb${c.handbrake} s${c.steer.toFixed(2)} wp ${D.idx}${D.passO ? ` passing ${D.passO.type} ${D.passO.state} at ${(D.passLat ?? 0).toFixed(2)}` : ''}${D.turning ? ' turning ' + D.turning : ''}${D.reverseT > 0 ? ' unsticking' : ''}${D.backT > 0 ? ' backing off' : ''}${D.blockT > 0 ? ' blocked ' + D.blockT.toFixed(1) : ''}${D.passWait ? ' waiting to pass ' + D.passWait.toFixed(0) : ''} onRoad ${W.onCarriageway(q.x, q.z, 0)}`);
+            }
             // (--trace: what's round it once it's stood 8 s: the traffic in front, its controls, its way on)
             if (trace && ai.stop > 8 && (info.dumped || 0) < 3 && !info.dumping) {
               info.dumped = (info.dumped || 0) + 1; info.dumping = true;

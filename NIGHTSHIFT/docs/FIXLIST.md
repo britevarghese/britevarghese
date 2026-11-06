@@ -401,9 +401,24 @@ the game. Newly found problems go at the end of their section.
   in its own lane, and drove on into it. Lanes of two roads that leave a junction within 30 degrees of each other are
   cut back from it now till they're 2 m apart (13 of the 1,171 lanes round Thalassery), and the junction's curves join
   them up from there. Six towns, 2 minutes each: overlaps 0/4/0/0/3/10 -> 1/0/0/0/0/0 (Kannur's one, two autos for a
-  moment); the road scan round Thalassery the same (kinks 10/4/1). Left: the 2.5 m a lane is cut back from each
-  junction was never cut off a lane of only two points (most short straight pieces) - left as it is, as changing it
-  would move every junction in the map
+  moment); the road scan round Thalassery the same (kinks 10/4/1)
+- [x] ...and the 2.5 m a lane is cut back from each junction was never cut off a lane of only two points: a third of
+  the lanes (190 of 539 round Kannur - every straight piece of road between two junctions) ran right up to the
+  junction's middle. A car waiting at a signal there stood half a metre into the crossing road, and its turn was a
+  kink a metre or two long that it pivoted round. Every lane is cut back now, whatever its points (2 m of it kept at
+  least); the junctions' turns are proper curves. The road scan: Kannur kinks over 6/12/20 cm 85/9/0 -> 92/10/0,
+  Thalassery 10/4/1 -> 12/4/1 (the longer turns cross more of each junction's surface)
+- [x] ...and a junction in Iritty where two roads leave 54 degrees apart: their inner lanes met in a "left turn" 0.1 m
+  long, and a hairpin turn from one road into the other swept over the end of the other's lane, where a car stood
+  waiting for it - an auto and an M800 nose in nose for a minute (25 samples of 3 minutes). Lanes leaving a junction
+  within 60 degrees of each other are cut back now wherever they come within 2 m (73 of 1,171 round Thalassery, most
+  by a metre or two; a plain crossroads' corners aren't). And a car coming the other way on another road's lane was
+  always taken to be in its own lane and ignored: it is now only if the two lanes never come within a metre of each
+  other (worked out once a pair, crossings between their points included). Six towns, 2 minutes each: overlaps
+  0/0/0/1/0/23 -> 0/0/0/0/0/0; Iritty again twice, 3 minutes each: 5 and 0 samples, two cars brushing in passing,
+  none at that junction. The six missions with an AI car driving pass, twice over
+- [x] tools/dev/townlife.mjs says what holds each stuck car up, as the traffic itself has it (the car in front, a
+  junction's turn, a signal, an officer...) and what holds that one
 
 ## People
 - [x] Clothing: men in plain shirts over dark trousers, khaki or a white mundu, black hair; women in sarees; no kurtas or western dress in crowds, drivers or riders
@@ -1011,6 +1026,17 @@ the game. Newly found problems go at the end of their section.
     way out round a Thar like that, met an auto coming the other way and neither could go on. A parked car's outer side
     stays off the lane's middle now, or it isn't parked there. Ertiga: 12 of 12 got past, none stood over 5 s (it was
     6 of 9, two stand-offs of 40 s)
+  - [x] 'Airport Shuttle' stalled now and then for 3-7 minutes at the same stretch of road (a new per-second trace
+    of the AI car whenever it crawls, in tools/dev/missions.mjs, showed why):
+    - the van hit a motorbike crossing a junction, and the bike lay wrecked in front of it still carrying the 5.6 m/s
+      it had been riding at: the van took it for one moving off, didn't go round it or back off, and waited. What's
+      knocked down or wrecked is taken at the speed it's sliding at now
+    - backing off a parked car's corner on the lock that swings its nose out (last round's fix) swung it the same way
+      every time when each go was blocked at once: it ended up across the road, off it, facing a wall. That lock only
+      while it still points within 25 degrees of its route; straight back past that
+    - and the reset that puts a stuck AI car on along its route gave up when a car stood on the spot it picked: in a
+      pile-up of wrecks the van asked to be moved every few seconds for three and a half minutes. It looks on along
+      the route, up to 150 m, for a clear spot
   Now all 12 pass: the cars you tail drive their 3.5 km and 2.1 km with no stop over a second and no jump; the rams,
   the steals and the chases as before. Left: Shibu's runs vary with the traffic - once, a 26 s stop at the first
   junction out of Chirakkal (not seen again in a traced run). Street life round a stopped player car in Kannur and

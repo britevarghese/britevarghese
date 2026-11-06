@@ -95,24 +95,19 @@ function conPts(end, d0, st, d1, turn) {
   if (!c || Math.hypot(c[0] - end[0], c[1] - end[1]) > 40) c = [(end[0] + st[0]) / 2 + d0[0] * 3, (end[1] + st[1]) / 2 + d0[1] * 3];
   return bezier(end, c, st, 8);
 }
-function trimStart(pts, d) {
-  const out = pts.map((p) => [...p]);
-  let rem = d;
-  while (out.length > 2) {
-    const L = Math.hypot(out[1][0] - out[0][0], out[1][1] - out[0][1]);
-    if (L > rem + 0.5) { out[0] = [out[0][0] + (out[1][0] - out[0][0]) / L * rem, out[0][1] + (out[1][1] - out[0][1]) / L * rem]; return out; }
-    rem -= L; out.shift();
-  }
-  return out;
+// a lane cut back a metres from the junction at its start and b at its end, whatever its number of points, 2 m of it
+// kept at least. (Cut back as it was, a line of two points was left as it is: a third of the lanes - every straight
+// piece of road between two junctions - ran right up to the junction's middle. A car waiting at a signal there stood
+// half a metre into the crossing road, and its turn was a kink a metre or two long that it pivoted round)
+function trimLane(P, a, b) {
+  let L = 0;
+  for (let i = 1; i < P.length; i++) L += Math.hypot(P[i][0] - P[i - 1][0], P[i][1] - P[i - 1][1]);
+  const k = Math.min(1, Math.max(0, (L - 2) / (a + b)));
+  if (k <= 0) return P;
+  return cutStart(cutStart(P, a * k).reverse(), b * k).reverse();
 }
-const trim = (pts, a, b) => trimStart(trimStart(pts, a).reverse(), b).reverse();
 
-// where two roads leave a junction only a few degrees apart (a road splitting into its two carriageways), their lanes
-// ran over one another for the first 10 m or so: a lane of one carriageway, set off its line toward the other, crossed
-// the other's lane. Each car took the other for one coming the other way in its own lane, and they drove into each
-// other (a Thar and a bus stood one in the other in Thalassery for two minutes). Each such pair is cut back from the
-// junction till they're 2 m apart, a couple of metres of lane kept; the junction's curves join them up from there
-// a line with d metres cut off its start (any number of points: trimStart leaves a line of two as it is)
+// a line with d metres cut off its start
 function cutStart(P, d) {
   let rem = d;
   for (let i = 1; i < P.length; i++) {
@@ -122,6 +117,11 @@ function cutStart(P, d) {
   }
   return P.slice(-2).map((q) => [...q]);
 }
+// where two roads leave a junction only a few degrees apart (a road splitting into its two carriageways), their lanes
+// ran over one another for the first 10 m or so: a lane of one carriageway, set off its line toward the other, crossed
+// the other's lane. Each car took the other for one coming the other way in its own lane, and they drove into each
+// other (a Thar and a bus stood one in the other in Thalassery for two minutes). Each such pair is cut back from the
+// junction till they're 2 m apart, a couple of metres of lane kept; the junction's curves join them up from there
 function unoverlap(lanes) {
   const SEP = 2.0, at = new Map(), q = {};
   for (const l of lanes) for (const start of [true, false]) {
@@ -137,7 +137,9 @@ function unoverlap(lanes) {
       const A = E[i], B = E[j];
       if (A.l.edge === B.l.edge) continue;
       const ua = away(A), ub = away(B);
-      if (ua[0] * ub[0] + ua[1] * ub[1] < 0.87) continue;   // (within 30 degrees of each other)
+      // (within 60 degrees of each other: at 54 degrees in Iritty the inner lanes of the two met in a "left turn" 0.1 m
+      // long, and a hairpin turn from one into the other swept over the end of the other's lane, where a car stood)
+      if (ua[0] * ub[0] + ua[1] * ub[1] < 0.5) continue;
       let need = 0;
       const max = Math.min(A.l.length, B.l.length, 25);
       for (let t = 0; t <= max; t += 0.5) {
@@ -155,9 +157,7 @@ function unoverlap(lanes) {
   }
   for (const [l, [a, b]] of cut) {
     if (a <= 0 && b <= 0) continue;
-    let P = l.pts;
-    if (a > 0) P = cutStart(P, a);
-    if (b > 0) P = cutStart([...P].reverse(), b).reverse();
+    const P = trimLane(l.pts, Math.max(0, a), Math.max(0, b));
     if (P.length < 2) continue;
     l.pts = P; l.cum = [0];
     for (let i = 1; i < P.length; i++) l.cum.push(l.cum[i - 1] + Math.hypot(P[i][0] - P[i - 1][0], P[i][1] - P[i - 1][1]));
@@ -274,7 +274,7 @@ export class KeralaLaneGraph {
           // keep left: lane 0 is the outer (kerb) lane, further lanes towards the centre
           const off = one ? (li - (per - 1) / 2) * edge.lw : (per - li - 0.5) * edge.lw;
           let pts = leftOffset(C, off);
-          pts = trim(pts, 2.5, 2.5);
+          pts = trimLane(pts, 2.5, 2.5);
           if (pts.length < 2) continue;
           const lane = new Path(pts, { kind: 'lane', edge, dir, speed: SPEED[r.cls], laneIndex: li, lanes: per, from, to, signal: false, axis: 'x', tile: k, siblings: [], deck: !!r.deck });
           lane.yFrom = dir > 0 ? yA : yB; lane.yTo = dir > 0 ? yB : yA;
