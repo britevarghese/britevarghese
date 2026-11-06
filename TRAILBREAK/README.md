@@ -91,8 +91,8 @@ Uninstall from **Settings > Apps** (your saves stay unless you delete `%APPDATA%
 **How the installer is built:** `desktop/` is the app ([Electron](https://www.electronjs.org/) running `server.js` in
 a utility process) and its installer ([electron-builder](https://www.electron.build/), NSIS). The [TRAILBREAK for
 Windows](../.github/workflows/trailbreak-windows.yml) workflow runs the game's tests, builds the installer on a
-Windows runner and publishes it as a release whenever the game changes on the development branch, or when you run it
-from **Actions**. To build it yourself on Windows, with Node.js 18+:
+Windows runner and publishes it as a new release whenever the game or the app changes on the development branch
+(`claude/sweet-volta-hxo6tl`). To build it yourself on Windows, with Node.js 18+:
 
 ```
 cd TRAILBREAK\desktop
