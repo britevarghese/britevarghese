@@ -644,18 +644,35 @@ export class UIManager {
         c.drawImage(L.canvas, ox, oy, f, f);
         c.globalAlpha = 1;
       }
-      const dot = (x, z, r, col, label) => {
+      // (the names put down after all the dots, each where it doesn't cover another: a town's races, garages and jobs
+      // all named at once were a pile of letters over Kannur. The more important first; one with no room is left
+      // unnamed - zoomed in, they come apart)
+      const labels = [];
+      const dot = (x, z, r, col, label, pri = 0) => {
         const [a, b] = P(x, z); c.fillStyle = col; c.beginPath(); c.arc(a, b, r * dpr, 0, 7); c.fill();
-        if (label) { c.fillStyle = 'rgba(255,255,255,0.85)'; c.font = `${11 * dpr}px Segoe UI, Arial`; c.fillText(label, a + 8 * dpr, b + 4 * dpr); }
+        if (label) labels.push({ a, b, r: r * dpr, label, pri });
+      };
+      const putLabels = () => {
+        c.font = `${11 * dpr}px Segoe UI, Arial`; c.fillStyle = 'rgba(255,255,255,0.85)';
+        const taken = KL && M.labelBoxes ? [...M.labelBoxes] : [], H = 13 * dpr, hit = (q) => taken.some((t) => q[0] < t[2] && q[2] > t[0] && q[1] < t[3] && q[3] > t[1]);
+        for (const L of labels.sort((p, q) => q.pri - p.pri)) {
+          const w = c.measureText(L.label).width;
+          for (const side of [1, -1]) {
+            const x0 = side > 0 ? L.a + 8 * dpr : L.a - 8 * dpr - w, box = [x0 - 2 * dpr, L.b - H / 2 - 2 * dpr, x0 + w + 2 * dpr, L.b + H / 2 + 2 * dpr];
+            if (hit(box)) continue;
+            taken.push(box); c.fillText(L.label, x0, L.b + 4 * dpr); break;
+          }
+        }
       };
       if (g.gps?.route) { c.strokeStyle = 'rgba(55,226,255,0.9)'; c.lineWidth = 3 * dpr; c.beginPath(); g.gps.route.forEach(([x, z], i) => { const [a, b] = P(x, z); i ? c.lineTo(a, b) : c.moveTo(a, b); }); c.stroke(); }
       for (const ev of g.races.events) dot(ev.start.x, ev.start.z, 6, ev.def.type === 'escape' ? '#3d7bff' : '#ffc53d', ev.def.name);
-      for (const sh of KL ? g.safehouses || [] : SAFEHOUSES) dot(sh.x, sh.z, 6, '#3dff9a', sh.name);
-      if (!KL) for (const sh of SHOPS) dot(sh.x, sh.z, 5, '#ff9a3d', sh.name);
+      for (const sh of KL ? g.safehouses || [] : SAFEHOUSES) dot(sh.x, sh.z, 6, '#3dff9a', sh.name, 1);
+      if (!KL) for (const sh of SHOPS) dot(sh.x, sh.z, 5, '#ff9a3d', sh.name, 1);
       for (const u of g.police.units) dot(u.vehicle.state.x, u.vehicle.state.z, 4, '#ff3040');
-      if (!g.story?.active) for (const [gid, m] of Object.entries(g.story?.available() || {})) { const gv = g.story._giver(gid); dot(gv.x, gv.z, 8, CAST[gid].color, `${CAST[gid].name}: ${m.title}`); }
-      for (const b of g.empire?.blips() || []) dot(b.x, b.z, 5, b.color, b.label);
+      if (!g.story?.active) for (const [gid, m] of Object.entries(g.story?.available() || {})) { const gv = g.story._giver(gid); dot(gv.x, gv.z, 8, CAST[gid].color, `${CAST[gid].name}: ${m.title}`, 3); }
+      for (const b of g.empire?.blips() || []) dot(b.x, b.z, 5, b.color, b.label, 2);
       for (const b of g.story?.active ? g.story.blips() : []) dot(b.x, b.z, 6, b.color);
+      putLabels();
       // friends: a big marker in their colour pointing where they head, their name and distance on a tag; the one
       // you are tracking ringed and pulsing
       for (const fr of g.net?.remotes?.values() || []) {

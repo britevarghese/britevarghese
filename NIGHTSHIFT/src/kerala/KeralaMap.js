@@ -167,6 +167,7 @@ export class KeralaOverview {
     }
     c.textAlign = 'center';
     const placed = [];
+    this.labelBoxes = [];   // (the names drawn, [x0, y0, x1, y1]: the map screen keeps its own labels off them)
     const order = [...I.places].sort((a, b) => (a[0] === 'city' ? 0 : a[0] === 'town' ? 1 : 2) - (b[0] === 'city' ? 0 : b[0] === 'town' ? 1 : 2));
     for (const p of order) {
       const city = p[0] === 'city', town = p[0] === 'town';
@@ -180,6 +181,7 @@ export class KeralaOverview {
       c.fillStyle = city ? '#ffffff' : '#d8e0d8'; c.beginPath(); c.arc(a, b, (city ? 4 : town ? 2.6 : 1.8) * dpr, 0, 7); c.fill();
       c.font = `${city ? 600 : 400} ${(city ? 15 : town ? 12 : 10) * dpr}px Segoe UI, Arial`; c.fillStyle = city ? 'rgba(255,255,255,0.95)' : 'rgba(220,230,220,0.8)';
       c.fillText(p[1], a, b - (city ? 9 : 6) * dpr);
+      { const tw = c.measureText(p[1]).width, fs = (city ? 15 : town ? 12 : 10) * dpr, yb = b - (city ? 9 : 6) * dpr; this.labelBoxes.push([a - tw / 2, yb - fs, a + tw / 2, yb + 3 * dpr], [a - 4 * dpr, b - 4 * dpr, a + 4 * dpr, b + 4 * dpr]); }
     }
     if (ppm < 0.01) {
       c.font = `700 ${17 * dpr}px Segoe UI, Arial`; c.fillStyle = 'rgba(160,230,180,0.5)';

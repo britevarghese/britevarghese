@@ -10,6 +10,9 @@ the game. Newly found problems go at the end of their section.
   said 'ESC resume'. Now: the message names the on-screen buttons and sits under the money; GARAGE is in the pause
   menu whenever G would open it (stopped, not in a race, a chase or a mission - for a pad too); a place in a district
   of the same name is named once, smaller; no ESC on a touch screen
+- [x] The map's names piled up: a town's races, garages and jobs all named at once were a heap of letters over
+  Kannur, and over the towns' own names. Each name now goes where it covers no other (to the right of its dot, else to
+  the left; mission givers first, then garages and jobs, then races); one with no room stays a dot till you zoom in
 - [x] The chase camera sat inside a car stopped close behind the player's (a Scorpio queued in Mattannur: the screen
   full of the inside of its body) - it kept out of walls only. It rises over a vehicle it would be inside now, just
   clear of its roof (over an SUV 0.3 m, a KSRTC bus 1.6 m), and back down once it's gone; pulled in instead, as for
