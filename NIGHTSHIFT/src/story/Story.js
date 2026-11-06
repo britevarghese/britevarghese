@@ -53,6 +53,8 @@ export class Story {
     this._buildUI();
     this._buildMarkers();
     bus.on('police:busted', () => { if (this.active) this.fail('BUSTED'); });
+    // (and killed: only the prologue failed on it - in any other mission you woke at a garage with it still running)
+    bus.on('player:wasted', () => { if (this.active) this.fail('WASTED'); });
   }
 
   get done() { return this.game.save.data.story.done; }
@@ -1126,7 +1128,7 @@ export class Story {
     g.hud.message('MISSION FAILED', reason, 4);
     g.audio.playEvent('busted');
     this.lastFailed = m;
-    setTimeout(() => { if (g.state.mode === 'drive' && !this.active) g.ui.showStoryFail(m, reason); }, reason === 'BUSTED' ? 5200 : 2200);
+    setTimeout(() => { if (g.state.mode === 'drive' && !this.active) g.ui.showStoryFail(m, reason); }, reason === 'BUSTED' || reason === 'WASTED' ? 5200 : 2200);   // (after the 4.5 s on the ground or in custody)
     bus.emit('story:fail', { id: m.id, reason });
   }
 

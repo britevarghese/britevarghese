@@ -1253,7 +1253,7 @@ export class Game {
       // wake up at the nearest safehouse you own (Kerala: the nearest garage, or back on the nearest road)
       let spot;
       const gar = this.world.kerala ? this.klGarages?.nearest(this.focusState.x, this.focusState.z) : null;
-      if (gar && gar.d < 3500 && gar.g.snapped) spot = { x: gar.g.x, z: gar.g.z, yaw: gar.g.heading };
+      if (gar && gar.d < 3500 && gar.g.snapped) spot = { x: gar.g.x, z: gar.g.z, yaw: gar.g.heading, name: gar.g.name };
       else if (this.world.kerala) spot = this.world.roadSpot(this.focusState.x, this.focusState.z, 5) || this.world.roadSpot(this.player.state.x, this.player.state.z, 6) || { x: this.player.state.x, z: this.player.state.z, yaw: 0 };
       else { const home = this.empire.respawnSpot(this.player.state.x, this.player.state.z) || SAFEHOUSES[0]; spot = this._laneSpot(home.x, home.z); }
       this.onFoot.heal();
@@ -1261,7 +1261,8 @@ export class Game {
       this.police.clearAll();
       this.camCtl.snap(this.player);
       this.state.mode = 'drive';
-      this.ui.toast(this.wasted ? 'Patched up at the hospital.' : 'Released from custody. Back to the streets.', '', 3);
+      // (where you are now: 'at the hospital' was said as you woke in a garage)
+      this.ui.toast(this.wasted ? (spot.name ? `Patched up. Back at ${spot.name}.` : 'Patched up. Back on the road.') : 'Released from custody. Back to the streets.', '', 3);
       this.wasted = false;
     }
   }

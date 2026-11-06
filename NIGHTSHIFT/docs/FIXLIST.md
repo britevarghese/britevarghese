@@ -10,6 +10,11 @@ the game. Newly found problems go at the end of their section.
   said 'ESC resume'. Now: the message names the on-screen buttons and sits under the money; GARAGE is in the pause
   menu whenever G would open it (stopped, not in a race, a chase or a mission - for a pad too); a place in a district
   of the same name is named once, smaller; no ESC on a touch screen
+- [x] Killed in a mission (not the prologue), you woke at a garage with the mission still running: it fails now -
+  MISSION FAILED, with retry, once the WASTED screen is over (as for BUSTED; the prologue's own failure the same).
+  Free roam: back in your car at the nearest garage, the message saying which ('patched up at the hospital' was said
+  as you woke in a garage). Touch controls checked too (an emulated phone, real touch events): GAS held, 37 km/h in
+  2.5 s; the stick to the right turns the car right
 - [x] The map's names piled up: a town's races, garages and jobs all named at once were a heap of letters over
   Kannur, and over the towns' own names. Each name now goes where it covers no other (to the right of its dot, else to
   the left; mission givers first, then garages and jobs, then races); one with no room stays a dot till you zoom in
