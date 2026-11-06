@@ -74,7 +74,9 @@ server, so it plays offline and keeps its saves between launches.
    Windows' **Settings > System > Display > Graphics**).
 
 **Updates:** the game keeps itself up to date. When it starts, and every four hours while it runs, it looks for a
-newer release here, downloads it in the background, and installs it when you close the game. The lobby (or, while
+newer release here, downloads it in the background (only what changed: the 0.1.2 release would have been about 1 MB
+to fetch over 0.1.0, not the 210 MB installer; more when new models, pictures or sounds come), and installs it when
+you close the game. The lobby (or, while
 you drive, a message) says when one has downloaded; **Alt**, then **Game > Restart to update** installs it at once,
 and **Help > Check for updates** looks straight away. The first release (0.1.0, build 1) came before updates: install
 the newest over it once by hand.
