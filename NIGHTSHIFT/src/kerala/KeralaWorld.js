@@ -593,7 +593,7 @@ export class KeralaWorld {
       const px = -p[3], pz = p[4], d = Math.hypot(px - x, pz - z) / (p[0] === 'city' ? 3 : p[0] === 'town' ? 2 : 1);
       if (d < bd) { bd = d; place = p[1]; }
     }
-    const r = { id: name || 'kerala', name: place ? `${place}, ${name}` : name };
+    const r = { id: name || 'kerala', name: place && place !== name ? `${place}, ${name}` : name };   // (not 'Kannur, Kannur')
     this._dist = { x, z, t, d: t?.district, r };
     return r;
   }

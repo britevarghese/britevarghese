@@ -388,6 +388,10 @@ html.touch .prompt { bottom: 34%; }
 html.touch .pursuit { bottom: 27vmin; width: 40vw; }
 html.touch .center-msg { font-size: 3rem; }
 html.touch .key { display: none; }
+/* (messages under the money and clock, not across them and the minimap; the place's name in two short lines) */
+html.touch #toasts { top: calc(26vmin + env(safe-area-inset-top)); right: calc(3vmin + env(safe-area-inset-right)); max-width: 52vw; }
+html.touch .toast { font-size: 0.8rem; letter-spacing: 0.04em; line-height: 1.35; }
+html.touch .district { font-size: 0.62rem; letter-spacing: 0.14em; line-height: 1.3; }
 /* short screens (a phone held sideways, or upright and turned by Viewport): menus fit, and scroll where they can't */
 html.short .screen { overflow-y: auto; -webkit-overflow-scrolling: touch; touch-action: pan-y; }
 html.short .menu-main { justify-content: flex-start; padding-top: calc(0.8rem + env(safe-area-inset-top)); padding-left: calc(4vw + env(safe-area-inset-left)); }

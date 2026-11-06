@@ -4,6 +4,12 @@ Everything reported in play-testing, worked through one at a time. Each item is 
 the game. Newly found problems go at the end of their section.
 
 ## Driving and vehicles
+- [x] On a phone (tools/dev/phone.mjs, a Pixel 7 held sideways): the welcome message gave the keyboard's keys (G, F,
+  Q, M) and lay across the money and the clock; the garage could be reached only with G (not on the screen, not in
+  the pause menu); the place under the minimap read 'KANNUR / KANNUR' in two lines over each other; the pause menu
+  said 'ESC resume'. Now: the message names the on-screen buttons and sits under the money; GARAGE is in the pause
+  menu whenever G would open it (stopped, not in a race, a chase or a mission - for a pad too); a place in a district
+  of the same name is named once, smaller; no ESC on a touch screen
 - [x] The chase camera sat inside a car stopped close behind the player's (a Scorpio queued in Mattannur: the screen
   full of the inside of its body) - it kept out of walls only. It rises over a vehicle it would be inside now, just
   clear of its roof (over an SUV 0.3 m, a KSRTC bus 1.6 m), and back down once it's gone; pulled in instead, as for

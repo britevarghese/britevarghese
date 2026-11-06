@@ -158,6 +158,8 @@ export class UIManager {
       ['SETTINGS', () => this.showSettings(() => this.showPause())],
       ['RESET CAR', () => { g.resetPlayer(); g.resume(); }],
     ];
+    // the garage from here too, when G would open it (the only way in on a touch screen or a pad, short of driving to one)
+    { const s0 = g.player?.state; if (s0 && !g.onFoot?.active && !g.police.inPursuit && !g.races.active && !g.story?.active && Math.hypot(s0.vx || 0, s0.vz || 0) < 3) items.splice(4, 0, ['GARAGE', () => { g.resume(); g.openGarage(); }]); }
     if (g.races.active) items.push(['QUIT EVENT', () => { g.races.abort(); g.resume(); }]);
     // the story's prologue: skip it while it plays, or play it (again) from here
     if (g.story?.active?.m?.prologue) items.push(['SKIP PROLOGUE', () => { g.resume(); g.story.skipPrologue(); }]);
@@ -165,7 +167,7 @@ export class UIManager {
     items.push(['TOGGLE FULLSCREEN', () => g.toggleFullscreen()]);
     items.push(['MAIN MENU', () => g.toMainMenu()]);
     const btns = items.map(([t, fn]) => { const b = h('button', 'menu-item', t); b.onclick = fn; box.appendChild(b); return b; });
-    box.appendChild(h('div', 'hint', 'ESC resume · physics, traffic and police are frozen while paused'));
+    box.appendChild(h('div', 'hint', (document.documentElement.classList.contains('touch') ? '' : 'ESC resume · ') + 'physics, traffic and police are frozen while paused'));
     s.appendChild(box);
     this.screens.appendChild(s);
     this.current = 'pause';
