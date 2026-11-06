@@ -18,14 +18,18 @@ const sendFor = (g, p, v) => {
   try { p.brain.pickGoal(); } finally { Math.random = r; }
   assert.equal(p.brain.goal?.vehicle, v.id, 'bot heads for the vehicle');
 };
-// an open stretch: a spot where the hull fits and a clear sight line `d` metres away
+// an open stretch: a spot where the hull fits and a clear sight line `d` metres away (several sight lines, so a
+// small settle of the hull doesn't close it)
 function lane(g, d) {
   for (let k = 0; k < 2000; k++) {
     const x = (Math.random() - 0.5) * g.map.PLAY_HALF * 1.4, z = (Math.random() - 0.5) * g.map.PLAY_HALF * 1.4, a = Math.random() * 6.28;
     const x2 = x + Math.sin(a) * d, z2 = z + Math.cos(a) * d;
-    if (Math.abs(x2) > g.map.PLAY_HALF - 10 || Math.abs(z2) > g.map.PLAY_HALF - 10 || !vehicleRoute(g, 'tank', x, z, x + 1, z)) continue;
+    if (Math.abs(x2) > g.map.PLAY_HALF - 10 || Math.abs(z2) > g.map.PLAY_HALF - 10) continue;
+    const gy = g.map.groundHeight(x, z);
+    if (g.world.query(x - 4.5, z - 4.5, x + 4.5, z + 4.5, []).some((b) => b.max[1] > gy + 0.4 && b.min[1] < gy + 3.5)) continue;
     const y = g.world.supportHeight(x, z, 500), y2 = g.world.supportHeight(x2, z2, 500);
-    if (g.world.lineOfSight({ x, y: y + 3.1, z }, { x: x2, y: y2 + 1.2, z: z2 }) && g.world.lineOfSight({ x, y: y + 3.1, z }, { x: x2, y: y2 + 0.5, z: z2 })) return { x, z, x2, z2 };
+    const sees = (ox, oz) => g.world.lineOfSight({ x: x + ox, y: y + 3.1, z: z + oz }, { x: x2, y: y2 + 1.2, z: z2 }) && g.world.lineOfSight({ x: x + ox, y: y + 3.1, z: z + oz }, { x: x2, y: y2 + 0.5, z: z2 });
+    if (sees(0, 0) && sees(1.5, 0) && sees(-1.5, 0) && sees(0, 1.5) && sees(0, -1.5)) return { x, z, x2, z2 };
   }
   return null;
 }
@@ -80,6 +84,15 @@ test('a players\' vehicle is left alone at first: bots only take one that has st
   const r = Math.random; Math.random = () => 0.05;
   try { p.brain.pickGoal(); } finally { Math.random = r; }
   assert.notEqual(p.brain.goal?.vehicle, tank.id);
+  // nor while a player on the team is standing by it
+  const h = human(g, 1, 'Player');
+  place(g, h, tank.x - 10, tank.z);
+  tank.idleSince = g.now() - 60000; p.brain.nextVehicleTry = 0;
+  Math.random = () => 0.05;
+  try { p.brain.pickGoal(); } finally { Math.random = r; }
+  assert.notEqual(p.brain.goal?.vehicle, tank.id, 'left to the player next to it');
+  place(g, h, tank.x - 80, tank.z);
+  sendFor(g, p, tank);
 });
 
 test('the tank crew spots an enemy in the open, lays the gun and fires; enemy infantry gets out of its sight', () => {

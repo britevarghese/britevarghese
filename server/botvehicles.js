@@ -152,6 +152,8 @@ export function vehicleGoal(brain) {
     const d = Math.hypot(v.x - p.x, v.z - p.z);
     if (!v.seats.some(Boolean)) {
       if (d > 70 || now - (v.idleSince ?? now) < IDLE_MS || Math.abs(v.speed || 0) > 0.5 || claimed(g, v, 0, p, now)) continue;
+      // a player on the team close to it is probably going for it: leave it to him
+      if ([...g.players.values()].some((q) => !q.bot && q.alive && !q.vehicle && q.team === p.team && Math.hypot(q.x - v.x, q.z - v.z) < 30)) continue;
       if (Math.random() > (v.type === 'tank' ? 0.7 : 0.5)) continue;
       if (!best || d < best.d) best = { v, seat: 0, d };
     } else if (v.type === 'jeep' && !v.seats[1] && crewOf(g, v, 0)?.team === p.team) {
