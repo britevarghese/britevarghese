@@ -155,3 +155,19 @@ test('a jeep driver calls a teammate up to the .50 cal and waits for him', () =>
   advance(g, 20);
   assert.ok(Math.hypot(jeep.x - at.x, jeep.z - at.z) > 40, 'then they drive off');
 });
+
+test('a bot rides a dirt bike to a far objective and gets off at its edge to go in on foot', () => {
+  const g = mkGame('outskirts');
+  const bike = g.vehicles.list.find((v) => v.type === 'bike' && v.team === 1);
+  const p = bot(g, 1, 'Rider');
+  place(g, p, bike.x + 5, bike.z);
+  sendFor(g, p, bike);
+  assert.ok(advance(g, 20, () => p.vehicle === bike.id), 'got on');
+  const start = { x: bike.x, z: bike.z };
+  assert.ok(advance(g, 70, () => !p.vehicle), 'got off again');
+  assert.ok(p.alive);
+  assert.ok(Math.hypot(bike.x - start.x, bike.z - start.z) > 80, `rode ${Math.hypot(bike.x - start.x, bike.z - start.z).toFixed(0)} m`);
+  const f = g.flags.reduce((a, b) => (Math.hypot(b.x - p.x, b.z - p.z) < Math.hypot(a.x - p.x, a.z - p.z) ? b : a));
+  assert.ok(Math.hypot(f.x - p.x, f.z - p.z) < f.r + 30, `off ${Math.hypot(f.x - p.x, f.z - p.z).toFixed(0)} m from flag ${f.id}`);
+  assert.ok(p.brain.goal && !p.brain.goal.vehicle, 'heading in on foot');
+});

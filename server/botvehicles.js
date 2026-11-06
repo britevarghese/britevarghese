@@ -10,9 +10,9 @@ import { zeroAngle } from '../shared/ballistics.js';
 import { angleDiff, clamp } from '../shared/util.js';
 
 const rand = (a, b) => a + Math.random() * (b - a);
-export const CREW_TYPES = ['tank', 'jeep'];
+export const CREW_TYPES = ['tank', 'jeep', 'bike'];
 // free width a route needs (hull half-width + a margin), metres from the centre line to the nearest obstacle
-const NEED = { tank: 2.6, jeep: 1.9 };
+const NEED = { tank: 2.6, jeep: 1.9, bike: 1.1 };
 const IDLE_MS = 20000; // a vehicle has to stand unused this long before a bot takes the controls
 
 // ---------------------------------------------------------------- route planning
@@ -154,7 +154,9 @@ export function vehicleGoal(brain) {
       if (d > 70 || now - (v.idleSince ?? now) < IDLE_MS || Math.abs(v.speed || 0) > 0.5 || claimed(g, v, 0, p, now)) continue;
       // a player on the team close to it is probably going for it: leave it to him
       if ([...g.players.values()].some((q) => !q.bot && q.alive && !q.vehicle && q.team === p.team && Math.hypot(q.x - v.x, q.z - v.z) < 30)) continue;
-      if (Math.random() > (v.type === 'tank' ? 0.7 : 0.5)) continue;
+      // (a bike only for a long way to go: for a flag across the map it saves a minute's run)
+      if (v.type === 'bike' && (d > 40 || !g.flags.some((f) => f.owner !== p.team && Math.hypot(f.x - p.x, f.z - p.z) > 140))) continue;
+      if (Math.random() > (v.type === 'tank' ? 0.7 : v.type === 'bike' ? 0.6 : 0.5)) continue;
       if (!best || d < best.d) best = { v, seat: 0, d };
     } else if (v.type === 'jeep' && !v.seats[1] && crewOf(g, v, 0)?.team === p.team) {
       if (d > 35 || Math.abs(v.speed || 0) > 1.5 || claimed(g, v, 1, p, now)) continue;
@@ -214,8 +216,25 @@ export function crewThink(brain, dt) {
     brain.crew = null; brain.nextVehicleTry = now + 30000; brain.pickGoal();
     return;
   }
+  if (v.type === 'bike') { if (p.seat === 0) ride(brain, c, v, V, dt, now); else { g.vehicles.exit(p); brain.crew = null; brain.pickGoal(); } return; }
   if (p.seat === 0) drive(brain, c, v, V, dt, now);
   else if (v.type === 'jeep' && p.seat === 1) gun(brain, c, v, dt, now);
+}
+
+// dirt bike: a fast ride to the edge of the objective, then off it and on foot. The rider has no weapon and no
+// protection: anyone shooting at him, or an enemy in sight close by, and he brakes and gets off to fight.
+function ride(brain, c, v, V, dt, now) {
+  const g = brain.g, p = brain.p;
+  if (now >= brain.nextPerceive) { brain.perceive(now); brain.nextPerceive = now + 220; }
+  const threat = (brain.target && brain.visible && Math.hypot(brain.target.x - p.x, brain.target.z - p.z) < 90) || now - (p.lastHit || 0) < 800;
+  const arrived = c.route && c.idx >= c.route.length;
+  if ((threat || arrived) && Math.abs(v.speed) < 3) {
+    g.vehicles.exit(p);
+    brain.crew = null; brain.nextVehicleTry = now + 20000; brain.pickGoal();
+    return;
+  }
+  if (threat) { step(g, v, { throttle: v.speed > 0.5 ? -1 : 0, steer: 0 }, dt, p, now); return; }
+  drive(brain, c, v, V, dt, now);
 }
 
 // enemies the crew can see from the vehicle: soldiers out to ~300 m, vehicles out to ~500 m (vision blocks, optics),
@@ -254,7 +273,7 @@ function spot(brain, c, v, eye, fwd, now, dt) {
 }
 
 // pick where to drive: the best flag (as soldiers score it); a tank stops short of it in overwatch, a jeep drives
-// into the capture zone
+// into the capture zone, a bike to its edge (the rider goes the rest of the way on foot)
 function pickDriveGoal(brain, c, v, now) {
   const g = brain.g, p = brain.p;
   const scored = g.flags.map((f) => {
@@ -269,7 +288,7 @@ function pickDriveGoal(brain, c, v, now) {
   let goal = null;
   for (let tries = 0; tries < 24 && !goal; tries++) {
     const toV = Math.atan2(v.x - f.x, v.z - f.z) + rand(-0.9, 0.9);
-    const r = v.type === 'tank' ? f.r + rand(15, 45) : rand(0, f.r * 0.7);
+    const r = v.type === 'tank' ? f.r + rand(15, 45) : v.type === 'bike' ? f.r + rand(5, 20) : rand(0, f.r * 0.7);
     const x = f.x + Math.sin(toV) * r, z = f.z + Math.cos(toV) * r;
     if (Math.abs(x) < g.map.PLAY_HALF - 8 && Math.abs(z) < g.map.PLAY_HALF - 8 && clearAt(nav, M, x, z) >= need + 0.5) goal = { x, z };
   }

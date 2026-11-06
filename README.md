@@ -163,7 +163,9 @@ altitude hands-off), LMB rockets · gunner seats aim freely with the mouse. Touc
   no slopes past ~28°, no water), simulated server-side with the same physics players' clients predict. The tank
   takes up overwatch short of the flag, spots armour quickly and infantry slowly, slews the turret at its drive
   rate, lays the gun with elevation for the shell's drop, makes a short halt to shoot at range and walks its rounds
-  onto the target; crews back out when stuck and bail out of a vehicle about to brew up. Infantry get out of an enemy
+  onto the target; crews back out when stuck and bail out of a vehicle about to brew up. A bot with a flag across
+  the map takes a free dirt bike, rides to the edge of the objective and goes in on foot (getting off at once to fight
+  if shot at or an enemy shows up close: the rider has no weapon and no cover). Infantry get out of an enemy
   tank's sight when its turret comes round to them.
 * **Vehicles** in every Conquest room, parked in each team's motor pool and respawning 25 s after being destroyed:
   jeep + motorbike on every map, plus a tank on the maps from Outskirts size up, plus an attack helicopter on Kestrel
