@@ -1357,6 +1357,19 @@ so the maps on their own are built as they were. Driving on it costs the physics
   (the Ghat's own tint; the rest of its ground stays the coast's colours). Fast travel sets you down on the bank above
   the ford.
 
+  Its rock in the water is slippery, as river rock is: rubber on stone, wet, grips at 0.6 to 0.7 on a coarse face but
+  about 0.22 on sandstone polished smooth and 0.01 or less on polished limestone (Stutzenberger and Havens, [Kentucky
+  highway research report 124, 1958](https://uknowledge.uky.edu/ktc_researchreports/1238)), and a river's stones are
+  polished smooth and filmed with algae. So a boulder's face, or a ledge, under the water grips at 0.3 (`RIVER_ROCK`,
+  `src/physics/Surfaces.js`), under half the grip of the gravel bed round it; within 0.6 m above the water, splashed,
+  it is wet rock, as in the rain (73% of dry); away from the water, dry (`stone`, `src/world/World.js`). They are drawn
+  so too: under the waterline dark and glossy with an olive-brown film, and wet and dark a hand's breadth above it
+  (`src/render/Rocks.js`). The track's own ford, on the stones bedded in its line, is as it was; off it, across the
+  boulders, a 4x4 with open diffs spins on their slimy faces: of two lines across the river 12 m either side of the
+  ford, a stock Wrangler crawls both (33 and 43 s), a stock Thar spins out on both, which it crossed before. A
+  22-degree slab a Wrangler walks up dry it can't climb slimed under a river (`test/riverrock.test.mjs`). Pick the
+  line on the gravel between them.
+
 The bogs' extra pools no longer let any puddle be carved into a river: a track's puddle on a shallow ford had dug a
 metre-deep mud hole in the riverbed. The Konkan Ghat's rule that grows its steep rock over, as Kerala's is, now comes
 before a map's own word on its ground, so rock a map lays bare stays bare. The maps driven on their own are unchanged.

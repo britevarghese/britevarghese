@@ -10,6 +10,8 @@ import { rockShape, shapeOf, ROCK_SHAPES, BLOCK_SHAPES } from '../world/RockShap
 const LODS = [4, 2, 1];                  // icosphere subdivisions: near, middle, far
 const LOD_Q = [22, 80];                  // switch at distance / size
 const FAR = 1800;
+// (round a boulder, in its radii: where to look for the water by it)
+const SHORE = [1.4, 0, -1.4, 0, 0, 1.4, 0, -1.4];
 const CULL_Q = 500;                       // a boulder past this many times its size away is under a couple of pixels: not drawn
 
 function rockGeometry(k, detail) {
@@ -50,7 +52,7 @@ export function rockMaterial(ground, { ledge = false } = {}) {
 varying vec3 vRPos;
 varying vec3 vRNor;
 varying float vRY;
-${ledge ? 'attribute float aAO;\nvarying float vAO;' : ''}`)
+${ledge ? 'attribute float aAO;\nvarying float vAO;' : 'attribute float aWater;\nvarying float vWater;'}`)
       .replace('#include <worldpos_vertex>', `#include <worldpos_vertex>
 {
   mat4 im = mat4(1.0);
@@ -62,7 +64,7 @@ ${ledge ? 'attribute float aAO;\nvarying float vAO;' : ''}`)
   vRNor = normalize(mat3(modelMatrix) * (r * n));
   vRPos = (modelMatrix * im * vec4(transformed, 1.0)).xyz;
   vRY = position.y;
-  ${ledge ? 'vAO = aAO;' : ''}
+  ${ledge ? 'vAO = aAO;' : 'vWater = aWater;'}
 }`);
     sh.fragmentShader = sh.fragmentShader
       .replace('#include <common>', `#include <common>
@@ -75,12 +77,14 @@ uniform vec3 uGain;
 varying vec3 vRPos;
 varying vec3 vRNor;
 varying float vRY;
-${ledge ? 'varying float vAO;' : ''}
+${ledge ? 'varying float vAO;' : 'varying float vWater;'}
+float gWet;
 ${HASH21}
 float rh(vec2 p) { return hash21(p); }
 float rn(vec2 p) { vec2 i = floor(p), f = fract(p); vec2 u = f * f * (3.0 - 2.0 * f);
   return mix(mix(rh(i), rh(i + vec2(1, 0)), u.x), mix(rh(i + vec2(0, 1)), rh(i + vec2(1, 1)), u.x), u.y); }
 vec3 gRockN;`)
+      .replace('void main() {', 'void main() {\n  gWet = 0.0;')
       .replace('#include <color_fragment>', `#include <color_fragment>
 {
   vec3 n = normalize(vRNor);
@@ -103,9 +107,17 @@ ${ledge ? `  // in the shadow of the recess under the lip; and desert varnish, i
   vec3 moss = texture(uGC, vec3(vec2(vRPos.x, -vRPos.z) * 0.6, uMossL)).rgb * vec3(0.55, 0.66, 0.42);
   c = mix(c, moss, m * 0.7);
   // dark and damp low down, where it sits in the soil
-  c *= mix(0.55, 1.0, smoothstep(-0.45, 0.1, vRY)) * (0.82 + 0.18 * smoothstep(-0.6, 0.4, n.y));`}
+  c *= mix(0.55, 1.0, smoothstep(-0.45, 0.1, vRY)) * (0.82 + 0.18 * smoothstep(-0.6, 0.4, n.y));
+  // in a river or a lake: under the water dark and glossy with the olive-brown film of algae on it (no moss), and
+  // wet a hand's breadth above it, splashed (world/World.js stone: slick under, wet above)
+  float dw = vWater - vRPos.y, under = smoothstep(-0.03, 0.03, dw), splash = smoothstep(-0.3, -0.03, dw) * (1.0 - under);
+  c = mix(c, c * vec3(0.4, 0.43, 0.3) + vec3(0.025, 0.03, 0.012), under);
+  c *= 1.0 - 0.32 * splash;
+  gWet = max(under, splash * 0.8);`}
   diffuseColor.rgb *= c;
 }`)
+      .replace('#include <roughnessmap_fragment>', `#include <roughnessmap_fragment>
+roughnessFactor = mix(roughnessFactor, 0.28, gWet);`)
       .replace('#include <normal_fragment_maps>', `#include <normal_fragment_maps>
 normal = normalize((viewMatrix * vec4(gRockN, 0.0)).xyz);`);
   };
@@ -129,6 +141,7 @@ export class Rocks {
         const mesh = new THREE.InstancedMesh(rockGeometry(k, d), mat, Math.max(1, per[k]));
         mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
         mesh.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(Math.max(1, per[k]) * 3), 3);
+        mesh.geometry.setAttribute('aWater', new THREE.InstancedBufferAttribute(new Float32Array(Math.max(1, per[k])), 1));
         mesh.count = 0;
         mesh.castShadow = true;
         mesh.receiveShadow = true;
@@ -154,6 +167,12 @@ export class Rocks {
       this.tones.set(c, i * 3);
     });
     this.size = B.map((b) => Math.max(b.rx, b.ry, b.rz));
+    // (the water's level at each, where it stands in or by water: its waterline; or none)
+    this.waters = Float32Array.from(B, (b) => {
+      let wl = world.water ? world.water(b.x, b.z) : -Infinity;
+      for (let j = 0; j < SHORE.length && !(wl > -1e8); j += 2) wl = Math.max(wl, world.water(b.x + SHORE[j] * b.rx, b.z + SHORE[j + 1] * b.rz));
+      return wl > -1e8 ? wl : -1e4;
+    });
     this.half = world.half ?? Infinity;
     this.last = new THREE.Vector3(1e9, 0, 1e9);
     this.shadows = true;
@@ -180,13 +199,15 @@ export class Rocks {
       const mesh = this.meshes[k][lod], n = mesh.count++, M = mesh.instanceMatrix.array, T = mesh.instanceColor.array;
       for (let j = 0, o = n * 16, s = i * 16; j < 16; j++) M[o + j] = S[s + j];
       T[n * 3] = C[i * 3]; T[n * 3 + 1] = C[i * 3 + 1]; T[n * 3 + 2] = C[i * 3 + 2];
+      mesh.geometry.attributes.aWater.array[n] = this.waters[i];
     }
     for (const lods of this.meshes) for (const m of lods) {
       // (only the instances drawn sent to the graphics card, not the whole buffer)
-      const M = m.instanceMatrix, C = m.instanceColor;
+      const M = m.instanceMatrix, C = m.instanceColor, Wa = m.geometry.attributes.aWater;
       if (m.count) {
         M.clearUpdateRanges(); M.addUpdateRange(0, m.count * 16); M.needsUpdate = true;
         if (C) { C.clearUpdateRanges(); C.addUpdateRange(0, m.count * 3); C.needsUpdate = true; }
+        if (Wa) { Wa.clearUpdateRanges(); Wa.addUpdateRange(0, m.count); Wa.needsUpdate = true; }
       }
       m.castShadow = this.shadows && m !== lods[2];
     }

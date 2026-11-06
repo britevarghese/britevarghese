@@ -24,7 +24,7 @@
 // (a tree, or a whole fence panel, sign or barrel) by key ('t' + tree, 'o' + roadside thing). Breaks queue in
 // `breaks` for the game to draw, sound and share with the room ({ key, x, y, z, dx, dz, v, local, quiet }).
 
-import { SURFACES, SURFACE, WET_MUD, wetSurfaces } from '../physics/Surfaces.js';
+import { SURFACES, SURFACE, WET_MUD, WET_SURFACES, RIVER_ROCK, wetSurfaces } from '../physics/Surfaces.js';
 import { DeformGrid } from './Deform.js';
 import { WornTracks, wearOf, rippleOf } from './Worn.js';
 import { rockLift } from './Bedrock.js';
@@ -37,6 +37,8 @@ import { growYoung, placeRoadside, placedObstacles, trunkCap, WINCH_CAP } from '
 
 const OB_CELL = 16;          // obstacle (tree, post) grid cell (m)
 const BO_CELL = 8;           // boulder grid cell (m)
+// (the water's edge: offsets to look for its level from a point on dry ground, as render/Terrain.js draws it wet)
+const SHORE = [2.5, 0, -2.5, 0, 0, 2.5, 0, -2.5, 5, 0, -5, 0, 0, 5, 0, -5];
 
 /**
  * How fast a river runs (m/s) where it is this deep (m) and its surface falls this steeply (m per m): Manning's equation,
@@ -272,8 +274,21 @@ export class World {
     // (a recovery board on top: its cleats grip, wet or dry, and it doesn't give)
     if (this.boards.length && boardsTop(this.boards, x, z) >= this.height(x, z) - 0.005) return SURFACES[SURFACE.ROAD];
     if (this.props.length) { const q = this.propAt(x, z); if (q && q.top > this.terrain(x, z) - 0.02) return S[PROP_TYPES[q.p.type].surface]; }
-    if (this.boulderTop(x, z) > this.terrain(x, z) - 0.02) return S[SURFACE.ROCK];
-    return S[this.surfaceId(x, z)];
+    const t = this.terrain(x, z), top = this.boulderTop(x, z);
+    if (top > t - 0.02) return this.stone(x, z, top);
+    const id = this.surfaceId(x, z);
+    return id === SURFACE.ROCK ? this.stone(x, z, t) : S[id];
+  }
+
+  /**
+   * Rock at (x, z), its face at height top: under the water, worn smooth and slimy (RIVER_ROCK); at its edge, within
+   * 0.6 m above it, wet (as it is drawn: render/Terrain.js, render/Rocks.js); otherwise as the weather has it.
+   */
+  stone(x, z, top) {
+    let wl = this.water(x, z);
+    if (wl > top - 0.02) return RIVER_ROCK;
+    if (!(wl > -1e8)) for (let j = 0; j < SHORE.length; j += 2) wl = Math.max(wl, this.water(x + SHORE[j], z + SHORE[j + 1]));
+    return wl > top - 0.6 ? WET_SURFACES[SURFACE.ROCK] : this.surfaces[SURFACE.ROCK];
   }
 
   /**

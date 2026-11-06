@@ -62,6 +62,15 @@ export const WET_SURFACES = SURFACES.map((s) => {
   for (const k in w) o[k] = s[k] * w[k];
   return o;
 });
+/**
+ * Rock in the water (World.js surfaceAt: a boulder or a ledge under a river's or a lake's surface): worn smooth by the
+ * water and filmed with algae. Rubber on stone, wet (Stutzenberger and Havens's tests, Kentucky, 1958): 0.6 to 0.7 on
+ * a coarse face, as wet rock in the rain grips here, but about 0.22 on sandstone polished smooth and 0.01 or less on
+ * polished limestone; dry, much the same whatever the stone. A river's stones are polished smooth: about 0.3, under
+ * half the grip of the gravel bed round them. (Rock at the water's edge, splashed, grips as wet rock: WET_SURFACES.)
+ */
+export const RIVER_ROCK = { ...SURFACES[3], mu: 0.3 };
+
 /** How much softer mud is in the rain (World.js softness). */
 export const WET_MUD = 1.25;
 /**
