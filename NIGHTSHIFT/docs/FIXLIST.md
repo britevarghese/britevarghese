@@ -981,6 +981,19 @@ the game. Newly found problems go at the end of their section.
     Left: your car left in a narrow street 9 m short of a junction (Mattannur, 5 m of road) holds the traffic up both
     ways until you move it - letting the traffic go round it that near the junction had it meet the cars coming out of
     the junction (two crashes), so they wait and honk
+  - [x] ...and the Spice Route's van still stood 54-75 s beside a car parked at the kerb, now and then. A new test
+    that sends the van past parked cars one at a time (tools/dev/passby.mjs) found three faults behind it:
+    - how far out to go was worked out once, from where the parked car looked from the van's nose 18 m back: a few
+      degrees off the lane read as a metre further over than it was, so it went out 3 cm and crept along its side
+    - round a bend, a parked car 14 m on looked well clear off the nose; it was seen only at 9 m, too late to get out
+    - the crawl past it, a quarter throttle, didn't move the loaded pickup from a standstill, and a crawl never
+      counted as stuck: it stood there until something changed
+    Now how far out is taken off the route's line (and kept up to date as it goes), a parked car round a bend is seen
+    by where it is off the route, a car wanting to go from a standstill gets a little more throttle the longer it
+    stands, and backing off from a parked car's corner it swings its nose out and goes wider next time. Parked cars
+    got past: 13 of 13 in three towns, none touched (it was 5 of 8 at the Spice Route, two hit, one left a wreck).
+    The six missions with an AI car driving all pass; the Spice Route's longest stop 54-75 -> 2 s (3.5 km in 439 s),
+    Infopark's 1.7 s
   Now all 12 pass: the cars you tail drive their 3.5 km and 2.1 km with no stop over a second and no jump; the rams,
   the steals and the chases as before. Left: Shibu's runs vary with the traffic - once, a 26 s stop at the first
   junction out of Chirakkal (not seen again in a traced run). Street life round a stopped player car in Kannur and

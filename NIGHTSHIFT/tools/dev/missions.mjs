@@ -166,7 +166,7 @@ for (const id of list) {
             // (--trace: what's round it once it's stood 8 s: the traffic in front, its controls, its way on)
             if (trace && ai.stop > 8 && (info.dumped || 0) < 3 && !info.dumping) {
               info.dumped = (info.dumped || 0) + 1; info.dumping = true;
-              const D = s.ai, c = v.controls, out = [`  STOPPED ${fmt(q.x, q.z)} yaw ${q.yaw.toFixed(2)} ctl t${c.throttle.toFixed(2)} b${c.brake.toFixed(2)} hb${c.handbrake} s${c.steer.toFixed(2)} mode ${D.mode} turning ${D.turning || '-'} legT ${D.legT?.toFixed?.(1)} avoid ${D.avoid?.toFixed?.(2)} needsReset ${D.needsReset} onRoad ${W.onCarriageway(q.x, q.z, 0)}`];
+              const D = s.ai, c = v.controls, out = [`  STOPPED ${fmt(q.x, q.z)} yaw ${q.yaw.toFixed(2)} ctl t${c.throttle.toFixed(2)} b${c.brake.toFixed(2)} hb${c.handbrake} s${c.steer.toFixed(2)} mode ${D.mode} turning ${D.turning || '-'} legT ${D.legT?.toFixed?.(1)} avoid ${D.avoid?.toFixed?.(2)} needsReset ${D.needsReset}${D.passO ? ' passing car ' + D.passO.id : ''}${D.reverseT > 0 ? ' unsticking' : ''}${D.waitT ? ' waitT ' + D.waitT.toFixed(0) : ''} onRoad ${W.onCarriageway(q.x, q.z, 0)}`];
               out.push(`  next wps ${D.route.slice(D.idx, D.idx + 6).map((r) => fmt(r[0], r[1])).join(' ')}`);
               for (const o of G.traffic.cars) {
                 const dx = o.x - q.x, dz = o.z - q.z, a = dx * fx + dz * fz, l = -dx * fz + dz * fx;

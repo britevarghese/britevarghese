@@ -408,11 +408,35 @@ export class AIDriver {
     return { turn: maxTurn, dist: turnDist, vc };
   }
 
-  // room to go by one standing at the kerb (lat: how far to this car's right it is, need: how much further out than
-  // now this car's middle must go): the road out there from here to past it, the car's outer side kept to the tarmac,
-  // and nothing on that line coming the other way
-  _roomBy(o, lat, ahead, need, obstacles) {
-    const s = this.v.state, W = this.v.physics.world, fx = Math.sin(s.yaw), fz = Math.cos(s.yaw), k = -Math.sign(lat) * need;
+  // how far to the side of the route's line a point is (+: its right, (-dz, dx)), off the piece of it nearest the
+  // point - or undefined, none of the next stretch within 6 m
+  _routeLat(x, z) {
+    const R = this.route; let best = 36, lat;
+    for (let i = Math.max(0, this.idx - 2), e = Math.min(R.length - 1, this.idx + 40); i < e; i++) {
+      const a = R[i], b = R[i + 1], dx = b[0] - a[0], dz = b[1] - a[1], L2 = dx * dx + dz * dz;
+      if (!L2) continue;
+      const t = Math.max(0, Math.min(1, ((x - a[0]) * dx + (z - a[1]) * dz) / L2));
+      const px = a[0] + dx * t - x, pz = a[1] + dz * t - z, d2 = px * px + pz * pz;
+      if (d2 < best) { best = d2; lat = ((x - a[0]) * -dz + (z - a[1]) * dx) / Math.sqrt(L2); }
+    }
+    return lat;
+  }
+
+  // where off the route's line to go by one standing at the kerb (+: to the right): its outer side cleared by 0.45 m
+  // (and more after backing off from it once). Taken off the route's line, not from where it is seen from: from 18 m
+  // back with the car's nose a few degrees off the lane, it read as a metre further over than it is, the van you tail
+  // went out 3 cm, crept along its side and stood against it, backing off and at it again for good
+  _passFor(o, lat, eR) {
+    const lr = this._routeLat(o.x, o.z), L = lr === undefined ? lat + eR : lr;
+    const side = Math.abs(L) > 0.3 ? -Math.sign(L) : -Math.sign(lat) || 1;
+    return side * Math.max(0.1, (o.spec?.w ?? 1.8) / 2 + (this.v.p?.width || 1.8) / 2 + 0.45 + (this.passExtra || 0) - Math.abs(L));
+  }
+
+  // room to go by one standing at the kerb (k: how much further to the right than now this car's middle must go):
+  // the road out there from here to past it, the car's outer side kept to the tarmac, and nothing on that line coming
+  // the other way
+  _roomBy(o, k, ahead, obstacles) {
+    const s = this.v.state, W = this.v.physics.world, fx = Math.sin(s.yaw), fz = Math.cos(s.yaw);
     const ox = s.x - fz * k, oz = s.z + fx * k, myW = (this.v.p?.width || 1.8) / 2, past = ahead + (o.spec?.l ?? 4.4) / 2 + 2;
     for (const a of [ahead * 0.5, ahead, past]) if (!W.onCarriageway(ox + fx * a, oz + fz * a, 0.3 - myW)) return false;
     for (const q of obstacles) {
@@ -532,15 +556,18 @@ export class AIDriver {
     const fx = Math.sin(s.yaw), fz = Math.cos(s.yaw);
     let avoid = 0, pass = 0, blk = null, held = false, waitKerb = false;   // (held: waiting on a car in front; waitKerb: to get round one at the kerb)
     const myL = v.p?.length || 4.4, myW = (v.p?.width || 1.8) / 2;
+    let eR = NaN;   // (how far right of the route's line this car is: worked out when there's one to go by)
     // (still going by one standing at the kerb: kept out until clear of its back. But before it's alongside, the way
     // out round it taken meanwhile - something come the other way: back in behind it. Pushed on out, a van stood
     // against a parked car's corner and an auto, and was reset 13 times)
     if (this.passO) {
       const o = this.passO, a = (o.x - s.x) * fx + (o.z - s.z) * fz, lat = -(o.x - s.x) * fz + (o.z - s.z) * fx;
-      if (a < -(myL + (o.spec?.l ?? 4.4)) / 2 - 0.5 || a > 30 || (o.v ?? 0) > 1 || this.mode === 'pursue') this.passO = null;
-      else if (a > 2 && !this._roomBy(o, lat, a, Math.max(0, (o.spec?.w ?? 1.8) / 2 + myW + 0.45 - Math.abs(lat)), obstacles)) this.passO = null;
+      if (eR !== eR) eR = this._routeLat(s.x, s.z) ?? 0;
+      const P = this._passFor(o, lat, eR);
+      if (a < -(myL + (o.spec?.l ?? 4.4)) / 2 - 0.5 || a > 30 || (o.v ?? 0) > 1 || this.mode === 'pursue') { this.passO = null; this.passExtra = 0; }
+      else if (a > 2 && !this._roomBy(o, P - eR, a, obstacles)) { this.passO = null; this.passExtra = 0; }
       else {
-        pass = this.passLat; targetSpeed = Math.min(targetSpeed, 6, this._outBy(o, a, lat, myL, myW));
+        pass = this.passLat = P; targetSpeed = Math.min(targetSpeed, 6, this._outBy(o, a, lat, myL, myW));
         // (crept up to its corner and not out yet: backed off and at it again, at a better angle, as one nose to nose)
         if (this._outBy(o, a, lat, myL, myW) < 1.5) blk = { lat };
       }
@@ -553,7 +580,10 @@ export class AIDriver {
       // (only what this car's body would come within half a metre of: steered away from and slowed for anything
       // within 2.8 m of its middle, a car met one coming the other way in its own lane on a narrow street, 2 m across)
       const clear = Math.abs(lat) - (o.spec?.w ?? 1.8) / 2 - myW;
-      if (clear > 0.5) continue;
+      // (one standing at the kerb further on round a bend: by where it is off the route's line, not off this car's
+      // nose. Seen across the bend, the van you tail took one 14 m on for well clear, saw it at 9 m, at 19 km/h, and
+      // stood with its nose against its corner)
+      if (clear > 0.5 && !(this.mode !== 'pursue' && v.physics?.world?.kerala && (o.v ?? 0) < 0.3 && (o.parked || o.state !== 'drive' || o.pulled) && Math.abs(this._routeLat(o.x, o.z) ?? 99) - (o.spec?.w ?? 1.8) / 2 - myW < 0.5)) continue;
       // (one coming the other way, in its own lane, that this car's body clears by a quarter of a metre: by it at a
       // crawl, not stopped for. Each waiting for the other, a mission's car and a bus stood nose to nose on a narrow
       // street in Chala for good)
@@ -569,11 +599,12 @@ export class AIDriver {
         // road beside it has room and nothing's coming the other way. Braked for as a car in a queue is, the van you
         // tail stopped behind a car parked at the kerb and waited there for good. Not one stopped in a queue, square in
         // the lane)
-        const need = (o.spec?.w ?? 1.8) / 2 + myW + 0.45 - Math.abs(lat);
         const kerb = v.physics?.world?.kerala && (o.v ?? 0) < 0.3 && (o.parked || o.state !== 'drive' || (o.pulled && Math.abs(lat) > 0.5));
-        if (kerb && !this._roomBy(o, lat, ahead, need, obstacles)) waitKerb = true;
+        let P = 0;
+        if (kerb) { if (eR !== eR) eR = this._routeLat(s.x, s.z) ?? 0; P = this._passFor(o, lat, eR); }
+        if (kerb && !this._roomBy(o, P - eR, ahead, obstacles)) waitKerb = true;
         else if (kerb) {
-          if (need > Math.abs(pass)) { pass = -Math.sign(lat) * need; this.passO = o; this.passLat = pass; }
+          if (Math.abs(P) > Math.abs(pass)) { pass = P; if (this.passO !== o) this.passExtra = 0; this.passO = o; this.passLat = pass; }
           targetSpeed = Math.min(targetSpeed, 6, this._outBy(o, ahead, lat, myL, myW));
           continue;
         }
@@ -646,7 +677,7 @@ export class AIDriver {
     // nose to nose with a car at a junction for a minute and a half, each waiting for the other, its turn into the side
     // road blocked)
     this.blockT = this._blk && speed < 0.3 && this.mode === 'route' ? (this.blockT || 0) + dt : 0;
-    if (this.blockT > 6 && rearOK && this._clearBehind(obstacles, half + 2.5)) { this.backT = 1.8; this.backSide = Math.sign(this._blk.lat) || 1; this.blockT = 0; this.turning = false; }
+    if (this.blockT > 6 && rearOK && this._clearBehind(obstacles, half + 2.5)) { this.backT = 1.8; this.backSide = Math.sign(this._blk.lat) || 1; this.blockT = 0; this.turning = false; if (this.passO) this.passExtra = Math.min(0.6, (this.passExtra || 0) + 0.25); }
     if (this.backT > 0) { this.backT -= dt; if (rearOK) { reverse(this.backSide); return; } this.backT = 0; }
     // target behind (or well round to the side with the car near stopped: a turn too sharp to steer round, a
     // 140-degree one at a Y-junction): three-point turn - forward on full lock toward it as far as the road goes, back
@@ -681,12 +712,14 @@ export class AIDriver {
       }
     }
     if (this.turning === 'back') { reverse(this.turnSide); return; }
-    if (this.reverseT > 0 && rearOK) { this.reverseT -= dt; reverse(-steer); return; }
+    // (going by one at the kerb: backed off on the lock that swings the nose out from it, and out further next time.
+    // Backed off straight, the van you tail was at its corner again the moment after, eleven times)
+    if (this.reverseT > 0 && rearOK) { this.reverseT -= dt; reverse(this.passO ? -Math.sign(this.passLat) * 0.8 : -steer); return; }
     this.reverseT = 0;
     // (or on the throttle and not moving: pushing against something at a slow corner speed, a lorry at 3 m/s wanted
     // never counted as stuck and pushed at a wall for good)
     const pushing = speed < 0.5 && c.throttle > 0.3;
-    if (!this.turning && speed < 1.2 && (targetSpeed > 3 || pushing)) { this.stuckT += dt; if (this.stuckT > 1.6) { this.reverseT = 1.3; this.stuckT = 0; } } else this.stuckT = 0;
+    if (!this.turning && speed < 1.2 && (targetSpeed > 3 || pushing)) { this.stuckT += dt; if (this.stuckT > 1.6) { this.reverseT = 1.3; this.stuckT = 0; if (this.passO) this.passExtra = Math.min(0.6, (this.passExtra || 0) + 0.25); } } else this.stuckT = 0;
     if (this.turning) { steer = -this.turnSide; targetSpeed = Math.min(targetSpeed, 2.5); }
     // progress watchdog: repeatedly stuck -> ask the owner to reset us onto a lane
     this.watchT = (this.watchT || 0) + dt;
@@ -707,7 +740,11 @@ export class AIDriver {
     if (this.mode !== 'pursue' && Math.abs(steer) > 0.7) targetSpeed = Math.min(targetSpeed, 6 * this.bulkK);
     const err = targetSpeed - speed;
     c.steer = steer;
-    c.throttle = err > 0 ? clamp(err / 6, 0.25, 1) * this.powerScale : 0;
+    // (and from a standstill, a little more the longer it stands there wanting to go: a quarter throttle didn't move
+    // the loaded pickup you tail at all, crawling by a parked car at 0.8 m/s - it stood beside it, not stuck enough to
+    // be counted stuck)
+    this.launchK = speed < 0.4 && err > 0.3 && !held ? Math.min(0.45, (this.launchK || 0) + dt * 0.3) : 0;
+    c.throttle = err > 0 ? clamp(err / 6, 0.25 + this.launchK, 1) * this.powerScale : 0;
     // (firmly: the speed plan counts on real braking. And from half a metre a second over: let run to 1 m/s over, a car
     // came into a junction's tight turn 3.6 km/h faster than planned - a fifth faster, half as much again sideways - and
     // ran wide off the road at its exit)
