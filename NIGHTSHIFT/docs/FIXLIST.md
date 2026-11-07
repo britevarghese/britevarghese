@@ -419,6 +419,22 @@ the game. Newly found problems go at the end of their section.
   none at that junction. The six missions with an AI car driving pass, twice over
 - [x] tools/dev/townlife.mjs says what holds each stuck car up, as the traffic itself has it (the car in front, a
   junction's turn, a signal, an officer...) and what holds that one
+- [x] Buses and lorries, looked at from above at a signal and traced where two buses stood in one another:
+  - a KSRTC bus waiting at red stood with its front 3 m into the junction: where to stop was worked out from a
+    vehicle's middle, so the longer it was the further its nose went over the line. A bus or a lorry stops by its
+    nose now (at a signal and at a small junction's mouth); a car, an auto or a bike where it did. (By its nose, an
+    auto came 0.8 m nearer, into the turns across its way, and Thalassery locked solid: so not those)
+  - a 12 m bus was set on its lane by its middle, facing the lane's way there: on a bend its front corner swung 1.4 m
+    across into the other lane, and turning at a junction its tail swung over the lane beside it. A bus or a lorry
+    lies along the line between its axles now, each on its way, as a real one tracks
+  - going round a wreck, a lorry swung fully out into the other lane (3 m), and what came the other way took it for
+    one in its own lane and drove into it. One swung out more than half a metre is given way to now
+  - and a bike waiting at the end of its lane for an Ertiga on its turn, the Ertiga waiting for the bike in front of
+    it, stood three minutes, the town's traffic behind: a car at a junction's mouth doesn't wait for one on its turn
+    that's waiting for it
+  Thalassery, 3 minutes a run: two buses in each other 5-7 s at a time, and once 268 samples of a jam -> five runs of
+  1-2 samples of two cars brushing; six towns, 2 minutes: overlaps 1/4/1/0/0/1, all brushes, nothing stuck but behind
+  your car in Mattannur's narrow street
 
 ## People
 - [x] Clothing: men in plain shirts over dark trousers, khaki or a white mundu, black hair; women in sarees; no kurtas or western dress in crowds, drivers or riders
@@ -1064,3 +1080,5 @@ the game. Newly found problems go at the end of their section.
     told of (a mission's teleport moments after another, a reset) had the player snapped back to where they'd been -
     in a mission, back at its start, its car never coming. A jump is passed on to the others as a teleport now, never
     undone
+- [x] Checked again after the traffic's rework (lanes, junctions, buses): two players in Kannur for 2 minutes, each sees
+  the other's car where it is, the one not running the traffic sees the other's 20 vehicles; no errors on either

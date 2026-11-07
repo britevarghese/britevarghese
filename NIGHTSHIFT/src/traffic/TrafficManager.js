@@ -41,7 +41,7 @@ export const TRAFFIC_COLORS = [0x9aa0a8, 0x2a2d33, 0xe8e8e6, 0x5a1a1a, 0x1c2e4a,
 const _dir = new THREE.Vector3(), _pa = { x: 0, z: 0 }, _pb = { x: 0, z: 0 };
 const BUS_COLORS = [0xd8b020, 0x2a6ab0, 0xe0e0e0];
 
-const tmp = {};
+const tmp = {}, _ax = {};
 
 class TrafficCar {
   constructor(id, type, color) {
@@ -183,9 +183,20 @@ export class TrafficManager {
 
   _place(car) {
     car.path.sample(car.s, tmp);
-    const rx = -tmp.dz, rz = tmp.dx;
-    car.x = tmp.x + rx * car.lat; car.z = tmp.z + rz * car.lat;
-    car.yaw = Math.atan2(tmp.dx, tmp.dz);
+    let px = tmp.x, pz = tmp.z, dx = tmp.dx, dz = tmp.dz;
+    // a bus or a lorry: along the line between its axles, each on its way (a point either side of its middle - on
+    // into its next turn ahead, the straight it came by behind), not its middle on the lane facing the lane's way
+    // there. Set out that way, a KSRTC bus 12 m long on a bend swung its front corner 1.4 m across into the other
+    // lane, through an auto coming the other way, and turning at a junction swung its tail over the lane beside it
+    if (car.spec.l > 7 && car.state === 'drive') {
+      const h = car.spec.l * 0.32;
+      this._axle(car, h); const fx = _ax.x, fz = _ax.z;
+      this._axle(car, -h);
+      const ux = fx - _ax.x, uz = fz - _ax.z, L = Math.sqrt(ux * ux + uz * uz);
+      if (L > h) { px = (fx + _ax.x) / 2; pz = (fz + _ax.z) / 2; dx = ux / L; dz = uz / L; }
+    }
+    car.x = px - dz * car.lat; car.z = pz + dx * car.lat;
+    car.yaw = Math.atan2(dx, dz);
     if (this.world.kerala) {
       // the streamed terrain has hills: ride on it, nose up / down with the slope (a lane on a road with no bridge
       // never climbs onto a flyover above it, even a car just spawned under one)
@@ -389,6 +400,18 @@ export class TrafficManager {
   }
 
   // A point `ahead` metres further along the car's way (into the next path when this one ends), with its lane offset
+  // the point on a car's way d metres from its place along it (before it, d < 0: back along the start of its path,
+  // straight on behind it), into _ax
+  _axle(c, d) {
+    let path = c.path, s = c.s + d;
+    if (s > path.length) {
+      const n = c.next || path.next?.[0];
+      if (n) { s = Math.min(s - path.length, n.length); path = n; } else s = path.length;
+    }
+    if (s < 0) { path.sample(0, _ax); _ax.x += _ax.dx * s; _ax.z += _ax.dz * s; return _ax; }
+    return path.sample(s, _ax);
+  }
+
   _pointAhead(c, ahead, out) {
     let path = c.path, s = c.s + ahead;
     if (s > path.length) {
@@ -770,7 +793,9 @@ export class TrafficManager {
       // on its turn, nosed into the other road, a car was driven through by an auto coming the other way)
       // (not one on another road's lane that runs across this one's: two roads leaving a junction in Iritty 54 degrees
       // apart, the inner lanes of the two crossed 5 m out, and a car on each took the other for oncoming and drove into it)
-      if (ofx * fx + ofz * fz < -0.5 && o.path?.kind === 'lane' && path.kind === 'lane' && (o.path.edge === path.edge || !this._conflicts(path, o.path, 1))) continue;
+      // (nor one swung out of its lane, round something in its way: a lorry 3 m out going round a wreck, in this one's
+      // lane, was ignored as in its own, and a Dzire drove into it. That one goes by, this one gives way)
+      if (ofx * fx + ofz * fz < -0.5 && o.path?.kind === 'lane' && path.kind === 'lane' && (o.lat ?? 0) < 0.5 && (o.path.edge === path.edge || !this._conflicts(path, o.path, 1))) continue;
       // does it see us in front of it too? then the one further from the conflict (or the later id) waits
       const bAhead = -dx * ofx - dz * ofz;
       if (bAhead > 0 && bAhead < 4 + o.v * 1.4 + o.spec.l / 2 && Math.abs(dx * ofz - dz * ofx) < c.spec.w / 2 + o.spec.w / 2 + 1.5 && (bAhead > ahead || (Math.abs(bAhead - ahead) < 1 && c.id < o.id))) continue;
@@ -838,11 +863,17 @@ export class TrafficManager {
     // (only a small one - its turns under 10 m: through a bigger one there's room for the two to work it out as above,
     // and holding everyone at its mouth kept the towns' traffic standing a fifth more of the time)
     if (path.kind === 'lane' && !path.signal && c.next?.kind === 'connector' && c.next.length < 10) {
-      const toEnd = path.length - c.s - 1;
+      // (a bus or a lorry by its nose: from its middle, a bus 12 m long stood with its front 3 m into the junction. A
+      // car where it was, and an auto or a bike no further on - by its nose, an auto came 0.8 m nearer, into the
+      // turns across its way, and the car on one waited for it as it waited for that car: Thalassery locked solid)
+      const toEnd = path.length - c.s - Math.max(c.spec.l / 2, 2.2) + 1.2;
       if (toEnd > -0.5 && toEnd < 3 + c.v * c.v / 6) {
         for (const o of this.cars) {
           const op = o.path;
           if (o === c || o.state !== 'drive' || op?.kind !== 'connector' || op === c.next || op.node !== c.next.node || op.from === path) continue;
+          // (nor for one on its turn that's waiting for this one, in front of it: each held for the other, a bike at
+          // the end of its lane and an Ertiga on its turn stood three minutes in Thalassery, the town's traffic behind)
+          if (o.why === 'cross' && o.whyCar === c) continue;
           if (!this._conflicts(c.next, op, (c.spec.w + o.spec.w) / 2 + 0.3)) continue;
           if (toEnd < gap) { gap = Math.max(0.1, toEnd); leadV = 0; c.why = 'junction'; c.whyCar = o; }
           break;
@@ -852,7 +883,9 @@ export class TrafficManager {
     // --- traffic signal ---
     if (path.kind === 'lane' && path.signal) {
       const st = this.world.signalState(path.to, path.axis);
-      const distToStop = path.length - c.s - (path.stopBack ?? 1);   // (at the stop line, by the signal pole)
+      // (at the stop line, by the signal pole: a bus or a lorry by its nose - from its middle, a bus waiting at red in
+      // Kannur stood with its front 3 m into the junction. A car, an auto or a bike where it did)
+      const distToStop = path.length - c.s - Math.max(c.spec.l / 2, 2.2) + 2.2 - (path.stopBack ?? 1);
       const canStop = c.v * c.v / (2 * 4.5) < distToStop + 2;
       if ((st === 'red' || (st === 'yellow' && canStop)) && distToStop > -1) {
         if (distToStop < gap) { gap = distToStop; leadV = 0; c.why = 'signal'; c.whyCar = null; }
