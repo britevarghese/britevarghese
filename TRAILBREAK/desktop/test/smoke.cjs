@@ -18,6 +18,8 @@ const [exe, shots = 'smoke'] = process.argv.slice(2);
 const t0 = Date.now();
 const log = (...a) => console.log(`[${((Date.now() - t0) / 1000).toFixed(0).padStart(4)} s]`, ...a);
 const check = (ok, what) => { if (!ok) throw new Error(what); log('ok:', what); };
+// (a picture for whoever looks at the run, not a check: drawn in software a frame can take a while)
+const shoot = (win, name) => win.screenshot({ path: path.join(shots, name), timeout: 300000 }).then(() => log('screenshot', name), (e) => log(`no screenshot ${name}: ${e.message.split('\n')[0]}`));
 
 (async () => {
   if (!exe || !fs.existsSync(exe)) throw new Error(`no TRAILBREAK.exe at ${exe}`);
@@ -60,18 +62,24 @@ const check = (ok, what) => { if (!ok) throw new Error(what); log('ok:', what); 
     await win.evaluate(() => localStorage.setItem('trailbreak.settings', JSON.stringify({ name: 'Smoke test', map: 'world', truck: 'thar', hour: 15, weather: 'clear', fullscreen: false, quality: 'low', autoQuality: false, sound: false })));
     await win.reload();
     await win.waitForSelector('#solo', { state: 'visible', timeout: 180000 });
-    await win.screenshot({ path: path.join(shots, 'lobby.png') });
     log('lobby up');
+    await shoot(win, 'lobby.png');
+    // (drawn in software a frame can take seconds at full size, and the game moves on a frame at a time: the window's
+    // smallest size draws a few times quicker)
+    await app.evaluate(({ BrowserWindow }) => { const w = BrowserWindow.getAllWindows()[0]; w.unmaximize(); w.setSize(960, 540); });
     await win.click('#solo');
     await win.waitForFunction(() => window.__ready === true, null, { timeout: 25 * 60000, polling: 1000 });
     log('driving: the world is built and drawn');
-    const from = await win.evaluate(() => ({ x: window.game.vehicle.pos.x, z: window.game.vehicle.pos.z }));
-    await win.evaluate(async () => { const g = window.game; g.input.touch.throttle = 0.6; await new Promise((r) => setTimeout(r, 15000)); g.input.touch.throttle = 0; });
-    const to = await win.evaluate(() => ({ x: window.game.vehicle.pos.x, z: window.game.vehicle.pos.z, kmh: window.game.vehicle.speed * 3.6 }));
-    const moved = Math.hypot(to.x - from.x, to.z - from.z);
-    await win.screenshot({ path: path.join(shots, 'driving.png') });
-    check(moved > 1, `the truck drives (${moved.toFixed(1)} m, ${to.kmh.toFixed(0)} km/h)`);
+    const at = () => win.evaluate(() => ({ x: window.game.vehicle.pos.x, z: window.game.vehicle.pos.z, kmh: window.game.vehicle.speed * 3.6, frame: window.game.renderer.renderer.info.render.frame }));
+    const from = await at();
+    await win.evaluate(() => { window.game.input.touch.throttle = 0.6; });
+    const moving = await win.waitForFunction(() => window.game.vehicle.speed * 3.6 > 3, null, { timeout: 8 * 60000, polling: 1000 }).then(() => true, () => false);
+    await win.evaluate(() => { window.game.input.touch.throttle = 0; });
+    const to = await at();
+    log(`drew ${to.frame - from.frame} frames while driving`);
+    check(moving, `the truck drives (${Math.hypot(to.x - from.x, to.z - from.z).toFixed(1)} m, ${to.kmh.toFixed(0)} km/h)`);
     check(errors.length === 0, `no errors in the page${errors.length ? `: ${errors.slice(0, 3).join(' | ')}` : ''}`);
+    await shoot(win, 'driving.png');
   } finally {
     await app.close().catch(() => {});
   }

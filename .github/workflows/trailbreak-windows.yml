@@ -37,8 +37,8 @@ jobs:
       run:
         working-directory: TRAILBREAK
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
         with:
           node-version: 22
       - name: The game's tests
@@ -53,9 +53,9 @@ jobs:
         shell: bash
         working-directory: TRAILBREAK/desktop
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
           node-version: 22
           cache: npm
@@ -106,7 +106,7 @@ jobs:
           if (Test-Path "$env:APPDATA\Microsoft\Windows\Start Menu\Programs\TRAILBREAK.lnk") { throw 'the Start-menu shortcut was left behind' }
           Write-Host 'uninstalled'
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v5
         if: always()
         with:
           name: smoke-test-screens-${{ steps.v.outputs.version }}
@@ -114,7 +114,7 @@ jobs:
           if-no-files-found: ignore
           retention-days: 14
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v5
         with:
           name: TRAILBREAK-Setup-${{ steps.v.outputs.version }}
           path: |
