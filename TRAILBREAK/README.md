@@ -85,10 +85,11 @@ the newest over it once by hand.
 turn on **Friends on this Wi-Fi can join**. The invite link then carries this PC's network address
 (`https://192.168.x.x:47610/?room=K7QMP&map=world`) and the game carries on where it was (the room reconnects in a
 moment). The first time, Windows asks whether TRAILBREAK may use the network: allow it on private networks. Friends
-open the link in their own TRAILBREAK (**Join a friend's game**, under the lobby's buttons) or in a browser, where the
-certificate warning is this PC's own certificate (*Advanced > Proceed*). The app hosts again the next time it starts,
-until you turn it off. **Join a friend's game** also takes an online server's address, such as your
-[Render](#host-it-online-render) one.
+open the link in their own TRAILBREAK (**Join a friend's game**, under the lobby's buttons), where they drive their own
+trucks, builds and career on your game (their game plays on your PC's server; it checks one answers first), or in a
+browser, where the certificate warning is this PC's own certificate (*Advanced > Proceed*). The app hosts again the
+next time it starts, until you turn it off. **Join a friend's game** also takes an online server's address, such as
+your [Render](#host-it-online-render) one.
 
 Press **Alt** for the app's menu (it has no letter shortcuts, so Ctrl+W, a downshift while you hold W, never closes
 the window):
@@ -99,7 +100,8 @@ the window):
 - **Help:** this README, the credits and licences of the trucks, sounds and textures, and Check for updates.
 
 The game is served at `http://127.0.0.1:47610`, or the next free port above it if another program has that one. Your
-career, trucks and settings are kept with the app, apart from the browser version's. A game you join keeps its own.
+career, trucks and settings are kept with the app, apart from the browser version's, and come with you into a friend's
+game you join from the app.
 Uninstall from **Settings > Apps** (your saves stay unless you delete `%APPDATA%\TRAILBREAK`).
 
 **How the installer is built:** `desktop/` is the app ([Electron](https://www.electronjs.org/) running `server.js` in
