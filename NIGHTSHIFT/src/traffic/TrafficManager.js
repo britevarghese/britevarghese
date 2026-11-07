@@ -881,11 +881,15 @@ export class TrafficManager {
       }
     }
     // --- traffic signal ---
-    if (path.kind === 'lane' && path.signal) {
-      const st = this.world.signalState(path.to, path.axis);
+    // (or the signal at the end of a lane too short to stop on, a few metres on - its stop is on this one; on that one
+    // itself, it's past the line: see KeralaWorld._stopLines)
+    let sigL = path.kind === 'lane' && path.signal && !path.stopUp ? path : null, sigX = 0;
+    if (!sigL && path.kind === 'lane' && c.next?.kind === 'connector' && c.next.next?.[0]?.stopUp) { sigL = c.next.next[0]; sigX = c.next.length + sigL.length; }
+    if (sigL) {
+      const st = this.world.signalState(sigL.to, sigL.axis);
       // (at the stop line, by the signal pole: a bus or a lorry by its nose - from its middle, a bus waiting at red in
       // Kannur stood with its front 3 m into the junction. A car, an auto or a bike where it did)
-      const distToStop = path.length - c.s - Math.max(c.spec.l / 2, 2.2) + 2.2 - (path.stopBack ?? 1);
+      const distToStop = path.length - c.s - Math.max(c.spec.l / 2, 2.2) + 2.2 - Math.max(sigX ? 0.5 : -Infinity, (sigL.stopBack ?? 1) - sigX);
       const canStop = c.v * c.v / (2 * 4.5) < distToStop + 2;
       if ((st === 'red' || (st === 'yellow' && canStop)) && distToStop > -1) {
         if (distToStop < gap) { gap = distToStop; leadV = 0; c.why = 'signal'; c.whyCar = null; }

@@ -435,6 +435,13 @@ the game. Newly found problems go at the end of their section.
   Thalassery, 3 minutes a run: two buses in each other 5-7 s at a time, and once 268 samples of a jam -> five runs of
   1-2 samples of two cars brushing; six towns, 2 minutes: overlaps 1/4/1/0/0/1, all brushes, nothing stuck but behind
   your car in Mattannur's narrow street
+- [x] Stop lines at the signals: a white line across each lane coming in, where the traffic's noses stop at red. And
+  where they stopped wasn't always right:
+  - just short of a busy junction there's often a zebra crossing, and the traffic waited on it at red, 2 m in. The
+    stop (and its line) is 0.6 m short of the crossing now - 4.9 m further back on about one approach in ten
+  - where the map's road is cut a few metres short of the junction (another road joins there, or the two halves of a
+    junction are 5 m apart) the last piece of lane is too short to stop on: its line and its stop were inside the
+    junction. They're on the lane coming into it now, at its end if need be (up to 10 approaches a town)
 
 ## People
 - [x] Clothing: men in plain shirts over dark trousers, khaki or a white mundu, black hair; women in sarees; no kurtas or western dress in crowds, drivers or riders

@@ -753,6 +753,8 @@ export class KeralaWorld {
         pole: mk(new THREE.CylinderGeometry(0.07, 0.08, 3.6, 8).translate(0, 1.8, 0), new THREE.MeshStandardMaterial({ color: 0x9a9a92, roughness: 0.7 }), N),
         head: mk(new THREE.BoxGeometry(0.34, 1.0, 0.26).translate(0, 3.4, 0), dark, N),
         lamps: [0, 1, 2].map((k) => mk(new THREE.SphereGeometry(0.1, 10, 8).translate(0, 3.72 - k * 0.32, 0.14), lamp, N)),
+        // (a white line across each lane coming in, where the traffic stops: a metre across, scaled to the lane)
+        stop: mk(new THREE.BoxGeometry(1, 0.02, 0.4), this.M.klLineWhite, 4 * N),
       };
       for (const m of this.sigMeshes.lamps) m.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(N * 3), 3);
       this._sigT = 0;
@@ -774,6 +776,54 @@ export class KeralaWorld {
       }
     }
     for (const m of [M.pole, M.head, ...M.lamps]) { m.count = n; m.instanceMatrix.needsUpdate = true; if (m.instanceColor) m.instanceColor.needsUpdate = true; }
+    let k = 0;
+    for (const L of this._stopLines()) {
+      if (k >= M.stop.instanceMatrix.count) break;
+      if (Math.abs(L.x - p.x) > 400 || Math.abs(L.z - p.z) > 400) continue;
+      M.stop.setMatrixAt(k++, m4.compose(v.set(L.x, this.groundHeight(L.x, L.z) + 0.012, L.z), q.setFromAxisAngle(up, L.yaw), _sls.set(L.w, 1, 1)));
+    }
+    M.stop.count = k; M.stop.instanceMatrix.needsUpdate = true;
+  }
+
+  // the stop lines at the signals: across each lane coming in, where a car's nose stops at red - behind a zebra
+  // crossing, if there's one just there (cars stood on the crossing at red, 2 m into it). Worked out again as lanes
+  // and tiles come in, every 3 s at most
+  _stopLines() {
+    const Lg = this.lanes, now = this.state.time || 0;
+    if (this._sl && this._slV === Lg.version && now - this._slT < 3) return this._sl;
+    this._slV = Lg.version; this._slT = now;
+    const out = this._sl = [], zebras = [];
+    for (const t of this.tiles.values()) for (const z of t.crossings || []) zebras.push(z);
+    const q = {};
+    for (const [node, S] of Lg.signals) {
+      for (const l of Lg.ins.get(node) || []) {
+        if (!l.signal || l.length < 3) continue;
+        if (l.stopBack0 === undefined) l.stopBack0 = l.stopBack ?? 1;
+        let back = l.stopBack0;
+        l.sample(l.length, q);
+        const ex = q.x, ez = q.z, ux = q.dx, uz = q.dz;
+        for (const Z of zebras) {
+          if (Math.abs(Z.x - ex) > 16 || Math.abs(Z.z - ez) > 16 || Math.abs(Z.fx * ux + Z.fz * uz) < 0.9) continue;
+          const along = (Z.x - ex) * ux + (Z.z - ez) * uz, side = Math.abs(-(Z.x - ex) * uz + (Z.z - ez) * ux);
+          if (side > Z.hw + 1 || along > 4 || along < -14) continue;
+          back = Math.max(back, -(along - 1.6) + 0.6);   // (its stripes reach 1.6 m either side of its middle)
+        }
+        l.stopBack = back;
+        const w = Math.max(1, (l.edge?.lw ?? 3.2) - 0.15);
+        // (a lane too short for it - the map's road cut 3 m short of the junction, where a lane joins - has its line,
+        // and the traffic its stop, on the lane coming into it: on its own, both were inside the junction)
+        l.stopUp = l.length - back < 0.5;
+        if (!l.stopUp) { l.sample(l.length - back + 0.25, q); out.push({ x: q.x, z: q.z, yaw: Math.atan2(q.dx, q.dz), w }); continue; }
+        for (const u of Lg.ins.get(l.from) || []) for (const con of u.next || []) {
+          if (con.next?.[0] !== l) continue;
+          // (not past its end, onto the turn into it: there the stop would be in the junction it turns at)
+          const su = u.length - Math.max(0.5, back - l.length - con.length);
+          if (su < 1) continue;
+          u.sample(su + 0.25, q); out.push({ x: q.x, z: q.z, yaw: Math.atan2(q.dx, q.dz), w: Math.max(1, (u.edge?.lw ?? 3.2) - 0.15) });
+        }
+      }
+    }
+    return out;
   }
   breakCollider(c) { c.broken = true; }
 
@@ -935,6 +985,7 @@ function detailGeometries() {
 }
 
 const SCOOTER_PAL = [0xe8e8e8, 0x1a1a1a, 0x8a1a1a, 0x2a3a6a, 0x9a9a9a, 0x5a6a5a, 0xc8a020];
+const _sls = new THREE.Vector3();
 const _sm = new THREE.Matrix4(), _lift = new THREE.Matrix4().makeTranslation(0, -0.15, 0), _sc = new THREE.Color();
 
 // the optional environment detail layers (F9 turns them off for an A/B performance check)
