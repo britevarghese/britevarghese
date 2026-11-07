@@ -824,6 +824,11 @@ export class TrafficManager {
       for (const st of path.stops) {
         const d = st - c.s;
         if (d < -1 || d > 80) continue;
+        // (not one that something's already standing at: a KSRTC bus pulled in at a stop onto the private bus there,
+        // out round it as round a parked car and back in to the kerb into it, and stood in it. By it, and on)
+        // (nor a car parked there: a private bus pulled in onto a Scorpio. And its pull to the kerb let go, or it
+        // can't swing out round what's there)
+        if (path.cars.some((o) => o !== c && (o.pulled || o.state === 'parked') && Math.abs(o.s - st) < (o.spec.l + c.spec.l) / 2 + 1)) { if (c.latT < 0) c.latT = 0; continue; }
         if (d + 2 < gap) { gap = Math.max(0.1, d + 2); leadV = 0; c.why = 'busstop'; c.whyCar = null; c.latT = -Math.min(1.1, kerbRoom(path)); }
         if (d < 3.2 && c.v < 1.2) { c.dwell = 8 + this.R() * 10; c.pulled = true; c.lastStop = path; bus.emit('traffic:busStop', { car: c, x: c.x, z: c.z }); }
       }

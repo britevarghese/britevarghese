@@ -442,6 +442,17 @@ the game. Newly found problems go at the end of their section.
   - where the map's road is cut a few metres short of the junction (another road joins there, or the two halves of a
     junction are 5 m apart) the last piece of lane is too short to stop on: its line and its stop were inside the
     junction. They're on the lane coming into it now, at its end if need be (up to 10 approaches a town)
+- [x] A knot of little one-way pieces by the Thalassery fork had cars at 9-10 m/s driving through each other: a
+  junction's curve from one lane to the next is drawn through where the two lines meet, and there they met behind the
+  first lane's end - the two all but parallel, one set off to the side - so a 10 m gap became a 30 m loop back across
+  the junction. Where the lines meet behind the one or past the other, the curve is an S between them now (round
+  Thalassery, curves over 15 m long 2 -> 1, an ordinary turn). And the cut that keeps two roads' lanes apart where
+  they leave a junction close together goes back 8 m at most, not 15
+- [x] Two buses stood one in the other at a Thalassery bus stop, 5-11 s at a time, run after run: a KSRTC bus came up
+  behind a private bus already pulled in there, took it for a parked car to go round - and pulled in to the same stop,
+  back to the kerb, into it. A private bus did the same onto a Scorpio parked there. A bus doesn't pull in at a stop
+  something's already standing at now; it goes round it and on. Thalassery, 3 runs of 3 minutes: that stop 11 samples
+  -> 1; six towns, 2 minutes: no overlaps anywhere
 
 ## People
 - [x] Clothing: men in plain shirts over dark trousers, khaki or a white mundu, black hair; women in sarees; no kurtas or western dress in crowds, drivers or riders

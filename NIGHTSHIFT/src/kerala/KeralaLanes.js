@@ -90,8 +90,22 @@ const norm = (x, z) => { const l = Math.hypot(x, z) || 1; return [x / l, z / l];
 // a connector's line from a lane's end (heading d0) to the next lane's start (heading d1): straight on a short way,
 // else a curve through where the two lines meet
 function conPts(end, d0, st, d1, turn) {
-  if (turn === 'straight' && Math.hypot(st[0] - end[0], st[1] - end[1]) < 8) return [end, st];
+  const chord = Math.hypot(st[0] - end[0], st[1] - end[1]);
+  if (turn === 'straight' && chord < 8) return [end, st];
   let c = d1 ? intersect(end, d0, st, d1) : null;
+  // (where the two lines meet behind the lane's end, or past the next one's start - the two all but parallel, one set
+  // off to the side of the other - an S between them, out along the one and into the other: through the point where
+  // they met, a 10 m gap at a Thalassery junction became a 30 m loop back across the junction, its traffic driving
+  // through everyone else's)
+  if (c && d1 && turn !== 'uturn' && ((c[0] - end[0]) * d0[0] + (c[1] - end[1]) * d0[1] < 0 || (st[0] - c[0]) * d1[0] + (st[1] - c[1]) * d1[1] < 0)) {
+    const k = chord / 3, out = [];
+    const p1 = [end[0] + d0[0] * k, end[1] + d0[1] * k], p2 = [st[0] - d1[0] * k, st[1] - d1[1] * k];
+    for (let i = 0; i <= 8; i++) {
+      const t = i / 8, u = 1 - t, a = u * u * u, b = 3 * u * u * t, e = 3 * u * t * t, f = t * t * t;
+      out.push([a * end[0] + b * p1[0] + e * p2[0] + f * st[0], a * end[1] + b * p1[1] + e * p2[1] + f * st[1]]);
+    }
+    return out;
+  }
   if (!c || Math.hypot(c[0] - end[0], c[1] - end[1]) > 40) c = [(end[0] + st[0]) / 2 + d0[0] * 3, (end[1] + st[1]) / 2 + d0[1] * 3];
   return bezier(end, c, st, 8);
 }
@@ -147,7 +161,9 @@ function unoverlap(lanes) {
         if (Math.hypot(a[0] - b[0], a[1] - b[1]) < SEP) need = t + 0.5;
       }
       // (only where they come apart near the junction: two carriageways close all along aren't put right by this)
-      if (!need || need > 15 || need > max) continue;
+      // (and 8 m at most: cut 15 m back, a lane in a knot of little one-way pieces left a 30 m curve between it and
+      // the next, bulging across the others, its traffic driving through theirs)
+      if (!need || need > 8 || need > max) continue;
       for (const X of [A, B]) {
         const c = cut.get(X.l) || [0, 0], k = X.start ? 0 : 1;
         c[k] = Math.max(c[k], Math.min(need, X.l.length - 2 - c[1 - k]));
