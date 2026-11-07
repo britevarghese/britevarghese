@@ -548,3 +548,18 @@ body.deploying #mmframe, body.deploying #killfeed, body.deploying #compass, body
 .stbar.on { opacity: 1; } .stbar i { display: block; height: 100%; width: 100%; background: #d9c27a; }
 .stbar.winded i { background: #ff8a5b; }
 body.touch .stbar { width: 120px; }
+
+/* phones / narrow screens, after the HUD styles above (which otherwise win): the tickets bar has to fit between
+   the minimap and the top-right buttons, and the health panel sits under the minimap frame, not on its room tag */
+@media (max-width: 950px), (max-height: 500px) {
+  #tickets { gap: 6px; padding: 4px 8px; } .tk { gap: 5px; } .tk .bar { width: 44px; } .tk b { font-size: 20px; min-width: 32px; } .tk .lbl { font-size: 11px; gap: 3px; }
+  .flag { width: 26px; height: 26px; } .flag span { font-size: 12px; }
+}
+body.touch #vitals { top: 206px; }
+/* touch: the kill feed shows its latest line only, so it stays clear of the swap / grenade buttons under it */
+body.touch #killfeed > :nth-last-child(n+2) { display: none; }
+/* small phones (iPhone SE class, 667 px): just the two scores either side of the flags, and a smaller minimap */
+@media (max-width: 700px) {
+  .tk .bar, .tk.us .bar, .tk .lbl { display: none; } #tickets { padding: 4px 6px; gap: 5px; } .tk b { min-width: 30px; font-size: 18px; }
+  body.touch #mmframe { width: 122px; height: 146px; } body.touch #minimap { width: 120px; height: 120px; } body.touch #vitals { top: 168px; }
+}
