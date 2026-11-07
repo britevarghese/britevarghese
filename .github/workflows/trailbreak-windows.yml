@@ -2,6 +2,9 @@
 # runner and publishes TRAILBREAK-Setup-<version>.exe as a release of this repository (the newest one is "Latest"), with
 # latest.yml and the installer's blockmap, which the installed games read to update themselves (electron-updater).
 # Each build is a new version: package.json's major.minor and this workflow's run number (0.1.7 for run 7).
+# Before publishing, the new installer is tried as a player would: installed silently, the game started and driven
+# (TRAILBREAK/desktop/test/smoke.cjs), then uninstalled. A build that fails that is never published, so the installed
+# games never update to it.
 # Runs when the game or its desktop app changes on the development branch (or by hand, once this file is on the
 # repository's default branch: Actions > Run workflow).
 name: TRAILBREAK for Windows
@@ -44,7 +47,7 @@ jobs:
   installer:
     needs: tests
     runs-on: windows-latest
-    timeout-minutes: 40
+    timeout-minutes: 75
     defaults:
       run:
         shell: bash
@@ -70,6 +73,46 @@ jobs:
 
       - name: Build the installer
         run: npx electron-builder --win nsis --x64 --publish never
+
+      - name: Install it, as a player would
+        id: install
+        shell: pwsh
+        run: |
+          $setup = (Get-Item "dist/TRAILBREAK-Setup-${{ steps.v.outputs.version }}.exe").FullName
+          Start-Process -FilePath $setup -ArgumentList '/S' -Wait
+          $exe = Get-ChildItem "$env:LOCALAPPDATA\Programs" -Recurse -Filter TRAILBREAK.exe -ErrorAction SilentlyContinue | Select-Object -First 1
+          if (-not $exe) { throw 'TRAILBREAK.exe was not installed under %LOCALAPPDATA%\Programs' }
+          Write-Host "installed: $($exe.FullName)"
+          if (-not (Test-Path (Join-Path $exe.DirectoryName 'resources\game\server.js'))) { throw 'the game files were not installed' }
+          $start = "$env:APPDATA\Microsoft\Windows\Start Menu\Programs\TRAILBREAK.lnk"
+          $desk = Join-Path ([Environment]::GetFolderPath('Desktop')) 'TRAILBREAK.lnk'
+          if (-not (Test-Path $start)) { throw "no Start-menu shortcut ($start)" }
+          if (-not (Test-Path $desk)) { throw "no desktop shortcut ($desk)" }
+          "exe=$($exe.FullName -replace '\\', '/')" >> $env:GITHUB_OUTPUT
+
+      - name: Play it (the installed game, started and driven)
+        run: |
+          npm install --no-save --no-package-lock playwright-core@1.56.0
+          node test/smoke.cjs "${{ steps.install.outputs.exe }}" smoke
+
+      - name: Uninstall it
+        shell: pwsh
+        run: |
+          $dir = Split-Path "${{ steps.install.outputs.exe }}"
+          Start-Process -FilePath (Join-Path $dir 'Uninstall TRAILBREAK.exe') -ArgumentList '/S' -Wait
+          # (the uninstaller copies itself away and finishes on its own)
+          for ($i = 0; $i -lt 60 -and (Test-Path (Join-Path $dir 'TRAILBREAK.exe')); $i++) { Start-Sleep 1 }
+          if (Test-Path (Join-Path $dir 'TRAILBREAK.exe')) { throw "still installed in $dir" }
+          if (Test-Path "$env:APPDATA\Microsoft\Windows\Start Menu\Programs\TRAILBREAK.lnk") { throw 'the Start-menu shortcut was left behind' }
+          Write-Host 'uninstalled'
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: smoke-test-screens-${{ steps.v.outputs.version }}
+          path: TRAILBREAK/desktop/smoke/*.png
+          if-no-files-found: ignore
+          retention-days: 14
 
       - uses: actions/upload-artifact@v4
         with:
