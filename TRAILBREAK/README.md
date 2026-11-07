@@ -104,8 +104,12 @@ Windows](../.github/workflows/trailbreak-windows.yml) workflow runs the game's t
 Windows runner and publishes it as a new release whenever the game or the app changes on the development branch
 (`claude/sweet-volta-hxo6tl`): version 0.1.*N* for the workflow's run *N*, with the `latest.yml` and installer
 blockmap that [electron-updater](https://www.electron.build/auto-update) in the installed games reads (from this
-repository's latest release: `build.publish` in `desktop/package.json`). To build it yourself on Windows, with
-Node.js 18+:
+repository's latest release: `build.publish` in `desktop/package.json`). Before publishing, it installs the new build
+on the Windows runner (checking the game files and both shortcuts), starts it and drives it
+([desktop/test/smoke.cjs](desktop/test/smoke.cjs): the game from its own server, the menu, the updater reading the
+latest release, the lobby, a drive alone), then uninstalls it; a build that fails any of that is not published, so
+the installed games never update to it. The lobby and driving pictures are kept with the run. To build it yourself on
+Windows, with Node.js 18+:
 
 ```
 cd TRAILBREAK\desktop
