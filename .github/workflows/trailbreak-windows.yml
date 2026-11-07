@@ -4,7 +4,8 @@
 # Each build is a new version: package.json's major.minor and this workflow's run number (0.1.7 for run 7).
 # Before publishing, the new installer is tried as a player would: installed silently, the game started and driven
 # (TRAILBREAK/desktop/test/smoke.cjs), then uninstalled. A build that fails that is never published, so the installed
-# games never update to it.
+# games never update to it. Once it's published, a copy of the release before it is installed and left to update
+# itself to it, as players' copies will (TRAILBREAK/desktop/test/update.cjs).
 # Runs when the game or its desktop app changes on the development branch (or by hand, once this file is on the
 # repository's default branch: Actions > Run workflow).
 name: TRAILBREAK for Windows
@@ -48,6 +49,8 @@ jobs:
     needs: tests
     runs-on: windows-latest
     timeout-minutes: 75
+    outputs:
+      version: ${{ steps.v.outputs.version }}
     defaults:
       run:
         shell: bash
@@ -144,3 +147,68 @@ jobs:
             TRAILBREAK/desktop/dist/TRAILBREAK-Setup-*.exe.blockmap
             TRAILBREAK/desktop/dist/latest.yml
           fail_on_unmatched_files: true
+
+  update:
+    # an installed copy of the previous release updating itself to the one just published, as players' copies do
+    needs: installer
+    runs-on: windows-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        shell: pwsh
+        working-directory: TRAILBREAK/desktop
+    env:
+      GH_TOKEN: ${{ github.token }}
+      NEW: ${{ needs.installer.outputs.version }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          sparse-checkout: TRAILBREAK/desktop/test
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+
+      - name: Install the release before it
+        id: old
+        run: |
+          $tags = gh release list -R $env:GITHUB_REPOSITORY --exclude-drafts --exclude-pre-releases --limit 30 --json tagName --jq '.[].tagName'
+          $prev = $tags | Where-Object { $_ -match '^trailbreak-windows-(\d+\.\d+\.\d+)$' -and [version]$Matches[1] -lt [version]$env:NEW } | Select-Object -First 1
+          if (-not $prev) { throw "no release before $env:NEW to update from" }
+          Write-Host "updating from $prev to $env:NEW"
+          gh release download $prev -R $env:GITHUB_REPOSITORY -p 'TRAILBREAK-Setup-*.exe' -D "$env:RUNNER_TEMP/old"
+          $setup = (Get-ChildItem "$env:RUNNER_TEMP/old/TRAILBREAK-Setup-*.exe" | Select-Object -First 1).FullName
+          Start-Process -FilePath $setup -ArgumentList '/S' -Wait
+          $exe = "$env:LOCALAPPDATA\Programs\TRAILBREAK\TRAILBREAK.exe"
+          if (-not (Test-Path $exe)) { throw "the previous release did not install at $exe" }
+          Write-Host "installed $((Get-Item $exe).VersionInfo.ProductVersion)"
+          "exe=$($exe -replace '\\', '/')" >> $env:GITHUB_OUTPUT
+          npm install --prefix "$env:RUNNER_TEMP/pw" --no-save --no-package-lock playwright-core@1.56.0
+
+      - name: Let it update, as a player's copy does
+        run: |
+          $env:NODE_PATH = "$env:RUNNER_TEMP/pw/node_modules"
+          node test/update.cjs download "${{ steps.old.outputs.exe }}" $env:NEW
+
+      - name: The update installs as the game closes
+        run: |
+          $exe = "${{ steps.old.outputs.exe }}"
+          $v = ''
+          for ($i = 0; $i -lt 180 -and $v -ne $env:NEW; $i++) {
+            Start-Sleep 1
+            $v = try { (Get-Item $exe -ErrorAction Stop).VersionInfo.ProductVersion } catch { '' }
+          }
+          if ($v -ne $env:NEW) { throw "TRAILBREAK.exe is '$v' after 3 minutes, not $env:NEW" }
+          Write-Host "updated to $v in about $i s"
+
+      - name: The updated game starts
+        run: |
+          $env:NODE_PATH = "$env:RUNNER_TEMP/pw/node_modules"
+          node test/update.cjs check "${{ steps.old.outputs.exe }}" $env:NEW
+
+      - name: Uninstall it
+        if: always() && steps.old.outputs.exe != ''
+        run: |
+          $dir = Split-Path "${{ steps.old.outputs.exe }}"
+          $un = Join-Path $dir 'Uninstall TRAILBREAK.exe'
+          if (Test-Path $un) { Start-Process -FilePath $un -ArgumentList '/S' -Wait }

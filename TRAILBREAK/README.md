@@ -108,7 +108,10 @@ repository's latest release: `build.publish` in `desktop/package.json`). Before 
 on the Windows runner (checking the game files and both shortcuts), starts it and drives it
 ([desktop/test/smoke.cjs](desktop/test/smoke.cjs): the game from its own server, the menu, the updater reading the
 latest release, the lobby, a drive alone), then uninstalls it; a build that fails any of that is not published, so
-the installed games never update to it. The lobby and driving pictures are kept with the run. To build it yourself on
+the installed games never update to it. The lobby and driving pictures are kept with the run. Once it's published, a
+copy of the release before it is installed on a Windows runner and left to update itself
+([desktop/test/update.cjs](desktop/test/update.cjs)): it must find the new release, download it, say so in the lobby,
+install it when the game is closed, and start as the new version. To build it yourself on
 Windows, with Node.js 18+:
 
 ```
