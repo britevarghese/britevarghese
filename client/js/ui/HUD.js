@@ -30,7 +30,8 @@ export class HUD {
     // loadout summary in the deploy bar
     const k = CLASSES[this.selectedClass];
     $('dp-kit').textContent = k.name.toUpperCase();
-    $('dp-kitw').textContent = `${WEAPONS[k.primary].name} · ${WEAPONS[k.secondary].name} · ${k.grenades} FRAG`;
+    // (short designations: the box is narrow — 'AR-15 · P-17 · AT-84 · 4 FRAG')
+    $('dp-kitw').textContent = [k.primary, k.secondary, k.gadget].filter(Boolean).map((id) => WEAPONS[id].name.split(' ')[0]).join(' · ') + ` · ${k.grenades} FRAG`;
     $('dp-wsil').setAttribute('href', `#w-${k.primary}`);
     $('dp-kicon').innerHTML = `<use href="#${KIT_ICON[this.selectedClass]}"/>`;
   }

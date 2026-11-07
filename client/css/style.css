@@ -509,6 +509,22 @@ body.touch #ammo .wsil { display: none; } body.touch #ammo { padding: 6px 12px 6
 /* deploy: logo top-left, the live tickets / flags bar stays visible above the screen */
 .dp-logo { position: absolute; top: 16px; left: 28px; padding: 0; } .dp-logo .word { font-size: 28px; } .dp-logo small { margin-top: 4px; letter-spacing: .5em; }
 body.deploying #tickets { z-index: 13; }
+/* (narrow / short screens: the centred tickets bar reaches the corner — the DEPLOY title is enough there) */
+@media (max-width: 1100px), (max-height: 520px) { .dp-logo { display: none; } }
+/* phones in landscape: two compact kit cards a row, and the deploy bar pinned to the bottom so DEPLOY never
+   scrolls out of reach */
+@media (max-height: 520px) {
+  #deploy { padding-top: 50px; gap: 10px; } .dp-title { font-size: 34px; } #invite { display: none; }
+  #deploy .kits { grid-template-columns: repeat(2, 1fr); gap: 8px; } #deploy .kit { min-height: 0; padding: 8px 10px; gap: 4px; }
+  #deploy .kit .kh b { font-size: 17px; } #deploy .kit .kw { padding-top: 4px; } #deploy .kit .perk { display: none; }
+  /* (one solid row: loadout · ready · DEPLOY) */
+  .dp-bar { position: sticky; bottom: 0; z-index: 2; grid-template-columns: 1.3fr 1fr 1.2fr; background: #14191f; }
+  .dp-bar .dpb { padding: 6px 10px; gap: 2px; } .dp-bar .dpb small { display: none; } .dp-bar .dpb .wsil { display: none; }
+  .dp-bar .dpb b { font-size: 14px; } .dp-bar .dpb span { font-size: 11px; } .dpb.ready .okc { width: 24px; height: 24px; padding: 3px; }
+  .deploybtn { margin: 6px; font-size: 20px; padding: 6px 0; }
+}
+/* 720p laptops: the deploy bar fully on screen */
+@media (max-height: 760px) and (min-height: 521px) { #deploy { padding-top: 76px; gap: 12px 18px; } }
 body.deploying #mmframe, body.deploying #killfeed, body.deploying #compass, body.deploying #vitals, body.deploying #ammo, body.deploying #chatlog, body.deploying #capture, body.deploying #crosshair { visibility: hidden; }
 .dp-map { align-self: start; }
 /* short screens (laptops at 720p, phones in landscape): the royale ready card must fit */
