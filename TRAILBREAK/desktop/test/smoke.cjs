@@ -1,6 +1,6 @@
 // The installed TRAILBREAK for Windows, started as a player starts it: its window loads the game from its own server
-// (127.0.0.1), the lobby comes up, a drive alone gets the truck moving, the menu and the page's bridge are there, and the
-// updater reads this repository's latest release. The build workflow (.github/workflows/trailbreak-windows.yml) runs it
+// (127.0.0.1), the menu and the page's bridge are there, the updater reads this repository's latest release, and the
+// lobby and a drive in a room work as joining a friend's game does (the page naming the server to play on). The build workflow (.github/workflows/trailbreak-windows.yml) runs it
 // on a Windows runner against the freshly installed game, and publishes the release only if it passes.
 //
 //   node test/smoke.cjs <path to the installed TRAILBREAK.exe> <folder for the screenshots>
@@ -60,18 +60,25 @@ const shoot = (win, name) => win.screenshot({ path: path.join(shots, name), time
       check(/^\d+\.\d+\.\d+$/.test(upd.latest || ''), `reads the latest release (${upd.latest})`);
     }
 
-    // the lobby, then a drive alone (low graphics: it draws in software here)
+    // the lobby (low graphics: it draws in software here), then a drive in a room, played as a friend's game is: the page
+    // names the server to play on (?server=, here the app's own), as Join a friend's game does
     await win.evaluate(() => localStorage.setItem('trailbreak.settings', JSON.stringify({ name: 'Smoke test', map: 'world', truck: 'thar', hour: 15, weather: 'clear', fullscreen: false, quality: 'low', autoQuality: false, sound: false })));
-    await win.reload();
-    await win.waitForSelector('#solo', { state: 'visible', timeout: 180000 });
+    const own = new URL(win.url());
+    await win.goto(`${own.origin}/?room=SMOKE1&map=world&server=${encodeURIComponent(`ws://127.0.0.1:${own.port}`)}`);
+    await win.waitForSelector('#joining', { state: 'visible', timeout: 180000 });
     log('lobby up');
+    const joining = await win.evaluate(() => document.getElementById('joining').textContent.replace(/\s+/g, ' ').trim());
+    check(joining.includes(`127.0.0.1:${own.port}`), `the lobby says whose game it joins (${joining})`);
+    check((await win.evaluate(() => document.getElementById('room').value)) === 'SMOKE1', 'the room from the link');
     await shoot(win, 'lobby.png');
     // (drawn in software a frame can take seconds at full size, and the game moves on a frame at a time: the window's
     // smallest size draws a few times quicker)
     await app.evaluate(({ BrowserWindow }) => { const w = BrowserWindow.getAllWindows()[0]; w.unmaximize(); w.setSize(960, 540); });
-    await win.click('#solo');
-    await win.waitForFunction(() => window.__ready === true, null, { timeout: 25 * 60000, polling: 1000 });
-    log('driving: the world is built and drawn');
+    await win.evaluate(() => document.getElementById('go').click());
+    await win.waitForFunction(() => window.__ready === true && window.game?.net?.connected, null, { timeout: 25 * 60000, polling: 1000 });
+    const room = await win.evaluate(() => ({ room: window.game.net.room, url: window.game.net.ws.url }));
+    log('driving: the world is built and drawn', JSON.stringify(room));
+    check(room.room === 'SMOKE1' && room.url === `ws://127.0.0.1:${own.port}/ws`, 'in the room, on the server the page names');
     const at = () => win.evaluate(() => ({ x: window.game.vehicle.pos.x, z: window.game.vehicle.pos.z, kmh: window.game.vehicle.speed * 3.6, frame: window.game.renderer.renderer.info.render.frame }));
     const from = await at();
     await win.evaluate(() => { window.game.input.touch.throttle = 0.6; });
