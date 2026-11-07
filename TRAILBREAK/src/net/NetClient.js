@@ -28,8 +28,9 @@ const angLerp = (a, b, t) => { let d = b - a; while (d > Math.PI) d -= Math.PI *
 const clock = () => performance.timeOrigin + performance.now();
 
 export class NetClient {
-  constructor({ name, room, map, quick, onEvent }) {
+  constructor({ name, room, map, quick, server, onEvent }) {
     this.name = name;
+    this.server = server || null;      // another game's server to play on (ws://host:port, wss://host), else this page's
     this.roomAsk = room || '';
     this.quick = !!quick && !room;     // a quick match: into a public room with anyone looking for a game
     this.public = false;
@@ -49,6 +50,7 @@ export class NetClient {
   }
 
   url() {
+    if (this.server) return `${this.server}/ws`;
     const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
     return `${proto}//${location.host}/ws`;
   }

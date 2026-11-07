@@ -56,6 +56,11 @@ if (!settings.lookDamage) { settings.damage = 'cosmetic'; settings.lookDamage = 
 // game steps down for the session only now, Game.perf)
 if (!settings.qualityKept) { if (settings.autoQuality !== false) settings.quality = 'high'; settings.qualityKept = 1; }
 const save = () => { try { localStorage.setItem(STORE, JSON.stringify(settings)); } catch { /* storage blocked */ } };
+/**
+ * Another game's server to play on (?server=ws://192.168.1.5:47610, or wss://trailbreak-xxxx.onrender.com): the Windows
+ * app joins a friend's game this way, so this page, and with it your own career, trucks and settings, stays your own.
+ */
+const SERVER = (() => { const v = new URLSearchParams(location.search).get('server'); return v && /^wss?:\/\/[a-z0-9.\-[\]:]+$/i.test(v) ? v.toLowerCase() : null; })();
 const garage = new Garage();
 // the career: money, the trucks and parts owned (players from before careers keep their truck and its parts)
 const career = new Career({ truck: settings.truck, builds: settings.builds });
@@ -190,7 +195,7 @@ async function start() {
     audio.start().catch(() => {});                  // inside the click: browsers allow sound to start here
     if (!choice.online) break;
     $('lobby-msg').textContent = 'Connecting...';
-    net = new NetClient({ name: settings.name, room: choice.room, map: choice.map, quick: choice.quick });
+    net = new NetClient({ name: settings.name, room: choice.room, map: choice.map, quick: choice.quick, server: SERVER });
     try {
       welcome = await net.connect();
       break;
@@ -391,12 +396,13 @@ function wireMenus(game, net) {
     // (in the Windows app hosting a game for its network, the address friends reach this PC at: desktop/preload.js)
     const D = window.trailbreakDesktop;
     const showLink = () => {
-      const link = new URL((D?.network ? D.network().inviteBase : D?.inviteBase) || location.href);
+      // (on a friend's game, its own address: https on the same port as its server)
+      const link = new URL((SERVER && SERVER.replace(/^wss?:/, 'https:')) || (D?.network ? D.network().inviteBase : D?.inviteBase) || location.href);
       link.search = `?room=${net.room}&map=${game.world.map.id}`;
       $('invite-link').value = link.toString();
     };
     showLink();
-    if (D?.network && D.setHosting) wireLanHost(D, showLink, game);
+    if (D?.network && D.setHosting && !SERVER) wireLanHost(D, showLink, game);
     const copyText = $('copy-link').querySelector('span');
     $('copy-link').onclick = async () => {
       try { await navigator.clipboard.writeText($('invite-link').value); copyText.textContent = 'Copied'; } catch { $('invite-link').select(); document.execCommand?.('copy'); }
@@ -491,6 +497,12 @@ function wireMenus(game, net) {
 
 // (the Windows app: open a friend's game from their invite link or address, from the lobby: desktop/)
 if (window.trailbreakDesktop?.join) { $('lan-join-row').classList.remove('hidden'); $('lan-join').onclick = () => window.trailbreakDesktop.join(); }
+// (on a friend's game: whose, and the way back to your own)
+if (SERVER) {
+  $('joining-host').textContent = SERVER.replace(/^wss?:\/\//, '');
+  $('joining').classList.remove('hidden');
+  $('joining-back').onclick = () => { location.href = location.pathname; };
+}
 
 // (the Windows app: a newer TRAILBREAK has downloaded in the background, and installs when the game is closed: desktop/)
 window.trailbreakDesktop?.onUpdate?.((version) => {

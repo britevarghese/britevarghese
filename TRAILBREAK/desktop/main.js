@@ -5,8 +5,8 @@
 // is kept per address, so the same address every launch keeps them. Hosting a game for friends on the same network
 // (the game's Esc menu, or the Multiplayer menu) has it listen on every network instead, on the same port, without
 // reloading the game (a room on it reconnects by itself), and the game hands its friends the network address in its
-// invite link (preload.js). Joining a friend's game, or an online server's, loads that address in the window instead
-// (its own saves); the app accepts the self-signed certificate of the address you gave it.
+// invite link (preload.js). Joining a friend's game, or an online server's, keeps this PC's own game in the window, with
+// its own saves, and plays it on their server (the page's ?server=): nothing of theirs is loaded.
 //
 // It keeps itself up to date: a newer release on GitHub (package.json build.publish) downloads in the background and
 // installs when the game is closed.
@@ -19,6 +19,7 @@ const fs = require('fs');
 const os = require('os');
 const net = require('net');
 const http = require('http');
+const https = require('https');
 
 /** Where the game's files are: next to the app once installed (resources/game), the repository's when run from it. */
 const GAME = app.isPackaged ? path.join(process.resourcesPath, 'game') : path.join(__dirname, '..');
@@ -117,6 +118,12 @@ function createWindow() {
     if (input.key === 'F11') { win.setFullScreen(!win.isFullScreen()); e.preventDefault(); }
   });
   win.on('page-title-updated', (e) => e.preventDefault());
+  // (the game's own way back from a friend's game: a page without ?server= is this PC's game again)
+  win.webContents.on('did-navigate', (_e, address) => {
+    let on = null;
+    try { on = new URL(address).searchParams.get('server'); } catch { /* not ours */ }
+    if (joined && !on) { joined = null; buildMenu(); }
+  });
   // (a page loaded again, or a friend's game joined, hears of an update that's ready too)
   win.webContents.on('did-finish-load', () => { if (updateReady) win?.webContents.send('update-ready', updateReady); });
   win.on('closed', () => { win = null; });
@@ -176,16 +183,54 @@ function askWhere() {
   });
 }
 
+/**
+ * The game server a friend's invite link or address names: their TRAILBREAK serves plain WebSockets beside https on the
+ * one port, so an address with a port (or a bare IP, on TRAILBREAK's own port) is played on over ws://; a site's name
+ * alone (an online server such as Render's, with a real certificate) over wss://.
+ */
+function serverFor(url) {
+  const host = url.hostname.replace(/^\[|\]$/g, '');
+  if (url.port || net.isIP(host) || /^localhost$|\.local$/i.test(host)) return { ws: `ws://${url.hostname}:${url.port || PORT}`, health: `http://${url.hostname}:${url.port || PORT}/api/health` };
+  return { ws: `wss://${url.host}`, health: `https://${url.host}/api/health` };
+}
+
+/** Whether a TRAILBREAK server answers at this health address. */
+function answers(address, ms = 6000) {
+  return new Promise((resolve) => {
+    const req = (address.startsWith('https:') ? https : http).get(address, { timeout: ms }, (res) => { res.resume(); resolve(res.statusCode === 200); });
+    req.on('error', () => resolve(false));
+    req.on('timeout', () => { req.destroy(); resolve(false); });
+  });
+}
+
+/**
+ * Join a friend's game, or an online server's: this PC's own game, with your own career, trucks and settings, plays on
+ * their server (the page's ?server=), in the room their link names.
+ */
 async function joinGame() {
   let where = (await askWhere() || '').trim();
   if (!where) return;
-  if (!/^https?:\/\//i.test(where)) where = `https://${where}`;
+  if (!/^[a-z]+:\/\//i.test(where)) where = `https://${where}`;
   let url;
   try { url = new URL(where); } catch { dialog.showErrorBox('TRAILBREAK', `That isn't an address: ${where}`); return; }
-  joined = url;
+  if (!/^https?:$/.test(url.protocol)) { dialog.showErrorBox('TRAILBREAK', `That isn't a game's address: ${where}`); return; }
+  const srv = serverFor(url);
+  if (!(await answers(srv.health))) {
+    dialog.showMessageBox(win, {
+      type: 'warning', title: 'TRAILBREAK', message: `No game answers at ${url.host}`,
+      detail: 'Check that TRAILBREAK is running there and open to its network (Esc > Friends on this Wi-Fi can join), that you are on the same network, and the address in the link.',
+    });
+    return;
+  }
   writeSettings({ ...readSettings(), lastJoin: url.toString() });
+  const q = new URLSearchParams();
+  const room = (url.searchParams.get('room') || '').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 8), map = (url.searchParams.get('map') || '').replace(/[^a-z0-9_-]/gi, '').slice(0, 32);
+  if (room) q.set('room', room);
+  if (map) q.set('map', map);
+  q.set('server', srv.ws);
+  joined = new URL(srv.ws);
   buildMenu();
-  load(url.toString());
+  load(`${localUrl()}?${q}`);
 }
 
 function playOwn() {
@@ -193,14 +238,6 @@ function playOwn() {
   buildMenu();
   load(localUrl());
 }
-
-// a friend's PC serves the game with a certificate of its own making: accepted for the address you chose to join
-app.on('certificate-error', (e, wc, url, error, cert, callback) => {
-  try {
-    if (joined && new URL(url).host === joined.host) { e.preventDefault(); callback(true); return; }
-  } catch { /* refuse */ }
-  callback(false);
-});
 
 // the page asks how it stands on the network (preload.js): hosting, the address its invite links should carry
 ipcMain.on('network', (e) => { e.returnValue = networkState(); });
