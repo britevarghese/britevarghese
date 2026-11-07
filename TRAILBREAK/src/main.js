@@ -357,6 +357,31 @@ async function start() {
   goLive();
 }
 
+/**
+ * The Windows app: let friends on the same Wi-Fi or LAN into this room (the app's server listens on the network as well,
+ * and the invite link carries this PC's address there). The game carries on: the room reconnects in a moment.
+ */
+function wireLanHost(D, showLink, game) {
+  const box = $('lan-host'), on = $('lan-on'), note = $('lan-note');
+  const show = (n) => {
+    box.classList.toggle('hidden', !!n.joined);
+    on.checked = n.hosting;
+    note.textContent = !n.hosting ? 'Tick it and the link above takes friends on your Wi-Fi or LAN straight to this room.'
+      : n.inviteBase ? 'Send them the link: they open it in their TRAILBREAK (Join a friend\'s game, in its lobby) or in a browser. If Windows asks, allow TRAILBREAK on private networks.'
+        : 'This PC is on no network: connect it to one, and the link will carry its address.';
+    showLink();
+  };
+  show(D.network());
+  D.onNetwork?.(show);
+  on.onchange = async () => {
+    const want = on.checked;
+    on.disabled = true;
+    note.textContent = want ? 'Opening this game to your network...' : 'Closing it to your network...';
+    try { show(await D.setHosting(want)); game.hud.toast(want ? 'Friends on your network can join: Esc for the link' : 'Only this PC now', false, 5); } catch (e) { on.checked = !want; note.textContent = `Could not: ${e.message}`; }
+    on.disabled = false;
+  };
+}
+
 function wireMenus(game, net) {
   const s = game.settings;
   if (game.voice) game.voicePanel = new VoicePanel(game.voice, s, save, (text, t) => game.hud.hint(text, t));
@@ -364,8 +389,14 @@ function wireMenus(game, net) {
     $('invite').classList.remove('hidden');
     $('room-code').textContent = net.room;
     // (in the Windows app hosting a game for its network, the address friends reach this PC at: desktop/preload.js)
-    const link = new URL(window.trailbreakDesktop?.inviteBase || location.href); link.search = `?room=${net.room}&map=${game.world.map.id}`;
-    $('invite-link').value = link.toString();
+    const D = window.trailbreakDesktop;
+    const showLink = () => {
+      const link = new URL((D?.network ? D.network().inviteBase : D?.inviteBase) || location.href);
+      link.search = `?room=${net.room}&map=${game.world.map.id}`;
+      $('invite-link').value = link.toString();
+    };
+    showLink();
+    if (D?.network && D.setHosting) wireLanHost(D, showLink, game);
     const copyText = $('copy-link').querySelector('span');
     $('copy-link').onclick = async () => {
       try { await navigator.clipboard.writeText($('invite-link').value); copyText.textContent = 'Copied'; } catch { $('invite-link').select(); document.execCommand?.('copy'); }
@@ -457,6 +488,9 @@ function wireMenus(game, net) {
   $('close-help').onclick = () => help(false);
   game.onHelp = () => help($('help').classList.contains('hidden'));
 }
+
+// (the Windows app: open a friend's game from their invite link or address, from the lobby: desktop/)
+if (window.trailbreakDesktop?.join) { $('lan-join-row').classList.remove('hidden'); $('lan-join').onclick = () => window.trailbreakDesktop.join(); }
 
 // (the Windows app: a newer TRAILBREAK has downloaded in the background, and installs when the game is closed: desktop/)
 window.trailbreakDesktop?.onUpdate?.((version) => {

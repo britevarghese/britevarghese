@@ -3,9 +3,10 @@
 //
 // The server listens on a fixed port on 127.0.0.1: the game keeps its settings and career in the page's storage, which
 // is kept per address, so the same address every launch keeps them. Hosting a game for friends on the same network
-// (Multiplayer menu) has it listen on every network instead, on the same port, and the game hands its friends the
-// network address in its invite link (preload.js). Joining a friend's game, or an online server's, loads that address
-// in the window instead (its own saves); the app accepts the self-signed certificate of the address you gave it.
+// (the game's Esc menu, or the Multiplayer menu) has it listen on every network instead, on the same port, without
+// reloading the game (a room on it reconnects by itself), and the game hands its friends the network address in its
+// invite link (preload.js). Joining a friend's game, or an online server's, loads that address in the window instead
+// (its own saves); the app accepts the self-signed certificate of the address you gave it.
 //
 // It keeps itself up to date: a newer release on GitHub (package.json build.publish) downloads in the background and
 // installs when the game is closed.
@@ -70,8 +71,8 @@ function stopServer() {
 async function startServer(lan) {
   await stopServer();
   const host = lan ? '0.0.0.0' : '127.0.0.1';
-  port = PORT;
-  while (!(await portFree(port, host)) && port < PORT + 20) port++;
+  // (the port it had, so the game in the window stays where it is; else the first free one from PORT)
+  if (!(await portFree(port, host))) { port = PORT; while (!(await portFree(port, host)) && port < PORT + 20) port++; }
   const log = [];
   server = utilityProcess.fork(path.join(GAME, 'server.js'), ['--port', String(port), '--host', host, '--multiplayer'], {
     cwd: GAME, stdio: 'pipe', serviceName: 'TRAILBREAK game server',
@@ -124,13 +125,28 @@ function createWindow() {
 function load(url) { win?.loadURL(url); }
 
 // ---------------------------------------------------------------- multiplayer
-async function hostOnNetwork(on) {
+/** What the game's page is told: hosting or not, the address its invite links carry, a friend's game it has joined. */
+function networkState() {
+  const ip = hosting && !joined ? lanAddresses()[0] : null;
+  return { hosting, inviteBase: ip ? `https://${ip}:${port}/` : null, addresses: hosting ? lanAddresses() : [], joined: joined ? joined.toString() : null };
+}
+
+/** Whether a message comes from this PC's own game (not a friend's or an online server's page in the window). */
+function fromOwnGame(e) {
+  try { const u = new URL(e.senderFrame?.url || ''); return u.protocol === 'http:' && u.hostname === '127.0.0.1' && Number(u.port) === port; } catch { return false; }
+}
+
+/** Host a game for this PC's networks, or stop. From the game's own menu (quiet) it says nothing: the page shows it. */
+async function hostOnNetwork(on, { quiet = false } = {}) {
+  const wasJoined = !!joined, before = port;
   joined = null;
   try { await startServer(on); } catch (e) { dialog.showErrorBox('TRAILBREAK', String(e.message || e)); }
   writeSettings({ ...readSettings(), host: on });
   buildMenu();
-  load(localUrl());
-  if (on) {
+  // the game in the window carries on (a room on this server reconnects by itself), unless it has to move
+  if (wasJoined || port !== before || !(win?.webContents.getURL() || '').startsWith(localUrl())) load(localUrl());
+  else win?.webContents.send('network-changed', networkState());
+  if (on && !quiet) {
     const ips = lanAddresses();
     dialog.showMessageBox(win, {
       type: 'info', title: 'Hosting on this network', buttons: ['OK'],
@@ -186,11 +202,16 @@ app.on('certificate-error', (e, wc, url, error, cert, callback) => {
   callback(false);
 });
 
-// the page asks for the address its invite links should carry (preload.js): this PC's on its network while hosting
-ipcMain.on('invite-base', (e) => {
-  const ip = hosting && !joined ? lanAddresses()[0] : null;
-  e.returnValue = ip ? `https://${ip}:${port}/` : null;
+// the page asks how it stands on the network (preload.js): hosting, the address its invite links should carry
+ipcMain.on('network', (e) => { e.returnValue = networkState(); });
+ipcMain.on('invite-base', (e) => { e.returnValue = networkState().inviteBase; });
+// the game's own Esc menu hosts for the network, or stops; its lobby opens the "Join a game" window (this PC's game only)
+ipcMain.handle('set-hosting', async (e, on) => {
+  if (!fromOwnGame(e)) throw new Error('only this PC\'s own game can do that');
+  await hostOnNetwork(!!on, { quiet: true });
+  return networkState();
 });
+ipcMain.on('join-game', (e) => { if (fromOwnGame(e)) joinGame(); });
 
 // ---------------------------------------------------------------- updates
 let updater = null, updateReady = null;

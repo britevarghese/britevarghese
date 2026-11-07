@@ -44,7 +44,9 @@ const shoot = (win, name) => win.screenshot({ path: path.join(shots, name), time
     const help = info.menu.find(([label]) => label === 'Help');
     check(help && help[1].some(([label, on]) => label === 'Check for updates' && on), 'the updater is loaded (Help > Check for updates)');
     const bridge = await win.evaluate(() => window.trailbreakDesktop && Object.keys(window.trailbreakDesktop));
-    check(bridge && ['inviteBase', 'onUpdate', 'answerJoin'].every((k) => bridge.includes(k)), `the page's desktop bridge (${bridge})`);
+    check(bridge && ['inviteBase', 'onUpdate', 'answerJoin', 'network', 'setHosting', 'join'].every((k) => bridge.includes(k)), `the page's desktop bridge (${bridge})`);
+    const lan = await win.evaluate(() => window.trailbreakDesktop.network());
+    check(lan && lan.hosting === false && lan.joined === null, `on this PC alone to start with (${JSON.stringify(lan)})`);
 
     // the updater reads the latest release (latest.yml) as the installed game does
     if (!process.env.SMOKE_NO_UPDATES) {

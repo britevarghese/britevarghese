@@ -117,6 +117,7 @@
         <button id="quick" class="quick big" title="Join other players looking for a game"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8zm7 0a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM9 13c-3.3 0-7 1.7-7 4.5V20h14v-2.5C16 14.7 12.3 13 9 13zm7.5.1c1.7.6 3.5 1.9 3.5 4.4V20h3v-2.2c0-2.6-3.3-4.3-6.5-4.7z" fill="currentColor"/></svg>Quick match</button>
         <button id="solo" class="ghost big">Drive alone (offline)</button>
       </div>
+      <p id="lan-join-row" class="lan-join hidden">A friend sent you a link to their game? <button id="lan-join" class="small">Join a friend's game</button></p>
       <p id="lobby-msg" class="msg"></p>
       <p class="fine">Controls: W A S D or arrows, Space handbrake. Press F1 while driving for all of them.
         Steering wheel or gamepad on another PC: open the https:// address.</p>
@@ -257,6 +258,7 @@
           <div id="invite" class="hidden">
             <div class="room-line"><span class="room-k">Room</span><b id="room-code"></b><span class="room-note"><svg class="ic"><use href="#i-people"/></svg>Invite friends</span></div>
             <div class="invite-row"><input id="invite-link" readonly aria-label="Invite link"><button id="copy-link" class="primary"><svg class="ic"><use href="#i-copy"/></svg><span>Copy</span></button></div>
+            <div id="lan-host" class="lan-host hidden"><label><input id="lan-on" type="checkbox"> Friends on this Wi-Fi can join</label><p id="lan-note"></p></div>
           </div>
           <div id="room-solo" class="room-solo">
             <p>You're driving alone, offline. To drive with friends, open the lobby and press <b>Drive</b> or <b>Quick match</b>: you get a room and a link to send them.</p>

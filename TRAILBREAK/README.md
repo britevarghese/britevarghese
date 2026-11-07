@@ -81,17 +81,21 @@ you drive, a message) says when one has downloaded; **Alt**, then **Game > Resta
 and **Help > Check for updates** looks straight away. The first release (0.1.0, build 1) came before updates: install
 the newest over it once by hand.
 
+**Playing with friends on the same Wi-Fi or LAN:** press **Drive** for a room, then Esc, and under *Room & invite*
+turn on **Friends on this Wi-Fi can join**. The invite link then carries this PC's network address
+(`https://192.168.x.x:47610/?room=K7QMP&map=world`) and the game carries on where it was (the room reconnects in a
+moment). The first time, Windows asks whether TRAILBREAK may use the network: allow it on private networks. Friends
+open the link in their own TRAILBREAK (**Join a friend's game**, under the lobby's buttons) or in a browser, where the
+certificate warning is this PC's own certificate (*Advanced > Proceed*). The app hosts again the next time it starts,
+until you turn it off. **Join a friend's game** also takes an online server's address, such as your
+[Render](#host-it-online-render) one.
+
 Press **Alt** for the app's menu (it has no letter shortcuts, so Ctrl+W, a downshift while you hold W, never closes
 the window):
 
 - **Game:** Play on this PC, Full screen, Reload the game, Quit (and Restart to update, when one has downloaded).
-- **Multiplayer > Host a game on this network:** friends on the same Wi-Fi or LAN join you. The first time, Windows
-  asks whether TRAILBREAK may use the network: allow it on private networks. Drive, then press Esc for the invite
-  link, which carries this PC's network address (`https://192.168.x.x:47610/?room=K7QMP&map=kerala`). Friends open
-  it in their own TRAILBREAK (**Multiplayer > Join a game**) or in a browser, where the certificate warning is this
-  PC's own certificate (*Advanced > Proceed*). The app hosts again the next time it starts, until you untick it.
-- **Multiplayer > Join a game:** paste a friend's invite link or address, or an online server's (such as your
-  [Render](#host-it-online-render) one). **Back to my own game** returns to your PC's game.
+- **Multiplayer:** Host a game on this network and Join a game (the same as in the game), and Back to my own game
+  after joining someone else's.
 - **Help:** this README, the credits and licences of the trucks, sounds and textures, and Check for updates.
 
 The game is served at `http://127.0.0.1:47610`, or the next free port above it if another program has that one. Your
