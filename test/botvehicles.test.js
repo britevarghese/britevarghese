@@ -25,6 +25,8 @@ function lane(g, d) {
     const x = (Math.random() - 0.5) * g.map.PLAY_HALF * 1.4, z = (Math.random() - 0.5) * g.map.PLAY_HALF * 1.4, a = Math.random() * 6.28;
     const x2 = x + Math.sin(a) * d, z2 = z + Math.cos(a) * d;
     if (Math.abs(x2) > g.map.PLAY_HALF - 10 || Math.abs(z2) > g.map.PLAY_HALF - 10) continue;
+    // (not into either HQ's no-go zone: crews hold their fire there, see spot())
+    if ([1, 2].some((t) => [[x, z], [x2, z2]].some(([px, pz]) => Math.hypot(px - g.map.BASES[t].x, pz - g.map.BASES[t].z) < g.restrictedHQ + 25))) continue;
     const gy = g.map.groundHeight(x, z);
     if (g.world.query(x - 4.5, z - 4.5, x + 4.5, z + 4.5, []).some((b) => b.max[1] > gy + 0.4 && b.min[1] < gy + 3.5)) continue;
     const y = g.world.supportHeight(x, z, 500), y2 = g.world.supportHeight(x2, z2, 500);
@@ -218,7 +220,8 @@ test('the helicopter makes rocket runs on an enemy tank in the open', () => {
   const eb = g.map.BASES[2];
   let spot = null;
   for (let k = 0; k < 3000 && !spot; k++) {
-    const a = heli.yaw + (Math.random() - 0.5) * 1.6, d = 200 + Math.random() * 140;
+    // (anywhere around it: the run starts with the turn toward the target)
+    const a = heli.yaw + (Math.random() - 0.5) * (k < 1500 ? 1.6 : 2 * Math.PI), d = 170 + Math.random() * 170;
     const x = heli.x - Math.sin(a) * d, z = heli.z - Math.cos(a) * d;
     if (Math.abs(x) > g.map.PLAY_HALF - 30 || Math.abs(z) > g.map.PLAY_HALF - 30 || Math.hypot(x - eb.x, z - eb.z) < g.restrictedHQ + 40) continue;
     const y = g.world.supportHeight(x, z, 500);

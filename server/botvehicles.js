@@ -57,6 +57,20 @@ function lineClear(nav, M, a, b, need) {
   return true;
 }
 
+// the arc pure pursuit actually drives from the vehicle (tangent to its heading) to point b keeps the hull clear:
+// a chord seen at angle a off the heading is the arc turning 2a; its point at fraction t lies at angle a·t off the
+// heading, L·sin(a·t)/sin(a) away. (Checking only the chord misses what stands between it and the heading.)
+function arcClear(nav, M, v, b, need) {
+  const L = Math.hypot(b.x - v.x, b.z - v.z), a = angleDiff(v.yaw, Math.atan2(-(b.x - v.x), -(b.z - v.z)));
+  if (Math.abs(a) > 1.4) return lineClear(nav, M, v, b, need);
+  const n = Math.max(2, Math.ceil(L / (nav.cell * 0.9))), s = Math.sin(a);
+  for (let i = 1; i <= n; i++) {
+    const t = i / n, r = Math.abs(s) < 1e-4 ? L * t : (L * Math.sin(a * t)) / s, h = v.yaw + a * t;
+    if (clearAt(nav, M, v.x - Math.sin(h) * r, v.z - Math.cos(h) * r) < need) return false;
+  }
+  return true;
+}
+
 // A* on a lattice of every 2nd nav cell (1.5 m) where the hull fits; roads cost less, hugging walls more. A tight
 // motor pool / gate the full margin doesn't fit through is tried again with less room to spare (still wider than
 // the hull). Returns smoothed waypoints [{x, z}] from (sx, sz) to (tx, tz) or null.
@@ -372,7 +386,17 @@ function drive(brain, c, v, V, dt, now) {
   // ---- pure pursuit along the route: a point a little ahead on the path, slower into bends and at the end
   const look = 5 + Math.abs(v.speed) * 0.7;
   while (c.idx < R.length - 1 && Math.hypot(R[c.idx].x - v.x, R[c.idx].z - v.z) < look) c.idx++;
-  const wp = R[c.idx], dWp = Math.hypot(wp.x - v.x, wp.z - v.z);
+  // don't cut the corner through what stands on its inside (a lamp post, a wall's end): the straight run to the
+  // point steered at must be clear for the hull, else steer at an earlier point of the route (and slow for the bend)
+  const M = vehicleMap(g.nav, g.map), hw = (VEHICLES[v.type]?.half[0] || 1) + 0.3;
+  let ti = c.idx;
+  if (Math.abs(v.speed) > 6) {
+    // (at speed, where the turn is a sweeping arc; slow, the wheels turn on the spot near enough)
+    while (ti > 0 && c.idx - ti < 12 && !arcClear(g.nav, M, v, R[ti], hw)) ti--;
+    if (!arcClear(g.nav, M, v, R[ti], hw)) ti = c.idx; // (nothing earlier is clear either: as planned)
+  }
+  const cut = ti < c.idx;
+  const wp = R[ti], dWp = Math.hypot(wp.x - v.x, wp.z - v.z);
   if (c.idx === R.length - 1 && dWp < (tank ? 4 : 3)) c.idx++;
   const want = Math.atan2(-(wp.x - v.x), -(wp.z - v.z)), err = angleDiff(v.yaw, want);
   let remain = dWp;
@@ -382,6 +406,7 @@ function drive(brain, c, v, V, dt, now) {
   if (c.idx < R.length - 1) bend = Math.abs(angleDiff(Math.atan2(-(R[c.idx + 1].x - wp.x), -(R[c.idx + 1].z - wp.z)), want));
   const cruise = (tank ? 0.85 : 0.7) * V.maxSpeed;
   let vt = Math.min(cruise, 3 + remain * 0.6, dWp < 15 ? cruise * (1 - Math.min(0.7, bend / 2)) : cruise);
+  if (cut) vt = Math.min(vt, Math.max(5, cruise * 0.45)); // (a corner tight enough that the line had to be held)
   if (!tank && v.seats[1] && c.gunnerBusy && now - c.gunnerBusy < 1500) vt = Math.min(vt, 7); // a steadier gun platform
   // a teammate on foot in the way: stop for him
   for (const q of g.players.values()) {
