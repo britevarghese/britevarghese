@@ -85,7 +85,7 @@ export class Room {
       case 'reload': g.reload(p); break;
       case 'nade': if (Array.isArray(m.d) && m.d.length === 3 && m.d.every(Number.isFinite)) g.throwGrenade(p, m.o, m.d); break;
       case 'spawn': g.spawn(p, m.p, m.cls); break;
-      case 'team': if (!p.alive && (m.team === 1 || m.team === 2)) p.team = m.team; break;
+      case 'team': if (!p.alive && (m.team === 1 || m.team === 2) && m.team !== p.team) { p.team = m.team; p.squad = 0; g.organiseSquads?.(); } break;
       case 'chat': {
         const now = Date.now();
         p.chatTokens = Math.min(3, (p.chatTokens ?? 3) + (now - (p.chatAt || now)) / 2000); p.chatAt = now;
@@ -141,6 +141,7 @@ export class Room {
       for (const [ws, p] of this.clients) {
         snap.me = { hp: Math.max(0, Math.round(p.hp)), alive: p.alive, w: p.weapons, sl: p.slot, g: p.grenades, rl: Math.max(0, p.reloadUntil - now), rs: Math.max(0, Math.min(99999, p.respawnAt - now)), sp: p.spawnPoint };
         if (p.vehicle) { snap.me.vid = p.vehicle; snap.me.seat = p.seat; }
+        if (!p.alive && g.squadSpawns) snap.me.sq = g.squadSpawns(p);
         if (g.meExtra) Object.assign(snap.me, g.meExtra(p, now));
         send(ws, snap);
       }

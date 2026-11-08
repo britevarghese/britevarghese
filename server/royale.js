@@ -17,7 +17,7 @@ export class RoyaleGame extends Game {
     super({ botsPerTeam: 0, log, map });
     this.mode = 'royale';
     this.BotBrainClass = RoyaleBrain;
-    this.restrictedHQ = 0; this.reviveEnabled = false;
+    this.restrictedHQ = 0; this.reviveEnabled = false; this.squadsEnabled = false;
     this.botTotal = Math.max(0, Math.min(23, bots));
     this.lobbyTime = lobbyTime;
   }

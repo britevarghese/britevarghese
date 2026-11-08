@@ -10,7 +10,7 @@ const g = new Game({ botsPerTeam: +per, map, log: () => {} });
 g.clock = 1_000_000;
 const DT = 1 / 30, ticks = Math.round(+minutes * 60 / DT);
 const bots = () => [...g.players.values()].filter((p) => p.bot);
-const M = { mode: {}, stance: {}, holdCovered: 0, hold: 0, shots: 0, hits: 0, kills: [], behind: 0, acquire: [], react: [], nearMiss: 0, nearMissReact: 0, spacing: [], stuck: 0, windows: 0, grenades: 0,
+const M = { spawns: { squad: 0, other: 0 }, quick: { squad: 0, other: 0 }, spAt: new Map(), mode: {}, stance: {}, holdCovered: 0, hold: 0, shots: 0, hits: 0, kills: [], behind: 0, acquire: [], react: [], nearMiss: 0, nearMissReact: 0, spacing: [], stuck: 0, windows: 0, grenades: 0,
   crew: {}, driven: {}, vkills: {}, vshots: {}, vdestroyed: {}, enters: 0, exits: 0, vstuck: 0, vlost: 0, downs: 0, revives: 0, bledout: 0 };
 const vpos = new Map();
 const track = new Map(); // bot id -> { target, at, d, shot, win: {x, z, t, mode} }
@@ -41,6 +41,8 @@ for (let i = 0; i < ticks; i++) {
     if (ev.t === 'throw') M.grenades++;
     if (ev.t === 'kill' && ev.dn) M.downs++;
     if (ev.t === 'revive') M.revives++;
+    if (ev.t === 'spawn') { const k = ev.on ? 'squad' : 'other'; M.spawns[k]++; M.spAt.set(ev.id, { t: g.now(), k }); }
+    if (ev.t === 'kill' && M.spAt.has(ev.v)) { const s = M.spAt.get(ev.v); if (g.now() - s.t < 10000) M.quick[s.k]++; M.spAt.delete(ev.v); }
     if (ev.t === 'bledout') M.bledout++;
     if (ev.t === 'venter' && g.players.get(ev.id)?.bot) M.enters++;
     if (ev.t === 'vexit' && g.players.get(ev.id)?.bot) M.exits++;
@@ -104,6 +106,7 @@ console.log(`  target acquired at q1/med/q3 ${q(M.acquire, (v) => v.toFixed(0) +
 console.log(`  near misses ${M.nearMiss}, reacted within 1.5 s ${(100 * M.nearMissReact / (M.nearMiss || 1)).toFixed(0)}%`);
 console.log(`  nearest teammate while moving q1/med/q3 ${q(M.spacing, (v) => v.toFixed(1) + ' m')}`);
 console.log(`  stuck (patrolling, < 1.5 m in 20 s): ${M.stuck} of ${M.windows} windows`);
+console.log(`  spawns: ${M.spawns.squad} on a squad mate, ${M.spawns.other} at the HQ / flags; killed within 10 s of spawning: squad ${(100 * M.quick.squad / (M.spawns.squad || 1)).toFixed(0)}%, other ${(100 * M.quick.other / (M.spawns.other || 1)).toFixed(0)}%`);
 console.log(`  casualties: ${M.downs} of ${M.kills.length} kills left the soldier down (revivable); revived ${M.revives}, bled out / gave up ${M.bledout}`);
 for (const p of bots()) if (p.brain.crew) M.vstuck += p.brain.crew.stuck?.length || 0;
 const fmt = (o, f) => Object.entries(o).map(([k, v]) => `${k} ${f(v)}`).join(', ') || '-';

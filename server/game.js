@@ -8,6 +8,7 @@ import { bulletPath, STEP } from '../shared/ballistics.js';
 import { BotBrain } from './bots.js';
 import { VehicleSystem } from './vehicles.js';
 import { angleDiff } from '../shared/util.js';
+import { SQUAD_SIZE, SQUAD_SAFE_MS, SQUAD_ENEMY_R } from '../shared/squads.js';
 
 export const TICK_HZ = 30;
 
@@ -58,6 +59,7 @@ export class Game {
     this.glassBroken = new Set(); // window panes shattered this round (the collision world is shared: state lives here)
     this.restrictedHQ = Math.min(45, this.map.PLAY_HALF * 0.3); // radius of each HQ's no-go zone for the enemy
     this.reviveEnabled = true; // (battle royale: no medics, no reviving)
+    this.squadsEnabled = true; // (battle royale: everyone for himself)
     this.resetRound();
   }
 
@@ -93,10 +95,86 @@ export class Game {
     };
     if (bot) p.brain = new (this.BotBrainClass || BotBrain)(this, p);
     this.players.set(p.id, p);
+    this.organiseSquads();
     return p;
   }
 
-  removePlayer(id) { this.players.delete(id); }
+  removePlayer(id) { this.players.delete(id); this.organiseSquads(); }
+
+  // ------------------------------------------------------------ squads
+  // Each team in squads of four. A player keeps his squad; bots top up the squads with players in them first (so a
+  // player always has squad mates to spawn on), then make up their own. Run whenever who is on which team changes.
+  organiseSquads() {
+    if (!this.squadsEnabled) return;
+    for (const team of [1, 2]) {
+      const ps = [...this.players.values()].filter((p) => p.team === team);
+      const sq = new Map(), get = (id) => sq.get(id) || (sq.set(id, { h: [], b: [] }), sq.get(id));
+      const size = (id) => (sq.has(id) ? sq.get(id).h.length + sq.get(id).b.length : 0);
+      const freeId = () => { let i = 1; while (sq.has(i) && size(i) > 0) i++; return i; };
+      const humans = ps.filter((p) => !p.bot).sort((a, b) => a.id - b.id), bots = ps.filter((p) => p.bot).sort((a, b) => a.id - b.id);
+      for (const p of humans) { if (p.squad && get(p.squad).h.length < SQUAD_SIZE) get(p.squad).h.push(p); else p.squad = 0; }
+      for (const p of humans) if (!p.squad) {
+        // with the other players where there is room, else a squad of his own
+        let best = 0;
+        for (const [id, s] of sq) if (s.h.length && s.h.length < SQUAD_SIZE && (!best || s.h.length > sq.get(best).h.length)) best = id;
+        p.squad = best || freeId(); get(p.squad).h.push(p);
+      }
+      for (const p of bots) { if (p.squad && size(p.squad) < SQUAD_SIZE) get(p.squad).b.push(p); else p.squad = 0; }
+      // a bot without a squad, or out of a bots-only squad, fills the gaps in the players' squads
+      for (const [id, s] of [...sq]) {
+        while (s.h.length && size(id) < SQUAD_SIZE) {
+          const donor = bots.find((b) => !b.squad) || bots.find((b) => b.squad && !sq.get(b.squad).h.length);
+          if (!donor) break;
+          if (donor.squad) { const d = sq.get(donor.squad); d.b.splice(d.b.indexOf(donor), 1); }
+          donor.squad = id; s.b.push(donor);
+        }
+      }
+      for (const p of bots) if (!p.squad) {
+        let best = 0;
+        for (const [id] of sq) if (size(id) > 0 && size(id) < SQUAD_SIZE && (!best || id < best)) best = id;
+        p.squad = best || freeId(); get(p.squad).b.push(p);
+      }
+    }
+  }
+
+  squadMates(p) { return [...this.players.values()].filter((q) => q !== p && q.team === p.team && q.squad && q.squad === p.squad); }
+
+  // can p deploy on squad mate m right now? '' = yes, else why not (c combat, v vehicle, a air, r restricted)
+  squadBlock(p, m, now = this.now()) {
+    if (!m || !m.alive || m === p || m.team !== p.team || !m.squad || m.squad !== p.squad) return 'x';
+    if (m.vehicle) return 'v';
+    if (m.air || m.onGround === false) return 'a';
+    if (m.inRestricted > 0) return 'r';
+    if (now - (m.lastHit || 0) < SQUAD_SAFE_MS) return 'c';
+    for (const q of this.players.values()) if (q.alive && this.isEnemy(q, m) && Math.hypot(q.x - m.x, q.z - m.z) < SQUAD_ENEMY_R) return 'c';
+    return '';
+  }
+
+  // for the deploy screen of a dead player: [[mate id, why not ('' = can spawn)], ...]
+  squadSpawns(p) {
+    if (!this.squadsEnabled || !p.squad) return undefined;
+    const now = this.now();
+    return this.squadMates(p).filter((m) => m.alive).map((m) => [m.id, this.squadBlock(p, m, now)]);
+  }
+
+  // a free spot right behind the squad mate, on the same floor, that he can see
+  #squadSpot(m) {
+    const eye = { x: m.x, y: m.y + 1.2, z: m.z };
+    for (const r of [1.6, 2.4, 1.1]) {
+      for (const da of [0, 0.6, -0.6, 1.2, -1.2, Math.PI / 2, -Math.PI / 2, 2.2, -2.2, Math.PI]) {
+        // behind him: his forward is (-sin yaw, -cos yaw)
+        const a = m.yaw + da, cx = m.x + Math.sin(a) * r, cz = m.z + Math.cos(a) * r;
+        const y = this.world.supportHeight(cx, cz, m.y + 0.6);
+        if (Math.abs(y - m.y) > 0.6) continue;
+        const pos = { x: cx, z: cz };
+        if (this.world.resolveHorizontal(pos, y, 1.8)) continue;
+        if (!this.world.lineOfSight(eye, { x: cx, y: y + 1.2, z: cz })) continue;
+        if (Math.abs(cx) > this.map.PLAY_HALF || Math.abs(cz) > this.map.PLAY_HALF) continue;
+        return { x: cx, y, z: cz };
+      }
+    }
+    return { x: m.x, y: m.y, z: m.z };
+  }
 
   // Conquest: two teams. Battle royale overrides this (everyone for themselves).
   isEnemy(a, b) { return a !== b && a.team !== b.team; }
@@ -153,11 +231,20 @@ export class Game {
     if (this.now() < p.respawnAt) return false;
     // redeploying while still down: given up on a medic — that costs the ticket now
     if (p.downed) this.#bleedOut(p);
+    let mate = null;
+    if (typeof pointId === 'string' && pointId[0] === '@') {
+      // on a squad mate: only while he is out of the fight
+      mate = this.players.get(+pointId.slice(1));
+      const why = this.squadsEnabled ? this.squadBlock(p, mate) : 'x';
+      if (why) { if (!p.bot) this.emit({ t: 'spawnfail', why }, p); return false; }
+      if (p.downed) this.#bleedOut(p);
+    }
     if (cls && CLASSES[cls]) p.cls = cls;
-    const opt = this.spawnOptions(p.team).find((o) => o.id === pointId) || this.spawnOptions(p.team)[0];
+    const opt = mate ? { id: 'squad', x: mate.x, z: mate.z } : this.spawnOptions(p.team).find((o) => o.id === pointId) || this.spawnOptions(p.team)[0];
     // several free candidate spots; take the one fewest enemies can see (no spawning into a firefight)
-    let x = opt.x, z = opt.z, best = Infinity, found = 0;
-    for (let tries = 0; tries < 40 && found < 8; tries++) {
+    let x = opt.x, z = opt.z, best = Infinity, found = 0, y = null;
+    if (mate) ({ x, y, z } = this.#squadSpot(mate));
+    for (let tries = 0; tries < 40 && found < 8 && !mate; tries++) {
       const a = Math.random() * Math.PI * 2, r = opt.id === 'base' ? 3 + Math.random() * 9 : 8 + Math.random() * 10;
       const cx = opt.x + Math.cos(a) * r, cz = opt.z + Math.sin(a) * r;
       const pos = { x: cx, z: cz };
@@ -170,14 +257,14 @@ export class Game {
     }
     const c = CLASSES[p.cls];
     Object.assign(p, {
-      alive: true, hp: 100, x, z, y: this.world.supportHeight(x, z, this.map.groundHeight(x, z) + 0.3), vx: 0, vy: 0, vz: 0, stance: 'stand', onGround: true,
-      yaw: this.map.BASES[p.team].yaw + (Math.random() - 0.5) * 0.4, pitch: 0, slot: 0, reloadUntil: 0, nextFire: 0, grenades: c.grenades,
+      alive: true, hp: 100, x, z, y: y ?? this.world.supportHeight(x, z, this.map.groundHeight(x, z) + 0.3), vx: 0, vy: 0, vz: 0, stance: mate?.stance === 'crouch' ? 'crouch' : 'stand', onGround: true,
+      yaw: mate ? mate.yaw : this.map.BASES[p.team].yaw + (Math.random() - 0.5) * 0.4, pitch: 0, slot: 0, reloadUntil: 0, nextFire: 0, grenades: c.grenades,
       weapons: [c.primary, c.secondary, c.gadget].filter(Boolean).map((id, i) => ({ id, mag: WEAPONS[id].mag, reserve: WEAPONS[id].reserve * (i === 0 ? c.ammoMul || 1 : 1) })),
-      spawnProtect: this.now() + 3000, spawnedAt: this.now(), history: [], lastDamageFrom: null, spawnPoint: opt.id, airPeak: null,
+      spawnProtect: this.now() + (mate ? 1500 : 3000), spawnedAt: this.now(), history: [], lastDamageFrom: null, spawnPoint: opt.id, airPeak: null, inRestricted: 0,
     });
     p.lastInput = this.now(); p.moveBudget = undefined;
     if (p.brain) p.brain.onSpawn();
-    this.emit({ t: 'spawn', id: p.id, x: p.x, y: p.y, z: p.z, yaw: p.yaw, cls: p.cls, w: p.weapons, g: p.grenades }, p.bot ? null : p);
+    this.emit({ t: 'spawn', id: p.id, x: p.x, y: p.y, z: p.z, yaw: p.yaw, cls: p.cls, w: p.weapons, g: p.grenades, ...(mate && { on: mate.id, st: p.stance }) }, p.bot ? null : p);
     return true;
   }
 
@@ -676,6 +763,7 @@ export class Game {
     this.time += dt;
     if (this.roundOver && now - this.roundOver.at > 15000) this.resetRound();
     this.balanceBots();
+    if ((this.squadT = (this.squadT || 0) + 1) % 15 === 0) this.organiseSquads(); // (team switches)
     // the collision world is shared by every room on this map: install this room's vehicles before simulating
     this.world.dynamic = this.vehicles.colliders; this.world.ignoreOwner = null;
     this.vehicles.tick(dt, now);
@@ -683,7 +771,9 @@ export class Game {
       if (!p.alive) {
         if (p.bot && now >= p.respawnAt && !this.roundOver && !(p.downed && this.medicNear(p))) {
           const opts = this.spawnOptions(p.team);
-          this.spawn(p, opts[Math.floor(Math.random() * opts.length)].id);
+          // half the time on a squad mate who is clear to spawn on (closer to the fight than a flag or the HQ)
+          const mates = this.squadsEnabled && Math.random() < 0.5 ? this.squadMates(p).filter((m) => !this.squadBlock(p, m, now)) : [];
+          this.spawn(p, mates.length ? `@${mates[Math.floor(Math.random() * mates.length)].id}` : opts[Math.floor(Math.random() * opts.length)].id);
         }
         continue;
       }
@@ -767,7 +857,7 @@ export class Game {
   scoreboard() {
     return {
       t: 'board',
-      rows: [...this.players.values()].map((p) => ({ id: p.id, n: p.name, tm: p.team, k: p.kills, d: p.deaths, s: p.score, b: p.bot ? 1 : 0, ai: p.agent ? 1 : 0, png: p.bot ? 0 : Math.round(p.rtt), a: p.alive ? 1 : 0, c: p.cls })),
+      rows: [...this.players.values()].map((p) => ({ id: p.id, n: p.name, tm: p.team, k: p.kills, d: p.deaths, s: p.score, b: p.bot ? 1 : 0, ai: p.agent ? 1 : 0, png: p.bot ? 0 : Math.round(p.rtt), a: p.alive ? 1 : 0, c: p.cls, sq: p.squad || 0 })),
     };
   }
 }
