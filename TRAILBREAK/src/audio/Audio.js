@@ -125,13 +125,16 @@ class GrainVoice {
   drive(rpm, idle, red, load, vol) {
     const t = this.ctx.currentTime;
     const rn = clamp((rpm - idle) / Math.max(1, red - idle), 0, 1.2);
-    // louder with revs and with load (closed throttle at speed: the overrun is quieter than the pull): about 8 dB
-    // from idle to flat out at the redline
-    const loud = (0.55 + 0.45 * Math.pow(rn, 0.8)) * (0.72 + 0.28 * load);
-    glide(this.rpm, rpm, t, 0.02);
-    glide(this.load, clamp(load, 0, 1), t, 0.05);
-    glide(this.gain, 3.8 * this.loud * loud * vol, t, 0.08);
-    glide(this.tone.frequency, 1500 + 0.45 * rpm + 600 * load, t, 0.08);
+    // louder with revs and with load: pulling hard is twice as loud as the overrun at the same revs (the throttle
+    // opened is heard at once, before the revs climb), and brighter (the roar of the intake and the exhaust open):
+    // about 13 dB from idling to flat out at the redline
+    const L = clamp(load, 0, 1), loud = (0.55 + 0.45 * Math.pow(rn, 0.8)) * (0.5 + 0.5 * L);
+    // (the revs a little smoothed: a truck's wheels hopping over ruts and rocks shook them a dozen times a second, a
+    // flutter in the note no flywheel lets through)
+    glide(this.rpm, rpm, t, 0.045);
+    glide(this.load, L, t, 0.03);
+    glide(this.gain, 3.8 * this.loud * loud * vol, t, 0.05);
+    glide(this.tone.frequency, 1200 + 0.45 * rpm + 1300 * L, t, 0.05);
   }
 
   stop() {
@@ -591,7 +594,10 @@ export class Audio {
       const dtr = v.dt, e = dtr.e;
       const peak = e._peak || (e._peak = e.torque.reduce((m, q) => Math.max(m, q[1]), 1));
       const pull = clamp(dtr.engineTorque / peak, 0, 1), regen = dtr.electric ? clamp(-dtr.engineTorque / peak, 0, 1) * 2.5 : 0;
-      this.loadS = (this.loadS ?? 0) + ((0.65 * dtr.throttle + 0.35 * pull + regen) - (this.loadS ?? 0)) * Math.min(1, dt * 8);
+      // (quick to follow the pedal, a little slower letting go: stamped on, the engine is heard pulling at once, not
+      // after the revs have already climbed)
+      const aim = 0.65 * dtr.throttle + 0.35 * pull + regen, was = this.loadS ?? 0;
+      this.loadS = was + (aim - was) * Math.min(1, dt * (aim > was ? 25 : 12));
       // cranking: the engine turns over on the starter (its firings come slow and soft: compression, no bang)
       const cranking = dtr.crankT > 0;
       if (this.engine) this.driveVoice(this.engine, this.engineSpec || v.spec, cranking ? Math.max(dtr.rpm, 150) : dtr.rpm, cranking ? 0.15 : this.loadS, dtr.running ? 0.95 : cranking ? 0.32 : 0);
@@ -757,7 +763,8 @@ export class Audio {
         }).catch(() => {});
       }
       if (rv.voice) {
-        rv.voice.thrS = (rv.voice.thrS ?? 0) + (r.thr - (rv.voice.thrS ?? 0)) * Math.min(1, dt * 8);
+        const was = rv.voice.thrS ?? 0;
+        rv.voice.thrS = was + (r.thr - was) * Math.min(1, dt * (r.thr > was ? 25 : 12));
         this.driveVoice(rv.voice, r.spec, r.rpm, rv.voice.thrS, 0.8);
         if (rv.panner.positionX) { rv.panner.positionX.value = r.pos.x; rv.panner.positionY.value = r.pos.y; rv.panner.positionZ.value = r.pos.z; } else rv.panner.setPosition(r.pos.x, r.pos.y, r.pos.z);
       }

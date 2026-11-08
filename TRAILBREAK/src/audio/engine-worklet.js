@@ -292,7 +292,7 @@ class EngineProcessor extends AudioWorkletProcessor {
     const b = this.bank;
     if (!b) { out.fill(0); return true; }
     const rpm = params.rpm[0], gain = params.gain[0];
-    this.loadS += (params.load[0] - this.loadS) * 0.08;
+    this.loadS += (params.load[0] - this.loadS) * 0.15;
     const cfg = this.cfg;
     const running = rpm > 120;
     // firings per second (the engine's own cylinders: a V10 on a V8's bank), counted as the bank marks them (a V10's
