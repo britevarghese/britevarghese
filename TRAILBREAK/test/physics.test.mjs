@@ -642,12 +642,15 @@ test('a rough track: its deep ruts, holes on alternate sides and roots crawled o
   const strikes = (target, low) => {
     const v = truck('thar', g);
     v.dt.setFourWD(true, 0); v.dt.setRange(low, 0);
-    let t = 0, last = -9, n = 0;
+    let t = 0, last = -9, n = 0, through = false;
     run(v, g, 150, (q) => {
       t += PHYS_DT;
-      if (q.knock > HARD_KNOCK && t - last > 1) { last = t; n++; }
+      // (down the 250 m, then held on the handbrake: on the brake, a truck stopped backs up, the brake its pedal for
+      // reverse, and back over the track it struck the ground again)
+      through ||= q.pos.z > 250;
+      if (q.knock > HARD_KNOCK && t - last > 1 && !through) { last = t; n++; }
       const sp = q.vel.dot(q.fwd), head = Math.atan2(q.fwd.x, q.fwd.z);
-      if (q.pos.z > 250) return { ...IDLE, brake: 1 };
+      if (through) return { ...IDLE, handbrake: 1 };
       return { ...IDLE, throttle: clamp((target - sp) * 0.6 + 0.3, 0, 1), brake: sp > target + 1 ? 0.3 : 0, steer: clamp((head + q.pos.x * 0.15) * 2, -1, 1) };
     });
     return { n, z: v.pos.z };

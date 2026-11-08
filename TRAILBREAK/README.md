@@ -317,6 +317,17 @@ twice (a swoop down and up each time, nothing like a real car lifting). Now it s
 3,520 to 2,280 over 8 s as the truck slows from 122 to 83 km/h. Off the throttle it still shifts up near the redline
 (rolling faster downhill).
 
+**Changing gear.** A manual box's clutch goes out for about a third of a second as the gear changes (a quick driver's
+hand), and the throttle brings the revs to the next gear's speed whatever the pedal, as a driver lifts off changing up
+(or blips them up changing down); then the clutch bites, the throttle fed back in as it does. Held flat through the
+gap, the engine used to race up to the limiter and bounce off it for half a second at every change up, the throttle
+cut and given back each frame, and came down only as the clutch bit (the Thar floored from rest went to 4,400 rpm
+over a 4,200 redline at each shift; now it never passes 4,050, and 0.5 s after a change is 1,400 rpm down). A gear
+put in standing with the throttle already down (from reverse to forward and back) holds the revs where the truck pulls
+away from until it bites. Climbing a 15 degree sand dune flat out in a Chevrolet K20 at 8 psi, the shorter gap gets it
+70 m up in 15 s (57 before; 34 at 30 psi), where a longer one cost so much speed between gears that it came into 3rd too
+slow to pull it and changed back down, over and over. (`test/shifts.test.mjs`.)
+
 **Opening the throttle.** The engine is heard pulling the moment the throttle opens: the sound's load follows the
 pedal in under a tenth of a second (a little slower letting go), where it used to lag a fifth of a second behind it
 while the revs answered at once, so a stab of throttle sounded like coasting until the revs had climbed, and went on

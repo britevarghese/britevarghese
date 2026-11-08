@@ -171,6 +171,8 @@ export class Drivetrain {
     this.gear = g;
     this.shiftT = dctUp ? 0 : this.t.shiftTime;
     this.lockupOn = false;
+    this.rebite = g > 0;
+    this.matchRpm = Math.abs(this.wOut * this.gearRatio * RPM);
     return true;
   }
 
@@ -254,7 +256,7 @@ export class Drivetrain {
     // hold the truck back, as a driver puts the selector in 1
     if (this.low && thrIn < 0.05) {
       if (this.gear > this.firstGear && this.sinceShift > 0.6 && turbineRpm(this.gear - 1) < this.e.redline - 400) {
-        this.gear--; this.shiftT = this.t.shiftTime * (this.manual ? 1.1 : 0.8); this.lockupOn = false; this.sinceShift = 0;
+        this.gear--; this.shiftT = this.t.shiftTime * (this.manual ? 1.1 : 0.8); this.lockupOn = false; this.sinceShift = 0; this.rebite = true; this.matchRpm = Math.abs(this.wOut * this.gearRatio * RPM);
       }
       return;
     }
@@ -263,7 +265,9 @@ export class Drivetrain {
     const top = this.e.redline - 150, light = this.low ? 2100 : 1750;
     const up = light + (top - light) * thr;
     const down = (this.low ? 900 : 1000) + (top * 0.55 - 1000) * thr;
-    const shiftTime = this.t.shiftTime * (this.manual ? 1.4 : 1);
+    // (a manual's: the clutch out as long as a quick driver's hand takes, about a third of a second; any longer, on a climb in
+    // sand the truck lost so much speed between gears that it came into the next too slow to pull it, and went back down)
+    const shiftTime = this.t.shiftTime * (this.manual ? 1.1 : 1);
     // a modern automatic (six speeds or more) reads the grade: it doesn't shift up while the truck slows under power
     const modern = !this.manual && n >= 6, climbing = modern && thr > 0.1 && this.aRel < -0.04;
     // (lifting off doesn't shift up: the truck stays in its gear, the engine holding it back and its revs falling with
@@ -273,13 +277,13 @@ export class Drivetrain {
     const coasting = thrIn < 0.05 && turbineRpm(this.gear) < this.e.redline - 250;
     if (this.gear < n && turbineRpm(this.gear) > up && groundRpm(this.gear) > up - 300 && !climbing && !coasting) {
       // (a dual-clutch box's next clutch takes the drive over at once: no gap, only the revs to bring down)
-      this.gear++; this.shiftT = this.t.dct ? 0 : shiftTime; this.lockupOn = false; this.sinceShift = 0;
+      this.gear++; this.shiftT = this.t.dct ? 0 : shiftTime; this.lockupOn = false; this.sinceShift = 0; this.rebite = true; this.matchRpm = Math.abs(this.wOut * this.gearRatio * RPM);
       if (this.t.dct) this.upT = 0.4;
     } else if (this.gear > this.firstGear && turbineRpm(this.gear) < down && turbineRpm(this.gear - 1) < up - 500) {
       // (and skips straight down to the gear the speed wants)
       let g = this.gear - 1;
       if (modern) while (g > this.firstGear && turbineRpm(g) < down && turbineRpm(g - 1) < up - 500) g--;
-      this.gear = g; this.shiftT = shiftTime * 0.8; this.lockupOn = false; this.sinceShift = 0;
+      this.gear = g; this.shiftT = shiftTime * 0.8; this.lockupOn = false; this.sinceShift = 0; this.rebite = true; this.matchRpm = Math.abs(this.wOut * this.gearRatio * RPM);
     }
   }
 
@@ -343,6 +347,19 @@ export class Drivetrain {
       if (this.limiterCut) thr = 0;
       // (a dual-clutch upshift: no spark until the engine is down to the new gear's speed)
       if (this.upT > 0) { this.upT -= dt; if (rpm > Math.abs(this.wOut * this.gearRatio * RPM) + 250) thr = 0; else this.upT = 0; }
+      // changing gear on the move with the clutch out, the throttle brings the revs to the next gear's speed, as a driver
+      // lifts off changing up (or blips them up changing down), whatever the pedal: held flat, the engine raced up to
+      // the limiter and bounced off it for the half second between gears, and came down only as the clutch bit
+      // (the next gear's speed as the road speed made it when the gear changed: wheels spinning in place stop dead with the
+      // clutch out, and brought down to them the engine bogged down to idle as it bit)
+      if (this.manual && this.shiftT > 0 && g !== 0 && this.rebite) {
+        const want = Math.max(e.idleRpm, Math.abs(this.wOut * g * RPM), this.matchRpm || 0);
+        thr = Math.max(idleThr, clamp((want - rpm) / 400, 0, 1));
+      } else if (this.manual && this.shiftT > 0 && g !== 0) {
+        // (a gear or range going in standing, the throttle already down, as from reverse to forward and back: the revs
+        // held at those it pulls away at, not up against the limiter until it bites)
+        thr = Math.min(thr, Math.max(idleThr, clamp((this.launchRpm(input.throttle) - rpm) / 300, 0, 1)));
+      }
       this.throttle = thr;
       const fric = e.friction[0] + e.friction[1] * rpm;
       Teng = thr * torqueAt(e.torque, rpm) * this.powerMul - (1 - thr) * fric;
@@ -368,6 +385,9 @@ export class Drivetrain {
           // the traction control's, reaches the tyres) and a little more above its launch revs, less below them, to
           // hold it there until the car has caught up with them (see the clutch's bound below)
           target = 1;
+        } else if (input.throttle > 0.02 && this.rebite && Math.abs(inRpm) > e.idleRpm * 1.3) {
+          // (just changed gear on the move, the revs brought to the gear's: it bites, all the way)
+          target = 1;
         } else if (input.throttle > 0.02) {
           const launch = e.idleRpm + 400 + 1600 * input.throttle;
           target = smoothstep(e.idleRpm + 50, launch, rpm);
@@ -375,9 +395,20 @@ export class Drivetrain {
           if (this.t.road && Math.abs(inRpm) >= this.launchRpm(input.throttle) - 200) target = 1;
         } else if (Math.abs(inRpm) > e.idleRpm * 0.8 && rpm > e.idleRpm * 0.6) target = 1;
       }
-      // (it bites slowly pulling away; a dual-clutch box's next clutch at once on the move)
-      const rate = target > this.clutch ? (this.t.dct && Math.abs(inRpm) > e.idleRpm * 1.5 ? 10 : 3) : 12;
+      // (it bites slowly pulling away; a dual-clutch box's next clutch at once on the move, and after a gear change on
+      // the move, the revs already at the gear's, quickly)
+      const moving = Math.abs(inRpm) > e.idleRpm * 1.5;
+      if (!moving || g <= 0 || (this.shiftT === 0 && this.clutch >= 0.999)) this.rebite = false;
+      const changed = this.rebite && moving;
+      const rate = target > this.clutch ? ((this.t.dct || changed) && moving ? 10 : 3) : 12;
       this.clutch += clamp(target - this.clutch, -rate * dt, rate * dt);
+      // (and the throttle fed back in as it bites: all at once, the engine flared up while the clutch slipped)
+      if (changed && this.shiftT === 0 && this.clutch < 1 && this.running) {
+        this.throttle = Math.min(this.throttle, 0.15 + this.clutch);
+        const fric = e.friction[0] + e.friction[1] * rpm;
+        Teng = this.throttle * torqueAt(e.torque, rpm) * this.powerMul - (1 - this.throttle) * fric;
+        this.engineTorque = Teng;
+      }
     }
 
     // ---- torque converter (automatic; not when the lockup clutch carries it, nor in neutral)
