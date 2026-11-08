@@ -317,6 +317,15 @@ twice (a swoop down and up each time, nothing like a real car lifting). Now it s
 3,520 to 2,280 over 8 s as the truck slows from 122 to 83 km/h. Off the throttle it still shifts up near the redline
 (rolling faster downhill).
 
+**Opening the throttle.** The engine is heard pulling the moment the throttle opens: the sound's load follows the
+pedal in under a tenth of a second (a little slower letting go), where it used to lag a fifth of a second behind it
+while the revs answered at once, so a stab of throttle sounded like coasting until the revs had climbed, and went on
+pulling after a lift. Pulling hard is twice as loud as the overrun at the same revs (it was 1.4 times) and brighter,
+the intake and exhaust roaring: in the Thar, tapping the throttle at a crawl now swings the level 8 dB, where it swung
+3 to 4. The revs the note follows are smoothed a little: wheels hopping over ruts and rocks shook them by about 26
+cents a dozen times a second, a flutter in the note no flywheel lets through. (`test/engine.test.mjs` runs the
+worklet offline on real banks: its note is where the revs say, and a stab of throttle doesn't click.)
+
 A big engine is louder than a small one and has more of its low end (a shelf under 140 Hz): the Power Wagon's 6.4
 HEMI most of all, deep and loud, then the 392 swap, the old big-blocks and the big diesels' rumble.
 
@@ -689,8 +698,11 @@ turn (the Thar, the Wrangler, the Raptor and the Pajero came with empty cabs: th
 footwells and wheel). The driver is a lifelike man in a hoodie and jeans (a real 3D character), seated with his feet to
 the pedals, his arms reaching the wheel and his fingers round its rim. His hands turn the wheel with the road wheels and
 steer push-pull: past their reach they let go and take the rim again further back, one hand always holding, never
-crossing over the top; a quick lock on the keys slides the wheel through them, and driving straight again they go back
-to a quarter to three. In the cab view (C) you sit in his place and see your gloved hands on the wheel (the same driving
+crossing over the top (the hand going up the rim lets go first while the other pulls on down), and driving straight
+again they go back to a quarter to three. On the keys or a stick the wheel you see turns as hands turn one: after the
+front wheels, 0.64 of a turn each way at full lock, and never faster than a quick shuffle round the rim (1.4 turns a
+second, getting going and stopping as arms do), though the keys swing the front wheels over in a fifth of a second; a
+steering wheel of your own spun harder than that slides through the hands. In the cab view (C) you sit in his place and see your gloved hands on the wheel (the same driving
 gloves and sleeves as NIGHTSHIFT's); from outside, you see him through the windows. The garage and the dealer show the
 seat empty. He sits back in the seat, leaning against it: his hips 12 cm in front of the seat back's face (measured in
 each model's own seats, `hip` in `physics/trucks.js`; in the seats the game builds, 28 cm ahead of his eyes, as they are
@@ -1692,8 +1704,8 @@ about 25 s, and a test (`test/world.test.mjs`) checks the seams, the grades acro
 the satnav's route from the coast to Ashwood, and a truck driving over each join on the real physics.
 
 **Loading like Forza.** The maps are built in Web Workers, several at once (`src/world/WorldLoader.js`,
-`worldWorker.js`), the coast first: the game starts as soon as the coast is ready, and the others join the world while
-you drive, each stretch as soon as the maps either side of it are in. A map that comes in is drawn by its own
+`worldWorker.js`; once you are driving, half the cores less one, so the game keeps the rest), the coast first: the game
+starts as soon as the coast is ready, and the others join the world while you drive, each stretch as soon as the maps either side of it are in. A map that comes in is drawn by its own
 renderers (`src/render/WorldView.js`: its terrain, trees, grass, water, rocks, buildings, road markings and what
 breaks, in a group at its centre), its colours baked a few milliseconds at a time between frames; until then its
 ground is the far land, and nobody gets near it before it is there. Every map is kept in the browser's storage
