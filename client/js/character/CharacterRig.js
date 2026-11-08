@@ -332,6 +332,15 @@ export class CharacterRig {
     // ----- procedural layers
     this.#stanceAndLegs(dt);
     this.#poseRootLayer();
+    if (this.rise) {
+      // brought round by a medic: from where he lay up into the pose he has now, over a moment
+      const R = this.rise, p = this.poseRoot;
+      R.t = Math.min(1, R.t + dt / 0.8);
+      const k = R.t * R.t * (3 - 2 * R.t);
+      p.quaternion.slerpQuaternions(R.q, _mq.copy(p.quaternion), k);
+      p.position.lerpVectors(R.p, _mp.copy(p.position), k);
+      if (R.t >= 1) this.rise = null;
+    }
     this.root.updateMatrixWorld(true);
     if (!dead) this.#crawl(dt);
     if (!dead) {
@@ -837,7 +846,11 @@ export class CharacterRig {
     const sum = Object.values(this.deathW).reduce((s, w) => s + w, 0) || 1;
     for (const k in this.deathW) this.deathW[k] /= sum;
   }
-  revive() { this.state.dead = false; this.blend.death = 0; this.dropped = null; this.deathTarget = null; this.poseRoot.quaternion.identity(); this.poseRoot.position.set(0, 0, 0); }
+  // getUp: a revive where he fell (he climbs up out of the pose he lies in); otherwise a respawn (straight up)
+  revive(getUp = false) {
+    this.rise = getUp && this.state.dead ? { q: this.poseRoot.quaternion.clone(), p: this.poseRoot.position.clone(), t: 0 } : null;
+    this.state.dead = false; this.blend.death = 0; this.dropped = null; this.deathTarget = null; this.poseRoot.quaternion.identity(); this.poseRoot.position.set(0, 0, 0);
+  }
   hitReact() { this.blend.hit = 1; }
   // one round fired: the rifle kicks back into the shoulder and recovers (per shot, so full-auto reads as recoil)
   // last: that was the last round in the magazine (other soldiers: the slide / bolt stays back until the empty reload)

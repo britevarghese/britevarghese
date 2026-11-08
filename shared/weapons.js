@@ -59,7 +59,7 @@ export const CLASSES = {
   recon: { name: 'Recon', primary: 'sniper', secondary: 'pistol', grenades: 1 },
   // support: double ammo, extra grenades, an anti-armour launcher, resupplies teammates nearby (ammo bag)
   support: { name: 'Support', primary: 'ar', secondary: 'pistol', gadget: 'at4', grenades: 4, ammoMul: 2, resupply: true },
-  // medic: heals faster, and patches up teammates within a few metres
+  // medic: heals faster, patches up teammates within a few metres, and revives downed teammates
   medic: { name: 'Medic', primary: 'ar', secondary: 'pistol', grenades: 1, medic: true },
 };
 // short role descriptions + perks (shown on the deploy screen)
@@ -67,7 +67,7 @@ export const CLASS_INFO = {
   assault: { role: 'Close range · Balanced', perk: 'All-round carbine kit' },
   recon: { role: 'Long range · Intel', perk: 'Bolt-action rifle, 4x scope' },
   support: { role: 'Heavy firepower · Anti-armour', perk: 'AT launcher (3 rockets), double ammo, 4 grenades, resupplies squad' },
-  medic: { role: 'Heal · Sustain', perk: 'Fast self-heal, heals nearby teammates' },
+  medic: { role: 'Heal · Revive', perk: 'Revives downed teammates, heals those nearby, fast self-heal' },
 };
 
 export function damageAt(w, dist) {

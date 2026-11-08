@@ -426,10 +426,10 @@ body.scoped #tickets, body.scoped #minimap, body.scoped #roomtag, body.scoped #c
 #vret.ready { border-color: rgba(120,230,110,.9); } #vret.ready::after { background: rgba(120,230,110,.9); }
 #vprompt { position: fixed; left: 50%; top: 62%; transform: translateX(-50%); padding: 6px 12px; background: rgba(10,12,14,.6); border-radius: 4px; color: #fff; font: 600 13px system-ui, sans-serif; letter-spacing: .04em; pointer-events: none; z-index: 6; }
 body.invehicle #weaponbox, body.invehicle #ammo, body.invehicle #stance, body.invehicle #zero { display: none !important; }
-.tbtn.veh { right: 40px; bottom: 320px; display: none; } .tbtn.veh.ready, #touch.invehicle .tbtn.veh { display: grid; }
+.tbtn.veh { right: 40px; bottom: 268px; display: none; } .tbtn.veh.ready, #touch.invehicle .tbtn.veh { display: grid; }
 .tbtn.veh.ready { background: rgba(80,160,255,.5); border-color: #6fb0ff; }
 .tbtn.vin { display: none; } #touch.invehicle .tbtn.vin:not(.heli), #touch.invehicle.heli .tbtn.vin.heli { display: grid; }
-#t-vseat { right: 100px; bottom: 320px; } #t-vup { right: 132px; bottom: 150px; } #t-vdown { right: 132px; bottom: 76px; }
+#t-vseat { right: 100px; bottom: 268px; } #t-vup { right: 132px; bottom: 150px; } #t-vdown { right: 132px; bottom: 76px; }
 #touch.invehicle > #t-ads, #touch.invehicle > #t-reload, #touch.invehicle > #t-nade, #touch.invehicle > #t-crouch, #touch.invehicle > #t-prone, #touch.invehicle > #t-jump, #touch.invehicle > #t-swap { display: none; }
 @media (max-width: 700px) { #vhud { width: 220px; right: 50%; transform: translateX(50%); bottom: 6px; padding: 4px 8px; font-size: 11px; } #vh-keys { display: none; } }
 body.touch #vhud { top: 56px; bottom: auto; right: 50%; transform: translateX(50%); width: 240px; font-size: 11px; }
@@ -563,3 +563,37 @@ body.touch #killfeed > :nth-last-child(n+2) { display: none; }
   .tk .bar, .tk.us .bar, .tk .lbl { display: none; } #tickets { padding: 4px 6px; gap: 5px; } .tk b { min-width: 30px; font-size: 18px; }
   body.touch #mmframe { width: 122px; height: 146px; } body.touch #minimap { width: 120px; height: 120px; } body.touch #vitals { top: 168px; }
 }
+
+/* ================================================================ casualties: downed markers, revive prompt, downed screen */
+#dnmarks { position: fixed; inset: 0; pointer-events: none; z-index: 4; overflow: hidden; }
+#dnmarks > div { position: absolute; left: 0; top: 0; display: flex; flex-direction: column; align-items: center; gap: 1px; font: 700 11px var(--ui); color: #fff; text-shadow: 0 1px 2px #000; white-space: nowrap; }
+#dnmarks .ic { width: 16px; height: 16px; color: #e8322a; filter: drop-shadow(0 0 2px rgba(0,0,0,.8)); }
+#dnmarks .med .ic { width: 22px; height: 22px; animation: dnpulse 1s ease-in-out infinite; }
+#dnmarks .med span { font-size: 12px; }
+#dnmarks .mc .ic { color: var(--ok); width: 14px; height: 14px; }
+#dnmarks .mc span { color: var(--ok); font-size: 10px; letter-spacing: .12em; }
+@keyframes dnpulse { 50% { transform: scale(1.2); } }
+#rprompt { position: fixed; left: 50%; top: 62%; transform: translateX(-50%); min-width: 250px; padding: 7px 14px 8px; background: rgba(10,12,14,.72); border-left: 3px solid var(--ok); border-radius: 4px; color: #fff; font: 600 14px var(--ui); letter-spacing: .05em; text-align: center; pointer-events: none; z-index: 6; }
+#rprompt b { color: var(--ok); }
+#rprompt .rp-bar { height: 4px; margin-top: 6px; background: rgba(255,255,255,.15); }
+#rprompt .rp-bar i { display: block; width: 0; height: 100%; background: var(--ok); }
+#downed { position: fixed; inset: 0; z-index: 20; pointer-events: none; background: radial-gradient(ellipse at center, rgba(70,0,0,0) 38%, rgba(80,0,0,.62) 100%); }
+body.downed:not(.touch) #game canvas { filter: saturate(.35) brightness(.9); }
+body.downed #crosshair, body.downed #weaponbox, body.downed #ammo, body.downed #stance, body.downed #zero, body.downed #hitmarker { visibility: hidden; }
+#downed .dn-box { position: absolute; left: 50%; bottom: 13%; transform: translateX(-50%); width: min(440px, calc(100vw - 32px)); text-align: center; text-shadow: 0 2px 4px #000; }
+.dn-t { display: flex; align-items: center; justify-content: center; gap: 10px; font: italic 800 34px var(--head); letter-spacing: .12em; color: #fff; }
+.dn-t .ic { width: 30px; height: 30px; color: #e8322a; }
+.dn-bar { height: 5px; margin: 10px 0 8px; background: rgba(255,255,255,.15); }
+.dn-bar i { display: block; height: 100%; background: #e8322a; transition: width .4s linear; }
+.dn-s { font: 700 15px var(--ui); letter-spacing: .14em; color: #ffd0cc; }
+.dn-s b { font-size: 20px; color: #fff; }
+.dn-m { margin-top: 6px; font: 600 14px var(--ui); letter-spacing: .1em; color: var(--mut); }
+.dn-k { margin-top: 4px; font: 500 12px var(--ui); letter-spacing: .06em; color: rgba(255,255,255,.65); }
+#dn-give { position: relative; overflow: hidden; display: inline-flex; align-items: baseline; gap: 10px; margin-top: 14px; padding: 8px 22px; border: 1px solid rgba(255,255,255,.35); background: rgba(10,12,14,.65); color: #fff; font: 700 14px var(--ui); letter-spacing: .14em; cursor: pointer; pointer-events: auto; }
+#dn-give small { font-size: 11px; color: var(--mut); }
+#dn-give i { position: absolute; left: 0; bottom: 0; width: 0; height: 3px; background: var(--y); }
+#dn-give:hover { border-color: var(--y); }
+.tbtn.rev { right: 40px; bottom: 268px; display: none; background: rgba(52,209,122,.45); border-color: var(--ok); font-size: 11px; }
+.tbtn.rev.ready { display: grid; }
+body.touch #rprompt { top: 30%; min-width: 200px; font-size: 12px; }
+body.touch .dn-t { font-size: 26px; } body.touch #downed .dn-box { bottom: 8%; }

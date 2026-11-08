@@ -21,6 +21,7 @@ import { RoyaleClient } from './royale/Royale.js';
 import { ScopeOverlay } from './ui/ScopeOverlay.js';
 import { detectGPU, adviceFor } from './render/GPU.js';
 import { VehiclesClient } from './vehicles/Vehicles.js';
+import { Revive } from './game/Revive.js';
 
 const $ = (id) => document.getElementById(id);
 const DOWN = { x: 0, y: -1, z: 0 };
@@ -135,6 +136,7 @@ class Game {
     this.vehicles = new VehiclesClient(this);
     this.isTouch = isTouchDevice();
     this.board = new Map();
+    this.revive = new Revive(this);
     this.net = new Net();
     this.#bindNet();
     this.#bindUI();
@@ -227,6 +229,7 @@ class Game {
       }
       if (!me.alive && this.me.alive) this.#onLocalDeath();
       this.vehicles.onSnap(m);
+      this.revive.onSnap(m);
       if (this.royale) { this.royale.onSnap(m); return; }
       this.hud.tickets(m.tk);
       for (const [id, owner, prog] of m.f) this.world.setFlagState(id, owner, prog, this.myTeam);
@@ -246,6 +249,7 @@ class Game {
     switch (e.t) {
       case 'spawn':
         if (e.id === this.myId) {
+          this.myCls = e.cls;
           this.me.spawn(e); this.hud.deployScreen(false); this.hud.roundEnd(null);
           if (!this.isTouch) this.renderer.domElement.requestPointerLock?.()?.catch?.(() => {});
           this.killcam = null;
@@ -353,14 +357,38 @@ class Game {
     }
     this.vehicles.onEvent(e);
     this.royale?.onEvent(e);
+    this.revive.onEvent(e);
   }
 
   #onLocalDeath() {
     this.me.alive = false;
     this.audio.stopFoley();
     if (this.royale) return; // no respawn: the royale client switches to spectating
-    document.exitPointerLock?.();
-    setTimeout(() => this.#showDeploy(this.meState?.rs), 2200);
+    // down (a medic can still bring me round): the mouse stays captured to look around; dead: the deploy screen
+    if (!this.revive.down) document.exitPointerLock?.();
+    setTimeout(() => { if (!this.revive.showDowned(this.#killerLine())) this.#showDeploy(this.meState?.rs); }, 2200);
+  }
+
+  #killerLine() {
+    const kc = this.killcam;
+    return kc ? `KILLED BY <b>${esc(kc.name || 'enemy')}</b> · ${WEAPONS[kc.w]?.name || kc.w}${kc.hs ? ' · HEADSHOT' : ''}` : null;
+  }
+
+  openDeploy() { this.#showDeploy(this.meState?.rs); }
+  statsAdd(d) { Stats.add(d); }
+
+  // a medic brought me round: up where I fell, crouched, with the kit as it was
+  onLocalRevive(e, by) {
+    const me = this.me;
+    this.revive.close();
+    me.spawn({ x: e.x, y: e.y, z: e.z, yaw: me.yaw, w: e.w, g: e.g, sl: e.sl });
+    me.s.stance = 'crouch'; me.hp = e.hp;
+    this.killcam = null;
+    this.hud.deployScreen(false);
+    Stats.add({ deaths: -1 });
+    this.audio.ui('revive');
+    const locked = document.pointerLockElement === this.renderer.domElement;
+    this.hud.notice(`REVIVED BY ${String(by).toUpperCase()}${locked || this.isTouch ? '' : ' — CLICK TO FIGHT ON'}`, 2600);
   }
 
   // battle royale READY click: a user gesture, so audio + mouse capture / fullscreen are allowed now
@@ -381,8 +409,7 @@ class Game {
     $('invite').innerHTML = `<span>ROOM: <b>${esc(this.room.name || this.room.id)}</b></span><span>CODE <b>${this.room.id}</b></span><span>${esc(ACTIVE_MAP.name.toUpperCase())}</span><span>MAX ${this.room.max || 16} PLAYERS</span><span class="inv">INVITE: <code>${esc(link)}</code></span><button id="copyinvite" class="copy"><svg class="ic"><use href="#i-link"/></svg>COPY</button>`;
     $('copyinvite').onclick = () => this.copyInvite();
     $('dp-invite').onclick = (e) => { e.preventDefault(); this.copyInvite(); };
-    const kc = this.killcam;
-    const killer = kc ? `KILLED BY <b>${kc.name || 'enemy'}</b> · ${WEAPONS[kc.w]?.name || kc.w}${kc.hs ? ' · HEADSHOT' : ''}` : null;
+    const killer = this.#killerLine();
     this.hud.deployScreen(true, { team: this.myTeam, flagsState: this.lastSnap?.f, respawnIn, killer, onDeploy: (sp, cls) => {
       this.audio.unlock();
       // the DEPLOY click is a user gesture, so the browser allows mouse capture right now
@@ -602,6 +629,8 @@ class Game {
       const m = new THREE.Matrix4().lookAt(cam.position, new THREE.Vector3(tx, ty, tz), new THREE.Vector3(0, 1, 0));
       cam.quaternion.slerp(new THREE.Quaternion().setFromRotationMatrix(m), 1 - Math.exp(-4 * dt));
       cam.position.lerp(new THREE.Vector3(me.s.x, me.s.y + 0.6, me.s.z), 1 - Math.exp(-3 * dt));
+    } else if (this.revive.updateCamera(cam, dt)) {
+      // down: over my body, waiting for a medic
     } else if (this.royale?.updateCamera(cam, dt)) {
       // battle royale: plane chase camera / spectating
     } else if (!me.alive) {
@@ -614,7 +643,7 @@ class Game {
     // viewmodel
     const reloading = performance.now() < me.reloadUntil;
     this.viewmodel.update(dt, {
-      ads: me.alive && me.ads && !reloading, moving: me.moveFactor || 0, speedFactor: me.sprinting ? 1 : 0, sprint: me.sprinting, mouseDX: me.mouse.dx, mouseDY: me.mouse.dy,
+      ads: me.alive && me.ads && !reloading, moving: me.moveFactor || 0, speedFactor: me.sprinting ? 1 : 0, sprint: me.sprinting || !!this.revive.working, mouseDX: me.mouse.dx, mouseDY: me.mouse.dy,
       reload: reloading ? (performance.now() - me.reloadStart) / me.reloadDur : 0, crouch: me.s.stance !== 'stand', camera: cam, baseFov: this.baseFov,
       mag: me.weapons[me.slot]?.mag, tps: me.isTPS(), vx: me.s.vx, vy: me.s.vy, vz: me.s.vz,
       adsFov: wdef ? (wdef.scoped && this.viewmodel.weapon.opticType === 'scope' ? 0.8 : wdef.adsFov) : 0.8, adsTime: wdef?.adsTime, sunDir: this.lighting.sunDir, shade: this.shade ?? 1, env: this.env,
@@ -670,6 +699,7 @@ class Game {
       // the minimap canvas is costly to redraw: 12 Hz is plenty
       this.mmT = (this.mmT || 0) + dt;
       if (this.mmT > 0.083) { this.mmT = 0; this.hud.minimap(me.s, me.yaw, this.players.map, this.myId, this.lastSnap.f, this.royale, V); }
+      this.revive.update(dt, cam);
     }
     P.mark('hud');
     // render: world, then first-person viewmodel on top (or world only in third person / dead)

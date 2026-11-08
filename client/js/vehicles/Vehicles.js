@@ -68,7 +68,7 @@ export class VehiclesClient {
   toggle() {
     if (this.mine) { this.g.net.send({ t: 'vexit' }); return; }
     const me = this.g.me;
-    if (!me.alive || me.s.air) return;
+    if (!me.alive || me.s.air || this.g.revive?.target) return; // (a medic's E brings round the teammate at his feet)
     const v = this.nearest();
     if (v) this.g.net.send({ t: 'venter', id: v.id });
   }
@@ -283,7 +283,7 @@ export class VehiclesClient {
 
   #prompt() {
     const el = $('vprompt'), me = this.g.me;
-    const v = !this.mine && me.alive && !me.s.air && !this.g.royale ? this.nearest() : null;
+    const v = !this.mine && me.alive && !me.s.air && !this.g.royale && !this.g.revive?.target ? this.nearest() : null;
     el.classList.toggle('hidden', !v);
     if (v) {
       const seat = v.seats.indexOf(0) >= 0 ? v.seats.indexOf(0) : v.seats.findIndex((x) => !x);

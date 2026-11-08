@@ -89,6 +89,9 @@ battle royale: **Space** jump / open parachute · **E** pick up · **H** heal ·
 *helicopter* W/S nose down / up, A/D bank, mouse sets the heading, **Space** climb, **Shift** descend (it holds its
 altitude hands-off), LMB rockets · gunner seats aim freely with the mouse. Touch: **VEH** (enter/exit), **SEAT**, ▲/▼.
 
+**Medics & casualties:** medic beside a downed teammate: **hold E** (touch: hold **REVIVE**) to bring him round ·
+downed: mouse looks around, **hold Space** (touch: tap **REDEPLOY**) to give up and redeploy.
+
 ## Game
 * **Conquest**: flags A / B / C, capture by standing in the zone (more soldiers = faster), 300 tickets per team,
   each death costs a ticket, holding more flags bleeds the enemy. Round restarts 15 s after a team hits 0.
@@ -140,7 +143,7 @@ altitude hands-off), LMB rockets · gunner seats aim freely with the mouse. Touc
   is kept in the air with only light air control; chained jumps lose height; hard landings slow you briefly; falls
   above 3.2 m cause damage (≈ 10 m is lethal).
 * **Kits**: Assault (automatic carbine, pistol, 2 frags) · Recon (4× scoped bolt-action rifle, pistol, 1 frag) ·
-  Support (carbine, pistol, anti-armour launcher, 4 frags).
+  Support (carbine, pistol, anti-armour launcher, 4 frags) · Medic (carbine, pistol, 1 frag; revives and heals).
 * **Server-authoritative**: the server owns ammo, fire rate, damage, hit detection (lag-compensated hitscan
   against capsule hitboxes; walls/cover block shots; head/torso/leg zones; range falloff), grenades (4 s fuse, real
   gravity, bounce, smash windows, blast blocked by walls and vehicles), capture, tickets, respawn, chat rate limiting and movement checks (a movement budget refilled at
@@ -209,8 +212,16 @@ altitude hands-off), LMB rockets · gunner seats aim freely with the mouse. Touc
   back. Support bots use it on enemy vehicles in range — kneel, hold over for the drop, lead the target, fire, move
   to cover while the next tube comes up — and never with friendlies near the target.
 * **Kits:** Assault (carbine), Recon (bolt rifle, 4x scope), Support (double ammo, 4 grenades, an anti-armour
-  launcher, resupplies teammates within 8 m) and Medic (heals itself fast, heals teammates within 8 m). Everyone regenerates slowly after 6 s out of
-  fire (medics after 3 s, much faster).
+  launcher, resupplies teammates within 8 m) and Medic (revives downed teammates, heals itself fast, heals teammates
+  within 8 m). Everyone regenerates slowly after 6 s out of fire (medics after 3 s, much faster).
+* **Downed, not dead:** a lethal hit to the body leaves a soldier down and bleeding out for 15 s; the ticket only goes
+  if he bleeds out or gives up. A medic within 2.5 m who holds the revive for 2.5 s (and stays with him) brings him
+  round where he fell, crouched, with 30 HP and his kit as it was; the medic scores 50 and the death is struck off.
+  Head shots, being blown apart (overkill), falls, run-overs and deaths in vehicles kill outright. While down the
+  world stays in view — the camera over the body, a bleeding-out timer, how far the nearest medic is, a marker over
+  each medic — and holding Space (or the REDEPLOY button) gives up for the deploy screen. Teammates see a cross over
+  the casualty and on the minimap (medics from 150 m, with the distance). Bot medics run to casualties within 35 m and
+  revive them; downed bots wait while a medic of theirs is near. Battle royale has no revives.
 * **Fair spawns:** a flag under attack (being captured or with enemies within 25 m) can't be spawned on; among free spots
   the server picks the one fewest enemies can see; 3 s spawn protection, and bots ignore protected soldiers; each HQ is
   a restricted area for the enemy (warning, then damage after 5 s) so bases can't be camped.

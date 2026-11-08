@@ -203,6 +203,9 @@ export class Game {
     this.emit({ t: 'bledout', id: p.id });
   }
 
+  // a downed player gives up on a medic (redeploy screen): the ticket goes now, medics stop heading for him
+  giveUp(p) { if (p.downed) this.#bleedOut(p); }
+
   // a medic starts / stops working on a downed teammate (holding the revive key; bots set it directly)
   reviveHold(medic, id, on) {
     if (!on) { medic.reviving = null; return; }
@@ -764,7 +767,7 @@ export class Game {
   scoreboard() {
     return {
       t: 'board',
-      rows: [...this.players.values()].map((p) => ({ id: p.id, n: p.name, tm: p.team, k: p.kills, d: p.deaths, s: p.score, b: p.bot ? 1 : 0, ai: p.agent ? 1 : 0, png: p.bot ? 0 : Math.round(p.rtt), a: p.alive ? 1 : 0 })),
+      rows: [...this.players.values()].map((p) => ({ id: p.id, n: p.name, tm: p.team, k: p.kills, d: p.deaths, s: p.score, b: p.bot ? 1 : 0, ai: p.agent ? 1 : 0, png: p.bot ? 0 : Math.round(p.rtt), a: p.alive ? 1 : 0, c: p.cls })),
     };
   }
 }

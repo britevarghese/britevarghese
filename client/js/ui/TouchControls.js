@@ -13,6 +13,8 @@ const BTN = [
   ['pick', 'PICK', 'sm br'], ['heal', '✚', 'sm br'], ['map', 'MAP', 'top br'],
   // vehicles: enter / exit, switch seat, helicopter climb / descend
   ['veh', 'VEH', 'sm veh'], ['vseat', 'SEAT', 'sm vin'], ['vup', '▲', 'sm vin heli'], ['vdown', '▼', 'sm vin heli'],
+  // medic: hold beside a downed teammate
+  ['revive', 'REVIVE', 'sm rev'],
 ];
 
 export class TouchControls {
@@ -101,6 +103,7 @@ export class TouchControls {
     on('jump', () => { if (g.royale?.inPlane) g.royale.jump(); else me.touch.jump = true; });
     on('pick', () => g.royale?.pickup());
     on('veh', () => g.vehicles?.toggle());
+    on('revive', () => { if (g.revive) g.revive.hold = true; }, () => { if (g.revive) g.revive.hold = false; });
     on('vseat', () => { const m = g.vehicles?.mine; if (m) g.net.send({ t: 'vseat', seat: 1 - m.seat }); });
     on('vup', () => { me.touch.up = true; }, () => { me.touch.up = false; });
     on('vdown', () => { me.touch.down = true; }, () => { me.touch.down = false; });
@@ -128,6 +131,8 @@ export class TouchControls {
     this.root.classList.toggle('invehicle', !!V?.mine);
     this.root.classList.toggle('heli', !!heli);
     document.getElementById('t-veh').classList.toggle('ready', !V?.mine && !document.getElementById('vprompt')?.classList.contains('hidden'));
+    document.getElementById('t-revive').classList.toggle('ready', !!this.g.revive?.target);
+    if (!this.g.revive?.target && this.g.revive) this.g.revive.hold = false;
     if (this.g.royale) document.getElementById('t-pick').classList.toggle('ready', !!this.g.royale.promptItem);
     if (!this.me.mouse.r) document.getElementById('t-ads').classList.remove('latched');
     document.getElementById('t-crouch').classList.toggle('latched', this.me.s.stance === 'crouch');

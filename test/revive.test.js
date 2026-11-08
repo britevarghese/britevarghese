@@ -134,3 +134,23 @@ test('a bot medic runs to a teammate who is down close by and brings him round',
   assert.equal(revived.by, m.id);
   assert.ok(v.alive && v.hp === REVIVE_HP);
 });
+
+test('giving up from the downed screen: the ticket goes at once and medics stop seeing a casualty', () => {
+  const g = mkGame();
+  const a = soldier(g, 1, 'assault', 100, 60), v = soldier(g, 2, 'assault', 100, 40), m = soldier(g, 2, 'medic', 101.2, 40);
+  g.damage(v, 130, a, 'ar');
+  const t0 = g.tickets[2];
+  g.reviveHold(m, v.id, true);
+  g.flushEvents();
+  g.giveUp(v);
+  assert.equal(v.downed, null);
+  assert.equal(g.tickets[2], t0 - 1);
+  assert.equal(events(g, 'bledout').length, 1);
+  assert.ok(!g.snapshot().dn);
+  advance(g, REVIVE_MS + 300);
+  assert.equal(v.alive, false, 'the medic has nothing to work on');
+  g.giveUp(v); // (a second one changes nothing)
+  assert.equal(g.tickets[2], t0 - 1);
+  // the scoreboard carries each soldier's kit (the downed screen finds the medics)
+  assert.equal(g.scoreboard().rows.find((r) => r.id === m.id).c, 'medic');
+});

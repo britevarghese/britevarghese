@@ -203,6 +203,13 @@ export class HUD {
       g.fillStyle = friendly ? '#6fb0ff' : '#ff5e4d';
       g.beginPath(); g.arc(tx(p.x), tz(p.z), 3.2, 0, 7); g.fill();
     }
+    // teammates down and waiting for a medic: a red cross where each one lies
+    for (const d of this.downed || []) {
+      g.save(); g.translate(tx(d[2]), tz(d[4])); g.rotate(-yaw);
+      g.fillStyle = '#fff'; g.fillRect(-2.2, -5.2, 4.4, 10.4); g.fillRect(-5.2, -2.2, 10.4, 4.4);
+      g.fillStyle = '#e8322a'; g.fillRect(-1.2, -4.2, 2.4, 8.4); g.fillRect(-4.2, -1.2, 8.4, 2.4);
+      g.restore();
+    }
     g.restore();
     // player arrow
     g.fillStyle = '#fff'; g.beginPath(); g.moveTo(S / 2, S / 2 - 7); g.lineTo(S / 2 + 5, S / 2 + 5); g.lineTo(S / 2 - 5, S / 2 + 5); g.closePath(); g.fill();

@@ -90,7 +90,7 @@ export class Players {
         p.yaw = lerpAngle(ra[4], rb[4], k); p.pitch = ra[5] + (rb[5] - ra[5]) * k;
         p.stance = STANCES[rb[6]] || 'stand'; p.flags = rb[7]; p.hp = rb[9];
         p.vx = rb[10]; p.vz = rb[11];
-        if (!wasAlive && p.rig) p.rig.revive();
+        if (!wasAlive && p.rig) { p.rig.revive(performance.now() - (p.revivedAt || 0) < 5000); p.revivedAt = 0; } // (a medic's revive: he gets up)
         if (!wasAlive) for (const w of Object.values(p.weapons || {})) w.dry = false; // respawned with full magazines
         if (p.rig && !p.loading) this.#weapon(p, rb[8]);
       }
@@ -109,7 +109,8 @@ export class Players {
       }
       const r = p.rig;
       // soldiers inside a tank / helicopter are hidden (flag 128)
-      const visible = (isMe ? thirdPerson && p.alive : true) && !(p.alive && (p.flags & 128));
+      // (me: in third person; and my body while I lie downed, the camera over it)
+      const visible = (isMe ? (thirdPerson && p.alive) || (!p.alive && !!this.g.revive?.down) : true) && !(p.alive && (p.flags & 128));
       r.root.visible = visible;
       if (r.weapon) r.weapon.root.visible = visible && (p.alive || r.blend.death < 1);
       if (!visible && isMe) continue;
