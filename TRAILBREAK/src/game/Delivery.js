@@ -138,10 +138,11 @@ export class Delivery {
     return `<span class="route">➤</span> <b>${L.m} kg ${escapeHtml(L.cargo.name)}</b> to <b>${escapeHtml(place.name)}</b> ${fmtDist(left)} · <b class="${A.cond < 0.7 ? 'bad' : ''}">${Math.round(A.cond * 100)}%</b>`;
   }
 
-  /** The Deliveries cards in Modes & races (game/EventPlay.js listHtml's helpers). */
+  /** The Deliveries cards in Modes & races (game/EventPlay.js listHtml's helpers): the job on first, then the nearest. */
   cards({ card, group, ic, feat }) {
     const A = this.active, here = this.g.vehicle.pos;
-    const list = this.jobs.map((job) => {
+    const away = (job) => { const f = placeOf(job.from); return A?.job === job ? -1 : Math.hypot(f.x - here.x, f.z - here.z); };
+    const list = [...this.jobs].sort((a, b) => away(a) - away(b)).map((job) => {
       const from = placeOf(job.from), to = placeOf(job.to), L = loadOf(job), on = A?.job === job;
       const near = Math.hypot(from.x - here.x, from.z - here.z);
       return card({
