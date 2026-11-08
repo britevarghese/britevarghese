@@ -359,6 +359,7 @@ async function start() {
   };
   requestAnimationFrame(loop);
   window.__ready = true;
+  loader?.playing();                                  // (the rest of the world built with cores to spare for the game)
   goLive();
 }
 

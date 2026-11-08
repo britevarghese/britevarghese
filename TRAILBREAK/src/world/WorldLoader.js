@@ -57,7 +57,9 @@ export class WorldLoader {
   constructor({ onProgress = () => {} } = {}) {
     this.onProgress = onProgress;
     const cores = navigator.hardwareConcurrency || 2, mem = navigator.deviceMemory || 8;
-    this.slots = mem <= 4 ? 1 : Math.max(1, Math.min(3, cores - 1));
+    // maps built at once (workers), and building now
+    this.limit = mem <= 4 ? 1 : Math.max(1, Math.min(3, cores - 1));
+    this.busy = 0;
     this.waiting = [];
     this.from = {};               // id -> 'stored' | 'built'
     // which map next: score(id), lower first (the game's: how far off and how far round from the way it looks); by
@@ -65,16 +67,29 @@ export class WorldLoader {
     this.score = null;
   }
 
-  /** A worker slot (at most `slots` maps at once; the start map's (and those it waits on) first, then the best scored waiting). */
+  /** A worker slot (at most `limit` maps at once; the start map's (and those it waits on) first, then the best scored waiting). */
   async slot(first, id) {
-    if (this.slots > 0) { this.slots--; return; }
+    if (this.busy < this.limit) { this.busy++; return; }
     await new Promise((r) => this.waiting.push({ r, id, first }));
   }
-  free() {
-    if (!this.waiting.length) { this.slots++; return; }
-    let bi = 0, bs = Infinity;
-    this.waiting.forEach((w, i) => { const sc = w.first ? -Infinity : this.rank(w.id); if (sc < bs) { bs = sc; bi = i; } });
-    this.waiting.splice(bi, 1)[0].r();
+  free() { this.busy--; this.pump(); }
+  /** Slots free: to the maps waiting, the start map's first, then the best scored. */
+  pump() {
+    while (this.waiting.length && this.busy < this.limit) {
+      let bi = 0, bs = Infinity;
+      this.waiting.forEach((w, i) => { const sc = w.first ? -Infinity : this.rank(w.id); if (sc < bs) { bs = sc; bi = i; } });
+      this.busy++;
+      this.waiting.splice(bi, 1)[0].r();
+    }
+  }
+
+  /**
+   * The game under way: fewer maps built at once, so the game keeps the cores it draws with (half of them, less one, for
+   * the workers; on a four-core laptop every core but one building maps held the game up while the world came in).
+   */
+  playing() {
+    const cores = navigator.hardwareConcurrency || 2;
+    this.limit = Math.min(this.limit, Math.max(1, Math.floor(cores / 2) - 1));
   }
 
   /** A map's place in the queue: its own score, or a better one of a map waiting on it (whatever that waits on). */
