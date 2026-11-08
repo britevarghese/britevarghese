@@ -6,11 +6,14 @@ import { truckSpec, truckBase } from '../physics/trucks.js';
 import { presetBuild, PRESETS } from '../physics/Upgrades.js';
 import { loadTruckAsset, truckAsset } from '../render/TruckAssets.js';
 import { loadDriverAssets } from '../render/DriverAssets.js';
+import { CARGO } from '../game/Jobs.js';
 
 const q = new URLSearchParams(location.search);
 const id = q.get('truck') || 'ranger', b = q.get('build') || 'stock';
 const build = PRESETS.some((p) => p.id === b) ? presetBuild(truckBase(id), b) : b;
-const spec = truckSpec(id, build);
+// (cargo=cement:8: a delivery's load in the bed, game/Jobs.js)
+const [ck, cn] = (q.get('cargo') || '').split(':');
+const spec = truckSpec(id, build, ck && CARGO[ck] ? { m: CARGO[ck].each * Number(cn || 1), kind: ck, count: Number(cn || 1) } : null);
 await loadTruckAsset(spec.style);                    // (a model body: loaded before the truck is built)
 if (q.has('driver') && q.get('driver') !== 'drawn') await loadDriverAssets();
 const view = new GaragePreview(document.getElementById('c'));

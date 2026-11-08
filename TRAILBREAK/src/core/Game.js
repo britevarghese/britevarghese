@@ -467,9 +467,9 @@ export class Game {
     this.hud.toast(`${this.spec.name}: ${buildSummary(this.spec, this.spec.build)}`, false, 5);
   }
 
-  /** A load on the truck (game/Delivery.js: { m kg, kind }), or off it (null). */
+  /** A load on the truck (game/Delivery.js: { m kg, kind, count }), or off it (null). */
   setCargo(c) {
-    this.cargo = c && c.m > 0 ? { m: c.m, kind: c.kind } : null;
+    this.cargo = c && c.m > 0 ? { m: c.m, kind: c.kind, count: c.count || 1 } : null;
     this.applyBuild(this.build, false, true);
   }
 

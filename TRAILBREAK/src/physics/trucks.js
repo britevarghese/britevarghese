@@ -135,6 +135,8 @@ export const TRUCKS = {
     buoyancy: 0.33,
     shafts: [4000, 5500], parts: 0.85,
     style: 'mule', look: { bed: true, leaf: 0.48 },
+    // a load in the tub: its floor about 0.48 m under the rails (the model's bedRail), loaded from the front of it
+    cargoY: 0.78, cargoZ: -0.93,
   },
   gecko: {
     // the Lada Niva (VAZ-2121, 1977- , here the 1.7 21214): 2,200 mm wheelbase, 3,740 mm long, 1,680 mm wide, a
@@ -193,6 +195,7 @@ export const TRUCKS = {
     buoyancy: 0.28,
     shafts: [7000, 8500], parts: 1.1, tc: true,
     style: 'trekker', look: { bed: true, coils: true },
+    cargoY: 1.06, cargoZ: -1.78,                         // a load in the bed (as the Willys': its floor under the rails)
   },
   shepherd: {
     // the Land Rover Defender 110 (L663, the 2026 model year): 3,022 mm wheelbase, 5,018 mm long over the spare wheel,
@@ -280,6 +283,7 @@ export const TRUCKS = {
     buoyancy: 0.27,
     shafts: [14000, 15000], tyreK: 1.5, tyreLoad: 8000, parts: 1.3, tc: true,
     style: 'bruiser', look: { bed: true, coils: true },
+    cargoY: 1.2, cargoZ: -1.68,                          // a load in the bed (as the Willys')
   },
   rhino: {
     // the Mercedes-Benz Unimog U1300L (the 435, built from 1975, the German army's two-tonner): 3,250 mm wheelbase,
@@ -482,6 +486,7 @@ export const TRUCKS = {
     buoyancy: 0.22,
     shafts: [11000, 13000], tyreK: 1.5, tyreLoad: 10000, parts: 1.6, tc: true,
     style: 'hummerev', look: { top: 'paint', coils: true, bed: true },
+    cargoY: 1.26, cargoZ: -1.93,                         // a load in the bed (as the Willys')
   },
 
   cybertruck: {
@@ -516,6 +521,7 @@ export const TRUCKS = {
     buoyancy: 0.22,
     shafts: [11000, 13000], tyreK: 1.4, tyreLoad: 9000, parts: 1.5, tc: true,
     style: 'cybertruck', look: { top: 'paint', coils: true, bed: true },
+    cargoY: 1.32, cargoZ: -1.78,                         // a load in the vault (as the Willys')
   },
 
   u8: {

@@ -526,6 +526,11 @@ function shared() {
   MATS.cable = std(0x55534e, 0.45, 0.8);
   MATS.alloy = std(0xc3c6c9, 0.24, 0.9);             // diamond-cut alloy faces
   MATS.alloyDark = std(0x3a3d41, 0.4, 0.7);           // their painted pockets
+  // a delivery's load (cargoParts): woven cement sacks, the red domestic gas cylinder, a blue oil drum, kraft tea sacks
+  MATS.sack = std(0xc9c6bc, 0.95, 0);
+  MATS.cylinder = std(0xb51f1a, 0.42, 0.45);
+  MATS.drum = std(0x1f4e8c, 0.5, 0.55);
+  MATS.kraft = std(0xa8865a, 0.92, 0);
   return MATS;
 }
 
@@ -1021,6 +1026,45 @@ function bumpers(P, M, spec, x, winch) {
   P.box(M.black, [0.07, 0.07, 0.2], [0, br.y + 0.02, br.z - 0.06], { r: 0.01 });
 }
 
+/**
+ * A delivery's load in an open bed (game/Jobs.js; spec.cargo): cement bags and tea sacks lying flat, gas cylinders and
+ * drums standing, loaded from the cab end, between the wheel arches, layer on layer. The bed floor about 0.48 m under
+ * the rails (a pickup's bed is about half a metre deep). Design frame, stock height (the body group is raised).
+ */
+const CARGO_LOOK = {
+  cement: { w: 0.4, d: 0.6, h: 0.14, mat: 'sack', shape: 'sack' },
+  tea: { w: 0.4, d: 0.6, h: 0.18, mat: 'kraft', shape: 'sack' },
+  gas: { w: 0.31, d: 0.31, h: 0.66, mat: 'cylinder', shape: 'cylinder' },          // (stood touching)
+  diesel: { w: 0.6, d: 0.6, h: 0.88, mat: 'drum', shape: 'drum' },
+};
+/** Bodies whose bed rides under a hard cover (the Ram's tonneau, the Cybertruck's vault): the load goes under it, unseen. */
+const COVERED_BED = new Set(['bruiser', 'cybertruck']);
+function cargoParts(P, M, spec, x) {
+  const c = spec.cargo, look0 = c && CARGO_LOOK[c.kind];
+  if (!look0 || !spec.look?.bed || !x.bedZ || !x.bedRail || COVERED_BED.has(spec.style)) return;
+  const floor = x.bedRail[1] - 0.48, half = Math.min(x.bedRail[0] - 0.1, 0.62), z1 = x.bedZ[1] - 0.08, z0 = x.bedZ[0] + 0.08;
+  // (lying sacks turned whichever way puts more of them on the floor)
+  const fit = (w, d) => ({ ...look0, w, d, nx: Math.max(1, Math.floor((2 * half) / w)), nz: Math.max(1, Math.floor((z1 - z0) / d)) });
+  const a = fit(look0.w, look0.d), b = fit(look0.d, look0.w), look = b.nx * b.nz > a.nx * a.nz ? b : a, { nx, nz } = look;
+  const n = Math.round(c.count || 1), jit = (k) => Math.sin(k * 12.9898) * 43758.5453 % 1;
+  for (let k = 0; k < n; k++) {
+    const layer = Math.floor(k / (nx * nz)), i = k % (nx * nz), row = Math.floor(i / nx), col = i % nx;
+    const px = (col - (nx - 1) / 2) * look.w, pz = z1 - look.d / 2 - row * look.d, py = floor + look.h * (layer + 0.5);
+    const yaw = jit(k) * 0.12;
+    if (look.shape === 'sack') P.box(M[look.mat], [look.w * 0.94, look.h, look.d * 0.94], [px, py, pz], { r: look.h * 0.45, rot: [0, yaw, 0] });
+    else if (look.shape === 'cylinder') {
+      // the domestic cylinder: a body, its shoulder and the collar that guards the valve
+      P.cyl(M[look.mat], 0.155, 0.155, 0.5, [px, floor + layer * look.h + 0.29, pz], { seg: 14 });
+      P.cyl(M[look.mat], 0.07, 0.155, 0.08, [px, floor + layer * look.h + 0.58, pz], { seg: 14 });
+      P.cyl(M[look.mat], 0.085, 0.085, 0.07, [px, floor + layer * look.h + 0.645, pz], { seg: 12, open: true });
+      P.cyl(M.black, 0.15, 0.15, 0.04, [px, floor + layer * look.h + 0.02, pz], { seg: 14 });
+    } else {
+      P.cyl(M[look.mat], 0.29, 0.29, 0.86, [px, py, pz], { seg: 18 });
+      for (const dy of [-0.15, 0.15]) P.cyl(M[look.mat], 0.297, 0.297, 0.025, [px, py + dy, pz], { seg: 18 });     // the rolling hoops
+    }
+  }
+}
+
 /** The build's add-ons (design frame, stock height: the body group is raised). */
 function buildParts(P, M, spec, x, base, lightBar) {
   const b = spec.build || {}, raise = spec.raise || 0;
@@ -1200,6 +1244,7 @@ export class TruckModel {
     // (a road car's recovery rope goes on its tow eye: no winch bumper, no fairlead)
     if (!spec.road) { if (x.ownBumpers) fairlead(P, M, spec, x, spec.winch || {}); else bumpers(P, M, spec, x, spec.winch || {}); }
     buildParts(P, M, spec, x, base, this.barMat);
+    cargoParts(P, M, spec, x);
     this.lamps = [];
     for (const [hx, hy, hz, hr] of x.ownLamps ? [] : x.heads) {
       [1, -1].forEach((sx, side) => {
@@ -1240,7 +1285,7 @@ export class TruckModel {
     // (laminated: it crazes) and the side and back windows (toughened: they burst). (Not a screen in the dash: it has the
     // windscreen's material too.)
     const wide = (m) => { m.geometry.computeBoundingBox(); const b = m.geometry.boundingBox; return b.max.x - b.min.x > 0.5; };
-    const screens = this.body.children.filter((m) => (m.material === M.screen || m.material === M.screen.userData.both) && wide(m));
+    const screens = this.body.children.filter((m) => m.isMesh && (m.material === M.screen || (M.screen.userData.both && m.material === M.screen.userData.both)) && wide(m));
     if (screens.length) {
       this.screen = glassMaterial(M.screen, this.uniforms, true);
       // (drawn from both sides, so its mud shows from the cab: unless it is a slab with an inside face of its own)
@@ -1283,7 +1328,9 @@ export class TruckModel {
         g.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
       }
     }
-    this.glassMeshes = this.body.children.filter((m) => m.material === M.glass || m.material === M.glass.userData.both);
+    // (meshes only: a group has no material, and the two-sided glass (userData.both) is made only once a body asks for
+    // it, so before then undefined === undefined took a group for glass: the Willys, first built on a page, threw here)
+    this.glassMeshes = this.body.children.filter((m) => m.isMesh && (m.material === M.glass || (M.glass.userData.both && m.material === M.glass.userData.both)));
     const glassOwn = new Map();
     for (const gm of this.glassMeshes) {
       if (!glassOwn.has(gm.material)) glassOwn.set(gm.material, glassMaterial(gm.material, this.uniforms, false));

@@ -68,7 +68,7 @@ export class Delivery {
 
   load() {
     const A = this.active, g = this.g, L = loadOf(A.job);
-    g.setCargo({ m: L.m, kind: L.kind });
+    g.setCargo({ m: L.m, kind: L.kind, count: L.count });
     A.phase = 'carry'; A.hold = 0; A.cond = 1; A.vel = null; A.wet = 0; A.upside = 0;
     g.setRoute({ kind: 'job', name: A.to.name, x: A.to.x, z: A.to.z }, true);
     const c = L.cargo;

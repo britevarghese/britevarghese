@@ -482,11 +482,17 @@ the standard for the woven sacks of 50 kg cement); cooking gas in the 14.2 kg do
 15576, about 50, 35 and 28 kg). The road distances are the satnav's, measured over the whole world (where it found no
 road, 1.3 times the straight line); the pay is $150, $120 a km and $0.25 a kg-km.
 
-**The load is real weight:** it sits on the bed (or a wagon's load floor) just ahead of the rear axle, a quarter metre
-up, and the springs stay set for the truck empty, so the truck squats under it by what its springs give: 500 kg sits
-a Ranger 4.7 cm lower at the back, a Thar 5.6 cm, a Hauler 3.3 cm. Its centre of gravity rises 4 to 7 cm, it pulls
-slower (0-30 km/h 3.2 s empty, 3.8 s with 500 kg in the Ranger; 3.0 against 3.9 s in the Lada), and it sinks deeper in
-mud (8.9 cm standing in the bog empty, 11 cm loaded). Light trucks feel half a tonne most.
+**The load shows** in an open bed: the Ranger Raptor's, the Hummer EV's and the Willys's tub carry it where you can see
+it, cement bags and tea sacks lying flat, gas cylinders and drums standing, loaded from the cab end between the
+wheel arches, layer on layer on a floor half a metre under the rails. The Ram 2500's and the Cybertruck's beds ride
+under a hard cover, and a wagon's load floor is inside: there it goes unseen, but it weighs the same.
+
+**The load is real weight:** it sits on the bed (or a wagon's load floor), a quarter metre up from the floor, at the
+cab end of a bed, just ahead of the rear axle in a wagon, and the springs stay set for the truck empty, so the truck
+squats under it by what its springs give: 500 kg sits a UAZ Hunter 4.7 cm lower at the back, a Thar 5.6 cm, a K20
+Suburban 3.3 cm. Its centre of gravity rises 4 to 7 cm, it pulls slower (0-30 km/h 3.2 s empty, 3.8 s with 500 kg in
+the UAZ; 3.0 against 3.9 s in the Lada), and it sinks deeper in mud (8.9 cm standing in the bog empty, 11 cm loaded,
+in the UAZ). Light trucks feel half a tonne most.
 
 **The load can be hurt:** hard jolts through the bed floor (over about 2.5 g: a landing off a drop, a hole taken
 fast) and crashes (stopping short at over 4 g) cost it a share of its value; paper tea sacks and cement bags split far
@@ -1800,7 +1806,8 @@ src/audio/, src/net/, src/ui/   sound, multiplayer client, HUD and maps, the gar
 public/index.html, css/   the screens and their icons; public/assets/fonts (Barlow), public/assets/ui (the lobby's
                           picture and the Modes & races cards' pictures, rendered in the game)
 public/preview.html       developer view: ?cam=x,y,z&look=x,y,z&mods=Vegetation,Water,...
-public/trucks.html        developer view of one truck: ?truck=hauler&build=overland (a preset or a build code)
+public/trucks.html        developer view of one truck: ?truck=hauler&build=overland (a preset or a build code);
+                          &cargo=gas:12 puts a delivery's load in its bed
 test/                     node --test suites
 desktop/                  TRAILBREAK for Windows: the app (main.js, preload.js, join.html), its icon and installer
                           (package.json: electron-builder, NSIS)

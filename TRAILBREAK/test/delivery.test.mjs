@@ -87,7 +87,7 @@ test('a delivery: stop at the pickup and it loads, stop at the drop and it pays'
   run(D, G, 1);
   assert.equal(G.cargo, null, 'not loaded yet: it takes a moment');
   run(D, G, 1.5);
-  assert.deepEqual(G.cargo, { m: 400, kind: 'cement' });
+  assert.deepEqual(G.cargo, { m: 400, kind: 'cement', count: 8 });
   assert.equal(G.route.target.name, 'Korlai Fort');
   assert.ok(D.carrying);
   // driving past the drop doesn't unload it (speeding up and slowing down as a truck does: no jolt)

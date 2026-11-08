@@ -699,7 +699,7 @@ export function buildSpec(base, buildIn, cargo = null) {
   if (load) {
     spec.unladen = { mass: Math.round(m), cgZ: mz / m };
     m += load.m; my += load.m * (load.y + raise); mz += load.m * load.z;
-    spec.cargo = { m: load.m, kind: cargo.kind || 'load', y: load.y + raise, z: load.z };
+    spec.cargo = { m: load.m, kind: cargo.kind || 'load', count: cargo.count || 1, y: load.y + raise, z: load.z };
   }
   spec.mass = Math.round(m);
   spec.cgHeight = my / m;
