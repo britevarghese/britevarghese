@@ -50,6 +50,42 @@ function onCardOnly(mesh) {
   for (const a of [...Object.values(g.attributes), g.index]) a?.onUpload(function release() { this.array = null; });
 }
 
+/**
+ * A map's textures onto the graphics card before it is shown, a few ms of them at a time between frames, and a ground's
+ * texture arrays a layer at a time (tick: a promise of the next turn). Uploaded by the first frame that drew the map, a
+ * set of ground textures it was the first to use (ten layers, some 45 MB with their normals) held that frame up. The
+ * textures are those its materials' shaders take (after compileAsync: their uniforms, onBeforeCompile's too).
+ */
+async function warmTextures(gl, group, tick) {
+  const P = gl.properties, all = new Set();
+  const take = (v) => { if (v?.isTexture) all.add(v); else if (Array.isArray(v)) for (const x of v) if (x?.isTexture) all.add(x); };
+  group.traverse((o) => {
+    for (const m of [].concat(o.material || [])) { const u = P.get(m).uniforms; if (u) for (const k in u) take(u[k]?.value); }
+  });
+  let t0 = performance.now();
+  const breathe = async () => { if (performance.now() - t0 > 4) { await tick(); t0 = performance.now(); } };
+  for (const t of all) {
+    // (on the card already, or not ready to go: a picture still loading)
+    if (t.isRenderTargetTexture || !t.image || t.version === 0 || t.image.complete === false || P.get(t).__version === t.version) continue;
+    if (t.isDataArrayTexture && t.image.data && t.image.depth > 1) {
+      // a layer an upload (the first makes room for them all); what it does once on the card, once they all are
+      const done = t.onUpdate;
+      t.onUpdate = null;
+      for (let i = 0; i < t.image.depth; i++) {
+        t.addLayerUpdate(i);
+        if (i) t.needsUpdate = true;
+        gl.initTexture(t);
+        await tick(); t0 = performance.now();
+      }
+      t.onUpdate = done;
+      done?.(t);
+    } else {
+      gl.initTexture(t);
+      await breathe();
+    }
+  }
+}
+
 /** A camera seen from a map's own frame (its position less the map's centre). */
 class LocalCamera {
   constructor(cx, cz) { this.cx = cx; this.cz = cz; this.camera = new THREE.PerspectiveCamera(); this.last = new Float64Array(32).fill(NaN); }
@@ -138,6 +174,8 @@ export class RegionView {
     const stand = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), v.terrain.material);
     v.group.add(stand);
     await renderer.renderer.compileAsync(v.group, renderer.camera, renderer.scene).catch((e) => console.warn('shaders', e));
+    // and its pictures on the graphics card, a few at a time (render/WorldView.js warmTextures)
+    await warmTextures(renderer.renderer, v.group, tick);
     v.group.remove(stand);
     stand.geometry.dispose();
     renderer.scene.add(v.group);
