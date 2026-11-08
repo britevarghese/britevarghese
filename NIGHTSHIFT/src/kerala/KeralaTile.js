@@ -534,9 +534,11 @@ export class KeralaTile {
   // the bed of a channel at (e, n) (water 0.9 m deep below the surface), or -Infinity outside every one
   canalBedAt(e, n) {
     for (const P of this._wpolys || []) {
-      const [e0, n0, e1, n1] = P.box; if (e < e0 || e > e1 || n < n0 || n > n1) continue;
+      // (points read by index, not unpacked: [x, y] = p made an iterator a point, at V8's middle tier, every point of
+      // every pond's rings each call - a wheel a frame. Nor a new list of the rings each call)
+      const B = P.box; if (e < B[0] || e > B[2] || n < B[1] || n > B[3]) continue;
       let inside = false;
-      for (let h = -1; h < P.holes.length; h++) { const R = h < 0 ? P.ring : P.holes[h]; for (let i = 0, j = R.length - 1; i < R.length; j = i++) { const [xi, yi] = R[i], [xj, yj] = R[j]; if ((yi > n) !== (yj > n) && e < (xj - xi) * (n - yi) / (yj - yi || 1e-9) + xi) inside = !inside; } }   // (no new list of the rings each call: garbage a wheel a frame)
+      for (let h = -1; h < P.holes.length; h++) { const R = h < 0 ? P.ring : P.holes[h]; for (let i = 0, j = R.length - 1; i < R.length; j = i++) { const xi = R[i][0], yi = R[i][1], xj = R[j][0], yj = R[j][1]; if ((yi > n) !== (yj > n) && e < (xj - xi) * (n - yi) / (yj - yi || 1e-9) + xi) inside = !inside; } }
       if (inside) return P.y - 0.9;
     }
     if (!this._cnG) return -Infinity;
@@ -2680,8 +2682,10 @@ export class KeralaTile {
     if (!this._rg) this.nearRoad(e, n, 1);
     const G = 25;
     let best = -Infinity, off = -Infinity, mainCls = 99, mainY = -Infinity, und = -Infinity, nIn = 0, inR = -1, runY = -Infinity, deckY = -Infinity;
-    const on = this._rsOn || (this._rsOn = []);
-    on.length = 0;
+    // (a list kept from call to call, filled by count: emptied with length = 0, V8 let its storage go, and every call
+    // - 90 a frame, every wheel - made it again: 300 bytes a call of garbage, with the closure below)
+    const on = this._rsOn || (this._rsOn = new Float64Array(64));
+    let nOn = 0;
     for (let a = -1; a <= 1; a++) for (let b = -1; b <= 1; b++) {
       const L = this._rg.get(((Math.floor(e / G) + a) * 1000 + Math.floor(n / G) + b) | 0); if (!L) continue;
       for (let j = 0; j < L.length; j += 6) {
@@ -2725,13 +2729,17 @@ export class KeralaTile {
         let yy = dist <= hw ? y : y + (this.heightAt(e, n) - y) * ((dist - hw) / 1.6);
         if (dr === -Infinity && yy > (dist <= hw ? best : off)) { const cov = this._coverY(e, n, L[j + 5]); if (cov > -1e9 && yy > cov - 0.02) yy = cov - 0.02; }
         // (on its run-on past the tile's edge: only if nothing else is here - the next tile's own strip goes first)
-        if (dr > -1e9 && dist <= hw && r.drawn.runOn?.some((q) => (e - q[0]) * q[2] + (n - q[1]) * q[3] > 0.05)) { runY = Math.max(runY, yy); continue; }
-        if (dist <= hw) { on.push(cls, yy); if (cls < mainCls || (cls === mainCls && yy > mainY)) { if (cls < mainCls) mainY = -Infinity; mainCls = cls; mainY = Math.max(mainY, yy); } } else if (yy > off) off = yy;
+        if (dr > -1e9 && dist <= hw && r.drawn.runOn) {
+          let past = false;
+          for (const q of r.drawn.runOn) if ((e - q[0]) * q[2] + (n - q[1]) * q[3] > 0.05) { past = true; break; }
+          if (past) { runY = Math.max(runY, yy); continue; }
+        }
+        if (dist <= hw) { if (nOn < 64) { on[nOn++] = cls; on[nOn++] = yy; } if (cls < mainCls || (cls === mainCls && yy > mainY)) { if (cls < mainCls) mainY = -Infinity; mainCls = cls; mainY = Math.max(mainY, yy); } } else if (yy > off) off = yy;
       }
     }
     // on a road's carriageway its surface rules: a lesser road whose strip runs into it no higher than just above it
     // (a side road climbing away from a junction overlapped a main road's lane 0.36 m up, a step on the main road)
-    for (let i = 0; i < on.length; i += 2) { const y = on[i] > mainCls ? Math.min(on[i + 1], mainY + 0.03) : on[i + 1]; if (y > best) best = y; }
+    for (let i = 0; i < nOn; i += 2) { const y = on[i] > mainCls ? Math.min(on[i + 1], mainY + 0.03) : on[i + 1]; if (y > best) best = y; }
     // a road's own carriageway is what is drawn there: a neighbour's shoulder never lifts a car above it (a road a
     // metre higher alongside a culvert ramp or a junction mouth held autos and cars half a metre in the air)
     // (inside a junction - two roads' carriageways here - where no strip reaches: their own graded level. Each strip

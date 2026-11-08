@@ -243,6 +243,7 @@ export class Pedestrians {
 
   update(dt, camera, vehicles, enabled = true) {
     const focus = camera.position;
+    this._fr = (this._fr || 0) + 1;
     if (!enabled || this.max === 0) { for (const p of this.peds) this._release(p); for (const m of [this.meshTorso, this.meshHead, this.meshHair, this.meshUmb, ...this.limbMeshes]) m.count = 0; return; }
     const want = this.max * (1 - this.rain * 0.5) * (this.timeK ?? 1);
     if (this.peds.length < want && this.R() < 0.6 * (1 - this.rain * 0.6)) this._spawn(focus);
@@ -339,8 +340,8 @@ export class Pedestrians {
       } else if (p.stand || p.board) {
         yaw = p.yaw; moving = !!p.board;
       } else {
-        const [x, z, y2] = this._pos(p);
-        yaw = y2; p.x = x + (p.ox || 0); p.z = z + (p.oz || 0); p.yaw = yaw;
+        const P = this._pos(p);   // (read by index: unpacked, an iterator a person a frame)
+        yaw = P[2]; p.x = P[0] + (p.ox || 0); p.z = P[1] + (p.oz || 0); p.yaw = yaw;
       }
       p.d = d;
       // caught in a downpour without an umbrella: hurry off indoors
@@ -356,7 +357,16 @@ export class Pedestrians {
         const hg = p.human.group;
         hg.position.set(p.x, this._py(p), p.z); hg.rotation.set(0, yaw, 0);
         hg.updateMatrixWorld(true);
-        p.human.animate(p.fight ? (moving ? p.fight.sp : 0) : p.dodge > 0 ? 3.6 : moving ? p.speed : 0, dt);
+        // (the further off, the less often its limbs are posed - every 2nd frame past 30 m, every 4th past 60 m, with
+        // the time since: its place still every frame. Each pose is every clip's every track, three.js boxing a number
+        // or two a track: the most garbage of anything in a frame, 3 MB a second. Not with an umbrella up in the rain,
+        // whose arm is posed over it each frame, nor in a fight)
+        p.animDt = (p.animDt || 0) + dt;
+        const every = d > 60 ? 4 : d > 30 ? 2 : 1;
+        if (every === 1 || p.fight || (p.umb && this.rain > 0.2) || ((this._fr + (p.ph ??= (Math.random() * 4) | 0)) % every) === 0) {
+          p.human.animate(p.fight ? (moving ? p.fight.sp : 0) : p.dodge > 0 ? 3.6 : moving ? p.speed : 0, p.animDt);
+          p.animDt = 0;
+        }
         // in the rain: the right arm comes up and the hand holds the umbrella's handle
         if (p.umb && this.rain > 0.2 && !p.fight && !p.down && nu < this.meshUmb.instanceMatrix.count) {
           const h = p.human, B = h.B;

@@ -2,14 +2,16 @@
 // route with curvature-based speed planning, direct pursuit of a target when close, obstacle
 // avoidance against traffic and unsticking (reverse & retry). Produces Vehicle.controls.
 import { clamp, wrapAngle } from '../core/util.js';
+// (not Math.hypot: a new boxed number every call)
+const hyp = (a, b) => Math.sqrt(a * a + b * b);
 
 // the way a route runs over the `d` metres before point i (back) or after it: a lane's last metre or two can hook
 // toward a junction's centre, and its last segment alone gave a corner the wrong lines
 function runDir(P, i, back, d = 6) {
   const st = back ? -1 : 1;
   let j = i, len = 0;
-  while (j + st >= 0 && j + st < P.length && len < d) { len += Math.hypot(P[j + st][0] - P[j][0], P[j + st][1] - P[j][1]); j += st; }
-  const k = back ? 1 : -1, dx = (P[i][0] - P[j][0]) * k, dz = (P[i][1] - P[j][1]) * k, l = Math.hypot(dx, dz);
+  while (j + st >= 0 && j + st < P.length && len < d) { len += hyp(P[j + st][0] - P[j][0], P[j + st][1] - P[j][1]); j += st; }
+  const k = back ? 1 : -1, dx = (P[i][0] - P[j][0]) * k, dz = (P[i][1] - P[j][1]) * k, l = hyp(dx, dz);
   return l > 0.01 ? [dx / l, dz / l] : null;
 }
 
@@ -22,7 +24,7 @@ function runDir(P, i, back, d = 6) {
 // left turn's inside) swings out toward the road's middle until it stays on the road, as a driver swings out
 export function roundCorners(points, R, onRoad = null, halfW = 0.9) {
   const P = points.map((q) => [q[0], q[1]]);
-  const dir = (a, b) => { const dx = b[0] - a[0], dz = b[1] - a[1], l = Math.hypot(dx, dz) || 1; return [dx / l, dz / l]; };
+  const dir = (a, b) => { const dx = b[0] - a[0], dz = b[1] - a[1], l = hyp(dx, dz) || 1; return [dx / l, dz / l]; };
   const turn = (u, w) => Math.atan2(u[0] * w[1] - u[1] * w[0], u[0] * w[0] + u[1] * w[1]);
   for (let i = 1; i < P.length - 2; i++) {
     // (a turn starting here; and the points after it within 8 m that, with it, turn tighter than the car could follow:
@@ -34,7 +36,7 @@ export function roundCorners(points, R, onRoad = null, halfW = 0.9) {
     if (!u) continue;
     let J = -1, X = null;
     for (let j = i + 1, len = 0; j < P.length - 1; j++) {
-      len += Math.hypot(P[j][0] - P[j - 1][0], P[j][1] - P[j - 1][1]);
+      len += hyp(P[j][0] - P[j - 1][0], P[j][1] - P[j - 1][1]);
       if (len > 8) break;
       const tot = Math.abs(turn(uIn, dir(P[j], P[j + 1])));
       if (tot < 0.4 || len / tot > R * 0.5) continue;
@@ -48,7 +50,7 @@ export function roundCorners(points, R, onRoad = null, halfW = 0.9) {
       const s = (ex * w[1] - ez * w[0]) / cr, t = (ex * u[1] - ez * u[0]) / cr;   // (P[i] + u s = P[j] + w t)
       // (and up to 4 m back along the way in: the lane out starting 2 m behind the lane in's end, the lines met short
       // of it - left unmerged, the corner was rounded within that 2 m hook, and the car ran on past it into a pole)
-      const segB = Math.hypot(P[j + 1][0] - P[j][0], P[j + 1][1] - P[j][1]), segA = Math.hypot(P[i][0] - P[i - 1][0], P[i][1] - P[i - 1][1]);
+      const segB = hyp(P[j + 1][0] - P[j][0], P[j + 1][1] - P[j][1]), segA = hyp(P[i][0] - P[i - 1][0], P[i][1] - P[i - 1][1]);
       if (s < Math.max(-4, 0.5 - segA) || s > 8 || t < -8 || t > Math.min(8, segB - 1)) continue;
       J = j; X = [P[i][0] + u[0] * s, P[i][1] + u[1] * s];
     }
@@ -66,7 +68,7 @@ export function roundCorners(points, R, onRoad = null, halfW = 0.9) {
     let L = 0;
     for (let k = i; ;) {
       const k2 = back ? k - 1 : k + 1;
-      L += Math.hypot(P[k2][0] - P[k][0], P[k2][1] - P[k][1]);
+      L += hyp(P[k2][0] - P[k][0], P[k2][1] - P[k][1]);
       if (k2 <= 0 || k2 >= P.length - 1) return [L, 0.95];
       const t = Math.abs(turn(dir(P[k2 - 1], P[k2]), dir(P[k2], P[k2 + 1])));
       if (t >= 0.12) return [L, t < 0.5 ? 0.95 : 0.48];
@@ -78,7 +80,7 @@ export function roundCorners(points, R, onRoad = null, halfW = 0.9) {
     for (let k = i, L = 0; ;) {
       const k2 = back ? k - 1 : k + 1;
       if (k2 < 0 || k2 > P.length - 1) return [[P[k][0], P[k][1]], k];
-      const l = Math.hypot(P[k2][0] - P[k][0], P[k2][1] - P[k][1]);
+      const l = hyp(P[k2][0] - P[k][0], P[k2][1] - P[k][1]);
       if (L + l >= d) { const f = (d - L) / (l || 1); return [[P[k][0] + (P[k2][0] - P[k][0]) * f, P[k][1] + (P[k2][1] - P[k][1]) * f], k2]; }
       L += l; k = k2;
     }
@@ -90,9 +92,9 @@ export function roundCorners(points, R, onRoad = null, halfW = 0.9) {
     const u = dir(P[i - 1], P[i]), w = dir(P[i], P[i + 1]), a = Math.abs(turn(u, w));
     // (a gentle turn is a bend, which the steering follows; a hairpin is left as it is)
     if (a < 0.5 || a > 2.6) { out.push(P[i]); continue; }
-    const near = (k) => Math.hypot(P[k][0] - P[i][0], P[k][1] - P[i][1]);
+    const near = (k) => hyp(P[k][0] - P[i][0], P[k][1] - P[i][1]);
     const tn = Math.tan(a / 2);
-    let bx = w[0] - u[0], bz = w[1] - u[1]; const bl = Math.hypot(bx, bz); bx /= bl; bz /= bl;   // (into the turn)
+    let bx = w[0] - u[0], bz = w[1] - u[1]; const bl = hyp(bx, bz); bx /= bl; bz /= bl;   // (into the turn)
     // the arc for a given tangent length, and how well it keeps to the road
     // (on the road with the car's width either side of it - on the inside, and what the steering cuts off a curve and
     // the rear wheels' running inside the front's; on the outside the front corner's swing - or moved across, out or
@@ -205,13 +207,13 @@ export class AIDriver {
       const out = [];
       for (let i = 0; i < points.length; i++) {
         const a = points[Math.max(0, i - 1)], b = points[Math.min(points.length - 1, i + 1)];
-        const dx = b[0] - a[0], dz = b[1] - a[1], l = Math.hypot(dx, dz) || 1;
+        const dx = b[0] - a[0], dz = b[1] - a[1], l = hyp(dx, dz) || 1;
         out.push([points[i][0] - dz / l * offset, points[i][1] + dx / l * offset]);
       }
       points = out;
     }
     // (a point on top of the last one dropped: a piece of no length has no way, and followed, it read as a sharp kink)
-    points = points.filter((q, i) => !i || Math.hypot(q[0] - points[i - 1][0], q[1] - points[i - 1][1]) > 0.05);
+    points = points.filter((q, i) => !i || hyp(q[0] - points[i - 1][0], q[1] - points[i - 1][1]) > 0.05);
     this.route = points; this.idx = 0; this.loop = loop; this.mode = 'route';
     // on from the piece of the route beside the car, running its way, within the route's first 60 m (one begun at a
     // junction behind it, on the road it's on: not back to that junction first). And from the start when there's none:
@@ -222,8 +224,8 @@ export class AIDriver {
     if (!loop) {
       let best = 0, bd = Infinity;
       for (let i = 0, len = 0; i < points.length - 1 && len < 60; i++) {
-        const a = points[i], b = points[i + 1], dx = b[0] - a[0], dz = b[1] - a[1], L = Math.hypot(dx, dz) || 1e-6;
-        const t = clamp(((s.x - a[0]) * dx + (s.z - a[1]) * dz) / (L * L), 0, 1), d = Math.hypot(s.x - a[0] - dx * t, s.z - a[1] - dz * t);
+        const a = points[i], b = points[i + 1], dx = b[0] - a[0], dz = b[1] - a[1], L = hyp(dx, dz) || 1e-6;
+        const t = clamp(((s.x - a[0]) * dx + (s.z - a[1]) * dz) / (L * L), 0, 1), d = hyp(s.x - a[0] - dx * t, s.z - a[1] - dz * t);
         if ((dx * fx + dz * fz) / L > 0.3 && d < bd - 0.01) { bd = d; best = i; }
         len += L;
       }
@@ -241,7 +243,7 @@ export class AIDriver {
     let j = 0, bd = Infinity;
     for (let i = 0; i < raw.length; i++) { const d = (raw[i][0] - s.x) ** 2 + (raw[i][1] - s.z) ** 2; if (d < bd) { bd = d; j = i; } }
     const keep = raw.slice(Math.max(0, j - 2)), last = keep[keep.length - 1];
-    this.setRoute([...keep, ...(Math.hypot(points[0][0] - last[0], points[0][1] - last[1]) < 0.5 ? points.slice(1) : points)], false, this.offset);
+    this.setRoute([...keep, ...(hyp(points[0][0] - last[0], points[0][1] - last[1]) < 0.5 ? points.slice(1) : points)], false, this.offset);
   }
 
   // the distance left along the route to its end (counted up to `cap`)
@@ -249,9 +251,9 @@ export class AIDriver {
     const r = this.route, s = this.v.state;
     if (this.loop) return Infinity;
     if (!r.length) return 0;
-    if (this.idx >= r.length - 1) return Math.hypot(r[r.length - 1][0] - s.x, r[r.length - 1][1] - s.z);
-    let d = Math.hypot(r[this.idx + 1][0] - s.x, r[this.idx + 1][1] - s.z);
-    for (let i = this.idx + 1; i < r.length - 1 && d < cap; i++) d += Math.hypot(r[i + 1][0] - r[i][0], r[i + 1][1] - r[i][1]);
+    if (this.idx >= r.length - 1) return hyp(r[r.length - 1][0] - s.x, r[r.length - 1][1] - s.z);
+    let d = hyp(r[this.idx + 1][0] - s.x, r[this.idx + 1][1] - s.z);
+    for (let i = this.idx + 1; i < r.length - 1 && d < cap; i++) d += hyp(r[i + 1][0] - r[i][0], r[i + 1][1] - r[i][1]);
     return d;
   }
 
@@ -269,9 +271,9 @@ export class AIDriver {
       let next = t > 1;
       if (!next && this.idx < r.length - 2) {
         const c = r[this.idx + 2], ex = c[0] - b[0], ez = c[1] - b[1], u = clamp(((x - b[0]) * ex + (z - b[1]) * ez) / (ex * ex + ez * ez || 1), 0, 1);
-        const tt = clamp(t, 0, 1), dThis = Math.hypot(a[0] + dx * tt - x, a[1] + dz * tt - z), dNext = Math.hypot(b[0] + ex * u - x, b[1] + ez * u - z);
+        const tt = clamp(t, 0, 1), dThis = hyp(a[0] + dx * tt - x, a[1] + dz * tt - z), dNext = hyp(b[0] + ex * u - x, b[1] + ez * u - z);
         const sharp = Math.abs(wrapAngle(Math.atan2(ex, ez) - Math.atan2(dx, dz))) > 0.5;
-        next = (sharp && Math.hypot(b[0] - x, b[1] - z) < 5) || (t > 0.5 && dNext < dThis - 0.5);
+        next = (sharp && hyp(b[0] - x, b[1] - z) < 5) || (t > 0.5 && dNext < dThis - 0.5);
       }
       if (next) this.idx++; else break;
     }
@@ -293,7 +295,7 @@ export class AIDriver {
     let rem = dist;
     while (i < r.length - 1) {
       const b = r[i + 1];
-      const d = Math.hypot(b[0] - px, b[1] - pz);
+      const d = hyp(b[0] - px, b[1] - pz);
       if (d >= rem) return [px + (b[0] - px) / d * rem, pz + (b[1] - pz) / d * rem];
       rem -= d; px = b[0]; pz = b[1]; i++;
       if (this.loop && i >= r.length - 1) i = 0;
@@ -316,7 +318,7 @@ export class AIDriver {
   // building. The rear axle on the arc, the car points along the straight as it comes to it
   _track(speed) {
     const s = this.v.state, r = this.route, n = r.length, p = this.v.p || {};
-    const seg = (i) => Math.hypot(r[i + 1][0] - r[i][0], r[i + 1][1] - r[i][1]) || 1e-6;
+    const seg = (i) => hyp(r[i + 1][0] - r[i][0], r[i + 1][1] - r[i][1]) || 1e-6;
     const hd = (i) => Math.atan2(r[i + 1][0] - r[i][0], r[i + 1][1] - r[i][1]);
     // (point j's turn, and the stretch before and after it the turn is spread over)
     const vtx = (j) => { const tau = wrapAngle(hd(j) - hd(j - 1)), half = Math.max(0.75, Math.abs(tau) * 7.5); return [tau, Math.min(seg(j - 1) / 2, half), Math.min(seg(j) / 2, half)]; };
@@ -326,7 +328,7 @@ export class AIDriver {
     let bi = -1, bt = 0, bd = Infinity, e = 0;
     for (let i = Math.max(0, this.idx - 3); i <= Math.min(n - 2, this.idx + 2); i++) {
       const a = r[i], dx = r[i + 1][0] - a[0], dz = r[i + 1][1] - a[1], L = seg(i), t = clamp(((X - a[0]) * dx + (Z - a[1]) * dz) / L, 0, L);
-      const d = Math.hypot(X - a[0] - dx / L * t, Z - a[1] - dz / L * t);
+      const d = hyp(X - a[0] - dx / L * t, Z - a[1] - dz / L * t);
       if (d < bd - 1e-3) { bd = d; bi = i; bt = t; e = ((X - a[0]) * -dz + (Z - a[1]) * dx) / L; }   // (+: right of it)
     }
     if (bi < 0) return 0;
@@ -360,7 +362,7 @@ export class AIDriver {
     let i = this.idx, len = 0, sum = 0, px = x, pz = z;
     while (i < r.length - 2 && len < dist) {
       const a = r[i], b = r[i + 1], c = r[i + 2];
-      len += Math.hypot(b[0] - px, b[1] - pz); px = b[0]; pz = b[1];
+      len += hyp(b[0] - px, b[1] - pz); px = b[0]; pz = b[1];
       if (len > dist) break;
       sum += wrapAngle(Math.atan2(c[0] - b[0], c[1] - b[1]) - Math.atan2(b[0] - a[0], b[1] - a[1]));
       i++;
@@ -378,7 +380,7 @@ export class AIDriver {
       const a = r[i], b = r[i + 1], c = r[i + 2];
       const h1 = Math.atan2(b[0] - a[0], b[1] - a[1]), h2 = Math.atan2(c[0] - b[0], c[1] - b[1]);
       // (distances from the car, not from the start of the segment it's on)
-      travelled += i === this.idx ? Math.hypot(b[0] - s.x, b[1] - s.z) : Math.hypot(b[0] - a[0], b[1] - a[1]);
+      travelled += i === this.idx ? hyp(b[0] - s.x, b[1] - s.z) : hyp(b[0] - a[0], b[1] - a[1]);
       turns.push([travelled, wrapAngle(h2 - h1)]);
       i++;
       if (this.loop && i >= r.length - 2) break;
@@ -490,18 +492,18 @@ export class AIDriver {
 
   update(dt, obstacles = []) {
     const v = this.v, s = v.state, c = v.controls;
-    const speed = Math.hypot(s.vx, s.vz);
+    const speed = hyp(s.vx, s.vz);
     // (standing still on the handbrake: the brake held at a standstill is reverse gear, and the car backed away)
     if (this.mode === 'park') { c.throttle = 0; c.brake = speed > 0.6 ? 1 : 0; c.steer = 0; c.handbrake = 1; c.nitro = false; return; }
     let tx, tz, targetSpeed = this.maxSpeed;
     if (this.mode === 'pursue' && this.target) {
       const t = this.target;
-      const d = Math.hypot(t.x - s.x, t.z - s.z);
+      const d = hyp(t.x - s.x, t.z - s.z);
       const lead = clamp(d / 40, 0, 1.2);
       tx = t.x + (t.vx || 0) * lead; tz = t.z + (t.vz || 0) * lead;
       // (closing on them no faster than it can slow back to their pace in the room left: at 166 km/h 90 m off, a police
       // car couldn't follow the player's turn and went on into a building)
-      targetSpeed = Math.min(this.maxSpeed, Math.max(Math.hypot(t.vx || 0, t.vz || 0) + 4, 8) + 0.25 * Math.max(0, d - 12));
+      targetSpeed = Math.min(this.maxSpeed, Math.max(hyp(t.vx || 0, t.vz || 0) + 4, 8) + 0.25 * Math.max(0, d - 12));
     } else if (this.route.length > 1) {
       this._advanceIndex(s.x, s.z);
       // shorten the lookahead before sharp corners so the car doesn't cut through blocks
@@ -510,7 +512,7 @@ export class AIDriver {
       if (ni < r.length - 1) {
         const a = r[ni - 1], b = r[ni], c2 = r[ni + 1];
         const turn = Math.abs(wrapAngle(Math.atan2(c2[0] - b[0], c2[1] - b[1]) - Math.atan2(b[0] - a[0], b[1] - a[1])));
-        const dCorner = Math.hypot(b[0] - s.x, b[1] - s.z);
+        const dCorner = hyp(b[0] - s.x, b[1] - s.z);
         // (at the corner itself too: a point well past it is across the corner's pavement)
         if (turn > 0.6) laDist = Math.min(laDist, dCorner > 6 ? Math.max(6, dCorner + 2) : Math.max(4, dCorner + 3));
       }
@@ -523,7 +525,7 @@ export class AIDriver {
       // (and what steering for a point on a curve cuts off it, L^2 / 8R, given back: aimed that much to the outside. A
       // junction's corner rounded to the car's turning circle was still cut by a metre, over the kerb's corner)
       if (bend.a > 0.15) {
-        const ddx = la[0] - s.x, ddz = la[1] - s.z, dl = Math.hypot(ddx, ddz) || 1;
+        const ddx = la[0] - s.x, ddz = la[1] - s.z, dl = hyp(ddx, ddz) || 1;
         const k = Math.sign(bend.s) * Math.min(0.8, laDist * laDist / (8 * bend.len / bend.a)) / dl;
         la = [la[0] - ddz * k, la[1] + ddx * k];
       }
@@ -559,7 +561,7 @@ export class AIDriver {
       }
       if (!this.loop && this.idx >= this.route.length - 2) {
         const end = this.route[this.route.length - 1];
-        if (Math.hypot(end[0] - s.x, end[1] - s.z) < 12) targetSpeed = 0;
+        if (hyp(end[0] - s.x, end[1] - s.z) < 12) targetSpeed = 0;
       }
       // and braked for in time to stop there (slowed only in its last 12 m, a car came up to a route's end at 58 km/h
       // and ran on past it), unless it runs on through it
@@ -652,7 +654,7 @@ export class AIDriver {
     // and back onto the line itself when off it (steering only for a point ahead, a metre to one side was corrected
     // slowly: a car drifted that far toward a bridge's parapet and into its end)
     if (this.mode !== 'pursue' && this.idx < this.route.length - 1 && !avoid && !pass) {
-      const a = this.route[this.idx], b = this.route[this.idx + 1], dx = b[0] - a[0], dz = b[1] - a[1], L = Math.hypot(dx, dz) || 1;
+      const a = this.route[this.idx], b = this.route[this.idx + 1], dx = b[0] - a[0], dz = b[1] - a[1], L = hyp(dx, dz) || 1;
       let eR = ((s.x - a[0]) * -dz + (s.z - a[1]) * dx) / L;   // (+: right of the line, (-dz, dx) being its right)
       // (not yet at the line's start: how far off the line run on back behind it means nothing. A route starting 25 m
       // ahead, its first piece a degree off the car's way, read 1.9 m off and steered the car hard into a wall)
@@ -719,7 +721,7 @@ export class AIDriver {
       const side = Math.sign((tx - s.x) * -fz + (tz - s.z) * fx) || 1;   // (+: to the right, (-fz, fx))
       // (the circle's middle level with the rear axle, out to that side)
       const cx = s.x - fx * arm - fz * Rr * side, cz = s.z - fz * arm + fx * Rr * side;
-      inCircle = Math.hypot(tx - cx, tz - cz) < Rr - 0.5;
+      inCircle = hyp(tx - cx, tz - cz) < Rr - 0.5;
     }
     // (not waiting in a queue: at a junction's stop line the point it steers for is well round the corner, and a car
     // waiting there began turning round on the spot - and with the car in front 'in the way', backed into the queue)
@@ -757,7 +759,7 @@ export class AIDriver {
     // progress watchdog: repeatedly stuck -> ask the owner to reset us onto a lane
     this.watchT = (this.watchT || 0) + dt;
     if (this.watchT > 5) {
-      const moved = this.watchPos ? Math.hypot(s.x - this.watchPos[0], s.z - this.watchPos[1]) : 99;
+      const moved = this.watchPos ? hyp(s.x - this.watchPos[0], s.z - this.watchPos[1]) : 99;
       // (or waiting on something that never goes - a standoff with something coming the other way on a narrow street,
       // a wreck in the lane and the road beside it never clear: 30 s without getting anywhere, its route not done. The
       // van you tail waited behind a wreck for good)

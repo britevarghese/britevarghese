@@ -46,10 +46,11 @@ export class TrafficDrivers {
     const K = H?.ready && R ? Math.min(8, Math.round((g.preset.people ?? 8) * 0.75)) : 0;
     const want = K ? cars.filter((c) => c.drawn === R.tick && c.dist < 60 && !c.spec?.bike && (c.state === 'drive' || c.pulled) && this._seatOf(c.type)).sort((a, b) => a.dist - b.dist).slice(0, K) : [];
     const keep = new Set(want);
+    this._fr = (this._fr || 0) + 1;
     for (const [c, h] of this.on) if (!keep.has(c)) { h.group.removeFromParent(); this.pool.push(h); this.on.delete(c); }
     for (const c of want) {
       let h = this.on.get(c);
-      if (!h) { h = this._take(); if (!h) continue; this.on.set(c, h); g.scene.add(h.group); }
+      if (!h) { h = this._take(); if (!h) continue; this.on.set(c, h); g.scene.add(h.group); h._acc = -1; }
       // in a closed car the shins and feet are under the dash, out of sight, and on low or narrow cabins they
       // poked out through the floor and doors: fold them away at the knee (an autorickshaw is open: keep them)
       const fold = c.type === 'auto' ? 1 : 0.001;
@@ -59,7 +60,10 @@ export class TrafficDrivers {
       _m.compose(_p.set(c.x, c.y, c.z), _q, _one);
       _seat.copy(this._seatOf(c.type)).applyMatrix4(_m);
       h.group.quaternion.copy(_q);
-      h.animate(0, dt);
+      // (posed every third frame, with the time since - at once when it's just sat down: sitting still at the wheel,
+      // each driver's every clip ran every frame, a third of all the animating the game did)
+      if (h._acc < 0) { h.animate(0, dt); h._acc = 0; }
+      else if ((h._acc += dt), (this._fr + (h._ph ??= (Math.random() * 3) | 0)) % 3 === 0) { h.animate(0, h._acc); h._acc = 0; }
       // move the body so its hips sit on the seat
       h.group.updateMatrixWorld(true);
       h.B.Hips.getWorldPosition(_hip);

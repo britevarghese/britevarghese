@@ -21,6 +21,13 @@ function snap(s) {
   o.nitroActive = s.nitroActive; o.drifting = s.drifting; o.onGround = s.onGround;
   return o;
 }
+// (into an object kept from a frame that fell off the back of the recording)
+function snapInto(o, s) {
+  for (let i = 0; i < KEYS.length; i++) o[KEYS[i]] = s[KEYS[i]];
+  if (s.wheelOff) { if (!o.wheelOff || o.wheelOff.length !== s.wheelOff.length) o.wheelOff = [...s.wheelOff]; else for (let i = 0; i < s.wheelOff.length; i++) o.wheelOff[i] = s.wheelOff[i]; } else o.wheelOff = null;
+  o.nitroActive = s.nitroActive; o.drifting = s.drifting; o.onGround = s.onGround;
+  return o;
+}
 function mix(a, b, t, out) {
   for (const k of KEYS) out[k] = ANGLES.has(k) ? lerpAngle(a[k], b[k], t) : lerp(a[k], b[k], t);
   if (a.wheelOff && out.wheelOff) for (let i = 0; i < 4; i++) out.wheelOff[i] = lerp(a.wheelOff[i], b.wheelOff[i], t);
@@ -34,6 +41,7 @@ export class Replay {
   constructor(game) {
     this.game = game;
     this.frames = [];
+    this._free = [];   // (frames off the back of the recording, for the next ones)
     this.acc = 0;
     this.active = false;
     this.trafficList = [];
@@ -50,15 +58,27 @@ export class Replay {
     this.acc %= RATE;
     const g = this.game;
     const t = g.state.time;
-    const others = [];
-    for (const v of [...g.police.vehicles(), ...g.races.vehicles(), ...g.rivals.vehicles()]) others.push([v, snap(v.state)]);
-    const traffic = g.traffic.renderList.map((c) => {
-      const o = { type: c.type, color: c.color, lod: c.lod, spec: c.spec, ref: c };
-      for (const k of TRAFFIC_KEYS) o[k] = c[k];
-      return o;
-    });
-    this.frames.push({ t, player: snap(g.player.state), others, traffic });
-    while (this.frames.length && t - this.frames[0].t > LENGTH) this.frames.shift();
+    // (each frame, with its objects for the cars, taken from one that fell off the back: new ones each time, 30 a
+    // second, were a quarter of a megabyte a second of garbage)
+    const fr = this._free.pop() || { t: 0, player: {}, others: [], traffic: [] };
+    fr.t = t; snapInto(fr.player, g.player.state);
+    let no = 0;
+    for (const L of [g.police.vehicles(), g.races.vehicles(), g.rivals.vehicles()]) for (let i = 0; i < L.length; i++) {
+      const e = fr.others[no] || (fr.others[no] = [null, {}]); e[0] = L[i]; snapInto(e[1], L[i].state); no++;
+    }
+    fr.others.length = no;
+    const R = g.traffic.renderList;
+    for (let i = 0; i < R.length; i++) {
+      const c = R[i], o = fr.traffic[i] || (fr.traffic[i] = {});
+      o.type = c.type; o.color = c.color; o.lod = c.lod; o.spec = c.spec; o.ref = c;
+      // (and what the drawing asks of a car besides: without its id, a motorbike's rider was looked up as variant NaN
+      // and every frame of the replay threw an error)
+      o.id = c.id; o.parked = c.parked; o.riderOff = c.riderOff; o.footDown = c.footDown; o.state = c.state; o.pulled = c.pulled;
+      for (let k = 0; k < TRAFFIC_KEYS.length; k++) o[TRAFFIC_KEYS[k]] = c[TRAFFIC_KEYS[k]];
+    }
+    fr.traffic.length = R.length;
+    this.frames.push(fr);
+    while (this.frames.length && t - this.frames[0].t > LENGTH) this._free.push(this.frames.shift());
   }
 
   // ------------------------------------------------------------------ playback
@@ -123,7 +143,7 @@ export class Replay {
     const list = this.trafficList; list.length = 0;
     for (const ca of a.traffic) {
       const cb = bt.get(ca.ref) || ca;
-      const o = { type: ca.type, color: ca.color, lod: ca.lod, spec: ca.spec };
+      const o = { type: ca.type, color: ca.color, lod: ca.lod, spec: ca.spec, id: ca.id, parked: ca.parked, riderOff: ca.riderOff, footDown: ca.footDown, state: ca.state, pulled: ca.pulled };
       for (const key of TRAFFIC_KEYS) o[key] = key === 'yaw' ? lerpAngle(ca.yaw, cb.yaw, k) : lerp(ca[key], cb[key], k);
       list.push(o);
     }

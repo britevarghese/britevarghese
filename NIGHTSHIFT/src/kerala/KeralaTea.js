@@ -9,6 +9,10 @@ const R = 46, CELL = 1, MAX = 7000, ROW = 0.4;
 // (the shader's row wobble: keep the two in step)
 const wob = (x, z) => 0.4 * (Math.sin(x * 0.071) + Math.sin(z * 0.053 + 1.7));
 
+// (the tile's highest ground, worked out once: spread into Math.max every 0.3 s, a hundred thousand heights went
+// through an iterator each time)
+function h0max(h) { let m = -Infinity; for (let i = 0; i < h.length; i++) if (h[i] > m) m = h[i]; return m; }
+
 export class KeralaTea {
   constructor(scene) {
     let g = new THREE.IcosahedronGeometry(0.5, 1);
@@ -33,7 +37,7 @@ export class KeralaTea {
     if (this.at && Math.hypot(p.x - this.at[0], p.z - this.at[1]) < 6 && this.tiles === world.tiles.size) return;
     this.t = 0.3; this.at = [p.x, p.z]; this.tiles = world.tiles.size;
     const t0 = world.tileAt(p.x, p.z);
-    if (!t0?.ready || !t0.h0 || Math.max(...t0.h0) < 850 || p.y > t0.heightAt(-p.x - t0.E0, p.z - t0.N0) + 120) { this.mesh.count = 0; return; }
+    if (!t0?.ready || !t0.h0 || (t0._h0max ??= h0max(t0.h0)) < 850 || p.y > t0.heightAt(-p.x - t0.E0, p.z - t0.N0) + 120) { this.mesh.count = 0; return; }
     const N = Math.round(2 * R / CELL) + 1, x0 = Math.round(p.x) - R, z0 = Math.round(p.z) - R;
     const F = new Float32Array(N * N), T = [];
     for (let j = 0; j < N; j++) for (let i = 0; i < N; i++) {

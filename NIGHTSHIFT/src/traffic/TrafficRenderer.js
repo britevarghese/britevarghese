@@ -7,7 +7,8 @@ import { clamp } from '../core/util.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 
 const _m = new THREE.Matrix4(), _q = new THREE.Quaternion(), _p = new THREE.Vector3(), _s = new THREE.Vector3(), _e = new THREE.Euler(), _c = new THREE.Color();
-const _w = new THREE.Matrix4(), _wq = new THREE.Quaternion();
+const _w = new THREE.Matrix4(), _wq = new THREE.Quaternion(), _wsp = new THREE.Quaternion(), _wq2 = new THREE.Quaternion(), _X1 = new THREE.Vector3(1, 0, 0);
+const SX_BIKE = [0], SX_CAR = [1, -1], POSES = ['stop', 'ride'];
 
 function splitGroups(geo) {
   if (!geo.groups.length) return [{ materialIndex: 0, geo }];
@@ -23,6 +24,7 @@ export class TrafficRenderer {
   constructor(scene, lib, types, maxPerType = 40, warm = null) {
     this.scene = scene; this.warm = warm;
     this.types = {};
+    this._typesN = 0; this._typesV = -1;   // (bumped as a type or its riders come in: the lists in _lists made again)
     this.max = maxPerType;
     const W = lib.wheels;
     const tireGeo = W.getObjectByName('tire_lod1')?.geometry || W.getObjectByName('tire').geometry;
@@ -89,7 +91,7 @@ export class TrafficRenderer {
   // stay hidden and empty
   _ready(type, entry) {
     const meshes = []; for (const L of entry.lods) for (const v of Object.values(L)) { const m = v?.mesh || v; if (m?.isMesh) meshes.push(m); }
-    const done = () => { this._wt.delete(type); this.types[type] = entry; this._attachRider(type); };
+    const done = () => { this._wt.delete(type); this.types[type] = entry; this._typesN++; this._attachRider(type); };
     (this._wt ||= new Set()).add(type);
     this._warmAll(meshes).then(done);
   }
@@ -104,7 +106,7 @@ export class TrafficRenderer {
     if (this.types[type]) return;
     const it = this._typeSteps(type);
     let r; while (!(r = it.next()).done);
-    if (r.value) { this.types[type] = r.value; this._attachRider(type); }
+    if (r.value) { this.types[type] = r.value; this._typesN++; this._attachRider(type); }
   }
 
   *_typeSteps(type) {
@@ -198,7 +200,7 @@ export class TrafficRenderer {
       }
       // (drawn once their shaders are compiled: see _ready)
       // (the table holds only riders ready to draw: update() walks every entry)
-      if (variants.length) { (this._rw ||= new Set()).add(type); this._warmAll(variants.flatMap((v) => Object.values(v).flat()).filter((m) => m?.isMesh)).then(() => { this._rw.delete(type); this.riders[type] = { variants, HELMETS }; }); }
+      if (variants.length) { (this._rw ||= new Set()).add(type); this._warmAll(variants.flatMap((v) => Object.values(v).flat()).filter((m) => m?.isMesh)).then(() => { this._rw.delete(type); this.riders[type] = { variants, HELMETS }; this._typesN++; }); }
     }
   }
 
@@ -274,7 +276,13 @@ export class TrafficRenderer {
   // cars: [{type, x, y, z, yaw, pitch, roll, color(THREE.Color), brake, spin, lod}]
   update(cars, camera, night, refl = null) {
     if (this._queue.length || this._job) this._pump(3);
-    const counts = {}, rc = {};
+    // (the counts kept on the types themselves, the lists of them made once as they come in: a new object of string
+    // keys, Object.entries and a forEach for each type every frame - and three new objects a wheel - made the traffic's
+    // drawing a good part of a frame's garbage)
+    if (this._typesV !== this._typesN) this._lists();
+    const TA = this._typeArr, RA = this._riderArr;
+    for (let i = 0; i < TA.length; i++) { const C = TA[i]._cnt; C[0] = 0; C[1] = 0; }
+    for (let i = 0; i < RA.length; i++) { const R = RA[i]._rc; for (let j = 0; j < R.length; j++) { R[j][0] = 0; R[j][1] = 0; } }
     let wi = 0, gi = 0, ti = 0, bi = 0;
     this.tick = (this.tick || 0) + 1;     // (each car drawn is marked with it: the seated drivers go only in those)
     const lightsOnAll = night > 0.35;
@@ -283,10 +291,9 @@ export class TrafficRenderer {
       const T = this.types[c.type];
       if (!T) continue;
       const lod = c.lod === 0 || T.lods.length < 2 ? 0 : 1;
-      const key = c.type + lod;
-      const n = counts[key] || 0;
+      const n = T._cnt[lod];
       if (n >= this.max) continue;
-      counts[key] = n + 1;
+      T._cnt[lod] = n + 1;
       c.drawn = this.tick;
       _e.set(-(c.pitch || 0), c.yaw, c.roll || 0, 'YXZ');
       _q.setFromEuler(_e);
@@ -295,15 +302,16 @@ export class TrafficRenderer {
       if (T.imported) { this._placeImported(T, lod, n, _m, c, lightsOn); }
       const RD = this.riders?.[c.type];
       if (RD && !c.parked && !c.riderOff && c.dist < 220) {
-        const vi = c.id % RD.variants.length, pose = c.footDown ? 'stop' : 'ride', parts = RD.variants[vi][pose], key = c.type + vi + pose, k = (rc[key] = (rc[key] || 0) + 1) - 1;
-        for (const mesh of parts) {
+        const vi = c.id % RD.variants.length, pi = c.footDown ? 0 : 1, parts = RD.variants[vi][POSES[pi]], k = RD._rc[vi][pi]++;
+        if (parts) for (let mi = 0; mi < parts.length; mi++) { const mesh = parts[mi];
           if (k >= mesh.instanceMatrix.count) continue;
           mesh.setMatrixAt(k, _m);
           if (mesh.userData.helmet) mesh.setColorAt(k, _c.setHex(RD.HELMETS[c.id % RD.HELMETS.length]));
         }
       }
-      const meshes = T.imported ? {} : T.lods[lod];
-      for (const [k, mesh] of Object.entries(meshes)) {
+      const E = T.imported ? null : T._lodE[lod];
+      if (E) for (let ei = 0; ei < E.length; ei++) {
+        const k = E[ei][0], mesh = E[ei][1];
         mesh.setMatrixAt(n, _m);
         if (k === 'paint') mesh.setColorAt(n, c.color);
         else if (k === 'head') mesh.setColorAt(n, _c.setScalar(lightsOn ? 2.2 : 0.6));
@@ -312,10 +320,10 @@ export class TrafficRenderer {
       // wheels
       if (!T.imported && c.dist < 160) {
         _e.set(0, c.yaw, 0); _wq.setFromEuler(_e);
-        for (const w of T.wheels) {
+        for (let wk = 0; wk < T.wheels.length; wk++) {
+          const w = T.wheels[wk];
           _p.copy(w.pos).applyQuaternion(_q).add(_s.set(c.x, c.y, c.z));
-          const spin = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), c.spin);
-          const q = new THREE.Quaternion().copy(_wq).multiply(spin);
+          const q = _wq2.copy(_wq).multiply(_wsp.setFromAxisAngle(_X1, c.spin));
           const sc = T.wheelR / 0.34;
           _w.compose(_p, q, _s.set((T.wheelW / 0.25) * w.side, sc, sc));
           if (wi < this.tires.instanceMatrix.count) { this.tires.setMatrixAt(wi, _w); this.rims.setMatrixAt(wi, _w); wi++; }
@@ -326,7 +334,9 @@ export class TrafficRenderer {
         // which end faces the camera (for wet-road reflections)
         const facing = (camera.position.x - c.x) * Math.sin(c.yaw) + (camera.position.z - c.z) * Math.cos(c.yaw);
         const reflect = refl && c.dist < 140;
-        for (const sx of T.bike ? [0] : [1, -1]) {
+        const SX = T.bike ? SX_BIKE : SX_CAR;
+        for (let si = 0; si < SX.length; si++) {
+          const sx = SX[si];
           // headlight halo only toward the camera, and fading as the car turns away (no glare from the side)
           const headK = clamp((facing / Math.max(c.dist, 1) - 0.05) / 0.6, 0, 1);
           if (lightsOn && headK > 0.01) {
@@ -347,29 +357,26 @@ export class TrafficRenderer {
         if (lightsOn && c.dist < 140) { _m.compose(_p.set(c.x, c.y, c.z), _wq.setFromEuler(_e.set(0, c.yaw, 0)), _s.set(1, 1, 1)); this.beams.setMatrixAt(bi++, _m); }
       }
     }
-    for (const [type, T] of Object.entries(this.types)) {
-      if (T.imported) {
-        T.lods.forEach((parts, lod) => {
-          const n = counts[type + lod] || 0;
-          for (const pt of parts) { pt.mesh.count = n * (pt.wheel ? 4 : 1); pt.mesh.visible = n > 0; pt.mesh.instanceMatrix.needsUpdate = true; if (pt.mesh.instanceColor) pt.mesh.instanceColor.needsUpdate = true; }
-        });
-        continue;
-      }
-      T.lods.forEach((meshes, lod) => {
-        const n = counts[type + lod] || 0;
-        for (const mesh of Object.values(meshes)) {
-          mesh.count = n;
-          mesh.instanceMatrix.needsUpdate = true;
-          if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
+    for (let ti2 = 0; ti2 < TA.length; ti2++) {
+      const T = TA[ti2];
+      for (let lod = 0; lod < T.lods.length; lod++) {
+        const n = T._cnt[lod] || 0;
+        if (T.imported) {
+          const parts = T.lods[lod];
+          for (let pi = 0; pi < parts.length; pi++) { const pt = parts[pi]; pt.mesh.count = n * (pt.wheel ? 4 : 1); pt.mesh.visible = n > 0; pt.mesh.instanceMatrix.needsUpdate = true; if (pt.mesh.instanceColor) pt.mesh.instanceColor.needsUpdate = true; }
+          continue;
         }
-      });
-    }
-    for (const [type, RD] of Object.entries(this.riders || {})) RD.variants.forEach((poses, vi) => {
-      for (const [pose, parts] of Object.entries(poses)) {
-        const n = rc[type + vi + pose] || 0;
-        for (const mesh of parts) { mesh.count = Math.min(n, mesh.instanceMatrix.count); mesh.instanceMatrix.needsUpdate = true; if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true; }
+        const V = T._lodV[lod];
+        for (let mi = 0; mi < V.length; mi++) { const mesh = V[mi]; mesh.count = n; mesh.instanceMatrix.needsUpdate = true; if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true; }
       }
-    });
+    }
+    for (let ri = 0; ri < RA.length; ri++) {
+      const RD = RA[ri];
+      for (let vi = 0; vi < RD.variants.length; vi++) for (let pi = 0; pi < 2; pi++) {
+        const parts = RD.variants[vi][POSES[pi]], n = RD._rc[vi][pi];
+        if (parts) for (let mi = 0; mi < parts.length; mi++) { const mesh = parts[mi]; mesh.count = Math.min(n, mesh.instanceMatrix.count); mesh.instanceMatrix.needsUpdate = true; if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true; }
+      }
+    }
     this.tires.count = wi; this.rims.count = wi;
     this.tires.instanceMatrix.needsUpdate = true; this.rims.instanceMatrix.needsUpdate = true;
     this.headGlow.count = gi; this.tailGlow.count = ti; this.beams.count = bi;
@@ -548,15 +555,31 @@ TrafficRenderer.prototype._importSteps = function* (scene, src, man, max) {
 };
 
 const _hq = new THREE.Quaternion(), _hs = new THREE.Quaternion(), _hm = new THREE.Matrix4(), _hp = new THREE.Vector3(), _one = new THREE.Vector3(1, 1, 1), _X = new THREE.Vector3(1, 0, 0), _Y = new THREE.Vector3(0, 1, 0), _hc = new THREE.Color();
+// the lists of types, their parts and their riders the drawing goes through each frame: made again as types come in
+TrafficRenderer.prototype._lists = function () {
+  this._typesV = this._typesN;
+  this._typeArr = Object.values(this.types);
+  for (const T of this._typeArr) {
+    T._cnt ||= [0, 0];
+    if (!T.imported) { T._lodE = T.lods.map((m) => Object.entries(m)); T._lodV = T.lods.map((m) => Object.values(m)); }
+  }
+  this._riderArr = Object.values(this.riders || {});
+  for (const RD of this._riderArr) RD._rc ||= RD.variants.map(() => [0, 0]);
+};
+
 TrafficRenderer.prototype._placeImported = function (T, lod, n, carM, c, lightsOn) {
-  for (const pt of T.lods[lod]) {
+  const parts = T.lods[lod];
+  for (let pi = 0; pi < parts.length; pi++) {
+    const pt = parts[pi];
     if (pt.wheel) {
-      T.hubs.forEach((h, k) => {
+      // (a plain loop: a closure for each wheel part of each car, every frame, before)
+      for (let k = 0; k < T.hubs.length; k++) {
+        const h = T.hubs[k];
         _hq.setFromAxisAngle(_Y, h.front ? (c.steer || 0) : 0).multiply(_hs.setFromAxisAngle(_X, c.spin || 0));
         if (h.side !== (T.wheelSide || 1)) _hq.multiply(_hs.setFromAxisAngle(_Y, Math.PI)); // the other side's wheels are that one turned round
         _hm.compose(h.pos, _hq, _one).premultiply(carM);
         pt.mesh.setMatrixAt(n * 4 + k, _hm);
-      });
+      }
       continue;
     }
     pt.mesh.setMatrixAt(n, carM);

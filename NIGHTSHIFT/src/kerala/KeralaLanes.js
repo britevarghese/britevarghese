@@ -4,6 +4,8 @@
 // exact coordinates); a road that just ends gets a U-turn. Lanes come and go with their tiles.
 import { Path } from '../traffic/LaneGraph.js';
 import { TILE, ROAD_HALF } from './KeralaTile.js';
+// (not Math.hypot: its result is a new boxed number every call - a lane at a time, a thousand lanes a look)
+const hyp = (a, b) => Math.sqrt(a * a + b * b);
 
 const LANE_W = 3.2;
 const C_BUILDING = 31; // class raster code (KeralaTile C.building)
@@ -46,14 +48,14 @@ function joinDeadEnds(driven) {
         const rj = L[j], i = L[j + 1]; if (rj === ri) continue;
         const R = driven[rj].P, a = R[i], b = R[i + 1], dx = b[0] - a[0], dz = b[1] - a[1], l2 = dx * dx + dz * dz || 1;
         const t = Math.max(0, Math.min(1, ((q[0] - a[0]) * dx + (q[1] - a[1]) * dz) / l2));
-        const px = a[0] + dx * t, pz = a[1] + dz * t, d = Math.hypot(px - q[0], pz - q[1]);
+        const px = a[0] + dx * t, pz = a[1] + dz * t, d = hyp(px - q[0], pz - q[1]);
         if (d < bd) { bd = d; best = { rj, i, t, p: [px, pz] }; }
       }
       if (!best) continue;
       const R = driven[best.rj].P;
       // land on an existing vertex when close to one, else add a vertex to the through road
-      if (best.t * Math.hypot(R[best.i + 1][0] - R[best.i][0], R[best.i + 1][1] - R[best.i][1]) < 1.5) best.p = R[best.i];
-      else if ((1 - best.t) * Math.hypot(R[best.i + 1][0] - R[best.i][0], R[best.i + 1][1] - R[best.i][1]) < 1.5) best.p = R[best.i + 1];
+      if (best.t * hyp(R[best.i + 1][0] - R[best.i][0], R[best.i + 1][1] - R[best.i][1]) < 1.5) best.p = R[best.i];
+      else if ((1 - best.t) * hyp(R[best.i + 1][0] - R[best.i][0], R[best.i + 1][1] - R[best.i][1]) < 1.5) best.p = R[best.i + 1];
       else ins[best.rj].push(best);
       P[end] = [...best.p];
     }
@@ -70,7 +72,7 @@ function leftOffset(pts, off) {
   const out = [];
   for (let i = 0; i < pts.length; i++) {
     const a = pts[Math.max(0, i - 1)], b = pts[Math.min(pts.length - 1, i + 1)];
-    const dx = b[0] - a[0], dz = b[1] - a[1], l = Math.hypot(dx, dz) || 1;
+    const dx = b[0] - a[0], dz = b[1] - a[1], l = hyp(dx, dz) || 1;
     out.push([pts[i][0] + dz / l * off, pts[i][1] - dx / l * off]); // left of travel = (dz, -dx)
   }
   return out;
@@ -86,11 +88,11 @@ function intersect(p, d, q, e) {
   const t = ((q[0] - p[0]) * e[1] - (q[1] - p[1]) * e[0]) / den;
   return [p[0] + d[0] * t, p[1] + d[1] * t];
 }
-const norm = (x, z) => { const l = Math.hypot(x, z) || 1; return [x / l, z / l]; };
+const norm = (x, z) => { const l = hyp(x, z) || 1; return [x / l, z / l]; };
 // a connector's line from a lane's end (heading d0) to the next lane's start (heading d1): straight on a short way,
 // else a curve through where the two lines meet
 function conPts(end, d0, st, d1, turn) {
-  const chord = Math.hypot(st[0] - end[0], st[1] - end[1]);
+  const chord = hyp(st[0] - end[0], st[1] - end[1]);
   if (turn === 'straight' && chord < 8) return [end, st];
   let c = d1 ? intersect(end, d0, st, d1) : null;
   // (where the two lines meet behind the lane's end, or past the next one's start - the two all but parallel, one set
@@ -106,7 +108,7 @@ function conPts(end, d0, st, d1, turn) {
     }
     return out;
   }
-  if (!c || Math.hypot(c[0] - end[0], c[1] - end[1]) > 40) c = [(end[0] + st[0]) / 2 + d0[0] * 3, (end[1] + st[1]) / 2 + d0[1] * 3];
+  if (!c || hyp(c[0] - end[0], c[1] - end[1]) > 40) c = [(end[0] + st[0]) / 2 + d0[0] * 3, (end[1] + st[1]) / 2 + d0[1] * 3];
   return bezier(end, c, st, 8);
 }
 // a lane cut back a metres from the junction at its start and b at its end, whatever its number of points, 2 m of it
@@ -115,7 +117,7 @@ function conPts(end, d0, st, d1, turn) {
 // half a metre into the crossing road, and its turn was a kink a metre or two long that it pivoted round)
 function trimLane(P, a, b) {
   let L = 0;
-  for (let i = 1; i < P.length; i++) L += Math.hypot(P[i][0] - P[i - 1][0], P[i][1] - P[i - 1][1]);
+  for (let i = 1; i < P.length; i++) L += hyp(P[i][0] - P[i - 1][0], P[i][1] - P[i - 1][1]);
   const k = Math.min(1, Math.max(0, (L - 2) / (a + b)));
   if (k <= 0) return P;
   return cutStart(cutStart(P, a * k).reverse(), b * k).reverse();
@@ -125,7 +127,7 @@ function trimLane(P, a, b) {
 function cutStart(P, d) {
   let rem = d;
   for (let i = 1; i < P.length; i++) {
-    const L = Math.hypot(P[i][0] - P[i - 1][0], P[i][1] - P[i - 1][1]);
+    const L = hyp(P[i][0] - P[i - 1][0], P[i][1] - P[i - 1][1]);
     if (L > rem) { const t = rem / L; return [[P[i - 1][0] + (P[i][0] - P[i - 1][0]) * t, P[i - 1][1] + (P[i][1] - P[i - 1][1]) * t], ...P.slice(i).map((q) => [...q])]; }
     rem -= L;
   }
@@ -158,7 +160,7 @@ function unoverlap(lanes) {
       const max = Math.min(A.l.length, B.l.length, 25);
       for (let t = 0; t <= max; t += 0.5) {
         const a = out(A, t), b = out(B, t);
-        if (Math.hypot(a[0] - b[0], a[1] - b[1]) < SEP) need = t + 0.5;
+        if (hyp(a[0] - b[0], a[1] - b[1]) < SEP) need = t + 0.5;
       }
       // (only where they come apart near the junction: two carriageways close all along aren't put right by this)
       // (and 8 m at most: cut 15 m back, a lane in a knot of little one-way pieces left a 30 m curve between it and
@@ -176,7 +178,7 @@ function unoverlap(lanes) {
     const P = trimLane(l.pts, Math.max(0, a), Math.max(0, b));
     if (P.length < 2) continue;
     l.pts = P; l.cum = [0];
-    for (let i = 1; i < P.length; i++) l.cum.push(l.cum[i - 1] + Math.hypot(P[i][0] - P[i - 1][0], P[i][1] - P[i - 1][1]));
+    for (let i = 1; i < P.length; i++) l.cum.push(l.cum[i - 1] + hyp(P[i][0] - P[i - 1][0], P[i][1] - P[i - 1][1]));
     l.length = l.cum[l.cum.length - 1];
     l.cutEnd = Math.max(0, b);   // (how much further than 2.5 m from the junction it now ends)
   }
@@ -207,7 +209,7 @@ export class KeralaLaneGraph {
       let th0 = null, sx = 0, sz = 0;
       const heads = [];
       for (const l of ins) {
-        const P = l.pts, a = P[P.length - 2], b = P[P.length - 1], dx = b[0] - a[0], dz = b[1] - a[1], L = Math.hypot(dx, dz) || 1;
+        const P = l.pts, a = P[P.length - 2], b = P[P.length - 1], dx = b[0] - a[0], dz = b[1] - a[1], L = hyp(dx, dz) || 1;
         const th = Math.atan2(dx, dz);
         if (th0 === null) th0 = th;
         l.signal = true; l.axis = Math.abs(Math.sin(th - th0)) < 0.7 ? 'x' : 'z';
@@ -274,7 +276,7 @@ export class KeralaLaneGraph {
     }
     for (const { r, P } of pieces) {
       if (due()) yield 'world:lanes+';
-      let len = 0; for (let i = 1; i < P.length; i++) len += Math.hypot(P[i][0] - P[i - 1][0], P[i][1] - P[i - 1][1]);
+      let len = 0; for (let i = 1; i < P.length; i++) len += hyp(P[i][0] - P[i - 1][0], P[i][1] - P[i - 1][1]);
       if (len < 4) continue;
       const one = !!(r.flags & 1);
       const total = r.lanes || (r.cls <= 1 ? (one ? 2 : 4) : one ? 1 : 2);
@@ -411,7 +413,7 @@ export class KeralaLaneGraph {
         let best = null;
         for (const o of this.lanesNear(end[0], end[1], 0, 30)) {
           if (o.edge === lin.edge || o.from === node || o.dead || apart(lin, o)) continue;
-          const st = o.pts[0], st2 = o.pts[1], dd = Math.hypot(st[0] - end[0], st[1] - end[1]);
+          const st = o.pts[0], st2 = o.pts[1], dd = hyp(st[0] - end[0], st[1] - end[1]);
           if (dd > 15) continue;
           const d1 = norm(st2[0] - st[0], st2[1] - st[1]), dot = d0[0] * d1[0] + d0[1] * d1[1];
           const ahead = dd < 0.5 ? 1 : (d0[0] * (st[0] - end[0]) + d0[1] * (st[1] - end[1])) / dd;
@@ -447,7 +449,7 @@ export class KeralaLaneGraph {
       const L = this.byTile.get(`${tx},${tz}`);
       if (!L) continue;
       for (const l of L) {
-        const m = l.pts[Math.floor(l.pts.length / 2)], d = Math.hypot(m[0] - x, m[1] - z);
+        const m = l.pts[Math.floor(l.pts.length / 2)], d = hyp(m[0] - x, m[1] - z);
         if (d > rMin - l.length / 2 && d < rMax + l.length / 2) out.push(l);
       }
     }
@@ -464,7 +466,7 @@ export class KeralaLaneGraph {
     const cand = [];
     for (let dz = -1; dz <= 1; dz++) for (let dx = -1; dx <= 1; dx++) for (const l of this.byTile.get(`${tx + dx},${tz + dz}`) || []) {
       const m = l.pts[Math.floor(l.pts.length / 2)];
-      if (Math.hypot(m[0] - x, m[1] - z) < maxD + l.length) cand.push(l);
+      if (hyp(m[0] - x, m[1] - z) < maxD + l.length) cand.push(l);
     }
     for (const l of cand) {
       const P = l.pts;
@@ -472,7 +474,7 @@ export class KeralaLaneGraph {
         const dx = P[i][0] - P[i - 1][0], dz = P[i][1] - P[i - 1][1], L2 = dx * dx + dz * dz, L = Math.sqrt(L2);
         if (L < 0.01 || (dir && (dx * fx + dz * fz) / L < minDot)) continue;
         const t = Math.max(0, Math.min(1, ((x - P[i - 1][0]) * dx + (z - P[i - 1][1]) * dz) / L2));
-        const d = Math.hypot(P[i - 1][0] + dx * t - x, P[i - 1][1] + dz * t - z);
+        const d = hyp(P[i - 1][0] + dx * t - x, P[i - 1][1] + dz * t - z);
         if (d < bd) { bd = d; best = { lane: l, s: l.cum[i - 1] + L * t, dist: d }; }
       }
     }
@@ -487,7 +489,7 @@ export class KeralaLaneGraph {
       for (let i = 1; i < l.pts.length; i++) {
         const p0 = l.pts[i - 1], p1 = l.pts[i], dx = p1[0] - p0[0], dz = p1[1] - p0[1], len2 = dx * dx + dz * dz || 1;
         const t = Math.max(0, Math.min(1, ((x - p0[0]) * dx + (z - p0[1]) * dz) / len2));
-        const px = p0[0] + dx * t, pz = p0[1] + dz * t, d = Math.hypot(px - x, pz - z);
+        const px = p0[0] + dx * t, pz = p0[1] + dz * t, d = hyp(px - x, pz - z);
         if (!best || d < best.dist) { const s = l.cum[i - 1] + Math.sqrt(len2) * t; l.sample(s, tmp); best = { lane: l, s, x: px, z: pz, dx: tmp.dx, dz: tmp.dz, dist: d }; }
       }
     }

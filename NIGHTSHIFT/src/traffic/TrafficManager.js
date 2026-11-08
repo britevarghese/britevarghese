@@ -41,7 +41,7 @@ export const TRAFFIC_COLORS = [0x9aa0a8, 0x2a2d33, 0xe8e8e6, 0x5a1a1a, 0x1c2e4a,
 const _dir = new THREE.Vector3(), _pa = { x: 0, z: 0 }, _pb = { x: 0, z: 0 };
 const BUS_COLORS = [0xd8b020, 0x2a6ab0, 0xe0e0e0];
 
-const tmp = {}, _ax = {};
+const tmp = {}, _ax = {}, EMPTY = [], byS = (a, b) => a.s - b.s;
 
 class TrafficCar {
   constructor(id, type, color) {
@@ -57,6 +57,15 @@ class TrafficCar {
     this.speedFactor = (sp.bike ? 1.0 : 0.85) + Math.random() * 0.25;
     this.honk = 0; this.laneChangeCD = 3 + Math.random() * 5;
     this.knockT = 0; this.nearMissDone = false;
+    // (everything the driving gives a car, given here: added as they came - each a new shape, and a fraction stored in
+    // one that had held nothing yet boxed a new number every time - the cars' driving made the most garbage of any part
+    // of a frame's work)
+    this.latT = 0; this.passT = 0; this.passLat = 0; this.passSlow = 0; this.dwell = 0; this.pullAt = 0; this.stuckT = 0;
+    this.blockT = 0; this.yieldT = 0; this.squeezeT = 0; this.filterT = 0; this.gapNow = 0; this.acc = 0; this.dist = 0;
+    this.lod = 0; this.wheelR = 0; this.drawn = 0; this.fall = 0; this.slope = 0; this.kinT = 0; this.offT = 0; this.steer = 0;
+    this.pulled = false; this.parked = false; this.riderOff = false; this.footDown = false; this.arriving = false;
+    this.ckWait = false; this.ckHold = false; this.jamGo = false; this.jamHold = false; this.placed = false;
+    this.phys = null; this.dest = null; this.incident = null; this.lastStop = null; this.pullPath = null; this.why = null; this.whyCar = null;
     // proxy for impulse resolution with VehiclePhysics.resolvePair
     this.s2 = { x: 0, z: 0, vx: 0, vz: 0, yawRate: 0, damage: 0, yaw: 0 };
     this.p = { mass: sp.mass, inertia: sp.mass * (sp.l * sp.l + sp.w * sp.w) / 12, hx: sp.w / 2, hz: sp.l / 2 };
@@ -299,15 +308,17 @@ export class TrafficManager {
     // how long each of the player's, the police's, the racers' vehicles has stood still (traffic goes round one
     // stopped a while)
     const dstop = this._dynStop ||= new Map();
-    for (const v of dynamic) { const s = v.physics.s; dstop.set(v, hyp(s.vx, s.vz) < 0.5 ? (dstop.get(v) || 0) + dt : 0); }
+    for (let _u1 = 0; _u1 < dynamic.length; _u1++) { const v = dynamic[_u1]; const s = v.physics.s; dstop.set(v, hyp(s.vx, s.vz) < 0.5 ? (dstop.get(v) || 0) + dt : 0); }
     if (dstop.size > dynamic.length + 8) for (const k of dstop.keys()) if (!dynamic.includes(k)) dstop.delete(k);
     // cars parked half on the road along town and village streets (Kerala has few car parks)
     if (this.world.kerala && this.frame % 20 === 0 && this.cars.filter((c) => c.state === 'parked').length < (this.preset.traffic > 20 ? 10 : 5)) this._spawnParked(focus, dynamic);
-    for (const c of [...this.cars]) {
+    // (from the end, so a car taken out doesn't skip the next: no copy of the list each frame)
+    for (let ci = this.cars.length - 1; ci >= 0; ci--) {
+      const c = this.cars[ci];
       const d = hyp(c.x - focus.x, c.z - focus.z);
       c.dist = d;
       let dm = d;
-      for (const f of foci) dm = Math.min(dm, hyp(c.x - f.x, c.z - f.z));
+      for (let _u2 = 0; _u2 < foci.length; _u2++) { const f = foci[_u2]; dm = Math.min(dm, hyp(c.x - f.x, c.z - f.z)); }
       // cars left well behind are recycled so the budget stays around (and ahead of) the player
       const behind = forward && dm === d && d > 150 && ((c.x - focus.x) * forward.x + (c.z - focus.z) * forward.z) / d < -0.4 && this.cars.length >= max * 0.8;
       if (c.incident) continue; // an accident scene stays until it is cleared
@@ -318,10 +329,10 @@ export class TrafficManager {
       if (c.path?.dead || dm > 310 || behind || (c.state === 'wreck' && dm > 120) || this.cars.length > max + 4 && dm > 200 || (this.cars.length > max + 2 && dm > 110 && c.state === 'drive' && !this._inView(c))) this.remove(c);  // (the roads empty out as night falls)
     }
     // sort occupancy
-    for (const c of this.cars) if (c.path) c.path._sorted = false;
-    for (const c of this.cars) if (c.path && !c.path._sorted) { c.path.cars.sort((a, b) => a.s - b.s); c.path._sorted = true; }
+    for (let _u3 = 0; _u3 < this.cars.length; _u3++) { const c = this.cars[_u3]; if (c.path) c.path._sorted = false; }
+    for (let _u4 = 0; _u4 < this.cars.length; _u4++) { const c = this.cars[_u4]; if (c.path && !c.path._sorted) { c.path.cars.sort(byS); c.path._sorted = true; } }
 
-    for (const c of this.cars) {
+    for (let _u5 = 0; _u5 < this.cars.length; _u5++) { const c = this.cars[_u5];
       if (c.state === 'parked' || c.state === 'hoisted') continue;   // (hoisted: on a recovery truck's hook)
       if (c.state !== 'drive') { this._knocked(c, dt); continue; }
       // far cars update at lower rate
@@ -331,7 +342,9 @@ export class TrafficManager {
       this._drive(c, step, dynamic);
     }
     // physics-driven traffic doesn't pass through itself either
-    const PH = this.cars.filter((c) => c.phys && c.state === 'drive');
+    const PH = this._ph || (this._ph = []);
+    PH.length = 0;
+    for (let _u6 = 0; _u6 < this.cars.length; _u6++) { const c = this.cars[_u6]; if (c.phys && c.state === 'drive') PH.push(c); }
     for (let i = 0; i < PH.length; i++) for (let j = i + 1; j < PH.length; j++) {
       const a = PH[i], b = PH[j];
       const r = (a.spec.l + b.spec.l) / 2 + 1;   // (a bus and a car can touch with their centres 8 m and more apart)
@@ -340,14 +353,15 @@ export class TrafficManager {
     }
     this._separate();
     // ...nor through a car stopped in its way (parked, knocked aside, a wreck): pushed back out, its speed into it gone
-    for (const a of PH) for (const o of this.cars) {
+    for (let _u7 = 0; _u7 < PH.length; _u7++) for (let _u7b = 0; _u7b < this.cars.length; _u7b++) {
+      const a = PH[_u7], o = this.cars[_u7b];
       if (o === a || o.state === 'drive' || o.phys || Math.abs(a.x - o.x) > 9 || Math.abs(a.z - o.z) > 9) continue;
       this._pushOut(a, o);
     }
     // collisions with dynamic vehicles
-    for (const v of dynamic) {
+    for (let _u8 = 0; _u8 < dynamic.length; _u8++) { const v = dynamic[_u8];
       const vs = v.physics.s;
-      for (const c of this.cars) {
+      for (let _u9 = 0; _u9 < this.cars.length; _u9++) { const c = this.cars[_u9];
         if (Math.abs(c.x - vs.x) > 9 || Math.abs(c.z - vs.z) > 9) continue;
         const hit = this._collide(v, c);
         if (hit && v === playerVehicle) bus.emit('traffic:hit', { car: c, ...hit });
@@ -362,7 +376,7 @@ export class TrafficManager {
     // build render list
     const list = this.renderList;
     list.length = 0;
-    for (const c of this.cars) {
+    for (let _u10 = 0; _u10 < this.cars.length; _u10++) { const c = this.cars[_u10];
       // (rolling at its own wheel size: an auto's little wheels turn fast, a bus's big ones slowly)
       c.spin += (c.state === 'drive' ? c.v : hyp(c.s2.vx, c.s2.vz)) * dt / (c.wheelR ||= TRAFFIC_VEHICLES[c.type]?.params?.wheelRadius || (c.spec.bike ? 0.3 : 0.34));
       c.lod = c.dist < this.preset.carLod1Distance ? 0 : 1;
@@ -690,7 +704,7 @@ export class TrafficManager {
       if (c.filterT > 0) c.filterT -= dt;
       c.latT = c.filterT > 0 ? 1.45 * lw : -0.85;
     }
-    for (const o of cars) {
+    for (let _i1 = 0; _i1 < cars.length; _i1++) { const o = cars[_i1];
       if (o === c || o.s <= c.s || o.s - c.s >= gap) continue;
       if (c.jamGo && o.jamHold) continue;   // (an officer clearing a jam: this one goes, that one waits for it)
       // a bike filtering out (or riding by the kerb) slips past cars that leave it room
@@ -720,19 +734,19 @@ export class TrafficManager {
     if (!bike && !c.pullAt && !(c.spec.bus && c.latT < 0 && path.stops)) c.latT = c.passT > 0 ? Math.max(0.6, c.passLat || 0) : 0;
     if (bike && c.passT > 0) c.latT = Math.max(c.latT, (c.passLat || 0) + 0.1);   // (a rider gives a parked car a proper berth)
     if (gap > 1e8 && c.next) {
-      for (const o of c.next.cars) {
+      for (let _i2 = 0; _i2 < c.next.cars.length; _i2++) { const o = c.next.cars[_i2];
         const g = path.length - c.s + o.s - (o.spec.l + c.spec.l) / 2;
         if (g < gap) { gap = g; leadV = o.state === 'drive' ? o.v : 0; c.why = 'next'; c.whyCar = o; }
       }
       // look one more step (connector -> lane)
-      if (c.next.kind === 'connector' && c.next.next[0]) for (const o of c.next.next[0].cars) {
+      if (c.next.kind === 'connector' && c.next.next[0]) for (let _i3 = 0; _i3 < c.next.next[0].cars.length; _i3++) { const o = c.next.next[0].cars[_i3];
         const g = path.length - c.s + c.next.length + o.s - (o.spec.l + c.spec.l) / 2;
         if (g < gap) { gap = g; leadV = o.state === 'drive' ? o.v : 0; c.why = 'next2'; c.whyCar = o; }
       }
     }
     // dynamic obstacles (player/police/racers) in front
     const fx = Math.sin(c.yaw), fz = Math.cos(c.yaw);
-    for (const v of dynamic) {
+    for (let _i4 = 0; _i4 < dynamic.length; _i4++) { const v = dynamic[_i4];
       const s = v.physics.s;
       const dx = s.x - c.x, dz = s.z - c.z;
       const ahead = dx * fx + dz * fz;
@@ -762,7 +776,7 @@ export class TrafficManager {
     }
     // a police car (an ambulance) with its siren going, coming up behind on this road or at this one head on in its
     // lane: over to the kerb and down to a crawl till it's by, as Kerala's traffic does
-    for (const v of dynamic) {
+    for (let _i5 = 0; _i5 < dynamic.length; _i5++) { const v = dynamic[_i5];
       if (!v.renderer?.sirenOn) continue;
       const s = v.physics.s, dx = s.x - c.x, dz = s.z - c.z;
       if (Math.abs(dx) > 50 || Math.abs(dz) > 50) continue;
@@ -778,7 +792,7 @@ export class TrafficManager {
     // any other traffic in front, whatever path it is on: cars crossing the junction from another road, merging,
     // turning across. Of two cars that see each other (nose to nose across a junction) only one gives way.
     const reach = 4 + c.v * 1.4 + c.spec.l / 2;
-    for (const o of this.cars) {
+    for (let _i6 = 0; _i6 < this.cars.length; _i6++) { const o = this.cars[_i6];
       if (o === c || o.state !== 'drive' || o.path === path || o.path === c.next) continue;
       if (c.jamGo && o.jamHold) continue;
       const dx = o.x - c.x, dz = o.z - c.z;
@@ -802,7 +816,7 @@ export class TrafficManager {
       const g = ahead - (c.spec.l / 2 + half);
       if (g < gap) { gap = Math.max(0.1, g); leadV = o.v * Math.max(0, ofx * fx + ofz * fz); c.why = 'cross'; c.whyCar = o; }
     }
-    for (const o of this.cars) {
+    for (let _i7 = 0; _i7 < this.cars.length; _i7++) { const o = this.cars[_i7];
       // cars knocked into our lane / wrecks
       if (o === c || o.state === 'drive' || o.state === 'parked') continue;
       const dx = o.x - c.x, dz = o.z - c.z;
@@ -821,7 +835,7 @@ export class TrafficManager {
     c.honk -= dt;
     // --- buses call at the stops on their lane; autos pull over now and then in town ---
     if (c.spec.bus && path.stops && c.lastStop !== path) {
-      for (const st of path.stops) {
+      for (let _i8 = 0; _i8 < path.stops.length; _i8++) { const st = path.stops[_i8];
         const d = st - c.s;
         if (d < -1 || d > 80) continue;
         // (not one that something's already standing at: a KSRTC bus pulled in at a stop onto the private bus there,
@@ -853,7 +867,7 @@ export class TrafficManager {
       }
     }
     // --- people crossing in front ---
-    for (const q of this.crossing || []) {
+    for (let _i9 = 0, _a9 = this.crossing || EMPTY; _i9 < _a9.length; _i9++) { const q = _a9[_i9];
       const dx = q.x - c.x, dz = q.z - c.z;
       const ahead = dx * fx + dz * fz;
       if (ahead < 0 || ahead > 30) continue;
@@ -873,7 +887,7 @@ export class TrafficManager {
       // turns across its way, and the car on one waited for it as it waited for that car: Thalassery locked solid)
       const toEnd = path.length - c.s - Math.max(c.spec.l / 2, 2.2) + 1.2;
       if (toEnd > -0.5 && toEnd < 3 + c.v * c.v / 6) {
-        for (const o of this.cars) {
+        for (let _i10 = 0; _i10 < this.cars.length; _i10++) { const o = this.cars[_i10];
           const op = o.path;
           if (o === c || o.state !== 'drive' || op?.kind !== 'connector' || op === c.next || op.node !== c.next.node || op.from === path) continue;
           // (nor for one on its turn that's waiting for this one, in front of it: each held for the other, a bike at

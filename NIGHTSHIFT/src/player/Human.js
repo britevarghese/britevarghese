@@ -119,6 +119,9 @@ function trimClips(A) {
   }
 }
 
+const seg = (x, a, b) => clamp((x - a) / (b - a), 0, 1);
+function setW(a, w, rate) { if (!a) return; a.setEffectiveWeight(w); if (rate) a.setEffectiveTimeScale(rate); }
+
 export class Human {
   constructor(model, { shadow = true, height, lib, idle = 'idle', outfit = null } = {}) {
     this.id = model.id;
@@ -248,7 +251,6 @@ export class Human {
     const A = this.acts;
     this.speedS = lerp(this.speedS, speed, 1 - Math.exp(-dt * 10));
     const v = this.speedS;
-    const seg = (x, a, b) => clamp((x - a) / (b - a), 0, 1);
     const wWalk = seg(v, 0.12, 0.9) * (1 - seg(v, 2.0, 3.0));
     const wJog = seg(v, 2.0, 3.0) * (1 - seg(v, 6.6, 7.8));
     const wSprint = seg(v, 6.6, 7.8);
@@ -261,12 +263,12 @@ export class Human {
     const loco = this.shot ? 0 : 1;
     this.shotW = lerp(this.shotW, 1 - loco, 1 - Math.exp(-dt * 12));
     const k = 1 - this.shotW;
-    const jl = airborne && A.jumpLoop && !this.shot;
-    const set = (n, w, rate) => { const a = A[n]; if (!a) return; a.setEffectiveWeight(w * k * (jl ? 0 : 1)); if (rate) a.setEffectiveTimeScale(rate); };
-    set(this.idleName, wIdle);
-    set('walk', wWalk, clamp(v / (A.walk.userData.speed || 1.3), 0.75, 1.6));
-    set('jog', wJog, clamp(v / (A.jog.userData.speed || 5), 0.7, 1.35));
-    set('sprint', wSprint, clamp(v / (A.sprint.userData.speed || 8), 0.8, 1.3));
+    const jl = airborne && A.jumpLoop && !this.shot, m = k * (jl ? 0 : 1);
+    // (plain functions, not two closures made for every person every frame)
+    setW(A[this.idleName], wIdle * m, 0);
+    setW(A.walk, wWalk * m, A.walk && clamp(v / (A.walk.userData.speed || 1.3), 0.75, 1.6));
+    setW(A.jog, wJog * m, A.jog && clamp(v / (A.jog.userData.speed || 5), 0.7, 1.35));
+    setW(A.sprint, wSprint * m, A.sprint && clamp(v / (A.sprint.userData.speed || 8), 0.8, 1.3));
     if (A.jumpLoop) { if (jl && !A.jumpLoop.isRunning()) { A.jumpLoop.reset().play(); } A.jumpLoop.setEffectiveWeight(jl ? 1 : 0); }
     this.mixer.update(dt);
   }

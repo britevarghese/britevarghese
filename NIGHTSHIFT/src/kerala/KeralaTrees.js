@@ -10,6 +10,8 @@
 import * as THREE from 'three';
 import { mergeFast as mergeGeometries } from '../core/MergeFast.js';   // (three's, with a fast path: see there)
 import { TILE, C, ROAD_HALF } from './KeralaTile.js';
+// (not Math.hypot: a new boxed number every call)
+const hyp = (a, b) => Math.sqrt(a * a + b * b);
 
 export const KIND = { palm: 0, broad: 1, banana: 2, bush: 3, areca: 4, rubber: 5, bamboo: 6, grass: 7 };
 const KINDS = 8;
@@ -38,7 +40,7 @@ function atlas() {
     const [cx, cy, sr] = sprigs[i % sprigs.length], a = rnd() * 6.283, r = Math.sqrt(rnd()) * sr;
     const x = cx + Math.cos(a) * r, y = cy + Math.sin(a) * r;
     g.save(); g.translate(x, y); g.rotate(rnd() * 6.283);
-    g.fillStyle = green(Math.hypot(x - 128, y - 128) / 120 * 14);
+    g.fillStyle = green(hyp(x - 128, y - 128) / 120 * 14);
     g.beginPath(); g.ellipse(0, 0, 7 + rnd() * 5, 3 + rnd() * 1.8, 0, 0, 6.283); g.fill();
     g.restore();
   }
@@ -424,14 +426,14 @@ export class KeralaTrees {
           for (const geos of parts.values()) for (const g2 of geos) { const P = g2.attributes.position; for (let i = 0; i < P.count; i++) if (P.getY(i) < 1.0) base.push([P.getX(i), P.getZ(i)]); }
           if (base.length) {
             let A = base[0], B = base[0], far = 0;
-            for (const q of base) { const d = Math.hypot(q[0] - A[0], q[1] - A[1]); if (d > far) { far = d; B = q; } }
+            for (const q of base) { const d = hyp(q[0] - A[0], q[1] - A[1]); if (d > far) { far = d; B = q; } }
             const cl = far > 0.7 ? [A, B] : [base.reduce((m, q) => [m[0] + q[0] / base.length, m[1] + q[1] / base.length], [0, 0])];
             for (let it = 0; it < 6 && cl.length > 1; it++) {   // (two-means)
               const sum = cl.map(() => [0, 0, 0]);
-              for (const q of base) { const j = Math.hypot(q[0] - cl[0][0], q[1] - cl[0][1]) <= Math.hypot(q[0] - cl[1][0], q[1] - cl[1][1]) ? 0 : 1; sum[j][0] += q[0]; sum[j][1] += q[1]; sum[j][2]++; }
+              for (const q of base) { const j = hyp(q[0] - cl[0][0], q[1] - cl[0][1]) <= hyp(q[0] - cl[1][0], q[1] - cl[1][1]) ? 0 : 1; sum[j][0] += q[0]; sum[j][1] += q[1]; sum[j][2]++; }
               for (let j = 0; j < 2; j++) if (sum[j][2]) cl[j] = [sum[j][0] / sum[j][2], sum[j][1] / sum[j][2]];
             }
-            this.trunks[k] = cl.map((c) => { let r = 0.12; for (const q of base) { const d = Math.hypot(q[0] - c[0], q[1] - c[1]); if (d < 0.35) r = Math.max(r, d); } return [c[0], c[1], Math.min(0.3, r)]; });
+            this.trunks[k] = cl.map((c) => { let r = 0.12; for (const q of base) { const d = hyp(q[0] - c[0], q[1] - c[1]); if (d < 0.35) r = Math.max(r, d); } return [c[0], c[1], Math.min(0.3, r)]; });
           }
         }
         this.models[k] = [...parts].map(([mat, geos]) => {
@@ -653,14 +655,14 @@ export class KeralaTrees {
     const p = camera.position;
     this.U.uCam.value.copy(p);
     const vis = this.U.uFar.value + 1000;
-    for (const t of tiles.values()) if (t.trees) t.trees.group.visible = Math.hypot(-(t.E0 + TILE / 2) - p.x, t.N0 + TILE / 2 - p.z) < vis;
+    for (const t of tiles.values()) if (t.trees) t.trees.group.visible = hyp(-(t.E0 + TILE / 2) - p.x, t.N0 + TILE / 2 - p.z) < vis;
     const ver = tiles.size + [...tiles.values()].filter((t) => t.trees).length * 1000;
     // the plants near the camera, filled in again every 45 m (and as tiles come and go): worked out a slice a frame into
     // arrays of their own and put in all at once when done (all in one frame, ~15 000 plants, up to 50 ms - a stutter
     // every couple of seconds at speed). The first fill, with nothing shown yet, at once.
     if (this._job && (this._job.hi !== this.hi || this._job.models !== this.hiModel)) this._job = null;   // (remade meanwhile)
     if (!this._job) {
-      if (this._at && Math.hypot(p.x - this._at.x, p.z - this._at.z) < 45 && this._ver === ver) return;
+      if (this._at && hyp(p.x - this._at.x, p.z - this._at.z) < 45 && this._ver === ver) return;
       this._at = { x: p.x, z: p.z }; this._ver = ver;
       this._job = { hi: this.hi, models: this.hiModel, it: this._refillSteps(p.x, p.z, tiles), all: !this._filled };
     }

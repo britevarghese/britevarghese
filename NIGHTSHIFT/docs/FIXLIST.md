@@ -600,6 +600,30 @@ the game. Newly found problems go at the end of their section.
   camera's list of vehicles: 23 -> 21 MB a second. (What's left is mostly the traffic's driving, three.js's animation
   of the characters, and numbers V8 boxes as it stores them: not traced further.) The tiles built round Kannur: the same but for a shoulder quad
   and a few centimetres of kerb where two equal distances now tie the other way
+- [x] ...and traced again (the same profile, the game's random numbers seeded so two builds see the same street):
+  18.4 -> 13.1 MB a second.
+  - the road's height under a wheel emptied a kept list with length = 0, which V8 takes as leave to let its storage
+    go - so every call (90 a frame) made it again - and made a closure for each road it looked at; a pond's edge was
+    read point by point as [x, y] = p, which at V8's middle tier makes an iterator a point. Kept and read by index:
+    the road heights 54 -> 9 MB in 20 s
+  - every character's every animation clip was run every frame, near or far, sitting or walking: the six traffic
+    drivers sat still at the wheel ran 29 clips each. Drivers are posed every third frame now, people every second
+    frame past 30 m and every fourth past 60 m (their places still every frame; not with an umbrella up, nor in a
+    fight), and the two little functions made for each one each frame are made once: the animation 55 -> 38 MB
+  - the traffic's drawing made a new object of string keys, Object.entries lists and forEach closures for every kind
+    of vehicle each frame, three new objects for every wheel and a closure for each imported model's wheels; its
+    driving went through its lists with iterators, copied the list of cars each frame and sorted with a new comparer.
+    Counts kept on the kinds, lists made once, plain loops: drawing 27 -> 7 MB, driving 58 -> 36 MB
+  - the replay's recording, 30 frames a second of every car, threw a frame away for each new one: they're reused;
+    the lanes found round a place went through Math.hypot (a new number every call, a thousand lanes a look); the tea
+    bushes spread a tile's every height into Math.max every 0.3 s; the doors' Object.entries every frame
+  - and the cars' every field given in their constructor (they came as the driving set them: a new shape each)
+  On a 3-minute drive with tiles being built: frames over 16 ms 42 -> 36, over 100 ms 4 -> 1, slow frames with a
+  garbage collection in them 4 -> 2. What's left over 50 ms is the tiles' building: the worst, a quarter of a second,
+  was a tile's thousands of colliders put into the grid at once with its scooters - in a few hundred at a time now
+- [x] The replay (found testing its recording, above): with a motorbike in it, every frame of the replay threw an
+  error - the cars it kept had no id, and the bike's rider was looked up as variant NaN. They keep their id now, and
+  whether parked, its rider off, a foot down. Driven 30 s, the replay played 10 s and left, no errors
 - [x] Leaks over a long session (tools/dev/leaks.mjs: Kannur, Thalassery, Mattannur and round again, three laps).
   The heap after a garbage collection was flat lap on lap (Kannur 357 -> 363 MB), but the GPU's textures and
   geometries kept growing (textures +100-160 a lap, geometries +80-230, characters' skeletons +60):

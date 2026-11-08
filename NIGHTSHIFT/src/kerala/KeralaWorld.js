@@ -372,7 +372,10 @@ export class KeralaWorld {
     this.root.add(g);
     yield 'world:add';
     this._scooters(t);
-    for (const c of t.colliders) this.collision.add(c);
+    yield 'world:scooters';
+    // (a few hundred at a time, as the frame allows: a town tile's thousands into the grid at once, with the scooters
+    // before them, was a frame of a quarter of a second on the drive)
+    for (let i = 0; i < t.colliders.length; i++) { this.collision.add(t.colliders[i]); if ((i & 255) === 255 && t._due()) yield 'world:colliders+'; }
     yield 'world:lanes0';
     yield* this.lanes.addTileSteps(t, () => t._due());
     yield 'world:lanes';

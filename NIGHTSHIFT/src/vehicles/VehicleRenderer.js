@@ -367,8 +367,8 @@ export class VehicleRenderer {
   // side: +1 = the car's left (+X), -1 = right. Returns false when the model has no such door.
   setDoor(side, open) { const d = this.doors[side]; if (!d) return false; d.open = open; return true; }
   _swingDoors(dt) {
-    for (const [side, d] of Object.entries(this.doors)) {
-      const target = d.open ? 1.12 : 0;
+    for (const side in this.doors) {   // (not Object.entries: a new list of lists every frame, every car with doors)
+      const d = this.doors[side], target = d.open ? 1.12 : 0;
       if (d.a === target) continue;
       // opens briskly and eases out at the check strap; shuts faster and snaps home
       const sp = d.open ? 2.4 : 3.2;
