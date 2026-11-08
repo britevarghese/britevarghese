@@ -194,8 +194,12 @@ export class Water {
         if (W[k * N + i] <= -1e8 && Math.hypot(O + i * res - p.x, O + k * res - p.z) <= R) out.set(k * N + i, p.level);
       }
     }
-    const lvl = (j) => (W[j] > -1e8 ? W[j] : out.get(j) ?? W[j]);
-    const has = (i, k) => i >= 0 && k >= 0 && i < N && k < N && lvl(k * N + i) > -1e8 && lvl(k * N + i) !== SL;
+    // (every grid point's level, the puddles' drawn out past their rims among them: looked up in a map at every point of
+    // the grid, twice or more, it took a tenth of a second as each map came in)
+    const L = Float64Array.from(W);
+    for (const [j, level] of out) L[j] = level;
+    const lvl = (j) => L[j];
+    const has = (i, k) => i >= 0 && k >= 0 && i < N && k < N && L[k * N + i] > -1e8 && L[k * N + i] !== SL;
     // vertices at the grid points with a water level, and quads where all four corners have one
     const index = new Int32Array(N * N).fill(-1);
     const pos = [], depth = [], flow = [], mud = [], fall = [], idx = [];

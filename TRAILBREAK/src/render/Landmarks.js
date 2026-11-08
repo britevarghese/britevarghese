@@ -327,20 +327,21 @@ const BUILD = {
 };
 
 export class Landmarks {
-  constructor(world, scene) {
+  /** A map's buildings, a few ms of them at a time (tick: a promise of the next turn), the game going on meanwhile. */
+  static async create(world, scene, tick) {
+    const l = new Landmarks(world, scene, { later: true });
+    while (!l.buildSome(12)) await tick();
+    return l;
+  }
+
+  /** later: its buildings put up by buildSome (Landmarks.create), not here and now. */
+  constructor(world, scene, { later = false } = {}) {
     this.group = new THREE.Group();
     scene.add(this.group);
     this.flags = []; this.rotors = [];
-    for (const L0 of world.landmarks) {
-      const L = L0.type === 'station' && !L0.sign ? { ...L0, sign: world.map.station.name } : L0;
-      // (Kerala's style of a building where it has one, or a building only Kerala has)
-      const kerala = KERALA_BUILD[L.type] && (L.style === 'kerala' || !BUILD[L.type]);
-      const b = kerala ? KERALA_BUILD[L.type](new Builder(), L) : BUILD[L.type]?.(L, world);
-      if (!b) continue;
-      this.group.add(b);
-      if (b.userData.flag) this.flags.push(b.userData);
-      if (b.userData.rotor) this.rotors.push(b.userData.rotor);
-    }
+    this.world = world;
+    this.todo = [...world.landmarks];
+    if (!later) this.buildSome(Infinity);
     // survey beacons: a striped post on a tripod, a lamp, and a tall soft beam to find it by
     this.beacons = new Map();
     const beamGeo = new THREE.CylinderGeometry(0.7, 1.6, 160, 12, 1, true);
@@ -393,6 +394,25 @@ void main() {
       this.beacons.set(b.id, { group: g, lampMat, beam, found: false });
     }
     this.t = 0;
+  }
+
+  /** Buildings put up for up to `ms` ms (at least one); true once they all are. */
+  buildSome(ms) {
+    const world = this.world, t0 = performance.now();
+    while (this.todo.length) {
+      const L0 = this.todo.shift();
+      const L = L0.type === 'station' && !L0.sign ? { ...L0, sign: world.map.station.name } : L0;
+      // (Kerala's style of a building where it has one, or a building only Kerala has)
+      const kerala = KERALA_BUILD[L.type] && (L.style === 'kerala' || !BUILD[L.type]);
+      const b = kerala ? KERALA_BUILD[L.type](new Builder(), L) : BUILD[L.type]?.(L, world);
+      if (b) {
+        this.group.add(b);
+        if (b.userData.flag) this.flags.push(b.userData);
+        if (b.userData.rotor) this.rotors.push(b.userData.rotor);
+      }
+      if (performance.now() - t0 > ms) break;
+    }
+    return !this.todo.length;
   }
 
   setFound(id, found) {

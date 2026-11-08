@@ -52,10 +52,19 @@ function onCardOnly(mesh) {
 
 /** A camera seen from a map's own frame (its position less the map's centre). */
 class LocalCamera {
-  constructor(cx, cz) { this.cx = cx; this.cz = cz; this.camera = new THREE.PerspectiveCamera(); }
+  constructor(cx, cz) { this.cx = cx; this.cz = cz; this.camera = new THREE.PerspectiveCamera(); this.last = new Float64Array(32).fill(NaN); }
   of(camera) {
-    const c = this.camera;
-    c.copy(camera, false);
+    const c = this.camera, L = this.last, P = camera.position, Q = camera.quaternion, p = camera.projectionMatrix.elements;
+    // (worked out once a frame, however many of the map's renderers ask, and only what they read: a whole copy of the
+    // camera, its userData through JSON, for every map's every renderer every frame, cost a few ms a frame)
+    let same = L[0] === P.x && L[1] === P.y && L[2] === P.z && L[3] === Q.x && L[4] === Q.y && L[5] === Q.z && L[6] === Q.w;
+    for (let i = 0; i < 16; i++) if (L[16 + i] !== p[i]) { same = false; L[16 + i] = p[i]; }
+    if (same) return c;
+    L[0] = P.x; L[1] = P.y; L[2] = P.z; L[3] = Q.x; L[4] = Q.y; L[5] = Q.z; L[6] = Q.w;
+    c.position.copy(camera.position); c.quaternion.copy(camera.quaternion); c.scale.copy(camera.scale);
+    c.fov = camera.fov; c.aspect = camera.aspect; c.near = camera.near; c.far = camera.far; c.zoom = camera.zoom;
+    c.layers.mask = camera.layers.mask;
+    c.projectionMatrix.copy(camera.projectionMatrix); c.projectionMatrixInverse.copy(camera.projectionMatrixInverse);
     c.position.x -= this.cx; c.position.z -= this.cz;
     c.updateMatrixWorld(true);
     return c;
@@ -84,13 +93,20 @@ export class RegionView {
     const tick = () => new Promise((r) => setTimeout(r, 0));
     const v = new RegionView(region, renderer, ground, { audio, effects, blend, beyond, match });
     const W = region.world;
+    // (each part a task of its own, the game drawing frames between them: built back to back, a map's rocks, roots,
+    // ledges and overhangs held a frame up for a quarter of a second)
     await tick();
     v.rocks = new Rocks(W, v.group, ground);
+    await tick();
     // (a rough track's roots across it: render/Roots.js)
     v.roots = W.worn?.lines.some((l) => l.rough) ? new Roots(W, v.group) : null;
+    await tick();
     v.ledges = M.ledges ? new Ledges(W, v.group, ground) : null;
+    await tick();
     v.alcoves = M.alcoves ? new Alcoves(W, v.group, ground) : null;
+    await tick();
     v.pillars = W.boulders.some((b) => b.pillar !== undefined) ? new Pillars(W, v.group, ground) : null;
+    await tick();
     v.tea = region.map.tea ? new Tea(W, v.group) : null;
     await tick();
     // (the sea past its edges left to another map on the sea that draws its own: [x0, z0, x1, z1] in this one's frame)
@@ -100,11 +116,13 @@ export class RegionView {
     });
     v.water = new Water(W, v.group, { holes });
     await tick();
-    const marks = v.marks = new RoadMarkings(W, v.group), wear = v.wear = new RoadWear(W, v.group);
+    const marks = v.marks = new RoadMarkings(W, v.group);
+    await tick();
+    const wear = v.wear = new RoadWear(W, v.group);
     // (these never change: their arrays let go once the graphics card has them)
     for (const m of [v.water.mesh, v.water.sea, marks.mesh, wear.mesh]) onCardOnly(m);
     await tick();
-    v.landmarks = new Landmarks(W, v.group);
+    v.landmarks = await Landmarks.create(W, v.group, tick);
     await tick();
     await v.terrain.ready(onProgress, slice);
     // (its coarsest ground, made ahead a step at a time: the first frame that draws it doesn't wait on it)

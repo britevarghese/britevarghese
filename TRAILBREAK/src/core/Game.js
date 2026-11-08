@@ -1084,7 +1084,12 @@ export class Game {
       rv.tag = nameTag(r.name, color);
       rv.model.root.add(rv.tag);
       rv.tag.position.set(0, spec.roofY + spec.raise - spec.cgHeight + 0.5, 0);
-      this.scene.add(rv.model.root);
+      // (its shaders compiled in the background before it is shown: drawn at once, a friend's truck coming into the room
+      // held the game up while the graphics card compiled the ones its model has that ours hasn't)
+      const root = rv.model.root;
+      root.visible = false;
+      this.scene.add(root);
+      this.renderer.renderer.compileAsync(root, this.renderer.camera, this.scene).catch(() => {}).then(() => { root.visible = true; });
       const key = `${spec.id}:${spec.buildCode}:${load}`;
       if (!this.sphereCache.has(key)) this.sphereCache.set(key, new Vehicle(spec).hullSpheres);
       rv.spheres = this.sphereCache.get(key);

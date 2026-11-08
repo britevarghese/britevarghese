@@ -63,7 +63,8 @@ const FAR = 2400;
 // each species is pictured from VIEWS bearings round it, and a far tree's card shows the picture from the bearing the
 // camera has on it, turned as its model is (so the card is the model as it stands, not one side of it for every tree)
 const VIEWS = 8;
-// the pictures taken, for each renderer and set of trees (Vegetation.bakeImpostors); and the models, for each set
+// the pictures taken (as they are being taken: promises), for each renderer and set of trees (Vegetation.bake); and the
+// models, for each set
 const BAKED = new WeakMap(), LOADED = new Map();
 // a tree changes from its model to its picture across a band short of its near range (its share of each pixel
 // dithered between the two, so neither pops: a narrow band, a few metres, so a tree is seen dotted only as it crosses
@@ -353,10 +354,17 @@ export class Vegetation {
     // (each set's models loaded once: the open world's maps that grow the same set share them)
     if (!LOADED.has(set)) LOADED.set(set, loadTrees(set).catch((e) => { LOADED.delete(set); throw e; }));
     const trees = await LOADED.get(set);
-    return new Vegetation(world, renderer, trees, set);
+    // (its pictures taken first, once for each set of trees: bake)
+    const gl = renderer.renderer;
+    if (!BAKED.has(gl)) BAKED.set(gl, new Map());
+    const B = BAKED.get(gl);
+    if (!B.has(set)) B.set(set, Vegetation.bake(gl, set.kinds, trees).catch((e) => { B.delete(set); throw e; }));
+    const baked = await B.get(set);
+    return new Vegetation(world, renderer, trees, set, baked);
   }
 
-  constructor(world, renderer, assets, set = TREE_SETS.ashwood) {
+  /** baked: the set's pictures (Vegetation.bake). */
+  constructor(world, renderer, assets, set, baked) {
     this.world = world;
     this.set = set;
     this.kinds = set.kinds;
@@ -408,7 +416,7 @@ export class Vegetation {
       };
       return { ...models(true), far: models(false), cap };
     });
-    this.bakeImpostors(renderer.renderer);
+    this.bakeImpostors(baked);
     this.buildGrid();
     this.fillCards();
     this.lastFill = new THREE.Vector3(1e9, 0, 1e9);
@@ -416,52 +424,64 @@ export class Vegetation {
     this._c = new THREE.Color(); this._up = new THREE.Vector3(0, 1, 0);
   }
 
-  /** Pictures of each species from VIEWS bearings round it (colour with alpha, and normals), and the cards. */
-  bakeImpostors(gl) {
-    // (taken once for each set of trees: the open world's maps that grow the same set share its pictures)
-    let baked = BAKED.get(gl)?.get(this.set);
-    if (!baked) {
-      baked = this.bake(gl);
-      if (!BAKED.has(gl)) BAKED.set(gl, new Map());
-      BAKED.get(gl).set(this.set, baked);
-    }
+  /** The species' pictures (Vegetation.bake), and the cards that show them. */
+  bakeImpostors(baked) {
     const { colorRT, normalRT } = baked;
     this.tiles = baked.tiles;
     this.impostorColor = colorRT; this.impostorNormal = normalRT;
     this.makeCards(colorRT, normalRT);
   }
 
-  /** The pictures: { colorRT, normalRT, tiles } (each species' column of the atlas). */
-  bake(gl) {
+  /**
+   * Pictures of each species (kinds, their models: assets) from VIEWS bearings round it, colour with alpha and normals:
+   * { colorRT, normalRT, tiles } (each species' column of the atlas). Every species' materials are made first and their
+   * shaders (the few they share) compiled in the background where the browser can; drawn as they were made, each
+   * species' own disposed after it, the shaders were compiled again for every species, at its first draw, the game
+   * waiting on each: seconds held up as a map with another set of trees came in.
+   */
+  static async bake(gl, kinds, assets) {
     // (a picture 192 x 384 where the graphics card takes a texture tall enough for all the bearings, else 128 x 256)
     const TW = gl.capabilities.maxTextureSize >= 384 * VIEWS ? 192 : 128, TH = TW * 2;
-    const N = this.kinds.length, W = TW * N, H = TH * VIEWS;
+    const N = kinds.length, W = TW * N, H = TH * VIEWS;
     const colorRT = new THREE.WebGLRenderTarget(W, H, { colorSpace: THREE.SRGBColorSpace, generateMipmaps: true, minFilter: THREE.LinearMipmapLinearFilter, magFilter: THREE.LinearFilter, samples: 0 });
     const normalRT = new THREE.WebGLRenderTarget(W, H, { generateMipmaps: true, minFilter: THREE.LinearMipmapLinearFilter, magFilter: THREE.LinearFilter });
-    const scene = new THREE.Scene();
-    scene.add(new THREE.AmbientLight(0xffffff, 1));
-    const prevTarget = gl.getRenderTarget(), prevClear = gl.getClearColor(new THREE.Color()), prevAlpha = gl.getClearAlpha();
-    const prevAuto = gl.autoClear, prevTone = gl.toneMapping;
-    gl.autoClear = false;
-    gl.toneMapping = THREE.NoToneMapping;
     const passes = [
       { rt: colorRT, clear: [0.11, 0.14, 0.08], mat: (gr, a) => bakeColorMaterial(gr, a) },
       { rt: normalRT, clear: [0.5, 0.5, 1], mat: (gr) => bakeNormalMaterial(gr) },
     ];
+    // each pass's materials for each species' parts, and the scene of them all
+    const mats = passes.map((pass) => kinds.map((name) => assets[name].groups.map((gr) => pass.mat(gr, assets[name]))));
+    const light = () => new THREE.AmbientLight(0xffffff, 1);
+    // their shaders compiled as the pictures will be drawn (into a picture, not tone-mapped), the game going on meanwhile
+    const prevTarget = gl.getRenderTarget(), prevTone = gl.toneMapping;
+    const ready = passes.map((pass, p) => {
+      const all = new THREE.Scene();
+      all.add(light());
+      kinds.forEach((name, k) => assets[name].groups.forEach((gr, g) => all.add(new THREE.Mesh(gr.geometry, mats[p][k][g]))));
+      gl.setRenderTarget(pass.rt);
+      gl.toneMapping = THREE.NoToneMapping;
+      const done = gl.compileAsync(all, new THREE.OrthographicCamera(-1, 1, 1, -1, 0.1, 10));
+      gl.setRenderTarget(prevTarget);
+      gl.toneMapping = prevTone;
+      return done;
+    });
+    await Promise.all(ready).catch((e) => console.warn('tree pictures: shaders', e));
+    // then the pictures, all at once
+    const scene = new THREE.Scene();
+    scene.add(light());
+    const prevClear = gl.getClearColor(new THREE.Color()), prevAlpha = gl.getClearAlpha(), prevAuto = gl.autoClear, prevTarget2 = gl.getRenderTarget();
+    gl.autoClear = false;
+    gl.toneMapping = THREE.NoToneMapping;
     const tiles = [];
-    for (const pass of passes) {
+    passes.forEach((pass, p) => {
       gl.setRenderTarget(pass.rt);
       gl.setClearColor(new THREE.Color(...pass.clear), 0);
       gl.clear(true, true, true);
-      this.kinds.forEach((name, k) => {
-        const a = this.assets[name], r = a.radius * 1.04;
+      kinds.forEach((name, k) => {
+        const a = assets[name], r = a.radius * 1.04;
         const cam = new THREE.OrthographicCamera(-r, r, 1.01, -0.01, 0.1, 10);
         cam.updateProjectionMatrix();
-        const mats = [];
-        for (const gr of a.groups) {
-          const m = pass.mat(gr, a); mats.push(m);
-          scene.add(new THREE.Mesh(gr.geometry, m));
-        }
+        a.groups.forEach((gr, g) => scene.add(new THREE.Mesh(gr.geometry, mats[p][k][g])));
         // (bearing v: the camera at v / VIEWS of a turn round the model, from +z toward +x; a row of the atlas each)
         for (let v = 0; v < VIEWS; v++) {
           const b = v / VIEWS * Math.PI * 2;
@@ -478,14 +498,15 @@ export class Vegetation {
         pass.rt.scissor.set(0, 0, pass.rt.width, pass.rt.height);
         pass.rt.scissorTest = false;
         for (let i = scene.children.length - 1; i >= 0; i--) if (scene.children[i].isMesh) scene.remove(scene.children[i]);
-        for (const m of mats) m.dispose();
         if (pass.rt === colorRT) tiles[k] = { u0: k / N, u1: (k + 1) / N, r };
       });
-    }
-    gl.setRenderTarget(prevTarget);
+    });
+    gl.setRenderTarget(prevTarget2);
     gl.setClearColor(prevClear, prevAlpha);
     gl.autoClear = prevAuto;
     gl.toneMapping = prevTone;
+    // (the materials let go together, their shaders with them, once every picture is taken)
+    for (const m of mats.flat(2)) m.dispose();
     return { colorRT, normalRT, tiles };
   }
 
