@@ -696,6 +696,7 @@ export function buildSpec(base, buildIn, cargo = null) {
   // a load (game/Jobs.js): over the rear axle on the bed or the load floor; the springs stay set for the empty truck,
   // so it squats under it (Vehicle.js: the preload from spec.unladen)
   const load = cargo && cargo.m > 0 ? { m: cargo.m, x: 0, ...cargoAt(base, T0) } : null;
+  if (load && cargo.kind === 'timber') load.z -= 0.6;                 // (2.4 m beams run back from the cab end, past the tailgate)
   if (load) {
     spec.unladen = { mass: Math.round(m), cgZ: mz / m };
     m += load.m; my += load.m * (load.y + raise); mz += load.m * load.z;

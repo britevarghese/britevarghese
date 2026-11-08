@@ -472,6 +472,9 @@ load is still whole.
 | Cement for the forest station | Shivapur Motors | Ponmala Forest Station | 10 bags of cement, 500 kg | about 2.7 km | $810 |
 | Gas for Lalghati Base | Bearwood Timber Camp | Lalghati Base | 8 cooking-gas cylinders, 238 kg | about 1.9 km | $490 |
 | Diesel for the Pass Hut | Koyna Dam | Pass Hut | 2 drums of diesel, 378 kg | 5.3 km | $1,290 |
+| Beams for Ashwood | Bearwood Sawmill | Ashwood Ranger Station | 12 beams of sawn timber, 300 kg | 6.1 km | $1,340 |
+| Timber for Koyna Dam | Bearwood Sawmill | Koyna Dam | 16 beams of sawn timber, 400 kg | 2.4 km | $680 |
+| Timber for the Pass Hut | Bearwood Sawmill | Pass Hut | 10 beams of sawn timber, 250 kg | 7.7 km | $1,560 |
 
 The loads are what these places really move, in the units they come in: cement in the Indian standard 50 kg bag
 ([IS 11652:2017](https://evtlindia.com/isi-mark/bis-certification-for-hdpepp-woven-sacks-for-packaging-of-50-kg-cement-is-11652-2017),
@@ -479,13 +482,17 @@ the standard for the woven sacks of 50 kg cement); cooking gas in the 14.2 kg do
 ([Indian Oil](https://www.iocl.com/MediaDetails/9580): about 15.5 kg empty); diesel in 200-litre drums, 189 kg full (a
 [galvanised 200 l drum](https://www.tankundlager.com/en/200L-Galvanized-Drum-22kg-IMDG-RID-ADR-Compliant-1.2mm-Steel-Screw-Tension-Ring/B0485)
 22 kg empty, diesel 0.82-0.845 kg/l by EN 590); tea in paper sacks of about 35 kg (the sizes of the tea sacks in IS
-15576, about 50, 35 and 28 kg). The road distances are the satnav's, measured over the whole world (where it found no
+15576, about 50, 35 and 28 kg); sawn timber in 150 x 150 mm beams 2.4 m long, 25 kg each (0.054 m3 of pine at about
+460 kg/m3: lodgepole pine's specific gravity is 0.41 at 12% moisture,
+[USDA Agricultural Handbook 72 via Oregon State University](https://wood.oregonstate.edu/table-relative-working-and-physical-properties-metric),
+0.41 x 1000 x 1.12). The road distances are the satnav's, measured over the whole world (where it found no
 road, 1.3 times the straight line); the pay is $150, $120 a km and $0.25 a kg-km.
 
 **The load shows** in an open bed: the Ranger Raptor's, the Hummer EV's and the Willys's tub carry it where you can see
-it, cement bags and tea sacks lying flat, gas cylinders and drums standing, loaded from the cab end between the
-wheel arches, layer on layer on a floor half a metre under the rails. The Ram 2500's and the Cybertruck's beds ride
-under a hard cover, and a wagon's load floor is inside: there it goes unseen, but it weighs the same.
+it, cement bags and tea sacks lying flat, gas cylinders and drums standing, beams lengthwise out past the tailgate,
+loaded from the cab end between the wheel arches, layer on layer on a floor half a metre under the rails. The Ram
+2500's and the Cybertruck's beds ride under a hard cover, and a wagon's load floor is inside: there it goes unseen,
+but it weighs the same. Friends in the room see your load too: your truck comes to their game with it on.
 
 **The load is real weight:** it sits on the bed (or a wagon's load floor), a quarter metre up from the floor, at the
 cab end of a bed, just ahead of the rear axle in a wagon, and the springs stay set for the truck empty, so the truck

@@ -4,7 +4,9 @@
 //   cement in 50 kg bags, the Indian standard bag (IS 11652:2017 is the standard for the woven sacks of 50 kg cement);
 //   cooking gas in the 14.2 kg domestic cylinder, 29.7 kg full (Indian Oil: about 15.5 kg empty);
 //   diesel in 200-litre drums, 189 kg full (a steel drum about 22 kg empty, diesel 0.82-0.845 kg/l: EN 590);
-//   tea in paper sacks of about 35 kg (IS 15576 sizes tea sacks at about 50, 35 and 28 kg).
+//   tea in paper sacks of about 35 kg (IS 15576 sizes tea sacks at about 50, 35 and 28 kg);
+//   sawn timber in 150 x 150 mm beams 2.4 m long, 25 kg each (0.054 m3 of pine at about 460 kg/m3: lodgepole pine's
+//   specific gravity is 0.41 at 12% moisture, USDA Agricultural Handbook 72, so 0.41 x 1000 x 1.12 kg/m3 air-dry).
 // What hurts each: hard jolts in the bed (paper and woven sacks split, a bag bursts; steel cylinders and drums shrug
 // most of it off), and water: cement and tea soaked in a ford deeper than the bed floor are ruined.
 //
@@ -19,12 +21,13 @@ export const CARGO = {
   gas: { name: 'cooking gas', unit: 'cylinder', units: 'cylinders', each: 29.7, jolt: 0.3, wet: false, icon: 'fuel' },
   diesel: { name: 'diesel', unit: 'drum', units: 'drums', each: 189, jolt: 0.25, wet: false, icon: 'fuel' },
   tea: { name: 'tea', unit: 'sack', units: 'sacks', each: 35, jolt: 0.7, wet: true, icon: 'box' },
+  timber: { name: 'sawn timber', unit: 'beam', units: 'beams', each: 25, jolt: 0.1, wet: false, icon: 'box' },
 };
 
 /** The places' names where a map's landmark has none of its own. */
-const LANDMARK_NAME = { lighthouse: 'Korlai Lighthouse', fort: 'Korlai Fort', teafactory: 'Ponmala Tea Factory', firetower: 'Ashwood Fire Tower', mine: 'Ashwood Old Mine' };
+const LANDMARK_NAME = { lighthouse: 'Korlai Lighthouse', fort: 'Korlai Fort', teafactory: 'Ponmala Tea Factory', firetower: 'Ashwood Fire Tower', mine: 'Ashwood Old Mine', sawmill: 'Bearwood Sawmill' };
 /** How close to a place a truck must stop to load or unload (a fort's walls and a lighthouse's rocks keep it off the middle). */
-const RADIUS = { station: 30, lighthouse: 45, fort: 70, teafactory: 40, firetower: 35, mine: 40 };
+const RADIUS = { station: 30, lighthouse: 45, fort: 70, teafactory: 40, firetower: 35, mine: 40, sawmill: 45 };
 
 export const JOBS = [
   { id: 'fort-cement', title: 'Cement for Korlai Fort', from: { station: 'coast' }, to: { region: 'korlai', type: 'fort' }, cargo: 'cement', count: 8, km: 6.0,
@@ -47,6 +50,12 @@ export const JOBS = [
     desc: 'Eight cylinders from the timber camp across to the canyon base.' },
   { id: 'pass-diesel', title: 'Diesel for the Pass Hut', from: { station: 'glen' }, to: { station: 'pass' }, cargo: 'diesel', count: 2, km: 5.3,
     desc: 'Two drums from the dam up to the hut on the pass, into the snow.' },
+  { id: 'ashwood-timber', title: 'Beams for Ashwood', from: { region: 'taiga', type: 'sawmill' }, to: { station: 'ashwood' }, cargo: 'timber', count: 12, km: 6.1,
+    desc: 'Fresh-sawn beams from the Bearwood mill to the ranger station, for its new bunkhouse. They hang out past the tailgate: mind the tail on the hairpins.' },
+  { id: 'dam-timber', title: 'Timber for Koyna Dam', from: { region: 'taiga', type: 'sawmill' }, to: { station: 'glen' }, cargo: 'timber', count: 16, km: 2.4,
+    desc: 'Sixteen beams for the dam\'s new walkway, down out of the taiga.' },
+  { id: 'pass-timber', title: 'Timber for the Pass Hut', from: { region: 'taiga', type: 'sawmill' }, to: { station: 'pass' }, cargo: 'timber', count: 10, km: 7.7,
+    desc: 'Beams to shore up the hut on the pass before the snow gets deeper. A long climb.' },
 ];
 
 const REGION = Object.fromEntries(REGIONS.map((r) => [r.id, r]));

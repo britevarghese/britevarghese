@@ -531,6 +531,7 @@ function shared() {
   MATS.cylinder = std(0xb51f1a, 0.42, 0.45);
   MATS.drum = std(0x1f4e8c, 0.5, 0.55);
   MATS.kraft = std(0xa8865a, 0.92, 0);
+  MATS.lumber = std(0xcaa46a, 0.85, 0);              // fresh-sawn pine
   return MATS;
 }
 
@@ -1036,6 +1037,7 @@ const CARGO_LOOK = {
   tea: { w: 0.4, d: 0.6, h: 0.18, mat: 'kraft', shape: 'sack' },
   gas: { w: 0.31, d: 0.31, h: 0.66, mat: 'cylinder', shape: 'cylinder' },          // (stood touching)
   diesel: { w: 0.6, d: 0.6, h: 0.88, mat: 'drum', shape: 'drum' },
+  timber: { w: 0.15, d: 2.4, h: 0.15, mat: 'lumber', shape: 'beam', fixed: true },   // (lengthwise, past the tailgate)
 };
 /** Bodies whose bed rides under a hard cover (the Ram's tonneau, the Cybertruck's vault): the load goes under it, unseen. */
 const COVERED_BED = new Set(['bruiser', 'cybertruck']);
@@ -1045,13 +1047,14 @@ function cargoParts(P, M, spec, x) {
   const floor = x.bedRail[1] - 0.48, half = Math.min(x.bedRail[0] - 0.1, 0.62), z1 = x.bedZ[1] - 0.08, z0 = x.bedZ[0] + 0.08;
   // (lying sacks turned whichever way puts more of them on the floor)
   const fit = (w, d) => ({ ...look0, w, d, nx: Math.max(1, Math.floor((2 * half) / w)), nz: Math.max(1, Math.floor((z1 - z0) / d)) });
-  const a = fit(look0.w, look0.d), b = fit(look0.d, look0.w), look = b.nx * b.nz > a.nx * a.nz ? b : a, { nx, nz } = look;
+  const a = fit(look0.w, look0.d), b = fit(look0.d, look0.w), look = !look0.fixed && b.nx * b.nz > a.nx * a.nz ? b : a, { nx, nz } = look;
   const n = Math.round(c.count || 1), jit = (k) => Math.sin(k * 12.9898) * 43758.5453 % 1;
   for (let k = 0; k < n; k++) {
     const layer = Math.floor(k / (nx * nz)), i = k % (nx * nz), row = Math.floor(i / nx), col = i % nx;
     const px = (col - (nx - 1) / 2) * look.w, pz = z1 - look.d / 2 - row * look.d, py = floor + look.h * (layer + 0.5);
     const yaw = jit(k) * 0.12;
     if (look.shape === 'sack') P.box(M[look.mat], [look.w * 0.94, look.h, look.d * 0.94], [px, py, pz], { r: look.h * 0.45, rot: [0, yaw, 0] });
+    else if (look.shape === 'beam') P.box(M[look.mat], [look.w * 0.97, look.h * 0.97, look.d], [px, py, pz - jit(k + 7) * 0.08], { r: 0.006 });
     else if (look.shape === 'cylinder') {
       // the domestic cylinder: a body, its shoulder and the collar that guards the valve
       P.cyl(M[look.mat], 0.155, 0.155, 0.5, [px, floor + layer * look.h + 0.29, pz], { seg: 14 });
