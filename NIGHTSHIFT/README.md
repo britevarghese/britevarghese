@@ -79,6 +79,7 @@ Saves live in each player's browser.
 | On foot: walk / sprint / jump (at a wall: climb it) | W A S D / SHIFT / SPACE | Left stick / RB / A |
 | Start mission, event or rival challenge / enter garage | E (in the marker) | A |
 | Map | M | View |
+| Radio station (in a vehicle) | N or . / , | D-pad right / left |
 | Instant replay | I | |
 | Photo mode | F2 | |
 | Reset car | R | LB |
@@ -173,6 +174,11 @@ controller, what to check when nothing appears, and a report to copy.
   number of engine cycles long); the game crossfades the two loops nearest the rpm and blends on/off
   by throttle, so the note is continuous with no splices. Crashes layer recorded metal impacts,
   breaking glass and falling debris. The RX-7's rotary keeps the physical synth model.
+- **Radio:** four stations of original, fully synthesized music, each with its own songs:
+  NIGHTSHIFT 99.1 (synthwave), Kayal FM 92.7 (Kerala folk fusion: tabla, chenda, a tanpura drone and a
+  plucked lead), Kuthu 104 (mass beats: dhol, claps and a nadaswaram-style reed) and Monsoon Lo-fi 88.5
+  (swung electric piano, vinyl crackle and rain), plus Radio Off. Change station in any vehicle; it plays
+  while you drive, goes quiet on foot, and remembers your station.
 - **Extras:** instant replay with cinematic cameras, photo mode with filters and PNG export,
   style combos, driver XP and levels, career missions.
 - **Graphics:** quality is detected automatically (up to ULTRA on high-end GPUs) and adjusts at

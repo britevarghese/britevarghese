@@ -70,6 +70,14 @@ export class HUD {
     this.trackEl.classList.remove('hidden');
   }
 
+  // GTA-style radio banner: station name, then the song
+  radioBanner(station, song) {
+    if (!this.radioEl) { this.radioEl = document.createElement('div'); this.radioEl.className = 'radio-banner'; (this.root || document.getElementById('hud')).appendChild(this.radioEl); }
+    const el = this.radioEl;
+    el.innerHTML = `<b style="color:${station.color}">${station.name}</b>${song ? `<span>${station.genre} · "${song.title}"</span>` : ''}`;
+    el.classList.remove('show'); void el.offsetWidth; el.classList.add('show');
+  }
+
   setPrompt(html) {
     if (!html) { this.prompt.classList.add('hidden'); return; }
     // touch screens: the on-screen button instead of the keys, and the prompt itself can be tapped

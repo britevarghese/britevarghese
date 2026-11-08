@@ -421,3 +421,10 @@ html.touch .track-banner { top: calc(13vmin + env(safe-area-inset-top)); left: 4
 .wheel-setup .ws-bar i { display: block; height: 100%; width: 0; background: var(--ok); transition: width 0.08s; }
 .wheel-setup .ws-live { font-size: 0.78rem; opacity: 0.7; margin-top: 0.4rem; min-height: 1em; }
 .wheel-setup .ws-foot { margin-top: 0.8rem; text-align: right; }
+
+/* ---------- radio */
+.radio-banner { position: absolute; top: 1.1rem; left: 50%; transform: translateX(-50%); text-align: center; pointer-events: none; opacity: 0; text-shadow: 0 2px 6px #000; }
+.radio-banner b { display: block; font-size: 1.35rem; letter-spacing: 0.12em; }
+.radio-banner span { display: block; font-size: 0.8rem; letter-spacing: 0.12em; color: #e8e8f0; margin-top: 0.15rem; }
+.radio-banner.show { animation: radioshow 3.4s ease forwards; }
+@keyframes radioshow { 0% { opacity: 0; transform: translate(-50%, -6px); } 10%, 78% { opacity: 1; transform: translate(-50%, 0); } 100% { opacity: 0; } }

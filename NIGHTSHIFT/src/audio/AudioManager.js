@@ -8,6 +8,8 @@ import { clamp, num, glide, vec, normalize, cross, dot, spatial } from './Util.j
 import { EngineSynth } from './EngineSynth.js';
 import { SirenVoice, TrafficVoice } from './Siren.js';
 import { MusicSynth } from './MusicSynth.js';
+import { STATIONS } from './RadioSongs.js';
+import { bus } from '../core/EventBus.js';
 import { Shot, RECIPES } from './Sfx.js';
 import { ImpactBank } from './ImpactBank.js';
 
@@ -223,6 +225,8 @@ export class AudioManager {
 
     // ---- music
     this.music = new MusicSynth(ctx, this.buses.music, this.buffers, this.reverbIn);
+    this.music.onSongEnd = () => this._radioNextSong();
+    this._radioApply(false);
 
     // ---- environment beds
     this._buildEnv();
@@ -619,7 +623,52 @@ export class AudioManager {
   setMusic(on) {
     this.musicOn = !!on;
     if (!this.ready) return;
-    this.music.setOn(this.musicOn);
+    this.music.setOn(this.musicOn && STATIONS[this.radioStation]?.songs.length > 0);
+  }
+
+  // ------------------------------------------------------------------ radio
+  get radioStation() { return this._radioStation ?? 0; }
+  get radioInfo() { const st = STATIONS[this.radioStation]; return { station: st, song: this.music?.song, index: this.radioStation }; }
+
+  /** Tune to a station (index into STATIONS). `announce` shows the banner. */
+  setRadioStation(i, announce = true) {
+    const n = STATIONS.length;
+    this._radioStation = ((Math.round(Number(i) || 0) % n) + n) % n;
+    // stations are 'live': join each one somewhere in its rotation
+    this._radioSong = Math.floor(Math.random() * Math.max(1, STATIONS[this._radioStation].songs.length));
+    if (this.ready) { this._tuneStatic(); this._radioApply(announce); }
+    return this._radioStation;
+  }
+  radioStep(dir = 1) { return this.setRadioStation(this.radioStation + (dir < 0 ? -1 : 1), true); }
+
+  _radioApply(announce) {
+    if (!this.music) return;
+    const st = STATIONS[this.radioStation];
+    const song = st.songs.length ? st.songs[(this._radioSong || 0) % st.songs.length] : null;
+    if (song) this.music.setSong(song);
+    this.music.setOn(this.musicOn && !!song);
+    if (announce) bus.emit('radio:tune', { station: st, song });
+  }
+
+  _radioNextSong() {
+    const st = STATIONS[this.radioStation];
+    if (!st.songs.length) return;
+    this._radioSong = ((this._radioSong || 0) + 1) % st.songs.length;
+    this.music.setSong(st.songs[this._radioSong]);
+    bus.emit('radio:tune', { station: st, song: this.music.song, next: true });
+  }
+
+  // a short burst of between-stations static
+  _tuneStatic() {
+    const c = this.ctx, t = c.currentTime;
+    const n = c.createBufferSource(); n.buffer = this.buffers.white;
+    const bp = c.createBiquadFilter(); bp.type = 'bandpass'; bp.Q.value = 1.5;
+    bp.frequency.setValueAtTime(600, t); bp.frequency.exponentialRampToValueAtTime(4200, t + 0.28);
+    const g = c.createGain();
+    g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(0.18, t + 0.02); g.gain.linearRampToValueAtTime(0, t + 0.32);
+    n.connect(bp).connect(g).connect(this.buses.music);
+    n.start(t, Math.random()); n.stop(t + 0.35);
+    n.onended = () => { n.disconnect(); bp.disconnect(); g.disconnect(); };
   }
 
   setMusicIntensity(v) {
