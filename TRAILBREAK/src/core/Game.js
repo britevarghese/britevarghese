@@ -13,6 +13,7 @@ import { BEACON_RADIUS, MAP_HALF } from '../world/maps/index.js';
 import { park } from '../world/homes.js';
 import { EventPlay } from '../game/EventPlay.js';
 import { Delivery } from '../game/Delivery.js';
+import { cargoOf } from '../game/Jobs.js';
 import { EventCourse } from '../render/EventCourse.js';
 import { BoardsView } from '../render/BoardsView.js';
 import { layBoards, digOut, stuckPair } from '../game/Boards.js';
@@ -1073,16 +1074,18 @@ export class Game {
     // (a truck with a model body: the built-in one stands in while it loads, then the truck is built again)
     const style = truckSpec(s.truck).style, modelReady = !!truckAsset(style);
     if (MODEL_BODIES.has(style) && !modelReady) loadTruckAsset(style);
-    if (!rv || rv.truckId !== s.truck || rv.cfg !== s.cfg || rv.model.modelBody !== modelReady) {
+    const load = s.load || '';
+    if (!rv || rv.truckId !== s.truck || rv.cfg !== s.cfg || rv.load !== load || rv.model.modelBody !== modelReady) {
       if (rv) { this.scene.remove(rv.model.root); rv.model.dispose(); }
-      const spec = truckSpec(s.truck, s.cfg || undefined);
+      // (a friend's load: in their bed, and their truck balanced as theirs is: game/Jobs.js)
+      const spec = truckSpec(s.truck, s.cfg || undefined, cargoOf(load));
       const color = MATE_COLORS[r.id % MATE_COLORS.length];
-      rv = { id: r.id, name: r.name, truckId: s.truck, cfg: s.cfg, spec, model: modelFor(spec, s.truck, s.paint), color, paint: s.paint };
+      rv = { id: r.id, name: r.name, truckId: s.truck, cfg: s.cfg, load, spec, model: modelFor(spec, s.truck, s.paint), color, paint: s.paint };
       rv.tag = nameTag(r.name, color);
       rv.model.root.add(rv.tag);
       rv.tag.position.set(0, spec.roofY + spec.raise - spec.cgHeight + 0.5, 0);
       this.scene.add(rv.model.root);
-      const key = `${spec.id}:${spec.buildCode}`;
+      const key = `${spec.id}:${spec.buildCode}:${load}`;
       if (!this.sphereCache.has(key)) this.sphereCache.set(key, new Vehicle(spec).hullSpheres);
       rv.spheres = this.sphereCache.get(key);
       this.remotes.set(r.id, rv);
@@ -1794,7 +1797,7 @@ export class Game {
         ? { to: W.kind, a: [W.anchor.x, W.anchor.y, W.anchor.z], f: [W.fairlead.x, W.fairlead.y, W.fairlead.z], len: W.len, ten: W.tension }
         : { to: W.target, a: [W.anchorLocal.x, W.anchorLocal.y, W.anchorLocal.z], f: [W.fairlead.x, W.fairlead.y, W.fairlead.z], len: W.len, ten: W.tension, rate: W.rate || 0 };
     }
-    return { truck: this.truckId, cfg: this.build, help: this.helpOn, paint: this.myColor, lights, winch };
+    return { truck: this.truckId, cfg: this.build, help: this.helpOn, paint: this.myColor, lights, winch, load: this.cargo ? `${this.cargo.kind}:${this.cargo.count}` : '' };
   }
 
   /** A frame while paused: friends' trucks (and voice) go on, ours stands still for them, and the picture holds. */

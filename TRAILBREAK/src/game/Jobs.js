@@ -75,6 +75,12 @@ export function payOf(job) {
   return Math.round((150 + 120 * job.km + 0.25 * m * job.km) / 10) * 10;
 }
 
+/** A friend's load from their state ("cement:8", net/NetClient.js): { m, kind, count } for truckSpec, or null. */
+export function cargoOf(load) {
+  const [kind, n] = typeof load === 'string' ? load.split(':') : [], c = CARGO[kind], count = Number(n);
+  return c && Number.isInteger(count) && count >= 1 && count <= 30 ? { m: Math.round(c.each * count), kind, count } : null;
+}
+
 /** "8 bags of cement (400 kg)". */
 export function loadText(job) {
   const L = loadOf(job), c = L.cargo;

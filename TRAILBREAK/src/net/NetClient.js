@@ -184,6 +184,7 @@ export class NetClient {
       out.winchLen = sa.winch ? sa.winch.len + out.winchRate * dt : 0;                 // (the line runs on with it)
     }
     out.truck = sa.truck; out.cfg = sa.cfg || ''; out.help = sa.help ? 1 : 0; out.paint = sa.paint; out.lights = sa.lights; out.winch = (b ? b.s : sa).winch; out.brk = sa.brk;
+    out.load = sa.load || '';                          // (a delivery's load on board: "cement:8", game/Jobs.js)
     out.warp = sa.warp;
     out.stale = t - snaps[snaps.length - 1].t > 3;
     return out;
@@ -202,7 +203,7 @@ export class NetClient {
       wh: [0, 1, 2, 3].map((i) => v.wheelState(i)),
       rpm: v.dt.rpm, thr: v.dt.throttle, brk: v.pedalBrake > 0.1 ? 1 : 0,
       truck: extra.truck, cfg: extra.cfg || '', help: extra.help ? 1 : 0, paint: extra.paint, lights: extra.lights ? 1 : 0, warp: this.warp,
-      winch: extra.winch || null,
+      winch: extra.winch || null, load: extra.load || '',
     };
     this.send({ t: 'state', s });
   }

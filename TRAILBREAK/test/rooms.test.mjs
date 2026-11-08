@@ -172,6 +172,21 @@ test('a truck\'s build (garage parts) travels with its state; junk is dropped', 
   assert.equal(me().cfg, '23123132101210');
 });
 
+test('a delivery\'s load travels with its state ("cement:8"); junk is dropped', () => {
+  const lobby = new Lobby();
+  const a = join(lobby, 'A', 'HAULS');
+  const room = lobby.rooms.get('HAULS');
+  const me = () => [...room.players.values()][0].s;
+  a.msg(state(1, { load: 'cement:8' }));
+  assert.equal(me().load, 'cement:8');
+  a.msg(state(2, { load: '' }));
+  assert.equal(me().load, '');
+  for (const [k, junk] of [[3, '<img onerror=x>'], [4, 'gas:999'], [5, 'x'.repeat(40) + ':1'], [6, 7]]) {
+    a.msg(state(k, { load: junk }));
+    assert.equal(me().load, '', `${JSON.stringify(junk)} dropped`);
+  }
+});
+
 test('teleports are rejected unless announced', () => {
   const lobby = new Lobby();
   const a = join(lobby, 'A', 'WARPS');

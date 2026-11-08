@@ -11,8 +11,9 @@
  *                       seat free, or a new public room (rooms opened by code stay private: only their link gets in)
  *   server -> client  {t:'welcome', id, room, map, public, tickRate, maxPlayers, players:[{id,name}], beacons:[id...]}
  *   client -> server  {t:'state', s:{p:[x,y,z], q:[x,y,z,w], v:[x,y,z], w:[x,y,z], wh:[[susp, spin, steer] x4],
- *                       rpm, thr, brk, lights, truck, cfg, paint, warp, winch, ts (when it was taken, server clock ms)}}
+ *                       rpm, thr, brk, lights, truck, cfg, paint, warp, winch, load, ts (when it was taken, server clock ms)}}
  *                       cfg: the truck's build (garage parts), a short [0-9a-z] code; help: 1 when calling for a tow
+ *                       load: a delivery's load on board, "<kind>:<count>" ("cement:8"), or '' (game/Jobs.js)
  *                       winch: null, or {to:'tree'|<player id>, a:[x,y,z] (tree: world anchor; player: point in
  *                       that truck's frame), f:[x,y,z] (our fairlead, our frame), len, ten}
  *   server -> clients {t:'snapshot', time, players:[{id, name, s}]}          (at tickRate, to the room)
@@ -330,6 +331,7 @@ class Room {
       paint: /^#[0-9a-fA-F]{6}$/.test(s.paint) ? s.paint : (prev ? prev.paint : '#b5532c'),
       warp,
       winch,
+      load: typeof s.load === 'string' && /^[a-z]{1,12}:[0-9]{1,2}$/.test(s.load) ? s.load : '',
     };
   }
 
