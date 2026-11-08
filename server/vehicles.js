@@ -269,7 +269,7 @@ export class VehicleSystem {
       g.kill(q, killer && killer !== q ? killer : null, weapon || 'vehicle');
     }
     v.seats.fill(null);
-    if (killer && killer.team !== v.team) killer.score += 200;
+    if (killer && killer.team !== v.team) g.award(killer, 200, 'vehicle', { vt: v.type });
     g.explodeAt(v.x, v.y + 1.2, v.z, { radius: 7, damage: 90, owner: killer, weapon: 'vehicle', vehicleDamage: 0 });
   }
 

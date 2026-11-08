@@ -98,9 +98,8 @@ export class Revive {
         if (e.id === g.myId) g.onLocalRevive(e, this.name(e.by));
         if (e.by === g.myId) {
           this.working = null;
-          g.hud.notice(`REVIVED ${this.name(e.id).toUpperCase()}  +50`, 2200);
           g.audio.ui('revive');
-          g.statsAdd({ xp: 50, revives: 1 });
+          g.statsAdd({ revives: 1 }); // (the points: the score feed)
         }
         this.list = this.list.filter((d) => d[0] !== e.id);
         break;

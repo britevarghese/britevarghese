@@ -79,7 +79,7 @@ export class Game {
     this.vehicles.resetAll();
     this.repairGlass();
     for (const p of this.players.values()) {
-      p.kills = p.deaths = p.score = 0;
+      p.kills = p.deaths = p.score = 0; p.stats = {};
       this.kill(p, null, 'reset', true);
       p.respawnAt = this.now() + 1500;
     }
@@ -94,7 +94,7 @@ export class Game {
       alive: false, hp: 100, x: 0, y: 0, z: 0, vx: 0, vy: 0, vz: 0, yaw: 0, pitch: 0, stance: 'stand', onGround: true,
       ads: false, sprint: false, slot: 0, weapons: [], grenades: 0, reloadUntil: 0, nextFire: 0, spawnProtect: 0,
       kills: 0, deaths: 0, score: 0, history: [], respawnAt: this.now() + (bot ? 500 + Math.random() * 2500 : 0), rtt: 80,
-      lastInput: this.now(), lastFireFlag: 0, lastDamageFrom: null,
+      lastInput: this.now(), lastFireFlag: 0, lastDamageFrom: null, stats: {},
     };
     if (bot) p.brain = new (this.BotBrainClass || BotBrain)(this, p);
     this.players.set(p.id, p);
@@ -103,6 +103,18 @@ export class Game {
   }
 
   removePlayer(id) { this.players.delete(id); this.organiseSquads(); }
+
+  // ------------------------------------------------------------ score
+  // every point a soldier earns goes through here: added to his score, tallied for the end-of-round summary, and
+  // shown to the player in the score feed by his crosshair
+  award(p, pts, why, extra = null) {
+    if (!p || !(pts > 0)) return;
+    pts = Math.round(pts);
+    p.score += pts;
+    const s = p.stats || (p.stats = {});
+    s[why] = (s[why] || 0) + 1;
+    if (!p.bot) this.emit({ t: 'score', pts, why, ...extra }, p);
+  }
 
   // ------------------------------------------------------------ squads
   // Each team in squads of four. A player keeps his squad; bots top up the squads with players in them first (so a
@@ -276,10 +288,11 @@ export class Game {
       weapons: [c.primary, c.secondary, c.gadget].filter(Boolean).map((id, i) => ({ id, mag: WEAPONS[id].mag, reserve: WEAPONS[id].reserve * (i === 0 ? c.ammoMul || 1 : 1) })),
       spawnProtect: this.now() + (mate ? 1500 : 3000), spawnedAt: this.now(), history: [], lastDamageFrom: null, spawnPoint: opt.id, airPeak: null, inRestricted: 0,
     });
-    p.lastInput = this.now(); p.moveBudget = undefined;
+    p.lastInput = this.now(); p.moveBudget = undefined; p.dmgBy = null;
     if (p.brain) p.brain.onSpawn();
     this.emit({ t: 'spawn', id: p.id, x: p.x, y: p.y, z: p.z, yaw: p.yaw, cls: p.cls, w: p.weapons, g: p.grenades, ...(mate && { on: mate.id, st: p.stance }) }, p.bot ? null : p);
     if (ride) this.vehicles.enter(p, ride.id); // (a free seat in his vehicle)
+    if (mate) this.award(mate, 10, 'squadspawn', { v: p.id });
     return true;
   }
 
@@ -295,12 +308,21 @@ export class Game {
     if (downable) p.downed = { until: this.now() + BLEED_MS, x: p.x, y: p.y, z: p.z, by: killer ? killer.id : 0 };
     else this.tickets[p.team] = Math.max(0, this.tickets[p.team] - 1);
     if (killer && killer !== p && killer.team !== p.team) {
-      killer.kills++; killer.score += 100;
+      killer.kills++;
+      this.award(killer, 100, downable ? 'down' : 'kill', { v: p.id });
+      if (p.lastHeadshot && !NO_REVIVE.has(weapon)) this.award(killer, 20, 'headshot');
+      const kd = Math.hypot(killer.x - p.x, killer.z - p.z);
+      if (kd > (killer.stats.longest || 0) && !killer.vehicle) killer.stats.longest = Math.round(kd);
+      // whoever else hurt him badly: an assist worth the damage done
+      for (const [id, dmg] of p.dmgBy || []) {
+        const a = id !== killer.id && dmg >= 20 && this.players.get(id);
+        if (a && a.team === killer.team) this.award(a, Math.min(dmg, 90), 'assist', { v: p.id });
+      }
       // spotted for the killer's team by someone else: an assist for the spotter
       const sp = p.spottedTeam === killer.team && p.spottedUntil > this.now() && p.spottedBy !== killer.id && this.players.get(p.spottedBy);
-      if (sp) { sp.score += 25; if (!sp.bot) this.emit({ t: 'assist', kind: 'spot', v: p.id }, sp); }
+      if (sp) this.award(sp, 25, 'spot', { v: p.id });
     }
-    p.spottedUntil = 0;
+    p.spottedUntil = 0; p.dmgBy = null;
     this.emit({ t: 'kill', v: p.id, k: killer ? killer.id : 0, w: weapon, hs: p.lastHeadshot || false, kx: killer?.x, ky: killer?.y, kz: killer?.z, ...(downable && { dn: 1 }) });
   }
 
@@ -402,7 +424,7 @@ export class Game {
     });
     q.lastInput = now; q.moveBudget = undefined;
     q.deaths = Math.max(0, q.deaths - 1); // (brought round: not a death after all)
-    medic.score += 50;
+    this.award(medic, 50, 'revive', { v: q.id });
     if (q.brain) q.brain.onRevived?.();
     this.emit({ t: 'revive', id: q.id, by: medic.id, x: q.x, y: q.y, z: q.z, hp: q.hp, w: q.weapons, g: q.grenades, sl: q.slot });
   }
@@ -416,6 +438,7 @@ export class Game {
   damage(victim, amount, attacker, weapon, head = false) {
     if (!victim.alive || this.now() < victim.spawnProtect || !(amount > 0) || !Number.isFinite(amount)) return;
     if (attacker && attacker !== victim && !this.isEnemy(attacker, victim)) return; // no friendly fire
+    if (attacker && attacker !== victim) (victim.dmgBy || (victim.dmgBy = new Map())).set(attacker.id, (victim.dmgBy.get(attacker.id) || 0) + Math.min(amount, Math.max(0, victim.hp)));
     victim.hp -= amount;
     victim.lastHeadshot = head;
     victim.lastDamageFrom = attacker ? attacker.id : 0;
@@ -649,7 +672,6 @@ export class Game {
     const wasAlive = victim.alive;
     this.damage(victim, dmg, p, b.w, head);
     const killed = wasAlive && !victim.alive;
-    if (killed) p.score += head ? 20 : 0;
     this.emit({ t: 'bhit', b: b.id, p: point.map((v) => +v.toFixed(2)), v: victim.id });
     // only the shooter gets the hit marker (bots have no screen: sending it with no recipient would reach everyone)
     if (!p.bot) this.emit({ t: 'hitmark', hs: head, k: killed, d: Math.round(dmg), v: victim.id, r: Math.round(dist) }, p);
@@ -788,10 +810,19 @@ export class Game {
     p.auraT = 0;
     for (const q of this.players.values()) {
       if (q === p || !q.alive || q.team !== p.team || q.vehicle || Math.hypot(q.x - p.x, q.z - p.z) > 8) continue;
-      if (c.medic && q.hp < 100 && now - (q.lastHit || 0) > 1500) q.hp = Math.min(100, q.hp + 6);
+      if (c.medic && q.hp < 100 && now - (q.lastHit || 0) > 1500) {
+        const h = Math.min(6, 100 - q.hp); q.hp += h;
+        // patching teammates up: 10 points per 30 hp given
+        p.healAcc = (p.healAcc || 0) + h;
+        if (p.healAcc >= 30) { p.healAcc -= 30; this.award(p, 10, 'heal'); }
+      }
       if (c.resupply) {
         const w = q.weapons[0], def = w && WEAPONS[w.id];
-        if (def && w.reserve < def.reserve) { w.reserve = Math.min(def.reserve * (CLASSES[q.cls]?.ammoMul || 1), w.reserve + Math.ceil(def.mag / 3)); if (!q.bot) this.emit({ t: 'ammo', w: q.weapons, g: q.grenades }, q); }
+        if (def && w.reserve < def.reserve) {
+          w.reserve = Math.min(def.reserve * (CLASSES[q.cls]?.ammoMul || 1), w.reserve + Math.ceil(def.mag / 3)); if (!q.bot) this.emit({ t: 'ammo', w: q.weapons, g: q.grenades }, q);
+          p.ammoAcc = (p.ammoAcc || 0) + 1;
+          if (p.ammoAcc >= 3) { p.ammoAcc = 0; this.award(p, 10, 'resupply'); }
+        }
       }
     }
   }
@@ -817,7 +848,7 @@ export class Game {
       if (before !== f.owner) {
         this.emit({ t: 'flag', id: f.id, owner: f.owner, prev: before });
         const team = f.owner || (before === 1 ? 2 : 1);
-        for (const p of this.players.values()) if (p.alive && p.team === team && Math.hypot(p.x - f.x, p.z - f.z) < f.r) p.score += f.owner ? 200 : 100;
+        for (const p of this.players.values()) if (p.alive && p.team === team && Math.hypot(p.x - f.x, p.z - f.z) < f.r) this.award(p, f.owner ? 200 : 100, f.owner ? 'capture' : 'neutralize', { f: f.id });
       }
     }
     const owned = { 1: 0, 2: 0 };
@@ -831,8 +862,18 @@ export class Game {
     if (!this.roundOver && (this.tickets[1] <= 0 || this.tickets[2] <= 0)) {
       const winner = this.tickets[1] > this.tickets[2] ? 1 : 2;
       this.roundOver = { winner, at: this.now() };
-      this.emit({ t: 'round', winner, name: TEAM_NAMES[winner] });
+      this.emit({ t: 'round', winner, name: TEAM_NAMES[winner], ...this.roundSummary() });
     }
+  }
+
+  // the end-of-round summary: tickets left, every soldier's round (the client picks the top players and the ribbons)
+  roundSummary() {
+    const S = (p, k) => p.stats?.[k] || 0;
+    return {
+      tk: [this.tickets[1], this.tickets[2]], next: 15000, dur: Math.round((this.now() - this.roundStart) / 1000),
+      // [id, name, team, score, kills, deaths, assists, revives, captures, spot assists, vehicles, headshots, longest kill, bot]
+      ps: [...this.players.values()].map((p) => [p.id, p.name, p.team, p.score, p.kills, p.deaths, S(p, 'assist'), S(p, 'revive'), S(p, 'capture') + S(p, 'neutralize'), S(p, 'spot'), S(p, 'vehicle'), S(p, 'headshot'), S(p, 'longest'), p.bot ? 1 : 0]),
+    };
   }
 
   // ------------------------------------------------------------ main tick

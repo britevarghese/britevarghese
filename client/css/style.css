@@ -624,3 +624,50 @@ body.touch #squadpanel, body.deploying #squadpanel, body.downed #squadpanel { di
 #iffmarks .iff.foe span { color: #ff8a80; }
 .tbtn.spot { right: 216px; bottom: 222px; border-color: rgba(255,90,80,.7); }
 #touch.dead > #t-spot, #touch.plane > #t-spot { display: none; }
+
+/* ================================================================ score feed + end of round */
+#scorefeed { position: fixed; left: calc(50% + 34px); top: calc(50% + 26px); display: flex; flex-direction: column; gap: 3px; pointer-events: none; z-index: 6; font-family: var(--ui); text-shadow: 0 1px 3px #000; }
+#scorefeed .sf-total { font: italic 800 26px var(--head); color: var(--y); letter-spacing: .04em; min-height: 26px; }
+#scorefeed .sf-total.pop { animation: sfpop .35s ease-out; }
+@keyframes sfpop { 0% { transform: scale(1.5); opacity: .4; } 100% { transform: scale(1); opacity: 1; } }
+#scorefeed .sf-list { display: flex; flex-direction: column; gap: 2px; }
+#scorefeed .sf-row { display: flex; gap: 10px; align-items: baseline; font-weight: 700; font-size: 13px; letter-spacing: .08em; color: #e9ecef; animation: sfin .25s ease-out; transition: opacity .45s, transform .45s; white-space: nowrap; }
+#scorefeed .sf-row i { font-style: normal; font-weight: 600; color: #ffb4a8; letter-spacing: .02em; }
+#scorefeed .sf-row b { color: var(--y); }
+#scorefeed .sf-row.big { font-size: 15px; }
+#scorefeed .sf-row.out { opacity: 0; transform: translateY(-6px); }
+@keyframes sfin { from { opacity: 0; transform: translateX(-14px); } to { opacity: 1; transform: none; } }
+body.deploying #scorefeed, body.downed #scorefeed { display: none; }
+#roundsum { position: fixed; inset: 0; z-index: 30; display: grid; place-items: center; background: radial-gradient(ellipse at center, rgba(8,10,13,.72), rgba(8,10,13,.92)); font-family: var(--ui); overflow: auto; padding: 16px; }
+#roundsum .rs-box { width: min(980px, 100%); display: flex; flex-direction: column; gap: 14px; }
+#roundsum .rs-res { font: italic 800 64px/1 var(--head); letter-spacing: .1em; text-align: center; }
+#roundsum .rs-res.win { color: var(--y); } #roundsum .rs-res.lose { color: #ff6b5b; }
+#roundsum .rs-sub { text-align: center; color: var(--mut); letter-spacing: .18em; font-weight: 700; font-size: 13px; margin-top: -6px; }
+#roundsum .rs-teams { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+#roundsum .rs-team { background: var(--panel); border: 1px solid var(--line); padding: 10px 12px; }
+#roundsum .rs-team h3 { display: flex; justify-content: space-between; margin: 0 0 6px; font: 700 16px var(--head); letter-spacing: .12em; }
+#roundsum .rs-team.us h3 { color: #6fb0ff; } #roundsum .rs-team.ru h3 { color: #ff6b5b; }
+#roundsum table { width: 100%; border-collapse: collapse; font-size: 14px; }
+#roundsum th { text-align: left; color: var(--mut); font-size: 11px; letter-spacing: .12em; font-weight: 600; padding: 2px 6px; }
+#roundsum td { padding: 4px 6px; border-top: 1px solid var(--line); }
+#roundsum td:nth-child(n+3), #roundsum th:nth-child(n+3) { text-align: right; width: 56px; }
+#roundsum td:first-child, #roundsum th:first-child { width: 24px; color: var(--mut); }
+#roundsum tr.me td { background: rgba(242,210,27,.14); color: #fff; }
+#roundsum .rs-ribbons { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 8px; }
+#roundsum .rb { display: flex; gap: 10px; align-items: center; background: var(--panel); border: 1px solid var(--line); padding: 8px 10px; }
+#roundsum .rb .ic { width: 26px; height: 26px; color: var(--y); flex: none; }
+#roundsum .rb small { display: block; font-size: 10px; letter-spacing: .16em; color: var(--y); }
+#roundsum .rb b { display: block; font-size: 14px; } #roundsum .rb span { font-size: 12px; color: var(--mut); }
+#roundsum .rb.me { border-color: var(--y); background: rgba(242,210,27,.1); }
+#roundsum .rs-me { display: flex; align-items: center; gap: 18px; flex-wrap: wrap; background: var(--panel2); border: 1px solid var(--line); border-left: 3px solid var(--y); padding: 10px 14px; }
+#roundsum .rs-me small { font-size: 11px; letter-spacing: .18em; color: var(--mut); margin-right: 4px; }
+#roundsum .rs-me div { display: flex; flex-direction: column; align-items: center; } #roundsum .rs-me b { font-size: 20px; } #roundsum .rs-me span { font-size: 10px; letter-spacing: .14em; color: var(--mut); }
+#roundsum .rs-me .xp { margin-left: auto; } #roundsum .rs-me .xp b { color: var(--y); }
+#roundsum .rs-next { text-align: center; font-weight: 700; letter-spacing: .2em; color: var(--txt); }
+@media (max-height: 520px) {
+  #roundsum { place-items: start center; }
+  #roundsum .rs-res { font-size: 38px; } #roundsum .rs-box { gap: 8px; }
+  #roundsum table { font-size: 12px; } #roundsum td { padding: 2px 6px; }
+  #roundsum .rs-ribbons { grid-template-columns: repeat(3, 1fr); } #roundsum .rb { padding: 5px 8px; } #roundsum .rb .ic { width: 20px; height: 20px; }
+  #scorefeed .sf-total { font-size: 20px; min-height: 20px; } #scorefeed .sf-row { font-size: 11px; } #scorefeed .sf-row.big { font-size: 12px; }
+}

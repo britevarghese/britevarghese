@@ -328,6 +328,79 @@ export class HUD {
     if (el._h !== html) { el._h = html; el.innerHTML = html; }
   }
 
+  // ---------------------------------------------------------------- score feed (by the crosshair)
+  // each award slides in under the crosshair; a running total sums a streak and resets after a few quiet seconds
+  scoreFeed(pts, why, { name = null, flag = null, vt = null } = {}) {
+    let el = $('scorefeed');
+    if (!el) { el = document.createElement('div'); el.id = 'scorefeed'; el.innerHTML = '<div class="sf-total"></div><div class="sf-list"></div>'; document.body.appendChild(el); }
+    const label = {
+      kill: 'ENEMY KILLED', down: 'ENEMY DOWNED', headshot: 'HEADSHOT BONUS', assist: 'KILL ASSIST', spot: 'SPOT ASSIST',
+      revive: 'REVIVE', capture: `FLAG ${flag || ''} CAPTURED`, neutralize: `FLAG ${flag || ''} NEUTRALIZED`, heal: 'HEAL',
+      resupply: 'RESUPPLY', squadspawn: 'SQUAD SPAWN', vehicle: `${vt ? String(vt).toUpperCase() : 'VEHICLE'} DESTROYED`,
+    }[why] || String(why).toUpperCase();
+    const who = name && ['kill', 'down', 'assist', 'spot', 'revive', 'squadspawn'].includes(why) ? ` <i>${esc(name)}</i>` : '';
+    const row = document.createElement('div');
+    row.className = `sf-row ${['kill', 'down', 'vehicle'].includes(why) ? 'big' : ''}`;
+    row.innerHTML = `<span>${label}${who}</span><b>+${pts}</b>`;
+    const list = el.querySelector('.sf-list');
+    list.prepend(row);
+    while (list.children.length > 4) list.lastChild.remove();
+    setTimeout(() => row.classList.add('out'), 2600);
+    setTimeout(() => row.remove(), 3100);
+    this.sfTotal = (performance.now() - (this.sfAt || 0) < 4000 ? this.sfTotal || 0 : 0) + pts;
+    this.sfAt = performance.now();
+    const tot = el.querySelector('.sf-total');
+    tot.textContent = `+${this.sfTotal}`; tot.classList.remove('pop'); void tot.offsetWidth; tot.classList.add('pop');
+    clearTimeout(this.sfT); this.sfT = setTimeout(() => { tot.textContent = ''; }, 4000);
+  }
+
+  // ---------------------------------------------------------------- end of round
+  // victory / defeat, the top of both teams, the ribbons (MVP and the best at each job) and my own round
+  roundSummary(r, myId, myTeam) {
+    let el = $('roundsum');
+    clearInterval(this.rsTimer);
+    if (!r) { el?.classList.add('hidden'); return; }
+    if (!el) { el = document.createElement('div'); el.id = 'roundsum'; document.body.appendChild(el); }
+    const rows = r.ps.map((x) => ({ id: x[0], n: x[1], tm: x[2], s: x[3], k: x[4], d: x[5], as: x[6], rv: x[7], cp: x[8], sp: x[9], vh: x[10], hs: x[11], lg: x[12], b: x[13] }));
+    const win = r.winner === myTeam, enemy = myTeam === 1 ? 2 : 1, me = rows.find((x) => x.id === myId);
+    const team = (t) => {
+      const list = rows.filter((x) => x.tm === t).sort((a, b) => b.s - a.s);
+      const total = list.reduce((a, x) => a + x.s, 0);
+      const top = list.slice(0, 5);
+      if (me && me.tm === t && !top.includes(me)) top.push(me);
+      return `<div class="rs-team ${t === myTeam ? 'us' : 'ru'}"><h3><span>${TEAM_NAMES[t]}</span><b>${total.toLocaleString()}</b></h3><table>
+        <tr><th>#</th><th>Name</th><th>Score</th><th>K</th><th>D</th></tr>
+        ${top.map((x) => `<tr class="${x.id === myId ? 'me' : ''}"><td>${list.indexOf(x) + 1}</td><td>${esc(x.n)}</td><td>${x.s}</td><td>${x.k}</td><td>${x.d}</td></tr>`).join('')}</table></div>`;
+    };
+    const best = (key, min = 1) => rows.reduce((a, x) => (x[key] >= min && (!a || x[key] > a[key]) ? x : a), null);
+    const ribbons = [
+      ['MVP', 'i-target', best('s'), (x) => `${x.s} points`],
+      ['LIFESAVER', 'i-cross', best('rv'), (x) => `${x.rv} revive${x.rv > 1 ? 's' : ''}`],
+      ['FLAG RUNNER', 'i-pin', best('cp'), (x) => `${x.cp} flag${x.cp > 1 ? 's' : ''}`],
+      ['SPOTTER', 'i-eye', best('sp'), (x) => `${x.sp} spot assist${x.sp > 1 ? 's' : ''}`],
+      ['TANK BUSTER', 'i-ammo', best('vh'), (x) => `${x.vh} vehicle${x.vh > 1 ? 's' : ''}`],
+      ['MARKSMAN', 'i-binoc', best('lg', 50), (x) => `${x.lg} m kill`],
+    ].filter(([, , x]) => x);
+    const mine = me ? [[me.s, 'SCORE'], [me.k, 'KILLS'], [me.d, 'DEATHS'], [me.as, 'ASSISTS'], [me.rv, 'REVIVES'], [me.cp, 'FLAGS']] : [];
+    const mm = Math.floor((r.dur || 0) / 60), ss = String((r.dur || 0) % 60).padStart(2, '0');
+    el.innerHTML = `<div class="rs-box">
+      <div class="rs-res ${win ? 'win' : 'lose'}">${win ? 'VICTORY' : 'DEFEAT'}</div>
+      <div class="rs-sub">${TEAM_NAMES[r.winner]} WINS · ${r.tk[r.winner - 1]} TICKETS LEFT · ${mm}:${ss}</div>
+      <div class="rs-teams">${team(myTeam)}${team(enemy)}</div>
+      ${ribbons.length ? `<div class="rs-ribbons">${ribbons.map(([t, ic, x, f]) => `<div class="rb${x.id === myId ? ' me' : ''}"><svg class="ic"><use href="#${ic}"/></svg><div><small>${t}</small><b>${esc(x.n)}</b><span>${f(x)}</span></div></div>`).join('')}</div>` : ''}
+      ${me ? `<div class="rs-me"><small>YOUR ROUND</small>${mine.map(([v, l]) => `<div><b>${v}</b><span>${l}</span></div>`).join('')}<div class="xp"><b>+${me.s}</b><span>XP</span></div></div>` : ''}
+      <div class="rs-next"></div>
+    </div>`;
+    el.classList.remove('hidden');
+    const end = performance.now() + (r.next || 15000);
+    const tick = () => {
+      const left = Math.ceil((end - performance.now()) / 1000);
+      const n = el.querySelector('.rs-next'); if (n) n.textContent = left > 0 ? `NEXT ROUND IN ${left}` : 'NEXT ROUND';
+      if (left <= -2) { clearInterval(this.rsTimer); el.classList.add('hidden'); }
+    };
+    tick(); this.rsTimer = setInterval(tick, 500);
+  }
+
   roundEnd(text) { const r = $('roundend'); r.classList.toggle('hidden', !text); r.textContent = text || ''; }
   fps(v) { $('fps').textContent = v; }
 }

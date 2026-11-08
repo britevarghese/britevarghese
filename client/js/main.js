@@ -270,7 +270,7 @@ class Game {
       case 'spawn':
         if (e.id === this.myId) {
           this.myCls = e.cls;
-          this.me.spawn(e); this.hud.deployScreen(false); this.hud.roundEnd(null);
+          this.me.spawn(e); this.hud.deployScreen(false); this.hud.roundEnd(null); this.hud.roundSummary(null);
           if (e.on) { if (e.st) this.me.s.stance = e.st; this.hud.notice(`DEPLOYED ON ${String(this.board.get(e.on)?.n || 'SQUAD MATE').toUpperCase()}`, 1800); }
           if (!this.isTouch) this.renderer.domElement.requestPointerLock?.()?.catch?.(() => {});
           this.killcam = null;
@@ -336,7 +336,7 @@ class Game {
         break;
       case 'hitmark': this.hud.hitmarker(e.k, e.hs, e.d, e.r); this.audio.ui(e.k ? 'kill' : e.hs ? 'headshot' : 'hit'); break;
       case 'kill': {
-        if (e.k === this.myId && e.v !== this.myId) Stats.add({ kills: 1, xp: e.hs ? 120 : 100 });
+        if (e.k === this.myId && e.v !== this.myId) Stats.add({ kills: 1 }); // (the points arrive as a 'score' event)
         if (e.v === this.myId && e.w !== 'reset') Stats.add({ deaths: 1 });
         this.hud.killfeed(e.k, e.v, e.w, e.hs, new Map([...this.board].map(([id, r]) => [id, { name: r.n, team: r.tm }])));
         const p = P.info(e.v);
@@ -361,13 +361,18 @@ class Game {
       case 'bounce': this.audio.nadeBounce([e.x, e.y, e.z]); break;
       case 'flag': {
         const mine = e.owner === this.myTeam, lost = e.prev === this.myTeam;
-        if (mine && this.me.alive && FLAGS.some((f) => f.id === e.id && Math.hypot(f.x - this.me.s.x, f.z - this.me.s.z) < f.r)) Stats.add({ xp: 200 });
         this.hud.notice(e.owner ? `${mine ? 'WE CAPTURED' : 'ENEMY CAPTURED'} ${e.id}` : `${e.id} ${lost ? 'LOST' : 'NEUTRALIZED'}`);
         this.audio.ui('capture');
         break;
       }
       case 'chat': this.hud.chat(e.from, e.msg, e.tm); break;
-      case 'round': if (!this.royale) { this.hud.roundEnd(`${e.name} WINS`); setTimeout(() => this.hud.roundEnd(null), 14000); } break;
+      case 'round':
+        if (this.royale) break;
+        if (e.ps) {
+          this.hud.roundSummary(e, this.myId, this.myTeam);
+          Stats.add({ rounds: 1, ...(e.winner === this.myTeam && { wins: 1 }) });
+        } else { this.hud.roundEnd(`${e.name} WINS`); setTimeout(() => this.hud.roundEnd(null), 14000); }
+        break;
       case 'correct': Object.assign(this.me.s, { x: e.x, y: e.y, z: e.z }); break;
       case 'glass': { const pane = this.world.breakGlass(e.id); if (pane) { this.effects.glass(e.p || pane.c, e.d, pane.n); this.audio.glass(e.p || pane.c); } break; }
       case 'glassset': for (const id of e.ids) this.world.breakGlass(id); break;
@@ -379,7 +384,13 @@ class Game {
         if (e.ok) { this.audio.ui('spot'); this.hud.notice(`${e.v ? String(e.v).toUpperCase() : 'ENEMY'} SPOTTED`, 900); }
         else this.audio.ui('empty');
         break;
-      case 'assist': if (e.kind === 'spot') { this.hud.notice('SPOT ASSIST  +25', 1500); Stats.add({ xp: 25 }); } break;
+      case 'score': {
+        // the score feed by the crosshair; points are XP for the service record
+        const name = e.v ? this.board.get(e.v)?.n : null;
+        this.hud.scoreFeed(e.pts, e.why, { name, flag: e.f, vt: e.vt });
+        Stats.add({ xp: e.pts });
+        break;
+      }
       case 'spawnfail': this.hud.notice(`CAN'T DEPLOY ON SQUAD MATE — ${SQUAD_BLOCK[e.why] || 'NOT AVAILABLE'}`, 2200); break;
     }
     this.vehicles.onEvent(e);

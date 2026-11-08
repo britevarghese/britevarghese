@@ -99,7 +99,7 @@ test('a kill on an enemy someone else spotted is a spot assist for the spotter',
   g.flushEvents();
   g.damage(e, 200, k, 'ar', true);
   assert.equal(p.score, s0 + 25);
-  assert.equal(g.flushEvents().map((x) => x.ev).find((x) => x.t === 'assist')?.kind, 'spot');
+  assert.equal(g.flushEvents().map((x) => x.ev).find((x) => x.t === 'score' && x.why === 'spot')?.pts, 25);
   assert.equal(g.spottedFor(1), undefined, 'the dead are no longer marked');
 });
 

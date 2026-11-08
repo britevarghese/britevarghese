@@ -222,6 +222,14 @@ downed: mouse looks around, **hold Space** (touch: tap **REDEPLOY**) to give up 
   — on the minimap, in a squad list above your health, and as overhead markers — the rest of the team blue; the
   markers show through walls (names for the squad, for anyone close and for whoever is under the crosshair), so you
   always know where your own side is.
+* **Score feed & assists:** every point shows up by the crosshair as it is earned — ENEMY KILLED / DOWNED +100,
+  HEADSHOT BONUS +20, KILL ASSIST (whoever did 20+ damage to a soldier someone else finished scores the damage done,
+  up to 90), SPOT ASSIST +25, REVIVE +50, FLAG CAPTURED +200 / NEUTRALIZED +100, VEHICLE DESTROYED +200, HEAL (+10
+  per 30 HP given), RESUPPLY +10, SQUAD SPAWN +10 (a squad mate deployed on you) — with a running total for the
+  streak. Points are your XP in the service record.
+* **End of round:** VICTORY / DEFEAT with the tickets left and the round's length, the top five of each team (and
+  your own row), ribbons for the MVP and the best Lifesaver (revives), Flag Runner (captures), Spotter (spot
+  assists), Tank Buster (vehicles) and Marksman (longest kill), your own round, and a countdown to the next.
 * **Spotting:** **Q** (touch: **SPOT**) marks the enemy nearest your crosshair — in sight, within 300 m — for your
   whole team for 6 s: a red diamond over his head (or over his vehicle, with what it is), the distance when you aim
   at it, and a dot on everyone's minimap (spotted vehicles show there at any range). Recon spots reach 450 m and
