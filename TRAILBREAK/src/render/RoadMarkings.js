@@ -35,7 +35,21 @@ const RETRO = { uRetroPos: { value: new THREE.Vector3() }, uRetroDir: { value: n
 export function retroLights(pos, dir, k) { RETRO.uRetroPos.value.copy(pos); RETRO.uRetroDir.value.copy(dir); RETRO.uRetro.value = k; }
 
 export class RoadMarkings {
-  constructor(world, scene) {
+  /** A map's road markings, a few ms of its roads at a time (tick: a promise of the next turn), the game going on meanwhile. */
+  static async create(world, scene, tick) {
+    const m = new RoadMarkings(world, scene, { later: true });
+    let t0 = performance.now();
+    while (!m.steps.next().done) if (performance.now() - t0 > 8) { await tick(); t0 = performance.now(); }
+    return m;
+  }
+
+  /** later: built a road a step by steps (create), not here and now. */
+  constructor(world, scene, { later = false } = {}) {
+    this.steps = this.build(world, scene);
+    if (!later) while (!this.steps.next().done);
+  }
+
+  *build(world, scene) {
     const roads = (world.data.trails || []).filter((t) => t.lanes !== undefined);
     if (!roads.length) return;
     const pos = [], col = [], idx = [];
@@ -62,6 +76,7 @@ export class RoadMarkings {
       }
     };
     for (const r of roads) {
+      yield;
       const { P, S } = roadLine(r, STEP);
       const W = r.width, L = S[S.length - 1];
       if (r.runway) {

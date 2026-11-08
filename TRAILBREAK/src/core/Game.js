@@ -201,8 +201,10 @@ export class Game {
       if (this.world.complete) ev.push(...this.world.worldEvents());
       this.events.add(ev);
       this.course.addStarts(ev.filter((e) => this.events.byId.get(e.id) === e));
-      this.satnav = new RouteGraph(this.world.data.trails, { hubs: this.world.hubs });
-      if (this.route) this.replan();
+      // (its roads joined to the satnav's the next time it plots a route: built at once for every map that came in, the
+      // whole world's roads each time, it held a frame up as each map came in)
+      this.satnavStale = true;
+      if (this.route) this.route.stale = true;
       // (its part of the maps drawn a slice at a time, then the full map made again with it)
       Promise.resolve(this.hud.drawRegion?.(region)).then(() => this.worldMap.refresh());
       // (the first rocky hills in: how to get to them, from the coast's roads)
@@ -247,6 +249,16 @@ export class Game {
   }
 
   /** Set the satnav's waypoint to a thing on the map (a friend: their truck, wherever it goes). */
+  /** The satnav (game/Route.js): the roads of the maps that are in, joined up again when more have come in. */
+  get satnav() {
+    if (this.satnavStale || !this._satnav) {
+      this._satnav = new RouteGraph(this.world.data.trails, { hubs: this.world.hubs });
+      this.satnavStale = false;
+    }
+    return this._satnav;
+  }
+  set satnav(g) { this._satnav = g; this.satnavStale = false; }
+
   setRoute(item, quiet = false) {
     this.route = { target: { kind: item.kind, key: keyOf(item), name: item.name, x: item.x, z: item.z, friend: item.kind === 'friend' ? item.id : null }, points: null, left: 0, hint: 0, t: 0 };
     this.replan();

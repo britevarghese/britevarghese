@@ -11,18 +11,33 @@ import { rockMaterial } from './Rocks.js';
 const NA = 28, NR = 12;        // round the dome, and out from its middle to its edge
 
 export class Alcoves {
-  constructor(world, scene, ground) {
-    const M = world.map, sites = M.alcoves(), mat = rockMaterial(ground, { ledge: true });
-    this.meshes = sites.map((A) => {
-      const mesh = new THREE.Mesh(build(A, M), mat);
-      mesh.castShadow = true;
-      mesh.receiveShadow = true;
-      scene.add(mesh);
-      return mesh;
-    });
+  /** A map's alcoves, one at a time (tick: a promise of the next turn), the game going on meanwhile. */
+  static async create(world, scene, ground, tick) {
+    const a = new Alcoves(world, scene, ground, { later: true });
+    for (const A of a.sites) { a.add(A); await tick(); }
+    return a;
   }
 
-  setShadows(on) { for (const m of this.meshes) m.castShadow = on; }
+  /** later: the roofs built by add (Alcoves.create), not here and now. */
+  constructor(world, scene, ground, { later = false } = {}) {
+    this.map = world.map; this.scene = scene;
+    this.sites = this.map.alcoves();
+    this.mat = rockMaterial(ground, { ledge: true });
+    this.meshes = [];
+    this.shadows = true;
+    if (!later) for (const A of this.sites) this.add(A);
+  }
+
+  /** One alcove's roof. */
+  add(A) {
+    const mesh = new THREE.Mesh(build(A, this.map), this.mat);
+    mesh.castShadow = this.shadows;
+    mesh.receiveShadow = true;
+    this.scene.add(mesh);
+    this.meshes.push(mesh);
+  }
+
+  setShadows(on) { this.shadows = on; for (const m of this.meshes) m.castShadow = on; }
 }
 
 /** An alcove's roof: its faces, each wound to face the way it should (into the hollow, up, out). */

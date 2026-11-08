@@ -52,7 +52,7 @@ function onCardOnly(mesh) {
 
 /**
  * A map's textures onto the graphics card before it is shown, a few ms of them at a time between frames, and a ground's
- * texture arrays a layer at a time (tick: a promise of the next turn). Uploaded by the first frame that drew the map, a
+ * texture arrays some 8 MB of layers at a time (tick: a promise of the next turn). Uploaded by the first frame that drew the map, a
  * set of ground textures it was the first to use (ten layers, some 45 MB with their normals) held that frame up. The
  * textures are those its materials' shaders take (after compileAsync: their uniforms, onBeforeCompile's too).
  */
@@ -68,11 +68,12 @@ async function warmTextures(gl, group, tick) {
     // (on the card already, or not ready to go: a picture still loading)
     if (t.isRenderTargetTexture || !t.image || t.version === 0 || t.image.complete === false || P.get(t).__version === t.version) continue;
     if (t.isDataArrayTexture && t.image.data && t.image.depth > 1) {
-      // a layer an upload (the first makes room for them all); what it does once on the card, once they all are
-      const done = t.onUpdate;
+      // some 8 MB of its layers an upload (the first makes room for them all; each has the card make the mipmaps of the
+      // whole array again: a layer at a time, that was ten times over); what it does once on the card, once they all are
+      const done = t.onUpdate, per = Math.max(1, Math.floor(8e6 / (t.image.data.byteLength / t.image.depth)));
       t.onUpdate = null;
-      for (let i = 0; i < t.image.depth; i++) {
-        t.addLayerUpdate(i);
+      for (let i = 0; i < t.image.depth; i += per) {
+        for (let k = i; k < Math.min(t.image.depth, i + per); k++) t.addLayerUpdate(k);
         if (i) t.needsUpdate = true;
         gl.initTexture(t);
         await tick(); t0 = performance.now();
@@ -139,7 +140,7 @@ export class RegionView {
     await tick();
     v.ledges = M.ledges ? new Ledges(W, v.group, ground) : null;
     await tick();
-    v.alcoves = M.alcoves ? new Alcoves(W, v.group, ground) : null;
+    v.alcoves = M.alcoves ? (slice === Infinity ? new Alcoves(W, v.group, ground) : await Alcoves.create(W, v.group, ground, tick)) : null;
     await tick();
     v.pillars = W.boulders.some((b) => b.pillar !== undefined) ? new Pillars(W, v.group, ground) : null;
     await tick();
@@ -152,9 +153,10 @@ export class RegionView {
     });
     v.water = new Water(W, v.group, { holes });
     await tick();
-    const marks = v.marks = new RoadMarkings(W, v.group);
+    const now = slice === Infinity;
+    const marks = v.marks = now ? new RoadMarkings(W, v.group) : await RoadMarkings.create(W, v.group, tick);
     await tick();
-    const wear = v.wear = new RoadWear(W, v.group);
+    const wear = v.wear = now ? new RoadWear(W, v.group) : await RoadWear.create(W, v.group, tick);
     // (these never change: their arrays let go once the graphics card has them)
     for (const m of [v.water.mesh, v.water.sea, marks.mesh, wear.mesh]) onCardOnly(m);
     await tick();

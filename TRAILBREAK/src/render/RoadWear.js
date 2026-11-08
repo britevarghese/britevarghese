@@ -21,7 +21,21 @@ function rng(seed) {
 const hashStr = (s) => { let h = 2166136261; for (const c of s) h = Math.imul(h ^ c.charCodeAt(0), 16777619); return h >>> 0; };
 
 export class RoadWear {
-  constructor(world, scene) {
+  /** A map's road wear, a few ms of its roads at a time (tick: a promise of the next turn), the game going on meanwhile. */
+  static async create(world, scene, tick) {
+    const m = new RoadWear(world, scene, { later: true });
+    let t0 = performance.now();
+    while (!m.steps.next().done) if (performance.now() - t0 > 8) { await tick(); t0 = performance.now(); }
+    return m;
+  }
+
+  /** later: built a road a step by steps (create), not here and now. */
+  constructor(world, scene, { later = false } = {}) {
+    this.steps = this.build(world, scene);
+    if (!later) while (!this.steps.next().done);
+  }
+
+  *build(world, scene) {
     const roads = (world.data.trails || []).filter((t) => t.lanes !== undefined);
     if (!roads.length) return;
     const verge = (world.data.puddles || []).filter((p) => p.verge);
@@ -29,6 +43,7 @@ export class RoadWear {
     // (past the map's square, where a road runs on over a seam, the height at its edge: the rest isn't drawn)
     const E = world.half, H = (x, z) => world.terrain(Math.max(-E, Math.min(E, x)), Math.max(-E, Math.min(E, z))) + 0.04;
     for (const r of roads) {
+      yield;
       const { P, S } = roadLine(r, STEP);
       // (a runway: its length where a road has its lanes, negative)
       const W = r.width, L = S[S.length - 1], lanes = r.runway ? -L : r.lanes;
