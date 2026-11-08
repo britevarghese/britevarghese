@@ -6,7 +6,7 @@ import * as THREE from 'three';
 import { IS_MOBILE } from '../core/QualityManager.js';
 import { mergeFast as mergeGeometries } from '../core/MergeFast.js';   // (three's, with a fast path: see there)
 import { CollisionWorld } from '../physics/Collision.js';
-import { KeralaTile, TILE, C, ROAD_HALF, decodeBinary } from './KeralaTile.js';
+import { KeralaTile, TILE, C, ROAD_HALF, decodeBinary, ledgeGeometry } from './KeralaTile.js';
 import * as TX from '../renderer/Textures.js';
 import { KERALA_FACADE, KERALA_SHOP } from '../renderer/Textures.js';
 import { keralaRoadMaterial } from '../renderer/Materials.js';
@@ -209,9 +209,12 @@ export class KeralaWorld {
     const onRd = (x, z) => { const o = this.tileAt(x, z); return !!o?.ready && o.onRoad(-x - o.E0, z - o.N0, 0.4, -1, 7); };
     let lanes = [];
     const nearLane = (x, z) => {
+      // (each piece of each lane first by its box, 2.2 m round it, and its points read by index: by its x alone, within
+      // 60 m, and unpacked, one stall's 300 tries took 50 ms, a frame of its own)
       for (const l of lanes) for (let i = 1; i < l.pts.length; i++) {
-        const [ax, az] = l.pts[i - 1], [bx, bz] = l.pts[i], dx = bx - ax, dz = bz - az, L2 = dx * dx + dz * dz || 1;
-        if (Math.abs(x - ax) > 60 && Math.abs(x - bx) > 60) continue;
+        const P0 = l.pts[i - 1], P1 = l.pts[i], ax = P0[0], az = P0[1], bx = P1[0], bz = P1[1];
+        if ((ax < bx ? ax : bx) - 2.2 > x || (ax > bx ? ax : bx) + 2.2 < x || (az < bz ? az : bz) - 2.2 > z || (az > bz ? az : bz) + 2.2 < z) continue;
+        const dx = bx - ax, dz = bz - az, L2 = dx * dx + dz * dz || 1;
         const u = Math.max(0, Math.min(1, ((x - ax) * dx + (z - az) * dz) / L2));
         if (hyp(ax + dx * u - x, az + dz * u - z) < 2.2) return true;
       }
@@ -318,7 +321,10 @@ export class KeralaWorld {
     return Promise.resolve(this.warm({ traverse: (cb) => { for (const o of list) o.traverse(cb); }, traverseVisible() {} })).catch(() => {});
   }
 
-  _scooters(t) {
+  _scooters(t) { const it = this._scooterSteps(t, () => false); while (!it.next().done); }
+  // (a cell at a time, as the frame allows: all sixteen at once, an instanced mesh for each part of the model in each,
+  // was a frame of 60 ms)
+  *_scooterSteps(t, due) {
     const _m4 = new THREE.Matrix4(), _lift = new THREE.Matrix4().makeTranslation(0, -0.15, 0); // the model stands on its tyres
     if (!this.scooterParts || !t.scooterSpots?.length) return;
     for (const m of t.scooterMeshes || []) { m.removeFromParent(); m.dispose(); }
@@ -328,6 +334,7 @@ export class KeralaWorld {
     const PAL = SCOOTER_PAL;
     const col = new THREE.Color();
     for (let c = 0; c < 16; c++) {
+      if (c && due()) { yield 'world:scooters+'; t._ys = performance.now(); }
       const L = t.scooterSpots.filter((q) => q[1] === c);
       if (!L.length) continue;
       for (const part of this.scooterParts) {
@@ -371,7 +378,7 @@ export class KeralaWorld {
     }
     this.root.add(g);
     yield 'world:add';
-    this._scooters(t);
+    yield* this._scooterSteps(t, () => t._due());
     yield 'world:scooters';
     // (a few hundred at a time, as the frame allows: a town tile's thousands into the grid at once, with the scooters
     // before them, was a frame of a quarter of a second on the drive)
@@ -884,6 +891,7 @@ export class KeralaWorld {
     // road markings only on the tiles near the camera (sub-pixel further out)
     if (!this._mkT || (this._mkT += dt) > 0.5) {
       this._mkT = 1e-6;
+      const tL = performance.now();
       for (const t of this.tiles.values()) {
         if (!t.group) continue;
         const ex = Math.max(0, Math.abs(-p.x - (t.E0 + TILE / 2)) - TILE / 2), ez = Math.max(0, Math.abs(p.z - (t.N0 + TILE / 2)) - TILE / 2);
@@ -897,6 +905,20 @@ export class KeralaWorld {
         for (const c of t.group.children) {
           if (this.detailOff && DETAIL.test(c.name)) c.visible = false;
           else if (c.name === 'lines' || c.name === 'linesY') c.visible = near;
+          else if (c.userData.ledge) {
+            // window sunshades: every chunk within reach of the camera, by its nearest edge (by its middle, the 500 m
+            // chunks they were in were drawn only round their centres: next to a chunk's edge, the buildings on both
+            // sides had none, and they came and went as you drove). The mesh is made as it comes into reach (a few
+            // milliseconds of them a pass, the rest the next frame) and let go well past it
+            const U = c.userData, d2 = hyp(Math.max(0, Math.abs(-(t.E0 + U.cc[0]) - p.x) - 125), Math.max(0, Math.abs(t.N0 + U.cc[1] - p.z) - 125));
+            if (d2 < LEDGE_NEAR) {
+              if (!U.built) { if (performance.now() - tL < 3) { c.geometry.dispose(); c.geometry = ledgeGeometry(U.ledge); U.built = true; } else this._mkT = 0.5; }
+              c.visible = !!U.built;
+            } else {
+              c.visible = false;
+              if (U.built && d2 > LEDGE_NEAR + 150) { c.geometry.dispose(); c.geometry = new THREE.BufferGeometry(); U.built = false; }
+            }
+          }
           else if (c.userData.near) {
             const ex2 = Math.max(0, Math.abs(-(t.E0 + c.userData.cc[0]) - p.x) - 250), ez2 = Math.max(0, Math.abs(t.N0 + c.userData.cc[1] - p.z) - 250);
             c.visible = near && hyp(ex2, ez2) < c.userData.near;
@@ -993,6 +1015,7 @@ const _sm = new THREE.Matrix4(), _lift = new THREE.Matrix4().makeTranslation(0, 
 
 // the optional environment detail layers (F9 turns them off for an A/B performance check)
 const DETAIL = /^(detail_|kerbs$|compound$|ao$|lamp|transformers$|poles$|wires$|ledges$)/;
+const LEDGE_NEAR = 160;   // (m from a chunk's nearest edge: window sunshades are a few pixels deep beyond)
 
 // a cast-iron manhole cover: a flat disc with a raised rim and a cross pattern (lies on the road)
 function manholeGeometry() {

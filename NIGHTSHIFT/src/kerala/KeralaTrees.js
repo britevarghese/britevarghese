@@ -502,7 +502,7 @@ export class KeralaTrees {
       }
     }
     const onRoad = (e, n) => {
-      const L = RG.get(Math.floor(e / G) * 1000 + Math.floor(n / G)); if (!L) return false;
+      const L = RG.get((Math.floor(e / G) * 1000 + Math.floor(n / G)) | 0); if (!L) return false;
       for (let j = 0; j < L.length; j += 5) {
         const ax = L[j], az = L[j + 1], dx = L[j + 2] - ax, dz = L[j + 3] - az, l2 = dx * dx + dz * dz || 1;
         const t = Math.max(0, Math.min(1, ((e - ax) * dx + (n - az) * dz) / l2));
@@ -525,7 +525,8 @@ export class KeralaTrees {
       return estate.get(k);
     };
     for (let n = step / 2; n < TILE; n += step) for (let e = step / 2; e < TILE; e += step) {
-      if ((++yc & 31) === 0 && performance.now() - ys > 3) { yield 'trees+cells'; ys = performance.now(); }
+      // (the clock looked at every 4 cells: every 32, a batch of town cells took 110 ms)
+      if ((++yc & 3) === 0 && performance.now() - ys > 3) { yield 'trees+cells'; ys = performance.now(); }
       const je = e + (rnd() - 0.5) * step * 0.95, jn = n + (rnd() - 0.5) * step * 0.95;
       const cls = tile.classAt(je, jn), mix = MIX[cls];
       if (!mix || onRoad(je, jn)) continue;

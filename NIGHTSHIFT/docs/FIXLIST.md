@@ -624,6 +624,39 @@ the game. Newly found problems go at the end of their section.
 - [x] The replay (found testing its recording, above): with a motorbike in it, every frame of the replay threw an
   error - the cars it kept had no id, and the bike's rider was looked up as variant NaN. They keep their id now, and
   whether parked, its rider off, a foot down. Driven 30 s, the replay played 10 s and left, no errors
+- [x] The tiles' building, step by step (tools/dev/drive-hitch.mjs, and each of the build's slices timed with the label
+  it ended on): the slices over 50 ms were all one step done in one go.
+  - the parked scooters, all sixteen squares of a tile at once (60 ms): a square at a time
+  - the tea stalls and shelters set back from the lanes: every piece of every lane looked at for each try, by its x
+    alone (50 ms): by its box first, its points read by index
+  - the kerbs made a mesh per 500 m square (a town's square, 150 ms as you drove into it): 250 m squares
+  - the ground's points, triangles and normals in one go (85 ms on a fine tile), the ponds and canals in one go
+    (160 ms on a backwater tile), the trees' cells looked at the clock every 32 (110 ms in a town), the clearing of
+    walls off the roads every 64 (120 ms on a run of long walls): in steps, the clock looked at every 4 and every 8
+  The slowest slice on a drive into Kakkanad 156 -> 52 ms; slices over 25 ms 5 -> 3. What's left over 100 ms on the
+  drive is the garbage collector, after a tile's build (below)
+- [x] Memory: the tiles round the player held about a gigabyte of their meshes' corners in the page (the GPU has its
+  own copy), nearly all of it for things too far away to be drawn.
+  - the window sunshades (chajjas), a quarter of a gigabyte: made up front, eight corners and three quads each, for
+    every building of nine tiles, and drawn within 230 m only. A tile keeps each as 7 numbers now (about 26 MB for
+    the nine), and a 250 m square's mesh is made as the camera comes within 160 m of it (a few milliseconds of them
+    a frame) and let go 150 m further on
+  - the kerbs, the compound walls and the shadow marks under things kept a normal at every corner as three floats:
+    the kerbs and walls are flat pieces, their normals each triangle's own, kept as bytes now (the same shading, to
+    within half a degree); the shadow marks are unlit and never used theirs. Kerbs 143 -> 95 MB, walls 68 -> 45
+    (from their corners), marks 27 -> 15. (Shaded flat with no normals at all, they'd have lost the shadows on them:
+    the sun's shadows are looked up a little out along each corner's normal)
+  The meshes' corners kept in the page 805 -> about 480 MB; on a 4-minute drive the page's heap 2.8 -> 2.1 GB.
+  (Letting go of a mesh's corners once on the GPU, as a phone does, freed 24 MB more: what's drawn is small; left)
+- [x] The window sunshades came and went as you drove: they were in 500 m squares drawn only while the camera was
+  within 230 m of a square's middle, so near a square's edge the buildings on both sides had none. Along 1.2 km of a
+  street in Kakkanad, every 50 m: drawn at 10 of the 25 places before, at all 25 now (4-6 squares round the camera,
+  up to 13 000 sunshades, 80 000 triangles)
+- [x] ...and the build's garbage: the roads were given their graded surface, a bridge's deck and their strip as drawn
+  part way through a tile's build (and a deck taken off with delete), so the road objects kept changing shape, and
+  the lookup the build calls most (on a road? a million and a half times a tile) was thrown out of its fast code
+  again and again: 163 bytes of garbage a call, 124 MB a tile. The three are there, empty, from the start: 0 bytes a
+  call. The same tiles built on both (seven on the old, one more here): 777 -> 687 MB of garbage a tile
 - [x] Leaks over a long session (tools/dev/leaks.mjs: Kannur, Thalassery, Mattannur and round again, three laps).
   The heap after a garbage collection was flat lap on lap (Kannur 357 -> 363 MB), but the GPU's textures and
   geometries kept growing (textures +100-160 a lap, geometries +80-230, characters' skeletons +60):
