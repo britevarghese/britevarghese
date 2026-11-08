@@ -12,6 +12,7 @@ import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { geckoBody, trekkerBody, shepherdBody, droverBody, bruiserBody, rhinoBody, coupeBody, u8Body, cabin } from './TruckBodies.js';
 import { truckAsset } from './TruckAssets.js';
 import { Driver } from './Driver.js';
+import { HandTurn, WHEEL_LOCK } from './Hands.js';
 import { Person } from './Person.js';
 import { driverAssets } from './DriverAssets.js';
 import { buildCockpit, sportsWheel, sportsColumn } from './Cockpit.js';
@@ -1673,7 +1674,8 @@ export class TruckModel {
   }
 
   /** wheels: [4] of [travel (from full droop), spin angle, steer angle] for FL, FR, RL, RR; dt: s since the last. */
-  updateWheels(wheels, dt = 1 / 60) {
+  /** Each wheel's [travel, spin angle, steer] (Vehicle.wheelState), dt s on (none: a pose, the steering wheel there at once). */
+  updateWheels(wheels, dt) {
     for (let ai = 0; ai < 2; ai++) {
       const ax = this.axles[ai];
       const zL = wheels[ai * 2][0], zR = wheels[ai * 2 + 1][0];
@@ -1692,9 +1694,17 @@ export class TruckModel {
       }
       ax.group.updateMatrix();
     }
-    // the steering wheel: as far as the player's own steering wheel turns (handWheel: radians), else as a car's does,
-    // 14 times the front wheels' angle
-    if (this.steeringWheel) this.steeringWheel.rotation.z = this.handWheel ?? -((wheels[0][2] + wheels[1][2]) / 2 - (this.toe || 0)) * 14;
+    // the steering wheel: as far as the player's own steering wheel turns (handWheel: radians); else as the driver's
+    // hands turn it, after the front wheels (0.7 of a turn each way at full lock), no faster than hands can
+    // (render/Hands.js HandTurn)
+    if (this.steeringWheel) {
+      const lock = this.spec.axles[0].steer || 0.55;
+      this.wheelTurn ||= new HandTurn();
+      const to = -((wheels[0][2] + wheels[1][2]) / 2 - (this.toe || 0)) * (WHEEL_LOCK / lock);
+      // (a player's own wheel turns it where their hands have it: from there on the keys, when they let go of it)
+      if (this.handWheel != null) Object.assign(this.wheelTurn, { a: this.handWheel, v: 0, set: true });
+      this.steeringWheel.rotation.z = this.handWheel ?? this.wheelTurn.to(to, dt);
+    }
     if (this.driver?.group.visible) this.driver.update(this.steeringWheel.rotation.z, dt);
     // leaf springs: hanger -> seat on the axle -> shackle; shocks: frame mount -> axle mount
     const v = this._v, w = this._w;
