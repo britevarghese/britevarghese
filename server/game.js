@@ -22,6 +22,12 @@ export function botName(players, names) {
 export const SNAP_HZ = 20;
 const START_TICKETS = 300;
 const RESPAWN_DELAY = 5;
+// wounded, not killed: a soldier taken down by body hits (not a head shot, not blown apart, not a fall / run-over /
+// vehicle death) lies incapacitated and bleeds out over BLEED_MS; a medic beside him can bring him round in
+// REVIVE_MS (he gets up where he fell with REVIVE_HP, his kit as it was). The team's ticket goes only when he bleeds
+// out or gives up and redeploys.
+export const BLEED_MS = 15000, REVIVE_MS = 2500, REVIVE_RANGE = 2.5, REVIVE_HP = 30;
+const NO_REVIVE = new Set(['fall', 'roadkill', 'restricted', 'boundary', 'crash', 'reset', 'suicide']);
 const HISTORY_MS = 1000;
 const STANCES = ['stand', 'crouch', 'prone'];
 
@@ -51,12 +57,14 @@ export class Game {
     this.vehicles = new VehicleSystem(this);
     this.glassBroken = new Set(); // window panes shattered this round (the collision world is shared: state lives here)
     this.restrictedHQ = Math.min(45, this.map.PLAY_HALF * 0.3); // radius of each HQ's no-go zone for the enemy
+    this.reviveEnabled = true; // (battle royale: no medics, no reviving)
     this.resetRound();
   }
 
   now() { return this.clock ?? Date.now(); }
 
   resetRound() {
+    for (const p of this.players.values()) { p.downed = null; p.reviving = null; }
     this.tickets = { 1: START_TICKETS, 2: START_TICKETS };
     this.roundStart = this.now();
     this.flags = this.map.FLAGS.map((f) => ({ ...f, owner: f.owner || 0, progress: f.owner === 1 ? 1 : f.owner === 2 ? -1 : 0, contested: false }));
@@ -143,6 +151,8 @@ export class Game {
   spawn(p, pointId = 'base', cls) {
     if (p.alive || this.roundOver) return false;
     if (this.now() < p.respawnAt) return false;
+    // redeploying while still down: given up on a medic — that costs the ticket now
+    if (p.downed) this.#bleedOut(p);
     if (cls && CLASSES[cls]) p.cls = cls;
     const opt = this.spawnOptions(p.team).find((o) => o.id === pointId) || this.spawnOptions(p.team)[0];
     // several free candidate spots; take the one fewest enemies can see (no spawning into a firefight)
@@ -173,14 +183,66 @@ export class Game {
 
   kill(p, killer, weapon, silent = false) {
     if (!p.alive) return;
+    // incapacitated rather than killed? (body hits; not blown apart: an explosion's overkill shows in the hp)
+    const downable = this.reviveEnabled && !silent && !p.lastHeadshot && p.hp > -45 && !p.vehicle && !p.air && !NO_REVIVE.has(weapon);
     if (p.vehicle) this.vehicles.exit(p, true);
-    p.alive = false; p.hp = 0;
+    p.alive = false; p.hp = 0; p.reviving = null;
     p.respawnAt = this.now() + RESPAWN_DELAY * 1000;
     if (silent) return;
     p.deaths++;
-    this.tickets[p.team] = Math.max(0, this.tickets[p.team] - 1);
+    if (downable) p.downed = { until: this.now() + BLEED_MS, x: p.x, y: p.y, z: p.z, by: killer ? killer.id : 0 };
+    else this.tickets[p.team] = Math.max(0, this.tickets[p.team] - 1);
     if (killer && killer !== p && killer.team !== p.team) { killer.kills++; killer.score += 100; }
-    this.emit({ t: 'kill', v: p.id, k: killer ? killer.id : 0, w: weapon, hs: p.lastHeadshot || false, kx: killer?.x, ky: killer?.y, kz: killer?.z });
+    this.emit({ t: 'kill', v: p.id, k: killer ? killer.id : 0, w: weapon, hs: p.lastHeadshot || false, kx: killer?.x, ky: killer?.y, kz: killer?.z, ...(downable && { dn: 1 }) });
+  }
+
+  // bled out (or gave up): the ticket goes now
+  #bleedOut(p) {
+    p.downed = null;
+    this.tickets[p.team] = Math.max(0, this.tickets[p.team] - 1);
+    this.emit({ t: 'bledout', id: p.id });
+  }
+
+  // a medic starts / stops working on a downed teammate (holding the revive key; bots set it directly)
+  reviveHold(medic, id, on) {
+    if (!on) { medic.reviving = null; return; }
+    const q = this.players.get(id);
+    if (!medic.alive || medic.vehicle || !CLASSES[medic.cls]?.medic || !q?.downed || q.team !== medic.team) return;
+    if (Math.hypot(q.downed.x - medic.x, q.downed.z - medic.z) > REVIVE_RANGE || Math.abs(q.downed.y - medic.y) > 1.5) return;
+    if (medic.reviving?.id !== id) medic.reviving = { id, t0: this.now() };
+  }
+
+  // per tick: bleeding out, revives in progress
+  #casualties(now) {
+    for (const p of this.players.values()) {
+      if (p.downed && now >= p.downed.until) this.#bleedOut(p);
+      const r = p.reviving;
+      if (!r) continue;
+      const q = this.players.get(r.id);
+      // (the medic has to stay with him: in reach, on his feet, not driving off)
+      if (!p.alive || p.vehicle || !q?.downed || Math.hypot(q.downed.x - p.x, q.downed.z - p.z) > REVIVE_RANGE + 0.3) { p.reviving = null; continue; }
+      if (now - r.t0 >= REVIVE_MS) this.#revive(p, q);
+    }
+  }
+
+  #revive(medic, q) {
+    const d = q.downed, now = this.now();
+    medic.reviving = null; q.downed = null;
+    Object.assign(q, {
+      alive: true, hp: REVIVE_HP, x: d.x, y: d.y, z: d.z, vx: 0, vy: 0, vz: 0, stance: 'crouch', onGround: true, air: 0,
+      reloadUntil: 0, nextFire: now + 600, spawnProtect: 0, history: [], lastDamageFrom: null, airPeak: null, lastHit: now,
+    });
+    q.lastInput = now; q.moveBudget = undefined;
+    q.deaths = Math.max(0, q.deaths - 1); // (brought round: not a death after all)
+    medic.score += 50;
+    if (q.brain) q.brain.onRevived?.();
+    this.emit({ t: 'revive', id: q.id, by: medic.id, x: q.x, y: q.y, z: q.z, hp: q.hp, w: q.weapons, g: q.grenades, sl: q.slot });
+  }
+
+  // a medic of p's team up and about within r metres (downed bots hold on for one)
+  medicNear(p, r = 45) {
+    for (const q of this.players.values()) if (q !== p && q.alive && q.team === p.team && CLASSES[q.cls]?.medic && !q.vehicle && Math.hypot(q.x - p.x, q.z - p.z) < r) return q;
+    return null;
   }
 
   damage(victim, amount, attacker, weapon, head = false) {
@@ -616,7 +678,7 @@ export class Game {
     this.vehicles.tick(dt, now);
     for (const p of this.players.values()) {
       if (!p.alive) {
-        if (p.bot && now >= p.respawnAt && !this.roundOver) {
+        if (p.bot && now >= p.respawnAt && !this.roundOver && !(p.downed && this.medicNear(p))) {
           const opts = this.spawnOptions(p.team);
           this.spawn(p, opts[Math.floor(Math.random() * opts.length)].id);
         }
@@ -662,6 +724,7 @@ export class Game {
     for (const a of this.agents) a.tick();
     this.stepBullets(now);
     this.stepGrenades(dt);
+    this.#casualties(now);
     this.stepFlags(dt);
   }
 
@@ -688,7 +751,14 @@ export class Game {
       f: this.flags.map((f) => [f.id, f.owner, +f.progress.toFixed(3), f.contested ? 1 : 0]),
       tk: [this.tickets[1], this.tickets[2]],
       veh: this.vehicles.list.length ? this.vehicles.snapshot() : undefined,
+      dn: this.#downedList(now),
     };
+  }
+
+  #downedList(now) {
+    const out = [];
+    for (const p of this.players.values()) if (p.downed) out.push([p.id, p.team, +p.downed.x.toFixed(2), +p.downed.y.toFixed(2), +p.downed.z.toFixed(2), Math.ceil((p.downed.until - now) / 1000)]);
+    return out.length ? out : undefined;
   }
 
   scoreboard() {

@@ -6,13 +6,14 @@
 //   search  - lost sight: crouch-walk toward where the enemy was last seen, aiming there, then give up
 //   hold    - at the objective (a spot with cover beside it when there is one): watch the approach directions
 //   peek    - after ducking into cover: come up and look for the shooter again
+//   revive  - medic: a teammate down close by — run to him, kneel, bring him round
 // and as vehicle crews (server/botvehicles.js): taking a tank / jeep standing unused at base, driving it to an
 // objective, fighting from it, bailing out of a wreck.
 // Spotting takes time (awareness builds while someone stays in view: instant up close or when he fires, seconds for
 // a still / crouched / prone figure far off or at the edge of vision); bullets cracking past suppress (duck, aim
 // worse, break contact); a hit makes the aim flinch; grenades go to enemies known to be behind cover close by.
 import { EYE_HEIGHT } from '../shared/world.js';
-import { WEAPONS, GRENADE } from '../shared/weapons.js';
+import { WEAPONS, GRENADE, CLASSES } from '../shared/weapons.js';
 import { angleDiff, clamp } from '../shared/util.js';
 import { zeroAngle } from '../shared/ballistics.js';
 import { Foliage } from './foliage.js';
@@ -130,6 +131,45 @@ export class BotBrain {
     const sprint = run && Math.abs(angleDiff(p.yaw, Math.atan2(-input.fx, -input.fz))) < 0.8 && !p.winded;
     input.sprint = sprint; p.sprint = sprint;
     return d;
+  }
+
+  // brought round by a medic (Game.#revive): back on his feet where he fell, picks up from there
+  onRevived() { this.onSpawn(); this.reviveFor = null; }
+
+  // medic with no enemy in sight: the nearest teammate down within ~35 m (with time left to reach him) — run to him
+  // along the nav path, kneel beside him and work on him (Game.reviveHold); an enemy showing up comes first (the
+  // engage block runs before this), the revive carries on as long as he stays beside him
+  medicWork(now, dt, input) {
+    const g = this.g, p = this.p;
+    let q = this.reviveFor && g.players.get(this.reviveFor);
+    if (!q?.downed) { q = null; this.reviveFor = null; if (p.reviving) g.reviveHold(p, 0, false); }
+    if (!q && now > (this.nextReviveLook || 0)) {
+      this.nextReviveLook = now + 600;
+      let bd = 35;
+      for (const c of g.players.values()) {
+        if (!c.downed || c.team !== p.team || c.downed.until - now < 4000) continue;
+        const d = Math.hypot(c.downed.x - p.x, c.downed.z - p.z);
+        if (d < bd) { bd = d; q = c; }
+      }
+      if (q) { this.reviveFor = q.id; this.revivePath = g.nav.findPath(p.x, p.z, q.downed.x, q.downed.z, undefined, p.y); this.reviveIdx = 1; }
+    }
+    if (!q) return false;
+    const D = q.downed, d = Math.hypot(D.x - p.x, D.z - p.z);
+    this.mode = 'revive';
+    if (d > 1.6) {
+      const P = this.revivePath;
+      let wp = P?.[this.reviveIdx] || D;
+      if (P && this.reviveIdx < P.length - 1 && Math.hypot(wp.x - p.x, wp.z - p.z) < 0.8) wp = P[++this.reviveIdx];
+      p.stance = 'stand';
+      this.steer(wp.x, wp.z, dt, input, d > 5);
+      this.turn(Math.atan2(-input.fx, -input.fz), 0, dt, 1);
+      if (p.reviving) g.reviveHold(p, 0, false);
+      return true;
+    }
+    input.fx = input.fz = 0; input.sprint = p.sprint = false; p.stance = 'crouch';
+    this.turn(Math.atan2(-(D.x - p.x), -(D.z - p.z)), -0.6, dt, 1);
+    if (!p.reviving) g.reviveHold(p, q.id, true);
+    return true;
   }
 
   onDamaged(attacker) {
@@ -477,6 +517,10 @@ export class BotBrain {
     }
     // rounds cracking past out of nowhere: get down and look for the shooter
     if (this.suppression(now) > 0.5 && p.stance === 'stand' && this.mode !== 'cover') { p.stance = 'crouch'; this.stanceUntil = now + rand(2000, 4000); }
+
+    // ---------------------------------------------------------------- medic: a teammate down close by
+    if (CLASSES[p.cls]?.medic && this.medicWork(now, dt, input)) return input;
+    if (p.reviving) g.reviveHold(p, 0, false);
 
     // ---------------------------------------------------------------- search where the enemy was last seen
     if (this.lastSeen && now - this.lastSeen.t < 6000 && (this.target || now - this.lastSeen.t < 4000)) {

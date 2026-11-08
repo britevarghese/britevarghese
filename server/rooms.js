@@ -100,6 +100,7 @@ export class Room {
       case 'pick': if (Number.isInteger(m.id)) g.pickup?.(p, m.id); break;
       case 'heal': g.heal?.(p); break;
       case 'venter': if (Number.isInteger(m.id)) g.vehicles.enter(p, m.id); break;
+      case 'revive': if (Number.isInteger(m.id)) g.reviveHold(p, m.id, !!m.on); break;
       case 'vexit': if (p.vehicle) g.vehicles.exit(p); break;
       case 'vseat': if (Number.isInteger(m.seat)) g.vehicles.switchSeat(p, m.seat); break;
       case 'vin': g.vehicles.input(p, m); break;
