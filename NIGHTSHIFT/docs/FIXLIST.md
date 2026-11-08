@@ -643,10 +643,10 @@ the game. Newly found problems go at the end of their section.
     a frame) and let go 150 m further on
   - the kerbs, the compound walls and the shadow marks under things kept a normal at every corner as three floats:
     the kerbs and walls are flat pieces, their normals each triangle's own, kept as bytes now (the same shading, to
-    within half a degree); the shadow marks are unlit and never used theirs. Kerbs 143 -> 95 MB, walls 68 -> 45
-    (from their corners), marks 27 -> 15. (Shaded flat with no normals at all, they'd have lost the shadows on them:
+    within half a degree); the shadow marks are unlit and never used theirs. Kerbs 143 -> 95 MB, walls 68 -> 45,
+    marks 27 -> 15. (Shaded flat with no normals at all, they'd have lost the shadows on them:
     the sun's shadows are looked up a little out along each corner's normal)
-  The meshes' corners kept in the page 805 -> about 480 MB; on a 4-minute drive the page's heap 2.8 -> 2.1 GB.
+  The meshes' corners kept in the page 805 -> 481 MB; on a 4-minute drive the page's heap 2.8 -> 2.1 GB.
   (Letting go of a mesh's corners once on the GPU, as a phone does, freed 24 MB more: what's drawn is small; left)
 - [x] The window sunshades came and went as you drove: they were in 500 m squares drawn only while the camera was
   within 230 m of a square's middle, so near a square's edge the buildings on both sides had none. Along 1.2 km of a
@@ -656,7 +656,9 @@ the game. Newly found problems go at the end of their section.
   part way through a tile's build (and a deck taken off with delete), so the road objects kept changing shape, and
   the lookup the build calls most (on a road? a million and a half times a tile) was thrown out of its fast code
   again and again: 163 bytes of garbage a call, 124 MB a tile. The three are there, empty, from the start: 0 bytes a
-  call. The same tiles built on both (seven on the old, one more here): 777 -> 687 MB of garbage a tile
+  call. The same tiles built on both (seven on the old, one more here): 777 -> 687 MB of garbage a tile.
+  Checked after all of the above: day and night the same street looks the same; roads, the six towns' traffic and the
+  six AI missions as before (all through, no errors; the missions' longest stops 0-48 s, within earlier rounds' 0-77)
 - [x] Leaks over a long session (tools/dev/leaks.mjs: Kannur, Thalassery, Mattannur and round again, three laps).
   The heap after a garbage collection was flat lap on lap (Kannur 357 -> 363 MB), but the GPU's textures and
   geometries kept growing (textures +100-160 a lap, geometries +80-230, characters' skeletons +60):
