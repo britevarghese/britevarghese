@@ -146,7 +146,7 @@ export class Delivery {
       const near = Math.hypot(from.x - here.x, from.z - here.z);
       return card({
         sec: 'job', edge: 'teal', icon: 'weight', title: escapeHtml(job.title), tag: on ? (A.phase === 'carry' ? 'On board' : 'Taken') : 'Delivery',
-        image: `<div class="mc-route"><b>${escapeHtml(from.name)}</b>${ic('arrow')}<b>${escapeHtml(to.name)}</b></div>`,
+        image: `<div class="mc-route"><b>${escapeHtml(from.name)}</b>${ic('chev')}<b>${escapeHtml(to.name)}</b></div>`,
         desc: escapeHtml(job.desc),
         feats: [feat('weight', loadText(job)), feat('pin', `${job.km} km`), feat('cash', `Pays ${money(payOf(job))}`), ...(L.cargo.wet ? [feat('water', 'Keep it dry')] : []), feat('map', `Pickup ${fmtDist(near)} away`)],
         acts: on ? `<button class="mc-btn b-teal" data-jobdrop="${job.id}">${ic('close')}Give it up</button>`
