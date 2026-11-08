@@ -400,7 +400,7 @@ export class HUD {
     if (net) set('p-count-n', `${players}/${net.maxPlayers || players}`);
   }
 
-  drawObjective(here, route) {
+  drawObjective(here, route, job = null) {
     let best = null, bd = Infinity;
     for (const b of this.world.beacons) {
       if (this.found.has(b.id)) continue;
@@ -410,8 +410,9 @@ export class HUD {
     const el = $('objective');
     const n = this.found.size, total = this.world.beacons.length;
     const dist = (m) => (m < 1000 ? Math.round(m) + ' m' : (m / 1000).toFixed(1) + ' km');
-    const text = route ? `<span class="route">➤</span> Route to <b>${escapeHtml(route.target.name)}</b> ${dist(route.left)}`
-      : best ? `Beacons <b>${n}/${total}</b> · nearest: <b>${best.name}</b> ${dist(bd)}` : `All <b>${total}</b> beacons surveyed. The valley is mapped!`;
+    // (a delivery under way: game/Delivery.js says where to and how the load is)
+    const text = job || (route ? `<span class="route">➤</span> Route to <b>${escapeHtml(route.target.name)}</b> ${dist(route.left)}`
+      : best ? `Beacons <b>${n}/${total}</b> · nearest: <b>${best.name}</b> ${dist(bd)}` : `All <b>${total}</b> beacons surveyed. The valley is mapped!`);
     if (el.innerHTML !== text) el.innerHTML = text;
   }
 

@@ -815,9 +815,10 @@ export const truckBase = (id) => TRUCKS[id] || TRUCKS.ranger;
 
 /** The physics spec for a truck and a build (object, 14-character code, or nothing for stock), cached per build. */
 const cache = new Map();
-export function truckSpec(id, build) {
+export function truckSpec(id, build, cargo = null) {
   const base = truckBase(id);
   const b = typeof build === 'string' ? decodeBuild(base, build) : normalizeBuild(base, build);
+  if (cargo && cargo.m > 0) return buildSpec(base, b, cargo);         // (a load: game/Jobs.js; not kept)
   const key = `${base.id}:${encodeBuild(b)}`;
   let spec = cache.get(key);
   if (!spec) { spec = buildSpec(base, b); cache.set(key, spec); }

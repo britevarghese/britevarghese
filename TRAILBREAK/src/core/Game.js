@@ -12,6 +12,7 @@ import { CameraRig } from './CameraRig.js';
 import { BEACON_RADIUS, MAP_HALF } from '../world/maps/index.js';
 import { park } from '../world/homes.js';
 import { EventPlay } from '../game/EventPlay.js';
+import { Delivery } from '../game/Delivery.js';
 import { EventCourse } from '../render/EventCourse.js';
 import { BoardsView } from '../render/BoardsView.js';
 import { layBoards, digOut, stuckPair } from '../game/Boards.js';
@@ -144,6 +145,8 @@ export class Game {
     this.applySettings();
     // events: the start lines, runs and races (game/EventPlay.js), their banners and gates on the ground
     this.events = new EventPlay(this);
+    this.cargo = null;                                 // the load on the truck, and the job it's for (game/Delivery.js)
+    this.delivery = new Delivery(this);
     this.course = new EventCourse(this.scene, this.world, this.events.events);
     this.modeView = new ModeView(this.scene, this.world);
     // (the recovery boards, when they are down: K)
@@ -283,6 +286,7 @@ export class Game {
   /** Fast travel to a thing on the map; null when done, else why not. */
   fastTravel(item) {
     if (this.events.racing) return 'No fast travel in the middle of a run';
+    if (this.delivery.carrying) return 'No fast travel with a load on: drive it there';
     const v = this.vehicle, closeMap = () => { if (this.mapOpen) this.toggleMap(); };
     // (somewhere whose map isn't in yet, a friend who started far off: that map is built next, and the truck is taken
     // there as soon as it is in: regionIn. In means drawn too: a big map's ground is in the world some while before
@@ -358,11 +362,14 @@ export class Game {
     list.innerHTML = this.events.listHtml(this.builderPicture());
     list.onclick = (e) => {
       const go = e.target.closest('[data-go]'), start = e.target.closest('[data-start]'), free = e.target.closest('[data-free]'), build = e.target.closest('[data-build]');
-      if (!go && !start && !free && !build) return;
+      const job = e.target.closest('[data-job]'), jobDrop = e.target.closest('[data-jobdrop]');
+      if (!go && !start && !free && !build && !job && !jobDrop) return;
       close();
       if (go) this.events.goTo(go.dataset.go);
       else if (start) this.events.startNow(start.dataset.start);
       else if (build) this.builder.open();
+      else if (job) this.delivery.take(job.dataset.job);
+      else if (jobDrop) this.delivery.drop();
     };
     // the side: a section of the list, or the garage, or the settings (the pause menu)
     for (const b of el.querySelectorAll('.nav-i')) {
@@ -425,14 +432,22 @@ export class Game {
     }
   }
 
-  /** Fit a build (a 14-character code): a new truck in the same place, or at the station garage. */
-  applyBuild(code, toGarage = false) {
+  /**
+   * Fit a build (a 14-character code): a new truck in the same place, or at the station garage; with the load it
+   * carries (this.cargo: game/Delivery.js). keep: the same truck rebuilt where it stands for a load going on or coming
+   * off, its damage and its tyres' air as they were.
+   */
+  applyBuild(code, toGarage = false, keep = false) {
     const old = this.vehicle;
     const pose = { x: old.pos.x, z: old.pos.z, yaw: Math.atan2(old.fwd.x, old.fwd.z) };
-    this.spec = truckSpec(this.truckId, code);
+    this.spec = truckSpec(this.truckId, code, this.cargo);
     this.build = this.spec.buildCode;
     const v = this.vehicle = new Vehicle(this.spec);
     v.damage.setLevel(this.settings.damage);
+    if (keep) {
+      v.damage = old.damage; v.damage.spec = this.spec;
+      v.psi = old.psi; v.psiTarget = old.psiTarget;
+    }
     // (the range and the front axle as they were, when both trucks shift them: a road car drives as it's built)
     if (v.dt.t.low > 1 && old.dt.t.low > 1) v.dt.low = old.dt.low;
     if (v.dt.drive === '4wd' && old.dt.drive === '4wd') v.dt.fourWD = old.dt.fourWD;
@@ -446,9 +461,16 @@ export class Game {
     if (toGarage) this.placeAtGarage(); else v.place(this.world, pose.x, pose.z, pose.yaw);
     this.carry = 0;
     if (this.net) this.net.warp++;
+    if (keep) return;
     this.audio.setLocalEngine(this.spec).catch(() => {});
     this.onBuild?.(this.truckId, this.build);
     this.hud.toast(`${this.spec.name}: ${buildSummary(this.spec, this.spec.build)}`, false, 5);
+  }
+
+  /** A load on the truck (game/Delivery.js: { m kg, kind }), or off it (null). */
+  setCargo(c) {
+    this.cargo = c && c.m > 0 ? { m: c.m, kind: c.kind } : null;
+    this.applyBuild(this.build, false, true);
   }
 
   placeAtGarage() {
@@ -536,6 +558,7 @@ export class Game {
     }
     if (this.switchingTo !== id) return;               // (another was picked meanwhile)
     this.switchingTo = null;
+    if (this.delivery.carrying) this.delivery.drop();  // (the load stays with the truck it was on)
     this.truckId = id;
     this.applyBuild(this.settings.builds?.[id] || '', true);
   }
@@ -1643,6 +1666,7 @@ export class Game {
       if (Math.hypot(H.x - v.pos.x, H.z - v.pos.z) > 30) this.setRoute({ kind: 'point', name: H.name, x: H.x, z: H.z }, true);
     }
     this.updateRoute(dt);
+    this.delivery.update(dt);
     // the line on the ground: a run's course while it is on, else the satnav's route
     const runLine = this.events.run && this.events.run.phase !== 'finished' ? this.events.run.event.line : null;
     this.routeLine.update(runLine || this.route?.points, v.pos, this.world, dt);
@@ -1737,7 +1761,7 @@ export class Game {
       if (this.chat.available !== !!this.net?.connected) this.chat.setAvailable(!!this.net?.connected);
       const run = this.events.run, courseLine = run && run.phase !== 'finished' && run.event.line;
       this.hud.drawMinimap(v.pos, heading, mates, courseLine ? { points: courseLine } : this.route, this.modeMarks());
-      this.hud.drawObjective(v.pos, this.route);
+      this.hud.drawObjective(v.pos, this.route, this.delivery.objective(this.route));
       const vp = this.voicePanel;
       const list = [{ name: this.name, color: this.myColor, me: true, help: this.helpOn, tag: this.events.tagFor(this.net?.id), voice: vp?.stateOf(null) },
         ...mates.map((r) => ({ name: r.name, color: r.color, help: r.help, tag: this.events.tagFor(r.id), voice: vp?.stateOf(this.voice.peers.get(r.id)) }))];

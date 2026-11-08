@@ -175,10 +175,13 @@ export class Vehicle {
       ax.anti = (i === 0 ? -1 : 1) * anti * spec.cgHeight / span;
       ax.bar = a.swayBar ?? (i === 1 && !spec.road && spec.axles[0].swayBar ? 0.6 * spec.axles[0].swayBar : 0);
     });
-    const shareF = (0 - ra.zc) / span;
+    // (a truck carrying a load: its springs set for it empty, the load squatting it: spec.unladen, Upgrades.js)
+    const U = spec.unladen;
+    const shareF = U ? (U.cgZ - ra.spec.z) / (fa.spec.z - ra.spec.z) : (0 - ra.zc) / span;
+    const sprungSet = U ? U.mass - this.unsprung : this.sprung;
     for (const ax of this.axles) {
       const share = ax === fa ? shareF : 1 - shareF;
-      const perSpring = this.sprung * GRAVITY * share / 2;
+      const perSpring = sprungSet * GRAVITY * share / 2;
       ax.pre = perSpring / ax.spec.rate - ax.spec.sag;
     }
     void zMid;

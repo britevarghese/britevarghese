@@ -663,10 +663,19 @@ function addedParts(base, b) {
 }
 
 /**
+ * Where a load sits (design frame, stock height): its centre a quarter metre above a pickup's bed or a wagon's load
+ * floor, which sit about 0.45 m above the rear hubs (a Hilux's bed floor is about 0.8 m off the ground on 0.38 m tyres),
+ * just ahead of the rear axle.
+ */
+function cargoAt(base, T0) {
+  return { y: base.cargoY ?? T0.radius + 0.7, z: base.cargoZ ?? base.axles[1].z + 0.15 };
+}
+
+/**
  * The physics spec for a truck with a build. The stock spec (trucks.js) describes the truck at stock height on its
  * stock tyres with bare axles (axle mass without wheels); everything here is derived from it.
  */
-export function buildSpec(base, buildIn) {
+export function buildSpec(base, buildIn, cargo = null) {
   const b = normalizeBuild(base, buildIn);
   const spec = JSON.parse(JSON.stringify(base));
   const T0 = tyreFor(base, base.stock.tyre), T = tyreFor(base, b.tyre);
@@ -684,6 +693,14 @@ export function buildSpec(base, buildIn) {
   let m = sprung0, my = sprung0 * (hSprung0 + raise), mz = sprung0 * zSprung0;
   for (const p of parts) { m += p.m; my += p.m * (p.y + raise); mz += p.m * p.z; }
   for (const a of base.axles) { const ma = a.mass + 2 * wheelMass; m += ma; my += ma * T.radius; mz += ma * a.z; }
+  // a load (game/Jobs.js): over the rear axle on the bed or the load floor; the springs stay set for the empty truck,
+  // so it squats under it (Vehicle.js: the preload from spec.unladen)
+  const load = cargo && cargo.m > 0 ? { m: cargo.m, x: 0, ...cargoAt(base, T0) } : null;
+  if (load) {
+    spec.unladen = { mass: Math.round(m), cgZ: mz / m };
+    m += load.m; my += load.m * (load.y + raise); mz += load.m * load.z;
+    spec.cargo = { m: load.m, kind: cargo.kind || 'load', y: load.y + raise, z: load.z };
+  }
   spec.mass = Math.round(m);
   spec.cgHeight = my / m;
   spec.cgZ = mz / m;
@@ -698,6 +715,7 @@ export function buildSpec(base, buildIn) {
   Ix += sprung0 * (dyBody * dyBody + dzBody * dzBody); Iz += sprung0 * dyBody * dyBody; Iy += sprung0 * dzBody * dzBody;
   for (const p of parts) pt(p.m, p.x, p.y + raise, p.z);
   for (const a of base.axles) { pt(a.mass, 0, T.radius, a.z); pt(wheelMass, a.track / 2, T.radius, a.z); pt(wheelMass, -a.track / 2, T.radius, a.z); }
+  if (load) pt(load.m, 0, load.y + raise, load.z);
   spec.inertia = [Ix, Iy, Iz];
 
   // ---- tyres (a heavy truck's are built for its weight: stiffer carcasses, more plies, higher pressures)
@@ -774,8 +792,8 @@ export function buildSpec(base, buildIn) {
 const SURFACE_NAMES = Object.keys(SURFACE).map((k) => k.toLowerCase());
 
 /** The physics spec for a truck id and a build (object or code). */
-export function specFor(base, build) {
-  return buildSpec(base, typeof build === 'string' ? decodeBuild(base, build) : build);
+export function specFor(base, build, cargo = null) {
+  return buildSpec(base, typeof build === 'string' ? decodeBuild(base, build) : build, cargo);
 }
 
 // ---------------------------------------------------------------- garage numbers

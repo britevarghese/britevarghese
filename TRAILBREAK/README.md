@@ -51,9 +51,10 @@ Dark glass panels over the game, an orange accent and condensed italic type (Bar
   invite link, voice chat, the world and gameplay settings (time of day, weather, shadows, sound, steering assist,
   vibration, graphics, damage, a steering wheel's calibration and paddles), Resume ride, and the garage, modes and races, map
   builder, dealer, back to the station and the controls.
-- **Modes & races (N):** a card for each: free roam, the map builder, the party modes, the checkpoint races and the
-  events, with a picture of it (rendered in the game), the par times, your best and what gold pays; Start lines you
-  up, Go to the start sets the satnav. The side bar shows one kind at a time, or opens the garage or the settings.
+- **Modes & races (N):** a card for each: free roam, the map builder, the party modes, the checkpoint races, the
+  events and the deliveries, with a picture of it (rendered in the game), the par times, your best and what gold pays;
+  Start lines you up, Go to the start sets the satnav. The side bar shows one kind at a time, or opens the garage or
+  the settings.
 - **Garage (U):** the parts in rows, each with what fits and what it changes against the factory part (+31% crawl
   ratio, +23% belly height...); presets; the truck turning in the middle (rotate, zoom, five views, and Photo saves a
   picture of it); under it, a grade for the build off-road (D to S, from clearance, angles, travel, wading, gearing,
@@ -445,12 +446,54 @@ cards' pictures are drawn by `tools/thumbs.cjs` (the cars in the showroom, from 
 colour it's known in).
 
 - **Earning:** surveying a beacon pays a $600 bounty (friends in the room get a share when you find one), towing a
-  friend out pays a rescue fee, and events pay prize money.
+  friend out pays a rescue fee, events pay prize money, and [deliveries](#deliveries) pay for each load brought in.
 - **Spending:** the dealer (pause menu, or the lobby's showroom) sells seventeen trucks, from the $4,500 Lada Niva
   to the $95,000 G 63 (see [The trucks](#the-trucks)), and fourteen sports cars, from the $45,000 Impreza STi to the
   $1,150,000 McLaren Senna (see [The sports cars](#the-sports-cars)); the garage prices every part and bills only for parts you
   haven't bought for that truck (once bought, a part is yours to fit and take off again). Repairs and the tow truck cost
   money, and can run you into the red (down to -$5,000): a truck is never left broken.
+
+### Deliveries
+
+Haul a load across the open world for pay: **Modes & races (N) > Deliveries**, then **Take the job**. The satnav takes
+you to the pickup; stop there (inside the yard, for two seconds) and the load goes on. Drive it to the drop and stop:
+it comes off, and you're paid. The line under the compass says what you carry, where to, how far, and how much of the
+load is still whole.
+
+| Job | From | To | Load | Road | Pays |
+|---|---|---|---|---|---|
+| Cement for Korlai Fort | Kashid Motor Station | Korlai Fort | 8 bags of cement, 400 kg | 6.0 km | $1,470 |
+| Diesel for the lighthouse | Korlai Bazaar | Korlai Lighthouse | 2 drums of diesel, 378 kg | 1.7 km | $510 |
+| Gas for Ghat Dhaba | Kashid Motor Station | Ghat Dhaba | 12 cooking-gas cylinders, 356 kg | 11.5 km | $2,550 |
+| Ponmala tea to the coast | Ponmala Tea Factory | Kashid Motor Station | 12 sacks of tea, 420 kg | 15.6 km | $3,660 |
+| Tea for Ghat Dhaba | Ponmala Tea Factory | Ghat Dhaba | 6 sacks of tea, 210 kg | 4.1 km | $860 |
+| Diesel for the fire tower | Ashwood Ranger Station | Ashwood Fire Tower | 1 drum of diesel, 189 kg | 1.1 km | $330 |
+| Diesel for the old mine | Ashwood Ranger Station | Ashwood Old Mine | 2 drums of diesel, 378 kg | 1.4 km | $450 |
+| Cement for the forest station | Shivapur Motors | Ponmala Forest Station | 10 bags of cement, 500 kg | about 2.7 km | $810 |
+| Gas for Lalghati Base | Bearwood Timber Camp | Lalghati Base | 8 cooking-gas cylinders, 238 kg | about 1.9 km | $490 |
+| Diesel for the Pass Hut | Koyna Dam | Pass Hut | 2 drums of diesel, 378 kg | 5.3 km | $1,290 |
+
+The loads are what these places really move, in the units they come in: cement in the Indian standard 50 kg bag
+([IS 11652:2017](https://evtlindia.com/isi-mark/bis-certification-for-hdpepp-woven-sacks-for-packaging-of-50-kg-cement-is-11652-2017),
+the standard for the woven sacks of 50 kg cement); cooking gas in the 14.2 kg domestic cylinder, 29.7 kg full
+([Indian Oil](https://www.iocl.com/MediaDetails/9580): about 15.5 kg empty); diesel in 200-litre drums, 189 kg full (a
+[galvanised 200 l drum](https://www.tankundlager.com/en/200L-Galvanized-Drum-22kg-IMDG-RID-ADR-Compliant-1.2mm-Steel-Screw-Tension-Ring/B0485)
+22 kg empty, diesel 0.82-0.845 kg/l by EN 590); tea in paper sacks of about 35 kg (the sizes of the tea sacks in IS
+15576, about 50, 35 and 28 kg). The road distances are the satnav's, measured over the whole world (where it found no
+road, 1.3 times the straight line); the pay is $150, $120 a km and $0.25 a kg-km.
+
+**The load is real weight:** it sits on the bed (or a wagon's load floor) just ahead of the rear axle, a quarter metre
+up, and the springs stay set for the truck empty, so the truck squats under it by what its springs give: 500 kg sits
+a Ranger 4.7 cm lower at the back, a Thar 5.6 cm, a Hauler 3.3 cm. Its centre of gravity rises 4 to 7 cm, it pulls
+slower (0-30 km/h 3.2 s empty, 3.8 s with 500 kg in the Ranger; 3.0 against 3.9 s in the Lada), and it sinks deeper in
+mud (8.9 cm standing in the bog empty, 11 cm loaded). Light trucks feel half a tonne most.
+
+**The load can be hurt:** hard jolts through the bed floor (over about 2.5 g: a landing off a drop, a hole taken
+fast) and crashes (stopping short at over 4 g) cost it a share of its value; paper tea sacks and cement bags split far
+sooner than steel gas cylinders and drums shrug it off. Cement and tea soaked in a ford deeper than the bed floor are
+ruined in seconds. Rolling over spills the load and loses the job. You're paid for what arrives whole: the pay less the
+share lost. No fast travel with a load on (the job is the drive); towing home keeps it on the truck; switching trucks
+leaves it behind.
 
 **Events** (pause menu > Events, or the chequered flags on the map): Ashwood and Kerala have four each, the Konkan Coast
 three. Drive to a start line and press **J**. The truck is lined up and counted down; drive through the gates in order
@@ -1751,7 +1794,8 @@ src/render/               Renderer, Sky, Terrain (LOD patches), WorldView (the o
                           bloom and the grade), Probe (the reflections on the player's truck)
 src/core/                 Game (the loop), Input, CameraRig
 src/game/                 Career (money, trucks, parts, best times), Events (the courses, runs, medals, races),
-                          EventPlay (events in the game: start lines, countdown, clock, prizes, races with friends)
+                          EventPlay (events in the game: start lines, countdown, clock, prizes, races with friends),
+                          Jobs and Delivery (the deliveries: the jobs and their loads; taking, loading, hauling, pay)
 src/audio/, src/net/, src/ui/   sound, multiplayer client, HUD and maps, the garage (Garage, GaragePreview)
 public/index.html, css/   the screens and their icons; public/assets/fonts (Barlow), public/assets/ui (the lobby's
                           picture and the Modes & races cards' pictures, rendered in the game)

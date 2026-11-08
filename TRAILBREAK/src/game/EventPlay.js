@@ -508,7 +508,8 @@ export class EventPlay {
     return `${group('free', 'mountain', 'Free roam', 'the open map, and your own on it')}${cards.join('')}
       ${party.length ? group('party', 'people', 'Party modes', friends ? 'start one and your friends have 15 s to press J and join' : 'best with friends in the room; alone, against the clock') + party.map(eventCard).join('') : ''}
       ${races.length ? group('race', 'trophy', 'Checkpoint races', 'circuits and rallies through numbered arches; with friends, the places pay') + races.map(eventCard).join('') : ''}
-      ${evs.length ? group('event', 'timer', 'Events', 'climbs, dashes and trials: beat the par times for medal money') + evs.map(eventCard).join('') : ''}`;
+      ${evs.length ? group('event', 'timer', 'Events', 'climbs, dashes and trials: beat the par times for medal money') + evs.map(eventCard).join('') : ''}
+      ${g.delivery ? g.delivery.cards({ card, group, ic, feat }) : ''}`;
   }
 
   /** From the list: line up for an event now (with friends here: open it for them to join). */
