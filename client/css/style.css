@@ -597,3 +597,25 @@ body.downed #crosshair, body.downed #weaponbox, body.downed #ammo, body.downed #
 .tbtn.rev.ready { display: grid; }
 body.touch #rprompt { top: 30%; min-width: 200px; font-size: 12px; }
 body.touch .dn-t { font-size: 26px; } body.touch #downed .dn-box { bottom: 8%; }
+
+/* ================================================================ squads: overhead markers, squad panel, deploy screen */
+#iffmarks { position: fixed; inset: 0; pointer-events: none; z-index: 3; overflow: hidden; }
+#iffmarks .iff { position: absolute; left: 0; top: 0; display: flex; flex-direction: column-reverse; align-items: center; gap: 2px; white-space: nowrap; }
+#iffmarks .iff i { width: 0; height: 0; border-left: 6px solid transparent; border-right: 6px solid transparent; border-top: 8px solid #6fb0ff; filter: drop-shadow(0 1px 1px rgba(0,0,0,.9)); }
+#iffmarks .iff span { font: 700 11px var(--ui); letter-spacing: .04em; color: #9cc8ff; text-shadow: 0 1px 2px #000, 0 0 3px #000; }
+#iffmarks .iff.sq i { border-top-color: #7dff8a; } #iffmarks .iff.sq span { color: #a8ffb2; }
+#iffmarks .iff.far { opacity: .6; } #iffmarks .iff.far i { border-left-width: 4px; border-right-width: 4px; border-top-width: 6px; }
+body.downed #iffmarks, body.deploying #iffmarks { display: none; }
+#squadpanel { position: fixed; left: 24px; bottom: 112px; display: flex; flex-direction: column; gap: 2px; min-width: 150px; font: 600 13px var(--ui); letter-spacing: .03em; text-shadow: 0 1px 2px #000; pointer-events: none; }
+#squadpanel .sqn { font-size: 11px; letter-spacing: .18em; color: #7dff8a; margin-bottom: 1px; }
+#squadpanel .sm { display: flex; align-items: center; gap: 7px; color: #d9ffe0; }
+#squadpanel .sm .ic { width: 14px; height: 14px; color: #7dff8a; }
+#squadpanel .sm.down { color: #ffb4ab; } #squadpanel .sm.down .ic { color: #e8322a; }
+#squadpanel .sm.dead { color: rgba(255,255,255,.4); } #squadpanel .sm.dead .ic { color: rgba(255,255,255,.3); }
+body.touch #squadpanel, body.deploying #squadpanel, body.downed #squadpanel { display: none; }
+@media (max-height: 560px) { #squadpanel { display: none; } }
+#spawns .sph { margin-top: 6px; font-size: 11px; letter-spacing: .16em; color: #7dff8a; }
+#spawns .sp.mate .sqd { width: 12px; height: 12px; border-radius: 50%; background: #7dff8a; box-shadow: 0 0 0 2px rgba(125,255,138,.3); }
+#spawns .sp.mate.sel { border-color: #7dff8a; background: rgba(125,255,138,.12); }
+#dp-roster .sqh { padding: 8px 8px 2px; font-size: 11px; letter-spacing: .16em; color: var(--mut); border-top: 1px solid var(--line); }
+#dp-roster .sqt { width: 16px; font-size: 11px; color: #6fb0ff; text-align: center; }

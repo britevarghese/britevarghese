@@ -22,6 +22,8 @@ import { ScopeOverlay } from './ui/ScopeOverlay.js';
 import { detectGPU, adviceFor } from './render/GPU.js';
 import { VehiclesClient } from './vehicles/Vehicles.js';
 import { Revive } from './game/Revive.js';
+import { Markers } from './ui/Markers.js';
+import { SQUAD_BLOCK } from '/shared/squads.js';
 
 const $ = (id) => document.getElementById(id);
 const DOWN = { x: 0, y: -1, z: 0 };
@@ -137,6 +139,9 @@ class Game {
     this.isTouch = isTouchDevice();
     this.board = new Map();
     this.revive = new Revive(this);
+    this.markers = new Markers(this);
+    // (deploy screen: where a squad mate is now)
+    this.hud.posOf = (id) => { const p = this.players.info(id); return p?.alive ? p : null; };
     this.net = new Net();
     this.#bindNet();
     this.#bindUI();
@@ -213,6 +218,10 @@ class Game {
       this.board = new Map(m.rows.map((r) => [r.id, r]));
       this.hud.board = m.rows;
       const me = this.board.get(this.myId); if (me) { this.myTeam = me.tm; this.hud.myTeam = me.tm; }
+      // my squad: its members drawn green (minimap, overhead markers, deploy screen)
+      this.mySquad = this.royale ? 0 : me?.sq || 0;
+      this.hud.mySquad = this.mySquad;
+      this.hud.squadIds = new Set(m.rows.filter((r) => this.mySquad && r.tm === this.myTeam && r.sq === this.mySquad && r.id !== this.myId).map((r) => r.id));
       for (const id of [...this.players.map.keys()]) if (!this.board.has(id)) this.players.remove(id);
       for (const p of this.players.map.values()) { const r = this.board.get(p.id); if (r) p.name = r.n; }
       if (!this.royale) this.hud.refreshDeploy(this.lastSnap?.f);
@@ -233,7 +242,12 @@ class Game {
       if (this.royale) { this.royale.onSnap(m); return; }
       this.hud.tickets(m.tk);
       for (const [id, owner, prog] of m.f) this.world.setFlagState(id, owner, prog, this.myTeam);
-      if (!this.me.alive && !$('deploy').classList.contains('hidden')) this.hud.deployTimer(me.rs);
+      if (!this.me.alive && !$('deploy').classList.contains('hidden')) {
+        this.hud.deployTimer(me.rs);
+        // which squad mates can be deployed on changed: redraw the spawn list
+        const sq = JSON.stringify(me.sq || []);
+        if (sq !== this._sqKey) { this._sqKey = sq; this.hud.squadSp = me.sq || []; this.hud.refreshDeploy(m.f); }
+      } else if (!this.me.alive) this.hud.squadSp = me.sq || [];
       if (!this.me.alive && AUTO.get('autodeploy') && me.rs <= 0 && !this._autoSent) { this._autoSent = true; setTimeout(() => (this._autoSent = false), 1500); this.net.send({ t: 'spawn', p: AUTO.get('spawn') || 'base', cls: AUTO.get('cls') || 'assault' }); }
     });
     n.on('ev', ({ e }) => this.#event(e));
@@ -251,6 +265,7 @@ class Game {
         if (e.id === this.myId) {
           this.myCls = e.cls;
           this.me.spawn(e); this.hud.deployScreen(false); this.hud.roundEnd(null);
+          if (e.on) { if (e.st) this.me.s.stance = e.st; this.hud.notice(`DEPLOYED ON ${String(this.board.get(e.on)?.n || 'SQUAD MATE').toUpperCase()}`, 1800); }
           if (!this.isTouch) this.renderer.domElement.requestPointerLock?.()?.catch?.(() => {});
           this.killcam = null;
           setTimeout(() => (document.body.dataset.ready = '1'), 1500);
@@ -354,6 +369,7 @@ class Game {
       case 'landed': this.hud.notice(`LANDED — PROTECTED FOR ${Math.round(e.prot / 1000)} s`, e.prot); break;
       case 'restricted': this.hud.notice(e.left > 0 ? `RESTRICTED AREA — ENEMY HQ · RETURN IN ${Math.ceil(e.left)}` : 'RESTRICTED AREA — RETURN TO BATTLE', 1200); break;
       case 'throw': if (e.id === this.myId) this.me.grenades = e.g; break;
+      case 'spawnfail': this.hud.notice(`CAN'T DEPLOY ON SQUAD MATE — ${SQUAD_BLOCK[e.why] || 'NOT AVAILABLE'}`, 2200); break;
     }
     this.vehicles.onEvent(e);
     this.royale?.onEvent(e);
@@ -700,6 +716,12 @@ class Game {
       this.mmT = (this.mmT || 0) + dt;
       if (this.mmT > 0.083) { this.mmT = 0; this.hud.minimap(me.s, me.yaw, this.players.map, this.myId, this.lastSnap.f, this.royale, V); }
       this.revive.update(dt, cam);
+      this.markers.update(cam);
+      if ((this.sqT = (this.sqT || 0) + dt) > 0.25 && !this.royale) {
+        this.sqT = 0;
+        const rows = [...this.board.values()].filter((r) => this.hud.squadIds?.has(r.id)).sort((a, b) => a.id - b.id);
+        this.hud.squadPanel(rows, new Set(this.revive.list.map((d) => d[0])));
+      }
     }
     P.mark('hud');
     // render: world, then first-person viewmodel on top (or world only in third person / dead)

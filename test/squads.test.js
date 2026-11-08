@@ -88,9 +88,21 @@ test('not while he is under fire, has enemies close by, rides in a vehicle, or i
   const e = spawnAt(g, g.addPlayer({ name: 'E', team: 2 }), at.x + 12, at.z);
   assert.equal(why(), 'c', 'enemy 12 m away');
   e.alive = false;
-  m.vehicle = 99;
-  assert.equal(why(), 'v');
-  m.vehicle = null;
+  // in a vehicle: fine while it has a free seat (you deploy into it), not once it is full
+  const jeep = g.vehicles.list.find((v) => v.type === 'jeep');
+  Object.assign(jeep, { x: m.x + 3, z: m.z, y: m.y });
+  g.vehicles.enter(m, jeep.id);
+  assert.equal(m.vehicle, jeep.id);
+  assert.equal(why(), '');
+  const seats = jeep.seats.slice();
+  jeep.seats = jeep.seats.map((s) => s ?? -1);
+  assert.equal(why(), 'v', 'full');
+  jeep.seats = seats;
+  assert.ok(g.spawn(p, `@${m.id}`));
+  assert.equal(p.vehicle, jeep.id, 'deployed into the jeep');
+  g.vehicles.exit(p); p.alive = false; p.respawnAt = 0;
+  g.vehicles.exit(m);
+  Object.assign(m, { x: at.x, z: at.z, y: g.world.supportHeight(at.x, at.z, 500) });
   // someone on the team but in another squad is not a spawn point
   const other = g.addPlayer({ name: 'O', team: 1 }); other.squad = m.squad + 1;
   other.respawnAt = 0;

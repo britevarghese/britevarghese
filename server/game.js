@@ -142,11 +142,20 @@ export class Game {
   // can p deploy on squad mate m right now? '' = yes, else why not (c combat, v vehicle, a air, r restricted)
   squadBlock(p, m, now = this.now()) {
     if (!m || !m.alive || m === p || m.team !== p.team || !m.squad || m.squad !== p.squad) return 'x';
-    if (m.vehicle) return 'v';
-    if (m.air || m.onGround === false) return 'a';
+    if (m.vehicle) {
+      // into his vehicle: only while it has a seat free
+      const v = this.vehicles.get(m.vehicle);
+      if (!v || v.dead || !v.seats.includes(null)) return 'v';
+    } else if (m.air || m.onGround === false) return 'a';
     if (m.inRestricted > 0) return 'r';
-    if (now - (m.lastHit || 0) < SQUAD_SAFE_MS) return 'c';
-    for (const q of this.players.values()) if (q.alive && this.isEnemy(q, m) && Math.hypot(q.x - m.x, q.z - m.z) < SQUAD_ENEMY_R) return 'c';
+    // in the fight: hit or shooting lately, an enemy close, or one with eyes on him from not far off
+    if (now - (m.lastHit || 0) < SQUAD_SAFE_MS || now - (m.lastFireFlag || 0) < SQUAD_SAFE_MS) return 'c';
+    const eye = { x: m.x, y: m.y + 1.4, z: m.z };
+    for (const q of this.players.values()) {
+      if (!q.alive || !this.isEnemy(q, m)) continue;
+      const d = Math.hypot(q.x - m.x, q.z - m.z);
+      if (d < SQUAD_ENEMY_R || (d < SQUAD_ENEMY_R * 3 && this.world.lineOfSight(eye, { x: q.x, y: q.y + 1.4, z: q.z }))) return 'c';
+    }
     return '';
   }
 
@@ -243,7 +252,9 @@ export class Game {
     const opt = mate ? { id: 'squad', x: mate.x, z: mate.z } : this.spawnOptions(p.team).find((o) => o.id === pointId) || this.spawnOptions(p.team)[0];
     // several free candidate spots; take the one fewest enemies can see (no spawning into a firefight)
     let x = opt.x, z = opt.z, best = Infinity, found = 0, y = null;
-    if (mate) ({ x, y, z } = this.#squadSpot(mate));
+    const ride = mate?.vehicle ? this.vehicles.get(mate.vehicle) : null;
+    if (ride) ({ x, y, z } = ride);
+    else if (mate) ({ x, y, z } = this.#squadSpot(mate));
     for (let tries = 0; tries < 40 && found < 8 && !mate; tries++) {
       const a = Math.random() * Math.PI * 2, r = opt.id === 'base' ? 3 + Math.random() * 9 : 8 + Math.random() * 10;
       const cx = opt.x + Math.cos(a) * r, cz = opt.z + Math.sin(a) * r;
@@ -265,6 +276,7 @@ export class Game {
     p.lastInput = this.now(); p.moveBudget = undefined;
     if (p.brain) p.brain.onSpawn();
     this.emit({ t: 'spawn', id: p.id, x: p.x, y: p.y, z: p.z, yaw: p.yaw, cls: p.cls, w: p.weapons, g: p.grenades, ...(mate && { on: mate.id, st: p.stance }) }, p.bot ? null : p);
+    if (ride) this.vehicles.enter(p, ride.id); // (a free seat in his vehicle)
     return true;
   }
 
@@ -772,7 +784,7 @@ export class Game {
         if (p.bot && now >= p.respawnAt && !this.roundOver && !(p.downed && this.medicNear(p))) {
           const opts = this.spawnOptions(p.team);
           // half the time on a squad mate who is clear to spawn on (closer to the fight than a flag or the HQ)
-          const mates = this.squadsEnabled && Math.random() < 0.5 ? this.squadMates(p).filter((m) => !this.squadBlock(p, m, now)) : [];
+          const mates = this.squadsEnabled && Math.random() < 0.5 ? this.squadMates(p).filter((m) => !m.vehicle && !this.squadBlock(p, m, now)) : [];
           this.spawn(p, mates.length ? `@${mates[Math.floor(Math.random() * mates.length)].id}` : opts[Math.floor(Math.random() * opts.length)].id);
         }
         continue;

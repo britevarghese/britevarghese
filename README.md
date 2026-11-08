@@ -214,6 +214,14 @@ downed: mouse looks around, **hold Space** (touch: tap **REDEPLOY**) to give up 
 * **Kits:** Assault (carbine), Recon (bolt rifle, 4x scope), Support (double ammo, 4 grenades, an anti-armour
   launcher, resupplies teammates within 8 m) and Medic (revives downed teammates, heals itself fast, heals teammates
   within 8 m). Everyone regenerates slowly after 6 s out of fire (medics after 3 s, much faster).
+* **Squads:** each team is organised in squads of four (ALPHA, BRAVO, …). Players are put together and bots top
+  their squads up, so there is always someone to deploy on. On the deploy screen your squad mates are spawn points:
+  you deploy right behind one (same floor, facing his way), or into a free seat of his vehicle, while he is out of
+  the fight — not hit or shooting for 5 s, no enemy within 20 m or watching him from within 60 m; otherwise the
+  entry says why (in combat, vehicle full, in the air). Bots deploy on their squad mates too. Squad mates show green
+  — on the minimap, in a squad list above your health, and as overhead markers — the rest of the team blue; the
+  markers show through walls (names for the squad, for anyone close and for whoever is under the crosshair), so you
+  always know where your own side is.
 * **Downed, not dead:** a lethal hit to the body leaves a soldier down and bleeding out for 15 s; the ticket only goes
   if he bleeds out or gives up. A medic within 2.5 m who holds the revive for 2.5 s (and stays with him) brings him
   round where he fell, crouched, with 30 HP and his kit as it was; the medic scores 50 and the death is struck off.

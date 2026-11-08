@@ -3,6 +3,7 @@
 import { FLAGS, BUILDINGS, ROADS, BASES, PLAY_HALF, TEAM_NAMES } from '/shared/map.js';
 import { WEAPONS, CLASSES, CLASS_INFO } from '/shared/weapons.js';
 import { kitCard, KIT_ICON } from './Lobby.js';
+import { squadName, SQUAD_BLOCK } from '/shared/squads.js';
 
 const $ = (id) => document.getElementById(id);
 const VEHICLE_WEAPONS = { tank_cannon: 'Tank 120 mm', tank_mg: 'Tank MG', heli_rockets: 'Heli rockets', heli_cannon: 'Heli 30 mm', roadkill: 'Roadkill', vehicle: 'Vehicle explosion', crash: 'Crash' };
@@ -200,7 +201,7 @@ export class HUD {
       if (p.id === myId || !p.alive || (p.flags & 128)) continue; // crews show as their vehicle
       const friendly = !royale && p.team === this.myTeam;
       if (!friendly && !(p.spottedUntil > performance.now())) continue;
-      g.fillStyle = friendly ? '#6fb0ff' : '#ff5e4d';
+      g.fillStyle = friendly ? (this.squadIds?.has(p.id) ? '#7dff8a' : '#6fb0ff') : '#ff5e4d';
       g.beginPath(); g.arc(tx(p.x), tz(p.z), 3.2, 0, 7); g.fill();
     }
     // teammates down and waiting for a medic: a red cross where each one lies
@@ -224,24 +225,33 @@ export class HUD {
     this.deployArgs = args;
     $('killcam').classList.toggle('hidden', !killer);
     if (killer) $('killcam').innerHTML = killer;
-    // roster of my team
-    const mates = (this.board || []).filter((r) => r.tm === team).sort((a, b) => b.s - a.s);
-    $('dp-teamname').textContent = `${TEAM_NAMES[team] || 'YOUR TEAM'} SQUAD`;
+    // roster of my team: my squad on top (its leader: the first player in it), then the other squads
+    const mates = (this.board || []).filter((r) => r.tm === team), mySq = this.mySquad || 0;
+    const mine = mates.filter((r) => mySq && r.sq === mySq).sort((a, b) => a.b - b.b || a.id - b.id);
+    const rest = mates.filter((r) => !mySq || r.sq !== mySq).sort((a, b) => (a.sq || 0) - (b.sq || 0) || b.s - a.s);
+    const row = (r, lead, tag) => `<div class="mate${r.id === this.meId ? ' me' : ''}"><i class="st${r.a ? ' on' : ''}"></i>${tag ? `<b class="sqt">${squadName(r.sq)[0] || ''}</b>` : ''}<span>${esc(r.n)}</span>${lead ? '<em>Leader</em>' : r.ai ? '<em class="ai">AI</em>' : r.b ? '<em class="bot">BOT</em>' : ''}</div>`;
+    $('dp-teamname').textContent = mySq ? `${squadName(mySq)} SQUAD` : `${TEAM_NAMES[team] || 'YOUR TEAM'} SQUAD`;
     $('dp-count').textContent = `${mates.length}`;
-    $('dp-roster').innerHTML = mates.map((r, i) => `<div class="mate${r.id === this.meId ? ' me' : ''}"><i class="st${r.a ? ' on' : ''}"></i><span>${esc(r.n)}</span>${i === 0 ? '<em>Leader</em>' : r.ai ? '<em class="ai">AI</em>' : r.b ? '<em class="bot">BOT</em>' : ''}</div>`).join('');
+    $('dp-roster').innerHTML = (mySq ? mine.map((r, i) => row(r, i === 0, false)).join('') + (rest.length ? '<div class="sqh">OTHER SQUADS</div>' : '') : '') + rest.map((r) => row(r, false, !!mySq)).join('');
     $('dp-team').textContent = TEAM_NAMES[team] || '—';
     $('dp-teamsub').textContent = `${mates.length} soldiers · ${mates.filter((r) => !r.b).length} players`;
     // spawn points: HQ + flags we own that aren't under attack
     const st = (id) => flagsState?.find((f) => f[0] === id);
     const flags = FLAGS.map((f) => ({ id: f.id, owned: st(f.id)?.[1] === team, attacked: !!st(f.id)?.[3] })).filter((f) => f.owned);
-    const usable = ['base', ...flags.filter((f) => !f.attacked).map((f) => f.id)];
+    // ... and my squad mates who are clear to deploy on (alive, on foot, out of the fight)
+    const nameOf = (id) => (this.board || []).find((r) => r.id === id)?.n || 'Soldier';
+    const sqm = (this.squadSp || []).map(([id, why]) => ({ id, why, name: nameOf(id) }));
+    const usable = ['base', ...flags.filter((f) => !f.attacked).map((f) => f.id), ...sqm.filter((m) => !m.why).map((m) => `@${m.id}`)];
     if (!usable.includes(this.selectedSpawn)) this.selectedSpawn = 'base';
+    const sel = this.selectedSpawn, selMate = sel[0] === '@' ? sqm.find((m) => `@${m.id}` === sel) : null;
     const sp = $('spawns');
-    sp.innerHTML = `<div class="sp${this.selectedSpawn === 'base' ? ' sel' : ''}" data-sp="base"><svg class="ic"><use href="#i-house"/></svg>HQ Spawn</div>`
-      + flags.map((f) => `<div class="sp${f.id === this.selectedSpawn ? ' sel' : ''}${f.attacked ? ' off' : ''}" data-sp="${f.id}"><i class="dia">${f.id}</i>Flag ${f.id}${f.attacked ? '<small>UNDER ATTACK</small>' : ''}</div>`).join('');
+    sp.innerHTML = `<div class="sp${sel === 'base' ? ' sel' : ''}" data-sp="base"><svg class="ic"><use href="#i-house"/></svg>HQ Spawn</div>`
+      + flags.map((f) => `<div class="sp${f.id === sel ? ' sel' : ''}${f.attacked ? ' off' : ''}" data-sp="${f.id}"><i class="dia">${f.id}</i>Flag ${f.id}${f.attacked ? '<small>UNDER ATTACK</small>' : ''}</div>`).join('')
+      + (sqm.length ? `<div class="sph">${squadName(this.mySquad)} SQUAD</div>` : '')
+      + sqm.map((m) => `<div class="sp mate${`@${m.id}` === sel ? ' sel' : ''}${m.why ? ' off' : ''}" data-sp="@${m.id}"><i class="sqd"></i>${esc(m.name)}${m.why ? `<small>${SQUAD_BLOCK[m.why] || 'UNAVAILABLE'}</small>` : ''}</div>`).join('');
     for (const el of sp.querySelectorAll('.sp:not(.off)')) el.onclick = () => { this.selectedSpawn = el.dataset.sp; this.deployScreen(true, args); };
-    $('dp-spawn').textContent = this.selectedSpawn === 'base' ? 'HQ Spawn' : `Flag ${this.selectedSpawn}`;
-    $('dp-spawnsub').textContent = this.selectedSpawn === 'base' ? 'Safe · Team spawn' : 'Front line';
+    $('dp-spawn').textContent = sel === 'base' ? 'HQ Spawn' : selMate ? selMate.name : `Flag ${sel}`;
+    $('dp-spawnsub').textContent = sel === 'base' ? 'Safe · Team spawn' : selMate ? 'Squad mate · Right behind him' : 'Front line';
     this.#tacticalMap(team, flagsState);
     const btn = $('deploybtn');
     btn.onclick = () => onDeploy(this.selectedSpawn, this.selectedClass);
@@ -284,6 +294,15 @@ export class HUD {
       if (mine && this.selectedSpawn === 'base') { c.strokeStyle = '#7dff8a'; c.lineWidth = 3; c.beginPath(); c.arc(x, y, 17, 0, 7); c.stroke(); }
       c.fillStyle = '#111'; c.font = '700 10px Rajdhani, sans-serif'; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText('HQ', x, y + 1);
     }
+    // squad mates where they are now (green; the one picked to deploy on ringed)
+    for (const [id, why] of this.squadSp || []) {
+      const p = this.posOf?.(id);
+      if (!p) continue;
+      const x = X(p.x), y = Z(p.z);
+      if (this.selectedSpawn === `@${id}`) { c.strokeStyle = '#7dff8a'; c.lineWidth = 2.5; c.beginPath(); c.arc(x, y, 12, 0, 7); c.stroke(); }
+      c.fillStyle = why ? 'rgba(125,255,138,.4)' : '#7dff8a'; c.beginPath(); c.arc(x, y, 6.5, 0, 7); c.fill();
+      c.strokeStyle = '#0b0e12'; c.lineWidth = 1.5; c.stroke();
+    }
     // north arrow
     c.fillStyle = 'rgba(255,255,255,.8)'; c.font = '700 12px Rajdhani, sans-serif'; c.fillText('N', S - 18, 16);
     c.beginPath(); c.moveTo(S - 18, 22); c.lineTo(S - 23, 34); c.lineTo(S - 13, 34); c.closePath(); c.fill();
@@ -296,6 +315,17 @@ export class HUD {
     btn.textContent = rs > 0 ? `DEPLOY IN ${Math.ceil(rs / 1000)}` : 'DEPLOY →';
     $('respawn-timer').textContent = rs > 0 ? `RESPAWN IN ${Math.ceil(rs / 1000)} s` : 'READY';
     $('respawn-timer').closest('.dpb').classList.toggle('wait', rs > 0);
+  }
+
+  // in game: my squad mates, each alive / down / dead, with his kit
+  squadPanel(rows, downed) {
+    let el = $('squadpanel');
+    if (!el) { el = document.createElement('div'); el.id = 'squadpanel'; $('hud').appendChild(el); }
+    const html = rows.length ? `<div class="sqn">${squadName(this.mySquad)}</div>` + rows.map((r) => {
+      const st = r.a ? 'up' : downed.has(r.id) ? 'down' : 'dead';
+      return `<div class="sm ${st}"><svg class="ic"><use href="#${st === 'down' ? 'i-cross' : KIT_ICON[r.c] || 'i-user'}"/></svg><span>${esc(r.n)}</span></div>`;
+    }).join('') : '';
+    if (el._h !== html) { el._h = html; el.innerHTML = html; }
   }
 
   roundEnd(text) { const r = $('roundend'); r.classList.toggle('hidden', !text); r.textContent = text || ''; }
