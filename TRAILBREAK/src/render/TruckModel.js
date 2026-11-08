@@ -1054,7 +1054,13 @@ function cargoParts(P, M, spec, x) {
     const px = (col - (nx - 1) / 2) * look.w, pz = z1 - look.d / 2 - row * look.d, py = floor + look.h * (layer + 0.5);
     const yaw = jit(k) * 0.12;
     if (look.shape === 'sack') P.box(M[look.mat], [look.w * 0.94, look.h, look.d * 0.94], [px, py, pz], { r: look.h * 0.45, rot: [0, yaw, 0] });
-    else if (look.shape === 'beam') P.box(M[look.mat], [look.w * 0.97, look.h * 0.97, look.d], [px, py, pz - jit(k + 7) * 0.08], { r: 0.006 });
+    else if (look.shape === 'beam') {
+      // longer than the bed: the front ends on the floor at the cab end, the beams resting on the closed tailgate's top
+      // edge and out over it, as lumber is carried; each layer laid on the one below
+      const tilt = Math.atan2(x.bedRail[1] - floor + 0.02, x.bedZ[1] - x.bedZ[0]), c = Math.cos(tilt), sn = Math.sin(tilt);
+      const along = look.d / 2 + jit(k + 7) * 0.08, up = look.h * (layer + 0.5);
+      P.box(M[look.mat], [look.w * 0.97, look.h * 0.97, look.d], [px, floor + along * sn + up * c, x.bedZ[1] - along * c + up * sn], { r: 0.006, rot: [tilt, 0, 0] });
+    }
     else if (look.shape === 'cylinder') {
       // the domestic cylinder: a body, its shoulder and the collar that guards the valve
       P.cyl(M[look.mat], 0.155, 0.155, 0.5, [px, floor + layer * look.h + 0.29, pz], { seg: 14 });
