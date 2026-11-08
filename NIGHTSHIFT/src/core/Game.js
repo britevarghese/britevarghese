@@ -15,6 +15,7 @@ import { Environment } from '../renderer/Environment.js';
 import { Effects } from '../renderer/Effects.js';
 import { WorldManager } from '../world/WorldManager.js';
 import { KeralaWorld, START } from '../kerala/KeralaWorld.js';
+import { Collectibles } from '../world/Collectibles.js';
 import { KeralaPolice } from '../kerala/KeralaPolice.js';
 import { SkinnedRider } from '../vehicles/Rider.js';
 import { Incidents } from '../world/Incidents.js';
@@ -969,6 +970,7 @@ export class Game {
       if (mode === 'busted') this._bustedUpdate(dt);
       // world interaction prompts (events, garages)
       if (driving && !this.onFoot.active && !this.world.kerala) this._interactions();
+      if (driving && this.world.kerala && this.world.index) (this.masks ||= new Collectibles(this)).update(dt);
       // tracking a friend: the GPS follows them (route refreshed every 3 s), and keeps going after you meet up
       if (this.gps?.friend) {
         const r = this.net.remotes?.get(this.gps.friend), fs = this.focusState;

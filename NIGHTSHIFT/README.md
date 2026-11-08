@@ -174,6 +174,10 @@ controller, what to check when nothing appears, and a report to copy.
   number of engine cycles long); the game crossfades the two loops nearest the rpm and blends on/off
   by throttle, so the note is continuous with no splices. Crashes layer recorded metal impacts,
   breaking glass and falling debris. The RX-7's rotary keeps the physical synth model.
+- **Theyyam masks:** 50 hidden collectibles, one in each of 50 towns and villages around Kannur
+  (Thalassery, Mahe, Taliparamba, Mattannur...). Close by, a mask shimmers and chimes; touch it to
+  collect. Each pays $500 and XP, with bonuses at 10, 25 and 50. *Career* shows the count and names a
+  town where one is still hidden.
 - **Radio:** four stations of original, fully synthesized music, each with its own songs:
   NIGHTSHIFT 99.1 (synthwave), Kayal FM 92.7 (Kerala folk fusion: tabla, chenda, a tanpura drone and a
   plucked lead), Kuthu 104 (mass beats: dhol, claps and a nadaswaram-style reed) and Monsoon Lo-fi 88.5

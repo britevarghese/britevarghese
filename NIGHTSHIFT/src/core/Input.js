@@ -163,7 +163,7 @@ export class InputManager {
       btn(4, ['reset', 'reload']);    // LB (on foot: reload)
       btn(13, ['down', 'weapon']);  // d-pad down: menus; on foot, draw / holster the pistol
       btn(2, 'event');    // X: a mission's action (talk, grab, take)
-      btn(11, 'horn');    // R3
+      btn(10, 'horn');    // L3 (R3 is the camera: a second binding on it never fired)
     }
     // touch screen (phones, tablets)
     const T = this.touch.state();

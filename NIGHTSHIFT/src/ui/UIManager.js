@@ -272,6 +272,7 @@ export class UIManager {
     const box = h('div', 'panel career');
     box.appendChild(h('h1', '', 'CAREER'));
     box.appendChild(h('div', 'career-head', `<div class="lvbig">LEVEL ${L.level}</div><div class="xpline big"><i style="width:${L.need ? Math.round(L.into / L.need * 100) : 100}%"></i></div><div class="xptext">${L.need ? `${L.into.toLocaleString()} / ${L.need.toLocaleString()} XP to level ${L.level + 1}` : 'MAX LEVEL'} · race payouts x${P.rewardMult.toFixed(2)}</div>`));
+    if (g.masks?.enabled) { const n = g.masks.count, hn = g.masks.hint(); box.appendChild(h('div', 'career-next', `THEYYAM MASKS · <b>${n}/50</b> found${hn ? ` · one is hidden somewhere in <b>${hn.name}</b> (${hn.km.toFixed(1)} km)` : ' · all found!'}`)); }
     // next car unlocks by level
 
     const list = h('div', 'career-list');
