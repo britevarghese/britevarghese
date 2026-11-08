@@ -158,7 +158,8 @@ export class RegionView {
     // (these never change: their arrays let go once the graphics card has them)
     for (const m of [v.water.mesh, v.water.sea, marks.mesh, wear.mesh]) onCardOnly(m);
     await tick();
-    v.landmarks = await Landmarks.create(W, v.group, tick);
+    // (the start map's at once, on the loading screen: a little at a time is for the maps that come in while you drive)
+    v.landmarks = slice === Infinity ? new Landmarks(W, v.group) : await Landmarks.create(W, v.group, tick);
     await tick();
     await v.terrain.ready(onProgress, slice);
     // (its coarsest ground, made ahead a step at a time: the first frame that draws it doesn't wait on it)
@@ -175,7 +176,7 @@ export class RegionView {
     v.group.add(stand);
     await renderer.renderer.compileAsync(v.group, renderer.camera, renderer.scene).catch((e) => console.warn('shaders', e));
     // and its pictures on the graphics card, a few at a time (render/WorldView.js warmTextures)
-    await warmTextures(renderer.renderer, v.group, tick);
+    if (slice !== Infinity) await warmTextures(renderer.renderer, v.group, tick);
     v.group.remove(stand);
     stand.geometry.dispose();
     renderer.scene.add(v.group);
