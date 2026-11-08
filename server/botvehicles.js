@@ -293,6 +293,7 @@ function spot(brain, c, v, eye, fwd, now, dt) {
     c.candidate = best.q;
     if (c.aware >= 1) {
       c.target = best; c.seenAt = now; c.aware = 0;
+      if (Math.random() < 0.5) g.markSpotted?.(p, best.q, best.qv); // (the crew calls the contact out)
       c.fireAt = now + rand(800, 1800) * (1.6 - brain.skill);
       c.aimErr = rand(-1, 1) * (best.qv ? 0.008 : 0.018 + (1 - brain.skill) * 0.025);
     }

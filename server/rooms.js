@@ -102,6 +102,7 @@ export class Room {
       case 'venter': if (Number.isInteger(m.id)) g.vehicles.enter(p, m.id); break;
       case 'revive': if (Number.isInteger(m.id)) g.reviveHold(p, m.id, !!m.on); break;
       case 'giveup': g.giveUp?.(p); break;
+      case 'spot': g.spot?.(p, m.o, m.d); break;
       case 'vexit': if (p.vehicle) g.vehicles.exit(p); break;
       case 'vseat': if (Number.isInteger(m.seat)) g.vehicles.switchSeat(p, m.seat); break;
       case 'vin': g.vehicles.input(p, m); break;
@@ -142,6 +143,7 @@ export class Room {
         snap.me = { hp: Math.max(0, Math.round(p.hp)), alive: p.alive, w: p.weapons, sl: p.slot, g: p.grenades, rl: Math.max(0, p.reloadUntil - now), rs: Math.max(0, Math.min(99999, p.respawnAt - now)), sp: p.spawnPoint };
         if (p.vehicle) { snap.me.vid = p.vehicle; snap.me.seat = p.seat; }
         if (!p.alive && g.squadSpawns) snap.me.sq = g.squadSpawns(p);
+        const spt = g.spottedFor?.(p.team); if (spt) snap.me.spot = spt;
         if (g.meExtra) Object.assign(snap.me, g.meExtra(p, now));
         send(ws, snap);
       }

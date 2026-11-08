@@ -9,6 +9,7 @@ import { BotBrain } from './bots.js';
 import { VehicleSystem } from './vehicles.js';
 import { angleDiff } from '../shared/util.js';
 import { SQUAD_SIZE, SQUAD_SAFE_MS, SQUAD_ENEMY_R } from '../shared/squads.js';
+import { VEHICLES } from '../shared/vehicles.js';
 
 export const TICK_HZ = 30;
 
@@ -27,6 +28,7 @@ const RESPAWN_DELAY = 5;
 // vehicle death) lies incapacitated and bleeds out over BLEED_MS; a medic beside him can bring him round in
 // REVIVE_MS (he gets up where he fell with REVIVE_HP, his kit as it was). The team's ticket goes only when he bleeds
 // out or gives up and redeploys.
+export const SPOT_MS = 6000, SPOT_RECON_MS = 9000;
 export const BLEED_MS = 15000, REVIVE_MS = 2500, REVIVE_RANGE = 2.5, REVIVE_HP = 30;
 const NO_REVIVE = new Set(['fall', 'roadkill', 'restricted', 'boundary', 'crash', 'reset', 'suicide']);
 const HISTORY_MS = 1000;
@@ -60,6 +62,7 @@ export class Game {
     this.restrictedHQ = Math.min(45, this.map.PLAY_HALF * 0.3); // radius of each HQ's no-go zone for the enemy
     this.reviveEnabled = true; // (battle royale: no medics, no reviving)
     this.squadsEnabled = true; // (battle royale: everyone for himself)
+    this.spotting = true;
     this.resetRound();
   }
 
@@ -291,7 +294,13 @@ export class Game {
     p.deaths++;
     if (downable) p.downed = { until: this.now() + BLEED_MS, x: p.x, y: p.y, z: p.z, by: killer ? killer.id : 0 };
     else this.tickets[p.team] = Math.max(0, this.tickets[p.team] - 1);
-    if (killer && killer !== p && killer.team !== p.team) { killer.kills++; killer.score += 100; }
+    if (killer && killer !== p && killer.team !== p.team) {
+      killer.kills++; killer.score += 100;
+      // spotted for the killer's team by someone else: an assist for the spotter
+      const sp = p.spottedTeam === killer.team && p.spottedUntil > this.now() && p.spottedBy !== killer.id && this.players.get(p.spottedBy);
+      if (sp) { sp.score += 25; if (!sp.bot) this.emit({ t: 'assist', kind: 'spot', v: p.id }, sp); }
+    }
+    p.spottedUntil = 0;
     this.emit({ t: 'kill', v: p.id, k: killer ? killer.id : 0, w: weapon, hs: p.lastHeadshot || false, kx: killer?.x, ky: killer?.y, kz: killer?.z, ...(downable && { dn: 1 }) });
   }
 
@@ -300,6 +309,63 @@ export class Game {
     p.downed = null;
     this.tickets[p.team] = Math.max(0, this.tickets[p.team] - 1);
     this.emit({ t: 'bledout', id: p.id });
+  }
+
+  // ------------------------------------------------------------ spotting
+  // Q: the enemy (or enemy vehicle) nearest the spotter's crosshair, in sight and in range, is marked for his whole
+  // team for a few seconds — on their minimaps and over his head. o / d: the spotter's camera ray (o is only trusted
+  // near him: third person and vehicle cameras sit a few metres off).
+  spot(p, o, d) {
+    const now = this.now();
+    if (!this.spotting || !p.alive || now < (p.nextSpot || 0)) return null;
+    p.nextSpot = now + 700;
+    const eye = { x: p.x, y: p.y + (p.vehicle ? 1.6 : EYE_HEIGHT[p.stance] || 1.6), z: p.z };
+    const org = Array.isArray(o) && o.length === 3 && o.every(Number.isFinite) && Math.hypot(o[0] - eye.x, o[1] - eye.y, o[2] - eye.z) < 15 ? { x: o[0], y: o[1], z: o[2] } : eye;
+    let dir = Array.isArray(d) && d.length === 3 && d.every(Number.isFinite) ? d : [-Math.sin(p.yaw) * Math.cos(p.pitch), Math.sin(p.pitch), -Math.cos(p.yaw) * Math.cos(p.pitch)];
+    const L = Math.hypot(dir[0], dir[1], dir[2]) || 1; dir = dir.map((c) => c / L);
+    const range = p.cls === 'recon' ? 450 : 300;
+    let best = null;
+    const consider = (t, q, v) => {
+      const dx = t.x - org.x, dy = t.y - org.y, dz = t.z - org.z, dist = Math.hypot(dx, dy, dz);
+      if (dist > range || dist < 1) return;
+      const ang = Math.acos(Math.max(-1, Math.min(1, (dx * dir[0] + dy * dir[1] + dz * dir[2]) / dist)));
+      // a few degrees round the crosshair, or ~2.5 m either side of it up close
+      const allow = Math.min(0.3, Math.max(0.06, Math.atan(2.5 / dist)));
+      if (ang > allow) return;
+      const score = ang / allow + dist / range * 0.3 + (v ? -0.2 : 0);
+      if (best && score >= best.score) return;
+      if (!this.world.lineOfSight(org, t)) return;
+      best = { q, v, score };
+    };
+    const seen = new Set();
+    for (const q of this.players.values()) {
+      if (!q.alive || !this.isEnemy(p, q) || q.air === 1) continue;
+      const v = q.vehicle && this.vehicles.get(q.vehicle);
+      if (v) { if (seen.has(v.id)) continue; seen.add(v.id); consider({ x: v.x, y: v.y + VEHICLES[v.type].half[1], z: v.z }, q, v); continue; }
+      consider({ x: q.x, y: q.y + (q.stance === 'prone' ? 0.35 : q.stance === 'crouch' ? 0.9 : 1.3), z: q.z }, q, null);
+    }
+    if (!best) { if (!p.bot) this.emit({ t: 'spot', ok: 0 }, p); return null; }
+    this.markSpotted(p, best.q, best.v);
+    if (!p.bot) this.emit({ t: 'spot', ok: 1, id: best.q.id, v: best.v?.type }, p);
+    return best.q;
+  }
+
+  // mark q (and his vehicle) as spotted for p's team; bots call this for what they see
+  markSpotted(p, q, v = null) {
+    if (!this.spotting) return;
+    const until = this.now() + (p.cls === 'recon' ? SPOT_RECON_MS : SPOT_MS);
+    for (const o of v ? [v, ...v.seats.map((id) => id && this.players.get(id)).filter(Boolean)] : [q]) {
+      if ((o.spottedUntil || 0) < until) { o.spottedUntil = until; o.spottedTeam = p.team; o.spottedBy = p.id; }
+    }
+  }
+
+  // for one team's snapshot: who of the enemy is spotted right now (soldiers, vehicles)
+  spottedFor(team) {
+    if (!this.spotting) return undefined;
+    const now = this.now(), pl = [], vl = [];
+    for (const q of this.players.values()) if (q.alive && q.team !== team && q.spottedTeam === team && q.spottedUntil > now) pl.push(q.id);
+    for (const v of this.vehicles.list) if (!v.dead && v.spottedTeam === team && v.spottedUntil > now) vl.push(v.id);
+    return pl.length || vl.length ? { p: pl, v: vl } : undefined;
   }
 
   // a downed player gives up on a medic (redeploy screen): the ticket goes now, medics stop heading for him

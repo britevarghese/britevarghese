@@ -560,6 +560,7 @@ export class GameAudio {
     if (kind === 'reload2') { this.#noiseBurst(g, t, 0.06, 0.001, 1500, 1800); }
     if (kind === 'switch') { this.#noiseBurst(g, t, 0.05, 0.001, 1800, 2200); }
     if (kind === 'empty') { this.#noiseBurst(g, t, 0.02, 0.001, 5000); }
+    if (kind === 'spot') { for (const [f, dt] of [[1250, 0], [1650, 0.07]]) { const o = this.ctx.createOscillator(), og = this.ctx.createGain(); o.type = 'square'; o.frequency.setValueAtTime(f, t + dt); og.gain.setValueAtTime(0.05, t + dt); og.gain.exponentialRampToValueAtTime(0.001, t + dt + 0.06); o.connect(og).connect(g); o.start(t + dt); o.stop(t + dt + 0.07); } }
     if (kind === 'heart') { this.#thump(g, t, 55, 0.12, 0.5); this.#thump(g, t + 0.22, 50, 0.1, 0.35); }
     if (kind === 'revive') { const o = this.ctx.createOscillator(), og = this.ctx.createGain(); o.type = 'sine'; o.frequency.setValueAtTime(440, t); o.frequency.exponentialRampToValueAtTime(880, t + 0.25); og.gain.setValueAtTime(0.0001, t); og.gain.exponentialRampToValueAtTime(0.16, t + 0.05); og.gain.exponentialRampToValueAtTime(0.001, t + 0.6); o.connect(og).connect(g); o.start(t); o.stop(t + 0.65); }
     if (kind === 'capture') { const o = this.ctx.createOscillator(); o.type = 'triangle'; o.frequency.setValueAtTime(520, t); o.frequency.setValueAtTime(780, t + 0.12); const og = this.ctx.createGain(); og.gain.setValueAtTime(0.15, t); og.gain.exponentialRampToValueAtTime(0.001, t + 0.4); o.connect(og).connect(g); o.start(t); o.stop(t + 0.45); }

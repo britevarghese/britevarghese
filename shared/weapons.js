@@ -65,7 +65,7 @@ export const CLASSES = {
 // short role descriptions + perks (shown on the deploy screen)
 export const CLASS_INFO = {
   assault: { role: 'Close range · Balanced', perk: 'All-round carbine kit' },
-  recon: { role: 'Long range · Intel', perk: 'Bolt-action rifle, 4x scope' },
+  recon: { role: 'Long range · Intel', perk: 'Bolt-action rifle, 4x scope, spots further and longer' },
   support: { role: 'Heavy firepower · Anti-armour', perk: 'AT launcher (3 rockets), double ammo, 4 grenades, resupplies squad' },
   medic: { role: 'Heal · Revive', perk: 'Revives downed teammates, heals those nearby, fast self-heal' },
 };

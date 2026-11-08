@@ -316,6 +316,11 @@ export class BotBrain {
       const spread = 0.05 + (1 - this.skill) * 0.12;
       this.aimErr = { yaw: rand(-spread, spread) * 2, pitch: rand(-spread, spread) };
       this.burstLeft = 0;
+      // calls it out for the team now and then (spotting): more often the better the soldier
+      if (now >= (p.nextSpot || 0) && !(best.spottedTeam === p.team && best.spottedUntil > now) && Math.random() < 0.25 + this.skill * 0.35) {
+        p.nextSpot = now + 4000;
+        this.g.markSpotted?.(p, best, best.vehicle ? this.g.vehicles.get(best.vehicle) : null);
+      }
     }
     if (best) this.lastSeen = { x: best.x, y: best.y, z: best.z, t: now };
     else if (this.target && (!this.target.alive || now - (this.lastSeen?.t || 0) > 1500)) this.target = null;

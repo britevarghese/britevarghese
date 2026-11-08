@@ -462,7 +462,7 @@ export class VehiclesClient {
     for (const v of this.map.values()) {
       if (v.dead) continue;
       const friendly = v.team === this.g.myTeam;
-      if (!friendly && Math.hypot(v.x - me.x, v.z - me.z) > 110) continue;
+      if (!friendly && Math.hypot(v.x - me.x, v.z - me.z) > 110 && !(v.spotMark > performance.now())) continue; // (spotted: anywhere)
       ctx.save(); ctx.translate(tx(v.x), tz(v.z)); ctx.rotate(-v.yaw);
       ctx.fillStyle = friendly ? '#6fb0ff' : '#ff5e4d'; ctx.strokeStyle = 'rgba(0,0,0,.6)'; ctx.lineWidth = 1;
       if (v.type === 'tank') { ctx.fillRect(-4, -6, 8, 12); ctx.strokeRect(-4, -6, 8, 12); ctx.fillRect(-1, -11, 2, 6); }

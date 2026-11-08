@@ -619,3 +619,8 @@ body.touch #squadpanel, body.deploying #squadpanel, body.downed #squadpanel { di
 #spawns .sp.mate.sel { border-color: #7dff8a; background: rgba(125,255,138,.12); }
 #dp-roster .sqh { padding: 8px 8px 2px; font-size: 11px; letter-spacing: .16em; color: var(--mut); border-top: 1px solid var(--line); }
 #dp-roster .sqt { width: 16px; font-size: 11px; color: #6fb0ff; text-align: center; }
+/* spotted enemies */
+#iffmarks .iff.foe i { width: 9px; height: 9px; border: 0; background: #ff3b30; transform: rotate(45deg); box-shadow: 0 0 0 1.5px rgba(0,0,0,.6); margin-bottom: 3px; }
+#iffmarks .iff.foe span { color: #ff8a80; }
+.tbtn.spot { right: 216px; bottom: 222px; border-color: rgba(255,90,80,.7); }
+#touch.dead > #t-spot, #touch.plane > #t-spot { display: none; }

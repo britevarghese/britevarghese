@@ -15,6 +15,8 @@ const BTN = [
   ['veh', 'VEH', 'sm veh'], ['vseat', 'SEAT', 'sm vin'], ['vup', '▲', 'sm vin heli'], ['vdown', '▼', 'sm vin heli'],
   // medic: hold beside a downed teammate
   ['revive', 'REVIVE', 'sm rev'],
+  // mark the enemy under the crosshair for the team
+  ['spot', 'SPOT', 'sm spot'],
 ];
 
 export class TouchControls {
@@ -103,6 +105,7 @@ export class TouchControls {
     on('jump', () => { if (g.royale?.inPlane) g.royale.jump(); else me.touch.jump = true; });
     on('pick', () => g.royale?.pickup());
     on('veh', () => g.vehicles?.toggle());
+    on('spot', () => g.spotAt?.());
     on('revive', () => { if (g.revive) g.revive.hold = true; }, () => { if (g.revive) g.revive.hold = false; });
     on('vseat', () => { const m = g.vehicles?.mine; if (m) g.net.send({ t: 'vseat', seat: 1 - m.seat }); });
     on('vup', () => { me.touch.up = true; }, () => { me.touch.up = false; });

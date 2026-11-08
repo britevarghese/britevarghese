@@ -239,6 +239,12 @@ class Game {
       if (!me.alive && this.me.alive) this.#onLocalDeath();
       this.vehicles.onSnap(m);
       this.revive.onSnap(m);
+      // enemies my team has spotted: on the minimap and marked over their heads while the spot lasts
+      if (me.spot) {
+        const until = performance.now() + 600;
+        for (const id of me.spot.p) { const q = this.players.info(id); if (q) { q.spottedUntil = Math.max(q.spottedUntil || 0, until); q.spotMark = until; } }
+        for (const id of me.spot.v) { const v = this.vehicles.map.get(id); if (v) v.spotMark = until; }
+      }
       if (this.royale) { this.royale.onSnap(m); return; }
       this.hud.tickets(m.tk);
       for (const [id, owner, prog] of m.f) this.world.setFlagState(id, owner, prog, this.myTeam);
@@ -369,6 +375,11 @@ class Game {
       case 'landed': this.hud.notice(`LANDED — PROTECTED FOR ${Math.round(e.prot / 1000)} s`, e.prot); break;
       case 'restricted': this.hud.notice(e.left > 0 ? `RESTRICTED AREA — ENEMY HQ · RETURN IN ${Math.ceil(e.left)}` : 'RESTRICTED AREA — RETURN TO BATTLE', 1200); break;
       case 'throw': if (e.id === this.myId) this.me.grenades = e.g; break;
+      case 'spot':
+        if (e.ok) { this.audio.ui('spot'); this.hud.notice(`${e.v ? String(e.v).toUpperCase() : 'ENEMY'} SPOTTED`, 900); }
+        else this.audio.ui('empty');
+        break;
+      case 'assist': if (e.kind === 'spot') { this.hud.notice('SPOT ASSIST  +25', 1500); Stats.add({ xp: 25 }); } break;
       case 'spawnfail': this.hud.notice(`CAN'T DEPLOY ON SQUAD MATE — ${SQUAD_BLOCK[e.why] || 'NOT AVAILABLE'}`, 2200); break;
     }
     this.vehicles.onEvent(e);
@@ -391,6 +402,15 @@ class Game {
   }
 
   openDeploy() { this.#showDeploy(this.meState?.rs); }
+
+  // Q / SPOT: mark the enemy under the crosshair for the team (the server picks him out along the camera's ray)
+  spotAt() {
+    if (!this.me.alive || this.royale || performance.now() < (this.spotT || 0)) return;
+    this.spotT = performance.now() + 450;
+    const c = this.camera, d = new THREE.Vector3(0, 0, -1).applyQuaternion(c.quaternion);
+    const r = (v) => +v.toFixed(3);
+    this.net.send({ t: 'spot', o: [r(c.position.x), r(c.position.y), r(c.position.z)], d: [r(d.x), r(d.y), r(d.z)] });
+  }
   statsAdd(d) { Stats.add(d); }
 
   // a medic brought me round: up where I fell, crouched, with the kit as it was
@@ -559,6 +579,7 @@ class Game {
         this.closeChat(true);
       } else if (e.code === 'Escape' && this.chatOpen) this.closeChat(false);
       if (e.code === 'KeyI' && !this.chatOpen) this.copyInvite();
+      if (e.code === 'KeyQ' && !this.chatOpen && !e.repeat) this.spotAt();
       if (e.code === 'F3') { e.preventDefault(); window.open('/debug/character-weapon', '_blank'); }
     });
     // mobile keyboards: sending happens on the "go"/enter key or when the field loses focus

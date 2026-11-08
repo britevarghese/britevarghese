@@ -76,12 +76,12 @@ Saira Condensed (SIL OFL), self-hosted.
 ## Controls
 **Phones / tablets (touch, landscape):** left thumb = floating joystick (push to the top rim to sprint) · drag the
 right half of the screen to look · hold **FIRE** (drag it to aim while shooting) · **AIM** toggles sights ·
-JUMP / CRCH / PRONE / R (reload) / G (grenade) / ⇄ (swap weapon) · top: 👁 third person, ☰ scoreboard, 💬 chat,
+JUMP / CRCH / PRONE / R (reload) / G (grenade) / ⇄ (swap weapon) / SPOT · REVIVE (medic, beside a downed teammate) · top: 👁 third person, ☰ scoreboard, 💬 chat,
 ❚❚ pause (look sensitivity, invite link, leave room). Deploying goes fullscreen + landscape. Force touch UI on any
 device with `?touch=1`.
 
 **Keyboard & mouse:** WASD move · Shift sprint · Space jump · C crouch · Z prone · RMB aim down sights · LMB fire · R reload ·
-1/2/3 or wheel switch weapon (3: the Support kit's launcher) · **PgUp / PgDn sight zeroing** · G grenade · **V first/third person** · Tab scoreboard · T/Enter chat · F3 asset debug ·
+1/2/3 or wheel switch weapon (3: the Support kit's launcher) · **PgUp / PgDn sight zeroing** · G grenade · **Q spot** · **V first/third person** · Tab scoreboard · T/Enter chat · F3 asset debug ·
 battle royale: **Space** jump / open parachute · **E** pick up · **H** heal · **M** island map
 
 **Vehicles:** **E** get in / out · **1 / 2 / 3** switch seat · **V** chase / first-person view · RMB zoom (gunner sight) ·
@@ -222,6 +222,11 @@ downed: mouse looks around, **hold Space** (touch: tap **REDEPLOY**) to give up 
   — on the minimap, in a squad list above your health, and as overhead markers — the rest of the team blue; the
   markers show through walls (names for the squad, for anyone close and for whoever is under the crosshair), so you
   always know where your own side is.
+* **Spotting:** **Q** (touch: **SPOT**) marks the enemy nearest your crosshair — in sight, within 300 m — for your
+  whole team for 6 s: a red diamond over his head (or over his vehicle, with what it is), the distance when you aim
+  at it, and a dot on everyone's minimap (spotted vehicles show there at any range). Recon spots reach 450 m and
+  last 9 s. Bots call out what they see the same way, and tank crews their contacts. A kill on an enemy someone else
+  spotted is a +25 spot assist for the spotter.
 * **Downed, not dead:** a lethal hit to the body leaves a soldier down and bleeding out for 15 s; the ticket only goes
   if he bleeds out or gives up. A medic within 2.5 m who holds the revive for 2.5 s (and stays with him) brings him
   round where he fell, crouched, with 30 HP and his kit as it was; the medic scores 50 and the death is struck off.
