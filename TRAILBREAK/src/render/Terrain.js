@@ -1451,6 +1451,17 @@ if (gWet > 0.0) {
     node.dirty = false;
   }
 
+  /** The built patches under n (its children, or theirs, depth levels down) that cover all of it, into out: false if none do. */
+  coverOf(n, out, depth) {
+    for (let k = 0; k < 4; k++) {
+      const c = this.node(n.level + 1, n.ix * 2 + (k & 1), n.iz * 2 + (k >> 1));
+      if ((this.clip || this.far) && this.skip(c)) continue;
+      if (c.built) out.push(c);
+      else if (depth <= 1 || !this.coverOf(c, out, depth - 1)) return false;
+    }
+    return true;
+  }
+
   node(level, ix, iz) {
     const key = level * 1e8 + ix * 1e4 + iz;
     let n = this.cache.get(key);
@@ -1557,7 +1568,17 @@ if (gWet > 0.0) {
         }
         if (ready || !n.built) { for (const k of kids) visit(k); return; }
       }
-      if (!n.built) this.build(n);
+      if (!n.built) {
+        // coarser ground wanted again where finer is still built (the camera gone on, the coarse patch let go of
+        // meanwhile): the finer drawn while the coarse grows over the next frames. Built at once, a coarse patch of the
+        // far land (each vertex sampling the land of every map round it) held a frame up some 40 ms
+        const cover = [];
+        if (this.coverOf(n, cover, 2) && !(budget > 0 && mayBuild() && this.grow(n) && budget-- > 0)) {
+          for (const k of cover) { k.used = this.frame; if (k.dirty) dirty.push(k); visible.push(k); }
+          return;
+        }
+        if (!n.built) this.build(n);
+      }
       if (n.dirty) dirty.push(n);
       visible.push(n);
     };
