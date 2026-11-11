@@ -103,6 +103,7 @@ export class Room {
       case 'revive': if (Number.isInteger(m.id)) g.reviveHold(p, m.id, !!m.on); break;
       case 'giveup': g.giveUp?.(p); break;
       case 'spot': g.spot?.(p, m.o, m.d); break;
+      case 'order': if (typeof m.f === 'string') g.order?.(p, m.f); break;
       case 'vexit': if (p.vehicle) g.vehicles.exit(p); break;
       case 'vseat': if (Number.isInteger(m.seat)) g.vehicles.switchSeat(p, m.seat); break;
       case 'vin': g.vehicles.input(p, m); break;
@@ -144,6 +145,7 @@ export class Room {
         if (p.vehicle) { snap.me.vid = p.vehicle; snap.me.seat = p.seat; }
         if (!p.alive && g.squadSpawns) snap.me.sq = g.squadSpawns(p);
         const spt = g.spottedFor?.(p.team); if (spt) snap.me.spot = spt;
+        const ord = g.squadOrder?.(p); if (ord) snap.me.ord = [ord.flag, ord.kind === 'attack' ? 1 : 2];
         if (g.meExtra) Object.assign(snap.me, g.meExtra(p, now));
         send(ws, snap);
       }

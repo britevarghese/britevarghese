@@ -65,7 +65,7 @@ export class HUD {
     let inside = null;
     for (const [id, owner, prog, cont] of fs) {
       const el = this.flagEls[id];
-      el.className = `flag${owner === 0 ? '' : owner === this.myTeam ? ' own' : ' enemy'}${cont ? ' contested' : ''}`;
+      el.className = `flag${owner === 0 ? '' : owner === this.myTeam ? ' own' : ' enemy'}${cont ? ' contested' : ''}${this.order?.f === id ? ` ordered ${this.order.kind}` : ''}`;
       const f = FLAGS.find((x) => x.id === id);
       if (me && Math.hypot(me.x - f.x, me.z - f.z) < f.r) inside = { id, owner, prog, cont };
     }
@@ -193,6 +193,7 @@ export class HUD {
       const owner = st ? st[1] : 0;
       g.fillStyle = owner === 0 ? '#ddd' : owner === this.myTeam ? '#4d8fe0' : '#e0574d';
       g.save(); g.translate(tx(f.x), tz(f.z)); g.rotate(-yaw); g.beginPath(); g.arc(0, 0, 8, 0, 7); g.globalAlpha = 0.35; g.fill(); g.globalAlpha = 1;
+      if (this.order?.f === f.id) { g.strokeStyle = this.order.kind === 'attack' ? '#f2d21b' : '#7dff8a'; g.lineWidth = 2; g.beginPath(); g.arc(0, 0, 11, 0, 7); g.stroke(); }
       g.fillStyle = '#fff'; g.font = 'bold 11px sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(f.id, 0, 0); g.restore();
     }
     royale?.drawMinimap(g, tx, tz, k);
@@ -321,7 +322,8 @@ export class HUD {
   squadPanel(rows, downed) {
     let el = $('squadpanel');
     if (!el) { el = document.createElement('div'); el.id = 'squadpanel'; $('hud').appendChild(el); }
-    const html = rows.length ? `<div class="sqn">${squadName(this.mySquad)}</div>` + rows.map((r) => {
+    const ord = this.order ? ` · <b class="${this.order.kind}">${this.order.kind === 'attack' ? 'ATTACK' : 'DEFEND'} ${this.order.f}</b>` : '';
+    const html = rows.length ? `<div class="sqn">${squadName(this.mySquad)}${ord}</div>` + rows.map((r) => {
       const st = r.a ? 'up' : downed.has(r.id) ? 'down' : 'dead';
       return `<div class="sm ${st}"><svg class="ic"><use href="#${st === 'down' ? 'i-cross' : KIT_ICON[r.c] || 'i-user'}"/></svg><span>${esc(r.n)}</span></div>`;
     }).join('') : '';
@@ -336,7 +338,7 @@ export class HUD {
     const label = {
       kill: 'ENEMY KILLED', down: 'ENEMY DOWNED', headshot: 'HEADSHOT BONUS', assist: 'KILL ASSIST', spot: 'SPOT ASSIST',
       revive: 'REVIVE', capture: `FLAG ${flag || ''} CAPTURED`, neutralize: `FLAG ${flag || ''} NEUTRALIZED`, heal: 'HEAL',
-      resupply: 'RESUPPLY', squadspawn: 'SQUAD SPAWN', vehicle: `${vt ? String(vt).toUpperCase() : 'VEHICLE'} DESTROYED`,
+      resupply: 'RESUPPLY', squadspawn: 'SQUAD SPAWN', order: 'ATTACK ORDER BONUS', defend: 'DEFEND ORDER BONUS', vehicle: `${vt ? String(vt).toUpperCase() : 'VEHICLE'} DESTROYED`,
     }[why] || String(why).toUpperCase();
     const who = name && ['kill', 'down', 'assist', 'spot', 'revive', 'squadspawn'].includes(why) ? ` <i>${esc(name)}</i>` : '';
     const row = document.createElement('div');

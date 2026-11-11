@@ -671,3 +671,10 @@ body.deploying #scorefeed, body.downed #scorefeed { display: none; }
   #roundsum .rs-ribbons { grid-template-columns: repeat(3, 1fr); } #roundsum .rb { padding: 5px 8px; } #roundsum .rb .ic { width: 20px; height: 20px; }
   #scorefeed .sf-total { font-size: 20px; min-height: 20px; } #scorefeed .sf-row { font-size: 11px; } #scorefeed .sf-row.big { font-size: 12px; }
 }
+/* squad orders */
+#iffmarks .iff.ord i { width: 12px; height: 12px; border: 2px solid #f2d21b; background: rgba(242,210,27,.25); transform: rotate(45deg); margin-bottom: 4px; filter: none; }
+#iffmarks .iff.ord span { font: 800 12px var(--ui); letter-spacing: .14em; color: #f2d21b; }
+#iffmarks .iff.ord.defend i { border-color: #7dff8a; background: rgba(125,255,138,.25); } #iffmarks .iff.ord.defend span { color: #7dff8a; }
+.flag.ordered::after { content: ''; position: absolute; inset: -6px; border: 2px dashed #f2d21b; animation: none; }
+.flag.ordered.defend::after { border-color: #7dff8a; }
+#squadpanel .sqn b { font-weight: 800; } #squadpanel .sqn b.attack { color: #f2d21b; } #squadpanel .sqn b.defend { color: #7dff8a; }

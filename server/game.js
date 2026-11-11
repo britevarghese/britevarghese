@@ -28,7 +28,7 @@ const RESPAWN_DELAY = 5;
 // vehicle death) lies incapacitated and bleeds out over BLEED_MS; a medic beside him can bring him round in
 // REVIVE_MS (he gets up where he fell with REVIVE_HP, his kit as it was). The team's ticket goes only when he bleeds
 // out or gives up and redeploys.
-export const SPOT_MS = 6000, SPOT_RECON_MS = 9000;
+export const SPOT_MS = 6000, SPOT_RECON_MS = 9000, ORDER_DEFEND_MS = 180000;
 export const BLEED_MS = 15000, REVIVE_MS = 2500, REVIVE_RANGE = 2.5, REVIVE_HP = 30;
 const NO_REVIVE = new Set(['fall', 'roadkill', 'restricted', 'boundary', 'crash', 'reset', 'suicide']);
 const HISTORY_MS = 1000;
@@ -74,6 +74,7 @@ export class Game {
     this.roundStart = this.now();
     this.flags = this.map.FLAGS.map((f) => ({ ...f, owner: f.owner || 0, progress: f.owner === 1 ? 1 : f.owner === 2 ? -1 : 0, contested: false }));
     this.roundOver = null;
+    this.orders = new Map(); // squad orders: 'team:squad' -> { flag, kind: 'attack' | 'defend', by, at }
     this.bleedAcc = { 1: 0, 2: 0 };
     this.grenades = []; this.bullets = [];
     this.vehicles.resetAll();
@@ -150,6 +151,51 @@ export class Game {
         p.squad = best || freeId(); get(p.squad).b.push(p);
       }
     }
+  }
+
+  // ------------------------------------------------------------ squad orders
+  // The squad leader (its first player; a squad of bots has none) points at a flag and presses Q: ATTACK it if it
+  // isn't ours, DEFEND it if it is. The squad's bots go there; capturing it under the order, or killing near it while
+  // defending, scores a bonus. An attack order is done once the flag is taken; a defend order lasts 3 minutes (and
+  // turns into an attack order if the flag falls).
+  squadLeader(team, squad) {
+    let lead = null;
+    for (const q of this.players.values()) if (!q.bot && q.team === team && q.squad === squad && (!lead || q.id < lead.id)) lead = q;
+    return lead;
+  }
+
+  squadOrder(p) {
+    if (!this.squadsEnabled || !p.squad) return null;
+    const o = this.orders.get(`${p.team}:${p.squad}`);
+    if (o && o.kind === 'defend' && this.now() - o.at > ORDER_DEFEND_MS) { this.orders.delete(`${p.team}:${p.squad}`); return null; }
+    return o || null;
+  }
+
+  order(p, flagId) {
+    if (!this.squadsEnabled || !p.squad) return false;
+    const f = this.flags.find((x) => x.id === flagId);
+    if (!f) return false;
+    if (this.squadLeader(p.team, p.squad) !== p) { if (!p.bot) this.emit({ t: 'order', ok: 0 }, p); return false; }
+    const o = { flag: f.id, kind: f.owner === p.team ? 'defend' : 'attack', by: p.id, at: this.now() };
+    this.orders.set(`${p.team}:${p.squad}`, o);
+    for (const m of [p, ...this.squadMates(p)]) {
+      if (m.brain && !m.vehicle) m.brain.repathAt = 0; // (re-plan now)
+      if (!m.bot) this.emit({ t: 'order', ok: 1, f: o.flag, kind: o.kind, by: p.id }, m);
+    }
+    return true;
+  }
+
+  // the flag whose capture zone the ray points into (orders are given through hills and walls, as on a map)
+  #flagAlong(o, d) {
+    let best = null, bs = 1;
+    for (const f of this.flags) {
+      const t = { x: f.x, y: this.map.groundHeight(f.x, f.z) + 2, z: f.z };
+      const dx = t.x - o.x, dy = t.y - o.y, dz = t.z - o.z, dist = Math.hypot(dx, dy, dz) || 1;
+      const ang = Math.acos(Math.max(-1, Math.min(1, (dx * d[0] + dy * d[1] + dz * d[2]) / dist)));
+      const s = ang / Math.max(0.05, Math.atan((f.r * 0.8) / dist));
+      if (s < bs) { bs = s; best = f; }
+    }
+    return best;
   }
 
   squadMates(p) { return [...this.players.values()].filter((q) => q !== p && q.team === p.team && q.squad && q.squad === p.squad); }
@@ -318,6 +364,9 @@ export class Game {
         const a = id !== killer.id && dmg >= 20 && this.players.get(id);
         if (a && a.team === killer.team) this.award(a, Math.min(dmg, 90), 'assist', { v: p.id });
       }
+      // killing near the flag his squad was ordered to defend
+      const o = this.squadOrder(killer), of = o?.kind === 'defend' && this.flags.find((x) => x.id === o.flag);
+      if (of && [killer, p].some((q) => Math.hypot(q.x - of.x, q.z - of.z) < of.r + 15)) this.award(killer, 25, 'defend', { f: of.id });
       // spotted for the killer's team by someone else: an assist for the spotter
       const sp = p.spottedTeam === killer.team && p.spottedUntil > this.now() && p.spottedBy !== killer.id && this.players.get(p.spottedBy);
       if (sp) this.award(sp, 25, 'spot', { v: p.id });
@@ -366,7 +415,13 @@ export class Game {
       if (v) { if (seen.has(v.id)) continue; seen.add(v.id); consider({ x: v.x, y: v.y + VEHICLES[v.type].half[1], z: v.z }, q, v); continue; }
       consider({ x: q.x, y: q.y + (q.stance === 'prone' ? 0.35 : q.stance === 'crouch' ? 0.9 : 1.3), z: q.z }, q, null);
     }
-    if (!best) { if (!p.bot) this.emit({ t: 'spot', ok: 0 }, p); return null; }
+    if (!best) {
+      // no enemy there: the squad leader pointing at a flag gives an order
+      const f = this.squadsEnabled && p.squad && this.squadLeader(p.team, p.squad) === p ? this.#flagAlong(org, dir) : null;
+      if (f) { this.order(p, f.id); return null; }
+      if (!p.bot) this.emit({ t: 'spot', ok: 0 }, p);
+      return null;
+    }
     this.markSpotted(p, best.q, best.v);
     if (!p.bot) this.emit({ t: 'spot', ok: 1, id: best.q.id, v: best.v?.type }, p);
     return best.q;
@@ -848,7 +903,18 @@ export class Game {
       if (before !== f.owner) {
         this.emit({ t: 'flag', id: f.id, owner: f.owner, prev: before });
         const team = f.owner || (before === 1 ? 2 : 1);
-        for (const p of this.players.values()) if (p.alive && p.team === team && Math.hypot(p.x - f.x, p.z - f.z) < f.r) this.award(p, f.owner ? 200 : 100, f.owner ? 'capture' : 'neutralize', { f: f.id });
+        for (const p of this.players.values()) if (p.alive && p.team === team && Math.hypot(p.x - f.x, p.z - f.z) < f.r) {
+          this.award(p, f.owner ? 200 : 100, f.owner ? 'capture' : 'neutralize', { f: f.id });
+          // taken as his squad was ordered: a bonus on top
+          const o = f.owner && this.squadOrder(p);
+          if (o && o.kind === 'attack' && o.flag === f.id) this.award(p, 50, 'order', { f: f.id });
+        }
+        for (const [k, o] of this.orders) {
+          if (o.flag !== f.id) continue;
+          const t = +k.split(':')[0];
+          if (o.kind === 'attack' && f.owner === t) this.orders.delete(k); // done
+          else if (o.kind === 'defend' && before === t) o.kind = 'attack'; // lost it: take it back
+        }
       }
     }
     const owned = { 1: 0, 2: 0 };

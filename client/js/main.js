@@ -239,6 +239,9 @@ class Game {
       if (!me.alive && this.me.alive) this.#onLocalDeath();
       this.vehicles.onSnap(m);
       this.revive.onSnap(m);
+      // my squad's order (from its leader): a marker on the flag, the minimap and the squad list
+      this.order = me.ord ? { f: me.ord[0], kind: me.ord[1] === 1 ? 'attack' : 'defend' } : null;
+      this.hud.order = this.order;
       // enemies my team has spotted: on the minimap and marked over their heads while the spot lasts
       if (me.spot) {
         const until = performance.now() + 600;
@@ -380,6 +383,14 @@ class Game {
       case 'landed': this.hud.notice(`LANDED — PROTECTED FOR ${Math.round(e.prot / 1000)} s`, e.prot); break;
       case 'restricted': this.hud.notice(e.left > 0 ? `RESTRICTED AREA — ENEMY HQ · RETURN IN ${Math.ceil(e.left)}` : 'RESTRICTED AREA — RETURN TO BATTLE', 1200); break;
       case 'throw': if (e.id === this.myId) this.me.grenades = e.g; break;
+      case 'order':
+        if (e.ok) {
+          const who = e.by === this.myId ? 'ORDER GIVEN' : `${String(this.board.get(e.by)?.n || 'SQUAD LEADER').toUpperCase()}:`;
+          this.hud.notice(`${who} ${e.kind === 'attack' ? 'ATTACK' : 'DEFEND'} ${e.f}`, 2200);
+          this.audio.ui('spot');
+          this.order = { f: e.f, kind: e.kind }; this.hud.order = this.order;
+        } else this.hud.notice('ONLY YOUR SQUAD LEADER GIVES ORDERS', 1600);
+        break;
       case 'spot':
         if (e.ok) { this.audio.ui('spot'); this.hud.notice(`${e.v ? String(e.v).toUpperCase() : 'ENEMY'} SPOTTED`, 900); }
         else this.audio.ui('empty');
@@ -413,6 +424,7 @@ class Game {
   }
 
   openDeploy() { this.#showDeploy(this.meState?.rs); }
+  flagPos(id) { const f = FLAGS.find((x) => x.id === id); return f ? { x: f.x, y: groundHeight(f.x, f.z), z: f.z } : null; }
 
   // Q / SPOT: mark the enemy under the crosshair for the team (the server picks him out along the camera's ray)
   spotAt() {

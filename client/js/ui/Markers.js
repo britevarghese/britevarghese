@@ -42,6 +42,15 @@ export class Markers {
         const txt = [label, aimed ? `${Math.round(d)} m` : ''].filter(Boolean).join(' · ');
         show.push({ sx, sy, cls: 'iff foe', html: `<i></i>${txt ? `<span>${txt}</span>` : ''}` });
       };
+      // my squad's ordered flag: ATTACK / DEFEND and the distance, over its middle
+      const ord = g.order && g.lastSnap.f && g.flagPos?.(g.order.f);
+      if (ord) {
+        const d = Math.hypot(ord.x - cam.position.x, ord.z - cam.position.z);
+        V.set(ord.x, ord.y + 4, ord.z).project(cam);
+        if (V.z <= 1 && Math.abs(V.x) <= 1.05 && Math.abs(V.y) <= 1.05) {
+          show.push({ sx: ((V.x + 1) / 2) * W, sy: ((1 - V.y) / 2) * H, cls: `iff ord ${g.order.kind}`, html: `<i></i><span>${g.order.kind === 'attack' ? 'ATTACK' : 'DEFEND'} ${g.order.f} · ${Math.round(d)} m</span>` });
+        }
+      }
       const inSpotted = new Set();
       for (const v of g.vehicles.map.values()) {
         if (v.dead || !(v.spotMark > now) || v.team === g.myTeam) continue;

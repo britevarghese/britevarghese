@@ -201,7 +201,9 @@ export class BotBrain {
     // a tank / jeep standing free near by (or a jeep's empty roof gun): take it
     if (vehicleGoal(this)) return;
     const flags = this.g.flags, p = this.p;
-    const scored = flags.map((f) => {
+    // the squad leader's order comes first
+    const ord = this.g.squadOrder?.(p), of = ord && flags.find((f) => f.id === ord.flag);
+    const scored = of ? [{ f: of, s: 0 }] : flags.map((f) => {
       const d = Math.hypot(f.x - p.x, f.z - p.z);
       let s = -d * 0.02;
       if (f.owner !== p.team) s += 3; else if (f.contested) s += 2.5; else s -= 1.5;

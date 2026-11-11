@@ -81,7 +81,7 @@ JUMP / CRCH / PRONE / R (reload) / G (grenade) / ⇄ (swap weapon) / SPOT · REV
 device with `?touch=1`.
 
 **Keyboard & mouse:** WASD move · Shift sprint · Space jump · C crouch · Z prone · RMB aim down sights · LMB fire · R reload ·
-1/2/3 or wheel switch weapon (3: the Support kit's launcher) · **PgUp / PgDn sight zeroing** · G grenade · **Q spot** · **V first/third person** · Tab scoreboard · T/Enter chat · F3 asset debug ·
+1/2/3 or wheel switch weapon (3: the Support kit's launcher) · **PgUp / PgDn sight zeroing** · G grenade · **Q spot / squad order** · **V first/third person** · Tab scoreboard · T/Enter chat · F3 asset debug ·
 battle royale: **Space** jump / open parachute · **E** pick up · **H** heal · **M** island map
 
 **Vehicles:** **E** get in / out · **1 / 2 / 3** switch seat · **V** chase / first-person view · RMB zoom (gunner sight) ·
@@ -230,6 +230,12 @@ downed: mouse looks around, **hold Space** (touch: tap **REDEPLOY**) to give up 
 * **End of round:** VICTORY / DEFEAT with the tickets left and the round's length, the top five of each team (and
   your own row), ribbons for the MVP and the best Lifesaver (revives), Flag Runner (captures), Spotter (spot
   assists), Tank Buster (vehicles) and Marksman (longest kill), your own round, and a countdown to the next.
+* **Squad orders:** the squad leader (its first player) aims at a flag and presses **Q** (touch: **SPOT**) with no
+  enemy under the crosshair: ATTACK it if it isn't ours, DEFEND it if it is. The squad's bots go there (after the
+  fight they're in); the order shows as a marker over the flag with its distance, a dashed outline on it in the flag
+  bar, a ring on the minimap and in the squad list. Capturing the flag under an attack order scores +50 on top for
+  everyone of the squad in it (and completes the order); kills on or near a flag you're defending score +25. A
+  defend order lasts three minutes and turns into an attack order if the flag falls.
 * **Spotting:** **Q** (touch: **SPOT**) marks the enemy nearest your crosshair — in sight, within 300 m — for your
   whole team for 6 s: a red diamond over his head (or over his vehicle, with what it is), the distance when you aim
   at it, and a dot on everyone's minimap (spotted vehicles show there at any range). Recon spots reach 450 m and
