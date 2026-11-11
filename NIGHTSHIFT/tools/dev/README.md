@@ -23,6 +23,7 @@ Headless Chromium uses software rendering (SwiftShader): FPS numbers are NOT rep
 | `node tools/dev/leaks.mjs --port N [--stops '[[x,z],...]'] [--laps 3]` | A long session for leaks: lap after lap round the towns, the GPU's textures and geometries, characters' bone textures, the heap after a GC, and geometries gone from the scene unfreed, by owner |
 | `node tools/dev/passby.mjs --port N [--at 'spice kannur'] [--n 10] [--type minitruck] [--trace 1]` | A mission's AI car sent past cars parked at the kerb, one at a time: got by or not in 45 s, longest stand, closest to the parked car's side (under 0: touched), knocked or not |
 | `node tools/dev/phone.mjs --port N [--device 'Pixel 7'] [--out DIR/name]` | The game on an emulated phone held sideways: main menu, driving with the touch controls, pause menu, the garage from it; screenshots and what's on screen |
+| `node tools/dev/phoneapps.mjs --port N [--out DIR/name]` | The in-game phone (T): auto-rickshaw rides in the car and on foot (where each ended: on the road / pavement, on the ground), the mechanic bringing and fixing the car, mask GPS, radio; screenshots |
 
 Scenes can script driving with `sim([[steps, {throttle, brake, steer, handbrake, nitro}], ...])` (fixed 60 Hz steps with
 rendering disabled, since headless GL is far too slow for real time) — see `drift_night`, `drift_day`, `speed_night`,

@@ -54,6 +54,7 @@ import { NetworkClient } from '../networking/NetworkClient.js';
 import { HumanLibrary } from '../player/Human.js';
 import { QUALITY_LABELS, QUALITY_LEVELS } from './QualityManager.js';
 import { SKIN_ORIGIN } from '../renderer/SkinPrecision.js';
+import { Phone } from '../ui/Phone.js';
 const _eyeW = new THREE.Vector3();
 const _camDir = new THREE.Vector3();
 
@@ -171,6 +172,7 @@ export class Game {
     this.ui = new UIManager(this);
     this.photo = new PhotoMode(this);
     this.replay = new Replay(this);
+    this.phone = new Phone(this);
     this.garage = new Garage(this);
     this.net = new NetworkClient(this);
     this.net.connect().catch(() => {});
@@ -870,6 +872,7 @@ export class Game {
       else if (!onFoot && !this.races.active && input.consume('enter')) this.onFoot.exit();
       else if (input.consume('photo') && !this.races.active) this.photo.enter();
       else if (input.consume('replay')) this.replay.enter();
+      else if (input.consume('phone') && this.phone.available && !this.photo?.active) this.phone.open();
       if (input.consume('camera') && !onFoot) {
         // like GTA's V: cycle close / chase / far / bumper / hood / first person, and remember the choice
         const name = this.camCtl.next();
@@ -1057,6 +1060,7 @@ export class Game {
     if (mode === 'photo') this.photo.update(dt, input);
     if (mode === 'replay') this.replay.update(dt, input);
     if (mode === 'cutscene') this.story.updateCutscene(dt, input);
+    this.phone.update(dt);
     // sync visuals
     const camPos = this.camera.position;
     if (!syncedEarly) player.sync(dt, camPos, this.env.state);

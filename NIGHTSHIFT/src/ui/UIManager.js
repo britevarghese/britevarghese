@@ -152,6 +152,7 @@ export class UIManager {
       ['SAVE GAME', () => this.showSlots('save', () => this.showPause())],
       ['LOAD GAME', () => this.showSlots('load', () => this.showPause())],
       ['MAP', () => this.showMap(false)],
+      ...(g.phone?.available ? [['PHONE', () => { g.resume(); g.phone.open(); }]] : []),
       ['PHOTO MODE', () => g.photo.enter()],
       ['INSTANT REPLAY', () => { if (!g.replay.enter()) this.showPause(); }],
       ['CAREER', () => this.showCareer(() => this.showPause())],

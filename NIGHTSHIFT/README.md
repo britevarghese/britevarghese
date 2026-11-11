@@ -80,6 +80,7 @@ Saves live in each player's browser.
 | Start mission, event or rival challenge / enter garage | E (in the marker) | A |
 | Map | M | View |
 | Radio station (in a vehicle) | N or . / , | D-pad right / left |
+| Phone (Kerala) | T | D-pad up (or PHONE in the pause menu) |
 | Instant replay | I | |
 | Photo mode | F2 | |
 | Reset car | R | LB |
@@ -174,6 +175,9 @@ controller, what to check when nothing appears, and a report to copy.
   number of engine cycles long); the game crossfades the two loops nearest the rpm and blends on/off
   by throttle, so the note is continuous with no splices. Crashes layer recorded metal impacts,
   breaking glass and falling debris. The RX-7's rotary keeps the physical synth model.
+- **Phone:** press T for the phone. **Auto-rickshaw** takes you to any town around Kannur, priced by the km (on foot
+  or in your car). **Mechanic** brings your car to you when you've left it behind ($150), or fixes it where it
+  stands. **Masks** shows your progress and sets the GPS to the nearest hidden mask. Also: **Radio** and **Camera**.
 - **Theyyam masks:** 50 hidden collectibles, one in each of 50 towns and villages around Kannur
   (Thalassery, Mahe, Taliparamba, Mattannur...). Close by, a mask shimmers and chimes; touch it to
   collect. Each pays $500 and XP, with bonuses at 10, 25 and 50. *Career* shows the count and names a

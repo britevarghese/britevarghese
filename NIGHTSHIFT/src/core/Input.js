@@ -17,7 +17,7 @@ const ACTIONS = {
   camera: ['KeyV'], map: ['KeyM'], pause: ['Escape', 'KeyP'], reset: ['KeyR'], horn: ['KeyH'],
   dev: ['F3'], photo: ['F2'], replay: ['KeyI'], enter: ['KeyF'], jump: ['Space'], fullscreen: ['F11'], confirm: ['Enter'], back: ['Backspace'], event: ['KeyE'], garage: ['KeyG'], attack: ['KeyQ'], weapon: ['Digit1'], reload: ['KeyR'], sockets: ['F7'], envStats: ['F8'], envDetail: ['F9'], envWeather: ['F4'],
   up: ['ArrowUp'], down: ['ArrowDown'], leftNav: ['ArrowLeft'], rightNav: ['ArrowRight'],
-  radioNext: ['KeyN', 'Period'], radioPrev: ['Comma'],
+  radioNext: ['KeyN', 'Period'], radioPrev: ['Comma'], phone: ['KeyT'],
 };
 
 export class InputManager {
@@ -159,7 +159,7 @@ export class InputManager {
       btn(8, 'map');      // Back/View
       btn(1, ['back', 'attack']); // B: back in menus, punch on foot
       btn(0, ['confirm', 'jump']);  // A (menus / jump on foot)
-      btn(12, 'up'); btn(14, ['leftNav', 'radioPrev']); btn(15, ['rightNav', 'radioNext']); // d-pad left / right: radio station in a vehicle
+      btn(12, ['up', 'phone']); btn(14, ['leftNav', 'radioPrev']); btn(15, ['rightNav', 'radioNext']); // d-pad left / right: radio station in a vehicle
       btn(4, ['reset', 'reload']);    // LB (on foot: reload)
       btn(13, ['down', 'weapon']);  // d-pad down: menus; on foot, draw / holster the pistol
       btn(2, 'event');    // X: a mission's action (talk, grab, take)
