@@ -78,6 +78,7 @@ export class BoatRide {
     F.human?.play?.('sitIdle', { hold: true, fade: 0.25 });
     g.hud.setPrompt(null);
     g.audio?.playEvent?.('doorShut');
+    this._motor(true);
     if (!this.told) { this.told = true; g.ui.toast('Boat: W / S throttle, A / D steer, shift for full speed. E or F near the bank to go ashore.', '', 6); }
   }
 
@@ -101,6 +102,7 @@ export class BoatRide {
       b.v *= -0.25;
     }
     const y = this._surface(b.x, b.z); if (y !== null) b.y = y;
+    this._motorUpdate(Math.max(thr, rev), Math.abs(b.v));
     const sp = Math.abs(b.v), bob = 0.05 + 0.02 * Math.min(1, sp / 8);
     b.obj.position.set(b.x, b.y + Math.sin(b.t * 1.4) * bob, b.z);
     b.obj.rotation.set(-Math.min(0.08, sp * 0.006) + Math.sin(b.t * 1.1) * bob * 0.3, b.yaw, Math.sin(b.t * 0.9) * bob * 0.5 + b.steer * sp * 0.006, 'YXZ');
@@ -144,10 +146,40 @@ export class BoatRide {
     const g = this.game, F = g.onFoot;
     if (!this.boat) return;
     this.boat = null;
+    this._motor(false);
     if (F.boat === this) F.boat = null;
     if (this.camDist) F.camDist = this.camDist;
     F.human?.clearAction?.(0.25);
     g.hud.setPrompt(null);
+  }
+
+  // the outboard: a two-stroke buzz (saw + square an octave up, through a lowpass), pitch by speed, louder on the throttle
+  _motor(on) {
+    const A = this.game.audio, ctx = A?.ctx;
+    if (!ctx || !A.buses?.engine) return;
+    if (on && !this.motor) {
+      const o1 = ctx.createOscillator(), o2 = ctx.createOscillator(), lp = ctx.createBiquadFilter(), g = ctx.createGain(), am = ctx.createOscillator(), amG = ctx.createGain();
+      o1.type = 'sawtooth'; o2.type = 'square'; o1.frequency.value = 34; o2.frequency.value = 68;
+      const m2 = ctx.createGain(); m2.gain.value = 0.35;
+      lp.type = 'lowpass'; lp.frequency.value = 380; lp.Q.value = 2;
+      g.gain.value = 0;
+      am.frequency.value = 17; amG.gain.value = 0.03; am.connect(amG).connect(g.gain); // the putter
+      o1.connect(lp); o2.connect(m2).connect(lp); lp.connect(g).connect(A.buses.engine);
+      for (const o of [o1, o2, am]) o.start();
+      this.motor = { o1, o2, am, lp, g };
+    } else if (!on && this.motor) {
+      const M = this.motor, t = ctx.currentTime; this.motor = null;
+      M.g.gain.setTargetAtTime(0, t, 0.15);
+      for (const o of [M.o1, M.o2, M.am]) o.stop(t + 0.8);
+    }
+  }
+  _motorUpdate(thr, sp) {
+    const M = this.motor, ctx = this.game.audio?.ctx;
+    if (!M || !ctx) return;
+    const t = ctx.currentTime, f = 30 + sp * 4.2 + thr * 10, paused = this.game.audio.paused;
+    M.o1.frequency.setTargetAtTime(f, t, 0.12); M.o2.frequency.setTargetAtTime(f * 2, t, 0.12); M.am.frequency.setTargetAtTime(f / 2, t, 0.12);
+    M.lp.frequency.setTargetAtTime(320 + thr * 1300 + sp * 40, t, 0.1);
+    M.g.gain.setTargetAtTime(paused ? 0 : 0.07 + thr * 0.12, t, 0.1);
   }
 
   _drop(b) { b?.obj?.removeFromParent(); }
