@@ -26,6 +26,7 @@ Headless Chromium uses software rendering (SwiftShader): FPS numbers are NOT rep
 | `node tools/dev/phoneapps.mjs --port N [--out DIR/name]` | The in-game phone (T): auto-rickshaw rides in the car and on foot (where each ended: on the road / pavement, on the ground), the mechanic bringing and fixing the car, mask GPS, radio; screenshots |
 | `node tools/dev/jobs.mjs --port N [--kinds taxi,parcel] [--limit 600] [--trace 1] [--hop 1]` | Phone jobs: takes a taxi fare and a parcel run, an AI drives the car along the GPS (or `--hop`: set down beside each target), logs pickup, drop kerb, clock and pay |
 | `node tools/dev/boat.mjs --port N [--at x,z] [--out DIR/name]` | Boats: finds a bank (land beside wide water) near the start or `--at`, takes a boat, drives it (throttle, turn, full speed, brake), heads back and goes ashore; logs the boat's path, any time out of the water, the landing; screenshot aboard |
+| `node tools/dev/business.mjs --port N [--out DIR/name]` | Kerala businesses: where each FOR SALE board was put, buying one with E, a payout, the auto stand's boost on taxi fares, the phone's Business app; screenshot at a board |
 
 Scenes can script driving with `sim([[steps, {throttle, brake, steer, handbrake, nitro}], ...])` (fixed 60 Hz steps with
 rendering disabled, since headless GL is far too slow for real time) — see `drift_night`, `drift_day`, `speed_night`,

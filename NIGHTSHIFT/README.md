@@ -183,14 +183,18 @@ controller, what to check when nothing appears, and a report to copy.
   beside them and they name a town a few km off: beat the clock, drive smoothly, and they tip) or **parcel runs**
   (collect from a shop, deliver against a tighter clock; damage the car and the goods arrive broken). Jobs run back
   to back and the pay rises with your streak.
+- **Businesses:** ten for sale round Kannur, from a $15,000 thattukada (night food cart) in Kannur to a $350,000
+  beach resort at Thottada: a green FOR SALE board by the road in each town, E to buy. They pay every 5 minutes
+  of play; the Talap auto stand makes taxi fares pay 50% more and the Thavakkara couriers do the same for parcels.
+  The phone's *Business* app lists them and sets the GPS.
 - **Boats:** on foot at the edge of a backwater, river or the sea, press E to take a country boat ($50). W / S
   throttle and reverse, A / D steer, shift for full speed; E or F near the bank goes ashore, and the boat stays
   moored there for you.
 - **Theyyam masks:** 50 hidden collectibles, one in each of 50 towns and villages around Kannur
   (Thalassery, Mahe, Taliparamba, Mattannur...). Close by, a mask shimmers and chimes; touch it to
   collect. Each pays $500 and XP, with bonuses at 10, 25 and 50. *Career* shows the count and names a
-  town where one is still hidden. In Kerala, *Career* also shows your **completion %** (story 50%, races 20%,
-  masks 20%, jobs 10%), every race with its distance or your best time, and your jobs record.
+  town where one is still hidden. In Kerala, *Career* also shows your **completion %** (story 45%, races 20%,
+  masks 15%, jobs 10%, businesses 10%), every race with its distance or your best time, and your jobs record.
 - **Radio:** four stations of original, fully synthesized music, each with its own songs:
   NIGHTSHIFT 99.1 (synthwave), Kayal FM 92.7 (Kerala folk fusion: tabla, chenda, a tanpura drone and a
   plucked lead), Kuthu 104 (mass beats: dhol, claps and a nadaswaram-style reed) and Monsoon Lo-fi 88.5

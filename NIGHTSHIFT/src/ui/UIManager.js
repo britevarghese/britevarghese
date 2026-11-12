@@ -272,16 +272,22 @@ export class UIManager {
     const evs = g.races?.events || [], races = evs.length ? evs.filter((e) => rc[e.def.id] != null).length / evs.length : 0;
     const masks = Object.keys(g.save.data.masks || {}).length / 50;
     const jobs = (Math.min(10, J.fares || 0) + Math.min(10, J.parcels || 0)) / 20;
-    return { pct: Math.floor((story * 0.5 + races * 0.2 + masks * 0.2 + jobs * 0.1) * 100), story, races, masks, jobs };
+    const B = g.biz, biz = B?.list.length ? B.owned().length / B.list.length : Object.keys(g.save.data.biz?.owned || {}).length / 10;
+    return { pct: Math.floor((story * 0.45 + races * 0.2 + masks * 0.15 + jobs * 0.1 + biz * 0.1) * 100), story, races, masks, jobs, biz };
   }
   _keralaCareer(box, list) {
     const g = this.game, C = this.completion(), rc = g.save.data.racesCompleted || {}, J = g.save.data.jobs || {};
-    box.insertBefore(h('div', 'career-next', `COMPLETION · <b>${C.pct}%</b> · story ${Math.round(C.story * 100)}% · races ${Math.round(C.races * 100)}% · masks ${Math.round(C.masks * 100)}% · jobs ${Math.round(C.jobs * 100)}%`), box.querySelector('.career-next') || null);
+    box.insertBefore(h('div', 'career-next', `COMPLETION · <b>${C.pct}%</b> · story ${Math.round(C.story * 100)}% · races ${Math.round(C.races * 100)}% · masks ${Math.round(C.masks * 100)}% · jobs ${Math.round(C.jobs * 100)}% · businesses ${Math.round(C.biz * 100)}%`), box.querySelector('.career-next') || null);
     const evs = g.races?.events || [];
     list.appendChild(h('div', 'chapter', `<span>RACES · ${evs.filter((e) => rc[e.def.id] != null).length}/${evs.length}</span><span>the yellow markers on the map · E to enter</span>`));
     for (const e of evs) {
       const t = rc[e.def.id], f = g.focusState, km = Math.hypot(e.start.x - f.x, e.start.z - f.z) / 1000;
       list.appendChild(h('div', 'mission' + (t != null ? ' done' : ''), `<div class="mt"><b>${t != null ? '✓ ' : ''}${e.def.name}</b><span>${t != null ? `BEST ${formatTime(t)}` : `${(RACE_TYPE_NAMES[e.def.type] || e.def.type).toUpperCase()} · ${km < 10 ? km.toFixed(1) : Math.round(km)} km`}</span></div><div class="md">${e.def.desc}</div>`));
+    }
+    const B = g.biz;
+    if (B) {
+      list.appendChild(h('div', 'chapter', `<span>BUSINESSES · ${B.owned().length}/${B.list.length}</span><span>${formatMoney(B.income())} every 5 min · earned ${formatMoney(B.data.earned || 0)}</span>`));
+      for (const b of B.list) { const own = B.owns(b.id); list.appendChild(h('div', 'mission' + (own ? ' done' : ''), `<div class="mt"><b>${own ? '✓ ' : ''}${b.name}</b><span>${own ? 'OWNED' : formatMoney(b.price)} · ${formatMoney(b.income)} / 5 min</span></div><div class="md">${b.blurb}</div>`)); }
     }
     list.appendChild(h('div', 'chapter', `<span>JOBS · ${(J.fares || 0) + (J.parcels || 0)} DONE</span><span>phone (T) · Jobs</span>`));
     list.appendChild(h('div', 'mission' + ((J.fares || 0) >= 10 && (J.parcels || 0) >= 10 ? ' done' : ''), `<div class="mt"><b>Taxi fares ${J.fares || 0} · parcels ${J.parcels || 0}</b><span>earned ${formatMoney(J.earned || 0)} · best streak ${J.best || 0}</span></div><div class="md">Ten of each count toward completion.</div>`));

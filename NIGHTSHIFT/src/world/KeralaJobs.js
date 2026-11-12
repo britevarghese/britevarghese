@@ -157,7 +157,7 @@ export class KeralaJobs {
     const dmg = Math.max(0, (s.damage || 0) - job.dmg0), left = job.time / job.limit;
     const st = this.stats;
     const km = job.dist / 1000;
-    const streakK = 1 + Math.min(this.streak, 5) * 0.1;
+    const streakK = (1 + Math.min(this.streak, 5) * 0.1) * (g.biz?.boost(job.kind) ?? 1); // (the auto stand / courier office: +50%)
     let base, sub;
     if (job.kind === 'taxi') {
       base = 60 + 45 * km;

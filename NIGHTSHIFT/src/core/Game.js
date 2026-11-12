@@ -57,6 +57,7 @@ import { SKIN_ORIGIN } from '../renderer/SkinPrecision.js';
 import { Phone } from '../ui/Phone.js';
 import { KeralaJobs } from '../world/KeralaJobs.js';
 import { BoatRide } from '../kerala/BoatRide.js';
+import { KeralaBusiness } from '../kerala/KeralaBusiness.js';
 const _eyeW = new THREE.Vector3();
 const _camDir = new THREE.Vector3();
 
@@ -980,6 +981,7 @@ export class Game {
       if (driving && !this.onFoot.active) this._interactions();
       if (driving && this.world.kerala && this.world.index) (this.masks ||= new Collectibles(this)).update(dt);
       if (driving && this.world.kerala && this.world.index) (this.jobs ||= new KeralaJobs(this)).update(dt);
+      if (driving && this.world.kerala && this.world.index) (this.biz ||= new KeralaBusiness(this)).update(dt, input, driving);
       // tracking a friend: the GPS follows them (route refreshed every 3 s), and keeps going after you meet up
       if (this.gps?.friend) {
         const r = this.net.remotes?.get(this.gps.friend), fs = this.focusState;
@@ -993,7 +995,7 @@ export class Game {
         if (Math.hypot(this.gps.x - fs.x, this.gps.z - fs.z) < 25) { this.gps = null; if (!this.jobs?.active) this.ui.toast('Destination reached'); }
         else if ((this.gps.t += dt) > 5) this.setGPS(this.gps.x, this.gps.z);
       }
-      if (driving) { if (!this.world.kerala) this.empire.late(); this.story.late(); }
+      if (driving) { if (!this.world.kerala) this.empire.late(); this.story.late(); this.biz?.late(); }
       if (driving) this.replay.record(dt);
       this.net.update(dt);
     }

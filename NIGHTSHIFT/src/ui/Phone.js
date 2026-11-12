@@ -9,6 +9,7 @@ import { STATIONS } from '../audio/RadioSongs.js';
 import { formatMoney } from '../core/util.js';
 import { Collectibles } from '../world/Collectibles.js';
 import { KeralaJobs } from '../world/KeralaJobs.js';
+import { KeralaBusiness, BIZ_PERIOD } from '../kerala/KeralaBusiness.js';
 
 const h = (tag, cls, html) => { const e = document.createElement(tag); if (cls) e.className = cls; if (html !== undefined) e.innerHTML = html; return e; };
 const RANK = { city: 0, town: 1, suburb: 2 };
@@ -105,6 +106,7 @@ export class Phone {
     this._screen('PHONE', [
       { icon: '🛺', label: 'Travel', sub: 'auto-rickshaw to towns · trains to cities', color: '#ffd23d', off: busy, fn: () => this.travel() },
       { icon: '💼', label: 'Jobs', sub: this._jobs()?.working ? `working: ${this._jobs().kind === 'taxi' ? 'taxi fares' : 'parcels'}` : 'taxi fares · parcels', color: '#3dff9a', fn: () => this.jobs() },
+      { icon: '🏪', label: 'Business', sub: this._biz() ? `${this._biz().owned().length}/${this._biz().list.length} owned · ${formatMoney(this._biz().income())} / ${BIZ_PERIOD / 60} min` : '', color: '#3dff9a', fn: () => this.business() },
       { icon: '🔧', label: 'Mechanic', sub: this._mechSub(), color: '#7fd3ff', off: busy, fn: () => this.mechanic() },
       { icon: '🎭', label: 'Theyyam masks', sub: m ? `${m.count}/${m.places.length} found` : 'not here', color: '#ff6a3d', fn: () => this.masks() },
       { icon: '📻', label: 'Radio', sub: st?.name, color: st?.color, fn: () => this.radio() },
@@ -138,6 +140,19 @@ export class Phone {
     items.push({ label: 'Parcel delivery', sub: 'against the clock; mind the goods', color: '#ff8a3d', on: J?.kind === 'parcel', off: why, fn: () => { g.resume(); J.begin('parcel'); } });
     items.push({ label: `${st.fares || 0} fares · ${st.parcels || 0} parcels`, sub: `earned ${formatMoney(st.earned || 0)} · best streak ${st.best || 0}`, off: 'Your record', fn: () => {} });
     this._screen('JOBS', items, () => this.home(), 'jobs run back to back · BACK to go back');
+  }
+
+  _biz() { const g = this.game; return g.world.index ? (g.biz ||= new KeralaBusiness(g)) : null; }
+
+  business() {
+    const g = this.game, B = this._biz(), f = g.focusState, cash = g.save.data.cash;
+    const items = (B?.list || []).map((b) => {
+      const s = B.spot(b), km = Math.hypot(s.x - f.x, s.z - f.z) / 1000, own = B.owns(b.id);
+      return { label: b.name, sub: own ? `yours · ${formatMoney(b.income)} / ${BIZ_PERIOD / 60} min` : `${formatMoney(b.price)} · ${formatMoney(b.income)} / ${BIZ_PERIOD / 60} min · ${km.toFixed(1)} km${cash < b.price ? ' · need more cash' : ''}`, on: own, color: own ? '#37e2ff' : '#3dff9a',
+        fn: () => { g.setGPS(s.x, s.z); g.resume(); g.ui.toast(`GPS set: ${b.name}${own ? '' : ' (FOR SALE board by the road)'}`, '', 3); } };
+    });
+    const D = B?.data || {};
+    this._screen(`BUSINESS · ${formatMoney(D.earned || 0)} earned`, items, () => this.home(), 'tap one to set the GPS · buy it at its board (E)');
   }
 
   _mechSub() {
