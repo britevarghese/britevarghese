@@ -95,7 +95,7 @@ for (const id of list) {
     // the mission's car, or another)
     const col0 = G.traffic._col0 ||= G.traffic._collide.bind(G.traffic);
     G.traffic._collide = (v, c) => {
-      const was = c.state, cv = c.v, cyaw = c.yaw, path = c.path?.kind, vs = v.state, sp = Math.hypot(vs.vx, vs.vz), r = col0(v, c);
+      const was = c.state, cv = c.v, cyaw = c.yaw, path = c.path?.kind, vs = v.state || v.physics.s, sp = Math.hypot(vs.vx, vs.vz), r = col0(v, c);
       if (trace && was !== 'knocked' && c.state === 'knocked') {
         const fx = Math.sin(vs.yaw), fz = Math.cos(vs.yaw), dx = c.x - vs.x, dz = c.z - vs.z, A2 = S.active?.st?.ai;
         const fwd = vs.vx * fx + vs.vz * fz;
