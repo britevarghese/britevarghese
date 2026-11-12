@@ -87,7 +87,9 @@ export class Room {
       case 'reload': g.reload(p); break;
       case 'nade': if (Array.isArray(m.d) && m.d.length === 3 && m.d.every(Number.isFinite)) g.throwGrenade(p, m.o, m.d); break;
       case 'spawn': g.spawn(p, m.p, m.cls); break;
-      case 'team': if (!p.alive && (m.team === 1 || m.team === 2) && m.team !== p.team) { p.team = m.team; p.squad = 0; g.organiseSquads?.(); } break;
+      // (still down waiting for a medic: switching sides gives up on him first — the old team loses the ticket, and
+      // the body doesn't turn into a 'downed teammate' for the other side's medics)
+      case 'team': if (!p.alive && (m.team === 1 || m.team === 2) && m.team !== p.team) { g.giveUp?.(p); p.team = m.team; p.squad = 0; g.organiseSquads?.(); } break;
       case 'chat': {
         const now = Date.now();
         p.chatTokens = Math.min(3, (p.chatTokens ?? 3) + (now - (p.chatAt || now)) / 2000); p.chatAt = now;

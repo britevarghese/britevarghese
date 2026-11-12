@@ -154,3 +154,21 @@ test('giving up from the downed screen: the ticket goes at once and medics stop 
   // the scoreboard carries each soldier's kit (the downed screen finds the medics)
   assert.equal(g.scoreboard().rows.find((r) => r.id === m.id).c, 'medic');
 });
+
+test('switching sides while down gives up on a medic: the old team loses the ticket, no downed body changes sides', async () => {
+  const { Room } = await import('../server/rooms.js');
+  const room = new Room({ id: 'T', name: 'T', map: 'outskirts', botsPerTeam: 0 });
+  const g = room.game; g.clock = 1_000_000;
+  const ws = { readyState: 1, send() {} };
+  room.join(ws, { name: 'H', team: 1, cls: 'assault' });
+  const h = room.clients.get(ws); h.respawnAt = 0; g.spawn(h, 'base'); h.spawnProtect = 0;
+  const e = soldier(g, 2, 'assault', h.x + 20, h.z, 'E');
+  g.damage(h, 130, e, 'ar', false);
+  assert.ok(h.downed, 'down, waiting for a medic');
+  const t1 = g.tickets[1], t2 = g.tickets[2];
+  room.message(ws, { t: 'team', team: 2 });
+  assert.equal(h.team, 2);
+  assert.equal(h.downed, null, 'given up');
+  assert.equal(g.tickets[1], t1 - 1, 'his old team paid the ticket');
+  assert.equal(g.tickets[2], t2);
+});
