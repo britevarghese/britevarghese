@@ -967,6 +967,14 @@ export class Game {
     };
   }
 
+  // someone joining during the end-of-round screen gets it too, with the time left — not a deploy button that does
+  // nothing until the next round starts (late: he took no part, so it isn't a round or a win for his record)
+  joinPayload() {
+    const R = this.roundOver;
+    if (!R) return null;
+    return { t: 'ev', e: { t: 'round', winner: R.winner, name: TEAM_NAMES[R.winner], ...this.roundSummary(), next: Math.max(1, 15000 - (this.now() - R.at)), dur: Math.round((R.at - this.roundStart) / 1000), late: 1 } };
+  }
+
   // ------------------------------------------------------------ main tick
   tick(dt) {
     const now = this.now();

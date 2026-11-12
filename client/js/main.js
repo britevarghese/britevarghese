@@ -383,7 +383,7 @@ class Game {
         if (this.royale) break;
         if (e.ps) {
           this.hud.roundSummary(e, this.myId, this.myTeam);
-          Stats.add({ rounds: 1, ...(e.winner === this.myTeam && { wins: 1 }) });
+          if (!e.late) Stats.add({ rounds: 1, ...(e.winner === this.myTeam && { wins: 1 }) }); // (late: joined after it ended)
         } else { this.hud.roundEnd(`${e.name} WINS`); setTimeout(() => this.hud.roundEnd(null), 14000); }
         break;
       case 'correct': Object.assign(this.me.s, { x: e.x, y: e.y, z: e.z }); break;

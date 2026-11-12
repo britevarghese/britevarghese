@@ -101,3 +101,20 @@ test('a player-made room survives its own map rotation: the players are away rel
   M.tick(1 / 30);
   assert.equal(M.get(r.id), undefined);
 });
+
+test('joining during the end-of-round screen: the newcomer gets the result and the time left, flagged as not his round', () => {
+  const r = new Room({ id: 'TEST02', name: 't', map: 'outskirts', botsPerTeam: 2, rotation: false });
+  const mk = () => ({ readyState: 1, sent: [], send(m) { this.sent.push(JSON.parse(m)); }, close() {} });
+  const early = mk();
+  r.join(early, { name: 'early' });
+  assert.ok(!early.sent.some((m) => m.t === 'ev' && m.e.t === 'round'), 'nothing of the kind mid-round');
+  r.game.roundOver = { winner: 2, at: Date.now() - 6000 };
+  const late = mk();
+  r.join(late, { name: 'late' });
+  const ev = late.sent.find((m) => m.t === 'ev' && m.e.t === 'round')?.e;
+  assert.ok(ev, 'told the round is over');
+  assert.equal(ev.winner, 2); assert.equal(ev.late, 1);
+  assert.ok(ev.next > 8000 && ev.next <= 9000, `time left to the next round (${ev.next} ms)`);
+  assert.ok(Array.isArray(ev.ps) && ev.ps.some((x) => x[1] === 'early') && ev.tk.length === 2, 'with the final scoreboard');
+  assert.ok(late.sent.findIndex((m) => m.t === 'welcome') < late.sent.findIndex((m) => m.t === 'ev' && m.e.t === 'round'), 'after the welcome');
+});

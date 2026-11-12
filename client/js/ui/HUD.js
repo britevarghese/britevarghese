@@ -365,7 +365,7 @@ export class HUD {
     if (!r) { el?.classList.add('hidden'); return; }
     if (!el) { el = document.createElement('div'); el.id = 'roundsum'; document.body.appendChild(el); }
     const rows = r.ps.map((x) => ({ id: x[0], n: x[1], tm: x[2], s: x[3], k: x[4], d: x[5], as: x[6], rv: x[7], cp: x[8], sp: x[9], vh: x[10], hs: x[11], lg: x[12], b: x[13] }));
-    const win = r.winner === myTeam, enemy = myTeam === 1 ? 2 : 1, me = rows.find((x) => x.id === myId);
+    const win = r.winner === myTeam, enemy = myTeam === 1 ? 2 : 1, me = r.late ? null : rows.find((x) => x.id === myId); // (late: joined after it ended)
     const team = (t) => {
       const list = rows.filter((x) => x.tm === t).sort((a, b) => b.s - a.s);
       const total = list.reduce((a, x) => a + x.s, 0);
@@ -387,7 +387,7 @@ export class HUD {
     const mine = me ? [[me.s, 'SCORE'], [me.k, 'KILLS'], [me.d, 'DEATHS'], [me.as, 'ASSISTS'], [me.rv, 'REVIVES'], [me.cp, 'FLAGS']] : [];
     const mm = Math.floor((r.dur || 0) / 60), ss = String((r.dur || 0) % 60).padStart(2, '0');
     el.innerHTML = `<div class="rs-box">
-      <div class="rs-res ${win ? 'win' : 'lose'}">${win ? 'VICTORY' : 'DEFEAT'}</div>
+      <div class="rs-res ${r.late ? '' : win ? 'win' : 'lose'}">${r.late ? 'ROUND OVER' : win ? 'VICTORY' : 'DEFEAT'}</div>
       <div class="rs-sub">${TEAM_NAMES[r.winner]} WINS · ${r.tk[r.winner - 1]} TICKETS LEFT · ${mm}:${ss}</div>
       <div class="rs-teams">${team(myTeam)}${team(enemy)}</div>
       ${ribbons.length ? `<div class="rs-ribbons">${ribbons.map(([t, ic, x, f]) => `<div class="rb${x.id === myId ? ' me' : ''}"><svg class="ic"><use href="#${ic}"/></svg><div><small>${t}</small><b>${esc(x.n)}</b><span>${f(x)}</span></div></div>`).join('')}</div>` : ''}
