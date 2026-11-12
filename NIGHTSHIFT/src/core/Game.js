@@ -803,8 +803,9 @@ export class Game {
     // (the roads where it was saved built before the car is put down there: placed first, on the bare hillside, it
     // dropped onto them from above as they came in)
     if (this.world.kerala) { this.ui.toast('Loading...', '', 2); await this.world.preload(new THREE.Vector3(slot.pos.x, 0, slot.pos.z)); }
-    Object.assign(this.save.data, structuredClone(slot.data));
-    this.save.save();
+    this.jobs?.stop(null); this.phone.tow = null; if (this.streetEvents) this.streetEvents.offer = null;   // (what was under way belongs to the game being left)
+    this.races.abort(); this.story.abort(); this.rivals?.clear?.();   // (a mission, a race or a street rival of the old game ran on in the loaded one)
+    this.save.restore(slot.data);
     if (typeof slot.hour === 'number' && this.env.mode !== 'real') this.env.hour = slot.hour;
     if (slot.weather) { this.env.setWeather(slot.weather); this.weatherT = 300; }
     this.police?.clearAll?.();

@@ -78,4 +78,13 @@ export class SaveSystem {
   update(dt) { this._timer += dt; if (this._dirty && this._timer > 5) { this.save(); } }
   save() { this._dirty = false; this._timer = 0; Storage.save('save', this.data); }
   reset() { this.data = structuredClone(DEFAULT_SAVE); this.save(); }
+  // a saved slot's progress in place of this one's (the same object, for whoever holds it). What the slot doesn't have
+  // goes back to its default or is dropped: merged over the game in hand, masks found, businesses bought and job
+  // records made since that save all carried over into it
+  restore(data) {
+    const d = this.data;
+    for (const k of Object.keys(d)) if (!(k in data)) { if (k in DEFAULT_SAVE) d[k] = structuredClone(DEFAULT_SAVE[k]); else delete d[k]; }
+    Object.assign(d, structuredClone(data));
+    this.save();
+  }
 }

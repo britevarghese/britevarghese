@@ -79,7 +79,7 @@ export class Collectibles {
     this.glowGeo = new THREE.CylinderGeometry(0.5, 0.9, 6, 16, 1, true).translate(0, 3, 0);
   }
 
-  get found() { return this.game.save.data.masks; }
+  get found() { return (this.game.save.data.masks ??= {}); }
   get count() { return Object.keys(this.found).length; }
 
   // set a mask down on the pavement beside the nearest road to its place's centre, once that ground is built
@@ -112,7 +112,7 @@ export class Collectibles {
     this.pingT -= dt;
     let nearest = Infinity;
     for (const p of this.places) {
-      if (this.found[p.id]) continue;
+      if (this.found[p.id]) { if (this.spots.has(p.id)) this._drop(p.id); continue; } // (found - or in the save just loaded)
       const far = Math.hypot(p.x - f.x, p.z - f.z);
       let s = this.spots.get(p.id);
       if (!s && far < 700) {
