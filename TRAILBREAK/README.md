@@ -1714,6 +1714,14 @@ dips as deep as that takes, its ends held to the roads they meet, and the land l
 about 25 s, and a test (`test/world.test.mjs`) checks the seams, the grades across them, the river at the Kerala seam,
 the satnav's route from the coast to Ashwood, and a truck driving over each join on the real physics.
 
+**Fewer draws a frame.** Every draw the browser asks of the graphics card costs it time of its own, however small
+the thing drawn, so a frame is drawn in as few as it can be. A map's buildings, each a mesh for each of its materials,
+are made into one mesh for each material across the map once they are up (the coast's two hundred were some 870 draws
+a frame in the view and the mirrors, and 180 into the shadows; now 88 and 39); the rocks and the trees' models at a level
+of detail with none in it, and the spare slots of the breakables' meshes, aren't drawn at all. Counted over one frame at
+high graphics at the coast's start, the draws came down from about 1,840 to 600 (the view 1,141 to 289, the shadows
+420 to 205, the mirrors 159 to 107), the same picture.
+
 **Loading like Forza.** The maps are built in Web Workers, several at once (`src/world/WorldLoader.js`,
 `worldWorker.js`; once you are driving, half the cores less one, so the game keeps the rest), the coast first: the game
 starts as soon as the coast is ready, and the others join the world while you drive, each stretch as soon as the maps either side of it are in. A map that comes in is drawn by its own
