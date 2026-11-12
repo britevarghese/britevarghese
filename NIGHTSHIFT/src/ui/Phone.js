@@ -27,6 +27,7 @@ export class Phone {
     if (g.races?.active) return 'Not during a race';
     if (g.onFoot?.inter?.busy || g.onFoot?.seq) return 'Wait a moment';
     if (g.interiors?.active) return 'Step outside first';
+    if (g.boatRide?.active) return 'Go ashore first';
     return null;
   }
 

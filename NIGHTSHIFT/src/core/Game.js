@@ -56,6 +56,7 @@ import { QUALITY_LABELS, QUALITY_LEVELS } from './QualityManager.js';
 import { SKIN_ORIGIN } from '../renderer/SkinPrecision.js';
 import { Phone } from '../ui/Phone.js';
 import { KeralaJobs } from '../world/KeralaJobs.js';
+import { BoatRide } from '../kerala/BoatRide.js';
 const _eyeW = new THREE.Vector3();
 const _camDir = new THREE.Vector3();
 
@@ -179,7 +180,7 @@ export class Game {
     this.net.connect().catch(() => {});
     this._wireEvents();
     this._wireAudioUnlock();
-    if (this.world.kerala) { this.world.trees?.loadModels(this.assets); this.boats = new KeralaBoats(this.world, this.scene, this.assets); this.klGarages = new KeralaGarages(this.world, this.scene); this.klPolice = new KeralaPolice(this); this.safehouses = this.klGarages.list; this.empire.blips = () => []; }
+    if (this.world.kerala) { this.world.trees?.loadModels(this.assets); this.boats = new KeralaBoats(this.world, this.scene, this.assets); this.boatRide = new BoatRide(this); this.klGarages = new KeralaGarages(this.world, this.scene); this.klPolice = new KeralaPolice(this); this.safehouses = this.klGarages.list; this.empire.blips = () => []; }
     await this.rm.setupPost(this.scene, this.camera);
     this.camCtl.snap(this.player);
     progress(1, 'Ready');
@@ -226,6 +227,7 @@ export class Game {
 
   // ------------------------------------------------------------------ player
   spawnPlayer(at) {
+    this.boatRide?.clear();
     if (this.onFoot) { this.onFoot.clearParked(); this.onFoot.active = false; this.onFoot.body.group.visible = false; document.getElementById('hud')?.classList.remove('onfoot'); }
     const id = this.save.data.currentCar;
     const car = CARS[id];
@@ -609,6 +611,7 @@ export class Game {
   }
   toMainMenu() {
     this.jobs?.stop(null);
+    this.boatRide?.clear();
     this.races.abort();
     this.story.abort();
     this.rivals.clear();
@@ -928,7 +931,7 @@ export class Game {
       }
       if (input.consume('sockets')) { const on = !this.onFoot.inter.debug; this.onFoot.inter.setDebug(on); this.ui.toast(on ? 'Vehicle interaction sockets: on' : 'Vehicle interaction sockets: off', '', 1.5); }
       const pin = this.story?.cinema?.active ? (this._noInput ||= { controls: { throttle: 0, brake: 0, steer: 0, lookX: 0, lookY: 0, nitro: false, aim: false, use: false }, consume: () => false, wasPressed: () => false }) : input;
-      if (this.onFoot.active && driving) this.onFoot.update(dt, pin);
+      if (this.onFoot.active && driving) { this.onFoot.update(dt, pin); this.boatRide?.update(dt, pin); }
       else if (this.onFoot.inter.st) this.onFoot.inter.update(dt, pin); // at the wheel (or finishing getting in)
       this.onFoot.updateParked(dt, this.camera.position, this.env.state);
       this.interiors.update(dt, this.env.state);

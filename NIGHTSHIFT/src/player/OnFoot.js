@@ -234,6 +234,7 @@ export class OnFoot {
 
   enter(target, instant = false) {
     const g = this.game;
+    if (this.boat) this.boat.clear();
     this.pistol.holster();
     if (target.kind === 'remote') { g.net.requestTake(target.ref); return false; } // the server hands it over (enterTaken)
     let v;
@@ -663,6 +664,7 @@ export class OnFoot {
   }
 
   update(dt, input) {
+    if (this.boat) { this.boat.ride(dt, input); return; } // aboard a boat (kerala/BoatRide.js)
     if (this.inter.busy) { this.inter.update(dt, input); return; }
     if (this.seq) { this._updateSeq(dt, input); return; }
     if (this.climb) { this._updateClimb(dt); return; }

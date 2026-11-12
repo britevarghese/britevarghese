@@ -183,6 +183,9 @@ controller, what to check when nothing appears, and a report to copy.
   beside them and they name a town a few km off: beat the clock, drive smoothly, and they tip) or **parcel runs**
   (collect from a shop, deliver against a tighter clock; damage the car and the goods arrive broken). Jobs run back
   to back and the pay rises with your streak.
+- **Boats:** on foot at the edge of a backwater, river or the sea, press E to take a country boat ($50). W / S
+  throttle and reverse, A / D steer, shift for full speed; E or F near the bank goes ashore, and the boat stays
+  moored there for you.
 - **Theyyam masks:** 50 hidden collectibles, one in each of 50 towns and villages around Kannur
   (Thalassery, Mahe, Taliparamba, Mattannur...). Close by, a mask shimmers and chimes; touch it to
   collect. Each pays $500 and XP, with bonuses at 10, 25 and 50. *Career* shows the count and names a
