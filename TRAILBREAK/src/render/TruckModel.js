@@ -1507,6 +1507,50 @@ export class TruckModel {
     this._v = new THREE.Vector3(); this._w = new THREE.Vector3(); this._m = new THREE.Matrix4(); this._q = new THREE.Quaternion(); this._s = new THREE.Vector3();
     this.dirt = 0;
     this.updateWheels(spec.axles.flatMap((a) => [[a.sag, 0, 0], [a.sag, 0, 0]]));
+    this.shadowProxy();
+  }
+
+  /**
+   * The body's shadow cast by one mesh of all its rigid parts (one for each way round their faces are drawn) instead of
+   * each part's own: some forty draws into each of the sun's two shadow maps a frame, for every truck. Drawn only into
+   * them (the sun's shadow cameras are the only orthographic ones that see the world; in the view and the mirrors it
+   * isn't drawn at all), and writing nothing were it ever drawn elsewhere. The parts that move (wheels, axles, the
+   * steering wheel, the driver), glass and anything see-through or cut out still cast their own.
+   */
+  shadowProxy() {
+    this.root.updateMatrixWorld(true);
+    const inv = new THREE.Matrix4().copy(this.body.matrixWorld).invert(), m = new THREE.Matrix4();
+    const skip = new Set();
+    for (const o of [this.driver?.group, this.steeringWheel]) o?.traverse((x) => skip.add(x));
+    const shown = (o) => { for (let x = o; x && x !== this.body; x = x.parent) if (!x.visible) return false; return true; };
+    const bySide = new Map();
+    this.body.traverse((o) => {
+      if (!o.isMesh || o.isInstancedMesh || o.isSkinnedMesh || !o.castShadow || skip.has(o) || !shown(o) || o.customDepthMaterial) return;
+      const mat = o.material, g = o.geometry;
+      if (Array.isArray(mat) || mat.transparent || mat.alphaTest > 0 || mat.alphaMap || mat.shadowSide != null || o.userData.role === 'glass' || !g?.attributes.position) return;
+      // (its points into the body's frame, with an index whether it had one or not, to be joined with the others)
+      const q = new THREE.BufferGeometry();
+      q.setAttribute('position', g.attributes.position.clone());
+      q.setIndex(g.index ? g.index.clone() : [...Array(g.attributes.position.count).keys()]);
+      q.applyMatrix4(m.multiplyMatrices(inv, o.matrixWorld));
+      if (!bySide.has(mat.side)) bySide.set(mat.side, []);
+      bySide.get(mat.side).push({ o, q });
+    });
+    const ortho = (f) => f.planes[0].normal.dot(f.planes[1].normal) < -0.999 && f.planes[2].normal.dot(f.planes[3].normal) < -0.999;
+    this.shadowCasters = [];
+    for (const [side, list] of bySide) {
+      if (list.length < 2) continue;
+      const merged = mergeGeometries(list.map((p) => p.q));
+      list.forEach((p) => p.q.dispose());
+      if (!merged) continue;
+      const proxy = new THREE.Mesh(merged, new THREE.MeshBasicMaterial({ side, colorWrite: false, depthWrite: false }));
+      proxy.name = 'shadow';
+      proxy.castShadow = true; proxy.receiveShadow = false;
+      proxy.intersectsFrustum = function (f) { return ortho(f) && f.intersectsObject(this); };
+      this.body.add(proxy);
+      this.shadowCasters.push(proxy);
+      for (const p of list) p.o.castShadow = false;
+    }
   }
 
   setPaint(hex) { this.paint.color.set(hex); }
@@ -1841,6 +1885,7 @@ export class TruckModel {
     for (const m of [this.paint, this.top, ...this.lampMats, ...this.headMats.flat(), this.barMat, this.brakeMat, this.revMat, this.screen, ...this.glassMats]) m?.dispose();
     for (const ax of this.axles || []) for (const wm of ax.wheels) wm.tire.material.dispose();
     for (const m of this.rimMats) m.dispose();
+    for (const p of this.shadowCasters || []) p.material.dispose();
   }
 }
 
