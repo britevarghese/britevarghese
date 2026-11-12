@@ -11,7 +11,8 @@ export const cleanName = (s, max = 18) => String(s ?? '').replace(/[\u0000-\u001
 const safeEqual = (a, b) => { const x = Buffer.from(String(a)), y = Buffer.from(String(b)); return x.length === y.length && crypto.timingSafeEqual(x, y); };
 
 export class Room {
-  constructor({ id, name, map, botsPerTeam = 6, maxPlayers = 24, isPrivate = false, password = '', rotation = true, persistent = false, agents = [], log = () => {} }) {
+  constructor({ id, name, map, mode = null, botsPerTeam = 6, maxPlayers = 24, isPrivate = false, password = '', rotation = true, persistent = false, agents = [], log = () => {} }) {
+    this.wantMode = mode; // 'tdm' on a Conquest map: Team Deathmatch
     this.agentCfgs = agents; // AI Zone: validated LLM configs (API keys stay in memory only)
     this.id = id; this.name = name; this.botsPerTeam = botsPerTeam; this.maxPlayers = maxPlayers;
     this.isPrivate = isPrivate; this.password = password; this.rotation = rotation; this.persistent = persistent;
@@ -25,10 +26,11 @@ export class Room {
   #startGame(map) {
     this.mapId = MAP_DEFS[map] ? map : MAP_IDS[0];
     this.mode = modeOf(this.mapId);
+    if (this.mode === 'conquest' && this.wantMode === 'tdm') this.mode = 'tdm';
     // battle royale: botsPerTeam is the total number of bots (everyone is on their own)
     this.game = this.mode === 'royale'
       ? new RoyaleGame({ bots: this.botsPerTeam, map: this.mapId, log: this.log, lobbyTime: +process.env.ROYALE_LOBBY || undefined })
-      : new Game({ botsPerTeam: this.botsPerTeam, map: this.mapId, log: this.log });
+      : new Game({ botsPerTeam: this.botsPerTeam, map: this.mapId, log: this.log, mode: this.mode });
     if (this.mode === 'conquest') for (const c of this.agentCfgs) this.game.agents.push(new AgentController(this.game, c, this.log));
   }
 
@@ -116,7 +118,7 @@ export class Room {
     // empty rooms sleep (bots only fight while somebody is watching)
     if (!this.clients.size) return;
     // map rotation shortly before the round would restart on the same map
-    if (this.rotation && this.mode === 'conquest' && g.roundOver && now - g.roundOver.at > 13000) {
+    if (this.rotation && (this.mode === 'conquest' || this.mode === 'tdm') && g.roundOver && now - g.roundOver.at > 13000) {
       const next = CONQUEST_MAPS[(CONQUEST_MAPS.indexOf(this.mapId) + 1) % CONQUEST_MAPS.length];
       this.log(`[room ${this.id}] rotating map ${this.mapId} -> ${next}`);
       const msg = JSON.stringify({ t: 'mapchange', map: next, room: this.id });
@@ -176,6 +178,7 @@ export class RoomManager {
       id,
       name: cleanName(opts.name, 32) || `${MAP_DEFS[opts.map]?.name || 'Battle'} room`,
       map: MAP_DEFS[opts.map] ? opts.map : MAP_IDS[0],
+      mode: opts.mode === 'tdm' ? 'tdm' : null,
       botsPerTeam: Math.max(0, Math.min(modeOf(opts.map) === 'royale' ? 23 : 16, Math.round(+opts.botsPerTeam || 0))),
       maxPlayers: Math.max(2, Math.min(32, Math.round(+opts.maxPlayers || 24))),
       isPrivate: !!opts.isPrivate,
@@ -186,7 +189,7 @@ export class RoomManager {
       log: this.log,
     });
     this.rooms.set(id, room);
-    this.log(`[rooms] created ${id} "${room.name}" map=${room.mapId} bots=${room.botsPerTeam}${room.isPrivate ? ' private' : ''}`);
+    this.log(`[rooms] created ${id} "${room.name}" map=${room.mapId} mode=${room.mode} bots=${room.botsPerTeam}${room.isPrivate ? ' private' : ''}`);
     return room;
   }
 

@@ -202,6 +202,11 @@ class Game {
     const n = this.net;
     n.on('welcome', (m) => {
       this.myId = m.id; this.myTeam = m.team; this.hud.myTeam = m.team; this.hud.meId = m.id;
+      // Team Deathmatch: no flags anywhere (bar, poles, maps); deploying picks the safest sector
+      this.tdm = (m.room?.mode || m.mode || this.room.mode) === 'tdm';
+      this.hud.tdm = this.tdm;
+      document.body.classList.toggle('tdm', this.tdm);
+      if (this.tdm) for (const fm of Object.values(this.world.flagMeshes || {})) fm.group.visible = false;
       if (m.room && m.room.map !== this.room.map) { location.href = `/?room=${m.room.id}&autojoin=1`; return; }
       this._joinOk?.();
       if (this.royale) this.royale.showReady(true); else this.#showDeploy();
@@ -639,7 +644,7 @@ class Game {
       const v = +$('p-sens').value / 10000;
       if (this.isTouch) { if (this.touch) this.touch.lookSens = v * 2; localStorage.setItem('sp_touch_sens', v * 2); } else { this.me.sens = v; localStorage.setItem('sp_sens', v); }
     };
-    $('p-room').textContent = `${ACTIVE_MAP.name.toUpperCase()}  |  ${this.room.mode === 'royale' ? 'SOLO' : 'CONQUEST'}  |  ROOM ${this.room.id}`;
+    $('p-room').textContent = `${ACTIVE_MAP.name.toUpperCase()}  |  ${this.room.mode === 'royale' ? 'SOLO' : this.room.mode === 'tdm' ? 'TEAM DEATHMATCH' : 'CONQUEST'}  |  ROOM ${this.room.id}`;
     $('p-mapname').textContent = `${ACTIVE_MAP.name} · ${this.room.name || ''}`;
     $('p-thumb').style.backgroundImage = `url(${mapArt(this.room.map)})`;
     // ---- graphics options (pause menu)

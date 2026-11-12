@@ -306,7 +306,9 @@ function spot(brain, c, v, eye, fwd, now, dt) {
 // into the capture zone, a bike to its edge (the rider goes the rest of the way on foot)
 function pickDriveGoal(brain, c, v, now) {
   const g = brain.g, p = brain.p, ord = g.squadOrder?.(p);
-  const scored = g.flags.map((f) => {
+  // (Team Deathmatch: no flags — the sectors, as if all neutral)
+  const sites = g.flags.length ? g.flags : g.map.FLAGS.map((f) => ({ ...f, owner: 0, contested: false }));
+  const scored = sites.map((f) => {
     const d = Math.hypot(f.x - v.x, f.z - v.z);
     let s = -d * 0.015 + (ord?.flag === f.id ? 8 : 0); // (the squad's order)
     if (f.owner !== p.team) s += 3; else if (f.contested) s += 2.5; else s -= 2;

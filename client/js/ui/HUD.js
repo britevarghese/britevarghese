@@ -56,8 +56,9 @@ export class HUD {
     $('tk-us').textContent = us; $('tk-ru').textContent = ru;
     document.querySelector('.tk.us .lbl').textContent = TEAM_NAMES[this.myTeam];
     document.querySelector('.tk.ru .lbl').textContent = TEAM_NAMES[this.myTeam === 1 ? 2 : 1];
-    document.querySelector('.tk.us .bar i').style.width = `${(us / 300) * 100}%`;
-    document.querySelector('.tk.ru .bar i').style.width = `${(ru / 300) * 100}%`;
+    const T = this.tdm ? 100 : 300; // (starting tickets: Team Deathmatch / Conquest)
+    document.querySelector('.tk.us .bar i').style.width = `${(us / T) * 100}%`;
+    document.querySelector('.tk.ru .bar i').style.width = `${(ru / T) * 100}%`;
   }
 
   flags(fs, me) {
@@ -188,7 +189,7 @@ export class HUD {
     g.fillStyle = 'rgba(200,200,190,.5)';
     for (const b of BUILDINGS) g.fillRect(tx(b.x - b.w / 2), tz(b.z - b.d / 2), b.w * k, b.d * k);
     g.strokeStyle = 'rgba(255,80,60,.5)'; g.lineWidth = 1; g.strokeRect(tx(-PLAY_HALF), tz(-PLAY_HALF), PLAY_HALF * 2 * k, PLAY_HALF * 2 * k);
-    for (const f of FLAGS) {
+    for (const f of this.tdm ? [] : FLAGS) {
       const st = flagsState?.find((x) => x[0] === f.id);
       const owner = st ? st[1] : 0;
       g.fillStyle = owner === 0 ? '#ddd' : owner === this.myTeam ? '#4d8fe0' : '#e0574d';
@@ -246,13 +247,13 @@ export class HUD {
     if (!usable.includes(this.selectedSpawn)) this.selectedSpawn = 'base';
     const sel = this.selectedSpawn, selMate = sel[0] === '@' ? sqm.find((m) => `@${m.id}` === sel) : null;
     const sp = $('spawns');
-    sp.innerHTML = `<div class="sp${sel === 'base' ? ' sel' : ''}" data-sp="base"><svg class="ic"><use href="#i-house"/></svg>HQ Spawn</div>`
+    sp.innerHTML = `<div class="sp${sel === 'base' ? ' sel' : ''}" data-sp="base"><svg class="ic"><use href="#i-house"/></svg>${this.tdm ? 'Auto spawn<small class="ok">SAFEST SECTOR</small>' : 'HQ Spawn'}</div>`
       + flags.map((f) => `<div class="sp${f.id === sel ? ' sel' : ''}${f.attacked ? ' off' : ''}" data-sp="${f.id}"><i class="dia">${f.id}</i>Flag ${f.id}${f.attacked ? '<small>UNDER ATTACK</small>' : ''}</div>`).join('')
       + (sqm.length ? `<div class="sph">${squadName(this.mySquad)} SQUAD</div>` : '')
       + sqm.map((m) => `<div class="sp mate${`@${m.id}` === sel ? ' sel' : ''}${m.why ? ' off' : ''}" data-sp="@${m.id}"><i class="sqd"></i>${esc(m.name)}${m.why ? `<small>${SQUAD_BLOCK[m.why] || 'UNAVAILABLE'}</small>` : ''}</div>`).join('');
     for (const el of sp.querySelectorAll('.sp:not(.off)')) el.onclick = () => { this.selectedSpawn = el.dataset.sp; this.deployScreen(true, args); };
-    $('dp-spawn').textContent = sel === 'base' ? 'HQ Spawn' : selMate ? selMate.name : `Flag ${sel}`;
-    $('dp-spawnsub').textContent = sel === 'base' ? 'Safe · Team spawn' : selMate ? 'Squad mate · Right behind him' : 'Front line';
+    $('dp-spawn').textContent = sel === 'base' ? (this.tdm ? 'Auto spawn' : 'HQ Spawn') : selMate ? selMate.name : `Flag ${sel}`;
+    $('dp-spawnsub').textContent = sel === 'base' ? (this.tdm ? 'Away from the enemy, near friends' : 'Safe · Team spawn') : selMate ? 'Squad mate · Right behind him' : 'Front line';
     this.#tacticalMap(team, flagsState);
     const btn = $('deploybtn');
     btn.onclick = () => onDeploy(this.selectedSpawn, this.selectedClass);
@@ -282,7 +283,7 @@ export class HUD {
       c.fillRect(-r, -r, r * 2, r * 2); c.strokeRect(-r, -r, r * 2, r * 2); c.restore();
       c.fillStyle = '#fff'; c.font = `700 ${Math.round(r * 1.1)}px Rajdhani, sans-serif`; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText(label, x, y + 1);
     };
-    for (const f of FLAGS) {
+    for (const f of this.tdm ? [] : FLAGS) {
       const st = flagsState?.find((x) => x[0] === f.id); const o = st ? st[1] : 0;
       const col = o === 0 ? ['rgba(30,30,30,.85)', '#e8e8e8'] : o === team ? ['rgba(40,90,170,.85)', '#6fb0ff'] : ['rgba(150,35,30,.85)', '#ff6b5b'];
       if (f.id === this.selectedSpawn) { c.strokeStyle = '#f2d21b'; c.lineWidth = 2; c.beginPath(); c.arc(X(f.x), Z(f.z), 17, 0, 7); c.stroke(); }

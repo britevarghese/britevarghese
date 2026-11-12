@@ -22,7 +22,7 @@ export function botName(players, names) {
   for (let k = 2; ; k++) { const n = `[BOT] ${names[Math.floor(Math.random() * names.length)]} ${k}`; if (!used.has(n)) return n; }
 }
 export const SNAP_HZ = 20;
-const START_TICKETS = 300;
+const START_TICKETS = 300, TDM_TICKETS = 100;
 const RESPAWN_DELAY = 5;
 // wounded, not killed: a soldier taken down by body hits (not a head shot, not blown apart, not a fall / run-over /
 // vehicle death) lies incapacitated and bleeds out over BLEED_MS; a medic beside him can bring him round in
@@ -38,8 +38,9 @@ let nextId = 1;
 const worldCache = new Map();
 
 export class Game {
-  constructor({ botsPerTeam = 8, log = console.log, map = 'outskirts' } = {}) {
+  constructor({ botsPerTeam = 8, log = console.log, map = 'outskirts', mode = 'conquest' } = {}) {
     this.log = log;
+    this.mode = mode === 'tdm' ? 'tdm' : 'conquest'; // Team Deathmatch: no flags, a death costs the ticket, first to 0 loses
     this.map = getMap(map);
     // collision world + nav grid are immutable per map: share them between rooms playing the same map
     const shared = worldCache.get(this.map.id) || (() => {
@@ -59,7 +60,7 @@ export class Game {
     this.time = 0;
     this.vehicles = new VehicleSystem(this);
     this.glassBroken = new Set(); // window panes shattered this round (the collision world is shared: state lives here)
-    this.restrictedHQ = Math.min(45, this.map.PLAY_HALF * 0.3); // radius of each HQ's no-go zone for the enemy
+    this.restrictedHQ = this.mode === 'tdm' ? 0 : Math.min(45, this.map.PLAY_HALF * 0.3); // radius of each HQ's no-go zone for the enemy (none in TDM)
     this.reviveEnabled = true; // (battle royale: no medics, no reviving)
     this.squadsEnabled = true; // (battle royale: everyone for himself)
     this.spotting = true;
@@ -70,9 +71,10 @@ export class Game {
 
   resetRound() {
     for (const p of this.players.values()) { p.downed = null; p.reviving = null; }
-    this.tickets = { 1: START_TICKETS, 2: START_TICKETS };
+    const T = this.mode === 'tdm' ? TDM_TICKETS : START_TICKETS;
+    this.tickets = { 1: T, 2: T };
     this.roundStart = this.now();
-    this.flags = this.map.FLAGS.map((f) => ({ ...f, owner: f.owner || 0, progress: f.owner === 1 ? 1 : f.owner === 2 ? -1 : 0, contested: false }));
+    this.flags = this.mode === 'tdm' ? [] : this.map.FLAGS.map((f) => ({ ...f, owner: f.owner || 0, progress: f.owner === 1 ? 1 : f.owner === 2 ? -1 : 0, contested: false }));
     this.roundOver = null;
     this.orders = new Map(); // squad orders: 'team:squad' -> { flag, kind: 'attack' | 'defend', by, at }
     this.bleedAcc = { 1: 0, 2: 0 };
@@ -282,6 +284,24 @@ export class Game {
     return false;
   }
 
+  // Team Deathmatch: no bases to hold, so deploy into the sector (a flag site, or the own HQ) furthest from the
+  // enemy and close to friends — never into the fight, never miles from it
+  #tdmSpawn(team) {
+    const sites = [{ id: 'base', x: this.map.BASES[team].x, z: this.map.BASES[team].z }, ...this.map.FLAGS.map((f) => ({ id: 'sector', x: f.x, z: f.z }))];
+    let best = sites[0], bs = -Infinity;
+    for (const s of sites) {
+      let nearFoe = Infinity, friends = 0;
+      for (const q of this.players.values()) {
+        if (!q.alive) continue;
+        const d = Math.hypot(q.x - s.x, q.z - s.z);
+        if (q.team !== team) nearFoe = Math.min(nearFoe, d); else if (d < 80) friends++;
+      }
+      const score = Math.min(nearFoe, 140) + friends * 6 + Math.random() * 25 - (nearFoe < 45 ? 200 : 0);
+      if (score > bs) { bs = score; best = s; }
+    }
+    return { ...best };
+  }
+
   // how exposed a spawn spot is: enemies that could see it (closer = worse)
   #spawnThreat(team, x, y, z) {
     let t = 0;
@@ -310,7 +330,7 @@ export class Game {
       if (p.downed) this.#bleedOut(p);
     }
     if (cls && CLASSES[cls]) p.cls = cls;
-    const opt = mate ? { id: 'squad', x: mate.x, z: mate.z } : this.spawnOptions(p.team).find((o) => o.id === pointId) || this.spawnOptions(p.team)[0];
+    const opt = mate ? { id: 'squad', x: mate.x, z: mate.z } : this.mode === 'tdm' ? this.#tdmSpawn(p.team) : this.spawnOptions(p.team).find((o) => o.id === pointId) || this.spawnOptions(p.team)[0];
     // several free candidate spots; take the one fewest enemies can see (no spawning into a firefight)
     let x = opt.x, z = opt.z, best = Infinity, found = 0, y = null;
     const ride = mate?.vehicle ? this.vehicles.get(mate.vehicle) : null;

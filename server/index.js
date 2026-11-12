@@ -26,6 +26,8 @@ if (DEFAULT_ROOMS) {
     const royale = MAP_DEFS[map].mode === 'royale';
     rooms.create({ id: ids[map] || map.toUpperCase(), name: royale ? `${MAP_DEFS[map].name} · Battle Royale` : `${MAP_DEFS[map].name} 24/7`, map, botsPerTeam: royale ? royaleBots : map === 'compound' ? Math.min(BOTS, 5) : BOTS, maxPlayers: royale ? 24 : 32, rotation: false, persistent: true });
   }
+  // and one Team Deathmatch room (close quarters: the compound)
+  rooms.create({ id: 'TDM', name: 'Zulu · Team Deathmatch', map: 'compound', mode: 'tdm', botsPerTeam: Math.min(BOTS, 6), maxPlayers: 24, rotation: false, persistent: true });
 }
 
 const app = express();
@@ -60,7 +62,7 @@ app.post('/api/rooms', (req, res) => {
     // AI Zone: up to 2 LLM-commanded soldiers (validated here; keys are kept in memory only)
     const agents = (Array.isArray(b.ai) ? b.ai : b.ai ? [b.ai] : []).slice(0, 2).map(cleanAgentConfig);
     if (agents.length && MAP_DEFS[b.map]?.mode === 'royale') return res.status(400).json({ error: 'AI agents play Conquest maps' });
-    const r = rooms.create({ name: b.name, map: b.map, botsPerTeam: b.bots ?? 4, maxPlayers: b.maxPlayers ?? 16, isPrivate: agents.length ? true : !!b.private, password: b.password || '', rotation: b.rotation !== false, agents });
+    const r = rooms.create({ name: b.name, map: b.map, mode: agents.length ? null : b.mode, botsPerTeam: b.bots ?? 4, maxPlayers: b.maxPlayers ?? 16, isPrivate: agents.length ? true : !!b.private, password: b.password || '', rotation: b.rotation !== false, agents });
     recent.push(now); createLog.set(ip, recent);
     res.json(r.info());
   } catch (e) { res.status(/required|valid|must/i.test(e.message) ? 400 : 503).json({ error: e.message }); }

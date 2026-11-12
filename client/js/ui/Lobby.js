@@ -81,6 +81,7 @@ export class Lobby {
       const royale = m?.mode === 'royale';
       $('c-bots').previousSibling.textContent = royale ? 'Bots (total) ' : 'Bots per team ';
       $('c-bots').max = royale ? 23 : 16;
+      $('c-mode').disabled = royale; if (royale) $('c-mode').value = 'conquest'; // (the island is battle royale only)
       if (royale && +$('c-bots').value < 8) $('c-bots').value = 12;
       $('c-rotation').closest('label').style.display = royale ? 'none' : '';
     };
@@ -113,7 +114,7 @@ export class Lobby {
     const row = (r) => `<div class="room" data-id="${r.id}">
       <span class="rn"><i class="live"></i>${esc(r.name)}${r.locked ? ' <svg class="ic lk"><use href="#i-lock"/></svg>' : ''}</span>
       <span>${esc(r.mapName)}</span>
-      <span>${r.mode === 'royale' ? 'Battle Royale' : r.ai?.length ? 'AI Zone' : 'Conquest'}</span>
+      <span>${r.mode === 'royale' ? 'Battle Royale' : r.ai?.length ? 'AI Zone' : r.mode === 'tdm' ? 'Team Deathmatch' : 'Conquest'}</span>
       <span>${r.players}/${r.max}</span>
       <span class="ping">${Math.round(this.ping)}ms</span>
       <span><button class="btn y xs" data-join="${r.id}">JOIN</button></span></div>`;
@@ -236,7 +237,7 @@ export class Lobby {
         return this.#create({ name: `AI Zone · ${ai.name}`, map: $('ai-map').value, bots: +$('ai-bots').value, maxPlayers: 12, private: true, rotation: false, ai: [ai] });
       }
       default: return this.#create({
-        name: $('c-name').value.trim(), map: $('c-map').value, bots: +$('c-bots').value, maxPlayers: +$('c-max').value,
+        name: $('c-name').value.trim(), map: $('c-map').value, mode: $('c-mode').value, bots: +$('c-bots').value, maxPlayers: +$('c-max').value,
         private: $('c-private').checked, password: $('c-pass').value, rotation: $('c-rotation').checked,
       });
     }

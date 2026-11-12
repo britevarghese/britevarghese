@@ -20,7 +20,8 @@ test('lobby: public rooms per map, private rooms with codes and passwords', asyn
   const maps = await (await fetch(`${BASE}/api/maps`)).json();
   assert.ok(maps.length >= 4, 'at least 4 maps');
   const pub = await (await fetch(`${BASE}/api/rooms`)).json();
-  assert.equal(pub.length, maps.length, 'one default public room per map');
+  assert.equal(pub.length, maps.length + 1, 'one default public room per map, plus Team Deathmatch');
+  assert.equal(pub.filter((r) => r.mode === 'tdm').length, 1, 'the Team Deathmatch room');
   assert.deepEqual(new Set(pub.map((r) => r.map)), new Set(maps.map((m) => m.id)));
 
   const res = await fetch(`${BASE}/api/rooms`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ name: 'Squad <b>night</b>', map: 'harbor', bots: 1, private: true, password: 'hunter2' }) });

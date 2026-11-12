@@ -50,7 +50,9 @@ test('only what is in sight and near the crosshair; not twice a second', () => {
   const [o, d] = ray(p, e), a = 0.26;
   g.flushEvents();
   assert.equal(g.spot(p, o, [d[0] * Math.cos(a) - d[2] * Math.sin(a), d[1], d[0] * Math.sin(a) + d[2] * Math.cos(a)]), null);
-  assert.equal(g.flushEvents().map((x) => x.ev).find((x) => x.t === 'spot')?.ok, 0);
+  // (nothing spotted; a squad leader's ray that happens to fall on a flag gives an order instead — either way, nobody marked)
+  assert.ok(!g.flushEvents().some((x) => x.ev.t === 'spot' && x.ev.ok), 'nothing spotted');
+  assert.equal(g.spottedFor(1), undefined);
   // straight at him but too soon after the last try
   assert.equal(g.spot(p, o, d), null);
   advance(g, 800);

@@ -203,6 +203,7 @@ export class BotBrain {
     const flags = this.g.flags, p = this.p;
     // the squad leader's order comes first
     const ord = this.g.squadOrder?.(p), of = ord && flags.find((f) => f.id === ord.flag);
+    if (!flags.length) return this.#hunt();
     const scored = of ? [{ f: of, s: 0 }] : flags.map((f) => {
       const d = Math.hypot(f.x - p.x, f.z - p.z);
       let s = -d * 0.02;
@@ -219,6 +220,24 @@ export class BotBrain {
     this.path = this.g.nav.findPath(p.x, p.z, this.goal.x, this.goal.z, undefined, p.y);
     this.pathIdx = 1;
     this.repathAt = this.g.now() + rand(9000, 16000);
+  }
+
+  // Team Deathmatch (no flags): go where the enemy is — the sectors (flag sites) with the most of them seen about,
+  // not too far off, with some randomness so the team spreads out
+  #hunt() {
+    const g = this.g, p = this.p;
+    const sites = g.map.FLAGS.map((f) => {
+      let foes = 0;
+      for (const q of g.players.values()) if (q.alive && g.isEnemy(p, q) && Math.hypot(q.x - f.x, q.z - f.z) < f.r + 50) foes++;
+      return { f, s: foes * 1.5 - Math.hypot(f.x - p.x, f.z - p.z) * 0.015 + rand(0, 2.5) };
+    }).sort((a, b) => b.s - a.s);
+    const f = sites[0]?.f;
+    if (!f) { this.goal = { x: p.x, z: p.z, flag: null }; this.repathAt = g.now() + 5000; return; }
+    const a = rand(0, Math.PI * 2), r = rand(4, f.r + 25);
+    this.goal = { x: f.x + Math.cos(a) * r, z: f.z + Math.sin(a) * r, flag: null };
+    this.path = g.nav.findPath(p.x, p.z, this.goal.x, this.goal.z, undefined, p.y);
+    this.pathIdx = 1;
+    this.repathAt = g.now() + rand(12000, 22000);
   }
 
   perceive(now) {

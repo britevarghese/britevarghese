@@ -681,3 +681,7 @@ body.deploying #scorefeed, body.downed #scorefeed { display: none; }
 /* suppression: the edges of the view darken and close in while rounds crack past */
 #suppress { position: fixed; inset: 0; pointer-events: none; z-index: 2; opacity: 0; transition: opacity .25s; background: radial-gradient(ellipse at center, rgba(0,0,0,0) 26%, rgba(10,10,12,.45) 58%, rgba(0,0,0,.92) 100%); }
 body.deploying #suppress, body.downed #suppress { display: none; }
+/* Team Deathmatch: no flags */
+body.tdm #flags, body.tdm #capture { display: none !important; }
+#spawns .sp small.ok { color: var(--ok); }
+body.tdm .legend > div:nth-child(-n+3) { display: none; }

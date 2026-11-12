@@ -220,6 +220,10 @@ downed: mouse looks around, **hold Space** (touch: tap **REDEPLOY**) to give up 
   the bipod (prone) the spread and climb halve, braced (crouched) they drop by a quarter to a third; machine-gunner bots
   get down to fire at range. The Medic's **MP5-pattern SMG** — 9 mm, 840 rpm, quick to aim (0.16 s) and to move
   with, falls off past ~40 m. Everyone regenerates slowly after 6 s out of fire (medics after 3 s, much faster).
+* **Team Deathmatch** (the always-on *Zulu · Team Deathmatch* room, or pick the mode when creating a room on any
+  Conquest map): no flags and no HQ no-go zones — 100 tickets a side, every death costs one (a revive saves it), the
+  first side to 0 loses. You deploy into the sector furthest from the enemy and near friends (or on a squad mate);
+  bots hunt where the enemy is. Flags, poles and their map markers are hidden.
 * **Squads:** each team is organised in squads of four (ALPHA, BRAVO, …). Players are put together and bots top
   their squads up, so there is always someone to deploy on. On the deploy screen your squad mates are spawn points:
   you deploy right behind one (same floor, facing his way), or into a free seat of his vehicle, while he is out of
