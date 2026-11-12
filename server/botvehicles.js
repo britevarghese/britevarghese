@@ -278,7 +278,8 @@ function spot(brain, c, v, eye, fwd, now, dt) {
     const tx = qv ? qv.x : q.x, tz = qv ? qv.z : q.z, d = Math.hypot(tx - eye.x, tz - eye.z);
     if (d > (qv ? 500 : 300) * (0.8 + brain.skill * 0.3)) continue;
     const off = Math.abs(angleDiff(fwd, Math.atan2(-(tx - eye.x), -(tz - eye.z))));
-    if (off > 1.1 && d > 40 && q !== c.target) continue;
+    // (a pilot under a bubble canopy looks all round; a tank crew through its vision blocks, about ahead)
+    if (off > (v.type === 'heli' ? 2.0 : 1.1) && d > 40 && q !== c.target) continue;
     const ty = qv ? qv.y + VEHICLES[qv.type].half[1] : q.y + (q.stance === 'prone' ? 0.3 : q.stance === 'crouch' ? 0.9 : 1.3);
     if (!g.world.lineOfSight(eye, { x: tx, y: ty, z: tz })) continue;
     // armour first (it is the threat to a tank), then the nearest
@@ -494,10 +495,12 @@ function fly(brain, c, v, V, dt, now) {
     }
   } else if (t && (H.phase === 'transit' || H.phase === 'attack')) {
     H.phase = 'attack';
+    H.last = { x: t.x, z: t.z, t: now }; // (where it was last seen: a hangar between and the run goes on there)
     const d = Math.hypot(t.x - v.x, t.z - v.z);
     const toT = Math.atan2(-(t.x - v.x), -(t.z - v.z));
     wantYaw = toT;
-    if (d > 450) { wantSpeed = HELI.cruiseSpeed; wantAlt = Math.max(ground, clearanceAhead(g, v, toT, 90)) + HELI.cruise; }
+    // out of rocket range: close in (fast from afar, slowing for the run) before taking up the firing attitude
+    if (d > 320) { wantSpeed = d > 450 ? HELI.cruiseSpeed : 26; wantAlt = Math.max(ground, clearanceAhead(g, v, toT, 90)) + (d > 450 ? HELI.cruise : HELI.attack + 6); }
     else {
       // the run in: low, slower, nose on the target — elevation for the rockets' sag (a quarter of gravity)
       const W = V.weapons[0], tv = t.qv || t.q, tf = d / W.velocity;
@@ -507,17 +510,34 @@ function fly(brain, c, v, V, dt, now) {
       const drop = 0.5 * 9.81 * (W.gravityScale ?? 1) * tf * tf;
       const pv = Math.atan2(t.y + drop - (v.y + 0.85), d);      // rocket direction wanted (+ up)
       pitchSet = clamp(-pv - 0.03, -0.3, V.pitchMax);              // airframe pitch (+ nose down) that points the pods there
-      const yawOk = Math.abs(angleDiff(v.yaw, wantYaw)) < 0.02 + 2 / d, pitchOk = Math.abs((v.pitch || 0) - pitchSet) < 0.03;
+      // laid well enough: rockets come in shallow, so a little pitch error is a long way short or over — hold fire
+      // until it is worth no more than ~2.5 m at the target (and the nose on it within a few metres)
+      const yawOk = Math.abs(angleDiff(v.yaw, wantYaw)) * d < 3, pitchOk = Math.abs((v.pitch || 0) - pitchSet) * d < 2.5;
       const mates = [...g.players.values()].some((q) => q !== p && q.alive && !g.isEnemy(p, q) && Math.hypot(q.x - t.x, q.z - t.z) < 10);
-      if (yawOk && pitchOk && !mates && d > 120 && now >= v.reloadUntil[0] && now >= v.nextShot[0] && now > c.fireAt) {
+      // the pod that fires next (on a stub wing, below and beside the pilot's eye) must have a clear line: a hangar
+      // roof edge the pilot sees over can still be in its way — then come up a little
+      const side = v.ammo[0] % 2 ? 1 : -1, cyw = Math.cos(v.yaw), syw = Math.sin(v.yaw);
+      const was = g.world.ignoreOwner; g.world.ignoreOwner = v.id;
+      const clear = g.world.lineOfSight({ x: v.x + cyw * side * 1.25, y: v.y + 0.85, z: v.z - syw * side * 1.25 }, { x: t.x, y: t.y, z: t.z });
+      g.world.ignoreOwner = was;
+      if (!clear) wantAlt += 8;
+      if (yawOk && pitchOk && clear && !mates && d > 80 && d < 330 && now >= v.reloadUntil[0] && now >= v.nextShot[0] && now > c.fireAt) {
         g.vehicles.fire(p, {}); H.salvo++;
       }
-      if (d < 140 || H.salvo >= (t.qv ? 8 : 4)) { H.phase = 'breakoff'; H.since = now; H.salvo = 0; H.away = toT + Math.PI + (Math.random() < 0.5 ? -0.6 : 0.6); }
+      if (d < 75 || H.salvo >= (t.qv ? 8 : 4)) { H.phase = 'breakoff'; H.since = now; H.salvo = 0; H.away = toT + Math.PI + (Math.random() < 0.5 ? -0.6 : 0.6); }
     }
+  } else if (H.phase === 'attack' && H.last && now - H.last.t < 30000) {
+    // lost sight of it in the run (a hangar, a ridge between) or coming round again after breaking off: on toward
+    // where it was last seen, a little higher to see over what hid it; overflown, break off and come round once more
+    const L = H.last, d = Math.hypot(L.x - v.x, L.z - v.z), toL = Math.atan2(-(L.x - v.x), -(L.z - v.z));
+    wantYaw = toL; wantSpeed = d > 220 ? HELI.cruiseSpeed : 20;
+    wantAlt = Math.max(ground, clearanceAhead(g, v, toL, 90)) + HELI.attack + 12;
+    if (d < 75) { H.phase = 'breakoff'; H.since = now; H.salvo = 0; H.away = toL + Math.PI + (Math.random() < 0.5 ? -0.6 : 0.6); }
   } else if (H.phase === 'breakoff') {
-    // pull out of the run: climb, turn hard away, open the range, then come back round
+    // pull out of the run: climb, turn hard away, open the range, then come back round (to where the target was, if
+    // that was recent; otherwise back to the objective)
     wantYaw = H.away; wantSpeed = HELI.cruiseSpeed; wantAlt = Math.max(ground, clearanceAhead(g, v, wantYaw, 90)) + HELI.cruise + 6;
-    if (now - H.since > 9000) H.phase = 'transit';
+    if (now - H.since > 6000) H.phase = H.last && now - H.last.t < 30000 ? 'attack' : 'transit';
   } else {
     // transit / patrol: over the objective the bots are fighting for, circling it
     if (!c.goal || now > c.repathAt) pickDriveGoal(brain, c, v, now);
@@ -535,7 +555,13 @@ function fly(brain, c, v, V, dt, now) {
   if (eb && g.restrictedHQ && Math.hypot(v.x - eb.x, v.z - eb.z) < g.restrictedHQ + 40) { wantYaw = Math.atan2(-(v.x - eb.x), -(v.z - eb.z)); /* (heading straight away from it) */ wantSpeed = Math.max(wantSpeed, 25); if (H.phase === 'attack') { H.phase = 'breakoff'; H.since = now; H.away = wantYaw; } }
   // ---- controls: heading by yaw rate, speed by pitch (nose down accelerates), sideslip by roll, height by collective
   const yawErr = angleDiff(v.yaw, wantYaw);
-  const yawRate = clamp(yawErr * 2.2, -1, 1);
+  // in a rocket run the bearing to the target keeps turning as the airframe drifts: a little integral action takes
+  // out the lag a proportional heading hold would keep (the pods point where the nose points)
+  if (pitchSet != null) H.yawI = clamp((H.yawI || 0) + yawErr * dt, -0.12, 0.12); else H.yawI = 0;
+  // ... and feed forward how fast the wanted heading itself is turning (no waiting for the error to build)
+  const wr = H.wantPrev != null && dt > 0 ? angleDiff(H.wantPrev, wantYaw) / dt : 0;
+  H.wantRate = pitchSet != null ? (H.wantRate || 0) * 0.8 + clamp(wr, -0.5, 0.5) * 0.2 : 0; H.wantPrev = wantYaw;
+  const yawRate = clamp(yawErr * 2.2 + H.yawI * 1.6 + H.wantRate, -1, 1);
   let pitch = pitchSet != null ? pitchSet / V.pitchMax : clamp((wantSpeed - vf) * 0.06, -0.8, 0.9);
   if (Math.abs(yawErr) > 1.2 && pitchSet == null) pitch = Math.min(pitch, 0.15); // turn first, then go
   let roll = clamp(-vs * 0.08 + yawErr * 0.25, -0.6, 0.6);

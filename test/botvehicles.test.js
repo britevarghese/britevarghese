@@ -115,10 +115,12 @@ test('the tank crew spots an enemy in the open, lays the gun and fires; enemy in
   const keep = () => { place(g, e, L.x2, L.z2); e.hp = Math.max(e.hp, 1); for (const { ev } of g.flushEvents()) if (ev.t === 'shot' && ev.w === 'tank_cannon') fired = true; return fired; };
   assert.ok(advance(g, 15, keep), 'the tank fired at the soldier');
   // an enemy bot in the same spot, turret on him: he goes for cover (or flat on the ground)
+  g.removePlayer(e.id); // (the first target out of the way: the crew's gun is now on the rifleman alone)
   const s = bot(g, 2, 'Rifleman');
   place(g, s, L.x2, L.z2); s.yaw = Math.atan2(-(L.x - L.x2), -(L.z - L.z2)); s.brain.mode = 'patrol';
-  tank.turretYaw = tank.yaw;
-  const hid = advance(g, 3, () => s.brain.mode === 'cover' || s.stance === 'prone' || !s.alive);
+  // (the turret held on him: what is tested is his reaction to it, not the crew's choice of target)
+  const onHim = () => { tank.turretYaw = Math.atan2(-(s.x - tank.x), -(s.z - tank.z)); return s.brain.mode === 'cover' || s.stance === 'prone' || !s.alive; };
+  const hid = advance(g, 3, onHim);
   assert.ok(hid, `rifleman ${s.brain.mode} / ${s.stance}`);
 });
 
@@ -223,9 +225,12 @@ test('the helicopter makes rocket runs on an enemy tank in the open', () => {
     // (anywhere around it: the run starts with the turn toward the target)
     const a = heli.yaw + (Math.random() - 0.5) * (k < 1500 ? 1.6 : 2 * Math.PI), d = 170 + Math.random() * 170;
     const x = heli.x - Math.sin(a) * d, z = heli.z - Math.cos(a) * d;
-    if (Math.abs(x) > g.map.PLAY_HALF - 30 || Math.abs(z) > g.map.PLAY_HALF - 30 || Math.hypot(x - eb.x, z - eb.z) < g.restrictedHQ + 40) continue;
+    // (clear of both HQs: the enemy's is no-go for the helicopter, ours for the tank's crew)
+    if (Math.abs(x) > g.map.PLAY_HALF - 30 || Math.abs(z) > g.map.PLAY_HALF - 30 || [1, 2].some((tm) => Math.hypot(x - g.map.BASES[tm].x, z - g.map.BASES[tm].z) < g.restrictedHQ + 40)) continue;
     const y = g.world.supportHeight(x, z, 500);
     if (Math.abs(y - g.map.groundHeight(x, z)) > 0.3 || !g.world.lineOfSight({ x: heli.x, y: heli.y + 1.6, z: heli.z }, { x, y: y + 1.5, z })) continue;
+    // (in the open: no hangar or building close round it to duck behind)
+    if (g.world.query(x - 25, z - 25, x + 25, z + 25, []).some((b) => b.max[1] > y + 2.5)) continue;
     spot = { x, z, y };
   }
   assert.ok(spot, 'found open ground ahead');
