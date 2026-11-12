@@ -126,6 +126,9 @@ export class Room {
       const msg = JSON.stringify({ t: 'mapchange', map: next, room: this.id });
       for (const ws of this.clients.keys()) { send(ws, msg); setTimeout(() => ws.close(4000, 'mapchange'), 400); }
       this.clients.clear();
+      // (they are away reloading into the next map, not gone: the two-minute empty-room timer starts now, not back
+      // when the room was made — or the manager would close a player-made room the moment it rotates)
+      this.emptySince = now;
       this.#startGame(next);
       return;
     }

@@ -55,7 +55,7 @@ test('lobby: public rooms per map, private rooms with codes and passwords', asyn
   ok.ws.close(); other.ws.close();
 });
 
-import { Room } from '../server/rooms.js';
+import { Room, RoomManager } from '../server/rooms.js';
 import { Game } from '../server/game.js';
 import { MAP_IDS } from '../shared/map.js';
 
@@ -82,4 +82,22 @@ test('room rotates to the next map after a round', () => {
   assert.equal(r.mapId, MAP_IDS[1]);
   assert.ok(fake.sent.some((m) => m.t === 'mapchange' && m.map === MAP_IDS[1]));
   assert.equal(r.clients.size, 0);
+});
+
+test('a player-made room survives its own map rotation: the players are away reloading, not gone', () => {
+  const M = new RoomManager({ log: () => {} });
+  const r = M.create({ name: 'mine', map: 'outskirts', botsPerTeam: 0, rotation: true });
+  const fake = { readyState: 1, send() {}, close() {} };
+  assert.equal(r.join(fake, { name: 'a' }), null);
+  // the room has been up for a whole round
+  r.createdAt -= 20 * 60000; r.emptySince -= 20 * 60000;
+  r.game.roundOver = { winner: 1, at: Date.now() - 14000 };
+  M.tick(1 / 30);
+  assert.equal(r.clients.size, 0, 'everyone sent off to reload');
+  assert.ok(M.get(r.id) === r, 'the room is still there for them to come back to'); // (ok, not equal: a failure would try to print the whole game)
+  assert.equal(r.mapId, MAP_IDS[1]);
+  // ...but an abandoned one is still closed after two minutes
+  r.emptySince -= 121000;
+  M.tick(1 / 30);
+  assert.equal(M.get(r.id), undefined);
 });
