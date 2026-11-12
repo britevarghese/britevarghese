@@ -62,6 +62,7 @@ export class Phone {
     g.state.mode = 'paused';
     g.audio.setPaused(true);
     g.audio?.playEvent?.('uiClick');
+    g.hud?.setPrompt?.(null);
     this.home();
     return true;
   }
