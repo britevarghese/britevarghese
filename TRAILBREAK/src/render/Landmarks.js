@@ -326,6 +326,8 @@ const BUILD = {
   },
 };
 
+const BEAM_C = new THREE.Color(), BEAM_M = new THREE.Matrix4();
+
 export class Landmarks {
   /** A map's buildings, a few ms of them at a time (tick: a promise of the next turn), the game going on meanwhile. */
   static async create(world, scene, tick) {
@@ -342,57 +344,85 @@ export class Landmarks {
     this.world = world;
     this.todo = [...world.landmarks];
     if (!later) this.buildSome(Infinity);
-    // survey beacons: a striped post on a tripod, a lamp, and a tall soft beam to find it by
+    // survey beacons: a striped post on a tripod, a lamp, and a tall soft beam to find it by. The map's beams are one
+    // instanced mesh (each its colour and fade its own), its lamps two (those still to find, pulsing together, and those
+    // found): three draws, not two for every beacon
     this.beacons = new Map();
+    const list = world.beacons || [], n = Math.max(1, list.length);
     const beamGeo = new THREE.CylinderGeometry(0.7, 1.6, 160, 12, 1, true);
     beamGeo.translate(0, 80, 0);
-    const beamMat = (color) => {
-      const m = new THREE.ShaderMaterial({
-        transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide,
-        uniforms: { uColor: { value: new THREE.Color(color) }, uFade: { value: 1 } },
-        vertexShader: `#include <common>
+    this.aColor = new THREE.InstancedBufferAttribute(new Float32Array(n * 3), 3);
+    this.aFade = new THREE.InstancedBufferAttribute(new Float32Array(n), 1);
+    beamGeo.setAttribute('aColor', this.aColor);
+    beamGeo.setAttribute('aFade', this.aFade);
+    const beamMat = new THREE.ShaderMaterial({
+      transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide,
+      vertexShader: `#include <common>
 #include <logdepthbuf_pars_vertex>
+attribute vec3 aColor;
+attribute float aFade;
 varying float vY;
 varying vec3 vN;
 varying vec3 vView;
+varying vec3 vColor;
+varying float vFade;
 void main() {
-  vY = position.y; vN = normalMatrix * normal;
-  vec4 mv = modelViewMatrix * vec4(position, 1.0);
+  vY = position.y; vColor = aColor; vFade = aFade;
+  vec4 p = vec4(position, 1.0);
+  vec3 n = normal;
+#ifdef USE_INSTANCING
+  p = instanceMatrix * p;
+  n = mat3(instanceMatrix) * n;
+#endif
+  vN = normalMatrix * n;
+  vec4 mv = modelViewMatrix * p;
   vView = mv.xyz;
   gl_Position = projectionMatrix * mv;
 #include <logdepthbuf_vertex>
 }`,
-        // a soft column of light: brightest looking through its middle, fading to nothing at its edges (a tube of even
-        // light seen up close was a slab with hard sides, filling the view), and gone as you come up to the beacon
-        fragmentShader: `#include <common>
+      // a soft column of light: brightest looking through its middle, fading to nothing at its edges (a tube of even
+      // light seen up close was a slab with hard sides, filling the view), and gone as you come up to the beacon
+      fragmentShader: `#include <common>
 #include <logdepthbuf_pars_fragment>
-uniform vec3 uColor; uniform float uFade; varying float vY; varying vec3 vN; varying vec3 vView;
+varying float vY; varying vec3 vN; varying vec3 vView; varying vec3 vColor; varying float vFade;
 void main() {
 #include <logdepthbuf_fragment>
   float facing = abs(dot(normalize(vN), normalize(-vView)));
-  float a = (1.0 - smoothstep(0.0, 160.0, vY)) * 0.3 * uFade * facing * facing * smoothstep(8.0, 40.0, length(vView));
-  gl_FragColor = vec4(uColor * a, a);
+  float a = (1.0 - smoothstep(0.0, 160.0, vY)) * 0.3 * vFade * facing * facing * smoothstep(8.0, 40.0, length(vView));
+  gl_FragColor = vec4(vColor * a, a);
 }`,
-      });
-      return m;
-    };
-    for (const b of world.beacons) {
+    });
+    this.beams = new THREE.InstancedMesh(beamGeo, beamMat, n);
+    this.beams.frustumCulled = false;
+    this.beams.count = list.length;
+    this.beams.visible = list.length > 0;
+    this.group.add(this.beams);
+    const lampGeo = new THREE.SphereGeometry(0.16, 12, 8);
+    this.lampOn = new THREE.MeshStandardMaterial({ color: 0xffb35c, emissive: 0xff8a2a, emissiveIntensity: 2.5 });
+    this.lampFound = new THREE.MeshStandardMaterial({ color: 0x8ce07a, emissive: 0x3fbf3a, emissiveIntensity: 1.2 });
+    this.lamps = [this.lampOn, this.lampFound].map((m) => {
+      const mesh = new THREE.InstancedMesh(lampGeo, m, n);
+      mesh.frustumCulled = false;
+      mesh.count = 0;
+      this.group.add(mesh);
+      return mesh;
+    });
+    const m4 = new THREE.Matrix4();
+    list.forEach((b, i) => {
       const B = new Builder();
-      for (let i = 0; i < 3; i++) {
-        const a = i / 3 * Math.PI * 2;
+      for (let k = 0; k < 3; k++) {
+        const a = k / 3 * Math.PI * 2;
         B.cyl(mat.logDark, 0.04, 0.05, 2.2, Math.cos(a) * 0.45, 1.0, Math.sin(a) * 0.45, 5, Math.sin(a) * 0.22, -Math.cos(a) * 0.22);
       }
-      for (let i = 0; i < 4; i++) B.cyl(i % 2 ? mat.white : mat.red, 0.06, 0.06, 0.45, 0, 2.2 + i * 0.45, 0, 8);
+      for (let k = 0; k < 4; k++) B.cyl(k % 2 ? mat.white : mat.red, 0.06, 0.06, 0.45, 0, 2.2 + k * 0.45, 0, 8);
       const g = B.build({ x: b.x, y: b.y, z: b.z, yaw: 0 });
-      const lampMat = new THREE.MeshStandardMaterial({ color: 0xffb35c, emissive: 0xff8a2a, emissiveIntensity: 2.5 });
-      const lamp = new THREE.Mesh(new THREE.SphereGeometry(0.16, 12, 8), lampMat);
-      lamp.position.set(0, 4.15, 0);
-      const beam = new THREE.Mesh(beamGeo, beamMat(0xffa040));
-      beam.frustumCulled = false;
-      g.add(lamp, beam);
       this.group.add(g);
-      this.beacons.set(b.id, { group: g, lampMat, beam, found: false });
-    }
+      this.beams.setMatrixAt(i, m4.makeTranslation(b.x, b.y, b.z));
+      this.beacons.set(b.id, { group: g, i, found: false, x: b.x, y: b.y, z: b.z });
+      this.paintBeacon(this.beacons.get(b.id));
+    });
+    this.beams.instanceMatrix.needsUpdate = true;
+    this.layLamps();
     this.t = 0;
   }
 
@@ -456,10 +486,27 @@ void main() {
     const b = this.beacons.get(id);
     if (!b || b.found === found) return;
     b.found = found;
-    b.lampMat.color.set(found ? 0x8ce07a : 0xffb35c);
-    b.lampMat.emissive.set(found ? 0x3fbf3a : 0xff8a2a);
-    b.beam.material.uniforms.uColor.value.set(found ? 0x5fd06a : 0xffa040);
-    b.beam.material.uniforms.uFade.value = found ? 0.35 : 1;
+    this.paintBeacon(b);
+    this.layLamps();
+  }
+
+  /** A beacon's beam in its colour: orange still to find, green (and fainter) found. */
+  paintBeacon(b) {
+    const c = BEAM_C.set(b.found ? 0x5fd06a : 0xffa040);
+    this.aColor.setXYZ(b.i, c.r, c.g, c.b);
+    this.aFade.setX(b.i, b.found ? 0.35 : 1);
+    this.aColor.needsUpdate = true; this.aFade.needsUpdate = true;
+  }
+
+  /** Each beacon's lamp into the mesh of those still to find or of those found. */
+  layLamps() {
+    const m4 = BEAM_M;
+    for (const L of this.lamps) L.count = 0;
+    for (const b of this.beacons.values()) {
+      const L = this.lamps[b.found ? 1 : 0];
+      L.setMatrixAt(L.count++, m4.makeTranslation(b.x, b.y + 4.15, b.z));
+    }
+    for (const L of this.lamps) { L.visible = L.count > 0; L.instanceMatrix.needsUpdate = true; }
   }
 
   update(camera, dt) {
@@ -473,10 +520,8 @@ void main() {
       }
       p.needsUpdate = true;
     }
-    for (const b of this.beacons.values()) {
-      const pulse = 0.5 + 0.5 * Math.sin(this.t * 3);
-      b.lampMat.emissiveIntensity = b.found ? 1.2 : 1.8 + 2.2 * pulse;
-    }
+    // (the lamps still to find pulse together; the found ones glow steady)
+    this.lampOn.emissiveIntensity = 1.8 + 2.2 * (0.5 + 0.5 * Math.sin(this.t * 3));
   }
 }
 
