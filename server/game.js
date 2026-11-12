@@ -29,6 +29,8 @@ const RESPAWN_DELAY = 5;
 // REVIVE_MS (he gets up where he fell with REVIVE_HP, his kit as it was). The team's ticket goes only when he bleeds
 // out or gives up and redeploys.
 export const SPOT_MS = 6000, SPOT_RECON_MS = 9000, ORDER_DEFEND_MS = 180000;
+// a real kit name (a client could send any key that exists on an object, like 'constructor')
+const isClass = (c) => typeof c === 'string' && Object.hasOwn(CLASSES, c);
 export const BLEED_MS = 15000, REVIVE_MS = 2500, REVIVE_RANGE = 2.5, REVIVE_HP = 30;
 const NO_REVIVE = new Set(['fall', 'roadkill', 'restricted', 'boundary', 'crash', 'reset', 'suicide']);
 const HISTORY_MS = 1000;
@@ -93,7 +95,7 @@ export class Game {
     const counts = this.teamCounts(true);
     if (team !== 1 && team !== 2) team = counts[1] <= counts[2] ? 1 : 2;
     const p = {
-      id: nextId++, name: String(name || 'Soldier').slice(0, 18), bot, team, cls: CLASSES[cls] ? cls : 'assault', send,
+      id: nextId++, name: String(name || 'Soldier').slice(0, 18), bot, team, cls: isClass(cls) ? cls : 'assault', send,
       alive: false, hp: 100, x: 0, y: 0, z: 0, vx: 0, vy: 0, vz: 0, yaw: 0, pitch: 0, stance: 'stand', onGround: true,
       ads: false, sprint: false, slot: 0, weapons: [], grenades: 0, reloadUntil: 0, nextFire: 0, spawnProtect: 0,
       kills: 0, deaths: 0, score: 0, history: [], respawnAt: this.now() + (bot ? 500 + Math.random() * 2500 : 0), rtt: 80,
@@ -329,7 +331,7 @@ export class Game {
       if (why) { if (!p.bot) this.emit({ t: 'spawnfail', why }, p); return false; }
       if (p.downed) this.#bleedOut(p);
     }
-    if (cls && CLASSES[cls]) p.cls = cls;
+    if (isClass(cls)) p.cls = cls;
     const opt = mate ? { id: 'squad', x: mate.x, z: mate.z } : this.mode === 'tdm' ? this.#tdmSpawn(p.team) : this.spawnOptions(p.team).find((o) => o.id === pointId) || this.spawnOptions(p.team)[0];
     // several free candidate spots; take the one fewest enemies can see (no spawning into a firefight)
     let x = opt.x, z = opt.z, best = Infinity, found = 0, y = null;

@@ -18,7 +18,7 @@ export const TEAM_NAMES = { 1: 'US', 2: 'RU' };
 
 export const MAP_DEFS = { outskirts, harbor, valley, compound, airfield, oldtown, ridge, firestorm };
 export const MAP_IDS = Object.keys(MAP_DEFS);
-export const modeOf = (id) => MAP_DEFS[id]?.mode || 'conquest';
+export const modeOf = (id) => (typeof id === 'string' && Object.hasOwn(MAP_DEFS, id) && MAP_DEFS[id].mode) || 'conquest';
 // maps a Conquest room rotates through (battle royale maps have no flags)
 export const CONQUEST_MAPS = MAP_IDS.filter((id) => modeOf(id) === 'conquest');
 export const mapList = () => MAP_IDS.map((id) => { const d = MAP_DEFS[id]; return { id, name: d.name, description: d.description, size: d.playHalf * 2, flags: d.flags.length, mode: modeOf(id) }; });
@@ -706,7 +706,7 @@ export function structureParts(st, G) {
 
 const cache = new Map();
 export function getMap(id) {
-  if (!MAP_DEFS[id]) id = 'outskirts';
+  if (typeof id !== 'string' || !Object.hasOwn(MAP_DEFS, id)) id = 'outskirts';
   if (!cache.has(id)) cache.set(id, new GameMap(MAP_DEFS[id]));
   return cache.get(id);
 }

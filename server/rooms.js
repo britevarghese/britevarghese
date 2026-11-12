@@ -7,7 +7,10 @@ import { MAP_DEFS, MAP_IDS, CONQUEST_MAPS, modeOf } from '../shared/map.js';
 
 const CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 const send = (ws, msg) => { if (ws.readyState === 1) ws.send(typeof msg === 'string' ? msg : JSON.stringify(msg)); };
-export const cleanName = (s, max = 18) => String(s ?? '').replace(/[\u0000-\u001f\u007f<>]/g, '').trim().slice(0, max);
+// (text from a client: only ever a string — an object here could carry its own toString)
+export const cleanName = (s, max = 18) => (typeof s === 'string' ? s : typeof s === 'number' ? String(s) : '').replace(/[\u0000-\u001f\u007f<>]/g, '').trim().slice(0, max);
+// a real map id (not just any key that happens to exist on an object, like 'constructor')
+const isMap = (m) => typeof m === 'string' && Object.hasOwn(MAP_DEFS, m);
 const safeEqual = (a, b) => { const x = Buffer.from(String(a)), y = Buffer.from(String(b)); return x.length === y.length && crypto.timingSafeEqual(x, y); };
 
 export class Room {
@@ -24,7 +27,7 @@ export class Room {
   }
 
   #startGame(map) {
-    this.mapId = MAP_DEFS[map] ? map : MAP_IDS[0];
+    this.mapId = isMap(map) ? map : MAP_IDS[0];
     this.mode = modeOf(this.mapId);
     if (this.mode === 'conquest' && this.wantMode === 'tdm') this.mode = 'tdm';
     // battle royale: botsPerTeam is the total number of bots (everyone is on their own)
@@ -181,8 +184,8 @@ export class RoomManager {
     const id = opts.id || this.code();
     const room = new Room({
       id,
-      name: cleanName(opts.name, 32) || `${MAP_DEFS[opts.map]?.name || 'Battle'} room`,
-      map: MAP_DEFS[opts.map] ? opts.map : MAP_IDS[0],
+      name: cleanName(opts.name, 32) || `${isMap(opts.map) ? MAP_DEFS[opts.map].name : 'Battle'} room`,
+      map: isMap(opts.map) ? opts.map : MAP_IDS[0],
       mode: opts.mode === 'tdm' ? 'tdm' : null,
       botsPerTeam: Math.max(0, Math.min(modeOf(opts.map) === 'royale' ? 23 : 16, Math.round(+opts.botsPerTeam || 0))),
       maxPlayers: Math.max(2, Math.min(32, Math.round(+opts.maxPlayers || 24))),
@@ -198,14 +201,20 @@ export class RoomManager {
     return room;
   }
 
-  get(id) { return this.rooms.get(String(id || '').toUpperCase()); }
+  get(id) { return typeof id === 'string' ? this.rooms.get(id.toUpperCase()) : undefined; }
 
   list() { return [...this.rooms.values()].filter((r) => !r.isPrivate).map((r) => r.info()).sort((a, b) => b.players - a.players); }
 
   tick(dt) {
     const now = Date.now();
     for (const r of this.rooms.values()) {
-      r.tick(dt, now);
+      // one room's fault must not stop the others (or the server): log it (at most every 5 s), and if the room keeps
+      // failing — 3 s of ticks in a row — start its round afresh rather than leave its players in a frozen game
+      try { r.tick(dt, now); r.faults = 0; } catch (e) {
+        r.faults = (r.faults || 0) + 1;
+        if (now - (r.faultLogAt || 0) > 5000) { r.faultLogAt = now; this.log(`[room ${r.id}] tick failed: ${e?.stack || e}`); }
+        if (r.faults >= 90) { r.faults = 0; this.log(`[room ${r.id}] keeps failing: restarting its round`); try { r.game.resetRound(); } catch { /* next tick logs it */ } }
+      }
       if (!r.persistent && !r.clients.size && now - r.emptySince > 120000) { this.rooms.delete(r.id); this.log(`[rooms] closed empty room ${r.id}`); }
     }
   }

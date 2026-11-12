@@ -118,3 +118,69 @@ test('joining during the end-of-round screen: the newcomer gets the result and t
   assert.ok(Array.isArray(ev.ps) && ev.ps.some((x) => x[1] === 'early') && ev.tk.length === 2, 'with the final scoreboard');
   assert.ok(late.sent.findIndex((m) => m.t === 'welcome') < late.sent.findIndex((m) => m.t === 'ev' && m.e.t === 'round'), 'after the welcome');
 });
+
+test('a client sending garbage cannot take the server down: oversized, binary and malformed frames only cost it its own connection', async (t) => {
+  const P2 = 3996;
+  const srv = spawn(process.execPath, ['server/index.js'], { env: { ...process.env, PORT: P2, BOTS: '1' }, stdio: 'pipe' });
+  t.after(() => srv.kill());
+  let exited = false; srv.on('exit', () => { exited = true; });
+  await new Promise((r) => srv.stdout.on('data', (d) => d.toString().includes('running') && r()));
+  const open = () => new Promise((r, j) => { const ws = new WebSocket(`ws://localhost:${P2}/ws`); ws.on('error', () => j(new Error('the server no longer accepts connections'))); ws.on('open', () => r(ws)); });
+  const health = async () => { try { return (await fetch(`http://localhost:${P2}/api/health`)).ok; } catch { return false; } };
+  // a well-behaved player in a room, to see the game carries on for him
+  const good = await open();
+  let snaps = 0; good.on('message', (d) => { if (JSON.parse(d).t === 'snap') snaps++; });
+  good.send(JSON.stringify({ t: 'join', room: 'OUTSKIRTS', name: 'Good' }));
+  for (const junk of ['x'.repeat(40000), Buffer.alloc(30000, 7), '{"t":', 'null', '[]', '{"t":"join","room":{"a":1}}', JSON.stringify({ t: 'join', room: 'OUTSKIRTS', name: { toString: 1 } })]) {
+    const bad = await open();
+    bad.send(junk);
+    await wait(150);
+    bad.terminate();
+  }
+  // room, map and kit names that are keys of every object
+  const res = await fetch(`http://localhost:${P2}/api/rooms`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ name: 'x', map: 'constructor', botsPerTeam: 1 }) });
+  assert.equal(res.status, 200, 'an unknown map falls back to the default one');
+  const made = await res.json();
+  const odd = await open();
+  const welcome = new Promise((r) => odd.on('message', (d) => { const m = JSON.parse(d); if (m.t === 'welcome' || m.t === 'error') r(m); }));
+  odd.send(JSON.stringify({ t: 'join', room: made.id, name: 'Odd', cls: '__proto__' }));
+  assert.equal((await welcome).cls, 'assault', 'an unknown kit falls back to assault');
+  odd.send(JSON.stringify({ t: 'spawn', p: 'constructor', cls: 'constructor' }));
+  odd.terminate();
+  // joined, then garbage of every message type
+  const bad = await open();
+  bad.send(JSON.stringify({ t: 'join', room: 'OUTSKIRTS', name: 'Bad' }));
+  await wait(100);
+  for (const type of ['in', 'fire', 'nade', 'spawn', 'team', 'chat', 'pong', 'pick', 'venter', 'revive', 'spot', 'order', 'vseat', 'vin', 'vfire']) {
+    for (const body of [{}, { o: 'x', d: 'y', p: {}, id: 'z', f: 5, msg: {}, seat: 'q', team: 'x' }, { o: [1e999, 0, 0], d: [0, 0, 0], k: 1e999, yaw: 1e999, pitch: 1e999, dt: 1e999, x: 1e999, y: 1e999, z: 1e999 }]) bad.send(JSON.stringify({ t: type, ...body }).replace(/null/g, '1e999'));
+  }
+  await wait(400);
+  assert.ok(!exited, 'the server process is still running');
+  assert.ok(await health(), 'and still answers');
+  const before = snaps;
+  await wait(400);
+  assert.ok(snaps > before, 'the game carries on for the other player');
+  good.terminate(); bad.terminate();
+});
+
+test('a room whose tick throws does not stop the other rooms; if it keeps failing its round is restarted', () => {
+  const logs = [];
+  const M = new RoomManager({ log: (m) => logs.push(m) });
+  const a = M.create({ id: 'BROKEN', name: 'a', map: 'outskirts', botsPerTeam: 0, persistent: true });
+  const b = M.create({ id: 'FINE', name: 'b', map: 'outskirts', botsPerTeam: 0, persistent: true });
+  const fake = () => ({ readyState: 1, send() {}, close() {} });
+  a.join(fake(), { name: 'x' }); b.join(fake(), { name: 'y' });
+  let bTicks = 0, resets = 0;
+  const tickB = b.game.tick.bind(b.game); b.game.tick = (dt) => { bTicks++; return tickB(dt); };
+  const resetA = a.game.resetRound.bind(a.game); a.game.resetRound = () => { resets++; a.game.tick = tickA; return resetA(); };
+  const tickA = a.game.tick.bind(a.game); a.game.tick = () => { throw new Error('boom'); };
+  for (let i = 0; i < 89; i++) M.tick(1 / 30);
+  assert.equal(bTicks, 89, 'the other room never missed a tick');
+  assert.equal(resets, 0);
+  assert.ok(logs.some((l) => l.includes('BROKEN') && l.includes('boom')), 'the fault is logged with its cause');
+  assert.ok(logs.filter((l) => l.includes('boom')).length <= 2, 'without flooding the log');
+  M.tick(1 / 30);
+  assert.equal(resets, 1, 'after 3 s of failing ticks the round is restarted');
+  M.tick(1 / 30);
+  assert.equal(bTicks, 91);
+});

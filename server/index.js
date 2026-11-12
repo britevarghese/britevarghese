@@ -9,7 +9,7 @@ import { WebSocketServer } from 'ws';
 import { TICK_HZ } from './game.js';
 import { RoomManager } from './rooms.js';
 import { cleanAgentConfig, testAgentConfig } from './agent.js';
-import { mapList, MAP_IDS, MAP_DEFS } from '../shared/map.js';
+import { mapList, MAP_IDS, MAP_DEFS, modeOf } from '../shared/map.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const PORT = +process.env.PORT || 3000;
@@ -61,7 +61,7 @@ app.post('/api/rooms', (req, res) => {
   try {
     // AI Zone: up to 2 LLM-commanded soldiers (validated here; keys are kept in memory only)
     const agents = (Array.isArray(b.ai) ? b.ai : b.ai ? [b.ai] : []).slice(0, 2).map(cleanAgentConfig);
-    if (agents.length && MAP_DEFS[b.map]?.mode === 'royale') return res.status(400).json({ error: 'AI agents play Conquest maps' });
+    if (agents.length && modeOf(b.map) === 'royale') return res.status(400).json({ error: 'AI agents play Conquest maps' });
     const r = rooms.create({ name: b.name, map: b.map, mode: agents.length ? null : b.mode, botsPerTeam: b.bots ?? 4, maxPlayers: b.maxPlayers ?? 16, isPrivate: agents.length ? true : !!b.private, password: b.password || '', rotation: b.rotation !== false, agents });
     recent.push(now); createLog.set(ip, recent);
     res.json(r.info());
@@ -83,11 +83,17 @@ const server = http.createServer(app);
 const wss = new WebSocketServer({ server, path: '/ws', maxPayload: 16 * 1024 });
 const perIp = new Map();
 const send = (ws, msg) => { if (ws.readyState === 1) ws.send(JSON.stringify(msg)); };
+// log a caught fault with its stack — at most one a second, so a bad client can't flood the log
+let faultAt = 0;
+const fault = (where, e) => { const now = Date.now(); if (now - faultAt > 1000) { faultAt = now; console.error(`${where} failed: ${e?.stack || e}`); } };
 
 wss.on('connection', (ws, req) => {
   const ip = (req.headers['x-forwarded-for'] || '').split(',')[0].trim() || req.socket.remoteAddress;
   perIp.set(ip, (perIp.get(ip) || 0) + 1);
   if (perIp.get(ip) > MAX_CONN_PER_IP) { send(ws, { t: 'error', code: 'limit', msg: 'Too many connections from your address' }); ws.close(); }
+  // A protocol error on one socket (a frame over maxPayload, a malformed one) is that client's problem: ws closes the
+  // connection itself, but with no listener the 'error' event would be unhandled and take the whole server down.
+  ws.on('error', () => {});
   const url = new URL(req.url, 'http://x');
   let room = null;
   // token bucket: ~90 messages/s sustained, bursts of 180 (inputs are sent at 30 Hz)
@@ -101,19 +107,29 @@ wss.on('connection', (ws, req) => {
     if (!m || typeof m.t !== 'string') return;
     if (!room) {
       if (m.t !== 'join') return;
-      const r = rooms.get(m.room || url.searchParams.get('room')) || (m.room || url.searchParams.get('room') ? null : rooms.list()[0] && rooms.get(rooms.list()[0].id));
-      if (!r) return send(ws, { t: 'error', code: 'noroom', msg: 'Room not found (it may have closed)' });
-      const err = r.join(ws, m);
-      if (err) return send(ws, { t: 'error', code: err, msg: err === 'full' ? 'Room is full' : 'Wrong room password' });
-      room = r;
+      let r = null;
+      try {
+        const want = (typeof m.room === 'string' && m.room) || url.searchParams.get('room');
+        r = rooms.get(want) || (want ? null : rooms.list()[0] && rooms.get(rooms.list()[0].id));
+        if (!r) return send(ws, { t: 'error', code: 'noroom', msg: 'Room not found (it may have closed)' });
+        const err = r.join(ws, m);
+        if (err) return send(ws, { t: 'error', code: err, msg: err === 'full' ? 'Room is full' : 'Wrong room password' });
+        room = r;
+      } catch (e) {
+        // (never half-joined: whatever got as far as the room's client list comes out again)
+        fault('join', e);
+        try { r?.leave(ws); } catch { /* nothing to undo */ }
+        send(ws, { t: 'error', code: 'join', msg: 'Could not join the room' });
+      }
       return;
     }
-    room.message(ws, m);
+    // (a fault handling one message must not end the game for everyone else)
+    try { room.message(ws, m); } catch (e) { fault(`[room ${room.id}] message '${m.t}'`, e); }
   });
   ws.on('close', () => {
     perIp.set(ip, (perIp.get(ip) || 1) - 1);
     if (perIp.get(ip) <= 0) perIp.delete(ip);
-    if (room) room.leave(ws);
+    try { if (room) room.leave(ws); } catch (e) { fault(`[room ${room.id}] leave`, e); }
   });
 });
 
