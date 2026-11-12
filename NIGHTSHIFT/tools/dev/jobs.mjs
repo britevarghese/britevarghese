@@ -13,7 +13,7 @@ await p.addInitScript(`localStorage.setItem('nightshift.settings', JSON.stringif
 await p.goto(`http://localhost:${port}/`);
 await p.waitForFunction(() => (window.NIGHTSHIFT && window.NIGHTSHIFT.state.mode === 'menu') || !document.getElementById('fatal').classList.contains('hidden'), null, { timeout: 180000 });
 await p.evaluate(async () => {
-  const G = window.NIGHTSHIFT; G.save.data.story.prologueOffered = true; G.play(); G.rm.render = () => {}; G.rm.renderer.setAnimationLoop(null);
+  const G = window.NIGHTSHIFT; G.save.data.story.prologueOffered = true; await G.play(); G.rm.render = () => {}; G.rm.renderer.setAnimationLoop(null);
   G.police.enabled = false;
   const { AIDriver } = await import('/src/vehicles/AIDriver.js');
   window._AI = AIDriver;

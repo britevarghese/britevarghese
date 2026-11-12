@@ -12,7 +12,7 @@ import { KeralaJobs } from '../world/KeralaJobs.js';
 
 const h = (tag, cls, html) => { const e = document.createElement(tag); if (cls) e.className = cls; if (html !== undefined) e.innerHTML = html; return e; };
 const RANK = { city: 0, town: 1, suburb: 2 };
-const FARE_BASE = 30, FARE_KM = 12, TOW = 150, TRIP_MAX = 30000; // (ms of real time: tiles stream in real time, and slow frames clamp dt)
+const FARE_BASE = 30, FARE_KM = 12, TOW = 150, TRIP_MAX = 45000; // (ms of real time: tiles stream in real time, and slow frames clamp dt)
 
 export class Phone {
   constructor(game) { this.game = game; this.trip = null; this.tow = null; }
@@ -42,6 +42,17 @@ export class Phone {
     return out.sort((a, b) => a.d - b.d);
   }
   fare(d) { return Math.round(FARE_BASE + FARE_KM * d / 1000); }
+
+  // further afield, Kerala's cities by train (Kozhikode, Kochi, Thiruvananthapuram...): your car rides along
+  cities() {
+    const f = this.game.focusState, seen = new Set();
+    return (this.game.world.index?.places || []).filter((p) => p[0] === 'city')
+      .map((p) => ({ name: String(p[1]).split(';')[0], kind: 'city', x: -p[3], z: p[4], train: true }))
+      .map((o) => ({ ...o, d: Math.hypot(o.x - f.x, o.z - f.z) }))
+      .filter((o) => o.d >= 40000 && !seen.has(o.name) && seen.add(o.name))
+      .sort((a, b) => a.d - b.d);
+  }
+  trainFare(d) { return Math.round(80 + 2 * d / 1000); }
 
   // ------------------------------------------------------------------ screens
   open() {
@@ -84,7 +95,7 @@ export class Phone {
     const g = this.game, busy = this._busy(), m = this._masks();
     const st = STATIONS[g.audio.radioStation];
     this._screen('PHONE', [
-      { icon: '🛺', label: 'Auto-rickshaw', sub: 'a ride to any town', color: '#ffd23d', off: busy, fn: () => this.travel() },
+      { icon: '🛺', label: 'Travel', sub: 'auto-rickshaw to towns · trains to cities', color: '#ffd23d', off: busy, fn: () => this.travel() },
       { icon: '💼', label: 'Jobs', sub: this._jobs()?.working ? `working: ${this._jobs().kind === 'taxi' ? 'taxi fares' : 'parcels'}` : 'taxi fares · parcels', color: '#3dff9a', fn: () => this.jobs() },
       { icon: '🔧', label: 'Mechanic', sub: this._mechSub(), color: '#7fd3ff', off: busy, fn: () => this.mechanic() },
       { icon: '🎭', label: 'Theyyam masks', sub: m ? `${m.count}/${m.places.length} found` : 'not here', color: '#ff6a3d', fn: () => this.masks() },
@@ -100,7 +111,11 @@ export class Phone {
       return { label: o.name, sub: `${(o.d / 1000).toFixed(1)} km · ${formatMoney(fare)}`, off: cash < fare ? `The fare is ${formatMoney(fare)}` : null, fn: () => this.ride(o, fare) };
     });
     if (!items.length) items.push({ label: 'No towns in reach', off: 'Nowhere to go from here', fn: () => {} });
-    this._screen('AUTO-RICKSHAW', items, () => this.home(), 'the meter runs by the km · BACK to go back');
+    for (const o of this.cities()) {
+      const fare = this.trainFare(o.d);
+      items.push({ icon: '🚆', label: o.name, sub: `train · ${Math.round(o.d / 1000)} km · ${formatMoney(fare)}${this.game.onFoot?.active ? '' : ' · car rides along'}`, color: '#7fd3ff', off: cash < fare ? `The ticket is ${formatMoney(fare)}` : null, fn: () => this.ride(o, fare) });
+    }
+    this._screen('TRAVEL', items, () => this.home(), 'auto-rickshaw by the km · trains to the cities · BACK');
   }
 
   _masks() { const g = this.game; return g.world.index ? (g.masks ||= new Collectibles(g)) : null; }
@@ -202,7 +217,7 @@ export class Phone {
     g.save.addCash(-fare, 'auto-rickshaw');
     const foot = !!g.onFoot?.active;
     this.trip = { o, foot, t: 0, fare, t0: performance.now() };
-    const veil = this.veil = h('div', 'travel-veil', `<div><span>${foot ? '🛺 AUTO-RICKSHAW' : '🛣 DRIVING'} TO</span><b>${o.name.toUpperCase()}</b><small>${(o.d / 1000).toFixed(1)} km · ${formatMoney(fare)}</small></div>`);
+    const veil = this.veil = h('div', 'travel-veil', `<div><span>${o.train ? '🚆 TRAIN' : foot ? '🛺 AUTO-RICKSHAW' : '🛣 DRIVING'} TO</span><b>${o.name.toUpperCase()}</b><small>${(o.d / 1000).toFixed(o.train ? 0 : 1)} km · ${formatMoney(fare)}</small></div>`);
     document.body.appendChild(veil);
     requestAnimationFrame(() => veil.classList.add('in'));
     g.state.mode = 'travel';

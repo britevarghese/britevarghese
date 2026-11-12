@@ -175,8 +175,9 @@ controller, what to check when nothing appears, and a report to copy.
   number of engine cycles long); the game crossfades the two loops nearest the rpm and blends on/off
   by throttle, so the note is continuous with no splices. Crashes layer recorded metal impacts,
   breaking glass and falling debris. The RX-7's rotary keeps the physical synth model.
-- **Phone:** press T for the phone. **Auto-rickshaw** takes you to any town around Kannur, priced by the km (on foot
-  or in your car). **Mechanic** brings your car to you when you've left it behind ($150), or fixes it where it
+- **Phone:** press T for the phone. **Travel**: an auto-rickshaw to any town around Kannur, priced by the km (on foot
+  or in your car), or a train to Kerala's cities: Kozhikode, Thrissur, Kochi, Alappuzha, Thiruvananthapuram (your car
+  rides along, so Kochi's races are a ticket away). **Mechanic** brings your car to you when you've left it behind ($150), or fixes it where it
   stands. **Masks** shows your progress and sets the GPS to the nearest hidden mask. **Jobs** starts taxi fares or parcel runs. Also: **Radio** and **Camera**.
 - **Jobs:** the phone's *Jobs* app starts a shift of **taxi fares** (a passenger waits at the roadside; pull up
   beside them and they name a town a few km off: beat the clock, drive smoothly, and they tip) or **parcel runs**

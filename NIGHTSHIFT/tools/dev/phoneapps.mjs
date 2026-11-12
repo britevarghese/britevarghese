@@ -14,7 +14,7 @@ await p.addInitScript(`localStorage.setItem('nightshift.settings', JSON.stringif
 await p.goto(`http://localhost:${port}/`);
 await p.waitForFunction(() => (window.NIGHTSHIFT && window.NIGHTSHIFT.state.mode === 'menu') || !document.getElementById('fatal').classList.contains('hidden'), null, { timeout: 180000 });
 const step = (n) => p.evaluate((n) => { const G = window.NIGHTSHIFT; for (let i = 0; i < n; i++) G._update(1 / 30); }, n);
-await p.evaluate(() => { const G = window.NIGHTSHIFT; G.save.data.story.prologueOffered = true; G.save.data.cash = 20000; G.play(); window._render = G.rm.render.bind(G.rm); G.rm.render = () => {}; G.rm.renderer.setAnimationLoop(null); });
+await p.evaluate(async () => { const G = window.NIGHTSHIFT; G.save.data.story.prologueOffered = true; G.save.data.cash = 20000; await G.play(); window._render = G.rm.render.bind(G.rm); G.rm.render = () => {}; G.rm.renderer.setAnimationLoop(null); });
 await step(150);
 const res = {};
 res.open = await p.evaluate(() => { const G = window.NIGHTSHIFT; return G.phone.open() && G.ui.current; });
