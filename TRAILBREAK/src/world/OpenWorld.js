@@ -151,6 +151,18 @@ export class OpenWorld {
   /** A map of the world's definition (world/maps/world.js), by id. */
   regionDef(id) { return REGIONS.find((R) => R.id === id); }
 
+  /** How far (m) a point is from the nearest map that is not in yet (its square); Infinity once they all are. */
+  unbuiltWithin(x, z) {
+    let best = Infinity;
+    if (this.complete) return best;
+    for (const R of REGIONS) {
+      if (this.byId.has(R.id)) continue;
+      const h = gridOf(R.map).half;
+      best = Math.min(best, Math.hypot(Math.max(0, Math.abs(x - R.at[0]) - h), Math.max(0, Math.abs(z - R.at[1]) - h)));
+    }
+    return best;
+  }
+
   /** A map built (its generated data, world/WorldGen.js, in its own frame): it joins the world. */
   add(id, data) {
     const R = REGIONS.find((q) => q.id === id), index = REGIONS.indexOf(R), [cx, cz] = R.at;

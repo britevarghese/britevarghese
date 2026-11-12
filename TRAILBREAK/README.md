@@ -1726,7 +1726,10 @@ high graphics at the coast's start, the draws came down from about 1,840 to 600 
 `worldWorker.js`; once you are driving, half the cores less one, so the game keeps the rest), the coast first: the game
 starts as soon as the coast is ready, and the others join the world while you drive, each stretch as soon as the maps either side of it are in. A map that comes in is drawn by its own
 renderers (`src/render/WorldView.js`: its terrain, trees, grass, water, rocks, buildings, road markings and what
-breaks, in a group at its centre), its colours baked a few milliseconds at a time between frames; until then its
+breaks, in a group at its centre), its colours baked a few milliseconds at a time in the idle time between frames (`src/core/Idle.js`: after a frame's
+own work, when there is time to spare before the next; taken a task after a task, the pieces of several maps coming
+in at once ran back to back for a second and more, every frame in that time late by up to a piece's length; with a
+fast travel waiting on a map, or the truck within a kilometre of one not in yet, they hurry as before); until then its
 ground is the far land, and nobody gets near it before it is there. Every map is kept in the browser's storage
 (IndexedDB, under a fingerprint of the generator's code and the coast's data: a change to either builds them afresh),
 so the next visit skips building them. In a test here (headless Chromium drawing in software, without a graphics card,

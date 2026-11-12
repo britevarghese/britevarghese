@@ -23,6 +23,7 @@ import { REGIONS, seamPairs } from '../world/maps/world.js';
 import { gridOf } from '../world/maps/index.js';
 import { DeformGrid } from '../world/Deform.js';
 import { SURFACE } from '../physics/Surfaces.js';
+import { idle } from '../core/Idle.js';
 
 // how near (m) the camera must come to a map's square for each of its things to be kept up to date
 const NEAR = { grass: 160, tea: 400, rocks: 700, veg: 2600, breaks: 300 };
@@ -127,7 +128,8 @@ export class RegionView {
       }
     }
     // (a step at a time, the game running between them)
-    const tick = () => new Promise((r) => setTimeout(r, 0));
+    // (a turn in the idle time between frames, once the game is drawing them: core/Idle.js)
+    const tick = () => idle(8);
     const v = new RegionView(region, renderer, ground, { audio, effects, blend, beyond, match });
     const W = region.world;
     // (each part a task of its own, the game drawing frames between them: built back to back, a map's rocks, roots,
@@ -151,7 +153,7 @@ export class RegionView {
       const h = gridOf(R.map).half;
       return [R.at[0] - h - region.cx, R.at[1] - h - region.cz, R.at[0] + h - region.cx, R.at[1] + h - region.cz];
     });
-    v.water = new Water(W, v.group, { holes });
+    v.water = slice === Infinity ? new Water(W, v.group, { holes }) : await Water.create(W, v.group, { holes }, tick);
     await tick();
     const now = slice === Infinity;
     const marks = v.marks = now ? new RoadMarkings(W, v.group) : await RoadMarkings.create(W, v.group, tick);

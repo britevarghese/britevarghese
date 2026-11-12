@@ -25,6 +25,7 @@ import { vnoise } from '../world/Noise.js';
 import { TEA_ROW, TEA_RANGE } from './Tea.js';
 import { TRACK_UNIFORMS } from './TrackMap.js';
 import { WEATHER_UNIFORMS } from './Weather.js';
+import { idle } from '../core/Idle.js';
 
 const GRID = 32;
 const V = GRID + 1;
@@ -941,11 +942,11 @@ if (gWet > 0.0) {
    */
   buildColors(onProgress) { for (const _ of this.colorSteps(onProgress)); }   // eslint-disable-line no-unused-vars
 
-  /** A deferred terrain's colours, a few ms at a time between frames, then its material. */
+  /** A deferred terrain's colours, a few ms at a time in the idle time between frames (core/Idle.js), then its material. */
   async ready(onProgress, slice = 6) {
     let t = performance.now();
     for (const _ of this.colorSteps(onProgress)) {                              // eslint-disable-line no-unused-vars
-      if (performance.now() - t > slice) { await new Promise((r) => setTimeout(r, 0)); t = performance.now(); }
+      if (performance.now() - t > slice) { await idle(slice); t = performance.now(); }
     }
     this.material = this.makeMaterial();
   }

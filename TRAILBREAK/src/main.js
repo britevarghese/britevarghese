@@ -37,6 +37,7 @@ import { Voice } from './net/Voice.js';
 import { VoicePanel } from './ui/VoicePanel.js';
 import { HUD } from './ui/HUD.js';
 import { TouchControls, isTouchDevice } from './ui/Touch.js';
+import { idle, setPlaying } from './core/Idle.js';
 
 const $ = (id) => document.getElementById(id);
 // the map: the one world, every map joined into it (the maps once driven alone are all in it, where they always were)
@@ -249,7 +250,7 @@ async function start() {
       if (id !== start) await live;
       const region = world.add(id, data);
       if (region.id === start) setLoad(0.64, 'Painting the ground');
-      else await new Promise((r) => setTimeout(r, 0));
+      else await idle();
       await view.add(region, region.id === start ? { onProgress: (f) => setLoad(0.64 + f * 0.16), slice: Infinity } : {});
       if (region.id === start) started(); else game?.regionIn(region);
     }).catch((e) => { console.error('the open world', e); game?.hud.toast(`Part of the world could not be built: ${e.message}`, true, 8); });
@@ -360,6 +361,7 @@ async function start() {
   requestAnimationFrame(loop);
   window.__ready = true;
   loader?.playing();                                  // (the rest of the world built with cores to spare for the game)
+  setPlaying(true);                                   // (and the maps that come in drawn in the idle time between frames)
   goLive();
 }
 

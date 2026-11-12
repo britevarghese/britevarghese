@@ -177,8 +177,22 @@ export class Water {
    * holes: squares (in the map's frame, [x0, z0, x1, z1]) where another map of the open world draws its own sea: the
    * sea out past this one's edges leaves them to it.
    */
-  constructor(world, scene, { holes = [] } = {}) {
+  /** A map's water, a few ms of its grid at a time (tick: a promise of the next turn), the game going on meanwhile. */
+  static async create(world, scene, opts, tick) {
+    const w = new Water(world, scene, { ...opts, later: true });
+    let t0 = performance.now();
+    while (!w.steps.next().done) if (performance.now() - t0 > 8) { await tick(); t0 = performance.now(); }
+    return w;
+  }
+
+  /** later: built a row of its grid a step by steps (create), not here and now. */
+  constructor(world, scene, { holes = [], later = false } = {}) {
     this.holes = holes;
+    this.steps = this.build(world, scene);
+    if (!later) while (!this.steps.next().done);
+  }
+
+  *build(world, scene) {
     const silt = world.map.water?.silt;
     this.uniforms = { uTime: { value: 0 }, uRipple: { value: rippleTexture() }, uSilt: { value: new THREE.Vector4(...(silt || [0, 0, 0]), silt ? 1 : 0) } };
     const d = world.data, N = d.waterN, res = d.waterRes, O = d.origin, W = d.water;
@@ -207,6 +221,7 @@ export class Water {
     const BOG = world.map.bog, cb = BOG ? Math.cos(BOG.rot) : 1, sb = BOG ? Math.sin(BOG.rot) : 0;
     const mudUnder = !BOG;
     for (let k = 0; k < N; k++) {
+      yield;
       for (let i = 0; i < N; i++) {
         if (!has(i, k)) continue;
         const x = O + i * res, z = O + k * res, level = lvl(k * N + i);
@@ -226,6 +241,7 @@ export class Water {
       }
     }
     for (let k = 0; k < N - 1; k++) {
+      if (k % 32 === 0) yield;
       for (let i = 0; i < N - 1; i++) {
         const a = index[k * N + i], b = index[k * N + i + 1], c = index[(k + 1) * N + i], e = index[(k + 1) * N + i + 1];
         if (a < 0 || b < 0 || c < 0 || e < 0) continue;
@@ -250,7 +266,7 @@ export class Water {
     // a sea drawn as a sheet (world.map.sea.sheet): over the map wherever the water grid has the sea (a vertex every
     // 16 m, its depth there for the colour and the surf), out under the beach (the ground hides it there), and beyond
     // the map's edges all round to the horizon (the land out there stands above it)
-    if (SL !== null) this.seaSheet(world, SL);
+    if (SL !== null) yield* this.seaSheet(world, SL);
     // a map on the sea (world.map.sea): the open sea beyond the map's west edge to the horizon, and past its north and
     // south ends off the coast (the map's own water grid has it inside the map)
     else if (world.map.sea) {
@@ -280,13 +296,15 @@ export class Water {
     }
   }
 
-  seaSheet(world, L) {
+  *seaSheet(world, L) {
     const d = world.data, N = d.waterN, res = d.waterRes, O = d.origin, W = d.water, half = world.half, far = 9000;
     const SP = 16, n = Math.round(2 * half / SP) + 1;
     const sea = (x, z) => { const i = Math.round((x - O) / res), k = Math.round((z - O) / res); return i >= 0 && k >= 0 && i < N && k < N && W[k * N + i] === L; };
     // the sea's vertices, and two rows round them (out under the beach)
     const at = new Uint8Array(n * n);
+    yield;
     for (let k = 0; k < n; k++) for (let i = 0; i < n; i++) if (sea(-half + i * SP, -half + k * SP)) at[k * n + i] = 1;
+    yield;
     for (let pass = 0; pass < 2; pass++) {
       const prev = at.slice();
       for (let k = 0; k < n; k++) for (let i = 0; i < n; i++) {
@@ -296,6 +314,7 @@ export class Water {
     }
     const pos = [], depth = [], idx = [], index = new Int32Array(n * n).fill(-1);
     for (let k = 0; k < n; k++) for (let i = 0; i < n; i++) {
+      if (i === 0 && k % 8 === 0) yield;
       if (!at[k * n + i]) continue;
       const x = -half + i * SP, z = -half + k * SP;
       index[k * n + i] = pos.length / 3;

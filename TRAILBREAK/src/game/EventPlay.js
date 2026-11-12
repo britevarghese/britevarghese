@@ -25,7 +25,8 @@ export class EventPlay {
     this.events = game.world.events ? game.world.events() : [...eventsFor(game.world), ...racesFor(game.world), ...modesFor(game.world)];
     this.picked = null;            // the one last picked in the list or on the map: J starts it where starts are close
     this.byId = new Map(this.events.map((e) => [e.id, e]));
-    this.grids = new Map(this.events.map((e) => [e.id, gridFor(game.world, e)]));
+    // (each event's start grid, worked out when a truck first lines up for it: gridOf)
+    this.grids = new Map();
     this.simT = 0;
     this.run = null;               // our EventRun
     this.race = null;              // the room's race: { id, at (server ms), racers: [{ id, name }], times: Map(id -> s | null) }
@@ -116,9 +117,20 @@ export class EventPlay {
     if (e && !this.racing) this.begin(e);
   }
 
+  /**
+   * An event's start grid (game/Events.js gridFor), worked out the first time it is wanted. Worked out for every event
+   * of a map the moment the map came in (each slot of each grid against every boulder in the world), it held a frame
+   * up a tenth of a second.
+   */
+  gridOf(e) {
+    let grid = this.grids.get(e.id);
+    if (!grid) this.grids.set(e.id, (grid = gridFor(this.g.world, e)));
+    return grid;
+  }
+
   /** Put the truck on grid slot `slot` of an event, stopped and facing down the course. */
   lineUp(e, slot) {
-    const g = this.g, v = g.vehicle, p = this.grids.get(e.id)[slot % 4];
+    const g = this.g, v = g.vehicle, p = this.gridOf(e)[slot % 4];
     if (v.winch.attached) v.detachWinch();
     v.place(g.world, p.x, p.z, p.yaw);
     g.carry = 0;
@@ -146,7 +158,7 @@ export class EventPlay {
   add(list) {
     for (const e of list) {
       if (this.byId.has(e.id)) continue;
-      this.events.push(e); this.byId.set(e.id, e); this.grids.set(e.id, gridFor(this.g.world, e));
+      this.events.push(e); this.byId.set(e.id, e);
     }
   }
 
@@ -155,7 +167,7 @@ export class EventPlay {
     if (old) { this.events.splice(this.events.indexOf(old), 1); this.byId.delete('custom'); this.grids.delete('custom'); }
     const e = L && customRace(L, (x, z) => this.g.world.height(x, z));
     if (!e) return;
-    this.events.push(e); this.byId.set('custom', e); this.grids.set('custom', gridFor(this.g.world, e));
+    this.events.push(e); this.byId.set('custom', e);
   }
 
   /** RESTART (Backspace): line up at the start again and count down afresh (alone; not in a race with friends). */

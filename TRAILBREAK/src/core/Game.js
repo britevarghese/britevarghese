@@ -30,6 +30,7 @@ import { windowGlow } from '../render/KeralaBuildings.js';
 import { seeThrough } from '../render/Vegetation.js';
 import { retroLights } from '../render/RoadMarkings.js';
 import { beginTerrainFrame } from '../render/Terrain.js';
+import { setHurry } from './Idle.js';
 import { TrackMap } from '../render/TrackMap.js';
 import { Rain } from '../render/Rain.js';
 import { WEATHER_UNIFORMS } from '../render/Weather.js';
@@ -1502,6 +1503,12 @@ export class Game {
   // ---------------------------------------------------------------- frame
   frame(dt) {
     const I = this.input, v = this.vehicle, W = v.winch;
+    // (a fast travel waiting on a map, or the truck within a kilometre of one not in yet: the maps' building not left
+    // to the idle time between frames, core/Idle.js)
+    if ((this.hurryT = (this.hurryT || 0) - dt) <= 0) {
+      this.hurryT = 0.5;
+      setHurry(!!this.pendingTravel || (this.world.unbuiltWithin?.(v.pos.x, v.pos.z) ?? Infinity) < 1000);
+    }
     const ctrl = I.update(dt);
     this.actions();
     // paused: the whole game stops where it is (our truck, its sound, the camera, the clocks); only friends' trucks

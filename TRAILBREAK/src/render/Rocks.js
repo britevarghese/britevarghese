@@ -14,7 +14,23 @@ const FAR = 1800;
 const SHORE = [1.4, 0, -1.4, 0, 0, 1.4, 0, -1.4];
 const CULL_Q = 500;                       // a boulder past this many times its size away is under a couple of pixels: not drawn
 
+/**
+ * Shape k at a level of detail: its points and faces made once and shared (every map of the open world made them again,
+ * a tenth of a second as it came in), in a geometry of the caller's own (it takes the map's own per-boulder attributes).
+ */
+const ROCK_GEO = new Map();
 function rockGeometry(k, detail) {
+  const key = k * 16 + detail;
+  if (!ROCK_GEO.has(key)) ROCK_GEO.set(key, rockPoints(k, detail));
+  const base = ROCK_GEO.get(key), g = new THREE.BufferGeometry();
+  g.setAttribute('position', base.attributes.position);
+  g.setAttribute('normal', base.attributes.normal);
+  g.setIndex(base.index);
+  g.boundingSphere = base.boundingSphere.clone();
+  return g;
+}
+
+function rockPoints(k, detail) {
   let g = new THREE.IcosahedronGeometry(1, detail);
   g.deleteAttribute('normal');
   g.deleteAttribute('uv');

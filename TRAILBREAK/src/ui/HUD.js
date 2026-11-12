@@ -1,6 +1,7 @@
 // The heads-up display: dials, drivetrain chips, winch, compass with beacons and friends, the next beacon, the
 // players, a rotating minimap and the full map, toasts, hints and chat.
 import { micIcon } from './VoicePanel.js';
+import { idle } from '../core/Idle.js';
 
 const $ = (id) => document.getElementById(id);
 const TAU = Math.PI * 2;
@@ -55,7 +56,7 @@ export class HUD {
     if ((this.drawn ||= new Set()).has(region.id) || (this.world.view && !this.world.view.viewOf(region.id))) return;
     this.drawn.add(region.id);
     let t0 = performance.now();
-    const breathe = async () => { if (performance.now() - t0 > 6) { await new Promise((r) => setTimeout(r, 0)); t0 = performance.now(); } };
+    const breathe = async () => { if (performance.now() - t0 > 6) { await idle(6); t0 = performance.now(); } };
     const c = this.mapImage, x = c.getContext('2d'), B = this.world.mapBox, S = c.width, step = B.size / S, tr = this.mapTr, W = region.world;
     const i0 = Math.max(0, Math.round((region.cx - region.half - B.x0) / step)), i1 = Math.min(S, Math.round((region.cx + region.half - B.x0) / step));
     const k0 = Math.max(0, Math.round((region.cz - region.half - B.z0) / step)), k1 = Math.min(S, Math.round((region.cz + region.half - B.z0) / step));
@@ -127,7 +128,7 @@ export class HUD {
         const o = (j * S + i) * 4;
         img.data[o] = Math.min(255, r * 255); img.data[o + 1] = Math.min(255, g * 255); img.data[o + 2] = Math.min(255, b * 255); img.data[o + 3] = 255;
       }
-      if (performance.now() - t0 > 6) { await new Promise((res) => setTimeout(res, 0)); t0 = performance.now(); }
+      if (performance.now() - t0 > 6) { await idle(6); t0 = performance.now(); }
     }
     c.getContext('2d').putImageData(img, 0, 0);
     const x = this.mapImage.getContext('2d'), k = F / (B.size / this.mapImage.width);
