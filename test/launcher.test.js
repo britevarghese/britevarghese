@@ -34,7 +34,7 @@ test('support soldiers carry the anti-armour launcher: one round in the tube, tw
   const g = mkGame();
   const p = soldier(g, 1, 'support');
   assert.equal(CLASSES.support.gadget, 'at4');
-  assert.deepEqual(p.weapons.map((w) => w.id), ['ar', 'pistol', 'at4']);
+  assert.deepEqual(p.weapons.map((w) => w.id), ['lmg', 'pistol', 'at4']);
   assert.equal(p.weapons[2].mag, 1);
   assert.equal(p.weapons[2].reserve, 2);
   // other classes don't

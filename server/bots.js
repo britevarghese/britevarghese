@@ -441,13 +441,15 @@ export class BotBrain {
       if (!this.engageStance) {
         const r = Math.random();
         this.engageStance = dist > 45 ? (r < 0.55 ? 'prone' : r < 0.85 ? 'crouch' : 'stand') : dist > 18 ? (r < 0.6 ? 'crouch' : 'stand') : r < 0.25 ? 'crouch' : 'stand';
+        // a machine gunner at range gets down on the bipod (or at least braces)
+        if (def.bipod && dist > 30 && this.engageStance === 'stand') this.engageStance = dist > 45 ? 'prone' : 'crouch';
       }
       // rounds cracking past: get lower
       if (supp > 0.5 && this.engageStance === 'stand') this.engageStance = dist > 30 && supp > 0.9 ? 'prone' : 'crouch';
       p.stance = this.engageStance;
       // movement: out of the weapon's effective range -> close the distance (like a player with a carbine would);
       // otherwise stand still to shoot at range, short committed strafes up close
-      const effective = def.scoped ? 400 : def.id === 'pistol' ? 30 : 140;
+      const effective = def.scoped ? 400 : def.id === 'pistol' ? 30 : def.id === 'smg' ? 60 : 140;
       // nobody hits anything with a pistol at 100 m: beyond a weapon's practical range, hold fire and close in
       const inRange = dist <= (def.engage || 150) * (0.8 + this.skill * 0.3);
       // (never walking at someone who is shooting back: under fire you stay down and return it)

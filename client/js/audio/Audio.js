@@ -11,6 +11,8 @@ const CAP = { gun: 20, step: 8, imp: 10, brass: 4, misc: 8 }; // per kind, so a 
 // weapons where they belong: 9 mm < 5.56 < 7.62x54R, .50 cal and 30 mm loudest
 const GUN = {
   ar: ['ar_near', 'ar_far', 1.0, 1.03], sniper: ['sniper_near', 'sniper_far', 1.72, 1.07], pistol: ['pistol_near', 'pistol_far', 0.92, 0.73],
+  // (the LMG: the 5.56 report a touch deeper and heavier; the SMG: the 9 mm report, a touch brighter) [.., rate]
+  lmg: ['ar_near', 'ar_far', 1.08, 1.1, 0.93], smg: ['pistol_near', 'pistol_far', 0.88, 0.7, 1.07],
   jeep_mg: ['m2', 'm2', 1.29, 1.29], tank_mg: ['mg762', 'mg762', 1.0, 1.0], heli_cannon: ['c30', 'c30', 1.24, 1.24],
 };
 // reload foley at fractions of the reload time — the viewmodel animates to the same marks: magazine released 0.20,
@@ -18,6 +20,9 @@ const GUN = {
 const RELOAD = {
   ar: [[0.2, 'ar_magout', 0.8], [0.42, 'draw_rifle', 0.22], [0.7, 'ar_magin', 1], [0.88, 'ar_bolt', 1, true]],
   pistol: [[0.2, 'pistol_magout', 0.8], [0.42, 'draw_pistol', 0.2], [0.7, 'pistol_magin', 1], [0.88, 'pistol_slide', 1, true]],
+  // LMG: feed cover up, the empty box off, the new one on and the belt laid in, cover shut, (empty) the bolt pulled
+  lmg: [[0.08, 'bolt_up', 0.55, false, 0.85], [0.2, 'ar_magout', 0.9, false, 0.85], [0.42, 'draw_rifle', 0.3], [0.66, 'ar_magin', 1, false, 0.85], [0.8, 'bolt_down', 0.8, false, 0.8], [0.9, 'ar_bolt', 1, true, 0.9]],
+  smg: [[0.2, 'pistol_magout', 0.85], [0.42, 'draw_rifle', 0.2], [0.7, 'pistol_magin', 1], [0.88, 'ar_bolt', 0.8, true, 1.15]],
   // bolt rifle (stripper clip): bolt open, magazine floorplate / clip, rounds pushed in at 0.70, bolt closed at 0.88
   sniper: [[0.05, 'bolt_up', 0.6], [0.11, 'bolt_back', 0.6], [0.2, 'ar_magout', 0.5, false, 0.9], [0.42, 'draw_rifle', 0.22], [0.7, 'clip', 1], [0.88, 'bolt_fwd', 0.9], [0.93, 'bolt_down', 0.9]],
   // disposable launcher (the viewmodel's tube swap): off the shoulder, the empty tube dropped (a hollow knock on the
@@ -214,7 +219,7 @@ export class GameAudio {
       const delay = !local && d > 30 ? d / 343 : 0;
       // far away: the crack's highs die off, the boom and the echo stay
       const muffle = local ? 20000 : Math.max(900, 16000 * Math.exp(-d / 140));
-      this.#play(set, { pos: local ? null : pos, gain: (far ? G[3] : G[2]) * (local ? 0.9 : 1.6) * (0.9 + Math.random() * 0.2), lp: muffle, delay, verb: local ? 0.15 : Math.min(1, 0.35 + d / 200), cat: local ? null : 'gun' });
+      this.#play(set, { pos: local ? null : pos, gain: (far ? G[3] : G[2]) * (local ? 0.9 : 1.6) * (0.9 + Math.random() * 0.2), lp: muffle, delay, verb: local ? 0.15 : Math.min(1, 0.35 + d / 200), cat: local ? null : 'gun', ...(G[4] && { rate: G[4] * (0.97 + Math.random() * 0.06) }) });
       return;
     }
     const muffle = Math.max(500, 14000 - d * 60);
@@ -270,9 +275,9 @@ export class GameAudio {
     if (!this.ctx || !this.enabled || surface === 'grass') return;
     const soft = surface === 'dirt' || surface === 'sand';
     this.#play(surface === 'wood' ? 'brass_wood' : 'brass_hard', {
-      pos, at: this.ctx.currentTime + delay + Math.random() * 0.12, gain: (pos ? 0.25 : FOLEY * 1.2) * (soft ? 1.2 : 1) * (weapon === 'pistol' ? 0.8 : 1),
+      pos, at: this.ctx.currentTime + delay + Math.random() * 0.12, gain: (pos ? 0.25 : FOLEY * 1.2) * (soft ? 1.2 : 1) * (weapon === 'pistol' || weapon === 'smg' ? 0.8 : 1),
       // bigger case, lower ring
-      rate: (weapon === 'pistol' ? 1.12 : weapon === 'sniper' ? 0.86 : 1) * (0.95 + Math.random() * 0.1), lp: soft ? 4000 : 16000, verb: 0.1, ref: 2, cat: 'brass',
+      rate: (weapon === 'pistol' || weapon === 'smg' ? 1.12 : weapon === 'sniper' ? 0.86 : 1) * (0.95 + Math.random() * 0.1), lp: soft ? 4000 : 16000, verb: 0.1, ref: 2, cat: 'brass',
     });
   }
 

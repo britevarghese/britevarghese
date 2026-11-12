@@ -19,6 +19,24 @@ export const WEAPONS = {
     // 7.62x54 mmR (~370 m/s left at 1000 m)
     velocity: 830, dragQ: 0.8e-3, maxRange: 1200, zero: [100, 200, 300, 400, 500, 600, 800],
   },
+  // Support: a belt-fed 5.56 mm light machine gun (M249 pattern). A 100-round box and a long reload; heavy and wild from
+  // the hip, steady once settled: prone (or crouched) the bipod / braced stance halves the spread and the climb.
+  lmg: {
+    id: 'lmg', name: 'M249 Light MG', slot: 0, visual: 'lmg', auto: true, bipod: true,
+    damage: 25, headMul: 3.4, legMul: 0.75, rpm: 760, mag: 100, reserve: 200, reload: 5.6, reloadEmpty: 6.2,
+    range: [30, 80], minDamage: 18, engage: 180, spreadHip: 3.8, spreadAds: 0.1, spreadMove: 2.6,
+    recoil: { pitch: 0.36, yaw: 0.26, recover: 8 }, adsTime: 0.36, adsFov: 0.72, speed: 0.92, tracer: 2,
+    velocity: 915, dragQ: 1.0e-3, maxRange: 800, zero: [100, 200, 300, 400, 500],
+  },
+  // Medic: a 9 mm submachine gun (MP5 pattern). Quick to the shoulder and to move with, a high rate of fire; the
+  // pistol round loses its punch past ~40 m.
+  smg: {
+    id: 'smg', name: 'MP5 Submachine Gun', slot: 0, visual: 'smg', auto: true,
+    damage: 23, headMul: 3.5, legMul: 0.8, rpm: 840, mag: 30, reserve: 150, reload: 2.0, reloadEmpty: 2.5,
+    range: [12, 40], minDamage: 13, engage: 90, spreadHip: 1.9, spreadAds: 0.09, spreadMove: 1.0,
+    recoil: { pitch: 0.3, yaw: 0.15, recover: 11 }, adsTime: 0.16, adsFov: 0.78, speed: 1.05, tracer: 3,
+    velocity: 400, dragQ: 1.6e-3, maxRange: 300, zero: [25, 50, 100],
+  },
   pistol: {
     id: 'pistol', name: 'P-17 Service Pistol', slot: 1, visual: 'pistol', auto: false,
     damage: 24, headMul: 4.2, legMul: 0.75, rpm: 400, mag: 15, reserve: 60, reload: 1.6, reloadEmpty: 1.9,
@@ -58,16 +76,16 @@ export const CLASSES = {
   assault: { name: 'Assault', primary: 'ar', secondary: 'pistol', grenades: 2 },
   recon: { name: 'Recon', primary: 'sniper', secondary: 'pistol', grenades: 1 },
   // support: double ammo, extra grenades, an anti-armour launcher, resupplies teammates nearby (ammo bag)
-  support: { name: 'Support', primary: 'ar', secondary: 'pistol', gadget: 'at4', grenades: 4, ammoMul: 2, resupply: true },
+  support: { name: 'Support', primary: 'lmg', secondary: 'pistol', gadget: 'at4', grenades: 4, ammoMul: 2, resupply: true },
   // medic: heals faster, patches up teammates within a few metres, and revives downed teammates
-  medic: { name: 'Medic', primary: 'ar', secondary: 'pistol', grenades: 1, medic: true },
+  medic: { name: 'Medic', primary: 'smg', secondary: 'pistol', grenades: 1, medic: true },
 };
 // short role descriptions + perks (shown on the deploy screen)
 export const CLASS_INFO = {
   assault: { role: 'Close range · Balanced', perk: 'All-round carbine kit' },
   recon: { role: 'Long range · Intel', perk: 'Bolt-action rifle, 4x scope, spots further and longer' },
-  support: { role: 'Heavy firepower · Anti-armour', perk: 'AT launcher (3 rockets), double ammo, 4 grenades, resupplies squad' },
-  medic: { role: 'Heal · Revive', perk: 'Revives downed teammates, heals those nearby, fast self-heal' },
+  support: { role: 'Heavy firepower · Anti-armour', perk: 'Light MG (steady prone), AT launcher, double ammo, resupplies squad' },
+  medic: { role: 'Heal · Revive', perk: 'SMG, revives downed teammates, heals those nearby, fast self-heal' },
 };
 
 export function damageAt(w, dist) {

@@ -204,3 +204,17 @@ test('spawning avoids enemy sight lines and contested flags; bots ignore spawn-p
   assert.ok(!me.alive || me.hp < 100, 'hurt inside the enemy HQ');
   assert.ok(g.flushEvents().some((e) => e.ev.t === 'restricted'));
 });
+
+test('each kit carries its own primary: carbine, bolt rifle, light machine gun (double ammo), SMG', async () => {
+  const { CLASSES: C, WEAPONS: W } = await import('../shared/weapons.js');
+  const g = new Game({ botsPerTeam: 0, log: () => {} }); g.clock = 1_000_000;
+  const kit = (cls) => { const p = g.addPlayer({ name: cls, team: 1, cls }); p.respawnAt = 0; g.spawn(p, 'base'); return p.weapons[0]; };
+  assert.deepEqual(['assault', 'recon', 'support', 'medic'].map((c) => kit(c).id), ['ar', 'sniper', 'lmg', 'smg']);
+  const lmg = kit('support');
+  assert.equal(lmg.mag, 100); assert.equal(lmg.reserve, W.lmg.reserve * 2, 'support: double ammo');
+  // the SMG's pistol round falls off sooner than the carbine's; it fires faster; the LMG reloads slowly
+  const { damageAt } = await import('../shared/weapons.js');
+  assert.ok(damageAt(W.smg, 60) < damageAt(W.ar, 60));
+  assert.ok(W.smg.rpm > W.ar.rpm && W.lmg.reload > W.ar.reload * 2);
+  assert.equal(C.medic.primary, 'smg');
+});

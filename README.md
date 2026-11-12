@@ -143,7 +143,8 @@ downed: mouse looks around, **hold Space** (touch: tap **REDEPLOY**) to give up 
   is kept in the air with only light air control; chained jumps lose height; hard landings slow you briefly; falls
   above 3.2 m cause damage (≈ 10 m is lethal).
 * **Kits**: Assault (automatic carbine, pistol, 2 frags) · Recon (4× scoped bolt-action rifle, pistol, 1 frag) ·
-  Support (carbine, pistol, anti-armour launcher, 4 frags) · Medic (carbine, pistol, 1 frag; revives and heals).
+  Support (M249-pattern light machine gun, pistol, anti-armour launcher, 4 frags) · Medic (MP5-pattern SMG, pistol, 1 frag;
+  revives and heals).
 * **Server-authoritative**: the server owns ammo, fire rate, damage, hit detection (lag-compensated hitscan
   against capsule hitboxes; walls/cover block shots; head/torso/leg zones; range falloff), grenades (4 s fuse, real
   gravity, bounce, smash windows, blast blocked by walls and vehicles), capture, tickets, respawn, chat rate limiting and movement checks (a movement budget refilled at
@@ -211,9 +212,14 @@ downed: mouse looks around, **hold Space** (touch: tap **REDEPLOY**) to give up 
   on the glacis, three on the flank, two up the back. Firing it throws a jet of flame and a wall of dust out of the
   back. Support bots use it on enemy vehicles in range — kneel, hold over for the drop, lead the target, fire, move
   to cover while the next tube comes up — and never with friendlies near the target.
-* **Kits:** Assault (carbine), Recon (bolt rifle, 4x scope), Support (double ammo, 4 grenades, an anti-armour
-  launcher, resupplies teammates within 8 m) and Medic (revives downed teammates, heals itself fast, heals teammates
-  within 8 m). Everyone regenerates slowly after 6 s out of fire (medics after 3 s, much faster).
+* **Kits:** Assault (carbine), Recon (bolt rifle, 4x scope), Support (light machine gun, double ammo, 4 grenades, an
+  anti-armour launcher, resupplies teammates within 8 m) and Medic (SMG; revives downed teammates, heals itself fast,
+  heals teammates within 8 m).
+* **Class weapons** (procedural models, `scripts/build-classweapons.mjs`, same moving parts as the carbine): the
+  Support's **M249-pattern light MG** — 100-round box, 760 rpm, a long box change (5.6 s), wild from the hip, but on
+  the bipod (prone) the spread and climb halve, braced (crouched) they drop by a quarter to a third; machine-gunner bots
+  get down to fire at range. The Medic's **MP5-pattern SMG** — 9 mm, 840 rpm, quick to aim (0.16 s) and to move
+  with, falls off past ~40 m. Everyone regenerates slowly after 6 s out of fire (medics after 3 s, much faster).
 * **Squads:** each team is organised in squads of four (ALPHA, BRAVO, …). Players are put together and bots top
   their squads up, so there is always someone to deploy on. On the deploy screen your squad mates are spawn points:
   you deploy right behind one (same floor, facing his way), or into a free seat of his vehicle, while he is out of

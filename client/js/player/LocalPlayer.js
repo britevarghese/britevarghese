@@ -299,7 +299,8 @@ export class LocalPlayer {
 
   spread(def) {
     const hs = Math.hypot(this.s.vx, this.s.vz);
-    const base = this.adsBlend > 0.8 ? def.spreadAds : def.spreadHip * (this.s.stance === 'crouch' ? 0.75 : this.s.stance === 'prone' ? 0.55 : 1);
+    const braced = def.bipod && this.s.stance !== 'stand' ? (this.s.stance === 'prone' ? 0.5 : 0.75) : 1; // (an LMG on its bipod / braced)
+    const base = (this.adsBlend > 0.8 ? def.spreadAds : def.spreadHip * (this.s.stance === 'crouch' ? 0.75 : this.s.stance === 'prone' ? 0.55 : 1)) * braced;
     return (base * (1 + this.supp * 0.8) + this.supp * 0.9 + def.spreadMove * Math.min(1, hs / 4) * (this.adsBlend > 0.8 ? 0.3 : 1) + this.bloom * (this.adsBlend > 0.8 ? 0.3 : 1) + (this.s.onGround ? 0 : 4)) * (Math.PI / 180);
   }
 
@@ -329,8 +330,10 @@ export class LocalPlayer {
     // recoil: kick the aim (camera) up with slight random yaw; bloom the cone
     const adsK = this.adsBlend > 0.8 ? 0.75 : 1;
     const stK = this.s.stance === 'prone' ? 0.5 : this.s.stance === 'crouch' ? 0.8 : 1;
-    this.recoil.p += def.recoil.pitch * (Math.PI / 180) * adsK * stK;
-    this.recoil.y += (Math.random() - 0.4) * def.recoil.yaw * (Math.PI / 180) * adsK;
+    // a machine gun on its bipod (prone) or braced (crouched): the climb and the wander are halved again
+    const braced = def.bipod && this.s.stance !== 'stand' ? (this.s.stance === 'prone' ? 0.5 : 0.7) : 1;
+    this.recoil.p += def.recoil.pitch * (Math.PI / 180) * adsK * stK * braced;
+    this.recoil.y += (Math.random() - 0.4) * def.recoil.yaw * (Math.PI / 180) * adsK * braced;
     this.bloom = Math.min(4, this.bloom + (def.auto ? 0.35 : 1));
     this.g.onLocalShot(eye, d, def);
   }
