@@ -412,7 +412,44 @@ void main() {
       }
       if (performance.now() - t0 > ms) break;
     }
+    if (!this.todo.length && !this.merged) this.mergeStatic();
     return !this.todo.length;
+  }
+
+  /**
+   * The buildings' plain parts (each building is a mesh for each of its materials) made into one mesh for each material
+   * across the map: a map's two hundred buildings were a thousand draws a frame, each a few dozen triangles (and as many
+   * again into the shadows and the mirrors). Only the plain parts: those with a texture (signs, flags), the turning ones
+   * (a turbine's rotor), the lamps and a beacon's own light, and a material only one part has, stay as they are.
+   */
+  mergeStatic() {
+    this.merged = true;
+    const keep = new Set(), by = new Map();
+    for (const b of this.group.children) {
+      if (b.userData.flag) keep.add(b.userData.flag);
+      if (b.userData.rotor) b.userData.rotor.traverse((o) => keep.add(o));
+    }
+    for (const b of this.group.children) {
+      b.updateMatrix();
+      for (const o of b.children) {
+        const g = o.geometry;
+        if (!o.isMesh || o.isInstancedMesh || o.isSkinnedMesh || keep.has(o) || !g || g.index || Array.isArray(o.material)) continue;
+        const names = Object.keys(g.attributes);
+        if (names.length !== 2 || !g.attributes.position || !g.attributes.normal || g.morphAttributes.position) continue;
+        if (!by.has(o.material)) by.set(o.material, []);
+        by.get(o.material).push({ o, b });
+      }
+    }
+    for (const [material, list] of by) {
+      if (list.length < 2) continue;
+      const geos = list.map(({ o, b }) => { o.updateMatrix(); return o.geometry.clone().applyMatrix4(new THREE.Matrix4().multiplyMatrices(b.matrix, o.matrix)); });
+      const mesh = new THREE.Mesh(mergeGeometries(geos), material);
+      mesh.castShadow = list.some(({ o }) => o.castShadow); mesh.receiveShadow = list.some(({ o }) => o.receiveShadow);
+      mesh.name = 'buildings';
+      for (const g of geos) g.dispose();
+      for (const { o } of list) { o.parent.remove(o); o.geometry.dispose(); }
+      this.group.add(mesh);
+    }
   }
 
   setFound(id, found) {
