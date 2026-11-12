@@ -66,6 +66,7 @@ export class Phone {
     return true;
   }
   close() { this.game.resume(); }
+  _close = () => this.close();
 
   _screen(title, items, onBack, foot = '') {
     const ui = this.game.ui;
@@ -85,6 +86,11 @@ export class Phone {
       return b;
     });
     ph.appendChild(list);
+    const nav = h('div', 'phone-nav');
+    const home = onBack === this._close;
+    const bk = h('button', 'phone-navb', home ? '' : '‹ BACK'); bk.onclick = () => { if (!home) { this.game.audio?.playEvent?.('uiBack'); onBack(); } }; if (home) bk.style.visibility = 'hidden';
+    const hu = h('button', 'phone-navb hang', '✕ HANG UP'); hu.onclick = () => this.close();
+    nav.append(bk, hu); ph.appendChild(nav);
     ph.appendChild(h('div', 'phone-foot', foot || (document.documentElement.classList.contains('touch') ? 'tap an app' : '↑↓ choose · ENTER open · ESC hang up')));
     s.appendChild(ph);
     ui.screens.appendChild(s);
@@ -102,7 +108,7 @@ export class Phone {
       { icon: '🎭', label: 'Theyyam masks', sub: m ? `${m.count}/${m.places.length} found` : 'not here', color: '#ff6a3d', fn: () => this.masks() },
       { icon: '📻', label: 'Radio', sub: st?.name, color: st?.color, fn: () => this.radio() },
       { icon: '📷', label: 'Camera', sub: 'photo mode', color: '#c9a0ff', off: g.races?.active ? 'Not during a race' : null, fn: () => { g.resume(); g.photo.enter(); } },
-    ], () => this.close());
+    ], this._close);
   }
 
   travel() {

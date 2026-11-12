@@ -374,6 +374,8 @@ html.touch canvas { touch-action: none; }
 #touch-controls .tc-enter { right: calc(39vmin + env(safe-area-inset-right)); background: rgba(200,150,30,0.45); }
 #touch-controls .tc-reset { right: calc(51vmin + env(safe-area-inset-right)); }
 #touch-controls .tc-event { right: calc(63vmin + env(safe-area-inset-right)); }
+#touch-controls .tc-phone { right: calc(75vmin + env(safe-area-inset-right)); }
+html:not(.has-phone) #touch-controls .tc-phone { display: none; }
 /* the HUD on a touch screen: smaller, and clear of the thumbs (speed between the two hands, money under the top
    buttons, the minimap small in its corner) */
 html.touch .minimap-wrap { top: calc(0.8rem + env(safe-area-inset-top)); left: calc(0.8rem + env(safe-area-inset-left)); width: 26vmin; }
@@ -453,3 +455,6 @@ html.touch .track-banner { top: calc(13vmin + env(safe-area-inset-top)); left: 4
 /* phone jobs (taxi fares, parcels): the same objective line and meter as a story job */
 .job-hud { position: absolute; inset: 0; pointer-events: none; z-index: 5; }
 .job-hud .job-meter { top: 12.5rem; }
+.phone-nav { display: flex; justify-content: space-between; gap: 0.4rem; padding-top: 0.5rem; }
+.phone-navb { flex: 1; background: #ffffff10; border: 1px solid #ffffff1a; border-radius: 0.6rem; color: inherit; font: inherit; font-size: 0.75rem; letter-spacing: 0.12em; padding: 0.45rem; cursor: pointer; }
+.phone-navb.hang { color: #ff8090; }

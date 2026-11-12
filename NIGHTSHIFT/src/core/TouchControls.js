@@ -28,6 +28,7 @@ const BUTTONS = [
   ['reset', '↺', { tap: 'reset' }, ['car'], 'tc-top tc-reset'],
   ['map', '🗺', { tap: 'map' }, ['car', 'foot', 'map'], 'tc-top tc-map'],
   ['event', '!', { tap: 'event' }, ['car', 'foot'], 'tc-top tc-event'],
+  ['phone', '📱', { tap: 'phone' }, ['car', 'foot'], 'tc-top tc-phone'],
   ['pause', 'II', { tap: 'pause' }, ['car', 'foot', 'map'], 'tc-top tc-pause'],
 ];
 

@@ -180,7 +180,7 @@ export class Game {
     this.net.connect().catch(() => {});
     this._wireEvents();
     this._wireAudioUnlock();
-    if (this.world.kerala) { this.world.trees?.loadModels(this.assets); this.boats = new KeralaBoats(this.world, this.scene, this.assets); this.boatRide = new BoatRide(this); this.klGarages = new KeralaGarages(this.world, this.scene); this.klPolice = new KeralaPolice(this); this.safehouses = this.klGarages.list; this.empire.blips = () => []; }
+    if (this.world.kerala) { this.world.trees?.loadModels(this.assets); this.boats = new KeralaBoats(this.world, this.scene, this.assets); this.boatRide = new BoatRide(this); document.documentElement.classList.add('has-phone'); this.klGarages = new KeralaGarages(this.world, this.scene); this.klPolice = new KeralaPolice(this); this.safehouses = this.klGarages.list; this.empire.blips = () => []; }
     await this.rm.setupPost(this.scene, this.camera);
     this.camCtl.snap(this.player);
     progress(1, 'Ready');
