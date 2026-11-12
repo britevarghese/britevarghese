@@ -169,7 +169,7 @@ export class VehicleSystem {
     if (!v || v.dead) return;
     const now = this.g.now();
     if (p.seat !== 0) {
-      if (Number.isFinite(m.ay)) {
+      if (Number.isFinite(m.ay) && Math.abs(m.ay) < 1e4) {
         const ap = Math.max(-1.2, Math.min(0.8, +m.ap || 0));
         v.aim = v.aim || []; v.aim[p.seat] = { yaw: +m.ay, pitch: ap };
         p.yaw = +m.ay; p.pitch = ap;
@@ -179,7 +179,8 @@ export class VehicleSystem {
     }
     const V = VEHICLES[v.type];
     const dt = Math.max(0.001, (now - v.lastInput) / 1000); v.lastInput = now;
-    if (![m.x, m.y, m.z, m.yaw].every(Number.isFinite)) return;
+    // (finite and sane: JSON carries 1e999 as Infinity, and whatever is stored here goes out to every client)
+    if (![m.x, m.y, m.z, m.yaw].every(Number.isFinite) || Math.abs(m.y) > 2000 || Math.abs(m.yaw) > 1e4) return;
     // movement budget (see BUDGET_S): judged over a window, not per message, so arrival jitter doesn't reject updates
     const rate = V.maxSpeed * 1.35, cap = rate * BUDGET_S + 2;
     v.budget = Math.min(cap, (v.budget ?? cap) + rate * dt);
@@ -187,17 +188,17 @@ export class VehicleSystem {
     const H = this.g.map.PLAY_HALF + 20;
     if ((moved > v.budget && !process.env.DEV_TELEPORT) || Math.abs(m.x) > H || Math.abs(m.z) > H) { this.g.emit({ t: 'vcorrect', v: v.id, x: v.x, y: v.y, z: v.z, yaw: v.yaw }, p); return; }
     v.budget = Math.max(0, v.budget - moved);
-    Object.assign(v, { x: m.x, y: m.y, z: m.z, yaw: m.yaw, pitch: +m.pitch || 0, roll: +m.roll || 0 });
-    v.rest = false;
     const cl = (x, a, b) => Math.max(a, Math.min(b, +x || 0));
+    Object.assign(v, { x: m.x, y: m.y, z: m.z, yaw: m.yaw, pitch: cl(m.pitch, -Math.PI, Math.PI), roll: cl(m.roll, -Math.PI, Math.PI) });
+    v.rest = false;
     if (V.kind !== 'heli') {
       // (downhill / bounces can exceed the governed top speed a little)
       v.speed = cl(m.sp, -Math.max(V.reverseSpeed, V.maxSpeed * 0.3), V.maxSpeed * 1.3); v.steer = cl(m.st, -1, 1);
       v.vy = cl(m.vy, -60, 15); v.air = !!m.ar;
       v.vx = -Math.sin(v.yaw) * v.speed; v.vz = -Math.cos(v.yaw) * v.speed;
-      if (v.type === 'tank') { v.turretYaw = +m.ty || 0; v.gunPitch = cl(m.gp, V.gunPitch[0], V.gunPitch[1]); }
+      if (v.type === 'tank') { v.turretYaw = cl(m.ty, -1e4, 1e4); v.gunPitch = cl(m.gp, V.gunPitch[0], V.gunPitch[1]); }
       if (+m.imp > CRASH_MIN) this.damage(v, groundCrashDamage(Math.min(40, +m.imp)), null, 'crash', 'crash');
-    } else { v.vx = +m.vx || 0; v.vy = +m.vy || 0; v.vz = +m.vz || 0; if (+m.imp > 6) this.damage(v, heliCrashDamage(Math.min(40, +m.imp)), v.lastDamager ? this.g.players.get(v.lastDamager) : null, 'crash'); }
+    } else { const vm = V.maxSpeed * 1.5; v.vx = cl(m.vx, -vm, vm); v.vy = cl(m.vy, -vm, vm); v.vz = cl(m.vz, -vm, vm); if (+m.imp > 6) this.damage(v, heliCrashDamage(Math.min(40, +m.imp)), v.lastDamager ? this.g.players.get(v.lastDamager) : null, 'crash'); }
   }
 
   // ---------------------------------------------------------------- weapons

@@ -347,6 +347,31 @@ test('driver updates: bursty arrival is accepted (no rubber-banding), teleports 
   delete g.clock;
 });
 
+test('driver updates with absurd numbers (JSON carries 1e999 as Infinity) never leave the vehicle with a non-finite state', () => {
+  const g = new Game({ botsPerTeam: 0, map: 'airfield', log: quiet });
+  const INF = JSON.parse('1e999');
+  assert.equal(INF, Infinity);
+  const finite = (v) => [v.x, v.y, v.z, v.yaw, v.pitch, v.roll, v.turretYaw || 0, v.gunPitch || 0, v.vx || 0, v.vy || 0, v.vz || 0, v.speed || 0].every(Number.isFinite);
+  for (const type of ['tank', 'heli', 'jeep']) {
+    const p = soldier(g, 1, type);
+    const v = g.vehicles.list.find((x) => x.type === type && x.team === 1);
+    Object.assign(p, { x: v.x + 2, z: v.z, y: v.y });
+    g.vehicles.enter(p, v.id);
+    assert.equal(p.vehicle, v.id, `in the ${type}`);
+    const ok = { x: v.x, y: v.y, z: v.z, yaw: v.yaw, pitch: 0, roll: 0, sp: 2, st: 0, vy: 0, ty: 0.5, gp: 0, vx: 1, vz: 1 };
+    // a height or heading far outside the world is refused outright
+    const y0 = v.y, yaw0 = v.yaw;
+    g.vehicles.input(p, { ...ok, y: 1e9 }); g.vehicles.input(p, { ...ok, yaw: 1e300 }); g.vehicles.input(p, { ...ok, y: INF });
+    assert.equal(v.y, y0); assert.equal(v.yaw, yaw0);
+    // (imp last: a reported crash is allowed to wreck the driver's own vehicle)
+    for (const k of ['pitch', 'roll', 'ty', 'gp', 'sp', 'st', 'vx', 'vy', 'vz', 'imp']) for (const bad of [INF, -INF, 'x', null, {}, [1, 2]]) {
+      if (k !== 'imp') assert.ok(!v.dead, 'still in one piece');
+      g.vehicles.input(p, { ...ok, [k]: bad });
+      assert.ok(finite(v), `${type}: ${k}=${String(bad)}`);
+    }
+  }
+});
+
 test('run-overs kill enemies but spare teammates (no friendly fire)', () => {
   const g = new Game({ botsPerTeam: 0, map: 'airfield', log: quiet });
   const driver = soldier(g, 1, 'Driver'), mate = soldier(g, 1, 'Mate'), enemy = soldier(g, 2, 'Enemy');
