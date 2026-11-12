@@ -8,6 +8,7 @@
 import { STATIONS } from '../audio/RadioSongs.js';
 import { formatMoney } from '../core/util.js';
 import { Collectibles } from '../world/Collectibles.js';
+import { KeralaJobs } from '../world/KeralaJobs.js';
 
 const h = (tag, cls, html) => { const e = document.createElement(tag); if (cls) e.className = cls; if (html !== undefined) e.innerHTML = html; return e; };
 const RANK = { city: 0, town: 1, suburb: 2 };
@@ -84,6 +85,7 @@ export class Phone {
     const st = STATIONS[g.audio.radioStation];
     this._screen('PHONE', [
       { icon: '🛺', label: 'Auto-rickshaw', sub: 'a ride to any town', color: '#ffd23d', off: busy, fn: () => this.travel() },
+      { icon: '💼', label: 'Jobs', sub: this._jobs()?.working ? `working: ${this._jobs().kind === 'taxi' ? 'taxi fares' : 'parcels'}` : 'taxi fares · parcels', color: '#3dff9a', fn: () => this.jobs() },
       { icon: '🔧', label: 'Mechanic', sub: this._mechSub(), color: '#7fd3ff', off: busy, fn: () => this.mechanic() },
       { icon: '🎭', label: 'Theyyam masks', sub: m ? `${m.count}/${m.places.length} found` : 'not here', color: '#ff6a3d', fn: () => this.masks() },
       { icon: '📻', label: 'Radio', sub: st?.name, color: st?.color, fn: () => this.radio() },
@@ -102,6 +104,18 @@ export class Phone {
   }
 
   _masks() { const g = this.game; return g.world.index ? (g.masks ||= new Collectibles(g)) : null; }
+
+  _jobs() { const g = this.game; return g.world.index ? (g.jobs ||= new KeralaJobs(g)) : null; }
+
+  jobs() {
+    const g = this.game, J = this._jobs(), st = J?.stats || {}, items = [];
+    if (J?.working) items.push({ label: 'Stop working', sub: J.streak ? `streak ${J.streak}` : 'end the shift', color: '#ff3d5a', fn: () => { J.stop(); g.resume(); } });
+    const why = J?.why();
+    items.push({ label: 'Taxi fares', sub: 'pick up passengers, drive them to town', color: '#ffd23d', on: J?.kind === 'taxi', off: why || (g.player?.p?.bike ? 'No room for a passenger on a bike' : null), fn: () => { g.resume(); J.begin('taxi'); } });
+    items.push({ label: 'Parcel delivery', sub: 'against the clock; mind the goods', color: '#ff8a3d', on: J?.kind === 'parcel', off: why, fn: () => { g.resume(); J.begin('parcel'); } });
+    items.push({ label: `${st.fares || 0} fares · ${st.parcels || 0} parcels`, sub: `earned ${formatMoney(st.earned || 0)} · best streak ${st.best || 0}`, off: 'Your record', fn: () => {} });
+    this._screen('JOBS', items, () => this.home(), 'jobs run back to back · BACK to go back');
+  }
 
   _mechSub() {
     const g = this.game, v = g.player;

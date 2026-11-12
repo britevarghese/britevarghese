@@ -177,7 +177,11 @@ controller, what to check when nothing appears, and a report to copy.
   breaking glass and falling debris. The RX-7's rotary keeps the physical synth model.
 - **Phone:** press T for the phone. **Auto-rickshaw** takes you to any town around Kannur, priced by the km (on foot
   or in your car). **Mechanic** brings your car to you when you've left it behind ($150), or fixes it where it
-  stands. **Masks** shows your progress and sets the GPS to the nearest hidden mask. Also: **Radio** and **Camera**.
+  stands. **Masks** shows your progress and sets the GPS to the nearest hidden mask. **Jobs** starts taxi fares or parcel runs. Also: **Radio** and **Camera**.
+- **Jobs:** the phone's *Jobs* app starts a shift of **taxi fares** (a passenger waits at the roadside; pull up
+  beside them and they name a town a few km off: beat the clock, drive smoothly, and they tip) or **parcel runs**
+  (collect from a shop, deliver against a tighter clock; damage the car and the goods arrive broken). Jobs run back
+  to back and the pay rises with your streak.
 - **Theyyam masks:** 50 hidden collectibles, one in each of 50 towns and villages around Kannur
   (Thalassery, Mahe, Taliparamba, Mattannur...). Close by, a mask shimmers and chimes; touch it to
   collect. Each pays $500 and XP, with bonuses at 10, 25 and 50. *Career* shows the count and names a

@@ -450,3 +450,6 @@ html.touch .track-banner { top: calc(13vmin + env(safe-area-inset-top)); left: 4
 .travel-veil span { display: block; letter-spacing: 0.4em; font-size: 0.85rem; opacity: 0.7; }
 .travel-veil b { display: block; font-size: 2.6rem; letter-spacing: 0.15em; font-style: italic; margin: 0.4rem 0; color: #ffd23d; }
 .travel-veil small { opacity: 0.6; letter-spacing: 0.15em; }
+/* phone jobs (taxi fares, parcels): the same objective line and meter as a story job */
+.job-hud { position: absolute; inset: 0; pointer-events: none; z-index: 5; }
+.job-hud .job-meter { top: 12.5rem; }
