@@ -183,6 +183,9 @@ controller, what to check when nothing appears, and a report to copy.
   beside them and they name a town a few km off: beat the clock, drive smoothly, and they tip) or **parcel runs**
   (collect from a shop, deliver against a tighter clock; damage the car and the goods arrive broken). Jobs run back
   to back and the pay rises with your streak.
+- **Street events:** every few minutes of driving round Kerala something happens near you: a chain snatcher on a
+  scooter ("Kallan! Kallan!") or a stolen auto-rickshaw. Press E within a few seconds to give chase and ram the thief
+  off the road for a reward.
 - **Businesses:** ten for sale round Kannur, from a $15,000 thattukada (night food cart) in Kannur to a $350,000
   beach resort at Thottada: a green FOR SALE board by the road in each town, E to buy. They pay every 5 minutes
   of play; the Talap auto stand makes taxi fares pay 50% more and the Thavakkara couriers do the same for parcels.

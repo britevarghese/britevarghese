@@ -291,6 +291,7 @@ export class UIManager {
     }
     list.appendChild(h('div', 'chapter', `<span>JOBS · ${(J.fares || 0) + (J.parcels || 0)} DONE</span><span>phone (T) · Jobs</span>`));
     list.appendChild(h('div', 'mission' + ((J.fares || 0) >= 10 && (J.parcels || 0) >= 10 ? ' done' : ''), `<div class="mt"><b>Taxi fares ${J.fares || 0} · parcels ${J.parcels || 0}</b><span>earned ${formatMoney(J.earned || 0)} · best streak ${J.best || 0}</span></div><div class="md">Ten of each count toward completion.</div>`));
+    list.appendChild(h('div', 'mission', `<div class="mt"><b>Street events</b><span>${g.save.data.events || 0} thieves stopped</span></div><div class="md">Chain snatchers and stolen autos turn up while you drive about: E to give chase.</div>`));
   }
 
   showCareer(onBack) {
