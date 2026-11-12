@@ -128,12 +128,18 @@ class Pieces {
     this.next = 0;
     this.free = [];
     for (let i = POOL - 1; i >= 0; i--) this.free.push(staticCount + i);
+    // (drawn up to the last slot in use: the pool's spare slots, hidden till a piece is thrown, were drawn every frame
+    // all the same, in the view and the shadows)
+    this.mesh.count = 0; this.mesh.visible = false;
     group.add(this.mesh);
   }
+  /** Slot i taken: drawn from now on. */
+  use(i) { if (i >= this.mesh.count) { this.mesh.count = i + 1; this.mesh.visible = true; } }
   put(matrix, color) {
     const i = this.next++;
     this.mesh.setMatrixAt(i, matrix);
     if (color) this.mesh.instanceColor.setXYZ(i, ...color);
+    this.use(i);
     return i;
   }
   hide(i) { _m.makeScale(0, 0, 0); this.mesh.setMatrixAt(i, _m); this.dirty = true; }
@@ -230,6 +236,7 @@ export class BreakView {
       slot = this.bodies[old].slot;
       this.bodies.splice(old, 1);
     }
+    P.use(slot);
     if (color) P.mesh.instanceColor.setXYZ(slot, ...color);
     P.mesh.instanceColor.needsUpdate = true;
     const sp = Math.min(14, e.v), k = 0.55 + Math.random() * 0.5;
