@@ -265,6 +265,28 @@ export class UIManager {
   }
 
   // ------------------------------------------------------------------ career
+  // Kerala: how much of the game is done (story, races, masks, jobs), and the races and jobs themselves
+  completion() {
+    const g = this.game, sd = g.save.data.story?.done || {}, rc = g.save.data.racesCompleted || {}, J = g.save.data.jobs || {};
+    const story = STORY.length ? STORY.filter((m) => sd[m.id]).length / STORY.length : 0;
+    const evs = g.races?.events || [], races = evs.length ? evs.filter((e) => rc[e.def.id] != null).length / evs.length : 0;
+    const masks = Object.keys(g.save.data.masks || {}).length / 50;
+    const jobs = (Math.min(10, J.fares || 0) + Math.min(10, J.parcels || 0)) / 20;
+    return { pct: Math.floor((story * 0.5 + races * 0.2 + masks * 0.2 + jobs * 0.1) * 100), story, races, masks, jobs };
+  }
+  _keralaCareer(box, list) {
+    const g = this.game, C = this.completion(), rc = g.save.data.racesCompleted || {}, J = g.save.data.jobs || {};
+    box.insertBefore(h('div', 'career-next', `COMPLETION · <b>${C.pct}%</b> · story ${Math.round(C.story * 100)}% · races ${Math.round(C.races * 100)}% · masks ${Math.round(C.masks * 100)}% · jobs ${Math.round(C.jobs * 100)}%`), box.querySelector('.career-next') || null);
+    const evs = g.races?.events || [];
+    list.appendChild(h('div', 'chapter', `<span>RACES · ${evs.filter((e) => rc[e.def.id] != null).length}/${evs.length}</span><span>the yellow markers on the map · E to enter</span>`));
+    for (const e of evs) {
+      const t = rc[e.def.id], f = g.focusState, km = Math.hypot(e.start.x - f.x, e.start.z - f.z) / 1000;
+      list.appendChild(h('div', 'mission' + (t != null ? ' done' : ''), `<div class="mt"><b>${t != null ? '✓ ' : ''}${e.def.name}</b><span>${t != null ? `BEST ${formatTime(t)}` : `${(RACE_TYPE_NAMES[e.def.type] || e.def.type).toUpperCase()} · ${km < 10 ? km.toFixed(1) : Math.round(km)} km`}</span></div><div class="md">${e.def.desc}</div>`));
+    }
+    list.appendChild(h('div', 'chapter', `<span>JOBS · ${(J.fares || 0) + (J.parcels || 0)} DONE</span><span>phone (T) · Jobs</span>`));
+    list.appendChild(h('div', 'mission' + ((J.fares || 0) >= 10 && (J.parcels || 0) >= 10 ? ' done' : ''), `<div class="mt"><b>Taxi fares ${J.fares || 0} · parcels ${J.parcels || 0}</b><span>earned ${formatMoney(J.earned || 0)} · best streak ${J.best || 0}</span></div><div class="md">Ten of each count toward completion.</div>`));
+  }
+
   showCareer(onBack) {
     this.clear();
     const g = this.game, P = g.progress;
@@ -277,16 +299,19 @@ export class UIManager {
     // next car unlocks by level
 
     const list = h('div', 'career-list');
-    // empire: properties and odd jobs
-    const E = g.empire, owned = PROPERTIES.filter((p) => E.owns(p.id));
-    const perCycle = owned.reduce((a, p) => a + (p.income || 0), 0);
-    list.appendChild(h('div', 'chapter', `<span>EMPIRE · ${owned.length}/${PROPERTIES.length} PROPERTIES</span><span>${formatMoney(perCycle)} / ${INCOME_PERIOD / 60} min · earned ${formatMoney(E.data.earned || 0)}</span>`));
-    for (const p of PROPERTIES) {
-      const own = E.owns(p.id);
-      list.appendChild(h('div', 'mission' + (own ? ' done' : ''), `<div class="mt"><b>${own ? '✓ ' : ''}${p.name}</b><span>${own ? 'OWNED' : formatMoney(p.price)}</span></div><div class="md">${p.kind === 'safehouse' ? 'Safehouse · respawn, rest & save' : `Business · ${formatMoney(p.income)} every ${INCOME_PERIOD / 60} min`} · ${p.blurb}</div>`));
+    if (g.world.kerala) this._keralaCareer(box, list);
+    else {
+      // empire: properties and odd jobs
+      const E = g.empire, owned = PROPERTIES.filter((p) => E.owns(p.id));
+      const perCycle = owned.reduce((a, p) => a + (p.income || 0), 0);
+      list.appendChild(h('div', 'chapter', `<span>EMPIRE · ${owned.length}/${PROPERTIES.length} PROPERTIES</span><span>${formatMoney(perCycle)} / ${INCOME_PERIOD / 60} min · earned ${formatMoney(E.data.earned || 0)}</span>`));
+      for (const p of PROPERTIES) {
+        const own = E.owns(p.id);
+        list.appendChild(h('div', 'mission' + (own ? ' done' : ''), `<div class="mt"><b>${own ? '✓ ' : ''}${p.name}</b><span>${own ? 'OWNED' : formatMoney(p.price)}</span></div><div class="md">${p.kind === 'safehouse' ? 'Safehouse · respawn, rest & save' : `Business · ${formatMoney(p.income)} every ${INCOME_PERIOD / 60} min`} · ${p.blurb}</div>`));
+      }
+      const jd = E.data.jobs || {};
+      list.appendChild(h('div', 'mission', `<div class="mt"><b>Odd jobs</b><span>${JOBS.map((j) => `${j.label} ${jd[j.id] || 0}`).join(' · ')}</span></div><div class="md">Taxi fares, courier runs and car exports: the yellow, green and orange stands on the map.</div>`));
     }
-    const jd = E.data.jobs || {};
-    list.appendChild(h('div', 'mission', `<div class="mt"><b>Odd jobs</b><span>${JOBS.map((j) => `${j.label} ${jd[j.id] || 0}`).join(' · ')}</span></div><div class="md">Taxi fares, courier runs and car exports: the yellow, green and orange stands on the map.</div>`));
     // story campaign
     const sd = g.save.data.story?.done || {};
     const avail = g.story?.available() || {};

@@ -189,7 +189,8 @@ controller, what to check when nothing appears, and a report to copy.
 - **Theyyam masks:** 50 hidden collectibles, one in each of 50 towns and villages around Kannur
   (Thalassery, Mahe, Taliparamba, Mattannur...). Close by, a mask shimmers and chimes; touch it to
   collect. Each pays $500 and XP, with bonuses at 10, 25 and 50. *Career* shows the count and names a
-  town where one is still hidden.
+  town where one is still hidden. In Kerala, *Career* also shows your **completion %** (story 50%, races 20%,
+  masks 20%, jobs 10%), every race with its distance or your best time, and your jobs record.
 - **Radio:** four stations of original, fully synthesized music, each with its own songs:
   NIGHTSHIFT 99.1 (synthwave), Kayal FM 92.7 (Kerala folk fusion: tabla, chenda, a tanpura drone and a
   plucked lead), Kuthu 104 (mass beats: dhol, claps and a nadaswaram-style reed) and Monsoon Lo-fi 88.5
