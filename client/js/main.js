@@ -266,9 +266,20 @@ class Game {
     });
     n.on('ev', ({ e }) => this.#event(e));
     n.on('close', () => {
-      if (this.mapChanging) return;
+      if (this.mapChanging || this.reconnecting) return;
+      this.reconnecting = true;
       showError('Disconnected from server — reconnecting…');
-      setTimeout(() => { location.href = `/?room=${encodeURIComponent(this.room.id)}&autojoin=1`; }, 2500);
+      // back into the same room once the server answers again. (Not a blind reload: while the server restarts — a
+      // redeploy takes a minute or two — that would strand the player on the browser's own error page.)
+      const back = `/?room=${encodeURIComponent(this.room?.id || '')}&autojoin=1`, t0 = performance.now();
+      const probe = async () => {
+        let up = false;
+        try { up = (await fetch('/api/health', { cache: 'no-store' })).ok; } catch { /* still down */ }
+        if (up) { location.href = back; return; }
+        if (performance.now() - t0 > 300000) { showError('Still no answer from the server — reload the page to try again.'); return; }
+        setTimeout(probe, 2500);
+      };
+      setTimeout(probe, 2000);
     });
   }
 
