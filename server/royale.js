@@ -4,7 +4,7 @@
 import { Game, botName } from './game.js';
 import { BotBrain } from './bots.js';
 import { WEAPONS } from '../shared/weapons.js';
-import { ROYALE, LOOT, rollLoot, RING_PHASES, ringAt, planeLine, stepAir } from '../shared/royale.js';
+import { ROYALE, LOOT, rollLoot, RING_PHASES, ringAt, planeLine, stepAir, GUN_RANK } from '../shared/royale.js';
 import { stepCharacter } from '../shared/world.js';
 import { angleDiff, clamp } from '../shared/util.js';
 
@@ -165,10 +165,10 @@ export class RoyaleGame extends Game {
     for (const d of this.drops) {
       if (d.done || now < d.land) continue;
       d.done = true;
-      const items = [Math.random() < 0.5 ? 'sniper' : 'ar', 'armor', 'armor', 'med', 'med', 'nade', 'ammo', 'ammo'];
+      const items = [['sniper', 'ar', 'lmg'][Math.floor(Math.random() * 3)], 'armor', 'armor', 'med', 'med', 'nade', 'ammo', 'ammo'];
       items.forEach((type, i) => {
         const a = (i / items.length) * Math.PI * 2;
-        this.#addLoot(type, d.x + Math.cos(a) * 1.6, d.z + Math.sin(a) * 1.6, d.gy + 0.4, type === 'ar' || type === 'sniper' ? [WEAPONS[type].mag, WEAPONS[type].mag * 4] : undefined);
+        this.#addLoot(type, d.x + Math.cos(a) * 1.6, d.z + Math.sin(a) * 1.6, d.gy + 0.4, LOOT[type].kind === 'weapon' ? [WEAPONS[type].mag, WEAPONS[type].mag * 4] : undefined);
       });
     }
     this.drops = this.drops.filter((d) => !d.done || now - d.land < 5000);
@@ -491,7 +491,7 @@ class RoyaleBrain extends BotBrain {
   #want(it) {
     const p = this.p, L = LOOT[it.type];
     switch (L.kind) {
-      case 'weapon': { const def = WEAPONS[L.w], cur = p.weapons[def.slot]; if (!cur) return 3; if (cur.id === L.w) return cur.reserve < def.reserve * 0.5 ? 1 : 0; return L.w === 'ar' && cur.id !== 'ar' ? 1.5 : 0; }
+      case 'weapon': { const def = WEAPONS[L.w], cur = p.weapons[def.slot]; if (!cur) return 3; if (cur.id === L.w) return cur.reserve < def.reserve * 0.5 ? 1 : 0; return (GUN_RANK[L.w] ?? 0) > (GUN_RANK[cur.id] ?? 0) ? 1.5 : 0; }
       case 'ammo': return p.weapons.some((w) => w && w.reserve < WEAPONS[w.id].mag * 2) ? 1.6 : 0;
       case 'armor': return p.armor < 100 ? 2 : 0;
       case 'med': return p.meds < 2 ? 1.4 : p.meds < ROYALE.maxMeds ? 0.4 : 0;

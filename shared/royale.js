@@ -55,13 +55,17 @@ export const LOOT = {
   ar: { kind: 'weapon', w: 'ar', name: 'AR-15 Carbine', model: 'ar' },
   sniper: { kind: 'weapon', w: 'sniper', name: 'M-38 Bolt Rifle', model: 'sniper' },
   pistol: { kind: 'weapon', w: 'pistol', name: 'P-17 Pistol', model: 'pistol' },
+  smg: { kind: 'weapon', w: 'smg', name: 'MP5 Submachine Gun', model: 'smg' },
+  lmg: { kind: 'weapon', w: 'lmg', name: 'M249 Light MG', model: 'lmg' },
   ammo: { kind: 'ammo', name: 'Ammo box', model: 'ammo_box' },
   armor: { kind: 'armor', name: 'Armor plate kit', model: 'armor', amount: 50 },
   med: { kind: 'med', name: 'Med kit', model: 'medical_box' },
   nade: { kind: 'nade', name: 'Frag grenade', model: 'grenade' },
 };
 // weighted table for floor loot
-export const LOOT_TABLE = [['ar', 14], ['sniper', 6], ['pistol', 6], ['ammo', 24], ['armor', 14], ['med', 16], ['nade', 10]];
+export const LOOT_TABLE = [['ar', 11], ['smg', 8], ['lmg', 3], ['sniper', 6], ['pistol', 5], ['ammo', 24], ['armor', 14], ['med', 16], ['nade', 10]];
+// what a soldier would rather carry (bots pick up the better gun)
+export const GUN_RANK = { pistol: 0, smg: 1, sniper: 1.2, lmg: 1.6, ar: 2 };
 export function rollLoot(rnd) {
   const total = LOOT_TABLE.reduce((s, [, w]) => s + w, 0);
   let r = rnd() * total;

@@ -74,7 +74,7 @@ export class RoyaleClient {
   // ---------------------------------------------------------------- loot models
   async #loadProtos() {
     const A = this.g.assets;
-    for (const w of ['ar', 'sniper', 'pistol']) this.protos[w] = { weapon: await A.loadWeapon(WEAPONS[w].visual, { tps: true }), key: WEAPONS[w].visual };
+    for (const w of ['ar', 'sniper', 'pistol', 'smg', 'lmg']) this.protos[w] = { weapon: await A.loadWeapon(WEAPONS[w].visual, { tps: true }), key: WEAPONS[w].visual };
     for (const [model, key] of Object.entries(PROP_KEY)) {
       try { this.protos[model] = { gltf: await A.loadProp(key) }; } catch (e) { console.warn('[royale] loot model', key, e); }
     }
