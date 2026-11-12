@@ -587,6 +587,13 @@ export class UIManager {
       d.onclick = () => { g.setGPS(ev.start.x, ev.start.z); this.toast(`GPS set: ${ev.def.name}`); };
       list.appendChild(d);
     }
+    // Kerala businesses: for sale (green) or yours (blue)
+    for (const b of g.biz?.list || []) {
+      const own = g.biz.owns(b.id), sp = g.biz.spot(b);
+      const d = h('div', '', `<b style="color:${own ? '#37e2ff' : '#3dff9a'}">${b.name}</b> <span style="color:var(--dim)">${own ? 'YOURS' : 'FOR SALE'}</span> <span style="color:var(--ok)">${own ? formatMoney(b.income) + ' / 5 min' : formatMoney(b.price)}</span>`);
+      d.onclick = () => { g.setGPS(sp.x, sp.z); this.toast(`GPS set: ${b.name}`); };
+      list.appendChild(d);
+    }
     legend.appendChild(list);
     legend.appendChild(h('div', 'hint', document.documentElement.classList.contains('touch') ? 'Pinch to zoom · drag to move · tap the map or a place to set GPS' : 'Scroll to zoom · drag to move · click the map or a place to set GPS · M / ESC to close'));
     s.append(canvas, legend);
@@ -704,6 +711,7 @@ export class UIManager {
       for (const u of g.police.units) dot(u.vehicle.state.x, u.vehicle.state.z, 4, '#ff3040');
       if (!g.story?.active) for (const [gid, m] of Object.entries(g.story?.available() || {})) { const gv = g.story._giver(gid); dot(gv.x, gv.z, 8, CAST[gid].color, `${CAST[gid].name}: ${m.title}`, 3); }
       for (const b of g.empire?.blips() || []) dot(b.x, b.z, 5, b.color, b.label, 2);
+      for (const b of g.biz?.list || []) { const sp = g.biz.spot(b); dot(sp.x, sp.z, 5, g.biz.owns(b.id) ? '#37e2ff' : '#3dff9a', b.name, 1); }
       for (const b of g.story?.active ? g.story.blips() : []) dot(b.x, b.z, 6, b.color);
       putLabels();
       // friends: a big marker in their colour pointing where they head, their name and distance on a tag; the one
