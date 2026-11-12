@@ -295,7 +295,7 @@ class Game {
           const m = muzzle || new THREE.Vector3(...e.o), dir = new THREE.Vector3(e.e[0] - m.x, e.e[1] - m.y, e.e[2] - m.z).normalize();
           this.effects.launcherShot(m, m.clone().addScaledVector(dir, -1.02), dir, e.e, Math.max(0.02, e.tf ?? 0.5));
           this.audio.launcher(from);
-          this.#nearMiss(e.o, e.e, Math.max(0.02, e.tf ?? 0.5), e.w);
+          this.#nearMiss(e.o, e.e, Math.max(0.02, e.tf ?? 0.5), e.w, this.#isFoe(e.id));
           const sh = P.info(e.id); if (sh) { sh.spottedUntil = performance.now() + 4000; sh.rig?.kick(!!e.l); }
           break;
         }
@@ -307,7 +307,7 @@ class Game {
         if (muzzle) this.effects.muzzleFlash(muzzle, dir, e.w === 'sniper');
         this.audio.gunshot(from, e.w);
         if (e.s !== 'none') this.#scheduleImpact(e.b, tf, () => { this.effects.impact(e.e, e.n, e.s); this.audio.impact(e.e, e.s); });
-        this.#nearMiss(e.o, e.e, tf, e.w);
+        this.#nearMiss(e.o, e.e, tf, e.w, this.#isFoe(e.id));
         const sh = P.info(e.id); if (sh) { sh.spottedUntil = performance.now() + 2500; sh.rig?.kick(!!e.l); }
         // close enough to hear the action: a bolt being worked, brass bouncing off the ground
         const dl = sh ? Math.hypot(sh.x - this.camera.position.x, sh.y - this.camera.position.y, sh.z - this.camera.position.z) : 1e9;
@@ -360,7 +360,12 @@ class Game {
         if (def && p.alive && Math.hypot(p.x - this.camera.position.x, p.z - this.camera.position.z) < 25) this.audio.reload(def.id, e.dur / 1000, empty, [p.x, p.y + 1.2, p.z]);
       } break;
       case 'ammo': if (e.w) e.w.forEach((w, i) => { const l = this.me.weapons[i]; if (l && w && l.id === w.id) { l.mag = w.mag; l.reserve = w.reserve; } }); break;
-      case 'boom': this.effects.explosion([e.x, e.y, e.z], this.camera.position); this.audio.explosion([e.x, e.y, e.z]); break;
+      case 'boom': {
+        this.effects.explosion([e.x, e.y, e.z], this.camera.position); this.audio.explosion([e.x, e.y, e.z]);
+        const db = this.me.alive ? Math.hypot(e.x - this.me.s.x, e.y - this.me.s.y, e.z - this.me.s.z) : 99;
+        if (db < 18) this.me.suppress(0.7 * (1 - db / 18));
+        break;
+      }
       case 'bounce': this.audio.nadeBounce([e.x, e.y, e.z]); break;
       case 'flag': {
         const mine = e.owner === this.myTeam, lost = e.prev === this.myTeam;
@@ -511,7 +516,10 @@ class Game {
   #cancelImpact(id) { const h = this.pendingImpacts?.get(id); if (h) { clearTimeout(h); this.pendingImpacts.delete(id); } }
 
   // supersonic crack when a bullet passes close by (it arrives before the muzzle report from far away)
-  #nearMiss(o, e, tf, w) {
+  // (friendly rounds crack past too, but only the enemy's pin you down)
+  #isFoe(id) { if (this.royale) return true; const tm = this.board.get(id)?.tm ?? this.players.info(id)?.team; return tm !== undefined && tm !== this.myTeam; }
+
+  #nearMiss(o, e, tf, w, foe = true) {
     if (!this.me.alive) return;
     const s = this.me.s, px = s.x, py = s.y + 1.3, pz = s.z;
     const dx = e[0] - o[0], dy = e[1] - o[1], dz = e[2] - o[2], L2 = dx * dx + dy * dy + dz * dz;
@@ -519,7 +527,7 @@ class Game {
     const k = Math.max(0, Math.min(1, ((px - o[0]) * dx + (py - o[1]) * dy + (pz - o[2]) * dz) / L2));
     const d = Math.hypot(o[0] + dx * k - px, o[1] + dy * k - py, o[2] + dz * k - pz);
     if (d > 4 || k < 0.02) return;
-    setTimeout(() => this.audio.crack([o[0] + dx * k, o[1] + dy * k, o[2] + dz * k], w, d), k * tf * 1000);
+    setTimeout(() => { this.audio.crack([o[0] + dx * k, o[1] + dy * k, o[2] + dz * k], w, d); if (foe) this.me.suppress((1 - d / 4) * (w === 'sniper' ? 0.5 : 0.22)); }, k * tf * 1000);
   }
 
   // my own launcher round: flash, back blast behind me, the round's flight (the blast where it lands comes from the
@@ -761,6 +769,9 @@ class Game {
       if (this.mmT > 0.083) { this.mmT = 0; this.hud.minimap(me.s, me.yaw, this.players.map, this.myId, this.lastSnap.f, this.royale, V); }
       this.revive.update(dt, cam);
       this.markers.update(cam);
+      // suppressed: the edges of the view close in
+      const sv = me.alive ? Math.round(me.supp * 20) / 20 : 0;
+      if (sv !== this._suppV) { this._suppV = sv; $('suppress').style.opacity = sv * 0.85; }
       if ((this.sqT = (this.sqT || 0) + dt) > 0.25 && !this.royale) {
         this.sqT = 0;
         const rows = [...this.board.values()].filter((r) => this.hud.squadIds?.has(r.id)).sort((a, b) => a.id - b.id);

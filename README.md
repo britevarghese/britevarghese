@@ -230,6 +230,10 @@ downed: mouse looks around, **hold Space** (touch: tap **REDEPLOY**) to give up 
 * **End of round:** VICTORY / DEFEAT with the tickets left and the round's length, the top five of each team (and
   your own row), ribbons for the MVP and the best Lifesaver (revives), Flag Runner (captures), Spotter (spot
   assists), Tank Buster (vehicles) and Marksman (longest kill), your own round, and a countdown to the next.
+* **Suppression:** enemy rounds cracking past you (within ~4 m) and blasts close by pin you down: the edges of the
+  view darken and close in, your spread widens and the aim wanders, wearing off a couple of seconds after the fire
+  stops (a sniper round counts for more; friendly fire cracks past but doesn't pin you). Bots flinch and get down the
+  same way. Pinning someone down who a teammate then kills is a +15 suppression assist.
 * **Squad orders:** the squad leader (its first player) aims at a flag and presses **Q** (touch: **SPOT**) with no
   enemy under the crosshair: ATTACK it if it isn't ours, DEFEND it if it is. The squad's bots go there (after the
   fight they're in); the order shows as a marker over the flag with its distance, a dashed outline on it in the flag

@@ -338,7 +338,7 @@ export class HUD {
     const label = {
       kill: 'ENEMY KILLED', down: 'ENEMY DOWNED', headshot: 'HEADSHOT BONUS', assist: 'KILL ASSIST', spot: 'SPOT ASSIST',
       revive: 'REVIVE', capture: `FLAG ${flag || ''} CAPTURED`, neutralize: `FLAG ${flag || ''} NEUTRALIZED`, heal: 'HEAL',
-      resupply: 'RESUPPLY', squadspawn: 'SQUAD SPAWN', order: 'ATTACK ORDER BONUS', defend: 'DEFEND ORDER BONUS', vehicle: `${vt ? String(vt).toUpperCase() : 'VEHICLE'} DESTROYED`,
+      resupply: 'RESUPPLY', squadspawn: 'SQUAD SPAWN', order: 'ATTACK ORDER BONUS', defend: 'DEFEND ORDER BONUS', suppress: 'SUPPRESSION ASSIST', vehicle: `${vt ? String(vt).toUpperCase() : 'VEHICLE'} DESTROYED`,
     }[why] || String(why).toUpperCase();
     const who = name && ['kill', 'down', 'assist', 'spot', 'revive', 'squadspawn'].includes(why) ? ` <i>${esc(name)}</i>` : '';
     const row = document.createElement('div');

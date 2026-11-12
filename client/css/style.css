@@ -678,3 +678,6 @@ body.deploying #scorefeed, body.downed #scorefeed { display: none; }
 .flag.ordered::after { content: ''; position: absolute; inset: -6px; border: 2px dashed #f2d21b; animation: none; }
 .flag.ordered.defend::after { border-color: #7dff8a; }
 #squadpanel .sqn b { font-weight: 800; } #squadpanel .sqn b.attack { color: #f2d21b; } #squadpanel .sqn b.defend { color: #7dff8a; }
+/* suppression: the edges of the view darken and close in while rounds crack past */
+#suppress { position: fixed; inset: 0; pointer-events: none; z-index: 2; opacity: 0; transition: opacity .25s; background: radial-gradient(ellipse at center, rgba(0,0,0,0) 26%, rgba(10,10,12,.45) 58%, rgba(0,0,0,.92) 100%); }
+body.deploying #suppress, body.downed #suppress { display: none; }

@@ -364,6 +364,9 @@ export class Game {
         const a = id !== killer.id && dmg >= 20 && this.players.get(id);
         if (a && a.team === killer.team) this.award(a, Math.min(dmg, 90), 'assist', { v: p.id });
       }
+      // pinned down by someone else's fire just before: a suppression assist (unless his damage already earned one)
+      const sb = p.suppressedBy, sup = sb && sb.until > this.now() && sb.id !== killer.id && this.players.get(sb.id);
+      if (sup && sup.team === killer.team && !((p.dmgBy?.get(sup.id) || 0) >= 20)) this.award(sup, 15, 'suppress', { v: p.id });
       // killing near the flag his squad was ordered to defend
       const o = this.squadOrder(killer), of = o?.kind === 'defend' && this.flags.find((x) => x.id === o.flag);
       if (of && [killer, p].some((q) => Math.hypot(q.x - of.x, q.z - of.z) < of.r + 15)) this.award(killer, 25, 'defend', { f: of.id });
@@ -371,7 +374,7 @@ export class Game {
       const sp = p.spottedTeam === killer.team && p.spottedUntil > this.now() && p.spottedBy !== killer.id && this.players.get(p.spottedBy);
       if (sp) this.award(sp, 25, 'spot', { v: p.id });
     }
-    p.spottedUntil = 0; p.dmgBy = null;
+    p.spottedUntil = 0; p.dmgBy = null; p.suppressedBy = null;
     this.emit({ t: 'kill', v: p.id, k: killer ? killer.id : 0, w: weapon, hs: p.lastHeadshot || false, kx: killer?.x, ky: killer?.y, kz: killer?.z, ...(downable && { dn: 1 }) });
   }
 
@@ -611,18 +614,20 @@ export class Game {
     return true;
   }
 
-  // bots an enemy round passes within 3 m of (head / chest height, more than 3 m from the muzzle) feel it crack past:
-  // suppression (BotBrain.onSuppressed). A round that hits them is handled as damage instead.
+  // soldiers an enemy round passes within 3 m of (head / chest height, more than 3 m from the muzzle) feel it crack
+  // past: suppressed. Bots flinch and get down (BotBrain.onSuppressed); for everyone the shooter is remembered for a
+  // few seconds, and if a teammate of his makes the kill meanwhile, that's a suppression assist. (Players feel it on
+  // their own screens from the shot events.) A round that hits them is handled as damage instead.
   #suppress(p, o, end) {
     const dx = end.x - o.x, dy = end.y - o.y, dz = end.z - o.z, L2 = dx * dx + dy * dy + dz * dz;
     if (L2 < 1) return;
     for (const q of this.players.values()) {
-      if (!q.brain || !q.alive || q.vehicle || !this.isEnemy(p, q)) continue;
+      if (!q.alive || q.vehicle || !this.isEnemy(p, q)) continue;
       const cy = q.y + (q.stance === 'prone' ? 0.3 : q.stance === 'crouch' ? 0.9 : 1.3);
       const t = ((q.x - o.x) * dx + (cy - o.y) * dy + (q.z - o.z) * dz) / L2;
       if (t <= 0 || t > 1 || t * Math.sqrt(L2) < 3) continue;
       const d = Math.hypot(o.x + dx * t - q.x, o.y + dy * t - cy, o.z + dz * t - q.z);
-      if (d > 0.35 && d < 3) q.brain.onSuppressed?.(p, d);
+      if (d > 0.35 && d < 3) { q.brain?.onSuppressed?.(p, d); q.suppressedBy = { id: p.id, until: this.now() + 5000 }; }
     }
   }
 

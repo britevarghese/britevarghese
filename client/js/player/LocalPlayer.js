@@ -19,6 +19,7 @@ export class LocalPlayer {
     this.slot = 0; this.weapons = []; this.grenades = 0;
     this.recoil = { p: 0, y: 0 };
     this.sway = { p: 0, y: 0, t: 0, held: 0 }; // scope breathing sway (radians), SHIFT holds breath
+    this.supp = 0; this.suppAt = 0; // suppression: rounds cracking past / blasts close by (0 calm .. 1 pinned down)
     this.bloom = 0;
     this.nextFire = 0; this.reloadUntil = 0; this.reloadStart = 0; this.reloadDur = 0;
     this.thirdPerson = false;
@@ -262,10 +263,19 @@ export class LocalPlayer {
       const hold = k.has('ShiftLeft') && W.held < 4 && !W.gasp;
       W.held = hold ? W.held + dt : Math.max(0, W.held - dt * 1.5);
       if (W.held >= 4) W.gasp = 2.5; if (W.gasp) W.gasp = Math.max(0, W.gasp - dt);
-      const amp = (hold ? 0.00012 : W.gasp ? 0.0026 : 0.001) * (s.stance === 'prone' ? 0.35 : s.stance === 'crouch' ? 0.7 : 1) * (1 + Math.min(1, hs / 2));
+      const amp = (hold ? 0.00012 : W.gasp ? 0.0026 : 0.001) * (s.stance === 'prone' ? 0.35 : s.stance === 'crouch' ? 0.7 : 1) * (1 + Math.min(1, hs / 2)) * (1 + this.supp * 3);
       W.p = damp(W.p, (Math.sin(W.t * 1.25) + 0.35 * Math.sin(W.t * 3.1)) * amp, 6, dt);
       W.y = damp(W.y, (Math.cos(W.t * 0.85) + 0.3 * Math.sin(W.t * 2.3)) * amp, 6, dt);
+    } else if (this.supp > 0.05) {
+      // suppressed: the aim wanders a little (a flinch, the heart going)
+      W.t += dt;
+      W.p = damp(W.p, (Math.sin(W.t * 2.3) + 0.5 * Math.sin(W.t * 5.1)) * 0.004 * this.supp, 6, dt);
+      W.y = damp(W.y, (Math.cos(W.t * 1.7) + 0.4 * Math.sin(W.t * 4.3)) * 0.004 * this.supp, 6, dt);
+      W.held = 0;
     } else { W.p = damp(W.p, 0, 8, dt); W.y = damp(W.y, 0, 8, dt); W.held = 0; }
+    // suppression wears off once the fire stops
+    if (this.supp > 0 && performance.now() - this.suppAt > 1200) this.supp = Math.max(0, this.supp - dt * 0.4);
+    if (!this.alive) this.supp = 0;
     // recoil recovery & bloom
     const rec = def ? def.recoil.recover : 8;
     this.recoil.p = damp(this.recoil.p, 0, this.mouse.l && def?.auto ? rec * 0.25 : rec, dt);
@@ -284,10 +294,13 @@ export class LocalPlayer {
     this.g.net.send({ t: 'in', x: +s.x.toFixed(3), y: +s.y.toFixed(3), z: +s.z.toFixed(3), yaw: +this.yaw.toFixed(4), pitch: +this.pitch.toFixed(4), st: s.stance, ads, sp: sprint, vx: +s.vx.toFixed(2), vz: +s.vz.toFixed(2), og: s.onGround, sl: this.slot, dr: s.air || 0 });
   }
 
+  // a round cracked past / something blew up close by: harder to keep the sights steady for a few seconds
+  suppress(a) { this.supp = Math.min(1, this.supp + a); this.suppAt = performance.now(); }
+
   spread(def) {
     const hs = Math.hypot(this.s.vx, this.s.vz);
     const base = this.adsBlend > 0.8 ? def.spreadAds : def.spreadHip * (this.s.stance === 'crouch' ? 0.75 : this.s.stance === 'prone' ? 0.55 : 1);
-    return (base + def.spreadMove * Math.min(1, hs / 4) * (this.adsBlend > 0.8 ? 0.3 : 1) + this.bloom * (this.adsBlend > 0.8 ? 0.3 : 1) + (this.s.onGround ? 0 : 4)) * (Math.PI / 180);
+    return (base * (1 + this.supp * 0.8) + this.supp * 0.9 + def.spreadMove * Math.min(1, hs / 4) * (this.adsBlend > 0.8 ? 0.3 : 1) + this.bloom * (this.adsBlend > 0.8 ? 0.3 : 1) + (this.s.onGround ? 0 : 4)) * (Math.PI / 180);
   }
 
   fire(w, def) {

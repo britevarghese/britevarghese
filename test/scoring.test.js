@@ -70,3 +70,26 @@ test('the end of the round carries a summary of every soldier round', () => {
   advance(g, 15500);
   assert.equal(a.score, 0); assert.deepEqual(a.stats, {});
 });
+
+test('rounds cracking past a soldier pin him down: if a teammate kills him soon after, the shooter gets a suppression assist', () => {
+  const g = mkGame();
+  // open, level ground
+  let L = null;
+  for (let k = 0; k < 4000 && !L; k++) {
+    const x = (Math.random() - 0.5) * g.map.PLAY_HALF, z = (Math.random() - 0.5) * g.map.PLAY_HALF, y = g.world.supportHeight(x, z, 500), y2 = g.world.supportHeight(x + 40, z, 500);
+    if (Math.abs(y - g.map.groundHeight(x, z)) > 0.05 || Math.abs(y - y2) > 0.3) continue;
+    if ([0, 1.5, -1.5].every((oz) => g.world.lineOfSight({ x, y: y + 1.6, z }, { x: x + 44, y: y2 + 1.3, z: z + oz }))) L = { x, z, y, y2 };
+  }
+  assert.ok(L, 'open ground');
+  const a = soldier(g, 1, 'assault', 'A'), k = soldier(g, 1, 'assault', 'K'), v = soldier(g, 2, 'assault', 'V');
+  Object.assign(a, { x: L.x, z: L.z, y: L.y }); Object.assign(v, { x: L.x + 40, z: L.z, y: L.y2 });
+  // a round 1.5 m past his chest
+  a.slot = 0; a.nextFire = 0; a.reloadUntil = 0; a.weapons[0].mag = 30;
+  const eye = [a.x, a.y + 1.6, a.z], tgt = [v.x + 4, v.y + 1.3, v.z + 1.65];
+  const d = tgt.map((c, i) => c - eye[i]), n = Math.hypot(...d);
+  assert.ok(g.tryFire(a, eye, d.map((c) => c / n)));
+  assert.equal(v.suppressedBy?.id, a.id, 'pinned down');
+  g.flushEvents();
+  g.damage(v, 200, k, 'ar', true);
+  assert.deepEqual(scores(g, a), [['suppress', 15]]);
+});
