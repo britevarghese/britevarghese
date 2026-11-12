@@ -786,7 +786,8 @@ export class Game {
   // three slots: progress, the car, where you are (on foot or at the wheel), the time of day and the weather
   saveSlots() { return [0, 1, 2].map((i) => Storage.load('slot' + i, null)); }
   saveSlot(i) {
-    const f = this.focusState;
+    // (aboard a boat: where the car was left - a load puts the car down at the saved spot, and that one is water)
+    const f = this.boatRide?.active ? this.player.state : this.focusState;
     this._persistPosition();
     const slot = {
       t: Date.now(), place: this.world.districtAt?.(f.x, f.z)?.name || '', cash: this.save.data.cash, level: this.progress?.info?.level || 1,
