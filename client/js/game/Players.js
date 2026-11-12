@@ -6,7 +6,16 @@ import { WeaponModel } from '../weapons/WeaponModel.js';
 import { WEAPONS } from '/shared/weapons.js';
 
 const STANCES = ['stand', 'crouch', 'prone'];
-const _sphere = new THREE.Sphere(new THREE.Vector3(), 1.6), _m4 = new THREE.Matrix4();
+const _sphere = new THREE.Sphere(new THREE.Vector3(), 1.6), _m4 = new THREE.Matrix4(), _dv = new THREE.Vector3();
+
+// Move a character's body to (x, y, z) between full rig updates, carrying the weapon with it: the weapon lives in
+// world space (placed against the hands on each rig update), so on frames the LOD skips it would otherwise trail
+// behind a running soldier.
+function moveBody(r, x, y, z) {
+  const rp = r.root.position;
+  if (r.weapon && r.weaponInWorld && !r.state.dead) r.weapon.root.position.add(_dv.set(x - rp.x, y - rp.y, z - rp.z));
+  rp.set(x, y, z);
+}
 const lerpAngle = (a, b, t) => { let d = b - a; while (d > Math.PI) d -= 2 * Math.PI; while (d < -Math.PI) d += 2 * Math.PI; return a + d * t; };
 
 // team uniform tint applied to the imported materials (keeps all PBR maps; only multiplies albedo)
@@ -68,8 +77,12 @@ export class Players {
     }
     if (p.weaponId !== wid) return;
     for (const w of Object.values(p.weapons)) w.root.removeFromParent();
-    this.g.world.scene.add(p.weapons[wid].root);
-    p.rig.equip(p.weapons[wid]);
+    const w = p.weapons[wid];
+    this.g.world.scene.add(w.root);
+    // start at the soldier (not the world origin) and get it into his hands on the very next frame, whatever the LOD
+    w.root.position.copy(p.rig.root.position);
+    p.rig.equip(w);
+    p.animAcc = Infinity;
   }
 
   // apply interpolated snapshot state
@@ -90,8 +103,13 @@ export class Players {
         p.yaw = lerpAngle(ra[4], rb[4], k); p.pitch = ra[5] + (rb[5] - ra[5]) * k;
         p.stance = STANCES[rb[6]] || 'stand'; p.flags = rb[7]; p.hp = rb[9];
         p.vx = rb[10]; p.vz = rb[11];
-        if (!wasAlive && p.rig) { p.rig.revive(performance.now() - (p.revivedAt || 0) < 5000); p.revivedAt = 0; } // (a medic's revive: he gets up)
-        if (!wasAlive) for (const w of Object.values(p.weapons || {})) w.dry = false; // respawned with full magazines
+        // back in the fight — also when this client never saw him gone: with the tab in the background (or a long
+        // hitch) the kill event still laid the rig down, but no snapshot without him was ever rendered, so he'd
+        // otherwise slide around as a corpse (the interpolation delay is at most 350 ms, so 1 s dead and still here
+        // means he has respawned / been revived since)
+        const back = !wasAlive || (p.rig?.state.dead && performance.now() - (p.rig.diedAt || 0) > 1000);
+        if (back && p.rig) { p.rig.revive(performance.now() - (p.revivedAt || 0) < 5000); p.revivedAt = 0; } // (a medic's revive: he gets up)
+        if (back) for (const w of Object.values(p.weapons || {})) w.dry = false; // respawned with full magazines
         if (p.rig && !p.loading) this.#weapon(p, rb[8]);
       }
     }
@@ -128,9 +146,8 @@ export class Players {
       else r.root.rotation.x = 0;
       const lift = -r.airPitch * 0.75;
       if (r.weapon) r.weapon.root.visible = r.weapon.root.visible && !(p.alive && (p.flags & 96)); // slung while in the air
-      if (!onScreen) r.root.position.set(p.x, p.y + lift, p.z);
-      if (p.animAcc < rate) { r.root.position.set(p.x, p.y + lift, p.z); continue; }
-      const adt = p.animAcc; p.animAcc = 0;
+      if (p.animAcc < rate) { moveBody(r, p.x, p.y + lift, p.z); continue; }
+      const adt = Math.min(p.animAcc, 0.25); p.animAcc = 0;
       r.root.position.set(p.x, p.y + lift, p.z);
       const airState = p.alive ? (p.flags & 32 ? 1 : p.flags & 64 ? 2 : 0) : 0;
       // no running animation while falling / hanging under the canopy

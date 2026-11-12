@@ -830,7 +830,7 @@ export class CharacterRig {
   // from: world position of the shooter ({x, z}) — the body falls away from the hit; without one, a random way
   die(from = null) {
     if (this.state.dead) return;
-    this.state.dead = true; this.dropped = null; this.groundY = this.root.position.y;
+    this.state.dead = true; this.dropped = null; this.groundY = this.root.position.y; this.diedAt = performance.now();
     let a = Math.random() * Math.PI * 2;
     if (from && Number.isFinite(from.x) && Number.isFinite(from.z)) {
       const r = this.root.position, dx = r.x - from.x, dz = r.z - from.z;
