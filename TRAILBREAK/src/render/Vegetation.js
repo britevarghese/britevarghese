@@ -810,6 +810,24 @@ if (vFade <= 0.0 || dCam > ${FAR.toFixed(1)}) gl_Position = vec4(0.0, 0.0, -2.0,
 
   setShadows(on) { for (const nk of this.near) for (const m of nk.meshes) m.castShadow = on; }
 
+  /**
+   * Every tree its card for a moment (on), and back (off): for a mirror's picture, too small to tell a card from the
+   * model, and the models (every near tree, drawn whichever way the mirror looks) not drawn into it at all.
+   */
+  cardsOnly(on) {
+    if (on) {
+      if (this.shownModels) return;
+      this.lodWas = (this.lodWas || new THREE.Vector2()).copy(this.uniforms.uLod.value);
+      this.uniforms.uLod.value.set(1e9, 1e9);
+      this.shownModels = [];
+      for (const nkk of this.near) for (const m of [...nkk.meshes, ...nkk.far.meshes]) if (m.visible) { m.visible = false; this.shownModels.push(m); }
+    } else if (this.shownModels) {
+      this.uniforms.uLod.value.copy(this.lodWas);
+      for (const m of this.shownModels) m.visible = true;
+      this.shownModels = null;
+    }
+  }
+
   /** Where the map stands in the open world (its group is placed there; its cards are placed here). */
   setOrigin(x, z) { this.origin.value.set(x, 0, z); }
 

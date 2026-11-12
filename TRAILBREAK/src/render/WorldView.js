@@ -261,6 +261,7 @@ export class WorldView {
       update: (camera, dt) => each((v) => { if (near(v, camera, NEAR.veg)) v.vegetation.update(cam(v, camera), dt); else v.vegetation.rest(); }),
       setDetailRange: (m) => { self.settings.detail = m; each((v) => v.vegetation.setDetailRange(m)); },
       setShadows: (on) => { self.settings.shadows = on; each((v) => v.vegetation.setShadows(on)); },
+      cardsOnly: (on) => each((v) => v.vegetation.cardsOnly(on)),
     };
     this.grass = {
       update: (camera, dt, push = []) => each((v) => {

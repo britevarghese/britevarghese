@@ -290,7 +290,10 @@ export class Renderer {
     if (this.probeOn && this.subject) {
       this.probe ||= new Probe();
       if (this.probe.model !== this.subject) this.probe.attach(this.subject, this.scene.environmentIntensity);
+      // (probeAround(on): the game's leaving out of its picture what is too small to tell in it, Game)
+      this.probeAround?.(true);
       this.probe.update(this.renderer, this.scene);
+      this.probeAround?.(false);
     }
   }
 }

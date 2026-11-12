@@ -101,6 +101,18 @@ export class Game {
     this.model = modelFor(this.spec, this.truckId, this.paint, { mirrors: true });
     this.scene.add(this.model.root);
     this.renderer.subject = this.model;
+    // the reflections' picture of the world round the truck (Renderer's probe, a face of a 128-pixel cube a frame, blurred
+    // for the paint): the trees as their cards, and no grass, road markings, road wear or roadside things in it. Their models, every near tree whichever way the face
+    // looks, cost it over three million triangles a frame on high graphics
+    this.renderer.probeAround = (on) => {
+      this.vegetation.cardsOnly?.(on);
+      if (on) {
+        // (and each map's road markings, the wear and dirt on its roads, and the things standing by them that break)
+        const maps = (this.world.view?.views || []).flatMap((v) => [v.marks?.mesh, v.wear?.mesh, v.breakView?.group]);
+        this.probeHid = [...(this.grass.meshes || [this.grass.mesh]), this.tea?.mesh, ...maps].filter((o) => o?.visible);
+        for (const o of this.probeHid) o.visible = false;
+      } else if (this.probeHid) { for (const o of this.probeHid) o.visible = true; this.probeHid = null; }
+    };
     this.cam = new CameraRig(this.renderer.camera, this.world);
     if (this.career) {
       this.career.onChange = (amount, why) => this.hud.money(this.career.money, amount, why);
@@ -1796,7 +1808,10 @@ export class Game {
     // graphics, none on low: polished glass)
     const q = this.quality();
     if (m.mirrors && !this.noRender) {
-      m.mirrors.update(this.renderer.renderer, this.scene, this.renderer.camera, q === 'high' ? 1 : q === 'medium' ? 2 : 0, [...(this.grass.meshes || [this.grass.mesh]), this.tea?.mesh].filter(Boolean));
+      // (and the trees as their cards: their models, every near tree whichever way a mirror looks, cost a mirror's
+      // picture over a million triangles a frame on high graphics)
+      m.mirrors.update(this.renderer.renderer, this.scene, this.renderer.camera, q === 'high' ? 1 : q === 'medium' ? 2 : 0, [...(this.grass.meshes || [this.grass.mesh]), this.tea?.mesh].filter(Boolean),
+        (on) => this.vegetation.cardsOnly?.(on));
     }
     // (the tyres' tracks drawn into their picture before the frame that shows them)
     this.tracks?.draw(this.renderer.renderer);

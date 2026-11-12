@@ -110,9 +110,10 @@ export class Mirrors {
   /**
    * For a camera (the eye looking at them): the glasses big enough on the screen get their pictures, the rest polished
    * glass. every: draw a picture each `every` frames (0: none, polished glass only); hide: things left out of the
-   * pictures while they are drawn (the grass: too small to see in them).
+   * pictures while they are drawn (the grass: too small to see in them); around(on): called before (true) and after
+   * (false) a picture is drawn (the trees as their cards in it).
    */
-  update(renderer, scene, camera, every = 1, hide = []) {
+  update(renderer, scene, camera, every = 1, hide = [], around = null) {
     if (!this.list.length) return;
     this.t++;
     const h = renderer.getDrawingBufferSize(_size).y, want = this.want;
@@ -129,9 +130,11 @@ export class Mirrors {
     if (!draw.length) return;
     const was = hide.map((o) => o.visible);
     hide.forEach((o) => { o.visible = false; });
+    around?.(true);
     for (const m of draw) {
       if (m.draw(renderer, scene, camera.position)) { m.at = this.t; m.show(true); } else m.show(false);
     }
+    around?.(false);
     hide.forEach((o, i) => { o.visible = was[i]; });
   }
 
