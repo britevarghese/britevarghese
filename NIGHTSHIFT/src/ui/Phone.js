@@ -218,7 +218,7 @@ export class Phone {
   }
   _deliver() {
     const g = this.game, w = g.world, v = g.player, f = g.focusState;
-    if (!g.onFoot?.active || !v || v.gone) return;
+    if (!g.onFoot?.active || !v || v.gone) { g.save.addCash(TOW, 'refund'); g.ui.toast('Raju turned back: you have your car. Refunded.', '', 3); return; } // (back at the wheel before he came)
     const r = w.roadSpot(f.x, f.z, 6);
     if (!r) { g.ui.toast('Raju could not find a road near you', 'err', 3); g.save.addCash(TOW, 'refund'); return; }
     const fx = Math.sin(r.yaw), fz = Math.cos(r.yaw);

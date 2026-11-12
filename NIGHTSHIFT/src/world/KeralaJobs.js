@@ -143,7 +143,7 @@ export class KeralaJobs {
     this._mark(o.x, o.z, 1.6);
     g.setGPS(o.x, o.z);
     if (job.kind === 'taxi') {
-      job.body?.removeFromParent(); job.body = null;
+      this._freeBody(job);
       g.audio?.playEvent?.('doorShut');
       this._say(`<b>${job.who}:</b> "${rnd(ASKS)(o.name)}"`);
     } else {
@@ -208,9 +208,19 @@ export class KeralaJobs {
 
   _clear() {
     const j = this.job;
-    if (j) { j.body?.removeFromParent(); this._unmark(); }
+    if (j) { this._freeBody(j); this._unmark(); }
     this.job = null;
     this._meter(null);
+  }
+
+  // the passenger's figure: out of the scene and its shapes freed (one was made per fare and never let go)
+  _freeBody(job) {
+    const b = job.body; job.body = null;
+    if (!b) return;
+    b.removeFromParent();
+    const mats = new Set();
+    b.traverse((o) => { o.geometry?.dispose(); for (const m of [].concat(o.material || [])) mats.add(m); });
+    for (const m of mats) m.dispose();
   }
 
   // ------------------------------------------------------------------ markers / HUD
