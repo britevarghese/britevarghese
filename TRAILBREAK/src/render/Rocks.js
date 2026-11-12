@@ -143,6 +143,7 @@ export class Rocks {
         mesh.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(Math.max(1, per[k]) * 3), 3);
         mesh.geometry.setAttribute('aWater', new THREE.InstancedBufferAttribute(new Float32Array(Math.max(1, per[k])), 1));
         mesh.count = 0;
+        mesh.visible = false;
         mesh.castShadow = true;
         mesh.receiveShadow = true;
         mesh.frustumCulled = false;
@@ -210,6 +211,9 @@ export class Rocks {
         if (Wa) { Wa.clearUpdateRanges(); Wa.addUpdateRange(0, m.count); Wa.needsUpdate = true; }
       }
       m.castShadow = this.shadows && m !== lods[2];
+      // (a shape with none of its boulders at this level: not drawn at all, rather than drawn empty, a draw in the view,
+      // the mirrors and the shadows each)
+      m.visible = m.count > 0;
     }
     return true;
   }

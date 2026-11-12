@@ -406,6 +406,7 @@ export class Vegetation {
           m.instanceMatrix = matrix;
           m.instanceColor = color;
           m.count = 0;
+          m.visible = false;
           m.castShadow = shadows;
           m.receiveShadow = true;
           m.frustumCulled = false;
@@ -731,7 +732,7 @@ if (vFade <= 0.0 || dCam > ${FAR.toFixed(1)}) gl_Position = vec4(0.0, 0.0, -2.0,
     // (only what is used goes up to the GPU: a kind's whole buffer is thousands of trees, sent every 12 m)
     this.near.forEach((nkk, k) => {
       for (const [B, n] of [[nkk, counts[k]], [nkk.far, countsFar[k]]]) {
-        for (const mesh of B.meshes) mesh.count = n;
+        for (const mesh of B.meshes) { mesh.count = n; mesh.visible = n > 0; }   // (none: not drawn at all, a draw saved)
         B.matrix.clearUpdateRanges(); B.matrix.addUpdateRange(0, Math.max(1, n) * 16);
         B.color.clearUpdateRanges(); B.color.addUpdateRange(0, Math.max(1, n) * 3);
         B.matrix.needsUpdate = true;
@@ -780,7 +781,7 @@ if (vFade <= 0.0 || dCam > ${FAR.toFixed(1)}) gl_Position = vec4(0.0, 0.0, -2.0,
   rest() {
     if (this.resting) return;
     this.resting = true;
-    for (const nkk of this.near) for (const m of [...nkk.meshes, ...nkk.far.meshes]) m.count = 0;
+    for (const nkk of this.near) for (const m of [...nkk.meshes, ...nkk.far.meshes]) { m.count = 0; m.visible = false; }
     this.nearCount = 0;
     this.uniforms.uLod.value.set(1e9, 1e9);
     this.lastFill.set(1e9, 0, 1e9);
