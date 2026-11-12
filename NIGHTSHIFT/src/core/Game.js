@@ -974,7 +974,7 @@ export class Game {
       if (driving && !this.onFoot.active) this.progress.update(dt, player);
       if (mode === 'busted') this._bustedUpdate(dt);
       // world interaction prompts (events, garages)
-      if (driving && !this.onFoot.active && !this.world.kerala) this._interactions();
+      if (driving && !this.onFoot.active) this._interactions();
       if (driving && this.world.kerala && this.world.index) (this.masks ||= new Collectibles(this)).update(dt);
       if (driving && this.world.kerala && this.world.index) (this.jobs ||= new KeralaJobs(this)).update(dt);
       // tracking a friend: the GPS follows them (route refreshed every 3 s), and keeps going after you meet up
@@ -1255,7 +1255,7 @@ export class Game {
     }
     if (this.input.consume('garage') && !this.police.inPursuit && !this.races.active && !this.story.active && sp < 3) this.openGarage();
     // GPS arrival
-    if (this.gps && !this.gps.friend && Math.hypot(this.gps.x - s.x, this.gps.z - s.z) < 25) { this.gps = null; this.ui.toast('Destination reached'); }
+    if (this.gps && !this.gps.friend && !this.world.kerala && Math.hypot(this.gps.x - s.x, this.gps.z - s.z) < 25) { this.gps = null; this.ui.toast('Destination reached'); }
     this.hud.setPrompt(prompt);
   }
 
