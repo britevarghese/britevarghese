@@ -449,6 +449,10 @@ function wireMenus(game, net) {
   $('opt-assist').onchange = () => { s.assist = $('opt-assist').checked; save(); };
   $('opt-damage').value = ['realistic', 'forgiving'].includes(s.damage) ? s.damage : 'cosmetic';
   $('opt-damage').onchange = () => { s.damage = $('opt-damage').value; game.vehicle.damage.setLevel(s.damage); save(); };
+  $('opt-perf').checked = !!s.perf;
+  $('opt-perf').onchange = () => game.showPerf($('opt-perf').checked);
+  game.onPerf = (on) => { s.perf = on; $('opt-perf').checked = on; save(); };
+  if (s.perf) game.showPerf(true);
   $('opt-rumble').checked = s.rumble;
   $('opt-rumble').onchange = () => { s.rumble = $('opt-rumble').checked; save(); };
   // a steering wheel's gear paddles (the browser shows a wheel once a button on it is pressed): click, pull the paddle

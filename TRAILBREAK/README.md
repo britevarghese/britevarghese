@@ -203,6 +203,7 @@ Without the Blueprint: **New > Web Service** with this repository, branch `claud
 | Modes & races: party modes, checkpoint races, events | N | |
 | Pause, invite link, settings | Esc | Start |
 | Controls | F1 | |
+| Frame rate (how the game is running on this machine: frames a second, the longest wait for a frame and the late ones in the last ten seconds, the graphics level, what a frame draws, the maps still loading); also in the pause menu, and kept | F3 | |
 
 **The map** (M, the MAP button, or a tap on the minimap) works like Forza's: drag to move about, the wheel, a pinch
 or + and - to zoom, the buttons to centre on your truck and to show or hide the events, beacons, places, trail names
@@ -1250,6 +1251,11 @@ Everything that makes off-roading off-roading is simulated, not faked:
   level as your setting, so one slow spell (the open world building its maps on a first visit) left the game on Low,
   with its ground textures and trees, for good. Anyone whose level was lowered that way, and who never picked one,
   gets High back once.
+- **Frame rate on the screen** (F3, or the pause menu; `src/ui/PerfMeter.js`): frames a second, the longest wait for a
+  frame and how many came late (over 50 ms) in the last ten seconds, the graphics level drawn (and the one set, where
+  the game has stepped down from it), the draws and triangles of a whole frame (its shadows, mirrors and reflections
+  with it), and the maps still loading. It tells a slow machine (few frames a second, always) from a stutter (a full
+  frame rate with long waits now and then), and what either goes with.
 - **Where a session starts** (`src/game/Quality.js`): your setting stays as you chose it, but a machine that can't
   draw it no longer spends the first half minute of every session finding that out (two steps down, stuttering, just
   when the open world is loading as well). A session starts at the level the last one settled at on this machine, and

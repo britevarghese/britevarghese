@@ -200,6 +200,7 @@
       <div class="stuck-tip" id="st-tip"></div>
     </div>
     <div id="toasts"></div>
+    <div id="perf" class="hidden" aria-live="off"></div>
     <div id="chat">
       <div id="chat-log"></div>
       <div id="chat-panel" class="hidden">
@@ -294,6 +295,7 @@
             <label><input id="opt-assist" type="checkbox" checked> Steering assist</label>
             <label title="Gamepad rumble, phone vibration and camera shake over rough ground"><input id="opt-rumble" type="checkbox" checked> Vibration</label>
             <label title="Go full screen when you start driving (Esc leaves it)"><input id="opt-full" type="checkbox" checked> Full screen</label>
+            <label title="Frames a second, the longest wait for a frame, the graphics level and what is drawn, in the corner while you drive (F3)"><input id="opt-perf" type="checkbox"> Frame rate</label>
           </div>
           <div class="p-selects">
             <label class="p-sel" title="Rain: the earth and the grass go slick, the mud softer, water stands in the ruts and the hollows (in a room, everyone's)"><svg class="ic"><use href="#i-rain"/></svg><span>Weather</span><select id="opt-weather"><option value="clear">Clear</option><option value="rain">Rain</option></select></label>
@@ -442,6 +444,7 @@
           <dt>N</dt><dd>Modes &amp; races: party modes, checkpoint races, events, deliveries</dd>
           <dt>Enter</dt><dd>Chat (or the chat button): quick phrases, history</dd>
           <dt>V</dt><dd>Voice chat: join, then mute and unmute (push to talk: hold it)</dd>
+          <dt>F3</dt><dd>Frame rate: how the game is running on this machine</dd>
           <dt>Esc</dt><dd>Pause, invite link, settings</dd>
         </dl>
       </div>

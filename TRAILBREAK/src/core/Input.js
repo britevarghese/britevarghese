@@ -12,7 +12,7 @@ const KEY_ACTIONS = {
   ShiftLeft: 'shiftUp', ShiftRight: 'shiftUp', ControlLeft: 'shiftDown', ControlRight: 'shiftDown',
   KeyF: 'hook', KeyR: 'recover', Backspace: 'respawn', KeyC: 'camera', KeyH: 'lights', KeyM: 'map',
   Enter: 'chat', Escape: 'pause', F1: 'help', Slash: 'help', KeyP: 'air', KeyU: 'garage', KeyT: 'tow', KeyY: 'spare', KeyK: 'boards', KeyJ: 'event',
-  KeyV: 'voice', KeyN: 'modes',
+  KeyV: 'voice', KeyN: 'modes', F3: 'perf',
 };
 const WHEEL_RX = /wheel|racing|driving force|\bG2[5-9]\b|\bG9[0-9]{2}\b|DFGT|momo|thrustmaster|\bT1[5-9]0\b|\bT2[0-9]{2}\b|\bT3[0-9]{2}\b|\bTMX\b|T-GT|fanatec|\bCSL\b|clubsport|podium|moza|simucube|simagic|\bPXN\b|cammus|nitho|steering/i;
 
@@ -74,7 +74,7 @@ export class Input {
   key(e, isDown) {
     const tag = e.target?.tagName;
     if ((tag === 'INPUT' || tag === 'TEXTAREA') && e.code !== 'Escape' && e.code !== 'Enter') return;
-    if (['Space', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Backspace', 'F1', 'Tab', 'Slash'].includes(e.code) && tag !== 'INPUT') e.preventDefault();
+    if (['Space', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Backspace', 'F1', 'F3', 'Tab', 'Slash'].includes(e.code) && tag !== 'INPUT') e.preventDefault();
     if (isDown) {
       if (!this.down.has(e.code) && KEY_ACTIONS[e.code]) this.pressed.add(KEY_ACTIONS[e.code]);
       this.down.add(e.code);

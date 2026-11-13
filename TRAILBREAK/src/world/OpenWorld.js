@@ -193,6 +193,8 @@ export class OpenWorld {
 
   /** Is every map built? */
   get complete() { return this.regions.length === REGIONS.length; }
+  /** How many maps the world has in all. */
+  get total() { return REGIONS.length; }
 
   // ---------------------------------------------------------------- the ground
   terrain(x, z) { const r = this.regionAt(x, z); return r ? r.world.terrain(x - r.cx, z - r.cz) : this.farHeight(x, z); }

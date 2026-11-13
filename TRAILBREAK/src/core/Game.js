@@ -31,6 +31,7 @@ import { seeThrough } from '../render/Vegetation.js';
 import { retroLights } from '../render/RoadMarkings.js';
 import { beginTerrainFrame } from '../render/Terrain.js';
 import { setHurry } from './Idle.js';
+import { PerfMeter } from '../ui/PerfMeter.js';
 import { TrackMap } from '../render/TrackMap.js';
 import { Rain } from '../render/Rain.js';
 import { WEATHER_UNIFORMS } from '../render/Weather.js';
@@ -825,6 +826,7 @@ export class Game {
       if (V.joined && V.mode === 'ptt') { V.setPtt(!this.chatOpen && I.any('KeyV') || this.voicePanel.btnHeld); I.consume('voice'); }
       else if (I.consume('voice') && !this.chatOpen) this.voicePanel.key();
     }
+    if (I.consume('perf')) this.showPerf(!this.meter?.on);
     if (I.consume('pause')) { if (this.chatOpen) this.closeChat(); else if (this.mapOpen) this.toggleMap(); else this.togglePause(); }
     if (this.paused) return;
     // a controller steering as a gamepad might be a wheel the browser took for an Xbox pad: say how to make it one
@@ -1503,6 +1505,7 @@ export class Game {
   // ---------------------------------------------------------------- frame
   frame(dt) {
     const I = this.input, v = this.vehicle, W = v.winch;
+    if (this.meter?.on) this.meter.frame({ level: this.quality(), chosen: this.settings.quality || 'high', maps: this.world.total && !this.world.complete ? [this.world.view?.views.length ?? this.world.regions.length, this.world.total] : null });
     // (a fast travel waiting on a map, or the truck within a kilometre of one not in yet: the maps' building not left
     // to the idle time between frames, core/Idle.js)
     if ((this.hurryT = (this.hurryT || 0) - dt) <= 0) {
@@ -1885,6 +1888,15 @@ export class Game {
     this.onAutoQuality?.(LEVELS[to], failed);                // (kept for the next session's start: game/Quality.js)
     this.hud.toast(to < now ? `Graphics set to ${LEVELS[to]} to keep it smooth (Esc to change)` : `Graphics back to ${LEVELS[to]}`, false, 5);
     p.slow = 0; p.fast = 0; p.grace = 8;
+  }
+
+  /** The frame rate's readout (ui/PerfMeter.js: F3, or the pause menu), shown or not. */
+  showPerf(on) {
+    const el = document.getElementById('perf');
+    if (!el) return;
+    this.meter ||= new PerfMeter(el, this.renderer.renderer);
+    this.meter.show(on);
+    this.onPerf?.(this.meter.on);
   }
 
   /** The graphics level drawn now: the player's choice, or lower for the while the frame rate needs it (perf). */
