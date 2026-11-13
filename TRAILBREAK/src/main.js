@@ -38,6 +38,7 @@ import { VoicePanel } from './ui/VoicePanel.js';
 import { HUD } from './ui/HUD.js';
 import { TouchControls, isTouchDevice } from './ui/Touch.js';
 import { idle, setPlaying } from './core/Idle.js';
+import { startLevel, rememberLevel } from './game/Quality.js';
 
 const $ = (id) => document.getElementById(id);
 // the map: the one world, every map joined into it (the maps once driven alone are all in it, where they always were)
@@ -289,11 +290,22 @@ async function start() {
   // voice chat with the others in the room (net/Voice.js)
   const voice = net ? new Voice(net) : null;
   if (net) net.onBinary = (b) => voice.onBinary(b);
+  // the graphics level this session starts at: where the last one settled on this machine, or by its graphics card the
+  // first time (game/Quality.js); and no step up tried for a few sessions after one that didn't hold
+  const gl = renderer.renderer.getContext(), dbg = gl.getExtension('WEBGL_debug_renderer_info');
+  const gpu = String((dbg && gl.getParameter(dbg.UNMASKED_RENDERER_WEBGL)) || gl.getParameter(gl.RENDERER) || '');
+  const autoQuality = startLevel(settings, gpu, isTouchDevice());
+  const autoStuck = settings.autoHold > 0;
+  if (autoStuck) settings.autoHold--;
+  if (settings.autoStart === undefined && settings.autoQuality !== false) rememberLevel(settings, autoQuality || settings.quality || 'high');
+  save();
   game = new Game({
+    autoQuality, autoStuck,
     world, renderer, terrain, vegetation, grass, tea, rocks, water, landmarks, breakView, effects, rope, audio, net, voice, hud, input, settings, garage, career,
     truckId: settings.truck, build: settings.builds[settings.truck] || '', paint: settings.paint, name: settings.name, mapName: M.name, dealerName: M.dealer,
   });
   game.onBuild = (id, code) => { settings.truck = id; settings.builds[id] = code; save(); };
+  game.onAutoQuality = (level, stuck) => { rememberLevel(settings, level, stuck); save(); };
   $('m-dmg').onclick = () => game.fitSpare();          // (a tap on phones)
   window.game = game;                              // (handy in the console)
   // (the open world's maps still to come: the one the truck is nearest and looking toward next)
@@ -345,6 +357,7 @@ async function start() {
   if (otherMap) hud.toast(`Room ${net.room} was opened on ${M.name}, so you drive it here. For ${MAPS[otherMap].name}, leave the room code empty.`, false, 9);
   if (open) hud.toast(`Your ${(TRUCKS[settings.truck] || TRUCKS.ranger).name} starts at ${world.map.spawn.name}. Fast travel to the other bases, the rocky hills and your friends: M, then T`, false, 9);
   hud.toast('Find the survey beacons: follow the orange light beams', false, 6);
+  if (autoQuality) hud.toast(`Graphics start at ${autoQuality} on this machine${autoStuck ? '' : ', and go up if it runs smoothly'} (Esc to change)`, false, 6);
   wireMenus(game, net);
   if (isTouchDevice()) {
     const touch = new TouchControls(input);

@@ -1250,6 +1250,14 @@ Everything that makes off-roading off-roading is simulated, not faked:
   level as your setting, so one slow spell (the open world building its maps on a first visit) left the game on Low,
   with its ground textures and trees, for good. Anyone whose level was lowered that way, and who never picked one,
   gets High back once.
+- **Where a session starts** (`src/game/Quality.js`): your setting stays as you chose it, but a machine that can't
+  draw it no longer spends the first half minute of every session finding that out (two steps down, stuttering, just
+  when the open world is loading as well). A session starts at the level the last one settled at on this machine, and
+  steps up from there once it runs at a full 60 (only after the world's maps are all in: a slow spell that was theirs
+  counted against the level otherwise); a step up that didn't hold isn't tried again for four sessions. The very first
+  session goes by the graphics card's name: a card made for games starts at High, integrated graphics, phones and
+  anything unknown at Medium, a software renderer or an old integrated chip at Low. The game says where it started
+  (Esc to change); pick a level yourself and you get it, always.
 - **Smooth frames:** what the open world builds as you drive is held to a few milliseconds a frame, so a frame never
   waits on it: the ground's patches 4 ms a frame across all the maps drawn (a coarse patch of the far land, each of
   its vertices sampling every map round it, built over several frames, the coarser one it replaces drawn till then;

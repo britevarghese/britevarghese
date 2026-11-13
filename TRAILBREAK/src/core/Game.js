@@ -1856,11 +1856,12 @@ export class Game {
   /**
    * Watch the frame rate, holding it at 60: step the graphics down if it can't keep up (two 4 s spells running under
    * 52 fps, so one hitch, such as the open world building a map, doesn't), and back up toward the chosen setting once
-   * it runs at a full 60 again (unless the last step up was soon stepped down again). Only for this session: what is
-   * kept is the player's own choice.
+   * it runs at a full 60 again (unless the last step up was soon stepped down again). The player's own choice is kept
+   * as it is; where the game settled is where the next session starts (game/Quality.js), stepping up from there.
    */
   perf(dt) {
-    const p = this.perfState || (this.perfState = { t: 0, n: 0, sum: 0, fps: 60, grace: 6, slow: 0, fast: 0, upAt: -1e9, stuck: false, clock: 0 });
+    // (autoStuck: a step up didn't hold in a session not long ago, game/Quality.js: none tried in this one)
+    const p = this.perfState || (this.perfState = { t: 0, n: 0, sum: 0, fps: 60, grace: 6, slow: 0, fast: 0, upAt: -1e9, stuck: !!this.autoStuck, clock: 0 });
     p.t += dt; p.n++; p.sum += dt; p.clock += dt;
     if (p.t < 4) return;
     p.fps = p.n / p.sum;
@@ -1871,13 +1872,17 @@ export class Game {
     p.slow = p.fps < 52 ? p.slow + 1 : 0;
     p.fast = p.fps >= 58 ? p.fast + 1 : 0;
     let to = now;
+    let failed = false;
     if (p.slow >= 2 && now > 0) {
       to = now - 1;
-      if (p.clock - p.upAt < 30) p.stuck = true;            // (it couldn't hold the level it went back up to)
-    } else if (p.fast >= 3 && now < chosen && !p.stuck) { to = now + 1; p.upAt = p.clock; }
+      if (p.clock - p.upAt < 30) p.stuck = failed = true;   // (it couldn't hold the level it went back up to)
+    } else if (p.fast >= 3 && now < chosen && !p.stuck && (this.world.complete ?? true)) { to = now + 1; p.upAt = p.clock; }
+    // (a step up only once the open world's maps are all in: tried while they came in, a slow spell that was theirs
+    // counted against the level, and it was given up on for sessions to come)
     if (to === now) return;
     this.autoQuality = LEVELS[to];
     this.applyQuality();
+    this.onAutoQuality?.(LEVELS[to], failed);                // (kept for the next session's start: game/Quality.js)
     this.hud.toast(to < now ? `Graphics set to ${LEVELS[to]} to keep it smooth (Esc to change)` : `Graphics back to ${LEVELS[to]}`, false, 5);
     p.slow = 0; p.fast = 0; p.grace = 8;
   }
