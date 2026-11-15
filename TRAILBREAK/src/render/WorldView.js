@@ -178,9 +178,13 @@ export class RegionView {
     // its ground has no patches yet: one stands in for them
     const stand = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), v.terrain.material);
     v.group.add(stand);
-    await renderer.renderer.compileAsync(v.group, renderer.camera, renderer.scene).catch((e) => console.warn('shaders', e));
+    // (for the graphics level drawn, or the one being stepped to: render/Renderer.js warm)
+    const level = () => renderer.warming || renderer.quality;
+    const q = level();
+    await renderer.warm(v.group, q).catch((e) => console.warn('shaders', e));
     // and its pictures on the graphics card, a few at a time (render/WorldView.js warmTextures)
     if (slice !== Infinity) await warmTextures(renderer.renderer, v.group, tick);
+    if (level() !== q) await renderer.warm(v.group).catch((e) => console.warn('shaders', e));   // (the level changed meanwhile)
     v.group.remove(stand);
     stand.geometry.dispose();
     renderer.scene.add(v.group);

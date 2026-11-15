@@ -224,12 +224,24 @@ async function start() {
   setLoad(0.02, 'Surveying the valley');
   let world, renderer, terrain, vegetation, rocks, grass, tea, water, landmarks, effects, breakView = null, game = null, loader = null, goLive;
   const live = new Promise((r) => { goLive = r; });
+  // the graphics level this session starts at: where the last one settled on this machine, or by its graphics card the
+  // first time (game/Quality.js). Told to the renderer as soon as there is one: the shaders compiled while the world
+  // is put together are compiled for the level it will be drawn at (render/Renderer.js warm)
+  let autoQuality = null;
+  const startAt = () => {
+    const gl = renderer.renderer.getContext(), dbg = gl.getExtension('WEBGL_debug_renderer_info');
+    const gpu = String((dbg && gl.getParameter(dbg.UNMASKED_RENDERER_WEBGL)) || gl.getParameter(gl.RENDERER) || '');
+    autoQuality = startLevel(settings, gpu, isTouchDevice());
+    renderer.setShadows(settings.shadows !== false);
+    renderer.setQuality(autoQuality || settings.quality || 'high');
+  };
   if (open) {
     // the open world: its maps built in workers (or taken from storage), the map of the truck's home first (after the
     // ones it is laid onto); the game starts on it and the others join as they come in, with no loading screen for them
     const home = homeOf(settings.truck), start = home.region;
     world = new OpenWorld(WORLD, home);
     renderer = new Renderer($('app'));
+    startAt();
     effects = new Effects(renderer.scene);
     const S = world.regionDef(WORLD.start).map;
     renderer.setAtmosphere(S.atmosphere);
@@ -264,6 +276,7 @@ async function start() {
     setLoad(0.64, 'Painting the ground');
     await new Promise((r) => setTimeout(r, 0));
     renderer = new Renderer($('app'));
+    startAt();
     renderer.setAtmosphere(M.atmosphere);
     const ground = await loadGround(M.ground, settings.quality).catch((e) => { console.warn('ground textures', e); return null; });
     terrain = new TerrainRenderer(world, renderer.scene, { ground, onProgress: (f) => setLoad(0.64 + f * 0.16) });
@@ -290,11 +303,7 @@ async function start() {
   // voice chat with the others in the room (net/Voice.js)
   const voice = net ? new Voice(net) : null;
   if (net) net.onBinary = (b) => voice.onBinary(b);
-  // the graphics level this session starts at: where the last one settled on this machine, or by its graphics card the
-  // first time (game/Quality.js); and no step up tried for a few sessions after one that didn't hold
-  const gl = renderer.renderer.getContext(), dbg = gl.getExtension('WEBGL_debug_renderer_info');
-  const gpu = String((dbg && gl.getParameter(dbg.UNMASKED_RENDERER_WEBGL)) || gl.getParameter(gl.RENDERER) || '');
-  const autoQuality = startLevel(settings, gpu, isTouchDevice());
+  // (the level it starts at: startAt, above) no step up tried for a few sessions after one that didn't hold
   const autoStuck = settings.autoHold > 0;
   if (autoStuck) settings.autoHold--;
   if (settings.autoStart === undefined && settings.autoQuality !== false) rememberLevel(settings, autoQuality || settings.quality || 'high');
@@ -342,7 +351,7 @@ async function start() {
   game.frame(0.016);
   game.noRender = false;
   setLoad(0.96, 'Warming up the shaders');
-  await renderer.renderer.compileAsync(renderer.scene, renderer.camera).catch((e) => console.warn('shaders', e));
+  await renderer.warm().catch((e) => console.warn('shaders', e));
   game.frame(0.016);
   tea?.prime(renderer.camera);
   terrain.budget = 6;
@@ -440,11 +449,12 @@ function wireMenus(game, net) {
   game.onWeather = (w) => { $('opt-weather').value = w; };
   $('opt-weather').onchange = () => { s.weather = $('opt-weather').value; game.setWeather(s.weather); save(); };
   $('opt-shadows').checked = s.shadows;
-  $('opt-shadows').onchange = () => { s.shadows = $('opt-shadows').checked; game.applySettings(); save(); };
+  // (with or without shadows, every lit material's shader is another one: handed to the graphics card together)
+  $('opt-shadows').onchange = () => { s.shadows = $('opt-shadows').checked; game.applySettings(); game.renderer.warm().catch(() => {}); save(); };
   $('opt-sound').checked = s.sound;
   $('opt-sound').onchange = () => { s.sound = $('opt-sound').checked; game.audio.setEnabled(s.sound); save(); };
   $('opt-quality').value = s.quality || 'high';
-  $('opt-quality').onchange = () => { s.quality = $('opt-quality').value; s.autoQuality = false; game.autoQuality = null; game.applyQuality(); save(); };
+  $('opt-quality').onchange = () => { s.quality = $('opt-quality').value; s.autoQuality = false; game.changeQuality(s.quality, () => { game.autoQuality = null; }); save(); };
   $('opt-assist').checked = s.assist;
   $('opt-assist').onchange = () => { s.assist = $('opt-assist').checked; save(); };
   $('opt-damage').value = ['realistic', 'forgiving'].includes(s.damage) ? s.damage : 'cosmetic';

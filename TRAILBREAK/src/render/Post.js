@@ -11,6 +11,7 @@
 //   grade: a filmic tone curve (ACES), a little more contrast and colour, cool shadows and warm highlights, a soft
 //     vignette, and a trace of noise so the sky's gradients don't band
 import * as THREE from 'three';
+import { compilePart } from './Warm.js';
 
 const TRI = new THREE.BufferGeometry();                // (one triangle over the whole screen)
 TRI.setAttribute('position', new THREE.Float32BufferAttribute([-1, -1, 0, 3, -1, 0, -1, 3, 0], 3));
@@ -218,8 +219,13 @@ export class Post {
     this.quality = q;
     const samples = q === 'high' ? 4 : 2;
     if (this.sceneRT.samples !== samples) { this.sceneRT.samples = samples; this.sceneRT.dispose(); }
-    this.blur.material.defines.SAMPLES = q === 'high' ? 12 : 8;
-    this.blur.material.needsUpdate = true;
+    this.setBlur(q);
+  }
+
+  /** The blur's length (how many samples its shader takes: compiled in) for a graphics level. */
+  setBlur(q) {
+    const n = q === 'high' ? 12 : 8, m = this.blur.material;
+    if (m.defines.SAMPLES !== n) { m.defines.SAMPLES = n; m.needsUpdate = true; }
   }
 
   setSize(w, h) {
@@ -333,6 +339,47 @@ export class Post {
     gl.info.autoReset = true;
   }
 
+  /**
+   * The passes' own shaders, compiled ahead of the first frame that needs them (Renderer.warm): each for the target it
+   * draws into, and the mask's for each kind of mesh the player's truck has (the blur and the mask are first drawn
+   * when the truck first moves: that frame waited on them). q: the graphics level they are for.
+   */
+  warm(scene, camera, subject, q = this.quality) {
+    const gl = this.gl, was = gl.getRenderTarget();
+    this.setBlur(q);                                       // (the level's own blur: back to the one drawn, below)
+    for (const [mesh, rt] of [[this.blur, this.blurRT], [this.down, this.mips[0]], [this.up, this.mips[0]], [this.grade, null]]) {
+      gl.setRenderTarget(rt);
+      gl.compile(mesh, ORTHO);
+    }
+    this.setBlur(this.quality);
+    if (subject) {
+      // (as drawMask draws it: the truck's meshes with the mask's material)
+      const meshes = [], mats = [], layers = camera.layers.mask;
+      this.maskLayer(scene, subject);
+      subject.traverse((o) => { if (o.isMesh) { meshes.push(o); mats.push(o.material); o.material = this.maskMat; } });
+      camera.layers.set(MASK_LAYER);
+      gl.setRenderTarget(this.maskRT);
+      try { compilePart(gl, subject, camera, scene); } finally {
+        camera.layers.mask = layers;
+        meshes.forEach((o, i) => { o.material = mats[i]; });
+      }
+    }
+    gl.setRenderTarget(was);
+  }
+
+  /**
+   * The mask's layer, on the truck's meshes (every frame: the driver and parts join the truck after it is built) and
+   * on the scene's lights and the truck's own. The mask's shader takes no light, but three.js compiles a program for
+   * the count of lights its picture was drawn with, and draws the next frame's shadows with the count the last picture
+   * of the scene left behind: with no light on the mask's layer, the frame after a mask was drawn made the shadow
+   * pass's shaders over again for a scene of no lights (a second set, compiled as that frame waited, the first time
+   * the truck moved).
+   */
+  maskLayer(scene, subject) {
+    for (const c of scene.children) if (c.isLight) c.layers.enable(MASK_LAYER);
+    subject.traverse((o) => { if (o.isMesh || o.isLight) o.layers.enable(MASK_LAYER); });
+  }
+
   /** The player's truck alone, its distance in the mask (none: the mask is empty). */
   drawMask(scene, camera, subject) {
     const gl = this.gl, bg = scene.background, over = scene.overrideMaterial, layers = camera.layers.mask;
@@ -342,8 +389,7 @@ export class Post {
     gl.setClearColor(0x000000, 0);
     gl.clear(true, true, false);
     if (subject) {
-      // (every frame: the driver and parts join the truck after it is built)
-      subject.traverse((o) => { if (o.isMesh) o.layers.enable(MASK_LAYER); });
+      this.maskLayer(scene, subject);
       scene.background = null;
       scene.overrideMaterial = this.maskMat;
       camera.layers.set(MASK_LAYER);

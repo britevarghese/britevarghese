@@ -4,6 +4,8 @@ import * as THREE from 'three';
 import { Sky } from './Sky.js';
 import { Post } from './Post.js';
 import { Probe } from './Probe.js';
+import { drawnWith } from '../game/Quality.js';
+import { compilePart } from './Warm.js';
 
 // The haze (every material's fog, replacing three.js's): the air between the camera and what it sees scatters light
 // toward the eye (Beer-Lambert: a share 1 - exp(-optical depth) of the colour becomes the haze's), and the air thins
@@ -47,12 +49,15 @@ THREE.ShaderChunk.lights_pars_begin = THREE.ShaderChunk.lights_pars_begin + '\n#
 // the camera follows, its texels under a third the size: the truck's shadow and the leaves' under it sharp), cast by a
 // second sun that gives no light of its own. Where the near map covers, its shadow; faded into the wide one's at its
 // edge. (Only where two directional lights cast shadows: the game's world; the garage's one sun is as it was.)
+// On 'low' graphics the near map isn't drawn, and its sun says so with a shadow of no strength: the wide map alone,
+// by the same shader (were the second sun to stop casting, every material's shader would be another one, compiled
+// again as the level changed: see warm).
 THREE.ShaderChunk.shadowmap_pars_fragment += `
 #if defined( USE_SHADOWMAP ) && NUM_DIR_LIGHT_SHADOWS > 1
   float sunShadow() {
     vec3 p = vDirectionalShadowCoord[ 1 ].xyz / vDirectionalShadowCoord[ 1 ].w;
     float edge = max( abs( p.x - 0.5 ), abs( p.y - 0.5 ) ) * 2.0;
-    bool inNear = edge < 1.0 && p.z <= 1.0;
+    bool inNear = directionalLightShadows[ 1 ].shadowIntensity > 0.0 && edge < 1.0 && p.z <= 1.0;
     float wide = 1.0;
     if ( !inNear || edge > 0.8 ) wide = getShadow( directionalShadowMap[ 0 ], directionalLightShadows[ 0 ].shadowMapSize, directionalLightShadows[ 0 ].shadowIntensity, directionalLightShadows[ 0 ].shadowBias, directionalLightShadows[ 0 ].shadowRadius, vDirectionalShadowCoord[ 0 ] );
     if ( !inNear ) return wide;
@@ -226,25 +231,80 @@ export class Renderer {
     this.quality = q;
     const dpr = window.devicePixelRatio || 1;
     this.renderer.setPixelRatio(q === 'high' ? Math.min(dpr, 1.75) : q === 'medium' ? Math.min(dpr, 1.25) : Math.min(dpr, 1) * 0.85);
+    // (three.js makes a shadow map over at its new size itself; let go here, it was missing for whatever drew before
+    // the next frame's shadows: a mirror's picture, a frame with no land in it)
     const size = q === 'low' ? 1024 : 2048;
-    if (this.sun.shadow.mapSize.x !== size) {
-      this.sun.shadow.mapSize.set(size, size);
-      this.sun.shadow.map?.dispose(); this.sun.shadow.map = null;
-    }
-    // (the near cascade on 'high' and 'medium': on 'low', the one wide map)
+    this.sun.shadow.mapSize.set(size, size);
+    // the near cascade on 'high' and 'medium': on 'low', the one wide map. Its sun casts at every level (the shaders
+    // are the same ones: above); on 'low' its shadow has no strength and its map isn't drawn. A map it must have all
+    // the same (a shader's shadow sampler with none to read fails the draw, and the land with it): a token one of a
+    // few texels, drawn once
     this.cascades = CASCADES && q !== 'low';
-    this.sunNear.castShadow = this.cascades && this.renderer.shadowMap.enabled;
-    this.postOn = !!this.post && q !== 'low';
+    this.sunNear.castShadow = CASCADES && this.renderer.shadowMap.enabled;
+    const near = this.sunNear.shadow;
+    near.intensity = this.cascades ? 1 : 0;
+    near.autoUpdate = this.cascades;
+    near.mapSize.setScalar(this.cascades ? 2048 : 16);
+    if (!this.cascades) near.needsUpdate = true;
+    this.postOn = drawnWith(q, { post: !!this.post }).post;
     if (this.postOn) this.post.setQuality(q);
     this.probeOn = !!this.post && q === 'high';
     if (!this.probeOn) this.probe?.detach();
     this.resize();
   }
 
+  /**
+   * The shaders something is drawn with (the whole scene, or a thing about to join it), compiled before they are needed:
+   * all handed to the graphics card at once, which compiles them on its own threads where the browser lets it
+   * (KHR_parallel_shader_compile), the game drawing on meanwhile. Resolves once they are ready to draw with. Drawn
+   * without this, each is compiled the first time a frame needs it and the frame waits: a fraction of a second apiece
+   * on Windows, where every one is translated for Direct3D, and a hundred of them at once is the game stood still.
+   *
+   * q: the graphics level they are for (the one drawn; or one about to be stepped to: Game.changeQuality). three.js
+   * keeps a program for each state a material is drawn in, and one thing a level changes is part of that state:
+   * whether the frame is drawn into post-processing's target ('medium' and 'high': the tone curve is the last pass's,
+   * not each material's own) or onto the screen ('low'). So they are compiled as that level will draw them. (three.js's
+   * own compileAsync compiles for the screen: on 'medium' and 'high' that made a set of programs no frame ever used,
+   * and left the ones the frames did use to be compiled one at a time, as each thing first came into view.)
+   *
+   * tick: for the whole scene while the game is playing, a pause between its parts (their shaders' text is put
+   * together here, a millisecond or so each).
+   */
+  async warm(obj = this.scene, q = this.warming || this.quality, tick = null) {
+    const gl = this.renderer, before = new Set(gl.info.programs);
+    const { post } = drawnWith(q, { post: !!this.post });
+    const parts = tick && obj === this.scene ? [...obj.children] : [obj];
+    for (const part of parts) {
+      if (part !== obj && part.parent !== obj) continue;              // (gone while this waited its turn)
+      const target = gl.getRenderTarget();
+      try {
+        gl.setRenderTarget(post ? this.post.sceneRT : null);
+        compilePart(gl, part, this.camera, this.scene);          // (its lights counted once: render/Warm.js)
+      } catch (e) { console.warn('shaders', e); }
+      gl.setRenderTarget(target);
+      if (tick) await tick();
+    }
+    if (post && obj === this.scene) {
+      try { this.post.warm(this.scene, this.camera, this.subject?.root, q); } catch (e) { console.warn('shaders', e); }
+    }
+    const fresh = gl.info.programs.filter((p) => !before.has(p));
+    // (ready: the card says so without being waited on; a browser that can't ask says yes at once, and waits at the
+    // first draw as before. Not for ever: a program let go meanwhile, or a card that never answers)
+    const t0 = performance.now();
+    await new Promise((resolve) => {
+      const check = () => {
+        if (performance.now() - t0 > 30000 || fresh.every((p) => p.program === undefined || p.isReady())) resolve();
+        else setTimeout(check, 16);
+      };
+      check();
+    });
+    return fresh.length;
+  }
+
   setShadows(on) {
     this.renderer.shadowMap.enabled = on;
     this.sun.castShadow = on;
-    this.sunNear.castShadow = on && (this.cascades ?? CASCADES);
+    this.sunNear.castShadow = on && CASCADES;
     this.scene.traverse((o) => { if (o.material) o.material.needsUpdate = true; });
   }
 
@@ -264,7 +324,7 @@ export class Renderer {
     this.sun.position.set(fx + d.x * 300, fy + Math.max(0.15, d.y) * 300, fz + d.z * 300);
     this.sun.target.updateMatrixWorld();
     // the near cascade: the same sun, its box snapped to its own (smaller) texels
-    const tn = 40 / this.sunNear.shadow.mapSize.x;
+    const tn = 40 / Math.max(1024, this.sunNear.shadow.mapSize.x);
     const nx = Math.round(focus.x / tn) * tn, ny = Math.round(focus.y / tn) * tn, nz = Math.round(focus.z / tn) * tn;
     this.sunNear.target.position.set(nx, ny, nz);
     this.sunNear.position.set(nx + d.x * 300, ny + Math.max(0.15, d.y) * 300, nz + d.z * 300);

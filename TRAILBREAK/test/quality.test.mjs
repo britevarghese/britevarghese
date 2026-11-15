@@ -2,7 +2,7 @@
 // session settled; the player's own pick always.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { guessLevel, startLevel, rememberLevel, HOLD_SESSIONS } from '../src/game/Quality.js';
+import { guessLevel, startLevel, rememberLevel, HOLD_SESSIONS, drawnWith, LevelSwitch } from '../src/game/Quality.js';
 
 test('the first start, by the graphics card: cards made for games high, integrated graphics medium, software low', () => {
   const high = [
@@ -64,4 +64,68 @@ test('what is kept for the next session: the level the game settled at, and a re
   assert.equal(s.autoStart, 'medium');
   assert.equal(s.autoHold, HOLD_SESSIONS);
   assert.equal(s.quality, 'high', "the player's choice is never changed");
+});
+
+test('what a level draws with (its shaders are compiled for it): medium and high alike, low onto the screen', () => {
+  assert.deepEqual(drawnWith('high'), drawnWith('medium'));
+  assert.deepEqual(drawnWith('medium'), { post: true });
+  assert.deepEqual(drawnWith('low'), { post: false });
+  // (a browser without post-processing's targets: every level onto the screen, and no shader differs between them)
+  for (const q of ['low', 'medium', 'high']) assert.deepEqual(drawnWith(q, { post: false }), { post: false });
+});
+
+test('a change of level is made once its shaders are ready, and drawn as it was until then', async () => {
+  const log = [];
+  let ready;
+  const sw = new LevelSwitch((q) => { log.push(`warm ${q}`); return new Promise((r) => { ready = r; }); }, () => log.push('apply'));
+  let level = 'medium';
+  const p = sw.change('low', 'medium', () => { level = 'low'; });
+  await Promise.resolve(); await Promise.resolve();
+  assert.deepEqual(log, ['warm low']);
+  assert.equal(level, 'medium', 'not changed while its shaders compile');
+  assert.equal(sw.to, 'low', 'what joins the scene meanwhile is compiled for it');
+  ready();
+  assert.equal(await p, true);
+  assert.equal(level, 'low');
+  assert.deepEqual(log, ['warm low', 'apply']);
+  assert.equal(sw.to, null);
+});
+
+test('a change to the level already drawn is made at once; a failed compile still makes the change', async () => {
+  const log = [];
+  const sw = new LevelSwitch((q) => { log.push(`warm ${q}`); return Promise.reject(new Error('lost')); }, () => log.push('apply'));
+  let set = 0;
+  assert.equal(await sw.change('high', 'high', () => set++), true);
+  assert.deepEqual(log, ['apply']);
+  assert.equal(set, 1);
+  assert.equal(await sw.change('low', 'high', () => set++), true);
+  assert.deepEqual(log, ['apply', 'warm low', 'apply']);
+  assert.equal(set, 2);
+});
+
+test('the last change asked for is the one made: one still compiling when another is asked is dropped', async () => {
+  const log = [], waits = [];
+  const sw = new LevelSwitch((q) => new Promise((r) => { waits.push(r); }), () => log.push('apply'));
+  const made = [];
+  const a = sw.change('low', 'medium', () => made.push('low'));       // (the game's own step down...)
+  await Promise.resolve(); await Promise.resolve();
+  const b = sw.change('high', 'medium', () => made.push('high'));     // (...and the player picks high meanwhile)
+  await Promise.resolve(); await Promise.resolve();
+  assert.equal(sw.to, 'high');
+  waits[0]();
+  assert.equal(await a, false);
+  assert.deepEqual(made, []);
+  assert.equal(sw.to, 'high', 'the later change still waits');
+  waits[1]();
+  assert.equal(await b, true);
+  assert.deepEqual(made, ['high']);
+  assert.deepEqual(log, ['apply']);
+  // (and a pick of the level drawn all along drops the one compiling)
+  const c = sw.change('low', 'high', () => made.push('low'));
+  await Promise.resolve(); await Promise.resolve();
+  assert.equal(await sw.change('high', 'high', () => made.push('high again')), true);
+  waits[2]();
+  assert.equal(await c, false);
+  assert.deepEqual(made, ['high', 'high again']);
+  assert.equal(sw.to, null);
 });

@@ -1264,6 +1264,36 @@ Everything that makes off-roading off-roading is simulated, not faked:
   session goes by the graphics card's name: a card made for games starts at High, integrated graphics, phones and
   anything unknown at Medium, a software renderer or an old integrated chip at Low. The game says where it started
   (Esc to change); pick a level yourself and you get it, always.
+- **No frame waits on a shader** (`src/render/Renderer.js` `warm`, `src/render/Warm.js`, `src/game/Quality.js`): a material's shader is
+  compiled by the graphics card the first time a frame draws with it, and the frame waits: a fraction of a second
+  apiece on Windows, where each is translated for Direct3D. So they are compiled ahead, all handed over together
+  (the card compiles them side by side, the game not waiting where the browser allows: `KHR_parallel_shader_compile`).
+  three.js keeps a program for each state a material is drawn in, and on Medium and High the frame is drawn into
+  post-processing's target, not onto the screen: its own `compileAsync`, which the loading screen used, compiles for
+  the screen. On the coast at Medium that made 69 programs no frame ever drew with, and of the 126 the game does draw
+  with only the 59 in view of the first frame were ready: the rest were compiled one at a time while you drove, as each
+  kind of thing first came into view (a stutter each). Now all 126 are ready before the first frame, and none of the
+  wasted ones is made; a map coming in, a friend's truck and your own truck rebuilt (a load put on: the new model
+  takes up its shaders before the old one lets go of them, where they were thrown away and compiled again) are
+  compiled the same way before they are shown. (three.js counts a part's lights over again when it compiles a part
+  of a scene: the truck's headlamps twice, and its shaders made for lamps that aren't there. `Warm.js` has each
+  counted once.) The session's level is told to the renderer before the world is put together, so what is compiled
+  on the loading screen is compiled for it.
+- **A change of graphics level without a freeze** (`Game.changeQuality`): between Low and the other two every shader
+  is another one (the screen or the target), and the level used to change at once: the next frames compiled them all
+  over again as they came to them (46 in the first four frames after, in the test above), the game stood still just
+  when a machine was already short of frames. Now the new level's shaders are compiled first, in the background and a
+  part of the scene at a time, the game drawn at the level it had meanwhile; the level changes on the frame they are
+  ready (the last change asked for is the one made). The near shadow map, which Low leaves out, no longer changes the
+  shaders either: its sun casts at every level, and on Low its shadow has no strength and its map is a token of a few
+  texels drawn once (a second count of shadow maps made every shader, the shadow pass's own among them, another one
+  again). And the mask that keeps the truck sharp in the motion blur is drawn with the scene's lights on its layer:
+  with none, three.js drew the next frame's shadows with shaders made for a scene of no lights, a second set of them
+  compiled the first time the truck moved. A light bar fitted or taken off and shadows switched on or off still
+  change every shader: those are handed to the card together. In the same test a change of level now compiles none
+  as a frame waits, nor do the headlamps, the other views, the rain or the night. (A shader's shadow sampler with no
+  map to read fails the draw without an error in the page, the land gone from the picture and the truck driving on
+  over it: the installed game's test now reads WebGL's error flag after its drive.)
 - **Smooth frames:** what the open world builds as you drive is held to a few milliseconds a frame, so a frame never
   waits on it: the ground's patches 4 ms a frame across all the maps drawn (a coarse patch of the far land, each of
   its vertices sampling every map round it, built over several frames, the coarser one it replaces drawn till then;
@@ -1765,8 +1795,8 @@ placed in its worker (and kept with it in storage), not when it joins; its groun
 a worker too (`src/render/groundWorker.js`); the maps that grow the same set of trees share one set of tree models
 and one set of their pictures for far off (the Ghat and Kerala the coast's, the pass Ashwood's), and the water's
 ripples are made once for all of them; its parts are built a step at a time with the game running between them; and
-its shaders are compiled in the background (`compileAsync`) before it is shown, so its first frame on screen doesn't
-wait for them. The trees' shaders no longer differ by species (the height of a crown is a uniform), so every map's
+its shaders are compiled in the background (`Renderer.warm`: for the graphics level drawn) before it is shown, so its
+first frame on screen doesn't wait for them. The trees' shaders no longer differ by species (the height of a crown is a uniform), so every map's
 trees share the same few. A map the camera has left (beyond 2.6 km of its square) puts its tree models away and shows
 every tree as its card again (until then the models it had round the camera stayed drawn: 0.33 M triangles of the
 coast's trees, seen from the pass 3 km off). In the same software-drawing test, the page's own thread was busy for 45 s while the other

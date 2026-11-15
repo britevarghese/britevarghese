@@ -51,3 +51,46 @@ export function rememberLevel(settings, level, stuck = false) {
   settings.autoStart = level === (settings.quality || 'high') ? '' : level;
   if (stuck) settings.autoHold = HOLD_SESSIONS;
 }
+
+/**
+ * What a graphics level draws with that a material's shader is compiled for (three.js keeps a program for each state a
+ * material is drawn in): post, the frame drawn into post-processing's target and not onto the screen (the tone curve
+ * is then the last pass's, not each material's own). 'medium' and 'high' draw so, 'low' doesn't: between 'low' and the
+ * others every shader is another one, and between 'medium' and 'high' none is. has: whether the browser can draw into
+ * post-processing's targets at all (where it can't, every level draws onto the screen).
+ */
+export function drawnWith(level, { post = true } = {}) {
+  return { post: post && level !== 'low' };
+}
+
+/**
+ * Changes of the graphics level, each made once the level's shaders are ready: warm(level) compiles them in the
+ * background (a promise), the game drawn as it was meanwhile; then apply() draws the new level. Made at once, the next
+ * frame compiled every shader over again for the new level, the game stood still for it. The last change asked for is
+ * the one made: one still waiting on its shaders when another is asked is dropped.
+ */
+export class LevelSwitch {
+  constructor(warm, apply) {
+    this.warm = warm; this.apply = apply;
+    this.asked = 0;
+    this.to = null;            // the level being changed to, while its shaders compile (what joins the scene meanwhile is compiled for it too)
+  }
+
+  /**
+   * To `level`, from the level `drawn` now. set(): the change itself (the settings', or the game's own step), made
+   * with it. Resolves true once drawn, false if another change was asked for meanwhile.
+   */
+  change(level, drawn, set) {
+    const id = ++this.asked;
+    const make = () => {
+      if (id !== this.asked) return false;
+      this.to = null;
+      set?.();
+      this.apply();
+      return true;
+    };
+    if (level === drawn) return Promise.resolve(make());
+    this.to = level;
+    return Promise.resolve().then(() => this.warm(level)).catch(() => {}).then(make);
+  }
+}

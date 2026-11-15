@@ -30,8 +30,9 @@ import { windowGlow } from '../render/KeralaBuildings.js';
 import { seeThrough } from '../render/Vegetation.js';
 import { retroLights } from '../render/RoadMarkings.js';
 import { beginTerrainFrame } from '../render/Terrain.js';
-import { setHurry } from './Idle.js';
+import { setHurry, idle } from './Idle.js';
 import { PerfMeter } from '../ui/PerfMeter.js';
+import { LevelSwitch } from '../game/Quality.js';
 import { TrackMap } from '../render/TrackMap.js';
 import { Rain } from '../render/Rain.js';
 import { WEATHER_UNIFORMS } from '../render/Weather.js';
@@ -478,12 +479,21 @@ export class Game {
     // (the range and the front axle as they were, when both trucks shift them: a road car drives as it's built)
     if (v.dt.t.low > 1 && old.dt.t.low > 1) v.dt.low = old.dt.low;
     if (v.dt.drive === '4wd' && old.dt.drive === '4wd') v.dt.fourWD = old.dt.fourWD;
-    this.scene.remove(this.model.root); this.model.dispose();
+    const was = this.model;
+    this.scene.remove(was.root);
     this.model = modelFor(this.spec, this.truckId, this.paint, { mirrors: true });
     this.model.setDirt(this.dirt); this.model.setDust(this.dust);
     this.scene.add(this.model.root);
     this.renderer.subject = this.model;
+    const bar = !!this.barLight;
     this.attachLights();
+    // (the new model takes up its shaders before the old one lets go of its own: let go first, the ones both draw with
+    // (all of them, for the same truck with a load on) were thrown away and compiled again, the next frame waiting.
+    // A light bar fitted or taken off is a lamp more or fewer in the scene, and every lit material's shader is another
+    // one for it: all handed to the graphics card together, which compiles them side by side, not one at a time as
+    // the next frame comes to each)
+    this.renderer.warm(bar !== !!this.barLight ? this.scene : this.model.root).catch(() => {});
+    was.dispose();
     this.rope.mat.color.set(this.spec.winch.synthetic ? 0xd0571e : 0x2b2b28);
     if (toGarage) this.placeAtGarage(); else v.place(this.world, pose.x, pose.z, pose.yaw);
     this.carry = 0;
@@ -1103,7 +1113,7 @@ export class Game {
     if (MODEL_BODIES.has(style) && !modelReady) loadTruckAsset(style);
     const load = s.load || '';
     if (!rv || rv.truckId !== s.truck || rv.cfg !== s.cfg || rv.load !== load || rv.model.modelBody !== modelReady) {
-      if (rv) { this.scene.remove(rv.model.root); rv.model.dispose(); }
+      const was = rv?.model;
       // (a friend's load: in their bed, and their truck balanced as theirs is: game/Jobs.js)
       const spec = truckSpec(s.truck, s.cfg || undefined, cargoOf(load));
       const color = MATE_COLORS[r.id % MATE_COLORS.length];
@@ -1112,11 +1122,16 @@ export class Game {
       rv.model.root.add(rv.tag);
       rv.tag.position.set(0, spec.roofY + spec.raise - spec.cgHeight + 0.5, 0);
       // (its shaders compiled in the background before it is shown: drawn at once, a friend's truck coming into the room
-      // held the game up while the graphics card compiled the ones its model has that ours hasn't)
+      // held the game up while the graphics card compiled the ones its model has that ours hasn't. The truck it
+      // replaces (the same friend's, fitted or loaded differently) stands until then, and lets go of its own shaders
+      // only after: most are the new one's too)
       const root = rv.model.root;
       root.visible = false;
       this.scene.add(root);
-      this.renderer.renderer.compileAsync(root, this.renderer.camera, this.scene).catch(() => {}).then(() => { root.visible = true; });
+      this.renderer.warm(root).catch(() => {}).then(() => {
+        root.visible = true;
+        if (was) { this.scene.remove(was.root); was.dispose(); }
+      });
       const key = `${spec.id}:${spec.buildCode}:${load}`;
       if (!this.sphereCache.has(key)) this.sphereCache.set(key, new Vehicle(spec).hullSpheres);
       rv.spheres = this.sphereCache.get(key);
@@ -1505,7 +1520,7 @@ export class Game {
   // ---------------------------------------------------------------- frame
   frame(dt) {
     const I = this.input, v = this.vehicle, W = v.winch;
-    if (this.meter?.on) this.meter.frame({ level: this.quality(), chosen: this.settings.quality || 'high', maps: this.world.total && !this.world.complete ? [this.world.view?.views.length ?? this.world.regions.length, this.world.total] : null });
+    if (this.meter?.on) this.meter.frame({ level: this.renderer.quality || this.quality(), chosen: this.settings.quality || 'high', maps: this.world.total && !this.world.complete ? [this.world.view?.views.length ?? this.world.regions.length, this.world.total] : null });
     // (a fast travel waiting on a map, or the truck within a kilometre of one not in yet: the maps' building not left
     // to the idle time between frames, core/Idle.js)
     if ((this.hurryT = (this.hurryT || 0) - dt) <= 0) {
@@ -1816,7 +1831,7 @@ export class Game {
     this.touch?.update(this);
     // the mirrors, in whichever view, those big enough on the screen: one picture drawn a frame (every other on medium
     // graphics, none on low: polished glass)
-    const q = this.quality();
+    const q = this.renderer.quality || this.quality();       // (the level drawn: a change waits on its shaders, changeQuality)
     if (m.mirrors && !this.noRender) {
       // (and the trees as their cards: their models, every near tree whichever way a mirror looks, cost a mirror's
       // picture over a million triangles a frame on high graphics)
@@ -1870,7 +1885,7 @@ export class Game {
     p.fps = p.n / p.sum;
     p.t = 0; p.n = 0; p.sum = 0;
     if (p.grace > 0) { p.grace -= 4; return; }
-    if (this.settings.autoQuality === false || this.noRender) return;
+    if (this.settings.autoQuality === false || this.noRender || p.stepping) return;
     const LEVELS = ['low', 'medium', 'high'], now = LEVELS.indexOf(this.quality()), chosen = LEVELS.indexOf(this.settings.quality || 'high');
     p.slow = p.fps < 52 ? p.slow + 1 : 0;
     p.fast = p.fps >= 58 ? p.fast + 1 : 0;
@@ -1883,11 +1898,35 @@ export class Game {
     // (a step up only once the open world's maps are all in: tried while they came in, a slow spell that was theirs
     // counted against the level, and it was given up on for sessions to come)
     if (to === now) return;
-    this.autoQuality = LEVELS[to];
-    this.applyQuality();
-    this.onAutoQuality?.(LEVELS[to], failed);                // (kept for the next session's start: game/Quality.js)
-    this.hud.toast(to < now ? `Graphics set to ${LEVELS[to]} to keep it smooth (Esc to change)` : `Graphics back to ${LEVELS[to]}`, false, 5);
-    p.slow = 0; p.fast = 0; p.grace = 8;
+    // (the step is made once the level's shaders are compiled: changeQuality. Nothing is judged meanwhile)
+    const level = LEVELS[to];
+    p.stepping = true;
+    p.slow = 0; p.fast = 0;
+    this.changeQuality(level, () => { this.autoQuality = level; }).then((done) => {
+      p.stepping = false;
+      p.slow = 0; p.fast = 0; p.grace = 8; p.t = 0; p.n = 0; p.sum = 0;
+      if (!done) return;
+      this.onAutoQuality?.(level, failed);                   // (kept for the next session's start: game/Quality.js)
+      this.hud.toast(to < now ? `Graphics set to ${level} to keep it smooth (Esc to change)` : `Graphics back to ${level}`, false, 5);
+    });
+  }
+
+  /**
+   * A change of the graphics level (the player's in the menu, or the game's own step: perf), made from the frame its
+   * shaders are ready: they are compiled first, in the background (render/Renderer.js warm), the game drawn at the
+   * level it had meanwhile. Changed at once, the next frames compiled every material's shader over again for the new
+   * level (between 'low' and the others the frame is drawn onto the screen or into a target: three.js keeps a program
+   * for each) and the game stood still for it, a second or several on Windows: just when a machine was already short
+   * of frames.
+   * set(): the change itself (the level then comes from quality()). Resolves true once made; false if another change
+   * was asked for meanwhile (the last one asked is the one made).
+   */
+  changeQuality(level, set) {
+    const R = this.renderer;
+    this.levels ||= new LevelSwitch(
+      (q) => { R.warming = q; return R.warm(this.scene, q, () => idle(6)); },   // (and what joins the scene meanwhile is compiled for it)
+      () => { R.warming = null; this.applyQuality(); });
+    return this.levels.change(level, this.noRender ? level : R.quality, set);
   }
 
   /** The frame rate's readout (ui/PerfMeter.js: F3, or the pause menu), shown or not. */

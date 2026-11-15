@@ -88,6 +88,10 @@ const shoot = (win, name) => win.screenshot({ path: path.join(shots, name), time
     log(`drew ${to.frame - from.frame} frames while driving`);
     check(moving, `the truck drives (${Math.hypot(to.x - from.x, to.z - from.z).toFixed(1)} m, ${to.kmh.toFixed(0)} km/h)`);
     check(errors.length === 0, `no errors in the page${errors.length ? `: ${errors.slice(0, 3).join(' | ')}` : ''}`);
+    // (a draw the graphics card refuses raises no error in the page: the truck drives on, over a picture with no land
+    // in it. WebGL keeps the first refusal since it was last asked)
+    const glError = await win.evaluate(() => window.game.renderer.renderer.getContext().getError());
+    check(glError === 0, `the graphics card took every draw (WebGL error ${glError})`);
     await shoot(win, 'driving.png');
   } finally {
     await app.close().catch(() => {});
