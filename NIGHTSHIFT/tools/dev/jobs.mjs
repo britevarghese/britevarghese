@@ -42,7 +42,8 @@ for (const kind of kinds) {
       if (args_hop) { // set the car down on the road beside the target, stopped (hops are a few seconds apart, so tiles can load)
         if ((job.hopT = (job.hopT ?? 0) - 1 / 30) <= 0 && d > 11) {
           job.hopT = 3;
-          const r = G.world.roadSpot(T.x, T.z, 7);
+          // (the lane nearest the target, as a driver pulls up; a road piece's midpoint - roadSpot - can be 15 m along)
+          const ln = G.traffic.graph.nearest(T.x, T.z, (l) => l.edge?.cls <= 9), r = ln && ln.dist < 40 ? { x: ln.x, z: ln.z, yaw: Math.atan2(ln.dx, ln.dz) } : G.world.roadSpot(T.x, T.z, 7);
           if (r && Math.hypot(r.x - T.x, r.z - T.z) < 40) { G.player.place(r.x, r.z, r.yaw); G.camCtl.snap(G.player); log.push(`  ${t.toFixed(0)}s hop to the road ${Math.hypot(r.x - T.x, r.z - T.z).toFixed(1)} m from the ${job.stage === 'pickup' ? 'pickup' : job.drop.spot ? 'drop kerb' : 'drop centre'}`); }
           else if (!job.drop?.spot && job.stage === 'drop') { G.player.place(T.x, T.z, 0); }
         }

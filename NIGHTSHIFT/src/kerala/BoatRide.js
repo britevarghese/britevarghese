@@ -85,6 +85,7 @@ export class BoatRide {
   // the frame while aboard (from OnFoot.update)
   ride(dt, input) {
     const g = this.game, F = g.onFoot, b = this.boat, w = g.world, ic = input.controls, s = F.state;
+    if (F.dead) { this.end(); this.moored = b; return; } // (shot aboard: the on-foot update takes it from here)
     b.t += dt;
     const thr = ic.throttle || 0, rev = ic.brake || 0, boost = !!ic.nitro, top = boost ? MAX_BOOST : MAX;
     b.v += (thr * (boost ? BOOST : ACCEL) - rev * REV) * dt;
@@ -125,7 +126,8 @@ export class BoatRide {
     b.shoreT = 0.25; b.shore = null;
     for (const r of [2.5, 3.5, 4.5, 6, 7]) for (let k = 0; k < 12; k++) {
       const a = b.yaw + (k / 12) * Math.PI * 2, px = b.x + Math.sin(a) * r, pz = b.z + Math.cos(a) * r;
-      if (w.inWater(px, pz) || !g.onFoot._free(px, pz)) continue;
+      // (ground that's built: where it isn't yet, nothing reads as water)
+      if (!w.groundKnown(px, pz, 2) || w.inWater(px, pz) || !g.onFoot._free(px, pz)) continue;
       return (b.shore = { x: px, z: pz });
     }
     return null;

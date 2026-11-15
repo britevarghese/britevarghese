@@ -280,7 +280,7 @@ export class KeralaJobs {
     if (job.stage === 'pickup') {
       const d = Math.hypot(s.x - job.pick.x, s.z - job.pick.z);
       if (d < 30 && sp > 3 && !g.onFoot?.active) this._meter('PULL UP', 1 - d / 30, false); else this._meter(null);
-      if (d < 9 && sp < 3 && !g.onFoot?.active) { this._meter(null); this._depart(); }
+      if (d < 13 && sp < 3 && !g.onFoot?.active) { this._meter(null); this._depart(); } // (13 m: across a wide road's far lane)
       else if (job.t > 240) this._fail(job.kind === 'taxi' ? `${job.who} took a bus instead` : 'The shop gave the job to someone else');
       return;
     }
@@ -289,7 +289,9 @@ export class KeralaJobs {
     if (!D.spot && (job.tryT = (job.tryT || 0) - dt) <= 0) {
       job.tryT = 1;
       if (Math.hypot(D.x - f.x, D.z - f.z) < 900) {
-        const k = this._kerb(D.x, D.z);
+        // (no kerb to be had at the place though its ground is built - no road within reach of its centre: the
+        // nearest road of any kind, or the centre itself, so the job can always be finished)
+        const w = g.world, k = this._kerb(D.x, D.z) || (w.groundKnown(D.x, D.z, 30) ? (w.roadSpot(D.x, D.z, 9) || { x: D.x, z: D.z }) : null);
         if (k) { D.spot = k; this._unmark(); this._mark(k.x, k.z, 1.1); g.setGPS(k.x, k.z); }
       }
     }
@@ -298,6 +300,6 @@ export class KeralaJobs {
     const mm = Math.max(0, Math.ceil(job.time)), label = `${D.name.toUpperCase()} · ${Math.floor(mm / 60)}:${String(mm % 60).padStart(2, '0')} · ${d >= 1000 ? (d / 1000).toFixed(1) + ' km' : Math.round(d) + ' m'}`;
     this._meter(label, job.time / job.limit, job.time < 20);
     if (job.time <= 0) { this._fail(job.kind === 'taxi' ? `${job.who}: "Stop here, I'll walk!"` : `Too late: ${D.name} didn't wait`); return; }
-    if (D.spot && d < 12 && sp < 3 && !g.onFoot?.active) this._arrive();
+    if (D.spot && d < 14 && sp < 3 && !g.onFoot?.active) this._arrive();
   }
 }
