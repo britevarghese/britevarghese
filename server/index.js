@@ -77,6 +77,14 @@ app.post('/api/ai/test', async (req, res) => {
   try { res.json(await testAgentConfig(req.body || {})); } catch (e) { res.status(400).json({ error: e.message }); }
 });
 app.use(express.static(path.join(ROOT, 'client')));
+// whatever the middleware above rejects (a body that isn't JSON, one over the size limit): a short JSON answer —
+// never the default error page, which prints a stack trace with the server's file paths
+app.use((err, req, res, next) => {
+  if (res.headersSent) return next(err);
+  const code = err.status >= 400 && err.status < 500 ? err.status : 500;
+  if (code === 500) fault(`${req.method} ${req.path}`, err);
+  res.status(code).json({ error: code === 413 ? 'Request too large' : code === 500 ? 'Server error' : 'Bad request' });
+});
 
 // ---------------------------------------------------------------- game sockets
 const server = http.createServer(app);

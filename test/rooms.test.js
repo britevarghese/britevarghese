@@ -137,6 +137,13 @@ test('a client sending garbage cannot take the server down: oversized, binary an
     await wait(150);
     bad.terminate();
   }
+  // a body that isn't JSON, or is far too big: a short JSON refusal, not an error page with a stack trace
+  for (const [body, code] of [['{', 400], ['"str"', 400], [`{"name":"${'x'.repeat(6000)}"}`, 413]]) {
+    const r = await fetch(`http://localhost:${P2}/api/rooms`, { method: 'POST', headers: { 'content-type': 'application/json' }, body });
+    const text = await r.text();
+    assert.equal(r.status, code);
+    assert.ok(typeof JSON.parse(text).error === 'string' && !/\.js:\d+/.test(text), `a plain JSON error (${text.slice(0, 60)})`);
+  }
   // room, map and kit names that are keys of every object
   const res = await fetch(`http://localhost:${P2}/api/rooms`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ name: 'x', map: 'constructor', botsPerTeam: 1 }) });
   assert.equal(res.status, 200, 'an unknown map falls back to the default one');
