@@ -6,6 +6,7 @@ import { NavGrid } from './nav.js';
 import { stepAir } from '../shared/royale.js';
 import { bulletPath, STEP } from '../shared/ballistics.js';
 import { BotBrain } from './bots.js';
+import { prepareVehicleRoutes } from './botvehicles.js';
 import { VehicleSystem } from './vehicles.js';
 import { angleDiff } from '../shared/util.js';
 import { SQUAD_SIZE, SQUAD_SAFE_MS, SQUAD_ENEMY_R } from '../shared/squads.js';
@@ -61,6 +62,7 @@ export class Game {
     this.events = [];
     this.time = 0;
     this.vehicles = new VehicleSystem(this);
+    if (this.vehicles.list.length) prepareVehicleRoutes(this); // (once per map: see botvehicles.js)
     this.glassBroken = new Set(); // window panes shattered this round (the collision world is shared: state lives here)
     this.restrictedHQ = this.mode === 'tdm' ? 0 : Math.min(45, this.map.PLAY_HALF * 0.3); // radius of each HQ's no-go zone for the enemy (none in TDM)
     this.reviveEnabled = true; // (battle royale: no medics, no reviving)
@@ -83,10 +85,13 @@ export class Game {
     this.grenades = []; this.bullets = [];
     this.vehicles.resetAll();
     this.repairGlass();
+    // (the bots come back a couple of ticks apart, not all in one: each plans a route as he spawns, and a whole
+    // team's worth of path finding in a single tick was a hitch for everyone on the server)
+    let nb = 0;
     for (const p of this.players.values()) {
       p.kills = p.deaths = p.score = 0; p.stats = {};
       this.kill(p, null, 'reset', true);
-      p.respawnAt = this.now() + 1500;
+      p.respawnAt = this.now() + 1500 + (p.bot ? nb++ * 67 : 0);
     }
   }
 

@@ -1,5 +1,15 @@
 // Navigation grid + A* for server-side bots.
 
+// Working memory for findPath, shared by every grid (searches never overlap) and sized to the largest grid searched
+// so far: per cell its cost so far, the cell it was reached from, and a mark saying whether those are from the
+// current search (open / closed) — so nothing needs clearing between searches.
+const S = { cells: 0, g: null, came: null, mark: null, id: 0, hf: new Float64Array(4096), hk: new Int32Array(4096) };
+function scratch(cells) {
+  if (S.cells < cells) { S.cells = cells; S.g = new Float64Array(cells); S.came = new Int32Array(cells); S.mark = new Uint32Array(cells); S.id = 0; }
+  if (++S.id > 0x7ffffff0) { S.mark.fill(0); S.id = 1; }
+  return S;
+}
+
 export class NavGrid {
   constructor(world, cell = 0.75) {
     this.world = world;
@@ -79,35 +89,68 @@ export class NavGrid {
   }
 
   // Returns array of {x,z} waypoints (string-pulled) or null. sy: the start's height (see nearestFreeFrom).
+  // A* over the grid (8-connected, no corner cutting). All of its state lives in flat typed arrays shared by every
+  // search (see scratch()): a search on a big map expands tens of thousands of cells, and doing that with Maps,
+  // Sets and a heap of little arrays took 30-100 ms — a visible hitch for every room on the server.
   findPath(sx, sz, tx, tz, maxExpand = 60000, sy) {
     const s = this.nearestFreeFrom(sx, sz, sy), t = this.nearestFree(this.ix(tx), this.iz(tz));
     if (!s || !t) return null;
-    const N = this.n, start = s[1] * N + s[0], goal = t[1] * N + t[0];
-    const g = new Map([[start, 0]]), came = new Map();
-    const heap = [[0, start]];
-    const push = (f, k) => { heap.push([f, k]); let i = heap.length - 1; while (i > 0) { const p = (i - 1) >> 1; if (heap[p][0] <= heap[i][0]) break; [heap[p], heap[i]] = [heap[i], heap[p]]; i = p; } };
-    const pop = () => { const top = heap[0], last = heap.pop(); if (heap.length) { heap[0] = last; let i = 0; for (;;) { const l = 2 * i + 1, r = l + 1; let m = i; if (l < heap.length && heap[l][0] < heap[m][0]) m = l; if (r < heap.length && heap[r][0] < heap[m][0]) m = r; if (m === i) break; [heap[m], heap[i]] = [heap[i], heap[m]]; i = m; } } return top; };
-    const h = (k) => { const dx = Math.abs((k % N) - t[0]), dz = Math.abs(((k / N) | 0) - t[1]); return Math.max(dx, dz) + 0.414 * Math.min(dx, dz); };
-    const closed = new Set();
+    const N = this.n, start = s[1] * N + s[0], goal = t[1] * N + t[0], blocked = this.blocked, ti = t[0], tj = t[1];
+    const S = scratch(N * N), g = S.g, came = S.came, mark = S.mark, open = S.id * 2, closed = open + 1;
+    // binary min-heap of (f, cell), in two parallel arrays
+    let hf = S.hf, hk = S.hk, hn = 0;
+    const push = (f, k) => {
+      if (hn === hf.length) { const nf = new Float64Array(hn * 2), nk = new Int32Array(hn * 2); nf.set(hf); nk.set(hk); S.hf = hf = nf; S.hk = hk = nk; }
+      let i = hn++;
+      hf[i] = f; hk[i] = k;
+      while (i > 0) { const p = (i - 1) >> 1; if (hf[p] <= hf[i]) break; const f0 = hf[p], k0 = hk[p]; hf[p] = hf[i]; hk[p] = hk[i]; hf[i] = f0; hk[i] = k0; i = p; }
+    };
+    const pop = () => {
+      const top = hk[0];
+      if (--hn > 0) {
+        hf[0] = hf[hn]; hk[0] = hk[hn];
+        for (let i = 0; ;) {
+          const l = 2 * i + 1, r = l + 1; let m = i;
+          if (l < hn && hf[l] < hf[m]) m = l;
+          if (r < hn && hf[r] < hf[m]) m = r;
+          if (m === i) break;
+          const f0 = hf[m], k0 = hk[m]; hf[m] = hf[i]; hk[m] = hk[i]; hf[i] = f0; hk[i] = k0; i = m;
+        }
+      }
+      return top;
+    };
+    g[start] = 0; mark[start] = open;
+    push(0, start);
     let expanded = 0, found = false;
-    while (heap.length && expanded < maxExpand) {
-      const [, k] = pop();
+    while (hn && expanded < maxExpand) {
+      const k = pop();
       if (k === goal) { found = true; break; }
-      if (closed.has(k)) continue;
-      closed.add(k); expanded++;
-      const ci = k % N, cj = (k / N) | 0, gk = g.get(k);
-      for (let dj = -1; dj <= 1; dj++) for (let di = -1; di <= 1; di++) {
-        if (!di && !dj) continue;
-        const ni = ci + di, nj = cj + dj;
-        if (!this.free(ni, nj)) continue;
-        if (di && dj && (!this.free(ci + di, cj) || !this.free(ci, cj + dj))) continue;
-        const nk = nj * N + ni, ng = gk + (di && dj ? 1.414 : 1);
-        if (ng < (g.get(nk) ?? Infinity)) { g.set(nk, ng); came.set(nk, k); push(ng + h(nk), nk); }
+      if (mark[k] === closed) continue;
+      mark[k] = closed; expanded++;
+      const ci = k % N, cj = (k / N) | 0, gk = g[k];
+      for (let dj = -1; dj <= 1; dj++) {
+        const nj = cj + dj;
+        if (nj < 0 || nj >= N) continue;
+        for (let di = -1; di <= 1; di++) {
+          if (!di && !dj) continue;
+          const ni = ci + di;
+          if (ni < 0 || ni >= N) continue;
+          const nk = nj * N + ni;
+          if (blocked[nk]) continue;
+          if (di && dj && (blocked[cj * N + ni] || blocked[nj * N + ci])) continue; // (no cutting a corner)
+          const ng = gk + (di && dj ? 1.414 : 1), m = mark[nk], known = m === open || m === closed;
+          if (!known || ng < g[nk]) {
+            g[nk] = ng; came[nk] = k;
+            if (!known) mark[nk] = open;
+            const dx = Math.abs(ni - ti), dz = Math.abs(nj - tj);
+            push(ng + (Math.max(dx, dz) + 0.414 * Math.min(dx, dz)), nk);
+          }
+        }
       }
     }
     if (!found) return null;
     const cells = [];
-    for (let k = goal; k !== undefined; k = came.get(k)) { cells.push(k); if (k === start) break; }
+    for (let k = goal; ; k = came[k]) { cells.push(k); if (k === start) break; }
     cells.reverse();
     // string pulling on grid
     const pts = [];

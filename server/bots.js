@@ -52,10 +52,12 @@ export class BotBrain {
   constructor(game, p) {
     this.g = game; this.p = p;
     this.skill = rand(0.45, 0.9);
-    this.onSpawn();
+    // (no route yet: he isn't on the map until he spawns — Game.spawn calls onSpawn again — and a whole team's
+    // worth of path finding from nowhere, all in the tick the bots are added, was a hitch for the server)
+    this.onSpawn(false);
   }
 
-  onSpawn() {
+  onSpawn(plan = true) {
     this.path = null; this.pathIdx = 0; this.goal = null; this.repathAt = 0;
     this.target = null; this.lastSeen = null; this.seeAt = 0; this.reactUntil = 0;
     this.burstLeft = 0; this.burstPauseUntil = 0; this.nextPerceive = 0;
@@ -66,7 +68,7 @@ export class BotBrain {
     this.watch = null; this.watchUntil = 0; this.lastThreatAt = -1e9; this.unstick = null;
     this.aware = new Map(); this.lastPerceive = 0; this.supp = 0; this.suppAt = 0; this.nextNade = this.g.now() + rand(5000, 15000);
     this.crew = null;
-    this.pickGoal();
+    if (plan) this.pickGoal();
   }
 
   // straight line from here to `q` wide enough for a body (knee height, ±0.3 m)

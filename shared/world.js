@@ -256,12 +256,59 @@ export class CollisionWorld {
     return null;
   }
 
+  // Is the straight line from a to b free of anything that stops a bullet (and of the terrain)? Asked thousands of
+  // times a second (what each bot can see, every step of smoothing a path), so it has its own yes / no ray test:
+  // the same boxes and the same arithmetic as raycast(…, true), but it stops at the first thing in the way and
+  // allocates nothing. (raycast finds the nearest hit, with its surface and normal: none of that is needed here.)
   lineOfSight(a, b) {
     const dx = b.x - a.x, dy = b.y - a.y, dz = b.z - a.z;
     const L = Math.hypot(dx, dy, dz);
     if (L < 1e-4) return true;
-    return !this.raycast(a, { x: dx / L, y: dy / L, z: dz / L }, L - 0.05, true);
+    const d = { x: dx / L, y: dy / L, z: dz / L }, maxDist = L - 0.05;
+    if (!(maxDist > 0)) return !this.raycast(a, d, maxDist, true); // (a few centimetres apart)
+    const ox = a.x, oy = a.y, oz = a.z, grid = this.grid, dyn = this.dynamic, ignore = this.ignoreOwner;
+    const steps = Math.ceil(maxDist / CELL) + 1;
+    for (let s = 0; s < steps; s++) {
+      const t0 = s * CELL, t1 = Math.min(maxDist, (s + 1) * CELL);
+      const ax = ox + d.x * t0, az = oz + d.z * t0, bx = ox + d.x * t1, bz = oz + d.z * t1;
+      const i1 = Math.floor(Math.max(ax, bx) / CELL), j0 = Math.floor(Math.min(az, bz) / CELL), j1 = Math.floor(Math.max(az, bz) / CELL);
+      for (let i = Math.floor(Math.min(ax, bx) / CELL); i <= i1; i++) for (let j = j0; j <= j1; j++) {
+        const arr = grid.get(i * 100003 + j);
+        if (!arr) continue;
+        for (let k = 0; k < arr.length; k++) { const bb = arr[k]; if (bb.bullets && rayHitsBox(ox, oy, oz, d.x, d.y, d.z, bb.min, bb.max, maxDist)) return false; }
+      }
+    }
+    for (let k = 0; k < dyn.length; k++) { const bb = dyn[k]; if (bb.owner !== ignore && bb.bullets && rayHitsBox(ox, oy, oz, d.x, d.y, d.z, bb.min, bb.max, maxDist)) return false; }
+    return this.rayTerrain(a, d, maxDist) === null;
   }
+}
+
+// rayBox as a yes / no: does the ray reach the box within maxDist? (the same slab test, without the hit record)
+function rayHitsBox(ox, oy, oz, dx, dy, dz, mn, mx, maxDist) {
+  let tmin = -Infinity, tmax = Infinity;
+  if (Math.abs(dx) < 1e-9) { if (ox < mn[0] || ox > mx[0]) return false; } else {
+    let t1 = (mn[0] - ox) / dx, t2 = (mx[0] - ox) / dx;
+    if (t1 > t2) { const t = t1; t1 = t2; t2 = t; }
+    if (t1 > tmin) tmin = t1;
+    if (t2 < tmax) tmax = t2;
+    if (tmin > tmax) return false;
+  }
+  if (Math.abs(dy) < 1e-9) { if (oy < mn[1] || oy > mx[1]) return false; } else {
+    let t1 = (mn[1] - oy) / dy, t2 = (mx[1] - oy) / dy;
+    if (t1 > t2) { const t = t1; t1 = t2; t2 = t; }
+    if (t1 > tmin) tmin = t1;
+    if (t2 < tmax) tmax = t2;
+    if (tmin > tmax) return false;
+  }
+  if (Math.abs(dz) < 1e-9) { if (oz < mn[2] || oz > mx[2]) return false; } else {
+    let t1 = (mn[2] - oz) / dz, t2 = (mx[2] - oz) / dz;
+    if (t1 > t2) { const t = t1; t1 = t2; t2 = t; }
+    if (t1 > tmin) tmin = t1;
+    if (t2 < tmax) tmax = t2;
+    if (tmin > tmax) return false;
+  }
+  if (tmax < 0) return false;
+  return (tmin < 0 ? 0 : tmin) < maxDist;
 }
 
 export function rayBox(o, d, mn, mx) {

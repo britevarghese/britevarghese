@@ -79,6 +79,37 @@ export function vehicleRoute(g, type, sx, sz, tx, tz) {
   return route(g, sx, sz, tx, tz, need) || route(g, sx, sz, tx, tz, Math.max(half + 0.35, need - 0.6));
 }
 
+// Connected patches of the route lattice for a hull needing `need` metres clear: a label per lattice node (0 = the
+// hull doesn't fit there), by the same rule the search moves by (8 neighbours, no cutting a corner). The map is
+// static, so each clearance is labelled once and kept with the clearance map.
+function patches(M, N, L, S, need) {
+  const cache = M.patches || (M.patches = new Map());
+  let comp = cache.get(need);
+  if (comp) return comp;
+  comp = new Int32Array(L * L);
+  const fits = (i, j) => i >= 0 && j >= 0 && i < L && j < L && M.clear[(j * S) * N + i * S] >= need;
+  const stack = [];
+  let label = 0;
+  for (let j0 = 0; j0 < L; j0++) for (let i0 = 0; i0 < L; i0++) {
+    if (comp[j0 * L + i0] || !fits(i0, j0)) continue;
+    comp[j0 * L + i0] = ++label; stack.push(j0 * L + i0);
+    while (stack.length) {
+      const k = stack.pop(), ci = k % L, cj = (k / L) | 0;
+      for (let dj = -1; dj <= 1; dj++) for (let di = -1; di <= 1; di++) {
+        if ((!di && !dj) || !fits(ci + di, cj + dj)) continue;
+        if (di && dj && (!fits(ci + di, cj) || !fits(ci, cj + dj))) continue;
+        const nk = (cj + dj) * L + ci + di;
+        if (!comp[nk]) { comp[nk] = label; stack.push(nk); }
+      }
+    }
+  }
+  cache.set(need, comp);
+  return comp;
+}
+
+// (built ahead of the first route: a one-off 20-40 ms per map that would otherwise land in the middle of a round)
+export function prepareVehicleRoutes(g) { vehicleMap(g.nav, g.map); }
+
 function route(g, sx, sz, tx, tz, need, maxExpand = 120000) {
   const nav = g.nav, M = vehicleMap(nav, g.map), N = nav.n, S = 2;
   const L = Math.floor(N / S), node = (i, j) => (j * S) * N + i * S;
@@ -99,21 +130,37 @@ function route(g, sx, sz, tx, tz, need, maxExpand = 120000) {
   const s = snap(sx, sz), t = snap(tx, tz);
   if (!s || !t) return null;
   const start = s[1] * L + s[0], goal = t[1] * L + t[0];
+  // No way through at all (the far side of a river, a walled yard)? Known at once from which connected patch of
+  // the lattice each end lies in — the search itself only finds that out by flooding everything the vehicle can
+  // reach, tens of milliseconds on a big map. (Only while the search could cover the whole lattice anyway.)
+  if (L * L <= maxExpand) { const comp = patches(M, N, L, S, need); if (comp[start] !== comp[goal]) return null; }
   const gs = new Float32Array(L * L).fill(Infinity), came = new Int32Array(L * L).fill(-1), closed = new Uint8Array(L * L);
-  const hf = [], hk = []; // binary heap (f, key)
-  const push = (f, k) => { hf.push(f); hk.push(k); let i = hf.length - 1; while (i > 0) { const p = (i - 1) >> 1; if (hf[p] <= hf[i]) break; [hf[p], hf[i]] = [hf[i], hf[p]]; [hk[p], hk[i]] = [hk[i], hk[p]]; i = p; } };
+  // binary min-heap of (f, key) in two parallel typed arrays
+  let hf = new Float64Array(1024), hk = new Int32Array(1024), hn = 0;
+  const push = (f, k) => {
+    if (hn === hf.length) { const nf = new Float64Array(hn * 2), nk = new Int32Array(hn * 2); nf.set(hf); nk.set(hk); hf = nf; hk = nk; }
+    let i = hn++;
+    hf[i] = f; hk[i] = k;
+    while (i > 0) { const p = (i - 1) >> 1; if (hf[p] <= hf[i]) break; const f0 = hf[p], k0 = hk[p]; hf[p] = hf[i]; hk[p] = hk[i]; hf[i] = f0; hk[i] = k0; i = p; }
+  };
   const pop = () => {
-    const top = hk[0], lf = hf.pop(), lk = hk.pop();
-    if (hf.length) {
-      hf[0] = lf; hk[0] = lk; let i = 0;
-      for (;;) { const l = 2 * i + 1, r = l + 1; let m = i; if (l < hf.length && hf[l] < hf[m]) m = l; if (r < hf.length && hf[r] < hf[m]) m = r; if (m === i) break; [hf[m], hf[i]] = [hf[i], hf[m]]; [hk[m], hk[i]] = [hk[i], hk[m]]; i = m; }
+    const top = hk[0];
+    if (--hn > 0) {
+      hf[0] = hf[hn]; hk[0] = hk[hn];
+      for (let i = 0; ;) {
+        const l = 2 * i + 1, r = l + 1; let m = i;
+        if (l < hn && hf[l] < hf[m]) m = l;
+        if (r < hn && hf[r] < hf[m]) m = r;
+        if (m === i) break;
+        const f0 = hf[m], k0 = hk[m]; hf[m] = hf[i]; hk[m] = hk[i]; hf[i] = f0; hk[i] = k0; i = m;
+      }
     }
     return top;
   };
   const h = (k) => { const dx = Math.abs((k % L) - t[0]), dz = Math.abs(((k / L) | 0) - t[1]); return (Math.max(dx, dz) + 0.414 * Math.min(dx, dz)) * 0.75; };
   gs[start] = 0; push(h(start), start);
   let expanded = 0, found = false;
-  while (hf.length && expanded < maxExpand) {
+  while (hn && expanded < maxExpand) {
     const k = pop();
     if (k === goal) { found = true; break; }
     if (closed[k]) continue;
