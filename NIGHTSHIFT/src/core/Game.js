@@ -915,10 +915,9 @@ export class Game {
       this.boats?.update(dt, this.camera.position);
       this.klPolice?.update(dt, this.player.state); this.klPolice?.sync(dt, this.camera.position);
       this.story.update(dt, input, driving);
-      if (!this.world.kerala) { // Port Halvern's properties and rival crews (Kerala's come later)
-        this.empire.update(dt, input, driving);
-        this.rivals.update(dt, driving && !this.story.active);
-      }
+      if (!this.world.kerala) this.empire.update(dt, input, driving); // Port Halvern's properties (Kerala has its own businesses)
+      // street rivals (Kerala too; not while a phone job is on, or its passenger sits through a race)
+      this.rivals.update(dt, driving && !this.story.active && !this.jobs?.working);
       this._preVel = { vx: player.state.vx, vz: player.state.vz }; // before this frame's impacts (a thrown rider keeps it)
       const events = player.update(dt);
       this._playerEvents(events, dt);

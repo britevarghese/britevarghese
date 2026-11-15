@@ -144,7 +144,7 @@ controller, what to check when nothing appears, and a report to copy.
   skyline: a lightweight far-city model stands in for streets that aren't loaded.
 - **Races and rivals:**
   - Sprint, Circuit, Checkpoint, Speed Run (speed traps), Time Trial and Police Escape events.
-  - Street rivals cruise the city: pull up beside one and press E for a one-on-one sprint.
+  - Street rivals cruise the streets (Port Halvern and Kerala): pull up beside one and press E for a one-on-one sprint.
 - **Police:**
   - Units patrol, detect you and pursue you; backup, intercepts and roadblocks at heat 4+.
   - Heat runs from 1 to 5. Evading starts a cooldown. Staying slow while surrounded gets you
