@@ -101,6 +101,28 @@ test('movement: a burst of inputs after a hiccup is accepted, teleports and sust
   assert.ok(p.x < x - 20, `held back (${(x - p.x).toFixed(0)} m behind the claimed position)`);
 });
 
+test('inputs with absurd numbers (JSON carries 1e999 as Infinity) never leave a soldier with a non-finite or far-off state', () => {
+  const g = mkGame();
+  const p = g.addPlayer({ name: 'P', team: 1 });
+  spawnAt(g, p, 100, 60);
+  const INF = JSON.parse('1e999'), y0 = groundHeight(100, 60);
+  const ok = { x: 100, y: y0, z: 60, yaw: 1, pitch: 0.2, st: 'stand', og: true, sl: 0, vx: 1, vz: 1 };
+  const sane = () => [p.x, p.y, p.z, p.yaw, p.pitch, p.vx, p.vz].every(Number.isFinite) && Math.abs(p.y) < 3000 && Math.abs(p.yaw) <= 1e4 && Math.abs(p.pitch) <= 1.5 && Math.abs(p.vx) <= 80 && Math.abs(p.vz) <= 80;
+  for (const k of ['x', 'y', 'z', 'yaw', 'pitch', 'vx', 'vz', 'dr', 'sl', 'st']) for (const bad of [INF, -INF, 1e308, -1e308, 'x', '5', null, true, false, {}, [1, 2], [7], undefined]) {
+    g.clock += 33;
+    g.handleInput(p, { ...ok, [k]: bad });
+    assert.ok(sane(), `${k}=${String(bad)}: ${JSON.stringify([p.x, p.y, p.z, p.yaw, p.pitch, p.vx, p.vz])}`);
+  }
+  assert.ok(Math.hypot(p.x - 100, p.z - 60) < 1 && Math.abs(p.y - y0) < 1, 'and he has not been moved anywhere');
+  assert.ok([p.x, p.y, p.z].every((v) => typeof v === 'number'), 'his position is still three numbers');
+  // what goes out to the other players is clean too, and a grenade thrown now flies normally
+  const row = g.snapshot().p.find((r) => r[0] === p.id);
+  assert.ok(row.every((v) => v !== null && (typeof v !== 'number' || Number.isFinite(v))), JSON.stringify(row));
+  g.handleInput(p, { ...ok, vx: INF, vz: -INF });
+  p.grenades = 1; g.throwGrenade(p, null, [0, 0.3, -1]);
+  assert.ok(g.grenades.length === 1 && [g.grenades[0].vx, g.grenades[0].vy, g.grenades[0].vz].every((v) => Number.isFinite(v) && Math.abs(v) < 100));
+});
+
 test('bots in a room all have different names', () => {
   const g = new Game({ botsPerTeam: 16, log: () => {} });
   g.balanceBots();

@@ -579,8 +579,10 @@ export class Game {
     const moved = Math.hypot(dx, dz);
     p.air = air;
     const before = { x: p.x, y: p.y, z: p.z };
-    if (process.env.DEV_TELEPORT && Number.isFinite(m.x + m.y + m.z)) { p.x = m.x; p.y = m.y; p.z = m.z; }
-    else if (moved > p.moveBudget || !Number.isFinite(m.x + m.y + m.z) || Math.abs(m.x) > this.map.PLAY_HALF + 10 || Math.abs(m.z) > this.map.PLAY_HALF + 10) {
+    // a position is three real numbers, within reason (not null or true, which add up to a finite sum just the same)
+    const pos = typeof m.x === 'number' && typeof m.y === 'number' && typeof m.z === 'number' && Number.isFinite(m.x + m.y + m.z) && Math.abs(m.y) <= 3000;
+    if (process.env.DEV_TELEPORT && pos) { p.x = m.x; p.y = m.y; p.z = m.z; }
+    else if (!pos || !(moved <= p.moveBudget) || Math.abs(m.x) > this.map.PLAY_HALF + 10 || Math.abs(m.z) > this.map.PLAY_HALF + 10) {
       this.emit({ t: 'correct', x: p.x, y: p.y, z: p.z }, p);
     } else {
       p.x = m.x; p.y = m.y; p.z = m.z; p.moveBudget -= moved;
@@ -597,9 +599,11 @@ export class Game {
       }
     } else p.airPeak = null;
     if (!p.alive) return;
-    p.yaw = +m.yaw || 0; p.pitch = Math.max(-1.5, Math.min(1.5, +m.pitch || 0));
+    // (numbers from a client: finite and within reason — JSON carries 1e999 as Infinity, and these go out to everyone)
+    const num = (v, lim) => (Number.isFinite(+v) ? Math.max(-lim, Math.min(lim, +v)) : 0);
+    p.yaw = num(m.yaw, 1e4); p.pitch = num(m.pitch, 1.5);
     p.stance = STANCES.includes(m.st) ? m.st : 'stand';
-    p.ads = !!m.ads; p.sprint = !!m.sp; p.vx = +m.vx || 0; p.vz = +m.vz || 0; p.onGround = !!m.og;
+    p.ads = !!m.ads; p.sprint = !!m.sp; p.vx = num(m.vx, 80); p.vz = num(m.vz, 80); p.onGround = !!m.og;
     if (Number.isInteger(m.sl) && m.sl >= 0 && p.weapons[m.sl]) { if (m.sl !== p.slot) { p.slot = m.sl; p.reloadUntil = 0; } }
   }
 
@@ -620,7 +624,7 @@ export class Game {
     p.spawnProtect = 0;
     // validate origin against server eye position
     const eye = { x: p.x, y: p.y + EYE_HEIGHT[p.stance], z: p.z };
-    let o = origin && Number.isFinite(origin[0] + origin[1] + origin[2]) ? { x: origin[0], y: origin[1], z: origin[2] } : eye;
+    let o = Array.isArray(origin) && origin.length >= 3 && Number.isFinite(origin[0]) && Number.isFinite(origin[1]) && Number.isFinite(origin[2]) ? { x: origin[0], y: origin[1], z: origin[2] } : eye;
     if (Math.hypot(o.x - eye.x, o.y - eye.y, o.z - eye.z) > 1.6) o = eye;
     let d = { x: dir[0], y: dir[1], z: dir[2] };
     const dl = Math.hypot(d.x, d.y, d.z); if (!Number.isFinite(dl) || dl < 1e-6) return false;
