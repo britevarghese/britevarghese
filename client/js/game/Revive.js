@@ -200,9 +200,13 @@ export class Revive {
       const d = this.down, box = $('downed');
       put(box.querySelector('.dn-s b'), 'text', String(Math.max(0, d.left)));
       put(box.querySelector('.dn-bar i'), 'width', `${Math.round(Math.max(0, Math.min(1, d.left / BLEED_S)) * 100)}%`);
+      // a medic who is coming for me (the server says who: working on me, or a bot on his way) — or just the
+      // nearest one, who may or may not have noticed
       const m = this.#nearestMedic(), dm = box.querySelector('.dn-m');
-      put(dm, 'html', m ? `<b>MEDIC ${Math.round(m.d)} m AWAY</b> — HOLD ON` : 'NO MEDIC NEARBY');
-      put(dm, 'color', m && m.d < 60 ? 'var(--ok)' : '');
+      const cid = this.list.find((x) => x[0] === g.myId)?.[6], cp = cid && g.players.info(cid);
+      const cd = cp ? Math.round(Math.hypot(cp.x - d.x, cp.z - d.z)) : 0;
+      put(dm, 'html', cp ? `<b>${esc(this.name(cid).toUpperCase())} IS ${cd <= 3 ? 'WITH YOU' : `COMING · ${cd} m`}</b> — HOLD ON` : m ? `<b>MEDIC ${Math.round(m.d)} m AWAY</b> — HOLD ON` : 'NO MEDIC NEARBY');
+      put(dm, 'color', cp || (m && m.d < 60) ? 'var(--ok)' : '');
       const k = this.giveT0 ? Math.min(1, (now - this.giveT0) / GIVEUP_MS) : 0;
       put($('dn-give').querySelector('i'), 'width', `${Math.round(k * 100)}%`);
       if (k >= 1) this.giveUp();
@@ -230,7 +234,7 @@ export class Revive {
         if (d === this.target) continue; // (in reach: the prompt says it)
         const r = cam.position.distanceTo(_v.set(d[2], d[3], d[4]));
         if (r > (medic ? 150 : 45)) continue;
-        show.push({ x: d[2], y: d[3] + 0.7, z: d[4], cls: medic ? 'dn med' : 'dn', html: `<svg class="ic"><use href="#i-cross"/></svg><span>${medic ? `${Math.round(r)} m · ` : ''}${Math.max(0, d[5])} s</span>` });
+        show.push({ x: d[2], y: d[3] + 0.7, z: d[4], cls: medic ? 'dn med' : 'dn', html: `<svg class="ic"><use href="#i-cross"/></svg><span>${medic ? `${Math.round(r)} m · ` : ''}${Math.max(0, d[5])} s${medic && d[6] && d[6] !== g.myId ? ' · COVERED' : ''}</span>` }); // (covered: another medic is on his way to him)
       }
       if (this.down && !g.me.alive) {
         for (const p of g.players.map.values()) {

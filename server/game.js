@@ -272,10 +272,22 @@ export class Game {
     for (const t of [1, 2]) {
       const want = Math.max(0, this.botsPerTeam - humans[t]);
       while (bots[t].length < want) {
-        bots[t].push(this.addPlayer({ name: botName(this.players, names), bot: true, team: t, cls: ((r) => (r < 0.5 ? 'assault' : r < 0.65 ? 'recon' : r < 0.85 ? 'support' : 'medic'))(Math.random()) }));
+        bots[t].push(this.addPlayer({ name: botName(this.players, names), bot: true, team: t, cls: this.#botKit(t) }));
       }
       while (bots[t].length > want) this.removePlayer(bots[t].pop().id);
     }
+  }
+
+  // The kit for the next bot on a team: whichever the team is shortest of against a sensible mix (the players' own
+  // kits count), with a little chance in it. Drawn purely at random, one team in a few had no medic at all — and
+  // nobody on it was ever revived — or no support to resupply it.
+  #botKit(team) {
+    const MIX = { assault: 0.42, medic: 0.22, support: 0.2, recon: 0.16 }, have = { assault: 0, medic: 0, support: 0, recon: 0 };
+    let n = 0;
+    for (const p of this.players.values()) if (p.team === team && have[p.cls] !== undefined) { have[p.cls]++; n++; }
+    let best = 'assault', bs = -Infinity;
+    for (const k in MIX) { const short = MIX[k] * (n + 1) - have[k] + Math.random() * 0.1; if (short > bs) { bs = short; best = k; } }
+    return best;
   }
 
   // a flag is only a spawn point while it is safe: owned, not being captured, no enemy near it
@@ -515,9 +527,20 @@ export class Game {
   }
 
   // a medic of p's team up and about within r metres (downed bots hold on for one)
-  medicNear(p, r = 45) {
-    for (const q of this.players.values()) if (q !== p && q.alive && q.team === p.team && CLASSES[q.cls]?.medic && !q.vehicle && Math.hypot(q.x - p.x, q.z - p.z) < r) return q;
+  // the medic committed to a downed soldier: working on him, or (a bot) on his way to him. null: nobody is.
+  medicComing(p) {
+    for (const q of this.players.values()) if (q !== p && q.alive && q.team === p.team && !q.vehicle && (q.reviving?.id === p.id || q.brain?.reviveFor === p.id)) return q;
     return null;
+  }
+
+  // is it worth a downed bot's while to wait: a medic is coming for him, or one is near enough that he could still
+  // get here in the time left (running, then the revive itself) once he is free to. Nobody who can make it: give up.
+  medicNear(p) {
+    if (!p.downed) return false;
+    if (this.medicComing(p)) return true;
+    const reach = Math.min(75, ((p.downed.until - this.now() - REVIVE_MS - 700) / 1000) * 4.6 + 2);
+    for (const q of this.players.values()) if (q !== p && q.alive && q.team === p.team && CLASSES[q.cls]?.medic && !q.vehicle && Math.hypot(q.x - p.downed.x, q.z - p.downed.z) < reach) return true;
+    return false;
   }
 
   damage(victim, amount, attacker, weapon, head = false) {
@@ -1079,7 +1102,8 @@ export class Game {
 
   #downedList(now) {
     const out = [];
-    for (const p of this.players.values()) if (p.downed) out.push([p.id, p.team, +p.downed.x.toFixed(2), +p.downed.y.toFixed(2), +p.downed.z.toFixed(2), Math.ceil((p.downed.until - now) / 1000)]);
+    // [id, team, x, y, z, seconds left, the medic coming for him (0: none)]
+    for (const p of this.players.values()) if (p.downed) out.push([p.id, p.team, +p.downed.x.toFixed(2), +p.downed.y.toFixed(2), +p.downed.z.toFixed(2), Math.ceil((p.downed.until - now) / 1000), this.medicComing(p)?.id || 0]);
     return out.length ? out : undefined;
   }
 

@@ -21,6 +21,8 @@ import { vehicleGoal, boardStep, crewThink } from './botvehicles.js';
 import { VEHICLES } from '../shared/vehicles.js';
 
 const rand = (a, b) => a + Math.random() * (b - a);
+// what a medic allows for a revive once he is beside the man: the 2.5 s it takes (Game's REVIVE_MS) and a little over
+const MEDIC_WORK_MS = 3200;
 
 // spots in a flag's capture zone with cover beside them: a solid box at least 1 m tall within 0.9 m, on walkable
 // ground the nav grid reaches (computed once per map and flag; the collision world is shared between rooms)
@@ -138,20 +140,34 @@ export class BotBrain {
   // brought round by a medic (Game.#revive): back on his feet where he fell, picks up from there
   onRevived() { this.onSpawn(); this.reviveFor = null; }
 
-  // medic with no enemy in sight: the nearest teammate down within ~35 m (with time left to reach him) — run to him
-  // along the nav path, kneel beside him and work on him (Game.reviveHold); an enemy showing up comes first (the
-  // engage block runs before this), the revive carries on as long as he stays beside him
-  medicWork(now, dt, input) {
+  // Medic: a teammate down that he can still reach in time (running there, then the few seconds the revive takes) —
+  // run to him along the nav path, kneel beside him and work on him (Game.reviveHold). A player comes before a
+  // bot (he is the one watching the clock), and a man another medic is already nearer to is left to that one.
+  // threat: the enemy he is fighting right now. Then only a man lying close by, out of that enemy's sight (or with
+  // the enemy a long way off) — or one he has all but reached already: those last steps and the revive are a better
+  // bet than standing over him trading shots. Never while he is being hit himself; otherwise the fight comes first
+  // and the man is let go for someone else.
+  medicWork(now, dt, input, threat = null) {
     const g = this.g, p = this.p;
     let q = this.reviveFor && g.players.get(this.reviveFor);
     if (!q?.downed) { q = null; this.reviveFor = null; if (p.reviving) g.reviveHold(p, 0, false); }
+    const hot = threat && { x: threat.x, y: threat.y + 1.5, z: threat.z };
+    const quiet = now - (p.lastHit || 0);
+    const safe = (D, d) => !hot || (d < 5 ? quiet > 1000 : d < 25 && quiet > 1500 && (Math.hypot(threat.x - D.x, threat.z - D.z) > 80 || !g.world.lineOfSight(hot, { x: D.x, y: D.y + 0.4, z: D.z })));
+    if (q && !safe(q.downed, Math.hypot(q.downed.x - p.x, q.downed.z - p.z))) { this.reviveFor = null; if (p.reviving) g.reviveHold(p, 0, false); return false; }
     if (!q && now > (this.nextReviveLook || 0)) {
       this.nextReviveLook = now + 600;
-      let bd = 35;
+      let bs = Infinity;
       for (const c of g.players.values()) {
-        if (!c.downed || c.team !== p.team || c.downed.until - now < 4000) continue;
-        const d = Math.hypot(c.downed.x - p.x, c.downed.z - p.z);
-        if (d < bd) { bd = d; q = c; }
+        if (!c.downed || c.team !== p.team || c === p) continue;
+        const D = c.downed, d = Math.hypot(D.x - p.x, D.z - p.z);
+        // (in time: the run at a bit under a sprint — the path is longer than the straight line — plus the revive)
+        if (d > 75 || D.until - now < (Math.max(0, d - 2) / 4.6) * 1000 + MEDIC_WORK_MS || !safe(D, d)) continue;
+        let taken = false;
+        for (const m of g.players.values()) if (m !== p && m.alive && m.team === p.team && m.brain?.reviveFor === c.id && Math.hypot(D.x - m.x, D.z - m.z) < d) { taken = true; break; }
+        if (taken) continue;
+        const score = c.bot ? d : d - 1000; // (a player, if any can be reached at all)
+        if (score < bs) { bs = score; q = c; }
       }
       if (q) { this.reviveFor = q.id; this.revivePath = g.nav.findPath(p.x, p.z, q.downed.x, q.downed.z, undefined, p.y); this.reviveIdx = 1; }
     }
@@ -437,6 +453,9 @@ export class BotBrain {
       if (c) { this.mode = 'cover'; this.cover = c; this.coverStart = now; this.coverUntil = 0; this.engageStance = null; return input; }
       if (p.stance === 'stand') { p.stance = 'prone'; this.stanceUntil = now + rand(3000, 6000); } // nowhere to go: get flat
     }
+
+    // ---------------------------------------------------------------- medic under fire: a man down right beside him
+    if (this.target && this.visible && CLASSES[p.cls]?.medic && this.medicWork(now, dt, input, this.target)) return input;
 
     // ---------------------------------------------------------------- engage a visible enemy
     if (this.target && this.visible && def) {
