@@ -107,7 +107,7 @@ export class KeralaBusiness {
         this.tries[b.id] = now;
         const at = this._kerb(b.c.x, b.c.z);
         if (at && !at.skip) { this._build(b, at); m = this.marks.get(b.id); }
-        else if (at?.skip) this.tries[b.id] = now + 60;
+        else if (at?.skip) this.tries[b.id] = now + 12;
       }
       if (!m) continue;
       if (d > 1000) { this._drop(b.id); continue; }

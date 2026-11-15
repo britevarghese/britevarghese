@@ -239,7 +239,8 @@ export class Phone {
     g.ui.clear();
     g.save.addCash(-fare, 'auto-rickshaw');
     const foot = !!g.onFoot?.active;
-    this.trip = { o, foot, t: 0, fare, t0: performance.now() };
+    const f = g.focusState;
+    this.trip = { o, foot, t: 0, fare, t0: performance.now(), from: { x: f.x, z: f.z, yaw: f.yaw || 0 } };
     const veil = this.veil = h('div', 'travel-veil', `<div><span>${o.train ? '🚆 TRAIN' : foot ? '🛺 AUTO-RICKSHAW' : '🛣 DRIVING'} TO</span><b>${o.name.toUpperCase()}</b><small>${(o.d / 1000).toFixed(o.train ? 0 : 1)} km · ${formatMoney(fare)}</small></div>`);
     document.body.appendChild(veil);
     requestAnimationFrame(() => veil.classList.add('in'));
@@ -268,13 +269,26 @@ export class Phone {
     g.camera.position.set(o.x, (w.groundHeight?.(o.x, o.z) ?? 0) + 60, o.z + 40);
     g.camera.lookAt(o.x, 0, o.z);
     if (T.t < 1.2) return; // the fade
-    if (!w.groundKnown(o.x, o.z, 40) && performance.now() - T.t0 < TRIP_MAX) return;
-    const r = w.roadSpot(o.x, o.z, 5) || w.roadSpot(o.x, o.z, 7);
+    const known = w.groundKnown(o.x, o.z, 40);
+    if (!known && performance.now() - T.t0 < TRIP_MAX) return;
+    // (the place never came in - the connection dropped: back where you set off from, the fare returned. Not on to
+    // whatever road was loaded, which could be anywhere)
+    if (!known && !T.back) {
+      T.back = true; T.t0 = performance.now(); T.o = { ...T.from, name: o.name };
+      this._put(T.from.x, T.from.z, T.from.yaw);
+      return;
+    }
+    if (T.back) {
+      this._put(T.from.x, T.from.z, T.from.yaw);
+      g.save.addCash(T.fare, 'refund');
+      g.ui.toast(`No way through to ${o.name} just now: fare refunded`, 'err', 4);
+    }
+    const r = T.back ? null : w.roadSpot(o.x, o.z, 5) || w.roadSpot(o.x, o.z, 7);
     if (r) {
       let x = r.x, z = r.z;
       if (T.foot) {
         const sx = Math.cos(r.yaw), sz = -Math.sin(r.yaw);
-        for (const off of [5, 7, 9, 4]) for (const side of [1, -1]) { const px = r.x + sx * off * side, pz = r.z + sz * off * side; if (w.offCarriageway(px, pz, 0.6) && !w.inWater(px, pz)) { x = px; z = pz; break; } }
+        spot: for (const off of [5, 7, 9, 4]) for (const side of [1, -1]) { const px = r.x + sx * off * side, pz = r.z + sz * off * side; if (w.offCarriageway(px, pz, 0.6) && !w.inWater(px, pz)) { x = px; z = pz; break spot; } }
       }
       this._put(x, z, r.yaw);
     }
@@ -287,6 +301,6 @@ export class Phone {
     g.audio?.playEvent?.('checkpoint');
     const veil = this.veil; this.veil = null;
     veil?.classList.remove('in'); setTimeout(() => veil?.remove(), 900);
-    g.hud?.message?.(o.name.toUpperCase(), r?.name ? `${r.name}` : 'welcome', 3);
+    if (!T.back) g.hud?.message?.(o.name.toUpperCase(), r?.name ? `${r.name}` : 'welcome', 3);
   }
 }

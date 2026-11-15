@@ -88,10 +88,17 @@ export class Collectibles {
     if (!w.groundKnown(p.x, p.z, 30)) return null;
     const r = w.roadSpot(p.x, p.z, 7);
     if (!r || Math.hypot(r.x - p.x, r.z - p.z) > 400) return { skip: true };
-    const sx = Math.cos(r.yaw), sz = -Math.sin(r.yaw); // across the road
-    for (const off of [6, 8, 10, 13, 4.5]) for (const side of [1, -1]) {
-      const x = r.x + sx * off * side, z = r.z + sz * off * side;
-      if (w.offCarriageway(x, z, 0.8) && !w.inWater(x, z)) return { x, z, y: w.groundHeight(x, z) };
+    const sx = Math.cos(r.yaw), sz = -Math.sin(r.yaw), fx = Math.sin(r.yaw), fz = Math.cos(r.yaw); // across the road, along it
+    const ok = (x, z) => w.offCarriageway(x, z, 0.8) && !w.inWater(x, z) && (this.game.onFoot?._free?.(x, z) ?? true);
+    // beside the road there, or a little way along it (a bridge, a wall right at the kerb, water on both sides)
+    for (const along of [0, 12, -12, 25, -25, 45, -45]) for (const off of [6, 8, 10, 13, 4.5]) for (const side of [1, -1]) {
+      const x = r.x + fx * along + sx * off * side, z = r.z + fz * along + sz * off * side;
+      if (ok(x, z)) return { x, z, y: w.groundHeight(x, z) };
+    }
+    // or any clear, dry ground near the centre (Azhikode's mask had nowhere to go, and could never be found)
+    for (let d = 6; d <= 90; d += 6) for (let k = 0; k < 12; k++) {
+      const a = (k / 12) * Math.PI * 2 + d, x = p.x + Math.sin(a) * d, z = p.z + Math.cos(a) * d;
+      if (w.groundKnown(x, z, 2) && ok(x, z)) return { x, z, y: w.groundHeight(x, z) };
     }
     return { skip: true };
   }
@@ -120,7 +127,7 @@ export class Collectibles {
           this._tries[p.id] = t;
           const at = this._resolve(p);
           if (at && !at.skip) { this._spawn(p, at); s = this.spots.get(p.id); }
-          else if (at?.skip) this._tries[p.id] = t + 60; // nowhere sensible here yet: look again in a minute
+          else if (at?.skip) this._tries[p.id] = t + 12; // nowhere sensible here yet (its roads may still be coming in): look again shortly
         }
       }
       if (!s) continue;
