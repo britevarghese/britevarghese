@@ -685,3 +685,14 @@ body.deploying #suppress, body.downed #suppress { display: none; }
 body.tdm #flags, body.tdm #capture { display: none !important; }
 #spawns .sp small.ok { color: var(--ok); }
 body.tdm .legend > div:nth-child(-n+3) { display: none; }
+
+/* ---------------------------------------------------------------- pause menu: controls reference */
+.pz { max-height: 96vh; overflow-y: auto; }
+.pz-right { justify-content: flex-start; }
+.pz-keys { margin-top: 6px; padding-top: 12px; border-top: 1px solid var(--line); }
+.pz-keys h4 { margin: 0 0 8px; font: 700 12px var(--ui); letter-spacing: .3em; color: var(--mut); }
+.pz-keys .kg { display: grid; grid-template-columns: auto 1fr; gap: 5px 12px; align-items: baseline; font-size: 12px; font-weight: 500; letter-spacing: 0; text-transform: none; }
+.pz-keys .kg > span { white-space: nowrap; text-align: right; } .pz-keys .kg > i { font-style: normal; color: #cfd5da; } .pz-keys em { font-style: normal; }
+.pz-keys kbd { margin: 0 1px; background: rgba(255,255,255,.1); color: #fff; border: 1px solid rgba(255,255,255,.35); font: 700 10px/1.5 var(--ui); padding: 0 5px; min-width: 0; border-radius: 3px; }
+.pz-keys .kr { display: none; } body.royale .pz-keys .kr { display: inline; } body.royale .pz-keys .kc { display: none; }
+body.touch .pz-keys { display: none; }

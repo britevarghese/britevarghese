@@ -292,6 +292,12 @@ class Game {
           this.me.spawn(e); this.hud.deployScreen(false); this.hud.roundEnd(null); this.hud.roundSummary(null);
           if (e.on) { if (e.st) this.me.s.stance = e.st; this.hud.notice(`DEPLOYED ON ${String(this.board.get(e.on)?.n || 'SQUAD MATE').toUpperCase()}`, 1800); }
           if (!this.isTouch) this.renderer.domElement.requestPointerLock?.()?.catch?.(() => {});
+          // the very first deployment on this device: where the keys are listed
+          if (!this.isTouch && !this._keysHint) {
+            this._keysHint = true;
+            let seen = false; try { seen = !!localStorage.getItem('sp_keys'); localStorage.setItem('sp_keys', '1'); } catch { /* private mode */ }
+            if (!seen && !AUTO.get('autodeploy')) setTimeout(() => this.hud.notice('ESC — CONTROLS & SETTINGS', 6000), 2200);
+          }
           this.killcam = null;
           setTimeout(() => (document.body.dataset.ready = '1'), 1500);
         }
@@ -627,7 +633,8 @@ class Game {
       } else if (e.code === 'Escape' && this.chatOpen) this.closeChat(false);
       if (e.code === 'KeyI' && !this.chatOpen) this.copyInvite();
       if (e.code === 'KeyQ' && !this.chatOpen && !e.repeat) this.spotAt();
-      if (e.code === 'F3') { e.preventDefault(); window.open('/debug/character-weapon', '_blank'); }
+      // (the rig / weapon debug page: only with ?debug=1 — F3 is also the third seat of a vehicle)
+      if (e.code === 'F3' && AUTO.get('debug')) { e.preventDefault(); window.open('/debug/character-weapon', '_blank'); }
     });
     // mobile keyboards: sending happens on the "go"/enter key or when the field loses focus
     input.addEventListener('change', () => { if (this.chatOpen) this.closeChat(true); });
