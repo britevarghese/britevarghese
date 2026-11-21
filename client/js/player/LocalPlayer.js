@@ -15,6 +15,7 @@ export class LocalPlayer {
     this.keys = new Set();
     this.mouse = { l: false, r: false, dx: 0, dy: 0 };
     this.sens = +(localStorage.getItem('sp_sens') || 0.0022);
+    this.invertY = localStorage.getItem('sp_invert') === '1'; // (pause menu: INVERT LOOK)
     this.alive = false;
     this.slot = 0; this.weapons = []; this.grenades = 0;
     this.recoil = { p: 0, y: 0 };
@@ -87,7 +88,7 @@ export class LocalPlayer {
     if (!this.canLook()) return;
     // through a full-screen scope, turn rate follows the zoom so the view moves the same on screen
     const f = k * (this.scoped ? (this.g.camera.fov / this.g.baseFov) * 1.1 : this.adsBlend > 0.5 ? (WEAPONS[this.weaponId()]?.scoped ? 0.35 : 0.7) : 1);
-    this.yaw -= dx * f; this.pitch -= dy * f;
+    this.yaw -= dx * f; this.pitch -= (this.invertY ? -dy : dy) * f;
     this.pitch = Math.max(-1.45, Math.min(1.45, this.pitch));
     this.mouse.dx += dx; this.mouse.dy += dy;
   }

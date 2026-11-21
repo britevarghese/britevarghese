@@ -277,7 +277,7 @@
             <label>Field of view <span class="val" id="fov-v"></span><input id="fov" type="range" min="60" max="100" value="78" /></label>
           </div>
           <div id="gpuinfo"></div>
-          <div class="help">WASD move · Shift sprint · Space jump · C crouch · Z prone · RMB aim · LMB fire · R reload · 1/2 weapons · G grenade · V first/third person · Tab scoreboard · T chat · I copy invite link ·
+          <div class="help">WASD move · Shift sprint · Space jump · C crouch · Z prone · RMB aim · LMB fire · R reload · 1/2/3 weapons · G grenade · Q spot / order · E revive (medic) · V first/third person · Tab scoreboard · T chat · I copy invite link · Esc controls &amp; settings ·
             <b>Vehicles:</b> E enter/exit · 1/2/3 seats · W/S A/D drive · mouse aim · helicopter Space/Shift climb/descend ·
             <b>Battle royale:</b> Space jump / parachute · E pick up · H heal · M map</div>
         </section>
@@ -373,6 +373,8 @@
         <div class="pz-row"><svg class="ic"><use href="#i-eye"/></svg><div class="pl"><b>VIEW DISTANCE</b><span id="p-view-v"></span></div><input id="p-view" type="range" min="150" max="1000" step="10" /></div>
         <div class="pz-row"><svg class="ic"><use href="#i-bell"/></svg><div class="pl"><b>VOLUME</b><span>Master game sound</span></div><input id="p-vol" type="range" min="0" max="100" value="80" /></div>
         <div class="pz-row"><svg class="ic"><use href="#i-mouse"/></svg><div class="pl"><b>LOOK SENSITIVITY</b><span>Mouse / touch drag</span></div><input id="p-sens" type="range" min="5" max="60" value="22" /></div>
+        <div class="pz-row"><svg class="ic"><use href="#i-eye"/></svg><div class="pl"><b>FIELD OF VIEW</b><span id="p-fov-v"></span></div><input id="p-fov" type="range" min="60" max="100" value="78" /></div>
+        <label class="pz-row chk"><input type="checkbox" id="p-invert" /><div class="pl"><b>INVERT LOOK</b><span>Moving the mouse up looks down</span></div></label>
         <label class="pz-row chk"><input type="checkbox" id="p-fps" /><div class="pl"><b>SHOW FPS / GPU</b><span>Display performance stats</span></div></label>
         <div id="p-gpu" class="pz-gpu"></div>
       </div>

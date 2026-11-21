@@ -696,3 +696,9 @@ body.tdm .legend > div:nth-child(-n+3) { display: none; }
 .pz-keys kbd { margin: 0 1px; background: rgba(255,255,255,.1); color: #fff; border: 1px solid rgba(255,255,255,.35); font: 700 10px/1.5 var(--ui); padding: 0 5px; min-width: 0; border-radius: 3px; }
 .pz-keys .kr { display: none; } body.royale .pz-keys .kr { display: inline; } body.royale .pz-keys .kc { display: none; }
 body.touch .pz-keys { display: none; }
+/* shorter screens (720p laptops): tighter settings rows so the whole pause menu fits without scrolling */
+@media (max-height: 820px) and (min-width: 900px) {
+  .pz-left { padding: 18px 24px 12px; } .pz-head { margin-bottom: 10px; } .pz-head h2 { font-size: 32px; }
+  .pz-row { padding: 7px 12px; margin-bottom: 5px; } .pz-row .pl span { font-size: 11px; } .pz-thumb { height: 34px; }
+  .pz-right { padding: 18px 24px; gap: 10px; } .pbtn { padding: 12px 20px; } .pbtn.y { padding: 15px 20px; }
+}

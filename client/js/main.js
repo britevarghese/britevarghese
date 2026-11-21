@@ -681,6 +681,19 @@ class Game {
       const v = +$('p-sens').value / 10000;
       if (this.isTouch) { if (this.touch) this.touch.lookSens = v * 2; localStorage.setItem('sp_touch_sens', v * 2); } else { this.me.sens = v; localStorage.setItem('sp_sens', v); }
     };
+    // field of view: live (the camera, scope zoom, vehicle views and the props' draw distance all follow baseFov),
+    // and remembered as the main menu's setting
+    const Fov = $('p-fov');
+    const applyFov = (v) => { this.baseFov = v; this.world.baseFov = v; $('p-fov-v').textContent = `${v}° · ${v < 70 ? 'narrow' : v > 90 ? 'wide' : 'standard'}`; };
+    Fov.value = Math.round(this.baseFov); applyFov(+Fov.value);
+    Fov.oninput = () => {
+      applyFov(+Fov.value);
+      try { const st = JSON.parse(localStorage.getItem('sp_settings') || '{}'); st.fov = +Fov.value; localStorage.setItem('sp_settings', JSON.stringify(st)); } catch { /* private mode */ }
+      $('fov').value = Fov.value; $('fov-v').textContent = `${Fov.value}°`;
+    };
+    const Inv = $('p-invert');
+    Inv.checked = this.me.invertY;
+    Inv.onchange = () => { this.me.invertY = Inv.checked; try { localStorage.setItem('sp_invert', Inv.checked ? '1' : '0'); } catch { /* private mode */ } };
     $('p-room').textContent = `${ACTIVE_MAP.name.toUpperCase()}  |  ${this.room.mode === 'royale' ? 'SOLO' : this.room.mode === 'tdm' ? 'TEAM DEATHMATCH' : 'CONQUEST'}  |  ROOM ${this.room.id}`;
     $('p-mapname').textContent = `${ACTIVE_MAP.name} · ${this.room.name || ''}`;
     $('p-thumb').style.backgroundImage = `url(${mapArt(this.room.map)})`;
