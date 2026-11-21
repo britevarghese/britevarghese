@@ -25,6 +25,7 @@ export const DEFAULT_SETTINGS = {
     mirrors: true,
   },
   gameplay: {
+    phoneTold: false,   // the one-off 'T is your phone' hint has been shown (the player's, not a save's)
     cameraSensitivity: 1,
     mouseCapture: true,       // a click captures the mouse for looking around (Esc frees it)
     steeringSensitivity: 1,
