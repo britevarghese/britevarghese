@@ -41,30 +41,48 @@ class FrameProfiler {
 }
 
 // full-screen loading art with a real progress bar (stages of Game.start) and tips
-const TIPS = [
-  'Keep moving! The ring of fire shrinks over time — don\'t get caught outside.',
-  'A pistol is a last resort: past 40 m its rounds drop and spread. Close in or switch weapons.',
-  'Flags under attack can\'t be spawned on. Deploy at HQ or a quiet flag instead.',
-  'Tanks shrug off rifle fire. Use grenades, the tank gun or helicopter rockets.',
-  'Motorbike riders and the jeep\'s roof gunner sit in the open — they can be shot.',
-  'Medics heal faster and patch up teammates within a few metres. Stick together.',
-  'Support soldiers carry double ammo and resupply the squad around them.',
-  'Hold SHIFT while scoped to steady your breathing. PgUp / PgDn change sight zeroing.',
-  'Bailing out of a helicopter in the air is a long fall. Land first.',
-  'The enemy HQ is a restricted area — stay out or take damage.',
-];
+// loading-screen tips: for every mode, the team modes (Conquest / Team Deathmatch), Conquest's flags, battle royale
+const TIPS = {
+  all: [
+    'A pistol is a last resort: past 40 m its rounds drop and spread. Close in or switch weapons.',
+    'Hold SHIFT while scoped to steady your breathing. PgUp / PgDn change sight zeroing.',
+    'Press Esc for the controls and settings.',
+  ],
+  team: [
+    'Tanks shrug off rifle fire. Support soldiers carry an anti-tank launcher (3) — hit the sides or the rear.',
+    'Press Q on an enemy to spot him for your whole team. Squad leaders: Q on a flag orders the squad there.',
+    'Down but not out: a medic can bring you back within 15 s. Hold SPACE to redeploy instead.',
+    'Medics: hold E beside a downed teammate to revive him.',
+    'Deploy on a squad mate to get back into the fight quickly — as long as he is not under fire.',
+    'Motorbike riders and the jeep\'s roof gunner sit in the open — they can be shot.',
+    'Medics heal faster and patch up teammates within a few metres. Stick together.',
+    'Support soldiers carry double ammo and resupply the squad around them.',
+    'Bailing out of a helicopter in the air is a long fall. Land first.',
+  ],
+  conquest: [
+    'Flags under attack can\'t be spawned on. Deploy at HQ or a quiet flag instead.',
+    'The enemy HQ is a restricted area — stay out or take damage.',
+  ],
+  royale: [
+    'Keep moving! The ring of fire shrinks over time — don\'t get caught outside.',
+    'Land away from the crowd: the first seconds on the ground decide most matches.',
+    'Hold M for the map: plan your route into the next safe zone early.',
+  ],
+};
 class LoadScreen {
   constructor(room) {
-    const royale = room.mode === 'royale';
+    const royale = room.mode === 'royale', tdm = room.mode === 'tdm';
     this.el = $('loadscreen');
     this.el.querySelector('.ls-bg').style.backgroundImage = `url(${mapArt(room.map)})`;
-    $('ls-mode').textContent = royale ? 'BATTLE ROYALE' : `CONQUEST · ${room.mapName.toUpperCase()}`;
-    $('ls-tag').textContent = royale ? 'LAND / LOOT / SURVIVE / WIN' : 'DEPLOY / CAPTURE / HOLD / WIN';
+    $('ls-mode').textContent = royale ? 'BATTLE ROYALE' : `${tdm ? 'TEAM DEATHMATCH' : 'CONQUEST'} · ${room.mapName.toUpperCase()}`;
+    $('ls-tag').textContent = royale ? 'LAND / LOOT / SURVIVE / WIN' : tdm ? 'DEPLOY / FIGHT / OUTLAST / WIN' : 'DEPLOY / CAPTURE / HOLD / WIN';
     $('ls-slogan').textContent = royale ? 'LAST ONE STANDING' : 'HOLD THE LINE';
-    $('ls-tip').textContent = TIPS[Math.floor(Math.random() * TIPS.length)];
+    const tips = [...TIPS.all, ...(royale ? TIPS.royale : [...TIPS.team, ...(tdm ? [] : TIPS.conquest)])];
+    const tip = () => ($('ls-tip').textContent = tips[Math.floor(Math.random() * tips.length)]);
+    tip();
     this.p = 0; this.set(4, 'Preparing the battlefield…');
     this.el.classList.remove('hidden');
-    this.tipT = setInterval(() => ($('ls-tip').textContent = TIPS[Math.floor(Math.random() * TIPS.length)]), 6000);
+    this.tipT = setInterval(tip, 6000);
   }
   set(p, text) { this.p = Math.max(this.p, p); $('ls-bar').style.width = `${this.p}%`; $('ls-pct').textContent = `${Math.round(this.p)}%`; if (text) $('ls-text').textContent = text; }
   step(s) {
