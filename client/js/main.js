@@ -101,6 +101,7 @@ class Game {
     const progress = (s) => { $('loading').textContent = `Loading ${s}…`; loader.step(s); };
     progress('sky');
     this.world = new GameWorld(this.assets, renderer, quality);
+    this.world.baseFov = fov; // (small props' draw distance stretches with a scope's zoom: see World.#propLod)
     this.lighting = new Lighting(this.world.scene, q);
     renderer.toneMappingExposure = this.lighting.exposure;
     // nothing beyond the fog is visible, so don't draw it

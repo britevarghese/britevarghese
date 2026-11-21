@@ -35,7 +35,10 @@ export class GameWorld {
     this.glassPanes = new Map(this.collision.glass.map((p) => [p.id, p]));
     stage('buildings');
     progress('props');
-    s.add(await buildProps(this.assets, this.mats, b));
+    const props = await buildProps(this.assets, this.mats, b);
+    s.add(props);
+    // the clusters of small props with a draw distance, and how far the camera has to move before it is checked again
+    this.lodMeshes = []; props.traverse((o) => { if (o.userData.maxDist) this.lodMeshes.push(o); });
     s.add(buildStructures(this.mats));
     stage('props');
     progress('vegetation');
@@ -205,5 +208,22 @@ export class GameWorld {
   update(dt, camera, time) {
     this.vegetation?.update(dt, camera, time);
     if (this.flagTime) this.flagTime.value = time;
+    this.#propLod(camera);
+  }
+
+  // Small props past their draw distance are skipped (main view and shadows). The distance grows with the quality
+  // setting and with the zoom of a scope (a 4x scope shows a jerry can at 300 m as plainly as the eye does at 75 m).
+  // Rechecked when the camera has moved a few metres or the zoom has changed — not every frame.
+  #propLod(camera) {
+    const L = this.lodMeshes; if (!L?.length) return;
+    const zoom = Math.max(1, (this.baseFov || 75) / camera.fov), p = camera.position, last = this.lodAt;
+    if (last && Math.abs(last.zoom - zoom) < 0.05 && Math.hypot(p.x - last.x, p.z - last.z) < 4) return;
+    this.lodAt = { x: p.x, z: p.z, zoom };
+    const qn = typeof this.quality === 'string' ? this.quality : this.quality?.name;
+    const k = ({ verylow: 0.7, low: 0.85, medium: 1, high: 1.3, ultra: 1.6 }[qn] ?? 1) * zoom;
+    for (const m of L) {
+      const b = m.boundingSphere, d = Math.hypot(b.center.x - p.x, b.center.z - p.z) - b.radius;
+      m.visible = d < m.userData.maxDist * k;
+    }
   }
 }

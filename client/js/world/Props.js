@@ -7,7 +7,9 @@ import { buildBoxGeometry } from '../render/Materials.js';
 // GLB scene -> InstancedMeshes for the given world matrices
 // Instances are bucketed into spatial cells so frustum culling (camera AND shadow passes) skips distant groups.
 // `only`: draw just the meshes (or mesh groups) with these node names.
-export function instanceGLB(gltf, matrices, { castShadow = true, receiveShadow = true, material = null, name = '', cell = 80, only = null } = {}) {
+// `maxDist`: past this (from the camera to the nearest point of a cell's cluster) the cluster isn't drawn at all — see
+// World.#propLod (a jerry can 200 m off is less than a pixel, but it still cost its triangles and draw call).
+export function instanceGLB(gltf, matrices, { castShadow = true, receiveShadow = true, material = null, name = '', cell = 80, only = null, maxDist = Infinity } = {}) {
   const group = new THREE.Group(); group.name = name;
   if (!matrices.length) return group;
   gltf.scene.updateMatrixWorld(true);
@@ -29,11 +31,16 @@ export function instanceGLB(gltf, matrices, { castShadow = true, receiveShadow =
       im.instanceMatrix.needsUpdate = true;
       im.castShadow = castShadow; im.receiveShadow = receiveShadow;
       im.computeBoundingSphere();
+      if (maxDist < Infinity) im.userData.maxDist = maxDist;
       group.add(im);
     }
   });
   return group;
 }
+
+// how far off each kind of small prop is still drawn (metres, at Medium quality; World scales it with the quality and
+// any scope zoom). Anything not listed — cars, barriers, lamps, fences, shutters — is always drawn.
+export const PROP_DIST = { jerrycan: 90, ammo: 90, cement_bag: 90, tyre: 90, trash: 90, crate: 160, barrel: 160, barrel_rusty: 160, utility: 160, generator: 160, aircon: 160, sandbag: 220, rubble: 220 };
 
 const M = (x, y, z, ry = 0, s = 1, rx = 0, rz = 0) => new THREE.Matrix4().compose(new THREE.Vector3(x, y, z), new THREE.Quaternion().setFromEuler(new THREE.Euler(rx, ry, rz, 'YXZ')), new THREE.Vector3(s, s, s));
 // chainlink_fence.glb is a whole modular kit laid out around the origin: the 2 m double panel spans x -1.951..-0.039
@@ -141,12 +148,12 @@ export async function buildProps(assets, mats, extra = { roofProps: [], rubble: 
       const g = await assets.loadVegetation('rock_07');
       const cm = new Map();
       // grey broken concrete: the rock's shape, normal detail and cavity AO, without its brown albedo
-      group.add(instanceGLB(g, list, { name: 'rubble', castShadow: false, material: (m) => { if (!cm.has(m)) { const c = m.clone(); c.map = null; c.color = new THREE.Color(0x8e8a83); cm.set(m, c); } return cm.get(m); } }));
+      group.add(instanceGLB(g, list, { name: 'rubble', castShadow: false, maxDist: PROP_DIST.rubble, material: (m) => { if (!cm.has(m)) { const c = m.clone(); c.map = null; c.color = new THREE.Color(0x8e8a83); cm.set(m, c); } return cm.get(m); } }));
       return;
     }
     const g = await assets.loadProp(keys[k]);
     const small = ['tyre', 'jerrycan', 'ammo', 'cement_bag', 'fence_panel', 'fence_post'].includes(k);
-    group.add(instanceGLB(g, list, { name: k, material: k === 'car_burnt' ? burntMat : k === 'sandbag' ? sandMat : null, castShadow: !small, only: onlyMeshes[k] || null }));
+    group.add(instanceGLB(g, list, { name: k, material: k === 'car_burnt' ? burntMat : k === 'sandbag' ? sandMat : null, castShadow: !small, only: onlyMeshes[k] || null, maxDist: PROP_DIST[k] ?? Infinity }));
   }));
 
   // shipping containers & precast walls: modular geometry textured with real corrugated steel / concrete

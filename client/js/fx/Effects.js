@@ -114,6 +114,8 @@ const SURF = {
   none: null,
 };
 
+const _decalObj = new THREE.Object3D(); // (scratch: builds a decal's matrix)
+
 export class Effects {
   constructor(scene, q, audio) {
     this.scene = scene; this.q = q; this.audio = audio;
@@ -159,13 +161,22 @@ export class Effects {
     }
     this.flashLight = new THREE.PointLight(0xffaa55, 0, 9, 2); scene.add(this.flashLight);
     this.boomLight = new THREE.PointLight(0xff9944, 0, 30, 2); scene.add(this.boomLight);
-    // decals
-    this.decals = [];
+    // decals: bullet holes (full strength on hard surfaces, half in dirt) and blast scorches. Each kind is one
+    // instanced mesh used as a ring buffer — a draw call per kind, not one per hole (a firefight left 150+ of them,
+    // each its own transparent draw)
     const dg = new THREE.PlaneGeometry(1, 1);
-    this.decalMat = new THREE.MeshStandardMaterial({ map: holeTex, transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -4, roughness: 1 });
-    this.scorchMat = new THREE.MeshStandardMaterial({ map: scorchTex, transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -4, roughness: 1 });
-    this.decalMax = Math.round(160 * q.particles);
-    this.decalGeo = dg; this.decalIdx = 0;
+    const decalMat = (map, opacity = 1) => new THREE.MeshStandardMaterial({ map, transparent: true, opacity, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -4, roughness: 1 });
+    this.decalMat = decalMat(holeTex); this.dirtMat = decalMat(holeTex, 0.5); this.scorchMat = decalMat(scorchTex);
+    const pool = (mat, max) => {
+      const m = new THREE.InstancedMesh(dg, mat, Math.max(1, max));
+      m.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+      m.count = 0; m.frustumCulled = false; // (spread over the whole map: one bounding sphere would be stale)
+      m.renderOrder = 1; // (after the opaque world they sit on)
+      scene.add(m);
+      return { m, next: 0, max: Math.max(1, max) };
+    };
+    const n = Math.round(160 * q.particles);
+    this.decalPools = new Map([[this.decalMat, pool(this.decalMat, n)], [this.dirtMat, pool(this.dirtMat, Math.ceil(n / 2))], [this.scorchMat, pool(this.scorchMat, 24)]]);
     this.shake = 0;
     this.ambient = [];
     this.#brassSetup();
@@ -215,7 +226,7 @@ export class Effects {
       this.spark(x, y, z, n[0] * 6 + (Math.random() - 0.5) * 8, n[1] * 6 + Math.random() * 5, n[2] * 6 + (Math.random() - 0.5) * 8, 0.15 + Math.random() * 0.25);
     }
     if (surface !== 'flesh' && surface !== 'dirt' && surface !== 'sand') this.decal(point, n, 0.07 + Math.random() * 0.03, this.decalMat);
-    else if (surface === 'dirt') this.decal(point, n, 0.12, this.decalMat, 0.5);
+    else if (surface === 'dirt') this.decal(point, n, 0.12, this.dirtMat);
     // (the impact sound is played by the callers, alongside: every one of them calls audio.impact)
   }
 
@@ -232,16 +243,20 @@ export class Effects {
     for (let i = 0; i < 5 * k; i++) this.emit(x, y, z, (Math.random() - 0.5), 0.3, (Math.random() - 0.5), 0xbfc4c4, 0.5, 1.2, { grow: 2, alpha: 0.18, drag: 2, grav: 0 });
   }
 
-  decal(point, n, size, mat, opacity = 1) {
-    let d = this.decals[this.decalIdx];
-    if (!d) { d = new THREE.Mesh(this.decalGeo, mat); this.scene.add(d); this.decals[this.decalIdx] = d; }
-    d.material = mat;
-    d.position.set(point[0] + n[0] * 0.01, point[1] + n[1] * 0.01, point[2] + n[2] * 0.01);
-    d.lookAt(d.position.x + n[0], d.position.y + n[1], d.position.z + n[2]);
-    d.rotateZ(Math.random() * 6.28);
-    d.scale.setScalar(size);
-    d.visible = true;
-    this.decalIdx = (this.decalIdx + 1) % this.decalMax;
+  // a decal on the surface at `point` facing along its normal `n` (the oldest of its kind makes way once the pool is full)
+  decal(point, n, size, mat) {
+    const P = this.decalPools.get(mat); if (!P) return;
+    const o = _decalObj;
+    o.position.set(point[0] + n[0] * 0.01, point[1] + n[1] * 0.01, point[2] + n[2] * 0.01);
+    o.lookAt(o.position.x + n[0], o.position.y + n[1], o.position.z + n[2]);
+    o.rotateZ(Math.random() * 6.28);
+    o.scale.setScalar(size);
+    o.updateMatrix();
+    P.m.setMatrixAt(P.next, o.matrix);
+    P.m.instanceMatrix.addUpdateRange(P.next * 16, 16);
+    P.m.instanceMatrix.needsUpdate = true;
+    P.next = (P.next + 1) % P.max;
+    P.m.count = Math.max(P.m.count, P.next === 0 ? P.max : P.next);
   }
 
   tracer(from, to, speed = 700) {
