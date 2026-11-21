@@ -15,6 +15,12 @@ const CREW = [
   { name: 'Rook', color: '#ffb03d' }, { name: 'Hex', color: '#3dc8ff' }, { name: 'Lotus', color: '#ff5b7a' },
   { name: 'Specter', color: '#d8f0ff' }, { name: 'Talon', color: '#ff7a1a' }, { name: 'Zero', color: '#5bff4d' },
 ];
+// Kerala's street racers go by their nicknames
+const KL_CREW = [
+  { name: 'Tiger Saji', color: '#ffb03d' }, { name: 'Rocky Benny', color: '#ff3df0' }, { name: 'Appu', color: '#3dffb0' },
+  { name: 'Manikuttan', color: '#8a5bff' }, { name: 'Jimmy', color: '#3dc8ff' }, { name: 'Sunny Bhai', color: '#ff5b7a' },
+  { name: 'Kuttan', color: '#d8f0ff' }, { name: 'Speed Shaji', color: '#ff7a1a' }, { name: 'Tony', color: '#5bff4d' },
+];
 const PRIZE = { D: 2500, C: 4200, B: 6800, A: 10500, S: 16000 };
 const MAX_RIVALS = 2;
 const CHALLENGE_DIST = 24;
@@ -87,7 +93,7 @@ export class StreetRivals {
     const g = this.game, s = g.player.state;
     const pool = this._pool();
     if (!pool.length) return;
-    const free = CREW.filter((c) => !this.rivals.some((r) => r.crew.name === c.name));
+    const free = (g.world.kerala ? KL_CREW : CREW).filter((c) => !this.rivals.some((r) => r.crew.name === c.name));
     const crew = free[Math.floor(Math.random() * free.length)];
     // a lane spot 170-280 m away, out of the camera's sight
     let spot = null;
