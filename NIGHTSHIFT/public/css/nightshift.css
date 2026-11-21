@@ -458,3 +458,5 @@ html.touch .track-banner { top: calc(13vmin + env(safe-area-inset-top)); left: 4
 .phone-nav { display: flex; justify-content: space-between; gap: 0.4rem; padding-top: 0.5rem; }
 .phone-navb { flex: 1; background: #ffffff10; border: 1px solid #ffffff1a; border-radius: 0.6rem; color: inherit; font: inherit; font-size: 0.75rem; letter-spacing: 0.12em; padding: 0.45rem; cursor: pointer; }
 .phone-navb.hang { color: #ff8090; }
+.map-key { margin-top: 0.6rem; font-size: 0.78rem; color: var(--dim); display: flex; flex-wrap: wrap; gap: 0.2rem 0.5rem; align-items: center; }
+.map-events .map-sep { cursor: default; color: var(--dim); font-size: 0.72rem; letter-spacing: 0.25em; padding-top: 0.7rem; border-left-color: transparent !important; background: none !important; }

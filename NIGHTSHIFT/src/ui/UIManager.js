@@ -555,12 +555,18 @@ export class UIManager {
         list.appendChild(d);
       }
     }
-    // Kerala: the cities and towns, nearest first; click one for GPS
+    // Kerala: what there is to do first (story, races within 40 km, businesses), then the cities and towns, nearest first;
+    // click one for GPS
     if (KL0) {
-      const ps = g.focusState;
+      const ps = g.focusState, km = (x, z) => Math.hypot(x - ps.x, z - ps.z) / 1000, row = (html, x, z, name) => { const d = h('div', '', html); d.onclick = () => { g.setGPS(x, z); this.toast(`GPS set: ${name}`); }; list.appendChild(d); };
+      legend.innerHTML += '<div class="map-key"><span class="dot" style="background:#ffc53d"></span>Races <span class="dot" style="background:#3dff9a"></span>For sale <span class="dot" style="background:#37e2ff"></span>Yours <span class="dot" style="background:#b98cff"></span>Story</div>';
+      if (!g.story?.active) for (const [gid, m] of Object.entries(g.story?.available() || {})) { const gv = g.story._giver(gid), c = CAST[gid]; row(`<b style="color:${c.color}">STORY · ${m.title}</b> <span style="color:var(--dim)">${c.name} · ${km(gv.x, gv.z).toFixed(1)} km</span>`, gv.x, gv.z, c.name); }
+      for (const ev of g.races.events.filter((e) => km(e.start.x, e.start.z) < 40).sort((a, b) => km(a.start.x, a.start.z) - km(b.start.x, b.start.z))) row(`<b style="color:#ffc53d">${g.save.data.racesCompleted[ev.def.id] != null ? '✓ ' : ''}${ev.def.name}</b> <span style="color:var(--dim)">${RACE_TYPE_NAMES[ev.def.type]} · ${km(ev.start.x, ev.start.z).toFixed(1)} km</span> <span style="color:var(--ok)">${formatMoney(ev.def.reward)}</span>`, ev.start.x, ev.start.z, ev.def.name);
+      for (const b of g.biz?.list || []) { const own = g.biz.owns(b.id), sp = g.biz.spot(b); row(`<b style="color:${own ? '#37e2ff' : '#3dff9a'}">${b.name}</b> <span style="color:var(--dim)">${own ? 'yours' : 'for sale'} · ${km(sp.x, sp.z).toFixed(1)} km</span> <span style="color:var(--ok)">${own ? formatMoney(b.income) + ' / 5 min' : formatMoney(b.price)}</span>`, sp.x, sp.z, b.name); }
+      list.appendChild(h('div', 'map-sep', 'TOWNS'));
       const places = g.keralaOverview.index.places.filter((p) => p[0] === 'city' || p[0] === 'town').map((p) => ({ kind: p[0], name: p[1], x: -p[3], z: p[4] }));
       places.sort((a, b) => Math.hypot(a.x - ps.x, a.z - ps.z) - Math.hypot(b.x - ps.x, b.z - ps.z));
-      for (const p of places.slice(0, 60)) {
+      for (const p of places.slice(0, 40)) {
         const d = h('div', '', `<b style="color:${p.kind === 'city' ? '#ffcf4a' : '#d8e0d8'}">${p.name}</b> <span style="color:var(--dim)">${p.kind} · ${(Math.hypot(p.x - ps.x, p.z - ps.z) / 1000).toFixed(1)} km</span>`);
         d.onclick = () => { g.setGPS(p.x, p.z); this.toast(`GPS set: ${p.name}`); };
         list.appendChild(d);
@@ -583,13 +589,13 @@ export class UIManager {
       d.onclick = () => { g.setGPS(p.x, p.z); this.toast(`GPS set: ${p.name}`); };
       list.appendChild(d);
     }
-    for (const ev of g.races.events) {
+    if (!KL0) for (const ev of g.races.events) {
       const d = h('div', '', `<b>${ev.def.name}</b> <span style="color:var(--dim)">${RACE_TYPE_NAMES[ev.def.type]}</span> <span style="color:var(--ok)">${formatMoney(ev.def.reward)}</span>`);
       d.onclick = () => { g.setGPS(ev.start.x, ev.start.z); this.toast(`GPS set: ${ev.def.name}`); };
       list.appendChild(d);
     }
-    // Kerala businesses: for sale (green) or yours (blue)
-    for (const b of g.biz?.list || []) {
+    // (Kerala's businesses are listed above, with the story and the races)
+    for (const b of []) {
       const own = g.biz.owns(b.id), sp = g.biz.spot(b);
       const d = h('div', '', `<b style="color:${own ? '#37e2ff' : '#3dff9a'}">${b.name}</b> <span style="color:var(--dim)">${own ? 'YOURS' : 'FOR SALE'}</span> <span style="color:var(--ok)">${own ? formatMoney(b.income) + ' / 5 min' : formatMoney(b.price)}</span>`);
       d.onclick = () => { g.setGPS(sp.x, sp.z); this.toast(`GPS set: ${b.name}`); };
