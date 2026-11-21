@@ -201,6 +201,9 @@ export class BoatRide {
     } else if (R.t > R.par * 2.5 || d > 600) this._runEnd(false, R.t > R.par * 2.5 ? 'Too slow: the buoys were taken in' : 'You left the course');
   }
 
+  // the minimap: the buoy to make for, and the one after
+  blips() { const R = this.run; return R ? R.pts.slice(R.i, R.i + 2).map((q, k) => ({ x: q.x, z: q.z, color: k ? '#a04a2a' : '#ff5a2a', r: k ? 4 : 6 })) : []; }
+
   _runEnd(done, why) {
     const g = this.game, R = this.run;
     if (!R) return;
