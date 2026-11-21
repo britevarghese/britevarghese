@@ -468,7 +468,7 @@ export class Game {
       setTimeout(() => { if (this.state.mode === 'drive') { this.state.mode = 'results'; this.ui.showResults(r); this.audio.setPaused(true); } }, 1800);
     });
     bus.on('race:aborted', () => this.ui.toast('Event abandoned'));
-    bus.on('radio:tune', (e) => { if (this.state.mode === 'drive' && !this.onFoot.active) this.hud.radioBanner(e.station, e.song); });
+    bus.on('radio:tune', (e) => { if (this.state.mode === 'drive' && (!this.onFoot.active || this.boatRide?.active)) this.hud.radioBanner(e.station, e.song); });
     // progression announcements
     bus.on('progress:level', (e) => {
       const cars = e.unlocked.map((id) => CARS[id]?.name).filter(Boolean);
@@ -1316,9 +1316,10 @@ export class Game {
     a.setTraffic(near);
     a.setEnvironment({ rain: this.env.state.rain, speed: Math.abs(s.speed), night: this.env.state.night > 0.5, district: this.world.districtAt(s.x, s.z).id });
     a.setMusicIntensity(this.police.inPursuit ? 1 : this.races.active ? 0.7 : 0.3);
-    // the radio: in a vehicle (and behind the menus); off on foot
-    a.setMusic(!(this.onFoot.active && (mode === 'drive' || mode === 'cutscene')));
-    if (mode === 'drive' && !this.onFoot.active) {
+    // the radio: in a vehicle or a boat (and behind the menus); off on foot
+    const aboard = !this.onFoot.active || !!this.boatRide?.active;
+    a.setMusic(aboard || !(mode === 'drive' || mode === 'cutscene'));
+    if (mode === 'drive' && aboard) {
       const dir = this.input.consume('radioNext') ? 1 : this.input.consume('radioPrev') ? -1 : 0;
       if (dir) { this.settings.audio.radio = a.radioStep(dir); this.settings.save?.(); }
     }

@@ -203,7 +203,7 @@ controller, what to check when nothing appears, and a report to copy.
   NIGHTSHIFT 99.1 (synthwave), Kayal FM 92.7 (Kerala folk fusion: tabla, chenda, a tanpura drone and a
   plucked lead), Kuthu 104 (mass beats: dhol, claps and a nadaswaram-style reed) and Monsoon Lo-fi 88.5
   (swung electric piano, vinyl crackle and rain), plus Radio Off. Change station in any vehicle; it plays
-  while you drive, goes quiet on foot, and remembers your station.
+  while you drive (and aboard a boat), goes quiet on foot, and remembers your station.
 - **Extras:** instant replay with cinematic cameras, photo mode with filters and PNG export,
   style combos, driver XP and levels, career missions.
 - **Graphics:** quality is detected automatically (up to ULTRA on high-end GPUs) and adjusts at
