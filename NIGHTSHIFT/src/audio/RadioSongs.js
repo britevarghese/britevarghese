@@ -56,6 +56,30 @@ const NEON_COAST = {
   loops: 4,
 };
 
+// up the ghat road to Wayanad at night, someone behind you: E minor, driving
+const GHAT_ROAD = {
+  title: 'Ghat Road Pursuit', bpm: 116, steps: 16, kit: 'synth', pad: 'saw', lead: 'square', bassType: 'saw', arp: true, leadEvery: 2,
+  bars: [
+    { root: 28, pad: [55, 59, 64] }, { root: 36, pad: [55, 60, 64] }, { root: 31, pad: [55, 59, 62] }, { root: 38, pad: [54, 57, 62] },
+    { root: 33, pad: [57, 60, 64] }, { root: 36, pad: [55, 60, 64] }, { root: 38, pad: [54, 57, 62] }, { root: 35, pad: [54, 59, 63] },
+  ],
+  leadNotes: [
+    [[0, 76, 3], [3, 79, 3], [6, 83, 2], [8, 81, 4], [12, 79, 4]],
+    [[0, 79, 4], [4, 76, 4], [8, 72, 6], [14, 74, 2]],
+    [[0, 74, 3], [3, 76, 3], [6, 79, 2], [8, 83, 6], [14, 81, 2]],
+    [[0, 81, 8], [8, 78, 4], [12, 74, 4]],
+    [[0, 72, 2], [2, 76, 2], [4, 81, 4], [8, 84, 4], [12, 83, 4]],
+    [[0, 81, 6], [6, 79, 2], [8, 76, 8]],
+    [[0, 78, 4], [4, 81, 4], [8, 86, 4], [12, 83, 4]],
+    [[0, 83, 6], [6, 78, 2], [8, 75, 8]],
+  ],
+  drumsCalm: { kick: R(0, 8, 11), snare: R(4, 12), hat: 'eighths' },
+  drumsDrive: { kick: R(0, 4, 8, 12), snare: R(4, 12, 14), hat: 'sixteenths' },
+  bassCalm: [0, null, 0, null, 0, null, 12, null, 0, null, 0, null, 7, null, 12, null],
+  bassDrive: [0, 0, 12, 0, 0, 12, 0, 12, 0, 0, 12, 0, 7, 7, 12, 12],
+  loops: 4,
+};
+
 // ------------------------------------------------------------------ Kayal FM 92.7: Kerala folk fusion
 // a tanpura drone on D, tabla-style drums, a plucked lead in a pentatonic (Mohanam-like) scale
 const D = 50; // D3
@@ -94,6 +118,26 @@ const CHENDA = {
   // the chenda (Kerala's temple drum): fast rolls that build through every 4th bar
   drums: { ge: R(0, 8, 11), na: R(4, 12), chenda: (s, bar) => (bar % 4 === 3 ? 0.5 + s / 32 : s % 2 === 0 ? 0.35 : s % 4 === 3 ? 0.25 : 0), te: R(2, 6, 10, 14) },
   bass: [0, null, null, 0, null, null, 7, null, 0, null, null, 0, null, 7, null, null],
+  loops: 4,
+};
+
+// vanchipattu, the rowing song of the snake-boat races: call and answer over a steady stroke, the chenda rolling in
+// at the end of each verse
+const VALLAM_KALI = {
+  title: 'Vallam Kali', gain: 0.88, bpm: 104, steps: 16, kit: 'tabla', pad: 'drone', lead: 'pluck', bassType: 'sub', leadEvery: 1,
+  bars: Array.from({ length: 8 }, (_, i) => ({ root: 38, pad: i % 4 === 3 ? [50, 57, 62] : [50, 57] })),
+  leadNotes: [
+    [[0, P(0), 2], [2, P(2), 2], [4, P(4), 4], [8, P(5), 2], [10, P(4), 2], [12, P(2), 4]],
+    [[0, P(4), 2], [2, P(5), 2], [4, P(7), 4], [8, P(5), 4], [12, P(4), 4]],
+    [[0, P(2), 2], [2, P(4), 2], [4, P(5), 2], [6, P(4), 2], [8, P(2), 4], [12, P(1), 4]],
+    [[0, P(2), 8], [8, P(0), 8]],
+    [[0, P(5), 2], [2, P(7), 2], [4, P(8), 4], [8, P(7), 2], [10, P(5), 2], [12, P(4), 4]],
+    [[0, P(7), 4], [4, P(5), 4], [8, P(4), 4], [12, P(2), 4]],
+    [[0, P(4), 2], [2, P(2), 2], [4, P(1), 2], [6, P(2), 2], [8, P(0), 4], [12, P(-1), 4]],
+    [[0, P(0), 16]],
+  ],
+  drums: { ge: R(0, 4, 8, 12), na: R(2, 10), te: R(6, 14), tin: R(7, 15), chenda: (s, bar) => (bar % 8 === 7 ? 0.45 + s / 40 : 0) },
+  bass: [0, null, null, null, 7, null, null, null, 0, null, null, null, 7, null, 0, null],
   loops: 4,
 };
 
@@ -140,6 +184,27 @@ const THATTU = {
   loops: 4,
 };
 
+const LOCAL_HERO = {
+  title: 'Local Hero', gain: 0.6, bpm: 128, steps: 16, kit: 'kuthu', pad: 'saw', lead: 'reed', bassType: 'sub', leadEvery: 1,
+  bars: [
+    { root: 31, pad: [55, 58, 62] }, { root: 31, pad: [55, 58, 62] }, { root: 39, pad: [55, 58, 63] }, { root: 29, pad: [53, 57, 60] },
+    { root: 31, pad: [55, 58, 62] }, { root: 31, pad: [55, 58, 62] }, { root: 36, pad: [55, 60, 63] }, { root: 38, pad: [54, 57, 62] },
+  ],
+  leadNotes: [
+    [[0, 79, 2], [2, 79, 2], [4, 82, 2], [6, 79, 2], [8, 77, 2], [10, 79, 2], [12, 74, 4]],
+    [[0, 74, 2], [2, 77, 2], [4, 79, 8], [12, 77, 4]],
+    [[0, 79, 2], [2, 79, 2], [4, 82, 2], [6, 84, 2], [8, 82, 2], [10, 79, 2], [12, 77, 4]],
+    [[0, 77, 2], [2, 79, 2], [4, 81, 8], [12, 77, 4]],
+    [[0, 86, 4], [4, 84, 2], [6, 82, 2], [8, 84, 4], [12, 82, 4]],
+    [[0, 79, 4], [4, 82, 4], [8, 79, 8]],
+    [[0, 84, 2], [2, 82, 2], [4, 79, 2], [6, 82, 2], [8, 79, 4], [12, 75, 4]],
+    [[0, 78, 8], [8, 81, 4], [12, 78, 4]],
+  ],
+  drums: { dhol: R(0, 3, 8, 11, 14), tom: R(6, 13), clap: R(4, 12), hat: 'eighths' },
+  bass: [0, null, 0, 12, null, 0, null, 0, 0, null, 0, 12, null, 7, null, 12],
+  loops: 4,
+};
+
 // ------------------------------------------------------------------ Monsoon Lo-fi 88.5
 // swung, dusty, electric-piano chords, vinyl crackle and rain
 const RAIN_ON_TIN = {
@@ -183,11 +248,33 @@ const LATE_BUS = {
   loops: 3,
 };
 
+// tea at the stall before the first bus, the street still wet
+const CHAYA_DAWN = {
+  title: 'Chaya at Dawn', bpm: 72, steps: 16, kit: 'lofi', pad: 'rhodes', lead: 'rhodes', bassType: 'round', swing: 0.2, crackle: true, leadEvery: 2,
+  bars: [
+    { root: 34, pad: [53, 57, 58, 62] }, { root: 33, pad: [52, 55, 57, 60] }, { root: 31, pad: [53, 55, 58, 62] }, { root: 36, pad: [52, 55, 58, 60] },
+    { root: 38, pad: [53, 57, 60, 62] }, { root: 31, pad: [53, 55, 58, 62] }, { root: 33, pad: [52, 55, 57, 61] }, { root: 38, pad: [53, 57, 60, 64] },
+  ],
+  leadNotes: [
+    [[2, 74, 2], [4, 77, 4], [10, 76, 2], [12, 74, 4]],
+    [[0, 72, 6], [8, 76, 2], [10, 74, 2], [12, 72, 4]],
+    [[2, 70, 2], [4, 74, 2], [6, 77, 2], [8, 79, 8]],
+    [[0, 76, 12]],
+    [[2, 77, 2], [4, 81, 4], [10, 79, 2], [12, 77, 4]],
+    [[0, 74, 6], [8, 77, 2], [10, 74, 2], [12, 70, 4]],
+    [[2, 73, 2], [4, 76, 2], [6, 79, 2], [8, 76, 8]],
+    [[0, 74, 12]],
+  ],
+  drums: { kick: R(0, 8, 11), snare: R(4, 12), hat: 'eighths', rim: R(10) },
+  bass: [0, null, null, null, null, null, 7, null, null, null, 0, null, 12, null, 7, null],
+  loops: 3,
+};
+
 export const STATIONS = [
-  { id: 'nightshift', name: 'NIGHTSHIFT 99.1', genre: 'Synthwave', color: '#ff3d8a', songs: [NIGHT_SHIFT, NEON_COAST] },
-  { id: 'kayal', name: 'Kayal FM 92.7', genre: 'Kerala folk fusion', color: '#3dffb0', songs: [BACKWATER, CHENDA] },
-  { id: 'kuthu', name: 'Kuthu 104', genre: 'Mass beats', color: '#ffb03d', songs: [MASS_ENTRY, THATTU] },
-  { id: 'monsoon', name: 'Monsoon Lo-fi 88.5', genre: 'Lo-fi', color: '#8ab4ff', songs: [RAIN_ON_TIN, LATE_BUS] },
+  { id: 'nightshift', name: 'NIGHTSHIFT 99.1', genre: 'Synthwave', color: '#ff3d8a', songs: [NIGHT_SHIFT, NEON_COAST, GHAT_ROAD] },
+  { id: 'kayal', name: 'Kayal FM 92.7', genre: 'Kerala folk fusion', color: '#3dffb0', songs: [BACKWATER, CHENDA, VALLAM_KALI] },
+  { id: 'kuthu', name: 'Kuthu 104', genre: 'Mass beats', color: '#ffb03d', songs: [MASS_ENTRY, THATTU, LOCAL_HERO] },
+  { id: 'monsoon', name: 'Monsoon Lo-fi 88.5', genre: 'Lo-fi', color: '#8ab4ff', songs: [RAIN_ON_TIN, LATE_BUS, CHAYA_DAWN] },
   { id: 'off', name: 'Radio Off', genre: '', color: '#888888', songs: [] },
 ];
 export const DEFAULT_SONG = NIGHT_SHIFT;
