@@ -395,6 +395,17 @@ export class WeaponModel {
   }
 
   // Socket world position helper
+  // Another soldier's gun far off: the charging handle, dust cover, bolt carrier and the sight's glass are a few
+  // millimetres across — less than a pixel — but each was a draw call (and a shadow-pass one). They are left out
+  // past ~35 m (with a little give, so a soldier standing at the edge doesn't flicker).
+  setDistance(d) {
+    const far = this.far ? d > 30 : d > 36;
+    if (far === !!this.far) return;
+    this.far = far;
+    for (const k of ['charge', 'cover', 'carrier']) if (this.parts?.[k]) this.parts[k].o.visible = !far;
+    if (this.lens) this.lens.visible = !far;
+  }
+
   socketWorld(name, target = new THREE.Vector3()) {
     return target.copy(this.sockets[name]).applyMatrix4(this.root.matrixWorld);
   }

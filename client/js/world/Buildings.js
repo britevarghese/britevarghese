@@ -55,8 +55,8 @@ function lookOf(spec, rnd) {
 export function buildBuildings(world, mats) {
   const t0 = performance.now();
   const group = new THREE.Group(); group.name = 'buildings';
-  // buildings are merged per material within 64 m cells (by their centre): one mesh per material per cell, so the
-  // camera and shadow passes cull the town block by block instead of drawing the whole map every time
+  // buildings are gathered per material within 64 m cells (by their centre), then merged into meshes sized to the
+  // material: see the end of this function
   const CELL = 64, chunks = new Map();
   const bucketsAt = (x, z) => { const k = `${Math.floor(x / CELL)},${Math.floor(z / CELL)}`; let c = chunks.get(k); if (!c) chunks.set(k, (c = new MeshBuckets(null))); return c; };
   const wv = [0, 0];
@@ -355,11 +355,29 @@ export function buildBuildings(world, mats) {
     buildBoxGeometry(trims, { tile: 1, color, weather, into: M });
   }
 
-  for (const [k, M] of chunks) for (const [m, geo] of M.geometries()) {
-    const mesh = new THREE.Mesh(geo, mats.building(m, { weather: true }));
-    mesh.castShadow = true; mesh.receiveShadow = true;
-    mesh.name = `bld_${m}_${k}`;
-    group.add(mesh);
+  // One mesh per material per cell let the camera and shadow passes skip town blocks out of view, but at ~20
+  // materials per cell it cost 150-200 draw calls in each pass — mostly for trims, plinths and paint that hold a few
+  // thousand triangles. So each material is cut to its weight across the whole map: a light one is a single mesh
+  // (drawing it all costs less than the extra draw calls did), a middling one 128 m blocks, only the heaviest keep
+  // 64 m blocks.
+  const perMat = new Map(); // material -> [[cell key, geometry]]
+  for (const [k, M] of chunks) for (const [m, geo] of M.geometries()) (perMat.get(m) || perMat.set(m, []).get(m)).push([k, geo]);
+  for (const [m, list] of perMat) {
+    const tris = list.reduce((a, [, geo]) => a + geo.index.count / 3, 0);
+    const span = tris < 25000 ? 0 : tris < 80000 ? 2 : 1; // (cells merged per side; 0: the whole map)
+    const blocks = new Map();
+    for (const [k, geo] of list) {
+      const [i, j] = k.split(',').map(Number), key = span ? `${Math.floor(i / span)},${Math.floor(j / span)}` : 'all';
+      (blocks.get(key) || blocks.set(key, []).get(key)).push(geo);
+    }
+    for (const [key, geos] of blocks) {
+      const geo = geos.length > 1 ? mergeGeometries(geos) : geos[0];
+      if (geos.length > 1) { geo.computeBoundingSphere(); for (const g of geos) g.dispose(); }
+      const mesh = new THREE.Mesh(geo, mats.building(m, { weather: true }));
+      mesh.castShadow = true; mesh.receiveShadow = true;
+      mesh.name = `bld_${m}_${key}`;
+      group.add(mesh);
+    }
   }
   let glass = null;
   if (glassGeoms.length) {

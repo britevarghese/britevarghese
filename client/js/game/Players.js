@@ -139,6 +139,7 @@ export class Players {
       const onScreen = !this.frustum || isMe || this.frustum.intersectsSphere(_sphere);
       const rate = !onScreen ? 0.25 : dist > 90 ? 0.1 : dist > 45 ? 0.05 : dist > 25 ? 0.033 : 0;
       r.detail = dist < 14 ? 0 : 1;
+      if (r.weapon && !isMe) r.weapon.setDistance(dist);
       // battle royale freefall: belly-to-earth (body pitched forward about the chest, weapon slung)
       const freefall = p.alive && (p.flags & 32);
       r.airPitch = (r.airPitch || 0) + ((freefall ? -1.35 : 0) - (r.airPitch || 0)) * (1 - Math.exp(-5 * dt));
