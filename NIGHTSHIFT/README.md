@@ -192,7 +192,8 @@ controller, what to check when nothing appears, and a report to copy.
   The phone's *Business* app lists them and sets the GPS.
 - **Boats:** on foot at the edge of a backwater, river or the sea, press E to take a country boat ($50). W / S
   throttle and reverse, A / D steer, shift for full speed; E or F near the bank goes ashore, and the boat stays
-  moored there for you.
+  moored there for you. Out on open water, E starts a **buoy run**: a course of buoys against the clock,
+  double pay under par, your fastest pace kept.
 - **Theyyam masks:** 50 hidden collectibles, one in each of 50 towns and villages around Kannur
   (Thalassery, Mahe, Taliparamba, Mattannur...). Close by, a mask shimmers and chimes; touch it to
   collect. Each pays $500 and XP, with bonuses at 10, 25 and 50. *Career* shows the count and names a

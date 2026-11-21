@@ -5,7 +5,9 @@
 // While aboard you are on foot as far as the game is concerned (the camera, the map, the police follow you): the
 // on-foot update hands the frame to ride() (OnFoot.boat), which moves the boat and seats you in it.
 import { AssetManager } from '../assets/AssetManager.js';
-import { clamp } from '../core/util.js';
+import * as THREE from 'three';
+import { clamp, formatMoney } from '../core/util.js';
+import { markerBeam } from '../world/MarkerBeam.js';
 
 const HIRE = 50, ACCEL = 3.2, BOOST = 5, REV = 2.2, MAX = 12, MAX_BOOST = 16, TURN = 0.75, BOW = 3.4, STERN = 2.6;
 
@@ -115,8 +117,12 @@ export class BoatRide {
     if (F.human) { if (!F.human.shot) F.human.play('sitIdle', { hold: true, fade: 0.2 }); F.human.animate(0, dt, false); } // sat on the thwart
     // ashore near land
     const land = sp < 4 ? this._shore() : null;
-    g.hud.setPrompt(land ? 'press <span class="key">E</span> / <span class="key">F</span> to go ashore' : null);
-    if (land && (input.consume('event') || input.consume('enter'))) this.ashore(land);
+    if (this.run) this._runUpdate(dt);
+    const canRun = !this.run && !land && !g.story?.active && !g.jobs?.working;
+    g.hud.setPrompt(land && !this.run ? 'press <span class="key">E</span> / <span class="key">F</span> to go ashore' : canRun && sp < 6 ? 'press <span class="key">E</span> for a buoy run' : null);
+    if (land && !this.run && (input.consume('event') || input.consume('enter'))) this.ashore(land);
+    else if (canRun && sp < 6 && input.consume('event')) this._runStart();
+    else if (this.run && land && input.consume('enter')) { this._runEnd(false, 'Run abandoned'); this.ashore(land); }
   }
 
   // a dry spot a person can stand on within 7 m of the boat
@@ -133,6 +139,87 @@ export class BoatRide {
     return null;
   }
 
+  // ------------------------------------------------------------------ the buoy run
+  // A course of buoys across the open water ahead, against the clock: each leg 90-180 m, clear water all the way.
+  // Under par doubles the prize; your best time for a course of that many buoys is kept.
+  _course() {
+    const b = this.boat, pts = [];
+    let x = b.x, z = b.z, yaw = b.yaw, len = 0;
+    const clear = (x0, z0, x1, z1) => { const d = Math.hypot(x1 - x0, z1 - z0), n = Math.ceil(d / 8); for (let i = 1; i <= n; i++) if (!this._open(x0 + (x1 - x0) * i / n, z0 + (z1 - z0) * i / n, 6)) return false; return true; };
+    for (let k = 0; k < 7; k++) {
+      let got = null;
+      for (let t = 0; t < 40 && !got; t++) {
+        const a = yaw + (Math.random() - 0.5) * (t < 20 ? 1.6 : 5), d = 90 + Math.random() * 90, nx = x + Math.sin(a) * d, nz = z + Math.cos(a) * d;
+        if (pts.some((q) => Math.hypot(q.x - nx, q.z - nz) < 60) || !clear(x, z, nx, nz)) continue;
+        const y = this._surface(nx, nz); if (y === null) continue;
+        got = { x: nx, z: nz, y, a, d };
+      }
+      if (!got) break;
+      pts.push(got); len += got.d; x = got.x; z = got.z; yaw = got.a;
+    }
+    return pts.length >= 4 ? { pts, len } : null;
+  }
+
+  _runStart() {
+    const g = this.game, C = this._course();
+    if (!C) { g.ui.toast('Not enough open water here for a buoy run: head further out', '', 3); return; }
+    const group = new THREE.Group();
+    const geo = new THREE.CylinderGeometry(0.45, 0.6, 1.6, 12).translate(0, 0.6, 0), beamGeo = new THREE.CylinderGeometry(0.7, 0.7, 40, 12, 1, true).translate(0, 20, 0);
+    C.pts.forEach((q, i) => {
+      const last = i === C.pts.length - 1, col = last ? 0x3dff9a : 0xff5a2a;
+      const m = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ color: col, emissive: col, emissiveIntensity: 0.35, roughness: 0.6 }));
+      const beam = markerBeam(beamGeo, new THREE.Color(col), 0.16, { near: 10, far: 40 });
+      const o = new THREE.Group(); o.add(m, beam); o.position.set(q.x, q.y, q.z); o.visible = i < 2;
+      q.obj = o; group.add(o);
+    });
+    g.scene.add(group);
+    const par = Math.round(C.len / 10 + 5);
+    this.run = { pts: C.pts, i: 0, t: 0, par, group, len: C.len };
+    g.hud.message('BUOY RUN', `${C.pts.length} buoys · par ${par} s`, 2.5);
+    g.audio?.playEvent?.('countdown', { final: true });
+    if (!this.meter) {
+      this.meter = document.createElement('div'); this.meter.className = 'story-meter job-meter';
+      this.meter.innerHTML = '<span></span><div class="bar"><i></i></div>';
+      (document.querySelector('.job-hud') || document.getElementById('hud') || document.body).appendChild(this.meter);
+    }
+    this.meter.classList.remove('hidden');
+  }
+
+  _runUpdate(dt) {
+    const g = this.game, R = this.run, b = this.boat, q = R.pts[R.i];
+    R.t += dt;
+    const d = Math.hypot(q.x - b.x, q.z - b.z);
+    q.obj.position.y = q.y + Math.sin(R.t * 2 + R.i) * 0.08;
+    this.meter.firstChild.textContent = `BUOY ${R.i + 1}/${R.pts.length} · ${R.t.toFixed(1)} s · par ${R.par} · ${Math.round(d)} m`;
+    const bar = this.meter.querySelector('i'); bar.style.width = `${clamp(1 - R.t / (R.par * 1.6), 0, 1) * 100}%`; bar.className = R.t > R.par ? 'danger' : '';
+    if (d < 9) {
+      q.obj.visible = false; R.i++;
+      g.audio?.playEvent?.('checkpoint');
+      if (R.i >= R.pts.length) { this._runEnd(true); return; }
+      R.pts[R.i].obj.visible = true; if (R.pts[R.i + 1]) R.pts[R.i + 1].obj.visible = true;
+      g.hud.message(`${R.i}/${R.pts.length}`, '', 0.8, true);
+    } else if (R.t > R.par * 2.5 || d > 600) this._runEnd(false, R.t > R.par * 2.5 ? 'Too slow: the buoys were taken in' : 'You left the course');
+  }
+
+  _runEnd(done, why) {
+    const g = this.game, R = this.run;
+    if (!R) return;
+    this.run = null;
+    R.group.removeFromParent();
+    R.group.traverse((o) => { o.geometry?.dispose(); o.material?.dispose?.(); });
+    this.meter?.classList.add('hidden');
+    if (!done) { if (why) g.hud.message('BUOY RUN OVER', why, 2.5); return; }
+    const D = (g.save.data.boat ??= { runs: 0, best: {} }), n = R.pts.length, pace = R.len / R.t;
+    const under = R.t <= R.par, pay = (150 + 40 * n) * (under ? 2 : 1), bestPace = D.best.pace || 0;
+    D.runs++;
+    if (pace > bestPace) D.best = { pace, t: R.t, n };
+    g.save.addCash(pay, 'boat');
+    g.progress?.addXp?.(under ? 120 : 60, 'boat');
+    g.audio?.playEvent?.('raceFinish');
+    g.hud.message(under ? 'UNDER PAR!' : 'RUN COMPLETE', `${R.t.toFixed(1)} s (par ${R.par}) · ${formatMoney(pay)}${pace > bestPace && bestPace ? ' · your fastest yet' : ''}`, 4);
+    g.save.save?.();
+  }
+
   ashore(at) {
     const g = this.game, F = g.onFoot, b = this.boat, s = F.state;
     this.end();
@@ -147,6 +234,7 @@ export class BoatRide {
   end() {
     const g = this.game, F = g.onFoot;
     if (!this.boat) return;
+    this._runEnd(false);
     this.boat = null;
     this._motor(false);
     if (F.boat === this) F.boat = null;

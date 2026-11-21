@@ -291,6 +291,7 @@ export class UIManager {
     }
     list.appendChild(h('div', 'chapter', `<span>JOBS · ${(J.fares || 0) + (J.parcels || 0)} DONE</span><span>phone (T) · Jobs</span>`));
     list.appendChild(h('div', 'mission' + ((J.fares || 0) >= 10 && (J.parcels || 0) >= 10 ? ' done' : ''), `<div class="mt"><b>Taxi fares ${J.fares || 0} · parcels ${J.parcels || 0}</b><span>earned ${formatMoney(J.earned || 0)} · best streak ${J.best || 0}</span></div><div class="md">Ten of each count toward completion.</div>`));
+    { const BT = g.save.data.boat; list.appendChild(h('div', 'mission', `<div class="mt"><b>Buoy runs</b><span>${BT?.runs || 0} finished${BT?.best?.pace ? ` · fastest ${(BT.best.pace * 3.6).toFixed(0)} km/h over ${BT.best.n} buoys` : ''}</span></div><div class="md">Take a boat at the water's edge (E) and press E again out on open water.</div>`)); }
     list.appendChild(h('div', 'mission', `<div class="mt"><b>Street events</b><span>${g.save.data.events || 0} thieves stopped</span></div><div class="md">Chain snatchers and stolen autos turn up while you drive about: E to give chase.</div>`));
   }
 

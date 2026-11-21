@@ -1,7 +1,7 @@
 // Driving a boat: finds a bank near the start (land beside open water), walks there, takes a boat (E), drives it about
 // (throttle, a turn, full speed), heads for the bank and goes ashore. Logs where the boat went, whether it ever left the
 // water, and the prompts; screenshot <out>.png aboard.
-//   node tools/dev/boat.mjs --port 3000 [--out DIR/name] [--at x,z]
+//   node tools/dev/boat.mjs --port 3000 [--out DIR/name] [--at x,z] [--run 1: a buoy run too] [--sea x,z: steer out to there first]
 import { launch } from './pw.mjs';
 const args = Object.fromEntries(process.argv.slice(2).reduce((acc, a, i, arr) => { if (a.startsWith('--')) acc.push([a.slice(2), arr[i + 1]]); return acc; }, []));
 const port = args.port || 3000, out = args.out || './boat';
@@ -13,7 +13,7 @@ p.on('console', (m) => { if (m.type() === 'error') errors.push(m.text().slice(0,
 await p.addInitScript(`localStorage.setItem('nightshift.settings', JSON.stringify({graphics:{quality:'low',detectedQuality:'low',backend:'webgl2',timeOfDay:'day'}}))`);
 await p.goto(`http://localhost:${port}/`);
 await p.waitForFunction(() => window.NIGHTSHIFT && window.NIGHTSHIFT.state.mode === 'menu', null, { timeout: 180000 });
-const res = await p.evaluate(async (at) => {
+const res = await p.evaluate(async ([at, run, sea]) => {
   const G = window.NIGHTSHIFT, W = G.world, R = {}, log = [];
   G.save.data.story.prologueOffered = true; await G.play(); window._r = G.rm.render.bind(G.rm); G.rm.render = () => {}; G.rm.renderer.setAnimationLoop(null);
   const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -43,6 +43,28 @@ const res = await p.evaluate(async (at) => {
   drive(90, { throttle: 1, steer: 1 }, 'right turn 3 s');
   drive(150, { throttle: 1, nitro: true }, 'full 5 s');
   drive(60, { brake: 1 }, 'brake 2 s');
+  // a buoy run: out to open water, E, then steered at each buoy in turn
+  if (run) {
+    if (sea) { // steered out to a point on open water (backing off the bank first if nosed into it)
+      for (let n = 0; n < 30 * 90 && Math.hypot(sea[0] - B.x, sea[1] - B.z) > 40; n++) { const want = Math.atan2(sea[0] - B.x, sea[1] - B.z); let d = want - B.yaw; while (d > Math.PI) d -= 2 * Math.PI; while (d < -Math.PI) d += 2 * Math.PI;
+        const blocked = !W.inWater(B.x + Math.sin(B.yaw) * 6, B.z + Math.cos(B.yaw) * 6);
+        step(1, blocked ? { brake: 1, steer: d > 0 ? 1 : -1 } : { throttle: Math.abs(d) < 1 ? 1 : 0.4, steer: Math.max(-1, Math.min(1, -d * 2.5)) }); if (!W.inWater(B.x, B.z)) dry++; }
+      log.push(`at sea: ${B.x.toFixed(0)},${B.z.toFixed(0)}, ${Math.round(Math.hypot(sea[0] - B.x, sea[1] - B.z))} m from the point`);
+    } else drive(240, { throttle: 1 }, 'out to open water');
+    drive(60, { brake: 0.6 }, 'slowed');
+    let msgs = []; const m0 = G.hud.message.bind(G.hud); G.hud.message = (a, b2, ...r) => { msgs.push(`${a} ${b2 || ''}`.trim()); return m0(a, b2, ...r); };
+    const c0 = G.save.data.cash;
+    for (let tries = 0; tries < 6 && !G.boatRide.run; tries++) { G.input.pressed.add('event'); step(1, { throttle: 0 }); if (!G.boatRide.run) drive(90, { throttle: 1, steer: tries % 2 ? 1 : -1 }, 'looking for water'); }
+    const Rn = G.boatRide.run;
+    if (Rn) {
+      R.course = `${Rn.pts.length} buoys, ${Math.round(Rn.len)} m, par ${Rn.par} s`;
+      let n = 0;
+      while (G.boatRide.run && n < 30 * 200) { const q = Rn.pts[Rn.i]; const want = Math.atan2(q.x - B.x, q.z - B.z); let d = want - B.yaw; while (d > Math.PI) d -= 2 * Math.PI; while (d < -Math.PI) d += 2 * Math.PI;
+        step(1, { throttle: Math.abs(d) < 0.9 ? 1 : 0.35, nitro: Math.abs(d) < 0.3, steer: Math.max(-1, Math.min(1, -d * 2.5)) }); n++; if (!W.inWater(B.x, B.z)) dry++; }
+      R.run = { secs: +(n / 30).toFixed(1), msgs: msgs.slice(-3), paid: G.save.data.cash - c0, saved: G.save.data.boat };
+    } else R.course = 'none found';
+    G.hud.message = m0;
+  }
   // head for the bank we left from and go ashore
   for (let i = 0; i < 30 * 40 && !G.boatRide._shore(); i++) {
     const want = Math.atan2(bank.x - B.x, bank.z - B.z); let d = want - B.yaw; while (d > Math.PI) d -= 2 * Math.PI; while (d < -Math.PI) d += 2 * Math.PI;
@@ -53,7 +75,7 @@ const res = await p.evaluate(async (at) => {
   R.shore = !!G.boatRide._shore();
   G.rm.render = window._r; for (let i = 0; i < 3; i++) G._update(1 / 30);
   return { ...R, log, dry, maxV: +maxV.toFixed(1), dist: Math.round(dist) };
-}, args.at ? args.at.split(',').map(Number) : null);
+}, [args.at ? args.at.split(',').map(Number) : null, !!args.run, args.sea ? args.sea.split(',').map(Number) : null]);
 await p.screenshot({ path: out + '.png' });
 const after = await p.evaluate(() => { const G = window.NIGHTSHIFT; G.rm.render = () => {}; G.input.pressed.add('event'); G._update(1 / 30); for (let i = 0; i < 30; i++) G._update(1 / 30); const s = G.onFoot.state; return { aboard: G.boatRide.active, moored: !!G.boatRide.moored, onLand: !G.world.inWater(s.x, s.z), y: +s.y.toFixed(2), ground: +G.world.groundHeight(s.x, s.z, s.y + 2).toFixed(2) }; });
 console.log(JSON.stringify({ ...res, ashore: after, errors }, null, 1));
