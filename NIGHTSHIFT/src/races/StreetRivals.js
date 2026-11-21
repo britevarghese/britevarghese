@@ -99,7 +99,9 @@ export class StreetRivals {
     let spot = null;
     for (let i = 0; i < 8 && !spot; i++) {
       const a = Math.random() * Math.PI * 2, r = 170 + Math.random() * 110;
-      const c = g._laneSpot(s.x + Math.sin(a) * r, s.z + Math.cos(a) * r);
+      const ln = g.traffic?.graph?.nearest(s.x + Math.sin(a) * r, s.z + Math.cos(a) * r, (l) => !l.ring);
+      if (!ln || ln.dist > 40) continue; // (no lane there yet: Kerala's roads still coming in after a long jump)
+      const c = { x: ln.x, z: ln.z, yaw: Math.atan2(ln.dx, ln.dz) };
       const dc = Math.hypot(c.x - g.camera.position.x, c.z - g.camera.position.z);
       if (dc > 130 && !this.rivals.some((q) => Math.hypot(q.v.state.x - c.x, q.v.state.z - c.z) < 60)) spot = c;
     }
@@ -124,8 +126,8 @@ export class StreetRivals {
     g.scene.add(v.renderer.group);
     const ai = new AIDriver(v, { skill: 0.8, maxSpeed: 17 + Math.random() * 4 });
     const r = { v, ai, crew, carId, glow, tag, beaten };
-    this._newCruise(r);
     this.rivals.push(r);
+    if (!this._newCruise(r)) { this._drop(r); this.rivals.pop(); } // (nowhere to cruise to yet: not this time)
   }
 
   // the next leg of a rival's cruise: on from the end of the one it's on (`on`), the way it came in, before it gets
@@ -134,14 +136,17 @@ export class StreetRivals {
     const L = this.game.world.layout, s = r.v.state, end = on ? r.ai.route[r.ai.route.length - 1] : [s.x, s.z];
     const cands = L.nodes.filter((n) => { const d = Math.hypot(n.x - end[0], n.z - end[1]); return d > 500 && d < 1100 && n.type !== 'ring' && n.type !== 'wp' && !L.deadEnd?.(n.id); });
     const dest = cands[Math.floor(Math.random() * cands.length)] || L.nearestNode(end[0] + 600, end[1]);
+    if (!dest) return false;   // (no road graph here yet)
     if (on) {
       const pts = L.route(L.nearestNode(end[0], end[1]), dest, r.lastLane).map((id) => [L.nodes[id].x, L.nodes[id].z]);
       if (pts.length > 1) { r.lastLane = L.lastLane; r.ai.extendRoute(pts); }
-      return;
+      return true;
     }
     const ev = this.game.races.prepare({ type: 'sprint', waypoints: [{ x: s.x, z: s.z }, { x: dest.x, z: dest.z }] });
+    if (!ev?.route?.length) return false;
     r.lastLane = L.lastLane;
     r.ai.setRoute([[s.x, s.z], ...ev.route]);
+    return true;
   }
 
   // ------------------------------------------------------------------ challenge
@@ -156,8 +161,9 @@ export class StreetRivals {
       return c[Math.floor(Math.random() * c.length)] || L.nearestNode(p.x + lo, p.z);
     };
     const start = L.nearestNode(s.x, s.z);
-    const mid = away(start, 380, 620);
-    const fin = away(mid, 380, 650, start);
+    const mid = start && away(start, 380, 620);
+    const fin = mid && away(mid, 380, 650, start);
+    if (!fin) return null; // (the roads round here aren't in yet)
     const car = CARS[r.carId];
     const tier = car.tier || 'D';
     const reward = Math.round(PRIZE[tier] * (1 + 0.25 * Math.min(4, r.beaten)));
@@ -178,7 +184,8 @@ export class StreetRivals {
 
   challenge(r) {
     const g = this.game;
-    const ev = g.races.prepare(this._challengeDef(r));
+    const def = this._challengeDef(r), ev = def && g.races.prepare(def);
+    if (!ev?.route?.length || ev.broken) { g.ui.toast(`${r.crew.name}: "Not here. Find me on a proper road."`, '', 3); return; }
     g.state.mode = 'brief'; g.audio.setPaused(true);
     g.ui.showBriefing(ev);
   }
@@ -201,7 +208,7 @@ export class StreetRivals {
       if (d > 480) { this._drop(r); this.rivals.splice(i, 1); continue; }
       r.ai.update(dt, obstacles);
       if (r.ai.needsReset) g.recoverAI(v, r.ai);
-      if (r.ai.idx >= r.ai.route.length - 2) this._newCruise(r);
+      if (r.ai.idx >= r.ai.route.length - 2) { if ((r.retryT = (r.retryT || 0) - dt) <= 0 && !this._newCruise(r)) r.retryT = 1; }
       else if ((r.cruiseT = (r.cruiseT || 0) - dt) <= 0 && r.ai.remaining(90) < 90) { r.cruiseT = 2; this._newCruise(r, true); }
       v.update(dt);
       VehiclePhysics.resolvePair(g.player.physics, v.physics);
