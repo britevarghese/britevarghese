@@ -11,6 +11,8 @@ import { formatMoney, clamp } from '../core/util.js';
 import { buildCharacter } from '../player/OnFoot.js';
 import { markerBeam } from './MarkerBeam.js';
 import { TILE } from '../kerala/KeralaTile.js';
+import { CrewMember } from '../story/Crew.js';
+import { passengerProfile } from '../vehicles/Interaction.js';
 
 const NAMES = ['Anil', 'Suresh chettan', 'Fathima', 'Joseph', 'Lakshmi amma', 'Rahul', 'Shabana', 'Babu', 'Thomas', 'Divya', 'Unni', 'Ammini', 'Ashraf', 'Reshma', 'Gopalan', 'Neethu', 'Shaji', 'Mariam'];
 const ASKS = [
@@ -107,10 +109,17 @@ export class KeralaJobs {
     const job = this.job = { kind, stage: 'pickup', pick: at, place, t: 0, color: COLOR[kind], marks: [] };
     if (kind === 'taxi') {
       job.who = rnd(NAMES);
-      const body = buildCharacter({ jacket: new THREE.Color().setHSL(Math.random(), 0.45, 0.4).getHex(), jeans: rnd([0x2b3547, 0x3a3a3a, 0xe8e2d0, 0x5a4632]), skin: rnd([0x8a5e40, 0xb58868, 0x6a4530, 0x9a6a48]) });
-      body.group.position.set(at.x, g.world.groundHeight(at.x, at.z), at.z);
-      body.group.rotation.y = at.face;
-      g.scene.add(body.group); job.body = body.group;
+      // a real passenger where the people models are in (walks to the door, gets in, rides beside you, gets out);
+      // the simple figure until then
+      let rider = null;
+      if (g.humans?.ready) { try { rider = new CrewMember(g, { id: 'fare', name: job.who, model: Math.floor(Math.random() * 12) }); } catch { rider = null; } if (rider && !rider.ok) { rider.dispose(); rider = null; } }
+      if (rider) { rider.place(at.x, at.z, at.face); rider.stand(at.face); job.rider = rider; }
+      else {
+        const body = buildCharacter({ jacket: new THREE.Color().setHSL(Math.random(), 0.45, 0.4).getHex(), jeans: rnd([0x2b3547, 0x3a3a3a, 0xe8e2d0, 0x5a4632]), skin: rnd([0x8a5e40, 0xb58868, 0x6a4530, 0x9a6a48]) });
+        body.group.position.set(at.x, g.world.groundHeight(at.x, at.z), at.z);
+        body.group.rotation.y = at.face;
+        g.scene.add(body.group); job.body = body.group;
+      }
       this._mark(at.x, at.z, 0.9);
       this._say(`Pick up <b>${job.who}</b> near ${place.name}.`);
       g.hud?.message?.('TAXI FARE', `${job.who} · near ${place.name}`, 2.5);
@@ -144,7 +153,7 @@ export class KeralaJobs {
     g.setGPS(o.x, o.z);
     if (job.kind === 'taxi') {
       this._freeBody(job);
-      g.audio?.playEvent?.('doorShut');
+      if (!job.rider) g.audio?.playEvent?.('doorShut');
       this._say(`<b>${job.who}:</b> "${rnd(ASKS)(o.name)}"`);
     } else {
       g.audio?.playEvent?.('checkpoint');
@@ -208,9 +217,26 @@ export class KeralaJobs {
 
   _clear() {
     const j = this.job;
-    if (j) { this._freeBody(j); this._unmark(); }
+    if (j) { this._freeBody(j); this._unmark(); if (j.rider) this._letOut(j.rider, j.drop?.spot || j.pick); }
     this.job = null;
     this._meter(null);
+  }
+
+  // a passenger done with (dropped off, fed up, or the shift over): out of the car if in it, a few steps away from the
+  // road, and gone once out of sight or after half a minute
+  _letOut(r, to) {
+    if (r.seated || r.mode === 'board') { if (r.alight() !== true) { r._out(); r.inter.release?.(); const k = this._kerb(r.state.x, r.state.z); if (k) r.place(k.x, k.z, k.face); r.stand(); } }
+    (this.leavers ||= []).push({ r, to, t: 0 });
+  }
+  _leavers(dt) {
+    const L = this.leavers; if (!L?.length) return;
+    const c = this.game.camera.position;
+    for (let i = L.length - 1; i >= 0; i--) {
+      const o = L[i], r = o.r; o.t += dt;
+      if (r.mode === 'stand' && !o.walked && o.to) { o.walked = true; const a = Math.random() * Math.PI * 2; r.goTo(o.to.x + Math.sin(a) * 6, o.to.z + Math.cos(a) * 6, { near: 0.6 }); }
+      r.update(dt, null);
+      if (o.t > 30 || (o.t > 6 && Math.hypot(c.x - r.state.x, c.z - r.state.z) > 90)) { r.dispose(); L.splice(i, 1); }
+    }
   }
 
   // the passenger's figure: out of the scene and its shapes freed (one was made per fare and never let go)
@@ -261,6 +287,7 @@ export class KeralaJobs {
   update(dt) {
     const g = this.game;
     if (this.sayT > 0 && (this.sayT -= dt) <= 0) { this.el.obj.classList.remove('on'); }
+    this._leavers(dt);
     if (!this.kind) return;
     if (g.story?.active || g.races?.active) { this.stop('Job dropped'); return; }
     if (!this.job) { if ((this.nextT -= dt) <= 0 && !g.onFoot?.active && !g.police?.inPursuit) this._offer(); return; }
@@ -273,6 +300,11 @@ export class KeralaJobs {
       if (job.stage === 'drop' && job.away > 25) { this._fail(job.kind === 'taxi' ? `${job.who} got tired of waiting and walked` : 'You abandoned the parcel'); return; }
       if (job.away > 1 && !job.awayTold) { job.awayTold = true; this._say('Get back in the <b>car</b>.'); }
     } else if (job.away) { job.away = 0; job.awayTold = false; }
+    if (job.rider) {
+      job.rider.update(dt, null);
+      // (you took another car and drove off without them)
+      if (job.stage === 'drop' && job.rider.seated && job.rider.seated !== g.player && !g.onFoot?.active && (job.leftT = (job.leftT || 0) + dt) > 4) { this._fail(`You drove off without ${job.who}`); return; }
+    }
     if (job.body) { // the passenger turns to watch you come
       const d = Math.hypot(s.x - job.pick.x, s.z - job.pick.z);
       if (d < 40) job.body.rotation.y = Math.atan2(s.x - job.pick.x, s.z - job.pick.z);
@@ -280,7 +312,23 @@ export class KeralaJobs {
     if (job.stage === 'pickup') {
       const d = Math.hypot(s.x - job.pick.x, s.z - job.pick.z);
       if (d < 30 && sp > 3 && !g.onFoot?.active) this._meter('PULL UP', 1 - d / 30, false); else this._meter(null);
-      if (d < 13 && sp < 3 && !g.onFoot?.active) { this._meter(null); this._depart(); } // (13 m: across a wide road's far lane)
+      const R = job.rider;
+      if (R && !job.boarding && d < 45) R.face = { x: s.x, z: s.z };   // (watching the car come)
+      if (job.boarding) {
+        // your car held still while they get in, as in GTA; too long about it (a wall at the door): straight into the seat
+        g.story?._holdCar?.(g.player); job.bt += dt;
+        const PP = passengerProfile(g.player);
+        if ((R.mode === 'stand' || job.bt > 10) && !R.seated && PP) R.seatIn(g.player, PP);
+        if ((R.mode === 'car' && R.seated === g.player) || job.bt > 14 || !PP) { job.boarding = false; this._depart(); }
+        return;
+      }
+      if (d < 13 && sp < 3 && !g.onFoot?.active) { // (13 m: across a wide road's far lane)
+        this._meter(null);
+        const PP = R && passengerProfile(g.player);
+        if (R && !PP) { if (!job.noRoom) { job.noRoom = true; this._say(`No room for ${job.who} on that. Come back in a <b>car</b>.`); } return; }
+        if (R && sp < 1.2) { R.board(g.player, PP); job.boarding = true; job.bt = 0; this._say(`Wait for <b>${job.who}</b>.`); }
+        else if (!R) this._depart();
+      }
       else if (job.t > 240) this._fail(job.kind === 'taxi' ? `${job.who} took a bus instead` : 'The shop gave the job to someone else');
       return;
     }

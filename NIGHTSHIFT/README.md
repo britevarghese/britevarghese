@@ -180,7 +180,7 @@ controller, what to check when nothing appears, and a report to copy.
   rides along, so Kochi's races are a ticket away). **Mechanic** brings your car to you when you've left it behind ($150), or fixes it where it
   stands. **Masks** shows your progress and sets the GPS to the nearest hidden mask. **Jobs** starts taxi fares or parcel runs. Also: **Radio** and **Camera**.
 - **Jobs:** the phone's *Jobs* app starts a shift of **taxi fares** (a passenger waits at the roadside; pull up
-  beside them and they name a town a few km off: beat the clock, drive smoothly, and they tip) or **parcel runs**
+  beside them, they walk over, get in and ride beside you, and name a town a few km off: beat the clock, drive smoothly, and they tip) or **parcel runs**
   (collect from a shop, deliver against a tighter clock; damage the car and the goods arrive broken). Jobs run back
   to back and the pay rises with your streak.
 - **Street events:** every few minutes of driving round Kerala something happens near you: a chain snatcher on a
