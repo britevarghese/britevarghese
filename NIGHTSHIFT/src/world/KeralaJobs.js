@@ -233,7 +233,12 @@ export class KeralaJobs {
     const c = this.game.camera.position;
     for (let i = L.length - 1; i >= 0; i--) {
       const o = L[i], r = o.r; o.t += dt;
-      if (r.mode === 'stand' && !o.walked && o.to) { o.walked = true; const a = Math.random() * Math.PI * 2; r.goTo(o.to.x + Math.sin(a) * 6, o.to.z + Math.cos(a) * 6, { near: 0.6 }); }
+      if (r.mode === 'stand' && !o.walked) {
+        // off the road: to the pavement nearest where they got out (else the drop-off's own kerb), and a little along it
+        o.walked = true;
+        const w = this.game.world, k = this.game.story?._pavement?.(r.state.x, r.state.z) || (o.to && !w.onCarriageway(o.to.x, o.to.z) ? o.to : null);
+        if (k) r.goTo(k.x, k.z, { near: 0.5 });
+      }
       r.update(dt, null);
       if (o.t > 30 || (o.t > 6 && Math.hypot(c.x - r.state.x, c.z - r.state.z) > 90)) { r.dispose(); L.splice(i, 1); }
     }
