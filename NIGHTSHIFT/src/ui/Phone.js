@@ -104,7 +104,7 @@ export class Phone {
     const g = this.game, busy = this._busy(), m = this._masks();
     const st = STATIONS[g.audio.radioStation];
     this._screen('PHONE', [
-      { icon: '🛺', label: 'Travel', sub: 'auto-rickshaw to towns · trains to cities', color: '#ffd23d', off: busy, fn: () => this.travel() },
+      { icon: '🛺', label: 'Travel', sub: 'auto-rickshaw to towns · trains to cities', color: '#ffd23d', off: busy || (g.jobs?.active ? 'Not with a fare or a parcel on: drive it there' : null), fn: () => this.travel() },
       { icon: '💼', label: 'Jobs', sub: this._jobs()?.working ? `working: ${this._jobs().kind === 'taxi' ? 'taxi fares' : 'parcels'}` : 'taxi fares · parcels', color: '#3dff9a', fn: () => this.jobs() },
       { icon: '🏪', label: 'Business', sub: this._biz() ? `${this._biz().owned().length}/${this._biz().list.length} owned · ${formatMoney(this._biz().income())} / ${BIZ_PERIOD / 60} min` : '', color: '#3dff9a', fn: () => this.business() },
       { icon: '🔧', label: 'Mechanic', sub: this._mechSub(), color: '#7fd3ff', off: busy, fn: () => this.mechanic() },
