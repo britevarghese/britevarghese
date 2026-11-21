@@ -117,7 +117,7 @@ export class KeralaBusiness {
       const sp = g.onFoot?.active ? 0 : Math.hypot(g.player.state.vx, g.player.state.vz);
       if (this.owns(b.id)) { prompt = `<b>${b.name}</b> · yours · ${formatMoney(b.income)} every ${BIZ_PERIOD / 60} min`; continue; }
       const afford = g.save.data.cash >= b.price;
-      prompt = `<b>${b.name}</b> · ${formatMoney(b.price)} · ${b.blurb} · ${afford ? 'press <span class="key">E</span> to buy' : '<span style="color:#ff8a8a">not enough cash</span>'}`;
+      prompt = `<b>${b.name}</b> · ${formatMoney(b.price)} · ${b.blurb} · ${afford ? 'press <span class="key">E</span> / <span class="key">X</span> to buy' : '<span style="color:#ff8a8a">not enough cash</span>'}`;
       if (afford && sp < 4 && input.consume('event')) this.buy(b.id);
     }
     this.promptHtml = prompt;

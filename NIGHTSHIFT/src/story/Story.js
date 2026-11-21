@@ -1012,7 +1012,7 @@ export class Story {
       const d = Math.hypot(gv.x - f.x, gv.z - f.z);
       if (d < (g.onFoot.active ? 4 : 10) && sp < 4) {
         const c = CAST[gid];
-        this.promptHtml = `<b style="color:${c.color}">${c.name}</b> · MISSION: ${m.title} · press <span class="key">E</span> / <span class="key">A</span>`;
+        this.promptHtml = `<b style="color:${c.color}">${c.name}</b> · MISSION: ${m.title} · press <span class="key">E</span> / <span class="key">X</span>`;
         if (input.consume('event')) this.start(m);
         return;
       }

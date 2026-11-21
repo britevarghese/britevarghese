@@ -1245,13 +1245,13 @@ export class Game {
     let prompt = null;
     const ev = this.races.nearbyEvent(s.x, s.z);
     if (ev && !this.police.inPursuit && !this.story.active) {
-      prompt = `<b>${ev.def.name}</b> · ${ev.def.type.toUpperCase()} · press <span class="key">E</span> / <span class="key">A</span>`;
+      prompt = `<b>${ev.def.name}</b> · ${ev.def.type.toUpperCase()} · press <span class="key">E</span> / <span class="key">X</span>`;
       if (sp < 6 && ev.lazy && !ev.route.length && this.input.wasPressed('event') && !this.races._plan(ev)) { this.input.consume('event'); this.ui.toast('The roads for this race are still loading: try again in a moment', '', 2.5); }
       if (sp < 6 && this.input.consume('event')) { this.state.mode = 'brief'; this.audio.setPaused(true); this.lib.load(this.races.rivalPool(), 4); this.ui.showBriefing(ev); }
     }
     const rival = !prompt && !this.police.inPursuit && !this.races.active ? this.rivals.nearest() : null;
     if (rival) {
-      prompt = `<b style="color:${rival.crew.color}">${rival.crew.name.toUpperCase()}</b> · ${CARS[rival.carId].name} · press <span class="key">E</span> / <span class="key">A</span> to call them out`;
+      prompt = `<b style="color:${rival.crew.color}">${rival.crew.name.toUpperCase()}</b> · ${CARS[rival.carId].name} · press <span class="key">E</span> / <span class="key">X</span> to call them out`;
       if (this.input.consume('event')) this.rivals.challenge(rival);
     }
     if (!prompt && !this.police.inPursuit && !this.races.active) {

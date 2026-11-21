@@ -155,7 +155,7 @@ export class Empire {
     for (const m of Object.values(this.markers)) {
       const d = Math.hypot(m.spot.x - f.x, m.spot.z - f.z);
       if (d > (onFoot ? 3.2 : 9) || sp > 4) continue;
-      const it = m.item, key = '<span class="key">E</span> / <span class="key">A</span>';
+      const it = m.item, key = '<span class="key">E</span> / <span class="key">X</span>';
       if (m.isJob) {
         const boost = this.boost(it.id) > 1 ? ' · <span style="color:#3dff9a">+50% (you own the business)</span>' : '';
         this.promptHtml = `<b style="color:${it.color}">${it.label}</b> · ${it.desc}${boost} · press ${key}`;

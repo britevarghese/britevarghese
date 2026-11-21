@@ -84,7 +84,7 @@ export class HUD {
     if (document.documentElement.classList.contains('touch')) {
       const act = /class="key">F</.test(html) ? 'enter' : /class="key">E</.test(html) ? 'event' : null;
       html = html.replace(/<span class="key">F<\/span> \/ <span class="key">Y<\/span>/g, '<span class="tkey">🚗</span>')
-        .replace(/<span class="key">E<\/span> \/ <span class="key">A<\/span>/g, '<span class="tkey">!</span>').replace(/\bpress\b/g, 'tap');
+        .replace(/<span class="key">E<\/span> \/ <span class="key">[AX]<\/span>/g, '<span class="tkey">!</span>').replace(/\bpress\b/g, 'tap');
       this.prompt.dataset.act = act || '';
       if (!this.prompt._tap) {
         this.prompt._tap = true; this.prompt.style.pointerEvents = 'auto';

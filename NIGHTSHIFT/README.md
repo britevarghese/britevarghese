@@ -77,7 +77,8 @@ Saves live in each player's browser.
 | Look around / look back | Right-mouse drag / C | Right stick / X |
 | Get out of / into a car (any car on the street) | F | Y |
 | On foot: walk / sprint / jump (at a wall: climb it) | W A S D / SHIFT / SPACE | Left stick / RB / A |
-| Start mission, event or rival challenge / enter garage | E (in the marker) | A |
+| Start mission, event or rival challenge / enter garage | E (in the marker) | X |
+| Boat (Kerala): take one at the water's edge / buoy run on open water / go ashore | E / E / E or F | X / X / X or Y |
 | Map | M | View |
 | Radio station (in a vehicle) | N or . / , | D-pad right / left |
 | Phone (Kerala) | T | D-pad up (or PHONE in the pause menu) |

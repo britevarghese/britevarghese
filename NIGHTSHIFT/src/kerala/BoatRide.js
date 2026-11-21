@@ -54,7 +54,7 @@ export class BoatRide {
     if (!this.spot) return;
     const own = !!this.spot.moored;
     if (g.story?.active || g.races?.active) return;
-    g.hud.setPrompt(own ? 'press <span class="key">E</span> to take your boat' : `press <span class="key">E</span> to take a country boat · ${'$' + HIRE}`);
+    g.hud.setPrompt(own ? 'press <span class="key">E</span> / <span class="key">X</span> to take your boat' : `press <span class="key">E</span> / <span class="key">X</span> to take a country boat · ${'$' + HIRE}`);
     if (input.consume('event')) {
       if (!own && g.save.data.cash < HIRE) { g.ui.toast(`A boat costs $${HIRE}`, 'err', 2); return; }
       if (!own) g.save.addCash(-HIRE, 'boat');
@@ -119,7 +119,7 @@ export class BoatRide {
     const land = sp < 4 ? this._shore() : null;
     if (this.run) this._runUpdate(dt);
     const canRun = !this.run && !land && !g.story?.active && !g.jobs?.working;
-    g.hud.setPrompt(land && !this.run ? 'press <span class="key">E</span> / <span class="key">F</span> to go ashore' : canRun && sp < 6 ? 'press <span class="key">E</span> for a buoy run' : null);
+    g.hud.setPrompt(land && !this.run ? 'press <span class="key">E</span> / <span class="key">X</span> (or <span class="key">F</span> / <span class="key">Y</span>) to go ashore' : canRun && sp < 6 ? 'press <span class="key">E</span> / <span class="key">X</span> for a buoy run' : null);
     if (land && !this.run && (input.consume('event') || input.consume('enter'))) this.ashore(land);
     else if (canRun && sp < 6 && input.consume('event')) this._runStart();
     else if (this.run && land && input.consume('enter')) { this._runEnd(false, 'Run abandoned'); this.ashore(land); }
