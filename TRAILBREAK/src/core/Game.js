@@ -395,7 +395,13 @@ export class Game {
       el.classList.add('hidden'); window.removeEventListener('keydown', onKey, true);
       this.audio.setMuted('menu', false); this.input.enabled = !this.paused && !this.chatOpen; this.renderer.renderer.domElement.focus();
     };
-    list.innerHTML = this.events.listHtml(this.builderPicture());
+    list.innerHTML = this.events.listHtml(true);
+    // (the builder's picture into its card when it is made: at once after the first time)
+    this.builderPicture().then((pic) => {
+      const cv = list.querySelector('[data-builder-pic]');
+      if (!cv) return;
+      if (pic) cv.getContext('2d').drawImage(pic, 0, 0); else cv.remove();
+    });
     list.onclick = (e) => {
       const go = e.target.closest('[data-go]'), start = e.target.closest('[data-start]'), free = e.target.closest('[data-free]'), build = e.target.closest('[data-build]');
       const job = e.target.closest('[data-job]'), jobDrop = e.target.closest('[data-jobdrop]');
@@ -425,16 +431,25 @@ export class Game {
     list.scrollTop = 0;
   }
 
-  /** The map builder's card: this map, from above, round the station (made once). */
+  /**
+   * The map builder's card: this map, from above, round the station (made once): a promise of the picture (null where
+   * the browser can't make one). Cut from the open world's map and scaled down by the browser off the page's thread
+   * (createImageBitmap): it was drawn into a canvas and made a JPEG of (toDataURL), the map read back from the graphics
+   * card and the JPEG encoded as the page waited, and the first opening of Modes & races stood the game still for
+   * 4.8 s (in software).
+   */
   builderPicture() {
     if (this.builderPic !== undefined) return this.builderPic;
-    try {
-      const img = this.hud.mapImage, c = document.createElement('canvas'), W = 480, H = 200;
-      c.width = W; c.height = H;
-      const B = this.world.mapBox, g = c.getContext('2d'), k = img.width / B.size, S = this.stationSpot || { x: 0, z: 0 }, span = 900 * k;
-      g.drawImage(img, (S.x - B.x0) * k - span / 2, (S.z - B.z0) * k - span * H / W / 2, span, span * H / W, 0, 0, W, H);
-      this.builderPic = c.toDataURL('image/jpeg', 0.82);
-    } catch { this.builderPic = ''; }
+    const img = this.hud.mapImage, W = 480, H = 200;
+    if (!img || typeof createImageBitmap !== 'function') return (this.builderPic = Promise.resolve(null));
+    const B = this.world.mapBox, k = img.width / B.size, S = this.stationSpot || { x: 0, z: 0 }, span = 900 * k;
+    const sx = (S.x - B.x0) * k - span / 2, sy = (S.z - B.z0) * k - span * H / W / 2;
+    // (in the open world, once the station's map is painted on its picture: it is painted a little at a time after
+    // the game starts, and cut before that, the card's picture was empty for the session)
+    const R = this.world.regions && this.world.regionAt?.(S.x, S.z);
+    const painted = R && this.hud.whenPainted ? this.hud.whenPainted(R.id) : Promise.resolve();
+    this.builderPic = painted.then(() => createImageBitmap(img, Math.round(sx), Math.round(sy), Math.max(1, Math.round(span)), Math.max(1, Math.round(span * H / W)),
+      { resizeWidth: W, resizeHeight: H, resizeQuality: 'medium' })).catch(() => null);
     return this.builderPic;
   }
 
@@ -531,6 +546,9 @@ export class Game {
     const L = this.garageSpot, p = this.vehicle.pos;
     return !!L && Math.hypot(p.x - L.x, p.z - L.z) < r;
   }
+
+  /** The garage's 3D view made ahead, with this truck in it (ui/Garage.js prewarm: on the loading screen). */
+  prewarmGarage() { this.garage?.prewarm?.({ truckId: this.truckId, code: this.build, paint: this.myColor }); }
 
   async openGarage() {
     if (!this.garage || this.garage.isOpen) return;
@@ -1710,6 +1728,7 @@ export class Game {
     // and the tracks they leave in the ground (render/TrackMap.js)
     if (!this.tracks) {
       this.tracks = new TrackMap(this.quality() === 'low' ? 256 : 512);
+      this.tracks.warm(this.renderer.renderer);
       this.effects.onLand = (x, z, r) => this.tracks.splat(x, z, r);
     }
     const T = this.tracks;

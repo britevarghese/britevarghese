@@ -108,7 +108,15 @@ export class HUD {
     x.setLineDash([]);
     x.fillStyle = '#3a2a1e';
     for (const L of this.world.landmarks) if (L.region === region.id) x.fillRect(px(L.x) - 1.5, pz(L.z) - 1.5, 3, 3);
+    this.whenPainted(region.id).done();
     if (this.world.complete && this.drawn.size === this.world.regions.length) await this.drawFar();
+  }
+
+  /** A promise kept once a map of the open world is painted on its picture (drawRegion). */
+  whenPainted(id) {
+    const P = this.painted ||= new Map();
+    if (!P.has(id)) { let done; const p = new Promise((r) => { done = r; }); p.done = done; P.set(id, p); }
+    return P.get(id);
   }
 
   /**

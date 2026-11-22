@@ -469,9 +469,10 @@ export class EventPlay {
   /**
    * The Modes & races cards: free roam and the map builder, then the party modes, the checkpoint races and the events,
    * each with its picture (assets/ui/modes/<its map>-<id>.webp, taken in the game: game/ModePics.js), what it is, the par times, your best
-   * and what gold pays. builderImg: a picture of this map for the builder's card.
+   * and what gold pays. builderPic: a place for a picture of this map on the builder's card (a canvas the game draws
+   * it into: Game.builderPicture).
    */
-  listHtml(builderImg = '') {
+  listHtml(builderPic = false) {
     const g = this.g, friends = this.friendsHere(), mapId = g.world.map?.id || 'ashwood';
     // (e: an event, or 'free': game/ModePics.js)
     const pic = (e) => `<img src="assets/ui/modes/${modePic(mapId, e)}.webp" alt="" loading="lazy" onerror="this.remove()">`;
@@ -491,7 +492,7 @@ export class EventPlay {
       feats: [feat('beacon', `Beacons ${found}/${total}`), feat('map', 'Open world'), feat('people', others ? `${others} friend${others > 1 ? 's' : ''} here` : 'Play together')],
       acts: `<button class="mc-btn b-orange" data-free>${ic('arrow')}Explore</button>`,
     }), card({
-      sec: 'free', edge: 'blue', icon: 'map', title: 'Map builder', tag: 'Create', image: builderImg ? `<img src="${builderImg}" alt="">` : '',
+      sec: 'free', edge: 'blue', icon: 'map', title: 'Map builder', tag: 'Create', image: builderPic ? '<canvas data-builder-pic width="480" height="200"></canvas>' : '',
       desc: 'Build your own ramps, kickers, mud pits and checkpoints on this map. Share it with a link, and race your friends on it.',
       feats: [feat('mountain', 'Ramps &amp; obstacles'), feat('pin', 'Checkpoints'), feat('people', 'Build together'), feat('arrow', 'Share a link')],
       acts: `<button class="mc-btn b-blue" data-build>${ic('wrench')}Build</button>`,

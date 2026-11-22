@@ -40,8 +40,9 @@ export class GaragePreview {
     r.setPixelRatio(Math.min(2, window.devicePixelRatio || 1));
     const s = this.scene = new THREE.Scene();
     s.background = new THREE.Color(0x161a1f);
-    s.environment = studioEnvironment(r);
-    s.environmentIntensity = 0.35;
+    // (the workshop's light; the showroom makes its own: ShowroomStage. Made for it as well and thrown away, it was a
+    // twentieth of a second more as the dealer opened)
+    if (!opts.showroom) { s.environment = studioEnvironment(r); s.environmentIntensity = 0.35; }
     s.fog = new THREE.Fog(0x161a1f, 13, 28);
     s.add(new THREE.HemisphereLight(0xdfe6ee, 0x3a3226, 0.9));
     const sun = this.sun = new THREE.DirectionalLight(0xfff1dc, 2.4);
@@ -111,6 +112,35 @@ export class GaragePreview {
     this.focusY = 0.25 + spec.cgHeight * 0.6;
     this.dist = Math.max(this.dist, 2.2 * (spec.hull[0].h[2] + 0.2) + 1.5);
     this.dirty = true;
+    this.warm();
+  }
+
+  /**
+   * The shaders of what is shown, compiled before it is drawn: handed to the graphics card together, which compiles
+   * them on its own threads where the browser lets it (KHR_parallel_shader_compile), the page going on meanwhile; the
+   * view is drawn once they are ready (until then it shows what it last drew). Drawn at once, the first picture compiled
+   * every one of them one after another, the page held up for it: the garage's first opening stood the game still for
+   * 2.7 s (in software), the dealer's for a fifth of a second. A model like the last (other parts, another paint)
+   * has every shader already: drawn the next frame.
+   */
+  warm() {
+    // (the drawing buffer at its size first: resized at the first picture, it waited there for every shader handed over)
+    this.resize();
+    const id = this.warmId = (this.warmId || 0) + 1;
+    this.warming = true;
+    const done = () => { if (id === this.warmId) { this.warming = false; this.dirty = true; } };
+    try { this.renderer.compileAsync(this.scene, this.camera).then(done, done); } catch { done(); }
+  }
+
+  /**
+   * One picture now, its shaders ready or not (Garage.prewarm, on the loading screen, where a wait costs nothing):
+   * some graphics drivers (a software renderer's, all of it) do the rest of a shader's work at its first draw, and the
+   * shadows' own shaders are made only then.
+   */
+  prime() {
+    if (!this.model) return;
+    this.warming = false; this.dirty = true;
+    this.frame(0);
   }
 
   /** Frame the whole truck, whatever the shape of the view: its bounding sphere in the narrower field of view. */
@@ -136,7 +166,7 @@ export class GaragePreview {
   frame(dt) {
     this.resize();
     if (this.spin) { this.yaw += dt * 0.25; this.dirty = true; }
-    if (!this.dirty || !this.model) return;
+    if (!this.dirty || !this.model || this.warming) return;
     this.dirty = false;
     if (this.fitR) {
       const v = THREE.MathUtils.degToRad(this.camera.fov), h = 2 * Math.atan(Math.tan(v / 2) * this.camera.aspect);

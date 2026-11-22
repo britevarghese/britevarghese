@@ -1531,7 +1531,11 @@ export class TruckModel {
       // (its points into the body's frame, with an index whether it had one or not, to be joined with the others)
       const q = new THREE.BufferGeometry();
       q.setAttribute('position', g.attributes.position.clone());
-      q.setIndex(g.index ? g.index.clone() : [...Array(g.attributes.position.count).keys()]);
+      // (a part without one counted 0, 1, 2... into a typed array: spread into a list and converted, as many numbers as
+      // the part has points, it was most of the time a truck's model took to build, each load on or off)
+      let ix = g.index?.clone();
+      if (!ix) { const n = g.attributes.position.count, a = n > 65535 ? new Uint32Array(n) : new Uint16Array(n); for (let i = 0; i < n; i++) a[i] = i; ix = new THREE.BufferAttribute(a, 1); }
+      q.setIndex(ix);
       q.applyMatrix4(m.multiplyMatrices(inv, o.matrixWorld));
       if (!bySide.has(mat.side)) bySide.set(mat.side, []);
       bySide.get(mat.side).push({ o, q });

@@ -84,6 +84,20 @@ export class TrackMap {
     this.fresh = true;          // (the whole picture, at first and after a jump)
   }
 
+  /**
+   * Its shader handed to the graphics card now, as it is drawn (into its own picture: a target, no tone curve), long
+   * before the first print needs it: compiled at that first print, the frame waited for it (0.85 s in software, the
+   * first time the tyres marked soft ground).
+   */
+  warm(renderer) {
+    const prev = renderer.getRenderTarget();
+    try { renderer.setRenderTarget(this.rt); renderer.compileAsync(this.mesh, this.cam, this.scene).catch(() => {}); } catch { /* drawn as before */ }
+    renderer.setRenderTarget(prev);
+    // and drawn once, with a strip of no size (it marks nothing), at the next draw: some graphics drivers (a software
+    // renderer's, all of it) do the rest of a shader's work at its first draw, not when it is compiled
+    this.prime = true;
+  }
+
   /** Keep the window round (x, z): moving into another tile wipes the tiles that come into it. */
   follow(x, z) {
     const tx = Math.floor(x / TILE), tz = Math.floor(z / TILE);
@@ -155,6 +169,10 @@ export class TrackMap {
 
   /** Draw this frame's strips into the picture (after wiping what came into the window). */
   draw(renderer) {
+    if (this.prime) {
+      this.prime = false;
+      if (!this.n) { this.seg.array.fill(0.5, 0, 4); this.misc.array.fill(0, 0, 4); this.dir.array[0] = 1; this.dir.array[1] = 0; this.n = 1; }
+    }
     if (!this.fresh && !this.wipe.length && !this.n) return;
     const prev = renderer.getRenderTarget(), auto = renderer.autoClear;
     renderer.getClearColor(this._cc ||= new THREE.Color()); const ca = renderer.getClearAlpha();

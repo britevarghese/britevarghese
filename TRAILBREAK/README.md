@@ -1299,6 +1299,28 @@ Everything that makes off-roading off-roading is simulated, not faked:
   as a frame waits, nor do the headlamps, the other views, the rain or the night. (A shader's shadow sampler with no
   map to read fails the draw without an error in the page, the land gone from the picture and the truck driving on
   over it: the installed game's test now reads WebGL's error flag after its drive.)
+- **Menus that open without a freeze**: a script plays the open world through what a player does once it is in (fast
+  travel round the bases, the map, pause, Modes & races, the garage, the dealer, buying and changing trucks, fitting
+  parts, loads on and off, events and party modes, rain, night, the views, a drive) and watches the page's thread
+  with a heartbeat, each action's longest hold. The worst it found, and what they are now (drawn in software):
+  - **Modes & races (N), the first opening: 4.8 s, now 0.1 s.** The map builder's card has a picture of the map
+    round the station: it was made by drawing the open world's map into a canvas and encoding a JPEG of it
+    (`toDataURL`), the map read back from the graphics card and the JPEG made as the game waited. It is cut and
+    scaled by the browser off the page's thread now (`createImageBitmap`) and drawn into its card when it is ready.
+  - **The garage (U), the first opening: 2.7 s, now 0.1 s.** Its 3D view (a WebGL context of its own) was made at
+    that opening, and its first picture compiled every shader as it drew. It is made on the loading screen now, with
+    your truck in it, at its size, and drawn once there (`Garage.prewarm`): some drivers, a software renderer's
+    above all, do the rest of a shader's work at its first draw, so it is drawn, not just compiled. Its shaders are
+    compiled before any later picture of a new model (`GaragePreview.warm`: in the background where the browser
+    can, the view drawn once they are ready), and the dealer's view no longer makes a workshop light it doesn't use.
+    (And the garage now knows its truck by truck and build together: by the build's code alone, a truck with the
+    same code as the last, two stock builds can be, showed the last one.)
+  - **The first tyre marks on soft ground: 0.85 s, now none.** The tracks are drawn into a picture of their own
+    (`src/render/TrackMap.js`), and its shader was compiled at the first print. It is compiled, and drawn once with
+    a strip of no size, on the loading screen.
+  - A truck's model is built a little quicker (each load on or off, each part fitted): a part without an index had
+    one counted into a list and converted, its share of the time.
+  Fast travel holds the page no longer than 50 ms, the rest of the list under a fifth of a second.
 - **The lobby's truck no longer turns on behind the game** (`src/ui/TruckView.js`): the lobby's turning truck waits
   for its model to come down before it is drawn. Pressed Drive before it was in, the lobby let the view go, then the
   model came and the view made itself again (a WebGL context of its own) and turned on, hidden, drawn every frame

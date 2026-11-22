@@ -352,6 +352,7 @@ async function start() {
   game.noRender = false;
   setLoad(0.96, 'Warming up the shaders');
   await renderer.warm().catch((e) => console.warn('shaders', e));
+  game.prewarmGarage();                              // (the garage's own view, while a wait costs nothing: ui/Garage.js)
   game.frame(0.016);
   tea?.prime(renderer.camera);
   terrain.budget = 6;

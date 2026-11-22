@@ -167,6 +167,30 @@ export class Garage {
     });
   }
 
+  /**
+   * The 3D view made ahead, with a truck in it and its shaders handed to the graphics card (GaragePreview.warm): on the
+   * loading screen, so the garage's first opening has nothing left to build or compile. Made at that opening, the view
+   * (a WebGL context of its own, its lights' environment, the truck's model) and the first picture's shaders stood the
+   * game still for some seconds (in software).
+   */
+  prewarm({ truckId, code, paint = '#b5532c' }) {
+    if (this.preview === null) {
+      try { this.preview = new GaragePreview($('g-view')); } catch (e) { console.warn('garage preview', e); return; }
+    }
+    if (!this.preview) return;
+    const base = truckBase(truckId), b = decodeBuild(base, code || ''), key = `${base.id}:${encodeBuild(b)}`;
+    if (key === this.shown) return;
+    this.preview.show(truckSpec(base.id, encodeBuild(b)), paint);
+    this.shown = key; this.shownPaint = paint;
+    // (the view at its size, laid out a moment unseen: resized at the first opening, its drawing buffer made again
+    // there, a third of a second in software; and its first picture drawn now)
+    const el = this.el, hidden = el.classList.contains('hidden');
+    if (hidden) { el.style.visibility = 'hidden'; el.classList.remove('hidden'); }
+    try { this.preview.resize(); this.preview.prime(); } finally {
+      if (hidden) { el.classList.add('hidden'); el.style.visibility = ''; }
+    }
+  }
+
   /** A line by the buttons (what just happened). */
   say(text) {
     $('g-note').textContent = text;
@@ -351,10 +375,15 @@ export class Garage {
       + (st.rub > 0 ? `<span class="g-warn">The ${t.d}" tyres rub at full bump: the bump stops are extended ${(st.bumpLoss * 100).toFixed(0)} cm.</span>` : '');
     $('g-sub').textContent = `${Math.round(st.powerKw * 1.341)} hp · ${Math.round(st.peakTorque).toLocaleString('en-US')} Nm · ${st.tyre} · ${spec.engine.electric ? 'electric' : `${spec.trans.gears.length}-speed`}`;
     this.describe(null);
-    if (this.preview && code !== this.shown) {
-      this.preview.show(spec, this.paint); this.shown = code;
+    // (the model by truck and build: by the build's code alone, another truck with the same code (two trucks' stock
+    // builds can be the same: the Huracan's and the R8's) showed the last one's model; a new paint is only a new paint)
+    const key = `${this.truckId}:${code}`;
+    if (this.preview && key !== this.shown) {
+      this.preview.show(spec, this.paint); this.shown = key; this.shownPaint = this.paint;
       // a model body not loaded yet: shown again when it is
       if (MODEL_BODIES.has(spec.style) && !truckAsset(spec.style)) loadTruckAsset(spec.style).then((a) => { if (a && this.isOpen) { this.shown = null; this.update(); } });
+    } else if (this.preview?.model && this.paint !== this.shownPaint) {
+      this.preview.model.setPaint(this.paint); this.preview.dirty = true; this.shownPaint = this.paint;
     }
     // the bill: parts in this build not yet owned
     const bill = $('g-bill'), fit = $('g-fit');
