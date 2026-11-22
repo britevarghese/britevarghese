@@ -212,10 +212,18 @@ export class Game {
     if (!this.knownRegions.has(region.id)) {
       this.knownRegions.add(region.id);
       const ev = this.world.eventsOf(region);
-      // (and the world's own races once every map is in)
-      if (this.world.complete) ev.push(...this.world.worldEvents());
       this.events.add(ev);
       this.course.addStarts(ev.filter((e) => this.events.byId.get(e.id) === e));
+      // (and the world's own races once every map is in: their courses are found over the whole world's roads, a
+      // moment's work the frame this map came in on needn't wait for)
+      if (this.world.complete && !this.worldRaces) {
+        this.worldRaces = true;
+        idle(8).then(() => {
+          const races = this.world.worldEvents();
+          this.events.add(races);
+          this.course.addStarts(races.filter((e) => this.events.byId.get(e.id) === e));
+        });
+      }
       // (its roads joined to the satnav's the next time it plots a route: built at once for every map that came in, the
       // whole world's roads each time, it held a frame up as each map came in)
       this.satnavStale = true;

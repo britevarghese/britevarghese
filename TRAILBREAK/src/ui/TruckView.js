@@ -15,14 +15,20 @@ export class TruckView {
     this.paint = '';
   }
 
-  /** Show truck id with build code (blank: stock) in a paint (#hex); starts the view turning. */
+  /**
+   * Show truck id with build code (blank: stock) in a paint (#hex); starts the view turning. A show waiting on its
+   * model when the view is stopped or let go (the lobby closed, the dealer left) does nothing when the model comes:
+   * it used to carry on, make the view again (a WebGL context of its own) and set it turning, hidden, drawn every
+   * frame for the rest of the session, beside the game: whenever Drive was pressed before the lobby's truck was in.
+   */
   async show(id, code, paint) {
+    if (this.disposed) return;
     this.want = `${id}:${code || ''}:${paint}`;
     const want = this.want;
     // (a model body loads first: meanwhile the last truck stays, dimmed, under how far the new one has come)
     if (!truckAsset(id) && MODEL_BODIES.has(id)) this.loading(id);
     await loadTruckAsset(id);
-    if (want !== this.want) return;                  // (another was picked while it loaded)
+    if (want !== this.want) return;                  // (another was picked while it loaded, or the view was stopped)
     this.loading(null);
     if (!this.preview) {
       try { this.preview = new GaragePreview(this.canvas, this.opts); } catch (e) { console.warn('truck view', e); this.canvas.closest('.truck-view')?.classList.add('hidden'); return; }
@@ -57,7 +63,7 @@ export class TruckView {
   }
 
   start() {
-    if (this.raf || !this.preview) return;
+    if (this.raf || !this.preview || this.disposed) return;
     let last = performance.now();
     const loop = (now) => {
       this.raf = requestAnimationFrame(loop);
@@ -67,10 +73,12 @@ export class TruckView {
     this.raf = requestAnimationFrame(loop);
   }
 
-  stop() { cancelAnimationFrame(this.raf); this.raf = 0; this.loading(null); }
+  /** Stop it turning (and drop a show still waiting on its model: show again to go on). */
+  stop() { cancelAnimationFrame(this.raf); this.raf = 0; this.want = null; this.loading(null); }
 
-  /** Free the view's WebGL context (the lobby's, before the game takes the GPU). */
+  /** Free the view's WebGL context (the lobby's, before the game takes the GPU); for good. */
   dispose() {
+    this.disposed = true;
     this.stop();
     if (!this.preview) return;
     this.preview.dispose();

@@ -52,8 +52,13 @@ Dark glass panels over the game, an orange accent and condensed italic type (Bar
   vibration, graphics, damage, a steering wheel's calibration and paddles), Resume ride, and the garage, modes and races, map
   builder, dealer, back to the station and the controls.
 - **Modes & races (N):** a card for each: free roam, the map builder, the party modes, the checkpoint races, the
-  events and the deliveries, with a picture of it (rendered in the game), the par times, your best and what gold pays;
-  Start lines you up, Go to the start sets the satnav. The side bar shows one kind at a time, or opens the garage or
+  events and the deliveries, with a picture of it (taken in the game: `tools/modepics.cjs`), the par times, your best
+  and what gold pays; Start lines you up, Go to the start sets the satnav. A picture is named for the map its event
+  is on (`src/game/ModePics.js`), so a card in the open world has the picture its event has on that map alone: the
+  open world's cards used to ask for pictures under its own name, which none had, and every card there was blank (18
+  requests a time the list opened, each answered "not found"). The events only the open world has (the coast's, the
+  stretches' between the maps, the world's own races, free roam) had no picture at all: those 28 are taken now, as the
+  others were, a truck just past the start banner seen from the front, so all 49 cards have one. The side bar shows one kind at a time, or opens the garage or
   the settings.
 - **Garage (U):** the parts in rows, each with what fits and what it changes against the factory part (+31% crawl
   ratio, +23% belly height...); presets; the truck turning in the middle (rotate, zoom, five views, and Photo saves a
@@ -1294,6 +1299,27 @@ Everything that makes off-roading off-roading is simulated, not faked:
   as a frame waits, nor do the headlamps, the other views, the rain or the night. (A shader's shadow sampler with no
   map to read fails the draw without an error in the page, the land gone from the picture and the truck driving on
   over it: the installed game's test now reads WebGL's error flag after its drive.)
+- **The lobby's truck no longer turns on behind the game** (`src/ui/TruckView.js`): the lobby's turning truck waits
+  for its model to come down before it is drawn. Pressed Drive before it was in, the lobby let the view go, then the
+  model came and the view made itself again (a WebGL context of its own) and turned on, hidden, drawn every frame
+  beside the game for the whole session; the dealer's did the same when it was closed with a car still loading. A
+  view stopped or let go now drops what it was waiting for: in the test, 0 frames of it once the game is up, where
+  there were 162 on the loading screen alone and more every second after.
+- **The maps' picture painted in short turns** (`src/ui/HUD.js`, `src/ui/MapPaint.js`): each map is drawn onto the
+  open world's map (M, and the minimap) as it comes in, in the idle time between frames. Its woods were discs drawn
+  on the canvas, one for every tree; a canvas keeps what it is asked and draws it later, all at once, in a turn no
+  clock in the painting could see: the coast's 219,000 trees held the page for 2.8 s (drawn in software; a graphics
+  card is quicker, but it is one turn all the same), which is a freeze as the coast comes in for a truck whose home
+  is another map. Each tree is now mixed into the picture's own pixels as a soft dot of its own area (the picture
+  differs from the discs' by under 1% a pixel on average), a few thousand a turn, and each long road is drawn in a
+  turn of its own (the coast's 9,000 points of road in one held a frame up by a sixth of a second). Painting the
+  coast's map now holds the page for 18 ms at most at a time, where it held it for 2.8 s, and takes 2.8 s in all
+  where it took 7.2 (drawn in software, the game running). The ground's heights are worked
+  out once each (a pixel's slope is between its neighbours' heights, which were asked for afresh: three to five
+  times over), and the clock is looked at every 16 pixels, not once a row: painting the far land takes 0.43 s of the
+  page's thread where it took 0.73, a map's ground up to a sixth of what it did, and a turn longer than a frame is
+  rare (one where there were five). The world's own races (their courses found over every map's roads) are worked
+  out in idle time too, not in the frame the last map comes in on.
 - **Smooth frames:** what the open world builds as you drive is held to a few milliseconds a frame, so a frame never
   waits on it: the ground's patches 4 ms a frame across all the maps drawn (a coarse patch of the far land, each of
   its vertices sampling every map round it, built over several frames, the coarser one it replaces drawn till then;

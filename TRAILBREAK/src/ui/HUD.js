@@ -2,6 +2,7 @@
 // players, a rotating minimap and the full map, toasts, hints and chat.
 import { micIcon } from './VoicePanel.js';
 import { idle } from '../core/Idle.js';
+import { heightGrid, splatTree, SLICE, SLICE_MS } from './MapPaint.js';
 
 const $ = (id) => document.getElementById(id);
 const TAU = Math.PI * 2;
@@ -50,21 +51,27 @@ export class HUD {
   /**
    * One map of the open world onto its picture: its ground, then its woods, roads and tracks, and buildings. A few ms
    * at a time, between frames (it comes in while the game runs); resolves when it is drawn.
+   *
+   * A few ms whatever the map: the clock is looked at every few pixels (SLICE). It was looked at once a row, and a
+   * row of a 4 km map is 500 pixels of five ground heights each: a turn many times its few ms, a frame held up for
+   * each. And each height is worked out once (heightGrid): a pixel's slope is between its neighbours' heights, which
+   * are those pixels' own.
    */
   async drawRegion(region) {
     // (once its renderers are there: its colours are theirs)
     if ((this.drawn ||= new Set()).has(region.id) || (this.world.view && !this.world.view.viewOf(region.id))) return;
     this.drawn.add(region.id);
     let t0 = performance.now();
-    const breathe = async () => { if (performance.now() - t0 > 6) { await idle(6); t0 = performance.now(); } };
+    const breathe = async () => { if (performance.now() - t0 > SLICE_MS) { await idle(SLICE_MS); t0 = performance.now(); } };
     const c = this.mapImage, x = c.getContext('2d'), B = this.world.mapBox, S = c.width, step = B.size / S, tr = this.mapTr, W = region.world;
     const i0 = Math.max(0, Math.round((region.cx - region.half - B.x0) / step)), i1 = Math.min(S, Math.round((region.cx + region.half - B.x0) / step));
     const k0 = Math.max(0, Math.round((region.cz - region.half - B.z0) / step)), k1 = Math.min(S, Math.round((region.cz + region.half - B.z0) / step));
     const img = x.createImageData(i1 - i0, k1 - k0), out = [0, 0, 0];
+    const H = heightGrid(i0, k0, i1 - i0, k1 - k0, (i, j) => W.terrain(B.x0 + (i + 0.5) * step - region.cx, B.z0 + (j + 0.5) * step - region.cz));
     for (let j = k0; j < k1; j++) {
       for (let i = i0; i < i1; i++) {
         const lx = B.x0 + (i + 0.5) * step - region.cx, lz = B.z0 + (j + 0.5) * step - region.cz;
-        const h = W.terrain(lx, lz), nx = -(W.terrain(lx + step, lz) - W.terrain(lx - step, lz)) / (2 * step), nz = -(W.terrain(lx, lz + step) - W.terrain(lx, lz - step)) / (2 * step);
+        const h = H(i, j), nx = -(H(i + 1, j) - H(i - 1, j)) / (2 * step), nz = -(H(i, j + 1) - H(i, j - 1)) / (2 * step);
         tr.colorAt(lx + region.cx, lz + region.cz, step, h, Math.hypot(nx, nz), out);
         const shade = Math.max(0.35, Math.min(1.35, 0.92 + (nx * -0.6 + nz * -0.5) * 1.2));
         let r = Math.sqrt(out[0]) * shade, g = Math.sqrt(out[1]) * shade, b = Math.sqrt(out[2]) * shade;
@@ -72,22 +79,22 @@ export class HUD {
         if (wl > -1e8 && h < wl) { r = 0.22; g = 0.42; b = 0.5; }
         const o = ((j - k0) * (i1 - i0) + (i - i0)) * 4;
         img.data[o] = Math.min(255, r * 255); img.data[o + 1] = Math.min(255, g * 255); img.data[o + 2] = Math.min(255, b * 255); img.data[o + 3] = 255;
+        if ((i & SLICE) === SLICE && performance.now() - t0 > SLICE_MS) { await idle(SLICE_MS); t0 = performance.now(); }
       }
-      await breathe();
+    }
+    // its woods: each tree a soft dot of dark green, mixed into the picture's own pixels (splatTree). They were discs
+    // drawn on the canvas, 2,000 to a path: the canvas keeps what it is asked and draws it later, all at once, and a
+    // map of 219,000 trees (the coast) held the page for as long as that took (2.8 s drawn in software), in a turn no
+    // clock in here could see
+    const T = W.trees, iw = i1 - i0, ih = k1 - k0;
+    for (let t = 0, n = T.base ?? T.count; t < n; t++) {
+      splatTree(img.data, iw, ih, (T.x[t] + region.cx - B.x0) / step - i0, (T.z[t] + region.cz - B.z0) / step - k0, Math.max(0.6, (T.h[t] * 0.16) / step));
+      if ((t & 2047) === 2047) await breathe();
     }
     x.putImageData(img, i0, k0);
-    const px = (v) => (v - B.x0) / step, pz = (v) => (v - B.z0) / step, T = W.trees;
-    x.fillStyle = 'rgba(42,66,32,0.5)';
-    for (let s0 = 0, n = T.base ?? T.count; s0 < n; s0 += 2000) {
-      x.beginPath();
-      for (let t = s0; t < Math.min(n, s0 + 2000); t++) {
-        const cx = px(T.x[t] + region.cx), cy = pz(T.z[t] + region.cz), r = Math.max(0.6, (T.h[t] * 0.16) / step);
-        x.moveTo(cx + r, cy);
-        x.arc(cx, cy, r, 0, 6.2832);
-      }
-      x.fill();
-      await breathe();
-    }
+    const px = (v) => (v - B.x0) / step, pz = (v) => (v - B.z0) / step;
+    // its roads and tracks, a turn each (the canvas draws what it is asked at the next frame that shows the picture, all
+    // at once: the coast's 9,000 points of road in one turn held a frame up by a sixth of a second)
     for (const t of this.world.data.trails) {
       if (t.region !== region.id) continue;
       x.beginPath();
@@ -96,6 +103,7 @@ export class HUD {
       x.lineWidth = t.kind === 'road' ? 1.6 : 1;
       x.setLineDash(t.kind === 'road' ? [] : [3, 2]);
       x.stroke();
+      if (t.points.length > 200) await idle(SLICE_MS);
     }
     x.setLineDash([]);
     x.fillStyle = '#3a2a1e';
@@ -114,13 +122,18 @@ export class HUD {
     const W = this.world, B = W.mapBox, F = 32, S = Math.ceil(B.size / F), tr = this.mapTr, out = [0, 0, 0];
     const c = document.createElement('canvas'); c.width = S; c.height = S;
     const img = c.getContext('2d').createImageData(S, S), h0 = F / 2;
+    // (the far land's height is every map's landform blended: the dearest thing the game works out for a point. Each
+    // pixel's once, its slope from its neighbours' (heightGrid), and the clock looked at every few pixels: once a row
+    // was a turn of a row's 900 pixels, three heights each, and the game stuttered for as long as the painting took)
+    const H = heightGrid(0, 0, S, S, (i, j) => W.farHeight(B.x0 + (i + 0.5) * F, B.z0 + (j + 0.5) * F));
     let t0 = performance.now();
     for (let j = 0; j < S; j++) {
       for (let i = 0; i < S; i++) {
         const x = B.x0 + (i + 0.5) * F, z = B.z0 + (j + 0.5) * F;
+        if ((i & SLICE) === SLICE && performance.now() - t0 > SLICE_MS) { await idle(SLICE_MS); t0 = performance.now(); }
         // (a pixel the maps cover all of is theirs)
         if (W.regionAt(x - h0, z - h0) && W.regionAt(x + h0, z - h0) && W.regionAt(x - h0, z + h0) && W.regionAt(x + h0, z + h0)) continue;
-        const h = W.farHeight(x, z), nx = -(W.farHeight(x + F, z) - h) / F, nz = -(W.farHeight(x, z + F) - h) / F;
+        const h = H(i, j), nx = -(H(i + 1, j) - h) / F, nz = -(H(i, j + 1) - h) / F;
         tr.colorAt(x, z, F, h, Math.hypot(nx, nz), out);
         const shade = Math.max(0.35, Math.min(1.35, 0.92 + (nx * -0.6 + nz * -0.5) * 1.2));
         let r = Math.sqrt(out[0]) * shade, g = Math.sqrt(out[1]) * shade, b = Math.sqrt(out[2]) * shade;
@@ -128,7 +141,6 @@ export class HUD {
         const o = (j * S + i) * 4;
         img.data[o] = Math.min(255, r * 255); img.data[o + 1] = Math.min(255, g * 255); img.data[o + 2] = Math.min(255, b * 255); img.data[o + 3] = 255;
       }
-      if (performance.now() - t0 > 6) { await idle(6); t0 = performance.now(); }
     }
     c.getContext('2d').putImageData(img, 0, 0);
     const x = this.mapImage.getContext('2d'), k = F / (B.size / this.mapImage.width);

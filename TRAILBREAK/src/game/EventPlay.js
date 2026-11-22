@@ -8,6 +8,7 @@ import { modesFor, ZoneRun, HillRun, HOLD } from './Modes.js';
 import { customRace } from './Props.js';
 import { money } from './Career.js';
 import { escapeHtml } from '../ui/HUD.js';
+import { modePic } from './ModePics.js';
 
 const NEAR = 14;                   // m from a start line to start there with J
 const $ = (id) => document.getElementById(id);
@@ -467,12 +468,13 @@ export class EventPlay {
   // ---------------------------------------------------------------- the Events list (pause menu)
   /**
    * The Modes & races cards: free roam and the map builder, then the party modes, the checkpoint races and the events,
-   * each with its picture (assets/ui/modes/<map>-<id>.webp, rendered in the game), what it is, the par times, your best
+   * each with its picture (assets/ui/modes/<its map>-<id>.webp, taken in the game: game/ModePics.js), what it is, the par times, your best
    * and what gold pays. builderImg: a picture of this map for the builder's card.
    */
   listHtml(builderImg = '') {
     const g = this.g, friends = this.friendsHere(), mapId = g.world.map?.id || 'ashwood';
-    const pic = (name) => `<img src="assets/ui/modes/${mapId}-${name}.webp" alt="" loading="lazy" onerror="this.remove()">`;
+    // (e: an event, or 'free': game/ModePics.js)
+    const pic = (e) => `<img src="assets/ui/modes/${modePic(mapId, e)}.webp" alt="" loading="lazy" onerror="this.remove()">`;
     const ic = (name) => `<svg class="ic"><use href="#i-${name}"/></svg>`;
     const feat = (icon, text) => `<li>${ic(icon)}${text}</li>`;
     const card = (o) => `<article class="mode-card e-${o.edge}" data-sec="${o.sec}">
@@ -510,7 +512,7 @@ export class EventPlay {
       if (best) feats.push(feat('timer', `Your best ${fmt(best.time)}`));
       if (e.par) feats.push(feat('cash', `Gold pays ${money(runPrize(e, 'gold', null).medal)}`));
       return card({
-        sec: e.mode ? 'party' : race ? 'race' : 'event', edge, icon, title: escapeHtml(e.name), tag, image: pic(e.id), feats,
+        sec: e.mode ? 'party' : race ? 'race' : 'event', edge, icon, title: escapeHtml(e.name), tag, image: pic(e), feats,
         medal: medal ? `<em class="tag medal ${medal}">${MEDAL_NAME[medal]}</em>` : '',
         desc: escapeHtml(e.desc || ''),
         acts: `<button class="mc-btn b-${edge}" data-start="${e.id}">${ic('play')}${friends ? 'Start: friends join' : 'Start'}</button><button class="mc-link" data-go="${e.id}">${ic('arrow')}Go to the start</button>`,
